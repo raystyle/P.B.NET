@@ -19,7 +19,7 @@ type Client struct {
 
 type PROXY struct {
 	clients map[string]proxy.Client // key = tag
-	rwmutex sync.RWMutex
+	rwm     sync.RWMutex
 }
 
 // key = tag
@@ -41,8 +41,8 @@ func (this *PROXY) Get(tag string) (proxy.Client, error) {
 	if tag == "" || tag == "direct" {
 		return nil, nil
 	}
-	defer this.rwmutex.RUnlock()
-	this.rwmutex.RLock()
+	defer this.rwm.RUnlock()
+	this.rwm.RLock()
 	if p, exist := this.clients[tag]; exist {
 		return p, nil
 	} else {
@@ -52,8 +52,8 @@ func (this *PROXY) Get(tag string) (proxy.Client, error) {
 
 func (this *PROXY) Clients() map[string]proxy.Client {
 	clients := make(map[string]proxy.Client)
-	defer this.rwmutex.RUnlock()
-	this.rwmutex.RLock()
+	defer this.rwm.RUnlock()
+	this.rwm.RLock()
 	for tag, p := range this.clients {
 		clients[tag] = p
 	}
@@ -68,8 +68,8 @@ func (this *PROXY) Add(tag string, c *Client) error {
 	if err != nil {
 		return err
 	}
-	defer this.rwmutex.Unlock()
-	this.rwmutex.Lock()
+	defer this.rwm.Unlock()
+	this.rwm.Lock()
 	if _, exist := this.clients[tag]; !exist {
 		this.clients[tag] = client
 		return nil
@@ -82,8 +82,8 @@ func (this *PROXY) Delete(tag string) error {
 	if tag == "" || tag == "direct" {
 		return ERR_RESERVE_PROXY
 	}
-	defer this.rwmutex.Unlock()
-	this.rwmutex.Lock()
+	defer this.rwm.Unlock()
+	this.rwm.Lock()
 	if _, exist := this.clients[tag]; exist {
 		delete(this.clients, tag)
 		return nil
@@ -93,7 +93,7 @@ func (this *PROXY) Delete(tag string) error {
 }
 
 func (this *PROXY) Destroy() {
-	this.rwmutex.Lock()
+	this.rwm.Lock()
 	this.clients = make(map[string]proxy.Client)
-	this.rwmutex.Unlock()
+	this.rwm.Unlock()
 }

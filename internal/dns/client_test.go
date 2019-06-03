@@ -185,7 +185,7 @@ func Test_dial_tls(t *testing.T) {
 
 func Test_dial_https(t *testing.T) {
 	opt := &Options{
-		Timeout: time.Second * 10,
+		Timeout: time.Minute,
 	}
 	question := pack_question(IPV4, domain)
 	// get

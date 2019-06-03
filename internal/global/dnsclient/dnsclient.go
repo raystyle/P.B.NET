@@ -39,12 +39,12 @@ type Options struct {
 }
 
 type DNS struct {
-	proxy           *proxyclient.PROXY // ctx
-	deadline        time.Duration
-	clients         map[string]*Client // key = tag
-	clients_rwmutex sync.RWMutex
-	caches          map[string]*cache // key = domain name
-	caches_rwmutex  sync.RWMutex
+	proxy       *proxyclient.PROXY // ctx
+	deadline    time.Duration
+	clients     map[string]*Client // key = tag
+	clients_rwm sync.RWMutex
+	caches      map[string]*cache // key = domain name
+	caches_rwm  sync.RWMutex
 }
 
 func New(p *proxyclient.PROXY, c map[string]*Client, deadline time.Duration) (*DNS, error) {
@@ -89,11 +89,11 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 	case CUSTUM:
 		// copy map
 		clients := make(map[string]*Client)
-		this.clients_rwmutex.RLock()
+		this.clients_rwm.RLock()
 		for tag, client := range this.clients {
 			clients[tag] = client
 		}
-		this.clients_rwmutex.RUnlock()
+		this.clients_rwm.RUnlock()
 		// set dns options
 		if opts.H_Transport != nil {
 			opts.Opts.Transport, err = opts.H_Transport.Apply()
@@ -147,11 +147,11 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 
 func (this *DNS) Clients() map[string]*Client {
 	client_pool := make(map[string]*Client)
-	this.clients_rwmutex.RLock()
+	this.clients_rwm.RLock()
 	for tag, client := range this.clients {
 		client_pool[tag] = client
 	}
-	this.clients_rwmutex.RUnlock()
+	this.clients_rwm.RUnlock()
 	return client_pool
 }
 
@@ -161,8 +161,8 @@ func (this *DNS) Add(tag string, c *Client) error {
 	default:
 		return dns.ERR_UNKNOWN_METHOD
 	}
-	defer this.clients_rwmutex.Unlock()
-	this.clients_rwmutex.Lock()
+	defer this.clients_rwm.Unlock()
+	this.clients_rwm.Lock()
 	if _, exist := this.clients[tag]; !exist {
 		this.clients[tag] = c
 		return nil
@@ -172,8 +172,8 @@ func (this *DNS) Add(tag string, c *Client) error {
 }
 
 func (this *DNS) Delete(tag string) error {
-	defer this.clients_rwmutex.Unlock()
-	this.clients_rwmutex.Lock()
+	defer this.clients_rwm.Unlock()
+	this.clients_rwm.Lock()
 	if _, exist := this.clients[tag]; exist {
 		delete(this.clients, tag)
 		return nil
@@ -183,10 +183,10 @@ func (this *DNS) Delete(tag string) error {
 }
 
 func (this *DNS) Destroy() {
-	this.clients_rwmutex.Lock()
+	this.clients_rwm.Lock()
 	this.clients = make(map[string]*Client)
-	this.clients_rwmutex.Unlock()
-	this.caches_rwmutex.Lock()
+	this.clients_rwm.Unlock()
+	this.caches_rwm.Lock()
 	this.caches = make(map[string]*cache)
-	this.caches_rwmutex.Unlock()
+	this.caches_rwm.Unlock()
 }

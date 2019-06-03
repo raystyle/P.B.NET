@@ -49,16 +49,16 @@ type Client struct {
 }
 
 type TIMESYNC struct {
-	proxy           *proxyclient.PROXY // ctx
-	dns             *dnsclient.DNS     // ctx
-	logger          logger.Logger      // ctx
-	interval        time.Duration
-	clients         map[string]*Client // key = tag
-	clients_rwmutex sync.RWMutex
-	now             time.Time
-	rwmutex         sync.RWMutex
-	stop_signal     [stop_signal]chan struct{}
-	wg              sync.WaitGroup
+	proxy       *proxyclient.PROXY // ctx
+	dns         *dnsclient.DNS     // ctx
+	logger      logger.Logger      // ctx
+	interval    time.Duration
+	clients     map[string]*Client // key = tag
+	clients_rwm sync.RWMutex
+	now         time.Time
+	rwm         sync.RWMutex
+	stop_signal [stop_signal]chan struct{}
+	wg          sync.WaitGroup
 }
 
 func New(p *proxyclient.PROXY, d *dnsclient.DNS, l logger.Logger,
@@ -104,9 +104,9 @@ func (this *TIMESYNC) Start() {
 }
 
 func (this *TIMESYNC) Now() time.Time {
-	this.rwmutex.RLock()
+	this.rwm.RLock()
 	t := this.now
-	this.rwmutex.RUnlock()
+	this.rwm.RUnlock()
 	return t
 }
 
@@ -114,16 +114,16 @@ func (this *TIMESYNC) Set_Interval(interval time.Duration) error {
 	if interval < time.Minute || interval > time.Hour*1 {
 		return ERR_INVALID_INTERVAL
 	}
-	this.rwmutex.Lock()
+	this.rwm.Lock()
 	this.interval = interval
-	this.rwmutex.Unlock()
+	this.rwm.Unlock()
 	return nil
 }
 
 func (this *TIMESYNC) Clients() map[string]*Client {
 	client_pool := make(map[string]*Client)
-	defer this.clients_rwmutex.RUnlock()
-	this.clients_rwmutex.RLock()
+	defer this.clients_rwm.RUnlock()
+	this.clients_rwm.RLock()
 	for tag, client := range this.clients {
 		client_pool[tag] = client
 	}
@@ -131,8 +131,8 @@ func (this *TIMESYNC) Clients() map[string]*Client {
 }
 
 func (this *TIMESYNC) Add(tag string, client *Client) error {
-	defer this.clients_rwmutex.Unlock()
-	this.clients_rwmutex.Lock()
+	defer this.clients_rwm.Unlock()
+	this.clients_rwm.Lock()
 	if _, exist := this.clients[tag]; !exist {
 		this.clients[tag] = client
 		return nil
@@ -142,8 +142,8 @@ func (this *TIMESYNC) Add(tag string, client *Client) error {
 }
 
 func (this *TIMESYNC) Delete(tag string) error {
-	defer this.clients_rwmutex.Unlock()
-	this.clients_rwmutex.Lock()
+	defer this.clients_rwm.Unlock()
+	this.clients_rwm.Lock()
 	if _, exist := this.clients[tag]; exist {
 		delete(this.clients, tag)
 		return nil
@@ -158,9 +158,9 @@ func (this *TIMESYNC) Destroy() {
 		close(this.stop_signal[i])
 	}
 	this.wg.Wait()
-	this.clients_rwmutex.Lock()
+	this.clients_rwm.Lock()
 	this.clients = nil
-	this.clients_rwmutex.Unlock()
+	this.clients_rwm.Unlock()
 }
 
 func (this *TIMESYNC) logf(l logger.Level, format string, log ...interface{}) {
@@ -192,9 +192,9 @@ func (this *TIMESYNC) add() {
 			this.wg.Done()
 			return
 		case <-ticker.C:
-			this.rwmutex.Lock()
+			this.rwm.Lock()
 			this.now = this.now.Add(add_interval)
-			this.rwmutex.Unlock()
+			this.rwm.Unlock()
 		}
 	}
 }
@@ -213,9 +213,9 @@ func (this *TIMESYNC) sync_time_loop() {
 	}()
 	var interval time.Duration
 	for {
-		this.rwmutex.RLock()
+		this.rwm.RLock()
 		interval = this.interval
-		this.rwmutex.RUnlock()
+		this.rwm.RUnlock()
 		select {
 		case <-this.stop_signal[1]:
 			this.wg.Done()
@@ -234,11 +234,11 @@ func (this *TIMESYNC) sync_time_loop() {
 func (this *TIMESYNC) sync_time(failed bool) error {
 	// copy map
 	clients := make(map[string]*Client)
-	this.clients_rwmutex.RLock()
+	this.clients_rwm.RLock()
 	for tag, client := range this.clients {
 		clients[tag] = client
 	}
-	this.clients_rwmutex.RUnlock()
+	this.clients_rwm.RUnlock()
 	// query
 	for tag, client := range clients {
 		// get proxy
@@ -278,9 +278,9 @@ func (this *TIMESYNC) sync_time(failed bool) error {
 				this.logf(logger.WARNING, "client %s query http time failed: %s", tag, err)
 				continue
 			}
-			this.rwmutex.Lock()
+			this.rwm.Lock()
 			this.now = t
-			this.rwmutex.Unlock()
+			this.rwm.Unlock()
 			return nil
 		case NTP:
 			host, port, err := net.SplitHostPort(client.Address)
@@ -309,9 +309,9 @@ func (this *TIMESYNC) sync_time(failed bool) error {
 					this.logf(logger.WARNING, "client %s query ntp failed: %s", tag, err)
 					continue
 				}
-				this.rwmutex.Lock()
+				this.rwm.Lock()
 				this.now = response.Time
-				this.rwmutex.Unlock()
+				this.rwm.Unlock()
 				return nil
 			}
 		default:
@@ -319,9 +319,9 @@ func (this *TIMESYNC) sync_time(failed bool) error {
 		}
 	}
 	if failed {
-		this.rwmutex.Lock()
+		this.rwm.Lock()
 		this.now = time.Now()
-		this.rwmutex.Unlock()
+		this.rwm.Unlock()
 		return nil
 	}
 	return errors.New("sync time failed")

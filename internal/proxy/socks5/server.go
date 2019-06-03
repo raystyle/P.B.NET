@@ -26,12 +26,12 @@ type Server struct {
 	logger            logger.Logger
 	listener          net.Listener
 	conns             map[string]*conn // key = conn.addr
-	rwmutex           sync.RWMutex
+	rwm               sync.RWMutex
 	username          []byte
 	password          []byte
 	handshake_timeout time.Duration
 	addr              string
-	mutex             sync.Mutex
+	m                 sync.Mutex
 	stop_signal       chan struct{}
 	is_stopped        bool
 }
@@ -84,8 +84,8 @@ func (this *Server) Listen_And_Serve(address string, start_timeout time.Duration
 }
 
 func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
-	defer this.mutex.Unlock()
-	this.mutex.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	this.listener = l
 	this.addr = l.Addr().String()
 	// reference http.Server.Serve()
@@ -159,8 +159,8 @@ func (this *Server) serve(f func() error, start_timeout time.Duration) error {
 }
 
 func (this *Server) Stop() error {
-	defer this.mutex.Unlock()
-	this.mutex.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	this.is_stopped = true
 	this.stop_signal <- struct{}{}
 	err := this.listener.Close()
@@ -174,14 +174,14 @@ func (this *Server) Stop() error {
 }
 
 func (this *Server) Info() string {
-	defer this.mutex.Unlock()
-	this.mutex.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	return fmt.Sprintf("Listen: %s Auth: %s %s", this.addr, this.username, this.password)
 }
 
 func (this *Server) Addr() string {
-	defer this.mutex.Unlock()
-	this.mutex.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	return this.addr
 }
 
@@ -190,8 +190,8 @@ func (this *Server) log(level logger.Level, log ...interface{}) {
 }
 
 func (this *Server) new_conn(c net.Conn) *conn {
-	defer this.rwmutex.Unlock()
-	this.rwmutex.Lock()
+	defer this.rwm.Unlock()
+	this.rwm.Lock()
 	if !this.is_stopped {
 		conn := &conn{
 			server: this,
@@ -223,9 +223,9 @@ func (this *conn) serve() {
 			this.server.log(logger.ERROR, &serve_log{Log: fmt.Sprint("panic: ", rec), C: this.conn})
 		}
 		_ = this.conn.Close()
-		this.server.rwmutex.Lock()
+		this.server.rwm.Lock()
 		delete(this.server.conns, this.conn.RemoteAddr().String())
-		this.server.rwmutex.Unlock()
+		this.server.rwm.Unlock()
 	}()
 	// set handshake timeout
 	_ = this.conn.SetDeadline(time.Now().Add(this.server.handshake_timeout))

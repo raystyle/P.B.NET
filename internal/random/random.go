@@ -15,8 +15,8 @@ func init() {
 }
 
 type Generator struct {
-	seed  *rand.Rand
-	mutex sync.Mutex
+	seed *rand.Rand
+	m    sync.Mutex
 }
 
 func New() *Generator {
@@ -32,9 +32,9 @@ func (this *Generator) String(n int) string {
 	}
 	result := make([]rune, n)
 	for i := 0; i < n; i++ {
-		this.mutex.Lock()
+		this.m.Lock()
 		r := this.seed.Intn(90)
-		this.mutex.Unlock()
+		this.m.Unlock()
 		result[i] = rune(33 + r)
 	}
 	return string(result)
@@ -46,9 +46,9 @@ func (this *Generator) Bytes(n int) []byte {
 	}
 	result := make([]byte, n)
 	for i := 0; i < n; i++ {
-		this.mutex.Lock()
+		this.m.Lock()
 		r := this.seed.Intn(256)
-		this.mutex.Unlock()
+		this.m.Unlock()
 		result[i] = byte(r)
 	}
 	return result
@@ -61,10 +61,10 @@ func (this *Generator) Cookie(n int) string {
 	}
 	result := make([]rune, n)
 	for i := 0; i < n; i++ {
-		this.mutex.Lock()
+		this.m.Lock()
 		// after space
 		r := 33 + this.seed.Intn(90)
-		this.mutex.Unlock()
+		this.m.Unlock()
 		switch {
 		case r > 47 && r < 58: //  48-57 number
 		case r > 64 && r < 91: //  65-90 A-Z
@@ -82,23 +82,23 @@ func (this *Generator) Int(n int) int {
 	if n < 1 {
 		return 0
 	}
-	this.mutex.Lock()
+	this.m.Lock()
 	r := this.seed.Intn(n)
-	this.mutex.Unlock()
+	this.m.Unlock()
 	return r
 }
 
 func (this *Generator) Int64() int64 {
-	this.mutex.Lock()
+	this.m.Lock()
 	r := this.seed.Int63()
-	this.mutex.Unlock()
+	this.m.Unlock()
 	return r
 }
 
 func (this *Generator) Uint64() uint64 {
-	this.mutex.Lock()
+	this.m.Lock()
 	r := this.seed.Uint64()
-	this.mutex.Unlock()
+	this.m.Unlock()
 	return r
 }
 

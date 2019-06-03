@@ -36,7 +36,7 @@ type Server struct {
 	transport  *http.Transport // for client
 	addr       string
 	basic_auth []byte
-	mutex      sync.Mutex
+	m          sync.Mutex
 }
 
 func New_Server(tag string, l logger.Logger, opts *Options) (*Server, error) {
@@ -103,8 +103,8 @@ func (this *Server) Listen_And_Serve(address string, start_timeout time.Duration
 }
 
 func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
-	defer this.mutex.Unlock()
-	this.mutex.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	this.addr = l.Addr().String()
 	return this.serve(func() error { return this.server.Serve(l) }, start_timeout)
 }
@@ -142,8 +142,8 @@ func (this *Server) serve(f func() error, start_timeout time.Duration) error {
 
 //TODO close think more
 func (this *Server) Stop() error {
-	defer this.mutex.Unlock()
-	this.mutex.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	err := this.server.Close()
 	this.transport.CloseIdleConnections()
 	this.log(logger.INFO, "server stopped")
@@ -151,15 +151,15 @@ func (this *Server) Stop() error {
 }
 
 func (this *Server) Info() string {
-	defer this.mutex.Unlock()
-	this.mutex.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	auth, _ := base64.StdEncoding.DecodeString(string(this.basic_auth))
 	return fmt.Sprintf("Listen: %s Auth: %s", this.addr, auth)
 }
 
 func (this *Server) Addr() string {
-	defer this.mutex.Unlock()
-	this.mutex.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	return this.addr
 }
 
