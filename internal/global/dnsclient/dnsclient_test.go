@@ -64,9 +64,10 @@ func Test_DNS(t *testing.T) {
 		Mode:   proxy.HTTP,
 		Config: "http://admin:123456@localhost:0",
 	}
-	// make Proxy
+	// make PROXY
 	PROXY, err := proxyclient.New(p_clients)
 	require.Nil(t, err, err)
+	// make DNS
 	// create dns clients
 	clients := make(map[string]*Client)
 	add := func(tag string, method dns.Method, address string) {
@@ -87,7 +88,7 @@ func Test_DNS(t *testing.T) {
 	add("doh_mozilla", dns.DOH, "https://mozilla.cloudflare-dns.com/dns-query")
 	DNS, err := New(PROXY, clients, 0)
 	require.Nil(t, err, err)
-	// default options
+	// resolve with default options
 	ip_list, err := DNS.Resolve(domain, nil)
 	require.Nil(t, err, err)
 	t.Log("use default options", ip_list)
