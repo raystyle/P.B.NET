@@ -10,11 +10,11 @@ import (
 	"project/internal/options"
 )
 
-type Mode uint8
+type Mode string
 
 const (
-	CUSTUM Mode = iota
-	SYSTEM      // for intranet dns
+	CUSTUM Mode = "custom"
+	SYSTEM Mode = "system" // usually for intranet dns
 )
 
 const (
@@ -86,7 +86,7 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 		err     error
 	)
 	switch opts.Mode {
-	case CUSTUM:
+	case "", CUSTUM:
 		// copy map
 		clients := make(map[string]*Client)
 		this.clients_rwm.RLock()
@@ -157,7 +157,7 @@ func (this *DNS) Clients() map[string]*Client {
 
 func (this *DNS) Add(tag string, c *Client) error {
 	switch c.Method {
-	case dns.TLS, dns.UDP, dns.TCP, dns.DOH:
+	case "", dns.TLS, dns.UDP, dns.TCP, dns.DOH:
 	default:
 		return dns.ERR_UNKNOWN_METHOD
 	}

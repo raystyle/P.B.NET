@@ -19,11 +19,11 @@ import (
 	"project/internal/random"
 )
 
-type Mode uint8
+type Mode string
 
 const (
-	HTTP Mode = iota // get response header: Date
-	NTP
+	HTTP Mode = "http" // get response header: Date
+	NTP  Mode = "ntp"
 )
 
 const (

@@ -62,9 +62,9 @@ func Test_Resolve(t *testing.T) {
 	opt.Type = 10
 	_, err = Resolve(dns_address, domain, opt)
 	require.Equal(t, err, ERR_INVALID_TYPE, err)
-	// invalid protocol
+	// invalid method
 	opt.Type = IPV4
-	opt.Method = 100
+	opt.Method = "asdasd"
 	_, err = Resolve(dns_address, domain, opt)
 	require.Equal(t, err, ERR_UNKNOWN_METHOD, err)
 	// dial failed
@@ -121,7 +121,7 @@ func Test_dial_udp(t *testing.T) {
 		Timeout: time.Second * 1,
 		Dial:    net.Dial,
 	}
-	question := pack_question(IPV4, domain)
+	question := pack_question(1, domain)
 	b, err := dial_udp(dns_address, question, opt)
 	ip_list, err := resolve(IPV4, b)
 	require.Nil(t, err, err)
@@ -140,7 +140,7 @@ func Test_dial_tcp(t *testing.T) {
 		Timeout: time.Second * 2,
 		Dial:    net.Dial,
 	}
-	question := pack_question(IPV4, domain)
+	question := pack_question(1, domain)
 	b, err := dial_tcp(dns_address, question, opt)
 	require.Nil(t, err, err)
 	ip_list, err := resolve(IPV4, b)
@@ -157,7 +157,7 @@ func Test_dial_tls(t *testing.T) {
 		Timeout: time.Second * 2,
 		Dial:    net.Dial,
 	}
-	question := pack_question(IPV4, domain)
+	question := pack_question(1, domain)
 	b, err := dial_tls("dns.google:853|8.8.8.8", question, opt)
 	require.Nil(t, err, err)
 	ip_list, err := resolve(IPV4, b)
@@ -187,7 +187,7 @@ func Test_dial_https(t *testing.T) {
 	opt := &Options{
 		Timeout: time.Minute,
 	}
-	question := pack_question(IPV4, domain)
+	question := pack_question(1, domain)
 	// get
 	b, err := dial_https(dns_doh, question, opt)
 	require.Nil(t, err, err)
