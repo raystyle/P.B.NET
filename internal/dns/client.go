@@ -18,29 +18,35 @@ import (
 )
 
 const (
-	// tcp && tls
-	header_size = 2
-
+	// tcp && tls use
+	header_size     = 2
 	default_timeout = time.Minute // udp is 5 second
-	DEFAULT_TYPE    = IPV4
 )
 
 // query type
-type Type = uint16
+type Type string
 
 const (
-	IPV4 Type = 1  // A
-	IPV6 Type = 28 // AAAA
+	IPV4 Type = "ipv4"
+	IPV6 Type = "ipv6"
+)
+
+var (
+	query_type = map[Type]uint16{
+		"":   1,
+		IPV4: 1,  // A
+		IPV6: 28, // AAAA
+	}
 )
 
 // resolve method
-type Method uint8
+type Method string
 
 const (
-	TLS Method = iota
-	UDP
-	TCP
-	DOH //DNS-Over-HTTPS
+	TLS Method = "tls" // DNS-Over-TLS
+	UDP Method = "udp"
+	TCP Method = "tcp"
+	DOH Method = "doh" // DNS-Over-HTTPS
 )
 
 var (
@@ -57,11 +63,10 @@ type Options struct {
 	// default tls
 	Method Method
 	// "tcp" "tcp4" "tcp6"
-	// default tcp if use UDP Method
-	// must use "udp" "udp4" "udp6"
+	// default "tcp" if use UDP Method "udp"
 	// useless for dns_doh
 	Network string
-	// default IPv4
+	// default "ipv4"
 	Type Type
 	// default 60s
 	Timeout time.Duration
@@ -90,25 +95,22 @@ func Resolve(address, domain string, opts *Options) ([]string, error) {
 		return nil, ERR_INVALID_DOMAIN_NAME
 	}
 	// check type
-	_type := opts.Type
-	switch _type {
-	case 0:
-		_type = DEFAULT_TYPE
-	case IPV4:
-	case IPV6:
+	switch opts.Type {
+	case "", IPV4, IPV6:
 	default:
 		return nil, ERR_INVALID_TYPE
 	}
+	_type := query_type[opts.Type]
 	question := pack_question(_type, domain)
 	// send request
 	var answer []byte
 	switch opts.Method {
+	case "", TLS: // default
+		answer, err = dial_tls(address, question, opts)
 	case UDP:
 		answer, err = dial_udp(address, question, opts)
 	case TCP:
 		answer, err = dial_tcp(address, question, opts)
-	case TLS:
-		answer, err = dial_tls(address, question, opts)
 	case DOH:
 		answer, err = dial_https(address, question, opts)
 	default:
@@ -184,6 +186,83 @@ func Is_Domain(s string) bool {
 	return nonNumeric
 }
 
+func dial_tls(address string, question []byte, opts *Options) ([]byte, error) {
+	network := opts.Network
+	switch network {
+	case "": //default
+		network = "tcp"
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, ERR_UNKNOWN_NETWORK
+	}
+	dial := net.Dial
+	if opts.Dial != nil {
+		dial = opts.Dial
+	}
+	config := strings.Split(address, "|")
+	var (
+		conn *tls.Conn
+		err  error
+	)
+	host, port, err := net.SplitHostPort(config[0])
+	if err != nil {
+		return nil, err
+	}
+	switch len(config) {
+	case 1: // ip mode     8.8.8.8:853
+		c, err := dial(network, address)
+		if err != nil {
+			return nil, err
+		}
+		conn = tls.Client(c, &tls.Config{ServerName: host})
+	case 2: // domain mode dns.google:853|8.8.8.8,8.8.4.4
+		ip_list := strings.Split(config[1], ",")
+		for i := 0; i < len(ip_list); i++ {
+			c, err := dial(network, ip_list[i]+":"+port)
+			if err == nil {
+				conn = tls.Client(c, &tls.Config{ServerName: host})
+				break
+			}
+		}
+		if conn == nil {
+			return nil, ERR_NO_CONNECTION
+		}
+	default:
+		return nil, ERR_INVALID_TLS_CONFIG
+	}
+	defer func() { _ = conn.Close() }()
+	// set timeout
+	if opts.Timeout > 0 {
+		err = conn.SetDeadline(time.Now().Add(opts.Timeout))
+	} else {
+		err = conn.SetDeadline(time.Now().Add(default_timeout))
+	}
+	if err != nil {
+		return nil, err
+	}
+	// add size header
+	q := bytes.NewBuffer(convert.Uint16_Bytes(uint16(len(question))))
+	q.Write(question)
+	_, err = conn.Write(q.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	buffer := make([]byte, 512)
+	_, err = io.ReadAtLeast(conn, buffer[:header_size], header_size)
+	if err != nil {
+		return nil, err
+	}
+	l := int(convert.Bytes_Uint16(buffer[:header_size]))
+	if l > 512 {
+		buffer = make([]byte, l)
+	}
+	_, err = io.ReadAtLeast(conn, buffer[:l], l)
+	if err != nil {
+		return nil, err
+	}
+	return buffer[:l], nil
+}
+
 // if question > 512 use tcp tls doh
 func dial_udp(address string, question []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
@@ -238,83 +317,6 @@ func dial_tcp(address string, question []byte, opts *Options) ([]byte, error) {
 	conn, err := dial(network, address)
 	if err != nil {
 		return nil, err
-	}
-	defer func() { _ = conn.Close() }()
-	// set timeout
-	if opts.Timeout > 0 {
-		err = conn.SetDeadline(time.Now().Add(opts.Timeout))
-	} else {
-		err = conn.SetDeadline(time.Now().Add(default_timeout))
-	}
-	if err != nil {
-		return nil, err
-	}
-	// add size header
-	q := bytes.NewBuffer(convert.Uint16_Bytes(uint16(len(question))))
-	q.Write(question)
-	_, err = conn.Write(q.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	buffer := make([]byte, 512)
-	_, err = io.ReadAtLeast(conn, buffer[:header_size], header_size)
-	if err != nil {
-		return nil, err
-	}
-	l := int(convert.Bytes_Uint16(buffer[:header_size]))
-	if l > 512 {
-		buffer = make([]byte, l)
-	}
-	_, err = io.ReadAtLeast(conn, buffer[:l], l)
-	if err != nil {
-		return nil, err
-	}
-	return buffer[:l], nil
-}
-
-func dial_tls(address string, question []byte, opts *Options) ([]byte, error) {
-	network := opts.Network
-	switch network {
-	case "": //default
-		network = "tcp"
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, ERR_UNKNOWN_NETWORK
-	}
-	dial := net.Dial
-	if opts.Dial != nil {
-		dial = opts.Dial
-	}
-	config := strings.Split(address, "|")
-	var (
-		conn *tls.Conn
-		err  error
-	)
-	host, port, err := net.SplitHostPort(config[0])
-	if err != nil {
-		return nil, err
-	}
-	switch len(config) {
-	case 1: // ip mode     8.8.8.8:853
-		c, err := dial(network, address)
-		if err != nil {
-			return nil, err
-		}
-		conn = tls.Client(c, &tls.Config{ServerName: host})
-	case 2: // domain mode dns.google:853|8.8.8.8,8.8.4.4
-		ip_list := strings.Split(config[1], ",")
-		for i := 0; i < len(ip_list); i++ {
-			c, err := dial(network, ip_list[i]+":"+port)
-			if err == nil {
-				conn = tls.Client(c, &tls.Config{ServerName: host})
-				break
-			}
-		}
-		if conn == nil {
-			return nil, ERR_NO_CONNECTION
-		}
-	default:
-		return nil, ERR_INVALID_TLS_CONFIG
 	}
 	defer func() { _ = conn.Close() }()
 	// set timeout
