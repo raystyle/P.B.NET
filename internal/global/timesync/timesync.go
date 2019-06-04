@@ -35,10 +35,10 @@ const (
 )
 
 var (
-	ERR_NO_CLIENTS       = errors.New("no timesync client")
-	ERR_UNKNOWN_MODE     = errors.New("unknown client mode")
-	ERR_ALL_FAILED       = errors.New("time sync all failed")
-	ERR_INVALID_INTERVAL = errors.New("invalid time sync interval < 60s or > 1h")
+	ERR_NO_CLIENTS   = errors.New("no timesync client")
+	ERR_UNKNOWN_MODE = errors.New("unknown client mode")
+	ERR_ALL_FAILED   = errors.New("time sync all failed")
+	ERR_INTERVAL     = errors.New("interval < 60s or > 1h")
 )
 
 type Client struct {
@@ -48,8 +48,8 @@ type Client struct {
 	H_Request   options.HTTP_Request    // for httptime
 	H_Transport *options.HTTP_Transport // for httptime
 	H_Timeout   time.Duration           // for httptime
-	DNS_Opts    dnsclient.Options
-	Proxy       string // for NTP_Opts.Dial or H_Transport
+	DNS_Opts    dnsclient.Options       // useless for HTTP
+	Proxy       string                  // for NTP_Opts.Dial or H_Transport
 }
 
 type TIMESYNC struct {
@@ -134,7 +134,7 @@ func (this *TIMESYNC) Now() time.Time {
 
 func (this *TIMESYNC) Set_Interval(interval time.Duration) error {
 	if interval < time.Minute || interval > time.Hour*1 {
-		return ERR_INVALID_INTERVAL
+		return ERR_INTERVAL
 	}
 	this.rwm.Lock()
 	this.interval = interval
@@ -155,6 +155,7 @@ func (this *TIMESYNC) Clients() map[string]*Client {
 func (this *TIMESYNC) Add(tag string, c *Client) error {
 	switch c.Mode {
 	case HTTP:
+		// copy request and cover request
 		c_cp := *c
 		c_cp.H_Request.URL = c.Address
 		c = &c_cp
@@ -361,7 +362,6 @@ func (this *TIMESYNC) sync_ntp(tag string, c *Client, p proxy.Client) (bool, err
 			resp, err = ntp.Query("["+ip_list[i]+"]:"+port, c.NTP_Opts)
 		}
 		if err != nil {
-			this.logf(logger.WARNING, "client %s query ntp server failed: %s", tag, err)
 			continue
 		}
 		this.rwm.Lock()
@@ -369,5 +369,5 @@ func (this *TIMESYNC) sync_ntp(tag string, c *Client, p proxy.Client) (bool, err
 		this.rwm.Unlock()
 		return false, nil
 	}
-	return false, fmt.Errorf("client %s query ntp server all failed", tag)
+	return false, fmt.Errorf("client %s query ntp server failed", tag)
 }

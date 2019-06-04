@@ -90,13 +90,13 @@ func Test_TIMESYNC(t *testing.T) {
 	require.Nil(t, err, err)
 	// create timesync clients
 	clients := make(map[string]*Client)
-
-
-
-
+	clients["test_baidu"] = &Client{
+		Address: "https://www.baidu.com/",
+	}
 	TIMESYNC, err := New(PROXY, DNS, logger.Test, clients, 0)
 	require.Nil(t, err, err)
-	TIMESYNC.Start()
+	err = TIMESYNC.Start()
+	require.Nil(t, err, err)
 	time.Sleep(3 * time.Second)
 	t.Log("now:", TIMESYNC.Now())
 	for k, v := range TIMESYNC.Clients() {
