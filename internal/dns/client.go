@@ -71,10 +71,10 @@ type Options struct {
 	// default 60s
 	Timeout time.Duration
 	// for proxy useless for doh
-	Dial func(network, address string) (net.Conn, error) `msgpack:"-"`
+	Dial func(network, address string) (net.Conn, error) `toml:"-"`
 	// about DOH
 	Header    http.Header
-	Transport *http.Transport `msgpack:"-"`
+	Transport *http.Transport `toml:"-"`
 }
 
 // address = dns server(doh server) ip + port
