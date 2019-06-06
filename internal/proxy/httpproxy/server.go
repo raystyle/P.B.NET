@@ -14,6 +14,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/connection"
 	"project/internal/logger"
 	"project/internal/options"
 )
@@ -27,6 +28,7 @@ type Options struct {
 	Password  string
 	Server    *options.HTTP_Server
 	Transport *options.HTTP_Transport
+	Limit     int
 }
 
 type Server struct {
@@ -34,6 +36,7 @@ type Server struct {
 	logger     logger.Logger
 	server     *http.Server
 	transport  *http.Transport // for client
+	limit      int
 	addr       string
 	basic_auth []byte
 	m          sync.Mutex
@@ -49,6 +52,7 @@ func New_Server(tag string, l logger.Logger, opts *Options) (*Server, error) {
 	s := &Server{
 		tag:    tag,
 		logger: l,
+		limit:  options.DEFAULT_CONNECTION_LIMIT,
 	}
 	var err error
 	// http server
@@ -70,6 +74,9 @@ func New_Server(tag string, l logger.Logger, opts *Options) (*Server, error) {
 		}
 	} else {
 		s.transport, _ = new(options.HTTP_Transport).Apply()
+	}
+	if opts.Limit > 0 {
+		s.limit = opts.Limit
 	}
 	// basic authentication
 	if opts.Username != "" {
@@ -106,10 +113,11 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
 	this.addr = l.Addr().String()
-	return this.serve(func() error { return this.server.Serve(l) }, start_timeout)
+	limit_l := connection.Limit_Listener(l, this.limit)
+	return this.start(func() error { return this.server.Serve(limit_l) }, start_timeout)
 }
 
-func (this *Server) serve(f func() error, start_timeout time.Duration) error {
+func (this *Server) start(f func() error, start_timeout time.Duration) error {
 	if start_timeout < 1 {
 		start_timeout = options.DEFAULT_START_TIMEOUT
 	}
@@ -140,10 +148,7 @@ func (this *Server) serve(f func() error, start_timeout time.Duration) error {
 	}
 }
 
-//TODO close think more
 func (this *Server) Stop() error {
-	defer this.m.Unlock()
-	this.m.Lock()
 	err := this.server.Close()
 	this.transport.CloseIdleConnections()
 	this.log(logger.INFO, "server stopped")

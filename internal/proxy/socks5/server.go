@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/connection"
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/options"
@@ -19,21 +20,23 @@ type Options struct {
 	Username          string
 	Password          string
 	Handshake_Timeout time.Duration
+	Limit             int
 }
 
 type Server struct {
 	tag               string
 	logger            logger.Logger
 	listener          net.Listener
-	conns             map[string]*conn // key = conn.addr
-	rwm               sync.RWMutex
 	username          []byte
 	password          []byte
 	handshake_timeout time.Duration
+	limit             int
+	conns             map[string]*conn // key = conn.addr
+	rwm               sync.RWMutex     // lock conns
 	addr              string
+	is_stopped        bool
 	m                 sync.Mutex
 	stop_signal       chan struct{}
-	is_stopped        bool
 }
 
 func New_Server(tag string, l logger.Logger, opts *Options) (*Server, error) {
@@ -46,8 +49,9 @@ func New_Server(tag string, l logger.Logger, opts *Options) (*Server, error) {
 	s := &Server{
 		tag:               tag,
 		logger:            l,
-		conns:             make(map[string]*conn),
 		handshake_timeout: options.DEFAULT_HANDSHAKE_TIMEOUT,
+		limit:             options.DEFAULT_CONNECTION_LIMIT,
+		conns:             make(map[string]*conn),
 		stop_signal:       make(chan struct{}, 1),
 	}
 	if opts.Username != "" {
@@ -56,6 +60,9 @@ func New_Server(tag string, l logger.Logger, opts *Options) (*Server, error) {
 	}
 	if opts.Handshake_Timeout > 0 {
 		s.handshake_timeout = opts.Handshake_Timeout
+	}
+	if opts.Limit > 0 {
+		s.limit = opts.Limit
 	}
 	return s, nil
 }
@@ -86,8 +93,9 @@ func (this *Server) Listen_And_Serve(address string, start_timeout time.Duration
 func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
-	this.listener = l
 	this.addr = l.Addr().String()
+	l = connection.Limit_Listener(l, this.limit)
+	this.listener = l
 	// reference http.Server.Serve()
 	f := func() error {
 		var temp_delay time.Duration // how long to sleep on accept failure
@@ -124,10 +132,10 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 			}
 		}
 	}
-	return this.serve(f, start_timeout)
+	return this.start(f, start_timeout)
 }
 
-func (this *Server) serve(f func() error, start_timeout time.Duration) error {
+func (this *Server) start(f func() error, start_timeout time.Duration) error {
 	if start_timeout < 1 {
 		start_timeout = options.DEFAULT_START_TIMEOUT
 	}
@@ -164,7 +172,6 @@ func (this *Server) Stop() error {
 	this.is_stopped = true
 	this.stop_signal <- struct{}{}
 	err := this.listener.Close()
-	// kill all conns  TODO check
 	for k, v := range this.conns {
 		_ = v.conn.Close()
 		delete(this.conns, k)
@@ -190,14 +197,16 @@ func (this *Server) log(level logger.Level, log ...interface{}) {
 }
 
 func (this *Server) new_conn(c net.Conn) *conn {
-	defer this.rwm.Unlock()
-	this.rwm.Lock()
+	defer this.m.Unlock()
+	this.m.Lock()
 	if !this.is_stopped {
 		conn := &conn{
 			server: this,
 			conn:   c,
 		}
+		this.rwm.Lock()
 		this.conns[c.RemoteAddr().String()] = conn
+		this.rwm.Unlock()
 		return conn
 	}
 	return nil
