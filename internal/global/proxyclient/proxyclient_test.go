@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/proxy"
-	"project/internal/proxy/socks5"
 )
 
 const (
@@ -17,15 +16,22 @@ const (
 func Test_PROXY(t *testing.T) {
 	clients := make(map[string]*Client)
 	// create socks5 client config(s5c)
-	s5cc := &socks5.Config{
-		Network:  "tcp",
-		Address:  "localhost:0",
-		Username: "admin",
-		Password: "123456",
-	}
+	s5c := `
+        [[Clients]]
+          Address = "localhost:0"
+          Network = "tcp"
+          Password = "123456"
+          Username = "admin"
+        
+        [[Clients]]
+          Address = "localhost:0"
+          Network = "tcp"
+          Password = "123456"
+          Username = "admin"
+`
 	clients[proxy_socks5] = &Client{
 		Mode:   proxy.SOCKS5,
-		Config: []*socks5.Config{s5cc},
+		Config: s5c,
 	}
 	clients[proxy_http] = &Client{
 		Mode:   proxy.HTTP,
@@ -56,7 +62,7 @@ func Test_PROXY(t *testing.T) {
 	// add exist
 	err = PROXY.Add(proxy_socks5, &Client{
 		Mode:   proxy.SOCKS5,
-		Config: []*socks5.Config{s5cc}},
+		Config: s5c},
 	)
 	require.NotNil(t, err, err)
 	// delete
@@ -68,11 +74,10 @@ func Test_PROXY(t *testing.T) {
 	// delete doesn't exist
 	err = PROXY.Delete(proxy_http)
 	require.NotNil(t, err, err)
-	PROXY.Destroy()
 	// New failed == add failed
 	clients[proxy_socks5] = &Client{
 		Mode:   proxy.SOCKS5,
-		Config: s5cc}
+		Config: "invalid toml config"}
 	PROXY, err = New(clients)
 	require.NotNil(t, err)
 	require.Nil(t, PROXY)

@@ -72,12 +72,14 @@ func (this *PROXY) Add(tag string, c *Client) error {
 	}
 	switch c.Mode {
 	case proxy.SOCKS5:
-		var conf []*socks5.Config
-		err := toml.Unmarshal([]byte(c.Config), &conf)
+		conf := &struct {
+			Clients []*socks5.Config
+		}{}
+		err := toml.Unmarshal([]byte(c.Config), conf)
 		if err != nil {
 			return err
 		}
-		pc, err := socks5.New_Client(conf...)
+		pc, err := socks5.New_Client(conf.Clients...)
 		if err != nil {
 			return err
 		}
