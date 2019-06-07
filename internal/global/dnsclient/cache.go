@@ -47,7 +47,7 @@ func (this *DNS) query_cache(domain string, Type dns.Type) []string {
 	if c, exist := this.caches[domain]; exist {
 		this.caches_rwm.Unlock()
 		switch Type {
-		case 0, dns.IPV4:
+		case "", dns.IPV4:
 			c.rwm.RLock()
 			l := len(c.ipv4_list)
 			if l != 0 {

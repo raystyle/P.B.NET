@@ -108,7 +108,7 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 		}
 		if p != nil {
 			switch opts.Opts.Method {
-			case dns.TLS, dns.UDP, dns.TCP:
+			case "", dns.TLS, dns.UDP, dns.TCP:
 				opts.Opts.Dial = p.Dial
 			case dns.DOH:
 				if opts.Opts.Transport == nil {
@@ -120,8 +120,12 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 			}
 		}
 		// query dns
+		m := opts.Opts.Method
+		if m == "" {
+			m = dns.TLS
+		}
 		for _, client := range clients {
-			if client.Method == opts.Opts.Method {
+			if client.Method == m {
 				ip_list, err = dns.Resolve(client.Address, domain, &opts.Opts)
 				if err == nil {
 					break
@@ -133,9 +137,9 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 	default:
 		return nil, ERROR_INVALID_MODE
 	}
-	if err == nil {
+	if err == nil && ip_list != nil {
 		switch opts.Opts.Type {
-		case 0, dns.IPV4:
+		case "", dns.IPV4:
 			this.update_cache(domain, ip_list, nil)
 		case dns.IPV6:
 			this.update_cache(domain, nil, ip_list)
@@ -157,7 +161,9 @@ func (this *DNS) Clients() map[string]*Client {
 
 func (this *DNS) Add(tag string, c *Client) error {
 	switch c.Method {
-	case "", dns.TLS, dns.UDP, dns.TCP, dns.DOH:
+	case "":
+		c.Method = dns.TLS
+	case dns.TLS, dns.UDP, dns.TCP, dns.DOH:
 	default:
 		return dns.ERR_UNKNOWN_METHOD
 	}
@@ -180,13 +186,4 @@ func (this *DNS) Delete(tag string) error {
 	} else {
 		return errors.New("dns client: " + tag + " doesn't exist")
 	}
-}
-
-func (this *DNS) Destroy() {
-	this.clients_rwm.Lock()
-	this.clients = make(map[string]*Client)
-	this.clients_rwm.Unlock()
-	this.caches_rwm.Lock()
-	this.caches = make(map[string]*cache)
-	this.caches_rwm.Unlock()
 }

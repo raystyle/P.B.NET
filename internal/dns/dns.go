@@ -100,8 +100,7 @@ func Resolve(address, domain string, opts *Options) ([]string, error) {
 	default:
 		return nil, ERR_INVALID_TYPE
 	}
-	_type := query_type[opts.Type]
-	question := pack_question(_type, domain)
+	question := pack_question(query_type[opts.Type], domain)
 	// send request
 	var answer []byte
 	switch opts.Method {
@@ -119,7 +118,7 @@ func Resolve(address, domain string, opts *Options) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return resolve(_type, answer)
+	return resolve(opts.Type, answer)
 }
 
 func Is_IP(ip string) bool {
@@ -419,7 +418,7 @@ func resolve(t Type, answer []byte) (ip_list []string, err error) {
 	answers := queries_answers[1][4:]
 	offset := 0
 	switch t {
-	case IPV4:
+	case "", IPV4:
 		for i := 0; i < int(answer_rrs); i++ {
 			_type := answers[offset+2 : offset+4]
 			if !bytes.Equal(_type, []byte{0, 1}) { // only type A
