@@ -60,7 +60,7 @@ func New(size int, now func() time.Time) *Generator {
 	buffer.WriteString(ip)
 	buffer.WriteString(hostname)
 	buffer.WriteString(strconv.Itoa(os.Getpid()))
-	buffer.Write(random.New().Bytes(64)) // <safe>
+	buffer.Write(random.New().Bytes(64)) // <security>
 	g.head = sha256.Bytes(buffer.Bytes())
 	g.wg.Add(1)
 	go g.generate_loop()

@@ -93,6 +93,8 @@ func (this *PROXY) Add(tag string, c *Client) error {
 	default:
 		return ERR_UNKNOWN_MODE
 	}
+	// <security> set client config to ""
+	c.Config = ""
 	defer this.rwm.Unlock()
 	this.rwm.Lock()
 	if _, exist := this.clients[tag]; !exist {
