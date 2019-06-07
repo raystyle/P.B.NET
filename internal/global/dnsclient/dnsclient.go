@@ -2,6 +2,7 @@ package dnsclient
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -57,7 +58,7 @@ func New(p *proxyclient.PROXY, c map[string]*Client, deadline time.Duration) (*D
 	for tag, client := range c {
 		err := d.Add(tag, client)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("add dns client %s failed: %s", tag, err)
 		}
 	}
 	// set deadline

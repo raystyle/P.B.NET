@@ -49,17 +49,21 @@ func Test_TIMESYNC(t *testing.T) {
 	}()
 	// create proxy clients
 	p_clients := make(map[string]*proxyclient.Client)
-	// create socks5 client config(s5c)
-	s5cc := &socks5.Config{
-		Network:  "tcp",
-		Address:  "localhost:0",
-		Username: "admin",
-		Password: "123456",
-	}
 	p_clients[proxy_socks5] = &proxyclient.Client{
-		Mode:   proxy.SOCKS5,
-		Config: []*socks5.Config{s5cc},
-	}
+		Mode: proxy.SOCKS5,
+		Config: `
+        [[Clients]]
+          Address = "localhost:0"
+          Network = "tcp"
+          Password = "123456"
+          Username = "admin"
+        
+        [[Clients]]
+          Address = "localhost:0"
+          Network = "tcp"
+          Password = "123456"
+          Username = "admin"
+`}
 	p_clients[proxy_http] = &proxyclient.Client{
 		Mode:   proxy.HTTP,
 		Config: "http://admin:123456@localhost:0",
@@ -102,7 +106,7 @@ func Test_TIMESYNC(t *testing.T) {
 	for k, v := range TIMESYNC.Clients() {
 		t.Log("client:", k, v.Mode, v.Address)
 	}
-	TIMESYNC.Destroy()
+	TIMESYNC.Stop()
 }
 
 /*

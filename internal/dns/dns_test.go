@@ -59,7 +59,7 @@ func Test_Resolve(t *testing.T) {
 	_, err = Resolve(dns_address, "asdasdad-", opt)
 	require.Equal(t, err, ERR_INVALID_DOMAIN_NAME, err)
 	// invalid Type
-	opt.Type = 10
+	opt.Type = "10"
 	_, err = Resolve(dns_address, domain, opt)
 	require.Equal(t, err, ERR_INVALID_TYPE, err)
 	// invalid method
@@ -162,10 +162,13 @@ func Test_dial_tls(t *testing.T) {
 	require.Nil(t, err, err)
 	ip_list, err := resolve(IPV4, b)
 	require.Nil(t, err, err)
-	t.Log("TLS IPv4:", ip_list)
-	// invalid cert
-	_, err = dial_tls("8.8.8.8:853", question, opt)
-	require.NotNil(t, err)
+	t.Log("TLS domain IPv4:", ip_list)
+	// ip mode
+	b, err = dial_tls("1.1.1.1:853", question, opt)
+	require.Nil(t, err, err)
+	ip_list, err = resolve(IPV4, b)
+	require.Nil(t, err, err)
+	t.Log("TLS ip IPv4:", ip_list)
 	// no port(ip mode)
 	_, err = dial_tls("1.2.3.4", question, opt)
 	require.NotNil(t, err)

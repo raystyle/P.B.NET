@@ -49,7 +49,6 @@ func Test_DNS(t *testing.T) {
 	}()
 	// create proxy clients
 	p_clients := make(map[string]*proxyclient.Client)
-	// create socks5 client config(s5c)
 	p_clients[proxy_socks5] = &proxyclient.Client{
 		Mode: proxy.SOCKS5,
 		Config: `

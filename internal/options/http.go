@@ -2,6 +2,7 @@ package options
 
 import (
 	"bytes"
+	"encoding/hex"
 	"net"
 	"net/http"
 	"time"
@@ -15,12 +16,16 @@ const (
 type HTTP_Request struct {
 	Method string
 	URL    string
-	Post   []byte
+	Post   string // hex
 	Header http.Header
 }
 
 func (this *HTTP_Request) Apply() (*http.Request, error) {
-	r, err := http.NewRequest(this.Method, this.URL, bytes.NewReader(this.Post))
+	post, err := hex.DecodeString(this.Post)
+	if err != nil {
+		return nil, err
+	}
+	r, err := http.NewRequest(this.Method, this.URL, bytes.NewReader(post))
 	if err != nil {
 		return nil, err
 	}

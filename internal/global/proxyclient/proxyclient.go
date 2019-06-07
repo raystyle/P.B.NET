@@ -36,7 +36,7 @@ func New(c map[string]*Client) (*PROXY, error) {
 	for tag, client := range c {
 		err := p.Add(tag, client)
 		if err != nil {
-			return nil, fmt.Errorf("add proxy %s failed: %s", tag, err)
+			return nil, fmt.Errorf("add proxy client %s failed: %s", tag, err)
 		}
 	}
 	return p, nil

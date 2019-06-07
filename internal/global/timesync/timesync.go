@@ -15,7 +15,6 @@ import (
 	"project/internal/logger"
 	"project/internal/ntp"
 	"project/internal/options"
-	"project/internal/proxy"
 	"project/internal/random"
 )
 
@@ -78,7 +77,7 @@ func New(p *proxyclient.PROXY, d *dnsclient.DNS, l logger.Logger,
 	for tag, client := range c {
 		err := t.Add(tag, client)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("add timesync client %s failed: %s", tag, err)
 		}
 	}
 	// set time sync interval
@@ -125,6 +124,14 @@ S:
 	return nil
 }
 
+func (this *TIMESYNC) Stop() {
+	for i := 0; i < stop_signal; i++ {
+		this.stop_signal[i] <- struct{}{}
+		close(this.stop_signal[i])
+	}
+	this.wg.Wait()
+}
+
 func (this *TIMESYNC) Now() time.Time {
 	this.rwm.RLock()
 	t := this.now
@@ -154,8 +161,9 @@ func (this *TIMESYNC) Clients() map[string]*Client {
 
 func (this *TIMESYNC) Add(tag string, c *Client) error {
 	switch c.Mode {
-	case HTTP:
-		// copy request and cover request
+	case "", HTTP:
+		c.Mode = HTTP
+		// copy request and cover request.Address
 		c_cp := *c
 		c_cp.H_Request.URL = c.Address
 		c = &c_cp
@@ -182,17 +190,6 @@ func (this *TIMESYNC) Delete(tag string) error {
 	} else {
 		return errors.New("time sync client: " + tag + " doesn't exist")
 	}
-}
-
-func (this *TIMESYNC) Destroy() {
-	for i := 0; i < stop_signal; i++ {
-		this.stop_signal[i] <- struct{}{}
-		close(this.stop_signal[i])
-	}
-	this.wg.Wait()
-	this.clients_rwm.Lock()
-	this.clients = make(map[string]*Client)
-	this.clients_rwm.Unlock()
 }
 
 func (this *TIMESYNC) logf(l logger.Level, format string, log ...interface{}) {
@@ -302,7 +299,7 @@ func (this *TIMESYNC) sync(failed bool) error {
 	return ERR_ALL_FAILED
 }
 
-func (this *TIMESYNC) sync_httptime(tag string, c *Client, p proxy.Client) (bool, error) {
+func (this *TIMESYNC) sync_httptime(tag string, c *Client, p *proxyclient.Client) (bool, error) {
 	r, err := c.H_Request.Apply()
 	if err != nil {
 		return true, fmt.Errorf("client %s http Request apply failed: %s", tag, err)
@@ -339,7 +336,7 @@ func (this *TIMESYNC) sync_httptime(tag string, c *Client, p proxy.Client) (bool
 	return false, nil
 }
 
-func (this *TIMESYNC) sync_ntp(tag string, c *Client, p proxy.Client) (bool, error) {
+func (this *TIMESYNC) sync_ntp(tag string, c *Client, p *proxyclient.Client) (bool, error) {
 	host, port, err := net.SplitHostPort(c.Address)
 	if err != nil {
 		return true, fmt.Errorf("client %s address: %s", tag, err)
@@ -356,7 +353,7 @@ func (this *TIMESYNC) sync_ntp(tag string, c *Client, p proxy.Client) (bool, err
 	for i := 0; i < len(ip_list); i++ {
 		var resp *ntp.Response
 		switch c.DNS_Opts.Opts.Type {
-		case 0, dns.IPV4:
+		case "", dns.IPV4:
 			resp, err = ntp.Query(ip_list[i]+":"+port, c.NTP_Opts)
 		case dns.IPV6:
 			resp, err = ntp.Query("["+ip_list[i]+"]:"+port, c.NTP_Opts)
