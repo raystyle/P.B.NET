@@ -48,7 +48,7 @@ func Test_Resolve(t *testing.T) {
 	t.Log("UDP IPv4:", ip_list)
 	// doh
 	opt.Method = DOH
-	opt.Timeout = time.Second * 10
+	opt.Timeout = time.Minute
 	ip_list, err = Resolve(dns_doh, domain, opt)
 	require.Nil(t, err, err)
 	t.Log("DOH IPv4:", ip_list)

@@ -81,7 +81,7 @@ func test_socks5(t *testing.T, c *Client) {
 		}
 	}()
 	// dial failed
-	addr := "localhost:65536"
+	addr := "127.0.0.1:65536"
 	_, err := c.Dial_Timeout("tcp", addr, time.Second)
 	require.NotNil(t, err)
 	// test http
