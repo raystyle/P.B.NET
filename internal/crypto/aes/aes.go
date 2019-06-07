@@ -76,7 +76,11 @@ func (this *CBC_Cryptor) Decrypt(cipherdata []byte) ([]byte, error) {
 }
 
 func (this *CBC_Cryptor) Key_IV() ([]byte, []byte) {
-	return this.key, this.iv
+	key := make([]byte, len(this.key))
+	iv := make([]byte, IV_SIZE)
+	copy(key, this.key)
+	copy(iv, this.iv)
+	return key, iv
 }
 
 func CBC_Encrypt(plaindata, key, iv []byte) ([]byte, error) {

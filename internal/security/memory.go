@@ -13,6 +13,8 @@ var (
 
 func init() {
 	memory = New_Memory()
+	Padding_Memory()
+	Flush_Memory()
 }
 
 type Memory struct {
