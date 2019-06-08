@@ -90,7 +90,7 @@ func test_socks5(t *testing.T, c *Client) {
 	client := http.Client{
 		Transport: transport,
 	}
-	resp, err := client.Get("http://2019.ip138.com/ic.asp")
+	resp, err := client.Get("http://20019.ip138.com/ic.asp")
 	require.Nil(t, err, err)
 	defer func() {
 		_ = resp.Body.Close()

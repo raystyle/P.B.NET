@@ -32,7 +32,7 @@ func Test_Client(t *testing.T) {
 		_, err = ioutil.ReadAll(resp.Body)
 		require.Nil(t, err, err)
 	}
-	get("http://2019.ip138.com/ic.asp")
+	get("http://20019.ip138.com/ic.asp")
 	get("https://www.baidu.com/")
 	// test other
 	_, err = http_proxy.Dial("", "")
