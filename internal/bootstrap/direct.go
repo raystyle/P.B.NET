@@ -34,6 +34,7 @@ func (this *Direct) Marshal() ([]byte, error) {
 	nodes := &struct {
 		Nodes []*Node
 	}{}
+	nodes.Nodes = make([]*Node, len(this.nodes))
 	copy(nodes.Nodes, this.nodes)
 	return toml.Marshal(nodes)
 }
@@ -48,7 +49,7 @@ func (this *Direct) Unmarshal(data []byte) error {
 	if err != nil {
 		return err
 	}
-	b, err := msgpack.Marshal(nodes.Nodes)
+	b, err := msgpack.Marshal(&nodes.Nodes)
 	if err != nil {
 		return err
 	}

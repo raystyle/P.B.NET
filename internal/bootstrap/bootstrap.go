@@ -11,10 +11,8 @@ type Node struct {
 }
 
 type Bootstrap interface {
-	// for Controller
 	Generate([]*Node) (string, error)
 	Marshal() ([]byte, error)
-	// for Node Beacon
 	Unmarshal([]byte) error
 	Resolve() ([]*Node, error)
 }
