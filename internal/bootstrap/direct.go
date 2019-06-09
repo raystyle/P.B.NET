@@ -1,7 +1,7 @@
 package bootstrap
 
 import (
-	"sync"
+	"fmt"
 
 	"github.com/pelletier/go-toml"
 	"github.com/vmihailenco/msgpack"
@@ -15,7 +15,6 @@ type Direct struct {
 	nodes     []*Node
 	nodes_enc []byte
 	cryptor   *aes.CBC_Cryptor
-	rwmutex   sync.RWMutex
 }
 
 func New_Direct(n []*Node) *Direct {
@@ -29,8 +28,6 @@ func (this *Direct) Generate(_ []*Node) (string, error) {
 }
 
 func (this *Direct) Marshal() ([]byte, error) {
-	defer this.rwmutex.RUnlock()
-	this.rwmutex.RLock()
 	nodes := &struct {
 		Nodes []*Node
 	}{}
@@ -40,8 +37,6 @@ func (this *Direct) Marshal() ([]byte, error) {
 }
 
 func (this *Direct) Unmarshal(data []byte) error {
-	defer this.rwmutex.Unlock()
-	this.rwmutex.Lock()
 	nodes := &struct {
 		Nodes []*Node
 	}{}
@@ -49,30 +44,39 @@ func (this *Direct) Unmarshal(data []byte) error {
 	if err != nil {
 		return err
 	}
-	b, err := msgpack.Marshal(&nodes.Nodes)
-	if err != nil {
-		return err
-	}
 	memory := security.New_Memory()
 	defer memory.Flush()
 	rand := random.New()
-	this.cryptor, err = aes.New_CBC_Cryptor(rand.Bytes(32), rand.Bytes(aes.IV_SIZE))
+	memory.Padding()
+	key := rand.Bytes(32)
+	iv := rand.Bytes(aes.IV_SIZE)
+	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		return err
+		panic(fmt.Errorf("internal error: %s", err))
+	}
+	security.Flush_Bytes(key)
+	security.Flush_Bytes(iv)
+	b, err := msgpack.Marshal(&nodes.Nodes)
+	if err != nil {
+		panic(fmt.Errorf("internal error: %s", err))
 	}
 	memory.Padding()
 	this.nodes_enc, err = this.cryptor.Encrypt(b)
+	if err != nil {
+		panic(fmt.Errorf("internal error: %s", err))
+	}
 	security.Flush_Bytes(b)
-	return err
+	return nil
 }
 
 func (this *Direct) Resolve() ([]*Node, error) {
-	defer this.rwmutex.RUnlock()
-	this.rwmutex.RLock()
+	memory := security.New_Memory()
+	defer memory.Flush()
 	b, err := this.cryptor.Decrypt(this.nodes_enc)
 	if err != nil {
 		return nil, err
 	}
+	memory.Padding()
 	var nodes []*Node
 	err = msgpack.Unmarshal(b, &nodes)
 	if err != nil {

@@ -1,7 +1,6 @@
 package security
 
 import (
-	"runtime"
 	"sync"
 
 	"project/internal/random"
@@ -45,7 +44,6 @@ func (this *Memory) Flush() {
 	this.m.Lock()
 	this.padding = make(map[string][]byte)
 	this.m.Unlock()
-	runtime.GC()
 }
 
 func Padding_Memory() {
