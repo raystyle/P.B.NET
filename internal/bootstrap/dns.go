@@ -96,6 +96,8 @@ func (this *DNS) Resolve() ([]*Node, error) {
 		for i := 0; i < l; i++ {
 			nodes[i].Address = "[" + ip_list[i] + "]:" + this.L_Port
 		}
+	default:
+		panic(dns.ERR_INVALID_TYPE)
 	}
 	for i := 0; i < l; i++ { // <security>
 		ip_list[i] = ""

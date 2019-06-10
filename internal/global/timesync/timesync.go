@@ -336,6 +336,7 @@ func (this *TIMESYNC) sync_httptime(tag string, c *Client, p *proxyclient.Client
 	return false, nil
 }
 
+// return opt_err
 func (this *TIMESYNC) sync_ntp(tag string, c *Client, p *proxyclient.Client) (bool, error) {
 	host, port, err := net.SplitHostPort(c.Address)
 	if err != nil {
@@ -350,21 +351,31 @@ func (this *TIMESYNC) sync_ntp(tag string, c *Client, p *proxyclient.Client) (bo
 	if p != nil {
 		c.NTP_Opts.Dial = p.Dial
 	}
-	for i := 0; i < len(ip_list); i++ {
-		var resp *ntp.Response
-		switch c.DNS_Opts.Opts.Type {
-		case "", dns.IPV4:
-			resp, err = ntp.Query(ip_list[i]+":"+port, c.NTP_Opts)
-		case dns.IPV6:
-			resp, err = ntp.Query("["+ip_list[i]+"]:"+port, c.NTP_Opts)
+	switch c.DNS_Opts.Opts.Type {
+	case "", dns.IPV4:
+		for i := 0; i < len(ip_list); i++ {
+			resp, err := ntp.Query(ip_list[i]+":"+port, c.NTP_Opts)
+			if err != nil {
+				continue
+			}
+			this.rwm.Lock()
+			this.now = resp.Time
+			this.rwm.Unlock()
+			return false, nil
 		}
-		if err != nil {
-			continue
+	case dns.IPV6:
+		for i := 0; i < len(ip_list); i++ {
+			resp, err := ntp.Query("["+ip_list[i]+"]:"+port, c.NTP_Opts)
+			if err != nil {
+				continue
+			}
+			this.rwm.Lock()
+			this.now = resp.Time
+			this.rwm.Unlock()
+			return false, nil
 		}
-		this.rwm.Lock()
-		this.now = resp.Time
-		this.rwm.Unlock()
-		return false, nil
+	default:
+		panic(dns.ERR_INVALID_TYPE)
 	}
 	return false, fmt.Errorf("client %s query ntp server failed", tag)
 }
