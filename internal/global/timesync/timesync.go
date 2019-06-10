@@ -379,7 +379,7 @@ func (this *TIMESYNC) sync_ntp(tag string, c *Client) (opt_err bool, err error) 
 			return false, nil
 		}
 	default:
-		panic(dns.ERR_INVALID_TYPE)
+		panic(fmt.Errorf("timesync internal error: %s", dns.ERR_INVALID_TYPE))
 	}
 	return false, fmt.Errorf("client %s query ntp server failed", tag)
 }

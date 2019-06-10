@@ -52,14 +52,14 @@ func (this *DNS) Unmarshal(data []byte) error {
 	iv := rand.Bytes(aes.IV_SIZE)
 	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		panic(fmt.Errorf("internal error: %s", err))
+		panic(fmt.Errorf("bootstrap dns internal error: %s", err))
 	}
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	memory.Padding()
 	this.domain_enc, err = this.cryptor.Encrypt([]byte(this.Domain))
 	if err != nil {
-		panic(fmt.Errorf("internal error: %s", err))
+		panic(fmt.Errorf("bootstrap dns internal error: %s", err))
 	}
 	this.Domain = "" // <security>
 	return nil
@@ -97,7 +97,7 @@ func (this *DNS) Resolve() ([]*Node, error) {
 			nodes[i].Address = "[" + ip_list[i] + "]:" + this.L_Port
 		}
 	default:
-		panic(dns.ERR_INVALID_TYPE)
+		panic(fmt.Errorf("bootstrap dns internal error: %s", dns.ERR_INVALID_TYPE))
 	}
 	for i := 0; i < l; i++ { // <security>
 		ip_list[i] = ""
