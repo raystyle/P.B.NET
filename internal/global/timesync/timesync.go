@@ -192,27 +192,12 @@ func (this *TIMESYNC) Delete(tag string) error {
 	}
 }
 
-func (this *TIMESYNC) logf(l logger.Level, format string, log ...interface{}) {
-	this.logger.Printf(l, "timesync", format, log...)
-}
-
 func (this *TIMESYNC) log(l logger.Level, log ...interface{}) {
 	this.logger.Println(l, "timesync", log...)
 }
 
 // self walk
 func (this *TIMESYNC) add() {
-	defer func() {
-		if r := recover(); r != nil {
-			switch v := r.(type) {
-			case error:
-				this.log(logger.ERROR, "add() panic:", v)
-			default:
-				this.log(logger.ERROR, "add() panic: unknown panic")
-			}
-			go this.add()
-		}
-	}()
 	ticker := time.NewTicker(add_interval)
 	for {
 		select {
@@ -229,17 +214,6 @@ func (this *TIMESYNC) add() {
 }
 
 func (this *TIMESYNC) sync_loop() {
-	defer func() {
-		if r := recover(); r != nil {
-			switch v := r.(type) {
-			case error:
-				this.log(logger.ERROR, "sync_loop() panic:", v)
-			default:
-				this.log(logger.ERROR, "sync_loop() panic: unknown panic")
-			}
-			go this.sync_loop()
-		}
-	}()
 	var interval time.Duration
 	for {
 		this.rwm.RLock()
@@ -261,6 +235,16 @@ func (this *TIMESYNC) sync_loop() {
 // if failed == true when sync time all failed
 // set this.now = time.Now()
 func (this *TIMESYNC) sync(failed bool) error {
+	defer func() {
+		if r := recover(); r != nil {
+			switch v := r.(type) {
+			case error:
+				this.log(logger.FATAL, "sync() panic:", v)
+			default:
+				this.log(logger.FATAL, "sync() panic: unknown panic")
+			}
+		}
+	}()
 	// copy map
 	clients := make(map[string]*Client)
 	this.clients_rwm.RLock()
@@ -270,24 +254,24 @@ func (this *TIMESYNC) sync(failed bool) error {
 	this.clients_rwm.RUnlock()
 	// query
 	for tag, client := range clients {
-		// get proxy
-		p, err := this.proxy.Get(client.Proxy)
-		if err != nil {
-			return fmt.Errorf("client %s proxy: %s", tag, err)
-		}
-		var opts_err bool
+		var (
+			opts_err bool
+			err      error
+		)
 		switch client.Mode {
 		case HTTP:
-			opts_err, err = this.sync_httptime(tag, client, p)
+			opts_err, err = this.sync_httptime(tag, client)
 		case NTP:
-			opts_err, err = this.sync_ntp(tag, client, p)
+			opts_err, err = this.sync_ntp(tag, client)
 		default:
 			return fmt.Errorf("client %s invalid client mode", tag)
 		}
-		if opts_err {
+		if opts_err { // for check
 			return err
 		}
-		if err == nil {
+		if err != nil {
+			this.log(logger.WARNING, err)
+		} else {
 			return nil
 		}
 	}
@@ -299,10 +283,12 @@ func (this *TIMESYNC) sync(failed bool) error {
 	return ERR_ALL_FAILED
 }
 
-func (this *TIMESYNC) sync_httptime(tag string, c *Client, p *proxyclient.Client) (bool, error) {
+func (this *TIMESYNC) sync_httptime(tag string, c *Client) (opt_err bool, err error) {
 	r, err := c.H_Request.Apply()
 	if err != nil {
-		return true, fmt.Errorf("client %s http Request apply failed: %s", tag, err)
+		opt_err = true
+		err = fmt.Errorf("client %s http Request apply failed: %s", tag, err)
+		return
 	}
 	hc := &http.Client{
 		Timeout: options.DEFAULT_DIAL_TIMEOUT,
@@ -314,20 +300,28 @@ func (this *TIMESYNC) sync_httptime(tag string, c *Client, p *proxyclient.Client
 	if c.H_Transport != nil {
 		tr, err = c.H_Transport.Apply()
 		if err != nil {
-			return true, fmt.Errorf("client %s http Transport apply failed: %s", tag, err)
+			opt_err = true
+			err = fmt.Errorf("client %s http Transport apply failed: %s", tag, err)
+			return
 		}
 	} else {
 		tr, _ = new(options.HTTP_Transport).Apply()
 	}
 	// don't set dns resolve
 	// set proxy
+	p, err := this.proxy.Get(c.Proxy)
+	if err != nil {
+		opt_err = true
+		err = fmt.Errorf("client %s proxy: %s", tag, err)
+		return
+	}
 	if p != nil {
 		p.HTTP(tr)
 	}
 	hc.Transport = tr
 	t, err := httptime.Query(r, hc)
 	if err != nil {
-		this.logf(logger.WARNING, "client %s query http time failed: %s", tag, err)
+		err = fmt.Errorf("client %s query http time failed: %s", tag, err)
 		return false, err
 	}
 	this.rwm.Lock()
@@ -337,19 +331,29 @@ func (this *TIMESYNC) sync_httptime(tag string, c *Client, p *proxyclient.Client
 }
 
 // return opt_err
-func (this *TIMESYNC) sync_ntp(tag string, c *Client, p *proxyclient.Client) (bool, error) {
+func (this *TIMESYNC) sync_ntp(tag string, c *Client) (opt_err bool, err error) {
 	host, port, err := net.SplitHostPort(c.Address)
 	if err != nil {
-		return true, fmt.Errorf("client %s address: %s", tag, err)
+		opt_err = true
+		err = fmt.Errorf("client %s address: %s", tag, err)
+		return
+	}
+	// set proxy
+	p, err := this.proxy.Get(c.Proxy)
+	if err != nil {
+		opt_err = true
+		err = fmt.Errorf("client %s proxy: %s", tag, err)
+		return
+	}
+	if p != nil {
+		c.NTP_Opts.Dial = p.Dial
 	}
 	// resolve dns
 	ip_list, err := this.dns.Resolve(host, &c.DNS_Opts)
 	if err != nil {
-		return true, fmt.Errorf("client %s resolve dns failed: %s", tag, err)
-	}
-	// set proxy
-	if p != nil {
-		c.NTP_Opts.Dial = p.Dial
+		opt_err = true
+		err = fmt.Errorf("client %s resolve dns failed: %s", tag, err)
+		return
 	}
 	switch c.DNS_Opts.Opts.Type {
 	case "", dns.IPV4:
