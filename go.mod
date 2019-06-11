@@ -6,7 +6,9 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/kardianos/service v1.0.0
-	github.com/pelletier/go-toml v1.4.0
+	github.com/naoina/go-stringutil v0.1.0 // indirect
+	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416
+	github.com/pelletier/go-toml v1.4.1-0.20190530035549-dba45d427ff4
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.3.0
 	github.com/vmihailenco/msgpack v4.0.4+incompatible

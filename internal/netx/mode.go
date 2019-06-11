@@ -17,7 +17,7 @@ var (
 	ERR_UNKNOWN_MODE            = errors.New("unknown mode")
 )
 
-func Check_Mode_Network(mode Mode, network string) error {
+func Inspect_Mode_Network(mode Mode, network string) error {
 	if mode == "" {
 		return ERR_EMPTY_MODE
 	}

@@ -4,7 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/pelletier/go-toml"
+	//"github.com/pelletier/go-toml"
+	"github.com/naoina/toml"
 
 	"project/internal/crypto/aes"
 	"project/internal/dns"
@@ -49,11 +50,11 @@ func (this *DNS) validate() error {
 	if this.Domain == "" {
 		return ERR_EMPTY_DOMAIN
 	}
-	err := netx.Check_Mode_Network(this.L_Mode, this.L_Network)
+	err := netx.Inspect_Mode_Network(this.L_Mode, this.L_Network)
 	if err != nil {
 		return err
 	}
-	err = netx.Check_Port_string(this.L_Port)
+	err = netx.Inspect_Port_string(this.L_Port)
 	if err != nil {
 		return err
 	}

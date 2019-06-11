@@ -266,7 +266,7 @@ func (this *TIMESYNC) sync(failed bool) error {
 		default:
 			return fmt.Errorf("client %s invalid client mode", tag)
 		}
-		if opts_err { // for check
+		if opts_err {
 			return err
 		}
 		if err != nil {

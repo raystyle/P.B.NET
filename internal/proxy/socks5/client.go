@@ -302,7 +302,6 @@ func (this *dialer) connect(conn net.Conn, network, address string) error {
 	return err
 }
 
-// check port
 func split_host_port(address string) (string, int, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
@@ -312,7 +311,7 @@ func split_host_port(address string) (string, int, error) {
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	err = netx.Check_Port_int(portnum)
+	err = netx.Inspect_Port_int(portnum)
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
