@@ -9,12 +9,17 @@ import (
 
 	"project/internal/dns"
 	"project/internal/global/dnsclient"
+	"project/internal/netx"
 )
 
 const test_domain string = "www.baidu.com"
 
 func Test_DNS(t *testing.T) {
 	DNS := New_DNS(&mock_resolver{})
+	DNS.Domain = test_domain
+	DNS.L_Mode = netx.TLS
+	DNS.L_Network = "tcp"
+	DNS.L_Port = "443"
 	_, _ = DNS.Generate(nil)
 	b, err := DNS.Marshal()
 	require.Nil(t, err, err)
@@ -22,15 +27,16 @@ func Test_DNS(t *testing.T) {
 	require.Nil(t, err, err)
 	nodes, _ := DNS.Resolve()
 	spew.Dump(nodes)
-
 }
 
-type mock_resolver struct {
-}
+type mock_resolver struct{}
 
 func (this *mock_resolver) Resolve(domain string, opts *dnsclient.Options) ([]string, error) {
-	if domain != test_domain {
+	if domain != "www.baidu.com" {
 		return nil, errors.New("domain changed")
+	}
+	if opts == nil {
+		opts = new(dnsclient.Options)
 	}
 	switch opts.Opts.Type {
 	case "", dns.IPV4:

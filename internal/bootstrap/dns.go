@@ -14,6 +14,10 @@ import (
 	"project/internal/security"
 )
 
+var (
+	ERR_EMPTY_DOMAIN = errors.New("domain is empty")
+)
+
 type dns_panic struct {
 	Err error
 }
@@ -43,7 +47,7 @@ func New_DNS(d dns_resolver) *DNS {
 
 func (this *DNS) validate() error {
 	if this.Domain == "" {
-		return errors.New("domain is empty")
+		return ERR_EMPTY_DOMAIN
 	}
 	err := netx.Check_Mode_Network(this.L_Mode, this.L_Network)
 	if err != nil {
