@@ -32,7 +32,7 @@ type Client struct {
 }
 
 type Options struct {
-	Mode  Mode
+	Mode  Mode // default is custom
 	Proxy string
 	Opts  dns.Options
 	// for dns.Options.Transport

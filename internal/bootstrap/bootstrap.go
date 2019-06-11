@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"project/internal/global/dnsclient"
+	"project/internal/global/proxyclient"
 	"project/internal/netx"
 )
 
@@ -20,4 +21,8 @@ type Bootstrap interface {
 
 type dns_resolver interface {
 	Resolve(domain string, opts *dnsclient.Options) ([]string, error)
+}
+
+type proxy_pool interface {
+	Get(tag string) (*proxyclient.Client, error)
 }

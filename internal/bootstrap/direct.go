@@ -90,5 +90,6 @@ func (this *Direct) Resolve() ([]*Node, error) {
 	if err != nil {
 		panic(&direct_panic{Err: err})
 	}
+	security.Flush_Bytes(b)
 	return nodes, nil
 }

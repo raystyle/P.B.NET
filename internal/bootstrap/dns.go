@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	//"github.com/pelletier/go-toml"
-	"github.com/naoina/toml"
+	"github.com/pelletier/go-toml"
+	"github.com/vmihailenco/msgpack"
 
 	"project/internal/crypto/aes"
 	"project/internal/dns"
@@ -34,9 +34,9 @@ type DNS struct {
 	L_Port    string            `toml:"l_port"`
 	Options   dnsclient.Options `toml:"dnsclient"`
 	// runtime
-	resolver   dns_resolver
-	domain_enc []byte
-	cryptor    *aes.CBC_Cryptor
+	resolver dns_resolver
+	opts_enc []byte // all options
+	cryptor  *aes.CBC_Cryptor
 }
 
 // input ctx for resolve
@@ -74,11 +74,12 @@ func (this *DNS) Marshal() ([]byte, error) {
 }
 
 func (this *DNS) Unmarshal(data []byte) error {
-	err := toml.Unmarshal(data, this)
+	d := &DNS{}
+	err := toml.Unmarshal(data, d)
 	if err != nil {
 		return err
 	}
-	err = this.validate()
+	err = d.validate()
 	if err != nil {
 		return err
 	}
@@ -94,37 +95,48 @@ func (this *DNS) Unmarshal(data []byte) error {
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	memory.Padding()
-	this.domain_enc, err = this.cryptor.Encrypt([]byte(this.Domain))
+	b, err := msgpack.Marshal(d)
 	if err != nil {
 		panic(&dns_panic{Err: err})
 	}
-	this.Domain = "" // <security>
+	d.Domain = ""
+	d = nil
+	memory.Padding()
+	this.opts_enc, err = this.cryptor.Encrypt(b)
+	if err != nil {
+		panic(&dns_panic{Err: err})
+	}
+	security.Flush_Bytes(b)
 	return nil
 }
 
 func (this *DNS) Resolve() ([]*Node, error) {
 	memory := security.New_Memory()
 	defer memory.Flush()
-	b, err := this.cryptor.Decrypt(this.domain_enc)
+	b, err := this.cryptor.Decrypt(this.opts_enc)
+	if err != nil {
+		panic(&dns_panic{Err: err})
+	}
+	d := &DNS{}
+	err = msgpack.Unmarshal(b, d)
 	if err != nil {
 		panic(&dns_panic{Err: err})
 	}
 	memory.Padding()
-	domain := string(b)
-	ip_list, err := this.resolver.Resolve(domain, &this.Options)
+	ip_list, err := this.resolver.Resolve(d.Domain, &d.Options)
 	if err != nil {
 		return nil, err
 	}
-	domain = "" // <security>
+	d.Domain = "" // <security>
 	l := len(ip_list)
 	nodes := make([]*Node, l)
 	for i := 0; i < l; i++ {
 		nodes[i] = &Node{
-			Mode:    this.L_Mode,
-			Network: this.L_Network,
+			Mode:    d.L_Mode,
+			Network: d.L_Network,
 		}
 	}
-	switch this.Options.Opts.Type {
+	switch d.Options.Opts.Type {
 	case "", dns.IPV4:
 		for i := 0; i < l; i++ {
 			nodes[i].Address = ip_list[i] + ":" + this.L_Port
@@ -136,6 +148,7 @@ func (this *DNS) Resolve() ([]*Node, error) {
 	default:
 		panic(&dns_panic{Err: dns.ERR_INVALID_TYPE})
 	}
+	d = nil
 	for i := 0; i < l; i++ { // <security>
 		ip_list[i] = ""
 	}
