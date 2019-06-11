@@ -13,6 +13,14 @@ import (
 	"project/internal/security"
 )
 
+type dns_panic struct {
+	Err error
+}
+
+func (this *dns_panic) Error() string {
+	return fmt.Sprintf("bootstrap direct internal error: %s", this.Err)
+}
+
 type DNS struct {
 	Domain    string            `toml:"domain"`
 	L_Mode    connection.Mode   `toml:"l_mode"`
@@ -20,13 +28,13 @@ type DNS struct {
 	L_Port    string            `toml:"l_port"`
 	Options   dnsclient.Options `toml:"dnsclient"`
 	// runtime
-	resolver   *dnsclient.DNS
+	resolver   dns_resolver
 	domain_enc []byte
 	cryptor    *aes.CBC_Cryptor
 }
 
 // input ctx for resolve
-func New_DNS(d *dnsclient.DNS) *DNS {
+func New_DNS(d dns_resolver) *DNS {
 	return &DNS{
 		resolver: d,
 	}
@@ -52,14 +60,14 @@ func (this *DNS) Unmarshal(data []byte) error {
 	iv := rand.Bytes(aes.IV_SIZE)
 	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		panic(fmt.Errorf("bootstrap dns internal error: %s", err))
+		panic(&dns_panic{Err: err})
 	}
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	memory.Padding()
 	this.domain_enc, err = this.cryptor.Encrypt([]byte(this.Domain))
 	if err != nil {
-		panic(fmt.Errorf("bootstrap dns internal error: %s", err))
+		panic(&dns_panic{Err: err})
 	}
 	this.Domain = "" // <security>
 	return nil
@@ -70,7 +78,7 @@ func (this *DNS) Resolve() ([]*Node, error) {
 	defer memory.Flush()
 	b, err := this.cryptor.Decrypt(this.domain_enc)
 	if err != nil {
-		return nil, err
+		panic(&dns_panic{Err: err})
 	}
 	memory.Padding()
 	domain := string(b)
@@ -97,7 +105,7 @@ func (this *DNS) Resolve() ([]*Node, error) {
 			nodes[i].Address = "[" + ip_list[i] + "]:" + this.L_Port
 		}
 	default:
-		panic(fmt.Errorf("bootstrap dns internal error: %s", dns.ERR_INVALID_TYPE))
+		panic(&dns_panic{Err: dns.ERR_INVALID_TYPE})
 	}
 	for i := 0; i < l; i++ { // <security>
 		ip_list[i] = ""

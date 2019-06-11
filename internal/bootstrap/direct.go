@@ -11,6 +11,14 @@ import (
 	"project/internal/security"
 )
 
+type direct_panic struct {
+	Err error
+}
+
+func (this *direct_panic) Error() string {
+	return fmt.Sprintf("bootstrap direct internal error: %s", this.Err)
+}
+
 type Direct struct {
 	nodes     []*Node
 	nodes_enc []byte
@@ -52,18 +60,18 @@ func (this *Direct) Unmarshal(data []byte) error {
 	iv := rand.Bytes(aes.IV_SIZE)
 	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		panic(fmt.Errorf("internal error: %s", err))
+		panic(&direct_panic{Err: err})
 	}
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	b, err := msgpack.Marshal(&nodes.Nodes)
 	if err != nil {
-		panic(fmt.Errorf("internal error: %s", err))
+		panic(&direct_panic{Err: err})
 	}
 	memory.Padding()
 	this.nodes_enc, err = this.cryptor.Encrypt(b)
 	if err != nil {
-		panic(fmt.Errorf("internal error: %s", err))
+		panic(&direct_panic{Err: err})
 	}
 	security.Flush_Bytes(b)
 	return nil
@@ -74,13 +82,13 @@ func (this *Direct) Resolve() ([]*Node, error) {
 	defer memory.Flush()
 	b, err := this.cryptor.Decrypt(this.nodes_enc)
 	if err != nil {
-		return nil, err
+		panic(&direct_panic{Err: err})
 	}
 	memory.Padding()
 	var nodes []*Node
 	err = msgpack.Unmarshal(b, &nodes)
 	if err != nil {
-		return nil, err
+		panic(&direct_panic{Err: err})
 	}
 	return nodes, nil
 }

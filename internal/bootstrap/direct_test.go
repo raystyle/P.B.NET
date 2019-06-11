@@ -7,7 +7,7 @@ import (
 )
 
 func Test_Direct(t *testing.T) {
-	nodes := test_generate_bootstrap_node()
+	nodes := test_generate_bootstrap_nodes()
 	direct := New_Direct(nodes)
 	_, _ = direct.Generate(nil)
 	b, err := direct.Marshal()

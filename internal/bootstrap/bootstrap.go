@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"project/internal/connection"
+	"project/internal/global/dnsclient"
 )
 
 type Node struct {
@@ -15,4 +16,8 @@ type Bootstrap interface {
 	Marshal() ([]byte, error)
 	Unmarshal([]byte) error
 	Resolve() ([]*Node, error)
+}
+
+type dns_resolver interface {
+	Resolve(domain string, opts *dnsclient.Options) ([]string, error)
 }

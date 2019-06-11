@@ -4,7 +4,7 @@ import (
 	"project/internal/connection"
 )
 
-func test_generate_bootstrap_node() []*Node {
+func test_generate_bootstrap_nodes() []*Node {
 	nodes := make([]*Node, 2)
 	nodes[0] = &Node{
 		Mode:    connection.TLS,
