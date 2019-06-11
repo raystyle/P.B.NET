@@ -10,9 +10,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/connection"
 	"project/internal/convert"
 	"project/internal/logger"
+	"project/internal/netx"
 	"project/internal/options"
 )
 
@@ -94,7 +94,7 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
 	this.addr = l.Addr().String()
-	l = connection.Limit_Listener(l, this.limit)
+	l = netx.Limit_Listener(l, this.limit)
 	this.listener = l
 	// reference http.Server.Serve()
 	f := func() error {

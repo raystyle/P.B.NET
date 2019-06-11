@@ -1,14 +1,15 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/pelletier/go-toml"
 
-	"project/internal/connection"
 	"project/internal/crypto/aes"
 	"project/internal/dns"
 	"project/internal/global/dnsclient"
+	"project/internal/netx"
 	"project/internal/random"
 	"project/internal/security"
 )
@@ -18,12 +19,12 @@ type dns_panic struct {
 }
 
 func (this *dns_panic) Error() string {
-	return fmt.Sprintf("bootstrap direct internal error: %s", this.Err)
+	return fmt.Sprintf("bootstrap dns internal error: %s", this.Err)
 }
 
 type DNS struct {
 	Domain    string            `toml:"domain"`
-	L_Mode    connection.Mode   `toml:"l_mode"`
+	L_Mode    netx.Mode         `toml:"l_mode"`
 	L_Network string            `toml:"l_network"`
 	L_Port    string            `toml:"l_port"`
 	Options   dnsclient.Options `toml:"dnsclient"`
@@ -40,16 +41,39 @@ func New_DNS(d dns_resolver) *DNS {
 	}
 }
 
+func (this *DNS) validate() error {
+	if this.Domain == "" {
+		return errors.New("domain is empty")
+	}
+	err := netx.Check_Mode_Network(this.L_Mode, this.L_Network)
+	if err != nil {
+		return err
+	}
+	err = netx.Check_Port_string(this.L_Port)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (this *DNS) Generate(_ []*Node) (string, error) {
 	return "", nil
 }
 
 func (this *DNS) Marshal() ([]byte, error) {
+	err := this.validate()
+	if err != nil {
+		return nil, err
+	}
 	return toml.Marshal(this)
 }
 
 func (this *DNS) Unmarshal(data []byte) error {
 	err := toml.Unmarshal(data, this)
+	if err != nil {
+		return err
+	}
+	err = this.validate()
 	if err != nil {
 		return err
 	}

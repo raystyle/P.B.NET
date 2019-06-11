@@ -1,12 +1,12 @@
 package bootstrap
 
 import (
-	"project/internal/connection"
 	"project/internal/global/dnsclient"
+	"project/internal/netx"
 )
 
 type Node struct {
-	Mode    connection.Mode
+	Mode    netx.Mode
 	Network string
 	Address string
 }

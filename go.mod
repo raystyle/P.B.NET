@@ -3,6 +3,7 @@ module project
 go 1.12
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/kardianos/service v1.0.0
 	github.com/pelletier/go-toml v1.4.0

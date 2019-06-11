@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
+	"project/internal/netx"
 	"project/internal/proxy/direct"
 )
 
@@ -311,8 +312,9 @@ func split_host_port(address string) (string, int, error) {
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	if portnum < 1 || portnum > 65536 {
-		return "", 0, errors.New("port number out of range " + port)
+	err = netx.Check_Port_int(portnum)
+	if err != nil {
+		return "", 0, errors.WithStack(err)
 	}
 	return host, portnum, nil
 }

@@ -14,8 +14,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/connection"
 	"project/internal/logger"
+	"project/internal/netx"
 	"project/internal/options"
 )
 
@@ -113,7 +113,7 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
 	this.addr = l.Addr().String()
-	limit_l := connection.Limit_Listener(l, this.limit)
+	limit_l := netx.Limit_Listener(l, this.limit)
 	return this.start(func() error { return this.server.Serve(limit_l) }, start_timeout)
 }
 
