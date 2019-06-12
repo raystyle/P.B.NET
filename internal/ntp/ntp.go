@@ -157,7 +157,7 @@ type Options struct {
 	Network string        // network to use, defaults to udp
 	Timeout time.Duration // defaults to 5 seconds
 	// for proxy
-	Dial func(network, address string) (net.Conn, error) `toml:"-"`
+	Dial func(network, address string) (net.Conn, error)
 }
 
 // A Response contains time data, some of which is returned by the NTP server

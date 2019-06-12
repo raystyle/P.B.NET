@@ -114,16 +114,16 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 			return nil, err
 		}
 		// set proxy
-		p, err := this.proxy.Get(opts.Proxy)
+		proxy, err := this.proxy.Get(opts.Proxy)
 		if err != nil {
 			return nil, err
 		}
-		if p != nil {
+		if proxy != nil {
 			switch opts.Method {
 			case "", dns.TLS, dns.UDP, dns.TCP:
-				dns_opts.Dial = p.Dial
+				dns_opts.Dial = proxy.Dial
 			case dns.DOH:
-				p.HTTP(dns_opts.Transport)
+				proxy.HTTP(dns_opts.Transport)
 			default:
 				return nil, dns.ERR_UNKNOWN_METHOD
 			}

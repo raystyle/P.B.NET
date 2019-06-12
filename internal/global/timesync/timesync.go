@@ -41,14 +41,22 @@ var (
 )
 
 type Client struct {
-	Mode        Mode
-	Address     string // if Mode == HTTP cover H_Request.URL
-	NTP_Opts    *ntp.Options
-	H_Request   options.HTTP_Request    // for httptime
-	H_Transport *options.HTTP_Transport // for httptime
-	H_Timeout   time.Duration           // for httptime
-	DNS_Opts    dnsclient.Options       // useless for HTTP
-	Proxy       string                  // for NTP_Opts.Dial or H_Transport
+	Mode    Mode
+	Address string // if Mode == HTTP cover H_Request.URL
+	// options
+	Timeout time.Duration
+	Proxy   string
+	// for ntp.Option
+	NTP_Opts struct {
+		Version  int    // NTP protocol version, defaults to 4
+		Network  string // network to use, defaults to udp
+		DNS_Opts dnsclient.Options
+	} `toml:"ntp_options"`
+	// for httptime
+	HTTP_Opts struct {
+		Request   options.HTTP_Request
+		Transport options.HTTP_Transport
+	} `toml:"http_options"`
 }
 
 type TIMESYNC struct {
@@ -161,12 +169,8 @@ func (this *TIMESYNC) Clients() map[string]*Client {
 
 func (this *TIMESYNC) Add(tag string, c *Client) error {
 	switch c.Mode {
-	case "", HTTP:
-		c.Mode = HTTP
-		// copy request and cover request.Address
-		c_cp := *c
-		c_cp.H_Request.URL = c.Address
-		c = &c_cp
+	case HTTP:
+		c.HTTP_Opts.Request.URL = c.Address
 	case NTP:
 	default:
 		return ERR_UNKNOWN_MODE
@@ -284,48 +288,42 @@ func (this *TIMESYNC) sync(failed bool) error {
 }
 
 func (this *TIMESYNC) sync_httptime(tag string, c *Client) (opt_err bool, err error) {
-	r, err := c.H_Request.Apply()
+	// http request
+	req, err := c.HTTP_Opts.Request.Apply()
 	if err != nil {
 		opt_err = true
 		err = fmt.Errorf("client %s http Request apply failed: %s", tag, err)
 		return
 	}
-	hc := &http.Client{
-		Timeout: options.DEFAULT_DIAL_TIMEOUT,
+	// http transport
+	tr, err := c.HTTP_Opts.Transport.Apply()
+	if err != nil {
+		opt_err = true
+		err = fmt.Errorf("client %s http Transport apply failed: %s", tag, err)
+		return
 	}
-	if c.H_Timeout > 0 {
-		hc.Timeout = c.H_Timeout
-	}
-	var tr *http.Transport
-	if c.H_Transport != nil {
-		tr, err = c.H_Transport.Apply()
-		if err != nil {
-			opt_err = true
-			err = fmt.Errorf("client %s http Transport apply failed: %s", tag, err)
-			return
-		}
-	} else {
-		tr, _ = new(options.HTTP_Transport).Apply()
-	}
-	// don't set dns resolve
 	// set proxy
-	p, err := this.proxy.Get(c.Proxy)
+	proxy, err := this.proxy.Get(c.Proxy)
 	if err != nil {
 		opt_err = true
 		err = fmt.Errorf("client %s proxy: %s", tag, err)
 		return
 	}
-	if p != nil {
-		p.HTTP(tr)
+	if proxy != nil {
+		proxy.HTTP(tr)
 	}
-	hc.Transport = tr
-	t, err := httptime.Query(r, hc)
+	// don't set dns resolve
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   c.Timeout,
+	}
+	now, err := httptime.Query(req, client)
 	if err != nil {
 		err = fmt.Errorf("client %s query http time failed: %s", tag, err)
 		return false, err
 	}
 	this.rwm.Lock()
-	this.now = t
+	this.now = now
 	this.rwm.Unlock()
 	return false, nil
 }
@@ -338,27 +336,33 @@ func (this *TIMESYNC) sync_ntp(tag string, c *Client) (opt_err bool, err error) 
 		err = fmt.Errorf("client %s address: %s", tag, err)
 		return
 	}
+
+	ntp_opts := &ntp.Options{
+		Version: c.NTP_Opts.Version,
+		Network: c.NTP_Opts.Network,
+		Timeout: c.Timeout,
+	}
 	// set proxy
-	p, err := this.proxy.Get(c.Proxy)
+	proxy, err := this.proxy.Get(c.Proxy)
 	if err != nil {
 		opt_err = true
 		err = fmt.Errorf("client %s proxy: %s", tag, err)
 		return
 	}
-	if p != nil {
-		c.NTP_Opts.Dial = p.Dial
+	if proxy != nil {
+		ntp_opts.Dial = proxy.Dial
 	}
 	// resolve dns
-	ip_list, err := this.dns.Resolve(host, &c.DNS_Opts)
+	ip_list, err := this.dns.Resolve(host, &c.NTP_Opts.DNS_Opts)
 	if err != nil {
 		opt_err = true
 		err = fmt.Errorf("client %s resolve dns failed: %s", tag, err)
 		return
 	}
-	switch c.DNS_Opts.Opts.Type {
+	switch c.NTP_Opts.DNS_Opts.Type {
 	case "", dns.IPV4:
 		for i := 0; i < len(ip_list); i++ {
-			resp, err := ntp.Query(ip_list[i]+":"+port, c.NTP_Opts)
+			resp, err := ntp.Query(ip_list[i]+":"+port, ntp_opts)
 			if err != nil {
 				continue
 			}
@@ -369,7 +373,7 @@ func (this *TIMESYNC) sync_ntp(tag string, c *Client) (opt_err bool, err error) 
 		}
 	case dns.IPV6:
 		for i := 0; i < len(ip_list); i++ {
-			resp, err := ntp.Query("["+ip_list[i]+"]:"+port, c.NTP_Opts)
+			resp, err := ntp.Query("["+ip_list[i]+"]:"+port, ntp_opts)
 			if err != nil {
 				continue
 			}

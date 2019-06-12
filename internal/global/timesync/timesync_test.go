@@ -95,6 +95,7 @@ func Test_TIMESYNC(t *testing.T) {
 	// create timesync clients
 	clients := make(map[string]*Client)
 	clients["test_baidu"] = &Client{
+		Mode:    HTTP,
 		Address: "https://www.baidu.com/",
 	}
 	TIMESYNC, err := New(PROXY, DNS, logger.Test, clients, 0)
