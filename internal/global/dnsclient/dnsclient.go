@@ -3,6 +3,7 @@ package dnsclient
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -32,11 +33,31 @@ type Client struct {
 }
 
 type Options struct {
-	Mode  Mode // default is custom
-	Proxy string
-	Opts  dns.Options
-	// for dns.Options.Transport
-	H_Transport *options.HTTP_Transport
+	Mode  Mode   // default is custom
+	Proxy string // proxy tag
+	// for dns.Options
+	Type      dns.Type   // default ipv4
+	Method    dns.Method // default TLS
+	Network   string
+	Timeout   time.Duration
+	Header    http.Header
+	Transport options.HTTP_Transport
+}
+
+func (this *Options) apply() (*dns.Options, error) {
+	opt := &dns.Options{
+		Type:    this.Type,
+		Method:  this.Method,
+		Network: this.Network,
+		Timeout: this.Timeout,
+		Header:  options.Copy_HTTP_Header(this.Header),
+	}
+	tr, err := this.Transport.Apply()
+	if err != nil {
+		return nil, err
+	}
+	opt.Transport = tr
+	return opt, nil
 }
 
 type DNS struct {
@@ -78,7 +99,7 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
-	cache_list := this.query_cache(domain, opts.Opts.Type)
+	cache_list := this.query_cache(domain, opts.Type)
 	if cache_list != nil {
 		return cache_list, nil
 	}
@@ -88,19 +109,9 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 	)
 	switch opts.Mode {
 	case "", CUSTUM:
-		// copy map
-		clients := make(map[string]*Client)
-		this.clients_rwm.RLock()
-		for tag, client := range this.clients {
-			clients[tag] = client
-		}
-		this.clients_rwm.RUnlock()
-		// set dns options
-		if opts.H_Transport != nil {
-			opts.Opts.Transport, err = opts.H_Transport.Apply()
-			if err != nil {
-				return nil, err
-			}
+		dns_opts, err := opts.apply()
+		if err != nil {
+			return nil, err
 		}
 		// set proxy
 		p, err := this.proxy.Get(opts.Proxy)
@@ -108,38 +119,42 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 			return nil, err
 		}
 		if p != nil {
-			switch opts.Opts.Method {
+			switch opts.Method {
 			case "", dns.TLS, dns.UDP, dns.TCP:
-				opts.Opts.Dial = p.Dial
+				dns_opts.Dial = p.Dial
 			case dns.DOH:
-				if opts.Opts.Transport == nil {
-					opts.Opts.Transport, _ = new(options.HTTP_Transport).Apply()
-				}
-				p.HTTP(opts.Opts.Transport)
+				p.HTTP(dns_opts.Transport)
 			default:
 				return nil, dns.ERR_UNKNOWN_METHOD
 			}
 		}
 		// query dns
-		m := opts.Opts.Method
+		m := opts.Method
 		if m == "" {
-			m = dns.TLS
+			m = dns.DEFAULT_METHOD
 		}
+		// copy map
+		clients := make(map[string]*Client)
+		this.clients_rwm.RLock()
+		for tag, client := range this.clients {
+			clients[tag] = client
+		}
+		this.clients_rwm.RUnlock()
 		for _, client := range clients {
 			if client.Method == m {
-				ip_list, err = dns.Resolve(client.Address, domain, &opts.Opts)
+				ip_list, err = dns.Resolve(client.Address, domain, dns_opts)
 				if err == nil {
 					break
 				}
 			}
 		}
 	case SYSTEM:
-		ip_list, err = system_resolve(domain, opts.Opts.Type)
+		ip_list, err = system_resolve(domain, opts.Type)
 	default:
 		return nil, ERROR_INVALID_MODE
 	}
 	if err == nil && ip_list != nil {
-		switch opts.Opts.Type {
+		switch opts.Type {
 		case "", dns.IPV4:
 			this.update_cache(domain, ip_list, nil)
 		case dns.IPV6:

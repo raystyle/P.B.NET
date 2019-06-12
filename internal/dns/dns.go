@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"project/internal/convert"
-	"project/internal/options"
 )
 
 const (
+	DEFAULT_METHOD = TLS
 	// tcp && tls use
 	header_size     = 2
 	default_timeout = time.Minute // udp is 5 second
@@ -43,9 +43,9 @@ var (
 type Method string
 
 const (
-	TLS Method = "tls" // DNS-Over-TLS
 	UDP Method = "udp"
 	TCP Method = "tcp"
+	TLS Method = "tls" // DNS-Over-TLS
 	DOH Method = "doh" // DNS-Over-HTTPS
 )
 
@@ -60,21 +60,21 @@ var (
 )
 
 type Options struct {
+	// default "ipv4"
+	Type Type
 	// default tls
 	Method Method
 	// "tcp" "tcp4" "tcp6"
 	// default "tcp" if use UDP Method "udp"
 	// useless for dns_doh
 	Network string
-	// default "ipv4"
-	Type Type
 	// default 60s
 	Timeout time.Duration
 	// for proxy useless for doh
-	Dial func(network, address string) (net.Conn, error) `toml:"-"`
+	Dial func(network, address string) (net.Conn, error)
 	// about DOH
 	Header    http.Header
-	Transport *http.Transport `toml:"-"`
+	Transport *http.Transport
 }
 
 // address = dns server(doh server) ip + port
@@ -366,25 +366,18 @@ func dial_https(server string, question []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if opts.Header != nil {
-		req.Header = options.Copy_HTTP_Header(opts.Header)
-	}
+	req.Header = opts.Header
 	if req.Method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/dns-message")
 	}
 	req.Header.Set("Accept", "application/dns-message")
 	// http client
 	client := http.Client{
-		Timeout: default_timeout,
+		Transport: opts.Transport,
+		Timeout:   default_timeout,
 	}
-	// default
 	if opts.Timeout > 0 {
 		client.Timeout = opts.Timeout
-	}
-	if opts.Transport != nil {
-		client.Transport = opts.Transport
-	} else {
-		client.Transport, _ = new(options.HTTP_Transport).Apply()
 	}
 	resp, err := client.Do(req)
 	if err != nil {
