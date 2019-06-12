@@ -136,7 +136,7 @@ func (this *DNS) Resolve() ([]*Node, error) {
 			Network: d.L_Network,
 		}
 	}
-	switch d.Options.Opts.Type {
+	switch d.Options.Type {
 	case "", dns.IPV4:
 		for i := 0; i < l; i++ {
 			nodes[i].Address = ip_list[i] + ":" + this.L_Port

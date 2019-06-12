@@ -38,7 +38,7 @@ func (this *mock_resolver) Resolve(domain string, opts *dnsclient.Options) ([]st
 	if opts == nil {
 		opts = new(dnsclient.Options)
 	}
-	switch opts.Opts.Type {
+	switch opts.Type {
 	case "", dns.IPV4:
 		return []string{"127.0.0.1", "192.168.1.11"}, nil
 	case dns.IPV6:

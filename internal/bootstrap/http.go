@@ -9,15 +9,18 @@ import (
 )
 
 type HTTP struct {
-	Request    *options.HTTP_Request
-	Transport  *options.HTTP_Transport
-	Timeout    time.Duration
-	Proxy      string
-	DNS        *dnsclient.Options
-	AES_Key    string // encrypt&decrypt generate data hex
-	AES_IV     string
-	PublicKey  string // for resolve verify   not pem  hex
-	PrivateKey string // for generate&marshal not pem  hex
+	Request   options.HTTP_Request   `toml:"request"`
+	Transport options.HTTP_Transport `toml:"transport"`
+	Timeout   time.Duration          `toml:"timeout"`
+	Proxy     string                 `toml:"proxy"`
+	DNS_Opts  dnsclient.Options      `toml:"dnsclient"`
+	// encrypt&decrypt generate data hex
+	AES_Key string `toml:"aes_key"`
+	AES_IV  string `toml:"aes_iv"`
+	// for resolve verify   not pem  hex
+	PublicKey string `toml:"publickey"`
+	// for generate&marshal not pem  hex
+	PrivateKey string
 	// runtime
 	resolver dns_resolver
 	proxy    proxy_pool
