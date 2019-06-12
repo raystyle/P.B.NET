@@ -34,7 +34,7 @@ func (this *HTTP_Request) Apply() (*http.Request, error) {
 }
 
 type HTTP_Transport struct {
-	TLSClientConfig        *TLS_Config
+	TLSClientConfig        TLS_Config
 	TLSHandshakeTimeout    time.Duration
 	DisableKeepAlives      bool
 	DisableCompression     bool
@@ -57,7 +57,7 @@ func (this *HTTP_Transport) Apply() (*http.Transport, error) {
 		MaxConnsPerHost:        4,
 		IdleConnTimeout:        default_timeout,
 		ResponseHeaderTimeout:  default_timeout,
-		ExpectContinueTimeout:  1 * time.Second,
+		ExpectContinueTimeout:  2 * time.Second,
 		MaxResponseHeaderBytes: default_MaxHeaderBytes,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -65,14 +65,10 @@ func (this *HTTP_Transport) Apply() (*http.Transport, error) {
 		}).DialContext,
 	}
 	// tls config
-	if this.TLSClientConfig != nil {
-		var err error
-		tr.TLSClientConfig, err = this.TLSClientConfig.Apply()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		tr.TLSClientConfig, _ = new(TLS_Config).Apply()
+	var err error
+	tr.TLSClientConfig, err = this.TLSClientConfig.Apply()
+	if err != nil {
+		return nil, err
 	}
 	// timeout
 	if this.TLSHandshakeTimeout > 0 {
@@ -105,7 +101,7 @@ func (this *HTTP_Transport) Apply() (*http.Transport, error) {
 }
 
 type HTTP_Server struct {
-	TLSConfig         *TLS_Config
+	TLSConfig         TLS_Config
 	ReadTimeout       time.Duration // warning
 	WriteTimeout      time.Duration // warning
 	ReadHeaderTimeout time.Duration
@@ -123,14 +119,10 @@ func (this *HTTP_Server) Apply() (*http.Server, error) {
 		MaxHeaderBytes:    default_MaxHeaderBytes,
 	}
 	// tls config
-	if this.TLSConfig != nil {
-		var err error
-		s.TLSConfig, err = this.TLSConfig.Apply()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		s.TLSConfig, _ = new(TLS_Config).Apply()
+	var err error
+	s.TLSConfig, err = this.TLSConfig.Apply()
+	if err != nil {
+		return nil, err
 	}
 	// timeout
 	if this.ReadHeaderTimeout > 0 {

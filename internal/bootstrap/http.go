@@ -14,10 +14,10 @@ type HTTP struct {
 	Timeout    time.Duration
 	Proxy      string
 	DNS        *dnsclient.Options
-	AES_Key    string // encrypt&decrypt generate data base64
+	AES_Key    string // encrypt&decrypt generate data hex
 	AES_IV     string
-	PublicKey  string // for resolve verify   not pem  base64
-	PrivateKey string // for generate&marshal not pem  base64
+	PublicKey  string // for resolve verify   not pem  hex
+	PrivateKey string // for generate&marshal not pem  hex
 	// runtime
 	resolver dns_resolver
 	proxy    proxy_pool
