@@ -35,7 +35,8 @@ type DNS struct {
 	Options   dnsclient.Options `toml:"dnsclient"`
 	// runtime
 	resolver dns_resolver
-	opts_enc []byte // all options
+	// self encrypt all options
+	opts_enc []byte
 	cryptor  *aes.CBC_Cryptor
 }
 

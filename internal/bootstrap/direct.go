@@ -20,7 +20,8 @@ func (this *direct_panic) Error() string {
 }
 
 type Direct struct {
-	nodes     []*Node
+	nodes []*Node
+	// self encrypt all options
 	nodes_enc []byte
 	cryptor   *aes.CBC_Cryptor
 }
