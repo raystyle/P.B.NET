@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	ERR_INVALID_PEM_BLOCK  = errors.New("invalid PEM block")
-	ERR_INVALID_PUBLIC_KEY = errors.New("invalid public key")
+	ERR_INVALID_PEM_BLOCK = errors.New("invalid PEM block")
+	ERR_NOT_PUBLIC_KEY    = errors.New("not ecdsa public key")
 )
 
 type PublicKey = ecdsa.PublicKey
@@ -41,16 +41,21 @@ func Export_PrivateKey(p *PrivateKey) ([]byte, error) {
 	return x509.MarshalECPrivateKey(p)
 }
 
-func Import_PublicKey(c elliptic.Curve, publickey []byte) (*PublicKey, error) {
-	x, y := elliptic.Unmarshal(c, publickey)
-	if x == nil || y == nil {
-		return nil, ERR_INVALID_PUBLIC_KEY
+func Import_PublicKey(publickey []byte) (*PublicKey, error) {
+	pub, err := x509.ParsePKIXPublicKey(publickey)
+	if err != nil {
+		return nil, err
 	}
-	return &ecdsa.PublicKey{Curve: c, X: x, Y: y}, nil
+	p, ok := pub.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, ERR_NOT_PUBLIC_KEY
+	}
+	return p, nil
 }
 
-func Export_PublicKey(c elliptic.Curve, p *PublicKey) []byte {
-	return elliptic.Marshal(c, p.X, p.Y)
+func Export_PublicKey(p *PublicKey) []byte {
+	data, _ := x509.MarshalPKIXPublicKey(p)
+	return data
 }
 
 //len r(2 byte) + r.bytes + len s(2 byte) + s.bytes
