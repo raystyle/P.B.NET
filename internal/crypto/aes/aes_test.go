@@ -52,6 +52,12 @@ func Test_CBC_Cryptor(t *testing.T) {
 	key_128 := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 11, 12, 13, 14, 15, 16}
 	key_256 := bytes.Repeat(key_128, 2)
 	iv := []byte{11, 12, 13, 14, 15, 16, 17, 18, 19, 10, 111, 112, 113, 114, 115, 116}
+	_, err := New_CBC_Cryptor(bytes.Repeat([]byte{0}, BIT128), iv)
+	require.Nil(t, err, err)
+	_, err = New_CBC_Cryptor(bytes.Repeat([]byte{0}, BIT192), iv)
+	require.Nil(t, err, err)
+	_, err = New_CBC_Cryptor(bytes.Repeat([]byte{0}, BIT256), iv)
+	require.Nil(t, err, err)
 	data := bytes.Repeat([]byte{0}, 32)
 	//encrypt&&decrypt
 	f := func(key []byte) {

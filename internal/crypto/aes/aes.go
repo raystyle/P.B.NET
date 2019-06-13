@@ -7,7 +7,12 @@ import (
 	"errors"
 )
 
-const IV_SIZE = 16
+const (
+	BIT128  = 16
+	BIT192  = 24
+	BIT256  = 32
+	IV_SIZE = 16
+)
 
 var (
 	ERR_INVALID_IV_SIZE    = errors.New("invalid iv size")
