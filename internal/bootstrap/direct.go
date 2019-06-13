@@ -1,8 +1,6 @@
 package bootstrap
 
 import (
-	"fmt"
-
 	"github.com/pelletier/go-toml"
 	"github.com/vmihailenco/msgpack"
 
@@ -10,14 +8,6 @@ import (
 	"project/internal/random"
 	"project/internal/security"
 )
-
-type direct_panic struct {
-	Err error
-}
-
-func (this *direct_panic) Error() string {
-	return fmt.Sprintf("bootstrap direct internal error: %s", this.Err)
-}
 
 type Direct struct {
 	nodes []*Node
@@ -31,6 +21,8 @@ func New_Direct(n []*Node) *Direct {
 	copy(d.nodes, n)
 	return d
 }
+
+func (this *Direct) Validate() error { return nil }
 
 func (this *Direct) Generate(_ []*Node) (string, error) {
 	return "", nil
@@ -57,22 +49,22 @@ func (this *Direct) Unmarshal(data []byte) error {
 	defer memory.Flush()
 	rand := random.New()
 	memory.Padding()
-	key := rand.Bytes(32)
+	key := rand.Bytes(aes.BIT256)
 	iv := rand.Bytes(aes.IV_SIZE)
 	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		panic(&direct_panic{Err: err})
+		panic(&fpanic{Mode: M_DIRECT, Err: err})
 	}
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	b, err := msgpack.Marshal(&nodes.Nodes)
 	if err != nil {
-		panic(&direct_panic{Err: err})
+		panic(&fpanic{Mode: M_DIRECT, Err: err})
 	}
 	memory.Padding()
 	this.nodes_enc, err = this.cryptor.Encrypt(b)
 	if err != nil {
-		panic(&direct_panic{Err: err})
+		panic(&fpanic{Err: err})
 	}
 	security.Flush_Bytes(b)
 	return nil
@@ -83,13 +75,13 @@ func (this *Direct) Resolve() ([]*Node, error) {
 	defer memory.Flush()
 	b, err := this.cryptor.Decrypt(this.nodes_enc)
 	if err != nil {
-		panic(&direct_panic{Err: err})
+		panic(&fpanic{Mode: M_DIRECT, Err: err})
 	}
 	memory.Padding()
 	var nodes []*Node
 	err = msgpack.Unmarshal(b, &nodes)
 	if err != nil {
-		panic(&direct_panic{Err: err})
+		panic(&fpanic{Mode: M_DIRECT, Err: err})
 	}
 	security.Flush_Bytes(b)
 	return nodes, nil

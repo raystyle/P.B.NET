@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/pelletier/go-toml"
 	"github.com/vmihailenco/msgpack"
@@ -18,14 +17,6 @@ import (
 var (
 	ERR_EMPTY_DOMAIN = errors.New("domain is empty")
 )
-
-type dns_panic struct {
-	Err error
-}
-
-func (this *dns_panic) Error() string {
-	return fmt.Sprintf("bootstrap dns internal error: %s", this.Err)
-}
 
 type DNS struct {
 	Domain    string            `toml:"domain"`
@@ -47,7 +38,7 @@ func New_DNS(d dns_resolver) *DNS {
 	}
 }
 
-func (this *DNS) validate() error {
+func (this *DNS) Validate() error {
 	if this.Domain == "" {
 		return ERR_EMPTY_DOMAIN
 	}
@@ -67,7 +58,7 @@ func (this *DNS) Generate(_ []*Node) (string, error) {
 }
 
 func (this *DNS) Marshal() ([]byte, error) {
-	err := this.validate()
+	err := this.Validate()
 	if err != nil {
 		return nil, err
 	}
@@ -80,50 +71,53 @@ func (this *DNS) Unmarshal(data []byte) error {
 	if err != nil {
 		return err
 	}
-	err = d.validate()
+	err = d.Validate()
 	if err != nil {
 		return err
 	}
+	// encrypt all options
 	memory := security.New_Memory()
 	defer memory.Flush()
 	rand := random.New()
-	key := rand.Bytes(32)
+	key := rand.Bytes(aes.BIT256)
 	iv := rand.Bytes(aes.IV_SIZE)
 	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		panic(&dns_panic{Err: err})
+		panic(&fpanic{Mode: M_DNS, Err: err})
 	}
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	memory.Padding()
 	b, err := msgpack.Marshal(d)
 	if err != nil {
-		panic(&dns_panic{Err: err})
+		panic(&fpanic{Mode: M_DNS, Err: err})
 	}
-	d.Domain = ""
-	d = nil
+	d = nil // <security>
 	memory.Padding()
 	this.opts_enc, err = this.cryptor.Encrypt(b)
 	if err != nil {
-		panic(&dns_panic{Err: err})
+		panic(&fpanic{Mode: M_DNS, Err: err})
 	}
 	security.Flush_Bytes(b)
 	return nil
 }
 
 func (this *DNS) Resolve() ([]*Node, error) {
+	// decrypt all options
 	memory := security.New_Memory()
 	defer memory.Flush()
 	b, err := this.cryptor.Decrypt(this.opts_enc)
 	if err != nil {
-		panic(&dns_panic{Err: err})
+		panic(&fpanic{Mode: M_DNS, Err: err})
 	}
 	d := &DNS{}
 	err = msgpack.Unmarshal(b, d)
 	if err != nil {
-		panic(&dns_panic{Err: err})
+		panic(&fpanic{Mode: M_DNS, Err: err})
 	}
+	security.Flush_Bytes(b)
 	memory.Padding()
+	// resolve dns
 	ip_list, err := this.resolver.Resolve(d.Domain, &d.Options)
 	if err != nil {
 		return nil, err
@@ -140,14 +134,14 @@ func (this *DNS) Resolve() ([]*Node, error) {
 	switch d.Options.Type {
 	case "", dns.IPV4:
 		for i := 0; i < l; i++ {
-			nodes[i].Address = ip_list[i] + ":" + this.L_Port
+			nodes[i].Address = ip_list[i] + ":" + d.L_Port
 		}
 	case dns.IPV6:
 		for i := 0; i < l; i++ {
-			nodes[i].Address = "[" + ip_list[i] + "]:" + this.L_Port
+			nodes[i].Address = "[" + ip_list[i] + "]:" + d.L_Port
 		}
 	default:
-		panic(&dns_panic{Err: dns.ERR_INVALID_TYPE})
+		panic(&fpanic{Mode: M_DNS, Err: err})
 	}
 	d = nil
 	for i := 0; i < l; i++ { // <security>
