@@ -5,7 +5,7 @@ import (
 
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
-	"project/internal/netx"
+	"project/internal/xnet"
 )
 
 type Mode string
@@ -17,7 +17,7 @@ const (
 )
 
 type Node struct {
-	Mode    netx.Mode
+	Mode    xnet.Mode
 	Network string
 	Address string
 }

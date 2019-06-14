@@ -6,7 +6,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
-	"project/internal/netx"
+	"project/internal/xnet"
 )
 
 const test_domain string = "localhost"
@@ -14,7 +14,7 @@ const test_domain string = "localhost"
 func Test_DNS(t *testing.T) {
 	DNS := New_DNS(nil)
 	DNS.Domain = test_domain
-	DNS.L_Mode = netx.TLS
+	DNS.L_Mode = xnet.TLS
 	DNS.L_Network = "tcp"
 	DNS.L_Port = "443"
 	_, _ = DNS.Generate(nil)

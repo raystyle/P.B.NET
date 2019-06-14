@@ -52,11 +52,11 @@ func Test_HTTP(t *testing.T) {
 	c, k, err := cert.Generate(nil, nil,
 		[]string{"localhost"}, []string{"127.0.0.1", "::1"})
 	require.Nil(t, err, err)
-	certificate, err := tls.X509KeyPair(c, k)
+	tls_cert, err := tls.X509KeyPair(c, k)
 	require.Nil(t, err, err)
 	s = &http.Server{
 		TLSConfig: &tls.Config{
-			Certificates: []tls.Certificate{certificate},
+			Certificates: []tls.Certificate{tls_cert},
 		}}
 	port = test_start_http_server(t, s, info)
 	defer func() { _ = s.Close() }()

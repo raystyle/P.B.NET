@@ -13,8 +13,8 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
-	"project/internal/netx"
 	"project/internal/proxy/direct"
+	"project/internal/xnet"
 )
 
 type Config struct {
@@ -311,7 +311,7 @@ func split_host_port(address string) (string, int, error) {
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	err = netx.Inspect_Port_int(portnum)
+	err = xnet.Inspect_Port_int(portnum)
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}

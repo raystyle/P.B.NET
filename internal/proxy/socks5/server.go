@@ -12,8 +12,8 @@ import (
 
 	"project/internal/convert"
 	"project/internal/logger"
-	"project/internal/netx"
 	"project/internal/options"
+	"project/internal/xnet"
 )
 
 type Options struct {
@@ -94,7 +94,7 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
 	this.addr = l.Addr().String()
-	l = netx.Limit_Listener(l, this.limit)
+	l = xnet.Limit_Listener(l, this.limit)
 	this.listener = l
 	// reference http.Server.Serve()
 	f := func() error {
@@ -172,10 +172,12 @@ func (this *Server) Stop() error {
 	this.is_stopped = true
 	this.stop_signal <- struct{}{}
 	err := this.listener.Close()
+	this.rwm.Lock()
 	for k, v := range this.conns {
 		_ = v.conn.Close()
 		delete(this.conns, k)
 	}
+	this.rwm.Unlock()
 	this.log(logger.INFO, "server stopped")
 	return err
 }

@@ -9,9 +9,9 @@ import (
 	"project/internal/crypto/aes"
 	"project/internal/dns"
 	"project/internal/global/dnsclient"
-	"project/internal/netx"
 	"project/internal/random"
 	"project/internal/security"
+	"project/internal/xnet"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 
 type DNS struct {
 	Domain    string            `toml:"domain"`
-	L_Mode    netx.Mode         `toml:"l_mode"`
+	L_Mode    xnet.Mode         `toml:"l_mode"`
 	L_Network string            `toml:"l_network"`
 	L_Port    string            `toml:"l_port"`
 	Options   dnsclient.Options `toml:"dnsclient"`
@@ -42,11 +42,11 @@ func (this *DNS) Validate() error {
 	if this.Domain == "" {
 		return ERR_EMPTY_DOMAIN
 	}
-	err := netx.Inspect_Mode_Network(this.L_Mode, this.L_Network)
+	err := xnet.Inspect_Mode_Network(this.L_Mode, this.L_Network)
 	if err != nil {
 		return err
 	}
-	err = netx.Inspect_Port_string(this.L_Port)
+	err = xnet.Inspect_Port_string(this.L_Port)
 	if err != nil {
 		return err
 	}

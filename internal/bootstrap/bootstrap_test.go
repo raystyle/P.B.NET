@@ -13,21 +13,21 @@ import (
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
 	"project/internal/logger"
-	"project/internal/netx"
 	"project/internal/proxy"
 	"project/internal/proxy/httpproxy"
 	"project/internal/proxy/socks5"
+	"project/internal/xnet"
 )
 
 func test_generate_nodes() []*Node {
 	nodes := make([]*Node, 2)
 	nodes[0] = &Node{
-		Mode:    netx.TLS,
+		Mode:    xnet.TLS,
 		Network: "tcp",
 		Address: "127.0.0.1:53123",
 	}
 	nodes[1] = &Node{
-		Mode:    netx.TLS,
+		Mode:    xnet.TLS,
 		Network: "tcp",
 		Address: "192.168.1.11:53123",
 	}

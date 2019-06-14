@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"project/internal/convert"
+	"project/internal/options"
 )
 
 const (
@@ -366,26 +367,30 @@ func dial_https(server string, question []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header = opts.Header
+	if opts.Header != nil {
+		req.Header = options.Copy_HTTP_Header(opts.Header)
+	}
 	if req.Method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/dns-message")
 	}
 	req.Header.Set("Accept", "application/dns-message")
 	// http client
-	client := http.Client{
-		Transport: opts.Transport,
-		Timeout:   default_timeout,
+	c := http.Client{
+		Timeout: default_timeout,
+	}
+	if opts.Transport != nil {
+		c.Transport = opts.Transport
 	}
 	if opts.Timeout > 0 {
-		client.Timeout = opts.Timeout
+		c.Timeout = opts.Timeout
 	}
-	resp, err := client.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		_ = resp.Body.Close()
-		client.CloseIdleConnections()
+		c.CloseIdleConnections()
 	}()
 	return ioutil.ReadAll(resp.Body)
 }
