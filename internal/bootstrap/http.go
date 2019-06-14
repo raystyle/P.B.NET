@@ -66,11 +66,25 @@ func (this *HTTP) Validate() error {
 	if err != nil {
 		return err
 	}
-	return nil
+	aes_key, err := hex.DecodeString(this.AES_Key)
+	if err != nil {
+		return err
+	}
+	aes_iv, err := hex.DecodeString(this.AES_IV)
+	if err != nil {
+		return err
+	}
+	_, err = aes.New_CBC_Cryptor(aes_key, aes_iv)
+	security.Flush_Bytes(aes_key)
+	security.Flush_Bytes(aes_iv)
+	return err
 }
 
 func (this *HTTP) Generate(nodes []*Node) (string, error) {
-	// signature size + signature(nodes_data) + nodes_data
+	err := this.Validate()
+	if err != nil {
+		return "", err
+	}
 	data, err := msgpack.Marshal(nodes)
 	if err != nil {
 		panic(&fpanic{Mode: M_HTTP, Err: err})
@@ -94,21 +108,22 @@ func (this *HTTP) Generate(nodes []*Node) (string, error) {
 		panic(&fpanic{Mode: M_HTTP, Err: err})
 	}
 	buffer := bytes.Buffer{}
+	// signature size + signature(nodes_data) + nodes_data
 	buffer.Write(convert.Uint16_Bytes(uint16(len(signature))))
 	buffer.Write(signature)
 	buffer.Write(nodes_data.Bytes())
 	// encrypt
 	key, err := hex.DecodeString(this.AES_Key)
 	if err != nil {
-		return "", err
+		panic(&fpanic{Mode: M_HTTP, Err: err})
 	}
 	iv, err := hex.DecodeString(this.AES_IV)
 	if err != nil {
-		return "", err
+		panic(&fpanic{Mode: M_HTTP, Err: err})
 	}
 	cipherdata, err := aes.CBC_Encrypt(buffer.Bytes(), key, iv)
 	if err != nil {
-		return "", err
+		panic(&fpanic{Mode: M_HTTP, Err: err})
 	}
 	return base64.StdEncoding.EncodeToString(cipherdata), nil
 }
@@ -225,7 +240,9 @@ func (this *HTTP) apply_options() (*http_opts, error) {
 	// apply options
 	req, _ := h.Request.Apply()
 	if req.URL.Scheme == "https" {
-		req.Host = req.URL.Host
+		if req.Host == "" {
+			req.Host = req.URL.Host
+		}
 	}
 	tr, _ := h.Transport.Apply()
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
@@ -252,7 +269,10 @@ func (this *HTTP) do(req *http.Request, c *http.Client) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+		c.CloseIdleConnections()
+	}()
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
@@ -267,12 +287,12 @@ func (this *HTTP) resolve(h *HTTP, info string) ([]*Node, error) {
 	}
 	aes_key, err := hex.DecodeString(h.AES_Key)
 	if err != nil {
-		return nil, err
+		panic(&fpanic{Mode: M_HTTP, Err: err})
 	}
 	h.AES_Key = ""
 	aes_iv, err := hex.DecodeString(h.AES_IV)
 	if err != nil {
-		return nil, err
+		panic(&fpanic{Mode: M_HTTP, Err: err})
 	}
 	h.AES_IV = ""
 	data, err := aes.CBC_Decrypt(cipherdata, aes_key, aes_iv)
@@ -306,6 +326,7 @@ func (this *HTTP) resolve(h *HTTP, info string) ([]*Node, error) {
 	if !ecdsa.Verify(publickey, nodes_data, signature) {
 		return nil, ERR_INVALID_SIGNATURE
 	}
+	publickey = nil
 	// deconfuse
 	nodes_buffer := bytes.Buffer{}
 	l = len(nodes_data)
@@ -317,13 +338,15 @@ func (this *HTTP) resolve(h *HTTP, info string) ([]*Node, error) {
 	}
 	if i != l {
 		if len(nodes_data[i-12:]) > 8 {
-			nodes_buffer.Write(nodes_data[i-4:]) //i+8-12
+			nodes_buffer.Write(nodes_data[i-4:]) // i+8-12
 		}
 	}
+	nodes_bytes := nodes_buffer.Bytes()
 	var nodes []*Node
-	err = msgpack.Unmarshal(nodes_buffer.Bytes(), &nodes)
+	err = msgpack.Unmarshal(nodes_bytes, &nodes)
 	if err != nil {
 		return nil, err
 	}
+	security.Flush_Bytes(nodes_bytes)
 	return nodes, nil
 }

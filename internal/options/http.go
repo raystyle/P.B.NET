@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 const (
@@ -18,6 +20,8 @@ type HTTP_Request struct {
 	URL    string
 	Post   string // hex
 	Header http.Header
+	Host   string
+	Close  bool
 }
 
 func (this *HTTP_Request) Apply() (*http.Request, error) {
@@ -30,6 +34,8 @@ func (this *HTTP_Request) Apply() (*http.Request, error) {
 		return nil, err
 	}
 	r.Header = Copy_HTTP_Header(this.Header)
+	r.Host = this.Host
+	r.Close = this.Close
 	return r, nil
 }
 
@@ -67,6 +73,11 @@ func (this *HTTP_Transport) Apply() (*http.Transport, error) {
 	// tls config
 	var err error
 	tr.TLSClientConfig, err = this.TLSClientConfig.Apply()
+	if err != nil {
+		return nil, err
+	}
+	// config http2.0
+	err = http2.ConfigureTransport(tr)
 	if err != nil {
 		return nil, err
 	}
