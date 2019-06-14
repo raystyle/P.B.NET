@@ -7,7 +7,7 @@ import (
 )
 
 func Test_Direct(t *testing.T) {
-	nodes := test_generate_bootstrap_nodes()
+	nodes := test_generate_nodes()
 	direct := New_Direct(nodes)
 	_ = direct.Validate()
 	_, _ = direct.Generate(nil)
@@ -16,6 +16,6 @@ func Test_Direct(t *testing.T) {
 	direct = New_Direct(nil)
 	err = direct.Unmarshal(b)
 	require.Nil(t, err, err)
-	resolve, _ := direct.Resolve()
-	require.Equal(t, nodes, resolve)
+	resolved, _ := direct.Resolve()
+	require.Equal(t, nodes, resolved)
 }

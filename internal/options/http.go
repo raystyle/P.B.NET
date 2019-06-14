@@ -76,7 +76,7 @@ func (this *HTTP_Transport) Apply() (*http.Transport, error) {
 	if err != nil {
 		return nil, err
 	}
-	// config http2.0
+	// config http/2
 	err = http2.ConfigureTransport(tr)
 	if err != nil {
 		return nil, err

@@ -38,9 +38,9 @@ type HTTP struct {
 	// encrypt&decrypt generate data(nodes) hex
 	AES_Key string `toml:"aes_key"`
 	AES_IV  string `toml:"aes_iv"`
-	// for resolve verify   not pem hex
+	// for resolve verify   hex(PKIX)
 	PublicKey string `toml:"publickey"`
-	// for generate&marshal not pem hex
+	// for generate&marshal
 	PrivateKey *ecdsa.PrivateKey `toml:"-"`
 	// runtime
 	resolver dns_resolver
@@ -212,7 +212,6 @@ func (this *HTTP) Resolve() ([]*Node, error) {
 	default:
 		panic(&fpanic{Mode: M_HTTP, Err: dns.ERR_INVALID_TYPE})
 	}
-	opts.h = nil
 	return nil, ERR_NO_RESPONSE
 }
 

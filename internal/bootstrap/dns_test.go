@@ -9,7 +9,7 @@ import (
 	"project/internal/netx"
 )
 
-const test_domain string = "www.baidu.com"
+const test_domain string = "localhost"
 
 func Test_DNS(t *testing.T) {
 	DNS := New_DNS(nil)
@@ -20,7 +20,7 @@ func Test_DNS(t *testing.T) {
 	_, _ = DNS.Generate(nil)
 	b, err := DNS.Marshal()
 	require.Nil(t, err, err)
-	DNS = New_DNS(&mock_resolver{})
+	DNS = New_DNS(new(mock_resolver))
 	err = DNS.Unmarshal(b)
 	require.Nil(t, err, err)
 	nodes, err := DNS.Resolve()
