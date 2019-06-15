@@ -10,7 +10,7 @@ var (
 	ERR_INVALID_PORT = errors.New("invalid port")
 )
 
-func Inspect_Port_string(port string) error {
+func Check_Port_str(port string) error {
 	if port == "" {
 		return ERR_EMPTY_PORT
 	}
@@ -24,7 +24,7 @@ func Inspect_Port_string(port string) error {
 	return nil
 }
 
-func Inspect_Port_int(port int) error {
+func Check_Port_int(port int) error {
 	if port < 1 || port > 65535 {
 		return ERR_INVALID_PORT
 	}

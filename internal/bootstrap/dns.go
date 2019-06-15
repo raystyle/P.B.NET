@@ -42,11 +42,11 @@ func (this *DNS) Validate() error {
 	if this.Domain == "" {
 		return ERR_EMPTY_DOMAIN
 	}
-	err := xnet.Inspect_Mode_Network(this.L_Mode, this.L_Network)
+	err := xnet.Check_Mode_Network(this.L_Mode, this.L_Network)
 	if err != nil {
 		return err
 	}
-	err = xnet.Inspect_Port_string(this.L_Port)
+	err = xnet.Check_Port_str(this.L_Port)
 	if err != nil {
 		return err
 	}

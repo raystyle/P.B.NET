@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/net/netutil"
 
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/options"
-	"project/internal/xnet"
 )
 
 type Options struct {
@@ -94,7 +94,7 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
 	this.addr = l.Addr().String()
-	l = xnet.Limit_Listener(l, this.limit)
+	l = netutil.LimitListener(l, this.limit)
 	this.listener = l
 	// reference http.Server.Serve()
 	f := func() error {

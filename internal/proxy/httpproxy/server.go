@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/net/netutil"
 
 	"project/internal/logger"
 	"project/internal/options"
-	"project/internal/xnet"
 )
 
 var (
@@ -113,7 +113,7 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
 	this.addr = l.Addr().String()
-	limit_l := xnet.Limit_Listener(l, this.limit)
+	limit_l := netutil.LimitListener(l, this.limit)
 	return this.start(func() error { return this.server.Serve(limit_l) }, start_timeout)
 }
 
