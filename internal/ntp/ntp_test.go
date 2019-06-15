@@ -54,7 +54,7 @@ func TestQuery(t *testing.T) {
 
 	r, err := Query(host, &Options{Version: 4})
 	if !isNil(t, err) {
-		return
+		t.Fatal(err)
 	}
 
 	t.Logf("[%s]  LocalTime: %v", host, time.Now())

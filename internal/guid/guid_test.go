@@ -6,25 +6,25 @@ import (
 )
 
 func Test_GUID(t *testing.T) {
-	guid_generator := New(16, nil)
+	generator := New(16, nil)
 	for i := 0; i < 4; i++ {
-		t.Log(guid_generator.Get())
+		t.Log(generator.Get())
 	}
-	guid_generator.Close()
+	generator.Close()
 	//now
-	guid_generator = New(16, time.Now)
+	generator = New(16, time.Now)
 	for i := 0; i < 4; i++ {
-		t.Log(guid_generator.Get())
+		t.Log(generator.Get())
 	}
-	guid_generator.Close()
+	generator.Close()
 	//0 size
-	guid_generator = New(-1, time.Now)
+	generator = New(-1, time.Now)
 	for i := 0; i < 4; i++ {
-		t.Log(guid_generator.Get())
+		t.Log(generator.Get())
 	}
-	guid_generator.Close()
+	generator.Close()
 	// twice
-	guid_generator.Close()
+	generator.Close()
 }
 
 func Benchmark_Get(b *testing.B) {

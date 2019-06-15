@@ -63,17 +63,18 @@ func Test_CBC_Cryptor(t *testing.T) {
 	f := func(key []byte) {
 		cryptor, err := New_CBC_Cryptor(key, iv)
 		require.Nil(t, err, err)
-		ff := func() {
-			cipherdata, err := cryptor.Encrypt(data)
-			require.Nil(t, err, err)
-			t.Log(cipherdata)
-			plaindata, err := cryptor.Decrypt(cipherdata)
-			require.Nil(t, err, err)
-			require.Equal(t, plaindata, data, "wrong data")
-		}
-		//x2
-		ff()
-		ff()
+		cipherdata, err := cryptor.Encrypt(data)
+		require.Nil(t, err, err)
+		t.Log(cipherdata)
+		cipherdata, err = cryptor.Encrypt(data)
+		require.Nil(t, err, err)
+		t.Log(cipherdata)
+		plaindata, err := cryptor.Decrypt(cipherdata)
+		require.Nil(t, err, err)
+		require.Equal(t, plaindata, data, "wrong data")
+		plaindata, err = cryptor.Decrypt(cipherdata)
+		require.Nil(t, err, err)
+		require.Equal(t, plaindata, data, "wrong data")
 	}
 	f(key_128)
 	f(key_256)

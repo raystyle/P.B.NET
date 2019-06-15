@@ -15,6 +15,7 @@ import (
 
 var (
 	ERR_INVALID_PEM_BLOCK = errors.New("invalid PEM block")
+	ERR_NOT_PRIVATE_KEY   = errors.New("not ecdsa private key")
 	ERR_NOT_PUBLIC_KEY    = errors.New("not ecdsa public key")
 )
 
@@ -30,10 +31,19 @@ func Import_PrivateKey_PEM(pemdata []byte) (*PrivateKey, error) {
 	if block == nil {
 		return nil, ERR_INVALID_PEM_BLOCK
 	}
-	return x509.ParseECPrivateKey(block.Bytes)
+	return Import_PrivateKey(block.Bytes)
 }
 
 func Import_PrivateKey(privatekey []byte) (*PrivateKey, error) {
+	key, err := x509.ParsePKCS8PrivateKey(privatekey)
+	if err == nil {
+		key, ok := key.(*ecdsa.PrivateKey)
+		if ok {
+			return key, nil
+		} else {
+			return nil, ERR_NOT_PRIVATE_KEY
+		}
+	}
 	return x509.ParseECPrivateKey(privatekey)
 }
 
@@ -46,11 +56,11 @@ func Import_PublicKey(publickey []byte) (*PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	p, ok := pub.(*ecdsa.PublicKey)
+	key, ok := pub.(*ecdsa.PublicKey)
 	if !ok {
 		return nil, ERR_NOT_PUBLIC_KEY
 	}
-	return p, nil
+	return key, nil
 }
 
 func Export_PublicKey(p *PublicKey) []byte {

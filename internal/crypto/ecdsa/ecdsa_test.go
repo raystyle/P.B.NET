@@ -13,34 +13,47 @@ import (
 )
 
 func Test_ECDSA(t *testing.T) {
+	// generate key
 	privatekey, err := Generate_Key(elliptic.P256())
 	require.Nil(t, err, err)
+	// import private key pem
 	file, err := ioutil.ReadFile("ecdsa.key")
 	require.Nil(t, err, err)
+	// import private key ec
 	_, err = Import_PrivateKey_PEM(file)
 	require.Nil(t, err, err)
-	_, err = Import_PrivateKey_PEM(nil)
-	require.Equal(t, err, ERR_INVALID_PEM_BLOCK, err)
-	privatekey_bytes, err := Export_PrivateKey(privatekey)
+	// export private key
+	_, err = Export_PrivateKey(privatekey)
 	require.Nil(t, err, err)
-	_, err = Import_PrivateKey(privatekey_bytes)
+	// import private key pkcs8
+	pkcs8, _ := x509.MarshalPKCS8PrivateKey(privatekey)
+	_, err = Import_PrivateKey(pkcs8)
 	require.Nil(t, err, err)
+	// export & import public key
 	publickey := &privatekey.PublicKey
 	publickey_bytes := Export_PublicKey(publickey)
 	_, err = Import_PublicKey(publickey_bytes)
 	require.Nil(t, err, err)
-	// invalid publickey
-	_, err = Import_PublicKey(nil)
-	require.NotNil(t, err)
-	// rsa publickey
-	rsa_pri, _ := rsa.Generate_Key(1024)
-	rsa_pri_b, _ := x509.MarshalPKIXPublicKey(&rsa_pri.PublicKey)
-	_, err = Import_PublicKey(rsa_pri_b)
-	require.Equal(t, ERR_NOT_PUBLIC_KEY, err, err)
+	// sign & verify
 	signature, err := Sign(privatekey, file)
 	require.Nil(t, err, err)
 	require.True(t, Verify(publickey, file, signature), "invalid data")
 	require.False(t, Verify(publickey, file, nil), "error verify")
+	// import private key pem error
+	_, err = Import_PrivateKey_PEM(nil)
+	require.Equal(t, err, ERR_INVALID_PEM_BLOCK, err)
+	// invalid public key
+	_, err = Import_PublicKey(nil)
+	require.NotNil(t, err)
+	// rsa public key
+	rsa_pri, _ := rsa.Generate_Key(1024)
+	rsa_pub_b, _ := x509.MarshalPKIXPublicKey(&rsa_pri.PublicKey)
+	_, err = Import_PublicKey(rsa_pub_b)
+	require.Equal(t, ERR_NOT_PUBLIC_KEY, err, err)
+	// import rsa private key
+	rsa_pri_b, _ := x509.MarshalPKCS8PrivateKey(rsa_pri)
+	_, err = Import_PrivateKey(rsa_pri_b)
+	require.Equal(t, ERR_NOT_PRIVATE_KEY, err, err)
 	// error sign
 	privatekey.PublicKey.Curve.Params().N.SetBytes(nil)
 	_, err = Sign(privatekey, file)
