@@ -82,15 +82,15 @@ func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	return tc, nil
 }
 
-func (this *Server) Listen_And_Serve(address string, start_timeout time.Duration) error {
+func (this *Server) Listen_And_Serve(address string, timeout time.Duration) error {
 	l, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
-	return this.Serve(tcpKeepAliveListener{l.(*net.TCPListener)}, start_timeout)
+	return this.Serve(tcpKeepAliveListener{l.(*net.TCPListener)}, timeout)
 }
 
-func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
+func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
 	this.addr = l.Addr().String()
@@ -98,7 +98,7 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 	this.listener = l
 	// reference http.Server.Serve()
 	f := func() error {
-		var temp_delay time.Duration // how long to sleep on accept failure
+		var delay time.Duration // how long to sleep on accept failure
 		max := 1 * time.Second
 		for {
 			conn, err := l.Accept()
@@ -109,21 +109,21 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 				default:
 				}
 				if ne, ok := err.(net.Error); ok && ne.Temporary() {
-					if temp_delay == 0 {
-						temp_delay = 5 * time.Millisecond
+					if delay == 0 {
+						delay = 5 * time.Millisecond
 					} else {
-						temp_delay *= 2
+						delay *= 2
 					}
-					if temp_delay > max {
-						temp_delay = max
+					if delay > max {
+						delay = max
 					}
-					this.log(logger.WARNING, "Accept error: %s; retrying in %v", err, temp_delay)
-					time.Sleep(temp_delay)
+					this.log(logger.WARNING, "Accept error: %s; retrying in %v", err, delay)
+					time.Sleep(delay)
 					continue
 				}
 				return err
 			}
-			temp_delay = 0
+			delay = 0
 			c := this.new_conn(conn)
 			if c != nil {
 				go c.serve()
@@ -132,12 +132,12 @@ func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
 			}
 		}
 	}
-	return this.start(f, start_timeout)
+	return this.start(f, timeout)
 }
 
-func (this *Server) start(f func() error, start_timeout time.Duration) error {
-	if start_timeout < 1 {
-		start_timeout = options.DEFAULT_START_TIMEOUT
+func (this *Server) start(f func() error, timeout time.Duration) error {
+	if timeout < 1 {
+		timeout = options.DEFAULT_START_TIMEOUT
 	}
 	err_chan := make(chan error, 1)
 	go func() {
@@ -160,7 +160,7 @@ func (this *Server) start(f func() error, start_timeout time.Duration) error {
 	case err := <-err_chan:
 		this.log(logger.INFO, "start server failed:", err)
 		return err
-	case <-time.After(start_timeout):
+	case <-time.After(timeout):
 		this.log(logger.INFO, "start server success: ", this.addr)
 		return nil
 	}

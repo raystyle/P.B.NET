@@ -101,25 +101,25 @@ func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	return tc, nil
 }
 
-func (this *Server) Listen_And_Serve(address string, start_timeout time.Duration) error {
+func (this *Server) Listen_And_Serve(address string, timeout time.Duration) error {
 	l, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
-	return this.Serve(tcpKeepAliveListener{l.(*net.TCPListener)}, start_timeout)
+	return this.Serve(tcpKeepAliveListener{l.(*net.TCPListener)}, timeout)
 }
 
-func (this *Server) Serve(l net.Listener, start_timeout time.Duration) error {
+func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
 	defer this.m.Unlock()
 	this.m.Lock()
 	this.addr = l.Addr().String()
 	limit_l := netutil.LimitListener(l, this.limit)
-	return this.start(func() error { return this.server.Serve(limit_l) }, start_timeout)
+	return this.start(func() error { return this.server.Serve(limit_l) }, timeout)
 }
 
-func (this *Server) start(f func() error, start_timeout time.Duration) error {
-	if start_timeout < 1 {
-		start_timeout = options.DEFAULT_START_TIMEOUT
+func (this *Server) start(f func() error, timeout time.Duration) error {
+	if timeout < 1 {
+		timeout = options.DEFAULT_START_TIMEOUT
 	}
 	err_chan := make(chan error, 1)
 	go func() {
@@ -142,7 +142,7 @@ func (this *Server) start(f func() error, start_timeout time.Duration) error {
 	case err := <-err_chan:
 		this.log(logger.INFO, "start server failed:", err)
 		return err
-	case <-time.After(start_timeout):
+	case <-time.After(timeout):
 		this.log(logger.INFO, "start server success: ", this.addr)
 		return nil
 	}
