@@ -29,7 +29,7 @@ func test_generate_nodes() []*Node {
 	nodes[1] = &Node{
 		Mode:    xnet.TLS,
 		Network: "tcp",
-		Address: "192.168.1.11:53123",
+		Address: "[::1]:53123",
 	}
 	return nodes
 }
@@ -45,9 +45,9 @@ func (this *mock_resolver) Resolve(domain string, opts *dnsclient.Options) ([]st
 	}
 	switch opts.Type {
 	case "", dns.IPV4:
-		return []string{"127.0.0.1", "192.168.1.11"}, nil
+		return []string{"127.0.0.1", "127.0.0.2"}, nil
 	case dns.IPV6:
-		return []string{"::1", "fe80::5456:5f8:1690:5792"}, nil
+		return []string{"::1", "::2"}, nil
 	default:
 		panic(dns.ERR_INVALID_TYPE)
 	}
@@ -68,7 +68,7 @@ func (this *mock_proxy_pool) Init(t *testing.T) {
 	}
 	s5s, err := socks5.New_Server("test_socks5", logger.Test, s5s_opts)
 	require.Nil(t, err, err)
-	err = s5s.Listen_And_Serve("localhost:0", 0)
+	err = s5s.Listen_And_Serve(":0", 0)
 	require.Nil(t, err, err)
 	this.socks5_server = s5s
 	// create socks5 client(s5c)
@@ -90,7 +90,7 @@ func (this *mock_proxy_pool) Init(t *testing.T) {
 	}
 	hs, err := httpproxy.New_Server("test_httpproxy", logger.Test, hs_opts)
 	require.Nil(t, err, err)
-	err = hs.Listen_And_Serve("localhost:0", 0)
+	err = hs.Listen_And_Serve(":0", 0)
 	require.Nil(t, err, err)
 	this.http_server = hs
 	// create http proxy client(hc)
@@ -122,7 +122,7 @@ func (this *mock_proxy_pool) Get(tag string) (*proxyclient.Client, error) {
 
 // return port
 func test_start_http_server(t *testing.T, s *http.Server, info string) string {
-	l, err := net.Listen("tcp", "")
+	l, err := net.Listen("tcp", ":0")
 	require.Nil(t, err, err)
 	data := []byte(info)
 	server_mux := http.NewServeMux()

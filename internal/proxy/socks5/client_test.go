@@ -14,7 +14,7 @@ var address = []string{"www.baidu.com:443", "[2400:da00:2::29]:443", "8.8.8.8:53
 
 func Test_Socks5_Client(t *testing.T) {
 	server := test_generate_server(t)
-	err := server.Listen_And_Serve("localhost:0", 0)
+	err := server.Listen_And_Serve(":0", 0)
 	require.Nil(t, err, err)
 	defer func() {
 		err = server.Stop()
@@ -33,7 +33,7 @@ func Test_Socks5_Client(t *testing.T) {
 func Test_Socks5_Client_Chain(t *testing.T) {
 	// server 1
 	server1 := test_generate_server(t)
-	err := server1.Listen_And_Serve("localhost:0", 0)
+	err := server1.Listen_And_Serve(":0", 0)
 	require.Nil(t, err, err)
 	defer func() {
 		err = server1.Stop()
@@ -47,7 +47,7 @@ func Test_Socks5_Client_Chain(t *testing.T) {
 	}
 	// server 2
 	server2 := test_generate_server(t)
-	err = server2.Listen_And_Serve("localhost:0", 0)
+	err = server2.Listen_And_Serve(":0", 0)
 	require.Nil(t, err, err)
 	defer func() {
 		err = server2.Stop()
@@ -90,7 +90,7 @@ func test_socks5(t *testing.T, c *Client) {
 	client := http.Client{
 		Transport: transport,
 	}
-	resp, err := client.Get("http://20019.ip138.com/ic.asp")
+	resp, err := client.Get("https://ip.cn/")
 	require.Nil(t, err, err)
 	defer func() {
 		_ = resp.Body.Close()

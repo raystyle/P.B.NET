@@ -10,7 +10,7 @@ import (
 
 func Test_Server(t *testing.T) {
 	s := test_generate_server(t)
-	err := s.Listen_And_Serve("localhost:0", 0)
+	err := s.Listen_And_Serve(":0", 0)
 	require.Nil(t, err, err)
 	t.Log(s.Info())
 	t.Log(s.Addr())
