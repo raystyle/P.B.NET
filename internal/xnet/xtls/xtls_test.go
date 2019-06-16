@@ -1,14 +1,28 @@
-package light
+package xtls
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"io"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/crypto/cert"
 )
 
-func Test_light(t *testing.T) {
-	listener, err := Listen("tcp", ":0", 0)
+func Test_xtls(t *testing.T) {
+	// generate cert
+	c, k, err := cert.Generate(nil, nil,
+		[]string{"localhost"}, []string{"127.0.0.1", "::1"})
+	require.Nil(t, err, err)
+	tls_cert, err := tls.X509KeyPair(c, k)
+	require.Nil(t, err, err)
+	tls_config := &tls.Config{
+		Certificates: []tls.Certificate{tls_cert},
+	}
+	listener, err := Listen("tcp", ":0", tls_config)
 	require.Nil(t, err, err)
 	go func() {
 		conn, err := listener.Accept()
@@ -30,7 +44,16 @@ func Test_light(t *testing.T) {
 		write()
 		read()
 	}()
-	conn, err := Dial("tcp", listener.Addr().String(), 0)
+	// add cert to trust
+	tls_config = &tls.Config{
+		RootCAs: x509.NewCertPool(),
+	}
+	x509_cert, err := cert.Parse(c)
+	require.Nil(t, err, err)
+	tls_config.RootCAs.AddCert(x509_cert)
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.Nil(t, err, err)
+	conn, err := Dial("tcp", "localhost:"+port, tls_config)
 	require.Nil(t, err, err)
 	write := func() {
 		testdata := test_generate_testdata()
@@ -57,22 +80,3 @@ func test_generate_testdata() []byte {
 	}
 	return testdata
 }
-
-/*
-func Test_Dial_With_Dialer(t *testing.T) {
-	listener, err := Listen("tcp", ":0", 0)
-	require.Nil(t, err, err)
-	go func() {
-		conn, err := listener.Accept()
-		require.Nil(t, err, err)
-		_, _ = conn.Read(nil)
-		_ = conn.Close()
-	}()
-	dialer := &net.Dialer{
-		Timeout: 5 * time.Second,
-	}
-	conn, err := Dial_With_Dialer(dialer, "tcp", listener.Addr().String())
-	require.Nil(t, err, err)
-	_ = conn.Close()
-}
-*/

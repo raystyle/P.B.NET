@@ -66,6 +66,7 @@ func (this *Conn) Read(b []byte) (n int, err error) {
 func (this *Conn) Write(b []byte) (n int, err error) {
 	err = this.Handshake()
 	if err != nil {
+		return
 	}
 	return this.Conn.Write(this.cryptor.encrypt(b))
 }
