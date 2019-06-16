@@ -1,4 +1,4 @@
-package xlight
+package light
 
 import (
 	"project/internal/random"

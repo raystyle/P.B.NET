@@ -1,4 +1,4 @@
-package xlight
+package light
 
 import (
 	"net"
@@ -7,23 +7,6 @@ import (
 
 	"project/internal/options"
 )
-
-// timeout is for handshake
-func Dial(network, address string, timeout time.Duration) (*Conn, error) {
-	conn, err := net.Dial(network, address)
-	if err != nil {
-		return nil, err
-	}
-	return Client(conn, timeout), nil
-}
-
-func Client(conn net.Conn, timeout time.Duration) *Conn {
-	return &Conn{Conn: conn, handshake_timeout: timeout, is_client: true}
-}
-
-func Server(conn net.Conn, timeout time.Duration) *Conn {
-	return &Conn{Conn: conn, handshake_timeout: timeout}
-}
 
 type Conn struct {
 	net.Conn

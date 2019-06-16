@@ -7,7 +7,8 @@ import (
 type Mode string
 
 const (
-	TLS Mode = "tls"
+	TLS   Mode = "tls"
+	LIGHT Mode = "light"
 )
 
 var (
@@ -31,7 +32,12 @@ func Check_Mode_Network(mode Mode, network string) error {
 		default:
 			return ERR_MISMATCHED_MODE_NETWORK
 		}
-
+	case LIGHT:
+		switch network {
+		case "tcp", "tcp4", "tcp6":
+		default:
+			return ERR_MISMATCHED_MODE_NETWORK
+		}
 	default:
 		return ERR_UNKNOWN_MODE
 	}

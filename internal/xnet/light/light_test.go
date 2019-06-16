@@ -1,4 +1,4 @@
-package xlight
+package light
 
 import (
 	"io"
@@ -12,9 +12,7 @@ func Test_xlight(t *testing.T) {
 	require.Nil(t, err, err)
 	go func() {
 		conn, err := listener.Accept()
-		if err != nil {
-			return
-		}
+		require.Nil(t, err, err)
 		write := func() {
 			testdata := test_generate_testdata()
 			_, err = conn.Write(testdata)
@@ -59,3 +57,22 @@ func test_generate_testdata() []byte {
 	}
 	return testdata
 }
+
+/*
+func Test_Dial_With_Dialer(t *testing.T) {
+	listener, err := Listen("tcp", ":0", 0)
+	require.Nil(t, err, err)
+	go func() {
+		conn, err := listener.Accept()
+		require.Nil(t, err, err)
+		_, _ = conn.Read(nil)
+		_ = conn.Close()
+	}()
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+	}
+	conn, err := Dial_With_Dialer(dialer, "tcp", listener.Addr().String())
+	require.Nil(t, err, err)
+	_ = conn.Close()
+}
+*/
