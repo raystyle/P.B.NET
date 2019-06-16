@@ -11,13 +11,18 @@ import (
 )
 
 const (
-	padding_size        = 2    // uint16 2 bytes
+	padding_header_size = 2    // uint16 2 bytes
 	padding_min_size    = 281  // min padding
 	padding_max_size    = 1024 // max random padding
 	rsa_bits            = 2136 // need to encrypt 256 bytes data
 	rsa_publickey_size  = 281  // export public key = 281 bytes
 	rsa_cipherdata_size = 267  // encrypted password = 267 bytes
-	password_size       = 256  // light password
+	password_size       = 256
+)
+
+var (
+	ERR_INVALID_PADDING_SIZE  = errors.New("invalid padding size")
+	ERR_INVALID_PASSWORD_SIZE = errors.New("invalid password size")
 )
 
 // client generate rsa private key
@@ -30,18 +35,48 @@ const (
 func (this *Conn) client_handshake() error {
 	privatekey, _ := rsa.Generate_Key(rsa_bits)
 	generator := random.New()
-	padding_size := padding_min_size + generator.Int(padding_max_size)
+	send_padding_size := padding_min_size + generator.Int(padding_max_size)
 	handshake := bytes.Buffer{}
 	// write padding size
-	handshake.Write(convert.Uint16_Bytes(uint16(padding_size)))
+	handshake.Write(convert.Uint16_Bytes(uint16(send_padding_size)))
 	// write padding data
-	handshake.Write(generator.Bytes(padding_size))
+	handshake.Write(generator.Bytes(send_padding_size))
 	// write rsa public key
 	handshake.Write(rsa.Export_PublicKey(&privatekey.PublicKey))
 	_, err := this.Conn.Write(handshake.Bytes())
 	if err != nil {
 		return err
 	}
+	// receive padding size
+	buffer := make([]byte, padding_header_size)
+	_, err = io.ReadFull(this.Conn, buffer)
+	if err != nil {
+		return err
+	}
+	recv_padding_size := convert.Bytes_Uint16(buffer)
+	// check padding size
+	if recv_padding_size < padding_min_size { // <exploit>
+		return ERR_INVALID_PADDING_SIZE
+	}
+	// receive padding data
+	buffer = make([]byte, recv_padding_size)
+	_, err = io.ReadFull(this.Conn, buffer)
+	if err != nil {
+		return err
+	}
+	// receive encrypted password
+	_, err = io.ReadFull(this.Conn, buffer[:rsa_cipherdata_size])
+	if err != nil {
+		return err
+	}
+	password, err := rsa.Decrypt(privatekey, buffer[:rsa_cipherdata_size])
+	if err != nil {
+		return err
+	}
+	if len(password) != password_size {
+		return ERR_INVALID_PASSWORD_SIZE
+	}
+	this.cryptor = new_cryptor(password)
 	return nil
 }
 
@@ -54,20 +89,19 @@ func (this *Conn) client_handshake() error {
 // |      2       |     xxxx     |      267     |
 // +--------------+--------------+--------------+
 func (this *Conn) server_handshake() error {
-	// stage 2
 	// receive padding size
-	buffer := make([]byte, padding_size)
+	buffer := make([]byte, padding_header_size)
 	_, err := io.ReadFull(this.Conn, buffer)
 	if err != nil {
 		return err
 	}
-	padding_size := convert.Bytes_Uint16(buffer)
+	recv_padding_size := convert.Bytes_Uint16(buffer)
 	// check padding size
-	if padding_size < padding_min_size { // <exploit>
-		return errors.New("invalid padding size")
+	if recv_padding_size < padding_min_size { // <exploit>
+		return ERR_INVALID_PADDING_SIZE
 	}
 	// receive padding data
-	buffer = make([]byte, padding_size)
+	buffer = make([]byte, recv_padding_size)
 	_, err = io.ReadFull(this.Conn, buffer)
 	if err != nil {
 		return err
@@ -81,6 +115,21 @@ func (this *Conn) server_handshake() error {
 	if err != nil {
 		return err
 	}
-	rsa.Encrypt(publickey, nil)
-	return nil
+	this.cryptor = new_cryptor(nil)
+	// encrypt password
+	cipherdata, err := rsa.Encrypt(publickey, this.cryptor[0][:])
+	if err != nil {
+		return err
+	}
+	generator := random.New()
+	send_padding_size := padding_min_size + generator.Int(padding_max_size)
+	handshake := bytes.Buffer{}
+	// write padding size
+	handshake.Write(convert.Uint16_Bytes(uint16(send_padding_size)))
+	// write padding data
+	handshake.Write(generator.Bytes(send_padding_size))
+	// write encrypted password
+	handshake.Write(cipherdata)
+	_, err = this.Conn.Write(handshake.Bytes())
+	return err
 }

@@ -23,15 +23,15 @@ func (this *cryptor) decrypt(cipherdata []byte) {
 	}
 }
 
-func new_cryptor(encrypt []byte) *cryptor {
+func new_cryptor(password []byte) *cryptor {
 	var cryptor cryptor
-	if len(encrypt) == 256 {
-		// copy encrypt
+	if len(password) == 256 {
+		// copy encrypt password
 		for i := 0; i < 256; i++ {
-			cryptor[0][i] = encrypt[i]
+			cryptor[0][i] = password[i]
 		}
 	} else {
-		// generate new encrypt
+		// generate new encrypt password
 		generator := random.New()
 		pool := make(map[byte]bool)
 		// first select
@@ -58,7 +58,7 @@ func new_cryptor(encrypt []byte) *cryptor {
 			}
 		}
 	}
-	// generate decrypt
+	// generate decrypt password
 	for i := 0; i < 256; i++ {
 		cryptor[1][cryptor[0][i]] = byte(i)
 	}

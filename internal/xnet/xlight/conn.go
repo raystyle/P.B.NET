@@ -42,7 +42,7 @@ func (this *Conn) Handshake() error {
 		return this.handshake_err
 	}
 	this.handshake_once.Do(func() {
-		// default
+		// default handshake timeout
 		if this.handshake_timeout < 1 {
 			this.handshake_timeout = options.DEFAULT_HANDSHAKE_TIMEOUT
 		}
@@ -67,15 +67,22 @@ func (this *Conn) Handshake() error {
 	return this.handshake_err
 }
 
-func (this *Conn) Read(b []byte) (int, error) {
-	n, err := this.Conn.Read(b)
+func (this *Conn) Read(b []byte) (n int, err error) {
+	err = this.Handshake()
 	if err != nil {
-		return n, err
+		return
+	}
+	n, err = this.Conn.Read(b)
+	if err != nil {
+		return
 	}
 	this.cryptor.decrypt(b)
 	return n, nil
 }
 
-func (this *Conn) Write(b []byte) (int, error) {
+func (this *Conn) Write(b []byte) (n int, err error) {
+	err = this.Handshake()
+	if err != nil {
+	}
 	return this.Conn.Write(this.cryptor.encrypt(b))
 }
