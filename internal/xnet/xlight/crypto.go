@@ -23,7 +23,7 @@ func (this *cryptor) decrypt(cipherdata []byte) {
 	}
 }
 
-func generate_cryptor(encrypt []byte) *cryptor {
+func new_cryptor(encrypt []byte) *cryptor {
 	var cryptor cryptor
 	if len(encrypt) == 256 {
 		// copy encrypt
