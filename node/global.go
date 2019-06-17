@@ -6,15 +6,17 @@ import (
 	"project/internal/global/timesync"
 )
 
-type global_config struct {
-}
-
 type global struct {
 	proxy    *proxyclient.PROXY
 	dns      *dnsclient.DNS
 	timesync *timesync.TIMESYNC
 }
 
-func new_global(c *global_config) (*global, error) {
+func new_global(c *Config) (*global, error) {
+	proxy, err := proxyclient.New()
+
+	dns, err := dnsclient.New()
+
+	timesync, err := timesync.New()
 
 }
