@@ -5,24 +5,25 @@ import (
 	"fmt"
 	"time"
 
-	"project/internal/logger"
+	log "project/internal/logger"
 )
 
 const time_layout = "2006-01-02 15:04:05"
 
-type log struct {
+type logger struct {
 	ctx   *NODE
-	level logger.Level
+	level log.Level
 }
 
-func new_log(ctx *NODE) *log {
-	return &log{
-		ctx:   ctx,
-		level: ctx.config.Log_level,
+func new_logger(ctx *NODE) (*logger, error) {
+	l, err := log.Parse(ctx.config.Log_level)
+	if err != nil {
+		return nil, err
 	}
+	return &logger{ctx: ctx, level: l}, nil
 }
 
-func (this *log) Printf(level logger.Level, src, format string, log ...interface{}) {
+func (this *logger) Printf(level log.Level, src, format string, log ...interface{}) {
 	if level < this.level {
 		return
 	}
@@ -34,7 +35,7 @@ func (this *log) Printf(level logger.Level, src, format string, log ...interface
 	this.print(buffer.String())
 }
 
-func (this *log) Println(level logger.Level, src string, log ...interface{}) {
+func (this *logger) Println(level log.Level, src string, log ...interface{}) {
 	if level < this.level {
 		return
 	}
@@ -49,23 +50,23 @@ func (this *log) Println(level logger.Level, src string, log ...interface{}) {
 // time + level + source + log
 // source usually like class name + "-" + instance tag
 // [2006-01-02 15:04:05] [INFO] <timesync> start http proxy server
-func (this *log) prefix(level logger.Level, src string) *bytes.Buffer {
+func (this *logger) prefix(level log.Level, src string) *bytes.Buffer {
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("[")
 	buffer.WriteString(time.Now().Local().Format(time_layout))
 	buffer.WriteString("] [")
 	switch level {
-	case logger.DEBUG:
+	case log.DEBUG:
 		buffer.WriteString("DEBUG")
-	case logger.INFO:
+	case log.INFO:
 		buffer.WriteString("INFO")
-	case logger.WARNING:
+	case log.WARNING:
 		buffer.WriteString("WARNING")
-	case logger.ERROR:
+	case log.ERROR:
 		buffer.WriteString("ERROR")
-	case logger.EXPLOIT:
+	case log.EXPLOIT:
 		buffer.WriteString("EXPLOIT")
-	case logger.FATAL:
+	case log.FATAL:
 		buffer.WriteString("FATAL")
 	default:
 		return nil
@@ -76,6 +77,6 @@ func (this *log) prefix(level logger.Level, src string) *bytes.Buffer {
 	return buffer
 }
 
-func (this *log) print(log string) {
+func (this *logger) print(log string) {
 	fmt.Println(log)
 }

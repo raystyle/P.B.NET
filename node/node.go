@@ -1,23 +1,24 @@
 package node
 
-import (
-	"project/internal/logger"
-)
-
 type NODE struct {
 	config *Config
-	logger logger.Logger
+	logger *logger
 	global *global
 }
 
 func New(c *Config) (*NODE, error) {
 	node := &NODE{config: c}
-	node.logger = new_log(node)
-	global, err := new_global(c)
+	logger, err := new_logger(node)
+	if err != nil {
+		return nil, err
+	}
+	node.logger = logger
+	global, err := new_global(node)
 	if err != nil {
 		return nil, err
 	}
 	node.global = global
+	node.config = nil
 	return node, nil
 }
 
