@@ -1,6 +1,7 @@
 package node
 
 import (
+	"encoding/base64"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -19,7 +20,7 @@ type global struct {
 	proxy      *proxyclient.PROXY
 	dns        *dnsclient.DNS
 	timesync   *timesync.TIMESYNC
-	object     map[object_key]interface{}
+	object     map[uint32]interface{}
 	object_rwm sync.RWMutex
 	wg         sync.WaitGroup
 }
@@ -81,20 +82,23 @@ func (this *global) configure() error {
 	this.sec_padding_memory()
 	generator := random.New()
 	// random object map
-	this.object = make(map[object_key]interface{})
+	this.object = make(map[uint32]interface{})
 	for i := 0; i < 32+generator.Int(512); i++ { // 544 * 160 bytes
-		key := object_key_max + 1 + generator.Int(512)
+		key := object_key_max + uint32(1+generator.Int(512))
 		this.object[key] = generator.Bytes(32 + generator.Int(128))
 	}
+	// internal
 	err := this.generate_objects()
 	if err != nil {
 		return err
 	}
+	// load controller config
+
 	return nil
 }
 
 // 1. node guid
-// 2.
+// 2. aes cryptor for database & self guid
 func (this *global) generate_objects() error {
 	// generate guid and select one
 	this.sec_padding_memory()
@@ -104,7 +108,8 @@ func (this *global) generate_objects() error {
 	for i := 0; i < 1024; i++ {
 		guid_pool = append(guid_pool, guid_generator.Get())
 	}
-	select_guid := guid_pool[random_generator.Int(1024)]
+	select_guid := make([]byte, guid.SIZE)
+	copy(select_guid, guid_pool[random_generator.Int(1024)])
 	this.object[node_guid] = select_guid
 	// generate database aes
 	aes_key := random_generator.Bytes(aes.BIT256)
@@ -116,6 +121,46 @@ func (this *global) generate_objects() error {
 	security.Flush_Bytes(aes_key)
 	security.Flush_Bytes(aes_iv)
 	this.object[database_aes] = cryptor
-
+	// encrypt guid
+	encrypt_guid, err := this.Database_Encrypt(this.GUID())
+	if err != nil {
+		return err
+	}
+	str := base64.StdEncoding.EncodeToString(encrypt_guid)
+	this.object[node_guid_encrypted] = str
 	return nil
+}
+
+// about internal
+
+func (this *global) GUID() []byte {
+	this.object_rwm.RLock()
+	g := this.object[node_guid]
+	this.object_rwm.RUnlock()
+	return g.([]byte)
+}
+
+func (this *global) GUID_Encrypted() string {
+	this.object_rwm.RLock()
+	g := this.object[node_guid_encrypted]
+	this.object_rwm.RUnlock()
+	return g.(string)
+}
+
+func (this *global) Certificate() []byte {
+	this.object_rwm.RLock()
+	c := this.object[certificate]
+	this.object_rwm.RUnlock()
+	if c != nil {
+		return c.([]byte)
+	} else {
+		return nil
+	}
+}
+
+func (this *global) Database_Encrypt(plaindata []byte) ([]byte, error) {
+	this.object_rwm.RLock()
+	c := this.object[database_aes].(*aes.CBC_Cryptor)
+	this.object_rwm.RUnlock()
+	return c.Encrypt(plaindata)
 }

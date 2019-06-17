@@ -19,11 +19,11 @@ type Config struct {
 	Timesync_Interval  time.Duration                  `toml:"timesync_interval"`
 }
 
-const object_key_max = 1048575
+const object_key_max uint32 = 1048575
 
 // runtime env
 // 0 < key < 1048576
-type object_key = int
+type object_key = uint32
 
 const (
 	// external object
@@ -32,11 +32,11 @@ const (
 	ctrl_aes                     // decrypt controller broadcast message
 
 	// internal object
-	node_guid         // identification
-	node_guid_encrypt // update self sync_send_height
-	database_aes      // encrypt self data
-	startup_time      // first bootstrap time
-	certificate       // for listener
+	node_guid           // identification
+	node_guid_encrypted // update self sync_send_height
+	database_aes        // encrypt self data
+	startup_time        // first bootstrap time
+	certificate         // for listener
 	session_ecdsa
 	session_key
 
