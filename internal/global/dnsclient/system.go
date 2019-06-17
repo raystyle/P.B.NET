@@ -30,7 +30,7 @@ func system_resolve(domain string, Type dns.Type) ([]string, error) {
 		}
 	}
 	switch Type {
-	case "", dns.IPV4:
+	case dns.IPV4:
 		return ipv4_list, nil
 	case dns.IPV6:
 		return ipv6_list, nil

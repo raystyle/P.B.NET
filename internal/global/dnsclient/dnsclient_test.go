@@ -96,6 +96,12 @@ func Test_DNS(t *testing.T) {
 	ip_list, err := DNS.Resolve(domain, nil)
 	require.Nil(t, err, err)
 	t.Log("use default options", ip_list)
+	// resolve with tag
+	DNS.Flush_Cache()
+	opts := &Options{Tag: "tcp_google"}
+	ip_list, err = DNS.Resolve(domain, opts)
+	require.Nil(t, err, err)
+	t.Log("with tag", ip_list)
 	/*
 		//ipv4
 		opt := &dns.Options{

@@ -34,10 +34,11 @@ type Client struct {
 
 type Options struct {
 	Mode  Mode   // default is custom
+	Tag   string // if tag != "" use selected dns client
 	Proxy string // proxy tag
 	// for dns.Options
 	Type      dns.Type   // default ipv4
-	Method    dns.Method // default TLS
+	Method    dns.Method // default TLS , if tag != "" ignore this
 	Network   string
 	Timeout   time.Duration
 	Header    http.Header
@@ -99,14 +100,15 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
-	cache_list := this.query_cache(domain, opts.Type)
+	_type := opts.Type
+	if _type == "" {
+		_type = dns.IPV4
+	}
+	cache_list := this.query_cache(domain, _type)
 	if cache_list != nil {
 		return cache_list, nil
 	}
-	var (
-		ip_list []string
-		err     error
-	)
+	var ip_list []string
 	switch opts.Mode {
 	case "", CUSTUM:
 		dns_opts, err := opts.apply()
@@ -127,6 +129,17 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 			default:
 				return nil, dns.ERR_UNKNOWN_METHOD
 			}
+		}
+		// check tag
+		if opts.Tag != "" {
+			this.clients_rwm.RLock()
+			client, ok := this.clients[opts.Tag]
+			this.clients_rwm.RUnlock()
+			if !ok {
+				return nil, fmt.Errorf("dns client: %s doesn't exist", opts.Tag)
+			}
+			dns_opts.Method = client.Method
+			return dns.Resolve(client.Address, domain, dns_opts)
 		}
 		// query dns
 		m := opts.Method
@@ -149,13 +162,17 @@ func (this *DNS) Resolve(domain string, opts *Options) ([]string, error) {
 			}
 		}
 	case SYSTEM:
-		ip_list, err = system_resolve(domain, opts.Type)
+		var err error
+		ip_list, err = system_resolve(domain, _type)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, ERROR_INVALID_MODE
 	}
-	if err == nil && ip_list != nil {
-		switch opts.Type {
-		case "", dns.IPV4:
+	if ip_list != nil {
+		switch _type {
+		case dns.IPV4:
 			this.update_cache(domain, ip_list, nil)
 		case dns.IPV6:
 			this.update_cache(domain, nil, ip_list)
@@ -189,7 +206,7 @@ func (this *DNS) Add(tag string, c *Client) error {
 		this.clients[tag] = c
 		return nil
 	} else {
-		return errors.New("dns client: " + tag + " already exists")
+		return fmt.Errorf("dns client: %s already exists", tag)
 	}
 }
 
@@ -200,6 +217,6 @@ func (this *DNS) Delete(tag string) error {
 		delete(this.clients, tag)
 		return nil
 	} else {
-		return errors.New("dns client: " + tag + " doesn't exist")
+		return fmt.Errorf("dns client: %s doesn't exist", tag)
 	}
 }
