@@ -38,7 +38,8 @@ func Test_ECDSA(t *testing.T) {
 	signature, err := Sign(privatekey, file)
 	require.Nil(t, err, err)
 	require.True(t, Verify(publickey, file, signature), "invalid data")
-	require.False(t, Verify(publickey, file, nil), "error verify")
+	require.False(t, Verify(publickey, file[:10], signature), "error verify")
+	require.False(t, Verify(publickey, file[:10], nil), "error verify")
 	// import private key pem error
 	_, err = Import_PrivateKey_PEM(nil)
 	require.Equal(t, err, ERR_INVALID_PEM_BLOCK, err)
@@ -69,18 +70,19 @@ func Test_ECDSA(t *testing.T) {
 func Benchmark_Sign(b *testing.B) {
 	privatekey, err := Generate_Key(elliptic.P256())
 	require.Nil(b, err, err)
-	data := bytes.Repeat([]byte{0}, 4096)
+	data := bytes.Repeat([]byte{0}, 256)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = Sign(privatekey, data)
 	}
+	b.StopTimer()
 }
 
 func Benchmark_Verify(b *testing.B) {
 	privatekey, err := Generate_Key(elliptic.P256())
 	require.Nil(b, err, err)
-	data := bytes.Repeat([]byte{0}, 4096)
+	data := bytes.Repeat([]byte{0}, 256)
 	signature, err := Sign(privatekey, data)
 	require.Nil(b, err, err)
 	publickey := &privatekey.PublicKey
@@ -88,7 +90,7 @@ func Benchmark_Verify(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Verify(publickey, data, signature)
-		// require.True(b, Verify(publickey, data, signature), "verify failed")
+		//require.True(b, Verify(publickey, data, signature), "verify failed")
 	}
 	b.StopTimer()
 }
@@ -96,7 +98,7 @@ func Benchmark_Verify(b *testing.B) {
 func Benchmark_Sign_Verify(b *testing.B) {
 	privatekey, err := Generate_Key(elliptic.P256())
 	require.Nil(b, err, err)
-	data := bytes.Repeat([]byte{0}, 4096)
+	data := bytes.Repeat([]byte{0}, 256)
 	publickey := &privatekey.PublicKey
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -70,9 +69,7 @@ func Export_PublicKey(p *PublicKey) []byte {
 
 //len r(2 byte) + r.bytes + len s(2 byte) + s.bytes
 func Sign(p *PrivateKey, data []byte) ([]byte, error) {
-	h := sha256.New()
-	h.Write(data)
-	r, s, err := ecdsa.Sign(rand.Reader, p, h.Sum(nil))
+	r, s, err := ecdsa.Sign(rand.Reader, p, data)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +105,5 @@ func Verify(p *PublicKey, data, signature []byte) bool {
 	}
 	s := &big.Int{}
 	s.SetBytes(signature[2+r_l+2:])
-	h := sha256.New()
-	h.Write(data)
-	return ecdsa.Verify(p, h.Sum(nil), r, s)
+	return ecdsa.Verify(p, data, r, s)
 }
