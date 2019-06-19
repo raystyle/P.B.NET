@@ -11,10 +11,10 @@ import (
 
 	"github.com/pelletier/go-toml"
 	"github.com/vmihailenco/msgpack"
+	"golang.org/x/crypto/ed25519"
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
-	"project/internal/crypto/ecdsa"
 	"project/internal/dns"
 	"project/internal/global/dnsclient"
 	"project/internal/options"
@@ -38,10 +38,10 @@ type HTTP struct {
 	// encrypt&decrypt generate data(nodes) hex
 	AES_Key string `toml:"aes_key"`
 	AES_IV  string `toml:"aes_iv"`
-	// for resolve verify   hex(PKIX)
+	// for resolve verify  hex
 	PublicKey string `toml:"publickey"`
 	// for generate&marshal
-	PrivateKey *ecdsa.PrivateKey `toml:"-"`
+	PrivateKey ed25519.PrivateKey `toml:"-"`
 	// runtime
 	resolver dns_resolver
 	proxy    proxy_pool
@@ -103,10 +103,7 @@ func (this *HTTP) Generate(nodes []*Node) (string, error) {
 		nodes_data.Write(end)
 	}
 	// sign
-	signature, err := ecdsa.Sign(this.PrivateKey, nodes_data.Bytes())
-	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
-	}
+	signature := ed25519.Sign(this.PrivateKey, nodes_data.Bytes())
 	buffer := bytes.Buffer{}
 	// signature size + signature(nodes_data) + nodes_data
 	buffer.Write(convert.Uint16_Bytes(uint16(len(signature))))
@@ -133,8 +130,8 @@ func (this *HTTP) Marshal() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	pub := ecdsa.Export_PublicKey(&this.PrivateKey.PublicKey)
-	this.PublicKey = hex.EncodeToString(pub)
+	publickey := this.PrivateKey[ed25519.PublicKeySize:]
+	this.PublicKey = hex.EncodeToString(publickey)
 	return toml.Marshal(this)
 }
 
@@ -312,20 +309,15 @@ func (this *HTTP) resolve(h *HTTP, info string) ([]*Node, error) {
 	signature := data[2 : 2+signature_size]
 	nodes_data := data[2+signature_size:]
 	// verify
-	pub, err := hex.DecodeString(h.PublicKey)
+	publickey, err := hex.DecodeString(h.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 	h.PublicKey = ""
-	publickey, err := ecdsa.Import_PublicKey(pub)
-	if err != nil {
-		return nil, err
-	}
-	security.Flush_Bytes(pub)
-	if !ecdsa.Verify(publickey, nodes_data, signature) {
+	if !ed25519.Verify(ed25519.PublicKey(publickey), nodes_data, signature) {
 		return nil, ERR_INVALID_SIGNATURE
 	}
-	publickey = nil
+	security.Flush_Bytes(publickey)
 	// deconfuse
 	nodes_buffer := bytes.Buffer{}
 	l = len(nodes_data)

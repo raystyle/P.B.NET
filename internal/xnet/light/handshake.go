@@ -12,12 +12,12 @@ import (
 
 const (
 	padding_header_size = 2    // uint16 2 bytes
-	padding_min_size    = 281  // min padding
+	padding_min_size    = 281  // min padding = rsa_publickey_size
 	padding_max_size    = 1024 // max random padding
 	rsa_bits            = 2136 // need to encrypt 256 bytes data
 	rsa_publickey_size  = 281  // export public key = 281 bytes
 	rsa_cipherdata_size = 267  // encrypted password = 267 bytes
-	password_size       = 256
+	password_size       = 256  // light
 )
 
 var (
@@ -65,11 +65,12 @@ func (this *Conn) client_handshake() error {
 		return err
 	}
 	// receive encrypted password
-	_, err = io.ReadFull(this.Conn, buffer[:rsa_cipherdata_size])
+	buffer = buffer[:rsa_cipherdata_size]
+	_, err = io.ReadFull(this.Conn, buffer)
 	if err != nil {
 		return err
 	}
-	password, err := rsa.Decrypt(privatekey, buffer[:rsa_cipherdata_size])
+	password, err := rsa.Decrypt(privatekey, buffer)
 	if err != nil {
 		return err
 	}
@@ -107,11 +108,12 @@ func (this *Conn) server_handshake() error {
 		return err
 	}
 	// receive rsa public key
-	_, err = io.ReadFull(this.Conn, buffer[:rsa_publickey_size])
+	buffer = buffer[:rsa_publickey_size]
+	_, err = io.ReadFull(this.Conn, buffer)
 	if err != nil {
 		return err
 	}
-	publickey, err := rsa.Import_PublicKey(buffer[:rsa_publickey_size])
+	publickey, err := rsa.Import_PublicKey(buffer)
 	if err != nil {
 		return err
 	}

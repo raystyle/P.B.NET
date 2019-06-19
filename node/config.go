@@ -27,9 +27,8 @@ type object_key = uint32
 
 const (
 	// external object
-	ctrl_ecdsa object_key = iota // verify controller
-	ctrl_rsa                     // encrypt session key
-	ctrl_aes                     // decrypt controller broadcast message
+	ctrl_ed25519 object_key = iota // verify controller
+	ctrl_aes                       // decrypt controller broadcast message
 
 	// internal object
 	node_guid           // identification
@@ -37,7 +36,7 @@ const (
 	database_aes        // encrypt self data
 	startup_time        // first bootstrap time
 	certificate         // for listener
-	session_ecdsa
+	session_ed25519
 	session_key
 
 	// sync_send

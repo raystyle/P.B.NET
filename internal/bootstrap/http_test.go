@@ -1,17 +1,16 @@
 package bootstrap
 
 import (
-	"crypto/elliptic"
 	"crypto/tls"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ed25519"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
-	"project/internal/crypto/ecdsa"
 	"project/internal/dns"
 )
 
@@ -83,7 +82,7 @@ func test_generate_http(t *testing.T, p *mock_proxy_pool) *HTTP {
 	HTTP.AES_Key = strings.Repeat("FF", aes.BIT256)
 	HTTP.AES_IV = strings.Repeat("FF", aes.IV_SIZE)
 	// generate privatekey
-	privatekey, err := ecdsa.Generate_Key(elliptic.P256())
+	_, privatekey, err := ed25519.GenerateKey(nil)
 	require.Nil(t, err, err)
 	HTTP.PrivateKey = privatekey
 	return HTTP
