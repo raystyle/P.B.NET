@@ -272,9 +272,21 @@ func (r *Response) Validate() error {
 }
 
 func Query(address string, opts *Options) (*Response, error) {
-	m, now, err := getTime(address, opts)
-	if err != nil {
-		return nil, err
+	var (
+		m   *msg
+		now ntpTime
+		err error
+	)
+	// try 3 times
+	for i := 0; i < 3; i++ {
+		m, now, err = getTime(address, opts)
+		if err == nil {
+			break
+		} else {
+			if i == 2 {
+				return nil, err
+			}
+		}
 	}
 	r := parseTime(m, now)
 	err = r.Validate()
