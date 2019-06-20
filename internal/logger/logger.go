@@ -22,7 +22,8 @@ const (
 const time_layout = "2006-01-02 15:04:05"
 
 var (
-	Test = &test{}
+	Test    = new(test)
+	Discard = new(discard)
 )
 
 type Logger interface {
@@ -38,6 +39,17 @@ func Wrap(level Level, src string, logger Logger) *log.Logger {
 		logger: logger,
 	}
 	return log.New(w, "", 0)
+}
+
+type writer struct {
+	level  Level
+	src    string
+	logger Logger
+}
+
+func (this *writer) Write(p []byte) (int, error) {
+	this.logger.Println(this.level, this.src, string(p))
+	return len(p), nil
 }
 
 func Parse(level string) (Level, error) {
@@ -61,17 +73,6 @@ func Parse(level string) (Level, error) {
 		return l, fmt.Errorf("invalid level: %s", level)
 	}
 	return l, nil
-}
-
-type writer struct {
-	level  Level
-	src    string
-	logger Logger
-}
-
-func (this *writer) Write(p []byte) (int, error) {
-	this.logger.Println(this.level, this.src, string(p))
-	return len(p), nil
 }
 
 type test struct{}
@@ -123,3 +124,9 @@ func (this *test) prefix(level Level, src string) *bytes.Buffer {
 	buffer.WriteString("> ")
 	return buffer
 }
+
+type discard struct{}
+
+func (this *discard) Printf(level Level, src string, format string, log ...interface{}) {}
+
+func (this *discard) Println(level Level, src string, log ...interface{}) {}
