@@ -42,21 +42,20 @@ var (
 )
 
 type Client struct {
-	Mode    Mode
-	Address string // if Mode == HTTP cover H_Request.URL
-	// options
-	Timeout time.Duration
-	Proxy   string
+	Mode     Mode              `toml:"mode"`
+	Address  string            `toml:"address"` // if Mode == HTTP cover H_Request.URL
+	Timeout  time.Duration     `toml:"timeout"`
+	Proxy    string            `toml:"proxy"`
+	DNS_Opts dnsclient.Options `toml:"dnsclient"`
 	// for ntp.Option
 	NTP_Opts struct {
-		Version  int    // NTP protocol version, defaults to 4
-		Network  string // network to use, defaults to udp
-		DNS_Opts dnsclient.Options
+		Version int    `toml:"version"`
+		Network string `toml:"network"`
 	} `toml:"ntp_options"`
 	// for httptime
 	HTTP_Opts struct {
-		Request   options.HTTP_Request
-		Transport options.HTTP_Transport
+		Request   options.HTTP_Request   `toml:"request"`
+		Transport options.HTTP_Transport `toml:"transport"`
 	} `toml:"http_options"`
 }
 
@@ -324,6 +323,8 @@ func (this *TIMESYNC) sync_httptime(c *Client) (opt_err bool, err error) {
 	if proxy != nil {
 		proxy.HTTP(tr)
 	}
+
+	// TODO dns resolve
 	// don't set dns resolve
 	client := &http.Client{
 		Transport: tr,
@@ -362,13 +363,13 @@ func (this *TIMESYNC) sync_ntp(c *Client) (opt_err bool, err error) {
 		ntp_opts.Dial = proxy.Dial
 	}
 	// resolve dns
-	ip_list, err := this.dns.Resolve(host, &c.NTP_Opts.DNS_Opts)
+	ip_list, err := this.dns.Resolve(host, &c.DNS_Opts)
 	if err != nil {
 		opt_err = true
 		err = fmt.Errorf("resolve dns failed: %s", err)
 		return
 	}
-	switch c.NTP_Opts.DNS_Opts.Type {
+	switch c.DNS_Opts.Type {
 	case "", dns.IPV4:
 		for i := 0; i < len(ip_list); i++ {
 			resp, err := ntp.Query(ip_list[i]+":"+port, ntp_opts)

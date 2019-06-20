@@ -14,7 +14,7 @@ import (
 
 func Proxy_Clients(t *testing.T) map[string]*proxyclient.Client {
 	c := make(map[string]*proxyclient.Client)
-	b, err := ioutil.ReadFile("../config/proxyclient.toml")
+	b, err := ioutil.ReadFile("../config/global/proxyclient.toml")
 	require.Nil(t, err, err)
 	err = toml.Unmarshal(b, &c)
 	require.Nil(t, err, err)
@@ -23,7 +23,7 @@ func Proxy_Clients(t *testing.T) map[string]*proxyclient.Client {
 
 func DNS_Clients(t *testing.T) map[string]*dnsclient.Client {
 	c := make(map[string]*dnsclient.Client)
-	b, err := ioutil.ReadFile("../config/dnsclient.toml")
+	b, err := ioutil.ReadFile("../config/global/dnsclient.toml")
 	require.Nil(t, err, err)
 	err = toml.Unmarshal(b, &c)
 	require.Nil(t, err, err)
@@ -31,15 +31,10 @@ func DNS_Clients(t *testing.T) map[string]*dnsclient.Client {
 }
 
 func Timesync_Client(t *testing.T) map[string]*timesync.Client {
-	// create time sync client
-	timesync_clients := make(map[string]*timesync.Client)
-	timesync_clients["test_http"] = &timesync.Client{
-		Mode:    timesync.HTTP,
-		Address: "https://www.baidu.com/",
-	}
-	timesync_clients["test_ntp"] = &timesync.Client{
-		Mode:    timesync.NTP,
-		Address: "pool.ntp.org:123",
-	}
-	return timesync_clients
+	c := make(map[string]*timesync.Client)
+	b, err := ioutil.ReadFile("../config/global/timesync.toml")
+	require.Nil(t, err, err)
+	err = toml.Unmarshal(b, &c)
+	require.Nil(t, err, err)
+	return c
 }

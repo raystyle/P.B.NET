@@ -1,11 +1,9 @@
 package node
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/testdata"
@@ -18,11 +16,10 @@ const (
 
 func Test_Node(t *testing.T) {
 	config := test_generate_config(t)
-	//err := config.Check()
-	//require.Nil(t, err, err)
+	err := config.Check()
+	require.Nil(t, err, err)
 	node, err := New(config)
 	require.Nil(t, err, err)
-
 	for k := range node.global.proxy.Clients() {
 		t.Log("proxy client:", k)
 	}
@@ -31,17 +28,15 @@ func Test_Node(t *testing.T) {
 		t.Log("dns client:", k)
 	}
 
-	return
+	for k := range node.global.timesync.Clients() {
+		t.Log("timesync client:", k)
+	}
+
 	err = node.Main()
 	require.Nil(t, err, err)
 }
 
 func test_generate_config(t *testing.T) *Config {
-	cc := testdata.Timesync_Client(t)
-	conf, err := toml.Marshal(cc)
-	require.Nil(t, err, err)
-	fmt.Println(string(conf))
-
 	c := &Config{
 		Log_level:          "debug",
 		Proxy_Clients:      testdata.Proxy_Clients(t),

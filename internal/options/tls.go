@@ -9,15 +9,15 @@ import (
 )
 
 type TLS_Config struct {
-	Certificates       []TLS_KeyPair // tls.keypair(pem)
-	RootCAs            []string      // x509.Cert(pem)
-	ClientCAs          []string      // x509.Cert(pem)
-	InsecureSkipVerify bool
+	Certificates       []TLS_KeyPair `toml:"certificate"` // tls.keypair(pem)
+	RootCAs            []string      `toml:"root_ca"`     // x509.Cert(pem)
+	ClientCAs          []string      `toml:"client_ca"`   // x509.Cert(pem)
+	InsecureSkipVerify bool          `toml:"insecure_skip_verify"`
 }
 
 type TLS_KeyPair struct {
-	Cert_PEM string
-	Key_PEM  string
+	Cert string `toml:"cert"`
+	Key  string `toml:"key"`
 }
 
 func (this *TLS_Config) failed(err error) error {
@@ -32,8 +32,8 @@ func (this *TLS_Config) Apply() (*tls.Config, error) {
 	if l != 0 {
 		config.Certificates = make([]tls.Certificate, l)
 		for i := 0; i < l; i++ {
-			c := []byte(this.Certificates[i].Cert_PEM)
-			k := []byte(this.Certificates[i].Key_PEM)
+			c := []byte(this.Certificates[i].Cert)
+			k := []byte(this.Certificates[i].Key)
 			tls_cert, err := tls.X509KeyPair(c, k)
 			if err != nil {
 				return nil, this.failed(err)

@@ -18,8 +18,8 @@ var (
 )
 
 type Client struct {
-	Mode         proxy.Mode
-	Config       string // toml or other
+	Mode         proxy.Mode `toml:"mode"`
+	Config       string     `toml:"config"` // toml or other
 	proxy.Client `toml:"-"`
 }
 

@@ -28,21 +28,21 @@ var (
 )
 
 type Client struct {
-	Method  dns.Method
-	Address string
+	Method  dns.Method `toml:"method"`
+	Address string     `toml:"address"`
 }
 
 type Options struct {
-	Mode  Mode   // default is custom
-	Tag   string // if tag != "" use selected dns client
-	Proxy string // proxy tag
+	Mode  Mode   `toml:"mode"`  // default is custom
+	Tag   string `toml:"tag"`   // if tag != "" use selected dns client
+	Proxy string `toml:"proxy"` // proxy tag
 	// for dns.Options
-	Type      dns.Type   // default ipv4
-	Method    dns.Method // default TLS , if tag != "" ignore this
-	Network   string
-	Timeout   time.Duration
-	Header    http.Header
-	Transport options.HTTP_Transport
+	Type      dns.Type               `toml:"type"`   // default ipv4
+	Method    dns.Method             `toml:"method"` // default TLS , if tag != "" ignore this
+	Network   string                 `toml:"network"`
+	Timeout   time.Duration          `toml:"timeout"`
+	Header    http.Header            `toml:"header"`
+	Transport options.HTTP_Transport `toml:"transport"`
 }
 
 func (this *Options) apply() (*dns.Options, error) {
@@ -93,6 +93,8 @@ func New(p *proxyclient.PROXY, c map[string]*Client, deadline time.Duration) (*D
 	}
 	return d, nil
 }
+
+// TODO test
 
 // first select custom or system to resolve dns
 // second set domain & options

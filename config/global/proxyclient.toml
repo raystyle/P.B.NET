@@ -1,11 +1,11 @@
 [http_proxy]
-  Mode   = "http"
-  Config = "http://admin:123456@localhost:40001"
+  mode   = "http"
+  config = "http://admin:123456@localhost:40001"
 
 # config is client list (toml)
 [socks5]
-  Mode   = "socks5"
-  Config = """
+  mode   = "socks5"
+  config = """
     [[Clients]]
       Network  = "tcp"
       Address  = "localhost:40002"
@@ -15,8 +15,8 @@
 
 # socks5 support proxychains
 [socks5_chains]
-  Mode   = "socks5"
-  Config = """
+  mode   = "socks5"
+  config = """
     [[Clients]]
       Network  = "tcp"
       Address  = "localhost:40002"

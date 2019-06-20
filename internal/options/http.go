@@ -17,12 +17,12 @@ const (
 )
 
 type HTTP_Request struct {
-	Method string
-	URL    string
-	Post   string // hex
-	Header http.Header
-	Host   string
-	Close  bool
+	Method string      `toml:"method"`
+	URL    string      `toml:"url"`
+	Post   string      `toml:"post"` // hex
+	Header http.Header `toml:"header"`
+	Host   string      `toml:"host"`
+	Close  bool        `toml:"close"`
 }
 
 func (this *HTTP_Request) failed(err error) error {
@@ -45,17 +45,17 @@ func (this *HTTP_Request) Apply() (*http.Request, error) {
 }
 
 type HTTP_Transport struct {
-	TLSClientConfig        TLS_Config
-	TLSHandshakeTimeout    time.Duration
-	DisableKeepAlives      bool
-	DisableCompression     bool
-	MaxIdleConns           int
-	MaxIdleConnsPerHost    int
-	MaxConnsPerHost        int
-	IdleConnTimeout        time.Duration
-	ResponseHeaderTimeout  time.Duration
-	ExpectContinueTimeout  time.Duration
-	MaxResponseHeaderBytes int64
+	TLSClientConfig        TLS_Config    `toml:"tls_client_config"`
+	TLSHandshakeTimeout    time.Duration `toml:"tls_handshake_timeout"`
+	DisableKeepAlives      bool          `toml:"disable_keepalives"`
+	DisableCompression     bool          `toml:"disable_compression"`
+	MaxIdleConns           int           `toml:"max_idle_conns"`
+	MaxIdleConnsPerHost    int           `toml:"max_idle_connsperhost"`
+	MaxConnsPerHost        int           `toml:"max_conns_perhost"`
+	IdleConnTimeout        time.Duration `toml:"idle_conn_timeout"`
+	ResponseHeaderTimeout  time.Duration `toml:"response_header_timeout"`
+	ExpectContinueTimeout  time.Duration `toml:"expect_continue_timeout"`
+	MaxResponseHeaderBytes int64         `toml:"max_response_header_bytes"`
 }
 
 func (this *HTTP_Transport) failed(err error) error {
@@ -116,13 +116,13 @@ func (this *HTTP_Transport) Apply() (*http.Transport, error) {
 }
 
 type HTTP_Server struct {
-	TLSConfig         TLS_Config
-	ReadTimeout       time.Duration // warning
-	WriteTimeout      time.Duration // warning
-	ReadHeaderTimeout time.Duration
-	IdleTimeout       time.Duration
-	MaxHeaderBytes    int
-	DisableKeepAlive  bool
+	TLSConfig         TLS_Config    `toml:"tls_client_config"`
+	ReadTimeout       time.Duration `toml:"read_timeout"`  // warning
+	WriteTimeout      time.Duration `toml:"write_timeout"` // warning
+	ReadHeaderTimeout time.Duration `toml:"read_header_timeout"`
+	IdleTimeout       time.Duration `toml:"idle_timeout"`
+	MaxHeaderBytes    int           `toml:"max_header_bytes"`
+	DisableKeepAlive  bool          `toml:"disable_keepalive"`
 }
 
 func (this *HTTP_Server) failed(err error) error {
