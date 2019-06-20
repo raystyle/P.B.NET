@@ -1,0 +1,21 @@
+[test_http_proxy_client]
+  Mode   = "http"
+  Config = "http://admin:123456@localhost:40001"
+
+# socks5 support proxychains
+[test_socks5_client]
+  Mode   = "socks5"
+  Config = """
+    [[Clients]]
+      Network = "tcp"
+      Address = "localhost:40002"
+      Password = "123456"
+      Username = "admin"
+
+    [[Clients]]
+      Address = "localhost:40003"
+      Network = "tcp"
+      Password = "123456"
+      Username = "admin"
+
+  """

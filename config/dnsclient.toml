@@ -1,0 +1,65 @@
+[udp_google]
+  Method  = "udp"
+  Address = "8.8.8.8:53"
+
+[udp_cloudflare]
+  Method  = "udp"
+  Address = "1.0.0.1:53"
+
+[udp_ipv6_cloudflare]
+  Method  = "udp"
+  Address = "[2606:4700:4700::1001]:53"
+
+[tcp_google]
+  Method  = "tcp"
+  Address = "8.8.8.8:53"
+
+[tcp_cloudflare]
+  Method  = "tcp"
+  Address = "1.0.0.1:53"
+
+[tcp_ipv6_cloudflare]
+  Method = "tcp"
+  Address = "[2606:4700:4700::1001]:53"
+
+# -------------------DNS-Over-TLS----------------------
+
+# tls cert need has IP SANS field
+[tls_google]
+  Method  = "tls"
+  Address = "8.8.8.8:853"
+
+# if no IP SANS need set Server Name(domain) manully
+[tls_google_domain]
+  Method  = "tls"
+  Address = "dns.google:853|8.8.8.8,8.8.4.4"
+
+[tls_cloudflare]
+  Method  = "tls"
+  Address = "1.0.0.1:853"
+
+[tls_cloudflare_domain]
+  Method  = "tls"
+  Address = "cloudflare-dns.com:853|1.0.0.1"
+
+[tls_ipv6_cloudflare]
+  Method = "tls"
+  Address = "[2606:4700:4700::1001]:853"
+
+[tls_ipv6_cloudflare_domain]
+  Method = "tls"
+  Address = "cloudflare-dns.com:853|[2606:4700:4700::1001]"
+
+# ------------------DNS-Over-HTTPS---------------------
+
+[doh_cloudflare]
+  Method  = "doh"
+  Address = "https://cloudflare-dns.com/dns-query"
+
+[doh_ipv6_cloudflare]
+  Method  = "doh"
+  Address = "https://[2606:4700:4700::1001]/dns-query"
+
+[doh_mozilla]
+  Method  = "doh"
+  Address = "https://mozilla.cloudflare-dns.com/dns-query"

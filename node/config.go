@@ -20,6 +20,7 @@ type Config struct {
 	Timesync_Interval  time.Duration                  `toml:"timesync_interval"`
 }
 
+// before create a node need check config
 func (this *Config) Check() error {
 	node := &NODE{config: this}
 	_, err := new_logger(node)
@@ -27,10 +28,11 @@ func (this *Config) Check() error {
 		return err
 	}
 	node.logger = logger.Discard
-	_, err = new_global(node)
+	g, err := new_global(node)
 	if err != nil {
 		return err
 	}
+	node.global = g
 	err = node.global.timesync.Test()
 	if err != nil {
 		return err
