@@ -26,10 +26,10 @@ const (
 )
 
 const (
-	default_interval = 15 * time.Minute
-	add_interval     = time.Millisecond * 500
-	// 0 = add
-	// 1 = stop time sync loop
+	default_sync_interval = 15 * time.Minute
+	add_loop_interval     = 500 * time.Millisecond
+	// 0 = add loop
+	// 1 = sync loop
 	stop_signal = 2
 )
 
@@ -64,7 +64,7 @@ type TIMESYNC struct {
 	proxy       *proxyclient.PROXY // ctx
 	dns         *dnsclient.DNS     // ctx
 	logger      logger.Logger      // ctx
-	interval    time.Duration
+	interval    time.Duration      // sync interval
 	clients     map[string]*Client // key = tag
 	clients_rwm sync.RWMutex
 	now         time.Time
@@ -91,7 +91,7 @@ func New(p *proxyclient.PROXY, d *dnsclient.DNS, l logger.Logger,
 	}
 	// set time sync interval
 	if interval <= 0 {
-		interval = default_interval
+		interval = default_sync_interval
 	}
 	err := t.Set_Interval(interval)
 	if err != nil {
@@ -131,7 +131,7 @@ S:
 		this.stop_signal[i] = make(chan struct{}, 1)
 	}
 	this.wg.Add(2)
-	go this.add()
+	go this.add_loop()
 	go this.sync_loop()
 	return nil
 }
@@ -205,8 +205,8 @@ func (this *TIMESYNC) log(l logger.Level, log ...interface{}) {
 }
 
 // self walk
-func (this *TIMESYNC) add() {
-	ticker := time.NewTicker(add_interval)
+func (this *TIMESYNC) add_loop() {
+	ticker := time.NewTicker(add_loop_interval)
 	for {
 		select {
 		case <-this.stop_signal[0]:
@@ -215,7 +215,7 @@ func (this *TIMESYNC) add() {
 			return
 		case <-ticker.C:
 			this.rwm.Lock()
-			this.now = this.now.Add(add_interval)
+			this.now = this.now.Add(add_loop_interval)
 			this.rwm.Unlock()
 		}
 	}
