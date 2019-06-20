@@ -367,9 +367,7 @@ func dial_https(server string, question []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if opts.Header != nil {
-		req.Header = options.Copy_HTTP_Header(opts.Header)
-	}
+	req.Header = options.Copy_HTTP_Header(opts.Header)
 	if req.Method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/dns-message")
 	}

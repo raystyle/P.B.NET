@@ -3,6 +3,7 @@ package options
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 
 	"project/internal/crypto/cert"
 )
@@ -19,6 +20,10 @@ type TLS_KeyPair struct {
 	Key_PEM  string
 }
 
+func (this *TLS_Config) failed(err error) error {
+	return fmt.Errorf("tls config apply failed: %s", err)
+}
+
 func (this *TLS_Config) Apply() (*tls.Config, error) {
 	config := &tls.Config{
 		InsecureSkipVerify: this.InsecureSkipVerify,
@@ -31,7 +36,7 @@ func (this *TLS_Config) Apply() (*tls.Config, error) {
 			k := []byte(this.Certificates[i].Key_PEM)
 			tls_cert, err := tls.X509KeyPair(c, k)
 			if err != nil {
-				return nil, err
+				return nil, this.failed(err)
 			}
 			config.Certificates[i] = tls_cert
 		}
@@ -42,7 +47,7 @@ func (this *TLS_Config) Apply() (*tls.Config, error) {
 		for i := 0; i < l; i++ {
 			c, err := cert.Parse([]byte(this.RootCAs[i]))
 			if err != nil {
-				return nil, err
+				return nil, this.failed(err)
 			}
 			config.RootCAs.AddCert(c)
 		}
@@ -53,7 +58,7 @@ func (this *TLS_Config) Apply() (*tls.Config, error) {
 		for i := 0; i < l; i++ {
 			c, err := cert.Parse([]byte(this.ClientCAs[i]))
 			if err != nil {
-				return nil, err
+				return nil, this.failed(err)
 			}
 			config.ClientCAs.AddCert(c)
 		}
