@@ -6,6 +6,7 @@ import (
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
+	"project/internal/logger"
 )
 
 type Config struct {
@@ -17,6 +18,24 @@ type Config struct {
 	DNS_Cache_Deadline time.Duration                  `toml:"dns_cache_deadline"`
 	Timesync_Clients   map[string]*timesync.Client    `toml:"timesync_clients"`
 	Timesync_Interval  time.Duration                  `toml:"timesync_interval"`
+}
+
+func (this *Config) Check() error {
+	node := &NODE{config: this}
+	_, err := new_logger(node)
+	if err != nil {
+		return err
+	}
+	node.logger = logger.Discard
+	_, err = new_global(node)
+	if err != nil {
+		return err
+	}
+	err = node.global.timesync.Test()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 const object_key_max uint32 = 1048575

@@ -87,19 +87,26 @@ func (this *global) configure() error {
 		key := object_key_max + uint32(1+generator.Int(512))
 		this.object[key] = generator.Bytes(32 + generator.Int(128))
 	}
-	// internal
-	err := this.generate_objects()
+	err := this.generate_internal_objects()
 	if err != nil {
 		return err
 	}
-	// load controller config
+	err = this.load_controller_config()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (this *global) load_controller_config() error {
+	this.sec_padding_memory()
 
 	return nil
 }
 
 // 1. node guid
 // 2. aes cryptor for database & self guid
-func (this *global) generate_objects() error {
+func (this *global) generate_internal_objects() error {
 	// generate guid and select one
 	this.sec_padding_memory()
 	random_generator := random.New()
@@ -132,6 +139,9 @@ func (this *global) generate_objects() error {
 }
 
 // about internal
+func (this *global) Start_Timesync() error {
+	return this.timesync.Start()
+}
 
 func (this *global) GUID() []byte {
 	this.object_rwm.RLock()
