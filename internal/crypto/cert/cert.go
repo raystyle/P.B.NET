@@ -1,8 +1,6 @@
 package cert
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -11,6 +9,8 @@ import (
 	"net"
 	"time"
 
+	"project/internal/crypto/rand"
+	"project/internal/crypto/rsa"
 	"project/internal/random"
 )
 
@@ -35,7 +35,7 @@ func Generate_CA() ([]byte, []byte) {
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
 	ca.KeyUsage = x509.KeyUsageCertSign
-	privatekey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	privatekey, _ := rsa.Generate_Key(2048)
 	cert_bytes, _ := x509.CreateCertificate(rand.Reader, ca, ca,
 		&privatekey.PublicKey, privatekey)
 	cert_block := &pem.Block{
@@ -53,7 +53,7 @@ func Generate_CA() ([]byte, []byte) {
 // ip is IP SANS
 func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, dns, ip []string) ([]byte, []byte, error) {
 	// random cert
-	privatekey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	privatekey, _ := rsa.Generate_Key(2048)
 	cert := &x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
 	cert.Subject = pkix.Name{

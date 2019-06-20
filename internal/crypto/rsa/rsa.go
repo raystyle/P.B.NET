@@ -2,12 +2,13 @@ package rsa
 
 import (
 	"crypto"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+
+	"project/internal/crypto/rand"
 )
 
 var (
