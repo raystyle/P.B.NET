@@ -19,7 +19,7 @@
   Address = "1.0.0.1:53"
 
 [tcp_ipv6_cloudflare]
-  Method = "tcp"
+  Method  = "tcp"
   Address = "[2606:4700:4700::1001]:53"
 
 # -------------------DNS-Over-TLS----------------------
@@ -43,11 +43,11 @@
   Address = "cloudflare-dns.com:853|1.0.0.1"
 
 [tls_ipv6_cloudflare]
-  Method = "tls"
+  Method  = "tls"
   Address = "[2606:4700:4700::1001]:853"
 
 [tls_ipv6_cloudflare_domain]
-  Method = "tls"
+  Method  = "tls"
   Address = "cloudflare-dns.com:853|[2606:4700:4700::1001]"
 
 # ------------------DNS-Over-HTTPS---------------------
