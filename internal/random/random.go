@@ -125,3 +125,8 @@ func Int64() int64 {
 func Uint64() uint64 {
 	return generator.Uint64()
 }
+
+// sleep  fixed <= time < fixed + random
+func Sleep(fixed, random int) {
+	time.Sleep(time.Duration(fixed+Int(random)) * time.Second)
+}

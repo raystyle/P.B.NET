@@ -21,6 +21,7 @@ func Test_Random(t *testing.T) {
 	t.Log(i)
 	t.Log(Int64())
 	t.Log(Uint64())
+	Sleep(1, 2)
 	// for select
 	for i := 0; i < 10240; i++ {
 		Cookie(32)
