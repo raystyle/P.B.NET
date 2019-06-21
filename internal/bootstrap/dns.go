@@ -53,10 +53,6 @@ func (this *DNS) Validate() error {
 	return nil
 }
 
-func (this *DNS) Generate(_ []*Node) (string, error) {
-	return "", nil
-}
-
 func (this *DNS) Marshal() ([]byte, error) {
 	err := this.Validate()
 	if err != nil {

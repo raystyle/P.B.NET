@@ -177,19 +177,23 @@ func (this *HTTP) Resolve() ([]*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	port := opts.req.URL.Port()
-	if port != "" {
-		port = ":" + port
-	}
-	// resolve dns
+	// dns
 	hostname := opts.req.URL.Hostname()
 	dns_opts := &opts.h.DNS_Opts
 	ip_list, err := this.resolver.Resolve(hostname, dns_opts)
 	if err != nil {
 		return nil, err
 	}
-	ip_type := dns_opts.Type
-	switch ip_type {
+	if opts.req.URL.Scheme == "https" {
+		if opts.req.Host == "" {
+			opts.req.Host = opts.req.URL.Host
+		}
+	}
+	port := opts.req.URL.Port()
+	if port != "" {
+		port = ":" + port
+	}
+	switch dns_opts.Type {
 	case "", dns.IPV4:
 		for i := 0; i < len(ip_list); i++ {
 			opts.req.URL.Host = ip_list[i] + port
@@ -234,13 +238,14 @@ func (this *HTTP) apply_options() (*http_opts, error) {
 	security.Flush_Bytes(b)
 	memory.Padding()
 	// apply options
-	req, _ := h.Request.Apply()
-	if req.URL.Scheme == "https" {
-		if req.Host == "" {
-			req.Host = req.URL.Host
-		}
+	req, err := h.Request.Apply()
+	if err != nil {
+		panic(&fpanic{Mode: M_HTTP, Err: err})
 	}
-	tr, _ := h.Transport.Apply()
+	tr, err := h.Transport.Apply()
+	if err != nil {
+		panic(&fpanic{Mode: M_HTTP, Err: err})
+	}
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
 	// set proxy
 	proxy, err := this.proxy.Get(this.Proxy)

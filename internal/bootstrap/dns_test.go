@@ -29,7 +29,6 @@ func Test_DNS(t *testing.T) {
 	DNS.L_Mode = xnet.TLS
 	DNS.L_Network = "tcp"
 	DNS.L_Port = "443"
-	_, _ = DNS.Generate(nil)
 	b, err := DNS.Marshal()
 	require.Nil(t, err, err)
 	DNS = New_DNS(new(mock_resolver))

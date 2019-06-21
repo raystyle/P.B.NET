@@ -38,6 +38,7 @@ var (
 	ERR_UNKNOWN_MODE = errors.New("unknown client mode")
 	ERR_ALL_FAILED   = errors.New("time sync all failed")
 	ERR_INTERVAL     = errors.New("interval < 60s or > 1h")
+	ERR_QUERY_HTTP   = errors.New("query http server failed")
 	ERR_QUERY_NTP    = errors.New("query ntp server failed")
 )
 
@@ -308,12 +309,14 @@ func (this *TIMESYNC) sync_httptime(c *Client) (opt_err bool, err error) {
 		opt_err = true
 		return
 	}
+	hostname := req.URL.Hostname()
 	// http transport
 	tr, err := c.HTTP_Opts.Transport.Apply()
 	if err != nil {
 		opt_err = true
 		return
 	}
+	tr.TLSClientConfig.ServerName = hostname
 	// set proxy
 	proxy, err := this.proxy.Get(c.Proxy)
 	if err != nil {
@@ -323,22 +326,54 @@ func (this *TIMESYNC) sync_httptime(c *Client) (opt_err bool, err error) {
 	if proxy != nil {
 		proxy.HTTP(tr)
 	}
-
-	// TODO dns resolve
-	// don't set dns resolve
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   c.Timeout,
-	}
-	now, err := httptime.Query(req, client)
+	// dns
+	ip_list, err := this.dns.Resolve(hostname, &c.DNS_Opts)
 	if err != nil {
-		err = fmt.Errorf("query http time failed: %s", err)
+		opt_err = false
 		return
 	}
-	this.rwm.Lock()
-	this.now = now
-	this.rwm.Unlock()
-	return false, nil
+	if req.URL.Scheme == "https" {
+		if req.Host == "" {
+			req.Host = req.URL.Host
+		}
+	}
+	port := req.URL.Port()
+	if port != "" {
+		port = ":" + port
+	}
+	query := func() bool {
+		now, err := httptime.Query(req, &http.Client{
+			Transport: tr,
+			Timeout:   c.Timeout,
+		})
+		if err != nil {
+			return false
+		}
+		this.rwm.Lock()
+		this.now = now
+		this.rwm.Unlock()
+		return true
+	}
+	switch c.DNS_Opts.Type {
+	case "", dns.IPV4:
+		for i := 0; i < len(ip_list); i++ {
+			req.URL.Host = ip_list[i] + port
+			if query() {
+				return
+			}
+		}
+	case dns.IPV6:
+		for i := 0; i < len(ip_list); i++ {
+			req.URL.Host = "[" + ip_list[i] + "]" + port
+			if query() {
+				return
+			}
+		}
+	default:
+		err = fmt.Errorf("timesync internal error: %s", dns.ERR_INVALID_TYPE)
+		panic(err)
+	}
+	return false, ERR_QUERY_HTTP
 }
 
 // return opt_err

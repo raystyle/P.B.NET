@@ -24,7 +24,6 @@ type Node struct {
 
 type Bootstrap interface {
 	Validate() error
-	Generate([]*Node) (string, error)
 	Marshal() ([]byte, error)
 	Unmarshal([]byte) error
 	Resolve() ([]*Node, error)

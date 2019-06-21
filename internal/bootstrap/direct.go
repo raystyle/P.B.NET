@@ -24,13 +24,9 @@ func New_Direct(n []*Node) *Direct {
 
 func (this *Direct) Validate() error { return nil }
 
-func (this *Direct) Generate(_ []*Node) (string, error) {
-	return "", nil
-}
-
 func (this *Direct) Marshal() ([]byte, error) {
 	nodes := &struct {
-		Nodes []*Node
+		Nodes []*Node `toml:"nodes"`
 	}{}
 	nodes.Nodes = make([]*Node, len(this.nodes))
 	copy(nodes.Nodes, this.nodes)
@@ -39,7 +35,7 @@ func (this *Direct) Marshal() ([]byte, error) {
 
 func (this *Direct) Unmarshal(data []byte) error {
 	nodes := &struct {
-		Nodes []*Node
+		Nodes []*Node `toml:"nodes"`
 	}{}
 	err := toml.Unmarshal(data, nodes)
 	if err != nil {

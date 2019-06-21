@@ -38,7 +38,7 @@ type Options struct {
 	Proxy string `toml:"proxy"` // proxy tag
 	// for dns.Options
 	Type      dns.Type               `toml:"type"`   // default ipv4
-	Method    dns.Method             `toml:"method"` // default TLS , if tag != "" ignore this
+	Method    dns.Method             `toml:"method"` // default TLS, if tag != "" ignore
 	Network   string                 `toml:"network"`
 	Timeout   time.Duration          `toml:"timeout"`
 	Header    http.Header            `toml:"header"`
@@ -197,7 +197,7 @@ func (this *DNS) Clients() map[string]*Client {
 func (this *DNS) Add(tag string, c *Client) error {
 	switch c.Method {
 	case "":
-		c.Method = dns.TLS
+		c.Method = dns.DEFAULT_METHOD
 	case dns.TLS, dns.UDP, dns.TCP, dns.DOH:
 	default:
 		return dns.ERR_UNKNOWN_METHOD
