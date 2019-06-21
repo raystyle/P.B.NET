@@ -1,50 +1,11 @@
 [http]
-  # known mode are "http", "ntp"
   mode    = "http"
-  address = "https://www.baidu.com/"
+  address = "https://github.com/"
   timeout = "15s"
 
-  # proxy client tag
-  proxy   = ""
+  [http.http_options]
 
-  [http.dnsclient]
-    # known resolve mode are "custom", "system", ""
-    # custom will use internal/dns to resolve dns
-    # system will use net.LookupHost() to resolve dns
-    # default is "custom"
-    mode = ""
-
-    # dns client tag
-    # if tag is not "" use selected dns client
-    # if use "system" mode proxy is ignored
-    tag = ""
-
-    # proxy client tag
-    # if use "system" mode proxy is ignored
-    proxy = ""
-
-    # known query ip type are "ipv4", "ipv6", ""
-    # default is "ipv4"
-    type = ""
-
-    # known method are "udp", "tcp", "tls"(DNS-Over-TLS),
-    # "doh"(DNS-Over-HTTPS), ""
-    # default is "tls"
-    # if tag != "" or use "system" mode method is ignored
-    method = ""
-
-    # known network are "tcp", "tcp4", "tcp6"
-    # "udp", "udp4", "udp6", ""
-    # default is "tcp" if use UDP Method default is "udp"
-    # if method = "doh" network is ignored
-    network = ""
-
-    # default is internal/dns default_timeout
-    timeout = "0s"
-
-    # just for doh
-    # golang internal http.Header
-    [http.dnsclient.header]
+    [http.http_options.request.header]
       User-Agent      = ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0"]
       Accept          = ["text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"]
       Accept-Language = ["zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2"]
@@ -54,115 +15,7 @@
       Pragma          = ["no-cache"]
       Cache-Control   = ["no-cache"]
 
-    # just for doh
-    # golang internal http.Transport
-    [http.dnsclient.transport]
-      tls_handshake_timeout     = "0s"
-      disable_keepalives        = false
-      disable_compression       = false
-      max_idle_conns            = 0
-      max_idle_connsperhost     = 0
-      max_conns_perhost         = 0
-      idle_conn_timeout         = "0s"
-      response_header_timeout   = "0s"
-      expect_continue_timeout   = "0s"
-      max_response_header_bytes = 0
-
-      [http.dnsclient.transport.tls_client_config]
-        root_ca              = [] # pem
-        client_ca            = [] # pem
-        insecure_skip_verify = false
-
-        [[http.dnsclient.transport.tls_client_config.certificate]]
-          cert = """
-          -----BEGIN CERTIFICATE-----
-          MIIDKDCCAhACCQDiUM4OpOZ1jTANBgkqhkiG9w0BAQsFADBWMQswCQYDVQQGEwJY
-          WDEVMBMGA1UEBwwMRGVmYXVsdCBDaXR5MRwwGgYDVQQKDBNEZWZhdWx0IENvbXBh
-          bnkgTHRkMRIwEAYDVQQDDAkxMjcuMC4wLjEwHhcNMTkwMzE0MDU1NzI3WhcNMjAw
-          MzEzMDU1NzI3WjBWMQswCQYDVQQGEwJYWDEVMBMGA1UEBwwMRGVmYXVsdCBDaXR5
-          MRwwGgYDVQQKDBNEZWZhdWx0IENvbXBhbnkgTHRkMRIwEAYDVQQDDAkxMjcuMC4w
-          LjEwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCzxpq5chbFhxO6DH+l
-          cai8TEbiPeJw3vWuAGz7k6H8Z6Prjp/ByTJbXJgC5oI4KVGcOGCnfFmfulAgPt5n
-          gJALQHXqUmNKcLrKjjp/p4IN/U7Ni61I+lvUBvkRQguJ5DUU37MzdDWc7IUKUxUb
-          UxCasxp9FvMEdoHQQiSKpnSmj0GkaYkXRZReXqZcEz7TZKSO2wJYDjX+ezdy1POh
-          Yq0Nc8GtwPsvctkMSUK6QcDCwAgDgufw5UW5UiGlu6TzB6YDliI9xRTaXUcis5w3
-          JZPrhuyJ6s3f75SAYxpNbx0ah12VQVxz9iu4l+mKcx7kHQbJqQ5C8bL1nO1iI4d9
-          DZ2pAgMBAAEwDQYJKoZIhvcNAQELBQADggEBACqfci0MRboK1oSpt8Y/hQgOt7xt
-          BuT7Rp4B+dl/Tcz9vL5KSX2CRHh3GpNXM0aMRnOzz3tc4iKYo2SJ8whgKVBj0mSC
-          DqDo8VXotLQCu1wuGFycol+kLZEUk0dj8J7FLdWzYjMQbp1tL6t3fIHxMVNqFFuT
-          kV1sc4eOZ9PsCBFA1ylC9CucaO2IWSORWIr3L5l9aaHqSLUVzthm8ty0BdKjuX80
-          dsn9BIR8g7Gk5G/tFOT22XqD1hrju0FhLceqTUNjjEpx9y79ie+ZZqlp7wM1Cu8q
-          8G76qFVWe0fK/uGm6Sj5mFiB6v94Ks+afhXQkfL/r9vLkS6/nIhah/RqVwI=
-          -----END CERTIFICATE-----
-          """
-          key  = """
-          -----BEGIN RSA PRIVATE KEY-----
-          MIIEpgIBAAKCAQEAs8aauXIWxYcTugx/pXGovExG4j3icN71rgBs+5Oh/Gej646f
-          wckyW1yYAuaCOClRnDhgp3xZn7pQID7eZ4CQC0B16lJjSnC6yo46f6eCDf1OzYut
-          SPpb1Ab5EUILieQ1FN+zM3Q1nOyFClMVG1MQmrMafRbzBHaB0EIkiqZ0po9BpGmJ
-          F0WUXl6mXBM+02SkjtsCWA41/ns3ctTzoWKtDXPBrcD7L3LZDElCukHAwsAIA4Ln
-          8OVFuVIhpbuk8wemA5YiPcUU2l1HIrOcNyWT64bsierN3++UgGMaTW8dGoddlUFc
-          c/YruJfpinMe5B0GyakOQvGy9ZztYiOHfQ2dqQIDAQABAoIBAQCzS7ZwkZqocil4
-          epKsHIlfEuv3JCU80QFSAtauqfT6WRshCWPHz7PLbrOk4OSqwnrERW4QXHK+XQEg
-          x9Lkg1ImBqoTgwvH6FpDPkqVmiiZbzMyyMWQbTE8a5/oWGhNpC5UnS6KeLInybR+
-          MZJxaAy9XTdj3omMv+yEGhN7vLvGiJiWdUuSVZZb6U8i7wNUc3MmZevXpcS8uh/+
-          fRb+Z0b866tE6IqwtDq6bwftmYd1ZzBHM+AiE+NGyaB7On5pp7wmNnGjf9ez2uq9
-          SYuSnlMmLgcr7VQMUV7Xdi7aNThHJG0U79SHD6rr65f1R0Yf8iOL+791/YDcMDiC
-          WIO/iUXpAoGBAOdxiPa2J/VC9upxJ/r0JEGG696zrwDBGq2tsJY1ceH6edYrf6OA
-          6S5xHVvAneCXbPQi3Wqugu0l4EEFNSTEfJVJQCa9VLLcodETXZbsxlJnl3yTdMEp
-          LoGvYzv2emkWOJXZRbmBe8Wts6oSfkLSCpVxZfOTFmHmAOXQ5CLAXAEvAoGBAMbZ
-          rA6n9JyKKVh3FGGN9lsctC9Uv3pJ0CDlPxocsqlz7SilO036soLvi32VYEUpCN/C
-          1RJDtTmNrw7xJlMrzQ3GYZOH0+xyI/Z+bT425h9qQM3qXVPvhDxOXg4K/P8rBmRP
-          Cq205lluu5f1OsYv+oGVLTZc7fzmtydOQNWfXqinAoGBAJNZGRXZCr9/DqxbtlRz
-          MtH1EB4Mz5HvXwjL1+0JwaNZUFAmCXETFWHX6hUMIHdocJlNySGuUPSidI9wvVDX
-          N2nj5M/FIjNtfCgb6C26ONkl0rAhQOfpTA6MluUKGwzkdMoSNe3QnfhQil3wwCnS
-          h6J1O69DKbDSOigWQehOB0VJAoGBALhUKSGA4ciGbmM6J2NzJG47QnApoEGs0Mjd
-          mUwMVDWuZ6Zo3Huhq/6iLW0hnhcePcKmqbr/lqueQiuYsU0h6jgdsHAA1ht1hw7F
-          DWFBpLp0VVRML21SNwNsJdXgq7uh14/+kUiKy4kVk8H+Khhze0TJ0xp0tIveFuPR
-          r1oXHLk7AoGBAMNr4YEMa88xE+IaQ6bjyv/fsoIcMNCCXcBY5++pLPMlLAeb57b7
-          oOe6DOnEyPzi1aua296ihw6w47xTXJVY5J2q8X6hB/ghn3Mn6nKiqn9aFhh3pySA
-          z4RrZ85clQSQO3Wjb/ectaHAIPt7obkyFMW7dyhxiJrMYKtGwSQK15lk
-          -----END RSA PRIVATE KEY-----
-          """
-  # just for NTP mode
-  [http.ntp_options]
-    # NTP protocol version, support 3 and 4
-    # default is 4
-    version = 0
-
-    # known network are "udp", "udp4", "udp6", ""
-    # default is "udp"
-    network = ""
-
-  # just for HTTP mode
-  [http.http_options]
-
-    [http.http_options.request]
-      method = ""
-
-      # hex
-      post = ""
-
-      # default set header Connection: keep-alive
-      close = false
-
-      [http.http_options.request.header]
-
-    [http.http_options.transport]
-      tls_handshake_timeout     = "0s"
-      disable_keepalives        = false
-      disable_compression       = false
-      max_idle_conns            = 0
-      max_idle_connsperhost     = 0
-      max_conns_perhost         = 0
-      idle_conn_timeout         = "0s"
-      response_header_timeout   = "0s"
-      expect_continue_timeout   = "0s"
-      max_response_header_bytes = 0
-
-      [http.http_options.transport.tls_client_config]
-        root_ca              = [] # pem
-        client_ca            = [] # pem
-        insecure_skip_verify = false
-
-        #[[http.dnsclient.transport.tls_client_config.certificate]]
+[ntp]
+  mode    = "ntp"
+  address = "pool.ntp.org:123"
+  timeout = "15s"

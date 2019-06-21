@@ -32,8 +32,8 @@ func Test_Node(t *testing.T) {
 		t.Log("timesync client:", k)
 	}
 
-	err = node.Main()
-	require.Nil(t, err, err)
+	// err = node.Main()
+	// require.Nil(t, err, err)
 }
 
 func test_generate_config(t *testing.T) *Config {

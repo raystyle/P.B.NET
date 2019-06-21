@@ -3,6 +3,7 @@ package node
 import (
 	"time"
 
+	"project/internal/bootstrap"
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
@@ -12,12 +13,16 @@ import (
 type Config struct {
 	// log
 	Log_level string `toml:"log_level"`
+
 	// global
-	Proxy_Clients      map[string]*proxyclient.Client `toml:"proxy_clients"`
-	DNS_Clients        map[string]*dnsclient.Client   `toml:"dns_clients"`
-	DNS_Cache_Deadline time.Duration                  `toml:"dns_cache_deadline"`
-	Timesync_Clients   map[string]*timesync.Client    `toml:"timesync_clients"`
-	Timesync_Interval  time.Duration                  `toml:"timesync_interval"`
+	Proxy_Clients      map[string]*proxyclient.Client
+	DNS_Clients        map[string]*dnsclient.Client
+	DNS_Cache_Deadline time.Duration
+	Timesync_Clients   map[string]*timesync.Client
+	Timesync_Interval  time.Duration
+
+	// register only resolve success once
+	Register []bootstrap.Bootstrap
 }
 
 // before create a node need check config

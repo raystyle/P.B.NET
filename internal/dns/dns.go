@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	DEFAULT_METHOD = TLS
+	DEFAULT_METHOD = UDP
 	// tcp && tls use
 	header_size     = 2
 	default_timeout = time.Minute // udp is 5 second
@@ -63,7 +63,7 @@ var (
 type Options struct {
 	// default "ipv4"
 	Type Type
-	// default tls
+	// default udp
 	Method Method
 	// "tcp" "tcp4" "tcp6"
 	// default "tcp" if use UDP Method "udp"
@@ -105,12 +105,12 @@ func Resolve(address, domain string, opts *Options) ([]string, error) {
 	// send request
 	var answer []byte
 	switch opts.Method {
-	case "", TLS: // default
-		answer, err = dial_tls(address, question, opts)
-	case UDP:
+	case "", UDP: // default
 		answer, err = dial_udp(address, question, opts)
 	case TCP:
 		answer, err = dial_tcp(address, question, opts)
+	case TLS:
+		answer, err = dial_tls(address, question, opts)
 	case DOH:
 		answer, err = dial_https(address, question, opts)
 	default:
