@@ -32,6 +32,10 @@ func (this *NODE) Main() error {
 		return err
 	}
 	// register
+	err = this.register()
+	if err != nil {
+		return err
+	}
 
 	this.config = nil
 	return nil

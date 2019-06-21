@@ -35,22 +35,27 @@ type HTTP struct {
 	Timeout   time.Duration          `toml:"timeout"`
 	Proxy     string                 `toml:"proxy"`
 	DNS_Opts  dnsclient.Options      `toml:"dnsclient"`
+
 	// encrypt&decrypt generate data(nodes) hex
 	AES_Key string `toml:"aes_key"`
 	AES_IV  string `toml:"aes_iv"`
+
 	// for resolve verify  hex
 	PublicKey string `toml:"publickey"`
+
 	// for generate&marshal
 	PrivateKey ed25519.PrivateKey `toml:"-"`
+
 	// runtime
-	resolver dns_resolver
 	proxy    proxy_pool
+	resolver dns_resolver
+
 	// self encrypt all options
 	opts_enc []byte
 	cryptor  *aes.CBC_Cryptor
 }
 
-func New_HTTP(d dns_resolver, p proxy_pool) *HTTP {
+func New_HTTP(p proxy_pool, d dns_resolver) *HTTP {
 	return &HTTP{
 		resolver: d,
 		proxy:    p,

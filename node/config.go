@@ -22,7 +22,9 @@ type Config struct {
 	Timesync_Interval  time.Duration
 
 	// register only resolve success once
-	Register []bootstrap.Bootstrap
+	Register_AES_Key []byte
+	Register_AES_IV  []byte
+	Register_Config  []*bootstrap.Config // Config is encrypted
 }
 
 // before create a node need check config
