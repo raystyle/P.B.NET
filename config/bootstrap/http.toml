@@ -4,3 +4,13 @@ publickey = "E3D21F3AA5153D8CE064EB1D01110118E990F6919D318AE624657006B5A8A496"
 
 [request]
   url = "http://localhost:8989"
+
+  [request.header]
+    User-Agent      = ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0"]
+    Accept          = ["text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"]
+    Accept-Language = ["zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2"]
+    Accept-Encoding = ["gzip, deflate, br"]
+    DNT             = ["1"]
+    Connection      = ["keep-alive"]
+    Pragma          = ["no-cache"]
+    Cache-Control   = ["no-cache"]

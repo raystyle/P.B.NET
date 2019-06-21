@@ -21,11 +21,10 @@ func Test_Node(t *testing.T) {
 
 func Test_Check_Config(t *testing.T) {
 	config := test_generate_config(t)
-	//err := config.Check()
-	//require.Nil(t, err, err)
+	err := config.Check()
+	require.Nil(t, err, err)
 	node, err := New(config)
 	require.Nil(t, err, err)
-
 	for k := range node.global.proxy.Clients() {
 		t.Log("proxy client:", k)
 	}
