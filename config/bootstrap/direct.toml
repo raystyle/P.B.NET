@@ -1,0 +1,9 @@
+[[nodes]]
+  mode    = "tls"
+  network = "tcp"
+  address = "127.0.0.1:53123"
+
+[[nodes]]
+  mode    = "tls"
+  network = "tcp"
+  address = "[::1]:53123"

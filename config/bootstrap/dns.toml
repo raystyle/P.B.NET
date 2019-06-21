@@ -1,0 +1,4 @@
+domain    = "localhost"
+l_mode    = "tls"
+l_network = "tcp"
+l_port    = "443"
