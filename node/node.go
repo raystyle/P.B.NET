@@ -8,6 +8,7 @@ type NODE struct {
 	config *Config
 	logger logger.Logger
 	global *global
+	server *server
 }
 
 func New(c *Config) (*NODE, error) {
@@ -26,18 +27,12 @@ func New(c *Config) (*NODE, error) {
 }
 
 func (this *NODE) Main() error {
-	// time sync
 	err := this.global.Start_Timesync()
 	if err != nil {
 		return err
 	}
-	// register
-	err = this.register()
-	if err != nil {
-		return err
-	}
-
-	this.config = nil
+	//go this.register()
+	this.switch_register()
 	return nil
 }
 

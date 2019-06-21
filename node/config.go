@@ -11,8 +11,7 @@ import (
 )
 
 type Config struct {
-	// log
-	Log_level string `toml:"log_level"`
+	Log_level string
 
 	// global
 	Proxy_Clients      map[string]*proxyclient.Client
@@ -22,9 +21,13 @@ type Config struct {
 	Timesync_Interval  time.Duration
 
 	// register only resolve success once
+	Is_Genesis_Node  bool // use controller to register
 	Register_AES_Key []byte
 	Register_AES_IV  []byte
 	Register_Config  []*bootstrap.Config // Config is encrypted
+
+	// listeners
+
 }
 
 // before create a node need check config

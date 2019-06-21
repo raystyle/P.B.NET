@@ -11,16 +11,24 @@ import (
 	"project/testdata"
 )
 
-func Test_Node(t *testing.T) {
-	config := test_generate_config(t)
-	node, err := New(config)
+func Test_Genesis_Node(t *testing.T) {
+	test_node(t, true)
+}
+
+func Test_Common_Node(t *testing.T) {
+	test_node(t, false)
+}
+
+func test_node(t *testing.T, genesis bool) {
+	c := test_generate_config(t, genesis)
+	node, err := New(c)
 	require.Nil(t, err, err)
 	err = node.Main()
 	require.Nil(t, err, err)
 }
 
 func Test_Check_Config(t *testing.T) {
-	config := test_generate_config(t)
+	config := test_generate_config(t, false)
 	err := config.Check()
 	require.Nil(t, err, err)
 	node, err := New(config)
@@ -36,7 +44,7 @@ func Test_Check_Config(t *testing.T) {
 	}
 }
 
-func test_generate_config(t *testing.T) *Config {
+func test_generate_config(t *testing.T, genesis bool) *Config {
 	reg_aes_key := bytes.Repeat([]byte{0}, aes.BIT256)
 	reg_aes_iv := bytes.Repeat([]byte{0}, aes.IV_SIZE)
 	c := &Config{
@@ -46,6 +54,7 @@ func test_generate_config(t *testing.T) *Config {
 		DNS_Cache_Deadline: 3 * time.Minute,
 		Timesync_Clients:   testdata.Timesync_Clients(t),
 		Timesync_Interval:  15 * time.Minute,
+		Is_Genesis_Node:    genesis,
 		Register_AES_Key:   reg_aes_key,
 		Register_AES_IV:    reg_aes_iv,
 	}

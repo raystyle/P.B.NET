@@ -16,13 +16,15 @@ import (
 )
 
 type global struct {
-	ctx        *NODE
-	proxy      *proxyclient.PROXY
-	dns        *dnsclient.DNS
-	timesync   *timesync.TIMESYNC
-	object     map[uint32]interface{}
-	object_rwm sync.RWMutex
-	wg         sync.WaitGroup
+	ctx            *NODE
+	proxy          *proxyclient.PROXY
+	dns            *dnsclient.DNS
+	timesync       *timesync.TIMESYNC
+	object         map[uint32]interface{}
+	object_rwm     sync.RWMutex
+	configure_err  error
+	configure_once sync.Once
+	wg             sync.WaitGroup
 }
 
 func new_global(ctx *NODE) (*global, error) {
@@ -52,10 +54,6 @@ func new_global(ctx *NODE) (*global, error) {
 		timesync: t,
 	}
 	memory.Flush()
-	err = g.configure()
-	if err != nil {
-		return nil, err
-	}
 	return g, nil
 }
 
@@ -79,23 +77,19 @@ func (this *global) sec_padding_memory() {
 }
 
 func (this *global) configure() error {
-	this.sec_padding_memory()
-	generator := random.New()
-	// random object map
-	this.object = make(map[uint32]interface{})
-	for i := 0; i < 32+generator.Int(512); i++ { // 544 * 160 bytes
-		key := object_key_max + uint32(1+generator.Int(512))
-		this.object[key] = generator.Bytes(32 + generator.Int(128))
-	}
-	err := this.generate_internal_objects()
-	if err != nil {
-		return err
-	}
-	err = this.load_controller_config()
-	if err != nil {
-		return err
-	}
-	return nil
+	this.configure_once.Do(func() {
+		this.sec_padding_memory()
+		generator := random.New()
+		// random object map
+		this.object = make(map[uint32]interface{})
+		for i := 0; i < 32+generator.Int(512); i++ { // 544 * 160 bytes
+			key := object_key_max + uint32(1+generator.Int(512))
+			this.object[key] = generator.Bytes(32 + generator.Int(128))
+		}
+		this.generate_internal_objects()
+		this.configure_err = this.load_controller_config()
+	})
+	return this.configure_err
 }
 
 func (this *global) load_controller_config() error {
@@ -106,7 +100,7 @@ func (this *global) load_controller_config() error {
 
 // 1. node guid
 // 2. aes cryptor for database & self guid
-func (this *global) generate_internal_objects() error {
+func (this *global) generate_internal_objects() {
 	// generate guid and select one
 	this.sec_padding_memory()
 	random_generator := random.New()
@@ -131,11 +125,10 @@ func (this *global) generate_internal_objects() error {
 	// encrypt guid
 	encrypt_guid, err := this.Database_Encrypt(this.GUID())
 	if err != nil {
-		return err
+		panic(err)
 	}
 	str := base64.StdEncoding.EncodeToString(encrypt_guid)
 	this.object[node_guid_encrypted] = str
-	return nil
 }
 
 // about internal
