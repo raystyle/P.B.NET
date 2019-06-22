@@ -8,6 +8,7 @@ import (
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
 	"project/internal/logger"
+	"project/internal/xnet"
 )
 
 type Config struct {
@@ -21,13 +22,13 @@ type Config struct {
 	Timesync_Interval  time.Duration
 
 	// register only resolve success once
-	Is_Genesis_Node  bool // use controller to register
+	Is_Genesis       bool // use controller to register
 	Register_AES_Key []byte
 	Register_AES_IV  []byte
 	Register_Config  []*bootstrap.Config // Config is encrypted
 
 	// listeners
-
+	Listeners map[string]*xnet.Config
 }
 
 // before create a node need check config
@@ -48,6 +49,10 @@ func (this *Config) Check() error {
 		return err
 	}
 	return nil
+}
+
+func (this *Config) Build() {
+
 }
 
 const object_key_max uint32 = 1048575
