@@ -6,24 +6,27 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/messages"
 	"project/internal/xnet"
 )
 
-func Listeners(t *testing.T) map[string]*xnet.Config {
-	l := make(map[string]*xnet.Config)
+func Listeners(t *testing.T) []*messages.Listener {
+	var ls []*messages.Listener
 	b, err := ioutil.ReadFile("../config/listener/tls.toml")
 	require.Nil(t, err, err)
-	c := &xnet.Config{
+	l := &messages.Listener{
+		Tag:    "tls",
 		Mode:   xnet.TLS,
 		Config: b,
 	}
-	l["tls"] = c
+	ls = append(ls, l)
 	b, err = ioutil.ReadFile("../config/listener/light.toml")
 	require.Nil(t, err, err)
-	c = &xnet.Config{
+	l = &messages.Listener{
+		Tag:    "light",
 		Mode:   xnet.LIGHT,
 		Config: b,
 	}
-	l["light"] = c
-	return l
+	ls = append(ls, l)
+	return ls
 }

@@ -7,14 +7,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
+	"project/internal/messages"
 )
 
-func Register(t *testing.T) []*bootstrap.Config {
-	var r []*bootstrap.Config
+func Register(t *testing.T) []*messages.Bootstrap {
+	var r []*messages.Bootstrap
 	// http
 	b, err := ioutil.ReadFile("../config/bootstrap/http.toml")
 	require.Nil(t, err, err)
-	c := &bootstrap.Config{
+	c := &messages.Bootstrap{
 		Mode:   bootstrap.M_HTTP,
 		Config: b,
 	}
@@ -22,7 +23,7 @@ func Register(t *testing.T) []*bootstrap.Config {
 	// dns
 	b, err = ioutil.ReadFile("../config/bootstrap/dns.toml")
 	require.Nil(t, err, err)
-	c = &bootstrap.Config{
+	c = &messages.Bootstrap{
 		Mode:   bootstrap.M_DNS,
 		Config: b,
 	}
@@ -30,7 +31,7 @@ func Register(t *testing.T) []*bootstrap.Config {
 	// direct
 	b, err = ioutil.ReadFile("../config/bootstrap/direct.toml")
 	require.Nil(t, err, err)
-	c = &bootstrap.Config{
+	c = &messages.Bootstrap{
 		Mode:   bootstrap.M_DIRECT,
 		Config: b,
 	}
