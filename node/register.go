@@ -12,7 +12,7 @@ import (
 
 func (this *NODE) switch_register() {
 	var err error
-	if this.config.Is_Genesis_Node {
+	if this.config.Is_Genesis {
 		err = this.global.configure()
 		if err != nil {
 			err = errors.WithMessage(err, "global configure failed")
@@ -20,7 +20,7 @@ func (this *NODE) switch_register() {
 		}
 		this.server, err = new_server(this)
 		if err != nil {
-			err = errors.WithMessage(err, "create listener mgr failed")
+			err = errors.WithMessage(err, "create server failed")
 			goto exit
 		}
 	} else {

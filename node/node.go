@@ -1,6 +1,8 @@
 package node
 
 import (
+	"time"
+
 	"project/internal/logger"
 )
 
@@ -27,12 +29,13 @@ func New(c *Config) (*NODE, error) {
 }
 
 func (this *NODE) Main() error {
-	err := this.global.Start_Timesync()
-	if err != nil {
-		return err
-	}
-	//go this.register()
-	this.switch_register()
+	//err := this.global.Start_Timesync()
+	//if err != nil {
+	//	return err
+	//}
+	go this.switch_register()
+	//select {}
+	time.Sleep(2 * time.Second)
 	return nil
 }
 
