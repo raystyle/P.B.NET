@@ -6,12 +6,13 @@ import (
 	"fmt"
 
 	"project/internal/crypto/cert"
+	"project/internal/security"
 )
 
 type TLS_Config struct {
-	Certificates       []TLS_KeyPair `toml:"certificate"` // tls.keypair(pem)
-	RootCAs            []string      `toml:"root_ca"`     // x509.Cert(pem)
-	ClientCAs          []string      `toml:"client_ca"`   // x509.Cert(pem)
+	Certificates       []TLS_KeyPair `toml:"certificates"` // tls.keypair(pem)
+	RootCAs            []string      `toml:"root_ca"`      // x509.Cert(pem)
+	ClientCAs          []string      `toml:"client_ca"`    // x509.Cert(pem)
 	InsecureSkipVerify bool          `toml:"insecure_skip_verify"`
 }
 
@@ -38,6 +39,8 @@ func (this *TLS_Config) Apply() (*tls.Config, error) {
 			if err != nil {
 				return nil, this.failed(err)
 			}
+			security.Flush_Bytes(c)
+			security.Flush_Bytes(k)
 			config.Certificates[i] = tls_cert
 		}
 	}
