@@ -10,7 +10,7 @@ import (
 )
 
 func Register(t *testing.T) []*bootstrap.Config {
-	var registers []*bootstrap.Config
+	var r []*bootstrap.Config
 	// http
 	b, err := ioutil.ReadFile("../config/bootstrap/http.toml")
 	require.Nil(t, err, err)
@@ -18,7 +18,7 @@ func Register(t *testing.T) []*bootstrap.Config {
 		Mode:   bootstrap.M_HTTP,
 		Config: b,
 	}
-	registers = append(registers, c)
+	r = append(r, c)
 	// dns
 	b, err = ioutil.ReadFile("../config/bootstrap/dns.toml")
 	require.Nil(t, err, err)
@@ -26,7 +26,7 @@ func Register(t *testing.T) []*bootstrap.Config {
 		Mode:   bootstrap.M_DNS,
 		Config: b,
 	}
-	registers = append(registers, c)
+	r = append(r, c)
 	// direct
 	b, err = ioutil.ReadFile("../config/bootstrap/direct.toml")
 	require.Nil(t, err, err)
@@ -34,6 +34,6 @@ func Register(t *testing.T) []*bootstrap.Config {
 		Mode:   bootstrap.M_DIRECT,
 		Config: b,
 	}
-	registers = append(registers, c)
-	return registers
+	r = append(r, c)
+	return r
 }
