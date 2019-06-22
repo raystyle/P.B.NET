@@ -3,12 +3,11 @@ package node
 import (
 	"time"
 
-	"project/internal/bootstrap"
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
 	"project/internal/logger"
-	"project/internal/xnet"
+	"project/internal/messages"
 )
 
 type Config struct {
@@ -24,11 +23,13 @@ type Config struct {
 	// register only resolve success once
 	Is_Genesis       bool // use controller to register
 	Register_AES_Key []byte
-	Register_AES_IV  []byte
-	Register_Config  []*bootstrap.Config // Config is encrypted
+	Register_AES_IV  []byte // Config is encrypted
+	Register_Config  []*messages.Bootstrap
 
+	// server
+	Conn_Limit int
 	// listeners
-	Listeners map[string]*xnet.Config
+	Listeners []*messages.Listener
 }
 
 // before create a node need check config

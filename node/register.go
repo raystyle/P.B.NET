@@ -48,19 +48,16 @@ func (this *NODE) auto_register() error {
 	}()
 	for {
 		for i := 0; i < l; i++ {
-			config, err := aes.CBC_Decrypt(register[i].Config, key, iv)
+			c, err := aes.CBC_Decrypt(register[i].Config, key, iv)
 			if err != nil {
 				panic(err)
 			}
-			c := &bootstrap.Config{
-				Mode:   register[i].Mode,
-				Config: config,
-			}
-			boot, err := bootstrap.Load(c, this.global.proxy, this.global.dns)
+			m := register[i].Mode
+			boot, err := bootstrap.Load(m, c, this.global.proxy, this.global.dns)
 			if err != nil {
 				return errors.Wrap(err, "load bootstrap failed")
 			}
-			security.Flush_Bytes(config)
+			security.Flush_Bytes(c)
 			err = this.global.configure()
 			if err != nil {
 				return errors.WithMessage(err, "global configure failed")

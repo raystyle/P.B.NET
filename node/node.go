@@ -34,7 +34,7 @@ func (this *NODE) Main() error {
 	// 	return err
 	// }
 	go this.switch_register()
-	// select {}
+	select {}
 	time.Sleep(2 * time.Second)
 	return nil
 }

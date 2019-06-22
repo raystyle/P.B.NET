@@ -41,6 +41,7 @@ func test_generate_config(t *testing.T, genesis bool) *Config {
 		Is_Genesis:         genesis,
 		Register_AES_Key:   reg_aes_key,
 		Register_AES_IV:    reg_aes_iv,
+		Conn_Limit:         10,
 		Listeners:          testdata.Listeners(t),
 	}
 	// encrypt register info
@@ -52,6 +53,5 @@ func test_generate_config(t *testing.T, genesis bool) *Config {
 		register[i].Config = config_enc
 	}
 	c.Register_Config = register
-
 	return c
 }
