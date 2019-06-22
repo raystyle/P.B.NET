@@ -146,7 +146,7 @@ func (this *Server) start(f func() error, timeout time.Duration) error {
 			if r := recover(); r != nil {
 				switch v := r.(type) {
 				case error:
-					err = v
+					err = errors.WithStack(v)
 				default:
 					err = errors.New("unknown panic")
 				}

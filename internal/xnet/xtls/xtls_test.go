@@ -22,7 +22,7 @@ func Test_xtls(t *testing.T) {
 	tls_config := &tls.Config{
 		Certificates: []tls.Certificate{tls_cert},
 	}
-	listener, err := Listen("tcp", ":0", tls_config)
+	listener, err := Listen("tcp", ":0", tls_config, 0)
 	require.Nil(t, err, err)
 	go func() {
 		conn, err := listener.Accept()
@@ -53,7 +53,7 @@ func Test_xtls(t *testing.T) {
 	tls_config.RootCAs.AddCert(x509_cert)
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.Nil(t, err, err)
-	conn, err := Dial("tcp", "localhost:"+port, tls_config)
+	conn, err := Dial("tcp", "localhost:"+port, tls_config, 0)
 	require.Nil(t, err, err)
 	write := func() {
 		testdata := test_generate_testdata()

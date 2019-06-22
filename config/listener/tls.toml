@@ -1,5 +1,6 @@
 network = "tcp"
 address = ":0"
+timeout = "15s"
 
 [tls_config]
   root_ca              = [] # pem

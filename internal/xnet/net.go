@@ -11,20 +11,16 @@ import (
 	"project/internal/xnet/xtls"
 )
 
-type Config struct {
-	Mode   Mode
-	Config []byte // toml
-}
-
-func Listen(c *Config) (net.Listener, error) {
-	switch c.Mode {
+func Listen(m Mode, config []byte) (net.Listener, error) {
+	switch m {
 	case TLS:
 		conf := &struct {
 			Network    string             `toml:"network"`
 			Address    string             `toml:"address"`
+			Timeout    time.Duration      `toml:"timeout"`
 			TLS_Config options.TLS_Config `toml:"tls_config"`
 		}{}
-		err := toml.Unmarshal(c.Config, conf)
+		err := toml.Unmarshal(config, conf)
 		if err != nil {
 			return nil, err
 		}
@@ -36,14 +32,14 @@ func Listen(c *Config) (net.Listener, error) {
 		if err != nil {
 			return nil, err
 		}
-		return xtls.Listen(conf.Network, conf.Address, tls_config)
+		return xtls.Listen(conf.Network, conf.Address, tls_config, conf.Timeout)
 	case LIGHT:
 		conf := &struct {
 			Network string        `toml:"network"`
 			Address string        `toml:"address"`
 			Timeout time.Duration `toml:"timeout"`
 		}{}
-		err := toml.Unmarshal(c.Config, conf)
+		err := toml.Unmarshal(config, conf)
 		if err != nil {
 			return nil, err
 		}

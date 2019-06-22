@@ -3,24 +3,25 @@ package xtls
 import (
 	"crypto/tls"
 	"net"
+	"time"
 
 	"project/internal/xnet/light"
 )
 
 type Conn = light.Conn
 
-func Listen(network, address string, config *tls.Config) (net.Listener, error) {
-	l, err := tls.Listen(network, address, config)
+func Listen(network, address string, c *tls.Config, timeout time.Duration) (net.Listener, error) {
+	l, err := tls.Listen(network, address, c)
 	if err != nil {
 		return nil, err
 	}
-	return light.New_Listener(l, 0), nil
+	return light.New_Listener(l, timeout), nil
 }
 
-func Dial(network, address string, config *tls.Config) (*Conn, error) {
-	conn, err := tls.Dial(network, address, config)
+func Dial(network, address string, c *tls.Config, timeout time.Duration) (*Conn, error) {
+	conn, err := tls.Dial(network, address, c)
 	if err != nil {
 		return nil, err
 	}
-	return light.Client(conn, 0), nil
+	return light.Client(conn, timeout), nil
 }
