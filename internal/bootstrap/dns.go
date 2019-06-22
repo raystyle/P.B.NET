@@ -79,20 +79,20 @@ func (this *DNS) Unmarshal(data []byte) error {
 	iv := rand.Bytes(aes.IV_SIZE)
 	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		panic(&fpanic{Mode: M_DNS, Err: err})
+		panic(&fpanic{M: M_DNS, E: err})
 	}
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	memory.Padding()
 	b, err := msgpack.Marshal(d)
 	if err != nil {
-		panic(&fpanic{Mode: M_DNS, Err: err})
+		panic(&fpanic{M: M_DNS, E: err})
 	}
 	d = nil // <security>
 	memory.Padding()
 	this.opts_enc, err = this.cryptor.Encrypt(b)
 	if err != nil {
-		panic(&fpanic{Mode: M_DNS, Err: err})
+		panic(&fpanic{M: M_DNS, E: err})
 	}
 	security.Flush_Bytes(b)
 	return nil
@@ -104,12 +104,12 @@ func (this *DNS) Resolve() ([]*Node, error) {
 	defer memory.Flush()
 	b, err := this.cryptor.Decrypt(this.opts_enc)
 	if err != nil {
-		panic(&fpanic{Mode: M_DNS, Err: err})
+		panic(&fpanic{M: M_DNS, E: err})
 	}
 	d := &DNS{}
 	err = msgpack.Unmarshal(b, d)
 	if err != nil {
-		panic(&fpanic{Mode: M_DNS, Err: err})
+		panic(&fpanic{M: M_DNS, E: err})
 	}
 	security.Flush_Bytes(b)
 	memory.Padding()
@@ -137,7 +137,7 @@ func (this *DNS) Resolve() ([]*Node, error) {
 			nodes[i].Address = "[" + ip_list[i] + "]:" + d.L_Port
 		}
 	default:
-		panic(&fpanic{Mode: M_DNS, Err: err})
+		panic(&fpanic{M: M_DNS, E: err})
 	}
 	d = nil
 	for i := 0; i < l; i++ { // <security>

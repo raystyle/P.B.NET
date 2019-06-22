@@ -92,7 +92,7 @@ func (this *HTTP) Generate(nodes []*Node) (string, error) {
 	}
 	data, err := msgpack.Marshal(nodes)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	// confuse
 	nodes_data := bytes.Buffer{}
@@ -117,15 +117,15 @@ func (this *HTTP) Generate(nodes []*Node) (string, error) {
 	// encrypt
 	key, err := hex.DecodeString(this.AES_Key)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	iv, err := hex.DecodeString(this.AES_IV)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	cipherdata, err := aes.CBC_Encrypt(buffer.Bytes(), key, iv)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	return base64.StdEncoding.EncodeToString(cipherdata), nil
 }
@@ -158,20 +158,20 @@ func (this *HTTP) Unmarshal(data []byte) error {
 	iv := rand.Bytes(aes.IV_SIZE)
 	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	memory.Padding()
 	b, err := msgpack.Marshal(h)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	h = nil // <security>
 	memory.Padding()
 	this.opts_enc, err = this.cryptor.Encrypt(b)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	security.Flush_Bytes(b)
 	return nil
@@ -216,7 +216,7 @@ func (this *HTTP) Resolve() ([]*Node, error) {
 			}
 		}
 	default:
-		panic(&fpanic{Mode: M_HTTP, Err: dns.ERR_INVALID_TYPE})
+		panic(&fpanic{M: M_HTTP, E: dns.ERR_INVALID_TYPE})
 	}
 	return nil, ERR_NO_RESPONSE
 }
@@ -233,23 +233,23 @@ func (this *HTTP) apply_options() (*http_opts, error) {
 	defer memory.Flush()
 	b, err := this.cryptor.Decrypt(this.opts_enc)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	h := &HTTP{}
 	err = msgpack.Unmarshal(b, h)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	security.Flush_Bytes(b)
 	memory.Padding()
 	// apply options
 	req, err := h.Request.Apply()
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	tr, err := h.Transport.Apply()
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
 	// set proxy
@@ -293,12 +293,12 @@ func (this *HTTP) resolve(h *HTTP, info string) ([]*Node, error) {
 	}
 	aes_key, err := hex.DecodeString(h.AES_Key)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	h.AES_Key = ""
 	aes_iv, err := hex.DecodeString(h.AES_IV)
 	if err != nil {
-		panic(&fpanic{Mode: M_HTTP, Err: err})
+		panic(&fpanic{M: M_HTTP, E: err})
 	}
 	h.AES_IV = ""
 	data, err := aes.CBC_Decrypt(cipherdata, aes_key, aes_iv)

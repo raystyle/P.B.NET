@@ -29,39 +29,6 @@ type Bootstrap interface {
 	Resolve() ([]*Node, error)
 }
 
-type Config struct {
-	Mode   Mode
-	Config []byte
-}
-
-func Load(c *Config, p proxy_pool, d dns_resolver) (Bootstrap, error) {
-	switch c.Mode {
-	case M_HTTP:
-		http := New_HTTP(p, d)
-		err := http.Unmarshal(c.Config)
-		if err != nil {
-			return nil, err
-		}
-		return http, nil
-	case M_DNS:
-		dns := New_DNS(d)
-		err := dns.Unmarshal(c.Config)
-		if err != nil {
-			return nil, err
-		}
-		return dns, nil
-	case M_DIRECT:
-		direct := New_Direct(nil)
-		err := direct.Unmarshal(c.Config)
-		if err != nil {
-			return nil, err
-		}
-		return direct, nil
-	default:
-		return nil, fmt.Errorf("unknown bootstrap mode: %s", c.Mode)
-	}
-}
-
 type dns_resolver interface {
 	Resolve(domain string, opts *dnsclient.Options) ([]string, error)
 }
@@ -71,10 +38,38 @@ type proxy_pool interface {
 }
 
 type fpanic struct {
-	Mode Mode
-	Err  error
+	M Mode
+	E error
 }
 
 func (this *fpanic) Error() string {
-	return fmt.Sprintf("bootstrap %s internal error: %s", this.Mode, this.Err)
+	return fmt.Sprintf("bootstrap %s internal error: %s", this.M, this.E)
+}
+
+func Load(m Mode, config []byte, p proxy_pool, d dns_resolver) (Bootstrap, error) {
+	switch m {
+	case M_HTTP:
+		http := New_HTTP(p, d)
+		err := http.Unmarshal(config)
+		if err != nil {
+			return nil, err
+		}
+		return http, nil
+	case M_DNS:
+		dns := New_DNS(d)
+		err := dns.Unmarshal(config)
+		if err != nil {
+			return nil, err
+		}
+		return dns, nil
+	case M_DIRECT:
+		direct := New_Direct(nil)
+		err := direct.Unmarshal(config)
+		if err != nil {
+			return nil, err
+		}
+		return direct, nil
+	default:
+		return nil, fmt.Errorf("unknown bootstrap mode: %s", m)
+	}
 }

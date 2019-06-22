@@ -49,18 +49,18 @@ func (this *Direct) Unmarshal(data []byte) error {
 	iv := rand.Bytes(aes.IV_SIZE)
 	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
 	if err != nil {
-		panic(&fpanic{Mode: M_DIRECT, Err: err})
+		panic(&fpanic{M: M_DIRECT, E: err})
 	}
 	security.Flush_Bytes(key)
 	security.Flush_Bytes(iv)
 	b, err := msgpack.Marshal(&nodes.Nodes)
 	if err != nil {
-		panic(&fpanic{Mode: M_DIRECT, Err: err})
+		panic(&fpanic{M: M_DIRECT, E: err})
 	}
 	memory.Padding()
 	this.nodes_enc, err = this.cryptor.Encrypt(b)
 	if err != nil {
-		panic(&fpanic{Err: err})
+		panic(&fpanic{E: err})
 	}
 	security.Flush_Bytes(b)
 	return nil
@@ -71,13 +71,13 @@ func (this *Direct) Resolve() ([]*Node, error) {
 	defer memory.Flush()
 	b, err := this.cryptor.Decrypt(this.nodes_enc)
 	if err != nil {
-		panic(&fpanic{Mode: M_DIRECT, Err: err})
+		panic(&fpanic{M: M_DIRECT, E: err})
 	}
 	memory.Padding()
 	var nodes []*Node
 	err = msgpack.Unmarshal(b, &nodes)
 	if err != nil {
-		panic(&fpanic{Mode: M_DIRECT, Err: err})
+		panic(&fpanic{M: M_DIRECT, E: err})
 	}
 	security.Flush_Bytes(b)
 	return nodes, nil
