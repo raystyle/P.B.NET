@@ -84,7 +84,7 @@ func New(p *proxyclient.PROXY, c map[string]*Client, deadline time.Duration) (*D
 		}
 	}
 	// set deadline
-	if deadline <= 0 {
+	if deadline < 1 {
 		deadline = default_deadline
 	}
 	err := d.Set_Cache_Deadline(deadline)
