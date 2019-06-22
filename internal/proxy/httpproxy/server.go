@@ -172,19 +172,19 @@ func (this *Server) log(l logger.Level, log ...interface{}) {
 	this.logger.Println(l, this.tag, log...)
 }
 
-type serve_log struct {
+type log struct {
 	Log interface{}
 	R   *http.Request
 }
 
-func (this *serve_log) String() string {
+func (this *log) String() string {
 	return fmt.Sprint(this.Log, "\n", logger.HTTP_Request(this.R))
 }
 
 func (this *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			this.log(logger.ERROR, &serve_log{Log: fmt.Sprint("panic: ", rec), R: r})
+			this.log(logger.ERROR, &log{Log: fmt.Sprint("panic: ", rec), R: r})
 		}
 	}()
 	// auth
@@ -205,12 +205,12 @@ func (this *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "Basic":
 			if subtle.ConstantTimeCompare(this.basic_auth, []byte(auth_base64)) != 1 {
 				auth_failed()
-				this.log(logger.EXPLOIT, &serve_log{Log: "invalid basic authenticate", R: r})
+				this.log(logger.EXPLOIT, &log{Log: "invalid basic authenticate", R: r})
 				return
 			}
 		default: // not support method
 			auth_failed()
-			this.log(logger.EXPLOIT, &serve_log{Log: "unsupport auth method: " + auth_method, R: r})
+			this.log(logger.EXPLOIT, &log{Log: "unsupport auth method: " + auth_method, R: r})
 			return
 		}
 	}
@@ -219,18 +219,18 @@ func (this *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// dial
 		conn, err := this.transport.DialContext(context.Background(), "tcp", r.URL.Host)
 		if err != nil {
-			this.log(logger.ERROR, &serve_log{Log: err, R: r})
+			this.log(logger.ERROR, &log{Log: err, R: r})
 			return
 		}
 		// get client conn
 		wc, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
-			this.log(logger.ERROR, &serve_log{Log: err, R: r})
+			this.log(logger.ERROR, &log{Log: err, R: r})
 			return
 		}
 		_, err = wc.Write(connection_established)
 		if err != nil {
-			this.log(logger.ERROR, &serve_log{Log: err, R: r})
+			this.log(logger.ERROR, &log{Log: err, R: r})
 			return
 		}
 		go func() { _, _ = io.Copy(conn, wc) }()
@@ -240,7 +240,7 @@ func (this *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else { // handle http
 		resp, err := this.transport.RoundTrip(r)
 		if err != nil {
-			this.log(logger.ERROR, &serve_log{Log: err, R: r})
+			this.log(logger.ERROR, &log{Log: err, R: r})
 			return
 		}
 		defer func() { _ = resp.Body.Close() }()

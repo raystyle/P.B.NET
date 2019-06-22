@@ -117,7 +117,7 @@ func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
 					if delay > max {
 						delay = max
 					}
-					this.log(logger.WARNING, "Accept error: %s; retrying in %v", err, delay)
+					this.logf(logger.WARNING, "accept error: %s; retrying in %v", err, delay)
 					time.Sleep(delay)
 					continue
 				}
@@ -194,8 +194,12 @@ func (this *Server) Addr() string {
 	return this.addr
 }
 
-func (this *Server) log(level logger.Level, log ...interface{}) {
-	this.logger.Println(level, this.tag, log...)
+func (this *Server) log(l logger.Level, log ...interface{}) {
+	this.logger.Println(l, this.tag, log...)
+}
+
+func (this *Server) logf(l logger.Level, format string, log ...interface{}) {
+	this.logger.Printf(l, this.tag, format, log...)
 }
 
 func (this *Server) new_conn(c net.Conn) *conn {
@@ -214,12 +218,12 @@ func (this *Server) new_conn(c net.Conn) *conn {
 	return nil
 }
 
-type serve_log struct {
+type log struct {
 	Log interface{}
 	C   net.Conn
 }
 
-func (this *serve_log) String() string {
+func (this *log) String() string {
 	return fmt.Sprint(this.Log, " Client: ", this.C.RemoteAddr())
 }
 
@@ -231,7 +235,7 @@ type conn struct {
 func (this *conn) serve() {
 	defer func() {
 		if rec := recover(); rec != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: fmt.Sprint("panic: ", rec), C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: fmt.Sprint("panic: ", rec), C: this.conn})
 		}
 		_ = this.conn.Close()
 		this.server.rwm.Lock()
@@ -244,23 +248,23 @@ func (this *conn) serve() {
 	// read version
 	_, err := io.ReadAtLeast(this.conn, buffer[:1], 1)
 	if err != nil {
-		this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		return
 	}
 	if buffer[0] != version5 {
-		this.server.log(logger.EXPLOIT, &serve_log{C: this.conn,
+		this.server.log(logger.EXPLOIT, &log{C: this.conn,
 			Log: fmt.Sprintf("unexpected protocol version %d", buffer[0])})
 		return
 	}
 	// read authentication methods
 	_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
 	if err != nil {
-		this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		return
 	}
 	l := int(buffer[0])
 	if l == 0 {
-		this.server.log(logger.EXPLOIT, &serve_log{C: this.conn,
+		this.server.log(logger.EXPLOIT, &log{C: this.conn,
 			Log: "unexpected authentication method length 0"})
 		return
 	}
@@ -269,31 +273,31 @@ func (this *conn) serve() {
 	}
 	_, err = io.ReadAtLeast(this.conn, buffer[:l], l)
 	if err != nil {
-		this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		return
 	}
 	// write authentication method
 	if this.server.username != nil {
 		_, err = this.conn.Write([]byte{version5, username_password})
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		// read username and password version
 		_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		if buffer[0] != username_password_version {
-			this.server.log(logger.EXPLOIT, &serve_log{C: this.conn,
+			this.server.log(logger.EXPLOIT, &log{C: this.conn,
 				Log: fmt.Sprintf("unexpected username password version %d", buffer[0])})
 			return
 		}
 		// read username length
 		_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		l = int(buffer[0])
@@ -303,7 +307,7 @@ func (this *conn) serve() {
 		// read username
 		_, err = io.ReadAtLeast(this.conn, buffer[:l], l)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		username := make([]byte, l)
@@ -311,7 +315,7 @@ func (this *conn) serve() {
 		// read password length
 		_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		l = int(buffer[0])
@@ -321,7 +325,7 @@ func (this *conn) serve() {
 		// read password
 		_, err = io.ReadAtLeast(this.conn, buffer[:l], l)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		password := make([]byte, l)
@@ -329,29 +333,29 @@ func (this *conn) serve() {
 		// write username password version
 		_, err = this.conn.Write([]byte{username_password_version})
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		if subtle.ConstantTimeCompare(this.server.username, username) != 1 ||
 			subtle.ConstantTimeCompare(this.server.password, password) != 1 {
-			this.server.log(logger.EXPLOIT, &serve_log{C: this.conn,
+			this.server.log(logger.EXPLOIT, &log{C: this.conn,
 				Log: fmt.Sprintf("invalid username password: %s %s", username, password)})
 			_, err = this.conn.Write([]byte{status_failed})
 			if err != nil {
-				this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+				this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			}
 			return
 		} else {
 			_, err = this.conn.Write([]byte{status_succeeded})
 			if err != nil {
-				this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+				this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 				return
 			}
 		}
 	} else {
 		_, err = this.conn.Write([]byte{version5, not_required})
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 	}
@@ -362,28 +366,28 @@ func (this *conn) serve() {
 	}
 	_, err = io.ReadAtLeast(this.conn, buffer[:4], 4)
 	if err != nil {
-		this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		return
 	}
 	if buffer[0] != version5 {
-		this.server.log(logger.EXPLOIT, &serve_log{C: this.conn,
+		this.server.log(logger.EXPLOIT, &log{C: this.conn,
 			Log: fmt.Sprintf("unexpected connect protocol version %d", buffer[0])})
 		return
 	}
 	if buffer[1] != connect {
-		this.server.log(logger.EXPLOIT, &serve_log{C: this.conn,
+		this.server.log(logger.EXPLOIT, &log{C: this.conn,
 			Log: "non-zero reserved field"})
 		_, err = this.conn.Write([]byte{version5, command_not_support, reserve})
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		}
 		return
 	}
 	if buffer[2] != reserve { // reserve
-		this.server.log(logger.EXPLOIT, &serve_log{C: this.conn, Log: "non-zero reserved field"})
+		this.server.log(logger.EXPLOIT, &log{C: this.conn, Log: "non-zero reserved field"})
 		_, err = this.conn.Write([]byte{version5, 0x01, reserve})
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		}
 		return
 	}
@@ -393,7 +397,7 @@ func (this *conn) serve() {
 	case ipv4:
 		_, err = io.ReadAtLeast(this.conn, buffer[:4], 4)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		host = net.IP(buffer[:4]).String()
@@ -401,7 +405,7 @@ func (this *conn) serve() {
 		buffer = make([]byte, 16) // 4 + 4(ipv4) + 2(port)
 		_, err = io.ReadAtLeast(this.conn, buffer[:16], 16)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		host = "[" + net.IP(buffer[:16]).String() + "]"
@@ -409,7 +413,7 @@ func (this *conn) serve() {
 		// get FQDN length
 		_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		l = int(buffer[0])
@@ -418,32 +422,32 @@ func (this *conn) serve() {
 		}
 		_, err = io.ReadAtLeast(this.conn, buffer[:l], l)
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 			return
 		}
 		host = string(buffer[:l])
 	default:
-		this.server.log(logger.EXPLOIT, &serve_log{C: this.conn, Log: "address type not supported"})
+		this.server.log(logger.EXPLOIT, &log{C: this.conn, Log: "address type not supported"})
 		_, err = this.conn.Write([]byte{version5, 0x08, reserve, ipv4, 0, 0, 0, 0, 0, 0})
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		}
 		return
 	}
 	// get port
 	_, err = io.ReadAtLeast(this.conn, buffer[:2], 2)
 	if err != nil {
-		this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		return
 	}
 	// start dial
 	port := convert.Bytes_Uint16(buffer[:2])
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		_, err = this.conn.Write([]byte{version5, 0x05, reserve, ipv4, 0, 0, 0, 0, 0, 0})
 		if err != nil {
-			this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		}
 		return
 	}
@@ -453,7 +457,7 @@ func (this *conn) serve() {
 	success := []byte{version5, succeeded, reserve, ipv4, 0, 0, 0, 0, 0, 0}
 	_, err = this.conn.Write(success)
 	if err != nil {
-		this.server.log(logger.ERROR, &serve_log{Log: err, C: this.conn})
+		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
 		return
 	}
 	_ = this.conn.SetDeadline(time.Time{})
