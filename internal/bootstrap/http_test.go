@@ -21,7 +21,7 @@ func Test_HTTP(t *testing.T) {
 	defer proxy_pool.Close()
 	// generate bootstrap nodes info
 	nodes := test_generate_nodes()
-	//--------------------------http---------------------------
+	// --------------------------http---------------------------
 	HTTP := test_generate_http(t, proxy_pool)
 	info, err := HTTP.Generate(nodes)
 	require.Nil(t, err, err)
@@ -42,7 +42,7 @@ func Test_HTTP(t *testing.T) {
 	resolved, err := HTTP.Resolve()
 	require.Nil(t, err, err)
 	require.Equal(t, nodes, resolved)
-	//--------------------------https--------------------------
+	// --------------------------https--------------------------
 	HTTP = test_generate_http(t, proxy_pool)
 	info, err = HTTP.Generate(nodes)
 	require.Nil(t, err, err)

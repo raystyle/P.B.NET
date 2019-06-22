@@ -14,7 +14,7 @@ func Test_Server(t *testing.T) {
 	require.Nil(t, err, err)
 	t.Log(s.Info())
 	t.Log(s.Addr())
-	//select {}
+	// select {}
 	err = s.Stop()
 	require.Nil(t, err, err)
 }

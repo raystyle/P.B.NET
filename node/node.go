@@ -29,12 +29,12 @@ func New(c *Config) (*NODE, error) {
 }
 
 func (this *NODE) Main() error {
-	//err := this.global.Start_Timesync()
-	//if err != nil {
-	//	return err
-	//}
+	// err := this.global.Start_Timesync()
+	// if err != nil {
+	// 	return err
+	// }
 	go this.switch_register()
-	//select {}
+	// select {}
 	time.Sleep(2 * time.Second)
 	return nil
 }

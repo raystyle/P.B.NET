@@ -453,7 +453,7 @@ func (this *conn) serve() {
 	}
 	defer func() { _ = conn.Close() }()
 	// write reply
-	//ipv4 + 0.0.0.0 + 0(port)
+	// ipv4 + 0.0.0.0 + 0(port)
 	success := []byte{version5, succeeded, reserve, ipv4, 0, 0, 0, 0, 0, 0}
 	_, err = this.conn.Write(success)
 	if err != nil {

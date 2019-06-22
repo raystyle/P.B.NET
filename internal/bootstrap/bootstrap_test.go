@@ -145,7 +145,7 @@ func test_start_http_server(t *testing.T, s *http.Server, info string) string {
 		t.Fatal(err)
 	case <-time.After(250 * time.Millisecond):
 	}
-	//get port
+	// get port
 	_, port, err := net.SplitHostPort(l.Addr().String())
 	require.Nil(t, err, err)
 	return port

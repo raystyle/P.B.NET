@@ -205,7 +205,7 @@ func (this *dialer) connect(conn net.Conn, network, address string) error {
 		if len(username) == 0 || len(username) > 255 {
 			return errors.New("invalid username length")
 		}
-		//https://www.ietf.org/rfc/rfc1929.txt
+		// https://www.ietf.org/rfc/rfc1929.txt
 		buffer.Reset()
 		buffer.WriteByte(username_password_version)
 		buffer.WriteByte(byte(len(username)))

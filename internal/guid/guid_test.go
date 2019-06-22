@@ -11,13 +11,13 @@ func Test_GUID(t *testing.T) {
 		t.Log(generator.Get())
 	}
 	generator.Close()
-	//now
+	// now
 	generator = New(16, time.Now)
 	for i := 0; i < 4; i++ {
 		t.Log(generator.Get())
 	}
 	generator.Close()
-	//0 size
+	// 0 size
 	generator = New(-1, time.Now)
 	for i := 0; i < 4; i++ {
 		t.Log(generator.Get())

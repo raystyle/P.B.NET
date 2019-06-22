@@ -47,8 +47,8 @@ func Benchmark_Sign(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = Sign(privatekey, data)
-		//_, err := Sign(privatekey, data)
-		//require.Nil(b, err, err)
+		// _, err := Sign(privatekey, data)
+		// require.Nil(b, err, err)
 	}
 }
 
@@ -63,7 +63,7 @@ func Benchmark_Verify(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Verify(publickey, data, signature)
-		//require.True(b, Verify(publickey, data, signature), "verify failed")
+		// require.True(b, Verify(publickey, data, signature), "verify failed")
 	}
 	b.StopTimer()
 }
@@ -78,9 +78,9 @@ func Benchmark_Sign_Verify(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		signature, _ := Sign(privatekey, data)
 		Verify(publickey, data, signature)
-		//signature, err := Sign(privatekey, data)
-		//require.Nil(b, err, err)
-		//require.True(b, Verify(publickey, data, signature), "verify failed")
+		// signature, err := Sign(privatekey, data)
+		// require.Nil(b, err, err)
+		// require.True(b, Verify(publickey, data, signature), "verify failed")
 	}
 	b.StopTimer()
 }

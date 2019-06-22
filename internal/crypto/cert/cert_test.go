@@ -22,10 +22,10 @@ func Test_Generate_CA(t *testing.T) {
 	require.Nil(t, err, err)
 	_, err = rsa.Import_PrivateKey_PEM(ca_key)
 	require.Nil(t, err, err)
-	//invalid pem
+	// invalid pem
 	_, err = Parse(nil)
 	require.Equal(t, err, ERR_INVALID_PEM_BLOCK, err)
-	//invalid type
+	// invalid type
 	block := &pem.Block{}
 	block.Type = "CERTIFICATE asdsad"
 	_, err = Parse(pem.EncodeToMemory(block))
@@ -94,7 +94,7 @@ func Test_Invalid(t *testing.T) {
 	require.Nil(t, err, err)
 	privatekey, err := rsa.Import_PrivateKey_PEM(ca_key)
 	require.Nil(t, err, err)
-	//invalid privatekey
+	// invalid privatekey
 	privatekey.PublicKey.N.SetBytes(nil)
 	_, _, err = Generate(parent, privatekey, []string{"localhost"}, []string{"127.0.0.1"})
 	require.NotNil(t, err)
@@ -125,13 +125,13 @@ func mock_https_server(t *testing.T, wg *sync.WaitGroup, cert, key []byte) (stri
 		close(err_chan)
 		wg.Done()
 	}()
-	//start
+	// start
 	select {
 	case err := <-err_chan:
 		t.Fatal(err)
 	case <-time.After(time.Millisecond * 500):
 	}
-	//stop
+	// stop
 	stop_signal := make(chan struct{}, 1)
 	wg.Add(1)
 	go func() {
@@ -139,7 +139,7 @@ func mock_https_server(t *testing.T, wg *sync.WaitGroup, cert, key []byte) (stri
 		_ = server.Close()
 		wg.Done()
 	}()
-	//get port
+	// get port
 	_, port, err := net.SplitHostPort(l.Addr().String())
 	require.Nil(t, err, err)
 	return port, stop_signal

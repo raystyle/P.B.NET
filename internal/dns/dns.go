@@ -189,7 +189,7 @@ func Is_Domain(s string) bool {
 func dial_tls(address string, question []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
-	case "": //default
+	case "": // default
 		network = "tcp"
 	case "tcp", "tcp4", "tcp6":
 	default:
@@ -268,7 +268,7 @@ func dial_udp(address string, question []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
 	case "":
-		network = "udp" //default
+		network = "udp" // default
 	case "udp", "udp4", "udp6":
 	default:
 		return nil, ERR_UNKNOWN_NETWORK
@@ -280,7 +280,7 @@ func dial_udp(address string, question []byte, opts *Options) ([]byte, error) {
 	for i := 0; i < 3; i++ {
 		conn, err := dial(network, address)
 		if err != nil {
-			return nil, err //not continue
+			return nil, err // not continue
 		}
 		// set timeout
 		if opts.Timeout > 0 {
@@ -305,7 +305,7 @@ func dial_tcp(address string, question []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
 	case "":
-		network = "tcp" //default
+		network = "tcp" // default
 	case "tcp", "tcp4", "tcp6":
 	default:
 		return nil, ERR_UNKNOWN_NETWORK

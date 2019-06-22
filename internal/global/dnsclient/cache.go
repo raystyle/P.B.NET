@@ -36,14 +36,14 @@ func (this *DNS) Flush_Cache() {
 }
 
 func (this *DNS) query_cache(domain string, Type dns.Type) []string {
-	//clean expire cache
+	// clean expire cache
 	this.caches_rwm.Lock()
 	for domain, cache := range this.caches {
 		if time.Now().Sub(cache.update_time) > this.deadline {
 			delete(this.caches, domain)
 		}
 	}
-	//try query
+	// try query
 	if c, exist := this.caches[domain]; exist {
 		this.caches_rwm.Unlock()
 		switch Type {

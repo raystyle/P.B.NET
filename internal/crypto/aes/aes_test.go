@@ -12,7 +12,7 @@ func Test_AES(t *testing.T) {
 	key_256 := bytes.Repeat(key_128, 2)
 	iv := []byte{11, 12, 13, 14, 15, 16, 17, 18, 19, 10, 111, 112, 113, 114, 115, 116}
 	data := bytes.Repeat([]byte{0}, 32)
-	//encrypt&&decrypt
+	// encrypt&&decrypt
 	f := func(key []byte) {
 		cipherdata, err := CBC_Encrypt(data, key, iv)
 		require.Nil(t, err, err)
@@ -23,27 +23,27 @@ func Test_AES(t *testing.T) {
 	}
 	f(key_128)
 	f(key_256)
-	//no data
+	// no data
 	_, err := CBC_Encrypt(nil, key_128, iv)
 	require.Equal(t, err, ERR_NO_DATA, err)
 	_, err = CBC_Decrypt(nil, key_128, iv)
 	require.Equal(t, err, ERR_NO_DATA, err)
-	//invalid iv
+	// invalid iv
 	_, err = CBC_Encrypt(data, key_128, nil)
 	require.Equal(t, err, ERR_INVALID_IV_SIZE, err)
 	_, err = CBC_Decrypt(data, key_128, nil)
 	require.Equal(t, err, ERR_INVALID_IV_SIZE, err)
-	//invalid key
+	// invalid key
 	_, err = CBC_Encrypt(data, nil, iv)
 	require.NotNil(t, err)
 	_, err = CBC_Decrypt(data, nil, iv)
 	require.NotNil(t, err)
-	//invalid data ERR_INVALID_CIPHERDATA
+	// invalid data ERR_INVALID_CIPHERDATA
 	_, err = CBC_Decrypt(bytes.Repeat([]byte{0}, 13), key_128, iv)
 	require.Equal(t, err, ERR_INVALID_CIPHERDATA, err)
 	_, err = CBC_Decrypt(bytes.Repeat([]byte{0}, 63), key_128, iv)
 	require.Equal(t, err, ERR_INVALID_CIPHERDATA, err)
-	//invalid data ERR_UNPADDING
+	// invalid data ERR_UNPADDING
 	_, err = CBC_Decrypt(bytes.Repeat([]byte{0}, 64), key_128, iv)
 	require.Equal(t, err, ERR_UNPADDING, err)
 }
@@ -59,7 +59,7 @@ func Test_CBC_Cryptor(t *testing.T) {
 	_, err = New_CBC_Cryptor(bytes.Repeat([]byte{0}, BIT256), iv)
 	require.Nil(t, err, err)
 	data := bytes.Repeat([]byte{0}, 32)
-	//encrypt&&decrypt
+	// encrypt&&decrypt
 	f := func(key []byte) {
 		cryptor, err := New_CBC_Cryptor(key, iv)
 		require.Nil(t, err, err)
@@ -78,20 +78,20 @@ func Test_CBC_Cryptor(t *testing.T) {
 	}
 	f(key_128)
 	f(key_256)
-	//invalid key
+	// invalid key
 	cryptor, err := New_CBC_Cryptor(nil, iv)
 	require.NotNil(t, err)
-	//invalid iv
+	// invalid iv
 	cryptor, err = New_CBC_Cryptor(key_128, nil)
 	require.NotNil(t, err)
-	//no data
+	// no data
 	cryptor, err = New_CBC_Cryptor(key_128, iv)
 	require.Nil(t, err, err)
 	_, err = cryptor.Encrypt(nil)
 	require.Equal(t, err, ERR_NO_DATA, err)
 	_, err = cryptor.Decrypt(nil)
 	require.Equal(t, err, ERR_NO_DATA, err)
-	//invalid data
+	// invalid data
 	_, err = cryptor.Decrypt(bytes.Repeat([]byte{0}, 13))
 	require.Equal(t, err, ERR_INVALID_CIPHERDATA, err)
 	_, err = cryptor.Decrypt(bytes.Repeat([]byte{0}, 63))

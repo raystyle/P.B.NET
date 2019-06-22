@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	host  = "pool.ntp.org:123" //"pool.ntp.org" 144.76.76.107 94.130.49.186
+	host  = "pool.ntp.org:123" // "pool.ntp.org" 144.76.76.107 94.130.49.186
 	refID = 0x58585858         // 'XXXX'
 )
 

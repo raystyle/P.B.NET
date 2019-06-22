@@ -70,7 +70,7 @@ func test_socks5(t *testing.T, c *Client) {
 		for _, addr := range address {
 			conn, err := c.Dial("tcp", addr)
 			require.Nil(t, err, err)
-			//t.Log(conn.LocalAddr(), conn.RemoteAddr())
+			// t.Log(conn.LocalAddr(), conn.RemoteAddr())
 			_ = conn.Close()
 			conn, err = c.Dial_Context(context.Background(), "tcp", addr)
 			require.Nil(t, err, err)

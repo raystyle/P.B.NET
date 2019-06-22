@@ -25,13 +25,13 @@ type LeapIndicator uint8
 
 const (
 	// LeapNoWarning indicates no impending leap second.
-	_ LeapIndicator = iota //LeapNoWarning
+	_ LeapIndicator = iota // LeapNoWarning
 
 	// LeapAddSecond indicates the last minute of the day has 61 seconds.
-	_ //LeapAddSecond
+	_ // LeapAddSecond
 
 	// LeapDelSecond indicates the last minute of the day has 59 seconds.
-	_ //LeapDelSecond
+	_ // LeapDelSecond
 
 	// LeapNotInSync indicates an unsynchronized leap second.
 	LeapNotInSync
@@ -57,14 +57,14 @@ type mode uint8
 
 // NTP modes. This package uses only client mode.
 const (
-	_ mode = iota //reserved
-	_             //symmetricActive
-	_             //symmetricPassive
+	_ mode = iota // reserved
+	_             // symmetricActive
+	_             // symmetricPassive
 	client
 	server
-	_ //broadcast
-	_ //controlMessage
-	_ //reservedPrivate
+	_ // broadcast
+	_ // controlMessage
+	_ // reservedPrivate
 )
 
 // An ntpTime is a 64-bit fixed-point (Q32.32) representation of the number of

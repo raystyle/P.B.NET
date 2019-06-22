@@ -1,4 +1,4 @@
-//from GOROOT/src/internal/x/net/idna/punycode.go
+// from GOROOT/src/internal/x/net/idna/punycode.go
 
 // Copyright 2016 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
