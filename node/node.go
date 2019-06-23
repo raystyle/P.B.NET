@@ -38,12 +38,15 @@ func (this *NODE) Main() error {
 	if err != nil {
 		return err
 	}
+	this.presenter = p
 	go p.Start()
-	time.Sleep(2 * time.Second)
+	select {}
+	time.Sleep(5 * time.Second)
+	_ = this.Exit()
 	return nil
 }
 
 func (this *NODE) Exit() error {
-	this.presenter.Stop()
+	this.presenter.Shutdown()
 	return nil
 }

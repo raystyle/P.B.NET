@@ -3,6 +3,7 @@ package node
 import (
 	"encoding/base64"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -134,6 +135,10 @@ func (this *global) generate_internal_objects() {
 // about internal
 func (this *global) Start_Timesync() error {
 	return this.timesync.Start()
+}
+
+func (this *global) Now() time.Time {
+	return this.timesync.Now()
 }
 
 func (this *global) GUID() []byte {

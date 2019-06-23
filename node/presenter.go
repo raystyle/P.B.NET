@@ -19,8 +19,8 @@ func (this *presenter) Start() {
 	this.register()
 }
 
-func (this *presenter) Stop() {
-
+func (this *presenter) Shutdown() {
+	this.ctx.server.Shutdown()
 }
 
 func (this *presenter) log(l logger.Level, log ...interface{}) {
