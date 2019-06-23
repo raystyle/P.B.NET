@@ -52,6 +52,6 @@ func test_generate_config(t *testing.T, genesis bool) *Config {
 		require.Nil(t, err, err)
 		register[i].Config = config_enc
 	}
-	c.Register_Config = register
+	c.Register_Bootstraps = register
 	return c
 }

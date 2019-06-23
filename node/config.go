@@ -21,10 +21,10 @@ type Config struct {
 	Timesync_Interval  time.Duration
 
 	// register only resolve success once
-	Is_Genesis       bool // use controller to register
-	Register_AES_Key []byte
-	Register_AES_IV  []byte // Config is encrypted
-	Register_Config  []*messages.Bootstrap
+	Is_Genesis          bool // use controller to register
+	Register_AES_Key    []byte
+	Register_AES_IV     []byte // Config is encrypted
+	Register_Bootstraps []*messages.Bootstrap
 
 	// server
 	Conn_Limit int

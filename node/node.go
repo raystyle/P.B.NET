@@ -7,10 +7,11 @@ import (
 )
 
 type NODE struct {
-	config *Config
-	logger logger.Logger
-	global *global
-	server *server
+	config    *Config
+	logger    logger.Logger
+	global    *global
+	presenter *presenter
+	server    *server
 }
 
 func New(c *Config) (*NODE, error) {
@@ -29,16 +30,20 @@ func New(c *Config) (*NODE, error) {
 }
 
 func (this *NODE) Main() error {
-	// err := this.global.Start_Timesync()
-	// if err != nil {
-	// 	return err
-	// }
-	go this.switch_register()
-	select {}
+	err := this.global.Start_Timesync()
+	if err != nil {
+		return err
+	}
+	p, err := new_presenter(this)
+	if err != nil {
+		return err
+	}
+	go p.Start()
 	time.Sleep(2 * time.Second)
 	return nil
 }
 
 func (this *NODE) Exit() error {
+	this.presenter.Stop()
 	return nil
 }

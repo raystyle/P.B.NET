@@ -10,55 +10,58 @@ import (
 	"project/internal/security"
 )
 
-func (this *NODE) switch_register() {
+func (this *presenter) register() {
 	var err error
-	if this.config.Is_Genesis {
-		err = this.global.configure()
+	defer func() {
+		if err != nil {
+			this.log(logger.FATAL, "register", err)
+		}
+	}()
+	if this.ctx.config.Is_Genesis {
+		err = this.ctx.global.configure()
 		if err != nil {
 			err = errors.WithMessage(err, "global configure failed")
-			goto exit
+			return
 		}
-		this.server, err = new_server(this)
+		this.ctx.server, err = new_server(this.ctx)
 		if err != nil {
 			err = errors.WithMessage(err, "create server failed")
-			goto exit
+			return
 		}
 	} else {
 		err = this.auto_register()
 	}
-exit:
-	if err != nil {
-		this.logger.Println(logger.FATAL, "register", err)
-	}
-	this.config = nil
+	this.ctx.config = nil
 }
 
 // success once
-func (this *NODE) auto_register() error {
-	register := this.config.Register_Config
-	key := this.config.Register_AES_Key
-	iv := this.config.Register_AES_IV
-	l := len(register)
+func (this *presenter) auto_register() error {
+	config := this.ctx.config
+	global := this.ctx.global
+	key := config.Register_AES_Key
+	iv := config.Register_AES_IV
+	bootstraps := config.Register_Bootstraps
+	l := len(bootstraps)
 	defer func() {
 		for i := 0; i < l; i++ {
-			security.Flush_Bytes(register[i].Config)
+			security.Flush_Bytes(bootstraps[i].Config)
 		}
 		security.Flush_Bytes(key)
 		security.Flush_Bytes(iv)
 	}()
 	for {
 		for i := 0; i < l; i++ {
-			c, err := aes.CBC_Decrypt(register[i].Config, key, iv)
+			c, err := aes.CBC_Decrypt(bootstraps[i].Config, key, iv)
 			if err != nil {
 				panic(err)
 			}
-			m := register[i].Mode
-			boot, err := bootstrap.Load(m, c, this.global.proxy, this.global.dns)
+			m := bootstraps[i].Mode
+			boot, err := bootstrap.Load(m, c, global.proxy, global.dns)
 			if err != nil {
 				return errors.Wrap(err, "load bootstrap failed")
 			}
 			security.Flush_Bytes(c)
-			err = this.global.configure()
+			err = global.configure()
 			if err != nil {
 				return errors.WithMessage(err, "global configure failed")
 			}
