@@ -11,6 +11,16 @@ import (
 	"project/internal/xnet/xtls"
 )
 
+type Conn_Info struct {
+	Connect_Time   int64
+	Local_Network  string
+	Local_Address  string
+	Remote_Network string
+	Remote_Address string
+	Send           int
+	Receive        int
+}
+
 func Listen(m Mode, config []byte) (net.Listener, error) {
 	switch m {
 	case TLS:
