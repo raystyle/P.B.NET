@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -11,9 +12,12 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
 
+	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/options"
+	"project/internal/protocol"
+	"project/internal/random"
 	"project/internal/xnet"
 )
 
@@ -30,6 +34,7 @@ type server struct {
 	conns         map[string]*conn // key = listener.Tag + Remote Address
 	conns_rwm     sync.RWMutex
 	in_shutdown   int32
+	random        *random.Generator
 	stop_signal   chan struct{}
 	wg            sync.WaitGroup
 }
@@ -45,6 +50,7 @@ func new_server(ctx *NODE) (*server, error) {
 		conn_limit:  ctx.config.Conn_Limit,
 		listeners:   make(map[string]*listener),
 		conns:       make(map[string]*conn),
+		random:      random.New(),
 		stop_signal: make(chan struct{}, 1),
 	}
 	if s.conn_limit < 1 {
@@ -238,6 +244,7 @@ type conn struct {
 	l_address string
 	r_network string
 	r_address string
+	version   uint32
 	send      int // imprecise
 	receive   int // imprecise
 	rwm       sync.RWMutex
@@ -280,6 +287,50 @@ func (this *conn) Info() *xnet.Conn_Info {
 	return i
 }
 
+func (this *conn) send_msg(msg []byte) error {
+	size := convert.Uint32_Bytes(uint32(len(msg)))
+	_, err := this.Write(append(size, msg...))
+	return err
+}
+
+func (this *conn) recv_msg() ([]byte, error) {
+	size := make([]byte, 4)
+	_, err := io.ReadFull(this, size)
+	if err != nil {
+		return nil, err
+	}
+	s := convert.Bytes_Uint32(size)
+	msg := make([]byte, int(s))
+	_, err = io.ReadFull(this, msg)
+	if err != nil {
+		return nil, err
+	}
+	return msg, nil
+}
+
+// handshake error
+type hs_err struct {
+	c *conn
+	l string
+	e error
+}
+
+func (this *hs_err) String() string {
+	b := bytes.Buffer{}
+	b.WriteString(fmt.Sprintf("%s %s <-> %s %s ",
+		this.c.l_network, this.c.l_address,
+		this.c.r_network, this.c.r_address))
+	if this.c.version != 0 {
+		b.WriteString(fmt.Sprintf("ver: %d ", this.c.version))
+	}
+	b.WriteString(this.l)
+	if this.e != nil {
+		b.WriteString(": ")
+		b.WriteString(this.e.Error())
+	}
+	return b.String()
+}
+
 func (this *server) handle_conn(raw net.Conn) {
 	conn := &conn{
 		Conn:      raw,
@@ -304,9 +355,64 @@ func (this *server) handle_conn(raw net.Conn) {
 		_ = conn.Close()
 		_ = this.track_conn(tag, conn, false)
 	}()
-	// send certificate
-	// cert := this.ctx.global.Certificate()
+	// receive version uint32
+	version := make([]byte, 4)
+	_, err = io.ReadFull(conn, version)
+	if err != nil {
+		e := &hs_err{c: conn, l: "receive version failed", e: err}
+		this.log(logger.ERROR, e)
+		return
+	}
+	v := convert.Bytes_Uint32(version)
+	conn.version = v
+	switch {
+	case v == protocol.V1_0_0:
+		this.v1_identity(conn)
+	default:
+		e := &hs_err{c: conn, l: fmt.Sprint("invalid version", v)}
+		this.log(logger.EXPLOIT, e)
+		return
+	}
+}
 
+func (this *server) v1_identity(conn *conn) {
+	// send certificate
+	var err error
+	cert := this.ctx.global.Certificate()
+	if cert != nil {
+		err = conn.send_msg(cert)
+		if err != nil {
+			e := &hs_err{c: conn, l: "send certificate failed", e: err}
+			this.log(logger.ERROR, e)
+			return
+		}
+	} else { // if no certificate send padding data
+		padding_size := 1024 + this.random.Int(1024)
+		err = conn.send_msg(this.random.Bytes(padding_size))
+		if err != nil {
+			e := &hs_err{c: conn, l: "send padding data failed", e: err}
+			this.log(logger.ERROR, e)
+			return
+		}
+	}
+	// receive role
+	role := make([]byte, 1)
+	_, err = io.ReadFull(conn, role)
+	if err != nil {
+		e := &hs_err{c: conn, l: "receive role failed", e: err}
+		this.log(logger.ERROR, e)
+		return
+	}
+	switch role[0] {
+	case protocol.BEACON:
+		this.v1_handshake_beacon(conn)
+	case protocol.NODE:
+		this.v1_handshake_node(conn)
+	case protocol.CTRL:
+		this.v1_handshake_ctrl(conn)
+	default:
+		this.log(logger.EXPLOIT, &hs_err{c: conn, l: "invalid role"})
+	}
 }
 
 func (this *server) v1_handshake_beacon(conn *conn) {
