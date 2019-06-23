@@ -317,6 +317,6 @@ func (this *server) v1_handshake_node(conn *conn) {
 
 }
 
-func (this *server) v1_handshake_controller(conn *conn) {
+func (this *server) v1_handshake_ctrl(conn *conn) {
 
 }

@@ -88,12 +88,12 @@ func (this *global) configure() error {
 			this.object[key] = generator.Bytes(32 + generator.Int(128))
 		}
 		this.generate_internal_objects()
-		this.configure_err = this.load_controller_config()
+		this.configure_err = this.load_ctrl_config()
 	})
 	return this.configure_err
 }
 
-func (this *global) load_controller_config() error {
+func (this *global) load_ctrl_config() error {
 	this.sec_padding_memory()
 
 	return nil

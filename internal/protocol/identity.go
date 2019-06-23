@@ -15,7 +15,7 @@ const (
 type Role uint8
 
 const (
-	CONTROLLER Role = iota
+	CTRL Role = iota
 	NODE
 	BEACON
 	AGENT
@@ -29,7 +29,7 @@ var (
 )
 
 var (
-	CONTROLLER_GUID       = bytes.Repeat([]byte{0}, guid.SIZE)
+	CTRL_GUID       = bytes.Repeat([]byte{0}, guid.SIZE)
 	AUTHORIZATION_SUCCESS = []byte("success")
 )
 
