@@ -91,8 +91,8 @@ func (this *Server) Listen_And_Serve(address string, timeout time.Duration) erro
 }
 
 func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
-	defer this.m.Unlock()
 	this.m.Lock()
+	defer this.m.Unlock()
 	this.addr = l.Addr().String()
 	l = netutil.LimitListener(l, this.limit)
 	this.listener = l
@@ -167,8 +167,8 @@ func (this *Server) start(f func() error, timeout time.Duration) error {
 }
 
 func (this *Server) Stop() error {
-	defer this.m.Unlock()
 	this.m.Lock()
+	defer this.m.Unlock()
 	this.is_stopped = true
 	this.stop_signal <- struct{}{}
 	err := this.listener.Close()
@@ -183,14 +183,17 @@ func (this *Server) Stop() error {
 }
 
 func (this *Server) Info() string {
-	defer this.m.Unlock()
 	this.m.Lock()
-	return fmt.Sprintf("Listen: %s Auth: %s %s", this.addr, this.username, this.password)
+	a := this.addr
+	u := this.username
+	p := this.password
+	this.m.Unlock()
+	return fmt.Sprintf("Listen: %s Auth: %s %s", a, u, p)
 }
 
 func (this *Server) Addr() string {
-	defer this.m.Unlock()
 	this.m.Lock()
+	defer this.m.Unlock()
 	return this.addr
 }
 
@@ -203,8 +206,8 @@ func (this *Server) logf(l logger.Level, format string, log ...interface{}) {
 }
 
 func (this *Server) new_conn(c net.Conn) *conn {
-	defer this.m.Unlock()
 	this.m.Lock()
+	defer this.m.Unlock()
 	if !this.is_stopped {
 		conn := &conn{
 			server: this,

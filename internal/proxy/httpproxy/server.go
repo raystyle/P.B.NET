@@ -110,8 +110,8 @@ func (this *Server) Listen_And_Serve(address string, timeout time.Duration) erro
 }
 
 func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
-	defer this.m.Unlock()
 	this.m.Lock()
+	defer this.m.Unlock()
 	this.addr = l.Addr().String()
 	limit_l := netutil.LimitListener(l, this.limit)
 	return this.start(func() error { return this.server.Serve(limit_l) }, timeout)
@@ -156,15 +156,15 @@ func (this *Server) Stop() error {
 }
 
 func (this *Server) Info() string {
-	defer this.m.Unlock()
 	this.m.Lock()
+	defer this.m.Unlock()
 	auth, _ := base64.StdEncoding.DecodeString(string(this.basic_auth))
 	return fmt.Sprintf("Listen: %s Auth: %s", this.addr, auth)
 }
 
 func (this *Server) Addr() string {
-	defer this.m.Unlock()
 	this.m.Lock()
+	defer this.m.Unlock()
 	return this.addr
 }
 

@@ -19,8 +19,8 @@ type Conn struct {
 }
 
 func (this *Conn) Handshake() error {
-	defer this.handshake_m.Unlock()
 	this.handshake_m.Lock()
+	defer this.handshake_m.Unlock()
 	if this.handshake_err != nil {
 		return this.handshake_err
 	}

@@ -47,8 +47,8 @@ func (this *PROXY) Get(tag string) (*Client, error) {
 	if tag == "" || tag == "direct" {
 		return nil, nil
 	}
-	defer this.rwm.RUnlock()
 	this.rwm.RLock()
+	defer this.rwm.RUnlock()
 	if p, exist := this.clients[tag]; exist {
 		return p, nil
 	} else {
@@ -58,11 +58,11 @@ func (this *PROXY) Get(tag string) (*Client, error) {
 
 func (this *PROXY) Clients() map[string]*Client {
 	clients := make(map[string]*Client)
-	defer this.rwm.RUnlock()
 	this.rwm.RLock()
 	for tag, p := range this.clients {
 		clients[tag] = p
 	}
+	this.rwm.RUnlock()
 	return clients
 }
 
@@ -95,8 +95,8 @@ func (this *PROXY) Add(tag string, c *Client) error {
 	}
 	// <security> set client config to ""
 	c.Config = ""
-	defer this.rwm.Unlock()
 	this.rwm.Lock()
+	defer this.rwm.Unlock()
 	if _, exist := this.clients[tag]; !exist {
 		this.clients[tag] = c
 		return nil
@@ -109,8 +109,8 @@ func (this *PROXY) Delete(tag string) error {
 	if tag == "" || tag == "direct" {
 		return ERR_RESERVE_PROXY
 	}
-	defer this.rwm.Unlock()
 	this.rwm.Lock()
+	defer this.rwm.Unlock()
 	if _, exist := this.clients[tag]; exist {
 		delete(this.clients, tag)
 		return nil

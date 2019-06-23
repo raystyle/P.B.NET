@@ -163,11 +163,11 @@ func (this *TIMESYNC) Set_Interval(interval time.Duration) error {
 
 func (this *TIMESYNC) Clients() map[string]*Client {
 	client_pool := make(map[string]*Client)
-	defer this.clients_rwm.RUnlock()
 	this.clients_rwm.RLock()
 	for tag, client := range this.clients {
 		client_pool[tag] = client
 	}
+	this.clients_rwm.RUnlock()
 	return client_pool
 }
 
@@ -179,8 +179,8 @@ func (this *TIMESYNC) Add(tag string, c *Client) error {
 	default:
 		return ERR_UNKNOWN_MODE
 	}
-	defer this.clients_rwm.Unlock()
 	this.clients_rwm.Lock()
+	defer this.clients_rwm.Unlock()
 	if _, exist := this.clients[tag]; !exist {
 		this.clients[tag] = c
 		return nil
@@ -190,8 +190,8 @@ func (this *TIMESYNC) Add(tag string, c *Client) error {
 }
 
 func (this *TIMESYNC) Delete(tag string) error {
-	defer this.clients_rwm.Unlock()
 	this.clients_rwm.Lock()
+	defer this.clients_rwm.Unlock()
 	if _, exist := this.clients[tag]; exist {
 		delete(this.clients, tag)
 		return nil
