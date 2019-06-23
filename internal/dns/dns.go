@@ -186,83 +186,6 @@ func Is_Domain(s string) bool {
 	return nonNumeric
 }
 
-func dial_tls(address string, question []byte, opts *Options) ([]byte, error) {
-	network := opts.Network
-	switch network {
-	case "": // default
-		network = "tcp"
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, ERR_UNKNOWN_NETWORK
-	}
-	dial := net.Dial
-	if opts.Dial != nil {
-		dial = opts.Dial
-	}
-	config := strings.Split(address, "|")
-	var (
-		conn *tls.Conn
-		err  error
-	)
-	host, port, err := net.SplitHostPort(config[0])
-	if err != nil {
-		return nil, err
-	}
-	switch len(config) {
-	case 1: // ip mode     8.8.8.8:853
-		c, err := dial(network, address)
-		if err != nil {
-			return nil, err
-		}
-		conn = tls.Client(c, &tls.Config{ServerName: host})
-	case 2: // domain mode dns.google:853|8.8.8.8,8.8.4.4
-		ip_list := strings.Split(config[1], ",")
-		for i := 0; i < len(ip_list); i++ {
-			c, err := dial(network, ip_list[i]+":"+port)
-			if err == nil {
-				conn = tls.Client(c, &tls.Config{ServerName: host})
-				break
-			}
-		}
-		if conn == nil {
-			return nil, ERR_NO_CONNECTION
-		}
-	default:
-		return nil, ERR_INVALID_TLS_CONFIG
-	}
-	defer func() { _ = conn.Close() }()
-	// set timeout
-	if opts.Timeout > 0 {
-		err = conn.SetDeadline(time.Now().Add(opts.Timeout))
-	} else {
-		err = conn.SetDeadline(time.Now().Add(default_timeout))
-	}
-	if err != nil {
-		return nil, err
-	}
-	// add size header
-	q := bytes.NewBuffer(convert.Uint16_Bytes(uint16(len(question))))
-	q.Write(question)
-	_, err = conn.Write(q.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	buffer := make([]byte, 512)
-	_, err = io.ReadAtLeast(conn, buffer[:header_size], header_size)
-	if err != nil {
-		return nil, err
-	}
-	l := int(convert.Bytes_Uint16(buffer[:header_size]))
-	if l > 512 {
-		buffer = make([]byte, l)
-	}
-	_, err = io.ReadAtLeast(conn, buffer[:l], l)
-	if err != nil {
-		return nil, err
-	}
-	return buffer[:l], nil
-}
-
 // if question > 512 use tcp tls doh
 func dial_udp(address string, question []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
@@ -317,6 +240,83 @@ func dial_tcp(address string, question []byte, opts *Options) ([]byte, error) {
 	conn, err := dial(network, address)
 	if err != nil {
 		return nil, err
+	}
+	defer func() { _ = conn.Close() }()
+	// set timeout
+	if opts.Timeout > 0 {
+		err = conn.SetDeadline(time.Now().Add(opts.Timeout))
+	} else {
+		err = conn.SetDeadline(time.Now().Add(default_timeout))
+	}
+	if err != nil {
+		return nil, err
+	}
+	// add size header
+	q := bytes.NewBuffer(convert.Uint16_Bytes(uint16(len(question))))
+	q.Write(question)
+	_, err = conn.Write(q.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	buffer := make([]byte, 512)
+	_, err = io.ReadAtLeast(conn, buffer[:header_size], header_size)
+	if err != nil {
+		return nil, err
+	}
+	l := int(convert.Bytes_Uint16(buffer[:header_size]))
+	if l > 512 {
+		buffer = make([]byte, l)
+	}
+	_, err = io.ReadAtLeast(conn, buffer[:l], l)
+	if err != nil {
+		return nil, err
+	}
+	return buffer[:l], nil
+}
+
+func dial_tls(address string, question []byte, opts *Options) ([]byte, error) {
+	network := opts.Network
+	switch network {
+	case "": // default
+		network = "tcp"
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, ERR_UNKNOWN_NETWORK
+	}
+	dial := net.Dial
+	if opts.Dial != nil {
+		dial = opts.Dial
+	}
+	config := strings.Split(address, "|")
+	var (
+		conn *tls.Conn
+		err  error
+	)
+	host, port, err := net.SplitHostPort(config[0])
+	if err != nil {
+		return nil, err
+	}
+	switch len(config) {
+	case 1: // ip mode     8.8.8.8:853
+		c, err := dial(network, address)
+		if err != nil {
+			return nil, err
+		}
+		conn = tls.Client(c, &tls.Config{ServerName: host})
+	case 2: // domain mode dns.google:853|8.8.8.8,8.8.4.4
+		ip_list := strings.Split(config[1], ",")
+		for i := 0; i < len(ip_list); i++ {
+			c, err := dial(network, ip_list[i]+":"+port)
+			if err == nil {
+				conn = tls.Client(c, &tls.Config{ServerName: host})
+				break
+			}
+		}
+		if conn == nil {
+			return nil, ERR_NO_CONNECTION
+		}
+	default:
+		return nil, ERR_INVALID_TLS_CONFIG
 	}
 	defer func() { _ = conn.Close() }()
 	// set timeout

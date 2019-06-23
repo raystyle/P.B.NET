@@ -23,29 +23,29 @@ const (
 )
 
 func Test_Resolve(t *testing.T) {
-	ip_list, err := Resolve(dns_tls_domain_mode, domain, nil)
+	// udp
+	ip_list, err := Resolve(dns_address, domain, nil)
 	require.Nil(t, err, err)
-	t.Log("TLS IPv4:", ip_list)
+	t.Log("UDP IPv4:", ip_list)
 	// punycode
-	ip_list, err = Resolve(dns_tls_domain_mode, domain_punycode, nil)
+	ip_list, err = Resolve(dns_address, domain_punycode, nil)
 	require.Nil(t, err, err)
-	t.Log("TLS IPv4 punycode:", ip_list)
+	t.Log("UDP IPv4 punycode:", ip_list)
 	// tcp
 	opt := &Options{
 		Method:  TCP,
 		Type:    IPV6,
-		Timeout: 3 * time.Second,
+		Timeout: 15 * time.Second,
 	}
 	ip_list, err = Resolve(dns_address, domain, opt)
 	require.Nil(t, err, err)
 	t.Log("TCP IPv6:", ip_list)
-	// udp
-	opt.Network = "udp"
-	opt.Method = UDP
+	// tls
+	opt.Method = TLS
 	opt.Type = IPV4
-	ip_list, err = Resolve(dns_address, domain, opt)
+	ip_list, err = Resolve(dns_tls_domain_mode, domain, opt)
 	require.Nil(t, err, err)
-	t.Log("UDP IPv4:", ip_list)
+	t.Log("TLS IPv4:", ip_list)
 	// doh
 	opt.Method = DOH
 	opt.Timeout = time.Minute
