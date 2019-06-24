@@ -1,0 +1,16 @@
+#deploy
+mysqld --initialize
+mysqld --install
+
+#change password
+mysql -u root -p
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';
+
+#database info
+intranet striker
+utf8mb4 -- UTF-8 Unicode
+utf8mb4_general_ci
+
+#foreign user
+CREATE USER `root`@`%` IDENTIFIED BY 'password';
+GRANT ALL ON *.* TO `root`@`%` WITH GRANT OPTION;

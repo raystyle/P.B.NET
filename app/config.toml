@@ -1,0 +1,10 @@
+# logger
+log_level = "debug"
+
+# global
+dns_cache_deadline = "2m"
+timesync_interval  = "1m"
+
+# database
+db  = "mysql"
+dsn = "root:asf15asfujks1d@tcp(127.0.0.1:3306)/p.b.net"
