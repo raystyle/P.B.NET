@@ -21,7 +21,6 @@ type global struct {
 }
 
 func new_global(ctx *CONTROLLER) (*global, error) {
-
 	g := &global{
 		ctx: ctx,
 	}
