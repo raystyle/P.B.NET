@@ -2,39 +2,54 @@ package ed25519
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
-	"golang.org/x/crypto/ed25519"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_ed25519(t *testing.T) {
-	pri := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{0}, ed25519.SeedSize))
-	fmt.Println(pri)
-	pri2 := ed25519.NewKeyFromSeed(pri.Seed())
-	fmt.Println(pri2)
+	pri, err := Generate_Key()
+	require.Nil(t, err, err)
+	message := []byte("test message")
+	signature := Sign(pri, message)
+	require.True(t, len(signature) == Signature_Size)
+	require.True(t, Verify(pri.PublicKey(), message, signature))
+	pri, err = Import_PrivateKey(bytes.Repeat([]byte{0, 1}, 32))
+	require.Nil(t, err, err)
+	require.NotNil(t, pri)
+	pub, err := Import_PublicKey(bytes.Repeat([]byte{0, 1}, 16))
+	require.Nil(t, err, err)
+	require.NotNil(t, pub)
+	pri, err = Import_PrivateKey(bytes.Repeat([]byte{0, 1}, 161))
+	require.Equal(t, ERR_INVALID_PRIVATEKEY, err)
+	require.Nil(t, pri)
+	pub, err = Import_PublicKey(bytes.Repeat([]byte{0, 1}, 161))
+	require.Equal(t, ERR_INVALID_PUBLICKEY, err)
+	require.Nil(t, pub)
 }
 
 func Benchmark_ed25519_sign(b *testing.B) {
-	_, pri, _ := ed25519.GenerateKey(nil)
+	pri, err := Generate_Key()
+	require.Nil(b, err, err)
 	msg := bytes.Repeat([]byte{0}, 256)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		bb := ed25519.Sign(pri, msg)
-		bb[0] = 0
+		Sign(pri, msg)
 	}
 	b.StopTimer()
 }
 
 func Benchmark_ed25519_verify(b *testing.B) {
-	pub, pri, _ := ed25519.GenerateKey(nil)
+	pri, err := Generate_Key()
+	require.Nil(b, err, err)
 	msg := bytes.Repeat([]byte{0}, 256)
-	signature := ed25519.Sign(pri, msg)
+	signature := Sign(pri, msg)
+	pub := pri.PublicKey()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ed25519.Verify(pub, msg, signature)
+		Verify(pub, msg, signature)
 	}
 	b.StopTimer()
 }
