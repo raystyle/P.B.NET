@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/ed25519"
 
 	"project/internal/crypto/aes"
 	"project/internal/global/dnsclient"
@@ -77,17 +78,17 @@ func (this *global) sec_padding_memory() {
 	this.wg.Wait()
 }
 
-func (this *global) configure() error {
+func (this *global) Configure() error {
 	this.configure_once.Do(func() {
 		this.sec_padding_memory()
-		generator := random.New()
+		rand := random.New()
 		// random object map
 		this.object = make(map[uint32]interface{})
-		for i := 0; i < 32+generator.Int(512); i++ { // 544 * 160 bytes
-			key := object_key_max + uint32(1+generator.Int(512))
-			this.object[key] = generator.Bytes(32 + generator.Int(128))
+		for i := 0; i < 32+rand.Int(512); i++ { // 544 * 160 bytes
+			key := object_key_max + uint32(1+rand.Int(512))
+			this.object[key] = rand.Bytes(32 + rand.Int(128))
 		}
-		this.generate_internal_objects()
+		this.gen_internal_objects()
 		this.configure_err = this.load_ctrl_config()
 	})
 	return this.configure_err
@@ -101,21 +102,21 @@ func (this *global) load_ctrl_config() error {
 
 // 1. node guid
 // 2. aes cryptor for database & self guid
-func (this *global) generate_internal_objects() {
+func (this *global) gen_internal_objects() {
 	// generate guid and select one
 	this.sec_padding_memory()
-	random_generator := random.New()
+	rand := random.New()
 	guid_generator := guid.New(64, nil)
 	var guid_pool [][]byte
 	for i := 0; i < 1024; i++ {
 		guid_pool = append(guid_pool, guid_generator.Get())
 	}
 	select_guid := make([]byte, guid.SIZE)
-	copy(select_guid, guid_pool[random_generator.Int(1024)])
+	copy(select_guid, guid_pool[rand.Int(1024)])
 	this.object[node_guid] = select_guid
 	// generate database aes
-	aes_key := random_generator.Bytes(aes.BIT256)
-	aes_iv := random_generator.Bytes(aes.IV_SIZE)
+	aes_key := rand.Bytes(aes.BIT256)
+	aes_iv := rand.Bytes(aes.IV_SIZE)
 	cryptor, err := aes.New_CBC_Cryptor(aes_key, aes_iv)
 	if err != nil {
 		panic(err)
@@ -124,12 +125,12 @@ func (this *global) generate_internal_objects() {
 	security.Flush_Bytes(aes_iv)
 	this.object[database_aes] = cryptor
 	// encrypt guid
-	encrypt_guid, err := this.Database_Encrypt(this.GUID())
+	guid_enc, err := this.Database_Encrypt(this.GUID())
 	if err != nil {
 		panic(err)
 	}
-	str := base64.StdEncoding.EncodeToString(encrypt_guid)
-	this.object[node_guid_encrypted] = str
+	str := base64.StdEncoding.EncodeToString(guid_enc)
+	this.object[node_guid_enc] = str
 }
 
 // about internal
@@ -150,7 +151,7 @@ func (this *global) GUID() []byte {
 
 func (this *global) GUID_Encrypted() string {
 	this.object_rwm.RLock()
-	g := this.object[node_guid_encrypted]
+	g := this.object[node_guid_enc]
 	this.object_rwm.RUnlock()
 	return g.(string)
 }
@@ -164,6 +165,14 @@ func (this *global) Certificate() []byte {
 	} else {
 		return nil
 	}
+}
+
+// use controller publickey to verify message
+func (this *global) Verify(message, signature []byte) bool {
+	this.object_rwm.RLock()
+	c := this.object[ctrl_ed25519_pub]
+	this.object_rwm.RUnlock()
+	return ed25519.Verify(c.(ed25519.PublicKey), message, signature)
 }
 
 func (this *global) Database_Encrypt(plaindata []byte) ([]byte, error) {

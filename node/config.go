@@ -19,17 +19,17 @@ type Config struct {
 	DNS_Cache_Deadline time.Duration
 	Timesync_Clients   map[string]*timesync.Client
 	Timesync_Interval  time.Duration
-
+	// controller
+	CTRL_ED25519_PUB []byte
+	CTRL_AES_Key     []byte // key + iv
 	// register only resolve success once
-	Is_Genesis          bool // use controller to register
-	Register_AES_Key    []byte
-	Register_AES_IV     []byte // Config is encrypted
+	Is_Genesis          bool   // use controller to register
+	Register_AES_Key    []byte //  key + iv Config is encrypted
 	Register_Bootstraps []*messages.Bootstrap
 
 	// server
 	Conn_Limit int
-	// listeners
-	Listeners []*messages.Listener
+	Listeners  []*messages.Listener
 }
 
 // before create a node need check config
@@ -64,15 +64,17 @@ type object_key = uint32
 
 const (
 	// external object
-	ctrl_ed25519 object_key = iota // verify controller
-	ctrl_aes                       // decrypt controller broadcast message
+	// verify controller role & message
+	ctrl_ed25519_pub object_key = iota
+	// decrypt controller broadcast message
+	ctrl_aes_key
 
 	// internal object
-	node_guid           // identification
-	node_guid_encrypted // update self sync_send_height
-	database_aes        // encrypt self data
-	startup_time        // first bootstrap time
-	certificate         // for listener
+	node_guid     // identification
+	node_guid_enc // update self sync_send_height
+	database_aes  // encrypt self data
+	startup_time  // global.configure time
+	certificate   // for listener
 	session_ed25519
 	session_key
 
@@ -80,6 +82,7 @@ const (
 	sync_send_height
 
 	// confuse object
+
 	confusion_00
 	confusion_01
 	confusion_02

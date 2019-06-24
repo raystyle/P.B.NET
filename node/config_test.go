@@ -12,7 +12,7 @@ import (
 )
 
 func Test_Check_Config(t *testing.T) {
-	config := test_generate_config(t, false)
+	config := test_gen_config(t, false)
 	err := config.Check()
 	require.Nil(t, err, err)
 	node, err := New(config)
@@ -28,9 +28,8 @@ func Test_Check_Config(t *testing.T) {
 	}
 }
 
-func test_generate_config(t *testing.T, genesis bool) *Config {
-	reg_aes_key := bytes.Repeat([]byte{0}, aes.BIT256)
-	reg_aes_iv := bytes.Repeat([]byte{0}, aes.IV_SIZE)
+func test_gen_config(t *testing.T, genesis bool) *Config {
+	reg_aes_key := bytes.Repeat([]byte{0}, aes.BIT256+aes.IV_SIZE)
 	c := &Config{
 		Log_level:          "debug",
 		Proxy_Clients:      testdata.Proxy_Clients(t),
@@ -40,7 +39,6 @@ func test_generate_config(t *testing.T, genesis bool) *Config {
 		Timesync_Interval:  15 * time.Minute,
 		Is_Genesis:         genesis,
 		Register_AES_Key:   reg_aes_key,
-		Register_AES_IV:    reg_aes_iv,
 		Conn_Limit:         10,
 		Listeners:          testdata.Listeners(t),
 	}
@@ -48,7 +46,7 @@ func test_generate_config(t *testing.T, genesis bool) *Config {
 	register := testdata.Register(t)
 	for i := 0; i < len(register); i++ {
 		config_enc, err := aes.CBC_Encrypt(register[i].Config,
-			reg_aes_key, reg_aes_iv)
+			reg_aes_key[:aes.BIT256], reg_aes_key[aes.BIT256:])
 		require.Nil(t, err, err)
 		register[i].Config = config_enc
 	}

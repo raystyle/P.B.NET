@@ -15,7 +15,7 @@ func Test_Common_Node(t *testing.T) {
 }
 
 func test_node(t *testing.T, genesis bool) {
-	c := test_generate_config(t, genesis)
+	c := test_gen_config(t, genesis)
 	node, err := New(c)
 	require.Nil(t, err, err)
 	err = node.Main()
