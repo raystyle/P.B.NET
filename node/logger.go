@@ -8,8 +8,6 @@ import (
 	"project/internal/logger"
 )
 
-const logger_time_layout = "2006-01-02 15:04:05"
-
 type log struct {
 	ctx   *NODE
 	level logger.Level
@@ -53,7 +51,7 @@ func (this *log) Println(level logger.Level, src string, log ...interface{}) {
 func (this *log) prefix(level logger.Level, src string) *bytes.Buffer {
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("[")
-	buffer.WriteString(time.Now().Local().Format(logger_time_layout))
+	buffer.WriteString(time.Now().Local().Format(logger.Time_Layout))
 	buffer.WriteString("] [")
 	switch level {
 	case logger.DEBUG:

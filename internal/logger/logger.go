@@ -19,7 +19,7 @@ const (
 	OFF
 )
 
-const time_layout = "2006-01-02 15:04:05"
+const Time_Layout = "2006-01-02 15:04:05"
 
 var (
 	Test    = new(test)
@@ -101,7 +101,7 @@ func (this *test) Println(level Level, src string, log ...interface{}) {
 func (this *test) prefix(level Level, src string) *bytes.Buffer {
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("[")
-	buffer.WriteString(time.Now().Local().Format(time_layout))
+	buffer.WriteString(time.Now().Local().Format(Time_Layout))
 	buffer.WriteString("] [")
 	switch level {
 	case DEBUG:
