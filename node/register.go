@@ -1,6 +1,8 @@
 package node
 
 import (
+	"os"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
@@ -14,7 +16,8 @@ func (this *presenter) register() {
 	var err error
 	defer func() {
 		if err != nil {
-			this.log(logger.FATAL, "register", err)
+			this.log(logger.FATAL, "register error: ", err)
+			os.Exit(0)
 		}
 	}()
 	if this.ctx.config.Is_Genesis {

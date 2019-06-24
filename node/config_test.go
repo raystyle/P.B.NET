@@ -30,17 +30,25 @@ func Test_Check_Config(t *testing.T) {
 
 func test_gen_config(t *testing.T, genesis bool) *Config {
 	reg_aes_key := bytes.Repeat([]byte{0}, aes.BIT256+aes.IV_SIZE)
+	ctrl_aes_key := make([]byte, aes.BIT256+aes.IV_SIZE)
+	copy(ctrl_aes_key, reg_aes_key)
 	c := &Config{
-		Log_Level:          "debug",
+		Log_Level: "debug",
+
 		Proxy_Clients:      testdata.Proxy_Clients(t),
 		DNS_Clients:        testdata.DNS_Clients(t),
 		DNS_Cache_Deadline: 3 * time.Minute,
 		Timesync_Clients:   testdata.Timesync_Clients(t),
 		Timesync_Interval:  15 * time.Minute,
-		Is_Genesis:         genesis,
-		Register_AES_Key:   reg_aes_key,
-		Conn_Limit:         10,
-		Listeners:          testdata.Listeners(t),
+
+		CTRL_ED25519: testdata.CTRL_ED25519.PublicKey(),
+		CTRL_AES_Key: ctrl_aes_key,
+
+		Is_Genesis:       genesis,
+		Register_AES_Key: reg_aes_key,
+
+		Conn_Limit: 10,
+		Listeners:  testdata.Listeners(t),
 	}
 	// encrypt register info
 	register := testdata.Register(t)

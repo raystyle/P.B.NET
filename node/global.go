@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/ed25519"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/ed25519"
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
@@ -96,7 +96,26 @@ func (this *global) Configure() error {
 
 func (this *global) load_ctrl_configs() error {
 	this.sec_padding_memory()
-
+	// controller ed25519 public key
+	pub := this.ctx.config.CTRL_ED25519
+	publickey, err := ed25519.Import_PublicKey(pub)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	this.object[ctrl_ed25519] = publickey
+	// controller aes
+	key := this.ctx.config.CTRL_AES_Key
+	l := len(key)
+	if l < aes.BIT128+aes.IV_SIZE {
+		return errors.New("invalid controller aes key")
+	}
+	iv := key[l-aes.IV_SIZE:]
+	key = key[:l-aes.IV_SIZE]
+	cryptor, err := aes.New_CBC_Cryptor(key, iv)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	this.object[ctrl_aes_cryptor] = cryptor
 	return nil
 }
 
@@ -123,7 +142,7 @@ func (this *global) gen_internal_objects() {
 	}
 	security.Flush_Bytes(aes_key)
 	security.Flush_Bytes(aes_iv)
-	this.object[database_aes] = cryptor
+	this.object[db_aes_cryptor] = cryptor
 	// encrypt guid
 	guid_enc, err := this.DB_Encrypt(this.GUID())
 	if err != nil {
@@ -170,28 +189,28 @@ func (this *global) Cert() []byte {
 // use controller publickey to verify message
 func (this *global) CTRL_Verify(message, signature []byte) bool {
 	this.object_rwm.RLock()
-	p := this.object[ctrl_ed25519_pub]
+	p := this.object[ctrl_ed25519]
 	this.object_rwm.RUnlock()
 	return ed25519.Verify(p.(ed25519.PublicKey), message, signature)
 }
 
 func (this *global) CTRL_Decrypt(cipherdata []byte) ([]byte, error) {
 	this.object_rwm.RLock()
-	k := this.object[ctrl_aes_key]
+	k := this.object[ctrl_aes_cryptor]
 	this.object_rwm.RUnlock()
 	return k.(*aes.CBC_Cryptor).Decrypt(cipherdata)
 }
 
 func (this *global) DB_Encrypt(plaindata []byte) ([]byte, error) {
 	this.object_rwm.RLock()
-	c := this.object[database_aes]
+	c := this.object[db_aes_cryptor]
 	this.object_rwm.RUnlock()
 	return c.(*aes.CBC_Cryptor).Encrypt(plaindata)
 }
 
 func (this *global) DB_Decrypt(cipherdata []byte) ([]byte, error) {
 	this.object_rwm.RLock()
-	c := this.object[database_aes]
+	c := this.object[db_aes_cryptor]
 	this.object_rwm.RUnlock()
 	return c.(*aes.CBC_Cryptor).Decrypt(cipherdata)
 }

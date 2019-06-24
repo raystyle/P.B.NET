@@ -21,8 +21,8 @@ type Config struct {
 	Timesync_Interval  time.Duration
 
 	// controller
-	CTRL_ED25519_PUB []byte
-	CTRL_AES_Key     []byte // key + iv
+	CTRL_ED25519 []byte // public key
+	CTRL_AES_Key []byte // key + iv
 
 	// register
 	Is_Genesis          bool   // use controller to register
@@ -67,16 +67,16 @@ type object_key = uint32
 const (
 	// external object
 	// verify controller role & message
-	ctrl_ed25519_pub object_key = iota
+	ctrl_ed25519 object_key = iota
 	// decrypt controller broadcast message
-	ctrl_aes_key
+	ctrl_aes_cryptor
 
 	// internal object
-	node_guid     // identification
-	node_guid_enc // update self sync_send_height
-	database_aes  // encrypt self data
-	startup_time  // global.configure time
-	certificate   // for listener
+	node_guid      // identification
+	node_guid_enc  // update self sync_send_height
+	db_aes_cryptor // encrypt self data(database)
+	startup_time   // global.configure time
+	certificate    // for listener
 	session_ed25519
 	session_key
 
