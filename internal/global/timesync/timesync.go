@@ -161,6 +161,13 @@ func (this *TIMESYNC) Set_Interval(interval time.Duration) error {
 	return nil
 }
 
+func (this *TIMESYNC) Get_Interval() time.Duration {
+	this.rwm.RLock()
+	interval := this.interval
+	this.rwm.RUnlock()
+	return interval
+}
+
 func (this *TIMESYNC) Clients() map[string]*Client {
 	client_pool := make(map[string]*Client)
 	this.clients_rwm.RLock()

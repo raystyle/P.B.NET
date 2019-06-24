@@ -29,6 +29,13 @@ func (this *DNS) Set_Cache_Deadline(deadline time.Duration) error {
 	return nil
 }
 
+func (this *DNS) Get_Cache_Deadline() time.Duration {
+	this.caches_rwm.RLock()
+	deadline := this.deadline
+	this.caches_rwm.RUnlock()
+	return deadline
+}
+
 func (this *DNS) Flush_Cache() {
 	this.caches_rwm.Lock()
 	this.caches = make(map[string]*cache)
