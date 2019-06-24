@@ -18,15 +18,15 @@ import (
 )
 
 type global struct {
-	ctx            *NODE
-	proxy          *proxyclient.PROXY
-	dns            *dnsclient.DNS
-	timesync       *timesync.TIMESYNC
-	object         map[uint32]interface{}
-	object_rwm     sync.RWMutex
-	configure_err  error
-	configure_once sync.Once
-	wg             sync.WaitGroup
+	ctx        *NODE
+	proxy      *proxyclient.PROXY
+	dns        *dnsclient.DNS
+	timesync   *timesync.TIMESYNC
+	object     map[uint32]interface{}
+	object_rwm sync.RWMutex
+	conf_err   error
+	conf_once  sync.Once
+	wg         sync.WaitGroup
 }
 
 func new_global(ctx *NODE) (*global, error) {
@@ -79,7 +79,7 @@ func (this *global) sec_padding_memory() {
 }
 
 func (this *global) Configure() error {
-	this.configure_once.Do(func() {
+	this.conf_once.Do(func() {
 		this.sec_padding_memory()
 		rand := random.New()
 		// random object map
@@ -89,12 +89,12 @@ func (this *global) Configure() error {
 			this.object[key] = rand.Bytes(32 + rand.Int(128))
 		}
 		this.gen_internal_objects()
-		this.configure_err = this.load_ctrl_config()
+		this.conf_err = this.load_ctrl_configs()
 	})
-	return this.configure_err
+	return this.conf_err
 }
 
-func (this *global) load_ctrl_config() error {
+func (this *global) load_ctrl_configs() error {
 	this.sec_padding_memory()
 
 	return nil
@@ -125,7 +125,7 @@ func (this *global) gen_internal_objects() {
 	security.Flush_Bytes(aes_iv)
 	this.object[database_aes] = cryptor
 	// encrypt guid
-	guid_enc, err := this.Database_Encrypt(this.GUID())
+	guid_enc, err := this.DB_Encrypt(this.GUID())
 	if err != nil {
 		panic(err)
 	}
@@ -149,14 +149,14 @@ func (this *global) GUID() []byte {
 	return g.([]byte)
 }
 
-func (this *global) GUID_Encrypted() string {
+func (this *global) GUID_Enc() string {
 	this.object_rwm.RLock()
 	g := this.object[node_guid_enc]
 	this.object_rwm.RUnlock()
 	return g.(string)
 }
 
-func (this *global) Certificate() []byte {
+func (this *global) Cert() []byte {
 	this.object_rwm.RLock()
 	c := this.object[certificate]
 	this.object_rwm.RUnlock()
@@ -168,16 +168,30 @@ func (this *global) Certificate() []byte {
 }
 
 // use controller publickey to verify message
-func (this *global) Verify(message, signature []byte) bool {
+func (this *global) CTRL_Verify(message, signature []byte) bool {
 	this.object_rwm.RLock()
-	c := this.object[ctrl_ed25519_pub]
+	p := this.object[ctrl_ed25519_pub]
 	this.object_rwm.RUnlock()
-	return ed25519.Verify(c.(ed25519.PublicKey), message, signature)
+	return ed25519.Verify(p.(ed25519.PublicKey), message, signature)
 }
 
-func (this *global) Database_Encrypt(plaindata []byte) ([]byte, error) {
+func (this *global) CTRL_Decrypt(cipherdata []byte) ([]byte, error) {
 	this.object_rwm.RLock()
-	c := this.object[database_aes].(*aes.CBC_Cryptor)
+	k := this.object[ctrl_aes_key]
 	this.object_rwm.RUnlock()
-	return c.Encrypt(plaindata)
+	return k.(*aes.CBC_Cryptor).Decrypt(cipherdata)
+}
+
+func (this *global) DB_Encrypt(plaindata []byte) ([]byte, error) {
+	this.object_rwm.RLock()
+	c := this.object[database_aes]
+	this.object_rwm.RUnlock()
+	return c.(*aes.CBC_Cryptor).Encrypt(plaindata)
+}
+
+func (this *global) DB_Decrypt(cipherdata []byte) ([]byte, error) {
+	this.object_rwm.RLock()
+	c := this.object[database_aes]
+	this.object_rwm.RUnlock()
+	return c.(*aes.CBC_Cryptor).Decrypt(cipherdata)
 }

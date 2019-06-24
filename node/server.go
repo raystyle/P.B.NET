@@ -378,7 +378,7 @@ func (this *server) handle_conn(raw net.Conn) {
 func (this *server) v1_identity(conn *conn) {
 	// send certificate
 	var err error
-	cert := this.ctx.global.Certificate()
+	cert := this.ctx.global.Cert()
 	if cert != nil {
 		err = conn.send_msg(cert)
 		if err != nil {
@@ -444,7 +444,7 @@ func (this *server) v1_handshake_ctrl(conn *conn) {
 		return
 	}
 	// verify signature
-	if !this.ctx.global.Verify(challenge, signature) {
+	if !this.ctx.global.CTRL_Verify(challenge, signature) {
 		l := &hs_log{c: conn, l: "invalid controller signature", e: err}
 		this.log(logger.EXPLOIT, l)
 		return

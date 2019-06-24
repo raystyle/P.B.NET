@@ -11,7 +11,7 @@ import (
 )
 
 type Config struct {
-	Log_level string
+	Log_Level string
 
 	// global
 	Proxy_Clients      map[string]*proxyclient.Client
@@ -19,12 +19,14 @@ type Config struct {
 	DNS_Cache_Deadline time.Duration
 	Timesync_Clients   map[string]*timesync.Client
 	Timesync_Interval  time.Duration
+
 	// controller
 	CTRL_ED25519_PUB []byte
 	CTRL_AES_Key     []byte // key + iv
-	// register only resolve success once
+
+	// register
 	Is_Genesis          bool   // use controller to register
-	Register_AES_Key    []byte //  key + iv Config is encrypted
+	Register_AES_Key    []byte // key + iv Config is encrypted
 	Register_Bootstraps []*messages.Bootstrap
 
 	// server
@@ -56,10 +58,10 @@ func (this *Config) Build() {
 
 }
 
-const object_key_max uint32 = 1048575
-
 // runtime env
 // 0 < key < 1048576
+const object_key_max uint32 = 1048575
+
 type object_key = uint32
 
 const (

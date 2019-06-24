@@ -16,7 +16,7 @@ type log struct {
 }
 
 func new_logger(ctx *NODE) (*log, error) {
-	l, err := logger.Parse(ctx.config.Log_level)
+	l, err := logger.Parse(ctx.config.Log_Level)
 	if err != nil {
 		return nil, err
 	}

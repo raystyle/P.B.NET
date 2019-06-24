@@ -31,7 +31,7 @@ func Test_Check_Config(t *testing.T) {
 func test_gen_config(t *testing.T, genesis bool) *Config {
 	reg_aes_key := bytes.Repeat([]byte{0}, aes.BIT256+aes.IV_SIZE)
 	c := &Config{
-		Log_level:          "debug",
+		Log_Level:          "debug",
 		Proxy_Clients:      testdata.Proxy_Clients(t),
 		DNS_Clients:        testdata.DNS_Clients(t),
 		DNS_Cache_Deadline: 3 * time.Minute,
