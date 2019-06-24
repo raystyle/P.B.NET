@@ -11,10 +11,10 @@ import (
 
 	"github.com/pelletier/go-toml"
 	"github.com/vmihailenco/msgpack"
-	"golang.org/x/crypto/ed25519"
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
+	"project/internal/crypto/ed25519"
 	"project/internal/dns"
 	"project/internal/global/dnsclient"
 	"project/internal/options"
@@ -135,7 +135,7 @@ func (this *HTTP) Marshal() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	publickey := this.PrivateKey[ed25519.PublicKeySize:]
+	publickey := this.PrivateKey.PublicKey()
 	this.PublicKey = hex.EncodeToString(publickey)
 	return toml.Marshal(this)
 }
@@ -319,15 +319,19 @@ func (this *HTTP) resolve(h *HTTP, info string) ([]*Node, error) {
 	signature := data[2 : 2+signature_size]
 	nodes_data := data[2+signature_size:]
 	// verify
-	publickey, err := hex.DecodeString(h.PublicKey)
+	pub, err := hex.DecodeString(h.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 	h.PublicKey = ""
-	if !ed25519.Verify(ed25519.PublicKey(publickey), nodes_data, signature) {
+	publickey, err := ed25519.Import_PublicKey(pub)
+	if err != nil {
+		return nil, err
+	}
+	if !ed25519.Verify(publickey, nodes_data, signature) {
 		return nil, ERR_INVALID_SIGNATURE
 	}
-	security.Flush_Bytes(publickey)
+	security.Flush_Bytes(pub)
 	// deconfuse
 	nodes_buffer := bytes.Buffer{}
 	l = len(nodes_data)

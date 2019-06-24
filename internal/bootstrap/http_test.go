@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ed25519"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
+	"project/internal/crypto/ed25519"
 	"project/internal/dns"
 )
 
@@ -82,7 +82,7 @@ func test_generate_http(t *testing.T, p *mock_proxy_pool) *HTTP {
 	HTTP.AES_Key = strings.Repeat("FF", aes.BIT256)
 	HTTP.AES_IV = strings.Repeat("FF", aes.IV_SIZE)
 	// generate privatekey
-	_, privatekey, err := ed25519.GenerateKey(nil)
+	privatekey, err := ed25519.Generate_Key()
 	require.Nil(t, err, err)
 	HTTP.PrivateKey = privatekey
 	return HTTP
