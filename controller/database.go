@@ -8,6 +8,15 @@ import (
 	"project/internal/xreflect"
 )
 
+func init() {
+	// gorm custom namer
+	// table name like m_proxy_client so delete "m_"
+	default_namer := gorm.TheNamingStrategy.Table
+	gorm.TheNamingStrategy.Table = func(name string) string {
+		return default_namer(name)[2:]
+	}
+}
+
 type database struct {
 	ctx *CONTROLLER
 	db  *gorm.DB
@@ -42,12 +51,7 @@ func (this *database) Connect() error {
 	// connection
 	db.DB().SetMaxOpenConns(config.DB_Max_Open_Conns)
 	db.DB().SetMaxIdleConns(config.DB_Max_Idle_Conn)
-	// custom namer
-	// table name like m_proxy_client so delete "m_"
-	default_namer := gorm.TheNamingStrategy.Table
-	gorm.TheNamingStrategy.Table = func(name string) string {
-		return default_namer(name)[2:]
-	}
+	// not add s
 	db.SingularTable(true)
 	this.db = db
 	return nil
