@@ -28,27 +28,28 @@ func new_database(ctx *CONTROLLER) (*database, error) {
 
 func (this *database) Connect() error {
 	config := this.ctx.config
-	// set logger
+	db, err := gorm.Open(config.Dialect, config.DSN)
+	if err != nil {
+		return errors.Wrapf(err, "connect %s failed", config.Dialect)
+	}
+	// logger
 	gorm_l, err := new_gorm_logger(config.GORM_Log)
 	if err != nil {
 		return errors.Wrap(err, "create gorm logger failed")
 	}
-	db, err := gorm.Open(config.Dialect, config.DSN)
-	if err != nil {
-		return err
-	}
-	this.db = db
+	db.SetLogger(gorm_l)
+	db.LogMode(false)
+	// connection
+	db.DB().SetMaxOpenConns(config.DB_Max_Open_Conns)
+	db.DB().SetMaxIdleConns(config.DB_Max_Idle_Conn)
 	// custom namer
 	// table name like m_proxy_client so delete "m_"
 	default_namer := gorm.TheNamingStrategy.Table
 	gorm.TheNamingStrategy.Table = func(name string) string {
 		return default_namer(name)[2:]
 	}
-	db.DB().SetMaxOpenConns(config.DB_Max_Open_Conns)
-	db.DB().SetMaxIdleConns(config.DB_Max_Idle_Conn)
-	db.SetLogger(gorm_l)
-	db.LogMode(false)
 	db.SingularTable(true)
+	this.db = db
 	return nil
 }
 
