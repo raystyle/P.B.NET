@@ -179,12 +179,16 @@ func (this *server) Shutdown() {
 	this.wg.Wait()
 }
 
-func (this *server) log(l logger.Level, log ...interface{}) {
-	this.ctx.logger.Println(l, "server", log...)
-}
-
 func (this *server) logf(l logger.Level, format string, log ...interface{}) {
 	this.ctx.logger.Printf(l, "server", format, log...)
+}
+
+func (this *server) log(l logger.Level, log ...interface{}) {
+	this.ctx.logger.Print(l, "server", log...)
+}
+
+func (this *server) logln(l logger.Level, log ...interface{}) {
+	this.ctx.logger.Println(l, "server", log...)
 }
 
 func (this *server) shutting_down() bool {
@@ -360,7 +364,7 @@ func (this *server) handle_conn(raw net.Conn) {
 	_, err = io.ReadFull(conn, version)
 	if err != nil {
 		l := &hs_log{c: conn, l: "receive version failed", e: err}
-		this.log(logger.ERROR, l)
+		this.logln(logger.ERROR, l)
 		return
 	}
 	v := convert.Bytes_Uint32(version)
@@ -370,7 +374,7 @@ func (this *server) handle_conn(raw net.Conn) {
 		this.v1_identity(conn)
 	default:
 		l := &hs_log{c: conn, l: fmt.Sprint("invalid version", v)}
-		this.log(logger.EXPLOIT, l)
+		this.logln(logger.EXPLOIT, l)
 		return
 	}
 }
@@ -383,7 +387,7 @@ func (this *server) v1_identity(conn *conn) {
 		err = conn.send_msg(cert)
 		if err != nil {
 			l := &hs_log{c: conn, l: "send certificate failed", e: err}
-			this.log(logger.ERROR, l)
+			this.logln(logger.ERROR, l)
 			return
 		}
 	} else { // if no certificate send padding data
@@ -391,7 +395,7 @@ func (this *server) v1_identity(conn *conn) {
 		err = conn.send_msg(this.random.Bytes(padding_size))
 		if err != nil {
 			l := &hs_log{c: conn, l: "send padding data failed", e: err}
-			this.log(logger.ERROR, l)
+			this.logln(logger.ERROR, l)
 			return
 		}
 	}
@@ -400,7 +404,7 @@ func (this *server) v1_identity(conn *conn) {
 	_, err = io.ReadFull(conn, role)
 	if err != nil {
 		l := &hs_log{c: conn, l: "receive role failed", e: err}
-		this.log(logger.ERROR, l)
+		this.logln(logger.ERROR, l)
 		return
 	}
 	switch role[0] {
@@ -411,7 +415,7 @@ func (this *server) v1_identity(conn *conn) {
 	case protocol.CTRL:
 		this.v1_handshake_ctrl(conn)
 	default:
-		this.log(logger.EXPLOIT, &hs_log{c: conn, l: "invalid role"})
+		this.logln(logger.EXPLOIT, &hs_log{c: conn, l: "invalid role"})
 	}
 }
 
@@ -433,30 +437,30 @@ func (this *server) v1_handshake_ctrl(conn *conn) {
 	err := conn.send_msg(challenge)
 	if err != nil {
 		l := &hs_log{c: conn, l: "send challenge code failed", e: err}
-		this.log(logger.ERROR, l)
+		this.logln(logger.ERROR, l)
 		return
 	}
 	// receive signature
 	signature, err := conn.recv_msg()
 	if err != nil {
 		l := &hs_log{c: conn, l: "receive signature failed", e: err}
-		this.log(logger.ERROR, l)
+		this.logln(logger.ERROR, l)
 		return
 	}
 	// verify signature
 	if !this.ctx.global.CTRL_Verify(challenge, signature) {
 		l := &hs_log{c: conn, l: "invalid controller signature", e: err}
-		this.log(logger.EXPLOIT, l)
+		this.logln(logger.EXPLOIT, l)
 		return
 	}
 	// send success
 	err = conn.send_msg(protocol.AUTH_SUCCESS)
 	if err != nil {
 		l := &hs_log{c: conn, l: "send auth success response failed", e: err}
-		this.log(logger.ERROR, l)
+		this.logln(logger.ERROR, l)
 		return
 	}
-	this.log(logger.INFO, &hs_log{c: conn, l: "new controller connect"})
+	this.logln(logger.INFO, &hs_log{c: conn, l: "new controller connect"})
 	// handle controller
 	// controller.Add(conn)
 }

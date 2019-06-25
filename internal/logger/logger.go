@@ -27,29 +27,9 @@ var (
 )
 
 type Logger interface {
-	Printf(level Level, src string, format string, log ...interface{})
-	Println(level Level, src string, log ...interface{})
-}
-
-// for go internal logger like http.Server.ErrorLog
-func Wrap(level Level, src string, logger Logger) *log.Logger {
-	w := &writer{
-		level:  level,
-		src:    src,
-		logger: logger,
-	}
-	return log.New(w, "", 0)
-}
-
-type writer struct {
-	level  Level
-	src    string
-	logger Logger
-}
-
-func (this *writer) Write(p []byte) (int, error) {
-	this.logger.Println(this.level, this.src, string(p))
-	return len(p), nil
+	Printf(l Level, src string, format string, log ...interface{})
+	Print(l Level, src string, log ...interface{})
+	Println(l Level, src string, log ...interface{})
 }
 
 func Parse(level string) (Level, error) {
@@ -75,10 +55,63 @@ func Parse(level string) (Level, error) {
 	return l, nil
 }
 
+// time + level + source + log
+// source usually like class name + "-" + instance tag
+// [2006-01-02 15:04:05] [INFO] <http proxy-test> start http proxy server
+func Prefix(l Level, src string) *bytes.Buffer {
+	lv := ""
+	switch l {
+	case DEBUG:
+		lv = "DEBUG"
+	case INFO:
+		lv = "INFO"
+	case WARNING:
+		lv = "WARNING"
+	case ERROR:
+		lv = "ERROR"
+	case EXPLOIT:
+		lv = "EXPLOIT"
+	case FATAL:
+		lv = "FATAL"
+	default:
+		return nil
+	}
+	buffer := &bytes.Buffer{}
+	buffer.WriteString("[")
+	buffer.WriteString(time.Now().Local().Format(Time_Layout))
+	buffer.WriteString("] [")
+	buffer.WriteString(lv)
+	buffer.WriteString("] <")
+	buffer.WriteString(src)
+	buffer.WriteString("> ")
+	return buffer
+}
+
+// for go internal logger like http.Server.ErrorLog
+func Wrap(l Level, src string, logger Logger) *log.Logger {
+	w := &writer{
+		level:  l,
+		src:    src,
+		logger: logger,
+	}
+	return log.New(w, "", 0)
+}
+
+type writer struct {
+	level  Level
+	src    string
+	logger Logger
+}
+
+func (this *writer) Write(p []byte) (int, error) {
+	this.logger.Println(this.level, this.src, string(p))
+	return len(p), nil
+}
+
 type test struct{}
 
-func (this *test) Printf(level Level, src string, format string, log ...interface{}) {
-	buffer := this.prefix(level, src)
+func (this *test) Printf(l Level, src string, format string, log ...interface{}) {
+	buffer := Prefix(l, src)
 	if buffer == nil {
 		return
 	}
@@ -86,8 +119,8 @@ func (this *test) Printf(level Level, src string, format string, log ...interfac
 	fmt.Println(buffer.String())
 }
 
-func (this *test) Println(level Level, src string, log ...interface{}) {
-	buffer := this.prefix(level, src)
+func (this *test) Print(l Level, src string, log ...interface{}) {
+	buffer := Prefix(l, src)
 	if buffer == nil {
 		return
 	}
@@ -95,38 +128,19 @@ func (this *test) Println(level Level, src string, log ...interface{}) {
 	fmt.Println(buffer.String())
 }
 
-// time + level + source + log
-// source usually like class name + "-" + instance tag
-// [2006-01-02 15:04:05] [INFO] <http proxy-test> start http proxy server
-func (this *test) prefix(level Level, src string) *bytes.Buffer {
-	buffer := &bytes.Buffer{}
-	buffer.WriteString("[")
-	buffer.WriteString(time.Now().Local().Format(Time_Layout))
-	buffer.WriteString("] [")
-	switch level {
-	case DEBUG:
-		buffer.WriteString("DEBUG")
-	case INFO:
-		buffer.WriteString("INFO")
-	case WARNING:
-		buffer.WriteString("WARNING")
-	case ERROR:
-		buffer.WriteString("ERROR")
-	case EXPLOIT:
-		buffer.WriteString("EXPLOIT")
-	case FATAL:
-		buffer.WriteString("FATAL")
-	default:
-		return nil
+func (this *test) Println(l Level, src string, log ...interface{}) {
+	buffer := Prefix(l, src)
+	if buffer == nil {
+		return
 	}
-	buffer.WriteString("] <")
-	buffer.WriteString(src)
-	buffer.WriteString("> ")
-	return buffer
+	buffer.WriteString(fmt.Sprintln(log...))
+	fmt.Print(buffer.String())
 }
 
 type discard struct{}
 
-func (this *discard) Printf(level Level, src string, format string, log ...interface{}) {}
+func (this *discard) Printf(l Level, src string, format string, log ...interface{}) {}
 
-func (this *discard) Println(level Level, src string, log ...interface{}) {}
+func (this *discard) Print(l Level, src string, log ...interface{}) {}
+
+func (this *discard) Println(l Level, src string, log ...interface{}) {}

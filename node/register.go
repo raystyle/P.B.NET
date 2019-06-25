@@ -16,7 +16,7 @@ func (this *presenter) register() {
 	var err error
 	defer func() {
 		if err != nil {
-			this.log(logger.FATAL, "register error: ", err)
+			this.logln(logger.FATAL, "register error:", err)
 			os.Exit(0)
 		}
 	}()

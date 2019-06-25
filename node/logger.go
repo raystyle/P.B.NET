@@ -1,31 +1,29 @@
 package node
 
 import (
-	"bytes"
 	"fmt"
-	"time"
 
 	"project/internal/logger"
 )
 
-type log struct {
-	ctx   *NODE
-	level logger.Level
+type node_log struct {
+	ctx *NODE
+	l   logger.Level
 }
 
-func new_logger(ctx *NODE) (*log, error) {
+func new_logger(ctx *NODE) (*node_log, error) {
 	l, err := logger.Parse(ctx.config.Log_Level)
 	if err != nil {
 		return nil, err
 	}
-	return &log{ctx: ctx, level: l}, nil
+	return &node_log{ctx: ctx, l: l}, nil
 }
 
-func (this *log) Printf(level logger.Level, src, format string, log ...interface{}) {
-	if level < this.level {
+func (this *node_log) Printf(l logger.Level, src, format string, log ...interface{}) {
+	if l < this.l {
 		return
 	}
-	buffer := this.prefix(level, src)
+	buffer := logger.Prefix(l, src)
 	if buffer == nil {
 		return
 	}
@@ -33,11 +31,11 @@ func (this *log) Printf(level logger.Level, src, format string, log ...interface
 	this.print(buffer.String())
 }
 
-func (this *log) Println(level logger.Level, src string, log ...interface{}) {
-	if level < this.level {
+func (this *node_log) Print(l logger.Level, src string, log ...interface{}) {
+	if l < this.l {
 		return
 	}
-	buffer := this.prefix(level, src)
+	buffer := logger.Prefix(l, src)
 	if buffer == nil {
 		return
 	}
@@ -45,36 +43,18 @@ func (this *log) Println(level logger.Level, src string, log ...interface{}) {
 	this.print(buffer.String())
 }
 
-// time + level + source + log
-// source usually like class name + "-" + instance tag
-// [2006-01-02 15:04:05] [INFO] <timesync> start http proxy server
-func (this *log) prefix(level logger.Level, src string) *bytes.Buffer {
-	buffer := &bytes.Buffer{}
-	buffer.WriteString("[")
-	buffer.WriteString(time.Now().Local().Format(logger.Time_Layout))
-	buffer.WriteString("] [")
-	switch level {
-	case logger.DEBUG:
-		buffer.WriteString("DEBUG")
-	case logger.INFO:
-		buffer.WriteString("INFO")
-	case logger.WARNING:
-		buffer.WriteString("WARNING")
-	case logger.ERROR:
-		buffer.WriteString("ERROR")
-	case logger.EXPLOIT:
-		buffer.WriteString("EXPLOIT")
-	case logger.FATAL:
-		buffer.WriteString("FATAL")
-	default:
-		return nil
+func (this *node_log) Println(l logger.Level, src string, log ...interface{}) {
+	if l < this.l {
+		return
 	}
-	buffer.WriteString("] <")
-	buffer.WriteString(src)
-	buffer.WriteString("> ")
-	return buffer
+	buffer := logger.Prefix(l, src)
+	if buffer == nil {
+		return
+	}
+	buffer.WriteString(fmt.Sprintln(log...))
+	this.print(buffer.String()[:buffer.Len()-1]) // delete "\n"
 }
 
-func (this *log) print(log string) {
+func (this *node_log) print(log string) {
 	fmt.Println(log)
 }
