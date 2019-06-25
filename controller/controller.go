@@ -3,6 +3,7 @@ package controller
 type CONTROLLER struct {
 	config   *Config
 	database *database
+	logger   *ctrl_logger
 	global   *global
 }
 
@@ -13,11 +14,6 @@ func New(c *Config) (*CONTROLLER, error) {
 		return nil, err
 	}
 	ctrl.database = db
-	g, err := new_global(ctrl)
-	if err != nil {
-		return nil, err
-	}
-	ctrl.global = g
 	return ctrl, nil
 }
 
@@ -26,6 +22,16 @@ func (this *CONTROLLER) Main() error {
 	if err != nil {
 		return err
 	}
+	l, err := new_ctrl_logger(this)
+	if err != nil {
+		return err
+	}
+	this.logger = l
+	g, err := new_global(this)
+	if err != nil {
+		return err
+	}
+	this.global = g
 	return nil
 }
 

@@ -69,7 +69,7 @@ var (
 
 func Test_Insert_Log(t *testing.T) {
 	db := test_connect_database(t)
-	err := db.Insert_Controller_Log(logger.DEBUG, "test src", "test log")
+	err := db.Insert_Ctrl_Log(logger.DEBUG, "test src", "test log")
 	require.Nil(t, err, err)
 	err = db.Insert_Node_Log(test_guid, logger.DEBUG, "test src", "test log")
 	require.Nil(t, err, err)

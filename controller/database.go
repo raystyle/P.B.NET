@@ -44,7 +44,7 @@ func (this *database) Connect() error {
 	return nil
 }
 
-func (this *database) Insert_Controller_Log(level uint8, src, log string) error {
+func (this *database) Insert_Ctrl_Log(level uint8, src, log string) error {
 	m := &m_controller_log{
 		Level:  level,
 		Source: src,
