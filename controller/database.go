@@ -44,6 +44,15 @@ func (this *database) Connect() error {
 	return nil
 }
 
+func (this *database) Insert_Controller_Log(level uint8, src, log string) error {
+	m := &m_controller_log{
+		Level:  level,
+		Source: src,
+		Log:    log,
+	}
+	return this.db.Table("controller_log").Create(m).Error
+}
+
 func (this *database) Insert_Proxy_Client(tag, mode, config string) error {
 	m := &m_proxy_client{
 		Tag:    tag,
@@ -93,12 +102,38 @@ func (this *database) Insert_Listener(tag, mode, config string) error {
 	return this.db.Table("listener").Create(m).Error
 }
 
+func (this *database) Insert_Node_Log(guid []byte, level uint8, src, log string) error {
+	m := &m_role_log{
+		GUID:   guid,
+		Level:  level,
+		Source: src,
+		Log:    log,
+	}
+	return this.db.Table("node_log").Create(m).Error
+}
+
+func (this *database) Insert_Beacon_Log(guid []byte, level uint8, src, log string) error {
+	m := &m_role_log{
+		GUID:   guid,
+		Level:  level,
+		Source: src,
+		Log:    log,
+	}
+	return this.db.Table("beacon_log").Create(m).Error
+}
+
 // first use this project
 func (this *database) init_db() error {
 	db := this.db
+	// controller log
+	db.Exec("DROP TABLE controller_log")
+	err := db.Table("controller_log").CreateTable(&m_controller_log{}).Error
+	if err != nil {
+		return errors.Wrap(err, "create table controller_log failed")
+	}
 	// proxy client
 	db.Exec("DROP TABLE proxy_client")
-	err := db.Table("proxy_client").CreateTable(&m_proxy_client{}).Error
+	err = db.Table("proxy_client").CreateTable(&m_proxy_client{}).Error
 	if err != nil {
 		return errors.Wrap(err, "create table proxy_client failed")
 	}
@@ -125,6 +160,18 @@ func (this *database) init_db() error {
 	err = db.Table("listener").CreateTable(&m_listener{}).Error
 	if err != nil {
 		return errors.Wrap(err, "create table listener failed")
+	}
+	// node log
+	db.Exec("DROP TABLE node_log")
+	err = db.Table("node_log").CreateTable(&m_role_log{}).Error
+	if err != nil {
+		return errors.Wrap(err, "create table node_log failed")
+	}
+	// beacon log
+	db.Exec("DROP TABLE beacon_log")
+	err = db.Table("beacon_log").CreateTable(&m_role_log{}).Error
+	if err != nil {
+		return errors.Wrap(err, "create table beacon_log failed")
 	}
 	return nil
 }

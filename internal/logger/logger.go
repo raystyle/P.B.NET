@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type Level uint8
+type Level = uint8
 
 const (
 	DEBUG Level = iota

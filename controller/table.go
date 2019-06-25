@@ -14,7 +14,7 @@ type m_proxy_client struct {
 	ID     uint64 `gorm:"primary_key"`
 	Tag    string `gorm:"size:32;not null;unique"`
 	Mode   string `gorm:"size:32;not null"`
-	Config string `gorm:"size:8192;not null"`
+	Config string `gorm:"size:16000;not null"`
 	Model
 }
 
@@ -50,4 +50,26 @@ type m_listener struct {
 	Mode   string `gorm:"size:32;not null"`
 	Config string `gorm:"size:16000;not null"`
 	Model
+}
+
+// controller log
+type m_controller_log struct {
+	ID        uint64 `gorm:"primary_key"`
+	CreatedAt time.Time
+	Level     uint8      `gorm:"not null" sql:"index"`
+	Source    string     `gorm:"size:32;not null"`
+	Log       string     `gorm:"size:16000;not null"`
+	DeletedAt *time.Time `sql:"index"`
+}
+
+// internal/guid/guid.go  guid.Size = 52
+// beacon & node log
+type m_role_log struct {
+	ID        uint64 `gorm:"primary_key"`
+	CreatedAt time.Time
+	GUID      []byte     `gorm:"type:binary(52);not null"`
+	Level     uint8      `gorm:"not null" sql:"index"`
+	Source    string     `gorm:"size:32;not null"`
+	Log       string     `gorm:"size:16000;not null"`
+	DeletedAt *time.Time `sql:"index"`
 }
