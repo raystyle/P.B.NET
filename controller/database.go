@@ -4,6 +4,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
+
+	"project/internal/xreflect"
 )
 
 type database struct {
@@ -36,6 +38,12 @@ func (this *database) Connect() error {
 		return err
 	}
 	this.db = db
+	// custom namer
+	// table name like m_proxy_client so delete "m_"
+	default_namer := gorm.TheNamingStrategy.Table
+	gorm.TheNamingStrategy.Table = func(name string) string {
+		return default_namer(name)[2:]
+	}
 	db.DB().SetMaxOpenConns(config.DB_Max_Open_Conns)
 	db.DB().SetMaxIdleConns(config.DB_Max_Idle_Conn)
 	db.SetLogger(gorm_l)
@@ -44,13 +52,43 @@ func (this *database) Connect() error {
 	return nil
 }
 
+// -------------------------------controller log--------------------------------------
+
+func (this *database) Select_Ctrl_Log(args ...interface{}) *gorm.DB {
+	return this.db.Model(&m_controller_log{})
+}
+
 func (this *database) Insert_Ctrl_Log(level uint8, src, log string) error {
 	m := &m_controller_log{
 		Level:  level,
 		Source: src,
 		Log:    log,
 	}
-	return this.db.Table("controller_log").Create(m).Error
+	return this.db.Create(m).Error
+}
+
+func (this *database) Delete_Ctrl_Log(where ...interface{}) error {
+	return this.db.Delete(&m_controller_log{}, where...).Error
+}
+
+// -------------------------------proxy client----------------------------------------
+
+func (this *database) Select_Proxy_Client(tag, mode, config string) error {
+	m := &m_proxy_client{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Create(m).Error
+}
+
+func (this *database) Update_Proxy_Client(tag, mode, config string) error {
+	m := &m_proxy_client{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Create(m).Error
 }
 
 func (this *database) Insert_Proxy_Client(tag, mode, config string) error {
@@ -59,8 +97,19 @@ func (this *database) Insert_Proxy_Client(tag, mode, config string) error {
 		Mode:   mode,
 		Config: config,
 	}
-	return this.db.Table("proxy_client").Create(m).Error
+	return this.db.Create(m).Error
 }
+
+func (this *database) Delete_Proxy_Client(tag, mode, config string) error {
+	m := &m_proxy_client{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Create(m).Error
+}
+
+// -------------------------------dns client----------------------------------------
 
 func (this *database) Insert_DNS_Client(tag, method, address string) error {
 	m := &m_dns_client{
@@ -68,7 +117,7 @@ func (this *database) Insert_DNS_Client(tag, method, address string) error {
 		Method:  method,
 		Address: address,
 	}
-	return this.db.Table("dns_client").Create(m).Error
+	return this.db.Create(m).Error
 }
 
 func (this *database) Insert_Timesync(tag, mode, config string) error {
@@ -77,7 +126,7 @@ func (this *database) Insert_Timesync(tag, mode, config string) error {
 		Mode:   mode,
 		Config: config,
 	}
-	return this.db.Table("timesync").Create(m).Error
+	return this.db.Create(m).Error
 }
 
 // interval = second
@@ -90,7 +139,7 @@ func (this *database) Insert_Bootstrap(tag, mode, config string,
 		Interval: interval,
 		Enable:   enable,
 	}
-	return this.db.Table("bootstrap").Create(m).Error
+	return this.db.Create(m).Error
 }
 
 func (this *database) Insert_Listener(tag, mode, config string) error {
@@ -99,7 +148,7 @@ func (this *database) Insert_Listener(tag, mode, config string) error {
 		Mode:   mode,
 		Config: config,
 	}
-	return this.db.Table("listener").Create(m).Error
+	return this.db.Create(m).Error
 }
 
 func (this *database) Insert_Node_Log(guid []byte, level uint8, src, log string) error {
@@ -109,7 +158,7 @@ func (this *database) Insert_Node_Log(guid []byte, level uint8, src, log string)
 		Source: src,
 		Log:    log,
 	}
-	return this.db.Table("node_log").Create(m).Error
+	return this.db.Table(t_node_log).Create(m).Error
 }
 
 func (this *database) Insert_Beacon_Log(guid []byte, level uint8, src, log string) error {
@@ -119,59 +168,66 @@ func (this *database) Insert_Beacon_Log(guid []byte, level uint8, src, log strin
 		Source: src,
 		Log:    log,
 	}
-	return this.db.Table("beacon_log").Create(m).Error
+	return this.db.Table(t_beacon_log).Create(m).Error
 }
 
 // first use this project
 func (this *database) init_db() error {
 	db := this.db
-	// controller log
-	db.Exec("DROP TABLE controller_log")
-	err := db.Table("controller_log").CreateTable(&m_controller_log{}).Error
-	if err != nil {
-		return errors.Wrap(err, "create table controller_log failed")
+	tables := []*struct {
+		name  string
+		model interface{}
+	}{
+		{
+			name:  "",
+			model: &m_controller_log{},
+		},
+		{
+			name:  "",
+			model: &m_proxy_client{},
+		},
+		{
+			name:  "",
+			model: &m_dns_client{},
+		},
+		{
+			name:  "",
+			model: &m_timesync{},
+		},
+		{
+			name:  "",
+			model: &m_bootstrap{},
+		},
+		{
+			name:  "",
+			model: &m_listener{},
+		},
+		{
+			name:  t_node_log,
+			model: &m_role_log{},
+		},
+		{
+			name:  t_beacon_log,
+			model: &m_role_log{},
+		},
 	}
-	// proxy client
-	db.Exec("DROP TABLE proxy_client")
-	err = db.Table("proxy_client").CreateTable(&m_proxy_client{}).Error
-	if err != nil {
-		return errors.Wrap(err, "create table proxy_client failed")
-	}
-	// dns client
-	db.Exec("DROP TABLE dns_client")
-	err = db.Table("dns_client").CreateTable(&m_dns_client{}).Error
-	if err != nil {
-		return errors.Wrap(err, "create table dns_client failed")
-	}
-	// timesync
-	db.Exec("DROP TABLE timesync")
-	err = db.Table("timesync").CreateTable(&m_timesync{}).Error
-	if err != nil {
-		return errors.Wrap(err, "create table timesync failed")
-	}
-	// bootstrap
-	db.Exec("DROP TABLE bootstrap")
-	err = db.Table("bootstrap").CreateTable(&m_bootstrap{}).Error
-	if err != nil {
-		return errors.Wrap(err, "create table bootstrap failed")
-	}
-	// listener
-	db.Exec("DROP TABLE listener")
-	err = db.Table("listener").CreateTable(&m_listener{}).Error
-	if err != nil {
-		return errors.Wrap(err, "create table listener failed")
-	}
-	// node log
-	db.Exec("DROP TABLE node_log")
-	err = db.Table("node_log").CreateTable(&m_role_log{}).Error
-	if err != nil {
-		return errors.Wrap(err, "create table node_log failed")
-	}
-	// beacon log
-	db.Exec("DROP TABLE beacon_log")
-	err = db.Table("beacon_log").CreateTable(&m_role_log{}).Error
-	if err != nil {
-		return errors.Wrap(err, "create table beacon_log failed")
+	for i := 0; i < len(tables); i++ {
+		n := tables[i].name
+		m := tables[i].model
+		if n == "" {
+			db.DropTableIfExists(m)
+			err := db.CreateTable(m).Error
+			if err != nil {
+				name := gorm.TheNamingStrategy.Table(xreflect.Struct_Name(m))
+				return errors.Wrapf(err, "create table %s failed", name)
+			}
+		} else {
+			db.Table(n).DropTableIfExists(m)
+			err := db.Table(n).CreateTable(m).Error
+			if err != nil {
+				return errors.Wrapf(err, "create table %s failed", n)
+			}
+		}
 	}
 	return nil
 }
