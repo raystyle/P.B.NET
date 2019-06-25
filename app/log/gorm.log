@@ -1,0 +1,254 @@
+[2019-06-25 09:55:03] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 13.1979ms DROP TABLE proxy_client [] 0
+[2019-06-25 09:55:03] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 32.1395ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32),`mode` varchar(32),`config` varchar(8192),`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 09:55:03] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 15.0339ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 09:55:03] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 11.0151ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 09:55:03] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 1.303ms INSERT  INTO `proxy_client` (`tag`,`mode`,`config`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?) [test_socks5 socks5 toml 2019-06-25 09:55:03.8831458 +0800 CST m=+0.099772701 2019-06-25 09:55:03.8831458 +0800 CST m=+0.099772701 <nil>] 1
+[2019-06-25 09:55:03] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:62 2.224ms SELECT * FROM `proxy_client`  WHERE `proxy_client`.`deleted_at` IS NULL ORDER BY `proxy_client`.`id` ASC LIMIT 1 [] 1
+[2019-06-25 09:55:37] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 16.0401ms DROP TABLE proxy_client [] 0
+[2019-06-25 09:55:38] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 20.7601ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32),`mode` varchar(32),`config` varchar(8192),`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 09:55:38] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 11.9071ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 09:55:38] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 14.0688ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 09:55:38] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 1.0251ms INSERT  INTO `proxy_client` (`tag`,`mode`,`config`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?) [test_socks5 socks5 toml 2019-06-25 09:55:38.0574147 +0800 CST m=+0.087063601 2019-06-25 09:55:38.0574147 +0800 CST m=+0.087063601 <nil>] 1
+[2019-06-25 09:55:38] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:62 1.3528ms SELECT * FROM `proxy_client`  WHERE `proxy_client`.`deleted_at` IS NULL ORDER BY `proxy_client`.`id` ASC LIMIT 1 [] 1
+[2019-06-25 09:56:00] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 12.2204ms DROP TABLE proxy_client [] 0
+[2019-06-25 09:56:00] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 34.0339ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32),`mode` varchar(32),`config` varchar(8192),`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 09:56:00] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 13.2643ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 09:56:00] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 11.0137ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 09:56:00] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 2.0933ms INSERT  INTO `proxy_client` (`tag`,`mode`,`config`,`created_at`,`updated_at`,`deleted_at`) VALUES (?,?,?,?,?,?) [test_socks5 socks5 toml 2019-06-25 09:56:00.776371 +0800 CST m=+0.094213601 2019-06-25 09:56:00.776371 +0800 CST m=+0.094213601 <nil>] 1
+[2019-06-25 09:56:00] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:62 2.0839ms SELECT * FROM `proxy_client`  WHERE `proxy_client`.`deleted_at` IS NULL ORDER BY `proxy_client`.`id` ASC LIMIT 1 [] 1
+[2019-06-25 09:56:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 11.3898ms DROP TABLE proxy_client [] 0
+[2019-06-25 09:56:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 123.9677ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32),`mode` varchar(32),`config` varchar(8192) , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 09:56:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 13.7752ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 09:56:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 0s INSERT  INTO `proxy_client` (`tag`,`mode`,`config`) VALUES (?,?,?) [test_socks5 socks5 toml] 1
+[2019-06-25 09:56:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:62 0s SELECT * FROM `proxy_client`   ORDER BY `proxy_client`.`id` ASC LIMIT 1 [] 1
+[2019-06-25 09:56:52] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 12.3593ms DROP TABLE proxy_client [] 0
+[2019-06-25 09:56:52] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 23.3456ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32),`mode` varchar(32),`config` varchar(8192) , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 09:56:52] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 10.0032ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 09:56:52] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 1.7555ms INSERT  INTO `proxy_client` (`tag`,`mode`,`config`) VALUES (?,?,?) [test_socks5 socks5 toml] 1
+[2019-06-25 09:56:52] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:62 1.7414ms SELECT * FROM `proxy_client`   ORDER BY `proxy_client`.`id` ASC LIMIT 1 [] 1
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 11.9973ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 278.5742ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32),`mode` varchar(32),`config` varchar(8192),`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 11.7972ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 32.3271ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:63 20.8659ms DROP TABLE dns_client [] 0
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 23.1447ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32),`method` varchar(32),`address` varchar(2048),`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 10.9138ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 13.0778ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:06:44] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:72 Error 1051: Unknown table 'p.b.net.time_sync'
+[2019-06-25 10:06:44] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 0s DROP TABLE time_sync [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 13.0017ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 21.8733ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 13.0061ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:58 12.9942ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:63 10.9495ms DROP TABLE dns_client [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 19.9493ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 12.1705ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 12.0018ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:08:58] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:72 Error 1051: Unknown table 'p.b.net.time_sync'
+[2019-06-25 10:08:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 2.0056ms DROP TABLE time_sync [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 88.4327ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 21.369ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 13.0102ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 10.3838ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 13.9985ms DROP TABLE dns_client [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 39.4873ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 14.0251ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 11.9074ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:66 Error 1051: Unknown table 'p.b.net.time_sync'
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 1.4455ms DROP TABLE time_sync [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 42.1469ms CREATE TABLE `time_sync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 15.7692ms CREATE INDEX idx_time_sync_tag ON `time_sync`(`tag`)  [] 0
+[2019-06-25 10:10:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 13.7611ms CREATE INDEX idx_time_sync_deleted_at ON `time_sync`(deleted_at)  [] 0
+[2019-06-25 10:10:41] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 116.9921ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 30.8936ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 12.7202ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 11.6992ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 10.8756ms DROP TABLE dns_client [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 23.6893ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 11.3975ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 10.2543ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 12.5417ms DROP TABLE time_sync [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 28.5378ms CREATE TABLE `time_sync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 14.319ms CREATE INDEX idx_time_sync_tag ON `time_sync`(`tag`)  [] 0
+[2019-06-25 10:10:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 114.545ms CREATE INDEX idx_time_sync_deleted_at ON `time_sync`(deleted_at)  [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 33.996ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 30.0364ms CREATE TABLE `m_proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 13.0138ms CREATE INDEX idx_m_proxy_client_tag ON `m_proxy_client`(`tag`)  [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 107.0884ms CREATE INDEX idx_m_proxy_client_deleted_at ON `m_proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 14.984ms DROP TABLE dns_client [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 26.8333ms CREATE TABLE `m_dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 10.0764ms CREATE INDEX idx_m_dns_client_deleted_at ON `m_dns_client`(deleted_at)  [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 11.8094ms CREATE INDEX idx_m_dns_client_tag ON `m_dns_client`(`tag`)  [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:66 Error 1051: Unknown table 'p.b.net.timesync'
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 1.0154ms DROP TABLE timesync [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 28.7708ms CREATE TABLE `m_timesync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 11.9084ms CREATE INDEX idx_m_timesync_tag ON `m_timesync`(`tag`)  [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 15.1464ms CREATE INDEX idx_m_timesync_deleted_at ON `m_timesync`(deleted_at)  [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 8.7887ms DROP TABLE bootstrap [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 28.8873ms CREATE TABLE `m_bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 13.9266ms CREATE INDEX idx_m_bootstrap_tag ON `m_bootstrap`(`tag`)  [] 0
+[2019-06-25 10:28:29] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 12.9775ms CREATE INDEX idx_m_bootstrap_deleted_at ON `m_bootstrap`(deleted_at)  [] 0
+[2019-06-25 10:32:43] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:54 Error 1051: Unknown table 'p.b.net.proxy_client'
+[2019-06-25 10:32:43] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 9.2968ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:32:43] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:55 Error 1064: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ')' at line 1
+[2019-06-25 10:32:43] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 1.7068ms CREATE TABLE `` ( ) [] 0
+[2019-06-25 10:32:43] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:55 Error 1064: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ')' at line 1
+[2019-06-25 10:32:43] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:55 Error 1064: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ')' at line 1
+[2019-06-25 10:34:57] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:54 Error 1051: Unknown table 'p.b.net.proxy_client'
+[2019-06-25 10:34:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 9.9931ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:34:57] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:60 Error 1051: Unknown table 'p.b.net.dns_client'
+[2019-06-25 10:34:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 999.7µs DROP TABLE dns_client [] 0
+[2019-06-25 10:34:57] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:66 Error 1051: Unknown table 'p.b.net.timesync'
+[2019-06-25 10:34:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 1.8725ms DROP TABLE timesync [] 0
+[2019-06-25 10:34:58] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:72 Error 1051: Unknown table 'p.b.net.bootstrap'
+[2019-06-25 10:34:58] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 989.4µs DROP TABLE bootstrap [] 0
+[2019-06-25 10:36:36] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:54 Error 1051: Unknown table 'p.b.net.proxy_client'
+[2019-06-25 10:36:36] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 9.0753ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:36:36] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:60 Error 1051: Unknown table 'p.b.net.dns_client'
+[2019-06-25 10:36:36] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 1.7547ms DROP TABLE dns_client [] 0
+[2019-06-25 10:36:36] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:66 Error 1051: Unknown table 'p.b.net.timesync'
+[2019-06-25 10:36:36] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 1.5405ms DROP TABLE timesync [] 0
+[2019-06-25 10:36:36] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:72 Error 1051: Unknown table 'p.b.net.bootstrap'
+[2019-06-25 10:36:36] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 1.2338ms DROP TABLE bootstrap [] 0
+[2019-06-25 10:37:07] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:54 Error 1051: Unknown table 'p.b.net.proxy_client'
+[2019-06-25 10:37:07] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 9.0078ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:37:07] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:60 Error 1051: Unknown table 'p.b.net.dns_client'
+[2019-06-25 10:37:07] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 999.1µs DROP TABLE dns_client [] 0
+[2019-06-25 10:37:07] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:66 Error 1051: Unknown table 'p.b.net.timesync'
+[2019-06-25 10:37:07] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 2.0225ms DROP TABLE timesync [] 0
+[2019-06-25 10:37:07] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:72 Error 1051: Unknown table 'p.b.net.bootstrap'
+[2019-06-25 10:37:07] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 993.8µs DROP TABLE bootstrap [] 0
+[2019-06-25 10:37:07] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:74 39.9038ms CREATE TABLE `bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:37:07] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:74 14.0043ms CREATE INDEX idx_bootstrap_tag ON `bootstrap`(`tag`)  [] 0
+[2019-06-25 10:37:07] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:74 111.1276ms CREATE INDEX idx_bootstrap_deleted_at ON `bootstrap`(deleted_at)  [] 0
+[2019-06-25 10:37:41] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:54 Error 1051: Unknown table 'p.b.net.proxy_client'
+[2019-06-25 10:37:41] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 10.0107ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:37:41] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:60 Error 1051: Unknown table 'p.b.net.dns_client'
+[2019-06-25 10:37:41] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 1.3115ms DROP TABLE dns_client [] 0
+[2019-06-25 10:37:41] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:66 Error 1051: Unknown table 'p.b.net.timesync'
+[2019-06-25 10:37:41] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 2.0018ms DROP TABLE timesync [] 0
+[2019-06-25 10:37:41] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 13.9506ms DROP TABLE bootstrap [] 0
+[2019-06-25 10:38:41] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:54 Error 1051: Unknown table 'p.b.net.proxy_client'
+[2019-06-25 10:38:41] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 10.1342ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:38:41] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:60 Error 1051: Unknown table 'p.b.net.dns_client'
+[2019-06-25 10:38:41] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 2.9912ms DROP TABLE dns_client [] 0
+[2019-06-25 10:38:42] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:66 Error 1051: Unknown table 'p.b.net.timesync'
+[2019-06-25 10:38:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 2.1299ms DROP TABLE timesync [] 0
+[2019-06-25 10:38:42] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:72 Error 1051: Unknown table 'p.b.net.bootstrap'
+[2019-06-25 10:38:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 1.1366ms DROP TABLE bootstrap [] 0
+[2019-06-25 10:38:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:74 28.7354ms CREATE TABLE `bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:38:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:74 14.1787ms CREATE INDEX idx_bootstrap_tag ON `bootstrap`(`tag`)  [] 0
+[2019-06-25 10:38:42] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:74 11.9649ms CREATE INDEX idx_bootstrap_deleted_at ON `bootstrap`(deleted_at)  [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:54 Error 1051: Unknown table 'p.b.net.proxy_client'
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 9.6953ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 25.3432ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 12.8799ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 12.3186ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:60 Error 1051: Unknown table 'p.b.net.dns_client'
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 1.5991ms DROP TABLE dns_client [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 23.8601ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 11.8019ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 10.0022ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:66 Error 1051: Unknown table 'p.b.net.timesync'
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 1.5769ms DROP TABLE timesync [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 26.9805ms CREATE TABLE `timesync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 12.0609ms CREATE INDEX idx_timesync_tag ON `timesync`(`tag`)  [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 11.759ms CREATE INDEX idx_timesync_deleted_at ON `timesync`(deleted_at)  [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:72 Error 1051: Unknown table 'p.b.net.bootstrap'
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 985.2µs DROP TABLE bootstrap [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 26.9993ms CREATE TABLE `bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 14.0848ms CREATE INDEX idx_bootstrap_tag ON `bootstrap`(`tag`)  [] 0
+[2019-06-25 10:41:02] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 11.074ms CREATE INDEX idx_bootstrap_deleted_at ON `bootstrap`(deleted_at)  [] 0
+[2019-06-25 10:41:39] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 12.6468ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:41:39] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 25.6081ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:41:39] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 13.3384ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:41:39] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 11.4891ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:41:39] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 12.9018ms DROP TABLE dns_client [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 27.1557ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 12.2464ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 12.4647ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 11.9962ms DROP TABLE timesync [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 24.3015ms CREATE TABLE `timesync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 16.4874ms CREATE INDEX idx_timesync_tag ON `timesync`(`tag`)  [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 13.5078ms CREATE INDEX idx_timesync_deleted_at ON `timesync`(deleted_at)  [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:73 Error 1050: Table 'bootstrap' already exists
+[2019-06-25 10:41:40] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 1.5554ms CREATE TABLE `bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:41:40] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:73 Error 1050: Table 'bootstrap' already exists
+[2019-06-25 10:41:40] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:73 Error 1050: Table 'bootstrap' already exists
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 117.1565ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 20.8335ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 13.597ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 14.0718ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 12.7941ms DROP TABLE dns_client [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 25.0037ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 20.5703ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 9.7686ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 12.4988ms DROP TABLE timesync [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 28.9596ms CREATE TABLE `timesync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 14.0032ms CREATE INDEX idx_timesync_tag ON `timesync`(`tag`)  [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 12.0136ms CREATE INDEX idx_timesync_deleted_at ON `timesync`(deleted_at)  [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 12.9754ms DROP TABLE bootstrap [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 30.0303ms CREATE TABLE `bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 108.095ms CREATE INDEX idx_bootstrap_deleted_at ON `bootstrap`(deleted_at)  [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 14.0143ms CREATE INDEX idx_bootstrap_tag ON `bootstrap`(`tag`)  [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> log E:/OneDrive/P.B.NET/controller/database.go:78 Error 1051: Unknown table 'p.b.net.node_listener'
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:78 2.0322ms DROP TABLE node_listener [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:79 26.8116ms CREATE TABLE `node_listener` (`id` bigint unsigned AUTO_INCREMENT,`guid` varbinary(255) NOT NULL,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:48:10] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:79 14.7994ms CREATE INDEX idx_node_listener_deleted_at ON `node_listener`(deleted_at)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 135.3896ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 37.9723ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 12.8106ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 12.8187ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 17.0476ms DROP TABLE dns_client [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 53.964ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 31.0867ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 11.3652ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 14.979ms DROP TABLE timesync [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 31.0103ms CREATE TABLE `timesync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 15.0107ms CREATE INDEX idx_timesync_tag ON `timesync`(`tag`)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 15.017ms CREATE INDEX idx_timesync_deleted_at ON `timesync`(deleted_at)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 13.0091ms DROP TABLE bootstrap [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 33.0541ms CREATE TABLE `bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 16.0044ms CREATE INDEX idx_bootstrap_tag ON `bootstrap`(`tag`)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 15.9111ms CREATE INDEX idx_bootstrap_deleted_at ON `bootstrap`(deleted_at)  [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:78 14.2316ms DROP TABLE node_listener [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:79 30.6995ms CREATE TABLE `node_listener` (`id` bigint unsigned AUTO_INCREMENT,`guid` varbinary(52) NOT NULL,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:49:04] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:79 14.9799ms CREATE INDEX idx_node_listener_deleted_at ON `node_listener`(deleted_at)  [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 12.4044ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 30.7319ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 12.1824ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 11.2825ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 11.0981ms DROP TABLE dns_client [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 24.9309ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 12.9471ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 11.9652ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 12.0156ms DROP TABLE timesync [] 0
+[2019-06-25 10:51:30] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 21.2118ms CREATE TABLE `timesync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 13.8028ms CREATE INDEX idx_timesync_tag ON `timesync`(`tag`)  [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 11.4056ms CREATE INDEX idx_timesync_deleted_at ON `timesync`(deleted_at)  [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 11.0621ms DROP TABLE bootstrap [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 27.9384ms CREATE TABLE `bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 13.5911ms CREATE INDEX idx_bootstrap_tag ON `bootstrap`(`tag`)  [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 19.8771ms CREATE INDEX idx_bootstrap_deleted_at ON `bootstrap`(deleted_at)  [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:78 12.9543ms DROP TABLE node_listener [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:79 30.1194ms CREATE TABLE `node_listener` (`id` bigint unsigned AUTO_INCREMENT,`guid` binary NOT NULL,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:31] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:79 26.1627ms CREATE INDEX idx_node_listener_deleted_at ON `node_listener`(deleted_at)  [] 0
+[2019-06-25 10:51:56] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:54 12.922ms DROP TABLE proxy_client [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 47.0656ms CREATE TABLE `proxy_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(8192) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 13.8966ms CREATE INDEX idx_proxy_client_tag ON `proxy_client`(`tag`)  [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:55 12.0076ms CREATE INDEX idx_proxy_client_deleted_at ON `proxy_client`(deleted_at)  [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:60 11.8481ms DROP TABLE dns_client [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 25.0635ms CREATE TABLE `dns_client` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`method` varchar(32) NOT NULL,`address` varchar(2048) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 11.0989ms CREATE INDEX idx_dns_client_tag ON `dns_client`(`tag`)  [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:61 12.0616ms CREATE INDEX idx_dns_client_deleted_at ON `dns_client`(deleted_at)  [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:66 11.0997ms DROP TABLE timesync [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 48.8834ms CREATE TABLE `timesync` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 14.7361ms CREATE INDEX idx_timesync_deleted_at ON `timesync`(deleted_at)  [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:67 12.1861ms CREATE INDEX idx_timesync_tag ON `timesync`(`tag`)  [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:72 12.7299ms DROP TABLE bootstrap [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 29.9918ms CREATE TABLE `bootstrap` (`id` bigint unsigned AUTO_INCREMENT,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`interval` bigint NOT NULL,`enable` boolean NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 14.6693ms CREATE INDEX idx_bootstrap_deleted_at ON `bootstrap`(deleted_at)  [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:73 14.0005ms CREATE INDEX idx_bootstrap_tag ON `bootstrap`(`tag`)  [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:78 12.6645ms DROP TABLE node_listener [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:79 27.9248ms CREATE TABLE `node_listener` (`id` bigint unsigned AUTO_INCREMENT,`guid` binary(52) NOT NULL,`tag` varchar(32) NOT NULL,`mode` varchar(32) NOT NULL,`config` varchar(16000) NOT NULL,`created_at` timestamp NULL,`updated_at` timestamp NULL,`deleted_at` timestamp NULL , PRIMARY KEY (`id`)) [] 0
+[2019-06-25 10:51:57] [INFO] <gorm> sql E:/OneDrive/P.B.NET/controller/database.go:79 13.111ms CREATE INDEX idx_node_listener_deleted_at ON `node_listener`(deleted_at)  [] 0
