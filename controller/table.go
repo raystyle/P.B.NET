@@ -4,9 +4,24 @@ import (
 	"time"
 )
 
+// different table has the same model
+const (
+	t_node_log   = "node_log"
+	t_beacon_log = "beacon_log"
+)
+
 type Model struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	DeletedAt *time.Time `sql:"index"`
+}
+
+type m_controller_log struct {
+	ID        uint64 `gorm:"primary_key"`
+	CreatedAt time.Time
+	Level     uint8      `gorm:"not null" sql:"index"`
+	Source    string     `gorm:"size:32;not null"`
+	Log       string     `gorm:"size:16000;not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
@@ -50,16 +65,6 @@ type m_listener struct {
 	Mode   string `gorm:"size:32;not null"`
 	Config string `gorm:"size:16000;not null"`
 	Model
-}
-
-// controller log
-type m_controller_log struct {
-	ID        uint64 `gorm:"primary_key"`
-	CreatedAt time.Time
-	Level     uint8      `gorm:"not null" sql:"index"`
-	Source    string     `gorm:"size:32;not null"`
-	Log       string     `gorm:"size:16000;not null"`
-	DeletedAt *time.Time `sql:"index"`
 }
 
 // internal/guid/guid.go  guid.Size = 52

@@ -2,8 +2,10 @@ package controller
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
@@ -12,10 +14,31 @@ import (
 	"project/testdata"
 )
 
+var (
+	test_guid = bytes.Repeat([]byte{0}, guid.SIZE)
+)
+
 func Test_Init_DB(t *testing.T) {
 	db := test_connect_database(t)
 	err := db.init_db()
 	require.Nil(t, err, err)
+}
+
+func Test_DB_Ctrl_Log(t *testing.T) {
+	db := test_connect_database(t)
+	err := db.Insert_Ctrl_Log(logger.DEBUG, "test src", "test log")
+	require.Nil(t, err, err)
+	dbh := db.Select_Ctrl_Log().Find(&m_controller_log{})
+	err = dbh.Error
+	require.Nil(t, err, err)
+	var logs []*m_controller_log
+	dbh.Scan(&logs)
+	fmt.Println(len(logs))
+
+	t.Log("select controller log:", spew.Sdump(logs))
+	err = db.Delete_Ctrl_Log()
+	require.Nil(t, err, err)
+
 }
 
 func Test_Insert_Global(t *testing.T) {
@@ -63,15 +86,9 @@ func Test_Insert_Listener(t *testing.T) {
 	}
 }
 
-var (
-	test_guid = bytes.Repeat([]byte{0}, guid.SIZE)
-)
-
 func Test_Insert_Log(t *testing.T) {
 	db := test_connect_database(t)
-	err := db.Insert_Ctrl_Log(logger.DEBUG, "test src", "test log")
-	require.Nil(t, err, err)
-	err = db.Insert_Node_Log(test_guid, logger.DEBUG, "test src", "test log")
+	err := db.Insert_Node_Log(test_guid, logger.DEBUG, "test src", "test log")
 	require.Nil(t, err, err)
 	err = db.Insert_Beacon_Log(test_guid, logger.DEBUG, "test src", "test log")
 	require.Nil(t, err, err)
