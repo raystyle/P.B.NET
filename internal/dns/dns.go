@@ -41,7 +41,7 @@ var (
 )
 
 // resolve method
-type Method string
+type Method = string
 
 const (
 	UDP Method = "udp"

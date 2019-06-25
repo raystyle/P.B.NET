@@ -16,6 +16,7 @@ func Register(t *testing.T) []*messages.Bootstrap {
 	b, err := ioutil.ReadFile("../config/bootstrap/http.toml")
 	require.Nil(t, err, err)
 	c := &messages.Bootstrap{
+		Tag:    "http",
 		Mode:   bootstrap.M_HTTP,
 		Config: b,
 	}
@@ -24,6 +25,7 @@ func Register(t *testing.T) []*messages.Bootstrap {
 	b, err = ioutil.ReadFile("../config/bootstrap/dns.toml")
 	require.Nil(t, err, err)
 	c = &messages.Bootstrap{
+		Tag:    "dns",
 		Mode:   bootstrap.M_DNS,
 		Config: b,
 	}
@@ -32,6 +34,7 @@ func Register(t *testing.T) []*messages.Bootstrap {
 	b, err = ioutil.ReadFile("../config/bootstrap/direct.toml")
 	require.Nil(t, err, err)
 	c = &messages.Bootstrap{
+		Tag:    "direct",
 		Mode:   bootstrap.M_DIRECT,
 		Config: b,
 	}

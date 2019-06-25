@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type Mode string
+type Mode = string
 
 const (
 	SOCKS5 Mode = "socks5"

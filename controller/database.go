@@ -36,20 +36,66 @@ func (this *database) Connect() error {
 		return err
 	}
 	this.db = db
-	db.SetLogger(gorm_l)
-	db.LogMode(true)
 	db.DB().SetMaxOpenConns(config.DB_Max_Open_Conns)
 	db.DB().SetMaxIdleConns(config.DB_Max_Idle_Conn)
-	err = this.init_db()
-	if err != nil {
-		return err
-	}
+	db.SetLogger(gorm_l)
+	db.LogMode(false)
+	db.SingularTable(true)
 	return nil
 }
 
+func (this *database) Insert_Proxy_Client(tag, mode, config string) error {
+	m := &m_proxy_client{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Table("proxy_client").Create(m).Error
+}
+
+func (this *database) Insert_DNS_Client(tag, method, address string) error {
+	m := &m_dns_client{
+		Tag:     tag,
+		Method:  method,
+		Address: address,
+	}
+	return this.db.Table("dns_client").Create(m).Error
+}
+
+func (this *database) Insert_Timesync(tag, mode, config string) error {
+	m := &m_timesync{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Table("timesync").Create(m).Error
+}
+
+// interval = second
+func (this *database) Insert_Bootstrap(tag, mode, config string,
+	interval uint32, enable bool) error {
+	m := &m_bootstrap{
+		Tag:      tag,
+		Mode:     mode,
+		Config:   config,
+		Interval: interval,
+		Enable:   enable,
+	}
+	return this.db.Table("bootstrap").Create(m).Error
+}
+
+func (this *database) Insert_Listener(tag, mode, config string) error {
+	m := &m_listener{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Table("listener").Create(m).Error
+}
+
+// first use this project
 func (this *database) init_db() error {
 	db := this.db
-	db.SingularTable(true)
 	// proxy client
 	db.Exec("DROP TABLE proxy_client")
 	err := db.Table("proxy_client").CreateTable(&m_proxy_client{}).Error
@@ -74,11 +120,11 @@ func (this *database) init_db() error {
 	if err != nil {
 		return errors.Wrap(err, "create table bootstrap failed")
 	}
-	// node listener
-	db.Exec("DROP TABLE node_listener")
-	err = db.Table("node_listener").CreateTable(&m_listener{}).Error
+	// listener
+	db.Exec("DROP TABLE listener")
+	err = db.Table("listener").CreateTable(&m_listener{}).Error
 	if err != nil {
-		return errors.Wrap(err, "create table node_listener failed")
+		return errors.Wrap(err, "create table listener failed")
 	}
 	return nil
 }

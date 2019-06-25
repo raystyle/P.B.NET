@@ -1,4 +1,4 @@
-[http]
+[http_full]
   # known mode are "http", "ntp"
   mode    = "http"
   address = "https://www.baidu.com/"
@@ -7,7 +7,7 @@
   # proxy client tag
   proxy   = ""
 
-  [http.dnsclient]
+  [http_full.dnsclient]
     # known resolve mode are "custom", "system", ""
     # custom will use internal/dns to resolve dns
     # system will use net.LookupHost() to resolve dns
@@ -45,7 +45,7 @@
 
     # just for doh
     # golang internal http.Header
-    [http.dnsclient.header]
+    [http_full.dnsclient.header]
       User-Agent      = ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0"]
       Accept          = ["text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"]
       Accept-Language = ["zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2"]
@@ -57,7 +57,7 @@
 
     # just for doh
     # golang internal http.Transport
-    [http.dnsclient.transport]
+    [http_full.dnsclient.transport]
       tls_handshake_timeout     = "0s"
       disable_keepalives        = false
       disable_compression       = false
@@ -69,12 +69,12 @@
       expect_continue_timeout   = "0s"
       max_response_header_bytes = 0
 
-      [http.dnsclient.transport.tls_client_config]
+      [http_full.dnsclient.transport.tls_client_config]
         root_ca              = [] # pem
         client_ca            = [] # pem
         insecure_skip_verify = false
 
-        [[http.dnsclient.transport.tls_client_config.certificates]]
+        [[http_full.dnsclient.transport.tls_client_config.certificates]]
           cert = """\
           -----BEGIN CERTIFICATE-----\n\
           MIIDKDCCAhACCQDiUM4OpOZ1jTANBgkqhkiG9w0BAQsFADBWMQswCQYDVQQGEwJY\
@@ -125,7 +125,7 @@
           z4RrZ85clQSQO3Wjb/ectaHAIPt7obkyFMW7dyhxiJrMYKtGwSQK15lk\
           \n-----END RSA PRIVATE KEY-----"""
   # just for NTP mode
-  [http.ntp_options]
+  [http_full.ntp_options]
     # NTP protocol version, support 3 and 4
     # default is 4
     version = 0
@@ -135,9 +135,9 @@
     network = ""
 
   # just for HTTP mode
-  [http.http_options]
+  [http_full.http_options]
 
-    [http.http_options.request]
+    [http_full.http_options.request]
       method = ""
 
       # hex
@@ -146,9 +146,9 @@
       # default set header Connection: keep-alive
       close = false
 
-      [http.http_options.request.header]
+      [http_full.http_options.request.header]
 
-    [http.http_options.transport]
+    [http_full.http_options.transport]
       tls_handshake_timeout     = "0s"
       disable_keepalives        = false
       disable_compression       = false
@@ -160,9 +160,9 @@
       expect_continue_timeout   = "0s"
       max_response_header_bytes = 0
 
-      [http.http_options.transport.tls_client_config]
+      [http_full.http_options.transport.tls_client_config]
         root_ca              = [] # pem
         client_ca            = [] # pem
         insecure_skip_verify = false
 
-        #[[http.dnsclient.transport.tls_client_config.certificates]]
+        #[[http_full.dnsclient.transport.tls_client_config.certificates]]

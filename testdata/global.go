@@ -30,9 +30,18 @@ func DNS_Clients(t *testing.T) map[string]*dnsclient.Client {
 	return c
 }
 
-func Timesync_Clients(t *testing.T) map[string]*timesync.Client {
+func Timesync(t *testing.T) map[string]*timesync.Client {
 	c := make(map[string]*timesync.Client)
 	b, err := ioutil.ReadFile("../config/global/timesync.toml")
+	require.Nil(t, err, err)
+	err = toml.Unmarshal(b, &c)
+	require.Nil(t, err, err)
+	return c
+}
+
+func Timesync_Full(t *testing.T) map[string]*timesync.Client {
+	c := make(map[string]*timesync.Client)
+	b, err := ioutil.ReadFile("../config/global/timesync_full.toml")
 	require.Nil(t, err, err)
 	err = toml.Unmarshal(b, &c)
 	require.Nil(t, err, err)

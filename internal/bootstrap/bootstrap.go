@@ -8,7 +8,7 @@ import (
 	"project/internal/xnet"
 )
 
-type Mode string
+type Mode = string
 
 const (
 	M_HTTP   Mode = "http"

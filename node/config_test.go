@@ -38,7 +38,7 @@ func test_gen_config(t *testing.T, genesis bool) *Config {
 		Proxy_Clients:      testdata.Proxy_Clients(t),
 		DNS_Clients:        testdata.DNS_Clients(t),
 		DNS_Cache_Deadline: 3 * time.Minute,
-		Timesync_Clients:   testdata.Timesync_Clients(t),
+		Timesync_Clients:   testdata.Timesync(t),
 		Timesync_Interval:  15 * time.Minute,
 
 		CTRL_ED25519: testdata.CTRL_ED25519.PublicKey(),

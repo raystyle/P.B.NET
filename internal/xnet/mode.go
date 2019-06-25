@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-type Mode string
+type Mode = string
 
 const (
 	TLS   Mode = "tls"

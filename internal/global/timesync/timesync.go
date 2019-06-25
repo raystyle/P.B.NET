@@ -18,7 +18,7 @@ import (
 	"project/internal/random"
 )
 
-type Mode string
+type Mode = string
 
 const (
 	HTTP Mode = "http" // get response header: Date
