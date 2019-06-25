@@ -8,5 +8,7 @@
 # Test binary, build with `go test -c`
 *.test
 
+
+
+# Goland
 .idea
-*.log
