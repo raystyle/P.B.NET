@@ -67,21 +67,38 @@ func Test_DB_Proxy_Client(t *testing.T) {
 	require.Nil(t, err, err)
 }
 
-func Test_Insert_Global(t *testing.T) {
+func Test_DB_DNS_Client(t *testing.T) {
 	db := test_connect_database(t)
-	// proxy clients
-	proxy_clients := testdata.Proxy_Clients(t)
-	for tag, c := range proxy_clients {
-		err := db.Insert_Proxy_Client(tag, c.Mode, c.Config)
-		require.Nil(t, err, err)
-	}
-	// dns clients
+	defer db.Close()
+	// clean table
+	err := db.db.Unscoped().Delete(&m_dns_client{}).Error
+	require.Nil(t, err, err)
+	// insert
 	dns_clients := testdata.DNS_Clients(t)
 	for tag, c := range dns_clients {
 		err := db.Insert_DNS_Client(tag, c.Method, c.Address)
 		require.Nil(t, err, err)
 	}
-	// timesync
+	// select
+	clients, err := db.Select_DNS_Client()
+	require.Nil(t, err, err)
+	t.Log("select dns client:", spew.Sdump(clients))
+	// update
+	clients[0].Method = "changed"
+	err = db.Update_DNS_Client(clients[0])
+	require.Nil(t, err, err)
+	// soft delete
+	err = db.Delete_DNS_Client(clients[0].ID)
+	require.Nil(t, err, err)
+}
+
+func Test_DB_Timesync(t *testing.T) {
+	db := test_connect_database(t)
+	defer db.Close()
+	// clean table
+	err := db.db.Unscoped().Delete(&m_timesync{}).Error
+	require.Nil(t, err, err)
+	// insert
 	timesync := testdata.Timesync_Full(t)
 	for tag, c := range timesync {
 		config, err := toml.Marshal(c)
@@ -89,7 +106,19 @@ func Test_Insert_Global(t *testing.T) {
 		err = db.Insert_Timesync(tag, c.Mode, string(config))
 		require.Nil(t, err, err)
 	}
+	// select
+	clients, err := db.Select_Timesync()
+	require.Nil(t, err, err)
+	t.Log("select timesync:", spew.Sdump(clients))
+	// update
+	clients[0].Mode = "changed"
+	err = db.Update_Timesync(clients[0])
+	require.Nil(t, err, err)
+	// soft delete
+	err = db.Delete_Timesync(clients[0].ID)
+	require.Nil(t, err, err)
 }
+
 
 func Test_Insert_Bootstrap(t *testing.T) {
 	db := test_connect_database(t)

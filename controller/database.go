@@ -47,7 +47,7 @@ func (this *database) Connect() error {
 		return errors.Wrap(err, "create gorm logger failed")
 	}
 	db.SetLogger(gorm_l)
-	db.LogMode(true)
+	db.LogMode(false)
 	// connection
 	db.DB().SetMaxOpenConns(config.DB_Max_Open_Conns)
 	db.DB().SetMaxIdleConns(config.DB_Max_Idle_Conn)
@@ -111,6 +111,21 @@ func (this *database) Insert_DNS_Client(tag, method, address string) error {
 	return this.db.Create(m).Error
 }
 
+func (this *database) Select_DNS_Client() ([]*m_dns_client, error) {
+	var clients []*m_dns_client
+	return clients, this.db.Find(&clients).Error
+}
+
+func (this *database) Update_DNS_Client(m *m_dns_client) error {
+	return this.db.Save(m).Error
+}
+
+func (this *database) Delete_DNS_Client(id uint64) error {
+	return this.db.Delete(&m_dns_client{ID: id}).Error
+}
+
+// ---------------------------------timesync----------------------------------------
+
 func (this *database) Insert_Timesync(tag, mode, config string) error {
 	m := &m_timesync{
 		Tag:    tag,
@@ -119,6 +134,21 @@ func (this *database) Insert_Timesync(tag, mode, config string) error {
 	}
 	return this.db.Create(m).Error
 }
+
+func (this *database) Select_Timesync() ([]*m_timesync, error) {
+	var clients []*m_timesync
+	return clients, this.db.Find(&clients).Error
+}
+
+func (this *database) Update_Timesync(m *m_timesync) error {
+	return this.db.Save(m).Error
+}
+
+func (this *database) Delete_Timesync(id uint64) error {
+	return this.db.Delete(&m_timesync{ID: id}).Error
+}
+
+// ---------------------------------bootstrap----------------------------------------
 
 // interval = second
 func (this *database) Insert_Bootstrap(tag, mode, config string,
