@@ -2,7 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -18,27 +17,54 @@ var (
 	test_guid = bytes.Repeat([]byte{0}, guid.SIZE)
 )
 
-func Test_Init_DB(t *testing.T) {
+func Test_DB_init(t *testing.T) {
 	db := test_connect_database(t)
-	err := db.init_db()
+	defer db.Close()
+	err := db.init()
 	require.Nil(t, err, err)
 }
 
 func Test_DB_Ctrl_Log(t *testing.T) {
 	db := test_connect_database(t)
+	defer db.Close()
+	// insert
 	err := db.Insert_Ctrl_Log(logger.DEBUG, "test src", "test log")
 	require.Nil(t, err, err)
-	dbh := db.Select_Ctrl_Log().Find(&m_controller_log{})
-	err = dbh.Error
+	err = db.Insert_Ctrl_Log(logger.DEBUG, "test src", "test log")
 	require.Nil(t, err, err)
+	// select
 	var logs []*m_controller_log
-	dbh.Scan(&logs)
-	fmt.Println(len(logs))
-
+	err = db.db.Find(&logs).Error
+	require.Nil(t, err, err)
 	t.Log("select controller log:", spew.Sdump(logs))
+	// soft delete
 	err = db.Delete_Ctrl_Log()
 	require.Nil(t, err, err)
+}
 
+func Test_DB_Proxy_Client(t *testing.T) {
+	db := test_connect_database(t)
+	defer db.Close()
+	// clean table
+	err := db.db.Unscoped().Delete(&m_proxy_client{}).Error
+	require.Nil(t, err, err)
+	// insert
+	proxy_clients := testdata.Proxy_Clients(t)
+	for tag, c := range proxy_clients {
+		err := db.Insert_Proxy_Client(tag, c.Mode, c.Config)
+		require.Nil(t, err, err)
+	}
+	// select
+	clients, err := db.Select_Proxy_Client()
+	require.Nil(t, err, err)
+	t.Log("select proxy client:", spew.Sdump(clients))
+	// update
+	clients[0].Mode = "changed"
+	err = db.Update_Proxy_Client(clients[0])
+	require.Nil(t, err, err)
+	// soft delete
+	err = db.Delete_Proxy_Client(clients[0].ID)
+	require.Nil(t, err, err)
 }
 
 func Test_Insert_Global(t *testing.T) {

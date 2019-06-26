@@ -47,7 +47,7 @@ func (this *database) Connect() error {
 		return errors.Wrap(err, "create gorm logger failed")
 	}
 	db.SetLogger(gorm_l)
-	db.LogMode(false)
+	db.LogMode(true)
 	// connection
 	db.DB().SetMaxOpenConns(config.DB_Max_Open_Conns)
 	db.DB().SetMaxIdleConns(config.DB_Max_Idle_Conn)
@@ -57,11 +57,11 @@ func (this *database) Connect() error {
 	return nil
 }
 
-// -------------------------------controller log--------------------------------------
-
-func (this *database) Select_Ctrl_Log(args ...interface{}) *gorm.DB {
-	return this.db.Model(&m_controller_log{})
+func (this *database) Close() {
+	_ = this.db.Close()
 }
+
+// -------------------------------controller log--------------------------------------
 
 func (this *database) Insert_Ctrl_Log(level uint8, src, log string) error {
 	m := &m_controller_log{
@@ -78,24 +78,6 @@ func (this *database) Delete_Ctrl_Log(where ...interface{}) error {
 
 // -------------------------------proxy client----------------------------------------
 
-func (this *database) Select_Proxy_Client(tag, mode, config string) error {
-	m := &m_proxy_client{
-		Tag:    tag,
-		Mode:   mode,
-		Config: config,
-	}
-	return this.db.Create(m).Error
-}
-
-func (this *database) Update_Proxy_Client(tag, mode, config string) error {
-	m := &m_proxy_client{
-		Tag:    tag,
-		Mode:   mode,
-		Config: config,
-	}
-	return this.db.Create(m).Error
-}
-
 func (this *database) Insert_Proxy_Client(tag, mode, config string) error {
 	m := &m_proxy_client{
 		Tag:    tag,
@@ -105,13 +87,17 @@ func (this *database) Insert_Proxy_Client(tag, mode, config string) error {
 	return this.db.Create(m).Error
 }
 
-func (this *database) Delete_Proxy_Client(tag, mode, config string) error {
-	m := &m_proxy_client{
-		Tag:    tag,
-		Mode:   mode,
-		Config: config,
-	}
-	return this.db.Create(m).Error
+func (this *database) Select_Proxy_Client() ([]*m_proxy_client, error) {
+	var clients []*m_proxy_client
+	return clients, this.db.Find(&clients).Error
+}
+
+func (this *database) Update_Proxy_Client(m *m_proxy_client) error {
+	return this.db.Save(m).Error
+}
+
+func (this *database) Delete_Proxy_Client(id uint64) error {
+	return this.db.Delete(&m_proxy_client{ID: id}).Error
 }
 
 // -------------------------------dns client----------------------------------------
@@ -177,7 +163,7 @@ func (this *database) Insert_Beacon_Log(guid []byte, level uint8, src, log strin
 }
 
 // first use this project
-func (this *database) init_db() error {
+func (this *database) init() error {
 	db := this.db
 	tables := []*struct {
 		name  string
