@@ -7,8 +7,10 @@ import (
 	"project/internal/guid"
 )
 
+type Version = uint32
+
 const (
-	V1_0_0 uint32 = 1
+	V1_0_0 Version = 1
 )
 
 type Role = uint8
