@@ -276,9 +276,9 @@ func (this *conn) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (this *conn) Info() *xnet.Conn_Info {
+func (this *conn) Info() *xnet.Info {
 	this.rwm.RLock()
-	i := &xnet.Conn_Info{
+	i := &xnet.Info{
 		Send:    this.send,
 		Receive: this.receive,
 	}
@@ -359,7 +359,14 @@ func (this *server) handle_conn(raw net.Conn) {
 		_ = conn.Close()
 		_ = this.track_conn(tag, conn, false)
 	}()
-	// receive version uint32
+	// send support max version
+	_, err = conn.Write(convert.Uint32_Bytes(version))
+	if err != nil {
+		l := &hs_log{c: conn, l: "send supported version failed", e: err}
+		this.logln(logger.ERROR, l)
+		return
+	}
+	// receive client version
 	version := make([]byte, 4)
 	_, err = io.ReadFull(conn, version)
 	if err != nil {
@@ -373,8 +380,8 @@ func (this *server) handle_conn(raw net.Conn) {
 	case v == protocol.V1_0_0:
 		this.v1_identity(conn)
 	default:
-		l := &hs_log{c: conn, l: fmt.Sprint("invalid version", v)}
-		this.logln(logger.EXPLOIT, l)
+		l := &hs_log{c: conn, l: fmt.Sprint("unsupport version", v)}
+		this.logln(logger.ERROR, l)
 		return
 	}
 }

@@ -4,6 +4,11 @@ import (
 	"time"
 
 	"project/internal/logger"
+	"project/internal/protocol"
+)
+
+const (
+	version = protocol.V1_0_0
 )
 
 type NODE struct {
