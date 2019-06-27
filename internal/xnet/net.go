@@ -1,7 +1,9 @@
 package xnet
 
 import (
+	"errors"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/pelletier/go-toml"
@@ -11,14 +13,67 @@ import (
 	"project/internal/xnet/xtls"
 )
 
-type Conn_Info struct {
-	Connect_Time   int64
-	Local_Network  string
-	Local_Address  string
-	Remote_Network string
-	Remote_Address string
-	Send           int
-	Receive        int
+type Mode = string
+
+const (
+	TLS   Mode = "tls"
+	LIGHT Mode = "light"
+)
+
+var (
+	ERR_EMPTY_PORT              = errors.New("empty port")
+	ERR_INVALID_PORT            = errors.New("invalid port")
+	ERR_EMPTY_MODE              = errors.New("empty mode")
+	ERR_EMPTY_NETWORK           = errors.New("empty network")
+	ERR_UNKNOWN_MODE            = errors.New("unknown mode")
+	ERR_MISMATCHED_MODE_NETWORK = errors.New("mismatched mode and network")
+)
+
+func Check_Port_str(port string) error {
+	if port == "" {
+		return ERR_EMPTY_PORT
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil {
+		return err
+	}
+	if n < 1 || n > 65535 {
+		return ERR_INVALID_PORT
+	}
+	return nil
+}
+
+func Check_Port_int(port int) error {
+	if port < 1 || port > 65535 {
+		return ERR_INVALID_PORT
+	}
+	return nil
+}
+
+func Check_Mode_Network(mode Mode, network string) error {
+	if mode == "" {
+		return ERR_EMPTY_MODE
+	}
+	if network == "" {
+		return ERR_EMPTY_NETWORK
+	}
+	switch mode {
+	case TLS:
+		switch network {
+		case "tcp", "tcp4", "tcp6":
+		default:
+			return ERR_MISMATCHED_MODE_NETWORK
+		}
+	case LIGHT:
+		switch network {
+		case "tcp", "tcp4", "tcp6":
+		default:
+			return ERR_MISMATCHED_MODE_NETWORK
+		}
+	default:
+		return ERR_UNKNOWN_MODE
+	}
+	return nil
 }
 
 func Listen(m Mode, config []byte) (net.Listener, error) {
