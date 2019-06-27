@@ -12,10 +12,11 @@ type Config struct {
 	Timesync_Interval  time.Duration
 
 	// database
-	Dialect           string // "mysql" dialect
-	DSN               string // config
-	DB_Log            string
-	GORM_Log          string
+	Dialect           string // "mysql"
+	DSN               string
+	DB_Log_Path       string
 	DB_Max_Open_Conns int
 	DB_Max_Idle_Conn  int
+	GORM_Log_Path     string
+	GORM_Detailed_Log bool
 }
