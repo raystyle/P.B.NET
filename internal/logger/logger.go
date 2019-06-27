@@ -73,8 +73,6 @@ func Prefix(l Level, src string) *bytes.Buffer {
 		lv = "EXPLOIT"
 	case FATAL:
 		lv = "FATAL"
-	default:
-		return nil
 	}
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("[")
@@ -112,27 +110,18 @@ type test struct{}
 
 func (this *test) Printf(l Level, src string, format string, log ...interface{}) {
 	buffer := Prefix(l, src)
-	if buffer == nil {
-		return
-	}
 	buffer.WriteString(fmt.Sprintf(format, log...))
 	fmt.Println(buffer.String())
 }
 
 func (this *test) Print(l Level, src string, log ...interface{}) {
 	buffer := Prefix(l, src)
-	if buffer == nil {
-		return
-	}
 	buffer.WriteString(fmt.Sprint(log...))
 	fmt.Println(buffer.String())
 }
 
 func (this *test) Println(l Level, src string, log ...interface{}) {
 	buffer := Prefix(l, src)
-	if buffer == nil {
-		return
-	}
 	buffer.WriteString(fmt.Sprintln(log...))
 	fmt.Print(buffer.String())
 }
