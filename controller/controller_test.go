@@ -22,7 +22,7 @@ func test_gen_config() *Config {
 		Timesync_Interval:  15 * time.Minute,
 		// database
 		Dialect:  "mysql",
-		DSN:      "root:asf15asfujks1d@tcp(127.0.0.1:3306)/p.b.net?loc=Local&parseTime=true",
+		DSN:      "root:asH*dg122@tcp(127.0.0.1:3306)/p.b.net_test?loc=Local&parseTime=true",
 		DB_Log:   "../app/log/database.log",
 		GORM_Log: "../app/log/gorm.log",
 	}

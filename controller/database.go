@@ -172,26 +172,6 @@ func (this *database) Insert_Listener(tag, mode, config string) error {
 	return this.db.Create(m).Error
 }
 
-func (this *database) Insert_Node_Log(guid []byte, level uint8, src, log string) error {
-	m := &m_role_log{
-		GUID:   guid,
-		Level:  level,
-		Source: src,
-		Log:    log,
-	}
-	return this.db.Table(t_node_log).Create(m).Error
-}
-
-func (this *database) Insert_Beacon_Log(guid []byte, level uint8, src, log string) error {
-	m := &m_role_log{
-		GUID:   guid,
-		Level:  level,
-		Source: src,
-		Log:    log,
-	}
-	return this.db.Table(t_beacon_log).Create(m).Error
-}
-
 // first use this project
 func (this *database) init() error {
 	db := this.db

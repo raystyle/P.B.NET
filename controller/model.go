@@ -67,12 +67,13 @@ type m_listener struct {
 	Model
 }
 
-// internal/guid/guid.go  guid.Size = 52
+// internal/guid/guid.go  guid.Size
 // beacon & node log
+// size:104 = hex(guid) = guid.Size * 2
 type m_role_log struct {
 	ID        uint64 `gorm:"primary_key"`
 	CreatedAt time.Time
-	GUID      []byte     `gorm:"type:binary(52);not null"`
+	GUID      string     `gorm:"size:104;not null"`
 	Level     uint8      `gorm:"not null" sql:"index"`
 	Source    string     `gorm:"size:32;not null"`
 	Log       string     `gorm:"size:16000;not null"`
