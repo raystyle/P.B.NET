@@ -1,41 +1,46 @@
 package controller
 
-type CONTROLLER struct {
-	config   *Config
-	database *database
-	logger   *ctrl_logger
-	global   *global
+import (
+	"github.com/jinzhu/gorm"
+
+	"project/internal/logger"
+)
+
+type CTRL struct {
+	db        *gorm.DB
+	log_level logger.Level
+	global    *global
 }
 
-func New(c *Config) (*CONTROLLER, error) {
-	ctrl := &CONTROLLER{config: c}
-	db, err := new_database(ctrl)
+func New(c *Config) (*CTRL, error) {
+	db, err := connect_database(c)
 	if err != nil {
 		return nil, err
 	}
-	ctrl.database = db
+	// init logger
+	l, err := logger.Parse(c.Log_Level)
+	if err != nil {
+		return nil, err
+	}
+	ctrl := &CTRL{
+		db:        db,
+		log_level: l,
+	}
+	// init global
+	g, err := new_global(ctrl, c)
+	if err != nil {
+		return nil, err
+	}
+	ctrl.global = g
 	return ctrl, nil
 }
 
-func (this *CONTROLLER) Main() error {
-	err := this.database.Connect()
-	if err != nil {
-		return err
-	}
-	l, err := new_ctrl_logger(this)
-	if err != nil {
-		return err
-	}
-	this.logger = l
-	g, err := new_global(this)
-	if err != nil {
-		return err
-	}
-	this.global = g
+func (this *CTRL) Main() error {
+
 	return nil
 }
 
-func (this *CONTROLLER) Exit() error {
-
+func (this *CTRL) Exit() error {
+	_ = this.db.Close()
 	return nil
 }

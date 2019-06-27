@@ -6,6 +6,7 @@ import (
 
 // different table has the same model
 const (
+	t_ctrl_log   = "controller_log"
 	t_node_log   = "node_log"
 	t_beacon_log = "beacon_log"
 )
@@ -16,11 +17,11 @@ type Model struct {
 	DeletedAt *time.Time `sql:"index"`
 }
 
-type m_controller_log struct {
+type m_ctrl_log struct {
 	ID        uint64 `gorm:"primary_key"`
 	CreatedAt time.Time
 	Level     uint8      `gorm:"not null" sql:"index"`
-	Source    string     `gorm:"size:32;not null"`
+	Source    string     `gorm:"size:32;not null" sql:"index"`
 	Log       string     `gorm:"size:16000;not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
@@ -75,7 +76,7 @@ type m_role_log struct {
 	CreatedAt time.Time
 	GUID      string     `gorm:"size:104;not null"`
 	Level     uint8      `gorm:"not null" sql:"index"`
-	Source    string     `gorm:"size:32;not null"`
+	Source    string     `gorm:"size:32;not null" sql:"index"`
 	Log       string     `gorm:"size:16000;not null"`
 	DeletedAt *time.Time `sql:"index"`
 }

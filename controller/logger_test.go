@@ -3,15 +3,12 @@ package controller
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"project/internal/logger"
 )
 
-func Test_CTRL_Logger(t *testing.T) {
-	CTRL, err := New(test_gen_config())
-	require.Nil(t, err, err)
-	CTRL.Printf(logger.DEBUG, "test src", "test format %s", "test log")
-	CTRL.Print(logger.DEBUG, "test src", "test print", "test log")
-	CTRL.Println(logger.DEBUG, "test src", "test println", "test log")
+func Test_ctrl_logger(t *testing.T) {
+	ctrl := test_gen_ctrl(t)
+	ctrl.Printf(logger.DEBUG, "test src", "test format %s", "test log")
+	ctrl.Print(logger.DEBUG, "test src", "test print", "test log")
+	ctrl.Println(logger.DEBUG, "test src", "test println", "test log")
 }
