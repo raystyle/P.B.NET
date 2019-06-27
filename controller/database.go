@@ -112,7 +112,100 @@ func init_database(db *gorm.DB) error {
 	return nil
 }
 
+// -------------------------------proxy client----------------------------------------
+
+func (this *CTRL) Insert_Proxy_Client(tag, mode, config string) error {
+	m := &m_proxy_client{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Create(m).Error
+}
+
 func (this *CTRL) Select_Proxy_Client() ([]*m_proxy_client, error) {
 	var clients []*m_proxy_client
 	return clients, this.db.Find(&clients).Error
+}
+
+func (this *CTRL) Update_Proxy_Client(m *m_proxy_client) error {
+	return this.db.Save(m).Error
+}
+
+func (this *CTRL) Delete_Proxy_Client(id uint64) error {
+	return this.db.Delete(&m_proxy_client{ID: id}).Error
+}
+
+// -------------------------------dns client----------------------------------------
+
+func (this *CTRL) Insert_DNS_Client(tag, method, address string) error {
+	m := &m_dns_client{
+		Tag:     tag,
+		Method:  method,
+		Address: address,
+	}
+	return this.db.Create(m).Error
+}
+
+func (this *CTRL) Select_DNS_Client() ([]*m_dns_client, error) {
+	var clients []*m_dns_client
+	return clients, this.db.Find(&clients).Error
+}
+
+func (this *CTRL) Update_DNS_Client(m *m_dns_client) error {
+	return this.db.Save(m).Error
+}
+
+func (this *CTRL) Delete_DNS_Client(id uint64) error {
+	return this.db.Delete(&m_dns_client{ID: id}).Error
+}
+
+// ---------------------------------timesync----------------------------------------
+
+func (this *CTRL) Insert_Timesync(tag, mode, config string) error {
+	m := &m_timesync{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Create(m).Error
+}
+
+func (this *CTRL) Select_Timesync() ([]*m_timesync, error) {
+	var clients []*m_timesync
+	return clients, this.db.Find(&clients).Error
+}
+
+func (this *CTRL) Update_Timesync(m *m_timesync) error {
+	return this.db.Save(m).Error
+}
+
+func (this *CTRL) Delete_Timesync(id uint64) error {
+	return this.db.Delete(&m_timesync{ID: id}).Error
+}
+
+// ---------------------------------bootstrap----------------------------------------
+
+// interval = second
+func (this *CTRL) Insert_Bootstrap(tag, mode, config string,
+	interval uint32, enable bool) error {
+	m := &m_bootstrap{
+		Tag:      tag,
+		Mode:     mode,
+		Config:   config,
+		Interval: interval,
+		Enable:   enable,
+	}
+	return this.db.Create(m).Error
+}
+
+// ----------------------------------listener----------------------------------------
+
+func (this *CTRL) Insert_Listener(tag, mode, config string) error {
+	m := &m_listener{
+		Tag:    tag,
+		Mode:   mode,
+		Config: config,
+	}
+	return this.db.Create(m).Error
 }
