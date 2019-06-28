@@ -26,7 +26,7 @@ func Test_init_database(t *testing.T) {
 
 func Test_Insert_Proxy_Client(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_proxy_client{}).Error
 	require.Nil(t, err, err)
@@ -40,7 +40,7 @@ func Test_Insert_Proxy_Client(t *testing.T) {
 
 func Test_Select_Proxy_Client(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_Proxy_Client()
 	require.Nil(t, err, err)
 	t.Log("select proxy client:", spew.Sdump(clients))
@@ -48,7 +48,7 @@ func Test_Select_Proxy_Client(t *testing.T) {
 
 func Test_Update_Proxy_Client(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_Proxy_Client()
 	require.Nil(t, err, err)
 	raw := clients[0].Mode
@@ -62,7 +62,7 @@ func Test_Update_Proxy_Client(t *testing.T) {
 
 func Test_Delete_Proxy_Client(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_Proxy_Client()
 	require.Nil(t, err, err)
 	err = ctrl.Delete_Proxy_Client(clients[0].ID)
@@ -72,7 +72,7 @@ func Test_Delete_Proxy_Client(t *testing.T) {
 
 func Test_Insert_DNS_Client(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_dns_client{}).Error
 	require.Nil(t, err, err)
@@ -86,7 +86,7 @@ func Test_Insert_DNS_Client(t *testing.T) {
 
 func Test_Select_DNS_Client(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_DNS_Client()
 	require.Nil(t, err, err)
 	t.Log("select dns client:", spew.Sdump(clients))
@@ -94,7 +94,7 @@ func Test_Select_DNS_Client(t *testing.T) {
 
 func Test_Update_DNS_Client(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_DNS_Client()
 	require.Nil(t, err, err)
 	raw := clients[0].Method
@@ -108,7 +108,7 @@ func Test_Update_DNS_Client(t *testing.T) {
 
 func Test_Delete_DNS_Client(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_DNS_Client()
 	require.Nil(t, err, err)
 	err = ctrl.Delete_DNS_Client(clients[0].ID)
@@ -118,7 +118,7 @@ func Test_Delete_DNS_Client(t *testing.T) {
 
 func Test_Insert_Timesync(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_timesync{}).Error
 	require.Nil(t, err, err)
@@ -134,7 +134,7 @@ func Test_Insert_Timesync(t *testing.T) {
 
 func Test_Select_Timesync(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_Timesync()
 	require.Nil(t, err, err)
 	t.Log("select timesync:", spew.Sdump(clients))
@@ -142,7 +142,7 @@ func Test_Select_Timesync(t *testing.T) {
 
 func Test_Update_Timesync(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_Timesync()
 	require.Nil(t, err, err)
 	raw := clients[0].Mode
@@ -156,7 +156,7 @@ func Test_Update_Timesync(t *testing.T) {
 
 func Test_Delete_Timesync(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	clients, err := ctrl.Select_Timesync()
 	require.Nil(t, err, err)
 	err = ctrl.Delete_Timesync(clients[0].ID)
@@ -166,7 +166,7 @@ func Test_Delete_Timesync(t *testing.T) {
 
 func Test_Insert_Bootstrap(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	b := testdata.Register(t)
 	for i := 0; i < len(b); i++ {
 		c := string(b[i].Config)
@@ -178,7 +178,7 @@ func Test_Insert_Bootstrap(t *testing.T) {
 
 func Test_Insert_Listener(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
-	defer func() { _ = ctrl.Exit() }()
+	defer ctrl.Exit()
 	l := testdata.Listeners(t)
 	for i := 0; i < len(l); i++ {
 		c := string(l[i].Config)

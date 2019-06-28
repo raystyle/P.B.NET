@@ -112,6 +112,10 @@ func init_database(db *gorm.DB) error {
 	return nil
 }
 
+func (this *CTRL) Init_Database() error {
+	return init_database(this.db)
+}
+
 // -------------------------------proxy client----------------------------------------
 
 func (this *CTRL) Insert_Proxy_Client(tag, mode, config string) error {

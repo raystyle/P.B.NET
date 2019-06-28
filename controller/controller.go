@@ -47,5 +47,6 @@ func (this *CTRL) Main() error {
 }
 
 func (this *CTRL) Exit() {
+	this.Print(logger.INFO, src_init, "controller is stopped.")
 	_ = this.db.Close()
 }

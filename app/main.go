@@ -9,6 +9,7 @@ import (
 
 	"github.com/kardianos/service"
 	"github.com/pelletier/go-toml"
+	"github.com/pkg/errors"
 
 	"project/controller"
 )
@@ -32,37 +33,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	flag.BoolVar(&debug, "debug", false, "not changed path")
-	flag.BoolVar(&install, "install", false, "install service")
-	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
-	flag.StringVar(&genkey, "genkey", "", "generate keys and encrypt it")
-	flag.BoolVar(&initdb, "initdb", false, "initialize database")
-	flag.Parse()
-	if install {
-		err = s.Install()
-		if err != nil {
-			log.Fatal("install service failed: ", err)
-		}
-		log.Print("install service successfully.")
-		return
-	}
-	if uninstall {
-		err = s.Uninstall()
-		if err != nil {
-			log.Fatal("uninstall service failed: ", err)
-		}
-		log.Print("uninstall service successfully.")
-		return
-	}
-	// generate controller keys
-	if genkey != "" {
-		err = controller.Gen_CTRL_Keys(genkey)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Print("generate controller keys successfully.")
-		return
-	}
 	logger, err := s.Logger(nil)
 	if err != nil {
 		log.Fatal(err)
@@ -78,6 +48,39 @@ type program struct {
 }
 
 func (this *program) Start(s service.Service) error {
+	flag.BoolVar(&debug, "debug", false, "not changed path")
+	flag.BoolVar(&install, "install", false, "install service")
+	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
+	flag.StringVar(&genkey, "genkey", "", "generate keys and encrypt it")
+	flag.BoolVar(&initdb, "initdb", false, "initialize database")
+	flag.Parse()
+	// install service
+	if install {
+		err := s.Install()
+		if err != nil {
+			return errors.Wrap(err, "install service failed")
+		}
+		log.Print("install service successfully")
+		os.Exit(0)
+	}
+	// uninstall service
+	if uninstall {
+		err := s.Uninstall()
+		if err != nil {
+			return errors.Wrap(err, "uninstall service failed")
+		}
+		log.Print("uninstall service successfully")
+		os.Exit(0)
+	}
+	// generate controller keys
+	if genkey != "" {
+		err := controller.Gen_CTRL_Keys(genkey)
+		if err != nil {
+			return errors.Wrap(err, "generate keys failed")
+		}
+		log.Print("generate controller keys successfully")
+		os.Exit(0)
+	}
 	// changed path
 	if !debug {
 		path, err := os.Executable()
@@ -103,6 +106,15 @@ func (this *program) Start(s service.Service) error {
 	ctrl, err := controller.New(config)
 	if err != nil {
 		return err
+	}
+	// init database
+	if initdb {
+		err = ctrl.Init_Database()
+		if err != nil {
+			return errors.Wrap(err, "init database failed")
+		}
+		log.Print("init database successfully")
+		os.Exit(0)
 	}
 	err = ctrl.Main()
 	if err != nil {
