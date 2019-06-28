@@ -55,8 +55,11 @@ func Test_Listen_And_Dial_TLS(t *testing.T) {
 		Address: ":0",
 	}
 	// add cert
-	certificate, key, err := cert.Generate(nil, nil,
-		[]string{"localhost"}, []string{"127.0.0.1", "::1"})
+	cert_config := &cert.Config{
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []string{"127.0.0.1", "::1"},
+	}
+	certificate, key, err := cert.Generate(nil, nil, cert_config)
 	require.Nil(t, err, err)
 	kp := options.TLS_KeyPair{Cert: string(certificate), Key: string(key)}
 	c.TLS_Config.Certificates = append(c.TLS_Config.Certificates, kp)

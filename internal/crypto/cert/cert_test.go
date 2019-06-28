@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -53,14 +54,19 @@ func Test_Generate(t *testing.T) {
 	tls_config := &tls.Config{RootCAs: x509.NewCertPool()}
 	tls_config.RootCAs.AddCert(parent)
 	client := http.Client{Transport: &http.Transport{TLSClientConfig: tls_config}}
-	resp, err := client.Get("https://localhost:" + port + "/")
-	require.Nil(t, err, err)
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-	b, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err, err)
-	t.Log(string(b))
+	get := func(hostname string) {
+		resp, err := client.Get(fmt.Sprintf("https://%s:%s/", hostname, port))
+		require.Nil(t, err, err)
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+		b, err := ioutil.ReadAll(resp.Body)
+		require.Nil(t, err, err)
+		t.Log(string(b))
+	}
+	get("localhost")
+	get("127.0.0.1")
+	get("[::1]")
 }
 
 func Test_Generate_Self(t *testing.T) {
@@ -86,14 +92,19 @@ func Test_Generate_Self(t *testing.T) {
 	tls_config := &tls.Config{RootCAs: x509.NewCertPool()}
 	tls_config.RootCAs.AddCert(cer)
 	client = http.Client{Transport: &http.Transport{TLSClientConfig: tls_config}}
-	resp, err := client.Get("https://localhost:" + port + "/")
-	require.Nil(t, err, err)
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-	b, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err, err)
-	t.Log(string(b))
+	get := func(hostname string) {
+		resp, err := client.Get(fmt.Sprintf("https://%s:%s/", hostname, port))
+		require.Nil(t, err, err)
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+		b, err := ioutil.ReadAll(resp.Body)
+		require.Nil(t, err, err)
+		t.Log(string(b))
+	}
+	get("localhost")
+	get("127.0.0.1")
+	get("[::1]")
 }
 
 func Test_Invalid(t *testing.T) {

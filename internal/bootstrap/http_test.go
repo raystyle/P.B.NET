@@ -48,8 +48,11 @@ func Test_HTTP(t *testing.T) {
 	require.Nil(t, err, err)
 	t.Log("(https) bootstrap nodes info:", info)
 	// init mock https server
-	c, k, err := cert.Generate(nil, nil,
-		[]string{"localhost"}, []string{"127.0.0.1", "::1"})
+	cert_config := &cert.Config{
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []string{"127.0.0.1", "::1"},
+	}
+	c, k, err := cert.Generate(nil, nil, cert_config)
 	require.Nil(t, err, err)
 	tls_cert, err := tls.X509KeyPair(c, k)
 	require.Nil(t, err, err)
