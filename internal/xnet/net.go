@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/pelletier/go-toml"
-
 	"project/internal/options"
 	"project/internal/xnet/light"
 	"project/internal/xnet/xtls"
@@ -28,6 +26,13 @@ var (
 	ERR_UNKNOWN_MODE            = errors.New("unknown mode")
 	ERR_MISMATCHED_MODE_NETWORK = errors.New("mismatched mode and network")
 )
+
+type Config struct {
+	Network    string             `toml:"network"`
+	Address    string             `toml:"address"`
+	Timeout    time.Duration      `toml:"timeout"`
+	TLS_Config options.TLS_Config `toml:"tls_config"`
+}
 
 func Check_Port_str(port string) error {
 	if port == "" {
@@ -76,43 +81,47 @@ func Check_Mode_Network(mode Mode, network string) error {
 	return nil
 }
 
-func Listen(m Mode, config []byte) (net.Listener, error) {
+func Listen(m Mode, c *Config) (net.Listener, error) {
 	switch m {
 	case TLS:
-		conf := &struct {
-			Network    string             `toml:"network"`
-			Address    string             `toml:"address"`
-			Timeout    time.Duration      `toml:"timeout"`
-			TLS_Config options.TLS_Config `toml:"tls_config"`
-		}{}
-		err := toml.Unmarshal(config, conf)
+		err := Check_Mode_Network(TLS, c.Network)
 		if err != nil {
 			return nil, err
 		}
-		err = Check_Mode_Network(TLS, conf.Network)
+		tls_config, err := c.TLS_Config.Apply()
 		if err != nil {
 			return nil, err
 		}
-		tls_config, err := conf.TLS_Config.Apply()
-		if err != nil {
-			return nil, err
-		}
-		return xtls.Listen(conf.Network, conf.Address, tls_config, conf.Timeout)
+		return xtls.Listen(c.Network, c.Address, tls_config, c.Timeout)
 	case LIGHT:
-		conf := &struct {
-			Network string        `toml:"network"`
-			Address string        `toml:"address"`
-			Timeout time.Duration `toml:"timeout"`
-		}{}
-		err := toml.Unmarshal(config, conf)
+		err := Check_Mode_Network(TLS, c.Network)
 		if err != nil {
 			return nil, err
 		}
-		err = Check_Mode_Network(TLS, conf.Network)
+		return light.Listen(c.Network, c.Address, c.Timeout)
+	default:
+		return nil, ERR_UNKNOWN_MODE
+	}
+}
+
+func Dial(m Mode, c *Config) (net.Conn, error) {
+	switch m {
+	case TLS:
+		err := Check_Mode_Network(TLS, c.Network)
 		if err != nil {
 			return nil, err
 		}
-		return light.Listen(conf.Network, conf.Address, conf.Timeout)
+		tls_config, err := c.TLS_Config.Apply()
+		if err != nil {
+			return nil, err
+		}
+		return xtls.Dial(c.Network, c.Address, tls_config, c.Timeout)
+	case LIGHT:
+		err := Check_Mode_Network(TLS, c.Network)
+		if err != nil {
+			return nil, err
+		}
+		return light.Dial(c.Network, c.Address, c.Timeout)
 	default:
 		return nil, ERR_UNKNOWN_MODE
 	}
