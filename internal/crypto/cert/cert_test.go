@@ -17,7 +17,7 @@ import (
 )
 
 func Test_Generate_CA(t *testing.T) {
-	ca_cert, ca_key := Generate_CA()
+	ca_cert, ca_key := Generate_CA(&Config{})
 	_, err := Parse(ca_cert)
 	require.Nil(t, err, err)
 	_, err = rsa.Import_PrivateKey_PEM(ca_key)
@@ -33,14 +33,18 @@ func Test_Generate_CA(t *testing.T) {
 }
 
 func Test_Generate(t *testing.T) {
-	ca_cert, ca_key := Generate_CA()
+	ca_cert, ca_key := Generate_CA(new(Config))
 	parent, err := Parse(ca_cert)
 	require.Nil(t, err, err)
-	privatekey, err := rsa.Import_PrivateKey_PEM(ca_key)
+	ca_pri, err := rsa.Import_PrivateKey_PEM(ca_key)
 	require.Nil(t, err, err)
-	cert, key, err := Generate(parent, privatekey, []string{"localhost"}, []string{"127.0.0.1", "::1"})
+	c := &Config{
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []string{"127.0.0.1", "::1"},
+	}
+	cert, key, err := Generate(parent, ca_pri, c)
 	require.Nil(t, err, err)
-	wg := &sync.WaitGroup{}
+	wg := new(sync.WaitGroup)
 	port, stop_signal := mock_https_server(t, wg, cert, key)
 	defer func() {
 		stop_signal <- struct{}{}
@@ -60,7 +64,11 @@ func Test_Generate(t *testing.T) {
 }
 
 func Test_Generate_Self(t *testing.T) {
-	cert, key, err := Generate(nil, nil, []string{"localhost"}, []string{"127.0.0.1", "::1"})
+	c := &Config{
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []string{"127.0.0.1", "::1"},
+	}
+	cert, key, err := Generate(nil, nil, c)
 	require.Nil(t, err, err)
 	wg := &sync.WaitGroup{}
 	port, stop_signal := mock_https_server(t, wg, cert, key)
@@ -73,10 +81,10 @@ func Test_Generate_Self(t *testing.T) {
 	_, err = client.Get("https://localhost:" + port + "/")
 	require.NotNil(t, err)
 	// add trust
-	c, err := Parse(cert)
+	cer, err := Parse(cert)
 	require.Nil(t, err, err)
 	tls_config := &tls.Config{RootCAs: x509.NewCertPool()}
-	tls_config.RootCAs.AddCert(c)
+	tls_config.RootCAs.AddCert(cer)
 	client = http.Client{Transport: &http.Transport{TLSClientConfig: tls_config}}
 	resp, err := client.Get("https://localhost:" + port + "/")
 	require.Nil(t, err, err)
@@ -89,19 +97,19 @@ func Test_Generate_Self(t *testing.T) {
 }
 
 func Test_Invalid(t *testing.T) {
-	ca_cert, ca_key := Generate_CA()
+	ca_cert, ca_key := Generate_CA(new(Config))
 	parent, err := Parse(ca_cert)
 	require.Nil(t, err, err)
 	privatekey, err := rsa.Import_PrivateKey_PEM(ca_key)
 	require.Nil(t, err, err)
 	// invalid privatekey
 	privatekey.PublicKey.N.SetBytes(nil)
-	_, _, err = Generate(parent, privatekey, []string{"localhost"}, []string{"127.0.0.1"})
+	_, _, err = Generate(parent, privatekey, new(Config))
 	require.NotNil(t, err)
 }
 
 func mock_https_server(t *testing.T, wg *sync.WaitGroup, cert, key []byte) (string, chan struct{}) {
-	l, err := net.Listen("tcp", "localhost:0")
+	l, err := net.Listen("tcp", ":0")
 	require.Nil(t, err, err)
 	// tls and http2.0
 	certificate, err := tls.X509KeyPair(cert, key)

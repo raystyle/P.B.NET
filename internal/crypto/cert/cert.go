@@ -2,7 +2,6 @@ package cert
 
 import (
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
 	"math/big"
@@ -21,20 +20,69 @@ var (
 	NOW = time.Time{}.AddDate(2017, 10, 26)
 )
 
-// return ca pem and privatekey pem
-func Generate_CA() ([]byte, []byte) {
-	ca := &x509.Certificate{}
-	ca.SerialNumber = big.NewInt(random.Int64())
-	ca.Subject = pkix.Name{
-		CommonName:   random.String(6 + random.Int(8)),
-		Organization: []string{random.String(6 + random.Int(8))},
+type Config struct {
+	Subject struct {
+		CommonName         string
+		SerialNumber       string
+		Country            []string
+		Organization       []string
+		OrganizationalUnit []string
+		Locality           []string
+		Province           []string
+		StreetAddress      []string
+		PostalCode         []string
 	}
-	ca.NotBefore = NOW
-	ca.NotAfter = NOW.AddDate(1000+random.Int(100), random.Int(12), random.Int(31))
-	ca.SubjectKeyId = random.Bytes(4)
+	NotAfter    time.Time
+	DNSNames    []string
+	IPAddresses []string // IP SANS
+}
+
+func generate(c *Config) *x509.Certificate {
+	cert := &x509.Certificate{}
+	cert.SerialNumber = big.NewInt(random.Int64())
+	cert.SubjectKeyId = random.Bytes(4)
+	// Subject.CommonName
+	if c.Subject.CommonName == "" {
+		cert.Subject.CommonName = random.String(6 + random.Int(8))
+	} else {
+		cert.Subject.CommonName = c.Subject.CommonName
+	}
+	// Subject.Organization
+	if c.Subject.Organization == nil {
+		cert.Subject.Organization = []string{random.String(6 + random.Int(8))}
+	} else {
+		copy(cert.Subject.Organization, c.Subject.Organization)
+	}
+	cert.Subject.Country = make([]string, len(c.Subject.Country))
+	copy(cert.Subject.Country, c.Subject.Country)
+	cert.Subject.OrganizationalUnit = make([]string, len(c.Subject.OrganizationalUnit))
+	copy(cert.Subject.OrganizationalUnit, c.Subject.OrganizationalUnit)
+	cert.Subject.Locality = make([]string, len(c.Subject.Locality))
+	copy(cert.Subject.Locality, c.Subject.Locality)
+	cert.Subject.Province = make([]string, len(c.Subject.Province))
+	copy(cert.Subject.Province, c.Subject.Province)
+	cert.Subject.StreetAddress = make([]string, len(c.Subject.StreetAddress))
+	copy(cert.Subject.StreetAddress, c.Subject.StreetAddress)
+	cert.Subject.PostalCode = make([]string, len(c.Subject.PostalCode))
+	copy(cert.Subject.PostalCode, c.Subject.PostalCode)
+	cert.Subject.SerialNumber = c.Subject.SerialNumber
+	// time
+	cert.NotBefore = NOW
+	if c.NotAfter.Equal(time.Time{}) {
+		years := 10 + random.Int(100)
+		months := random.Int(12)
+		days := random.Int(31)
+		cert.NotAfter = NOW.AddDate(years, months, days)
+	}
+	return cert
+}
+
+// return certificate pem and privatekey pem
+func Generate_CA(c *Config) (cert []byte, pri []byte) {
+	ca := generate(c)
+	ca.KeyUsage = x509.KeyUsageCertSign
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
-	ca.KeyUsage = x509.KeyUsageCertSign
 	privatekey, _ := rsa.Generate_Key(2048)
 	cert_bytes, _ := x509.CreateCertificate(rand.Reader, ca, ca,
 		&privatekey.PublicKey, privatekey)
@@ -44,34 +92,25 @@ func Generate_CA() ([]byte, []byte) {
 	}
 	key_block := &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privatekey),
+		Bytes: rsa.Export_PrivateKey(privatekey),
 	}
 	return pem.EncodeToMemory(cert_block), pem.EncodeToMemory(key_block)
 }
 
-// return cert pem and privatekey pem
-// ip is IP SANS
-func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, dns, ip []string) ([]byte, []byte, error) {
-	// random cert
-	privatekey, _ := rsa.Generate_Key(2048)
-	cert := &x509.Certificate{}
-	cert.SerialNumber = big.NewInt(random.Int64())
-	cert.Subject = pkix.Name{
-		CommonName:   random.String(6 + random.Int(8)),
-		Organization: []string{random.String(6 + random.Int(8))},
-	}
-	cert.NotBefore = NOW
-	cert.NotAfter = NOW.AddDate(1000+random.Int(100), random.Int(12), random.Int(31))
-	cert.SubjectKeyId = random.Bytes(4)
-	cert.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+// return cert pem and privatekey pem , ip is IP SANS
+func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, c *Config) ([]byte, []byte, error) {
+	cert := generate(c)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
-	cert.DNSNames = dns
-	for i := 0; i < len(ip); i++ {
-		_ip := net.ParseIP(ip[i])
-		if _ip != nil {
-			cert.IPAddresses = append(cert.IPAddresses, _ip)
+	cert.DNSNames = make([]string, len(c.DNSNames))
+	copy(cert.DNSNames, c.DNSNames)
+	ips := c.IPAddresses
+	for i := 0; i < len(ips); i++ {
+		ip := net.ParseIP(ips[i])
+		if ip != nil {
+			cert.IPAddresses = append(cert.IPAddresses, ip)
 		}
 	}
+	privatekey, _ := rsa.Generate_Key(2048)
 	var (
 		cert_bytes []byte
 		err        error
@@ -92,7 +131,7 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, dns, ip []string) (
 	}
 	key_block := &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privatekey),
+		Bytes: rsa.Export_PrivateKey(privatekey),
 	}
 	return pem.EncodeToMemory(cert_block), pem.EncodeToMemory(key_block), nil
 }
