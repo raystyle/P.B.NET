@@ -33,9 +33,8 @@ func Test_Resolve(t *testing.T) {
 	t.Log("UDP IPv4 punycode:", ip_list)
 	// tcp
 	opt := &Options{
-		Method:  TCP,
-		Type:    IPV6,
-		Timeout: 15 * time.Second,
+		Method: TCP,
+		Type:   IPV6,
 	}
 	ip_list, err = Resolve(dns_address, domain, opt)
 	require.Nil(t, err, err)
@@ -48,7 +47,6 @@ func Test_Resolve(t *testing.T) {
 	t.Log("TLS IPv4:", ip_list)
 	// doh
 	opt.Method = DOH
-	opt.Timeout = time.Minute
 	ip_list, err = Resolve(dns_doh, domain, opt)
 	require.Nil(t, err, err)
 	t.Log("DOH IPv4:", ip_list)
@@ -118,7 +116,6 @@ func Test_resolve(t *testing.T) {
 func Test_dial_udp(t *testing.T) {
 	opt := &Options{
 		Network: "udp",
-		Timeout: time.Second * 1,
 		Dial:    net.Dial,
 	}
 	question := pack_question(1, domain)
@@ -137,7 +134,6 @@ func Test_dial_udp(t *testing.T) {
 func Test_dial_tcp(t *testing.T) {
 	opt := &Options{
 		Network: "tcp",
-		Timeout: time.Second * 2,
 		Dial:    net.Dial,
 	}
 	question := pack_question(1, domain)
@@ -154,7 +150,6 @@ func Test_dial_tcp(t *testing.T) {
 func Test_dial_tls(t *testing.T) {
 	opt := &Options{
 		Network: "tcp",
-		Timeout: time.Second * 2,
 		Dial:    net.Dial,
 	}
 	question := pack_question(1, domain)
@@ -187,9 +182,7 @@ func Test_dial_tls(t *testing.T) {
 }
 
 func Test_dial_https(t *testing.T) {
-	opt := &Options{
-		Timeout: time.Minute,
-	}
+	opt := &Options{}
 	question := pack_question(1, domain)
 	// get
 	b, err := dial_https(dns_doh, question, opt)
