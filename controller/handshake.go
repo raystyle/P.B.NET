@@ -71,14 +71,14 @@ func (this *client) handshake(conn net.Conn, skip_verify bool) (*xnet.Conn, erro
 // certificates = [2 byte uint16] size + signature with guid
 //                [2 byte uint16] size + signature without guid
 func (this *client) v1_verify(conn *xnet.Conn, skip_verify bool) error {
-	// receive certificate
-	cert, err := conn.Receive()
+	// receive certificates
+	certificates, err := conn.Receive()
 	if err != nil {
 		e := &hs_err{c: conn, s: "receive certificate failed", e: err}
 		return errors.WithStack(e)
 	}
 	if !skip_verify {
-		reader := bytes.NewReader(cert)
+		reader := bytes.NewReader(certificates)
 		cert_size := make([]byte, 2)
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {

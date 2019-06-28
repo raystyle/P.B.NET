@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	name    = "P.B.NET"
 	version = protocol.V1_0_0
 )
 
