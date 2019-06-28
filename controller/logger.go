@@ -7,6 +7,10 @@ import (
 	"project/internal/logger"
 )
 
+const (
+	src_client = "client"
+)
+
 type db_logger struct {
 	db   string // "mysql"
 	file *os.File

@@ -10,16 +10,20 @@ import (
 type client struct {
 	ctx  *CTRL
 	node *bootstrap.Node
+	guid []byte
 	conn *xnet.Conn
 }
 
-func new_client(ctx *CTRL, n *bootstrap.Node) *client {
+// guid = nil for discovery
+func new_client(ctx *CTRL, n *bootstrap.Node, guid []byte) *client {
 	return &client{
 		ctx:  ctx,
 		node: n,
+		guid: guid,
 	}
 }
 
+// skip_verify for trust genesis node and then sign it
 func (this *client) Connect(skip_verify bool) error {
 	c := &xnet.Config{
 		Network: this.node.Network,

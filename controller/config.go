@@ -29,6 +29,7 @@ const (
 	// external object
 	// verify controller role & message
 	ed25519_privatekey object_key = iota
+	ed25519_publickey
 	// encrypt controller broadcast message
 	aes_cryptor
 )

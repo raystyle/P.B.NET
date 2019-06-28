@@ -100,3 +100,11 @@ func (this *global) Sign(message []byte) []byte {
 	this.object_rwm.RUnlock()
 	return ed25519.Sign(p, message)
 }
+
+// verify node certificate
+func (this *global) Verify(message, signature []byte) bool {
+	this.object_rwm.RLock()
+	p := this.object[ed25519_publickey].(ed25519.PublicKey)
+	this.object_rwm.RUnlock()
+	return ed25519.Verify(p, message, signature)
+}
