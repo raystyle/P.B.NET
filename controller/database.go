@@ -37,7 +37,7 @@ func connect_database(c *Config) (*gorm.DB, error) {
 	}
 	// connection
 	db.DB().SetMaxOpenConns(c.DB_Max_Open_Conns)
-	db.DB().SetMaxIdleConns(c.DB_Max_Idle_Conn)
+	db.DB().SetMaxIdleConns(c.DB_Max_Idle_Conns)
 	// logger
 	gorm_l, err := new_gorm_logger(c.GORM_Log_Path)
 	if err != nil {

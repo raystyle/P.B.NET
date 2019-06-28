@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	src_init   = "init"
 	src_client = "client"
 )
 

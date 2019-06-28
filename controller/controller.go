@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	name    = "P.B.NET"
+	Name    = "P.B.NET"
 	version = protocol.V1_0_0
 )
 
@@ -42,11 +42,10 @@ func New(c *Config) (*CTRL, error) {
 }
 
 func (this *CTRL) Main() error {
-
+	this.Print(logger.INFO, src_init, "controller is running.")
 	return nil
 }
 
-func (this *CTRL) Exit() error {
+func (this *CTRL) Exit() {
 	_ = this.db.Close()
-	return nil
 }
