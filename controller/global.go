@@ -7,6 +7,7 @@ import (
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/ed25519"
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
@@ -90,4 +91,12 @@ func (this *global) Start_Timesync() error {
 
 func (this *global) Now() time.Time {
 	return this.timesync.Now().Local()
+}
+
+// controller and sign message
+func (this *global) Sign(message []byte) []byte {
+	this.object_rwm.RLock()
+	p := this.object[ed25519_privatekey].(ed25519.PrivateKey)
+	this.object_rwm.RUnlock()
+	return ed25519.Sign(p, message)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
+	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xnet"
 )
@@ -30,8 +31,10 @@ func (this *hs_err) Error() string {
 		b.WriteString(fmt.Sprintf("ver: %d ", conn.Info().Version))
 	}
 	b.WriteString(this.s)
-	b.WriteString(": ")
-	b.WriteString(this.e.Error())
+	if this.e != nil {
+		b.WriteString(": ")
+		b.WriteString(this.e.Error())
+	}
 	return b.String()
 }
 
@@ -62,7 +65,6 @@ func (this *client) handshake(conn net.Conn, skip_verify bool) (*xnet.Conn, erro
 	if err != nil {
 		return nil, err
 	}
-
 	return c, nil
 }
 
@@ -82,5 +84,36 @@ func (this *client) v1_verify(conn *xnet.Conn, skip_verify bool) error {
 		e := &hs_err{c: conn, s: "send role failed", e: err}
 		return errors.WithStack(e)
 	}
-
+	// receive challenge
+	challenge, err := conn.Receive()
+	if err != nil {
+		e := &hs_err{c: conn, s: "receive challenge data failed", e: err}
+		return errors.WithStack(e)
+	}
+	// <danger>
+	// receive random challenge data(length 2048-4096)
+	// len(challenge) must > len(GUID + Mode + Network + Address)
+	// because maybe fake node will send some special data
+	// and if controller sign it will destory net
+	if len(challenge) < 2048 || len(challenge) > 4096 {
+		e := &hs_err{c: conn, s: "invalid challenge size"}
+		this.ctx.Println(logger.EXPLOIT, "client", e)
+		return errors.WithStack(e)
+	}
+	// send signature
+	err = conn.Send(this.ctx.global.Sign(challenge))
+	if err != nil {
+		e := &hs_err{c: conn, s: "send challenge signature failed", e: err}
+		return errors.WithStack(e)
+	}
+	resp, err := conn.Receive()
+	if err != nil {
+		e := &hs_err{c: conn, s: "receive authorization response failed", e: err}
+		return errors.WithStack(e)
+	}
+	if !bytes.Equal(resp, protocol.AUTH_SUCCESS) {
+		e := &hs_err{c: conn, s: "authorization failed", e: err}
+		return errors.WithStack(e)
+	}
+	return nil
 }
