@@ -74,7 +74,7 @@ func (this *program) Start(s service.Service) error {
 	}
 	// generate controller keys
 	if genkey != "" {
-		err := controller.Gen_CTRL_Keys(genkey)
+		err := controller.Gen_CTRL_Keys(controller.Key_Path, genkey)
 		if err != nil {
 			return errors.Wrap(err, "generate keys failed")
 		}

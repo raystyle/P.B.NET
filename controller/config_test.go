@@ -23,8 +23,8 @@ func test_gen_config() *Config {
 		DSN:               test_dsn,
 		DB_Max_Open_Conns: 16,
 		DB_Max_Idle_Conns: 16,
-		DB_Log_Path:       "../app/log/database.log",
-		GORM_Log_Path:     "../app/log/gorm.log",
+		DB_Log_Path:       "log/database.log",
+		GORM_Log_Path:     "log/gorm.log",
 	}
 	return c
 }

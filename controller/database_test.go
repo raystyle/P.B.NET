@@ -10,18 +10,21 @@ import (
 	"project/testdata"
 )
 
+// if need init database set true
+func Test_init_database(t *testing.T) {
+	if false {
+		db, err := connect_database(test_gen_config())
+		require.Nil(t, err, err)
+		defer func() { _ = db.Close() }()
+		err = init_database(db)
+		require.Nil(t, err, err)
+	}
+}
+
 func Test_connect_database(t *testing.T) {
 	db, err := connect_database(test_gen_config())
 	require.Nil(t, err, err)
 	_ = db.Close()
-}
-
-func Test_init_database(t *testing.T) {
-	db, err := connect_database(test_gen_config())
-	require.Nil(t, err, err)
-	defer func() { _ = db.Close() }()
-	err = init_database(db)
-	require.Nil(t, err, err)
 }
 
 func Test_Insert_Proxy_Client(t *testing.T) {

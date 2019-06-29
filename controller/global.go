@@ -8,6 +8,7 @@ import (
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
@@ -20,6 +21,7 @@ type global struct {
 	timesync   *timesync.TIMESYNC
 	object     map[uint32]interface{}
 	object_rwm sync.RWMutex
+	load_keys  chan struct{}
 }
 
 func new_global(ctx *CTRL, c *Config) (*global, error) {
@@ -94,15 +96,17 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 		return nil, errors.WithStack(err)
 	}
 	g := &global{
-		proxy:    p,
-		dns:      d,
-		timesync: t,
-		object:   make(map[uint32]interface{}),
+		proxy:     p,
+		dns:       d,
+		timesync:  t,
+		object:    make(map[uint32]interface{}),
+		load_keys: make(chan struct{}, 1),
 	}
 	return g, nil
 }
 
 // about internal
+
 func (this *global) Start_Timesync() error {
 	return this.timesync.Start()
 }
@@ -111,7 +115,36 @@ func (this *global) Now() time.Time {
 	return this.timesync.Now().Local()
 }
 
-// controller and sign message
+func (this *global) Load_Keys(password string) error {
+	this.object_rwm.RLock()
+	o := this.object[ed25519_privatekey]
+	this.object_rwm.RUnlock()
+	if o != nil {
+		return errors.New("already load keys")
+	}
+	keys, err := Load_CTRL_Keys(Key_Path, password)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// ed25519
+	pri, _ := ed25519.Import_PrivateKey(keys[0])
+	this.object_rwm.Lock()
+	this.object[ed25519_privatekey] = pri
+	this.object_rwm.Unlock()
+	// aes
+	cryptor, _ := aes.New_CBC_Cryptor(keys[1], keys[2])
+	this.object_rwm.Lock()
+	this.object[aes_cryptor] = cryptor
+	this.object_rwm.Unlock()
+	close(this.load_keys)
+	return nil
+}
+
+func (this *global) Wait_Load_Keys() {
+	<-this.load_keys
+}
+
+// verify controller(handshake) and sign message
 func (this *global) Sign(message []byte) []byte {
 	this.object_rwm.RLock()
 	p := this.object[ed25519_privatekey].(ed25519.PrivateKey)

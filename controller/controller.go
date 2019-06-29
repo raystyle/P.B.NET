@@ -55,8 +55,13 @@ func (this *CTRL) Main() error {
 	if err != nil {
 		return err
 	}
-	this.Printf(logger.INFO, src_init, "timesync: %s", this.global.Now())
+	now := this.global.Now().Format(logger.Time_Layout)
+	this.Printf(logger.INFO, src_init, "timesync: %s", now)
 	this.Print(logger.INFO, src_init, "controller is running")
+	go func() {
+		this.global.Wait_Load_Keys()
+		this.Print(logger.INFO, src_init, "load key")
+	}()
 	return nil
 }
 

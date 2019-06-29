@@ -30,8 +30,7 @@ const object_key_max uint32 = 1048575
 type object_key = uint32
 
 const (
-	// external object
-	// verify controller role & message
+	// verify controller role & sign message
 	ed25519_privatekey object_key = iota
 	ed25519_publickey
 	// encrypt controller broadcast message
