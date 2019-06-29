@@ -1,0 +1,13 @@
+DNSNames    = ["localhost"]
+IPAddresses = ["127.0.0.1","::1"]
+
+[Subject]
+  CommonName         = "P.B.NET"
+  Country            = []
+  Locality           = []
+  Organization       = []
+  OrganizationalUnit = []
+  PostalCode         = []
+  Province           = []
+  SerialNumber       = ""
+  StreetAddress      = []
