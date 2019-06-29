@@ -33,6 +33,6 @@ func main() {
 func info(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.RemoteAddr)
 	log.Println(r.Proto, r.Method, r.URL.String(), "\n", r.Header)
-	w.WriteHeader(200)
+	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }

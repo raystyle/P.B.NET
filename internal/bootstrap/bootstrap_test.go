@@ -127,7 +127,7 @@ func test_start_http_server(t *testing.T, s *http.Server, info string) string {
 	data := []byte(info)
 	server_mux := http.NewServeMux()
 	server_mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(data)
 	})
 	s.Handler = server_mux

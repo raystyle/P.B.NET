@@ -133,7 +133,7 @@ func mock_https_server(t *testing.T, wg *sync.WaitGroup, cert, key []byte) (stri
 	data := []byte("hello")
 	server_mux := http.NewServeMux()
 	server_mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(data)
 	})
 	server.Handler = server_mux
