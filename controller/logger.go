@@ -9,6 +9,7 @@ import (
 
 const (
 	src_init   = "init"
+	src_bs     = "bootstrapper"
 	src_client = "client"
 )
 
@@ -94,6 +95,22 @@ func (this *CTRL) Println(l logger.Level, src string, log ...interface{}) {
 	buffer.WriteString(log_str)
 	fmt.Println(buffer.String())
 	this.insert_ctrl_log(l, src, log_str)
+}
+
+func (this *CTRL) Fatalln(log ...interface{}) {
+	if logger.FATAL < this.log_level {
+		return
+	}
+	buffer := logger.Prefix(logger.FATAL, src_init)
+	if buffer == nil {
+		return
+	}
+	log_str := fmt.Sprintln(log...)
+	log_str = log_str[:len(log_str)-1] // delete "\n"
+	buffer.WriteString(log_str)
+	fmt.Println(buffer.String())
+	this.insert_ctrl_log(logger.FATAL, src_init, log_str)
+	this.Exit()
 }
 
 func (this *CTRL) insert_ctrl_log(l logger.Level, src, log string) {
