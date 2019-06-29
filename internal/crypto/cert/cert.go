@@ -21,20 +21,22 @@ var (
 )
 
 type Config struct {
-	Subject struct {
-		CommonName         string
-		SerialNumber       string
-		Country            []string
-		Organization       []string
-		OrganizationalUnit []string
-		Locality           []string
-		Province           []string
-		StreetAddress      []string
-		PostalCode         []string
-	}
+	Subject     Subject
 	NotAfter    time.Time
 	DNSNames    []string
 	IPAddresses []string // IP SANS
+}
+
+type Subject struct {
+	CommonName         string
+	SerialNumber       string
+	Country            []string
+	Organization       []string
+	OrganizationalUnit []string
+	Locality           []string
+	Province           []string
+	StreetAddress      []string
+	PostalCode         []string
 }
 
 func generate(c *Config) *x509.Certificate {
