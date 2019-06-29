@@ -3,7 +3,6 @@ package controller
 import (
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
@@ -80,7 +79,7 @@ func (this *bootstrapper) boot() error {
 	if err != nil {
 		return err
 	}
-	spew.Dump(nodes)
+	nodes[0] = nil
 	return nil
 }
 
