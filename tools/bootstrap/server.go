@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -14,8 +15,11 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	var port string
+	flag.StringVar(&port, "port", "8989", "http server port")
+	flag.Parse()
 	server := &http.Server{
-		Addr: ":8989",
+		Addr: ":" + port,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", info)
