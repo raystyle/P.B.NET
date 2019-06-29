@@ -190,57 +190,57 @@ func Test_Delete_Timesync(t *testing.T) {
 	Test_Insert_Timesync(t)
 }
 
-func Test_Insert_Bootstrap(t *testing.T) {
+func Test_Insert_Bootstrapper(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
 	defer ctrl.Exit()
 	// clean table
-	err := ctrl.db.Unscoped().Delete(&m_bootstrap{}).Error
+	err := ctrl.db.Unscoped().Delete(&m_bootstrapper{}).Error
 	require.Nil(t, err, err)
 	// insert
 	b := testdata.Register(t)
 	for i := 0; i < len(b); i++ {
-		m := &m_bootstrap{
+		m := &m_bootstrapper{
 			Tag:      b[i].Tag,
 			Mode:     b[i].Mode,
 			Config:   string(b[i].Config),
 			Interval: uint32(15),
 			Enable:   true,
 		}
-		err := ctrl.Insert_Bootstrap(m)
+		err := ctrl.Insert_Bootstrapper(m)
 		require.Nil(t, err, err)
 	}
 }
 
-func Test_Select_Bootstrap(t *testing.T) {
+func Test_Select_Bootstrapper(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
 	defer ctrl.Exit()
-	clients, err := ctrl.Select_Bootstrap()
+	clients, err := ctrl.Select_Bootstrapper()
 	require.Nil(t, err, err)
 	t.Log("select bootstrap:", spew.Sdump(clients))
 }
 
-func Test_Update_Bootstrap(t *testing.T) {
+func Test_Update_Bootstrapper(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
 	defer ctrl.Exit()
-	clients, err := ctrl.Select_Bootstrap()
+	clients, err := ctrl.Select_Bootstrapper()
 	require.Nil(t, err, err)
 	raw := clients[0].Mode
 	clients[0].Mode = "changed"
-	err = ctrl.Update_Bootstrap(clients[0])
+	err = ctrl.Update_Bootstrapper(clients[0])
 	require.Nil(t, err, err)
 	clients[0].Mode = raw
-	err = ctrl.Update_Bootstrap(clients[0])
+	err = ctrl.Update_Bootstrapper(clients[0])
 	require.Nil(t, err, err)
 }
 
-func Test_Delete_Bootstrap(t *testing.T) {
+func Test_Delete_Bootstrapper(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
 	defer ctrl.Exit()
-	clients, err := ctrl.Select_Bootstrap()
+	clients, err := ctrl.Select_Bootstrapper()
 	require.Nil(t, err, err)
-	err = ctrl.Delete_Bootstrap(clients[0].ID)
+	err = ctrl.Delete_Bootstrapper(clients[0].ID)
 	require.Nil(t, err, err)
-	Test_Insert_Bootstrap(t)
+	Test_Insert_Bootstrapper(t)
 }
 
 func Test_Insert_Listener(t *testing.T) {

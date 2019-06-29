@@ -76,7 +76,7 @@ func init_database(db *gorm.DB) error {
 		},
 		{
 			name:  "",
-			model: &m_bootstrap{},
+			model: &m_bootstrapper{},
 		},
 		{
 			name:  "",
@@ -175,21 +175,21 @@ func (this *CTRL) Delete_Timesync(id uint64) error {
 
 // ---------------------------------bootstrap----------------------------------------
 
-func (this *CTRL) Insert_Bootstrap(m *m_bootstrap) error {
+func (this *CTRL) Insert_Bootstrapper(m *m_bootstrapper) error {
 	return this.db.Create(m).Error
 }
 
-func (this *CTRL) Select_Bootstrap() ([]*m_bootstrap, error) {
-	var clients []*m_bootstrap
+func (this *CTRL) Select_Bootstrapper() ([]*m_bootstrapper, error) {
+	var clients []*m_bootstrapper
 	return clients, this.db.Find(&clients).Error
 }
 
-func (this *CTRL) Update_Bootstrap(m *m_bootstrap) error {
+func (this *CTRL) Update_Bootstrapper(m *m_bootstrapper) error {
 	return this.db.Save(m).Error
 }
 
-func (this *CTRL) Delete_Bootstrap(id uint64) error {
-	return this.db.Delete(&m_bootstrap{ID: id}).Error
+func (this *CTRL) Delete_Bootstrapper(id uint64) error {
+	return this.db.Delete(&m_bootstrapper{ID: id}).Error
 }
 
 // ----------------------------------listener----------------------------------------

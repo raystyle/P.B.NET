@@ -50,7 +50,7 @@ type m_timesync struct {
 	Model
 }
 
-type m_bootstrap struct {
+type m_bootstrapper struct {
 	ID       uint64 `gorm:"primary_key"`
 	Tag      string `gorm:"size:32;not null;unique"`
 	Mode     string `gorm:"size:32;not null"`

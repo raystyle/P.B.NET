@@ -13,7 +13,7 @@ func Test_CTRL(t *testing.T) {
 	require.Nil(t, err, err)
 	err = ctrl.Main()
 	require.Nil(t, err, err)
-	time.Sleep(time.Second)
+	time.Sleep(5 * time.Second)
 	ctrl.Exit()
 }
 
