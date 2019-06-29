@@ -5,6 +5,10 @@ import (
 )
 
 type Config struct {
+	// debug
+	binpath string
+
+	// logger
 	Log_Level string `toml:"log_level"`
 
 	// global

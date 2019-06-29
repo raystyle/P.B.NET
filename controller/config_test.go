@@ -11,6 +11,9 @@ const (
 
 func test_gen_config() *Config {
 	c := &Config{
+		// debug
+		binpath: "../app",
+		// logger
 		Log_Level: "debug",
 		// global
 		DNS_Cache_Deadline: 3 * time.Minute,

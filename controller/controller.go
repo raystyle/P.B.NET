@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"os"
+
 	"github.com/jinzhu/gorm"
 
 	"project/internal/logger"
@@ -19,6 +21,12 @@ type CTRL struct {
 }
 
 func New(c *Config) (*CTRL, error) {
+	if c.binpath != "" {
+		err := os.Chdir(c.binpath)
+		if err != nil {
+			return nil, err
+		}
+	}
 	db, err := connect_database(c)
 	if err != nil {
 		return nil, err
@@ -42,11 +50,16 @@ func New(c *Config) (*CTRL, error) {
 }
 
 func (this *CTRL) Main() error {
-	this.Print(logger.INFO, src_init, "controller is running.")
+	err := this.global.Start_Timesync()
+	if err != nil {
+		return err
+	}
+	this.Printf(logger.INFO, src_init, "timesync: %s", this.global.Now())
+	this.Print(logger.INFO, src_init, "controller is running")
 	return nil
 }
 
 func (this *CTRL) Exit() {
-	this.Print(logger.INFO, src_init, "controller is stopped.")
+	this.Print(logger.INFO, src_init, "controller is stopped")
 	_ = this.db.Close()
 }

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"io/ioutil"
 	"sync"
 	"time"
 
@@ -40,13 +41,22 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 		return nil, errors.WithStack(err)
 	}
 	// load dns clients
+	// load builtin
+	tdcs := make(map[string]*dnsclient.Client)
+	b, err := ioutil.ReadFile("builtin/dnsclient.toml")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	err = toml.Unmarshal(b, &tdcs)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	dcs, err := ctx.Select_DNS_Client()
 	if err != nil {
 		return nil, errors.Wrap(err, "load dns clients failed")
 	}
-	l = len(dcs)
-	tdcs := make(map[string]*dnsclient.Client, l)
-	for i := 0; i < l; i++ {
+	// database records will cover builtin
+	for i := 0; i < len(dcs); i++ {
 		tdcs[dcs[i].Tag] = &dnsclient.Client{
 			Method:  dcs[i].Method,
 			Address: dcs[i].Address,
@@ -57,13 +67,21 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 		return nil, errors.WithStack(err)
 	}
 	// load timesync
+	// load builtin
+	tts := make(map[string]*timesync.Client)
+	b, err = ioutil.ReadFile("builtin/timesync.toml")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	err = toml.Unmarshal(b, &tts)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	ts, err := ctx.Select_Timesync()
 	if err != nil {
 		return nil, errors.Wrap(err, "load timesync clients failed")
 	}
-	l = len(ts)
-	tts := make(map[string]*timesync.Client, l)
-	for i := 0; i < l; i++ {
+	for i := 0; i < len(ts); i++ {
 		c := &timesync.Client{}
 		err := toml.Unmarshal([]byte(ts[i].Config), c)
 		if err != nil {
