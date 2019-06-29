@@ -1,5 +1,5 @@
 DNSNames    = ["localhost"]
-IPAddresses = ["127.0.0.1","::1"]
+IPAddresses = ["127.0.0.1","192.168.1.11","::1"]
 
 [Subject]
   CommonName         = "P.B.NET"
