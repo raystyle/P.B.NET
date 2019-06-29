@@ -62,6 +62,8 @@ func (this *CTRL) Main() error {
 	}
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Printf(logger.INFO, src_init, "timesync: %s", now)
+	// <view> start web server
+
 	this.Print(logger.INFO, src_init, "start discover bootstrap nodes")
 	bs, err := this.Select_Bootstrapper()
 	if err != nil {
@@ -75,7 +77,6 @@ func (this *CTRL) Main() error {
 		}
 	}
 	this.Print(logger.INFO, src_init, "controller is running")
-	// <view> start web server
 	go func() {
 		this.global.Wait_Load_Keys()
 		this.Print(logger.INFO, src_init, "load keys successfully")
