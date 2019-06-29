@@ -12,6 +12,7 @@ func Test_CTRL(t *testing.T) {
 	err := ctrl.Main()
 	require.Nil(t, err, err)
 	time.Sleep(5 * time.Second)
+	select {}
 	ctrl.Exit()
 }
 

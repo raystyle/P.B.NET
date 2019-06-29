@@ -16,12 +16,13 @@ const (
 )
 
 type CTRL struct {
-	db        *gorm.DB
-	log_level logger.Level
-	global    *global
-	bser      map[string]*bootstrapper
-	bser_m    sync.Mutex
-	wg        sync.WaitGroup
+	db          *gorm.DB
+	log_level   logger.Level
+	global      *global
+	bser        map[string]*bootstrapper
+	bser_m      sync.Mutex
+	http_server *http_server
+	wg          sync.WaitGroup
 }
 
 func New(c *Config) (*CTRL, error) {
@@ -52,10 +53,17 @@ func New(c *Config) (*CTRL, error) {
 		return nil, err
 	}
 	ctrl.global = g
+	// init http server
+	hs, err := new_http_server(ctrl, c)
+	if err != nil {
+		return nil, err
+	}
+	ctrl.http_server = hs
 	return ctrl, nil
 }
 
 func (this *CTRL) Main() error {
+	// sync time
 	err := this.global.Start_Timesync()
 	if err != nil {
 		return err
@@ -63,7 +71,13 @@ func (this *CTRL) Main() error {
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Printf(logger.INFO, src_init, "timesync: %s", now)
 	// <view> start web server
-
+	err = this.http_server.Serve()
+	if err != nil {
+		return err
+	}
+	hs_address := this.http_server.Address()
+	this.Println(logger.INFO, src_init, "http server:", hs_address)
+	// load bootstrapper
 	this.Print(logger.INFO, src_init, "start discover bootstrap nodes")
 	bs, err := this.Select_Bootstrapper()
 	if err != nil {
@@ -90,6 +104,7 @@ func (this *CTRL) Exit() {
 		bser.Stop()
 	}
 	this.bser_m.Unlock()
+	this.http_server.Close()
 	this.wg.Wait()
 	this.Print(logger.INFO, src_init, "controller is stopped")
 	_ = this.db.Close()

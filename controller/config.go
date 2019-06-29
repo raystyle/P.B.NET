@@ -23,6 +23,9 @@ type Config struct {
 	DB_Max_Idle_Conns int    `toml:"db_max_idle_conns"`
 	GORM_Log_Path     string `toml:"gorm_log_path"`
 	GORM_Detailed_Log bool   `toml:"gorm_detailed_log"`
+
+	// http server
+	HTTP_Address string `toml:"http_address"`
 }
 
 const object_key_max uint32 = 1048575

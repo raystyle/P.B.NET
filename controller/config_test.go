@@ -26,6 +26,8 @@ func test_gen_config() *Config {
 		DB_Log_Path:       "log/database.log",
 		GORM_Log_Path:     "log/gorm.log",
 		GORM_Detailed_Log: false,
+		// http server
+		HTTP_Address: ":9931",
 	}
 	return c
 }
