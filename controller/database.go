@@ -118,12 +118,7 @@ func (this *CTRL) Init_Database() error {
 
 // -------------------------------proxy client----------------------------------------
 
-func (this *CTRL) Insert_Proxy_Client(tag, mode, config string) error {
-	m := &m_proxy_client{
-		Tag:    tag,
-		Mode:   mode,
-		Config: config,
-	}
+func (this *CTRL) Insert_Proxy_Client(m *m_proxy_client) error {
 	return this.db.Create(m).Error
 }
 
@@ -142,12 +137,7 @@ func (this *CTRL) Delete_Proxy_Client(id uint64) error {
 
 // -------------------------------dns client----------------------------------------
 
-func (this *CTRL) Insert_DNS_Client(tag, method, address string) error {
-	m := &m_dns_client{
-		Tag:     tag,
-		Method:  method,
-		Address: address,
-	}
+func (this *CTRL) Insert_DNS_Client(m *m_dns_client) error {
 	return this.db.Create(m).Error
 }
 
@@ -166,12 +156,7 @@ func (this *CTRL) Delete_DNS_Client(id uint64) error {
 
 // ---------------------------------timesync----------------------------------------
 
-func (this *CTRL) Insert_Timesync(tag, mode, config string) error {
-	m := &m_timesync{
-		Tag:    tag,
-		Mode:   mode,
-		Config: config,
-	}
+func (this *CTRL) Insert_Timesync(m *m_timesync) error {
 	return this.db.Create(m).Error
 }
 
@@ -190,26 +175,38 @@ func (this *CTRL) Delete_Timesync(id uint64) error {
 
 // ---------------------------------bootstrap----------------------------------------
 
-// interval = second
-func (this *CTRL) Insert_Bootstrap(tag, mode, config string,
-	interval uint32, enable bool) error {
-	m := &m_bootstrap{
-		Tag:      tag,
-		Mode:     mode,
-		Config:   config,
-		Interval: interval,
-		Enable:   enable,
-	}
+func (this *CTRL) Insert_Bootstrap(m *m_bootstrap) error {
 	return this.db.Create(m).Error
+}
+
+func (this *CTRL) Select_Bootstrap() ([]*m_bootstrap, error) {
+	var clients []*m_bootstrap
+	return clients, this.db.Find(&clients).Error
+}
+
+func (this *CTRL) Update_Bootstrap(m *m_bootstrap) error {
+	return this.db.Save(m).Error
+}
+
+func (this *CTRL) Delete_Bootstrap(id uint64) error {
+	return this.db.Delete(&m_bootstrap{ID: id}).Error
 }
 
 // ----------------------------------listener----------------------------------------
 
-func (this *CTRL) Insert_Listener(tag, mode, config string) error {
-	m := &m_listener{
-		Tag:    tag,
-		Mode:   mode,
-		Config: config,
-	}
+func (this *CTRL) Insert_Listener(m *m_listener) error {
 	return this.db.Create(m).Error
+}
+
+func (this *CTRL) Select_Listener() ([]*m_listener, error) {
+	var clients []*m_listener
+	return clients, this.db.Find(&clients).Error
+}
+
+func (this *CTRL) Update_Listener(m *m_listener) error {
+	return this.db.Save(m).Error
+}
+
+func (this *CTRL) Delete_Listener(id uint64) error {
+	return this.db.Delete(&m_listener{ID: id}).Error
 }

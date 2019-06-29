@@ -25,6 +25,7 @@ func test_gen_config() *Config {
 		DB_Max_Idle_Conns: 16,
 		DB_Log_Path:       "log/database.log",
 		GORM_Log_Path:     "log/gorm.log",
+		GORM_Detailed_Log: false,
 	}
 	return c
 }
