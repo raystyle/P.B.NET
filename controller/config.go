@@ -6,7 +6,7 @@ import (
 
 type Config struct {
 	// debug
-	binpath string
+	bin_path string
 
 	// logger
 	Log_Level string `toml:"log_level"`

@@ -12,7 +12,7 @@ const (
 func test_gen_config() *Config {
 	c := &Config{
 		// debug
-		binpath: "../app",
+		bin_path: "../app",
 		// logger
 		Log_Level: "debug",
 		// global

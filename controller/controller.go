@@ -21,8 +21,9 @@ type CTRL struct {
 }
 
 func New(c *Config) (*CTRL, error) {
-	if c.binpath != "" {
-		err := os.Chdir(c.binpath)
+	// debug
+	if c.bin_path != "" {
+		err := os.Chdir(c.bin_path)
 		if err != nil {
 			return nil, err
 		}
