@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
@@ -27,6 +29,6 @@ func (this *client) Trust_Node(n *bootstrap.Node) error {
 }
 
 func (this *client) v1_trust_node(n *bootstrap.Node) error {
-
+	fmt.Println("trust ok")
 	return nil
 }

@@ -16,14 +16,14 @@ type h_rw = http.ResponseWriter
 type h_r = http.Request
 type h_p = httprouter.Params
 
-type http_server struct {
+type web struct {
 	ctx      *CTRL
 	listener net.Listener
 	server   *http.Server
 	index_fs http.Handler
 }
 
-func new_http_server(ctx *CTRL, c *Config) (*http_server, error) {
+func new_web(ctx *CTRL, c *Config) (*web, error) {
 	// listen tls
 	crt_path := "cert/server.crt"
 	key_path := "cert/server.key"
@@ -36,7 +36,7 @@ func new_http_server(ctx *CTRL, c *Config) (*http_server, error) {
 		return nil, errors.WithStack(err)
 	}
 	// router
-	hs := &http_server{
+	hs := &web{
 		ctx:      ctx,
 		listener: listener,
 	}
@@ -46,6 +46,7 @@ func new_http_server(ctx *CTRL, c *Config) (*http_server, error) {
 		HandleMethodNotAllowed: true,
 		HandleOPTIONS:          true,
 	}
+	// resource
 	router.ServeFiles("/css/*filepath", http.Dir("web/css"))
 	router.ServeFiles("/js/*filepath", http.Dir("web/js"))
 	router.ServeFiles("/img/*filepath", http.Dir("web/img"))
@@ -57,7 +58,10 @@ func new_http_server(ctx *CTRL, c *Config) (*http_server, error) {
 	router.GET("/favicon.ico", handle_favicon)
 	router.GET("/", hs.h_index)
 	router.GET("/login", hs.h_login)
-	router.GET("/bootstrapper", hs.h_get_bootstrapper)
+	// api
+	router.POST("/api/trust_node", hs.h_trust_node)
+	router.GET("/api/bootstrapper", hs.h_get_bootstrapper)
+	// http server
 	tls_config := &tls.Config{
 		Certificates: make([]tls.Certificate, 1),
 	}
@@ -66,12 +70,12 @@ func new_http_server(ctx *CTRL, c *Config) (*http_server, error) {
 		TLSConfig:         tls_config,
 		ReadHeaderTimeout: time.Minute,
 		Handler:           router,
-		ErrorLog:          logger.Wrap(logger.WARNING, "httpserver", ctx),
+		ErrorLog:          logger.Wrap(logger.WARNING, "web", ctx),
 	}
 	return hs, nil
 }
 
-func (this *http_server) Serve() error {
+func (this *web) Deploy() error {
 	err_chan := make(chan error, 1)
 	serve := func() {
 		err_chan <- this.server.ServeTLS(this.listener, "", "")
@@ -87,19 +91,19 @@ func (this *http_server) Serve() error {
 	}
 }
 
-func (this *http_server) Address() string {
+func (this *web) Address() string {
 	return this.listener.Addr().String()
 }
 
-func (this *http_server) Close() {
+func (this *web) Close() {
 	_ = this.server.Close()
 }
 
-func (this *http_server) h_login(w h_rw, r *h_r, p h_p) {
+func (this *web) h_login(w h_rw, r *h_r, p h_p) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("hello"))
 }
 
-func (this *http_server) h_index(w h_rw, r *h_r, p h_p) {
+func (this *web) h_index(w h_rw, r *h_r, p h_p) {
 	this.index_fs.ServeHTTP(w, r)
 }

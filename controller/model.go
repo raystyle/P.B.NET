@@ -2,6 +2,8 @@ package controller
 
 import (
 	"time"
+
+	"project/internal/xnet"
 )
 
 // different table has the same model
@@ -79,4 +81,10 @@ type m_role_log struct {
 	Source    string     `gorm:"size:32;not null" sql:"index"`
 	Log       string     `gorm:"size:16000;not null"`
 	DeletedAt *time.Time `sql:"index"`
+}
+
+type m_trust_node struct {
+	Mode    xnet.Mode `json:"mode"`
+	Network string    `json:"network"`
+	Address string    `json:"address"`
 }
