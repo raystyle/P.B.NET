@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
@@ -33,11 +35,22 @@ func new_client(ctx *CTRL, n *bootstrap.Node, guid []byte) (*client, error) {
 		node: n,
 		guid: guid,
 	}
-	xconn, err := client.handshake(conn)
-	if err != nil {
-		return nil, errors.WithMessage(err, "handshake failed")
+	err_chan := make(chan error, 1)
+	go func() {
+		xconn, err := client.handshake(conn)
+		if err != nil {
+			err_chan <- err
+		}
+		client.conn = xconn
+	}()
+	select {
+	case err = <-err_chan:
+		if err != nil {
+			return nil, err
+		}
+	case <-time.After(time.Minute):
+		return nil, errors.New("handshake timeout")
 	}
-	client.conn = xconn
 	return client, nil
 }
 

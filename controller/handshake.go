@@ -14,7 +14,7 @@ import (
 	"project/internal/xnet"
 )
 
-// handshake log
+// handshake error
 type hs_err struct {
 	c net.Conn
 	s string
