@@ -57,6 +57,11 @@ func New(c *Config) (*CTRL, error) {
 		return nil, err
 	}
 	ctrl.global = g
+	// sync time
+	err = ctrl.global.Start_Timesync()
+	if err != nil {
+		return nil, err
+	}
 	// init http server
 	hs, err := new_web(ctrl, c)
 	if err != nil {
@@ -67,17 +72,10 @@ func New(c *Config) (*CTRL, error) {
 }
 
 func (this *CTRL) Main() error {
-	// sync time
-	err := this.global.Start_Timesync()
-	if err != nil {
-		err = errors.Wrap(err, "timesync failed")
-		this.Fatalln(err)
-		return err
-	}
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Printf(logger.INFO, src_init, "timesync: %s", now)
 	// <view> start web server
-	err = this.web.Deploy()
+	err := this.web.Deploy()
 	if err != nil {
 		err = errors.WithMessage(err, "start web server failed")
 		this.Fatalln(err)

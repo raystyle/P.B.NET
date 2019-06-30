@@ -116,11 +116,13 @@ func (this *program) Start(s service.Service) error {
 		log.Print("init database successfully")
 		os.Exit(0)
 	}
-	err = ctrl.Main()
-	if err != nil {
-		return err
-	}
 	this.ctrl = ctrl
+	go func() {
+		err = ctrl.Main()
+		if err != nil {
+			_ = s.Stop()
+		}
+	}()
 	return nil
 }
 
