@@ -17,13 +17,14 @@ const (
 )
 
 type CTRL struct {
-	db          *gorm.DB
-	log_level   logger.Level
-	global      *global
-	http_server *http_server
-	boot        map[string]*bootstrapper
-	boot_m      sync.Mutex
-	wg          sync.WaitGroup
+	db        *gorm.DB
+	log_level logger.Level
+	global    *global
+	web       *web
+	boot      map[string]*bootstrapper
+	boot_m    sync.Mutex
+	wg        sync.WaitGroup
+	exit      chan struct{}
 }
 
 func New(c *Config) (*CTRL, error) {
@@ -48,6 +49,7 @@ func New(c *Config) (*CTRL, error) {
 		db:        db,
 		log_level: l,
 		boot:      make(map[string]*bootstrapper),
+		exit:      make(chan struct{}),
 	}
 	// init global
 	g, err := new_global(ctrl, c)
@@ -56,11 +58,11 @@ func New(c *Config) (*CTRL, error) {
 	}
 	ctrl.global = g
 	// init http server
-	hs, err := new_http_server(ctrl, c)
+	hs, err := new_web(ctrl, c)
 	if err != nil {
 		return nil, err
 	}
-	ctrl.http_server = hs
+	ctrl.web = hs
 	return ctrl, nil
 }
 
@@ -75,13 +77,13 @@ func (this *CTRL) Main() error {
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Printf(logger.INFO, src_init, "timesync: %s", now)
 	// <view> start web server
-	err = this.http_server.Serve()
+	err = this.web.Deploy()
 	if err != nil {
 		err = errors.WithMessage(err, "start web server failed")
 		this.Fatalln(err)
 		return err
 	}
-	hs_address := this.http_server.Address()
+	hs_address := this.web.Address()
 	this.Println(logger.INFO, src_init, "http server:", hs_address)
 	// load bootstrapper
 	this.Print(logger.INFO, src_init, "start discover bootstrap nodes")
@@ -100,10 +102,10 @@ func (this *CTRL) Main() error {
 		}
 	}
 	this.Print(logger.INFO, src_init, "controller is running")
-	go func() {
-		this.global.Wait_Load_Keys()
-		this.Print(logger.INFO, src_init, "load keys successfully")
-	}()
+	// wait to load controller keys
+	this.global.Wait_Load_Keys()
+	this.Print(logger.INFO, src_init, "load keys successfully")
+	<-this.exit
 	return nil
 }
 
@@ -113,8 +115,9 @@ func (this *CTRL) Exit() {
 		b.Stop()
 	}
 	this.boot_m.Unlock()
-	this.http_server.Close()
+	this.web.Close()
 	this.wg.Wait()
 	this.Print(logger.INFO, src_init, "controller is stopped")
 	_ = this.db.Close()
+	close(this.exit)
 }

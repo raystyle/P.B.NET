@@ -2,7 +2,6 @@ package controller
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -11,9 +10,6 @@ func Test_CTRL(t *testing.T) {
 	ctrl := test_gen_ctrl(t)
 	err := ctrl.Main()
 	require.Nil(t, err, err)
-	time.Sleep(5 * time.Second)
-	select {}
-	ctrl.Exit()
 }
 
 func test_gen_ctrl(t *testing.T) *CTRL {
