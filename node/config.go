@@ -6,11 +6,15 @@ import (
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
-	"project/internal/logger"
 	"project/internal/messages"
+	"project/internal/xnet"
 )
 
 type Config struct {
+	// check
+	Is_Check bool
+
+	// logger
 	Log_Level string
 
 	// global
@@ -31,22 +35,19 @@ type Config struct {
 
 	// server
 	Conn_Limit int
-	Listeners  []*messages.Listener
+	Listeners  map[string]*struct {
+		Mode   xnet.Mode
+		Config *xnet.Config
+	}
 }
 
 // before create a node need check config
 func (this *Config) Check() error {
-	node := &NODE{config: this}
-	_, err := new_logger(node)
+	this.Is_Check = true
+	node, err := New(this)
 	if err != nil {
 		return err
 	}
-	node.logger = logger.Discard
-	g, err := new_global(node)
-	if err != nil {
-		return err
-	}
-	node.global = g
 	err = node.global.timesync.Test()
 	if err != nil {
 		return err

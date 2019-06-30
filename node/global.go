@@ -13,6 +13,7 @@ import (
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
 	"project/internal/guid"
+	"project/internal/logger"
 	"project/internal/random"
 	"project/internal/security"
 )
@@ -29,33 +30,45 @@ type global struct {
 	wg         sync.WaitGroup
 }
 
-func new_global(ctx *NODE) (*global, error) {
-	config := ctx.config
+func new_global(ctx *NODE, c *Config) (*global, error) {
 	// <security> basic
 	memory := security.New_Memory()
 	memory.Padding()
-	p, err := proxyclient.New(config.Proxy_Clients)
+	p, err := proxyclient.New(c.Proxy_Clients)
 	if err != nil {
 		return nil, errors.Wrap(err, "load proxy clients failed")
 	}
 	memory.Padding()
-	d, err := dnsclient.New(p, config.DNS_Clients, config.DNS_Cache_Deadline)
+	d, err := dnsclient.New(p, c.DNS_Clients, c.DNS_Cache_Deadline)
 	if err != nil {
 		return nil, errors.Wrap(err, "load dns clients failed")
 	}
 	memory.Padding()
-	t, err := timesync.New(p, d, ctx.logger, config.Timesync_Clients,
-		config.Timesync_Interval)
+	var l logger.Logger
+	if c.Is_Check {
+		l = logger.Discard
+	} else {
+		l = ctx
+	}
+	t, err := timesync.New(p, d, l, c.Timesync_Clients, c.Timesync_Interval)
 	if err != nil {
 		return nil, errors.Wrap(err, "load timesync clients failed")
 	}
+	memory.Flush()
 	g := &global{
 		ctx:      ctx,
 		proxy:    p,
 		dns:      d,
 		timesync: t,
 	}
-	memory.Flush()
+	err = g.timesync.Start()
+	if err != nil {
+		return nil, err
+	}
+	err = g.configure(c)
+	if err != nil {
+		return nil, err
+	}
 	return g, nil
 }
 
@@ -78,7 +91,7 @@ func (this *global) sec_padding_memory() {
 	this.wg.Wait()
 }
 
-func (this *global) Configure() error {
+func (this *global) configure(c *Config) error {
 	this.conf_once.Do(func() {
 		this.sec_padding_memory()
 		rand := random.New()
@@ -89,22 +102,22 @@ func (this *global) Configure() error {
 			this.object[key] = rand.Bytes(32 + rand.Int(128))
 		}
 		this.gen_internal_objects()
-		this.conf_err = this.load_ctrl_configs()
+		this.conf_err = this.load_ctrl_configs(c)
 	})
 	return this.conf_err
 }
 
-func (this *global) load_ctrl_configs() error {
+func (this *global) load_ctrl_configs(c *Config) error {
 	this.sec_padding_memory()
 	// controller ed25519 public key
-	pub := this.ctx.config.CTRL_ED25519
+	pub := c.CTRL_ED25519
 	publickey, err := ed25519.Import_PublicKey(pub)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	this.object[ctrl_ed25519] = publickey
 	// controller aes
-	key := this.ctx.config.CTRL_AES_Key
+	key := c.CTRL_AES_Key
 	l := len(key)
 	if l < aes.BIT128+aes.IV_SIZE {
 		return errors.New("invalid controller aes key")
@@ -153,9 +166,6 @@ func (this *global) gen_internal_objects() {
 }
 
 // about internal
-func (this *global) Start_Timesync() error {
-	return this.timesync.Start()
-}
 
 func (this *global) Now() time.Time {
 	return this.timesync.Now()
