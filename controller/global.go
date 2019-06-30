@@ -72,8 +72,7 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// load timesync
-	// load builtin
+	// load from builtin
 	tts := make(map[string]*timesync.Client)
 	b, err = ioutil.ReadFile("builtin/timesync.toml")
 	if err != nil {
@@ -83,6 +82,7 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	// load from database
 	ts, err := ctx.Select_Timesync()
 	if err != nil {
 		return nil, errors.Wrap(err, "load timesync clients failed")
@@ -106,18 +106,15 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 		object:    make(map[uint32]interface{}),
 		load_keys: make(chan struct{}, 1),
 	}
+	// sync time
+	err = g.timesync.Start()
+	if err != nil {
+		return nil, err
+	}
 	return g, nil
 }
 
 // about internal
-
-func (this *global) Start_Timesync() error {
-	return this.timesync.Start()
-}
-
-func (this *global) Now() time.Time {
-	return this.timesync.Now().Local()
-}
 
 func (this *global) Load_Keys(password string) error {
 	this.object_rwm.RLock()
@@ -146,6 +143,10 @@ func (this *global) Load_Keys(password string) error {
 
 func (this *global) Wait_Load_Keys() {
 	<-this.load_keys
+}
+
+func (this *global) Now() time.Time {
+	return this.timesync.Now().Local()
 }
 
 // verify controller(handshake) and sign message

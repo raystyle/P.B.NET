@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/testdata"
 )
 
 func Test_CTRL(t *testing.T) {
@@ -15,7 +17,7 @@ func Test_CTRL(t *testing.T) {
 func test_gen_ctrl(t *testing.T) *CTRL {
 	ctrl, err := New(test_gen_config())
 	require.Nil(t, err, err)
-	err = ctrl.global.Load_Keys("123456789012")
+	err = ctrl.Load_Keys(testdata.CTRL_Keys_PWD)
 	require.Nil(t, err, err)
 	return ctrl
 }

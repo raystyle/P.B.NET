@@ -48,8 +48,6 @@ func New(c *Config) (*CTRL, error) {
 	ctrl := &CTRL{
 		db:        db,
 		log_level: l,
-		boot:      make(map[string]*bootstrapper),
-		exit:      make(chan struct{}),
 	}
 	// init global
 	g, err := new_global(ctrl, c)
@@ -57,17 +55,14 @@ func New(c *Config) (*CTRL, error) {
 		return nil, err
 	}
 	ctrl.global = g
-	// sync time
-	err = ctrl.global.Start_Timesync()
-	if err != nil {
-		return nil, err
-	}
 	// init http server
-	hs, err := new_web(ctrl, c)
+	web, err := new_web(ctrl, c)
 	if err != nil {
 		return nil, err
 	}
-	ctrl.web = hs
+	ctrl.web = web
+	ctrl.boot = make(map[string]*bootstrapper)
+	ctrl.exit = make(chan struct{})
 	return ctrl, nil
 }
 
@@ -77,7 +72,7 @@ func (this *CTRL) Main() error {
 	// <view> start web server
 	err := this.web.Deploy()
 	if err != nil {
-		err = errors.WithMessage(err, "start web server failed")
+		err = errors.WithMessage(err, "deploy web server failed")
 		this.Fatalln(err)
 		return err
 	}
@@ -101,7 +96,7 @@ func (this *CTRL) Main() error {
 	}
 	this.Print(logger.INFO, src_init, "controller is running")
 	// wait to load controller keys
-	this.global.Wait_Load_Keys()
+	this.Wait_Load_Keys()
 	this.Print(logger.INFO, src_init, "load keys successfully")
 	<-this.exit
 	return nil
@@ -118,4 +113,12 @@ func (this *CTRL) Exit() {
 	this.Print(logger.INFO, src_init, "controller is stopped")
 	_ = this.db.Close()
 	close(this.exit)
+}
+
+func (this *CTRL) Load_Keys(password string) error {
+	return this.global.Load_Keys(password)
+}
+
+func (this *CTRL) Wait_Load_Keys() {
+	this.global.Wait_Load_Keys()
 }
