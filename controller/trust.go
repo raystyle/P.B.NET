@@ -11,7 +11,9 @@ import (
 
 // Trust_Node is used to trust Genesis Node
 func (this *CTRL) Trust_Node(n *bootstrap.Node) error {
-	client, err := new_client(this, n, nil)
+	c := &client_config{Node: n}
+	c.Xnet.TLS_Config.InsecureSkipVerify = true
+	client, err := new_client(this, c)
 	if err != nil {
 		return errors.WithMessage(err, "connect node failed")
 	}

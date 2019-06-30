@@ -18,22 +18,26 @@ type client struct {
 	ver  protocol.Version
 }
 
-// guid != nil for sync or other
-// guid = nil for trust node
-// guid = controller guid for discovery
-func new_client(ctx *CTRL, n *bootstrap.Node, guid []byte) (*client, error) {
-	config := &xnet.Config{
-		Network: n.Network,
-		Address: n.Address,
-	}
-	conn, err := xnet.Dial(n.Mode, config)
+// Node_GUID != nil for sync or other
+// Node_GUID = nil for trust node
+// Node_GUID = controller guid for discovery
+type client_config struct {
+	Node      *bootstrap.Node
+	Node_GUID []byte
+	Xnet      xnet.Config
+}
+
+func new_client(ctx *CTRL, c *client_config) (*client, error) {
+	c.Xnet.Network = c.Node.Network
+	c.Xnet.Address = c.Node.Address
+	conn, err := xnet.Dial(c.Node.Mode, &c.Xnet)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	client := &client{
 		ctx:  ctx,
-		node: n,
-		guid: guid,
+		node: c.Node,
+		guid: c.Node_GUID,
 	}
 	err_chan := make(chan error, 1)
 	go func() {
