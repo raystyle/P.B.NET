@@ -50,13 +50,13 @@ func new_http_server(ctx *CTRL, c *Config) (*http_server, error) {
 	router.ServeFiles("/js/*filepath", http.Dir("web/js"))
 	router.ServeFiles("/img/*filepath", http.Dir("web/img"))
 	fs := http.FileServer(http.Dir("web"))
+	hs.index_fs = fs
 	handle_favicon := func(w h_rw, r *h_r, _ h_p) {
 		fs.ServeHTTP(w, r)
 	}
 	router.GET("/favicon.ico", handle_favicon)
-	hs.index_fs = fs
 	router.GET("/", hs.h_index)
-	router.GET("login", hs.h_login)
+	router.GET("/login", hs.h_login)
 	router.GET("/bootstrapper", hs.h_get_bootstrapper)
 	tls_config := &tls.Config{
 		Certificates: make([]tls.Certificate, 1),
@@ -93,6 +93,11 @@ func (this *http_server) Address() string {
 
 func (this *http_server) Close() {
 	_ = this.server.Close()
+}
+
+func (this *http_server) h_login(w h_rw, r *h_r, p h_p) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("hello"))
 }
 
 func (this *http_server) h_index(w h_rw, r *h_r, p h_p) {

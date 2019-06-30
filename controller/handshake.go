@@ -38,7 +38,7 @@ func (this *hs_err) Error() string {
 	return b.String()
 }
 
-func (this *client) handshake(conn net.Conn, skip_verify bool) (*xnet.Conn, error) {
+func (this *client) handshake(conn net.Conn) (*xnet.Conn, error) {
 	// receive node support version & select used version
 	buffer := make([]byte, 4)
 	_, err := io.ReadFull(conn, buffer)
@@ -47,8 +47,8 @@ func (this *client) handshake(conn net.Conn, skip_verify bool) (*xnet.Conn, erro
 		return nil, errors.WithStack(e)
 	}
 	ver := convert.Bytes_Uint32(buffer)
-	if ver >= version {
-		ver = version
+	if ver >= Version {
+		ver = Version
 	}
 	// send used version
 	_, err = conn.Write(convert.Uint32_Bytes(ver))
@@ -56,11 +56,12 @@ func (this *client) handshake(conn net.Conn, skip_verify bool) (*xnet.Conn, erro
 		e := &hs_err{c: conn, s: "send version failed", e: err}
 		return nil, errors.WithStack(e)
 	}
+	this.ver = ver
 	c := xnet.New_Conn(conn, this.ctx.global.Now().Unix(), ver)
 	// verify
 	switch {
 	case ver == protocol.V1_0_0:
-		err = this.v1_verify(c, skip_verify)
+		err = this.v1_verify(c)
 	}
 	if err != nil {
 		return nil, err
@@ -68,57 +69,68 @@ func (this *client) handshake(conn net.Conn, skip_verify bool) (*xnet.Conn, erro
 	return c, nil
 }
 
-// certificates = [2 byte uint16] size + signature with guid
-//                [2 byte uint16] size + signature without guid
-func (this *client) v1_verify(conn *xnet.Conn, skip_verify bool) error {
+// certificates = [2 byte uint16] size + signature with node guid
+//                [2 byte uint16] size + signature with ctrl guid
+func (this *client) v1_verify(conn *xnet.Conn) error {
 	// receive certificates
 	certificates, err := conn.Receive()
 	if err != nil {
 		e := &hs_err{c: conn, s: "receive certificate failed", e: err}
 		return errors.WithStack(e)
 	}
-	if !skip_verify {
+	if this.guid != nil {
+		const (
+			act = "read certificate(with node guid) "
+		)
 		reader := bytes.NewReader(certificates)
+		// read cert size
 		cert_size := make([]byte, 2)
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {
-			e := &hs_err{c: conn, s: "read certificate(with guid) size failed"}
+			e := &hs_err{c: conn, s: act + "size failed"}
 			this.ctx.Println(logger.EXPLOIT, src_client, e)
 			return errors.WithStack(e)
 		}
-		cert_with_guid := make([]byte, convert.Bytes_Uint16(cert_size))
+		// read cert
+		cert_with_node_guid := make([]byte, convert.Bytes_Uint16(cert_size))
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {
-			e := &hs_err{c: conn, s: "read certificate(with guid) failed"}
+			e := &hs_err{c: conn, s: act + "failed"}
 			this.ctx.Println(logger.EXPLOIT, src_client, e)
 			return errors.WithStack(e)
 		}
-		_, err = io.ReadFull(reader, cert_size)
-		if err != nil {
-			e := &hs_err{c: conn, s: "read certificate(without guid) size failed"}
-			this.ctx.Println(logger.EXPLOIT, src_client, e)
-			return errors.WithStack(e)
-		}
+		// cacl cert
 		buffer := new(bytes.Buffer)
 		buffer.Write([]byte(this.node.Mode))
 		buffer.Write([]byte(this.node.Network))
 		buffer.Write([]byte(this.node.Address))
-		if this.guid != nil {
-			buffer.Write(this.guid)
-			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_guid) {
-				e := &hs_err{c: conn, s: "invalid certificate(with guid)"}
-				return errors.WithStack(e)
-			}
-		} else {
-			cert_without_guid := make([]byte, convert.Bytes_Uint16(cert_size))
+		buffer.Write(this.guid)
+		if bytes.Equal(this.guid, protocol.CTRL_GUID) {
+			const (
+				act = "read certificate(with controller guid) "
+			)
+			// read cert size
 			_, err = io.ReadFull(reader, cert_size)
 			if err != nil {
-				e := &hs_err{c: conn, s: "read certificate(without guid) failed"}
+				e := &hs_err{c: conn, s: act + "size failed"}
 				this.ctx.Println(logger.EXPLOIT, src_client, e)
 				return errors.WithStack(e)
 			}
-			if !this.ctx.global.Verify(buffer.Bytes(), cert_without_guid) {
-				e := &hs_err{c: conn, s: "invalid certificate(without guid)"}
+			// read cert
+			cert_with_ctrl_guid := make([]byte, convert.Bytes_Uint16(cert_size))
+			_, err = io.ReadFull(reader, cert_size)
+			if err != nil {
+				e := &hs_err{c: conn, s: act + "failed"}
+				this.ctx.Println(logger.EXPLOIT, src_client, e)
+				return errors.WithStack(e)
+			}
+			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_ctrl_guid) {
+				e := &hs_err{c: conn, s: "invalid certificate(with controller guid)"}
+				return errors.WithStack(e)
+			}
+		} else {
+			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_node_guid) {
+				e := &hs_err{c: conn, s: "invalid certificate(with node guid)"}
 				return errors.WithStack(e)
 			}
 		}

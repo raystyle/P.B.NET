@@ -13,16 +13,16 @@ import (
 
 const (
 	Name    = "P.B.NET"
-	version = protocol.V1_0_0
+	Version = protocol.V1_0_0
 )
 
 type CTRL struct {
 	db          *gorm.DB
 	log_level   logger.Level
 	global      *global
-	bser        map[string]*bootstrapper
-	bser_m      sync.Mutex
 	http_server *http_server
+	boot        map[string]*bootstrapper
+	boot_m      sync.Mutex
 	wg          sync.WaitGroup
 }
 
@@ -34,6 +34,7 @@ func New(c *Config) (*CTRL, error) {
 			return nil, err
 		}
 	}
+	// init database
 	db, err := connect_database(c)
 	if err != nil {
 		return nil, err
@@ -46,7 +47,7 @@ func New(c *Config) (*CTRL, error) {
 	ctrl := &CTRL{
 		db:        db,
 		log_level: l,
-		bser:      make(map[string]*bootstrapper),
+		boot:      make(map[string]*bootstrapper),
 	}
 	// init global
 	g, err := new_global(ctrl, c)
@@ -107,11 +108,11 @@ func (this *CTRL) Main() error {
 }
 
 func (this *CTRL) Exit() {
-	this.bser_m.Lock()
-	for _, bser := range this.bser {
-		bser.Stop()
+	this.boot_m.Lock()
+	for _, b := range this.boot {
+		b.Stop()
 	}
-	this.bser_m.Unlock()
+	this.boot_m.Unlock()
 	this.http_server.Close()
 	this.wg.Wait()
 	this.Print(logger.INFO, src_init, "controller is stopped")

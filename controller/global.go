@@ -15,6 +15,10 @@ import (
 	"project/internal/global/timesync"
 )
 
+const (
+	Key_Path = "key/ctrl.key"
+)
+
 type global struct {
 	proxy      *proxyclient.PROXY
 	dns        *dnsclient.DNS

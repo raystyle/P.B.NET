@@ -9,7 +9,7 @@ import (
 
 const (
 	src_init   = "init"
-	src_bs     = "bootstrapper"
+	src_boot   = "boot"
 	src_client = "client"
 )
 

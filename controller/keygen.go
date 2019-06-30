@@ -13,12 +13,6 @@ import (
 	"project/internal/random"
 )
 
-const (
-	name_size = len(Name)
-	Key_Path  = "key/ctrl.key"
-	key_size  = name_size + ed25519.PrivateKey_Size + aes.BIT256 + aes.IV_SIZE
-)
-
 // name & ed25519 & aes key & aes iv
 func Gen_CTRL_Keys(path, password string) error {
 	_, err := os.Stat(path)
@@ -54,6 +48,10 @@ func Gen_CTRL_Keys(path, password string) error {
 
 // return ed25519 private key & aes key & aes iv
 func Load_CTRL_Keys(path, password string) ([3][]byte, error) {
+	const (
+		name_size = len(Name)
+		key_size  = name_size + ed25519.PrivateKey_Size + aes.BIT256 + aes.IV_SIZE
+	)
 	var keys [3][]byte
 	if len(password) < 12 {
 		return keys, errors.New("password is too short")
