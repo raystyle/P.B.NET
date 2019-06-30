@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/jinzhu/gorm"
+	"github.com/pkg/errors"
 
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -66,6 +67,8 @@ func (this *CTRL) Main() error {
 	// sync time
 	err := this.global.Start_Timesync()
 	if err != nil {
+		err = errors.Wrap(err, "timesync failed")
+		this.Fatalln(err)
 		return err
 	}
 	now := this.global.Now().Format(logger.Time_Layout)
@@ -73,6 +76,8 @@ func (this *CTRL) Main() error {
 	// <view> start web server
 	err = this.http_server.Serve()
 	if err != nil {
+		err = errors.WithMessage(err, "start web server failed")
+		this.Fatalln(err)
 		return err
 	}
 	hs_address := this.http_server.Address()
@@ -81,13 +86,16 @@ func (this *CTRL) Main() error {
 	this.Print(logger.INFO, src_init, "start discover bootstrap nodes")
 	bs, err := this.Select_Bootstrapper()
 	if err != nil {
-		this.Fatalln("select bootstrapper failed:", err)
-	} else {
-		for i := 0; i < len(bs); i++ {
-			err := this.Add_Bootstrapper(bs[i])
-			if err != nil {
-				this.Fatalln("add bootstrapper failed:", err)
-			}
+		err = errors.WithMessage(err, "select bootstrapper failed")
+		this.Fatalln(err)
+		return err
+	}
+	for i := 0; i < len(bs); i++ {
+		err := this.Add_Bootstrapper(bs[i])
+		if err != nil {
+			err = errors.WithMessage(err, "add bootstrapper failed")
+			this.Fatalln(err)
+			return err
 		}
 	}
 	this.Print(logger.INFO, src_init, "controller is running")

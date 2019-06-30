@@ -14,7 +14,7 @@ import (
 
 type h_rw = http.ResponseWriter
 type h_r = http.Request
-type hr_p = httprouter.Params
+type h_p = httprouter.Params
 
 type http_server struct {
 	ctx      *CTRL
@@ -50,7 +50,7 @@ func new_http_server(ctx *CTRL, c *Config) (*http_server, error) {
 	router.ServeFiles("/js/*filepath", http.Dir("web/js"))
 	router.ServeFiles("/img/*filepath", http.Dir("web/img"))
 	fs := http.FileServer(http.Dir("web"))
-	handle_favicon := func(w h_rw, r *h_r, _ hr_p) {
+	handle_favicon := func(w h_rw, r *h_r, _ h_p) {
 		fs.ServeHTTP(w, r)
 	}
 	router.GET("/favicon.ico", handle_favicon)
@@ -81,7 +81,7 @@ func (this *http_server) Serve() error {
 	go serve()
 	select {
 	case err := <-err_chan:
-		return err
+		return errors.WithStack(err)
 	case <-time.After(time.Second):
 		return nil
 	}
@@ -95,6 +95,6 @@ func (this *http_server) Close() {
 	_ = this.server.Close()
 }
 
-func (this *http_server) h_index(w h_rw, r *h_r, p hr_p) {
+func (this *http_server) h_index(w h_rw, r *h_r, p h_p) {
 	this.index_fs.ServeHTTP(w, r)
 }
