@@ -91,8 +91,10 @@ func (this *CTRL) Main() error {
 	}
 	this.Print(logger.INFO, src_init, "controller is running")
 	// wait to load controller keys
-	this.global.Wait_Load_Keys()
-	this.Print(logger.INFO, src_init, "load keys successfully")
+	go func() {
+		this.global.Wait_Load_Keys()
+		this.Print(logger.INFO, src_init, "load keys successfully")
+	}()
 	<-this.exit
 	return nil
 }
