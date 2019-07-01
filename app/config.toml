@@ -8,8 +8,11 @@ timesync_interval  = "1m"
 # database
 dialect           = "mysql"
 dsn               = "root:asH*dg122@tcp(127.0.0.1:3306)/p.b.net?loc=Local&parseTime=true"
-db_log_path       = "log/database.log"
 db_max_open_conns = 16
 db_max_idle_conns = 16
+db_log_path       = "log/database.log"
 gorm_log_path     = "log/gorm.log"
-gorm_detailed_log = true
+gorm_detailed_log = false
+
+# web server
+http_address = ":9932"
