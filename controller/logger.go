@@ -35,6 +35,10 @@ func (this *db_logger) Print(log ...interface{}) {
 	fmt.Print(buffer.String())
 }
 
+func (this *db_logger) Close() {
+	_ = this.file.Close()
+}
+
 type gorm_logger struct {
 	file *os.File
 }
@@ -55,8 +59,12 @@ func (this *gorm_logger) Print(log ...interface{}) {
 	fmt.Print(buffer.String())
 }
 
+func (this *gorm_logger) Close() {
+	_ = this.file.Close()
+}
+
 func (this *CTRL) Printf(l logger.Level, src string, format string, log ...interface{}) {
-	if l < this.log_level {
+	if l < this.log_lv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
@@ -69,7 +77,7 @@ func (this *CTRL) Printf(l logger.Level, src string, format string, log ...inter
 }
 
 func (this *CTRL) Print(l logger.Level, src string, log ...interface{}) {
-	if l < this.log_level {
+	if l < this.log_lv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
@@ -82,7 +90,7 @@ func (this *CTRL) Print(l logger.Level, src string, log ...interface{}) {
 }
 
 func (this *CTRL) Println(l logger.Level, src string, log ...interface{}) {
-	if l < this.log_level {
+	if l < this.log_lv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
@@ -95,21 +103,6 @@ func (this *CTRL) Println(l logger.Level, src string, log ...interface{}) {
 	this.print_log(l, src, log_str, buffer)
 }
 
-func (this *CTRL) Fatalln(log ...interface{}) {
-	if logger.FATAL < this.log_level {
-		return
-	}
-	buffer := logger.Prefix(logger.FATAL, src_init)
-	if buffer == nil {
-		return
-	}
-	log_str := fmt.Sprintln(log...)
-	log_str = log_str[:len(log_str)-1] // delete "\n"
-	buffer.WriteString(log_str)
-	this.print_log(logger.FATAL, src_init, log_str, buffer)
-	this.Exit()
-}
-
 func (this *CTRL) print_log(l logger.Level, src, log string, b *bytes.Buffer) {
 	fmt.Println(b.String())
 	m := &m_ctrl_log{
@@ -117,5 +110,5 @@ func (this *CTRL) print_log(l logger.Level, src, log string, b *bytes.Buffer) {
 		Source: src,
 		Log:    log,
 	}
-	this.db.Table(t_ctrl_log).Create(m)
+	this.db.Create(m)
 }
