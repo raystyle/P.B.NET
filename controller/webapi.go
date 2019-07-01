@@ -1,7 +1,9 @@
 package controller
 
 import (
-	"github.com/json-iterator/go"
+	"encoding/json"
+
+	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
 )
@@ -9,8 +11,14 @@ import (
 // ------------------------------debug----------------------------------
 
 func (this *web) h_shutdown(w h_rw, r *h_r, p h_p) {
-	this.ctx.Exit()
-	w.Write([]byte("exit"))
+	_ = r.ParseForm()
+	err_str := r.FormValue("err")
+	w.Write([]byte("ok"))
+	if err_str != "" {
+		this.ctx.Exit(errors.New(err_str))
+	} else {
+		this.ctx.Exit(nil)
+	}
 }
 
 func (this *web) h_get_boot(w h_rw, r *h_r, p h_p) {
@@ -19,7 +27,7 @@ func (this *web) h_get_boot(w h_rw, r *h_r, p h_p) {
 
 func (this *web) h_trust_node(w h_rw, r *h_r, p h_p) {
 	m := &m_trust_node{}
-	err := jsoniter.NewDecoder(r.Body).Decode(m)
+	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 	}

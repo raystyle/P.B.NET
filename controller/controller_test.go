@@ -25,7 +25,7 @@ func init_ctrl(t *testing.T) {
 			require.Nil(t, err, err)
 			err = c.Init_Database()
 			require.Nil(t, err, err)
-			c.Exit()
+			c.Exit(nil)
 			config.Init_DB = false
 			ctrl, err = New(config)
 			require.Nil(t, err, err)

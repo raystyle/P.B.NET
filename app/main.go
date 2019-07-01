@@ -134,6 +134,6 @@ func (this *program) Start(s service.Service) error {
 }
 
 func (this *program) Stop(s service.Service) error {
-	this.ctrl.Exit()
+	this.ctrl.Exit(nil)
 	return nil
 }

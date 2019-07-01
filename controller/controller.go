@@ -27,7 +27,7 @@ type CTRL struct {
 	boot_m  sync.Mutex
 	wg      sync.WaitGroup
 	once    sync.Once
-	exit    chan struct{}
+	exit    chan error
 }
 
 func New(c *Config) (*CTRL, error) {
@@ -63,7 +63,7 @@ func New(c *Config) (*CTRL, error) {
 		return nil, err
 	}
 	ctrl.boot = make(map[string]*boot)
-	ctrl.exit = make(chan struct{})
+	ctrl.exit = make(chan error)
 	return ctrl, nil
 }
 
@@ -95,18 +95,17 @@ func (this *CTRL) Main() error {
 		this.global.Wait_Load_Keys()
 		this.Print(logger.INFO, src_init, "load keys successfully")
 	}()
-	<-this.exit
-	return nil
+	return <-this.exit
 }
 
 func (this *CTRL) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
 	this.Println(logger.FATAL, src_init, err)
-	this.Exit()
+	this.Exit(nil)
 	return err
 }
 
-func (this *CTRL) Exit() {
+func (this *CTRL) Exit(err error) {
 	this.once.Do(func() {
 		// stop all running boot
 		this.boot_m.Lock()
@@ -126,6 +125,7 @@ func (this *CTRL) Exit() {
 		this.gorm_lg.Close()
 		this.db_lg.Close()
 		if this.exit != nil {
+			this.exit <- err
 			close(this.exit)
 		}
 	})
