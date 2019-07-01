@@ -65,7 +65,7 @@ func (this *CTRL) Printf(l logger.Level, src string, format string, log ...inter
 	}
 	log_str := fmt.Sprintf(format, log...)
 	buffer.WriteString(log_str)
-	this.print_log(l, src, buffer)
+	this.print_log(l, src, log_str, buffer)
 }
 
 func (this *CTRL) Print(l logger.Level, src string, log ...interface{}) {
@@ -78,7 +78,7 @@ func (this *CTRL) Print(l logger.Level, src string, log ...interface{}) {
 	}
 	log_str := fmt.Sprint(log...)
 	buffer.WriteString(log_str)
-	this.print_log(l, src, buffer)
+	this.print_log(l, src, log_str, buffer)
 }
 
 func (this *CTRL) Println(l logger.Level, src string, log ...interface{}) {
@@ -92,7 +92,7 @@ func (this *CTRL) Println(l logger.Level, src string, log ...interface{}) {
 	log_str := fmt.Sprintln(log...)
 	log_str = log_str[:len(log_str)-1] // delete "\n"
 	buffer.WriteString(log_str)
-	this.print_log(l, src, buffer)
+	this.print_log(l, src, log_str, buffer)
 }
 
 func (this *CTRL) Fatalln(log ...interface{}) {
@@ -106,16 +106,16 @@ func (this *CTRL) Fatalln(log ...interface{}) {
 	log_str := fmt.Sprintln(log...)
 	log_str = log_str[:len(log_str)-1] // delete "\n"
 	buffer.WriteString(log_str)
-	this.print_log(logger.FATAL, src_init, buffer)
+	this.print_log(logger.FATAL, src_init, log_str, buffer)
 	this.Exit()
 }
 
-func (this *CTRL) print_log(l logger.Level, src string, b *bytes.Buffer) {
+func (this *CTRL) print_log(l logger.Level, src, log string, b *bytes.Buffer) {
 	fmt.Println(b.String())
 	m := &m_ctrl_log{
 		Level:  l,
 		Source: src,
-		Log:    b.String(),
+		Log:    log,
 	}
 	this.db.Table(t_ctrl_log).Create(m)
 }
