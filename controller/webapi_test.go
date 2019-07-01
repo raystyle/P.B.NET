@@ -37,6 +37,10 @@ func test_json_encode(t *testing.T, m interface{}) io.Reader {
 	return buffer
 }
 
+func test_shutdown(t *testing.T) {
+	_, _ = test_restful_api(http.MethodGet, "api/debug/shutdown", nil)
+}
+
 func Test_h_trust_node(t *testing.T) {
 	m := &m_trust_node{
 		Mode:    xnet.TLS,
@@ -44,7 +48,8 @@ func Test_h_trust_node(t *testing.T) {
 		Address: "localhost:1733",
 	}
 	reader := test_json_encode(t, m)
-	resp, err := test_restful_api(http.MethodPost, "api/trust_node", reader)
+	resp, err := test_restful_api(http.MethodPost, "api/node/trust", reader)
 	require.Nil(t, err, err)
 	fmt.Println(string(resp))
+	test_shutdown(t)
 }

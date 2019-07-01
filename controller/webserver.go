@@ -23,17 +23,17 @@ type web struct {
 	index_fs http.Handler
 }
 
-func new_web(ctx *CTRL, c *Config) (*web, error) {
+func new_web(ctx *CTRL, c *Config) error {
 	// listen tls
 	crt_path := "cert/server.crt"
 	key_path := "cert/server.key"
 	crt, err := tls.LoadX509KeyPair(crt_path, key_path)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	listener, err := net.Listen("tcp", c.HTTP_Address)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	// router
 	hs := &web{
@@ -58,9 +58,10 @@ func new_web(ctx *CTRL, c *Config) (*web, error) {
 	router.GET("/favicon.ico", handle_favicon)
 	router.GET("/", hs.h_index)
 	router.GET("/login", hs.h_login)
-	// api
-	router.POST("/api/trust_node", hs.h_trust_node)
-	router.GET("/api/bootstrapper", hs.h_get_bootstrapper)
+	// debug api
+	router.GET("/api/debug/shutdown", hs.h_shutdown)
+	router.GET("/api/boot", hs.h_get_boot)
+	router.POST("/api/node/trust", hs.h_trust_node)
 	// http server
 	tls_config := &tls.Config{
 		Certificates: make([]tls.Certificate, 1),
@@ -72,7 +73,8 @@ func new_web(ctx *CTRL, c *Config) (*web, error) {
 		Handler:           router,
 		ErrorLog:          logger.Wrap(logger.WARNING, "web", ctx),
 	}
-	return hs, nil
+	ctx.web = hs
+	return nil
 }
 
 func (this *web) Deploy() error {

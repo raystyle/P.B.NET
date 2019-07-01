@@ -1,15 +1,19 @@
 package controller
 
 import (
-	"net/http"
-
 	"github.com/json-iterator/go"
 
 	"project/internal/bootstrap"
 )
 
-func (this *web) h_get_bootstrapper(w h_rw, r *h_r, p h_p) {
-	w.WriteHeader(http.StatusOK)
+// ------------------------------debug----------------------------------
+
+func (this *web) h_shutdown(w h_rw, r *h_r, p h_p) {
+	this.ctx.Exit()
+	w.Write([]byte("exit"))
+}
+
+func (this *web) h_get_boot(w h_rw, r *h_r, p h_p) {
 	w.Write([]byte("hello"))
 }
 
