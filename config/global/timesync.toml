@@ -1,7 +1,7 @@
 [http]
   mode    = "http"
-  address = "https://github.com/"
-  timeout = "15s"
+  address = "https://www.cloudflare.com/"
+  timeout = "10s"
 
   [http.http_options]
 
@@ -18,4 +18,4 @@
 [ntp]
   mode    = "ntp"
   address = "pool.ntp.org:123"
-  timeout = "15s"
+  timeout = "3s"
