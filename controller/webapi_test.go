@@ -3,13 +3,13 @@ package controller
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"testing"
 
-	"github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/xnet"
@@ -32,12 +32,12 @@ func test_restful_api(method, path string, body io.Reader) ([]byte, error) {
 
 func test_json_encode(t *testing.T, m interface{}) io.Reader {
 	buffer := &bytes.Buffer{}
-	err := jsoniter.NewEncoder(buffer).Encode(m)
+	err := json.NewEncoder(buffer).Encode(m)
 	require.Nil(t, err, err)
 	return buffer
 }
 
-func test_shutdown(t *testing.T) {
+func test_shutdown() {
 	_, _ = test_restful_api(http.MethodGet, "api/debug/shutdown", nil)
 }
 
@@ -51,5 +51,5 @@ func Test_h_trust_node(t *testing.T) {
 	resp, err := test_restful_api(http.MethodPost, "api/node/trust", reader)
 	require.Nil(t, err, err)
 	fmt.Println(string(resp))
-	test_shutdown(t)
+	test_shutdown()
 }
