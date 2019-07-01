@@ -8,16 +8,9 @@ import (
 )
 
 func Test_KeyGen(t *testing.T) {
-	const (
-		path     = "ctrl.key"
-		password = "0123456789012"
-	)
-	_, err := os.Stat(path)
-	if !os.IsNotExist(err) {
-		err = os.Remove(path)
-		require.Nil(t, err, err)
-	}
-	err = Gen_CTRL_Keys(path, password)
+	path := os.TempDir() + "/ctrl.key"
+	const password = "0123456789012"
+	err := Gen_CTRL_Keys(path, password)
 	require.Nil(t, err, err)
 	_, err = Load_CTRL_Keys(path, password)
 	require.Nil(t, err, err)

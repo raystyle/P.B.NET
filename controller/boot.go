@@ -17,7 +17,7 @@ type boot struct {
 	bootstrap.Bootstrap
 }
 
-func (this *CTRL) Add_Bootstrapper(m *m_boot) error {
+func (this *CTRL) Add_boot(m *m_boot) error {
 	g := this.global
 	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxy, g.dns)
 	if err != nil {

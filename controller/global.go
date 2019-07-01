@@ -28,11 +28,11 @@ type global struct {
 	load_keys  chan struct{}
 }
 
-func new_global(ctx *CTRL, c *Config) (*global, error) {
+func new_global(ctx *CTRL, c *Config) error {
 	// load proxy clients
 	pcs, err := ctx.Select_Proxy_Client()
 	if err != nil {
-		return nil, errors.Wrap(err, "load proxy clients failed")
+		return errors.Wrap(err, "load proxy clients failed")
 	}
 	l := len(pcs)
 	tpcs := make(map[string]*proxyclient.Client, l)
@@ -44,22 +44,22 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 	}
 	p, err := proxyclient.New(tpcs)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	// load dns clients
 	// load builtin
 	tdcs := make(map[string]*dnsclient.Client)
 	b, err := ioutil.ReadFile("builtin/dnsclient.toml")
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	err = toml.Unmarshal(b, &tdcs)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	dcs, err := ctx.Select_DNS_Client()
 	if err != nil {
-		return nil, errors.Wrap(err, "load dns clients failed")
+		return errors.Wrap(err, "load dns clients failed")
 	}
 	// database records will cover builtin
 	for i := 0; i < len(dcs); i++ {
@@ -70,34 +70,34 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 	}
 	d, err := dnsclient.New(p, tdcs, c.DNS_Cache_Deadline)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	// load from builtin
 	tts := make(map[string]*timesync.Client)
 	b, err = ioutil.ReadFile("builtin/timesync.toml")
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	err = toml.Unmarshal(b, &tts)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	// load from database
 	ts, err := ctx.Select_Timesync()
 	if err != nil {
-		return nil, errors.Wrap(err, "load timesync clients failed")
+		return errors.Wrap(err, "load timesync clients failed")
 	}
 	for i := 0; i < len(ts); i++ {
 		c := &timesync.Client{}
 		err := toml.Unmarshal([]byte(ts[i].Config), c)
 		if err != nil {
-			return nil, errors.Wrapf(err, "load timesync: %s failed", ts[i].Tag)
+			return errors.Wrapf(err, "load timesync: %s failed", ts[i].Tag)
 		}
 		tts[ts[i].Tag] = c
 	}
 	t, err := timesync.New(p, d, ctx, tts, c.Timesync_Interval)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 	g := &global{
 		proxy:     p,
@@ -109,9 +109,14 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 	// sync time
 	err = g.timesync.Start()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return g, nil
+	ctx.global = g
+	return nil
+}
+
+func (this *global) Close() {
+	this.timesync.Stop()
 }
 
 // about internal

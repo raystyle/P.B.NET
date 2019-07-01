@@ -8,7 +8,6 @@ import (
 
 // different table has the same model
 const (
-	t_ctrl_log   = "controller_log"
 	t_node_log   = "node_log"
 	t_beacon_log = "beacon_log"
 )
@@ -52,7 +51,7 @@ type m_timesync struct {
 	Model
 }
 
-type m_bootstrapper struct {
+type m_boot struct {
 	ID       uint64 `gorm:"primary_key"`
 	Tag      string `gorm:"size:32;not null;unique"`
 	Mode     string `gorm:"size:32;not null"`

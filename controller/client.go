@@ -58,10 +58,6 @@ func new_client(ctx *CTRL, c *client_config) (*client, error) {
 	return client, nil
 }
 
-func (this *client) Info() {
-
-}
-
 func (this *client) Close() {
 	_ = this.conn.Close()
 }

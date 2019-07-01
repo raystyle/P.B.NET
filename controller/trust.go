@@ -17,11 +17,11 @@ func (this *CTRL) Trust_Node(n *bootstrap.Node) error {
 	if err != nil {
 		return errors.WithMessage(err, "connect node failed")
 	}
+	defer client.Close()
 	return client.Trust_Node(n)
 }
 
 func (this *client) Trust_Node(n *bootstrap.Node) error {
-	defer this.Close()
 	var err error
 	switch {
 	case this.ver == protocol.V1_0_0:
