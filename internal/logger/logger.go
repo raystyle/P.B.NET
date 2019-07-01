@@ -102,7 +102,7 @@ type writer struct {
 }
 
 func (this *writer) Write(p []byte) (int, error) {
-	this.logger.Println(this.level, this.src, string(p))
+	this.logger.Println(this.level, this.src, string(p[:len(p)-1]))
 	return len(p), nil
 }
 
