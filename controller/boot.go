@@ -9,7 +9,7 @@ import (
 	"project/internal/logger"
 )
 
-type bootstrapper struct {
+type boot struct {
 	ctx         *CTRL
 	tag         string
 	interval    time.Duration
@@ -17,37 +17,37 @@ type bootstrapper struct {
 	bootstrap.Bootstrap
 }
 
-func (this *CTRL) Add_Bootstrapper(b *m_bootstrapper) error {
+func (this *CTRL) Add_Bootstrapper(m *m_boot) error {
 	g := this.global
-	boot, err := bootstrap.Load(b.Mode, []byte(b.Config), g.proxy, g.dns)
+	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxy, g.dns)
 	if err != nil {
-		e := errors.Wrapf(err, "add %s failed", b.Tag)
+		e := errors.Wrapf(err, "add %s failed", m.Tag)
 		this.Println(logger.ERROR, src_boot, e)
 		return e
 	}
-	bo := &bootstrapper{
+	boot := &boot{
 		ctx:         this,
-		Bootstrap:   boot,
-		tag:         b.Tag,
-		interval:    time.Duration(b.Interval) * time.Second,
+		Bootstrap:   b,
+		tag:         m.Tag,
+		interval:    time.Duration(m.Interval) * time.Second,
 		stop_signal: make(chan struct{}, 1),
 	}
 	this.boot_m.Lock()
 	defer this.boot_m.Unlock()
-	if _, exist := this.boot[b.Tag]; !exist {
-		this.boot[b.Tag] = bo
+	if _, exist := this.boot[m.Tag]; !exist {
+		this.boot[m.Tag] = boot
 	} else {
-		e := errors.Errorf("%s is running", b.Tag)
+		e := errors.Errorf("%s is running", m.Tag)
 		this.Println(logger.ERROR, src_boot, e)
 		return e
 	}
 	this.wg.Add(1)
-	go bo.run()
-	this.Printf(logger.INFO, src_boot, "add %s", b.Tag)
+	go boot.run()
+	this.Printf(logger.INFO, src_boot, "add %s", m.Tag)
 	return nil
 }
 
-func (this *bootstrapper) run() {
+func (this *boot) run() {
 	log_src := "boot-" + this.tag
 	defer func() {
 		this.ctx.boot_m.Lock()
@@ -73,7 +73,7 @@ func (this *bootstrapper) run() {
 	}
 }
 
-func (this *bootstrapper) boot() error {
+func (this *boot) boot() error {
 	nodes, err := this.Resolve()
 	if err != nil {
 		return err
@@ -82,6 +82,6 @@ func (this *bootstrapper) boot() error {
 	return nil
 }
 
-func (this *bootstrapper) Stop() {
+func (this *boot) Stop() {
 	close(this.stop_signal)
 }
