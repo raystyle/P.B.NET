@@ -17,14 +17,17 @@ const (
 )
 
 type CTRL struct {
-	db        *gorm.DB
-	log_level logger.Level
-	global    *global
-	web       *web
-	boot      map[string]*bootstrapper
-	boot_m    sync.Mutex
-	wg        sync.WaitGroup
-	exit      chan struct{}
+	log_lv  logger.Level
+	db      *gorm.DB
+	db_lg   *db_logger
+	gorm_lg *gorm_logger
+	global  *global
+	web     *web
+	boot    map[string]*boot
+	boot_m  sync.Mutex
+	wg      sync.WaitGroup
+	once    sync.Once
+	exit    chan struct{}
 }
 
 func New(c *Config) (*CTRL, error) {
@@ -35,33 +38,31 @@ func New(c *Config) (*CTRL, error) {
 			return nil, err
 		}
 	}
-	// init database
-	db, err := connect_database(c)
-	if err != nil {
-		return nil, err
-	}
 	// init logger
 	l, err := logger.Parse(c.Log_Level)
 	if err != nil {
 		return nil, err
 	}
-	ctrl := &CTRL{
-		db:        db,
-		log_level: l,
+	ctrl := &CTRL{log_lv: l}
+	// database
+	err = ctrl.connect_database(c)
+	if err != nil {
+		return nil, err
+	}
+	if c.Init_DB {
+		return ctrl, nil
 	}
 	// init global
-	g, err := new_global(ctrl, c)
+	err = new_global(ctrl, c)
 	if err != nil {
 		return nil, err
 	}
-	ctrl.global = g
 	// init http server
-	web, err := new_web(ctrl, c)
+	err = new_web(ctrl, c)
 	if err != nil {
 		return nil, err
 	}
-	ctrl.web = web
-	ctrl.boot = make(map[string]*bootstrapper)
+	ctrl.boot = make(map[string]*boot)
 	ctrl.exit = make(chan struct{})
 	return ctrl, nil
 }
@@ -72,26 +73,20 @@ func (this *CTRL) Main() error {
 	// <view> start web server
 	err := this.web.Deploy()
 	if err != nil {
-		err = errors.WithMessage(err, "deploy web server failed")
-		this.Fatalln(err)
-		return err
+		return this.fatal(err, "deploy web server failed")
 	}
 	hs_address := this.web.Address()
 	this.Println(logger.INFO, src_init, "http server:", hs_address)
-	// load bootstrapper
+	// load boot
 	this.Print(logger.INFO, src_init, "start discover bootstrap nodes")
-	bs, err := this.Select_Bootstrapper()
+	bs, err := this.Select_boot()
 	if err != nil {
-		err = errors.WithMessage(err, "select bootstrapper failed")
-		this.Fatalln(err)
-		return err
+		return this.fatal(err, "select boot failed")
 	}
 	for i := 0; i < len(bs); i++ {
-		err := this.Add_Bootstrapper(bs[i])
+		err := this.Add_boot(bs[i])
 		if err != nil {
-			err = errors.WithMessage(err, "add bootstrapper failed")
-			this.Fatalln(err)
-			return err
+			return this.fatal(err, "add boot failed")
 		}
 	}
 	this.Print(logger.INFO, src_init, "controller is running")
@@ -102,17 +97,36 @@ func (this *CTRL) Main() error {
 	return nil
 }
 
+func (this *CTRL) fatal(err error, msg string) error {
+	err = errors.WithMessage(err, msg)
+	this.Println(logger.FATAL, src_init, err)
+	this.Exit()
+	return err
+}
+
 func (this *CTRL) Exit() {
-	this.boot_m.Lock()
-	for _, b := range this.boot {
-		b.Stop()
-	}
-	this.boot_m.Unlock()
-	this.web.Close()
-	this.wg.Wait()
-	this.Print(logger.INFO, src_init, "controller is stopped")
-	_ = this.db.Close()
-	close(this.exit)
+	this.once.Do(func() {
+		// stop all running boot
+		this.boot_m.Lock()
+		for _, b := range this.boot {
+			b.Stop()
+		}
+		this.boot_m.Unlock()
+		if this.web != nil {
+			this.web.Close()
+		}
+		this.wg.Wait()
+		if this.global != nil {
+			this.global.Close()
+		}
+		this.Print(logger.INFO, src_init, "controller is stopped")
+		_ = this.db.Close()
+		this.gorm_lg.Close()
+		this.db_lg.Close()
+		if this.exit != nil {
+			close(this.exit)
+		}
+	})
 }
 
 func (this *CTRL) Load_Keys(password string) error {

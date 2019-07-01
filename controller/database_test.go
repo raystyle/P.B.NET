@@ -4,40 +4,14 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/jinzhu/gorm"
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/testdata"
 )
 
-// if need init database set true
-func Test_init_database(t *testing.T) {
-	if false {
-		db := test_connect_database(t)
-		defer func() { _ = db.Close() }()
-		err := init_database(db)
-		require.Nil(t, err, err)
-	}
-}
-
-func Test_connect_database(t *testing.T) {
-	db := test_connect_database(t)
-	_ = db.Close()
-}
-
-func test_connect_database(t *testing.T) *gorm.DB {
-	c := test_gen_config()
-	c.DB_Log_Path = "../app/log/database.log"
-	c.GORM_Log_Path = "../app/log/gorm.log"
-	db, err := connect_database(c)
-	require.Nil(t, err, err)
-	return db
-}
-
 func Test_Insert_Proxy_Client(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_proxy_client{}).Error
 	require.Nil(t, err, err)
@@ -55,16 +29,14 @@ func Test_Insert_Proxy_Client(t *testing.T) {
 }
 
 func Test_Select_Proxy_Client(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Proxy_Client()
 	require.Nil(t, err, err)
 	t.Log("select proxy client:", spew.Sdump(clients))
 }
 
 func Test_Update_Proxy_Client(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Proxy_Client()
 	require.Nil(t, err, err)
 	raw := clients[0].Mode
@@ -77,8 +49,7 @@ func Test_Update_Proxy_Client(t *testing.T) {
 }
 
 func Test_Delete_Proxy_Client(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Proxy_Client()
 	require.Nil(t, err, err)
 	err = ctrl.Delete_Proxy_Client(clients[0].ID)
@@ -87,8 +58,7 @@ func Test_Delete_Proxy_Client(t *testing.T) {
 }
 
 func Test_Insert_DNS_Client(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_dns_client{}).Error
 	require.Nil(t, err, err)
@@ -106,16 +76,14 @@ func Test_Insert_DNS_Client(t *testing.T) {
 }
 
 func Test_Select_DNS_Client(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_DNS_Client()
 	require.Nil(t, err, err)
 	t.Log("select dns client:", spew.Sdump(clients))
 }
 
 func Test_Update_DNS_Client(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_DNS_Client()
 	require.Nil(t, err, err)
 	raw := clients[0].Method
@@ -128,8 +96,7 @@ func Test_Update_DNS_Client(t *testing.T) {
 }
 
 func Test_Delete_DNS_Client(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_DNS_Client()
 	require.Nil(t, err, err)
 	err = ctrl.Delete_DNS_Client(clients[0].ID)
@@ -138,8 +105,7 @@ func Test_Delete_DNS_Client(t *testing.T) {
 }
 
 func Test_Insert_Timesync(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_timesync{}).Error
 	require.Nil(t, err, err)
@@ -159,16 +125,14 @@ func Test_Insert_Timesync(t *testing.T) {
 }
 
 func Test_Select_Timesync(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Timesync()
 	require.Nil(t, err, err)
 	t.Log("select timesync:", spew.Sdump(clients))
 }
 
 func Test_Update_Timesync(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Timesync()
 	require.Nil(t, err, err)
 	raw := clients[0].Mode
@@ -181,8 +145,7 @@ func Test_Update_Timesync(t *testing.T) {
 }
 
 func Test_Delete_Timesync(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Timesync()
 	require.Nil(t, err, err)
 	err = ctrl.Delete_Timesync(clients[0].ID)
@@ -190,62 +153,57 @@ func Test_Delete_Timesync(t *testing.T) {
 	Test_Insert_Timesync(t)
 }
 
-func Test_Insert_Bootstrapper(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+func Test_Insert_boot(t *testing.T) {
+	init_ctrl(t)
 	// clean table
-	err := ctrl.db.Unscoped().Delete(&m_bootstrapper{}).Error
+	err := ctrl.db.Unscoped().Delete(&m_boot{}).Error
 	require.Nil(t, err, err)
 	// insert
 	b := testdata.Register(t)
 	for i := 0; i < len(b); i++ {
-		m := &m_bootstrapper{
+		m := &m_boot{
 			Tag:      b[i].Tag,
 			Mode:     b[i].Mode,
 			Config:   string(b[i].Config),
 			Interval: uint32(15),
 			Enable:   true,
 		}
-		err := ctrl.Insert_Bootstrapper(m)
+		err := ctrl.Insert_boot(m)
 		require.Nil(t, err, err)
 	}
 }
 
-func Test_Select_Bootstrapper(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
-	clients, err := ctrl.Select_Bootstrapper()
+func Test_Select_boot(t *testing.T) {
+	init_ctrl(t)
+	clients, err := ctrl.Select_boot()
 	require.Nil(t, err, err)
 	t.Log("select bootstrap:", spew.Sdump(clients))
 }
 
-func Test_Update_Bootstrapper(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
-	clients, err := ctrl.Select_Bootstrapper()
+func Test_Update_boot(t *testing.T) {
+	init_ctrl(t)
+	clients, err := ctrl.Select_boot()
 	require.Nil(t, err, err)
 	raw := clients[0].Mode
 	clients[0].Mode = "changed"
-	err = ctrl.Update_Bootstrapper(clients[0])
+	err = ctrl.Update_boot(clients[0])
 	require.Nil(t, err, err)
 	clients[0].Mode = raw
-	err = ctrl.Update_Bootstrapper(clients[0])
+	err = ctrl.Update_boot(clients[0])
 	require.Nil(t, err, err)
 }
 
-func Test_Delete_Bootstrapper(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
-	clients, err := ctrl.Select_Bootstrapper()
+func Test_Delete_boot(t *testing.T) {
+	init_ctrl(t)
+	clients, err := ctrl.Select_boot()
 	require.Nil(t, err, err)
-	err = ctrl.Delete_Bootstrapper(clients[0].ID)
+	err = ctrl.Delete_boot(clients[0].ID)
 	require.Nil(t, err, err)
-	Test_Insert_Bootstrapper(t)
+	Test_Insert_boot(t)
 }
 
 func Test_Insert_Listener(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_listener{}).Error
 	require.Nil(t, err, err)
@@ -263,16 +221,14 @@ func Test_Insert_Listener(t *testing.T) {
 }
 
 func Test_Select_Listener(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Listener()
 	require.Nil(t, err, err)
 	t.Log("select listener:", spew.Sdump(clients))
 }
 
 func Test_Update_Listener(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Listener()
 	require.Nil(t, err, err)
 	raw := clients[0].Mode
@@ -285,8 +241,7 @@ func Test_Update_Listener(t *testing.T) {
 }
 
 func Test_Delete_Listener(t *testing.T) {
-	ctrl := test_gen_ctrl(t)
-	defer ctrl.Exit()
+	init_ctrl(t)
 	clients, err := ctrl.Select_Listener()
 	require.Nil(t, err, err)
 	err = ctrl.Delete_Listener(clients[0].ID)

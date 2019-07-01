@@ -17,23 +17,23 @@ func init() {
 	}
 }
 
-func connect_database(c *Config) (*gorm.DB, error) {
+func (this *CTRL) connect_database(c *Config) error {
 	// set db logger
-	db_logger, err := new_db_logger(c.Dialect, c.DB_Log_Path)
+	db_l, err := new_db_logger(c.Dialect, c.DB_Log_Path)
 	if err != nil {
-		return nil, errors.Wrapf(err, "create %s logger failed", c.Dialect)
+		return errors.Wrapf(err, "create %s logger failed", c.Dialect)
 	}
 	// if you need, add DB Driver
 	switch c.Dialect {
 	case "mysql":
-		_ = mysql.SetLogger(db_logger)
+		_ = mysql.SetLogger(db_l)
 	default:
-		return nil, errors.Errorf("unknown dialect: %s", c.Dialect)
+		return errors.Errorf("unknown dialect: %s", c.Dialect)
 	}
 	// connect database
 	db, err := gorm.Open(c.Dialect, c.DSN)
 	if err != nil {
-		return nil, errors.Wrapf(err, "connect %s server failed", c.Dialect)
+		return errors.Wrapf(err, "connect %s server failed", c.Dialect)
 	}
 	// connection
 	db.DB().SetMaxOpenConns(c.DB_Max_Open_Conns)
@@ -41,7 +41,7 @@ func connect_database(c *Config) (*gorm.DB, error) {
 	// logger
 	gorm_l, err := new_gorm_logger(c.GORM_Log_Path)
 	if err != nil {
-		return nil, errors.Wrap(err, "create gorm logger failed")
+		return errors.Wrap(err, "create gorm logger failed")
 	}
 	db.SetLogger(gorm_l)
 	if c.GORM_Detailed_Log {
@@ -49,17 +49,20 @@ func connect_database(c *Config) (*gorm.DB, error) {
 	}
 	// not add s
 	db.SingularTable(true)
-	return db, nil
+	this.db = db
+	this.db_lg = db_l
+	this.gorm_lg = gorm_l
+	return nil
 }
 
 // first use this project
-func init_database(db *gorm.DB) error {
+func (this *CTRL) Init_Database() error {
 	tables := []*struct {
 		name  string
 		model interface{}
 	}{
 		{
-			name:  t_ctrl_log,
+			name:  "",
 			model: &m_ctrl_log{},
 		},
 		{
@@ -76,7 +79,7 @@ func init_database(db *gorm.DB) error {
 		},
 		{
 			name:  "",
-			model: &m_bootstrapper{},
+			model: &m_boot{},
 		},
 		{
 			name:  "",
@@ -95,25 +98,21 @@ func init_database(db *gorm.DB) error {
 		n := tables[i].name
 		m := tables[i].model
 		if n == "" {
-			db.DropTableIfExists(m)
-			err := db.CreateTable(m).Error
+			this.db.DropTableIfExists(m)
+			err := this.db.CreateTable(m).Error
 			if err != nil {
 				name := gorm.TheNamingStrategy.Table(xreflect.Struct_Name(m))
 				return errors.Wrapf(err, "create table %s failed", name)
 			}
 		} else {
-			db.Table(n).DropTableIfExists(m)
-			err := db.Table(n).CreateTable(m).Error
+			this.db.Table(n).DropTableIfExists(m)
+			err := this.db.Table(n).CreateTable(m).Error
 			if err != nil {
 				return errors.Wrapf(err, "create table %s failed", n)
 			}
 		}
 	}
 	return nil
-}
-
-func (this *CTRL) Init_Database() error {
-	return init_database(this.db)
 }
 
 // -------------------------------proxy client----------------------------------------
@@ -175,21 +174,21 @@ func (this *CTRL) Delete_Timesync(id uint64) error {
 
 // ---------------------------------bootstrap----------------------------------------
 
-func (this *CTRL) Insert_Bootstrapper(m *m_bootstrapper) error {
+func (this *CTRL) Insert_boot(m *m_boot) error {
 	return this.db.Create(m).Error
 }
 
-func (this *CTRL) Select_Bootstrapper() ([]*m_bootstrapper, error) {
-	var clients []*m_bootstrapper
+func (this *CTRL) Select_boot() ([]*m_boot, error) {
+	var clients []*m_boot
 	return clients, this.db.Find(&clients).Error
 }
 
-func (this *CTRL) Update_Bootstrapper(m *m_bootstrapper) error {
+func (this *CTRL) Update_boot(m *m_boot) error {
 	return this.db.Save(m).Error
 }
 
-func (this *CTRL) Delete_Bootstrapper(id uint64) error {
-	return this.db.Delete(&m_bootstrapper{ID: id}).Error
+func (this *CTRL) Delete_boot(id uint64) error {
+	return this.db.Delete(&m_boot{ID: id}).Error
 }
 
 // ----------------------------------listener----------------------------------------

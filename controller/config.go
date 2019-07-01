@@ -16,6 +16,7 @@ type Config struct {
 	Timesync_Interval  time.Duration `toml:"timesync_interval"`
 
 	// database
+	Init_DB           bool
 	Dialect           string `toml:"dialect"` // "mysql"
 	DSN               string `toml:"dsn"`
 	DB_Log_Path       string `toml:"db_log_path"`
