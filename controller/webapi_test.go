@@ -41,7 +41,7 @@ func Test_h_trust_node(t *testing.T) {
 	m := &m_trust_node{
 		Mode:    xnet.TLS,
 		Network: "tcp",
-		Address: "localhost:9932",
+		Address: "localhost:1733",
 	}
 	reader := test_json_encode(t, m)
 	resp, err := test_restful_api(http.MethodPost, "api/trust_node", reader)

@@ -24,13 +24,13 @@ type client struct {
 type client_config struct {
 	Node      *bootstrap.Node
 	Node_GUID []byte
-	Xnet      xnet.Config
+	xnet.Config
 }
 
 func new_client(ctx *CTRL, c *client_config) (*client, error) {
-	c.Xnet.Network = c.Node.Network
-	c.Xnet.Address = c.Node.Address
-	conn, err := xnet.Dial(c.Node.Mode, &c.Xnet)
+	c.Network = c.Node.Network
+	c.Address = c.Node.Address
+	conn, err := xnet.Dial(c.Node.Mode, &c.Config)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

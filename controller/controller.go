@@ -96,7 +96,7 @@ func (this *CTRL) Main() error {
 	}
 	this.Print(logger.INFO, src_init, "controller is running")
 	// wait to load controller keys
-	this.Wait_Load_Keys()
+	this.global.Wait_Load_Keys()
 	this.Print(logger.INFO, src_init, "load keys successfully")
 	<-this.exit
 	return nil
@@ -117,8 +117,4 @@ func (this *CTRL) Exit() {
 
 func (this *CTRL) Load_Keys(password string) error {
 	return this.global.Load_Keys(password)
-}
-
-func (this *CTRL) Wait_Load_Keys() {
-	this.global.Wait_Load_Keys()
 }
