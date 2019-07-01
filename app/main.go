@@ -18,8 +18,9 @@ var (
 	debug     bool
 	install   bool
 	uninstall bool
-	genkey    string
 	initdb    bool
+	genkey    string
+	logger    service.Logger
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	logger, err := s.Logger(nil)
+	logger, err = s.Logger(nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,8 +52,8 @@ func (this *program) Start(s service.Service) error {
 	flag.BoolVar(&debug, "debug", false, "not changed path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
-	flag.StringVar(&genkey, "genkey", "", "generate keys and encrypt it")
 	flag.BoolVar(&initdb, "initdb", false, "initialize database")
+	flag.StringVar(&genkey, "genkey", "", "generate keys and encrypt it")
 	flag.Parse()
 	// install service
 	if install {
@@ -103,6 +104,9 @@ func (this *program) Start(s service.Service) error {
 	if err != nil {
 		return err
 	}
+	if initdb {
+		config.Init_DB = true
+	}
 	ctrl, err := controller.New(config)
 	if err != nil {
 		return err
@@ -111,17 +115,20 @@ func (this *program) Start(s service.Service) error {
 	if initdb {
 		err = ctrl.Init_Database()
 		if err != nil {
-			return errors.Wrap(err, "init database failed")
+			return errors.Wrap(err, "initialize database failed")
 		}
-		log.Print("init database successfully")
+		log.Print("initialize database successfully")
 		os.Exit(0)
 	}
 	this.ctrl = ctrl
 	go func() {
 		err = ctrl.Main()
 		if err != nil {
-			_ = s.Stop()
+			_ = logger.Error(err)
+			os.Exit(1)
 		}
+		_ = s.Stop()
+		os.Exit(0)
 	}()
 	return nil
 }
