@@ -115,25 +115,25 @@ func (this *server) v1_identity(conn *conn) {
 	}
 	switch role[0] {
 	case protocol.BEACON:
-		this.v1_handshake_beacon(conn)
+		this.v1_identity_beacon(conn)
 	case protocol.NODE:
-		this.v1_handshake_node(conn)
+		this.v1_identity_node(conn)
 	case protocol.CTRL:
-		this.v1_handshake_ctrl(conn)
+		this.v1_identity_ctrl(conn)
 	default:
 		this.logln(logger.EXPLOIT, &hs_log{c: conn, l: "invalid role"})
 	}
 }
 
-func (this *server) v1_handshake_beacon(conn *conn) {
+func (this *server) v1_identity_beacon(conn *conn) {
 
 }
 
-func (this *server) v1_handshake_node(conn *conn) {
+func (this *server) v1_identity_node(conn *conn) {
 
 }
 
-func (this *server) v1_handshake_ctrl(conn *conn) {
+func (this *server) v1_identity_ctrl(conn *conn) {
 	// send random challenge code(length 2048-4096)
 	// <danger>
 	// len(challenge) must > len(GUID + Mode + Network + Address)

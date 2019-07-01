@@ -1,7 +1,6 @@
 package node
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -9,14 +8,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
 
+	"project/internal/config"
 	"project/internal/convert"
 	"project/internal/logger"
-	"project/internal/messages"
 	"project/internal/options"
-	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
 )
@@ -69,8 +68,14 @@ func (this *server) Deploy() error {
 	return nil
 }
 
-func (this *server) Serve(l *messages.Listener) error {
-	li, err := xnet.Listen(l.Mode, l.Config)
+func (this *server) Serve(l *config.Listener) error {
+	c := &xnet.Config{}
+	err := toml.Unmarshal(l.Config, c)
+	if err != nil {
+		this.logf(logger.INFO, "load %s config failed: %s", l.Tag, err)
+		return err
+	}
+	li, err := xnet.Listen(l.Mode, c)
 	if err != nil {
 		this.logf(logger.INFO, "listen %s failed: %s", l.Tag, err)
 		return err
@@ -83,7 +88,7 @@ func (this *server) Serve(l *messages.Listener) error {
 		this.logf(logger.INFO, "track listener %s failed: %s", l.Tag, err)
 		return err
 	}
-	timeout := l.Timeout
+	timeout := c.Timeout
 	if timeout < 1 {
 		timeout = options.DEFAULT_START_TIMEOUT
 	}
@@ -184,15 +189,15 @@ func (this *server) Shutdown() {
 }
 
 func (this *server) logf(l logger.Level, format string, log ...interface{}) {
-	this.ctx.logger.Printf(l, "server", format, log...)
+	this.ctx.Printf(l, "server", format, log...)
 }
 
 func (this *server) log(l logger.Level, log ...interface{}) {
-	this.ctx.logger.Print(l, "server", log...)
+	this.ctx.Print(l, "server", log...)
 }
 
 func (this *server) logln(l logger.Level, log ...interface{}) {
-	this.ctx.logger.Println(l, "server", log...)
+	this.ctx.Println(l, "server", log...)
 }
 
 func (this *server) shutting_down() bool {
