@@ -123,13 +123,13 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 			}
 			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_ctrl_guid) {
 				e := &hs_err{c: conn, s: "invalid certificate(with controller guid)"}
-				this.ctx.Println(logger.EXPLOIT, src_client, e)
+				this.ctx.Println(logger.EXPLOIT, log_client, e)
 				return errors.WithStack(e)
 			}
 		} else {
 			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_node_guid) {
 				e := &hs_err{c: conn, s: "invalid certificate(with node guid)"}
-				this.ctx.Println(logger.EXPLOIT, src_client, e)
+				this.ctx.Println(logger.EXPLOIT, log_client, e)
 				return errors.WithStack(e)
 			}
 		}
@@ -157,7 +157,7 @@ func (this *client) v1_authenticate(conn *xnet.Conn) error {
 	// and if controller sign it will destory net
 	if len(challenge) < 2048 || len(challenge) > 4096 {
 		e := &hs_err{c: conn, s: "invalid challenge size"}
-		this.ctx.Println(logger.EXPLOIT, src_client, e)
+		this.ctx.Println(logger.EXPLOIT, log_client, e)
 		return errors.WithStack(e)
 	}
 	// send signature

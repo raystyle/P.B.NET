@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pkg/errors"
+
 	"project/internal/logger"
 )
 
 const (
-	src_init   = "init"
-	src_boot   = "boot"
-	src_client = "client"
+	log_init   = "init"
+	log_exit   = "exit"
+	log_boot   = "boot"
+	log_client = "client"
 )
 
 type db_logger struct {
@@ -22,7 +25,7 @@ type db_logger struct {
 func new_db_logger(db, path string) (*db_logger, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 664)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "create %s logger failed", db)
 	}
 	return &db_logger{db: db, file: f}, nil
 }
@@ -46,7 +49,7 @@ type gorm_logger struct {
 func new_gorm_logger(path string) (*gorm_logger, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 664)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "create gorm logger failed")
 	}
 	return &gorm_logger{file: f}, nil
 }

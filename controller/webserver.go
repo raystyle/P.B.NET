@@ -2,6 +2,7 @@ package controller
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -23,17 +24,17 @@ type web struct {
 	index_fs http.Handler
 }
 
-func new_web(ctx *CTRL, c *Config) error {
+func new_web(ctx *CTRL, c *Config) (*web, error) {
 	// listen tls
-	crt_path := "cert/server.crt"
-	key_path := "cert/server.key"
-	crt, err := tls.LoadX509KeyPair(crt_path, key_path)
+	crt_file := c.HTTPS_Cert_File
+	key_file := c.HTTPS_Key_File
+	crt, err := tls.LoadX509KeyPair(crt_file, key_file)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
-	listener, err := net.Listen("tcp", c.HTTP_Address)
+	listener, err := net.Listen("tcp", c.HTTPS_Address)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	// router
 	hs := &web{
@@ -45,12 +46,14 @@ func new_web(ctx *CTRL, c *Config) error {
 		RedirectFixedPath:      true,
 		HandleMethodNotAllowed: true,
 		HandleOPTIONS:          true,
+		PanicHandler:           hs.h_panic,
 	}
 	// resource
-	router.ServeFiles("/css/*filepath", http.Dir("web/css"))
-	router.ServeFiles("/js/*filepath", http.Dir("web/js"))
-	router.ServeFiles("/img/*filepath", http.Dir("web/img"))
-	fs := http.FileServer(http.Dir("web"))
+
+	router.ServeFiles("/css/*filepath", http.Dir(c.Web_Dir+"/css"))
+	router.ServeFiles("/js/*filepath", http.Dir(c.Web_Dir+"/js"))
+	router.ServeFiles("/img/*filepath", http.Dir(c.Web_Dir+"/img"))
+	fs := http.FileServer(http.Dir(c.Web_Dir))
 	hs.index_fs = fs
 	handle_favicon := func(w h_rw, r *h_r, _ h_p) {
 		fs.ServeHTTP(w, r)
@@ -73,8 +76,7 @@ func new_web(ctx *CTRL, c *Config) error {
 		Handler:           router,
 		ErrorLog:          logger.Wrap(logger.WARNING, "web", ctx),
 	}
-	ctx.web = hs
-	return nil
+	return hs, nil
 }
 
 func (this *web) Deploy() error {
@@ -99,6 +101,11 @@ func (this *web) Address() string {
 
 func (this *web) Close() {
 	_ = this.server.Close()
+}
+
+func (this *web) h_panic(w h_rw, r *h_r, e interface{}) {
+	w.WriteHeader(http.StatusInternalServerError)
+	_, _ = w.Write([]byte(fmt.Sprint(e)))
 }
 
 func (this *web) h_login(w h_rw, r *h_r, p h_p) {

@@ -16,10 +16,8 @@ import (
 	"project/internal/xnet"
 )
 
-const host = "https://localhost:9931/"
-
 func test_restful_api(method, path string, body io.Reader) ([]byte, error) {
-	r, _ := http.NewRequest(method, host+path, body)
+	r, _ := http.NewRequest(method, "https://localhost:9931/"+path, body)
 	t := &http.Transport{}
 	t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	c := http.Client{Transport: t}

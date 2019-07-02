@@ -22,7 +22,7 @@ func (this *CTRL) Add_boot(m *m_boot) error {
 	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxy, g.dns)
 	if err != nil {
 		e := errors.Wrapf(err, "add %s failed", m.Tag)
-		this.Println(logger.ERROR, src_boot, e)
+		this.Println(logger.ERROR, log_boot, e)
 		return e
 	}
 	boot := &boot{
@@ -38,12 +38,12 @@ func (this *CTRL) Add_boot(m *m_boot) error {
 		this.boot[m.Tag] = boot
 	} else {
 		e := errors.Errorf("%s is running", m.Tag)
-		this.Println(logger.ERROR, src_boot, e)
+		this.Println(logger.ERROR, log_boot, e)
 		return e
 	}
 	this.wg.Add(1)
 	go boot.run()
-	this.Printf(logger.INFO, src_boot, "add %s", m.Tag)
+	this.Printf(logger.INFO, log_boot, "add %s", m.Tag)
 	return nil
 }
 

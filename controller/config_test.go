@@ -15,17 +15,21 @@ func test_gen_config() *Config {
 		// global
 		DNS_Cache_Deadline: 3 * time.Minute,
 		Timesync_Interval:  15 * time.Minute,
-		Key_Path:           "../app/key/ctrl.key",
+		Builtin_Dir:        "../app/builtin",
+		Key_Dir:            "../app/key",
 		// database
 		Dialect:           test_dialect,
 		DSN:               test_dsn,
 		DB_Max_Open_Conns: 16,
 		DB_Max_Idle_Conns: 16,
-		DB_Log_Path:       "../app/log/database.log",
-		GORM_Log_Path:     "../app/log/gorm.log",
+		DB_Log_File:       "../app/log/database.log",
+		GORM_Log_File:     "../app/log/gorm.log",
 		GORM_Detailed_Log: false,
 		// http server
-		HTTP_Address: ":9931",
+		HTTPS_Address:   ":9931",
+		HTTPS_Cert_File: "../app/cert/server.crt",
+		HTTPS_Key_File:  "../app/cert/server.key",
+		Web_Dir:         "../app/web",
 	}
 	return c
 }

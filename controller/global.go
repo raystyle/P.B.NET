@@ -15,24 +15,21 @@ import (
 	"project/internal/global/timesync"
 )
 
-const (
-	Key_Path = "key/ctrl.key"
-)
-
 type global struct {
 	proxy      *proxyclient.PROXY
 	dns        *dnsclient.DNS
 	timesync   *timesync.TIMESYNC
+	key_dir    string
 	object     map[uint32]interface{}
 	object_rwm sync.RWMutex
 	load_keys  chan struct{}
 }
 
-func new_global(ctx *CTRL, c *Config) error {
+func new_global(ctx *CTRL, c *Config) (*global, error) {
 	// load proxy clients
 	pcs, err := ctx.Select_Proxy_Client()
 	if err != nil {
-		return errors.Wrap(err, "load proxy clients failed")
+		return nil, errors.Wrap(err, "load proxy clients failed")
 	}
 	l := len(pcs)
 	tpcs := make(map[string]*proxyclient.Client, l)
@@ -44,22 +41,22 @@ func new_global(ctx *CTRL, c *Config) error {
 	}
 	p, err := proxyclient.New(tpcs)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.Wrap(err, "new proxy failed")
 	}
 	// load dns clients
 	// load builtin
 	tdcs := make(map[string]*dnsclient.Client)
-	b, err := ioutil.ReadFile("builtin/dnsclient.toml")
+	b, err := ioutil.ReadFile(c.Builtin_Dir + "/dnsclient.toml")
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.Wrap(err, "load builtin dns clients failed")
 	}
 	err = toml.Unmarshal(b, &tdcs)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.Wrap(err, "load builtin dns clients failed")
 	}
 	dcs, err := ctx.Select_DNS_Client()
 	if err != nil {
-		return errors.Wrap(err, "load dns clients failed")
+		return nil, errors.Wrap(err, "load dns clients failed")
 	}
 	// database records will cover builtin
 	for i := 0; i < len(dcs); i++ {
@@ -70,53 +67,49 @@ func new_global(ctx *CTRL, c *Config) error {
 	}
 	d, err := dnsclient.New(p, tdcs, c.DNS_Cache_Deadline)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.Wrap(err, "new dns failed")
 	}
 	// load from builtin
 	tts := make(map[string]*timesync.Client)
-	b, err = ioutil.ReadFile("builtin/timesync.toml")
+	b, err = ioutil.ReadFile(c.Builtin_Dir + "/timesync.toml")
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.Wrap(err, "load builtin timesync clients failed")
 	}
 	err = toml.Unmarshal(b, &tts)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.Wrap(err, "load builtin timesync clients failed")
 	}
 	// load from database
 	ts, err := ctx.Select_Timesync()
 	if err != nil {
-		return errors.Wrap(err, "load timesync clients failed")
+		return nil, errors.Wrap(err, "load timesync clients failed")
 	}
 	for i := 0; i < len(ts); i++ {
 		c := &timesync.Client{}
 		err := toml.Unmarshal([]byte(ts[i].Config), c)
 		if err != nil {
-			return errors.Wrapf(err, "load timesync: %s failed", ts[i].Tag)
+			return nil, errors.Wrapf(err, "load timesync: %s failed", ts[i].Tag)
 		}
 		tts[ts[i].Tag] = c
 	}
 	t, err := timesync.New(p, d, ctx, tts, c.Timesync_Interval)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.Wrap(err, "new timesync failed")
 	}
 	g := &global{
 		proxy:     p,
 		dns:       d,
 		timesync:  t,
+		key_dir:   c.Key_Dir,
 		object:    make(map[uint32]interface{}),
 		load_keys: make(chan struct{}, 1),
 	}
 	// sync time
 	err = g.timesync.Start()
 	if err != nil {
-		return err
+		return nil, errors.Wrap(err, "synchronization time failed")
 	}
-	ctx.global = g
-	return nil
-}
-
-func (this *global) Close() {
-	this.timesync.Stop()
+	return g, nil
 }
 
 // about internal
@@ -128,7 +121,7 @@ func (this *global) Load_Keys(password string) error {
 	if o != nil {
 		return errors.New("already load keys")
 	}
-	keys, err := Load_CTRL_Keys(Key_Path, password)
+	keys, err := Load_CTRL_Keys(this.key_dir+"/ctrl.key", password)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -168,4 +161,8 @@ func (this *global) Verify(message, signature []byte) bool {
 	p := this.object[ed25519_publickey].(ed25519.PublicKey)
 	this.object_rwm.RUnlock()
 	return ed25519.Verify(p, message, signature)
+}
+
+func (this *global) Close() {
+	this.timesync.Stop()
 }

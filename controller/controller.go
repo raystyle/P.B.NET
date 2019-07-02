@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/go-sql-driver/mysql"
@@ -33,20 +32,13 @@ type CTRL struct {
 }
 
 func New(c *Config) (*CTRL, error) {
-	// for test
-	if c.bin_path != "" {
-		err := os.Chdir(c.bin_path)
-		if err != nil {
-			return nil, err
-		}
-	}
 	// init logger
 	l, err := logger.Parse(c.Log_Level)
 	if err != nil {
 		return nil, err
 	}
 	// set db logger
-	db_lg, err := new_db_logger(c.Dialect, c.DB_Log_Path)
+	db_lg, err := new_db_logger(c.Dialect, c.DB_Log_File)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +59,7 @@ func New(c *Config) (*CTRL, error) {
 	db.DB().SetMaxOpenConns(c.DB_Max_Open_Conns)
 	db.DB().SetMaxIdleConns(c.DB_Max_Idle_Conns)
 	// gorm logger
-	gorm_lg, err := new_gorm_logger(c.GORM_Log_Path)
+	gorm_lg, err := new_gorm_logger(c.GORM_Log_File)
 	if err != nil {
 		return nil, err
 	}
@@ -77,20 +69,22 @@ func New(c *Config) (*CTRL, error) {
 	}
 	ctrl := &CTRL{
 		log_lv:  l,
-		db_lg:   db_lg,
 		db:      db,
+		db_lg:   db_lg,
 		gorm_lg: gorm_lg,
 	}
 	// init global
-	err = new_global(ctrl, c)
+	g, err := new_global(ctrl, c)
 	if err != nil {
 		return nil, err
 	}
+	ctrl.global = g
 	// init http server
-	err = new_web(ctrl, c)
+	web, err := new_web(ctrl, c)
 	if err != nil {
 		return nil, err
 	}
+	ctrl.web = web
 	ctrl.boot = make(map[string]*boot)
 	ctrl.exit = make(chan error)
 	return ctrl, nil
