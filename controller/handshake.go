@@ -28,7 +28,7 @@ func (this *hs_err) Error() string {
 		this.c.LocalAddr().Network(), this.c.LocalAddr(),
 		this.c.RemoteAddr().Network(), this.c.RemoteAddr()))
 	if conn, ok := this.c.(*xnet.Conn); ok {
-		b.WriteString(fmt.Sprintf("ver: %d ", conn.Info().Version))
+		b.WriteString(fmt.Sprintf("[ver: %d] ", conn.Info().Version))
 	}
 	b.WriteString(this.s)
 	if this.e != nil {

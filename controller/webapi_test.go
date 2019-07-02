@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -42,14 +43,16 @@ func test_shutdown() {
 }
 
 func Test_h_trust_node(t *testing.T) {
+	init_ctrl(t)
 	m := &m_trust_node{
 		Mode:    xnet.TLS,
 		Network: "tcp",
-		Address: "localhost:1733",
+		Address: "localhost:9950",
 	}
 	reader := test_json_encode(t, m)
 	resp, err := test_restful_api(http.MethodPost, "api/node/trust", reader)
 	require.Nil(t, err, err)
 	fmt.Println(string(resp))
+	time.Sleep(5 * time.Second)
 	test_shutdown()
 }

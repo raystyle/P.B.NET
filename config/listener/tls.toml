@@ -1,5 +1,5 @@
 network = "tcp"
-address = ":0"
+address = ":9950"
 timeout = "15s"
 
 [tls_config]

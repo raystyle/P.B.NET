@@ -24,7 +24,7 @@ func (this *hs_log) String() string {
 		this.c.l_network, this.c.l_address,
 		this.c.r_network, this.c.r_address))
 	if this.c.version != 0 {
-		b.WriteString(fmt.Sprintf("ver: %d ", this.c.version))
+		b.WriteString(fmt.Sprintf("[ver: %d] ", this.c.version))
 	}
 	b.WriteString(this.l)
 	if this.e != nil {

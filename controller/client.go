@@ -44,8 +44,10 @@ func new_client(ctx *CTRL, c *client_config) (*client, error) {
 		xconn, err := client.handshake(conn)
 		if err != nil {
 			err_chan <- err
+			return
 		}
 		client.conn = xconn
+		close(err_chan)
 	}()
 	select {
 	case err = <-err_chan:

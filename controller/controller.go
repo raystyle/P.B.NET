@@ -70,13 +70,6 @@ func New(c *Config) (*CTRL, error) {
 func (this *CTRL) Main() error {
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Printf(logger.INFO, src_init, "timesync: %s", now)
-	// <view> start web server
-	err := this.web.Deploy()
-	if err != nil {
-		return this.fatal(err, "deploy web server failed")
-	}
-	hs_address := this.web.Address()
-	this.Println(logger.INFO, src_init, "http server:", hs_address)
 	// load boot
 	this.Print(logger.INFO, src_init, "start discover bootstrap nodes")
 	bs, err := this.Select_boot()
@@ -89,6 +82,13 @@ func (this *CTRL) Main() error {
 			return this.fatal(err, "add boot failed")
 		}
 	}
+	// <view> start web server
+	err = this.web.Deploy()
+	if err != nil {
+		return this.fatal(err, "deploy web server failed")
+	}
+	hs_address := this.web.Address()
+	this.Println(logger.INFO, src_init, "http server:", hs_address)
 	this.Print(logger.INFO, src_init, "controller is running")
 	// wait to load controller keys
 	go func() {
