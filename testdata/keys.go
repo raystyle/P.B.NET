@@ -14,7 +14,6 @@ var (
 	CTRL_Keys_PWD = "123456789012"
 	CTRL_ED25519  ed25519.PrivateKey
 	CTRL_AES_Key  []byte
-	CTRL_AES_IV   []byte
 )
 
 func init() {
@@ -25,8 +24,7 @@ func init() {
 	// ed25519
 	pri, _ := ed25519.Import_PrivateKey(keys[0])
 	CTRL_ED25519 = pri
-	CTRL_AES_Key = keys[1]
-	CTRL_AES_IV = keys[2]
+	CTRL_AES_Key = append(keys[1],keys[2]...)
 }
 
 // from controller/keygen.go
