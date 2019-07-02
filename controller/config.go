@@ -5,18 +5,15 @@ import (
 )
 
 type Config struct {
-	// debug
-	bin_path string
-
 	// logger
 	Log_Level string `toml:"log_level"`
 
 	// global
 	DNS_Cache_Deadline time.Duration `toml:"dns_cache_deadline"`
 	Timesync_Interval  time.Duration `toml:"timesync_interval"`
+	Key_Path           string        `toml:"key_path"`
 
 	// database
-	Init_DB           bool
 	Dialect           string `toml:"dialect"` // "mysql"
 	DSN               string `toml:"dsn"`
 	DB_Log_Path       string `toml:"db_log_path"`
@@ -25,11 +22,9 @@ type Config struct {
 	GORM_Log_Path     string `toml:"gorm_log_path"`
 	GORM_Detailed_Log bool   `toml:"gorm_detailed_log"`
 
-	// http server
+	// web server
 	HTTP_Address string `toml:"http_address"`
 }
-
-const object_key_max uint32 = 1048575
 
 type object_key = uint32
 

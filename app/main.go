@@ -73,15 +73,6 @@ func (this *program) Start(s service.Service) error {
 		log.Print("uninstall service successfully")
 		os.Exit(0)
 	}
-	// generate controller keys
-	if genkey != "" {
-		err := controller.Gen_CTRL_Keys(controller.Key_Path, genkey)
-		if err != nil {
-			return errors.Wrap(err, "generate keys failed")
-		}
-		log.Print("generate controller keys successfully")
-		os.Exit(0)
-	}
 	// changed path for service
 	if !debug {
 		path, err := os.Executable()
@@ -103,6 +94,15 @@ func (this *program) Start(s service.Service) error {
 	err = toml.Unmarshal(data, config)
 	if err != nil {
 		return err
+	}
+	// generate controller keys
+	if genkey != "" {
+		err := controller.Gen_CTRL_Keys(config.Key_Path, genkey)
+		if err != nil {
+			return errors.Wrap(err, "generate keys failed")
+		}
+		log.Print("generate controller keys successfully")
+		os.Exit(0)
 	}
 	// init database
 	if initdb {

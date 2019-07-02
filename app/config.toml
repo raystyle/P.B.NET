@@ -4,6 +4,7 @@ log_level = "debug"
 # global
 dns_cache_deadline = "2m"
 timesync_interval  = "1m"
+key_path           = "key/ctrl.key"
 
 # database
 dialect           = "mysql"
