@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
@@ -17,46 +16,16 @@ func init() {
 	}
 }
 
-func (this *CTRL) connect_database(c *Config) error {
-	// set db logger
-	db_l, err := new_db_logger(c.Dialect, c.DB_Log_Path)
-	if err != nil {
-		return errors.Wrapf(err, "create %s logger failed", c.Dialect)
-	}
-	// if you need, add DB Driver
-	switch c.Dialect {
-	case "mysql":
-		_ = mysql.SetLogger(db_l)
-	default:
-		return errors.Errorf("unknown dialect: %s", c.Dialect)
-	}
+// first use this project
+func Init_Database(c *Config) error {
 	// connect database
 	db, err := gorm.Open(c.Dialect, c.DSN)
 	if err != nil {
 		return errors.Wrapf(err, "connect %s server failed", c.Dialect)
 	}
-	// connection
-	db.DB().SetMaxOpenConns(c.DB_Max_Open_Conns)
-	db.DB().SetMaxIdleConns(c.DB_Max_Idle_Conns)
-	// logger
-	gorm_l, err := new_gorm_logger(c.GORM_Log_Path)
-	if err != nil {
-		return errors.Wrap(err, "create gorm logger failed")
-	}
-	db.SetLogger(gorm_l)
-	if c.GORM_Detailed_Log {
-		db.LogMode(true)
-	}
 	// not add s
 	db.SingularTable(true)
-	this.db = db
-	this.db_lg = db_l
-	this.gorm_lg = gorm_l
-	return nil
-}
-
-// first use this project
-func (this *CTRL) Init_Database() error {
+	defer func() { _ = db.Close() }()
 	tables := []*struct {
 		name  string
 		model interface{}
@@ -98,15 +67,15 @@ func (this *CTRL) Init_Database() error {
 		n := tables[i].name
 		m := tables[i].model
 		if n == "" {
-			this.db.DropTableIfExists(m)
-			err := this.db.CreateTable(m).Error
+			db.DropTableIfExists(m)
+			err = db.CreateTable(m).Error
 			if err != nil {
 				name := gorm.TheNamingStrategy.Table(xreflect.Struct_Name(m))
 				return errors.Wrapf(err, "create table %s failed", name)
 			}
 		} else {
-			this.db.Table(n).DropTableIfExists(m)
-			err := this.db.Table(n).CreateTable(m).Error
+			db.Table(n).DropTableIfExists(m)
+			err = db.Table(n).CreateTable(m).Error
 			if err != nil {
 				return errors.Wrapf(err, "create table %s failed", n)
 			}
