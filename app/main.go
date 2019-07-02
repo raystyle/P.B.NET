@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/kardianos/service"
 	"github.com/pelletier/go-toml"
@@ -14,41 +15,40 @@ import (
 	"project/controller"
 )
 
-var (
-	debug     bool
-	install   bool
-	uninstall bool
-	initdb    bool
-	genkey    string
-	logger    service.Logger
-)
-
 func main() {
-	config := &service.Config{
+	c := &service.Config{
 		Name:        controller.Name + " Controller",
 		DisplayName: controller.Name + " Controller",
 		Description: controller.Name + " Controller Service",
 	}
 	p := &program{}
-	s, err := service.New(p, config)
+	s, err := service.New(p, c)
 	if err != nil {
 		log.Fatal(err)
 	}
-	logger, err = s.Logger(nil)
+	l, err := s.Logger(nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 	err = s.Run()
 	if err != nil {
-		_ = logger.Error(err)
+		_ = l.Error(err)
 	}
 }
 
 type program struct {
 	ctrl *controller.CTRL
+	once sync.Once
 }
 
 func (this *program) Start(s service.Service) error {
+	var (
+		debug     bool
+		install   bool
+		uninstall bool
+		initdb    bool
+		genkey    string
+	)
 	flag.BoolVar(&debug, "debug", false, "not changed path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
@@ -82,7 +82,7 @@ func (this *program) Start(s service.Service) error {
 		log.Print("generate controller keys successfully")
 		os.Exit(0)
 	}
-	// changed path
+	// changed path for service
 	if !debug {
 		path, err := os.Executable()
 		if err != nil {
@@ -104,27 +104,27 @@ func (this *program) Start(s service.Service) error {
 	if err != nil {
 		return err
 	}
-	if initdb {
-		config.Init_DB = true
-	}
-	ctrl, err := controller.New(config)
-	if err != nil {
-		return err
-	}
 	// init database
 	if initdb {
-		err = ctrl.Init_Database()
+		err = controller.Init_Database(config)
 		if err != nil {
 			return errors.Wrap(err, "initialize database failed")
 		}
 		log.Print("initialize database successfully")
 		os.Exit(0)
 	}
-	this.ctrl = ctrl
+	// run
+	this.ctrl, err = controller.New(config)
+	if err != nil {
+		return err
+	}
 	go func() {
-		err = ctrl.Main()
+		err = this.ctrl.Main()
 		if err != nil {
-			_ = logger.Error(err)
+			l, e := s.Logger(nil)
+			if e == nil {
+				_ = l.Error(err)
+			}
 			os.Exit(1)
 		}
 		_ = s.Stop()
@@ -134,6 +134,8 @@ func (this *program) Start(s service.Service) error {
 }
 
 func (this *program) Stop(s service.Service) error {
-	this.ctrl.Exit(nil)
+	this.once.Do(func() {
+		this.ctrl.Exit(nil)
+	})
 	return nil
 }
