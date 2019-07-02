@@ -7,8 +7,15 @@ import (
 	"project/internal/logger"
 )
 
+const (
+	log_init     = "init"
+	log_shutdown = "shutdown"
+	log_boot     = "boot"
+	log_client   = "client"
+)
+
 func (this *NODE) Printf(l logger.Level, src, format string, log ...interface{}) {
-	if l < this.log_level {
+	if l < this.log_lv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
@@ -20,7 +27,7 @@ func (this *NODE) Printf(l logger.Level, src, format string, log ...interface{})
 }
 
 func (this *NODE) Print(l logger.Level, src string, log ...interface{}) {
-	if l < this.log_level {
+	if l < this.log_lv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
@@ -32,7 +39,7 @@ func (this *NODE) Print(l logger.Level, src string, log ...interface{}) {
 }
 
 func (this *NODE) Println(l logger.Level, src string, log ...interface{}) {
-	if l < this.log_level {
+	if l < this.log_lv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
@@ -43,21 +50,6 @@ func (this *NODE) Println(l logger.Level, src string, log ...interface{}) {
 	log_str = log_str[:len(log_str)-1] // delete "\n"
 	buffer.WriteString(log_str)
 	this.print_log(buffer)
-}
-
-func (this *NODE) Fatalln(log ...interface{}) {
-	if logger.FATAL < this.log_level {
-		return
-	}
-	buffer := logger.Prefix(logger.FATAL, "init")
-	if buffer == nil {
-		return
-	}
-	log_str := fmt.Sprintln(log...)
-	log_str = log_str[:len(log_str)-1] // delete "\n"
-	buffer.WriteString(log_str)
-	this.print_log(buffer)
-	this.Exit()
 }
 
 func (this *NODE) print_log(b *bytes.Buffer) {

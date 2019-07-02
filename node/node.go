@@ -1,6 +1,8 @@
 package node
 
 import (
+	"sync"
+
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
@@ -12,10 +14,12 @@ const (
 )
 
 type NODE struct {
-	log_level logger.Level
-	global    *global
-	server    *server
-	exit      chan struct{}
+	log_lv logger.Level
+	global *global
+	server *server
+	wg     sync.WaitGroup
+	once   sync.Once
+	exit   chan error
 }
 
 func New(c *Config) (*NODE, error) {
@@ -24,7 +28,7 @@ func New(c *Config) (*NODE, error) {
 	if err != nil {
 		return nil, err
 	}
-	node := &NODE{log_level: l}
+	node := &NODE{log_lv: l}
 	// init global
 	g, err := new_global(node, c)
 	if err != nil {
@@ -44,21 +48,42 @@ func New(c *Config) (*NODE, error) {
 			return nil, err
 		}
 	}
-	node.exit = make(chan struct{}, 1)
+	node.exit = make(chan error)
 	return node, nil
 }
 
 func (this *NODE) Main() error {
 	err := this.server.Deploy()
 	if err != nil {
-		err = errors.WithMessage(err, "deploy server failed")
-		this.Fatalln(err)
-		return err
+		return this.fatal(err, "deploy server failed")
 	}
-	<-this.exit
-	return nil
+	return <-this.exit
 }
 
-func (this *NODE) Exit() {
-	close(this.exit)
+func (this *NODE) fatal(err error, msg string) error {
+	err = errors.WithMessage(err, msg)
+	this.Println(logger.FATAL, log_init, err)
+	this.Exit(nil)
+	return err
+}
+func (this *NODE) Exit(err error) {
+	this.once.Do(func() {
+		// TODO race
+		if this.server != nil {
+			this.server.Shutdown()
+			this.exit_log("web server is stopped")
+		}
+		this.wg.Wait()
+		this.global.Close()
+		this.exit_log("global is stopped")
+		this.exit_log("node is stopped")
+		if this.exit != nil {
+			this.exit <- err
+			close(this.exit)
+		}
+	})
+}
+
+func (this *NODE) exit_log(log string) {
+	this.Print(logger.INFO, log_shutdown, log)
 }

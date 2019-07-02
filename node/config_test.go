@@ -30,8 +30,6 @@ func Test_Check_Config(t *testing.T) {
 
 func test_gen_config(t *testing.T, genesis bool) *Config {
 	reg_aes_key := bytes.Repeat([]byte{0}, aes.BIT256+aes.IV_SIZE)
-	ctrl_aes_key := make([]byte, aes.BIT256+aes.IV_SIZE)
-	copy(ctrl_aes_key, reg_aes_key)
 	c := &Config{
 		Log_Level: "debug",
 
@@ -42,7 +40,7 @@ func test_gen_config(t *testing.T, genesis bool) *Config {
 		Timesync_Interval:  15 * time.Minute,
 
 		CTRL_ED25519: testdata.CTRL_ED25519.PublicKey(),
-		CTRL_AES_Key: ctrl_aes_key,
+		CTRL_AES_Key: testdata.CTRL_AES_Key,
 
 		Is_Genesis:       genesis,
 		Register_AES_Key: reg_aes_key,

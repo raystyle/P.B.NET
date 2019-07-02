@@ -224,3 +224,7 @@ func (this *global) DB_Decrypt(cipherdata []byte) ([]byte, error) {
 	this.object_rwm.RUnlock()
 	return c.(*aes.CBC_Cryptor).Decrypt(cipherdata)
 }
+
+func (this *global) Close() {
+	this.timesync.Stop()
+}

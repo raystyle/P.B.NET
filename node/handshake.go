@@ -9,11 +9,12 @@ import (
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/protocol"
+	"project/internal/xnet"
 )
 
 // handshake log
 type hs_log struct {
-	c *conn
+	c net.Conn
 	l string
 	e error
 }
@@ -21,10 +22,10 @@ type hs_log struct {
 func (this *hs_log) String() string {
 	b := bytes.Buffer{}
 	b.WriteString(fmt.Sprintf("%s %s <-> %s %s ",
-		this.c.l_network, this.c.l_address,
-		this.c.r_network, this.c.r_address))
-	if this.c.version != 0 {
-		b.WriteString(fmt.Sprintf("[ver: %d] ", this.c.version))
+		this.c.LocalAddr().Network(), this.c.LocalAddr(),
+		this.c.RemoteAddr().Network(), this.c.RemoteAddr()))
+	if conn, ok := this.c.(*xnet.Conn); ok {
+		b.WriteString(fmt.Sprintf("[ver: %d] ", conn.Info().Version))
 	}
 	b.WriteString(this.l)
 	if this.e != nil {
@@ -77,7 +78,7 @@ func (this *server) handshake(raw net.Conn) {
 	conn.version = v
 	switch {
 	case v == protocol.V1_0_0:
-		this.v1_identity(conn)
+		this.v1_authenticate(conn)
 	default:
 		l := &hs_log{c: conn, l: fmt.Sprint("unsupport version", v)}
 		this.logln(logger.ERROR, l)
@@ -85,7 +86,7 @@ func (this *server) handshake(raw net.Conn) {
 	}
 }
 
-func (this *server) v1_identity(conn *conn) {
+func (this *server) v1_authenticate(conn *conn) {
 	// send certificate
 	var err error
 	cert := this.ctx.global.Cert()
@@ -115,25 +116,25 @@ func (this *server) v1_identity(conn *conn) {
 	}
 	switch role[0] {
 	case protocol.BEACON:
-		this.v1_identity_beacon(conn)
+		this.v1_verify_beacon(conn)
 	case protocol.NODE:
-		this.v1_identity_node(conn)
+		this.v1_verify_node(conn)
 	case protocol.CTRL:
-		this.v1_identity_ctrl(conn)
+		this.v1_verify_ctrl(conn)
 	default:
 		this.logln(logger.EXPLOIT, &hs_log{c: conn, l: "invalid role"})
 	}
 }
 
-func (this *server) v1_identity_beacon(conn *conn) {
+func (this *server) v1_verify_beacon(conn *conn) {
 
 }
 
-func (this *server) v1_identity_node(conn *conn) {
+func (this *server) v1_verify_node(conn *conn) {
 
 }
 
-func (this *server) v1_identity_ctrl(conn *conn) {
+func (this *server) v1_verify_ctrl(conn *conn) {
 	// send random challenge code(length 2048-4096)
 	// <danger>
 	// len(challenge) must > len(GUID + Mode + Network + Address)
