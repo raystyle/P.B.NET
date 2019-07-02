@@ -2,18 +2,22 @@
 log_level = "debug"
 
 # global
+builtin_dir        = "builtin"
+key_dir            = "key"
 dns_cache_deadline = "2m"
 timesync_interval  = "1m"
-key_path           = "key/ctrl.key"
 
 # database
 dialect           = "mysql"
 dsn               = "root:asH*dg122@tcp(127.0.0.1:3306)/p.b.net?loc=Local&parseTime=true"
 db_max_open_conns = 16
 db_max_idle_conns = 16
-db_log_path       = "log/database.log"
-gorm_log_path     = "log/gorm.log"
+db_log_file       = "log/database.log"
+gorm_log_file     = "log/gorm.log"
 gorm_detailed_log = false
 
 # web server
-http_address = ":9932"
+https_address   = ":9932"
+https_cert_file = "cert/server.crt"
+https_key_file  = "cert/server.key"
+web_dir         = "web"
