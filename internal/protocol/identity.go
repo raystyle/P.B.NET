@@ -26,7 +26,7 @@ var (
 	ERR_INVALID_ROLE      = errors.New("invalid role")
 	ERR_INVALID_CERT_SIZE = errors.New("invalid certificate size")
 	ERR_INVALID_CERT      = errors.New("invalid certificate")
-	ERR_AUTH_FAILED       = errors.New("authorization failed")
+	ERR_AUTH_FAILED       = errors.New("authenticate failed")
 )
 
 var (

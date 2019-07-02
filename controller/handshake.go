@@ -78,6 +78,7 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 		e := &hs_err{c: conn, s: "receive certificate failed", e: err}
 		return errors.WithStack(e)
 	}
+	// if guid != nil, skip verify
 	if this.guid != nil {
 		const (
 			act = "read certificate(with node guid) "
@@ -87,16 +88,14 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 		cert_size := make([]byte, 2)
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {
-			e := &hs_err{c: conn, s: act + "size failed"}
-			this.ctx.Println(logger.EXPLOIT, src_client, e)
+			e := &hs_err{c: conn, s: act + "size failed", e: err}
 			return errors.WithStack(e)
 		}
 		// read cert
 		cert_with_node_guid := make([]byte, convert.Bytes_Uint16(cert_size))
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {
-			e := &hs_err{c: conn, s: act + "failed"}
-			this.ctx.Println(logger.EXPLOIT, src_client, e)
+			e := &hs_err{c: conn, s: act + "failed", e: err}
 			return errors.WithStack(e)
 		}
 		// cacl cert
@@ -112,25 +111,25 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 			// read cert size
 			_, err = io.ReadFull(reader, cert_size)
 			if err != nil {
-				e := &hs_err{c: conn, s: act + "size failed"}
-				this.ctx.Println(logger.EXPLOIT, src_client, e)
+				e := &hs_err{c: conn, s: act + "size failed", e: err}
 				return errors.WithStack(e)
 			}
 			// read cert
 			cert_with_ctrl_guid := make([]byte, convert.Bytes_Uint16(cert_size))
 			_, err = io.ReadFull(reader, cert_size)
 			if err != nil {
-				e := &hs_err{c: conn, s: act + "failed"}
-				this.ctx.Println(logger.EXPLOIT, src_client, e)
+				e := &hs_err{c: conn, s: act + "failed", e: err}
 				return errors.WithStack(e)
 			}
 			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_ctrl_guid) {
 				e := &hs_err{c: conn, s: "invalid certificate(with controller guid)"}
+				this.ctx.Println(logger.EXPLOIT, src_client, e)
 				return errors.WithStack(e)
 			}
 		} else {
 			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_node_guid) {
 				e := &hs_err{c: conn, s: "invalid certificate(with node guid)"}
+				this.ctx.Println(logger.EXPLOIT, src_client, e)
 				return errors.WithStack(e)
 			}
 		}
@@ -141,6 +140,10 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 		e := &hs_err{c: conn, s: "send role failed", e: err}
 		return errors.WithStack(e)
 	}
+	return this.v1_authenticate(conn)
+}
+
+func (this *client) v1_authenticate(conn *xnet.Conn) error {
 	// receive challenge
 	challenge, err := conn.Receive()
 	if err != nil {
@@ -165,11 +168,11 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 	}
 	resp, err := conn.Receive()
 	if err != nil {
-		e := &hs_err{c: conn, s: "receive authorization response failed", e: err}
+		e := &hs_err{c: conn, s: "receive authentication response failed", e: err}
 		return errors.WithStack(e)
 	}
 	if !bytes.Equal(resp, protocol.AUTH_SUCCESS) {
-		e := &hs_err{c: conn, s: "authorization failed", e: err}
+		e := &hs_err{c: conn, e: protocol.ERR_AUTH_FAILED}
 		return errors.WithStack(e)
 	}
 	return nil
