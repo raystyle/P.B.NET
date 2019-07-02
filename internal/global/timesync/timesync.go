@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -213,6 +214,8 @@ func (this *TIMESYNC) log(l logger.Level, log ...interface{}) {
 
 // self walk
 func (this *TIMESYNC) add_loop() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	ticker := time.NewTicker(add_loop_interval)
 	for {
 		select {
