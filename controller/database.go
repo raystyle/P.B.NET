@@ -143,20 +143,20 @@ func (this *CTRL) Delete_Timesync(id uint64) error {
 
 // ---------------------------------bootstrap----------------------------------------
 
-func (this *CTRL) Insert_boot(m *m_boot) error {
+func (this *CTRL) Insert_Boot(m *m_boot) error {
 	return this.db.Create(m).Error
 }
 
-func (this *CTRL) Select_boot() ([]*m_boot, error) {
+func (this *CTRL) Select_Boot() ([]*m_boot, error) {
 	var clients []*m_boot
 	return clients, this.db.Find(&clients).Error
 }
 
-func (this *CTRL) Update_boot(m *m_boot) error {
+func (this *CTRL) Update_Boot(m *m_boot) error {
 	return this.db.Save(m).Error
 }
 
-func (this *CTRL) Delete_boot(id uint64) error {
+func (this *CTRL) Delete_Boot(id uint64) error {
 	return this.db.Delete(&m_boot{ID: id}).Error
 }
 

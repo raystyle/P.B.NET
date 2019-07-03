@@ -20,7 +20,7 @@ func Test_Insert_Proxy_Client(t *testing.T) {
 	proxy_clients := testdata.Proxy_Clients(t)
 	for tag, client := range proxy_clients {
 		m := &m_proxy_client{
-			Tag:    tag,
+			Tag:    "test_" + tag,
 			Mode:   client.Mode,
 			Config: client.Config,
 		}
@@ -67,7 +67,7 @@ func Test_Insert_DNS_Client(t *testing.T) {
 	dns_clients := testdata.DNS_Clients(t)
 	for tag, client := range dns_clients {
 		m := &m_dns_client{
-			Tag:     tag,
+			Tag:     "test_" + tag,
 			Method:  client.Method,
 			Address: client.Address,
 		}
@@ -116,7 +116,7 @@ func Test_Insert_Timesync(t *testing.T) {
 		config, err := toml.Marshal(client)
 		require.Nil(t, err, err)
 		m := &m_timesync{
-			Tag:    tag,
+			Tag:    "test_" + tag,
 			Mode:   client.Mode,
 			Config: string(config),
 		}
@@ -154,7 +154,7 @@ func Test_Delete_Timesync(t *testing.T) {
 	Test_Insert_Timesync(t)
 }
 
-func Test_Insert_boot(t *testing.T) {
+func Test_Insert_Boot(t *testing.T) {
 	init_ctrl(t)
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_boot{}).Error
@@ -163,7 +163,7 @@ func Test_Insert_boot(t *testing.T) {
 	b := testdata.Register(t)
 	for i := 0; i < len(b); i++ {
 		m := &m_boot{
-			Tag:      b[i].Tag,
+			Tag:      "test_" + b[i].Tag,
 			Mode:     b[i].Mode,
 			Config:   string(b[i].Config),
 			Interval: uint32(15),
@@ -171,38 +171,38 @@ func Test_Insert_boot(t *testing.T) {
 		if m.Mode == bootstrap.M_DIRECT {
 			m.Enable = true
 		}
-		err := ctrl.Insert_boot(m)
+		err := ctrl.Insert_Boot(m)
 		require.Nil(t, err, err)
 	}
 }
 
-func Test_Select_boot(t *testing.T) {
+func Test_Select_Boot(t *testing.T) {
 	init_ctrl(t)
-	clients, err := ctrl.Select_boot()
+	clients, err := ctrl.Select_Boot()
 	require.Nil(t, err, err)
 	t.Log("select bootstrap:", spew.Sdump(clients))
 }
 
-func Test_Update_boot(t *testing.T) {
+func Test_Update_Boot(t *testing.T) {
 	init_ctrl(t)
-	clients, err := ctrl.Select_boot()
+	clients, err := ctrl.Select_Boot()
 	require.Nil(t, err, err)
 	raw := clients[0].Mode
 	clients[0].Mode = "changed"
-	err = ctrl.Update_boot(clients[0])
+	err = ctrl.Update_Boot(clients[0])
 	require.Nil(t, err, err)
 	clients[0].Mode = raw
-	err = ctrl.Update_boot(clients[0])
+	err = ctrl.Update_Boot(clients[0])
 	require.Nil(t, err, err)
 }
 
-func Test_Delete_boot(t *testing.T) {
+func Test_Delete_Boot(t *testing.T) {
 	init_ctrl(t)
-	clients, err := ctrl.Select_boot()
+	clients, err := ctrl.Select_Boot()
 	require.Nil(t, err, err)
-	err = ctrl.Delete_boot(clients[0].ID)
+	err = ctrl.Delete_Boot(clients[0].ID)
 	require.Nil(t, err, err)
-	Test_Insert_boot(t)
+	Test_Insert_Boot(t)
 }
 
 func Test_Insert_Listener(t *testing.T) {
@@ -214,7 +214,7 @@ func Test_Insert_Listener(t *testing.T) {
 	l := testdata.Listeners(t)
 	for i := 0; i < len(l); i++ {
 		m := &m_listener{
-			Tag:    l[i].Tag,
+			Tag:    "test_" + l[i].Tag,
 			Mode:   l[i].Mode,
 			Config: string(l[i].Config),
 		}
