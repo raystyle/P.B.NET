@@ -13,6 +13,7 @@ import (
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
+	"project/internal/logger"
 )
 
 type global struct {
@@ -25,26 +26,9 @@ type global struct {
 	load_keys  chan struct{}
 }
 
-func new_global(ctx *CTRL, c *Config) (*global, error) {
-	// load proxy clients
-	pcs, err := ctx.Select_Proxy_Client()
-	if err != nil {
-		return nil, errors.Wrap(err, "load proxy clients failed")
-	}
-	l := len(pcs)
-	tpcs := make(map[string]*proxyclient.Client, l)
-	for i := 0; i < l; i++ {
-		tpcs[pcs[i].Tag] = &proxyclient.Client{
-			Mode:   pcs[i].Mode,
-			Config: pcs[i].Config,
-		}
-	}
-	p, err := proxyclient.New(tpcs)
-	if err != nil {
-		return nil, errors.Wrap(err, "new proxy failed")
-	}
-	// load dns clients
-	// load builtin
+func new_global(lg logger.Logger, c *Config) (*global, error) {
+	proxy, _ := proxyclient.New(nil)
+	// load builtin dns clients
 	tdcs := make(map[string]*dnsclient.Client)
 	b, err := ioutil.ReadFile(c.Builtin_Dir + "/dnsclient.toml")
 	if err != nil {
@@ -54,22 +38,16 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "load builtin dns clients failed")
 	}
-	dcs, err := ctx.Select_DNS_Client()
-	if err != nil {
-		return nil, errors.Wrap(err, "load dns clients failed")
+	// add tag
+	for tag, client := range tdcs {
+		tdcs["builtin_"+tag] = client
+		delete(tdcs, tag)
 	}
-	// database records will cover builtin
-	for i := 0; i < len(dcs); i++ {
-		tdcs[dcs[i].Tag] = &dnsclient.Client{
-			Method:  dcs[i].Method,
-			Address: dcs[i].Address,
-		}
-	}
-	d, err := dnsclient.New(p, tdcs, c.DNS_Cache_Deadline)
+	dns, err := dnsclient.New(proxy, tdcs, c.DNS_Cache_Deadline)
 	if err != nil {
 		return nil, errors.Wrap(err, "new dns failed")
 	}
-	// load from builtin
+	// load builtin timesync client
 	tts := make(map[string]*timesync.Client)
 	b, err = ioutil.ReadFile(c.Builtin_Dir + "/timesync.toml")
 	if err != nil {
@@ -79,40 +57,29 @@ func new_global(ctx *CTRL, c *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "load builtin timesync clients failed")
 	}
-	// load from database
-	ts, err := ctx.Select_Timesync()
-	if err != nil {
-		return nil, errors.Wrap(err, "load timesync clients failed")
+	// add tag
+	for tag, client := range tts {
+		tts["builtin_"+tag] = client
+		delete(tdcs, tag)
 	}
-	for i := 0; i < len(ts); i++ {
-		c := &timesync.Client{}
-		err := toml.Unmarshal([]byte(ts[i].Config), c)
-		if err != nil {
-			return nil, errors.Wrapf(err, "load timesync: %s failed", ts[i].Tag)
-		}
-		tts[ts[i].Tag] = c
-	}
-	t, err := timesync.New(p, d, ctx, tts, c.Timesync_Interval)
+	tsync, err := timesync.New(proxy, dns, lg, tts, c.Timesync_Interval)
 	if err != nil {
 		return nil, errors.Wrap(err, "new timesync failed")
 	}
 	g := &global{
-		proxy:     p,
-		dns:       d,
-		timesync:  t,
+		proxy:     proxy,
+		dns:       dns,
+		timesync:  tsync,
 		key_dir:   c.Key_Dir,
 		object:    make(map[uint32]interface{}),
 		load_keys: make(chan struct{}, 1),
 	}
-	// sync time
-	err = g.timesync.Start()
-	if err != nil {
-		return nil, errors.Wrap(err, "synchronization time failed")
-	}
 	return g, nil
 }
 
-// about internal
+func (this *global) Start_Timesync() error {
+	return this.timesync.Start()
+}
 
 func (this *global) Load_Keys(password string) error {
 	this.object_rwm.RLock()
@@ -141,6 +108,18 @@ func (this *global) Load_Keys(password string) error {
 
 func (this *global) Wait_Load_Keys() {
 	<-this.load_keys
+}
+
+func (this *global) Add_Proxy_Client(tag string, c *proxyclient.Client) error {
+	return this.proxy.Add(tag, c)
+}
+
+func (this *global) Add_DNS_Client(tag string, c *dnsclient.Client) error {
+	return this.dns.Add(tag, c)
+}
+
+func (this *global) Add_Timesync_Client(tag string, c *timesync.Client) error {
+	return this.timesync.Add(tag, c)
 }
 
 func (this *global) Now() time.Time {

@@ -6,8 +6,12 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
+	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
+	"project/internal/global/dnsclient"
+	"project/internal/global/proxyclient"
+	"project/internal/global/timesync"
 	"project/internal/logger"
 	"project/internal/protocol"
 )
@@ -24,8 +28,8 @@ type CTRL struct {
 	gorm_lg *gorm_logger
 	global  *global
 	web     *web
-	boot    map[string]*boot
-	boot_m  sync.Mutex
+	boots   map[string]*boot
+	boots_m sync.Mutex
 	wg      sync.WaitGroup
 	once    sync.Once
 	exit    chan error
@@ -33,7 +37,7 @@ type CTRL struct {
 
 func New(c *Config) (*CTRL, error) {
 	// init logger
-	l, err := logger.Parse(c.Log_Level)
+	lv, err := logger.Parse(c.Log_Level)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +56,7 @@ func New(c *Config) (*CTRL, error) {
 	// connect database
 	db, err := gorm.Open(c.Dialect, c.DSN)
 	if err != nil {
-		return nil, fmt.Errorf("connect %s server failed", c.Dialect)
+		return nil, errors.Wrapf(err, "connect %s server failed", c.Dialect)
 	}
 	db.SingularTable(true) // not add s
 	// connection
@@ -68,7 +72,7 @@ func New(c *Config) (*CTRL, error) {
 		db.LogMode(true)
 	}
 	ctrl := &CTRL{
-		log_lv:  l,
+		log_lv:  lv,
 		db:      db,
 		db_lg:   db_lg,
 		gorm_lg: gorm_lg,
@@ -79,48 +83,95 @@ func New(c *Config) (*CTRL, error) {
 		return nil, err
 	}
 	ctrl.global = g
+	// load proxy clients from database
+	pcs, err := ctrl.Select_Proxy_Client()
+	if err != nil {
+		return nil, errors.Wrap(err, "load proxy clients failed")
+	}
+	for i := 0; i < len(pcs); i++ {
+		tag := pcs[i].Tag
+		c := &proxyclient.Client{
+			Mode:   pcs[i].Mode,
+			Config: pcs[i].Config,
+		}
+		err = ctrl.global.Add_Proxy_Client(tag, c)
+		if err != nil {
+			return nil, errors.Wrapf(err, "add proxy client %s failed", tag)
+		}
+	}
+	// load dns clients from database
+	dcs, err := ctrl.Select_DNS_Client()
+	if err != nil {
+		return nil, errors.Wrap(err, "load dns clients failed")
+	}
+	for i := 0; i < len(dcs); i++ {
+		tag := dcs[i].Tag
+		c := &dnsclient.Client{
+			Method:  dcs[i].Method,
+			Address: dcs[i].Address,
+		}
+		err = ctrl.global.Add_DNS_Client(tag, c)
+		if err != nil {
+			return nil, errors.Wrapf(err, "add dns client %s failed", tag)
+		}
+	}
+	// load timesync client from database
+	ts, err := ctrl.Select_Timesync()
+	if err != nil {
+		return nil, errors.Wrap(err, "load timesync clients failed")
+	}
+	for i := 0; i < len(ts); i++ {
+		c := &timesync.Client{}
+		err = toml.Unmarshal([]byte(ts[i].Config), c)
+		if err != nil {
+			return nil, errors.Wrapf(err, "load timesync: %s failed", ts[i].Tag)
+		}
+		tag := ts[i].Tag
+		err = ctrl.global.Add_Timesync_Client(tag, c)
+		if err != nil {
+			return nil, errors.Wrapf(err, "add timesync client %s failed", tag)
+		}
+	}
 	// init http server
 	web, err := new_web(ctrl, c)
 	if err != nil {
 		return nil, err
 	}
 	ctrl.web = web
-	ctrl.boot = make(map[string]*boot)
+	ctrl.boots = make(map[string]*boot)
 	ctrl.exit = make(chan error)
 	return ctrl, nil
 }
 
 func (this *CTRL) Main() error {
-	const log_init = "init"
-	// print time
+	// first synchronize time
+	err := this.global.Start_Timesync()
+	if err != nil {
+		return errors.Wrap(err, "synchronize time failed")
+	}
 	now := this.global.Now().Format(logger.Time_Layout)
-	this.Printf(logger.INFO, log_init, "time: %s", now)
+	this.Printf(logger.INFO, "init", "time: %s", now)
 	// start web server
-	err := this.web.Deploy()
+	err = this.web.Deploy()
 	if err != nil {
 		return this.fatal(err, "deploy web server failed")
 	}
 	hs_address := this.web.Address()
-	this.Println(logger.INFO, log_init, "http server:", hs_address)
-	this.Print(logger.INFO, log_init, "controller is running")
-	// wait to load controller keys
+	this.Println(logger.INFO, "init", "http server:", hs_address)
+	this.Print(logger.INFO, "init", "controller is running")
 	go func() {
-		this.global.Wait_Load_Keys()
-		this.Print(logger.INFO, log_init, "load keys successfully")
+		// wait to load controller keys
+		this.Wait_Load_Keys()
+		this.Print(logger.INFO, "init", "load keys successfully")
 		// load boot
-		/*
-			this.Print(logger.INFO, log_init, "start discover bootstrap nodes")
-			bs, err := this.Select_boot()
-			if err != nil {
-				return this.fatal(err, "select boot failed")
-			}
-			for i := 0; i < len(bs); i++ {
-				err := this.Add_boot(bs[i])
-				if err != nil {
-					return this.fatal(err, "add boot failed")
-				}
-			}
-		*/
+		this.Print(logger.INFO, "init", "start discover bootstrap nodes")
+		bs, err := this.Select_Boot()
+		if err != nil {
+			this.Println(logger.ERROR, "init", "select boot failed:", err)
+		}
+		for i := 0; i < len(bs); i++ {
+			_ = this.Add_Boot(bs[i])
+		}
 	}()
 	return <-this.exit
 }
@@ -135,12 +186,12 @@ func (this *CTRL) fatal(err error, msg string) error {
 func (this *CTRL) Exit(err error) {
 	this.once.Do(func() {
 		// stop all running boot
-		this.boot_m.Lock()
-		for _, b := range this.boot {
-			b.Stop()
+		this.boots_m.Lock()
+		for _, boot := range this.boots {
+			boot.Stop()
 		}
-		this.boot_m.Unlock()
-		this.exit_log("all boot stopped")
+		this.boots_m.Unlock()
+		this.exit_log("all boots stopped")
 		this.web.Close()
 		this.exit_log("web server is stopped")
 		this.wg.Wait()
@@ -163,4 +214,8 @@ func (this *CTRL) exit_log(log string) {
 
 func (this *CTRL) Load_Keys(password string) error {
 	return this.global.Load_Keys(password)
+}
+
+func (this *CTRL) Wait_Load_Keys() {
+	this.global.Wait_Load_Keys()
 }
