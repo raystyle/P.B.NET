@@ -7,6 +7,7 @@ import (
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
+	"project/internal/bootstrap"
 	"project/testdata"
 )
 
@@ -166,7 +167,9 @@ func Test_Insert_boot(t *testing.T) {
 			Mode:     b[i].Mode,
 			Config:   string(b[i].Config),
 			Interval: uint32(15),
-			Enable:   true,
+		}
+		if m.Mode == bootstrap.M_DIRECT {
+			m.Enable = true
 		}
 		err := ctrl.Insert_boot(m)
 		require.Nil(t, err, err)

@@ -10,13 +10,6 @@ import (
 	"project/internal/logger"
 )
 
-const (
-	log_init   = "init"
-	log_exit   = "exit"
-	log_boot   = "boot"
-	log_client = "client"
-)
-
 type db_logger struct {
 	db   string // "mysql"
 	file *os.File

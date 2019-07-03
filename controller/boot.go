@@ -13,11 +13,12 @@ type boot struct {
 	ctx         *CTRL
 	tag         string
 	interval    time.Duration
+	bootstrap   bootstrap.Bootstrap
 	stop_signal chan struct{}
-	bootstrap.Bootstrap
 }
 
 func (this *CTRL) Add_boot(m *m_boot) error {
+	const log_boot = "boot"
 	g := this.global
 	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxy, g.dns)
 	if err != nil {
@@ -27,9 +28,9 @@ func (this *CTRL) Add_boot(m *m_boot) error {
 	}
 	boot := &boot{
 		ctx:         this,
-		Bootstrap:   b,
 		tag:         m.Tag,
 		interval:    time.Duration(m.Interval) * time.Second,
+		bootstrap:   b,
 		stop_signal: make(chan struct{}, 1),
 	}
 	this.boot_m.Lock()
@@ -56,7 +57,7 @@ func (this *boot) run() {
 		this.ctx.wg.Done()
 	}()
 	b := func() {
-		err := this.boot()
+		err := this.Resolve()
 		if err != nil {
 			this.ctx.Println(logger.WARNING, log_src, err)
 		}
@@ -73,8 +74,8 @@ func (this *boot) run() {
 	}
 }
 
-func (this *boot) boot() error {
-	nodes, err := this.Resolve()
+func (this *boot) Resolve() error {
+	nodes, err := this.bootstrap.Resolve()
 	if err != nil {
 		return err
 	}

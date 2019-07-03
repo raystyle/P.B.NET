@@ -91,6 +91,7 @@ func New(c *Config) (*CTRL, error) {
 }
 
 func (this *CTRL) Main() error {
+	const log_init = "init"
 	// print time
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Printf(logger.INFO, log_init, "time: %s", now)
@@ -126,7 +127,7 @@ func (this *CTRL) Main() error {
 
 func (this *CTRL) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	this.Println(logger.FATAL, log_init, err)
+	this.Println(logger.FATAL, "init", err)
 	this.Exit(nil)
 	return err
 }
@@ -157,7 +158,7 @@ func (this *CTRL) Exit(err error) {
 }
 
 func (this *CTRL) exit_log(log string) {
-	this.Print(logger.INFO, log_exit, log)
+	this.Print(logger.INFO, "exit", log)
 }
 
 func (this *CTRL) Load_Keys(password string) error {

@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
+	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xnet"
 )
@@ -58,6 +59,18 @@ func new_client(ctx *CTRL, c *client_config) (*client, error) {
 		return nil, errors.New("handshake timeout")
 	}
 	return client, nil
+}
+
+func (this *client) logf(l logger.Level, format string, log ...interface{}) {
+	this.ctx.Printf(l, "client", format, log...)
+}
+
+func (this *client) log(l logger.Level, log ...interface{}) {
+	this.ctx.Print(l, "client", log...)
+}
+
+func (this *client) logln(l logger.Level, log ...interface{}) {
+	this.ctx.Println(l, "client", log...)
 }
 
 func (this *client) Close() {
