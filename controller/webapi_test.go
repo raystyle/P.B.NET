@@ -51,6 +51,7 @@ func Test_h_trust_node(t *testing.T) {
 	resp, err := test_restful_api(http.MethodPost, "api/node/trust", reader)
 	require.Nil(t, err, err)
 	fmt.Println(string(resp))
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 	test_shutdown()
+	time.Sleep(1 * time.Second)
 }

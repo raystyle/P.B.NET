@@ -3,6 +3,7 @@ package controller
 import (
 	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
+	"project/internal/security"
 )
 
 type h_rw = http.ResponseWriter
@@ -49,7 +51,6 @@ func new_web(ctx *CTRL, c *Config) (*web, error) {
 		PanicHandler:           hs.h_panic,
 	}
 	// resource
-
 	router.ServeFiles("/css/*filepath", http.Dir(c.Web_Dir+"/css"))
 	router.ServeFiles("/js/*filepath", http.Dir(c.Web_Dir+"/js"))
 	router.ServeFiles("/img/*filepath", http.Dir(c.Web_Dir+"/img"))
@@ -61,8 +62,10 @@ func new_web(ctx *CTRL, c *Config) (*web, error) {
 	router.GET("/favicon.ico", handle_favicon)
 	router.GET("/", hs.h_index)
 	router.GET("/login", hs.h_login)
+	router.POST("/load_keys", hs.h_load_keys)
 	// debug api
 	router.GET("/api/debug/shutdown", hs.h_shutdown)
+	// operate
 	router.GET("/api/boot", hs.h_get_boot)
 	router.POST("/api/node/trust", hs.h_trust_node)
 	// http server
@@ -111,6 +114,22 @@ func (this *web) h_panic(w h_rw, r *h_r, e interface{}) {
 func (this *web) h_login(w h_rw, r *h_r, p h_p) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("hello"))
+}
+
+func (this *web) h_load_keys(w h_rw, r *h_r, p h_p) {
+	pwd, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return
+	}
+	err = this.ctx.Load_Keys(string(pwd))
+	security.Flush_Bytes(pwd)
+	if err != nil {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
 }
 
 func (this *web) h_index(w h_rw, r *h_r, p h_p) {

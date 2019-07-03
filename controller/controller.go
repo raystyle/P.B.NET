@@ -161,7 +161,7 @@ func (this *CTRL) Main() error {
 	this.Print(logger.INFO, "init", "controller is running")
 	go func() {
 		// wait to load controller keys
-		this.Wait_Load_Keys()
+		this.global.Wait_Load_Keys()
 		this.Print(logger.INFO, "init", "load keys successfully")
 		// load boot
 		this.Print(logger.INFO, "init", "start discover bootstrap nodes")
@@ -214,8 +214,4 @@ func (this *CTRL) exit_log(log string) {
 
 func (this *CTRL) Load_Keys(password string) error {
 	return this.global.Load_Keys(password)
-}
-
-func (this *CTRL) Wait_Load_Keys() {
-	this.global.Wait_Load_Keys()
 }

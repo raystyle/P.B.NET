@@ -3,6 +3,7 @@ package controller
 import (
 	"io/ioutil"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pelletier/go-toml"
@@ -17,13 +18,14 @@ import (
 )
 
 type global struct {
-	proxy      *proxyclient.PROXY
-	dns        *dnsclient.DNS
-	timesync   *timesync.TIMESYNC
-	key_dir    string
-	object     map[uint32]interface{}
-	object_rwm sync.RWMutex
-	load_keys  chan struct{}
+	proxy          *proxyclient.PROXY
+	dns            *dnsclient.DNS
+	timesync       *timesync.TIMESYNC
+	key_dir        string
+	object         map[uint32]interface{}
+	object_rwm     sync.RWMutex
+	is_load_keys   int32
+	wait_load_keys chan struct{}
 }
 
 func new_global(lg logger.Logger, c *Config) (*global, error) {
@@ -67,18 +69,38 @@ func new_global(lg logger.Logger, c *Config) (*global, error) {
 		return nil, errors.Wrap(err, "new timesync failed")
 	}
 	g := &global{
-		proxy:     proxy,
-		dns:       dns,
-		timesync:  tsync,
-		key_dir:   c.Key_Dir,
-		object:    make(map[uint32]interface{}),
-		load_keys: make(chan struct{}, 1),
+		proxy:          proxy,
+		dns:            dns,
+		timesync:       tsync,
+		key_dir:        c.Key_Dir,
+		object:         make(map[uint32]interface{}),
+		wait_load_keys: make(chan struct{}, 1),
 	}
 	return g, nil
 }
 
 func (this *global) Start_Timesync() error {
 	return this.timesync.Start()
+}
+
+func (this *global) Now() time.Time {
+	return this.timesync.Now().Local()
+}
+
+func (this *global) Wait_Load_Keys() {
+	<-this.wait_load_keys
+}
+
+func (this *global) Add_Proxy_Client(tag string, c *proxyclient.Client) error {
+	return this.proxy.Add(tag, c)
+}
+
+func (this *global) Add_DNS_Client(tag string, c *dnsclient.Client) error {
+	return this.dns.Add(tag, c)
+}
+
+func (this *global) Add_Timesync_Client(tag string, c *timesync.Client) error {
+	return this.timesync.Add(tag, c)
 }
 
 func (this *global) Load_Keys(password string) error {
@@ -102,28 +124,13 @@ func (this *global) Load_Keys(password string) error {
 	this.object_rwm.Lock()
 	this.object[aes_cryptor] = cryptor
 	this.object_rwm.Unlock()
-	close(this.load_keys)
+	atomic.StoreInt32(&this.is_load_keys, 1)
+	close(this.wait_load_keys)
 	return nil
 }
 
-func (this *global) Wait_Load_Keys() {
-	<-this.load_keys
-}
-
-func (this *global) Add_Proxy_Client(tag string, c *proxyclient.Client) error {
-	return this.proxy.Add(tag, c)
-}
-
-func (this *global) Add_DNS_Client(tag string, c *dnsclient.Client) error {
-	return this.dns.Add(tag, c)
-}
-
-func (this *global) Add_Timesync_Client(tag string, c *timesync.Client) error {
-	return this.timesync.Add(tag, c)
-}
-
-func (this *global) Now() time.Time {
-	return this.timesync.Now().Local()
+func (this *global) Is_Load_Keys() bool {
+	return atomic.LoadInt32(&this.is_load_keys) != 0
 }
 
 // verify controller(handshake) and sign message
