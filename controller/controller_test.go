@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/jinzhu/gorm"
 	"github.com/stretchr/testify/require"
 
 	"project/testdata"
@@ -16,13 +17,25 @@ var (
 
 func init_ctrl(t *testing.T) {
 	once_init.Do(func() {
-		config := test_gen_config()
-		controller, err := New(config)
+		c := test_gen_config()
+		controller, err := New(c)
 		if err != nil {
 			// init database
-			err = Init_Database(config)
+			err = Init_Database(c)
 			require.Nil(t, err, err)
-			ctrl, err = New(config)
+			// add test data
+			// connect database
+			db, err := gorm.Open(c.Dialect, c.DSN)
+			require.Nil(t, err, err)
+			db.SingularTable(true) // not add s
+			ctrl = &CTRL{db: db}
+			test_insert_proxy_client(t)
+			test_insert_dns_client(t)
+			test_insert_timesync(t)
+			test_insert_boot(t)
+			test_insert_listener(t)
+			_ = db.Close()
+			ctrl, err = New(c)
 			require.Nil(t, err, err)
 		} else {
 			ctrl = controller
