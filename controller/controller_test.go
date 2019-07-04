@@ -48,3 +48,13 @@ func init_ctrl(t *testing.T) {
 		}()
 	})
 }
+
+/*
+func Test_gorm(t *testing.T) {
+	c := test_gen_config()
+	db, err := gorm.Open(c.Dialect, c.DSN)
+	require.Nil(t, err, err)
+	db.LogMode(true)
+	db.SingularTable(true) // not add s
+}
+*/

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -8,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
+	"project/internal/crypto/aes"
+	"project/internal/crypto/ed25519"
+	"project/internal/guid"
+	"project/internal/logger"
+	"project/internal/xnet"
 	"project/testdata"
 )
 
@@ -270,4 +276,58 @@ func Test_Delete_Listener(t *testing.T) {
 	err = ctrl.Delete_Listener(clients[0].ID)
 	require.Nil(t, err, err)
 	Test_Insert_Listener(t)
+}
+
+func Test_Insert_Node(t *testing.T) {
+	init_ctrl(t)
+	node := &m_node{
+		GUID:      bytes.Repeat([]byte{52}, guid.SIZE),
+		AES_Key:   bytes.Repeat([]byte{52}, aes.BIT256+aes.IV_SIZE),
+		Publickey: bytes.Repeat([]byte{52}, ed25519.PublicKey_Size),
+	}
+	err := ctrl.db.Unscoped().Delete(node).Error
+	require.Nil(t, err, err)
+	err = ctrl.Insert_Node(node)
+	require.Nil(t, err, err)
+	// insert listener
+	nl := &m_node_listener{
+		GUID:    node.GUID,
+		Tag:     "tls_1",
+		Mode:    xnet.TLS,
+		Network: "tcp",
+		Address: "127.0.0.1:1234",
+	}
+	err = ctrl.Insert_Node_Listener(nl)
+	require.Nil(t, err, err)
+	nl = &m_node_listener{
+		GUID:    node.GUID,
+		Tag:     "tls_2",
+		Mode:    xnet.TLS,
+		Network: "tcp",
+		Address: "127.0.0.1:1235",
+	}
+	err = ctrl.Insert_Node_Listener(nl)
+	require.Nil(t, err, err)
+	// insert log
+	lg := &m_role_log{
+		GUID:   node.GUID,
+		Level:  logger.DEBUG,
+		Source: "test",
+		Log:    "test log",
+	}
+	err = ctrl.Insert_Node_Log(lg)
+	require.Nil(t, err, err)
+}
+
+func Test_Delete_Node(t *testing.T) {
+	init_ctrl(t)
+	err := ctrl.Delete_Node(bytes.Repeat([]byte{52}, guid.SIZE))
+	require.Nil(t, err, err)
+}
+
+func Test_Delete_Node_Unscoped(t *testing.T) {
+	init_ctrl(t)
+	ctrl.db.LogMode(true)
+	err := ctrl.Delete_Node_Unscoped(bytes.Repeat([]byte{52}, guid.SIZE))
+	require.Nil(t, err, err)
 }

@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"context"
+	"database/sql"
+
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
@@ -55,6 +58,18 @@ func Init_Database(c *Config) error {
 			model: &m_listener{},
 		},
 		{
+			name:  "",
+			model: &m_node{},
+		},
+		{
+			name:  "",
+			model: &m_node_listener{},
+		},
+		{
+			name:  "",
+			model: &m_node_syncer{},
+		},
+		{
 			name:  t_node_log,
 			model: &m_role_log{},
 		},
@@ -70,8 +85,8 @@ func Init_Database(c *Config) error {
 			db.DropTableIfExists(m)
 			err = db.CreateTable(m).Error
 			if err != nil {
-				name := gorm.TheNamingStrategy.Table(xreflect.Struct_Name(m))
-				return errors.Wrapf(err, "create table %s failed", name)
+				table := gorm.ToTableName(xreflect.Struct_Name(m))
+				return errors.Wrapf(err, "create table %s failed", table)
 			}
 		} else {
 			db.Table(n).DropTableIfExists(m)
@@ -81,8 +96,47 @@ func Init_Database(c *Config) error {
 			}
 		}
 	}
+	// add foreign key
+	add_err := func(err error) error {
+		return errors.Wrapf(err, "add foreign key failed")
+	}
+	table := gorm.ToTableName(xreflect.Struct_Name(&m_node{}))
+	err = db.Model(&m_node_listener{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return add_err(err)
+	}
+	err = db.Model(&m_node_syncer{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return add_err(err)
+	}
+	err = db.Table(t_node_log).Model(&m_role_log{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return add_err(err)
+	}
 	return nil
 }
+
+/*
+	node := &m_node{
+		GUID: bytes.Repeat([]byte{52}, 52),
+	}
+
+	err = db.Model(node).Association("Listeners").Append(&node.Listeners).Error
+	require.Nil(t, err, err)
+	err = db.Model(node).Association("Logs").Append(&node.Logs).Error
+	require.Nil(t, err, err)
+
+	// var nodes []*m_node
+	// err = db.Model(node).Related(&node.Listeners, "Listeners").Error
+	// require.Nil(t, err, err)
+
+	spew.Dump(node)
+
+	return
+*/
 
 // -------------------------------proxy client----------------------------------------
 
@@ -129,8 +183,8 @@ func (this *CTRL) Insert_Timesync(m *m_timesync) error {
 }
 
 func (this *CTRL) Select_Timesync() ([]*m_timesync, error) {
-	var clients []*m_timesync
-	return clients, this.db.Find(&clients).Error
+	var timesync []*m_timesync
+	return timesync, this.db.Find(&timesync).Error
 }
 
 func (this *CTRL) Update_Timesync(m *m_timesync) error {
@@ -148,8 +202,8 @@ func (this *CTRL) Insert_Boot(m *m_boot) error {
 }
 
 func (this *CTRL) Select_Boot() ([]*m_boot, error) {
-	var clients []*m_boot
-	return clients, this.db.Find(&clients).Error
+	var boot []*m_boot
+	return boot, this.db.Find(&boot).Error
 }
 
 func (this *CTRL) Update_Boot(m *m_boot) error {
@@ -167,8 +221,8 @@ func (this *CTRL) Insert_Listener(m *m_listener) error {
 }
 
 func (this *CTRL) Select_Listener() ([]*m_listener, error) {
-	var clients []*m_listener
-	return clients, this.db.Find(&clients).Error
+	var listener []*m_listener
+	return listener, this.db.Find(&listener).Error
 }
 
 func (this *CTRL) Update_Listener(m *m_listener) error {
@@ -177,4 +231,68 @@ func (this *CTRL) Update_Listener(m *m_listener) error {
 
 func (this *CTRL) Delete_Listener(id uint64) error {
 	return this.db.Delete(&m_listener{ID: id}).Error
+}
+
+// -------------------------------------node-----------------------------------------
+
+func (this *CTRL) Insert_Node(m *m_node) error {
+	tx := this.db.BeginTx(context.Background(),
+		&sql.TxOptions{Isolation: sql.LevelSerializable})
+	if tx.Error != nil {
+		return tx.Error
+	}
+	err := tx.Create(m).Error
+	if err != nil {
+		return err
+	}
+	err = tx.Create(&m_node_syncer{GUID: m.GUID}).Error
+	if err != nil {
+		return err
+	}
+	err = tx.Commit().Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (this *CTRL) Delete_Node(guid []byte) error {
+	tx := this.db.BeginTx(context.Background(),
+		&sql.TxOptions{Isolation: sql.LevelSerializable})
+	if tx.Error != nil {
+		return tx.Error
+	}
+	err := tx.Delete(&m_node{}, "guid = ?", guid).Error
+	if err != nil {
+		return err
+	}
+	err = tx.Delete(&m_node_listener{}, "guid = ?", guid).Error
+	if err != nil {
+		return err
+	}
+	err = tx.Table(t_node_log).Delete(&m_role_log{}, "guid = ?", guid).Error
+	if err != nil {
+		return err
+	}
+	return tx.Commit().Error
+}
+
+func (this *CTRL) Delete_Node_Unscoped(guid []byte) error {
+	return this.db.Unscoped().Delete(&m_node{}, "guid = ?", guid).Error
+}
+
+func (this *CTRL) Insert_Node_Listener(m *m_node_listener) error {
+	return this.db.Create(m).Error
+}
+
+func (this *CTRL) Delete_Node_Listener(id uint64) error {
+	return this.db.Delete(&m_node_listener{ID: id}).Error
+}
+
+func (this *CTRL) Insert_Node_Log(m *m_role_log) error {
+	return this.db.Table(t_node_log).Create(m).Error
+}
+
+func (this *CTRL) Delete_Node_Log(id uint64) error {
+	return this.db.Table(t_node_log).Delete(&m_role_log{ID: id}).Error
 }

@@ -13,14 +13,14 @@ const (
 )
 
 type Model struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time  `gorm:"not null"`
+	UpdatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
 type m_ctrl_log struct {
-	ID        uint64 `gorm:"primary_key"`
-	CreatedAt time.Time
+	ID        uint64     `gorm:"primary_key"`
+	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null" sql:"index"`
 	Source    string     `gorm:"size:32;not null" sql:"index"`
 	Log       string     `gorm:"size:16000;not null"`
@@ -69,15 +69,43 @@ type m_listener struct {
 	Model
 }
 
+type m_node struct {
+	GUID      []byte     `gorm:"primary_key;type:binary(52)"`
+	AES_Key   []byte     `gorm:"type:binary(48);not null"`
+	Publickey []byte     `gorm:"type:binary(32);not null"`
+	Bootstrap bool       `gorm:"not null"`
+	CreatedAt time.Time  `gorm:"not null"`
+	DeletedAt *time.Time `sql:"index"`
+}
+
+type m_node_listener struct {
+	ID        uint64     `gorm:"primary_key"`
+	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
+	Tag       string     `gorm:"size:32;not null"`
+	Mode      xnet.Mode  `gorm:"size:32;not null"`
+	Network   string     `gorm:"size:32;not null"`
+	Address   string     `gorm:"size:2048;not null"`
+	CreatedAt time.Time  `gorm:"not null"`
+	DeletedAt *time.Time `sql:"index"`
+}
+
+type m_node_syncer struct {
+	GUID      []byte    `gorm:"primary_key;type:binary(52)"`
+	CTRL_Send uint64    `gorm:"not null;column:controller_send"`
+	Node_Recv uint64    `gorm:"not null;column:node_receive"`
+	Node_Send uint64    `gorm:"not null;column:node_send"`
+	CTRL_Recv uint64    `gorm:"not null;column:controller_receive"`
+	UpdatedAt time.Time `gorm:"not null"`
+}
+
 // internal/guid/guid.go  guid.Size
 // beacon & node log
-// size:104 = hex(guid) = guid.Size * 2
 type m_role_log struct {
-	ID        uint64 `gorm:"primary_key"`
-	CreatedAt time.Time
-	GUID      string     `gorm:"size:104;not null"`
-	Level     uint8      `gorm:"not null" sql:"index"`
-	Source    string     `gorm:"size:32;not null" sql:"index"`
+	ID        uint64     `gorm:"primary_key"`
+	CreatedAt time.Time  `gorm:"not null"`
+	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
+	Level     uint8      `gorm:"not null"`
+	Source    string     `gorm:"size:32;not null"`
 	Log       string     `gorm:"size:16000;not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
