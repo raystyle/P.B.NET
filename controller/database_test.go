@@ -327,7 +327,7 @@ func Test_Delete_Node(t *testing.T) {
 
 func Test_Delete_Node_Unscoped(t *testing.T) {
 	init_ctrl(t)
-	ctrl.db.LogMode(true)
+	// ctrl.db.LogMode(true)
 	err := ctrl.Delete_Node_Unscoped(bytes.Repeat([]byte{52}, guid.SIZE))
 	require.Nil(t, err, err)
 }

@@ -238,10 +238,16 @@ func (this *CTRL) Delete_Listener(id uint64) error {
 func (this *CTRL) Insert_Node(m *m_node) error {
 	tx := this.db.BeginTx(context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable})
-	if tx.Error != nil {
-		return tx.Error
+	err := tx.Error
+	if err != nil {
+		return err
 	}
-	err := tx.Create(m).Error
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+	err = tx.Create(m).Error
 	if err != nil {
 		return err
 	}
@@ -259,10 +265,16 @@ func (this *CTRL) Insert_Node(m *m_node) error {
 func (this *CTRL) Delete_Node(guid []byte) error {
 	tx := this.db.BeginTx(context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable})
-	if tx.Error != nil {
-		return tx.Error
+	err := tx.Error
+	if err != nil {
+		return err
 	}
-	err := tx.Delete(&m_node{}, "guid = ?", guid).Error
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+	err = tx.Delete(&m_node{}, "guid = ?", guid).Error
 	if err != nil {
 		return err
 	}
@@ -274,7 +286,8 @@ func (this *CTRL) Delete_Node(guid []byte) error {
 	if err != nil {
 		return err
 	}
-	return tx.Commit().Error
+	err = tx.Commit().Error
+	return err
 }
 
 func (this *CTRL) Delete_Node_Unscoped(guid []byte) error {
