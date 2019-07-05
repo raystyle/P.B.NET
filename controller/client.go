@@ -42,6 +42,7 @@ func new_client(ctx *CTRL, c *client_config) (*client, error) {
 	}
 	err_chan := make(chan error, 1)
 	go func() {
+		// TODO recover
 		xconn, err := client.handshake(conn)
 		if err != nil {
 			err_chan <- err
@@ -53,9 +54,11 @@ func new_client(ctx *CTRL, c *client_config) (*client, error) {
 	select {
 	case err = <-err_chan:
 		if err != nil {
+			_ = conn.Close()
 			return nil, err
 		}
 	case <-time.After(time.Minute):
+		_ = conn.Close()
 		return nil, errors.New("handshake timeout")
 	}
 	return client, nil

@@ -12,11 +12,11 @@ import (
 
 var (
 	ctrl      *CTRL
-	once_init sync.Once
+	init_once sync.Once
 )
 
 func init_ctrl(t *testing.T) {
-	once_init.Do(func() {
+	init_once.Do(func() {
 		c := test_gen_config()
 		controller, err := New(c)
 		if err != nil {

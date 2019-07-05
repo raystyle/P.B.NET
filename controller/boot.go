@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -15,6 +16,7 @@ type boot struct {
 	interval    time.Duration
 	log_src     string
 	bootstrap   bootstrap.Bootstrap
+	once        sync.Once
 	stop_signal chan struct{}
 }
 
@@ -55,19 +57,21 @@ func (this *boot) run() {
 		delete(this.ctx.boots, this.tag)
 		this.ctx.boots_m.Unlock()
 		this.ctx.wg.Done()
+		this.ctx.Printf(logger.INFO, "boot", "boot stop %s", this.tag)
 	}()
-	b := func() {
+	f := func() {
 		err := this.Resolve()
 		if err != nil {
 			this.ctx.Println(logger.WARNING, this.log_src, err)
+		} else {
+			this.Stop()
 		}
-		this.Stop()
 	}
-	b()
+	f()
 	for {
 		select {
 		case <-time.After(this.interval):
-			b()
+			f()
 		case <-this.stop_signal:
 			return
 		}
@@ -84,5 +88,7 @@ func (this *boot) Resolve() error {
 }
 
 func (this *boot) Stop() {
-	close(this.stop_signal)
+	this.once.Do(func() {
+		close(this.stop_signal)
+	})
 }

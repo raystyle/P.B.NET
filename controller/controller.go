@@ -135,7 +135,7 @@ func New(c *Config) (*CTRL, error) {
 	// init http server
 	web, err := new_web(ctrl, c)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "init web server failed")
 	}
 	ctrl.web = web
 	ctrl.boots = make(map[string]*boot)
@@ -147,7 +147,7 @@ func (this *CTRL) Main() error {
 	// first synchronize time
 	err := this.global.Start_Timesync()
 	if err != nil {
-		return errors.Wrap(err, "synchronize time failed")
+		return this.fatal(err, "synchronize time failed")
 	}
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Printf(logger.INFO, "init", "time: %s", now)
