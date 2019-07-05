@@ -1,6 +1,8 @@
 package config
 
 import (
+	"time"
+
 	"project/internal/bootstrap"
 	"project/internal/xnet"
 )
@@ -12,7 +14,8 @@ type Bootstrap struct {
 }
 
 type Listener struct {
-	Tag    string
-	Mode   xnet.Mode
-	Config []byte
+	Tag     string
+	Mode    xnet.Mode
+	Timeout time.Duration // start listener timeout
+	Config  []byte
 }
