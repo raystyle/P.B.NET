@@ -56,8 +56,8 @@ func (this *boot) run() {
 		this.ctx.boots_m.Lock()
 		delete(this.ctx.boots, this.tag)
 		this.ctx.boots_m.Unlock()
+		this.ctx.Printf(logger.INFO, "boot", "boot %s stop", this.tag)
 		this.ctx.wg.Done()
-		this.ctx.Printf(logger.INFO, "boot", "boot stop %s", this.tag)
 	}()
 	f := func() {
 		err := this.Resolve()
