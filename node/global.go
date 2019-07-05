@@ -19,7 +19,6 @@ import (
 )
 
 type global struct {
-	ctx        *NODE
 	proxy      *proxyclient.PROXY
 	dns        *dnsclient.DNS
 	timesync   *timesync.TIMESYNC
@@ -30,7 +29,7 @@ type global struct {
 	wg         sync.WaitGroup
 }
 
-func new_global(ctx *NODE, c *Config) (*global, error) {
+func new_global(lg logger.Logger, c *Config) (*global, error) {
 	// <security> basic
 	memory := security.New_Memory()
 	memory.Padding()
@@ -45,10 +44,10 @@ func new_global(ctx *NODE, c *Config) (*global, error) {
 	}
 	memory.Padding()
 	var l logger.Logger
-	if c.Is_Check {
+	if c.Check_Mode {
 		l = logger.Discard
 	} else {
-		l = ctx
+		l = lg
 	}
 	t, err := timesync.New(p, d, l, c.Timesync_Clients, c.Timesync_Interval)
 	if err != nil {
@@ -56,14 +55,9 @@ func new_global(ctx *NODE, c *Config) (*global, error) {
 	}
 	memory.Flush()
 	g := &global{
-		ctx:      ctx,
 		proxy:    p,
 		dns:      d,
 		timesync: t,
-	}
-	err = g.timesync.Start()
-	if err != nil {
-		return nil, err
 	}
 	err = g.configure(c)
 	if err != nil {
@@ -166,6 +160,10 @@ func (this *global) gen_internal_objects() {
 }
 
 // about internal
+
+func (this *global) Start_Timesync() error {
+	return this.timesync.Start()
+}
 
 func (this *global) Now() time.Time {
 	return this.timesync.Now()

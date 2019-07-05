@@ -39,7 +39,7 @@ func New(c *Config) (*NODE, error) {
 	if c.Is_Genesis {
 		s, err := new_server(node, c)
 		if err != nil {
-			return nil, errors.WithMessage(err, "create server failed")
+			return nil, err
 		}
 		node.server = s
 	} else {
@@ -53,7 +53,12 @@ func New(c *Config) (*NODE, error) {
 }
 
 func (this *NODE) Main() error {
-	err := this.server.Deploy()
+	// first synchronize time
+	err := this.global.Start_Timesync()
+	if err != nil {
+		return this.fatal(err, "synchronize time failed")
+	}
+	err = this.server.Deploy()
 	if err != nil {
 		return this.fatal(err, "deploy server failed")
 	}
@@ -62,7 +67,7 @@ func (this *NODE) Main() error {
 
 func (this *NODE) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	this.Println(logger.FATAL, log_init, err)
+	this.Println(logger.FATAL, "init", err)
 	this.Exit(nil)
 	return err
 }
@@ -85,5 +90,5 @@ func (this *NODE) Exit(err error) {
 }
 
 func (this *NODE) exit_log(log string) {
-	this.Print(logger.INFO, log_shutdown, log)
+	this.Print(logger.INFO, "exit", log)
 }

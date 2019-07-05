@@ -7,13 +7,6 @@ import (
 	"project/internal/logger"
 )
 
-const (
-	log_init     = "init"
-	log_shutdown = "shutdown"
-	log_boot     = "boot"
-	log_client   = "client"
-)
-
 func (this *NODE) Printf(l logger.Level, src, format string, log ...interface{}) {
 	if l < this.log_lv {
 		return

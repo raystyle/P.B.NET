@@ -11,7 +11,7 @@ import (
 
 type Config struct {
 	// check
-	Is_Check bool
+	Check_Mode bool
 
 	// logger
 	Log_Level string
@@ -33,13 +33,14 @@ type Config struct {
 	Register_Bootstraps []*config.Bootstrap
 
 	// server
-	Conn_Limit int
-	Listeners  []*config.Listener
+	Conn_Limit        int
+	Handshake_Timeout time.Duration
+	Listeners         []*config.Listener
 }
 
 // before create a node need check config
 func (this *Config) Check() error {
-	this.Is_Check = true
+	this.Check_Mode = true
 	node, err := New(this)
 	if err != nil {
 		return err

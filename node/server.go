@@ -2,7 +2,6 @@ package node
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -13,7 +12,6 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/config"
-	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/options"
 	"project/internal/random"
@@ -27,10 +25,11 @@ var (
 // accept beacon node controller
 type server struct {
 	ctx           *NODE
-	conn_limit    int // every listener
+	conn_limit    int           // every listener
+	hs_timeout    time.Duration // handshake timeout
 	listeners     map[string]*listener
 	listeners_rwm sync.RWMutex
-	conns         map[string]*conn // key = listener.Tag + Remote Address
+	conns         map[string]*xnet.Conn // key = listener.Tag + Remote Address
 	conns_rwm     sync.RWMutex
 	in_shutdown   int32
 	random        *random.Generator
@@ -47,16 +46,20 @@ func new_server(ctx *NODE, c *Config) (*server, error) {
 	s := &server{
 		ctx:         ctx,
 		conn_limit:  c.Conn_Limit,
+		hs_timeout:  c.Handshake_Timeout,
 		listeners:   make(map[string]*listener),
-		conns:       make(map[string]*conn),
+		conns:       make(map[string]*xnet.Conn),
 		random:      random.New(),
 		stop_signal: make(chan struct{}, 1),
 	}
 	if s.conn_limit < 1 {
 		s.conn_limit = options.DEFAULT_CONNECTION_LIMIT
 	}
+	if s.hs_timeout < 1 {
+		s.hs_timeout = options.DEFAULT_HANDSHAKE_TIMEOUT
+	}
 	for _, listener := range c.Listeners {
-		err := s.Serve(listener)
+		err := s.Add_Listener(listener)
 		if err != nil {
 			return nil, err
 		}
@@ -68,7 +71,10 @@ func (this *server) Deploy() error {
 	return nil
 }
 
-func (this *server) Serve(l *config.Listener) error {
+func (this *server) Add_Listener(l *config.Listener) error {
+	if this.shutting_down() {
+		return ERR_SERVER_CLOSED
+	}
 	c := &xnet.Config{}
 	err := toml.Unmarshal(l.Config, c)
 	if err != nil {
@@ -83,12 +89,19 @@ func (this *server) Serve(l *config.Listener) error {
 	li = netutil.LimitListener(li, this.conn_limit)
 	addr := li.Addr().String()
 	listener := &listener{Mode: l.Mode, Listener: li}
-	err = this.track_listener(l.Tag, listener, true)
-	if err != nil {
-		this.logf(logger.INFO, "track listener %s failed: %s", l.Tag, err)
+	// add
+	this.listeners_rwm.Lock()
+	if _, exist := this.listeners[l.Tag]; !exist {
+		this.listeners[l.Tag] = listener
+		this.listeners_rwm.Unlock()
+	} else {
+		this.listeners_rwm.Unlock()
+		err = fmt.Errorf("listener: %s already exists", l.Tag)
+		this.log(logger.INFO, err)
 		return err
 	}
-	timeout := c.Timeout
+	// set start timeout
+	timeout := l.Timeout
 	if timeout < 1 {
 		timeout = options.DEFAULT_START_TIMEOUT
 	}
@@ -109,16 +122,14 @@ func (this *server) serve(tag string, l *listener, err_chan chan<- error) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			switch v := r.(type) {
-			case error:
-				err = errors.WithStack(v)
-			default:
-				err = errors.New("unknown panic")
-			}
+			err = errors.New(fmt.Sprintf("serve panic: %v", r))
 		}
 		err_chan <- err
 		close(err_chan)
-		_ = this.track_listener(tag, l, false)
+		// delete
+		this.listeners_rwm.Lock()
+		delete(this.listeners, tag)
+		this.listeners_rwm.Unlock()
 		this.logf(logger.INFO, "listener: %s(%s) is closed", tag, l.Addr())
 		this.wg.Done()
 	}()
@@ -150,7 +161,8 @@ func (this *server) serve(tag string, l *listener, err_chan chan<- error) {
 		}
 		delay = 0
 		this.wg.Add(1)
-		go this.handshake(conn)
+		_ = conn.SetDeadline(time.Now().Add(this.hs_timeout))
+		go this.handshake(tag, conn)
 	}
 }
 
@@ -175,14 +187,14 @@ func (this *server) Shutdown() {
 	close(this.stop_signal)
 	// close all listeners
 	this.listeners_rwm.Lock()
-	for _, l := range this.listeners {
-		_ = l.Close()
+	for _, listener := range this.listeners {
+		_ = listener.Close()
 	}
 	this.listeners_rwm.Unlock()
 	// close all conns
 	this.conns_rwm.Lock()
-	for _, c := range this.conns {
-		_ = c.Close()
+	for _, conn := range this.conns {
+		_ = conn.Close()
 	}
 	this.conns_rwm.Unlock()
 	this.wg.Wait()
@@ -204,119 +216,14 @@ func (this *server) shutting_down() bool {
 	return atomic.LoadInt32(&this.in_shutdown) != 0
 }
 
-func (this *server) track_listener(tag string, l *listener, add bool) error {
-	this.listeners_rwm.Lock()
-	defer this.listeners_rwm.Unlock()
-	if add {
-		if this.shutting_down() {
-			return ERR_SERVER_CLOSED
-		}
-		if _, exist := this.listeners[tag]; !exist {
-			this.listeners[tag] = l
-		} else {
-			return fmt.Errorf("listener: %s already exists", tag)
-		}
-	} else {
-		if _, exist := this.listeners[tag]; exist {
-			delete(this.listeners, tag)
-		} else {
-			return fmt.Errorf("listener: %s doesn't exist", tag)
-		}
-	}
-	return nil
-}
-
-func (this *server) track_conn(tag string, c *conn, add bool) error {
+func (this *server) add_conn(tag string, c *xnet.Conn) {
 	this.conns_rwm.Lock()
-	defer this.conns_rwm.Unlock()
-	if add {
-		if this.shutting_down() {
-			return ERR_SERVER_CLOSED
-		}
-		this.conns[tag] = c
-		// if _, exist := this.conns[tag]; !exist {
-		//
-		// } else {
-		// 	return fmt.Errorf("conn: %s already exists", tag)
-		// }
-	} else {
-		delete(this.conns, tag)
-		// if _, exist := this.conns[tag]; exist {
-		//
-		// } else {
-		// 	return fmt.Errorf("conn: %s doesn't exist", tag)
-		// }
-	}
-	return nil
+	this.conns[tag] = c
+	this.conns_rwm.Unlock()
 }
 
-type conn struct {
-	net.Conn
-	connect   int64 // timestamp
-	l_network string
-	l_address string
-	r_network string
-	r_address string
-	version   uint32
-	send      int // imprecise
-	receive   int // imprecise
-	rwm       sync.RWMutex
-}
-
-func (this *conn) Read(b []byte) (int, error) {
-	n, err := this.Conn.Read(b)
-	this.rwm.Lock()
-	this.receive += n
-	this.rwm.Unlock()
-	if err != nil {
-		return n, err
-	}
-	return n, nil
-}
-
-func (this *conn) Write(b []byte) (int, error) {
-	n, err := this.Conn.Write(b)
-	this.rwm.Lock()
-	this.send += n
-	this.rwm.Unlock()
-	if err != nil {
-		return n, err
-	}
-	return n, nil
-}
-
-func (this *conn) Info() *xnet.Info {
-	this.rwm.RLock()
-	i := &xnet.Info{
-		Send:    this.send,
-		Receive: this.receive,
-	}
-	this.rwm.RUnlock()
-	i.Connect_Time = this.connect
-	i.Local_Network = this.l_network
-	i.Local_Address = this.l_address
-	i.Remote_Network = this.r_network
-	i.Remote_Address = this.r_address
-	return i
-}
-
-func (this *conn) send_msg(msg []byte) error {
-	size := convert.Uint32_Bytes(uint32(len(msg)))
-	_, err := this.Write(append(size, msg...))
-	return err
-}
-
-func (this *conn) recv_msg() ([]byte, error) {
-	size := make([]byte, 4)
-	_, err := io.ReadFull(this, size)
-	if err != nil {
-		return nil, err
-	}
-	s := convert.Bytes_Uint32(size)
-	msg := make([]byte, int(s))
-	_, err = io.ReadFull(this, msg)
-	if err != nil {
-		return nil, err
-	}
-	return msg, nil
+func (this *server) delete_conn(tag string) {
+	this.conns_rwm.Lock()
+	delete(this.conns, tag)
+	this.conns_rwm.Unlock()
 }
