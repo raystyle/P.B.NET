@@ -38,7 +38,8 @@ type server struct {
 }
 
 type listener struct {
-	Mode xnet.Mode
+	Mode      xnet.Mode
+	s_timeout time.Duration // start timeout
 	net.Listener
 }
 
@@ -59,7 +60,7 @@ func new_server(ctx *NODE, c *Config) (*server, error) {
 		s.hs_timeout = options.DEFAULT_HANDSHAKE_TIMEOUT
 	}
 	for _, listener := range c.Listeners {
-		err := s.Add_Listener(listener)
+		_, err := s.add_listener(listener)
 		if err != nil {
 			return nil, err
 		}
@@ -68,27 +69,44 @@ func new_server(ctx *NODE, c *Config) (*server, error) {
 }
 
 func (this *server) Deploy() error {
+	// deploy all listener
+	errs := make(chan error, len(this.listeners))
+	for tag, l := range this.listeners {
+		go func(tag string, l *listener) {
+			errs <- this.deploy(tag, l)
+		}(tag, l)
+	}
+	for err := range errs {
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (this *server) Add_Listener(l *config.Listener) error {
+	listener, err := this.add_listener(l)
+	if err != nil {
+		return err
+	}
+	return this.deploy(l.Tag, listener)
+}
+
+func (this *server) add_listener(l *config.Listener) (*listener, error) {
 	if this.shutting_down() {
-		return ERR_SERVER_CLOSED
+		return nil, ERR_SERVER_CLOSED
 	}
 	c := &xnet.Config{}
 	err := toml.Unmarshal(l.Config, c)
 	if err != nil {
-		this.logf(logger.INFO, "load %s config failed: %s", l.Tag, err)
-		return err
+		return nil, errors.Errorf("load %s config failed: %s", l.Tag, err)
 	}
 	li, err := xnet.Listen(l.Mode, c)
 	if err != nil {
-		this.logf(logger.INFO, "listen %s failed: %s", l.Tag, err)
-		return err
+		return nil, errors.Errorf("listen %s failed: %s", l.Tag, err)
 	}
 	li = netutil.LimitListener(li, this.conn_limit)
-	addr := li.Addr().String()
-	listener := &listener{Mode: l.Mode, Listener: li}
+	listener := &listener{Mode: l.Mode, s_timeout: l.Timeout, Listener: li}
 	// add
 	this.listeners_rwm.Lock()
 	if _, exist := this.listeners[l.Tag]; !exist {
@@ -97,23 +115,24 @@ func (this *server) Add_Listener(l *config.Listener) error {
 	} else {
 		this.listeners_rwm.Unlock()
 		err = fmt.Errorf("listener: %s already exists", l.Tag)
-		this.log(logger.INFO, err)
-		return err
+		return nil, err
 	}
-	// set start timeout
-	timeout := l.Timeout
+	return listener, nil
+}
+
+func (this *server) deploy(tag string, l *listener) error {
+	timeout := l.s_timeout
 	if timeout < 1 {
 		timeout = options.DEFAULT_START_TIMEOUT
 	}
+	addr := l.Addr().String()
 	err_chan := make(chan error, 1)
 	this.wg.Add(1)
-	go this.serve(l.Tag, listener, err_chan)
+	go this.serve(tag, l, err_chan)
 	select {
 	case err := <-err_chan:
-		this.logf(logger.INFO, "listener: %s(%s) serve failed: %s", l.Tag, addr, err)
-		return err
+		return fmt.Errorf("listener: %s(%s) deploy failed: %s", tag, addr, err)
 	case <-time.After(timeout):
-		this.logf(logger.INFO, "listener: %s(%s) is serving", l.Tag, addr)
 		return nil
 	}
 }

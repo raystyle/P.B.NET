@@ -17,7 +17,6 @@ type NODE struct {
 	log_lv logger.Level
 	global *global
 	server *server
-	wg     sync.WaitGroup
 	once   sync.Once
 	exit   chan error
 }
@@ -62,6 +61,7 @@ func (this *NODE) Main() error {
 	if err != nil {
 		return this.fatal(err, "deploy server failed")
 	}
+	this.Print(logger.INFO, "init", "node is running")
 	return <-this.exit
 }
 
@@ -78,7 +78,6 @@ func (this *NODE) Exit(err error) {
 			this.server.Shutdown()
 			this.exit_log("web server is stopped")
 		}
-		this.wg.Wait()
 		this.global.Close()
 		this.exit_log("global is stopped")
 		this.exit_log("node is stopped")
