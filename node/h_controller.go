@@ -14,7 +14,10 @@ func (this *server) handle_ctrl(conn *xnet.Conn) {
 	case ver == protocol.V1_0_0:
 		c := &v1_ctrl{conn: conn}
 		this.add_ctrl(c)
-		defer this.del_ctrl("", c)
+		defer func() {
+			this.del_ctrl("", c)
+
+		}()
 		c.serve()
 	}
 }
@@ -36,5 +39,9 @@ func (this *v1_ctrl) Kill() {
 }
 
 func (this *v1_ctrl) serve() {
+	v1_handle_message(this.conn, this.handle_message)
+}
+
+func (this *v1_ctrl) handle_message(msg []byte) {
 
 }
