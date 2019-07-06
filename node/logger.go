@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"project/internal/logger"
 )
@@ -45,5 +46,8 @@ func (this *NODE) Println(l logger.Level, src string, log ...interface{}) {
 }
 
 func (this *NODE) print_log(b *bytes.Buffer) {
-	fmt.Println(b.String())
+	// send to controller
+
+	b.WriteString("\n")
+	_, _ = b.WriteTo(os.Stdout)
 }
