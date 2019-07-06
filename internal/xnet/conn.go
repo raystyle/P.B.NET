@@ -9,6 +9,12 @@ import (
 	"project/internal/protocol"
 )
 
+// header size +  data
+//      4          n
+const (
+	HEADER_SIZE = 4
+)
+
 type Info struct {
 	Local_Network  string
 	Local_Address  string
@@ -76,7 +82,7 @@ func (this *Conn) Send(msg []byte) error {
 
 // receive message
 func (this *Conn) Receive() ([]byte, error) {
-	size := make([]byte, 4)
+	size := make([]byte, HEADER_SIZE)
 	_, err := io.ReadFull(this, size)
 	if err != nil {
 		return nil, err
