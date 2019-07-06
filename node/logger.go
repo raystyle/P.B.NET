@@ -11,38 +11,37 @@ func (this *NODE) Printf(l logger.Level, src, format string, log ...interface{})
 	if l < this.log_lv {
 		return
 	}
-	buffer := logger.Prefix(l, src)
-	if buffer == nil {
+	b := logger.Prefix(l, src)
+	if b == nil {
 		return
 	}
-	buffer.WriteString(fmt.Sprintf(format, log...))
-	this.print_log(buffer)
+	_, _ = fmt.Fprintf(b, format, log...)
+	this.print_log(b)
 }
 
 func (this *NODE) Print(l logger.Level, src string, log ...interface{}) {
 	if l < this.log_lv {
 		return
 	}
-	buffer := logger.Prefix(l, src)
-	if buffer == nil {
+	b := logger.Prefix(l, src)
+	if b == nil {
 		return
 	}
-	buffer.WriteString(fmt.Sprint(log...))
-	this.print_log(buffer)
+	_, _ = fmt.Fprint(b, log...)
+	this.print_log(b)
 }
 
 func (this *NODE) Println(l logger.Level, src string, log ...interface{}) {
 	if l < this.log_lv {
 		return
 	}
-	buffer := logger.Prefix(l, src)
-	if buffer == nil {
+	b := logger.Prefix(l, src)
+	if b == nil {
 		return
 	}
-	log_str := fmt.Sprintln(log...)
-	log_str = log_str[:len(log_str)-1] // delete "\n"
-	buffer.WriteString(log_str)
-	this.print_log(buffer)
+	_, _ = fmt.Fprintln(b, log...)
+	b.Truncate(b.Len() - 1) // delete "\n"
+	this.print_log(b)
 }
 
 func (this *NODE) print_log(b *bytes.Buffer) {
