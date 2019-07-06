@@ -26,9 +26,9 @@ func new_db_logger(db, path string) (*db_logger, error) {
 // [2006-01-02 15:04:05] [INFO] <mysql> test log
 func (this *db_logger) Print(log ...interface{}) {
 	buffer := logger.Prefix(logger.INFO, this.db)
-	buffer.WriteString(fmt.Sprintln(log...))
+	_, _ = fmt.Fprintln(buffer, log...)
 	_, _ = this.file.Write(buffer.Bytes())
-	fmt.Print(buffer.String())
+	_, _ = buffer.WriteTo(os.Stdout)
 }
 
 func (this *db_logger) Close() {
@@ -50,9 +50,9 @@ func new_gorm_logger(path string) (*gorm_logger, error) {
 // [2006-01-02 15:04:05] [INFO] <gorm> test log
 func (this *gorm_logger) Print(log ...interface{}) {
 	buffer := logger.Prefix(logger.INFO, "gorm")
-	buffer.WriteString(fmt.Sprintln(log...))
+	_, _ = fmt.Fprintln(buffer, log...)
 	_, _ = this.file.Write(buffer.Bytes())
-	fmt.Print(buffer.String())
+	_, _ = buffer.WriteTo(os.Stdout)
 }
 
 func (this *gorm_logger) Close() {
@@ -99,12 +99,16 @@ func (this *CTRL) Println(l logger.Level, src string, log ...interface{}) {
 	this.print_log(l, src, log_str, buffer)
 }
 
+// log don't include time level src, for database
 func (this *CTRL) print_log(l logger.Level, src, log string, b *bytes.Buffer) {
-	fmt.Println(b.String())
+	// write to database
 	m := &m_ctrl_log{
 		Level:  l,
 		Source: src,
 		Log:    log,
 	}
 	this.db.Create(m)
+	// print console
+	b.WriteString("\n")
+	_, _ = b.WriteTo(os.Stdout)
 }
