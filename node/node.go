@@ -35,13 +35,13 @@ func New(c *Config) (*NODE, error) {
 	}
 	node.global = g
 	// init server
-	if c.Is_Genesis {
-		s, err := new_server(node, c)
-		if err != nil {
-			return nil, err
-		}
-		node.server = s
-	} else {
+	s, err := new_server(node, c)
+	if err != nil {
+		return nil, err
+	}
+	node.server = s
+	// init server
+	if !c.Is_Genesis {
 		err = node.register(c)
 		if err != nil {
 			return nil, err

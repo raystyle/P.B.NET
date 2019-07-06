@@ -1,6 +1,7 @@
 package node
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/config"
+	"project/internal/crypto/sha256"
 	"project/internal/logger"
 	"project/internal/options"
 	"project/internal/random"
@@ -31,6 +33,12 @@ type server struct {
 	listeners_rwm sync.RWMutex
 	conns         map[string]*xnet.Conn // key = listener.Tag + Remote Address
 	conns_rwm     sync.RWMutex
+	ctrls         map[string]v_client // key = base64(sha256(Remote Address))
+	ctrls_rwm     sync.RWMutex
+	nodes         map[string]v_client // key = base64(guid)
+	nodes_rwm     sync.RWMutex
+	beacons       map[string]v_client // key = base64(guid)
+	beacons_rwm   sync.RWMutex
 	in_shutdown   int32
 	random        *random.Generator
 	stop_signal   chan struct{}
@@ -43,15 +51,18 @@ type listener struct {
 	net.Listener
 }
 
+type v_client interface {
+	Info() *xnet.Info
+	Close()
+	Kill()
+}
+
 func new_server(ctx *NODE, c *Config) (*server, error) {
 	s := &server{
-		ctx:         ctx,
-		conn_limit:  c.Conn_Limit,
-		hs_timeout:  c.Handshake_Timeout,
-		listeners:   make(map[string]*listener),
-		conns:       make(map[string]*xnet.Conn),
-		random:      random.New(),
-		stop_signal: make(chan struct{}, 1),
+		ctx:        ctx,
+		conn_limit: c.Conn_Limit,
+		hs_timeout: c.Handshake_Timeout,
+		listeners:  make(map[string]*listener),
 	}
 	if s.conn_limit < 1 {
 		s.conn_limit = options.DEFAULT_CONNECTION_LIMIT
@@ -65,6 +76,12 @@ func new_server(ctx *NODE, c *Config) (*server, error) {
 			return nil, err
 		}
 	}
+	s.conns = make(map[string]*xnet.Conn)
+	s.ctrls = make(map[string]v_client)
+	s.nodes = make(map[string]v_client)
+	s.beacons = make(map[string]v_client)
+	s.random = random.New()
+	s.stop_signal = make(chan struct{}, 1)
 	return s, nil
 }
 
@@ -241,8 +258,60 @@ func (this *server) add_conn(tag string, c *xnet.Conn) {
 	this.conns_rwm.Unlock()
 }
 
-func (this *server) delete_conn(tag string) {
+func (this *server) del_conn(tag string) {
 	this.conns_rwm.Lock()
 	delete(this.conns, tag)
 	this.conns_rwm.Unlock()
+}
+
+func (this *server) add_ctrl(c v_client) {
+	data := sha256.Bytes([]byte(c.Info().Remote_Address))
+	tag := base64.StdEncoding.EncodeToString(data)
+	this.ctrls_rwm.Lock()
+	if _, exist := this.ctrls[tag]; !exist {
+		this.ctrls[tag] = c
+	}
+	this.ctrls_rwm.Unlock()
+}
+
+func (this *server) del_ctrl(tag string, c v_client) {
+	if c != nil {
+		data := sha256.Bytes([]byte(c.Info().Remote_Address))
+		tag = base64.StdEncoding.EncodeToString(data)
+	}
+	this.ctrls_rwm.Lock()
+	delete(this.ctrls, tag)
+	this.ctrls_rwm.Unlock()
+}
+
+func (this *server) add_node(guid []byte, c v_client) {
+	tag := base64.StdEncoding.EncodeToString(guid)
+	this.nodes_rwm.Lock()
+	if _, exist := this.nodes[tag]; !exist {
+		this.nodes[tag] = c
+	}
+	this.nodes_rwm.Unlock()
+}
+
+func (this *server) del_node(guid []byte) {
+	tag := base64.StdEncoding.EncodeToString(guid)
+	this.nodes_rwm.Lock()
+	delete(this.nodes, tag)
+	this.nodes_rwm.Unlock()
+}
+
+func (this *server) add_beacon(guid []byte, c v_client) {
+	tag := base64.StdEncoding.EncodeToString(guid)
+	this.beacons_rwm.Lock()
+	if _, exist := this.beacons[tag]; !exist {
+		this.beacons[tag] = c
+	}
+	this.beacons_rwm.Unlock()
+}
+
+func (this *server) del_beacon(guid []byte) {
+	tag := base64.StdEncoding.EncodeToString(guid)
+	this.beacons_rwm.Lock()
+	delete(this.beacons, tag)
+	this.beacons_rwm.Unlock()
 }

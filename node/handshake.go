@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"time"
 
 	"project/internal/convert"
 	"project/internal/logger"
@@ -48,7 +47,7 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 	this.add_conn(conn_tag, c)
 	defer func() {
 		_ = conn.Close()
-		this.delete_conn(conn_tag)
+		this.del_conn(conn_tag)
 	}()
 	// send support max version
 	_, err := conn.Write(convert.Uint32_Bytes(Version))
@@ -75,7 +74,6 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 	default:
 		l := &hs_log{c: c, l: fmt.Sprint("unsupport version", v)}
 		this.logln(logger.ERROR, l)
-		return
 	}
 }
 
@@ -128,8 +126,8 @@ func (this *server) v1_verify_node(conn *xnet.Conn) {
 }
 
 func (this *server) v1_verify_ctrl(conn *xnet.Conn) {
-	// send random challenge code(length 2048-4096)
 	// <danger>
+	// send random challenge code(length 2048-4096)
 	// len(challenge) must > len(GUID + Mode + Network + Address)
 	// because maybe fake node will send some special data
 	// and controller sign it
@@ -161,7 +159,5 @@ func (this *server) v1_verify_ctrl(conn *xnet.Conn) {
 		return
 	}
 	this.logln(logger.INFO, &hs_log{c: conn, l: "new controller connect"})
-	// handle controller
-	// controller.Add(conn)
-	_ = conn.SetDeadline(time.Time{})
+	this.handle_ctrl(conn)
 }
