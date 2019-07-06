@@ -16,7 +16,7 @@ type db_logger struct {
 }
 
 func new_db_logger(db, path string) (*db_logger, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 664)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
 		return nil, errors.Wrapf(err, "create %s logger failed", db)
 	}
@@ -40,7 +40,7 @@ type gorm_logger struct {
 }
 
 func new_gorm_logger(path string) (*gorm_logger, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 664)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
 		return nil, errors.Wrap(err, "create gorm logger failed")
 	}
