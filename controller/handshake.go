@@ -21,14 +21,14 @@ type hs_err struct {
 	e error
 }
 
-// "tcp 127.0.0.1:1234 <-> tcp 127.0.0.1:1235 ver: 1 send data failed: error"
+// "tcp 127.0.0.1:1234 <-> tcp 127.0.0.1:1235 [ver: 1] send data failed: error"
 func (this *hs_err) Error() string {
-	b := bytes.Buffer{}
-	b.WriteString(fmt.Sprintf("%s %s <-> %s %s ",
+	b := &bytes.Buffer{}
+	_, _ = fmt.Fprintf(b, "%s %s <-> %s %s ",
 		this.c.LocalAddr().Network(), this.c.LocalAddr(),
-		this.c.RemoteAddr().Network(), this.c.RemoteAddr()))
+		this.c.RemoteAddr().Network(), this.c.RemoteAddr())
 	if conn, ok := this.c.(*xnet.Conn); ok {
-		b.WriteString(fmt.Sprintf("[ver: %d] ", conn.Info().Version))
+		_, _ = fmt.Fprintf(b, "[ver: %d] ", conn.Info().Version)
 	}
 	b.WriteString(this.s)
 	if this.e != nil {
