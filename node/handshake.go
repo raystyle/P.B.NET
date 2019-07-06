@@ -20,12 +20,12 @@ type hs_log struct {
 }
 
 func (this *hs_log) String() string {
-	b := bytes.Buffer{}
-	b.WriteString(fmt.Sprintf("%s %s <-> %s %s ",
+	b := &bytes.Buffer{}
+	_, _ = fmt.Fprintf(b, "%s %s <-> %s %s ",
 		this.c.LocalAddr().Network(), this.c.LocalAddr(),
-		this.c.RemoteAddr().Network(), this.c.RemoteAddr()))
+		this.c.RemoteAddr().Network(), this.c.RemoteAddr())
 	if conn, ok := this.c.(*xnet.Conn); ok {
-		b.WriteString(fmt.Sprintf("[ver: %d] ", conn.Info().Version))
+		_, _ = fmt.Fprintf(b, "[ver: %d] ", conn.Info().Version)
 	}
 	b.WriteString(this.l)
 	if this.e != nil {
@@ -36,6 +36,13 @@ func (this *hs_log) String() string {
 }
 
 func (this *server) handshake(l_tag string, conn net.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("serve panic: %v", r)
+			l := &hs_log{c: conn, l: "", e: err}
+			this.logln(logger.EXPLOIT, l)
+		}
+	}()
 	// add to conns for management
 	now := this.ctx.global.Now().Unix()
 	c := xnet.New_Conn(conn, now, 0)
