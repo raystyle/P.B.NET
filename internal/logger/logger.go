@@ -109,21 +109,21 @@ func (this *writer) Write(p []byte) (int, error) {
 type test struct{}
 
 func (this *test) Printf(l Level, src string, format string, log ...interface{}) {
-	buffer := Prefix(l, src)
-	buffer.WriteString(fmt.Sprintf(format, log...))
-	fmt.Println(buffer.String())
+	b := Prefix(l, src)
+	_, _ = fmt.Fprintf(b, format, log...)
+	fmt.Println(b.String())
 }
 
 func (this *test) Print(l Level, src string, log ...interface{}) {
-	buffer := Prefix(l, src)
-	buffer.WriteString(fmt.Sprint(log...))
-	fmt.Println(buffer.String())
+	b := Prefix(l, src)
+	_, _ = fmt.Fprint(b, log...)
+	fmt.Println(b.String())
 }
 
 func (this *test) Println(l Level, src string, log ...interface{}) {
-	buffer := Prefix(l, src)
-	buffer.WriteString(fmt.Sprintln(log...))
-	fmt.Print(buffer.String())
+	b := Prefix(l, src)
+	_, _ = fmt.Fprintln(b, log...)
+	fmt.Print(b.String())
 }
 
 type discard struct{}
