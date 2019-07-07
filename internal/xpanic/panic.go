@@ -21,7 +21,7 @@ func print_stack(b *bytes.Buffer) {
 	var pcs [depth]uintptr
 	n := runtime.Callers(3, pcs[:])
 	for _, pc := range pcs[2:n] {
-		f := Frame(pc)
+		f := frame(pc)
 		// write source file
 		pc := f.pc()
 		fn := runtime.FuncForPC(pc)
@@ -39,15 +39,15 @@ func print_stack(b *bytes.Buffer) {
 // from github.com/pkg/errors
 
 // Frame represents a program counter inside a stack frame.
-type Frame uintptr
+type frame uintptr
 
 // pc returns the program counter for this frame;
 // multiple frames may have the same PC value.
-func (f Frame) pc() uintptr { return uintptr(f) - 1 }
+func (f frame) pc() uintptr { return uintptr(f) - 1 }
 
 // line returns the line number of source code of the
 // function for this Frame's pc.
-func (f Frame) line() int {
+func (f frame) line() int {
 	fn := runtime.FuncForPC(f.pc())
 	if fn == nil {
 		return 0
