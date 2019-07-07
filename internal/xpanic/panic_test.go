@@ -7,7 +7,9 @@ import (
 
 func Test_Print(t *testing.T) {
 	defer func() {
-		fmt.Println(Print(recover()))
+		r := recover()
+		fmt.Println(Print(r))
+		fmt.Println(Error("test panic:", r))
 	}()
 	test_panic()
 }

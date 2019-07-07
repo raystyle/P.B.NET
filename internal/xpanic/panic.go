@@ -2,6 +2,7 @@ package xpanic
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"runtime"
@@ -14,6 +15,15 @@ func Print(panic interface{}) string {
 	_, _ = fmt.Fprintln(b, panic)
 	print_stack(b)
 	return b.String()
+}
+
+func Error(prefix string, panic interface{}) error {
+	b := &bytes.Buffer{}
+	b.WriteString(prefix)
+	b.WriteString(" ")
+	_, _ = fmt.Fprintln(b, panic)
+	print_stack(b)
+	return errors.New(b.String())
 }
 
 func print_stack(b *bytes.Buffer) {
