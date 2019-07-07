@@ -10,6 +10,7 @@ import (
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xnet"
+	"project/internal/xpanic"
 )
 
 // handshake log
@@ -38,9 +39,8 @@ func (this *hs_log) String() string {
 func (this *server) handshake(l_tag string, conn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
-			err := fmt.Errorf("serve panic: %v", r)
-			l := &hs_log{c: conn, l: "", e: err}
-			this.logln(logger.EXPLOIT, l)
+			err := xpanic.Error("handshake panic:", r)
+			this.logln(logger.EXPLOIT, &hs_log{c: conn, l: "", e: err})
 		}
 	}()
 	// add to conns for management

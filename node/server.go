@@ -1,7 +1,6 @@
 package node
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -14,12 +13,12 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/config"
-	"project/internal/convert"
 	"project/internal/crypto/sha256"
 	"project/internal/logger"
 	"project/internal/options"
 	"project/internal/random"
 	"project/internal/xnet"
+	"project/internal/xpanic"
 )
 
 var (
@@ -160,7 +159,7 @@ func (this *server) serve(tag string, l *listener, err_chan chan<- error) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("serve panic: %v", r)
+			err = xpanic.Error("serve panic:", r) // front var err
 			this.logln(logger.FATAL, err)
 		}
 		err_chan <- err
@@ -317,45 +316,4 @@ func (this *server) del_beacon(guid []byte) {
 	this.beacons_rwm.Lock()
 	delete(this.beacons, tag)
 	this.beacons_rwm.Unlock()
-}
-
-func v1_handle_message(conn *xnet.Conn, handler func([]byte)) {
-	const (
-		buffer_size = 4096
-
-		// if data buffer size > this new buffer
-		max_buffer_size = 4 * buffer_size
-
-		// client send heartbeat in 0-60 s
-		heartbeat = 60 * time.Second
-	)
-	data := bytes.NewBuffer(make([]byte, buffer_size))
-	buffer := make([]byte, buffer_size)
-	body_size := 0
-
-	if data.Cap() > max_buffer_size {
-		data = bytes.NewBuffer(make([]byte, buffer_size))
-	}
-
-	for {
-		_ = conn.SetReadDeadline(time.Now().Add(heartbeat))
-		n, err := conn.Read(buffer)
-		if err != nil {
-			return
-		}
-		data.Write(buffer[:n])
-		l := data.Len()
-		if l < xnet.HEADER_SIZE {
-			continue
-		}
-		if body_size == 0 { // avoid duplicate calculations
-			body_size = int(convert.Bytes_Uint32(data.Bytes()[:xnet.HEADER_SIZE]))
-
-		}
-		if l-xnet.HEADER_SIZE >= body_size {
-
-		}
-
-	}
-
 }
