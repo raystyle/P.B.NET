@@ -15,6 +15,7 @@ import (
 
 	"project/internal/convert"
 	"project/internal/options"
+	"project/internal/xpanic"
 )
 
 const (
@@ -394,13 +395,10 @@ func dial_https(server string, question []byte, opts *Options) ([]byte, error) {
 }
 
 func resolve(t Type, answer []byte) (ip_list []string, err error) {
-	// recover panic array bound
+	// panic array bound
 	defer func() {
 		if r := recover(); r != nil {
-			switch v := r.(type) {
-			case error:
-				err = v
-			}
+			err = xpanic.Error("dns.resolve() panic:", r)
 			ip_list = nil
 		}
 	}()

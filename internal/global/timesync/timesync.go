@@ -17,6 +17,7 @@ import (
 	"project/internal/ntp"
 	"project/internal/options"
 	"project/internal/random"
+	"project/internal/xpanic"
 )
 
 type Mode = string
@@ -256,12 +257,7 @@ func (this *TIMESYNC) sync_loop() {
 func (this *TIMESYNC) sync(accept_failed, sync_all bool) error {
 	defer func() {
 		if r := recover(); r != nil {
-			switch v := r.(type) {
-			case error:
-				this.log(logger.FATAL, "sync() panic:", v)
-			default:
-				this.log(logger.FATAL, "sync() panic: unknown panic")
-			}
+			this.log(logger.FATAL, "sync() panic:", xpanic.Print(r))
 		}
 	}()
 	// copy map
