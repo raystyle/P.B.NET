@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"net/http"
+	_ "net/http/pprof"
 	"sync"
 	"testing"
 
@@ -47,6 +49,10 @@ func init_ctrl(t *testing.T) {
 			require.Nil(t, err, err)
 		}()
 	})
+}
+
+func pprof() {
+	go func() { _ = http.ListenAndServe(":8080", nil) }()
 }
 
 /*

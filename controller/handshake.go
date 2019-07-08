@@ -27,9 +27,6 @@ func (this *hs_err) Error() string {
 	_, _ = fmt.Fprintf(b, "%s %s <-> %s %s ",
 		this.c.LocalAddr().Network(), this.c.LocalAddr(),
 		this.c.RemoteAddr().Network(), this.c.RemoteAddr())
-	if conn, ok := this.c.(*xnet.Conn); ok {
-		_, _ = fmt.Fprintf(b, "[ver: %d] ", conn.Info().Version)
-	}
 	b.WriteString(this.s)
 	if this.e != nil {
 		b.WriteString(": ")
@@ -38,47 +35,17 @@ func (this *hs_err) Error() string {
 	return b.String()
 }
 
-func (this *client) handshake(conn net.Conn) (*xnet.Conn, error) {
-	// receive node support version & select used version
-	buffer := make([]byte, 4)
-	_, err := io.ReadFull(conn, buffer)
-	if err != nil {
-		e := &hs_err{c: conn, s: "receive version failed", e: err}
-		return nil, errors.WithStack(e)
-	}
-	ver := convert.Bytes_Uint32(buffer)
-	if ver >= Version {
-		ver = Version
-	}
-	// send used version
-	_, err = conn.Write(convert.Uint32_Bytes(ver))
-	if err != nil {
-		e := &hs_err{c: conn, s: "send version failed", e: err}
-		return nil, errors.WithStack(e)
-	}
-	this.ver = ver
-	c := xnet.New_Conn(conn, this.ctx.global.Now().Unix(), ver)
-	// verify
-	switch {
-	case ver == protocol.V1_0_0:
-		err = this.v1_verify(c)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
 // certificates = [2 byte uint16] size + signature with node guid
 //                [2 byte uint16] size + signature with ctrl guid
-func (this *client) v1_verify(conn *xnet.Conn) error {
+func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
+	conn := xnet.New_Conn(c, this.ctx.global.Now().Unix())
 	// receive certificates
 	certificates, err := conn.Receive()
 	if err != nil {
 		e := &hs_err{c: conn, s: "receive certificate failed", e: err}
-		return errors.WithStack(e)
+		return nil, errors.WithStack(e)
 	}
-	// if guid != nil, skip verify
+	// if guid = nil, skip verify
 	if this.guid != nil {
 		const (
 			act = "read certificate(with node guid) "
@@ -89,14 +56,14 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {
 			e := &hs_err{c: conn, s: act + "size failed", e: err}
-			return errors.WithStack(e)
+			return nil, errors.WithStack(e)
 		}
 		// read cert
 		cert_with_node_guid := make([]byte, convert.Bytes_Uint16(cert_size))
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {
 			e := &hs_err{c: conn, s: act + "failed", e: err}
-			return errors.WithStack(e)
+			return nil, errors.WithStack(e)
 		}
 		// cacl cert
 		buffer := new(bytes.Buffer)
@@ -112,25 +79,25 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 			_, err = io.ReadFull(reader, cert_size)
 			if err != nil {
 				e := &hs_err{c: conn, s: act + "size failed", e: err}
-				return errors.WithStack(e)
+				return nil, errors.WithStack(e)
 			}
 			// read cert
 			cert_with_ctrl_guid := make([]byte, convert.Bytes_Uint16(cert_size))
 			_, err = io.ReadFull(reader, cert_size)
 			if err != nil {
 				e := &hs_err{c: conn, s: act + "failed", e: err}
-				return errors.WithStack(e)
+				return nil, errors.WithStack(e)
 			}
 			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_ctrl_guid) {
 				e := &hs_err{c: conn, s: "invalid certificate(with controller guid)"}
 				this.log(logger.EXPLOIT, e)
-				return errors.WithStack(e)
+				return nil, errors.WithStack(e)
 			}
 		} else {
 			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_node_guid) {
 				e := &hs_err{c: conn, s: "invalid certificate(with node guid)"}
 				this.log(logger.EXPLOIT, e)
-				return errors.WithStack(e)
+				return nil, errors.WithStack(e)
 			}
 		}
 	}
@@ -138,12 +105,18 @@ func (this *client) v1_verify(conn *xnet.Conn) error {
 	_, err = conn.Write([]byte{protocol.CTRL})
 	if err != nil {
 		e := &hs_err{c: conn, s: "send role failed", e: err}
-		return errors.WithStack(e)
+		return nil, errors.WithStack(e)
 	}
-	return this.v1_authenticate(conn)
+	err = this.authenticate(conn)
+	if err != nil {
+		e := &hs_err{c: conn, s: "authenticate failed", e: err}
+		this.log(logger.EXPLOIT, e)
+		return nil, errors.WithStack(e)
+	}
+	return conn, nil
 }
 
-func (this *client) v1_authenticate(conn *xnet.Conn) error {
+func (this *client) authenticate(conn *xnet.Conn) error {
 	// receive challenge
 	challenge, err := conn.Receive()
 	if err != nil {
