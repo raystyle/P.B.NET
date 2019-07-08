@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 
-	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xnet"
@@ -25,9 +24,6 @@ func (this *hs_log) String() string {
 	_, _ = fmt.Fprintf(b, "%s %s <-> %s %s ",
 		this.c.LocalAddr().Network(), this.c.LocalAddr(),
 		this.c.RemoteAddr().Network(), this.c.RemoteAddr())
-	if conn, ok := this.c.(*xnet.Conn); ok {
-		_, _ = fmt.Fprintf(b, "[ver: %d] ", conn.Info().Version)
-	}
 	b.WriteString(this.l)
 	if this.e != nil {
 		b.WriteString(": ")
@@ -42,54 +38,22 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 			err := xpanic.Error("handshake panic:", r)
 			this.logln(logger.EXPLOIT, &hs_log{c: conn, l: "", e: err})
 		}
+		_ = conn.Close()
 	}()
 	// add to conns for management
-	now := this.ctx.global.Now().Unix()
-	c := xnet.New_Conn(conn, now, 0)
+	xconn := xnet.New_Conn(conn, this.ctx.global.Now().Unix())
 	// conn tag
 	b := bytes.Buffer{}
 	b.WriteString(l_tag)
 	b.WriteString(conn.RemoteAddr().String())
 	conn_tag := b.String()
-	this.add_conn(conn_tag, c)
-	defer func() {
-		_ = conn.Close()
-		this.del_conn(conn_tag)
-	}()
-	// send support max version
-	_, err := conn.Write(convert.Uint32_Bytes(Version))
-	if err != nil {
-		l := &hs_log{c: conn, l: "send supported version failed", e: err}
-		this.logln(logger.ERROR, l)
-		return
-	}
-	// receive client version
-	version := make([]byte, 4)
-	_, err = io.ReadFull(conn, version)
-	if err != nil {
-		l := &hs_log{c: conn, l: "receive version failed", e: err}
-		this.logln(logger.ERROR, l)
-		return
-	}
-	v := convert.Bytes_Uint32(version)
-	// cover conn with version
-	c = xnet.New_Conn(conn, now, v)
-	this.add_conn(conn_tag, c)
-	switch {
-	case v == protocol.V1_0_0:
-		this.v1_authenticate(c)
-	default:
-		l := &hs_log{c: c, l: fmt.Sprint("unsupport version", v)}
-		this.logln(logger.ERROR, l)
-	}
-}
-
-func (this *server) v1_authenticate(conn *xnet.Conn) {
+	this.add_conn(conn_tag, xconn)
+	defer this.del_conn(conn_tag)
 	// send certificate
 	var err error
 	cert := this.ctx.global.Cert()
 	if cert != nil {
-		err = conn.Send(cert)
+		err = xconn.Send(cert)
 		if err != nil {
 			l := &hs_log{c: conn, l: "send certificate failed", e: err}
 			this.logln(logger.ERROR, l)
@@ -97,7 +61,7 @@ func (this *server) v1_authenticate(conn *xnet.Conn) {
 		}
 	} else { // if no certificate send padding data
 		padding_size := 1024 + this.random.Int(1024)
-		err = conn.Send(this.random.Bytes(padding_size))
+		err = xconn.Send(this.random.Bytes(padding_size))
 		if err != nil {
 			l := &hs_log{c: conn, l: "send padding data failed", e: err}
 			this.logln(logger.ERROR, l)
@@ -114,25 +78,25 @@ func (this *server) v1_authenticate(conn *xnet.Conn) {
 	}
 	switch role[0] {
 	case protocol.BEACON:
-		this.v1_verify_beacon(conn)
+		this.verify_beacon(xconn)
 	case protocol.NODE:
-		this.v1_verify_node(conn)
+		this.verify_node(xconn)
 	case protocol.CTRL:
-		this.v1_verify_ctrl(conn)
+		this.verify_ctrl(xconn)
 	default:
-		this.logln(logger.EXPLOIT, &hs_log{c: conn, l: "invalid role"})
+		this.logln(logger.EXPLOIT, &hs_log{c: conn, e: protocol.ERR_INVALID_ROLE})
 	}
 }
 
-func (this *server) v1_verify_beacon(conn *xnet.Conn) {
+func (this *server) verify_beacon(conn *xnet.Conn) {
 
 }
 
-func (this *server) v1_verify_node(conn *xnet.Conn) {
+func (this *server) verify_node(conn *xnet.Conn) {
 
 }
 
-func (this *server) v1_verify_ctrl(conn *xnet.Conn) {
+func (this *server) verify_ctrl(conn *xnet.Conn) {
 	// <danger>
 	// send random challenge code(length 2048-4096)
 	// len(challenge) must > len(GUID + Mode + Network + Address)
@@ -165,6 +129,5 @@ func (this *server) v1_verify_ctrl(conn *xnet.Conn) {
 		this.logln(logger.ERROR, l)
 		return
 	}
-	this.logln(logger.INFO, &hs_log{c: conn, l: "new controller connect"})
 	this.handle_ctrl(conn)
 }

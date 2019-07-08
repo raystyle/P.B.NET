@@ -6,11 +6,6 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
-	"project/internal/protocol"
-)
-
-const (
-	Version = protocol.V1_0_0
 )
 
 type NODE struct {
@@ -57,6 +52,8 @@ func (this *NODE) Main() error {
 	if err != nil {
 		return this.fatal(err, "synchronize time failed")
 	}
+	now := this.global.Now().Format(logger.Time_Layout)
+	this.Println(logger.INFO, "init", "time:", now)
 	err = this.server.Deploy()
 	if err != nil {
 		return this.fatal(err, "deploy server failed")
