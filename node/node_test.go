@@ -1,6 +1,8 @@
 package node
 
 import (
+	"net/http"
+	_ "net/http/pprof"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,4 +21,8 @@ func test_node(t *testing.T, genesis bool) {
 	require.Nil(t, err, err)
 	err = node.Main()
 	require.Nil(t, err, err)
+}
+
+func pprof() {
+	go func() { _ = http.ListenAndServe(":8080", nil) }()
 }
