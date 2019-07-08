@@ -166,7 +166,7 @@ func (this *global) Start_Timesync() error {
 }
 
 func (this *global) Now() time.Time {
-	return this.timesync.Now()
+	return this.timesync.Now().Local()
 }
 
 func (this *global) GUID() []byte {
