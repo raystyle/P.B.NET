@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"project/internal/convert"
-	"project/internal/protocol"
 )
 
 // header size +  data
@@ -21,7 +20,6 @@ type Info struct {
 	Remote_Network string
 	Remote_Address string
 	Connect_Time   int64
-	Version        protocol.Version
 	Send           int
 	Receive        int
 }
@@ -33,13 +31,12 @@ type Conn struct {
 	r_network string
 	r_address string
 	connect   int64 // timestamp
-	version   protocol.Version
-	send      int // imprecise
-	receive   int // imprecise
+	send      int   // imprecise
+	receive   int   // imprecise
 	rwm       sync.RWMutex
 }
 
-func New_Conn(c net.Conn, now int64, v protocol.Version) *Conn {
+func New_Conn(c net.Conn, now int64) *Conn {
 	return &Conn{
 		Conn:      c,
 		l_network: c.LocalAddr().Network(),
@@ -47,7 +44,6 @@ func New_Conn(c net.Conn, now int64, v protocol.Version) *Conn {
 		r_network: c.RemoteAddr().Network(),
 		r_address: c.RemoteAddr().String(),
 		connect:   now,
-		version:   v,
 	}
 }
 
@@ -108,6 +104,5 @@ func (this *Conn) Info() *Info {
 	i.Remote_Network = this.r_network
 	i.Remote_Address = this.r_address
 	i.Connect_Time = this.connect
-	i.Version = this.version
 	return i
 }

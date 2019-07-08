@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/protocol"
 )
 
 var (
@@ -25,7 +23,7 @@ func Test_Conn(t *testing.T) {
 	go func() {
 		conn, err := listener.Accept()
 		require.Nil(t, err, err)
-		c := New_Conn(conn, time.Now().Unix(), protocol.V1_0_0)
+		c := New_Conn(conn, time.Now().Unix())
 		err = c.Send(test_data)
 		require.Nil(t, err, err)
 	}()
@@ -35,7 +33,7 @@ func Test_Conn(t *testing.T) {
 	config.Address = "localhost:" + port
 	conn, err := Dial(LIGHT, config)
 	require.Nil(t, err, err)
-	c := New_Conn(conn, time.Now().Unix(), protocol.V1_0_0)
+	c := New_Conn(conn, time.Now().Unix())
 	msg, err := c.Receive()
 	require.Nil(t, err, err)
 	require.Equal(t, test_data, msg)
