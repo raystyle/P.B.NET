@@ -2,7 +2,6 @@ package node
 
 import (
 	"encoding/base64"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -88,13 +87,15 @@ func new_server(ctx *NODE, c *Config) (*server, error) {
 
 func (this *server) Deploy() error {
 	// deploy all listener
-	errs := make(chan error, len(this.listeners))
+	l := len(this.listeners)
+	errs := make(chan error, l)
 	for tag, l := range this.listeners {
 		go func(tag string, l *listener) {
 			errs <- this.deploy(tag, l)
 		}(tag, l)
 	}
-	for err := range errs {
+	for i := 0; i < l; i++ {
+		err := <-errs
 		if err != nil {
 			return err
 		}
@@ -132,8 +133,7 @@ func (this *server) add_listener(l *config.Listener) (*listener, error) {
 		this.listeners_rwm.Unlock()
 	} else {
 		this.listeners_rwm.Unlock()
-		err = fmt.Errorf("listener: %s already exists", l.Tag)
-		return nil, err
+		return nil, errors.Errorf("listener: %s already exists", l.Tag)
 	}
 	return listener, nil
 }
@@ -149,7 +149,7 @@ func (this *server) deploy(tag string, l *listener) error {
 	go this.serve(tag, l, err_chan)
 	select {
 	case err := <-err_chan:
-		return fmt.Errorf("listener: %s(%s) deploy failed: %s", tag, addr, err)
+		return errors.Errorf("listener: %s(%s) deploy failed: %s", tag, addr, err)
 	case <-time.After(timeout):
 		return nil
 	}
