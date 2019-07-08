@@ -13,12 +13,10 @@ import (
 	"project/internal/global/proxyclient"
 	"project/internal/global/timesync"
 	"project/internal/logger"
-	"project/internal/protocol"
 )
 
 const (
-	Name    = "P.B.NET"
-	Version = protocol.V1_0_0
+	Name = "P.B.NET"
 )
 
 type CTRL struct {
@@ -150,7 +148,7 @@ func (this *CTRL) Main() error {
 		return this.fatal(err, "synchronize time failed")
 	}
 	now := this.global.Now().Format(logger.Time_Layout)
-	this.Printf(logger.INFO, "init", "time: %s", now)
+	this.Println(logger.INFO, "init", "time:", now)
 	// start web server
 	err = this.web.Deploy()
 	if err != nil {

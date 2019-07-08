@@ -39,5 +39,7 @@ func (this *web) h_trust_node(w h_rw, r *h_r, p h_p) {
 	err = this.ctx.Trust_Node(n)
 	if err != nil {
 		w.Write([]byte(err.Error()))
+		return
 	}
+	w.Write([]byte("trust ok"))
 }

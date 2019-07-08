@@ -7,7 +7,6 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/logger"
-	"project/internal/protocol"
 	"project/internal/xnet"
 )
 
@@ -16,7 +15,6 @@ type client struct {
 	node *bootstrap.Node
 	guid []byte
 	conn *xnet.Conn
-	ver  protocol.Version
 }
 
 // Node_GUID != nil for sync or other
