@@ -15,8 +15,8 @@ import (
 
 func Test_Handle_Message(t *testing.T) {
 	var (
-		message = []byte{0, 0, 0, 0}
-		big_msg = bytes.Repeat([]byte{0}, 32768)
+		message = []byte{1, 1, 1, 1}
+		big_msg = bytes.Repeat([]byte{1}, 32768)
 		wg      sync.WaitGroup
 	)
 	c := &xnet.Config{Network: "tcp", Address: ":0"}
@@ -46,15 +46,15 @@ func Test_Handle_Message(t *testing.T) {
 	conn, err := xnet.Dial(xnet.LIGHT, c)
 	require.Nil(t, err, err)
 	// full
-	_, err = conn.Write([]byte{0, 0, 0, 4, 0, 0, 0, 0})
+	_, err = conn.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1})
 	// full with incomplete header
-	_, err = conn.Write([]byte{0, 0, 0, 4, 0, 0, 0, 0, 0, 0})
+	_, err = conn.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1, 0, 0})
 	time.Sleep(100 * time.Millisecond)
-	_, err = conn.Write([]byte{0, 4, 0, 0, 0, 0})
+	_, err = conn.Write([]byte{0, 4, 1, 1, 1, 1})
 	// incomplete body
-	_, err = conn.Write([]byte{0, 0, 0, 4, 0, 0})
+	_, err = conn.Write([]byte{0, 0, 0, 4, 1, 1})
 	time.Sleep(100 * time.Millisecond)
-	_, err = conn.Write([]byte{0, 0})
+	_, err = conn.Write([]byte{1, 1})
 	// big message
 	_, err = conn.Write(convert.Uint32_Bytes(32768))
 	_, err = conn.Write(big_msg)
@@ -85,7 +85,7 @@ func Test_Handle_NULL_Message(t *testing.T) {
 	c.Address = "localhost:" + port
 	conn, err := xnet.Dial(xnet.LIGHT, c)
 	require.Nil(t, err, err)
-	_, err = conn.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0})
+	_, err = conn.Write([]byte{0, 0, 0, 0})
 	_ = conn.Close()
 	wg.Wait()
 }
@@ -114,6 +114,77 @@ func Test_Handle_Too_Big_Message(t *testing.T) {
 	conn, err := xnet.Dial(xnet.LIGHT, c)
 	require.Nil(t, err, err)
 	_, err = conn.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
+	_ = conn.Close()
+	wg.Wait()
+}
+
+func Benchmark_Handle_Message_128B(b *testing.B) {
+	benchmark_handle_message(b, 128)
+}
+
+func Benchmark_Handle_Message_2KB(b *testing.B) {
+	benchmark_handle_message(b, 2048)
+}
+
+func Benchmark_Handle_Message_4KB(b *testing.B) {
+	benchmark_handle_message(b, 4096)
+}
+
+func Benchmark_Handle_Message_32KB(b *testing.B) {
+	benchmark_handle_message(b, 32768)
+}
+
+func Benchmark_Handle_Message_1MB(b *testing.B) {
+	benchmark_handle_message(b, 1048576)
+}
+
+func Benchmark_Handle_Message_16MB(b *testing.B) {
+	benchmark_handle_message(b, 16*1048576)
+}
+
+func Benchmark_Handle_Message_64MB(b *testing.B) {
+	benchmark_handle_message(b, 64*1048576)
+}
+
+func benchmark_handle_message(b *testing.B, size int) {
+	var (
+		message = bytes.Repeat([]byte{1}, size)
+		wg      sync.WaitGroup
+	)
+	c := &xnet.Config{Network: "tcp", Address: ":0"}
+	listener, err := xnet.Listen(xnet.LIGHT, c)
+	require.Nil(b, err, err)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		count := 0
+		conn, err := listener.Accept()
+		require.Nil(b, err, err)
+		xconn := xnet.New_Conn(conn, time.Now().Unix())
+		Handle_Message(xconn, func(msg []byte) {
+			if !bytes.Equal(msg, message) {
+				b.FailNow()
+			}
+			count += 1
+		})
+		_ = conn.Close()
+		require.Equal(b, b.N, count)
+	}()
+	// dial
+	_, port, _ := net.SplitHostPort(listener.Addr().String())
+	c.Address = "localhost:" + port
+	conn, err := xnet.Dial(xnet.LIGHT, c)
+	require.Nil(b, err, err)
+	msg := append(convert.Uint32_Bytes(uint32(size)), message...)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := conn.Write(msg)
+		if err != nil {
+			b.FailNow()
+		}
+	}
+	b.StopTimer()
 	_ = conn.Close()
 	wg.Wait()
 }

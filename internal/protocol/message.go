@@ -21,7 +21,7 @@ func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 
 		// if data buffer size > this new buffer
 		max_buffer_size  = 4 * buffer_size
-		max_message_size = 64 * 1048576 // 64 MB
+		max_message_size = 16 * 1048576 // 64 MB
 
 		// client send heartbeat in 0-60 s
 		heartbeat = 120 * time.Second
@@ -34,7 +34,7 @@ func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 		if body_size == 0 {
 			leftover := data.Bytes()
 			if data.Cap() > max_buffer_size {
-				data = bytes.NewBuffer(make([]byte, buffer_size))
+				data = bytes.NewBuffer(make([]byte, 0, buffer_size))
 			} else {
 				data.Reset() // for set b.off = 0
 			}
