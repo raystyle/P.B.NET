@@ -8,6 +8,12 @@ import (
 	"project/internal/xnet"
 )
 
+var (
+	// follow command.go
+	ERR_NULL_MESSAGE    = []byte{0xFF}
+	ERR_TOO_BIG_MESSAGE = []byte{0xFE}
+)
+
 // handler receive message = message type(4 byte) + message
 func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 	const (
@@ -20,11 +26,8 @@ func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 		// client send heartbeat in 0-60 s
 		heartbeat = 120 * time.Second
 	)
-	var (
-		err_max_message_size = []byte{0xFF, 0xFF, 0xFF, 0xFF}
-	)
 	buffer := make([]byte, buffer_size)
-	data := bytes.NewBuffer(make([]byte, buffer_size))
+	data := bytes.NewBuffer(make([]byte, 0, buffer_size))
 	body_size := 0
 	flush_and_write := func() {
 		// if Grow not NewBuffer
@@ -52,14 +55,17 @@ func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 			}
 			if body_size == 0 { // avoid duplicate calculations
 				body_size = int(convert.Bytes_Uint32(data.Next(xnet.HEADER_SIZE)))
+				if body_size == 0 {
+					handler(ERR_NULL_MESSAGE)
+					return
+				}
 				if body_size > max_message_size {
-					handler(err_max_message_size)
+					handler(ERR_TOO_BIG_MESSAGE)
 					return
 				}
 			}
 			l = data.Len()
 			if l < body_size {
-				data.Grow(body_size)
 				break
 			}
 			handler(data.Next(body_size))
