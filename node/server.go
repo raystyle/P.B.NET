@@ -160,7 +160,7 @@ func (this *server) serve(tag string, l *listener, err_chan chan<- error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error("serve panic:", r) // front var err
-			this.logln(logger.FATAL, err)
+			this.log(logger.FATAL, err)
 		}
 		err_chan <- err
 		close(err_chan)
