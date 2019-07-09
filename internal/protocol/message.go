@@ -8,10 +8,15 @@ import (
 	"project/internal/xnet"
 )
 
-var (
+const (
 	// follow command.go
-	ERR_NULL_MESSAGE    = []byte{0xFF}
-	ERR_TOO_BIG_MESSAGE = []byte{0xFE}
+	ERR_NULL_MESSAGE    uint8 = 0xFF
+	ERR_TOO_BIG_MESSAGE uint8 = 0xFE
+)
+
+var (
+	err_null_message    = []byte{ERR_NULL_MESSAGE}
+	err_too_big_message = []byte{ERR_TOO_BIG_MESSAGE}
 )
 
 // handler receive message = message type(4 byte) + message
@@ -56,11 +61,11 @@ func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 			if body_size == 0 { // avoid duplicate calculations
 				body_size = int(convert.Bytes_Uint32(data.Next(xnet.HEADER_SIZE)))
 				if body_size == 0 {
-					handler(ERR_NULL_MESSAGE)
+					handler(err_null_message)
 					return
 				}
 				if body_size > max_message_size {
-					handler(ERR_TOO_BIG_MESSAGE)
+					handler(err_too_big_message)
 					return
 				}
 			}

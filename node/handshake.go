@@ -129,5 +129,5 @@ func (this *server) verify_ctrl(conn *xnet.Conn) {
 		this.logln(logger.ERROR, l)
 		return
 	}
-	this.handle_ctrl(conn)
+	this.serve_ctrl(conn)
 }
