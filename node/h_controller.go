@@ -3,6 +3,9 @@ package node
 import (
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/logger"
@@ -11,7 +14,7 @@ import (
 )
 
 const (
-	send_queue_size = 4096
+	send_queue_size = 256
 )
 
 func (this *server) serve_ctrl(conn *xnet.Conn) {
@@ -24,7 +27,16 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 		this.log(logger.INFO, &s_log{c: conn, l: "controller disconnected"})
 	}()
 	c.send_queue = make(chan []byte, send_queue_size)
-	c.replys = make(map[uint64]chan<- []byte)
+	c.slots = make(map[uint32]*slot) // fast access
+	// init slot
+	for i := 0; i < send_queue_size; i++ {
+		s := &slot{
+			available: make(chan struct{}, 1),
+			reply:     make(chan []byte, 1),
+		}
+		s.available <- struct{}{}
+		c.slots[uint32(i)] = s
+	}
 	c.stop_signal = make(chan struct{}, 1)
 	protocol.Handle_Message(conn, c.handle_message)
 }
@@ -33,13 +45,16 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 type c_ctrl struct {
 	ctx         *NODE
 	conn        *xnet.Conn
-	msg_id      uint64
 	send_queue  chan []byte
-	replys      map[uint64]chan<- []byte
-	send_m      sync.Mutex
+	slots       map[uint32]*slot
 	in_close    int32
 	stop_signal chan struct{}
 	wg          sync.WaitGroup
+}
+
+type slot struct {
+	available chan struct{}
+	reply     chan []byte
 }
 
 func (this *c_ctrl) Info() *xnet.Info {
@@ -48,12 +63,14 @@ func (this *c_ctrl) Info() *xnet.Info {
 
 func (this *c_ctrl) Close() {
 	atomic.StoreInt32(&this.in_close, 1)
+	close(this.send_queue)
 	_ = this.conn.Close()
 	this.wg.Wait()
 }
 
 func (this *c_ctrl) Kill() {
 	atomic.StoreInt32(&this.in_close, 1)
+	close(this.send_queue)
 	_ = this.conn.Close()
 }
 
@@ -82,7 +99,7 @@ func (this *c_ctrl) handle_message(msg []byte) {
 	}
 	switch msg[0] {
 	case protocol.CTRL_REPLY:
-
+		this.handle_reply(msg[1:])
 	case protocol.CTRL_HEARTBEAT:
 	case protocol.ERR_NULL_MESSAGE:
 		l := &s_log{c: this.conn, l: "receive null message"}
@@ -97,15 +114,70 @@ func (this *c_ctrl) handle_message(msg []byte) {
 	}
 }
 
-func (this *c_ctrl) reply(id, reply []byte) error {
-	// command(1 byte) + id(8 bytes)
+func (this *c_ctrl) reply(id, reply []byte) {
+	// size(4 Bytes) + NODE_REPLY(1 byte) + id(4 bytes)
 	l := len(reply)
 	b := make([]byte, 9+l)
-	// write size
-	copy(b, convert.Uint32_Bytes(uint32(9+l)))
+	copy(b, convert.Uint32_Bytes(uint32(5+l))) // write size
 	b[4] = protocol.NODE_REPLY
-	copy(b[5:13], id)
-	copy(b[13:], reply)
-	_, err := this.conn.Write(b)
-	return err
+	copy(b[5:9], id)
+	copy(b[9:], reply)
+	this.send_queue <- b
+}
+
+func (this *c_ctrl) handle_reply(reply []byte) {
+	if len(reply) < 4 {
+		l := &s_log{c: this.conn, l: "receive invalid message id size"}
+		this.log(logger.EXPLOIT, l)
+		return
+	}
+	this.slots[convert.Bytes_Uint32(reply[:4])].reply <- reply[4:]
+}
+
+// send command and receive reply
+func (this *c_ctrl) Send(cmd uint8, data []byte, timeout int) ([]byte, error) {
+	if this.is_closed() {
+		return nil, errors.New("connection closed")
+	}
+	for id, s := range this.slots {
+		select {
+		case <-s.available:
+			// size(4) + command(1) + msg_id(4) + data
+			l := len(data)
+			b := make([]byte, 9+l)
+			copy(b, convert.Uint32_Bytes(uint32(5+l))) // write size
+			b[4] = cmd
+			copy(b[5:9], convert.Uint32_Bytes(id))
+			copy(b[:], data)
+			this.send_queue <- b
+			select {
+			case r := <-s.reply:
+				s.available <- struct{}{}
+				return r, nil
+			case <-time.After(time.Duration(timeout) * time.Second):
+				// TODO more think
+				s.available <- struct{}{}
+				return nil, errors.New("receive reply timeout")
+			case <-this.stop_signal:
+				return nil, errors.New("connection closed")
+			}
+		default:
+		}
+	}
+	// WARNING
+	return nil, errors.New("slot is full")
+}
+
+func (this *c_ctrl) sender() {
+	defer this.wg.Done()
+	var (
+		msg []byte
+		err error
+	)
+	for msg = range this.send_queue {
+		_, err = this.conn.Write(msg)
+		if err != nil {
+			return
+		}
+	}
 }
