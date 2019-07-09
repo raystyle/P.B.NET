@@ -1,46 +1,71 @@
 package node
 
 import (
-	"time"
-
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xnet"
 )
 
-func (this *server) handle_ctrl(conn *xnet.Conn) {
-	_ = conn.SetDeadline(time.Time{})
-	c := &v_ctrl{conn: conn}
+func (this *server) serve_ctrl(conn *xnet.Conn) {
+	c := &c_ctrl{ctx: this.ctx, conn: conn}
 	this.add_ctrl(c)
 	// TODO don't print
-	this.logln(logger.INFO, &hs_log{c: conn, l: "controller connected"})
+	this.logln(logger.INFO, &s_log{c: conn, l: "controller connected"})
 	defer func() {
 		this.del_ctrl("", c)
-		this.logln(logger.INFO, &hs_log{c: conn, l: "controller disconnected"})
+		this.logln(logger.INFO, &s_log{c: conn, l: "controller disconnected"})
 	}()
-	c.serve()
+	protocol.Handle_Message(conn, c.handle_message)
 }
 
-type v_ctrl struct {
+// controller client
+type c_ctrl struct {
+	ctx  *NODE
 	conn *xnet.Conn
 }
 
-func (this *v_ctrl) Info() *xnet.Info {
+func (this *c_ctrl) Info() *xnet.Info {
 	return this.conn.Info()
 }
 
-func (this *v_ctrl) Close() {
-
-}
-
-func (this *v_ctrl) Kill() {
+func (this *c_ctrl) Close() {
 	_ = this.conn.Close()
 }
 
-func (this *v_ctrl) serve() {
-	protocol.Handle_Message(this.conn, this.handle_message)
+func (this *c_ctrl) Kill() {
+	_ = this.conn.Close()
 }
 
-func (this *v_ctrl) handle_message(msg []byte) {
+func (this *c_ctrl) logf(l logger.Level, format string, log ...interface{}) {
+	this.ctx.Printf(l, "c_ctrl", format, log...)
+}
 
+func (this *c_ctrl) log(l logger.Level, log ...interface{}) {
+	this.ctx.Print(l, "c_ctrl", log...)
+}
+
+func (this *c_ctrl) logln(l logger.Level, log ...interface{}) {
+	this.ctx.Println(l, "c_ctrl", log...)
+}
+
+func (this *c_ctrl) handle_message(msg []byte) {
+	if len(msg) < 1 {
+		l := &s_log{c: this.conn, l: "invalid message size"}
+		this.logln(logger.EXPLOIT, l)
+		this.Kill()
+		return
+	}
+	switch msg[0] {
+
+	case protocol.ERR_NULL_MESSAGE:
+		l := &s_log{c: this.conn, l: "receive null message"}
+		this.logln(logger.EXPLOIT, l)
+	case protocol.ERR_TOO_BIG_MESSAGE:
+		l := &s_log{c: this.conn, l: "receive too big message"}
+		this.logln(logger.EXPLOIT, l)
+	default:
+		l := &s_log{c: this.conn, l: "receive unknown command"}
+		this.logln(logger.EXPLOIT, l)
+		this.Kill()
+	}
 }

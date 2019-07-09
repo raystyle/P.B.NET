@@ -12,14 +12,14 @@ import (
 	"project/internal/xpanic"
 )
 
-// handshake log
-type hs_log struct {
+// serve log(handshake client)
+type s_log struct {
 	c net.Conn
 	l string
 	e error
 }
 
-func (this *hs_log) String() string {
+func (this *s_log) String() string {
 	b := &bytes.Buffer{}
 	_, _ = fmt.Fprintf(b, "%s %s <-> %s %s ",
 		this.c.LocalAddr().Network(), this.c.LocalAddr(),
@@ -36,7 +36,7 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("handshake panic:", r)
-			this.logln(logger.EXPLOIT, &hs_log{c: conn, l: "", e: err})
+			this.logln(logger.EXPLOIT, &s_log{c: conn, l: "", e: err})
 		}
 		_ = conn.Close()
 	}()
@@ -55,7 +55,7 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 	if cert != nil {
 		err = xconn.Send(cert)
 		if err != nil {
-			l := &hs_log{c: conn, l: "send certificate failed", e: err}
+			l := &s_log{c: conn, l: "send certificate failed", e: err}
 			this.logln(logger.ERROR, l)
 			return
 		}
@@ -63,7 +63,7 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 		padding_size := 1024 + this.random.Int(1024)
 		err = xconn.Send(this.random.Bytes(padding_size))
 		if err != nil {
-			l := &hs_log{c: conn, l: "send padding data failed", e: err}
+			l := &s_log{c: conn, l: "send padding data failed", e: err}
 			this.logln(logger.ERROR, l)
 			return
 		}
@@ -72,7 +72,7 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 	role := make([]byte, 1)
 	_, err = io.ReadFull(conn, role)
 	if err != nil {
-		l := &hs_log{c: conn, l: "receive role failed", e: err}
+		l := &s_log{c: conn, l: "receive role failed", e: err}
 		this.logln(logger.ERROR, l)
 		return
 	}
@@ -84,7 +84,7 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 	case protocol.CTRL:
 		this.verify_ctrl(xconn)
 	default:
-		this.logln(logger.EXPLOIT, &hs_log{c: conn, e: protocol.ERR_INVALID_ROLE})
+		this.logln(logger.EXPLOIT, &s_log{c: conn, e: protocol.ERR_INVALID_ROLE})
 	}
 }
 
@@ -105,27 +105,27 @@ func (this *server) verify_ctrl(conn *xnet.Conn) {
 	challenge := this.random.Bytes(2048 + this.random.Int(2048))
 	err := conn.Send(challenge)
 	if err != nil {
-		l := &hs_log{c: conn, l: "send challenge code failed", e: err}
+		l := &s_log{c: conn, l: "send challenge code failed", e: err}
 		this.logln(logger.ERROR, l)
 		return
 	}
 	// receive signature
 	signature, err := conn.Receive()
 	if err != nil {
-		l := &hs_log{c: conn, l: "receive signature failed", e: err}
+		l := &s_log{c: conn, l: "receive signature failed", e: err}
 		this.logln(logger.ERROR, l)
 		return
 	}
 	// verify signature
 	if !this.ctx.global.CTRL_Verify(challenge, signature) {
-		l := &hs_log{c: conn, l: "invalid controller signature", e: err}
+		l := &s_log{c: conn, l: "invalid controller signature", e: err}
 		this.logln(logger.EXPLOIT, l)
 		return
 	}
 	// send success
 	err = conn.Send(protocol.AUTH_SUCCESS)
 	if err != nil {
-		l := &hs_log{c: conn, l: "send auth success response failed", e: err}
+		l := &s_log{c: conn, l: "send auth success response failed", e: err}
 		this.logln(logger.ERROR, l)
 		return
 	}
