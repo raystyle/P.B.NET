@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -83,6 +84,7 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 		s.Available <- struct{}{}
 		c.slots[i] = s
 	}
+	c.stop_signal = make(chan struct{})
 	go protocol.Handle_Conn(c.conn, c.handle_message, c.Close)
 	c.wg.Add(1)
 	go c.heartbeat()
@@ -96,7 +98,7 @@ func (this *client) Close() {
 		_ = this.conn.Close()
 		this.wg.Wait()
 		if this.close_log {
-			this.logln(logger.INFO, this.conn.Info().Remote_Address, "disconnected")
+			this.logln(logger.INFO, "disconnected")
 		}
 	})
 }
@@ -106,19 +108,47 @@ func (this *client) is_closed() bool {
 }
 
 func (this *client) logf(l logger.Level, format string, log ...interface{}) {
-	this.ctx.Printf(l, "client", format, log...)
+	b := logger.Conn(this.conn)
+	_, _ = fmt.Fprintf(b, format, log...)
+	this.ctx.Print(l, "client", b)
 }
 
 func (this *client) log(l logger.Level, log ...interface{}) {
-	this.ctx.Print(l, "client", log...)
+	b := logger.Conn(this.conn)
+	_, _ = fmt.Fprint(b, log...)
+	this.ctx.Print(l, "client", b)
 }
 
 func (this *client) logln(l logger.Level, log ...interface{}) {
-	this.ctx.Println(l, "client", log...)
+	b := logger.Conn(this.conn)
+	_, _ = fmt.Fprintln(b, log...)
+	this.ctx.Print(l, "client", b)
 }
 
 func (this *client) handle_message(msg []byte) {
-
+	if this.is_closed() {
+		return
+	}
+	if len(msg) < 1 {
+		this.log(logger.EXPLOIT, protocol.ERR_INVALID_MSG_SIZE)
+		this.Close()
+		return
+	}
+	switch msg[0] {
+	case protocol.NODE_REPLY:
+		this.handle_reply(msg[1:])
+	case protocol.NODE_HEARTBEAT: // discard
+	case protocol.ERR_NULL_MSG:
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_NULL_MSG)
+		this.Close()
+	case protocol.ERR_TOO_BIG_MSG:
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_TOO_BIG_MSG)
+		this.Close()
+	default:
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_UNKNOWN_CMD, msg[1:])
+		this.Close()
+		return
+	}
 }
 
 func (this *client) heartbeat() {
@@ -132,6 +162,7 @@ func (this *client) heartbeat() {
 			// <security> fake flow like client
 			fake_size := 64 + rand.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
+			buffer.Reset()
 			buffer.Write(convert.Uint32_Bytes(uint32(1 + fake_size)))
 			buffer.WriteByte(protocol.CTRL_HEARTBEAT)
 			buffer.Write(rand.Bytes(fake_size))
@@ -139,9 +170,90 @@ func (this *client) heartbeat() {
 			if err != nil {
 				return
 			}
-			buffer.Reset()
 		case <-this.stop_signal:
 			return
+		}
+	}
+}
+
+func (this *client) reply(id, reply []byte) {
+	if this.is_closed() {
+		return
+	}
+	// size(4 Bytes) + NODE_REPLY(1 byte) + msg_id(2 bytes)
+	l := len(reply)
+	b := make([]byte, 7+l)
+	copy(b, convert.Uint16_Bytes(uint16(3+l))) // write size
+	b[4] = protocol.CTRL_REPLY
+	copy(b[5:7], id)
+	copy(b[7:], reply)
+	_, _ = this.conn.Write(b)
+}
+
+// msg_id(2 bytes) + data
+func (this *client) handle_reply(reply []byte) {
+	const (
+		max_id = protocol.SLOT_SIZE - 1
+	)
+	l := len(reply)
+	if l < 2 {
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_MSG_ID_SIZE)
+		this.Close()
+		return
+	}
+	id := int(convert.Bytes_Uint16(reply[:2]))
+	if id > max_id {
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_MSG_ID)
+		this.Close()
+		return
+	}
+	// must copy
+	r := make([]byte, l-2)
+	copy(r, reply[2:])
+	this.slots[id].Reply <- r
+}
+
+// send command and receive reply
+// size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
+func (this *client) Send(cmd uint8, data []byte) ([]byte, error) {
+	if this.is_closed() {
+		return nil, errors.New("connection closed")
+	}
+	for {
+		for id := 0; id < protocol.SLOT_SIZE; id++ {
+			select {
+			case <-this.slots[id].Available:
+				l := len(data)
+				b := make([]byte, 7+l)
+				copy(b, convert.Uint32_Bytes(uint32(3+l))) // write size
+				b[4] = cmd
+				copy(b[5:7], convert.Uint16_Bytes(uint16(id)))
+				copy(b[7:], data)
+				_, err := this.conn.Write(b)
+				if err != nil {
+					return nil, err
+				}
+				// wait for reply
+				select {
+				case r := <-this.slots[id].Reply:
+					this.slots[id].Available <- struct{}{}
+					return r, nil
+				case <-time.After(time.Minute):
+					this.Close()
+					return nil, errors.New("receive reply timeout")
+				case <-this.stop_signal:
+					return nil, errors.New("connection closed")
+				}
+			case <-this.stop_signal:
+				return nil, errors.New("connection closed")
+			default:
+			}
+		}
+		// if full wait 1 second
+		select {
+		case <-time.After(time.Second):
+		case <-this.stop_signal:
+			return nil, errors.New("connection closed")
 		}
 	}
 }
