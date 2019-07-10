@@ -30,9 +30,6 @@ const (
 const (
 	default_sync_interval = 15 * time.Minute
 	add_loop_interval     = 500 * time.Millisecond
-	// 0 = add loop
-	// 1 = sync loop
-	stop_signal = 2
 )
 
 var (
@@ -71,7 +68,7 @@ type TIMESYNC struct {
 	clients_rwm sync.RWMutex
 	now         time.Time
 	rwm         sync.RWMutex
-	stop_signal [stop_signal]chan struct{}
+	stop_signal chan struct{}
 	wg          sync.WaitGroup
 }
 
@@ -129,9 +126,7 @@ func (this *TIMESYNC) Start() error {
 		}
 	}
 S:
-	for i := 0; i < stop_signal; i++ {
-		this.stop_signal[i] = make(chan struct{}, 1)
-	}
+	this.stop_signal = make(chan struct{})
 	this.wg.Add(2)
 	go this.add_loop()
 	go this.sync_loop()
@@ -139,10 +134,7 @@ S:
 }
 
 func (this *TIMESYNC) Stop() {
-	for i := 0; i < stop_signal; i++ {
-		this.stop_signal[i] <- struct{}{}
-		close(this.stop_signal[i])
-	}
+	close(this.stop_signal)
 	this.wg.Wait()
 }
 
@@ -216,13 +208,13 @@ func (this *TIMESYNC) log(l logger.Level, log ...interface{}) {
 // self walk
 func (this *TIMESYNC) add_loop() {
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 	ticker := time.NewTicker(add_loop_interval)
 	for {
 		select {
-		case <-this.stop_signal[0]:
+		case <-this.stop_signal:
 			ticker.Stop()
 			this.wg.Done()
+			runtime.UnlockOSThread()
 			return
 		case <-ticker.C:
 			this.rwm.Lock()
@@ -239,7 +231,7 @@ func (this *TIMESYNC) sync_loop() {
 		interval = this.interval
 		this.rwm.RUnlock()
 		select {
-		case <-this.stop_signal[1]:
+		case <-this.stop_signal:
 			this.wg.Done()
 			return
 		case <-time.After(interval):
@@ -254,10 +246,12 @@ func (this *TIMESYNC) sync_loop() {
 // if accept_failed == true when sync time all failed
 // set this.now = time.Now()
 // sync_all is for test all clients
-func (this *TIMESYNC) sync(accept_failed, sync_all bool) error {
+func (this *TIMESYNC) sync(accept_failed, sync_all bool) (err error) {
+	var opts_err bool
 	defer func() {
 		if r := recover(); r != nil {
-			this.log(logger.FATAL, "sync() panic:", xpanic.Print(r))
+			err = xpanic.Error("sync() panic:", r)
+			this.log(logger.FATAL, err)
 		}
 	}()
 	// copy map
@@ -269,10 +263,6 @@ func (this *TIMESYNC) sync(accept_failed, sync_all bool) error {
 	this.clients_rwm.RUnlock()
 	// query
 	for tag, client := range clients {
-		var (
-			opts_err bool
-			err      error
-		)
 		switch client.Mode {
 		case HTTP:
 			opts_err, err = this.sync_httptime(client)
