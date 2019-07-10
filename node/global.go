@@ -133,13 +133,14 @@ func (this *global) gen_internal_objects() {
 	this.sec_padding_memory()
 	rand := random.New()
 	guid_generator := guid.New(64, nil)
-	var guid_pool [][]byte
-	for i := 0; i < 1024; i++ {
-		guid_pool = append(guid_pool, guid_generator.Get())
+	var guid_pool [1024][]byte
+	for i := 0; i < len(guid_pool); i++ {
+		guid_pool[i] = guid_generator.Get()
 	}
-	select_guid := make([]byte, guid.SIZE)
-	copy(select_guid, guid_pool[rand.Int(1024)])
-	this.object[node_guid] = select_guid
+	guid_generator.Close()
+	guid_selected := make([]byte, guid.SIZE)
+	copy(guid_selected, guid_pool[rand.Int(1024)])
+	this.object[node_guid] = guid_selected
 	// generate database aes
 	aes_key := rand.Bytes(aes.BIT256)
 	aes_iv := rand.Bytes(aes.IV_SIZE)
