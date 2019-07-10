@@ -33,7 +33,7 @@ type Generator struct {
 func New(size int, now func() time.Time) *Generator {
 	g := &Generator{
 		random:      random.New(),
-		stop_signal: make(chan struct{}, 1),
+		stop_signal: make(chan struct{}),
 	}
 	if size < 1 {
 		g.guid_queue = make(chan []byte, 1)
@@ -78,7 +78,7 @@ func (this *Generator) Get() []byte {
 
 func (this *Generator) Close() {
 	this.close_once.Do(func() {
-		this.stop_signal <- struct{}{}
+		close(this.stop_signal)
 		// clean and prevent block generate_loop()
 		for range this.guid_queue {
 		}
@@ -90,7 +90,6 @@ func (this *Generator) generate_loop() {
 	for {
 		select {
 		case <-this.stop_signal:
-			close(this.stop_signal)
 			close(this.guid_queue)
 			this.wg.Done()
 			return
