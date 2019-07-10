@@ -42,7 +42,7 @@ func New(c *Config) (*NODE, error) {
 			return nil, err
 		}
 	}
-	node.exit = make(chan error)
+	node.exit = make(chan error, 1)
 	return node, nil
 }
 
@@ -78,10 +78,8 @@ func (this *NODE) Exit(err error) {
 		this.global.Close()
 		this.exit_log("global is stopped")
 		this.exit_log("node is stopped")
-		if this.exit != nil {
-			this.exit <- err
-			close(this.exit)
-		}
+		this.exit <- err
+		close(this.exit)
 	})
 }
 
