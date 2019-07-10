@@ -10,9 +10,7 @@ import (
 
 // Trust_Node is used to trust Genesis Node
 func (this *CTRL) Trust_Node(n *bootstrap.Node) error {
-	// if not set key
-	// return
-	c := &client_config{Node: n}
+	c := &client_cfg{Node: n}
 	c.TLS_Config.InsecureSkipVerify = true
 	client, err := new_client(this, c)
 	if err != nil {
