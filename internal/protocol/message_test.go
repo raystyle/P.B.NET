@@ -29,15 +29,14 @@ func Test_Handle_Message(t *testing.T) {
 		conn, err := listener.Accept()
 		require.Nil(t, err, err)
 		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Message(xconn, func(msg []byte) {
+		Handle_Conn(xconn, func(msg []byte) {
 			count += 1
 			if count != 5 {
 				require.Equal(t, message, msg)
 			} else {
 				require.Equal(t, big_msg, msg)
 			}
-		})
-		_ = conn.Close()
+		}, func() { _ = conn.Close() })
 		require.Equal(t, 5, count)
 	}()
 	// dial
@@ -75,10 +74,9 @@ func Test_Handle_NULL_Message(t *testing.T) {
 		conn, err := listener.Accept()
 		require.Nil(t, err, err)
 		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Message(xconn, func(msg []byte) {
+		Handle_Conn(xconn, func(msg []byte) {
 			require.Equal(t, ERR_NULL_MESSAGE, msg)
-		})
-		_ = conn.Close()
+		}, func() { _ = conn.Close() })
 	}()
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
@@ -103,9 +101,9 @@ func Test_Handle_Too_Big_Message(t *testing.T) {
 		conn, err := listener.Accept()
 		require.Nil(t, err, err)
 		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Message(xconn, func(msg []byte) {
+		Handle_Conn(xconn, func(msg []byte) {
 			require.Equal(t, ERR_TOO_BIG_MESSAGE, msg)
-		})
+		}, func() { _ = conn.Close() })
 		_ = conn.Close()
 	}()
 	// dial
@@ -161,13 +159,12 @@ func benchmark_handle_message(b *testing.B, size int) {
 		conn, err := listener.Accept()
 		require.Nil(b, err, err)
 		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Message(xconn, func(msg []byte) {
+		Handle_Conn(xconn, func(msg []byte) {
 			if !bytes.Equal(msg, message) {
 				b.FailNow()
 			}
 			count += 1
-		})
-		_ = conn.Close()
+		}, func() { _ = conn.Close() })
 		require.Equal(b, b.N, count)
 	}()
 	// dial

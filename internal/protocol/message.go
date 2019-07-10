@@ -26,8 +26,8 @@ type Slot struct {
 	Reply     chan []byte
 }
 
-// handler receive message = message type(4 byte) + message
-func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
+// msg_handler receive message = message type(4 byte) + message
+func Handle_Conn(conn *xnet.Conn, msg_handler func([]byte), close func()) {
 	const (
 		buffer_size = 4096
 
@@ -57,6 +57,7 @@ func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 		_ = conn.SetReadDeadline(time.Now().Add(heartbeat))
 		n, err := conn.Read(buffer)
 		if err != nil {
+			close()
 			return
 		}
 		data.Write(buffer[:n])
@@ -68,11 +69,11 @@ func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 			if body_size == 0 { // avoid duplicate calculations
 				body_size = int(convert.Bytes_Uint32(data.Next(xnet.HEADER_SIZE)))
 				if body_size == 0 {
-					handler(err_null_message)
+					msg_handler(err_null_message)
 					return
 				}
 				if body_size > max_message_size {
-					handler(err_too_big_message)
+					msg_handler(err_too_big_message)
 					return
 				}
 			}
@@ -80,7 +81,7 @@ func Handle_Message(conn *xnet.Conn, handler func([]byte)) {
 			if l < body_size {
 				break
 			}
-			handler(data.Next(body_size))
+			msg_handler(data.Next(body_size))
 			body_size = 0
 			l = data.Len()
 		}
