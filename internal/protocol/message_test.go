@@ -75,7 +75,7 @@ func Test_Handle_NULL_Message(t *testing.T) {
 		require.Nil(t, err, err)
 		xconn := xnet.New_Conn(conn, time.Now().Unix())
 		Handle_Conn(xconn, func(msg []byte) {
-			require.Equal(t, ERR_NULL_MESSAGE, msg)
+			require.Equal(t, ERR_NULL_MSG, msg)
 		}, func() { _ = conn.Close() })
 	}()
 	// dial
@@ -102,7 +102,7 @@ func Test_Handle_Too_Big_Message(t *testing.T) {
 		require.Nil(t, err, err)
 		xconn := xnet.New_Conn(conn, time.Now().Unix())
 		Handle_Conn(xconn, func(msg []byte) {
-			require.Equal(t, ERR_TOO_BIG_MESSAGE, msg)
+			require.Equal(t, ERR_TOO_BIG_MSG, msg)
 		}, func() { _ = conn.Close() })
 		_ = conn.Close()
 	}()
