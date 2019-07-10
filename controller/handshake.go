@@ -150,3 +150,5 @@ func (this *client) authenticate(conn *xnet.Conn) error {
 	}
 	return nil
 }
+
+// TODO log print

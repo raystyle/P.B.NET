@@ -34,7 +34,7 @@ func (this *CTRL) Add_Boot(m *m_boot) error {
 		interval:    time.Duration(m.Interval) * time.Second,
 		log_src:     "boot-" + m.Tag,
 		bootstrap:   b,
-		stop_signal: make(chan struct{}, 1),
+		stop_signal: make(chan struct{}),
 	}
 	this.boots_m.Lock()
 	defer this.boots_m.Unlock()
