@@ -39,6 +39,7 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 			this.log(logger.EXPLOIT, &s_log{c: conn, l: "", e: err})
 		}
 		_ = conn.Close()
+		this.wg.Done()
 	}()
 	// add to conns for management
 	xconn := xnet.New_Conn(conn, this.ctx.global.Now().Unix())
