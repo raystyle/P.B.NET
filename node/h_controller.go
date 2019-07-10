@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/protocol"
+	"project/internal/random"
 	"project/internal/xnet"
 )
 
@@ -17,7 +19,8 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 	c := &c_ctrl{
 		ctx:         this.ctx,
 		conn:        conn,
-		stop_signal: make(chan struct{}, 1),
+		random:      random.New(),
+		stop_signal: make(chan struct{}),
 	}
 	this.add_ctrl(c)
 	// TODO don't print
@@ -35,7 +38,7 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 		s.Available <- struct{}{}
 		c.slots[i] = s
 	}
-	protocol.Handle_Message(conn, c.handle_message)
+	protocol.Handle_Conn(conn, c.handle_message, c.Close)
 }
 
 // controller client
@@ -43,6 +46,8 @@ type c_ctrl struct {
 	ctx         *NODE
 	conn        *xnet.Conn
 	slots       [protocol.SLOT_SIZE]*protocol.Slot
+	random      *random.Generator
+	buffer      bytes.Buffer
 	in_close    int32
 	close_once  sync.Once
 	stop_signal chan struct{}
@@ -53,14 +58,10 @@ func (this *c_ctrl) Info() *xnet.Info {
 }
 
 func (this *c_ctrl) Close() {
-	atomic.StoreInt32(&this.in_close, 1)
-	this.close()
-}
-
-func (this *c_ctrl) close() {
 	this.close_once.Do(func() {
-		_ = this.conn.Close()
+		atomic.StoreInt32(&this.in_close, 1)
 		close(this.stop_signal)
+		_ = this.conn.Close()
 	})
 }
 
@@ -82,6 +83,9 @@ func (this *c_ctrl) logln(l logger.Level, log ...interface{}) {
 
 // if need async handle message must copy msg first
 func (this *c_ctrl) handle_message(msg []byte) {
+	if this.is_closed() {
+		return
+	}
 	if len(msg) < 1 {
 		l := &s_log{c: this.conn, l: "invalid message size"}
 		this.log(logger.EXPLOIT, l)
@@ -93,25 +97,30 @@ func (this *c_ctrl) handle_message(msg []byte) {
 		this.handle_reply(msg[1:])
 	case protocol.CTRL_HEARTBEAT:
 		this.handle_heartbeat()
-	case protocol.ERR_NULL_MESSAGE:
-		l := &s_log{c: this.conn, l: "receive null message"}
+	case protocol.ERR_NULL_MSG:
+		l := &s_log{c: this.conn, l: "receive null message"} // TODO protocol err
 		this.log(logger.EXPLOIT, l)
 		this.Close()
-	case protocol.ERR_TOO_BIG_MESSAGE:
+	case protocol.ERR_TOO_BIG_MSG:
 		l := &s_log{c: this.conn, l: "receive too big message"}
 		this.log(logger.EXPLOIT, l)
 		this.Close()
 	default:
 		l := &s_log{c: this.conn, l: "receive unknown command"}
-		this.log(logger.EXPLOIT, l)
+		this.log(logger.EXPLOIT, l, msg[1:])
 		this.Close()
 	}
 }
 
-var node_heartbeat = []byte{0, 0, 0, 1, protocol.NODE_HEARTBEAT}
-
 func (this *c_ctrl) handle_heartbeat() {
-	_, _ = this.conn.Write(node_heartbeat)
+	// <security> fake flow like client
+	fake_size := 64 + this.random.Int(256)
+	// size(4 Bytes) + heartbeat(1 byte) + fake data
+	this.buffer.Reset()
+	this.buffer.Write(convert.Uint32_Bytes(uint32(1 + fake_size)))
+	this.buffer.WriteByte(protocol.NODE_HEARTBEAT)
+	this.buffer.Write(this.random.Bytes(fake_size))
+	_, _ = this.conn.Write(this.buffer.Bytes())
 }
 
 func (this *c_ctrl) reply(id, reply []byte) {
