@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"sync"
 	"testing"
 	"time"
 
@@ -45,12 +44,9 @@ func Test_Generate(t *testing.T) {
 	}
 	cert, key, err := Generate(parent, ca_pri, c)
 	require.Nil(t, err, err)
-	wg := new(sync.WaitGroup)
-	port, stop_signal := mock_https_server(t, wg, cert, key)
-	defer func() {
-		stop_signal <- struct{}{}
-		wg.Wait()
-	}()
+	s := &http.Server{}
+	port := mock_https_server(t, s, cert, key)
+	defer func() { _ = s.Close() }()
 	tls_config := &tls.Config{RootCAs: x509.NewCertPool()}
 	tls_config.RootCAs.AddCert(parent)
 	client := http.Client{Transport: &http.Transport{TLSClientConfig: tls_config}}
@@ -76,12 +72,9 @@ func Test_Generate_Self(t *testing.T) {
 	}
 	cert, key, err := Generate(nil, nil, c)
 	require.Nil(t, err, err)
-	wg := &sync.WaitGroup{}
-	port, stop_signal := mock_https_server(t, wg, cert, key)
-	defer func() {
-		stop_signal <- struct{}{}
-		wg.Wait()
-	}()
+	s := &http.Server{}
+	port := mock_https_server(t, s, cert, key)
+	defer func() { _ = s.Close() }()
 	// not add trust and check error
 	client := http.Client{}
 	_, err = client.Get("https://localhost:" + port + "/")
@@ -119,47 +112,32 @@ func Test_Invalid(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func mock_https_server(t *testing.T, wg *sync.WaitGroup, cert, key []byte) (string, chan struct{}) {
+func mock_https_server(t *testing.T, s *http.Server, cert, key []byte) string {
 	l, err := net.Listen("tcp", ":0")
 	require.Nil(t, err, err)
-	// tls and http2.0
 	certificate, err := tls.X509KeyPair(cert, key)
 	require.Nil(t, err, err)
-	server := http.Server{
-		TLSConfig: &tls.Config{
-			Certificates: []tls.Certificate{certificate},
-		},
-	}
+	s.TLSConfig = &tls.Config{Certificates: []tls.Certificate{certificate}}
 	data := []byte("hello")
 	server_mux := http.NewServeMux()
 	server_mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(data)
 	})
-	server.Handler = server_mux
+	s.Handler = server_mux
 	err_chan := make(chan error, 1)
-	wg.Add(1)
 	go func() {
-		err_chan <- server.ServeTLS(l, "", "")
+		err_chan <- s.ServeTLS(l, "", "")
 		close(err_chan)
-		wg.Done()
 	}()
 	// start
 	select {
 	case err := <-err_chan:
 		t.Fatal(err)
-	case <-time.After(time.Millisecond * 500):
+	case <-time.After(250 * time.Millisecond):
 	}
-	// stop
-	stop_signal := make(chan struct{}, 1)
-	wg.Add(1)
-	go func() {
-		<-stop_signal
-		_ = server.Close()
-		wg.Done()
-	}()
 	// get port
 	_, port, err := net.SplitHostPort(l.Addr().String())
 	require.Nil(t, err, err)
-	return port, stop_signal
+	return port
 }
