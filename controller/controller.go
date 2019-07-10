@@ -137,7 +137,7 @@ func New(c *Config) (*CTRL, error) {
 	}
 	ctrl.web = web
 	ctrl.boots = make(map[string]*boot)
-	ctrl.exit = make(chan error)
+	ctrl.exit = make(chan error, 1)
 	return ctrl, nil
 }
 
@@ -199,10 +199,8 @@ func (this *CTRL) Exit(err error) {
 		_ = this.db.Close()
 		this.gorm_lg.Close()
 		this.db_lg.Close()
-		if this.exit != nil {
-			this.exit <- err
-			close(this.exit)
-		}
+		this.exit <- err
+		close(this.exit)
 	})
 }
 
