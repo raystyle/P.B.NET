@@ -13,11 +13,6 @@ import (
 	"project/internal/xnet"
 )
 
-const (
-	// message id is uint16 < 65536
-	slot_size = 256
-)
-
 func (this *server) serve_ctrl(conn *xnet.Conn) {
 	c := &c_ctrl{
 		ctx:         this.ctx,
@@ -32,12 +27,12 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 		this.log(logger.INFO, &s_log{c: conn, l: "controller disconnected"})
 	}()
 	// init slot
-	for i := 0; i < slot_size; i++ {
-		s := &slot{
-			available: make(chan struct{}, 1),
-			reply:     make(chan []byte, 1),
+	for i := 0; i < protocol.SLOT_SIZE; i++ {
+		s := &protocol.Slot{
+			Available: make(chan struct{}, 1),
+			Reply:     make(chan []byte, 1),
 		}
-		s.available <- struct{}{}
+		s.Available <- struct{}{}
 		c.slots[i] = s
 	}
 	protocol.Handle_Message(conn, c.handle_message)
@@ -47,15 +42,10 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 type c_ctrl struct {
 	ctx         *NODE
 	conn        *xnet.Conn
-	slots       [slot_size]*slot
+	slots       [protocol.SLOT_SIZE]*protocol.Slot
 	in_close    int32
 	close_once  sync.Once
 	stop_signal chan struct{}
-}
-
-type slot struct {
-	available chan struct{}
-	reply     chan []byte
 }
 
 func (this *c_ctrl) Info() *xnet.Info {
@@ -63,12 +53,6 @@ func (this *c_ctrl) Info() *xnet.Info {
 }
 
 func (this *c_ctrl) Close() {
-	atomic.StoreInt32(&this.in_close, 1)
-	// more
-	this.close()
-}
-
-func (this *c_ctrl) Kill() {
 	atomic.StoreInt32(&this.in_close, 1)
 	this.close()
 }
@@ -101,7 +85,7 @@ func (this *c_ctrl) handle_message(msg []byte) {
 	if len(msg) < 1 {
 		l := &s_log{c: this.conn, l: "invalid message size"}
 		this.log(logger.EXPLOIT, l)
-		this.Kill()
+		this.Close()
 		return
 	}
 	switch msg[0] {
@@ -112,15 +96,15 @@ func (this *c_ctrl) handle_message(msg []byte) {
 	case protocol.ERR_NULL_MESSAGE:
 		l := &s_log{c: this.conn, l: "receive null message"}
 		this.log(logger.EXPLOIT, l)
-		this.Kill()
+		this.Close()
 	case protocol.ERR_TOO_BIG_MESSAGE:
 		l := &s_log{c: this.conn, l: "receive too big message"}
 		this.log(logger.EXPLOIT, l)
-		this.Kill()
+		this.Close()
 	default:
 		l := &s_log{c: this.conn, l: "receive unknown command"}
 		this.log(logger.EXPLOIT, l)
-		this.Kill()
+		this.Close()
 	}
 }
 
@@ -147,26 +131,26 @@ func (this *c_ctrl) reply(id, reply []byte) {
 // msg_id(2 bytes) + data
 func (this *c_ctrl) handle_reply(reply []byte) {
 	const (
-		max_id = slot_size - 1
+		max_id = protocol.SLOT_SIZE - 1
 	)
 	l := len(reply)
 	if l < 2 {
 		l := &s_log{c: this.conn, l: "receive invalid message id size"}
 		this.log(logger.EXPLOIT, l)
-		this.Kill()
+		this.Close()
 		return
 	}
 	id := int(convert.Bytes_Uint16(reply[:2]))
 	if id > max_id {
 		l := &s_log{c: this.conn, l: "receive invalid message id"}
 		this.log(logger.EXPLOIT, l)
-		this.Kill()
+		this.Close()
 		return
 	}
 	// must copy
 	r := make([]byte, l-2)
 	copy(r, reply[2:])
-	this.slots[id].reply <- r
+	this.slots[id].Reply <- r
 }
 
 // send command and receive reply
@@ -176,9 +160,9 @@ func (this *c_ctrl) Send(cmd uint8, data []byte) ([]byte, error) {
 		return nil, errors.New("connection closed")
 	}
 	for {
-		for id := 0; id < slot_size; id++ {
+		for id := 0; id < protocol.SLOT_SIZE; id++ {
 			select {
-			case <-this.slots[id].available:
+			case <-this.slots[id].Available:
 				l := len(data)
 				b := make([]byte, 7+l)
 				copy(b, convert.Uint32_Bytes(uint32(3+l))) // write size
@@ -191,11 +175,11 @@ func (this *c_ctrl) Send(cmd uint8, data []byte) ([]byte, error) {
 				}
 				// wait for reply
 				select {
-				case r := <-this.slots[id].reply:
-					this.slots[id].available <- struct{}{}
+				case r := <-this.slots[id].Reply:
+					this.slots[id].Available <- struct{}{}
 					return r, nil
 				case <-time.After(time.Minute):
-					this.Kill()
+					this.Close()
 					return nil, errors.New("receive reply timeout")
 				case <-this.stop_signal:
 					return nil, errors.New("connection closed")

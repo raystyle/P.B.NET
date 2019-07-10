@@ -54,7 +54,6 @@ type listener struct {
 type v_client interface {
 	Info() *xnet.Info
 	Close()
-	Kill()
 }
 
 func new_server(ctx *NODE, c *Config) (*server, error) {
