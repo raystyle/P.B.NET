@@ -14,11 +14,16 @@ import (
 )
 
 const (
-	send_queue_size = 256
+	// message id is uint16 < 65536
+	slot_size = 256
 )
 
 func (this *server) serve_ctrl(conn *xnet.Conn) {
-	c := &c_ctrl{ctx: this.ctx, conn: conn}
+	c := &c_ctrl{
+		ctx:         this.ctx,
+		conn:        conn,
+		stop_signal: make(chan struct{}, 1),
+	}
 	this.add_ctrl(c)
 	// TODO don't print
 	this.log(logger.INFO, &s_log{c: conn, l: "controller connected"})
@@ -26,18 +31,15 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 		this.del_ctrl("", c)
 		this.log(logger.INFO, &s_log{c: conn, l: "controller disconnected"})
 	}()
-	c.send_queue = make(chan []byte, send_queue_size)
-	c.slots = make(map[uint32]*slot) // fast access
 	// init slot
-	for i := 0; i < send_queue_size; i++ {
+	for i := 0; i < slot_size; i++ {
 		s := &slot{
 			available: make(chan struct{}, 1),
 			reply:     make(chan []byte, 1),
 		}
 		s.available <- struct{}{}
-		c.slots[uint32(i)] = s
+		c.slots[i] = s
 	}
-	c.stop_signal = make(chan struct{}, 1)
 	protocol.Handle_Message(conn, c.handle_message)
 }
 
@@ -45,11 +47,10 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 type c_ctrl struct {
 	ctx         *NODE
 	conn        *xnet.Conn
-	send_queue  chan []byte
-	slots       map[uint32]*slot
+	slots       [slot_size]*slot
 	in_close    int32
+	close_once  sync.Once
 	stop_signal chan struct{}
-	wg          sync.WaitGroup
 }
 
 type slot struct {
@@ -63,15 +64,20 @@ func (this *c_ctrl) Info() *xnet.Info {
 
 func (this *c_ctrl) Close() {
 	atomic.StoreInt32(&this.in_close, 1)
-	close(this.send_queue)
-	_ = this.conn.Close()
-	this.wg.Wait()
+	// more
+	this.close()
 }
 
 func (this *c_ctrl) Kill() {
 	atomic.StoreInt32(&this.in_close, 1)
-	close(this.send_queue)
-	_ = this.conn.Close()
+	this.close()
+}
+
+func (this *c_ctrl) close() {
+	this.close_once.Do(func() {
+		_ = this.conn.Close()
+		close(this.stop_signal)
+	})
 }
 
 func (this *c_ctrl) is_closed() bool {
@@ -90,6 +96,7 @@ func (this *c_ctrl) logln(l logger.Level, log ...interface{}) {
 	this.ctx.Println(l, "c_ctrl", log...)
 }
 
+// if need async handle message must copy msg first
 func (this *c_ctrl) handle_message(msg []byte) {
 	if len(msg) < 1 {
 		l := &s_log{c: this.conn, l: "invalid message size"}
@@ -101,12 +108,15 @@ func (this *c_ctrl) handle_message(msg []byte) {
 	case protocol.CTRL_REPLY:
 		this.handle_reply(msg[1:])
 	case protocol.CTRL_HEARTBEAT:
+		this.handle_heartbeat()
 	case protocol.ERR_NULL_MESSAGE:
 		l := &s_log{c: this.conn, l: "receive null message"}
 		this.log(logger.EXPLOIT, l)
+		this.Kill()
 	case protocol.ERR_TOO_BIG_MESSAGE:
 		l := &s_log{c: this.conn, l: "receive too big message"}
 		this.log(logger.EXPLOIT, l)
+		this.Kill()
 	default:
 		l := &s_log{c: this.conn, l: "receive unknown command"}
 		this.log(logger.EXPLOIT, l)
@@ -114,70 +124,92 @@ func (this *c_ctrl) handle_message(msg []byte) {
 	}
 }
 
-func (this *c_ctrl) reply(id, reply []byte) {
-	// size(4 Bytes) + NODE_REPLY(1 byte) + id(4 bytes)
-	l := len(reply)
-	b := make([]byte, 9+l)
-	copy(b, convert.Uint32_Bytes(uint32(5+l))) // write size
-	b[4] = protocol.NODE_REPLY
-	copy(b[5:9], id)
-	copy(b[9:], reply)
-	this.send_queue <- b
+var node_heartbeat = []byte{0, 0, 0, 1, protocol.NODE_HEARTBEAT}
+
+func (this *c_ctrl) handle_heartbeat() {
+	_, _ = this.conn.Write(node_heartbeat)
 }
 
-func (this *c_ctrl) handle_reply(reply []byte) {
-	if len(reply) < 4 {
-		l := &s_log{c: this.conn, l: "receive invalid message id size"}
-		this.log(logger.EXPLOIT, l)
+func (this *c_ctrl) reply(id, reply []byte) {
+	if this.is_closed() {
 		return
 	}
-	this.slots[convert.Bytes_Uint32(reply[:4])].reply <- reply[4:]
+	// size(4 Bytes) + NODE_REPLY(1 byte) + msg_id(2 bytes)
+	l := len(reply)
+	b := make([]byte, 7+l)
+	copy(b, convert.Uint16_Bytes(uint16(3+l))) // write size
+	b[4] = protocol.NODE_REPLY
+	copy(b[5:7], id)
+	copy(b[7:], reply)
+	_, _ = this.conn.Write(b)
+}
+
+// msg_id(2 bytes) + data
+func (this *c_ctrl) handle_reply(reply []byte) {
+	const (
+		max_id = slot_size - 1
+	)
+	l := len(reply)
+	if l < 2 {
+		l := &s_log{c: this.conn, l: "receive invalid message id size"}
+		this.log(logger.EXPLOIT, l)
+		this.Kill()
+		return
+	}
+	id := int(convert.Bytes_Uint16(reply[:2]))
+	if id > max_id {
+		l := &s_log{c: this.conn, l: "receive invalid message id"}
+		this.log(logger.EXPLOIT, l)
+		this.Kill()
+		return
+	}
+	// must copy
+	r := make([]byte, l-2)
+	copy(r, reply[2:])
+	this.slots[id].reply <- r
 }
 
 // send command and receive reply
-func (this *c_ctrl) Send(cmd uint8, data []byte, timeout int) ([]byte, error) {
+// size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
+func (this *c_ctrl) Send(cmd uint8, data []byte) ([]byte, error) {
 	if this.is_closed() {
 		return nil, errors.New("connection closed")
 	}
-	for id, s := range this.slots {
-		select {
-		case <-s.available:
-			// size(4) + command(1) + msg_id(4) + data
-			l := len(data)
-			b := make([]byte, 9+l)
-			copy(b, convert.Uint32_Bytes(uint32(5+l))) // write size
-			b[4] = cmd
-			copy(b[5:9], convert.Uint32_Bytes(id))
-			copy(b[:], data)
-			this.send_queue <- b
+	for {
+		for id := 0; id < slot_size; id++ {
 			select {
-			case r := <-s.reply:
-				s.available <- struct{}{}
-				return r, nil
-			case <-time.After(time.Duration(timeout) * time.Second):
-				// TODO more think
-				s.available <- struct{}{}
-				return nil, errors.New("receive reply timeout")
+			case <-this.slots[id].available:
+				l := len(data)
+				b := make([]byte, 7+l)
+				copy(b, convert.Uint32_Bytes(uint32(3+l))) // write size
+				b[4] = cmd
+				copy(b[5:7], convert.Uint16_Bytes(uint16(id)))
+				copy(b[7:], data)
+				_, err := this.conn.Write(b)
+				if err != nil {
+					return nil, err
+				}
+				// wait for reply
+				select {
+				case r := <-this.slots[id].reply:
+					this.slots[id].available <- struct{}{}
+					return r, nil
+				case <-time.After(time.Minute):
+					this.Kill()
+					return nil, errors.New("receive reply timeout")
+				case <-this.stop_signal:
+					return nil, errors.New("connection closed")
+				}
 			case <-this.stop_signal:
 				return nil, errors.New("connection closed")
+			default:
 			}
-		default:
 		}
-	}
-	// WARNING
-	return nil, errors.New("slot is full")
-}
-
-func (this *c_ctrl) sender() {
-	defer this.wg.Done()
-	var (
-		msg []byte
-		err error
-	)
-	for msg = range this.send_queue {
-		_, err = this.conn.Write(msg)
-		if err != nil {
-			return
+		// if full wait 1 second
+		select {
+		case <-time.After(time.Second):
+		case <-this.stop_signal:
+			return nil, errors.New("connection closed")
 		}
 	}
 }
