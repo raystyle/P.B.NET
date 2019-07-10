@@ -12,12 +12,19 @@ const (
 	// follow command.go
 	ERR_NULL_MESSAGE    uint8 = 0xFF
 	ERR_TOO_BIG_MESSAGE uint8 = 0xFE
+	// message id is uint16 < 65536
+	SLOT_SIZE = 256
 )
 
 var (
 	err_null_message    = []byte{ERR_NULL_MESSAGE}
 	err_too_big_message = []byte{ERR_TOO_BIG_MESSAGE}
 )
+
+type Slot struct {
+	Available chan struct{}
+	Reply     chan []byte
+}
 
 // handler receive message = message type(4 byte) + message
 func Handle_Message(conn *xnet.Conn, handler func([]byte)) {

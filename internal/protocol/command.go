@@ -1,17 +1,17 @@
 package protocol
 
-// -----------------------Controller--------------------------
+// -----------------------controller--------------------------
 const (
 	CTRL_HEARTBEAT uint8 = 0x00 + iota
 	CTRL_REPLY
+	CTRL_SYNC_START
+	CTRL_SYNC_QUERY
 	CTRL_BROADCAST_TOKEN
 	CTRL_BROADCAST
 	CTRL_SYNC_SEND_TOKEN
 	CTRL_SYNC_SEND
-	CTRL_SYNC_RECEIVE_TOKEN
-	CTRL_SYNC_RECEIVE
-	CTRL_SYNC_START
-	CTRL_SYNC_QUERY
+	CTRL_SYNC_RECV_TOKEN
+	CTRL_SYNC_RECV
 )
 
 // node authentication
@@ -28,18 +28,18 @@ const (
 	CTRL_QUERY_ALL_NODES
 )
 
-// --------------------------Node-----------------------------
+// --------------------------node-----------------------------
 const (
 	NODE_HEARTBEAT uint8 = 0x00 + iota
 	NODE_REPLY
+	NODE_SYNC_START
+	NODE_SYNC_QUERY
 	NODE_BROADCAST_TOKEN
 	NODE_BROADCAST
 	NODE_SYNC_SEND_TOKEN
 	NODE_SYNC_SEND
-	NODE_SYNC_RECEIVE_TOKEN
-	NODE_SYNC_RECEIVE
-	NODE_SYNC_START
-	NODE_SYNC_QUERY
+	NODE_SYNC_RECV_TOKEN
+	NODE_SYNC_RECV
 )
 
 // node authentication
