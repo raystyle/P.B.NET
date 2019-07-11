@@ -48,6 +48,7 @@ func init_ctrl(t *testing.T) {
 			err := ctrl.Main()
 			require.Nil(t, err, err)
 		}()
+		ctrl.Wait()
 	})
 }
 

@@ -30,6 +30,7 @@ type CTRL struct {
 	boots_m sync.Mutex
 	wg      sync.WaitGroup
 	once    sync.Once
+	wait    chan struct{}
 	exit    chan error
 }
 
@@ -137,11 +138,13 @@ func New(c *Config) (*CTRL, error) {
 	}
 	ctrl.web = web
 	ctrl.boots = make(map[string]*boot)
+	ctrl.wait = make(chan struct{}, 2)
 	ctrl.exit = make(chan error, 1)
 	return ctrl, nil
 }
 
 func (this *CTRL) Main() error {
+	defer func() { this.wait <- struct{}{} }()
 	// first synchronize time
 	err := this.global.Start_Timesync()
 	if err != nil {
@@ -171,6 +174,7 @@ func (this *CTRL) Main() error {
 			_ = this.Add_Boot(bs[i])
 		}
 	}()
+	this.wait <- struct{}{}
 	return <-this.exit
 }
 
@@ -179,6 +183,11 @@ func (this *CTRL) fatal(err error, msg string) error {
 	this.Println(logger.FATAL, "init", err)
 	this.Exit(nil)
 	return err
+}
+
+// for Test wait for Main()
+func (this *CTRL) Wait() {
+	<-this.wait
 }
 
 func (this *CTRL) Exit(err error) {

@@ -13,6 +13,7 @@ type NODE struct {
 	global *global
 	server *server
 	once   sync.Once
+	wait   chan struct{}
 	exit   chan error
 }
 
@@ -42,11 +43,13 @@ func New(c *Config) (*NODE, error) {
 			return nil, err
 		}
 	}
+	node.wait = make(chan struct{}, 2)
 	node.exit = make(chan error, 1)
 	return node, nil
 }
 
 func (this *NODE) Main() error {
+	defer func() { this.wait <- struct{}{} }()
 	// first synchronize time
 	err := this.global.Start_Timesync()
 	if err != nil {
@@ -59,6 +62,7 @@ func (this *NODE) Main() error {
 		return this.fatal(err, "deploy server failed")
 	}
 	this.Print(logger.INFO, "init", "node is running")
+	this.wait <- struct{}{}
 	return <-this.exit
 }
 
@@ -68,6 +72,12 @@ func (this *NODE) fatal(err error, msg string) error {
 	this.Exit(nil)
 	return err
 }
+
+// for Test wait for Main()
+func (this *NODE) Wait() {
+	<-this.wait
+}
+
 func (this *NODE) Exit(err error) {
 	this.once.Do(func() {
 		// TODO race
