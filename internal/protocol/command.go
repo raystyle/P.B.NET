@@ -1,5 +1,10 @@
 package protocol
 
+// --------------------------test-----------------------------
+const (
+	TEST_MSG uint8 = 0xEF
+)
+
 // -----------------------controller--------------------------
 const (
 	CTRL_HEARTBEAT uint8 = 0x00 + iota
