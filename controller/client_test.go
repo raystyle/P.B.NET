@@ -141,11 +141,56 @@ func Benchmark_client_Send(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		data.Write(convert.Int32_Bytes(int32(b.N)))
-		reply, err := client.Send(protocol.TEST_MSG, data.Bytes())
-		require.Nil(b, err, err)
-		require.Equal(b, data.Bytes(), reply)
+		_, _ = client.Send(protocol.TEST_MSG, data.Bytes())
+		// reply, err := client.Send(protocol.TEST_MSG, data.Bytes())
+		// require.Nil(b, err, err)
+		// require.Equal(b, data.Bytes(), reply)
 		data.Reset()
 	}
+	b.StopTimer()
+	client.Close()
+}
+
+func Benchmark_client_Send_parallel(b *testing.B) {
+	NODE := test_gen_node(b, true)
+	go func() {
+		err := NODE.Main()
+		require.Nil(b, err, err)
+	}()
+	NODE.Wait()
+	defer NODE.Exit(nil)
+	init_ctrl(b)
+	config := &client_cfg{
+		Node: &bootstrap.Node{
+			Mode:    xnet.TLS,
+			Network: "tcp",
+			Address: "localhost:9950",
+		},
+	}
+	config.TLS_Config.InsecureSkipVerify = true
+	client, err := new_client(ctrl, config)
+	require.Nil(b, err, err)
+	n_one := b.N / runtime.NumCPU()
+	wg := sync.WaitGroup{}
+	send := func() {
+		data := bytes.NewBuffer(nil)
+		for i := 0; i < n_one; i++ {
+			data.Write(convert.Int32_Bytes(int32(i)))
+			_, _ = client.Send(protocol.TEST_MSG, data.Bytes())
+			// reply, err := client.Send(protocol.TEST_MSG, data.Bytes())
+			// require.Nil(b, err, err)
+			// require.Equal(b, data.Bytes(), reply)
+			data.Reset()
+		}
+		wg.Done()
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go send()
+	}
+	wg.Wait()
 	b.StopTimer()
 	client.Close()
 }
