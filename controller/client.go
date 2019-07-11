@@ -27,12 +27,12 @@ type client_cfg struct {
 }
 
 type client struct {
-	ctx         *CTRL
-	node        *bootstrap.Node
-	guid        []byte
-	close_log   bool
-	conn        *xnet.Conn
-	send_queue  chan []byte
+	ctx       *CTRL
+	node      *bootstrap.Node
+	guid      []byte
+	close_log bool
+	conn      *xnet.Conn
+	// send_queue  chan []byte
 	slots       []*protocol.Slot
 	reply_timer *time.Timer
 	in_close    int32
@@ -77,7 +77,7 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 		return nil, errors.New("handshake timeout")
 	}
 	// init send_queue & slot
-	c.send_queue = make(chan []byte, 4*protocol.SLOT_SIZE)
+	// c.send_queue = make(chan []byte, 4*protocol.SLOT_SIZE)
 	c.slots = make([]*protocol.Slot, protocol.SLOT_SIZE)
 	for i := 0; i < protocol.SLOT_SIZE; i++ {
 		s := &protocol.Slot{
@@ -91,8 +91,9 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 	c.reply_timer = time.NewTimer(time.Second)
 	c.stop_signal = make(chan struct{})
 	go protocol.Handle_Conn(c.conn, c.handle_message, c.Close)
-	c.wg.Add(2)
-	go c.sender()
+	// c.wg.Add(2)
+	// go c.sender()
+	c.wg.Add(1)
 	go c.heartbeat()
 	return c, nil
 }
@@ -163,6 +164,7 @@ func (this *client) handle_message(msg []byte) {
 	}
 }
 
+/*
 func (this *client) sender() {
 	defer this.wg.Done()
 	var msg []byte
@@ -179,6 +181,7 @@ func (this *client) sender() {
 		}
 	}
 }
+*/
 
 func (this *client) heartbeat() {
 	defer this.wg.Done()
@@ -194,13 +197,19 @@ func (this *client) heartbeat() {
 			b[4] = protocol.CTRL_HEARTBEAT
 			copy(b[5:], rand.Bytes(fake_size))
 			// send
-			select {
-			case this.send_queue <- b:
-			case <-time.After(protocol.SEND_TIMEOUT):
-				this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
-				_ = this.conn.Close()
+			_, err := this.conn.Write(b)
+			if err != nil {
 				return
 			}
+			/*
+				select {
+				case this.send_queue <- b:
+				case <-time.After(protocol.SEND_TIMEOUT):
+					this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
+					_ = this.conn.Close()
+					return
+				}
+			*/
 		case <-this.stop_signal:
 			return
 		}
@@ -218,12 +227,15 @@ func (this *client) reply(id, reply []byte) {
 	b[4] = protocol.CTRL_REPLY
 	copy(b[5:7], id)
 	copy(b[7:], reply)
-	select {
-	case this.send_queue <- b:
-	case <-time.After(protocol.SEND_TIMEOUT):
-		this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
-		this.Close()
-	}
+	_, _ = this.conn.Write(b)
+	/*
+		select {
+		case this.send_queue <- b:
+		case <-time.After(protocol.SEND_TIMEOUT):
+			this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
+			this.Close()
+		}
+	*/
 }
 
 // msg_id(2 bytes) + data
@@ -270,13 +282,19 @@ func (this *client) Send(cmd uint8, data []byte) ([]byte, error) {
 				copy(b[5:7], convert.Uint16_Bytes(uint16(id)))
 				copy(b[7:], data)
 				// send
-				select {
-				case this.send_queue <- b:
-				case <-time.After(protocol.SEND_TIMEOUT):
-					this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
-					this.Close()
-					return nil, protocol.ERR_SEND_TIMEOUT
+				_, err := this.conn.Write(b)
+				if err != nil {
+					return nil, err
 				}
+				/*
+					select {
+					case this.send_queue <- b:
+					case <-time.After(protocol.SEND_TIMEOUT):
+						this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
+						this.Close()
+						return nil, protocol.ERR_SEND_TIMEOUT
+					}
+				*/
 				// wait for reply
 				this.slots[id].Timer.Reset(protocol.RECV_TIMEOUT)
 				select {
