@@ -2,7 +2,6 @@ package testdata
 
 import (
 	"io/ioutil"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -10,7 +9,7 @@ import (
 	"project/internal/xnet"
 )
 
-func Listeners(t *testing.T) []*config.Listener {
+func Listeners(t require.TestingT) []*config.Listener {
 	var ls []*config.Listener
 	b, err := ioutil.ReadFile("../config/listener/tls.toml")
 	require.Nil(t, err, err)

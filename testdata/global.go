@@ -2,7 +2,6 @@ package testdata
 
 import (
 	"io/ioutil"
-	"testing"
 
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
@@ -12,7 +11,7 @@ import (
 	"project/internal/global/timesync"
 )
 
-func Proxy_Clients(t *testing.T) map[string]*proxyclient.Client {
+func Proxy_Clients(t require.TestingT) map[string]*proxyclient.Client {
 	c := make(map[string]*proxyclient.Client)
 	b, err := ioutil.ReadFile("../config/global/proxyclient.toml")
 	require.Nil(t, err, err)
@@ -21,7 +20,7 @@ func Proxy_Clients(t *testing.T) map[string]*proxyclient.Client {
 	return c
 }
 
-func DNS_Clients(t *testing.T) map[string]*dnsclient.Client {
+func DNS_Clients(t require.TestingT) map[string]*dnsclient.Client {
 	c := make(map[string]*dnsclient.Client)
 	b, err := ioutil.ReadFile("../config/global/dnsclient.toml")
 	require.Nil(t, err, err)
@@ -30,7 +29,7 @@ func DNS_Clients(t *testing.T) map[string]*dnsclient.Client {
 	return c
 }
 
-func Timesync(t *testing.T) map[string]*timesync.Client {
+func Timesync(t require.TestingT) map[string]*timesync.Client {
 	c := make(map[string]*timesync.Client)
 	b, err := ioutil.ReadFile("../config/global/timesync.toml")
 	require.Nil(t, err, err)
@@ -39,7 +38,7 @@ func Timesync(t *testing.T) map[string]*timesync.Client {
 	return c
 }
 
-func Timesync_Full(t *testing.T) map[string]*timesync.Client {
+func Timesync_Full(t require.TestingT) map[string]*timesync.Client {
 	c := make(map[string]*timesync.Client)
 	b, err := ioutil.ReadFile("../config/global/timesync_full.toml")
 	require.Nil(t, err, err)

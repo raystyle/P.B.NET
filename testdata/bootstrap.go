@@ -2,7 +2,6 @@ package testdata
 
 import (
 	"io/ioutil"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -10,7 +9,7 @@ import (
 	"project/internal/config"
 )
 
-func Register(t *testing.T) []*config.Bootstrap {
+func Register(t require.TestingT) []*config.Bootstrap {
 	var r []*config.Bootstrap
 	// http
 	b, err := ioutil.ReadFile("../config/bootstrap/http.toml")
