@@ -9,6 +9,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
+	"project/internal/protocol"
 	"project/internal/xnet"
 	"project/node"
 	"project/testdata"
@@ -48,9 +49,13 @@ func test_gen_node(t *testing.T, genesis bool) *node.NODE {
 	return n
 }
 
-func Test_client(t *testing.T) {
+func Test_client_Send(t *testing.T) {
 	NODE := test_gen_node(t, true)
-	go func() { _ = NODE.Main() }()
+	go func() {
+		err := NODE.Main()
+		require.Nil(t, err, err)
+	}()
+	NODE.Wait()
 	defer NODE.Exit(nil)
 	init_ctrl(t)
 	config := &client_cfg{
@@ -63,11 +68,9 @@ func Test_client(t *testing.T) {
 	config.TLS_Config.InsecureSkipVerify = true
 	client, err := new_client(ctrl, config)
 	require.Nil(t, err, err)
-	client.Send(0x12, []byte{12, 13})
-	/*
-		reply, err := client.Send(0x12, []byte{12, 13})
-		require.Nil(t, err, err)
-		t.Log(reply)
-	*/
-	// ctrl.Exit(nil)
+	test_data := bytes.Repeat([]byte{0}, 128)
+	reply, err := client.Send(protocol.TEST_MSG, test_data)
+	require.Nil(t, err, err)
+	require.Equal(t, test_data, reply)
+	client.Close()
 }
