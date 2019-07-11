@@ -15,7 +15,7 @@ import (
 	"project/testdata"
 )
 
-func test_gen_node(t *testing.T, genesis bool) *node.NODE {
+func test_gen_node(t require.TestingT, genesis bool) *node.NODE {
 	reg_aes_key := bytes.Repeat([]byte{0}, aes.BIT256+aes.IV_SIZE)
 	c := &node.Config{
 		Log_Level: "debug",
@@ -72,5 +72,38 @@ func Test_client_Send(t *testing.T) {
 	reply, err := client.Send(protocol.TEST_MSG, test_data)
 	require.Nil(t, err, err)
 	require.Equal(t, test_data, reply)
+	client.Close()
+}
+
+func Benchmark_client_Send(b *testing.B) {
+	NODE := test_gen_node(b, true)
+	go func() {
+		err := NODE.Main()
+		require.Nil(b, err, err)
+	}()
+	NODE.Wait()
+	defer NODE.Exit(nil)
+	init_ctrl(b)
+	config := &client_cfg{
+		Node: &bootstrap.Node{
+			Mode:    xnet.TLS,
+			Network: "tcp",
+			Address: "localhost:9950",
+		},
+	}
+	config.TLS_Config.InsecureSkipVerify = true
+	client, err := new_client(ctrl, config)
+	require.Nil(b, err, err)
+	test_data := bytes.Repeat([]byte{0}, 128)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		client.Send(protocol.TEST_MSG, test_data)
+
+		// reply, err := client.Send(protocol.TEST_MSG, test_data)
+		// require.Nil(b, err, err)
+		// require.Equal(b, test_data, reply)
+	}
+	b.StopTimer()
 	client.Close()
 }

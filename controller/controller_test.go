@@ -4,7 +4,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"sync"
-	"testing"
 
 	"github.com/jinzhu/gorm"
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,7 @@ var (
 	init_once sync.Once
 )
 
-func init_ctrl(t *testing.T) {
+func init_ctrl(t require.TestingT) {
 	init_once.Do(func() {
 		c := test_gen_config()
 		controller, err := New(c)

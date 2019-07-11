@@ -22,7 +22,7 @@ func Test_Insert_Proxy_Client(t *testing.T) {
 	test_insert_proxy_client(t)
 }
 
-func test_insert_proxy_client(t *testing.T) {
+func test_insert_proxy_client(t require.TestingT) {
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_proxy_client{}).Error
 	require.Nil(t, err, err)
@@ -73,7 +73,7 @@ func Test_Insert_DNS_Client(t *testing.T) {
 	test_insert_dns_client(t)
 }
 
-func test_insert_dns_client(t *testing.T) {
+func test_insert_dns_client(t require.TestingT) {
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_dns_client{}).Error
 	require.Nil(t, err, err)
@@ -124,7 +124,7 @@ func Test_Insert_Timesync(t *testing.T) {
 	test_insert_timesync(t)
 }
 
-func test_insert_timesync(t *testing.T) {
+func test_insert_timesync(t require.TestingT) {
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_timesync{}).Error
 	require.Nil(t, err, err)
@@ -177,7 +177,7 @@ func Test_Insert_Boot(t *testing.T) {
 	test_insert_boot(t)
 }
 
-func test_insert_boot(t *testing.T) {
+func test_insert_boot(t require.TestingT) {
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_boot{}).Error
 	require.Nil(t, err, err)
@@ -232,7 +232,7 @@ func Test_Insert_Listener(t *testing.T) {
 	test_insert_listener(t)
 }
 
-func test_insert_listener(t *testing.T) {
+func test_insert_listener(t require.TestingT) {
 	// clean table
 	err := ctrl.db.Unscoped().Delete(&m_listener{}).Error
 	require.Nil(t, err, err)
