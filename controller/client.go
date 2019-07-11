@@ -183,7 +183,7 @@ func (this *client) reply(id, reply []byte) {
 	// size(4 Bytes) + NODE_REPLY(1 byte) + msg_id(2 bytes)
 	l := len(reply)
 	b := make([]byte, 7+l)
-	copy(b, convert.Uint16_Bytes(uint16(3+l))) // write size
+	copy(b, convert.Uint32_Bytes(uint32(3+l))) // write size
 	b[4] = protocol.CTRL_REPLY
 	copy(b[5:7], id)
 	copy(b[7:], reply)
