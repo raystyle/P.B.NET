@@ -2,12 +2,15 @@ package controller
 
 import (
 	"bytes"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
+	"project/internal/convert"
 	"project/internal/crypto/aes"
 	"project/internal/protocol"
 	"project/internal/xnet"
@@ -68,10 +71,49 @@ func Test_client_Send(t *testing.T) {
 	config.TLS_Config.InsecureSkipVerify = true
 	client, err := new_client(ctrl, config)
 	require.Nil(t, err, err)
-	test_data := bytes.Repeat([]byte{0}, 128)
-	reply, err := client.Send(protocol.TEST_MSG, test_data)
+	data := bytes.Repeat([]byte{1}, 128)
+	reply, err := client.Send(protocol.TEST_MSG, data)
 	require.Nil(t, err, err)
-	require.Equal(t, test_data, reply)
+	require.Equal(t, data, reply)
+	client.Close()
+}
+
+func Test_client_Send_parallel(t *testing.T) {
+	NODE := test_gen_node(t, true)
+	go func() {
+		err := NODE.Main()
+		require.Nil(t, err, err)
+	}()
+	NODE.Wait()
+	defer NODE.Exit(nil)
+	init_ctrl(t)
+	config := &client_cfg{
+		Node: &bootstrap.Node{
+			Mode:    xnet.TLS,
+			Network: "tcp",
+			Address: "localhost:9950",
+		},
+	}
+	config.TLS_Config.InsecureSkipVerify = true
+	client, err := new_client(ctrl, config)
+	require.Nil(t, err, err)
+	wg := sync.WaitGroup{}
+	send := func() {
+		data := bytes.NewBuffer(nil)
+		for i := 0; i < 1024; i++ {
+			data.Write(convert.Int32_Bytes(int32(i)))
+			reply, err := client.Send(protocol.TEST_MSG, data.Bytes())
+			require.Nil(t, err, err)
+			require.Equal(t, data.Bytes(), reply)
+			data.Reset()
+		}
+		wg.Done()
+	}
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go send()
+	}
+	wg.Wait()
 	client.Close()
 }
 
@@ -94,15 +136,15 @@ func Benchmark_client_Send(b *testing.B) {
 	config.TLS_Config.InsecureSkipVerify = true
 	client, err := new_client(ctrl, config)
 	require.Nil(b, err, err)
-	test_data := bytes.Repeat([]byte{0}, 128)
+	data := bytes.NewBuffer(nil)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.Send(protocol.TEST_MSG, test_data)
-
-		// reply, err := client.Send(protocol.TEST_MSG, test_data)
-		// require.Nil(b, err, err)
-		// require.Equal(b, test_data, reply)
+		data.Write(convert.Int32_Bytes(int32(b.N)))
+		reply, err := client.Send(protocol.TEST_MSG, data.Bytes())
+		require.Nil(b, err, err)
+		require.Equal(b, data.Bytes(), reply)
+		data.Reset()
 	}
 	b.StopTimer()
 	client.Close()
