@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"net"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -181,6 +182,86 @@ func benchmark_handle_message(b *testing.B, size int) {
 			b.FailNow()
 		}
 	}
+	b.StopTimer()
+	_ = conn.Close()
+	wg.Wait()
+}
+
+func Benchmark_Handle_Message_parallel_128B(b *testing.B) {
+	benchmark_handle_message_parallel(b, 128)
+}
+
+func Benchmark_Handle_Message_parallel_2KB(b *testing.B) {
+	benchmark_handle_message_parallel(b, 2048)
+}
+
+func Benchmark_Handle_Message_parallel_4KB(b *testing.B) {
+	benchmark_handle_message_parallel(b, 4096)
+}
+
+func Benchmark_Handle_Message_parallel_32KB(b *testing.B) {
+	benchmark_handle_message_parallel(b, 32768)
+}
+
+func Benchmark_Handle_Message_parallel_1MB(b *testing.B) {
+	benchmark_handle_message_parallel(b, 1048576)
+}
+
+func Benchmark_Handle_Message_parallel_16MB(b *testing.B) {
+	benchmark_handle_message_parallel(b, 16*1048576)
+}
+
+func Benchmark_Handle_Message_parallel_64MB(b *testing.B) {
+	benchmark_handle_message_parallel(b, 64*1048576)
+}
+
+func benchmark_handle_message_parallel(b *testing.B, size int) {
+	var (
+		n_one   = b.N / runtime.NumCPU()
+		message = bytes.Repeat([]byte{1}, size)
+		wg      sync.WaitGroup
+	)
+	c := &xnet.Config{Network: "tcp", Address: ":0"}
+	listener, err := xnet.Listen(xnet.LIGHT, c)
+	require.Nil(b, err, err)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		count := 0
+		conn, err := listener.Accept()
+		require.Nil(b, err, err)
+		xconn := xnet.New_Conn(conn, time.Now().Unix())
+		Handle_Conn(xconn, func(msg []byte) {
+			if !bytes.Equal(msg, message) {
+				b.FailNow()
+			}
+			count += 1
+		}, func() { _ = conn.Close() })
+		require.Equal(b, n_one*runtime.NumCPU(), count)
+	}()
+	// dial
+	_, port, _ := net.SplitHostPort(listener.Addr().String())
+	c.Address = "localhost:" + port
+	conn, err := xnet.Dial(xnet.LIGHT, c)
+	require.Nil(b, err, err)
+	msg := append(convert.Uint32_Bytes(uint32(size)), message...)
+	write_wg := sync.WaitGroup{}
+	write := func() {
+		for i := 0; i < n_one; i++ {
+			_, err := conn.Write(msg)
+			if err != nil {
+				b.FailNow()
+			}
+		}
+		write_wg.Done()
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < runtime.NumCPU(); i++ {
+		write_wg.Add(1)
+		go write()
+	}
+	write_wg.Wait()
 	b.StopTimer()
 	_ = conn.Close()
 	wg.Wait()
