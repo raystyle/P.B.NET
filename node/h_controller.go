@@ -105,6 +105,12 @@ func (this *c_ctrl) handle_message(msg []byte) {
 		l := &s_log{c: this.conn, l: "receive too big message"}
 		this.log(logger.EXPLOIT, l)
 		this.Close()
+	case protocol.TEST_MSG:
+		if len(msg) < 3 {
+			l := &s_log{c: this.conn, l: "receive invalid test message"}
+			this.log(logger.EXPLOIT, l)
+		}
+		this.reply(msg[1:3], msg[3:])
 	default:
 		l := &s_log{c: this.conn, l: "receive unknown command"}
 		this.log(logger.EXPLOIT, l, msg[1:])
@@ -130,7 +136,7 @@ func (this *c_ctrl) reply(id, reply []byte) {
 	// size(4 Bytes) + NODE_REPLY(1 byte) + msg_id(2 bytes)
 	l := len(reply)
 	b := make([]byte, 7+l)
-	copy(b, convert.Uint16_Bytes(uint16(3+l))) // write size
+	copy(b, convert.Uint32_Bytes(uint32(3+l))) // write size
 	b[4] = protocol.NODE_REPLY
 	copy(b[5:7], id)
 	copy(b[7:], reply)
@@ -187,7 +193,7 @@ func (this *c_ctrl) Send(cmd uint8, data []byte) ([]byte, error) {
 				case r := <-this.slots[id].Reply:
 					this.slots[id].Available <- struct{}{}
 					return r, nil
-				case <-time.After(time.Minute):
+				case <-time.After(5 * time.Second):
 					this.Close()
 					return nil, errors.New("receive reply timeout")
 				case <-this.stop_signal:
