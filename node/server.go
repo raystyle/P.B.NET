@@ -80,7 +80,7 @@ func new_server(ctx *NODE, c *Config) (*server, error) {
 	s.nodes = make(map[string]v_client)
 	s.beacons = make(map[string]v_client)
 	s.random = random.New()
-	s.stop_signal = make(chan struct{}, 1)
+	s.stop_signal = make(chan struct{})
 	return s, nil
 }
 
