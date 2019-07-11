@@ -33,7 +33,8 @@ type client struct {
 	guid        []byte
 	conn        *xnet.Conn
 	close_log   bool
-	slots       [protocol.SLOT_SIZE]*protocol.Slot
+	send_queue  chan []byte
+	slots       []*protocol.Slot
 	in_close    int32
 	close_once  sync.Once
 	stop_signal chan struct{}
@@ -75,7 +76,9 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 		_ = conn.Close()
 		return nil, errors.New("handshake timeout")
 	}
-	// init slot
+	// init send_queue & slot
+	c.send_queue = make(chan []byte, 4*protocol.SLOT_SIZE)
+	c.slots = make([]*protocol.Slot, protocol.SLOT_SIZE)
 	for i := 0; i < protocol.SLOT_SIZE; i++ {
 		s := &protocol.Slot{
 			Available: make(chan struct{}, 1),
@@ -86,7 +89,8 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 	}
 	c.stop_signal = make(chan struct{})
 	go protocol.Handle_Conn(c.conn, c.handle_message, c.Close)
-	c.wg.Add(1)
+	c.wg.Add(2)
+	go c.sender()
 	go c.heartbeat()
 	return c, nil
 }
@@ -125,6 +129,7 @@ func (this *client) logln(l logger.Level, log ...interface{}) {
 	this.ctx.Print(l, "client", b)
 }
 
+// can use this.Close()
 func (this *client) handle_message(msg []byte) {
 	if this.is_closed() {
 		return
@@ -151,6 +156,23 @@ func (this *client) handle_message(msg []byte) {
 	}
 }
 
+func (this *client) sender() {
+	defer this.wg.Done()
+	var msg []byte
+	for {
+		select {
+		case msg = <-this.send_queue:
+			_ = this.conn.SetWriteDeadline(time.Now().Add(protocol.SEND_TIMEOUT))
+			_, err := this.conn.Write(msg)
+			if err != nil {
+				return
+			}
+		case <-this.stop_signal:
+			return
+		}
+	}
+}
+
 func (this *client) heartbeat() {
 	defer this.wg.Done()
 	rand := random.New()
@@ -166,6 +188,9 @@ func (this *client) heartbeat() {
 			buffer.Write(convert.Uint32_Bytes(uint32(1 + fake_size)))
 			buffer.WriteByte(protocol.CTRL_HEARTBEAT)
 			buffer.Write(rand.Bytes(fake_size))
+			// not use this.send_queue
+			// reduce once copy
+			_ = this.conn.SetWriteDeadline(time.Now().Add(protocol.SEND_TIMEOUT))
 			_, err := this.conn.Write(buffer.Bytes())
 			if err != nil {
 				return
@@ -187,14 +212,16 @@ func (this *client) reply(id, reply []byte) {
 	b[4] = protocol.CTRL_REPLY
 	copy(b[5:7], id)
 	copy(b[7:], reply)
-	_, _ = this.conn.Write(b)
+	select {
+	case this.send_queue <- b:
+	case <-time.After(protocol.SEND_TIMEOUT):
+		this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
+		this.Close()
+	}
 }
 
 // msg_id(2 bytes) + data
 func (this *client) handle_reply(reply []byte) {
-	const (
-		max_id = protocol.SLOT_SIZE - 1
-	)
 	l := len(reply)
 	if l < 2 {
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_MSG_ID_SIZE)
@@ -202,7 +229,7 @@ func (this *client) handle_reply(reply []byte) {
 		return
 	}
 	id := int(convert.Bytes_Uint16(reply[:2]))
-	if id > max_id {
+	if id > protocol.MAX_MSG_ID {
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_MSG_ID)
 		this.Close()
 		return
@@ -210,14 +237,20 @@ func (this *client) handle_reply(reply []byte) {
 	// must copy
 	r := make([]byte, l-2)
 	copy(r, reply[2:])
-	this.slots[id].Reply <- r
+	// <security> maybe wrong msg id
+	select {
+	case this.slots[id].Reply <- r:
+	case <-time.After(time.Second):
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_REPLY)
+		this.Close()
+	}
 }
 
 // send command and receive reply
 // size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
 func (this *client) Send(cmd uint8, data []byte) ([]byte, error) {
 	if this.is_closed() {
-		return nil, errors.New("connection closed")
+		return nil, protocol.ERR_CONN_CLOSED
 	}
 	for {
 		for id := 0; id < protocol.SLOT_SIZE; id++ {
@@ -229,23 +262,27 @@ func (this *client) Send(cmd uint8, data []byte) ([]byte, error) {
 				b[4] = cmd
 				copy(b[5:7], convert.Uint16_Bytes(uint16(id)))
 				copy(b[7:], data)
-				_, err := this.conn.Write(b)
-				if err != nil {
-					return nil, err
+				// send
+				select {
+				case this.send_queue <- b:
+				case <-time.After(protocol.SEND_TIMEOUT):
+					this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
+					this.Close()
+					return nil, protocol.ERR_SEND_TIMEOUT
 				}
 				// wait for reply
 				select {
 				case r := <-this.slots[id].Reply:
 					this.slots[id].Available <- struct{}{}
 					return r, nil
-				case <-time.After(time.Minute):
+				case <-time.After(protocol.RECV_TIMEOUT):
 					this.Close()
-					return nil, errors.New("receive reply timeout")
+					return nil, protocol.ERR_RECV_TIMEOUT
 				case <-this.stop_signal:
-					return nil, errors.New("connection closed")
+					return nil, protocol.ERR_CONN_CLOSED
 				}
 			case <-this.stop_signal:
-				return nil, errors.New("connection closed")
+				return nil, protocol.ERR_CONN_CLOSED
 			default:
 			}
 		}
@@ -253,7 +290,7 @@ func (this *client) Send(cmd uint8, data []byte) ([]byte, error) {
 		select {
 		case <-time.After(time.Second):
 		case <-this.stop_signal:
-			return nil, errors.New("connection closed")
+			return nil, protocol.ERR_CONN_CLOSED
 		}
 	}
 }
