@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"bytes"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -31,10 +30,11 @@ type client struct {
 	ctx         *CTRL
 	node        *bootstrap.Node
 	guid        []byte
-	conn        *xnet.Conn
 	close_log   bool
+	conn        *xnet.Conn
 	send_queue  chan []byte
 	slots       []*protocol.Slot
+	reply_timer *time.Timer
 	in_close    int32
 	close_once  sync.Once
 	stop_signal chan struct{}
@@ -83,10 +83,12 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 		s := &protocol.Slot{
 			Available: make(chan struct{}, 1),
 			Reply:     make(chan []byte, 1),
+			Timer:     time.NewTimer(protocol.RECV_TIMEOUT),
 		}
 		s.Available <- struct{}{}
 		c.slots[i] = s
 	}
+	c.reply_timer = time.NewTimer(time.Second)
 	c.stop_signal = make(chan struct{})
 	go protocol.Handle_Conn(c.conn, c.handle_message, c.Close)
 	c.wg.Add(2)
@@ -149,6 +151,11 @@ func (this *client) handle_message(msg []byte) {
 	case protocol.ERR_TOO_BIG_MSG:
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_TOO_BIG_MSG)
 		this.Close()
+	case protocol.TEST_MSG:
+		if len(msg) < 3 {
+			this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_TEST_MSG)
+		}
+		this.reply(msg[1:3], msg[3:])
 	default:
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_UNKNOWN_CMD, msg[1:])
 		this.Close()
@@ -176,23 +183,22 @@ func (this *client) sender() {
 func (this *client) heartbeat() {
 	defer this.wg.Done()
 	rand := random.New()
-	buffer := bytes.NewBuffer(nil)
 	for {
-		t := time.Duration(30+rand.Int(60)) * time.Second
 		select {
-		case <-time.After(t):
+		case <-time.After(time.Duration(30+rand.Int(60)) * time.Second):
 			// <security> fake flow like client
 			fake_size := 64 + rand.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
-			buffer.Reset()
-			buffer.Write(convert.Uint32_Bytes(uint32(1 + fake_size)))
-			buffer.WriteByte(protocol.CTRL_HEARTBEAT)
-			buffer.Write(rand.Bytes(fake_size))
-			// not use this.send_queue
-			// reduce once copy
-			_ = this.conn.SetWriteDeadline(time.Now().Add(protocol.SEND_TIMEOUT))
-			_, err := this.conn.Write(buffer.Bytes())
-			if err != nil {
+			b := make([]byte, 5+fake_size)
+			copy(b, convert.Uint32_Bytes(uint32(1+fake_size)))
+			b[4] = protocol.CTRL_HEARTBEAT
+			copy(b[5:], rand.Bytes(fake_size))
+			// send
+			select {
+			case this.send_queue <- b:
+			case <-time.After(protocol.SEND_TIMEOUT):
+				this.log(logger.WARNING, protocol.ERR_SEND_TIMEOUT)
+				_ = this.conn.Close()
 				return
 			}
 		case <-this.stop_signal:
@@ -205,7 +211,7 @@ func (this *client) reply(id, reply []byte) {
 	if this.is_closed() {
 		return
 	}
-	// size(4 Bytes) + NODE_REPLY(1 byte) + msg_id(2 bytes)
+	// size(4 Bytes) + CTRL_REPLY(1 byte) + msg_id(2 bytes)
 	l := len(reply)
 	b := make([]byte, 7+l)
 	copy(b, convert.Uint32_Bytes(uint32(3+l))) // write size
@@ -238,9 +244,10 @@ func (this *client) handle_reply(reply []byte) {
 	r := make([]byte, l-2)
 	copy(r, reply[2:])
 	// <security> maybe wrong msg id
+	this.reply_timer.Reset(time.Second)
 	select {
 	case this.slots[id].Reply <- r:
-	case <-time.After(time.Second):
+	case <-this.reply_timer.C:
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_REPLY)
 		this.Close()
 	}
@@ -271,11 +278,12 @@ func (this *client) Send(cmd uint8, data []byte) ([]byte, error) {
 					return nil, protocol.ERR_SEND_TIMEOUT
 				}
 				// wait for reply
+				this.slots[id].Timer.Reset(protocol.RECV_TIMEOUT)
 				select {
 				case r := <-this.slots[id].Reply:
 					this.slots[id].Available <- struct{}{}
 					return r, nil
-				case <-time.After(protocol.RECV_TIMEOUT):
+				case <-this.slots[id].Timer.C:
 					this.Close()
 					return nil, protocol.ERR_RECV_TIMEOUT
 				case <-this.stop_signal:
