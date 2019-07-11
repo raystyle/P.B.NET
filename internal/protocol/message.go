@@ -3,19 +3,28 @@ package protocol
 import (
 	"bytes"
 	"errors"
+	"runtime"
 	"time"
 
 	"project/internal/convert"
 	"project/internal/xnet"
 )
 
-const (
-	// follow command.go
-	ERR_NULL_MSG    uint8 = 0xFF
-	ERR_TOO_BIG_MSG uint8 = 0xFE
-
+var (
 	// message id is uint16 < 65536
-	SLOT_SIZE = 256
+	SLOT_SIZE  = 16 * runtime.NumCPU()
+	MAX_MSG_ID = SLOT_SIZE - 1
+)
+
+type Slot struct {
+	Available chan struct{}
+	Reply     chan []byte
+	Timer     *time.Timer // receive reply timeout
+}
+
+const (
+	SEND_TIMEOUT = time.Minute
+	RECV_TIMEOUT = 2 * time.Minute
 )
 
 var (
@@ -25,17 +34,20 @@ var (
 	ERR_RECV_UNKNOWN_CMD         = errors.New("receive unknown command")
 	ERR_RECV_INVALID_MSG_ID_SIZE = errors.New("receive invalid message id size")
 	ERR_RECV_INVALID_MSG_ID      = errors.New("receive invalid message id")
+	ERR_RECV_INVALID_REPLY       = errors.New("receive invalid reply")
+	ERR_RECV_INVALID_TEST_MSG    = errors.New("receive invalid test message")
+	ERR_CONN_CLOSED              = errors.New("connection closed")
+	ERR_RECV_TIMEOUT             = errors.New("receive reply timeout")
 )
 
 var (
+	// follow command.go
+	ERR_NULL_MSG    uint8 = 0xFF
+	ERR_TOO_BIG_MSG uint8 = 0xFE
+	// Handle_Conn()
 	err_null_msg    = []byte{ERR_NULL_MSG}
 	err_too_big_msg = []byte{ERR_TOO_BIG_MSG}
 )
-
-type Slot struct {
-	Available chan struct{}
-	Reply     chan []byte
-}
 
 // msg_handler receive message = message type(4 byte) + message
 func Handle_Conn(conn *xnet.Conn, msg_handler func([]byte), close func()) {
