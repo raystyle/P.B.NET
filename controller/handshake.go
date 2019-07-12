@@ -2,7 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 
@@ -14,27 +13,6 @@ import (
 	"project/internal/xnet"
 )
 
-// handshake error
-type hs_err struct {
-	c net.Conn
-	s string
-	e error
-}
-
-// "tcp 127.0.0.1:1234 <-> tcp 127.0.0.1:1235 [ver: 1] send data failed: error"
-func (this *hs_err) Error() string {
-	b := &bytes.Buffer{}
-	_, _ = fmt.Fprintf(b, "%s %s <-> %s %s ",
-		this.c.LocalAddr().Network(), this.c.LocalAddr(),
-		this.c.RemoteAddr().Network(), this.c.RemoteAddr())
-	b.WriteString(this.s)
-	if this.e != nil {
-		b.WriteString(": ")
-		b.WriteString(this.e.Error())
-	}
-	return b.String()
-}
-
 // certificates = [2 byte uint16] size + signature with node guid
 //                [2 byte uint16] size + signature with ctrl guid
 func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
@@ -42,8 +20,7 @@ func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
 	// receive certificates
 	certificates, err := conn.Receive()
 	if err != nil {
-		e := &hs_err{c: conn, s: "receive certificate failed", e: err}
-		return nil, errors.WithStack(e)
+		return nil, errors.Wrap(err, "receive certificate failed")
 	}
 	// if guid = nil, skip verify
 	if this.guid != nil {
@@ -55,15 +32,13 @@ func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
 		cert_size := make([]byte, 2)
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {
-			e := &hs_err{c: conn, s: act + "size failed", e: err}
-			return nil, errors.WithStack(e)
+			return nil, errors.Wrap(err, act+"size failed")
 		}
 		// read cert
 		cert_with_node_guid := make([]byte, convert.Bytes_Uint16(cert_size))
 		_, err = io.ReadFull(reader, cert_size)
 		if err != nil {
-			e := &hs_err{c: conn, s: act + "failed", e: err}
-			return nil, errors.WithStack(e)
+			return nil, errors.Wrap(err, act+"failed")
 		}
 		// cacl cert
 		buffer := new(bytes.Buffer)
@@ -78,40 +53,39 @@ func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
 			// read cert size
 			_, err = io.ReadFull(reader, cert_size)
 			if err != nil {
-				e := &hs_err{c: conn, s: act + "size failed", e: err}
-				return nil, errors.WithStack(e)
+				return nil, errors.Wrap(err, act+"size failed")
 			}
 			// read cert
 			cert_with_ctrl_guid := make([]byte, convert.Bytes_Uint16(cert_size))
 			_, err = io.ReadFull(reader, cert_size)
 			if err != nil {
-				e := &hs_err{c: conn, s: act + "failed", e: err}
-				return nil, errors.WithStack(e)
+				return nil, errors.Wrap(err, act+"failed")
 			}
 			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_ctrl_guid) {
-				e := &hs_err{c: conn, s: "invalid certificate(with controller guid)"}
-				this.log(logger.EXPLOIT, e)
-				return nil, errors.WithStack(e)
+				const (
+					l = "invalid certificate(with controller guid)"
+				)
+				this.log(logger.EXPLOIT, l)
+				return nil, errors.Wrap(err, l)
 			}
 		} else {
 			if !this.ctx.global.Verify(buffer.Bytes(), cert_with_node_guid) {
-				e := &hs_err{c: conn, s: "invalid certificate(with node guid)"}
-				this.log(logger.EXPLOIT, e)
-				return nil, errors.WithStack(e)
+				const (
+					l = "invalid certificate(with node guid)"
+				)
+				this.log(logger.EXPLOIT, l)
+				return nil, errors.Wrap(err, l)
 			}
 		}
 	}
 	// send role
 	_, err = conn.Write([]byte{protocol.CTRL})
 	if err != nil {
-		e := &hs_err{c: conn, s: "send role failed", e: err}
-		return nil, errors.WithStack(e)
+		return nil, errors.Wrap(err, "send role failed")
 	}
 	err = this.authenticate(conn)
 	if err != nil {
-		e := &hs_err{c: conn, s: "authenticate failed", e: err}
-		this.log(logger.EXPLOIT, e)
-		return nil, errors.WithStack(e)
+		return nil, err
 	}
 	return conn, nil
 }
@@ -120,8 +94,7 @@ func (this *client) authenticate(conn *xnet.Conn) error {
 	// receive challenge
 	challenge, err := conn.Receive()
 	if err != nil {
-		e := &hs_err{c: conn, s: "receive challenge data failed", e: err}
-		return errors.WithStack(e)
+		return errors.Wrap(err, "receive challenge data failed")
 	}
 	// <danger>
 	// receive random challenge data(length 2048-4096)
@@ -129,26 +102,23 @@ func (this *client) authenticate(conn *xnet.Conn) error {
 	// because maybe fake node will send some special data
 	// and if controller sign it will destory net
 	if len(challenge) < 2048 || len(challenge) > 4096 {
-		e := &hs_err{c: conn, s: "invalid challenge size"}
-		this.log(logger.EXPLOIT, e)
-		return errors.WithStack(e)
+		const (
+			l = "invalid challenge size"
+		)
+		this.log(logger.EXPLOIT, l)
+		return errors.Wrap(err, l)
 	}
 	// send signature
 	err = conn.Send(this.ctx.global.Sign(challenge))
 	if err != nil {
-		e := &hs_err{c: conn, s: "send challenge signature failed", e: err}
-		return errors.WithStack(e)
+		return errors.Wrap(err, "send challenge signature failed")
 	}
 	resp, err := conn.Receive()
 	if err != nil {
-		e := &hs_err{c: conn, s: "receive authentication response failed", e: err}
-		return errors.WithStack(e)
+		return errors.Wrap(err, "receive authentication response failed")
 	}
 	if !bytes.Equal(resp, protocol.AUTH_SUCCESS) {
-		e := &hs_err{c: conn, e: protocol.ERR_AUTH_FAILED}
-		return errors.WithStack(e)
+		return errors.WithStack(protocol.ERR_AUTH_FAILED)
 	}
 	return nil
 }
-
-// TODO log print
