@@ -80,19 +80,12 @@ func (this *NODE) Wait() {
 
 func (this *NODE) Exit(err error) {
 	this.once.Do(func() {
-		// TODO race
-		if this.server != nil {
-			this.server.Shutdown()
-			this.exit_log("web server is stopped")
-		}
+		this.server.Shutdown()
+		this.Print(logger.INFO, "exit", "web server is stopped")
 		this.global.Close()
-		this.exit_log("global is stopped")
-		this.exit_log("node is stopped")
+		this.Print(logger.INFO, "exit", "global is stopped")
 		this.exit <- err
 		close(this.exit)
+		this.Print(logger.INFO, "exit", "node is stopped")
 	})
-}
-
-func (this *NODE) exit_log(log string) {
-	this.Print(logger.INFO, "exit", log)
 }

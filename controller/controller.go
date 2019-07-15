@@ -198,23 +198,19 @@ func (this *CTRL) Exit(err error) {
 			boot.Stop()
 		}
 		this.boots_m.Unlock()
-		this.exit_log("all boots stopped")
+		this.Print(logger.INFO, "exit", "all boots stopped")
 		this.web.Close()
-		this.exit_log("web server is stopped")
+		this.Print(logger.INFO, "exit", "web server is stopped")
 		this.wg.Wait()
 		this.global.Close()
-		this.exit_log("global is stopped")
-		this.exit_log("controller is stopped")
+		this.Print(logger.INFO, "exit", "global is stopped")
 		_ = this.db.Close()
 		this.gorm_lg.Close()
 		this.db_lg.Close()
 		this.exit <- err
 		close(this.exit)
+		this.Print(logger.INFO, "exit", "controller is stopped")
 	})
-}
-
-func (this *CTRL) exit_log(log string) {
-	this.Print(logger.INFO, "exit", log)
 }
 
 func (this *CTRL) Load_Keys(password string) error {
