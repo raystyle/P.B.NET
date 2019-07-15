@@ -2,7 +2,6 @@ package node
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 
@@ -20,10 +19,7 @@ type s_log struct {
 }
 
 func (this *s_log) String() string {
-	b := &bytes.Buffer{}
-	_, _ = fmt.Fprintf(b, "%s %s <-> %s %s ",
-		this.c.LocalAddr().Network(), this.c.LocalAddr(),
-		this.c.RemoteAddr().Network(), this.c.RemoteAddr())
+	b := logger.Conn(this.c)
 	b.WriteString(this.l)
 	if this.e != nil {
 		b.WriteString(": ")

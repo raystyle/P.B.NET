@@ -2,6 +2,7 @@ package node
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,11 +38,10 @@ func (this *server) serve_ctrl(conn *xnet.Conn) {
 		stop_signal: make(chan struct{}),
 	}
 	this.add_ctrl(c)
-	// TODO don't print
-	this.log(logger.INFO, &s_log{c: conn, l: "controller connected"})
+	this.log(logger.DEBUG, &s_log{c: conn, l: "controller connected"})
 	defer func() {
 		this.del_ctrl("", c)
-		this.log(logger.INFO, &s_log{c: conn, l: "controller disconnected"})
+		this.log(logger.DEBUG, &s_log{c: conn, l: "controller disconnected"})
 	}()
 	// init slot
 	c.slots = make([]*protocol.Slot, protocol.SLOT_SIZE)
@@ -75,15 +75,21 @@ func (this *c_ctrl) is_closed() bool {
 }
 
 func (this *c_ctrl) logf(l logger.Level, format string, log ...interface{}) {
-	this.ctx.Printf(l, "c_ctrl", format, log...)
+	b := logger.Conn(this.conn)
+	_, _ = fmt.Fprintf(b, format, log...)
+	this.ctx.Print(l, "c_ctrl", b)
 }
 
 func (this *c_ctrl) log(l logger.Level, log ...interface{}) {
-	this.ctx.Print(l, "c_ctrl", log...)
+	b := logger.Conn(this.conn)
+	_, _ = fmt.Fprint(b, log...)
+	this.ctx.Print(l, "c_ctrl", b)
 }
 
 func (this *c_ctrl) logln(l logger.Level, log ...interface{}) {
-	this.ctx.Println(l, "c_ctrl", log...)
+	b := logger.Conn(this.conn)
+	_, _ = fmt.Fprintln(b, log...)
+	this.ctx.Print(l, "c_ctrl", b)
 }
 
 // if need async handle message must copy msg first
@@ -92,8 +98,7 @@ func (this *c_ctrl) handle_message(msg []byte) {
 		return
 	}
 	if len(msg) < 1 {
-		l := &s_log{c: this.conn, l: "invalid message size"}
-		this.log(logger.EXPLOIT, l)
+		this.log(logger.EXPLOIT, protocol.ERR_INVALID_MSG_SIZE)
 		this.Close()
 		return
 	}
@@ -103,22 +108,18 @@ func (this *c_ctrl) handle_message(msg []byte) {
 	case protocol.CTRL_HEARTBEAT:
 		this.handle_heartbeat()
 	case protocol.ERR_NULL_MSG:
-		l := &s_log{c: this.conn, l: "receive null message"} // TODO protocol err
-		this.log(logger.EXPLOIT, l)
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_NULL_MSG)
 		this.Close()
 	case protocol.ERR_TOO_BIG_MSG:
-		l := &s_log{c: this.conn, l: "receive too big message"}
-		this.log(logger.EXPLOIT, l)
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_TOO_BIG_MSG)
 		this.Close()
 	case protocol.TEST_MSG:
 		if len(msg) < 3 {
-			l := &s_log{c: this.conn, l: "receive invalid test message"}
-			this.log(logger.EXPLOIT, l)
+			this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_TEST_MSG)
 		}
 		this.reply(msg[1:3], msg[3:])
 	default:
-		l := &s_log{c: this.conn, l: "receive unknown command"}
-		this.log(logger.EXPLOIT, l, msg[1:])
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_UNKNOWN_CMD, msg[1:])
 		this.Close()
 	}
 }
@@ -155,15 +156,13 @@ func (this *c_ctrl) reply(id, reply []byte) {
 func (this *c_ctrl) handle_reply(reply []byte) {
 	l := len(reply)
 	if l < 2 {
-		l := &s_log{c: this.conn, l: "receive invalid message id size"}
-		this.log(logger.EXPLOIT, l)
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_MSG_ID_SIZE)
 		this.Close()
 		return
 	}
 	id := int(convert.Bytes_Uint16(reply[:2]))
 	if id > protocol.MAX_MSG_ID {
-		l := &s_log{c: this.conn, l: "receive invalid message id"}
-		this.log(logger.EXPLOIT, l)
+		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_MSG_ID)
 		this.Close()
 		return
 	}
