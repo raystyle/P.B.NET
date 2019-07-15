@@ -23,8 +23,11 @@ type Slot struct {
 }
 
 const (
-	SEND_TIMEOUT = time.Minute
-	RECV_TIMEOUT = 2 * time.Minute
+	// follow command.go
+	ERR_NULL_MSG    uint8 = 0xFF
+	ERR_TOO_BIG_MSG uint8 = 0xFE
+	SEND_TIMEOUT          = time.Minute
+	RECV_TIMEOUT          = 2 * time.Minute
 )
 
 var (
@@ -41,10 +44,6 @@ var (
 )
 
 var (
-	// follow command.go
-	ERR_NULL_MSG    uint8 = 0xFF
-	ERR_TOO_BIG_MSG uint8 = 0xFE
-	// Handle_Conn()
 	err_null_msg    = []byte{ERR_NULL_MSG}
 	err_too_big_msg = []byte{ERR_TOO_BIG_MSG}
 )
