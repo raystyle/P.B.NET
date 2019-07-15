@@ -223,6 +223,7 @@ func (this *client) handle_reply(reply []byte) {
 	this.reply_timer.Reset(time.Second)
 	select {
 	case this.slots[id].Reply <- r:
+		this.reply_timer.Stop()
 	case <-this.reply_timer.C:
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_REPLY)
 		this.Close()
@@ -255,6 +256,7 @@ func (this *client) Send(cmd uint8, data []byte) ([]byte, error) {
 				this.slots[id].Timer.Reset(protocol.RECV_TIMEOUT)
 				select {
 				case r := <-this.slots[id].Reply:
+					this.slots[id].Timer.Stop()
 					this.slots[id].Available <- struct{}{}
 					return r, nil
 				case <-this.slots[id].Timer.C:
