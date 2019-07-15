@@ -198,7 +198,6 @@ func (this *server) serve(tag string, l *listener, err_chan chan<- error) {
 		}
 		delay = 0
 		this.wg.Add(1)
-		_ = conn.SetDeadline(time.Now().Add(this.hs_timeout))
 		go this.handshake(tag, conn)
 	}
 }

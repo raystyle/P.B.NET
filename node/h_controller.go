@@ -107,6 +107,8 @@ func (this *c_ctrl) handle_message(msg []byte) {
 		this.handle_reply(msg[1:])
 	case protocol.CTRL_HEARTBEAT:
 		this.handle_heartbeat()
+	case protocol.CTRL_TRUST_NODE_DATA:
+
 	case protocol.ERR_NULL_MSG:
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_NULL_MSG)
 		this.Close()
@@ -173,6 +175,7 @@ func (this *c_ctrl) handle_reply(reply []byte) {
 	this.reply_timer.Reset(time.Second)
 	select {
 	case this.slots[id].Reply <- r:
+		this.reply_timer.Stop()
 	case <-this.reply_timer.C:
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_REPLY)
 		this.Close()
@@ -205,6 +208,7 @@ func (this *c_ctrl) Send(cmd uint8, data []byte) ([]byte, error) {
 				this.slots[id].Timer.Reset(protocol.RECV_TIMEOUT)
 				select {
 				case r := <-this.slots[id].Reply:
+					this.slots[id].Timer.Stop()
 					this.slots[id].Available <- struct{}{}
 					return r, nil
 				case <-this.slots[id].Timer.C:
@@ -225,4 +229,8 @@ func (this *c_ctrl) Send(cmd uint8, data []byte) ([]byte, error) {
 			return nil, protocol.ERR_CONN_CLOSED
 		}
 	}
+}
+
+func (this *c_ctrl) handle_trust() {
+
 }

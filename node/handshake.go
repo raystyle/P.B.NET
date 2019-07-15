@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"time"
 
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -37,6 +38,7 @@ func (this *server) handshake(l_tag string, conn net.Conn) {
 		_ = conn.Close()
 		this.wg.Done()
 	}()
+	_ = conn.SetDeadline(time.Now().Add(this.hs_timeout))
 	// add to conns for management
 	xconn := xnet.New_Conn(conn, this.ctx.global.Now().Unix())
 	// conn tag
