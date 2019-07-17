@@ -3,6 +3,7 @@ package controller
 import (
 	"time"
 
+	"project/internal/config"
 	"project/internal/xnet"
 )
 
@@ -62,17 +63,28 @@ type m_boot struct {
 }
 
 type m_listener struct {
-	ID     uint64 `gorm:"primary_key"`
-	Tag    string `gorm:"size:32;not null;unique"`
-	Mode   string `gorm:"size:32;not null"`
-	Config string `gorm:"size:16000;not null"`
+	ID      uint64 `gorm:"primary_key"`
+	Tag     string `gorm:"size:32;not null;unique"`
+	Mode    string `gorm:"size:32;not null"`
+	Timeout uint32 `gorm:"not null"`
+	Config  string `gorm:"size:16000;not null"`
 	Model
+}
+
+func (this *m_listener) Configure() *config.Listener {
+	l := &config.Listener{
+		Tag:    this.Tag,
+		Mode:   this.Mode,
+		Config: []byte(this.Config),
+	}
+	l.Timeout = time.Duration(this.Timeout) * time.Second
+	return l
 }
 
 type m_node struct {
 	GUID      []byte     `gorm:"primary_key;type:binary(52)"`
-	AES_Key   []byte     `gorm:"type:binary(48);not null"`
 	Publickey []byte     `gorm:"type:binary(32);not null"`
+	AES_Key   []byte     `gorm:"type:binary(48);not null"`
 	Bootstrap bool       `gorm:"not null"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
