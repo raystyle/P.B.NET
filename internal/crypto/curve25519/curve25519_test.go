@@ -23,4 +23,19 @@ func Test_Scalar_Base_Mult(t *testing.T) {
 	}
 	result := hex.EncodeToString(in)
 	require.Equal(t, expectedHex, result)
+	// key exchange
+	c_pri := make([]byte, 32)
+	c_pri[0] = 199
+	c_pub, err := Scalar_Base_Mult(c_pri)
+	require.Nil(t, err, err)
+	s_pri := make([]byte, 32)
+	s_pri[0] = 2
+	s_pub, err := Scalar_Base_Mult(s_pri)
+	require.Nil(t, err, err)
+	key_c, err := Scalar_Mult(c_pri, s_pub)
+	require.Nil(t, err, err)
+	key_s, err := Scalar_Mult(s_pri, c_pub)
+	require.Nil(t, err, err)
+	require.Equal(t, key_c, key_s)
+	t.Log(key_c)
 }
