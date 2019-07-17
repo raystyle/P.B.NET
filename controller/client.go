@@ -89,7 +89,10 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 	}
 	c.reply_timer = time.NewTimer(time.Second)
 	c.stop_signal = make(chan struct{})
-	go protocol.Handle_Conn(c.conn, c.handle_message, c.Close)
+	go func() {
+		// TODO recover
+		protocol.Handle_Conn(c.conn, c.handle_message, c.Close)
+	}()
 	c.wg.Add(1)
 	go c.heartbeat()
 	return c, nil
