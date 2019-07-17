@@ -9,7 +9,13 @@ import (
 	"project/internal/global/timesync"
 )
 
+type Debug struct {
+	Skip_Timesync bool
+}
+
 type Config struct {
+	Debug Debug
+
 	// check
 	Check_Mode bool
 

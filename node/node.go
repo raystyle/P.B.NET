@@ -9,6 +9,7 @@ import (
 )
 
 type NODE struct {
+	debug  *Debug
 	log_lv logger.Level
 	global *global
 	server *server
@@ -23,7 +24,12 @@ func New(c *Config) (*NODE, error) {
 	if err != nil {
 		return nil, err
 	}
-	node := &NODE{log_lv: l}
+	// copy debug config
+	debug := c.Debug
+	node := &NODE{
+		debug:  &debug,
+		log_lv: l,
+	}
 	// init global
 	g, err := new_global(node, c)
 	if err != nil {
@@ -51,13 +57,15 @@ func New(c *Config) (*NODE, error) {
 func (this *NODE) Main() error {
 	defer func() { this.wait <- struct{}{} }()
 	// first synchronize time
-	err := this.global.Start_Timesync()
-	if err != nil {
-		return this.fatal(err, "synchronize time failed")
+	if !this.debug.Skip_Timesync {
+		err := this.global.Start_Timesync()
+		if err != nil {
+			return this.fatal(err, "synchronize time failed")
+		}
 	}
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Println(logger.INFO, "init", "time:", now)
-	err = this.server.Deploy()
+	err := this.server.Deploy()
 	if err != nil {
 		return this.fatal(err, "deploy server failed")
 	}

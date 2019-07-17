@@ -38,6 +38,7 @@ func test_gen_node(t require.TestingT, genesis bool) *node.NODE {
 		Conn_Limit: 10,
 		Listeners:  testdata.Listeners(t),
 	}
+	c.Debug.Skip_Timesync = true
 	// encrypt register info
 	register := testdata.Register(t)
 	for i := 0; i < len(register); i++ {
