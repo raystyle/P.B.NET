@@ -19,17 +19,14 @@ const (
 	CTRL_SYNC_RECV
 )
 
-// node authentication
+// trust node
 const (
-	CTRL_QUERY_CERTIFICATE uint8 = 0x20 + iota
-	CTRL_TRUST_NODE_REQUEST
+	CTRL_TRUST_NODE uint8 = 0x20 + iota
 	CTRL_TRUST_NODE_DATA
 )
 
-// query nodes
 const (
-	CTRL_QUERY_GUID uint8 = 0x30 + iota
-	CTRL_QUERY_STATUS
+	CTRL_QUERY_STATUS uint8 = 0x30 + iota
 	CTRL_QUERY_ALL_NODES
 )
 
