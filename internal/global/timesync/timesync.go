@@ -75,11 +75,13 @@ type TIMESYNC struct {
 func New(p *proxyclient.PROXY, d *dnsclient.DNS, l logger.Logger,
 	c map[string]*Client, interval time.Duration) (*TIMESYNC, error) {
 	t := &TIMESYNC{
-		proxy:    p,
-		dns:      d,
-		logger:   l,
-		interval: interval,
-		clients:  make(map[string]*Client),
+		proxy:       p,
+		dns:         d,
+		logger:      l,
+		interval:    interval,
+		now:         time.Now(),
+		clients:     make(map[string]*Client),
+		stop_signal: make(chan struct{}),
 	}
 	// add clients
 	for tag, client := range c {
@@ -126,13 +128,13 @@ func (this *TIMESYNC) Start() error {
 		}
 	}
 S:
-	this.stop_signal = make(chan struct{})
 	this.wg.Add(2)
 	go this.add_loop()
 	go this.sync_loop()
 	return nil
 }
 
+// stop once
 func (this *TIMESYNC) Stop() {
 	close(this.stop_signal)
 	this.wg.Wait()
