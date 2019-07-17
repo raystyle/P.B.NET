@@ -36,7 +36,8 @@ type Host_Info struct {
 
 type Node_Online_Request struct {
 	GUID      []byte
-	Publickey []byte // verify message & aes key exchange
+	Publickey []byte // verify message
+	Kex_Pub   []byte // aes key exchange
 	// about certificate
 	Mode      xnet.Mode
 	Network   string
@@ -52,20 +53,20 @@ func (this *Node_Online_Request) Validate() error {
 	if len(this.Publickey) != ed25519.PublicKey_Size {
 		return errors.New("invalid publickey size")
 	}
-	err := xnet.Check_Mode_Network(this.Mode, this.Network)
-	if err != nil {
-		return errors.WithStack(xnet.ERR_MISMATCHED_MODE_NETWORK)
+	if len(this.Kex_Pub) != 32 {
+		return errors.New("invalid key exchange publickey size")
 	}
-	return nil
+	return xnet.Check_Mode_Network(this.Mode, this.Network)
 }
 
 type Node_Online_Response struct {
 	// node info(for broadcast)
 	GUID         []byte
+	Publickey    []byte // verify message
+	Kex_Pub      []byte // aes key exchange
 	Mode         xnet.Mode
 	Network      string
 	Address      string
-	Publickey    []byte
 	Reply        Online_Result
 	Request_Time int64
 	Reply_Time   int64
