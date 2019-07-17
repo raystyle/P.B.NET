@@ -36,7 +36,7 @@ func (this *web) h_trust_node(w h_rw, r *h_r, p h_p) {
 		Network: m.Network,
 		Address: m.Address,
 	}
-	err = this.ctx.Trust_Node(n)
+	err = this.ctx.Trust_Node(n, nil)
 	if err != nil {
 		w.Write([]byte(err.Error()))
 		return
