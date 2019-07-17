@@ -107,8 +107,10 @@ func (this *c_ctrl) handle_message(msg []byte) {
 		this.handle_reply(msg[1:])
 	case protocol.CTRL_HEARTBEAT:
 		this.handle_heartbeat()
+	case protocol.CTRL_TRUST_NODE:
+		this.handle_trust_node(msg[1:])
 	case protocol.CTRL_TRUST_NODE_DATA:
-
+		this.handle_trust_node_data(msg[1:])
 	case protocol.ERR_NULL_MSG:
 		this.log(logger.EXPLOIT, protocol.ERR_RECV_NULL_MSG)
 		this.Close()
@@ -231,6 +233,10 @@ func (this *c_ctrl) Send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
-func (this *c_ctrl) handle_trust() {
+func (this *c_ctrl) handle_trust_node(data []byte) {
+
+}
+
+func (this *c_ctrl) handle_trust_node_data(data []byte) {
 
 }
