@@ -12,11 +12,13 @@ func test_gen_config() *Config {
 	c := &Config{
 		// logger
 		Log_Level: "debug",
+
 		// global
 		DNS_Cache_Deadline: 3 * time.Minute,
 		Timesync_Interval:  15 * time.Minute,
 		Builtin_Dir:        "../app/builtin",
 		Key_Dir:            "../app/key",
+
 		// database
 		Dialect:           test_dialect,
 		DSN:               test_dsn,
@@ -25,11 +27,13 @@ func test_gen_config() *Config {
 		DB_Log_File:       "../app/log/database.log",
 		GORM_Log_File:     "../app/log/gorm.log",
 		GORM_Detailed_Log: false,
+
 		// http server
 		HTTPS_Address:   ":9931",
 		HTTPS_Cert_File: "../app/cert/server.crt",
 		HTTPS_Key_File:  "../app/cert/server.key",
 		Web_Dir:         "../app/web",
 	}
+	c.debug.skip_timesync = true
 	return c
 }

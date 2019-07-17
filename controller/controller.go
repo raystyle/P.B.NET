@@ -20,6 +20,7 @@ const (
 )
 
 type CTRL struct {
+	debug   *debug
 	log_lv  logger.Level
 	db      *gorm.DB
 	db_lg   *db_logger
@@ -70,7 +71,10 @@ func New(c *Config) (*CTRL, error) {
 	if c.GORM_Detailed_Log {
 		db.LogMode(true)
 	}
+	// copy debug config
+	debug := c.debug
 	ctrl := &CTRL{
+		debug:   &debug,
 		log_lv:  lv,
 		db:      db,
 		db_lg:   db_lg,
@@ -146,14 +150,16 @@ func New(c *Config) (*CTRL, error) {
 func (this *CTRL) Main() error {
 	defer func() { this.wait <- struct{}{} }()
 	// first synchronize time
-	err := this.global.Start_Timesync()
-	if err != nil {
-		return this.fatal(err, "synchronize time failed")
+	if !this.debug.skip_timesync {
+		err := this.global.Start_Timesync()
+		if err != nil {
+			return this.fatal(err, "synchronize time failed")
+		}
 	}
 	now := this.global.Now().Format(logger.Time_Layout)
 	this.Println(logger.INFO, "init", "time:", now)
 	// start web server
-	err = this.web.Deploy()
+	err := this.web.Deploy()
 	if err != nil {
 		return this.fatal(err, "deploy web server failed")
 	}

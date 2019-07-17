@@ -4,7 +4,13 @@ import (
 	"time"
 )
 
+type debug struct {
+	skip_timesync bool
+}
+
 type Config struct {
+	debug debug
+
 	// logger
 	Log_Level string `toml:"log_level"`
 
