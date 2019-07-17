@@ -3,9 +3,9 @@ package messages
 import (
 	"github.com/pkg/errors"
 
+	"project/internal/config"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
-	"project/internal/xnet"
 )
 
 const (
@@ -35,14 +35,10 @@ type Host_Info struct {
 }
 
 type Node_Online_Request struct {
-	GUID      []byte
-	Publickey []byte // verify message
-	Kex_Pub   []byte // aes key exchange
-	// about certificate
-	Mode      xnet.Mode
-	Network   string
-	Host_Info Host_Info // online info session aes encrypt
-	// more
+	GUID         []byte
+	Publickey    []byte    // verify message
+	Kex_Pub      []byte    // aes key exchange
+	Host_Info    Host_Info // online info session aes encrypt
 	Request_Time int64
 }
 
@@ -56,7 +52,7 @@ func (this *Node_Online_Request) Validate() error {
 	if len(this.Kex_Pub) != 32 {
 		return errors.New("invalid key exchange publickey size")
 	}
-	return xnet.Check_Mode_Network(this.Mode, this.Network)
+	return nil
 }
 
 type Node_Online_Response struct {
@@ -64,13 +60,11 @@ type Node_Online_Response struct {
 	GUID         []byte
 	Publickey    []byte // verify message
 	Kex_Pub      []byte // aes key exchange
-	Mode         xnet.Mode
-	Network      string
-	Address      string
+	Listeners    []*config.Listener
 	Reply        Online_Result
 	Request_Time int64
 	Reply_Time   int64
-	Certificate  []byte
+	Certificates []byte
 }
 
 func (this *Node_Online_Response) Validate() error {
@@ -80,7 +74,7 @@ func (this *Node_Online_Response) Validate() error {
 	if this.Reply > ONLINE_REFUSED {
 		return errors.New("invalid reply")
 	}
-	if this.Certificate == nil {
+	if this.Certificates == nil {
 		return errors.New("invalid certificate")
 	}
 	return nil
