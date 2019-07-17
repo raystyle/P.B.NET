@@ -39,5 +39,6 @@ func (this *CTRL) Trust_Node(n *bootstrap.Node) error {
 	}
 
 	// calculate aes key
+	// this.global.Key_Exchange()
 	return nil
 }

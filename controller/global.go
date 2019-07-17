@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/global/dnsclient"
 	"project/internal/global/proxyclient"
@@ -104,10 +105,9 @@ func (this *global) Add_Timesync_Client(tag string, c *timesync.Client) error {
 }
 
 func (this *global) Load_Keys(password string) error {
-	this.object_rwm.RLock()
-	o := this.object[ed25519_privatekey]
-	this.object_rwm.RUnlock()
-	if o != nil {
+	this.object_rwm.Lock()
+	defer this.object_rwm.Unlock()
+	if this.object[ed25519_privatekey] != nil {
 		return errors.New("already load keys")
 	}
 	keys, err := Load_CTRL_Keys(this.key_dir+"/ctrl.key", password)
@@ -116,14 +116,18 @@ func (this *global) Load_Keys(password string) error {
 	}
 	// ed25519
 	pri, _ := ed25519.Import_PrivateKey(keys[0])
-	this.object_rwm.Lock()
 	this.object[ed25519_privatekey] = pri
-	this.object_rwm.Unlock()
+	pub, _ := ed25519.Import_PublicKey(pri[32:])
+	this.object[ed25519_publickey] = pub
+	// curve25519
+	p, err := curve25519.Scalar_Base_Mult(pri)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	this.object[curve25519_publickey] = p
 	// aes
 	cryptor, _ := aes.New_CBC_Cryptor(keys[1], keys[2])
-	this.object_rwm.Lock()
 	this.object[aes_cryptor] = cryptor
-	this.object_rwm.Unlock()
 	atomic.StoreInt32(&this.is_load_keys, 1)
 	close(this.wait_load_keys)
 	return nil
@@ -147,6 +151,20 @@ func (this *global) Verify(message, signature []byte) bool {
 	p := this.object[ed25519_publickey].(ed25519.PublicKey)
 	this.object_rwm.RUnlock()
 	return ed25519.Verify(p, message, signature)
+}
+
+func (this *global) Curve25519_Publickey() []byte {
+	this.object_rwm.RLock()
+	p := this.object[curve25519_publickey].([]byte)
+	this.object_rwm.RUnlock()
+	return p
+}
+
+func (this *global) Key_Exchange(key []byte) ([]byte, error) {
+	this.object_rwm.RLock()
+	pri := this.object[ed25519_privatekey].(ed25519.PrivateKey)
+	this.object_rwm.RUnlock()
+	return curve25519.Scalar_Mult(pri, key)
 }
 
 func (this *global) Close() {

@@ -42,6 +42,7 @@ const (
 	// verify controller role & sign message
 	ed25519_privatekey object_key = iota
 	ed25519_publickey
+	curve25519_publickey // for key exchange
 	// encrypt controller broadcast message
 	aes_cryptor
 )
