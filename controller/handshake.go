@@ -40,11 +40,11 @@ func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, act+"failed")
 		}
-		// cacl cert
-		buffer := new(bytes.Buffer)
-		buffer.Write([]byte(this.node.Mode))
-		buffer.Write([]byte(this.node.Network))
-		buffer.Write([]byte(this.node.Address))
+		// verify certificate
+		buffer := bytes.Buffer{}
+		buffer.WriteString(this.node.Mode)
+		buffer.WriteString(this.node.Network)
+		buffer.WriteString(this.node.Address)
 		buffer.Write(this.guid)
 		if bytes.Equal(this.guid, protocol.CTRL_GUID) {
 			const (
