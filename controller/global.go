@@ -160,11 +160,11 @@ func (this *global) Curve25519_Publickey() []byte {
 	return p
 }
 
-func (this *global) Key_Exchange(key []byte) ([]byte, error) {
+func (this *global) Key_Exchange(publickey []byte) ([]byte, error) {
 	this.object_rwm.RLock()
 	pri := this.object[ed25519_privatekey].(ed25519.PrivateKey)
 	this.object_rwm.RUnlock()
-	return curve25519.Scalar_Mult(pri, key)
+	return curve25519.Scalar_Mult(pri, publickey)
 }
 
 func (this *global) Close() {
