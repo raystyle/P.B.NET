@@ -55,27 +55,13 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 		guid:      cfg.Node_GUID,
 		close_log: cfg.Close_Log,
 	}
-	err_chan := make(chan error, 1)
-	go func() {
-		// TODO recover
-		xconn, err := c.handshake(conn)
-		if err != nil {
-			err_chan <- err
-			return
-		}
-		c.conn = xconn
-		close(err_chan)
-	}()
-	select {
-	case err = <-err_chan:
-		if err != nil {
-			_ = conn.Close()
-			return nil, err
-		}
-	case <-time.After(time.Minute):
+	_ = conn.SetDeadline(time.Now().Add(time.Minute))
+	xconn, err := c.handshake(conn)
+	if err != nil {
 		_ = conn.Close()
-		return nil, errors.New("handshake timeout")
+		return nil, errors.WithMessage(err, "handshake failed")
 	}
+	c.conn = xconn
 	// init slot
 	c.slots = make([]*protocol.Slot, protocol.SLOT_SIZE)
 	for i := 0; i < protocol.SLOT_SIZE; i++ {
