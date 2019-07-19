@@ -8,7 +8,6 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/config"
-	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
@@ -42,33 +41,11 @@ func (this *CTRL) Trust_Node(node *bootstrap.Node, listeners []*config.Listener)
 		return err
 	}
 	// issue certificates
-	// sign certificate with node guid
-	buffer := bytes.Buffer{}
-	buffer.WriteString(node.Mode)
-	buffer.WriteString(node.Network)
-	buffer.WriteString(node.Address)
-	buffer.Write(req.GUID)
-	cert_with_node_guid := this.global.Sign(buffer.Bytes())
-	// sign certificate with controller guid
-	buffer.Reset()
-	buffer.WriteString(node.Mode)
-	buffer.WriteString(node.Network)
-	buffer.WriteString(node.Address)
-	buffer.Write(protocol.CTRL_GUID)
-	cert_with_ctrl_guid := this.global.Sign(buffer.Bytes())
-	// pack certificates
-	// [2 byte uint16] size + signature with node guid
-	// [2 byte uint16] size + signature with ctrl guid
-	buffer.Reset()
-	buffer.Write(convert.Uint16_Bytes(uint16(len(cert_with_node_guid))))
-	buffer.Write(cert_with_node_guid)
-	buffer.Write(convert.Uint16_Bytes(uint16(len(cert_with_ctrl_guid))))
-	buffer.Write(cert_with_ctrl_guid)
-	certificates := buffer.Bytes()
+
 	// send response
 	resp := &messages.Node_Online_Response{
-		Listeners:    listeners, // TODO encrypt
-		Certificates: certificates,
+		Listeners: listeners, // TODO encrypt
+		// Certificates: certificates,
 	}
 	b, err := msgpack.Marshal(resp)
 	if err != nil {
