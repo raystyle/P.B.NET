@@ -9,7 +9,7 @@ import (
 	"project/internal/protocol"
 )
 
-func (this *CTRL) issue_certificate(guid []byte, node *bootstrap.Node) []byte {
+func (this *CTRL) issue_certificate(node *bootstrap.Node, guid []byte) []byte {
 	// sign certificate with node guid
 	buffer := bytes.Buffer{}
 	buffer.WriteString(node.Mode)
@@ -32,7 +32,7 @@ func (this *CTRL) issue_certificate(guid []byte, node *bootstrap.Node) []byte {
 	return buffer.Bytes()
 }
 
-func (this *CTRL) verify_certificate(cert, guid []byte, node *bootstrap.Node) bool {
+func (this *CTRL) verify_certificate(cert []byte, node *bootstrap.Node, guid []byte) bool {
 	// if guid = nil, skip verify
 	if guid != nil {
 		reader := bytes.NewReader(cert)
