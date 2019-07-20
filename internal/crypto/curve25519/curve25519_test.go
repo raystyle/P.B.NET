@@ -38,4 +38,8 @@ func Test_Scalar_Base_Mult(t *testing.T) {
 	require.Nil(t, err, err)
 	require.Equal(t, key_c, key_s)
 	t.Log(key_c)
+	// invalid in size
+	c_pub, err = Scalar_Base_Mult(nil)
+	require.NotNil(t, err)
+	require.Nil(t, c_pub)
 }

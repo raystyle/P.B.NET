@@ -14,6 +14,9 @@ var basePoint = []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 var zeros = make([]byte, 32)
 
 func Scalar_Mult(in, base []byte) ([]byte, error) {
+	if len(in) != 32 || len(base) != 32 {
+		return nil, errors.New("invalid in or base size")
+	}
 	var (
 		dst_array  [32]byte
 		in_array   [32]byte
