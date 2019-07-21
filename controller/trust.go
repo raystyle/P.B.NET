@@ -7,14 +7,13 @@ import (
 	"github.com/vmihailenco/msgpack"
 
 	"project/internal/bootstrap"
-	"project/internal/config"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
 )
 
 // Trust_Node is used to trust Genesis Node
-func (this *CTRL) Trust_Node(node *bootstrap.Node, listeners []*config.Listener) error {
+func (this *CTRL) Trust_Node(node *bootstrap.Node) error {
 	c := &client_cfg{Node: node}
 	c.TLS_Config.InsecureSkipVerify = true
 	client, err := new_client(this, c)
@@ -41,17 +40,9 @@ func (this *CTRL) Trust_Node(node *bootstrap.Node, listeners []*config.Listener)
 		return err
 	}
 	// issue certificates
-
+	cert := this.issue_certificate(node, req.GUID)
 	// send response
-	resp := &messages.Node_Online_Response{
-		Listeners: listeners, // TODO encrypt
-		// Certificates: certificates,
-	}
-	b, err := msgpack.Marshal(resp)
-	if err != nil {
-		panic(err)
-	}
-	reply, err = client.Send(protocol.CTRL_TRUST_NODE_DATA, b)
+	reply, err = client.Send(protocol.CTRL_TRUST_NODE_DATA, cert)
 	if err != nil {
 		return errors.Wrap(err, "send trust node data failed")
 	}

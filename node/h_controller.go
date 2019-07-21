@@ -7,8 +7,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/vmihailenco/msgpack"
+
 	"project/internal/convert"
 	"project/internal/logger"
+	"project/internal/messages"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
@@ -108,7 +111,7 @@ func (this *c_ctrl) handle_message(msg []byte) {
 	case protocol.CTRL_HEARTBEAT:
 		this.handle_heartbeat()
 	case protocol.CTRL_TRUST_NODE:
-		this.handle_trust_node(msg[1:])
+		this.handle_trust_node()
 	case protocol.CTRL_TRUST_NODE_DATA:
 		this.handle_trust_node_data(msg[1:])
 	case protocol.ERR_NULL_MSG:
@@ -233,8 +236,15 @@ func (this *c_ctrl) Send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
-func (this *c_ctrl) handle_trust_node(data []byte) {
-
+func (this *c_ctrl) handle_trust_node() {
+	req := &messages.Node_Online_Request{
+		GUID: this.ctx.global.GUID(),
+	}
+	b, err := msgpack.Marshal(req)
+	if err != nil {
+		panic(err)
+	}
+	b[0] = 0
 }
 
 func (this *c_ctrl) handle_trust_node_data(data []byte) {

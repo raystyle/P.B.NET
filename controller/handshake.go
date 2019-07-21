@@ -18,7 +18,7 @@ func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "receive certificate failed")
 	}
-	if !this.ctx.verify_certificate(cert, this.guid, this.node) {
+	if !this.ctx.verify_certificate(cert, this.node, this.guid) {
 		err = errors.New("invalid certificate")
 		this.log(logger.EXPLOIT, err)
 		return nil, err
