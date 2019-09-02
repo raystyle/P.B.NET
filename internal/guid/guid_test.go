@@ -5,29 +5,29 @@ import (
 	"time"
 )
 
-func Test_GUID(t *testing.T) {
-	generator := New(16, nil)
+func TestGUID(t *testing.T) {
+	g := New(16, nil)
 	for i := 0; i < 4; i++ {
-		t.Log(generator.Get())
+		t.Log(g.Get())
 	}
-	generator.Close()
+	g.Close()
 	// now
-	generator = New(16, time.Now)
+	g = New(16, time.Now)
 	for i := 0; i < 4; i++ {
-		t.Log(generator.Get())
+		t.Log(g.Get())
 	}
-	generator.Close()
+	g.Close()
 	// 0 size
-	generator = New(-1, time.Now)
+	g = New(-1, time.Now)
 	for i := 0; i < 4; i++ {
-		t.Log(generator.Get())
+		t.Log(g.Get())
 	}
-	generator.Close()
+	g.Close()
 	// twice
-	generator.Close()
+	g.Close()
 }
 
-func Benchmark_Get(b *testing.B) {
+func BenchmarkGenerator_Get(b *testing.B) {
 	g := New(512, nil)
 	b.ReportAllocs()
 	b.ResetTimer()

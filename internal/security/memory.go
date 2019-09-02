@@ -11,45 +11,45 @@ var (
 )
 
 func init() {
-	memory = New_Memory()
-	Padding_Memory()
-	Flush_Memory()
+	memory = NewMemory()
+	PaddingMemory()
+	FlushMemory()
 }
 
 type Memory struct {
 	random  *random.Generator
 	padding map[string][]byte
-	m       sync.Mutex
+	mutex   sync.Mutex
 }
 
-func New_Memory() *Memory {
+func NewMemory() *Memory {
 	m := &Memory{
-		random:  random.New(),
+		random:  random.New(0),
 		padding: make(map[string][]byte),
 	}
 	m.Padding()
 	return m
 }
 
-func (this *Memory) Padding() {
-	this.m.Lock()
+func (m *Memory) Padding() {
+	m.mutex.Lock()
 	for i := 0; i < 16; i++ {
-		this.padding[this.random.String(8)] =
-			this.random.Bytes(8 + this.random.Int(256))
+		m.padding[m.random.String(8)] =
+			m.random.Bytes(8 + m.random.Int(256))
 	}
-	this.m.Unlock()
+	m.mutex.Unlock()
 }
 
-func (this *Memory) Flush() {
-	this.m.Lock()
-	this.padding = make(map[string][]byte)
-	this.m.Unlock()
+func (m *Memory) Flush() {
+	m.mutex.Lock()
+	m.padding = make(map[string][]byte)
+	m.mutex.Unlock()
 }
 
-func Padding_Memory() {
+func PaddingMemory() {
 	memory.Padding()
 }
 
-func Flush_Memory() {
+func FlushMemory() {
 	memory.Flush()
 }

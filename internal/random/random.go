@@ -11,60 +11,63 @@ var (
 )
 
 func init() {
-	generator = New()
+	generator = New(0)
 }
 
 type Generator struct {
-	seed *rand.Rand
+	rand *rand.Rand
 	m    sync.Mutex
 }
 
-func New() *Generator {
+func New(seed int64) *Generator {
+	if seed == 0 {
+		seed = time.Now().UnixNano()
+	}
 	return &Generator{
-		seed: rand.New(rand.NewSource(time.Now().UnixNano())),
+		rand: rand.New(rand.NewSource(seed)),
 	}
 }
 
 // no "|"
-func (this *Generator) String(n int) string {
+func (g *Generator) String(n int) string {
 	if n < 1 {
 		return ""
 	}
 	result := make([]rune, n)
 	for i := 0; i < n; i++ {
-		this.m.Lock()
-		r := this.seed.Intn(90)
-		this.m.Unlock()
+		g.m.Lock()
+		r := g.rand.Intn(90)
+		g.m.Unlock()
 		result[i] = rune(33 + r)
 	}
 	return string(result)
 }
 
-func (this *Generator) Bytes(n int) []byte {
+func (g *Generator) Bytes(n int) []byte {
 	if n < 1 {
 		return nil
 	}
 	result := make([]byte, n)
 	for i := 0; i < n; i++ {
-		this.m.Lock()
-		r := this.seed.Intn(256)
-		this.m.Unlock()
+		g.m.Lock()
+		r := g.rand.Intn(256)
+		g.m.Unlock()
 		result[i] = byte(r)
 	}
 	return result
 }
 
 // only number and A-Z a-z
-func (this *Generator) Cookie(n int) string {
+func (g *Generator) Cookie(n int) string {
 	if n < 1 {
 		return ""
 	}
 	result := make([]rune, n)
 	for i := 0; i < n; i++ {
-		this.m.Lock()
+		g.m.Lock()
 		// after space
-		r := 33 + this.seed.Intn(90)
-		this.m.Unlock()
+		r := 33 + g.rand.Intn(90)
+		g.m.Unlock()
 		switch {
 		case r > 47 && r < 58: //  48-57 number
 		case r > 64 && r < 91: //  65-90 A-Z
@@ -78,27 +81,27 @@ func (this *Generator) Cookie(n int) string {
 	return string(result)
 }
 
-func (this *Generator) Int(n int) int {
+func (g *Generator) Int(n int) int {
 	if n < 1 {
 		return 0
 	}
-	this.m.Lock()
-	r := this.seed.Intn(n)
-	this.m.Unlock()
+	g.m.Lock()
+	r := g.rand.Intn(n)
+	g.m.Unlock()
 	return r
 }
 
-func (this *Generator) Int64() int64 {
-	this.m.Lock()
-	r := this.seed.Int63()
-	this.m.Unlock()
+func (g *Generator) Int64() int64 {
+	g.m.Lock()
+	r := g.rand.Int63()
+	g.m.Unlock()
 	return r
 }
 
-func (this *Generator) Uint64() uint64 {
-	this.m.Lock()
-	r := this.seed.Uint64()
-	this.m.Unlock()
+func (g *Generator) Uint64() uint64 {
+	g.m.Lock()
+	r := g.rand.Uint64()
+	g.m.Unlock()
 	return r
 }
 

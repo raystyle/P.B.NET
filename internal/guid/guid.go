@@ -19,32 +19,32 @@ import (
 const SIZE int = 52
 
 type Generator struct {
-	now         func() time.Time
-	random      *random.Generator
-	head        []byte
-	id          uint64
-	guid_queue  chan []byte
-	stop_signal chan struct{}
-	wg          sync.WaitGroup
-	close_once  sync.Once
+	now        func() time.Time
+	random     *random.Generator
+	head       []byte
+	id         uint64 // self add
+	guidQueue  chan []byte
+	closeOnce  sync.Once
+	stopSignal chan struct{}
+	wg         sync.WaitGroup
 }
 
 // if now is nil use time.Now
 func New(size int, now func() time.Time) *Generator {
 	g := &Generator{
-		random:      random.New(),
-		stop_signal: make(chan struct{}),
+		stopSignal: make(chan struct{}),
 	}
 	if size < 1 {
-		g.guid_queue = make(chan []byte, 1)
+		g.guidQueue = make(chan []byte, 1)
 	} else {
-		g.guid_queue = make(chan []byte, size)
+		g.guidQueue = make(chan []byte, size)
 	}
-	if now != nil {
+	if now != nil { // <security>
 		g.now = now
 	} else {
 		g.now = time.Now
 	}
+	g.random = random.New(g.now().Unix())
 	// head
 	ip := "0.0.0.0"
 	addrs, err := net.InterfaceAddrs()
@@ -60,47 +60,46 @@ func New(size int, now func() time.Time) *Generator {
 	buffer.WriteString(ip)
 	buffer.WriteString(hostname)
 	buffer.WriteString(strconv.Itoa(os.Getpid()))
-	buffer.Write(random.New().Bytes(64)) // <security>
+	// <security>
+	buffer.Write(random.New(g.now().Unix()).Bytes(64))
 	g.head = sha256.Bytes(buffer.Bytes())
 	g.wg.Add(1)
-	go g.generate_loop()
+	go g.generateLoop()
 	return g
 }
 
-func (this *Generator) Get() []byte {
-	guid := <-this.guid_queue
+func (g *Generator) Get() []byte {
+	guid := <-g.guidQueue
 	// chan not closed
 	if len(guid) != 0 {
-		copy(guid[36:44], convert.Int64_Bytes(this.now().Unix()))
+		copy(guid[36:44], convert.Int64ToBytes(g.now().Unix()))
 	}
 	return guid
 }
 
-func (this *Generator) Close() {
-	this.close_once.Do(func() {
-		close(this.stop_signal)
-		// clean and prevent block generate_loop()
-		for range this.guid_queue {
-		}
-		this.wg.Wait()
+func (g *Generator) Close() {
+	g.closeOnce.Do(func() {
+		close(g.stopSignal)
+		g.wg.Wait()
 	})
 }
 
-func (this *Generator) generate_loop() {
+func (g *Generator) generateLoop() {
+	defer func() {
+		close(g.guidQueue)
+		g.wg.Done()
+	}()
 	for {
+		guid := make([]byte, SIZE)
+		copy(guid, g.head)
+		copy(guid[32:36], g.random.Bytes(4))
+		// reserve timestamp
+		copy(guid[44:52], convert.Uint64ToBytes(g.id))
 		select {
-		case <-this.stop_signal:
-			close(this.guid_queue)
-			this.wg.Done()
+		case <-g.stopSignal:
 			return
-		default:
-			guid := make([]byte, SIZE)
-			copy(guid, this.head)
-			copy(guid[32:36], this.random.Bytes(4))
-			// timestamp
-			copy(guid[44:52], convert.Uint64_Bytes(this.id))
-			this.guid_queue <- guid
-			this.id += 1
+		case g.guidQueue <- guid:
+			g.id += 1
 		}
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Random(t *testing.T) {
+func TestRandom(t *testing.T) {
 	s := String(10)
 	require.True(t, len(s) == 10)
 	t.Log(s)
@@ -33,7 +33,7 @@ func Test_Random(t *testing.T) {
 	require.True(t, Int(-1) == 0)
 }
 
-func Benchmark_Bytes(b *testing.B) {
+func BenchmarkGeneratorBytes(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		Bytes(16)
