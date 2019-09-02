@@ -18,7 +18,7 @@ func Test_Scalar_Base_Mult(t *testing.T) {
 	in[0] = 1
 	for i := 0; i < 200; i++ {
 		out, err = Scalar_Base_Mult(in)
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		in, out = out, in
 	}
 	result := hex.EncodeToString(in)
@@ -27,15 +27,15 @@ func Test_Scalar_Base_Mult(t *testing.T) {
 	c_pri := make([]byte, 32)
 	c_pri[0] = 199
 	c_pub, err := Scalar_Base_Mult(c_pri)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	s_pri := make([]byte, 32)
 	s_pri[0] = 2
 	s_pub, err := Scalar_Base_Mult(s_pri)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	key_c, err := Scalar_Mult(c_pri, s_pub)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	key_s, err := Scalar_Mult(s_pri, c_pub)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	require.Equal(t, key_c, key_s)
 	t.Log(key_c)
 	// invalid in size

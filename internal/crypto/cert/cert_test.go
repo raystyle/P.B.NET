@@ -19,9 +19,9 @@ import (
 func Test_Generate_CA(t *testing.T) {
 	ca_cert, ca_key := Generate_CA(&Config{})
 	_, err := Parse(ca_cert)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	_, err = rsa.Import_PrivateKey_PEM(ca_key)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	// invalid pem
 	_, err = Parse(nil)
 	require.Equal(t, err, ERR_INVALID_PEM_BLOCK, err)
@@ -35,15 +35,15 @@ func Test_Generate_CA(t *testing.T) {
 func Test_Generate(t *testing.T) {
 	ca_cert, ca_key := Generate_CA(new(Config))
 	parent, err := Parse(ca_cert)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	ca_pri, err := rsa.Import_PrivateKey_PEM(ca_key)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	c := &Config{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
 	cert, key, err := Generate(parent, ca_pri, c)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	s := &http.Server{}
 	port := mock_https_server(t, s, cert, key)
 	defer func() { _ = s.Close() }()
@@ -52,12 +52,12 @@ func Test_Generate(t *testing.T) {
 	client := http.Client{Transport: &http.Transport{TLSClientConfig: tls_config}}
 	get := func(hostname string) {
 		resp, err := client.Get(fmt.Sprintf("https://%s:%s/", hostname, port))
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		defer func() {
 			_ = resp.Body.Close()
 		}()
 		b, err := ioutil.ReadAll(resp.Body)
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		t.Log(string(b))
 	}
 	get("localhost")
@@ -71,7 +71,7 @@ func Test_Generate_Self(t *testing.T) {
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
 	cert, key, err := Generate(nil, nil, c)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	s := &http.Server{}
 	port := mock_https_server(t, s, cert, key)
 	defer func() { _ = s.Close() }()
@@ -81,18 +81,18 @@ func Test_Generate_Self(t *testing.T) {
 	require.NotNil(t, err)
 	// add trust
 	cer, err := Parse(cert)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	tls_config := &tls.Config{RootCAs: x509.NewCertPool()}
 	tls_config.RootCAs.AddCert(cer)
 	client = http.Client{Transport: &http.Transport{TLSClientConfig: tls_config}}
 	get := func(hostname string) {
 		resp, err := client.Get(fmt.Sprintf("https://%s:%s/", hostname, port))
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		defer func() {
 			_ = resp.Body.Close()
 		}()
 		b, err := ioutil.ReadAll(resp.Body)
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		t.Log(string(b))
 	}
 	get("localhost")
@@ -103,9 +103,9 @@ func Test_Generate_Self(t *testing.T) {
 func Test_Invalid(t *testing.T) {
 	ca_cert, ca_key := Generate_CA(new(Config))
 	parent, err := Parse(ca_cert)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	privatekey, err := rsa.Import_PrivateKey_PEM(ca_key)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	// invalid privatekey
 	privatekey.PublicKey.N.SetBytes(nil)
 	_, _, err = Generate(parent, privatekey, new(Config))
@@ -114,9 +114,9 @@ func Test_Invalid(t *testing.T) {
 
 func mock_https_server(t *testing.T, s *http.Server, cert, key []byte) string {
 	l, err := net.Listen("tcp", ":0")
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	certificate, err := tls.X509KeyPair(cert, key)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	s.TLSConfig = &tls.Config{Certificates: []tls.Certificate{certificate}}
 	data := []byte("hello")
 	server_mux := http.NewServeMux()
@@ -138,6 +138,6 @@ func mock_https_server(t *testing.T, s *http.Server, cert, key []byte) string {
 	}
 	// get port
 	_, port, err := net.SplitHostPort(l.Addr().String())
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	return port
 }

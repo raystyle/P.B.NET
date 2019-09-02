@@ -8,36 +8,36 @@ import (
 )
 
 const (
-	BIT128  = 16
-	BIT192  = 24
-	BIT256  = 32
-	IV_SIZE = 16
+	Bit128 = 16
+	Bit192 = 24
+	Bit256 = 32
+	IVSize = 16
 )
 
 var (
-	ERR_INVALID_IV_SIZE    = errors.New("invalid iv size")
-	ERR_NO_DATA            = errors.New("no data")
-	ERR_INVALID_CIPHERDATA = errors.New("invalid cipherdata")
-	ERR_UNPADDING          = errors.New("unpadding error")
+	ErrInvalidIVSize     = errors.New("invalid iv size")
+	ErrNoData            = errors.New("no data")
+	ErrInvalidCipherData = errors.New("invalid cipher data")
+	ErrUnpadding         = errors.New("unpadding error")
 )
 
-type CBC_Cryptor struct {
+type CBC struct {
 	key   []byte
 	iv    []byte
 	block cipher.Block
 }
 
-func New_CBC_Cryptor(key, iv []byte) (*CBC_Cryptor, error) {
-	if len(iv) != IV_SIZE {
-		return nil, ERR_INVALID_IV_SIZE
+func NewCBC(key, iv []byte) (*CBC, error) {
+	if len(iv) != IVSize {
+		return nil, ErrInvalidIVSize
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	c := &CBC_Cryptor{
+	c := &CBC{
 		key:   make([]byte, len(key)),
-		iv:    make([]byte, IV_SIZE),
+		iv:    make([]byte, IVSize),
 		block: block,
 	}
 	copy(c.key, key)
@@ -45,63 +45,63 @@ func New_CBC_Cryptor(key, iv []byte) (*CBC_Cryptor, error) {
 	return c, nil
 }
 
-func (this *CBC_Cryptor) Encrypt(plaindata []byte) ([]byte, error) {
+func (c *CBC) Encrypt(plaindata []byte) ([]byte, error) {
 	l := len(plaindata)
 	if l == 0 {
-		return nil, ERR_NO_DATA
+		return nil, ErrNoData
 	}
-	padding := IV_SIZE - l%IV_SIZE
+	padding := IVSize - l%IVSize
 	plaindata = append(plaindata, bytes.Repeat([]byte{byte(padding)}, padding)...)
-	encrypter := cipher.NewCBCEncrypter(this.block, this.iv)
+	encrypter := cipher.NewCBCEncrypter(c.block, c.iv)
 	cipherdata := make([]byte, len(plaindata))
 	encrypter.CryptBlocks(cipherdata, plaindata)
 	return cipherdata, nil
 }
 
-func (this *CBC_Cryptor) Decrypt(cipherdata []byte) ([]byte, error) {
+func (c *CBC) Decrypt(cipherdata []byte) ([]byte, error) {
 	l := len(cipherdata)
 	if l == 0 {
-		return nil, ERR_NO_DATA
+		return nil, ErrNoData
 	}
-	if l < IV_SIZE {
-		return nil, ERR_INVALID_CIPHERDATA
+	if l < IVSize {
+		return nil, ErrInvalidCipherData
 	}
-	if l%IV_SIZE != 0 {
-		return nil, ERR_INVALID_CIPHERDATA
+	if l%IVSize != 0 {
+		return nil, ErrInvalidCipherData
 	}
-	decrypter := cipher.NewCBCDecrypter(this.block, this.iv)
+	decrypter := cipher.NewCBCDecrypter(c.block, c.iv)
 	plaindata := make([]byte, l)
 	decrypter.CryptBlocks(plaindata, cipherdata)
 	length := len(plaindata)
 	unpadding := int(plaindata[length-1])
 	if length-unpadding < 0 {
-		return nil, ERR_UNPADDING
+		return nil, ErrUnpadding
 	}
 	return plaindata[:length-unpadding], nil
 }
 
-func (this *CBC_Cryptor) Key_IV() ([]byte, []byte) {
-	key := make([]byte, len(this.key))
-	iv := make([]byte, IV_SIZE)
-	copy(key, this.key)
-	copy(iv, this.iv)
+func (c *CBC) KeyIV() ([]byte, []byte) {
+	key := make([]byte, len(c.key))
+	iv := make([]byte, IVSize)
+	copy(key, c.key)
+	copy(iv, c.iv)
 	return key, iv
 }
 
-func CBC_Encrypt(plaindata, key, iv []byte) ([]byte, error) {
+func CBCEncrypt(plaindata, key, iv []byte) ([]byte, error) {
 	l := len(plaindata)
 	if l == 0 {
-		return nil, ERR_NO_DATA
+		return nil, ErrNoData
 	}
-	if len(iv) != IV_SIZE {
-		return nil, ERR_INVALID_IV_SIZE
+	if len(iv) != IVSize {
+		return nil, ErrInvalidIVSize
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
 	// PKCS5
-	padding := IV_SIZE - l%IV_SIZE
+	padding := IVSize - l%IVSize
 	plaindata = append(plaindata, bytes.Repeat([]byte{byte(padding)}, padding)...)
 	cipherdata := make([]byte, len(plaindata))
 	encrypter := cipher.NewCBCEncrypter(block, iv)
@@ -109,23 +109,23 @@ func CBC_Encrypt(plaindata, key, iv []byte) ([]byte, error) {
 	return cipherdata, nil
 }
 
-func CBC_Decrypt(cipherdata, key, iv []byte) ([]byte, error) {
+func CBCDecrypt(cipherdata, key, iv []byte) ([]byte, error) {
 	l := len(cipherdata)
 	if l == 0 {
-		return nil, ERR_NO_DATA
+		return nil, ErrNoData
 	}
-	if len(iv) != IV_SIZE {
-		return nil, ERR_INVALID_IV_SIZE
+	if len(iv) != IVSize {
+		return nil, ErrInvalidIVSize
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	if l < IV_SIZE {
-		return nil, ERR_INVALID_CIPHERDATA
+	if l < IVSize {
+		return nil, ErrInvalidCipherData
 	}
-	if l%IV_SIZE != 0 {
-		return nil, ERR_INVALID_CIPHERDATA
+	if l%IVSize != 0 {
+		return nil, ErrInvalidCipherData
 	}
 	plaindata := make([]byte, l)
 	decrypter := cipher.NewCBCDecrypter(block, iv)
@@ -134,7 +134,7 @@ func CBC_Decrypt(cipherdata, key, iv []byte) ([]byte, error) {
 	length := len(plaindata)
 	unpadding := int(plaindata[length-1])
 	if length-unpadding < 0 {
-		return nil, ERR_UNPADDING
+		return nil, ErrUnpadding
 	}
 	return plaindata[:length-unpadding], nil
 }

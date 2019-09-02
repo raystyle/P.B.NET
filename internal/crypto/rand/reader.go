@@ -3,6 +3,7 @@ package rand
 import (
 	"crypto/rand"
 	"io"
+	"time"
 
 	"project/internal/random"
 )
@@ -15,7 +16,7 @@ func init() {
 
 type reader struct{}
 
-func (this reader) Read(b []byte) (int, error) {
+func (r reader) Read(b []byte) (int, error) {
 	l := len(b)
 	size := 4 * l
 	buffer := make([]byte, size)
@@ -23,9 +24,9 @@ func (this reader) Read(b []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	generator := random.New()
+	g := random.New(time.Now().Unix())
 	for i := 0; i < l; i++ {
-		b[i] = buffer[generator.Int(size)]
+		b[i] = buffer[g.Int(size)]
 	}
 	return l, nil
 }
