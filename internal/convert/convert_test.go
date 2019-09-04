@@ -27,7 +27,7 @@ func TestConvert(t *testing.T) {
 	if !bytes.Equal(Float32ToBytes(float32(123.123)), []byte{66, 246, 62, 250}) {
 		t.Fatal("Float32ToBytes() invalid number")
 	}
-	if !bytes.Equal(Float64ToBytes(float64(123.123)), []byte{64, 94, 199, 223, 59, 100, 90, 29}) {
+	if !bytes.Equal(Float64ToBytes(123.123), []byte{64, 94, 199, 223, 59, 100, 90, 29}) {
 		t.Fatal("Float64ToBytes() invalid number")
 	}
 	if BytesToInt16([]byte{1, 2}) != 0x0102 {
