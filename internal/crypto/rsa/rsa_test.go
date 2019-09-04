@@ -8,23 +8,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_RSA(t *testing.T) {
-	privatekey, err := Generate_Key(2048)
+func TestRSA(t *testing.T) {
+	privatekey, err := GenerateKey(2048)
 	require.NoError(t, err)
 	file, err := ioutil.ReadFile("rsa.key")
 	require.NoError(t, err)
-	_, err = Import_PrivateKey_PEM(file)
+	_, err = ImportPrivateKeyPEM(file)
 	require.NoError(t, err)
-	_, err = Import_PrivateKey_PEM(nil)
-	require.Equal(t, err, ERR_INVALID_PEM_BLOCK, err)
-	privatekey_bytes := Export_PrivateKey(privatekey)
-	_, err = Import_PrivateKey(privatekey_bytes)
+	_, err = ImportPrivateKeyPEM(nil)
+	require.Equal(t, err, ErrInvalidPEMBlock, err)
+	privatekeyBytes := ExportPrivateKey(privatekey)
+	_, err = ImportPrivateKey(privatekeyBytes)
 	require.NoError(t, err)
 	publickey := &privatekey.PublicKey
-	publickey_bytes := Export_PublicKey(publickey)
-	_, err = Import_PublicKey(publickey_bytes)
+	publickeyBytes := ExportPublicKey(publickey)
+	_, err = ImportPublicKey(publickeyBytes)
 	require.NoError(t, err)
-	_, err = Import_PublicKey(nil)
+	_, err = ImportPublicKey(nil)
 	require.NotNil(t, err)
 	signature, err := Sign(privatekey, file)
 	require.NoError(t, err)
@@ -39,25 +39,25 @@ func Test_RSA(t *testing.T) {
 	require.Equal(t, plaindata, data, "wrong data")
 }
 
-func Benchmark_Sign(b *testing.B) {
-	privatekey, err := Generate_Key(2048)
-	require.Nil(b, err, err)
+func BenchmarkSign(b *testing.B) {
+	privatekey, err := GenerateKey(2048)
+	require.NoError(b, err)
 	data := bytes.Repeat([]byte{0}, 4096)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = Sign(privatekey, data)
 		// _, err := Sign(privatekey, data)
-		// require.Nil(b, err, err)
+		// require.NoError(b, err)
 	}
 }
 
-func Benchmark_Verify(b *testing.B) {
-	privatekey, err := Generate_Key(2048)
-	require.Nil(b, err, err)
+func BenchmarkVerify(b *testing.B) {
+	privatekey, err := GenerateKey(2048)
+	require.NoError(b, err)
 	data := bytes.Repeat([]byte{0}, 256)
 	signature, err := Sign(privatekey, data)
-	require.Nil(b, err, err)
+	require.NoError(b, err)
 	publickey := &privatekey.PublicKey
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -68,9 +68,9 @@ func Benchmark_Verify(b *testing.B) {
 	b.StopTimer()
 }
 
-func Benchmark_Sign_Verify(b *testing.B) {
-	privatekey, err := Generate_Key(2048)
-	require.Nil(b, err, err)
+func BenchmarkSignVerify(b *testing.B) {
+	privatekey, err := GenerateKey(2048)
+	require.NoError(b, err)
 	data := bytes.Repeat([]byte{0}, 256)
 	publickey := &privatekey.PublicKey
 	b.ReportAllocs()
@@ -79,7 +79,7 @@ func Benchmark_Sign_Verify(b *testing.B) {
 		signature, _ := Sign(privatekey, data)
 		Verify(publickey, data, signature)
 		// signature, err := Sign(privatekey, data)
-		// require.Nil(b, err, err)
+		// require.NoError(b, err)
 		// require.True(b, Verify(publickey, data, signature), "verify failed")
 	}
 	b.StopTimer()

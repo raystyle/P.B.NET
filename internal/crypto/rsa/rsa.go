@@ -12,37 +12,37 @@ import (
 )
 
 var (
-	ERR_INVALID_PEM_BLOCK = errors.New("invalid PEM block")
+	ErrInvalidPEMBlock = errors.New("invalid PEM block")
 )
 
 type PublicKey = rsa.PublicKey
 type PrivateKey = rsa.PrivateKey
 
-func Generate_Key(bits int) (*PrivateKey, error) {
+func GenerateKey(bits int) (*PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, bits)
 }
 
-func Import_PrivateKey_PEM(pemdata []byte) (*PrivateKey, error) {
-	block, _ := pem.Decode(pemdata)
+func ImportPrivateKeyPEM(data []byte) (*PrivateKey, error) {
+	block, _ := pem.Decode(data)
 	if block == nil {
-		return nil, ERR_INVALID_PEM_BLOCK
+		return nil, ErrInvalidPEMBlock
 	}
 	return x509.ParsePKCS1PrivateKey(block.Bytes)
 }
 
-func Import_PrivateKey(privatekey []byte) (*PrivateKey, error) {
+func ImportPrivateKey(privatekey []byte) (*PrivateKey, error) {
 	return x509.ParsePKCS1PrivateKey(privatekey)
 }
 
-func Export_PrivateKey(p *rsa.PrivateKey) []byte {
+func ExportPrivateKey(p *rsa.PrivateKey) []byte {
 	return x509.MarshalPKCS1PrivateKey(p)
 }
 
-func Import_PublicKey(publickey []byte) (*PublicKey, error) {
+func ImportPublicKey(publickey []byte) (*PublicKey, error) {
 	return x509.ParsePKCS1PublicKey(publickey)
 }
 
-func Export_PublicKey(p *PublicKey) []byte {
+func ExportPublicKey(p *PublicKey) []byte {
 	return x509.MarshalPKCS1PublicKey(p)
 }
 
