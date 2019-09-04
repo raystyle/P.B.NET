@@ -35,9 +35,9 @@ func TestAES(t *testing.T) {
 	require.Equal(t, err, ErrInvalidIVSize, err)
 	// invalid key
 	_, err = CBCEncrypt(data, nil, iv)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	_, err = CBCDecrypt(data, nil, iv)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	// invalid data ErrInvalidCipherData
 	_, err = CBCDecrypt(bytes.Repeat([]byte{0}, 13), key128, iv)
 	require.Equal(t, err, ErrInvalidCipherData, err)
@@ -80,10 +80,10 @@ func TestCBC(t *testing.T) {
 	f(key256)
 	// invalid key
 	cbc, err := NewCBC(nil, iv)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	// invalid iv
 	cbc, err = NewCBC(key128, nil)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	// no data
 	cbc, err = NewCBC(key128, iv)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func BenchmarkCBC_Encrypt_256(b *testing.B) {
 func benchmarkCBCEncrypt(b *testing.B, data, key []byte) {
 	iv := bytes.Repeat([]byte{0}, IVSize)
 	cbc, err := NewCBC(key, iv)
-	require.Nil(b, err, err)
+	require.NoError(b, err)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -129,7 +129,7 @@ func BenchmarkCBC_Decrypt_128(b *testing.B) {
 	key := bytes.Repeat([]byte{0}, 16)
 	iv := bytes.Repeat([]byte{0}, IVSize)
 	cipherdata, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
-	require.Nil(b, err, err)
+	require.NoError(b, err)
 	benchmarkCBCDecrypt(b, cipherdata, key, iv)
 }
 
@@ -137,13 +137,13 @@ func BenchmarkCBC_Decrypt_256(b *testing.B) {
 	key := bytes.Repeat([]byte{0}, 32)
 	iv := bytes.Repeat([]byte{0}, IVSize)
 	cipherdata, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
-	require.Nil(b, err, err)
+	require.NoError(b, err)
 	benchmarkCBCDecrypt(b, cipherdata, key, iv)
 }
 
 func benchmarkCBCDecrypt(b *testing.B, data, key, iv []byte) {
 	c, err := NewCBC(key, iv)
-	require.Nil(b, err, err)
+	require.NoError(b, err)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
