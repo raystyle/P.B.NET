@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test_Flush_Slice(t *testing.T) {
+func TestFlushBytes(t *testing.T) {
 	b := []byte{1, 2, 3, 4}
 	FlushBytes(b)
 	if !bytes.Equal(b, bytes.Repeat([]byte{0}, 4)) {

@@ -33,7 +33,7 @@ func TestRandom(t *testing.T) {
 	require.True(t, Int(-1) == 0)
 }
 
-func BenchmarkGeneratorBytes(b *testing.B) {
+func BenchmarkGenerator_Bytes(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		Bytes(16)
