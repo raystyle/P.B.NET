@@ -25,7 +25,7 @@ func TestRSA(t *testing.T) {
 	_, err = ImportPublicKey(publickeyBytes)
 	require.NoError(t, err)
 	_, err = ImportPublicKey(nil)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	signature, err := Sign(privatekey, file)
 	require.NoError(t, err)
 	require.True(t, Verify(publickey, file, signature), "invalid data")

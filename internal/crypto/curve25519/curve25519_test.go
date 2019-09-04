@@ -9,7 +9,7 @@ import (
 
 const expectedHex = "89161fde887b2b53de549af483940106ecc114d6982daa98256de23bdf77661a"
 
-func Test_Scalar_Base_Mult(t *testing.T) {
+func TestScalarBaseMult(t *testing.T) {
 	var (
 		out []byte
 		err error
@@ -17,29 +17,29 @@ func Test_Scalar_Base_Mult(t *testing.T) {
 	in := make([]byte, 32)
 	in[0] = 1
 	for i := 0; i < 200; i++ {
-		out, err = Scalar_Base_Mult(in)
+		out, err = ScalarBaseMult(in)
 		require.NoError(t, err)
 		in, out = out, in
 	}
 	result := hex.EncodeToString(in)
 	require.Equal(t, expectedHex, result)
 	// key exchange
-	c_pri := make([]byte, 32)
-	c_pri[0] = 199
-	c_pub, err := Scalar_Base_Mult(c_pri)
+	cPri := make([]byte, 32)
+	cPri[0] = 199
+	cPub, err := ScalarBaseMult(cPri)
 	require.NoError(t, err)
-	s_pri := make([]byte, 32)
-	s_pri[0] = 2
-	s_pub, err := Scalar_Base_Mult(s_pri)
+	sPri := make([]byte, 32)
+	sPri[0] = 2
+	sPub, err := ScalarBaseMult(sPri)
 	require.NoError(t, err)
-	key_c, err := Scalar_Mult(c_pri, s_pub)
+	cKey, err := ScalarMult(cPri, sPub)
 	require.NoError(t, err)
-	key_s, err := Scalar_Mult(s_pri, c_pub)
+	sKey, err := ScalarMult(sPri, cPub)
 	require.NoError(t, err)
-	require.Equal(t, key_c, key_s)
-	t.Log(key_c)
+	require.Equal(t, cKey, sKey)
+	t.Log(cKey)
 	// invalid in size
-	c_pub, err = Scalar_Base_Mult(nil)
-	require.NotNil(t, err)
-	require.Nil(t, c_pub)
+	cPub, err = ScalarBaseMult(nil)
+	require.NoError(t, err)
+	require.Nil(t, cPub)
 }

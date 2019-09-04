@@ -1,68 +1,67 @@
 package ed25519
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"io"
-
-	"golang.org/x/crypto/ed25519"
 
 	"project/internal/crypto/rand"
 )
 
 const (
-	PublicKey_Size  = 32
-	PrivateKey_Size = 64
-	Signature_Size  = 64
-	Seed_Size       = 32
+	PublicKeySize  = 32
+	PrivateKeySize = 64
+	SignatureSize  = 64
+	SeedSize       = 32
 )
 
 var (
-	ERR_INVALID_PRIVATEKEY = errors.New("invalid private key size")
-	ERR_INVALID_PUBLICKEY  = errors.New("invalid public key size")
+	ErrInvalidPrivatekey = errors.New("invalid private key size")
+	ErrInvalidPublickey  = errors.New("invalid public key size")
 )
 
 type PrivateKey []byte
 
-func (this PrivateKey) PublicKey() PublicKey {
-	publicKey := make([]byte, PublicKey_Size)
-	copy(publicKey, this[32:])
-	return PublicKey(publicKey)
+func (p PrivateKey) PublicKey() PublicKey {
+	publicKey := make([]byte, PublicKeySize)
+	copy(publicKey, p[32:])
+	return publicKey
 }
 
 type PublicKey []byte
 
-func Generate_Key() (PrivateKey, error) {
-	seed := make([]byte, Seed_Size)
+func GenerateKey() (PrivateKey, error) {
+	seed := make([]byte, SeedSize)
 	_, err := io.ReadFull(rand.Reader, seed)
 	if err != nil {
 		return nil, err
 	}
-	return New_Key_From_Seed(seed), nil
+	return NewKeyFromSeed(seed), nil
 }
 
-func New_Key_From_Seed(seed []byte) PrivateKey {
+func NewKeyFromSeed(seed []byte) PrivateKey {
 	privatekey := ed25519.NewKeyFromSeed(seed)
-	p := make([]byte, PrivateKey_Size)
+	p := make([]byte, PrivateKeySize)
 	copy(p, privatekey)
 	return p
 }
 
-func Import_PrivateKey(key []byte) (PrivateKey, error) {
-	if len(key) != PrivateKey_Size {
-		return nil, ERR_INVALID_PRIVATEKEY
+func ImportPrivateKey(key []byte) (PrivateKey, error) {
+	if len(key) != PrivateKeySize {
+		return nil, ErrInvalidPrivatekey
 	}
-	pri := make([]byte, PrivateKey_Size)
+	pri := make([]byte, PrivateKeySize)
 	copy(pri, key)
-	return PrivateKey(pri), nil
+	return pri, nil
 }
 
-func Import_PublicKey(key []byte) (PublicKey, error) {
-	if len(key) != PublicKey_Size {
-		return nil, ERR_INVALID_PUBLICKEY
+func ImportPublicKey(key []byte) (PublicKey, error) {
+	if len(key) != PublicKeySize {
+		return nil, ErrInvalidPublickey
 	}
-	pub := make([]byte, PublicKey_Size)
+	pub := make([]byte, PublicKeySize)
 	copy(pub, key)
-	return PublicKey(pub), nil
+	return pub, nil
 }
 
 func Sign(p PrivateKey, message []byte) []byte {

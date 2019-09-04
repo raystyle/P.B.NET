@@ -7,30 +7,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ed25519(t *testing.T) {
-	pri, err := Generate_Key()
+func TestEd25519(t *testing.T) {
+	pri, err := GenerateKey()
 	require.NoError(t, err)
 	message := []byte("test message")
 	signature := Sign(pri, message)
-	require.True(t, len(signature) == Signature_Size)
+	require.True(t, len(signature) == SignatureSize)
 	require.True(t, Verify(pri.PublicKey(), message, signature))
-	pri, err = Import_PrivateKey(bytes.Repeat([]byte{0, 1}, 32))
+	pri, err = ImportPrivateKey(bytes.Repeat([]byte{0, 1}, 32))
 	require.NoError(t, err)
 	require.NotNil(t, pri)
-	pub, err := Import_PublicKey(bytes.Repeat([]byte{0, 1}, 16))
+	pub, err := ImportPublicKey(bytes.Repeat([]byte{0, 1}, 16))
 	require.NoError(t, err)
 	require.NotNil(t, pub)
-	pri, err = Import_PrivateKey(bytes.Repeat([]byte{0, 1}, 161))
-	require.Equal(t, ERR_INVALID_PRIVATEKEY, err)
+	pri, err = ImportPrivateKey(bytes.Repeat([]byte{0, 1}, 161))
+	require.Equal(t, ErrInvalidPrivatekey, err)
 	require.Nil(t, pri)
-	pub, err = Import_PublicKey(bytes.Repeat([]byte{0, 1}, 161))
-	require.Equal(t, ERR_INVALID_PUBLICKEY, err)
+	pub, err = ImportPublicKey(bytes.Repeat([]byte{0, 1}, 161))
+	require.Equal(t, ErrInvalidPublickey, err)
 	require.Nil(t, pub)
 }
 
-func Benchmark_ed25519_sign(b *testing.B) {
-	pri, err := Generate_Key()
-	require.Nil(b, err, err)
+func BenchmarkSign(b *testing.B) {
+	pri, err := GenerateKey()
+	require.NoError(b, err)
 	msg := bytes.Repeat([]byte{0}, 256)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -40,9 +40,9 @@ func Benchmark_ed25519_sign(b *testing.B) {
 	b.StopTimer()
 }
 
-func Benchmark_ed25519_verify(b *testing.B) {
-	pri, err := Generate_Key()
-	require.Nil(b, err, err)
+func BenchmarkVerify(b *testing.B) {
+	pri, err := GenerateKey()
+	require.NoError(b, err)
 	msg := bytes.Repeat([]byte{0}, 256)
 	signature := Sign(pri, msg)
 	pub := pri.PublicKey()
