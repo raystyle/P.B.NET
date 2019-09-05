@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	ERR_INVALID_PEM_BLOCK      = errors.New("invalid PEM block")
-	ERR_INVALID_PEM_BLOCK_TYPE = errors.New("invalid PEM block type")
-	// NOW = 2018-11-27 00:00:00.000000000 UTC >>>>>> Date of project start
+	ErrInvalidPEMBlock     = errors.New("invalid PEM block")
+	ErrInvalidPEMBlockType = errors.New("invalid PEM block type")
+
+	// NOW = 2018-11-27 00:00:00.000000000 UTC >>>>>> date of project start
 	NOW = time.Time{}.AddDate(2017, 10, 26)
 )
 
@@ -80,23 +81,23 @@ func generate(c *Config) *x509.Certificate {
 }
 
 // return certificate pem and privatekey pem
-func Generate_CA(c *Config) (cert []byte, pri []byte) {
+func GenerateCA(c *Config) (cert []byte, pri []byte) {
 	ca := generate(c)
 	ca.KeyUsage = x509.KeyUsageCertSign
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
-	privatekey, _ := rsa.Generate_Key(2048)
-	cert_bytes, _ := x509.CreateCertificate(rand.Reader, ca, ca,
-		&privatekey.PublicKey, privatekey)
-	cert_block := &pem.Block{
+	privateKey, _ := rsa.GenerateKey(2048)
+	certBytes, _ := x509.CreateCertificate(rand.Reader, ca, ca,
+		&privateKey.PublicKey, privateKey)
+	certBlock := &pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: cert_bytes,
+		Bytes: certBytes,
 	}
-	key_block := &pem.Block{
+	keyBlock := &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: rsa.Export_PrivateKey(privatekey),
+		Bytes: rsa.ExportPrivateKey(privateKey),
 	}
-	return pem.EncodeToMemory(cert_block), pem.EncodeToMemory(key_block)
+	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
 }
 
 // return cert pem and privatekey pem , ip is IP SANS
@@ -112,39 +113,39 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, c *Config) ([]byte,
 			cert.IPAddresses = append(cert.IPAddresses, ip)
 		}
 	}
-	privatekey, _ := rsa.Generate_Key(2048)
+	privatekey, _ := rsa.GenerateKey(2048)
 	var (
-		cert_bytes []byte
-		err        error
+		certBytes []byte
+		err       error
 	)
 	if parent != nil && pri != nil {
-		cert_bytes, err = x509.CreateCertificate(
+		certBytes, err = x509.CreateCertificate(
 			rand.Reader, cert, parent, &privatekey.PublicKey, pri)
 	} else { // self sign
-		cert_bytes, err = x509.CreateCertificate(
+		certBytes, err = x509.CreateCertificate(
 			rand.Reader, cert, cert, &privatekey.PublicKey, privatekey)
 	}
 	if err != nil {
 		return nil, nil, err
 	}
-	cert_block := &pem.Block{
+	certBlock := &pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: cert_bytes,
+		Bytes: certBytes,
 	}
-	key_block := &pem.Block{
+	keyBlock := &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: rsa.Export_PrivateKey(privatekey),
+		Bytes: rsa.ExportPrivateKey(privatekey),
 	}
-	return pem.EncodeToMemory(cert_block), pem.EncodeToMemory(key_block), nil
+	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock), nil
 }
 
 func Parse(cert []byte) (*x509.Certificate, error) {
 	block, _ := pem.Decode(cert)
 	if block == nil {
-		return nil, ERR_INVALID_PEM_BLOCK
+		return nil, ErrInvalidPEMBlock
 	}
 	if block.Type != "CERTIFICATE" {
-		return nil, ERR_INVALID_PEM_BLOCK_TYPE
+		return nil, ErrInvalidPEMBlockType
 	}
 	return x509.ParseCertificate(block.Bytes)
 }
