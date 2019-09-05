@@ -11,23 +11,23 @@ import (
 
 type Direct struct{}
 
-func (this *Direct) Dial(network, address string) (net.Conn, error) {
+func (d Direct) Dial(network, address string) (net.Conn, error) {
 	return new(net.Dialer).Dial(network, address)
 }
 
-func (this *Direct) Dial_Context(ctx context.Context, network, address string) (net.Conn, error) {
+func (d Direct) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	return new(net.Dialer).DialContext(ctx, network, address)
 }
 
-func (this *Direct) Dial_Timeout(network, address string, timeout time.Duration) (net.Conn, error) {
+func (d Direct) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	if timeout < 1 {
-		timeout = options.DEFAULT_DIAL_TIMEOUT
+		timeout = options.DefaultDialTimeout
 	}
 	return (&net.Dialer{Timeout: timeout}).Dial(network, address)
 }
 
-func (this *Direct) HTTP(*http.Transport) {}
+func (d Direct) HTTP(_ *http.Transport) {}
 
-func (this *Direct) Info() string {
+func (d Direct) Info() string {
 	return "Direct"
 }
