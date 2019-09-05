@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ERR_NOT_SUPPORT_DIAL = errors.New("http proxy not support dial")
+	ErrNotSupportDial = errors.New("http proxy not support dial")
 )
 
 type Client struct {
@@ -19,7 +19,7 @@ type Client struct {
 }
 
 // config = url "http://username:password@127.0.0.1:8080"
-func New_Client(config string) (*Client, error) {
+func NewClient(config string) (*Client, error) {
 	u, err := url.Parse(config)
 	if err != nil {
 		return nil, err
@@ -32,22 +32,22 @@ func New_Client(config string) (*Client, error) {
 	}, nil
 }
 
-func (this *Client) Dial(_, _ string) (net.Conn, error) {
-	return nil, ERR_NOT_SUPPORT_DIAL
+func (c *Client) Dial(_, _ string) (net.Conn, error) {
+	return nil, ErrNotSupportDial
 }
 
-func (this *Client) Dial_Context(_ context.Context, _, _ string) (net.Conn, error) {
-	return nil, ERR_NOT_SUPPORT_DIAL
+func (c *Client) DialContext(_ context.Context, _, _ string) (net.Conn, error) {
+	return nil, ErrNotSupportDial
 }
 
-func (this *Client) Dial_Timeout(_, _ string, _ time.Duration) (net.Conn, error) {
-	return nil, ERR_NOT_SUPPORT_DIAL
+func (c *Client) DialTimeout(_, _ string, _ time.Duration) (net.Conn, error) {
+	return nil, ErrNotSupportDial
 }
 
-func (this *Client) HTTP(t *http.Transport) {
-	t.Proxy = this.proxy
+func (c *Client) HTTP(t *http.Transport) {
+	t.Proxy = c.proxy
 }
 
-func (this *Client) Info() string {
-	return this.url.String()
+func (c *Client) Info() string {
+	return c.url.String()
 }

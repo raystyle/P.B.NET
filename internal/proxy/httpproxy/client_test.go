@@ -8,37 +8,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Client(t *testing.T) {
-	server := test_generate_server(t)
-	err := server.Listen_And_Serve(":0", 0)
-	require.Nil(t, err, err)
+func TestClient(t *testing.T) {
+	server := testGenerateServer(t)
+	err := server.ListenAndServe("localhost:0", 0)
+	require.NoError(t, err)
 	defer func() {
 		err = server.Stop()
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 	}()
-	http_proxy, err := New_Client("http://admin:123456@" + server.Addr())
-	require.Nil(t, err, err)
+	httpProxy, err := NewClient("http://admin:123456@" + server.Addr())
+	require.NoError(t, err)
 	transport := &http.Transport{}
-	http_proxy.HTTP(transport)
+	httpProxy.HTTP(transport)
 	client := http.Client{
 		Transport: transport,
 	}
 	get := func(url string) {
 		resp, err := client.Get(url)
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		defer func() {
 			_ = resp.Body.Close()
 		}()
 		_, err = ioutil.ReadAll(resp.Body)
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 	}
 	get("https://ip.cn/")
+	get("http://ip.cn/")
 	// test other
-	_, err = http_proxy.Dial("", "")
-	require.Equal(t, err, ERR_NOT_SUPPORT_DIAL)
-	_, err = http_proxy.Dial_Context(nil, "", "")
-	require.Equal(t, err, ERR_NOT_SUPPORT_DIAL)
-	_, err = http_proxy.Dial_Timeout("", "", 0)
-	require.Equal(t, err, ERR_NOT_SUPPORT_DIAL)
-	t.Log(http_proxy.Info())
+	_, err = httpProxy.Dial("", "")
+	require.Equal(t, err, ErrNotSupportDial)
+	_, err = httpProxy.DialContext(nil, "", "")
+	require.Equal(t, err, ErrNotSupportDial)
+	_, err = httpProxy.DialTimeout("", "", 0)
+	require.Equal(t, err, ErrNotSupportDial)
+	t.Log(httpProxy.Info())
 }

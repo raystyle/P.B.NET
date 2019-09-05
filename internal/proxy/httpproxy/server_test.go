@@ -8,23 +8,23 @@ import (
 	"project/internal/logger"
 )
 
-func Test_Server(t *testing.T) {
-	s := test_generate_server(t)
-	err := s.Listen_And_Serve(":0", 0)
-	require.Nil(t, err, err)
+func TestServer(t *testing.T) {
+	s := testGenerateServer(t)
+	err := s.ListenAndServe("localhost:0", 0)
+	require.NoError(t, err)
 	t.Log(s.Info())
 	t.Log(s.Addr())
 	// select {}
 	err = s.Stop()
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 }
 
-func test_generate_server(t *testing.T) *Server {
-	opts := &Options{
+func testGenerateServer(t *testing.T) *Server {
+	opts := Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	s, err := New_Server("test", logger.Test, opts)
-	require.Nil(t, err, err)
+	s, err := NewServer("test", logger.Test, &opts)
+	require.NoError(t, err)
 	return s
 }
