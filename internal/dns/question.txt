@@ -1,0 +1,69 @@
+package dns
+
+import (
+	"bytes"
+	"encoding/binary"
+	"strings"
+
+	"project/internal/random"
+)
+
+type header struct {
+	id          uint16
+	flag        uint16
+	questions   uint16
+	answers     uint16
+	authorities uint16
+	additionals uint16
+}
+
+func (h *header) setFlag(
+	QR uint16,
+	OperationCode uint16,
+	AuthoritativeAnswer uint16,
+	Truncation uint16,
+	RecursionDesired uint16,
+	RecursionAvailable uint16,
+	ResponseCode uint16) {
+	h.flag = QR<<15 + OperationCode<<11 + AuthoritativeAnswer<<10 +
+		Truncation<<9 + RecursionDesired<<8 + RecursionAvailable<<7 +
+		ResponseCode
+}
+
+func pack_question(question_type uint16, domain_name string) []byte {
+	// add dns header
+	dns_header := &header{
+		id:          uint16(random.Int(65535)),
+		questions:   1,
+		answers:     0,
+		authorities: 0,
+		additionals: 0,
+	}
+	dns_header.setFlag(0, 0,
+		0, 0, 1,
+		0, 0)
+	// add dns question header
+	dns_question := &struct {
+		question_type  uint16
+		question_class uint16
+	}{
+		question_type,
+		1,
+	}
+	buffer := bytes.Buffer{}
+	_ = binary.Write(&buffer, binary.BigEndian, dns_header)
+	_ = binary.Write(&buffer, binary.BigEndian, packDomainName(domain_name))
+	_ = binary.Write(&buffer, binary.BigEndian, dns_question)
+	return buffer.Bytes()
+}
+
+func packDomainName(domain string) []byte {
+	buffer := bytes.Buffer{}
+	segments := strings.Split(domain, ".")
+	for _, seg := range segments {
+		_ = binary.Write(&buffer, binary.BigEndian, byte(len(seg)))
+		_ = binary.Write(&buffer, binary.BigEndian, []byte(seg))
+	}
+	_ = binary.Write(&buffer, binary.BigEndian, byte(0x00))
+	return buffer.Bytes()
+}

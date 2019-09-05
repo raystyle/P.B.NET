@@ -25,11 +25,11 @@ const (
 func Test_Resolve(t *testing.T) {
 	// udp
 	ip_list, err := Resolve(dns_address, domain, nil)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("UDP IPv4:", ip_list)
 	// punycode
 	ip_list, err = Resolve(dns_address, domain_punycode, nil)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("UDP IPv4 punycode:", ip_list)
 	// tcp
 	opt := &Options{
@@ -37,22 +37,22 @@ func Test_Resolve(t *testing.T) {
 		Type:   IPV6,
 	}
 	ip_list, err = Resolve(dns_address, domain, opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("TCP IPv6:", ip_list)
 	// tls
 	opt.Method = TLS
 	opt.Type = IPV4
 	ip_list, err = Resolve(dns_tls_domain_mode, domain, opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("TLS IPv4:", ip_list)
 	// doh
 	opt.Method = DOH
 	ip_list, err = Resolve(dns_doh, domain, opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("DOH IPv4:", ip_list)
 	// is ip
 	_, err = Resolve(dns_address, "8.8.8.8", opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	// not domain
 	_, err = Resolve(dns_address, "asdasdad-", opt)
 	require.Equal(t, err, ERR_INVALID_DOMAIN_NAME, err)
@@ -70,7 +70,7 @@ func Test_Resolve(t *testing.T) {
 	opt.Method = UDP
 	opt.Timeout = time.Millisecond * 500
 	_, err = Resolve("8.8.8.8:153", domain, opt)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 }
 
 func Test_is_domain(t *testing.T) {
@@ -88,9 +88,9 @@ func Test_is_domain(t *testing.T) {
 func Test_resolve(t *testing.T) {
 	r := func(response []byte) {
 		ipv4_list, err := resolve(IPV4, response)
-		require.NotNil(t, err)
+		require.NoError(t, err)
 		ipv6_list, err := resolve(IPV6, response)
-		require.NotNil(t, err)
+		require.NoError(t, err)
 		require.Nil(t, append(ipv4_list, ipv6_list...))
 	}
 	r(nil)
@@ -121,11 +121,11 @@ func Test_dial_udp(t *testing.T) {
 	question := pack_question(1, domain)
 	b, err := dial_udp(dns_address, question, opt)
 	ip_list, err := resolve(IPV4, b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("UDP IPv4:", ip_list)
 	// no port
 	_, err = dial_udp("1.2.3.4", question, opt)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	// no response
 	_, err = dial_udp("1.2.3.4:23421", question, opt)
 	require.Equal(t, err, ERR_NO_CONNECTION, err)
@@ -138,13 +138,13 @@ func Test_dial_tcp(t *testing.T) {
 	}
 	question := pack_question(1, domain)
 	b, err := dial_tcp(dns_address, question, opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	ip_list, err := resolve(IPV4, b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("TCP IPv4:", ip_list)
 	// no port
 	_, err = dial_tcp("8.8.8.8", question, opt)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 }
 
 func Test_dial_tls(t *testing.T) {
@@ -154,28 +154,28 @@ func Test_dial_tls(t *testing.T) {
 	}
 	question := pack_question(1, domain)
 	b, err := dial_tls("dns.google:853|8.8.8.8", question, opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	ip_list, err := resolve(IPV4, b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("TLS domain IPv4:", ip_list)
 	// ip mode
 	b, err = dial_tls("1.1.1.1:853", question, opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	ip_list, err = resolve(IPV4, b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("TLS ip IPv4:", ip_list)
 	// no port(ip mode)
 	_, err = dial_tls("1.2.3.4", question, opt)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	// dial failed
 	_, err = dial_tls("127.0.0.1:888", question, opt)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	// error ip(domain mode)
 	_, err = dial_tls("dns.google:853|127.0.0.1", question, opt)
 	require.Equal(t, err, ERR_NO_CONNECTION, err)
 	// no port(domain mode)
 	_, err = dial_tls("dns.google|1.2.3.235", question, opt)
-	require.NotNil(t, err)
+	require.NoError(t, err)
 	// invalid config
 	_, err = dial_tls("asd:153|asfasf|asfasf", question, opt)
 	require.Equal(t, err, ERR_INVALID_TLS_CONFIG, err)
@@ -186,15 +186,15 @@ func Test_dial_https(t *testing.T) {
 	question := pack_question(1, domain)
 	// get
 	b, err := dial_https(dns_doh, question, opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	ip_list, err := resolve(IPV4, b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("DOH get IPv4:", ip_list)
 	// post
 	b, err = dial_https(dns_doh+"#"+strings.Repeat("a", 2048), question, opt)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	ip_list, err = resolve(IPV4, b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	t.Log("DOH post IPv4:", ip_list)
 	// invalid dohserver
 	_, err = dial_https("asdsad\n", question, opt)

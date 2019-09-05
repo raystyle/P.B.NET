@@ -89,7 +89,7 @@ func Resolve(address, domain string, opts *Options) ([]string, error) {
 		return []string{domain}, nil
 	}
 	// punycode
-	domain, err := to_ascii(domain)
+	domain, err := toASCII(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ func dial_tcp(address string, question []byte, opts *Options) ([]byte, error) {
 		return nil, err
 	}
 	// add size header
-	q := bytes.NewBuffer(convert.Uint16_Bytes(uint16(len(question))))
+	q := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(question))))
 	q.Write(question)
 	_, err = conn.Write(q.Bytes())
 	if err != nil {
@@ -264,7 +264,7 @@ func dial_tcp(address string, question []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := int(convert.Bytes_Uint16(buffer[:header_size]))
+	l := int(convert.BytesToUint16(buffer[:header_size]))
 	if l > 512 {
 		buffer = make([]byte, l)
 	}
@@ -330,7 +330,7 @@ func dial_tls(address string, question []byte, opts *Options) ([]byte, error) {
 		return nil, err
 	}
 	// add size header
-	q := bytes.NewBuffer(convert.Uint16_Bytes(uint16(len(question))))
+	q := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(question))))
 	q.Write(question)
 	_, err = conn.Write(q.Bytes())
 	if err != nil {
@@ -341,7 +341,7 @@ func dial_tls(address string, question []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := int(convert.Bytes_Uint16(buffer[:header_size]))
+	l := int(convert.BytesToUint16(buffer[:header_size]))
 	if l > 512 {
 		buffer = make([]byte, l)
 	}
@@ -403,7 +403,7 @@ func resolve(t Type, answer []byte) (ip_list []string, err error) {
 		}
 	}()
 	// answer number
-	answer_rrs := convert.Bytes_Uint16(answer[6:8])
+	answer_rrs := convert.BytesToUint16(answer[6:8])
 	if answer_rrs == 0 {
 		return nil, ERR_NO_RESOLVE_RESULT
 	}
@@ -416,7 +416,7 @@ func resolve(t Type, answer []byte) (ip_list []string, err error) {
 		for i := 0; i < int(answer_rrs); i++ {
 			_type := answers[offset+2 : offset+4]
 			if !bytes.Equal(_type, []byte{0, 1}) { // only type A
-				data_length := convert.Bytes_Uint16(answers[offset+10 : offset+12])
+				data_length := convert.BytesToUint16(answers[offset+10 : offset+12])
 				// 12 = 2(name)+2(type)+2(class)+4(time to live)+2(data length)
 				offset += 12 + int(data_length)
 			} else {
@@ -429,7 +429,7 @@ func resolve(t Type, answer []byte) (ip_list []string, err error) {
 		for i := 0; i < int(answer_rrs); i++ {
 			_type := answers[offset+2 : offset+4]
 			if !bytes.Equal(_type, []byte{0, 28}) { // only type AAAA
-				data_length := convert.Bytes_Uint16(answers[offset+10 : offset+12])
+				data_length := convert.BytesToUint16(answers[offset+10 : offset+12])
 				// 2(name)+2(type)+2(class)+4(time to live)+2(data len)+data len
 				offset += 12 + int(data_length)
 			} else {

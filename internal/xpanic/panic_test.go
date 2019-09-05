@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-func Test_Print(t *testing.T) {
+func TestXpanic(t *testing.T) {
 	defer func() {
 		r := recover()
 		fmt.Println(Print(r))
 		fmt.Println(Error("test panic:", r))
 	}()
-	test_panic()
+	testPanic()
 }
 
-func test_panic() {
+func testPanic() {
 	var foo []int
 	foo[0] = 0
 }
