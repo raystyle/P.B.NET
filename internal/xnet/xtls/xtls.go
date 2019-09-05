@@ -15,7 +15,7 @@ func Listen(network, address string, c *tls.Config, timeout time.Duration) (net.
 	if err != nil {
 		return nil, err
 	}
-	return light.New_Listener(l, timeout), nil
+	return light.NewListener(l, timeout), nil
 }
 
 func Dial(network, address string, c *tls.Config, timeout time.Duration) (*Conn, error) {
