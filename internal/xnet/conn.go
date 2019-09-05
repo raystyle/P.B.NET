@@ -11,58 +11,58 @@ import (
 // header size +  data
 //      4          n
 const (
-	HEADER_SIZE = 4
+	HeaderSize = 4
 )
 
 type Info struct {
-	Local_Network  string
-	Local_Address  string
-	Remote_Network string
-	Remote_Address string
-	Connect_Time   int64
-	Send           int
-	Receive        int
+	LocalNetwork  string
+	LocalAddress  string
+	RemoteNetwork string
+	RemoteAddress string
+	ConnectTime   int64
+	Send          int
+	Receive       int
 }
 
 type Conn struct {
 	net.Conn
-	l_network string
-	l_address string
-	r_network string
-	r_address string
-	connect   int64 // timestamp
-	send      int   // imprecise
-	receive   int   // imprecise
-	rwm       sync.RWMutex
+	lNetwork string
+	lAddress string
+	rNetwork string
+	rAddress string
+	connect  int64 // timestamp
+	send     int   // imprecise
+	receive  int   // imprecise
+	rwm      sync.RWMutex
 }
 
-func New_Conn(c net.Conn, now int64) *Conn {
+func NewConn(c net.Conn, now int64) *Conn {
 	return &Conn{
-		Conn:      c,
-		l_network: c.LocalAddr().Network(),
-		l_address: c.LocalAddr().String(),
-		r_network: c.RemoteAddr().Network(),
-		r_address: c.RemoteAddr().String(),
-		connect:   now,
+		Conn:     c,
+		lNetwork: c.LocalAddr().Network(),
+		lAddress: c.LocalAddr().String(),
+		rNetwork: c.RemoteAddr().Network(),
+		rAddress: c.RemoteAddr().String(),
+		connect:  now,
 	}
 }
 
-func (this *Conn) Read(b []byte) (int, error) {
-	n, err := this.Conn.Read(b)
-	this.rwm.Lock()
-	this.receive += n
-	this.rwm.Unlock()
+func (c *Conn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	c.rwm.Lock()
+	c.receive += n
+	c.rwm.Unlock()
 	if err != nil {
 		return n, err
 	}
 	return n, nil
 }
 
-func (this *Conn) Write(b []byte) (int, error) {
-	n, err := this.Conn.Write(b)
-	this.rwm.Lock()
-	this.send += n
-	this.rwm.Unlock()
+func (c *Conn) Write(b []byte) (int, error) {
+	n, err := c.Conn.Write(b)
+	c.rwm.Lock()
+	c.send += n
+	c.rwm.Unlock()
 	if err != nil {
 		return n, err
 	}
@@ -70,39 +70,39 @@ func (this *Conn) Write(b []byte) (int, error) {
 }
 
 // send message
-func (this *Conn) Send(msg []byte) error {
-	size := convert.Uint32_Bytes(uint32(len(msg)))
-	_, err := this.Write(append(size, msg...))
+func (c *Conn) Send(msg []byte) error {
+	size := convert.Uint32ToBytes(uint32(len(msg)))
+	_, err := c.Write(append(size, msg...))
 	return err
 }
 
 // receive message
-func (this *Conn) Receive() ([]byte, error) {
-	size := make([]byte, HEADER_SIZE)
-	_, err := io.ReadFull(this, size)
+func (c *Conn) Receive() ([]byte, error) {
+	size := make([]byte, HeaderSize)
+	_, err := io.ReadFull(c, size)
 	if err != nil {
 		return nil, err
 	}
-	s := convert.Bytes_Uint32(size)
+	s := convert.BytesToUint32(size)
 	msg := make([]byte, int(s))
-	_, err = io.ReadFull(this, msg)
+	_, err = io.ReadFull(c, msg)
 	if err != nil {
 		return nil, err
 	}
 	return msg, nil
 }
 
-func (this *Conn) Info() *Info {
-	this.rwm.RLock()
+func (c *Conn) Info() *Info {
+	c.rwm.RLock()
 	i := &Info{
-		Send:    this.send,
-		Receive: this.receive,
+		Send:    c.send,
+		Receive: c.receive,
 	}
-	this.rwm.RUnlock()
-	i.Local_Network = this.l_network
-	i.Local_Address = this.l_address
-	i.Remote_Network = this.r_network
-	i.Remote_Address = this.r_address
-	i.Connect_Time = this.connect
+	c.rwm.RUnlock()
+	i.LocalNetwork = c.lNetwork
+	i.LocalAddress = c.lAddress
+	i.RemoteNetwork = c.rNetwork
+	i.RemoteAddress = c.rAddress
+	i.ConnectTime = c.connect
 	return i
 }

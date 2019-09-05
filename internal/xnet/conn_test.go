@@ -9,34 +9,34 @@ import (
 )
 
 var (
-	test_data = []byte("test data")
+	testdata = []byte("test data")
 )
 
-func Test_Conn(t *testing.T) {
-	config := &Config{
+func TestConn(t *testing.T) {
+	cfg := &Config{
 		Network: "tcp",
-		Address: ":0",
+		Address: "localhost:0",
 	}
 	// Listen
-	listener, err := Listen(LIGHT, config)
-	require.Nil(t, err, err)
+	listener, err := Listen(LIGHT, cfg)
+	require.NoError(t, err)
 	go func() {
 		conn, err := listener.Accept()
-		require.Nil(t, err, err)
-		c := New_Conn(conn, time.Now().Unix())
-		err = c.Send(test_data)
-		require.Nil(t, err, err)
+		require.NoError(t, err)
+		c := NewConn(conn, time.Now().Unix())
+		err = c.Send(testdata)
+		require.NoError(t, err)
 	}()
 	// Dial
 	_, port, err := net.SplitHostPort(listener.Addr().String())
-	require.Nil(t, err, err)
-	config.Address = "localhost:" + port
-	conn, err := Dial(LIGHT, config)
-	require.Nil(t, err, err)
-	c := New_Conn(conn, time.Now().Unix())
+	require.NoError(t, err)
+	cfg.Address = "localhost:" + port
+	conn, err := Dial(LIGHT, cfg)
+	require.NoError(t, err)
+	c := NewConn(conn, time.Now().Unix())
 	msg, err := c.Receive()
-	require.Nil(t, err, err)
-	require.Equal(t, test_data, msg)
+	require.NoError(t, err)
+	require.Equal(t, testdata, msg)
 	t.Log(c.Info())
 	_ = conn.Close()
 }

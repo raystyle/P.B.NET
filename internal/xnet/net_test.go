@@ -10,97 +10,97 @@ import (
 	"project/internal/options"
 )
 
-func Test_Check_Port_str(t *testing.T) {
-	err := Check_Port_str("1234")
-	require.Nil(t, err, err)
-	err = Check_Port_str("")
-	require.Equal(t, ERR_EMPTY_PORT, err)
-	err = Check_Port_str("s")
-	require.NotNil(t, err)
-	err = Check_Port_str("0")
-	require.NotNil(t, err)
-	err = Check_Port_str("65536")
-	require.NotNil(t, err)
+func TestCheckPortString(t *testing.T) {
+	err := CheckPortString("1234")
+	require.NoError(t, err)
+	err = CheckPortString("")
+	require.Equal(t, ErrEmptyPort, err)
+	err = CheckPortString("s")
+	require.Error(t, err)
+	err = CheckPortString("0")
+	require.Error(t, err)
+	err = CheckPortString("65536")
+	require.Error(t, err)
 }
 
-func Test_Check_Port_int(t *testing.T) {
-	err := Check_Port_int(123)
-	require.Nil(t, err, err)
-	err = Check_Port_int(0)
-	require.Equal(t, ERR_INVALID_PORT, err)
-	err = Check_Port_int(65536)
-	require.Equal(t, ERR_INVALID_PORT, err)
+func TestCheckPortInt(t *testing.T) {
+	err := CheckPortInt(123)
+	require.NoError(t, err)
+	err = CheckPortInt(0)
+	require.Equal(t, ErrInvalidPort, err)
+	err = CheckPortInt(65536)
+	require.Equal(t, ErrInvalidPort, err)
 }
 
-func Test_Check_Mode_Network(t *testing.T) {
-	err := Check_Mode_Network(TLS, "tcp")
-	require.Nil(t, err, err)
-	err = Check_Mode_Network(TLS, "udp")
-	require.Equal(t, ERR_MISMATCHED_MODE_NETWORK, err)
-	err = Check_Mode_Network(LIGHT, "tcp")
-	require.Nil(t, err, err)
-	err = Check_Mode_Network(LIGHT, "udp")
-	require.Equal(t, ERR_MISMATCHED_MODE_NETWORK, err)
-	err = Check_Mode_Network("", "")
-	require.Equal(t, ERR_EMPTY_MODE, err)
-	err = Check_Mode_Network(TLS, "")
-	require.Equal(t, ERR_EMPTY_NETWORK, err)
-	err = Check_Mode_Network("asdasd", "adasdas")
-	require.Equal(t, ERR_UNKNOWN_MODE, err)
+func TestCheckModeNetwork(t *testing.T) {
+	err := CheckModeNetwork(TLS, "tcp")
+	require.NoError(t, err)
+	err = CheckModeNetwork(TLS, "udp")
+	require.Equal(t, ErrMismatchedModeNetwork, err)
+	err = CheckModeNetwork(LIGHT, "tcp")
+	require.NoError(t, err)
+	err = CheckModeNetwork(LIGHT, "udp")
+	require.Equal(t, ErrMismatchedModeNetwork, err)
+	err = CheckModeNetwork("", "")
+	require.Equal(t, ErrEmptyMode, err)
+	err = CheckModeNetwork(TLS, "")
+	require.Equal(t, ErrEmptyNetwork, err)
+	err = CheckModeNetwork("xxxx", "xxxx")
+	require.Equal(t, ErrUnknownMode, err)
 }
 
-func Test_Listen_And_Dial_TLS(t *testing.T) {
-	c := &Config{
+func TestListenAndDialTLS(t *testing.T) {
+	cfg := &Config{
 		Network: "tcp",
-		Address: ":0",
+		Address: "localhost:0",
 	}
 	// add cert
-	cert_config := &cert.Config{
+	certCfg := &cert.Config{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
-	certificate, key, err := cert.Generate(nil, nil, cert_config)
-	require.Nil(t, err, err)
-	kp := options.TLS_KeyPair{Cert: string(certificate), Key: string(key)}
-	c.TLS_Config.Certificates = append(c.TLS_Config.Certificates, kp)
+	certificate, key, err := cert.Generate(nil, nil, certCfg)
+	require.NoError(t, err)
+	kp := options.X509KeyPair{Cert: string(certificate), Key: string(key)}
+	cfg.TLSConfig.Certificates = append(cfg.TLSConfig.Certificates, kp)
 	// Listen
-	listener, err := Listen(TLS, c)
-	require.Nil(t, err, err)
+	listener, err := Listen(TLS, cfg)
+	require.NoError(t, err)
 	go func() {
 		conn, err := listener.Accept()
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		_, _ = conn.Write([]byte{0})
 		_ = conn.Close()
 	}()
 	// Dial
 	_, port, err := net.SplitHostPort(listener.Addr().String())
-	require.Nil(t, err, err)
-	c.Address = "localhost:" + port
-	c.TLS_Config.RootCAs = append(c.TLS_Config.RootCAs, string(certificate))
-	conn, err := Dial(TLS, c)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
+	cfg.Address = "localhost:" + port
+	cfg.TLSConfig.RootCAs = append(cfg.TLSConfig.RootCAs, string(certificate))
+	conn, err := Dial(TLS, cfg)
+	require.NoError(t, err)
 	_ = conn.Close()
 }
 
-func Test_Listen_And_Dial_Light(t *testing.T) {
-	c := &Config{
+func TestListenAndDialLight(t *testing.T) {
+	cfg := &Config{
 		Network: "tcp",
-		Address: ":0",
+		Address: "localhost:0",
 	}
 	// Listen
-	listener, err := Listen(LIGHT, c)
-	require.Nil(t, err, err)
+	listener, err := Listen(LIGHT, cfg)
+	require.NoError(t, err)
 	go func() {
 		conn, err := listener.Accept()
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		_, _ = conn.Write([]byte{0})
 		_ = conn.Close()
 	}()
 	// Dial
 	_, port, err := net.SplitHostPort(listener.Addr().String())
-	require.Nil(t, err, err)
-	c.Address = "localhost:" + port
-	conn, err := Dial(LIGHT, c)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
+	cfg.Address = "localhost:" + port
+	conn, err := Dial(LIGHT, cfg)
+	require.NoError(t, err)
 	_ = conn.Close()
 }
