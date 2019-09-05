@@ -119,7 +119,7 @@ func (p *Pool) Add(tag string, client *Client) error {
 		p.clients[tag] = client
 		return nil
 	} else {
-		return fmt.Errorf("proxy: %s already exists", tag)
+		return fmt.Errorf("proxy client: %s already exists", tag)
 	}
 }
 
@@ -133,6 +133,6 @@ func (p *Pool) Delete(tag string) error {
 		delete(p.clients, tag)
 		return nil
 	} else {
-		return fmt.Errorf("proxy: %s doesn't exist", tag)
+		return fmt.Errorf("proxy client: %s doesn't exist", tag)
 	}
 }
