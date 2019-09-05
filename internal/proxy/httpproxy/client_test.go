@@ -26,9 +26,7 @@ func TestClient(t *testing.T) {
 	get := func(url string) {
 		resp, err := client.Get(url)
 		require.NoError(t, err)
-		defer func() {
-			_ = resp.Body.Close()
-		}()
+		defer func() { _ = resp.Body.Close() }()
 		_, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 	}

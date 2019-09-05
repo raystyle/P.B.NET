@@ -14,32 +14,33 @@ import (
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/options"
+	"project/internal/xnet"
 )
 
 type Options struct {
-	Username          string
-	Password          string
-	Handshake_Timeout time.Duration
-	Limit             int
+	Username string
+	Password string
+	Timeout  time.Duration // handshake timeout
+	Limit    int
 }
 
 type Server struct {
-	tag               string
-	logger            logger.Logger
-	listener          net.Listener
-	username          []byte
-	password          []byte
-	handshake_timeout time.Duration
-	limit             int
-	conns             map[string]*conn // key = conn.addr
-	rwm               sync.RWMutex     // lock conns
-	addr              string
-	is_stopped        bool
-	m                 sync.Mutex
-	stop_signal       chan struct{}
+	tag        string
+	logger     logger.Logger
+	listener   net.Listener
+	username   []byte
+	password   []byte
+	timeout    time.Duration
+	limit      int
+	conns      map[string]*conn // key = conn.addr
+	rwm        sync.RWMutex     // lock conns
+	addr       string
+	isStopped  bool
+	m          sync.Mutex
+	stopSignal chan struct{}
 }
 
-func New_Server(tag string, l logger.Logger, opts *Options) (*Server, error) {
+func NewServer(tag string, l logger.Logger, opts *Options) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("no tag")
 	}
@@ -47,22 +48,22 @@ func New_Server(tag string, l logger.Logger, opts *Options) (*Server, error) {
 		opts = new(Options)
 	}
 	s := &Server{
-		tag:               tag,
-		logger:            l,
-		handshake_timeout: options.DEFAULT_HANDSHAKE_TIMEOUT,
-		limit:             options.DEFAULT_CONNECTION_LIMIT,
-		conns:             make(map[string]*conn),
-		stop_signal:       make(chan struct{}, 1),
+		tag:        tag,
+		logger:     l,
+		timeout:    opts.Timeout,
+		limit:      opts.Limit,
+		conns:      make(map[string]*conn),
+		stopSignal: make(chan struct{}, 1),
 	}
 	if opts.Username != "" {
 		s.username = []byte(opts.Username)
 		s.password = []byte(opts.Password)
 	}
-	if opts.Handshake_Timeout > 0 {
-		s.handshake_timeout = opts.Handshake_Timeout
+	if opts.Timeout < 1 {
+		s.timeout = options.DefaultHandshakeTimeout
 	}
-	if opts.Limit > 0 {
-		s.limit = opts.Limit
+	if opts.Limit < 1 {
+		s.limit = options.DefaultConnectionLimit
 	}
 	return s, nil
 }
@@ -82,20 +83,20 @@ func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
 	return tc, nil
 }
 
-func (this *Server) Listen_And_Serve(address string, timeout time.Duration) error {
+func (s *Server) ListenAndServe(address string, timeout time.Duration) error {
 	l, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
-	return this.Serve(tcpKeepAliveListener{l.(*net.TCPListener)}, timeout)
+	return s.Serve(tcpKeepAliveListener{l.(*net.TCPListener)}, timeout)
 }
 
-func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
-	this.m.Lock()
-	defer this.m.Unlock()
-	this.addr = l.Addr().String()
-	l = netutil.LimitListener(l, this.limit)
-	this.listener = l
+func (s *Server) Serve(l net.Listener, timeout time.Duration) error {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.addr = l.Addr().String()
+	l = netutil.LimitListener(l, s.limit)
+	s.listener = l
 	// reference http.Server.Serve()
 	f := func() error {
 		var delay time.Duration // how long to sleep on accept failure
@@ -104,7 +105,7 @@ func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
 			conn, err := l.Accept()
 			if err != nil {
 				select {
-				case <-this.stop_signal:
+				case <-s.stopSignal:
 					return errors.New("server closed")
 				default:
 				}
@@ -117,14 +118,14 @@ func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
 					if delay > max {
 						delay = max
 					}
-					this.logf(logger.WARNING, "accept error: %s; retrying in %v", err, delay)
+					s.logf(logger.WARNING, "accept error: %s; retrying in %v", err, delay)
 					time.Sleep(delay)
 					continue
 				}
 				return err
 			}
 			delay = 0
-			c := this.new_conn(conn)
+			c := s.newConn(conn)
 			if c != nil {
 				go c.serve()
 			} else {
@@ -132,14 +133,14 @@ func (this *Server) Serve(l net.Listener, timeout time.Duration) error {
 			}
 		}
 	}
-	return this.start(f, timeout)
+	return s.start(f, timeout)
 }
 
-func (this *Server) start(f func() error, timeout time.Duration) error {
+func (s *Server) start(f func() error, timeout time.Duration) error {
 	if timeout < 1 {
-		timeout = options.DEFAULT_START_TIMEOUT
+		timeout = options.DefaultStartTimeout
 	}
-	err_chan := make(chan error, 1)
+	errChan := make(chan error, 1)
 	go func() {
 		var err error
 		defer func() {
@@ -151,71 +152,71 @@ func (this *Server) start(f func() error, timeout time.Duration) error {
 					err = errors.New("unknown panic")
 				}
 			}
-			err_chan <- err
-			close(err_chan)
+			errChan <- err
+			close(errChan)
 		}()
 		err = f()
 	}()
 	select {
-	case err := <-err_chan:
-		this.log(logger.INFO, "start server failed:", err)
+	case err := <-errChan:
+		s.log(logger.INFO, "start server failed:", err)
 		return err
 	case <-time.After(timeout):
-		this.log(logger.INFO, "start server success: ", this.addr)
+		s.log(logger.INFO, "start server success: ", s.addr)
 		return nil
 	}
 }
 
-func (this *Server) Stop() error {
-	this.m.Lock()
-	defer this.m.Unlock()
-	this.is_stopped = true
-	this.stop_signal <- struct{}{}
-	err := this.listener.Close()
-	this.rwm.Lock()
-	for k, v := range this.conns {
+func (s *Server) Stop() error {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.isStopped = true
+	s.stopSignal <- struct{}{}
+	err := s.listener.Close()
+	s.rwm.Lock()
+	for k, v := range s.conns {
 		_ = v.conn.Close()
-		delete(this.conns, k)
+		delete(s.conns, k)
 	}
-	this.rwm.Unlock()
-	this.log(logger.INFO, "server stopped")
+	s.rwm.Unlock()
+	s.log(logger.INFO, "server stopped")
 	return err
 }
 
-func (this *Server) Info() string {
-	this.m.Lock()
-	a := this.addr
-	u := this.username
-	p := this.password
-	this.m.Unlock()
+func (s *Server) Info() string {
+	s.m.Lock()
+	a := s.addr
+	u := s.username
+	p := s.password
+	s.m.Unlock()
 	return fmt.Sprintf("Listen: %s Auth: %s %s", a, u, p)
 }
 
-func (this *Server) Addr() string {
-	this.m.Lock()
-	defer this.m.Unlock()
-	return this.addr
+func (s *Server) Addr() string {
+	s.m.Lock()
+	defer s.m.Unlock()
+	return s.addr
 }
 
-func (this *Server) log(l logger.Level, log ...interface{}) {
-	this.logger.Println(l, this.tag, log...)
+func (s *Server) log(l logger.Level, log ...interface{}) {
+	s.logger.Println(l, s.tag, log...)
 }
 
-func (this *Server) logf(l logger.Level, format string, log ...interface{}) {
-	this.logger.Printf(l, this.tag, format, log...)
+func (s *Server) logf(l logger.Level, format string, log ...interface{}) {
+	s.logger.Printf(l, s.tag, format, log...)
 }
 
-func (this *Server) new_conn(c net.Conn) *conn {
-	this.m.Lock()
-	defer this.m.Unlock()
-	if !this.is_stopped {
+func (s *Server) newConn(c net.Conn) *conn {
+	s.m.Lock()
+	defer s.m.Unlock()
+	if !s.isStopped {
 		conn := &conn{
-			server: this,
-			conn:   c,
+			server: s,
+			conn:   xnet.NewDeadlineConn(c, s.timeout),
 		}
-		this.rwm.Lock()
-		this.conns[c.RemoteAddr().String()] = conn
-		this.rwm.Unlock()
+		s.rwm.Lock()
+		s.conns[c.RemoteAddr().String()] = conn
+		s.rwm.Unlock()
 		return conn
 	}
 	return nil
@@ -226,8 +227,8 @@ type log struct {
 	C   net.Conn
 }
 
-func (this *log) String() string {
-	return fmt.Sprint(this.Log, " Client: ", this.C.RemoteAddr())
+func (l *log) String() string {
+	return fmt.Sprint(l.Log, " client: ", l.C.RemoteAddr())
 }
 
 type conn struct {
@@ -235,72 +236,76 @@ type conn struct {
 	conn   net.Conn
 }
 
-func (this *conn) serve() {
+var (
+	ReplySucceeded         = []byte{version5, succeeded, reserve, ipv4, 0, 0, 0, 0, 0, 0}
+	ReplyConnectRefused    = []byte{version5, connRefused, reserve, ipv4, 0, 0, 0, 0, 0, 0}
+	ReplyAddressNotSupport = []byte{version5, addressNotSupport, reserve, ipv4, 0, 0, 0, 0, 0, 0}
+)
+
+func (c *conn) serve() {
 	defer func() {
 		if rec := recover(); rec != nil {
-			this.server.log(logger.ERROR, &log{Log: fmt.Sprint("panic: ", rec), C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: fmt.Sprint("panic: ", rec), C: c.conn})
 		}
-		_ = this.conn.Close()
-		this.server.rwm.Lock()
-		delete(this.server.conns, this.conn.RemoteAddr().String())
-		this.server.rwm.Unlock()
+		_ = c.conn.Close()
+		c.server.rwm.Lock()
+		delete(c.server.conns, c.conn.RemoteAddr().String())
+		c.server.rwm.Unlock()
 	}()
-	// set handshake timeout
-	_ = this.conn.SetDeadline(time.Now().Add(this.server.handshake_timeout))
 	buffer := make([]byte, 16)
 	// read version
-	_, err := io.ReadAtLeast(this.conn, buffer[:1], 1)
+	_, err := io.ReadAtLeast(c.conn, buffer[:1], 1)
 	if err != nil {
-		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+		c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		return
 	}
 	if buffer[0] != version5 {
-		this.server.log(logger.EXPLOIT, &log{C: this.conn,
+		c.server.log(logger.EXPLOIT, &log{C: c.conn,
 			Log: fmt.Sprintf("unexpected protocol version %d", buffer[0])})
 		return
 	}
 	// read authentication methods
-	_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
+	_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
 	if err != nil {
-		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+		c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		return
 	}
 	l := int(buffer[0])
 	if l == 0 {
-		this.server.log(logger.EXPLOIT, &log{C: this.conn,
+		c.server.log(logger.EXPLOIT, &log{C: c.conn,
 			Log: "unexpected authentication method length 0"})
 		return
 	}
 	if l > len(buffer) {
 		buffer = make([]byte, l)
 	}
-	_, err = io.ReadAtLeast(this.conn, buffer[:l], l)
+	_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
 	if err != nil {
-		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+		c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		return
 	}
 	// write authentication method
-	if this.server.username != nil {
-		_, err = this.conn.Write([]byte{version5, username_password})
+	if c.server.username != nil {
+		_, err = c.conn.Write([]byte{version5, usernamePassword})
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		// read username and password version
-		_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
+		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
-		if buffer[0] != username_password_version {
-			this.server.log(logger.EXPLOIT, &log{C: this.conn,
+		if buffer[0] != usernamePasswordVersion {
+			c.server.log(logger.EXPLOIT, &log{C: c.conn,
 				Log: fmt.Sprintf("unexpected username password version %d", buffer[0])})
 			return
 		}
 		// read username length
-		_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
+		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		l = int(buffer[0])
@@ -308,17 +313,17 @@ func (this *conn) serve() {
 			buffer = make([]byte, l)
 		}
 		// read username
-		_, err = io.ReadAtLeast(this.conn, buffer[:l], l)
+		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		username := make([]byte, l)
 		copy(username, buffer[:l])
 		// read password length
-		_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
+		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		l = int(buffer[0])
@@ -326,39 +331,39 @@ func (this *conn) serve() {
 			buffer = make([]byte, l)
 		}
 		// read password
-		_, err = io.ReadAtLeast(this.conn, buffer[:l], l)
+		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		password := make([]byte, l)
 		copy(password, buffer[:l])
 		// write username password version
-		_, err = this.conn.Write([]byte{username_password_version})
+		_, err = c.conn.Write([]byte{usernamePasswordVersion})
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
-		if subtle.ConstantTimeCompare(this.server.username, username) != 1 ||
-			subtle.ConstantTimeCompare(this.server.password, password) != 1 {
-			this.server.log(logger.EXPLOIT, &log{C: this.conn,
+		if subtle.ConstantTimeCompare(c.server.username, username) != 1 ||
+			subtle.ConstantTimeCompare(c.server.password, password) != 1 {
+			c.server.log(logger.EXPLOIT, &log{C: c.conn,
 				Log: fmt.Sprintf("invalid username password: %s %s", username, password)})
-			_, err = this.conn.Write([]byte{status_failed})
+			_, err = c.conn.Write([]byte{statusFailed})
 			if err != nil {
-				this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+				c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			}
 			return
 		} else {
-			_, err = this.conn.Write([]byte{status_succeeded})
+			_, err = c.conn.Write([]byte{statusSucceeded})
 			if err != nil {
-				this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+				c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 				return
 			}
 		}
 	} else {
-		_, err = this.conn.Write([]byte{version5, not_required})
+		_, err = c.conn.Write([]byte{version5, notRequired})
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 	}
@@ -367,30 +372,30 @@ func (this *conn) serve() {
 	if len(buffer) < 10 {
 		buffer = make([]byte, 10) // 4 + 4(ipv4) + 2(port)
 	}
-	_, err = io.ReadAtLeast(this.conn, buffer[:4], 4)
+	_, err = io.ReadAtLeast(c.conn, buffer[:4], 4)
 	if err != nil {
-		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+		c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		return
 	}
 	if buffer[0] != version5 {
-		this.server.log(logger.EXPLOIT, &log{C: this.conn,
+		c.server.log(logger.EXPLOIT, &log{C: c.conn,
 			Log: fmt.Sprintf("unexpected connect protocol version %d", buffer[0])})
 		return
 	}
 	if buffer[1] != connect {
-		this.server.log(logger.EXPLOIT, &log{C: this.conn,
+		c.server.log(logger.EXPLOIT, &log{C: c.conn,
 			Log: "non-zero reserved field"})
-		_, err = this.conn.Write([]byte{version5, command_not_support, reserve})
+		_, err = c.conn.Write([]byte{version5, commandNotSupport, reserve})
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		}
 		return
 	}
 	if buffer[2] != reserve { // reserve
-		this.server.log(logger.EXPLOIT, &log{C: this.conn, Log: "non-zero reserved field"})
-		_, err = this.conn.Write([]byte{version5, 0x01, reserve})
+		c.server.log(logger.EXPLOIT, &log{C: c.conn, Log: "non-zero reserved field"})
+		_, err = c.conn.Write([]byte{version5, 0x01, reserve})
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		}
 		return
 	}
@@ -398,72 +403,71 @@ func (this *conn) serve() {
 	var host string
 	switch buffer[3] {
 	case ipv4:
-		_, err = io.ReadAtLeast(this.conn, buffer[:4], 4)
+		_, err = io.ReadAtLeast(c.conn, buffer[:4], 4)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		host = net.IP(buffer[:4]).String()
 	case ipv6:
 		buffer = make([]byte, 16) // 4 + 4(ipv4) + 2(port)
-		_, err = io.ReadAtLeast(this.conn, buffer[:16], 16)
+		_, err = io.ReadAtLeast(c.conn, buffer[:16], 16)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		host = "[" + net.IP(buffer[:16]).String() + "]"
 	case fqdn:
 		// get FQDN length
-		_, err = io.ReadAtLeast(this.conn, buffer[:1], 1)
+		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		l = int(buffer[0])
 		if l > len(buffer) {
 			buffer = make([]byte, l)
 		}
-		_, err = io.ReadAtLeast(this.conn, buffer[:l], l)
+		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 			return
 		}
 		host = string(buffer[:l])
 	default:
-		this.server.log(logger.EXPLOIT, &log{C: this.conn, Log: "address type not supported"})
-		_, err = this.conn.Write([]byte{version5, 0x08, reserve, ipv4, 0, 0, 0, 0, 0, 0})
+		c.server.log(logger.EXPLOIT, &log{C: c.conn, Log: "address type not supported"})
+		_, err = c.conn.Write(ReplyAddressNotSupport)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		}
 		return
 	}
 	// get port
-	_, err = io.ReadAtLeast(this.conn, buffer[:2], 2)
+	_, err = io.ReadAtLeast(c.conn, buffer[:2], 2)
 	if err != nil {
-		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+		c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		return
 	}
 	// start dial
-	port := convert.Bytes_Uint16(buffer[:2])
+	port := convert.BytesToUint16(buffer[:2])
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
-		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
-		_, err = this.conn.Write([]byte{version5, 0x05, reserve, ipv4, 0, 0, 0, 0, 0, 0})
+		c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
+		_, err = c.conn.Write(ReplyConnectRefused)
 		if err != nil {
-			this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+			c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		}
 		return
 	}
 	defer func() { _ = conn.Close() }()
 	// write reply
 	// ipv4 + 0.0.0.0 + 0(port)
-	success := []byte{version5, succeeded, reserve, ipv4, 0, 0, 0, 0, 0, 0}
-	_, err = this.conn.Write(success)
+	_, err = c.conn.Write(ReplySucceeded)
 	if err != nil {
-		this.server.log(logger.ERROR, &log{Log: err, C: this.conn})
+		c.server.log(logger.ERROR, &log{Log: err, C: c.conn})
 		return
 	}
-	_ = this.conn.SetDeadline(time.Time{})
-	go func() { _, _ = io.Copy(conn, this.conn) }()
-	_, _ = io.Copy(this.conn, conn)
+	_ = c.conn.SetDeadline(time.Time{})
+	go func() { _, _ = io.Copy(conn, c.conn) }()
+	_, _ = io.Copy(c.conn, conn)
 }

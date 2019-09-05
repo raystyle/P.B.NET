@@ -26,19 +26,19 @@ type Config struct {
 
 // support proxy chain
 type Client struct {
-	dial         func(network, address string) (net.Conn, error)
-	dial_context func(ctx context.Context, network, address string) (net.Conn, error)
-	dial_timeout func(network, address string, timeout time.Duration) (net.Conn, error)
-	chain        string
+	dial        func(network, address string) (net.Conn, error)
+	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
+	chain       string
 }
 
-func New_Client(c ...*Config) (*Client, error) {
+func NewClient(c ...*Config) (*Client, error) {
 	d := direct.Direct{}
 	s := &Client{
-		dial:         d.Dial,
-		dial_context: d.Dial_Context,
-		dial_timeout: d.Dial_Timeout,
-		chain:        "direct",
+		dial:        d.Dial,
+		dialContext: d.DialContext,
+		dialTimeout: d.DialTimeout,
+		chain:       "direct",
 	}
 	for i := 0; i < len(c); i++ {
 		err := s.add(c[i])
@@ -49,136 +49,137 @@ func New_Client(c ...*Config) (*Client, error) {
 	return s, nil
 }
 
-func (this *Client) Dial(network, address string) (net.Conn, error) {
+func (c *Client) Dial(network, address string) (net.Conn, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, ERR_NOT_SUPPORT_NETWORK
+		return nil, ErrNotSupportNetwork
 	}
-	return this.dial(network, address)
+	return c.dial(network, address)
 }
 
-func (this *Client) Dial_Context(ctx context.Context, network, address string) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, ERR_NOT_SUPPORT_NETWORK
+		return nil, ErrNotSupportNetwork
 	}
-	return this.dial_context(ctx, network, address)
+	return c.dialContext(ctx, network, address)
 }
 
-func (this *Client) Dial_Timeout(network, address string, timeout time.Duration) (net.Conn, error) {
+func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, ERR_NOT_SUPPORT_NETWORK
+		return nil, ErrNotSupportNetwork
 	}
-	return this.dial_timeout(network, address, timeout)
+	return c.dialTimeout(network, address, timeout)
 }
 
-func (this *Client) HTTP(t *http.Transport) {
-	t.DialContext = this.dial_context
+func (c *Client) HTTP(t *http.Transport) {
+	t.DialContext = c.dialContext
 }
 
-func (this *Client) Info() string {
-	return this.chain
+func (c *Client) Info() string {
+	return c.chain
 }
 
-func (this *Client) add(server *Config) error {
+func (c *Client) add(server *Config) error {
 	switch server.Network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return ERR_NOT_SUPPORT_NETWORK
+		return ErrNotSupportNetwork
 	}
 	d := &dialer{
-		server:       server,
-		dial:         this.dial,
-		dial_context: this.dial_context,
-		dial_timeout: this.dial_timeout,
+		server:      server,
+		dial:        c.dial,
+		dialContext: c.dialContext,
+		dialTimeout: c.dialTimeout,
 	}
-	this.dial = d.Dial
-	this.dial_context = d.Dial_Context
-	this.dial_timeout = d.Dial_Timeout
+	c.dial = d.Dial
+	c.dialContext = d.DialContext
+	c.dialTimeout = d.DialTimeout
 	// update chain
 	buffer := bytes.Buffer{}
-	buffer.WriteString(this.chain)
+	buffer.WriteString(c.chain)
 	buffer.WriteString(" -> [")
 	buffer.WriteString(server.Network)
 	buffer.WriteString(" ")
 	buffer.WriteString(server.Address)
 	buffer.WriteString("]")
-	this.chain = buffer.String()
+	c.chain = buffer.String()
 	return nil
 }
 
 type dialer struct {
-	server       *Config
-	dial         func(network, address string) (net.Conn, error)
-	dial_context func(ctx context.Context, network, address string) (net.Conn, error)
-	dial_timeout func(network, address string, timeout time.Duration) (net.Conn, error)
+	server      *Config
+	dial        func(network, address string) (net.Conn, error)
+	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
 }
 
-func (this *dialer) Dial(network, address string) (net.Conn, error) {
-	conn, err := this.dial(this.server.Network, this.server.Address)
+func (d *dialer) Dial(network, address string) (net.Conn, error) {
+	conn, err := d.dial(d.server.Network, d.server.Address)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "Dial Socks5 Server %s failed",
-			this.server.Address)
+			d.server.Address)
 	}
-	err = this.connect(conn, network, address)
+	err = d.connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		return nil, errors.WithMessagef(err, "Socks5 Server %s Connect %s failed",
-			this.server.Address, address)
+			d.server.Address, address)
 	}
 	return conn, nil
 }
 
-func (this *dialer) Dial_Context(ctx context.Context, network, address string) (net.Conn, error) {
-	conn, err := this.dial_context(ctx, this.server.Network, this.server.Address)
+func (d *dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	conn, err := d.dialContext(ctx, d.server.Network, d.server.Address)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "Dial Socks5 Server %s failed",
-			this.server.Address)
+			d.server.Address)
 	}
-	err = this.connect(conn, network, address)
+	err = d.connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		return nil, errors.WithMessagef(err, "Socks5 Server %s Connect %s failed",
-			this.server.Address, address)
+			d.server.Address, address)
 	}
 	return conn, nil
 }
 
-func (this *dialer) Dial_Timeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	conn, err := this.dial_timeout(this.server.Network, this.server.Address, timeout)
+func (d *dialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	conn, err := d.dialTimeout(d.server.Network, d.server.Address, timeout)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "Dial Socks5 Server %s failed",
-			this.server.Address)
+			d.server.Address)
 	}
-	err = this.connect(conn, network, address)
+	err = d.connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		return nil, errors.WithMessagef(err, "Socks5 Server %s Connect %s failed",
-			this.server.Address, address)
+			d.server.Address, address)
 	}
 	return conn, nil
 }
 
 // https://www.ietf.org/rfc/rfc1928.txt
-func (this *dialer) connect(conn net.Conn, network, address string) error {
-	host, port, err := split_host_port(address)
+func (d *dialer) connect(conn net.Conn, network, address string) error {
+	host, port, err := splitHostPort(address)
 	if err != nil {
 		return err
 	}
+	conn = xnet.NewDeadlineConn(conn, 0)
 	// request authentication
 	buffer := bytes.Buffer{}
 	buffer.WriteByte(version5)
-	if this.server.Username == "" {
+	if d.server.Username == "" {
 		buffer.WriteByte(1)
-		buffer.WriteByte(not_required)
+		buffer.WriteByte(notRequired)
 	} else {
 		buffer.WriteByte(2)
-		buffer.WriteByte(not_required)
-		buffer.WriteByte(username_password)
+		buffer.WriteByte(notRequired)
+		buffer.WriteByte(usernamePassword)
 	}
 	_, err = conn.Write(buffer.Bytes())
 	if err != nil {
@@ -193,21 +194,21 @@ func (this *dialer) connect(conn net.Conn, network, address string) error {
 		return fmt.Errorf("unexpected protocol version %d", response[0])
 	}
 	am := response[1]
-	if am == no_acceptable_methods {
-		return ERR_NO_ACCEPTABLE_METHODS
+	if am == noAcceptableMethods {
+		return ErrNoAcceptableMethods
 	}
 	// authenticate
 	switch am {
-	case not_required:
-	case username_password:
-		username := this.server.Username
-		password := this.server.Password
+	case notRequired:
+	case usernamePassword:
+		username := d.server.Username
+		password := d.server.Password
 		if len(username) == 0 || len(username) > 255 {
 			return errors.New("invalid username length")
 		}
 		// https://www.ietf.org/rfc/rfc1929.txt
 		buffer.Reset()
-		buffer.WriteByte(username_password_version)
+		buffer.WriteByte(usernamePasswordVersion)
 		buffer.WriteByte(byte(len(username)))
 		buffer.WriteString(username)
 		buffer.WriteByte(byte(len(password)))
@@ -221,10 +222,10 @@ func (this *dialer) connect(conn net.Conn, network, address string) error {
 		if err != nil {
 			return err
 		}
-		if response[0] != username_password_version {
+		if response[0] != usernamePasswordVersion {
 			return errors.New("invalid username/password version")
 		}
-		if response[1] != status_succeeded {
+		if response[1] != statusSucceeded {
 			return errors.New("invalid username/password")
 		}
 	default:
@@ -258,7 +259,7 @@ func (this *dialer) connect(conn net.Conn, network, address string) error {
 		buffer.WriteByte(byte(len(host)))
 		buffer.Write([]byte(host))
 	}
-	buffer.Write(convert.Uint16_Bytes(uint16(port)))
+	buffer.Write(convert.Uint16ToBytes(uint16(port)))
 	_, err = conn.Write(buffer.Bytes())
 	if err != nil {
 		return err
@@ -272,7 +273,6 @@ func (this *dialer) connect(conn net.Conn, network, address string) error {
 	if response[0] != version5 {
 		return fmt.Errorf("unexpected protocol version %d", response[0])
 	}
-
 	if response[1] != succeeded {
 		return errors.New(Reply(response[1]).String())
 	}
@@ -302,18 +302,18 @@ func (this *dialer) connect(conn net.Conn, network, address string) error {
 	return err
 }
 
-func split_host_port(address string) (string, int, error) {
+func splitHostPort(address string) (string, int, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	portnum, err := strconv.Atoi(port)
+	portNum, err := strconv.Atoi(port)
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	err = xnet.Check_Port_int(portnum)
+	err = xnet.CheckPortInt(portNum)
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	return host, portnum, nil
+	return host, portNum, nil
 }

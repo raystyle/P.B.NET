@@ -8,13 +8,13 @@ import (
 const (
 	version5 uint8 = 0x05
 	// auth method
-	not_required          uint8 = 0x00
-	username_password     uint8 = 0x02
-	no_acceptable_methods uint8 = 0xFF
+	notRequired         uint8 = 0x00
+	usernamePassword    uint8 = 0x02
+	noAcceptableMethods uint8 = 0xFF
 	// auth
-	username_password_version uint8 = 0x01
-	status_succeeded          uint8 = 0x00
-	status_failed             uint8 = 0x01
+	usernamePasswordVersion uint8 = 0x01
+	statusSucceeded         uint8 = 0x00
+	statusFailed            uint8 = 0x01
 
 	reserve uint8 = 0x00
 	// cmd
@@ -24,19 +24,21 @@ const (
 	fqdn uint8 = 0x03
 	ipv6 uint8 = 0x04
 	// reply
-	succeeded           uint8 = 0x00
-	command_not_support uint8 = 0x07
+	succeeded         uint8 = 0x00
+	connRefused       uint8 = 0x05
+	commandNotSupport uint8 = 0x07
+	addressNotSupport uint8 = 0x08
 )
 
 var (
-	ERR_NOT_SUPPORT_NETWORK   = errors.New("support only tcp tcp4 tcp6")
-	ERR_NO_ACCEPTABLE_METHODS = errors.New("no acceptable authentication methods")
+	ErrNotSupportNetwork   = errors.New("support only tcp tcp4 tcp6")
+	ErrNoAcceptableMethods = errors.New("no acceptable authentication methods")
 )
 
 type Reply uint8
 
-func (this Reply) String() string {
-	switch this {
+func (r Reply) String() string {
+	switch r {
 	case 0x01:
 		return "general SOCKS server failure"
 	case 0x02:
@@ -54,6 +56,6 @@ func (this Reply) String() string {
 	case 0x08:
 		return "address type not supported"
 	default:
-		return "unknown code: " + strconv.Itoa(int(this))
+		return "unknown code: " + strconv.Itoa(int(r))
 	}
 }
