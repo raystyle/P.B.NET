@@ -16,7 +16,7 @@ func TestRSA(t *testing.T) {
 	_, err = ImportPrivateKeyPEM(file)
 	require.NoError(t, err)
 	_, err = ImportPrivateKeyPEM(nil)
-	require.Equal(t, err, ErrInvalidPEMBlock, err)
+	require.Equal(t, err, ErrInvalidPEMBlock)
 	privatekeyBytes := ExportPrivateKey(privatekey)
 	_, err = ImportPrivateKey(privatekeyBytes)
 	require.NoError(t, err)
@@ -24,8 +24,9 @@ func TestRSA(t *testing.T) {
 	publickeyBytes := ExportPublicKey(publickey)
 	_, err = ImportPublicKey(publickeyBytes)
 	require.NoError(t, err)
+	// invalid public key
 	_, err = ImportPublicKey(nil)
-	require.NoError(t, err)
+	require.Error(t, err)
 	signature, err := Sign(privatekey, file)
 	require.NoError(t, err)
 	require.True(t, Verify(publickey, file, signature), "invalid data")
@@ -36,7 +37,7 @@ func TestRSA(t *testing.T) {
 	require.NoError(t, err)
 	plaindata, err := Decrypt(privatekey, cipherdata)
 	require.NoError(t, err)
-	require.Equal(t, plaindata, data, "wrong data")
+	require.Equal(t, plaindata, data)
 }
 
 func BenchmarkSign(b *testing.B) {

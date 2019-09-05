@@ -40,6 +40,6 @@ func TestScalarBaseMult(t *testing.T) {
 	t.Log(cKey)
 	// invalid in size
 	cPub, err = ScalarBaseMult(nil)
-	require.NoError(t, err)
+	require.Error(t, err)
 	require.Nil(t, cPub)
 }
