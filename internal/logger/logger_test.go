@@ -43,7 +43,7 @@ func TestParse(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, l, OFF)
 	l, err = Parse("invalid level")
-	require.NotNil(t, err, err)
+	require.Error(t, err)
 	require.Equal(t, l, DEBUG)
 }
 
