@@ -32,8 +32,8 @@ func TestClient(t *testing.T) {
 		_, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 	}
-	get("https://ip.cn/")
-	get("http://ip.cn/")
+	get("https://github.com/")
+	get("http://github.com/")
 	// test other
 	_, err = httpProxy.Dial("", "")
 	require.Equal(t, err, ErrNotSupportDial)
