@@ -10,63 +10,63 @@ import (
 
 type Conn struct {
 	net.Conn
-	is_client         bool
-	handshake_timeout time.Duration
-	handshake_err     error
-	handshake_m       sync.Mutex
-	handshake_once    sync.Once
-	cryptor           *cryptor
+	isClient         bool
+	handshakeTimeout time.Duration
+	handshakeErr     error
+	handshakeM       sync.Mutex
+	handshakeOnce    sync.Once
+	crypto           *crypto
 }
 
-func (this *Conn) Handshake() error {
-	this.handshake_m.Lock()
-	defer this.handshake_m.Unlock()
-	if this.handshake_err != nil {
-		return this.handshake_err
+func (c *Conn) Handshake() error {
+	c.handshakeM.Lock()
+	defer c.handshakeM.Unlock()
+	if c.handshakeErr != nil {
+		return c.handshakeErr
 	}
-	this.handshake_once.Do(func() {
+	c.handshakeOnce.Do(func() {
 		// default handshake timeout
-		if this.handshake_timeout < 1 {
-			this.handshake_timeout = options.DEFAULT_HANDSHAKE_TIMEOUT
+		if c.handshakeTimeout < 1 {
+			c.handshakeTimeout = options.DefaultHandshakeTimeout
 		}
-		deadline := time.Now().Add(this.handshake_timeout)
-		this.handshake_err = this.SetDeadline(deadline)
-		if this.handshake_err != nil {
+		deadline := time.Now().Add(c.handshakeTimeout)
+		c.handshakeErr = c.SetDeadline(deadline)
+		if c.handshakeErr != nil {
 			return
 		}
-		if this.is_client {
-			this.handshake_err = this.client_handshake()
+		if c.isClient {
+			c.handshakeErr = c.clientHandshake()
 		} else {
-			this.handshake_err = this.server_handshake()
+			c.handshakeErr = c.serverHandshake()
 		}
-		if this.handshake_err != nil {
+		if c.handshakeErr != nil {
 			return
 		}
-		this.handshake_err = this.SetDeadline(time.Time{})
-		if this.handshake_err != nil {
+		c.handshakeErr = c.SetDeadline(time.Time{})
+		if c.handshakeErr != nil {
 			return
 		}
 	})
-	return this.handshake_err
+	return c.handshakeErr
 }
 
-func (this *Conn) Read(b []byte) (n int, err error) {
-	err = this.Handshake()
+func (c *Conn) Read(b []byte) (n int, err error) {
+	err = c.Handshake()
 	if err != nil {
 		return
 	}
-	n, err = this.Conn.Read(b)
+	n, err = c.Conn.Read(b)
 	if err != nil {
 		return
 	}
-	this.cryptor.decrypt(b)
+	c.crypto.decrypt(b)
 	return n, nil
 }
 
-func (this *Conn) Write(b []byte) (n int, err error) {
-	err = this.Handshake()
+func (c *Conn) Write(b []byte) (n int, err error) {
+	err = c.Handshake()
 	if err != nil {
 		return
 	}
-	return this.Conn.Write(this.cryptor.encrypt(b))
+	return c.Conn.Write(c.crypto.encrypt(b))
 }

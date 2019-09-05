@@ -6,37 +6,37 @@ import (
 
 // 0 for encrypt
 // 1 for decrypt
-type cryptor [2][256]byte
+type crypto [2][256]byte
 
-func (this *cryptor) encrypt(plaindata []byte) []byte {
+func (c *crypto) encrypt(plaindata []byte) []byte {
 	l := len(plaindata)
 	cipherdata := make([]byte, l)
 	for i := 0; i < len(plaindata); i++ {
-		cipherdata[i] = this[0][plaindata[i]]
+		cipherdata[i] = c[0][plaindata[i]]
 	}
 	return cipherdata
 }
 
-func (this *cryptor) decrypt(cipherdata []byte) {
+func (c *crypto) decrypt(cipherdata []byte) {
 	for i := 0; i < len(cipherdata); i++ {
-		cipherdata[i] = this[1][cipherdata[i]]
+		cipherdata[i] = c[1][cipherdata[i]]
 	}
 }
 
-func new_cryptor(password []byte) *cryptor {
-	var cryptor cryptor
+func newCrypto(password []byte) *crypto {
+	var crypto crypto
 	if len(password) == 256 {
 		// copy encrypt password
 		for i := 0; i < 256; i++ {
-			cryptor[0][i] = password[i]
+			crypto[0][i] = password[i]
 		}
 	} else {
 		// generate new encrypt password
-		generator := random.New()
+		generator := random.New(0)
 		pool := make(map[byte]bool)
 		// first select
-		cryptor[0][0] = byte(generator.Int(256))
-		pool[cryptor[0][0]] = true
+		crypto[0][0] = byte(generator.Int(256))
+		pool[crypto[0][0]] = true
 		add := 1
 		for {
 			// get options
@@ -50,7 +50,7 @@ func new_cryptor(password []byte) *cryptor {
 			}
 			// select option
 			key := options[generator.Int(l)]
-			cryptor[0][add] = key
+			crypto[0][add] = key
 			pool[key] = true
 			add += 1
 			if add == 256 {
@@ -60,7 +60,7 @@ func new_cryptor(password []byte) *cryptor {
 	}
 	// generate decrypt password
 	for i := 0; i < 256; i++ {
-		cryptor[1][cryptor[0][i]] = byte(i)
+		crypto[1][crypto[0][i]] = byte(i)
 	}
-	return &cryptor
+	return &crypto
 }

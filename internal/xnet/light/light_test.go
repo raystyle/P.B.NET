@@ -7,23 +7,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_light(t *testing.T) {
-	listener, err := Listen("tcp", ":0", 0)
-	require.Nil(t, err, err)
+func TestLight(t *testing.T) {
+	listener, err := Listen("tcp", "localhost:0", 0)
+	require.NoError(t, err)
 	go func() {
 		conn, err := listener.Accept()
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		write := func() {
-			testdata := test_generate_testdata()
+			testdata := testGenerateTestdata()
 			_, err = conn.Write(testdata)
-			require.Nil(t, err, err)
-			require.Equal(t, test_generate_testdata(), testdata)
+			require.NoError(t, err)
+			require.Equal(t, testGenerateTestdata(), testdata)
 		}
 		read := func() {
 			data := make([]byte, 256)
 			_, err = io.ReadFull(conn, data)
-			require.Nil(t, err, err)
-			require.Equal(t, test_generate_testdata(), data)
+			require.NoError(t, err)
+			require.Equal(t, testGenerateTestdata(), data)
 		}
 		read()
 		write()
@@ -31,18 +31,18 @@ func Test_light(t *testing.T) {
 		read()
 	}()
 	conn, err := Dial("tcp", listener.Addr().String(), 0)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	write := func() {
-		testdata := test_generate_testdata()
+		testdata := testGenerateTestdata()
 		_, err = conn.Write(testdata)
-		require.Nil(t, err, err)
-		require.Equal(t, test_generate_testdata(), testdata)
+		require.NoError(t, err)
+		require.Equal(t, testGenerateTestdata(), testdata)
 	}
 	read := func() {
 		data := make([]byte, 256)
 		_, err = io.ReadFull(conn, data)
-		require.Nil(t, err, err)
-		require.Equal(t, test_generate_testdata(), data)
+		require.NoError(t, err)
+		require.Equal(t, testGenerateTestdata(), data)
 	}
 	write()
 	read()
@@ -50,7 +50,7 @@ func Test_light(t *testing.T) {
 	write()
 }
 
-func test_generate_testdata() []byte {
+func testGenerateTestdata() []byte {
 	testdata := make([]byte, 256)
 	for i := 0; i < 256; i++ {
 		testdata[i] = byte(i)
@@ -61,10 +61,10 @@ func test_generate_testdata() []byte {
 /*
 func Test_Dial_With_Dialer(t *testing.T) {
 	listener, err := Listen("tcp", ":0", 0)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	go func() {
 		conn, err := listener.Accept()
-		require.Nil(t, err, err)
+		require.NoError(t, err)
 		_, _ = conn.Read(nil)
 		_ = conn.Close()
 	}()
@@ -72,7 +72,7 @@ func Test_Dial_With_Dialer(t *testing.T) {
 		Timeout: 5 * time.Second,
 	}
 	conn, err := Dial_With_Dialer(dialer, "tcp", listener.Addr().String())
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	_ = conn.Close()
 }
 */

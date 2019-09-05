@@ -6,24 +6,24 @@ import (
 )
 
 func Server(conn net.Conn, timeout time.Duration) *Conn {
-	return &Conn{Conn: conn, handshake_timeout: timeout}
+	return &Conn{Conn: conn, handshakeTimeout: timeout}
 }
 
 func Client(conn net.Conn, timeout time.Duration) *Conn {
-	return &Conn{Conn: conn, handshake_timeout: timeout, is_client: true}
+	return &Conn{Conn: conn, handshakeTimeout: timeout, isClient: true}
 }
 
 type listener struct {
 	net.Listener
-	handshake_timeout time.Duration
+	timeout time.Duration // handshake timeout
 }
 
-func (this *listener) Accept() (net.Conn, error) {
-	c, err := this.Listener.Accept()
+func (l *listener) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
 	if err != nil {
 		return nil, err
 	}
-	return Server(c, this.handshake_timeout), nil
+	return Server(c, l.timeout), nil
 }
 
 func Listen(network, address string, timeout time.Duration) (net.Listener, error) {
@@ -31,13 +31,13 @@ func Listen(network, address string, timeout time.Duration) (net.Listener, error
 	if err != nil {
 		return nil, err
 	}
-	return New_Listener(l, timeout), nil
+	return NewListener(l, timeout), nil
 }
 
-func New_Listener(inner net.Listener, timeout time.Duration) net.Listener {
+func NewListener(inner net.Listener, timeout time.Duration) net.Listener {
 	return &listener{
-		Listener:          inner,
-		handshake_timeout: timeout,
+		Listener: inner,
+		timeout:  timeout,
 	}
 }
 
@@ -76,7 +76,7 @@ func Dial_With_Dialer(dialer *net.Dialer, network, address string) (*Conn, error
 	if err != nil {
 		return nil, err
 	}
-	conn := Client(raw_conn, timeout)
+	conn := client(raw_conn, timeout)
 	if timeout == 0 {
 		err = conn.Handshake()
 	} else {
