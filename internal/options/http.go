@@ -7,16 +7,14 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"golang.org/x/net/http2"
 )
 
 const (
-	default_timeout        = time.Minute
-	default_MaxHeaderBytes = 4 * 1048576 // 4MB
+	defaultTimeout        = time.Minute
+	defaultMaxHeaderBytes = 4 * 1048576 // 4MB
 )
 
-type HTTP_Request struct {
+type HTTPRequest struct {
 	Method string      `toml:"method"`
 	URL    string      `toml:"url"`
 	Post   string      `toml:"post"` // hex
@@ -25,146 +23,143 @@ type HTTP_Request struct {
 	Close  bool        `toml:"close"`
 }
 
-func (this *HTTP_Request) failed(err error) error {
-	return fmt.Errorf("http request apply failed: %s", err)
+func (hr *HTTPRequest) failed(err error) error {
+	return fmt.Errorf("apply http request failed: %s", err)
 }
 
-func (this *HTTP_Request) Apply() (*http.Request, error) {
-	post, err := hex.DecodeString(this.Post)
+func (hr *HTTPRequest) Apply() (*http.Request, error) {
+	post, err := hex.DecodeString(hr.Post)
 	if err != nil {
-		return nil, this.failed(err)
+		return nil, hr.failed(err)
 	}
-	r, err := http.NewRequest(this.Method, this.URL, bytes.NewReader(post))
+	r, err := http.NewRequest(hr.Method, hr.URL, bytes.NewReader(post))
 	if err != nil {
-		return nil, this.failed(err)
+		return nil, hr.failed(err)
 	}
-	r.Header = Copy_HTTP_Header(this.Header)
-	r.Host = this.Host
-	r.Close = this.Close
+	r.Header = CopyHTTPHeader(hr.Header)
+	r.Host = hr.Host
+	r.Close = hr.Close
 	return r, nil
 }
 
-type HTTP_Transport struct {
-	TLSClientConfig        TLS_Config    `toml:"tls_client_config"`
+type HTTPTransport struct {
+	TLSClientConfig        TLSConfig     `toml:"tls_client_config"`
 	TLSHandshakeTimeout    time.Duration `toml:"tls_handshake_timeout"`
-	DisableKeepAlives      bool          `toml:"disable_keepalives"`
+	DisableKeepAlives      bool          `toml:"disable_keep_alives"`
 	DisableCompression     bool          `toml:"disable_compression"`
 	MaxIdleConns           int           `toml:"max_idle_conns"`
-	MaxIdleConnsPerHost    int           `toml:"max_idle_connsperhost"`
-	MaxConnsPerHost        int           `toml:"max_conns_perhost"`
+	MaxIdleConnsPerHost    int           `toml:"max_idle_conns_per_host"`
+	MaxConnsPerHost        int           `toml:"max_conns_per_host"`
 	IdleConnTimeout        time.Duration `toml:"idle_conn_timeout"`
 	ResponseHeaderTimeout  time.Duration `toml:"response_header_timeout"`
 	ExpectContinueTimeout  time.Duration `toml:"expect_continue_timeout"`
 	MaxResponseHeaderBytes int64         `toml:"max_response_header_bytes"`
+	ForceAttemptHTTP2      bool          `toml:"force_attempt_http2"`
 }
 
-func (this *HTTP_Transport) failed(err error) error {
-	return fmt.Errorf("http transport apply failed: %s", err)
+func (ht *HTTPTransport) failed(err error) error {
+	return fmt.Errorf("apply http transport failed: %s", err)
 }
 
-func (this *HTTP_Transport) Apply() (*http.Transport, error) {
+func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	tr := &http.Transport{
-		TLSHandshakeTimeout:    this.TLSHandshakeTimeout,
-		DisableKeepAlives:      this.DisableKeepAlives,
-		DisableCompression:     this.DisableCompression,
-		MaxIdleConns:           this.MaxIdleConns,
-		IdleConnTimeout:        this.IdleConnTimeout,
-		ResponseHeaderTimeout:  this.ResponseHeaderTimeout,
-		ExpectContinueTimeout:  this.ExpectContinueTimeout,
-		MaxResponseHeaderBytes: this.MaxResponseHeaderBytes,
+		TLSHandshakeTimeout:    ht.TLSHandshakeTimeout,
+		DisableKeepAlives:      ht.DisableKeepAlives,
+		DisableCompression:     ht.DisableCompression,
+		MaxIdleConns:           ht.MaxIdleConns,
+		IdleConnTimeout:        ht.IdleConnTimeout,
+		ResponseHeaderTimeout:  ht.ResponseHeaderTimeout,
+		ExpectContinueTimeout:  ht.ExpectContinueTimeout,
+		MaxResponseHeaderBytes: ht.MaxResponseHeaderBytes,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
+		ForceAttemptHTTP2: ht.ForceAttemptHTTP2,
 	}
 	// tls config
 	var err error
-	tr.TLSClientConfig, err = this.TLSClientConfig.Apply()
+	tr.TLSClientConfig, err = ht.TLSClientConfig.Apply()
 	if err != nil {
-		return nil, this.failed(err)
-	}
-	// config http/2
-	err = http2.ConfigureTransport(tr)
-	if err != nil {
-		return nil, this.failed(err)
+		return nil, ht.failed(err)
 	}
 	// conn
-	if this.MaxIdleConnsPerHost < 1 {
+	if ht.MaxIdleConnsPerHost < 1 {
 		tr.MaxIdleConnsPerHost = 1
 	}
-	if this.MaxConnsPerHost < 1 {
+	if ht.MaxConnsPerHost < 1 {
 		tr.MaxConnsPerHost = 1
 	}
 	// timeout
-	if this.TLSHandshakeTimeout < 1 {
-		tr.TLSHandshakeTimeout = default_timeout
+	if ht.TLSHandshakeTimeout < 1 {
+		tr.TLSHandshakeTimeout = defaultTimeout
 	}
-	if this.IdleConnTimeout < 1 {
-		tr.IdleConnTimeout = default_timeout
+	if ht.IdleConnTimeout < 1 {
+		tr.IdleConnTimeout = defaultTimeout
 	}
-	if this.ResponseHeaderTimeout < 1 {
-		tr.ResponseHeaderTimeout = default_timeout
+	if ht.ResponseHeaderTimeout < 1 {
+		tr.ResponseHeaderTimeout = defaultTimeout
 	}
-	if this.ExpectContinueTimeout < 1 {
-		tr.ExpectContinueTimeout = default_timeout
+	if ht.ExpectContinueTimeout < 1 {
+		tr.ExpectContinueTimeout = defaultTimeout
 	}
 	// max header bytes
-	if this.MaxResponseHeaderBytes < 1 {
-		tr.MaxResponseHeaderBytes = default_MaxHeaderBytes
+	if ht.MaxResponseHeaderBytes < 1 {
+		tr.MaxResponseHeaderBytes = defaultMaxHeaderBytes
 	}
 	return tr, nil
 }
 
-type HTTP_Server struct {
-	TLSConfig         TLS_Config    `toml:"tls_client_config"`
+type HTTPServer struct {
+	TLSConfig         TLSConfig     `toml:"tls_client_config"`
 	ReadTimeout       time.Duration `toml:"read_timeout"`  // warning
 	WriteTimeout      time.Duration `toml:"write_timeout"` // warning
 	ReadHeaderTimeout time.Duration `toml:"read_header_timeout"`
 	IdleTimeout       time.Duration `toml:"idle_timeout"`
 	MaxHeaderBytes    int           `toml:"max_header_bytes"`
-	DisableKeepAlive  bool          `toml:"disable_keepalive"`
+	DisableKeepAlive  bool          `toml:"disable_keep_alive"`
 }
 
-func (this *HTTP_Server) failed(err error) error {
-	return fmt.Errorf("http server apply failed: %s", err)
+func (hs *HTTPServer) failed(err error) error {
+	return fmt.Errorf("apply http server failed: %s", err)
 }
 
-func (this *HTTP_Server) Apply() (*http.Server, error) {
+func (hs *HTTPServer) Apply() (*http.Server, error) {
 	s := &http.Server{
-		ReadTimeout:       this.ReadTimeout,
-		WriteTimeout:      this.WriteTimeout,
-		ReadHeaderTimeout: this.ReadHeaderTimeout,
-		IdleTimeout:       this.IdleTimeout,
-		MaxHeaderBytes:    this.MaxHeaderBytes,
+		ReadTimeout:       hs.ReadTimeout,
+		WriteTimeout:      hs.WriteTimeout,
+		ReadHeaderTimeout: hs.ReadHeaderTimeout,
+		IdleTimeout:       hs.IdleTimeout,
+		MaxHeaderBytes:    hs.MaxHeaderBytes,
 	}
 	// tls config
 	var err error
-	s.TLSConfig, err = this.TLSConfig.Apply()
+	s.TLSConfig, err = hs.TLSConfig.Apply()
 	if err != nil {
-		return nil, this.failed(err)
+		return nil, hs.failed(err)
 	}
 	// timeout
-	if this.ReadHeaderTimeout < 1 {
-		s.ReadHeaderTimeout = default_timeout
+	if hs.ReadHeaderTimeout < 1 {
+		s.ReadHeaderTimeout = defaultTimeout
 	}
-	if this.IdleTimeout < 1 {
-		s.IdleTimeout = default_timeout
+	if hs.IdleTimeout < 1 {
+		s.IdleTimeout = defaultTimeout
 	}
 	// max header bytes
-	if this.MaxHeaderBytes < 1 {
-		s.MaxHeaderBytes = default_MaxHeaderBytes
+	if hs.MaxHeaderBytes < 1 {
+		s.MaxHeaderBytes = defaultMaxHeaderBytes
 	}
-	s.SetKeepAlivesEnabled(!this.DisableKeepAlive)
+	s.SetKeepAlivesEnabled(!hs.DisableKeepAlive)
 	return s, nil
 }
 
-// from GOROOT/src/cmd/go/internal/web2/web.go
-func Copy_HTTP_Header(hdr http.Header) http.Header {
+// CopyHTTPHeader prevent unsafe reference
+func CopyHTTPHeader(h http.Header) http.Header {
 	h2 := make(http.Header)
-	if hdr == nil {
+	if h == nil {
 		return h2
 	}
-	for k, v := range hdr {
+	for k, v := range h {
 		v2 := make([]string, len(v))
 		copy(v2, v)
 		h2[k] = v2

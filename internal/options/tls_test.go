@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_TLS_Default(t *testing.T) {
-	config, err := new(TLS_Config).Apply()
-	require.Nil(t, err, err)
+func TestDefaultTLS(t *testing.T) {
+	config, err := new(TLSConfig).Apply()
+	require.NoError(t, err)
 	require.NotNil(t, config)
 }
