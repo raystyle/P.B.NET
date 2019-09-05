@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Conn(t *testing.T) {
+func TestConn(t *testing.T) {
 	conn, err := net.Dial("tcp", "github.com:443")
-	require.Nil(t, err, err)
-	b := Conn(conn)
-	t.Log(b)
+	require.NoError(t, err)
+	t.Log(Conn(conn))
+	_ = conn.Close()
 }

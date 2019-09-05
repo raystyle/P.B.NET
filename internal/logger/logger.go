@@ -19,7 +19,7 @@ const (
 	OFF
 )
 
-const Time_Layout = "2006-01-02 15:04:05"
+const TimeLayout = "2006-01-02 15:04:05"
 
 var (
 	Test    = new(test)
@@ -32,6 +32,7 @@ type Logger interface {
 	Println(l Level, src string, log ...interface{})
 }
 
+// Parse
 func Parse(level string) (Level, error) {
 	l := Level(0)
 	switch level {
@@ -55,6 +56,7 @@ func Parse(level string) (Level, error) {
 	return l, nil
 }
 
+// Prefix
 // time + level + source + log
 // source usually like class name + "-" + instance tag
 // [2006-01-02 15:04:05] [INFO] <http proxy-test> start http proxy server
@@ -76,7 +78,7 @@ func Prefix(l Level, src string) *bytes.Buffer {
 	}
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("[")
-	buffer.WriteString(time.Now().Local().Format(Time_Layout))
+	buffer.WriteString(time.Now().Local().Format(TimeLayout))
 	buffer.WriteString("] [")
 	buffer.WriteString(lv)
 	buffer.WriteString("] <")
@@ -85,7 +87,7 @@ func Prefix(l Level, src string) *bytes.Buffer {
 	return buffer
 }
 
-// for go internal logger like http.Server.ErrorLog
+// Wrap is for go internal logger like http.Server.ErrorLog
 func Wrap(l Level, src string, logger Logger) *log.Logger {
 	w := &writer{
 		level:  l,
@@ -101,26 +103,26 @@ type writer struct {
 	logger Logger
 }
 
-func (this *writer) Write(p []byte) (int, error) {
-	this.logger.Println(this.level, this.src, string(p[:len(p)-1]))
+func (w *writer) Write(p []byte) (int, error) {
+	w.logger.Println(w.level, w.src, string(p[:len(p)-1]))
 	return len(p), nil
 }
 
 type test struct{}
 
-func (this *test) Printf(l Level, src string, format string, log ...interface{}) {
+func (t *test) Printf(l Level, src string, format string, log ...interface{}) {
 	b := Prefix(l, src)
 	_, _ = fmt.Fprintf(b, format, log...)
 	fmt.Println(b.String())
 }
 
-func (this *test) Print(l Level, src string, log ...interface{}) {
+func (t *test) Print(l Level, src string, log ...interface{}) {
 	b := Prefix(l, src)
 	_, _ = fmt.Fprint(b, log...)
 	fmt.Println(b.String())
 }
 
-func (this *test) Println(l Level, src string, log ...interface{}) {
+func (t *test) Println(l Level, src string, log ...interface{}) {
 	b := Prefix(l, src)
 	_, _ = fmt.Fprintln(b, log...)
 	fmt.Print(b.String())
@@ -128,8 +130,8 @@ func (this *test) Println(l Level, src string, log ...interface{}) {
 
 type discard struct{}
 
-func (this *discard) Printf(l Level, src string, format string, log ...interface{}) {}
+func (d *discard) Printf(l Level, src string, format string, log ...interface{}) {}
 
-func (this *discard) Print(l Level, src string, log ...interface{}) {}
+func (d *discard) Print(l Level, src string, log ...interface{}) {}
 
-func (this *discard) Println(l Level, src string, log ...interface{}) {}
+func (d *discard) Println(l Level, src string, log ...interface{}) {}
