@@ -35,6 +35,6 @@ func system_resolve(domain string, Type dns.Type) ([]string, error) {
 	case dns.IPV6:
 		return ipv6_list, nil
 	default:
-		return nil, dns.ERR_INVALID_TYPE
+		return nil, dns.ErrInvalidType
 	}
 }
