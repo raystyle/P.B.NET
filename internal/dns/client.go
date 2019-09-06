@@ -78,12 +78,12 @@ func (c *Client) Test() error {
 
 type Options struct {
 	Mode      Mode                  `toml:"mode"`   // default is custom
-	ServerTag string                `toml:"tag"`    // if != "" use selected dns client
-	ProxyTag  string                `toml:"proxy"`  // proxy tag
-	Type      Type                  `toml:"type"`   // default is IPv4
 	Method    Method                `toml:"method"` // default is UDP if != "" ignore it
-	Network   string                `toml:"network"`
+	Type      Type                  `toml:"type"`   // default is IPv4
 	Timeout   time.Duration         `toml:"timeout"`
+	ServerTag string                `toml:"server_tag"` // if != "" use selected dns client
+	ProxyTag  string                `toml:"proxy_tag"`  // proxy tag
+	Network   string                `toml:"network"`
 	Header    http.Header           `toml:"header"`    // about DOH
 	Transport options.HTTPTransport `toml:"transport"` // about DOH
 
