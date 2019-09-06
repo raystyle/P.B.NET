@@ -1,27 +1,26 @@
-package dnsclient
+package dns
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/dns"
 )
 
-func Test_system_resolve(t *testing.T) {
+func TestSystemResolve(t *testing.T) {
 	// ipv4
-	ip_list, err := system_resolve(domain, dns.IPV4)
+	ipList, err := systemResolve(domain, IPv4)
 	require.NoError(t, err)
-	t.Log("system resolve ipv4:", ip_list)
+	t.Log("system resolve ipv4:", ipList)
 	// ipv6
-	ip_list, err = system_resolve(domain, dns.IPV6)
+	ipList, err = systemResolve(domain, IPv6)
 	require.NoError(t, err)
-	t.Log("system resolve ipv6:", ip_list)
+	t.Log("system resolve ipv6:", ipList)
 	// invalid host
-	_, err = system_resolve("asdasdas.asd", dns.IPV4)
-	require.NoError(t, err)
+	ipList, err = systemResolve("asd.asd", IPv4)
+	require.Error(t, err)
+	require.Nil(t, ipList)
 	// invalid type
-	ip_list, err = system_resolve(domain, "asd")
-	require.NoError(t, err)
-	require.Nil(t, ip_list)
+	ipList, err = systemResolve(domain, "asd")
+	require.Error(t, err)
+	require.Nil(t, ipList)
 }

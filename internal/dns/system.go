@@ -1,40 +1,33 @@
-package dnsclient
+package dns
 
 import (
 	"net"
-
-	"project/internal/dns"
 )
 
-func system_resolve(domain string, Type dns.Type) ([]string, error) {
-	address, err := net.LookupHost(domain)
+func systemResolve(domain string, Type Type) ([]string, error) {
+	addrs, err := net.LookupHost(domain)
 	if err != nil {
 		return nil, err
 	}
 	var (
-		ipv4_list []string
-		ipv6_list []string
+		ipv4List []string
+		ipv6List []string
 	)
-	for _, addr := range address {
+	for _, addr := range addrs {
 		ip := net.ParseIP(addr)
-		if ip != nil {
-			ipv4 := ip.To4()
-			if ipv4 != nil {
-				ipv4_list = append(ipv4_list, ipv4.String())
-			} else {
-				ipv6 := ip.To16()
-				if ipv6 != nil {
-					ipv6_list = append(ipv6_list, ipv6.String())
-				}
-			}
+		ipv4 := ip.To4()
+		if ipv4 != nil {
+			ipv4List = append(ipv4List, ipv4.String())
+		} else {
+			ipv6List = append(ipv6List, ip.To16().String())
 		}
 	}
 	switch Type {
-	case dns.IPV4:
-		return ipv4_list, nil
-	case dns.IPV6:
-		return ipv6_list, nil
+	case IPv4:
+		return ipv4List, nil
+	case IPv6:
+		return ipv6List, nil
 	default:
-		return nil, dns.ErrInvalidType
+		return nil, ErrInvalidType
 	}
 }
