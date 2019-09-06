@@ -47,7 +47,7 @@ func TestPool(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, pc)
 	// get failed
-	pc, err = pool.Get("not exists")
+	pc, err = pool.Get("doesn't exist")
 	require.Error(t, err)
 	require.Nil(t, pc)
 	// list

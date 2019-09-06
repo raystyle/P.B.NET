@@ -48,7 +48,7 @@ type Pool struct {
 
 // NewPool is for x.global
 func NewPool(c map[string]*Client) (*Pool, error) {
-	p := &Pool{
+	p := Pool{
 		clients: make(map[string]*Client),
 	}
 	for tag, client := range c {
@@ -57,7 +57,7 @@ func NewPool(c map[string]*Client) (*Pool, error) {
 			return nil, fmt.Errorf("add proxy client %s failed: %s", tag, err)
 		}
 	}
-	return p, nil
+	return &p, nil
 }
 
 // if tag = "" return Direct
@@ -67,8 +67,8 @@ func (p *Pool) Get(tag string) (*Client, error) {
 	}
 	p.rwm.RLock()
 	defer p.rwm.RUnlock()
-	if p, exist := p.clients[tag]; exist {
-		return p, nil
+	if client, ok := p.clients[tag]; ok {
+		return client, nil
 	} else {
 		return nil, fmt.Errorf("proxy client: %s doesn't exist", tag)
 	}
@@ -115,7 +115,7 @@ func (p *Pool) Add(tag string, client *Client) error {
 	client.Config = ""
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
-	if _, exist := p.clients[tag]; !exist {
+	if _, ok := p.clients[tag]; !ok {
 		p.clients[tag] = client
 		return nil
 	} else {
@@ -129,7 +129,7 @@ func (p *Pool) Delete(tag string) error {
 	}
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
-	if _, exist := p.clients[tag]; exist {
+	if _, ok := p.clients[tag]; ok {
 		delete(p.clients, tag)
 		return nil
 	} else {
