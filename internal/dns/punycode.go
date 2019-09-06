@@ -126,14 +126,13 @@ func adapt(delta, numPoints int32, firstTime bool) int32 {
 	return k + (base-tmin+1)*delta/(delta+skew)
 }
 
-// ToASCII is a wrapper for Punycode.ToASCII.
-func to_ascii(s string) (string, error) {
-	if is_ascii(s) {
+func toASCII(s string) (string, error) {
+	if isASCII(s) {
 		return s, nil
 	}
 	labels := strings.Split(s, ".")
 	for i, label := range labels {
-		if !is_ascii(label) {
+		if !isASCII(label) {
 			a, err := encode(acePrefix, label)
 			if err != nil {
 				return "", err
@@ -144,7 +143,7 @@ func to_ascii(s string) (string, error) {
 	return strings.Join(labels, "."), nil
 }
 
-func is_ascii(s string) bool {
+func isASCII(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= utf8.RuneSelf {
 			return false
