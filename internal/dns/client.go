@@ -150,14 +150,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		if _method == "" {
 			_method = defaultMethod
 		}
-		// copy map
-		servers := make(map[string]*Server)
-		c.serversRWM.RLock()
-		for tag, server := range c.servers {
-			servers[tag] = server
-		}
-		c.serversRWM.RUnlock()
-		for _, server := range servers {
+		for _, server := range c.Servers() {
 			if server.Method == _method {
 				result, err = resolve(server.Address, domain, opts)
 				if err == nil {
