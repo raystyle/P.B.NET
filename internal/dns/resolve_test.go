@@ -1,207 +1,183 @@
 package dns
 
 import (
-	"bytes"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 const (
-	dns_address         = "8.8.8.8:53"
-	dns_tls_domain_mode = "dns.google:853|8.8.8.8,8.8.4.4"
-	dns_doh             = "https://cloudflare-dns.com/dns-query"
-	domain              = "ipv6.baidu.com"
-	domain_punycode     = "错的是.世界"
+	dnsServer        = "8.8.8.8:53"
+	dnsTLSDomainMode = "dns.google:853|8.8.8.8,8.8.4.4"
+	dnsDOH           = "https://cloudflare-dns.com/dns-query"
+	domain           = "cloudflare-dns.com"
+	domainPunycode   = "münchen.com"
 
-	// dns_doh          = "https://cloudflare-dns.com/dns-query"
-	// dns_doh          = "https://mozilla.cloudflare-dns.com/dns-query"
-	// dns_doh          = "https://dns.rubyfish.cn/dns-query" bug?
+	// dnsDOH           = "https://cloudflare-dns.com/dns-query"
+	// dnsDOH           = "https://mozilla.cloudflare-dns.com/dns-query"
 )
 
-func Test_Resolve(t *testing.T) {
+func TestResolve(t *testing.T) {
+	opt := Options{}
 	// udp
-	ip_list, err := Resolve(dns_address, domain, nil)
+	ipList, err := resolve(dnsServer, domain, &opt)
 	require.NoError(t, err)
-	t.Log("UDP IPv4:", ip_list)
+	t.Log("UDP IPv4:", ipList)
 	// punycode
-	ip_list, err = Resolve(dns_address, domain_punycode, nil)
+	ipList, err = resolve(dnsServer, domainPunycode, &opt)
 	require.NoError(t, err)
-	t.Log("UDP IPv4 punycode:", ip_list)
+	t.Log("UDP IPv4 punycode:", ipList)
 	// tcp
-	opt := &Options{
-		Method: TCP,
-		Type:   IPV6,
-	}
-	ip_list, err = Resolve(dns_address, domain, opt)
+	opt.Method = TCP
+	opt.Type = IPv6
+	ipList, err = resolve(dnsServer, domain, &opt)
 	require.NoError(t, err)
-	t.Log("TCP IPv6:", ip_list)
+	t.Log("TCP IPv6:", ipList)
 	// tls
 	opt.Method = TLS
-	opt.Type = IPV4
-	ip_list, err = Resolve(dns_tls_domain_mode, domain, opt)
+	opt.Type = IPv4
+	ipList, err = resolve(dnsTLSDomainMode, domain, &opt)
 	require.NoError(t, err)
-	t.Log("TLS IPv4:", ip_list)
+	t.Log("TLS IPv4:", ipList)
 	// doh
 	opt.Method = DOH
-	ip_list, err = Resolve(dns_doh, domain, opt)
+	ipList, err = resolve(dnsDOH, domain, &opt)
 	require.NoError(t, err)
-	t.Log("DOH IPv4:", ip_list)
+	t.Log("DOH IPv4:", ipList)
 	// is ip
-	_, err = Resolve(dns_address, "8.8.8.8", opt)
+	ipList, err = resolve(dnsServer, "8.8.8.8", &opt)
 	require.NoError(t, err)
+	require.Equal(t, "8.8.8.8", ipList[0])
+	ipList, err = resolve(dnsServer, "::1", &opt)
+	require.NoError(t, err)
+	require.Equal(t, "::1", ipList[0])
 	// not domain
-	_, err = Resolve(dns_address, "asdasdad-", opt)
-	require.Equal(t, err, ERR_INVALID_DOMAIN_NAME, err)
+	_, err = resolve(dnsServer, "xxx-", &opt)
+	require.Equal(t, ErrInvalidDomainName, err)
 	// invalid Type
 	opt.Type = "10"
-	_, err = Resolve(dns_address, domain, opt)
-	require.Equal(t, err, ERR_INVALID_TYPE, err)
+	_, err = resolve(dnsServer, domain, &opt)
+	require.Equal(t, ErrInvalidType, err)
 	// invalid method
-	opt.Type = IPV4
-	opt.Method = "asdasd"
-	_, err = Resolve(dns_address, domain, opt)
-	require.Equal(t, err, ERR_UNKNOWN_METHOD, err)
+	opt.Type = IPv4
+	opt.Method = "invalid method"
+	_, err = resolve(dnsServer, domain, &opt)
+	require.Equal(t, ErrUnknownMethod, err)
 	// dial failed
 	opt.Network = "udp"
 	opt.Method = UDP
 	opt.Timeout = time.Millisecond * 500
-	_, err = Resolve("8.8.8.8:153", domain, opt)
-	require.NoError(t, err)
+	_, err = resolve("8.8.8.8:153", domain, &opt)
+	require.Equal(t, ErrNoConnection, err)
 }
 
-func Test_is_domain(t *testing.T) {
-	require.True(t, Is_Domain("asd.com"))
-	require.True(t, Is_Domain("asd-asd.com"))
+func TestIsDomainName(t *testing.T) {
+	require.True(t, IsDomainName("asd.com"))
+	require.True(t, IsDomainName("asd-asd.com"))
 	// invalid domain
-	require.False(t, Is_Domain(""))
-	require.False(t, Is_Domain(string([]byte{255, 254, 12, 35})))
-	require.False(t, Is_Domain("asdasdad-"))
-	require.False(t, Is_Domain("asdasdad.-"))
-	require.False(t, Is_Domain("asdasdad.."))
-	require.False(t, Is_Domain(strings.Repeat("a", 64)+".com"))
+	require.False(t, IsDomainName(""))
+	require.False(t, IsDomainName(string([]byte{255, 254, 12, 35})))
+	require.False(t, IsDomainName("asd-"))
+	require.False(t, IsDomainName("asd.-"))
+	require.False(t, IsDomainName("asd.."))
+	require.False(t, IsDomainName(strings.Repeat("a", 64)+".com"))
 }
 
-func Test_resolve(t *testing.T) {
-	r := func(response []byte) {
-		ipv4_list, err := resolve(IPV4, response)
-		require.NoError(t, err)
-		ipv6_list, err := resolve(IPV6, response)
-		require.NoError(t, err)
-		require.Nil(t, append(ipv4_list, ipv6_list...))
-	}
-	r(nil)
-	// no answer
-	r([]byte{0, 0, 0, 0, 0, 0, 0, 0})
-	// 2 answer
-	r([]byte{0, 0, 0, 0, 0, 0, 0, 2})
-	// invalid type
-	buffer := bytes.Buffer{}
-	buffer.Write([]byte{1, 1, 1, 1, 1, 1, 0, 1}) // 1 answer
-	// padding
-	buffer.Write([]byte{0, 0, 0, 0, 1, 0})
-	buffer.Write([]byte{0, 0, 0, 0})
-	buffer.Write([]byte{0, 0, 0, 0})
-	b := buffer.Bytes()
-	ipv4_list, err := resolve(IPV4, b)
-	require.Nil(t, err)
-	ipv6_list, err := resolve(IPV6, b)
-	require.Nil(t, err)
-	require.Nil(t, append(ipv4_list, ipv6_list...))
-}
-
-func Test_dial_udp(t *testing.T) {
-	opt := &Options{
+func TestDialUDP(t *testing.T) {
+	opt := Options{
 		Network: "udp",
-		Dial:    net.Dial,
+		dial:    net.Dial,
 	}
-	question := pack_question(1, domain)
-	b, err := dial_udp(dns_address, question, opt)
-	ip_list, err := resolve(IPV4, b)
+	msg := packMessage(dnsmessage.TypeA, domain)
+	msg, err := dialUDP(dnsServer, msg, &opt)
 	require.NoError(t, err)
-	t.Log("UDP IPv4:", ip_list)
+	ipList, err := unpackMessage(msg)
+	require.NoError(t, err)
+	t.Log("UDP IPv4:", ipList)
 	// no port
-	_, err = dial_udp("1.2.3.4", question, opt)
-	require.NoError(t, err)
+	_, err = dialUDP("1.2.3.4", msg, &opt)
+	require.Error(t, err)
 	// no response
-	_, err = dial_udp("1.2.3.4:23421", question, opt)
-	require.Equal(t, err, ERR_NO_CONNECTION, err)
+	_, err = dialUDP("1.2.3.4:23421", msg, &opt)
+	require.Equal(t, ErrNoConnection, err)
 }
 
-func Test_dial_tcp(t *testing.T) {
-	opt := &Options{
+func TestDialTCP(t *testing.T) {
+	opt := Options{
 		Network: "tcp",
-		Dial:    net.Dial,
+		dial:    net.Dial,
 	}
-	question := pack_question(1, domain)
-	b, err := dial_tcp(dns_address, question, opt)
+	msg := packMessage(dnsmessage.TypeA, domain)
+	msg, err := dialTCP(dnsServer, msg, &opt)
 	require.NoError(t, err)
-	ip_list, err := resolve(IPV4, b)
+	ipList, err := unpackMessage(msg)
 	require.NoError(t, err)
-	t.Log("TCP IPv4:", ip_list)
+	t.Log("TCP IPv4:", ipList)
 	// no port
-	_, err = dial_tcp("8.8.8.8", question, opt)
-	require.NoError(t, err)
+	_, err = dialTCP("8.8.8.8", msg, &opt)
+	require.Error(t, err)
 }
 
-func Test_dial_tls(t *testing.T) {
-	opt := &Options{
+func TestDialTLS(t *testing.T) {
+	opt := Options{
 		Network: "tcp",
-		Dial:    net.Dial,
+		dial:    net.Dial,
 	}
-	question := pack_question(1, domain)
-	b, err := dial_tls("dns.google:853|8.8.8.8", question, opt)
+	msg := packMessage(dnsmessage.TypeA, domain)
+	// domain name mode
+	resp, err := dialTLS(dnsTLSDomainMode, msg, &opt)
 	require.NoError(t, err)
-	ip_list, err := resolve(IPV4, b)
+	ipList, err := unpackMessage(resp)
 	require.NoError(t, err)
-	t.Log("TLS domain IPv4:", ip_list)
+	t.Log("TLS domain IPv4:", ipList)
 	// ip mode
-	b, err = dial_tls("1.1.1.1:853", question, opt)
+	resp, err = dialTLS("1.1.1.1:853", msg, &opt)
 	require.NoError(t, err)
-	ip_list, err = resolve(IPV4, b)
+	ipList, err = unpackMessage(resp)
 	require.NoError(t, err)
-	t.Log("TLS ip IPv4:", ip_list)
+	t.Log("TLS ip IPv4:", ipList)
 	// no port(ip mode)
-	_, err = dial_tls("1.2.3.4", question, opt)
-	require.NoError(t, err)
+	_, err = dialTLS("1.2.3.4", msg, &opt)
+	require.Error(t, err)
 	// dial failed
-	_, err = dial_tls("127.0.0.1:888", question, opt)
-	require.NoError(t, err)
+	_, err = dialTLS("127.0.0.1:888", msg, &opt)
+	require.Error(t, err)
 	// error ip(domain mode)
-	_, err = dial_tls("dns.google:853|127.0.0.1", question, opt)
-	require.Equal(t, err, ERR_NO_CONNECTION, err)
+	_, err = dialTLS("dns.google:853|127.0.0.1", msg, &opt)
+	require.Equal(t, ErrNoConnection, err)
 	// no port(domain mode)
-	_, err = dial_tls("dns.google|1.2.3.235", question, opt)
-	require.NoError(t, err)
+	_, err = dialTLS("dns.google|1.2.3.235", msg, &opt)
+	require.Error(t, err)
 	// invalid config
-	_, err = dial_tls("asd:153|asfasf|asfasf", question, opt)
-	require.Equal(t, err, ERR_INVALID_TLS_CONFIG, err)
+	_, err = dialTLS("asd:153|xxx|xxx", msg, &opt)
+	require.Equal(t, ErrInvalidTLSConfig, err)
 }
 
-func Test_dial_https(t *testing.T) {
-	opt := &Options{}
-	question := pack_question(1, domain)
+func TestDialDOH(t *testing.T) {
+	opt := Options{}
+	msg := packMessage(dnsmessage.TypeA, domain)
 	// get
-	b, err := dial_https(dns_doh, question, opt)
+	resp, err := dialDOH(dnsDOH, msg, &opt)
 	require.NoError(t, err)
-	ip_list, err := resolve(IPV4, b)
+	ipList, err := unpackMessage(resp)
 	require.NoError(t, err)
-	t.Log("DOH get IPv4:", ip_list)
+	t.Log("DOH get IPv4:", ipList)
 	// post
-	b, err = dial_https(dns_doh+"#"+strings.Repeat("a", 2048), question, opt)
+	resp, err = dialDOH(dnsDOH+"#"+strings.Repeat("a", 2048), msg, &opt)
 	require.NoError(t, err)
-	ip_list, err = resolve(IPV4, b)
+	ipList, err = unpackMessage(resp)
 	require.NoError(t, err)
-	t.Log("DOH post IPv4:", ip_list)
-	// invalid dohserver
-	_, err = dial_https("asdsad\n", question, opt)
-	require.NotNil(t, err, err)
-	_, err = dial_https("asdsad\n"+"#"+strings.Repeat("a", 2048), question, opt)
-	require.NotNil(t, err, err)
+	t.Log("DOH post IPv4:", ipList)
+	// invalid doh server
+	_, err = dialDOH("asdsad\n", msg, &opt)
+	require.Error(t, err)
+	_, err = dialDOH("asdsad\n"+"#"+strings.Repeat("a", 2048), msg, &opt)
+	require.Error(t, err)
 	// Do failed
-	_, err = dial_https("http://asd.1dsa.asd", question, opt)
-	require.NotNil(t, err, err)
+	_, err = dialDOH("http://asd.1dsa.asd", msg, &opt)
+	require.Error(t, err)
 }
