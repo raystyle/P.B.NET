@@ -3,15 +3,11 @@ package bootstrap
 import (
 	"errors"
 	"net"
-	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/dns"
-	"project/internal/global/dnsclient"
-	"project/internal/global/proxyclient"
 	"project/internal/logger"
 	"project/internal/proxy"
 	"project/internal/proxy/httpproxy"
@@ -19,7 +15,7 @@ import (
 	"project/internal/xnet"
 )
 
-func test_generate_nodes() []*Node {
+func testGenerateNodes() []*Node {
 	nodes := make([]*Node, 2)
 	nodes[0] = &Node{
 		Mode:    xnet.TLS,
@@ -34,119 +30,90 @@ func test_generate_nodes() []*Node {
 	return nodes
 }
 
-type mock_resolver struct{}
+type mockDNSResolver struct{}
 
-func (this *mock_resolver) Resolve(domain string, opts *dnsclient.Options) ([]string, error) {
-	if domain != test_domain {
+func (dr *mockDNSResolver) Resolve(domain string, opts *dns.Options) ([]string, error) {
+	if domain != domain {
 		return nil, errors.New("domain changed")
 	}
 	if opts == nil {
-		opts = new(dnsclient.Options)
+		opts = new(dns.Options)
 	}
 	switch opts.Type {
-	case "", dns.IPV4:
+	case "", dns.IPv4:
 		return []string{"127.0.0.1", "127.0.0.2"}, nil
-	case dns.IPV6:
+	case dns.IPv6:
 		return []string{"::1", "::2"}, nil
 	default:
-		panic(dns.ERR_INVALID_TYPE)
+		panic(dns.ErrInvalidType)
 	}
 }
 
-type mock_proxy_pool struct {
-	socks5_server *socks5.Server
-	socks5_client *proxyclient.Client
-	http_server   *httpproxy.Server
-	http_client   *proxyclient.Client
+type mockProxyPool struct {
+	socks5Server *socks5.Server
+	socks5Client *proxy.Client
+	httpServer   *httpproxy.Server
+	httpClient   *proxy.Client
 }
 
-func (this *mock_proxy_pool) Init(t *testing.T) {
+func newMockProxyPool(t *testing.T) *mockProxyPool {
+	mpp := mockProxyPool{}
 	// start socks5 proxy server(s5s)
-	s5s_opts := &socks5.Options{
+	s5sOpts := &socks5.Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	s5s, err := socks5.New_Server("test_socks5", logger.Test, s5s_opts)
-	require.Nil(t, err, err)
-	err = s5s.Listen_And_Serve(":0", 0)
-	require.Nil(t, err, err)
-	this.socks5_server = s5s
+	s5s, err := socks5.NewServer("test_socks5", logger.Test, s5sOpts)
+	require.NoError(t, err)
+	err = s5s.ListenAndServe("localhost:0", 0)
+	require.NoError(t, err)
+	mpp.socks5Server = s5s
 	// create socks5 client(s5c)
-	s5c, err := socks5.New_Client(&socks5.Config{
-		Network:  "tcp",
-		Address:  s5s.Addr(),
+	_, port, err := net.SplitHostPort(s5s.Addr())
+	require.NoError(t, err)
+	mpp.socks5Client = &proxy.Client{
+		Mode: proxy.Socks5,
+		Config: `
+        [[Clients]]
+          Address = "localhost:` + port + `"
+          Network = "tcp"
+          Password = "123456"
+          Username = "admin"
+    `}
+	// start http proxy server(hps)
+	hpsOpts := &httpproxy.Options{
 		Username: "admin",
 		Password: "123456",
-	})
-	require.Nil(t, err, err)
-	this.socks5_client = &proxyclient.Client{
-		Mode:   proxy.SOCKS5,
-		Client: s5c,
 	}
-	// start http proxy server(hs)
-	hs_opts := &httpproxy.Options{
-		Username: "admin",
-		Password: "123456",
-	}
-	hs, err := httpproxy.New_Server("test_httpproxy", logger.Test, hs_opts)
-	require.Nil(t, err, err)
-	err = hs.Listen_And_Serve(":0", 0)
-	require.Nil(t, err, err)
-	this.http_server = hs
+	hps, err := httpproxy.NewServer("test_http_proxy", logger.Test, hpsOpts)
+	require.NoError(t, err)
+	err = hps.ListenAndServe("localhost:0", 0)
+	require.NoError(t, err)
+	mpp.httpServer = hps
 	// create http proxy client(hc)
-	hc, err := httpproxy.New_Client("http://admin:123456@" + hs.Addr())
-	require.Nil(t, err, err)
-	this.http_client = &proxyclient.Client{
+	_, port, err = net.SplitHostPort(hps.Addr())
+	require.NoError(t, err)
+	mpp.httpClient = &proxy.Client{
 		Mode:   proxy.HTTP,
-		Client: hc,
+		Config: "http://admin:123456@localhost:" + port,
 	}
+	return &mpp
 }
 
-func (this *mock_proxy_pool) Close() {
-	_ = this.socks5_server.Stop()
-	_ = this.http_server.Stop()
-}
-
-func (this *mock_proxy_pool) Get(tag string) (*proxyclient.Client, error) {
+func (p *mockProxyPool) Get(tag string) (*proxy.Client, error) {
 	switch tag {
 	case "":
 		return nil, nil
 	case "http":
-		return this.http_client, nil
+		return p.httpClient, nil
 	case "socks5":
-		return this.socks5_client, nil
+		return p.socks5Client, nil
 	default:
 		panic("doesn't exist")
 	}
 }
 
-// return port
-func test_start_http_server(t *testing.T, s *http.Server, info string) string {
-	l, err := net.Listen("tcp", ":0")
-	require.Nil(t, err, err)
-	data := []byte(info)
-	server_mux := http.NewServeMux()
-	server_mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(data)
-	})
-	s.Handler = server_mux
-	err_chan := make(chan error, 1)
-	go func() {
-		if s.TLSConfig == nil {
-			err_chan <- s.Serve(l)
-		} else {
-			err_chan <- s.ServeTLS(l, "", "")
-		}
-	}()
-	// start
-	select {
-	case err := <-err_chan:
-		t.Fatal(err)
-	case <-time.After(250 * time.Millisecond):
-	}
-	// get port
-	_, port, err := net.SplitHostPort(l.Addr().String())
-	require.Nil(t, err, err)
-	return port
+func (p *mockProxyPool) Close() {
+	_ = p.socks5Server.Stop()
+	_ = p.httpServer.Stop()
 }
