@@ -9,7 +9,7 @@ import (
 )
 
 func TestRSA(t *testing.T) {
-	privatekey, err := GenerateKey(2048)
+	privateKey, err := GenerateKey(2048)
 	require.NoError(t, err)
 	file, err := ioutil.ReadFile("rsa.key")
 	require.NoError(t, err)
@@ -17,71 +17,71 @@ func TestRSA(t *testing.T) {
 	require.NoError(t, err)
 	_, err = ImportPrivateKeyPEM(nil)
 	require.Equal(t, err, ErrInvalidPEMBlock)
-	privatekeyBytes := ExportPrivateKey(privatekey)
-	_, err = ImportPrivateKey(privatekeyBytes)
+	privateKeyBytes := ExportPrivateKey(privateKey)
+	_, err = ImportPrivateKey(privateKeyBytes)
 	require.NoError(t, err)
-	publickey := &privatekey.PublicKey
-	publickeyBytes := ExportPublicKey(publickey)
-	_, err = ImportPublicKey(publickeyBytes)
+	publicKey := &privateKey.PublicKey
+	publicKeyBytes := ExportPublicKey(publicKey)
+	_, err = ImportPublicKey(publicKeyBytes)
 	require.NoError(t, err)
 	// invalid public key
 	_, err = ImportPublicKey(nil)
 	require.Error(t, err)
-	signature, err := Sign(privatekey, file)
+	signature, err := Sign(privateKey, file)
 	require.NoError(t, err)
-	require.True(t, Verify(publickey, file, signature), "invalid data")
-	require.False(t, Verify(publickey, file[:10], signature), "error verify")
-	require.False(t, Verify(publickey, file[:10], nil), "error verify")
+	require.True(t, Verify(publicKey, file, signature), "invalid data")
+	require.False(t, Verify(publicKey, file[:10], signature), "error verify")
+	require.False(t, Verify(publicKey, file[:10], nil), "error verify")
 	data := bytes.Repeat([]byte{0}, 128)
-	cipherdata, err := Encrypt(publickey, data)
+	cipherdata, err := Encrypt(publicKey, data)
 	require.NoError(t, err)
-	plaindata, err := Decrypt(privatekey, cipherdata)
+	plaindata, err := Decrypt(privateKey, cipherdata)
 	require.NoError(t, err)
 	require.Equal(t, plaindata, data)
 }
 
 func BenchmarkSign(b *testing.B) {
-	privatekey, err := GenerateKey(2048)
+	privateKey, err := GenerateKey(2048)
 	require.NoError(b, err)
 	data := bytes.Repeat([]byte{0}, 4096)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = Sign(privatekey, data)
-		// _, err := Sign(privatekey, data)
+		_, _ = Sign(privateKey, data)
+		// _, err := Sign(privateKey, data)
 		// require.NoError(b, err)
 	}
 }
 
 func BenchmarkVerify(b *testing.B) {
-	privatekey, err := GenerateKey(2048)
+	privateKey, err := GenerateKey(2048)
 	require.NoError(b, err)
 	data := bytes.Repeat([]byte{0}, 256)
-	signature, err := Sign(privatekey, data)
+	signature, err := Sign(privateKey, data)
 	require.NoError(b, err)
-	publickey := &privatekey.PublicKey
+	publicKey := &privateKey.PublicKey
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Verify(publickey, data, signature)
-		// require.True(b, Verify(publickey, data, signature), "verify failed")
+		Verify(publicKey, data, signature)
+		// require.True(b, Verify(publicKey, data, signature), "verify failed")
 	}
 	b.StopTimer()
 }
 
 func BenchmarkSignVerify(b *testing.B) {
-	privatekey, err := GenerateKey(2048)
+	privateKey, err := GenerateKey(2048)
 	require.NoError(b, err)
 	data := bytes.Repeat([]byte{0}, 256)
-	publickey := &privatekey.PublicKey
+	publicKey := &privateKey.PublicKey
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		signature, _ := Sign(privatekey, data)
-		Verify(publickey, data, signature)
-		// signature, err := Sign(privatekey, data)
+		signature, _ := Sign(privateKey, data)
+		Verify(publicKey, data, signature)
+		// signature, err := Sign(privateKey, data)
 		// require.NoError(b, err)
-		// require.True(b, Verify(publickey, data, signature), "verify failed")
+		// require.True(b, Verify(publicKey, data, signature), "verify failed")
 	}
 	b.StopTimer()
 }

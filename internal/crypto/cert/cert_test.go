@@ -138,10 +138,10 @@ func TestInvalid(t *testing.T) {
 	caCert, caKey := GenerateCA(new(Config))
 	parent, err := Parse(caCert)
 	require.NoError(t, err)
-	privatekey, err := rsa.ImportPrivateKeyPEM(caKey)
+	privateKey, err := rsa.ImportPrivateKeyPEM(caKey)
 	require.NoError(t, err)
-	// invalid privatekey
-	privatekey.PublicKey.N.SetBytes(nil)
-	_, _, err = Generate(parent, privatekey, new(Config))
+	// invalid privateKey
+	privateKey.PublicKey.N.SetBytes(nil)
+	_, _, err = Generate(parent, privateKey, new(Config))
 	require.Error(t, err)
 }

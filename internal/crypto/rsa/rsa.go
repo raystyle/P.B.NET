@@ -30,16 +30,16 @@ func ImportPrivateKeyPEM(data []byte) (*PrivateKey, error) {
 	return x509.ParsePKCS1PrivateKey(block.Bytes)
 }
 
-func ImportPrivateKey(privatekey []byte) (*PrivateKey, error) {
-	return x509.ParsePKCS1PrivateKey(privatekey)
+func ImportPrivateKey(privateKey []byte) (*PrivateKey, error) {
+	return x509.ParsePKCS1PrivateKey(privateKey)
 }
 
 func ExportPrivateKey(p *rsa.PrivateKey) []byte {
 	return x509.MarshalPKCS1PrivateKey(p)
 }
 
-func ImportPublicKey(publickey []byte) (*PublicKey, error) {
-	return x509.ParsePKCS1PublicKey(publickey)
+func ImportPublicKey(publicKey []byte) (*PublicKey, error) {
+	return x509.ParsePKCS1PublicKey(publicKey)
 }
 
 func ExportPublicKey(p *PublicKey) []byte {

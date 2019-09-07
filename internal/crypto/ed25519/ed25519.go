@@ -16,8 +16,8 @@ const (
 )
 
 var (
-	ErrInvalidPrivatekey = errors.New("invalid private key size")
-	ErrInvalidPublickey  = errors.New("invalid public key size")
+	ErrInvalidPrivateKey = errors.New("invalid private key size")
+	ErrInvalidPublicKey  = errors.New("invalid public key size")
 )
 
 type PrivateKey []byte
@@ -40,15 +40,15 @@ func GenerateKey() (PrivateKey, error) {
 }
 
 func NewKeyFromSeed(seed []byte) PrivateKey {
-	privatekey := ed25519.NewKeyFromSeed(seed)
+	privateKey := ed25519.NewKeyFromSeed(seed)
 	p := make([]byte, PrivateKeySize)
-	copy(p, privatekey)
+	copy(p, privateKey)
 	return p
 }
 
 func ImportPrivateKey(key []byte) (PrivateKey, error) {
 	if len(key) != PrivateKeySize {
-		return nil, ErrInvalidPrivatekey
+		return nil, ErrInvalidPrivateKey
 	}
 	pri := make([]byte, PrivateKeySize)
 	copy(pri, key)
@@ -57,7 +57,7 @@ func ImportPrivateKey(key []byte) (PrivateKey, error) {
 
 func ImportPublicKey(key []byte) (PublicKey, error) {
 	if len(key) != PublicKeySize {
-		return nil, ErrInvalidPublickey
+		return nil, ErrInvalidPublicKey
 	}
 	pub := make([]byte, PublicKeySize)
 	copy(pub, key)

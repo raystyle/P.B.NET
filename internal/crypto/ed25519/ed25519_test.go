@@ -21,10 +21,10 @@ func TestEd25519(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pub)
 	pri, err = ImportPrivateKey(bytes.Repeat([]byte{0, 1}, 161))
-	require.Equal(t, ErrInvalidPrivatekey, err)
+	require.Equal(t, ErrInvalidPrivateKey, err)
 	require.Nil(t, pri)
 	pub, err = ImportPublicKey(bytes.Repeat([]byte{0, 1}, 161))
-	require.Equal(t, ErrInvalidPublickey, err)
+	require.Equal(t, ErrInvalidPublicKey, err)
 	require.Nil(t, pub)
 }
 

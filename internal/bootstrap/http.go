@@ -40,7 +40,7 @@ type HTTP struct {
 	AESIV  string `toml:"aes_iv"`
 
 	// for resolve verify  hex
-	PublicKey string `toml:"publickey"`
+	PublicKey string `toml:"public_key"`
 
 	// for generate&marshal
 	PrivateKey ed25519.PrivateKey `toml:"-"` // <security>
@@ -134,8 +134,8 @@ func (h *HTTP) Marshal() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	publickey := h.PrivateKey.PublicKey()
-	h.PublicKey = hex.EncodeToString(publickey)
+	publicKey := h.PrivateKey.PublicKey()
+	h.PublicKey = hex.EncodeToString(publicKey)
 	return toml.Marshal(h)
 }
 
@@ -322,11 +322,11 @@ func resolve(h *HTTP, info string) ([]*Node, error) {
 		return nil, err
 	}
 	h.PublicKey = ""
-	publickey, err := ed25519.ImportPublicKey(pub)
+	publicKey, err := ed25519.ImportPublicKey(pub)
 	if err != nil {
 		return nil, err
 	}
-	if !ed25519.Verify(publickey, nodesData, signature) {
+	if !ed25519.Verify(publicKey, nodesData, signature) {
 		return nil, ErrInvalidSignature
 	}
 	security.FlushBytes(pub)

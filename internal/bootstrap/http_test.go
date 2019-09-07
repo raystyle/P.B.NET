@@ -84,10 +84,10 @@ func testGenerateHTTP(t *testing.T, p *mockProxyPool) *HTTP {
 	HTTP := NewHTTP(p, new(mockDNSResolver))
 	HTTP.AESKey = strings.Repeat("FF", aes.Bit256)
 	HTTP.AESIV = strings.Repeat("FF", aes.IVSize)
-	// generate privatekey
-	privatekey, err := ed25519.GenerateKey()
+	// generate privateKey
+	privateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
-	HTTP.PrivateKey = privatekey
+	HTTP.PrivateKey = privateKey
 	return HTTP
 }
 

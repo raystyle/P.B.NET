@@ -48,7 +48,7 @@ func (n *NodeOnlineRequest) Validate() error {
 		return errors.New("invalid public key size")
 	}
 	if len(n.KexPublicKey) != 32 {
-		return errors.New("invalid key exchange publickey size")
+		return errors.New("invalid key exchange public key size")
 	}
 	return nil
 }

@@ -80,7 +80,7 @@ func generate(c *Config) *x509.Certificate {
 	return cert
 }
 
-// return certificate pem and privatekey pem
+// return certificate pem and private key pem
 func GenerateCA(c *Config) (cert []byte, pri []byte) {
 	ca := generate(c)
 	ca.KeyUsage = x509.KeyUsageCertSign
@@ -100,7 +100,7 @@ func GenerateCA(c *Config) (cert []byte, pri []byte) {
 	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
 }
 
-// return cert pem and privatekey pem , ip is IP SANS
+// return cert pem and private key pem , ip is IP SANS
 func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, c *Config) ([]byte, []byte, error) {
 	cert := generate(c)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
@@ -113,17 +113,17 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, c *Config) ([]byte,
 			cert.IPAddresses = append(cert.IPAddresses, ip)
 		}
 	}
-	privatekey, _ := rsa.GenerateKey(2048)
+	privateKey, _ := rsa.GenerateKey(2048)
 	var (
 		certBytes []byte
 		err       error
 	)
 	if parent != nil && pri != nil {
 		certBytes, err = x509.CreateCertificate(
-			rand.Reader, cert, parent, &privatekey.PublicKey, pri)
+			rand.Reader, cert, parent, &privateKey.PublicKey, pri)
 	} else { // self sign
 		certBytes, err = x509.CreateCertificate(
-			rand.Reader, cert, cert, &privatekey.PublicKey, privatekey)
+			rand.Reader, cert, cert, &privateKey.PublicKey, privateKey)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -134,7 +134,7 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, c *Config) ([]byte,
 	}
 	keyBlock := &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: rsa.ExportPrivateKey(privatekey),
+		Bytes: rsa.ExportPrivateKey(privateKey),
 	}
 	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock), nil
 }

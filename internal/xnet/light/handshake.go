@@ -12,10 +12,10 @@ import (
 
 const (
 	paddingHeaderSize = 2    // uint16 2 bytes
-	paddingMinSize    = 281  // min padding = rsaPublickeySize
+	paddingMinSize    = 281  // min padding = rsaPublicKeySize
 	paddingMaxSize    = 1024 // max random padding
 	rsaBits           = 2136 // need to encrypt 256 bytes data
-	rsaPublickeySize  = 281  // export public key = 281 bytes
+	rsaPublicKeySize  = 281  // export public key = 281 bytes
 	rsaCipherdataSize = 267  // encrypted password = 267 bytes
 	passwordSize      = 256  // light
 )
@@ -33,16 +33,16 @@ var (
 // |      2       |     xxxx     |       281      |
 // +--------------+--------------+----------------+
 func (c *Conn) clientHandshake() error {
-	privatekey, _ := rsa.GenerateKey(rsaBits)
-	generator := random.New(0)
-	sendPaddingSize := paddingMinSize + generator.Int(paddingMaxSize)
+	privateKey, _ := rsa.GenerateKey(rsaBits)
+	rand := random.New(0)
+	sendPaddingSize := paddingMinSize + rand.Int(paddingMaxSize)
 	handshake := bytes.Buffer{}
 	// write padding size
 	handshake.Write(convert.Uint16ToBytes(uint16(sendPaddingSize)))
 	// write padding data
-	handshake.Write(generator.Bytes(sendPaddingSize))
+	handshake.Write(rand.Bytes(sendPaddingSize))
 	// write rsa public key
-	handshake.Write(rsa.ExportPublicKey(&privatekey.PublicKey))
+	handshake.Write(rsa.ExportPublicKey(&privateKey.PublicKey))
 	_, err := c.Conn.Write(handshake.Bytes())
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func (c *Conn) clientHandshake() error {
 	if err != nil {
 		return err
 	}
-	password, err := rsa.Decrypt(privatekey, buffer)
+	password, err := rsa.Decrypt(privateKey, buffer)
 	if err != nil {
 		return err
 	}
@@ -108,28 +108,28 @@ func (c *Conn) serverHandshake() error {
 		return err
 	}
 	// receive rsa public key
-	buffer = buffer[:rsaPublickeySize]
+	buffer = buffer[:rsaPublicKeySize]
 	_, err = io.ReadFull(c.Conn, buffer)
 	if err != nil {
 		return err
 	}
-	publickey, err := rsa.ImportPublicKey(buffer)
+	publicKey, err := rsa.ImportPublicKey(buffer)
 	if err != nil {
 		return err
 	}
 	c.crypto = newCrypto(nil)
 	// encrypt password
-	cipherdata, err := rsa.Encrypt(publickey, c.crypto[0][:])
+	cipherdata, err := rsa.Encrypt(publicKey, c.crypto[0][:])
 	if err != nil {
 		return err
 	}
-	generator := random.New(0)
-	sendPaddingSize := paddingMinSize + generator.Int(paddingMaxSize)
+	rand := random.New(0)
+	sendPaddingSize := paddingMinSize + rand.Int(paddingMaxSize)
 	handshake := bytes.Buffer{}
 	// write padding size
 	handshake.Write(convert.Uint16ToBytes(uint16(sendPaddingSize)))
 	// write padding data
-	handshake.Write(generator.Bytes(sendPaddingSize))
+	handshake.Write(rand.Bytes(sendPaddingSize))
 	// write encrypted password
 	handshake.Write(cipherdata)
 	_, err = c.Conn.Write(handshake.Bytes())
