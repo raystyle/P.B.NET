@@ -9,9 +9,7 @@ import (
 	"project/internal/xnet"
 )
 
-const test_domain string = "localhost"
-
-func Test_DNS(t *testing.T) {
+func TestDNS(t *testing.T) {
 	// ipv4
 	nodes := make([]*Node, 2)
 	nodes[0] = &Node{
@@ -24,18 +22,18 @@ func Test_DNS(t *testing.T) {
 		Network: "tcp",
 		Address: "127.0.0.2:443",
 	}
-	DNS := New_DNS(nil)
-	DNS.Domain = test_domain
-	DNS.L_Mode = xnet.TLS
-	DNS.L_Network = "tcp"
-	DNS.L_Port = "443"
+	DNS := NewDNS(nil)
+	DNS.Domain = "localhost"
+	DNS.ListenerMode = xnet.TLS
+	DNS.ListenerNetwork = "tcp"
+	DNS.ListenerPort = "443"
 	b, err := DNS.Marshal()
-	require.Nil(t, err, err)
-	DNS = New_DNS(new(mock_resolver))
+	require.NoError(t, err)
+	DNS = NewDNS(new(mockDNSResolver))
 	err = DNS.Unmarshal(b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	resolved, err := DNS.Resolve()
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	require.Equal(t, nodes, resolved)
 	// ipv6
 	nodes = make([]*Node, 2)
@@ -49,18 +47,18 @@ func Test_DNS(t *testing.T) {
 		Network: "tcp",
 		Address: "[::2]:443",
 	}
-	DNS = New_DNS(nil)
-	DNS.Domain = test_domain
-	DNS.L_Mode = xnet.TLS
-	DNS.L_Network = "tcp"
-	DNS.L_Port = "443"
-	DNS.Options.Type = dns.IPV6
+	DNS = NewDNS(nil)
+	DNS.Domain = "localhost"
+	DNS.ListenerMode = xnet.TLS
+	DNS.ListenerNetwork = "tcp"
+	DNS.ListenerPort = "443"
+	DNS.Options.Type = dns.IPv6
 	b, err = DNS.Marshal()
-	require.Nil(t, err, err)
-	DNS = New_DNS(new(mock_resolver))
+	require.NoError(t, err)
+	DNS = NewDNS(new(mockDNSResolver))
 	err = DNS.Unmarshal(b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	resolved, err = DNS.Resolve()
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	require.Equal(t, nodes, resolved)
 }

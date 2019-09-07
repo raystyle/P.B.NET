@@ -4,144 +4,145 @@ import (
 	"errors"
 
 	"github.com/pelletier/go-toml"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
 	"project/internal/dns"
-	"project/internal/global/dnsclient"
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/xnet"
 )
 
 var (
-	ERR_EMPTY_DOMAIN = errors.New("domain is empty")
+	ErrEmptyDomain = errors.New("domain name is empty")
 )
 
 type DNS struct {
-	Domain    string            `toml:"domain"`
-	L_Mode    xnet.Mode         `toml:"l_mode"`
-	L_Network string            `toml:"l_network"`
-	L_Port    string            `toml:"l_port"`
-	Options   dnsclient.Options `toml:"dnsclient"`
+	Domain          string      `toml:"domain"`
+	ListenerMode    xnet.Mode   `toml:"listener_mode"`
+	ListenerNetwork string      `toml:"listener_network"`
+	ListenerPort    string      `toml:"listener_port"`
+	Options         dns.Options `toml:"dns_options"`
 	// runtime
-	resolver dns_resolver
-	// self encrypt all options
-	opts_enc []byte
-	cryptor  *aes.CBC_Cryptor
+	resolver dnsResolver
+	// self store all encrypted options by msgpack
+	optsEnc []byte
+	cbc     *aes.CBC
 }
 
 // input ctx for resolve
-func New_DNS(d dns_resolver) *DNS {
+func NewDNS(r dnsResolver) *DNS {
 	return &DNS{
-		resolver: d,
+		resolver: r,
 	}
 }
 
-func (this *DNS) Validate() error {
-	if this.Domain == "" {
-		return ERR_EMPTY_DOMAIN
+func (d *DNS) Validate() error {
+	if d.Domain == "" {
+		return ErrEmptyDomain
 	}
-	err := xnet.Check_Mode_Network(this.L_Mode, this.L_Network)
+	err := xnet.CheckModeNetwork(d.ListenerMode, d.ListenerNetwork)
 	if err != nil {
 		return err
 	}
-	err = xnet.Check_Port_str(this.L_Port)
+	err = xnet.CheckPortString(d.ListenerPort)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (this *DNS) Marshal() ([]byte, error) {
-	err := this.Validate()
+func (d *DNS) Marshal() ([]byte, error) {
+	err := d.Validate()
 	if err != nil {
 		return nil, err
 	}
-	return toml.Marshal(this)
+	return toml.Marshal(d)
 }
 
-func (this *DNS) Unmarshal(data []byte) error {
-	d := &DNS{}
-	err := toml.Unmarshal(data, d)
+// Unmarshal
+// store encrypted data to d.optsEnc
+func (d *DNS) Unmarshal(data []byte) error {
+	tempDNS := &DNS{}
+	err := toml.Unmarshal(data, tempDNS)
 	if err != nil {
 		return err
 	}
-	err = d.Validate()
+	err = tempDNS.Validate()
 	if err != nil {
 		return err
 	}
 	// encrypt all options
-	memory := security.New_Memory()
+	memory := security.NewMemory()
 	defer memory.Flush()
-	rand := random.New()
-	key := rand.Bytes(aes.BIT256)
-	iv := rand.Bytes(aes.IV_SIZE)
-	this.cryptor, err = aes.New_CBC_Cryptor(key, iv)
+	rand := random.New(0)
+	key := rand.Bytes(aes.Bit256)
+	iv := rand.Bytes(aes.IVSize)
+	d.cbc, err = aes.NewCBC(key, iv)
 	if err != nil {
-		panic(&fpanic{M: M_DNS, E: err})
+		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
-	security.Flush_Bytes(key)
-	security.Flush_Bytes(iv)
+	security.FlushBytes(key)
+	security.FlushBytes(iv)
 	memory.Padding()
-	b, err := msgpack.Marshal(d)
+	b, err := msgpack.Marshal(tempDNS)
 	if err != nil {
-		panic(&fpanic{M: M_DNS, E: err})
+		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
-	d = nil // <security>
+	tempDNS = nil // <security>
 	memory.Padding()
-	this.opts_enc, err = this.cryptor.Encrypt(b)
+	d.optsEnc, err = d.cbc.Encrypt(b)
 	if err != nil {
-		panic(&fpanic{M: M_DNS, E: err})
+		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
-	security.Flush_Bytes(b)
+	security.FlushBytes(b)
 	return nil
 }
 
-func (this *DNS) Resolve() ([]*Node, error) {
+func (d *DNS) Resolve() ([]*Node, error) {
 	// decrypt all options
-	memory := security.New_Memory()
+	memory := security.NewMemory()
 	defer memory.Flush()
-	b, err := this.cryptor.Decrypt(this.opts_enc)
+	b, err := d.cbc.Decrypt(d.optsEnc)
 	if err != nil {
-		panic(&fpanic{M: M_DNS, E: err})
+		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
-	d := &DNS{}
-	err = msgpack.Unmarshal(b, d)
+	tempDNS := &DNS{}
+	err = msgpack.Unmarshal(b, tempDNS)
 	if err != nil {
-		panic(&fpanic{M: M_DNS, E: err})
+		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
-	security.Flush_Bytes(b)
+	security.FlushBytes(b)
 	memory.Padding()
 	// resolve dns
-	ip_list, err := this.resolver.Resolve(d.Domain, &d.Options)
+	ipList, err := d.resolver.Resolve(tempDNS.Domain, &tempDNS.Options)
 	if err != nil {
 		return nil, err
 	}
-	d.Domain = "" // <security>
-	l := len(ip_list)
+	tempDNS.Domain = "" // <security>
+	l := len(ipList)
 	nodes := make([]*Node, l)
 	for i := 0; i < l; i++ {
 		nodes[i] = &Node{
-			Mode:    d.L_Mode,
-			Network: d.L_Network,
+			Mode:    tempDNS.ListenerMode,
+			Network: tempDNS.ListenerNetwork,
 		}
 	}
-	switch d.Options.Type {
-	case "", dns.IPV4:
+	switch tempDNS.Options.Type {
+	case "", dns.IPv4:
 		for i := 0; i < l; i++ {
-			nodes[i].Address = ip_list[i] + ":" + d.L_Port
+			nodes[i].Address = ipList[i] + ":" + tempDNS.ListenerPort
 		}
-	case dns.IPV6:
+	case dns.IPv6:
 		for i := 0; i < l; i++ {
-			nodes[i].Address = "[" + ip_list[i] + "]:" + d.L_Port
+			nodes[i].Address = "[" + ipList[i] + "]:" + tempDNS.ListenerPort
 		}
 	default:
-		panic(&fpanic{M: M_DNS, E: err})
+		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
-	d = nil
+	tempDNS = nil
 	for i := 0; i < l; i++ { // <security>
-		ip_list[i] = ""
+		ipList[i] = ""
 	}
 	return nodes, nil
 }
