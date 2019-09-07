@@ -12,161 +12,165 @@ import (
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
-	"project/internal/global/dnsclient"
-	"project/internal/global/proxyclient"
-	"project/internal/global/timesync"
+	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/proxy"
+	"project/internal/timesync"
 )
 
 type global struct {
-	proxy          *proxyclient.PROXY
-	dns            *dnsclient.DNS
-	timesync       *timesync.TIMESYNC
-	key_dir        string
-	object         map[uint32]interface{}
-	object_rwm     sync.RWMutex
-	is_load_keys   int32
-	wait_load_keys chan struct{}
+	proxyPool    *proxy.Pool
+	dnsClient    *dns.Client
+	timeSyncer   *timesync.TimeSyncer
+	keyDir       string
+	object       map[uint32]interface{}
+	objectRWM    sync.RWMutex
+	isLoadKeys   int32
+	waitLoadKeys chan struct{}
 }
 
-func new_global(lg logger.Logger, c *Config) (*global, error) {
-	proxy, _ := proxyclient.New(nil)
+func newGlobal(lg logger.Logger, cfg *Config) (*global, error) {
+	proxyPool, _ := proxy.NewPool(nil)
 	// load builtin dns clients
-	tdcs := make(map[string]*dnsclient.Client)
-	b, err := ioutil.ReadFile(c.Builtin_Dir + "/dnsclient.toml")
+	dnsServers := make(map[string]*dns.Server)
+	b, err := ioutil.ReadFile(cfg.BuiltinDir + "/dnsclient.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "load builtin dns clients failed")
 	}
-	err = toml.Unmarshal(b, &tdcs)
+	err = toml.Unmarshal(b, &dnsServers)
 	if err != nil {
 		return nil, errors.Wrap(err, "load builtin dns clients failed")
 	}
-	// add tag
-	for tag, client := range tdcs {
-		tdcs["builtin_"+tag] = client
-		delete(tdcs, tag)
+	// add dns servers
+	for tag, server := range dnsServers {
+		dnsServers["builtin_"+tag] = server
+		delete(dnsServers, tag) // rename
 	}
-	dns, err := dnsclient.New(proxy, tdcs, c.DNS_Cache_Deadline)
+	dnsClient, err := dns.NewClient(proxyPool, dnsServers, cfg.DNSCacheDeadline)
 	if err != nil {
 		return nil, errors.Wrap(err, "new dns failed")
 	}
-	// load builtin timesync client
-	tts := make(map[string]*timesync.Client)
-	b, err = ioutil.ReadFile(c.Builtin_Dir + "/timesync.toml")
+	// load builtin time syncer config
+	tsConfigs := make(map[string]*timesync.Config)
+	b, err = ioutil.ReadFile(cfg.BuiltinDir + "/timesyncer.toml")
 	if err != nil {
-		return nil, errors.Wrap(err, "load builtin timesync clients failed")
+		return nil, errors.Wrap(err, "load builtin time syncer configs failed")
 	}
-	err = toml.Unmarshal(b, &tts)
+	err = toml.Unmarshal(b, &tsConfigs)
 	if err != nil {
-		return nil, errors.Wrap(err, "load builtin timesync clients failed")
+		return nil, errors.Wrap(err, "load builtin time syncer configs failed")
 	}
-	// add tag
-	for tag, client := range tts {
-		tts["builtin_"+tag] = client
-		delete(tdcs, tag)
+	// add time syncer configs
+	for tag, config := range tsConfigs {
+		tsConfigs["builtin_"+tag] = config
+		delete(tsConfigs, tag) // rename
 	}
-	tsync, err := timesync.New(proxy, dns, lg, tts, c.Timesync_Interval)
+	timeSyncer, err := timesync.NewTimeSyncer(
+		proxyPool,
+		dnsClient,
+		lg,
+		tsConfigs,
+		cfg.TimeSyncerInterval)
 	if err != nil {
-		return nil, errors.Wrap(err, "new timesync failed")
+		return nil, errors.Wrap(err, "new time syncer failed")
 	}
-	g := &global{
-		proxy:          proxy,
-		dns:            dns,
-		timesync:       tsync,
-		key_dir:        c.Key_Dir,
-		object:         make(map[uint32]interface{}),
-		wait_load_keys: make(chan struct{}, 1),
-	}
-	return g, nil
+	return &global{
+		proxyPool:    proxyPool,
+		dnsClient:    dnsClient,
+		timeSyncer:   timeSyncer,
+		keyDir:       cfg.KeyDir,
+		object:       make(map[uint32]interface{}),
+		waitLoadKeys: make(chan struct{}, 1),
+	}, nil
 }
 
-func (this *global) Start_Timesync() error {
-	return this.timesync.Start()
+func (g *global) StartTimeSyncer() error {
+	return g.timeSyncer.Start()
 }
 
-func (this *global) Now() time.Time {
-	return this.timesync.Now().Local()
+func (g *global) Now() time.Time {
+	return g.timeSyncer.Now().Local()
 }
 
-func (this *global) Wait_Load_Keys() {
-	<-this.wait_load_keys
+func (g *global) WaitLoadKeys() {
+	<-g.waitLoadKeys
 }
 
-func (this *global) Add_Proxy_Client(tag string, c *proxyclient.Client) error {
-	return this.proxy.Add(tag, c)
+func (g *global) AddProxyClient(tag string, client *proxy.Client) error {
+	return g.proxyPool.Add(tag, client)
 }
 
-func (this *global) Add_DNS_Client(tag string, c *dnsclient.Client) error {
-	return this.dns.Add(tag, c)
+func (g *global) AddDNSSever(tag string, server *dns.Server) error {
+	return g.dnsClient.Add(tag, server)
 }
 
-func (this *global) Add_Timesync_Client(tag string, c *timesync.Client) error {
-	return this.timesync.Add(tag, c)
+func (g *global) AddTimeSyncerConfig(tag string, config *timesync.Config) error {
+	return g.timeSyncer.Add(tag, config)
 }
 
-func (this *global) Load_Keys(password string) error {
-	this.object_rwm.Lock()
-	defer this.object_rwm.Unlock()
-	if this.object[ed25519_privatekey] != nil {
+func (g *global) LoadKeys(password string) error {
+	g.objectRWM.Lock()
+	defer g.objectRWM.Unlock()
+	if g.object[ed25519PrivateKey] != nil {
 		return errors.New("already load keys")
 	}
-	keys, err := Load_CTRL_Keys(this.key_dir+"/ctrl.key", password)
+	keys, err := loadCtrlKeys(g.keyDir+"/ctrl.key", password)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// ed25519
-	pri, _ := ed25519.Import_PrivateKey(keys[0])
-	this.object[ed25519_privatekey] = pri
-	pub, _ := ed25519.Import_PublicKey(pri[32:])
-	this.object[ed25519_publickey] = pub
+	pri, _ := ed25519.ImportPrivateKey(keys[0])
+	g.object[ed25519PrivateKey] = pri
+	pub, _ := ed25519.ImportPublicKey(pri[32:])
+	g.object[ed25519PublicKey] = pub
 	// curve25519
-	p, err := curve25519.Scalar_Base_Mult(pri)
+	p, err := curve25519.ScalarBaseMult(pri)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	this.object[curve25519_publickey] = p
+	g.object[curve25519PublicKey] = p
 	// aes
-	cryptor, _ := aes.New_CBC_Cryptor(keys[1], keys[2])
-	this.object[aes_cryptor] = cryptor
-	atomic.StoreInt32(&this.is_load_keys, 1)
-	close(this.wait_load_keys)
+	cbc, _ := aes.NewCBC(keys[1], keys[2])
+	g.object[aesCrypto] = cbc
+	atomic.StoreInt32(&g.isLoadKeys, 1)
+	close(g.waitLoadKeys)
 	return nil
 }
 
-func (this *global) Is_Load_Keys() bool {
-	return atomic.LoadInt32(&this.is_load_keys) != 0
+func (g *global) IsLoadKeys() bool {
+	return atomic.LoadInt32(&g.isLoadKeys) != 0
 }
 
 // verify controller(handshake) and sign message
-func (this *global) Sign(message []byte) []byte {
-	this.object_rwm.RLock()
-	p := this.object[ed25519_privatekey].(ed25519.PrivateKey)
-	this.object_rwm.RUnlock()
+func (g *global) Sign(message []byte) []byte {
+	g.objectRWM.RLock()
+	p := g.object[ed25519PrivateKey].(ed25519.PrivateKey)
+	g.objectRWM.RUnlock()
 	return ed25519.Sign(p, message)
 }
 
 // verify node certificate
-func (this *global) Verify(message, signature []byte) bool {
-	this.object_rwm.RLock()
-	p := this.object[ed25519_publickey].(ed25519.PublicKey)
-	this.object_rwm.RUnlock()
+func (g *global) Verify(message, signature []byte) bool {
+	g.objectRWM.RLock()
+	p := g.object[ed25519PublicKey].(ed25519.PublicKey)
+	g.objectRWM.RUnlock()
 	return ed25519.Verify(p, message, signature)
 }
 
-func (this *global) Curve25519_Publickey() []byte {
-	this.object_rwm.RLock()
-	p := this.object[curve25519_publickey].([]byte)
-	this.object_rwm.RUnlock()
+func (g *global) Curve25519PublicKey() []byte {
+	g.objectRWM.RLock()
+	p := g.object[curve25519PublicKey].([]byte)
+	g.objectRWM.RUnlock()
 	return p
 }
 
-func (this *global) Key_Exchange(publickey []byte) ([]byte, error) {
-	this.object_rwm.RLock()
-	pri := this.object[ed25519_privatekey].(ed25519.PrivateKey)
-	this.object_rwm.RUnlock()
-	return curve25519.Scalar_Mult(pri, publickey)
+func (g *global) KeyExchange(publicKey []byte) ([]byte, error) {
+	g.objectRWM.RLock()
+	pri := g.object[ed25519PrivateKey].(ed25519.PrivateKey)
+	g.objectRWM.RUnlock()
+	return curve25519.ScalarMult(pri, publicKey)
 }
 
-func (this *global) Close() {
-	this.timesync.Stop()
+func (g *global) Destroy() {
+	g.timeSyncer.Stop()
 }
