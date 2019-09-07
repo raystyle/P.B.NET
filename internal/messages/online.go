@@ -9,78 +9,76 @@ import (
 )
 
 const (
-	NODE_ONLINE_REQUEST uint32 = 0x00000000 + iota
-	NODE_ONLINE_RESPONSE
-	BEACON_ONLINE_REQUEST
-	BEACON_ONLINE_RESPONSE
+	MessageNodeOnlineRequest uint32 = 0x00000000 + iota
+	MessageNodeOnlineResponse
+	MessageBeaconOnlineRequest
+	MessageBeaconOnlineResponse
 )
 
-type Online_Result uint8
-
 const (
-	ONLINE_ACCEPT Online_Result = iota
-	ONLINE_REFUSED
-	ONLINE_TIMEOUT
+	OnlineAccept uint8 = iota
+	OnlineRefused
+	OnlineTimeout
 )
 
 var (
-	ONLINE_SUCCESS = []byte("ok")
+	OnlineSucceed = []byte("ok")
 )
 
-type Host_Info struct {
-	Internal_IP string
-	Hostname    string
-	Username    string
-	PID         int
+type HostInfo struct {
+	InternalIP string
+	Hostname   string
+	Username   string
+	PID        int
 }
 
-type Node_Online_Request struct {
+type NodeOnlineRequest struct {
 	GUID         []byte
-	Publickey    []byte    // verify message
-	Kex_Pub      []byte    // aes key exchange
-	Host_Info    Host_Info // online info session aes encrypt
-	Request_Time int64
+	PublicKey    []byte   // verify message
+	KexPublicKey []byte   // aes key exchange
+	HostInfo     HostInfo // online info session aes encrypt
+	RequestTime  int64
 }
 
-func (this *Node_Online_Request) Validate() error {
-	if len(this.GUID) != guid.SIZE {
+func (n *NodeOnlineRequest) Validate() error {
+	if len(n.GUID) != guid.SIZE {
 		return errors.New("invalid guid size")
 	}
-	if len(this.Publickey) != ed25519.PublicKey_Size {
-		return errors.New("invalid publickey size")
+	if len(n.PublicKey) != ed25519.PublicKeySize {
+		return errors.New("invalid public key size")
 	}
-	if len(this.Kex_Pub) != 32 {
+	if len(n.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange publickey size")
 	}
 	return nil
 }
 
-type Node_Online_Response struct {
-	// node info(for broadcast)
+// node info(for broadcast)
+type NodeOnlineResponse struct {
 	GUID         []byte
-	Publickey    []byte // verify message
-	Kex_Pub      []byte // aes key exchange
+	PublicKey    []byte // verify message
+	KexPublicKey []byte // aes key exchange
 	Listeners    []*config.Listener
-	Reply        Online_Result
-	Request_Time int64
-	Reply_Time   int64
+	Result       uint8 // accept refused timeout
+	RequestTime  int64
+	ReplyTime    int64
 	Certificates []byte
 }
 
-func (this *Node_Online_Response) Validate() error {
-	if len(this.GUID) != guid.SIZE {
+func (n *NodeOnlineResponse) Validate() error {
+	if len(n.GUID) != guid.SIZE {
 		return errors.New("invalid guid size")
 	}
-	if this.Reply > ONLINE_REFUSED {
+	if n.Result > OnlineRefused {
 		return errors.New("invalid reply")
 	}
-	if this.Certificates == nil {
-		return errors.New("invalid certificate")
+	if n.Certificates == nil {
+		return errors.New("no certificate")
 	}
 	return nil
 }
 
-type Beacon_Online_Request struct {
+type BeaconOnlineRequest struct {
 	GUID          []byte
 	Session_AES   []byte // rsa encrypt
 	Session_ECDSA []byte
@@ -89,7 +87,7 @@ type Beacon_Online_Request struct {
 	Host_Info     []byte // online info session aes encrypt
 }
 
-func (this *Beacon_Online_Request) Validate() error {
+func (this *BeaconOnlineRequest) Validate() error {
 	if len(this.GUID) != guid.SIZE {
 		return errors.New("invalid guid size")
 	}
@@ -112,7 +110,7 @@ type Beacon_Online_Response struct {
 	GUID           []byte
 	Session_AES    []byte // rsa encrypt
 	Session_ECDSA  []byte
-	Reply          Online_Result
+	Reply          uint8
 	Request_Time   int64
 	Confirmed_Time int64
 }
@@ -121,7 +119,7 @@ func (this *Beacon_Online_Response) Validate() error {
 	if len(this.GUID) != guid.SIZE {
 		return errors.New("invalid guid size")
 	}
-	if this.Reply > ONLINE_REFUSED {
+	if this.Reply > OnlineRefused {
 		return errors.New("invalid reply")
 	}
 	return nil
