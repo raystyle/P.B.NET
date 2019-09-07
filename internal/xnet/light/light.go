@@ -4,16 +4,16 @@ import (
 	"net"
 	"time"
 
-	"project/internal/xnet"
+	"project/internal/xnet/internal"
 )
 
 func Server(conn net.Conn, timeout time.Duration) *Conn {
-	dc := xnet.NewDeadlineConn(conn, timeout)
+	dc := internal.NewDeadlineConn(conn, timeout)
 	return &Conn{Conn: dc, handshakeTimeout: timeout}
 }
 
 func Client(conn net.Conn, timeout time.Duration) *Conn {
-	dc := xnet.NewDeadlineConn(conn, timeout)
+	dc := internal.NewDeadlineConn(conn, timeout)
 	return &Conn{Conn: dc, handshakeTimeout: timeout, isClient: true}
 }
 

@@ -4,8 +4,10 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"project/internal/convert"
+	"project/internal/xnet/internal"
 )
 
 // header size +  data
@@ -105,4 +107,8 @@ func (c *Conn) Info() *Info {
 	i.RemoteAddress = c.rAddress
 	i.ConnectTime = c.connect
 	return i
+}
+
+func NewDeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
+	return internal.NewDeadlineConn(conn, deadline)
 }
