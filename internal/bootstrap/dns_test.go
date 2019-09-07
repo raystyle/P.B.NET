@@ -23,7 +23,7 @@ func TestDNS(t *testing.T) {
 		Address: "127.0.0.2:443",
 	}
 	DNS := NewDNS(nil)
-	DNS.Domain = "localhost"
+	DNS.DomainName = "localhost"
 	DNS.ListenerMode = xnet.TLS
 	DNS.ListenerNetwork = "tcp"
 	DNS.ListenerPort = "443"
@@ -48,7 +48,7 @@ func TestDNS(t *testing.T) {
 		Address: "[::2]:443",
 	}
 	DNS = NewDNS(nil)
-	DNS.Domain = "localhost"
+	DNS.DomainName = "localhost"
 	DNS.ListenerMode = xnet.TLS
 	DNS.ListenerNetwork = "tcp"
 	DNS.ListenerPort = "443"

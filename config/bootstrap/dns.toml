@@ -1,7 +1,7 @@
-domain    = "localhost"
-l_mode    = "tls"
-l_network = "tcp"
-l_port    = "443"
+domain_name      = "localhost"
+listener_mode    = "tls"
+listener_network = "tcp"
+listener_port    = "443"
 
-[dnsclient]
+[dns_options]
 

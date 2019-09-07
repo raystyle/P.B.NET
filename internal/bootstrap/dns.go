@@ -14,11 +14,11 @@ import (
 )
 
 var (
-	ErrEmptyDomain = errors.New("domain name is empty")
+	ErrEmptyDomainName = errors.New("domain name is empty")
 )
 
 type DNS struct {
-	Domain          string      `toml:"domain"`
+	DomainName      string      `toml:"domain_name"`
 	ListenerMode    xnet.Mode   `toml:"listener_mode"`
 	ListenerNetwork string      `toml:"listener_network"`
 	ListenerPort    string      `toml:"listener_port"`
@@ -38,8 +38,8 @@ func NewDNS(r dnsResolver) *DNS {
 }
 
 func (d *DNS) Validate() error {
-	if d.Domain == "" {
-		return ErrEmptyDomain
+	if d.DomainName == "" {
+		return ErrEmptyDomainName
 	}
 	err := xnet.CheckModeNetwork(d.ListenerMode, d.ListenerNetwork)
 	if err != nil {
@@ -115,11 +115,11 @@ func (d *DNS) Resolve() ([]*Node, error) {
 	security.FlushBytes(b)
 	memory.Padding()
 	// resolve dns
-	ipList, err := d.resolver.Resolve(tempDNS.Domain, &tempDNS.Options)
+	ipList, err := d.resolver.Resolve(tempDNS.DomainName, &tempDNS.Options)
 	if err != nil {
 		return nil, err
 	}
-	tempDNS.Domain = "" // <security>
+	tempDNS.DomainName = "" // <security>
 	l := len(ipList)
 	nodes := make([]*Node, l)
 	for i := 0; i < l; i++ {

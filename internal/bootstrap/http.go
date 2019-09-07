@@ -32,7 +32,7 @@ type HTTP struct {
 	Request   options.HTTPRequest   `toml:"request"`
 	Transport options.HTTPTransport `toml:"transport"`
 	Timeout   time.Duration         `toml:"timeout"`
-	Proxy     string                `toml:"proxy"`
+	ProxyTag  string                `toml:"proxy_tag"`
 	DNSOpts   dns.Options           `toml:"dns_options"`
 
 	// encrypt&decrypt generate data(nodes) hex
@@ -251,7 +251,7 @@ func (h *HTTP) applyOptions() (*httpOpts, error) {
 	}
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
 	// set proxy
-	proxy, err := h.proxy.Get(h.Proxy)
+	proxy, err := h.proxy.Get(h.ProxyTag)
 	if err != nil {
 		return nil, err
 	}
