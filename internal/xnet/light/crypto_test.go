@@ -12,10 +12,10 @@ func TestCrypto(t *testing.T) {
 		testdata[i] = byte(i)
 	}
 	c := newCrypto(nil)
-	cipherdata := c.encrypt(testdata)
-	require.NotEqual(t, testdata, cipherdata)
-	c.decrypt(cipherdata)
-	require.Equal(t, testdata, cipherdata)
+	cipherData := c.encrypt(testdata)
+	require.NotEqual(t, testdata, cipherData)
+	c.decrypt(cipherData)
+	require.Equal(t, testdata, cipherData)
 	// has encrypt
 	c = newCrypto(nil)
 	key := make([]byte, 256)
@@ -23,10 +23,10 @@ func TestCrypto(t *testing.T) {
 		key[i] = c[0][i]
 	}
 	c = newCrypto(key)
-	cipherdata = c.encrypt(testdata)
-	require.NotEqual(t, testdata, cipherdata)
-	c.decrypt(cipherdata)
-	require.Equal(t, testdata, cipherdata)
+	cipherData = c.encrypt(testdata)
+	require.NotEqual(t, testdata, cipherData)
+	c.decrypt(cipherData)
+	require.Equal(t, testdata, cipherData)
 }
 
 func BenchmarkCrypto_encrypt_512(b *testing.B) {
@@ -65,11 +65,11 @@ func BenchmarkCrypto_decrypt_4096(b *testing.B) {
 
 func benchmarkCryptoDecrypt(b *testing.B, testdata []byte) {
 	c := newCrypto(nil)
-	cipherdata := c.encrypt(testdata)
+	cipherData := c.encrypt(testdata)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c.decrypt(cipherdata)
+		c.decrypt(cipherData)
 	}
 	b.StopTimer()
 }

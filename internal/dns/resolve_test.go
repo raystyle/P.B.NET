@@ -173,9 +173,9 @@ func TestDialDOH(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("DOH post IPv4:", ipList)
 	// invalid doh server
-	_, err = dialDOH("asdsad\n", msg, &opt)
+	_, err = dialDOH("foo\n", msg, &opt)
 	require.Error(t, err)
-	_, err = dialDOH("asdsad\n"+"#"+strings.Repeat("a", 2048), msg, &opt)
+	_, err = dialDOH("foo\n"+"#"+strings.Repeat("a", 2048), msg, &opt)
 	require.Error(t, err)
 	// Do failed
 	_, err = dialDOH("http://asd.1dsa.asd", msg, &opt)

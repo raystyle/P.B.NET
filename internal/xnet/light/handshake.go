@@ -16,7 +16,7 @@ const (
 	paddingMaxSize    = 1024 // max random padding
 	rsaBits           = 2136 // need to encrypt 256 bytes data
 	rsaPublicKeySize  = 281  // export public key = 281 bytes
-	rsaCipherdataSize = 267  // encrypted password = 267 bytes
+	rsaCipherDataSize = 267  // encrypted password = 267 bytes
 	passwordSize      = 256  // light
 )
 
@@ -65,7 +65,7 @@ func (c *Conn) clientHandshake() error {
 		return err
 	}
 	// receive encrypted password
-	buffer = buffer[:rsaCipherdataSize]
+	buffer = buffer[:rsaCipherDataSize]
 	_, err = io.ReadFull(c.Conn, buffer)
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (c *Conn) serverHandshake() error {
 	}
 	c.crypto = newCrypto(nil)
 	// encrypt password
-	cipherdata, err := rsa.Encrypt(publicKey, c.crypto[0][:])
+	cipherData, err := rsa.Encrypt(publicKey, c.crypto[0][:])
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (c *Conn) serverHandshake() error {
 	// write padding data
 	handshake.Write(rand.Bytes(sendPaddingSize))
 	// write encrypted password
-	handshake.Write(cipherdata)
+	handshake.Write(cipherData)
 	_, err = c.Conn.Write(handshake.Bytes())
 	return err
 }
