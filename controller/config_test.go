@@ -4,36 +4,36 @@ import (
 	"time"
 )
 
-func test_gen_config() *Config {
+func testGenerateConfig() *Config {
 	const (
-		test_dialect = "mysql"
-		test_dsn     = "root:asH*dg122@tcp(127.0.0.1:3306)/p.b.net_test?loc=Local&parseTime=true"
+		dialect = "mysql"
+		dsn     = "root:123456@tcp(127.0.0.1:3306)/p.b.net_test?loc=Local&parseTime=true"
 	)
 	c := &Config{
 		// logger
-		Log_Level: "debug",
+		LogLevel: "debug",
 
 		// global
-		DNS_Cache_Deadline: 3 * time.Minute,
-		Timesync_Interval:  15 * time.Minute,
-		Builtin_Dir:        "../app/builtin",
-		Key_Dir:            "../app/key",
+		DNSCacheDeadline:   3 * time.Minute,
+		TimeSyncerInterval: 15 * time.Minute,
+		BuiltinDir:         "../app/builtin",
+		KeyDir:             "../app/key",
 
 		// database
-		Dialect:           test_dialect,
-		DSN:               test_dsn,
-		DB_Max_Open_Conns: 16,
-		DB_Max_Idle_Conns: 16,
-		DB_Log_File:       "../app/log/database.log",
-		GORM_Log_File:     "../app/log/gorm.log",
-		GORM_Detailed_Log: false,
+		Dialect:         dialect,
+		DSN:             dsn,
+		DBMaxOpenConns:  16,
+		DBMaxIdleConns:  16,
+		DBLogFile:       "../app/log/database.log",
+		GORMLogFile:     "../app/log/gorm.log",
+		GORMDetailedLog: false,
 
 		// http server
-		HTTPS_Address:   ":9931",
-		HTTPS_Cert_File: "../app/cert/server.crt",
-		HTTPS_Key_File:  "../app/cert/server.key",
-		Web_Dir:         "../app/web",
+		HTTPSAddress:  ":9931",
+		HTTPSCertFile: "../app/cert/server.crt",
+		HTTPSKeyFile:  "../app/cert/server.key",
+		WEBDir:        "../app/web",
 	}
-	c.debug.skip_timesync = true
+	c.debug.skipTimeSyncer = true
 	return c
 }
