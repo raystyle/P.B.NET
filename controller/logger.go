@@ -10,104 +10,104 @@ import (
 	"project/internal/logger"
 )
 
-type db_logger struct {
+type dbLogger struct {
 	db   string // "mysql"
 	file *os.File
 }
 
-func new_db_logger(db, path string) (*db_logger, error) {
+func newDBLogger(db, path string) (*dbLogger, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
 		return nil, errors.Wrapf(err, "create %s logger failed", db)
 	}
-	return &db_logger{db: db, file: f}, nil
+	return &dbLogger{db: db, file: f}, nil
 }
 
 // [2006-01-02 15:04:05] [INFO] <mysql> test log
-func (this *db_logger) Print(log ...interface{}) {
-	buffer := logger.Prefix(logger.INFO, this.db)
+func (l *dbLogger) Print(log ...interface{}) {
+	buffer := logger.Prefix(logger.INFO, l.db)
 	_, _ = fmt.Fprintln(buffer, log...)
-	_, _ = this.file.Write(buffer.Bytes())
+	_, _ = l.file.Write(buffer.Bytes())
 	_, _ = buffer.WriteTo(os.Stdout)
 }
 
-func (this *db_logger) Close() {
-	_ = this.file.Close()
+func (l *dbLogger) Close() {
+	_ = l.file.Close()
 }
 
-type gorm_logger struct {
+type gormLogger struct {
 	file *os.File
 }
 
-func new_gorm_logger(path string) (*gorm_logger, error) {
+func newGormLogger(path string) (*gormLogger, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
 		return nil, errors.Wrap(err, "create gorm logger failed")
 	}
-	return &gorm_logger{file: f}, nil
+	return &gormLogger{file: f}, nil
 }
 
 // [2006-01-02 15:04:05] [INFO] <gorm> test log
-func (this *gorm_logger) Print(log ...interface{}) {
+func (l *gormLogger) Print(log ...interface{}) {
 	buffer := logger.Prefix(logger.INFO, "gorm")
 	_, _ = fmt.Fprintln(buffer, log...)
-	_, _ = this.file.Write(buffer.Bytes())
+	_, _ = l.file.Write(buffer.Bytes())
 	_, _ = buffer.WriteTo(os.Stdout)
 }
 
-func (this *gorm_logger) Close() {
-	_ = this.file.Close()
+func (l *gormLogger) Close() {
+	_ = l.file.Close()
 }
 
-func (this *CTRL) Printf(l logger.Level, src string, format string, log ...interface{}) {
-	if l < this.log_lv {
+func (ctrl *CTRL) Printf(l logger.Level, src string, format string, log ...interface{}) {
+	if l < ctrl.logLv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
 	if buffer == nil {
 		return
 	}
-	log_str := fmt.Sprintf(format, log...)
-	buffer.WriteString(log_str)
-	this.print_log(l, src, log_str, buffer)
+	logStr := fmt.Sprintf(format, log...)
+	buffer.WriteString(logStr)
+	ctrl.printLog(l, src, logStr, buffer)
 }
 
-func (this *CTRL) Print(l logger.Level, src string, log ...interface{}) {
-	if l < this.log_lv {
+func (ctrl *CTRL) Print(l logger.Level, src string, log ...interface{}) {
+	if l < ctrl.logLv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
 	if buffer == nil {
 		return
 	}
-	log_str := fmt.Sprint(log...)
-	buffer.WriteString(log_str)
-	this.print_log(l, src, log_str, buffer)
+	logStr := fmt.Sprint(log...)
+	buffer.WriteString(logStr)
+	ctrl.printLog(l, src, logStr, buffer)
 }
 
-func (this *CTRL) Println(l logger.Level, src string, log ...interface{}) {
-	if l < this.log_lv {
+func (ctrl *CTRL) Println(l logger.Level, src string, log ...interface{}) {
+	if l < ctrl.logLv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
 	if buffer == nil {
 		return
 	}
-	log_str := fmt.Sprintln(log...)
-	log_str = log_str[:len(log_str)-1] // delete "\n"
-	buffer.WriteString(log_str)
-	this.print_log(l, src, log_str, buffer)
+	logStr := fmt.Sprintln(log...)
+	logStr = logStr[:len(logStr)-1] // delete "\n"
+	buffer.WriteString(logStr)
+	ctrl.printLog(l, src, logStr, buffer)
 }
 
 // log don't include time level src, for database
-func (this *CTRL) print_log(l logger.Level, src, log string, b *bytes.Buffer) {
+func (ctrl *CTRL) printLog(l logger.Level, src, log string, b *bytes.Buffer) {
 	// write to database
 	m := &m_ctrl_log{
 		Level:  l,
 		Source: src,
 		Log:    log,
 	}
-	this.db.Create(m)
+	ctrl.db.Create(m)
 	// print console
 	b.WriteString("\n")
 	_, _ = b.WriteTo(os.Stdout)

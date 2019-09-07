@@ -9,28 +9,28 @@ import (
 	"project/internal/logger"
 )
 
-func Test_db_logger(t *testing.T) {
+func TestDBLogger(t *testing.T) {
 	path := os.TempDir() + "/database.log"
-	l, err := new_db_logger("mysql", path)
-	require.Nil(t, err, err)
+	l, err := newDBLogger("mysql", path)
+	require.NoError(t, err)
 	l.Print("test db log")
 	l.Close()
 	err = os.Remove(path)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 }
 
-func Test_gorm_logger(t *testing.T) {
+func TestGormLogger(t *testing.T) {
 	path := os.TempDir() + "/gorm.log"
-	l, err := new_gorm_logger(path)
-	require.Nil(t, err, err)
+	l, err := newGormLogger(path)
+	require.NoError(t, err)
 	l.Print("test gorm log")
 	l.Close()
 	err = os.Remove(path)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 }
 
-func Test_ctrl_logger(t *testing.T) {
-	init_ctrl(t)
+func TestCtrlLogger(t *testing.T) {
+	initCtrl(t)
 	ctrl.Printf(logger.DEBUG, "test src", "test format %s", "test log")
 	ctrl.Print(logger.DEBUG, "test src", "test print", "test log")
 	ctrl.Println(logger.DEBUG, "test src", "test println", "test log")
