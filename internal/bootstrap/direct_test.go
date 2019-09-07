@@ -6,15 +6,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Direct(t *testing.T) {
-	nodes := test_generate_nodes()
-	direct := New_Direct(nodes)
+func TestDirect(t *testing.T) {
+	nodes := testGenerateNodes()
+	direct := NewDirect(nodes)
 	_ = direct.Validate()
 	b, err := direct.Marshal()
-	require.Nil(t, err, err)
-	direct = New_Direct(nil)
+	require.NoError(t, err)
+	direct = NewDirect(nil)
 	err = direct.Unmarshal(b)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	resolved, _ := direct.Resolve()
 	require.Equal(t, nodes, resolved)
 }
