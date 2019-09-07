@@ -27,7 +27,7 @@ func TestGenerateCA(t *testing.T) {
 	require.Equal(t, err, ErrInvalidPEMBlock)
 	// invalid type
 	block := pem.Block{}
-	block.Type = "CERTIFICATE asdsad"
+	block.Type = "CERTIFICATE foo"
 	_, err = Parse(pem.EncodeToMemory(&block))
 	require.Equal(t, err, ErrInvalidPEMBlockType)
 }

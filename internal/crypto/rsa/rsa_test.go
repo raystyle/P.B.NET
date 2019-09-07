@@ -33,11 +33,11 @@ func TestRSA(t *testing.T) {
 	require.False(t, Verify(publicKey, file[:10], signature), "error verify")
 	require.False(t, Verify(publicKey, file[:10], nil), "error verify")
 	data := bytes.Repeat([]byte{0}, 128)
-	cipherdata, err := Encrypt(publicKey, data)
+	cipherData, err := Encrypt(publicKey, data)
 	require.NoError(t, err)
-	plaindata, err := Decrypt(privateKey, cipherdata)
+	plainData, err := Decrypt(privateKey, cipherData)
 	require.NoError(t, err)
-	require.Equal(t, plaindata, data)
+	require.Equal(t, plainData, data)
 }
 
 func BenchmarkSign(b *testing.B) {

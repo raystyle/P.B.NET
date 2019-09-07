@@ -14,12 +14,12 @@ func TestAES(t *testing.T) {
 	data := bytes.Repeat([]byte{0}, 32)
 	// encrypt&&decrypt
 	f := func(key []byte) {
-		cipherdata, err := CBCEncrypt(data, key, iv)
+		cipherData, err := CBCEncrypt(data, key, iv)
 		require.NoError(t, err)
-		t.Log(cipherdata)
-		plaindata, err := CBCDecrypt(cipherdata, key, iv)
+		t.Log(cipherData)
+		plainData, err := CBCDecrypt(cipherData, key, iv)
 		require.NoError(t, err)
-		require.Equal(t, plaindata, data)
+		require.Equal(t, plainData, data)
 	}
 	f(key128)
 	f(key256)
@@ -63,18 +63,18 @@ func TestCBC(t *testing.T) {
 	f := func(key []byte) {
 		cbc, err := NewCBC(key, iv)
 		require.NoError(t, err)
-		cipherdata, err := cbc.Encrypt(data)
+		cipherData, err := cbc.Encrypt(data)
 		require.NoError(t, err)
-		t.Log(cipherdata)
-		cipherdata, err = cbc.Encrypt(data)
+		t.Log(cipherData)
+		cipherData, err = cbc.Encrypt(data)
 		require.NoError(t, err)
-		t.Log(cipherdata)
-		plaindata, err := cbc.Decrypt(cipherdata)
+		t.Log(cipherData)
+		plainData, err := cbc.Decrypt(cipherData)
 		require.NoError(t, err)
-		require.Equal(t, plaindata, data)
-		plaindata, err = cbc.Decrypt(cipherdata)
+		require.Equal(t, plainData, data)
+		plainData, err = cbc.Decrypt(cipherData)
 		require.NoError(t, err)
-		require.Equal(t, plaindata, data)
+		require.Equal(t, plainData, data)
 	}
 	f(key128)
 	f(key256)
@@ -131,17 +131,17 @@ func benchmarkCBCEncrypt(b *testing.B, data, key []byte) {
 func BenchmarkCBC_Decrypt_128(b *testing.B) {
 	key := bytes.Repeat([]byte{0}, 16)
 	iv := bytes.Repeat([]byte{0}, IVSize)
-	cipherdata, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
+	cipherData, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
 	require.NoError(b, err)
-	benchmarkCBCDecrypt(b, cipherdata, key, iv)
+	benchmarkCBCDecrypt(b, cipherData, key, iv)
 }
 
 func BenchmarkCBC_Decrypt_256(b *testing.B) {
 	key := bytes.Repeat([]byte{0}, 32)
 	iv := bytes.Repeat([]byte{0}, IVSize)
-	cipherdata, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
+	cipherData, err := CBCEncrypt(bytes.Repeat([]byte{0}, 64), key, iv)
 	require.NoError(b, err)
-	benchmarkCBCDecrypt(b, cipherdata, key, iv)
+	benchmarkCBCDecrypt(b, cipherData, key, iv)
 }
 
 func benchmarkCBCDecrypt(b *testing.B, data, key, iv []byte) {

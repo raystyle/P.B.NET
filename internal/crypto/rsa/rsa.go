@@ -61,10 +61,10 @@ func Verify(p *PublicKey, data, signature []byte) bool {
 	return false
 }
 
-func Encrypt(p *PublicKey, plaindata []byte) ([]byte, error) {
-	return rsa.EncryptPKCS1v15(rand.Reader, p, plaindata)
+func Encrypt(p *PublicKey, data []byte) ([]byte, error) {
+	return rsa.EncryptPKCS1v15(rand.Reader, p, data)
 }
 
-func Decrypt(p *PrivateKey, cipherdata []byte) ([]byte, error) {
-	return rsa.DecryptPKCS1v15(rand.Reader, p, cipherdata)
+func Decrypt(p *PrivateKey, data []byte) ([]byte, error) {
+	return rsa.DecryptPKCS1v15(rand.Reader, p, data)
 }
