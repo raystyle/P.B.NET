@@ -14,37 +14,37 @@ import (
 	"project/internal/xnet"
 )
 
-func Test_Handle_Message(t *testing.T) {
+func TestHandleMessage(t *testing.T) {
 	var (
 		message = []byte{1, 1, 1, 1}
-		big_msg = bytes.Repeat([]byte{1}, 32768)
+		bigMsg  = bytes.Repeat([]byte{1}, 32768)
 		wg      sync.WaitGroup
 	)
-	c := &xnet.Config{Network: "tcp", Address: ":0"}
-	listener, err := xnet.Listen(xnet.LIGHT, c)
-	require.Nil(t, err, err)
+	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
+	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	require.NoError(t, err)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		count := 0
 		conn, err := listener.Accept()
-		require.Nil(t, err, err)
-		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Conn(xconn, func(msg []byte) {
+		require.NoError(t, err)
+		xconn := xnet.NewConn(conn, time.Now().Unix())
+		HandleConn(xconn, func(msg []byte) {
 			count += 1
 			if count != 5 {
 				require.Equal(t, message, msg)
 			} else {
-				require.Equal(t, big_msg, msg)
+				require.Equal(t, bigMsg, msg)
 			}
 		}, func() { _ = conn.Close() })
 		require.Equal(t, 5, count)
 	}()
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
-	c.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, c)
-	require.Nil(t, err, err)
+	cfg.Address = "localhost:" + port
+	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	require.NoError(t, err)
 	// full
 	_, err = conn.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1})
 	// full with incomplete header
@@ -56,111 +56,111 @@ func Test_Handle_Message(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	_, err = conn.Write([]byte{1, 1})
 	// big message
-	_, err = conn.Write(convert.Uint32_Bytes(32768))
-	_, err = conn.Write(big_msg)
+	_, err = conn.Write(convert.Uint32ToBytes(32768))
+	_, err = conn.Write(bigMsg)
 	_ = conn.Close()
 	wg.Wait()
 }
 
-func Test_Handle_NULL_Message(t *testing.T) {
+func TestHandleNULLMessage(t *testing.T) {
 	var (
 		wg sync.WaitGroup
 	)
-	c := &xnet.Config{Network: "tcp", Address: ":0"}
-	listener, err := xnet.Listen(xnet.LIGHT, c)
-	require.Nil(t, err, err)
+	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
+	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	require.NoError(t, err)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		conn, err := listener.Accept()
-		require.Nil(t, err, err)
-		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Conn(xconn, func(msg []byte) {
-			require.Equal(t, ERR_NULL_MSG, msg)
+		require.NoError(t, err)
+		xconn := xnet.NewConn(conn, time.Now().Unix())
+		HandleConn(xconn, func(msg []byte) {
+			require.Equal(t, ErrNullMsg, msg[0])
 		}, func() { _ = conn.Close() })
 	}()
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
-	c.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, c)
-	require.Nil(t, err, err)
+	cfg.Address = "localhost:" + port
+	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	require.NoError(t, err)
 	_, err = conn.Write([]byte{0, 0, 0, 0})
 	_ = conn.Close()
 	wg.Wait()
 }
 
-func Test_Handle_Too_Big_Message(t *testing.T) {
+func TestHandleTooBigMessage(t *testing.T) {
 	var (
 		wg sync.WaitGroup
 	)
-	c := &xnet.Config{Network: "tcp", Address: ":0"}
-	listener, err := xnet.Listen(xnet.LIGHT, c)
-	require.Nil(t, err, err)
+	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
+	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	require.NoError(t, err)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		conn, err := listener.Accept()
-		require.Nil(t, err, err)
-		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Conn(xconn, func(msg []byte) {
-			require.Equal(t, ERR_TOO_BIG_MSG, msg)
+		require.NoError(t, err)
+		xconn := xnet.NewConn(conn, time.Now().Unix())
+		HandleConn(xconn, func(msg []byte) {
+			require.Equal(t, ErrTooBigMsg, msg[0])
 		}, func() { _ = conn.Close() })
 		_ = conn.Close()
 	}()
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
-	c.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, c)
-	require.Nil(t, err, err)
+	cfg.Address = "localhost:" + port
+	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	require.NoError(t, err)
 	_, err = conn.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
 	_ = conn.Close()
 	wg.Wait()
 }
 
-func Benchmark_Handle_Message_128B(b *testing.B) {
-	benchmark_handle_message(b, 128)
+func BenchmarkHandleMessage_128B(b *testing.B) {
+	benchmarkHandleMessage(b, 128)
 }
 
-func Benchmark_Handle_Message_2KB(b *testing.B) {
-	benchmark_handle_message(b, 2048)
+func BenchmarkHandleMessage_2KB(b *testing.B) {
+	benchmarkHandleMessage(b, 2048)
 }
 
-func Benchmark_Handle_Message_4KB(b *testing.B) {
-	benchmark_handle_message(b, 4096)
+func BenchmarkHandleMessage_4KB(b *testing.B) {
+	benchmarkHandleMessage(b, 4096)
 }
 
-func Benchmark_Handle_Message_32KB(b *testing.B) {
-	benchmark_handle_message(b, 32768)
+func BenchmarkHandleMessage_32KB(b *testing.B) {
+	benchmarkHandleMessage(b, 32768)
 }
 
-func Benchmark_Handle_Message_1MB(b *testing.B) {
-	benchmark_handle_message(b, 1048576)
+func BenchmarkHandleMessage_1MB(b *testing.B) {
+	benchmarkHandleMessage(b, 1048576)
 }
 
-func Benchmark_Handle_Message_16MB(b *testing.B) {
-	benchmark_handle_message(b, 16*1048576)
+func BenchmarkHandleMessage_16MB(b *testing.B) {
+	benchmarkHandleMessage(b, 16*1048576)
 }
 
-func Benchmark_Handle_Message_64MB(b *testing.B) {
-	benchmark_handle_message(b, 64*1048576)
+func BenchmarkHandleMessage_64MB(b *testing.B) {
+	benchmarkHandleMessage(b, 64*1048576)
 }
 
-func benchmark_handle_message(b *testing.B, size int) {
+func benchmarkHandleMessage(b *testing.B, size int) {
 	var (
 		message = bytes.Repeat([]byte{1}, size)
 		wg      sync.WaitGroup
 	)
-	c := &xnet.Config{Network: "tcp", Address: ":0"}
-	listener, err := xnet.Listen(xnet.LIGHT, c)
-	require.Nil(b, err, err)
+	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
+	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	require.NoError(b, err)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		count := 0
 		conn, err := listener.Accept()
-		require.Nil(b, err, err)
-		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Conn(xconn, func(msg []byte) {
+		require.NoError(b, err)
+		xconn := xnet.NewConn(conn, time.Now().Unix())
+		HandleConn(xconn, func(msg []byte) {
 			if !bytes.Equal(msg, message) {
 				b.FailNow()
 			}
@@ -170,10 +170,10 @@ func benchmark_handle_message(b *testing.B, size int) {
 	}()
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
-	c.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, c)
-	require.Nil(b, err, err)
-	msg := append(convert.Uint32_Bytes(uint32(size)), message...)
+	cfg.Address = "localhost:" + port
+	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	require.NoError(b, err)
+	msg := append(convert.Uint32ToBytes(uint32(size)), message...)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -187,81 +187,81 @@ func benchmark_handle_message(b *testing.B, size int) {
 	wg.Wait()
 }
 
-func Benchmark_Handle_Message_parallel_128B(b *testing.B) {
-	benchmark_handle_message_parallel(b, 128)
+func BenchmarkHandleMessageParallel_128B(b *testing.B) {
+	benchmarkHandleMessageParallel(b, 128)
 }
 
-func Benchmark_Handle_Message_parallel_2KB(b *testing.B) {
-	benchmark_handle_message_parallel(b, 2048)
+func BenchmarkHandleMessageParallel_2KB(b *testing.B) {
+	benchmarkHandleMessageParallel(b, 2048)
 }
 
-func Benchmark_Handle_Message_parallel_4KB(b *testing.B) {
-	benchmark_handle_message_parallel(b, 4096)
+func BenchmarkHandleMessageParallel_4KB(b *testing.B) {
+	benchmarkHandleMessageParallel(b, 4096)
 }
 
-func Benchmark_Handle_Message_parallel_32KB(b *testing.B) {
-	benchmark_handle_message_parallel(b, 32768)
+func BenchmarkHandleMessageParallel_32KB(b *testing.B) {
+	benchmarkHandleMessageParallel(b, 32768)
 }
 
-func Benchmark_Handle_Message_parallel_1MB(b *testing.B) {
-	benchmark_handle_message_parallel(b, 1048576)
+func BenchmarkHandleMessageParallel_1MB(b *testing.B) {
+	benchmarkHandleMessageParallel(b, 1048576)
 }
 
-func Benchmark_Handle_Message_parallel_16MB(b *testing.B) {
-	benchmark_handle_message_parallel(b, 16*1048576)
+func BenchmarkHandleMessageParallel_16MB(b *testing.B) {
+	benchmarkHandleMessageParallel(b, 16*1048576)
 }
 
-func Benchmark_Handle_Message_parallel_64MB(b *testing.B) {
-	benchmark_handle_message_parallel(b, 64*1048576)
+func BenchmarkHandleMessageParallel_64MB(b *testing.B) {
+	benchmarkHandleMessageParallel(b, 64*1048576)
 }
 
-func benchmark_handle_message_parallel(b *testing.B, size int) {
+func benchmarkHandleMessageParallel(b *testing.B, size int) {
 	var (
-		n_one   = b.N / runtime.NumCPU()
+		nOnce   = b.N / runtime.NumCPU()
 		message = bytes.Repeat([]byte{1}, size)
 		wg      sync.WaitGroup
 	)
-	c := &xnet.Config{Network: "tcp", Address: ":0"}
-	listener, err := xnet.Listen(xnet.LIGHT, c)
-	require.Nil(b, err, err)
+	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
+	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	require.NoError(b, err)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		count := 0
 		conn, err := listener.Accept()
-		require.Nil(b, err, err)
-		xconn := xnet.New_Conn(conn, time.Now().Unix())
-		Handle_Conn(xconn, func(msg []byte) {
+		require.NoError(b, err)
+		xconn := xnet.NewConn(conn, time.Now().Unix())
+		HandleConn(xconn, func(msg []byte) {
 			if !bytes.Equal(msg, message) {
 				b.FailNow()
 			}
 			count += 1
 		}, func() { _ = conn.Close() })
-		require.Equal(b, n_one*runtime.NumCPU(), count)
+		require.Equal(b, nOnce*runtime.NumCPU(), count)
 	}()
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
-	c.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, c)
-	require.Nil(b, err, err)
-	msg := append(convert.Uint32_Bytes(uint32(size)), message...)
-	write_wg := sync.WaitGroup{}
+	cfg.Address = "localhost:" + port
+	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	require.NoError(b, err)
+	msg := append(convert.Uint32ToBytes(uint32(size)), message...)
+	writeWG := sync.WaitGroup{}
 	write := func() {
-		for i := 0; i < n_one; i++ {
+		for i := 0; i < nOnce; i++ {
 			_, err := conn.Write(msg)
 			if err != nil {
 				b.FailNow()
 			}
 		}
-		write_wg.Done()
+		writeWG.Done()
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < runtime.NumCPU(); i++ {
-		write_wg.Add(1)
+		writeWG.Add(1)
 		go write()
 	}
-	write_wg.Wait()
+	writeWG.Wait()
 	b.StopTimer()
 	_ = conn.Close()
 	wg.Wait()

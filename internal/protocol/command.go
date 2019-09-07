@@ -2,55 +2,55 @@ package protocol
 
 // --------------------------test-----------------------------
 const (
-	TEST_MSG uint8 = 0xEF
+	TestMessage uint8 = 0xEF
 )
 
 // -----------------------controller--------------------------
 const (
-	CTRL_HEARTBEAT uint8 = 0x00 + iota
-	CTRL_REPLY
-	CTRL_SYNC_START
-	CTRL_SYNC_QUERY
-	CTRL_BROADCAST_TOKEN
-	CTRL_BROADCAST
-	CTRL_SYNC_SEND_TOKEN
-	CTRL_SYNC_SEND
-	CTRL_SYNC_RECV_TOKEN
-	CTRL_SYNC_RECV
+	CtrlHeartbeat uint8 = 0x00 + iota
+	CtrlReply
+	CtrlSyncStart
+	CtrlSyncQuery
+	CtrlBroadcastToken
+	CtrlBroadcast
+	CtrlSyncSendToken
+	CtrlSyncSend
+	CtrlSyncRecvToken
+	CtrlSyncRecv
 )
 
 // trust node
 const (
-	CTRL_TRUST_NODE uint8 = 0x20 + iota
-	CTRL_TRUST_NODE_DATA
+	CtrlTrustNode uint8 = 0x20 + iota
+	CtrlTrustNodeData
 )
 
 const (
-	CTRL_QUERY_STATUS uint8 = 0x30 + iota
-	CTRL_QUERY_ALL_NODES
+	CtrlQueryStatus uint8 = 0x30 + iota
+	CtrlQueryAllNodes
 )
 
 // --------------------------node-----------------------------
 const (
-	NODE_HEARTBEAT uint8 = 0x00 + iota
-	NODE_REPLY
-	NODE_SYNC_START
-	NODE_SYNC_QUERY
-	NODE_BROADCAST_TOKEN
-	NODE_BROADCAST
-	NODE_SYNC_SEND_TOKEN
-	NODE_SYNC_SEND
-	NODE_SYNC_RECV_TOKEN
-	NODE_SYNC_RECV
+	NodeHeartbeat uint8 = 0x00 + iota
+	NodeReply
+	NodeSyncStart
+	NodeSyncQuery
+	NodeBroadcastToken
+	NodeBroadcast
+	NodeSyncSendToken
+	NodeSyncSend
+	NodeSyncRecvToken
+	NodeSyncRecv
 )
 
 // node authentication
 const (
-	NODE_QUERY_CERTIFICATE uint8 = 0x20 + iota
+	NodeQueryCertificate uint8 = 0x20 + iota
 )
 
 // query nodes
 const (
-	NODE_QUERY_GUID uint8 = 0x30 + iota
-	NODE_QUERY_ALL_NODES
+	NodeQueryGUID uint8 = 0x30 + iota
+	NodeQueryAllNodes
 )

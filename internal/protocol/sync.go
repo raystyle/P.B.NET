@@ -40,13 +40,13 @@ func (this *Sync_Send) Validate() error {
 	if len(this.Message) < 16 {
 		return errors.New("invalid message")
 	}
-	if this.Sender_Role > AGENT {
+	if this.Sender_Role > Beacon {
 		return errors.New("invalid sender role")
 	}
 	if len(this.Sender_GUID) != guid.SIZE {
 		return errors.New("invalid sender guid")
 	}
-	if this.Receiver_Role > AGENT {
+	if this.Receiver_Role > Beacon {
 		return errors.New("invalid receiver role")
 	}
 	if len(this.Receiver_GUID) != guid.SIZE {
@@ -73,7 +73,7 @@ func (this *Sync_Receive) Validate() error {
 	if len(this.GUID) != guid.SIZE {
 		return errors.New("invalid guid")
 	}
-	if this.Receiver_Role != BEACON && this.Receiver_Role != NODE {
+	if this.Receiver_Role != Beacon && this.Receiver_Role != Node {
 		return errors.New("invalid receiver role")
 	}
 	if len(this.Receiver_GUID) != guid.SIZE {
@@ -106,7 +106,7 @@ type Sync_Query struct {
 }
 
 func (this *Sync_Query) Validate() error {
-	if this.Role != BEACON && this.Role != NODE {
+	if this.Role != Beacon && this.Role != Node {
 		return errors.New("invalid role")
 	}
 	if len(this.GUID) != guid.SIZE {

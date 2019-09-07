@@ -6,59 +6,59 @@ import (
 	"project/internal/guid"
 )
 
-//broadcast first send message token
-//if don't handled send total message
-//token = role + guid
+// broadcast first send message token
+// if don't handled send total message
+// token = role + guid
 
 var (
-	BROADCAST_UNHANDLED = []byte{0}
-	BROADCAST_HANDLED   = []byte{1}
-	BROADCAST_SUCCESS   = []byte{2}
+	BroadcastUnhandled = []byte{0}
+	BroadcastHandled   = []byte{1}
+	BroadcastSucceed   = []byte{2}
 
-	ERROR_BROADCAST_HANDLED = errors.New("this broadcast handled")
+	ErrBroadcastHandled = errors.New("this broadcast handled")
 )
 
-//broadcast message to role
-//worker
+// broadcast message to role
+// worker
 type Broadcast struct {
-	GUID          []byte
-	Message       []byte //AES
-	Sender_Role   Role
-	Sender_GUID   []byte
-	Receiver_Role Role
-	Signature     []byte //ECDSA(total)
+	GUID         []byte
+	Message      []byte // AES encrypted
+	SenderRole   Role
+	SenderGUID   []byte
+	ReceiverRole Role
+	Signature    []byte
 }
 
-func (this *Broadcast) Validate() error {
-	if len(this.GUID) != guid.SIZE {
+func (b *Broadcast) Validate() error {
+	if len(b.GUID) != guid.SIZE {
 		return errors.New("invalid guid")
 	}
-	if len(this.Message) < 16 {
+	if len(b.Message) < 16 {
 		return errors.New("invalid message")
 	}
-	if this.Sender_Role > BEACON {
+	if b.SenderRole > Beacon {
 		return errors.New("invalid sender role")
 	}
-	if len(this.Sender_GUID) != guid.SIZE {
+	if len(b.SenderGUID) != guid.SIZE {
 		return errors.New("invalid sender guid")
 	}
-	if this.Signature == nil {
-		return errors.New("invalid signature")
+	if b.Signature == nil {
+		return errors.New("no signature")
 	}
-	if this.Sender_Role == this.Receiver_Role {
-		return errors.New("same sender&receiver role")
+	if b.SenderRole == b.ReceiverRole {
+		return errors.New("same sender receiver role")
 	}
 	return nil
 }
 
-type Broadcast_Response struct {
+type BroadcastResponse struct {
 	Role Role
 	GUID []byte
 	Err  error
 }
 
-type Broadcast_Result struct {
+type BroadcastResult struct {
 	Success  int
-	Response []*Broadcast_Response
+	Response []*BroadcastResponse
 	Err      error
 }
