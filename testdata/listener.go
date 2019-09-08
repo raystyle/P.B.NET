@@ -12,7 +12,7 @@ import (
 func Listeners(t require.TestingT) []*config.Listener {
 	var ls []*config.Listener
 	b, err := ioutil.ReadFile("../config/listener/tls.toml")
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	l := &config.Listener{
 		Tag:    "tls",
 		Mode:   xnet.TLS,
@@ -20,7 +20,7 @@ func Listeners(t require.TestingT) []*config.Listener {
 	}
 	ls = append(ls, l)
 	b, err = ioutil.ReadFile("../config/listener/light.toml")
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	l = &config.Listener{
 		Tag:    "light",
 		Mode:   xnet.LIGHT,
