@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEd25519(t *testing.T) {
+func TestED25519(t *testing.T) {
 	pri, err := GenerateKey()
 	require.NoError(t, err)
 	message := []byte("test message")
