@@ -16,33 +16,33 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	var only_ca bool
-	flag.BoolVar(&only_ca, "onlyca", false, "only generate CA")
+	var onlyCA bool
+	flag.BoolVar(&onlyCA, "onlyca", false, "only generate CA")
 	flag.Parse()
 	config := &cert.Config{}
 	err = toml.Unmarshal(b, config)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	ca_crt, ca_pri := cert.Generate_CA(config)
-	err = ioutil.WriteFile("ca.crt", ca_crt, 644)
+	caCert, caPri := cert.GenerateCA(config)
+	err = ioutil.WriteFile("ca.crt", caCert, 644)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	err = ioutil.WriteFile("ca.key", ca_pri, 644)
+	err = ioutil.WriteFile("ca.key", caPri, 644)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	if !only_ca {
-		parent, err := cert.Parse(ca_crt)
+	if !onlyCA {
+		parent, err := cert.Parse(caCert)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		privatekey, err := rsa.Import_PrivateKey_PEM(ca_pri)
+		privateKey, err := rsa.ImportPrivateKeyPEM(caPri)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		crt, pri, err := cert.Generate(parent, privatekey, config)
+		crt, pri, err := cert.Generate(parent, privateKey, config)
 		if err != nil {
 			log.Fatalln(err)
 		}
