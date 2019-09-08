@@ -10,36 +10,37 @@ import (
 
 // ------------------------------debug----------------------------------
 
-func (this *web) h_shutdown(w h_rw, r *h_r, p h_p) {
+func (web *web) hShutdown(w hRW, r *hR, p hP) {
 	_ = r.ParseForm()
-	err_str := r.FormValue("err")
-	w.Write([]byte("ok"))
-	if err_str != "" {
-		this.ctx.Exit(errors.New(err_str))
+	errStr := r.FormValue("err")
+	_, _ = w.Write([]byte("ok"))
+	if errStr != "" {
+		web.ctx.Exit(errors.New(errStr))
 	} else {
-		this.ctx.Exit(nil)
+		web.ctx.Exit(nil)
 	}
 }
 
-func (this *web) h_get_boot(w h_rw, r *h_r, p h_p) {
-	w.Write([]byte("hello"))
+func (web *web) hGetBoot(w hRW, r *hR, p hP) {
+	_, _ = w.Write([]byte("hello"))
 }
 
-func (this *web) h_trust_node(w h_rw, r *h_r, p h_p) {
-	m := &m_trust_node{}
+func (web *web) hTrustNode(w hRW, r *hR, p hP) {
+	m := &mTrustNode{}
 	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {
-		w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error()))
+		return
 	}
 	n := &bootstrap.Node{
 		Mode:    m.Mode,
 		Network: m.Network,
 		Address: m.Address,
 	}
-	err = this.ctx.Trust_Node(n)
+	err = web.ctx.TrustNode(n)
 	if err != nil {
-		w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	w.Write([]byte("trust ok"))
+	_, _ = w.Write([]byte("trust ok"))
 }

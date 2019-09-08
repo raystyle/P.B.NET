@@ -4,7 +4,7 @@ import (
 	"bytes"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
 	"project/internal/logger"
@@ -12,54 +12,54 @@ import (
 	"project/internal/protocol"
 )
 
-// Trust_Node is used to trust Genesis Node
-func (this *CTRL) Trust_Node(node *bootstrap.Node) error {
-	c := &client_cfg{Node: node}
-	c.TLS_Config.InsecureSkipVerify = true
-	client, err := new_client(this, c)
+// TrustNode is used to trust Genesis Node
+func (ctrl *CTRL) TrustNode(node *bootstrap.Node) error {
+	c := &clientCfg{Node: node}
+	c.TLSConfig.InsecureSkipVerify = true
+	client, err := newClient(ctrl, c)
 	if err != nil {
 		return errors.Wrap(err, "connect node failed")
 	}
 	defer client.Close()
 	// send trust node command
-	reply, err := client.Send(protocol.CTRL_TRUST_NODE, nil)
+	reply, err := client.Send(protocol.CtrlTrustNode, nil)
 	if err != nil {
 		return errors.Wrap(err, "send trust node command failed")
 	}
-	req := &messages.Node_Online_Request{}
+	req := &messages.NodeOnlineRequest{}
 	err = msgpack.Unmarshal(reply, req)
 	if err != nil {
 		err = errors.Wrap(err, "invalid node online request")
-		this.Print(logger.EXPLOIT, "trust_node", err)
+		ctrl.Print(logger.EXPLOIT, "trust_node", err)
 		return err
 	}
 	err = req.Validate()
 	if err != nil {
 		err = errors.Wrap(err, "validate node online request failed")
-		this.Print(logger.EXPLOIT, "trust_node", err)
+		ctrl.Print(logger.EXPLOIT, "trust_node", err)
 		return err
 	}
 	// issue certificates
-	cert := this.issue_certificate(node, req.GUID)
+	cert := ctrl.issueCertificate(node, req.GUID)
 	// send response
-	reply, err = client.Send(protocol.CTRL_TRUST_NODE_DATA, cert)
+	reply, err = client.Send(protocol.CtrlTrustNodeData, cert)
 	if err != nil {
 		return errors.Wrap(err, "send trust node data failed")
 	}
-	if !bytes.Equal(reply, messages.ONLINE_SUCCESS) {
-		return errors.New("trust bootstrap faild")
+	if !bytes.Equal(reply, messages.OnlineSucceed) {
+		return errors.New("trust node failed")
 	}
 	// calculate aes key
-	aes_key, err := this.global.Key_Exchange(req.Kex_Pub)
+	aesKey, err := ctrl.global.KeyExchange(req.KexPublicKey)
 	if err != nil {
 		panic(err)
 	}
 	// TODO broadcast
 
 	// insert node
-	return this.Insert_Node(&m_node{
+	return ctrl.InsertNode(&mNode{
 		GUID:      req.GUID,
-		Publickey: req.Publickey,
-		AES_Key:   aes_key,
+		PublicKey: req.PublicKey,
+		AESKey:    aesKey,
 	})
 }

@@ -17,31 +17,31 @@ import (
 	"project/internal/xnet"
 )
 
-// Node_GUID != nil for sync or other
-// Node_GUID = nil for trust node
-// Node_GUID = controller guid for discovery
-type client_cfg struct {
-	Node      *bootstrap.Node
-	Node_GUID []byte
-	Close_Log bool
+// NodeGUID != nil for sync or other
+// NodeGUID = nil for trust node
+// NodeGUID = controller guid for discovery
+type clientCfg struct {
+	Node     *bootstrap.Node
+	NodeGUID []byte
+	CloseLog bool
 	xnet.Config
 }
 
 type client struct {
-	ctx         *CTRL
-	node        *bootstrap.Node
-	guid        []byte
-	close_log   bool
-	conn        *xnet.Conn
-	slots       []*protocol.Slot
-	reply_timer *time.Timer
-	in_close    int32
-	close_once  sync.Once
-	stop_signal chan struct{}
-	wg          sync.WaitGroup
+	ctx        *CTRL
+	node       *bootstrap.Node
+	guid       []byte
+	closeLog   bool
+	conn       *xnet.Conn
+	slots      []*protocol.Slot
+	replyTimer *time.Timer
+	inClose    int32
+	closeOnce  sync.Once
+	stopSignal chan struct{}
+	wg         sync.WaitGroup
 }
 
-func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
+func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 	cfg.Network = cfg.Node.Network
 	cfg.Address = cfg.Node.Address
 	// TODO add ca cert
@@ -50,10 +50,10 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 		return nil, errors.WithStack(err)
 	}
 	c := &client{
-		ctx:       ctx,
-		node:      cfg.Node,
-		guid:      cfg.Node_GUID,
-		close_log: cfg.Close_Log,
+		ctx:      ctx,
+		node:     cfg.Node,
+		guid:     cfg.NodeGUID,
+		closeLog: cfg.CloseLog,
 	}
 	_ = conn.SetDeadline(time.Now().Add(time.Minute))
 	xconn, err := c.handshake(conn)
@@ -63,207 +63,211 @@ func new_client(ctx *CTRL, cfg *client_cfg) (*client, error) {
 	}
 	c.conn = xconn
 	// init slot
-	c.slots = make([]*protocol.Slot, protocol.SLOT_SIZE)
-	for i := 0; i < protocol.SLOT_SIZE; i++ {
+	c.slots = make([]*protocol.Slot, protocol.SlotSize)
+	for i := 0; i < protocol.SlotSize; i++ {
 		s := &protocol.Slot{
 			Available: make(chan struct{}, 1),
 			Reply:     make(chan []byte, 1),
-			Timer:     time.NewTimer(protocol.RECV_TIMEOUT),
+			Timer:     time.NewTimer(protocol.RecvTimeout),
 		}
 		s.Available <- struct{}{}
 		c.slots[i] = s
 	}
-	c.reply_timer = time.NewTimer(time.Second)
-	c.stop_signal = make(chan struct{})
+	c.replyTimer = time.NewTimer(time.Second)
+	c.stopSignal = make(chan struct{})
 	go func() {
+		// not add wg, because c.Close
 		// TODO recover
-		protocol.Handle_Conn(c.conn, c.handle_message, c.Close)
+		defer func() {
+
+		}()
+		protocol.HandleConn(c.conn, c.handleMessage, c.Close)
 	}()
 	c.wg.Add(1)
 	go c.heartbeat()
 	return c, nil
 }
 
-func (this *client) Close() {
-	this.close_once.Do(func() {
-		atomic.StoreInt32(&this.in_close, 1)
-		close(this.stop_signal)
-		_ = this.conn.Close()
-		this.wg.Wait()
-		if this.close_log {
-			this.logln(logger.INFO, "disconnected")
+func (client *client) Close() {
+	client.closeOnce.Do(func() {
+		atomic.StoreInt32(&client.inClose, 1)
+		close(client.stopSignal)
+		_ = client.conn.Close()
+		client.wg.Wait()
+		if client.closeLog {
+			client.logln(logger.INFO, "disconnected")
 		}
 	})
 }
 
-func (this *client) is_closed() bool {
-	return atomic.LoadInt32(&this.in_close) != 0
+func (client *client) isClosed() bool {
+	return atomic.LoadInt32(&client.inClose) != 0
 }
 
-func (this *client) logf(l logger.Level, format string, log ...interface{}) {
-	b := logger.Conn(this.conn)
+func (client *client) logf(l logger.Level, format string, log ...interface{}) {
+	b := logger.Conn(client.conn)
 	_, _ = fmt.Fprintf(b, format, log...)
-	this.ctx.Print(l, "client", b)
+	client.ctx.Print(l, "client", b)
 }
 
-func (this *client) log(l logger.Level, log ...interface{}) {
-	b := logger.Conn(this.conn)
+func (client *client) log(l logger.Level, log ...interface{}) {
+	b := logger.Conn(client.conn)
 	_, _ = fmt.Fprint(b, log...)
-	this.ctx.Print(l, "client", b)
+	client.ctx.Print(l, "client", b)
 }
 
-func (this *client) logln(l logger.Level, log ...interface{}) {
-	b := logger.Conn(this.conn)
+func (client *client) logln(l logger.Level, log ...interface{}) {
+	b := logger.Conn(client.conn)
 	_, _ = fmt.Fprintln(b, log...)
-	this.ctx.Print(l, "client", b)
+	client.ctx.Print(l, "client", b)
 }
 
 // can use this.Close()
-func (this *client) handle_message(msg []byte) {
-	if this.is_closed() {
+func (client *client) handleMessage(msg []byte) {
+	if client.isClosed() {
 		return
 	}
 	if len(msg) < 1 {
-		this.log(logger.EXPLOIT, protocol.ERR_INVALID_MSG_SIZE)
-		this.Close()
+		client.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
+		client.Close()
 		return
 	}
 	switch msg[0] {
-	case protocol.NODE_REPLY:
-		this.handle_reply(msg[1:])
-	case protocol.NODE_HEARTBEAT: // discard
-	case protocol.ERR_NULL_MSG:
-		this.log(logger.EXPLOIT, protocol.ERR_RECV_NULL_MSG)
-		this.Close()
-	case protocol.ERR_TOO_BIG_MSG:
-		this.log(logger.EXPLOIT, protocol.ERR_RECV_TOO_BIG_MSG)
-		this.Close()
-	case protocol.TEST_MSG:
+	case protocol.NodeReply:
+		client.handleReply(msg[1:])
+	case protocol.NodeHeartbeat: // discard
+	case protocol.ErrNullMsg:
+		client.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
+		client.Close()
+	case protocol.ErrTooBigMsg:
+		client.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
+		client.Close()
+	case protocol.TestMessage:
 		if len(msg) < 3 {
-			this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_TEST_MSG)
+			client.log(logger.EXPLOIT, protocol.ErrRecvInvalidTestMsg)
 		}
-		this.reply(msg[1:3], msg[3:])
+		client.reply(msg[1:3], msg[3:])
 	default:
-		this.log(logger.EXPLOIT, protocol.ERR_RECV_UNKNOWN_CMD, msg[1:])
-		this.Close()
+		client.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[1:])
+		client.Close()
 		return
 	}
 }
 
-func (this *client) heartbeat() {
-	defer this.wg.Done()
-	rand := random.New()
+func (client *client) heartbeat() {
+	defer client.wg.Done()
+	rand := random.New(0)
 	buffer := bytes.NewBuffer(nil)
 	for {
 		select {
 		case <-time.After(time.Duration(30+rand.Int(60)) * time.Second):
 			// <security> fake flow like client
-			fake_size := 64 + rand.Int(256)
+			fakeSize := 64 + rand.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
 			buffer.Reset()
-			buffer.Write(convert.Uint32_Bytes(uint32(1 + fake_size)))
-			buffer.WriteByte(protocol.CTRL_HEARTBEAT)
-			buffer.Write(rand.Bytes(fake_size))
+			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
+			buffer.WriteByte(protocol.CtrlHeartbeat)
+			buffer.Write(rand.Bytes(fakeSize))
 			// send
-			_ = this.conn.SetWriteDeadline(time.Now().Add(protocol.SEND_TIMEOUT))
-			_, err := this.conn.Write(buffer.Bytes())
+			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+			_, err := client.conn.Write(buffer.Bytes())
 			if err != nil {
 				return
 			}
-		case <-this.stop_signal:
+		case <-client.stopSignal:
 			return
 		}
 	}
 }
 
-func (this *client) reply(id, reply []byte) {
-	if this.is_closed() {
+func (client *client) reply(id, reply []byte) {
+	if client.isClosed() {
 		return
 	}
-	// size(4 Bytes) + CTRL_REPLY(1 byte) + msg_id(2 bytes)
+	// size(4 Bytes) + CtrlReply(1 byte) + msg_id(2 bytes)
 	l := len(reply)
 	b := make([]byte, 7+l)
-	copy(b, convert.Uint32_Bytes(uint32(3+l))) // write size
-	b[4] = protocol.CTRL_REPLY
+	copy(b, convert.Uint32ToBytes(uint32(3+l))) // write size
+	b[4] = protocol.CtrlReply
 	copy(b[5:7], id)
 	copy(b[7:], reply)
-	_ = this.conn.SetWriteDeadline(time.Now().Add(protocol.SEND_TIMEOUT))
-	_, _ = this.conn.Write(b)
+	_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, _ = client.conn.Write(b)
 }
 
 // msg_id(2 bytes) + data
-func (this *client) handle_reply(reply []byte) {
+func (client *client) handleReply(reply []byte) {
 	l := len(reply)
 	if l < 2 {
-		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_MSG_ID_SIZE)
-		this.Close()
+		client.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgIDSize)
+		client.Close()
 		return
 	}
-	id := int(convert.Bytes_Uint16(reply[:2]))
-	if id > protocol.MAX_MSG_ID {
-		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_MSG_ID)
-		this.Close()
+	id := int(convert.BytesToUint16(reply[:2]))
+	if id > protocol.MaxMsgID {
+		client.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgID)
+		client.Close()
 		return
 	}
 	// must copy
 	r := make([]byte, l-2)
 	copy(r, reply[2:])
 	// <security> maybe wrong msg id
-	this.reply_timer.Reset(time.Second)
+	client.replyTimer.Reset(time.Second)
 	select {
-	case this.slots[id].Reply <- r:
-		this.reply_timer.Stop()
-	case <-this.reply_timer.C:
-		this.log(logger.EXPLOIT, protocol.ERR_RECV_INVALID_REPLY)
-		this.Close()
+	case client.slots[id].Reply <- r:
+		client.replyTimer.Stop()
+	case <-client.replyTimer.C:
+		client.log(logger.EXPLOIT, protocol.ErrRecvInvalidReply)
+		client.Close()
 	}
 }
 
 // send command and receive reply
 // size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
-func (this *client) Send(cmd uint8, data []byte) ([]byte, error) {
-	if this.is_closed() {
-		return nil, protocol.ERR_CONN_CLOSED
+func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
+	if client.isClosed() {
+		return nil, protocol.ErrConnClosed
 	}
 	for {
-		for id := 0; id < protocol.SLOT_SIZE; id++ {
+		for id := 0; id < protocol.SlotSize; id++ {
 			select {
-			case <-this.slots[id].Available:
+			case <-client.slots[id].Available:
 				l := len(data)
 				b := make([]byte, 7+l)
-				copy(b, convert.Uint32_Bytes(uint32(3+l))) // write size
+				copy(b, convert.Uint32ToBytes(uint32(3+l))) // write size
 				b[4] = cmd
-				copy(b[5:7], convert.Uint16_Bytes(uint16(id)))
+				copy(b[5:7], convert.Uint16ToBytes(uint16(id)))
 				copy(b[7:], data)
 				// send
-				_ = this.conn.SetWriteDeadline(time.Now().Add(protocol.SEND_TIMEOUT))
-				_, err := this.conn.Write(b)
+				_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+				_, err := client.conn.Write(b)
 				if err != nil {
 					return nil, err
 				}
 				// wait for reply
-				this.slots[id].Timer.Reset(protocol.RECV_TIMEOUT)
+				client.slots[id].Timer.Reset(protocol.RecvTimeout)
 				select {
-				case r := <-this.slots[id].Reply:
-					this.slots[id].Timer.Stop()
-					this.slots[id].Available <- struct{}{}
+				case r := <-client.slots[id].Reply:
+					client.slots[id].Timer.Stop()
+					client.slots[id].Available <- struct{}{}
 					return r, nil
-				case <-this.slots[id].Timer.C:
-					this.Close()
-					return nil, protocol.ERR_RECV_TIMEOUT
-				case <-this.stop_signal:
-					return nil, protocol.ERR_CONN_CLOSED
+				case <-client.slots[id].Timer.C:
+					client.Close()
+					return nil, protocol.ErrRecvTimeout
+				case <-client.stopSignal:
+					return nil, protocol.ErrConnClosed
 				}
-			case <-this.stop_signal:
-				return nil, protocol.ERR_CONN_CLOSED
+			case <-client.stopSignal:
+				return nil, protocol.ErrConnClosed
 			default:
 			}
 		}
 		// if full wait 1 second
 		select {
 		case <-time.After(time.Second):
-		case <-this.stop_signal:
-			return nil, protocol.ERR_CONN_CLOSED
+		case <-client.stopSignal:
+			return nil, protocol.ErrConnClosed
 		}
 	}
 }

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"crypto/tls"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -13,33 +12,34 @@ import (
 
 	"project/internal/logger"
 	"project/internal/security"
+	"project/internal/xpanic"
 )
 
-type h_rw = http.ResponseWriter
-type h_r = http.Request
-type h_p = httprouter.Params
+type hRW = http.ResponseWriter
+type hR = http.Request
+type hP = httprouter.Params
 
 type web struct {
 	ctx      *CTRL
 	listener net.Listener
 	server   *http.Server
-	index_fs http.Handler
+	indexFS  http.Handler // index file system
 }
 
-func new_web(ctx *CTRL, c *Config) (*web, error) {
+func newWeb(ctx *CTRL, cfg *Config) (*web, error) {
 	// listen tls
-	crt_file := c.HTTPS_Cert_File
-	key_file := c.HTTPS_Key_File
-	crt, err := tls.LoadX509KeyPair(crt_file, key_file)
+	certFile := cfg.HTTPSCertFile
+	keyFile := cfg.HTTPSKeyFile
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	listener, err := net.Listen("tcp", c.HTTPS_Address)
+	listener, err := net.Listen("tcp", cfg.HTTPSAddress)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	// router
-	hs := &web{
+	web := &web{
 		ctx:      ctx,
 		listener: listener,
 	}
@@ -48,90 +48,86 @@ func new_web(ctx *CTRL, c *Config) (*web, error) {
 		RedirectFixedPath:      true,
 		HandleMethodNotAllowed: true,
 		HandleOPTIONS:          true,
-		PanicHandler:           hs.h_panic,
+		PanicHandler:           web.hPanic,
 	}
 	// resource
-	router.ServeFiles("/css/*filepath", http.Dir(c.Web_Dir+"/css"))
-	router.ServeFiles("/js/*filepath", http.Dir(c.Web_Dir+"/js"))
-	router.ServeFiles("/img/*filepath", http.Dir(c.Web_Dir+"/img"))
-	fs := http.FileServer(http.Dir(c.Web_Dir))
-	hs.index_fs = fs
-	handle_favicon := func(w h_rw, r *h_r, _ h_p) {
-		fs.ServeHTTP(w, r)
+	router.ServeFiles("/css/*filepath", http.Dir(cfg.WebDir+"/css"))
+	router.ServeFiles("/js/*filepath", http.Dir(cfg.WebDir+"/js"))
+	router.ServeFiles("/img/*filepath", http.Dir(cfg.WebDir+"/img"))
+	web.indexFS = http.FileServer(http.Dir(cfg.WebDir))
+	hFavicon := func(w hRW, r *hR, _ hP) {
+		web.indexFS.ServeHTTP(w, r)
 	}
-	router.GET("/favicon.ico", handle_favicon)
-	router.GET("/", hs.h_index)
-	router.GET("/login", hs.h_login)
-	router.POST("/load_keys", hs.h_load_keys)
+	router.GET("/favicon.ico", hFavicon)
+	router.GET("/", web.hIndex)
+	router.GET("/login", web.hLogin)
+	router.POST("/load_keys", web.hLoadKeys)
 	// debug api
-	router.GET("/api/debug/shutdown", hs.h_shutdown)
+	router.GET("/api/debug/shutdown", web.hShutdown)
 	// operate
-	router.GET("/api/boot", hs.h_get_boot)
-	router.POST("/api/node/trust", hs.h_trust_node)
+	router.GET("/api/boot", web.hGetBoot)
+	router.POST("/api/node/trust", web.hTrustNode)
 	// http server
-	tls_config := &tls.Config{
+	tlsConfig := &tls.Config{
 		Certificates: make([]tls.Certificate, 1),
 	}
-	tls_config.Certificates[0] = crt
-	hs.server = &http.Server{
-		TLSConfig:         tls_config,
+	tlsConfig.Certificates[0] = cert
+	web.server = &http.Server{
+		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: time.Minute,
 		Handler:           router,
 		ErrorLog:          logger.Wrap(logger.WARNING, "web", ctx),
 	}
-	return hs, nil
+	return web, nil
 }
 
-func (this *web) Deploy() error {
-	err_chan := make(chan error, 1)
+func (web *web) Deploy() error {
+	errChan := make(chan error, 1)
 	serve := func() {
-		err_chan <- this.server.ServeTLS(this.listener, "", "")
-		this.ctx.wg.Done()
+		errChan <- web.server.ServeTLS(web.listener, "", "")
+		web.ctx.wg.Done()
 	}
-	this.ctx.wg.Add(1)
+	web.ctx.wg.Add(1)
 	go serve()
 	select {
-	case err := <-err_chan:
+	case err := <-errChan:
 		return errors.WithStack(err)
 	case <-time.After(time.Second):
 		return nil
 	}
 }
 
-func (this *web) Address() string {
-	return this.listener.Addr().String()
+func (web *web) Address() string {
+	return web.listener.Addr().String()
 }
 
-func (this *web) Close() {
-	_ = this.server.Close()
+func (web *web) Close() {
+	_ = web.server.Close()
 }
 
-func (this *web) h_panic(w h_rw, r *h_r, e interface{}) {
+func (web *web) hPanic(w hRW, r *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
-	_, _ = w.Write([]byte(fmt.Sprint(e)))
+	_, _ = w.Write([]byte(xpanic.Print(e)))
 }
 
-func (this *web) h_login(w h_rw, r *h_r, p h_p) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("hello"))
+func (web *web) hLogin(w hRW, r *hR, p hP) {
+	_, _ = w.Write([]byte("hello"))
 }
 
-func (this *web) h_load_keys(w h_rw, r *h_r, p h_p) {
+func (web *web) hLoadKeys(w hRW, r *hR, p hP) {
 	pwd, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return
 	}
-	err = this.ctx.Load_Keys(string(pwd))
-	security.Flush_Bytes(pwd)
+	err = web.ctx.LoadKeys(string(pwd))
+	security.FlushBytes(pwd)
 	if err != nil {
-		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
 }
 
-func (this *web) h_index(w h_rw, r *h_r, p h_p) {
-	this.index_fs.ServeHTTP(w, r)
+func (web *web) hIndex(w hRW, r *hR, p hP) {
+	web.indexFS.ServeHTTP(w, r)
 }

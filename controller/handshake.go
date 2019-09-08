@@ -11,20 +11,20 @@ import (
 	"project/internal/xnet"
 )
 
-func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
-	conn := xnet.New_Conn(c, this.ctx.global.Now().Unix())
+func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
+	conn := xnet.NewConn(c, client.ctx.global.Now().Unix())
 	// receive certificate
 	cert, err := conn.Receive()
 	if err != nil {
 		return nil, errors.Wrap(err, "receive certificate failed")
 	}
-	if !this.ctx.verify_certificate(cert, this.node, this.guid) {
+	if !client.ctx.verifyCertificate(cert, client.node, client.guid) {
 		err = errors.New("invalid certificate")
-		this.log(logger.EXPLOIT, err)
+		client.log(logger.EXPLOIT, err)
 		return nil, err
 	}
 	// send role
-	_, err = conn.Write([]byte{protocol.CTRL})
+	_, err = conn.Write([]byte{protocol.Ctrl})
 	if err != nil {
 		return nil, errors.Wrap(err, "send role failed")
 	}
@@ -40,11 +40,11 @@ func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
 	// and if controller sign it will destory net
 	if len(challenge) < 2048 || len(challenge) > 4096 {
 		err = errors.New("invalid challenge size")
-		this.log(logger.EXPLOIT, err)
+		client.log(logger.EXPLOIT, err)
 		return nil, err
 	}
 	// send signature
-	err = conn.Send(this.ctx.global.Sign(challenge))
+	err = conn.Send(client.ctx.global.Sign(challenge))
 	if err != nil {
 		return nil, errors.Wrap(err, "send challenge signature failed")
 	}
@@ -52,9 +52,9 @@ func (this *client) handshake(c net.Conn) (*xnet.Conn, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "receive authentication response failed")
 	}
-	if !bytes.Equal(resp, protocol.AUTH_SUCCESS) {
-		err = errors.WithStack(protocol.ERR_AUTH_FAILED)
-		this.log(logger.EXPLOIT, err)
+	if !bytes.Equal(resp, protocol.AuthSucceed) {
+		err = errors.WithStack(protocol.ErrAuthFailed)
+		client.log(logger.EXPLOIT, err)
 		return nil, err
 	}
 	return conn, nil
