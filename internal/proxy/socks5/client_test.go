@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var address = []string{"github.com:443", "[2606:4700::6810:f9f9]:443", "8.8.8.8:53"}
+var address = []string{"cloudflare-dns.com:443", "[2606:4700::6810:f9f9]:443", "8.8.8.8:53"}
 
 func TestSocks5Client(t *testing.T) {
 	server := testGenerateServer(t)
@@ -90,7 +90,7 @@ func testSocks5(t *testing.T, c *Client) {
 	client := http.Client{
 		Transport: transport,
 	}
-	resp, err := client.Get("https://github.com/")
+	resp, err := client.Get("https://cloudflare-dns.com/")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	b, err := ioutil.ReadAll(resp.Body)

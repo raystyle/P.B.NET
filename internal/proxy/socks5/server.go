@@ -162,7 +162,7 @@ func (s *Server) start(f func() error, timeout time.Duration) error {
 		s.log(logger.INFO, "start server failed:", err)
 		return err
 	case <-time.After(timeout):
-		s.log(logger.INFO, "start server success: ", s.addr)
+		s.log(logger.INFO, "start server success:", s.addr)
 		return nil
 	}
 }
