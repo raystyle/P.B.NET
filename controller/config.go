@@ -33,7 +33,7 @@ type Config struct {
 	HTTPSAddress  string `toml:"https_address"`
 	HTTPSCertFile string `toml:"https_cert_file"`
 	HTTPSKeyFile  string `toml:"https_key_file"`
-	WEBDir        string `toml:"web_dir"`
+	WebDir        string `toml:"web_dir"`
 }
 
 type objectKey = uint32

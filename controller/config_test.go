@@ -29,10 +29,10 @@ func testGenerateConfig() *Config {
 		GORMDetailedLog: false,
 
 		// http server
-		HTTPSAddress:  ":9931",
+		HTTPSAddress:  "localhost:9931",
 		HTTPSCertFile: "../app/cert/server.crt",
 		HTTPSKeyFile:  "../app/cert/server.key",
-		WEBDir:        "../app/web",
+		WebDir:        "../app/web",
 	}
 	c.debug.skipTimeSyncer = true
 	return c
