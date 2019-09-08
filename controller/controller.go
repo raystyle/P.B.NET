@@ -9,10 +9,10 @@ import (
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
-	"project/internal/global/dnsclient"
-	"project/internal/global/proxyclient"
-	"project/internal/global/timesync"
+	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/proxy"
+	"project/internal/timesync"
 )
 
 const (
@@ -20,123 +20,123 @@ const (
 )
 
 type CTRL struct {
-	debug   *debug
-	log_lv  logger.Level
-	db      *gorm.DB
-	db_lg   *db_logger
-	gorm_lg *gorm_logger
-	global  *global
-	web     *web
-	boots   map[string]*boot
-	boots_m sync.Mutex
-	wg      sync.WaitGroup
-	once    sync.Once
-	wait    chan struct{}
-	exit    chan error
+	debug  *debug
+	logLv  logger.Level
+	db     *gorm.DB
+	dbLg   *dbLogger
+	gormLg *gormLogger
+	global *global
+	web    *web
+	boots  map[string]*boot
+	bootsM sync.Mutex
+	wg     sync.WaitGroup
+	once   sync.Once
+	wait   chan struct{}
+	exit   chan error
 }
 
-func New(c *Config) (*CTRL, error) {
+func New(cfg *Config) (*CTRL, error) {
 	// init logger
-	lv, err := logger.Parse(c.Log_Level)
+	lv, err := logger.Parse(cfg.LogLevel)
 	if err != nil {
 		return nil, err
 	}
 	// set db logger
-	db_lg, err := new_db_logger(c.Dialect, c.DB_Log_File)
+	dbLg, err := newDBLogger(cfg.Dialect, cfg.DBLogFile)
 	if err != nil {
 		return nil, err
 	}
 	// if you need, add DB Driver
-	switch c.Dialect {
+	switch cfg.Dialect {
 	case "mysql":
-		_ = mysql.SetLogger(db_lg)
+		_ = mysql.SetLogger(dbLg)
 	default:
-		return nil, fmt.Errorf("unknown dialect: %s", c.Dialect)
+		return nil, fmt.Errorf("unknown dialect: %s", cfg.Dialect)
 	}
 	// connect database
-	db, err := gorm.Open(c.Dialect, c.DSN)
+	db, err := gorm.Open(cfg.Dialect, cfg.DSN)
 	if err != nil {
-		return nil, errors.Wrapf(err, "connect %s server failed", c.Dialect)
+		return nil, errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
 	}
 	db.SingularTable(true) // not add s
 	// connection
-	db.DB().SetMaxOpenConns(c.DB_Max_Open_Conns)
-	db.DB().SetMaxIdleConns(c.DB_Max_Idle_Conns)
+	db.DB().SetMaxOpenConns(cfg.DBMaxOpenConns)
+	db.DB().SetMaxIdleConns(cfg.DBMaxIdleConns)
 	// gorm logger
-	gorm_lg, err := new_gorm_logger(c.GORM_Log_File)
+	gormLg, err := newGormLogger(cfg.GORMLogFile)
 	if err != nil {
 		return nil, err
 	}
-	db.SetLogger(gorm_lg)
-	if c.GORM_Detailed_Log {
+	db.SetLogger(gormLg)
+	if cfg.GORMDetailedLog {
 		db.LogMode(true)
 	}
 	// copy debug config
-	debug := c.debug
+	debug := cfg.debug
 	ctrl := &CTRL{
-		debug:   &debug,
-		log_lv:  lv,
-		db:      db,
-		db_lg:   db_lg,
-		gorm_lg: gorm_lg,
+		debug:  &debug,
+		logLv:  lv,
+		db:     db,
+		dbLg:   dbLg,
+		gormLg: gormLg,
 	}
 	// init global
-	g, err := new_global(ctrl, c)
+	g, err := newGlobal(ctrl, cfg)
 	if err != nil {
 		return nil, err
 	}
 	ctrl.global = g
 	// load proxy clients from database
-	pcs, err := ctrl.Select_Proxy_Client()
+	pcs, err := ctrl.SelectProxyClient()
 	if err != nil {
 		return nil, errors.Wrap(err, "load proxy clients failed")
 	}
 	for i := 0; i < len(pcs); i++ {
 		tag := pcs[i].Tag
-		c := &proxyclient.Client{
+		client := &proxy.Client{
 			Mode:   pcs[i].Mode,
 			Config: pcs[i].Config,
 		}
-		err = ctrl.global.Add_Proxy_Client(tag, c)
+		err = ctrl.global.AddProxyClient(tag, client)
 		if err != nil {
 			return nil, errors.Wrapf(err, "add proxy client %s failed", tag)
 		}
 	}
-	// load dns clients from database
-	dcs, err := ctrl.Select_DNS_Client()
+	// load dns servers from database
+	dss, err := ctrl.SelectDNSServer()
 	if err != nil {
-		return nil, errors.Wrap(err, "load dns clients failed")
+		return nil, errors.Wrap(err, "load dns servers failed")
 	}
-	for i := 0; i < len(dcs); i++ {
-		tag := dcs[i].Tag
-		c := &dnsclient.Client{
-			Method:  dcs[i].Method,
-			Address: dcs[i].Address,
+	for i := 0; i < len(dss); i++ {
+		tag := dss[i].Tag
+		server := &dns.Server{
+			Method:  dss[i].Method,
+			Address: dss[i].Address,
 		}
-		err = ctrl.global.Add_DNS_Client(tag, c)
+		err = ctrl.global.AddDNSSever(tag, server)
 		if err != nil {
-			return nil, errors.Wrapf(err, "add dns client %s failed", tag)
+			return nil, errors.Wrapf(err, "add dns server %s failed", tag)
 		}
 	}
-	// load timesync client from database
-	ts, err := ctrl.Select_Timesync()
+	// load time syncer configs from database
+	tcs, err := ctrl.SelectTimeSyncer()
 	if err != nil {
-		return nil, errors.Wrap(err, "load timesync clients failed")
+		return nil, errors.Wrap(err, "load time syncer clients failed")
 	}
-	for i := 0; i < len(ts); i++ {
-		c := &timesync.Client{}
-		err = toml.Unmarshal([]byte(ts[i].Config), c)
+	for i := 0; i < len(tcs); i++ {
+		cfg := &timesync.Config{}
+		err = toml.Unmarshal([]byte(tcs[i].Config), cfg)
 		if err != nil {
-			return nil, errors.Wrapf(err, "load timesync: %s failed", ts[i].Tag)
+			return nil, errors.Wrapf(err, "load time syncer config: %s failed", tcs[i].Tag)
 		}
-		tag := ts[i].Tag
-		err = ctrl.global.Add_Timesync_Client(tag, c)
+		tag := tcs[i].Tag
+		err = ctrl.global.AddTimeSyncerConfig(tag, cfg)
 		if err != nil {
-			return nil, errors.Wrapf(err, "add timesync client %s failed", tag)
+			return nil, errors.Wrapf(err, "add time syncer config %s failed", tag)
 		}
 	}
 	// init http server
-	web, err := new_web(ctrl, c)
+	web, err := newWeb(ctrl, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "init web server failed")
 	}
@@ -147,78 +147,77 @@ func New(c *Config) (*CTRL, error) {
 	return ctrl, nil
 }
 
-func (this *CTRL) Main() error {
-	defer func() { this.wait <- struct{}{} }()
+func (ctrl *CTRL) Main() error {
+	defer func() { ctrl.wait <- struct{}{} }()
 	// first synchronize time
-	if !this.debug.skip_timesync {
-		err := this.global.Start_Timesync()
+	if !ctrl.debug.skipTimeSyncer {
+		err := ctrl.global.StartTimeSyncer()
 		if err != nil {
-			return this.fatal(err, "synchronize time failed")
+			return ctrl.fatal(err, "synchronize time failed")
 		}
 	}
-	now := this.global.Now().Format(logger.Time_Layout)
-	this.Println(logger.INFO, "init", "time:", now)
+	now := ctrl.global.Now().Format(logger.TimeLayout)
+	ctrl.Println(logger.INFO, "init", "time:", now)
 	// start web server
-	err := this.web.Deploy()
+	err := ctrl.web.Deploy()
 	if err != nil {
-		return this.fatal(err, "deploy web server failed")
+		return ctrl.fatal(err, "deploy web server failed")
 	}
-	hs_address := this.web.Address()
-	this.Println(logger.INFO, "init", "http server:", hs_address)
-	this.Print(logger.INFO, "init", "controller is running")
+	ctrl.Println(logger.INFO, "init", "http server:", ctrl.web.Address())
+	ctrl.Print(logger.INFO, "init", "controller is running")
 	go func() {
 		// wait to load controller keys
-		this.global.Wait_Load_Keys()
-		this.Print(logger.INFO, "init", "load keys successfully")
+		ctrl.global.WaitLoadKeys()
+		ctrl.Print(logger.INFO, "init", "load keys successfully")
 		// load boot
-		this.Print(logger.INFO, "init", "start discover bootstrap nodes")
-		bs, err := this.Select_Boot()
+		ctrl.Print(logger.INFO, "init", "start discover bootstrap nodes")
+		bs, err := ctrl.SelectBoot()
 		if err != nil {
-			this.Println(logger.ERROR, "init", "select boot failed:", err)
+			ctrl.Println(logger.ERROR, "init", "select boot failed:", err)
 		}
 		for i := 0; i < len(bs); i++ {
-			_ = this.Add_Boot(bs[i])
+			_ = ctrl.AddBoot(bs[i])
 		}
 	}()
-	this.wait <- struct{}{}
-	return <-this.exit
+	ctrl.wait <- struct{}{}
+	return <-ctrl.exit
 }
 
-func (this *CTRL) fatal(err error, msg string) error {
+func (ctrl *CTRL) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	this.Println(logger.FATAL, "init", err)
-	this.Exit(nil)
+	ctrl.Println(logger.FATAL, "init", err)
+	ctrl.Exit(nil)
 	return err
 }
 
 // for Test wait for Main()
-func (this *CTRL) Wait() {
-	<-this.wait
+func (ctrl *CTRL) Wait() {
+	<-ctrl.wait
 }
 
-func (this *CTRL) Exit(err error) {
-	this.once.Do(func() {
+func (ctrl *CTRL) Exit(err error) {
+	ctrl.once.Do(func() {
 		// stop all running boot
-		this.boots_m.Lock()
-		for _, boot := range this.boots {
+		ctrl.bootsM.Lock()
+		for _, boot := range ctrl.boots {
 			boot.Stop()
 		}
-		this.boots_m.Unlock()
-		this.Print(logger.INFO, "exit", "all boots stopped")
-		this.web.Close()
-		this.Print(logger.INFO, "exit", "web server is stopped")
-		this.wg.Wait()
-		this.global.Close()
-		this.Print(logger.INFO, "exit", "global is stopped")
-		_ = this.db.Close()
-		this.gorm_lg.Close()
-		this.db_lg.Close()
-		this.exit <- err
-		close(this.exit)
-		this.Print(logger.INFO, "exit", "controller is stopped")
+		ctrl.bootsM.Unlock()
+		ctrl.Print(logger.INFO, "exit", "all boots stopped")
+		ctrl.web.Close()
+		ctrl.Print(logger.INFO, "exit", "web server is stopped")
+		ctrl.wg.Wait()
+		ctrl.global.Destroy()
+		ctrl.Print(logger.INFO, "exit", "global is stopped")
+		ctrl.Print(logger.INFO, "exit", "controller is stopped")
+		_ = ctrl.db.Close()
+		ctrl.gormLg.Close()
+		ctrl.dbLg.Close()
+		ctrl.exit <- err
+		close(ctrl.exit)
 	})
 }
 
-func (this *CTRL) Load_Keys(password string) error {
-	return this.global.Load_Keys(password)
+func (ctrl *CTRL) LoadKeys(password string) error {
+	return ctrl.global.LoadKeys(password)
 }

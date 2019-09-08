@@ -12,40 +12,40 @@ import (
 )
 
 var (
-	ctrl      *CTRL
-	init_once sync.Once
+	ctrl     *CTRL
+	initOnce sync.Once
 )
 
-func init_ctrl(t require.TestingT) {
-	init_once.Do(func() {
-		c := test_gen_config()
-		controller, err := New(c)
+func initCtrl(t require.TestingT) {
+	initOnce.Do(func() {
+		cfg := testGenerateConfig()
+		controller, err := New(cfg)
 		if err != nil {
 			// init database
-			err = Init_Database(c)
-			require.Nil(t, err, err)
+			err = InitDatabase(cfg)
+			require.NoError(t, err)
 			// add test data
 			// connect database
-			db, err := gorm.Open(c.Dialect, c.DSN)
-			require.Nil(t, err, err)
+			db, err := gorm.Open(cfg.Dialect, cfg.DSN)
+			require.NoError(t, err)
 			db.SingularTable(true) // not add s
 			ctrl = &CTRL{db: db}
-			test_insert_proxy_client(t)
-			test_insert_dns_client(t)
-			test_insert_timesync(t)
-			test_insert_boot(t)
-			test_insert_listener(t)
+			testInsertProxyClient(t)
+			testInsertDNSServer(t)
+			testInsertTimeSyncerConfig(t)
+			testInsertBoot(t)
+			testInsertListener(t)
 			_ = db.Close()
-			ctrl, err = New(c)
-			require.Nil(t, err, err)
+			ctrl, err = New(cfg)
+			require.NoError(t, err)
 		} else {
 			ctrl = controller
 		}
-		err = ctrl.Load_Keys(testdata.CTRL_Keys_PWD)
-		require.Nil(t, err, err)
+		err = ctrl.LoadKeys(testdata.CtrlKeysPWD)
+		require.NoError(t, err)
 		go func() {
 			err := ctrl.Main()
-			require.Nil(t, err, err)
+			require.NoError(t, err)
 		}()
 		ctrl.Wait()
 	})
@@ -57,9 +57,9 @@ func pprof() {
 
 /*
 func Test_gorm(t *testing.T) {
-	c := test_gen_config()
+	c := testGenerateConfig()
 	db, err := gorm.Open(c.Dialect, c.DSN)
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	db.LogMode(true)
 	db.SingularTable(true) // not add s
 }
