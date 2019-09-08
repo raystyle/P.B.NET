@@ -124,7 +124,7 @@ func (g *global) LoadKeys(password string) error {
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
 	g.object[ed25519PublicKey] = pub
 	// curve25519
-	p, err := curve25519.ScalarBaseMult(pri)
+	p, err := curve25519.ScalarBaseMult(pri[:32])
 	if err != nil {
 		return errors.WithStack(err)
 	}
