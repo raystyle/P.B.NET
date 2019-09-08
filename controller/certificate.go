@@ -9,42 +9,42 @@ import (
 	"project/internal/protocol"
 )
 
-func (this *CTRL) issue_certificate(node *bootstrap.Node, guid []byte) []byte {
+func (ctrl *CTRL) issueCertificate(node *bootstrap.Node, guid []byte) []byte {
 	// sign certificate with node guid
 	buffer := bytes.Buffer{}
 	buffer.WriteString(node.Mode)
 	buffer.WriteString(node.Network)
 	buffer.WriteString(node.Address)
 	buffer.Write(guid)
-	cert_with_node_guid := this.global.Sign(buffer.Bytes())
+	certWithNodeGUID := ctrl.global.Sign(buffer.Bytes())
 	// sign certificate with controller guid
 	buffer.Truncate(len(node.Mode + node.Network + node.Address))
-	buffer.Write(protocol.CTRL_GUID)
-	cert_with_ctrl_guid := this.global.Sign(buffer.Bytes())
+	buffer.Write(protocol.CtrlGUID)
+	certWithCtrlGUID := ctrl.global.Sign(buffer.Bytes())
 	// pack certificates
 	// [2 byte uint16] size + signature with node guid
 	// [2 byte uint16] size + signature with ctrl guid
 	buffer.Reset()
-	buffer.Write(convert.Uint16_Bytes(uint16(len(cert_with_node_guid))))
-	buffer.Write(cert_with_node_guid)
-	buffer.Write(convert.Uint16_Bytes(uint16(len(cert_with_ctrl_guid))))
-	buffer.Write(cert_with_ctrl_guid)
+	buffer.Write(convert.Uint16ToBytes(uint16(len(certWithNodeGUID))))
+	buffer.Write(certWithNodeGUID)
+	buffer.Write(convert.Uint16ToBytes(uint16(len(certWithCtrlGUID))))
+	buffer.Write(certWithCtrlGUID)
 	return buffer.Bytes()
 }
 
-func (this *CTRL) verify_certificate(cert []byte, node *bootstrap.Node, guid []byte) bool {
+func (ctrl *CTRL) verifyCertificate(cert []byte, node *bootstrap.Node, guid []byte) bool {
 	// if guid = nil, skip verify
 	if guid != nil {
 		reader := bytes.NewReader(cert)
 		// read certificate size
-		cert_size := make([]byte, 2)
-		_, err := io.ReadFull(reader, cert_size)
+		certSize := make([]byte, 2)
+		_, err := io.ReadFull(reader, certSize)
 		if err != nil {
 			return false
 		}
 		// read certificate with node guid
-		cert_with_node_guid := make([]byte, convert.Bytes_Uint16(cert_size))
-		_, err = io.ReadFull(reader, cert_with_node_guid)
+		certWithNodeGUID := make([]byte, convert.BytesToUint16(certSize))
+		_, err = io.ReadFull(reader, certWithNodeGUID)
 		if err != nil {
 			return false
 		}
@@ -55,23 +55,23 @@ func (this *CTRL) verify_certificate(cert []byte, node *bootstrap.Node, guid []b
 		buffer.WriteString(node.Address)
 		buffer.Write(guid)
 		// switch certificate
-		if bytes.Equal(guid, protocol.CTRL_GUID) {
+		if bytes.Equal(guid, protocol.CtrlGUID) {
 			// read cert size
-			_, err = io.ReadFull(reader, cert_size)
+			_, err = io.ReadFull(reader, certSize)
 			if err != nil {
 				return false
 			}
 			// read cert
-			cert_with_ctrl_guid := make([]byte, convert.Bytes_Uint16(cert_size))
-			_, err = io.ReadFull(reader, cert_with_ctrl_guid)
+			certWithCtrlGUID := make([]byte, convert.BytesToUint16(certSize))
+			_, err = io.ReadFull(reader, certWithCtrlGUID)
 			if err != nil {
 				return false
 			}
-			if !this.global.Verify(buffer.Bytes(), cert_with_ctrl_guid) {
+			if !ctrl.global.Verify(buffer.Bytes(), certWithCtrlGUID) {
 				return false
 			}
 		} else {
-			if !this.global.Verify(buffer.Bytes(), cert_with_node_guid) {
+			if !ctrl.global.Verify(buffer.Bytes(), certWithNodeGUID) {
 				return false
 			}
 		}

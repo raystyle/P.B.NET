@@ -12,23 +12,23 @@ import (
 	"project/internal/xnet"
 )
 
-func Test_issue_verify_certificate(t *testing.T) {
-	init_ctrl(t)
+func TestIssueVerifyCertificate(t *testing.T) {
+	initCtrl(t)
 	g := bytes.Repeat([]byte{1}, guid.SIZE)
 	node := &bootstrap.Node{
 		Mode:    xnet.TLS,
 		Network: "tcp",
 		Address: "localhost:9931",
 	}
-	cert := ctrl.issue_certificate(node, g)
+	cert := ctrl.issueCertificate(node, g)
 	// with node guid
-	require.True(t, ctrl.verify_certificate(cert, node, g))
+	require.True(t, ctrl.verifyCertificate(cert, node, g))
 	// with controller guid
-	require.True(t, ctrl.verify_certificate(cert, node, protocol.CTRL_GUID))
+	require.True(t, ctrl.verifyCertificate(cert, node, protocol.CtrlGUID))
 }
 
-func Test_verify_invalid_certificate(t *testing.T) {
-	init_ctrl(t)
+func TestVerifyInvalidCertificate(t *testing.T) {
+	initCtrl(t)
 	g := bytes.Repeat([]byte{1}, guid.SIZE)
 	node := &bootstrap.Node{
 		Mode:    xnet.TLS,
@@ -37,21 +37,21 @@ func Test_verify_invalid_certificate(t *testing.T) {
 	}
 	// ----------------------with node guid--------------------------
 	// no size
-	require.False(t, ctrl.verify_certificate(nil, node, g))
+	require.False(t, ctrl.verifyCertificate(nil, node, g))
 	// invalid size
 	cert := []byte{0, 1}
-	require.False(t, ctrl.verify_certificate(cert, node, g))
+	require.False(t, ctrl.verifyCertificate(cert, node, g))
 	// invalid certificate
 	cert = []byte{0, 1, 0}
-	require.False(t, ctrl.verify_certificate(cert, node, g))
+	require.False(t, ctrl.verifyCertificate(cert, node, g))
 	// -------------------with controller guid-----------------------
 	// no size
 	cert = []byte{0, 1, 0}
-	require.False(t, ctrl.verify_certificate(cert, node, protocol.CTRL_GUID))
+	require.False(t, ctrl.verifyCertificate(cert, node, protocol.CtrlGUID))
 	// invalid size
 	cert = []byte{0, 1, 0, 0, 1}
-	require.False(t, ctrl.verify_certificate(cert, node, protocol.CTRL_GUID))
+	require.False(t, ctrl.verifyCertificate(cert, node, protocol.CtrlGUID))
 	// invalid certificate
 	cert = []byte{0, 1, 0, 0, 1, 0}
-	require.False(t, ctrl.verify_certificate(cert, node, protocol.CTRL_GUID))
+	require.False(t, ctrl.verifyCertificate(cert, node, protocol.CtrlGUID))
 }

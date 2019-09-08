@@ -11,75 +11,75 @@ import (
 )
 
 type boot struct {
-	ctx         *CTRL
-	tag         string
-	interval    time.Duration
-	log_src     string
-	bootstrap   bootstrap.Bootstrap
-	once        sync.Once
-	stop_signal chan struct{}
+	ctx        *CTRL
+	tag        string
+	interval   time.Duration
+	logSrc     string
+	bootstrap  bootstrap.Bootstrap
+	once       sync.Once
+	stopSignal chan struct{}
 }
 
-func (this *CTRL) Add_Boot(m *m_boot) error {
-	g := this.global
-	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxy, g.dns)
+func (ctrl *CTRL) AddBoot(m *mBoot) error {
+	g := ctrl.global
+	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxyPool, g.dnsClient)
 	if err != nil {
 		e := errors.Wrapf(err, "load boot %s failed", m.Tag)
-		this.Println(logger.ERROR, "boot", e)
+		ctrl.Println(logger.ERROR, "boot", e)
 		return e
 	}
 	boot := &boot{
-		ctx:         this,
-		tag:         m.Tag,
-		interval:    time.Duration(m.Interval) * time.Second,
-		log_src:     "boot-" + m.Tag,
-		bootstrap:   b,
-		stop_signal: make(chan struct{}),
+		ctx:        ctrl,
+		tag:        m.Tag,
+		interval:   time.Duration(m.Interval) * time.Second,
+		logSrc:     "boot-" + m.Tag,
+		bootstrap:  b,
+		stopSignal: make(chan struct{}),
 	}
-	this.boots_m.Lock()
-	defer this.boots_m.Unlock()
-	if _, exist := this.boots[m.Tag]; !exist {
-		this.boots[m.Tag] = boot
+	ctrl.bootsM.Lock()
+	defer ctrl.bootsM.Unlock()
+	if _, exist := ctrl.boots[m.Tag]; !exist {
+		ctrl.boots[m.Tag] = boot
 	} else {
 		e := errors.Errorf("boot %s is running", m.Tag)
-		this.Println(logger.ERROR, "boot", e)
+		ctrl.Println(logger.ERROR, "boot", e)
 		return e
 	}
-	this.wg.Add(1)
+	ctrl.wg.Add(1)
 	go boot.run()
-	this.Printf(logger.INFO, "boot", "add boot %s", m.Tag)
+	ctrl.Printf(logger.INFO, "boot", "add boot %s", m.Tag)
 	return nil
 }
 
-func (this *boot) run() {
+func (boot *boot) run() {
 	defer func() {
-		this.ctx.boots_m.Lock()
-		delete(this.ctx.boots, this.tag)
-		this.ctx.boots_m.Unlock()
-		this.ctx.Printf(logger.INFO, "boot", "boot %s stop", this.tag)
-		this.ctx.wg.Done()
+		boot.ctx.bootsM.Lock()
+		delete(boot.ctx.boots, boot.tag)
+		boot.ctx.bootsM.Unlock()
+		boot.ctx.Printf(logger.INFO, "boot", "boot %s stop", boot.tag)
+		boot.ctx.wg.Done()
 	}()
 	f := func() {
-		err := this.Resolve()
+		err := boot.Resolve()
 		if err != nil {
-			this.ctx.Println(logger.WARNING, this.log_src, err)
+			boot.ctx.Println(logger.WARNING, boot.logSrc, err)
 		} else {
-			this.Stop()
+			boot.Stop()
 		}
 	}
 	f()
 	for {
 		select {
-		case <-time.After(this.interval):
+		case <-time.After(boot.interval):
 			f()
-		case <-this.stop_signal:
+		case <-boot.stopSignal:
 			return
 		}
 	}
 }
 
-func (this *boot) Resolve() error {
-	nodes, err := this.bootstrap.Resolve()
+func (boot *boot) Resolve() error {
+	nodes, err := boot.bootstrap.Resolve()
 	if err != nil {
 		return err
 	}
@@ -87,8 +87,8 @@ func (this *boot) Resolve() error {
 	return nil
 }
 
-func (this *boot) Stop() {
-	this.once.Do(func() {
-		close(this.stop_signal)
+func (boot *boot) Stop() {
+	boot.once.Do(func() {
+		close(boot.stopSignal)
 	})
 }
