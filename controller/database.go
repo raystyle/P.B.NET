@@ -11,16 +11,16 @@ import (
 )
 
 func init() {
-	// gorm custom namer: table name delete "m_"
-	// table "m_proxy_client" -> "proxy_client"
-	default_namer := gorm.TheNamingStrategy.Table
+	// gorm custom namer: table name delete "m"
+	// table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
+	namer := gorm.TheNamingStrategy.Table
 	gorm.TheNamingStrategy.Table = func(name string) string {
-		return default_namer(name)[2:]
+		return namer(name)[2:]
 	}
 }
 
 // first use this project
-func Init_Database(c *Config) error {
+func InitDatabase(c *Config) error {
 	// connect database
 	db, err := gorm.Open(c.Dialect, c.DSN)
 	if err != nil {
@@ -34,48 +34,39 @@ func Init_Database(c *Config) error {
 		model interface{}
 	}{
 		{
-			name:  "",
-			model: &m_ctrl_log{},
+			model: &mCtrlLog{},
 		},
 		{
-			name:  "",
-			model: &m_proxy_client{},
+			model: &mProxyClient{},
 		},
 		{
-			name:  "",
-			model: &m_dns_client{},
+			model: &mDNSServer{},
 		},
 		{
-			name:  "",
-			model: &m_timesync{},
+			model: &mTimeSyncer{},
 		},
 		{
-			name:  "",
-			model: &m_boot{},
+			model: &mBoot{},
 		},
 		{
-			name:  "",
-			model: &m_listener{},
+			model: &mListener{},
 		},
 		{
-			name:  "",
-			model: &m_node{},
+			model: &mNode{},
 		},
 		{
-			name:  "",
-			model: &m_node_listener{},
+			model: &mNodeListener{},
 		},
 		{
-			name:  "",
-			model: &m_node_syncer{},
+			model: &mNodeSyncer{},
 		},
 		{
-			name:  t_node_log,
-			model: &m_role_log{},
+			name:  tableNodeLog,
+			model: &mRoleLog{},
 		},
 		{
-			name:  t_beacon_log,
-			model: &m_role_log{},
+			name:  tableBeaconLog,
+			model: &mRoleLog{},
 		},
 	}
 	for i := 0; i < len(tables); i++ {
@@ -85,7 +76,7 @@ func Init_Database(c *Config) error {
 			db.DropTableIfExists(m)
 			err = db.CreateTable(m).Error
 			if err != nil {
-				table := gorm.ToTableName(xreflect.Struct_Name(m))
+				table := gorm.ToTableName(xreflect.StructName(m))
 				return errors.Wrapf(err, "create table %s failed", table)
 			}
 		} else {
@@ -97,41 +88,41 @@ func Init_Database(c *Config) error {
 		}
 	}
 	// add foreign key
-	add_err := func(err error) error {
+	addErr := func(err error) error {
 		return errors.Wrapf(err, "add foreign key failed")
 	}
-	table := gorm.ToTableName(xreflect.Struct_Name(&m_node{}))
-	err = db.Model(&m_node_listener{}).AddForeignKey("guid", table+"(guid)",
+	table := gorm.ToTableName(xreflect.StructName(&mNode{}))
+	err = db.Model(&mNodeListener{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
-		return add_err(err)
+		return addErr(err)
 	}
-	err = db.Model(&m_node_syncer{}).AddForeignKey("guid", table+"(guid)",
+	err = db.Model(&mNodeSyncer{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
-		return add_err(err)
+		return addErr(err)
 	}
-	err = db.Table(t_node_log).Model(&m_role_log{}).AddForeignKey("guid", table+"(guid)",
+	err = db.Table(tableNodeLog).Model(&mRoleLog{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
-		return add_err(err)
+		return addErr(err)
 	}
 	return nil
 }
 
 /*
-	node := &m_node{
+	node := &mNode{
 		GUID: bytes.Repeat([]byte{52}, 52),
 	}
 
 	err = db.Model(node).Association("Listeners").Append(&node.Listeners).Error
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 	err = db.Model(node).Association("Logs").Append(&node.Logs).Error
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 
-	// var nodes []*m_node
+	// var nodes []*mNode
 	// err = db.Model(node).Related(&node.Listeners, "Listeners").Error
-	// require.Nil(t, err, err)
+	// require.NoError(t, err)
 
 	spew.Dump(node)
 
@@ -140,103 +131,103 @@ func Init_Database(c *Config) error {
 
 // -------------------------------proxy client----------------------------------------
 
-func (this *CTRL) Insert_Proxy_Client(m *m_proxy_client) error {
-	return this.db.Create(m).Error
+func (ctrl *CTRL) InsertProxyClient(m *mProxyClient) error {
+	return ctrl.db.Create(m).Error
 }
 
-func (this *CTRL) Select_Proxy_Client() ([]*m_proxy_client, error) {
-	var clients []*m_proxy_client
-	return clients, this.db.Find(&clients).Error
+func (ctrl *CTRL) SelectProxyClient() ([]*mProxyClient, error) {
+	var clients []*mProxyClient
+	return clients, ctrl.db.Find(&clients).Error
 }
 
-func (this *CTRL) Update_Proxy_Client(m *m_proxy_client) error {
-	return this.db.Save(m).Error
+func (ctrl *CTRL) UpdateProxyClient(m *mProxyClient) error {
+	return ctrl.db.Save(m).Error
 }
 
-func (this *CTRL) Delete_Proxy_Client(id uint64) error {
-	return this.db.Delete(&m_proxy_client{ID: id}).Error
+func (ctrl *CTRL) DeleteProxyClient(id uint64) error {
+	return ctrl.db.Delete(&mProxyClient{ID: id}).Error
 }
 
-// -------------------------------dns client----------------------------------------
+// ---------------------------------dns client----------------------------------------
 
-func (this *CTRL) Insert_DNS_Client(m *m_dns_client) error {
-	return this.db.Create(m).Error
+func (ctrl *CTRL) InsertDNSServer(m *mDNSServer) error {
+	return ctrl.db.Create(m).Error
 }
 
-func (this *CTRL) Select_DNS_Client() ([]*m_dns_client, error) {
-	var clients []*m_dns_client
-	return clients, this.db.Find(&clients).Error
+func (ctrl *CTRL) SelectDNSServer() ([]*mDNSServer, error) {
+	var clients []*mDNSServer
+	return clients, ctrl.db.Find(&clients).Error
 }
 
-func (this *CTRL) Update_DNS_Client(m *m_dns_client) error {
-	return this.db.Save(m).Error
+func (ctrl *CTRL) UpdateDNSServer(m *mDNSServer) error {
+	return ctrl.db.Save(m).Error
 }
 
-func (this *CTRL) Delete_DNS_Client(id uint64) error {
-	return this.db.Delete(&m_dns_client{ID: id}).Error
+func (ctrl *CTRL) DeleteDNSServer(id uint64) error {
+	return ctrl.db.Delete(&mDNSServer{ID: id}).Error
 }
 
-// ---------------------------------timesync----------------------------------------
+// -----------------------------time syncer config------------------------------------
 
-func (this *CTRL) Insert_Timesync(m *m_timesync) error {
-	return this.db.Create(m).Error
+func (ctrl *CTRL) InsertTimeSyncer(m *mTimeSyncer) error {
+	return ctrl.db.Create(m).Error
 }
 
-func (this *CTRL) Select_Timesync() ([]*m_timesync, error) {
-	var timesync []*m_timesync
-	return timesync, this.db.Find(&timesync).Error
+func (ctrl *CTRL) SelectTimeSyncer() ([]*mTimeSyncer, error) {
+	var timeSyncer []*mTimeSyncer
+	return timeSyncer, ctrl.db.Find(&timeSyncer).Error
 }
 
-func (this *CTRL) Update_Timesync(m *m_timesync) error {
-	return this.db.Save(m).Error
+func (ctrl *CTRL) UpdateTimeSyncer(m *mTimeSyncer) error {
+	return ctrl.db.Save(m).Error
 }
 
-func (this *CTRL) Delete_Timesync(id uint64) error {
-	return this.db.Delete(&m_timesync{ID: id}).Error
+func (ctrl *CTRL) DeleteTimeSyncer(id uint64) error {
+	return ctrl.db.Delete(&mTimeSyncer{ID: id}).Error
 }
 
-// ---------------------------------bootstrap----------------------------------------
+// -------------------------------------boot------------------------------------------
 
-func (this *CTRL) Insert_Boot(m *m_boot) error {
-	return this.db.Create(m).Error
+func (ctrl *CTRL) InsertBoot(m *mBoot) error {
+	return ctrl.db.Create(m).Error
 }
 
-func (this *CTRL) Select_Boot() ([]*m_boot, error) {
-	var boot []*m_boot
-	return boot, this.db.Find(&boot).Error
+func (ctrl *CTRL) SelectBoot() ([]*mBoot, error) {
+	var boot []*mBoot
+	return boot, ctrl.db.Find(&boot).Error
 }
 
-func (this *CTRL) Update_Boot(m *m_boot) error {
-	return this.db.Save(m).Error
+func (ctrl *CTRL) UpdateBoot(m *mBoot) error {
+	return ctrl.db.Save(m).Error
 }
 
-func (this *CTRL) Delete_Boot(id uint64) error {
-	return this.db.Delete(&m_boot{ID: id}).Error
+func (ctrl *CTRL) DeleteBoot(id uint64) error {
+	return ctrl.db.Delete(&mBoot{ID: id}).Error
 }
 
-// ----------------------------------listener----------------------------------------
+// ----------------------------------listener-----------------------------------------
 
-func (this *CTRL) Insert_Listener(m *m_listener) error {
-	return this.db.Create(m).Error
+func (ctrl *CTRL) InsertListener(m *mListener) error {
+	return ctrl.db.Create(m).Error
 }
 
-func (this *CTRL) Select_Listener() ([]*m_listener, error) {
-	var listener []*m_listener
-	return listener, this.db.Find(&listener).Error
+func (ctrl *CTRL) SelectListener() ([]*mListener, error) {
+	var listener []*mListener
+	return listener, ctrl.db.Find(&listener).Error
 }
 
-func (this *CTRL) Update_Listener(m *m_listener) error {
-	return this.db.Save(m).Error
+func (ctrl *CTRL) UpdateListener(m *mListener) error {
+	return ctrl.db.Save(m).Error
 }
 
-func (this *CTRL) Delete_Listener(id uint64) error {
-	return this.db.Delete(&m_listener{ID: id}).Error
+func (ctrl *CTRL) DeleteListener(id uint64) error {
+	return ctrl.db.Delete(&mListener{ID: id}).Error
 }
 
-// -------------------------------------node-----------------------------------------
+// ------------------------------------node-------------------------------------------
 
-func (this *CTRL) Insert_Node(m *m_node) error {
-	tx := this.db.BeginTx(context.Background(),
+func (ctrl *CTRL) InsertNode(m *mNode) error {
+	tx := ctrl.db.BeginTx(context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable})
 	err := tx.Error
 	if err != nil {
@@ -251,7 +242,7 @@ func (this *CTRL) Insert_Node(m *m_node) error {
 	if err != nil {
 		return err
 	}
-	err = tx.Create(&m_node_syncer{GUID: m.GUID}).Error
+	err = tx.Create(&mNodeSyncer{GUID: m.GUID}).Error
 	if err != nil {
 		return err
 	}
@@ -262,8 +253,8 @@ func (this *CTRL) Insert_Node(m *m_node) error {
 	return nil
 }
 
-func (this *CTRL) Delete_Node(guid []byte) error {
-	tx := this.db.BeginTx(context.Background(),
+func (ctrl *CTRL) DeleteNode(guid []byte) error {
+	tx := ctrl.db.BeginTx(context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable})
 	err := tx.Error
 	if err != nil {
@@ -274,15 +265,15 @@ func (this *CTRL) Delete_Node(guid []byte) error {
 			tx.Rollback()
 		}
 	}()
-	err = tx.Delete(&m_node{}, "guid = ?", guid).Error
+	err = tx.Delete(&mNode{}, "guid = ?", guid).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&m_node_listener{}, "guid = ?", guid).Error
+	err = tx.Delete(&mNodeListener{}, "guid = ?", guid).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Table(t_node_log).Delete(&m_role_log{}, "guid = ?", guid).Error
+	err = tx.Table(tableNodeLog).Delete(&mRoleLog{}, "guid = ?", guid).Error
 	if err != nil {
 		return err
 	}
@@ -290,22 +281,22 @@ func (this *CTRL) Delete_Node(guid []byte) error {
 	return err
 }
 
-func (this *CTRL) Delete_Node_Unscoped(guid []byte) error {
-	return this.db.Unscoped().Delete(&m_node{}, "guid = ?", guid).Error
+func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
+	return ctrl.db.Unscoped().Delete(&mNode{}, "guid = ?", guid).Error
 }
 
-func (this *CTRL) Insert_Node_Listener(m *m_node_listener) error {
-	return this.db.Create(m).Error
+func (ctrl *CTRL) InsertNodeListener(m *mNodeListener) error {
+	return ctrl.db.Create(m).Error
 }
 
-func (this *CTRL) Delete_Node_Listener(id uint64) error {
-	return this.db.Delete(&m_node_listener{ID: id}).Error
+func (ctrl *CTRL) DeleteNodeListener(id uint64) error {
+	return ctrl.db.Delete(&mNodeListener{ID: id}).Error
 }
 
-func (this *CTRL) Insert_Node_Log(m *m_role_log) error {
-	return this.db.Table(t_node_log).Create(m).Error
+func (ctrl *CTRL) InsertNodeLog(m *mRoleLog) error {
+	return ctrl.db.Table(tableNodeLog).Create(m).Error
 }
 
-func (this *CTRL) Delete_Node_Log(id uint64) error {
-	return this.db.Table(t_node_log).Delete(&m_role_log{ID: id}).Error
+func (ctrl *CTRL) DeleteNodeLog(id uint64) error {
+	return ctrl.db.Table(tableNodeLog).Delete(&mRoleLog{ID: id}).Error
 }

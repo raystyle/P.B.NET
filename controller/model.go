@@ -9,8 +9,8 @@ import (
 
 // different table has the same model
 const (
-	t_node_log   = "node_log"
-	t_beacon_log = "beacon_log"
+	tableNodeLog   = "node_log"
+	tableBeaconLog = "beacon_log"
 )
 
 type Model struct {
@@ -19,7 +19,7 @@ type Model struct {
 	DeletedAt *time.Time `sql:"index"`
 }
 
-type m_ctrl_log struct {
+type mCtrlLog struct {
 	ID        uint64     `gorm:"primary_key"`
 	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null" sql:"index"`
@@ -28,7 +28,7 @@ type m_ctrl_log struct {
 	DeletedAt *time.Time `sql:"index"`
 }
 
-type m_proxy_client struct {
+type mProxyClient struct {
 	ID     uint64 `gorm:"primary_key"`
 	Tag    string `gorm:"size:32;not null;unique"`
 	Mode   string `gorm:"size:32;not null"`
@@ -36,7 +36,7 @@ type m_proxy_client struct {
 	Model
 }
 
-type m_dns_client struct {
+type mDNSServer struct {
 	ID      uint64 `gorm:"primary_key"`
 	Tag     string `gorm:"size:32;not null;unique"`
 	Method  string `gorm:"size:32;not null"`
@@ -44,7 +44,7 @@ type m_dns_client struct {
 	Model
 }
 
-type m_timesync struct {
+type mTimeSyncer struct {
 	ID     uint64 `gorm:"primary_key"`
 	Tag    string `gorm:"size:32;not null;unique"`
 	Mode   string `gorm:"size:32;not null"`
@@ -52,7 +52,7 @@ type m_timesync struct {
 	Model
 }
 
-type m_boot struct {
+type mBoot struct {
 	ID       uint64 `gorm:"primary_key"`
 	Tag      string `gorm:"size:32;not null;unique"`
 	Mode     string `gorm:"size:32;not null"`
@@ -62,7 +62,7 @@ type m_boot struct {
 	Model
 }
 
-type m_listener struct {
+type mListener struct {
 	ID      uint64 `gorm:"primary_key"`
 	Tag     string `gorm:"size:32;not null;unique"`
 	Mode    string `gorm:"size:32;not null"`
@@ -71,26 +71,26 @@ type m_listener struct {
 	Model
 }
 
-func (this *m_listener) Configure() *config.Listener {
+func (ml *mListener) Configure() *config.Listener {
 	l := &config.Listener{
-		Tag:    this.Tag,
-		Mode:   this.Mode,
-		Config: []byte(this.Config),
+		Tag:    ml.Tag,
+		Mode:   ml.Mode,
+		Config: []byte(ml.Config),
 	}
-	l.Timeout = time.Duration(this.Timeout) * time.Second
+	l.Timeout = time.Duration(ml.Timeout) * time.Second
 	return l
 }
 
-type m_node struct {
-	GUID      []byte     `gorm:"primary_key;type:binary(52)"`
-	Publickey []byte     `gorm:"type:binary(32);not null"`
-	AES_Key   []byte     `gorm:"type:binary(48);not null"`
-	Bootstrap bool       `gorm:"not null"`
-	CreatedAt time.Time  `gorm:"not null"`
-	DeletedAt *time.Time `sql:"index"`
+type mNode struct {
+	GUID        []byte     `gorm:"primary_key;type:binary(52)"`
+	PublicKey   []byte     `gorm:"type:binary(32);not null"`
+	AESKey      []byte     `gorm:"type:binary(48);not null"`
+	IsBootstrap bool       `gorm:"not null"`
+	CreatedAt   time.Time  `gorm:"not null"`
+	DeletedAt   *time.Time `sql:"index"`
 }
 
-type m_node_listener struct {
+type mNodeListener struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
 	Tag       string     `gorm:"size:32;not null"`
@@ -101,18 +101,18 @@ type m_node_listener struct {
 	DeletedAt *time.Time `sql:"index"`
 }
 
-type m_node_syncer struct {
+type mNodeSyncer struct {
 	GUID      []byte    `gorm:"primary_key;type:binary(52)"`
-	CTRL_Send uint64    `gorm:"not null;column:controller_send"`
-	Node_Recv uint64    `gorm:"not null;column:node_receive"`
-	Node_Send uint64    `gorm:"not null;column:node_send"`
-	CTRL_Recv uint64    `gorm:"not null;column:controller_receive"`
+	CtrlSend  uint64    `gorm:"not null;column:controller_send"`
+	NodeRecv  uint64    `gorm:"not null;column:node_receive"`
+	NodeSend  uint64    `gorm:"not null;column:node_send"`
+	CtrlRecv  uint64    `gorm:"not null;column:controller_receive"`
 	UpdatedAt time.Time `gorm:"not null"`
 }
 
-// internal/guid/guid.go  guid.Size
+// 52 = internal/guid/guid.go  guid.Size
 // beacon & node log
-type m_role_log struct {
+type mRoleLog struct {
 	ID        uint64     `gorm:"primary_key"`
 	CreatedAt time.Time  `gorm:"not null"`
 	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
@@ -122,7 +122,7 @@ type m_role_log struct {
 	DeletedAt *time.Time `sql:"index"`
 }
 
-type m_trust_node struct {
+type mTrustNode struct {
 	Mode    xnet.Mode `json:"mode"`
 	Network string    `json:"network"`
 	Address string    `json:"address"`

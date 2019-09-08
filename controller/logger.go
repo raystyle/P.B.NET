@@ -102,7 +102,7 @@ func (ctrl *CTRL) Println(l logger.Level, src string, log ...interface{}) {
 // log don't include time level src, for database
 func (ctrl *CTRL) printLog(l logger.Level, src, log string, b *bytes.Buffer) {
 	// write to database
-	m := &m_ctrl_log{
+	m := &mCtrlLog{
 		Level:  l,
 		Source: src,
 		Log:    log,
