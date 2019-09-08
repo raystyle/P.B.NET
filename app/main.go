@@ -41,19 +41,19 @@ type program struct {
 	once sync.Once
 }
 
-func (this *program) Start(s service.Service) error {
+func (p *program) Start(s service.Service) error {
 	var (
 		debug     bool
 		install   bool
 		uninstall bool
-		initdb    bool
-		genkey    string
+		initDB    bool
+		genKey    string
 	)
 	flag.BoolVar(&debug, "debug", false, "not changed path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
-	flag.BoolVar(&initdb, "initdb", false, "initialize database")
-	flag.StringVar(&genkey, "genkey", "", "generate keys and encrypt it")
+	flag.BoolVar(&initDB, "initdb", false, "initialize database")
+	flag.StringVar(&genKey, "genkey", "", "generate keys and encrypt it")
 	flag.Parse()
 	// install service
 	if install {
@@ -96,8 +96,8 @@ func (this *program) Start(s service.Service) error {
 		return err
 	}
 	// generate controller keys
-	if genkey != "" {
-		err := controller.Gen_CTRL_Keys(config.Key_Dir+"/ctrl.key", genkey)
+	if genKey != "" {
+		err := controller.GenCtrlKeys(config.KeyDir+"/ctrl.key", genKey)
 		if err != nil {
 			return errors.Wrap(err, "generate keys failed")
 		}
@@ -105,8 +105,8 @@ func (this *program) Start(s service.Service) error {
 		os.Exit(0)
 	}
 	// init database
-	if initdb {
-		err = controller.Init_Database(config)
+	if initDB {
+		err = controller.InitDatabase(config)
 		if err != nil {
 			return errors.Wrap(err, "initialize database failed")
 		}
@@ -114,12 +114,12 @@ func (this *program) Start(s service.Service) error {
 		os.Exit(0)
 	}
 	// run
-	this.ctrl, err = controller.New(config)
+	p.ctrl, err = controller.New(config)
 	if err != nil {
 		return err
 	}
 	go func() {
-		err = this.ctrl.Main()
+		err = p.ctrl.Main()
 		if err != nil {
 			l, e := s.Logger(nil)
 			if e == nil {
@@ -133,9 +133,9 @@ func (this *program) Start(s service.Service) error {
 	return nil
 }
 
-func (this *program) Stop(s service.Service) error {
-	this.once.Do(func() {
-		this.ctrl.Exit(nil)
+func (p *program) Stop(s service.Service) error {
+	p.once.Do(func() {
+		p.ctrl.Exit(nil)
 	})
 	return nil
 }
