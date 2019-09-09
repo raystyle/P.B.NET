@@ -17,14 +17,14 @@ func init() {
 }
 
 type Memory struct {
-	random  *random.Generator
+	rand    *random.Rand
 	padding map[string][]byte
 	mutex   sync.Mutex
 }
 
 func NewMemory() *Memory {
 	m := &Memory{
-		random:  random.New(0),
+		rand:    random.New(0),
 		padding: make(map[string][]byte),
 	}
 	m.Padding()
@@ -34,8 +34,8 @@ func NewMemory() *Memory {
 func (m *Memory) Padding() {
 	m.mutex.Lock()
 	for i := 0; i < 16; i++ {
-		m.padding[m.random.String(8)] =
-			m.random.Bytes(8 + m.random.Int(256))
+		m.padding[m.rand.String(8)] =
+			m.rand.Bytes(8 + m.rand.Int(256))
 	}
 	m.mutex.Unlock()
 }
