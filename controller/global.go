@@ -48,7 +48,7 @@ func newGlobal(lg logger.Logger, cfg *Config) (*global, error) {
 	}
 	dnsClient, err := dns.NewClient(proxyPool, dnsServers, cfg.DNSCacheDeadline)
 	if err != nil {
-		return nil, errors.Wrap(err, "new dns failed")
+		return nil, errors.Wrap(err, "new dns client failed")
 	}
 	// load builtin time syncer config
 	tsConfigs := make(map[string]*timesync.Config)
@@ -84,93 +84,93 @@ func newGlobal(lg logger.Logger, cfg *Config) (*global, error) {
 	}, nil
 }
 
-func (g *global) StartTimeSyncer() error {
-	return g.timeSyncer.Start()
+func (global *global) StartTimeSyncer() error {
+	return global.timeSyncer.Start()
 }
 
-func (g *global) Now() time.Time {
-	return g.timeSyncer.Now().Local()
+func (global *global) Now() time.Time {
+	return global.timeSyncer.Now().Local()
 }
 
-func (g *global) WaitLoadKeys() {
-	<-g.waitLoadKeys
+func (global *global) WaitLoadKeys() {
+	<-global.waitLoadKeys
 }
 
-func (g *global) AddProxyClient(tag string, client *proxy.Client) error {
-	return g.proxyPool.Add(tag, client)
+func (global *global) AddProxyClient(tag string, client *proxy.Client) error {
+	return global.proxyPool.Add(tag, client)
 }
 
-func (g *global) AddDNSSever(tag string, server *dns.Server) error {
-	return g.dnsClient.Add(tag, server)
+func (global *global) AddDNSSever(tag string, server *dns.Server) error {
+	return global.dnsClient.Add(tag, server)
 }
 
-func (g *global) AddTimeSyncerConfig(tag string, config *timesync.Config) error {
-	return g.timeSyncer.Add(tag, config)
+func (global *global) AddTimeSyncerConfig(tag string, config *timesync.Config) error {
+	return global.timeSyncer.Add(tag, config)
 }
 
-func (g *global) LoadKeys(password string) error {
-	g.objectRWM.Lock()
-	defer g.objectRWM.Unlock()
-	if g.object[ed25519PrivateKey] != nil {
+func (global *global) LoadKeys(password string) error {
+	global.objectRWM.Lock()
+	defer global.objectRWM.Unlock()
+	if global.object[ed25519PrivateKey] != nil {
 		return errors.New("already load keys")
 	}
-	keys, err := loadCtrlKeys(g.keyDir+"/ctrl.key", password)
+	keys, err := loadCtrlKeys(global.keyDir+"/ctrl.key", password)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// ed25519
 	pri, _ := ed25519.ImportPrivateKey(keys[0])
-	g.object[ed25519PrivateKey] = pri
+	global.object[ed25519PrivateKey] = pri
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
-	g.object[ed25519PublicKey] = pub
+	global.object[ed25519PublicKey] = pub
 	// curve25519
 	p, err := curve25519.ScalarBaseMult(pri[:32])
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	g.object[curve25519PublicKey] = p
+	global.object[curve25519PublicKey] = p
 	// aes
 	cbc, _ := aes.NewCBC(keys[1], keys[2])
-	g.object[aesCrypto] = cbc
-	atomic.StoreInt32(&g.isLoadKeys, 1)
-	close(g.waitLoadKeys)
+	global.object[aesCrypto] = cbc
+	atomic.StoreInt32(&global.isLoadKeys, 1)
+	close(global.waitLoadKeys)
 	return nil
 }
 
-func (g *global) IsLoadKeys() bool {
-	return atomic.LoadInt32(&g.isLoadKeys) != 0
+func (global *global) IsLoadKeys() bool {
+	return atomic.LoadInt32(&global.isLoadKeys) != 0
 }
 
 // verify controller(handshake) and sign message
-func (g *global) Sign(message []byte) []byte {
-	g.objectRWM.RLock()
-	p := g.object[ed25519PrivateKey].(ed25519.PrivateKey)
-	g.objectRWM.RUnlock()
+func (global *global) Sign(message []byte) []byte {
+	global.objectRWM.RLock()
+	p := global.object[ed25519PrivateKey].(ed25519.PrivateKey)
+	global.objectRWM.RUnlock()
 	return ed25519.Sign(p, message)
 }
 
 // verify node certificate
-func (g *global) Verify(message, signature []byte) bool {
-	g.objectRWM.RLock()
-	p := g.object[ed25519PublicKey].(ed25519.PublicKey)
-	g.objectRWM.RUnlock()
+func (global *global) Verify(message, signature []byte) bool {
+	global.objectRWM.RLock()
+	p := global.object[ed25519PublicKey].(ed25519.PublicKey)
+	global.objectRWM.RUnlock()
 	return ed25519.Verify(p, message, signature)
 }
 
-func (g *global) Curve25519PublicKey() []byte {
-	g.objectRWM.RLock()
-	p := g.object[curve25519PublicKey].([]byte)
-	g.objectRWM.RUnlock()
+func (global *global) Curve25519PublicKey() []byte {
+	global.objectRWM.RLock()
+	p := global.object[curve25519PublicKey].([]byte)
+	global.objectRWM.RUnlock()
 	return p
 }
 
-func (g *global) KeyExchange(publicKey []byte) ([]byte, error) {
-	g.objectRWM.RLock()
-	pri := g.object[ed25519PrivateKey].(ed25519.PrivateKey)
-	g.objectRWM.RUnlock()
+func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	pri := global.object[ed25519PrivateKey].(ed25519.PrivateKey)
+	global.objectRWM.RUnlock()
 	return curve25519.ScalarMult(pri, publicKey)
 }
 
-func (g *global) Destroy() {
-	g.timeSyncer.Stop()
+func (global *global) Destroy() {
+	global.timeSyncer.Stop()
 }

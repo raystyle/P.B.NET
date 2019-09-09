@@ -48,25 +48,25 @@ func newWeb(ctx *CTRL, cfg *Config) (*web, error) {
 		RedirectFixedPath:      true,
 		HandleMethodNotAllowed: true,
 		HandleOPTIONS:          true,
-		PanicHandler:           web.hPanic,
+		PanicHandler:           web.handlePanic,
 	}
 	// resource
 	router.ServeFiles("/css/*filepath", http.Dir(cfg.WebDir+"/css"))
 	router.ServeFiles("/js/*filepath", http.Dir(cfg.WebDir+"/js"))
 	router.ServeFiles("/img/*filepath", http.Dir(cfg.WebDir+"/img"))
 	web.indexFS = http.FileServer(http.Dir(cfg.WebDir))
-	hFavicon := func(w hRW, r *hR, _ hP) {
+	handleFavicon := func(w hRW, r *hR, _ hP) {
 		web.indexFS.ServeHTTP(w, r)
 	}
-	router.GET("/favicon.ico", hFavicon)
-	router.GET("/", web.hIndex)
-	router.GET("/login", web.hLogin)
-	router.POST("/load_keys", web.hLoadKeys)
+	router.GET("/favicon.ico", handleFavicon)
+	router.GET("/", web.handleIndex)
+	router.GET("/login", web.handleLogin)
+	router.POST("/load_keys", web.handleLoadKeys)
 	// debug api
-	router.GET("/api/debug/shutdown", web.hShutdown)
+	router.GET("/api/debug/shutdown", web.handleShutdown)
 	// operate
-	router.GET("/api/boot", web.hGetBoot)
-	router.POST("/api/node/trust", web.hTrustNode)
+	router.GET("/api/boot", web.handleGetBoot)
+	router.POST("/api/node/trust", web.handleTrustNode)
 	// http server
 	tlsConfig := &tls.Config{
 		Certificates: make([]tls.Certificate, 1),
@@ -105,16 +105,16 @@ func (web *web) Close() {
 	_ = web.server.Close()
 }
 
-func (web *web) hPanic(w hRW, r *hR, e interface{}) {
+func (web *web) handlePanic(w hRW, r *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
 	_, _ = w.Write([]byte(xpanic.Sprint(e)))
 }
 
-func (web *web) hLogin(w hRW, r *hR, p hP) {
+func (web *web) handleLogin(w hRW, r *hR, p hP) {
 	_, _ = w.Write([]byte("hello"))
 }
 
-func (web *web) hLoadKeys(w hRW, r *hR, p hP) {
+func (web *web) handleLoadKeys(w hRW, r *hR, p hP) {
 	pwd, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return
@@ -128,6 +128,6 @@ func (web *web) hLoadKeys(w hRW, r *hR, p hP) {
 	_, _ = w.Write([]byte("ok"))
 }
 
-func (web *web) hIndex(w hRW, r *hR, p hP) {
+func (web *web) handleIndex(w hRW, r *hR, p hP) {
 	web.indexFS.ServeHTTP(w, r)
 }

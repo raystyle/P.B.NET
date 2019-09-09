@@ -10,7 +10,7 @@ import (
 
 // ------------------------------debug----------------------------------
 
-func (web *web) hShutdown(w hRW, r *hR, p hP) {
+func (web *web) handleShutdown(w hRW, r *hR, p hP) {
 	_ = r.ParseForm()
 	errStr := r.FormValue("err")
 	_, _ = w.Write([]byte("ok"))
@@ -21,11 +21,11 @@ func (web *web) hShutdown(w hRW, r *hR, p hP) {
 	}
 }
 
-func (web *web) hGetBoot(w hRW, r *hR, p hP) {
+func (web *web) handleGetBoot(w hRW, r *hR, p hP) {
 	_, _ = w.Write([]byte("hello"))
 }
 
-func (web *web) hTrustNode(w hRW, r *hR, p hP) {
+func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 	m := &mTrustNode{}
 	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {

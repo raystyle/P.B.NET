@@ -40,7 +40,7 @@ func testShutdown() {
 	_, _ = testRestfulAPI(http.MethodGet, "api/debug/shutdown", nil)
 }
 
-func TestHTrustNode(t *testing.T) {
+func TestHandleTrustNode(t *testing.T) {
 	initCtrl(t)
 	m := &mTrustNode{
 		Mode:    xnet.TLS,
