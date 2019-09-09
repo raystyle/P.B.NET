@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"net"
-	"time"
 
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -13,120 +12,124 @@ import (
 )
 
 // serve log(handshake client)
-type s_log struct {
+type sLog struct {
 	c net.Conn
 	l string
 	e error
 }
 
-func (this *s_log) String() string {
-	b := logger.Conn(this.c)
-	b.WriteString(this.l)
-	if this.e != nil {
+func (sl *sLog) String() string {
+	b := logger.Conn(sl.c)
+	b.WriteString(sl.l)
+	if sl.e != nil {
 		b.WriteString(": ")
-		b.WriteString(this.e.Error())
+		b.WriteString(sl.e.Error())
 	}
 	return b.String()
 }
 
-func (this *server) handshake(l_tag string, conn net.Conn) {
+func (server *server) handshake(lTag string, conn net.Conn) {
+	dConn := xnet.NewDeadlineConn(conn, server.hsTimeout)
+	xconn := xnet.NewConn(dConn, server.ctx.global.Now().Unix())
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("handshake panic:", r)
-			this.log(logger.EXPLOIT, &s_log{c: conn, l: "", e: err})
+			server.log(logger.EXPLOIT, &sLog{c: xconn, e: err})
 		}
-		_ = conn.Close()
-		this.wg.Done()
+		_ = xconn.Close()
+		server.wg.Done()
 	}()
-	_ = conn.SetDeadline(time.Now().Add(this.hs_timeout))
-	// add to conns for management
-	xconn := xnet.New_Conn(conn, this.ctx.global.Now().Unix())
 	// conn tag
 	b := bytes.Buffer{}
-	b.WriteString(l_tag)
-	b.WriteString(conn.RemoteAddr().String())
-	conn_tag := b.String()
-	this.add_conn(conn_tag, xconn)
-	defer this.del_conn(conn_tag)
+	b.WriteString(lTag)
+	b.WriteString(xconn.RemoteAddr().String())
+	connTag := b.String()
+	// add to conns for management
+	server.addConn(connTag, xconn)
+	defer server.delConn(connTag)
 	// send certificate
 	var err error
-	cert := this.ctx.global.Cert()
+	cert := server.ctx.global.Certificate()
 	if cert != nil {
 		err = xconn.Send(cert)
 		if err != nil {
-			l := &s_log{c: conn, l: "send certificate failed", e: err}
-			this.log(logger.ERROR, l)
+			l := &sLog{c: xconn, l: "send certificate failed", e: err}
+			server.log(logger.ERROR, l)
 			return
 		}
 	} else { // if no certificate send padding data
-		padding_size := 1024 + this.random.Int(1024)
-		err = xconn.Send(this.random.Bytes(padding_size))
+		paddingSize := 1024 + server.random.Int(1024)
+		err = xconn.Send(server.random.Bytes(paddingSize))
 		if err != nil {
-			l := &s_log{c: conn, l: "send padding data failed", e: err}
-			this.log(logger.ERROR, l)
+			l := &sLog{c: xconn, l: "send padding data failed", e: err}
+			server.log(logger.ERROR, l)
 			return
 		}
 	}
 	// receive role
 	role := make([]byte, 1)
-	_, err = io.ReadFull(conn, role)
+	_, err = io.ReadFull(xconn, role)
 	if err != nil {
-		l := &s_log{c: conn, l: "receive role failed", e: err}
-		this.log(logger.ERROR, l)
+		l := &sLog{c: xconn, l: "receive role failed", e: err}
+		server.log(logger.ERROR, l)
 		return
 	}
+	// remove deadline conn
+	xconn = xnet.NewConn(conn, server.ctx.global.Now().Unix())
 	switch role[0] {
-	case protocol.BEACON:
-		this.verify_beacon(xconn)
-	case protocol.NODE:
-		this.verify_node(xconn)
-	case protocol.CTRL:
-		this.verify_ctrl(xconn)
+	case protocol.Beacon:
+		server.verifyBeacon(xconn)
+	case protocol.Node:
+		server.verifyNode(xconn)
+	case protocol.Ctrl:
+		server.verifyCtrl(xconn)
 	default:
-		this.log(logger.EXPLOIT, &s_log{c: conn, e: protocol.ERR_INVALID_ROLE})
+		server.log(logger.EXPLOIT, &sLog{c: xconn, e: protocol.ErrInvalidRole})
 	}
 }
 
-func (this *server) verify_beacon(conn *xnet.Conn) {
+func (server *server) verifyBeacon(conn *xnet.Conn) {
 
 }
 
-func (this *server) verify_node(conn *xnet.Conn) {
+func (server *server) verifyNode(conn *xnet.Conn) {
 
 }
 
-func (this *server) verify_ctrl(conn *xnet.Conn) {
+func (server *server) verifyCtrl(conn *xnet.Conn) {
+	dConn := xnet.NewDeadlineConn(conn, server.hsTimeout)
+	xconn := xnet.NewConn(dConn, server.ctx.global.Now().Unix())
 	// <danger>
 	// send random challenge code(length 2048-4096)
 	// len(challenge) must > len(GUID + Mode + Network + Address)
 	// because maybe fake node will send some special data
 	// and controller sign it
-	challenge := this.random.Bytes(2048 + this.random.Int(2048))
-	err := conn.Send(challenge)
+	challenge := server.random.Bytes(2048 + server.random.Int(2048))
+	err := xconn.Send(challenge)
 	if err != nil {
-		l := &s_log{c: conn, l: "send challenge code failed", e: err}
-		this.log(logger.ERROR, l)
+		l := &sLog{c: xconn, l: "send challenge code failed", e: err}
+		server.log(logger.ERROR, l)
 		return
 	}
 	// receive signature
-	signature, err := conn.Receive()
+	signature, err := xconn.Receive()
 	if err != nil {
-		l := &s_log{c: conn, l: "receive signature failed", e: err}
-		this.log(logger.ERROR, l)
+		l := &sLog{c: xconn, l: "receive signature failed", e: err}
+		server.log(logger.ERROR, l)
 		return
 	}
 	// verify signature
-	if !this.ctx.global.CTRL_Verify(challenge, signature) {
-		l := &s_log{c: conn, l: "invalid controller signature", e: err}
-		this.log(logger.EXPLOIT, l)
+	if !server.ctx.global.CTRLVerify(challenge, signature) {
+		l := &sLog{c: xconn, l: "invalid controller signature", e: err}
+		server.log(logger.EXPLOIT, l)
 		return
 	}
 	// send success
-	err = conn.Send(protocol.AUTH_SUCCESS)
+	err = xconn.Send(protocol.AuthSucceed)
 	if err != nil {
-		l := &s_log{c: conn, l: "send auth success response failed", e: err}
-		this.log(logger.ERROR, l)
+		l := &sLog{c: xconn, l: "send auth success response failed", e: err}
+		server.log(logger.ERROR, l)
 		return
 	}
-	this.serve_ctrl(conn)
+	server.serveCtrl(conn)
 }

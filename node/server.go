@@ -21,76 +21,77 @@ import (
 )
 
 var (
-	ERR_SERVER_CLOSED = errors.New("server closed")
+	ErrServerClosed = errors.New("server closed")
 )
 
 // accept beacon node controller
 type server struct {
-	ctx           *NODE
-	conn_limit    int           // every listener
-	hs_timeout    time.Duration // handshake timeout
-	listeners     map[string]*listener
-	listeners_rwm sync.RWMutex
-	conns         map[string]*xnet.Conn // key = listener.Tag + Remote Address
-	conns_rwm     sync.RWMutex
-	ctrls         map[string]v_client // key = base64(sha256(Remote Address))
-	ctrls_rwm     sync.RWMutex
-	nodes         map[string]v_client // key = base64(guid)
-	nodes_rwm     sync.RWMutex
-	beacons       map[string]v_client // key = base64(guid)
-	beacons_rwm   sync.RWMutex
-	in_shutdown   int32
-	random        *random.Generator
-	stop_signal   chan struct{}
-	wg            sync.WaitGroup
+	ctx          *NODE
+	connLimit    int           // every listener
+	hsTimeout    time.Duration // handshake timeout
+	listeners    map[string]*listener
+	listenersRWM sync.RWMutex
+	conns        map[string]*xnet.Conn // key = listener.Tag + Remote Address
+	connsRWM     sync.RWMutex
+	ctrls        map[string]role // key = base64(sha256(Remote Address))
+	ctrlsRWM     sync.RWMutex
+	nodes        map[string]role // key = base64(guid)
+	nodesRWM     sync.RWMutex
+	beacons      map[string]role // key = base64(guid)
+	beaconsRWM   sync.RWMutex
+	inShutdown   int32
+	random       *random.Rand
+	stopSignal   chan struct{}
+	wg           sync.WaitGroup
 }
 
 type listener struct {
-	Mode      xnet.Mode
-	s_timeout time.Duration // start timeout
+	Mode     xnet.Mode
+	sTimeout time.Duration // start timeout
 	net.Listener
 }
 
-type v_client interface {
+// Beacon Node Controller
+type role interface {
 	Info() *xnet.Info
 	Close()
 }
 
-func new_server(ctx *NODE, c *Config) (*server, error) {
+func newServer(ctx *NODE, cfg *Config) (*server, error) {
 	s := &server{
-		ctx:        ctx,
-		conn_limit: c.Conn_Limit,
-		hs_timeout: c.Handshake_Timeout,
-		listeners:  make(map[string]*listener),
+		ctx:       ctx,
+		connLimit: cfg.ConnLimit,
+		hsTimeout: cfg.HandshakeTimeout,
+		listeners: make(map[string]*listener),
 	}
-	if s.conn_limit < 1 {
-		s.conn_limit = options.DEFAULT_CONNECTION_LIMIT
+	if s.connLimit < 1 {
+		s.connLimit = options.DefaultConnectionLimit
 	}
-	if s.hs_timeout < 1 {
-		s.hs_timeout = options.DEFAULT_HANDSHAKE_TIMEOUT
+	if s.hsTimeout < 1 {
+		s.hsTimeout = options.DefaultHandshakeTimeout
 	}
-	for _, listener := range c.Listeners {
-		_, err := s.add_listener(listener)
+	for _, listener := range cfg.Listeners {
+		_, err := s.addListener(listener)
 		if err != nil {
 			return nil, err
 		}
 	}
 	s.conns = make(map[string]*xnet.Conn)
-	s.ctrls = make(map[string]v_client)
-	s.nodes = make(map[string]v_client)
-	s.beacons = make(map[string]v_client)
-	s.random = random.New()
-	s.stop_signal = make(chan struct{})
+	s.ctrls = make(map[string]role)
+	s.nodes = make(map[string]role)
+	s.beacons = make(map[string]role)
+	s.random = random.New(0)
+	s.stopSignal = make(chan struct{})
 	return s, nil
 }
 
-func (this *server) Deploy() error {
+func (server *server) Deploy() error {
 	// deploy all listener
-	l := len(this.listeners)
+	l := len(server.listeners)
 	errs := make(chan error, l)
-	for tag, l := range this.listeners {
+	for tag, l := range server.listeners {
 		go func(tag string, l *listener) {
-			errs <- this.deploy(tag, l)
+			errs <- server.deploy(tag, l)
 		}(tag, l)
 	}
 	for i := 0; i < l; i++ {
@@ -102,73 +103,73 @@ func (this *server) Deploy() error {
 	return nil
 }
 
-func (this *server) Add_Listener(l *config.Listener) error {
-	listener, err := this.add_listener(l)
+func (server *server) AddListener(l *config.Listener) error {
+	listener, err := server.addListener(l)
 	if err != nil {
 		return err
 	}
-	return this.deploy(l.Tag, listener)
+	return server.deploy(l.Tag, listener)
 }
 
-func (this *server) add_listener(l *config.Listener) (*listener, error) {
-	if this.shutting_down() {
-		return nil, ERR_SERVER_CLOSED
+func (server *server) addListener(l *config.Listener) (*listener, error) {
+	if server.shuttingDown() {
+		return nil, ErrServerClosed
 	}
 	c := &xnet.Config{}
 	err := toml.Unmarshal(l.Config, c)
 	if err != nil {
-		return nil, errors.Errorf("load %s config failed: %s", l.Tag, err)
+		return nil, errors.Errorf("load listener %s config failed: %s", l.Tag, err)
 	}
 	li, err := xnet.Listen(l.Mode, c)
 	if err != nil {
 		return nil, errors.Errorf("listen %s failed: %s", l.Tag, err)
 	}
-	li = netutil.LimitListener(li, this.conn_limit)
-	listener := &listener{Mode: l.Mode, s_timeout: l.Timeout, Listener: li}
+	li = netutil.LimitListener(li, server.connLimit)
+	listener := &listener{Mode: l.Mode, sTimeout: l.Timeout, Listener: li}
 	// add
-	this.listeners_rwm.Lock()
-	if _, exist := this.listeners[l.Tag]; !exist {
-		this.listeners[l.Tag] = listener
-		this.listeners_rwm.Unlock()
+	server.listenersRWM.Lock()
+	if _, exist := server.listeners[l.Tag]; !exist {
+		server.listeners[l.Tag] = listener
+		server.listenersRWM.Unlock()
 	} else {
-		this.listeners_rwm.Unlock()
+		server.listenersRWM.Unlock()
 		return nil, errors.Errorf("listener: %s already exists", l.Tag)
 	}
 	return listener, nil
 }
 
-func (this *server) deploy(tag string, l *listener) error {
-	timeout := l.s_timeout
+func (server *server) deploy(tag string, l *listener) error {
+	timeout := l.sTimeout
 	if timeout < 1 {
-		timeout = options.DEFAULT_START_TIMEOUT
+		timeout = options.DefaultStartTimeout
 	}
 	addr := l.Addr().String()
-	err_chan := make(chan error, 1)
-	this.wg.Add(1)
-	go this.serve(tag, l, err_chan)
+	errChan := make(chan error, 1)
+	server.wg.Add(1)
+	go server.serve(tag, l, errChan)
 	select {
-	case err := <-err_chan:
+	case err := <-errChan:
 		return errors.Errorf("listener: %s(%s) deploy failed: %s", tag, addr, err)
 	case <-time.After(timeout):
 		return nil
 	}
 }
 
-func (this *server) serve(tag string, l *listener, err_chan chan<- error) {
+func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error("serve panic:", r) // front var err
-			this.log(logger.FATAL, err)
+			server.log(logger.FATAL, err)
 		}
-		err_chan <- err
-		close(err_chan)
+		errChan <- err
+		close(errChan)
 		// delete
-		this.listeners_rwm.Lock()
-		delete(this.listeners, tag)
-		this.listeners_rwm.Unlock()
-		this.logf(logger.INFO, "listener: %s(%s) is closed", tag, l.Addr())
-		this.wg.Done()
+		server.listenersRWM.Lock()
+		delete(server.listeners, tag)
+		server.listenersRWM.Unlock()
+		server.logf(logger.INFO, "listener: %s(%s) is closed", tag, l.Addr())
+		server.wg.Done()
 	}()
 	var delay time.Duration // how long to sleep on accept failure
 	max := 2 * time.Second
@@ -176,8 +177,8 @@ func (this *server) serve(tag string, l *listener, err_chan chan<- error) {
 		conn, e := l.Accept()
 		if e != nil {
 			select {
-			case <-this.stop_signal:
-				err = ERR_SERVER_CLOSED
+			case <-server.stopSignal:
+				err = ErrServerClosed
 				return
 			default:
 			}
@@ -190,128 +191,128 @@ func (this *server) serve(tag string, l *listener, err_chan chan<- error) {
 				if delay > max {
 					delay = max
 				}
-				this.logf(logger.WARNING, "accept error: %s; retrying in %v", e, delay)
+				server.logf(logger.WARNING, "accept error: %s; retrying in %v", e, delay)
 				time.Sleep(delay)
 				continue
 			}
 			return
 		}
 		delay = 0
-		this.wg.Add(1)
-		go this.handshake(tag, conn)
+		server.wg.Add(1)
+		go server.handshake(tag, conn)
 	}
 }
 
-func (this *server) Get_Listener(tag string) net.Listener {
+func (server *server) GetListener(tag string) net.Listener {
 	return nil
 }
 
-func (this *server) Listeners(tag string) map[string]net.Listener {
+func (server *server) Listeners(tag string) map[string]net.Listener {
 	return nil
 }
 
-func (this *server) Close_Listener(tag string) {
+func (server *server) CloseListener(tag string) {
 
 }
 
-func (this *server) Close_Conn(address string) {
+func (server *server) CloseConn(address string) {
 
 }
 
-func (this *server) Shutdown() {
-	atomic.StoreInt32(&this.in_shutdown, 1)
-	close(this.stop_signal)
+func (server *server) Shutdown() {
+	atomic.StoreInt32(&server.inShutdown, 1)
+	close(server.stopSignal)
 	// close all listeners
-	this.listeners_rwm.Lock()
-	for _, listener := range this.listeners {
+	server.listenersRWM.Lock()
+	for _, listener := range server.listeners {
 		_ = listener.Close()
 	}
-	this.listeners_rwm.Unlock()
+	server.listenersRWM.Unlock()
 	// close all conns
-	this.conns_rwm.Lock()
-	for _, conn := range this.conns {
+	server.connsRWM.Lock()
+	for _, conn := range server.conns {
 		_ = conn.Close()
 	}
-	this.conns_rwm.Unlock()
-	this.wg.Wait()
+	server.connsRWM.Unlock()
+	server.wg.Wait()
 }
 
-func (this *server) logf(l logger.Level, format string, log ...interface{}) {
-	this.ctx.Printf(l, "server", format, log...)
+func (server *server) logf(l logger.Level, format string, log ...interface{}) {
+	server.ctx.Printf(l, "server", format, log...)
 }
 
-func (this *server) log(l logger.Level, log ...interface{}) {
-	this.ctx.Print(l, "server", log...)
+func (server *server) log(l logger.Level, log ...interface{}) {
+	server.ctx.Print(l, "server", log...)
 }
 
-func (this *server) logln(l logger.Level, log ...interface{}) {
-	this.ctx.Println(l, "server", log...)
+func (server *server) logln(l logger.Level, log ...interface{}) {
+	server.ctx.Println(l, "server", log...)
 }
 
-func (this *server) shutting_down() bool {
-	return atomic.LoadInt32(&this.in_shutdown) != 0
+func (server *server) shuttingDown() bool {
+	return atomic.LoadInt32(&server.inShutdown) != 0
 }
 
-func (this *server) add_conn(tag string, c *xnet.Conn) {
-	this.conns_rwm.Lock()
-	this.conns[tag] = c
-	this.conns_rwm.Unlock()
+func (server *server) addConn(tag string, c *xnet.Conn) {
+	server.connsRWM.Lock()
+	server.conns[tag] = c
+	server.connsRWM.Unlock()
 }
 
-func (this *server) del_conn(tag string) {
-	this.conns_rwm.Lock()
-	delete(this.conns, tag)
-	this.conns_rwm.Unlock()
+func (server *server) delConn(tag string) {
+	server.connsRWM.Lock()
+	delete(server.conns, tag)
+	server.connsRWM.Unlock()
 }
 
-func (this *server) add_ctrl(c v_client) {
-	data := sha256.Bytes([]byte(c.Info().Remote_Address))
+func (server *server) addCtrl(ctrl role) {
+	data := sha256.Bytes([]byte(ctrl.Info().RemoteAddress))
 	tag := base64.StdEncoding.EncodeToString(data)
-	this.ctrls_rwm.Lock()
-	if _, exist := this.ctrls[tag]; !exist {
-		this.ctrls[tag] = c
+	server.ctrlsRWM.Lock()
+	if _, ok := server.ctrls[tag]; !ok {
+		server.ctrls[tag] = ctrl
 	}
-	this.ctrls_rwm.Unlock()
+	server.ctrlsRWM.Unlock()
 }
 
-func (this *server) del_ctrl(tag string, c v_client) {
-	if c != nil {
-		data := sha256.Bytes([]byte(c.Info().Remote_Address))
+func (server *server) delCtrl(tag string, ctrl role) {
+	if ctrl != nil {
+		data := sha256.Bytes([]byte(ctrl.Info().RemoteAddress))
 		tag = base64.StdEncoding.EncodeToString(data)
 	}
-	this.ctrls_rwm.Lock()
-	delete(this.ctrls, tag)
-	this.ctrls_rwm.Unlock()
+	server.ctrlsRWM.Lock()
+	delete(server.ctrls, tag)
+	server.ctrlsRWM.Unlock()
 }
 
-func (this *server) add_node(guid []byte, c v_client) {
+func (server *server) addNode(guid []byte, node role) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	this.nodes_rwm.Lock()
-	if _, exist := this.nodes[tag]; !exist {
-		this.nodes[tag] = c
+	server.nodesRWM.Lock()
+	if _, ok := server.nodes[tag]; !ok {
+		server.nodes[tag] = node
 	}
-	this.nodes_rwm.Unlock()
+	server.nodesRWM.Unlock()
 }
 
-func (this *server) del_node(guid []byte) {
+func (server *server) delNode(guid []byte) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	this.nodes_rwm.Lock()
-	delete(this.nodes, tag)
-	this.nodes_rwm.Unlock()
+	server.nodesRWM.Lock()
+	delete(server.nodes, tag)
+	server.nodesRWM.Unlock()
 }
 
-func (this *server) add_beacon(guid []byte, c v_client) {
+func (server *server) addBeacon(guid []byte, beacon role) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	this.beacons_rwm.Lock()
-	if _, exist := this.beacons[tag]; !exist {
-		this.beacons[tag] = c
+	server.beaconsRWM.Lock()
+	if _, ok := server.beacons[tag]; !ok {
+		server.beacons[tag] = beacon
 	}
-	this.beacons_rwm.Unlock()
+	server.beaconsRWM.Unlock()
 }
 
-func (this *server) del_beacon(guid []byte) {
+func (server *server) delBeacon(guid []byte) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	this.beacons_rwm.Lock()
-	delete(this.beacons, tag)
-	this.beacons_rwm.Unlock()
+	server.beaconsRWM.Lock()
+	delete(server.beacons, tag)
+	server.beaconsRWM.Unlock()
 }
