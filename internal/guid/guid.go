@@ -18,9 +18,9 @@ import (
 // total 32 + 4 + 8 + 8 = 52 Bytes
 const SIZE int = 52
 
-type Generator struct {
+type GUID struct {
 	now        func() time.Time
-	random     *random.Generator
+	random     *random.Rand
 	head       []byte
 	id         uint64 // self add
 	guidQueue  chan []byte
@@ -30,8 +30,8 @@ type Generator struct {
 }
 
 // if now is nil use time.Now
-func New(size int, now func() time.Time) *Generator {
-	g := &Generator{
+func New(size int, now func() time.Time) *GUID {
+	g := &GUID{
 		stopSignal: make(chan struct{}),
 	}
 	if size < 1 {
@@ -68,7 +68,7 @@ func New(size int, now func() time.Time) *Generator {
 	return g
 }
 
-func (g *Generator) Get() []byte {
+func (g *GUID) Get() []byte {
 	guid := <-g.guidQueue
 	// chan not closed
 	if len(guid) != 0 {
@@ -77,14 +77,14 @@ func (g *Generator) Get() []byte {
 	return guid
 }
 
-func (g *Generator) Close() {
+func (g *GUID) Close() {
 	g.closeOnce.Do(func() {
 		close(g.stopSignal)
 		g.wg.Wait()
 	})
 }
 
-func (g *Generator) generateLoop() {
+func (g *GUID) generateLoop() {
 	defer func() {
 		close(g.guidQueue)
 		g.wg.Done()
