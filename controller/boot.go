@@ -8,6 +8,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/logger"
+	"project/internal/xpanic"
 )
 
 type boot struct {
@@ -24,9 +25,7 @@ func (ctrl *CTRL) AddBoot(m *mBoot) error {
 	g := ctrl.global
 	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxyPool, g.dnsClient)
 	if err != nil {
-		e := errors.Wrapf(err, "load boot %s failed", m.Tag)
-		ctrl.Println(logger.ERROR, "boot", e)
-		return e
+		return errors.Wrapf(err, "load boot %s failed", m.Tag)
 	}
 	boot := &boot{
 		ctx:        ctrl,
@@ -38,20 +37,18 @@ func (ctrl *CTRL) AddBoot(m *mBoot) error {
 	}
 	ctrl.bootsM.Lock()
 	defer ctrl.bootsM.Unlock()
-	if _, exist := ctrl.boots[m.Tag]; !exist {
+	if _, ok := ctrl.boots[m.Tag]; !ok {
 		ctrl.boots[m.Tag] = boot
 	} else {
-		e := errors.Errorf("boot %s is running", m.Tag)
-		ctrl.Println(logger.ERROR, "boot", e)
-		return e
+		return errors.Errorf("boot %s is running", m.Tag)
 	}
 	ctrl.wg.Add(1)
-	go boot.run()
+	go boot.Boot()
 	ctrl.Printf(logger.INFO, "boot", "add boot %s", m.Tag)
 	return nil
 }
 
-func (boot *boot) run() {
+func (boot *boot) Boot() {
 	defer func() {
 		boot.ctx.bootsM.Lock()
 		delete(boot.ctx.boots, boot.tag)
@@ -60,7 +57,7 @@ func (boot *boot) run() {
 		boot.ctx.wg.Done()
 	}()
 	f := func() {
-		err := boot.Resolve()
+		err := boot.resolve()
 		if err != nil {
 			boot.ctx.Println(logger.WARNING, boot.logSrc, err)
 		} else {
@@ -78,13 +75,19 @@ func (boot *boot) run() {
 	}
 }
 
-func (boot *boot) Resolve() error {
+func (boot *boot) resolve() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = xpanic.Error("boot.resolve() panic:", r)
+			boot.ctx.Print(logger.FATAL, boot.logSrc, err)
+		}
+	}()
 	nodes, err := boot.bootstrap.Resolve()
 	if err != nil {
-		return err
+		return
 	}
 	nodes[0] = nil
-	return nil
+	return
 }
 
 func (boot *boot) Stop() {
