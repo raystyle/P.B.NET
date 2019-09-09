@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"errors"
+	"net"
 	"runtime"
 	"time"
 
@@ -50,11 +51,11 @@ var (
 )
 
 // msg_handler receive message = message type(4 byte) + message
-func HandleConn(conn *xnet.Conn, msgHandler func([]byte), close func()) {
+func HandleConn(conn net.Conn, msgHandler func([]byte), close func()) {
 	const (
 		size = 4096
 
-		// if data buffer size > this new buffer
+		// if data buffer size > this, new buffer
 		maxBufSize = 4 * size
 		maxMsgSize = 16 * 1048576 // 64 MB
 

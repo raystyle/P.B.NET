@@ -29,8 +29,7 @@ func TestHandleMessage(t *testing.T) {
 		count := 0
 		conn, err := listener.Accept()
 		require.NoError(t, err)
-		xconn := xnet.NewConn(conn, time.Now().Unix())
-		HandleConn(xconn, func(msg []byte) {
+		HandleConn(conn, func(msg []byte) {
 			count += 1
 			if count != 5 {
 				require.Equal(t, message, msg)
@@ -74,8 +73,7 @@ func TestHandleNULLMessage(t *testing.T) {
 		defer wg.Done()
 		conn, err := listener.Accept()
 		require.NoError(t, err)
-		xconn := xnet.NewConn(conn, time.Now().Unix())
-		HandleConn(xconn, func(msg []byte) {
+		HandleConn(conn, func(msg []byte) {
 			require.Equal(t, ErrNullMsg, msg[0])
 		}, func() { _ = conn.Close() })
 	}()
@@ -101,8 +99,7 @@ func TestHandleTooBigMessage(t *testing.T) {
 		defer wg.Done()
 		conn, err := listener.Accept()
 		require.NoError(t, err)
-		xconn := xnet.NewConn(conn, time.Now().Unix())
-		HandleConn(xconn, func(msg []byte) {
+		HandleConn(conn, func(msg []byte) {
 			require.Equal(t, ErrTooBigMsg, msg[0])
 		}, func() { _ = conn.Close() })
 		_ = conn.Close()
@@ -159,8 +156,7 @@ func benchmarkHandleMessage(b *testing.B, size int) {
 		count := 0
 		conn, err := listener.Accept()
 		require.NoError(b, err)
-		xconn := xnet.NewConn(conn, time.Now().Unix())
-		HandleConn(xconn, func(msg []byte) {
+		HandleConn(conn, func(msg []byte) {
 			if !bytes.Equal(msg, message) {
 				b.FailNow()
 			}
@@ -230,8 +226,7 @@ func benchmarkHandleMessageParallel(b *testing.B, size int) {
 		count := 0
 		conn, err := listener.Accept()
 		require.NoError(b, err)
-		xconn := xnet.NewConn(conn, time.Now().Unix())
-		HandleConn(xconn, func(msg []byte) {
+		HandleConn(conn, func(msg []byte) {
 			if !bytes.Equal(msg, message) {
 				b.FailNow()
 			}
