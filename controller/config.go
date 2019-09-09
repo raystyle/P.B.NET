@@ -4,12 +4,12 @@ import (
 	"time"
 )
 
-type debug struct {
-	skipTimeSyncer bool
+type Debug struct {
+	SkipTimeSyncer bool
 }
 
 type Config struct {
-	debug debug
+	Debug Debug `toml:"-"`
 
 	// logger
 	LogLevel string `toml:"log_level"`

@@ -1,6 +1,5 @@
 package controller
 
-/*
 import (
 	"bytes"
 	"runtime"
@@ -21,25 +20,25 @@ import (
 
 func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 	regAESKey := bytes.Repeat([]byte{0}, aes.Bit256+aes.IVSize)
-	c := &node.Config{
-		Log_Level: "debug",
+	cfg := &node.Config{
+		LogLevel: "debug",
 
-		Proxy_Clients:      testdata.ProxyClients(t),
-		DNS_Clients:        testdata.DNSServers(t),
-		DNS_Cache_Deadline: 3 * time.Minute,
-		Timesync_Clients:   testdata.TimeSyncerConfigs(t),
-		Timesync_Interval:  15 * time.Minute,
+		ProxyClients:       testdata.ProxyClients(t),
+		DNSServers:         testdata.DNSServers(t),
+		DnsCacheDeadline:   3 * time.Minute,
+		TimeSyncerConfigs:  testdata.TimeSyncerConfigs(t),
+		TimeSyncerInterval: 15 * time.Minute,
 
-		CTRL_ED25519: testdata.CtrlED25519.PublicKey(),
-		CTRL_AES_Key: testdata.CtrlAESKey,
+		CtrlED25519: testdata.CtrlED25519.PublicKey(),
+		CtrlAESKey:  testdata.CtrlAESKey,
 
-		Is_Genesis:       genesis,
-		Register_AES_Key: regAESKey,
+		IsGenesis:      genesis,
+		RegisterAESKey: regAESKey,
 
-		Conn_Limit: 10,
-		Listeners:  testdata.Listeners(t),
+		ConnLimit: 10,
+		Listeners: testdata.Listeners(t),
 	}
-	c.Debug.Skip_Timesync = true
+	cfg.Debug.SkipTimeSyncer = true
 	// encrypt register info
 	register := testdata.Register(t)
 	for i := 0; i < len(register); i++ {
@@ -48,8 +47,8 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 		require.NoError(t, err)
 		register[i].Config = configEnc
 	}
-	c.Register_Bootstraps = register
-	n, err := node.New(c)
+	cfg.RegisterBootstraps = register
+	n, err := node.New(cfg)
 	require.NoError(t, err)
 	return n
 }
@@ -196,4 +195,3 @@ func BenchmarkClient_SendParallel(b *testing.B) {
 	b.StopTimer()
 	client.Close()
 }
-*/

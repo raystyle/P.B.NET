@@ -34,6 +34,6 @@ func testGenerateConfig() *Config {
 		HTTPSKeyFile:  "../app/cert/server.key",
 		WebDir:        "../app/web",
 	}
-	c.debug.skipTimeSyncer = true
+	c.Debug.SkipTimeSyncer = true
 	return c
 }

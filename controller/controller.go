@@ -20,7 +20,7 @@ const (
 )
 
 type CTRL struct {
-	debug  *debug
+	debug  *Debug
 	logLv  logger.Level
 	db     *gorm.DB
 	dbLg   *dbLogger
@@ -72,7 +72,7 @@ func New(cfg *Config) (*CTRL, error) {
 		db.LogMode(true)
 	}
 	// copy debug config
-	debug := cfg.debug
+	debug := cfg.Debug
 	ctrl := &CTRL{
 		debug:  &debug,
 		logLv:  lv,
@@ -121,7 +121,7 @@ func New(cfg *Config) (*CTRL, error) {
 	// load time syncer configs from database
 	tcs, err := ctrl.SelectTimeSyncer()
 	if err != nil {
-		return nil, errors.Wrap(err, "load time syncer clients failed")
+		return nil, errors.Wrap(err, "select time syncer failed")
 	}
 	for i := 0; i < len(tcs); i++ {
 		cfg := &timesync.Config{}
@@ -150,7 +150,7 @@ func New(cfg *Config) (*CTRL, error) {
 func (ctrl *CTRL) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// first synchronize time
-	if !ctrl.debug.skipTimeSyncer {
+	if !ctrl.debug.SkipTimeSyncer {
 		err := ctrl.global.StartTimeSyncer()
 		if err != nil {
 			return ctrl.fatal(err, "synchronize time failed")
