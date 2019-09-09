@@ -10,7 +10,7 @@ import (
 
 const depth = 32
 
-func Print(panic interface{}) string {
+func Sprint(panic interface{}) string {
 	b := &bytes.Buffer{}
 	_, _ = fmt.Fprintln(b, panic)
 	printStack(b)
