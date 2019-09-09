@@ -8,19 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Genesis_Node(t *testing.T) {
-	test_node(t, true)
+func TestGenesisNode(t *testing.T) {
+	testNode(t, true)
 }
 
-func Test_Common_Node(t *testing.T) {
-	test_node(t, false)
+func TestCommonNode(t *testing.T) {
+	testNode(t, false)
 }
 
-func test_node(t *testing.T, genesis bool) {
-	node, err := New(test_gen_config(t, genesis))
-	require.Nil(t, err, err)
+func testNode(t *testing.T, genesis bool) {
+	node, err := New(testGenerateConfig(t, genesis))
+	require.NoError(t, err)
 	err = node.Main()
-	require.Nil(t, err, err)
+	require.NoError(t, err)
 }
 
 func pprof() {

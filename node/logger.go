@@ -8,8 +8,8 @@ import (
 	"project/internal/logger"
 )
 
-func (this *NODE) Printf(l logger.Level, src, format string, log ...interface{}) {
-	if l < this.log_lv {
+func (node *NODE) Printf(l logger.Level, src, format string, log ...interface{}) {
+	if l < node.logLv {
 		return
 	}
 	b := logger.Prefix(l, src)
@@ -17,11 +17,11 @@ func (this *NODE) Printf(l logger.Level, src, format string, log ...interface{})
 		return
 	}
 	_, _ = fmt.Fprintf(b, format, log...)
-	this.print_log(b)
+	node.printLog(b)
 }
 
-func (this *NODE) Print(l logger.Level, src string, log ...interface{}) {
-	if l < this.log_lv {
+func (node *NODE) Print(l logger.Level, src string, log ...interface{}) {
+	if l < node.logLv {
 		return
 	}
 	b := logger.Prefix(l, src)
@@ -29,11 +29,11 @@ func (this *NODE) Print(l logger.Level, src string, log ...interface{}) {
 		return
 	}
 	_, _ = fmt.Fprint(b, log...)
-	this.print_log(b)
+	node.printLog(b)
 }
 
-func (this *NODE) Println(l logger.Level, src string, log ...interface{}) {
-	if l < this.log_lv {
+func (node *NODE) Println(l logger.Level, src string, log ...interface{}) {
+	if l < node.logLv {
 		return
 	}
 	b := logger.Prefix(l, src)
@@ -42,10 +42,10 @@ func (this *NODE) Println(l logger.Level, src string, log ...interface{}) {
 	}
 	_, _ = fmt.Fprintln(b, log...)
 	b.Truncate(b.Len() - 1) // delete "\n"
-	this.print_log(b)
+	node.printLog(b)
 }
 
-func (this *NODE) print_log(b *bytes.Buffer) {
+func (node *NODE) printLog(b *bytes.Buffer) {
 	// send to controller
 
 	// print console

@@ -9,185 +9,187 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
-	"project/internal/global/dnsclient"
-	"project/internal/global/proxyclient"
-	"project/internal/global/timesync"
+	"project/internal/dns"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/proxy"
 	"project/internal/random"
 	"project/internal/security"
+	"project/internal/timesync"
 )
 
 type global struct {
-	proxy      *proxyclient.PROXY
-	dns        *dnsclient.DNS
-	timesync   *timesync.TIMESYNC
+	proxyPool  *proxy.Pool
+	dnsClient  *dns.Client
+	timeSyncer *timesync.TimeSyncer
 	object     map[uint32]interface{}
-	object_rwm sync.RWMutex
-	conf_err   error
-	conf_once  sync.Once
+	objectRWM  sync.RWMutex
+	configErr  error
+	configOnce sync.Once
 	wg         sync.WaitGroup
 }
 
-func new_global(lg logger.Logger, c *Config) (*global, error) {
+func newGlobal(lg logger.Logger, cfg *Config) (*global, error) {
 	// <security> basic
-	memory := security.New_Memory()
+	memory := security.NewMemory()
 	memory.Padding()
-	p, err := proxyclient.New(c.Proxy_Clients)
+	proxyPool, err := proxy.NewPool(cfg.ProxyClients)
 	if err != nil {
-		return nil, errors.Wrap(err, "load proxy clients failed")
+		return nil, errors.Wrap(err, "new proxy pool failed")
 	}
 	memory.Padding()
-	d, err := dnsclient.New(p, c.DNS_Clients, c.DNS_Cache_Deadline)
+	dnsClient, err := dns.NewClient(proxyPool, cfg.DNSServers, cfg.DnsCacheDeadline)
 	if err != nil {
-		return nil, errors.Wrap(err, "load dns clients failed")
+		return nil, errors.Wrap(err, "new dns client failed")
 	}
 	memory.Padding()
-	var l logger.Logger
-	if c.Check_Mode {
-		l = logger.Discard
-	} else {
-		l = lg
+	// replace logger
+	if cfg.CheckMode {
+		lg = logger.Discard
 	}
-	t, err := timesync.New(p, d, l, c.Timesync_Clients, c.Timesync_Interval)
+	timeSyncer, err := timesync.NewTimeSyncer(
+		proxyPool,
+		dnsClient,
+		lg,
+		cfg.TimeSyncerConfigs,
+		cfg.TimeSyncerInterval)
 	if err != nil {
-		return nil, errors.Wrap(err, "load timesync clients failed")
+		return nil, errors.Wrap(err, "new time syncer failed")
 	}
 	memory.Flush()
-	g := &global{
-		proxy:    p,
-		dns:      d,
-		timesync: t,
+	g := global{
+		proxyPool:  proxyPool,
+		dnsClient:  dnsClient,
+		timeSyncer: timeSyncer,
 	}
-	err = g.configure(c)
+	err = g.configure(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return g, nil
+	return &g, nil
 }
 
 // <security>
-func (this *global) sec_padding_memory() {
-	generator := random.New()
-	memory := security.New_Memory()
-	security.Padding_Memory()
+func (global *global) secPaddingMemory() {
+	rand := random.New(0)
+	memory := security.NewMemory()
+	security.PaddingMemory()
 	padding := func() {
-		for i := 0; i < 32+generator.Int(256); i++ {
+		for i := 0; i < 32+rand.Int(256); i++ {
 			memory.Padding()
 		}
 	}
-	this.wg.Add(1)
+	global.wg.Add(1)
 	go func() {
 		padding()
-		this.wg.Done()
+		global.wg.Done()
 	}()
 	padding()
-	this.wg.Wait()
+	global.wg.Wait()
 }
 
-func (this *global) configure(c *Config) error {
-	this.conf_once.Do(func() {
-		this.sec_padding_memory()
-		rand := random.New()
+func (global *global) configure(cfg *Config) error {
+	global.configOnce.Do(func() {
+		global.secPaddingMemory()
+		rand := random.New(0)
 		// random object map
-		this.object = make(map[uint32]interface{})
+		global.object = make(map[uint32]interface{})
 		for i := 0; i < 32+rand.Int(512); i++ { // 544 * 160 bytes
-			key := object_key_max + uint32(1+rand.Int(512))
-			this.object[key] = rand.Bytes(32 + rand.Int(128))
+			key := objectKeyMax + uint32(1+rand.Int(512))
+			global.object[key] = rand.Bytes(32 + rand.Int(128))
 		}
-		this.gen_internal_objects()
-		this.conf_err = this.load_ctrl_configs(c)
+		global.generateInternalObjects()
+		global.configErr = global.loadCtrlConfigs(cfg)
 	})
-	return this.conf_err
+	return global.configErr
 }
 
-func (this *global) load_ctrl_configs(c *Config) error {
-	this.sec_padding_memory()
+func (global *global) loadCtrlConfigs(cfg *Config) error {
+	global.secPaddingMemory()
 	// controller ed25519 public key
-	pub := c.CTRL_ED25519
-	publickey, err := ed25519.Import_PublicKey(pub)
+	publicKey, err := ed25519.ImportPublicKey(cfg.CtrlED25519)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	this.object[ctrl_ed25519] = publickey
+	global.object[ctrlED25519] = publicKey
 	// controller aes
-	key := c.CTRL_AES_Key
+	key := cfg.CtrlAESKey
 	l := len(key)
-	if l < aes.BIT128+aes.IV_SIZE {
-		return errors.New("invalid controller aes key")
+	if l < aes.Bit128+aes.IVSize {
+		return errors.New("invalid controller aes key size")
 	}
-	iv := key[l-aes.IV_SIZE:]
-	key = key[:l-aes.IV_SIZE]
-	cryptor, err := aes.New_CBC_Cryptor(key, iv)
+	iv := key[l-aes.IVSize:]
+	key = key[:l-aes.IVSize]
+	cbc, err := aes.NewCBC(key, iv)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	this.object[ctrl_aes_cryptor] = cryptor
+	global.object[ctrlAESCrypto] = cbc
 	return nil
 }
 
 // 1. node guid
-// 2. aes cryptor for database & self guid
-func (this *global) gen_internal_objects() {
+// 2. aes cbc for database & self guid
+func (global *global) generateInternalObjects() {
 	// generate guid and select one
-	this.sec_padding_memory()
-	rand := random.New()
-	guid_generator := guid.New(64, nil)
-	var guid_pool [1024][]byte
-	for i := 0; i < len(guid_pool); i++ {
-		guid_pool[i] = guid_generator.Get()
+	global.secPaddingMemory()
+	rand := random.New(0)
+	g := guid.New(64, nil)
+	var guidPool [1024][]byte
+	for i := 0; i < len(guidPool); i++ {
+		guidPool[i] = g.Get()
 	}
-	guid_generator.Close()
-	guid_selected := make([]byte, guid.SIZE)
-	copy(guid_selected, guid_pool[rand.Int(1024)])
-	this.object[node_guid] = guid_selected
+	g.Close()
+	guidSelected := make([]byte, guid.SIZE)
+	copy(guidSelected, guidPool[rand.Int(1024)])
+	global.object[nodeGUID] = guidSelected
 	// generate database aes
-	aes_key := rand.Bytes(aes.BIT256)
-	aes_iv := rand.Bytes(aes.IV_SIZE)
-	cryptor, err := aes.New_CBC_Cryptor(aes_key, aes_iv)
+	aesKey := rand.Bytes(aes.Bit256)
+	aesIV := rand.Bytes(aes.IVSize)
+	cbc, err := aes.NewCBC(aesKey, aesIV)
 	if err != nil {
 		panic(err)
 	}
-	security.Flush_Bytes(aes_key)
-	security.Flush_Bytes(aes_iv)
-	this.object[db_aes_cryptor] = cryptor
+	security.FlushBytes(aesKey)
+	security.FlushBytes(aesIV)
+	global.object[dbAESCrypto] = cbc
 	// encrypt guid
-	guid_enc, err := this.DB_Encrypt(this.GUID())
+	guidEnc, err := global.DBEncrypt(global.GUID())
 	if err != nil {
 		panic(err)
 	}
-	str := base64.StdEncoding.EncodeToString(guid_enc)
-	this.object[node_guid_enc] = str
+	str := base64.StdEncoding.EncodeToString(guidEnc)
+	global.object[nodeGUIDEnc] = str
 }
 
 // about internal
 
-func (this *global) Start_Timesync() error {
-	return this.timesync.Start()
+func (global *global) StartTimeSyncer() error {
+	return global.timeSyncer.Start()
 }
 
-func (this *global) Now() time.Time {
-	return this.timesync.Now().Local()
+func (global *global) Now() time.Time {
+	return global.timeSyncer.Now().Local()
 }
 
-func (this *global) GUID() []byte {
-	this.object_rwm.RLock()
-	g := this.object[node_guid]
-	this.object_rwm.RUnlock()
+func (global *global) GUID() []byte {
+	global.objectRWM.RLock()
+	g := global.object[nodeGUID]
+	global.objectRWM.RUnlock()
 	return g.([]byte)
 }
 
-func (this *global) GUID_Enc() string {
-	this.object_rwm.RLock()
-	g := this.object[node_guid_enc]
-	this.object_rwm.RUnlock()
+func (global *global) GUIDEnc() string {
+	global.objectRWM.RLock()
+	g := global.object[nodeGUIDEnc]
+	global.objectRWM.RUnlock()
 	return g.(string)
 }
 
-func (this *global) Cert() []byte {
-	this.object_rwm.RLock()
-	c := this.object[certificate]
-	this.object_rwm.RUnlock()
+func (global *global) Certificate() []byte {
+	global.objectRWM.RLock()
+	c := global.object[certificate]
+	global.objectRWM.RUnlock()
 	if c != nil {
 		return c.([]byte)
 	} else {
@@ -195,35 +197,35 @@ func (this *global) Cert() []byte {
 	}
 }
 
-// use controller publickey to verify message
-func (this *global) CTRL_Verify(message, signature []byte) bool {
-	this.object_rwm.RLock()
-	p := this.object[ctrl_ed25519]
-	this.object_rwm.RUnlock()
+// use controller public key to verify message
+func (global *global) CTRLVerify(message, signature []byte) bool {
+	global.objectRWM.RLock()
+	p := global.object[ctrlED25519]
+	global.objectRWM.RUnlock()
 	return ed25519.Verify(p.(ed25519.PublicKey), message, signature)
 }
 
-func (this *global) CTRL_Decrypt(cipherdata []byte) ([]byte, error) {
-	this.object_rwm.RLock()
-	k := this.object[ctrl_aes_cryptor]
-	this.object_rwm.RUnlock()
-	return k.(*aes.CBC_Cryptor).Decrypt(cipherdata)
+func (global *global) CTRLDecrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[ctrlAESCrypto]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Decrypt(data)
 }
 
-func (this *global) DB_Encrypt(plaindata []byte) ([]byte, error) {
-	this.object_rwm.RLock()
-	c := this.object[db_aes_cryptor]
-	this.object_rwm.RUnlock()
-	return c.(*aes.CBC_Cryptor).Encrypt(plaindata)
+func (global *global) DBEncrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[dbAESCrypto]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Encrypt(data)
 }
 
-func (this *global) DB_Decrypt(cipherdata []byte) ([]byte, error) {
-	this.object_rwm.RLock()
-	c := this.object[db_aes_cryptor]
-	this.object_rwm.RUnlock()
-	return c.(*aes.CBC_Cryptor).Decrypt(cipherdata)
+func (global *global) DBDecrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[dbAESCrypto]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Decrypt(data)
 }
 
-func (this *global) Close() {
-	this.timesync.Stop()
+func (global *global) Destroy() {
+	global.timeSyncer.Stop()
 }

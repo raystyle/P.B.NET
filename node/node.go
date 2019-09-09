@@ -10,7 +10,7 @@ import (
 
 type NODE struct {
 	debug  *Debug
-	log_lv logger.Level
+	logLv  logger.Level
 	global *global
 	server *server
 	once   sync.Once
@@ -18,33 +18,33 @@ type NODE struct {
 	exit   chan error
 }
 
-func New(c *Config) (*NODE, error) {
+func New(cfg *Config) (*NODE, error) {
 	// init logger
-	l, err := logger.Parse(c.Log_Level)
+	lv, err := logger.Parse(cfg.LogLevel)
 	if err != nil {
 		return nil, err
 	}
 	// copy debug config
-	debug := c.Debug
+	debug := cfg.Debug
 	node := &NODE{
-		debug:  &debug,
-		log_lv: l,
+		debug: &debug,
+		logLv: lv,
 	}
 	// init global
-	g, err := new_global(node, c)
+	global, err := newGlobal(node, cfg)
 	if err != nil {
 		return nil, err
 	}
-	node.global = g
+	node.global = global
 	// init server
-	s, err := new_server(node, c)
+	Server, err := newServer(node, cfg)
 	if err != nil {
 		return nil, err
 	}
-	node.server = s
+	node.server = Server
 	// init server
-	if !c.Is_Genesis {
-		err = node.register(c)
+	if !cfg.IsGenesis {
+		err = node.register(cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -54,46 +54,46 @@ func New(c *Config) (*NODE, error) {
 	return node, nil
 }
 
-func (this *NODE) Main() error {
-	defer func() { this.wait <- struct{}{} }()
+func (node *NODE) Main() error {
+	defer func() { node.wait <- struct{}{} }()
 	// first synchronize time
-	if !this.debug.Skip_Timesync {
-		err := this.global.Start_Timesync()
+	if !node.debug.SkipTimeSyncer {
+		err := node.global.StartTimeSyncer()
 		if err != nil {
-			return this.fatal(err, "synchronize time failed")
+			return node.fatal(err, "synchronize time failed")
 		}
 	}
-	now := this.global.Now().Format(logger.Time_Layout)
-	this.Println(logger.INFO, "init", "time:", now)
-	err := this.server.Deploy()
+	now := node.global.Now().Format(logger.TimeLayout)
+	node.Println(logger.INFO, "init", "time:", now)
+	err := node.server.Deploy()
 	if err != nil {
-		return this.fatal(err, "deploy server failed")
+		return node.fatal(err, "deploy server failed")
 	}
-	this.Print(logger.INFO, "init", "node is running")
-	this.wait <- struct{}{}
-	return <-this.exit
+	node.Print(logger.INFO, "init", "node is running")
+	node.wait <- struct{}{}
+	return <-node.exit
 }
 
-func (this *NODE) fatal(err error, msg string) error {
+func (node *NODE) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	this.Println(logger.FATAL, "init", err)
-	this.Exit(nil)
+	node.Println(logger.FATAL, "init", err)
+	node.Exit(nil)
 	return err
 }
 
 // for Test wait for Main()
-func (this *NODE) Wait() {
-	<-this.wait
+func (node *NODE) Wait() {
+	<-node.wait
 }
 
-func (this *NODE) Exit(err error) {
-	this.once.Do(func() {
-		this.server.Shutdown()
-		this.Print(logger.INFO, "exit", "web server is stopped")
-		this.global.Close()
-		this.Print(logger.INFO, "exit", "global is stopped")
-		this.exit <- err
-		close(this.exit)
-		this.Print(logger.INFO, "exit", "node is stopped")
+func (node *NODE) Exit(err error) {
+	node.once.Do(func() {
+		node.server.Shutdown()
+		node.Print(logger.INFO, "exit", "web server is stopped")
+		node.global.Destroy()
+		node.Print(logger.INFO, "exit", "global is stopped")
+		node.Print(logger.INFO, "exit", "node is stopped")
+		node.exit <- err
+		close(node.exit)
 	})
 }
