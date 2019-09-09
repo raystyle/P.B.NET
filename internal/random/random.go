@@ -36,9 +36,9 @@ func (r *Rand) String(n int) string {
 	result := make([]rune, n)
 	for i := 0; i < n; i++ {
 		r.m.Lock()
-		i := r.rand.Intn(90)
+		ri := r.rand.Intn(90)
 		r.m.Unlock()
-		result[i] = rune(33 + i)
+		result[i] = rune(33 + ri)
 	}
 	return string(result)
 }
@@ -50,9 +50,9 @@ func (r *Rand) Bytes(n int) []byte {
 	result := make([]byte, n)
 	for i := 0; i < n; i++ {
 		r.m.Lock()
-		i := r.rand.Intn(256)
+		ri := r.rand.Intn(256)
 		r.m.Unlock()
-		result[i] = byte(i)
+		result[i] = byte(ri)
 	}
 	return result
 }
