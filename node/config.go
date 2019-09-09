@@ -4,96 +4,94 @@ import (
 	"time"
 
 	"project/internal/config"
-	"project/internal/global/dnsclient"
-	"project/internal/global/proxyclient"
-	"project/internal/global/timesync"
+	"project/internal/dns"
+	"project/internal/proxy"
+	"project/internal/timesync"
 )
 
 type Debug struct {
-	Skip_Timesync bool
+	SkipTimeSyncer bool
 }
 
 type Config struct {
 	Debug Debug
 
-	// check
-	Check_Mode bool
+	// CheckMode is used to check whether
+	// the configuration is correct
+	CheckMode bool
 
 	// logger
-	Log_Level string
+	LogLevel string
 
 	// global
-	Proxy_Clients      map[string]*proxyclient.Client
-	DNS_Clients        map[string]*dnsclient.Client
-	DNS_Cache_Deadline time.Duration
-	Timesync_Clients   map[string]*timesync.Client
-	Timesync_Interval  time.Duration
+	ProxyClients       map[string]*proxy.Client
+	DNSServers         map[string]*dns.Server
+	DnsCacheDeadline   time.Duration
+	TimeSyncerConfigs  map[string]*timesync.Config
+	TimeSyncerInterval time.Duration
 
 	// controller
-	CTRL_ED25519 []byte // public key
-	CTRL_AES_Key []byte // key + iv
+	CtrlED25519 []byte // public key
+	CtrlAESKey  []byte // key + iv
 
 	// register
-	Is_Genesis          bool   // use controller to register
-	Register_AES_Key    []byte // key + iv Config is encrypted
-	Register_Bootstraps []*config.Bootstrap
+	IsGenesis          bool   // use controller to register
+	RegisterAESKey     []byte // key + iv Config is encrypted
+	RegisterBootstraps []*config.Bootstrap
 
 	// server
-	Conn_Limit        int
-	Handshake_Timeout time.Duration
-	Listeners         []*config.Listener
+	ConnLimit        int
+	HandshakeTimeout time.Duration
+	Listeners        []*config.Listener
 }
 
 // before create a node need check config
-func (this *Config) Check() error {
-	this.Check_Mode = true
-	node, err := New(this)
+func (cfg *Config) Check() error {
+	cfg.CheckMode = true
+	node, err := New(cfg)
 	if err != nil {
 		return err
 	}
-	err = node.global.timesync.Test()
+	err = node.global.timeSyncer.Test()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (this *Config) Build() {
+func (cfg *Config) Build() {
 
 }
 
 // runtime env
 // 0 < key < 1048576
-const object_key_max uint32 = 1048575
+const objectKeyMax uint32 = 1048575
 
-type object_key = uint32
+type objectKey = uint32
 
 const (
 	// external object
-	// verify controller role & message
-	ctrl_ed25519 object_key = iota
-	// decrypt controller broadcast message
-	ctrl_aes_cryptor
+	ctrlED25519   objectKey = iota // verify controller role & message
+	ctrlAESCrypto                  // decrypt controller broadcast message
 
 	// internal object
-	node_guid      // identification
-	node_guid_enc  // update self sync_send_height
-	db_aes_cryptor // encrypt self data(database)
-	startup_time   // global.configure time
-	certificate    // for listener
-	session_ed25519
-	session_key
+	nodeGUID    // identification
+	nodeGUIDEnc // update self syncSendHeight
+	dbAESCrypto // encrypt self data(database)
+	startupTime // global.configure time
+	certificate // for listener
+	sessionED25519
+	sessionKey
 
-	// sync_send
-	sync_send_height
+	// sync message
+	syncSendHeight // sync send
 
 	// confuse object
-
-	confusion_00
-	confusion_01
-	confusion_02
-	confusion_03
-	confusion_04
-	confusion_05
-	confusion_06
+	confusion00
+	confusion01
+	confusion02
+	confusion03
+	confusion04
+	confusion05
+	confusion06
 )
