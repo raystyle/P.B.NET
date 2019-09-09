@@ -171,13 +171,18 @@ func (ctrl *CTRL) Main() error {
 		ctrl.Print(logger.INFO, "init", "load keys successfully")
 		// load boot
 		ctrl.Print(logger.INFO, "init", "start discover bootstrap nodes")
-		bs, err := ctrl.SelectBoot()
+		boots, err := ctrl.SelectBoot()
 		if err != nil {
 			ctrl.Println(logger.ERROR, "init", "select boot failed:", err)
+			return
 		}
-		for i := 0; i < len(bs); i++ {
-			_ = ctrl.AddBoot(bs[i])
+		for i := 0; i < len(boots); i++ {
+			err = ctrl.AddBoot(boots[i])
+			if err != nil {
+				ctrl.Print(logger.ERROR, "boot", err)
+			}
 		}
+
 	}()
 	ctrl.wait <- struct{}{}
 	return <-ctrl.exit
