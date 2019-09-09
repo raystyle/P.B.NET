@@ -50,8 +50,7 @@ func TestHTrustNode(t *testing.T) {
 	reader := testEncodeJSON(t, m)
 	resp, err := testRestfulAPI(http.MethodPost, "api/node/trust", reader)
 	require.NoError(t, err)
-	fmt.Println(string(resp))
-	time.Sleep(1 * time.Second)
+	fmt.Println("trust node result:", string(resp))
 	testShutdown()
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 }

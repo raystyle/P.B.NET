@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"net"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -12,7 +13,8 @@ import (
 )
 
 func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
-	conn := xnet.NewConn(c, client.ctx.global.Now().Unix())
+	dConn := xnet.NewDeadlineConn(c, time.Minute)
+	conn := xnet.NewConn(dConn, client.ctx.global.Now().Unix())
 	// receive certificate
 	cert, err := conn.Receive()
 	if err != nil {
@@ -37,7 +39,7 @@ func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
 	// receive random challenge data(length 2048-4096)
 	// len(challenge) must > len(GUID + Mode + Network + Address)
 	// because maybe fake node will send some special data
-	// and if controller sign it will destory net
+	// and if controller sign it will destroy net
 	if len(challenge) < 2048 || len(challenge) > 4096 {
 		err = errors.New("invalid challenge size")
 		client.log(logger.EXPLOIT, err)
@@ -57,5 +59,6 @@ func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
 		client.log(logger.EXPLOIT, err)
 		return nil, err
 	}
-	return conn, nil
+	// remove deadline conn
+	return xnet.NewConn(c, client.ctx.global.Now().Unix()), nil
 }

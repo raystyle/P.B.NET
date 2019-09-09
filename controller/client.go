@@ -49,21 +49,20 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	c := &client{
+	client := client{
 		ctx:      ctx,
 		node:     cfg.Node,
 		guid:     cfg.NodeGUID,
 		closeLog: cfg.CloseLog,
 	}
-	_ = conn.SetDeadline(time.Now().Add(time.Minute))
-	xconn, err := c.handshake(conn)
+	xconn, err := client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
 		return nil, errors.WithMessage(err, "handshake failed")
 	}
-	c.conn = xconn
+	client.conn = xconn
 	// init slot
-	c.slots = make([]*protocol.Slot, protocol.SlotSize)
+	client.slots = make([]*protocol.Slot, protocol.SlotSize)
 	for i := 0; i < protocol.SlotSize; i++ {
 		s := &protocol.Slot{
 			Available: make(chan struct{}, 1),
@@ -71,21 +70,21 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 			Timer:     time.NewTimer(protocol.RecvTimeout),
 		}
 		s.Available <- struct{}{}
-		c.slots[i] = s
+		client.slots[i] = s
 	}
-	c.replyTimer = time.NewTimer(time.Second)
-	c.stopSignal = make(chan struct{})
+	client.replyTimer = time.NewTimer(time.Second)
+	client.stopSignal = make(chan struct{})
 	go func() {
-		// not add wg, because c.Close
+		// not add wg, because client.Close
 		// TODO recover
 		defer func() {
 
 		}()
-		protocol.HandleConn(c.conn, c.handleMessage, c.Close)
+		protocol.HandleConn(client.conn, client.handleMessage, client.Close)
 	}()
-	c.wg.Add(1)
-	go c.heartbeat()
-	return c, nil
+	client.wg.Add(1)
+	go client.heartbeat()
+	return &client, nil
 }
 
 func (client *client) Close() {

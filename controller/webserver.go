@@ -107,7 +107,7 @@ func (web *web) Close() {
 
 func (web *web) hPanic(w hRW, r *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
-	_, _ = w.Write([]byte(xpanic.Print(e)))
+	_, _ = w.Write([]byte(xpanic.Sprint(e)))
 }
 
 func (web *web) hLogin(w hRW, r *hR, p hP) {

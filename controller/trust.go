@@ -14,9 +14,9 @@ import (
 
 // TrustNode is used to trust Genesis Node
 func (ctrl *CTRL) TrustNode(node *bootstrap.Node) error {
-	c := &clientCfg{Node: node}
-	c.TLSConfig.InsecureSkipVerify = true
-	client, err := newClient(ctrl, c)
+	cfg := &clientCfg{Node: node}
+	cfg.TLSConfig.InsecureSkipVerify = true
+	client, err := newClient(ctrl, cfg)
 	if err != nil {
 		return errors.Wrap(err, "connect node failed")
 	}
