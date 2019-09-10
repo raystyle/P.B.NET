@@ -12,13 +12,14 @@ import (
 )
 
 var (
+	CtrlKeysPWD    = "123456789012"
 	CtrlED25519    ed25519.PrivateKey
 	CtrlCurve25519 []byte
 	CtrlAESKey     []byte
 )
 
 func init() {
-	keys, err := loadCtrlKeys("../app/key/ctrl.key", "123456789012")
+	keys, err := loadCtrlKeys("../app/key/ctrl.key", CtrlKeysPWD)
 	if err != nil {
 		panic(err)
 	}

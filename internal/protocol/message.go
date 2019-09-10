@@ -12,9 +12,8 @@ import (
 )
 
 var (
-	// message id is uint16 < 65536
-	SlotSize = 16 * runtime.NumCPU()
-	MaxMsgID = SlotSize - 1
+	SlotSize = 16 * runtime.NumCPU() // message id is uint16 < 65536
+	MaxMsgID = SlotSize - 1          // check invalid message id
 )
 
 type Slot struct {
@@ -40,7 +39,6 @@ var (
 	ErrRecvInvalidMsgIDSize = errors.New("receive invalid message id size")
 	ErrRecvInvalidMsgID     = errors.New("receive invalid message id")
 	ErrRecvInvalidReply     = errors.New("receive invalid reply")
-	ErrRecvInvalidTestMsg   = errors.New("receive invalid test message")
 	ErrConnClosed           = errors.New("connection closed")
 	ErrRecvTimeout          = errors.New("receive reply timeout")
 )

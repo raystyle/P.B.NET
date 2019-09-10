@@ -8,14 +8,13 @@ import (
 	"project/internal/config"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
-	"project/internal/info"
 )
 
 const (
-	MessageNodeOnlineRequest uint32 = 0x00000000 + iota
-	MessageNodeOnlineResponse
-	MessageBeaconOnlineRequest
-	MessageBeaconOnlineResponse
+	MsgNodeOnlineRequest uint32 = 0x00000000 + iota
+	MsgNodeOnlineResponse
+	MsgBeaconOnlineRequest
+	MsgBeaconOnlineResponse
 )
 
 const (
@@ -30,9 +29,9 @@ var (
 
 type NodeOnlineRequest struct {
 	GUID         []byte
-	PublicKey    []byte        // verify message
-	KexPublicKey []byte        // key exchange
-	HostInfo     info.HostInfo // online info session key
+	PublicKey    []byte // verify message
+	KexPublicKey []byte // key exchange
+	HostInfo     []byte // info.HostInfo, use session key encrypt it
 	RequestTime  time.Time
 }
 
@@ -45,6 +44,9 @@ func (n *NodeOnlineRequest) Validate() error {
 	}
 	if len(n.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange public key size")
+	}
+	if n.HostInfo == nil {
+		return errors.New("no host info")
 	}
 	return nil
 }
