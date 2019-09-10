@@ -51,7 +51,7 @@ var (
 )
 
 // msg_handler receive message = message type(4 byte) + message
-func HandleConn(conn net.Conn, msgHandler func([]byte), close func()) {
+func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 	const (
 		size = 4096
 
@@ -81,7 +81,6 @@ func HandleConn(conn net.Conn, msgHandler func([]byte), close func()) {
 		_ = conn.SetReadDeadline(time.Now().Add(heartbeat))
 		n, err := conn.Read(buffer)
 		if err != nil {
-			close()
 			return
 		}
 		data.Write(buffer[:n])

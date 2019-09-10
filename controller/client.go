@@ -78,9 +78,9 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 		// not add wg, because client.Close
 		// TODO recover
 		defer func() {
-
+			client.Close()
 		}()
-		protocol.HandleConn(client.conn, client.handleMessage, client.Close)
+		protocol.HandleConn(client.conn, client.handleMessage)
 	}()
 	client.wg.Add(1)
 	go client.heartbeat()

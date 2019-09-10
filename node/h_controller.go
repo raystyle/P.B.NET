@@ -22,7 +22,7 @@ type roleCtrl struct {
 	conn       *xnet.Conn
 	slots      []*protocol.Slot
 	replyTimer *time.Timer
-	random     *random.Rand // for handleHeartbeat()
+	rand       *random.Rand // for handleHeartbeat()
 	buffer     bytes.Buffer // for handleHeartbeat()
 	inClose    int32
 	closeOnce  sync.Once
@@ -36,12 +36,13 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 		conn:       conn,
 		slots:      make([]*protocol.Slot, protocol.SlotSize),
 		replyTimer: time.NewTimer(time.Second),
-		random:     random.New(server.ctx.global.Now().Unix()),
+		rand:       random.New(server.ctx.global.Now().Unix()),
 		stopSignal: make(chan struct{}),
 	}
 	server.addCtrl(ctrl)
 	server.log(logger.DEBUG, &sLog{c: conn, l: "controller connected"})
 	defer func() {
+		ctrl.Close()
 		server.delCtrl("", ctrl)
 		server.log(logger.DEBUG, &sLog{c: conn, l: "controller disconnected"})
 	}()
@@ -56,7 +57,7 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 		s.Available <- struct{}{}
 		ctrl.slots[i] = s
 	}
-	protocol.HandleConn(conn, ctrl.handleMessage, ctrl.Close)
+	protocol.HandleConn(conn, ctrl.handleMessage)
 }
 
 func (ctrl *roleCtrl) Info() *xnet.Info {
@@ -132,12 +133,12 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 
 func (ctrl *roleCtrl) handleHeartbeat() {
 	// <security> fake flow like client
-	fakeSize := 64 + ctrl.random.Int(256)
+	fakeSize := 64 + ctrl.rand.Int(256)
 	// size(4 Bytes) + heartbeat(1 byte) + fake data
 	ctrl.buffer.Reset()
 	ctrl.buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
 	ctrl.buffer.WriteByte(protocol.NodeHeartbeat)
-	ctrl.buffer.Write(ctrl.random.Bytes(fakeSize))
+	ctrl.buffer.Write(ctrl.rand.Bytes(fakeSize))
 	// send
 	_ = ctrl.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 	_, _ = ctrl.conn.Write(ctrl.buffer.Bytes())
@@ -244,6 +245,7 @@ func (ctrl *roleCtrl) handleTrustNode() {
 		panic(err)
 	}
 	b[0] = 0
+
 }
 
 func (ctrl *roleCtrl) handleTrustNodeData(data []byte) {

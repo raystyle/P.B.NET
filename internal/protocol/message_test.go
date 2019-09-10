@@ -36,7 +36,8 @@ func TestHandleMessage(t *testing.T) {
 			} else {
 				require.Equal(t, bigMsg, msg)
 			}
-		}, func() { _ = conn.Close() })
+		})
+		_ = conn.Close()
 		require.Equal(t, 5, count)
 	}()
 	// dial
@@ -75,7 +76,8 @@ func TestHandleNULLMessage(t *testing.T) {
 		require.NoError(t, err)
 		HandleConn(conn, func(msg []byte) {
 			require.Equal(t, ErrNullMsg, msg[0])
-		}, func() { _ = conn.Close() })
+		})
+		_ = conn.Close()
 	}()
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
@@ -101,7 +103,8 @@ func TestHandleTooBigMessage(t *testing.T) {
 		require.NoError(t, err)
 		HandleConn(conn, func(msg []byte) {
 			require.Equal(t, ErrTooBigMsg, msg[0])
-		}, func() { _ = conn.Close() })
+		})
+		_ = conn.Close()
 		_ = conn.Close()
 	}()
 	// dial
@@ -161,7 +164,8 @@ func benchmarkHandleMessage(b *testing.B, size int) {
 				b.FailNow()
 			}
 			count += 1
-		}, func() { _ = conn.Close() })
+		})
+		_ = conn.Close()
 		require.Equal(b, b.N, count)
 	}()
 	// dial
@@ -231,7 +235,8 @@ func benchmarkHandleMessageParallel(b *testing.B, size int) {
 				b.FailNow()
 			}
 			count += 1
-		}, func() { _ = conn.Close() })
+		})
+		_ = conn.Close()
 		require.Equal(b, nOnce*runtime.NumCPU(), count)
 	}()
 	// dial
