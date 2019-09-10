@@ -26,7 +26,7 @@ const (
 )
 
 const (
-	CtrlQueryStatus uint8 = 0x30 + iota
+	CtrlQueryNodeStatus uint8 = 0x30 + iota
 	CtrlQueryAllNodes
 )
 

@@ -1,6 +1,8 @@
 package messages
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 
 	"project/internal/config"
@@ -31,7 +33,7 @@ type NodeOnlineRequest struct {
 	PublicKey    []byte        // verify message
 	KexPublicKey []byte        // key exchange
 	HostInfo     info.HostInfo // online info session key
-	RequestTime  int64
+	RequestTime  time.Time
 }
 
 func (n *NodeOnlineRequest) Validate() error {

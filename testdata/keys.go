@@ -6,24 +6,35 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/crypto/sha256"
 )
 
 var (
-	CtrlKeysPWD = "123456789012"
-	CtrlED25519 ed25519.PrivateKey
-	CtrlAESKey  []byte
+	CtrlED25519    ed25519.PrivateKey
+	CtrlCurve25519 []byte
+	CtrlAESKey     []byte
 )
 
 func init() {
-	keys, err := loadCtrlKeys("../app/key/ctrl.key", CtrlKeysPWD)
+	keys, err := loadCtrlKeys("../app/key/ctrl.key", "123456789012")
 	if err != nil {
 		panic(err)
 	}
 	// ed25519
-	pri, _ := ed25519.ImportPrivateKey(keys[0])
+	pri, err := ed25519.ImportPrivateKey(keys[0])
+	if err != nil {
+		panic(err)
+	}
 	CtrlED25519 = pri
+	// curve25519
+	pub, err := curve25519.ScalarBaseMult(pri[:32])
+	if err != nil {
+		panic(err)
+	}
+	CtrlCurve25519 = pub
+	// broadcast
 	CtrlAESKey = append(keys[1], keys[2]...)
 }
 
