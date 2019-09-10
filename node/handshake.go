@@ -119,7 +119,7 @@ func (server *server) verifyCtrl(conn *xnet.Conn) {
 		return
 	}
 	// verify signature
-	if !server.ctx.global.CTRLVerify(challenge, signature) {
+	if !server.ctx.global.CtrlVerify(challenge, signature) {
 		l := &sLog{c: xconn, l: "invalid controller signature", e: err}
 		server.log(logger.EXPLOIT, l)
 		return

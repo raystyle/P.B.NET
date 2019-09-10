@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
 	"project/internal/guid"
@@ -16,6 +17,40 @@ import (
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/timesync"
+)
+
+// runtime env
+// 0 < key < 1048576
+const objectKeyMax uint32 = 1048575
+
+type objectKey = uint32
+
+const (
+	// controller
+	okCtrlPublicKey  objectKey = iota // verify controller role & message
+	okCtrlAESCrypto                   // decrypt controller broadcast message
+	okCtrlSessionKey                  // after key exchange (aes crypto)
+
+	okStartupTime    // global.configure() time
+	okNodeGUID       // identification
+	okNodeGUIDEnc    // update self syncSendHeight
+	okDBAESCrypto    // encrypt self data(database)
+	okCertificate    // for listener
+	okPrivateKey     // for sign message
+	okPublicKey      // for role verify message
+	okKeyExPublicKey // for key exchange
+
+	// sync message
+	okSyncSendHeight // sync send
+
+	// confuse object
+	okConfusion00
+	okConfusion01
+	okConfusion02
+	okConfusion03
+	okConfusion04
+	okConfusion05
+	okConfusion06
 )
 
 type global struct {
@@ -98,34 +133,11 @@ func (global *global) configure(cfg *Config) error {
 			key := objectKeyMax + uint32(1+rand.Int(512))
 			global.object[key] = rand.Bytes(32 + rand.Int(128))
 		}
+		global.object[okStartupTime] = global.Now() // set startup time
 		global.generateInternalObjects()
-		global.configErr = global.loadCtrlConfigs(cfg)
+		global.configErr = global.loadCtrlConfigs(cfg) // load controller configs
 	})
 	return global.configErr
-}
-
-func (global *global) loadCtrlConfigs(cfg *Config) error {
-	global.secPaddingMemory()
-	// controller ed25519 public key
-	publicKey, err := ed25519.ImportPublicKey(cfg.CtrlED25519)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	global.object[ctrlED25519] = publicKey
-	// controller aes
-	key := cfg.CtrlAESKey
-	l := len(key)
-	if l < aes.Bit128+aes.IVSize {
-		return errors.New("invalid controller aes key size")
-	}
-	iv := key[l-aes.IVSize:]
-	key = key[:l-aes.IVSize]
-	cbc, err := aes.NewCBC(key, iv)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	global.object[ctrlAESCrypto] = cbc
-	return nil
 }
 
 // 1. node guid
@@ -142,7 +154,7 @@ func (global *global) generateInternalObjects() {
 	g.Close()
 	guidSelected := make([]byte, guid.SIZE)
 	copy(guidSelected, guidPool[rand.Int(1024)])
-	global.object[nodeGUID] = guidSelected
+	global.object[okNodeGUID] = guidSelected
 	// generate database aes
 	aesKey := rand.Bytes(aes.Bit256)
 	aesIV := rand.Bytes(aes.IVSize)
@@ -152,17 +164,63 @@ func (global *global) generateInternalObjects() {
 	}
 	security.FlushBytes(aesKey)
 	security.FlushBytes(aesIV)
-	global.object[dbAESCrypto] = cbc
+	global.object[okDBAESCrypto] = cbc
 	// encrypt guid
 	guidEnc, err := global.DBEncrypt(global.GUID())
 	if err != nil {
 		panic(err)
 	}
 	str := base64.StdEncoding.EncodeToString(guidEnc)
-	global.object[nodeGUIDEnc] = str
+	global.object[okNodeGUIDEnc] = str
+	// generate private key and public key
+	pri, err := ed25519.GenerateKey()
+	if err != nil {
+		panic(err)
+	}
+	global.object[okPrivateKey] = pri
+	global.object[okPublicKey] = pri.PublicKey()
+	// calculate key exchange public key
+	pub, err := curve25519.ScalarBaseMult(pri[:32])
+	if err != nil {
+		panic(err)
+	}
+	global.object[okKeyExPublicKey] = pub
 }
 
-// about internal
+func (global *global) loadCtrlConfigs(cfg *Config) error {
+	global.secPaddingMemory()
+	// controller public key
+	publicKey, err := ed25519.ImportPublicKey(cfg.CtrlPublicKey)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	global.object[okCtrlPublicKey] = publicKey
+	// controller aes
+	key := cfg.CtrlAESCrypto
+	l := len(key)
+	if l < aes.Bit128+aes.IVSize {
+		return errors.New("invalid controller aes key size")
+	}
+	iv := key[l-aes.IVSize:]
+	key = key[:l-aes.IVSize]
+	cbc, err := aes.NewCBC(key, iv)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	global.object[okCtrlAESCrypto] = cbc
+	// calculate session key and set aes crypto
+	pri := global.object[okPrivateKey].(ed25519.PrivateKey)[:32]
+	sKey, err := curve25519.ScalarMult(pri, cfg.CtrlExPublicKey)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	sCBC, err := aes.NewCBC(sKey, sKey[:aes.IVSize])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	global.object[okCtrlSessionKey] = sCBC
+	return nil
+}
 
 func (global *global) StartTimeSyncer() error {
 	return global.timeSyncer.Start()
@@ -172,23 +230,30 @@ func (global *global) Now() time.Time {
 	return global.timeSyncer.Now().Local()
 }
 
+func (global *global) StartupTime() time.Time {
+	global.objectRWM.RLock()
+	t := global.object[okStartupTime]
+	global.objectRWM.RUnlock()
+	return t.(time.Time)
+}
+
 func (global *global) GUID() []byte {
 	global.objectRWM.RLock()
-	g := global.object[nodeGUID]
+	g := global.object[okNodeGUID]
 	global.objectRWM.RUnlock()
 	return g.([]byte)
 }
 
 func (global *global) GUIDEnc() string {
 	global.objectRWM.RLock()
-	g := global.object[nodeGUIDEnc]
+	g := global.object[okNodeGUIDEnc]
 	global.objectRWM.RUnlock()
 	return g.(string)
 }
 
 func (global *global) Certificate() []byte {
 	global.objectRWM.RLock()
-	c := global.object[certificate]
+	c := global.object[okCertificate]
 	global.objectRWM.RUnlock()
 	if c != nil {
 		return c.([]byte)
@@ -197,31 +262,74 @@ func (global *global) Certificate() []byte {
 	}
 }
 
-// use controller public key to verify message
-func (global *global) CTRLVerify(message, signature []byte) bool {
+// Sign is used to get node key exchange public key
+func (global *global) KeyExchangePub() []byte {
 	global.objectRWM.RLock()
-	p := global.object[ctrlED25519]
+	pub := global.object[okKeyExPublicKey]
 	global.objectRWM.RUnlock()
-	return ed25519.Verify(p.(ed25519.PublicKey), message, signature)
+	return pub.([]byte)
 }
 
-func (global *global) CTRLDecrypt(data []byte) ([]byte, error) {
+// Sign is used to get node public key
+func (global *global) PublicKey() ed25519.PublicKey {
 	global.objectRWM.RLock()
-	cbc := global.object[ctrlAESCrypto]
+	k := global.object[okPublicKey]
 	global.objectRWM.RUnlock()
-	return cbc.(*aes.CBC).Decrypt(data)
+	return k.(ed25519.PublicKey)
 }
 
-func (global *global) DBEncrypt(data []byte) ([]byte, error) {
+// Sign is used to sign node message
+func (global *global) Sign(message []byte) []byte {
 	global.objectRWM.RLock()
-	cbc := global.object[dbAESCrypto]
+	k := global.object[okPrivateKey]
+	global.objectRWM.RUnlock()
+	return ed25519.Sign(k.(ed25519.PrivateKey), message)
+}
+
+// Encrypt is used to encrypt session data
+func (global *global) Encrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[okCtrlSessionKey]
 	global.objectRWM.RUnlock()
 	return cbc.(*aes.CBC).Encrypt(data)
 }
 
+// Decrypt is used to decrypt session data
+func (global *global) Decrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[okCtrlSessionKey]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Decrypt(data)
+}
+
+// DBEncrypt is used to encrypt database data
+func (global *global) DBEncrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[okDBAESCrypto]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Encrypt(data)
+}
+
+// DBDecrypt is used to decrypt database data
 func (global *global) DBDecrypt(data []byte) ([]byte, error) {
 	global.objectRWM.RLock()
-	cbc := global.object[dbAESCrypto]
+	cbc := global.object[okDBAESCrypto]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Decrypt(data)
+}
+
+// CtrlVerify is used to verify controller message
+func (global *global) CtrlVerify(message, signature []byte) bool {
+	global.objectRWM.RLock()
+	p := global.object[okCtrlPublicKey]
+	global.objectRWM.RUnlock()
+	return ed25519.Verify(p.(ed25519.PublicKey), message, signature)
+}
+
+// CtrlDecrypt is used to decrypt controller broadcast message
+func (global *global) CtrlDecrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[okCtrlAESCrypto]
 	global.objectRWM.RUnlock()
 	return cbc.(*aes.CBC).Decrypt(data)
 }

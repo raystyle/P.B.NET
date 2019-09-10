@@ -10,6 +10,7 @@ import (
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
+	"project/internal/info"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
@@ -238,14 +239,17 @@ func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
 
 func (ctrl *roleCtrl) handleTrustNode() {
 	req := &messages.NodeOnlineRequest{
-		GUID: ctrl.ctx.global.GUID(),
+		GUID:         ctrl.ctx.global.GUID(),
+		PublicKey:    ctrl.ctx.global.PublicKey(),
+		KexPublicKey: ctrl.ctx.global.KeyExchangePub(),
+		HostInfo:     info.Host(),
+		RequestTime:  ctrl.ctx.global.Now(),
 	}
 	b, err := msgpack.Marshal(req)
 	if err != nil {
 		panic(err)
 	}
 	b[0] = 0
-
 }
 
 func (ctrl *roleCtrl) handleTrustNodeData(data []byte) {

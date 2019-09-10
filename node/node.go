@@ -42,7 +42,7 @@ func New(cfg *Config) (*NODE, error) {
 		return nil, err
 	}
 	node.server = Server
-	// init server
+	// register
 	if !cfg.IsGenesis {
 		err = node.register(cfg)
 		if err != nil {

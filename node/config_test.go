@@ -39,8 +39,9 @@ func testGenerateConfig(t *testing.T, isGenesis bool) *Config {
 		TimeSyncerConfigs:  testdata.TimeSyncerConfigs(t),
 		TimeSyncerInterval: 15 * time.Minute,
 
-		CtrlED25519: testdata.CtrlED25519.PublicKey(),
-		CtrlAESKey:  testdata.CtrlAESKey,
+		CtrlPublicKey:   testdata.CtrlED25519.PublicKey(),
+		CtrlExPublicKey: testdata.CtrlCurve25519,
+		CtrlAESCrypto:   testdata.CtrlAESKey,
 
 		IsGenesis:      isGenesis,
 		RegisterAESKey: regAESKey,

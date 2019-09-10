@@ -30,9 +30,10 @@ type Config struct {
 	TimeSyncerConfigs  map[string]*timesync.Config
 	TimeSyncerInterval time.Duration
 
-	// controller
-	CtrlED25519 []byte // public key
-	CtrlAESKey  []byte // key + iv
+	// controller configs
+	CtrlPublicKey   []byte // ed25519
+	CtrlExPublicKey []byte // curve25519
+	CtrlAESCrypto   []byte // key + iv
 
 	// register
 	IsGenesis          bool   // use controller to register
@@ -52,46 +53,18 @@ func (cfg *Config) Check() error {
 	if err != nil {
 		return err
 	}
+	err = node.global.dnsClient.Test()
+	if err != nil {
+		return err
+	}
 	err = node.global.timeSyncer.Test()
 	if err != nil {
 		return err
 	}
+	node.global.Destroy()
 	return nil
 }
 
 func (cfg *Config) Build() {
 
 }
-
-// runtime env
-// 0 < key < 1048576
-const objectKeyMax uint32 = 1048575
-
-type objectKey = uint32
-
-const (
-	// external object
-	ctrlED25519   objectKey = iota // verify controller role & message
-	ctrlAESCrypto                  // decrypt controller broadcast message
-
-	// internal object
-	nodeGUID    // identification
-	nodeGUIDEnc // update self syncSendHeight
-	dbAESCrypto // encrypt self data(database)
-	startupTime // global.configure time
-	certificate // for listener
-	sessionED25519
-	sessionKey
-
-	// sync message
-	syncSendHeight // sync send
-
-	// confuse object
-	confusion00
-	confusion01
-	confusion02
-	confusion03
-	confusion04
-	confusion05
-	confusion06
-)
