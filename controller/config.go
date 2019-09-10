@@ -35,14 +35,3 @@ type Config struct {
 	HTTPSKeyFile  string `toml:"https_key_file"`
 	WebDir        string `toml:"web_dir"`
 }
-
-type objectKey = uint32
-
-const (
-	// verify controller role & sign message
-	ed25519PrivateKey objectKey = iota
-	ed25519PublicKey
-	curve25519PublicKey // for key exchange
-	// encrypt controller broadcast message
-	aesCrypto
-)
