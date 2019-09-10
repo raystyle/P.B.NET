@@ -3,9 +3,12 @@ package node
 import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
+	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
+	"project/internal/info"
+	"project/internal/messages"
 	"project/internal/security"
 )
 
@@ -50,4 +53,28 @@ func (node *NODE) register(c *Config) error {
 			}
 		}
 	}
+}
+
+func (node *NODE) PackOnlineRequest() []byte {
+	req := messages.NodeOnlineRequest{
+		GUID:         node.global.GUID(),
+		PublicKey:    node.global.PublicKey(),
+		KexPublicKey: node.global.KeyExchangePub(),
+		RequestTime:  node.global.Now(),
+	}
+	// encrypt host info
+	hiBytes, err := msgpack.Marshal(info.Host())
+	if err != nil {
+		panic(err)
+	}
+	enc, err := node.global.Encrypt(hiBytes)
+	if err != nil {
+		panic(err)
+	}
+	req.HostInfo = enc
+	reqBytes, err := msgpack.Marshal(&req)
+	if err != nil {
+		panic(err)
+	}
+	return reqBytes
 }

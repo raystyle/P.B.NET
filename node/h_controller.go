@@ -7,12 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/vmihailenco/msgpack/v4"
-
 	"project/internal/convert"
-	"project/internal/info"
 	"project/internal/logger"
-	"project/internal/messages"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
@@ -101,7 +97,7 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	if ctrl.isClosed() {
 		return
 	}
-	if len(msg) < 1 {
+	if len(msg) < 3 { // cmd(1) + msg id(2) or reply
 		ctrl.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
 		ctrl.Close()
 		return
@@ -112,9 +108,9 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	case protocol.CtrlHeartbeat:
 		ctrl.handleHeartbeat()
 	case protocol.CtrlTrustNode:
-		ctrl.handleTrustNode()
+		ctrl.handleTrustNode(msg[1:3])
 	case protocol.CtrlTrustNodeData:
-		ctrl.handleTrustNodeData(msg[1:])
+		ctrl.handleTrustNodeData(msg[1:3], msg[3:])
 	case protocol.ErrNullMsg:
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
 		ctrl.Close()
@@ -122,9 +118,6 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
 		ctrl.Close()
 	case protocol.TestMessage:
-		if len(msg) < 3 {
-			ctrl.log(logger.EXPLOIT, protocol.ErrRecvInvalidTestMsg)
-		}
 		ctrl.reply(msg[1:3], msg[3:])
 	default:
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[1:])
@@ -149,8 +142,8 @@ func (ctrl *roleCtrl) reply(id, reply []byte) {
 	if ctrl.isClosed() {
 		return
 	}
-	// size(4 Bytes) + NodeReply(1 byte) + msg_id(2 bytes)
 	l := len(reply)
+	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
 	b := make([]byte, 7+l)
 	copy(b, convert.Uint32ToBytes(uint32(3+l))) // write size
 	b[4] = protocol.NodeReply
@@ -237,21 +230,10 @@ func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
-func (ctrl *roleCtrl) handleTrustNode() {
-	req := &messages.NodeOnlineRequest{
-		GUID:         ctrl.ctx.global.GUID(),
-		PublicKey:    ctrl.ctx.global.PublicKey(),
-		KexPublicKey: ctrl.ctx.global.KeyExchangePub(),
-		HostInfo:     info.Host(),
-		RequestTime:  ctrl.ctx.global.Now(),
-	}
-	b, err := msgpack.Marshal(req)
-	if err != nil {
-		panic(err)
-	}
-	b[0] = 0
+func (ctrl *roleCtrl) handleTrustNode(id []byte) {
+	ctrl.reply(id, ctrl.ctx.PackOnlineRequest())
 }
 
-func (ctrl *roleCtrl) handleTrustNodeData(data []byte) {
+func (ctrl *roleCtrl) handleTrustNodeData(id []byte, data []byte) {
 
 }
