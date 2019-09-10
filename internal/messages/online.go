@@ -8,6 +8,7 @@ import (
 	"project/internal/config"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
+	"project/internal/info"
 )
 
 const (
@@ -29,9 +30,9 @@ var (
 
 type NodeOnlineRequest struct {
 	GUID         []byte
-	PublicKey    []byte // verify message
+	PublicKey    []byte
 	KexPublicKey []byte // key exchange
-	HostInfo     []byte // info.HostInfo, use session key encrypt it
+	HostInfo     info.HostInfo
 	RequestTime  time.Time
 }
 
@@ -44,9 +45,6 @@ func (n *NodeOnlineRequest) Validate() error {
 	}
 	if len(n.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange public key size")
-	}
-	if n.HostInfo == nil {
-		return errors.New("no host info")
 	}
 	return nil
 }
