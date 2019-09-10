@@ -29,8 +29,9 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 		TimeSyncerConfigs:  testdata.TimeSyncerConfigs(t),
 		TimeSyncerInterval: 15 * time.Minute,
 
-		CtrlED25519: testdata.CtrlED25519.PublicKey(),
-		CtrlAESKey:  testdata.CtrlAESKey,
+		CtrlPublicKey:   testdata.CtrlED25519.PublicKey(),
+		CtrlExPublicKey: testdata.CtrlCurve25519,
+		CtrlAESCrypto:   testdata.CtrlAESKey,
 
 		IsGenesis:      genesis,
 		RegisterAESKey: regAESKey,
@@ -50,16 +51,16 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 	cfg.RegisterBootstraps = register
 	n, err := node.New(cfg)
 	require.NoError(t, err)
+	go func() {
+		err := n.Main()
+		require.NoError(t, err)
+	}()
+	n.Wait()
 	return n
 }
 
 func TestClient_Send(t *testing.T) {
 	NODE := testGenerateNode(t, true)
-	go func() {
-		err := NODE.Main()
-		require.NoError(t, err)
-	}()
-	NODE.Wait()
 	defer NODE.Exit(nil)
 	initCtrl(t)
 	config := &clientCfg{
@@ -81,11 +82,6 @@ func TestClient_Send(t *testing.T) {
 
 func TestClient_SendParallel(t *testing.T) {
 	NODE := testGenerateNode(t, true)
-	go func() {
-		err := NODE.Main()
-		require.NoError(t, err)
-	}()
-	NODE.Wait()
 	defer NODE.Exit(nil)
 	initCtrl(t)
 	config := &clientCfg{
@@ -120,11 +116,6 @@ func TestClient_SendParallel(t *testing.T) {
 
 func BenchmarkClient_Send(b *testing.B) {
 	NODE := testGenerateNode(b, true)
-	go func() {
-		err := NODE.Main()
-		require.NoError(b, err)
-	}()
-	NODE.Wait()
 	defer NODE.Exit(nil)
 	initCtrl(b)
 	config := &clientCfg{
@@ -154,11 +145,6 @@ func BenchmarkClient_Send(b *testing.B) {
 
 func BenchmarkClient_SendParallel(b *testing.B) {
 	NODE := testGenerateNode(b, true)
-	go func() {
-		err := NODE.Main()
-		require.NoError(b, err)
-	}()
-	NODE.Wait()
 	defer NODE.Exit(nil)
 	initCtrl(b)
 	config := &clientCfg{

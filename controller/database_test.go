@@ -281,9 +281,9 @@ func TestDeleteListener(t *testing.T) {
 func TestInsertNode(t *testing.T) {
 	initCtrl(t)
 	node := &mNode{
-		GUID:      bytes.Repeat([]byte{52}, guid.SIZE),
-		AESKey:    bytes.Repeat([]byte{52}, aes.Bit256+aes.IVSize),
-		PublicKey: bytes.Repeat([]byte{52}, ed25519.PublicKeySize),
+		GUID:       bytes.Repeat([]byte{52}, guid.SIZE),
+		SessionKey: bytes.Repeat([]byte{52}, aes.Bit256+aes.IVSize),
+		PublicKey:  bytes.Repeat([]byte{52}, ed25519.PublicKeySize),
 	}
 	err := ctrl.db.Unscoped().Delete(node).Error
 	require.NoError(t, err)

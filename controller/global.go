@@ -18,6 +18,15 @@ import (
 	"project/internal/timesync"
 )
 
+type objectKey = uint32
+
+const (
+	okPrivateKey objectKey = iota // verify controller role & sign message
+	okPublicKey                   // for role
+	okKeyExPub                    // for key exchange
+	okAESCrypto                   // encrypt controller broadcast message
+)
+
 type global struct {
 	proxyPool    *proxy.Pool
 	dnsClient    *dns.Client
@@ -111,7 +120,7 @@ func (global *global) AddTimeSyncerConfig(tag string, config *timesync.Config) e
 func (global *global) LoadKeys(password string) error {
 	global.objectRWM.Lock()
 	defer global.objectRWM.Unlock()
-	if global.object[ed25519PrivateKey] != nil {
+	if global.object[okPrivateKey] != nil {
 		return errors.New("already load keys")
 	}
 	keys, err := loadCtrlKeys(global.keyDir+"/ctrl.key", password)
@@ -120,18 +129,18 @@ func (global *global) LoadKeys(password string) error {
 	}
 	// ed25519
 	pri, _ := ed25519.ImportPrivateKey(keys[0])
-	global.object[ed25519PrivateKey] = pri
+	global.object[okPrivateKey] = pri
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
-	global.object[ed25519PublicKey] = pub
+	global.object[okPublicKey] = pub
 	// curve25519
-	p, err := curve25519.ScalarBaseMult(pri[:32])
+	keyEXPub, err := curve25519.ScalarBaseMult(pri[:32])
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	global.object[curve25519PublicKey] = p
+	global.object[okKeyExPub] = keyEXPub
 	// aes
 	cbc, _ := aes.NewCBC(keys[1], keys[2])
-	global.object[aesCrypto] = cbc
+	global.object[okAESCrypto] = cbc
 	atomic.StoreInt32(&global.isLoadKeys, 1)
 	close(global.waitLoadKeys)
 	return nil
@@ -144,31 +153,31 @@ func (global *global) IsLoadKeys() bool {
 // verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
 	global.objectRWM.RLock()
-	p := global.object[ed25519PrivateKey].(ed25519.PrivateKey)
+	pri := global.object[okPrivateKey]
 	global.objectRWM.RUnlock()
-	return ed25519.Sign(p, message)
+	return ed25519.Sign(pri.(ed25519.PrivateKey), message)
 }
 
 // verify node certificate
 func (global *global) Verify(message, signature []byte) bool {
 	global.objectRWM.RLock()
-	p := global.object[ed25519PublicKey].(ed25519.PublicKey)
+	pub := global.object[okPublicKey]
 	global.objectRWM.RUnlock()
-	return ed25519.Verify(p, message, signature)
+	return ed25519.Verify(pub.(ed25519.PublicKey), message, signature)
 }
 
-func (global *global) Curve25519PublicKey() []byte {
+func (global *global) KeyExchangePub() []byte {
 	global.objectRWM.RLock()
-	p := global.object[curve25519PublicKey].([]byte)
+	pub := global.object[okKeyExPub]
 	global.objectRWM.RUnlock()
-	return p
+	return pub.([]byte)
 }
 
 func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	global.objectRWM.RLock()
-	pri := global.object[ed25519PrivateKey].(ed25519.PrivateKey)
+	pri := global.object[okPrivateKey]
 	global.objectRWM.RUnlock()
-	return curve25519.ScalarMult(pri, publicKey)
+	return curve25519.ScalarMult(pri.(ed25519.PrivateKey)[:32], publicKey)
 }
 
 func (global *global) Destroy() {

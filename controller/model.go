@@ -84,7 +84,7 @@ func (ml *mListener) Configure() *config.Listener {
 type mNode struct {
 	GUID        []byte     `gorm:"primary_key;type:binary(52)"`
 	PublicKey   []byte     `gorm:"type:binary(32);not null"`
-	AESKey      []byte     `gorm:"type:binary(48);not null"`
+	SessionKey  []byte     `gorm:"type:binary(48);not null"`
 	IsBootstrap bool       `gorm:"not null"`
 	CreatedAt   time.Time  `gorm:"not null"`
 	DeletedAt   *time.Time `sql:"index"`

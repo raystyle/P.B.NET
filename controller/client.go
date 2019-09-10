@@ -126,7 +126,7 @@ func (client *client) handleMessage(msg []byte) {
 	if client.isClosed() {
 		return
 	}
-	if len(msg) < 1 {
+	if len(msg) < 3 { // cmd(1) + msg id(2) or reply
 		client.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
 		client.Close()
 		return
@@ -142,9 +142,6 @@ func (client *client) handleMessage(msg []byte) {
 		client.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
 		client.Close()
 	case protocol.TestMessage:
-		if len(msg) < 3 {
-			client.log(logger.EXPLOIT, protocol.ErrRecvInvalidTestMsg)
-		}
 		client.reply(msg[1:3], msg[3:])
 	default:
 		client.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[1:])
