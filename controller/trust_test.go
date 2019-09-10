@@ -6,10 +6,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
+	"project/internal/info"
 	"project/internal/xnet"
 )
 
-func TestTrustNode(t *testing.T) {
+func TestTrustNodeAndConfirm(t *testing.T) {
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
 	initCtrl(t)
@@ -20,6 +21,8 @@ func TestTrustNode(t *testing.T) {
 	}
 	req, err := ctrl.TrustNode(&n)
 	require.NoError(t, err)
+	require.Equal(t, info.Host(), req.HostInfo)
+	t.Log(req.HostInfo)
 	err = ctrl.ConfirmTrustNode(&n, req)
 	require.NoError(t, err)
 }

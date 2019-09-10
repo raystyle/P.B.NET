@@ -13,8 +13,10 @@ import (
 )
 
 // TrustNode is used to trust Genesis Node
+// receive host info for confirm
 func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, error) {
 	cfg := &clientCfg{Node: node}
+	// TODO remove InsecureSkipVerify
 	cfg.TLSConfig.InsecureSkipVerify = true
 	client, err := newClient(ctrl, cfg)
 	if err != nil {
@@ -42,6 +44,8 @@ func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, 
 	return &req, nil
 }
 
+// ConfirmTrustNode is used to confirm trust node
+// issue certificates and insert to database
 func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlineRequest) error {
 	cfg := &clientCfg{Node: node}
 	cfg.TLSConfig.InsecureSkipVerify = true
@@ -51,28 +55,27 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlin
 	}
 	defer client.Close()
 	// issue certificates
-	cert := ctrl.issueCertificate(node, req.GUID)
+	cert := ctrl.issueCertificate(node.Address, req.GUID)
 	// send response
 	reply, err := client.Send(protocol.CtrlTrustNodeData, cert)
 	if err != nil {
 		return errors.Wrap(err, "send trust node data failed")
 	}
 	if !bytes.Equal(reply, messages.OnlineSucceed) {
-		return errors.New("trust node failed")
+		return errors.Errorf("trust node failed: %s", string(reply))
 	}
 	// calculate aes key
-	aesKey, err := ctrl.global.KeyExchange(req.KexPublicKey)
+	sKey, err := ctrl.global.KeyExchange(req.KexPublicKey)
 	if err != nil {
 		err = errors.Wrap(err, "calculate session key failed")
 		ctrl.Print(logger.EXPLOIT, "trust_node", err)
 		return err
 	}
-	// TODO broadcast
-
 	// insert node
 	return ctrl.InsertNode(&mNode{
-		GUID:       req.GUID,
-		PublicKey:  req.PublicKey,
-		SessionKey: aesKey,
+		GUID:        req.GUID,
+		PublicKey:   req.PublicKey,
+		SessionKey:  sKey,
+		IsBootstrap: true,
 	})
 }

@@ -4,21 +4,18 @@ import (
 	"bytes"
 	"io"
 
-	"project/internal/bootstrap"
 	"project/internal/convert"
 	"project/internal/protocol"
 )
 
-func (ctrl *CTRL) issueCertificate(node *bootstrap.Node, guid []byte) []byte {
+func (ctrl *CTRL) issueCertificate(address string, guid []byte) []byte {
 	// sign certificate with node guid
 	buffer := bytes.Buffer{}
-	buffer.WriteString(node.Mode)
-	buffer.WriteString(node.Network)
-	buffer.WriteString(node.Address)
+	buffer.WriteString(address)
 	buffer.Write(guid)
 	certWithNodeGUID := ctrl.global.Sign(buffer.Bytes())
 	// sign certificate with controller guid
-	buffer.Truncate(len(node.Mode + node.Network + node.Address))
+	buffer.Truncate(len(address))
 	buffer.Write(protocol.CtrlGUID)
 	certWithCtrlGUID := ctrl.global.Sign(buffer.Bytes())
 	// pack certificates
@@ -32,7 +29,7 @@ func (ctrl *CTRL) issueCertificate(node *bootstrap.Node, guid []byte) []byte {
 	return buffer.Bytes()
 }
 
-func (ctrl *CTRL) verifyCertificate(cert []byte, node *bootstrap.Node, guid []byte) bool {
+func (ctrl *CTRL) verifyCertificate(cert []byte, address string, guid []byte) bool {
 	// if guid = nil, skip verify
 	if guid != nil {
 		reader := bytes.NewReader(cert)
@@ -50,9 +47,7 @@ func (ctrl *CTRL) verifyCertificate(cert []byte, node *bootstrap.Node, guid []by
 		}
 		// verify certificate
 		buffer := bytes.Buffer{}
-		buffer.WriteString(node.Mode)
-		buffer.WriteString(node.Network)
-		buffer.WriteString(node.Address)
+		buffer.WriteString(address)
 		buffer.Write(guid)
 		// switch certificate
 		if bytes.Equal(guid, protocol.CtrlGUID) {
