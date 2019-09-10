@@ -6,6 +6,7 @@ import (
 	"project/internal/config"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
+	"project/internal/info"
 )
 
 const (
@@ -25,18 +26,11 @@ var (
 	OnlineSucceed = []byte("ok")
 )
 
-type HostInfo struct {
-	InternalIP string
-	Hostname   string
-	Username   string
-	PID        int
-}
-
 type NodeOnlineRequest struct {
 	GUID         []byte
-	PublicKey    []byte   // verify message
-	KexPublicKey []byte   // aes key exchange
-	HostInfo     HostInfo // online info session aes encrypt
+	PublicKey    []byte        // verify message
+	KexPublicKey []byte        // key exchange
+	HostInfo     info.HostInfo // online info session key
 	RequestTime  int64
 }
 
