@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"crypto/x509"
 	"io/ioutil"
 	"sync"
 	"sync/atomic"
@@ -10,8 +11,10 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
+	"project/internal/crypto/rsa"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
@@ -25,6 +28,10 @@ const (
 	okPublicKey                   // for role
 	okKeyExPub                    // for key exchange
 	okAESCrypto                   // encrypt controller broadcast message
+
+	okCACertificate    // x509.Certificate
+	okCAPrivateKey     // rsa.PrivateKey
+	okCACertificateStr // x509.Certificate
 )
 
 type global struct {
@@ -143,6 +150,27 @@ func (global *global) LoadKeys(password string) error {
 	global.object[okAESCrypto] = cbc
 	atomic.StoreInt32(&global.isLoadKeys, 1)
 	close(global.waitLoadKeys)
+	// ca certificate
+	data, err := ioutil.ReadFile(global.keyDir + "/ca.crt")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	crt, err := cert.Parse(data)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	global.object[okCACertificate] = crt
+	global.object[okCACertificateStr] = string(data)
+	// ca rsa private key
+	data, err = ioutil.ReadFile(global.keyDir + "/ca.key")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	caPri, err := rsa.ImportPrivateKeyPEM(data)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	global.object[okCAPrivateKey] = caPri
 	return nil
 }
 
@@ -178,6 +206,27 @@ func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	pri := global.object[okPrivateKey]
 	global.objectRWM.RUnlock()
 	return curve25519.ScalarMult(pri.(ed25519.PrivateKey)[:32], publicKey)
+}
+
+func (global *global) CACertificate() *x509.Certificate {
+	global.objectRWM.RLock()
+	crt := global.object[okCACertificate]
+	global.objectRWM.RUnlock()
+	return crt.(*x509.Certificate)
+}
+
+func (global *global) CACertificateStr() string {
+	global.objectRWM.RLock()
+	crt := global.object[okCACertificateStr]
+	global.objectRWM.RUnlock()
+	return crt.(string)
+}
+
+func (global *global) CAPrivateKey() *rsa.PrivateKey {
+	global.objectRWM.RLock()
+	pri := global.object[okCACertificate]
+	global.objectRWM.RUnlock()
+	return pri.(*rsa.PrivateKey)
 }
 
 func (global *global) Destroy() {

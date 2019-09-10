@@ -15,6 +15,7 @@ import (
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
+	"project/internal/xpanic"
 )
 
 // NodeGUID != nil for sync or other
@@ -44,7 +45,7 @@ type client struct {
 func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 	cfg.Network = cfg.Node.Network
 	cfg.Address = cfg.Node.Address
-	// TODO add ca cert
+	cfg.TLSConfig.RootCAs = []string{ctx.global.CACertificateStr()}
 	conn, err := xnet.Dial(cfg.Node.Mode, &cfg.Config)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -77,10 +78,12 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 	client.wg.Add(1)
 	go func() {
 		defer func() {
-			client.wg.Done()
-			// TODO recover
+			if r := recover(); r != nil {
+				err := xpanic.Error("client panic:", r)
+				client.log(logger.EXPLOIT, err)
+			}
 			client.Close()
-
+			client.wg.Done()
 		}()
 		protocol.HandleConn(client.conn, client.handleMessage)
 	}()

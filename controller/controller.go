@@ -20,19 +20,21 @@ const (
 )
 
 type CTRL struct {
-	debug  *Debug
-	logLv  logger.Level
-	db     *gorm.DB
-	dbLg   *dbLogger
-	gormLg *gormLogger
-	global *global
-	web    *web
-	boots  map[string]*boot
-	bootsM sync.Mutex
-	wg     sync.WaitGroup
-	once   sync.Once
-	wait   chan struct{}
-	exit   chan error
+	debug    *Debug
+	logLv    logger.Level
+	db       *gorm.DB
+	dbLg     *dbLogger
+	gormLg   *gormLogger
+	global   *global
+	web      *web
+	boots    map[string]*boot
+	bootsM   sync.Mutex
+	syncers  map[string]*syncer
+	syncersM sync.RWMutex
+	wg       sync.WaitGroup
+	once     sync.Once
+	wait     chan struct{}
+	exit     chan error
 }
 
 func New(cfg *Config) (*CTRL, error) {

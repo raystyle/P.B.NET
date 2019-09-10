@@ -20,13 +20,13 @@ func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, 
 	cfg.TLSConfig.InsecureSkipVerify = true
 	client, err := newClient(ctrl, cfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "connect node failed")
+		return nil, errors.WithMessage(err, "connect node failed")
 	}
 	defer client.Close()
 	// send trust node command
 	reply, err := client.Send(protocol.CtrlTrustNode, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "send trust node command failed")
+		return nil, errors.WithMessage(err, "send trust node command failed")
 	}
 	req := messages.NodeOnlineRequest{}
 	err = msgpack.Unmarshal(reply, &req)
@@ -51,7 +51,7 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlin
 	cfg.TLSConfig.InsecureSkipVerify = true
 	client, err := newClient(ctrl, cfg)
 	if err != nil {
-		return errors.Wrap(err, "connect node failed")
+		return errors.WithMessage(err, "connect node failed")
 	}
 	defer client.Close()
 	// issue certificates
@@ -59,7 +59,7 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlin
 	// send response
 	reply, err := client.Send(protocol.CtrlTrustNodeData, cert)
 	if err != nil {
-		return errors.Wrap(err, "send trust node data failed")
+		return errors.WithMessage(err, "send trust node data failed")
 	}
 	if !bytes.Equal(reply, messages.OnlineSucceed) {
 		return errors.Errorf("trust node failed: %s", string(reply))
