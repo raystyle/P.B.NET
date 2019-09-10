@@ -13,6 +13,7 @@ import (
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
+	"project/internal/xpanic"
 )
 
 type roleCtrl struct {
@@ -38,11 +39,15 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 		stopSignal: make(chan struct{}),
 	}
 	server.addCtrl(ctrl)
-	server.log(logger.DEBUG, &sLog{c: conn, l: "controller connected"})
+	ctrl.log(logger.DEBUG, "controller connected")
 	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("serve controller panic:", r)
+			ctrl.log(logger.EXPLOIT, err)
+		}
 		ctrl.Close()
 		server.delCtrl("", ctrl)
-		server.log(logger.DEBUG, &sLog{c: conn, l: "controller disconnected"})
+		ctrl.log(logger.DEBUG, "controller disconnected")
 	}()
 	// init slot
 	ctrl.slots = make([]*protocol.Slot, protocol.SlotSize)
