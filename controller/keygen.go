@@ -14,7 +14,7 @@ import (
 )
 
 // name & ed25519 & aes key & aes iv
-func GenCtrlKeys(path, password string) error {
+func GenerateCtrlKeys(path, password string) error {
 	_, err := os.Stat(path)
 	if !os.IsNotExist(err) {
 		return errors.Errorf("file: %s already exist", path)
