@@ -60,21 +60,12 @@ func (node *NODE) PackOnlineRequest() []byte {
 		GUID:         node.global.GUID(),
 		PublicKey:    node.global.PublicKey(),
 		KexPublicKey: node.global.KeyExchangePub(),
+		HostInfo:     info.Host(),
 		RequestTime:  node.global.Now(),
 	}
-	// encrypt host info
-	hiBytes, err := msgpack.Marshal(info.Host())
+	b, err := msgpack.Marshal(&req)
 	if err != nil {
 		panic(err)
 	}
-	enc, err := node.global.Encrypt(hiBytes)
-	if err != nil {
-		panic(err)
-	}
-	req.HostInfo = enc
-	reqBytes, err := msgpack.Marshal(&req)
-	if err != nil {
-		panic(err)
-	}
-	return reqBytes
+	return b
 }

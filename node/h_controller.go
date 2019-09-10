@@ -9,6 +9,7 @@ import (
 
 	"project/internal/convert"
 	"project/internal/logger"
+	"project/internal/messages"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
@@ -97,20 +98,22 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	if ctrl.isClosed() {
 		return
 	}
-	if len(msg) < 3 { // cmd(1) + msg id(2) or reply
+	// cmd(1) + msg id(2) or reply
+	if len(msg) < protocol.MsgCMDSize+protocol.MsgIDSize {
 		ctrl.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
 		ctrl.Close()
 		return
 	}
 	switch msg[0] {
 	case protocol.CtrlReply:
-		ctrl.handleReply(msg[1:])
+		ctrl.handleReply(msg[protocol.MsgCMDSize:])
 	case protocol.CtrlHeartbeat:
 		ctrl.handleHeartbeat()
 	case protocol.CtrlTrustNode:
-		ctrl.handleTrustNode(msg[1:3])
+		ctrl.handleTrustNode(msg[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize])
 	case protocol.CtrlTrustNodeData:
-		ctrl.handleTrustNodeData(msg[1:3], msg[3:])
+		ctrl.handleTrustNodeData(msg[protocol.MsgCMDSize:protocol.MsgCMDSize+protocol.MsgIDSize],
+			msg[protocol.MsgCMDSize+protocol.MsgIDSize:])
 	case protocol.ErrNullMsg:
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
 		ctrl.Close()
@@ -118,9 +121,10 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
 		ctrl.Close()
 	case protocol.TestMessage:
-		ctrl.reply(msg[1:3], msg[3:])
+		ctrl.reply(msg[protocol.MsgCMDSize:protocol.MsgCMDSize+protocol.MsgIDSize],
+			msg[protocol.MsgCMDSize+protocol.MsgIDSize:])
 	default:
-		ctrl.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[1:])
+		ctrl.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[protocol.MsgCMDSize:])
 		ctrl.Close()
 	}
 }
@@ -144,32 +148,37 @@ func (ctrl *roleCtrl) reply(id, reply []byte) {
 	}
 	l := len(reply)
 	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
-	b := make([]byte, 7+l)
-	copy(b, convert.Uint32ToBytes(uint32(3+l))) // write size
-	b[4] = protocol.NodeReply
-	copy(b[5:7], id)
-	copy(b[7:], reply)
+	b := make([]byte, protocol.MsgHeaderSize+l)
+	// write size
+	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+	// write cmd
+	b[protocol.MsgLenSize] = protocol.NodeReply
+	// write msg id
+	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
+	// write data
+	copy(b[protocol.MsgHeaderSize:], reply)
 	_ = ctrl.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 	_, _ = ctrl.conn.Write(b)
 }
 
-// msg_id(2 bytes) + data
+// msg id(2 bytes) + data
 func (ctrl *roleCtrl) handleReply(reply []byte) {
 	l := len(reply)
-	if l < 2 {
+	if l < protocol.MsgIDSize {
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgIDSize)
 		ctrl.Close()
 		return
 	}
-	id := int(convert.BytesToUint16(reply[:2]))
+	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
 	if id > protocol.MaxMsgID {
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgID)
 		ctrl.Close()
 		return
 	}
 	// must copy
-	r := make([]byte, l-2)
-	copy(r, reply[2:])
+	r := make([]byte, l-protocol.MsgIDSize)
+	copy(r, reply[protocol.MsgIDSize:])
 	// <security> maybe wrong msg id
 	ctrl.replyTimer.Reset(time.Second)
 	select {
@@ -181,8 +190,8 @@ func (ctrl *roleCtrl) handleReply(reply []byte) {
 	}
 }
 
-// send command and receive reply
-// size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
+// Send is use to send command and receive reply
+// size(4 Bytes) + command(1 Byte) + msg id(2 bytes) + data
 func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
 	if ctrl.isClosed() {
 		return nil, protocol.ErrConnClosed
@@ -192,11 +201,17 @@ func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
 			select {
 			case <-ctrl.slots[id].Available:
 				l := len(data)
-				b := make([]byte, 7+l)
-				copy(b, convert.Uint32ToBytes(uint32(3+l))) // write size
-				b[4] = cmd
-				copy(b[5:7], convert.Uint16ToBytes(uint16(id)))
-				copy(b[7:], data)
+				b := make([]byte, protocol.MsgHeaderSize+l)
+				// write MsgLen
+				msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+				// write cmd
+				b[protocol.MsgLenSize] = cmd
+				// write msg id
+				copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize],
+					convert.Uint16ToBytes(uint16(id)))
+				// write data
+				copy(b[protocol.MsgHeaderSize:], data)
 				// send
 				_ = ctrl.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 				_, err := ctrl.conn.Write(b)
@@ -235,5 +250,14 @@ func (ctrl *roleCtrl) handleTrustNode(id []byte) {
 }
 
 func (ctrl *roleCtrl) handleTrustNodeData(id []byte, data []byte) {
-
+	// must copy
+	cert := make([]byte, len(data))
+	copy(cert, data)
+	err := ctrl.ctx.global.SetCertificate(cert)
+	if err == nil {
+		ctrl.reply(id, messages.OnlineSucceed)
+	} else {
+		ctrl.reply(id, []byte(err.Error()))
+	}
+	ctrl.log(logger.DEBUG, "trust node")
 }

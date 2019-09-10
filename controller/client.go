@@ -74,11 +74,13 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 	}
 	client.replyTimer = time.NewTimer(time.Second)
 	client.stopSignal = make(chan struct{})
+	client.wg.Add(1)
 	go func() {
-		// not add wg, because client.Close
-		// TODO recover
 		defer func() {
+			client.wg.Done()
+			// TODO recover
 			client.Close()
+
 		}()
 		protocol.HandleConn(client.conn, client.handleMessage)
 	}()
@@ -126,15 +128,17 @@ func (client *client) handleMessage(msg []byte) {
 	if client.isClosed() {
 		return
 	}
-	if len(msg) < 3 { // cmd(1) + msg id(2) or reply
+	// cmd(1) + msg id(2) or reply
+	if len(msg) < protocol.MsgCMDSize+protocol.MsgIDSize {
 		client.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
 		client.Close()
 		return
 	}
 	switch msg[0] {
 	case protocol.NodeReply:
-		client.handleReply(msg[1:])
-	case protocol.NodeHeartbeat: // discard
+		client.handleReply(msg[protocol.MsgCMDSize:])
+	case protocol.NodeHeartbeat:
+		// discard
 	case protocol.ErrNullMsg:
 		client.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
 		client.Close()
@@ -142,9 +146,10 @@ func (client *client) handleMessage(msg []byte) {
 		client.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
 		client.Close()
 	case protocol.TestMessage:
-		client.reply(msg[1:3], msg[3:])
+		client.reply(msg[protocol.MsgCMDSize:protocol.MsgCMDSize+protocol.MsgIDSize],
+			msg[protocol.MsgCMDSize+protocol.MsgIDSize:])
 	default:
-		client.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[1:])
+		client.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[protocol.MsgCMDSize:])
 		client.Close()
 		return
 	}
@@ -152,6 +157,7 @@ func (client *client) handleMessage(msg []byte) {
 
 func (client *client) heartbeat() {
 	defer client.wg.Done()
+	var err error
 	rand := random.New(0)
 	buffer := bytes.NewBuffer(nil)
 	for {
@@ -166,7 +172,7 @@ func (client *client) heartbeat() {
 			buffer.Write(rand.Bytes(fakeSize))
 			// send
 			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-			_, err := client.conn.Write(buffer.Bytes())
+			_, err = client.conn.Write(buffer.Bytes())
 			if err != nil {
 				return
 			}
@@ -180,34 +186,39 @@ func (client *client) reply(id, reply []byte) {
 	if client.isClosed() {
 		return
 	}
-	// size(4 Bytes) + CtrlReply(1 byte) + msg_id(2 bytes)
 	l := len(reply)
-	b := make([]byte, 7+l)
-	copy(b, convert.Uint32ToBytes(uint32(3+l))) // write size
-	b[4] = protocol.CtrlReply
-	copy(b[5:7], id)
-	copy(b[7:], reply)
+	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
+	b := make([]byte, protocol.MsgHeaderSize+l)
+	// write size
+	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+	// write cmd
+	b[protocol.MsgLenSize] = protocol.NodeReply
+	// write msg id
+	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
+	// write data
+	copy(b[protocol.MsgHeaderSize:], reply)
 	_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 	_, _ = client.conn.Write(b)
 }
 
-// msg_id(2 bytes) + data
+// msg id(2 bytes) + data
 func (client *client) handleReply(reply []byte) {
 	l := len(reply)
-	if l < 2 {
+	if l < protocol.MsgIDSize {
 		client.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgIDSize)
 		client.Close()
 		return
 	}
-	id := int(convert.BytesToUint16(reply[:2]))
+	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
 	if id > protocol.MaxMsgID {
 		client.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgID)
 		client.Close()
 		return
 	}
 	// must copy
-	r := make([]byte, l-2)
-	copy(r, reply[2:])
+	r := make([]byte, l-protocol.MsgIDSize)
+	copy(r, reply[protocol.MsgIDSize:])
 	// <security> maybe wrong msg id
 	client.replyTimer.Reset(time.Second)
 	select {
@@ -230,11 +241,17 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 			select {
 			case <-client.slots[id].Available:
 				l := len(data)
-				b := make([]byte, 7+l)
-				copy(b, convert.Uint32ToBytes(uint32(3+l))) // write size
-				b[4] = cmd
-				copy(b[5:7], convert.Uint16ToBytes(uint16(id)))
-				copy(b[7:], data)
+				b := make([]byte, protocol.MsgHeaderSize+l)
+				// write MsgLen
+				msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+				// write cmd
+				b[protocol.MsgLenSize] = cmd
+				// write msg id
+				copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize],
+					convert.Uint16ToBytes(uint16(id)))
+				// write data
+				copy(b[protocol.MsgHeaderSize:], data)
 				// send
 				_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 				_, err := client.conn.Write(b)

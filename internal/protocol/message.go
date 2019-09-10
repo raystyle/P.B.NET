@@ -23,8 +23,13 @@ type Slot struct {
 }
 
 const (
+	MsgLenSize    = 4
+	MsgCMDSize    = 1
+	MsgIDSize     = 2
+	MsgHeaderSize = MsgLenSize + MsgCMDSize + MsgIDSize
+
 	SendTimeout = time.Minute
-	RecvTimeout = 2 * time.Minute
+	RecvTimeout = 2 * time.Minute // wait heartbeat send time
 
 	// follow command.go
 	ErrNullMsg   uint8 = 0xFF

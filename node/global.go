@@ -262,6 +262,17 @@ func (global *global) Certificate() []byte {
 	}
 }
 
+func (global *global) SetCertificate(cert []byte) error {
+	global.objectRWM.Lock()
+	defer global.objectRWM.Unlock()
+	if _, ok := global.object[okCertificate]; !ok {
+		global.object[okCertificate] = cert
+		return nil
+	} else {
+		return errors.New("certificate has been set")
+	}
+}
+
 // Sign is used to get node key exchange public key
 func (global *global) KeyExchangePub() []byte {
 	global.objectRWM.RLock()
