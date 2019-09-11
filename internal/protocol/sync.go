@@ -6,80 +6,80 @@ import (
 	"project/internal/guid"
 )
 
-//sync_x first send message token
-//if don't handled send total message
-//token = role + guid
+// syncXXXX first send message token
+// if don't handled send total message
+// token = role + guid
 
 var (
-	SYNC_UNHANDLED = []byte{0}
-	SYNC_HANDLED   = []byte{1}
-	SYNC_SUCCESS   = []byte{2}
+	SyncUnhandled = []byte{0}
+	SyncHandled   = []byte{1}
+	SyncSucceed   = []byte{2}
 
-	ERROR_SYNC_HANDLED = errors.New("this sync handled")
-	ERROR_NO_NODES     = errors.New("no connected nodes")
-	ERROR_NO_MESSAGE   = errors.New("no message")
+	ErrSyncHandled = errors.New("this sync handled")
+	ErrNoNodes     = errors.New("no connected nodes")
+	ErrNoMessage   = errors.New("no message")
 )
 
-//----------------------------send message---------------------------------
-//worker
-type Sync_Send struct {
-	GUID          []byte
-	Height        uint64
-	Message       []byte //AES
-	Sender_Role   Role
-	Sender_GUID   []byte
-	Receiver_Role Role
-	Receiver_GUID []byte
-	Signature     []byte //ECDSA(total)
+// ----------------------------send message---------------------------------
+// worker
+type SyncSend struct {
+	GUID         []byte
+	Height       uint64
+	Message      []byte // encrypted
+	SenderRole   Role
+	SenderGUID   []byte
+	ReceiverRole Role
+	ReceiverGUID []byte
+	Signature    []byte
 }
 
-func (this *Sync_Send) Validate() error {
-	if len(this.GUID) != guid.SIZE {
+func (ss *SyncSend) Validate() error {
+	if len(ss.GUID) != guid.SIZE {
 		return errors.New("invalid guid")
 	}
-	if len(this.Message) < 16 {
+	if len(ss.Message) < 16 {
 		return errors.New("invalid message")
 	}
-	if this.Sender_Role > Beacon {
+	if ss.SenderRole > Beacon {
 		return errors.New("invalid sender role")
 	}
-	if len(this.Sender_GUID) != guid.SIZE {
+	if len(ss.SenderGUID) != guid.SIZE {
 		return errors.New("invalid sender guid")
 	}
-	if this.Receiver_Role > Beacon {
+	if ss.ReceiverRole > Beacon {
 		return errors.New("invalid receiver role")
 	}
-	if len(this.Receiver_GUID) != guid.SIZE {
+	if len(ss.ReceiverGUID) != guid.SIZE {
 		return errors.New("invalid receiver guid")
 	}
-	if this.Signature == nil {
+	if ss.Signature == nil {
 		return errors.New("invalid signature")
 	}
-	if this.Sender_Role == this.Receiver_Role {
+	if ss.SenderRole == ss.ReceiverRole {
 		return errors.New("same sender&receiver role")
 	}
 	return nil
 }
 
 type SyncReceive struct {
-	GUID          []byte
-	Height        uint64
-	Receiver_Role Role
-	Receiver_GUID []byte
-	Signature     []byte //ECDSA(total)
+	GUID         []byte
+	Height       uint64
+	ReceiverRole Role
+	ReceiverGUID []byte
+	Signature    []byte
 }
 
-func (this *SyncReceive) Validate() error {
-	if len(this.GUID) != guid.SIZE {
+func (sr *SyncReceive) Validate() error {
+	if len(sr.GUID) != guid.SIZE {
 		return errors.New("invalid guid")
 	}
-	if this.Receiver_Role != Beacon && this.Receiver_Role != Node {
+	if sr.ReceiverRole != Beacon && sr.ReceiverRole != Node {
 		return errors.New("invalid receiver role")
 	}
-	if len(this.Receiver_GUID) != guid.SIZE {
+	if len(sr.ReceiverGUID) != guid.SIZE {
 		return errors.New("invalid receiver guid")
 	}
-	if this.Signature == nil {
+	if sr.Signature == nil {
 		return errors.New("invalid signature")
 	}
 	return nil
@@ -105,25 +105,25 @@ type SyncQuery struct {
 	Height uint64
 }
 
-func (this *SyncQuery) Validate() error {
-	if this.Role != Beacon && this.Role != Node {
+func (sq *SyncQuery) Validate() error {
+	if sq.Role != Beacon && sq.Role != Node {
 		return errors.New("invalid role")
 	}
-	if len(this.GUID) != guid.SIZE {
+	if len(sq.GUID) != guid.SIZE {
 		return errors.New("invalid guid")
 	}
 	return nil
 }
 
 type SyncReply struct {
-	GUID      []byte //sync_send.GUID
-	Message   []byte //sync_send.Message
-	Signature []byte //sync_send.Signature
+	GUID      []byte // syncSend.GUID
+	Message   []byte // syncSend.Message
+	Signature []byte // syncSend.Signature
 	Err       error
 }
 
-// new message > 2 || search lastest message
-type Sync_Task struct {
+// new message > 2 || search latest message
+type SyncTask struct {
 	Role Role
 	GUID []byte
 }
