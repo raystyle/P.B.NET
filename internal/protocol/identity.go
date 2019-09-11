@@ -16,10 +16,9 @@ const (
 )
 
 var (
-	ErrInvalidRole     = errors.New("invalid role")
-	ErrInvalidCertSize = errors.New("invalid certificate size")
-	ErrInvalidCert     = errors.New("invalid certificate")
-	ErrAuthFailed      = errors.New("authenticate failed")
+	ErrInvalidRole = errors.New("invalid role")
+	ErrInvalidCert = errors.New("invalid certificate")
+	ErrAuthFailed  = errors.New("authenticate failed")
 )
 
 var (

@@ -61,7 +61,7 @@ func (this *Sync_Send) Validate() error {
 	return nil
 }
 
-type Sync_Receive struct {
+type SyncReceive struct {
 	GUID          []byte
 	Height        uint64
 	Receiver_Role Role
@@ -69,7 +69,7 @@ type Sync_Receive struct {
 	Signature     []byte //ECDSA(total)
 }
 
-func (this *Sync_Receive) Validate() error {
+func (this *SyncReceive) Validate() error {
 	if len(this.GUID) != guid.SIZE {
 		return errors.New("invalid guid")
 	}
@@ -85,27 +85,27 @@ func (this *Sync_Receive) Validate() error {
 	return nil
 }
 
-type Sync_Response struct {
+type SyncResponse struct {
 	Role Role
 	GUID []byte
 	Err  error
 }
 
-type Sync_Result struct {
+type SyncResult struct {
 	Success  int
-	Response []*Sync_Response
+	Response []*SyncResponse
 	Err      error
 }
 
-//-------------------------active sync message-----------------------------
+// -------------------------active sync message-----------------------------
 
-type Sync_Query struct {
+type SyncQuery struct {
 	Role   Role
 	GUID   []byte
 	Height uint64
 }
 
-func (this *Sync_Query) Validate() error {
+func (this *SyncQuery) Validate() error {
 	if this.Role != Beacon && this.Role != Node {
 		return errors.New("invalid role")
 	}
@@ -115,14 +115,14 @@ func (this *Sync_Query) Validate() error {
 	return nil
 }
 
-type Sync_Reply struct {
+type SyncReply struct {
 	GUID      []byte //sync_send.GUID
 	Message   []byte //sync_send.Message
 	Signature []byte //sync_send.Signature
 	Err       error
 }
 
-//new message > 2 || search lastest message
+// new message > 2 || search lastest message
 type Sync_Task struct {
 	Role Role
 	GUID []byte
