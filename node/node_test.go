@@ -24,5 +24,5 @@ func testNode(t *testing.T, genesis bool) {
 }
 
 func pprof() {
-	go func() { _ = http.ListenAndServe(":8080", nil) }()
+	go func() { _ = http.ListenAndServe("localhost:8080", nil) }()
 }

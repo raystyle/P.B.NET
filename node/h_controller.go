@@ -100,25 +100,28 @@ func (ctrl *roleCtrl) logln(l logger.Level, log ...interface{}) {
 
 // if need async handle message must copy msg first
 func (ctrl *roleCtrl) handleMessage(msg []byte) {
+	const (
+		cmd = protocol.MsgCMDSize
+		id  = protocol.MsgCMDSize + protocol.MsgIDSize
+	)
 	if ctrl.isClosed() {
 		return
 	}
 	// cmd(1) + msg id(2) or reply
-	if len(msg) < protocol.MsgCMDSize+protocol.MsgIDSize {
+	if len(msg) < id {
 		ctrl.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
 		ctrl.Close()
 		return
 	}
 	switch msg[0] {
 	case protocol.CtrlReply:
-		ctrl.handleReply(msg[protocol.MsgCMDSize:])
+		ctrl.handleReply(msg[cmd:])
 	case protocol.CtrlHeartbeat:
 		ctrl.handleHeartbeat()
 	case protocol.CtrlTrustNode:
-		ctrl.handleTrustNode(msg[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize])
+		ctrl.handleTrustNode(msg[cmd:id])
 	case protocol.CtrlTrustNodeData:
-		ctrl.handleTrustNodeData(msg[protocol.MsgCMDSize:protocol.MsgCMDSize+protocol.MsgIDSize],
-			msg[protocol.MsgCMDSize+protocol.MsgIDSize:])
+		ctrl.handleTrustNodeData(msg[cmd:id], msg[id:])
 	case protocol.ErrNullMsg:
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
 		ctrl.Close()
@@ -126,10 +129,9 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 		ctrl.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
 		ctrl.Close()
 	case protocol.TestMessage:
-		ctrl.reply(msg[protocol.MsgCMDSize:protocol.MsgCMDSize+protocol.MsgIDSize],
-			msg[protocol.MsgCMDSize+protocol.MsgIDSize:])
+		ctrl.reply(msg[cmd:id], msg[id:])
 	default:
-		ctrl.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[protocol.MsgCMDSize:])
+		ctrl.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg)
 		ctrl.Close()
 	}
 }
