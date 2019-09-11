@@ -42,8 +42,9 @@ type Config struct {
 	RetryTimes       int           `toml:"retry_times"`
 	RetryInterval    time.Duration `toml:"retry_interval"`
 	BroadcastTimeout time.Duration `toml:"broadcast_timeout"`
-	ReceiveTimeout   time.Duration `toml:"receive_timeout"`
-	DBSyncInterval   time.Duration `toml:"db_sync_interval"`
+
+	// cache
+	DBSyncInterval time.Duration `toml:"db_sync_interval"`
 
 	// web server
 	HTTPSAddress  string `toml:"https_address"`

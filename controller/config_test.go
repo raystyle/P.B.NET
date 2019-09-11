@@ -42,8 +42,9 @@ func testGenerateConfig() *Config {
 		RetryTimes:       3,
 		RetryInterval:    5 * time.Second,
 		BroadcastTimeout: 30 * time.Second,
-		ReceiveTimeout:   30 * time.Second,
-		DBSyncInterval:   time.Second,
+
+		// cache
+		DBSyncInterval: time.Second,
 
 		// web server
 		HTTPSAddress:  "localhost:9931",

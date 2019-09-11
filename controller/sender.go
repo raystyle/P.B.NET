@@ -58,14 +58,12 @@ type sender struct {
 }
 
 func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
-	if cfg.MaxBufferSize < 4096 {
-		return nil, errors.New("buffer size < 4096")
-	}
+	// check config
 	if cfg.SenderNumber < 1 {
 		return nil, errors.New("sender number < 1")
 	}
 	if cfg.SenderQueueSize < 512 {
-		return nil, errors.New("sender queue size < 512")
+		return nil, errors.New("sender task queue size < 512")
 	}
 	sender := sender{
 		ctx:              ctx,

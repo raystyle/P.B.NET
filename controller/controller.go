@@ -138,8 +138,18 @@ func New(cfg *Config) (*CTRL, error) {
 			return nil, errors.Wrapf(err, "add time syncer config %s failed", tag)
 		}
 	}
+	// init cache
+	cache, err := newCache(ctrl, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "init cache failed")
+	}
+	ctrl.cache = cache
 	// init syncer
-
+	syncer, err := newSyncer(ctrl, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "init syncer failed")
+	}
+	ctrl.syncer = syncer
 	// init sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {

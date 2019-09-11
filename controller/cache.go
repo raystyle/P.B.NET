@@ -2,6 +2,7 @@ package controller
 
 import (
 	"sync"
+	"time"
 )
 
 type nodeSyncer struct {
@@ -15,7 +16,8 @@ type beaconSyncer struct {
 }
 
 type cache struct {
-	ctx *CTRL
+	ctx          *CTRL
+	syncInterval time.Duration
 	// --------------------------------key--------------------------------
 	// key = hex(guid)
 	nodeKeys      map[string]*mNode
@@ -36,9 +38,10 @@ type cache struct {
 	wg         sync.WaitGroup
 }
 
-func newCache(ctx *CTRL) (*cache, error) {
+func newCache(ctx *CTRL, cfg *Config) (*cache, error) {
 	cache := cache{
-		ctx: ctx,
+		ctx:          ctx,
+		syncInterval: cfg.DBSyncInterval,
 	}
 	cache.wg.Add(1)
 	go cache.dbSyncer()

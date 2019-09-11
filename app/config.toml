@@ -29,7 +29,6 @@ reserve_worker    = 16     # reserve worker for short sync
 retry_times       = 3
 retry_interval    = "5s"
 broadcast_timeout = "30s"
-receive_timeout   = "30s"
 db_sync_interval  = "1s"   # sync cache to database
 
 # web server
