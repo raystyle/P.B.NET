@@ -90,6 +90,15 @@ type mNode struct {
 	DeletedAt   *time.Time `sql:"index"`
 }
 
+type mNodeSyncer struct {
+	GUID      []byte    `gorm:"primary_key;type:binary(52)"`
+	CtrlSend  uint64    `gorm:"not null;column:controller_send"`
+	NodeRecv  uint64    `gorm:"not null;column:node_receive"`
+	NodeSend  uint64    `gorm:"not null;column:node_send"`
+	CtrlRecv  uint64    `gorm:"not null;column:controller_receive"`
+	UpdatedAt time.Time `gorm:"not null"`
+}
+
 type mNodeListener struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
@@ -101,13 +110,32 @@ type mNodeListener struct {
 	DeletedAt *time.Time `sql:"index"`
 }
 
-type mNodeSyncer struct {
-	GUID      []byte    `gorm:"primary_key;type:binary(52)"`
-	CtrlSend  uint64    `gorm:"not null;column:controller_send"`
-	NodeRecv  uint64    `gorm:"not null;column:node_receive"`
-	NodeSend  uint64    `gorm:"not null;column:node_send"`
-	CtrlRecv  uint64    `gorm:"not null;column:controller_receive"`
-	UpdatedAt time.Time `gorm:"not null"`
+type mBeacon struct {
+	GUID       []byte     `gorm:"primary_key;type:binary(52)"`
+	PublicKey  []byte     `gorm:"type:binary(32);not null"`
+	SessionKey []byte     `gorm:"type:binary(48);not null"`
+	CreatedAt  time.Time  `gorm:"not null"`
+	DeletedAt  *time.Time `sql:"index"`
+}
+
+type mBeaconSyncer struct {
+	GUID       []byte    `gorm:"primary_key;type:binary(52)"`
+	CtrlSend   uint64    `gorm:"not null;column:controller_send"`
+	BeaconRecv uint64    `gorm:"not null;column:beacon_receive"`
+	BeaconSend uint64    `gorm:"not null;column:beacon_send"`
+	CtrlRecv   uint64    `gorm:"not null;column:controller_receive"`
+	UpdatedAt  time.Time `gorm:"not null"`
+}
+
+type mBeaconListener struct {
+	ID        uint64     `gorm:"primary_key"`
+	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
+	Tag       string     `gorm:"size:32;not null"`
+	Mode      xnet.Mode  `gorm:"size:32;not null"`
+	Network   string     `gorm:"size:32;not null"`
+	Address   string     `gorm:"size:2048;not null"`
+	CreatedAt time.Time  `gorm:"not null"`
+	DeletedAt *time.Time `sql:"index"`
 }
 
 // 52 = internal/guid/guid.go  guid.Size

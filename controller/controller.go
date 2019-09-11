@@ -26,6 +26,7 @@ type CTRL struct {
 	dbLg   *dbLogger
 	gormLg *gormLogger
 	global *global
+	cache  *cache           // database cache and run db syncer
 	syncer *syncer          // sync message
 	sender *sender          // broadcast and send message
 	boots  map[string]*boot // discover bootstrap node

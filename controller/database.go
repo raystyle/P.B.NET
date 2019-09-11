@@ -55,14 +55,23 @@ func InitDatabase(c *Config) error {
 			model: &mNode{},
 		},
 		{
-			model: &mNodeListener{},
+			model: &mNodeSyncer{},
 		},
 		{
-			model: &mNodeSyncer{},
+			model: &mNodeListener{},
 		},
 		{
 			name:  tableNodeLog,
 			model: &mRoleLog{},
+		},
+		{
+			model: &mBeacon{},
+		},
+		{
+			model: &mBeaconSyncer{},
+		},
+		{
+			model: &mBeaconListener{},
 		},
 		{
 			name:  tableBeaconLog,
