@@ -20,22 +20,21 @@ const (
 )
 
 type CTRL struct {
-	debug    *Debug
-	logLv    logger.Level
-	db       *gorm.DB
-	dbLg     *dbLogger
-	gormLg   *gormLogger
-	global   *global
-	web      *web
-	boots    map[string]*boot // discover bootstrap node
-	bootsM   sync.Mutex
-	syncers  map[string]*syncer // sync message
-	syncersM sync.RWMutex
-	sender   *sender // broadcast and send message
-	wg       sync.WaitGroup
-	once     sync.Once
-	wait     chan struct{}
-	exit     chan error
+	debug  *Debug
+	logLv  logger.Level
+	db     *gorm.DB
+	dbLg   *dbLogger
+	gormLg *gormLogger
+	global *global
+	syncer *syncer          // sync message
+	sender *sender          // broadcast and send message
+	boots  map[string]*boot // discover bootstrap node
+	bootsM sync.Mutex
+	web    *web
+	wg     sync.WaitGroup
+	once   sync.Once
+	wait   chan struct{}
+	exit   chan error
 }
 
 func New(cfg *Config) (*CTRL, error) {
@@ -138,6 +137,8 @@ func New(cfg *Config) (*CTRL, error) {
 			return nil, errors.Wrapf(err, "add time syncer config %s failed", tag)
 		}
 	}
+	// init syncer
+
 	// init sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {
@@ -221,6 +222,8 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.web.Close()
 		ctrl.Print(logger.INFO, "exit", "web server is stopped")
 		ctrl.wg.Wait()
+		ctrl.sender.Close()
+		ctrl.Print(logger.INFO, "exit", "sender is stopped")
 		ctrl.global.Destroy()
 		ctrl.Print(logger.INFO, "exit", "global is stopped")
 		ctrl.Print(logger.INFO, "exit", "controller is stopped")

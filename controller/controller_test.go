@@ -52,7 +52,7 @@ func initCtrl(t require.TestingT) {
 }
 
 func pprof() {
-	go func() { _ = http.ListenAndServe(":8080", nil) }()
+	go func() { _ = http.ListenAndServe("localhost:8080", nil) }()
 }
 
 /*

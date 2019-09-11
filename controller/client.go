@@ -78,9 +78,8 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 	client.heartbeatC = make(chan struct{}, 1)
 	client.replyTimer = time.NewTimer(time.Second)
 	client.stopSignal = make(chan struct{})
-	// default
 	if cfg.MsgHandler == nil {
-		client.wg.Add(1)
+		// <warning> not add wg
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -88,7 +87,6 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 					client.log(logger.FATAL, err)
 				}
 				client.Close()
-				client.wg.Done()
 			}()
 			protocol.HandleConn(client.conn, client.handleMessage)
 		}()
@@ -134,18 +132,22 @@ func (client *client) logln(l logger.Level, log ...interface{}) {
 
 // can use client.Close()
 func (client *client) handleMessage(msg []byte) {
+	const (
+		cmd = protocol.MsgCMDSize
+		id  = protocol.MsgCMDSize + protocol.MsgIDSize
+	)
 	if client.isClosed() {
 		return
 	}
 	// cmd(1) + msg id(2) or reply
-	if len(msg) < protocol.MsgCMDSize+protocol.MsgIDSize {
+	if len(msg) < id {
 		client.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
 		client.Close()
 		return
 	}
 	switch msg[0] {
 	case protocol.NodeReply:
-		client.handleReply(msg[protocol.MsgCMDSize:])
+		client.handleReply(msg[cmd:])
 	case protocol.NodeHeartbeat:
 		client.heartbeatC <- struct{}{}
 	case protocol.ErrNullMsg:
@@ -155,10 +157,9 @@ func (client *client) handleMessage(msg []byte) {
 		client.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
 		client.Close()
 	case protocol.TestMessage:
-		client.Reply(msg[protocol.MsgCMDSize:protocol.MsgCMDSize+protocol.MsgIDSize],
-			msg[protocol.MsgCMDSize+protocol.MsgIDSize:])
+		client.Reply(msg[cmd:id], msg[id:])
 	default:
-		client.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[protocol.MsgCMDSize:])
+		client.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg)
 		client.Close()
 		return
 	}
