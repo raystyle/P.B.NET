@@ -2,12 +2,16 @@ package controller
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
+	"math"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
+	"project/internal/convert"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -20,16 +24,75 @@ const (
 )
 
 type syncer struct {
-	ctx         *CTRL
+	ctx              *CTRL
+	maxBufferSize    int
+	maxSyncer        int
+	retryTimes       int
+	retryInterval    time.Duration
+	broadcastTimeout float64
+	configsM         sync.Mutex
+	// -------------------handle broadcast------------------------
+	// key=base64(guid) value=timestamp, check whether handled
+	broadcastQueue   chan *protocol.Broadcast
+	broadcastGUID    [2]map[string]int64
+	broadcastGUIDRWM [2]sync.RWMutex
+	// -----------------handle sync message-----------------------
+	syncSendQueue      chan *protocol.SyncSend
+	syncSendGUID       [2]map[string]int64
+	syncSendGUIDRWM    [2]sync.RWMutex
+	syncReceiveQueue   chan *protocol.SyncReceive
+	syncReceiveGUID    [2]map[string]int64
+	syncReceiveGUIDRWM [2]sync.RWMutex
+	// -------------------handle sync task------------------------
+	syncTaskQueue chan *protocol.SyncTask
+	// check is sync
+	syncStatus   [2]map[string]struct{}
+	syncStatusM  [2]sync.Mutex
+	blockWorker  int
+	blockWorkerM sync.Mutex
+	// runtime
 	sClients    map[string]*sClient
 	sClientsRWM sync.RWMutex
+	stopSignal  chan struct{}
+	wg          sync.WaitGroup
 }
 
 func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
-	syncer := syncer{
-		ctx:      ctx,
-		sClients: make(map[string]*sClient),
+	// check config
+	if cfg.MaxBufferSize < 4096 {
+		return nil, errors.New("max buffer size < 4096")
 	}
+	if cfg.MaxSyncer < 1 {
+		return nil, errors.New("max syncer < 1")
+	}
+	if cfg.WorkerNumber < 2 {
+		return nil, errors.New("worker number < 2")
+	}
+	if cfg.WorkerQueueSize < 512 {
+		return nil, errors.New("worker task queue size < 512")
+	}
+	if cfg.ReserveWorker >= cfg.WorkerNumber {
+		return nil, errors.New("reserve worker number >= worker number")
+	}
+	if cfg.RetryTimes < 3 {
+		return nil, errors.New("retry time < 3")
+	}
+	if cfg.RetryInterval < 5*time.Second {
+		return nil, errors.New("retry interval < 5s")
+	}
+	if cfg.BroadcastTimeout < 30*time.Second {
+		return nil, errors.New("broadcast timeout < 30s")
+	}
+	syncer := syncer{
+		ctx:              ctx,
+		maxBufferSize:    cfg.MaxBufferSize,
+		maxSyncer:        cfg.MaxSyncer,
+		retryTimes:       cfg.RetryTimes,
+		retryInterval:    cfg.RetryInterval,
+		broadcastTimeout: cfg.BroadcastTimeout.Seconds(),
+		sClients:         make(map[string]*sClient),
+	}
+
 	return &syncer, nil
 }
 
@@ -41,96 +104,220 @@ func (syncer *syncer) Connect(cfg *clientCfg) {
 
 }
 
-func (syncer *syncer) checkBroadcastToken(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	/*
-
-		timestamp := convert.BytesToInt64(guid[36:44])
-		if math.Abs(float64(global.Now().Unix()-timestamp)) > BROADCAST_TIMEOUT {
-			return false
-		}
-		key := base64.StdEncoding.EncodeToString(guid)
-		i := 0
-		switch role {
-		case protocol.Beacon:
-			i = syncerBeacon
-		case protocol.Node:
-			i = syncerNode
-		default:
-			return false
-		}
-		// handle_broadcast_guid_lock[i].RLock()
-		// _, exist := handle_broadcast_guid[i][key]
-		// handle_broadcast_guid_lock[i].RUnlock()
-		// return !exist
-		return true
-	*/
-	return true
-}
-
-func (syncer *syncer) checkSyncSendToken(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	/*
-
-		timestamp := convert.Bytes_Int64(guid[24:32])
-		if math.Abs(float64(global.Now().Unix()-timestamp)) > BROADCAST_TIMEOUT {
-			return false
-		}
-		key := base64.StdEncoding.EncodeToString(guid)
-		i := 0
-		switch role {
-		case protocol.BEACON:
-			i = 1
-		case protocol.NODE:
-			i = 0
-		default:
-			return false
-		}
-		handle_sync_send_guid_lock[i].RLock()
-		_, exist := handle_sync_send_guid[i][key]
-		handle_sync_send_guid_lock[i].RUnlock()
-		return !exist
-	*/
-	return true
-}
-
-func (syncer *syncer) checkSyncReceiveToken(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	/*
-		timestamp := convert.Bytes_Int64(guid[24:32])
-		if math.Abs(float64(global.Now().Unix()-timestamp)) > BROADCAST_TIMEOUT {
-			return false
-		}
-		key := base64.StdEncoding.EncodeToString(guid)
-		i := 0
-		switch role {
-		case protocol.BEACON:
-			i = 1
-		case protocol.NODE:
-			i = 0
-		default:
-			return false
-		}
-		handle_sync_receive_guid_lock[i].RLock()
-		_, exist := handle_sync_receive_guid[i][key]
-		handle_sync_receive_guid_lock[i].RUnlock()
-		return !exist
-	*/
-	return true
-}
+// task from syncer client
 
 func (syncer *syncer) addBroadcast(br *protocol.Broadcast) {
-	// TODO check exist
 
 }
 
 func (syncer *syncer) addSyncSend(ss *protocol.SyncSend) {
-	// TODO check exist
 
 }
 
 func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
-	// TODO check exist
+
+}
+
+// check xxx Token is used to check xxx is been handled
+// xxx = broadcast, sync send, sync receive
+// just tell others, but they can still send it by force
+
+func (syncer *syncer) checkBroadcastToken(role protocol.Role, guid []byte) bool {
+	// look internal/guid/guid.go
+	timestamp := convert.BytesToInt64(guid[36:44])
+	now := syncer.ctx.global.Now().Unix()
+	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
+		return false
+	}
+	key := base64.StdEncoding.EncodeToString(guid)
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
+	default:
+		panic("invalid role")
+	}
+	syncer.broadcastGUIDRWM[i].RLock()
+	_, ok := syncer.broadcastGUID[i][key]
+	syncer.broadcastGUIDRWM[i].RUnlock()
+	return !ok
+}
+
+func (syncer *syncer) checkSyncSendToken(role protocol.Role, guid []byte) bool {
+	// look internal/guid/guid.go
+	timestamp := convert.BytesToInt64(guid[36:44])
+	now := syncer.ctx.global.Now().Unix()
+	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
+		return false
+	}
+	key := base64.StdEncoding.EncodeToString(guid)
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
+	default:
+		panic("invalid role")
+	}
+	syncer.syncSendGUIDRWM[i].RLock()
+	_, ok := syncer.syncSendGUID[i][key]
+	syncer.syncSendGUIDRWM[i].RUnlock()
+	return !ok
+}
+
+func (syncer *syncer) checkSyncReceiveToken(role protocol.Role, guid []byte) bool {
+	// look internal/guid/guid.go
+	timestamp := convert.BytesToInt64(guid[36:44])
+	now := syncer.ctx.global.Now().Unix()
+	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
+		return false
+	}
+	key := base64.StdEncoding.EncodeToString(guid)
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
+	default:
+		panic("invalid role")
+	}
+	syncer.syncReceiveGUIDRWM[i].RLock()
+	_, ok := syncer.syncReceiveGUID[i][key]
+	syncer.syncReceiveGUIDRWM[i].RUnlock()
+	return !ok
+}
+
+// check xxx GUID is used to check xxx is been handled
+// prevent others send same message
+// xxx = broadcast, sync send, sync receive
+
+func (syncer *syncer) checkBroadcastGUID(role protocol.Role, guid []byte) bool {
+	// look internal/guid/guid.go
+	timestamp := convert.BytesToInt64(guid[36:44])
+	now := syncer.ctx.global.Now().Unix()
+	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
+		return false
+	}
+	key := base64.StdEncoding.EncodeToString(guid)
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
+	default:
+		panic("invalid role")
+	}
+	syncer.broadcastGUIDRWM[i].Lock()
+	if _, ok := syncer.broadcastGUID[i][key]; !ok {
+		syncer.broadcastGUID[i][key] = timestamp
+		syncer.broadcastGUIDRWM[i].Unlock()
+		return true
+	} else {
+		syncer.broadcastGUIDRWM[i].Unlock()
+		return false
+	}
+}
+
+func (syncer *syncer) checkSyncSendGUID(role protocol.Role, guid []byte) bool {
+	// look internal/guid/guid.go
+	timestamp := convert.BytesToInt64(guid[36:44])
+	now := syncer.ctx.global.Now().Unix()
+	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
+		return false
+	}
+	key := base64.StdEncoding.EncodeToString(guid)
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
+	default:
+		panic("invalid role")
+	}
+	syncer.syncSendGUIDRWM[i].Lock()
+	if _, ok := syncer.syncSendGUID[i][key]; !ok {
+		syncer.syncSendGUID[i][key] = timestamp
+		syncer.syncSendGUIDRWM[i].Unlock()
+		return true
+	} else {
+		syncer.syncSendGUIDRWM[i].Unlock()
+		return false
+	}
+}
+
+func (syncer *syncer) checkSyncReceiveGUID(role protocol.Role, guid []byte) bool {
+	// look internal/guid/guid.go
+	timestamp := convert.BytesToInt64(guid[36:44])
+	now := syncer.ctx.global.Now().Unix()
+	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
+		return false
+	}
+	key := base64.StdEncoding.EncodeToString(guid)
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
+	default:
+		panic("invalid role")
+	}
+	syncer.syncReceiveGUIDRWM[i].Lock()
+	if _, ok := syncer.syncReceiveGUID[i][key]; !ok {
+		syncer.syncReceiveGUID[i][key] = timestamp
+		syncer.syncReceiveGUIDRWM[i].Unlock()
+		return true
+	} else {
+		syncer.syncReceiveGUIDRWM[i].Unlock()
+		return false
+	}
+}
+
+// guidCleaner is use to clean expire guid
+func (syncer *syncer) guidCleaner() {
+	defer syncer.wg.Done()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			now := syncer.ctx.global.Now().Unix()
+			for i := 0; i < 2; i++ {
+				// clean broadcast
+				syncer.broadcastGUIDRWM[i].Lock()
+				for key, timestamp := range syncer.broadcastGUID[i] {
+					if float64(now-timestamp) > syncer.broadcastTimeout {
+						delete(syncer.broadcastGUID[i], key)
+					}
+				}
+				syncer.broadcastGUIDRWM[i].Unlock()
+				// clean sync send
+				syncer.syncSendGUIDRWM[i].Lock()
+				for key, timestamp := range syncer.syncSendGUID[i] {
+					if float64(now-timestamp) > syncer.broadcastTimeout {
+						delete(syncer.syncSendGUID[i], key)
+					}
+				}
+				syncer.syncSendGUIDRWM[i].Unlock()
+				// clean sync receive
+				syncer.syncReceiveGUIDRWM[i].Lock()
+				for key, timestamp := range syncer.syncReceiveGUID[i] {
+					if float64(now-timestamp) > syncer.broadcastTimeout {
+						delete(syncer.syncReceiveGUID[i], key)
+					}
+				}
+				syncer.syncReceiveGUIDRWM[i].Unlock()
+			}
+		case <-syncer.stopSignal:
+			return
+		}
+	}
 }
 
 // syncer client
