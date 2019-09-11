@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"runtime"
 	"time"
 )
 
@@ -28,11 +29,29 @@ func testGenerateConfig() *Config {
 		GORMLogFile:     "../app/log/gorm.log",
 		GORMDetailedLog: false,
 
-		// http server
+		// sender
+		BufferSize:      4096,
+		SenderNumber:    runtime.NumCPU(),
+		SenderQueueSize: 512,
+
+		// syncer
+		MaxSyncer:        2,
+		WorkerNumber:     64,
+		WorkerQueueSize:  512,
+		ReserveWorker:    16,
+		RetryTimes:       3,
+		RetryInterval:    5 * time.Second,
+		BroadcastTimeout: 30 * time.Second,
+		ReceiveTimeout:   30 * time.Second,
+		DBSyncInterval:   time.Second,
+
+		// web server
 		HTTPSAddress:  "localhost:9931",
 		HTTPSCertFile: "../app/cert/server.crt",
 		HTTPSKeyFile:  "../app/cert/server.key",
-		WebDir:        "../app/web",
+		HTTPSWebDir:   "../app/web",
+		HTTPSUsername: "admin",
+		HTTPSPassword: "56c10b0f6a18abe0247c31fd1d1a70e51e5a09f2",
 	}
 	c.Debug.SkipTimeSyncer = true
 	return c

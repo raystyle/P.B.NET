@@ -29,9 +29,27 @@ type Config struct {
 	GORMLogFile     string `toml:"gorm_log_file"`
 	GORMDetailedLog bool   `toml:"gorm_detailed_log"`
 
+	// sender
+	BufferSize      int `toml:"buffer_size"` // syncer also use it
+	SenderNumber    int `toml:"sender_number"`
+	SenderQueueSize int `toml:"sender_queue_size"`
+
+	// syncer
+	MaxSyncer        int           `toml:"max_syncer"`
+	WorkerNumber     int           `toml:"worker_number"`
+	WorkerQueueSize  int           `toml:"worker_queue_size"`
+	ReserveWorker    int           `toml:"reserve_worker"`
+	RetryTimes       int           `toml:"retry_times"`
+	RetryInterval    time.Duration `toml:"retry_interval"`
+	BroadcastTimeout time.Duration `toml:"broadcast_timeout"`
+	ReceiveTimeout   time.Duration `toml:"receive_timeout"`
+	DBSyncInterval   time.Duration `toml:"db_sync_interval"`
+
 	// web server
 	HTTPSAddress  string `toml:"https_address"`
 	HTTPSCertFile string `toml:"https_cert_file"`
 	HTTPSKeyFile  string `toml:"https_key_file"`
-	WebDir        string `toml:"web_dir"`
+	HTTPSWebDir   string `toml:"https_web_dir"`
+	HTTPSUsername string `toml:"https_username"`
+	HTTPSPassword string `toml:"https_password"`
 }
