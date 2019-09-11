@@ -11,9 +11,9 @@ import (
 // token = role + guid
 
 var (
-	SyncUnhandled = []byte{0}
-	SyncHandled   = []byte{1}
-	SyncSucceed   = []byte{2}
+	SyncUnhandled = []byte{3}
+	SyncHandled   = []byte{4}
+	SyncSucceed   = []byte{5}
 
 	ErrSyncHandled = errors.New("this sync handled")
 	ErrNoNodes     = errors.New("no connected nodes")
