@@ -22,9 +22,10 @@ import (
 // NodeGUID = nil for trust node
 // NodeGUID = controller guid for discovery
 type clientCfg struct {
-	Node     *bootstrap.Node
-	NodeGUID []byte
-	CloseLog bool
+	Node       *bootstrap.Node
+	NodeGUID   []byte
+	MsgHandler func(msg []byte)
+	CloseLog   bool
 	xnet.Config
 }
 
@@ -35,6 +36,7 @@ type client struct {
 	closeLog   bool
 	conn       *xnet.Conn
 	slots      []*protocol.Slot
+	heartbeatC chan struct{}
 	replyTimer *time.Timer
 	inClose    int32
 	closeOnce  sync.Once
@@ -73,20 +75,24 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 		s.Available <- struct{}{}
 		client.slots[i] = s
 	}
+	client.heartbeatC = make(chan struct{}, 1)
 	client.replyTimer = time.NewTimer(time.Second)
 	client.stopSignal = make(chan struct{})
-	client.wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := xpanic.Error("client panic:", r)
-				client.log(logger.FATAL, err)
-			}
-			client.Close()
-			client.wg.Done()
+	// default
+	if cfg.MsgHandler == nil {
+		client.wg.Add(1)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					err := xpanic.Error("client panic:", r)
+					client.log(logger.FATAL, err)
+				}
+				client.Close()
+				client.wg.Done()
+			}()
+			protocol.HandleConn(client.conn, client.handleMessage)
 		}()
-		protocol.HandleConn(client.conn, client.handleMessage)
-	}()
+	}
 	client.wg.Add(1)
 	go client.heartbeat()
 	return &client, nil
@@ -99,7 +105,7 @@ func (client *client) Close() {
 		_ = client.conn.Close()
 		client.wg.Wait()
 		if client.closeLog {
-			client.logln(logger.INFO, "disconnected")
+			client.log(logger.INFO, "disconnected")
 		}
 	})
 }
@@ -126,7 +132,7 @@ func (client *client) logln(l logger.Level, log ...interface{}) {
 	client.ctx.Print(l, "client", b)
 }
 
-// can use this.Close()
+// can use client.Close()
 func (client *client) handleMessage(msg []byte) {
 	if client.isClosed() {
 		return
@@ -141,7 +147,7 @@ func (client *client) handleMessage(msg []byte) {
 	case protocol.NodeReply:
 		client.handleReply(msg[protocol.MsgCMDSize:])
 	case protocol.NodeHeartbeat:
-		// discard
+		client.heartbeatC <- struct{}{}
 	case protocol.ErrNullMsg:
 		client.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
 		client.Close()
@@ -149,7 +155,7 @@ func (client *client) handleMessage(msg []byte) {
 		client.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
 		client.Close()
 	case protocol.TestMessage:
-		client.reply(msg[protocol.MsgCMDSize:protocol.MsgCMDSize+protocol.MsgIDSize],
+		client.Reply(msg[protocol.MsgCMDSize:protocol.MsgCMDSize+protocol.MsgIDSize],
 			msg[protocol.MsgCMDSize+protocol.MsgIDSize:])
 	default:
 		client.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg[protocol.MsgCMDSize:])
@@ -164,8 +170,9 @@ func (client *client) heartbeat() {
 	rand := random.New(0)
 	buffer := bytes.NewBuffer(nil)
 	for {
+		t := time.Duration(30+rand.Int(60)) * time.Second
 		select {
-		case <-time.After(time.Duration(30+rand.Int(60)) * time.Second):
+		case <-time.After(t):
 			// <security> fake flow like client
 			fakeSize := 64 + rand.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
@@ -179,13 +186,21 @@ func (client *client) heartbeat() {
 			if err != nil {
 				return
 			}
+			select {
+			case <-client.heartbeatC:
+			case <-time.After(t):
+				_ = client.conn.Close()
+				return
+			case <-client.stopSignal:
+				return
+			}
 		case <-client.stopSignal:
 			return
 		}
 	}
 }
 
-func (client *client) reply(id, reply []byte) {
+func (client *client) Reply(id, reply []byte) {
 	if client.isClosed() {
 		return
 	}
