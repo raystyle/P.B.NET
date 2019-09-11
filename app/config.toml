@@ -17,7 +17,7 @@ gorm_log_file     = "log/gorm.log"
 gorm_detailed_log = false
 
 # sender
-buffer_size       = 4096   # sender & worker message buffer
+max_buffer_size   = 4096   # sender & worker message buffer
 sender_number     = 16
 sender_queue_size = 512    # sender chan buffer size
 

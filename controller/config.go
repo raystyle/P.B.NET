@@ -30,7 +30,7 @@ type Config struct {
 	GORMDetailedLog bool   `toml:"gorm_detailed_log"`
 
 	// sender
-	BufferSize      int `toml:"buffer_size"` // syncer also use it
+	MaxBufferSize   int `toml:"max_buffer_size"` // syncer also use it
 	SenderNumber    int `toml:"sender_number"`
 	SenderQueueSize int `toml:"sender_queue_size"`
 

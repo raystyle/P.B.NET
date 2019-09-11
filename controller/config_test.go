@@ -30,7 +30,7 @@ func testGenerateConfig() *Config {
 		GORMDetailedLog: false,
 
 		// sender
-		BufferSize:      4096,
+		MaxBufferSize:   4096,
 		SenderNumber:    runtime.NumCPU(),
 		SenderQueueSize: 512,
 
