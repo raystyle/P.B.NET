@@ -24,14 +24,13 @@ import (
 type objectKey = uint32
 
 const (
-	okPrivateKey objectKey = iota // verify controller role & sign message
-	okPublicKey                   // for role
-	okKeyExPub                    // for key exchange
-	okAESCrypto                   // encrypt controller broadcast message
-
-	okCACertificate    // x509.Certificate
-	okCAPrivateKey     // rsa.PrivateKey
-	okCACertificateStr // x509.Certificate
+	okPrivateKey       objectKey = iota // verify controller role & sign message
+	okPublicKey                         // for role
+	okKeyExPub                          // for key exchange
+	okAESCrypto                         // encrypt controller broadcast message
+	okCACertificate                     // x509.Certificate
+	okCAPrivateKey                      // rsa.PrivateKey
+	okCACertificateStr                  // x509.Certificate
 )
 
 type global struct {
@@ -178,7 +177,15 @@ func (global *global) IsLoadKeys() bool {
 	return atomic.LoadInt32(&global.isLoadKeys) != 0
 }
 
-// verify controller(handshake) and sign message
+// Encrypt is used to encrypt controller broadcast message
+func (global *global) Encrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[okAESCrypto]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Encrypt(data)
+}
+
+// Sign is used to verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
 	global.objectRWM.RLock()
 	pri := global.object[okPrivateKey]
@@ -186,7 +193,7 @@ func (global *global) Sign(message []byte) []byte {
 	return ed25519.Sign(pri.(ed25519.PrivateKey), message)
 }
 
-// verify node certificate
+// Verify is used to verify node certificate
 func (global *global) Verify(message, signature []byte) bool {
 	global.objectRWM.RLock()
 	pub := global.object[okPublicKey]
@@ -194,6 +201,7 @@ func (global *global) Verify(message, signature []byte) bool {
 	return ed25519.Verify(pub.(ed25519.PublicKey), message, signature)
 }
 
+// KeyExchangePub is used to get key exchange public key
 func (global *global) KeyExchangePub() []byte {
 	global.objectRWM.RLock()
 	pub := global.object[okKeyExPub]
@@ -201,6 +209,7 @@ func (global *global) KeyExchangePub() []byte {
 	return pub.([]byte)
 }
 
+// KeyExchange is use to calculate session key
 func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	global.objectRWM.RLock()
 	pri := global.object[okPrivateKey]

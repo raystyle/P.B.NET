@@ -80,7 +80,7 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 		defer func() {
 			if r := recover(); r != nil {
 				err := xpanic.Error("client panic:", r)
-				client.log(logger.EXPLOIT, err)
+				client.log(logger.FATAL, err)
 			}
 			client.Close()
 			client.wg.Done()
