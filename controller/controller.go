@@ -27,10 +27,11 @@ type CTRL struct {
 	gormLg   *gormLogger
 	global   *global
 	web      *web
-	boots    map[string]*boot
+	boots    map[string]*boot // discover bootstrap node
 	bootsM   sync.Mutex
-	syncers  map[string]*syncer
+	syncers  map[string]*syncer // sync message
 	syncersM sync.RWMutex
+	sender   *sender // broadcast and send message
 	wg       sync.WaitGroup
 	once     sync.Once
 	wait     chan struct{}
@@ -137,6 +138,12 @@ func New(cfg *Config) (*CTRL, error) {
 			return nil, errors.Wrapf(err, "add time syncer config %s failed", tag)
 		}
 	}
+	// init sender
+	sender, err := newSender(ctrl, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "init sender failed")
+	}
+	ctrl.sender = sender
 	// init http server
 	web, err := newWeb(ctrl, cfg)
 	if err != nil {

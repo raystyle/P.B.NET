@@ -51,10 +51,10 @@ func newWeb(ctx *CTRL, cfg *Config) (*web, error) {
 		PanicHandler:           web.handlePanic,
 	}
 	// resource
-	router.ServeFiles("/css/*filepath", http.Dir(cfg.WebDir+"/css"))
-	router.ServeFiles("/js/*filepath", http.Dir(cfg.WebDir+"/js"))
-	router.ServeFiles("/img/*filepath", http.Dir(cfg.WebDir+"/img"))
-	web.indexFS = http.FileServer(http.Dir(cfg.WebDir))
+	router.ServeFiles("/css/*filepath", http.Dir(cfg.HTTPSWebDir+"/css"))
+	router.ServeFiles("/js/*filepath", http.Dir(cfg.HTTPSWebDir+"/js"))
+	router.ServeFiles("/img/*filepath", http.Dir(cfg.HTTPSWebDir+"/img"))
+	web.indexFS = http.FileServer(http.Dir(cfg.HTTPSWebDir))
 	handleFavicon := func(w hRW, r *hR, _ hP) {
 		web.indexFS.ServeHTTP(w, r)
 	}

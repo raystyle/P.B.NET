@@ -21,9 +21,8 @@ func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
 		return nil, errors.Wrap(err, "receive certificate failed")
 	}
 	if !client.ctx.verifyCertificate(cert, client.node.Address, client.guid) {
-		err = errors.New("invalid certificate")
-		client.log(logger.EXPLOIT, err)
-		return nil, err
+		client.log(logger.EXPLOIT, protocol.ErrInvalidCert)
+		return nil, protocol.ErrInvalidCert
 	}
 	// send role
 	_, err = conn.Write([]byte{protocol.Ctrl})

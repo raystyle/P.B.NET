@@ -86,6 +86,8 @@ func (boot *boot) resolve() (err error) {
 	if err != nil {
 		return
 	}
+	// add syncer
+
 	nodes[0] = nil
 	return
 }
