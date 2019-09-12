@@ -206,6 +206,11 @@ func (db *db) DeleteListener(id uint64) error {
 
 // ------------------------------------node-------------------------------------------
 
+func (db *db) SelectNode(guid []byte) (*mNode, error) {
+
+	return nil, nil
+}
+
 func (db *db) InsertNode(m *mNode) error {
 	tx := db.db.BeginTx(context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -282,3 +287,8 @@ func (db *db) DeleteNodeLog(id uint64) error {
 }
 
 // -----------------------------------beacon------------------------------------------
+
+func (db *db) SelectBeacon(guid []byte) (*mBeacon, error) {
+
+	return nil, nil
+}

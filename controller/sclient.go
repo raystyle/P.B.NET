@@ -231,7 +231,7 @@ func (sc *sClient) handleBroadcastToken(id, message []byte) {
 		sc.Close()
 		return
 	}
-	if sc.ctx.checkBroadcastToken(message[0], message[1:1+guid.SIZE]) {
+	if sc.ctx.checkBroadcastToken(message[0], message[1:]) {
 		sc.client.Reply(id, protocol.BroadcastUnhandled)
 	} else {
 		sc.client.Reply(id, protocol.BroadcastHandled)
@@ -246,7 +246,7 @@ func (sc *sClient) handleSyncSendToken(id, message []byte) {
 		sc.Close()
 		return
 	}
-	if sc.ctx.checkSyncSendToken(message[0], message[1:1+guid.SIZE]) {
+	if sc.ctx.checkSyncSendToken(message[0], message[1:]) {
 		sc.client.Reply(id, protocol.SyncUnhandled)
 	} else {
 		sc.client.Reply(id, protocol.SyncHandled)
@@ -261,7 +261,7 @@ func (sc *sClient) handleSyncReceiveToken(id, message []byte) {
 		sc.Close()
 		return
 	}
-	if sc.ctx.checkSyncReceiveToken(message[0], message[1:1+guid.SIZE]) {
+	if sc.ctx.checkSyncReceiveToken(message[0], message[1:]) {
 		sc.client.Reply(id, protocol.SyncUnhandled)
 	} else {
 		sc.client.Reply(id, protocol.SyncHandled)
@@ -316,6 +316,7 @@ func (sc *sClient) handleSyncReceive(id, message []byte) {
 	}
 	err = sr.Validate()
 	if err != nil {
+		// TODO spew it
 		sc.log(logger.EXPLOIT, "invalid sync receive:", err)
 		sc.Close()
 		return

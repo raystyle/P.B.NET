@@ -118,6 +118,8 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 		ctrl.handleReply(msg[cmd:])
 	case protocol.CtrlHeartbeat:
 		ctrl.handleHeartbeat()
+	case protocol.CtrlSyncStart:
+		ctrl.reply(msg[cmd:id], []byte{protocol.CtrlSyncStart})
 	case protocol.CtrlTrustNode:
 		ctrl.handleTrustNode(msg[cmd:id])
 	case protocol.CtrlTrustNodeData:

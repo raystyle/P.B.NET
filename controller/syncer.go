@@ -11,8 +11,11 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
+	"project/internal/crypto/ed25519"
 	"project/internal/guid"
+	"project/internal/logger"
 	"project/internal/protocol"
+	"project/internal/xpanic"
 )
 
 const (
@@ -150,7 +153,16 @@ func (syncer *syncer) getMaxSyncer() int {
 // watcher is used to check connect nodes number
 // connected nodes number < syncer.maxSyncer, try to connect more node
 func (syncer *syncer) watcher() {
-	defer syncer.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("syncer watcher panic:", r)
+			syncer.log(logger.FATAL, err)
+			// restart watcher
+			syncer.wg.Add(1)
+			go syncer.watcher()
+		}
+		syncer.wg.Done()
+	}()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	isMax := func() bool {
@@ -175,6 +187,18 @@ func (syncer *syncer) watcher() {
 			return
 		}
 	}
+}
+
+func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
+	syncer.ctx.Printf(l, "syncer", format, log...)
+}
+
+func (syncer *syncer) log(l logger.Level, log ...interface{}) {
+	syncer.ctx.Print(l, "syncer", log...)
+}
+
+func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
+	syncer.ctx.Println(l, "syncer", log...)
 }
 
 // task from syncer client
@@ -247,7 +271,7 @@ func (syncer *syncer) addSyncTask(task *protocol.SyncTask) {
 // xxx = broadcast, sync send, sync receive
 // just tell others, but they can still send it by force
 
-func (syncer *syncer) checkBroadcastToken(role protocol.Role, guid []byte) bool {
+func (syncer *syncer) checkBroadcastToken(role byte, guid []byte) bool {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
@@ -256,7 +280,7 @@ func (syncer *syncer) checkBroadcastToken(role protocol.Role, guid []byte) bool 
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
 	i := 0
-	switch role {
+	switch protocol.Role(role) {
 	case protocol.Beacon:
 		i = syncerBeacon
 	case protocol.Node:
@@ -270,7 +294,7 @@ func (syncer *syncer) checkBroadcastToken(role protocol.Role, guid []byte) bool 
 	return !ok
 }
 
-func (syncer *syncer) checkSyncSendToken(role protocol.Role, guid []byte) bool {
+func (syncer *syncer) checkSyncSendToken(role byte, guid []byte) bool {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
@@ -279,7 +303,7 @@ func (syncer *syncer) checkSyncSendToken(role protocol.Role, guid []byte) bool {
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
 	i := 0
-	switch role {
+	switch protocol.Role(role) {
 	case protocol.Beacon:
 		i = syncerBeacon
 	case protocol.Node:
@@ -293,7 +317,7 @@ func (syncer *syncer) checkSyncSendToken(role protocol.Role, guid []byte) bool {
 	return !ok
 }
 
-func (syncer *syncer) checkSyncReceiveToken(role protocol.Role, guid []byte) bool {
+func (syncer *syncer) checkSyncReceiveToken(role byte, guid []byte) bool {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
@@ -302,7 +326,7 @@ func (syncer *syncer) checkSyncReceiveToken(role protocol.Role, guid []byte) boo
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
 	i := 0
-	switch role {
+	switch protocol.Role(role) {
 	case protocol.Beacon:
 		i = syncerBeacon
 	case protocol.Node:
@@ -406,7 +430,16 @@ func (syncer *syncer) checkSyncReceiveGUID(role protocol.Role, guid []byte) bool
 
 // guidCleaner is use to clean expire guid
 func (syncer *syncer) guidCleaner() {
-	defer syncer.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("syncer guid cleaner panic:", r)
+			syncer.log(logger.FATAL, err)
+			// restart guid cleaner
+			syncer.wg.Add(1)
+			go syncer.guidCleaner()
+		}
+		syncer.wg.Done()
+	}()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
@@ -486,7 +519,16 @@ func (syncer *syncer) blockWorkerDone() {
 }
 
 func (syncer *syncer) worker() {
-	defer syncer.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("syncer worker panic:", r)
+			syncer.log(logger.FATAL, err)
+			// restart worker
+			syncer.wg.Add(1)
+			go syncer.worker()
+		}
+		syncer.wg.Done()
+	}()
 	var (
 		// task
 		b  *protocol.Broadcast
@@ -494,13 +536,14 @@ func (syncer *syncer) worker() {
 		sr *protocol.SyncReceive
 		// st *protocol.SyncTask
 		// key
-		// nodeKey   *mNode
-		// beaconKey *mBeacon
+		node      *mNode
+		beacon    *mBeacon
+		publicKey ed25519.PublicKey
 		// temp
 		// roleGUID    string
 		// roleSend    uint64
 		// roleReceive uint64
-		// err         error
+		err error
 	)
 	// init buffer
 	// protocol.SyncReceive buffer cap = guid.SIZE + 8 + 1 + guid.SIZE
@@ -532,9 +575,34 @@ func (syncer *syncer) worker() {
 			// check role and set key
 			switch sr.ReceiverRole {
 			case protocol.Beacon:
-
+				beacon, err = syncer.ctx.db.SelectBeacon(sr.ReceiverGUID)
+				if err != nil {
+					syncer.logf(logger.WARNING, "select beacon %X failed %s",
+						sr.ReceiverGUID, err)
+					continue
+				}
+				publicKey = beacon.PublicKey
 			case protocol.Node:
-
+				node, err = syncer.ctx.db.SelectNode(sr.ReceiverGUID)
+				if err != nil {
+					syncer.logf(logger.WARNING, "select node %X failed %s",
+						sr.ReceiverGUID, err)
+					continue
+				}
+				publicKey = node.PublicKey
+			default:
+				panic("invalid sr.ReceiverRole")
+			}
+			// verify
+			buffer.Reset()
+			buffer.Write(sr.GUID)
+			buffer.Write(convert.Uint64ToBytes(sr.Height))
+			buffer.WriteByte(sr.ReceiverRole.Byte())
+			buffer.Write(sr.ReceiverGUID)
+			if !ed25519.Verify(publicKey, buffer.Bytes(), sr.Signature) {
+				syncer.logf(logger.EXPLOIT, "invalid message role: %s guid: %X",
+					sr.ReceiverRole, sr.ReceiverGUID)
+				continue
 			}
 
 		// -----------------------handle sync send-------------------------
