@@ -76,7 +76,7 @@ func (server *server) handshake(lTag string, conn net.Conn) {
 	}
 	// remove deadline conn
 	xconn = xnet.NewConn(conn, server.ctx.global.Now().Unix())
-	switch role[0] {
+	switch protocol.Role(role[0]) {
 	case protocol.Beacon:
 		server.verifyBeacon(xconn)
 	case protocol.Node:

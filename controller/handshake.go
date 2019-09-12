@@ -25,7 +25,7 @@ func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
 		return nil, protocol.ErrInvalidCert
 	}
 	// send role
-	_, err = conn.Write([]byte{protocol.Ctrl})
+	_, err = conn.Write(protocol.Ctrl.Bytes())
 	if err != nil {
 		return nil, errors.Wrap(err, "send role failed")
 	}

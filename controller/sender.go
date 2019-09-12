@@ -266,7 +266,7 @@ func (sender *sender) sender() {
 			buffer.Reset()
 			buffer.Write(preSR.GUID)
 			buffer.Write(convert.Uint64ToBytes(preSR.Height))
-			buffer.WriteByte(preSR.ReceiverRole)
+			buffer.WriteByte(preSR.ReceiverRole.Byte())
 			buffer.Write(preSR.ReceiverGUID)
 			preSR.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack syncReceive & token
@@ -335,9 +335,9 @@ func (sender *sender) sender() {
 			buffer.Reset()
 			buffer.Write(preB.GUID)
 			buffer.Write(preB.Message)
-			buffer.WriteByte(preB.SenderRole)
+			buffer.WriteByte(preB.SenderRole.Byte())
 			buffer.Write(preB.SenderGUID)
-			buffer.WriteByte(preB.ReceiverRole)
+			buffer.WriteByte(preB.ReceiverRole.Byte())
 			preB.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack broadcast & token
 			buffer.Reset()

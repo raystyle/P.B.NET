@@ -7,7 +7,28 @@ import (
 	"project/internal/guid"
 )
 
-type Role = uint8
+type Role uint8
+
+func (role Role) String() string {
+	switch role {
+	case Ctrl:
+		return "controller"
+	case Node:
+		return "node"
+	case Beacon:
+		return "beacon"
+	default:
+		return "invalid role"
+	}
+}
+
+func (role Role) Bytes() []byte {
+	return []byte{byte(role)}
+}
+
+func (role Role) Byte() byte {
+	return byte(role)
+}
 
 const (
 	Ctrl Role = iota
