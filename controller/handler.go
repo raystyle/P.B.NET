@@ -5,6 +5,7 @@ import (
 )
 
 // messages from syncer
+// <warning> if async must copy slice
 
 func (ctrl *CTRL) handleBroadcast(msg []byte, role protocol.Role, guid []byte) {
 	switch role {

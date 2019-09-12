@@ -282,6 +282,12 @@ func (sc *sClient) handleBroadcast(id, message []byte) {
 		sc.Close()
 		return
 	}
+	// TODO check role  and check sender role
+	if br.ReceiverRole != protocol.Ctrl {
+
+		return
+	}
+
 	sc.ctx.addBroadcast(&br)
 	sc.client.Reply(id, protocol.BroadcastSucceed)
 }

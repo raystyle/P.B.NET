@@ -11,6 +11,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
+	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -539,6 +540,8 @@ func (syncer *syncer) worker() {
 		node      *mNode
 		beacon    *mBeacon
 		publicKey ed25519.PublicKey
+		aesKey    []byte
+		aesIV     []byte
 		// temp
 		// roleGUID    string
 		// roleSend    uint64
@@ -593,18 +596,36 @@ func (syncer *syncer) worker() {
 			default:
 				panic("invalid sr.ReceiverRole")
 			}
-			// verify
+			// must first verify
 			buffer.Reset()
 			buffer.Write(sr.GUID)
 			buffer.Write(convert.Uint64ToBytes(sr.Height))
 			buffer.WriteByte(sr.ReceiverRole.Byte())
 			buffer.Write(sr.ReceiverGUID)
 			if !ed25519.Verify(publicKey, buffer.Bytes(), sr.Signature) {
-				syncer.logf(logger.EXPLOIT, "invalid message role: %s guid: %X",
+				syncer.logf(logger.EXPLOIT, "invalid sync receive role: %s guid: %X",
 					sr.ReceiverRole, sr.ReceiverGUID)
 				continue
 			}
-
+			if !syncer.checkSyncReceiveGUID(sr.ReceiverRole, sr.GUID) {
+				continue
+			}
+			sr.Height += 1
+			// update role receive
+			switch sr.ReceiverRole {
+			case protocol.Beacon:
+				err = syncer.ctx.db.UpdateBSBeaconReceive(sr.ReceiverGUID, sr.Height)
+				if err != nil {
+					syncer.logf(logger.WARNING, "update %X beacon receive failed %s",
+						sr.ReceiverGUID, err)
+				}
+			case protocol.Node:
+				err = syncer.ctx.db.UpdateNSNodeReceive(sr.ReceiverGUID, sr.Height)
+				if err != nil {
+					syncer.logf(logger.WARNING, "update %X node receive failed %s",
+						sr.ReceiverGUID, err)
+				}
+			}
 		// -----------------------handle sync send-------------------------
 		case ss = <-syncer.syncSendQueue:
 			if ss.ReceiverRole != protocol.Ctrl {
@@ -613,12 +634,53 @@ func (syncer *syncer) worker() {
 
 		// -----------------------handle broadcast-------------------------
 		case b = <-syncer.broadcastQueue:
-			switch b.ReceiverRole {
+			// set key
+			switch b.SenderRole {
 			case protocol.Beacon:
-
+				beacon, err = syncer.ctx.db.SelectBeacon(b.SenderGUID)
+				if err != nil {
+					syncer.logf(logger.WARNING, "select beacon %X failed %s",
+						b.SenderGUID, err)
+					continue
+				}
+				publicKey = beacon.PublicKey
+				aesKey = beacon.SessionKey[:aes.Bit256]
+				aesIV = beacon.SessionKey[aes.Bit256:]
 			case protocol.Node:
-
+				node, err = syncer.ctx.db.SelectNode(b.SenderGUID)
+				if err != nil {
+					syncer.logf(logger.WARNING, "select node %X failed %s",
+						b.SenderGUID, err)
+					continue
+				}
+				publicKey = node.PublicKey
+				aesKey = node.SessionKey[:aes.Bit256]
+				aesIV = node.SessionKey[aes.Bit256:]
+			default:
+				panic("invalid b.SenderRole")
 			}
+			// verify
+			buffer.Reset()
+			buffer.Write(b.GUID)
+			buffer.Write(b.Message)
+			buffer.WriteByte(b.SenderRole.Byte())
+			buffer.Write(b.SenderGUID)
+			buffer.WriteByte(b.ReceiverRole.Byte())
+			if !ed25519.Verify(publicKey, buffer.Bytes(), b.Signature) {
+				syncer.logf(logger.EXPLOIT, "invalid broadcast role: %s guid: %X",
+					b.SenderRole, b.SenderGUID)
+				continue
+			}
+			if !syncer.checkBroadcastGUID(b.SenderRole, b.GUID) {
+				continue
+			}
+			b.Message, err = aes.CBCDecrypt(b.Message, aesKey, aesIV)
+			if err != nil {
+				syncer.logf(logger.EXPLOIT, "decrypt %s guid: %X broadcast failed: %s",
+					b.SenderRole, b.SenderGUID, err)
+				continue
+			}
+			syncer.ctx.handleBroadcast(b.Message, b.SenderRole, b.SenderGUID)
 		// -----------------------handle sync task-------------------------
 		// case st = <-syncer.syncTaskQueue:
 		// reply, err := query(sync_query)

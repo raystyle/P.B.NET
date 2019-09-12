@@ -106,7 +106,7 @@ func (db *db) cacheSyncer() {
 */
 
 func (db *db) InsertCtrlLog(m *mCtrlLog) error {
-	return db.db.Create(m).Error
+	return db.db.Table(tableLog).Create(m).Error
 }
 
 // -------------------------------proxy client----------------------------------------
@@ -291,4 +291,17 @@ func (db *db) DeleteNodeLog(id uint64) error {
 func (db *db) SelectBeacon(guid []byte) (*mBeacon, error) {
 
 	return nil, nil
+}
+
+// --------------------------------sync message---------------------------------------
+
+// BS = Beacon Syncer , NS = Node Syncer
+func (db *db) UpdateBSBeaconReceive(guid []byte, height uint64) error {
+
+	return nil
+}
+
+func (db *db) UpdateNSNodeReceive(guid []byte, height uint64) error {
+
+	return nil
 }

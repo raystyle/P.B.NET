@@ -1,7 +1,12 @@
 package controller
 
 import (
+	"errors"
 	"sync"
+)
+
+var (
+	ErrCacheNotExist = errors.New("cache doesn't exist")
 )
 
 type nodeSyncer struct {

@@ -13,6 +13,7 @@ import (
 
 // different table has the same model
 const (
+	tableLog       = "log"
 	tableNodeLog   = "node_log"
 	tableBeaconLog = "beacon_log"
 )
@@ -175,6 +176,7 @@ func InitDatabase(cfg *Config) error {
 		model interface{}
 	}{
 		{
+			name:  tableLog,
 			model: &mCtrlLog{},
 		},
 		{
