@@ -2,7 +2,6 @@ package controller
 
 import (
 	"sync"
-	"time"
 )
 
 type nodeSyncer struct {
@@ -15,86 +14,78 @@ type beaconSyncer struct {
 	sync.RWMutex
 }
 
+// key = hex(guid)
 type cache struct {
-	ctx          *CTRL
-	syncInterval time.Duration
 	// --------------------------------key--------------------------------
-	// key = hex(guid)
-	nodeKeys      map[string]*mNode
-	nodeKeysRWM   sync.RWMutex
-	beaconKeys    map[string]*mBeacon
-	beaconKeysRWM sync.RWMutex
+	nodes      map[string]*mNode
+	nodesRWM   sync.RWMutex
+	beacons    map[string]*mBeacon
+	beaconsRWM sync.RWMutex
 	// -------------------------------syncer------------------------------
-	nodeSyncers        map[string]*nodeSyncer
-	nodeSyncersRWM     sync.RWMutex
-	beaconSyncers      map[string]*beaconSyncer
-	beaconSyncersRWM   sync.RWMutex
+	nodeSyncers      map[string]*nodeSyncer
+	nodeSyncersRWM   sync.RWMutex
+	beaconSyncers    map[string]*beaconSyncer
+	beaconSyncersRWM sync.RWMutex
+	// -----------------------------db syncer-----------------------------
 	nodeSyncersDB      map[string]*nodeSyncer
 	nodeSyncersDBRWM   sync.RWMutex
 	beaconSyncersDB    map[string]*beaconSyncer
 	beaconSyncersDBRWM sync.RWMutex
-
-	stopSignal chan struct{}
-	wg         sync.WaitGroup
 }
 
-func newCache(ctx *CTRL, cfg *Config) (*cache, error) {
-	cache := cache{
-		ctx:          ctx,
-		syncInterval: cfg.DBSyncInterval,
+func newCache() *cache {
+	return &cache{
+		nodes:           make(map[string]*mNode),
+		beacons:         make(map[string]*mBeacon),
+		nodeSyncers:     make(map[string]*nodeSyncer),
+		beaconSyncers:   make(map[string]*beaconSyncer),
+		nodeSyncersDB:   make(map[string]*nodeSyncer),
+		beaconSyncersDB: make(map[string]*beaconSyncer),
 	}
-	cache.wg.Add(1)
-	go cache.dbSyncer()
-	return &cache, nil
 }
 
-func (cache *cache) Close() {
-	close(cache.stopSignal)
-	cache.wg.Wait()
-}
+// --------------------------------role--------------------------------
 
-// --------------------------------key--------------------------------
-
-func (cache *cache) SelectNodeKey(guid string) *mNode {
-	cache.nodeKeysRWM.RLock()
-	key := cache.nodeKeys[guid]
-	cache.nodeKeysRWM.RUnlock()
+func (cache *cache) SelectNode(guid string) *mNode {
+	cache.nodesRWM.RLock()
+	key := cache.nodes[guid]
+	cache.nodesRWM.RUnlock()
 	return key
 }
 
-func (cache *cache) SelectBeaconKey(guid string) *mBeacon {
-	cache.beaconKeysRWM.RLock()
-	key := cache.beaconKeys[guid]
-	cache.beaconKeysRWM.RUnlock()
+func (cache *cache) SelectBeacon(guid string) *mBeacon {
+	cache.beaconsRWM.RLock()
+	key := cache.beacons[guid]
+	cache.beaconsRWM.RUnlock()
 	return key
 }
 
-func (cache *cache) InsertNodeKey(guid string, key *mNode) {
-	cache.nodeKeysRWM.Lock()
-	if _, ok := cache.nodeKeys[guid]; !ok {
-		cache.nodeKeys[guid] = key
+func (cache *cache) InsertNode(guid string, key *mNode) {
+	cache.nodesRWM.Lock()
+	if _, ok := cache.nodes[guid]; !ok {
+		cache.nodes[guid] = key
 	}
-	cache.nodeKeysRWM.Unlock()
+	cache.nodesRWM.Unlock()
 }
 
-func (cache *cache) InsertBeaconKey(guid string, key *mBeacon) {
-	cache.beaconKeysRWM.Lock()
-	if _, ok := cache.beaconKeys[guid]; !ok {
-		cache.beaconKeys[guid] = key
+func (cache *cache) InsertBeacon(guid string, key *mBeacon) {
+	cache.beaconsRWM.Lock()
+	if _, ok := cache.beacons[guid]; !ok {
+		cache.beacons[guid] = key
 	}
-	cache.beaconKeysRWM.Unlock()
+	cache.beaconsRWM.Unlock()
 }
 
-func (cache *cache) DeleteNodeKey(guid string, key *mNode) {
-	cache.nodeKeysRWM.Lock()
-	delete(cache.nodeKeys, guid)
-	cache.nodeKeysRWM.Unlock()
+func (cache *cache) DeleteNode(guid string, key *mNode) {
+	cache.nodesRWM.Lock()
+	delete(cache.nodes, guid)
+	cache.nodesRWM.Unlock()
 }
 
-func (cache *cache) DeleteBeaconKey(guid string, key *mBeacon) {
-	cache.beaconKeysRWM.Lock()
-	delete(cache.beaconKeys, guid)
-	cache.beaconKeysRWM.Unlock()
+func (cache *cache) DeleteBeacon(guid string, key *mBeacon) {
+	cache.beaconsRWM.Lock()
+	delete(cache.beacons, guid)
+	cache.beaconsRWM.Unlock()
 }
 
 // --------------------------------sync--------------------------------
@@ -127,8 +118,4 @@ func (cache *cache) SelectBeaconSyncer(guid string) *mBeaconSyncer {
 		cache.beaconSyncersRWM.RUnlock()
 		return nil
 	}
-}
-
-func (cache *cache) dbSyncer() {
-	defer cache.wg.Done()
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,76 +14,133 @@ import (
 
 type boot struct {
 	ctx        *CTRL
-	tag        string
-	interval   time.Duration
-	logSrc     string
-	bootstrap  bootstrap.Bootstrap
-	once       sync.Once
-	stopSignal chan struct{}
+	clients    map[string]*bClient // key = mBoot.Tag
+	clientsRWM sync.RWMutex
+	inClose    int32
 }
 
-func (ctrl *CTRL) AddBoot(m *mBoot) error {
-	g := ctrl.global
+func newBoot(ctx *CTRL) *boot {
+	return &boot{
+		ctx:     ctx,
+		clients: make(map[string]*bClient),
+	}
+}
+
+func (boot *boot) Add(m *mBoot) error {
+	if boot.isClosed() {
+		return errors.New("boot is closed")
+	}
+	boot.clientsRWM.Lock()
+	defer boot.clientsRWM.Unlock()
+	// check exist
+	if _, ok := boot.clients[m.Tag]; ok {
+		err := errors.Errorf("boot %s is running", m.Tag)
+		boot.ctx.Printf(logger.INFO, "boot", "add boot %s failed: %s", m.Tag, err)
+		return err
+	}
+	// load
+	g := boot.ctx.global
 	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxyPool, g.dnsClient)
 	if err != nil {
-		return errors.Wrapf(err, "load boot %s failed", m.Tag)
+		err = errors.Wrapf(err, "load boot %s failed", m.Tag)
+		boot.ctx.Printf(logger.INFO, "boot", "add boot %s failed: %s", m.Tag, err)
+		return err
 	}
-	boot := &boot{
-		ctx:        ctrl,
+	bc := bClient{
+		ctx:        boot,
 		tag:        m.Tag,
 		interval:   time.Duration(m.Interval) * time.Second,
 		logSrc:     "boot-" + m.Tag,
 		bootstrap:  b,
 		stopSignal: make(chan struct{}),
 	}
-	ctrl.bootsM.Lock()
-	defer ctrl.bootsM.Unlock()
-	if _, ok := ctrl.boots[m.Tag]; !ok {
-		ctrl.boots[m.Tag] = boot
-	} else {
-		return errors.Errorf("boot %s is running", m.Tag)
-	}
-	ctrl.wg.Add(1)
-	go boot.Boot()
-	ctrl.Printf(logger.INFO, "boot", "add boot %s", m.Tag)
+	boot.clients[m.Tag] = &bc
+	bc.Boot()
+	boot.ctx.Printf(logger.INFO, "boot", "add boot %s", m.Tag)
 	return nil
 }
 
-func (boot *boot) Boot() {
+func (boot *boot) Delete(tag string) error {
+	if boot.isClosed() {
+		return errors.New("boot is closed")
+	}
+	boot.clientsRWM.Lock()
+	defer boot.clientsRWM.Unlock()
+	if client, ok := boot.clients[tag]; !ok {
+		return errors.Errorf("boot: %s doesn't exist", tag)
+	} else {
+		client.Stop()
+		delete(boot.clients, tag)
+		return nil
+	}
+}
+
+func (boot *boot) Close() {
+	atomic.StoreInt32(&boot.inClose, 1)
+	boot.clientsRWM.Lock()
+	defer boot.clientsRWM.Unlock()
+	for tag, client := range boot.clients {
+		client.Stop()
+		delete(boot.clients, tag)
+	}
+}
+
+func (boot *boot) isClosed() bool {
+	return atomic.LoadInt32(&boot.inClose) != 0
+}
+
+// boot client
+type bClient struct {
+	ctx        *boot
+	tag        string
+	interval   time.Duration
+	logSrc     string
+	bootstrap  bootstrap.Bootstrap
+	once       sync.Once
+	stopSignal chan struct{}
+	wg         sync.WaitGroup
+}
+
+func (bc *bClient) Boot() {
+	bc.wg.Add(1)
+	go bc.bootLoop()
+}
+
+func (bc *bClient) bootLoop() {
+	var err error
 	defer func() {
-		boot.ctx.bootsM.Lock()
-		delete(boot.ctx.boots, boot.tag)
-		boot.ctx.bootsM.Unlock()
-		boot.ctx.Printf(logger.INFO, "boot", "boot %s stop", boot.tag)
-		boot.ctx.wg.Done()
+		if r := recover(); r != nil {
+			err = xpanic.Error("bClient.bootLoop() panic:", r)
+			bc.ctx.ctx.Print(logger.FATAL, bc.logSrc, err)
+		}
+		bc.ctx.ctx.Printf(logger.INFO, "boot", "boot %s stop", bc.tag)
+		bc.wg.Done()
 	}()
-	f := func() {
-		err := boot.resolve()
+	resolve := func() {
+		err = bc.resolve()
 		if err != nil {
-			boot.ctx.Println(logger.WARNING, boot.logSrc, err)
+			bc.ctx.ctx.Println(logger.WARNING, bc.logSrc, err)
 		} else {
-			boot.Stop()
+			// stop and delete self
+			close(bc.stopSignal)
+			bc.ctx.clientsRWM.Lock()
+			delete(bc.ctx.clients, bc.tag)
+			bc.ctx.clientsRWM.Unlock()
 		}
 	}
-	f()
+	resolve()
 	for {
 		select {
-		case <-time.After(boot.interval):
-			f()
-		case <-boot.stopSignal:
+		case <-time.After(bc.interval):
+			resolve()
+		case <-bc.stopSignal:
 			return
 		}
 	}
 }
 
-func (boot *boot) resolve() (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = xpanic.Error("boot.resolve() panic:", r)
-			boot.ctx.Print(logger.FATAL, boot.logSrc, err)
-		}
-	}()
-	nodes, err := boot.bootstrap.Resolve()
+func (bc *bClient) resolve() (err error) {
+	nodes, err := bc.bootstrap.Resolve()
 	if err != nil {
 		return
 	}
@@ -92,8 +150,9 @@ func (boot *boot) resolve() (err error) {
 	return
 }
 
-func (boot *boot) Stop() {
-	boot.once.Do(func() {
-		close(boot.stopSignal)
+func (bc *bClient) Stop() {
+	bc.once.Do(func() {
+		close(bc.stopSignal)
+		bc.wg.Wait()
 	})
 }
