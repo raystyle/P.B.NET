@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/bootstrap"
 	"project/internal/convert"
 	"project/internal/guid"
 	"project/internal/protocol"
@@ -27,7 +28,7 @@ type syncer struct {
 	retryTimes       int
 	retryInterval    time.Duration
 	broadcastTimeout float64
-	configsM         sync.Mutex
+	configsRWM       sync.RWMutex
 	// -------------------handle broadcast------------------------
 	// key=base64(guid) value=timestamp, check whether handled
 	broadcastQueue   chan *protocol.Broadcast
@@ -48,10 +49,10 @@ type syncer struct {
 	blockWorker  int
 	blockWorkerM sync.Mutex
 	// runtime
-	sClients    map[string]*sClient
-	sClientsRWM sync.RWMutex
-	stopSignal  chan struct{}
-	wg          sync.WaitGroup
+	clients    map[string]*sClient // key=base64(guid)
+	ClientsRWM sync.RWMutex
+	stopSignal chan struct{}
+	wg         sync.WaitGroup
 }
 
 func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
@@ -92,7 +93,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		syncSendQueue:    make(chan *protocol.SyncSend, cfg.WorkerQueueSize),
 		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.WorkerQueueSize),
 		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.WorkerQueueSize),
-		sClients:         make(map[string]*sClient),
+		clients:          make(map[string]*sClient),
 		stopSignal:       make(chan struct{}),
 	}
 	for i := 0; i < 2; i++ {
@@ -117,15 +118,63 @@ func (syncer *syncer) Close() {
 	syncer.wg.Wait()
 }
 
-func (syncer *syncer) Connect(cfg *clientCfg) {
+// Connect is used to connect node for sync message
+func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
+	syncer.ClientsRWM.Lock()
+	defer syncer.ClientsRWM.Unlock()
+	sClientsLen := len(syncer.clients)
+	if sClientsLen >= syncer.getMaxSyncer() {
+		return errors.New("connected node number > max syncer")
+	}
+	cfg := clientCfg{
+		Node:     node,
+		NodeGUID: guid,
+	}
+	sClient, err := newSClient(syncer, &cfg)
+	if err != nil {
+		return errors.WithMessage(err, "connect node failed")
+	}
+	key := base64.StdEncoding.EncodeToString(guid)
+	syncer.clients[key] = sClient
+	return nil
+}
 
+// getMaxSyncer is used to get current max syncer number
+func (syncer *syncer) getMaxSyncer() int {
+	syncer.configsRWM.RLock()
+	maxSyncer := syncer.maxSyncer
+	syncer.configsRWM.RUnlock()
+	return maxSyncer
 }
 
 // watcher is used to check connect nodes number
 // connected nodes number < syncer.maxSyncer, try to connect more node
 func (syncer *syncer) watcher() {
 	defer syncer.wg.Done()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	isMax := func() bool {
+		// get current syncer client number
+		syncer.ClientsRWM.RLock()
+		sClientsLen := len(syncer.clients)
+		syncer.ClientsRWM.RUnlock()
+		return sClientsLen >= syncer.getMaxSyncer()
+	}
+	watch := func() {
+		if isMax() {
+			return
+		}
+		// select nodes
 
+	}
+	for {
+		select {
+		case <-ticker.C:
+			watch()
+		case <-syncer.stopSignal:
+			return
+		}
+	}
 }
 
 // task from syncer client
@@ -443,7 +492,7 @@ func (syncer *syncer) worker() {
 		b  *protocol.Broadcast
 		ss *protocol.SyncSend
 		sr *protocol.SyncReceive
-		st *protocol.SyncTask
+		// st *protocol.SyncTask
 		// key
 		// nodeKey   *mNode
 		// beaconKey *mBeacon
@@ -480,16 +529,31 @@ func (syncer *syncer) worker() {
 		select {
 		// ----------------------handle sync receive-----------------------
 		case sr = <-syncer.syncReceiveQueue:
+			// check role and set key
+			switch sr.ReceiverRole {
+			case protocol.Beacon:
+
+			case protocol.Node:
+
+			}
 
 		// -----------------------handle sync send-------------------------
 		case ss = <-syncer.syncSendQueue:
+			if ss.ReceiverRole != protocol.Ctrl {
+
+			}
 
 		// -----------------------handle broadcast-------------------------
 		case b = <-syncer.broadcastQueue:
+			switch b.ReceiverRole {
+			case protocol.Beacon:
 
+			case protocol.Node:
+
+			}
 		// -----------------------handle sync task-------------------------
-		case st = <-syncer.syncTaskQueue:
-			// reply, err := query(sync_query)
+		// case st = <-syncer.syncTaskQueue:
+		// reply, err := query(sync_query)
 		case <-syncer.stopSignal:
 			return
 		}
