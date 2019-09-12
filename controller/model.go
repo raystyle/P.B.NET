@@ -3,8 +3,12 @@ package controller
 import (
 	"time"
 
+	"github.com/jinzhu/gorm"
+	"github.com/pkg/errors"
+
 	"project/internal/config"
 	"project/internal/xnet"
+	"project/internal/xreflect"
 )
 
 // different table has the same model
@@ -154,4 +158,121 @@ type mTrustNode struct {
 	Mode    xnet.Mode `json:"mode"`
 	Network string    `json:"network"`
 	Address string    `json:"address"`
+}
+
+// first use this project
+func InitDatabase(cfg *Config) error {
+	// connect database
+	db, err := gorm.Open(cfg.Dialect, cfg.DSN)
+	if err != nil {
+		return errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
+	}
+	// not add s
+	db.SingularTable(true)
+	defer func() { _ = db.Close() }()
+	tables := []*struct {
+		name  string
+		model interface{}
+	}{
+		{
+			model: &mCtrlLog{},
+		},
+		{
+			model: &mProxyClient{},
+		},
+		{
+			model: &mDNSServer{},
+		},
+		{
+			model: &mTimeSyncer{},
+		},
+		{
+			model: &mBoot{},
+		},
+		{
+			model: &mListener{},
+		},
+		{
+			model: &mNode{},
+		},
+		{
+			model: &mNodeSyncer{},
+		},
+		{
+			model: &mNodeListener{},
+		},
+		{
+			name:  tableNodeLog,
+			model: &mRoleLog{},
+		},
+		{
+			model: &mBeacon{},
+		},
+		{
+			model: &mBeaconSyncer{},
+		},
+		{
+			model: &mBeaconListener{},
+		},
+		{
+			name:  tableBeaconLog,
+			model: &mRoleLog{},
+		},
+	}
+	for i := 0; i < len(tables); i++ {
+		n := tables[i].name
+		m := tables[i].model
+		if n == "" {
+			db.DropTableIfExists(m)
+			err = db.CreateTable(m).Error
+			if err != nil {
+				table := gorm.ToTableName(xreflect.StructName(m))
+				return errors.Wrapf(err, "create table %s failed", table)
+			}
+		} else {
+			db.Table(n).DropTableIfExists(m)
+			err = db.Table(n).CreateTable(m).Error
+			if err != nil {
+				return errors.Wrapf(err, "create table %s failed", n)
+			}
+		}
+	}
+	// add node foreign key
+	addErr := func(table string, err error) error {
+		return errors.Wrapf(err, "add %s foreign key failed", table)
+	}
+	table := gorm.ToTableName(xreflect.StructName(&mNode{}))
+	err = db.Model(&mNodeSyncer{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return addErr(table, err)
+	}
+	err = db.Model(&mNodeListener{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return addErr(table, err)
+	}
+	err = db.Table(tableNodeLog).Model(&mRoleLog{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return addErr(table, err)
+	}
+	// add beacon foreign key
+	table = gorm.ToTableName(xreflect.StructName(&mBeacon{}))
+	err = db.Model(&mBeaconSyncer{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return addErr(table, err)
+	}
+	err = db.Model(&mBeaconListener{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return addErr(table, err)
+	}
+	err = db.Table(tableBeaconLog).Model(&mRoleLog{}).AddForeignKey("guid", table+"(guid)",
+		"CASCADE", "CASCADE").Error
+	if err != nil {
+		return addErr(table, err)
+	}
+	return nil
 }

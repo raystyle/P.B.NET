@@ -5,7 +5,6 @@ import (
 	_ "net/http/pprof"
 	"sync"
 
-	"github.com/jinzhu/gorm"
 	"github.com/stretchr/testify/require"
 
 	"project/testdata"
@@ -16,7 +15,7 @@ var (
 	initOnce sync.Once
 )
 
-func initCtrl(t require.TestingT) {
+func testInitCtrl(t require.TestingT) {
 	initOnce.Do(func() {
 		cfg := testGenerateConfig()
 		controller, err := New(cfg)
@@ -25,17 +24,15 @@ func initCtrl(t require.TestingT) {
 			err = InitDatabase(cfg)
 			require.NoError(t, err)
 			// add test data
-			// connect database
-			db, err := gorm.Open(cfg.Dialect, cfg.DSN)
+			ctrl = &CTRL{cache: newCache()}
+			db, err := newDB(ctrl, cfg)
 			require.NoError(t, err)
-			db.SingularTable(true) // not add s
-			ctrl = &CTRL{db: db}
+			ctrl.db = db
 			testInsertProxyClient(t)
 			testInsertDNSServer(t)
 			testInsertTimeSyncerConfig(t)
 			testInsertBoot(t)
 			testInsertListener(t)
-			_ = db.Close()
 			ctrl, err = New(cfg)
 			require.NoError(t, err)
 		} else {

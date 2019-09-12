@@ -1,11 +1,8 @@
 package controller
 
 import (
-	"fmt"
 	"sync"
 
-	"github.com/go-sql-driver/mysql"
-	"github.com/jinzhu/gorm"
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
@@ -22,17 +19,13 @@ const (
 type CTRL struct {
 	debug  *Debug
 	logLv  logger.Level
-	db     *gorm.DB
-	dbLg   *dbLogger
-	gormLg *gormLogger
-	global *global
-	cache  *cache           // database cache and run db syncer
-	syncer *syncer          // sync message
-	sender *sender          // broadcast and send message
-	boots  map[string]*boot // discover bootstrap node
-	bootsM sync.Mutex
-	web    *web
-	wg     sync.WaitGroup
+	cache  *cache  // database cache and run db syncer
+	db     *db     // provide data
+	global *global // proxy, dns, time syncer, and ...
+	syncer *syncer // sync message
+	sender *sender // broadcast and send message
+	boot   *boot   // auto discover bootstrap nodes
+	web    *web    // web server
 	once   sync.Once
 	wait   chan struct{}
 	exit   chan error
@@ -40,57 +33,31 @@ type CTRL struct {
 
 func New(cfg *Config) (*CTRL, error) {
 	// init logger
-	lv, err := logger.Parse(cfg.LogLevel)
+	logLevel, err := logger.Parse(cfg.LogLevel)
 	if err != nil {
 		return nil, err
-	}
-	// set db logger
-	dbLg, err := newDBLogger(cfg.Dialect, cfg.DBLogFile)
-	if err != nil {
-		return nil, err
-	}
-	// if you need, add DB Driver
-	switch cfg.Dialect {
-	case "mysql":
-		_ = mysql.SetLogger(dbLg)
-	default:
-		return nil, fmt.Errorf("unknown dialect: %s", cfg.Dialect)
-	}
-	// connect database
-	db, err := gorm.Open(cfg.Dialect, cfg.DSN)
-	if err != nil {
-		return nil, errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
-	}
-	db.SingularTable(true) // not add s
-	// connection
-	db.DB().SetMaxOpenConns(cfg.DBMaxOpenConns)
-	db.DB().SetMaxIdleConns(cfg.DBMaxIdleConns)
-	// gorm logger
-	gormLg, err := newGormLogger(cfg.GORMLogFile)
-	if err != nil {
-		return nil, err
-	}
-	db.SetLogger(gormLg)
-	if cfg.GORMDetailedLog {
-		db.LogMode(true)
 	}
 	// copy debug config
 	debug := cfg.Debug
 	ctrl := &CTRL{
-		debug:  &debug,
-		logLv:  lv,
-		db:     db,
-		dbLg:   dbLg,
-		gormLg: gormLg,
+		debug: &debug,
+		logLv: logLevel,
+		cache: newCache(),
 	}
-	// init global
-	g, err := newGlobal(ctrl, cfg)
+	// init database
+	db, err := newDB(ctrl, cfg)
 	if err != nil {
 		return nil, err
 	}
-	ctrl.global = g
+	ctrl.db = db
+	// init global
+	global, err := newGlobal(ctrl, cfg)
+	if err != nil {
+		return nil, err
+	}
+	ctrl.global = global
 	// load proxy clients from database
-	pcs, err := ctrl.SelectProxyClient()
+	pcs, err := ctrl.db.SelectProxyClient()
 	if err != nil {
 		return nil, errors.Wrap(err, "load proxy clients failed")
 	}
@@ -106,7 +73,7 @@ func New(cfg *Config) (*CTRL, error) {
 		}
 	}
 	// load dns servers from database
-	dss, err := ctrl.SelectDNSServer()
+	dss, err := ctrl.db.SelectDNSServer()
 	if err != nil {
 		return nil, errors.Wrap(err, "load dns servers failed")
 	}
@@ -122,7 +89,7 @@ func New(cfg *Config) (*CTRL, error) {
 		}
 	}
 	// load time syncer configs from database
-	tcs, err := ctrl.SelectTimeSyncer()
+	tcs, err := ctrl.db.SelectTimeSyncer()
 	if err != nil {
 		return nil, errors.Wrap(err, "select time syncer failed")
 	}
@@ -138,12 +105,6 @@ func New(cfg *Config) (*CTRL, error) {
 			return nil, errors.Wrapf(err, "add time syncer config %s failed", tag)
 		}
 	}
-	// init cache
-	cache, err := newCache(ctrl, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "init cache failed")
-	}
-	ctrl.cache = cache
 	// init syncer
 	syncer, err := newSyncer(ctrl, cfg)
 	if err != nil {
@@ -156,13 +117,15 @@ func New(cfg *Config) (*CTRL, error) {
 		return nil, errors.WithMessage(err, "init sender failed")
 	}
 	ctrl.sender = sender
+	// init boot
+	ctrl.boot = newBoot(ctrl)
 	// init http server
 	web, err := newWeb(ctrl, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "init web server failed")
 	}
 	ctrl.web = web
-	ctrl.boots = make(map[string]*boot)
+	// wait and exit
 	ctrl.wait = make(chan struct{}, 2)
 	ctrl.exit = make(chan error, 1)
 	return ctrl, nil
@@ -190,20 +153,16 @@ func (ctrl *CTRL) Main() error {
 		// wait to load controller keys
 		ctrl.global.WaitLoadKeys()
 		ctrl.Print(logger.INFO, "init", "load keys successfully")
-		// load boot
+		// load boots
 		ctrl.Print(logger.INFO, "init", "start discover bootstrap nodes")
-		boots, err := ctrl.SelectBoot()
+		boots, err := ctrl.db.SelectBoot()
 		if err != nil {
 			ctrl.Println(logger.ERROR, "init", "select boot failed:", err)
 			return
 		}
 		for i := 0; i < len(boots); i++ {
-			err = ctrl.AddBoot(boots[i])
-			if err != nil {
-				ctrl.Print(logger.ERROR, "boot", err)
-			}
+			_ = ctrl.boot.Add(boots[i])
 		}
-
 	}()
 	ctrl.wait <- struct{}{}
 	return <-ctrl.exit
@@ -223,24 +182,16 @@ func (ctrl *CTRL) Wait() {
 
 func (ctrl *CTRL) Exit(err error) {
 	ctrl.once.Do(func() {
-		// stop all running boot
-		ctrl.bootsM.Lock()
-		for _, boot := range ctrl.boots {
-			boot.Stop()
-		}
-		ctrl.bootsM.Unlock()
-		ctrl.Print(logger.INFO, "exit", "all boots stopped")
 		ctrl.web.Close()
 		ctrl.Print(logger.INFO, "exit", "web server is stopped")
-		ctrl.wg.Wait()
+		ctrl.boot.Close()
+		ctrl.Print(logger.INFO, "exit", "boot is stopped")
 		ctrl.sender.Close()
 		ctrl.Print(logger.INFO, "exit", "sender is stopped")
 		ctrl.global.Destroy()
 		ctrl.Print(logger.INFO, "exit", "global is stopped")
 		ctrl.Print(logger.INFO, "exit", "controller is stopped")
-		_ = ctrl.db.Close()
-		ctrl.gormLg.Close()
-		ctrl.dbLg.Close()
+		ctrl.db.Close()
 		ctrl.exit <- err
 		close(ctrl.exit)
 	})

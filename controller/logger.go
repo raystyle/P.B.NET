@@ -107,7 +107,7 @@ func (ctrl *CTRL) printLog(l logger.Level, src, log string, b *bytes.Buffer) {
 		Source: src,
 		Log:    log,
 	}
-	ctrl.db.Create(m)
+	_ = ctrl.db.InsertCtrlLog(m)
 	// print console
 	b.WriteString("\n")
 	_, _ = b.WriteTo(os.Stdout)

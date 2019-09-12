@@ -72,7 +72,7 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlin
 		return err
 	}
 	// insert node
-	return ctrl.InsertNode(&mNode{
+	return ctrl.db.InsertNode(&mNode{
 		GUID:        req.GUID,
 		PublicKey:   req.PublicKey,
 		SessionKey:  sKey,

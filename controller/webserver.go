@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -24,6 +25,7 @@ type web struct {
 	listener net.Listener
 	server   *http.Server
 	indexFS  http.Handler // index file system
+	wg       sync.WaitGroup
 }
 
 func newWeb(ctx *CTRL, cfg *Config) (*web, error) {
@@ -39,7 +41,7 @@ func newWeb(ctx *CTRL, cfg *Config) (*web, error) {
 		return nil, errors.WithStack(err)
 	}
 	// router
-	web := &web{
+	web := web{
 		ctx:      ctx,
 		listener: listener,
 	}
@@ -78,16 +80,16 @@ func newWeb(ctx *CTRL, cfg *Config) (*web, error) {
 		Handler:           router,
 		ErrorLog:          logger.Wrap(logger.WARNING, "web", ctx),
 	}
-	return web, nil
+	return &web, nil
 }
 
 func (web *web) Deploy() error {
 	errChan := make(chan error, 1)
 	serve := func() {
 		errChan <- web.server.ServeTLS(web.listener, "", "")
-		web.ctx.wg.Done()
+		web.wg.Done()
 	}
-	web.ctx.wg.Add(1)
+	web.wg.Add(1)
 	go serve()
 	select {
 	case err := <-errChan:

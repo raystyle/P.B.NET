@@ -3,11 +3,12 @@ package controller
 import (
 	"context"
 	"database/sql"
+	"sync"
+	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
-
-	"project/internal/xreflect"
 )
 
 func init() {
@@ -19,104 +20,70 @@ func init() {
 	}
 }
 
-// first use this project
-func InitDatabase(c *Config) error {
+type db struct {
+	ctx          *CTRL // use cache
+	syncInterval time.Duration
+	dbLogger     *dbLogger
+	gormLogger   *gormLogger
+	db           *gorm.DB
+	stopSignal   chan struct{}
+	wg           sync.WaitGroup
+}
+
+func newDB(ctx *CTRL, cfg *Config) (*db, error) {
+	// set db logger
+	dbLogger, err := newDBLogger(cfg.Dialect, cfg.DBLogFile)
+	if err != nil {
+		return nil, err
+	}
+	// if you need, add DB Driver
+	switch cfg.Dialect {
+	case "mysql":
+		_ = mysql.SetLogger(dbLogger)
+	default:
+		return nil, errors.Errorf("unknown database dialect: %s", cfg.Dialect)
+	}
 	// connect database
-	db, err := gorm.Open(c.Dialect, c.DSN)
+	gormDB, err := gorm.Open(cfg.Dialect, cfg.DSN)
 	if err != nil {
-		return errors.Wrapf(err, "connect %s server failed", c.Dialect)
+		return nil, errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
 	}
-	// not add s
-	db.SingularTable(true)
-	defer func() { _ = db.Close() }()
-	tables := []*struct {
-		name  string
-		model interface{}
-	}{
-		{
-			model: &mCtrlLog{},
-		},
-		{
-			model: &mProxyClient{},
-		},
-		{
-			model: &mDNSServer{},
-		},
-		{
-			model: &mTimeSyncer{},
-		},
-		{
-			model: &mBoot{},
-		},
-		{
-			model: &mListener{},
-		},
-		{
-			model: &mNode{},
-		},
-		{
-			model: &mNodeSyncer{},
-		},
-		{
-			model: &mNodeListener{},
-		},
-		{
-			name:  tableNodeLog,
-			model: &mRoleLog{},
-		},
-		{
-			model: &mBeacon{},
-		},
-		{
-			model: &mBeaconSyncer{},
-		},
-		{
-			model: &mBeaconListener{},
-		},
-		{
-			name:  tableBeaconLog,
-			model: &mRoleLog{},
-		},
-	}
-	for i := 0; i < len(tables); i++ {
-		n := tables[i].name
-		m := tables[i].model
-		if n == "" {
-			db.DropTableIfExists(m)
-			err = db.CreateTable(m).Error
-			if err != nil {
-				table := gorm.ToTableName(xreflect.StructName(m))
-				return errors.Wrapf(err, "create table %s failed", table)
-			}
-		} else {
-			db.Table(n).DropTableIfExists(m)
-			err = db.Table(n).CreateTable(m).Error
-			if err != nil {
-				return errors.Wrapf(err, "create table %s failed", n)
-			}
-		}
-	}
-	// add foreign key
-	addErr := func(err error) error {
-		return errors.Wrapf(err, "add foreign key failed")
-	}
-	table := gorm.ToTableName(xreflect.StructName(&mNode{}))
-	err = db.Model(&mNodeListener{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
+	gormDB.SingularTable(true) // not add s
+	// connection
+	gormDB.DB().SetMaxOpenConns(cfg.DBMaxOpenConns)
+	gormDB.DB().SetMaxIdleConns(cfg.DBMaxIdleConns)
+	// gorm logger
+	gormLogger, err := newGormLogger(cfg.GORMLogFile)
 	if err != nil {
-		return addErr(err)
+		return nil, err
 	}
-	err = db.Model(&mNodeSyncer{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
-	if err != nil {
-		return addErr(err)
+	gormDB.SetLogger(gormLogger)
+	if cfg.GORMDetailedLog {
+		gormDB.LogMode(true)
 	}
-	err = db.Table(tableNodeLog).Model(&mRoleLog{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
-	if err != nil {
-		return addErr(err)
+	db := db{
+		ctx:          ctx,
+		syncInterval: cfg.DBSyncInterval,
+		dbLogger:     dbLogger,
+		gormLogger:   gormLogger,
+		db:           gormDB,
+		stopSignal:   make(chan struct{}),
 	}
-	return nil
+	db.wg.Add(1)
+	go db.cacheSyncer()
+	return &db, nil
+}
+
+func (db *db) Close() {
+	close(db.stopSignal)
+	db.wg.Wait()
+	_ = db.db.Close()
+	db.gormLogger.Close()
+	db.dbLogger.Close()
+}
+
+func (db *db) cacheSyncer() {
+	defer db.wg.Done()
 }
 
 /*
@@ -138,105 +105,109 @@ func InitDatabase(c *Config) error {
 	return
 */
 
+func (db *db) InsertCtrlLog(m *mCtrlLog) error {
+	return db.db.Create(m).Error
+}
+
 // -------------------------------proxy client----------------------------------------
 
-func (ctrl *CTRL) InsertProxyClient(m *mProxyClient) error {
-	return ctrl.db.Create(m).Error
+func (db *db) InsertProxyClient(m *mProxyClient) error {
+	return db.db.Create(m).Error
 }
 
-func (ctrl *CTRL) SelectProxyClient() ([]*mProxyClient, error) {
+func (db *db) SelectProxyClient() ([]*mProxyClient, error) {
 	var clients []*mProxyClient
-	return clients, ctrl.db.Find(&clients).Error
+	return clients, db.db.Find(&clients).Error
 }
 
-func (ctrl *CTRL) UpdateProxyClient(m *mProxyClient) error {
-	return ctrl.db.Save(m).Error
+func (db *db) UpdateProxyClient(m *mProxyClient) error {
+	return db.db.Save(m).Error
 }
 
-func (ctrl *CTRL) DeleteProxyClient(id uint64) error {
-	return ctrl.db.Delete(&mProxyClient{ID: id}).Error
+func (db *db) DeleteProxyClient(id uint64) error {
+	return db.db.Delete(&mProxyClient{ID: id}).Error
 }
 
 // ---------------------------------dns client----------------------------------------
 
-func (ctrl *CTRL) InsertDNSServer(m *mDNSServer) error {
-	return ctrl.db.Create(m).Error
+func (db *db) InsertDNSServer(m *mDNSServer) error {
+	return db.db.Create(m).Error
 }
 
-func (ctrl *CTRL) SelectDNSServer() ([]*mDNSServer, error) {
+func (db *db) SelectDNSServer() ([]*mDNSServer, error) {
 	var clients []*mDNSServer
-	return clients, ctrl.db.Find(&clients).Error
+	return clients, db.db.Find(&clients).Error
 }
 
-func (ctrl *CTRL) UpdateDNSServer(m *mDNSServer) error {
-	return ctrl.db.Save(m).Error
+func (db *db) UpdateDNSServer(m *mDNSServer) error {
+	return db.db.Save(m).Error
 }
 
-func (ctrl *CTRL) DeleteDNSServer(id uint64) error {
-	return ctrl.db.Delete(&mDNSServer{ID: id}).Error
+func (db *db) DeleteDNSServer(id uint64) error {
+	return db.db.Delete(&mDNSServer{ID: id}).Error
 }
 
 // -----------------------------time syncer config------------------------------------
 
-func (ctrl *CTRL) InsertTimeSyncer(m *mTimeSyncer) error {
-	return ctrl.db.Create(m).Error
+func (db *db) InsertTimeSyncer(m *mTimeSyncer) error {
+	return db.db.Create(m).Error
 }
 
-func (ctrl *CTRL) SelectTimeSyncer() ([]*mTimeSyncer, error) {
+func (db *db) SelectTimeSyncer() ([]*mTimeSyncer, error) {
 	var timeSyncer []*mTimeSyncer
-	return timeSyncer, ctrl.db.Find(&timeSyncer).Error
+	return timeSyncer, db.db.Find(&timeSyncer).Error
 }
 
-func (ctrl *CTRL) UpdateTimeSyncer(m *mTimeSyncer) error {
-	return ctrl.db.Save(m).Error
+func (db *db) UpdateTimeSyncer(m *mTimeSyncer) error {
+	return db.db.Save(m).Error
 }
 
-func (ctrl *CTRL) DeleteTimeSyncer(id uint64) error {
-	return ctrl.db.Delete(&mTimeSyncer{ID: id}).Error
+func (db *db) DeleteTimeSyncer(id uint64) error {
+	return db.db.Delete(&mTimeSyncer{ID: id}).Error
 }
 
 // -------------------------------------boot------------------------------------------
 
-func (ctrl *CTRL) InsertBoot(m *mBoot) error {
-	return ctrl.db.Create(m).Error
+func (db *db) InsertBoot(m *mBoot) error {
+	return db.db.Create(m).Error
 }
 
-func (ctrl *CTRL) SelectBoot() ([]*mBoot, error) {
+func (db *db) SelectBoot() ([]*mBoot, error) {
 	var boot []*mBoot
-	return boot, ctrl.db.Find(&boot).Error
+	return boot, db.db.Find(&boot).Error
 }
 
-func (ctrl *CTRL) UpdateBoot(m *mBoot) error {
-	return ctrl.db.Save(m).Error
+func (db *db) UpdateBoot(m *mBoot) error {
+	return db.db.Save(m).Error
 }
 
-func (ctrl *CTRL) DeleteBoot(id uint64) error {
-	return ctrl.db.Delete(&mBoot{ID: id}).Error
+func (db *db) DeleteBoot(id uint64) error {
+	return db.db.Delete(&mBoot{ID: id}).Error
 }
 
 // ----------------------------------listener-----------------------------------------
 
-func (ctrl *CTRL) InsertListener(m *mListener) error {
-	return ctrl.db.Create(m).Error
+func (db *db) InsertListener(m *mListener) error {
+	return db.db.Create(m).Error
 }
 
-func (ctrl *CTRL) SelectListener() ([]*mListener, error) {
+func (db *db) SelectListener() ([]*mListener, error) {
 	var listener []*mListener
-	return listener, ctrl.db.Find(&listener).Error
+	return listener, db.db.Find(&listener).Error
 }
 
-func (ctrl *CTRL) UpdateListener(m *mListener) error {
-	return ctrl.db.Save(m).Error
+func (db *db) UpdateListener(m *mListener) error {
+	return db.db.Save(m).Error
 }
 
-func (ctrl *CTRL) DeleteListener(id uint64) error {
-	return ctrl.db.Delete(&mListener{ID: id}).Error
+func (db *db) DeleteListener(id uint64) error {
+	return db.db.Delete(&mListener{ID: id}).Error
 }
 
 // ------------------------------------node-------------------------------------------
 
-func (ctrl *CTRL) InsertNode(m *mNode) error {
-	tx := ctrl.db.BeginTx(context.Background(),
+func (db *db) InsertNode(m *mNode) error {
+	tx := db.db.BeginTx(context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable})
 	err := tx.Error
 	if err != nil {
@@ -262,8 +233,8 @@ func (ctrl *CTRL) InsertNode(m *mNode) error {
 	return nil
 }
 
-func (ctrl *CTRL) DeleteNode(guid []byte) error {
-	tx := ctrl.db.BeginTx(context.Background(),
+func (db *db) DeleteNode(guid []byte) error {
+	tx := db.db.BeginTx(context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable})
 	err := tx.Error
 	if err != nil {
@@ -290,22 +261,24 @@ func (ctrl *CTRL) DeleteNode(guid []byte) error {
 	return err
 }
 
-func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
-	return ctrl.db.Unscoped().Delete(&mNode{}, "guid = ?", guid).Error
+func (db *db) DeleteNodeUnscoped(guid []byte) error {
+	return db.db.Unscoped().Delete(&mNode{}, "guid = ?", guid).Error
 }
 
-func (ctrl *CTRL) InsertNodeListener(m *mNodeListener) error {
-	return ctrl.db.Create(m).Error
+func (db *db) InsertNodeListener(m *mNodeListener) error {
+	return db.db.Create(m).Error
 }
 
-func (ctrl *CTRL) DeleteNodeListener(id uint64) error {
-	return ctrl.db.Delete(&mNodeListener{ID: id}).Error
+func (db *db) DeleteNodeListener(id uint64) error {
+	return db.db.Delete(&mNodeListener{ID: id}).Error
 }
 
-func (ctrl *CTRL) InsertNodeLog(m *mRoleLog) error {
-	return ctrl.db.Table(tableNodeLog).Create(m).Error
+func (db *db) InsertNodeLog(m *mRoleLog) error {
+	return db.db.Table(tableNodeLog).Create(m).Error
 }
 
-func (ctrl *CTRL) DeleteNodeLog(id uint64) error {
-	return ctrl.db.Table(tableNodeLog).Delete(&mRoleLog{ID: id}).Error
+func (db *db) DeleteNodeLog(id uint64) error {
+	return db.db.Table(tableNodeLog).Delete(&mRoleLog{ID: id}).Error
 }
+
+// -----------------------------------beacon------------------------------------------
