@@ -48,6 +48,7 @@ type syncer struct {
 	// -------------------handle sync task------------------------
 	syncTaskQueue chan *protocol.SyncTask
 	// check is sync
+	// TODO when remove role need delete it
 	syncStatus   [2]map[string]bool
 	syncStatusM  [2]sync.Mutex
 	blockWorker  int
@@ -252,6 +253,7 @@ func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
 	}
 }
 
+// addSyncTask is used to
 func (syncer *syncer) addSyncTask(task *protocol.SyncTask) {
 	if len(syncer.syncTaskQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
@@ -287,6 +289,7 @@ func (syncer *syncer) checkBroadcastToken(role byte, guid []byte) bool {
 	case protocol.Node:
 		i = syncerNode
 	default:
+		// tODO log not panic
 		panic("invalid role")
 	}
 	syncer.broadcastGUIDRWM[i].RLock()
@@ -479,7 +482,8 @@ func (syncer *syncer) guidCleaner() {
 	}
 }
 
-// only one role is synchronized at the same time
+// isSync is used to check role is synchronizing
+// if not set flag and lock it
 func (syncer *syncer) isSync(role protocol.Role, guid string) bool {
 	i := 0
 	switch role {
@@ -499,7 +503,7 @@ func (syncer *syncer) isSync(role protocol.Role, guid string) bool {
 	}
 }
 
-// set sync flag
+// set sync done
 func (syncer *syncer) syncDone(role protocol.Role, guid string) {
 	i := 0
 	switch role {
@@ -536,17 +540,21 @@ func (syncer *syncer) worker() {
 		ss *protocol.SyncSend
 		sr *protocol.SyncReceive
 		// st *protocol.SyncTask
+
 		// key
 		node      *mNode
 		beacon    *mBeacon
 		publicKey ed25519.PublicKey
 		aesKey    []byte
 		aesIV     []byte
+
 		// temp
-		// roleGUID    string
-		// roleSend    uint64
-		// roleReceive uint64
-		err error
+		ns          *mNodeSyncer
+		bs          *mBeaconSyncer
+		roleGUID    string
+		roleSend    uint64
+		ctrlReceive uint64
+		err         error
 	)
 	// init buffer
 	// protocol.SyncReceive buffer cap = guid.SIZE + 8 + 1 + guid.SIZE
@@ -628,10 +636,127 @@ func (syncer *syncer) worker() {
 			}
 		// -----------------------handle sync send-------------------------
 		case ss = <-syncer.syncSendQueue:
-			if ss.ReceiverRole != protocol.Ctrl {
-
+			// set key
+			switch ss.SenderRole {
+			case protocol.Beacon:
+				beacon, err = syncer.ctx.db.SelectBeacon(ss.SenderGUID)
+				if err != nil {
+					syncer.logf(logger.WARNING, "select beacon %X failed %s",
+						ss.SenderGUID, err)
+					continue
+				}
+				publicKey = beacon.PublicKey
+				aesKey = beacon.SessionKey[:aes.Bit256]
+				aesIV = beacon.SessionKey[aes.Bit256:]
+			case protocol.Node:
+				node, err = syncer.ctx.db.SelectNode(ss.SenderGUID)
+				if err != nil {
+					syncer.logf(logger.WARNING, "select node %X failed %s",
+						ss.SenderGUID, err)
+					continue
+				}
+				publicKey = node.PublicKey
+				aesKey = node.SessionKey[:aes.Bit256]
+				aesIV = node.SessionKey[aes.Bit256:]
+			default:
+				panic("invalid ss.SenderRole")
 			}
-
+			// verify
+			buffer.Reset()
+			buffer.Write(ss.GUID)
+			buffer.Write(convert.Uint64ToBytes(ss.Height))
+			buffer.Write(ss.Message)
+			buffer.WriteByte(ss.SenderRole.Byte())
+			buffer.Write(ss.SenderGUID)
+			buffer.WriteByte(ss.ReceiverRole.Byte())
+			buffer.Write(ss.ReceiverGUID)
+			if !ed25519.Verify(publicKey, buffer.Bytes(), ss.Signature) {
+				syncer.logf(logger.EXPLOIT, "invalid sync send role: %s guid: %X",
+					ss.SenderRole, ss.SenderGUID)
+				continue
+			}
+			if !syncer.checkSyncSendGUID(ss.SenderRole, ss.GUID) {
+				continue
+			}
+			ss.Height += 1 // index -> height
+			// update role send
+			switch ss.SenderRole {
+			case protocol.Beacon:
+				err = syncer.ctx.db.UpdateBSBeaconSend(ss.SenderGUID, ss.Height)
+				syncer.logf(logger.WARNING, "update %X beacon send failed %s",
+					ss.SenderGUID, err)
+			case protocol.Node:
+				err = syncer.ctx.db.UpdateNSNodeSend(ss.SenderGUID, ss.Height)
+				syncer.logf(logger.WARNING, "update %X node send failed %s",
+					ss.SenderGUID, err)
+			}
+			// lock role
+			roleGUID = base64.StdEncoding.EncodeToString(ss.SenderGUID)
+			if syncer.isSync(ss.SenderRole, roleGUID) {
+				continue
+			}
+			// select role send & controller receive
+			// must select again, because maybe update
+			// role send at the same time
+			switch ss.SenderRole {
+			case protocol.Beacon:
+				bs, err = syncer.ctx.db.SelectBeaconSyncer(ss.SenderGUID)
+				if err != nil {
+					syncer.logf(logger.WARNING, "select beacon syncer %X failed %s",
+						ss.SenderGUID, err)
+					continue
+				}
+				roleSend = bs.BeaconSend
+				ctrlReceive = bs.CtrlRecv
+			case protocol.Node:
+				ns, err = syncer.ctx.db.SelectNodeSyncer(ss.SenderGUID)
+				if err != nil {
+					syncer.logf(logger.WARNING, "select node syncer %X failed %s",
+						ss.SenderGUID, err)
+					continue
+				}
+				roleSend = ns.NodeSend
+				ctrlReceive = ns.CtrlRecv
+			}
+			// check height
+			sub := roleSend - ctrlReceive
+			switch {
+			case sub < 1: // received message
+				syncer.syncDone(ss.SenderRole, roleGUID)
+			case sub == 1: // only one message, handle it
+				ss.Message, err = aes.CBCDecrypt(ss.Message, aesKey, aesIV)
+				if err != nil {
+					syncer.syncDone(ss.SenderRole, roleGUID)
+					syncer.logf(logger.EXPLOIT, "decrypt %s guid: %X message failed: %s",
+						ss.SenderRole, ss.SenderGUID, err)
+					continue
+				}
+				syncer.ctx.handleMessage(ss.Message, ss.SenderRole, ss.SenderGUID, roleSend-1)
+				// update controller receive
+				switch ss.SenderRole {
+				case protocol.Beacon:
+					err = syncer.ctx.db.UpdateBSCtrlReceive(ss.SenderGUID, roleSend)
+					if err != nil {
+						syncer.logf(logger.ERROR, "update beacon syncer %X ctrl send failed %s",
+							ss.SenderGUID, err)
+					}
+				case protocol.Node:
+					err = syncer.ctx.db.UpdateNSCtrlReceive(ss.SenderGUID, roleSend)
+					if err != nil {
+						syncer.logf(logger.ERROR, "update node syncer %X ctrl send failed %s",
+							ss.SenderGUID, err)
+					}
+				}
+				syncer.syncDone(ss.SenderRole, roleGUID)
+				// notice node to delete message
+				syncer.ctx.sender.SyncReceive(ss.SenderRole, ss.SenderGUID, roleSend-1)
+			case sub > 1: // get old message and need sync more message
+				syncer.addSyncTask(&protocol.SyncTask{
+					Role: ss.SenderRole,
+					GUID: ss.SenderGUID,
+				})
+				syncer.syncDone(ss.SenderRole, roleGUID)
+			}
 		// -----------------------handle broadcast-------------------------
 		case b = <-syncer.broadcastQueue:
 			// set key

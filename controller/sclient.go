@@ -307,6 +307,8 @@ func (sc *sClient) handleSyncSend(id, message []byte) {
 		sc.Close()
 		return
 	}
+	// TODO check role  and check sender role
+	// check guid
 	sc.ctx.addSyncSend(&ss)
 	sc.client.Reply(id, protocol.SyncSucceed)
 }
@@ -327,6 +329,7 @@ func (sc *sClient) handleSyncReceive(id, message []byte) {
 		sc.Close()
 		return
 	}
+	// TODO check role  and check sender role
 	sc.ctx.addSyncReceive(&sr)
 	sc.client.Reply(id, protocol.SyncSucceed)
 }

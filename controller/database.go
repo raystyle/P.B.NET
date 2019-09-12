@@ -295,13 +295,53 @@ func (db *db) SelectBeacon(guid []byte) (*mBeacon, error) {
 
 // --------------------------------sync message---------------------------------------
 
-// BS = Beacon Syncer , NS = Node Syncer
-func (db *db) UpdateBSBeaconReceive(guid []byte, height uint64) error {
+func (db *db) SelectNodeSyncer(guid []byte) (*mNodeSyncer, error) {
+
+	return nil, nil
+}
+
+// NS = Node Syncer,  BS = Beacon Syncer
+func (db *db) UpdateNSCtrlSend(guid []byte, height uint64) error {
 
 	return nil
 }
 
 func (db *db) UpdateNSNodeReceive(guid []byte, height uint64) error {
+
+	return nil
+}
+
+func (db *db) UpdateNSNodeSend(guid []byte, height uint64) error {
+
+	return nil
+}
+
+func (db *db) UpdateNSCtrlReceive(guid []byte, height uint64) error {
+
+	return nil
+}
+
+func (db *db) SelectBeaconSyncer(guid []byte) (*mBeaconSyncer, error) {
+
+	return nil, nil
+}
+
+func (db *db) UpdateBSCtrlSend(guid []byte, height uint64) error {
+
+	return nil
+}
+
+func (db *db) UpdateBSBeaconReceive(guid []byte, height uint64) error {
+
+	return nil
+}
+
+func (db *db) UpdateBSBeaconSend(guid []byte, height uint64) error {
+
+	return nil
+}
+
+func (db *db) UpdateBSCtrlReceive(guid []byte, height uint64) error {
 
 	return nil
 }

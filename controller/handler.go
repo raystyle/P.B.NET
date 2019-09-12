@@ -18,6 +18,7 @@ func (ctrl *CTRL) handleBroadcast(msg []byte, role protocol.Role, guid []byte) {
 	}
 }
 
+// height start at 0
 func (ctrl *CTRL) handleMessage(msg []byte, role protocol.Role, guid []byte, height uint64) {
 	switch role {
 	case protocol.Beacon:

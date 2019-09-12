@@ -189,6 +189,20 @@ func (sender *sender) SendPlugin(
 	return
 }
 
+// SyncReceive is used to sync controller receive
+// only for worker
+func (sender *sender) SyncReceive(
+	role protocol.Role,
+	guid []byte,
+	height uint64,
+) {
+	sender.syncReceiveQueue <- &syncReceiveTask{
+		Role:   role,
+		GUID:   guid,
+		Height: height,
+	}
+}
+
 func (sender *sender) Close() {
 	close(sender.stopSignal)
 	sender.wg.Wait()
