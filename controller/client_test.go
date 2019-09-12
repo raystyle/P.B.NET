@@ -62,7 +62,7 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 func TestClient_Send(t *testing.T) {
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	initCtrl(t)
+	testInitCtrl(t)
 	config := &clientCfg{
 		Node: &bootstrap.Node{
 			Mode:    xnet.TLS,
@@ -83,7 +83,7 @@ func TestClient_Send(t *testing.T) {
 func TestClient_SendParallel(t *testing.T) {
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	initCtrl(t)
+	testInitCtrl(t)
 	config := &clientCfg{
 		Node: &bootstrap.Node{
 			Mode:    xnet.TLS,
@@ -117,7 +117,7 @@ func TestClient_SendParallel(t *testing.T) {
 func BenchmarkClient_Send(b *testing.B) {
 	NODE := testGenerateNode(b, true)
 	defer NODE.Exit(nil)
-	initCtrl(b)
+	testInitCtrl(b)
 	config := &clientCfg{
 		Node: &bootstrap.Node{
 			Mode:    xnet.TLS,
@@ -146,7 +146,7 @@ func BenchmarkClient_Send(b *testing.B) {
 func BenchmarkClient_SendParallel(b *testing.B) {
 	NODE := testGenerateNode(b, true)
 	defer NODE.Exit(nil)
-	initCtrl(b)
+	testInitCtrl(b)
 	config := &clientCfg{
 		Node: &bootstrap.Node{
 			Mode:    xnet.TLS,

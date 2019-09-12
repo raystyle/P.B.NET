@@ -12,7 +12,7 @@ import (
 
 func TestIssueVerifyCertificate(t *testing.T) {
 	const address = "localhost:9931"
-	initCtrl(t)
+	testInitCtrl(t)
 	g := bytes.Repeat([]byte{1}, guid.SIZE)
 	cert := ctrl.issueCertificate(address, g)
 	// with node guid
@@ -23,7 +23,7 @@ func TestIssueVerifyCertificate(t *testing.T) {
 
 func TestVerifyInvalidCertificate(t *testing.T) {
 	const address = "localhost:9931"
-	initCtrl(t)
+	testInitCtrl(t)
 	g := bytes.Repeat([]byte{1}, guid.SIZE)
 	// ----------------------with node guid--------------------------
 	// no size

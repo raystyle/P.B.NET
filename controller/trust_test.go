@@ -13,7 +13,7 @@ import (
 func TestTrustNodeAndConfirm(t *testing.T) {
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	initCtrl(t)
+	testInitCtrl(t)
 	n := bootstrap.Node{
 		Mode:    xnet.TLS,
 		Network: "tcp",

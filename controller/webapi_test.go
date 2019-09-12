@@ -37,7 +37,7 @@ func testRestfulAPI(method, path string, model interface{}) ([]byte, error) {
 func TestHandleTrustNode(t *testing.T) {
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	initCtrl(t)
+	testInitCtrl(t)
 	m := &mTrustNode{
 		Mode:    xnet.TLS,
 		Network: "tcp",
