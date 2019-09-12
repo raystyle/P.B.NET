@@ -3,19 +3,15 @@ package controller
 import (
 	"bytes"
 	"encoding/base64"
-	"fmt"
 	"math"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
 	"project/internal/guid"
-	"project/internal/logger"
 	"project/internal/protocol"
-	"project/internal/xpanic"
 )
 
 const (
@@ -27,6 +23,7 @@ type syncer struct {
 	ctx              *CTRL
 	maxBufferSize    int
 	maxSyncer        int
+	workerQueueSize  int
 	retryTimes       int
 	retryInterval    time.Duration
 	broadcastTimeout float64
@@ -46,7 +43,7 @@ type syncer struct {
 	// -------------------handle sync task------------------------
 	syncTaskQueue chan *protocol.SyncTask
 	// check is sync
-	syncStatus   [2]map[string]struct{}
+	syncStatus   [2]map[string]bool
 	syncStatusM  [2]sync.Mutex
 	blockWorker  int
 	blockWorkerM sync.Mutex
@@ -87,35 +84,114 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		ctx:              ctx,
 		maxBufferSize:    cfg.MaxBufferSize,
 		maxSyncer:        cfg.MaxSyncer,
+		workerQueueSize:  cfg.WorkerQueueSize,
 		retryTimes:       cfg.RetryTimes,
 		retryInterval:    cfg.RetryInterval,
 		broadcastTimeout: cfg.BroadcastTimeout.Seconds(),
+		broadcastQueue:   make(chan *protocol.Broadcast, cfg.WorkerQueueSize),
+		syncSendQueue:    make(chan *protocol.SyncSend, cfg.WorkerQueueSize),
+		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.WorkerQueueSize),
+		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.WorkerQueueSize),
 		sClients:         make(map[string]*sClient),
+		stopSignal:       make(chan struct{}),
 	}
-
+	for i := 0; i < 2; i++ {
+		syncer.broadcastGUID[i] = make(map[string]int64)
+		syncer.syncSendGUID[i] = make(map[string]int64)
+		syncer.syncReceiveGUID[i] = make(map[string]int64)
+		syncer.syncStatus[i] = make(map[string]bool)
+	}
+	for i := 0; i < cfg.WorkerNumber; i++ {
+		syncer.wg.Add(1)
+		go syncer.worker()
+	}
+	syncer.wg.Add(1)
+	go syncer.guidCleaner()
+	syncer.wg.Add(1)
+	go syncer.watcher()
 	return &syncer, nil
 }
 
 func (syncer *syncer) Close() {
-
+	close(syncer.stopSignal)
+	syncer.wg.Wait()
 }
 
 func (syncer *syncer) Connect(cfg *clientCfg) {
 
 }
 
+// watcher is used to check connect nodes number
+// connected nodes number < syncer.maxSyncer, try to connect more node
+func (syncer *syncer) watcher() {
+	defer syncer.wg.Done()
+
+}
+
 // task from syncer client
 
 func (syncer *syncer) addBroadcast(br *protocol.Broadcast) {
-
+	if len(syncer.broadcastQueue) == syncer.workerQueueSize {
+		go func() { // prevent block
+			select {
+			case syncer.broadcastQueue <- br:
+			case <-syncer.stopSignal:
+			}
+		}()
+	} else {
+		select {
+		case syncer.broadcastQueue <- br:
+		case <-syncer.stopSignal:
+		}
+	}
 }
 
 func (syncer *syncer) addSyncSend(ss *protocol.SyncSend) {
-
+	if len(syncer.syncSendQueue) == syncer.workerQueueSize {
+		go func() { // prevent block
+			select {
+			case syncer.syncSendQueue <- ss:
+			case <-syncer.stopSignal:
+			}
+		}()
+	} else {
+		select {
+		case syncer.syncSendQueue <- ss:
+		case <-syncer.stopSignal:
+		}
+	}
 }
 
 func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
+	if len(syncer.broadcastQueue) == syncer.workerQueueSize {
+		go func() { // prevent block
+			select {
+			case syncer.syncReceiveQueue <- sr:
+			case <-syncer.stopSignal:
+			}
+		}()
+	} else {
+		select {
+		case syncer.syncReceiveQueue <- sr:
+		case <-syncer.stopSignal:
+		}
+	}
+}
 
+func (syncer *syncer) addSyncTask(task *protocol.SyncTask) {
+	if len(syncer.syncTaskQueue) == syncer.workerQueueSize {
+		go func() { // prevent block
+			select {
+			case syncer.syncTaskQueue <- task:
+			case <-syncer.stopSignal:
+			}
+		}()
+	} else {
+		select {
+		case syncer.syncTaskQueue <- task:
+		case <-syncer.stopSignal:
+		}
+	}
 }
 
 // check xxx Token is used to check xxx is been handled
@@ -320,313 +396,102 @@ func (syncer *syncer) guidCleaner() {
 	}
 }
 
-// syncer client
-type sClient struct {
-	ctx    *syncer
-	guid   []byte
-	client *client
-}
-
-func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
-	sc := sClient{
-		ctx: ctx,
+// only one role is synchronized at the same time
+func (syncer *syncer) isSync(role protocol.Role, guid string) bool {
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
 	}
-	cfg.MsgHandler = sc.handleMessage
-	client, err := newClient(ctx.ctx, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "new syncer client failed")
-	}
-	sc.guid = cfg.NodeGUID
-	sc.client = client
-	// start handle
-	// <warning> not add wg
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := xpanic.Error("syncer client panic:", r)
-				client.log(logger.FATAL, err)
-			}
-			client.Close()
-		}()
-		protocol.HandleConn(client.conn, sc.handleMessage)
-	}()
-	// send start sync cmd
-	resp, err := client.Send(protocol.CtrlSyncStart, nil)
-	if err != nil {
-		return nil, errors.WithMessage(err, "receive sync start response failed")
-	}
-	if !bytes.Equal(resp, []byte{protocol.CtrlSyncStart}) {
-		err = errors.WithMessage(err, "invalid sync start response")
-		sc.log(logger.EXPLOIT, err)
-		return nil, err
-	}
-	return &sc, nil
-}
-
-func (sc *sClient) Broadcast(token, message []byte) *protocol.BroadcastResponse {
-	br := protocol.BroadcastResponse{}
-	br.Role = protocol.Node
-	br.GUID = sc.guid
-	reply, err := sc.client.Send(protocol.CtrlBroadcastToken, token)
-	if err != nil {
-		br.Err = err
-		return &br
-	}
-	if !bytes.Equal(reply, protocol.BroadcastUnhandled) {
-		br.Err = protocol.ErrBroadcastHandled
-		return &br
-	}
-	// broadcast
-	reply, err = sc.client.Send(protocol.CtrlBroadcast, message)
-	if err != nil {
-		br.Err = err
-		return &br
-	}
-	if bytes.Equal(reply, protocol.BroadcastSucceed) {
-		return &br
+	syncer.syncStatusM[i].Lock()
+	if syncer.syncStatus[i][guid] {
+		syncer.syncStatusM[i].Unlock()
+		return true
 	} else {
-		br.Err = errors.New(string(reply))
-		return &br
+		syncer.syncStatus[i][guid] = true
+		syncer.syncStatusM[i].Unlock()
+		return false
 	}
 }
 
-func (sc *sClient) SyncSend(token, message []byte) *protocol.SyncResponse {
-	sr := &protocol.SyncResponse{}
-	sr.Role = protocol.Node
-	sr.GUID = sc.guid
-	resp, err := sc.client.Send(protocol.CtrlSyncSendToken, token)
-	if err != nil {
-		sr.Err = err
-		return sr
+// set sync flag
+func (syncer *syncer) syncDone(role protocol.Role, guid string) {
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
 	}
-	if !bytes.Equal(resp, protocol.SyncUnhandled) {
-		sr.Err = protocol.ErrSyncHandled
-		return sr
-	}
-	resp, err = sc.client.Send(protocol.CtrlSyncSend, message)
-	if err != nil {
-		sr.Err = err
-		return sr
-	}
-	if bytes.Equal(resp, protocol.SyncSucceed) {
-		return sr
-	} else {
-		sr.Err = errors.New(string(resp))
-		return sr
-	}
+	syncer.syncStatusM[i].Lock()
+	syncer.syncStatus[i][guid] = false
+	syncer.syncStatusM[i].Unlock()
 }
 
-// notice node clean the message
-func (sc *sClient) SyncReceive(token, message []byte) *protocol.SyncResponse {
-	sr := &protocol.SyncResponse{}
-	sr.Role = protocol.Node
-	sr.GUID = sc.guid
-	resp, err := sc.client.Send(protocol.CtrlSyncRecvToken, token)
-	if err != nil {
-		sr.Err = err
-		return sr
-	}
-	if !bytes.Equal(resp, protocol.SyncUnhandled) {
-		sr.Err = protocol.ErrSyncHandled
-		return sr
-	}
-	resp, err = sc.client.Send(protocol.CtrlSyncRecv, message)
-	if err != nil {
-		sr.Err = err
-		return sr
-	}
-	if bytes.Equal(resp, protocol.SyncSucceed) {
-		return sr
-	} else {
-		sr.Err = errors.New(string(resp))
-		return sr
-	}
+func (syncer *syncer) blockWorkerDone() {
+	syncer.blockWorkerM.Lock()
+	syncer.blockWorker -= 1
+	syncer.blockWorkerM.Unlock()
 }
 
-func (sc *sClient) QueryMessage(request []byte) (*protocol.SyncReply, error) {
-	reply, err := sc.client.Send(protocol.CtrlSyncQuery, request)
-	if err != nil {
-		return nil, err
-	}
-	sr := protocol.SyncReply{}
-	err = msgpack.Unmarshal(reply, &sr)
-	if err != nil {
-		err = errors.Wrap(err, "invalid sync reply")
-		sc.log(logger.EXPLOIT, err)
-		sc.Close()
-		return nil, err
-	}
-	return &sr, nil
-}
-
-func (sc *sClient) Close() {
-	sc.client.Close()
-}
-
-func (sc *sClient) logf(l logger.Level, format string, log ...interface{}) {
-	b := logger.Conn(sc.client.conn)
-	_, _ = fmt.Fprintf(b, format, log...)
-	sc.ctx.ctx.Print(l, "syncer-client", b)
-}
-
-func (sc *sClient) log(l logger.Level, log ...interface{}) {
-	b := logger.Conn(sc.client.conn)
-	_, _ = fmt.Fprint(b, log...)
-	sc.ctx.ctx.Print(l, "syncer-client", b)
-}
-
-func (sc *sClient) logln(l logger.Level, log ...interface{}) {
-	b := logger.Conn(sc.client.conn)
-	_, _ = fmt.Fprintln(b, log...)
-	sc.ctx.ctx.Print(l, "syncer-client", b)
-}
-
-// can use client.Close()
-func (sc *sClient) handleMessage(msg []byte) {
-	const (
-		cmd = protocol.MsgCMDSize
-		id  = protocol.MsgCMDSize + protocol.MsgIDSize
+func (syncer *syncer) worker() {
+	defer syncer.wg.Done()
+	var (
+		// task
+		b  *protocol.Broadcast
+		ss *protocol.SyncSend
+		sr *protocol.SyncReceive
+		st *protocol.SyncTask
+		// key
+		// nodeKey   *mNode
+		// beaconKey *mBeacon
+		// temp
+		// roleGUID    string
+		// roleSend    uint64
+		// roleReceive uint64
+		// err         error
 	)
-	if sc.client.isClosed() {
-		return
-	}
-	// cmd(1) + msg id(2) or reply
-	if len(msg) < id {
-		sc.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
-		sc.Close()
-		return
-	}
-	switch msg[0] {
-	case protocol.NodeSyncSendToken:
-		sc.handleSyncSendToken(msg[cmd:id], msg[id:])
-	case protocol.NodeSyncSend:
-		sc.handleSyncSend(msg[cmd:id], msg[id:])
-	case protocol.NodeSyncRecvToken:
-		sc.handleSyncReceiveToken(msg[cmd:id], msg[id:])
-	case protocol.NodeSyncRecv:
-		sc.handleSyncReceive(msg[cmd:id], msg[id:])
-	case protocol.NodeBroadcastToken:
-		sc.handleBroadcastToken(msg[cmd:id], msg[id:])
-	case protocol.NodeBroadcast:
-		sc.handleBroadcast(msg[cmd:id], msg[id:])
-	// ---------------------------internal--------------------------------
-	case protocol.NodeReply:
-		sc.client.handleReply(msg[cmd:])
-	case protocol.NodeHeartbeat:
-		sc.client.heartbeatC <- struct{}{}
-	case protocol.ErrNullMsg:
-		sc.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
-		sc.Close()
-	case protocol.ErrTooBigMsg:
-		sc.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
-		sc.Close()
-	case protocol.TestMessage:
-		sc.client.Reply(msg[cmd:id], msg[id:])
-	default:
-		sc.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg)
-		sc.Close()
-		return
-	}
-}
+	// init buffer
+	// protocol.SyncReceive buffer cap = guid.SIZE + 8 + 1 + guid.SIZE
+	minBufferSize := 2*guid.SIZE + 9
+	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
+	/*
+		encoder := msgpack.NewEncoder(buffer)
 
-func (sc *sClient) handleBroadcastToken(id, message []byte) {
-	// role + message guid
-	if len(message) != 1+guid.SIZE {
-		// fake reply and close
-		sc.client.Reply(id, protocol.BroadcastHandled)
-		sc.log(logger.EXPLOIT, "invalid broadcast token size")
-		sc.Close()
-		return
-	}
-	if sc.ctx.checkBroadcastToken(message[0], message[1:1+guid.SIZE]) {
-		sc.client.Reply(id, protocol.BroadcastUnhandled)
-	} else {
-		sc.client.Reply(id, protocol.BroadcastHandled)
-	}
-}
+			query := func(r *protocol.SyncQuery) (*protocol.SyncReply, error) {
+				buffer.Reset()
+				err = encoder.Encode(r)
+				if err != nil {
+					return nil, err
+				}
+				//
 
-func (sc *sClient) handleSyncSendToken(id, message []byte) {
-	if len(message) != 1+guid.SIZE {
-		// fake reply and close
-		sc.client.Reply(id, protocol.SyncHandled)
-		sc.log(logger.EXPLOIT, "invalid sync send token size")
-		sc.Close()
-		return
-	}
-	if sc.ctx.checkSyncSendToken(message[0], message[1:1+guid.SIZE]) {
-		sc.client.Reply(id, protocol.SyncUnhandled)
-	} else {
-		sc.client.Reply(id, protocol.SyncHandled)
-	}
-}
+				return nil, protocol.ErrNoMessage
+			}
+	*/
+	// start handle
+	for {
+		// check buffer capacity
+		if buffer.Cap() > syncer.maxBufferSize {
+			buffer = bytes.NewBuffer(make([]byte, minBufferSize))
+		}
+		select {
+		// ----------------------handle sync receive-----------------------
+		case sr = <-syncer.syncReceiveQueue:
 
-func (sc *sClient) handleSyncReceiveToken(id, message []byte) {
-	if len(message) != 1+guid.SIZE {
-		// fake reply and close
-		sc.client.Reply(id, protocol.SyncHandled)
-		sc.log(logger.EXPLOIT, "invalid sync receive token size")
-		sc.Close()
-		return
-	}
-	if sc.ctx.checkSyncReceiveToken(message[0], message[1:1+guid.SIZE]) {
-		sc.client.Reply(id, protocol.SyncUnhandled)
-	} else {
-		sc.client.Reply(id, protocol.SyncHandled)
-	}
-}
+		// -----------------------handle sync send-------------------------
+		case ss = <-syncer.syncSendQueue:
 
-func (sc *sClient) handleBroadcast(id, message []byte) {
-	br := protocol.Broadcast{}
-	err := msgpack.Unmarshal(message, &br)
-	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid broadcast msgpack data")
-		sc.Close()
-		return
-	}
-	err = br.Validate()
-	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid broadcast", err)
-		sc.Close()
-		return
-	}
-	sc.ctx.addBroadcast(&br)
-	sc.client.Reply(id, protocol.BroadcastSucceed)
-}
+		// -----------------------handle broadcast-------------------------
+		case b = <-syncer.broadcastQueue:
 
-// Node -> Controller(direct)
-func (sc *sClient) handleSyncSend(id, message []byte) {
-	ss := protocol.SyncSend{}
-	err := msgpack.Unmarshal(message, &ss)
-	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid sync send msgpack data")
-		sc.Close()
-		return
+		// -----------------------handle sync task-------------------------
+		case st = <-syncer.syncTaskQueue:
+			// reply, err := query(sync_query)
+		case <-syncer.stopSignal:
+			return
+		}
 	}
-	err = ss.Validate()
-	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid sync send", err)
-		sc.Close()
-		return
-	}
-	sc.ctx.addSyncSend(&ss)
-	sc.client.Reply(id, protocol.SyncSucceed)
-}
-
-// notice controller role received this height message
-func (sc *sClient) handleSyncReceive(id, message []byte) {
-	sr := protocol.SyncReceive{}
-	err := msgpack.Unmarshal(message, &sr)
-	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid sync receive msgpack data")
-		sc.Close()
-		return
-	}
-	err = sr.Validate()
-	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid sync receive:", err)
-		sc.Close()
-		return
-	}
-	sc.ctx.addSyncReceive(&sr)
-	sc.client.Reply(id, protocol.SyncSucceed)
 }

@@ -235,7 +235,7 @@ func (sender *sender) sender() {
 		err error
 	)
 	// prepare buffer & msgpack encoder
-	// syncReceiveTask = 1+ guid.SIZE + 8
+	// syncReceiveTask = 1 + guid.SIZE + 8
 	minBufferSize := guid.SIZE + 9
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
 	encoder := msgpack.NewEncoder(buffer)
