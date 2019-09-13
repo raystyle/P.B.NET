@@ -206,14 +206,22 @@ func (db *db) DeleteListener(id uint64) error {
 
 // ------------------------------------node-------------------------------------------
 
-func (db *db) SelectNode(guid []byte) (*mNode, error) {
-
-	return nil, nil
+func (db *db) SelectNode(guid []byte) (node *mNode, err error) {
+	node = db.ctx.cache.SelectNode(guid)
+	if node != nil {
+		return
+	}
+	node = new(mNode)
+	err = db.db.Find(node, "guid = ?", guid).Error
+	if err != nil {
+		return nil, err
+	}
+	db.ctx.cache.InsertNode(node)
+	return
 }
 
 func (db *db) InsertNode(m *mNode) error {
-	tx := db.db.BeginTx(context.Background(),
-		&sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx := db.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
 	err := tx.Error
 	if err != nil {
 		return err
@@ -238,9 +246,9 @@ func (db *db) InsertNode(m *mNode) error {
 	return nil
 }
 
+// TODO add delete Cache and syncer
 func (db *db) DeleteNode(guid []byte) error {
-	tx := db.db.BeginTx(context.Background(),
-		&sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx := db.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
 	err := tx.Error
 	if err != nil {
 		return err
@@ -288,59 +296,96 @@ func (db *db) DeleteNodeLog(id uint64) error {
 
 // -----------------------------------beacon------------------------------------------
 
-func (db *db) SelectBeacon(guid []byte) (*mBeacon, error) {
-
-	return nil, nil
+func (db *db) SelectBeacon(guid []byte) (beacon *mBeacon, err error) {
+	beacon = db.ctx.cache.SelectBeacon(guid)
+	if beacon != nil {
+		return
+	}
+	beacon = new(mBeacon)
+	err = db.db.Find(beacon, "guid = ?", guid).Error
+	if err != nil {
+		return nil, err
+	}
+	db.ctx.cache.InsertBeacon(beacon)
+	return
 }
 
-// --------------------------------sync message---------------------------------------
+// -----------------------------sync message(node)------------------------------------
+// NS = Node Syncer
 
-func (db *db) SelectNodeSyncer(guid []byte) (*mNodeSyncer, error) {
-
-	return nil, nil
+// TODO small
+func (db *db) SelectNodeSyncer(guid []byte) (ns *mNodeSyncer, err error) {
+	ns = db.ctx.cache.SelectNodeSyncer(guid)
+	if ns != nil {
+		return
+	}
+	ns = new(mNodeSyncer)
+	err = db.db.Find(ns, "guid = ?", guid).Error
+	if err != nil {
+		return nil, err
+	}
+	db.ctx.cache.InsertNodeSyncer(ns)
+	return
 }
 
-// NS = Node Syncer,  BS = Beacon Syncer
+// must save to database immediately
 func (db *db) UpdateNSCtrlSend(guid []byte, height uint64) error {
-
-	return nil
+	return db.db.Save(&mNodeSyncer{GUID: guid, CtrlSend: height}).Error
 }
 
+// can write to cache
 func (db *db) UpdateNSNodeReceive(guid []byte, height uint64) error {
 
 	return nil
 }
 
+// can write to cache
 func (db *db) UpdateNSNodeSend(guid []byte, height uint64) error {
 
 	return nil
 }
 
+// can write to cache
 func (db *db) UpdateNSCtrlReceive(guid []byte, height uint64) error {
 
 	return nil
 }
 
-func (db *db) SelectBeaconSyncer(guid []byte) (*mBeaconSyncer, error) {
+// ----------------------------sync message(beacon)-----------------------------------
+// BS = Beacon Syncer
 
-	return nil, nil
+// TODO small or use point
+func (db *db) SelectBeaconSyncer(guid []byte) (bs *mBeaconSyncer, err error) {
+	bs = db.ctx.cache.SelectBeaconSyncer(guid)
+	if bs != nil {
+		return
+	}
+	bs = new(mBeaconSyncer)
+	err = db.db.Find(bs, "guid = ?", guid).Error
+	if err != nil {
+		return nil, err
+	}
+	db.ctx.cache.InsertBeaconSyncer(bs)
+	return
 }
 
 func (db *db) UpdateBSCtrlSend(guid []byte, height uint64) error {
-
-	return nil
+	return db.db.Save(&mBeaconSyncer{GUID: guid, CtrlSend: height}).Error
 }
 
+// can write to cache
 func (db *db) UpdateBSBeaconReceive(guid []byte, height uint64) error {
 
 	return nil
 }
 
+// can write to cache
 func (db *db) UpdateBSBeaconSend(guid []byte, height uint64) error {
 
 	return nil
 }
 
+// can write to cache
 func (db *db) UpdateBSCtrlReceive(guid []byte, height uint64) error {
 
 	return nil
