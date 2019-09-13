@@ -19,7 +19,7 @@ type beaconSyncer struct {
 	sync.RWMutex
 }
 
-// key = hex(guid)
+// key = base64(guid)
 type cache struct {
 	// --------------------------------key--------------------------------
 	nodes      map[string]*mNode

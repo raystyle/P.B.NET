@@ -55,9 +55,10 @@ type syncer struct {
 	syncStatusM  [2]sync.Mutex
 	blockWorker  int
 	blockWorkerM sync.Mutex
-	// runtime
+
 	clients    map[string]*sClient // key=base64(guid)
 	clientsRWM sync.RWMutex
+
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
@@ -110,6 +111,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		syncer.syncReceiveGUID[i] = make(map[string]int64)
 		syncer.syncStatus[i] = make(map[string]bool)
 	}
+	// start workers
 	for i := 0; i < cfg.WorkerNumber; i++ {
 		syncer.wg.Add(1)
 		go syncer.worker()
@@ -147,12 +149,12 @@ func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
 	return nil
 }
 
-func (syncer *syncer) sClients() (map[string]*sClient, error) {
+func (syncer *syncer) sClients() map[string]*sClient {
 	syncer.clientsRWM.RLock()
 	l := len(syncer.clients)
 	if l == 0 {
 		syncer.clientsRWM.RUnlock()
-		return nil, protocol.ErrNoSyncerClients
+		return nil
 	}
 	// copy map
 	sClients := make(map[string]*sClient, l)
@@ -160,7 +162,7 @@ func (syncer *syncer) sClients() (map[string]*sClient, error) {
 		sClients[key] = client
 	}
 	syncer.clientsRWM.RUnlock()
-	return sClients, nil
+	return sClients
 }
 
 // getMaxSyncer is used to get current max syncer number
@@ -198,7 +200,7 @@ func (syncer *syncer) watcher() {
 			return
 		}
 		// select nodes
-
+		// TODO watcher
 	}
 	for {
 		select {
@@ -273,6 +275,7 @@ func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
 }
 
 // addSyncTask is used to
+// worker use it
 func (syncer *syncer) addSyncTask(task *protocol.SyncTask) {
 	if len(syncer.syncTaskQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
@@ -611,9 +614,9 @@ func (syncer *syncer) worker() {
 		}
 		// breadth-first search
 		for i := 0; i < syncer.retryTimes+1; i++ {
-			sClients, err = syncer.sClients()
-			if err != nil {
-				return nil, err
+			sClients = syncer.sClients()
+			if len(sClients) == 0 {
+				return nil, protocol.ErrNoSyncerClients
 			}
 			syncQueryBytes = buffer.Bytes()
 			for _, sClient = range sClients {
@@ -819,7 +822,7 @@ func (syncer *syncer) worker() {
 				}
 				syncer.syncDone(ss.SenderRole, roleGUID)
 				// notice node to delete message
-				syncer.ctx.sender.SyncReceive(ss.SenderRole, ss.SenderGUID, roleSend-1)
+				syncer.ctx.sender.syncReceive(ss.SenderRole, ss.SenderGUID, roleSend-1)
 			case sub > 1: // get old message and need sync more message
 				syncer.addSyncTask(&protocol.SyncTask{
 					Role: ss.SenderRole,
@@ -948,7 +951,6 @@ func (syncer *syncer) worker() {
 				syncQuery.GUID = st.GUID
 				syncQuery.Height = ctrlReceive
 				syncReply, err = query()
-				// TODO handle err
 				switch err {
 				case nil:
 					// verify  // see protocol.SyncSend
@@ -979,9 +981,10 @@ func (syncer *syncer) worker() {
 						st.Role, st.GUID, ctrlReceive, err)
 				case protocol.ErrWorkerStopped:
 					return
-				default: // other error
-
-					return
+				default:
+					syncer.syncDone(st.Role, roleGUID)
+					syncer.blockDone()
+					panic("syncer.worker(): handle invalid query() error")
 				}
 				// update height and notice
 				switch st.Role {
@@ -999,7 +1002,7 @@ func (syncer *syncer) worker() {
 					}
 				}
 				// notice node to delete message
-				syncer.ctx.sender.SyncReceive(st.Role, st.GUID, ctrlReceive)
+				syncer.ctx.sender.syncReceive(st.Role, st.GUID, ctrlReceive)
 				select {
 				case <-syncer.stopSignal:
 					return
