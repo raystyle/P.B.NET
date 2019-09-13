@@ -15,9 +15,10 @@ var (
 	SyncHandled   = []byte{4}
 	SyncSucceed   = []byte{5}
 
-	ErrSyncHandled = errors.New("this sync handled")
-	ErrNoNodes     = errors.New("no connected nodes")
-	ErrNoMessage   = errors.New("no message")
+	ErrSyncHandled     = errors.New("this sync handled")
+	ErrNoSyncerClients = errors.New("no connected syncer client")
+	ErrNoMessage       = errors.New("no message")
+	ErrWorkerStopped   = errors.New("worker stopped")
 )
 
 // ----------------------------send message---------------------------------

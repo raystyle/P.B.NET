@@ -190,6 +190,7 @@ func (sender *sender) SendPlugin(
 }
 
 // SyncReceive is used to sync controller receive
+// notice node to delete message
 // only for worker
 func (sender *sender) SyncReceive(
 	role protocol.Role,
