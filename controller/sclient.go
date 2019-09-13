@@ -227,12 +227,19 @@ func (sc *sClient) handleBroadcastToken(id, message []byte) {
 	// role + message guid
 	if len(message) != 1+guid.Size {
 		// fake reply and close
-		sc.client.Reply(id, protocol.BroadcastHandled)
 		sc.log(logger.Exploit, "invalid broadcast token size")
+		sc.client.Reply(id, protocol.BroadcastHandled)
 		sc.Close()
 		return
 	}
-	if sc.ctx.checkBroadcastToken(message[0], message[1:]) {
+	role := protocol.Role(message[0])
+	if role != protocol.Node && role != protocol.Beacon {
+		sc.log(logger.Exploit, "handle invalid broadcast token role")
+		sc.client.Reply(id, protocol.BroadcastHandled)
+		sc.Close()
+		return
+	}
+	if sc.ctx.checkBroadcastToken(role, message[1:]) {
 		sc.client.Reply(id, protocol.BroadcastUnhandled)
 	} else {
 		sc.client.Reply(id, protocol.BroadcastHandled)
@@ -240,14 +247,22 @@ func (sc *sClient) handleBroadcastToken(id, message []byte) {
 }
 
 func (sc *sClient) handleSyncSendToken(id, message []byte) {
+	// role + message guid
 	if len(message) != 1+guid.Size {
 		// fake reply and close
-		sc.client.Reply(id, protocol.SyncHandled)
 		sc.log(logger.Exploit, "invalid sync send token size")
+		sc.client.Reply(id, protocol.SyncHandled)
 		sc.Close()
 		return
 	}
-	if sc.ctx.checkSyncSendToken(message[0], message[1:]) {
+	role := protocol.Role(message[0])
+	if role != protocol.Node && role != protocol.Beacon {
+		sc.log(logger.Exploit, "handle invalid sync send token role")
+		sc.client.Reply(id, protocol.SyncHandled)
+		sc.Close()
+		return
+	}
+	if sc.ctx.checkSyncSendToken(role, message[1:]) {
 		sc.client.Reply(id, protocol.SyncUnhandled)
 	} else {
 		sc.client.Reply(id, protocol.SyncHandled)
@@ -255,14 +270,22 @@ func (sc *sClient) handleSyncSendToken(id, message []byte) {
 }
 
 func (sc *sClient) handleSyncReceiveToken(id, message []byte) {
+	// role + message guid
 	if len(message) != 1+guid.Size {
 		// fake reply and close
-		sc.client.Reply(id, protocol.SyncHandled)
 		sc.log(logger.Exploit, "invalid sync receive token size")
+		sc.client.Reply(id, protocol.SyncHandled)
 		sc.Close()
 		return
 	}
-	if sc.ctx.checkSyncReceiveToken(message[0], message[1:]) {
+	role := protocol.Role(message[0])
+	if role != protocol.Node && role != protocol.Beacon {
+		sc.log(logger.Exploit, "handle invalid sync receive token role")
+		sc.client.Reply(id, protocol.SyncHandled)
+		sc.Close()
+		return
+	}
+	if sc.ctx.checkSyncReceiveToken(role, message[1:]) {
 		sc.client.Reply(id, protocol.SyncUnhandled)
 	} else {
 		sc.client.Reply(id, protocol.SyncHandled)

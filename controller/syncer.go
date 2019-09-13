@@ -224,7 +224,6 @@ func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
 }
 
 // task from syncer client
-
 func (syncer *syncer) addBroadcast(br *protocol.Broadcast) {
 	if len(syncer.broadcastQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
@@ -241,6 +240,7 @@ func (syncer *syncer) addBroadcast(br *protocol.Broadcast) {
 	}
 }
 
+// task from syncer client
 func (syncer *syncer) addSyncSend(ss *protocol.SyncSend) {
 	if len(syncer.syncSendQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
@@ -257,6 +257,7 @@ func (syncer *syncer) addSyncSend(ss *protocol.SyncSend) {
 	}
 }
 
+// task from syncer client
 func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
 	if len(syncer.broadcastQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
@@ -295,7 +296,7 @@ func (syncer *syncer) addSyncTask(task *protocol.SyncTask) {
 // xxx = broadcast, sync send, sync receive
 // just tell others, but they can still send it by force
 
-func (syncer *syncer) checkBroadcastToken(role byte, guid []byte) bool {
+func (syncer *syncer) checkBroadcastToken(role protocol.Role, guid []byte) bool {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
@@ -304,13 +305,12 @@ func (syncer *syncer) checkBroadcastToken(role byte, guid []byte) bool {
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
 	i := 0
-	switch protocol.Role(role) {
+	switch role {
 	case protocol.Beacon:
 		i = syncerBeacon
 	case protocol.Node:
 		i = syncerNode
 	default:
-		// tODO log not panic
 		panic("invalid role")
 	}
 	syncer.broadcastGUIDRWM[i].RLock()
@@ -319,7 +319,7 @@ func (syncer *syncer) checkBroadcastToken(role byte, guid []byte) bool {
 	return !ok
 }
 
-func (syncer *syncer) checkSyncSendToken(role byte, guid []byte) bool {
+func (syncer *syncer) checkSyncSendToken(role protocol.Role, guid []byte) bool {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
@@ -328,7 +328,7 @@ func (syncer *syncer) checkSyncSendToken(role byte, guid []byte) bool {
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
 	i := 0
-	switch protocol.Role(role) {
+	switch role {
 	case protocol.Beacon:
 		i = syncerBeacon
 	case protocol.Node:
@@ -342,7 +342,7 @@ func (syncer *syncer) checkSyncSendToken(role byte, guid []byte) bool {
 	return !ok
 }
 
-func (syncer *syncer) checkSyncReceiveToken(role byte, guid []byte) bool {
+func (syncer *syncer) checkSyncReceiveToken(role protocol.Role, guid []byte) bool {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
@@ -351,7 +351,7 @@ func (syncer *syncer) checkSyncReceiveToken(role byte, guid []byte) bool {
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
 	i := 0
-	switch protocol.Role(role) {
+	switch role {
 	case protocol.Beacon:
 		i = syncerBeacon
 	case protocol.Node:
@@ -638,13 +638,13 @@ func (syncer *syncer) worker() {
 			for _, sClient = range sClients {
 				syncReply, err = sClient.QueryMessage(syncQueryBytes)
 				if err != nil {
-					// TODO print error
+					syncer.logf(logger.Warning, "query message failed:", err)
 					continue
 				}
 				if syncReply.Err == nil {
 					return syncReply, nil
 				} else {
-					// TODO print error
+					syncer.logf(logger.Warning, "query message with error:", syncReply.Err)
 				}
 				select {
 				case <-syncer.stopSignal:
