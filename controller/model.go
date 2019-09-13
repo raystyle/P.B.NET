@@ -161,7 +161,8 @@ type mTrustNode struct {
 	Address string    `json:"address"`
 }
 
-// first use this project
+// InitDatabase is used to initialize database
+// if first use this project
 func InitDatabase(cfg *Config) error {
 	// connect database
 	db, err := gorm.Open(cfg.Dialect, cfg.DSN)
@@ -170,6 +171,7 @@ func InitDatabase(cfg *Config) error {
 	}
 	// not add s
 	db.SingularTable(true)
+	db.LogMode(false)
 	defer func() { _ = db.Close() }()
 	tables := []*struct {
 		name  string
@@ -221,18 +223,36 @@ func InitDatabase(cfg *Config) error {
 			model: &mRoleLog{},
 		},
 	}
-	for i := 0; i < len(tables); i++ {
+	l := len(tables)
+	// because of foreign key, drop tables by inverted order
+	for i := l - 1; i > -1; i-- {
 		n := tables[i].name
 		m := tables[i].model
 		if n == "" {
-			db.DropTableIfExists(m)
+			err = db.DropTableIfExists(m).Error
+			if err != nil {
+				table := gorm.ToTableName(xreflect.StructName(m))
+				return errors.Wrapf(err, "drop table %s failed", table)
+			}
+		} else {
+			err = db.Table(n).DropTableIfExists(m).Error
+			if err != nil {
+				table := gorm.ToTableName(xreflect.StructName(m))
+				return errors.Wrapf(err, "drop table %s failed", table)
+			}
+		}
+	}
+	// create tables
+	for i := 0; i < l; i++ {
+		n := tables[i].name
+		m := tables[i].model
+		if n == "" {
 			err = db.CreateTable(m).Error
 			if err != nil {
 				table := gorm.ToTableName(xreflect.StructName(m))
 				return errors.Wrapf(err, "create table %s failed", table)
 			}
 		} else {
-			db.Table(n).DropTableIfExists(m)
 			err = db.Table(n).CreateTable(m).Error
 			if err != nil {
 				return errors.Wrapf(err, "create table %s failed", n)
