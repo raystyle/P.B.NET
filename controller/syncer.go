@@ -638,13 +638,13 @@ func (syncer *syncer) worker() {
 			for _, sClient = range sClients {
 				syncReply, err = sClient.QueryMessage(syncQueryBytes)
 				if err != nil {
-					syncer.logf(logger.Warning, "query message failed:", err)
+					syncer.logln(logger.Warning, "query message failed:", err)
 					continue
 				}
 				if syncReply.Err == nil {
 					return syncReply, nil
 				} else {
-					syncer.logf(logger.Warning, "query message with error:", syncReply.Err)
+					syncer.logln(logger.Warning, "query message with error:", syncReply.Err)
 				}
 				select {
 				case <-syncer.stopSignal:

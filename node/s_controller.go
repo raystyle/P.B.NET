@@ -133,7 +133,7 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	case protocol.TestMessage:
 		ctrl.reply(msg[cmd:id], msg[id:])
 	default:
-		ctrl.log(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)
+		ctrl.logln(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)
 		ctrl.Close()
 	}
 }
