@@ -28,23 +28,21 @@ func testGenerateConfig() *Config {
 		DBLogFile:       "../app/log/database.log",
 		GORMLogFile:     "../app/log/gorm.log",
 		GORMDetailedLog: false,
+		DBSyncInterval:  time.Second,
 
 		// sender
 		MaxBufferSize:   4096,
-		SenderNumber:    runtime.NumCPU(),
+		SenderWorker:    runtime.NumCPU(),
 		SenderQueueSize: 512,
 
 		// syncer
-		MaxSyncer:        2,
-		WorkerNumber:     64,
-		WorkerQueueSize:  512,
+		MaxSyncerClient:  2,
+		SyncerWorker:     64,
+		SyncerQueueSize:  512,
 		ReserveWorker:    16,
 		RetryTimes:       3,
 		RetryInterval:    5 * time.Second,
 		BroadcastTimeout: 30 * time.Second,
-
-		// cache
-		DBSyncInterval: time.Second,
 
 		// web server
 		HTTPSAddress:  "localhost:9931",

@@ -21,30 +21,28 @@ type Config struct {
 	TimeSyncerInterval time.Duration `toml:"time_syncer_interval"`
 
 	// database
-	Dialect         string `toml:"dialect"` // "mysql"
-	DSN             string `toml:"dsn"`
-	DBLogFile       string `toml:"db_log_file"`
-	DBMaxOpenConns  int    `toml:"db_max_open_conns"`
-	DBMaxIdleConns  int    `toml:"db_max_idle_conns"`
-	GORMLogFile     string `toml:"gorm_log_file"`
-	GORMDetailedLog bool   `toml:"gorm_detailed_log"`
+	Dialect         string        `toml:"dialect"` // "mysql"
+	DSN             string        `toml:"dsn"`
+	DBLogFile       string        `toml:"db_log_file"`
+	DBMaxOpenConns  int           `toml:"db_max_open_conns"`
+	DBMaxIdleConns  int           `toml:"db_max_idle_conns"`
+	GORMLogFile     string        `toml:"gorm_log_file"`
+	GORMDetailedLog bool          `toml:"gorm_detailed_log"`
+	DBSyncInterval  time.Duration `toml:"db_sync_interval"` // cache
 
 	// sender
 	MaxBufferSize   int `toml:"max_buffer_size"` // syncer also use it
-	SenderNumber    int `toml:"sender_number"`
+	SenderWorker    int `toml:"sender_worker"`
 	SenderQueueSize int `toml:"sender_queue_size"`
 
 	// syncer
-	MaxSyncer        int           `toml:"max_syncer"`
-	WorkerNumber     int           `toml:"worker_number"`
-	WorkerQueueSize  int           `toml:"worker_queue_size"`
+	MaxSyncerClient  int           `toml:"max_syncer_client"`
+	SyncerWorker     int           `toml:"syncer_worker"`
+	SyncerQueueSize  int           `toml:"syncer_queue_size"`
 	ReserveWorker    int           `toml:"reserve_worker"`
 	RetryTimes       int           `toml:"retry_times"`
 	RetryInterval    time.Duration `toml:"retry_interval"`
 	BroadcastTimeout time.Duration `toml:"broadcast_timeout"`
-
-	// cache
-	DBSyncInterval time.Duration `toml:"db_sync_interval"`
 
 	// web server
 	HTTPSAddress  string `toml:"https_address"`

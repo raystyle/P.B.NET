@@ -15,21 +15,21 @@ db_max_idle_conns = 16
 db_log_file       = "log/database.log"
 gorm_log_file     = "log/gorm.log"
 gorm_detailed_log = false
+db_sync_interval  = "1s"   # sync cache to database
 
 # sender
 max_buffer_size   = 4096   # sender & worker message buffer
-sender_number     = 16
+sender_worker     = 64
 sender_queue_size = 512    # sender chan buffer size
 
 # syncer
-max_syncer        = 2
-worker_number     = 64
-worker_queue_size = 512    # worker chan buffer size
+max_syncer_client = 2
+syncer_worker     = 64
+syncer_queue_size = 512    # worker chan buffer size
 reserve_worker    = 16     # reserve worker for short sync
 retry_times       = 3
 retry_interval    = "5s"
 broadcast_timeout = "30s"
-db_sync_interval  = "1s"   # sync cache to database
 
 # web server
 https_address   = "localhost:9932"
