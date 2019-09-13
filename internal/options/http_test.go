@@ -1,7 +1,6 @@
 package options
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,11 +19,4 @@ func TestDefaultHTTP(t *testing.T) {
 	server, err := new(HTTPServer).Apply()
 	require.NoError(t, err)
 	require.NotNil(t, server)
-}
-
-func TestCopyHTTPHeader(t *testing.T) {
-	h := http.Header{}
-	h.Add("aa", "aa")
-	h2 := CopyHTTPHeader(h)
-	require.Equal(t, h, h2)
 }

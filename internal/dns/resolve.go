@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"project/internal/convert"
-	"project/internal/options"
 	"project/internal/xnet"
 )
 
@@ -241,7 +240,7 @@ func dialDOH(server string, question []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header = options.CopyHTTPHeader(opts.Header)
+	req.Header = opts.Header.Clone()
 	if req.Method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/dns-message")
 	}

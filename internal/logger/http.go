@@ -6,10 +6,12 @@ import (
 )
 
 // TODO print more info
-//     address: 127.0.0.1:2275
-//     GET /index.html
-//     foo:foo
+
+// address: 127.0.0.1:2275
+//
+// GET /index.html
+// foo:foo
 func HTTPRequest(r *http.Request) string {
-	return fmt.Sprintf("address: %s\n%s %s",
-		r.RemoteAddr, r.Method, r.RequestURI)
+	return fmt.Sprintf("address: %s\n\n%s %s\n%s",
+		r.RemoteAddr, r.Method, r.RequestURI, r.Header)
 }

@@ -36,7 +36,7 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 	if err != nil {
 		return nil, hr.failed(err)
 	}
-	r.Header = CopyHTTPHeader(hr.Header)
+	r.Header = hr.Header.Clone()
 	r.Host = hr.Host
 	r.Close = hr.Close
 	return r, nil
