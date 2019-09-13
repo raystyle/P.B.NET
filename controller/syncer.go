@@ -50,7 +50,6 @@ type syncer struct {
 	// -------------------handle sync task------------------------
 	syncTaskQueue chan *protocol.SyncTask
 	// check is sync
-	// TODO when remove role need delete it
 	syncStatus   [2]map[string]bool
 	syncStatusM  [2]sync.Mutex
 	blockWorker  int
@@ -68,16 +67,16 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	if cfg.MaxBufferSize < 4096 {
 		return nil, errors.New("max buffer size < 4096")
 	}
-	if cfg.MaxSyncer < 1 {
+	if cfg.MaxSyncerClient < 1 {
 		return nil, errors.New("max syncer < 1")
 	}
-	if cfg.WorkerNumber < 2 {
+	if cfg.SyncerWorker < 2 {
 		return nil, errors.New("worker number < 2")
 	}
-	if cfg.WorkerQueueSize < 512 {
+	if cfg.SyncerQueueSize < 512 {
 		return nil, errors.New("worker task queue size < 512")
 	}
-	if cfg.ReserveWorker >= cfg.WorkerNumber {
+	if cfg.ReserveWorker >= cfg.SyncerWorker {
 		return nil, errors.New("reserve worker number >= worker number")
 	}
 	if cfg.RetryTimes < 3 {
@@ -92,16 +91,16 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	syncer := syncer{
 		ctx:              ctx,
 		maxBufferSize:    cfg.MaxBufferSize,
-		maxSyncer:        cfg.MaxSyncer,
-		workerQueueSize:  cfg.WorkerQueueSize,
-		maxBlockWorker:   cfg.WorkerNumber - cfg.ReserveWorker,
+		maxSyncer:        cfg.MaxSyncerClient,
+		workerQueueSize:  cfg.SyncerQueueSize,
+		maxBlockWorker:   cfg.SyncerWorker - cfg.ReserveWorker,
 		retryTimes:       cfg.RetryTimes,
 		retryInterval:    cfg.RetryInterval,
 		broadcastTimeout: cfg.BroadcastTimeout.Seconds(),
-		broadcastQueue:   make(chan *protocol.Broadcast, cfg.WorkerQueueSize),
-		syncSendQueue:    make(chan *protocol.SyncSend, cfg.WorkerQueueSize),
-		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.WorkerQueueSize),
-		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.WorkerQueueSize),
+		broadcastQueue:   make(chan *protocol.Broadcast, cfg.SyncerQueueSize),
+		syncSendQueue:    make(chan *protocol.SyncSend, cfg.SyncerQueueSize),
+		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.SyncerQueueSize),
+		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.SyncerQueueSize),
 		clients:          make(map[string]*sClient),
 		stopSignal:       make(chan struct{}),
 	}
@@ -112,7 +111,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		syncer.syncStatus[i] = make(map[string]bool)
 	}
 	// start workers
-	for i := 0; i < cfg.WorkerNumber; i++ {
+	for i := 0; i < cfg.SyncerWorker; i++ {
 		syncer.wg.Add(1)
 		go syncer.worker()
 	}
@@ -504,6 +503,23 @@ func (syncer *syncer) guidCleaner() {
 	}
 }
 
+// DeleteSyncStatus is used to delete syncStatus
+// if delete role, must delete it
+func (syncer *syncer) DeleteSyncStatus(role protocol.Role, guid string) {
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = syncerBeacon
+	case protocol.Node:
+		i = syncerNode
+	default:
+		panic("invalid role")
+	}
+	syncer.syncStatusM[i].Lock()
+	delete(syncer.syncStatus[i], guid)
+	syncer.syncStatusM[i].Unlock()
+}
+
 // isSync is used to check role is synchronizing
 // if not set flag and lock it
 func (syncer *syncer) isSync(role protocol.Role, guid string) bool {
@@ -565,7 +581,7 @@ func (syncer *syncer) blockDone() {
 func (syncer *syncer) worker() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("syncer worker panic:", r)
+			err := xpanic.Error("syncer.worker() panic:", r)
 			syncer.log(logger.FATAL, err)
 			// restart worker
 			syncer.wg.Add(1)

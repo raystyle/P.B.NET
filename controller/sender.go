@@ -56,7 +56,6 @@ type sender struct {
 	broadcastRespPool sync.Pool
 	syncRespPool      sync.Pool
 
-	// TODO when remove role need delete it
 	syncSendMs  [2]map[string]*sync.Mutex // role can be only one sync at th same time
 	syncSendRWM [2]sync.RWMutex           // key=base64(sender guid) 0=node 1=beacon
 
@@ -67,7 +66,7 @@ type sender struct {
 
 func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 	// check config
-	if cfg.SenderNumber < 1 {
+	if cfg.SenderWorker < 1 {
 		return nil, errors.New("sender number < 1")
 	}
 	if cfg.SenderQueueSize < 512 {
@@ -79,7 +78,7 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 		broadcastQueue:   make(chan *broadcastTask, cfg.SenderQueueSize),
 		syncSendQueue:    make(chan *syncSendTask, cfg.SenderQueueSize),
 		syncReceiveQueue: make(chan *syncReceiveTask, cfg.SenderQueueSize),
-		guid:             guid.New(512*cfg.SenderNumber, ctx.global.Now),
+		guid:             guid.New(512*cfg.SenderWorker, ctx.global.Now),
 		stopSignal:       make(chan struct{}),
 	}
 	sender.syncSendMs[senderNode] = make(map[string]*sync.Mutex)
@@ -98,9 +97,9 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 		return make(chan *protocol.SyncResponse, 1)
 	}
 	// start senders
-	for i := 0; i < cfg.SenderNumber; i++ {
+	for i := 0; i < cfg.SenderWorker; i++ {
 		sender.wg.Add(1)
-		go sender.sender()
+		go sender.worker()
 	}
 	return &sender, nil
 }
@@ -316,8 +315,9 @@ func (sender *sender) syncReceiveParallel(token, message []byte) {
 	}
 }
 
-// make sure send lock exist
-func (sender *sender) lockSender(role protocol.Role, guid string) {
+// DeleteSyncSendM is used to delete syncSendM
+// if delete role, must delete it
+func (sender *sender) DeleteSyncSendM(role protocol.Role, guid string) {
 	i := 0
 	switch role {
 	case protocol.Beacon:
@@ -325,7 +325,23 @@ func (sender *sender) lockSender(role protocol.Role, guid string) {
 	case protocol.Node:
 		i = senderNode
 	default:
-		panic("sender.lockSender: invalid role")
+		panic("invalid role")
+	}
+	sender.syncSendRWM[i].Lock()
+	if _, ok := sender.syncSendMs[i][guid]; ok {
+		delete(sender.syncSendMs[i], guid)
+	}
+	sender.syncSendRWM[i].Unlock()
+}
+
+// make sure send lock exist
+func (sender *sender) lockRole(role protocol.Role, guid string) {
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = senderBeacon
+	case protocol.Node:
+		i = senderNode
 	}
 	sender.syncSendRWM[i].Lock()
 	if m, ok := sender.syncSendMs[i][guid]; ok {
@@ -338,15 +354,13 @@ func (sender *sender) lockSender(role protocol.Role, guid string) {
 	}
 }
 
-func (sender *sender) unlockSender(role protocol.Role, guid string) {
+func (sender *sender) unlockRole(role protocol.Role, guid string) {
 	i := 0
 	switch role {
 	case protocol.Beacon:
 		i = senderBeacon
 	case protocol.Node:
 		i = senderNode
-	default:
-		panic("sender.unlockSender: invalid role")
 	}
 	sender.syncSendRWM[i].RLock()
 	if m, ok := sender.syncSendMs[i][guid]; ok {
@@ -357,14 +371,14 @@ func (sender *sender) unlockSender(role protocol.Role, guid string) {
 	}
 }
 
-func (sender *sender) sender() {
+func (sender *sender) worker() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("sender panic:", r)
+			err := xpanic.Error("sender.worker() panic:", r)
 			sender.log(logger.FATAL, err)
-			// start new sender
+			// restart worker
 			sender.wg.Add(1)
-			go sender.sender()
+			go sender.worker()
 		}
 		sender.wg.Done()
 	}()
@@ -497,12 +511,12 @@ func (sender *sender) sender() {
 			preSS.ReceiverGUID = sst.Target
 			// set sync height
 			roleGUID = base64.StdEncoding.EncodeToString(sst.Target)
-			sender.lockSender(sst.Role, roleGUID)
+			sender.lockRole(sst.Role, roleGUID)
 			switch sst.Role {
 			case protocol.Beacon:
 				beaconSyncer, err = sender.ctx.db.SelectBeaconSyncer(sst.Target)
 				if err != nil {
-					sender.unlockSender(sst.Role, roleGUID)
+					sender.unlockRole(sst.Role, roleGUID)
 					if sst.Result != nil {
 						result.Err = err
 						sst.Result <- &result
@@ -513,7 +527,7 @@ func (sender *sender) sender() {
 			case protocol.Node:
 				nodeSyncer, err = sender.ctx.db.SelectNodeSyncer(sst.Target)
 				if err != nil {
-					sender.unlockSender(sst.Role, roleGUID)
+					sender.unlockRole(sst.Role, roleGUID)
 					if sst.Result != nil {
 						result.Err = err
 						sst.Result <- &result
@@ -536,7 +550,7 @@ func (sender *sender) sender() {
 			buffer.Reset()
 			err = encoder.Encode(&preSS)
 			if err != nil {
-				sender.unlockSender(sst.Role, roleGUID)
+				sender.unlockRole(sst.Role, roleGUID)
 				if sst.Result != nil {
 					result.Err = err
 					sst.Result <- &result
@@ -552,7 +566,7 @@ func (sender *sender) sender() {
 				err = sender.ctx.db.UpdateNSCtrlSend(sst.Target, preSS.Height+1)
 			}
 			if err != nil {
-				sender.unlockSender(sst.Role, roleGUID)
+				sender.unlockRole(sst.Role, roleGUID)
 				if sst.Result != nil {
 					result.Err = err
 					sst.Result <- &result
@@ -574,7 +588,7 @@ func (sender *sender) sender() {
 					err = sender.ctx.db.UpdateNSCtrlSend(sst.Target, preSS.Height)
 				}
 				if err != nil {
-					sender.unlockSender(sst.Role, roleGUID)
+					sender.unlockRole(sst.Role, roleGUID)
 					if sst.Result != nil {
 						result.Err = err
 						sst.Result <- &result
@@ -582,7 +596,7 @@ func (sender *sender) sender() {
 					continue
 				}
 			}
-			sender.unlockSender(sst.Role, roleGUID)
+			sender.unlockRole(sst.Role, roleGUID)
 			if sst.Result != nil {
 				sst.Result <- &result
 			}
