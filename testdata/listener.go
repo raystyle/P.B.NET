@@ -23,7 +23,7 @@ func Listeners(t require.TestingT) []*config.Listener {
 	require.NoError(t, err)
 	l = &config.Listener{
 		Tag:    "light",
-		Mode:   xnet.LIGHT,
+		Mode:   xnet.Light,
 		Config: b,
 	}
 	ls = append(ls, l)

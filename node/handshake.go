@@ -34,7 +34,7 @@ func (server *server) handshake(lTag string, conn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("handshake panic:", r)
-			server.log(logger.EXPLOIT, &sLog{c: xconn, e: err})
+			server.log(logger.Exploit, &sLog{c: xconn, e: err})
 		}
 		_ = xconn.Close()
 		server.wg.Done()
@@ -54,7 +54,7 @@ func (server *server) handshake(lTag string, conn net.Conn) {
 		err = xconn.Send(cert)
 		if err != nil {
 			l := &sLog{c: xconn, l: "send certificate failed", e: err}
-			server.log(logger.ERROR, l)
+			server.log(logger.Error, l)
 			return
 		}
 	} else { // if no certificate send padding data
@@ -62,7 +62,7 @@ func (server *server) handshake(lTag string, conn net.Conn) {
 		err = xconn.Send(server.random.Bytes(paddingSize))
 		if err != nil {
 			l := &sLog{c: xconn, l: "send padding data failed", e: err}
-			server.log(logger.ERROR, l)
+			server.log(logger.Error, l)
 			return
 		}
 	}
@@ -71,7 +71,7 @@ func (server *server) handshake(lTag string, conn net.Conn) {
 	_, err = io.ReadFull(xconn, role)
 	if err != nil {
 		l := &sLog{c: xconn, l: "receive role failed", e: err}
-		server.log(logger.ERROR, l)
+		server.log(logger.Error, l)
 		return
 	}
 	// remove deadline conn
@@ -84,7 +84,7 @@ func (server *server) handshake(lTag string, conn net.Conn) {
 	case protocol.Ctrl:
 		server.verifyCtrl(xconn)
 	default:
-		server.log(logger.EXPLOIT, &sLog{c: xconn, e: protocol.ErrInvalidRole})
+		server.log(logger.Exploit, &sLog{c: xconn, e: protocol.ErrInvalidRole})
 	}
 }
 
@@ -108,27 +108,27 @@ func (server *server) verifyCtrl(conn *xnet.Conn) {
 	err := xconn.Send(challenge)
 	if err != nil {
 		l := &sLog{c: xconn, l: "send challenge code failed", e: err}
-		server.log(logger.ERROR, l)
+		server.log(logger.Error, l)
 		return
 	}
 	// receive signature
 	signature, err := xconn.Receive()
 	if err != nil {
 		l := &sLog{c: xconn, l: "receive signature failed", e: err}
-		server.log(logger.ERROR, l)
+		server.log(logger.Error, l)
 		return
 	}
 	// verify signature
 	if !server.ctx.global.CtrlVerify(challenge, signature) {
 		l := &sLog{c: xconn, l: "invalid controller signature", e: err}
-		server.log(logger.EXPLOIT, l)
+		server.log(logger.Exploit, l)
 		return
 	}
 	// send success
 	err = xconn.Send(protocol.AuthSucceed)
 	if err != nil {
 		l := &sLog{c: xconn, l: "send auth success response failed", e: err}
-		server.log(logger.ERROR, l)
+		server.log(logger.Error, l)
 		return
 	}
 	server.serveCtrl(conn)

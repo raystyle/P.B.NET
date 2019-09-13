@@ -15,7 +15,7 @@ type Mode = string
 
 const (
 	TLS   Mode = "tls"
-	LIGHT Mode = "light"
+	Light Mode = "light"
 )
 
 var (
@@ -69,7 +69,7 @@ func CheckModeNetwork(mode Mode, network string) error {
 		default:
 			return ErrMismatchedModeNetwork
 		}
-	case LIGHT:
+	case Light:
 		switch network {
 		case "tcp", "tcp4", "tcp6":
 		default:
@@ -93,7 +93,7 @@ func Listen(m Mode, c *Config) (net.Listener, error) {
 			return nil, err
 		}
 		return xtls.Listen(c.Network, c.Address, tlsConfig, c.Timeout)
-	case LIGHT:
+	case Light:
 		err := CheckModeNetwork(TLS, c.Network)
 		if err != nil {
 			return nil, err
@@ -116,7 +116,7 @@ func Dial(m Mode, c *Config) (net.Conn, error) {
 			return nil, err
 		}
 		return xtls.Dial(c.Network, c.Address, tlsConfig, c.Timeout)
-	case LIGHT:
+	case Light:
 		err := CheckModeNetwork(TLS, c.Network)
 		if err != nil {
 			return nil, err

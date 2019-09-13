@@ -160,7 +160,7 @@ func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error("serve panic:", r) // front var err
-			server.log(logger.FATAL, err)
+			server.log(logger.Fatal, err)
 		}
 		errChan <- err
 		close(errChan)
@@ -168,7 +168,7 @@ func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 		server.listenersRWM.Lock()
 		delete(server.listeners, tag)
 		server.listenersRWM.Unlock()
-		server.logf(logger.INFO, "listener: %s(%s) is closed", tag, l.Addr())
+		server.logf(logger.Info, "listener: %s(%s) is closed", tag, l.Addr())
 		server.wg.Done()
 	}()
 	var delay time.Duration // how long to sleep on accept failure
@@ -191,7 +191,7 @@ func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 				if delay > max {
 					delay = max
 				}
-				server.logf(logger.WARNING, "accept error: %s; retrying in %v", e, delay)
+				server.logf(logger.Warning, "accept error: %s; retrying in %v", e, delay)
 				time.Sleep(delay)
 				continue
 			}

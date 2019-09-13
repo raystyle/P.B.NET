@@ -16,7 +16,7 @@ import (
 // head = sha256(ip + hostname + pid + random data)
 // guid = head + 4 bytes(random) + timestamp + add id
 // total 32 + 4 + 8 + 8 = 52 Bytes
-const SIZE int = 52
+const Size int = 52
 
 type GUID struct {
 	now        func() time.Time
@@ -90,7 +90,7 @@ func (g *GUID) generateLoop() {
 		g.wg.Done()
 	}()
 	for {
-		guid := make([]byte, SIZE)
+		guid := make([]byte, Size)
 		copy(guid, g.head)
 		copy(guid[32:36], g.random.Bytes(4))
 		// reserve timestamp

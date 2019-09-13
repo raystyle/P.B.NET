@@ -125,7 +125,7 @@ func (ts *TimeSyncer) Start() error {
 			return nil
 		case ErrAllFailed:
 			ts.dnsClient.FlushCache()
-			ts.log(logger.WARNING, ErrAllFailed)
+			ts.log(logger.Warning, ErrAllFailed)
 			random.Sleep(10, 20)
 		default:
 			return err
@@ -238,7 +238,7 @@ func (ts *TimeSyncer) syncLoop() {
 		case <-time.After(interval):
 			err := ts.sync(true, false)
 			if err != nil {
-				ts.log(logger.WARNING, "sync time failed:", err)
+				ts.log(logger.Warning, "sync time failed:", err)
 			}
 		}
 	}
@@ -252,7 +252,7 @@ func (ts *TimeSyncer) sync(acceptFailed, syncAll bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error("sync() panic:", r)
-			ts.log(logger.FATAL, err)
+			ts.log(logger.Fatal, err)
 		}
 	}()
 	// query
@@ -273,7 +273,7 @@ func (ts *TimeSyncer) sync(acceptFailed, syncAll bool) (err error) {
 			if syncAll {
 				return err
 			}
-			ts.log(logger.WARNING, err)
+			ts.log(logger.Warning, err)
 		} else {
 			if syncAll {
 				continue

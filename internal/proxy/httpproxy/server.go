@@ -65,7 +65,7 @@ func NewServer(tag string, l logger.Logger, opts *Options) (*Server, error) {
 		s.server, _ = new(options.HTTPServer).Apply()
 	}
 	s.server.Handler = s
-	s.server.ErrorLog = logger.Wrap(logger.ERROR, s.tag, l)
+	s.server.ErrorLog = logger.Wrap(logger.Error, s.tag, l)
 	// client transport
 	if opts.Transport != nil {
 		s.transport, err = opts.Transport.Apply()
@@ -140,10 +140,10 @@ func (s *Server) start(f func() error, timeout time.Duration) error {
 	}()
 	select {
 	case err := <-errChan:
-		s.log(logger.INFO, "start server failed:", err)
+		s.log(logger.Info, "start server failed:", err)
 		return err
 	case <-time.After(timeout):
-		s.log(logger.INFO, "start server success:", s.addr)
+		s.log(logger.Info, "start server success:", s.addr)
 		return nil
 	}
 }
@@ -151,7 +151,7 @@ func (s *Server) start(f func() error, timeout time.Duration) error {
 func (s *Server) Stop() error {
 	err := s.server.Close()
 	s.transport.CloseIdleConnections()
-	s.log(logger.INFO, "server stopped")
+	s.log(logger.Info, "server stopped")
 	return err
 }
 
@@ -184,7 +184,7 @@ func (l *log) String() string {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			s.log(logger.ERROR, &log{Log: fmt.Sprint("panic: ", rec), Req: r})
+			s.log(logger.Error, &log{Log: fmt.Sprint("panic: ", rec), Req: r})
 		}
 	}()
 	// auth
@@ -205,12 +205,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "Basic":
 			if subtle.ConstantTimeCompare(s.basicAuth, []byte(authBase64)) != 1 {
 				authFailed()
-				s.log(logger.EXPLOIT, &log{Log: "invalid basic authenticate", Req: r})
+				s.log(logger.Exploit, &log{Log: "invalid basic authenticate", Req: r})
 				return
 			}
 		default: // not support method
 			authFailed()
-			s.log(logger.EXPLOIT, &log{Log: "unsupport auth method: " + authMethod, Req: r})
+			s.log(logger.Exploit, &log{Log: "unsupport auth method: " + authMethod, Req: r})
 			return
 		}
 	}
@@ -219,18 +219,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// dial
 		conn, err := s.transport.DialContext(context.Background(), "tcp", r.URL.Host)
 		if err != nil {
-			s.log(logger.ERROR, &log{Log: err, Req: r})
+			s.log(logger.Error, &log{Log: err, Req: r})
 			return
 		}
 		// get client conn
 		wc, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
-			s.log(logger.ERROR, &log{Log: err, Req: r})
+			s.log(logger.Error, &log{Log: err, Req: r})
 			return
 		}
 		_, err = wc.Write(connectionEstablished)
 		if err != nil {
-			s.log(logger.ERROR, &log{Log: err, Req: r})
+			s.log(logger.Error, &log{Log: err, Req: r})
 			return
 		}
 		go func() { _, _ = io.Copy(conn, wc) }()
@@ -240,7 +240,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else { // handle http
 		resp, err := s.transport.RoundTrip(r)
 		if err != nil {
-			s.log(logger.ERROR, &log{Log: err, Req: r})
+			s.log(logger.Error, &log{Log: err, Req: r})
 			return
 		}
 		defer func() { _ = resp.Body.Close() }()

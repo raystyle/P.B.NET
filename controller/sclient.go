@@ -38,7 +38,7 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 		defer func() {
 			if r := recover(); r != nil {
 				err := xpanic.Error("syncer client panic:", r)
-				client.log(logger.FATAL, err)
+				client.log(logger.Fatal, err)
 			}
 			client.Close()
 		}()
@@ -51,7 +51,7 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 	}
 	if !bytes.Equal(resp, []byte{protocol.CtrlSyncStart}) {
 		err = errors.WithMessage(err, "invalid sync start response")
-		sc.log(logger.EXPLOIT, err)
+		sc.log(logger.Exploit, err)
 		return nil, err
 	}
 	return &sc, nil
@@ -146,7 +146,7 @@ func (sc *sClient) QueryMessage(request []byte) (*protocol.SyncReply, error) {
 	err = msgpack.Unmarshal(reply, &sr)
 	if err != nil {
 		err = errors.Wrap(err, "invalid sync reply")
-		sc.log(logger.EXPLOIT, err)
+		sc.log(logger.Exploit, err)
 		sc.Close()
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (sc *sClient) handleMessage(msg []byte) {
 	}
 	// cmd(1) + msg id(2) or reply
 	if len(msg) < id {
-		sc.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
+		sc.log(logger.Exploit, protocol.ErrInvalidMsgSize)
 		sc.Close()
 		return
 	}
@@ -209,15 +209,15 @@ func (sc *sClient) handleMessage(msg []byte) {
 	case protocol.NodeHeartbeat:
 		sc.client.heartbeatC <- struct{}{}
 	case protocol.ErrNullMsg:
-		sc.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
+		sc.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		sc.Close()
 	case protocol.ErrTooBigMsg:
-		sc.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
+		sc.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		sc.Close()
 	case protocol.TestMessage:
 		sc.client.Reply(msg[cmd:id], msg[id:])
 	default:
-		sc.logln(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg)
+		sc.logln(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)
 		sc.Close()
 		return
 	}
@@ -225,10 +225,10 @@ func (sc *sClient) handleMessage(msg []byte) {
 
 func (sc *sClient) handleBroadcastToken(id, message []byte) {
 	// role + message guid
-	if len(message) != 1+guid.SIZE {
+	if len(message) != 1+guid.Size {
 		// fake reply and close
 		sc.client.Reply(id, protocol.BroadcastHandled)
-		sc.log(logger.EXPLOIT, "invalid broadcast token size")
+		sc.log(logger.Exploit, "invalid broadcast token size")
 		sc.Close()
 		return
 	}
@@ -240,10 +240,10 @@ func (sc *sClient) handleBroadcastToken(id, message []byte) {
 }
 
 func (sc *sClient) handleSyncSendToken(id, message []byte) {
-	if len(message) != 1+guid.SIZE {
+	if len(message) != 1+guid.Size {
 		// fake reply and close
 		sc.client.Reply(id, protocol.SyncHandled)
-		sc.log(logger.EXPLOIT, "invalid sync send token size")
+		sc.log(logger.Exploit, "invalid sync send token size")
 		sc.Close()
 		return
 	}
@@ -255,10 +255,10 @@ func (sc *sClient) handleSyncSendToken(id, message []byte) {
 }
 
 func (sc *sClient) handleSyncReceiveToken(id, message []byte) {
-	if len(message) != 1+guid.SIZE {
+	if len(message) != 1+guid.Size {
 		// fake reply and close
 		sc.client.Reply(id, protocol.SyncHandled)
-		sc.log(logger.EXPLOIT, "invalid sync receive token size")
+		sc.log(logger.Exploit, "invalid sync receive token size")
 		sc.Close()
 		return
 	}
@@ -273,23 +273,23 @@ func (sc *sClient) handleBroadcast(id, message []byte) {
 	br := protocol.Broadcast{}
 	err := msgpack.Unmarshal(message, &br)
 	if err != nil {
-		sc.logln(logger.EXPLOIT, "invalid broadcast msgpack data:", err)
+		sc.logln(logger.Exploit, "invalid broadcast msgpack data:", err)
 		sc.Close()
 		return
 	}
 	err = br.Validate()
 	if err != nil {
-		sc.logf(logger.EXPLOIT, "invalid broadcast: %s\n%s", err, spew.Sdump(br))
+		sc.logf(logger.Exploit, "invalid broadcast: %s\n%s", err, spew.Sdump(br))
 		sc.Close()
 		return
 	}
 	if br.SenderRole != protocol.Node && br.SenderRole != protocol.Beacon {
-		sc.logf(logger.EXPLOIT, "invalid broadcast sender role\n%s", spew.Sdump(br))
+		sc.logf(logger.Exploit, "invalid broadcast sender role\n%s", spew.Sdump(br))
 		sc.Close()
 		return
 	}
 	if br.ReceiverRole != protocol.Ctrl {
-		sc.logf(logger.EXPLOIT, "invalid broadcast receiver role\n%s", spew.Sdump(br))
+		sc.logf(logger.Exploit, "invalid broadcast receiver role\n%s", spew.Sdump(br))
 		sc.Close()
 		return
 	}
@@ -301,28 +301,28 @@ func (sc *sClient) handleSyncSend(id, message []byte) {
 	ss := protocol.SyncSend{}
 	err := msgpack.Unmarshal(message, &ss)
 	if err != nil {
-		sc.logln(logger.EXPLOIT, "invalid sync send msgpack data:", err)
+		sc.logln(logger.Exploit, "invalid sync send msgpack data:", err)
 		sc.Close()
 		return
 	}
 	err = ss.Validate()
 	if err != nil {
-		sc.logf(logger.EXPLOIT, "invalid sync send: %s\n%s", err, spew.Sdump(ss))
+		sc.logf(logger.Exploit, "invalid sync send: %s\n%s", err, spew.Sdump(ss))
 		sc.Close()
 		return
 	}
 	if ss.SenderRole != protocol.Node && ss.SenderRole != protocol.Beacon {
-		sc.logf(logger.EXPLOIT, "invalid sync send sender role\n%s", spew.Sdump(ss))
+		sc.logf(logger.Exploit, "invalid sync send sender role\n%s", spew.Sdump(ss))
 		sc.Close()
 		return
 	}
 	if ss.ReceiverRole != protocol.Ctrl {
-		sc.logf(logger.EXPLOIT, "invalid sync send receiver role\n%s", spew.Sdump(ss))
+		sc.logf(logger.Exploit, "invalid sync send receiver role\n%s", spew.Sdump(ss))
 		sc.Close()
 		return
 	}
 	if !bytes.Equal(ss.ReceiverGUID, protocol.CtrlGUID) {
-		sc.logf(logger.EXPLOIT, "invalid sync send receiver guid\n%s", spew.Sdump(ss))
+		sc.logf(logger.Exploit, "invalid sync send receiver guid\n%s", spew.Sdump(ss))
 		sc.Close()
 		return
 	}
@@ -335,18 +335,18 @@ func (sc *sClient) handleSyncReceive(id, message []byte) {
 	sr := protocol.SyncReceive{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
-		sc.logln(logger.EXPLOIT, "invalid sync receive msgpack data:", err)
+		sc.logln(logger.Exploit, "invalid sync receive msgpack data:", err)
 		sc.Close()
 		return
 	}
 	err = sr.Validate()
 	if err != nil {
-		sc.logf(logger.EXPLOIT, "invalid sync receive: %s\n%s", err, spew.Sdump(sr))
+		sc.logf(logger.Exploit, "invalid sync receive: %s\n%s", err, spew.Sdump(sr))
 		sc.Close()
 		return
 	}
 	if sr.ReceiverRole != protocol.Node && sr.ReceiverRole != protocol.Beacon {
-		sc.logf(logger.EXPLOIT, "invalid sync receive receiver role\n%s", spew.Sdump(sr))
+		sc.logf(logger.Exploit, "invalid sync receive receiver role\n%s", spew.Sdump(sr))
 		sc.Close()
 		return
 	}

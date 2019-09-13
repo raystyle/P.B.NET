@@ -37,9 +37,9 @@ func TestCheckModeNetwork(t *testing.T) {
 	require.NoError(t, err)
 	err = CheckModeNetwork(TLS, "udp")
 	require.Equal(t, ErrMismatchedModeNetwork, err)
-	err = CheckModeNetwork(LIGHT, "tcp")
+	err = CheckModeNetwork(Light, "tcp")
 	require.NoError(t, err)
-	err = CheckModeNetwork(LIGHT, "udp")
+	err = CheckModeNetwork(Light, "udp")
 	require.Equal(t, ErrMismatchedModeNetwork, err)
 	err = CheckModeNetwork("", "")
 	require.Equal(t, ErrEmptyMode, err)
@@ -88,7 +88,7 @@ func TestListenAndDialLight(t *testing.T) {
 		Address: "localhost:0",
 	}
 	// Listen
-	listener, err := Listen(LIGHT, cfg)
+	listener, err := Listen(Light, cfg)
 	require.NoError(t, err)
 	go func() {
 		conn, err := listener.Accept()
@@ -100,7 +100,7 @@ func TestListenAndDialLight(t *testing.T) {
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)
 	cfg.Address = "localhost:" + port
-	conn, err := Dial(LIGHT, cfg)
+	conn, err := Dial(Light, cfg)
 	require.NoError(t, err)
 	_ = conn.Close()
 }

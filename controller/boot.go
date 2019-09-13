@@ -35,7 +35,7 @@ func (boot *boot) Add(m *mBoot) error {
 	// check exist
 	if _, ok := boot.clients[m.Tag]; ok {
 		err := errors.Errorf("boot %s is running", m.Tag)
-		boot.ctx.Printf(logger.INFO, "boot", "add boot %s failed: %s", m.Tag, err)
+		boot.ctx.Printf(logger.Info, "boot", "add boot %s failed: %s", m.Tag, err)
 		return err
 	}
 	// load
@@ -43,7 +43,7 @@ func (boot *boot) Add(m *mBoot) error {
 	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxyPool, g.dnsClient)
 	if err != nil {
 		err = errors.Wrapf(err, "load boot %s failed", m.Tag)
-		boot.ctx.Printf(logger.INFO, "boot", "add boot %s failed: %s", m.Tag, err)
+		boot.ctx.Printf(logger.Info, "boot", "add boot %s failed: %s", m.Tag, err)
 		return err
 	}
 	bc := bClient{
@@ -56,7 +56,7 @@ func (boot *boot) Add(m *mBoot) error {
 	}
 	boot.clients[m.Tag] = &bc
 	bc.Boot()
-	boot.ctx.Printf(logger.INFO, "boot", "add boot %s", m.Tag)
+	boot.ctx.Printf(logger.Info, "boot", "add boot %s", m.Tag)
 	return nil
 }
 
@@ -111,15 +111,15 @@ func (bc *bClient) bootLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error("bClient.bootLoop() panic:", r)
-			bc.ctx.ctx.Print(logger.FATAL, bc.logSrc, err)
+			bc.ctx.ctx.Print(logger.Fatal, bc.logSrc, err)
 		}
-		bc.ctx.ctx.Printf(logger.INFO, "boot", "boot %s stop", bc.tag)
+		bc.ctx.ctx.Printf(logger.Info, "boot", "boot %s stop", bc.tag)
 		bc.wg.Done()
 	}()
 	resolve := func() {
 		err = bc.resolve()
 		if err != nil {
-			bc.ctx.ctx.Println(logger.WARNING, bc.logSrc, err)
+			bc.ctx.ctx.Println(logger.Warning, bc.logSrc, err)
 		} else {
 			// stop and delete self
 			close(bc.stopSignal)

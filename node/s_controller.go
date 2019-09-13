@@ -39,15 +39,15 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 		stopSignal: make(chan struct{}),
 	}
 	server.addCtrl(ctrl)
-	ctrl.log(logger.DEBUG, "controller connected")
+	ctrl.log(logger.Debug, "controller connected")
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("serve controller panic:", r)
-			ctrl.log(logger.EXPLOIT, err)
+			ctrl.log(logger.Exploit, err)
 		}
 		ctrl.Close()
 		server.delCtrl("", ctrl)
-		ctrl.log(logger.DEBUG, "controller disconnected")
+		ctrl.log(logger.Debug, "controller disconnected")
 	}()
 	// init slot
 	ctrl.slots = make([]*protocol.Slot, protocol.SlotSize)
@@ -109,7 +109,7 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	}
 	// cmd(1) + msg id(2) or reply
 	if len(msg) < id {
-		ctrl.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
+		ctrl.log(logger.Exploit, protocol.ErrInvalidMsgSize)
 		ctrl.Close()
 		return
 	}
@@ -125,15 +125,15 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	case protocol.CtrlTrustNodeData:
 		ctrl.handleTrustNodeData(msg[cmd:id], msg[id:])
 	case protocol.ErrNullMsg:
-		ctrl.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
+		ctrl.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		ctrl.Close()
 	case protocol.ErrTooBigMsg:
-		ctrl.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
+		ctrl.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		ctrl.Close()
 	case protocol.TestMessage:
 		ctrl.reply(msg[cmd:id], msg[id:])
 	default:
-		ctrl.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg)
+		ctrl.log(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)
 		ctrl.Close()
 	}
 }
@@ -175,13 +175,13 @@ func (ctrl *roleCtrl) reply(id, reply []byte) {
 func (ctrl *roleCtrl) handleReply(reply []byte) {
 	l := len(reply)
 	if l < protocol.MsgIDSize {
-		ctrl.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgIDSize)
+		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
 		ctrl.Close()
 		return
 	}
 	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
 	if id > protocol.MaxMsgID {
-		ctrl.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgID)
+		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
 		ctrl.Close()
 		return
 	}
@@ -194,7 +194,7 @@ func (ctrl *roleCtrl) handleReply(reply []byte) {
 	case ctrl.slots[id].Reply <- r:
 		ctrl.replyTimer.Stop()
 	case <-ctrl.replyTimer.C:
-		ctrl.log(logger.EXPLOIT, protocol.ErrRecvInvalidReply)
+		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidReply)
 		ctrl.Close()
 	}
 }
@@ -268,5 +268,5 @@ func (ctrl *roleCtrl) handleTrustNodeData(id []byte, data []byte) {
 	} else {
 		ctrl.reply(id, []byte(err.Error()))
 	}
-	ctrl.log(logger.DEBUG, "trust node")
+	ctrl.log(logger.Debug, "trust node")
 }

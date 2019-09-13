@@ -30,7 +30,7 @@ type Broadcast struct {
 }
 
 func (b *Broadcast) Validate() error {
-	if len(b.GUID) != guid.SIZE {
+	if len(b.GUID) != guid.Size {
 		return errors.New("invalid guid")
 	}
 	if len(b.Message) < 16 {
@@ -39,7 +39,7 @@ func (b *Broadcast) Validate() error {
 	if b.SenderRole > Beacon {
 		return errors.New("invalid sender role")
 	}
-	if len(b.SenderGUID) != guid.SIZE {
+	if len(b.SenderGUID) != guid.Size {
 		return errors.New("invalid sender guid")
 	}
 	if b.Signature == nil {

@@ -35,7 +35,7 @@ type SyncSend struct {
 }
 
 func (ss *SyncSend) Validate() error {
-	if len(ss.GUID) != guid.SIZE {
+	if len(ss.GUID) != guid.Size {
 		return errors.New("invalid guid")
 	}
 	if len(ss.Message) < 16 {
@@ -44,13 +44,13 @@ func (ss *SyncSend) Validate() error {
 	if ss.SenderRole > Beacon {
 		return errors.New("invalid sender role")
 	}
-	if len(ss.SenderGUID) != guid.SIZE {
+	if len(ss.SenderGUID) != guid.Size {
 		return errors.New("invalid sender guid")
 	}
 	if ss.ReceiverRole > Beacon {
 		return errors.New("invalid receiver role")
 	}
-	if len(ss.ReceiverGUID) != guid.SIZE {
+	if len(ss.ReceiverGUID) != guid.Size {
 		return errors.New("invalid receiver guid")
 	}
 	if ss.Signature == nil {
@@ -71,13 +71,13 @@ type SyncReceive struct {
 }
 
 func (sr *SyncReceive) Validate() error {
-	if len(sr.GUID) != guid.SIZE {
+	if len(sr.GUID) != guid.Size {
 		return errors.New("invalid guid")
 	}
 	if sr.ReceiverRole != Beacon && sr.ReceiverRole != Node {
 		return errors.New("invalid receiver role")
 	}
-	if len(sr.ReceiverGUID) != guid.SIZE {
+	if len(sr.ReceiverGUID) != guid.Size {
 		return errors.New("invalid receiver guid")
 	}
 	if sr.Signature == nil {
@@ -110,7 +110,7 @@ func (sq *SyncQuery) Validate() error {
 	if sq.Role != Beacon && sq.Role != Node {
 		return errors.New("invalid role")
 	}
-	if len(sq.GUID) != guid.SIZE {
+	if len(sq.GUID) != guid.Size {
 		return errors.New("invalid guid")
 	}
 	return nil

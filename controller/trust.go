@@ -32,13 +32,13 @@ func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, 
 	err = msgpack.Unmarshal(reply, &req)
 	if err != nil {
 		err = errors.Wrap(err, "invalid node online request")
-		ctrl.Print(logger.EXPLOIT, "trust_node", err)
+		ctrl.Print(logger.Exploit, "trust_node", err)
 		return nil, err
 	}
 	err = req.Validate()
 	if err != nil {
 		err = errors.Wrap(err, "validate node online request failed")
-		ctrl.Print(logger.EXPLOIT, "trust_node", err)
+		ctrl.Print(logger.Exploit, "trust_node", err)
 		return nil, err
 	}
 	return &req, nil
@@ -68,7 +68,7 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlin
 	sKey, err := ctrl.global.KeyExchange(req.KexPublicKey)
 	if err != nil {
 		err = errors.Wrap(err, "calculate session key failed")
-		ctrl.Print(logger.EXPLOIT, "trust_node", err)
+		ctrl.Print(logger.Exploit, "trust_node", err)
 		return err
 	}
 	// insert node

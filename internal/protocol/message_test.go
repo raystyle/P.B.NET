@@ -21,7 +21,7 @@ func TestHandleMessage(t *testing.T) {
 		wg      sync.WaitGroup
 	)
 	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
-	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	listener, err := xnet.Listen(xnet.Light, cfg)
 	require.NoError(t, err)
 	wg.Add(1)
 	go func() {
@@ -43,7 +43,7 @@ func TestHandleMessage(t *testing.T) {
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
 	cfg.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	conn, err := xnet.Dial(xnet.Light, cfg)
 	require.NoError(t, err)
 	// full
 	_, err = conn.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1})
@@ -67,7 +67,7 @@ func TestHandleNULLMessage(t *testing.T) {
 		wg sync.WaitGroup
 	)
 	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
-	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	listener, err := xnet.Listen(xnet.Light, cfg)
 	require.NoError(t, err)
 	wg.Add(1)
 	go func() {
@@ -82,7 +82,7 @@ func TestHandleNULLMessage(t *testing.T) {
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
 	cfg.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	conn, err := xnet.Dial(xnet.Light, cfg)
 	require.NoError(t, err)
 	_, err = conn.Write([]byte{0, 0, 0, 0})
 	_ = conn.Close()
@@ -94,7 +94,7 @@ func TestHandleTooBigMessage(t *testing.T) {
 		wg sync.WaitGroup
 	)
 	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
-	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	listener, err := xnet.Listen(xnet.Light, cfg)
 	require.NoError(t, err)
 	wg.Add(1)
 	go func() {
@@ -110,7 +110,7 @@ func TestHandleTooBigMessage(t *testing.T) {
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
 	cfg.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	conn, err := xnet.Dial(xnet.Light, cfg)
 	require.NoError(t, err)
 	_, err = conn.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
 	_ = conn.Close()
@@ -151,7 +151,7 @@ func benchmarkHandleMessage(b *testing.B, size int) {
 		wg      sync.WaitGroup
 	)
 	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
-	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	listener, err := xnet.Listen(xnet.Light, cfg)
 	require.NoError(b, err)
 	wg.Add(1)
 	go func() {
@@ -171,7 +171,7 @@ func benchmarkHandleMessage(b *testing.B, size int) {
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
 	cfg.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	conn, err := xnet.Dial(xnet.Light, cfg)
 	require.NoError(b, err)
 	msg := append(convert.Uint32ToBytes(uint32(size)), message...)
 	b.ReportAllocs()
@@ -222,7 +222,7 @@ func benchmarkHandleMessageParallel(b *testing.B, size int) {
 		wg      sync.WaitGroup
 	)
 	cfg := &xnet.Config{Network: "tcp", Address: "localhost:0"}
-	listener, err := xnet.Listen(xnet.LIGHT, cfg)
+	listener, err := xnet.Listen(xnet.Light, cfg)
 	require.NoError(b, err)
 	wg.Add(1)
 	go func() {
@@ -242,7 +242,7 @@ func benchmarkHandleMessageParallel(b *testing.B, size int) {
 	// dial
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
 	cfg.Address = "localhost:" + port
-	conn, err := xnet.Dial(xnet.LIGHT, cfg)
+	conn, err := xnet.Dial(xnet.Light, cfg)
 	require.NoError(b, err)
 	msg := append(convert.Uint32ToBytes(uint32(size)), message...)
 	writeWG := sync.WaitGroup{}

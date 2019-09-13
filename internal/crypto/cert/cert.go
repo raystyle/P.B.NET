@@ -17,8 +17,8 @@ var (
 	ErrInvalidPEMBlock     = errors.New("invalid PEM block")
 	ErrInvalidPEMBlockType = errors.New("invalid PEM block type")
 
-	// NOW = 2018-11-27 00:00:00.000000000 UTC >>>>>> date of project start
-	NOW = time.Time{}.AddDate(2017, 10, 26)
+	// now = 2018-11-27 00:00:00.000000000 UTC >>>>>> date of project start
+	now = time.Time{}.AddDate(2017, 10, 26)
 )
 
 type Config struct {
@@ -70,12 +70,17 @@ func generate(c *Config) *x509.Certificate {
 	copy(cert.Subject.PostalCode, c.Subject.PostalCode)
 	cert.Subject.SerialNumber = c.Subject.SerialNumber
 	// time
-	cert.NotBefore = NOW
 	if c.NotAfter.Equal(time.Time{}) {
-		years := 10 + random.Int(100)
+		years := 1 + random.Int(4)
 		months := random.Int(12)
 		days := random.Int(31)
-		cert.NotAfter = NOW.AddDate(years, months, days)
+		cert.NotBefore = now.AddDate(years, months, days)
+	}
+	if c.NotAfter.Equal(time.Time{}) {
+		years := 10 + random.Int(10)
+		months := random.Int(12)
+		days := random.Int(31)
+		cert.NotAfter = now.AddDate(years, months, days)
 	}
 	return cert
 }

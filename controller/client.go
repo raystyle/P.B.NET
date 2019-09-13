@@ -84,7 +84,7 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 			defer func() {
 				if r := recover(); r != nil {
 					err := xpanic.Error("client panic:", r)
-					client.log(logger.FATAL, err)
+					client.log(logger.Fatal, err)
 				}
 				client.Close()
 			}()
@@ -103,7 +103,7 @@ func (client *client) Close() {
 		_ = client.conn.Close()
 		client.wg.Wait()
 		if client.closeLog {
-			client.log(logger.INFO, "disconnected")
+			client.log(logger.Info, "disconnected")
 		}
 	})
 }
@@ -141,7 +141,7 @@ func (client *client) handleMessage(msg []byte) {
 	}
 	// cmd(1) + msg id(2) or reply
 	if len(msg) < id {
-		client.log(logger.EXPLOIT, protocol.ErrInvalidMsgSize)
+		client.log(logger.Exploit, protocol.ErrInvalidMsgSize)
 		client.Close()
 		return
 	}
@@ -151,15 +151,15 @@ func (client *client) handleMessage(msg []byte) {
 	case protocol.NodeHeartbeat:
 		client.heartbeatC <- struct{}{}
 	case protocol.ErrNullMsg:
-		client.log(logger.EXPLOIT, protocol.ErrRecvNullMsg)
+		client.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		client.Close()
 	case protocol.ErrTooBigMsg:
-		client.log(logger.EXPLOIT, protocol.ErrRecvTooBigMsg)
+		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		client.Close()
 	case protocol.TestMessage:
 		client.Reply(msg[cmd:id], msg[id:])
 	default:
-		client.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg)
+		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)
 		client.Close()
 		return
 	}
@@ -225,13 +225,13 @@ func (client *client) Reply(id, reply []byte) {
 func (client *client) handleReply(reply []byte) {
 	l := len(reply)
 	if l < protocol.MsgIDSize {
-		client.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgIDSize)
+		client.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
 		client.Close()
 		return
 	}
 	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
 	if id > protocol.MaxMsgID {
-		client.log(logger.EXPLOIT, protocol.ErrRecvInvalidMsgID)
+		client.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
 		client.Close()
 		return
 	}
@@ -244,7 +244,7 @@ func (client *client) handleReply(reply []byte) {
 	case client.slots[id].Reply <- r:
 		client.replyTimer.Stop()
 	case <-client.replyTimer.C:
-		client.log(logger.EXPLOIT, protocol.ErrRecvInvalidReply)
+		client.log(logger.Exploit, protocol.ErrRecvInvalidReply)
 		client.Close()
 	}
 }

@@ -43,6 +43,6 @@ var (
 )
 
 var (
-	CtrlGUID    = bytes.Repeat([]byte{0}, guid.SIZE)
+	CtrlGUID    = bytes.Repeat([]byte{0}, guid.Size)
 	AuthSucceed = []byte("success")
 )

@@ -13,7 +13,7 @@ import (
 func TestIssueVerifyCertificate(t *testing.T) {
 	const address = "localhost:9931"
 	testInitCtrl(t)
-	g := bytes.Repeat([]byte{1}, guid.SIZE)
+	g := bytes.Repeat([]byte{1}, guid.Size)
 	cert := ctrl.issueCertificate(address, g)
 	// with node guid
 	require.True(t, ctrl.verifyCertificate(cert, address, g))
@@ -24,7 +24,7 @@ func TestIssueVerifyCertificate(t *testing.T) {
 func TestVerifyInvalidCertificate(t *testing.T) {
 	const address = "localhost:9931"
 	testInitCtrl(t)
-	g := bytes.Repeat([]byte{1}, guid.SIZE)
+	g := bytes.Repeat([]byte{1}, guid.Size)
 	// ----------------------with node guid--------------------------
 	// no size
 	require.False(t, ctrl.verifyCertificate(nil, address, g))

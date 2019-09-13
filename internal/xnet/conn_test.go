@@ -18,7 +18,7 @@ func TestConn(t *testing.T) {
 		Address: "localhost:0",
 	}
 	// Listen
-	listener, err := Listen(LIGHT, cfg)
+	listener, err := Listen(Light, cfg)
 	require.NoError(t, err)
 	go func() {
 		conn, err := listener.Accept()
@@ -31,7 +31,7 @@ func TestConn(t *testing.T) {
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)
 	cfg.Address = "localhost:" + port
-	conn, err := Dial(LIGHT, cfg)
+	conn, err := Dial(Light, cfg)
 	require.NoError(t, err)
 	c := NewConn(conn, time.Now().Unix())
 	msg, err := c.Receive()

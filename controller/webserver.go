@@ -78,7 +78,7 @@ func newWeb(ctx *CTRL, cfg *Config) (*web, error) {
 		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: time.Minute,
 		Handler:           router,
-		ErrorLog:          logger.Wrap(logger.WARNING, "web", ctx),
+		ErrorLog:          logger.Wrap(logger.Warning, "web", ctx),
 	}
 	return &web, nil
 }

@@ -12,48 +12,48 @@ const (
 )
 
 func TestLogger(t *testing.T) {
-	Test.Printf(DEBUG, testSrc, "test format %s", testLog)
-	Test.Print(DEBUG, testSrc, "test print", testLog)
-	Test.Println(DEBUG, testSrc, "test println", testLog)
-	Discard.Printf(DEBUG, testSrc, "test format %s", testLog)
-	Discard.Print(DEBUG, testSrc, "test print", testLog)
-	Discard.Println(DEBUG, testSrc, "test println", testLog)
+	Test.Printf(Debug, testSrc, "test format %s", testLog)
+	Test.Print(Debug, testSrc, "test print", testLog)
+	Test.Println(Debug, testSrc, "test println", testLog)
+	Discard.Printf(Debug, testSrc, "test format %s", testLog)
+	Discard.Print(Debug, testSrc, "test print", testLog)
+	Discard.Println(Debug, testSrc, "test println", testLog)
 }
 
 func TestParse(t *testing.T) {
 	l, err := Parse("debug")
 	require.NoError(t, err)
-	require.Equal(t, l, DEBUG)
+	require.Equal(t, l, Debug)
 	l, err = Parse("info")
 	require.NoError(t, err)
-	require.Equal(t, l, INFO)
+	require.Equal(t, l, Info)
 	l, err = Parse("warning")
 	require.NoError(t, err)
-	require.Equal(t, l, WARNING)
+	require.Equal(t, l, Warning)
 	l, err = Parse("error")
 	require.NoError(t, err)
-	require.Equal(t, l, ERROR)
+	require.Equal(t, l, Error)
 	l, err = Parse("exploit")
 	require.NoError(t, err)
-	require.Equal(t, l, EXPLOIT)
+	require.Equal(t, l, Exploit)
 	l, err = Parse("fatal")
 	require.NoError(t, err)
-	require.Equal(t, l, FATAL)
+	require.Equal(t, l, Fatal)
 	l, err = Parse("off")
 	require.NoError(t, err)
-	require.Equal(t, l, OFF)
+	require.Equal(t, l, Off)
 	l, err = Parse("invalid level")
 	require.Error(t, err)
-	require.Equal(t, l, DEBUG)
+	require.Equal(t, l, Debug)
 }
 
 func TestPrefix(t *testing.T) {
-	for l := Level(0); l < OFF; l++ {
+	for l := Level(0); l < Off; l++ {
 		t.Log(Prefix(l, testSrc).String())
 	}
 }
 
 func TestWrap(t *testing.T) {
-	l := Wrap(DEBUG, "test wrap", Test)
+	l := Wrap(Debug, "test wrap", Test)
 	l.Println("println")
 }

@@ -281,7 +281,7 @@ func TestDeleteListener(t *testing.T) {
 func TestInsertNode(t *testing.T) {
 	testInitCtrl(t)
 	node := &mNode{
-		GUID:       bytes.Repeat([]byte{52}, guid.SIZE),
+		GUID:       bytes.Repeat([]byte{52}, guid.Size),
 		SessionKey: bytes.Repeat([]byte{52}, aes.Bit256+aes.IVSize),
 		PublicKey:  bytes.Repeat([]byte{52}, ed25519.PublicKeySize),
 	}
@@ -311,7 +311,7 @@ func TestInsertNode(t *testing.T) {
 	// insert log
 	lg := &mRoleLog{
 		GUID:   node.GUID,
-		Level:  logger.DEBUG,
+		Level:  logger.Debug,
 		Source: "test",
 		Log:    "test log",
 	}
@@ -321,12 +321,12 @@ func TestInsertNode(t *testing.T) {
 
 func TestDeleteNode(t *testing.T) {
 	testInitCtrl(t)
-	err := ctrl.db.DeleteNode(bytes.Repeat([]byte{52}, guid.SIZE))
+	err := ctrl.db.DeleteNode(bytes.Repeat([]byte{52}, guid.Size))
 	require.NoError(t, err)
 }
 
 func TestDeleteNodeUnscoped(t *testing.T) {
 	testInitCtrl(t)
-	err := ctrl.db.DeleteNodeUnscoped(bytes.Repeat([]byte{52}, guid.SIZE))
+	err := ctrl.db.DeleteNodeUnscoped(bytes.Repeat([]byte{52}, guid.Size))
 	require.NoError(t, err)
 }

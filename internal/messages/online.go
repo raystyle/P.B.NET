@@ -37,7 +37,7 @@ type NodeOnlineRequest struct {
 }
 
 func (n *NodeOnlineRequest) Validate() error {
-	if len(n.GUID) != guid.SIZE {
+	if len(n.GUID) != guid.Size {
 		return errors.New("invalid guid size")
 	}
 	if len(n.PublicKey) != ed25519.PublicKeySize {
@@ -62,7 +62,7 @@ type NodeOnlineResponse struct {
 }
 
 func (n *NodeOnlineResponse) Validate() error {
-	if len(n.GUID) != guid.SIZE {
+	if len(n.GUID) != guid.Size {
 		return errors.New("invalid guid size")
 	}
 	if n.Result > OnlineRefused {
@@ -84,7 +84,7 @@ type BeaconOnlineRequest struct {
 }
 
 func (this *BeaconOnlineRequest) Validate() error {
-	if len(this.GUID) != guid.SIZE {
+	if len(this.GUID) != guid.Size {
 		return errors.New("invalid guid size")
 	}
 	if this.Session_AES == nil {
@@ -112,7 +112,7 @@ type Beacon_Online_Response struct {
 }
 
 func (this *Beacon_Online_Response) Validate() error {
-	if len(this.GUID) != guid.SIZE {
+	if len(this.GUID) != guid.Size {
 		return errors.New("invalid guid size")
 	}
 	if this.Reply > OnlineRefused {

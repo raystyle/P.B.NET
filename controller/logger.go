@@ -23,9 +23,9 @@ func newDBLogger(db, path string) (*dbLogger, error) {
 	return &dbLogger{db: db, file: f}, nil
 }
 
-// [2006-01-02 15:04:05] [INFO] <mysql> test log
+// [2006-01-02 15:04:05] [Info] <mysql> test log
 func (l *dbLogger) Print(log ...interface{}) {
-	buffer := logger.Prefix(logger.INFO, l.db)
+	buffer := logger.Prefix(logger.Info, l.db)
 	_, _ = fmt.Fprintln(buffer, log...)
 	_, _ = l.file.Write(buffer.Bytes())
 	_, _ = buffer.WriteTo(os.Stdout)
@@ -47,9 +47,9 @@ func newGormLogger(path string) (*gormLogger, error) {
 	return &gormLogger{file: f}, nil
 }
 
-// [2006-01-02 15:04:05] [INFO] <gorm> test log
+// [2006-01-02 15:04:05] [Info] <gorm> test log
 func (l *gormLogger) Print(log ...interface{}) {
-	buffer := logger.Prefix(logger.INFO, "gorm")
+	buffer := logger.Prefix(logger.Info, "gorm")
 	_, _ = fmt.Fprintln(buffer, log...)
 	_, _ = l.file.Write(buffer.Bytes())
 	_, _ = buffer.WriteTo(os.Stdout)

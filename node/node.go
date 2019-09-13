@@ -64,19 +64,19 @@ func (node *NODE) Main() error {
 		}
 	}
 	now := node.global.Now().Format(logger.TimeLayout)
-	node.Println(logger.INFO, "init", "time:", now)
+	node.Println(logger.Info, "init", "time:", now)
 	err := node.server.Deploy()
 	if err != nil {
 		return node.fatal(err, "deploy server failed")
 	}
-	node.Print(logger.INFO, "init", "node is running")
+	node.Print(logger.Info, "init", "node is running")
 	node.wait <- struct{}{}
 	return <-node.exit
 }
 
 func (node *NODE) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	node.Println(logger.FATAL, "init", err)
+	node.Println(logger.Fatal, "init", err)
 	node.Exit(nil)
 	return err
 }
@@ -89,10 +89,10 @@ func (node *NODE) Wait() {
 func (node *NODE) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Shutdown()
-		node.Print(logger.INFO, "exit", "web server is stopped")
+		node.Print(logger.Info, "exit", "web server is stopped")
 		node.global.Destroy()
-		node.Print(logger.INFO, "exit", "global is stopped")
-		node.Print(logger.INFO, "exit", "node is stopped")
+		node.Print(logger.Info, "exit", "global is stopped")
+		node.Print(logger.Info, "exit", "node is stopped")
 		node.exit <- err
 		close(node.exit)
 	})

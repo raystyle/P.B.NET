@@ -10,13 +10,13 @@ import (
 type Level = uint8
 
 const (
-	DEBUG Level = iota
-	INFO
-	WARNING
-	ERROR
-	EXPLOIT
-	FATAL
-	OFF
+	Debug Level = iota
+	Info
+	Warning
+	Error
+	Exploit
+	Fatal
+	Off
 )
 
 const TimeLayout = "2006-01-02 15:04:05"
@@ -37,19 +37,19 @@ func Parse(level string) (Level, error) {
 	l := Level(0)
 	switch level {
 	case "debug":
-		l = DEBUG
+		l = Debug
 	case "info":
-		l = INFO
+		l = Info
 	case "warning":
-		l = WARNING
+		l = Warning
 	case "error":
-		l = ERROR
+		l = Error
 	case "exploit":
-		l = EXPLOIT
+		l = Exploit
 	case "fatal":
-		l = FATAL
+		l = Fatal
 	case "off":
-		l = OFF
+		l = Off
 	default:
 		return l, fmt.Errorf("invalid level: %s", level)
 	}
@@ -59,22 +59,22 @@ func Parse(level string) (Level, error) {
 // Prefix
 // time + level + source + log
 // source usually like class name + "-" + instance tag
-// [2006-01-02 15:04:05] [INFO] <http proxy-test> start http proxy server
+// [2006-01-02 15:04:05] [Info] <http proxy-test> start http proxy server
 func Prefix(l Level, src string) *bytes.Buffer {
 	lv := ""
 	switch l {
-	case DEBUG:
-		lv = "DEBUG"
-	case INFO:
-		lv = "INFO"
-	case WARNING:
-		lv = "WARNING"
-	case ERROR:
-		lv = "ERROR"
-	case EXPLOIT:
-		lv = "EXPLOIT"
-	case FATAL:
-		lv = "FATAL"
+	case Debug:
+		lv = "Debug"
+	case Info:
+		lv = "Info"
+	case Warning:
+		lv = "Warning"
+	case Error:
+		lv = "Error"
+	case Exploit:
+		lv = "Exploit"
+	case Fatal:
+		lv = "Fatal"
 	}
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("[")

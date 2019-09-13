@@ -21,7 +21,7 @@ func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
 		return nil, errors.Wrap(err, "receive certificate failed")
 	}
 	if !client.ctx.verifyCertificate(cert, client.node.Address, client.guid) {
-		client.log(logger.EXPLOIT, protocol.ErrInvalidCert)
+		client.log(logger.Exploit, protocol.ErrInvalidCert)
 		return nil, protocol.ErrInvalidCert
 	}
 	// send role
@@ -41,7 +41,7 @@ func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
 	// and if controller sign it will destroy net
 	if len(challenge) < 2048 || len(challenge) > 4096 {
 		err = errors.New("invalid challenge size")
-		client.log(logger.EXPLOIT, err)
+		client.log(logger.Exploit, err)
 		return nil, err
 	}
 	// send signature
@@ -55,7 +55,7 @@ func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
 	}
 	if !bytes.Equal(resp, protocol.AuthSucceed) {
 		err = errors.WithStack(protocol.ErrAuthFailed)
-		client.log(logger.EXPLOIT, err)
+		client.log(logger.Exploit, err)
 		return nil, err
 	}
 	// remove deadline conn

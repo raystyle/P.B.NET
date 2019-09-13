@@ -152,7 +152,7 @@ func (global *global) generateInternalObjects() {
 		guidPool[i] = g.Get()
 	}
 	g.Close()
-	guidSelected := make([]byte, guid.SIZE)
+	guidSelected := make([]byte, guid.Size)
 	copy(guidSelected, guidPool[rand.Int(1024)])
 	global.object[okNodeGUID] = guidSelected
 	// generate database aes

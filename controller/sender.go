@@ -375,7 +375,7 @@ func (sender *sender) worker() {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("sender.worker() panic:", r)
-			sender.log(logger.FATAL, err)
+			sender.log(logger.Fatal, err)
 			// restart worker
 			sender.wg.Add(1)
 			go sender.worker()
@@ -402,8 +402,8 @@ func (sender *sender) worker() {
 		err          error
 	)
 	// prepare buffer & msgpack encoder
-	// syncReceiveTask = 1 + guid.SIZE + 8
-	minBufferSize := guid.SIZE + 9
+	// syncReceiveTask = 1 + guid.Size + 8
+	minBufferSize := guid.Size + 9
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
 	encoder := msgpack.NewEncoder(buffer)
 	// prepare task objects

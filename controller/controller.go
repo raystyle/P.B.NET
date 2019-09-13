@@ -141,23 +141,23 @@ func (ctrl *CTRL) Main() error {
 		}
 	}
 	now := ctrl.global.Now().Format(logger.TimeLayout)
-	ctrl.Println(logger.INFO, "init", "time:", now)
+	ctrl.Println(logger.Info, "init", "time:", now)
 	// start web server
 	err := ctrl.web.Deploy()
 	if err != nil {
 		return ctrl.fatal(err, "deploy web server failed")
 	}
-	ctrl.Println(logger.INFO, "init", "http server:", ctrl.web.Address())
-	ctrl.Print(logger.INFO, "init", "controller is running")
+	ctrl.Println(logger.Info, "init", "http server:", ctrl.web.Address())
+	ctrl.Print(logger.Info, "init", "controller is running")
 	go func() {
 		// wait to load controller keys
 		ctrl.global.WaitLoadKeys()
-		ctrl.Print(logger.INFO, "init", "load keys successfully")
+		ctrl.Print(logger.Info, "init", "load keys successfully")
 		// load boots
-		ctrl.Print(logger.INFO, "init", "start discover bootstrap nodes")
+		ctrl.Print(logger.Info, "init", "start discover bootstrap nodes")
 		boots, err := ctrl.db.SelectBoot()
 		if err != nil {
-			ctrl.Println(logger.ERROR, "init", "select boot failed:", err)
+			ctrl.Println(logger.Error, "init", "select boot failed:", err)
 			return
 		}
 		for i := 0; i < len(boots); i++ {
@@ -170,7 +170,7 @@ func (ctrl *CTRL) Main() error {
 
 func (ctrl *CTRL) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	ctrl.Println(logger.FATAL, "init", err)
+	ctrl.Println(logger.Fatal, "init", err)
 	ctrl.Exit(nil)
 	return err
 }
@@ -183,14 +183,14 @@ func (ctrl *CTRL) Wait() {
 func (ctrl *CTRL) Exit(err error) {
 	ctrl.once.Do(func() {
 		ctrl.web.Close()
-		ctrl.Print(logger.INFO, "exit", "web server is stopped")
+		ctrl.Print(logger.Info, "exit", "web server is stopped")
 		ctrl.boot.Close()
-		ctrl.Print(logger.INFO, "exit", "boot is stopped")
+		ctrl.Print(logger.Info, "exit", "boot is stopped")
 		ctrl.sender.Close()
-		ctrl.Print(logger.INFO, "exit", "sender is stopped")
+		ctrl.Print(logger.Info, "exit", "sender is stopped")
 		ctrl.global.Destroy()
-		ctrl.Print(logger.INFO, "exit", "global is stopped")
-		ctrl.Print(logger.INFO, "exit", "controller is stopped")
+		ctrl.Print(logger.Info, "exit", "global is stopped")
+		ctrl.Print(logger.Info, "exit", "controller is stopped")
 		ctrl.db.Close()
 		ctrl.exit <- err
 		close(ctrl.exit)
