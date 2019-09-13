@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
@@ -109,7 +110,7 @@ func (sc *sClient) SyncSend(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-// notice node clean the message
+// SyncReceive is used to notice node clean the message
 func (sc *sClient) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Node
@@ -216,7 +217,7 @@ func (sc *sClient) handleMessage(msg []byte) {
 	case protocol.TestMessage:
 		sc.client.Reply(msg[cmd:id], msg[id:])
 	default:
-		sc.log(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg)
+		sc.logln(logger.EXPLOIT, protocol.ErrRecvUnknownCMD, msg)
 		sc.Close()
 		return
 	}
@@ -272,64 +273,83 @@ func (sc *sClient) handleBroadcast(id, message []byte) {
 	br := protocol.Broadcast{}
 	err := msgpack.Unmarshal(message, &br)
 	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid broadcast msgpack data")
+		sc.logln(logger.EXPLOIT, "invalid broadcast msgpack data:", err)
 		sc.Close()
 		return
 	}
 	err = br.Validate()
 	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid broadcast", err)
+		sc.logf(logger.EXPLOIT, "invalid broadcast: %s\n%s", err, spew.Sdump(br))
 		sc.Close()
 		return
 	}
-	// TODO check role  and check sender role
-	if br.ReceiverRole != protocol.Ctrl {
-
+	if br.SenderRole != protocol.Node && br.SenderRole != protocol.Beacon {
+		sc.logf(logger.EXPLOIT, "invalid broadcast sender role\n%s", spew.Sdump(br))
+		sc.Close()
 		return
 	}
-
+	if br.ReceiverRole != protocol.Ctrl {
+		sc.logf(logger.EXPLOIT, "invalid broadcast receiver role\n%s", spew.Sdump(br))
+		sc.Close()
+		return
+	}
 	sc.ctx.addBroadcast(&br)
 	sc.client.Reply(id, protocol.BroadcastSucceed)
 }
 
-// Node -> Controller(direct)
 func (sc *sClient) handleSyncSend(id, message []byte) {
 	ss := protocol.SyncSend{}
 	err := msgpack.Unmarshal(message, &ss)
 	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid sync send msgpack data")
+		sc.logln(logger.EXPLOIT, "invalid sync send msgpack data:", err)
 		sc.Close()
 		return
 	}
 	err = ss.Validate()
 	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid sync send", err)
+		sc.logf(logger.EXPLOIT, "invalid sync send: %s\n%s", err, spew.Sdump(ss))
 		sc.Close()
 		return
 	}
-	// TODO check role  and check sender role
-	// check guid
+	if ss.SenderRole != protocol.Node && ss.SenderRole != protocol.Beacon {
+		sc.logf(logger.EXPLOIT, "invalid sync send sender role\n%s", spew.Sdump(ss))
+		sc.Close()
+		return
+	}
+	if ss.ReceiverRole != protocol.Ctrl {
+		sc.logf(logger.EXPLOIT, "invalid sync send receiver role\n%s", spew.Sdump(ss))
+		sc.Close()
+		return
+	}
+	if !bytes.Equal(ss.ReceiverGUID, protocol.CtrlGUID) {
+		sc.logf(logger.EXPLOIT, "invalid sync send receiver guid\n%s", spew.Sdump(ss))
+		sc.Close()
+		return
+	}
 	sc.ctx.addSyncSend(&ss)
 	sc.client.Reply(id, protocol.SyncSucceed)
 }
 
-// notice controller role received this height message
+// notice controller, role received this height message
 func (sc *sClient) handleSyncReceive(id, message []byte) {
 	sr := protocol.SyncReceive{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
-		sc.log(logger.EXPLOIT, "invalid sync receive msgpack data")
+		sc.logln(logger.EXPLOIT, "invalid sync receive msgpack data:", err)
 		sc.Close()
 		return
 	}
 	err = sr.Validate()
 	if err != nil {
-		// TODO spew it
-		sc.log(logger.EXPLOIT, "invalid sync receive:", err)
+		sc.logf(logger.EXPLOIT, "invalid sync receive: %s\n%s", err, spew.Sdump(sr))
 		sc.Close()
 		return
 	}
-	// TODO check role  and check sender role
+	if sr.ReceiverRole != protocol.Node && sr.ReceiverRole != protocol.Beacon {
+		sc.logf(logger.EXPLOIT, "invalid sync receive receiver role\n%s", spew.Sdump(sr))
+		sc.Close()
+		return
+	}
 	sc.ctx.addSyncReceive(&sr)
 	sc.client.Reply(id, protocol.SyncSucceed)
 }
