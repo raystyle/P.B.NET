@@ -59,22 +59,22 @@ func Parse(level string) (Level, error) {
 // Prefix
 // time + level + source + log
 // source usually like class name + "-" + instance tag
-// [2006-01-02 15:04:05] [Info] <http proxy-test> start http proxy server
+// [2006-01-02 15:04:05] [info] <http proxy-test> start http proxy server
 func Prefix(l Level, src string) *bytes.Buffer {
 	lv := ""
 	switch l {
 	case Debug:
-		lv = "Debug"
+		lv = "debug"
 	case Info:
-		lv = "Info"
+		lv = "info"
 	case Warning:
-		lv = "Warning"
+		lv = "warning"
 	case Error:
-		lv = "Error"
+		lv = "error"
 	case Exploit:
-		lv = "Exploit"
+		lv = "exploit"
 	case Fatal:
-		lv = "Fatal"
+		lv = "fatal"
 	}
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("[")
