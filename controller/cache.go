@@ -128,6 +128,10 @@ func (cache *cache) InsertNodeSyncer(ns *mNodeSyncer) {
 	cache.nodeSyncersRWM.Lock()
 	if _, ok := cache.nodeSyncers[key]; !ok {
 		cache.nodeSyncers[key] = &nodeSyncer{mNodeSyncer: ns}
+		// add db, must new
+		cache.nodeSyncersDBRWM.Lock()
+		cache.nodeSyncersDB[key] = &nodeSyncer{mNodeSyncer: ns}
+		cache.nodeSyncersDBRWM.Unlock()
 	}
 	cache.nodeSyncersRWM.Unlock()
 }
@@ -149,6 +153,52 @@ func (cache *cache) InsertBeaconSyncer(bs *mBeaconSyncer) {
 	cache.beaconSyncersRWM.Lock()
 	if _, ok := cache.beaconSyncers[key]; !ok {
 		cache.beaconSyncers[key] = &beaconSyncer{mBeaconSyncer: bs}
+		// add db, must new
+		cache.beaconSyncersDBRWM.Lock()
+		cache.beaconSyncersDB[key] = &beaconSyncer{mBeaconSyncer: bs}
+		cache.beaconSyncersDBRWM.Unlock()
 	}
 	cache.beaconSyncersRWM.Unlock()
+}
+
+// --------------------------------db sync--------------------------------
+
+func (cache *cache) SelectAllNodeSyncer() map[string]*nodeSyncer {
+	cache.nodeSyncersRWM.RLock()
+	nsc := make(map[string]*nodeSyncer, len(cache.nodeSyncers))
+	for key, ns := range cache.nodeSyncers {
+		nsc[key] = ns
+	}
+	cache.nodeSyncersRWM.RUnlock()
+	return nsc
+}
+
+func (cache *cache) SelectAllNodeSyncerDB() map[string]*nodeSyncer {
+	cache.nodeSyncersDBRWM.RLock()
+	nsc := make(map[string]*nodeSyncer, len(cache.nodeSyncersDB))
+	for key, ns := range cache.nodeSyncersDB {
+		nsc[key] = ns
+	}
+	cache.nodeSyncersDBRWM.RUnlock()
+	return nsc
+}
+
+func (cache *cache) SelectAllBeaconSyncer() map[string]*beaconSyncer {
+	cache.beaconSyncersRWM.RLock()
+	bsc := make(map[string]*beaconSyncer, len(cache.beaconSyncers))
+	for key, bs := range cache.beaconSyncers {
+		bsc[key] = bs
+	}
+	cache.beaconSyncersRWM.RUnlock()
+	return bsc
+}
+
+func (cache *cache) SelectAllBeaconSyncerDB() map[string]*beaconSyncer {
+	cache.beaconSyncersDBRWM.RLock()
+	bsc := make(map[string]*beaconSyncer, len(cache.beaconSyncersDB))
+	for key, bs := range cache.beaconSyncersDB {
+		bsc[key] = bs
+	}
+	cache.beaconSyncersDBRWM.RUnlock()
+	return bsc
 }
