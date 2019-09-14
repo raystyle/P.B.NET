@@ -19,8 +19,11 @@ func TestCommonNode(t *testing.T) {
 func testNode(t *testing.T, genesis bool) {
 	node, err := New(testGenerateConfig(t, genesis))
 	require.NoError(t, err)
-	err = node.Main()
-	require.NoError(t, err)
+	go func() {
+		err = node.Main()
+		require.NoError(t, err)
+	}()
+	node.Wait()
 }
 
 func pprof() {

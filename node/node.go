@@ -13,6 +13,7 @@ type NODE struct {
 	debug  *Debug
 	logLv  logger.Level
 	global *global
+	syncer *syncer
 	server *server
 	once   sync.Once
 	wait   chan struct{}

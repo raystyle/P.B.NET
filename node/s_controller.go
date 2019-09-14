@@ -7,7 +7,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/vmihailenco/msgpack/v4"
+
 	"project/internal/convert"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
@@ -30,7 +34,7 @@ type roleCtrl struct {
 }
 
 func (server *server) serveCtrl(conn *xnet.Conn) {
-	ctrl := &roleCtrl{
+	ctrl := roleCtrl{
 		ctx:        server.ctx,
 		conn:       conn,
 		slots:      make([]*protocol.Slot, protocol.SlotSize),
@@ -38,7 +42,7 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 		rand:       random.New(server.ctx.global.Now().Unix()),
 		stopSignal: make(chan struct{}),
 	}
-	server.addCtrl(ctrl)
+	server.addCtrl(&ctrl)
 	ctrl.log(logger.Debug, "controller connected")
 	defer func() {
 		if r := recover(); r != nil {
@@ -46,7 +50,7 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 			ctrl.log(logger.Exploit, err)
 		}
 		ctrl.Close()
-		server.delCtrl("", ctrl)
+		server.delCtrl("", &ctrl)
 		ctrl.log(logger.Debug, "controller disconnected")
 	}()
 	// init slot
@@ -114,6 +118,21 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 		return
 	}
 	switch msg[0] {
+	case protocol.CtrlSyncSendToken:
+		ctrl.handleSyncSendToken(msg[cmd:id], msg[id:])
+	case protocol.CtrlSyncSend:
+		ctrl.handleSyncSend(msg[cmd:id], msg[id:])
+	case protocol.CtrlSyncRecvToken:
+		ctrl.handleSyncReceiveToken(msg[cmd:id], msg[id:])
+	case protocol.CtrlSyncRecv:
+		ctrl.handleSyncReceive(msg[cmd:id], msg[id:])
+	case protocol.CtrlBroadcastToken:
+		ctrl.handleBroadcastToken(msg[cmd:id], msg[id:])
+	case protocol.CtrlBroadcast:
+		ctrl.handleBroadcast(msg[cmd:id], msg[id:])
+	case protocol.CtrlSyncQuery:
+		ctrl.handleSyncQuery(msg[cmd:id], msg[id:])
+	// ---------------------------internal--------------------------------
 	case protocol.CtrlReply:
 		ctrl.handleReply(msg[cmd:])
 	case protocol.CtrlHeartbeat:
@@ -253,6 +272,168 @@ func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
 		}
 	}
 }
+
+// ----------------------------------sync----------------------------------------
+
+func (ctrl *roleCtrl) handleBroadcastToken(id, message []byte) {
+	// role + message guid
+	if len(message) != 1+guid.Size {
+		// fake reply and close
+		ctrl.log(logger.Exploit, "invalid broadcast token size")
+		ctrl.reply(id, protocol.BroadcastHandled)
+		ctrl.Close()
+		return
+	}
+	role := protocol.Role(message[0])
+	if role != protocol.Ctrl {
+		ctrl.log(logger.Exploit, "handle invalid broadcast token role")
+		ctrl.reply(id, protocol.BroadcastHandled)
+		ctrl.Close()
+		return
+	}
+	if ctrl.ctx.syncer.checkBroadcastToken(role, message[1:]) {
+		ctrl.reply(id, protocol.BroadcastUnhandled)
+	} else {
+		ctrl.reply(id, protocol.BroadcastHandled)
+	}
+}
+
+func (ctrl *roleCtrl) handleSyncSendToken(id, message []byte) {
+	// role + message guid
+	if len(message) != 1+guid.Size {
+		// fake reply and close
+		ctrl.log(logger.Exploit, "invalid sync send token size")
+		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.Close()
+		return
+	}
+	role := protocol.Role(message[0])
+	if role != protocol.Ctrl {
+		ctrl.log(logger.Exploit, "handle invalid sync send token role")
+		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.Close()
+		return
+	}
+	if ctrl.ctx.syncer.checkSyncSendToken(role, message[1:]) {
+		ctrl.reply(id, protocol.SyncUnhandled)
+	} else {
+		ctrl.reply(id, protocol.SyncHandled)
+	}
+}
+
+func (ctrl *roleCtrl) handleSyncReceiveToken(id, message []byte) {
+	// role + message guid
+	if len(message) != 1+guid.Size {
+		// fake reply and close
+		ctrl.log(logger.Exploit, "invalid sync receive token size")
+		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.Close()
+		return
+	}
+	role := protocol.Role(message[0])
+	if role != protocol.Ctrl {
+		ctrl.log(logger.Exploit, "handle invalid sync receive token role")
+		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.Close()
+		return
+	}
+	if ctrl.ctx.syncer.checkSyncReceiveToken(role, message[1:]) {
+		ctrl.reply(id, protocol.SyncUnhandled)
+	} else {
+		ctrl.reply(id, protocol.SyncHandled)
+	}
+}
+
+func (ctrl *roleCtrl) handleBroadcast(id, message []byte) {
+	br := protocol.Broadcast{}
+	err := msgpack.Unmarshal(message, &br)
+	if err != nil {
+		ctrl.logln(logger.Exploit, "invalid broadcast msgpack data:", err)
+		ctrl.Close()
+		return
+	}
+	err = br.Validate()
+	if err != nil {
+		ctrl.logf(logger.Exploit, "invalid broadcast: %s\n%s", err, spew.Sdump(br))
+		ctrl.Close()
+		return
+	}
+	if br.SenderRole != protocol.Node && br.SenderRole != protocol.Beacon {
+		ctrl.logf(logger.Exploit, "invalid broadcast sender role\n%s", spew.Sdump(br))
+		ctrl.Close()
+		return
+	}
+	if br.ReceiverRole != protocol.Ctrl {
+		ctrl.logf(logger.Exploit, "invalid broadcast receiver role\n%s", spew.Sdump(br))
+		ctrl.Close()
+		return
+	}
+	ctrl.ctx.syncer.addBroadcast(&br)
+	ctrl.reply(id, protocol.BroadcastSucceed)
+}
+
+func (ctrl *roleCtrl) handleSyncSend(id, message []byte) {
+	ss := protocol.SyncSend{}
+	err := msgpack.Unmarshal(message, &ss)
+	if err != nil {
+		ctrl.logln(logger.Exploit, "invalid sync send msgpack data:", err)
+		ctrl.Close()
+		return
+	}
+	err = ss.Validate()
+	if err != nil {
+		ctrl.logf(logger.Exploit, "invalid sync send: %s\n%s", err, spew.Sdump(ss))
+		ctrl.Close()
+		return
+	}
+	if ss.SenderRole != protocol.Node && ss.SenderRole != protocol.Beacon {
+		ctrl.logf(logger.Exploit, "invalid sync send sender role\n%s", spew.Sdump(ss))
+		ctrl.Close()
+		return
+	}
+	if ss.ReceiverRole != protocol.Ctrl {
+		ctrl.logf(logger.Exploit, "invalid sync send receiver role\n%s", spew.Sdump(ss))
+		ctrl.Close()
+		return
+	}
+	if !bytes.Equal(ss.ReceiverGUID, protocol.CtrlGUID) {
+		ctrl.logf(logger.Exploit, "invalid sync send receiver guid\n%s", spew.Sdump(ss))
+		ctrl.Close()
+		return
+	}
+	ctrl.ctx.syncer.addSyncSend(&ss)
+	ctrl.reply(id, protocol.SyncSucceed)
+}
+
+// notice controller, role received this height message
+func (ctrl *roleCtrl) handleSyncReceive(id, message []byte) {
+	sr := protocol.SyncReceive{}
+	err := msgpack.Unmarshal(message, &sr)
+	if err != nil {
+		ctrl.logln(logger.Exploit, "invalid sync receive msgpack data:", err)
+		ctrl.Close()
+		return
+	}
+	err = sr.Validate()
+	if err != nil {
+		ctrl.logf(logger.Exploit, "invalid sync receive: %s\n%s", err, spew.Sdump(sr))
+		ctrl.Close()
+		return
+	}
+	if sr.ReceiverRole != protocol.Node && sr.ReceiverRole != protocol.Beacon {
+		ctrl.logf(logger.Exploit, "invalid sync receive receiver role\n%s", spew.Sdump(sr))
+		ctrl.Close()
+		return
+	}
+	ctrl.ctx.syncer.addSyncReceive(&sr)
+	ctrl.reply(id, protocol.SyncSucceed)
+}
+
+func (ctrl *roleCtrl) handleSyncQuery(id, message []byte) {
+
+}
+
+// handle trust
 
 func (ctrl *roleCtrl) handleTrustNode(id []byte) {
 	ctrl.reply(id, ctrl.ctx.packOnlineRequest())

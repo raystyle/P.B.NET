@@ -14,6 +14,7 @@ type Debug struct {
 }
 
 type Config struct {
+	// TODO skip encode
 	Debug Debug
 
 	// CheckMode is used to check whether
