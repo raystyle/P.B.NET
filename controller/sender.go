@@ -395,8 +395,8 @@ func (sender *sender) worker() {
 		aesIV  []byte
 
 		// temp
-		nodeSyncer   *mNodeSyncer
-		beaconSyncer *mBeaconSyncer
+		nodeSyncer   *nodeSyncer
+		beaconSyncer *beaconSyncer
 		roleGUID     string
 		token        []byte
 		err          error
@@ -523,7 +523,9 @@ func (sender *sender) worker() {
 					}
 					continue
 				}
+				beaconSyncer.RLock()
 				preSS.Height = beaconSyncer.CtrlSend
+				beaconSyncer.RUnlock()
 			case protocol.Node:
 				nodeSyncer, err = sender.ctx.db.SelectNodeSyncer(sst.Target)
 				if err != nil {
@@ -534,7 +536,9 @@ func (sender *sender) worker() {
 					}
 					continue
 				}
+				nodeSyncer.RLock()
 				preSS.Height = nodeSyncer.CtrlSend
+				nodeSyncer.RUnlock()
 			}
 			// sign
 			buffer.Reset()

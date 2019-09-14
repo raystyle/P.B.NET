@@ -96,12 +96,13 @@ type mNode struct {
 }
 
 type mNodeSyncer struct {
-	GUID      []byte    `gorm:"primary_key;type:binary(52)"`
-	CtrlSend  uint64    `gorm:"not null;column:controller_send"`
-	NodeRecv  uint64    `gorm:"not null;column:node_receive"`
-	NodeSend  uint64    `gorm:"not null;column:node_send"`
-	CtrlRecv  uint64    `gorm:"not null;column:controller_receive"`
-	UpdatedAt time.Time `gorm:"not null"`
+	GUID      []byte     `gorm:"primary_key;type:binary(52)"`
+	CtrlSend  uint64     `gorm:"not null;column:controller_send"`
+	NodeRecv  uint64     `gorm:"not null;column:node_receive"`
+	NodeSend  uint64     `gorm:"not null;column:node_send"`
+	CtrlRecv  uint64     `gorm:"not null;column:controller_receive"`
+	UpdatedAt time.Time  `gorm:"not null"`
+	DeletedAt *time.Time `sql:"index"`
 }
 
 type mNodeListener struct {
@@ -124,12 +125,13 @@ type mBeacon struct {
 }
 
 type mBeaconSyncer struct {
-	GUID       []byte    `gorm:"primary_key;type:binary(52)"`
-	CtrlSend   uint64    `gorm:"not null;column:controller_send"`
-	BeaconRecv uint64    `gorm:"not null;column:beacon_receive"`
-	BeaconSend uint64    `gorm:"not null;column:beacon_send"`
-	CtrlRecv   uint64    `gorm:"not null;column:controller_receive"`
-	UpdatedAt  time.Time `gorm:"not null"`
+	GUID       []byte     `gorm:"primary_key;type:binary(52)"`
+	CtrlSend   uint64     `gorm:"not null;column:controller_send"`
+	BeaconRecv uint64     `gorm:"not null;column:beacon_receive"`
+	BeaconSend uint64     `gorm:"not null;column:beacon_send"`
+	CtrlRecv   uint64     `gorm:"not null;column:controller_receive"`
+	UpdatedAt  time.Time  `gorm:"not null"`
+	DeletedAt  *time.Time `sql:"index"`
 }
 
 type mBeaconListener struct {

@@ -604,8 +604,8 @@ func (syncer *syncer) worker() {
 		aesIV     []byte
 
 		// temp
-		nodeSyncer     *mNodeSyncer
-		beaconSyncer   *mBeaconSyncer
+		nodeSyncer     *nodeSyncer
+		beaconSyncer   *beaconSyncer
 		roleGUID       string
 		roleSend       uint64
 		ctrlReceive    uint64
@@ -794,8 +794,10 @@ func (syncer *syncer) worker() {
 					syncer.syncDone(ss.SenderRole, roleGUID)
 					continue
 				}
+				beaconSyncer.RLock()
 				roleSend = beaconSyncer.BeaconSend
 				ctrlReceive = beaconSyncer.CtrlRecv
+				beaconSyncer.RUnlock()
 			case protocol.Node:
 				nodeSyncer, err = syncer.ctx.db.SelectNodeSyncer(ss.SenderGUID)
 				if err != nil {
@@ -804,8 +806,10 @@ func (syncer *syncer) worker() {
 					syncer.syncDone(ss.SenderRole, roleGUID)
 					continue
 				}
+				nodeSyncer.RLock()
 				roleSend = nodeSyncer.NodeSend
 				ctrlReceive = nodeSyncer.CtrlRecv
+				nodeSyncer.RUnlock()
 			}
 			// check height
 			sub := roleSend - ctrlReceive
