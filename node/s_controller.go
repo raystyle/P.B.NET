@@ -255,7 +255,7 @@ func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
 }
 
 func (ctrl *roleCtrl) handleTrustNode(id []byte) {
-	ctrl.reply(id, ctrl.ctx.PackOnlineRequest())
+	ctrl.reply(id, ctrl.ctx.packOnlineRequest())
 }
 
 func (ctrl *roleCtrl) handleTrustNodeData(id []byte, data []byte) {

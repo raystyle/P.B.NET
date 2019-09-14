@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/config"
 	"project/internal/logger"
 )
 
@@ -96,4 +97,8 @@ func (node *NODE) Exit(err error) {
 		node.exit <- err
 		close(node.exit)
 	})
+}
+
+func (node *NODE) AddListener(l *config.Listener) error {
+	return node.server.AddListener(l)
 }
