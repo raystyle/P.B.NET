@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/base64"
 	"sync"
 
 	"github.com/pelletier/go-toml"
@@ -8,6 +9,7 @@ import (
 
 	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/protocol"
 	"project/internal/proxy"
 	"project/internal/timesync"
 )
@@ -201,19 +203,52 @@ func (ctrl *CTRL) LoadKeys(password string) error {
 	return ctrl.global.LoadKeys(password)
 }
 
-// TODO delete database(not Unscoped) Cache and syncer, sender
 func (ctrl *CTRL) DeleteNode(guid []byte) error {
+	err := ctrl.db.DeleteNode(guid)
+	if err != nil {
+		return errors.Wrapf(err, "delete node %X failed", guid)
+	}
+	ctrl.deleteNode(guid)
 	return nil
 }
 
 func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
+	err := ctrl.db.DeleteNodeUnscoped(guid)
+	if err != nil {
+		return errors.Wrapf(err, "unscoped delete node %X failed", guid)
+	}
+	ctrl.deleteNode(guid)
 	return nil
 }
 
+func (ctrl *CTRL) deleteNode(guid []byte) {
+	guidStr := base64.StdEncoding.EncodeToString(guid)
+	ctrl.cache.DeleteNode(guidStr)
+	ctrl.sender.DeleteSyncSendM(protocol.Node, guidStr)
+	ctrl.syncer.DeleteSyncStatus(protocol.Node, guidStr)
+}
+
 func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
+	err := ctrl.db.DeleteBeacon(guid)
+	if err != nil {
+		return errors.Wrapf(err, "delete beacon %X failed", guid)
+	}
+	ctrl.deleteBeacon(guid)
 	return nil
 }
 
 func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
+	err := ctrl.db.DeleteBeaconUnscoped(guid)
+	if err != nil {
+		return errors.Wrapf(err, "unscoped delete beacon %X failed", guid)
+	}
+	ctrl.deleteBeacon(guid)
 	return nil
+}
+
+func (ctrl *CTRL) deleteBeacon(guid []byte) {
+	guidStr := base64.StdEncoding.EncodeToString(guid)
+	ctrl.cache.DeleteBeacon(guidStr)
+	ctrl.sender.DeleteSyncSendM(protocol.Beacon, guidStr)
+	ctrl.syncer.DeleteSyncStatus(protocol.Beacon, guidStr)
 }

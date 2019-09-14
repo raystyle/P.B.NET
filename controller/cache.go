@@ -65,14 +65,13 @@ func (cache *cache) InsertNode(node *mNode) {
 }
 
 // delete nodes nodeSyncers nodeSyncersDB
-func (cache *cache) DeleteNode(guid []byte) {
-	key := base64.StdEncoding.EncodeToString(guid)
+func (cache *cache) DeleteNode(guid string) {
 	cache.nodesRWM.Lock()
 	cache.nodeSyncersRWM.Lock()
 	cache.nodeSyncersDBRWM.Lock()
-	delete(cache.nodes, key)
-	delete(cache.nodeSyncers, key)
-	delete(cache.nodeSyncersDB, key)
+	delete(cache.nodes, guid)
+	delete(cache.nodeSyncers, guid)
+	delete(cache.nodeSyncersDB, guid)
 	cache.nodeSyncersDBRWM.Unlock()
 	cache.nodeSyncersRWM.Unlock()
 	cache.nodesRWM.Unlock()
@@ -96,14 +95,13 @@ func (cache *cache) InsertBeacon(beacon *mBeacon) {
 }
 
 // delete beacons beaconSyncers beaconSyncersDB
-func (cache *cache) DeleteBeacon(guid []byte) {
-	key := base64.StdEncoding.EncodeToString(guid)
+func (cache *cache) DeleteBeacon(guid string) {
 	cache.beaconsRWM.Lock()
 	cache.beaconSyncersRWM.Lock()
 	cache.beaconSyncersDBRWM.Lock()
-	delete(cache.beacons, key)
-	delete(cache.beaconSyncers, key)
-	delete(cache.beaconSyncersDB, key)
+	delete(cache.beacons, guid)
+	delete(cache.beaconSyncers, guid)
+	delete(cache.beaconSyncersDB, guid)
 	cache.beaconSyncersDBRWM.Unlock()
 	cache.beaconSyncersRWM.Unlock()
 	cache.beaconsRWM.Unlock()

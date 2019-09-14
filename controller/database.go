@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	ErrNoCache = errors.New("can't find cache")
+	errNoCache = errors.New("can't find cache")
 )
 
 func init() {
@@ -406,7 +406,7 @@ func (db *db) DeleteBeaconLog(id uint64) error {
 func (db *db) SelectNodeSyncer(guid []byte) (ns *nodeSyncer, err error) {
 	ns = db.ctx.cache.SelectNodeSyncer(guid)
 	if ns != nil {
-		return nil, ErrNoCache
+		return nil, errNoCache
 	}
 	return
 }
@@ -419,7 +419,7 @@ func (db *db) UpdateNSCtrlSend(guid []byte, height uint64) error {
 	}
 	ns := db.ctx.cache.SelectNodeSyncer(guid)
 	if ns == nil {
-		return ErrNoCache
+		return errNoCache
 	}
 	ns.Lock()
 	ns.CtrlSend = height
@@ -431,7 +431,7 @@ func (db *db) UpdateNSCtrlSend(guid []byte, height uint64) error {
 func (db *db) UpdateNSNodeReceive(guid []byte, height uint64) error {
 	ns := db.ctx.cache.SelectNodeSyncer(guid)
 	if ns == nil {
-		return ErrNoCache
+		return errNoCache
 	}
 	ns.Lock()
 	ns.NodeRecv = height
@@ -443,7 +443,7 @@ func (db *db) UpdateNSNodeReceive(guid []byte, height uint64) error {
 func (db *db) UpdateNSNodeSend(guid []byte, height uint64) error {
 	ns := db.ctx.cache.SelectNodeSyncer(guid)
 	if ns == nil {
-		return ErrNoCache
+		return errNoCache
 	}
 	ns.Lock()
 	ns.NodeSend = height
@@ -455,7 +455,7 @@ func (db *db) UpdateNSNodeSend(guid []byte, height uint64) error {
 func (db *db) UpdateNSCtrlReceive(guid []byte, height uint64) error {
 	ns := db.ctx.cache.SelectNodeSyncer(guid)
 	if ns == nil {
-		return ErrNoCache
+		return errNoCache
 	}
 	ns.Lock()
 	ns.CtrlRecv = height
@@ -469,7 +469,7 @@ func (db *db) UpdateNSCtrlReceive(guid []byte, height uint64) error {
 func (db *db) SelectBeaconSyncer(guid []byte) (bs *beaconSyncer, err error) {
 	bs = db.ctx.cache.SelectBeaconSyncer(guid)
 	if bs == nil {
-		return nil, ErrNoCache
+		return nil, errNoCache
 	}
 	return
 }
@@ -482,7 +482,7 @@ func (db *db) UpdateBSCtrlSend(guid []byte, height uint64) error {
 	}
 	bs := db.ctx.cache.SelectBeaconSyncer(guid)
 	if bs == nil {
-		return ErrNoCache
+		return errNoCache
 	}
 	bs.Lock()
 	bs.CtrlSend = height
@@ -494,7 +494,7 @@ func (db *db) UpdateBSCtrlSend(guid []byte, height uint64) error {
 func (db *db) UpdateBSBeaconReceive(guid []byte, height uint64) error {
 	bs := db.ctx.cache.SelectBeaconSyncer(guid)
 	if bs == nil {
-		return ErrNoCache
+		return errNoCache
 	}
 	bs.Lock()
 	bs.BeaconRecv = height
@@ -506,7 +506,7 @@ func (db *db) UpdateBSBeaconReceive(guid []byte, height uint64) error {
 func (db *db) UpdateBSBeaconSend(guid []byte, height uint64) error {
 	bs := db.ctx.cache.SelectBeaconSyncer(guid)
 	if bs == nil {
-		return ErrNoCache
+		return errNoCache
 	}
 	bs.Lock()
 	bs.BeaconSend = height
@@ -518,7 +518,7 @@ func (db *db) UpdateBSBeaconSend(guid []byte, height uint64) error {
 func (db *db) UpdateBSCtrlReceive(guid []byte, height uint64) error {
 	bs := db.ctx.cache.SelectBeaconSyncer(guid)
 	if bs == nil {
-		return ErrNoCache
+		return errNoCache
 	}
 	bs.Lock()
 	bs.CtrlRecv = height
