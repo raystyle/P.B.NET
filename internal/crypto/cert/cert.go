@@ -74,7 +74,7 @@ func generate(c *Config) *x509.Certificate {
 		years := 1 + random.Int(4)
 		months := random.Int(12)
 		days := random.Int(31)
-		cert.NotBefore = now.AddDate(years, months, days)
+		cert.NotBefore = now.AddDate(-years, -months, -days)
 	}
 	if c.NotAfter.Equal(time.Time{}) {
 		years := 10 + random.Int(10)

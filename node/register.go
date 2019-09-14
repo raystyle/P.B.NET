@@ -55,7 +55,7 @@ func (node *NODE) register(c *Config) error {
 	}
 }
 
-func (node *NODE) PackOnlineRequest() []byte {
+func (node *NODE) packOnlineRequest() []byte {
 	req := messages.NodeOnlineRequest{
 		GUID:         node.global.GUID(),
 		PublicKey:    node.global.PublicKey(),
