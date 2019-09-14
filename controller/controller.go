@@ -200,3 +200,20 @@ func (ctrl *CTRL) Exit(err error) {
 func (ctrl *CTRL) LoadKeys(password string) error {
 	return ctrl.global.LoadKeys(password)
 }
+
+// TODO delete database(not Unscoped) Cache and syncer, sender
+func (ctrl *CTRL) DeleteNode(guid []byte) error {
+	return nil
+}
+
+func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
+	return nil
+}
+
+func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
+	return nil
+}
+
+func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
+	return nil
+}

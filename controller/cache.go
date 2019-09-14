@@ -6,12 +6,12 @@ import (
 )
 
 type nodeSyncer struct {
-	ns *mNodeSyncer
+	*mNodeSyncer
 	sync.RWMutex
 }
 
 type beaconSyncer struct {
-	bs *mBeaconSyncer
+	*mBeaconSyncer
 	sync.RWMutex
 }
 
@@ -64,9 +64,17 @@ func (cache *cache) InsertNode(node *mNode) {
 	cache.nodesRWM.Unlock()
 }
 
-func (cache *cache) DeleteNode(guid string, key *mNode) {
+// delete nodes nodeSyncers nodeSyncersDB
+func (cache *cache) DeleteNode(guid []byte) {
+	key := base64.StdEncoding.EncodeToString(guid)
 	cache.nodesRWM.Lock()
-	delete(cache.nodes, guid)
+	cache.nodeSyncersRWM.Lock()
+	cache.nodeSyncersDBRWM.Lock()
+	delete(cache.nodes, key)
+	delete(cache.nodeSyncers, key)
+	delete(cache.nodeSyncersDB, key)
+	cache.nodeSyncersDBRWM.Unlock()
+	cache.nodeSyncersRWM.Unlock()
 	cache.nodesRWM.Unlock()
 }
 
@@ -87,24 +95,28 @@ func (cache *cache) InsertBeacon(beacon *mBeacon) {
 	cache.beaconsRWM.Unlock()
 }
 
-func (cache *cache) DeleteBeacon(guid string, key *mBeacon) {
+// delete beacons beaconSyncers beaconSyncersDB
+func (cache *cache) DeleteBeacon(guid []byte) {
+	key := base64.StdEncoding.EncodeToString(guid)
 	cache.beaconsRWM.Lock()
-	delete(cache.beacons, guid)
+	cache.beaconSyncersRWM.Lock()
+	cache.beaconSyncersDBRWM.Lock()
+	delete(cache.beacons, key)
+	delete(cache.beaconSyncers, key)
+	delete(cache.beaconSyncersDB, key)
+	cache.beaconSyncersDBRWM.Unlock()
+	cache.beaconSyncersRWM.Unlock()
 	cache.beaconsRWM.Unlock()
 }
 
 // --------------------------------sync--------------------------------
 
-func (cache *cache) SelectNodeSyncer(guid []byte) *mNodeSyncer {
+func (cache *cache) SelectNodeSyncer(guid []byte) *nodeSyncer {
 	key := base64.StdEncoding.EncodeToString(guid)
 	cache.nodeSyncersRWM.RLock()
 	if ns, ok := cache.nodeSyncers[key]; ok {
 		cache.nodeSyncersRWM.RUnlock()
-		// maybe changed, must copy
-		ns.RLock()
-		nsCopy := *ns.ns
-		ns.RUnlock()
-		return &nsCopy
+		return ns
 	} else {
 		cache.nodeSyncersRWM.RUnlock()
 		return nil
@@ -115,21 +127,17 @@ func (cache *cache) InsertNodeSyncer(ns *mNodeSyncer) {
 	key := base64.StdEncoding.EncodeToString(ns.GUID)
 	cache.nodeSyncersRWM.Lock()
 	if _, ok := cache.nodeSyncers[key]; !ok {
-		cache.nodeSyncers[key] = &nodeSyncer{ns: ns}
+		cache.nodeSyncers[key] = &nodeSyncer{mNodeSyncer: ns}
 	}
 	cache.nodeSyncersRWM.Unlock()
 }
 
-func (cache *cache) SelectBeaconSyncer(guid []byte) *mBeaconSyncer {
+func (cache *cache) SelectBeaconSyncer(guid []byte) *beaconSyncer {
 	key := base64.StdEncoding.EncodeToString(guid)
 	cache.beaconSyncersRWM.RLock()
 	if bs, ok := cache.beaconSyncers[key]; ok {
 		cache.beaconSyncersRWM.RUnlock()
-		// maybe changed, must copy
-		bs.RLock()
-		bsCopy := *bs.bs
-		bs.RUnlock()
-		return &bsCopy
+		return bs
 	} else {
 		cache.beaconSyncersRWM.RUnlock()
 		return nil
@@ -140,7 +148,7 @@ func (cache *cache) InsertBeaconSyncer(bs *mBeaconSyncer) {
 	key := base64.StdEncoding.EncodeToString(bs.GUID)
 	cache.beaconSyncersRWM.Lock()
 	if _, ok := cache.beaconSyncers[key]; !ok {
-		cache.beaconSyncers[key] = &beaconSyncer{bs: bs}
+		cache.beaconSyncers[key] = &beaconSyncer{mBeaconSyncer: bs}
 	}
 	cache.beaconSyncersRWM.Unlock()
 }
