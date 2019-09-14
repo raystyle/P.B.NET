@@ -16,8 +16,6 @@ import (
 // receive host info for confirm
 func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, error) {
 	cfg := &clientCfg{Node: node}
-	// TODO remove InsecureSkipVerify
-	cfg.TLSConfig.InsecureSkipVerify = true
 	client, err := newClient(ctrl, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "connect node failed")

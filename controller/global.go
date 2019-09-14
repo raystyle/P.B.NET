@@ -233,7 +233,7 @@ func (global *global) CACertificateStr() string {
 
 func (global *global) CAPrivateKey() *rsa.PrivateKey {
 	global.objectRWM.RLock()
-	pri := global.object[okCACertificate]
+	pri := global.object[okCAPrivateKey]
 	global.objectRWM.RUnlock()
 	return pri.(*rsa.PrivateKey)
 }

@@ -89,6 +89,8 @@ func (boot *boot) isClosed() bool {
 	return atomic.LoadInt32(&boot.inClose) != 0
 }
 
+// TODO logger
+
 // boot client
 type bClient struct {
 	ctx        *boot

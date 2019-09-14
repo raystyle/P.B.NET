@@ -11,13 +11,13 @@ import (
 )
 
 func TestTrustNodeAndConfirm(t *testing.T) {
+	testInitCtrl(t)
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	testInitCtrl(t)
 	n := bootstrap.Node{
 		Mode:    xnet.TLS,
 		Network: "tcp",
-		Address: "localhost:9950",
+		Address: "localhost:62300",
 	}
 	req, err := ctrl.TrustNode(&n)
 	require.NoError(t, err)

@@ -7,11 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
+	"project/internal/config"
 	"project/internal/convert"
 	"project/internal/crypto/aes"
+	"project/internal/crypto/cert"
+	"project/internal/options"
 	"project/internal/protocol"
 	"project/internal/xnet"
 	"project/node"
@@ -56,23 +60,48 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 		require.NoError(t, err)
 	}()
 	n.Wait()
+	// generate listener config
+	listenerCfg := config.Listener{
+		Tag:  "test_tls_listener",
+		Mode: xnet.TLS,
+	}
+	xnetCfg := xnet.Config{
+		Network: "tcp",
+		Address: "localhost:62300",
+	}
+	// generate node certificate
+	caCert := ctrl.global.CACertificate()
+	caPri := ctrl.global.CAPrivateKey()
+	certCfg := cert.Config{DNSNames: []string{"localhost"}}
+	sCert, sPri, err := cert.Generate(caCert, caPri, &certCfg)
+	require.NoError(t, err)
+	kp := options.X509KeyPair{Cert: string(sCert), Key: string(sPri)}
+	xnetCfg.TLSConfig.Certificates = []options.X509KeyPair{kp}
+	// set config
+	listenerCfg.Config, err = toml.Marshal(&xnetCfg)
+	require.NoError(t, err)
+	require.NoError(t, n.AddListener(&listenerCfg))
 	return n
 }
 
-func TestClient_Send(t *testing.T) {
-	NODE := testGenerateNode(t, true)
-	defer NODE.Exit(nil)
-	testInitCtrl(t)
-	config := &clientCfg{
+func testGenerateClient(t require.TestingT) *client {
+	cfg := &clientCfg{
 		Node: &bootstrap.Node{
 			Mode:    xnet.TLS,
 			Network: "tcp",
-			Address: "localhost:9950",
+			Address: "localhost:62300",
 		},
 	}
-	config.TLSConfig.InsecureSkipVerify = true
-	client, err := newClient(ctrl, config)
+	client, err := newClient(ctrl, cfg)
 	require.NoError(t, err)
+	return client
+}
+
+func TestClient_Send(t *testing.T) {
+	testInitCtrl(t)
+	NODE := testGenerateNode(t, true)
+	defer NODE.Exit(nil)
+	client := testGenerateClient(t)
 	data := bytes.Repeat([]byte{1}, 128)
 	reply, err := client.Send(protocol.TestCommand, data)
 	require.NoError(t, err)
@@ -81,19 +110,10 @@ func TestClient_Send(t *testing.T) {
 }
 
 func TestClient_SendParallel(t *testing.T) {
+	testInitCtrl(t)
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	testInitCtrl(t)
-	config := &clientCfg{
-		Node: &bootstrap.Node{
-			Mode:    xnet.TLS,
-			Network: "tcp",
-			Address: "localhost:9950",
-		},
-	}
-	config.TLSConfig.InsecureSkipVerify = true
-	client, err := newClient(ctrl, config)
-	require.NoError(t, err)
+	client := testGenerateClient(t)
 	wg := sync.WaitGroup{}
 	send := func() {
 		data := bytes.NewBuffer(nil)
@@ -115,19 +135,10 @@ func TestClient_SendParallel(t *testing.T) {
 }
 
 func BenchmarkClient_Send(b *testing.B) {
+	testInitCtrl(b)
 	NODE := testGenerateNode(b, true)
 	defer NODE.Exit(nil)
-	testInitCtrl(b)
-	config := &clientCfg{
-		Node: &bootstrap.Node{
-			Mode:    xnet.TLS,
-			Network: "tcp",
-			Address: "localhost:9950",
-		},
-	}
-	config.TLSConfig.InsecureSkipVerify = true
-	client, err := newClient(ctrl, config)
-	require.NoError(b, err)
+	client := testGenerateClient(b)
 	data := bytes.NewBuffer(nil)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -144,19 +155,10 @@ func BenchmarkClient_Send(b *testing.B) {
 }
 
 func BenchmarkClient_SendParallel(b *testing.B) {
+	testInitCtrl(b)
 	NODE := testGenerateNode(b, true)
 	defer NODE.Exit(nil)
-	testInitCtrl(b)
-	config := &clientCfg{
-		Node: &bootstrap.Node{
-			Mode:    xnet.TLS,
-			Network: "tcp",
-			Address: "localhost:9950",
-		},
-	}
-	config.TLSConfig.InsecureSkipVerify = true
-	client, err := newClient(ctrl, config)
-	require.NoError(b, err)
+	client := testGenerateClient(b)
 	nOnce := b.N / runtime.NumCPU()
 	wg := sync.WaitGroup{}
 	send := func() {
