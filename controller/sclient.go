@@ -214,7 +214,7 @@ func (sc *sClient) handleMessage(msg []byte) {
 	case protocol.ErrTooBigMsg:
 		sc.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		sc.Close()
-	case protocol.TestMessage:
+	case protocol.TestCommand:
 		sc.client.Reply(msg[cmd:id], msg[id:])
 	default:
 		sc.logln(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)

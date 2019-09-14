@@ -156,7 +156,7 @@ func (client *client) handleMessage(msg []byte) {
 	case protocol.ErrTooBigMsg:
 		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		client.Close()
-	case protocol.TestMessage:
+	case protocol.TestCommand:
 		client.Reply(msg[cmd:id], msg[id:])
 	default:
 		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)

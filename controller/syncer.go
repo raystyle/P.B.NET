@@ -148,6 +148,18 @@ func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
 	return nil
 }
 
+func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
+	syncer.ctx.Printf(l, "syncer", format, log...)
+}
+
+func (syncer *syncer) log(l logger.Level, log ...interface{}) {
+	syncer.ctx.Print(l, "syncer", log...)
+}
+
+func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
+	syncer.ctx.Println(l, "syncer", log...)
+}
+
 func (syncer *syncer) sClients() map[string]*sClient {
 	syncer.clientsRWM.RLock()
 	l := len(syncer.clients)
@@ -180,6 +192,7 @@ func (syncer *syncer) watcher() {
 			err := xpanic.Error("syncer watcher panic:", r)
 			syncer.log(logger.Fatal, err)
 			// restart watcher
+			time.Sleep(time.Second)
 			syncer.wg.Add(1)
 			go syncer.watcher()
 		}
@@ -209,18 +222,6 @@ func (syncer *syncer) watcher() {
 			return
 		}
 	}
-}
-
-func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
-	syncer.ctx.Printf(l, "syncer", format, log...)
-}
-
-func (syncer *syncer) log(l logger.Level, log ...interface{}) {
-	syncer.ctx.Print(l, "syncer", log...)
-}
-
-func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
-	syncer.ctx.Println(l, "syncer", log...)
 }
 
 // task from syncer client
@@ -460,6 +461,7 @@ func (syncer *syncer) guidCleaner() {
 			err := xpanic.Error("syncer guid cleaner panic:", r)
 			syncer.log(logger.Fatal, err)
 			// restart guid cleaner
+			time.Sleep(time.Second)
 			syncer.wg.Add(1)
 			go syncer.guidCleaner()
 		}
@@ -584,6 +586,7 @@ func (syncer *syncer) worker() {
 			err := xpanic.Error("syncer.worker() panic:", r)
 			syncer.log(logger.Fatal, err)
 			// restart worker
+			time.Sleep(time.Second)
 			syncer.wg.Add(1)
 			go syncer.worker()
 		}
@@ -618,13 +621,14 @@ func (syncer *syncer) worker() {
 	// protocol.SyncReceive buffer cap = guid.Size + 8 + 1 + guid.Size
 	minBufferSize := 2*guid.Size + 9
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
-	encoder := msgpack.NewEncoder(buffer)
+	msgpackEncoder := msgpack.NewEncoder(buffer)
+	base64Encoder := base64.NewEncoder(base64.StdEncoding, buffer)
 	syncQuery := &protocol.SyncQuery{}
 	syncReply := &protocol.SyncReply{}
 	// query is used to query message by index
 	query := func() (*protocol.SyncReply, error) {
 		buffer.Reset()
-		err = encoder.Encode(syncQuery)
+		err = msgpackEncoder.Encode(syncQuery)
 		if err != nil {
 			return nil, err
 		}
@@ -778,7 +782,10 @@ func (syncer *syncer) worker() {
 					ss.SenderGUID, err)
 			}
 			// lock role
-			roleGUID = base64.StdEncoding.EncodeToString(ss.SenderGUID)
+			buffer.Reset()
+			_, _ = base64Encoder.Write(ss.SenderGUID)
+			_ = base64Encoder.Close()
+			roleGUID = buffer.String()
 			if syncer.isSync(ss.SenderRole, roleGUID) {
 				continue
 			}
@@ -905,7 +912,10 @@ func (syncer *syncer) worker() {
 				syncer.addSyncTask(st)
 				continue
 			}
-			roleGUID = base64.StdEncoding.EncodeToString(st.GUID)
+			buffer.Reset()
+			_, _ = base64Encoder.Write(st.GUID)
+			_ = base64Encoder.Close()
+			roleGUID = buffer.String()
 			if syncer.isSync(st.Role, roleGUID) {
 				continue
 			}

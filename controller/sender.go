@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
@@ -377,6 +378,7 @@ func (sender *sender) worker() {
 			err := xpanic.Error("sender.worker() panic:", r)
 			sender.log(logger.Fatal, err)
 			// restart worker
+			time.Sleep(time.Second)
 			sender.wg.Add(1)
 			go sender.worker()
 		}
@@ -405,7 +407,8 @@ func (sender *sender) worker() {
 	// syncReceiveTask = 1 + guid.Size + 8
 	minBufferSize := guid.Size + 9
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
-	encoder := msgpack.NewEncoder(buffer)
+	msgpackEncoder := msgpack.NewEncoder(buffer)
+	base64Encoder := base64.NewEncoder(base64.StdEncoding, buffer)
 	// prepare task objects
 	preB := &protocol.Broadcast{
 		SenderRole: protocol.Ctrl,
@@ -442,7 +445,7 @@ func (sender *sender) worker() {
 			preSR.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack syncReceive & token
 			buffer.Reset()
-			err = encoder.Encode(&preSR)
+			err = msgpackEncoder.Encode(&preSR)
 			if err != nil {
 				panic(err)
 			}
@@ -464,7 +467,7 @@ func (sender *sender) worker() {
 			// pack message(interface)
 			if sst.MessageI != nil {
 				buffer.Reset()
-				err = encoder.Encode(sst.MessageI)
+				err = msgpackEncoder.Encode(sst.MessageI)
 				if err != nil {
 					if sst.Result != nil {
 						result.Err = err
@@ -510,7 +513,10 @@ func (sender *sender) worker() {
 			preSS.ReceiverRole = sst.Role
 			preSS.ReceiverGUID = sst.Target
 			// set sync height
-			roleGUID = base64.StdEncoding.EncodeToString(sst.Target)
+			buffer.Reset()
+			_, _ = base64Encoder.Write(sst.Target)
+			_ = base64Encoder.Close()
+			roleGUID = buffer.String()
 			sender.lockRole(sst.Role, roleGUID)
 			switch sst.Role {
 			case protocol.Beacon:
@@ -552,7 +558,7 @@ func (sender *sender) worker() {
 			preSS.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack protocol.syncSend and token
 			buffer.Reset()
-			err = encoder.Encode(&preSS)
+			err = msgpackEncoder.Encode(&preSS)
 			if err != nil {
 				sender.unlockRole(sst.Role, roleGUID)
 				if sst.Result != nil {
@@ -619,7 +625,7 @@ func (sender *sender) worker() {
 			// pack message
 			if bt.MessageI != nil {
 				buffer.Reset()
-				err = encoder.Encode(bt.MessageI)
+				err = msgpackEncoder.Encode(bt.MessageI)
 				if err != nil {
 					if bt.Result != nil {
 						result.Err = err
@@ -648,7 +654,7 @@ func (sender *sender) worker() {
 			preB.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack broadcast & token
 			buffer.Reset()
-			err = encoder.Encode(&preB)
+			err = msgpackEncoder.Encode(&preB)
 			if err != nil {
 				if bt.Result != nil {
 					result.Err = err
