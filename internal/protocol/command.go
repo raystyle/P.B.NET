@@ -2,7 +2,7 @@ package protocol
 
 // --------------------------test-----------------------------
 const (
-	TestMessage uint8 = 0xEF
+	TestCommand uint8 = 0xEF
 )
 
 // -----------------------controller--------------------------

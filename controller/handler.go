@@ -1,7 +1,11 @@
 package controller
 
 import (
+	"project/internal/convert"
+	"project/internal/logger"
+	"project/internal/messages"
 	"project/internal/protocol"
+	"project/internal/xpanic"
 )
 
 // messages from syncer
@@ -30,18 +34,106 @@ func (ctrl *CTRL) handleMessage(msg []byte, role protocol.Role, guid []byte, hei
 	}
 }
 
-func (ctrl *CTRL) handleNodeBroadcast(msg []byte, guid []byte) {
+func (ctrl *CTRL) handleLogf(l logger.Level, format string, log ...interface{}) {
+	ctrl.Printf(l, "handler", format, log...)
+}
 
+func (ctrl *CTRL) handleLog(l logger.Level, log ...interface{}) {
+	ctrl.Print(l, "handler", log...)
+}
+
+func (ctrl *CTRL) handleLogln(l logger.Level, log ...interface{}) {
+	ctrl.Println(l, "handler", log...)
+}
+
+func (ctrl *CTRL) handleNodeBroadcast(msg []byte, guid []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("handler panic:", r)
+			ctrl.handleLog(logger.Fatal, err)
+		}
+	}()
+	if len(msg) < 4 {
+		ctrl.handleLogf(logger.Exploit, "node %X broadcast message with invalid size",
+			guid)
+		return
+	}
+	switch convert.BytesToUint32(msg[:4]) {
+
+	case messages.Test:
+		ctrl.handleLogf(logger.Debug, "node %X broadcast test message: %s",
+			guid, string(msg[4:]))
+	default:
+		ctrl.handleLogf(logger.Exploit, "node %X broadcast invalid message: %X",
+			guid, msg)
+	}
 }
 
 func (ctrl *CTRL) handleBeaconBroadcast(msg []byte, guid []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("handler panic:", r)
+			ctrl.handleLog(logger.Fatal, err)
+		}
+	}()
+	if len(msg) < 4 {
+		ctrl.handleLogf(logger.Exploit, "beacon %X broadcast message with invalid size",
+			guid)
+		return
+	}
+	switch convert.BytesToUint32(msg[:4]) {
 
+	case messages.Test:
+		ctrl.handleLogf(logger.Debug, "beacon %X broadcast test message: %s",
+			guid, string(msg[4:]))
+	default:
+		ctrl.handleLogf(logger.Exploit, "beacon %X broadcast invalid message: %X",
+			guid, msg)
+	}
 }
 
 func (ctrl *CTRL) handleNodeMessage(msg []byte, guid []byte, height uint64) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("handler panic:", r)
+			ctrl.handleLog(logger.Fatal, err)
+		}
+	}()
+	if len(msg) < 4 {
+		ctrl.handleLogf(logger.Exploit, "node %X send message with invalid size height: %d",
+			guid, height)
+		return
+	}
+	switch convert.BytesToUint32(msg[:4]) {
 
+	case messages.Test:
+		ctrl.handleLogf(logger.Debug, "node %X send test message: %s height: %d",
+			guid, string(msg[4:]), height)
+	default:
+		ctrl.handleLogf(logger.Exploit, "node %X send invalid message: %X height: %d",
+			guid, msg, height)
+	}
 }
 
 func (ctrl *CTRL) handleBeaconMessage(msg []byte, guid []byte, height uint64) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("handler panic:", r)
+			ctrl.handleLog(logger.Fatal, err)
+		}
+	}()
+	if len(msg) < 4 {
+		ctrl.handleLogf(logger.Exploit, "beacon %X send message with invalid size height: %d",
+			guid, height)
+		return
+	}
+	switch convert.BytesToUint32(msg[:4]) {
 
+	case messages.Test:
+		ctrl.handleLogf(logger.Debug, "beacon %X send test message: %s height: %d",
+			guid, string(msg[4:]), height)
+	default:
+		ctrl.handleLogf(logger.Exploit, "beacon %X send invalid message: %X height: %d",
+			guid, msg, height)
+	}
 }

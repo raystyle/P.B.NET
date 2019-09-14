@@ -130,7 +130,7 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	case protocol.ErrTooBigMsg:
 		ctrl.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		ctrl.Close()
-	case protocol.TestMessage:
+	case protocol.TestCommand:
 		ctrl.reply(msg[cmd:id], msg[id:])
 	default:
 		ctrl.logln(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)

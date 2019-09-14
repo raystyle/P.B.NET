@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	MsgNodeOnlineRequest uint32 = 0x00000000 + iota
+	MsgNodeOnlineRequest uint32 = 0x10000000 + iota
 	MsgNodeOnlineResponse
 	MsgBeaconOnlineRequest
 	MsgBeaconOnlineResponse
