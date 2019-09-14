@@ -1041,7 +1041,6 @@ func (syncer *syncer) worker() {
 			}
 			syncer.syncDone(st.Role, roleGUID)
 			syncer.blockDone()
-		// reply, err := query(sync_query)
 		case <-syncer.stopSignal:
 			return
 		}

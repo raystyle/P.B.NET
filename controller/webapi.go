@@ -37,7 +37,6 @@ func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 		Network: m.Network,
 		Address: m.Address,
 	}
-	// TODO check request
 	req, err := web.ctx.TrustNode(n)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))

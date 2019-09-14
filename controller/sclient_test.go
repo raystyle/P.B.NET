@@ -10,17 +10,16 @@ import (
 )
 
 func TestNewSClient(t *testing.T) {
+	testInitCtrl(t)
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	testInitCtrl(t)
 	config := &clientCfg{
 		Node: &bootstrap.Node{
 			Mode:    xnet.TLS,
 			Network: "tcp",
-			Address: "localhost:9950",
+			Address: "localhost:62300",
 		},
 	}
-	config.TLSConfig.InsecureSkipVerify = true
 	sClient, err := newSClient(ctrl.syncer, config)
 	require.NoError(t, err)
 	sClient.Close()
