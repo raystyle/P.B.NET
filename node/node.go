@@ -39,13 +39,13 @@ func New(cfg *Config) (*NODE, error) {
 	// init database
 	db, err := newDB(node, cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "init database failed")
 	}
 	node.db = db
 	// init global
 	global, err := newGlobal(node, cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "init global failed")
 	}
 	node.global = global
 	// init syncer
@@ -63,7 +63,7 @@ func New(cfg *Config) (*NODE, error) {
 	// init server
 	server, err := newServer(node, cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "init server failed")
 	}
 	node.server = server
 	// register

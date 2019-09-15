@@ -41,7 +41,7 @@ const (
 	okKeyExPublicKey // for key exchange
 
 	// sync message
-	okSyncSendHeight // sync send
+	okSyncSendHeight
 
 	// confuse object
 	okConfusion00
@@ -185,6 +185,7 @@ func (global *global) generateInternalObjects() {
 		panic(err)
 	}
 	global.object[okKeyExPublicKey] = pub
+	global.object[okSyncSendHeight] = uint64(0)
 }
 
 func (global *global) loadCtrlConfigs(cfg *Config) error {
@@ -273,7 +274,7 @@ func (global *global) SetCertificate(cert []byte) error {
 	}
 }
 
-// Sign is used to get node key exchange public key
+// KeyExchangePub is used to get node key exchange public key
 func (global *global) KeyExchangePub() []byte {
 	global.objectRWM.RLock()
 	pub := global.object[okKeyExPublicKey]
@@ -281,12 +282,32 @@ func (global *global) KeyExchangePub() []byte {
 	return pub.([]byte)
 }
 
-// Sign is used to get node public key
+// PublicKey is used to get node public key
 func (global *global) PublicKey() ed25519.PublicKey {
 	global.objectRWM.RLock()
 	k := global.object[okPublicKey]
 	global.objectRWM.RUnlock()
 	return k.(ed25519.PublicKey)
+}
+
+func (global *global) CACertificatesStr() []string {
+	return nil
+}
+
+// DBEncrypt is used to encrypt database data
+func (global *global) DBEncrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[okDBAESCrypto]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Encrypt(data)
+}
+
+// DBDecrypt is used to decrypt database data
+func (global *global) DBDecrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	cbc := global.object[okDBAESCrypto]
+	global.objectRWM.RUnlock()
+	return cbc.(*aes.CBC).Decrypt(data)
 }
 
 // Sign is used to sign node message
@@ -313,26 +334,6 @@ func (global *global) Decrypt(data []byte) ([]byte, error) {
 	return cbc.(*aes.CBC).Decrypt(data)
 }
 
-// DBEncrypt is used to encrypt database data
-func (global *global) DBEncrypt(data []byte) ([]byte, error) {
-	global.objectRWM.RLock()
-	cbc := global.object[okDBAESCrypto]
-	global.objectRWM.RUnlock()
-	return cbc.(*aes.CBC).Encrypt(data)
-}
-
-// DBDecrypt is used to decrypt database data
-func (global *global) DBDecrypt(data []byte) ([]byte, error) {
-	global.objectRWM.RLock()
-	cbc := global.object[okDBAESCrypto]
-	global.objectRWM.RUnlock()
-	return cbc.(*aes.CBC).Decrypt(data)
-}
-
-func (global *global) CACertificatesStr() []string {
-	return nil
-}
-
 // CtrlVerify is used to verify controller message
 func (global *global) CtrlVerify(message, signature []byte) bool {
 	global.objectRWM.RLock()
@@ -347,6 +348,19 @@ func (global *global) CtrlDecrypt(data []byte) ([]byte, error) {
 	cbc := global.object[okCtrlAESCrypto]
 	global.objectRWM.RUnlock()
 	return cbc.(*aes.CBC).Decrypt(data)
+}
+
+func (global *global) GetSyncSendHeight() uint64 {
+	global.objectRWM.RLock()
+	h := global.object[okSyncSendHeight]
+	global.objectRWM.RUnlock()
+	return h.(uint64)
+}
+
+func (global *global) SetSyncSendHeight(height uint64) {
+	global.objectRWM.Lock()
+	global.object[okSyncSendHeight] = height
+	global.objectRWM.Unlock()
 }
 
 func (global *global) Destroy() {
