@@ -11,25 +11,16 @@ import (
 	"project/internal/xnet"
 )
 
-var (
-	SlotSize = 16 * runtime.NumCPU() // message id is uint16 < 65536
-	MaxMsgID = SlotSize - 1          // check invalid message id
-)
-
-type Slot struct {
-	Available chan struct{}
-	Reply     chan []byte
-	Timer     *time.Timer // receive reply timeout
-}
-
 const (
+	MaxMsgSize  = 2 * 1048576 // 2 MB
+	SendTimeout = time.Minute
+	RecvTimeout = 2 * SendTimeout // wait heartbeat send time
+
+	// don't change
 	MsgLenSize    = 4
 	MsgCMDSize    = 1
 	MsgIDSize     = 2
 	MsgHeaderSize = MsgLenSize + MsgCMDSize + MsgIDSize
-
-	SendTimeout = time.Minute
-	RecvTimeout = 2 * time.Minute // wait heartbeat send time
 
 	// follow command.go
 	ErrNullMsg   uint8 = 0xFF
@@ -43,7 +34,7 @@ var (
 	ErrRecvUnknownCMD       = errors.New("receive unknown command")
 	ErrRecvInvalidMsgIDSize = errors.New("receive invalid message id size")
 	ErrRecvInvalidMsgID     = errors.New("receive invalid message id")
-	ErrRecvInvalidReply     = errors.New("receive invalid reply")
+	ErrRecvInvalidReplyID   = errors.New("receive invalid reply id")
 	ErrConnClosed           = errors.New("connection closed")
 	ErrRecvTimeout          = errors.New("receive reply timeout")
 )
@@ -53,27 +44,43 @@ var (
 	errTooBigMsg = []byte{ErrTooBigMsg}
 )
 
+var (
+	SlotSize = 16 * runtime.NumCPU() // message id is uint16 < 65536
+	MaxMsgID = SlotSize - 1          // check invalid message id
+)
+
+func init() {
+	if SlotSize > 65536 {
+		SlotSize = 65536
+		MaxMsgID = 65535
+	}
+}
+
+type Slot struct {
+	Available chan struct{}
+	Reply     chan []byte
+	Timer     *time.Timer // receive reply timeout
+}
+
 // msg_handler receive message = message type(4 byte) + message
 func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 	const (
-		size = 4096
+		// if data buffer bufSize > this, new buffer
+		bufSize    = 4096
+		maxBufSize = 4 * bufSize
 
-		// if data buffer size > this, new buffer
-		maxBufSize = 4 * size
-		maxMsgSize = 16 * 1048576 // 64 MB
-
-		// client send heartbeat in 0-60 s
+		// client send heartbeat
 		heartbeat = 120 * time.Second
 	)
-	buffer := make([]byte, size)
-	data := bytes.NewBuffer(make([]byte, 0, size))
+	buffer := make([]byte, bufSize)
+	data := bytes.NewBuffer(make([]byte, 0, bufSize))
 	bodySize := 0
 	flushAndWrite := func() {
 		// if Grow not NewBuffer
 		if bodySize == 0 {
 			leftover := data.Bytes()
 			if data.Cap() > maxBufSize {
-				data = bytes.NewBuffer(make([]byte, 0, size))
+				data = bytes.NewBuffer(make([]byte, 0, bufSize))
 			} else {
 				data.Reset() // for set b.off = 0
 			}
@@ -98,7 +105,7 @@ func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 					msgHandler(errNullMsg)
 					return
 				}
-				if bodySize > maxMsgSize {
+				if bodySize > MaxMsgSize {
 					msgHandler(errTooBigMsg)
 					return
 				}

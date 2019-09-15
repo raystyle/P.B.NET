@@ -101,9 +101,9 @@ type SyncResult struct {
 // -------------------------active sync message-----------------------------
 
 type SyncQuery struct {
-	Role   Role
-	GUID   []byte
-	Height uint64
+	Role  Role
+	GUID  []byte
+	Index uint64 // message index
 }
 
 func (sq *SyncQuery) Validate() error {
@@ -121,6 +121,18 @@ type SyncReply struct {
 	Message   []byte // syncSend.Message
 	Signature []byte // syncSend.Signature
 	Err       error
+}
+
+func (sr *SyncReply) Validate() error {
+	if sr.Err == nil {
+		if len(sr.GUID) != guid.Size {
+			return errors.New("invalid guid")
+		}
+		if sr.Signature == nil {
+			return errors.New("invalid guid")
+		}
+	}
+	return nil
 }
 
 // new message > 2 || search latest message
