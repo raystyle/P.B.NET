@@ -70,10 +70,10 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 		Address: "localhost:62300",
 	}
 	// generate node certificate
-	caCert := ctrl.global.CACertificate()
-	caPri := ctrl.global.CAPrivateKey()
+	caCert := ctrl.global.CACertificates()
+	caPri := ctrl.global.CAPrivateKeys()
 	certCfg := cert.Config{DNSNames: []string{"localhost"}}
-	sCert, sPri, err := cert.Generate(caCert, caPri, &certCfg)
+	sCert, sPri, err := cert.Generate(caCert[0], caPri[0], &certCfg)
 	require.NoError(t, err)
 	kp := options.X509KeyPair{Cert: string(sCert), Key: string(sPri)}
 	xnetCfg.TLSConfig.Certificates = []options.X509KeyPair{kp}

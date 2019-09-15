@@ -47,7 +47,7 @@ type client struct {
 func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 	cfg.Network = cfg.Node.Network
 	cfg.Address = cfg.Node.Address
-	cfg.TLSConfig.RootCAs = []string{ctx.global.CACertificateStr()}
+	cfg.TLSConfig.RootCAs = ctx.global.CACertificatesStr()
 	conn, err := xnet.Dial(cfg.Node.Mode, &cfg.Config)
 	if err != nil {
 		return nil, errors.WithStack(err)
