@@ -25,21 +25,40 @@ import (
 func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 	regAESKey := bytes.Repeat([]byte{0}, aes.Bit256+aes.IVSize)
 	cfg := &node.Config{
+		// logger
 		LogLevel: "debug",
 
+		// global
 		ProxyClients:       testdata.ProxyClients(t),
 		DNSServers:         testdata.DNSServers(t),
 		DnsCacheDeadline:   3 * time.Minute,
 		TimeSyncerConfigs:  testdata.TimeSyncerConfigs(t),
 		TimeSyncerInterval: 15 * time.Minute,
 
+		// sender
+		MaxBufferSize:   4096,
+		SenderWorker:    runtime.NumCPU(),
+		SenderQueueSize: 512,
+
+		// syncer
+		MaxSyncerClient:  2,
+		SyncerWorker:     64,
+		SyncerQueueSize:  512,
+		ReserveWorker:    16,
+		RetryTimes:       3,
+		RetryInterval:    5 * time.Second,
+		BroadcastTimeout: 30 * time.Second,
+
+		// controller configs
 		CtrlPublicKey:   testdata.CtrlED25519.PublicKey(),
 		CtrlExPublicKey: testdata.CtrlCurve25519,
 		CtrlAESCrypto:   testdata.CtrlAESKey,
 
+		// register
 		IsGenesis:      genesis,
 		RegisterAESKey: regAESKey,
 
+		// server
 		ConnLimit: 10,
 		Listeners: testdata.Listeners(t),
 	}

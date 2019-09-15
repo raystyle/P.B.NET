@@ -14,12 +14,6 @@ type Config struct {
 	// logger
 	LogLevel string `toml:"log_level"`
 
-	// global
-	BuiltinDir         string        `toml:"builtin_dir"`
-	KeyDir             string        `toml:"key_dir"`
-	DNSCacheDeadline   time.Duration `toml:"dns_cache_deadline"`
-	TimeSyncerInterval time.Duration `toml:"time_syncer_interval"`
-
 	// database
 	Dialect         string        `toml:"dialect"` // "mysql"
 	DSN             string        `toml:"dsn"`
@@ -29,6 +23,12 @@ type Config struct {
 	GORMLogFile     string        `toml:"gorm_log_file"`
 	GORMDetailedLog bool          `toml:"gorm_detailed_log"`
 	DBSyncInterval  time.Duration `toml:"db_sync_interval"` // cache
+
+	// global
+	BuiltinDir         string        `toml:"builtin_dir"`
+	KeyDir             string        `toml:"key_dir"`
+	DNSCacheDeadline   time.Duration `toml:"dns_cache_deadline"`
+	TimeSyncerInterval time.Duration `toml:"time_syncer_interval"`
 
 	// sender
 	MaxBufferSize   int `toml:"max_buffer_size"` // syncer also use it

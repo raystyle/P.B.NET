@@ -15,36 +15,50 @@ type Debug struct {
 
 type Config struct {
 	// TODO skip encode
-	Debug Debug
+	Debug Debug `toml:"-"`
 
 	// CheckMode is used to check whether
 	// the configuration is correct
-	CheckMode bool
+	CheckMode bool `toml:"-"`
 
 	// logger
-	LogLevel string
+	LogLevel string `toml:"log_level"`
 
 	// global
-	ProxyClients       map[string]*proxy.Client
-	DNSServers         map[string]*dns.Server
-	DnsCacheDeadline   time.Duration
-	TimeSyncerConfigs  map[string]*timesync.Config
-	TimeSyncerInterval time.Duration
+	ProxyClients       map[string]*proxy.Client    `toml:"proxy_clients"`
+	DNSServers         map[string]*dns.Server      `toml:"dns_servers"`
+	DnsCacheDeadline   time.Duration               `toml:"dns_cache_deadline"`
+	TimeSyncerConfigs  map[string]*timesync.Config `toml:"time_syncer_configs"`
+	TimeSyncerInterval time.Duration               `toml:"time_syncer_interval"`
+
+	// sender
+	MaxBufferSize   int `toml:"max_buffer_size"` // syncer also use it
+	SenderWorker    int `toml:"sender_worker"`
+	SenderQueueSize int `toml:"sender_queue_size"`
+
+	// syncer
+	MaxSyncerClient  int           `toml:"max_syncer_client"`
+	SyncerWorker     int           `toml:"syncer_worker"`
+	SyncerQueueSize  int           `toml:"syncer_queue_size"`
+	ReserveWorker    int           `toml:"reserve_worker"`
+	RetryTimes       int           `toml:"retry_times"`
+	RetryInterval    time.Duration `toml:"retry_interval"`
+	BroadcastTimeout time.Duration `toml:"broadcast_timeout"`
 
 	// controller configs
-	CtrlPublicKey   []byte // ed25519
-	CtrlExPublicKey []byte // curve25519
-	CtrlAESCrypto   []byte // key + iv
+	CtrlPublicKey   []byte `toml:"-"` // ed25519
+	CtrlExPublicKey []byte `toml:"-"` // curve25519
+	CtrlAESCrypto   []byte `toml:"-"` // key + iv
 
 	// register
-	IsGenesis          bool   // use controller to register
-	RegisterAESKey     []byte // key + iv Config is encrypted
-	RegisterBootstraps []*config.Bootstrap
+	IsGenesis          bool                `toml:"-"` // use controller to register
+	RegisterAESKey     []byte              `toml:"-"` // key + iv Config is encrypted
+	RegisterBootstraps []*config.Bootstrap `toml:"-"`
 
 	// server
-	ConnLimit        int
-	HandshakeTimeout time.Duration
-	Listeners        []*config.Listener
+	ConnLimit        int                `toml:"conn_limit"`
+	HandshakeTimeout time.Duration      `toml:"handshake_timeout"`
+	Listeners        []*config.Listener `toml:"listeners"`
 }
 
 // before create a node need check config
