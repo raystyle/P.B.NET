@@ -21,8 +21,8 @@ const (
 type CTRL struct {
 	debug  *Debug
 	logLv  logger.Level
-	cache  *cache  // database cache and run db syncer
-	db     *db     // provide data
+	cache  *cache  // database cache
+	db     *db     // provide data and run db syncer
 	global *global // proxy, dns, time syncer, and ...
 	syncer *syncer // sync message
 	sender *sender // broadcast and send message

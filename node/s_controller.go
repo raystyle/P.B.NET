@@ -62,6 +62,7 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 			Timer:     time.NewTimer(protocol.RecvTimeout),
 		}
 		s.Available <- struct{}{}
+		s.Timer.Stop()
 		ctrl.slots[i] = s
 	}
 	protocol.HandleConn(conn, ctrl.handleMessage)
@@ -211,9 +212,11 @@ func (ctrl *roleCtrl) handleReply(reply []byte) {
 	ctrl.replyTimer.Reset(time.Second)
 	select {
 	case ctrl.slots[id].Reply <- r:
-		ctrl.replyTimer.Stop()
+		if !ctrl.replyTimer.Stop() {
+			<-ctrl.replyTimer.C
+		}
 	case <-ctrl.replyTimer.C:
-		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidReply)
+		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
 		ctrl.Close()
 	}
 }
@@ -250,7 +253,9 @@ func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
 				ctrl.slots[id].Timer.Reset(protocol.RecvTimeout)
 				select {
 				case r := <-ctrl.slots[id].Reply:
-					ctrl.slots[id].Timer.Stop()
+					if !ctrl.slots[id].Timer.Stop() {
+						<-ctrl.slots[id].Timer.C
+					}
 					ctrl.slots[id].Available <- struct{}{}
 					return r, nil
 				case <-ctrl.slots[id].Timer.C:
@@ -430,7 +435,21 @@ func (ctrl *roleCtrl) handleSyncReceive(id, message []byte) {
 }
 
 func (ctrl *roleCtrl) handleSyncQuery(id, message []byte) {
-
+	sr := protocol.SyncQuery{}
+	err := msgpack.Unmarshal(message, &sr)
+	if err != nil {
+		ctrl.logln(logger.Exploit, "invalid sync query msgpack data:", err)
+		ctrl.Close()
+		return
+	}
+	err = sr.Validate()
+	if err != nil {
+		ctrl.logf(logger.Exploit, "invalid sync query: %s\n%s", err, spew.Sdump(sr))
+		ctrl.Close()
+		return
+	}
+	// TODO reply
+	ctrl.reply(id, protocol.SyncSucceed)
 }
 
 // handle trust

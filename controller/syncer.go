@@ -20,11 +20,6 @@ import (
 	"project/internal/xpanic"
 )
 
-const (
-	syncerNode   = 0
-	syncerBeacon = 1
-)
-
 type syncer struct {
 	ctx              *CTRL
 	maxBufferSize    int
@@ -292,6 +287,11 @@ func (syncer *syncer) addSyncTask(task *protocol.SyncTask) {
 		}
 	}
 }
+
+const (
+	syncerNode   = 0
+	syncerBeacon = 1
+)
 
 // check xxx Token is used to check xxx is been handled
 // xxx = broadcast, sync send, sync receive
@@ -979,7 +979,7 @@ func (syncer *syncer) worker() {
 				}
 				syncQuery.Role = st.Role
 				syncQuery.GUID = st.GUID
-				syncQuery.Height = ctrlReceive
+				syncQuery.Index = ctrlReceive
 				syncReply, err = query()
 				switch err {
 				case nil:

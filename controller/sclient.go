@@ -145,6 +145,14 @@ func (sc *sClient) QueryMessage(request []byte) (*protocol.SyncReply, error) {
 	sr := protocol.SyncReply{}
 	err = msgpack.Unmarshal(reply, &sr)
 	if err != nil {
+		err = errors.Wrap(err, "invalid sync reply msgpack data")
+		sc.log(logger.Exploit, err)
+		sc.Close()
+		return nil, err
+	}
+	// TODO more validate
+	err = sr.Validate()
+	if err != nil {
 		err = errors.Wrap(err, "invalid sync reply")
 		sc.log(logger.Exploit, err)
 		sc.Close()

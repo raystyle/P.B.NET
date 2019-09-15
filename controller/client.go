@@ -73,6 +73,7 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 			Timer:     time.NewTimer(protocol.RecvTimeout),
 		}
 		s.Available <- struct{}{}
+		s.Timer.Stop()
 		client.slots[i] = s
 	}
 	client.heartbeatC = make(chan struct{}, 1)
@@ -242,9 +243,11 @@ func (client *client) handleReply(reply []byte) {
 	client.replyTimer.Reset(time.Second)
 	select {
 	case client.slots[id].Reply <- r:
-		client.replyTimer.Stop()
+		if !client.replyTimer.Stop() {
+			<-client.replyTimer.C
+		}
 	case <-client.replyTimer.C:
-		client.log(logger.Exploit, protocol.ErrRecvInvalidReply)
+		client.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
 		client.Close()
 	}
 }
@@ -281,7 +284,9 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 				client.slots[id].Timer.Reset(protocol.RecvTimeout)
 				select {
 				case r := <-client.slots[id].Reply:
-					client.slots[id].Timer.Stop()
+					if !client.slots[id].Timer.Stop() {
+						<-client.slots[id].Timer.C
+					}
 					client.slots[id].Available <- struct{}{}
 					return r, nil
 				case <-client.slots[id].Timer.C:
