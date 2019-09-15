@@ -28,6 +28,12 @@ func (sl *sLog) String() string {
 	return b.String()
 }
 
+// TODO client handshake
+func (client *client) handshake(c net.Conn) (*xnet.Conn, error) {
+
+	return nil, nil
+}
+
 func (server *server) handshake(lTag string, conn net.Conn) {
 	dConn := xnet.NewDeadlineConn(conn, server.hsTimeout)
 	xconn := xnet.NewConn(dConn, server.ctx.global.Now().Unix())

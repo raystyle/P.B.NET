@@ -329,6 +329,10 @@ func (global *global) DBDecrypt(data []byte) ([]byte, error) {
 	return cbc.(*aes.CBC).Decrypt(data)
 }
 
+func (global *global) CACertificatesStr() []string {
+	return nil
+}
+
 // CtrlVerify is used to verify controller message
 func (global *global) CtrlVerify(message, signature []byte) bool {
 	global.objectRWM.RLock()

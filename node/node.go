@@ -12,8 +12,11 @@ import (
 type NODE struct {
 	debug  *Debug
 	logLv  logger.Level
+	cache  *cache
+	db     *db
 	global *global
 	syncer *syncer
+	sender *sender
 	server *server
 	once   sync.Once
 	wait   chan struct{}
@@ -31,19 +34,38 @@ func New(cfg *Config) (*NODE, error) {
 	node := &NODE{
 		debug: &debug,
 		logLv: lv,
+		cache: newCache(),
 	}
+	// init database
+	db, err := newDB(node, cfg)
+	if err != nil {
+		return nil, err
+	}
+	node.db = db
 	// init global
 	global, err := newGlobal(node, cfg)
 	if err != nil {
 		return nil, err
 	}
 	node.global = global
+	// init syncer
+	syncer, err := newSyncer(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "init syncer failed")
+	}
+	node.syncer = syncer
+	// init sender
+	sender, err := newSender(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "init sender failed")
+	}
+	node.sender = sender
 	// init server
-	Server, err := newServer(node, cfg)
+	server, err := newServer(node, cfg)
 	if err != nil {
 		return nil, err
 	}
-	node.server = Server
+	node.server = server
 	// register
 	if !cfg.IsGenesis {
 		err = node.register(cfg)
@@ -67,6 +89,7 @@ func (node *NODE) Main() error {
 	}
 	now := node.global.Now().Format(logger.TimeLayout)
 	node.Println(logger.Info, "init", "time:", now)
+	// deploy server
 	err := node.server.Deploy()
 	if err != nil {
 		return node.fatal(err, "deploy server failed")

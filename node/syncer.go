@@ -42,6 +42,12 @@ type syncer struct {
 	wg         sync.WaitGroup
 }
 
+func newSyncer(ctx *NODE, cfg *Config) (*syncer, error) {
+	syncer := syncer{}
+
+	return &syncer, nil
+}
+
 // task from syncer client
 func (syncer *syncer) addBroadcast(br *protocol.Broadcast) {
 	if len(syncer.broadcastQueue) == syncer.workerQueueSize {
