@@ -1,4 +1,4 @@
 package node
 
-type roleBeacon struct {
+type beaconConn struct {
 }

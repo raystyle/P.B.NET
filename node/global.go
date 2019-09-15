@@ -267,7 +267,9 @@ func (global *global) SetCertificate(cert []byte) error {
 	global.objectRWM.Lock()
 	defer global.objectRWM.Unlock()
 	if _, ok := global.object[okCertificate]; !ok {
-		global.object[okCertificate] = cert
+		c := make([]byte, len(cert))
+		copy(c, cert)
+		global.object[okCertificate] = c
 		return nil
 	} else {
 		return errors.New("certificate has been set")

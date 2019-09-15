@@ -43,13 +43,13 @@ type syncer struct {
 	sClients    map[string]*sClient
 	sClientsRWM sync.RWMutex
 
-	// incoming role
-	sCtrls      map[string]*roleCtrl // only one if has two Exploit!!!!
-	sCtrlsRWM   sync.RWMutex
-	sNodes      map[string]*roleNode
-	sNodesRWM   sync.RWMutex
-	sBeacons    map[string]*roleBeacon
-	sBeaconsRWM sync.RWMutex
+	// incoming role connections
+	ctrlConn       *ctrlConn // only one if has two Exploit!!!!
+	ctrlConnM      sync.Mutex
+	nodeConns      map[string]*nodeConn
+	nodeConnsRWM   sync.RWMutex
+	beaconConns    map[string]*beaconConn
+	beaconConnsRWM sync.RWMutex
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -95,7 +95,10 @@ func newSyncer(ctx *NODE, cfg *Config) (*syncer, error) {
 		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.SyncerQueueSize),
 		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.SyncerQueueSize),
 		sClients:         make(map[string]*sClient),
-		stopSignal:       make(chan struct{}),
+		nodeConns:        make(map[string]*nodeConn),
+		beaconConns:      make(map[string]*beaconConn),
+
+		stopSignal: make(chan struct{}),
 	}
 
 	for i := 0; i < 3; i++ {
@@ -115,6 +118,24 @@ func newSyncer(ctx *NODE, cfg *Config) (*syncer, error) {
 	return &syncer, nil
 }
 
+func (syncer *syncer) SetCtrlConn(ctrl *ctrlConn) bool {
+	syncer.ctrlConnM.Lock()
+	defer syncer.ctrlConnM.Unlock()
+	if syncer.ctrlConn == nil {
+		syncer.ctrlConn = ctrl
+		return true
+	} else {
+		return false
+	}
+}
+
+func (syncer *syncer) CtrlConn() *ctrlConn {
+	syncer.ctrlConnM.Lock()
+	cc := syncer.ctrlConn
+	syncer.ctrlConnM.Unlock()
+	return cc
+}
+
 func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
 	syncer.ctx.Printf(l, "syncer", format, log...)
 }
@@ -127,7 +148,7 @@ func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
 	syncer.ctx.Println(l, "syncer", log...)
 }
 
-func (syncer *syncer) syncerClients() map[string]*sClient {
+func (syncer *syncer) SyncerClients() map[string]*sClient {
 	syncer.sClientsRWM.RLock()
 	l := len(syncer.sClients)
 	if l == 0 {

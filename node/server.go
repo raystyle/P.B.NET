@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	ErrServerClosed = errors.New("server closed")
+	errServerClosed = errors.New("server closed")
 )
 
 // accept beacon node controller
@@ -33,11 +33,11 @@ type server struct {
 	listenersRWM sync.RWMutex
 	conns        map[string]*xnet.Conn // key = listener.Tag + Remote Address
 	connsRWM     sync.RWMutex
-	ctrls        map[string]role // key = base64(sha256(Remote Address))
+	ctrls        map[string]*ctrlConn // key = base64(sha256(Remote Address))
 	ctrlsRWM     sync.RWMutex
-	nodes        map[string]role // key = base64(guid)
+	nodes        map[string]*nodeConn // key = base64(guid)
 	nodesRWM     sync.RWMutex
-	beacons      map[string]role // key = base64(guid)
+	beacons      map[string]*beaconConn // key = base64(guid)
 	beaconsRWM   sync.RWMutex
 	inShutdown   int32
 	random       *random.Rand
@@ -49,12 +49,6 @@ type listener struct {
 	Mode     xnet.Mode
 	sTimeout time.Duration // start timeout
 	net.Listener
-}
-
-// Beacon Node Controller
-type role interface {
-	Info() *xnet.Info
-	Close()
 }
 
 func newServer(ctx *NODE, cfg *Config) (*server, error) {
@@ -77,9 +71,9 @@ func newServer(ctx *NODE, cfg *Config) (*server, error) {
 		}
 	}
 	s.conns = make(map[string]*xnet.Conn)
-	s.ctrls = make(map[string]role)
-	s.nodes = make(map[string]role)
-	s.beacons = make(map[string]role)
+	s.ctrls = make(map[string]*ctrlConn)
+	s.nodes = make(map[string]*nodeConn)
+	s.beacons = make(map[string]*beaconConn)
 	s.random = random.New(0)
 	s.stopSignal = make(chan struct{})
 	return s, nil
@@ -113,7 +107,7 @@ func (server *server) AddListener(l *config.Listener) error {
 
 func (server *server) addListener(l *config.Listener) (*listener, error) {
 	if server.shuttingDown() {
-		return nil, ErrServerClosed
+		return nil, errServerClosed
 	}
 	c := &xnet.Config{}
 	err := toml.Unmarshal(l.Config, c)
@@ -178,7 +172,7 @@ func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 		if e != nil {
 			select {
 			case <-server.stopSignal:
-				err = ErrServerClosed
+				err = errServerClosed
 				return
 			default:
 			}
@@ -265,7 +259,7 @@ func (server *server) delConn(tag string) {
 	server.connsRWM.Unlock()
 }
 
-func (server *server) addCtrl(ctrl role) {
+func (server *server) addCtrl(ctrl *ctrlConn) {
 	data := sha256.Bytes([]byte(ctrl.Info().RemoteAddress))
 	tag := base64.StdEncoding.EncodeToString(data)
 	server.ctrlsRWM.Lock()
@@ -275,7 +269,7 @@ func (server *server) addCtrl(ctrl role) {
 	server.ctrlsRWM.Unlock()
 }
 
-func (server *server) delCtrl(tag string, ctrl role) {
+func (server *server) delCtrl(tag string, ctrl *ctrlConn) {
 	if ctrl != nil {
 		data := sha256.Bytes([]byte(ctrl.Info().RemoteAddress))
 		tag = base64.StdEncoding.EncodeToString(data)
@@ -285,7 +279,7 @@ func (server *server) delCtrl(tag string, ctrl role) {
 	server.ctrlsRWM.Unlock()
 }
 
-func (server *server) addNode(guid []byte, node role) {
+func (server *server) addNode(guid []byte, node *nodeConn) {
 	tag := base64.StdEncoding.EncodeToString(guid)
 	server.nodesRWM.Lock()
 	if _, ok := server.nodes[tag]; !ok {
@@ -301,7 +295,7 @@ func (server *server) delNode(guid []byte) {
 	server.nodesRWM.Unlock()
 }
 
-func (server *server) addBeacon(guid []byte, beacon role) {
+func (server *server) addBeacon(guid []byte, beacon *beaconConn) {
 	tag := base64.StdEncoding.EncodeToString(guid)
 	server.beaconsRWM.Lock()
 	if _, ok := server.beacons[tag]; !ok {

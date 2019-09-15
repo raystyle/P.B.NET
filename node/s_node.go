@@ -1,4 +1,4 @@
 package node
 
-type roleNode struct {
+type nodeConn struct {
 }

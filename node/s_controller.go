@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
@@ -20,7 +21,7 @@ import (
 	"project/internal/xpanic"
 )
 
-type roleCtrl struct {
+type ctrlConn struct {
 	ctx        *NODE
 	conn       *xnet.Conn
 	slots      []*protocol.Slot
@@ -34,7 +35,7 @@ type roleCtrl struct {
 }
 
 func (server *server) serveCtrl(conn *xnet.Conn) {
-	ctrl := roleCtrl{
+	ctrl := ctrlConn{
 		ctx:        server.ctx,
 		conn:       conn,
 		slots:      make([]*protocol.Slot, protocol.SlotSize),
@@ -68,11 +69,11 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 	protocol.HandleConn(conn, ctrl.handleMessage)
 }
 
-func (ctrl *roleCtrl) Info() *xnet.Info {
+func (ctrl *ctrlConn) Info() *xnet.Info {
 	return ctrl.conn.Info()
 }
 
-func (ctrl *roleCtrl) Close() {
+func (ctrl *ctrlConn) Close() {
 	ctrl.closeOnce.Do(func() {
 		atomic.StoreInt32(&ctrl.inClose, 1)
 		close(ctrl.stopSignal)
@@ -81,30 +82,30 @@ func (ctrl *roleCtrl) Close() {
 	})
 }
 
-func (ctrl *roleCtrl) isClosed() bool {
+func (ctrl *ctrlConn) isClosed() bool {
 	return atomic.LoadInt32(&ctrl.inClose) != 0
 }
 
-func (ctrl *roleCtrl) logf(l logger.Level, format string, log ...interface{}) {
+func (ctrl *ctrlConn) logf(l logger.Level, format string, log ...interface{}) {
 	b := logger.Conn(ctrl.conn)
 	_, _ = fmt.Fprintf(b, format, log...)
-	ctrl.ctx.Print(l, "r_ctrl", b)
+	ctrl.ctx.Print(l, "ctrl-conn", b)
 }
 
-func (ctrl *roleCtrl) log(l logger.Level, log ...interface{}) {
+func (ctrl *ctrlConn) log(l logger.Level, log ...interface{}) {
 	b := logger.Conn(ctrl.conn)
 	_, _ = fmt.Fprint(b, log...)
-	ctrl.ctx.Print(l, "r_ctrl", b)
+	ctrl.ctx.Print(l, "ctrl-conn", b)
 }
 
-func (ctrl *roleCtrl) logln(l logger.Level, log ...interface{}) {
+func (ctrl *ctrlConn) logln(l logger.Level, log ...interface{}) {
 	b := logger.Conn(ctrl.conn)
 	_, _ = fmt.Fprintln(b, log...)
-	ctrl.ctx.Print(l, "r_ctrl", b)
+	ctrl.ctx.Print(l, "ctrl-conn", b)
 }
 
 // if need async handle message must copy msg first
-func (ctrl *roleCtrl) handleMessage(msg []byte) {
+func (ctrl *ctrlConn) handleMessage(msg []byte) {
 	const (
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
@@ -139,7 +140,7 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	case protocol.CtrlHeartbeat:
 		ctrl.handleHeartbeat()
 	case protocol.CtrlSyncStart:
-		ctrl.reply(msg[cmd:id], []byte{protocol.CtrlSyncStart})
+		ctrl.handleSyncStart(msg[cmd:id])
 	case protocol.CtrlTrustNode:
 		ctrl.handleTrustNode(msg[cmd:id])
 	case protocol.CtrlTrustNodeData:
@@ -158,7 +159,7 @@ func (ctrl *roleCtrl) handleMessage(msg []byte) {
 	}
 }
 
-func (ctrl *roleCtrl) handleHeartbeat() {
+func (ctrl *ctrlConn) handleHeartbeat() {
 	// <security> fake flow like client
 	fakeSize := 64 + ctrl.rand.Int(256)
 	// size(4 Bytes) + heartbeat(1 byte) + fake data
@@ -171,7 +172,7 @@ func (ctrl *roleCtrl) handleHeartbeat() {
 	_, _ = ctrl.conn.Write(ctrl.buffer.Bytes())
 }
 
-func (ctrl *roleCtrl) reply(id, reply []byte) {
+func (ctrl *ctrlConn) reply(id, reply []byte) {
 	if ctrl.isClosed() {
 		return
 	}
@@ -192,7 +193,7 @@ func (ctrl *roleCtrl) reply(id, reply []byte) {
 }
 
 // msg id(2 bytes) + data
-func (ctrl *roleCtrl) handleReply(reply []byte) {
+func (ctrl *ctrlConn) handleReply(reply []byte) {
 	l := len(reply)
 	if l < protocol.MsgIDSize {
 		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
@@ -223,7 +224,7 @@ func (ctrl *roleCtrl) handleReply(reply []byte) {
 
 // Send is use to send command and receive reply
 // size(4 Bytes) + command(1 Byte) + msg id(2 bytes) + data
-func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
+func (ctrl *ctrlConn) Send(cmd uint8, data []byte) ([]byte, error) {
 	if ctrl.isClosed() {
 		return nil, protocol.ErrConnClosed
 	}
@@ -280,7 +281,95 @@ func (ctrl *roleCtrl) Send(cmd uint8, data []byte) ([]byte, error) {
 
 // ----------------------------------sync----------------------------------------
 
-func (ctrl *roleCtrl) handleBroadcastToken(id, message []byte) {
+func (ctrl *ctrlConn) Broadcast(token, message []byte) *protocol.BroadcastResponse {
+	br := protocol.BroadcastResponse{}
+	br.Role = protocol.Ctrl
+	br.GUID = protocol.CtrlGUID
+	reply, err := ctrl.Send(protocol.NodeBroadcastToken, token)
+	if err != nil {
+		br.Err = err
+		return &br
+	}
+	if !bytes.Equal(reply, protocol.BroadcastUnhandled) {
+		br.Err = protocol.ErrBroadcastHandled
+		return &br
+	}
+	// broadcast
+	reply, err = ctrl.Send(protocol.NodeBroadcast, message)
+	if err != nil {
+		br.Err = err
+		return &br
+	}
+	if bytes.Equal(reply, protocol.BroadcastSucceed) {
+		return &br
+	} else {
+		br.Err = errors.New(string(reply))
+		return &br
+	}
+}
+
+func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
+	sr := &protocol.SyncResponse{}
+	sr.Role = protocol.Ctrl
+	sr.GUID = protocol.CtrlGUID
+	resp, err := ctrl.Send(protocol.NodeSyncSendToken, token)
+	if err != nil {
+		sr.Err = err
+		return sr
+	}
+	if !bytes.Equal(resp, protocol.SyncUnhandled) {
+		sr.Err = protocol.ErrSyncHandled
+		return sr
+	}
+	resp, err = ctrl.Send(protocol.NodeSyncSend, message)
+	if err != nil {
+		sr.Err = err
+		return sr
+	}
+	if bytes.Equal(resp, protocol.SyncSucceed) {
+		return sr
+	} else {
+		sr.Err = errors.New(string(resp))
+		return sr
+	}
+}
+
+// SyncReceive is used to notice node clean the message
+func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse {
+	sr := &protocol.SyncResponse{}
+	sr.Role = protocol.Ctrl
+	sr.GUID = protocol.CtrlGUID
+	resp, err := ctrl.Send(protocol.NodeSyncRecvToken, token)
+	if err != nil {
+		sr.Err = err
+		return sr
+	}
+	if !bytes.Equal(resp, protocol.SyncUnhandled) {
+		sr.Err = protocol.ErrSyncHandled
+		return sr
+	}
+	resp, err = ctrl.Send(protocol.NodeSyncRecv, message)
+	if err != nil {
+		sr.Err = err
+		return sr
+	}
+	if bytes.Equal(resp, protocol.SyncSucceed) {
+		return sr
+	} else {
+		sr.Err = errors.New(string(resp))
+		return sr
+	}
+}
+
+func (ctrl *ctrlConn) handleSyncStart(id []byte) {
+	if ctrl.ctx.syncer.SetCtrlConn(ctrl) {
+		ctrl.reply(id, []byte{protocol.NodeSyncStart})
+	} else {
+		ctrl.Close()
+	}
+}
+
+func (ctrl *ctrlConn) handleBroadcastToken(id, message []byte) {
 	// role + message guid
 	if len(message) != 1+guid.Size {
 		// fake reply and close
@@ -303,7 +392,7 @@ func (ctrl *roleCtrl) handleBroadcastToken(id, message []byte) {
 	}
 }
 
-func (ctrl *roleCtrl) handleSyncSendToken(id, message []byte) {
+func (ctrl *ctrlConn) handleSyncSendToken(id, message []byte) {
 	// role + message guid
 	if len(message) != 1+guid.Size {
 		// fake reply and close
@@ -326,7 +415,7 @@ func (ctrl *roleCtrl) handleSyncSendToken(id, message []byte) {
 	}
 }
 
-func (ctrl *roleCtrl) handleSyncReceiveToken(id, message []byte) {
+func (ctrl *ctrlConn) handleSyncReceiveToken(id, message []byte) {
 	// role + message guid
 	if len(message) != 1+guid.Size {
 		// fake reply and close
@@ -349,7 +438,7 @@ func (ctrl *roleCtrl) handleSyncReceiveToken(id, message []byte) {
 	}
 }
 
-func (ctrl *roleCtrl) handleBroadcast(id, message []byte) {
+func (ctrl *ctrlConn) handleBroadcast(id, message []byte) {
 	br := protocol.Broadcast{}
 	err := msgpack.Unmarshal(message, &br)
 	if err != nil {
@@ -363,12 +452,17 @@ func (ctrl *roleCtrl) handleBroadcast(id, message []byte) {
 		ctrl.Close()
 		return
 	}
-	if br.SenderRole != protocol.Node && br.SenderRole != protocol.Beacon {
+	if br.SenderRole != protocol.Ctrl {
 		ctrl.logf(logger.Exploit, "invalid broadcast sender role\n%s", spew.Sdump(br))
 		ctrl.Close()
 		return
 	}
-	if br.ReceiverRole != protocol.Ctrl {
+	if !bytes.Equal(br.SenderGUID, protocol.CtrlGUID) {
+		ctrl.logf(logger.Exploit, "invalid broadcast sender guid\n%s", spew.Sdump(br))
+		ctrl.Close()
+		return
+	}
+	if br.ReceiverRole != protocol.Node {
 		ctrl.logf(logger.Exploit, "invalid broadcast receiver role\n%s", spew.Sdump(br))
 		ctrl.Close()
 		return
@@ -377,7 +471,7 @@ func (ctrl *roleCtrl) handleBroadcast(id, message []byte) {
 	ctrl.reply(id, protocol.BroadcastSucceed)
 }
 
-func (ctrl *roleCtrl) handleSyncSend(id, message []byte) {
+func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
 	ss := protocol.SyncSend{}
 	err := msgpack.Unmarshal(message, &ss)
 	if err != nil {
@@ -391,18 +485,18 @@ func (ctrl *roleCtrl) handleSyncSend(id, message []byte) {
 		ctrl.Close()
 		return
 	}
-	if ss.SenderRole != protocol.Node && ss.SenderRole != protocol.Beacon {
+	if ss.SenderRole != protocol.Ctrl {
 		ctrl.logf(logger.Exploit, "invalid sync send sender role\n%s", spew.Sdump(ss))
 		ctrl.Close()
 		return
 	}
-	if ss.ReceiverRole != protocol.Ctrl {
-		ctrl.logf(logger.Exploit, "invalid sync send receiver role\n%s", spew.Sdump(ss))
+	if !bytes.Equal(ss.SenderGUID, protocol.CtrlGUID) {
+		ctrl.logf(logger.Exploit, "invalid sync send sender guid\n%s", spew.Sdump(ss))
 		ctrl.Close()
 		return
 	}
-	if !bytes.Equal(ss.ReceiverGUID, protocol.CtrlGUID) {
-		ctrl.logf(logger.Exploit, "invalid sync send receiver guid\n%s", spew.Sdump(ss))
+	if ss.ReceiverRole != protocol.Node && ss.ReceiverRole != protocol.Beacon {
+		ctrl.logf(logger.Exploit, "invalid sync send receiver role\n%s", spew.Sdump(ss))
 		ctrl.Close()
 		return
 	}
@@ -410,8 +504,9 @@ func (ctrl *roleCtrl) handleSyncSend(id, message []byte) {
 	ctrl.reply(id, protocol.SyncSucceed)
 }
 
-// notice controller, role received this height message
-func (ctrl *roleCtrl) handleSyncReceive(id, message []byte) {
+// notice node to delete message
+// TODO think more
+func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
 	sr := protocol.SyncReceive{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
@@ -434,7 +529,7 @@ func (ctrl *roleCtrl) handleSyncReceive(id, message []byte) {
 	ctrl.reply(id, protocol.SyncSucceed)
 }
 
-func (ctrl *roleCtrl) handleSyncQuery(id, message []byte) {
+func (ctrl *ctrlConn) handleSyncQuery(id, message []byte) {
 	sr := protocol.SyncQuery{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
@@ -454,15 +549,12 @@ func (ctrl *roleCtrl) handleSyncQuery(id, message []byte) {
 
 // handle trust
 
-func (ctrl *roleCtrl) handleTrustNode(id []byte) {
+func (ctrl *ctrlConn) handleTrustNode(id []byte) {
 	ctrl.reply(id, ctrl.ctx.packOnlineRequest())
 }
 
-func (ctrl *roleCtrl) handleTrustNodeData(id []byte, data []byte) {
-	// must copy
-	cert := make([]byte, len(data))
-	copy(cert, data)
-	err := ctrl.ctx.global.SetCertificate(cert)
+func (ctrl *ctrlConn) handleTrustNodeData(id []byte, data []byte) {
+	err := ctrl.ctx.global.SetCertificate(data)
 	if err == nil {
 		ctrl.reply(id, messages.OnlineSucceed)
 	} else {

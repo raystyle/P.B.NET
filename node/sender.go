@@ -169,7 +169,7 @@ func (sender *sender) SendPlugin(
 // SyncReceive is used to sync node receive(controller send)
 // notice node to delete message
 // only for syncer.worker()
-func (sender *sender) syncReceive(height uint64) {
+func (sender *sender) SyncReceive(height uint64) {
 	sender.syncReceiveQueue <- height
 }
 
@@ -192,6 +192,14 @@ func (sender *sender) logln(l logger.Level, log ...interface{}) {
 
 func (sender *sender) broadcastParallel(token, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
+	// if connect controller, first broadcast
+	ctrl := sender.ctx.syncer.CtrlConn()
+	if ctrl != nil {
+		br := ctrl.Broadcast(token, message)
+		if br.Err == nil {
+			return
+		}
+	}
 	/*
 		sClients := sender.ctx.syncer.sClients()
 		l := len(sClients)
