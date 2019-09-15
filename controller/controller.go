@@ -49,13 +49,13 @@ func New(cfg *Config) (*CTRL, error) {
 	// init database
 	db, err := newDB(ctrl, cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "init database failed")
 	}
 	ctrl.db = db
 	// init global
 	global, err := newGlobal(ctrl, cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "init global failed")
 	}
 	ctrl.global = global
 	// load proxy clients from database

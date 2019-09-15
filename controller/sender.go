@@ -23,7 +23,6 @@ const (
 )
 
 type broadcastTask struct {
-	Role     protocol.Role
 	Command  []byte      // for Broadcast
 	MessageI interface{} // for Broadcast
 	Message  []byte      // for BroadcastPlugin
@@ -105,14 +104,14 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 	return &sender, nil
 }
 
+// Broadcast is used to broadcast message to all nodes
+// message will not be saved
 func (sender *sender) Broadcast(
-	role protocol.Role,
 	command []byte,
 	message interface{},
 ) (r *protocol.BroadcastResult) {
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
 	sender.broadcastQueue <- &broadcastTask{
-		Role:     role,
 		Command:  command,
 		MessageI: message,
 		Result:   done,
@@ -122,27 +121,27 @@ func (sender *sender) Broadcast(
 	return
 }
 
+// Broadcast is used to broadcast(Async) message to all nodes
+// message will not be saved
 func (sender *sender) BroadcastAsync(
-	role protocol.Role,
 	command []byte,
 	message interface{},
 	done chan<- *protocol.BroadcastResult,
 ) {
 	sender.broadcastQueue <- &broadcastTask{
-		Role:     role,
 		Command:  command,
 		MessageI: message,
 		Result:   done,
 	}
 }
 
+// Broadcast is used to broadcast(plugin) message to all nodes
+// message will not be saved
 func (sender *sender) BroadcastPlugin(
-	role protocol.Role,
 	message []byte,
 ) (r *protocol.BroadcastResult) {
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
 	sender.broadcastQueue <- &broadcastTask{
-		Role:    role,
 		Message: message,
 		Result:  done,
 	}
@@ -151,6 +150,8 @@ func (sender *sender) BroadcastPlugin(
 	return
 }
 
+// Send is used to send message to Node or Beacon
+// if role not online, node will save it
 func (sender *sender) Send(
 	role protocol.Role,
 	target,
@@ -170,6 +171,8 @@ func (sender *sender) Send(
 	return
 }
 
+// Send is used to send(async) message to Node or Beacon
+// if role not online, node will save it
 func (sender *sender) SendAsync(
 	role protocol.Role,
 	target,
@@ -186,6 +189,8 @@ func (sender *sender) SendAsync(
 	}
 }
 
+// Send is used to send(plugin) message to Node or Beacon
+// if role not online, node will save it
 func (sender *sender) SendPlugin(
 	role protocol.Role,
 	target,
@@ -204,9 +209,9 @@ func (sender *sender) SendPlugin(
 }
 
 // SyncReceive is used to sync controller receive
-// notice node to delete message
-// only for worker
-func (sender *sender) syncReceive(
+// notice node to delete message about Node or Beacon
+// only for syncer.worker()
+func (sender *sender) SyncReceive(
 	role protocol.Role,
 	guid []byte,
 	height uint64,
@@ -237,7 +242,7 @@ func (sender *sender) logln(l logger.Level, log ...interface{}) {
 
 func (sender *sender) broadcastParallel(token, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
-	sClients := sender.ctx.syncer.sClients()
+	sClients := sender.ctx.syncer.syncerClients()
 	l := len(sClients)
 	if l == 0 {
 		return nil, 0
@@ -269,7 +274,7 @@ func (sender *sender) broadcastParallel(token, message []byte) (
 
 func (sender *sender) syncSendParallel(token, message []byte) (
 	resp []*protocol.SyncResponse, success int) {
-	sClients := sender.ctx.syncer.sClients()
+	sClients := sender.ctx.syncer.syncerClients()
 	l := len(sClients)
 	if l == 0 {
 		return nil, 0
@@ -300,7 +305,7 @@ func (sender *sender) syncSendParallel(token, message []byte) (
 }
 
 func (sender *sender) syncReceiveParallel(token, message []byte) {
-	sClients := sender.ctx.syncer.sClients()
+	sClients := sender.ctx.syncer.syncerClients()
 	l := len(sClients)
 	if l == 0 {
 		return
@@ -403,7 +408,7 @@ func (sender *sender) worker() {
 		token        []byte
 		err          error
 	)
-	// prepare buffer & msgpack encoder
+	// prepare buffer, msgpack encoder, base64 encoder
 	// syncReceiveTask = 1 + guid.Size + 8
 	minBufferSize := guid.Size + 9
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
@@ -411,8 +416,9 @@ func (sender *sender) worker() {
 	base64Encoder := base64.NewEncoder(base64.StdEncoding, buffer)
 	// prepare task objects
 	preB := &protocol.Broadcast{
-		SenderRole: protocol.Ctrl,
-		SenderGUID: protocol.CtrlGUID,
+		SenderRole:   protocol.Ctrl,
+		SenderGUID:   protocol.CtrlGUID,
+		ReceiverRole: protocol.Node,
 	}
 	preSS := &protocol.SyncSend{
 		SenderRole: protocol.Ctrl,
@@ -613,14 +619,6 @@ func (sender *sender) worker() {
 		// ---------------------------broadcast---------------------------
 		case bt = <-sender.broadcastQueue:
 			result := protocol.BroadcastResult{}
-			// check role
-			if bt.Role != protocol.Node && bt.Role != protocol.Beacon {
-				if bt.Result != nil {
-					result.Err = protocol.ErrInvalidRole
-					bt.Result <- &result
-				}
-				continue
-			}
 			preB.GUID = sender.guid.Get()
 			// pack message
 			if bt.MessageI != nil {
@@ -643,7 +641,6 @@ func (sender *sender) worker() {
 				}
 				continue
 			}
-			preB.ReceiverRole = bt.Role
 			// sign
 			buffer.Reset()
 			buffer.Write(preB.GUID)

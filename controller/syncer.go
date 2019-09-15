@@ -28,8 +28,8 @@ type syncer struct {
 	retryTimes       int
 	retryInterval    time.Duration
 	broadcastTimeout float64
-	maxSyncer        int
-	maxSyncerM       sync.Mutex
+	maxSyncerClient  int
+	maxSyncerClientM sync.Mutex
 	// -------------------handle broadcast------------------------
 	// key=base64(guid) value=timestamp, check whether handled
 	broadcastQueue   chan *protocol.Broadcast
@@ -45,13 +45,15 @@ type syncer struct {
 	// -------------------handle sync task------------------------
 	syncTaskQueue chan *protocol.SyncTask
 	// check is sync
-	syncStatus   [2]map[string]bool
-	syncStatusM  [2]sync.Mutex
+	syncStatus  [2]map[string]bool
+	syncStatusM [2]sync.Mutex
+	// prevent all workers handle sync task
 	blockWorker  int
 	blockWorkerM sync.Mutex
 
-	clients    map[string]*sClient // key=base64(guid)
-	clientsRWM sync.RWMutex
+	// connected node key=base64(guid)
+	sClients    map[string]*sClient
+	sClientsRWM sync.RWMutex
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -86,7 +88,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	syncer := syncer{
 		ctx:              ctx,
 		maxBufferSize:    cfg.MaxBufferSize,
-		maxSyncer:        cfg.MaxSyncerClient,
+		maxSyncerClient:  cfg.MaxSyncerClient,
 		workerQueueSize:  cfg.SyncerQueueSize,
 		maxBlockWorker:   cfg.SyncerWorker - cfg.ReserveWorker,
 		retryTimes:       cfg.RetryTimes,
@@ -96,7 +98,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		syncSendQueue:    make(chan *protocol.SyncSend, cfg.SyncerQueueSize),
 		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.SyncerQueueSize),
 		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.SyncerQueueSize),
-		clients:          make(map[string]*sClient),
+		sClients:         make(map[string]*sClient),
 		stopSignal:       make(chan struct{}),
 	}
 	for i := 0; i < 2; i++ {
@@ -124,10 +126,10 @@ func (syncer *syncer) Close() {
 
 // Connect is used to connect node for sync message
 func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
-	syncer.clientsRWM.Lock()
-	defer syncer.clientsRWM.Unlock()
-	sClientsLen := len(syncer.clients)
-	if sClientsLen >= syncer.getMaxSyncer() {
+	syncer.sClientsRWM.Lock()
+	defer syncer.sClientsRWM.Unlock()
+	sClientsLen := len(syncer.sClients)
+	if sClientsLen >= syncer.getMaxSyncerClient() {
 		return errors.New("connected node number > max syncer")
 	}
 	cfg := clientCfg{
@@ -139,7 +141,7 @@ func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
 		return errors.WithMessage(err, "connect node failed")
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
-	syncer.clients[key] = sClient
+	syncer.sClients[key] = sClient
 	return nil
 }
 
@@ -155,32 +157,32 @@ func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
 	syncer.ctx.Println(l, "syncer", log...)
 }
 
-func (syncer *syncer) sClients() map[string]*sClient {
-	syncer.clientsRWM.RLock()
-	l := len(syncer.clients)
+func (syncer *syncer) syncerClients() map[string]*sClient {
+	syncer.sClientsRWM.RLock()
+	l := len(syncer.sClients)
 	if l == 0 {
-		syncer.clientsRWM.RUnlock()
+		syncer.sClientsRWM.RUnlock()
 		return nil
 	}
 	// copy map
 	sClients := make(map[string]*sClient, l)
-	for key, client := range syncer.clients {
+	for key, client := range syncer.sClients {
 		sClients[key] = client
 	}
-	syncer.clientsRWM.RUnlock()
+	syncer.sClientsRWM.RUnlock()
 	return sClients
 }
 
-// getMaxSyncer is used to get current max syncer number
-func (syncer *syncer) getMaxSyncer() int {
-	syncer.maxSyncerM.Lock()
-	maxSyncer := syncer.maxSyncer
-	syncer.maxSyncerM.Unlock()
+// getMaxSyncerClient is used to get current max syncer client number
+func (syncer *syncer) getMaxSyncerClient() int {
+	syncer.maxSyncerClientM.Lock()
+	maxSyncer := syncer.maxSyncerClient
+	syncer.maxSyncerClientM.Unlock()
 	return maxSyncer
 }
 
 // watcher is used to check connect nodes number
-// connected nodes number < syncer.maxSyncer, try to connect more node
+// connected nodes number < syncer.maxSyncerClient, try to connect more node
 func (syncer *syncer) watcher() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -197,10 +199,10 @@ func (syncer *syncer) watcher() {
 	defer ticker.Stop()
 	isMax := func() bool {
 		// get current syncer client number
-		syncer.clientsRWM.RLock()
-		sClientsLen := len(syncer.clients)
-		syncer.clientsRWM.RUnlock()
-		return sClientsLen >= syncer.getMaxSyncer()
+		syncer.sClientsRWM.RLock()
+		sClientsLen := len(syncer.sClients)
+		syncer.sClientsRWM.RUnlock()
+		return sClientsLen >= syncer.getMaxSyncerClient()
 	}
 	watch := func() {
 		if isMax() {
@@ -255,7 +257,7 @@ func (syncer *syncer) addSyncSend(ss *protocol.SyncSend) {
 
 // task from syncer client
 func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
-	if len(syncer.broadcastQueue) == syncer.workerQueueSize {
+	if len(syncer.syncReceiveQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
 			select {
 			case syncer.syncReceiveQueue <- sr:
@@ -369,6 +371,7 @@ func (syncer *syncer) checkSyncReceiveToken(role protocol.Role, guid []byte) boo
 // check xxx GUID is used to check xxx is been handled
 // prevent others send same message
 // xxx = broadcast, sync send, sync receive
+// must use Abs to prevent future timestamp
 
 func (syncer *syncer) checkBroadcastGUID(role protocol.Role, guid []byte) bool {
 	// look internal/guid/guid.go
@@ -634,7 +637,7 @@ func (syncer *syncer) worker() {
 		}
 		// breadth-first search
 		for i := 0; i < syncer.retryTimes+1; i++ {
-			sClients = syncer.sClients()
+			sClients = syncer.syncerClients()
 			if len(sClients) == 0 {
 				return nil, protocol.ErrNoSyncerClients
 			}
@@ -849,7 +852,7 @@ func (syncer *syncer) worker() {
 				}
 				syncer.syncDone(ss.SenderRole, roleGUID)
 				// notice node to delete message
-				syncer.ctx.sender.syncReceive(ss.SenderRole, ss.SenderGUID, roleSend-1)
+				syncer.ctx.sender.SyncReceive(ss.SenderRole, ss.SenderGUID, roleSend-1)
 			case sub > 1: // get old message and need sync more message
 				syncer.addSyncTask(&protocol.SyncTask{
 					Role: ss.SenderRole,
@@ -917,6 +920,7 @@ func (syncer *syncer) worker() {
 			_ = base64Encoder.Close()
 			roleGUID = buffer.String()
 			if syncer.isSync(st.Role, roleGUID) {
+				syncer.blockDone()
 				continue
 			}
 			// set key
@@ -1032,7 +1036,7 @@ func (syncer *syncer) worker() {
 					}
 				}
 				// notice node to delete message
-				syncer.ctx.sender.syncReceive(st.Role, st.GUID, ctrlReceive)
+				syncer.ctx.sender.SyncReceive(st.Role, st.GUID, ctrlReceive)
 				select {
 				case <-syncer.stopSignal:
 					return
