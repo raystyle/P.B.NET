@@ -177,11 +177,6 @@ func (ctrl *CTRL) fatal(err error, msg string) error {
 	return err
 }
 
-// for Test wait for Main()
-func (ctrl *CTRL) Wait() {
-	<-ctrl.wait
-}
-
 func (ctrl *CTRL) Exit(err error) {
 	ctrl.once.Do(func() {
 		ctrl.web.Close()
@@ -251,4 +246,11 @@ func (ctrl *CTRL) deleteBeacon(guid []byte) {
 	ctrl.cache.DeleteBeacon(guidStr)
 	ctrl.sender.DeleteSyncSendM(protocol.Beacon, guidStr)
 	ctrl.syncer.DeleteSyncStatus(protocol.Beacon, guidStr)
+}
+
+// ------------------------------------test-------------------------------------
+
+// Wait is used to wait for Main()
+func (ctrl *CTRL) Wait() {
+	<-ctrl.wait
 }

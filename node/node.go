@@ -106,11 +106,6 @@ func (node *NODE) fatal(err error, msg string) error {
 	return err
 }
 
-// for Test wait for Main()
-func (node *NODE) Wait() {
-	<-node.wait
-}
-
 func (node *NODE) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Shutdown()
@@ -125,4 +120,15 @@ func (node *NODE) Exit(err error) {
 
 func (node *NODE) AddListener(l *config.Listener) error {
 	return node.server.AddListener(l)
+}
+
+// ------------------------------------test-------------------------------------
+
+// Wait is used to wait for Main()
+func (node *NODE) Wait() {
+	<-node.wait
+}
+
+func (node *NODE) SetCertificate(cert []byte) error {
+	return node.global.SetCertificate(cert)
 }
