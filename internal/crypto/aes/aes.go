@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	Bit128 = 16
-	Bit192 = 24
-	Bit256 = 32
-	IVSize = 16
+	Bit128    = 16
+	Bit192    = 24
+	Bit256    = 32
+	IVSize    = 16
+	BlockSize = 16
 )
 
 var (
