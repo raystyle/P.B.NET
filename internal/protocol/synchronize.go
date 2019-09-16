@@ -5,6 +5,7 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
+	"project/internal/crypto/sha256"
 	"project/internal/guid"
 )
 
@@ -41,6 +42,7 @@ type SyncSend struct {
 	GUID         []byte // prevent duplicate handle it
 	Height       uint64
 	Message      []byte // encrypted
+	Hash         []byte // raw message hash
 	SenderRole   Role
 	SenderGUID   []byte
 	ReceiverRole Role
@@ -54,6 +56,9 @@ func (ss *SyncSend) Validate() error {
 	}
 	if len(ss.Message) < aes.BlockSize {
 		return errors.New("invalid message size")
+	}
+	if len(ss.Hash) != sha256.Size {
+		return errors.New("invalid message hash size")
 	}
 	if ss.SenderRole > Beacon {
 		return errors.New("invalid sender role")
@@ -155,6 +160,7 @@ func (sq *SyncQuery) Validate() error {
 type SyncReply struct {
 	GUID      []byte // SyncSend.GUID
 	Message   []byte // SyncSend.Message
+	Hash      []byte // SyncSend.Hash
 	Signature []byte // SyncSend.Signature
 	Err       error
 }
@@ -166,6 +172,9 @@ func (sr *SyncReply) Validate() error {
 		}
 		if len(sr.Message) < aes.BlockSize {
 			return errors.New("invalid message size")
+		}
+		if len(sr.Hash) != sha256.Size {
+			return errors.New("invalid message hash size")
 		}
 		if len(sr.Signature) != ed25519.SignatureSize {
 			return errors.New("invalid signature size")

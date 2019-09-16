@@ -5,6 +5,10 @@ import (
 	"encoding/hex"
 )
 
+const (
+	Size = sha256.Size
+)
+
 // 32 byte
 func String(data []byte) string {
 	h := sha256.New()

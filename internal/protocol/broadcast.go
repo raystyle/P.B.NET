@@ -5,6 +5,7 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
+	"project/internal/crypto/sha256"
 	"project/internal/guid"
 )
 
@@ -34,6 +35,7 @@ var (
 type Broadcast struct {
 	GUID       []byte // prevent duplicate handle it
 	Message    []byte // encrypted
+	Hash       []byte // raw message hash
 	SenderRole Role
 	SenderGUID []byte
 	Signature  []byte
@@ -45,6 +47,9 @@ func (b *Broadcast) Validate() error {
 	}
 	if len(b.Message) < aes.BlockSize {
 		return errors.New("invalid message size")
+	}
+	if len(b.Hash) != sha256.Size {
+		return errors.New("invalid message hash size")
 	}
 	if b.SenderRole > Beacon {
 		return errors.New("invalid sender role")
