@@ -42,7 +42,7 @@ func testGenerateConfig(t *testing.T, isGenesis bool) *Config {
 		// controller configs
 		CtrlPublicKey:   testdata.CtrlED25519.PublicKey(),
 		CtrlExPublicKey: testdata.CtrlCurve25519,
-		CtrlAESCrypto:   testdata.CtrlAESKey,
+		CtrlAESCrypto:   testdata.CtrlBroadcastKey,
 
 		// register
 		IsGenesis:      isGenesis,

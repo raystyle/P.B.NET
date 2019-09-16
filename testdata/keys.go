@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	CtrlKeysPWD    = "123456789012"
-	CtrlED25519    ed25519.PrivateKey
-	CtrlCurve25519 []byte
-	CtrlAESKey     []byte
+	CtrlKeysPWD      = "123456789012"
+	CtrlED25519      ed25519.PrivateKey
+	CtrlCurve25519   []byte
+	CtrlBroadcastKey []byte // controller broadcast use it
 )
 
 func init() {
@@ -36,7 +36,7 @@ func init() {
 	}
 	CtrlCurve25519 = pub
 	// broadcast
-	CtrlAESKey = append(keys[1], keys[2]...)
+	CtrlBroadcastKey = append(keys[1], keys[2]...)
 }
 
 // from controller/keygen.go
