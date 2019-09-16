@@ -72,13 +72,13 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 		register[i].Config = configEnc
 	}
 	cfg.RegisterBootstraps = register
-	n, err := node.New(cfg)
+	NODE, err := node.New(cfg)
 	require.NoError(t, err)
 	go func() {
-		err := n.Main()
+		err := NODE.Main()
 		require.NoError(t, err)
 	}()
-	n.Wait()
+	NODE.TestWait()
 	// generate listener config
 	listenerCfg := config.Listener{
 		Tag:  "test_tls_listener",
@@ -99,8 +99,8 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 	// set config
 	listenerCfg.Config, err = toml.Marshal(&xnetCfg)
 	require.NoError(t, err)
-	require.NoError(t, n.AddListener(&listenerCfg))
-	return n
+	require.NoError(t, NODE.AddListener(&listenerCfg))
+	return NODE
 }
 
 func testGenerateClient(t require.TestingT) *client {
