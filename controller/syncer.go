@@ -832,6 +832,9 @@ func (syncer *syncer) worker() {
 			}
 			ss.Height += 1 // index -> height
 			// update role send
+
+			// TODO check node send height is bigger than older
+
 			switch ss.SenderRole {
 			case protocol.Beacon:
 				err = syncer.ctx.db.UpdateBSBeaconSend(ss.SenderGUID, ss.Height)
@@ -1000,7 +1003,6 @@ func (syncer *syncer) worker() {
 					b.SenderRole, b.SenderGUID)
 				continue
 			}
-
 			syncer.ctx.handleBroadcast(b.Message, b.SenderRole, b.SenderGUID)
 			// -----------------------handle sync task-------------------------
 		case st = <-syncer.syncTaskQueue:

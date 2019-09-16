@@ -70,13 +70,13 @@ func (ctrl *CTRL) handleNodeBroadcast(msg []byte, guid []byte) {
 				guid, msg[4:])
 			return
 		}
-		if ctrl.Debug.HandleBroadcastChan != nil {
-			ctrl.Debug.HandleBroadcastChan <- testMsg
+		if ctrl.Debug.NodeBroadcastChan != nil {
+			ctrl.Debug.NodeBroadcastChan <- testMsg
 		}
 		ctrl.handleLogf(logger.Debug, "node %X broadcast test message: %s",
 			guid, string(testMsg))
 	default:
-		ctrl.handleLogf(logger.Exploit, "node %X broadcast invalid message: %X",
+		ctrl.handleLogf(logger.Exploit, "node %X broadcast unknown message: %X",
 			guid, msg)
 	}
 }
@@ -99,7 +99,7 @@ func (ctrl *CTRL) handleBeaconBroadcast(msg []byte, guid []byte) {
 		ctrl.handleLogf(logger.Debug, "beacon %X broadcast test message: %s",
 			guid, string(msg[4:]))
 	default:
-		ctrl.handleLogf(logger.Exploit, "beacon %X broadcast invalid message: %X",
+		ctrl.handleLogf(logger.Exploit, "beacon %X broadcast unknown message: %X",
 			guid, msg)
 	}
 }
@@ -119,10 +119,20 @@ func (ctrl *CTRL) handleNodeMessage(msg []byte, guid []byte, height uint64) {
 	switch convert.BytesToUint32(msg[:4]) {
 
 	case messages.Test:
+		var testMsg []byte
+		err := msgpack.Unmarshal(msg[4:], &testMsg)
+		if err != nil {
+			ctrl.handleLogf(logger.Exploit, "node %X send invalid test message: %X",
+				guid, msg[4:])
+			return
+		}
+		if ctrl.Debug.NodeSyncSendChan != nil {
+			ctrl.Debug.NodeSyncSendChan <- testMsg
+		}
 		ctrl.handleLogf(logger.Debug, "node %X send test message: %s height: %d",
-			guid, string(msg[4:]), height)
+			guid, string(testMsg), height)
 	default:
-		ctrl.handleLogf(logger.Exploit, "node %X send invalid message: %X height: %d",
+		ctrl.handleLogf(logger.Exploit, "node %X send unknown message: %X height: %d",
 			guid, msg, height)
 	}
 }
@@ -145,7 +155,7 @@ func (ctrl *CTRL) handleBeaconMessage(msg []byte, guid []byte, height uint64) {
 		ctrl.handleLogf(logger.Debug, "beacon %X send test message: %s height: %d",
 			guid, string(msg[4:]), height)
 	default:
-		ctrl.handleLogf(logger.Exploit, "beacon %X send invalid message: %X height: %d",
+		ctrl.handleLogf(logger.Exploit, "beacon %X send unknown message: %X height: %d",
 			guid, msg, height)
 	}
 }

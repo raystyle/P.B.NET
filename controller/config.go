@@ -7,8 +7,9 @@ import (
 type Debug struct {
 	SkipTimeSyncer bool
 
-	// test Node Broadcast
-	HandleBroadcastChan chan []byte
+	// see handler.go
+	NodeBroadcastChan chan []byte // test Node broadcast
+	NodeSyncSendChan  chan []byte // test Node sync send
 }
 
 type Config struct {

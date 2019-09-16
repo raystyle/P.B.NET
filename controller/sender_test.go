@@ -2,7 +2,6 @@ package controller
 
 import (
 	"encoding/base64"
-	"fmt"
 	"testing"
 	"time"
 
@@ -30,15 +29,15 @@ func TestSender_Broadcast(t *testing.T) {
 	// connect
 	err = ctrl.syncer.Connect(&node, NODE.TestGUID())
 	require.NoError(t, err)
-	msg := []byte("hello controller")
 	// node broadcast test message
-	ctrl.Debug.HandleBroadcastChan = make(chan []byte, 1)
+	msg := []byte("ctrl-broadcast: hello node")
+	// TODO node syncer
+	ctrl.Debug.NodeBroadcastChan = make(chan []byte, 1)
 	result := NODE.TestBroadcast(msg)
 	require.NoError(t, result.Err)
 	require.Equal(t, 1, result.Success)
 	select {
-	case m := <-ctrl.Debug.HandleBroadcastChan:
-		fmt.Println(string(m))
+	case m := <-ctrl.Debug.NodeBroadcastChan:
 		require.Equal(t, msg, m)
 	case <-time.After(time.Second):
 		t.Fatal("receive broadcast message timeout")

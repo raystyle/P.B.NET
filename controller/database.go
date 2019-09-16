@@ -405,7 +405,7 @@ func (db *db) DeleteBeaconLog(id uint64) error {
 
 func (db *db) SelectNodeSyncer(guid []byte) (ns *nodeSyncer, err error) {
 	ns = db.ctx.cache.SelectNodeSyncer(guid)
-	if ns != nil {
+	if ns == nil {
 		return nil, errNoCache
 	}
 	return
