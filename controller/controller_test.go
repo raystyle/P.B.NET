@@ -44,7 +44,7 @@ func testInitCtrl(t require.TestingT) {
 			err := ctrl.Main()
 			require.NoError(t, err)
 		}()
-		ctrl.Wait()
+		ctrl.TestWait()
 	})
 }
 

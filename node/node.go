@@ -7,10 +7,12 @@ import (
 
 	"project/internal/config"
 	"project/internal/logger"
+	"project/internal/messages"
+	"project/internal/protocol"
 )
 
 type NODE struct {
-	debug  *Debug
+	Debug  *Debug
 	logLv  logger.Level
 	cache  *cache
 	db     *db
@@ -32,7 +34,7 @@ func New(cfg *Config) (*NODE, error) {
 	// copy debug config
 	debug := cfg.Debug
 	node := &NODE{
-		debug: &debug,
+		Debug: &debug,
 		logLv: lv,
 		cache: newCache(),
 	}
@@ -81,7 +83,7 @@ func New(cfg *Config) (*NODE, error) {
 func (node *NODE) Main() error {
 	defer func() { node.wait <- struct{}{} }()
 	// first synchronize time
-	if !node.debug.SkipTimeSyncer {
+	if !node.Debug.SkipTimeSyncer {
 		err := node.global.StartTimeSyncer()
 		if err != nil {
 			return node.fatal(err, "synchronize time failed")
@@ -124,11 +126,15 @@ func (node *NODE) AddListener(l *config.Listener) error {
 
 // ------------------------------------test-------------------------------------
 
-// Wait is used to wait for Main()
-func (node *NODE) Wait() {
+// TestWait is used to wait for Main()
+func (node *NODE) TestWait() {
 	<-node.wait
 }
 
-func (node *NODE) SetCertificate(cert []byte) error {
-	return node.global.SetCertificate(cert)
+func (node *NODE) TestGUID() []byte {
+	return node.global.GUID()
+}
+
+func (node *NODE) TestBroadcast(msg []byte) *protocol.BroadcastResult {
+	return node.sender.Broadcast(messages.TestB, msg)
 }

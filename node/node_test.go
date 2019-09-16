@@ -23,7 +23,7 @@ func testNode(t *testing.T, genesis bool) {
 		err = node.Main()
 		require.NoError(t, err)
 	}()
-	node.Wait()
+	node.TestWait()
 }
 
 func pprof() {

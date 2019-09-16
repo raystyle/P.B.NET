@@ -11,6 +11,9 @@ import (
 
 type Debug struct {
 	SkipTimeSyncer bool
+
+	// test sender
+	BroadcastChan chan []byte
 }
 
 type Config struct {

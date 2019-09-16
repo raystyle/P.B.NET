@@ -7,6 +7,7 @@ import (
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
+	"project/internal/bootstrap"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -19,7 +20,7 @@ const (
 )
 
 type CTRL struct {
-	debug  *Debug
+	Debug  *Debug
 	logLv  logger.Level
 	cache  *cache  // database cache
 	db     *db     // provide data and run db syncer
@@ -42,7 +43,7 @@ func New(cfg *Config) (*CTRL, error) {
 	// copy debug config
 	debug := cfg.Debug
 	ctrl := &CTRL{
-		debug: &debug,
+		Debug: &debug,
 		logLv: logLevel,
 		cache: newCache(),
 	}
@@ -136,7 +137,7 @@ func New(cfg *Config) (*CTRL, error) {
 func (ctrl *CTRL) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// first synchronize time
-	if !ctrl.debug.SkipTimeSyncer {
+	if !ctrl.Debug.SkipTimeSyncer {
 		err := ctrl.global.StartTimeSyncer()
 		if err != nil {
 			return ctrl.fatal(err, "synchronize time failed")
@@ -248,9 +249,13 @@ func (ctrl *CTRL) deleteBeacon(guid []byte) {
 	ctrl.syncer.DeleteSyncStatus(protocol.Beacon, guidStr)
 }
 
+func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {
+	return ctrl.syncer.Connect(node, guid)
+}
+
 // ------------------------------------test-------------------------------------
 
-// Wait is used to wait for Main()
-func (ctrl *CTRL) Wait() {
+// TestWait is used to wait for Main()
+func (ctrl *CTRL) TestWait() {
 	<-ctrl.wait
 }

@@ -6,6 +6,9 @@ import (
 
 type Debug struct {
 	SkipTimeSyncer bool
+
+	// test Node Broadcast
+	HandleBroadcastChan chan []byte
 }
 
 type Config struct {

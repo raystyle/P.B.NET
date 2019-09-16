@@ -61,6 +61,9 @@ func (ctrl *CTRL) handleNodeBroadcast(msg []byte, guid []byte) {
 	switch convert.BytesToUint32(msg[:4]) {
 
 	case messages.Test:
+		if ctrl.Debug.HandleBroadcastChan != nil {
+			ctrl.Debug.HandleBroadcastChan <- msg[4:]
+		}
 		ctrl.handleLogf(logger.Debug, "node %X broadcast test message: %s",
 			guid, string(msg[4:]))
 	default:
