@@ -193,13 +193,12 @@ func (sender *sender) logln(l logger.Level, log ...interface{}) {
 
 func (sender *sender) broadcastParallel(token, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
-	// if connect controller, first broadcast
+	// if connect controller, first send
 	ctrl := sender.ctx.syncer.CtrlConn()
 	if ctrl != nil {
 		br := ctrl.Broadcast(token, message)
 		if br.Err == nil {
 			success += 1
-			return
 		}
 	}
 	/*
@@ -237,6 +236,14 @@ func (sender *sender) broadcastParallel(token, message []byte) (
 
 func (sender *sender) syncSendParallel(token, message []byte) (
 	resp []*protocol.SyncResponse, success int) {
+	// if connect controller, first send
+	ctrl := sender.ctx.syncer.CtrlConn()
+	if ctrl != nil {
+		br := ctrl.SyncSend(token, message)
+		if br.Err == nil {
+			success += 1
+		}
+	}
 	/*
 		sClients := sender.ctx.syncer.sClients()
 		l := len(sClients)
@@ -271,6 +278,11 @@ func (sender *sender) syncSendParallel(token, message []byte) (
 }
 
 func (sender *sender) syncReceiveParallel(token, message []byte) {
+	// if connect controller, first send
+	ctrl := sender.ctx.syncer.CtrlConn()
+	if ctrl != nil {
+		ctrl.SyncReceive(token, message)
+	}
 	/*
 		sClients := sender.ctx.syncer.sClients()
 		l := len(sClients)

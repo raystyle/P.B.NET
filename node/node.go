@@ -138,3 +138,7 @@ func (node *NODE) TestGUID() []byte {
 func (node *NODE) TestBroadcast(msg []byte) *protocol.BroadcastResult {
 	return node.sender.Broadcast(messages.TestB, msg)
 }
+
+func (node *NODE) TestSend(msg []byte) *protocol.SyncResult {
+	return node.sender.Send(messages.TestB, msg)
+}
