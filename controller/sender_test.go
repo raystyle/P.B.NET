@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/base64"
+	"fmt"
 	"testing"
 	"time"
 
@@ -37,6 +38,7 @@ func TestSender_Broadcast(t *testing.T) {
 	require.Equal(t, 1, result.Success)
 	select {
 	case m := <-ctrl.Debug.HandleBroadcastChan:
+		fmt.Println(string(m))
 		require.Equal(t, msg, m)
 	case <-time.After(time.Second):
 		t.Fatal("receive broadcast message timeout")

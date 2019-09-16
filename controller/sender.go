@@ -495,8 +495,8 @@ func (sender *sender) worker() {
 					}
 					continue
 				}
-				aesKey = beacon.SessionKey[:aes.Bit256]
-				aesIV = beacon.SessionKey[aes.Bit256:]
+				aesKey = beacon.SessionKey
+				aesIV = beacon.SessionKey[:aes.IVSize]
 			case protocol.Node:
 				node, err = sender.ctx.db.SelectNode(sst.Target)
 				if err != nil {
@@ -506,8 +506,8 @@ func (sender *sender) worker() {
 					}
 					continue
 				}
-				aesKey = node.SessionKey[:aes.Bit256]
-				aesIV = node.SessionKey[aes.Bit256:]
+				aesKey = node.SessionKey
+				aesIV = node.SessionKey[:aes.IVSize]
 			default:
 				panic("invalid sst.Role")
 			}

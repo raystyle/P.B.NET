@@ -797,8 +797,8 @@ func (syncer *syncer) worker() {
 					continue
 				}
 				publicKey = beacon.PublicKey
-				aesKey = beacon.SessionKey[:aes.Bit256]
-				aesIV = beacon.SessionKey[aes.Bit256:]
+				aesKey = beacon.SessionKey
+				aesIV = beacon.SessionKey[:aes.IVSize]
 			case protocol.Node:
 				node, err = syncer.ctx.db.SelectNode(ss.SenderGUID)
 				if err != nil {
@@ -807,8 +807,8 @@ func (syncer *syncer) worker() {
 					continue
 				}
 				publicKey = node.PublicKey
-				aesKey = node.SessionKey[:aes.Bit256]
-				aesIV = node.SessionKey[aes.Bit256:]
+				aesKey = node.SessionKey
+				aesIV = node.SessionKey[:aes.IVSize]
 			default:
 				panic("invalid ss.SenderRole")
 			}
@@ -956,8 +956,8 @@ func (syncer *syncer) worker() {
 					continue
 				}
 				publicKey = beacon.PublicKey
-				aesKey = beacon.SessionKey[:aes.Bit256]
-				aesIV = beacon.SessionKey[aes.Bit256:]
+				aesKey = beacon.SessionKey
+				aesIV = beacon.SessionKey[:aes.IVSize]
 			case protocol.Node:
 				node, err = syncer.ctx.db.SelectNode(b.SenderGUID)
 				if err != nil {
@@ -966,8 +966,8 @@ func (syncer *syncer) worker() {
 					continue
 				}
 				publicKey = node.PublicKey
-				aesKey = node.SessionKey[:aes.Bit256]
-				aesIV = node.SessionKey[aes.Bit256:]
+				aesKey = node.SessionKey
+				aesIV = node.SessionKey[:aes.IVSize]
 			default:
 				panic("invalid b.SenderRole")
 			}
@@ -1000,6 +1000,7 @@ func (syncer *syncer) worker() {
 					b.SenderRole, b.SenderGUID)
 				continue
 			}
+
 			syncer.ctx.handleBroadcast(b.Message, b.SenderRole, b.SenderGUID)
 			// -----------------------handle sync task-------------------------
 		case st = <-syncer.syncTaskQueue:
@@ -1027,8 +1028,8 @@ func (syncer *syncer) worker() {
 					continue
 				}
 				publicKey = beacon.PublicKey
-				aesKey = beacon.SessionKey[:aes.Bit256]
-				aesIV = beacon.SessionKey[aes.Bit256:]
+				aesKey = beacon.SessionKey
+				aesIV = beacon.SessionKey[:aes.IVSize]
 			case protocol.Node:
 				node, err = syncer.ctx.db.SelectNode(st.GUID)
 				if err != nil {
@@ -1039,8 +1040,8 @@ func (syncer *syncer) worker() {
 					continue
 				}
 				publicKey = node.PublicKey
-				aesKey = node.SessionKey[:aes.Bit256]
-				aesIV = node.SessionKey[aes.Bit256:]
+				aesKey = node.SessionKey
+				aesIV = node.SessionKey[:aes.IVSize]
 			default: // <safe>
 				syncer.syncDone(st.Role, roleGUID)
 				syncer.blockDone()

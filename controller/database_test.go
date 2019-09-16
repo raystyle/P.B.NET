@@ -282,7 +282,7 @@ func TestInsertNode(t *testing.T) {
 	testInitCtrl(t)
 	node := &mNode{
 		GUID:       bytes.Repeat([]byte{52}, guid.Size),
-		SessionKey: bytes.Repeat([]byte{52}, aes.Bit256+aes.IVSize),
+		SessionKey: bytes.Repeat([]byte{52}, aes.Bit256),
 		PublicKey:  bytes.Repeat([]byte{52}, ed25519.PublicKeySize),
 	}
 	err := ctrl.db.db.Unscoped().Delete(node).Error

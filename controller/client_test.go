@@ -52,7 +52,7 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 		// controller configs
 		CtrlPublicKey:   testdata.CtrlED25519.PublicKey(),
 		CtrlExPublicKey: testdata.CtrlCurve25519,
-		CtrlAESCrypto:   testdata.CtrlAESKey,
+		CtrlAESCrypto:   testdata.CtrlBroadcastKey,
 
 		// register
 		IsGenesis:      genesis,

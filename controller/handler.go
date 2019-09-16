@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"github.com/vmihailenco/msgpack/v4"
+
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/messages"
@@ -61,11 +63,18 @@ func (ctrl *CTRL) handleNodeBroadcast(msg []byte, guid []byte) {
 	switch convert.BytesToUint32(msg[:4]) {
 
 	case messages.Test:
+		var testMsg []byte
+		err := msgpack.Unmarshal(msg[4:], &testMsg)
+		if err != nil {
+			ctrl.handleLogf(logger.Exploit, "node %X broadcast invalid test message: %X",
+				guid, msg[4:])
+			return
+		}
 		if ctrl.Debug.HandleBroadcastChan != nil {
-			ctrl.Debug.HandleBroadcastChan <- msg[4:]
+			ctrl.Debug.HandleBroadcastChan <- testMsg
 		}
 		ctrl.handleLogf(logger.Debug, "node %X broadcast test message: %s",
-			guid, string(msg[4:]))
+			guid, string(testMsg))
 	default:
 		ctrl.handleLogf(logger.Exploit, "node %X broadcast invalid message: %X",
 			guid, msg)
