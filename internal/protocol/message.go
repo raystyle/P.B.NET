@@ -56,13 +56,15 @@ func init() {
 	}
 }
 
+// Slot is used to handle message async
 type Slot struct {
 	Available chan struct{}
 	Reply     chan []byte
 	Timer     *time.Timer // receive reply timeout
 }
 
-// msg_handler receive message = message type(4 byte) + message
+// HandleConn is used to handle message,
+// msgHandler receive message = cmd(1 byte) + other data
 func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 	const (
 		// if data buffer bufSize > this, new buffer

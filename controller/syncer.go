@@ -39,7 +39,7 @@ type syncer struct {
 	syncSendQueue      chan *protocol.SyncSend
 	syncSendGUID       [2]map[string]int64
 	syncSendGUIDRWM    [2]sync.RWMutex
-	syncReceiveQueue   chan *protocol.SyncReceive
+	syncReceiveQueue   chan *protocol.SyncRecv
 	syncReceiveGUID    [2]map[string]int64
 	syncReceiveGUIDRWM [2]sync.RWMutex
 	// -------------------handle sync task------------------------
@@ -96,7 +96,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		broadcastTimeout: cfg.BroadcastTimeout.Seconds(),
 		broadcastQueue:   make(chan *protocol.Broadcast, cfg.SyncerQueueSize),
 		syncSendQueue:    make(chan *protocol.SyncSend, cfg.SyncerQueueSize),
-		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.SyncerQueueSize),
+		syncReceiveQueue: make(chan *protocol.SyncRecv, cfg.SyncerQueueSize),
 		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.SyncerQueueSize),
 		sClients:         make(map[string]*sClient),
 		stopSignal:       make(chan struct{}),
@@ -157,7 +157,7 @@ func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
 	syncer.ctx.Println(l, "syncer", log...)
 }
 
-func (syncer *syncer) syncerClients() map[string]*sClient {
+func (syncer *syncer) SyncerClients() map[string]*sClient {
 	syncer.sClientsRWM.RLock()
 	l := len(syncer.sClients)
 	if l == 0 {
@@ -222,7 +222,7 @@ func (syncer *syncer) watcher() {
 }
 
 // task from syncer client
-func (syncer *syncer) addBroadcast(br *protocol.Broadcast) {
+func (syncer *syncer) AddBroadcast(br *protocol.Broadcast) {
 	if len(syncer.broadcastQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
 			select {
@@ -239,7 +239,7 @@ func (syncer *syncer) addBroadcast(br *protocol.Broadcast) {
 }
 
 // task from syncer client
-func (syncer *syncer) addSyncSend(ss *protocol.SyncSend) {
+func (syncer *syncer) AddSyncSend(ss *protocol.SyncSend) {
 	if len(syncer.syncSendQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
 			select {
@@ -256,7 +256,7 @@ func (syncer *syncer) addSyncSend(ss *protocol.SyncSend) {
 }
 
 // task from syncer client
-func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
+func (syncer *syncer) AddSyncReceive(sr *protocol.SyncRecv) {
 	if len(syncer.syncReceiveQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
 			select {
@@ -599,7 +599,7 @@ func (syncer *syncer) worker() {
 		// task
 		b  *protocol.Broadcast
 		ss *protocol.SyncSend
-		sr *protocol.SyncReceive
+		sr *protocol.SyncRecv
 		st *protocol.SyncTask
 
 		// key
@@ -621,7 +621,7 @@ func (syncer *syncer) worker() {
 		err            error
 	)
 	// init buffer
-	// protocol.SyncReceive buffer cap = guid.Size + 8 + 1 + guid.Size
+	// protocol.SyncRecv buffer cap = guid.Size + 8 + 1 + guid.Size
 	minBufferSize := 2*guid.Size + 9
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
 	msgpackEncoder := msgpack.NewEncoder(buffer)
@@ -629,29 +629,29 @@ func (syncer *syncer) worker() {
 	syncQuery := &protocol.SyncQuery{}
 	syncReply := &protocol.SyncReply{}
 	// query is used to query message by index
-	query := func() (*protocol.SyncReply, error) {
+	// breadth-first search
+	queryBeaconMessage := func() (*protocol.SyncReply, error) {
 		buffer.Reset()
 		err = msgpackEncoder.Encode(syncQuery)
 		if err != nil {
 			return nil, err
 		}
-		// breadth-first search
+		syncQueryBytes = buffer.Bytes()
 		for i := 0; i < syncer.retryTimes+1; i++ {
-			sClients = syncer.syncerClients()
+			sClients = syncer.SyncerClients()
 			if len(sClients) == 0 {
 				return nil, protocol.ErrNoSyncerClients
 			}
-			syncQueryBytes = buffer.Bytes()
 			for _, sClient = range sClients {
-				syncReply, err = sClient.QueryMessage(syncQueryBytes)
+				syncReply, err = sClient.QueryBeaconMessage(syncQueryBytes)
 				if err != nil {
-					syncer.logln(logger.Warning, "query message failed:", err)
+					syncer.logln(logger.Warning, "query beacon message failed:", err)
 					continue
 				}
 				if syncReply.Err == nil {
 					return syncReply, nil
 				} else {
-					syncer.logln(logger.Warning, "query message with error:", syncReply.Err)
+					syncer.logln(logger.Warning, "query beacon message with error:", syncReply.Err)
 				}
 				select {
 				case <-syncer.stopSignal:
@@ -666,7 +666,45 @@ func (syncer *syncer) worker() {
 			}
 			time.Sleep(syncer.retryInterval)
 		}
-		return nil, protocol.ErrNoMessage
+		return nil, protocol.ErrNotExistMessage
+	}
+	queryNodeMessage := func() (*protocol.SyncReply, error) {
+		buffer.Reset()
+		err = msgpackEncoder.Encode(syncQuery)
+		if err != nil {
+			return nil, err
+		}
+		syncQueryBytes = buffer.Bytes()
+		for i := 0; i < syncer.retryTimes+1; i++ {
+			sClients = syncer.SyncerClients()
+			if len(sClients) == 0 {
+				return nil, protocol.ErrNoSyncerClients
+			}
+			for _, sClient = range sClients {
+				syncReply, err = sClient.QueryNodeMessage(syncQueryBytes)
+				if err != nil {
+					syncer.logln(logger.Warning, "query node message failed:", err)
+					continue
+				}
+				if syncReply.Err == nil {
+					return syncReply, nil
+				} else {
+					syncer.logln(logger.Warning, "query node message with error:", syncReply.Err)
+				}
+				select {
+				case <-syncer.stopSignal:
+					return nil, protocol.ErrWorkerStopped
+				default:
+				}
+			}
+			select {
+			case <-syncer.stopSignal:
+				return nil, protocol.ErrWorkerStopped
+			default:
+			}
+			time.Sleep(syncer.retryInterval)
+		}
+		return nil, protocol.ErrNotExistMessage
 	}
 	// start handle
 	for {
@@ -678,55 +716,57 @@ func (syncer *syncer) worker() {
 		// ----------------------handle sync receive-----------------------
 		case sr = <-syncer.syncReceiveQueue:
 			// check role and set key
-			switch sr.ReceiverRole {
+			switch sr.Role {
 			case protocol.Beacon:
-				beacon, err = syncer.ctx.db.SelectBeacon(sr.ReceiverGUID)
+				beacon, err = syncer.ctx.db.SelectBeacon(sr.RoleGUID)
 				if err != nil {
 					syncer.logf(logger.Warning, "select beacon %X failed %s",
-						sr.ReceiverGUID, err)
+						sr.RoleGUID, err)
 					continue
 				}
 				publicKey = beacon.PublicKey
 			case protocol.Node:
-				node, err = syncer.ctx.db.SelectNode(sr.ReceiverGUID)
+				node, err = syncer.ctx.db.SelectNode(sr.RoleGUID)
 				if err != nil {
 					syncer.logf(logger.Warning, "select node %X failed %s",
-						sr.ReceiverGUID, err)
+						sr.RoleGUID, err)
 					continue
 				}
 				publicKey = node.PublicKey
 			default:
-				panic("invalid sr.ReceiverRole")
+				panic("invalid sr.Role")
 			}
 			// must first verify
 			buffer.Reset()
 			buffer.Write(sr.GUID)
 			buffer.Write(convert.Uint64ToBytes(sr.Height))
-			buffer.WriteByte(sr.ReceiverRole.Byte())
-			buffer.Write(sr.ReceiverGUID)
+			buffer.WriteByte(sr.Role.Byte())
+			buffer.Write(sr.RoleGUID)
 			if !ed25519.Verify(publicKey, buffer.Bytes(), sr.Signature) {
 				syncer.logf(logger.Exploit, "invalid sync receive signature %s guid: %X",
-					sr.ReceiverRole, sr.ReceiverGUID)
+					sr.Role, sr.RoleGUID)
 				continue
 			}
-			if !syncer.checkSyncReceiveGUID(sr.ReceiverRole, sr.GUID) {
+			if !syncer.checkSyncReceiveGUID(sr.Role, sr.GUID) {
 				continue
 			}
 			sr.Height += 1
 			// update role receive
-			switch sr.ReceiverRole {
+			switch sr.Role {
 			case protocol.Beacon:
-				err = syncer.ctx.db.UpdateBSBeaconReceive(sr.ReceiverGUID, sr.Height)
+				err = syncer.ctx.db.UpdateBSBeaconReceive(sr.RoleGUID, sr.Height)
 				if err != nil {
 					syncer.logf(logger.Warning, "update %X beacon receive failed %s",
-						sr.ReceiverGUID, err)
+						sr.RoleGUID, err)
 				}
 			case protocol.Node:
-				err = syncer.ctx.db.UpdateNSNodeReceive(sr.ReceiverGUID, sr.Height)
+				err = syncer.ctx.db.UpdateNSNodeReceive(sr.RoleGUID, sr.Height)
 				if err != nil {
 					syncer.logf(logger.Warning, "update %X node receive failed %s",
-						sr.ReceiverGUID, err)
+						sr.RoleGUID, err)
 				}
+			default:
+				panic("invalid sr.Role")
 			}
 		// -----------------------handle sync send-------------------------
 		case ss = <-syncer.syncSendQueue:
@@ -783,6 +823,8 @@ func (syncer *syncer) worker() {
 				err = syncer.ctx.db.UpdateNSNodeSend(ss.SenderGUID, ss.Height)
 				syncer.logf(logger.Warning, "update %X node send failed %s",
 					ss.SenderGUID, err)
+			default:
+				panic("invalid ss.SenderRole")
 			}
 			// lock role
 			buffer.Reset()
@@ -820,6 +862,8 @@ func (syncer *syncer) worker() {
 				roleSend = nodeSyncer.NodeSend
 				ctrlReceive = nodeSyncer.CtrlRecv
 				nodeSyncer.RUnlock()
+			default:
+				panic("invalid ss.SenderRole")
 			}
 			// check height
 			sub := roleSend - ctrlReceive
@@ -849,6 +893,8 @@ func (syncer *syncer) worker() {
 						syncer.logf(logger.Warning, "update node syncer %X ctrl send failed %s",
 							ss.SenderGUID, err)
 					}
+				default:
+					panic("invalid ss.SenderRole")
 				}
 				syncer.syncDone(ss.SenderRole, roleGUID)
 				// notice node to delete message
@@ -893,7 +939,6 @@ func (syncer *syncer) worker() {
 			buffer.Write(b.Message)
 			buffer.WriteByte(b.SenderRole.Byte())
 			buffer.Write(b.SenderGUID)
-			buffer.WriteByte(b.ReceiverRole.Byte())
 			if !ed25519.Verify(publicKey, buffer.Bytes(), b.Signature) {
 				syncer.logf(logger.Exploit, "invalid broadcast signature %s guid: %X",
 					b.SenderRole, b.SenderGUID)
@@ -952,7 +997,7 @@ func (syncer *syncer) worker() {
 			default: // <safe>
 				syncer.syncDone(st.Role, roleGUID)
 				syncer.blockDone()
-				panic("invalid st.SenderRole")
+				panic("invalid st.Role")
 			}
 			// sync message loop
 		syncLoop:
@@ -976,18 +1021,31 @@ func (syncer *syncer) worker() {
 					}
 					roleSend = nodeSyncer.NodeSend
 					ctrlReceive = nodeSyncer.CtrlRecv
+				default: // <safe>
+					syncer.syncDone(st.Role, roleGUID)
+					syncer.blockDone()
+					panic("invalid st.Role")
 				}
 				// don't need sync
 				if roleSend <= ctrlReceive {
 					break
 				}
-				syncQuery.Role = st.Role
 				syncQuery.GUID = st.GUID
 				syncQuery.Index = ctrlReceive
-				syncReply, err = query()
+
+				switch st.Role {
+				case protocol.Beacon:
+					syncReply, err = queryBeaconMessage()
+				case protocol.Node:
+					syncReply, err = queryNodeMessage()
+				default: // <safe>
+					syncer.syncDone(st.Role, roleGUID)
+					syncer.blockDone()
+					panic("invalid st.Role")
+				}
 				switch err {
 				case nil:
-					// verify  // see protocol.SyncSend
+					// verify  // see internal/protocol.SyncSend
 					buffer.Reset()
 					buffer.Write(syncReply.GUID)
 					buffer.Write(convert.Uint64ToBytes(ctrlReceive))
@@ -1010,7 +1068,7 @@ func (syncer *syncer) worker() {
 				case protocol.ErrNoSyncerClients:
 					syncer.log(logger.Warning, err)
 					break syncLoop
-				case protocol.ErrNoMessage:
+				case protocol.ErrNotExistMessage:
 					syncer.logf(logger.Error, "%s guid: %X index: %d %s",
 						st.Role, st.GUID, ctrlReceive, err)
 				case protocol.ErrWorkerStopped:
@@ -1034,6 +1092,10 @@ func (syncer *syncer) worker() {
 						syncer.logf(logger.Error, "%s guid: %X %s", st.Role, st.GUID, err)
 						break syncLoop
 					}
+				default: // <safe>
+					syncer.syncDone(st.Role, roleGUID)
+					syncer.blockDone()
+					panic("invalid st.Role")
 				}
 				// notice node to delete message
 				syncer.ctx.sender.SyncReceive(st.Role, st.GUID, ctrlReceive)

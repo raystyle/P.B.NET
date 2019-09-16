@@ -22,12 +22,12 @@ func GenerateCtrlKeys(path, password string) error {
 	if len(password) < 12 {
 		return errors.New("password is too short")
 	}
-	// generate ed25519 private key
+	// generate ed25519 private key(for sign message)
 	privateKey, err := ed25519.GenerateKey()
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	// generate aes key & iv
+	// generate aes key & iv(for broadcast message)
 	aesKey := random.Bytes(aes.Bit256)
 	aesIV := random.Bytes(aes.IVSize)
 	buffer := new(bytes.Buffer)

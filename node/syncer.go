@@ -33,7 +33,7 @@ type syncer struct {
 	syncSendQueue      chan *protocol.SyncSend
 	syncSendGUID       [3]map[string]int64
 	syncSendGUIDRWM    [3]sync.RWMutex
-	syncReceiveQueue   chan *protocol.SyncReceive
+	syncReceiveQueue   chan *protocol.SyncRecv
 	syncReceiveGUID    [3]map[string]int64
 	syncReceiveGUIDRWM [3]sync.RWMutex
 	// -------------------handle sync task------------------------
@@ -92,7 +92,7 @@ func newSyncer(ctx *NODE, cfg *Config) (*syncer, error) {
 		broadcastTimeout: cfg.BroadcastTimeout.Seconds(),
 		broadcastQueue:   make(chan *protocol.Broadcast, cfg.SyncerQueueSize),
 		syncSendQueue:    make(chan *protocol.SyncSend, cfg.SyncerQueueSize),
-		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.SyncerQueueSize),
+		syncReceiveQueue: make(chan *protocol.SyncRecv, cfg.SyncerQueueSize),
 		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.SyncerQueueSize),
 		sClients:         make(map[string]*sClient),
 		nodeConns:        make(map[string]*nodeConn),
@@ -247,7 +247,7 @@ func (syncer *syncer) addSyncSend(ss *protocol.SyncSend) {
 }
 
 // task from syncer client
-func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
+func (syncer *syncer) addSyncReceive(sr *protocol.SyncRecv) {
 	if len(syncer.syncReceiveQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
 			select {

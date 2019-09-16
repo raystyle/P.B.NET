@@ -208,7 +208,7 @@ func (sender *sender) SendPlugin(
 	return
 }
 
-// SyncReceive is used to sync controller receive
+// SyncRecv is used to sync controller receive
 // notice node to delete message about Node or Beacon
 // only for syncer.worker()
 func (sender *sender) SyncReceive(
@@ -242,7 +242,7 @@ func (sender *sender) logln(l logger.Level, log ...interface{}) {
 
 func (sender *sender) broadcastParallel(token, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
-	sClients := sender.ctx.syncer.syncerClients()
+	sClients := sender.ctx.syncer.SyncerClients()
 	l := len(sClients)
 	if l == 0 {
 		return nil, 0
@@ -274,7 +274,7 @@ func (sender *sender) broadcastParallel(token, message []byte) (
 
 func (sender *sender) syncSendParallel(token, message []byte) (
 	resp []*protocol.SyncResponse, success int) {
-	sClients := sender.ctx.syncer.syncerClients()
+	sClients := sender.ctx.syncer.SyncerClients()
 	l := len(sClients)
 	if l == 0 {
 		return nil, 0
@@ -305,7 +305,7 @@ func (sender *sender) syncSendParallel(token, message []byte) (
 }
 
 func (sender *sender) syncReceiveParallel(token, message []byte) {
-	sClients := sender.ctx.syncer.syncerClients()
+	sClients := sender.ctx.syncer.SyncerClients()
 	l := len(sClients)
 	if l == 0 {
 		return
@@ -316,7 +316,7 @@ func (sender *sender) syncReceiveParallel(token, message []byte) {
 	// sync receive parallel
 	for _, sc := range sClients {
 		go func(s *sClient) {
-			s.SyncSend(token, msg)
+			s.SyncReceive(token, msg)
 		}(sc)
 	}
 }
@@ -416,15 +416,14 @@ func (sender *sender) worker() {
 	base64Encoder := base64.NewEncoder(base64.StdEncoding, buffer)
 	// prepare task objects
 	preB := &protocol.Broadcast{
-		SenderRole:   protocol.Ctrl,
-		SenderGUID:   protocol.CtrlGUID,
-		ReceiverRole: protocol.Node,
+		SenderRole: protocol.Ctrl,
+		SenderGUID: protocol.CtrlGUID,
 	}
 	preSS := &protocol.SyncSend{
 		SenderRole: protocol.Ctrl,
 		SenderGUID: protocol.CtrlGUID,
 	}
-	preSR := &protocol.SyncReceive{}
+	preSR := &protocol.SyncRecv{}
 	// start handle task
 	for {
 		// check buffer capacity
@@ -440,14 +439,14 @@ func (sender *sender) worker() {
 			}
 			preSR.GUID = sender.guid.Get()
 			preSR.Height = srt.Height
-			preSR.ReceiverRole = srt.Role
-			preSR.ReceiverGUID = srt.GUID
+			preSR.Role = srt.Role
+			preSR.RoleGUID = srt.GUID
 			// sign
 			buffer.Reset()
 			buffer.Write(preSR.GUID)
 			buffer.Write(convert.Uint64ToBytes(preSR.Height))
-			buffer.WriteByte(preSR.ReceiverRole.Byte())
-			buffer.Write(preSR.ReceiverGUID)
+			buffer.WriteByte(preSR.Role.Byte())
+			buffer.Write(preSR.RoleGUID)
 			preSR.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack syncReceive & token
 			buffer.Reset()
@@ -507,6 +506,8 @@ func (sender *sender) worker() {
 				}
 				aesKey = node.SessionKey[:aes.Bit256]
 				aesIV = node.SessionKey[aes.Bit256:]
+			default:
+				panic("invalid sst.Role")
 			}
 			preSS.Message, err = aes.CBCEncrypt(sst.Message, aesKey, aesIV)
 			if err != nil {
@@ -551,6 +552,9 @@ func (sender *sender) worker() {
 				nodeSyncer.RLock()
 				preSS.Height = nodeSyncer.CtrlSend
 				nodeSyncer.RUnlock()
+			default:
+				sender.unlockRole(sst.Role, roleGUID)
+				panic("invalid sst.Role")
 			}
 			// sign
 			buffer.Reset()
@@ -580,6 +584,9 @@ func (sender *sender) worker() {
 				err = sender.ctx.db.UpdateBSCtrlSend(sst.Target, preSS.Height+1)
 			case protocol.Node:
 				err = sender.ctx.db.UpdateNSCtrlSend(sst.Target, preSS.Height+1)
+			default:
+				sender.unlockRole(sst.Role, roleGUID)
+				panic("invalid sst.Role")
 			}
 			if err != nil {
 				sender.unlockRole(sst.Role, roleGUID)
@@ -602,6 +609,9 @@ func (sender *sender) worker() {
 					err = sender.ctx.db.UpdateBSCtrlSend(sst.Target, preSS.Height)
 				case protocol.Node:
 					err = sender.ctx.db.UpdateNSCtrlSend(sst.Target, preSS.Height)
+				default:
+					sender.unlockRole(sst.Role, roleGUID)
+					panic("invalid sst.Role")
 				}
 				if err != nil {
 					sender.unlockRole(sst.Role, roleGUID)
@@ -647,7 +657,6 @@ func (sender *sender) worker() {
 			buffer.Write(preB.Message)
 			buffer.WriteByte(preB.SenderRole.Byte())
 			buffer.Write(preB.SenderGUID)
-			buffer.WriteByte(preB.ReceiverRole.Byte())
 			preB.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack broadcast & token
 			buffer.Reset()

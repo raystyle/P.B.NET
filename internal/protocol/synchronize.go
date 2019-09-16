@@ -8,8 +8,8 @@ import (
 	"project/internal/guid"
 )
 
-// syncXXXX first send message token
-// if don't handled send total message
+// SyncSend and SyncRecv first send message token,
+// if don't handled send total message.
 // token = role + guid
 
 var (
@@ -76,20 +76,20 @@ func (ss *SyncSend) Validate() error {
 	return nil
 }
 
-// SyncRoleReceive is used to synchronize node_receive,
+// SyncRecv is used to synchronize node_receive,
 // beacon_receive, controller_receive, (look database tables)
 // all roles will use it.
 //
 // When Ctrl send message to Node or Beacon, and they receive it,
-// they will send SyncRoleReceive to they connected Nodes,
+// they will send SyncRecv to they connected Nodes,
 // Node will delete corresponding controller send message.
 //
 // When Node or Beacon send message to Ctrl, and Ctrl receive it,
-// Ctrl will send SyncRoleReceive to they connected Nodes,
+// Ctrl will send SyncRecv to they connected Nodes,
 // Node will delete corresponding role send message.
 //
 // Signature = SenderRole.Sign(GUID + Height + Role + RoleGUID)
-type SyncRoleReceive struct {
+type SyncRecv struct {
 	GUID      []byte // prevent duplicate handle it
 	Height    uint64
 	Role      Role
@@ -97,7 +97,7 @@ type SyncRoleReceive struct {
 	Signature []byte
 }
 
-func (srr *SyncRoleReceive) Validate() error {
+func (srr *SyncRecv) Validate() error {
 	if len(srr.GUID) != guid.Size {
 		return errors.New("invalid GUID size")
 	}
@@ -113,7 +113,7 @@ func (srr *SyncRoleReceive) Validate() error {
 	return nil
 }
 
-// SyncResponse is use to get synchronize response
+// SyncResponse is use to get synchronize response.
 // Role is the receiver role that sender connect it
 // if one node connect controller and a node.
 // When node send to controller, Role is Ctrl.
@@ -124,7 +124,7 @@ type SyncResponse struct {
 	Err  error
 }
 
-// SyncResult is use to get synchronize result
+// SyncResult is use to get synchronize result.
 // it include all SyncResponse
 type SyncResult struct {
 	Success  int
@@ -134,7 +134,7 @@ type SyncResult struct {
 
 // ---------------------active synchronize message----------------------
 
-// SyncQuery is used to query message from role
+// SyncQuery is used to query message from role.
 // When Ctrl use it, it can query messages sent to Ctrl by roles.
 // When Node use it, it can query all messages,
 // Ctrl <-> Node, Ctrl <-> Beacon
@@ -151,7 +151,7 @@ func (sq *SyncQuery) Validate() error {
 	return nil
 }
 
-// SyncReply is the reply of SyncQuery
+// SyncReply is the reply of SyncQuery.
 type SyncReply struct {
 	GUID      []byte // SyncSend.GUID
 	Message   []byte // SyncSend.Message
@@ -175,7 +175,7 @@ func (sr *SyncReply) Validate() error {
 }
 
 // SyncTask is used to tell syncer.worker to
-// synchronize message actively
+// synchronize message actively.
 type SyncTask struct {
 	Role Role
 	GUID []byte

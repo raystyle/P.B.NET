@@ -10,13 +10,14 @@ const (
 	CtrlHeartbeat uint8 = 0x00 + iota
 	CtrlReply
 	CtrlSyncStart
-	CtrlSyncQuery
 	CtrlBroadcastToken
 	CtrlBroadcast
 	CtrlSyncSendToken
 	CtrlSyncSend
 	CtrlSyncRecvToken
 	CtrlSyncRecv
+	CtrlSyncQueryNode
+	CtrlSyncQueryBeacon
 )
 
 // trust node

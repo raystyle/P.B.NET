@@ -49,8 +49,8 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "receive sync start response failed")
 	}
-	if !bytes.Equal(resp, []byte{protocol.CtrlSyncStart}) {
-		err = errors.WithMessage(err, "invalid sync start response")
+	if !bytes.Equal(resp, []byte{protocol.NodeSyncStart}) {
+		err = errors.Errorf("invalid sync start response: %s", string(resp))
 		sc.log(logger.Exploit, err)
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (sc *sClient) SyncSend(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-// SyncReceive is used to notice node clean the message
+// SyncRecv is used to notice node clean the message
 func (sc *sClient) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Node
@@ -137,20 +137,31 @@ func (sc *sClient) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-func (sc *sClient) QueryMessage(request []byte) (*protocol.SyncReply, error) {
-	reply, err := sc.client.Send(protocol.CtrlSyncQuery, request)
+func (sc *sClient) QueryNodeMessage(request []byte) (*protocol.SyncReply, error) {
+	reply, err := sc.client.Send(protocol.CtrlSyncQueryNode, request)
 	if err != nil {
 		return nil, err
 	}
+	return sc.handleQueryReply(reply)
+}
+
+func (sc *sClient) QueryBeaconMessage(request []byte) (*protocol.SyncReply, error) {
+	reply, err := sc.client.Send(protocol.CtrlSyncQueryBeacon, request)
+	if err != nil {
+		return nil, err
+	}
+	return sc.handleQueryReply(reply)
+}
+
+func (sc *sClient) handleQueryReply(reply []byte) (*protocol.SyncReply, error) {
 	sr := protocol.SyncReply{}
-	err = msgpack.Unmarshal(reply, &sr)
+	err := msgpack.Unmarshal(reply, &sr)
 	if err != nil {
 		err = errors.Wrap(err, "invalid sync reply msgpack data")
 		sc.log(logger.Exploit, err)
 		sc.Close()
 		return nil, err
 	}
-	// TODO more validate
 	err = sr.Validate()
 	if err != nil {
 		err = errors.Wrap(err, "invalid sync reply")
@@ -319,12 +330,7 @@ func (sc *sClient) handleBroadcast(id, message []byte) {
 		sc.Close()
 		return
 	}
-	if br.ReceiverRole != protocol.Ctrl {
-		sc.logf(logger.Exploit, "invalid broadcast receiver role\n%s", spew.Sdump(br))
-		sc.Close()
-		return
-	}
-	sc.ctx.addBroadcast(&br)
+	sc.ctx.AddBroadcast(&br)
 	sc.client.Reply(id, protocol.BroadcastSucceed)
 }
 
@@ -357,13 +363,13 @@ func (sc *sClient) handleSyncSend(id, message []byte) {
 		sc.Close()
 		return
 	}
-	sc.ctx.addSyncSend(&ss)
+	sc.ctx.AddSyncSend(&ss)
 	sc.client.Reply(id, protocol.SyncSucceed)
 }
 
-// notice controller, role received this height message
+// notice controller role receive height
 func (sc *sClient) handleSyncReceive(id, message []byte) {
-	sr := protocol.SyncReceive{}
+	sr := protocol.SyncRecv{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
 		sc.logln(logger.Exploit, "invalid sync receive msgpack data:", err)
@@ -376,11 +382,11 @@ func (sc *sClient) handleSyncReceive(id, message []byte) {
 		sc.Close()
 		return
 	}
-	if sr.ReceiverRole != protocol.Node && sr.ReceiverRole != protocol.Beacon {
+	if sr.Role != protocol.Node && sr.Role != protocol.Beacon {
 		sc.logf(logger.Exploit, "invalid sync receive receiver role\n%s", spew.Sdump(sr))
 		sc.Close()
 		return
 	}
-	sc.ctx.addSyncReceive(&sr)
+	sc.ctx.AddSyncReceive(&sr)
 	sc.client.Reply(id, protocol.SyncSucceed)
 }

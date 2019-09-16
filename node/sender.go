@@ -166,7 +166,7 @@ func (sender *sender) SendPlugin(
 	return
 }
 
-// SyncReceive is used to sync node receive(controller send)
+// SyncRecv is used to sync node receive(controller send)
 // notice node to delete message
 // only for syncer.worker()
 func (sender *sender) SyncReceive(height uint64) {
@@ -281,7 +281,7 @@ func (sender *sender) syncReceiveParallel(token, message []byte) {
 		// sync receive parallel
 		for _, sc := range sClients {
 			go func(s *sClient) {
-				s.SyncSend(token, msg)
+				s.SyncReceive(token, msg)
 			}(sc)
 		}
 	*/
@@ -316,9 +316,8 @@ func (sender *sender) worker() {
 	msgpackEncoder := msgpack.NewEncoder(buffer)
 	// prepare task objects
 	preB := &protocol.Broadcast{
-		SenderRole:   protocol.Node,
-		SenderGUID:   sender.ctx.global.GUID(),
-		ReceiverRole: protocol.Ctrl,
+		SenderRole: protocol.Node,
+		SenderGUID: sender.ctx.global.GUID(),
 	}
 	preSS := &protocol.SyncSend{
 		SenderRole:   protocol.Node,
@@ -326,9 +325,9 @@ func (sender *sender) worker() {
 		ReceiverRole: protocol.Ctrl,
 		ReceiverGUID: protocol.CtrlGUID,
 	}
-	preSR := &protocol.SyncReceive{
-		ReceiverRole: protocol.Node,
-		ReceiverGUID: sender.ctx.global.GUID(),
+	preSR := &protocol.SyncRecv{
+		Role: protocol.Node,
+		GUID: sender.ctx.global.GUID(),
 	}
 	// start handle task
 	for {
@@ -345,8 +344,8 @@ func (sender *sender) worker() {
 			buffer.Reset()
 			buffer.Write(preSR.GUID)
 			buffer.Write(convert.Uint64ToBytes(preSR.Height))
-			buffer.WriteByte(preSR.ReceiverRole.Byte())
-			buffer.Write(preSR.ReceiverGUID)
+			buffer.WriteByte(preSR.Role.Byte())
+			buffer.Write(preSR.RoleGUID)
 			preSR.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack syncReceive & token
 			buffer.Reset()
@@ -454,7 +453,6 @@ func (sender *sender) worker() {
 			buffer.Write(preB.Message)
 			buffer.WriteByte(preB.SenderRole.Byte())
 			buffer.Write(preB.SenderGUID)
-			buffer.WriteByte(preB.ReceiverRole.Byte())
 			preB.Signature = sender.ctx.global.Sign(buffer.Bytes())
 			// pack broadcast & token
 			buffer.Reset()

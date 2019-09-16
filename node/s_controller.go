@@ -132,8 +132,10 @@ func (ctrl *ctrlConn) handleMessage(msg []byte) {
 		ctrl.handleBroadcastToken(msg[cmd:id], msg[id:])
 	case protocol.CtrlBroadcast:
 		ctrl.handleBroadcast(msg[cmd:id], msg[id:])
-	case protocol.CtrlSyncQuery:
-		ctrl.handleSyncQuery(msg[cmd:id], msg[id:])
+	case protocol.CtrlSyncQueryBeacon:
+		ctrl.handleSyncQueryBeacon(msg[cmd:id], msg[id:])
+	case protocol.CtrlSyncQueryNode:
+		ctrl.handleSyncQueryNode(msg[cmd:id], msg[id:])
 	// ---------------------------internal--------------------------------
 	case protocol.CtrlReply:
 		ctrl.handleReply(msg[cmd:])
@@ -334,7 +336,7 @@ func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-// SyncReceive is used to notice node clean the message
+// SyncRecv is used to notice node clean the message
 func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Ctrl
@@ -462,11 +464,6 @@ func (ctrl *ctrlConn) handleBroadcast(id, message []byte) {
 		ctrl.Close()
 		return
 	}
-	if br.ReceiverRole != protocol.Node {
-		ctrl.logf(logger.Exploit, "invalid broadcast receiver role\n%s", spew.Sdump(br))
-		ctrl.Close()
-		return
-	}
 	ctrl.ctx.syncer.addBroadcast(&br)
 	ctrl.reply(id, protocol.BroadcastSucceed)
 }
@@ -507,7 +504,7 @@ func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
 // notice node to delete message
 // TODO think more
 func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
-	sr := protocol.SyncReceive{}
+	sr := protocol.SyncRecv{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
 		ctrl.logln(logger.Exploit, "invalid sync receive msgpack data:", err)
@@ -520,7 +517,7 @@ func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
 		ctrl.Close()
 		return
 	}
-	if sr.ReceiverRole != protocol.Node && sr.ReceiverRole != protocol.Beacon {
+	if sr.Role != protocol.Node && sr.Role != protocol.Beacon {
 		ctrl.logf(logger.Exploit, "invalid sync receive receiver role\n%s", spew.Sdump(sr))
 		ctrl.Close()
 		return
@@ -529,7 +526,25 @@ func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
 	ctrl.reply(id, protocol.SyncSucceed)
 }
 
-func (ctrl *ctrlConn) handleSyncQuery(id, message []byte) {
+func (ctrl *ctrlConn) handleSyncQueryBeacon(id, message []byte) {
+	sr := protocol.SyncQuery{}
+	err := msgpack.Unmarshal(message, &sr)
+	if err != nil {
+		ctrl.logln(logger.Exploit, "invalid sync query msgpack data:", err)
+		ctrl.Close()
+		return
+	}
+	err = sr.Validate()
+	if err != nil {
+		ctrl.logf(logger.Exploit, "invalid sync query: %s\n%s", err, spew.Sdump(sr))
+		ctrl.Close()
+		return
+	}
+	// TODO reply
+	ctrl.reply(id, protocol.SyncSucceed)
+}
+
+func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
 	sr := protocol.SyncQuery{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
