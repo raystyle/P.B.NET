@@ -12,6 +12,7 @@ import (
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
+	"project/internal/crypto/sha256"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
@@ -43,7 +44,8 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 		rand:       random.New(server.ctx.global.Now().Unix()),
 		stopSignal: make(chan struct{}),
 	}
-	server.addCtrl(&ctrl)
+	tag := sha256.String([]byte(ctrl.Info().RemoteAddress))
+	server.addCtrl(tag, &ctrl)
 	ctrl.log(logger.Debug, "controller connected")
 	defer func() {
 		if r := recover(); r != nil {
@@ -51,7 +53,7 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 			ctrl.log(logger.Exploit, err)
 		}
 		ctrl.Close()
-		server.delCtrl("", &ctrl)
+		server.delCtrl(tag)
 		ctrl.log(logger.Debug, "controller disconnected")
 	}()
 	// init slot
@@ -366,6 +368,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 	if ctrl.ctx.syncer.SetCtrlConn(ctrl) {
 		ctrl.reply(id, []byte{protocol.NodeSyncStart})
+		ctrl.log(logger.Debug, "synchronizing")
 	} else {
 		ctrl.Close()
 	}

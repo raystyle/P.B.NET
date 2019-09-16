@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"sync"
 	"time"
@@ -414,6 +415,7 @@ func (sender *sender) worker() {
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
 	msgpackEncoder := msgpack.NewEncoder(buffer)
 	base64Encoder := base64.NewEncoder(base64.StdEncoding, buffer)
+	hash := sha256.New()
 	// prepare task objects
 	preB := &protocol.Broadcast{
 		SenderRole: protocol.Ctrl,
@@ -509,6 +511,11 @@ func (sender *sender) worker() {
 			default:
 				panic("invalid sst.Role")
 			}
+			// hash
+			hash.Reset()
+			hash.Write(sst.Message)
+			preSS.Hash = hash.Sum(nil)
+			// encrypt
 			preSS.Message, err = aes.CBCEncrypt(sst.Message, aesKey, aesIV)
 			if err != nil {
 				if sst.Result != nil {
@@ -561,6 +568,7 @@ func (sender *sender) worker() {
 			buffer.Write(preSS.GUID)
 			buffer.Write(convert.Uint64ToBytes(preSS.Height))
 			buffer.Write(preSS.Message)
+			buffer.Write(preSS.Hash)
 			buffer.WriteByte(preSS.SenderRole.Byte())
 			buffer.Write(preSS.SenderGUID)
 			buffer.WriteByte(preSS.ReceiverRole.Byte())
@@ -643,6 +651,11 @@ func (sender *sender) worker() {
 				}
 				bt.Message = append(bt.Command, buffer.Bytes()...)
 			}
+			// hash
+			hash.Reset()
+			hash.Write(bt.Message)
+			preB.Hash = hash.Sum(nil)
+			// encrypt
 			preB.Message, err = sender.ctx.global.Encrypt(bt.Message)
 			if err != nil {
 				if bt.Result != nil {
@@ -655,6 +668,7 @@ func (sender *sender) worker() {
 			buffer.Reset()
 			buffer.Write(preB.GUID)
 			buffer.Write(preB.Message)
+			buffer.Write(preB.Hash)
 			buffer.WriteByte(preB.SenderRole.Byte())
 			buffer.Write(preB.SenderGUID)
 			preB.Signature = sender.ctx.global.Sign(buffer.Bytes())

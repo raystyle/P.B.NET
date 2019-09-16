@@ -12,7 +12,6 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/config"
-	"project/internal/crypto/sha256"
 	"project/internal/logger"
 	"project/internal/options"
 	"project/internal/random"
@@ -259,9 +258,7 @@ func (server *server) delConn(tag string) {
 	server.connsRWM.Unlock()
 }
 
-func (server *server) addCtrl(ctrl *ctrlConn) {
-	data := sha256.Bytes([]byte(ctrl.Info().RemoteAddress))
-	tag := base64.StdEncoding.EncodeToString(data)
+func (server *server) addCtrl(tag string, ctrl *ctrlConn) {
 	server.ctrlsRWM.Lock()
 	if _, ok := server.ctrls[tag]; !ok {
 		server.ctrls[tag] = ctrl
@@ -269,11 +266,7 @@ func (server *server) addCtrl(ctrl *ctrlConn) {
 	server.ctrlsRWM.Unlock()
 }
 
-func (server *server) delCtrl(tag string, ctrl *ctrlConn) {
-	if ctrl != nil {
-		data := sha256.Bytes([]byte(ctrl.Info().RemoteAddress))
-		tag = base64.StdEncoding.EncodeToString(data)
-	}
+func (server *server) delCtrl(tag string) {
 	server.ctrlsRWM.Lock()
 	delete(server.ctrls, tag)
 	server.ctrlsRWM.Unlock()

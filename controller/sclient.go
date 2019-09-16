@@ -2,12 +2,14 @@ package controller
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
+	"project/internal/bootstrap"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -17,6 +19,7 @@ import (
 // syncer client
 type sClient struct {
 	ctx    *syncer
+	Node   *bootstrap.Node
 	guid   []byte
 	client *client
 }
@@ -30,6 +33,7 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "new syncer client failed")
 	}
+	sc.Node = cfg.Node
 	sc.guid = cfg.NodeGUID
 	sc.client = client
 	// start handle
@@ -174,6 +178,10 @@ func (sc *sClient) handleQueryReply(reply []byte) (*protocol.SyncReply, error) {
 
 func (sc *sClient) Close() {
 	sc.client.Close()
+	key := base64.StdEncoding.EncodeToString(sc.guid)
+	sc.ctx.sClientsRWM.Lock()
+	delete(sc.ctx.sClients, key)
+	sc.ctx.sClientsRWM.Unlock()
 }
 
 func (sc *sClient) logf(l logger.Level, format string, log ...interface{}) {

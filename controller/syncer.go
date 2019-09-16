@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"math"
 	"sync"
@@ -142,7 +143,21 @@ func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
 	syncer.sClients[key] = sClient
+	syncer.logf(logger.Debug, "connect node %s", node.Address)
 	return nil
+}
+
+func (syncer *syncer) Disconnect(guid string) error {
+	syncer.sClientsRWM.RLock()
+	if sClient, ok := syncer.sClients[guid]; ok {
+		syncer.sClientsRWM.RUnlock()
+		sClient.Close()
+		syncer.logf(logger.Debug, "disconnect node %s", sClient.Node.Address)
+		return nil
+	} else {
+		syncer.sClientsRWM.RUnlock()
+		return errors.Errorf("syncer client %s doesn't exist", guid)
+	}
 }
 
 func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
@@ -615,6 +630,7 @@ func (syncer *syncer) worker() {
 		roleGUID       string
 		roleSend       uint64
 		ctrlReceive    uint64
+		sub            uint64
 		sClients       map[string]*sClient
 		sClient        *sClient
 		syncQueryBytes []byte
@@ -626,6 +642,7 @@ func (syncer *syncer) worker() {
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
 	msgpackEncoder := msgpack.NewEncoder(buffer)
 	base64Encoder := base64.NewEncoder(base64.StdEncoding, buffer)
+	hash := sha256.New()
 	syncQuery := &protocol.SyncQuery{}
 	syncReply := &protocol.SyncReply{}
 	// query is used to query message by index
@@ -800,6 +817,7 @@ func (syncer *syncer) worker() {
 			buffer.Write(ss.GUID)
 			buffer.Write(convert.Uint64ToBytes(ss.Height))
 			buffer.Write(ss.Message)
+			buffer.Write(ss.Hash)
 			buffer.WriteByte(ss.SenderRole.Byte())
 			buffer.Write(ss.SenderGUID)
 			buffer.WriteByte(ss.ReceiverRole.Byte())
@@ -817,12 +835,18 @@ func (syncer *syncer) worker() {
 			switch ss.SenderRole {
 			case protocol.Beacon:
 				err = syncer.ctx.db.UpdateBSBeaconSend(ss.SenderGUID, ss.Height)
-				syncer.logf(logger.Warning, "update %X beacon send failed %s",
-					ss.SenderGUID, err)
+				if err != nil {
+					syncer.logf(logger.Warning, "update %X beacon send failed %s",
+						ss.SenderGUID, err)
+					continue
+				}
 			case protocol.Node:
 				err = syncer.ctx.db.UpdateNSNodeSend(ss.SenderGUID, ss.Height)
-				syncer.logf(logger.Warning, "update %X node send failed %s",
-					ss.SenderGUID, err)
+				if err != nil {
+					syncer.logf(logger.Warning, "update %X node send failed %s",
+						ss.SenderGUID, err)
+					continue
+				}
 			default:
 				panic("invalid ss.SenderRole")
 			}
@@ -831,6 +855,7 @@ func (syncer *syncer) worker() {
 			_, _ = base64Encoder.Write(ss.SenderGUID)
 			_ = base64Encoder.Close()
 			roleGUID = buffer.String()
+			// check sync
 			if syncer.isSync(ss.SenderRole, roleGUID) {
 				continue
 			}
@@ -866,7 +891,7 @@ func (syncer *syncer) worker() {
 				panic("invalid ss.SenderRole")
 			}
 			// check height
-			sub := roleSend - ctrlReceive
+			sub = roleSend - ctrlReceive
 			switch {
 			case sub < 1: // received message
 				syncer.syncDone(ss.SenderRole, roleGUID)
@@ -878,6 +903,15 @@ func (syncer *syncer) worker() {
 					syncer.syncDone(ss.SenderRole, roleGUID)
 					continue
 				}
+				// check hash
+				hash.Reset()
+				hash.Write(ss.Message)
+				if !bytes.Equal(hash.Sum(nil), ss.Hash) {
+					syncer.logf(logger.Exploit, "%s guid: %X sync send with wrong hash",
+						ss.SenderRole, ss.SenderGUID)
+					syncer.syncDone(ss.SenderRole, roleGUID)
+					continue
+				}
 				syncer.ctx.handleMessage(ss.Message, ss.SenderRole, ss.SenderGUID, roleSend-1)
 				// update controller receive
 				switch ss.SenderRole {
@@ -886,12 +920,16 @@ func (syncer *syncer) worker() {
 					if err != nil {
 						syncer.logf(logger.Warning, "update beacon syncer %X ctrl send failed %s",
 							ss.SenderGUID, err)
+						syncer.syncDone(ss.SenderRole, roleGUID)
+						continue
 					}
 				case protocol.Node:
 					err = syncer.ctx.db.UpdateNSCtrlReceive(ss.SenderGUID, roleSend)
 					if err != nil {
 						syncer.logf(logger.Warning, "update node syncer %X ctrl send failed %s",
 							ss.SenderGUID, err)
+						syncer.syncDone(ss.SenderRole, roleGUID)
+						continue
 					}
 				default:
 					panic("invalid ss.SenderRole")
@@ -937,6 +975,7 @@ func (syncer *syncer) worker() {
 			buffer.Reset()
 			buffer.Write(b.GUID)
 			buffer.Write(b.Message)
+			buffer.Write(b.Hash)
 			buffer.WriteByte(b.SenderRole.Byte())
 			buffer.Write(b.SenderGUID)
 			if !ed25519.Verify(publicKey, buffer.Bytes(), b.Signature) {
@@ -951,6 +990,14 @@ func (syncer *syncer) worker() {
 			if err != nil {
 				syncer.logf(logger.Exploit, "decrypt %s guid: %X broadcast failed: %s",
 					b.SenderRole, b.SenderGUID, err)
+				continue
+			}
+			// check hash
+			hash.Reset()
+			hash.Write(b.Message)
+			if !bytes.Equal(hash.Sum(nil), b.Hash) {
+				syncer.logf(logger.Exploit, "%s guid: %X broadcast with wrong hash",
+					b.SenderRole, b.SenderGUID)
 				continue
 			}
 			syncer.ctx.handleBroadcast(b.Message, b.SenderRole, b.SenderGUID)
@@ -1032,7 +1079,6 @@ func (syncer *syncer) worker() {
 				}
 				syncQuery.GUID = st.GUID
 				syncQuery.Index = ctrlReceive
-
 				switch st.Role {
 				case protocol.Beacon:
 					syncReply, err = queryBeaconMessage()
@@ -1050,6 +1096,7 @@ func (syncer *syncer) worker() {
 					buffer.Write(syncReply.GUID)
 					buffer.Write(convert.Uint64ToBytes(ctrlReceive))
 					buffer.Write(syncReply.Message)
+					buffer.Write(syncReply.Hash)
 					buffer.WriteByte(st.Role.Byte())
 					buffer.Write(st.GUID)
 					buffer.WriteByte(protocol.Ctrl.Byte())
@@ -1057,11 +1104,20 @@ func (syncer *syncer) worker() {
 					if !ed25519.Verify(publicKey, buffer.Bytes(), syncReply.Signature) {
 						syncer.logf(logger.Exploit, "invalid sync reply signature %s guid: %X",
 							st.Role, st.GUID)
+						continue
 					}
 					syncReply.Message, err = aes.CBCDecrypt(syncReply.Message, aesKey, aesIV)
 					if err != nil {
 						syncer.logf(logger.Exploit, "decrypt %s guid: %X sync reply failed: %s",
 							st.Role, st.GUID, err)
+						continue
+					}
+					// check hash
+					hash.Reset()
+					hash.Write(syncReply.Message)
+					if !bytes.Equal(hash.Sum(nil), syncReply.Hash) {
+						syncer.logf(logger.Exploit, "%s guid: %X sync reply with wrong hash",
+							st.Role, st.GUID)
 						continue
 					}
 					syncer.ctx.handleMessage(syncReply.Message, st.Role, st.GUID, ctrlReceive)
