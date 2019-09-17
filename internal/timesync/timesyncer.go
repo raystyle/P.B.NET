@@ -30,12 +30,11 @@ const (
 )
 
 var (
-	ErrNoConfigs   = errors.New("no time sync config")
-	ErrUnknownMode = errors.New("unknown client mode")
-	ErrAllFailed   = errors.New("time sync all failed")
-	ErrInterval    = errors.New("interval < 60s or > 1h")
-	ErrQueryHTTP   = errors.New("query http server failed")
-	ErrQueryNTP    = errors.New("query ntp server failed")
+	ErrNoConfigs = errors.New("no time sync config")
+	ErrAllFailed = errors.New("time sync all failed")
+	ErrInterval  = errors.New("interval < 60s or > 1h")
+	ErrQueryHTTP = errors.New("query http server failed")
+	ErrQueryNTP  = errors.New("query ntp server failed")
 )
 
 type Config struct {
@@ -179,7 +178,7 @@ func (ts *TimeSyncer) Add(tag string, c *Config) error {
 		c.HTTPOpts.Request.URL = c.Address
 	case NTP:
 	default:
-		return ErrUnknownMode
+		return fmt.Errorf("unknown mode: %s", c.Mode)
 	}
 	ts.configsRWM.Lock()
 	defer ts.configsRWM.Unlock()
@@ -359,7 +358,8 @@ func (ts *TimeSyncer) syncHTTP(c *Config) (isOptsErr bool, err error) {
 			}
 		}
 	default:
-		err = fmt.Errorf("timesyncer internal error: %s", dns.ErrInvalidType)
+		err = fmt.Errorf("timesyncer internal error: %s",
+			dns.UnknownTypeError(c.DNSOpts.Type))
 		panic(err)
 	}
 	return false, ErrQueryHTTP
@@ -417,7 +417,8 @@ func (ts *TimeSyncer) syncNTP(c *Config) (isOptsErr bool, err error) {
 			return false, nil
 		}
 	default:
-		err = fmt.Errorf("timesyncer internal error: %s", dns.ErrInvalidType)
+		err = fmt.Errorf("timesyncer internal error: %s",
+			dns.UnknownTypeError(c.DNSOpts.Type))
 		panic(err)
 	}
 	return false, ErrQueryNTP
