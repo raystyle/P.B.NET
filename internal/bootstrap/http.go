@@ -122,11 +122,11 @@ func (h *HTTP) Generate(nodes []*Node) (string, error) {
 	if err != nil {
 		panic(&fPanic{Mode: ModeHTTP, Err: err})
 	}
-	cipherdata, err := aes.CBCEncrypt(buffer.Bytes(), key, iv)
+	cipherData, err := aes.CBCEncrypt(buffer.Bytes(), key, iv)
 	if err != nil {
 		panic(&fPanic{Mode: ModeHTTP, Err: err})
 	}
-	return base64.StdEncoding.EncodeToString(cipherdata), nil
+	return base64.StdEncoding.EncodeToString(cipherData), nil
 }
 
 func (h *HTTP) Marshal() ([]byte, error) {
@@ -285,7 +285,7 @@ func do(req *http.Request, c *http.Client) (string, error) {
 }
 
 func resolve(h *HTTP, info string) ([]*Node, error) {
-	cipherdata, err := base64.StdEncoding.DecodeString(info)
+	cipherData, err := base64.StdEncoding.DecodeString(info)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +299,7 @@ func resolve(h *HTTP, info string) ([]*Node, error) {
 		panic(&fPanic{Mode: ModeHTTP, Err: err})
 	}
 	h.AESIV = ""
-	data, err := aes.CBCDecrypt(cipherdata, aesKey, aesIV)
+	data, err := aes.CBCDecrypt(cipherData, aesKey, aesIV)
 	if err != nil {
 		return nil, err
 	}

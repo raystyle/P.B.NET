@@ -17,5 +17,5 @@ type Listener struct {
 	Tag     string
 	Mode    xnet.Mode
 	Timeout time.Duration // start listener timeout
-	Config  []byte
+	Config  []byte        // xnet.Config
 }

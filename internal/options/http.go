@@ -152,17 +152,3 @@ func (hs *HTTPServer) Apply() (*http.Server, error) {
 	s.SetKeepAlivesEnabled(!hs.DisableKeepAlive)
 	return s, nil
 }
-
-// CopyHTTPHeader prevent unsafe reference
-func CopyHTTPHeader(h http.Header) http.Header {
-	h2 := make(http.Header)
-	if h == nil {
-		return h2
-	}
-	for k, v := range h {
-		v2 := make([]string, len(v))
-		copy(v2, v)
-		h2[k] = v2
-	}
-	return h2
-}

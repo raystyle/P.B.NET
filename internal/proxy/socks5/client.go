@@ -311,7 +311,7 @@ func splitHostPort(address string) (string, int, error) {
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	err = xnet.CheckPortInt(portNum)
+	err = xnet.CheckPort(portNum)
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}

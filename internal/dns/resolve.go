@@ -20,10 +20,10 @@ import (
 var (
 	ErrInvalidDomainName = errors.New("invalid domain name")
 	ErrInvalidType       = errors.New("invalid question type")
-	ErrUnknownMethod     = errors.New("unknown method")
-	ErrUnknownNetwork    = errors.New("unknown network")
-	ErrNoConnection      = errors.New("no connection")
-	ErrInvalidTLSConfig  = errors.New("invalid TLS config")
+	// TODO unknown method
+	ErrUnknownMethod    = errors.New("unknown method")
+	ErrNoConnection     = errors.New("no connection")
+	ErrInvalidTLSConfig = errors.New("invalid TLS config")
 )
 
 // address = dns server(doh server) ip + port
@@ -73,7 +73,7 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 		network = "udp" // default
 	case "udp", "udp4", "udp6":
 	default:
-		return nil, ErrUnknownNetwork
+		return nil, net.UnknownNetworkError(network)
 	}
 	dial := net.Dial
 	if opts.dial != nil {
@@ -109,7 +109,7 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 		network = "tcp" // default
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, ErrUnknownNetwork
+		return nil, net.UnknownNetworkError(network)
 	}
 	dial := net.Dial
 	if opts.dial != nil {
@@ -156,7 +156,7 @@ func dialTLS(address string, message []byte, opts *Options) ([]byte, error) {
 		network = "tcp"
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, ErrUnknownNetwork
+		return nil, net.UnknownNetworkError(network)
 	}
 	dial := net.Dial
 	if opts.dial != nil {
