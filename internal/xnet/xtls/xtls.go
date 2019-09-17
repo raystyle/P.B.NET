@@ -10,16 +10,27 @@ import (
 
 type Conn = light.Conn
 
-func Listen(network, address string, c *tls.Config, timeout time.Duration) (net.Listener, error) {
-	l, err := tls.Listen(network, address, c)
+func Server(conn net.Conn, cfg *tls.Config, timeout time.Duration) *Conn {
+	tlsConn := tls.Server(conn, cfg)
+	return light.Server(tlsConn, timeout)
+}
+
+// should set ServerName
+func Client(conn net.Conn, cfg *tls.Config, timeout time.Duration) *Conn {
+	tlsConn := tls.Client(conn, cfg)
+	return light.Client(tlsConn, timeout)
+}
+
+func Listen(network, address string, cfg *tls.Config, timeout time.Duration) (net.Listener, error) {
+	l, err := tls.Listen(network, address, cfg)
 	if err != nil {
 		return nil, err
 	}
 	return light.NewListener(l, timeout), nil
 }
 
-func Dial(network, address string, c *tls.Config, timeout time.Duration) (*Conn, error) {
-	conn, err := tls.Dial(network, address, c)
+func Dial(network, address string, cfg *tls.Config, timeout time.Duration) (*Conn, error) {
+	conn, err := tls.Dial(network, address, cfg)
 	if err != nil {
 		return nil, err
 	}

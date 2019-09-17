@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/cert"
+	"project/internal/xnet/testdata"
 )
 
 func TestXTLS(t *testing.T) {
@@ -31,22 +32,24 @@ func TestXTLS(t *testing.T) {
 		conn, err := listener.Accept()
 		require.NoError(t, err)
 		write := func() {
-			testdata := testGenerateTestdata()
-			_, err = conn.Write(testdata)
+			data := testdata.GenerateTestdata()
+			_, err = conn.Write(data)
 			require.NoError(t, err)
-			require.Equal(t, testGenerateTestdata(), testdata)
+			// check data is changed after write
+			require.Equal(t, testdata.GenerateTestdata(), data)
 		}
 		read := func() {
 			data := make([]byte, 256)
 			_, err = io.ReadFull(conn, data)
 			require.NoError(t, err)
-			require.Equal(t, testGenerateTestdata(), data)
+			require.Equal(t, testdata.GenerateTestdata(), data)
 		}
 		read()
 		write()
 		write()
 		read()
 	}()
+	// client
 	// add cert to trust
 	tlsConfig = &tls.Config{
 		RootCAs: x509.NewCertPool(),
@@ -59,16 +62,17 @@ func TestXTLS(t *testing.T) {
 	conn, err := Dial("tcp", "localhost:"+port, tlsConfig, 0)
 	require.NoError(t, err)
 	write := func() {
-		testdata := testGenerateTestdata()
-		_, err = conn.Write(testdata)
+		data := testdata.GenerateTestdata()
+		_, err = conn.Write(data)
 		require.NoError(t, err)
-		require.Equal(t, testGenerateTestdata(), testdata)
+		// check data is changed after write
+		require.Equal(t, testdata.GenerateTestdata(), data)
 	}
 	read := func() {
 		data := make([]byte, 256)
 		_, err = io.ReadFull(conn, data)
 		require.NoError(t, err)
-		require.Equal(t, testGenerateTestdata(), data)
+		require.Equal(t, testdata.GenerateTestdata(), data)
 	}
 	write()
 	read()
@@ -76,10 +80,66 @@ func TestXTLS(t *testing.T) {
 	write()
 }
 
-func testGenerateTestdata() []byte {
-	testdata := make([]byte, 256)
-	for i := 0; i < 256; i++ {
-		testdata[i] = byte(i)
+func TestXTLSConn(t *testing.T) {
+	server, client := net.Pipe()
+	// generate cert
+	certCfg := &cert.Config{
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
-	return testdata
+	c, k, err := cert.Generate(nil, nil, certCfg)
+	require.NoError(t, err)
+	tlsCert, err := tls.X509KeyPair(c, k)
+	require.NoError(t, err)
+	// server
+	go func() {
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{tlsCert},
+		}
+		conn := Server(server, tlsConfig, 0)
+		write := func() {
+			data := testdata.GenerateTestdata()
+			_, err := conn.Write(data)
+			require.NoError(t, err)
+			// check data is changed after write
+			require.Equal(t, testdata.GenerateTestdata(), data)
+		}
+		read := func() {
+			data := make([]byte, 256)
+			_, err := io.ReadFull(conn, data)
+			require.NoError(t, err)
+			require.Equal(t, testdata.GenerateTestdata(), data)
+		}
+		read()
+		write()
+		write()
+		read()
+	}()
+	// add cert to trust
+	tlsConfig := &tls.Config{
+		RootCAs:    x509.NewCertPool(),
+		ServerName: "localhost",
+	}
+	x509Cert, err := cert.Parse(c)
+	require.NoError(t, err)
+	tlsConfig.RootCAs.AddCert(x509Cert)
+	// client
+	conn := Client(client, tlsConfig, 0)
+	write := func() {
+		data := testdata.GenerateTestdata()
+		_, err = conn.Write(data)
+		require.NoError(t, err)
+		// check data is changed after write
+		require.Equal(t, testdata.GenerateTestdata(), data)
+	}
+	read := func() {
+		data := make([]byte, 256)
+		_, err = io.ReadFull(conn, data)
+		require.NoError(t, err)
+		require.Equal(t, testdata.GenerateTestdata(), data)
+	}
+	write()
+	read()
+	read()
+	write()
 }
