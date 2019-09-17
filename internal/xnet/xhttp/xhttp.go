@@ -7,8 +7,9 @@ import (
 	"time"
 )
 
-type Conn struct {
-}
+var (
+	disableHTTP2Server = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
+)
 
 type listener struct {
 	listener   net.Listener
@@ -35,14 +36,19 @@ func (l *listener) Addr() net.Addr {
 }
 
 func (l *listener) deploy() {
+	var err error
 	if l.server.TLSConfig == nil {
-		_ = l.server.Serve(l.listener)
+		err = l.server.Serve(l.listener)
 	} else {
-		_ = l.server.ServeTLS(l.listener, "", "")
+		err = l.server.ServeTLS(l.listener, "", "")
+	}
+	if err != http.ErrServerClosed {
+		_ = l.server.Close()
 	}
 }
 
 func (l *listener) handleRequest(w http.ResponseWriter, r *http.Request) {
+	defer func() { recover() }()
 	conn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		return
@@ -64,7 +70,11 @@ func newListener(network, address string, cfg *tls.Config, timeout time.Duration
 		connChan:   make(chan net.Conn, 1),
 		stopSignal: make(chan struct{}),
 	}
-	server := http.Server{TLSConfig: cfg}
+	server := http.Server{
+		TLSConfig:         cfg,
+		ReadHeaderTimeout: timeout,
+		TLSNextProto:      disableHTTP2Server,
+	}
 	server.RegisterOnShutdown(func() {
 		close(listener.stopSignal)
 	})
@@ -84,15 +94,18 @@ func ListenTLS(network, address string, cfg *tls.Config, timeout time.Duration) 
 	return newListener(network, address, cfg, timeout)
 }
 
+// TODO finish Dial
 func Dial(r *http.Request, tr *http.Transport, timeout time.Duration) (net.Conn, error) {
-	client := http.Client{
-		Transport: tr,
-		Timeout:   timeout,
+	if tr == nil {
+		tr = new(http.Transport)
 	}
-	resp, err := client.Do(r)
+	conn, err := net.Dial("tcp", r.Host)
 	if err != nil {
 		return nil, err
 	}
-	conn, _, err := resp.Body.(http.Hijacker).Hijack()
+	err = r.Write(conn)
+	if err != nil {
+		return nil, err
+	}
 	return conn, nil
 }
