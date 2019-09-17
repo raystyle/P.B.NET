@@ -39,6 +39,7 @@ func TestLight(t *testing.T) {
 		data := testdata.GenerateData()
 		_, err = conn.Write(data)
 		require.NoError(t, err)
+		// check data is changed after write
 		require.Equal(t, testdata.GenerateData(), data)
 	}
 	read := func() {
@@ -79,6 +80,7 @@ func TestLightConn(t *testing.T) {
 		data := testdata.GenerateData()
 		_, err := conn.Write(data)
 		require.NoError(t, err)
+		// check data is changed after write
 		require.Equal(t, testdata.GenerateData(), data)
 	}
 	read := func() {
