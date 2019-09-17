@@ -6,37 +6,49 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-)
 
-var (
-	testdata = []byte("test data")
+	"project/internal/xnet/testdata"
 )
 
 func TestConn(t *testing.T) {
-	cfg := &Config{
-		Network: "tcp",
-		Address: "localhost:0",
-	}
-	// Listen
-	listener, err := Listen(Light, cfg)
-	require.NoError(t, err)
+	server, client := net.Pipe()
 	go func() {
-		conn, err := listener.Accept()
-		require.NoError(t, err)
-		c := NewConn(conn, time.Now().Unix())
-		err = c.Send(testdata)
-		require.NoError(t, err)
+		conn := NewConn(server, time.Now().Unix())
+		write := func() {
+			data := testdata.GenerateData()
+			// check data is changed after write
+			err := conn.Send(data)
+			require.NoError(t, err)
+			require.Equal(t, testdata.GenerateData(), data)
+		}
+		read := func() {
+			data, err := conn.Receive()
+			require.NoError(t, err)
+			require.Equal(t, testdata.GenerateData(), data)
+		}
+		read()
+		write()
+		write()
+		read()
 	}()
-	// Dial
-	_, port, err := net.SplitHostPort(listener.Addr().String())
-	require.NoError(t, err)
-	cfg.Address = "localhost:" + port
-	conn, err := Dial(Light, cfg)
-	require.NoError(t, err)
-	c := NewConn(conn, time.Now().Unix())
-	msg, err := c.Receive()
-	require.NoError(t, err)
-	require.Equal(t, testdata, msg)
-	t.Log(c.Info())
+	conn := NewConn(client, time.Now().Unix())
+	write := func() {
+		data := testdata.GenerateData()
+		err := conn.Send(data)
+		require.NoError(t, err)
+		// check data is changed after write
+		require.Equal(t, testdata.GenerateData(), data)
+	}
+	read := func() {
+		data, err := conn.Receive()
+		require.NoError(t, err)
+		require.Equal(t, testdata.GenerateData(), data)
+	}
+	write()
+	read()
+	read()
+	write()
+
+	t.Log(conn.Info())
 	_ = conn.Close()
 }

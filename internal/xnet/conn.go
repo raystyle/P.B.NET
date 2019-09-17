@@ -26,6 +26,7 @@ type Info struct {
 	Receive       int
 }
 
+// Conn is used to role handshake, and count network traffic
 type Conn struct {
 	net.Conn
 	lNetwork string
@@ -71,14 +72,14 @@ func (c *Conn) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-// send message
+// Send is used to send one message
 func (c *Conn) Send(msg []byte) error {
 	size := convert.Uint32ToBytes(uint32(len(msg)))
 	_, err := c.Write(append(size, msg...))
 	return err
 }
 
-// receive message
+// Receive is used to receive one message
 func (c *Conn) Receive() ([]byte, error) {
 	size := make([]byte, HeaderSize)
 	_, err := io.ReadFull(c, size)
@@ -109,6 +110,8 @@ func (c *Conn) Info() *Info {
 	return i
 }
 
+// NewDeadlineConn return a net.Conn that
+// set deadline before each Read() and Write()
 func NewDeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
 	return internal.NewDeadlineConn(conn, deadline)
 }
