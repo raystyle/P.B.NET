@@ -50,12 +50,11 @@ func TestXTLS(t *testing.T) {
 		read()
 	}()
 	// client
-	// add cert to trust
+	x509Cert, err := cert.Parse(c)
+	require.NoError(t, err)
 	tlsConfig = &tls.Config{
 		RootCAs: x509.NewCertPool(),
 	}
-	x509Cert, err := cert.Parse(c)
-	require.NoError(t, err)
 	tlsConfig.RootCAs.AddCert(x509Cert)
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)
@@ -115,15 +114,14 @@ func TestXTLSConn(t *testing.T) {
 		write()
 		read()
 	}()
-	// add cert to trust
+	// client
+	x509Cert, err := cert.Parse(c)
+	require.NoError(t, err)
 	tlsConfig := &tls.Config{
 		RootCAs:    x509.NewCertPool(),
 		ServerName: "localhost",
 	}
-	x509Cert, err := cert.Parse(c)
-	require.NoError(t, err)
 	tlsConfig.RootCAs.AddCert(x509Cert)
-	// client
 	conn := Client(client, tlsConfig, 0)
 	write := func() {
 		data := testdata.GenerateData()
