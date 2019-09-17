@@ -77,4 +77,7 @@ func TestQUIC(t *testing.T) {
 	read()
 	read()
 	write()
+	t.Log(conn.LocalAddr())
+	t.Log(conn.RemoteAddr())
+	_ = conn.Close()
 }
