@@ -32,6 +32,7 @@ func TestClient(t *testing.T) {
 	}
 	get("https://github.com/")
 	get("http://github.com/")
+	get("http://admin:123456@" + server.Addr())
 	// test other
 	_, err = httpProxy.Dial("", "")
 	require.Equal(t, err, ErrNotSupportDial)
