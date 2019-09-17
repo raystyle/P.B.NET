@@ -32,17 +32,17 @@ func TestXTLS(t *testing.T) {
 		conn, err := listener.Accept()
 		require.NoError(t, err)
 		write := func() {
-			data := testdata.GenerateTestdata()
+			data := testdata.GenerateData()
 			_, err = conn.Write(data)
 			require.NoError(t, err)
 			// check data is changed after write
-			require.Equal(t, testdata.GenerateTestdata(), data)
+			require.Equal(t, testdata.GenerateData(), data)
 		}
 		read := func() {
 			data := make([]byte, 256)
 			_, err = io.ReadFull(conn, data)
 			require.NoError(t, err)
-			require.Equal(t, testdata.GenerateTestdata(), data)
+			require.Equal(t, testdata.GenerateData(), data)
 		}
 		read()
 		write()
@@ -62,17 +62,17 @@ func TestXTLS(t *testing.T) {
 	conn, err := Dial("tcp", "localhost:"+port, tlsConfig, 0)
 	require.NoError(t, err)
 	write := func() {
-		data := testdata.GenerateTestdata()
+		data := testdata.GenerateData()
 		_, err = conn.Write(data)
 		require.NoError(t, err)
 		// check data is changed after write
-		require.Equal(t, testdata.GenerateTestdata(), data)
+		require.Equal(t, testdata.GenerateData(), data)
 	}
 	read := func() {
 		data := make([]byte, 256)
 		_, err = io.ReadFull(conn, data)
 		require.NoError(t, err)
-		require.Equal(t, testdata.GenerateTestdata(), data)
+		require.Equal(t, testdata.GenerateData(), data)
 	}
 	write()
 	read()
@@ -98,17 +98,17 @@ func TestXTLSConn(t *testing.T) {
 		}
 		conn := Server(server, tlsConfig, 0)
 		write := func() {
-			data := testdata.GenerateTestdata()
+			data := testdata.GenerateData()
 			_, err := conn.Write(data)
 			require.NoError(t, err)
 			// check data is changed after write
-			require.Equal(t, testdata.GenerateTestdata(), data)
+			require.Equal(t, testdata.GenerateData(), data)
 		}
 		read := func() {
 			data := make([]byte, 256)
 			_, err := io.ReadFull(conn, data)
 			require.NoError(t, err)
-			require.Equal(t, testdata.GenerateTestdata(), data)
+			require.Equal(t, testdata.GenerateData(), data)
 		}
 		read()
 		write()
@@ -126,17 +126,17 @@ func TestXTLSConn(t *testing.T) {
 	// client
 	conn := Client(client, tlsConfig, 0)
 	write := func() {
-		data := testdata.GenerateTestdata()
+		data := testdata.GenerateData()
 		_, err = conn.Write(data)
 		require.NoError(t, err)
 		// check data is changed after write
-		require.Equal(t, testdata.GenerateTestdata(), data)
+		require.Equal(t, testdata.GenerateData(), data)
 	}
 	read := func() {
 		data := make([]byte, 256)
 		_, err = io.ReadFull(conn, data)
 		require.NoError(t, err)
-		require.Equal(t, testdata.GenerateTestdata(), data)
+		require.Equal(t, testdata.GenerateData(), data)
 	}
 	write()
 	read()
