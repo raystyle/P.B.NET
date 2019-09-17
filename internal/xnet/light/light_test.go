@@ -2,9 +2,12 @@ package light
 
 import (
 	"io"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/xnet/testdata"
 )
 
 func TestLight(t *testing.T) {
@@ -14,16 +17,16 @@ func TestLight(t *testing.T) {
 		conn, err := listener.Accept()
 		require.NoError(t, err)
 		write := func() {
-			testdata := testGenerateTestdata()
-			_, err = conn.Write(testdata)
+			data := testdata.GenerateData()
+			_, err = conn.Write(data)
 			require.NoError(t, err)
-			require.Equal(t, testGenerateTestdata(), testdata)
+			require.Equal(t, testdata.GenerateData(), data)
 		}
 		read := func() {
 			data := make([]byte, 256)
 			_, err = io.ReadFull(conn, data)
 			require.NoError(t, err)
-			require.Equal(t, testGenerateTestdata(), data)
+			require.Equal(t, testdata.GenerateData(), data)
 		}
 		read()
 		write()
@@ -33,16 +36,16 @@ func TestLight(t *testing.T) {
 	conn, err := Dial("tcp", listener.Addr().String(), 0)
 	require.NoError(t, err)
 	write := func() {
-		testdata := testGenerateTestdata()
-		_, err = conn.Write(testdata)
+		data := testdata.GenerateData()
+		_, err = conn.Write(data)
 		require.NoError(t, err)
-		require.Equal(t, testGenerateTestdata(), testdata)
+		require.Equal(t, testdata.GenerateData(), data)
 	}
 	read := func() {
 		data := make([]byte, 256)
 		_, err = io.ReadFull(conn, data)
 		require.NoError(t, err)
-		require.Equal(t, testGenerateTestdata(), data)
+		require.Equal(t, testdata.GenerateData(), data)
 	}
 	write()
 	read()
@@ -50,29 +53,42 @@ func TestLight(t *testing.T) {
 	write()
 }
 
-func testGenerateTestdata() []byte {
-	testdata := make([]byte, 256)
-	for i := 0; i < 256; i++ {
-		testdata[i] = byte(i)
-	}
-	return testdata
-}
-
-/*
-func Test_Dial_With_Dialer(t *testing.T) {
-	listener, err := Listen("tcp", ":0", 0)
-	require.NoError(t, err)
+func TestLightConn(t *testing.T) {
+	server, client := net.Pipe()
 	go func() {
-		conn, err := listener.Accept()
-		require.NoError(t, err)
-		_, _ = conn.Read(nil)
-		_ = conn.Close()
+		conn := Server(server, 0)
+		write := func() {
+			data := testdata.GenerateData()
+			_, err := conn.Write(data)
+			require.NoError(t, err)
+			require.Equal(t, testdata.GenerateData(), data)
+		}
+		read := func() {
+			data := make([]byte, 256)
+			_, err := io.ReadFull(conn, data)
+			require.NoError(t, err)
+			require.Equal(t, testdata.GenerateData(), data)
+		}
+		read()
+		write()
+		write()
+		read()
 	}()
-	dialer := &net.Dialer{
-		Timeout: 5 * time.Second,
+	conn := Client(client, 0)
+	write := func() {
+		data := testdata.GenerateData()
+		_, err := conn.Write(data)
+		require.NoError(t, err)
+		require.Equal(t, testdata.GenerateData(), data)
 	}
-	conn, err := Dial_With_Dialer(dialer, "tcp", listener.Addr().String())
-	require.NoError(t, err)
-	_ = conn.Close()
+	read := func() {
+		data := make([]byte, 256)
+		_, err := io.ReadFull(conn, data)
+		require.NoError(t, err)
+		require.Equal(t, testdata.GenerateData(), data)
+	}
+	write()
+	read()
+	read()
+	write()
 }
-*/
