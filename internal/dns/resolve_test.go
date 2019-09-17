@@ -57,16 +57,19 @@ func TestResolve(t *testing.T) {
 	require.Equal(t, "::1", ipList[0])
 	// not domain
 	_, err = resolve(dnsServer, "xxx-", &opt)
-	require.Equal(t, ErrInvalidDomainName, err)
+	require.Error(t, err)
+	require.Equal(t, "invalid domain name: xxx-", err.Error())
 	// invalid Type
-	opt.Type = "10"
+	opt.Type = "foo"
 	_, err = resolve(dnsServer, domain, &opt)
-	require.Equal(t, ErrInvalidType, err)
+	require.Error(t, err)
+	require.Equal(t, "unknown type: foo", err.Error())
 	// invalid method
 	opt.Type = IPv4
-	opt.Method = "invalid method"
+	opt.Method = "foo"
 	_, err = resolve(dnsServer, domain, &opt)
-	require.Equal(t, ErrUnknownMethod, err)
+	require.Error(t, err)
+	require.Equal(t, "unknown method: foo", err.Error())
 	// dial failed
 	opt.Network = "udp"
 	opt.Method = UDP
@@ -154,7 +157,8 @@ func TestDialTLS(t *testing.T) {
 	require.Error(t, err)
 	// invalid config
 	_, err = dialTLS("asd:153|xxx|xxx", msg, &opt)
-	require.Equal(t, ErrInvalidTLSConfig, err)
+	require.Error(t, err)
+	require.Equal(t, "invalid address: asd:153|xxx|xxx", err.Error())
 }
 
 func TestDialDOH(t *testing.T) {

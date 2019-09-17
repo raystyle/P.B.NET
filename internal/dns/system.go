@@ -28,6 +28,6 @@ func systemResolve(domain string, Type Type) ([]string, error) {
 	case IPv6:
 		return ipv6List, nil
 	default:
-		return nil, ErrInvalidType
+		return nil, UnknownTypeError(Type)
 	}
 }

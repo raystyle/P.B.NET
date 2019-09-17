@@ -24,7 +24,6 @@ const (
 
 var (
 	ErrReserveProxy = errors.New("direct is reserve proxy")
-	ErrUnknownMode  = errors.New("unknown mode")
 )
 
 type client interface {
@@ -109,7 +108,7 @@ func (p *Pool) Add(tag string, client *Client) error {
 		}
 		client.client = pc
 	default:
-		return ErrUnknownMode
+		return fmt.Errorf("unknown mode: %s", client.Mode)
 	}
 	// <security> set client config to ""
 	client.Config = ""

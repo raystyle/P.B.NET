@@ -23,6 +23,12 @@ const (
 	Light Mode = "light"
 )
 
+var (
+	ErrEmptyPort    = errors.New("empty port")
+	ErrEmptyMode    = errors.New("empty mode")
+	ErrEmptyNetwork = errors.New("empty network")
+)
+
 type InvalidPortError int
 
 func (p InvalidPortError) Error() string {
@@ -44,12 +50,6 @@ func (mn *mismatchedModeNetwork) Error() string {
 	return fmt.Sprintf("mismatched mode and network: %s %s",
 		mn.mode, mn.network)
 }
-
-var (
-	ErrEmptyPort    = errors.New("empty port")
-	ErrEmptyMode    = errors.New("empty mode")
-	ErrEmptyNetwork = errors.New("empty network")
-)
 
 type Config struct {
 	Network   string            `toml:"network"`

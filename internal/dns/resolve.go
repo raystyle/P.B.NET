@@ -18,13 +18,14 @@ import (
 )
 
 var (
-	ErrInvalidDomainName = errors.New("invalid domain name")
-	ErrInvalidType       = errors.New("invalid question type")
-	// TODO unknown method
-	ErrUnknownMethod    = errors.New("unknown method")
-	ErrNoConnection     = errors.New("no connection")
-	ErrInvalidTLSConfig = errors.New("invalid TLS config")
+	ErrNoConnection = errors.New("no connection")
 )
+
+type UnknownTypeError string
+
+func (t UnknownTypeError) Error() string {
+	return fmt.Sprintf("unknown type: %s", string(t))
+}
 
 // address = dns server(doh server) ip + port
 func resolve(address, domain string, opts *Options) ([]string, error) {
@@ -38,13 +39,13 @@ func resolve(address, domain string, opts *Options) ([]string, error) {
 		return nil, err
 	}
 	if !IsDomainName(domain) {
-		return nil, ErrInvalidDomainName
+		return nil, fmt.Errorf("invalid domain name: %s", domain)
 	}
 	// check type
 	switch opts.Type {
 	case "", IPv4, IPv6:
 	default:
-		return nil, ErrInvalidType
+		return nil, UnknownTypeError(opts.Type)
 	}
 	message := packMessage(types[opts.Type], domain)
 	switch opts.Method {
@@ -57,7 +58,7 @@ func resolve(address, domain string, opts *Options) ([]string, error) {
 	case DOH:
 		message, err = dialDOH(address, message, opts)
 	default:
-		return nil, ErrUnknownMethod
+		return nil, UnknownMethodError(opts.Method)
 	}
 	if err != nil {
 		return nil, err
@@ -191,7 +192,7 @@ func dialTLS(address string, message []byte, opts *Options) ([]byte, error) {
 			return nil, ErrNoConnection
 		}
 	default:
-		return nil, ErrInvalidTLSConfig
+		return nil, fmt.Errorf("invalid address: %s", address)
 	}
 	// set timeout
 	deadline := opts.Timeout
@@ -241,6 +242,9 @@ func dialDOH(server string, question []byte, opts *Options) ([]byte, error) {
 		return nil, err
 	}
 	req.Header = opts.Header.Clone()
+	if req.Header == nil {
+		req.Header = http.Header{}
+	}
 	if req.Method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/dns-message")
 	}

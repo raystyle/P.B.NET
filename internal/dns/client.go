@@ -1,7 +1,6 @@
 package dns
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -29,9 +28,11 @@ const (
 	DOH Method = "doh" // DNS-Over-HTTPS
 )
 
-var (
-	ErrUnknownMode = errors.New("unknown mode")
-)
+type UnknownMethodError string
+
+func (m UnknownMethodError) Error() string {
+	return fmt.Sprintf("unknown method: %s", string(m))
+}
 
 type Server struct {
 	Method  Method `toml:"method"`
@@ -131,7 +132,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 			case DOH:
 				p.HTTP(opts.transport)
 			default:
-				return nil, ErrUnknownMethod
+				return nil, UnknownMethodError(opts.Method)
 			}
 		}
 		// check tag exist
@@ -164,7 +165,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 			return nil, err
 		}
 	default:
-		return nil, ErrUnknownMode
+		return nil, fmt.Errorf("unknown mode: %s", opts.Mode)
 	}
 	// update cache
 	if result != nil {
@@ -193,7 +194,7 @@ func (c *Client) Add(tag string, server *Server) error {
 	switch server.Method {
 	case UDP, TCP, TLS, DOH:
 	default:
-		return ErrUnknownMethod
+		return UnknownMethodError(server.Method)
 	}
 	c.serversRWM.Lock()
 	defer c.serversRWM.Unlock()

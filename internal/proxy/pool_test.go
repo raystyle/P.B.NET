@@ -64,11 +64,12 @@ func TestPool(t *testing.T) {
 	)
 	require.Error(t, err)
 	// unknown mode
-	err = pool.Add("unknown mode", &Client{
-		Mode:   "unknown mode",
+	err = pool.Add("foo", &Client{
+		Mode:   "foo",
 		Config: s5c},
 	)
-	require.Equal(t, ErrUnknownMode, err)
+	require.Error(t, err)
+	require.Equal(t, "unknown mode: foo", err.Error())
 	// delete
 	err = pool.Delete(tagHTTP)
 	require.NoError(t, err)
