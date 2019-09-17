@@ -45,7 +45,7 @@ func (dr *mockDNSResolver) Resolve(domain string, opts *dns.Options) ([]string, 
 	case dns.IPv6:
 		return []string{"::1", "::2"}, nil
 	default:
-		panic(dns.ErrInvalidType)
+		panic(dns.UnknownTypeError(opts.Type))
 	}
 }
 

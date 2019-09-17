@@ -214,7 +214,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 			}
 		}
 	default:
-		panic(&fPanic{Mode: ModeHTTP, Err: dns.ErrInvalidType})
+		panic(&fPanic{Mode: ModeHTTP, Err: dns.UnknownTypeError(opts.h.DNSOpts.Type)})
 	}
 	return nil, ErrNoResponse
 }
