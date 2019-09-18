@@ -259,3 +259,7 @@ func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {
 func (ctrl *CTRL) TestWait() {
 	<-ctrl.wait
 }
+
+func (ctrl *CTRL) TestSyncDBCache() {
+	ctrl.db.cacheSyncer.sync()
+}

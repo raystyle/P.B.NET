@@ -28,13 +28,13 @@ func init() {
 }
 
 type db struct {
-	ctx          *CTRL // use cache
-	syncInterval time.Duration
-	dbLogger     *dbLogger
-	gormLogger   *gormLogger
-	db           *gorm.DB
-	stopSignal   chan struct{}
-	wg           sync.WaitGroup
+	ctx         *CTRL // use cache
+	dbLogger    *dbLogger
+	gormLogger  *gormLogger
+	db          *gorm.DB
+	cacheSyncer *cacheSyncer
+	stopSignal  chan struct{}
+	wg          sync.WaitGroup
 }
 
 func newDB(ctx *CTRL, cfg *Config) (*db, error) {
@@ -69,15 +69,18 @@ func newDB(ctx *CTRL, cfg *Config) (*db, error) {
 		gormDB.LogMode(true)
 	}
 	db := db{
-		ctx:          ctx,
+		ctx:        ctx,
+		dbLogger:   dbLogger,
+		gormLogger: gormLogger,
+		db:         gormDB,
+		stopSignal: make(chan struct{}),
+	}
+	db.cacheSyncer = &cacheSyncer{
+		ctx:          &db,
 		syncInterval: cfg.DBSyncInterval,
-		dbLogger:     dbLogger,
-		gormLogger:   gormLogger,
-		db:           gormDB,
-		stopSignal:   make(chan struct{}),
 	}
 	db.wg.Add(1)
-	go db.cacheSyncer()
+	go db.cacheSyncer.syncLoop()
 	return &db, nil
 }
 
@@ -530,150 +533,161 @@ func (db *db) UpdateBSCtrlReceive(guid []byte, height uint64) error {
 	return nil
 }
 
-// cacheSyncer is used to sync roleSyncer to database
-func (db *db) cacheSyncer() {
+type cacheSyncer struct {
+	ctx          *db
+	syncInterval time.Duration
+
+	same     bool
+	key      string
+	nsCaches map[string]*nodeSyncer
+	nsDBs    map[string]*nodeSyncerDB
+	bsCaches map[string]*beaconSyncer
+	bsDBs    map[string]*beaconSyncerDB
+	nsCache  *nodeSyncer
+	nsDB     *nodeSyncerDB
+	bsCache  *beaconSyncer
+	bsDB     *beaconSyncerDB
+
+	// if sync to database failed rollback
+	tmpDBRoleRecv uint64
+	tmpDBRoleSend uint64
+	tmpDBCtrlRecv uint64
+
+	// used to insert database
+	tmpNSDB *mNodeSyncer
+	tmpBSDB *mBeaconSyncer
+
+	syncM sync.Mutex
+	err   error
+}
+
+func (cs *cacheSyncer) sync() {
+	cs.syncM.Lock()
+	defer cs.syncM.Unlock()
+	// ---------------------node syncer------------------------
+	cs.nsCaches = cs.ctx.ctx.cache.SelectAllNodeSyncer()
+	cs.nsDBs = cs.ctx.ctx.cache.SelectAllNodeSyncerDB()
+	for cs.key, cs.nsCache = range cs.nsCaches {
+		cs.same = true
+		cs.nsDB = cs.nsDBs[cs.key]
+		// maybe lost
+		if cs.nsDB == nil {
+			continue
+		}
+		cs.nsDB.Lock()
+		cs.nsCache.RLock()
+		cs.tmpDBRoleRecv = cs.nsDB.NodeRecv
+		if cs.nsDB.NodeRecv != cs.nsCache.NodeRecv {
+			cs.nsDB.NodeRecv = cs.nsCache.NodeRecv
+			cs.same = false
+		}
+		cs.tmpDBRoleSend = cs.nsDB.NodeSend
+		if cs.nsDB.NodeSend != cs.nsCache.NodeSend {
+			cs.nsDB.NodeSend = cs.nsCache.NodeSend
+			cs.same = false
+		}
+		cs.tmpDBCtrlRecv = cs.nsDB.CtrlRecv
+		if cs.nsDB.CtrlRecv != cs.nsCache.CtrlRecv {
+			cs.nsDB.CtrlRecv = cs.nsCache.CtrlRecv
+			cs.same = false
+		}
+		if !cs.same { // sync to database
+			cs.tmpNSDB.GUID = cs.nsCache.GUID
+			cs.nsCache.RUnlock()
+			cs.tmpNSDB.CtrlSend = cs.nsDB.CtrlSend
+			cs.tmpNSDB.NodeRecv = cs.nsDB.NodeRecv
+			cs.tmpNSDB.NodeSend = cs.nsDB.NodeSend
+			cs.tmpNSDB.CtrlRecv = cs.nsDB.CtrlRecv
+			cs.err = cs.ctx.db.Save(cs.tmpNSDB).Error
+			if cs.err != nil {
+				// rollback
+				cs.nsDB.NodeRecv = cs.tmpDBRoleRecv
+				cs.nsDB.NodeSend = cs.tmpDBRoleSend
+				cs.nsDB.CtrlRecv = cs.tmpDBCtrlRecv
+				cs.nsDB.Unlock()
+				cs.ctx.log(logger.Error, "cache syncer synchronize failed:", cs.err)
+				return
+			}
+		} else {
+			cs.nsCache.RUnlock()
+		}
+		cs.nsDB.Unlock()
+	}
+	// --------------------beacon syncer-----------------------
+	cs.bsCaches = cs.ctx.ctx.cache.SelectAllBeaconSyncer()
+	cs.bsDBs = cs.ctx.ctx.cache.SelectAllBeaconSyncerDB()
+	for cs.key, cs.bsCache = range cs.bsCaches {
+		cs.same = true
+		cs.bsDB = cs.bsDBs[cs.key]
+		// maybe lost
+		if cs.bsDB == nil {
+			continue
+		}
+		cs.bsCache.RLock()
+		cs.bsDB.Lock()
+		cs.tmpDBRoleRecv = cs.bsDB.BeaconRecv
+		if cs.bsDB.BeaconRecv != cs.bsCache.BeaconRecv {
+			cs.bsDB.BeaconRecv = cs.bsCache.BeaconRecv
+			cs.same = false
+		}
+		cs.tmpDBRoleSend = cs.bsDB.BeaconSend
+		if cs.bsDB.BeaconSend != cs.bsCache.BeaconSend {
+			cs.bsDB.BeaconSend = cs.bsCache.BeaconSend
+			cs.same = false
+		}
+		cs.tmpDBCtrlRecv = cs.bsDB.CtrlRecv
+		if cs.bsDB.CtrlRecv != cs.bsCache.CtrlRecv {
+			cs.bsDB.CtrlRecv = cs.bsCache.CtrlRecv
+			cs.same = false
+		}
+		if !cs.same { // sync to database
+			cs.tmpBSDB.GUID = cs.bsCache.GUID
+			cs.bsCache.RUnlock()
+			cs.tmpBSDB.CtrlSend = cs.bsDB.CtrlSend
+			cs.tmpBSDB.BeaconRecv = cs.bsDB.BeaconRecv
+			cs.tmpBSDB.BeaconSend = cs.bsDB.BeaconSend
+			cs.tmpBSDB.CtrlRecv = cs.bsDB.CtrlRecv
+			cs.err = cs.ctx.db.Save(cs.tmpBSDB).Error
+			if cs.err != nil {
+				// rollback
+				cs.bsDB.BeaconRecv = cs.tmpDBRoleRecv
+				cs.bsDB.BeaconSend = cs.tmpDBRoleSend
+				cs.bsDB.CtrlRecv = cs.tmpDBCtrlRecv
+				cs.bsDB.Unlock()
+				cs.ctx.log(logger.Error, "cache syncer synchronize failed:", cs.err)
+				return
+			}
+		} else {
+			cs.bsCache.RUnlock()
+		}
+		cs.bsDB.Unlock()
+	}
+}
+
+func (cs *cacheSyncer) syncLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("db cache syncer panic:", r)
-			db.log(logger.Fatal, err)
+			cs.ctx.log(logger.Fatal, err)
 			// restart cache syncer
 			time.Sleep(time.Second)
-			db.wg.Add(1)
-			go db.cacheSyncer()
+			cs.ctx.wg.Add(1)
+			go cs.syncLoop()
 		}
-		defer db.wg.Done()
+		defer cs.ctx.wg.Done()
 	}()
-	ticker := time.NewTicker(db.syncInterval)
+	ticker := time.NewTicker(cs.syncInterval)
 	defer ticker.Stop()
-	var (
-		same     bool
-		key      string
-		nsCaches map[string]*nodeSyncer
-		nsDBs    map[string]*nodeSyncerDB
-		bsCaches map[string]*beaconSyncer
-		bsDBs    map[string]*beaconSyncerDB
-		nsCache  *nodeSyncer
-		nsDB     *nodeSyncerDB
-		bsCache  *beaconSyncer
-		bsDB     *beaconSyncerDB
-
-		// if sync to database failed rollback
-		tmpDBRoleRecv uint64
-		tmpDBRoleSend uint64
-		tmpDBCtrlRecv uint64
-
-		err error
-	)
 	// used to insert database
-	tmpNSDB := new(mNodeSyncer)
-	tmpBSDB := new(mBeaconSyncer)
-	// compare and sync to DB, if not same write to database
-	dbSync := func() {
-		// ---------------------node syncer------------------------
-		nsCaches = db.ctx.cache.SelectAllNodeSyncer()
-		nsDBs = db.ctx.cache.SelectAllNodeSyncerDB()
-		for key, nsCache = range nsCaches {
-			same = true
-			nsDB = nsDBs[key]
-			// maybe lost
-			if nsDB == nil {
-				continue
-			}
-			nsDB.Lock()
-			nsCache.RLock()
-			tmpDBRoleRecv = nsDB.NodeRecv
-			if nsDB.NodeRecv != nsCache.NodeRecv {
-				nsDB.NodeRecv = nsCache.NodeRecv
-				same = false
-			}
-			tmpDBRoleSend = nsDB.NodeSend
-			if nsDB.NodeSend != nsCache.NodeSend {
-				nsDB.NodeSend = nsCache.NodeSend
-				same = false
-			}
-			tmpDBCtrlRecv = nsDB.CtrlRecv
-			if nsDB.CtrlRecv != nsCache.CtrlRecv {
-				nsDB.CtrlRecv = nsCache.CtrlRecv
-				same = false
-			}
-			if !same { // sync to database
-				tmpNSDB.GUID = nsCache.GUID
-				nsCache.RUnlock()
-				tmpNSDB.CtrlSend = nsDB.CtrlSend
-				tmpNSDB.NodeRecv = nsDB.NodeRecv
-				tmpNSDB.NodeSend = nsDB.NodeSend
-				tmpNSDB.CtrlRecv = nsDB.CtrlRecv
-				err = db.db.Save(tmpNSDB).Error
-				if err != nil {
-					// rollback
-					nsDB.NodeRecv = tmpDBRoleRecv
-					nsDB.NodeSend = tmpDBRoleSend
-					nsDB.CtrlRecv = tmpDBCtrlRecv
-					nsDB.Unlock()
-					db.log(logger.Error, "cache syncer synchronize failed:", err)
-					return
-				}
-			} else {
-				nsCache.RUnlock()
-			}
-			nsDB.Unlock()
-		}
-		// --------------------beacon syncer-----------------------
-		bsCaches = db.ctx.cache.SelectAllBeaconSyncer()
-		bsDBs = db.ctx.cache.SelectAllBeaconSyncerDB()
-		for key, bsCache = range bsCaches {
-			same = true
-			bsDB = bsDBs[key]
-			// maybe lost
-			if bsDB == nil {
-				continue
-			}
-			bsCache.RLock()
-			bsDB.Lock()
-			tmpDBRoleRecv = bsDB.BeaconRecv
-			if bsDB.BeaconRecv != bsCache.BeaconRecv {
-				bsDB.BeaconRecv = bsCache.BeaconRecv
-				same = false
-			}
-			tmpDBRoleSend = bsDB.BeaconSend
-			if bsDB.BeaconSend != bsCache.BeaconSend {
-				bsDB.BeaconSend = bsCache.BeaconSend
-				same = false
-			}
-			tmpDBCtrlRecv = bsDB.CtrlRecv
-			if bsDB.CtrlRecv != bsCache.CtrlRecv {
-				bsDB.CtrlRecv = bsCache.CtrlRecv
-				same = false
-			}
-			if !same { // sync to database
-				tmpBSDB.GUID = bsCache.GUID
-				bsCache.RUnlock()
-				tmpBSDB.CtrlSend = bsDB.CtrlSend
-				tmpBSDB.BeaconRecv = bsDB.BeaconRecv
-				tmpBSDB.BeaconSend = bsDB.BeaconSend
-				tmpBSDB.CtrlRecv = bsDB.CtrlRecv
-				err = db.db.Save(tmpBSDB).Error
-				if err != nil {
-					// rollback
-					bsDB.BeaconRecv = tmpDBRoleRecv
-					bsDB.BeaconSend = tmpDBRoleSend
-					bsDB.CtrlRecv = tmpDBCtrlRecv
-					bsDB.Unlock()
-					db.log(logger.Error, "cache syncer synchronize failed:", err)
-					return
-				}
-			} else {
-				bsCache.RUnlock()
-			}
-			bsDB.Unlock()
-		}
-	}
+	cs.tmpNSDB = new(mNodeSyncer)
+	cs.tmpBSDB = new(mBeaconSyncer)
+	cs.sync()
 	for {
 		select {
 		case <-ticker.C:
-			dbSync()
-		case <-db.stopSignal:
-			dbSync()
+			cs.sync()
+		case <-cs.ctx.stopSignal:
+			cs.sync()
 			return
 		}
 	}

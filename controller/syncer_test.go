@@ -35,7 +35,7 @@ func TestSyncer_Connect(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestHandleNodeBroadcast(t *testing.T) {
+func TestNodeBroadcastFromConnectedNode(t *testing.T) {
 	const (
 		address = "localhost:62300"
 		times   = 10
@@ -81,7 +81,7 @@ func TestHandleNodeBroadcast(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestHandleSyncSend(t *testing.T) {
+func TestNodeSyncSendFromConnectedNode(t *testing.T) {
 	const (
 		address = "localhost:62300"
 		times   = 1
@@ -126,5 +126,5 @@ func TestHandleSyncSend(t *testing.T) {
 	err = ctrl.syncer.Disconnect(guid)
 	require.NoError(t, err)
 	// wait db cache sync
-	time.Sleep(3 * time.Second)
+	ctrl.TestSyncDBCache()
 }
