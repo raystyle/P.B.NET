@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"hash"
+	"io"
 	"math"
 	"sync"
 	"time"
@@ -40,7 +42,7 @@ type syncer struct {
 	syncSendQueue      chan *protocol.SyncSend
 	syncSendGUID       [2]map[string]int64
 	syncSendGUIDRWM    [2]sync.RWMutex
-	syncReceiveQueue   chan *protocol.SyncRecv
+	syncReceiveQueue   chan *protocol.SyncReceive
 	syncReceiveGUID    [2]map[string]int64
 	syncReceiveGUIDRWM [2]sync.RWMutex
 	// -------------------handle sync task------------------------
@@ -97,7 +99,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		broadcastTimeout: cfg.BroadcastTimeout.Seconds(),
 		broadcastQueue:   make(chan *protocol.Broadcast, cfg.SyncerQueueSize),
 		syncSendQueue:    make(chan *protocol.SyncSend, cfg.SyncerQueueSize),
-		syncReceiveQueue: make(chan *protocol.SyncRecv, cfg.SyncerQueueSize),
+		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.SyncerQueueSize),
 		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.SyncerQueueSize),
 		sClients:         make(map[string]*sClient),
 		stopSignal:       make(chan struct{}),
@@ -271,7 +273,7 @@ func (syncer *syncer) AddSyncSend(ss *protocol.SyncSend) {
 }
 
 // task from syncer client
-func (syncer *syncer) AddSyncReceive(sr *protocol.SyncRecv) {
+func (syncer *syncer) AddSyncReceive(sr *protocol.SyncReceive) {
 	if len(syncer.syncReceiveQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
 			select {
@@ -598,6 +600,109 @@ func (syncer *syncer) blockDone() {
 	syncer.blockWorkerM.Unlock()
 }
 
+type syncerWorker struct {
+	ctx           *syncer
+	maxBufferSize int
+
+	// task
+	b  *protocol.Broadcast
+	ss *protocol.SyncSend
+	sr *protocol.SyncReceive
+	st *protocol.SyncTask
+
+	// key
+	node      *mNode
+	beacon    *mBeacon
+	publicKey ed25519.PublicKey
+	aesKey    []byte
+	aesIV     []byte
+
+	buffer         *bytes.Buffer
+	msgpackEncoder *msgpack.Encoder
+	base64Encoder  io.WriteCloser
+	hash           hash.Hash
+
+	// temp
+	nodeSyncer     *nodeSyncer
+	beaconSyncer   *beaconSyncer
+	roleGUID       string
+	roleSend       uint64
+	ctrlReceive    uint64
+	sub            uint64
+	sClients       map[string]*sClient
+	sClient        *sClient
+	syncQuery      *protocol.SyncQuery
+	syncReply      *protocol.SyncReply
+	syncQueryBytes []byte
+	err            error
+}
+
+func (sw *syncerWorker) handleSyncReceive() {
+
+}
+
+func (sw *syncerWorker) handleSyncSend() {
+
+}
+
+func (sw *syncerWorker) handleBroadcast() {
+
+}
+
+func (sw *syncerWorker) handleSyncTask() {
+
+}
+
+func (sw *syncerWorker) queryBeaconMessage() {
+
+}
+
+func (sw *syncerWorker) queryNodeMessage() {
+
+}
+
+func (sw *syncerWorker) Work() {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("syncer.worker() panic:", r)
+			sw.ctx.log(logger.Fatal, err)
+			// restart worker
+			time.Sleep(time.Second)
+			sw.ctx.wg.Add(1)
+			go sw.Work()
+		}
+		sw.ctx.wg.Done()
+	}()
+	// init buffer
+	// protocol.SyncReceive buffer cap = guid.Size + 8 + 1 + guid.Size
+	minBufferSize := 2*guid.Size + 9
+	sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
+	sw.msgpackEncoder = msgpack.NewEncoder(sw.buffer)
+	sw.base64Encoder = base64.NewEncoder(base64.StdEncoding, sw.buffer)
+	sw.hash = sha256.New()
+	sw.syncQuery = &protocol.SyncQuery{}
+	sw.syncReply = &protocol.SyncReply{}
+	// start handle task
+	for {
+		// check buffer capacity
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
+		}
+		select {
+		case sw.sr = <-sw.ctx.syncReceiveQueue:
+			sw.handleSyncReceive()
+		case sw.ss = <-sw.ctx.syncSendQueue:
+			sw.handleSyncSend()
+		case sw.b = <-sw.ctx.broadcastQueue:
+			sw.handleBroadcast()
+		case sw.st = <-sw.ctx.syncTaskQueue:
+			sw.handleSyncTask()
+		case <-sw.ctx.stopSignal:
+			return
+		}
+	}
+}
+
 func (syncer *syncer) worker() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -614,7 +719,7 @@ func (syncer *syncer) worker() {
 		// task
 		b  *protocol.Broadcast
 		ss *protocol.SyncSend
-		sr *protocol.SyncRecv
+		sr *protocol.SyncReceive
 		st *protocol.SyncTask
 
 		// key
@@ -637,7 +742,7 @@ func (syncer *syncer) worker() {
 		err            error
 	)
 	// init buffer
-	// protocol.SyncRecv buffer cap = guid.Size + 8 + 1 + guid.Size
+	// protocol.SyncReceive buffer cap = guid.Size + 8 + 1 + guid.Size
 	minBufferSize := 2*guid.Size + 9
 	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
 	msgpackEncoder := msgpack.NewEncoder(buffer)
