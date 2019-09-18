@@ -167,7 +167,7 @@ func (sender *sender) SendPlugin(
 	return
 }
 
-// SyncRecv is used to sync node receive(controller send)
+// SyncReceive is used to sync node receive(controller send)
 // notice node to delete message
 // only for syncer.worker()
 func (sender *sender) SyncReceive(height uint64) {
@@ -340,7 +340,7 @@ func (sender *sender) worker() {
 		ReceiverRole: protocol.Ctrl,
 		ReceiverGUID: protocol.CtrlGUID,
 	}
-	preSR := &protocol.SyncRecv{
+	preSR := &protocol.SyncReceive{
 		Role: protocol.Node,
 		GUID: sender.ctx.global.GUID(),
 	}

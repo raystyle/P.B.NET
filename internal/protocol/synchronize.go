@@ -9,7 +9,7 @@ import (
 	"project/internal/guid"
 )
 
-// SyncSend and SyncRecv first send message token,
+// SyncSend and SyncReceive first send message token,
 // if don't handled send total message.
 // token = role + guid
 
@@ -81,20 +81,20 @@ func (ss *SyncSend) Validate() error {
 	return nil
 }
 
-// SyncRecv is used to synchronize node_receive,
+// SyncReceive is used to synchronize node_receive,
 // beacon_receive, controller_receive, (look database tables)
 // all roles will use it.
 //
 // When Ctrl send message to Node or Beacon, and they receive it,
-// they will send SyncRecv to they connected Nodes,
+// they will send SyncReceive to they connected Nodes,
 // Node will delete corresponding controller send message.
 //
 // When Node or Beacon send message to Ctrl, and Ctrl receive it,
-// Ctrl will send SyncRecv to they connected Nodes,
+// Ctrl will send SyncReceive to they connected Nodes,
 // Node will delete corresponding role send message.
 //
 // Signature = SenderRole.Sign(GUID + Height + Role + RoleGUID)
-type SyncRecv struct {
+type SyncReceive struct {
 	GUID      []byte // prevent duplicate handle it
 	Height    uint64
 	Role      Role
@@ -102,7 +102,7 @@ type SyncRecv struct {
 	Signature []byte
 }
 
-func (srr *SyncRecv) Validate() error {
+func (srr *SyncReceive) Validate() error {
 	if len(srr.GUID) != guid.Size {
 		return errors.New("invalid GUID size")
 	}

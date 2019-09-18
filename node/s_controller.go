@@ -126,9 +126,9 @@ func (ctrl *ctrlConn) handleMessage(msg []byte) {
 		ctrl.handleSyncSendToken(msg[cmd:id], msg[id:])
 	case protocol.CtrlSyncSend:
 		ctrl.handleSyncSend(msg[cmd:id], msg[id:])
-	case protocol.CtrlSyncRecvToken:
+	case protocol.CtrlSyncReceiveToken:
 		ctrl.handleSyncReceiveToken(msg[cmd:id], msg[id:])
-	case protocol.CtrlSyncRecv:
+	case protocol.CtrlSyncReceive:
 		ctrl.handleSyncReceive(msg[cmd:id], msg[id:])
 	case protocol.CtrlBroadcastToken:
 		ctrl.handleBroadcastToken(msg[cmd:id], msg[id:])
@@ -338,12 +338,12 @@ func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-// SyncRecv is used to notice node clean the message
+// SyncReceive is used to notice node clean the message
 func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Ctrl
 	sr.GUID = protocol.CtrlGUID
-	resp, err := ctrl.Send(protocol.NodeSyncRecvToken, token)
+	resp, err := ctrl.Send(protocol.NodeSyncReceiveToken, token)
 	if err != nil {
 		sr.Err = err
 		return sr
@@ -352,7 +352,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 		sr.Err = protocol.ErrSyncHandled
 		return sr
 	}
-	resp, err = ctrl.Send(protocol.NodeSyncRecv, message)
+	resp, err = ctrl.Send(protocol.NodeSyncReceive, message)
 	if err != nil {
 		sr.Err = err
 		return sr
@@ -507,7 +507,7 @@ func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
 // notice node to delete message
 // TODO think more
 func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
-	sr := protocol.SyncRecv{}
+	sr := protocol.SyncReceive{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
 		ctrl.logln(logger.Exploit, "invalid sync receive msgpack data:", err)

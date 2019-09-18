@@ -212,7 +212,7 @@ func (sender *sender) SendPlugin(
 	return
 }
 
-// SyncRecv is used to sync controller receive
+// SyncReceive is used to sync controller receive
 // notice node to delete message about Node or Beacon
 // only for syncer.worker()
 func (sender *sender) SyncReceive(
@@ -399,7 +399,7 @@ type senderWorker struct {
 	// prepare task objects
 	preB  *protocol.Broadcast
 	preSS *protocol.SyncSend
-	preSR *protocol.SyncRecv
+	preSR *protocol.SyncReceive
 
 	guid           *guid.GUID
 	buffer         *bytes.Buffer
@@ -702,7 +702,7 @@ func (sw *senderWorker) Work() {
 		SenderRole: protocol.Ctrl,
 		SenderGUID: protocol.CtrlGUID,
 	}
-	sw.preSR = &protocol.SyncRecv{}
+	sw.preSR = &protocol.SyncReceive{}
 	// start handle task
 	for {
 		// check buffer capacity

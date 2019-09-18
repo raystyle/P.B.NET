@@ -114,12 +114,12 @@ func (sc *sClient) SyncSend(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-// SyncRecv is used to notice node clean the message
+// SyncReceive is used to notice node clean the message
 func (sc *sClient) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Node
 	sr.GUID = sc.guid
-	resp, err := sc.client.Send(protocol.CtrlSyncRecvToken, token)
+	resp, err := sc.client.Send(protocol.CtrlSyncReceiveToken, token)
 	if err != nil {
 		sr.Err = err
 		return sr
@@ -128,7 +128,7 @@ func (sc *sClient) SyncReceive(token, message []byte) *protocol.SyncResponse {
 		sr.Err = protocol.ErrSyncHandled
 		return sr
 	}
-	resp, err = sc.client.Send(protocol.CtrlSyncRecv, message)
+	resp, err = sc.client.Send(protocol.CtrlSyncReceive, message)
 	if err != nil {
 		sr.Err = err
 		return sr
@@ -222,9 +222,9 @@ func (sc *sClient) handleMessage(msg []byte) {
 		sc.handleSyncSendToken(msg[cmd:id], msg[id:])
 	case protocol.NodeSyncSend:
 		sc.handleSyncSend(msg[cmd:id], msg[id:])
-	case protocol.NodeSyncRecvToken:
+	case protocol.NodeSyncReceiveToken:
 		sc.handleSyncReceiveToken(msg[cmd:id], msg[id:])
-	case protocol.NodeSyncRecv:
+	case protocol.NodeSyncReceive:
 		sc.handleSyncReceive(msg[cmd:id], msg[id:])
 	case protocol.NodeBroadcastToken:
 		sc.handleBroadcastToken(msg[cmd:id], msg[id:])
@@ -377,7 +377,7 @@ func (sc *sClient) handleSyncSend(id, message []byte) {
 
 // notice controller role receive height
 func (sc *sClient) handleSyncReceive(id, message []byte) {
-	sr := protocol.SyncRecv{}
+	sr := protocol.SyncReceive{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
 		sc.logln(logger.Exploit, "invalid sync receive msgpack data:", err)

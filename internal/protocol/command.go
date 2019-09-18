@@ -14,8 +14,8 @@ const (
 	CtrlBroadcast
 	CtrlSyncSendToken
 	CtrlSyncSend
-	CtrlSyncRecvToken
-	CtrlSyncRecv
+	CtrlSyncReceiveToken
+	CtrlSyncReceive
 	CtrlSyncQueryNode
 	CtrlSyncQueryBeacon
 )
@@ -41,8 +41,8 @@ const (
 	NodeBroadcast
 	NodeSyncSendToken
 	NodeSyncSend
-	NodeSyncRecvToken
-	NodeSyncRecv
+	NodeSyncReceiveToken
+	NodeSyncReceive
 )
 
 // node authentication
