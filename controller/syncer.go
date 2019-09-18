@@ -143,7 +143,7 @@ func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
 	}
 	key := base64.StdEncoding.EncodeToString(guid)
 	syncer.sClients[key] = sClient
-	syncer.logf(logger.Debug, "connect node %s", node.Address)
+	syncer.logf(logger.Info, "connect node %s", node.Address)
 	return nil
 }
 
@@ -152,7 +152,7 @@ func (syncer *syncer) Disconnect(guid string) error {
 	if sClient, ok := syncer.sClients[guid]; ok {
 		syncer.sClientsRWM.RUnlock()
 		sClient.Close()
-		syncer.logf(logger.Debug, "disconnect node %s", sClient.Node.Address)
+		syncer.logf(logger.Info, "disconnect node %s", sClient.Node.Address)
 		return nil
 	} else {
 		syncer.sClientsRWM.RUnlock()
@@ -832,9 +832,6 @@ func (syncer *syncer) worker() {
 			}
 			ss.Height += 1 // index -> height
 			// update role send
-
-			// TODO check node send height is bigger than older
-
 			switch ss.SenderRole {
 			case protocol.Beacon:
 				err = syncer.ctx.db.UpdateBSBeaconSend(ss.SenderGUID, ss.Height)

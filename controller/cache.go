@@ -15,6 +15,22 @@ type beaconSyncer struct {
 	sync.RWMutex
 }
 
+type nodeSyncerDB struct {
+	CtrlSend uint64
+	NodeRecv uint64
+	NodeSend uint64
+	CtrlRecv uint64
+	sync.RWMutex
+}
+
+type beaconSyncerDB struct {
+	CtrlSend   uint64
+	BeaconRecv uint64
+	BeaconSend uint64
+	CtrlRecv   uint64
+	sync.RWMutex
+}
+
 // key = base64(guid)
 type cache struct {
 	// --------------------------------key--------------------------------
@@ -28,9 +44,9 @@ type cache struct {
 	beaconSyncers    map[string]*beaconSyncer
 	beaconSyncersRWM sync.RWMutex
 	// -----------------------------db syncer-----------------------------
-	nodeSyncersDB      map[string]*nodeSyncer
+	nodeSyncersDB      map[string]*nodeSyncerDB
 	nodeSyncersDBRWM   sync.RWMutex
-	beaconSyncersDB    map[string]*beaconSyncer
+	beaconSyncersDB    map[string]*beaconSyncerDB
 	beaconSyncersDBRWM sync.RWMutex
 }
 
@@ -40,8 +56,8 @@ func newCache() *cache {
 		beacons:         make(map[string]*mBeacon),
 		nodeSyncers:     make(map[string]*nodeSyncer),
 		beaconSyncers:   make(map[string]*beaconSyncer),
-		nodeSyncersDB:   make(map[string]*nodeSyncer),
-		beaconSyncersDB: make(map[string]*beaconSyncer),
+		nodeSyncersDB:   make(map[string]*nodeSyncerDB),
+		beaconSyncersDB: make(map[string]*beaconSyncerDB),
 	}
 }
 
@@ -126,9 +142,14 @@ func (cache *cache) InsertNodeSyncer(ns *mNodeSyncer) {
 	cache.nodeSyncersRWM.Lock()
 	if _, ok := cache.nodeSyncers[key]; !ok {
 		cache.nodeSyncers[key] = &nodeSyncer{mNodeSyncer: ns}
-		// add db, must new
+		nsDB := nodeSyncerDB{
+			CtrlSend: ns.CtrlSend,
+			NodeRecv: ns.NodeRecv,
+			NodeSend: ns.NodeSend,
+			CtrlRecv: ns.CtrlRecv,
+		}
 		cache.nodeSyncersDBRWM.Lock()
-		cache.nodeSyncersDB[key] = &nodeSyncer{mNodeSyncer: ns}
+		cache.nodeSyncersDB[key] = &nsDB
 		cache.nodeSyncersDBRWM.Unlock()
 	}
 	cache.nodeSyncersRWM.Unlock()
@@ -151,9 +172,14 @@ func (cache *cache) InsertBeaconSyncer(bs *mBeaconSyncer) {
 	cache.beaconSyncersRWM.Lock()
 	if _, ok := cache.beaconSyncers[key]; !ok {
 		cache.beaconSyncers[key] = &beaconSyncer{mBeaconSyncer: bs}
-		// add db, must new
+		bsDB := beaconSyncerDB{
+			CtrlSend:   bs.CtrlSend,
+			BeaconRecv: bs.BeaconRecv,
+			BeaconSend: bs.BeaconSend,
+			CtrlRecv:   bs.CtrlRecv,
+		}
 		cache.beaconSyncersDBRWM.Lock()
-		cache.beaconSyncersDB[key] = &beaconSyncer{mBeaconSyncer: bs}
+		cache.beaconSyncersDB[key] = &bsDB
 		cache.beaconSyncersDBRWM.Unlock()
 	}
 	cache.beaconSyncersRWM.Unlock()
@@ -171,11 +197,11 @@ func (cache *cache) SelectAllNodeSyncer() map[string]*nodeSyncer {
 	return nsc
 }
 
-func (cache *cache) SelectAllNodeSyncerDB() map[string]*nodeSyncer {
+func (cache *cache) SelectAllNodeSyncerDB() map[string]*nodeSyncerDB {
 	cache.nodeSyncersDBRWM.RLock()
-	nsc := make(map[string]*nodeSyncer, len(cache.nodeSyncersDB))
-	for key, ns := range cache.nodeSyncersDB {
-		nsc[key] = ns
+	nsc := make(map[string]*nodeSyncerDB, len(cache.nodeSyncersDB))
+	for key, nsDB := range cache.nodeSyncersDB {
+		nsc[key] = nsDB
 	}
 	cache.nodeSyncersDBRWM.RUnlock()
 	return nsc
@@ -191,11 +217,11 @@ func (cache *cache) SelectAllBeaconSyncer() map[string]*beaconSyncer {
 	return bsc
 }
 
-func (cache *cache) SelectAllBeaconSyncerDB() map[string]*beaconSyncer {
+func (cache *cache) SelectAllBeaconSyncerDB() map[string]*beaconSyncerDB {
 	cache.beaconSyncersDBRWM.RLock()
-	bsc := make(map[string]*beaconSyncer, len(cache.beaconSyncersDB))
-	for key, bs := range cache.beaconSyncersDB {
-		bsc[key] = bs
+	bsc := make(map[string]*beaconSyncerDB, len(cache.beaconSyncersDB))
+	for key, bsDB := range cache.beaconSyncersDB {
+		bsc[key] = bsDB
 	}
 	cache.beaconSyncersDBRWM.RUnlock()
 	return bsc

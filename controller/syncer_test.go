@@ -59,11 +59,13 @@ func TestHandleNodeBroadcast(t *testing.T) {
 	// node broadcast test message
 	msg := []byte("node-broadcast: hello controller")
 	ctrl.Debug.NodeBroadcastChan = make(chan []byte, times)
-	for i := 0; i < times; i++ {
-		result := NODE.TestBroadcast(msg)
-		require.NoError(t, result.Err)
-		require.Equal(t, 1, result.Success)
-	}
+	go func() {
+		for i := 0; i < times; i++ {
+			result := NODE.TestBroadcast(msg)
+			require.NoError(t, result.Err)
+			require.Equal(t, 1, result.Success)
+		}
+	}()
 	// read
 	for i := 0; i < times; i++ {
 		select {
@@ -103,11 +105,13 @@ func TestHandleSyncSend(t *testing.T) {
 	// node broadcast test message
 	msg := []byte("node-send: hello controller")
 	ctrl.Debug.NodeSyncSendChan = make(chan []byte, times)
-	for i := 0; i < times; i++ {
-		result := NODE.TestSend(msg)
-		require.NoError(t, result.Err)
-		require.Equal(t, 1, result.Success)
-	}
+	go func() {
+		for i := 0; i < times; i++ {
+			result := NODE.TestSend(msg)
+			require.NoError(t, result.Err)
+			require.Equal(t, 1, result.Success)
+		}
+	}()
 	// read
 	for i := 0; i < times; i++ {
 		select {
@@ -121,7 +125,6 @@ func TestHandleSyncSend(t *testing.T) {
 	guid := base64.StdEncoding.EncodeToString(NODE.TestGUID())
 	err = ctrl.syncer.Disconnect(guid)
 	require.NoError(t, err)
-
 	// wait db cache sync
-	time.Sleep(2 * ctrl.db.syncInterval)
+	time.Sleep(3 * time.Second)
 }
