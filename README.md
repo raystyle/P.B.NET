@@ -61,3 +61,19 @@ P.B.NET为团队提供一个平台来渗透受限的网络，隐蔽、稳定、�
 ### GUID
 * 实现了一个简单的GUID生成器
 * 时间字段通过Time Syncer来获取(Node与Node之间的P2P网络非常依赖它)
+## Communication
+### Controller -> Node
+1. Controller将消息发送给连接的Node
+2. 等待Node之间同步消息
+3. 如果指定的Node同步到消息就处理
+### Controller -> Beacon
+1. Controller将消息发送给连接的Node
+2. 等待Node之间同步消息
+3. 如果Beacon连接到的Node同步到了消息，接收并处理
+### Node -> Controller
+1. Node之间同步消息
+2. 如果Controller连接到的Node同步到了消息，接收并处理
+### Beacon -> Controller
+1. Beacon将消息发送给连接的Node
+2. 等待Node之间同步消息
+3. 如果Controller连接到的Node同步到了消息，接收并处理
