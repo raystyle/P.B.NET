@@ -114,7 +114,7 @@ func (sc *sClient) SyncSend(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-// SyncRecv is used to notice node clean the message
+// SyncReceive is used to notice node clean the message
 func (sc *sClient) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Node
@@ -377,7 +377,7 @@ func (sc *sClient) handleSyncSend(id, message []byte) {
 
 // notice controller role receive height
 func (sc *sClient) handleSyncReceive(id, message []byte) {
-	sr := protocol.SyncRecv{}
+	sr := protocol.SyncReceive{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
 		sc.logln(logger.Exploit, "invalid sync receive msgpack data:", err)

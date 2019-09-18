@@ -338,7 +338,7 @@ func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-// SyncRecv is used to notice node clean the message
+// SyncReceive is used to notice node clean the message
 func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Ctrl
@@ -507,7 +507,7 @@ func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
 // notice node to delete message
 // TODO think more
 func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
-	sr := protocol.SyncRecv{}
+	sr := protocol.SyncReceive{}
 	err := msgpack.Unmarshal(message, &sr)
 	if err != nil {
 		ctrl.logln(logger.Exploit, "invalid sync receive msgpack data:", err)
