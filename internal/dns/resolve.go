@@ -53,10 +53,10 @@ func resolve(address, domain string, opts *Options) ([]string, error) {
 		message, err = dialUDP(address, message, opts)
 	case TCP:
 		message, err = dialTCP(address, message, opts)
-	case TLS:
-		message, err = dialTLS(address, message, opts)
-	case DOH:
-		message, err = dialDOH(address, message, opts)
+	case DoT:
+		message, err = dialDoT(address, message, opts)
+	case DoH:
+		message, err = dialDoH(address, message, opts)
 	default:
 		return nil, UnknownMethodError(opts.Method)
 	}
@@ -150,7 +150,7 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	return buffer[:l], nil
 }
 
-func dialTLS(address string, message []byte, opts *Options) ([]byte, error) {
+func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
 	case "": // default
@@ -226,7 +226,7 @@ func dialTLS(address string, message []byte, opts *Options) ([]byte, error) {
 }
 
 // support RFC 8484
-func dialDOH(server string, question []byte, opts *Options) ([]byte, error) {
+func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 	str := base64.RawURLEncoding.EncodeToString(question)
 	url := fmt.Sprintf("%s?ct=application/dns-message&dns=%s", server, str)
 	var (

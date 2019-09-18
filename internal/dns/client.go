@@ -24,8 +24,8 @@ type Method = string
 const (
 	UDP Method = "udp"
 	TCP Method = "tcp"
-	TLS Method = "tls" // DNS-Over-TLS
-	DOH Method = "doh" // DNS-Over-HTTPS
+	DoT Method = "dot" // DNS-Over-TLS
+	DoH Method = "doh" // DNS-Over-HTTPS
 )
 
 type UnknownMethodError string
@@ -114,7 +114,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 	switch opts.Mode {
 	case "", Custom:
 		// apply doh options(http Transport)
-		if opts.Method == DOH {
+		if opts.Method == DoH {
 			opts.transport, err = opts.Transport.Apply()
 			if err != nil {
 				return nil, err
@@ -127,9 +127,9 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		}
 		if p != nil {
 			switch opts.Method {
-			case "", UDP, TCP, TLS:
+			case "", UDP, TCP, DoT:
 				opts.dial = p.Dial
-			case DOH:
+			case DoH:
 				p.HTTP(opts.transport)
 			default:
 				return nil, UnknownMethodError(opts.Method)
@@ -192,7 +192,7 @@ func (c *Client) Servers() map[string]*Server {
 
 func (c *Client) Add(tag string, server *Server) error {
 	switch server.Method {
-	case UDP, TCP, TLS, DOH:
+	case UDP, TCP, DoT, DoH:
 	default:
 		return UnknownMethodError(server.Method)
 	}

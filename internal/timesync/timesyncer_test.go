@@ -81,13 +81,13 @@ func TestTimeSyncer(t *testing.T) {
 	// google
 	add("udp_google", dns.UDP, "8.8.8.8:53")
 	add("tcp_google", dns.TCP, "8.8.8.8:53")
-	add("tls_google_domain", dns.TLS, "dns.google:853|8.8.8.8,8.8.4.4")
+	add("dot_google_domain", dns.DoT, "dns.google:853|8.8.8.8,8.8.4.4")
 	// cloudflare
 	add("udp_cloudflare", dns.UDP, "1.0.0.1:53")
 	add("tcp_cloudflare_ipv6", dns.TCP, "[2606:4700:4700::1001]:53")
-	add("tls_cloudflare_domain", dns.TLS, "cloudflare-dns.com:853|1.0.0.1")
+	add("dot_cloudflare_domain", dns.DoT, "cloudflare-dns.com:853|1.0.0.1")
 	// doh
-	add("doh_mozilla", dns.DOH, "https://mozilla.cloudflare-dns.com/dns-query")
+	add("doh_mozilla", dns.DoH, "https://mozilla.cloudflare-dns.com/dns-query")
 	// make dns client
 	dnsClient, err := dns.NewClient(proxyPool, servers, 0)
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestTimeSyncer(t *testing.T) {
 		Address:     "pool.ntp.org:123",
 		NTP_Options: &ntp.Options{},
 		DNS_Options: &dns.Options{
-			Method: dns.TLS,
+			Method: dns.DoT,
 			Type:   dns.IPv4,
 		},
 	}
@@ -130,7 +130,7 @@ func TestTimeSyncer(t *testing.T) {
 		Address:     "0.pool.ntp.org:123",
 		NTP_Options: &ntp.Options{},
 		DNS_Options: &dns.Options{
-			Method: dns.TLS,
+			Method: dns.DoT,
 			Type:   dns.IPv4,
 		},
 	}
@@ -138,7 +138,7 @@ func TestTimeSyncer(t *testing.T) {
 		Address:     "time.windows.com:123",
 		NTP_Options: &ntp.Options{},
 		DNS_Options: &dns.Options{
-			Method: dns.TLS,
+			Method: dns.DoT,
 			Type:   dns.IPv4,
 		},
 	}
@@ -210,7 +210,7 @@ func Test_sync_time(t *testing.T) {
 		Address:     "poasdasdol.ntp.orasdasd:123", //this
 		NTP_Options: &ntp.Options{},
 		DNS_Options: &dns.Options{
-			Method: dns.TLS,
+			Method: dns.DoT,
 			Type:   dns.IPv4,
 		},
 	}
@@ -223,7 +223,7 @@ func Test_sync_time(t *testing.T) {
 		Address:     "pool.ntp.org:123",
 		NTP_Options: &ntp.Options{Version: 5}, //this
 		DNS_Options: &dns.Options{
-			Method: dns.TLS,
+			Method: dns.DoT,
 			Type:   dns.IPv4,
 		},
 	}

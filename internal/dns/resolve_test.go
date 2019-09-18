@@ -38,16 +38,16 @@ func TestResolve(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("TCP IPv6:", ipList)
 	// tls
-	opt.Method = TLS
+	opt.Method = DoT
 	opt.Type = IPv4
 	ipList, err = resolve(dnsTLSDomainMode, domain, &opt)
 	require.NoError(t, err)
-	t.Log("TLS IPv4:", ipList)
+	t.Log("DoT IPv4:", ipList)
 	// doh
-	opt.Method = DOH
+	opt.Method = DoH
 	ipList, err = resolve(dnsDOH, domain, &opt)
 	require.NoError(t, err)
-	t.Log("DOH IPv4:", ipList)
+	t.Log("DoH IPv4:", ipList)
 	// is ip
 	ipList, err = resolve(dnsServer, "8.8.8.8", &opt)
 	require.NoError(t, err)
@@ -125,63 +125,63 @@ func TestDialTCP(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestDialTLS(t *testing.T) {
+func TestDialDoT(t *testing.T) {
 	opt := Options{
 		Network: "tcp",
 		dial:    net.Dial,
 	}
 	msg := packMessage(dnsmessage.TypeA, domain)
 	// domain name mode
-	resp, err := dialTLS(dnsTLSDomainMode, msg, &opt)
+	resp, err := dialDoT(dnsTLSDomainMode, msg, &opt)
 	require.NoError(t, err)
 	ipList, err := unpackMessage(resp)
 	require.NoError(t, err)
-	t.Log("TLS domain IPv4:", ipList)
+	t.Log("DoT domain IPv4:", ipList)
 	// ip mode
-	resp, err = dialTLS("1.1.1.1:853", msg, &opt)
+	resp, err = dialDoT("1.1.1.1:853", msg, &opt)
 	require.NoError(t, err)
 	ipList, err = unpackMessage(resp)
 	require.NoError(t, err)
-	t.Log("TLS ip IPv4:", ipList)
+	t.Log("DoT ip IPv4:", ipList)
 	// no port(ip mode)
-	_, err = dialTLS("1.2.3.4", msg, &opt)
+	_, err = dialDoT("1.2.3.4", msg, &opt)
 	require.Error(t, err)
 	// dial failed
-	_, err = dialTLS("127.0.0.1:888", msg, &opt)
+	_, err = dialDoT("127.0.0.1:888", msg, &opt)
 	require.Error(t, err)
 	// error ip(domain mode)
-	_, err = dialTLS("dns.google:853|127.0.0.1", msg, &opt)
+	_, err = dialDoT("dns.google:853|127.0.0.1", msg, &opt)
 	require.Equal(t, ErrNoConnection, err)
 	// no port(domain mode)
-	_, err = dialTLS("dns.google|1.2.3.235", msg, &opt)
+	_, err = dialDoT("dns.google|1.2.3.235", msg, &opt)
 	require.Error(t, err)
 	// invalid config
-	_, err = dialTLS("asd:153|xxx|xxx", msg, &opt)
+	_, err = dialDoT("asd:153|xxx|xxx", msg, &opt)
 	require.Error(t, err)
 	require.Equal(t, "invalid address: asd:153|xxx|xxx", err.Error())
 }
 
-func TestDialDOH(t *testing.T) {
+func TestDialDoH(t *testing.T) {
 	opt := Options{}
 	msg := packMessage(dnsmessage.TypeA, domain)
 	// get
-	resp, err := dialDOH(dnsDOH, msg, &opt)
+	resp, err := dialDoH(dnsDOH, msg, &opt)
 	require.NoError(t, err)
 	ipList, err := unpackMessage(resp)
 	require.NoError(t, err)
-	t.Log("DOH get IPv4:", ipList)
+	t.Log("DoH get IPv4:", ipList)
 	// post
-	resp, err = dialDOH(dnsDOH+"#"+strings.Repeat("a", 2048), msg, &opt)
+	resp, err = dialDoH(dnsDOH+"#"+strings.Repeat("a", 2048), msg, &opt)
 	require.NoError(t, err)
 	ipList, err = unpackMessage(resp)
 	require.NoError(t, err)
-	t.Log("DOH post IPv4:", ipList)
+	t.Log("DoH post IPv4:", ipList)
 	// invalid doh server
-	_, err = dialDOH("foo\n", msg, &opt)
+	_, err = dialDoH("foo\n", msg, &opt)
 	require.Error(t, err)
-	_, err = dialDOH("foo\n"+"#"+strings.Repeat("a", 2048), msg, &opt)
+	_, err = dialDoH("foo\n"+"#"+strings.Repeat("a", 2048), msg, &opt)
 	require.Error(t, err)
 	// Do failed
-	_, err = dialDOH("http://asd.1dsa.asd", msg, &opt)
+	_, err = dialDoH("http://asd.1dsa.asd", msg, &opt)
 	require.Error(t, err)
 }

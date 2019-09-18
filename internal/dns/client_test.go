@@ -79,13 +79,13 @@ func TestClient(t *testing.T) {
 	// google
 	add("udp_google", UDP, "8.8.8.8:53")
 	add("tcp_google", TCP, "8.8.8.8:53")
-	add("tls_google_domain", TLS, "dns.google:853|8.8.8.8,8.8.4.4")
+	add("dot_google_domain", DoT, "dns.google:853|8.8.8.8,8.8.4.4")
 	// cloudflare
 	add("udp_cloudflare", UDP, "1.0.0.1:53")
 	add("tcp_cloudflare_ipv6", TCP, "[2606:4700:4700::1001]:53")
-	add("tls_cloudflare_domain", TLS, "cloudflare-dns.com:853|1.0.0.1")
+	add("dot_cloudflare_domain", DoT, "cloudflare-dns.com:853|1.0.0.1")
 	// doh
-	add("doh_mozilla", DOH, "https://mozilla.cloudflare-dns.com/dns-query")
+	add("doh_mozilla", DoH, "https://mozilla.cloudflare-dns.com/dns-query")
 	// make dns client
 	client, err := NewClient(pool, servers, 0)
 	require.NoError(t, err)
@@ -104,14 +104,14 @@ func TestClient(t *testing.T) {
 /*
 	//ipv4
 	opt := &dns.Options{
-		Method:  dns.TLS,
+		Method:  dns.DoT,
 		Network: "tcp",
 		Type:    dns.IPv4,
 		Timeout: time.Second * 2,
 	}
 	ip_list, err := client_pool.Resolve(domain, opt)
 	require.NoError(t, err)
-	t.Log("TLS", ip_list)
+	t.Log("DoT", ip_list)
 	opt.Method = dns.TCP
 	ip_list, err = client_pool.Resolve(domain, opt)
 	require.NoError(t, err)
@@ -123,14 +123,14 @@ func TestClient(t *testing.T) {
 	t.Log("UDP", ip_list)
 	//ipv6
 	opt = &dns.Options{
-		Method:  dns.TLS,
+		Method:  dns.DoT,
 		Network: "tcp",
 		Type:    dns.IPv6,
 		Timeout: time.Second * 2,
 	}
 	ip_list, err = client_pool.Resolve(domain, opt)
 	require.NoError(t, err)
-	t.Log("TLS", ip_list)
+	t.Log("DoT", ip_list)
 	opt.Method = dns.TCP
 	ip_list, err = client_pool.Resolve(domain, opt)
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestClient(t *testing.T) {
 	require.Equal(t, err, dns.ErrNoResolveResult, err)
 	//flush cache
 	client_pool.FlushCache()
-	opt.Method = dns.TLS
+	opt.Method = dns.DoT
 	opt.Network = "tcp"
 	opt.Type = dns.IPv6
 	ip_list, err = client_pool.Resolve(domain, opt)

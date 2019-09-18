@@ -24,30 +24,30 @@
 
 # -------------------DNS-Over-TLS----------------------
 
-# tls cert need has IP SANS field
-[tls_google]
-  method  = "tls"
+# tls certificate need has IP SANS field
+[dot_google]
+  method  = "dot"
   address = "8.8.8.8:853"
 
 # if no IP SANS need set Server Name(domain) manully
-[tls_google_domain]
-  method  = "tls"
+[dot_google_domain]
+  method  = "dot"
   address = "dns.google:853|8.8.8.8,8.8.4.4"
 
-[tls_cloudflare]
-  method  = "tls"
+[dot_cloudflare]
+  method  = "dot"
   address = "1.0.0.1:853"
 
-[tls_cloudflare_domain]
-  method  = "tls"
+[dot_cloudflare_domain]
+  method  = "dot"
   address = "cloudflare-dns.com:853|1.0.0.1"
 
-[tls_ipv6_cloudflare]
-  method  = "tls"
+[dot_ipv6_cloudflare]
+  method  = "dot"
   address = "[2606:4700:4700::1001]:853"
 
-[tls_ipv6_cloudflare_domain]
-  method  = "tls"
+[dot_ipv6_cloudflare_domain]
+  method  = "dot"
   address = "cloudflare-dns.com:853|[2606:4700:4700::1001]"
 
 # ------------------DNS-Over-HTTPS---------------------
