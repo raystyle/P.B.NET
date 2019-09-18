@@ -260,6 +260,7 @@ func (ctrl *CTRL) TestWait() {
 	<-ctrl.wait
 }
 
+// TestSyncDBCache is used to synchronize cache to database immediately
 func (ctrl *CTRL) TestSyncDBCache() {
-	ctrl.db.cacheSyncer.sync()
+	ctrl.db.cacheSyncer.Sync()
 }

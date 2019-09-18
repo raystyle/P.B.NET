@@ -80,7 +80,7 @@ func newDB(ctx *CTRL, cfg *Config) (*db, error) {
 		syncInterval: cfg.DBSyncInterval,
 	}
 	db.wg.Add(1)
-	go db.cacheSyncer.syncLoop()
+	go db.cacheSyncer.SyncLoop()
 	return &db, nil
 }
 
@@ -547,6 +547,7 @@ type cacheSyncer struct {
 	nsDB     *nodeSyncerDB
 	bsCache  *beaconSyncer
 	bsDB     *beaconSyncerDB
+	err      error
 
 	// if sync to database failed rollback
 	tmpDBRoleRecv uint64
@@ -558,10 +559,9 @@ type cacheSyncer struct {
 	tmpBSDB *mBeaconSyncer
 
 	syncM sync.Mutex
-	err   error
 }
 
-func (cs *cacheSyncer) sync() {
+func (cs *cacheSyncer) Sync() {
 	cs.syncM.Lock()
 	defer cs.syncM.Unlock()
 	// ---------------------node syncer------------------------
@@ -664,7 +664,7 @@ func (cs *cacheSyncer) sync() {
 	}
 }
 
-func (cs *cacheSyncer) syncLoop() {
+func (cs *cacheSyncer) SyncLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("db cache syncer panic:", r)
@@ -672,7 +672,7 @@ func (cs *cacheSyncer) syncLoop() {
 			// restart cache syncer
 			time.Sleep(time.Second)
 			cs.ctx.wg.Add(1)
-			go cs.syncLoop()
+			go cs.SyncLoop()
 		}
 		defer cs.ctx.wg.Done()
 	}()
@@ -681,13 +681,13 @@ func (cs *cacheSyncer) syncLoop() {
 	// used to insert database
 	cs.tmpNSDB = new(mNodeSyncer)
 	cs.tmpBSDB = new(mBeaconSyncer)
-	cs.sync()
+	cs.Sync()
 	for {
 		select {
 		case <-ticker.C:
-			cs.sync()
+			cs.Sync()
 		case <-cs.ctx.stopSignal:
-			cs.sync()
+			cs.Sync()
 			return
 		}
 	}

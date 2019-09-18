@@ -172,7 +172,7 @@ func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
 	syncer.ctx.Println(l, "syncer", log...)
 }
 
-func (syncer *syncer) SyncerClients() map[string]*sClient {
+func (syncer *syncer) Clients() map[string]*sClient {
 	syncer.sClientsRWM.RLock()
 	l := len(syncer.sClients)
 	if l == 0 {
@@ -655,7 +655,7 @@ func (syncer *syncer) worker() {
 		}
 		syncQueryBytes = buffer.Bytes()
 		for i := 0; i < syncer.retryTimes+1; i++ {
-			sClients = syncer.SyncerClients()
+			sClients = syncer.Clients()
 			if len(sClients) == 0 {
 				return nil, protocol.ErrNoSyncerClients
 			}
@@ -693,7 +693,7 @@ func (syncer *syncer) worker() {
 		}
 		syncQueryBytes = buffer.Bytes()
 		for i := 0; i < syncer.retryTimes+1; i++ {
-			sClients = syncer.SyncerClients()
+			sClients = syncer.Clients()
 			if len(sClients) == 0 {
 				return nil, protocol.ErrNoSyncerClients
 			}
