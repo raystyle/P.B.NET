@@ -1,9 +1,20 @@
 # P.B.NET
 P.B.NET为团队提供一个平台来渗透受限的网络，隐蔽、稳定、拥有可高度自定义的配置。
 ## Role
-* Controller
-* Node
-* Beacon
+### Controller
+  * 发送命令给Node或Beacon，获取返回结果
+  * 连接指定数量的Node进行数据同步
+  * Controller <-> Node 是C/S
+  * 提供一个WebServer进行交互
+### Node
+  * 接收Controller的命令，执行并且返回结果
+  * 连接指定数量的Node进行数据同步
+  * 接收并存储来自Controller、Node、Beacon的数据
+  * Node <-> Node 是P2P
+### Beacon
+  * 接收Controller的命令，执行并且返回结果
+  * 连接指定数量的Node进行数据同步
+  * Beacon <-> Node 是C/S
 ## Internal
 以下关键模块组合使用可以实现在这些受限的网络中通信：
 * 不允许所有向外流量，也没有Socks、HTTP代理，但是允许UDP流量
