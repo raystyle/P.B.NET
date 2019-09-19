@@ -35,33 +35,33 @@ func TestSyncer_Connect(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestNodeBroadcastFromConnectedNode(t *testing.T) {
+func TestNodeBroadcastFromConnectedNodes(t *testing.T) {
 	const (
-		address = "localhost:62300"
-		times   = 10
+		address1 = "localhost:62300"
+		times    = 10
 	)
 	testInitCtrl(t)
-	NODE := testGenerateNode(t, true)
-	defer NODE.Exit(nil)
-	node := bootstrap.Node{
+	NODE1 := testGenerateNode(t, true)
+	defer NODE1.Exit(nil)
+	node1 := bootstrap.Node{
 		Mode:    xnet.TLS,
 		Network: "tcp",
-		Address: address,
+		Address: address1,
 	}
 	// trust node
-	req, err := ctrl.TrustNode(&node)
+	req, err := ctrl.TrustNode(&node1)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(&node, req)
+	err = ctrl.ConfirmTrustNode(&node1, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.syncer.Connect(&node, NODE.TestGUID())
+	err = ctrl.syncer.Connect(&node1, NODE1.TestGUID())
 	require.NoError(t, err)
 	// node broadcast test message
 	msg := []byte("node-broadcast: hello controller")
 	ctrl.Debug.NodeBroadcastChan = make(chan []byte, times)
 	go func() {
 		for i := 0; i < times; i++ {
-			result := NODE.TestBroadcast(msg)
+			result := NODE1.TestBroadcast(msg)
 			require.NoError(t, result.Err)
 			require.Equal(t, 1, result.Success)
 		}
@@ -76,7 +76,7 @@ func TestNodeBroadcastFromConnectedNode(t *testing.T) {
 		}
 	}
 	// disconnect
-	guid := base64.StdEncoding.EncodeToString(NODE.TestGUID())
+	guid := base64.StdEncoding.EncodeToString(NODE1.TestGUID())
 	err = ctrl.syncer.Disconnect(guid)
 	require.NoError(t, err)
 }
@@ -127,4 +127,6 @@ func TestNodeSyncSendFromConnectedNode(t *testing.T) {
 	require.NoError(t, err)
 	// wait db cache sync
 	ctrl.TestSyncDBCache()
+	// check node send and controller receive
+
 }

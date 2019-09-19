@@ -60,7 +60,6 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 
 		// server
 		ConnLimit: 10,
-		Listeners: testdata.Listeners(t),
 	}
 	cfg.Debug.SkipTimeSyncer = true
 	// encrypt register info
