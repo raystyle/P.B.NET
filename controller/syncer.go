@@ -663,6 +663,48 @@ type syncerWorker struct {
 	err            error
 }
 
+func (sw *syncerWorker) Work() {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("syncer.worker() panic:", r)
+			sw.ctx.log(logger.Fatal, err)
+			// restart worker
+			time.Sleep(time.Second)
+			sw.ctx.wg.Add(1)
+			go sw.Work()
+		}
+		sw.ctx.wg.Done()
+	}()
+	// init buffer
+	// protocol.SyncReceive buffer cap = guid.Size + 8 + 1 + guid.Size
+	minBufferSize := 2*guid.Size + 9
+	sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
+	sw.msgpackEncoder = msgpack.NewEncoder(sw.buffer)
+	sw.base64Encoder = base64.NewEncoder(base64.StdEncoding, sw.buffer)
+	sw.hash = sha256.New()
+	sw.syncQuery = &protocol.SyncQuery{}
+	sw.syncReply = &protocol.SyncReply{}
+	// start handle task
+	for {
+		// check buffer capacity
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
+		}
+		select {
+		case sw.sr = <-sw.ctx.syncReceiveQueue:
+			sw.handleSyncReceive()
+		case sw.ss = <-sw.ctx.syncSendQueue:
+			sw.handleSyncSend()
+		case sw.b = <-sw.ctx.broadcastQueue:
+			sw.handleBroadcast()
+		case sw.st = <-sw.ctx.syncTaskQueue:
+			sw.handleSyncTask()
+		case <-sw.ctx.stopSignal:
+			return
+		}
+	}
+}
+
 func (sw *syncerWorker) handleSyncReceive() {
 	// check role and set key
 	switch sw.sr.Role {
@@ -1137,48 +1179,6 @@ func (sw *syncerWorker) handleSyncTask() {
 		case <-sw.ctx.stopSignal:
 			return
 		default:
-		}
-	}
-}
-
-func (sw *syncerWorker) Work() {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error("syncer.worker() panic:", r)
-			sw.ctx.log(logger.Fatal, err)
-			// restart worker
-			time.Sleep(time.Second)
-			sw.ctx.wg.Add(1)
-			go sw.Work()
-		}
-		sw.ctx.wg.Done()
-	}()
-	// init buffer
-	// protocol.SyncReceive buffer cap = guid.Size + 8 + 1 + guid.Size
-	minBufferSize := 2*guid.Size + 9
-	sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
-	sw.msgpackEncoder = msgpack.NewEncoder(sw.buffer)
-	sw.base64Encoder = base64.NewEncoder(base64.StdEncoding, sw.buffer)
-	sw.hash = sha256.New()
-	sw.syncQuery = &protocol.SyncQuery{}
-	sw.syncReply = &protocol.SyncReply{}
-	// start handle task
-	for {
-		// check buffer capacity
-		if sw.buffer.Cap() > sw.maxBufferSize {
-			sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
-		}
-		select {
-		case sw.sr = <-sw.ctx.syncReceiveQueue:
-			sw.handleSyncReceive()
-		case sw.ss = <-sw.ctx.syncSendQueue:
-			sw.handleSyncSend()
-		case sw.b = <-sw.ctx.broadcastQueue:
-			sw.handleBroadcast()
-		case sw.st = <-sw.ctx.syncTaskQueue:
-			sw.handleSyncTask()
-		case <-sw.ctx.stopSignal:
-			return
 		}
 	}
 }
