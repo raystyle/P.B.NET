@@ -3,6 +3,8 @@ package node
 import (
 	"bytes"
 	"crypto/sha256"
+	"hash"
+	"runtime"
 	"sync"
 	"time"
 
@@ -31,11 +33,14 @@ type syncSendTask struct {
 }
 
 type sender struct {
-	ctx              *NODE
-	maxBufferSize    int
-	broadcastQueue   chan *broadcastTask
-	syncSendQueue    chan *syncSendTask
-	syncReceiveQueue chan uint64 // height
+	ctx *NODE
+
+	broadcastTaskQueue   chan *broadcastTask
+	syncSendTaskQueue    chan *syncSendTask
+	syncReceiveTaskQueue chan uint64 // height
+
+	broadcastTaskPool sync.Pool
+	syncSendTaskPool  sync.Pool
 
 	broadcastDonePool sync.Pool
 	syncSendDonePool  sync.Pool
@@ -44,7 +49,6 @@ type sender struct {
 
 	syncSendM sync.Mutex // just send to Controller
 
-	guid       *guid.GUID
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
@@ -52,21 +56,26 @@ type sender struct {
 func newSender(ctx *NODE, cfg *Config) (*sender, error) {
 	// check config
 	if cfg.SenderWorker < 1 {
-		return nil, errors.New("sender number < 1")
+		return nil, errors.New("sender worker number < 1")
 	}
 	if cfg.SenderQueueSize < 512 {
 		return nil, errors.New("sender task queue size < 512")
 	}
 	sender := sender{
-		ctx:              ctx,
-		maxBufferSize:    cfg.MaxBufferSize,
-		broadcastQueue:   make(chan *broadcastTask, cfg.SenderQueueSize),
-		syncSendQueue:    make(chan *syncSendTask, cfg.SenderQueueSize),
-		syncReceiveQueue: make(chan uint64, cfg.SenderQueueSize),
-		guid:             guid.New(512*cfg.SenderWorker, ctx.global.Now),
-		stopSignal:       make(chan struct{}),
+		ctx:                  ctx,
+		broadcastTaskQueue:   make(chan *broadcastTask, cfg.SenderQueueSize),
+		syncSendTaskQueue:    make(chan *syncSendTask, cfg.SenderQueueSize),
+		syncReceiveTaskQueue: make(chan uint64, cfg.SenderQueueSize),
+		stopSignal:           make(chan struct{}),
 	}
-	// init sync pool
+	// init task sync pool
+	sender.broadcastTaskPool.New = func() interface{} {
+		return new(broadcastTask)
+	}
+	sender.syncSendTaskPool.New = func() interface{} {
+		return new(syncSendTask)
+	}
+	// init done sync pool
 	sender.broadcastDonePool.New = func() interface{} {
 		return make(chan *protocol.BroadcastResult, 1)
 	}
@@ -79,10 +88,14 @@ func newSender(ctx *NODE, cfg *Config) (*sender, error) {
 	sender.syncRespPool.New = func() interface{} {
 		return make(chan *protocol.SyncResponse, 1)
 	}
-	// start senders
+	// start sender workers
 	for i := 0; i < cfg.SenderWorker; i++ {
+		worker := senderWorker{
+			ctx:           &sender,
+			maxBufferSize: cfg.MaxBufferSize,
+		}
 		sender.wg.Add(1)
-		go sender.worker()
+		go worker.Work()
 	}
 	return &sender, nil
 }
@@ -92,11 +105,11 @@ func (sender *sender) Broadcast(
 	message interface{},
 ) (r *protocol.BroadcastResult) {
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
-	sender.broadcastQueue <- &broadcastTask{
-		Command:  command,
-		MessageI: message,
-		Result:   done,
-	}
+	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
+	bt.Command = command
+	bt.MessageI = message
+	bt.Result = done
+	sender.broadcastTaskQueue <- bt
 	r = <-done
 	sender.broadcastDonePool.Put(done)
 	return
@@ -107,21 +120,21 @@ func (sender *sender) BroadcastAsync(
 	message interface{},
 	done chan<- *protocol.BroadcastResult,
 ) {
-	sender.broadcastQueue <- &broadcastTask{
-		Command:  command,
-		MessageI: message,
-		Result:   done,
-	}
+	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
+	bt.Command = command
+	bt.MessageI = message
+	bt.Result = done
+	sender.broadcastTaskQueue <- bt
 }
 
 func (sender *sender) BroadcastPlugin(
 	message []byte,
 ) (r *protocol.BroadcastResult) {
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
-	sender.broadcastQueue <- &broadcastTask{
-		Message: message,
-		Result:  done,
-	}
+	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
+	bt.Message = message
+	bt.Result = done
+	sender.broadcastTaskQueue <- bt
 	r = <-done
 	sender.broadcastDonePool.Put(done)
 	return
@@ -132,11 +145,11 @@ func (sender *sender) Send(
 	message interface{},
 ) (r *protocol.SyncResult) {
 	done := sender.syncSendDonePool.Get().(chan *protocol.SyncResult)
-	sender.syncSendQueue <- &syncSendTask{
-		Command:  command,
-		MessageI: message,
-		Result:   done,
-	}
+	sst := sender.syncSendTaskPool.Get().(*syncSendTask)
+	sst.Command = command
+	sst.MessageI = message
+	sst.Result = done
+	sender.syncSendTaskQueue <- sst
 	r = <-done
 	sender.syncSendDonePool.Put(done)
 	return
@@ -147,21 +160,21 @@ func (sender *sender) SendAsync(
 	message interface{},
 	done chan<- *protocol.SyncResult,
 ) {
-	sender.syncSendQueue <- &syncSendTask{
-		Command:  command,
-		MessageI: message,
-		Result:   done,
-	}
+	sst := sender.syncSendTaskPool.Get().(*syncSendTask)
+	sst.Command = command
+	sst.MessageI = message
+	sst.Result = done
+	sender.syncSendTaskQueue <- sst
 }
 
 func (sender *sender) SendPlugin(
 	message []byte,
 ) (r *protocol.SyncResult) {
 	done := sender.syncSendDonePool.Get().(chan *protocol.SyncResult)
-	sender.syncSendQueue <- &syncSendTask{
-		Message: message,
-		Result:  done,
-	}
+	sst := sender.syncSendTaskPool.Get().(*syncSendTask)
+	sst.Message = message
+	sst.Result = done
+	sender.syncSendTaskQueue <- sst
 	r = <-done
 	sender.syncSendDonePool.Put(done)
 	return
@@ -169,9 +182,9 @@ func (sender *sender) SendPlugin(
 
 // SyncReceive is used to sync node receive(controller send)
 // notice node to delete message
-// only for syncer.worker()
+// only for syncerWorker
 func (sender *sender) SyncReceive(height uint64) {
-	sender.syncReceiveQueue <- height
+	sender.syncReceiveTaskQueue <- height
 }
 
 func (sender *sender) Close() {
@@ -301,205 +314,227 @@ func (sender *sender) syncReceiveParallel(token, message []byte) {
 	*/
 }
 
-func (sender *sender) worker() {
+type senderWorker struct {
+	ctx           *sender
+	maxBufferSize int
+
+	// task
+	bt  *broadcastTask
+	sst *syncSendTask
+	srt uint64 // height
+
+	guid           *guid.GUID
+	buffer         *bytes.Buffer
+	msgpackEncoder *msgpack.Encoder
+	hash           hash.Hash
+
+	preB  *protocol.Broadcast
+	preSS *protocol.SyncSend
+	preSR *protocol.SyncReceive
+
+	// temp
+	token []byte
+	err   error
+}
+
+func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("sender.worker() panic:", r)
-			sender.log(logger.Fatal, err)
+			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)
-			sender.wg.Add(1)
-			go sender.worker()
+			sw.ctx.wg.Add(1)
+			go sw.Work()
 		}
-		sender.wg.Done()
+		sw.ctx.wg.Done()
 	}()
-	var (
-		// task
-		bt  *broadcastTask
-		sst *syncSendTask
-		srt uint64 // height
-
-		// temp
-		token []byte
-		err   error
-	)
+	sw.guid = guid.New(16*(runtime.NumCPU()+1), sw.ctx.ctx.global.Now)
 	// prepare buffer, msgpack encoder
 	// syncReceiveTask = 1 + guid.Size + 8
 	minBufferSize := guid.Size + 9
-	buffer := bytes.NewBuffer(make([]byte, minBufferSize))
-	msgpackEncoder := msgpack.NewEncoder(buffer)
-	hash := sha256.New()
+	sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
+	sw.msgpackEncoder = msgpack.NewEncoder(sw.buffer)
+	sw.hash = sha256.New()
 	// prepare task objects
-	preB := &protocol.Broadcast{
+	sw.preB = &protocol.Broadcast{
 		SenderRole: protocol.Node,
-		SenderGUID: sender.ctx.global.GUID(),
+		SenderGUID: sw.ctx.ctx.global.GUID(),
 	}
-	preSS := &protocol.SyncSend{
+	sw.preSS = &protocol.SyncSend{
 		SenderRole:   protocol.Node,
-		SenderGUID:   sender.ctx.global.GUID(),
+		SenderGUID:   sw.ctx.ctx.global.GUID(),
 		ReceiverRole: protocol.Ctrl,
 		ReceiverGUID: protocol.CtrlGUID,
 	}
-	preSR := &protocol.SyncReceive{
+	sw.preSR = &protocol.SyncReceive{
 		Role: protocol.Node,
-		GUID: sender.ctx.global.GUID(),
+		GUID: sw.ctx.ctx.global.GUID(),
 	}
 	// start handle task
 	for {
 		// check buffer capacity
-		if buffer.Cap() > sender.maxBufferSize {
-			buffer = bytes.NewBuffer(make([]byte, minBufferSize))
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
 		}
 		select {
-		// --------------------------sync receive-------------------------
-		case srt = <-sender.syncReceiveQueue:
-			preSR.GUID = sender.guid.Get()
-			preSR.Height = srt
-			// sign
-			buffer.Reset()
-			buffer.Write(preSR.GUID)
-			buffer.Write(convert.Uint64ToBytes(preSR.Height))
-			buffer.WriteByte(preSR.Role.Byte())
-			buffer.Write(preSR.RoleGUID)
-			preSR.Signature = sender.ctx.global.Sign(buffer.Bytes())
-			// pack syncReceive & token
-			buffer.Reset()
-			err = msgpackEncoder.Encode(&preSR)
-			if err != nil {
-				panic(err)
-			}
-			// send
-			token = append(protocol.Node.Bytes(), preSR.GUID...)
-			sender.syncReceiveParallel(token, buffer.Bytes())
-		// ---------------------------sync send---------------------------
-		case sst = <-sender.syncSendQueue:
-			result := protocol.SyncResult{}
-			preSS.GUID = sender.guid.Get()
-			// pack message(interface)
-			if sst.MessageI != nil {
-				buffer.Reset()
-				err = msgpackEncoder.Encode(sst.MessageI)
-				if err != nil {
-					if sst.Result != nil {
-						result.Err = err
-						sst.Result <- &result
-					}
-					continue
-				}
-				sst.Message = append(sst.Command, buffer.Bytes()...)
-			}
-			// hash
-			hash.Reset()
-			hash.Write(sst.Message)
-			preSS.Hash = hash.Sum(nil)
-			// encrypt
-			preSS.Message, err = sender.ctx.global.Encrypt(sst.Message)
-			if err != nil {
-				if sst.Result != nil {
-					result.Err = err
-					sst.Result <- &result
-				}
-				continue
-			}
-			sender.syncSendM.Lock()
-			// set sync height
-			preSS.Height = sender.ctx.global.GetSyncSendHeight()
-			// sign
-			buffer.Reset()
-			buffer.Write(preSS.GUID)
-			buffer.Write(convert.Uint64ToBytes(preSS.Height))
-			buffer.Write(preSS.Message)
-			buffer.Write(preSS.Hash)
-			buffer.WriteByte(preSS.SenderRole.Byte())
-			buffer.Write(preSS.SenderGUID)
-			buffer.WriteByte(preSS.ReceiverRole.Byte())
-			buffer.Write(preSS.ReceiverGUID)
-			preSS.Signature = sender.ctx.global.Sign(buffer.Bytes())
-			// pack protocol.syncSend and token
-			buffer.Reset()
-			err = msgpackEncoder.Encode(&preSS)
-			if err != nil {
-				sender.syncSendM.Unlock()
-				if sst.Result != nil {
-					result.Err = err
-					sst.Result <- &result
-				}
-				continue
-			}
-			// !!! think order
-			// first must add send height
-			sender.ctx.global.SetSyncSendHeight(preSS.Height + 1)
-			// !!! think order
-			// second send
-			token = append(protocol.Node.Bytes(), preSS.GUID...)
-			result.Response, result.Success =
-				sender.syncSendParallel(token, buffer.Bytes())
-			// !!! think order
-			// rollback send height
-			if result.Success == 0 {
-				sender.ctx.global.SetSyncSendHeight(preSS.Height)
-			}
-			sender.syncSendM.Unlock()
-			if sst.Result != nil {
-				sst.Result <- &result
-			}
-		// ---------------------------broadcast---------------------------
-		case bt = <-sender.broadcastQueue:
-			result := protocol.BroadcastResult{}
-			preB.GUID = sender.guid.Get()
-			// pack message
-			if bt.MessageI != nil {
-				buffer.Reset()
-				err = msgpackEncoder.Encode(bt.MessageI)
-				if err != nil {
-					if bt.Result != nil {
-						result.Err = err
-						bt.Result <- &result
-					}
-					continue
-				}
-				bt.Message = append(bt.Command, buffer.Bytes()...)
-			}
-			// hash
-			hash.Reset()
-			hash.Write(bt.Message)
-			preB.Hash = hash.Sum(nil)
-			// encrypt
-			preB.Message, err = sender.ctx.global.Encrypt(bt.Message)
-			if err != nil {
-				if bt.Result != nil {
-					result.Err = err
-					bt.Result <- &result
-				}
-				continue
-			}
-			// sign
-			buffer.Reset()
-			buffer.Write(preB.GUID)
-			buffer.Write(preB.Message)
-			buffer.Write(preB.Hash)
-			buffer.WriteByte(preB.SenderRole.Byte())
-			buffer.Write(preB.SenderGUID)
-			preB.Signature = sender.ctx.global.Sign(buffer.Bytes())
-			// pack broadcast & token
-			buffer.Reset()
-			err = msgpackEncoder.Encode(&preB)
-			if err != nil {
-				if bt.Result != nil {
-					result.Err = err
-					bt.Result <- &result
-				}
-				continue
-			}
-			// send
-			token = append(protocol.Node.Bytes(), preB.GUID...)
-			result.Response, result.Success =
-				sender.broadcastParallel(token, buffer.Bytes())
-			if bt.Result != nil {
-				bt.Result <- &result
-			}
-		case <-sender.stopSignal:
+		case sw.srt = <-sw.ctx.syncReceiveTaskQueue:
+			sw.handleSyncReceiveTask()
+		case sw.sst = <-sw.ctx.syncSendTaskQueue:
+			sw.handleSyncSendTask()
+		case sw.bt = <-sw.ctx.broadcastTaskQueue:
+			sw.handleBroadcastTask()
+		case <-sw.ctx.stopSignal:
 			return
 		}
+	}
+}
+
+func (sw *senderWorker) handleSyncReceiveTask() {
+	sw.preSR.GUID = sw.guid.Get()
+	sw.preSR.Height = sw.srt
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.preSR.GUID)
+	sw.buffer.Write(convert.Uint64ToBytes(sw.preSR.Height))
+	sw.buffer.WriteByte(sw.preSR.Role.Byte())
+	sw.buffer.Write(sw.preSR.RoleGUID)
+	sw.preSR.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// pack syncReceive & token
+	sw.buffer.Reset()
+	sw.err = sw.msgpackEncoder.Encode(sw.preSR)
+	if sw.err != nil {
+		panic(sw.err)
+	}
+	// send
+	sw.token = append(protocol.Node.Bytes(), sw.preSR.GUID...)
+	sw.ctx.syncReceiveParallel(sw.token, sw.buffer.Bytes())
+}
+
+func (sw *senderWorker) handleSyncSendTask() {
+	defer sw.ctx.syncSendTaskPool.Put(sw.sst)
+	result := protocol.SyncResult{}
+	sw.preSS.GUID = sw.guid.Get()
+	// pack message(interface)
+	if sw.sst.MessageI != nil {
+		sw.buffer.Reset()
+		sw.err = sw.msgpackEncoder.Encode(sw.sst.MessageI)
+		if sw.err != nil {
+			if sw.sst.Result != nil {
+				result.Err = sw.err
+				sw.sst.Result <- &result
+			}
+			return
+		}
+		sw.sst.Message = append(sw.sst.Command, sw.buffer.Bytes()...)
+	}
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(sw.sst.Message)
+	sw.preSS.Hash = sw.hash.Sum(nil)
+	// encrypt
+	sw.preSS.Message, sw.err = sw.ctx.ctx.global.Encrypt(sw.sst.Message)
+	if sw.err != nil {
+		if sw.sst.Result != nil {
+			result.Err = sw.err
+			sw.sst.Result <- &result
+		}
+		return
+	}
+	sw.ctx.syncSendM.Lock()
+	defer sw.ctx.syncSendM.Unlock()
+	// set sync height
+	sw.preSS.Height = sw.ctx.ctx.global.GetSyncSendHeight()
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.preSS.GUID)
+	sw.buffer.Write(convert.Uint64ToBytes(sw.preSS.Height))
+	sw.buffer.Write(sw.preSS.Message)
+	sw.buffer.Write(sw.preSS.Hash)
+	sw.buffer.WriteByte(sw.preSS.SenderRole.Byte())
+	sw.buffer.Write(sw.preSS.SenderGUID)
+	sw.buffer.WriteByte(sw.preSS.ReceiverRole.Byte())
+	sw.buffer.Write(sw.preSS.ReceiverGUID)
+	sw.preSS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// pack protocol.syncSend and token
+	sw.buffer.Reset()
+	sw.err = sw.msgpackEncoder.Encode(sw.preSS)
+	if sw.err != nil {
+		if sw.sst.Result != nil {
+			result.Err = sw.err
+			sw.sst.Result <- &result
+		}
+		return
+	}
+	// !!! think order
+	// first must add send height
+	sw.ctx.ctx.global.SetSyncSendHeight(sw.preSS.Height + 1)
+	// !!! think order
+	// second send
+	sw.token = append(protocol.Node.Bytes(), sw.preSS.GUID...)
+	result.Response, result.Success = sw.ctx.syncSendParallel(sw.token, sw.buffer.Bytes())
+	// !!! think order
+	// rollback send height
+	if result.Success == 0 {
+		sw.ctx.ctx.global.SetSyncSendHeight(sw.preSS.Height)
+	}
+	if sw.sst.Result != nil {
+		sw.sst.Result <- &result
+	}
+}
+
+func (sw *senderWorker) handleBroadcastTask() {
+	defer sw.ctx.broadcastTaskPool.Put(sw.bt)
+	result := protocol.BroadcastResult{}
+	sw.preB.GUID = sw.guid.Get()
+	// pack message
+	if sw.bt.MessageI != nil {
+		sw.buffer.Reset()
+		sw.err = sw.msgpackEncoder.Encode(sw.bt.MessageI)
+		if sw.err != nil {
+			if sw.bt.Result != nil {
+				result.Err = sw.err
+				sw.bt.Result <- &result
+			}
+			return
+		}
+		sw.bt.Message = append(sw.bt.Command, sw.buffer.Bytes()...)
+	}
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(sw.bt.Message)
+	sw.preB.Hash = sw.hash.Sum(nil)
+	// encrypt
+	sw.preB.Message, sw.err = sw.ctx.ctx.global.Encrypt(sw.bt.Message)
+	if sw.err != nil {
+		if sw.bt.Result != nil {
+			result.Err = sw.err
+			sw.bt.Result <- &result
+		}
+		return
+	}
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.preB.GUID)
+	sw.buffer.Write(sw.preB.Message)
+	sw.buffer.Write(sw.preB.Hash)
+	sw.buffer.WriteByte(sw.preB.SenderRole.Byte())
+	sw.buffer.Write(sw.preB.SenderGUID)
+	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// pack broadcast & token
+	sw.buffer.Reset()
+	sw.err = sw.msgpackEncoder.Encode(sw.preB)
+	if sw.err != nil {
+		if sw.bt.Result != nil {
+			result.Err = sw.err
+			sw.bt.Result <- &result
+		}
+		return
+	}
+	// send
+	sw.token = append(protocol.Node.Bytes(), sw.preB.GUID...)
+	result.Response, result.Success = sw.ctx.broadcastParallel(sw.token, sw.buffer.Bytes())
+	if sw.bt.Result != nil {
+		sw.bt.Result <- &result
 	}
 }
