@@ -10,6 +10,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
+	_ "project/internal/gorm"
 	"project/internal/logger"
 	"project/internal/xpanic"
 )
@@ -17,15 +18,6 @@ import (
 var (
 	errNoCache = errors.New("can't find cache")
 )
-
-func init() {
-	// gorm custom namer: table name delete "m"
-	// table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
-	namer := gorm.TheNamingStrategy.Table
-	gorm.TheNamingStrategy.Table = func(name string) string {
-		return namer(name)[2:]
-	}
-}
 
 type db struct {
 	ctx         *CTRL // use cache
