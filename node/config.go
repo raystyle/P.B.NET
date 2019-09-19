@@ -27,6 +27,11 @@ type Config struct {
 	// logger
 	LogLevel string `toml:"log_level"`
 
+	// database
+	DBFilePath string `toml:"db_file_path"`
+	DBUsername string `toml:"db_username"`
+	DBPassword string `toml:"db_password"`
+
 	// global
 	ProxyClients       map[string]*proxy.Client    `toml:"proxy_clients"`
 	DNSServers         map[string]*dns.Server      `toml:"dns_servers"`

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -51,6 +52,7 @@ type syncer struct {
 	beaconConns    map[string]*beaconConn
 	beaconConnsRWM sync.RWMutex
 
+	inClose    int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
@@ -118,6 +120,23 @@ func newSyncer(ctx *NODE, cfg *Config) (*syncer, error) {
 	return &syncer, nil
 }
 
+// SyncerClients return connected Nodes
+func (syncer *syncer) SyncerClients() map[string]*sClient {
+	syncer.sClientsRWM.RLock()
+	l := len(syncer.sClients)
+	if l == 0 {
+		syncer.sClientsRWM.RUnlock()
+		return nil
+	}
+	// copy map
+	sClients := make(map[string]*sClient, l)
+	for key, client := range syncer.sClients {
+		sClients[key] = client
+	}
+	syncer.sClientsRWM.RUnlock()
+	return sClients
+}
+
 func (syncer *syncer) SetCtrlConn(ctrl *ctrlConn) bool {
 	syncer.ctrlConnM.Lock()
 	defer syncer.ctrlConnM.Unlock()
@@ -136,6 +155,20 @@ func (syncer *syncer) CtrlConn() *ctrlConn {
 	return cc
 }
 
+func (syncer *syncer) isClosed() bool {
+	return atomic.LoadInt32(&syncer.inClose) != 0
+}
+
+func (syncer *syncer) Close() {
+	atomic.StoreInt32(&syncer.inClose, 1)
+	// disconnect all syncer clients
+
+	// wait close
+
+	close(syncer.stopSignal)
+	syncer.wg.Wait()
+}
+
 func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
 	syncer.ctx.Printf(l, "syncer", format, log...)
 }
@@ -146,22 +179,6 @@ func (syncer *syncer) log(l logger.Level, log ...interface{}) {
 
 func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
 	syncer.ctx.Println(l, "syncer", log...)
-}
-
-func (syncer *syncer) SyncerClients() map[string]*sClient {
-	syncer.sClientsRWM.RLock()
-	l := len(syncer.sClients)
-	if l == 0 {
-		syncer.sClientsRWM.RUnlock()
-		return nil
-	}
-	// copy map
-	sClients := make(map[string]*sClient, l)
-	for key, client := range syncer.sClients {
-		sClients[key] = client
-	}
-	syncer.sClientsRWM.RUnlock()
-	return sClients
 }
 
 // getMaxSyncerClient is used to get current max syncer client number

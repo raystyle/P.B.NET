@@ -214,6 +214,7 @@ func (sender *sender) broadcastParallel(token, message []byte) (
 			success += 1
 		}
 	}
+
 	/*
 		sClients := sender.ctx.syncer.sClients()
 		l := len(sClients)
@@ -466,6 +467,8 @@ func (sw *senderWorker) handleSyncSendTask() {
 		}
 		return
 	}
+	// add message to database (self)
+
 	// !!! think order
 	// first must add send height
 	sw.ctx.ctx.global.SetSyncSendHeight(sw.preSS.Height + 1)
@@ -473,11 +476,6 @@ func (sw *senderWorker) handleSyncSendTask() {
 	// second send
 	sw.token = append(protocol.Node.Bytes(), sw.preSS.GUID...)
 	result.Response, result.Success = sw.ctx.syncSendParallel(sw.token, sw.buffer.Bytes())
-	// !!! think order
-	// rollback send height
-	if result.Success == 0 {
-		sw.ctx.ctx.global.SetSyncSendHeight(sw.preSS.Height)
-	}
 	if sw.sst.Result != nil {
 		sw.sst.Result <- &result
 	}
