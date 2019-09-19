@@ -36,7 +36,7 @@ func testGenerateConfig() *Config {
 		SenderQueueSize: 512,
 
 		// syncer
-		MaxSyncerClient:  2,
+		MaxSyncerClient:  8,
 		SyncerWorker:     64,
 		SyncerQueueSize:  512,
 		ReserveWorker:    16,

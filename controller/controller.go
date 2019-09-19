@@ -186,6 +186,8 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.Print(logger.Info, "exit", "boot is stopped")
 		ctrl.sender.Close()
 		ctrl.Print(logger.Info, "exit", "sender is stopped")
+		ctrl.syncer.Close()
+		ctrl.Print(logger.Info, "exit", "syncer is stopped")
 		ctrl.global.Destroy()
 		ctrl.Print(logger.Info, "exit", "global is stopped")
 		ctrl.Print(logger.Info, "exit", "controller is stopped")

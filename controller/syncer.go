@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -57,6 +58,7 @@ type syncer struct {
 	sClients    map[string]*sClient
 	sClientsRWM sync.RWMutex
 
+	inClose    int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
@@ -124,17 +126,35 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	return &syncer, nil
 }
 
+func (syncer *syncer) isClosed() bool {
+	return atomic.LoadInt32(&syncer.inClose) != 0
+}
+
 func (syncer *syncer) Close() {
+	atomic.StoreInt32(&syncer.inClose, 1)
+	// disconnect all syncer clients
+	for key := range syncer.Clients() {
+		_ = syncer.Disconnect(key)
+	}
+	// wait close
+	for {
+		time.Sleep(10 * time.Millisecond)
+		if len(syncer.Clients()) == 0 {
+			break
+		}
+	}
 	close(syncer.stopSignal)
 	syncer.wg.Wait()
 }
 
 // Connect is used to connect node for sync message
 func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
+	if syncer.isClosed() {
+		return errors.New("syncer is closed")
+	}
 	syncer.sClientsRWM.Lock()
 	defer syncer.sClientsRWM.Unlock()
-	sClientsLen := len(syncer.sClients)
-	if sClientsLen >= syncer.getMaxSyncerClient() {
+	if len(syncer.sClients) >= syncer.getMaxSyncerClient() {
 		return errors.New("connected node number > max syncer")
 	}
 	cfg := clientCfg{

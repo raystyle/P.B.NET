@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"sync"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
@@ -18,10 +19,11 @@ import (
 
 // syncer client
 type sClient struct {
-	ctx    *syncer
-	Node   *bootstrap.Node
-	guid   []byte
-	client *client
+	ctx       *syncer
+	Node      *bootstrap.Node
+	guid      []byte
+	client    *client
+	closeOnce sync.Once
 }
 
 func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
@@ -44,7 +46,7 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 				err := xpanic.Error("syncer client panic:", r)
 				client.log(logger.Fatal, err)
 			}
-			client.Close()
+			sc.Close()
 		}()
 		protocol.HandleConn(client.conn, sc.handleMessage)
 	}()
@@ -177,11 +179,13 @@ func (sc *sClient) handleQueryReply(reply []byte) (*protocol.SyncReply, error) {
 }
 
 func (sc *sClient) Close() {
-	sc.client.Close()
-	key := base64.StdEncoding.EncodeToString(sc.guid)
-	sc.ctx.sClientsRWM.Lock()
-	delete(sc.ctx.sClients, key)
-	sc.ctx.sClientsRWM.Unlock()
+	sc.closeOnce.Do(func() {
+		sc.client.Close()
+		key := base64.StdEncoding.EncodeToString(sc.guid)
+		sc.ctx.sClientsRWM.Lock()
+		delete(sc.ctx.sClients, key)
+		sc.ctx.sClientsRWM.Unlock()
+	})
 }
 
 func (sc *sClient) logf(l logger.Level, format string, log ...interface{}) {

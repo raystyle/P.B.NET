@@ -22,9 +22,9 @@ import (
 	"project/testdata"
 )
 
-func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
+func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
 	regAESKey := bytes.Repeat([]byte{0}, aes.Bit256+aes.IVSize)
-	cfg := &node.Config{
+	cfg := node.Config{
 		// logger
 		LogLevel: "debug",
 
@@ -71,6 +71,11 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 		register[i].Config = configEnc
 	}
 	cfg.RegisterBootstraps = register
+	return &cfg
+}
+
+func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
+	cfg := testGenerateNodeConfig(t, genesis)
 	NODE, err := node.New(cfg)
 	require.NoError(t, err)
 	go func() {
