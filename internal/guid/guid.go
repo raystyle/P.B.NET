@@ -2,6 +2,7 @@ package guid
 
 import (
 	"bytes"
+	"crypto/rand"
 	"net"
 	"os"
 	"strconv"
@@ -61,7 +62,13 @@ func New(size int, now func() time.Time) *GUID {
 	buffer.WriteString(hostname)
 	buffer.WriteString(strconv.Itoa(os.Getpid()))
 	// <security>
-	buffer.Write(random.New(g.now().Unix()).Bytes(64))
+	randBytes := make([]byte, 64)
+	_, err = rand.Reader.Read(randBytes)
+	if err != nil {
+		time.Sleep(2 * time.Second)
+		randBytes = random.New(time.Now().Unix()).Bytes(64)
+	}
+	buffer.Write(randBytes)
 	g.head = sha256.Bytes(buffer.Bytes())
 	g.wg.Add(1)
 	go g.generateLoop()
