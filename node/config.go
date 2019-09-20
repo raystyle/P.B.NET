@@ -29,8 +29,6 @@ type Config struct {
 
 	// database
 	DBFilePath string `toml:"db_file_path"`
-	DBUsername string `toml:"db_username"`
-	DBPassword string `toml:"db_password"`
 
 	// global
 	ProxyClients       map[string]*proxy.Client    `toml:"proxy_clients"`

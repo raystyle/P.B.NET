@@ -27,7 +27,7 @@ func TestSender_Broadcast(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(&node, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.syncer.Connect(&node, NODE.TestGUID())
+	err = ctrl.syncer.Connect(&node, NODE.TestGetGUID())
 	require.NoError(t, err)
 	// node broadcast test message
 	msg := []byte("ctrl-broadcast: hello node")
@@ -43,7 +43,7 @@ func TestSender_Broadcast(t *testing.T) {
 		t.Fatal("receive broadcast message timeout")
 	}
 	// disconnect
-	guid := base64.StdEncoding.EncodeToString(NODE.TestGUID())
+	guid := base64.StdEncoding.EncodeToString(NODE.TestGetGUID())
 	err = ctrl.syncer.Disconnect(guid)
 	require.NoError(t, err)
 }

@@ -47,6 +47,10 @@ func newDB(ctx *CTRL, cfg *Config) (*db, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
 	}
+	err = gormDB.DB().Ping()
+	if err != nil {
+		return nil, errors.Wrapf(err, "ping %s server failed", cfg.Dialect)
+	}
 	gormDB.SingularTable(true) // not add s
 	// connection
 	gormDB.DB().SetMaxOpenConns(cfg.DBMaxOpenConns)

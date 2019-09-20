@@ -11,7 +11,7 @@ import (
 	"project/internal/xreflect"
 )
 
-// different table has the same model
+// different table have the same model
 const (
 	tableLog       = "log"
 	tableNodeLog   = "node_log"
@@ -170,6 +170,10 @@ func InitDatabase(cfg *Config) error {
 	db, err := gorm.Open(cfg.Dialect, cfg.DSN)
 	if err != nil {
 		return errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
+	}
+	err = db.DB().Ping()
+	if err != nil {
+		return errors.Wrapf(err, "ping %s server failed", cfg.Dialect)
 	}
 	// not add s
 	db.SingularTable(true)

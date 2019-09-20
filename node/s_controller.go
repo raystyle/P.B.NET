@@ -539,7 +539,7 @@ func (ctrl *ctrlConn) handleSyncQueryBeacon(id, message []byte) {
 	}
 	err = sr.Validate()
 	if err != nil {
-		ctrl.logf(logger.Exploit, "invalid sync query: %s\n%s", err, spew.Sdump(sr))
+		ctrl.logf(logger.Exploit, "invalid sync query beacon: %s\n%s", err, spew.Sdump(sr))
 		ctrl.Close()
 		return
 	}
@@ -557,7 +557,7 @@ func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
 	}
 	err = sr.Validate()
 	if err != nil {
-		ctrl.logf(logger.Exploit, "invalid sync query: %s\n%s", err, spew.Sdump(sr))
+		ctrl.logf(logger.Exploit, "invalid sync query node: %s\n%s", err, spew.Sdump(sr))
 		ctrl.Close()
 		return
 	}

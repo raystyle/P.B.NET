@@ -131,8 +131,12 @@ func (node *NODE) TestWait() {
 	<-node.wait
 }
 
-func (node *NODE) TestGUID() []byte {
+func (node *NODE) TestGetGUID() []byte {
 	return node.global.GUID()
+}
+
+func (node *NODE) TestGetDBFilePath() string {
+	return node.db.path
 }
 
 func (node *NODE) TestBroadcast(msg []byte) *protocol.BroadcastResult {

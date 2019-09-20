@@ -27,10 +27,10 @@ func TestSyncer_Connect(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(&node, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.syncer.Connect(&node, NODE.TestGUID())
+	err = ctrl.syncer.Connect(&node, NODE.TestGetGUID())
 	require.NoError(t, err)
 	// disconnect
-	guid := base64.StdEncoding.EncodeToString(NODE.TestGUID())
+	guid := base64.StdEncoding.EncodeToString(NODE.TestGetGUID())
 	err = ctrl.syncer.Disconnect(guid)
 	require.NoError(t, err)
 }
@@ -54,7 +54,7 @@ func TestNodeBroadcastFromConnectedNodes(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(&node1, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.syncer.Connect(&node1, NODE1.TestGUID())
+	err = ctrl.syncer.Connect(&node1, NODE1.TestGetGUID())
 	require.NoError(t, err)
 	// node broadcast test message
 	msg := []byte("node-broadcast: hello controller")
@@ -76,7 +76,7 @@ func TestNodeBroadcastFromConnectedNodes(t *testing.T) {
 		}
 	}
 	// disconnect
-	guid := base64.StdEncoding.EncodeToString(NODE1.TestGUID())
+	guid := base64.StdEncoding.EncodeToString(NODE1.TestGetGUID())
 	err = ctrl.syncer.Disconnect(guid)
 	require.NoError(t, err)
 }
@@ -100,7 +100,7 @@ func TestNodeSyncSendFromConnectedNode(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(&node, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.syncer.Connect(&node, NODE.TestGUID())
+	err = ctrl.syncer.Connect(&node, NODE.TestGetGUID())
 	require.NoError(t, err)
 	// node broadcast test message
 	msg := []byte("node-send: hello controller")
@@ -122,7 +122,7 @@ func TestNodeSyncSendFromConnectedNode(t *testing.T) {
 		}
 	}
 	// disconnect
-	guid := base64.StdEncoding.EncodeToString(NODE.TestGUID())
+	guid := base64.StdEncoding.EncodeToString(NODE.TestGetGUID())
 	err = ctrl.syncer.Disconnect(guid)
 	require.NoError(t, err)
 	// wait db cache sync
