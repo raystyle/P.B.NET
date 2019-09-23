@@ -164,7 +164,7 @@ func (ctrl *ctrlConn) handleMessage(msg []byte) {
 }
 
 func (ctrl *ctrlConn) handleHeartbeat() {
-	// <security> fake flow like client
+	// <security> fake traffic like client
 	fakeSize := 64 + ctrl.rand.Int(256)
 	// size(4 Bytes) + heartbeat(1 byte) + fake data
 	ctrl.buffer.Reset()

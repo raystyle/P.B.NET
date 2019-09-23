@@ -175,7 +175,7 @@ func (client *client) heartbeat() {
 		t := time.Duration(30+rand.Int(60)) * time.Second
 		select {
 		case <-time.After(t):
-			// <security> fake flow like client
+			// <security> fake traffic like client
 			fakeSize := 64 + rand.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
 			buffer.Reset()

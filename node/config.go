@@ -54,7 +54,7 @@ type Config struct {
 	// controller configs
 	CtrlPublicKey   []byte `toml:"-"` // ed25519
 	CtrlExPublicKey []byte `toml:"-"` // curve25519
-	CtrlAESCrypto   []byte `toml:"-"` // key + iv
+	CtrlAESCrypto   []byte `toml:"-"` // controller broadcast key key + iv
 
 	// register
 	IsGenesis          bool                `toml:"-"` // use controller to register

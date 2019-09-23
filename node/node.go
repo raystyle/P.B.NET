@@ -14,8 +14,6 @@ import (
 type NODE struct {
 	Debug  *Debug
 	logLv  logger.Level
-	cache  *cache
-	db     *db
 	global *global
 	syncer *syncer
 	sender *sender
@@ -36,14 +34,7 @@ func New(cfg *Config) (*NODE, error) {
 	node := &NODE{
 		Debug: &debug,
 		logLv: lv,
-		cache: newCache(),
 	}
-	// init database
-	db, err := newDB(node, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "init database failed")
-	}
-	node.db = db
 	// init global
 	global, err := newGlobal(node, cfg)
 	if err != nil {
@@ -133,10 +124,6 @@ func (node *NODE) TestWait() {
 
 func (node *NODE) TestGetGUID() []byte {
 	return node.global.GUID()
-}
-
-func (node *NODE) TestGetDBFilePath() string {
-	return node.db.path
 }
 
 func (node *NODE) TestBroadcast(msg []byte) *protocol.BroadcastResult {
