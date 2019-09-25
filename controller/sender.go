@@ -123,7 +123,7 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 	return &sender, nil
 }
 
-// Broadcast is used to broadcast message to all nodes
+// Broadcast is used to broadcast message to all Nodes
 // message will not be saved
 func (sender *sender) Broadcast(
 	command []byte,
@@ -140,8 +140,7 @@ func (sender *sender) Broadcast(
 	return
 }
 
-// Broadcast is used to broadcast(Async) message to all nodes
-// message will not be saved
+// Broadcast is used to broadcast(Async) message to all Nodes
 func (sender *sender) BroadcastAsync(
 	command []byte,
 	message interface{},
@@ -154,8 +153,7 @@ func (sender *sender) BroadcastAsync(
 	sender.broadcastTaskQueue <- bt
 }
 
-// Broadcast is used to broadcast(plugin) message to all nodes
-// message will not be saved
+// Broadcast is used to broadcast(plugin) message to all Nodes
 func (sender *sender) BroadcastPlugin(
 	message []byte,
 ) (r *protocol.BroadcastResult) {
@@ -170,7 +168,8 @@ func (sender *sender) BroadcastPlugin(
 }
 
 // Send is used to send message to Node or Beacon
-// if role not online, node will save it
+// if beacon is not online, message will saved to database
+// Node is always online
 func (sender *sender) Send(
 	role protocol.Role,
 	target,
@@ -191,7 +190,6 @@ func (sender *sender) Send(
 }
 
 // Send is used to send(async) message to Node or Beacon
-// if role not online, node will save it
 func (sender *sender) SendAsync(
 	role protocol.Role,
 	target,
@@ -209,7 +207,6 @@ func (sender *sender) SendAsync(
 }
 
 // Send is used to send(plugin) message to Node or Beacon
-// if role not online, node will save it
 func (sender *sender) SendPlugin(
 	role protocol.Role,
 	target,
@@ -259,7 +256,7 @@ func (sender *sender) logln(l logger.Level, log ...interface{}) {
 	sender.ctx.Println(l, "sender", log...)
 }
 
-func (sender *sender) broadcastParallel(token, message []byte) (
+func (sender *sender) broadcast(token, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
 	sClients := sender.ctx.syncer.Clients()
 	l := len(sClients)
@@ -421,12 +418,13 @@ type senderWorker struct {
 	msgpackEncoder *msgpack.Encoder
 	base64Encoder  io.WriteCloser
 	hash           hash.Hash
+	token          []byte
 
 	// temp
+	bufferData   []byte
 	nodeSyncer   *nodeSyncer
 	beaconSyncer *beaconSyncer
 	roleGUID     string
-	token        []byte
 	err          error
 }
 
@@ -449,11 +447,10 @@ func (sw *senderWorker) Work() {
 	sw.msgpackEncoder = msgpack.NewEncoder(sw.buffer)
 	sw.base64Encoder = base64.NewEncoder(base64.StdEncoding, sw.buffer)
 	sw.hash = sha256.New()
+	// token = role + GUID
+	sw.token = make([]byte, 1+guid.Size)
 	// prepare task objects
-	sw.preB = &protocol.Broadcast{
-		SenderRole: protocol.Ctrl,
-		SenderGUID: protocol.CtrlGUID,
-	}
+	sw.preB = &protocol.Broadcast{}
 	sw.preSS = &protocol.SyncSend{
 		SenderRole: protocol.Ctrl,
 		SenderGUID: protocol.CtrlGUID,
@@ -718,9 +715,8 @@ func (sw *senderWorker) handleBroadcastTask() {
 	sw.buffer.Write(sw.preB.GUID)
 	sw.buffer.Write(sw.preB.Message)
 	sw.buffer.Write(sw.preB.Hash)
-	sw.buffer.WriteByte(sw.preB.SenderRole.Byte())
-	sw.buffer.Write(sw.preB.SenderGUID)
-	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	sw.bufferData = sw.buffer.Bytes()
+	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.bufferData)
 	// pack broadcast & token
 	sw.buffer.Reset()
 	sw.err = sw.msgpackEncoder.Encode(sw.preB)
@@ -731,10 +727,10 @@ func (sw *senderWorker) handleBroadcastTask() {
 		}
 		return
 	}
-	// send
-	sw.token = append(protocol.Ctrl.Bytes(), sw.preB.GUID...)
-	result.Response, result.Success =
-		sw.ctx.broadcastParallel(sw.token, sw.buffer.Bytes())
+	// set token
+	sw.token[0] = protocol.Ctrl.Byte()
+	copy(sw.token[1:], sw.preB.GUID)
+	result.Response, result.Success = sw.ctx.broadcast(sw.token, sw.bufferData)
 	if sw.bt.Result != nil {
 		sw.bt.Result <- &result
 	}

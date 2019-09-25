@@ -65,7 +65,6 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 
 func (sc *sClient) Broadcast(token, message []byte) *protocol.BroadcastResponse {
 	br := protocol.BroadcastResponse{}
-	br.Role = protocol.Node
 	br.GUID = sc.guid
 	reply, err := sc.client.Send(protocol.CtrlBroadcastToken, token)
 	if err != nil {
