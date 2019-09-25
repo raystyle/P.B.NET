@@ -7,6 +7,18 @@ import (
 	"project/internal/guid"
 )
 
+const (
+	byteCtrl = iota
+	byteNode
+	byteBeacon
+)
+
+var (
+	bytesCtrl   = []byte{0}
+	bytesNode   = []byte{1}
+	bytesBeacon = []byte{2}
+)
+
 type Role uint8
 
 func (role Role) String() string {
@@ -23,11 +35,29 @@ func (role Role) String() string {
 }
 
 func (role Role) Bytes() []byte {
-	return []byte{byte(role)}
+	switch role {
+	case Ctrl:
+		return bytesCtrl
+	case Node:
+		return bytesNode
+	case Beacon:
+		return bytesBeacon
+	default:
+		return []byte{255}
+	}
 }
 
 func (role Role) Byte() byte {
-	return byte(role)
+	switch role {
+	case Ctrl:
+		return byteCtrl
+	case Node:
+		return byteNode
+	case Beacon:
+		return byteBeacon
+	default:
+		return 255
+	}
 }
 
 const (
