@@ -9,10 +9,6 @@ import (
 	"project/internal/guid"
 )
 
-// SyncSend and SyncReceive first send message token,
-// if don't handled send total message.
-// token = role + guid
-
 var (
 	SyncUnhandled = []byte{3}
 	SyncHandled   = []byte{4}
@@ -23,6 +19,10 @@ var (
 	ErrNotExistMessage = errors.New("this message is not exist")
 	ErrWorkerStopped   = errors.New("worker stopped")
 )
+
+// SyncSend and SyncReceive first send message token,
+// if don't handled send total message.
+// token = role + guid
 
 // ----------------------------send message---------------------------------
 
