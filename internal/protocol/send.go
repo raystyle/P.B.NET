@@ -10,76 +10,109 @@ import (
 )
 
 var (
-	SyncUnhandled = []byte{3}
-	SyncHandled   = []byte{4}
-	SyncSucceed   = []byte{5}
+	SendUnhandled = []byte{3}
+	SendHandled   = []byte{4}
+	SendSucceed   = []byte{5}
 
-	ErrSyncHandled     = errors.New("this sync has been handled")
+	ErrSendHandled     = errors.New("this send has been handled")
 	ErrNoSyncerClients = errors.New("no connected syncer client")
 	ErrNotExistMessage = errors.New("this message is not exist")
 	ErrWorkerStopped   = errors.New("worker stopped")
 )
 
-// SyncSend and SyncReceive first send message token,
-// if don't handled send total message.
-// token = role + guid
+// -------------------------------interactive mode----------------------------------
 
-// ----------------------------send message---------------------------------
-
-// SyncSend is used to send messages to role
-// it will be saved in node database.
+// Send is used to send messages in interactive mode.
 //
-// SenderRole can be Ctrl, Node, Beacon
-// When SenderRole = Ctrl, SenderGUID = CtrlGUID,
-// Ctrl use their session key to encrypt Message.
-// When SenderRole = Node or Beacon, ReceiverRole = Ctrl,
-// SenderRole use their session key to encrypt Message.
-// look Role/global.go
+// When Controller use it, Role and RoleGUID = receiver
+// role and receiver GUID. Controller encrypt Message
+// with Node or Beacon session key.
+// When Node use it, Role = Node and RoleGUID = its GUID.
+// Node encrypt Message with its session key.
+// When Beacon use it, Role = Beacon and RoleGUID = its GUID.
+// Beacon encrypt Message with its session key.
 //
-// Signature = SenderRole.Sign(GUID + Height + Message +
-// SenderRole + SenderGUID + ReceiverRole + ReceiverGUID)
-type SyncSend struct {
-	GUID         []byte // prevent duplicate handle it
-	Height       uint64
-	Message      []byte // encrypted
-	Hash         []byte // raw message hash
-	SenderRole   Role
-	SenderGUID   []byte
-	ReceiverRole Role
-	ReceiverGUID []byte
-	Signature    []byte
+// Signature = role.global.Sign(GUID + Message + Hash + Role + RoleGUID)
+type Send struct {
+	GUID      []byte // prevent duplicate handle it
+	Message   []byte // encrypted
+	Hash      []byte // raw message hash
+	Role      Role
+	RoleGUID  []byte
+	Signature []byte
 }
 
-func (ss *SyncSend) Validate() error {
-	if len(ss.GUID) != guid.Size {
+func (s *Send) Validate() error {
+	if len(s.GUID) != guid.Size {
 		return errors.New("invalid GUID size")
 	}
-	if len(ss.Message) < aes.BlockSize {
+	if len(s.Message) < aes.BlockSize {
 		return errors.New("invalid message size")
 	}
-	if len(ss.Hash) != sha256.Size {
+	if len(s.Hash) != sha256.Size {
 		return errors.New("invalid message hash size")
 	}
-	if ss.SenderRole > Beacon {
-		return errors.New("invalid sender role")
+	if s.Role > Beacon {
+		return errors.New("invalid role")
 	}
-	if len(ss.SenderGUID) != guid.Size {
-		return errors.New("invalid sender GUID size")
+	if len(s.RoleGUID) != guid.Size {
+		return errors.New("invalid role GUID size")
 	}
-	if ss.ReceiverRole > Beacon {
-		return errors.New("invalid receiver role")
-	}
-	if len(ss.ReceiverGUID) != guid.Size {
-		return errors.New("invalid receiver GUID size")
-	}
-	if len(ss.Signature) != ed25519.SignatureSize {
+	if len(s.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")
-	}
-	if ss.SenderRole == ss.ReceiverRole {
-		return errors.New("sender and receiver are the same")
 	}
 	return nil
 }
+
+type SendResponse struct {
+	Role Role
+	GUID []byte // Role GUID
+	Err  error
+}
+
+type SendResult struct {
+	Success   int
+	Responses []*SendResponse
+	Err       error
+}
+
+// Acknowledge is used to acknowledge sender that receiver
+// has receive this message
+//
+// When Controller use it, Role and RoleGUID = sender role
+// and sender GUID.
+// When Node use it, Role = Node and RoleGUID = its GUID.
+// When Beacon use it, Role = Beacon and RoleGUID = its GUID.
+//
+// Signature = role.global.Sign(GUID + Role + RoleGUID + SendGUID)
+type Acknowledge struct {
+	GUID      []byte // prevent duplicate handle it
+	Role      Role
+	RoleGUID  []byte
+	SendGUID  []byte // Send.GUID
+	Signature []byte
+}
+
+func (ack *Acknowledge) Validate() error {
+	if len(ack.GUID) != guid.Size {
+		return errors.New("invalid GUID size")
+	}
+	if ack.Role > Beacon {
+		return errors.New("invalid role")
+	}
+	if len(ack.RoleGUID) != guid.Size {
+		return errors.New("invalid role GUID size")
+	}
+	if len(ack.SendGUID) != guid.Size {
+		return errors.New("invalid role GUID size")
+	}
+	if len(ack.Signature) != ed25519.SignatureSize {
+		return errors.New("invalid signature size")
+	}
+	return nil
+}
+
+// -------------------------------query mode----------------------------------
 
 // SyncReceive is used to synchronize node_receive,
 // beacon_receive, controller_receive, (look database tables)
@@ -116,25 +149,6 @@ func (srr *SyncReceive) Validate() error {
 		return errors.New("invalid signature size")
 	}
 	return nil
-}
-
-// SyncResponse is use to get synchronize response.
-// Role is the receiver role that sender connect it
-// if one node connect controller and a node.
-// When node send to controller, Role is Ctrl.
-// When controller send to node, Role is Node.
-type SyncResponse struct {
-	Role Role
-	GUID []byte // Role GUID
-	Err  error
-}
-
-// SyncResult is use to get synchronize result.
-// it include all SyncResponse
-type SyncResult struct {
-	Success  int
-	Response []*SyncResponse
-	Err      error
 }
 
 // ---------------------active synchronize message----------------------

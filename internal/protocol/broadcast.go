@@ -17,19 +17,15 @@ var (
 	ErrBroadcastHandled = errors.New("this broadcast has been handled")
 )
 
-// broadcast first send message token,
-// if don't handled, send total message.
-// token = Role + GUID
-
-// Broadcast is used to broadcast messages to Nodes
-//
+// Broadcast is used to broadcast messages to Nodes.
 // Controller use broadcast key to encrypt Message.
 // look controller/keygen.go GenerateCtrlKeys()
+// Signature = CTRL.global.Sign(GUID + Message + Hash)
 type Broadcast struct {
 	GUID      []byte // prevent duplicate handle it
 	Message   []byte // encrypted
 	Hash      []byte // raw message hash
-	Signature []byte // CTRL.global.Sign(GUID + Message + Hash)
+	Signature []byte
 }
 
 func (b *Broadcast) Validate() error {
@@ -49,7 +45,6 @@ func (b *Broadcast) Validate() error {
 }
 
 // BroadcastResponse is use to get broadcast response.
-// only one Node
 type BroadcastResponse struct {
 	GUID []byte // Node GUID
 	Err  error
@@ -58,7 +53,7 @@ type BroadcastResponse struct {
 // BroadcastResult is use to get broadcast result.
 // it include all BroadcastResponse.
 type BroadcastResult struct {
-	Success  int
-	Response []*BroadcastResponse
-	Err      error
+	Success   int
+	Responses []*BroadcastResponse
+	Err       error
 }
