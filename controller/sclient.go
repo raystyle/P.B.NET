@@ -89,7 +89,7 @@ func (sc *sClient) Broadcast(token, message []byte) *protocol.BroadcastResponse 
 	}
 }
 
-func (sc *sClient) SyncSend(token, message []byte) *protocol.SyncResponse {
+func (sc *sClient) Send(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Node
 	sr.GUID = sc.guid
@@ -346,7 +346,7 @@ func (sc *sClient) handleBroadcast(id, message []byte) {
 }
 
 func (sc *sClient) handleSyncSend(id, message []byte) {
-	ss := protocol.SyncSend{}
+	ss := protocol.Send{}
 	err := msgpack.Unmarshal(message, &ss)
 	if err != nil {
 		sc.logln(logger.Exploit, "invalid sync send msgpack data:", err)

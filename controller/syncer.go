@@ -39,7 +39,7 @@ type syncer struct {
 	broadcastGUID    [2]map[string]int64
 	broadcastGUIDRWM [2]sync.RWMutex
 	// -----------------handle sync message-----------------------
-	syncSendQueue      chan *protocol.SyncSend
+	syncSendQueue      chan *protocol.Send
 	syncSendGUID       [2]map[string]int64
 	syncSendGUIDRWM    [2]sync.RWMutex
 	syncReceiveQueue   chan *protocol.SyncReceive
@@ -98,7 +98,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		retryInterval:    cfg.RetryInterval,
 		broadcastTimeout: cfg.BroadcastTimeout.Seconds(),
 		broadcastQueue:   make(chan *protocol.Broadcast, cfg.SyncerQueueSize),
-		syncSendQueue:    make(chan *protocol.SyncSend, cfg.SyncerQueueSize),
+		syncSendQueue:    make(chan *protocol.Send, cfg.SyncerQueueSize),
 		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.SyncerQueueSize),
 		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.SyncerQueueSize),
 		sClients:         make(map[string]*sClient),
@@ -278,7 +278,7 @@ func (syncer *syncer) AddBroadcast(br *protocol.Broadcast) {
 }
 
 // task from syncer client
-func (syncer *syncer) AddSyncSend(ss *protocol.SyncSend) {
+func (syncer *syncer) AddSyncSend(ss *protocol.Send) {
 	if len(syncer.syncSendQueue) == syncer.workerQueueSize {
 		go func() { // prevent block
 			select {
@@ -632,7 +632,7 @@ type syncerWorker struct {
 
 	// task
 	b  *protocol.Broadcast
-	ss *protocol.SyncSend
+	ss *protocol.Send
 	sr *protocol.SyncReceive
 	st *protocol.SyncTask
 
@@ -896,7 +896,7 @@ func (sw *syncerWorker) handleSyncSend() {
 			panic("invalid ss.SenderRole")
 		}
 		// notice node to delete message
-		sw.ctx.ctx.sender.SyncReceive(sw.ss.SenderRole, sw.ss.SenderGUID, sw.roleSend-1)
+		sw.ctx.ctx.sender.Acknowledge(sw.ss.SenderRole, sw.ss.SenderGUID, sw.roleSend-1)
 	case sw.sub > 1: // get old message and need sync more message
 		sw.ctx.addSyncTask(&protocol.SyncTask{
 			Role: sw.ss.SenderRole,
@@ -1174,7 +1174,7 @@ func (sw *syncerWorker) handleSyncTask() {
 			return
 		}
 		// notice node to delete message
-		sw.ctx.ctx.sender.SyncReceive(sw.st.Role, sw.st.GUID, sw.ctrlReceive)
+		sw.ctx.ctx.sender.Acknowledge(sw.st.Role, sw.st.GUID, sw.ctrlReceive)
 		select {
 		case <-sw.ctx.stopSignal:
 			return
