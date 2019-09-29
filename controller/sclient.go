@@ -115,8 +115,8 @@ func (sc *sClient) Send(token, message []byte) *protocol.SyncResponse {
 	}
 }
 
-// SyncReceive is used to notice node clean the message
-func (sc *sClient) SyncReceive(token, message []byte) *protocol.SyncResponse {
+// Acknowledge is used to notice node clean the message
+func (sc *sClient) Acknowledge(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Node
 	sr.GUID = sc.guid

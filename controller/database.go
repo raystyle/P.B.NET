@@ -467,7 +467,7 @@ func (db *db) UpdateNSCtrlReceive(guid []byte, height uint64) (err error) {
 // BS = Beacon Syncer
 
 func (db *db) InsertBeaconMessage(guid []byte, message []byte) error {
-	return db.db.Create(m).Error
+	return nil
 }
 
 func (db *db) SelectBeaconSyncer(guid []byte) (bs *beaconSyncer, err error) {
