@@ -149,10 +149,10 @@ func (ctrl *ctrlConn) handleMessage(msg []byte) {
 		ctrl.handleTrustNode(msg[cmd:id])
 	case protocol.CtrlTrustNodeData:
 		ctrl.handleTrustNodeData(msg[cmd:id], msg[id:])
-	case protocol.ErrNullMsg:
+	case protocol.ErrCMDRecvNullMsg:
 		ctrl.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		ctrl.Close()
-	case protocol.ErrTooBigMsg:
+	case protocol.ErrCMDTooBigMsg:
 		ctrl.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		ctrl.Close()
 	case protocol.TestCommand:
@@ -472,7 +472,7 @@ func (ctrl *ctrlConn) handleBroadcast(id, message []byte) {
 }
 
 func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
-	ss := protocol.SyncSend{}
+	ss := protocol.Send{}
 	err := msgpack.Unmarshal(message, &ss)
 	if err != nil {
 		ctrl.logln(logger.Exploit, "invalid sync send msgpack data:", err)

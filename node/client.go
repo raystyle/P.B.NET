@@ -151,10 +151,10 @@ func (client *client) handleMessage(msg []byte) {
 		client.handleReply(msg[cmd:])
 	case protocol.NodeHeartbeat:
 		client.heartbeatC <- struct{}{}
-	case protocol.ErrNullMsg:
+	case protocol.ErrCMDRecvNullMsg:
 		client.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		client.Close()
-	case protocol.ErrTooBigMsg:
+	case protocol.ErrCMDTooBigMsg:
 		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		client.Close()
 	case protocol.TestCommand:

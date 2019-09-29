@@ -330,7 +330,7 @@ type senderWorker struct {
 	hash           hash.Hash
 
 	preB  *protocol.Broadcast
-	preSS *protocol.SyncSend
+	preSS *protocol.Send
 	preSR *protocol.SyncReceive
 
 	// temp
@@ -362,7 +362,7 @@ func (sw *senderWorker) Work() {
 		SenderRole: protocol.Node,
 		SenderGUID: sw.ctx.ctx.global.GUID(),
 	}
-	sw.preSS = &protocol.SyncSend{
+	sw.preSS = &protocol.Send{
 		SenderRole:   protocol.Node,
 		SenderGUID:   sw.ctx.ctx.global.GUID(),
 		ReceiverRole: protocol.Ctrl,
