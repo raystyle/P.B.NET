@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	MaxMsgSize  = 2 * 1048576 // 2 MB
+	MaxMsgSize  = 2 * 1048576 // 2MB
 	SendTimeout = time.Minute
 	RecvTimeout = 2 * SendTimeout // wait heartbeat send time
 
@@ -23,11 +23,12 @@ const (
 	MsgHeaderSize = MsgLenSize + MsgCMDSize + MsgIDSize
 
 	// follow command.go
-	ErrNullMsg   uint8 = 0xFF
-	ErrTooBigMsg uint8 = 0xFE
+	ErrCMDRecvNullMsg uint8 = 0xFF
+	ErrCMDTooBigMsg   uint8 = 0xFE
 )
 
 var (
+	ErrTooBigMsg            = errors.New("too big message")
 	ErrInvalidMsgSize       = errors.New("invalid message size")
 	ErrRecvNullMsg          = errors.New("receive null message")
 	ErrRecvTooBigMsg        = errors.New("receive too big message")
@@ -37,11 +38,6 @@ var (
 	ErrRecvInvalidReplyID   = errors.New("receive invalid reply id")
 	ErrConnClosed           = errors.New("connection closed")
 	ErrRecvTimeout          = errors.New("receive reply timeout")
-)
-
-var (
-	errNullMsg   = []byte{ErrNullMsg}
-	errTooBigMsg = []byte{ErrTooBigMsg}
 )
 
 var (
@@ -63,6 +59,11 @@ type Slot struct {
 	Timer     *time.Timer // receive reply timeout
 }
 
+var (
+	errNullMsg   = []byte{ErrCMDRecvNullMsg}
+	errTooBigMsg = []byte{ErrCMDTooBigMsg}
+)
+
 // HandleConn is used to handle message,
 // msgHandler receive message = cmd(1 byte) + other data
 func HandleConn(conn net.Conn, msgHandler func([]byte)) {
@@ -70,6 +71,9 @@ func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 		// if data buffer bufSize > this, new buffer
 		bufSize    = 4096
 		maxBufSize = 4 * bufSize
+
+		// 2048 for cmd msgID GUID Hash...
+		maxPayloadSize = MaxMsgSize + 2048
 
 		// client send heartbeat
 		heartbeat = 120 * time.Second
@@ -107,7 +111,7 @@ func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 					msgHandler(errNullMsg)
 					return
 				}
-				if bodySize > MaxMsgSize {
+				if bodySize > maxPayloadSize {
 					msgHandler(errTooBigMsg)
 					return
 				}

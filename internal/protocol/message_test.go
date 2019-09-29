@@ -56,7 +56,7 @@ func TestHandleNULLMessage(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		HandleConn(server, func(msg []byte) {
-			require.Equal(t, ErrNullMsg, msg[0])
+			require.Equal(t, ErrCMDRecvNullMsg, msg[0])
 		})
 		_ = server.Close()
 	}()
@@ -72,7 +72,7 @@ func TestHandleTooBigMessage(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		HandleConn(server, func(msg []byte) {
-			require.Equal(t, ErrTooBigMsg, msg[0])
+			require.Equal(t, ErrCMDTooBigMsg, msg[0])
 		})
 		_ = server.Close()
 	}()
