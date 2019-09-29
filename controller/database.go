@@ -10,13 +10,8 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
-	_ "project/internal/gorm"
 	"project/internal/logger"
 	"project/internal/xpanic"
-)
-
-var (
-	errNoCache = errors.New("can't find cache")
 )
 
 type db struct {
@@ -470,6 +465,10 @@ func (db *db) UpdateNSCtrlReceive(guid []byte, height uint64) (err error) {
 
 // ----------------------------sync message(beacon)-----------------------------------
 // BS = Beacon Syncer
+
+func (db *db) InsertBeaconMessage(guid []byte, message []byte) error {
+	return db.db.Create(m).Error
+}
 
 func (db *db) SelectBeaconSyncer(guid []byte) (bs *beaconSyncer, err error) {
 	bs = db.ctx.cache.SelectBeaconSyncer(guid)

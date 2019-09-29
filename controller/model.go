@@ -11,6 +11,15 @@ import (
 	"project/internal/xreflect"
 )
 
+func init() {
+	// gorm custom namer: table name delete "m"
+	// table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
+	namer := gorm.TheNamingStrategy.Table
+	gorm.TheNamingStrategy.Table = func(name string) string {
+		return namer(name)[2:]
+	}
+}
+
 // different table have the same model
 const (
 	tableLog       = "log"
@@ -95,16 +104,6 @@ type mNode struct {
 	DeletedAt   *time.Time `sql:"index"`
 }
 
-type mNodeSyncer struct {
-	GUID      []byte     `gorm:"primary_key;type:binary(52)"`
-	CtrlSend  uint64     `gorm:"not null;column:controller_send"`
-	NodeRecv  uint64     `gorm:"not null;column:node_receive"`
-	NodeSend  uint64     `gorm:"not null;column:node_send"`
-	CtrlRecv  uint64     `gorm:"not null;column:controller_receive"`
-	UpdatedAt time.Time  `gorm:"not null"`
-	DeletedAt *time.Time `sql:"index"`
-}
-
 type mNodeListener struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
@@ -124,16 +123,6 @@ type mBeacon struct {
 	DeletedAt  *time.Time `sql:"index"`
 }
 
-type mBeaconSyncer struct {
-	GUID       []byte     `gorm:"primary_key;type:binary(52)"`
-	CtrlSend   uint64     `gorm:"not null;column:controller_send"`
-	BeaconRecv uint64     `gorm:"not null;column:beacon_receive"`
-	BeaconSend uint64     `gorm:"not null;column:beacon_send"`
-	CtrlRecv   uint64     `gorm:"not null;column:controller_receive"`
-	UpdatedAt  time.Time  `gorm:"not null"`
-	DeletedAt  *time.Time `sql:"index"`
-}
-
 type mBeaconListener struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
@@ -141,6 +130,24 @@ type mBeaconListener struct {
 	Mode      xnet.Mode  `gorm:"size:32;not null"`
 	Network   string     `gorm:"size:32;not null"`
 	Address   string     `gorm:"size:2048;not null"`
+	CreatedAt time.Time  `gorm:"not null"`
+	DeletedAt *time.Time `sql:"index"`
+}
+
+type mBeaconSender struct {
+	GUID      []byte     `gorm:"primary_key;type:binary(52)"`
+	Send      uint64     `gorm:"not null;column:send"`
+	Receive   uint64     `gorm:"not null;column:receive"`
+	UpdatedAt time.Time  `gorm:"not null"`
+	DeletedAt *time.Time `sql:"index"`
+}
+
+type mBeaconMessage struct {
+	ID        uint64     `gorm:"primary_key"`
+	GUID      []byte     `gorm:"not null;type:binary(52)"`
+	Height    uint64     `gorm:"not null"`
+	Message   []byte     `gorm:"not null;type:MEDIUMBLOB"`
+	Signature []byte     `gorm:"not null;type:binary(64)"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
@@ -206,9 +213,6 @@ func InitDatabase(cfg *Config) error {
 			model: &mNode{},
 		},
 		{
-			model: &mNodeSyncer{},
-		},
-		{
 			model: &mNodeListener{},
 		},
 		{
@@ -217,9 +221,6 @@ func InitDatabase(cfg *Config) error {
 		},
 		{
 			model: &mBeacon{},
-		},
-		{
-			model: &mBeaconSyncer{},
 		},
 		{
 			model: &mBeaconListener{},
@@ -270,11 +271,6 @@ func InitDatabase(cfg *Config) error {
 		return errors.Wrapf(err, "add %s foreign key failed", table)
 	}
 	table := gorm.ToTableName(xreflect.StructName(&mNode{}))
-	err = db.Model(&mNodeSyncer{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
-	if err != nil {
-		return addErr(table, err)
-	}
 	err = db.Model(&mNodeListener{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
@@ -287,12 +283,12 @@ func InitDatabase(cfg *Config) error {
 	}
 	// add beacon foreign key
 	table = gorm.ToTableName(xreflect.StructName(&mBeacon{}))
-	err = db.Model(&mBeaconSyncer{}).AddForeignKey("guid", table+"(guid)",
+	err = db.Model(&mBeaconListener{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
 		return addErr(table, err)
 	}
-	err = db.Model(&mBeaconListener{}).AddForeignKey("guid", table+"(guid)",
+	err = db.Model(&mBeaconSender{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
 		return addErr(table, err)

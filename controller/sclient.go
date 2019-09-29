@@ -238,10 +238,10 @@ func (sc *sClient) handleMessage(msg []byte) {
 		sc.client.handleReply(msg[cmd:])
 	case protocol.NodeHeartbeat:
 		sc.client.heartbeatC <- struct{}{}
-	case protocol.ErrNullMsg:
+	case protocol.ErrCMDRecvNullMsg:
 		sc.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		sc.Close()
-	case protocol.ErrTooBigMsg:
+	case protocol.ErrCMDTooBigMsg:
 		sc.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		sc.Close()
 	case protocol.TestCommand:

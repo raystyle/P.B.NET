@@ -53,11 +53,11 @@ type sender struct {
 
 	broadcastTaskQueue   chan *broadcastTask
 	sendTaskQueue        chan *sendTask
-	syncReceiveTaskQueue chan *acknowledgeTask
+	acknowledgeTaskQueue chan *acknowledgeTask
 
 	broadcastTaskPool   sync.Pool
 	sendTaskPool        sync.Pool
-	syncReceiveTaskPool sync.Pool
+	acknowledgeTaskPool sync.Pool
 
 	broadcastDonePool sync.Pool
 	sendDonePool      sync.Pool
@@ -65,8 +65,9 @@ type sender struct {
 	broadcastRespPool sync.Pool
 	sendRespPool      sync.Pool
 
-	sendMs  [2]map[string]*sync.Mutex
-	sendRWM [2]sync.RWMutex // key = base64(receiver GUID)
+	// check is sending
+	sendStatus    [2]map[string]bool // key = base64(Role GUID)
+	sendStatusRWM [2]sync.RWMutex
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -84,11 +85,11 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 		ctx:                  ctx,
 		broadcastTaskQueue:   make(chan *broadcastTask, cfg.SenderQueueSize),
 		sendTaskQueue:        make(chan *sendTask, cfg.SenderQueueSize),
-		syncReceiveTaskQueue: make(chan *acknowledgeTask, cfg.SenderQueueSize),
+		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.SenderQueueSize),
 		stopSignal:           make(chan struct{}),
 	}
-	sender.sendMs[senderNode] = make(map[string]*sync.Mutex)
-	sender.sendMs[senderBeacon] = make(map[string]*sync.Mutex)
+	sender.sendStatus[senderNode] = make(map[string]bool)
+	sender.sendStatus[senderBeacon] = make(map[string]bool)
 	// init task sync pool
 	sender.broadcastTaskPool.New = func() interface{} {
 		return new(broadcastTask)
@@ -96,7 +97,7 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 	sender.sendTaskPool.New = func() interface{} {
 		return new(sendTask)
 	}
-	sender.syncReceiveTaskPool.New = func() interface{} {
+	sender.acknowledgeTaskPool.New = func() interface{} {
 		return new(acknowledgeTask)
 	}
 	// init done sync pool
@@ -235,7 +236,7 @@ func (sender *sender) Acknowledge(
 	guid []byte,
 	height uint64,
 ) {
-	sender.syncReceiveTaskQueue <- &acknowledgeTask{
+	sender.acknowledgeTaskQueue <- &acknowledgeTask{
 		Role:   role,
 		GUID:   guid,
 		Height: height,
@@ -274,9 +275,9 @@ func (sender *sender) broadcast(token, message []byte) (
 	// broadcast parallel
 	index := 0
 	for _, sc := range sClients {
-		go func(s *sClient) {
-			channels[index] <- s.Broadcast(token, message)
-		}(sc)
+		go func(i int, s *sClient) {
+			channels[i] <- s.Broadcast(token, message)
+		}(index, sc)
 		index += 1
 	}
 	// get response and put
@@ -306,9 +307,9 @@ func (sender *sender) send(token, message []byte) (
 	// sync send parallel
 	index := 0
 	for _, sc := range sClients {
-		go func(s *sClient) {
-			channels[index] <- s.Send(token, message)
-		}(sc)
+		go func(i int, s *sClient) {
+			channels[i] <- s.Send(token, message)
+		}(index, sc)
 		index += 1
 	}
 	// get response and put
@@ -340,9 +341,9 @@ func (sender *sender) syncReceiveParallel(token, message []byte) {
 	}
 }
 
-// DeleteSyncSendM is used to delete syncSendM
+// DeleteStatus is used to delete role send status
 // if delete role, must delete it
-func (sender *sender) DeleteSyncSendM(role protocol.Role, guid string) {
+func (sender *sender) DeleteStatus(role protocol.Role, guid string) {
 	i := 0
 	switch role {
 	case protocol.Beacon:
@@ -352,15 +353,13 @@ func (sender *sender) DeleteSyncSendM(role protocol.Role, guid string) {
 	default:
 		panic("invalid role")
 	}
-	sender.sendRWM[i].Lock()
-	if _, ok := sender.sendMs[i][guid]; ok {
-		delete(sender.sendMs[i], guid)
-	}
-	sender.sendRWM[i].Unlock()
+	sender.sendStatusRWM[i].Lock()
+	delete(sender.sendStatus[i], guid)
+	sender.sendStatusRWM[i].Unlock()
 }
 
-// make sure send lock exist
-func (sender *sender) lockRole(role protocol.Role, guid string) {
+// check is sending
+func (sender *sender) isSending(role protocol.Role, guid string) bool {
 	i := 0
 	switch role {
 	case protocol.Beacon:
@@ -368,18 +367,13 @@ func (sender *sender) lockRole(role protocol.Role, guid string) {
 	case protocol.Node:
 		i = senderNode
 	}
-	sender.sendRWM[i].Lock()
-	if m, ok := sender.sendMs[i][guid]; ok {
-		sender.sendRWM[i].Unlock()
-		m.Lock()
-	} else {
-		sender.sendMs[i][guid] = new(sync.Mutex)
-		sender.sendRWM[i].Unlock()
-		sender.sendMs[i][guid].Lock()
-	}
+	sender.sendStatusRWM[i].RLock()
+	sending := sender.sendStatus[i][guid]
+	sender.sendStatusRWM[i].RUnlock()
+	return sending
 }
 
-func (sender *sender) unlockRole(role protocol.Role, guid string) {
+func (sender *sender) sendDone(role protocol.Role, guid string) {
 	i := 0
 	switch role {
 	case protocol.Beacon:
@@ -387,13 +381,14 @@ func (sender *sender) unlockRole(role protocol.Role, guid string) {
 	case protocol.Node:
 		i = senderNode
 	}
-	sender.sendRWM[i].RLock()
-	if m, ok := sender.sendMs[i][guid]; ok {
-		sender.sendRWM[i].RUnlock()
-		m.Unlock()
-	} else {
-		sender.sendRWM[i].RUnlock()
-	}
+	sender.sendStatusRWM[i].Lock()
+	sender.sendStatus[i][guid] = false
+	sender.sendStatusRWM[i].Unlock()
+}
+
+// TODO isInInteractiveMode
+func (sender *sender) isInInteractiveMode(guid string) bool {
+	return false
 }
 
 type senderWorker struct {
@@ -424,11 +419,11 @@ type senderWorker struct {
 	token          []byte
 
 	// temp
-	bufferData   []byte
-	nodeSyncer   *nodeSyncer
-	beaconSyncer *beaconSyncer
-	roleGUID     string
-	err          error
+	beaconMessage *mBeaconMessage
+	nodeSyncer    *nodeSyncer
+	beaconSyncer  *beaconSyncer
+	roleGUID      string
+	err           error
 }
 
 func (sw *senderWorker) Work() {
@@ -452,10 +447,12 @@ func (sw *senderWorker) Work() {
 	sw.hash = sha256.New()
 	// token = role + GUID
 	sw.token = make([]byte, 1+guid.Size)
+	sw.token[0] = protocol.Ctrl.Byte()
 	// prepare task objects
-	sw.preB = &protocol.Broadcast{}
-	sw.preS = &protocol.Send{}
-	sw.preSR = &protocol.SyncReceive{}
+	sw.preB = new(protocol.Broadcast)
+	sw.preS = new(protocol.Send)
+	sw.preSR = new(protocol.SyncReceive)
+	sw.beaconMessage = new(mBeaconMessage)
 	// start handle task
 	for {
 		// check buffer capacity
@@ -463,7 +460,7 @@ func (sw *senderWorker) Work() {
 			sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
 		}
 		select {
-		case sw.at = <-sw.ctx.syncReceiveTaskQueue:
+		case sw.at = <-sw.ctx.acknowledgeTaskQueue:
 			sw.handleSyncReceiveTask()
 		case sw.st = <-sw.ctx.sendTaskQueue:
 			sw.handleSendTask()
@@ -476,7 +473,7 @@ func (sw *senderWorker) Work() {
 }
 
 func (sw *senderWorker) handleSyncReceiveTask() {
-	defer sw.ctx.syncReceiveTaskPool.Put(sw.at)
+	defer sw.ctx.acknowledgeTaskPool.Put(sw.at)
 	// check role
 	if sw.at.Role != protocol.Node && sw.at.Role != protocol.Beacon {
 		panic("sender.sender(): invalid at.Role")
@@ -504,7 +501,6 @@ func (sw *senderWorker) handleSyncReceiveTask() {
 }
 
 func (sw *senderWorker) handleSendTask() {
-	defer sw.ctx.sendTaskPool.Put(sw.st)
 	result := protocol.SendResult{}
 	// check role
 	if sw.st.Role != protocol.Node && sw.st.Role != protocol.Beacon {
@@ -514,7 +510,21 @@ func (sw *senderWorker) handleSendTask() {
 		}
 		return
 	}
-	sw.preS.GUID = sw.guid.Get()
+	// role GUID string
+	sw.buffer.Reset()
+	_, _ = sw.base64Encoder.Write(sw.st.GUID)
+	_ = sw.base64Encoder.Close()
+	sw.roleGUID = sw.buffer.String()
+	// check is sending
+	if sw.ctx.isSending(sw.st.Role, sw.roleGUID) {
+		select {
+		case sw.ctx.sendTaskQueue <- sw.st:
+		case <-sw.ctx.stopSignal:
+		}
+		return
+	}
+	defer sw.ctx.sendDone(sw.st.Role, sw.roleGUID)
+	defer sw.ctx.sendTaskPool.Put(sw.st)
 	// pack message(interface)
 	if sw.st.MessageI != nil {
 		sw.buffer.Reset()
@@ -529,6 +539,14 @@ func (sw *senderWorker) handleSendTask() {
 		}
 		// don't worry copy, because encrypt
 		sw.st.Message = sw.buffer.Bytes()
+	}
+	// check message size
+	if len(sw.st.Message) > protocol.MaxMsgSize {
+		if sw.st.Result != nil {
+			result.Err = protocol.ErrTooBigMsg
+			sw.st.Result <- &result
+		}
+		return
 	}
 	// set key
 	switch sw.st.Role {
@@ -557,10 +575,6 @@ func (sw *senderWorker) handleSendTask() {
 	default:
 		panic("invalid st.Role")
 	}
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(sw.st.Message)
-	sw.preS.Hash = sw.hash.Sum(nil)
 	// encrypt
 	sw.preS.Message, sw.err = aes.CBCEncrypt(sw.st.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
@@ -570,124 +584,58 @@ func (sw *senderWorker) handleSendTask() {
 		}
 		return
 	}
+	// check is need to write message to the database
+	if sw.st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(sw.roleGUID) {
+		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(sw.st.GUID, sw.preS.Message)
+		if sw.st.Result != nil {
+			result.Success = 1
+			sw.st.Result <- &result
+		}
+		return
+	}
+	// set GUID
+	sw.preS.GUID = sw.guid.Get()
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(sw.st.Message)
+	sw.preS.Hash = sw.hash.Sum(nil)
+	// role
 	sw.preS.Role = sw.st.Role
 	sw.preS.RoleGUID = sw.st.GUID
-	// set role GUID string
-	sw.buffer.Reset()
-	_, _ = sw.base64Encoder.Write(sw.st.GUID)
-	_ = sw.base64Encoder.Close()
-	sw.roleGUID = sw.buffer.String()
-	sw.ctx.lockRole(sw.st.Role, sw.roleGUID)
-	defer sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
-
-	switch sw.st.Role {
-	case protocol.Beacon:
-		sw.beaconSyncer, sw.err = sw.ctx.ctx.db.SelectBeaconSyncer(sw.st.GUID)
-		if sw.err != nil {
-
-			if sw.st.Result != nil {
-				result.Err = sw.err
-				sw.st.Result <- &result
-			}
-			return
-		}
-		sw.beaconSyncer.RLock()
-		sw.preS.Height = sw.beaconSyncer.CtrlSend
-		sw.beaconSyncer.RUnlock()
-	case protocol.Node:
-		sw.nodeSyncer, sw.err = sw.ctx.ctx.db.SelectNodeSyncer(sw.st.GUID)
-		if sw.err != nil {
-			sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
-			if sw.st.Result != nil {
-				result.Err = sw.err
-				sw.st.Result <- &result
-			}
-			return
-		}
-		sw.nodeSyncer.RLock()
-		sw.preS.Height = sw.nodeSyncer.CtrlSend
-		sw.nodeSyncer.RUnlock()
-	default:
-		sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
-		panic("invalid st.Role")
-	}
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preS.GUID)
-	sw.buffer.Write(convert.Uint64ToBytes(sw.preS.Height))
 	sw.buffer.Write(sw.preS.Message)
 	sw.buffer.Write(sw.preS.Hash)
-	sw.buffer.WriteByte(sw.preS.SenderRole.Byte())
-	sw.buffer.Write(sw.preS.SenderGUID)
-	sw.buffer.WriteByte(sw.preS.ReceiverRole.Byte())
-	sw.buffer.Write(sw.preS.ReceiverGUID)
+	sw.buffer.WriteByte(sw.preS.Role.Byte())
+	sw.buffer.Write(sw.preS.RoleGUID)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// pack protocol.syncSend and token
 	sw.buffer.Reset()
 	sw.err = sw.msgpackEncoder.Encode(sw.preS)
 	if sw.err != nil {
-		sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
 		if sw.st.Result != nil {
 			result.Err = sw.err
 			sw.st.Result <- &result
 		}
 		return
 	}
-	// !!! think order
-	// first must add send height
-	switch sw.st.Role {
-	case protocol.Beacon:
-		sw.err = sw.ctx.ctx.db.UpdateBSCtrlSend(sw.st.GUID, sw.preS.Height+1)
-	case protocol.Node:
-		sw.err = sw.ctx.ctx.db.UpdateNSCtrlSend(sw.st.GUID, sw.preS.Height+1)
-	default:
-		sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
-		panic("invalid st.Role")
-	}
-	if sw.err != nil {
-		sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
-		if sw.st.Result != nil {
-			result.Err = sw.err
-			sw.st.Result <- &result
-		}
-		return
-	}
-	// !!! think order
-	// second send
-	sw.token = append(protocol.Ctrl.Bytes(), sw.preS.GUID...)
-	result.Response, result.Success =
-		sw.ctx.send(sw.token, sw.buffer.Bytes())
-	// !!! think order
-	// rollback send height
+	// set token
+	copy(sw.token[1:], sw.preS.GUID)
+	result.Responses, result.Success = sw.ctx.send(sw.token, sw.buffer.Bytes())
 	if result.Success == 0 {
-		switch sw.st.Role {
-		case protocol.Beacon:
-			sw.err = sw.ctx.ctx.db.UpdateBSCtrlSend(sw.st.GUID, sw.preS.Height)
-		case protocol.Node:
-			sw.err = sw.ctx.ctx.db.UpdateNSCtrlSend(sw.st.GUID, sw.preS.Height)
-		default:
-			sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
-			panic("invalid st.Role")
+		if sw.st.Result != nil {
+			sw.st.Result <- &result
 		}
-		if sw.err != nil {
-			sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
-			if sw.st.Result != nil {
-				result.Err = sw.err
-				sw.st.Result <- &result
-			}
-			return
-		}
+		return
 	}
-	sw.ctx.unlockRole(sw.st.Role, sw.roleGUID)
-	if sw.st.Result != nil {
-		sw.st.Result <- &result
-	}
+	// wait acknowledge
+
 }
 
 func (sw *senderWorker) handleBroadcastTask() {
 	defer sw.ctx.broadcastTaskPool.Put(sw.bt)
 	result := protocol.BroadcastResult{}
-	sw.preB.GUID = sw.guid.Get()
 	// pack message(interface)
 	if sw.bt.MessageI != nil {
 		sw.buffer.Reset()
@@ -703,10 +651,14 @@ func (sw *senderWorker) handleBroadcastTask() {
 		// don't worry copy, because encrypt
 		sw.bt.Message = sw.buffer.Bytes()
 	}
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(sw.bt.Message)
-	sw.preB.Hash = sw.hash.Sum(nil)
+	// check message size
+	if len(sw.bt.Message) > protocol.MaxMsgSize {
+		if sw.bt.Result != nil {
+			result.Err = protocol.ErrTooBigMsg
+			sw.bt.Result <- &result
+		}
+		return
+	}
 	// encrypt
 	sw.preB.Message, sw.err = sw.ctx.ctx.global.Encrypt(sw.bt.Message)
 	if sw.err != nil {
@@ -716,13 +668,18 @@ func (sw *senderWorker) handleBroadcastTask() {
 		}
 		return
 	}
+	// GUID
+	sw.preB.GUID = sw.guid.Get()
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(sw.bt.Message)
+	sw.preB.Hash = sw.hash.Sum(nil)
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preB.GUID)
 	sw.buffer.Write(sw.preB.Message)
 	sw.buffer.Write(sw.preB.Hash)
-	sw.bufferData = sw.buffer.Bytes()
-	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.bufferData)
+	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// pack broadcast & token
 	sw.buffer.Reset()
 	sw.err = sw.msgpackEncoder.Encode(sw.preB)
@@ -734,9 +691,8 @@ func (sw *senderWorker) handleBroadcastTask() {
 		return
 	}
 	// set token
-	sw.token[0] = protocol.Ctrl.Byte()
 	copy(sw.token[1:], sw.preB.GUID)
-	result.Responses, result.Success = sw.ctx.broadcast(sw.token, sw.bufferData)
+	result.Responses, result.Success = sw.ctx.broadcast(sw.token, sw.buffer.Bytes())
 	if sw.bt.Result != nil {
 		sw.bt.Result <- &result
 	}

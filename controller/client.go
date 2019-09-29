@@ -151,10 +151,10 @@ func (client *client) handleMessage(msg []byte) {
 		client.handleReply(msg[cmd:])
 	case protocol.NodeHeartbeat:
 		client.heartbeatC <- struct{}{}
-	case protocol.ErrNullMsg:
+	case protocol.ErrCMDRecvNullMsg:
 		client.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		client.Close()
-	case protocol.ErrTooBigMsg:
+	case protocol.ErrCMDTooBigMsg:
 		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		client.Close()
 	case protocol.TestCommand:
@@ -255,6 +255,7 @@ func (client *client) handleReply(reply []byte) {
 
 // send command and receive reply
 // size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
+// data(general) max size = MaxMsgSize -MsgCMDSize -MsgIDSize
 func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 	if client.isClosed() {
 		return nil, protocol.ErrConnClosed

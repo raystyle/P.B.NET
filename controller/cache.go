@@ -2,7 +2,12 @@ package controller
 
 import (
 	"encoding/base64"
+	"errors"
 	"sync"
+)
+
+var (
+	errNoCache = errors.New("can't find cache")
 )
 
 type nodeSyncer struct {
