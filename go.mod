@@ -7,7 +7,7 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gorilla/websocket v1.4.1
 	github.com/jinzhu/gorm v1.9.11
-	github.com/julienschmidt/httprouter v1.2.0
+	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kardianos/service v1.0.1-0.20190514155156-fffe6c52ed0f
 	github.com/lucas-clemente/quic-go v0.7.1-0.20190917010647-07ee05b5a967
 	github.com/pelletier/go-toml v1.4.1-0.20190827035702-3ded2e09ee1b
