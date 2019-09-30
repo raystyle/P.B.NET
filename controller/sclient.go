@@ -64,8 +64,9 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 }
 
 func (sc *sClient) Broadcast(token, message []byte) *protocol.BroadcastResponse {
-	br := protocol.BroadcastResponse{}
-	br.GUID = sc.guid
+	br := protocol.BroadcastResponse{
+		GUID: sc.guid,
+	}
 	reply, err := sc.client.Send(protocol.CtrlBroadcastToken, token)
 	if err != nil {
 		br.Err = err
@@ -229,10 +230,6 @@ func (sc *sClient) handleMessage(msg []byte) {
 		sc.handleSyncReceiveToken(msg[cmd:id], msg[id:])
 	case protocol.NodeSyncReceive:
 		sc.handleSyncReceive(msg[cmd:id], msg[id:])
-	case protocol.NodeBroadcastToken:
-		sc.handleBroadcastToken(msg[cmd:id], msg[id:])
-	case protocol.NodeBroadcast:
-		sc.handleBroadcast(msg[cmd:id], msg[id:])
 	// ---------------------------internal--------------------------------
 	case protocol.NodeReply:
 		sc.client.handleReply(msg[cmd:])
@@ -250,29 +247,6 @@ func (sc *sClient) handleMessage(msg []byte) {
 		sc.logln(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)
 		sc.Close()
 		return
-	}
-}
-
-func (sc *sClient) handleBroadcastToken(id, message []byte) {
-	// role + message guid
-	if len(message) != 1+guid.Size {
-		// fake reply and close
-		sc.log(logger.Exploit, "invalid broadcast token size")
-		sc.client.Reply(id, protocol.BroadcastHandled)
-		sc.Close()
-		return
-	}
-	role := protocol.Role(message[0])
-	if role != protocol.Node && role != protocol.Beacon {
-		sc.log(logger.Exploit, "handle invalid broadcast token role")
-		sc.client.Reply(id, protocol.BroadcastHandled)
-		sc.Close()
-		return
-	}
-	if sc.ctx.checkBroadcastToken(role, message[1:]) {
-		sc.client.Reply(id, protocol.BroadcastUnhandled)
-	} else {
-		sc.client.Reply(id, protocol.BroadcastHandled)
 	}
 }
 
@@ -320,29 +294,6 @@ func (sc *sClient) handleSyncReceiveToken(id, message []byte) {
 	} else {
 		sc.client.Reply(id, protocol.SyncHandled)
 	}
-}
-
-func (sc *sClient) handleBroadcast(id, message []byte) {
-	br := protocol.Broadcast{}
-	err := msgpack.Unmarshal(message, &br)
-	if err != nil {
-		sc.logln(logger.Exploit, "invalid broadcast msgpack data:", err)
-		sc.Close()
-		return
-	}
-	err = br.Validate()
-	if err != nil {
-		sc.logf(logger.Exploit, "invalid broadcast: %s\n%s", err, spew.Sdump(br))
-		sc.Close()
-		return
-	}
-	if br.SenderRole != protocol.Node && br.SenderRole != protocol.Beacon {
-		sc.logf(logger.Exploit, "invalid broadcast sender role\n%s", spew.Sdump(br))
-		sc.Close()
-		return
-	}
-	sc.ctx.AddBroadcast(&br)
-	sc.client.Reply(id, protocol.BroadcastSucceed)
 }
 
 func (sc *sClient) handleSyncSend(id, message []byte) {

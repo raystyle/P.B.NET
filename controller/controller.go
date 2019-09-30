@@ -222,7 +222,7 @@ func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
 func (ctrl *CTRL) deleteNode(guid []byte) {
 	guidStr := base64.StdEncoding.EncodeToString(guid)
 	ctrl.cache.DeleteNode(guidStr)
-	ctrl.sender.DeleteStatus(protocol.Node, guidStr)
+	ctrl.sender.DeleteRoleStatus(protocol.Node, guidStr)
 	ctrl.syncer.DeleteSyncStatus(protocol.Node, guidStr)
 }
 
@@ -247,7 +247,7 @@ func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 func (ctrl *CTRL) deleteBeacon(guid []byte) {
 	guidStr := base64.StdEncoding.EncodeToString(guid)
 	ctrl.cache.DeleteBeacon(guidStr)
-	ctrl.sender.DeleteStatus(protocol.Beacon, guidStr)
+	ctrl.sender.DeleteRoleStatus(protocol.Beacon, guidStr)
 	ctrl.syncer.DeleteSyncStatus(protocol.Beacon, guidStr)
 }
 

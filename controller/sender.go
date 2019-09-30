@@ -66,12 +66,20 @@ type sender struct {
 	broadcastDonePool sync.Pool
 	sendDonePool      sync.Pool
 
+	broadcastResultPool sync.Pool
+	sendResultPool      sync.Pool
+
 	broadcastRespPool sync.Pool
 	sendRespPool      sync.Pool
+	waitGroupPool     sync.Pool
 
 	// check is sending
 	sendStatus    [2]map[string]bool // key = base64(Role GUID)
 	sendStatusRWM [2]sync.RWMutex
+
+	// check beacon is in interactive mode
+	interactive    map[string]bool // key = base64(Beacon GUID)
+	interactiveRWM sync.RWMutex
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -111,12 +119,23 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 	sender.sendDonePool.New = func() interface{} {
 		return make(chan *protocol.SendResult, 1)
 	}
+	// init result sync pool
+	sender.broadcastResultPool.New = func() interface{} {
+		return new(protocol.BroadcastResult)
+	}
+	sender.sendResultPool.New = func() interface{} {
+		return new(protocol.SendResult)
+	}
 	// init response sync pool
 	sender.broadcastRespPool.New = func() interface{} {
 		return make(chan *protocol.BroadcastResponse, 1)
 	}
 	sender.sendRespPool.New = func() interface{} {
 		return make(chan *protocol.SendResponse, 1)
+	}
+	// init wait group sync pool
+	sender.waitGroupPool.New = func() interface{} {
+		return sync.WaitGroup{}
 	}
 	// start sender workers
 	for i := 0; i < cfg.SenderWorker; i++ {
@@ -132,46 +151,38 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 
 // Broadcast is used to broadcast message to all Nodes
 // message will not be saved
-func (sender *sender) Broadcast(
-	command []byte,
-	message interface{},
-) (r *protocol.BroadcastResult) {
+func (sender *sender) Broadcast(Type []byte, message interface{}) error {
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
 	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
-	bt.Type = command
+	bt.Type = Type
 	bt.MessageI = message
 	bt.Result = done
 	sender.broadcastTaskQueue <- bt
-	r = <-done
+	result := <-done
+	// record
+	err := result.Err
+	// put
 	sender.broadcastDonePool.Put(done)
-	return
-}
-
-// Broadcast is used to broadcast(Async) message to all Nodes
-func (sender *sender) BroadcastAsync(
-	command []byte,
-	message interface{},
-	done chan<- *protocol.BroadcastResult,
-) {
-	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
-	bt.Type = command
-	bt.MessageI = message
-	bt.Result = done
-	sender.broadcastTaskQueue <- bt
+	sender.broadcastTaskPool.Put(bt)
+	sender.broadcastResultPool.Put(result)
+	return err
 }
 
 // Broadcast is used to broadcast(plugin) message to all Nodes
-func (sender *sender) BroadcastPlugin(
-	message []byte,
-) (r *protocol.BroadcastResult) {
+func (sender *sender) BroadcastPlugin(message []byte) error {
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
 	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
 	bt.Message = message
 	bt.Result = done
 	sender.broadcastTaskQueue <- bt
-	r = <-done
+	result := <-done
+	// record
+	err := result.Err
+	// put
 	sender.broadcastDonePool.Put(done)
-	return
+	sender.broadcastTaskPool.Put(bt)
+	sender.broadcastResultPool.Put(result)
+	return err
 }
 
 // Send is used to send message to Node or Beacon
@@ -182,14 +193,14 @@ func (sender *sender) BroadcastPlugin(
 func (sender *sender) Send(
 	role protocol.Role,
 	guid,
-	command []byte,
+	Type []byte,
 	message interface{},
 ) (r *protocol.SendResult) {
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	st.Role = role
 	st.GUID = guid
-	st.Type = command
+	st.Type = Type
 	st.MessageI = message
 	st.Result = done
 	sender.sendTaskQueue <- st
@@ -202,14 +213,14 @@ func (sender *sender) Send(
 func (sender *sender) SendAsync(
 	role protocol.Role,
 	guid,
-	command []byte,
+	Type []byte,
 	message interface{},
 	done chan<- *protocol.SendResult,
 ) {
 	st := sender.sendTaskPool.Get().(*sendTask)
 	st.Role = role
 	st.GUID = guid
-	st.Type = command
+	st.Type = Type
 	st.MessageI = message
 	st.Result = done
 	sender.sendTaskQueue <- st
@@ -240,11 +251,11 @@ func (sender *sender) Acknowledge(
 	guid []byte,
 	sendGUID []byte,
 ) {
-	sender.acknowledgeTaskQueue <- &acknowledgeTask{
-		Role:     role,
-		GUID:     guid,
-		SendGUID: sendGUID,
-	}
+	at := sender.acknowledgeTaskPool.Get().(*acknowledgeTask)
+	at.Role = role
+	at.GUID = guid
+	at.SendGUID = sendGUID
+	sender.acknowledgeTaskQueue <- at
 }
 
 func (sender *sender) Close() {
@@ -335,7 +346,7 @@ func (sender *sender) acknowledge(token, message []byte) {
 		return
 	}
 	// acknowledge parallel
-	wg := sync.WaitGroup{}
+	wg := sender.waitGroupPool.Get().(sync.WaitGroup)
 	for _, sc := range sClients {
 		wg.Add(1)
 		go func(s *sClient) {
@@ -344,23 +355,7 @@ func (sender *sender) acknowledge(token, message []byte) {
 		}(sc)
 	}
 	wg.Wait()
-}
-
-// DeleteStatus is used to delete role send status
-// if delete role, must delete it
-func (sender *sender) DeleteStatus(role protocol.Role, guid string) {
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = senderBeacon
-	case protocol.Node:
-		i = senderNode
-	default:
-		panic("invalid role")
-	}
-	sender.sendStatusRWM[i].Lock()
-	delete(sender.sendStatus[i], guid)
-	sender.sendStatusRWM[i].Unlock()
+	sender.waitGroupPool.Put(wg)
 }
 
 // check is sending
@@ -391,9 +386,38 @@ func (sender *sender) sendDone(role protocol.Role, guid string) {
 	sender.sendStatusRWM[i].Unlock()
 }
 
-// TODO isInInteractiveMode
 func (sender *sender) isInInteractiveMode(guid string) bool {
-	return false
+	sender.interactiveRWM.RLock()
+	i := sender.interactive[guid]
+	sender.interactiveRWM.RUnlock()
+	return i
+}
+
+func (sender *sender) SetInteractiveMode(guid string) {
+	sender.interactiveRWM.Lock()
+	sender.interactive[guid] = true
+	sender.interactiveRWM.Unlock()
+}
+
+// DeleteRoleStatus is used to delete role send status
+// if delete role, must delete it
+func (sender *sender) DeleteRoleStatus(role protocol.Role, guid string) {
+	i := 0
+	switch role {
+	case protocol.Beacon:
+		i = senderBeacon
+		// delete interactive mode
+		sender.interactiveRWM.Lock()
+		delete(sender.interactive, guid)
+		sender.interactiveRWM.Unlock()
+	case protocol.Node:
+		i = senderNode
+	default:
+		panic("invalid role")
+	}
+	sender.sendStatusRWM[i].Lock()
+	delete(sender.sendStatus[i], guid)
+	sender.sendStatusRWM[i].Unlock()
 }
 
 type senderWorker struct {
@@ -501,13 +525,12 @@ func (sw *senderWorker) handleAcknowledgeTask() {
 func (sw *senderWorker) handleSendTask() {
 	result := protocol.SendResult{}
 	defer func() {
-		if sw.st.Result != nil {
-			sw.st.Result <- &result
-		}
+		sw.st.Result <- &result
 	}()
 	// check role
 	if sw.st.Role != protocol.Node && sw.st.Role != protocol.Beacon {
 		result.Err = protocol.ErrInvalidRole
+		sw.ctx.sendTaskPool.Put(sw.st)
 		return
 	}
 	// role GUID string
@@ -610,12 +633,18 @@ func (sw *senderWorker) handleSendTask() {
 }
 
 func (sw *senderWorker) handleBroadcastTask() {
-	result := protocol.BroadcastResult{}
+	result := sw.ctx.broadcastResultPool.Get().(*protocol.BroadcastResult)
+	// must clean
+	result.Success = 0
+	result.Responses = nil
+	result.Err = nil
 	defer func() {
-		sw.ctx.broadcastTaskPool.Put(sw.bt)
-		if sw.bt.Result != nil {
-			sw.bt.Result <- &result
+		if r := recover(); r != nil {
+			err := xpanic.Error("senderWorker.handleBroadcastTask() panic:", r)
+			sw.ctx.log(logger.Fatal, err)
+			result.Err = err
 		}
+		sw.bt.Result <- result
 	}()
 	// pack message(interface)
 	if sw.bt.MessageI != nil {
