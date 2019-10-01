@@ -14,10 +14,7 @@ var (
 	SendHandled   = []byte{4}
 	SendSucceed   = []byte{5}
 
-	ErrSendHandled     = errors.New("this send has been handled")
-	ErrNoSyncerClients = errors.New("no connected syncer client")
-	ErrNotExistMessage = errors.New("this message is not exist")
-	ErrWorkerStopped   = errors.New("worker stopped")
+	ErrSendHandled = errors.New("this send has been handled")
 )
 
 // -------------------------------interactive mode----------------------------------
@@ -71,9 +68,17 @@ type SendResponse struct {
 }
 
 type SendResult struct {
+	Reply     []byte // Role Reply
 	Success   int
 	Responses []*SendResponse
 	Err       error
+}
+
+func (sr *SendResult) Clean() {
+	sr.Reply = nil
+	sr.Success = 0
+	sr.Responses = nil
+	sr.Err = nil
 }
 
 // Acknowledge is used to acknowledge sender that receiver

@@ -36,9 +36,6 @@ const (
 	NodeHeartbeat uint8 = 0x00 + iota
 	NodeReply
 	NodeSyncStart
-	NodeSyncQuery
-	NodeBroadcastToken
-	NodeBroadcast
 	NodeSyncSendToken
 	NodeSyncSend
 	NodeSyncReceiveToken

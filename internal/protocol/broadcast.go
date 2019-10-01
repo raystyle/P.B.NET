@@ -57,3 +57,9 @@ type BroadcastResult struct {
 	Responses []*BroadcastResponse
 	Err       error
 }
+
+func (br *BroadcastResult) Clean() {
+	br.Success = 0
+	br.Responses = nil
+	br.Err = nil
+}
