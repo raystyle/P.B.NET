@@ -88,13 +88,20 @@ func (g *GUID) Close() {
 	g.closeOnce.Do(func() {
 		close(g.stopSignal)
 		g.wg.Wait()
+
 	})
 }
 
 func (g *GUID) generateLoop() {
 	defer func() {
-		close(g.guidQueue)
-		g.wg.Done()
+		if r := recover(); r != nil {
+			// restart generateLoop
+			time.Sleep(time.Second)
+			go g.generateLoop()
+		} else {
+			close(g.guidQueue)
+			g.wg.Done()
+		}
 	}()
 	for {
 		guid := make([]byte, Size)
