@@ -26,8 +26,9 @@ const (
 )
 
 var (
-	errBroadcastFailed = errors.New("broadcast failed")
-	errSendFailed      = errors.New("send failed")
+	ErrBroadcastFailed = errors.New("broadcast failed")
+	ErrSendFailed      = errors.New("send failed")
+	ErrSenderClosed    = errors.New("sender closed")
 )
 
 type broadcastTask struct {
@@ -74,8 +75,8 @@ type sender struct {
 	waitGroupPool     sync.Pool
 
 	// check is sending
-	sendStatus    [2]map[string]bool // key = base64(Role GUID)
-	sendStatusRWM [2]sync.RWMutex
+	sendStatus  [2]map[string]bool // key = base64(Role GUID)
+	sendStatusM [2]sync.Mutex
 
 	// check beacon is in interactive mode
 	interactive    map[string]bool // key = base64(Beacon GUID)
@@ -157,7 +158,12 @@ func (sender *sender) Broadcast(Type []byte, message interface{}) error {
 	bt.Type = Type
 	bt.MessageI = message
 	bt.Result = done
-	sender.broadcastTaskQueue <- bt
+	// send to task queue
+	select {
+	case sender.broadcastTaskQueue <- bt:
+	case <-sender.stopSignal:
+		return ErrSenderClosed
+	}
 	result := <-done
 	// record
 	err := result.Err
@@ -168,13 +174,18 @@ func (sender *sender) Broadcast(Type []byte, message interface{}) error {
 	return err
 }
 
-// Broadcast is used to broadcast(plugin) message to all Nodes
-func (sender *sender) BroadcastPlugin(message []byte) error {
+// BroadcastFromPlugin is used to broadcast message to all Nodes from plugin
+func (sender *sender) BroadcastFromPlugin(message []byte) error {
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
 	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
 	bt.Message = message
 	bt.Result = done
-	sender.broadcastTaskQueue <- bt
+	// send to task queue
+	select {
+	case sender.broadcastTaskQueue <- bt:
+	case <-sender.stopSignal:
+		return ErrSenderClosed
+	}
 	result := <-done
 	// record
 	err := result.Err
@@ -185,63 +196,71 @@ func (sender *sender) BroadcastPlugin(message []byte) error {
 	return err
 }
 
-// Send is used to send message to Node or Beacon
-//
-// if Beacon is not in interactive mode,
-// message will saved to database, Beacon will query it.
-// Node is always in interactive mode
-func (sender *sender) Send(
-	role protocol.Role,
-	guid,
-	Type []byte,
-	message interface{},
-) (r *protocol.SendResult) {
-	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
-	st := sender.sendTaskPool.Get().(*sendTask)
-	st.Role = role
-	st.GUID = guid
-	st.Type = Type
-	st.MessageI = message
-	st.Result = done
-	sender.sendTaskQueue <- st
-	r = <-done
-	sender.sendDonePool.Put(done)
-	return
+// SendToNode is used to send message to Node
+func (sender *sender) SendToNode(guid, Type []byte, message interface{}) ([]byte, error) {
+	return sender.sendTo(protocol.Node, guid, Type, message)
 }
 
-// Send is used to send(async) message to Node or Beacon
-func (sender *sender) SendAsync(
-	role protocol.Role,
-	guid,
-	Type []byte,
-	message interface{},
-	done chan<- *protocol.SendResult,
-) {
-	st := sender.sendTaskPool.Get().(*sendTask)
-	st.Role = role
-	st.GUID = guid
-	st.Type = Type
-	st.MessageI = message
-	st.Result = done
-	sender.sendTaskQueue <- st
+// SendToBeacon is used to send message to Beacon.
+// if Beacon is not in interactive mode, message
+// will saved to database, and wait Beacon to query.
+func (sender *sender) SendToBeacon(guid, Type []byte, message interface{}) ([]byte, error) {
+	return sender.sendTo(protocol.Beacon, guid, Type, message)
 }
 
-// Send is used to send(plugin) message to Node or Beacon
-func (sender *sender) SendPlugin(
-	role protocol.Role,
-	guid,
-	message []byte,
-) (r *protocol.SendResult) {
+func (sender *sender) sendTo(r protocol.Role, guid, Type []byte, msg interface{}) ([]byte, error) {
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
 	st := sender.sendTaskPool.Get().(*sendTask)
-	st.Role = role
+	st.Role = r
 	st.GUID = guid
-	st.Message = message
+	st.Type = Type
+	st.MessageI = msg
 	st.Result = done
-	sender.sendTaskQueue <- st
-	r = <-done
+	// send to task queue
+	select {
+	case sender.sendTaskQueue <- st:
+	case <-sender.stopSignal:
+		return nil, ErrSenderClosed
+	}
+	result := <-done
+	// record
+	reply := result.Reply
+	err := result.Err
+	// put
 	sender.sendDonePool.Put(done)
-	return
+	sender.sendTaskPool.Put(st)
+	sender.sendResultPool.Put(result)
+	return reply, err
+}
+
+// SendFromPlugin is used to send message to Node or Beacon from plugin
+func (sender *sender) SendFromPlugin(r protocol.Role, guid, msg []byte) ([]byte, error) {
+	switch r {
+	case protocol.Node, protocol.Beacon:
+	default:
+		return nil, r
+	}
+	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
+	st := sender.sendTaskPool.Get().(*sendTask)
+	st.Role = r
+	st.GUID = guid
+	st.Message = msg
+	st.Result = done
+	// send to task queue
+	select {
+	case sender.sendTaskQueue <- st:
+	case <-sender.stopSignal:
+		return nil, ErrSenderClosed
+	}
+	result := <-done
+	// record
+	reply := result.Reply
+	err := result.Err
+	// put
+	sender.sendDonePool.Put(done)
+	sender.sendTaskPool.Put(st)
+	sender.sendResultPool.Put(result)
+	return reply, err
 }
 
 // Acknowledge is used to acknowledge Role that controller
@@ -359,7 +378,7 @@ func (sender *sender) acknowledge(token, message []byte) {
 }
 
 // check is sending
-func (sender *sender) isSending(role protocol.Role, guid string) bool {
+func (sender *sender) lockSend(role protocol.Role, guid string) bool {
 	i := 0
 	switch role {
 	case protocol.Beacon:
@@ -367,13 +386,19 @@ func (sender *sender) isSending(role protocol.Role, guid string) bool {
 	case protocol.Node:
 		i = senderNode
 	}
-	sender.sendStatusRWM[i].RLock()
+	sender.sendStatusM[i].Lock()
 	sending := sender.sendStatus[i][guid]
-	sender.sendStatusRWM[i].RUnlock()
-	return sending
+	if sending {
+		sender.sendStatusM[i].Unlock()
+		return false
+	} else {
+		sender.sendStatus[i][guid] = true
+		sender.sendStatusM[i].Unlock()
+		return true
+	}
 }
 
-func (sender *sender) sendDone(role protocol.Role, guid string) {
+func (sender *sender) unlockSend(role protocol.Role, guid string) {
 	i := 0
 	switch role {
 	case protocol.Beacon:
@@ -381,9 +406,9 @@ func (sender *sender) sendDone(role protocol.Role, guid string) {
 	case protocol.Node:
 		i = senderNode
 	}
-	sender.sendStatusRWM[i].Lock()
+	sender.sendStatusM[i].Lock()
 	sender.sendStatus[i][guid] = false
-	sender.sendStatusRWM[i].Unlock()
+	sender.sendStatusM[i].Unlock()
 }
 
 func (sender *sender) isInInteractiveMode(guid string) bool {
@@ -415,9 +440,9 @@ func (sender *sender) DeleteRoleStatus(role protocol.Role, guid string) {
 	default:
 		panic("invalid role")
 	}
-	sender.sendStatusRWM[i].Lock()
+	sender.sendStatusM[i].Lock()
 	delete(sender.sendStatus[i], guid)
-	sender.sendStatusRWM[i].Unlock()
+	sender.sendStatusM[i].Unlock()
 }
 
 type senderWorker struct {
@@ -523,30 +548,31 @@ func (sw *senderWorker) handleAcknowledgeTask() {
 }
 
 func (sw *senderWorker) handleSendTask() {
-	result := protocol.SendResult{}
+	result := sw.ctx.sendResultPool.Get().(*protocol.SendResult)
+	result.Clean()
 	defer func() {
-		sw.st.Result <- &result
+		if r := recover(); r != nil {
+			err := xpanic.Error("senderWorker.handleSendTask() panic:", r)
+			sw.ctx.log(logger.Fatal, err)
+			result.Err = err
+		}
+		sw.st.Result <- result
 	}()
-	// check role
-	if sw.st.Role != protocol.Node && sw.st.Role != protocol.Beacon {
-		result.Err = protocol.ErrInvalidRole
-		sw.ctx.sendTaskPool.Put(sw.st)
-		return
-	}
 	// role GUID string
 	sw.buffer.Reset()
 	_, _ = sw.base64.Write(sw.st.GUID)
 	_ = sw.base64.Close()
 	sw.roleGUID = sw.buffer.String()
 	// check is sending
-	if sw.ctx.isSending(sw.st.Role, sw.roleGUID) {
+	if !sw.ctx.lockSend(sw.st.Role, sw.roleGUID) {
 		select {
 		case sw.ctx.sendTaskQueue <- sw.st:
 		case <-sw.ctx.stopSignal:
 		}
 		return
 	}
-	defer sw.ctx.sendDone(sw.st.Role, sw.roleGUID)
+	defer sw.ctx.unlockSend(sw.st.Role, sw.roleGUID)
+	// TODO move
 	defer sw.ctx.sendTaskPool.Put(sw.st)
 	// pack message(interface)
 	if sw.st.MessageI != nil {
@@ -625,7 +651,7 @@ func (sw *senderWorker) handleSendTask() {
 	copy(sw.token[1:], sw.preS.GUID)
 	result.Responses, result.Success = sw.ctx.send(sw.token, sw.buffer.Bytes())
 	if result.Success == 0 {
-		result.Err = errSendFailed
+		result.Err = ErrSendFailed
 		return
 	}
 	// wait acknowledge
@@ -634,10 +660,7 @@ func (sw *senderWorker) handleSendTask() {
 
 func (sw *senderWorker) handleBroadcastTask() {
 	result := sw.ctx.broadcastResultPool.Get().(*protocol.BroadcastResult)
-	// must clean
-	result.Success = 0
-	result.Responses = nil
-	result.Err = nil
+	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error("senderWorker.handleBroadcastTask() panic:", r)
@@ -689,6 +712,6 @@ func (sw *senderWorker) handleBroadcastTask() {
 	copy(sw.token[1:], sw.preB.GUID)
 	result.Responses, result.Success = sw.ctx.broadcast(sw.token, sw.buffer.Bytes())
 	if result.Success == 0 {
-		result.Err = errBroadcastFailed
+		result.Err = ErrBroadcastFailed
 	}
 }
