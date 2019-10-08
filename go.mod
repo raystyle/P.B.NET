@@ -14,6 +14,6 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
 	github.com/vmihailenco/msgpack/v4 v4.2.0
-	golang.org/x/crypto v0.0.0-20190907121410-71b5226ff739
-	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
+	golang.org/x/crypto v0.0.0-20191002192127-34f69633bfdc
+	golang.org/x/net v0.0.0-20191003171128-d98b1b443823
 )
