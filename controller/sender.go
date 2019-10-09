@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"hash"
 	"io"
-	"runtime"
 	"sync"
 	"time"
 
@@ -26,9 +25,10 @@ const (
 )
 
 var (
-	ErrBroadcastFailed = errors.New("broadcast failed")
-	ErrSendFailed      = errors.New("send failed")
-	ErrSenderClosed    = errors.New("sender closed")
+	ErrBroadcastFailed  = errors.New("broadcast failed")
+	ErrSendFailed       = errors.New("send failed")
+	ErrWaitReplyTimeout = errors.New("wait for reply timeout")
+	ErrSenderClosed     = errors.New("sender closed")
 )
 
 type broadcastTask struct {
@@ -56,6 +56,9 @@ type acknowledgeTask struct {
 type sender struct {
 	ctx *CTRL
 
+	// TODO send timeout
+	sendTimeout time.Duration
+
 	broadcastTaskQueue   chan *broadcastTask
 	sendTaskQueue        chan *sendTask
 	acknowledgeTaskQueue chan *acknowledgeTask
@@ -74,6 +77,8 @@ type sender struct {
 	sendRespPool      sync.Pool
 	waitGroupPool     sync.Pool
 
+	guid *guid.GUID
+
 	// check is sending
 	sendStatus  [2]map[string]bool // key = base64(Role GUID)
 	sendStatusM [2]sync.Mutex
@@ -81,6 +86,9 @@ type sender struct {
 	// check beacon is in interactive mode
 	interactive    map[string]bool // key = base64(Beacon GUID)
 	interactiveRWM sync.RWMutex
+
+	replys    map[string]chan []byte // key = base64(protocol.Send.GUID)
+	replysRWM sync.RWMutex
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -138,6 +146,8 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 	sender.waitGroupPool.New = func() interface{} {
 		return sync.WaitGroup{}
 	}
+	// guid
+	sender.guid = guid.New(16*cfg.SenderQueueSize, ctx.global.Now)
 	// start sender workers
 	for i := 0; i < cfg.SenderWorker; i++ {
 		worker := senderWorker{
@@ -465,17 +475,20 @@ type senderWorker struct {
 	preS protocol.Send
 	preA protocol.Acknowledge
 
+	// sync pool
+	replyPool sync.Pool
+
 	// objects
-	guid    *guid.GUID
-	buffer  *bytes.Buffer
-	msgpack *msgpack.Encoder
-	base64  io.WriteCloser
-	hash    hash.Hash
-	token   []byte
+	buffer    *bytes.Buffer
+	msgpack   *msgpack.Encoder
+	base64    io.WriteCloser
+	hash      hash.Hash
+	sendTimer *time.Timer
 
 	// temp
-	roleGUID string
-	err      error
+	roleGUID  string
+	replyGUID string
+	err       error
 }
 
 func (sw *senderWorker) Work() {
@@ -485,21 +498,21 @@ func (sw *senderWorker) Work() {
 			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)
-			sw.ctx.wg.Add(1)
 			go sw.Work()
+		} else {
+			sw.ctx.wg.Done()
 		}
-		sw.ctx.wg.Done()
 	}()
 	// init
-	sw.guid = guid.New(16*(runtime.NumCPU()+1), sw.ctx.ctx.global.Now)
 	minBufferSize := guid.Size + 9
 	sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.base64 = base64.NewEncoder(base64.StdEncoding, sw.buffer)
 	sw.hash = sha256.New()
-	// token = role + GUID
-	sw.token = make([]byte, 1+guid.Size)
-	sw.token[0] = protocol.Ctrl.Byte()
+	sw.sendTimer = time.NewTimer(sw.ctx.sendTimeout)
+	sw.replyPool.New = func() interface{} {
+		return make(chan []byte, 1)
+	}
 	// start handle task
 	for {
 		// check buffer capacity
@@ -525,7 +538,7 @@ func (sw *senderWorker) handleAcknowledgeTask() {
 	if sw.at.Role != protocol.Node && sw.at.Role != protocol.Beacon {
 		panic("sender.sender(): invalid at.Role")
 	}
-	sw.preA.GUID = sw.guid.Get()
+	sw.preA.GUID = sw.ctx.guid.Get()
 	sw.preA.Role = sw.at.Role
 	sw.preA.RoleGUID = sw.at.GUID
 	sw.preA.SendGUID = sw.at.SendGUID
@@ -542,9 +555,7 @@ func (sw *senderWorker) handleAcknowledgeTask() {
 	if sw.err != nil {
 		panic(sw.err)
 	}
-	// set token
-	copy(sw.token[1:], sw.preA.GUID)
-	sw.ctx.acknowledge(sw.token, sw.buffer.Bytes())
+	sw.ctx.acknowledge(sw.preA.GUID, sw.buffer.Bytes())
 }
 
 func (sw *senderWorker) handleSendTask() {
@@ -572,8 +583,6 @@ func (sw *senderWorker) handleSendTask() {
 		return
 	}
 	defer sw.ctx.unlockSend(sw.st.Role, sw.roleGUID)
-	// TODO move
-	defer sw.ctx.sendTaskPool.Put(sw.st)
 	// pack message(interface)
 	if sw.st.MessageI != nil {
 		sw.buffer.Reset()
@@ -623,7 +632,7 @@ func (sw *senderWorker) handleSendTask() {
 		return
 	}
 	// set GUID
-	sw.preS.GUID = sw.guid.Get()
+	sw.preS.GUID = sw.ctx.guid.Get()
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(sw.st.Message)
@@ -631,6 +640,11 @@ func (sw *senderWorker) handleSendTask() {
 	// role
 	sw.preS.Role = sw.st.Role
 	sw.preS.RoleGUID = sw.st.GUID
+	// reply GUID, must here
+	sw.buffer.Reset()
+	_, _ = sw.base64.Write(sw.preS.GUID)
+	_ = sw.base64.Close()
+	sw.replyGUID = sw.buffer.String()
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preS.GUID)
@@ -645,17 +659,33 @@ func (sw *senderWorker) handleSendTask() {
 	if result.Err != nil {
 		return
 	}
-	// create acknowledge channel
-
-	// set token
-	copy(sw.token[1:], sw.preS.GUID)
-	result.Responses, result.Success = sw.ctx.send(sw.token, sw.buffer.Bytes())
+	// create reply
+	reply := sw.replyPool.Get().(chan []byte)
+	defer sw.replyPool.Put(reply)
+	sw.ctx.replysRWM.Lock()
+	sw.ctx.replys[sw.replyGUID] = reply
+	sw.ctx.replysRWM.Unlock()
+	// send
+	result.Responses, result.Success = sw.ctx.send(sw.preS.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
 		result.Err = ErrSendFailed
 		return
 	}
-	// wait acknowledge
-
+	// wait reply
+	if !sw.sendTimer.Stop() {
+		<-sw.sendTimer.C
+	}
+	sw.sendTimer.Reset(sw.ctx.sendTimeout)
+	select {
+	case result.Reply = <-reply:
+		sw.ctx.replysRWM.Lock()
+		delete(sw.ctx.replys, sw.replyGUID)
+		sw.ctx.replysRWM.Unlock()
+	case <-sw.sendTimer.C:
+		result.Err = ErrWaitReplyTimeout
+	case <-sw.ctx.stopSignal:
+		result.Err = ErrSenderClosed
+	}
 }
 
 func (sw *senderWorker) handleBroadcastTask() {
@@ -691,7 +721,7 @@ func (sw *senderWorker) handleBroadcastTask() {
 		return
 	}
 	// GUID
-	sw.preB.GUID = sw.guid.Get()
+	sw.preB.GUID = sw.ctx.guid.Get()
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(sw.bt.Message)
@@ -708,9 +738,7 @@ func (sw *senderWorker) handleBroadcastTask() {
 	if result.Err != nil {
 		return
 	}
-	// set token
-	copy(sw.token[1:], sw.preB.GUID)
-	result.Responses, result.Success = sw.ctx.broadcast(sw.token, sw.buffer.Bytes())
+	result.Responses, result.Success = sw.ctx.broadcast(sw.preB.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
 		result.Err = ErrBroadcastFailed
 	}
