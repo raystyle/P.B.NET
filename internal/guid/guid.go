@@ -66,7 +66,7 @@ func New(size int, now func() time.Time) *GUID {
 	_, err = rand.Reader.Read(randBytes)
 	if err != nil {
 		time.Sleep(2 * time.Second)
-		randBytes = random.New(time.Now().Unix()).Bytes(64)
+		randBytes = random.New(g.now().Unix()).Bytes(64)
 	}
 	buffer.Write(randBytes)
 	g.head = sha256.Bytes(buffer.Bytes())

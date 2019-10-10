@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"project/internal/guid"
 )
@@ -30,8 +31,12 @@ func (role Role) String() string {
 	case Beacon:
 		return "beacon"
 	default:
-		return "invalid role"
+		return fmt.Sprintf("invalid role: %d", uint8(role))
 	}
+}
+
+func (role Role) Error() string {
+	return role.String()
 }
 
 func (role Role) Bytes() []byte {
@@ -81,7 +86,6 @@ const (
 )
 
 var (
-	ErrInvalidRole = errors.New("invalid role")
 	ErrInvalidCert = errors.New("invalid certificate")
 	ErrAuthFailed  = errors.New("authenticate failed")
 )

@@ -211,10 +211,10 @@ func (ts *TimeSyncer) addLoop() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	ticker := time.NewTicker(addLoopInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ts.stopSignal:
-			ticker.Stop()
 			return
 		case <-ticker.C:
 			ts.nowRWM.Lock()
