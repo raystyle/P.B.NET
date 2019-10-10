@@ -79,10 +79,6 @@ type sender struct {
 
 	guid *guid.GUID
 
-	// check is sending
-	sendStatus  [2]map[string]bool // key = base64(Role GUID)
-	sendStatusM [2]sync.Mutex
-
 	// check beacon is in interactive mode
 	interactive    map[string]bool // key = base64(Beacon GUID)
 	interactiveRWM sync.RWMutex
@@ -109,8 +105,6 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.SenderQueueSize),
 		stopSignal:           make(chan struct{}),
 	}
-	sender.sendStatus[senderNode] = make(map[string]bool)
-	sender.sendStatus[senderBeacon] = make(map[string]bool)
 	// init task sync pool
 	sender.broadcastTaskPool.New = func() interface{} {
 		return new(broadcastTask)
@@ -287,6 +281,16 @@ func (sender *sender) Acknowledge(
 	sender.acknowledgeTaskQueue <- at
 }
 
+// TODO warning slice copy
+func (sender *sender) WriteReply(guid string, reply []byte) {
+	sender.replysRWM.RLock()
+	r := sender.replys[guid]
+	sender.replysRWM.RUnlock()
+	if r != nil {
+		r <- reply
+	}
+}
+
 func (sender *sender) Close() {
 	close(sender.stopSignal)
 	sender.wg.Wait()
@@ -387,40 +391,6 @@ func (sender *sender) acknowledge(token, message []byte) {
 	sender.waitGroupPool.Put(wg)
 }
 
-// check is sending
-func (sender *sender) lockSend(role protocol.Role, guid string) bool {
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = senderBeacon
-	case protocol.Node:
-		i = senderNode
-	}
-	sender.sendStatusM[i].Lock()
-	sending := sender.sendStatus[i][guid]
-	if sending {
-		sender.sendStatusM[i].Unlock()
-		return false
-	} else {
-		sender.sendStatus[i][guid] = true
-		sender.sendStatusM[i].Unlock()
-		return true
-	}
-}
-
-func (sender *sender) unlockSend(role protocol.Role, guid string) {
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = senderBeacon
-	case protocol.Node:
-		i = senderNode
-	}
-	sender.sendStatusM[i].Lock()
-	sender.sendStatus[i][guid] = false
-	sender.sendStatusM[i].Unlock()
-}
-
 func (sender *sender) isInInteractiveMode(guid string) bool {
 	sender.interactiveRWM.RLock()
 	i := sender.interactive[guid]
@@ -432,27 +402,6 @@ func (sender *sender) SetInteractiveMode(guid string) {
 	sender.interactiveRWM.Lock()
 	sender.interactive[guid] = true
 	sender.interactiveRWM.Unlock()
-}
-
-// DeleteRoleStatus is used to delete role send status
-// if delete role, must delete it
-func (sender *sender) DeleteRoleStatus(role protocol.Role, guid string) {
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = senderBeacon
-		// delete interactive mode
-		sender.interactiveRWM.Lock()
-		delete(sender.interactive, guid)
-		sender.interactiveRWM.Unlock()
-	case protocol.Node:
-		i = senderNode
-	default:
-		panic("invalid role")
-	}
-	sender.sendStatusM[i].Lock()
-	delete(sender.sendStatus[i], guid)
-	sender.sendStatusM[i].Unlock()
 }
 
 type senderWorker struct {
@@ -569,20 +518,12 @@ func (sw *senderWorker) handleSendTask() {
 		}
 		sw.st.Result <- result
 	}()
+	// TODO think
 	// role GUID string
 	sw.buffer.Reset()
 	_, _ = sw.base64.Write(sw.st.GUID)
 	_ = sw.base64.Close()
 	sw.roleGUID = sw.buffer.String()
-	// check is sending
-	if !sw.ctx.lockSend(sw.st.Role, sw.roleGUID) {
-		select {
-		case sw.ctx.sendTaskQueue <- sw.st:
-		case <-sw.ctx.stopSignal:
-		}
-		return
-	}
-	defer sw.ctx.unlockSend(sw.st.Role, sw.roleGUID)
 	// pack message(interface)
 	if sw.st.MessageI != nil {
 		sw.buffer.Reset()
@@ -659,7 +600,7 @@ func (sw *senderWorker) handleSendTask() {
 	if result.Err != nil {
 		return
 	}
-	// create reply
+	// set reply
 	reply := sw.replyPool.Get().(chan []byte)
 	defer sw.replyPool.Put(reply)
 	sw.ctx.replysRWM.Lock()
@@ -668,6 +609,7 @@ func (sw *senderWorker) handleSendTask() {
 	// send
 	result.Responses, result.Success = sw.ctx.send(sw.preS.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
+		sw.sendTimer.Stop()
 		result.Err = ErrSendFailed
 		return
 	}
