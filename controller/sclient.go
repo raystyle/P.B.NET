@@ -63,31 +63,28 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 	return &sc, nil
 }
 
-func (sc *sClient) Broadcast(token, message []byte) *protocol.BroadcastResponse {
-	br := protocol.BroadcastResponse{
+func (sc *sClient) Broadcast(token, message []byte) (br *protocol.BroadcastResponse) {
+	br = &protocol.BroadcastResponse{
 		GUID: sc.guid,
 	}
-	reply, err := sc.client.Send(protocol.CtrlBroadcastToken, token)
-	if err != nil {
-		br.Err = err
-		return &br
+	var reply []byte
+	reply, br.Err = sc.client.Send(protocol.CtrlBroadcastToken, token)
+	if br.Err != nil {
+		return
 	}
 	if !bytes.Equal(reply, protocol.BroadcastUnhandled) {
 		br.Err = protocol.ErrBroadcastHandled
-		return &br
+		return
 	}
 	// broadcast
-	reply, err = sc.client.Send(protocol.CtrlBroadcast, message)
-	if err != nil {
-		br.Err = err
-		return &br
+	reply, br.Err = sc.client.Send(protocol.CtrlBroadcast, message)
+	if br.Err != nil {
+		return
 	}
-	if bytes.Equal(reply, protocol.BroadcastSucceed) {
-		return &br
-	} else {
+	if !bytes.Equal(reply, protocol.BroadcastSucceed) {
 		br.Err = errors.New(string(reply))
-		return &br
 	}
+	return
 }
 
 func (sc *sClient) Send(token, message []byte) *protocol.SyncResponse {
