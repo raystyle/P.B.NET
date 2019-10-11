@@ -19,11 +19,6 @@ import (
 	"project/internal/xpanic"
 )
 
-const (
-	senderNode   = 0
-	senderBeacon = 1
-)
-
 var (
 	ErrBroadcastFailed  = errors.New("broadcast failed")
 	ErrSendFailed       = errors.New("send failed")
@@ -44,6 +39,7 @@ type sendTask struct {
 	Type     []byte        // message type
 	MessageI interface{}
 	Message  []byte // Message include message type
+	Timeout  time.Duration
 	Result   chan<- *protocol.SendResult
 }
 
@@ -55,9 +51,6 @@ type acknowledgeTask struct {
 
 type sender struct {
 	ctx *CTRL
-
-	// TODO send timeout
-	sendTimeout time.Duration
 
 	broadcastTaskQueue   chan *broadcastTask
 	sendTaskQueue        chan *sendTask
@@ -200,25 +193,33 @@ func (sender *sender) BroadcastFromPlugin(message []byte) error {
 	return err
 }
 
-// SendToNode is used to send message to Node
-func (sender *sender) SendToNode(guid, Type []byte, message interface{}) ([]byte, error) {
-	return sender.sendTo(protocol.Node, guid, Type, message)
-}
-
-// SendToBeacon is used to send message to Beacon.
+// Send is used to send message to Node or Beacon.
 // if Beacon is not in interactive mode, message
 // will saved to database, and wait Beacon to query.
-func (sender *sender) SendToBeacon(guid, Type []byte, message interface{}) ([]byte, error) {
-	return sender.sendTo(protocol.Beacon, guid, Type, message)
-}
-
-func (sender *sender) sendTo(r protocol.Role, guid, Type []byte, msg interface{}) ([]byte, error) {
+func (sender *sender) Send(
+	role protocol.Role,
+	guid,
+	Type []byte,
+	msg interface{},
+	timeout time.Duration,
+) ([]byte, error) {
+	// check role
+	switch role {
+	case protocol.Node, protocol.Beacon:
+	default:
+		panic("invalid role")
+	}
+	// check timeout
+	if timeout < time.Second {
+		timeout = time.Second
+	}
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
 	st := sender.sendTaskPool.Get().(*sendTask)
-	st.Role = r
+	st.Role = role
 	st.GUID = guid
 	st.Type = Type
 	st.MessageI = msg
+	st.Timeout = timeout
 	st.Result = done
 	// send to task queue
 	select {
@@ -238,17 +239,28 @@ func (sender *sender) sendTo(r protocol.Role, guid, Type []byte, msg interface{}
 }
 
 // SendFromPlugin is used to send message to Node or Beacon from plugin
-func (sender *sender) SendFromPlugin(r protocol.Role, guid, msg []byte) ([]byte, error) {
-	switch r {
+func (sender *sender) SendFromPlugin(
+	role protocol.Role,
+	guid,
+	msg []byte,
+	timeout time.Duration,
+) ([]byte, error) {
+	// check role
+	switch role {
 	case protocol.Node, protocol.Beacon:
 	default:
-		return nil, r
+		return nil, role
+	}
+	// check timeout
+	if timeout < time.Second {
+		timeout = time.Second
 	}
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
 	st := sender.sendTaskPool.Get().(*sendTask)
-	st.Role = r
+	st.Role = role
 	st.GUID = guid
 	st.Message = msg
+	st.Timeout = timeout
 	st.Result = done
 	// send to task queue
 	select {
@@ -282,7 +294,7 @@ func (sender *sender) Acknowledge(
 }
 
 // TODO warning slice copy
-func (sender *sender) WriteReply(guid string, reply []byte) {
+func (sender *sender) ReceiveReply(guid string, reply []byte) {
 	sender.replysRWM.RLock()
 	r := sender.replys[guid]
 	sender.replysRWM.RUnlock()
@@ -294,6 +306,19 @@ func (sender *sender) WriteReply(guid string, reply []byte) {
 func (sender *sender) Close() {
 	close(sender.stopSignal)
 	sender.wg.Wait()
+}
+
+func (sender *sender) SetInteractiveMode(guid string) {
+	sender.interactiveRWM.Lock()
+	sender.interactive[guid] = true
+	sender.interactiveRWM.Unlock()
+}
+
+func (sender *sender) isInInteractiveMode(guid string) bool {
+	sender.interactiveRWM.RLock()
+	i := sender.interactive[guid]
+	sender.interactiveRWM.RUnlock()
+	return i
 }
 
 func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
@@ -391,19 +416,6 @@ func (sender *sender) acknowledge(token, message []byte) {
 	sender.waitGroupPool.Put(wg)
 }
 
-func (sender *sender) isInInteractiveMode(guid string) bool {
-	sender.interactiveRWM.RLock()
-	i := sender.interactive[guid]
-	sender.interactiveRWM.RUnlock()
-	return i
-}
-
-func (sender *sender) SetInteractiveMode(guid string) {
-	sender.interactiveRWM.Lock()
-	sender.interactive[guid] = true
-	sender.interactiveRWM.Unlock()
-}
-
 type senderWorker struct {
 	ctx           *sender
 	maxBufferSize int
@@ -424,15 +436,15 @@ type senderWorker struct {
 	preS protocol.Send
 	preA protocol.Acknowledge
 
-	// sync pool
-	replyPool sync.Pool
+	// about reply
+	replyPool  sync.Pool
+	replyTimer *time.Timer
 
 	// objects
-	buffer    *bytes.Buffer
-	msgpack   *msgpack.Encoder
-	base64    io.WriteCloser
-	hash      hash.Hash
-	sendTimer *time.Timer
+	buffer  *bytes.Buffer
+	msgpack *msgpack.Encoder
+	base64  io.WriteCloser
+	hash    hash.Hash
 
 	// temp
 	roleGUID  string
@@ -458,7 +470,7 @@ func (sw *senderWorker) Work() {
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.base64 = base64.NewEncoder(base64.StdEncoding, sw.buffer)
 	sw.hash = sha256.New()
-	sw.sendTimer = time.NewTimer(sw.ctx.sendTimeout)
+	sw.replyTimer = time.NewTimer(0)
 	sw.replyPool.New = func() interface{} {
 		return make(chan []byte, 1)
 	}
@@ -609,21 +621,21 @@ func (sw *senderWorker) handleSendTask() {
 	// send
 	result.Responses, result.Success = sw.ctx.send(sw.preS.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
-		sw.sendTimer.Stop()
+		sw.replyTimer.Stop()
 		result.Err = ErrSendFailed
 		return
 	}
 	// wait reply
-	if !sw.sendTimer.Stop() {
-		<-sw.sendTimer.C
+	if !sw.replyTimer.Stop() {
+		<-sw.replyTimer.C
 	}
-	sw.sendTimer.Reset(sw.ctx.sendTimeout)
+	sw.replyTimer.Reset(sw.st.Timeout)
 	select {
 	case result.Reply = <-reply:
 		sw.ctx.replysRWM.Lock()
 		delete(sw.ctx.replys, sw.replyGUID)
 		sw.ctx.replysRWM.Unlock()
-	case <-sw.sendTimer.C:
+	case <-sw.replyTimer.C:
 		result.Err = ErrWaitReplyTimeout
 	case <-sw.ctx.stopSignal:
 		result.Err = ErrSenderClosed
