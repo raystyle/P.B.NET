@@ -40,13 +40,10 @@ type Config struct {
 	SenderQueueSize int `toml:"sender_queue_size"`
 
 	// syncer
-	MaxSyncerClient  int           `toml:"max_syncer_client"`
-	SyncerWorker     int           `toml:"syncer_worker"`
-	SyncerQueueSize  int           `toml:"syncer_queue_size"`
-	ReserveWorker    int           `toml:"reserve_worker"`
-	RetryTimes       int           `toml:"retry_times"`
-	RetryInterval    time.Duration `toml:"retry_interval"`
-	BroadcastTimeout time.Duration `toml:"broadcast_timeout"`
+	MaxSyncerClient int `toml:"max_syncer_client"`
+	SyncerWorker    int `toml:"syncer_worker"`
+	SyncerQueueSize int `toml:"syncer_queue_size"`
+	MessageTimeout  int `toml:"message_timeout"`
 
 	// web server
 	HTTPSAddress  string `toml:"https_address"`

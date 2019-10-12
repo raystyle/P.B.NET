@@ -10,7 +10,6 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/dns"
 	"project/internal/logger"
-	"project/internal/protocol"
 	"project/internal/proxy"
 	"project/internal/timesync"
 )
@@ -222,8 +221,6 @@ func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
 func (ctrl *CTRL) deleteNode(guid []byte) {
 	guidStr := base64.StdEncoding.EncodeToString(guid)
 	ctrl.cache.DeleteNode(guidStr)
-	ctrl.sender.DeleteRoleStatus(protocol.Node, guidStr)
-	ctrl.syncer.DeleteSyncStatus(protocol.Node, guidStr)
 }
 
 func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
@@ -247,8 +244,6 @@ func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 func (ctrl *CTRL) deleteBeacon(guid []byte) {
 	guidStr := base64.StdEncoding.EncodeToString(guid)
 	ctrl.cache.DeleteBeacon(guidStr)
-	ctrl.sender.DeleteRoleStatus(protocol.Beacon, guidStr)
-	ctrl.syncer.DeleteSyncStatus(protocol.Beacon, guidStr)
 }
 
 func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {

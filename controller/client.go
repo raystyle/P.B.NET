@@ -188,7 +188,7 @@ func (client *client) heartbeat() {
 			select {
 			case <-client.heartbeatC:
 			case <-time.After(t):
-				client.log(logger.Warning, "receive heartbeat reply timeout")
+				client.log(logger.Warning, "receive heartbeat timeout")
 				_ = client.conn.Close()
 				return
 			case <-client.stopSignal:
