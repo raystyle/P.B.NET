@@ -10,11 +10,13 @@ import (
 )
 
 var (
-	SendUnhandled = []byte{3}
-	SendHandled   = []byte{4}
-	SendSucceed   = []byte{5}
+	SendGUIDTimeout = []byte{10}
+	SendUnhandled   = []byte{11}
+	SendHandled     = []byte{12}
+	SendSucceed     = []byte{13}
 
-	ErrSendHandled = errors.New("this send has been handled")
+	ErrSendGUIDTimeout = errors.New("this send GUID is timeout")
+	ErrSendHandled     = errors.New("this send has been handled")
 )
 
 // -------------------------------interactive mode----------------------------------
@@ -29,13 +31,12 @@ var (
 // When Beacon use it, Role = Beacon and RoleGUID = its GUID.
 // Beacon encrypt Message with its session key.
 //
-// Signature = role.global.Sign(GUID + Message + Hash + Role + RoleGUID)
+// Signature = role.global.Sign(GUID + RoleGUID + Message + Hash)
 type Send struct {
 	GUID      []byte // prevent duplicate handle it
+	RoleGUID  []byte // receiver GUID
 	Message   []byte // encrypted
 	Hash      []byte // raw message hash
-	Role      Role
-	RoleGUID  []byte
 	Signature []byte
 }
 
@@ -43,17 +44,14 @@ func (s *Send) Validate() error {
 	if len(s.GUID) != guid.Size {
 		return errors.New("invalid GUID size")
 	}
+	if len(s.RoleGUID) != guid.Size {
+		return errors.New("invalid role GUID size")
+	}
 	if len(s.Message) < aes.BlockSize {
 		return errors.New("invalid message size")
 	}
 	if len(s.Hash) != sha256.Size {
-		return errors.New("invalid message hash size")
-	}
-	if s.Role > Beacon {
-		return errors.New("invalid role")
-	}
-	if len(s.RoleGUID) != guid.Size {
-		return errors.New("invalid role GUID size")
+		return errors.New("invalid hash size")
 	}
 	if len(s.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")
@@ -68,14 +66,12 @@ type SendResponse struct {
 }
 
 type SendResult struct {
-	Reply     []byte // Role Reply
 	Success   int
 	Responses []*SendResponse
 	Err       error
 }
 
 func (sr *SendResult) Clean() {
-	sr.Reply = nil
 	sr.Success = 0
 	sr.Responses = nil
 	sr.Err = nil
@@ -89,10 +85,9 @@ func (sr *SendResult) Clean() {
 // When Node use it, Role = Node and RoleGUID = its GUID.
 // When Beacon use it, Role = Beacon and RoleGUID = its GUID.
 //
-// Signature = role.global.Sign(GUID + Role + RoleGUID + SendGUID)
+// Signature = role.global.Sign(GUID + RoleGUID + SendGUID)
 type Acknowledge struct {
 	GUID      []byte // prevent duplicate handle it
-	Role      Role
 	RoleGUID  []byte
 	SendGUID  []byte // Send.GUID
 	Signature []byte
@@ -102,14 +97,11 @@ func (ack *Acknowledge) Validate() error {
 	if len(ack.GUID) != guid.Size {
 		return errors.New("invalid GUID size")
 	}
-	if ack.Role > Beacon {
-		return errors.New("invalid role")
-	}
 	if len(ack.RoleGUID) != guid.Size {
 		return errors.New("invalid role GUID size")
 	}
 	if len(ack.SendGUID) != guid.Size {
-		return errors.New("invalid role GUID size")
+		return errors.New("invalid send GUID size")
 	}
 	if len(ack.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")
@@ -118,6 +110,21 @@ func (ack *Acknowledge) Validate() error {
 }
 
 // -------------------------------query mode----------------------------------
+
+type Query struct {
+	GUID       []byte // prevent duplicate handle it
+	BeaconGUID []byte
+}
+
+func (q *Query) Validate() error {
+	if len(q.GUID) != guid.Size {
+		return errors.New("invalid GUID size")
+	}
+	if len(q.BeaconGUID) != guid.Size {
+		return errors.New("invalid beacon GUID size")
+	}
+	return nil
+}
 
 // SyncReceive is used to synchronize node_receive,
 // beacon_receive, controller_receive, (look database tables)

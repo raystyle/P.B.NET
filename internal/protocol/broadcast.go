@@ -10,11 +10,13 @@ import (
 )
 
 var (
-	BroadcastUnhandled = []byte{0}
-	BroadcastHandled   = []byte{1}
-	BroadcastSucceed   = []byte{2}
+	BroadcastGUIDTimeout = []byte{0}
+	BroadcastUnhandled   = []byte{1}
+	BroadcastHandled     = []byte{2}
+	BroadcastSucceed     = []byte{3}
 
-	ErrBroadcastHandled = errors.New("this broadcast has been handled")
+	ErrBroadcastGUIDTimeout = errors.New("this broadcast GUID is timeout")
+	ErrBroadcastHandled     = errors.New("this broadcast has been handled")
 )
 
 // Broadcast is used to broadcast messages to Nodes.
@@ -36,7 +38,7 @@ func (b *Broadcast) Validate() error {
 		return errors.New("invalid message size")
 	}
 	if len(b.Hash) != sha256.Size {
-		return errors.New("invalid message hash size")
+		return errors.New("invalid hash size")
 	}
 	if len(b.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")
