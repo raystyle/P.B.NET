@@ -20,10 +20,9 @@ import (
 )
 
 var (
-	ErrBroadcastFailed  = errors.New("broadcast failed")
-	ErrSendFailed       = errors.New("send failed")
-	ErrWaitReplyTimeout = errors.New("wait for reply timeout")
-	ErrSenderClosed     = errors.New("sender closed")
+	ErrBroadcastFailed = errors.New("broadcast failed")
+	ErrSendFailed      = errors.New("send failed")
+	ErrSenderClosed    = errors.New("sender closed")
 )
 
 type broadcastTask struct {
@@ -39,7 +38,6 @@ type sendTask struct {
 	Type     []byte        // message type
 	MessageI interface{}
 	Message  []byte // Message include message type
-	Timeout  time.Duration
 	Result   chan<- *protocol.SendResult
 }
 
@@ -76,9 +74,6 @@ type sender struct {
 	interactive    map[string]bool // key = base64(Beacon GUID)
 	interactiveRWM sync.RWMutex
 
-	replys    map[string]chan []byte // key = base64(protocol.Send.GUID)
-	replysRWM sync.RWMutex
-
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
@@ -91,7 +86,7 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 	if cfg.SenderQueueSize < 512 {
 		return nil, errors.New("sender task queue size < 512")
 	}
-	sender := sender{
+	sender := &sender{
 		ctx:                  ctx,
 		broadcastTaskQueue:   make(chan *broadcastTask, cfg.SenderQueueSize),
 		sendTaskQueue:        make(chan *sendTask, cfg.SenderQueueSize),
@@ -131,20 +126,20 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 	}
 	// init wait group sync pool
 	sender.waitGroupPool.New = func() interface{} {
-		return sync.WaitGroup{}
+		return new(sync.WaitGroup)
 	}
 	// guid
 	sender.guid = guid.New(16*cfg.SenderQueueSize, ctx.global.Now)
 	// start sender workers
 	for i := 0; i < cfg.SenderWorker; i++ {
 		worker := senderWorker{
-			ctx:           &sender,
+			ctx:           sender,
 			maxBufferSize: cfg.MaxBufferSize,
 		}
 		sender.wg.Add(1)
 		go worker.Work()
 	}
-	return &sender, nil
+	return sender, nil
 }
 
 // Broadcast is used to broadcast message to all Nodes
@@ -201,17 +196,12 @@ func (sender *sender) Send(
 	guid,
 	Type []byte,
 	msg interface{},
-	timeout time.Duration,
-) ([]byte, error) {
+) error {
 	// check role
 	switch role {
 	case protocol.Node, protocol.Beacon:
 	default:
 		panic("invalid role")
-	}
-	// check timeout
-	if timeout < time.Second {
-		timeout = time.Second
 	}
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
 	st := sender.sendTaskPool.Get().(*sendTask)
@@ -219,23 +209,21 @@ func (sender *sender) Send(
 	st.GUID = guid
 	st.Type = Type
 	st.MessageI = msg
-	st.Timeout = timeout
 	st.Result = done
 	// send to task queue
 	select {
 	case sender.sendTaskQueue <- st:
 	case <-sender.stopSignal:
-		return nil, ErrSenderClosed
+		return ErrSenderClosed
 	}
 	result := <-done
 	// record
-	reply := result.Reply
 	err := result.Err
 	// put
 	sender.sendDonePool.Put(done)
 	sender.sendTaskPool.Put(st)
 	sender.sendResultPool.Put(result)
-	return reply, err
+	return err
 }
 
 // SendFromPlugin is used to send message to Node or Beacon from plugin
@@ -243,44 +231,37 @@ func (sender *sender) SendFromPlugin(
 	role protocol.Role,
 	guid,
 	msg []byte,
-	timeout time.Duration,
-) ([]byte, error) {
+) error {
 	// check role
 	switch role {
 	case protocol.Node, protocol.Beacon:
 	default:
-		return nil, role
-	}
-	// check timeout
-	if timeout < time.Second {
-		timeout = time.Second
+		return role
 	}
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	st.Role = role
 	st.GUID = guid
 	st.Message = msg
-	st.Timeout = timeout
 	st.Result = done
 	// send to task queue
 	select {
 	case sender.sendTaskQueue <- st:
 	case <-sender.stopSignal:
-		return nil, ErrSenderClosed
+		return ErrSenderClosed
 	}
 	result := <-done
 	// record
-	reply := result.Reply
 	err := result.Err
 	// put
 	sender.sendDonePool.Put(done)
 	sender.sendTaskPool.Put(st)
 	sender.sendResultPool.Put(result)
-	return reply, err
+	return err
 }
 
-// Acknowledge is used to acknowledge Role that controller
-// has receive this message in interactive mode
+// Acknowledge is used to acknowledge Role that
+// controller has received this message
 func (sender *sender) Acknowledge(
 	role protocol.Role,
 	guid []byte,
@@ -291,16 +272,6 @@ func (sender *sender) Acknowledge(
 	at.GUID = guid
 	at.SendGUID = sendGUID
 	sender.acknowledgeTaskQueue <- at
-}
-
-// TODO warning slice copy
-func (sender *sender) ReceiveReply(guid string, reply []byte) {
-	sender.replysRWM.RLock()
-	r := sender.replys[guid]
-	sender.replysRWM.RUnlock()
-	if r != nil {
-		r <- reply
-	}
 }
 
 func (sender *sender) Close() {
@@ -333,7 +304,7 @@ func (sender *sender) logln(l logger.Level, log ...interface{}) {
 	sender.ctx.Println(l, "sender", log...)
 }
 
-func (sender *sender) broadcast(token, message []byte) (
+func (sender *sender) broadcast(guid, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
 	sClients := sender.ctx.syncer.Clients()
 	l := len(sClients)
@@ -349,7 +320,7 @@ func (sender *sender) broadcast(token, message []byte) (
 	index := 0
 	for _, sc := range sClients {
 		go func(i int, s *sClient) {
-			channels[i] <- s.Broadcast(token, message)
+			channels[i] <- s.Broadcast(guid, message)
 		}(index, sc)
 		index += 1
 	}
@@ -365,7 +336,7 @@ func (sender *sender) broadcast(token, message []byte) (
 	return
 }
 
-func (sender *sender) send(token, message []byte) (
+func (sender *sender) send(role protocol.Role, guid, message []byte) (
 	resp []*protocol.SendResponse, success int) {
 	sClients := sender.ctx.syncer.Clients()
 	l := len(sClients)
@@ -379,11 +350,23 @@ func (sender *sender) send(token, message []byte) (
 	}
 	// send parallel
 	index := 0
-	for _, sc := range sClients {
-		go func(i int, s *sClient) {
-			channels[i] <- s.Send(token, message)
-		}(index, sc)
-		index += 1
+	switch role {
+	case protocol.Node:
+		for _, sc := range sClients {
+			go func(i int, s *sClient) {
+				channels[i] <- s.SendToNode(guid, message)
+			}(index, sc)
+			index += 1
+		}
+	case protocol.Beacon:
+		for _, sc := range sClients {
+			go func(i int, s *sClient) {
+				channels[i] <- s.SendToBeacon(guid, message)
+			}(index, sc)
+			index += 1
+		}
+	default:
+		panic("invalid Role")
 	}
 	// get response and put
 	resp = make([]*protocol.SendResponse, l)
@@ -397,20 +380,33 @@ func (sender *sender) send(token, message []byte) (
 	return
 }
 
-func (sender *sender) acknowledge(token, message []byte) {
+func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) {
 	sClients := sender.ctx.syncer.Clients()
 	l := len(sClients)
 	if l == 0 {
 		return
 	}
 	// acknowledge parallel
-	wg := sender.waitGroupPool.Get().(sync.WaitGroup)
-	for _, sc := range sClients {
-		wg.Add(1)
-		go func(s *sClient) {
-			s.Acknowledge(token, message)
-			wg.Done()
-		}(sc)
+	wg := sender.waitGroupPool.Get().(*sync.WaitGroup)
+	switch role {
+	case protocol.Node:
+		for _, sc := range sClients {
+			wg.Add(1)
+			go func(s *sClient) {
+				s.AcknowledgeToNode(guid, message)
+				wg.Done()
+			}(sc)
+		}
+	case protocol.Beacon:
+		for _, sc := range sClients {
+			wg.Add(1)
+			go func(s *sClient) {
+				s.AcknowledgeToBeacon(guid, message)
+				wg.Done()
+			}(sc)
+		}
+	default:
+		panic("invalid Role")
 	}
 	wg.Wait()
 	sender.waitGroupPool.Put(wg)
@@ -436,10 +432,6 @@ type senderWorker struct {
 	preS protocol.Send
 	preA protocol.Acknowledge
 
-	// about reply
-	replyPool  sync.Pool
-	replyTimer *time.Timer
-
 	// objects
 	buffer  *bytes.Buffer
 	msgpack *msgpack.Encoder
@@ -447,9 +439,8 @@ type senderWorker struct {
 	hash    hash.Hash
 
 	// temp
-	roleGUID  string
-	replyGUID string
-	err       error
+	roleGUID string
+	err      error
 }
 
 func (sw *senderWorker) Work() {
@@ -470,10 +461,6 @@ func (sw *senderWorker) Work() {
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.base64 = base64.NewEncoder(base64.StdEncoding, sw.buffer)
 	sw.hash = sha256.New()
-	sw.replyTimer = time.NewTimer(0)
-	sw.replyPool.New = func() interface{} {
-		return make(chan []byte, 1)
-	}
 	// start handle task
 	for {
 		// check buffer capacity
@@ -495,18 +482,12 @@ func (sw *senderWorker) Work() {
 
 func (sw *senderWorker) handleAcknowledgeTask() {
 	defer sw.ctx.acknowledgeTaskPool.Put(sw.at)
-	// check role
-	if sw.at.Role != protocol.Node && sw.at.Role != protocol.Beacon {
-		panic("sender.sender(): invalid at.Role")
-	}
 	sw.preA.GUID = sw.ctx.guid.Get()
-	sw.preA.Role = sw.at.Role
 	sw.preA.RoleGUID = sw.at.GUID
 	sw.preA.SendGUID = sw.at.SendGUID
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preA.GUID)
-	sw.buffer.WriteByte(sw.preA.Role.Byte())
 	sw.buffer.Write(sw.preA.RoleGUID)
 	sw.buffer.Write(sw.preA.SendGUID)
 	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
@@ -516,7 +497,7 @@ func (sw *senderWorker) handleAcknowledgeTask() {
 	if sw.err != nil {
 		panic(sw.err)
 	}
-	sw.ctx.acknowledge(sw.preA.GUID, sw.buffer.Bytes())
+	sw.ctx.acknowledge(sw.at.Role, sw.preA.GUID, sw.buffer.Bytes())
 }
 
 func (sw *senderWorker) handleSendTask() {
@@ -530,7 +511,6 @@ func (sw *senderWorker) handleSendTask() {
 		}
 		sw.st.Result <- result
 	}()
-	// TODO think
 	// role GUID string
 	sw.buffer.Reset()
 	_, _ = sw.base64.Write(sw.st.GUID)
@@ -578,6 +558,7 @@ func (sw *senderWorker) handleSendTask() {
 	}
 	// check is need to write message to the database
 	if sw.st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(sw.roleGUID) {
+		// TODO sign and other
 		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(sw.st.GUID, sw.preS.Message)
 		if result.Err == nil {
 			result.Success = 1
@@ -586,25 +567,17 @@ func (sw *senderWorker) handleSendTask() {
 	}
 	// set GUID
 	sw.preS.GUID = sw.ctx.guid.Get()
+	sw.preS.RoleGUID = sw.st.GUID
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(sw.st.Message)
 	sw.preS.Hash = sw.hash.Sum(nil)
-	// role
-	sw.preS.Role = sw.st.Role
-	sw.preS.RoleGUID = sw.st.GUID
-	// reply GUID, must here
-	sw.buffer.Reset()
-	_, _ = sw.base64.Write(sw.preS.GUID)
-	_ = sw.base64.Close()
-	sw.replyGUID = sw.buffer.String()
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preS.GUID)
+	sw.buffer.Write(sw.preS.RoleGUID)
 	sw.buffer.Write(sw.preS.Message)
 	sw.buffer.Write(sw.preS.Hash)
-	sw.buffer.WriteByte(sw.preS.Role.Byte())
-	sw.buffer.Write(sw.preS.RoleGUID)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// pack
 	sw.buffer.Reset()
@@ -612,33 +585,11 @@ func (sw *senderWorker) handleSendTask() {
 	if result.Err != nil {
 		return
 	}
-	// set reply
-	reply := sw.replyPool.Get().(chan []byte)
-	defer sw.replyPool.Put(reply)
-	sw.ctx.replysRWM.Lock()
-	sw.ctx.replys[sw.replyGUID] = reply
-	sw.ctx.replysRWM.Unlock()
 	// send
-	result.Responses, result.Success = sw.ctx.send(sw.preS.GUID, sw.buffer.Bytes())
+	result.Responses, result.Success = sw.ctx.send(sw.st.Role, sw.preS.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
-		sw.replyTimer.Stop()
 		result.Err = ErrSendFailed
 		return
-	}
-	// wait reply
-	if !sw.replyTimer.Stop() {
-		<-sw.replyTimer.C
-	}
-	sw.replyTimer.Reset(sw.st.Timeout)
-	select {
-	case result.Reply = <-reply:
-		sw.ctx.replysRWM.Lock()
-		delete(sw.ctx.replys, sw.replyGUID)
-		sw.ctx.replysRWM.Unlock()
-	case <-sw.replyTimer.C:
-		result.Err = ErrWaitReplyTimeout
-	case <-sw.ctx.stopSignal:
-		result.Err = ErrSenderClosed
 	}
 }
 
