@@ -5,22 +5,24 @@ const (
 	TestCommand uint8 = 0xEF
 )
 
-// -----------------------controller--------------------------
+// -----------------------Controller--------------------------
 const (
 	CtrlHeartbeat uint8 = 0x00 + iota
 	CtrlReply
+
 	CtrlSyncStart
-	CtrlBroadcastToken
+	CtrlBroadcastGUID
 	CtrlBroadcast
-	CtrlSyncSendToken
-	CtrlSyncSend
-	CtrlSyncReceiveToken
-	CtrlSyncReceive
-	CtrlSyncQueryNode
-	CtrlSyncQueryBeacon
+	CtrlSendToNodeGUID
+	CtrlSendToNode
+	CtrlSendToBeaconGUID
+	CtrlSendToBeacon
+	CtrlAckToNodeGUID
+	CtrlAckToNode
+	CtrlAckToBeaconGUID
+	CtrlAckToBeacon
 )
 
-// trust node
 const (
 	CtrlTrustNode uint8 = 0x20 + iota
 	CtrlTrustNodeData
@@ -31,24 +33,35 @@ const (
 	CtrlQueryAllNodes
 )
 
-// --------------------------node-----------------------------
+// --------------------------Node-----------------------------
 const (
-	NodeHeartbeat uint8 = 0x00 + iota
+	NodeHeartbeat uint8 = 0x60 + iota
 	NodeReply
+
 	NodeSyncStart
-	NodeSyncSendToken
-	NodeSyncSend
-	NodeSyncReceiveToken
-	NodeSyncReceive
+	NodeSendGUID
+	NodeSend
 )
 
 // node authentication
 const (
-	NodeQueryCertificate uint8 = 0x20 + iota
+	NodeQueryCertificate uint8 = 0x70 + iota
 )
 
 // query nodes
 const (
-	NodeQueryGUID uint8 = 0x30 + iota
+	NodeQueryGUID uint8 = 0x80 + iota
 	NodeQueryAllNodes
+)
+
+// --------------------------Beacon-----------------------------
+const (
+	BeaconHeartbeat uint8 = 0xA0 + iota
+	BeaconReply
+
+	BeaconSyncStart
+	BeaconSendGUID
+	BeaconSend
+	BeaconQueryGUID
+	BeaconQuery
 )
