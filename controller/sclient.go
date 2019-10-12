@@ -43,8 +43,7 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				err := xpanic.Error("syncer client panic:", r)
-				client.log(logger.Fatal, err)
+				client.log(logger.Fatal, xpanic.Error("syncer client panic:", r))
 			}
 			sc.Close()
 		}()
@@ -63,21 +62,21 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 	return &sc, nil
 }
 
-func (sc *sClient) Broadcast(token, message []byte) (br *protocol.BroadcastResponse) {
+func (sc *sClient) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse) {
 	br = &protocol.BroadcastResponse{
 		GUID: sc.guid,
 	}
 	var reply []byte
-	reply, br.Err = sc.client.Send(protocol.CtrlBroadcastToken, token)
+	reply, br.Err = sc.client.Send(protocol.CtrlBroadcastGUID, guid)
 	if br.Err != nil {
 		return
 	}
 	if !bytes.Equal(reply, protocol.BroadcastUnhandled) {
-		br.Err = protocol.ErrBroadcastHandled
+		br.Err = errors.New(string(reply))
 		return
 	}
 	// broadcast
-	reply, br.Err = sc.client.Send(protocol.CtrlBroadcast, message)
+	reply, br.Err = sc.client.Send(protocol.CtrlBroadcast, data)
 	if br.Err != nil {
 		return
 	}
@@ -87,92 +86,108 @@ func (sc *sClient) Broadcast(token, message []byte) (br *protocol.BroadcastRespo
 	return
 }
 
-func (sc *sClient) Send(token, message []byte) *protocol.SyncResponse {
-	sr := &protocol.SyncResponse{}
-	sr.Role = protocol.Node
-	sr.GUID = sc.guid
-	resp, err := sc.client.Send(protocol.CtrlSyncSendToken, token)
+func (sc *sClient) SendToNode(guid, data []byte) (sr *protocol.SendResponse) {
+	sr = &protocol.SendResponse{
+		Role: protocol.Node,
+		GUID: sc.guid,
+	}
+	var reply []byte
+	reply, sr.Err = sc.client.Send(protocol.CtrlSendToNodeGUID, guid)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.SendUnhandled) {
+		sr.Err = errors.New(string(reply))
+		return
+	}
+	reply, sr.Err = sc.client.Send(protocol.CtrlSendToNode, data)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.SendSucceed) {
+		sr.Err = errors.New(string(reply))
+	}
+	return
+}
+
+func (sc *sClient) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse) {
+	sr = &protocol.SendResponse{
+		Role: protocol.Node,
+		GUID: sc.guid,
+	}
+	var reply []byte
+	reply, sr.Err = sc.client.Send(protocol.CtrlSendToBeaconGUID, guid)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.SendUnhandled) {
+		sr.Err = errors.New(string(reply))
+		return
+	}
+	reply, sr.Err = sc.client.Send(protocol.CtrlSendToBeacon, data)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.SendSucceed) {
+		sr.Err = errors.New(string(reply))
+	}
+	return
+}
+
+// AcknowledgeToNode is used to notice Node that
+// Controller has received this message
+func (sc *sClient) AcknowledgeToNode(guid, data []byte) {
+	var (
+		reply []byte
+		err   error
+	)
+	defer func() {
+		if err != nil {
+			sc.logln(logger.Error, "acknowledge to node failed:", err)
+		}
+	}()
+	reply, err = sc.client.Send(protocol.CtrlAckToNodeGUID, guid)
 	if err != nil {
-		sr.Err = err
-		return sr
+		return
 	}
-	if !bytes.Equal(resp, protocol.SyncUnhandled) {
-		sr.Err = protocol.ErrSyncHandled
-		return sr
+	if !bytes.Equal(reply, protocol.SendUnhandled) {
+		return
 	}
-	resp, err = sc.client.Send(protocol.CtrlSyncSend, message)
+	reply, err = sc.client.Send(protocol.CtrlAckToNode, data)
 	if err != nil {
-		sr.Err = err
-		return sr
+		return
 	}
-	if bytes.Equal(resp, protocol.SyncSucceed) {
-		return sr
-	} else {
-		sr.Err = errors.New(string(resp))
-		return sr
+	if !bytes.Equal(reply, protocol.SendSucceed) {
+		err = errors.New(string(reply))
 	}
 }
 
-// Acknowledge is used to notice node clean the message
-func (sc *sClient) Acknowledge(token, message []byte) *protocol.SyncResponse {
-	sr := &protocol.SyncResponse{}
-	sr.Role = protocol.Node
-	sr.GUID = sc.guid
-	resp, err := sc.client.Send(protocol.CtrlSyncReceiveToken, token)
+// AcknowledgeToBeacon is used to notice Beacon that
+// Controller has received this message
+func (sc *sClient) AcknowledgeToBeacon(guid, data []byte) {
+	var (
+		reply []byte
+		err   error
+	)
+	defer func() {
+		if err != nil {
+			sc.logln(logger.Error, "acknowledge to beacon failed:", err)
+		}
+	}()
+	reply, err = sc.client.Send(protocol.CtrlAckToBeaconGUID, guid)
 	if err != nil {
-		sr.Err = err
-		return sr
+		return
 	}
-	if !bytes.Equal(resp, protocol.SyncUnhandled) {
-		sr.Err = protocol.ErrSyncHandled
-		return sr
+	if !bytes.Equal(reply, protocol.SendUnhandled) {
+		return
 	}
-	resp, err = sc.client.Send(protocol.CtrlSyncReceive, message)
+	reply, err = sc.client.Send(protocol.CtrlAckToBeacon, data)
 	if err != nil {
-		sr.Err = err
-		return sr
+		return
 	}
-	if bytes.Equal(resp, protocol.SyncSucceed) {
-		return sr
-	} else {
-		sr.Err = errors.New(string(resp))
-		return sr
+	if !bytes.Equal(reply, protocol.SendSucceed) {
+		err = errors.New(string(reply))
 	}
-}
-
-func (sc *sClient) QueryNodeMessage(request []byte) (*protocol.SyncReply, error) {
-	reply, err := sc.client.Send(protocol.CtrlSyncQueryNode, request)
-	if err != nil {
-		return nil, err
-	}
-	return sc.handleQueryReply(reply)
-}
-
-func (sc *sClient) QueryBeaconMessage(request []byte) (*protocol.SyncReply, error) {
-	reply, err := sc.client.Send(protocol.CtrlSyncQueryBeacon, request)
-	if err != nil {
-		return nil, err
-	}
-	return sc.handleQueryReply(reply)
-}
-
-func (sc *sClient) handleQueryReply(reply []byte) (*protocol.SyncReply, error) {
-	sr := protocol.SyncReply{}
-	err := msgpack.Unmarshal(reply, &sr)
-	if err != nil {
-		err = errors.Wrap(err, "invalid sync reply msgpack data")
-		sc.log(logger.Exploit, err)
-		sc.Close()
-		return nil, err
-	}
-	err = sr.Validate()
-	if err != nil {
-		err = errors.Wrap(err, "invalid sync reply")
-		sc.log(logger.Exploit, err)
-		sc.Close()
-		return nil, err
-	}
-	return &sr, nil
 }
 
 func (sc *sClient) Close() {
@@ -219,14 +234,18 @@ func (sc *sClient) handleMessage(msg []byte) {
 		return
 	}
 	switch msg[0] {
-	case protocol.NodeSyncSendToken:
-		sc.handleSyncSendToken(msg[cmd:id], msg[id:])
-	case protocol.NodeSyncSend:
-		sc.handleSyncSend(msg[cmd:id], msg[id:])
-	case protocol.NodeSyncReceiveToken:
-		sc.handleSyncReceiveToken(msg[cmd:id], msg[id:])
-	case protocol.NodeSyncReceive:
-		sc.handleSyncReceive(msg[cmd:id], msg[id:])
+	case protocol.BeaconQueryGUID:
+		sc.handleBeaconQueryGUID(msg[cmd:id], msg[id:])
+	case protocol.BeaconQuery:
+		sc.handleBeaconQuery(msg[cmd:id], msg[id:])
+	case protocol.BeaconSendGUID:
+		sc.handleBeaconSendGUID(msg[cmd:id], msg[id:])
+	case protocol.BeaconSend:
+		sc.handleBeaconSend(msg[cmd:id], msg[id:])
+	case protocol.NodeSendGUID:
+		sc.handleNodeSendGUID(msg[cmd:id], msg[id:])
+	case protocol.NodeSend:
+		sc.handleNodeSend(msg[cmd:id], msg[id:])
 	// ---------------------------internal--------------------------------
 	case protocol.NodeReply:
 		sc.client.handleReply(msg[cmd:])
@@ -247,105 +266,104 @@ func (sc *sClient) handleMessage(msg []byte) {
 	}
 }
 
-func (sc *sClient) handleSyncSendToken(id, message []byte) {
-	// role + message guid
-	if len(message) != 1+guid.Size {
+func (sc *sClient) handleNodeSendGUID(id, guid_ []byte) {
+	if len(guid_) != guid.Size {
 		// fake reply and close
-		sc.log(logger.Exploit, "invalid sync send token size")
-		sc.client.Reply(id, protocol.SyncHandled)
+		sc.log(logger.Exploit, "invalid node send guid size")
+		sc.client.Reply(id, protocol.SendHandled)
 		sc.Close()
 		return
 	}
-	role := protocol.Role(message[0])
-	if role != protocol.Node && role != protocol.Beacon {
-		sc.log(logger.Exploit, "handle invalid sync send token role")
-		sc.client.Reply(id, protocol.SyncHandled)
-		sc.Close()
-		return
-	}
-	if sc.ctx.checkSyncSendToken(role, message[1:]) {
-		sc.client.Reply(id, protocol.SyncUnhandled)
+	if sc.ctx.CheckGUIDTimestamp(guid_) {
+		sc.client.Reply(id, protocol.SendGUIDTimeout)
+	} else if sc.ctx.CheckNodeSendGUID(guid_, false) {
+		sc.client.Reply(id, protocol.SendUnhandled)
 	} else {
-		sc.client.Reply(id, protocol.SyncHandled)
+		sc.client.Reply(id, protocol.SendHandled)
 	}
 }
 
-func (sc *sClient) handleSyncReceiveToken(id, message []byte) {
-	// role + message guid
-	if len(message) != 1+guid.Size {
+// TODO add check
+func (sc *sClient) handleNodeSend(id, data []byte) {
+	s := protocol.Send{}
+	err := msgpack.Unmarshal(data, &s)
+	if err != nil {
+		sc.logln(logger.Exploit, "invalid node send msgpack data:", err)
+		sc.Close()
+		return
+	}
+	err = s.Validate()
+	if err != nil {
+		sc.logf(logger.Exploit, "invalid node send: %s\n%s", err, spew.Sdump(s))
+		sc.Close()
+		return
+	}
+	sc.ctx.AddNodeSend(&s)
+	sc.client.Reply(id, protocol.SendSucceed)
+}
+
+func (sc *sClient) handleBeaconSendGUID(id, guid_ []byte) {
+	if len(guid_) != guid.Size {
 		// fake reply and close
-		sc.log(logger.Exploit, "invalid sync receive token size")
-		sc.client.Reply(id, protocol.SyncHandled)
+		sc.log(logger.Exploit, "invalid beacon send guid size")
+		sc.client.Reply(id, protocol.SendHandled)
 		sc.Close()
 		return
 	}
-	role := protocol.Role(message[0])
-	if role != protocol.Node && role != protocol.Beacon {
-		sc.log(logger.Exploit, "handle invalid sync receive token role")
-		sc.client.Reply(id, protocol.SyncHandled)
-		sc.Close()
-		return
-	}
-	if sc.ctx.checkSyncReceiveToken(role, message[1:]) {
-		sc.client.Reply(id, protocol.SyncUnhandled)
+	if sc.ctx.CheckBeaconSendToken(guid_) {
+		sc.client.Reply(id, protocol.SendUnhandled)
 	} else {
-		sc.client.Reply(id, protocol.SyncHandled)
+		sc.client.Reply(id, protocol.SendHandled)
 	}
 }
 
-func (sc *sClient) handleSyncSend(id, message []byte) {
-	ss := protocol.Send{}
-	err := msgpack.Unmarshal(message, &ss)
+func (sc *sClient) handleBeaconSend(id, data []byte) {
+	s := protocol.Send{}
+	err := msgpack.Unmarshal(data, &s)
 	if err != nil {
-		sc.logln(logger.Exploit, "invalid sync send msgpack data:", err)
+		sc.logln(logger.Exploit, "invalid beacon send msgpack data:", err)
 		sc.Close()
 		return
 	}
-	err = ss.Validate()
+	err = s.Validate()
 	if err != nil {
-		sc.logf(logger.Exploit, "invalid sync send: %s\n%s", err, spew.Sdump(ss))
+		sc.logf(logger.Exploit, "invalid beacon send: %s\n%s", err, spew.Sdump(s))
 		sc.Close()
 		return
 	}
-	if ss.SenderRole != protocol.Node && ss.SenderRole != protocol.Beacon {
-		sc.logf(logger.Exploit, "invalid sync send sender role\n%s", spew.Sdump(ss))
-		sc.Close()
-		return
-	}
-	if ss.ReceiverRole != protocol.Ctrl {
-		sc.logf(logger.Exploit, "invalid sync send receiver role\n%s", spew.Sdump(ss))
-		sc.Close()
-		return
-	}
-	if !bytes.Equal(ss.ReceiverGUID, protocol.CtrlGUID) {
-		sc.logf(logger.Exploit, "invalid sync send receiver guid\n%s", spew.Sdump(ss))
-		sc.Close()
-		return
-	}
-	sc.ctx.AddSyncSend(&ss)
-	sc.client.Reply(id, protocol.SyncSucceed)
+	sc.ctx.AddBeaconSend(&s)
+	sc.client.Reply(id, protocol.SendSucceed)
 }
 
-// notice controller role receive height
-func (sc *sClient) handleSyncReceive(id, message []byte) {
-	sr := protocol.SyncReceive{}
-	err := msgpack.Unmarshal(message, &sr)
+func (sc *sClient) handleBeaconQueryGUID(id, guid_ []byte) {
+	if len(guid_) != guid.Size {
+		// fake reply and close
+		sc.log(logger.Exploit, "invalid beacon query guid size")
+		sc.client.Reply(id, protocol.SendHandled)
+		sc.Close()
+		return
+	}
+	if sc.ctx.CheckBeaconQueryToken(guid_) {
+		sc.client.Reply(id, protocol.SendUnhandled)
+	} else {
+		sc.client.Reply(id, protocol.SendHandled)
+	}
+}
+
+func (sc *sClient) handleBeaconQuery(id, data []byte) {
+	q := protocol.Query{}
+	err := msgpack.Unmarshal(data, &q)
 	if err != nil {
-		sc.logln(logger.Exploit, "invalid sync receive msgpack data:", err)
+		sc.logln(logger.Exploit, "invalid beacon query msgpack data:", err)
 		sc.Close()
 		return
 	}
-	err = sr.Validate()
+	err = q.Validate()
 	if err != nil {
-		sc.logf(logger.Exploit, "invalid sync receive: %s\n%s", err, spew.Sdump(sr))
+		sc.logf(logger.Exploit, "invalid beacon query: %s\n%s", err, spew.Sdump(q))
 		sc.Close()
 		return
 	}
-	if sr.Role != protocol.Node && sr.Role != protocol.Beacon {
-		sc.logf(logger.Exploit, "invalid sync receive receiver role\n%s", spew.Sdump(sr))
-		sc.Close()
-		return
-	}
-	sc.ctx.AddSyncReceive(&sr)
-	sc.client.Reply(id, protocol.SyncSucceed)
+	sc.ctx.AddBeaconQuery(&q)
+	sc.client.Reply(id, protocol.SendSucceed)
 }
