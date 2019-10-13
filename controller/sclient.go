@@ -62,6 +62,7 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 	return &sc, nil
 }
 
+// TODO error
 func (sc *sClient) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse) {
 	br = &protocol.BroadcastResponse{
 		GUID: sc.guid,
@@ -274,16 +275,49 @@ func (sc *sClient) handleNodeSendGUID(id, guid_ []byte) {
 		sc.Close()
 		return
 	}
-	if sc.ctx.CheckGUIDTimestamp(guid_) {
-		sc.client.Reply(id, protocol.SendGUIDTimeout)
-	} else if sc.ctx.CheckNodeSendGUID(guid_, false) {
+	if expired, _ := sc.ctx.CheckGUIDTimestamp(guid_); expired {
+		sc.client.Reply(id, protocol.SendExpired)
+	} else if sc.ctx.CheckNodeSendGUID(guid_, false, 0) {
 		sc.client.Reply(id, protocol.SendUnhandled)
 	} else {
 		sc.client.Reply(id, protocol.SendHandled)
 	}
 }
 
-// TODO add check
+func (sc *sClient) handleBeaconSendGUID(id, guid_ []byte) {
+	if len(guid_) != guid.Size {
+		// fake reply and close
+		sc.log(logger.Exploit, "invalid beacon send guid size")
+		sc.client.Reply(id, protocol.SendHandled)
+		sc.Close()
+		return
+	}
+	if expired, _ := sc.ctx.CheckGUIDTimestamp(guid_); expired {
+		sc.client.Reply(id, protocol.SendExpired)
+	} else if sc.ctx.CheckBeaconSendGUID(guid_, false, 0) {
+		sc.client.Reply(id, protocol.SendUnhandled)
+	} else {
+		sc.client.Reply(id, protocol.SendHandled)
+	}
+}
+
+func (sc *sClient) handleBeaconQueryGUID(id, guid_ []byte) {
+	if len(guid_) != guid.Size {
+		// fake reply and close
+		sc.log(logger.Exploit, "invalid beacon query guid size")
+		sc.client.Reply(id, protocol.SendHandled)
+		sc.Close()
+		return
+	}
+	if expired, _ := sc.ctx.CheckGUIDTimestamp(guid_); expired {
+		sc.client.Reply(id, protocol.SendExpired)
+	} else if sc.ctx.CheckBeaconQueryGUID(guid_, false, 0) {
+		sc.client.Reply(id, protocol.SendUnhandled)
+	} else {
+		sc.client.Reply(id, protocol.SendHandled)
+	}
+}
+
 func (sc *sClient) handleNodeSend(id, data []byte) {
 	s := protocol.Send{}
 	err := msgpack.Unmarshal(data, &s)
@@ -298,20 +332,11 @@ func (sc *sClient) handleNodeSend(id, data []byte) {
 		sc.Close()
 		return
 	}
-	sc.ctx.AddNodeSend(&s)
-	sc.client.Reply(id, protocol.SendSucceed)
-}
-
-func (sc *sClient) handleBeaconSendGUID(id, guid_ []byte) {
-	if len(guid_) != guid.Size {
-		// fake reply and close
-		sc.log(logger.Exploit, "invalid beacon send guid size")
-		sc.client.Reply(id, protocol.SendHandled)
-		sc.Close()
-		return
-	}
-	if sc.ctx.CheckBeaconSendToken(guid_) {
-		sc.client.Reply(id, protocol.SendUnhandled)
+	if expired, timestamp := sc.ctx.CheckGUIDTimestamp(s.GUID); expired {
+		sc.client.Reply(id, protocol.SendExpired)
+	} else if sc.ctx.CheckNodeSendGUID(s.GUID, true, timestamp) {
+		sc.client.Reply(id, protocol.SendSucceed)
+		sc.ctx.AddNodeSend(&s)
 	} else {
 		sc.client.Reply(id, protocol.SendHandled)
 	}
@@ -331,20 +356,11 @@ func (sc *sClient) handleBeaconSend(id, data []byte) {
 		sc.Close()
 		return
 	}
-	sc.ctx.AddBeaconSend(&s)
-	sc.client.Reply(id, protocol.SendSucceed)
-}
-
-func (sc *sClient) handleBeaconQueryGUID(id, guid_ []byte) {
-	if len(guid_) != guid.Size {
-		// fake reply and close
-		sc.log(logger.Exploit, "invalid beacon query guid size")
-		sc.client.Reply(id, protocol.SendHandled)
-		sc.Close()
-		return
-	}
-	if sc.ctx.CheckBeaconQueryToken(guid_) {
-		sc.client.Reply(id, protocol.SendUnhandled)
+	if expired, timestamp := sc.ctx.CheckGUIDTimestamp(s.GUID); expired {
+		sc.client.Reply(id, protocol.SendExpired)
+	} else if sc.ctx.CheckBeaconSendGUID(s.GUID, true, timestamp) {
+		sc.client.Reply(id, protocol.SendSucceed)
+		sc.ctx.AddBeaconSend(&s)
 	} else {
 		sc.client.Reply(id, protocol.SendHandled)
 	}
@@ -364,6 +380,12 @@ func (sc *sClient) handleBeaconQuery(id, data []byte) {
 		sc.Close()
 		return
 	}
-	sc.ctx.AddBeaconQuery(&q)
-	sc.client.Reply(id, protocol.SendSucceed)
+	if expired, timestamp := sc.ctx.CheckGUIDTimestamp(q.GUID); expired {
+		sc.client.Reply(id, protocol.SendExpired)
+	} else if sc.ctx.CheckBeaconQueryGUID(q.GUID, true, timestamp) {
+		sc.client.Reply(id, protocol.SendSucceed)
+		sc.ctx.AddBeaconQuery(&q)
+	} else {
+		sc.client.Reply(id, protocol.SendHandled)
+	}
 }
