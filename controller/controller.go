@@ -18,19 +18,22 @@ const (
 	Name = "P.B.NET"
 )
 
+// TODO point
+
 type CTRL struct {
-	Debug  *Debug
-	logLv  logger.Level
-	cache  *cache  // database cache
-	db     *db     // provide data and run db syncer
-	global *global // proxy, dns, time syncer, and ...
-	syncer *syncer // sync message
-	sender *sender // broadcast and send message
-	boot   *boot   // auto discover bootstrap nodes
-	web    *web    // web server
-	once   sync.Once
-	wait   chan struct{}
-	exit   chan error
+	Debug   *Debug
+	logLv   logger.Level
+	cache   *cache   // database cache
+	db      *db      // provide data
+	global  *global  // proxy, dns, time syncer, and ...
+	handler *handler // handle message from Node or Beacon
+	syncer  *syncer  // sync message
+	sender  *sender  // broadcast and send message
+	boot    *boot    // auto discover bootstrap nodes
+	web     *web     // web server
+	once    sync.Once
+	wait    chan struct{}
+	exit    chan error
 }
 
 func New(cfg *Config) (*CTRL, error) {
@@ -58,6 +61,8 @@ func New(cfg *Config) (*CTRL, error) {
 		return nil, errors.WithMessage(err, "init global failed")
 	}
 	ctrl.global = global
+	// handler
+	ctrl.handler = &handler{ctx: ctrl}
 	// load proxy clients from database
 	pcs, err := ctrl.db.SelectProxyClient()
 	if err != nil {

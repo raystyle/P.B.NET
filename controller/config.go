@@ -8,8 +8,8 @@ type Debug struct {
 	SkipTimeSyncer bool
 
 	// see handler.go
-	NodeBroadcastChan chan []byte // test Node broadcast
-	NodeSyncSendChan  chan []byte // test Node sync send
+	NodeSend   chan []byte // Node send test message
+	BeaconSend chan []byte // Beacon send test message
 }
 
 type Config struct {
@@ -43,7 +43,7 @@ type Config struct {
 	MaxSyncerClient int `toml:"max_syncer_client"`
 	SyncerWorker    int `toml:"syncer_worker"`
 	SyncerQueueSize int `toml:"syncer_queue_size"`
-	MessageTimeout  int `toml:"message_timeout"`
+	MessageTimeout  int `toml:"message_timeout"` // TODO rename
 
 	// web server
 	HTTPSAddress  string `toml:"https_address"`

@@ -262,21 +262,24 @@ func (sender *sender) SendFromPlugin(
 
 // Acknowledge is used to acknowledge Role that
 // controller has received this message
-func (sender *sender) Acknowledge(
-	role protocol.Role,
-	guid []byte,
-	sendGUID []byte,
-) {
+func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
+	// check role
+	switch role {
+	case protocol.Node, protocol.Beacon:
+	default:
+		panic("invalid role")
+	}
 	at := sender.acknowledgeTaskPool.Get().(*acknowledgeTask)
 	at.Role = role
-	at.GUID = guid
-	at.SendGUID = sendGUID
+	at.GUID = send.RoleGUID
+	at.SendGUID = send.GUID
 	sender.acknowledgeTaskQueue <- at
 }
 
 func (sender *sender) Close() {
 	close(sender.stopSignal)
 	sender.wg.Wait()
+	sender.guid.Close()
 }
 
 func (sender *sender) SetInteractiveMode(guid string) {
@@ -303,6 +306,8 @@ func (sender *sender) log(l logger.Level, log ...interface{}) {
 func (sender *sender) logln(l logger.Level, log ...interface{}) {
 	sender.ctx.Println(l, "sender", log...)
 }
+
+// TODO panic in go func
 
 func (sender *sender) broadcast(guid, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
@@ -446,7 +451,7 @@ type senderWorker struct {
 func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("sender.worker() panic:", r)
+			err := xpanic.Error("senderWorker.Work() panic:", r)
 			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)
