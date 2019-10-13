@@ -25,16 +25,17 @@ import (
 )
 
 type syncer struct {
-	ctx          *CTRL
-	tokenTimeout float64
-	maxClient    atomic.Value
+	ctx         *CTRL
+	guidTimeout float64
+	maxClient   atomic.Value
 
-	nodeSendToken       map[string]int64
-	nodeSendTokenRWM    sync.RWMutex
-	beaconSendToken     map[string]int64
-	beaconSendTokenRWM  sync.RWMutex
-	beaconQueryToken    map[string]int64
-	beaconQueryTokenRWM sync.RWMutex
+	// key = base64(GUID) value = timestamp
+	nodeSendGUID       map[string]int64
+	nodeSendGUIDRWM    sync.RWMutex
+	beaconSendGUID     map[string]int64
+	beaconSendGUIDRWM  sync.RWMutex
+	beaconQueryGUID    map[string]int64
+	beaconQueryGUIDRWM sync.RWMutex
 
 	nodeSendQueue    chan *protocol.Send
 	beaconSendQueue  chan *protocol.Send
@@ -65,10 +66,10 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	}
 	syncer := syncer{
 		ctx:              ctx,
-		tokenTimeout:     float64(cfg.MessageTimeout),
-		nodeSendToken:    make(map[string]int64, cfg.SyncerQueueSize),
-		beaconSendToken:  make(map[string]int64, cfg.SyncerQueueSize),
-		beaconQueryToken: make(map[string]int64, cfg.SyncerQueueSize),
+		guidTimeout:      float64(cfg.MessageTimeout),
+		nodeSendGUID:     make(map[string]int64, cfg.SyncerQueueSize),
+		beaconSendGUID:   make(map[string]int64, cfg.SyncerQueueSize),
+		beaconQueryGUID:  make(map[string]int64, cfg.SyncerQueueSize),
 		nodeSendQueue:    make(chan *protocol.Send, cfg.SyncerQueueSize),
 		beaconSendQueue:  make(chan *protocol.Send, cfg.SyncerQueueSize),
 		beaconQueryQueue: make(chan *protocol.Query, cfg.SyncerQueueSize),
@@ -90,27 +91,6 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	syncer.wg.Add(1)
 	go syncer.watcher()
 	return &syncer, nil
-}
-
-func (syncer *syncer) isClosed() bool {
-	return atomic.LoadInt32(&syncer.inClose) != 0
-}
-
-func (syncer *syncer) Close() {
-	atomic.StoreInt32(&syncer.inClose, 1)
-	// disconnect all syncer clients
-	for key := range syncer.Clients() {
-		_ = syncer.Disconnect(key)
-	}
-	// wait close
-	for {
-		time.Sleep(10 * time.Millisecond)
-		if len(syncer.Clients()) == 0 {
-			break
-		}
-	}
-	close(syncer.stopSignal)
-	syncer.wg.Wait()
 }
 
 // Connect is used to connect node for sync message
@@ -150,18 +130,6 @@ func (syncer *syncer) Disconnect(guid string) error {
 	}
 }
 
-func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
-	syncer.ctx.Printf(l, "syncer", format, log...)
-}
-
-func (syncer *syncer) log(l logger.Level, log ...interface{}) {
-	syncer.ctx.Print(l, "syncer", log...)
-}
-
-func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
-	syncer.ctx.Println(l, "syncer", log...)
-}
-
 func (syncer *syncer) Clients() map[string]*sClient {
 	syncer.sClientsRWM.RLock()
 	l := len(syncer.sClients)
@@ -176,6 +144,39 @@ func (syncer *syncer) Clients() map[string]*sClient {
 	}
 	syncer.sClientsRWM.RUnlock()
 	return sClients
+}
+
+func (syncer *syncer) isClosed() bool {
+	return atomic.LoadInt32(&syncer.inClose) != 0
+}
+
+func (syncer *syncer) Close() {
+	atomic.StoreInt32(&syncer.inClose, 1)
+	// disconnect all syncer clients
+	for key := range syncer.Clients() {
+		_ = syncer.Disconnect(key)
+	}
+	// wait close
+	for {
+		time.Sleep(10 * time.Millisecond)
+		if len(syncer.Clients()) == 0 {
+			break
+		}
+	}
+	close(syncer.stopSignal)
+	syncer.wg.Wait()
+}
+
+func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
+	syncer.ctx.Printf(l, "syncer", format, log...)
+}
+
+func (syncer *syncer) log(l logger.Level, log ...interface{}) {
+	syncer.ctx.Print(l, "syncer", log...)
+}
+
+func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
+	syncer.ctx.Println(l, "syncer", log...)
 }
 
 // getMaxSyncerClient is used to get current max syncer client number
@@ -245,147 +246,77 @@ func (syncer *syncer) AddBeaconQuery(q *protocol.Query) {
 	}
 }
 
-func (syncer *syncer) CheckGUIDTimestamp(guid []byte) bool {
+func (syncer *syncer) CheckGUIDTimestamp(guid []byte) (bool, int64) {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.tokenTimeout {
-		return false
+	if math.Abs(float64(now-timestamp)) > syncer.guidTimeout {
+		return false, 0
 	}
-	return true
+	return true, timestamp
 }
 
-// check xxx Token is used to check xxx is been handled
-// xxx = broadcast, sync send, sync receive
-// just tell others, but they can still send it by force
-
-// TODO finish add
-func (syncer *syncer) CheckNodeSendGUID(token []byte, add bool) bool {
-	key := base64.StdEncoding.EncodeToString(token)
-	syncer.nodeSendTokenRWM.RLock()
-	_, ok := syncer.nodeSendToken[key]
-	syncer.nodeSendTokenRWM.RUnlock()
-	return !ok
-}
-
-func (syncer *syncer) CheckBeaconSendToken(token []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(token[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.tokenTimeout {
-		return false
-	}
-	key := base64.StdEncoding.EncodeToString(token)
-	syncer.beaconSendTokenRWM.RLock()
-	_, ok := syncer.beaconSendToken[key]
-	syncer.beaconSendTokenRWM.RUnlock()
-	return !ok
-}
-
-func (syncer *syncer) CheckBeaconQueryToken(token []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(token[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.tokenTimeout {
-		return false
-	}
-	key := base64.StdEncoding.EncodeToString(token)
-	syncer.beaconQueryTokenRWM.RLock()
-	_, ok := syncer.beaconQueryToken[key]
-	syncer.beaconQueryTokenRWM.RUnlock()
-	return !ok
-}
-
-// check xxx GUID is used to check xxx is been handled
-// prevent others send same message
-// xxx = broadcast, sync send, sync receive
-// must use Abs to prevent future timestamp
-
-func (syncer *syncer) checkBroadcastGUID(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(guid[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
-	}
+func (syncer *syncer) CheckNodeSendGUID(guid []byte, add bool, timestamp int64) bool {
 	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	default:
-		panic("invalid role")
-	}
-	syncer.broadcastGUIDRWM[i].Lock()
-	if _, ok := syncer.broadcastGUID[i][key]; !ok {
-		syncer.broadcastGUID[i][key] = timestamp
-		syncer.broadcastGUIDRWM[i].Unlock()
-		return true
+	if add {
+		syncer.nodeSendGUIDRWM.Lock()
+		if _, ok := syncer.nodeSendGUID[key]; ok {
+			syncer.nodeSendGUIDRWM.Unlock()
+			return false
+		} else {
+			syncer.nodeSendGUID[key] = timestamp
+			syncer.nodeSendGUIDRWM.Unlock()
+			return true
+		}
 	} else {
-		syncer.broadcastGUIDRWM[i].Unlock()
-		return false
+		syncer.nodeSendGUIDRWM.RLock()
+		_, ok := syncer.nodeSendGUID[key]
+		syncer.nodeSendGUIDRWM.RUnlock()
+		return !ok
 	}
 }
 
-func (syncer *syncer) checkSyncSendGUID(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(guid[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
-	}
+func (syncer *syncer) CheckBeaconSendGUID(guid []byte, add bool, timestamp int64) bool {
 	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	default:
-		panic("invalid role")
-	}
-	syncer.syncSendGUIDRWM[i].Lock()
-	if _, ok := syncer.syncSendGUID[i][key]; !ok {
-		syncer.syncSendGUID[i][key] = timestamp
-		syncer.syncSendGUIDRWM[i].Unlock()
-		return true
+	if add {
+		syncer.beaconSendGUIDRWM.Lock()
+		if _, ok := syncer.beaconSendGUID[key]; ok {
+			syncer.beaconSendGUIDRWM.Unlock()
+			return false
+		} else {
+			syncer.beaconSendGUID[key] = timestamp
+			syncer.beaconSendGUIDRWM.Unlock()
+			return true
+		}
 	} else {
-		syncer.syncSendGUIDRWM[i].Unlock()
-		return false
+		syncer.beaconSendGUIDRWM.RLock()
+		_, ok := syncer.beaconSendGUID[key]
+		syncer.beaconSendGUIDRWM.RUnlock()
+		return !ok
 	}
 }
 
-func (syncer *syncer) checkSyncReceiveGUID(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(guid[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
-	}
+func (syncer *syncer) CheckBeaconQueryGUID(guid []byte, add bool, timestamp int64) bool {
 	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	default:
-		panic("invalid role")
-	}
-	syncer.syncReceiveGUIDRWM[i].Lock()
-	if _, ok := syncer.syncReceiveGUID[i][key]; !ok {
-		syncer.syncReceiveGUID[i][key] = timestamp
-		syncer.syncReceiveGUIDRWM[i].Unlock()
-		return true
+	if add {
+		syncer.beaconQueryGUIDRWM.Lock()
+		if _, ok := syncer.beaconQueryGUID[key]; ok {
+			syncer.beaconQueryGUIDRWM.Unlock()
+			return false
+		} else {
+			syncer.beaconQueryGUID[key] = timestamp
+			syncer.beaconQueryGUIDRWM.Unlock()
+			return true
+		}
 	} else {
-		syncer.syncReceiveGUIDRWM[i].Unlock()
-		return false
+		syncer.beaconQueryGUIDRWM.RLock()
+		_, ok := syncer.beaconQueryGUID[key]
+		syncer.beaconQueryGUIDRWM.RUnlock()
+		return !ok
 	}
 }
 
-// guidCleaner is use to clean expire guid
+// guidCleaner is use to clean expired guid
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -393,10 +324,10 @@ func (syncer *syncer) guidCleaner() {
 			syncer.log(logger.Fatal, err)
 			// restart guid cleaner
 			time.Sleep(time.Second)
-			syncer.wg.Add(1)
 			go syncer.guidCleaner()
+		} else {
+			syncer.wg.Done()
 		}
-		syncer.wg.Done()
 	}()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -404,115 +335,34 @@ func (syncer *syncer) guidCleaner() {
 		select {
 		case <-ticker.C:
 			now := syncer.ctx.global.Now().Unix()
-			for i := 0; i < 2; i++ {
-				// clean broadcast
-				syncer.broadcastGUIDRWM[i].Lock()
-				for key, timestamp := range syncer.broadcastGUID[i] {
-					if float64(now-timestamp) > syncer.broadcastTimeout {
-						delete(syncer.broadcastGUID[i], key)
-					}
+			// clean node send
+			syncer.nodeSendGUIDRWM.Lock()
+			for key, timestamp := range syncer.nodeSendGUID {
+				if float64(now-timestamp) > syncer.guidTimeout {
+					delete(syncer.nodeSendGUID, key)
 				}
-				syncer.broadcastGUIDRWM[i].Unlock()
-				// clean sync send
-				syncer.syncSendGUIDRWM[i].Lock()
-				for key, timestamp := range syncer.syncSendGUID[i] {
-					if float64(now-timestamp) > syncer.broadcastTimeout {
-						delete(syncer.syncSendGUID[i], key)
-					}
-				}
-				syncer.syncSendGUIDRWM[i].Unlock()
-				// clean sync receive
-				syncer.syncReceiveGUIDRWM[i].Lock()
-				for key, timestamp := range syncer.syncReceiveGUID[i] {
-					if float64(now-timestamp) > syncer.broadcastTimeout {
-						delete(syncer.syncReceiveGUID[i], key)
-					}
-				}
-				syncer.syncReceiveGUIDRWM[i].Unlock()
 			}
+			syncer.nodeSendGUIDRWM.Unlock()
+			// clean beacon send
+			syncer.beaconSendGUIDRWM.Lock()
+			for key, timestamp := range syncer.beaconSendGUID {
+				if float64(now-timestamp) > syncer.guidTimeout {
+					delete(syncer.beaconSendGUID, key)
+				}
+			}
+			syncer.beaconSendGUIDRWM.Unlock()
+			// clean beacon query
+			syncer.beaconQueryGUIDRWM.Lock()
+			for key, timestamp := range syncer.beaconQueryGUID {
+				if float64(now-timestamp) > syncer.guidTimeout {
+					delete(syncer.beaconQueryGUID, key)
+				}
+			}
+			syncer.beaconQueryGUIDRWM.Unlock()
 		case <-syncer.stopSignal:
 			return
 		}
 	}
-}
-
-// DeleteSyncStatus is used to delete syncStatus
-// if delete role, must delete it
-func (syncer *syncer) DeleteSyncStatus(role protocol.Role, guid string) {
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	default:
-		panic("invalid role")
-	}
-	syncer.syncStatusM[i].Lock()
-	delete(syncer.syncStatus[i], guid)
-	syncer.syncStatusM[i].Unlock()
-}
-
-// isSync is used to check role is synchronizing
-// if not set flag and lock it
-func (syncer *syncer) isSync(role protocol.Role, guid string) bool {
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	default:
-		panic("invalid role")
-	}
-	syncer.syncStatusM[i].Lock()
-	if syncer.syncStatus[i][guid] {
-		syncer.syncStatusM[i].Unlock()
-		return true
-	} else {
-		syncer.syncStatus[i][guid] = true
-		syncer.syncStatusM[i].Unlock()
-		return false
-	}
-}
-
-// syncDone is used to set sync done
-func (syncer *syncer) syncDone(role protocol.Role, guid string) {
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	default:
-		panic("invalid role")
-	}
-	syncer.syncStatusM[i].Lock()
-	syncer.syncStatus[i][guid] = false
-	syncer.syncStatusM[i].Unlock()
-}
-
-// if all workers handle sync task, syncer will dead
-
-// isBlock is used to check reserve worker number
-func (syncer *syncer) isBlock() bool {
-	// check block worker number
-	syncer.blockWorkerM.Lock()
-	if syncer.blockWorker >= syncer.maxBlockWorker {
-		syncer.blockWorkerM.Unlock()
-		return true
-	} else {
-		syncer.blockWorker += 1
-		syncer.blockWorkerM.Unlock()
-		return false
-	}
-}
-
-// blockDone is used to delete block worker
-func (syncer *syncer) blockDone() {
-	syncer.blockWorkerM.Lock()
-	syncer.blockWorker -= 1
-	syncer.blockWorkerM.Unlock()
 }
 
 type syncerWorker struct {
@@ -520,10 +370,8 @@ type syncerWorker struct {
 	maxBufferSize int
 
 	// task
-	b  *protocol.Broadcast
-	ss *protocol.Send
-	sr *protocol.SyncReceive
-	st *protocol.SyncTask
+	send  *protocol.Send
+	query *protocol.Query
 
 	// key
 	node      *mNode
@@ -538,24 +386,22 @@ type syncerWorker struct {
 	hash           hash.Hash
 
 	// temp
-	nodeSyncer     *nodeSyncer
-	beaconSyncer   *beaconSyncer
-	roleGUID       string
-	roleSend       uint64
-	ctrlReceive    uint64
-	sub            uint64
-	sClients       map[string]*sClient
-	sClient        *sClient
-	syncQuery      *protocol.SyncQuery
-	syncReply      *protocol.SyncReply
-	syncQueryBytes []byte
-	err            error
+	nodeSyncer   *nodeSyncer
+	beaconSyncer *beaconSyncer
+	roleGUID     string
+	roleSend     uint64
+	ctrlReceive  uint64
+	sub          uint64
+	sClients     map[string]*sClient
+	sClient      *sClient
+
+	err error
 }
 
 func (sw *syncerWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("syncer.worker() panic:", r)
+			err := xpanic.Error("syncerWorker.Work() panic:", r)
 			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)
@@ -571,8 +417,7 @@ func (sw *syncerWorker) Work() {
 	sw.msgpackEncoder = msgpack.NewEncoder(sw.buffer)
 	sw.base64Encoder = base64.NewEncoder(base64.StdEncoding, sw.buffer)
 	sw.hash = sha256.New()
-	sw.syncQuery = &protocol.SyncQuery{}
-	sw.syncReply = &protocol.SyncReply{}
+
 	// start handle task
 	for {
 		// check buffer capacity
@@ -580,494 +425,109 @@ func (sw *syncerWorker) Work() {
 			sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
 		}
 		select {
-		case sw.sr = <-sw.ctx.syncReceiveQueue:
-			sw.handleSyncReceive()
-		case sw.ss = <-sw.ctx.syncSendQueue:
-			sw.handleSyncSend()
-		case sw.b = <-sw.ctx.broadcastQueue:
-			sw.handleBroadcast()
-		case sw.st = <-sw.ctx.syncTaskQueue:
-			sw.handleSyncTask()
+		case sw.query = <-sw.ctx.beaconQueryQueue:
+			sw.handleBeaconQuery()
+		case sw.send = <-sw.ctx.beaconSendQueue:
+			sw.handleBeaconSend()
+		case sw.send = <-sw.ctx.nodeSendQueue:
+			sw.handleNodeSend()
 		case <-sw.ctx.stopSignal:
 			return
 		}
 	}
 }
 
-func (sw *syncerWorker) handleSyncReceive() {
-	// check role and set key
-	switch sw.sr.Role {
-	case protocol.Beacon:
-		sw.beacon, sw.err = sw.ctx.ctx.db.SelectBeacon(sw.sr.RoleGUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select beacon %X failed %s", sw.sr.RoleGUID, sw.err)
-			return
-		}
-		sw.publicKey = sw.beacon.PublicKey
-	case protocol.Node:
-		sw.node, sw.err = sw.ctx.ctx.db.SelectNode(sw.sr.RoleGUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select node %X failed %s", sw.sr.RoleGUID, sw.err)
-			return
-		}
-		sw.publicKey = sw.node.PublicKey
-	default:
-		panic("invalid sr.Role")
-	}
-	// must verify
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.sr.GUID)
-	sw.buffer.Write(convert.Uint64ToBytes(sw.sr.Height))
-	sw.buffer.WriteByte(sw.sr.Role.Byte())
-	sw.buffer.Write(sw.sr.RoleGUID)
-	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), sw.sr.Signature) {
-		sw.ctx.logf(logger.Exploit, "invalid sync receive signature %s guid: %X",
-			sw.sr.Role, sw.sr.RoleGUID)
-		return
-	}
-	if !sw.ctx.checkSyncReceiveGUID(sw.sr.Role, sw.sr.GUID) {
-		return
-	}
-	sw.sr.Height += 1
-	// update role receive
-	switch sw.sr.Role {
-	case protocol.Beacon:
-		sw.err = sw.ctx.ctx.db.UpdateBSBeaconReceive(sw.sr.RoleGUID, sw.sr.Height)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "update %X beacon receive failed %s", sw.sr.RoleGUID, sw.err)
-		}
-	case protocol.Node:
-		sw.err = sw.ctx.ctx.db.UpdateNSNodeReceive(sw.sr.RoleGUID, sw.sr.Height)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "update %X node receive failed %s", sw.sr.RoleGUID, sw.err)
-		}
-	default:
-		panic("invalid sr.Role")
-	}
-}
-
-func (sw *syncerWorker) handleSyncSend() {
+func (sw *syncerWorker) handleBeaconQuery() {
 	// set key
-	switch sw.ss.SenderRole {
-	case protocol.Beacon:
-		sw.beacon, sw.err = sw.ctx.ctx.db.SelectBeacon(sw.ss.SenderGUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select beacon %X failed %s", sw.ss.SenderGUID, sw.err)
-			return
-		}
-		sw.publicKey = sw.beacon.PublicKey
-		sw.aesKey = sw.beacon.SessionKey
-		sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
-	case protocol.Node:
-		sw.node, sw.err = sw.ctx.ctx.db.SelectNode(sw.ss.SenderGUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select node %X failed %s", sw.ss.SenderGUID, sw.err)
-			return
-		}
-		sw.publicKey = sw.node.PublicKey
-		sw.aesKey = sw.node.SessionKey
-		sw.aesIV = sw.node.SessionKey[:aes.IVSize]
-	default:
-		panic("invalid ss.SenderRole")
+	sw.beacon, sw.err = sw.ctx.ctx.db.SelectBeacon(sw.query.BeaconGUID)
+	if sw.err != nil {
+		sw.ctx.logf(logger.Warning, "select beacon %X failed %s", sw.query.BeaconGUID, sw.err)
+		return
 	}
+	sw.publicKey = sw.beacon.PublicKey
+	sw.aesKey = sw.beacon.SessionKey
+	sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
 	// verify
 	sw.buffer.Reset()
-	sw.buffer.Write(sw.ss.GUID)
-	sw.buffer.Write(convert.Uint64ToBytes(sw.ss.Height))
-	sw.buffer.Write(sw.ss.Message)
-	sw.buffer.Write(sw.ss.Hash)
-	sw.buffer.WriteByte(sw.ss.SenderRole.Byte())
-	sw.buffer.Write(sw.ss.SenderGUID)
-	sw.buffer.WriteByte(sw.ss.ReceiverRole.Byte())
-	sw.buffer.Write(sw.ss.ReceiverGUID)
-	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), sw.ss.Signature) {
-		sw.ctx.logf(logger.Exploit, "invalid sync send signature %s guid: %X",
-			sw.ss.SenderRole, sw.ss.SenderGUID)
+	sw.buffer.Write(sw.query.GUID)
+	sw.buffer.Write(sw.query.BeaconGUID)
+	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), sw.query.Signature) {
+		sw.ctx.logf(logger.Exploit, "invalid query signature guid: %X", sw.query.BeaconGUID)
 		return
 	}
-	// check handled
-	if !sw.ctx.checkSyncSendGUID(sw.ss.SenderRole, sw.ss.GUID) {
-		return
-	}
-	sw.ss.Height += 1 // index -> height
-	// update role send
-	switch sw.ss.SenderRole {
-	case protocol.Beacon:
-		sw.err = sw.ctx.ctx.db.UpdateBSBeaconSend(sw.ss.SenderGUID, sw.ss.Height)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "update %X beacon send failed %s", sw.ss.SenderGUID, sw.err)
-			return
-		}
-	case protocol.Node:
-		sw.err = sw.ctx.ctx.db.UpdateNSNodeSend(sw.ss.SenderGUID, sw.ss.Height)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "update %X node send failed %s", sw.ss.SenderGUID, sw.err)
-			return
-		}
-	default:
-		panic("invalid ss.SenderRole")
-	}
-	// lock role
-	sw.buffer.Reset()
-	_, _ = sw.base64Encoder.Write(sw.ss.SenderGUID)
-	_ = sw.base64Encoder.Close()
-	sw.roleGUID = sw.buffer.String()
-	// check sync
-	if sw.ctx.isSync(sw.ss.SenderRole, sw.roleGUID) {
-		return
-	}
-	defer sw.ctx.syncDone(sw.ss.SenderRole, sw.roleGUID)
-	// select role send & controller receive
-	// must select again, because maybe update
-	// role send at the same time
-	switch sw.ss.SenderRole {
-	case protocol.Beacon:
-		sw.beaconSyncer, sw.err = sw.ctx.ctx.db.SelectBeaconSyncer(sw.ss.SenderGUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select beacon syncer %X failed %s", sw.ss.SenderGUID, sw.err)
-			return
-		}
-		sw.beaconSyncer.RLock()
-		sw.roleSend = sw.beaconSyncer.BeaconSend
-		sw.ctrlReceive = sw.beaconSyncer.CtrlRecv
-		sw.beaconSyncer.RUnlock()
-	case protocol.Node:
-		sw.nodeSyncer, sw.err = sw.ctx.ctx.db.SelectNodeSyncer(sw.ss.SenderGUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select node syncer %X failed %s", sw.ss.SenderGUID, sw.err)
-			return
-		}
-		sw.nodeSyncer.RLock()
-		sw.roleSend = sw.nodeSyncer.NodeSend
-		sw.ctrlReceive = sw.nodeSyncer.CtrlRecv
-		sw.nodeSyncer.RUnlock()
-	default:
-		panic("invalid ss.SenderRole")
-	}
-	// check height
-	sw.sub = sw.roleSend - sw.ctrlReceive
-	switch {
-	// case sw.sub < 1: // receive handled message
-	case sw.sub == 1: // only one new message, handle it
-		// decrypt
-		sw.ss.Message, sw.err = aes.CBCDecrypt(sw.ss.Message, sw.aesKey, sw.aesIV)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Exploit, "decrypt %s guid: %X sync send failed: %s",
-				sw.ss.SenderRole, sw.ss.SenderGUID, sw.err)
-			return
-		}
-		// check hash
-		sw.hash.Reset()
-		sw.hash.Write(sw.ss.Message)
-		if !bytes.Equal(sw.hash.Sum(nil), sw.ss.Hash) {
-			sw.ctx.logf(logger.Exploit, "%s guid: %X sync send with wrong hash",
-				sw.ss.SenderRole, sw.ss.SenderGUID)
-			return
-		}
-		sw.ctx.ctx.handleMessage(sw.ss.Message, sw.ss.SenderRole, sw.ss.SenderGUID, sw.roleSend-1)
-		// update controller receive
-		switch sw.ss.SenderRole {
-		case protocol.Beacon:
-			sw.err = sw.ctx.ctx.db.UpdateBSCtrlReceive(sw.ss.SenderGUID, sw.roleSend)
-			if sw.err != nil {
-				sw.ctx.logf(logger.Warning, "update beacon syncer %X ctrl send failed %s",
-					sw.ss.SenderGUID, sw.err)
-				return
-			}
-		case protocol.Node:
-			sw.err = sw.ctx.ctx.db.UpdateNSCtrlReceive(sw.ss.SenderGUID, sw.roleSend)
-			if sw.err != nil {
-				sw.ctx.logf(logger.Warning, "update node syncer %X ctrl send failed %s",
-					sw.ss.SenderGUID, sw.err)
-				return
-			}
-		default:
-			panic("invalid ss.SenderRole")
-		}
-		// notice node to delete message
-		sw.ctx.ctx.sender.Acknowledge(sw.ss.SenderRole, sw.ss.SenderGUID, sw.roleSend-1)
-	case sw.sub > 1: // get old message and need sync more message
-		sw.ctx.addSyncTask(&protocol.SyncTask{
-			Role: sw.ss.SenderRole,
-			GUID: sw.ss.SenderGUID,
-		})
-	}
+	// TODO broadcast message
 }
 
-func (sw *syncerWorker) handleBroadcast() {
+func (sw *syncerWorker) handleBeaconSend() {
 	// set key
-	switch sw.b.SenderRole {
-	case protocol.Beacon:
-		sw.beacon, sw.err = sw.ctx.ctx.db.SelectBeacon(sw.b.SenderGUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select beacon %X failed %s", sw.b.SenderGUID, sw.err)
-			return
-		}
-		sw.publicKey = sw.beacon.PublicKey
-		sw.aesKey = sw.beacon.SessionKey
-		sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
-	case protocol.Node:
-		sw.node, sw.err = sw.ctx.ctx.db.SelectNode(sw.b.SenderGUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select node %X failed %s", sw.b.SenderGUID, sw.err)
-			return
-		}
-		sw.publicKey = sw.node.PublicKey
-		sw.aesKey = sw.node.SessionKey
-		sw.aesIV = sw.node.SessionKey[:aes.IVSize]
-	default:
-		panic("invalid b.SenderRole")
-	}
-	// verify
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.b.GUID)
-	sw.buffer.Write(sw.b.Message)
-	sw.buffer.Write(sw.b.Hash)
-	sw.buffer.WriteByte(sw.b.SenderRole.Byte())
-	sw.buffer.Write(sw.b.SenderGUID)
-	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), sw.b.Signature) {
-		sw.ctx.logf(logger.Exploit, "invalid broadcast signature %s guid: %X",
-			sw.b.SenderRole, sw.b.SenderGUID)
+	sw.beacon, sw.err = sw.ctx.ctx.db.SelectBeacon(sw.send.RoleGUID)
+	if sw.err != nil {
+		sw.ctx.logf(logger.Warning, "select beacon %X failed %s", sw.send.RoleGUID, sw.err)
 		return
 	}
-	// check is handled
-	if !sw.ctx.checkBroadcastGUID(sw.b.SenderRole, sw.b.GUID) {
+	sw.publicKey = sw.beacon.PublicKey
+	sw.aesKey = sw.beacon.SessionKey
+	sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
+	// verify
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.send.GUID)
+	sw.buffer.Write(sw.send.RoleGUID)
+	sw.buffer.Write(sw.send.Message)
+	sw.buffer.Write(sw.send.Hash)
+	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), sw.send.Signature) {
+		sw.ctx.logf(logger.Exploit, "invalid beacon send signature guid: %X", sw.send.RoleGUID)
 		return
 	}
 	// decrypt
-	sw.b.Message, sw.err = aes.CBCDecrypt(sw.b.Message, sw.aesKey, sw.aesIV)
+	sw.send.Message, sw.err = aes.CBCDecrypt(sw.send.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
-		sw.ctx.logf(logger.Exploit, "decrypt %s guid: %X broadcast failed: %s",
-			sw.b.SenderRole, sw.b.SenderGUID, sw.err)
+		sw.ctx.logf(logger.Exploit, "decrypt beacon %X send failed: %s", sw.send.RoleGUID, sw.err)
 		return
 	}
 	// check hash
 	sw.hash.Reset()
-	sw.hash.Write(sw.b.Message)
-	if !bytes.Equal(sw.hash.Sum(nil), sw.b.Hash) {
-		sw.ctx.logf(logger.Exploit, "%s guid: %X broadcast with wrong hash",
-			sw.b.SenderRole, sw.b.SenderGUID)
+	sw.hash.Write(sw.send.Message)
+	if !bytes.Equal(sw.hash.Sum(nil), sw.send.Hash) {
+		sw.ctx.logf(logger.Exploit, "beacon %X send with wrong hash", sw.send.RoleGUID)
 		return
 	}
-	sw.ctx.ctx.handleBroadcast(sw.b.Message, sw.b.SenderRole, sw.b.SenderGUID)
+	sw.ctx.ctx.handler.HandleBeaconSend(sw.send)
+	sw.ctx.ctx.sender.Acknowledge(protocol.Beacon, sw.send)
 }
 
-func (sw *syncerWorker) queryBeaconMessage() (*protocol.SyncReply, error) {
-	sw.buffer.Reset()
-	sw.err = sw.msgpackEncoder.Encode(sw.syncQuery)
-	if sw.err != nil {
-		return nil, sw.err
-	}
-	sw.syncQueryBytes = sw.buffer.Bytes()
-	// query
-	for i := 0; i < sw.ctx.retryTimes+1; i++ {
-		sw.sClients = sw.ctx.Clients()
-		if len(sw.sClients) == 0 {
-			return nil, protocol.ErrNoSyncerClients
-		}
-		for _, sw.sClient = range sw.sClients {
-			sw.syncReply, sw.err = sw.sClient.QueryBeaconMessage(sw.syncQueryBytes)
-			if sw.err != nil {
-				sw.ctx.logln(logger.Warning, "query beacon message failed:", sw.err)
-				continue
-			}
-			if sw.syncReply.Err == nil {
-				return sw.syncReply, nil
-			} else {
-				sw.ctx.logln(logger.Warning, "query beacon message with error:", sw.syncReply.Err)
-			}
-			select {
-			case <-sw.ctx.stopSignal:
-				return nil, protocol.ErrWorkerStopped
-			default:
-			}
-		}
-		select {
-		case <-sw.ctx.stopSignal:
-			return nil, protocol.ErrWorkerStopped
-		default:
-		}
-		time.Sleep(sw.ctx.retryInterval)
-	}
-	return nil, protocol.ErrNotExistMessage
-}
-
-func (sw *syncerWorker) queryNodeMessage() (*protocol.SyncReply, error) {
-	sw.buffer.Reset()
-	sw.err = sw.msgpackEncoder.Encode(sw.syncQuery)
-	if sw.err != nil {
-		return nil, sw.err
-	}
-	sw.syncQueryBytes = sw.buffer.Bytes()
-	for i := 0; i < sw.ctx.retryTimes+1; i++ {
-		sw.sClients = sw.ctx.Clients()
-		if len(sw.sClients) == 0 {
-			return nil, protocol.ErrNoSyncerClients
-		}
-		for _, sw.sClient = range sw.sClients {
-			sw.syncReply, sw.err = sw.sClient.QueryNodeMessage(sw.syncQueryBytes)
-			if sw.err != nil {
-				sw.ctx.logln(logger.Warning, "query node message failed:", sw.err)
-				continue
-			}
-			if sw.syncReply.Err == nil {
-				return sw.syncReply, nil
-			} else {
-				sw.ctx.logln(logger.Warning, "query node message with error:", sw.syncReply.Err)
-			}
-			select {
-			case <-sw.ctx.stopSignal:
-				return nil, protocol.ErrWorkerStopped
-			default:
-			}
-		}
-		select {
-		case <-sw.ctx.stopSignal:
-			return nil, protocol.ErrWorkerStopped
-		default:
-		}
-		time.Sleep(sw.ctx.retryInterval)
-	}
-	return nil, protocol.ErrNotExistMessage
-}
-
-func (sw *syncerWorker) handleSyncTask() {
-	if sw.ctx.isBlock() {
-		sw.ctx.addSyncTask(sw.st)
-		return
-	}
-	defer sw.ctx.blockDone()
-	sw.buffer.Reset()
-	_, _ = sw.base64Encoder.Write(sw.st.GUID)
-	_ = sw.base64Encoder.Close()
-	sw.roleGUID = sw.buffer.String()
-	if sw.ctx.isSync(sw.st.Role, sw.roleGUID) {
-		return
-	}
-	defer sw.ctx.syncDone(sw.st.Role, sw.roleGUID)
+func (sw *syncerWorker) handleNodeSend() {
 	// set key
-	switch sw.st.Role {
-	case protocol.Beacon:
-		sw.beacon, sw.err = sw.ctx.ctx.db.SelectBeacon(sw.st.GUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select beacon %X failed %s", sw.st.GUID, sw.err)
-			return
-		}
-		sw.publicKey = sw.beacon.PublicKey
-		sw.aesKey = sw.beacon.SessionKey
-		sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
-	case protocol.Node:
-		sw.node, sw.err = sw.ctx.ctx.db.SelectNode(sw.st.GUID)
-		if sw.err != nil {
-			sw.ctx.logf(logger.Warning, "select node %X failed %s", sw.st.GUID, sw.err)
-			return
-		}
-		sw.publicKey = sw.node.PublicKey
-		sw.aesKey = sw.node.SessionKey
-		sw.aesIV = sw.node.SessionKey[:aes.IVSize]
-	default: // <safe>
-		panic("invalid st.Role")
+	sw.node, sw.err = sw.ctx.ctx.db.SelectNode(sw.send.RoleGUID)
+	if sw.err != nil {
+		sw.ctx.logf(logger.Warning, "select node %X failed %s", sw.send.RoleGUID, sw.err)
+		return
 	}
-	// sync message loop
-	for {
-		switch sw.st.Role {
-		case protocol.Beacon:
-			sw.beaconSyncer, sw.err = sw.ctx.ctx.db.SelectBeaconSyncer(sw.st.GUID)
-			if sw.err != nil {
-				sw.ctx.logf(logger.Warning, "select beacon syncer %X failed %s", sw.st.GUID, sw.err)
-				return
-			}
-			sw.roleSend = sw.beaconSyncer.BeaconSend
-			sw.ctrlReceive = sw.beaconSyncer.CtrlRecv
-		case protocol.Node:
-			sw.nodeSyncer, sw.err = sw.ctx.ctx.db.SelectNodeSyncer(sw.st.GUID)
-			if sw.err != nil {
-				sw.ctx.logf(logger.Warning, "select node syncer %X failed %s", sw.st.GUID, sw.err)
-				return
-			}
-			sw.roleSend = sw.nodeSyncer.NodeSend
-			sw.ctrlReceive = sw.nodeSyncer.CtrlRecv
-		default: // <safe>
-			panic("invalid st.Role")
-		}
-		// don't need sync
-		if sw.roleSend <= sw.ctrlReceive {
-			return
-		}
-		// query message
-		sw.syncQuery.GUID = sw.st.GUID
-		sw.syncQuery.Index = sw.ctrlReceive
-		switch sw.st.Role {
-		case protocol.Beacon:
-			sw.syncReply, sw.err = sw.queryBeaconMessage()
-		case protocol.Node:
-			sw.syncReply, sw.err = sw.queryNodeMessage()
-		default: // <safe>
-			panic("invalid st.Role")
-		}
-		switch sw.err {
-		case nil:
-			// verify
-			sw.buffer.Reset()
-			sw.buffer.Write(sw.syncReply.GUID)
-			sw.buffer.Write(convert.Uint64ToBytes(sw.ctrlReceive))
-			sw.buffer.Write(sw.syncReply.Message)
-			sw.buffer.Write(sw.syncReply.Hash)
-			sw.buffer.WriteByte(sw.st.Role.Byte())
-			sw.buffer.Write(sw.st.GUID)
-			sw.buffer.WriteByte(protocol.Ctrl.Byte())
-			sw.buffer.Write(protocol.CtrlGUID)
-			if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), sw.syncReply.Signature) {
-				sw.ctx.logf(logger.Exploit, "invalid sync reply signature %s guid: %X",
-					sw.st.Role, sw.st.GUID)
-				continue
-			}
-			// decrypt
-			sw.syncReply.Message, sw.err = aes.CBCDecrypt(sw.syncReply.Message, sw.aesKey, sw.aesIV)
-			if sw.err != nil {
-				sw.ctx.logf(logger.Exploit, "decrypt %s guid: %X sync reply failed: %s",
-					sw.st.Role, sw.st.GUID, sw.err)
-				continue
-			}
-			// check hash
-			sw.hash.Reset()
-			sw.hash.Write(sw.syncReply.Message)
-			if !bytes.Equal(sw.hash.Sum(nil), sw.syncReply.Hash) {
-				sw.ctx.logf(logger.Exploit, "%s guid: %X sync reply with wrong hash",
-					sw.st.Role, sw.st.GUID)
-				continue
-			}
-			sw.ctx.ctx.handleMessage(sw.syncReply.Message, sw.st.Role, sw.st.GUID, sw.ctrlReceive)
-		case protocol.ErrNoSyncerClients:
-			sw.ctx.log(logger.Warning, sw.err)
-			return
-		case protocol.ErrNotExistMessage:
-			sw.ctx.logf(logger.Error, "%s guid: %X index: %d %s",
-				sw.st.Role, sw.st.GUID, sw.ctrlReceive, sw.err)
-		case protocol.ErrWorkerStopped:
-			return
-		default:
-			panic("syncer.worker(): handle invalid query() error")
-		}
-		// update height and notice
-		switch sw.st.Role {
-		case protocol.Beacon:
-			sw.err = sw.ctx.ctx.db.UpdateBSCtrlReceive(sw.st.GUID, sw.ctrlReceive+1)
-		case protocol.Node:
-			sw.err = sw.ctx.ctx.db.UpdateNSCtrlReceive(sw.st.GUID, sw.ctrlReceive+1)
-		default:
-			panic("invalid st.Role")
-		}
-		if sw.err != nil {
-			sw.ctx.logf(logger.Error, "%s guid: %X %s", sw.st.Role, sw.st.GUID, sw.err)
-			return
-		}
-		// notice node to delete message
-		sw.ctx.ctx.sender.Acknowledge(sw.st.Role, sw.st.GUID, sw.ctrlReceive)
-		select {
-		case <-sw.ctx.stopSignal:
-			return
-		default:
-		}
+	sw.publicKey = sw.node.PublicKey
+	sw.aesKey = sw.node.SessionKey
+	sw.aesIV = sw.node.SessionKey[:aes.IVSize]
+	// verify
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.send.GUID)
+	sw.buffer.Write(sw.send.RoleGUID)
+	sw.buffer.Write(sw.send.Message)
+	sw.buffer.Write(sw.send.Hash)
+	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), sw.send.Signature) {
+		sw.ctx.logf(logger.Exploit, "invalid node send signature guid: %X", sw.send.RoleGUID)
+		return
 	}
+	// decrypt
+	sw.send.Message, sw.err = aes.CBCDecrypt(sw.send.Message, sw.aesKey, sw.aesIV)
+	if sw.err != nil {
+		sw.ctx.logf(logger.Exploit, "decrypt node %X send failed: %s", sw.send.RoleGUID, sw.err)
+		return
+	}
+	// check hash
+	sw.hash.Reset()
+	sw.hash.Write(sw.send.Message)
+	if !bytes.Equal(sw.hash.Sum(nil), sw.send.Hash) {
+		sw.ctx.logf(logger.Exploit, "node %X send with wrong hash", sw.send.RoleGUID)
+		return
+	}
+	sw.ctx.ctx.handler.HandleNodeSend(sw.send)
+	sw.ctx.ctx.sender.Acknowledge(protocol.Node, sw.send)
 }

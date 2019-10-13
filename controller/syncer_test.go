@@ -104,7 +104,7 @@ func TestNodeSyncSendFromConnectedNode(t *testing.T) {
 	require.NoError(t, err)
 	// node broadcast test message
 	msg := []byte("node-send: hello controller")
-	ctrl.Debug.NodeSyncSendChan = make(chan []byte, times)
+	ctrl.Debug.NodeSend = make(chan []byte, times)
 	go func() {
 		for i := 0; i < times; i++ {
 			result := NODE.TestSend(msg)
@@ -115,7 +115,7 @@ func TestNodeSyncSendFromConnectedNode(t *testing.T) {
 	// read
 	for i := 0; i < times; i++ {
 		select {
-		case m := <-ctrl.Debug.NodeSyncSendChan:
+		case m := <-ctrl.Debug.NodeSend:
 			require.Equal(t, msg, m)
 		case <-time.After(time.Second):
 			t.Fatal("receive broadcast message timeout")
