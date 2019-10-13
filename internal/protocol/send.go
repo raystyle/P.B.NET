@@ -10,13 +10,13 @@ import (
 )
 
 var (
-	SendGUIDTimeout = []byte{10}
-	SendUnhandled   = []byte{11}
-	SendHandled     = []byte{12}
-	SendSucceed     = []byte{13}
+	SendExpired   = []byte{10}
+	SendUnhandled = []byte{11}
+	SendHandled   = []byte{12}
+	SendSucceed   = []byte{13}
 
-	ErrSendGUIDTimeout = errors.New("this send GUID is timeout")
-	ErrSendHandled     = errors.New("this send has been handled")
+	ErrSendExpired = errors.New("send GUID expired")
+	ErrSendHandled = errors.New("send has been handled")
 )
 
 // -------------------------------interactive mode----------------------------------
@@ -114,6 +114,7 @@ func (ack *Acknowledge) Validate() error {
 type Query struct {
 	GUID       []byte // prevent duplicate handle it
 	BeaconGUID []byte
+	Signature  []byte
 }
 
 func (q *Query) Validate() error {
@@ -122,6 +123,9 @@ func (q *Query) Validate() error {
 	}
 	if len(q.BeaconGUID) != guid.Size {
 		return errors.New("invalid beacon GUID size")
+	}
+	if len(q.Signature) != ed25519.SignatureSize {
+		return errors.New("invalid signature size")
 	}
 	return nil
 }

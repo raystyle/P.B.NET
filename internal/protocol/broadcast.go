@@ -10,13 +10,13 @@ import (
 )
 
 var (
-	BroadcastGUIDTimeout = []byte{0}
-	BroadcastUnhandled   = []byte{1}
-	BroadcastHandled     = []byte{2}
-	BroadcastSucceed     = []byte{3}
+	BroadcastExpired   = []byte{0}
+	BroadcastUnhandled = []byte{1}
+	BroadcastHandled   = []byte{2}
+	BroadcastSucceed   = []byte{3}
 
-	ErrBroadcastGUIDTimeout = errors.New("this broadcast GUID is timeout")
-	ErrBroadcastHandled     = errors.New("this broadcast has been handled")
+	ErrBroadcastExpired = errors.New("broadcast expired")
+	ErrBroadcastHandled = errors.New("broadcast has been handled")
 )
 
 // Broadcast is used to broadcast messages to Nodes.
