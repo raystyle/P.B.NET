@@ -2,7 +2,7 @@ package controller
 
 import (
 	"bytes"
-	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -17,8 +17,7 @@ import (
 	"project/internal/xpanic"
 )
 
-// syncer client
-type sClient struct {
+type syncerClient struct {
 	ctx       *syncer
 	Node      *bootstrap.Node
 	guid      []byte
@@ -26,12 +25,13 @@ type sClient struct {
 	closeOnce sync.Once
 }
 
-func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
-	sc := sClient{
-		ctx: ctx,
+// TODO error
+func newSyncerClient(ctx *CTRL, cfg *clientCfg) (*syncerClient, error) {
+	sc := syncerClient{
+		ctx: ctx.syncer,
 	}
 	cfg.MsgHandler = sc.handleMessage
-	client, err := newClient(ctx.ctx, cfg)
+	client, err := newClient(ctx, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "new syncer client failed")
 	}
@@ -63,7 +63,7 @@ func newSClient(ctx *syncer, cfg *clientCfg) (*sClient, error) {
 }
 
 // TODO error
-func (sc *sClient) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse) {
+func (sc *syncerClient) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse) {
 	br = &protocol.BroadcastResponse{
 		GUID: sc.guid,
 	}
@@ -87,7 +87,7 @@ func (sc *sClient) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse)
 	return
 }
 
-func (sc *sClient) SendToNode(guid, data []byte) (sr *protocol.SendResponse) {
+func (sc *syncerClient) SendToNode(guid, data []byte) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Node,
 		GUID: sc.guid,
@@ -111,7 +111,7 @@ func (sc *sClient) SendToNode(guid, data []byte) (sr *protocol.SendResponse) {
 	return
 }
 
-func (sc *sClient) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse) {
+func (sc *syncerClient) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Node,
 		GUID: sc.guid,
@@ -137,7 +137,7 @@ func (sc *sClient) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse) {
 
 // AcknowledgeToNode is used to notice Node that
 // Controller has received this message
-func (sc *sClient) AcknowledgeToNode(guid, data []byte) {
+func (sc *syncerClient) AcknowledgeToNode(guid, data []byte) {
 	var (
 		reply []byte
 		err   error
@@ -165,7 +165,7 @@ func (sc *sClient) AcknowledgeToNode(guid, data []byte) {
 
 // AcknowledgeToBeacon is used to notice Beacon that
 // Controller has received this message
-func (sc *sClient) AcknowledgeToBeacon(guid, data []byte) {
+func (sc *syncerClient) AcknowledgeToBeacon(guid, data []byte) {
 	var (
 		reply []byte
 		err   error
@@ -191,41 +191,41 @@ func (sc *sClient) AcknowledgeToBeacon(guid, data []byte) {
 	}
 }
 
-func (sc *sClient) Close() {
+func (sc *syncerClient) Close() {
 	sc.closeOnce.Do(func() {
 		sc.client.Close()
-		key := base64.StdEncoding.EncodeToString(sc.guid)
-		sc.ctx.sClientsRWM.Lock()
-		delete(sc.ctx.sClients, key)
-		sc.ctx.sClientsRWM.Unlock()
+		key := hex.EncodeToString(sc.guid)
+		sc.ctx.ctx.clientsRWM.Lock()
+		delete(sc.ctx.ctx.clients, key)
+		sc.ctx.ctx.clientsRWM.Unlock()
 	})
 }
 
-func (sc *sClient) logf(l logger.Level, format string, log ...interface{}) {
+func (sc *syncerClient) logf(l logger.Level, format string, log ...interface{}) {
 	b := logger.Conn(sc.client.conn)
 	_, _ = fmt.Fprintf(b, format, log...)
 	sc.ctx.ctx.Print(l, "syncer-client", b)
 }
 
-func (sc *sClient) log(l logger.Level, log ...interface{}) {
+func (sc *syncerClient) log(l logger.Level, log ...interface{}) {
 	b := logger.Conn(sc.client.conn)
 	_, _ = fmt.Fprint(b, log...)
 	sc.ctx.ctx.Print(l, "syncer-client", b)
 }
 
-func (sc *sClient) logln(l logger.Level, log ...interface{}) {
+func (sc *syncerClient) logln(l logger.Level, log ...interface{}) {
 	b := logger.Conn(sc.client.conn)
 	_, _ = fmt.Fprintln(b, log...)
 	sc.ctx.ctx.Print(l, "syncer-client", b)
 }
 
 // can use client.Close()
-func (sc *sClient) handleMessage(msg []byte) {
+func (sc *syncerClient) handleMessage(msg []byte) {
 	const (
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
 	)
-	if sc.client.isClosed() {
+	if sc.client.closing() {
 		return
 	}
 	// cmd(1) + msg id(2) or reply
@@ -251,7 +251,7 @@ func (sc *sClient) handleMessage(msg []byte) {
 	case protocol.NodeReply:
 		sc.client.handleReply(msg[cmd:])
 	case protocol.NodeHeartbeat:
-		sc.client.heartbeatC <- struct{}{}
+		sc.client.heartbeat <- struct{}{}
 	case protocol.ErrCMDRecvNullMsg:
 		sc.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		sc.Close()
@@ -267,7 +267,7 @@ func (sc *sClient) handleMessage(msg []byte) {
 	}
 }
 
-func (sc *sClient) handleNodeSendGUID(id, guid_ []byte) {
+func (sc *syncerClient) handleNodeSendGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		sc.log(logger.Exploit, "invalid node send guid size")
@@ -284,7 +284,7 @@ func (sc *sClient) handleNodeSendGUID(id, guid_ []byte) {
 	}
 }
 
-func (sc *sClient) handleBeaconSendGUID(id, guid_ []byte) {
+func (sc *syncerClient) handleBeaconSendGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		sc.log(logger.Exploit, "invalid beacon send guid size")
@@ -301,7 +301,7 @@ func (sc *sClient) handleBeaconSendGUID(id, guid_ []byte) {
 	}
 }
 
-func (sc *sClient) handleBeaconQueryGUID(id, guid_ []byte) {
+func (sc *syncerClient) handleBeaconQueryGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		sc.log(logger.Exploit, "invalid beacon query guid size")
@@ -318,7 +318,7 @@ func (sc *sClient) handleBeaconQueryGUID(id, guid_ []byte) {
 	}
 }
 
-func (sc *sClient) handleNodeSend(id, data []byte) {
+func (sc *syncerClient) handleNodeSend(id, data []byte) {
 	s := protocol.Send{}
 	err := msgpack.Unmarshal(data, &s)
 	if err != nil {
@@ -342,7 +342,7 @@ func (sc *sClient) handleNodeSend(id, data []byte) {
 	}
 }
 
-func (sc *sClient) handleBeaconSend(id, data []byte) {
+func (sc *syncerClient) handleBeaconSend(id, data []byte) {
 	s := protocol.Send{}
 	err := msgpack.Unmarshal(data, &s)
 	if err != nil {
@@ -366,7 +366,7 @@ func (sc *sClient) handleBeaconSend(id, data []byte) {
 	}
 }
 
-func (sc *sClient) handleBeaconQuery(id, data []byte) {
+func (sc *syncerClient) handleBeaconQuery(id, data []byte) {
 	q := protocol.Query{}
 	err := msgpack.Unmarshal(data, &q)
 	if err != nil {

@@ -20,7 +20,7 @@ func TestNewSClient(t *testing.T) {
 			Address: "localhost:62300",
 		},
 	}
-	sClient, err := newSClient(ctrl.syncer, config)
+	sClient, err := newSyncerClient(ctrl.syncer, config)
 	require.NoError(t, err)
 	sClient.Close()
 }

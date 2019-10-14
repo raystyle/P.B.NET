@@ -30,13 +30,14 @@ type clientCfg struct {
 }
 
 type client struct {
-	ctx        *CTRL
-	node       *bootstrap.Node
-	guid       []byte
-	closeLog   bool
-	conn       *xnet.Conn
-	slots      []*protocol.Slot
-	heartbeatC chan struct{}
+	ctx  *CTRL
+	node *bootstrap.Node
+	guid []byte
+
+	conn      *xnet.Conn
+	slots     []*protocol.Slot
+	heartbeat chan struct{}
+
 	inClose    int32
 	closeOnce  sync.Once
 	stopSignal chan struct{}
@@ -52,10 +53,9 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 		return nil, errors.WithStack(err)
 	}
 	client := client{
-		ctx:      ctx,
-		node:     cfg.Node,
-		guid:     cfg.NodeGUID,
-		closeLog: cfg.CloseLog,
+		ctx:  ctx,
+		node: cfg.Node,
+		guid: cfg.NodeGUID,
 	}
 	xconn, err := client.handshake(conn)
 	if err != nil {
@@ -74,7 +74,7 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 		s.Available <- struct{}{}
 		client.slots[i] = s
 	}
-	client.heartbeatC = make(chan struct{}, 1)
+	client.heartbeat = make(chan struct{}, 1)
 	client.stopSignal = make(chan struct{})
 	if cfg.MsgHandler == nil {
 		// <warning> not add wg
@@ -90,19 +90,17 @@ func newClient(ctx *CTRL, cfg *clientCfg) (*client, error) {
 		}()
 	}
 	client.wg.Add(1)
-	go client.heartbeat()
+	go client.sendHeartbeatLoop()
 	return &client, nil
 }
 
 func (client *client) Close() {
 	client.closeOnce.Do(func() {
 		atomic.StoreInt32(&client.inClose, 1)
-		close(client.stopSignal)
 		_ = client.conn.Close()
+		close(client.stopSignal)
 		client.wg.Wait()
-		if client.closeLog {
-			client.log(logger.Info, "disconnected")
-		}
+		client.log(logger.Info, "disconnected")
 	})
 }
 
@@ -147,7 +145,7 @@ func (client *client) handleMessage(msg []byte) {
 	case protocol.NodeReply:
 		client.handleReply(msg[cmd:])
 	case protocol.NodeHeartbeat:
-		client.heartbeatC <- struct{}{}
+		client.heartbeat <- struct{}{}
 	case protocol.ErrCMDRecvNullMsg:
 		client.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		client.Close()
@@ -163,7 +161,7 @@ func (client *client) handleMessage(msg []byte) {
 	}
 }
 
-func (client *client) heartbeat() {
+func (client *client) sendHeartbeatLoop() {
 	defer client.wg.Done()
 	var err error
 	rand := random.New(0)
@@ -186,7 +184,7 @@ func (client *client) heartbeat() {
 				return
 			}
 			select {
-			case <-client.heartbeatC:
+			case <-client.heartbeat:
 			case <-time.After(t):
 				client.log(logger.Warning, "receive heartbeat timeout")
 				_ = client.conn.Close()
