@@ -16,29 +16,29 @@ import (
 )
 
 func main() {
-	c := &service.Config{
-		Name:        controller.Name + " Controller",
-		DisplayName: controller.Name + " Controller",
-		Description: controller.Name + " Controller Service",
+	cfg := &service.Config{
+		Name:        "P.B.NET Controller",
+		DisplayName: "P.B.NET Controller",
+		Description: "P.B.NET Controller Service",
 	}
-	p := &program{}
-	s, err := service.New(p, c)
+	pg := &program{}
+	svc, err := service.New(pg, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	l, err := s.Logger(nil)
+	lg, err := svc.Logger(nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = s.Run()
+	err = svc.Run()
 	if err != nil {
-		_ = l.Error(err)
+		_ = lg.Error(err)
 	}
 }
 
 type program struct {
-	ctrl *controller.CTRL
-	once sync.Once
+	*controller.CTRL
+	stopOnce sync.Once
 }
 
 func (p *program) Start(s service.Service) error {
@@ -97,16 +97,16 @@ func (p *program) Start(s service.Service) error {
 	}
 	// generate controller keys
 	if genKey != "" {
-		err := controller.GenerateCtrlKeys(config.KeyDir+"/ctrl.key", genKey)
+		err := controller.GenerateCtrlKeys(config.Global.KeyDir+"/ctrl.key", genKey)
 		if err != nil {
 			return errors.Wrap(err, "generate keys failed")
 		}
 		log.Print("generate controller keys successfully")
 		os.Exit(0)
 	}
-	// init database
+	// initialize database
 	if initDB {
-		err = controller.InitDatabase(config)
+		err = controller.InitializeDatabase(config)
 		if err != nil {
 			return errors.Wrap(err, "initialize database failed")
 		}
@@ -114,12 +114,12 @@ func (p *program) Start(s service.Service) error {
 		os.Exit(0)
 	}
 	// run
-	p.ctrl, err = controller.New(config)
+	p.CTRL, err = controller.New(config)
 	if err != nil {
 		return err
 	}
 	go func() {
-		err = p.ctrl.Main()
+		err = p.Main()
 		if err != nil {
 			l, e := s.Logger(nil)
 			if e == nil {
@@ -134,8 +134,8 @@ func (p *program) Start(s service.Service) error {
 }
 
 func (p *program) Stop(s service.Service) error {
-	p.once.Do(func() {
-		p.ctrl.Exit(nil)
+	p.stopOnce.Do(func() {
+		p.Exit(nil)
 	})
 	return nil
 }
