@@ -1,8 +1,11 @@
 package controller
 
 import (
-	"encoding/base64"
+	"encoding/hex"
+	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
@@ -12,28 +15,38 @@ import (
 	"project/internal/logger"
 	"project/internal/proxy"
 	"project/internal/timesync"
+	"project/internal/xpanic"
 )
 
-const (
-	Name = "P.B.NET"
+var (
+	ErrCtrlClosed = errors.New("Controller closed")
+	ErrMaxClient  = errors.New("max client")
 )
-
-// TODO point
 
 type CTRL struct {
-	Debug   *Debug
-	logLv   logger.Level
-	cache   *cache   // database cache
-	db      *db      // provide data
+	Debug *Debug
+
+	db      *db      // database
 	global  *global  // proxy, dns, time syncer, and ...
 	handler *handler // handle message from Node or Beacon
 	syncer  *syncer  // sync message
 	sender  *sender  // broadcast and send message
 	boot    *boot    // auto discover bootstrap nodes
 	web     *web     // web server
-	once    sync.Once
-	wait    chan struct{}
-	exit    chan error
+
+	logLevel  logger.Level
+	maxClient atomic.Value
+
+	// key=hex(guid)
+	clients    map[string]*syncerClient
+	clientsRWM sync.RWMutex
+
+	inShutdown int32
+	closeOnce  sync.Once
+	stopSignal chan struct{}
+	wg         sync.WaitGroup
+	wait       chan struct{}
+	exit       chan error
 }
 
 func New(cfg *Config) (*CTRL, error) {
@@ -45,10 +58,10 @@ func New(cfg *Config) (*CTRL, error) {
 	// copy debug config
 	debug := cfg.Debug
 	ctrl := &CTRL{
-		Debug: &debug,
-		logLv: logLevel,
-		cache: newCache(),
+		Debug:    &debug,
+		logLevel: logLevel,
 	}
+	ctrl.maxClient.Store(cfg.MaxSyncerClient)
 	// init database
 	db, err := newDB(ctrl, cfg)
 	if err != nil {
@@ -175,15 +188,8 @@ func (ctrl *CTRL) Main() error {
 	return <-ctrl.exit
 }
 
-func (ctrl *CTRL) fatal(err error, msg string) error {
-	err = errors.WithMessage(err, msg)
-	ctrl.Println(logger.Fatal, "init", err)
-	ctrl.Exit(nil)
-	return err
-}
-
 func (ctrl *CTRL) Exit(err error) {
-	ctrl.once.Do(func() {
+	ctrl.closeOnce.Do(func() {
 		ctrl.web.Close()
 		ctrl.Print(logger.Info, "exit", "web server is stopped")
 		ctrl.boot.Close()
@@ -198,11 +204,81 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.db.Close()
 		ctrl.exit <- err
 		close(ctrl.exit)
+		// TODO clean point
 	})
+}
+
+func (ctrl *CTRL) fatal(err error, msg string) error {
+	err = errors.WithMessage(err, msg)
+	ctrl.Println(logger.Fatal, "init", err)
+	ctrl.Exit(nil)
+	return err
 }
 
 func (ctrl *CTRL) LoadKeys(password string) error {
 	return ctrl.global.LoadKeys(password)
+}
+
+func (ctrl *CTRL) shuttingDown() bool {
+	return atomic.LoadInt32(&ctrl.inShutdown) != 0
+}
+
+// getMaxSyncerClient is used to get current max syncer client number
+func (ctrl *CTRL) getMaxClient() int {
+	return ctrl.maxClient.Load().(int)
+}
+
+// Connect is used to connect node for sync message
+func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {
+	if ctrl.shuttingDown() {
+		return ErrCtrlClosed
+	}
+	ctrl.clientsRWM.Lock()
+	defer ctrl.clientsRWM.Unlock()
+	if len(ctrl.clients) >= ctrl.getMaxClient() {
+		return ErrMaxClient
+	}
+	key := hex.EncodeToString(guid)
+	if _, ok := ctrl.clients[key]; ok {
+		return errors.Errorf("connect same node %s %s", node.Mode, node.Address)
+	}
+	cfg := clientCfg{
+		Node:     node,
+		NodeGUID: guid,
+	}
+	sc, err := newSyncerClient(ctrl, &cfg)
+	if err != nil {
+		return errors.WithMessage(err, "connect node failed")
+	}
+	ctrl.clients[key] = sc
+	ctrl.Printf(logger.Info, "connect", "connect node %s", node.Address)
+	return nil
+}
+
+func (ctrl *CTRL) Disconnect(guid string) error {
+	guid = strings.ToLower(guid)
+	ctrl.clientsRWM.RLock()
+	if sc, ok := ctrl.clients[guid]; ok {
+		ctrl.clientsRWM.RUnlock()
+		sc.Close()
+		ctrl.Printf(logger.Info, "disconnect", "disconnect node %s %s",
+			sc.Node.Mode, sc.Node.Address)
+		return nil
+	} else {
+		ctrl.clientsRWM.RUnlock()
+		return errors.Errorf("syncer client %s doesn't exist", strings.ToUpper(guid))
+	}
+}
+
+func (ctrl *CTRL) SyncerClients() map[string]*syncerClient {
+	ctrl.clientsRWM.RLock()
+	defer ctrl.clientsRWM.RUnlock()
+	// copy map
+	sClients := make(map[string]*syncerClient, len(ctrl.clients))
+	for key, client := range ctrl.clients {
+		sClients[key] = client
+	}
+	return sClients
 }
 
 func (ctrl *CTRL) DeleteNode(guid []byte) error {
@@ -210,7 +286,6 @@ func (ctrl *CTRL) DeleteNode(guid []byte) error {
 	if err != nil {
 		return errors.Wrapf(err, "delete node %X failed", guid)
 	}
-	ctrl.deleteNode(guid)
 	return nil
 }
 
@@ -219,13 +294,7 @@ func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
 	if err != nil {
 		return errors.Wrapf(err, "unscoped delete node %X failed", guid)
 	}
-	ctrl.deleteNode(guid)
 	return nil
-}
-
-func (ctrl *CTRL) deleteNode(guid []byte) {
-	guidStr := base64.StdEncoding.EncodeToString(guid)
-	ctrl.cache.DeleteNode(guidStr)
 }
 
 func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
@@ -233,7 +302,6 @@ func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
 	if err != nil {
 		return errors.Wrapf(err, "delete beacon %X failed", guid)
 	}
-	ctrl.deleteBeacon(guid)
 	return nil
 }
 
@@ -242,17 +310,48 @@ func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 	if err != nil {
 		return errors.Wrapf(err, "unscoped delete beacon %X failed", guid)
 	}
-	ctrl.deleteBeacon(guid)
 	return nil
 }
 
-func (ctrl *CTRL) deleteBeacon(guid []byte) {
-	guidStr := base64.StdEncoding.EncodeToString(guid)
-	ctrl.cache.DeleteBeacon(guidStr)
-}
+// TODO watcher
 
-func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {
-	return ctrl.syncer.Connect(node, guid)
+// watcher is used to check the number of connect nodes
+// connected nodes number < syncer.maxClient, try to connect more node
+func (ctrl *CTRL) watcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("watcher panic:", r)
+			ctrl.Print(logger.Fatal, "watcher", err)
+			// restart watcher
+			time.Sleep(time.Second)
+			go ctrl.watcher()
+		} else {
+			ctrl.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	isMax := func() bool {
+		ctrl.clientsRWM.RLock()
+		l := len(ctrl.clients)
+		ctrl.clientsRWM.RUnlock()
+		return l >= ctrl.getMaxClient()
+	}
+	watch := func() {
+		if isMax() {
+			return
+		}
+		// select nodes
+		// TODO watcher
+	}
+	for {
+		select {
+		case <-ticker.C:
+			watch()
+		case <-ctrl.stopSignal:
+			return
+		}
+	}
 }
 
 // ------------------------------------test-------------------------------------
@@ -260,9 +359,4 @@ func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {
 // TestWait is used to wait for Main()
 func (ctrl *CTRL) TestWait() {
 	<-ctrl.wait
-}
-
-// TestSyncDBCache is used to synchronize cache to database immediately
-func (ctrl *CTRL) TestSyncDBCache() {
-	ctrl.db.cacheSyncer.Sync()
 }

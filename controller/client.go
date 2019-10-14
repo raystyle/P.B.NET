@@ -104,7 +104,7 @@ func (client *client) Close() {
 	})
 }
 
-func (client *client) isClosed() bool {
+func (client *client) closing() bool {
 	return atomic.LoadInt32(&client.inClose) != 0
 }
 
@@ -132,7 +132,7 @@ func (client *client) handleMessage(msg []byte) {
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
 	)
-	if client.isClosed() {
+	if client.closing() {
 		return
 	}
 	// cmd(1) + msg id(2) or reply
@@ -199,7 +199,7 @@ func (client *client) sendHeartbeatLoop() {
 }
 
 func (client *client) Reply(id, reply []byte) {
-	if client.isClosed() {
+	if client.closing() {
 		return
 	}
 	l := len(reply)
@@ -248,7 +248,7 @@ func (client *client) handleReply(reply []byte) {
 // size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
 // data(general) max size = MaxMsgSize -MsgCMDSize -MsgIDSize
 func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
-	if client.isClosed() {
+	if client.closing() {
 		return nil, protocol.ErrConnClosed
 	}
 	for {

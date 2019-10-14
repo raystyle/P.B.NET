@@ -21,10 +21,10 @@ func testInitCtrl(t require.TestingT) {
 		controller, err := New(cfg)
 		if err != nil {
 			// init database
-			err = InitDatabase(cfg)
+			err = InitializeDatabase(cfg)
 			require.NoError(t, err)
 			// add test data
-			ctrl = &CTRL{cache: newCache()}
+			ctrl = new(CTRL)
 			db, err := newDB(ctrl, cfg)
 			require.NoError(t, err)
 			ctrl.db = db
