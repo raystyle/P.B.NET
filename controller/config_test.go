@@ -63,11 +63,11 @@ func testGenerateConfig() *Config {
 			MaxBufferSize: 16384,
 			Worker:        64,
 			QueueSize:     512,
-			Timeout:       5 * time.Minute,
+			Timeout:       2 * time.Minute,
 		},
 
 		Web: struct {
-			WebDir   string `toml:"web_dir"`
+			Dir      string `toml:"dir"`
 			CertFile string `toml:"cert_file"`
 			KeyFile  string `toml:"key_file"`
 			Address  string `toml:"address"`
@@ -77,7 +77,7 @@ func testGenerateConfig() *Config {
 			Address:  "localhost:9931",
 			CertFile: "../app/cert/server.crt",
 			KeyFile:  "../app/cert/server.key",
-			WebDir:   "../app/web",
+			Dir:      "../app/web",
 			Username: "admin",
 			Password: "56c10b0f6a18abe0247c31fd1d1a70e51e5a09f2", // admin159**
 		},

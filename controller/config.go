@@ -49,7 +49,7 @@ type Config struct {
 	} `toml:"syncer"`
 
 	Web struct {
-		WebDir   string `toml:"web_dir"`
+		Dir      string `toml:"dir"`
 		CertFile string `toml:"cert_file"`
 		KeyFile  string `toml:"key_file"`
 		Address  string `toml:"address"`
