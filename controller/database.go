@@ -3,81 +3,71 @@ package controller
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"sync"
-	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
-	"project/internal/xpanic"
 )
 
 type db struct {
-	ctx         *CTRL // use cache
-	dbLogger    *dbLogger
-	gormLogger  *gormLogger
-	db          *gorm.DB
-	cacheSyncer *cacheSyncer
-	stopSignal  chan struct{}
-	wg          sync.WaitGroup
+	ctx *CTRL
+
+	dbLogger   *dbLogger
+	gormLogger *gormLogger
+	db         *gorm.DB
+	cache      *cache
 }
 
 func newDB(ctx *CTRL, cfg *Config) (*db, error) {
 	// set db logger
-	dbLogger, err := newDBLogger(cfg.Dialect, cfg.DBLogFile)
+	dbCfg := cfg.Database
+	dbLogger, err := newDBLogger(dbCfg.Dialect, dbCfg.LogFile)
 	if err != nil {
 		return nil, err
 	}
 	// if you need, add DB Driver
-	switch cfg.Dialect {
+	switch dbCfg.Dialect {
 	case "mysql":
 		_ = mysql.SetLogger(dbLogger)
 	default:
-		return nil, errors.Errorf("unknown database dialect: %s", cfg.Dialect)
+		return nil, errors.Errorf("unknown database dialect: %s", dbCfg.Dialect)
 	}
 	// connect database
-	gormDB, err := gorm.Open(cfg.Dialect, cfg.DSN)
+	gormDB, err := gorm.Open(dbCfg.Dialect, dbCfg.DSN)
 	if err != nil {
-		return nil, errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
+		return nil, errors.Wrapf(err, "connect %s server failed", dbCfg.Dialect)
 	}
 	err = gormDB.DB().Ping()
 	if err != nil {
-		return nil, errors.Wrapf(err, "ping %s server failed", cfg.Dialect)
+		return nil, errors.Wrapf(err, "ping %s server failed", dbCfg.Dialect)
 	}
 	gormDB.SingularTable(true) // not add s
 	// connection
-	gormDB.DB().SetMaxOpenConns(cfg.DBMaxOpenConns)
-	gormDB.DB().SetMaxIdleConns(cfg.DBMaxIdleConns)
+	gormDB.DB().SetMaxOpenConns(dbCfg.MaxOpenConns)
+	gormDB.DB().SetMaxIdleConns(dbCfg.MaxIdleConns)
 	// gorm logger
-	gormLogger, err := newGormLogger(cfg.GORMLogFile)
+	gormLogger, err := newGormLogger(dbCfg.GORMLogFile)
 	if err != nil {
 		return nil, err
 	}
 	gormDB.SetLogger(gormLogger)
-	if cfg.GORMDetailedLog {
+	if dbCfg.GORMDetailedLog {
 		gormDB.LogMode(true)
 	}
-	db := db{
+	return &db{
 		ctx:        ctx,
 		dbLogger:   dbLogger,
 		gormLogger: gormLogger,
 		db:         gormDB,
-		stopSignal: make(chan struct{}),
-	}
-	db.cacheSyncer = &cacheSyncer{
-		ctx:          &db,
-		syncInterval: cfg.DBSyncInterval,
-	}
-	db.wg.Add(1)
-	go db.cacheSyncer.SyncLoop()
-	return &db, nil
+		cache:      newCache(),
+	}, nil
 }
 
 func (db *db) Close() {
-	close(db.stopSignal)
-	db.wg.Wait()
 	_ = db.db.Close()
 	db.gormLogger.Close()
 	db.dbLogger.Close()
@@ -96,7 +86,7 @@ func (db *db) logln(l logger.Level, log ...interface{}) {
 }
 
 func (db *db) InsertCtrlLog(m *mCtrlLog) error {
-	return db.db.Table(tableLog).Create(m).Error
+	return db.db.Create(m).Error
 }
 
 // -------------------------------proxy client----------------------------------------
@@ -194,53 +184,89 @@ func (db *db) DeleteListener(id uint64) error {
 	return db.db.Delete(&mListener{ID: id}).Error
 }
 
+// key = base64(guid)
+type cache struct {
+	nodes      map[string]*mNode
+	nodesRWM   sync.RWMutex
+	beacons    map[string]*mBeacon
+	beaconsRWM sync.RWMutex
+}
+
+func newCache() *cache {
+	return &cache{
+		nodes:   make(map[string]*mNode),
+		beacons: make(map[string]*mBeacon),
+	}
+}
+
+func (cache *cache) SelectNode(guid []byte) *mNode {
+	key := base64.StdEncoding.EncodeToString(guid)
+	cache.nodesRWM.RLock()
+	node := cache.nodes[key]
+	cache.nodesRWM.RUnlock()
+	return node
+}
+
+func (cache *cache) InsertNode(node *mNode) {
+	key := base64.StdEncoding.EncodeToString(node.GUID)
+	cache.nodesRWM.Lock()
+	if _, ok := cache.nodes[key]; !ok {
+		cache.nodes[key] = node
+	}
+	cache.nodesRWM.Unlock()
+}
+
+func (cache *cache) DeleteNode(guid string) {
+	cache.nodesRWM.Lock()
+	delete(cache.nodes, guid)
+	cache.nodesRWM.Unlock()
+}
+
+func (cache *cache) SelectBeacon(guid []byte) *mBeacon {
+	key := base64.StdEncoding.EncodeToString(guid)
+	cache.beaconsRWM.RLock()
+	beacon := cache.beacons[key]
+	cache.beaconsRWM.RUnlock()
+	return beacon
+}
+
+func (cache *cache) InsertBeacon(beacon *mBeacon) {
+	key := base64.StdEncoding.EncodeToString(beacon.GUID)
+	cache.beaconsRWM.Lock()
+	if _, ok := cache.beacons[key]; !ok {
+		cache.beacons[key] = beacon
+	}
+	cache.beaconsRWM.Unlock()
+}
+
+func (cache *cache) DeleteBeacon(guid string) {
+	cache.beaconsRWM.Lock()
+	delete(cache.beacons, guid)
+	cache.beaconsRWM.Unlock()
+}
+
 // ------------------------------------node-------------------------------------------
 
 func (db *db) SelectNode(guid []byte) (node *mNode, err error) {
-	node = db.ctx.cache.SelectNode(guid)
+	node = db.cache.SelectNode(guid)
 	if node != nil {
 		return
 	}
-	// node syncer must be loaded first
-	mns := new(mNodeSyncer)
-	err = db.db.Find(mns, "guid = ?", guid).Error
-	if err != nil {
-		return nil, err
-	}
-	db.ctx.cache.InsertNodeSyncer(mns)
-	// load node
 	node = new(mNode)
 	err = db.db.Find(node, "guid = ?", guid).Error
 	if err != nil {
 		return nil, err
 	}
-	db.ctx.cache.InsertNode(node)
+	db.cache.InsertNode(node)
 	return
 }
 
 func (db *db) InsertNode(m *mNode) error {
-	tx := db.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
-	err := tx.Error
+	err := db.db.Create(m).Error
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			tx.Rollback()
-		}
-	}()
-	err = tx.Create(m).Error
-	if err != nil {
-		return err
-	}
-	err = tx.Create(&mNodeSyncer{GUID: m.GUID}).Error
-	if err != nil {
-		return err
-	}
-	err = tx.Commit().Error
-	if err != nil {
-		return err
-	}
+	db.cache.InsertNode(m)
 	return nil
 }
 
@@ -253,21 +279,19 @@ func (db *db) DeleteNode(guid []byte) error {
 	defer func() {
 		if err != nil {
 			tx.Rollback()
+		} else {
+			db.cache.DeleteNode(base64.StdEncoding.EncodeToString(guid))
 		}
 	}()
-	err = tx.Delete(&mNode{}, "guid = ?", guid).Error
+	err = tx.Delete(&mNode{GUID: guid}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&mNodeSyncer{}, "guid = ?", guid).Error
+	err = tx.Delete(&mNodeListener{GUID: guid}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&mNodeListener{}, "guid = ?", guid).Error
-	if err != nil {
-		return err
-	}
-	err = tx.Table(tableNodeLog).Delete(&mRoleLog{}, "guid = ?", guid).Error
+	err = tx.Table(tableNodeLog).Delete(&mRoleLog{GUID: guid}).Error
 	if err != nil {
 		return err
 	}
@@ -276,7 +300,12 @@ func (db *db) DeleteNode(guid []byte) error {
 }
 
 func (db *db) DeleteNodeUnscoped(guid []byte) error {
-	return db.db.Unscoped().Delete(&mNode{}, "guid = ?", guid).Error
+	err := db.db.Unscoped().Delete(&mNode{GUID: guid}).Error
+	if err != nil {
+		return err
+	}
+	db.cache.DeleteNode(base64.StdEncoding.EncodeToString(guid))
+	return nil
 }
 
 func (db *db) InsertNodeListener(m *mNodeListener) error {
@@ -298,50 +327,25 @@ func (db *db) DeleteNodeLog(id uint64) error {
 // -----------------------------------beacon------------------------------------------
 
 func (db *db) SelectBeacon(guid []byte) (beacon *mBeacon, err error) {
-	beacon = db.ctx.cache.SelectBeacon(guid)
+	beacon = db.cache.SelectBeacon(guid)
 	if beacon != nil {
 		return
 	}
-	// beacon syncer must be loaded first
-	mbs := new(mBeaconSyncer)
-	err = db.db.Find(mbs, "guid = ?", guid).Error
-	if err != nil {
-		return nil, err
-	}
-	db.ctx.cache.InsertBeaconSyncer(mbs)
-	// load beacon
 	beacon = new(mBeacon)
 	err = db.db.Find(beacon, "guid = ?", guid).Error
 	if err != nil {
 		return nil, err
 	}
-	db.ctx.cache.InsertBeacon(beacon)
+	db.cache.InsertBeacon(beacon)
 	return
 }
 
 func (db *db) InsertBeacon(m *mBeacon) error {
-	tx := db.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
-	err := tx.Error
+	err := db.db.Create(m).Error
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			tx.Rollback()
-		}
-	}()
-	err = tx.Create(m).Error
-	if err != nil {
-		return err
-	}
-	err = tx.Create(&mBeaconSyncer{GUID: m.GUID}).Error
-	if err != nil {
-		return err
-	}
-	err = tx.Commit().Error
-	if err != nil {
-		return err
-	}
+	db.cache.InsertBeacon(m)
 	return nil
 }
 
@@ -354,21 +358,19 @@ func (db *db) DeleteBeacon(guid []byte) error {
 	defer func() {
 		if err != nil {
 			tx.Rollback()
+		} else {
+			db.cache.DeleteBeacon(base64.StdEncoding.EncodeToString(guid))
 		}
 	}()
-	err = tx.Delete(&mBeacon{}, "guid = ?", guid).Error
+	err = tx.Delete(&mBeacon{GUID: guid}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&mBeaconSyncer{}, "guid = ?", guid).Error
+	err = tx.Delete(&mBeaconListener{GUID: guid}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&mBeaconListener{}, "guid = ?", guid).Error
-	if err != nil {
-		return err
-	}
-	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{}, "guid = ?", guid).Error
+	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{GUID: guid}).Error
 	if err != nil {
 		return err
 	}
@@ -377,7 +379,12 @@ func (db *db) DeleteBeacon(guid []byte) error {
 }
 
 func (db *db) DeleteBeaconUnscoped(guid []byte) error {
-	return db.db.Unscoped().Delete(&mBeacon{}, "guid = ?", guid).Error
+	err := db.db.Unscoped().Delete(&mBeacon{GUID: guid}).Error
+	if err != nil {
+		return err
+	}
+	db.cache.DeleteBeacon(base64.StdEncoding.EncodeToString(guid))
+	return nil
 }
 
 func (db *db) InsertBeaconListener(m *mBeaconListener) error {
@@ -394,302 +401,4 @@ func (db *db) InsertBeaconLog(m *mRoleLog) error {
 
 func (db *db) DeleteBeaconLog(id uint64) error {
 	return db.db.Table(tableBeaconLog).Delete(&mRoleLog{ID: id}).Error
-}
-
-// -----------------------------sync message(node)------------------------------------
-// NS = Node Syncer
-
-func (db *db) SelectNodeSyncer(guid []byte) (ns *nodeSyncer, err error) {
-	ns = db.ctx.cache.SelectNodeSyncer(guid)
-	if ns == nil {
-		return nil, errNoCache
-	}
-	return
-}
-
-// must save to database immediately
-func (db *db) UpdateNSCtrlSend(guid []byte, height uint64) (err error) {
-	err = db.db.Save(&mNodeSyncer{GUID: guid, CtrlSend: height}).Error
-	if err != nil {
-		return
-	}
-	ns := db.ctx.cache.SelectNodeSyncer(guid)
-	if ns == nil {
-		return errNoCache
-	}
-	ns.Lock()
-	ns.CtrlSend = height
-	ns.Unlock()
-	return
-}
-
-// only write to cache
-func (db *db) UpdateNSNodeReceive(guid []byte, height uint64) (err error) {
-	ns := db.ctx.cache.SelectNodeSyncer(guid)
-	if ns == nil {
-		return errNoCache
-	}
-	ns.Lock()
-	if height > ns.NodeRecv {
-		ns.NodeRecv = height
-	}
-	ns.Unlock()
-	return
-}
-
-// only write to cache
-func (db *db) UpdateNSNodeSend(guid []byte, height uint64) (err error) {
-	ns := db.ctx.cache.SelectNodeSyncer(guid)
-	if ns == nil {
-		return errNoCache
-	}
-	ns.Lock()
-	if height > ns.NodeSend {
-		ns.NodeSend = height
-	}
-	ns.Unlock()
-	return
-}
-
-// only write to cache
-func (db *db) UpdateNSCtrlReceive(guid []byte, height uint64) (err error) {
-	ns := db.ctx.cache.SelectNodeSyncer(guid)
-	if ns == nil {
-		return errNoCache
-	}
-	ns.Lock()
-	ns.CtrlRecv = height
-	ns.Unlock()
-	return
-}
-
-// ----------------------------sync message(beacon)-----------------------------------
-// BS = Beacon Syncer
-
-func (db *db) InsertBeaconMessage(guid []byte, message []byte) error {
-	return nil
-}
-
-func (db *db) SelectBeaconSyncer(guid []byte) (bs *beaconSyncer, err error) {
-	bs = db.ctx.cache.SelectBeaconSyncer(guid)
-	if bs == nil {
-		return nil, errNoCache
-	}
-	return
-}
-
-// must save to database immediately
-func (db *db) UpdateBSCtrlSend(guid []byte, height uint64) (err error) {
-	err = db.db.Save(&mBeaconSyncer{GUID: guid, CtrlSend: height}).Error
-	if err != nil {
-		return
-	}
-	bs := db.ctx.cache.SelectBeaconSyncer(guid)
-	if bs == nil {
-		return errNoCache
-	}
-	bs.Lock()
-	bs.CtrlSend = height
-	bs.Unlock()
-	return
-}
-
-// can write to cache
-func (db *db) UpdateBSBeaconReceive(guid []byte, height uint64) (err error) {
-	bs := db.ctx.cache.SelectBeaconSyncer(guid)
-	if bs == nil {
-		return errNoCache
-	}
-	bs.Lock()
-	if height > bs.BeaconRecv {
-		bs.BeaconRecv = height
-	}
-	bs.Unlock()
-	return
-}
-
-// can write to cache
-func (db *db) UpdateBSBeaconSend(guid []byte, height uint64) (err error) {
-	bs := db.ctx.cache.SelectBeaconSyncer(guid)
-	if bs == nil {
-		return errNoCache
-	}
-	bs.Lock()
-	if height > bs.BeaconSend {
-		bs.BeaconSend = height
-	}
-	bs.Unlock()
-	return
-}
-
-// can write to cache
-func (db *db) UpdateBSCtrlReceive(guid []byte, height uint64) (err error) {
-	bs := db.ctx.cache.SelectBeaconSyncer(guid)
-	if bs == nil {
-		return errNoCache
-	}
-	bs.Lock()
-	bs.CtrlRecv = height
-	bs.Unlock()
-	return
-}
-
-type cacheSyncer struct {
-	ctx          *db
-	syncInterval time.Duration
-
-	same     bool
-	key      string
-	nsCaches map[string]*nodeSyncer
-	nsDBs    map[string]*nodeSyncerDB
-	bsCaches map[string]*beaconSyncer
-	bsDBs    map[string]*beaconSyncerDB
-	nsCache  *nodeSyncer
-	nsDB     *nodeSyncerDB
-	bsCache  *beaconSyncer
-	bsDB     *beaconSyncerDB
-	err      error
-
-	// if sync to database failed rollback
-	tmpDBRoleRecv uint64
-	tmpDBRoleSend uint64
-	tmpDBCtrlRecv uint64
-
-	// used to insert database
-	tmpNSDB *mNodeSyncer
-	tmpBSDB *mBeaconSyncer
-
-	syncM sync.Mutex
-}
-
-func (cs *cacheSyncer) Sync() {
-	cs.syncM.Lock()
-	defer cs.syncM.Unlock()
-	// ---------------------node syncer------------------------
-	cs.nsCaches = cs.ctx.ctx.cache.SelectAllNodeSyncer()
-	cs.nsDBs = cs.ctx.ctx.cache.SelectAllNodeSyncerDB()
-	for cs.key, cs.nsCache = range cs.nsCaches {
-		cs.same = true
-		cs.nsDB = cs.nsDBs[cs.key]
-		// maybe lost
-		if cs.nsDB == nil {
-			continue
-		}
-		cs.nsDB.Lock()
-		cs.nsCache.RLock()
-		cs.tmpDBRoleRecv = cs.nsDB.NodeRecv
-		if cs.nsDB.NodeRecv != cs.nsCache.NodeRecv {
-			cs.nsDB.NodeRecv = cs.nsCache.NodeRecv
-			cs.same = false
-		}
-		cs.tmpDBRoleSend = cs.nsDB.NodeSend
-		if cs.nsDB.NodeSend != cs.nsCache.NodeSend {
-			cs.nsDB.NodeSend = cs.nsCache.NodeSend
-			cs.same = false
-		}
-		cs.tmpDBCtrlRecv = cs.nsDB.CtrlRecv
-		if cs.nsDB.CtrlRecv != cs.nsCache.CtrlRecv {
-			cs.nsDB.CtrlRecv = cs.nsCache.CtrlRecv
-			cs.same = false
-		}
-		if !cs.same { // sync to database
-			cs.tmpNSDB.GUID = cs.nsCache.GUID
-			cs.nsCache.RUnlock()
-			cs.tmpNSDB.CtrlSend = cs.nsDB.CtrlSend
-			cs.tmpNSDB.NodeRecv = cs.nsDB.NodeRecv
-			cs.tmpNSDB.NodeSend = cs.nsDB.NodeSend
-			cs.tmpNSDB.CtrlRecv = cs.nsDB.CtrlRecv
-			cs.err = cs.ctx.db.Save(cs.tmpNSDB).Error
-			if cs.err != nil {
-				// rollback
-				cs.nsDB.NodeRecv = cs.tmpDBRoleRecv
-				cs.nsDB.NodeSend = cs.tmpDBRoleSend
-				cs.nsDB.CtrlRecv = cs.tmpDBCtrlRecv
-				cs.nsDB.Unlock()
-				cs.ctx.log(logger.Error, "cache syncer synchronize failed:", cs.err)
-				return
-			}
-		} else {
-			cs.nsCache.RUnlock()
-		}
-		cs.nsDB.Unlock()
-	}
-	// --------------------beacon syncer-----------------------
-	cs.bsCaches = cs.ctx.ctx.cache.SelectAllBeaconSyncer()
-	cs.bsDBs = cs.ctx.ctx.cache.SelectAllBeaconSyncerDB()
-	for cs.key, cs.bsCache = range cs.bsCaches {
-		cs.same = true
-		cs.bsDB = cs.bsDBs[cs.key]
-		// maybe lost
-		if cs.bsDB == nil {
-			continue
-		}
-		cs.bsCache.RLock()
-		cs.bsDB.Lock()
-		cs.tmpDBRoleRecv = cs.bsDB.BeaconRecv
-		if cs.bsDB.BeaconRecv != cs.bsCache.BeaconRecv {
-			cs.bsDB.BeaconRecv = cs.bsCache.BeaconRecv
-			cs.same = false
-		}
-		cs.tmpDBRoleSend = cs.bsDB.BeaconSend
-		if cs.bsDB.BeaconSend != cs.bsCache.BeaconSend {
-			cs.bsDB.BeaconSend = cs.bsCache.BeaconSend
-			cs.same = false
-		}
-		cs.tmpDBCtrlRecv = cs.bsDB.CtrlRecv
-		if cs.bsDB.CtrlRecv != cs.bsCache.CtrlRecv {
-			cs.bsDB.CtrlRecv = cs.bsCache.CtrlRecv
-			cs.same = false
-		}
-		if !cs.same { // sync to database
-			cs.tmpBSDB.GUID = cs.bsCache.GUID
-			cs.bsCache.RUnlock()
-			cs.tmpBSDB.CtrlSend = cs.bsDB.CtrlSend
-			cs.tmpBSDB.BeaconRecv = cs.bsDB.BeaconRecv
-			cs.tmpBSDB.BeaconSend = cs.bsDB.BeaconSend
-			cs.tmpBSDB.CtrlRecv = cs.bsDB.CtrlRecv
-			cs.err = cs.ctx.db.Save(cs.tmpBSDB).Error
-			if cs.err != nil {
-				// rollback
-				cs.bsDB.BeaconRecv = cs.tmpDBRoleRecv
-				cs.bsDB.BeaconSend = cs.tmpDBRoleSend
-				cs.bsDB.CtrlRecv = cs.tmpDBCtrlRecv
-				cs.bsDB.Unlock()
-				cs.ctx.log(logger.Error, "cache syncer synchronize failed:", cs.err)
-				return
-			}
-		} else {
-			cs.bsCache.RUnlock()
-		}
-		cs.bsDB.Unlock()
-	}
-}
-
-func (cs *cacheSyncer) SyncLoop() {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error("db cache syncer panic:", r)
-			cs.ctx.log(logger.Fatal, err)
-			// restart cache syncer
-			time.Sleep(time.Second)
-			cs.ctx.wg.Add(1)
-			go cs.SyncLoop()
-		}
-		defer cs.ctx.wg.Done()
-	}()
-	ticker := time.NewTicker(cs.syncInterval)
-	defer ticker.Stop()
-	// used to insert database
-	cs.tmpNSDB = new(mNodeSyncer)
-	cs.tmpBSDB = new(mBeaconSyncer)
-	cs.Sync()
-	for {
-		select {
-		case <-ticker.C:
-			cs.Sync()
-		case <-cs.ctx.stopSignal:
-			cs.Sync()
-			return
-		}
-	}
 }
