@@ -15,41 +15,45 @@ type Debug struct {
 type Config struct {
 	Debug Debug `toml:"-"`
 
-	// logger
-	LogLevel string `toml:"log_level"`
+	LogLevel        string `toml:"log_level"`
+	MaxSyncerClient int    `toml:"max_syncer_client"`
 
-	// database
-	Dialect         string        `toml:"dialect"` // "mysql"
-	DSN             string        `toml:"dsn"`
-	DBLogFile       string        `toml:"db_log_file"`
-	DBMaxOpenConns  int           `toml:"db_max_open_conns"`
-	DBMaxIdleConns  int           `toml:"db_max_idle_conns"`
-	GORMLogFile     string        `toml:"gorm_log_file"`
-	GORMDetailedLog bool          `toml:"gorm_detailed_log"`
-	DBSyncInterval  time.Duration `toml:"db_sync_interval"` // cache
+	Database struct {
+		Dialect         string `toml:"dialect"` // "mysql"
+		DSN             string `toml:"dsn"`
+		MaxOpenConns    int    `toml:"max_open_conns"`
+		MaxIdleConns    int    `toml:"max_idle_conns"`
+		LogFile         string `toml:"log_file"`
+		GORMLogFile     string `toml:"gorm_log_file"`
+		GORMDetailedLog bool   `toml:"gorm_detailed_log"`
+	} `toml:"database"`
 
-	// global
-	BuiltinDir         string        `toml:"builtin_dir"`
-	KeyDir             string        `toml:"key_dir"`
-	DNSCacheDeadline   time.Duration `toml:"dns_cache_deadline"`
-	TimeSyncerInterval time.Duration `toml:"time_syncer_interval"`
+	Global struct {
+		BuiltinDir         string        `toml:"builtin_dir"`
+		KeyDir             string        `toml:"key_dir"`
+		DNSCacheDeadline   time.Duration `toml:"dns_cache_deadline"`
+		TimeSyncerInterval time.Duration `toml:"time_syncer_interval"`
+	} `toml:"global"`
 
-	// sender
-	MaxBufferSize   int `toml:"max_buffer_size"` // syncer also use it
-	SenderWorker    int `toml:"sender_worker"`
-	SenderQueueSize int `toml:"sender_queue_size"`
+	Sender struct {
+		MaxBufferSize int `toml:"max_buffer_size"`
+		Worker        int `toml:"worker"`
+		QueueSize     int `toml:"queue_size"`
+	} `toml:"sender"`
 
-	// syncer
-	MaxSyncerClient int `toml:"max_syncer_client"`
-	SyncerWorker    int `toml:"syncer_worker"`
-	SyncerQueueSize int `toml:"syncer_queue_size"`
-	MessageTimeout  int `toml:"message_timeout"` // TODO rename
+	Syncer struct {
+		MaxBufferSize int           `toml:"max_buffer_size"`
+		Worker        int           `toml:"worker"`
+		QueueSize     int           `toml:"queue_size"`
+		Timeout       time.Duration `toml:"timeout"` // TODO rename
+	} `toml:"syncer"`
 
-	// web server
-	HTTPSAddress  string `toml:"https_address"`
-	HTTPSCertFile string `toml:"https_cert_file"`
-	HTTPSKeyFile  string `toml:"https_key_file"`
-	HTTPSWebDir   string `toml:"https_web_dir"`
-	HTTPSUsername string `toml:"https_username"`
-	HTTPSPassword string `toml:"https_password"`
+	Web struct {
+		WebDir   string `toml:"web_dir"`
+		CertFile string `toml:"cert_file"`
+		KeyFile  string `toml:"key_file"`
+		Address  string `toml:"address"`
+		Username string `toml:"username"`
+		Password string `toml:"password"`
+	} `toml:"web"`
 }
