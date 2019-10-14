@@ -47,6 +47,8 @@ type acknowledgeTask struct {
 	SendGUID []byte
 }
 
+// TODO add senderClient
+
 type sender struct {
 	ctx *CTRL
 
@@ -324,7 +326,7 @@ func (sender *sender) broadcast(guid, message []byte) (
 	// broadcast parallel
 	index := 0
 	for _, sc := range sClients {
-		go func(i int, s *sClient) {
+		go func(i int, s *syncerClient) {
 			channels[i] <- s.Broadcast(guid, message)
 		}(index, sc)
 		index += 1
@@ -358,14 +360,14 @@ func (sender *sender) send(role protocol.Role, guid, message []byte) (
 	switch role {
 	case protocol.Node:
 		for _, sc := range sClients {
-			go func(i int, s *sClient) {
+			go func(i int, s *syncerClient) {
 				channels[i] <- s.SendToNode(guid, message)
 			}(index, sc)
 			index += 1
 		}
 	case protocol.Beacon:
 		for _, sc := range sClients {
-			go func(i int, s *sClient) {
+			go func(i int, s *syncerClient) {
 				channels[i] <- s.SendToBeacon(guid, message)
 			}(index, sc)
 			index += 1
@@ -397,7 +399,7 @@ func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) {
 	case protocol.Node:
 		for _, sc := range sClients {
 			wg.Add(1)
-			go func(s *sClient) {
+			go func(s *syncerClient) {
 				s.AcknowledgeToNode(guid, message)
 				wg.Done()
 			}(sc)
@@ -405,7 +407,7 @@ func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) {
 	case protocol.Beacon:
 		for _, sc := range sClients {
 			wg.Add(1)
-			go func(s *sClient) {
+			go func(s *syncerClient) {
 				s.AcknowledgeToBeacon(guid, message)
 				wg.Done()
 			}(sc)

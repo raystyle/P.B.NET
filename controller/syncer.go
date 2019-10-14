@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"hash"
-	"io"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -14,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
-	"project/internal/bootstrap"
 	"project/internal/convert"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
@@ -41,10 +39,6 @@ type syncer struct {
 	beaconSendQueue  chan *protocol.Send
 	beaconQueryQueue chan *protocol.Query
 
-	// connected node key=base64(guid)
-	sClients    map[string]*sClient
-	sClientsRWM sync.RWMutex
-
 	inClose    int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -52,7 +46,7 @@ type syncer struct {
 
 func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	// check config
-	if cfg.MaxBufferSize < 4096 {
+	if cfg.Syncer.MaxBufferSize < 4096 {
 		return nil, errors.New("max buffer size < 4096")
 	}
 	if cfg.MaxSyncerClient < 1 {
@@ -73,7 +67,7 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 		nodeSendQueue:    make(chan *protocol.Send, cfg.SyncerQueueSize),
 		beaconSendQueue:  make(chan *protocol.Send, cfg.SyncerQueueSize),
 		beaconQueryQueue: make(chan *protocol.Query, cfg.SyncerQueueSize),
-		sClients:         make(map[string]*sClient, cfg.MaxSyncerClient),
+		sClients:         make(map[string]*syncerClient, cfg.MaxSyncerClient),
 		stopSignal:       make(chan struct{}),
 	}
 	syncer.maxClient.Store(cfg.MaxSyncerClient)
@@ -91,63 +85,6 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	syncer.wg.Add(1)
 	go syncer.watcher()
 	return &syncer, nil
-}
-
-// Connect is used to connect node for sync message
-func (syncer *syncer) Connect(node *bootstrap.Node, guid []byte) error {
-	if syncer.isClosed() {
-		return errors.New("syncer is closed")
-	}
-	syncer.sClientsRWM.Lock()
-	defer syncer.sClientsRWM.Unlock()
-	if len(syncer.sClients) >= syncer.getMaxClient() {
-		return errors.New("connected node number > max syncer")
-	}
-	cfg := clientCfg{
-		Node:     node,
-		NodeGUID: guid,
-	}
-	sClient, err := newSClient(syncer, &cfg)
-	if err != nil {
-		return errors.WithMessage(err, "connect node failed")
-	}
-	key := base64.StdEncoding.EncodeToString(guid)
-	syncer.sClients[key] = sClient
-	syncer.logf(logger.Info, "connect node %s", node.Address)
-	return nil
-}
-
-func (syncer *syncer) Disconnect(guid string) error {
-	syncer.sClientsRWM.RLock()
-	if sClient, ok := syncer.sClients[guid]; ok {
-		syncer.sClientsRWM.RUnlock()
-		sClient.Close()
-		syncer.logf(logger.Info, "disconnect node %s", sClient.Node.Address)
-		return nil
-	} else {
-		syncer.sClientsRWM.RUnlock()
-		return errors.Errorf("syncer client %s doesn't exist", guid)
-	}
-}
-
-func (syncer *syncer) Clients() map[string]*sClient {
-	syncer.sClientsRWM.RLock()
-	l := len(syncer.sClients)
-	if l == 0 {
-		syncer.sClientsRWM.RUnlock()
-		return nil
-	}
-	// copy map
-	sClients := make(map[string]*sClient, l)
-	for key, client := range syncer.sClients {
-		sClients[key] = client
-	}
-	syncer.sClientsRWM.RUnlock()
-	return sClients
-}
-
-func (syncer *syncer) isClosed() bool {
-	return atomic.LoadInt32(&syncer.inClose) != 0
 }
 
 func (syncer *syncer) Close() {
@@ -177,51 +114,6 @@ func (syncer *syncer) log(l logger.Level, log ...interface{}) {
 
 func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
 	syncer.ctx.Println(l, "syncer", log...)
-}
-
-// getMaxSyncerClient is used to get current max syncer client number
-func (syncer *syncer) getMaxClient() int {
-	return syncer.maxClient.Load().(int)
-}
-
-// watcher is used to check connect nodes number
-// connected nodes number < syncer.maxClient, try to connect more node
-func (syncer *syncer) watcher() {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error("syncer watcher panic:", r)
-			syncer.log(logger.Fatal, err)
-			// restart watcher
-			time.Sleep(time.Second)
-			syncer.wg.Add(1)
-			go syncer.watcher()
-		}
-		syncer.wg.Done()
-	}()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	isMax := func() bool {
-		// get current syncer client number
-		syncer.sClientsRWM.RLock()
-		sClientsLen := len(syncer.sClients)
-		syncer.sClientsRWM.RUnlock()
-		return sClientsLen >= syncer.getMaxClient()
-	}
-	watch := func() {
-		if isMax() {
-			return
-		}
-		// select nodes
-		// TODO watcher
-	}
-	for {
-		select {
-		case <-ticker.C:
-			watch()
-		case <-syncer.stopSignal:
-			return
-		}
-	}
 }
 
 // task from syncer client
@@ -382,18 +274,7 @@ type syncerWorker struct {
 
 	buffer         *bytes.Buffer
 	msgpackEncoder *msgpack.Encoder
-	base64Encoder  io.WriteCloser
 	hash           hash.Hash
-
-	// temp
-	nodeSyncer   *nodeSyncer
-	beaconSyncer *beaconSyncer
-	roleGUID     string
-	roleSend     uint64
-	ctrlReceive  uint64
-	sub          uint64
-	sClients     map[string]*sClient
-	sClient      *sClient
 
 	err error
 }
@@ -414,10 +295,7 @@ func (sw *syncerWorker) Work() {
 	// protocol.SyncReceive buffer cap = guid.Size + 8 + 1 + guid.Size
 	minBufferSize := 2*guid.Size + 9
 	sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
-	sw.msgpackEncoder = msgpack.NewEncoder(sw.buffer)
-	sw.base64Encoder = base64.NewEncoder(base64.StdEncoding, sw.buffer)
 	sw.hash = sha256.New()
-
 	// start handle task
 	for {
 		// check buffer capacity
@@ -524,6 +402,8 @@ func (sw *syncerWorker) handleNodeSend() {
 	// check hash
 	sw.hash.Reset()
 	sw.hash.Write(sw.send.Message)
+	// TODO hash
+
 	if !bytes.Equal(sw.hash.Sum(nil), sw.send.Hash) {
 		sw.ctx.logf(logger.Exploit, "node %X send with wrong hash", sw.send.RoleGUID)
 		return
