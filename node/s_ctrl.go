@@ -122,15 +122,15 @@ func (ctrl *ctrlConn) handleMessage(msg []byte) {
 		return
 	}
 	switch msg[0] {
-	case protocol.CtrlSyncSendToken:
+	case protocol.CtrlSendToNodeGUID:
 		ctrl.handleSyncSendToken(msg[cmd:id], msg[id:])
-	case protocol.CtrlSyncSend:
+	case protocol.CtrlSendToNode:
 		ctrl.handleSyncSend(msg[cmd:id], msg[id:])
 	case protocol.CtrlSyncReceiveToken:
 		ctrl.handleSyncReceiveToken(msg[cmd:id], msg[id:])
 	case protocol.CtrlSyncReceive:
 		ctrl.handleSyncReceive(msg[cmd:id], msg[id:])
-	case protocol.CtrlBroadcastToken:
+	case protocol.CtrlBroadcastGUID:
 		ctrl.handleBroadcastToken(msg[cmd:id], msg[id:])
 	case protocol.CtrlBroadcast:
 		ctrl.handleBroadcast(msg[cmd:id], msg[id:])
@@ -321,7 +321,7 @@ func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
 		sr.Err = err
 		return sr
 	}
-	if !bytes.Equal(resp, protocol.SyncUnhandled) {
+	if !bytes.Equal(resp, protocol.SendUnhandled) {
 		sr.Err = protocol.ErrSyncHandled
 		return sr
 	}
@@ -330,7 +330,7 @@ func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
 		sr.Err = err
 		return sr
 	}
-	if bytes.Equal(resp, protocol.SyncSucceed) {
+	if bytes.Equal(resp, protocol.SendSucceed) {
 		return sr
 	} else {
 		sr.Err = errors.New(string(resp))
@@ -348,7 +348,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 		sr.Err = err
 		return sr
 	}
-	if !bytes.Equal(resp, protocol.SyncUnhandled) {
+	if !bytes.Equal(resp, protocol.SendUnhandled) {
 		sr.Err = protocol.ErrSyncHandled
 		return sr
 	}
@@ -357,7 +357,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 		sr.Err = err
 		return sr
 	}
-	if bytes.Equal(resp, protocol.SyncSucceed) {
+	if bytes.Equal(resp, protocol.SendSucceed) {
 		return sr
 	} else {
 		sr.Err = errors.New(string(resp))
@@ -402,21 +402,21 @@ func (ctrl *ctrlConn) handleSyncSendToken(id, message []byte) {
 	if len(message) != 1+guid.Size {
 		// fake reply and close
 		ctrl.log(logger.Exploit, "invalid sync send token size")
-		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.reply(id, protocol.SendHandled)
 		ctrl.Close()
 		return
 	}
 	role := protocol.Role(message[0])
 	if role != protocol.Ctrl {
 		ctrl.log(logger.Exploit, "handle invalid sync send token role")
-		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.reply(id, protocol.SendHandled)
 		ctrl.Close()
 		return
 	}
 	if ctrl.ctx.syncer.checkSyncSendToken(role, message[1:]) {
-		ctrl.reply(id, protocol.SyncUnhandled)
+		ctrl.reply(id, protocol.SendUnhandled)
 	} else {
-		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.reply(id, protocol.SendHandled)
 	}
 }
 
@@ -425,21 +425,21 @@ func (ctrl *ctrlConn) handleSyncReceiveToken(id, message []byte) {
 	if len(message) != 1+guid.Size {
 		// fake reply and close
 		ctrl.log(logger.Exploit, "invalid sync receive token size")
-		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.reply(id, protocol.SendHandled)
 		ctrl.Close()
 		return
 	}
 	role := protocol.Role(message[0])
 	if role != protocol.Ctrl {
 		ctrl.log(logger.Exploit, "handle invalid sync receive token role")
-		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.reply(id, protocol.SendHandled)
 		ctrl.Close()
 		return
 	}
 	if ctrl.ctx.syncer.checkSyncReceiveToken(role, message[1:]) {
-		ctrl.reply(id, protocol.SyncUnhandled)
+		ctrl.reply(id, protocol.SendUnhandled)
 	} else {
-		ctrl.reply(id, protocol.SyncHandled)
+		ctrl.reply(id, protocol.SendHandled)
 	}
 }
 
@@ -501,7 +501,7 @@ func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
 		return
 	}
 	ctrl.ctx.syncer.addSyncSend(&ss)
-	ctrl.reply(id, protocol.SyncSucceed)
+	ctrl.reply(id, protocol.SendSucceed)
 }
 
 // notice node to delete message
@@ -526,7 +526,7 @@ func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
 		return
 	}
 	ctrl.ctx.syncer.addSyncReceive(&sr)
-	ctrl.reply(id, protocol.SyncSucceed)
+	ctrl.reply(id, protocol.SendSucceed)
 }
 
 func (ctrl *ctrlConn) handleSyncQueryBeacon(id, message []byte) {
@@ -544,7 +544,7 @@ func (ctrl *ctrlConn) handleSyncQueryBeacon(id, message []byte) {
 		return
 	}
 	// TODO reply
-	ctrl.reply(id, protocol.SyncSucceed)
+	ctrl.reply(id, protocol.SendSucceed)
 }
 
 func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
@@ -562,7 +562,7 @@ func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
 		return
 	}
 	// TODO reply
-	ctrl.reply(id, protocol.SyncSucceed)
+	ctrl.reply(id, protocol.SendSucceed)
 }
 
 // handle trust
