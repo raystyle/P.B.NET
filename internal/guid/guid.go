@@ -90,6 +90,7 @@ func (g *GUID) Close() {
 	g.closeOnce.Do(func() {
 		close(g.stopSignal)
 		g.wg.Wait()
+		runtime.SetFinalizer(g, nil)
 	})
 }
 

@@ -1,5 +1,11 @@
 package messages
 
+const Big uint32 = 0xFF000000
+
+var (
+	BigB = []byte{0xFF, 0x00, 0x00, 0x00}
+)
+
 const (
 	Test uint32 = 0xFFFFFFFF
 )
