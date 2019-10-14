@@ -22,7 +22,6 @@ func init() {
 
 // different table have the same model
 const (
-	tableLog       = "log"
 	tableNodeLog   = "node_log"
 	tableBeaconLog = "beacon_log"
 )
@@ -96,7 +95,8 @@ func (ml *mListener) Configure() *config.Listener {
 }
 
 type mNode struct {
-	GUID        []byte     `gorm:"primary_key;type:binary(52)"`
+	ID          uint64     `gorm:"primary_key"`
+	GUID        []byte     `gorm:"type:binary(52);not null" sql:"index"`
 	PublicKey   []byte     `gorm:"type:binary(32);not null"`
 	SessionKey  []byte     `gorm:"type:binary(32);not null"`
 	IsBootstrap bool       `gorm:"not null"`
@@ -116,7 +116,8 @@ type mNodeListener struct {
 }
 
 type mBeacon struct {
-	GUID       []byte     `gorm:"primary_key;type:binary(52)"`
+	ID         uint64     `gorm:"primary_key"`
+	GUID       []byte     `gorm:"type:binary(52);not null" sql:"index"`
 	PublicKey  []byte     `gorm:"type:binary(32);not null"`
 	SessionKey []byte     `gorm:"type:binary(32);not null"`
 	CreatedAt  time.Time  `gorm:"not null"`
@@ -134,20 +135,10 @@ type mBeaconListener struct {
 	DeletedAt *time.Time `sql:"index"`
 }
 
-type mBeaconSender struct {
-	GUID      []byte     `gorm:"primary_key;type:binary(52)"`
-	Send      uint64     `gorm:"not null;column:send"`
-	Receive   uint64     `gorm:"not null;column:receive"`
-	UpdatedAt time.Time  `gorm:"not null"`
-	DeletedAt *time.Time `sql:"index"`
-}
-
 type mBeaconMessage struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"not null;type:binary(52)"`
-	Height    uint64     `gorm:"not null"`
 	Message   []byte     `gorm:"not null;type:MEDIUMBLOB"`
-	Signature []byte     `gorm:"not null;type:binary(64)"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
@@ -170,17 +161,18 @@ type mTrustNode struct {
 	Address string    `json:"address"`
 }
 
-// InitDatabase is used to initialize database
+// InitializeDatabase is used to initialize database
 // if first use this project
-func InitDatabase(cfg *Config) error {
+func InitializeDatabase(cfg *Config) error {
 	// connect database
-	db, err := gorm.Open(cfg.Dialect, cfg.DSN)
+	dbCfg := cfg.Database
+	db, err := gorm.Open(dbCfg.Dialect, dbCfg.DSN)
 	if err != nil {
-		return errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
+		return errors.Wrapf(err, "connect %s server failed", dbCfg.Dialect)
 	}
 	err = db.DB().Ping()
 	if err != nil {
-		return errors.Wrapf(err, "ping %s server failed", cfg.Dialect)
+		return errors.Wrapf(err, "ping %s server failed", dbCfg.Dialect)
 	}
 	// not add s
 	db.SingularTable(true)
@@ -191,7 +183,6 @@ func InitDatabase(cfg *Config) error {
 		model interface{}
 	}{
 		{
-			name:  tableLog,
 			model: &mCtrlLog{},
 		},
 		{
@@ -221,6 +212,9 @@ func InitDatabase(cfg *Config) error {
 		},
 		{
 			model: &mBeacon{},
+		},
+		{
+			model: &mBeaconMessage{},
 		},
 		{
 			model: &mBeaconListener{},
@@ -283,12 +277,12 @@ func InitDatabase(cfg *Config) error {
 	}
 	// add beacon foreign key
 	table = gorm.ToTableName(xreflect.StructName(&mBeacon{}))
-	err = db.Model(&mBeaconListener{}).AddForeignKey("guid", table+"(guid)",
+	err = db.Model(&mBeaconMessage{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
 		return addErr(table, err)
 	}
-	err = db.Model(&mBeaconSender{}).AddForeignKey("guid", table+"(guid)",
+	err = db.Model(&mBeaconListener{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
 		return addErr(table, err)
