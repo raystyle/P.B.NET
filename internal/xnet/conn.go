@@ -1,27 +1,27 @@
 package xnet
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"sync"
 	"time"
 
 	"project/internal/convert"
-	"project/internal/xnet/internal"
 )
 
-// header size +  data
-//      4          n
+// data size + data
+//   uint32      n
 const (
-	HeaderSize = 4
+	DataSize = 4
 )
 
-type Info struct {
+type Status struct {
 	LocalNetwork  string
 	LocalAddress  string
 	RemoteNetwork string
 	RemoteAddress string
-	ConnectTime   int64
+	Connect       time.Time
 	Send          int
 	Receive       int
 }
@@ -29,24 +29,16 @@ type Info struct {
 // Conn is used to role handshake, and count network traffic
 type Conn struct {
 	net.Conn
-	lNetwork string
-	lAddress string
-	rNetwork string
-	rAddress string
-	connect  int64 // timestamp
-	send     int   // imprecise
-	receive  int   // imprecise
-	rwm      sync.RWMutex
+	connect time.Time
+	send    int // imprecise
+	receive int // imprecise
+	rwm     sync.RWMutex
 }
 
-func NewConn(c net.Conn, now int64) *Conn {
+func NewConn(conn net.Conn, time time.Time) *Conn {
 	return &Conn{
-		Conn:     c,
-		lNetwork: c.LocalAddr().Network(),
-		lAddress: c.LocalAddr().String(),
-		rNetwork: c.RemoteAddr().Network(),
-		rAddress: c.RemoteAddr().String(),
-		connect:  now,
+		Conn:    conn,
+		connect: time,
 	}
 }
 
@@ -55,10 +47,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 	c.rwm.Lock()
 	c.receive += n
 	c.rwm.Unlock()
-	if err != nil {
-		return n, err
-	}
-	return n, nil
+	return n, err
 }
 
 func (c *Conn) Write(b []byte) (int, error) {
@@ -66,10 +55,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 	c.rwm.Lock()
 	c.send += n
 	c.rwm.Unlock()
-	if err != nil {
-		return n, err
-	}
-	return n, nil
+	return n, err
 }
 
 // Send is used to send one message
@@ -81,13 +67,12 @@ func (c *Conn) Send(msg []byte) error {
 
 // Receive is used to receive one message
 func (c *Conn) Receive() ([]byte, error) {
-	size := make([]byte, HeaderSize)
+	size := make([]byte, DataSize)
 	_, err := io.ReadFull(c, size)
 	if err != nil {
 		return nil, err
 	}
-	s := convert.BytesToUint32(size)
-	msg := make([]byte, int(s))
+	msg := make([]byte, int(convert.BytesToUint32(size)))
 	_, err = io.ReadFull(c, msg)
 	if err != nil {
 		return nil, err
@@ -95,23 +80,27 @@ func (c *Conn) Receive() ([]byte, error) {
 	return msg, nil
 }
 
-func (c *Conn) Info() *Info {
+func (c *Conn) String() string {
+	return fmt.Sprintf("%s %s <-> %s %s",
+		c.LocalAddr().Network(),
+		c.LocalAddr(),
+		c.RemoteAddr().Network(),
+		c.RemoteAddr(),
+	)
+}
+
+func (c *Conn) Status() *Status {
 	c.rwm.RLock()
-	i := &Info{
+	s := &Status{
 		Send:    c.send,
 		Receive: c.receive,
 	}
 	c.rwm.RUnlock()
-	i.LocalNetwork = c.lNetwork
-	i.LocalAddress = c.lAddress
-	i.RemoteNetwork = c.rNetwork
-	i.RemoteAddress = c.rAddress
-	i.ConnectTime = c.connect
-	return i
-}
-
-// NewDeadlineConn return a net.Conn that
-// set deadline before each Read() and Write()
-func NewDeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
-	return internal.NewDeadlineConn(conn, deadline)
+	// the remote address will change, such as QUIC
+	s.LocalNetwork = c.LocalAddr().Network()
+	s.LocalAddress = c.LocalAddr().String()
+	s.RemoteNetwork = c.RemoteAddr().Network()
+	s.RemoteAddress = c.RemoteAddr().String()
+	s.Connect = c.connect
+	return s
 }

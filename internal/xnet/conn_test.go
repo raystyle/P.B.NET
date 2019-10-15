@@ -13,7 +13,7 @@ import (
 func TestConn(t *testing.T) {
 	server, client := net.Pipe()
 	go func() {
-		conn := NewConn(server, time.Now().Unix())
+		conn := NewConn(server, time.Now())
 		write := func() {
 			data := testdata.GenerateData()
 			// check data is changed after write
@@ -31,7 +31,7 @@ func TestConn(t *testing.T) {
 		write()
 		read()
 	}()
-	conn := NewConn(client, time.Now().Unix())
+	conn := NewConn(client, time.Now())
 	write := func() {
 		data := testdata.GenerateData()
 		err := conn.Send(data)
@@ -49,6 +49,7 @@ func TestConn(t *testing.T) {
 	read()
 	write()
 
-	t.Log(conn.Info())
+	t.Log(conn)
+	t.Log(conn.Status())
 	_ = conn.Close()
 }

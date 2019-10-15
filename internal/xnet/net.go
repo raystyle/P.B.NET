@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"project/internal/options"
+	"project/internal/xnet/internal"
 	"project/internal/xnet/light"
 	"project/internal/xnet/quic"
 	"project/internal/xnet/xtls"
@@ -172,4 +173,10 @@ func Dial(mode Mode, cfg *Config) (net.Conn, error) {
 	default:
 		return nil, UnknownModeError(mode)
 	}
+}
+
+// NewDeadlineConn return a net.Conn that
+// set deadline before each Read() and Write()
+func NewDeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
+	return internal.NewDeadlineConn(conn, deadline)
 }
