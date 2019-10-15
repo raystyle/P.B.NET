@@ -387,6 +387,12 @@ func (db *db) DeleteBeaconUnscoped(guid []byte) error {
 	return nil
 }
 
+// TODO BeaconMessage
+
+func (db *db) InsertBeaconMessage(guid, message []byte) error {
+	return db.db.Create(&mBeaconMessage{GUID: guid, Message: message}).Error
+}
+
 func (db *db) InsertBeaconListener(m *mBeaconListener) error {
 	return db.db.Create(m).Error
 }
