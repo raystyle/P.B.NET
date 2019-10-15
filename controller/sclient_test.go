@@ -13,14 +13,14 @@ func TestNewSClient(t *testing.T) {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	config := &clientCfg{
+	config := &clientOpts{
 		Node: &bootstrap.Node{
 			Mode:    xnet.TLS,
 			Network: "tcp",
 			Address: "localhost:62300",
 		},
 	}
-	sClient, err := newSyncerClient(ctrl.syncer, config)
+	sClient, err := newSenderClient(ctrl.syncer, config)
 	require.NoError(t, err)
 	sClient.Close()
 }
