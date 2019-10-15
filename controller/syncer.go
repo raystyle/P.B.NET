@@ -7,7 +7,6 @@ import (
 	"hash"
 	"math"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -23,9 +22,9 @@ import (
 )
 
 type syncer struct {
-	ctx         *CTRL
-	guidTimeout float64
-	maxClient   atomic.Value
+	ctx *CTRL
+
+	expireTime float64
 
 	// key = base64(GUID) value = timestamp
 	nodeSendGUID       map[string]int64
@@ -39,40 +38,38 @@ type syncer struct {
 	beaconSendQueue  chan *protocol.Send
 	beaconQueryQueue chan *protocol.Query
 
-	inClose    int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
+func newSyncer(ctx *CTRL, config *Config) (*syncer, error) {
+	cfg := config.Syncer
 	// check config
-	if cfg.Syncer.MaxBufferSize < 4096 {
+	if cfg.MaxBufferSize < 4096 {
 		return nil, errors.New("max buffer size < 4096")
 	}
-	if cfg.MaxSyncerClient < 1 {
-		return nil, errors.New("max syncer < 1")
-	}
-	if cfg.SyncerWorker < 2 {
+	if cfg.Worker < 2 {
 		return nil, errors.New("worker number < 2")
 	}
-	if cfg.SyncerQueueSize < 512 {
+	if cfg.QueueSize < 512 {
 		return nil, errors.New("worker task queue size < 512")
+	}
+	if cfg.ExpireTime < 5*time.Minute || cfg.ExpireTime > time.Hour {
+		return nil, errors.New("expire time < 5m or > 1h")
 	}
 	syncer := syncer{
 		ctx:              ctx,
-		guidTimeout:      float64(cfg.MessageTimeout),
-		nodeSendGUID:     make(map[string]int64, cfg.SyncerQueueSize),
-		beaconSendGUID:   make(map[string]int64, cfg.SyncerQueueSize),
-		beaconQueryGUID:  make(map[string]int64, cfg.SyncerQueueSize),
-		nodeSendQueue:    make(chan *protocol.Send, cfg.SyncerQueueSize),
-		beaconSendQueue:  make(chan *protocol.Send, cfg.SyncerQueueSize),
-		beaconQueryQueue: make(chan *protocol.Query, cfg.SyncerQueueSize),
-		sClients:         make(map[string]*syncerClient, cfg.MaxSyncerClient),
+		expireTime:       cfg.ExpireTime.Seconds(),
+		nodeSendGUID:     make(map[string]int64, cfg.QueueSize),
+		beaconSendGUID:   make(map[string]int64, cfg.QueueSize),
+		beaconQueryGUID:  make(map[string]int64, cfg.QueueSize),
+		nodeSendQueue:    make(chan *protocol.Send, cfg.QueueSize),
+		beaconSendQueue:  make(chan *protocol.Send, cfg.QueueSize),
+		beaconQueryQueue: make(chan *protocol.Query, cfg.QueueSize),
 		stopSignal:       make(chan struct{}),
 	}
-	syncer.maxClient.Store(cfg.MaxSyncerClient)
 	// start workers
-	for i := 0; i < cfg.SyncerWorker; i++ {
+	for i := 0; i < cfg.Worker; i++ {
 		worker := syncerWorker{
 			ctx:           &syncer,
 			maxBufferSize: cfg.MaxBufferSize,
@@ -82,24 +79,10 @@ func newSyncer(ctx *CTRL, cfg *Config) (*syncer, error) {
 	}
 	syncer.wg.Add(1)
 	go syncer.guidCleaner()
-	syncer.wg.Add(1)
-	go syncer.watcher()
 	return &syncer, nil
 }
 
 func (syncer *syncer) Close() {
-	atomic.StoreInt32(&syncer.inClose, 1)
-	// disconnect all syncer clients
-	for key := range syncer.Clients() {
-		_ = syncer.Disconnect(key)
-	}
-	// wait close
-	for {
-		time.Sleep(10 * time.Millisecond)
-		if len(syncer.Clients()) == 0 {
-			break
-		}
-	}
 	close(syncer.stopSignal)
 	syncer.wg.Wait()
 }
@@ -142,7 +125,7 @@ func (syncer *syncer) CheckGUIDTimestamp(guid []byte) (bool, int64) {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.guidTimeout {
+	if math.Abs(float64(now-timestamp)) > syncer.expireTime {
 		return false, 0
 	}
 	return true, timestamp
@@ -221,7 +204,7 @@ func (syncer *syncer) guidCleaner() {
 			syncer.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Duration(syncer.expireTime / 100))
 	defer ticker.Stop()
 	for {
 		select {
@@ -230,7 +213,7 @@ func (syncer *syncer) guidCleaner() {
 			// clean node send
 			syncer.nodeSendGUIDRWM.Lock()
 			for key, timestamp := range syncer.nodeSendGUID {
-				if float64(now-timestamp) > syncer.guidTimeout {
+				if float64(now-timestamp) > syncer.expireTime {
 					delete(syncer.nodeSendGUID, key)
 				}
 			}
@@ -238,7 +221,7 @@ func (syncer *syncer) guidCleaner() {
 			// clean beacon send
 			syncer.beaconSendGUIDRWM.Lock()
 			for key, timestamp := range syncer.beaconSendGUID {
-				if float64(now-timestamp) > syncer.guidTimeout {
+				if float64(now-timestamp) > syncer.expireTime {
 					delete(syncer.beaconSendGUID, key)
 				}
 			}
@@ -246,7 +229,7 @@ func (syncer *syncer) guidCleaner() {
 			// clean beacon query
 			syncer.beaconQueryGUIDRWM.Lock()
 			for key, timestamp := range syncer.beaconQueryGUID {
-				if float64(now-timestamp) > syncer.guidTimeout {
+				if float64(now-timestamp) > syncer.expireTime {
 					delete(syncer.beaconQueryGUID, key)
 				}
 			}
