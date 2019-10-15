@@ -4,14 +4,18 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"hash"
 	"io"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
+	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -22,6 +26,7 @@ import (
 var (
 	ErrBroadcastFailed = errors.New("broadcast failed")
 	ErrSendFailed      = errors.New("send failed")
+	ErrSenderMaxConns  = errors.New("sender max connections")
 	ErrSenderClosed    = errors.New("sender closed")
 )
 
@@ -47,10 +52,10 @@ type acknowledgeTask struct {
 	SendGUID []byte
 }
 
-// TODO add senderClient
-
 type sender struct {
 	ctx *CTRL
+
+	maxConns atomic.Value
 
 	broadcastTaskQueue   chan *broadcastTask
 	sendTaskQueue        chan *sendTask
@@ -72,27 +77,33 @@ type sender struct {
 
 	guid *guid.GUID
 
+	// key = hex(guid)
+	clients    map[string]*senderClient
+	clientsRWM sync.RWMutex
+
 	// check beacon is in interactive mode
 	interactive    map[string]bool // key = base64(Beacon GUID)
 	interactiveRWM sync.RWMutex
 
+	closing    int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
+func newSender(ctx *CTRL, config *Config) (*sender, error) {
+	cfg := config.Sender
 	// check config
-	if cfg.SenderWorker < 1 {
+	if cfg.Worker < 1 {
 		return nil, errors.New("sender worker number < 1")
 	}
-	if cfg.SenderQueueSize < 512 {
+	if cfg.QueueSize < 512 {
 		return nil, errors.New("sender task queue size < 512")
 	}
 	sender := &sender{
 		ctx:                  ctx,
-		broadcastTaskQueue:   make(chan *broadcastTask, cfg.SenderQueueSize),
-		sendTaskQueue:        make(chan *sendTask, cfg.SenderQueueSize),
-		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.SenderQueueSize),
+		broadcastTaskQueue:   make(chan *broadcastTask, cfg.QueueSize),
+		sendTaskQueue:        make(chan *sendTask, cfg.QueueSize),
+		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.QueueSize),
 		stopSignal:           make(chan struct{}),
 	}
 	// init task sync pool
@@ -131,9 +142,9 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 		return new(sync.WaitGroup)
 	}
 	// guid
-	sender.guid = guid.New(16*cfg.SenderQueueSize, ctx.global.Now)
+	sender.guid = guid.New(16*cfg.QueueSize, ctx.global.Now)
 	// start sender workers
-	for i := 0; i < cfg.SenderWorker; i++ {
+	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
 			ctx:           sender,
 			maxBufferSize: cfg.MaxBufferSize,
@@ -141,12 +152,65 @@ func newSender(ctx *CTRL, cfg *Config) (*sender, error) {
 		sender.wg.Add(1)
 		go worker.Work()
 	}
+	// start watcher
+	sender.wg.Add(1)
+	go sender.watcher()
 	return sender, nil
+}
+
+// GetMaxConns is used to get sender max connection
+func (sender *sender) GetMaxConns() int {
+	return sender.maxConns.Load().(int)
+}
+
+// SetMaxConns is used to set sender max connection
+func (sender *sender) SetMaxConns(n int) {
+	sender.maxConns.Store(n)
+}
+
+// Connect is used to connect node for sync message
+func (sender *sender) Connect(node *bootstrap.Node, guid []byte) error {
+	if sender.isClosing() {
+		return ErrSenderClosed
+	}
+	sender.clientsRWM.Lock()
+	defer sender.clientsRWM.Unlock()
+	if len(sender.clients) >= sender.GetMaxConns() {
+		return ErrSenderMaxConns
+	}
+	key := hex.EncodeToString(guid)
+	if _, ok := sender.clients[key]; ok {
+		return errors.Errorf("connect same node %s %s", node.Mode, node.Address)
+	}
+	client, err := newSenderClient(sender.ctx, node, &clientOpts{NodeGUID: guid})
+	if err != nil {
+		return errors.WithMessage(err, "connect node failed")
+	}
+	sender.clients[key] = client
+	// sender.logf(logger.Info, "connect node %s %s", node.Mode, node.Address)
+	return nil
+}
+
+func (sender *sender) Disconnect(guid string) error {
+	guid = strings.ToLower(guid)
+	sender.clientsRWM.RLock()
+	if client, ok := sender.clients[guid]; ok {
+		sender.clientsRWM.RUnlock()
+		client.Close()
+		// sender.logf(logger.Info, "disconnect node %s %s", sc.Node.Mode, sc.Node.Address)
+		return nil
+	} else {
+		sender.clientsRWM.RUnlock()
+		return errors.Errorf("syncer client %s doesn't exist", strings.ToUpper(guid))
+	}
 }
 
 // Broadcast is used to broadcast message to all Nodes
 // message will not be saved
 func (sender *sender) Broadcast(Type []byte, message interface{}) error {
+	if sender.isClosing() {
+		return ErrSenderClosed
+	}
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
 	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
 	bt.Type = Type
@@ -170,6 +234,9 @@ func (sender *sender) Broadcast(Type []byte, message interface{}) error {
 
 // BroadcastFromPlugin is used to broadcast message to all Nodes from plugin
 func (sender *sender) BroadcastFromPlugin(message []byte) error {
+	if sender.isClosing() {
+		return ErrSenderClosed
+	}
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
 	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
 	bt.Message = message
@@ -199,6 +266,9 @@ func (sender *sender) Send(
 	Type []byte,
 	msg interface{},
 ) error {
+	if sender.isClosing() {
+		return ErrSenderClosed
+	}
 	// check role
 	switch role {
 	case protocol.Node, protocol.Beacon:
@@ -234,6 +304,9 @@ func (sender *sender) SendFromPlugin(
 	guid,
 	msg []byte,
 ) error {
+	if sender.isClosing() {
+		return ErrSenderClosed
+	}
 	// check role
 	switch role {
 	case protocol.Node, protocol.Beacon:
@@ -265,6 +338,9 @@ func (sender *sender) SendFromPlugin(
 // Acknowledge is used to acknowledge Role that
 // controller has received this message
 func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
+	if sender.isClosing() {
+		return
+	}
 	// check role
 	switch role {
 	case protocol.Node, protocol.Beacon:
@@ -276,12 +352,6 @@ func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
 	at.GUID = send.RoleGUID
 	at.SendGUID = send.GUID
 	sender.acknowledgeTaskQueue <- at
-}
-
-func (sender *sender) Close() {
-	close(sender.stopSignal)
-	sender.wg.Wait()
-	sender.guid.Close()
 }
 
 func (sender *sender) SetInteractiveMode(guid string) {
@@ -297,6 +367,28 @@ func (sender *sender) isInInteractiveMode(guid string) bool {
 	return i
 }
 
+func (sender *sender) isClosing() bool {
+	return atomic.LoadInt32(&sender.closing) != 0
+}
+
+func (sender *sender) Close() {
+	atomic.StoreInt32(&sender.closing, 1)
+	// disconnect sender client
+	for _, client := range sender.getClients() {
+		client.Close()
+	}
+	// wait close
+	for {
+		time.Sleep(10 * time.Millisecond)
+		if len(sender.getClients()) == 0 {
+			break
+		}
+	}
+	close(sender.stopSignal)
+	sender.wg.Wait()
+	sender.guid.Close()
+}
+
 func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
 	sender.ctx.Printf(l, "sender", format, log...)
 }
@@ -309,12 +401,61 @@ func (sender *sender) logln(l logger.Level, log ...interface{}) {
 	sender.ctx.Println(l, "sender", log...)
 }
 
+// watcher is used to check the number of connect nodes
+// connected nodes number < syncer.maxClient, try to connect more node
+func (sender *sender) watcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error("sender.watcher panic:", r)
+			sender.log(logger.Fatal, "sender.watcher", err)
+			// restart watcher
+			time.Sleep(time.Second)
+			go sender.watcher()
+		} else {
+			sender.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	isMax := func() bool {
+		sender.clientsRWM.RLock()
+		l := len(sender.clients)
+		sender.clientsRWM.RUnlock()
+		return l >= sender.GetMaxConns()
+	}
+	watch := func() {
+		if isMax() {
+			return
+		}
+		// select nodes
+		// TODO watcher
+	}
+	for {
+		select {
+		case <-ticker.C:
+			watch()
+		case <-sender.stopSignal:
+			return
+		}
+	}
+}
+
+func (sender *sender) getClients() map[string]*senderClient {
+	sender.clientsRWM.RLock()
+	clients := make(map[string]*senderClient, len(sender.clients))
+	for key, client := range sender.clients {
+		clients[key] = client
+	}
+	sender.clientsRWM.RUnlock()
+	return clients
+}
+
 // TODO panic in go func
 
 func (sender *sender) broadcast(guid, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
-	sClients := sender.ctx.syncer.Clients()
-	l := len(sClients)
+	clients := sender.getClients()
+	l := len(clients)
 	if l == 0 {
 		return nil, 0
 	}
@@ -325,10 +466,10 @@ func (sender *sender) broadcast(guid, message []byte) (
 	}
 	// broadcast parallel
 	index := 0
-	for _, sc := range sClients {
-		go func(i int, s *syncerClient) {
-			channels[i] <- s.Broadcast(guid, message)
-		}(index, sc)
+	for _, client := range clients {
+		go func(i int, c *senderClient) {
+			channels[i] <- c.Broadcast(guid, message)
+		}(index, client)
 		index += 1
 	}
 	// get response and put
@@ -345,8 +486,8 @@ func (sender *sender) broadcast(guid, message []byte) (
 
 func (sender *sender) send(role protocol.Role, guid, message []byte) (
 	resp []*protocol.SendResponse, success int) {
-	sClients := sender.ctx.syncer.Clients()
-	l := len(sClients)
+	clients := sender.getClients()
+	l := len(clients)
 	if l == 0 {
 		return nil, 0
 	}
@@ -359,17 +500,17 @@ func (sender *sender) send(role protocol.Role, guid, message []byte) (
 	index := 0
 	switch role {
 	case protocol.Node:
-		for _, sc := range sClients {
-			go func(i int, s *syncerClient) {
-				channels[i] <- s.SendToNode(guid, message)
-			}(index, sc)
+		for _, client := range clients {
+			go func(i int, c *senderClient) {
+				channels[i] <- c.SendToNode(guid, message)
+			}(index, client)
 			index += 1
 		}
 	case protocol.Beacon:
-		for _, sc := range sClients {
-			go func(i int, s *syncerClient) {
-				channels[i] <- s.SendToBeacon(guid, message)
-			}(index, sc)
+		for _, client := range clients {
+			go func(i int, c *senderClient) {
+				channels[i] <- c.SendToBeacon(guid, message)
+			}(index, client)
 			index += 1
 		}
 	default:
@@ -388,8 +529,8 @@ func (sender *sender) send(role protocol.Role, guid, message []byte) (
 }
 
 func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) {
-	sClients := sender.ctx.syncer.Clients()
-	l := len(sClients)
+	clients := sender.getClients()
+	l := len(clients)
 	if l == 0 {
 		return
 	}
@@ -397,20 +538,20 @@ func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) {
 	wg := sender.waitGroupPool.Get().(*sync.WaitGroup)
 	switch role {
 	case protocol.Node:
-		for _, sc := range sClients {
+		for _, client := range clients {
 			wg.Add(1)
-			go func(s *syncerClient) {
-				s.AcknowledgeToNode(guid, message)
+			go func(c *senderClient) {
+				c.AcknowledgeToNode(guid, message)
 				wg.Done()
-			}(sc)
+			}(client)
 		}
 	case protocol.Beacon:
-		for _, sc := range sClients {
+		for _, client := range clients {
 			wg.Add(1)
-			go func(s *syncerClient) {
-				s.AcknowledgeToBeacon(guid, message)
+			go func(c *senderClient) {
+				c.AcknowledgeToBeacon(guid, message)
 				wg.Done()
-			}(sc)
+			}(client)
 		}
 	default:
 		panic("invalid Role")
@@ -420,7 +561,8 @@ func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) {
 }
 
 type senderWorker struct {
-	ctx           *sender
+	ctx *sender
+
 	maxBufferSize int
 
 	// task
