@@ -28,7 +28,7 @@ type Options struct {
 	Password  string
 	Server    *options.HTTPServer
 	Transport *options.HTTPTransport
-	Limit     int
+	MaxConns  int
 }
 
 type Server struct {
@@ -36,7 +36,7 @@ type Server struct {
 	logger    logger.Logger
 	server    *http.Server
 	transport *http.Transport // for client
-	limit     int
+	maxConns  int
 	addr      string
 	basicAuth []byte
 	m         sync.Mutex
@@ -50,9 +50,9 @@ func NewServer(tag string, l logger.Logger, opts *Options) (*Server, error) {
 		opts = new(Options)
 	}
 	s := &Server{
-		tag:    tag,
-		logger: l,
-		limit:  opts.Limit,
+		tag:      tag,
+		logger:   l,
+		maxConns: opts.MaxConns,
 	}
 	var err error
 	// http server
@@ -75,8 +75,8 @@ func NewServer(tag string, l logger.Logger, opts *Options) (*Server, error) {
 	} else {
 		s.transport, _ = new(options.HTTPTransport).Apply()
 	}
-	if opts.Limit < 1 {
-		s.limit = options.DefaultConnectionLimit
+	if opts.MaxConns < 1 {
+		s.maxConns = options.DefaultConnectionLimit
 	}
 	// basic authentication
 	if opts.Username != "" {
@@ -113,7 +113,7 @@ func (s *Server) Serve(l net.Listener, timeout time.Duration) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.addr = l.Addr().String()
-	limitListener := netutil.LimitListener(l, s.limit)
+	limitListener := netutil.LimitListener(l, s.maxConns)
 	return s.start(func() error { return s.server.Serve(limitListener) }, timeout)
 }
 

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
 
+	"project/internal/bootstrap"
 	"project/internal/logger"
 	"project/internal/security"
 	"project/internal/xpanic"
@@ -21,14 +23,17 @@ type hR = http.Request
 type hP = httprouter.Params
 
 type web struct {
-	ctx      *CTRL
+	ctx *CTRL
+
 	listener net.Listener
 	server   *http.Server
 	indexFS  http.Handler // index file system
-	wg       sync.WaitGroup
+
+	wg sync.WaitGroup
 }
 
-func newWeb(ctx *CTRL, cfg *Config) (*web, error) {
+func newWeb(ctx *CTRL, config *Config) (*web, error) {
+	cfg := config.Web
 	// listen tls
 	certFile := cfg.HTTPSCertFile
 	keyFile := cfg.HTTPSKeyFile
@@ -132,4 +137,44 @@ func (web *web) handleLoadKeys(w hRW, r *hR, p hP) {
 
 func (web *web) handleIndex(w hRW, r *hR, p hP) {
 	web.indexFS.ServeHTTP(w, r)
+}
+
+// ------------------------------debug API----------------------------------
+// TODO remove or check
+func (web *web) handleShutdown(w hRW, r *hR, p hP) {
+	_ = r.ParseForm()
+	errStr := r.FormValue("err")
+	_, _ = w.Write([]byte("ok"))
+	if errStr != "" {
+		web.ctx.Exit(errors.New(errStr))
+	} else {
+		web.ctx.Exit(nil)
+	}
+}
+
+// ---------------------------------API-------------------------------------
+
+func (web *web) handleGetBoot(w hRW, r *hR, p hP) {
+	_, _ = w.Write([]byte("hello"))
+}
+
+func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
+	m := &mTrustNode{}
+	err := json.NewDecoder(r.Body).Decode(m)
+	if err != nil {
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	n := &bootstrap.Node{
+		Mode:    m.Mode,
+		Network: m.Network,
+		Address: m.Address,
+	}
+	req, err := web.ctx.TrustNode(n)
+	if err != nil {
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	b, err := json.Marshal(req)
+	_, _ = w.Write(b)
 }

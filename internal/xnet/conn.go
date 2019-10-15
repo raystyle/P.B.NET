@@ -82,10 +82,8 @@ func (c *Conn) Receive() ([]byte, error) {
 
 func (c *Conn) String() string {
 	return fmt.Sprintf("%s %s <-> %s %s",
-		c.LocalAddr().Network(),
-		c.LocalAddr(),
-		c.RemoteAddr().Network(),
-		c.RemoteAddr(),
+		c.LocalAddr().Network(), c.LocalAddr(),
+		c.RemoteAddr().Network(), c.RemoteAddr(),
 	)
 }
 

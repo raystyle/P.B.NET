@@ -102,11 +102,11 @@ func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 		data.Write(buffer[:n])
 		l := data.Len()
 		for {
-			if l < xnet.HeaderSize {
+			if l < xnet.DataSize {
 				break
 			}
 			if bodySize == 0 { // avoid duplicate calculations
-				bodySize = int(convert.BytesToUint32(data.Next(xnet.HeaderSize)))
+				bodySize = int(convert.BytesToUint32(data.Next(xnet.DataSize)))
 				if bodySize == 0 {
 					msgHandler(errNullMsg)
 					return
