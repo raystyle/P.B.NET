@@ -35,13 +35,13 @@ type web struct {
 func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	cfg := config.Web
 	// listen tls
-	certFile := cfg.HTTPSCertFile
-	keyFile := cfg.HTTPSKeyFile
+	certFile := cfg.CertFile
+	keyFile := cfg.KeyFile
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	listener, err := net.Listen("tcp", cfg.HTTPSAddress)
+	listener, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -58,10 +58,10 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 		PanicHandler:           web.handlePanic,
 	}
 	// resource
-	router.ServeFiles("/css/*filepath", http.Dir(cfg.HTTPSWebDir+"/css"))
-	router.ServeFiles("/js/*filepath", http.Dir(cfg.HTTPSWebDir+"/js"))
-	router.ServeFiles("/img/*filepath", http.Dir(cfg.HTTPSWebDir+"/img"))
-	web.indexFS = http.FileServer(http.Dir(cfg.HTTPSWebDir))
+	router.ServeFiles("/css/*filepath", http.Dir(cfg.Dir+"/css"))
+	router.ServeFiles("/js/*filepath", http.Dir(cfg.Dir+"/js"))
+	router.ServeFiles("/img/*filepath", http.Dir(cfg.Dir+"/img"))
+	web.indexFS = http.FileServer(http.Dir(cfg.Dir))
 	handleFavicon := func(w hRW, r *hR, _ hP) {
 		web.indexFS.ServeHTTP(w, r)
 	}
