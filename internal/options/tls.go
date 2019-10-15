@@ -27,8 +27,10 @@ func (t *TLSConfig) failed(err error) error {
 }
 
 func (t *TLSConfig) Apply() (*tls.Config, error) {
+	nextProtos := make([]string, len(t.NextProtos))
+	copy(nextProtos, t.NextProtos)
 	config := &tls.Config{
-		NextProtos:         t.NextProtos,
+		NextProtos:         nextProtos,
 		InsecureSkipVerify: t.InsecureSkipVerify,
 	}
 	l := len(t.Certificates)

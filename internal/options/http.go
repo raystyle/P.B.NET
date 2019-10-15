@@ -3,15 +3,16 @@ package options
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 )
 
 const (
-	defaultTimeout        = time.Minute
-	defaultMaxHeaderBytes = 4 * 1048576 // 4MB
+	httpDefaultTimeout                      = time.Minute
+	httpDefaultMaxHeaderBytes               = 4 * 1048576 // 4MB
+	httpDefaultMaxResponseHeaderBytes int64 = 4 * 1048576 // 4MB
 )
 
 type HTTPRequest struct {
@@ -32,6 +33,9 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 	if err != nil {
 		return nil, hr.failed(err)
 	}
+	if hr.URL == "" {
+		return nil, hr.failed(errors.New("URL is empty"))
+	}
 	r, err := http.NewRequest(hr.Method, hr.URL, bytes.NewReader(post))
 	if err != nil {
 		return nil, hr.failed(err)
@@ -43,17 +47,17 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 }
 
 type HTTPTransport struct {
-	TLSClientConfig        TLSConfig     `toml:"tls_client_config"`
-	TLSHandshakeTimeout    time.Duration `toml:"tls_handshake_timeout"`
-	DisableKeepAlives      bool          `toml:"disable_keep_alives"`
-	DisableCompression     bool          `toml:"disable_compression"`
+	TLSClientConfig        TLSConfig     `toml:"tls_config"`
 	MaxIdleConns           int           `toml:"max_idle_conns"`
 	MaxIdleConnsPerHost    int           `toml:"max_idle_conns_per_host"`
 	MaxConnsPerHost        int           `toml:"max_conns_per_host"`
+	TLSHandshakeTimeout    time.Duration `toml:"tls_handshake_timeout"`
 	IdleConnTimeout        time.Duration `toml:"idle_conn_timeout"`
 	ResponseHeaderTimeout  time.Duration `toml:"response_header_timeout"`
 	ExpectContinueTimeout  time.Duration `toml:"expect_continue_timeout"`
 	MaxResponseHeaderBytes int64         `toml:"max_response_header_bytes"`
+	DisableKeepAlives      bool          `toml:"disable_keep_alives"`
+	DisableCompression     bool          `toml:"disable_compression"`
 	ForceAttemptHTTP2      bool          `toml:"force_attempt_http2"`
 }
 
@@ -63,19 +67,17 @@ func (ht *HTTPTransport) failed(err error) error {
 
 func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	tr := &http.Transport{
-		TLSHandshakeTimeout:    ht.TLSHandshakeTimeout,
-		DisableKeepAlives:      ht.DisableKeepAlives,
-		DisableCompression:     ht.DisableCompression,
 		MaxIdleConns:           ht.MaxIdleConns,
+		MaxIdleConnsPerHost:    ht.MaxIdleConnsPerHost,
+		MaxConnsPerHost:        ht.MaxConnsPerHost,
+		TLSHandshakeTimeout:    ht.TLSHandshakeTimeout,
 		IdleConnTimeout:        ht.IdleConnTimeout,
 		ResponseHeaderTimeout:  ht.ResponseHeaderTimeout,
 		ExpectContinueTimeout:  ht.ExpectContinueTimeout,
 		MaxResponseHeaderBytes: ht.MaxResponseHeaderBytes,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		ForceAttemptHTTP2: ht.ForceAttemptHTTP2,
+		DisableKeepAlives:      ht.DisableKeepAlives,
+		DisableCompression:     ht.DisableCompression,
+		ForceAttemptHTTP2:      ht.ForceAttemptHTTP2,
 	}
 	// tls config
 	var err error
@@ -84,34 +86,37 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 		return nil, ht.failed(err)
 	}
 	// conn
-	if ht.MaxIdleConnsPerHost < 1 {
+	if tr.MaxIdleConns < 1 {
+		tr.MaxIdleConns = 1
+	}
+	if tr.MaxIdleConnsPerHost < 1 {
 		tr.MaxIdleConnsPerHost = 1
 	}
-	if ht.MaxConnsPerHost < 1 {
+	if tr.MaxConnsPerHost < 1 {
 		tr.MaxConnsPerHost = 1
 	}
 	// timeout
-	if ht.TLSHandshakeTimeout < 1 {
-		tr.TLSHandshakeTimeout = defaultTimeout
+	if tr.TLSHandshakeTimeout < 1 {
+		tr.TLSHandshakeTimeout = httpDefaultTimeout
 	}
-	if ht.IdleConnTimeout < 1 {
-		tr.IdleConnTimeout = defaultTimeout
+	if tr.IdleConnTimeout < 1 {
+		tr.IdleConnTimeout = httpDefaultTimeout
 	}
-	if ht.ResponseHeaderTimeout < 1 {
-		tr.ResponseHeaderTimeout = defaultTimeout
+	if tr.ResponseHeaderTimeout < 1 {
+		tr.ResponseHeaderTimeout = httpDefaultTimeout
 	}
-	if ht.ExpectContinueTimeout < 1 {
-		tr.ExpectContinueTimeout = defaultTimeout
+	if tr.ExpectContinueTimeout < 1 {
+		tr.ExpectContinueTimeout = httpDefaultTimeout
 	}
 	// max header bytes
-	if ht.MaxResponseHeaderBytes < 1 {
-		tr.MaxResponseHeaderBytes = defaultMaxHeaderBytes
+	if tr.MaxResponseHeaderBytes < 1 {
+		tr.MaxResponseHeaderBytes = httpDefaultMaxResponseHeaderBytes
 	}
 	return tr, nil
 }
 
 type HTTPServer struct {
-	TLSConfig         TLSConfig     `toml:"tls_client_config"`
+	TLSConfig         TLSConfig     `toml:"tls_config"`
 	ReadTimeout       time.Duration `toml:"read_timeout"`  // warning
 	WriteTimeout      time.Duration `toml:"write_timeout"` // warning
 	ReadHeaderTimeout time.Duration `toml:"read_header_timeout"`
@@ -139,15 +144,21 @@ func (hs *HTTPServer) Apply() (*http.Server, error) {
 		return nil, hs.failed(err)
 	}
 	// timeout
-	if hs.ReadHeaderTimeout < 1 {
-		s.ReadHeaderTimeout = defaultTimeout
+	if s.ReadTimeout < 0 {
+		s.ReadTimeout = httpDefaultTimeout
 	}
-	if hs.IdleTimeout < 1 {
-		s.IdleTimeout = defaultTimeout
+	if s.WriteTimeout < 0 {
+		s.WriteTimeout = httpDefaultTimeout
+	}
+	if s.ReadHeaderTimeout < 1 {
+		s.ReadHeaderTimeout = httpDefaultTimeout
+	}
+	if s.IdleTimeout < 1 {
+		s.IdleTimeout = httpDefaultTimeout
 	}
 	// max header bytes
-	if hs.MaxHeaderBytes < 1 {
-		s.MaxHeaderBytes = defaultMaxHeaderBytes
+	if s.MaxHeaderBytes < 1 {
+		s.MaxHeaderBytes = httpDefaultMaxHeaderBytes
 	}
 	s.SetKeepAlivesEnabled(!hs.DisableKeepAlive)
 	return s, nil

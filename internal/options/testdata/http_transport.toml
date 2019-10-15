@@ -1,0 +1,13 @@
+max_idle_conns            = 2
+max_idle_conns_per_host   = 2
+max_conns_per_host        = 2
+tls_handshake_timeout     = "10s"
+idle_conn_timeout         = "10s"
+response_header_timeout   = "10s"
+expect_continue_timeout   = "10s"
+max_response_header_bytes = 16384
+disable_keep_alives       = true
+disable_compression       = true
+force_attempt_http2       = true
+
+[tls_config] # see tls.toml
