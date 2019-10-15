@@ -1,5 +1,5 @@
-insecure_skip_verify = true
 next_protos          = ["h2", "h2c"]
+insecure_skip_verify = true
 
 root_ca = [
   """\

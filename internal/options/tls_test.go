@@ -9,13 +9,18 @@ import (
 )
 
 func TestTLSDefault(t *testing.T) {
-	config, err := new(TLSConfig).Apply()
+	tlsConfig, err := new(TLSConfig).Apply()
 	require.NoError(t, err)
-	require.NotNil(t, config)
+	// check
+	require.Equal(t, 0, len(tlsConfig.Certificates))
+	require.Nil(t, tlsConfig.RootCAs)
+	require.Nil(t, tlsConfig.ClientCAs)
+	require.Equal(t, 0, len(tlsConfig.NextProtos))
+	require.Equal(t, false, tlsConfig.InsecureSkipVerify)
 }
 
 func TestTLSUnmarshal(t *testing.T) {
-	data, err := ioutil.ReadFile("tls.toml")
+	data, err := ioutil.ReadFile("testdata/tls.toml")
 	require.NoError(t, err)
 	config := TLSConfig{}
 	err = toml.Unmarshal(data, &config)
@@ -26,7 +31,7 @@ func TestTLSUnmarshal(t *testing.T) {
 	require.Equal(t, 2, len(tlsConfig.Certificates))
 	require.Equal(t, 2, len(tlsConfig.RootCAs.Subjects()))
 	require.Equal(t, 2, len(tlsConfig.ClientCAs.Subjects()))
-	require.Equal(t, true, tlsConfig.InsecureSkipVerify)
 	require.Equal(t, "h2", tlsConfig.NextProtos[0])
 	require.Equal(t, "h2c", tlsConfig.NextProtos[1])
+	require.Equal(t, true, tlsConfig.InsecureSkipVerify)
 }

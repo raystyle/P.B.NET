@@ -13,8 +13,8 @@ type TLSConfig struct {
 	Certificates       []X509KeyPair `toml:"certificates"` // tls.X509KeyPair
 	RootCAs            []string      `toml:"root_ca"`      // pem
 	ClientCAs          []string      `toml:"client_ca"`    // pem
-	InsecureSkipVerify bool          `toml:"insecure_skip_verify"`
 	NextProtos         []string      `toml:"next_protos"`
+	InsecureSkipVerify bool          `toml:"insecure_skip_verify"`
 }
 
 type X509KeyPair struct {
@@ -28,8 +28,8 @@ func (t *TLSConfig) failed(err error) error {
 
 func (t *TLSConfig) Apply() (*tls.Config, error) {
 	config := &tls.Config{
-		InsecureSkipVerify: t.InsecureSkipVerify,
 		NextProtos:         t.NextProtos,
+		InsecureSkipVerify: t.InsecureSkipVerify,
 	}
 	l := len(t.Certificates)
 	if l != 0 {
