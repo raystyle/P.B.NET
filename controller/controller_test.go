@@ -15,6 +15,10 @@ var (
 	initOnce sync.Once
 )
 
+func init() {
+	go func() { _ = http.ListenAndServe("localhost:8080", nil) }()
+}
+
 func testInitCtrl(t require.TestingT) {
 	initOnce.Do(func() {
 		cfg := testGenerateConfig()
@@ -46,10 +50,6 @@ func testInitCtrl(t require.TestingT) {
 		}()
 		ctrl.TestWait()
 	})
-}
-
-func pprof() {
-	go func() { _ = http.ListenAndServe("localhost:8080", nil) }()
 }
 
 /*

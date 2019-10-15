@@ -60,7 +60,7 @@ func (l *gormLogger) Close() {
 }
 
 func (ctrl *CTRL) Printf(l logger.Level, src string, format string, log ...interface{}) {
-	if l < ctrl.logLevel {
+	if l < ctrl.logLv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
@@ -73,7 +73,7 @@ func (ctrl *CTRL) Printf(l logger.Level, src string, format string, log ...inter
 }
 
 func (ctrl *CTRL) Print(l logger.Level, src string, log ...interface{}) {
-	if l < ctrl.logLevel {
+	if l < ctrl.logLv {
 		return
 	}
 	buffer := logger.Prefix(l, src)
@@ -86,7 +86,7 @@ func (ctrl *CTRL) Print(l logger.Level, src string, log ...interface{}) {
 }
 
 func (ctrl *CTRL) Println(l logger.Level, src string, log ...interface{}) {
-	if l < ctrl.logLevel {
+	if l < ctrl.logLv {
 		return
 	}
 	buffer := logger.Prefix(l, src)

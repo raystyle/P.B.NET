@@ -15,8 +15,7 @@ import (
 // TrustNode is used to trust Genesis Node
 // receive host info for confirm
 func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, error) {
-	cfg := &clientCfg{Node: node}
-	client, err := newClient(ctrl, cfg)
+	client, err := newClient(ctrl, node, nil)
 	if err != nil {
 		return nil, errors.WithMessage(err, "connect node failed")
 	}
@@ -45,9 +44,7 @@ func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, 
 // ConfirmTrustNode is used to confirm trust node
 // issue certificates and insert to database
 func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlineRequest) error {
-	cfg := &clientCfg{Node: node}
-	cfg.TLSConfig.InsecureSkipVerify = true
-	client, err := newClient(ctrl, cfg)
+	client, err := newClient(ctrl, node, nil)
 	if err != nil {
 		return errors.WithMessage(err, "connect node failed")
 	}
@@ -69,7 +66,6 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlin
 		ctrl.Print(logger.Exploit, "trust node", err)
 		return err
 	}
-	// insert node
 	return ctrl.db.InsertNode(&mNode{
 		GUID:        req.GUID,
 		PublicKey:   req.PublicKey,

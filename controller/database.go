@@ -22,40 +22,40 @@ type db struct {
 	cache      *cache
 }
 
-func newDB(ctx *CTRL, cfg *Config) (*db, error) {
+func newDB(ctx *CTRL, config *Config) (*db, error) {
 	// set db logger
-	dbCfg := cfg.Database
-	dbLogger, err := newDBLogger(dbCfg.Dialect, dbCfg.LogFile)
+	cfg := config.Database
+	dbLogger, err := newDBLogger(cfg.Dialect, cfg.LogFile)
 	if err != nil {
 		return nil, err
 	}
 	// if you need, add DB Driver
-	switch dbCfg.Dialect {
+	switch cfg.Dialect {
 	case "mysql":
 		_ = mysql.SetLogger(dbLogger)
 	default:
-		return nil, errors.Errorf("unknown database dialect: %s", dbCfg.Dialect)
+		return nil, errors.Errorf("unknown database dialect: %s", cfg.Dialect)
 	}
 	// connect database
-	gormDB, err := gorm.Open(dbCfg.Dialect, dbCfg.DSN)
+	gormDB, err := gorm.Open(cfg.Dialect, cfg.DSN)
 	if err != nil {
-		return nil, errors.Wrapf(err, "connect %s server failed", dbCfg.Dialect)
+		return nil, errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
 	}
 	err = gormDB.DB().Ping()
 	if err != nil {
-		return nil, errors.Wrapf(err, "ping %s server failed", dbCfg.Dialect)
+		return nil, errors.Wrapf(err, "ping %s server failed", cfg.Dialect)
 	}
 	gormDB.SingularTable(true) // not add s
 	// connection
-	gormDB.DB().SetMaxOpenConns(dbCfg.MaxOpenConns)
-	gormDB.DB().SetMaxIdleConns(dbCfg.MaxIdleConns)
+	gormDB.DB().SetMaxOpenConns(cfg.MaxOpenConns)
+	gormDB.DB().SetMaxIdleConns(cfg.MaxIdleConns)
 	// gorm logger
-	gormLogger, err := newGormLogger(dbCfg.GORMLogFile)
+	gormLogger, err := newGormLogger(cfg.GORMLogFile)
 	if err != nil {
 		return nil, err
 	}
 	gormDB.SetLogger(gormLogger)
-	if dbCfg.GORMDetailedLog {
+	if cfg.GORMDetailedLog {
 		gormDB.LogMode(true)
 	}
 	return &db{

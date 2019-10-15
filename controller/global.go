@@ -45,12 +45,12 @@ type global struct {
 	waitLoadKeys chan struct{}
 }
 
-func newGlobal(lg logger.Logger, cfg *Config) (*global, error) {
-	globalCfg := cfg.Global
+func newGlobal(logger logger.Logger, config *Config) (*global, error) {
+	cfg := config.Global
 	proxyPool, _ := proxy.NewPool(nil)
 	// load builtin dns clients
 	dnsServers := make(map[string]*dns.Server)
-	b, err := ioutil.ReadFile(globalCfg.BuiltinDir + "/dnsclient.toml")
+	b, err := ioutil.ReadFile(cfg.BuiltinDir + "/dnsclient.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "load builtin dns clients failed")
 	}
@@ -63,13 +63,13 @@ func newGlobal(lg logger.Logger, cfg *Config) (*global, error) {
 		dnsServers["builtin_"+tag] = server
 		delete(dnsServers, tag) // rename
 	}
-	dnsClient, err := dns.NewClient(proxyPool, dnsServers, globalCfg.DNSCacheDeadline)
+	dnsClient, err := dns.NewClient(proxyPool, dnsServers, cfg.DNSCacheDeadline)
 	if err != nil {
 		return nil, errors.Wrap(err, "new dns client failed")
 	}
 	// load builtin time syncer config
 	tsConfigs := make(map[string]*timesync.Config)
-	b, err = ioutil.ReadFile(globalCfg.BuiltinDir + "/timesyncer.toml")
+	b, err = ioutil.ReadFile(cfg.BuiltinDir + "/timesyncer.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "load builtin time syncer configs failed")
 	}
@@ -85,9 +85,9 @@ func newGlobal(lg logger.Logger, cfg *Config) (*global, error) {
 	timeSyncer, err := timesync.NewTimeSyncer(
 		proxyPool,
 		dnsClient,
-		lg,
+		logger,
 		tsConfigs,
-		globalCfg.TimeSyncerInterval)
+		cfg.TimeSyncerInterval)
 	if err != nil {
 		return nil, errors.Wrap(err, "new time syncer failed")
 	}
@@ -95,7 +95,7 @@ func newGlobal(lg logger.Logger, cfg *Config) (*global, error) {
 		proxyPool:    proxyPool,
 		dnsClient:    dnsClient,
 		timeSyncer:   timeSyncer,
-		keyDir:       globalCfg.KeyDir,
+		keyDir:       cfg.KeyDir,
 		objects:      make(map[uint32]interface{}),
 		waitLoadKeys: make(chan struct{}, 1),
 	}, nil

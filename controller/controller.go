@@ -1,52 +1,33 @@
 package controller
 
 import (
-	"encoding/hex"
-	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
-	"project/internal/bootstrap"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
 	"project/internal/timesync"
-	"project/internal/xpanic"
-)
-
-var (
-	ErrCtrlClosed = errors.New("Controller closed")
-	ErrMaxClient  = errors.New("max client")
 )
 
 type CTRL struct {
 	Debug *Debug
+	logLv logger.Level
 
 	db      *db      // database
 	global  *global  // proxy, dns, time syncer, and ...
 	handler *handler // handle message from Node or Beacon
-	syncer  *syncer  // sync message
 	sender  *sender  // broadcast and send message
+	syncer  *syncer  // receive message
 	boot    *boot    // auto discover bootstrap nodes
 	web     *web     // web server
 
-	logLevel  logger.Level
-	maxClient atomic.Value
-
-	// key=hex(guid)
-	clients    map[string]*syncerClient
-	clientsRWM sync.RWMutex
-
-	inShutdown int32
-	closeOnce  sync.Once
-	stopSignal chan struct{}
-	wg         sync.WaitGroup
-	wait       chan struct{}
-	exit       chan error
+	once sync.Once
+	wg   sync.WaitGroup
+	wait chan struct{}
+	exit chan error
 }
 
 func New(cfg *Config) (*CTRL, error) {
@@ -58,10 +39,9 @@ func New(cfg *Config) (*CTRL, error) {
 	// copy debug config
 	debug := cfg.Debug
 	ctrl := &CTRL{
-		Debug:    &debug,
-		logLevel: logLevel,
+		Debug: &debug,
+		logLv: logLevel,
 	}
-	ctrl.maxClient.Store(cfg.MaxSyncerClient)
 	// init database
 	db, err := newDB(ctrl, cfg)
 	if err != nil {
@@ -125,18 +105,18 @@ func New(cfg *Config) (*CTRL, error) {
 			return nil, errors.Wrapf(err, "add time syncer config %s failed", tag)
 		}
 	}
-	// init syncer
-	syncer, err := newSyncer(ctrl, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "init syncer failed")
-	}
-	ctrl.syncer = syncer
 	// init sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "init sender failed")
 	}
 	ctrl.sender = sender
+	// init syncer
+	syncer, err := newSyncer(ctrl, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "init syncer failed")
+	}
+	ctrl.syncer = syncer
 	// init boot
 	ctrl.boot = newBoot(ctrl)
 	// init http server
@@ -189,7 +169,7 @@ func (ctrl *CTRL) Main() error {
 }
 
 func (ctrl *CTRL) Exit(err error) {
-	ctrl.closeOnce.Do(func() {
+	ctrl.once.Do(func() {
 		ctrl.web.Close()
 		ctrl.Print(logger.Info, "exit", "web server is stopped")
 		ctrl.boot.Close()
@@ -219,80 +199,10 @@ func (ctrl *CTRL) LoadKeys(password string) error {
 	return ctrl.global.LoadKeys(password)
 }
 
-func (ctrl *CTRL) shuttingDown() bool {
-	return atomic.LoadInt32(&ctrl.inShutdown) != 0
-}
-
-// getMaxSyncerClient is used to get current max syncer client number
-func (ctrl *CTRL) getMaxClient() int {
-	return ctrl.maxClient.Load().(int)
-}
-
-// Connect is used to connect node for sync message
-func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {
-	if ctrl.shuttingDown() {
-		return ErrCtrlClosed
-	}
-	ctrl.clientsRWM.Lock()
-	defer ctrl.clientsRWM.Unlock()
-	if len(ctrl.clients) >= ctrl.getMaxClient() {
-		return ErrMaxClient
-	}
-	key := hex.EncodeToString(guid)
-	if _, ok := ctrl.clients[key]; ok {
-		return errors.Errorf("connect same node %s %s", node.Mode, node.Address)
-	}
-	cfg := clientCfg{
-		Node:     node,
-		NodeGUID: guid,
-	}
-	sc, err := newSyncerClient(ctrl, &cfg)
-	if err != nil {
-		return errors.WithMessage(err, "connect node failed")
-	}
-	ctrl.clients[key] = sc
-	ctrl.Printf(logger.Info, "connect", "connect node %s", node.Address)
-	return nil
-}
-
-func (ctrl *CTRL) Disconnect(guid string) error {
-	guid = strings.ToLower(guid)
-	ctrl.clientsRWM.RLock()
-	if sc, ok := ctrl.clients[guid]; ok {
-		ctrl.clientsRWM.RUnlock()
-		sc.Close()
-		ctrl.Printf(logger.Info, "disconnect", "disconnect node %s %s",
-			sc.Node.Mode, sc.Node.Address)
-		return nil
-	} else {
-		ctrl.clientsRWM.RUnlock()
-		return errors.Errorf("syncer client %s doesn't exist", strings.ToUpper(guid))
-	}
-}
-
-func (ctrl *CTRL) SyncerClients() map[string]*syncerClient {
-	ctrl.clientsRWM.RLock()
-	defer ctrl.clientsRWM.RUnlock()
-	// copy map
-	sClients := make(map[string]*syncerClient, len(ctrl.clients))
-	for key, client := range ctrl.clients {
-		sClients[key] = client
-	}
-	return sClients
-}
-
 func (ctrl *CTRL) DeleteNode(guid []byte) error {
 	err := ctrl.db.DeleteNode(guid)
 	if err != nil {
 		return errors.Wrapf(err, "delete node %X failed", guid)
-	}
-	return nil
-}
-
-func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
-	err := ctrl.db.DeleteNodeUnscoped(guid)
-	if err != nil {
-		return errors.Wrapf(err, "unscoped delete node %X failed", guid)
 	}
 	return nil
 }
@@ -305,53 +215,20 @@ func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
 	return nil
 }
 
+func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
+	err := ctrl.db.DeleteNodeUnscoped(guid)
+	if err != nil {
+		return errors.Wrapf(err, "unscoped delete node %X failed", guid)
+	}
+	return nil
+}
+
 func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 	err := ctrl.db.DeleteBeaconUnscoped(guid)
 	if err != nil {
 		return errors.Wrapf(err, "unscoped delete beacon %X failed", guid)
 	}
 	return nil
-}
-
-// TODO watcher
-
-// watcher is used to check the number of connect nodes
-// connected nodes number < syncer.maxClient, try to connect more node
-func (ctrl *CTRL) watcher() {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error("watcher panic:", r)
-			ctrl.Print(logger.Fatal, "watcher", err)
-			// restart watcher
-			time.Sleep(time.Second)
-			go ctrl.watcher()
-		} else {
-			ctrl.wg.Done()
-		}
-	}()
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-	isMax := func() bool {
-		ctrl.clientsRWM.RLock()
-		l := len(ctrl.clients)
-		ctrl.clientsRWM.RUnlock()
-		return l >= ctrl.getMaxClient()
-	}
-	watch := func() {
-		if isMax() {
-			return
-		}
-		// select nodes
-		// TODO watcher
-	}
-	for {
-		select {
-		case <-ticker.C:
-			watch()
-		case <-ctrl.stopSignal:
-			return
-		}
-	}
 }
 
 // ------------------------------------test-------------------------------------
