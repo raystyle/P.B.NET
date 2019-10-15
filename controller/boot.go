@@ -13,10 +13,12 @@ import (
 )
 
 type boot struct {
-	ctx        *CTRL
+	ctx *CTRL
+
 	clients    map[string]*bClient // key = mBoot.Tag
 	clientsRWM sync.RWMutex
-	inClose    int32
+
+	inClose int32
 }
 
 func newBoot(ctx *CTRL) *boot {

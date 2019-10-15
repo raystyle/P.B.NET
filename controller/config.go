@@ -45,7 +45,7 @@ type Config struct {
 		MaxBufferSize int           `toml:"max_buffer_size"`
 		Worker        int           `toml:"worker"`
 		QueueSize     int           `toml:"queue_size"`
-		Timeout       time.Duration `toml:"timeout"` // TODO rename
+		ExpireTime    time.Duration `toml:"expire_time"`
 	} `toml:"syncer"`
 
 	Web struct {
