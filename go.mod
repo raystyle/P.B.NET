@@ -12,7 +12,7 @@ require (
 	github.com/pelletier/go-toml v1.5.0
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
-	github.com/vmihailenco/msgpack/v4 v4.2.0
+	github.com/vmihailenco/msgpack/v4 v4.2.1
 	golang.org/x/crypto v0.0.0-20191002192127-34f69633bfdc
 	golang.org/x/net v0.0.0-20191003171128-d98b1b443823
 )
