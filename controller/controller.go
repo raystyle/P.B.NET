@@ -182,9 +182,17 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
 		ctrl.db.Close()
+		// clean point
+		ctrl.db = nil
+		ctrl.logger = nil
+		ctrl.global = nil
+		ctrl.handler = nil
+		ctrl.sender = nil
+		ctrl.syncer = nil
+		ctrl.boot = nil
+		ctrl.web = nil
 		ctrl.exit <- err
 		close(ctrl.exit)
-		// TODO clean point
 	})
 }
 
