@@ -17,9 +17,9 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/options"
 	"project/internal/protocol"
+	"project/internal/testdata"
 	"project/internal/xnet"
 	"project/node"
-	"project/testdata"
 )
 
 func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {

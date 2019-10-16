@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/testdata"
+	"project/internal/testdata"
 )
 
 var (

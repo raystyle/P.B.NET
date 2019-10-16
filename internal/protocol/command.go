@@ -10,7 +10,7 @@ const (
 	CtrlHeartbeat uint8 = 0x00 + iota
 	CtrlReply
 
-	CtrlSyncStart
+	CtrlSync
 	CtrlBroadcastGUID
 	CtrlBroadcast
 	CtrlSendToNodeGUID
@@ -38,7 +38,7 @@ const (
 	NodeHeartbeat uint8 = 0x60 + iota
 	NodeReply
 
-	NodeSyncStart
+	NodeSync
 	NodeSendGUID
 	NodeSend
 )

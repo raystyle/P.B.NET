@@ -53,7 +53,7 @@ func Parse(level string) (Level, error) {
 	case "off":
 		l = Off
 	default:
-		return l, fmt.Errorf("unknown level: %s", level)
+		return l, fmt.Errorf("unknown logger level: %s", level)
 	}
 	return l, nil
 }
@@ -80,7 +80,7 @@ func Prefix(l Level, src string) *bytes.Buffer {
 	default:
 		lv = "unknown"
 	}
-	buffer := &bytes.Buffer{}
+	buffer := bytes.Buffer{}
 	buffer.WriteString("[")
 	buffer.WriteString(time.Now().Local().Format(TimeLayout))
 	buffer.WriteString("] [")
@@ -88,7 +88,7 @@ func Prefix(l Level, src string) *bytes.Buffer {
 	buffer.WriteString("] <")
 	buffer.WriteString(src)
 	buffer.WriteString("> ")
-	return buffer
+	return &buffer
 }
 
 // Wrap is for go internal logger like http.Server.ErrorLog

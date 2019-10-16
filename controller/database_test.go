@@ -13,8 +13,8 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/testdata"
 	"project/internal/xnet"
-	"project/testdata"
 )
 
 func TestInsertProxyClient(t *testing.T) {

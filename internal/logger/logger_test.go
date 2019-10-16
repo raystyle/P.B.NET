@@ -9,17 +9,18 @@ import (
 )
 
 const (
-	testSrc = "test src"
-	testLog = "test log"
+	testSrc  = "test src"
+	testLog1 = "test"
+	testLog2 = "log"
 )
 
 func TestLogger(t *testing.T) {
-	Test.Printf(Debug, testSrc, "test format %s", testLog)
-	Test.Print(Debug, testSrc, "test print", testLog)
-	Test.Println(Debug, testSrc, "test println", testLog)
-	Discard.Printf(Debug, testSrc, "test format %s", testLog)
-	Discard.Print(Debug, testSrc, "test print", testLog)
-	Discard.Println(Debug, testSrc, "test println", testLog)
+	Test.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
+	Test.Print(Debug, testSrc, "test-print", testLog1, testLog2)
+	Test.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+	Discard.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
+	Discard.Print(Debug, testSrc, "test-print", testLog1, testLog2)
+	Discard.Println(Debug, testSrc, "test-println", testLog1, testLog2)
 }
 
 func TestParse(t *testing.T) {
