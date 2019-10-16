@@ -21,18 +21,6 @@ import (
 	"project/internal/timesync"
 )
 
-type objectKey = uint32
-
-const (
-	okPrivateKey        objectKey = iota // verify controller role & sign message
-	okPublicKey                          // for role
-	okKeyExPub                           // for key exchange
-	okAESCrypto                          // encrypt controller broadcast message
-	okCACertificates                     // x509.Certificate
-	okCAPrivateKeys                      // rsa.PrivateKey
-	okCACertificatesStr                  // x509.Certificate
-)
-
 type global struct {
 	keyDir string
 
@@ -124,6 +112,18 @@ func (global *global) AddDNSSever(tag string, server *dns.Server) error {
 func (global *global) AddTimeSyncerConfig(tag string, config *timesync.Config) error {
 	return global.timeSyncer.Add(tag, config)
 }
+
+type objectKey = uint32
+
+const (
+	okPrivateKey        objectKey = iota // verify controller role & sign message
+	okPublicKey                          // for role
+	okKeyExPub                           // for key exchange
+	okAESCrypto                          // encrypt controller broadcast message
+	okCACertificates                     // x509.Certificate
+	okCAPrivateKeys                      // rsa.PrivateKey
+	okCACertificatesStr                  // x509.Certificate
+)
 
 func (global *global) LoadKeys(password string) error {
 	global.objectsRWM.Lock()
