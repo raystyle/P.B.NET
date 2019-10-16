@@ -365,6 +365,6 @@ func (global *global) SetSyncSendHeight(height uint64) {
 	global.objectRWM.Unlock()
 }
 
-func (global *global) Destroy() {
+func (global *global) Close() {
 	global.timeSyncer.Stop()
 }

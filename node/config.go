@@ -82,7 +82,7 @@ func (cfg *Config) Check() error {
 	if err != nil {
 		return err
 	}
-	node.global.Destroy()
+	node.global.Close()
 	return nil
 }
 

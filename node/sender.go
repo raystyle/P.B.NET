@@ -143,7 +143,7 @@ func (sender *sender) BroadcastPlugin(
 func (sender *sender) Send(
 	command []byte,
 	message interface{},
-) (r *protocol.SyncResult) {
+) error {
 	done := sender.syncSendDonePool.Get().(chan *protocol.SyncResult)
 	sst := sender.syncSendTaskPool.Get().(*syncSendTask)
 	sst.Command = command

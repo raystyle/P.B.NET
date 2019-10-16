@@ -8,55 +8,55 @@ import (
 	"project/internal/config"
 	"project/internal/logger"
 	"project/internal/messages"
-	"project/internal/protocol"
 )
 
 type NODE struct {
-	Debug  *Debug
-	logLv  logger.Level
-	global *global
-	syncer *syncer
-	sender *sender
-	server *server
-	once   sync.Once
-	wait   chan struct{}
-	exit   chan error
+	Debug *Debug
+
+	logger  *xLogger // logger
+	global  *global
+	handler *handler
+	sender  *sender
+	syncer  *syncer
+	server  *server
+
+	once sync.Once
+	wait chan struct{}
+	exit chan error
 }
 
 func New(cfg *Config) (*NODE, error) {
-	// init logger
-	lv, err := logger.Parse(cfg.LogLevel)
-	if err != nil {
-		return nil, err
-	}
 	// copy debug config
 	debug := cfg.Debug
-	node := &NODE{
-		Debug: &debug,
-		logLv: lv,
-	}
-	// init global
-	global, err := newGlobal(node, cfg)
+	node := &NODE{Debug: &debug}
+	// logger
+	lg, err := newLogger(node, cfg.LogLevel)
 	if err != nil {
-		return nil, errors.WithMessage(err, "init global failed")
+		return nil, errors.WithMessage(err, "initialize logger failed")
+	}
+	node.logger = lg
+	// global
+	global, err := newGlobal(node.logger, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "initialize global failed")
 	}
 	node.global = global
-	// init syncer
-	syncer, err := newSyncer(node, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "init syncer failed")
-	}
-	node.syncer = syncer
-	// init sender
+	// sender
 	sender, err := newSender(node, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "init sender failed")
+		return nil, errors.WithMessage(err, "initialize sender failed")
 	}
 	node.sender = sender
-	// init server
+	// syncer
+	syncer, err := newSyncer(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "initialize syncer failed")
+	}
+	node.syncer = syncer
+	// server
 	server, err := newServer(node, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "init server failed")
+		return nil, errors.WithMessage(err, "initialize server failed")
 	}
 	node.server = server
 	// register
@@ -81,31 +81,42 @@ func (node *NODE) Main() error {
 		}
 	}
 	now := node.global.Now().Format(logger.TimeLayout)
-	node.Println(logger.Info, "init", "time:", now)
+	node.logger.Println(logger.Info, "init", "time:", now)
 	// deploy server
 	err := node.server.Deploy()
 	if err != nil {
 		return node.fatal(err, "deploy server failed")
 	}
-	node.Print(logger.Info, "init", "node is running")
+	node.logger.Print(logger.Info, "init", "node is running")
 	node.wait <- struct{}{}
 	return <-node.exit
 }
 
 func (node *NODE) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	node.Println(logger.Fatal, "init", err)
+	node.logger.Println(logger.Fatal, "init", err)
 	node.Exit(nil)
 	return err
 }
 
 func (node *NODE) Exit(err error) {
 	node.once.Do(func() {
-		node.server.Shutdown()
-		node.Print(logger.Info, "exit", "web server is stopped")
-		node.global.Destroy()
-		node.Print(logger.Info, "exit", "global is stopped")
-		node.Print(logger.Info, "exit", "node is stopped")
+		node.server.Close()
+		node.logger.Print(logger.Info, "exit", "web server is stopped")
+		node.syncer.Close()
+		node.logger.Print(logger.Info, "exit", "syncer is stopped")
+		node.sender.Close()
+		node.logger.Print(logger.Info, "exit", "sender is stopped")
+		node.global.Close()
+		node.logger.Print(logger.Info, "exit", "global is stopped")
+		node.logger.Print(logger.Info, "exit", "node is stopped")
+		// clean point
+		node.logger = nil
+		node.global = nil
+		node.handler = nil
+		node.sender = nil
+		node.syncer = nil
+		node.server = nil
 		node.exit <- err
 		close(node.exit)
 	})
@@ -126,10 +137,6 @@ func (node *NODE) TestGetGUID() []byte {
 	return node.global.GUID()
 }
 
-func (node *NODE) TestBroadcast(msg []byte) *protocol.BroadcastResult {
-	return node.sender.Broadcast(messages.TestB, msg)
-}
-
-func (node *NODE) TestSend(msg []byte) *protocol.SyncResult {
+func (node *NODE) TestSend(msg []byte) error {
 	return node.sender.Send(messages.TestB, msg)
 }

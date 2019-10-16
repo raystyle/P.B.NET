@@ -8,47 +8,62 @@ import (
 	"project/internal/logger"
 )
 
-func (node *NODE) Printf(l logger.Level, src, format string, log ...interface{}) {
-	if l < node.logLv {
-		return
-	}
-	b := logger.Prefix(l, src)
-	if b == nil {
-		return
-	}
-	_, _ = fmt.Fprintf(b, format, log...)
-	node.printLog(b)
+type xLogger struct {
+	ctx   *NODE
+	level logger.Level
 }
 
-func (node *NODE) Print(l logger.Level, src string, log ...interface{}) {
-	if l < node.logLv {
-		return
+func newLogger(ctx *NODE, level string) (*xLogger, error) {
+	// init logger
+	lv, err := logger.Parse(level)
+	if err != nil {
+		return nil, err
 	}
-	b := logger.Prefix(l, src)
-	if b == nil {
-		return
-	}
-	_, _ = fmt.Fprint(b, log...)
-	node.printLog(b)
+	return &xLogger{
+		ctx:   ctx,
+		level: lv,
+	}, nil
 }
 
-func (node *NODE) Println(l logger.Level, src string, log ...interface{}) {
-	if l < node.logLv {
+func (lg *xLogger) Printf(lv logger.Level, src string, format string, log ...interface{}) {
+	if lv < lg.level {
 		return
 	}
-	b := logger.Prefix(l, src)
-	if b == nil {
-		return
-	}
-	_, _ = fmt.Fprintln(b, log...)
-	b.Truncate(b.Len() - 1) // delete "\n"
-	node.printLog(b)
+	buffer := logger.Prefix(lv, src)
+	// log with level and src
+	logStr := fmt.Sprintf(format, log...)
+	buffer.WriteString(logStr)
+	buffer.WriteString("\n")
+	lg.writeLog(lv, src, logStr, buffer)
 }
 
-func (node *NODE) printLog(b *bytes.Buffer) {
+func (lg *xLogger) Print(lv logger.Level, src string, log ...interface{}) {
+	if lv < lg.level {
+		return
+	}
+	buffer := logger.Prefix(lv, src)
+	// log with level and src
+	logStr := fmt.Sprint(log...)
+	buffer.WriteString(logStr)
+	buffer.WriteString("\n")
+	lg.writeLog(lv, src, logStr, buffer)
+}
+
+func (lg *xLogger) Println(lv logger.Level, src string, log ...interface{}) {
+	if lv < lg.level {
+		return
+	}
+	buffer := logger.Prefix(lv, src)
+	// log with level and src
+	logStr := fmt.Sprintln(log...)
+	buffer.WriteString(logStr)
+	lg.writeLog(lv, src, logStr[:len(logStr)-1], buffer) // delete "\n"
+}
+
+// log don't include time level src, for database
+func (lg *xLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 	// send to controller
 
-	// print console
-	b.WriteString("\n")
+	// print to console
 	_, _ = b.WriteTo(os.Stdout)
 }

@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	go func() { _ = http.ListenAndServe("localhost:8080", nil) }()
+}
+
 func TestGenesisNode(t *testing.T) {
 	testNode(t, true)
 }
@@ -24,8 +28,4 @@ func testNode(t *testing.T, genesis bool) {
 		require.NoError(t, err)
 	}()
 	node.TestWait()
-}
-
-func pprof() {
-	go func() { _ = http.ListenAndServe("localhost:8080", nil) }()
 }

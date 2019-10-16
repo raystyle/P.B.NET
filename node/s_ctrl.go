@@ -71,8 +71,8 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 	protocol.HandleConn(conn, ctrl.handleMessage)
 }
 
-func (ctrl *ctrlConn) Info() *xnet.Info {
-	return ctrl.conn.Info()
+func (ctrl *ctrlConn) Info() *xnet.Status {
+	return ctrl.conn.Status()
 }
 
 func (ctrl *ctrlConn) Close() {
@@ -143,7 +143,7 @@ func (ctrl *ctrlConn) handleMessage(msg []byte) {
 		ctrl.handleReply(msg[cmd:])
 	case protocol.CtrlHeartbeat:
 		ctrl.handleHeartbeat()
-	case protocol.CtrlSyncStart:
+	case protocol.CtrlSync:
 		ctrl.handleSyncStart(msg[cmd:id])
 	case protocol.CtrlTrustNode:
 		ctrl.handleTrustNode(msg[cmd:id])
@@ -367,7 +367,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 
 func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 	if ctrl.ctx.syncer.SetCtrlConn(ctrl) {
-		ctrl.reply(id, []byte{protocol.NodeSyncStart})
+		ctrl.reply(id, []byte{protocol.NodeSync})
 		ctrl.log(logger.Debug, "synchronizing")
 	} else {
 		ctrl.Close()
