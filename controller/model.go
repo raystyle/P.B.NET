@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/jinzhu/gorm"
@@ -8,7 +10,6 @@ import (
 
 	"project/internal/config"
 	"project/internal/xnet"
-	"project/internal/xreflect"
 )
 
 func init() {
@@ -161,6 +162,12 @@ type mTrustNode struct {
 	Address string    `json:"address"`
 }
 
+func getStructureName(v interface{}) string {
+	s := reflect.TypeOf(v).String()
+	ss := strings.Split(s, ".")
+	return ss[len(ss)-1]
+}
+
 // InitializeDatabase is used to initialize database
 // if first use this project
 func InitializeDatabase(cfg *Config) error {
@@ -232,13 +239,13 @@ func InitializeDatabase(cfg *Config) error {
 		if n == "" {
 			err = db.DropTableIfExists(m).Error
 			if err != nil {
-				table := gorm.ToTableName(xreflect.StructName(m))
+				table := gorm.ToTableName(getStructureName(m))
 				return errors.Wrapf(err, "drop table %s failed", table)
 			}
 		} else {
 			err = db.Table(n).DropTableIfExists(m).Error
 			if err != nil {
-				table := gorm.ToTableName(xreflect.StructName(m))
+				table := gorm.ToTableName(getStructureName(m))
 				return errors.Wrapf(err, "drop table %s failed", table)
 			}
 		}
@@ -250,7 +257,7 @@ func InitializeDatabase(cfg *Config) error {
 		if n == "" {
 			err = db.CreateTable(m).Error
 			if err != nil {
-				table := gorm.ToTableName(xreflect.StructName(m))
+				table := gorm.ToTableName(getStructureName(m))
 				return errors.Wrapf(err, "create table %s failed", table)
 			}
 		} else {
@@ -264,7 +271,7 @@ func InitializeDatabase(cfg *Config) error {
 	addErr := func(table string, err error) error {
 		return errors.Wrapf(err, "add %s foreign key failed", table)
 	}
-	table := gorm.ToTableName(xreflect.StructName(&mNode{}))
+	table := gorm.ToTableName(getStructureName(&mNode{}))
 	err = db.Model(&mNodeListener{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
@@ -276,7 +283,7 @@ func InitializeDatabase(cfg *Config) error {
 		return addErr(table, err)
 	}
 	// add beacon foreign key
-	table = gorm.ToTableName(xreflect.StructName(&mBeacon{}))
+	table = gorm.ToTableName(getStructureName(&mBeacon{}))
 	err = db.Model(&mBeaconMessage{}).AddForeignKey("guid", table+"(guid)",
 		"CASCADE", "CASCADE").Error
 	if err != nil {
