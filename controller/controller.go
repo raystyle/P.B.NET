@@ -14,9 +14,9 @@ import (
 
 type CTRL struct {
 	Debug *Debug
-	logLv logger.Level
 
 	db      *db      // database
+	logger  *xLogger // logger
 	global  *global  // proxy, dns, time syncer, and ...
 	handler *handler // handle message from Node or Beacon
 	sender  *sender  // broadcast and send message
@@ -31,31 +31,29 @@ type CTRL struct {
 }
 
 func New(cfg *Config) (*CTRL, error) {
-	// init logger
-	logLevel, err := logger.Parse(cfg.LogLevel)
+	// database
+	db, err := newDB(cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "initialize database failed")
 	}
 	// copy debug config
 	debug := cfg.Debug
 	ctrl := &CTRL{
 		Debug: &debug,
-		logLv: logLevel,
+		db:    db,
 	}
-	// init database
-	db, err := newDB(ctrl, cfg)
+	// logger
+	lg, err := newLogger(ctrl, cfg.LogLevel)
 	if err != nil {
-		return nil, errors.WithMessage(err, "init database failed")
+		return nil, errors.WithMessage(err, "initialize logger failed")
 	}
-	ctrl.db = db
-	// init global
-	global, err := newGlobal(ctrl, cfg)
+	ctrl.logger = lg
+	// global
+	global, err := newGlobal(ctrl.logger, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "init global failed")
+		return nil, errors.WithMessage(err, "initialize global failed")
 	}
 	ctrl.global = global
-	// handler
-	ctrl.handler = &handler{ctx: ctrl}
 	// load proxy clients from database
 	pcs, err := ctrl.db.SelectProxyClient()
 	if err != nil {
@@ -105,24 +103,26 @@ func New(cfg *Config) (*CTRL, error) {
 			return nil, errors.Wrapf(err, "add time syncer config %s failed", tag)
 		}
 	}
-	// init sender
+	// handler
+	ctrl.handler = &handler{ctx: ctrl}
+	// sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "init sender failed")
+		return nil, errors.WithMessage(err, "initialize sender failed")
 	}
 	ctrl.sender = sender
-	// init syncer
+	// syncer
 	syncer, err := newSyncer(ctrl, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "init syncer failed")
+		return nil, errors.WithMessage(err, "initialize syncer failed")
 	}
 	ctrl.syncer = syncer
-	// init boot
+	// boot
 	ctrl.boot = newBoot(ctrl)
-	// init http server
+	// http server
 	web, err := newWeb(ctrl, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "init web server failed")
+		return nil, errors.WithMessage(err, "initialize web server failed")
 	}
 	ctrl.web = web
 	// wait and exit
@@ -141,23 +141,23 @@ func (ctrl *CTRL) Main() error {
 		}
 	}
 	now := ctrl.global.Now().Format(logger.TimeLayout)
-	ctrl.Println(logger.Info, "init", "time:", now)
+	ctrl.logger.Println(logger.Info, "init", "time:", now)
 	// start web server
 	err := ctrl.web.Deploy()
 	if err != nil {
 		return ctrl.fatal(err, "deploy web server failed")
 	}
-	ctrl.Println(logger.Info, "init", "http server:", ctrl.web.Address())
-	ctrl.Print(logger.Info, "init", "controller is running")
+	ctrl.logger.Println(logger.Info, "init", "http server:", ctrl.web.Address())
+	ctrl.logger.Print(logger.Info, "init", "controller is running")
 	go func() {
 		// wait to load controller keys
 		ctrl.global.WaitLoadKeys()
-		ctrl.Print(logger.Info, "init", "load keys successfully")
+		ctrl.logger.Print(logger.Info, "init", "load keys successfully")
 		// load boots
-		ctrl.Print(logger.Info, "init", "start discover bootstrap nodes")
+		ctrl.logger.Print(logger.Info, "init", "start discover bootstrap nodes")
 		boots, err := ctrl.db.SelectBoot()
 		if err != nil {
-			ctrl.Println(logger.Error, "init", "select boot failed:", err)
+			ctrl.logger.Println(logger.Error, "init", "select boot failed:", err)
 			return
 		}
 		for i := 0; i < len(boots); i++ {
@@ -171,16 +171,16 @@ func (ctrl *CTRL) Main() error {
 func (ctrl *CTRL) Exit(err error) {
 	ctrl.once.Do(func() {
 		ctrl.web.Close()
-		ctrl.Print(logger.Info, "exit", "web server is stopped")
+		ctrl.logger.Print(logger.Info, "exit", "web server is stopped")
 		ctrl.boot.Close()
-		ctrl.Print(logger.Info, "exit", "boot is stopped")
+		ctrl.logger.Print(logger.Info, "exit", "boot is stopped")
 		ctrl.sender.Close()
-		ctrl.Print(logger.Info, "exit", "sender is stopped")
+		ctrl.logger.Print(logger.Info, "exit", "sender is stopped")
 		ctrl.syncer.Close()
-		ctrl.Print(logger.Info, "exit", "syncer is stopped")
+		ctrl.logger.Print(logger.Info, "exit", "syncer is stopped")
 		ctrl.global.Destroy()
-		ctrl.Print(logger.Info, "exit", "global is stopped")
-		ctrl.Print(logger.Info, "exit", "controller is stopped")
+		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
+		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
 		ctrl.db.Close()
 		ctrl.exit <- err
 		close(ctrl.exit)
@@ -190,7 +190,7 @@ func (ctrl *CTRL) Exit(err error) {
 
 func (ctrl *CTRL) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	ctrl.Println(logger.Fatal, "init", err)
+	ctrl.logger.Println(logger.Fatal, "init", err)
 	ctrl.Exit(nil)
 	return err
 }

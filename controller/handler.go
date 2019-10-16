@@ -15,15 +15,15 @@ type handler struct {
 }
 
 func (h *handler) logf(l logger.Level, format string, log ...interface{}) {
-	h.ctx.Printf(l, "handler", format, log...)
+	h.ctx.logger.Printf(l, "handler", format, log...)
 }
 
 func (h *handler) log(l logger.Level, log ...interface{}) {
-	h.ctx.Print(l, "handler", log...)
+	h.ctx.logger.Print(l, "handler", log...)
 }
 
 func (h *handler) logln(l logger.Level, log ...interface{}) {
-	h.ctx.Println(l, "handler", log...)
+	h.ctx.logger.Println(l, "handler", log...)
 }
 
 // messages from syncer

@@ -111,19 +111,19 @@ func (client *client) Close() {
 func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 	b := logger.Conn(client.conn)
 	_, _ = fmt.Fprintf(b, format, log...)
-	client.ctx.Print(l, "client", b)
+	client.ctx.logger.Print(l, "client", b)
 }
 
 func (client *client) log(l logger.Level, log ...interface{}) {
 	b := logger.Conn(client.conn)
 	_, _ = fmt.Fprint(b, log...)
-	client.ctx.Print(l, "client", b)
+	client.ctx.logger.Print(l, "client", b)
 }
 
 func (client *client) logln(l logger.Level, log ...interface{}) {
 	b := logger.Conn(client.conn)
 	_, _ = fmt.Fprintln(b, log...)
-	client.ctx.Print(l, "client", b)
+	client.ctx.logger.Print(l, "client", b)
 }
 
 func (client *client) handshake(conn net.Conn) (*xnet.Conn, error) {

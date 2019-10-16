@@ -372,37 +372,7 @@ func (sender *sender) isClosing() bool {
 	return atomic.LoadInt32(&sender.closing) != 0
 }
 
-func (sender *sender) Close() {
-	atomic.StoreInt32(&sender.closing, 1)
-	// disconnect sender client
-	for _, client := range sender.getClients() {
-		client.Close()
-	}
-	// wait close
-	for {
-		time.Sleep(10 * time.Millisecond)
-		if len(sender.getClients()) == 0 {
-			break
-		}
-	}
-	close(sender.stopSignal)
-	sender.wg.Wait()
-	sender.guid.Close()
-}
-
-func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
-	sender.ctx.Printf(l, "sender", format, log...)
-}
-
-func (sender *sender) log(l logger.Level, log ...interface{}) {
-	sender.ctx.Print(l, "sender", log...)
-}
-
-func (sender *sender) logln(l logger.Level, log ...interface{}) {
-	sender.ctx.Println(l, "sender", log...)
-}
-
-func (sender *sender) getClients() map[string]*senderClient {
+func (sender *sender) GetClients() map[string]*senderClient {
 	sender.clientsRWM.RLock()
 	clients := make(map[string]*senderClient, len(sender.clients))
 	for key, client := range sender.clients {
@@ -412,11 +382,40 @@ func (sender *sender) getClients() map[string]*senderClient {
 	return clients
 }
 
+func (sender *sender) Close() {
+	atomic.StoreInt32(&sender.closing, 1)
+	close(sender.stopSignal)
+	sender.wg.Wait()
+	for {
+		// disconnect all sender client
+		for _, client := range sender.GetClients() {
+			client.Close()
+		}
+		// wait close
+		time.Sleep(10 * time.Millisecond)
+		if len(sender.GetClients()) == 0 {
+			break
+		}
+	}
+}
+
+func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
+	sender.ctx.logger.Printf(l, "sender", format, log...)
+}
+
+func (sender *sender) log(l logger.Level, log ...interface{}) {
+	sender.ctx.logger.Print(l, "sender", log...)
+}
+
+func (sender *sender) logln(l logger.Level, log ...interface{}) {
+	sender.ctx.logger.Println(l, "sender", log...)
+}
+
 // TODO panic in go func
 
 func (sender *sender) broadcast(guid, message []byte) (
 	resp []*protocol.BroadcastResponse, success int) {
-	clients := sender.getClients()
+	clients := sender.GetClients()
 	l := len(clients)
 	if l == 0 {
 		return nil, 0
@@ -448,7 +447,7 @@ func (sender *sender) broadcast(guid, message []byte) (
 
 func (sender *sender) send(role protocol.Role, guid, message []byte) (
 	resp []*protocol.SendResponse, success int) {
-	clients := sender.getClients()
+	clients := sender.GetClients()
 	l := len(clients)
 	if l == 0 {
 		return nil, 0
@@ -491,7 +490,7 @@ func (sender *sender) send(role protocol.Role, guid, message []byte) (
 }
 
 func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) {
-	clients := sender.getClients()
+	clients := sender.GetClients()
 	l := len(clients)
 	if l == 0 {
 		return
@@ -667,15 +666,6 @@ func (sw *senderWorker) handleSendTask() {
 	if result.Err != nil {
 		return
 	}
-	// check is need to write message to the database
-	if sw.st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(sw.roleGUID) {
-		// TODO sign and other
-		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(sw.st.GUID, sw.preS.Message)
-		if result.Err == nil {
-			result.Success = 1
-		}
-		return
-	}
 	// set GUID
 	sw.preS.GUID = sw.ctx.guid.Get()
 	sw.preS.RoleGUID = sw.st.GUID
@@ -694,6 +684,15 @@ func (sw *senderWorker) handleSendTask() {
 	sw.buffer.Reset()
 	result.Err = sw.msgpack.Encode(sw.preS)
 	if result.Err != nil {
+		return
+	}
+	// TODO query
+	// check is need to write message to the database
+	if sw.st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(sw.roleGUID) {
+		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(sw.st.GUID, sw.buffer.Bytes())
+		if result.Err == nil {
+			result.Success = 1
+		}
 		return
 	}
 	// send

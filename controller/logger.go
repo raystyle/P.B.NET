@@ -59,55 +59,60 @@ func (l *gormLogger) Close() {
 	_ = l.file.Close()
 }
 
-func (ctrl *CTRL) Printf(l logger.Level, src string, format string, log ...interface{}) {
-	if l < ctrl.logLv {
-		return
-	}
-	buffer := logger.Prefix(l, src)
-	if buffer == nil {
-		return
-	}
-	logStr := fmt.Sprintf(format, log...)
-	buffer.WriteString(logStr)
-	ctrl.printLog(l, src, logStr, buffer)
+type xLogger struct {
+	ctx   *CTRL
+	level logger.Level
 }
 
-func (ctrl *CTRL) Print(l logger.Level, src string, log ...interface{}) {
-	if l < ctrl.logLv {
-		return
+func newLogger(ctx *CTRL, level string) (*xLogger, error) {
+	// init logger
+	lv, err := logger.Parse(level)
+	if err != nil {
+		return nil, err
 	}
-	buffer := logger.Prefix(l, src)
-	if buffer == nil {
-		return
-	}
-	logStr := fmt.Sprint(log...)
-	buffer.WriteString(logStr)
-	ctrl.printLog(l, src, logStr, buffer)
+	return &xLogger{
+		ctx:   ctx,
+		level: lv,
+	}, nil
 }
 
-func (ctrl *CTRL) Println(l logger.Level, src string, log ...interface{}) {
-	if l < ctrl.logLv {
+func (lg *xLogger) Printf(lv logger.Level, src string, format string, log ...interface{}) {
+	if lv < lg.level {
 		return
 	}
-	buffer := logger.Prefix(l, src)
-	if buffer == nil {
+	buffer := logger.Prefix(lv, src)
+	_, _ = fmt.Fprintf(buffer, format, log...)
+	lg.printLog(lv, src, buffer)
+}
+
+func (lg *xLogger) Print(lv logger.Level, src string, log ...interface{}) {
+	if lv < lg.level {
 		return
 	}
-	logStr := fmt.Sprintln(log...)
-	logStr = logStr[:len(logStr)-1] // delete "\n"
-	buffer.WriteString(logStr)
-	ctrl.printLog(l, src, logStr, buffer)
+	buffer := logger.Prefix(lv, src)
+	_, _ = fmt.Fprint(buffer, log...)
+	lg.printLog(lv, src, buffer)
+}
+
+func (lg *xLogger) Println(lv logger.Level, src string, log ...interface{}) {
+	if lv < lg.level {
+		return
+	}
+	buffer := logger.Prefix(lv, src)
+	_, _ = fmt.Fprintln(buffer, log...)
+	buffer.Truncate(buffer.Len() - 1) // delete "\n"
+	lg.printLog(lv, src, buffer)
 }
 
 // log don't include time level src, for database
-func (ctrl *CTRL) printLog(l logger.Level, src, log string, b *bytes.Buffer) {
+func (lg *xLogger) printLog(lv logger.Level, src string, b *bytes.Buffer) {
 	// write to database
-	m := &mCtrlLog{
-		Level:  l,
+	m := mCtrlLog{
+		Level:  lv,
 		Source: src,
-		Log:    log,
+		Log:    b.String(),
 	}
-	_ = ctrl.db.InsertCtrlLog(m)
+	_ = lg.ctx.db.InsertCtrlLog(&m)
 	// print console
 	b.WriteString("\n")
 	_, _ = b.WriteTo(os.Stdout)

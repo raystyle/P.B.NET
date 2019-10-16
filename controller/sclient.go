@@ -210,19 +210,19 @@ func (sc *senderClient) Close() {
 func (sc *senderClient) logf(l logger.Level, format string, log ...interface{}) {
 	b := logger.Conn(sc.client.conn)
 	_, _ = fmt.Fprintf(b, format, log...)
-	sc.ctx.Print(l, "sender-client", b)
+	sc.ctx.logger.Print(l, "sender client", b)
 }
 
 func (sc *senderClient) log(l logger.Level, log ...interface{}) {
 	b := logger.Conn(sc.client.conn)
 	_, _ = fmt.Fprint(b, log...)
-	sc.ctx.Print(l, "sender-client", b)
+	sc.ctx.logger.Print(l, "sender client", b)
 }
 
 func (sc *senderClient) logln(l logger.Level, log ...interface{}) {
 	b := logger.Conn(sc.client.conn)
 	_, _ = fmt.Fprintln(b, log...)
-	sc.ctx.Print(l, "sender-client", b)
+	sc.ctx.logger.Print(l, "sender client", b)
 }
 
 // can use client.Close()

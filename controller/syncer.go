@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"hash"
 	"math"
@@ -88,15 +89,15 @@ func (syncer *syncer) Close() {
 }
 
 func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
-	syncer.ctx.Printf(l, "syncer", format, log...)
+	syncer.ctx.logger.Printf(l, "syncer", format, log...)
 }
 
 func (syncer *syncer) log(l logger.Level, log ...interface{}) {
-	syncer.ctx.Print(l, "syncer", log...)
+	syncer.ctx.logger.Print(l, "syncer", log...)
 }
 
 func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
-	syncer.ctx.Println(l, "syncer", log...)
+	syncer.ctx.logger.Println(l, "syncer", log...)
 }
 
 // task from syncer client
@@ -348,7 +349,7 @@ func (sw *syncerWorker) handleBeaconSend() {
 	// check hash
 	sw.hash.Reset()
 	sw.hash.Write(sw.send.Message)
-	if !bytes.Equal(sw.hash.Sum(nil), sw.send.Hash) {
+	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), sw.send.Hash) != 1 {
 		sw.ctx.logf(logger.Exploit, "beacon %X send with wrong hash", sw.send.RoleGUID)
 		return
 	}
@@ -385,9 +386,7 @@ func (sw *syncerWorker) handleNodeSend() {
 	// check hash
 	sw.hash.Reset()
 	sw.hash.Write(sw.send.Message)
-	// TODO hash
-
-	if !bytes.Equal(sw.hash.Sum(nil), sw.send.Hash) {
+	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), sw.send.Hash) != 1 {
 		sw.ctx.logf(logger.Exploit, "node %X send with wrong hash", sw.send.RoleGUID)
 		return
 	}

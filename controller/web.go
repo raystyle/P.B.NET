@@ -83,7 +83,7 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: time.Minute,
 		Handler:           router,
-		ErrorLog:          logger.Wrap(logger.Warning, "web", ctx),
+		ErrorLog:          logger.Wrap(logger.Warning, "web", ctx.logger),
 	}
 	return &web, nil
 }
@@ -140,7 +140,7 @@ func (web *web) handleIndex(w hRW, r *hR, p hP) {
 }
 
 // ------------------------------debug API----------------------------------
-// TODO remove or check
+
 func (web *web) handleShutdown(w hRW, r *hR, p hP) {
 	_ = r.ParseForm()
 	errStr := r.FormValue("err")

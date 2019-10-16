@@ -9,20 +9,16 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
-
-	"project/internal/logger"
 )
 
 type db struct {
-	ctx *CTRL
-
 	dbLogger   *dbLogger
 	gormLogger *gormLogger
 	db         *gorm.DB
 	cache      *cache
 }
 
-func newDB(ctx *CTRL, config *Config) (*db, error) {
+func newDB(config *Config) (*db, error) {
 	// set db logger
 	cfg := config.Database
 	dbLogger, err := newDBLogger(cfg.Dialect, cfg.LogFile)
@@ -59,7 +55,6 @@ func newDB(ctx *CTRL, config *Config) (*db, error) {
 		gormDB.LogMode(true)
 	}
 	return &db{
-		ctx:        ctx,
 		dbLogger:   dbLogger,
 		gormLogger: gormLogger,
 		db:         gormDB,
@@ -71,18 +66,6 @@ func (db *db) Close() {
 	_ = db.db.Close()
 	db.gormLogger.Close()
 	db.dbLogger.Close()
-}
-
-func (db *db) logf(l logger.Level, format string, log ...interface{}) {
-	db.ctx.Printf(l, "db", format, log...)
-}
-
-func (db *db) log(l logger.Level, log ...interface{}) {
-	db.ctx.Print(l, "db", log...)
-}
-
-func (db *db) logln(l logger.Level, log ...interface{}) {
-	db.ctx.Println(l, "db", log...)
 }
 
 // key = base64(guid)

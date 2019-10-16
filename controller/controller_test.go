@@ -24,14 +24,13 @@ func testInitCtrl(t require.TestingT) {
 		cfg := testGenerateConfig()
 		controller, err := New(cfg)
 		if err != nil {
-			// init database
+			// initialize database
 			err = InitializeDatabase(cfg)
 			require.NoError(t, err)
 			// add test data
-			ctrl = new(CTRL)
-			db, err := newDB(ctrl, cfg)
+			db, err := newDB(cfg)
 			require.NoError(t, err)
-			ctrl.db = db
+			ctrl = &CTRL{db: db}
 			testInsertProxyClient(t)
 			testInsertDNSServer(t)
 			testInsertTimeSyncerConfig(t)
@@ -51,13 +50,3 @@ func testInitCtrl(t require.TestingT) {
 		ctrl.TestWait()
 	})
 }
-
-/*
-func Test_gorm(t *testing.T) {
-	c := testGenerateConfig()
-	db, err := gorm.Open(c.Dialect, c.DSN)
-	require.NoError(t, err)
-	db.LogMode(true)
-	db.SingularTable(true) // not add s
-}
-*/

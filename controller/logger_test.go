@@ -31,7 +31,7 @@ func TestGormLogger(t *testing.T) {
 
 func TestCtrlLogger(t *testing.T) {
 	testInitCtrl(t)
-	ctrl.Printf(logger.Debug, "test src", "test format %s", "test log")
-	ctrl.Print(logger.Debug, "test src", "test print", "test log")
-	ctrl.Println(logger.Debug, "test src", "test println", "test log")
+	ctrl.logger.Printf(logger.Debug, "test src", "test format %s", "test log")
+	ctrl.logger.Print(logger.Debug, "test src", "test print", "test log")
+	ctrl.logger.Println(logger.Debug, "test src", "test println", "test log")
 }
