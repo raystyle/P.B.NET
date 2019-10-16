@@ -258,6 +258,6 @@ func (global *global) CACertificatesStr() []string {
 	return crt.([]string)
 }
 
-func (global *global) Destroy() {
+func (global *global) Close() {
 	global.timeSyncer.Stop()
 }

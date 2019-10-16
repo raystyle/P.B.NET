@@ -25,7 +25,6 @@ type CTRL struct {
 	web     *web     // web server
 
 	once sync.Once
-	wg   sync.WaitGroup
 	wait chan struct{}
 	exit chan error
 }
@@ -178,7 +177,7 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.logger.Print(logger.Info, "exit", "syncer is stopped")
 		ctrl.sender.Close()
 		ctrl.logger.Print(logger.Info, "exit", "sender is stopped")
-		ctrl.global.Destroy()
+		ctrl.global.Close()
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
 		ctrl.db.Close()

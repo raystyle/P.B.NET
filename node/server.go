@@ -234,15 +234,15 @@ func (server *server) Close() {
 }
 
 func (server *server) logf(l logger.Level, format string, log ...interface{}) {
-	server.ctx.Printf(l, "server", format, log...)
+	server.ctx.logger.Printf(l, "server", format, log...)
 }
 
 func (server *server) log(l logger.Level, log ...interface{}) {
-	server.ctx.Print(l, "server", log...)
+	server.ctx.logger.Print(l, "server", log...)
 }
 
 func (server *server) logln(l logger.Level, log ...interface{}) {
-	server.ctx.Println(l, "server", log...)
+	server.ctx.logger.Println(l, "server", log...)
 }
 
 func (server *server) shuttingDown() bool {
