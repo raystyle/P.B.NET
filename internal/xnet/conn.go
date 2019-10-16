@@ -1,13 +1,13 @@
 package xnet
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"sync"
 	"time"
 
 	"project/internal/convert"
+	"project/internal/logger"
 )
 
 // data size + data
@@ -81,10 +81,7 @@ func (c *Conn) Receive() ([]byte, error) {
 }
 
 func (c *Conn) String() string {
-	return fmt.Sprintf("%s %s <-> %s %s",
-		c.LocalAddr().Network(), c.LocalAddr(),
-		c.RemoteAddr().Network(), c.RemoteAddr(),
-	)
+	return logger.Conn(c).String()
 }
 
 func (c *Conn) Status() *Status {

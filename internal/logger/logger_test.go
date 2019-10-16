@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"net"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,9 +53,27 @@ func TestPrefix(t *testing.T) {
 	for l := Level(0); l < Off; l++ {
 		t.Log(Prefix(l, testSrc).String())
 	}
+	// unknown level
+	t.Log(Prefix(Level(153), testSrc).String())
 }
 
 func TestWrap(t *testing.T) {
 	l := Wrap(Debug, "test wrap", Test)
 	l.Println("println")
+}
+
+func TestConn(t *testing.T) {
+	conn, err := net.Dial("tcp", "github.com:443")
+	require.NoError(t, err)
+	t.Log(Conn(conn))
+	_ = conn.Close()
+}
+
+func TestHTTPRequest(t *testing.T) {
+	r := http.Request{
+		Method:     http.MethodGet,
+		RequestURI: "/",
+		RemoteAddr: "127.0.0.1:1234",
+	}
+	t.Log(HTTPRequest(&r))
 }

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"time"
 )
 
@@ -51,7 +53,7 @@ func Parse(level string) (Level, error) {
 	case "off":
 		l = Off
 	default:
-		return l, fmt.Errorf("invalid level: %s", level)
+		return l, fmt.Errorf("unknown level: %s", level)
 	}
 	return l, nil
 }
@@ -75,6 +77,8 @@ func Prefix(l Level, src string) *bytes.Buffer {
 		lv = "exploit"
 	case Fatal:
 		lv = "fatal"
+	default:
+		lv = "unknown"
 	}
 	buffer := &bytes.Buffer{}
 	buffer.WriteString("[")
@@ -135,3 +139,24 @@ func (d *discard) Printf(l Level, src string, format string, log ...interface{})
 func (d *discard) Print(l Level, src string, log ...interface{}) {}
 
 func (d *discard) Println(l Level, src string, log ...interface{}) {}
+
+// Conn is used to print conn info
+// tcp 127.0.0.1:123 <-> tcp 127.0.0.1:124
+func Conn(conn net.Conn) *bytes.Buffer {
+	b := bytes.Buffer{}
+	_, _ = fmt.Fprintf(&b, "%s %s <-> %s %s ",
+		conn.LocalAddr().Network(), conn.LocalAddr(),
+		conn.RemoteAddr().Network(), conn.RemoteAddr())
+	return &b
+}
+
+// TODO print more info
+
+// address: 127.0.0.1:2275
+//
+// GET /index.html
+// foo:foo
+func HTTPRequest(r *http.Request) string {
+	return fmt.Sprintf("address: %s\n\n%s %s\n%s",
+		r.RemoteAddr, r.Method, r.RequestURI, r.Header)
+}
