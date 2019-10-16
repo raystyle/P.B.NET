@@ -231,7 +231,7 @@ func (sc *senderClient) handleMessage(msg []byte) {
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
 	)
-	if sc.client.closing() {
+	if sc.client.isClosing() {
 		return
 	}
 	// cmd(1) + msg id(2) or reply

@@ -1,5 +1,4 @@
-log_level         = "debug"
-max_syncer_client = 8
+log_level = "debug"
 
 [database]
   dialect           = "mysql"
@@ -20,12 +19,13 @@ max_syncer_client = 8
   max_buffer_size = 16384 # sender & worker's buffer
   worker          = 64    # number of sender worker
   queue_size      = 512   # sender chan buffer size
+  max_conns       = 7     # max node connected
 
 [syncer]
   max_buffer_size = 16384 # syncer & worker's buffer
   worker          = 64    # number of syncer worker
   queue_size      = 512   # worker chan buffer size
-  timeout         = "2m"  # send GUID expired
+  expire_time     = "3m"  # send GUID expired
 
 [web]
   dir       = "web"

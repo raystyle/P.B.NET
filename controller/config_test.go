@@ -9,78 +9,36 @@ func testGenerateConfig() *Config {
 		Debug: Debug{
 			SkipTimeSyncer: true,
 		},
-
-		LogLevel:        "debug",
-		MaxSyncerClient: 8,
-
-		Database: struct {
-			Dialect         string `toml:"dialect"`
-			DSN             string `toml:"dsn"`
-			MaxOpenConns    int    `toml:"max_open_conns"`
-			MaxIdleConns    int    `toml:"max_idle_conns"`
-			LogFile         string `toml:"log_file"`
-			GORMLogFile     string `toml:"gorm_log_file"`
-			GORMDetailedLog bool   `toml:"gorm_detailed_log"`
-		}{
-			Dialect:         "mysql",
-			DSN:             "root:123456@tcp(127.0.0.1:3306)/p.b.net_test?loc=Local&parseTime=true",
-			MaxOpenConns:    16,
-			MaxIdleConns:    16,
-			LogFile:         "../app/log/database.log",
-			GORMLogFile:     "../app/log/gorm.log",
-			GORMDetailedLog: false,
-		},
-
-		Global: struct {
-			BuiltinDir         string        `toml:"builtin_dir"`
-			KeyDir             string        `toml:"key_dir"`
-			DNSCacheDeadline   time.Duration `toml:"dns_cache_deadline"`
-			TimeSyncerInterval time.Duration `toml:"time_syncer_interval"`
-		}{
-			BuiltinDir:         "../app/builtin",
-			KeyDir:             "../app/key",
-			DNSCacheDeadline:   3 * time.Minute,
-			TimeSyncerInterval: 5 * time.Minute,
-		},
-
-		Sender: struct {
-			MaxBufferSize int `toml:"max_buffer_size"`
-			Worker        int `toml:"worker"`
-			QueueSize     int `toml:"queue_size"`
-		}{
-			MaxBufferSize: 16384,
-			Worker:        64,
-			QueueSize:     512,
-		},
-
-		Syncer: struct {
-			MaxBufferSize int           `toml:"max_buffer_size"`
-			Worker        int           `toml:"worker"`
-			QueueSize     int           `toml:"queue_size"`
-			Timeout       time.Duration `toml:"timeout"`
-		}{
-
-			MaxBufferSize: 16384,
-			Worker:        64,
-			QueueSize:     512,
-			Timeout:       2 * time.Minute,
-		},
-
-		Web: struct {
-			Dir      string `toml:"dir"`
-			CertFile string `toml:"cert_file"`
-			KeyFile  string `toml:"key_file"`
-			Address  string `toml:"address"`
-			Username string `toml:"username"`
-			Password string `toml:"password"`
-		}{
-			Address:  "localhost:9931",
-			CertFile: "../app/cert/server.crt",
-			KeyFile:  "../app/cert/server.key",
-			Dir:      "../app/web",
-			Username: "admin",
-			Password: "56c10b0f6a18abe0247c31fd1d1a70e51e5a09f2", // admin159**
-		},
+		LogLevel: "debug",
 	}
+	c.Database.Dialect = "mysql"
+	c.Database.DSN = "root:123456@tcp(127.0.0.1:3306)/p.b.net_test?loc=Local&parseTime=true"
+	c.Database.MaxOpenConns = 16
+	c.Database.MaxIdleConns = 16
+	c.Database.LogFile = "../app/log/database.log"
+	c.Database.GORMLogFile = "../app/log/gorm.log"
+	c.Database.GORMDetailedLog = false
+
+	c.Global.BuiltinDir = "../app/builtin"
+	c.Global.KeyDir = "../app/key"
+	c.Global.DNSCacheDeadline = 3 * time.Minute
+	c.Global.TimeSyncerInterval = 1 * time.Minute
+
+	c.Sender.MaxBufferSize = 16384
+	c.Sender.Worker = 64
+	c.Sender.QueueSize = 512
+	c.Sender.MaxConns = 3
+
+	c.Syncer.MaxBufferSize = 16384
+	c.Syncer.Worker = 64
+	c.Syncer.QueueSize = 512
+	c.Syncer.ExpireTime = 3 * time.Minute
+
+	c.Web.Dir = "../app/web"
+	c.Web.CertFile = "../app/cert/server.crt"
+	c.Web.KeyFile = "../app/cert/server.key"
+	c.Web.Address = "localhost:9931"
+	c.Web.Username = "admin"
+	c.Web.Password = "56c10b0f6a18abe0247c31fd1d1a70e51e5a09f2"
 	return &c
 }

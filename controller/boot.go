@@ -15,10 +15,11 @@ import (
 type boot struct {
 	ctx *CTRL
 
-	clients    map[string]*bClient // key = mBoot.Tag
+	// key = mBoot.Tag
+	clients    map[string]*bClient
 	clientsRWM sync.RWMutex
 
-	inClose int32
+	closing int32
 }
 
 func newBoot(ctx *CTRL) *boot {
@@ -29,7 +30,7 @@ func newBoot(ctx *CTRL) *boot {
 }
 
 func (boot *boot) Add(m *mBoot) error {
-	if boot.isClosed() {
+	if boot.isClosing() {
 		return errors.New("boot is closed")
 	}
 	boot.clientsRWM.Lock()
@@ -63,7 +64,7 @@ func (boot *boot) Add(m *mBoot) error {
 }
 
 func (boot *boot) Delete(tag string) error {
-	if boot.isClosed() {
+	if boot.isClosing() {
 		return errors.New("boot is closed")
 	}
 	boot.clientsRWM.Lock()
@@ -78,7 +79,7 @@ func (boot *boot) Delete(tag string) error {
 }
 
 func (boot *boot) Close() {
-	atomic.StoreInt32(&boot.inClose, 1)
+	atomic.StoreInt32(&boot.closing, 1)
 	boot.clientsRWM.Lock()
 	defer boot.clientsRWM.Unlock()
 	for tag, client := range boot.clients {
@@ -87,8 +88,8 @@ func (boot *boot) Close() {
 	}
 }
 
-func (boot *boot) isClosed() bool {
-	return atomic.LoadInt32(&boot.inClose) != 0
+func (boot *boot) isClosing() bool {
+	return atomic.LoadInt32(&boot.closing) != 0
 }
 
 // TODO logger

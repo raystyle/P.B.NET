@@ -99,6 +99,9 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	if cfg.QueueSize < 512 {
 		return nil, errors.New("sender task queue size < 512")
 	}
+	if cfg.MaxConns < 1 {
+		return nil, errors.New("sender max conns < 1")
+	}
 	sender := &sender{
 		ctx:                  ctx,
 		broadcastTaskQueue:   make(chan *broadcastTask, cfg.QueueSize),
@@ -106,6 +109,7 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.QueueSize),
 		stopSignal:           make(chan struct{}),
 	}
+	sender.maxConns.Store(cfg.MaxConns)
 	// init task sync pool
 	sender.broadcastTaskPool.New = func() interface{} {
 		return new(broadcastTask)
@@ -152,9 +156,6 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 		sender.wg.Add(1)
 		go worker.Work()
 	}
-	// start watcher
-	sender.wg.Add(1)
-	go sender.watcher()
 	return sender, nil
 }
 
@@ -399,45 +400,6 @@ func (sender *sender) log(l logger.Level, log ...interface{}) {
 
 func (sender *sender) logln(l logger.Level, log ...interface{}) {
 	sender.ctx.Println(l, "sender", log...)
-}
-
-// watcher is used to check the number of connect nodes
-// connected nodes number < syncer.maxClient, try to connect more node
-func (sender *sender) watcher() {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error("sender.watcher panic:", r)
-			sender.log(logger.Fatal, "sender.watcher", err)
-			// restart watcher
-			time.Sleep(time.Second)
-			go sender.watcher()
-		} else {
-			sender.wg.Done()
-		}
-	}()
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-	isMax := func() bool {
-		sender.clientsRWM.RLock()
-		l := len(sender.clients)
-		sender.clientsRWM.RUnlock()
-		return l >= sender.GetMaxConns()
-	}
-	watch := func() {
-		if isMax() {
-			return
-		}
-		// select nodes
-		// TODO watcher
-	}
-	for {
-		select {
-		case <-ticker.C:
-			watch()
-		case <-sender.stopSignal:
-			return
-		}
-	}
 }
 
 func (sender *sender) getClients() map[string]*senderClient {

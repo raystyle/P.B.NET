@@ -36,7 +36,7 @@ type client struct {
 	slots     []*protocol.Slot
 	heartbeat chan struct{}
 
-	inClose    int32
+	closing    int32
 	closeOnce  sync.Once
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -101,13 +101,13 @@ func (client *client) Status() *xnet.Status {
 	return client.conn.Status()
 }
 
-func (client *client) closing() bool {
-	return atomic.LoadInt32(&client.inClose) != 0
+func (client *client) isClosing() bool {
+	return atomic.LoadInt32(&client.closing) != 0
 }
 
 func (client *client) Close() {
 	client.closeOnce.Do(func() {
-		atomic.StoreInt32(&client.inClose, 1)
+		atomic.StoreInt32(&client.closing, 1)
 		_ = client.conn.Close()
 		close(client.stopSignal)
 		client.wg.Wait()
@@ -189,7 +189,7 @@ func (client *client) handleMessage(msg []byte) {
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
 	)
-	if client.closing() {
+	if client.isClosing() {
 		return
 	}
 	// cmd(1) + msg id(2) or reply
@@ -282,7 +282,7 @@ func (client *client) handleReply(reply []byte) {
 }
 
 func (client *client) Reply(id, reply []byte) {
-	if client.closing() {
+	if client.isClosing() {
 		return
 	}
 	l := len(reply)
@@ -305,7 +305,7 @@ func (client *client) Reply(id, reply []byte) {
 // size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
 // data(general) max size = MaxMsgSize -MsgCMDSize -MsgIDSize
 func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
-	if client.closing() {
+	if client.isClosing() {
 		return nil, protocol.ErrConnClosed
 	}
 	for {

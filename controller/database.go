@@ -85,6 +85,67 @@ func (db *db) logln(l logger.Level, log ...interface{}) {
 	db.ctx.Println(l, "db", log...)
 }
 
+// key = base64(guid)
+type cache struct {
+	nodes      map[string]*mNode
+	nodesRWM   sync.RWMutex
+	beacons    map[string]*mBeacon
+	beaconsRWM sync.RWMutex
+}
+
+func newCache() *cache {
+	return &cache{
+		nodes:   make(map[string]*mNode),
+		beacons: make(map[string]*mBeacon),
+	}
+}
+
+func (cache *cache) SelectNode(guid []byte) *mNode {
+	key := base64.StdEncoding.EncodeToString(guid)
+	cache.nodesRWM.RLock()
+	node := cache.nodes[key]
+	cache.nodesRWM.RUnlock()
+	return node
+}
+
+func (cache *cache) InsertNode(node *mNode) {
+	key := base64.StdEncoding.EncodeToString(node.GUID)
+	cache.nodesRWM.Lock()
+	if _, ok := cache.nodes[key]; !ok {
+		cache.nodes[key] = node
+	}
+	cache.nodesRWM.Unlock()
+}
+
+func (cache *cache) DeleteNode(guid string) {
+	cache.nodesRWM.Lock()
+	delete(cache.nodes, guid)
+	cache.nodesRWM.Unlock()
+}
+
+func (cache *cache) SelectBeacon(guid []byte) *mBeacon {
+	key := base64.StdEncoding.EncodeToString(guid)
+	cache.beaconsRWM.RLock()
+	beacon := cache.beacons[key]
+	cache.beaconsRWM.RUnlock()
+	return beacon
+}
+
+func (cache *cache) InsertBeacon(beacon *mBeacon) {
+	key := base64.StdEncoding.EncodeToString(beacon.GUID)
+	cache.beaconsRWM.Lock()
+	if _, ok := cache.beacons[key]; !ok {
+		cache.beacons[key] = beacon
+	}
+	cache.beaconsRWM.Unlock()
+}
+
+func (cache *cache) DeleteBeacon(guid string) {
+	cache.beaconsRWM.Lock()
+	delete(cache.beacons, guid)
+	cache.beaconsRWM.Unlock()
+}
+
 func (db *db) InsertCtrlLog(m *mCtrlLog) error {
 	return db.db.Create(m).Error
 }
@@ -182,67 +243,6 @@ func (db *db) UpdateListener(m *mListener) error {
 
 func (db *db) DeleteListener(id uint64) error {
 	return db.db.Delete(&mListener{ID: id}).Error
-}
-
-// key = base64(guid)
-type cache struct {
-	nodes      map[string]*mNode
-	nodesRWM   sync.RWMutex
-	beacons    map[string]*mBeacon
-	beaconsRWM sync.RWMutex
-}
-
-func newCache() *cache {
-	return &cache{
-		nodes:   make(map[string]*mNode),
-		beacons: make(map[string]*mBeacon),
-	}
-}
-
-func (cache *cache) SelectNode(guid []byte) *mNode {
-	key := base64.StdEncoding.EncodeToString(guid)
-	cache.nodesRWM.RLock()
-	node := cache.nodes[key]
-	cache.nodesRWM.RUnlock()
-	return node
-}
-
-func (cache *cache) InsertNode(node *mNode) {
-	key := base64.StdEncoding.EncodeToString(node.GUID)
-	cache.nodesRWM.Lock()
-	if _, ok := cache.nodes[key]; !ok {
-		cache.nodes[key] = node
-	}
-	cache.nodesRWM.Unlock()
-}
-
-func (cache *cache) DeleteNode(guid string) {
-	cache.nodesRWM.Lock()
-	delete(cache.nodes, guid)
-	cache.nodesRWM.Unlock()
-}
-
-func (cache *cache) SelectBeacon(guid []byte) *mBeacon {
-	key := base64.StdEncoding.EncodeToString(guid)
-	cache.beaconsRWM.RLock()
-	beacon := cache.beacons[key]
-	cache.beaconsRWM.RUnlock()
-	return beacon
-}
-
-func (cache *cache) InsertBeacon(beacon *mBeacon) {
-	key := base64.StdEncoding.EncodeToString(beacon.GUID)
-	cache.beaconsRWM.Lock()
-	if _, ok := cache.beacons[key]; !ok {
-		cache.beacons[key] = beacon
-	}
-	cache.beaconsRWM.Unlock()
-}
-
-func (cache *cache) DeleteBeacon(guid string) {
-	cache.beaconsRWM.Lock()
-	delete(cache.beacons, guid)
-	cache.beaconsRWM.Unlock()
 }
 
 // ------------------------------------node-------------------------------------------

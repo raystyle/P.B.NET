@@ -15,8 +15,7 @@ type Debug struct {
 type Config struct {
 	Debug Debug `toml:"-"`
 
-	LogLevel        string `toml:"log_level"`
-	MaxSyncerClient int    `toml:"max_syncer_client"`
+	LogLevel string `toml:"log_level"`
 
 	Database struct {
 		Dialect         string `toml:"dialect"` // "mysql"
@@ -39,6 +38,7 @@ type Config struct {
 		MaxBufferSize int `toml:"max_buffer_size"`
 		Worker        int `toml:"worker"`
 		QueueSize     int `toml:"queue_size"`
+		MaxConns      int `toml:"max_conn"`
 	} `toml:"sender"`
 
 	Syncer struct {
@@ -53,7 +53,7 @@ type Config struct {
 		CertFile string `toml:"cert_file"`
 		KeyFile  string `toml:"key_file"`
 		Address  string `toml:"address"`
-		Username string `toml:"username"`
+		Username string `toml:"username"` // super user
 		Password string `toml:"password"`
 	} `toml:"web"`
 }
