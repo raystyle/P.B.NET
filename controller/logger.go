@@ -81,8 +81,11 @@ func (lg *xLogger) Printf(lv logger.Level, src string, format string, log ...int
 		return
 	}
 	buffer := logger.Prefix(lv, src)
-	_, _ = fmt.Fprintf(buffer, format, log...)
-	lg.printLog(lv, src, buffer)
+	// log with level and src
+	logStr := fmt.Sprintf(format, log...)
+	buffer.WriteString(logStr)
+	buffer.WriteString("\n")
+	lg.writeLog(lv, src, logStr, buffer)
 }
 
 func (lg *xLogger) Print(lv logger.Level, src string, log ...interface{}) {
@@ -90,8 +93,11 @@ func (lg *xLogger) Print(lv logger.Level, src string, log ...interface{}) {
 		return
 	}
 	buffer := logger.Prefix(lv, src)
-	_, _ = fmt.Fprint(buffer, log...)
-	lg.printLog(lv, src, buffer)
+	// log with level and src
+	logStr := fmt.Sprint(log...)
+	buffer.WriteString(logStr)
+	buffer.WriteString("\n")
+	lg.writeLog(lv, src, logStr, buffer)
 }
 
 func (lg *xLogger) Println(lv logger.Level, src string, log ...interface{}) {
@@ -99,21 +105,21 @@ func (lg *xLogger) Println(lv logger.Level, src string, log ...interface{}) {
 		return
 	}
 	buffer := logger.Prefix(lv, src)
-	_, _ = fmt.Fprintln(buffer, log...)
-	buffer.Truncate(buffer.Len() - 1) // delete "\n"
-	lg.printLog(lv, src, buffer)
+	// log with level and src
+	logStr := fmt.Sprintln(log...)
+	buffer.WriteString(logStr)
+	lg.writeLog(lv, src, logStr[:len(logStr)-1], buffer) // delete "\n"
 }
 
 // log don't include time level src, for database
-func (lg *xLogger) printLog(lv logger.Level, src string, b *bytes.Buffer) {
+func (lg *xLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 	// write to database
 	m := mCtrlLog{
 		Level:  lv,
 		Source: src,
-		Log:    b.String(),
+		Log:    log,
 	}
 	_ = lg.ctx.db.InsertCtrlLog(&m)
-	// print console
-	b.WriteString("\n")
+	// print to console
 	_, _ = b.WriteTo(os.Stdout)
 }
