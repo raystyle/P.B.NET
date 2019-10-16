@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,29 +24,29 @@ import (
 )
 
 type ctrlConn struct {
-	ctx        *NODE
-	conn       *xnet.Conn
-	slots      []*protocol.Slot
-	replyTimer *time.Timer
-	rand       *random.Rand // for handleHeartbeat()
-	buffer     bytes.Buffer // for handleHeartbeat()
-	inClose    int32
+	ctx *NODE
+
+	conn   *xnet.Conn
+	slots  []*protocol.Slot
+	rand   *random.Rand // for handleHeartbeat()
+	buffer bytes.Buffer // for handleHeartbeat()
+
+	closing    int32
 	closeOnce  sync.Once
 	stopSignal chan struct{}
-	wg         sync.WaitGroup
 }
 
-func (server *server) serveCtrl(conn *xnet.Conn) {
+func (server *server) serveCtrl(conn net.Conn) {
+	xConn := xnet.NewConn(conn, server.ctx.global.Now())
 	ctrl := ctrlConn{
 		ctx:        server.ctx,
-		conn:       conn,
+		conn:       xConn,
 		slots:      make([]*protocol.Slot, protocol.SlotSize),
-		replyTimer: time.NewTimer(time.Second),
 		rand:       random.New(server.ctx.global.Now().Unix()),
 		stopSignal: make(chan struct{}),
 	}
-	tag := sha256.String([]byte(ctrl.Info().RemoteAddress))
-	server.addCtrl(tag, &ctrl)
+	tag := sha256.String([]byte(ctrl.Status().RemoteAddress))
+	server.addCtrlConn(tag, &ctrl)
 	ctrl.log(logger.Debug, "controller connected")
 	defer func() {
 		if r := recover(); r != nil {
@@ -53,7 +54,7 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 			ctrl.log(logger.Exploit, err)
 		}
 		ctrl.Close()
-		server.delCtrl(tag)
+		server.deleteCtrlConn(tag)
 		ctrl.log(logger.Debug, "controller disconnected")
 	}()
 	// init slot
@@ -68,24 +69,23 @@ func (server *server) serveCtrl(conn *xnet.Conn) {
 		s.Timer.Stop()
 		ctrl.slots[i] = s
 	}
-	protocol.HandleConn(conn, ctrl.handleMessage)
+	protocol.HandleConn(xConn, ctrl.handleMessage)
 }
 
-func (ctrl *ctrlConn) Info() *xnet.Status {
+func (ctrl *ctrlConn) Status() *xnet.Status {
 	return ctrl.conn.Status()
 }
 
 func (ctrl *ctrlConn) Close() {
 	ctrl.closeOnce.Do(func() {
-		atomic.StoreInt32(&ctrl.inClose, 1)
+		atomic.StoreInt32(&ctrl.closing, 1)
 		close(ctrl.stopSignal)
 		_ = ctrl.conn.Close()
-		ctrl.wg.Wait()
 	})
 }
 
-func (ctrl *ctrlConn) isClosed() bool {
-	return atomic.LoadInt32(&ctrl.inClose) != 0
+func (ctrl *ctrlConn) isClosing() bool {
+	return atomic.LoadInt32(&ctrl.closing) != 0
 }
 
 func (ctrl *ctrlConn) logf(l logger.Level, format string, log ...interface{}) {
@@ -112,7 +112,7 @@ func (ctrl *ctrlConn) handleMessage(msg []byte) {
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
 	)
-	if ctrl.isClosed() {
+	if ctrl.isClosing() {
 		return
 	}
 	// cmd(1) + msg id(2) or reply
@@ -177,7 +177,7 @@ func (ctrl *ctrlConn) handleHeartbeat() {
 }
 
 func (ctrl *ctrlConn) reply(id, reply []byte) {
-	if ctrl.isClosed() {
+	if ctrl.isClosing() {
 		return
 	}
 	l := len(reply)
@@ -229,7 +229,7 @@ func (ctrl *ctrlConn) handleReply(reply []byte) {
 // Send is use to send command and receive reply
 // size(4 Bytes) + command(1 Byte) + msg id(2 bytes) + data
 func (ctrl *ctrlConn) Send(cmd uint8, data []byte) ([]byte, error) {
-	if ctrl.isClosed() {
+	if ctrl.isClosing() {
 		return nil, protocol.ErrConnClosed
 	}
 	for {

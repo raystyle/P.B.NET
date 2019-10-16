@@ -28,23 +28,26 @@ var (
 
 // accept beacon node controller
 type server struct {
-	ctx          *NODE
-	connLimit    int           // every listener
-	hsTimeout    time.Duration // handshake timeout
-	listeners    map[string]*listener
-	listenersRWM sync.RWMutex
-	conns        map[string]*xnet.Conn // key = listener.Tag + Remote Address
-	connsRWM     sync.RWMutex
-	ctrls        map[string]*ctrlConn // key = base64(sha256(Remote Address))
-	ctrlsRWM     sync.RWMutex
-	nodes        map[string]*nodeConn // key = base64(guid)
-	nodesRWM     sync.RWMutex
-	beacons      map[string]*beaconConn // key = base64(guid)
-	beaconsRWM   sync.RWMutex
-	inShutdown   int32
-	random       *random.Rand
-	stopSignal   chan struct{}
-	wg           sync.WaitGroup
+	ctx       *NODE
+	connLimit int           // every listener
+	hsTimeout time.Duration // handshake timeout
+
+	listeners      map[string]*listener
+	listenersRWM   sync.RWMutex
+	conns          map[string]*xnet.Conn // key = listener.Tag + Remote Address
+	connsRWM       sync.RWMutex
+	ctrlConns      map[string]*ctrlConn // key = base64(sha256(Remote Address))
+	ctrlConnsRWM   sync.RWMutex
+	nodeConns      map[string]*nodeConn // key = base64(guid)
+	nodeConnsRWM   sync.RWMutex
+	beaconConns    map[string]*beaconConn // key = base64(guid)
+	beaconConnsRWM sync.RWMutex
+
+	random *random.Rand
+
+	closing    int32
+	stopSignal chan struct{}
+	wg         sync.WaitGroup
 }
 
 type listener struct {
@@ -73,9 +76,9 @@ func newServer(ctx *NODE, cfg *Config) (*server, error) {
 		}
 	}
 	s.conns = make(map[string]*xnet.Conn)
-	s.ctrls = make(map[string]*ctrlConn)
-	s.nodes = make(map[string]*nodeConn)
-	s.beacons = make(map[string]*beaconConn)
+	s.ctrlConns = make(map[string]*ctrlConn)
+	s.nodeConns = make(map[string]*nodeConn)
+	s.beaconConns = make(map[string]*beaconConn)
 	s.random = random.New(0)
 	s.stopSignal = make(chan struct{})
 	return s, nil
@@ -99,6 +102,10 @@ func (server *server) Deploy() error {
 	return nil
 }
 
+func (server *server) isClosing() bool {
+	return atomic.LoadInt32(&server.closing) != 0
+}
+
 func (server *server) AddListener(l *config.Listener) error {
 	listener, err := server.addListener(l)
 	if err != nil {
@@ -108,7 +115,7 @@ func (server *server) AddListener(l *config.Listener) error {
 }
 
 func (server *server) addListener(l *config.Listener) (*listener, error) {
-	if server.shuttingDown() {
+	if server.isClosing() {
 		return nil, errServerClosed
 	}
 	c := &xnet.Config{}
@@ -216,7 +223,7 @@ func (server *server) CloseConn(address string) {
 }
 
 func (server *server) Close() {
-	atomic.StoreInt32(&server.inShutdown, 1)
+	atomic.StoreInt32(&server.closing, 1)
 	close(server.stopSignal)
 	// close all listeners
 	server.listenersRWM.Lock()
@@ -233,20 +240,16 @@ func (server *server) Close() {
 	server.wg.Wait()
 }
 
-func (server *server) logf(l logger.Level, format string, log ...interface{}) {
-	server.ctx.logger.Printf(l, "server", format, log...)
+func (server *server) logf(lv logger.Level, format string, log ...interface{}) {
+	server.ctx.logger.Printf(lv, "server", format, log...)
 }
 
-func (server *server) log(l logger.Level, log ...interface{}) {
-	server.ctx.logger.Print(l, "server", log...)
+func (server *server) log(lv logger.Level, log ...interface{}) {
+	server.ctx.logger.Print(lv, "server", log...)
 }
 
-func (server *server) logln(l logger.Level, log ...interface{}) {
-	server.ctx.logger.Println(l, "server", log...)
-}
-
-func (server *server) shuttingDown() bool {
-	return atomic.LoadInt32(&server.inShutdown) != 0
+func (server *server) logln(lv logger.Level, log ...interface{}) {
+	server.ctx.logger.Println(lv, "server", log...)
 }
 
 // serve log(handshake client)
@@ -266,7 +269,7 @@ func (sl *sLog) String() string {
 	return b.String()
 }
 
-func (server *server) handshake(lTag string, conn net.Conn) {
+func (server *server) handshake(listenerTag string, conn net.Conn) {
 	dConn := xnet.NewDeadlineConn(conn, server.hsTimeout)
 	xconn := xnet.NewConn(dConn, server.ctx.global.Now())
 	defer func() {
@@ -279,12 +282,12 @@ func (server *server) handshake(lTag string, conn net.Conn) {
 	}()
 	// conn tag
 	b := bytes.Buffer{}
-	b.WriteString(lTag)
+	b.WriteString(listenerTag)
 	b.WriteString(xconn.RemoteAddr().String())
 	connTag := b.String()
 	// add to conns for management
 	server.addConn(connTag, xconn)
-	defer server.delConn(connTag)
+	defer server.deleteConn(connTag)
 	// send certificate
 	var err error
 	cert := server.ctx.global.Certificate()
@@ -312,30 +315,28 @@ func (server *server) handshake(lTag string, conn net.Conn) {
 		server.log(logger.Error, l)
 		return
 	}
-	// remove deadline conn
-	xconn = xnet.NewConn(conn, server.ctx.global.Now())
 	r := protocol.Role(role[0])
 	switch r {
 	case protocol.Beacon:
-		server.verifyBeacon(xconn)
+		server.verifyBeacon(conn)
 	case protocol.Node:
-		server.verifyNode(xconn)
+		server.verifyNode(conn)
 	case protocol.Ctrl:
-		server.verifyCtrl(xconn)
+		server.verifyCtrl(conn)
 	default:
-		server.log(logger.Exploit, &sLog{c: xconn, e: r})
+		server.log(logger.Exploit, &sLog{c: conn, e: r})
 	}
 }
 
-func (server *server) verifyBeacon(conn *xnet.Conn) {
+func (server *server) verifyBeacon(conn net.Conn) {
 
 }
 
-func (server *server) verifyNode(conn *xnet.Conn) {
+func (server *server) verifyNode(conn net.Conn) {
 
 }
 
-func (server *server) verifyCtrl(conn *xnet.Conn) {
+func (server *server) verifyCtrl(conn net.Conn) {
 	dConn := xnet.NewDeadlineConn(conn, server.hsTimeout)
 	xconn := xnet.NewConn(dConn, server.ctx.global.Now())
 	// <danger>
@@ -373,60 +374,60 @@ func (server *server) verifyCtrl(conn *xnet.Conn) {
 	server.serveCtrl(conn)
 }
 
-func (server *server) addConn(tag string, c *xnet.Conn) {
+func (server *server) addConn(tag string, conn *xnet.Conn) {
 	server.connsRWM.Lock()
-	server.conns[tag] = c
+	server.conns[tag] = conn
 	server.connsRWM.Unlock()
 }
 
-func (server *server) delConn(tag string) {
+func (server *server) deleteConn(tag string) {
 	server.connsRWM.Lock()
 	delete(server.conns, tag)
 	server.connsRWM.Unlock()
 }
 
-func (server *server) addCtrl(tag string, ctrl *ctrlConn) {
-	server.ctrlsRWM.Lock()
-	if _, ok := server.ctrls[tag]; !ok {
-		server.ctrls[tag] = ctrl
+func (server *server) addCtrlConn(tag string, conn *ctrlConn) {
+	server.ctrlConnsRWM.Lock()
+	if _, ok := server.ctrlConns[tag]; !ok {
+		server.ctrlConns[tag] = conn
 	}
-	server.ctrlsRWM.Unlock()
+	server.ctrlConnsRWM.Unlock()
 }
 
-func (server *server) delCtrl(tag string) {
-	server.ctrlsRWM.Lock()
-	delete(server.ctrls, tag)
-	server.ctrlsRWM.Unlock()
+func (server *server) deleteCtrlConn(tag string) {
+	server.ctrlConnsRWM.Lock()
+	delete(server.ctrlConns, tag)
+	server.ctrlConnsRWM.Unlock()
 }
 
-func (server *server) addNode(guid []byte, node *nodeConn) {
+func (server *server) addNodeConn(guid []byte, conn *nodeConn) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	server.nodesRWM.Lock()
-	if _, ok := server.nodes[tag]; !ok {
-		server.nodes[tag] = node
+	server.nodeConnsRWM.Lock()
+	if _, ok := server.nodeConns[tag]; !ok {
+		server.nodeConns[tag] = conn
 	}
-	server.nodesRWM.Unlock()
+	server.nodeConnsRWM.Unlock()
 }
 
-func (server *server) delNode(guid []byte) {
+func (server *server) deleteNodeConn(guid []byte) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	server.nodesRWM.Lock()
-	delete(server.nodes, tag)
-	server.nodesRWM.Unlock()
+	server.nodeConnsRWM.Lock()
+	delete(server.nodeConns, tag)
+	server.nodeConnsRWM.Unlock()
 }
 
-func (server *server) addBeacon(guid []byte, beacon *beaconConn) {
+func (server *server) addBeaconConn(guid []byte, conn *beaconConn) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	server.beaconsRWM.Lock()
-	if _, ok := server.beacons[tag]; !ok {
-		server.beacons[tag] = beacon
+	server.beaconConnsRWM.Lock()
+	if _, ok := server.beaconConns[tag]; !ok {
+		server.beaconConns[tag] = conn
 	}
-	server.beaconsRWM.Unlock()
+	server.beaconConnsRWM.Unlock()
 }
 
-func (server *server) delBeacon(guid []byte) {
+func (server *server) deleteBeaconConn(guid []byte) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	server.beaconsRWM.Lock()
-	delete(server.beacons, tag)
-	server.beaconsRWM.Unlock()
+	server.beaconConnsRWM.Lock()
+	delete(server.beaconConns, tag)
+	server.beaconConnsRWM.Unlock()
 }

@@ -19,40 +19,6 @@ import (
 	"project/internal/timesync"
 )
 
-// runtime env
-// 0 < key < 1048576
-const objectKeyMax uint32 = 1048575
-
-type objectKey = uint32
-
-const (
-	// controller
-	okCtrlPublicKey  objectKey = iota // verify controller role & message
-	okCtrlAESCrypto                   // decrypt controller broadcast message
-	okCtrlSessionKey                  // after key exchange (aes crypto)
-
-	okStartupTime    // global.configure() time
-	okNodeGUID       // identification
-	okNodeGUIDEnc    // update self syncSendHeight
-	okDBAESCrypto    // encrypt self data(database)
-	okCertificate    // for listener
-	okPrivateKey     // for sign message
-	okPublicKey      // for role verify message
-	okKeyExPublicKey // for key exchange
-
-	// sync message
-	okSyncSendHeight
-
-	// confuse object
-	okConfusion00
-	okConfusion01
-	okConfusion02
-	okConfusion03
-	okConfusion04
-	okConfusion05
-	okConfusion06
-)
-
 type global struct {
 	proxyPool  *proxy.Pool
 	dnsClient  *dns.Client
@@ -122,6 +88,40 @@ func (global *global) secPaddingMemory() {
 	padding()
 	global.wg.Wait()
 }
+
+// runtime env
+// 0 < key < 1048576
+const objectKeyMax uint32 = 1048575
+
+type objectKey = uint32
+
+const (
+	// controller
+	okCtrlPublicKey  objectKey = iota // verify controller role & message
+	okCtrlAESCrypto                   // decrypt controller broadcast message
+	okCtrlSessionKey                  // after key exchange (aes crypto)
+
+	okStartupTime    // global.configure() time
+	okNodeGUID       // identification
+	okNodeGUIDEnc    // update self syncSendHeight
+	okDBAESCrypto    // encrypt self data(database)
+	okCertificate    // for listener
+	okPrivateKey     // for sign message
+	okPublicKey      // for role verify message
+	okKeyExPublicKey // for key exchange
+
+	// sync message
+	okSyncSendHeight
+
+	// confuse object
+	okConfusion00
+	okConfusion01
+	okConfusion02
+	okConfusion03
+	okConfusion04
+	okConfusion05
+	okConfusion06
+)
 
 func (global *global) configure(cfg *Config) error {
 	global.configOnce.Do(func() {
