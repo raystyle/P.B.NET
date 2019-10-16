@@ -183,7 +183,7 @@ func (sender *sender) Connect(node *bootstrap.Node, guid []byte) error {
 	if _, ok := sender.clients[key]; ok {
 		return errors.Errorf("connect same node %s %s", node.Mode, node.Address)
 	}
-	client, err := newSenderClient(sender.ctx, node, &clientOpts{NodeGUID: guid})
+	client, err := newSenderClient(sender.ctx, node, guid)
 	if err != nil {
 		return errors.WithMessage(err, "connect node failed")
 	}

@@ -29,17 +29,16 @@ type senderClient struct {
 }
 
 // TODO error
-func newSenderClient(ctx *CTRL, node *bootstrap.Node, cfg *clientOpts) (*senderClient, error) {
-	sc := senderClient{
-		ctx: ctx,
-	}
-	cfg.MsgHandler = sc.handleMessage
-	client, err := newClient(ctx, node, cfg)
+func newSenderClient(ctx *CTRL, node *bootstrap.Node, guid []byte) (*senderClient, error) {
+	client, err := newClient(ctx, node, guid, true)
 	if err != nil {
 		return nil, errors.WithMessage(err, "new sender client failed")
 	}
-	sc.guid = cfg.NodeGUID
-	sc.client = client
+	sc := senderClient{
+		ctx:    ctx,
+		guid:   guid,
+		client: client,
+	}
 	// start handle
 	// <warning> not add wg
 	go func() {
@@ -56,6 +55,7 @@ func newSenderClient(ctx *CTRL, node *bootstrap.Node, cfg *clientOpts) (*senderC
 	if err != nil {
 		return nil, errors.WithMessage(err, "receive sync start response failed")
 	}
+	// TODO error
 	if !bytes.Equal(resp, []byte{protocol.NodeSyncStart}) {
 		err = errors.Errorf("invalid sync start response: %s", string(resp))
 		sc.log(logger.Exploit, err)
@@ -257,7 +257,10 @@ func (sc *senderClient) handleMessage(msg []byte) {
 	case protocol.NodeReply:
 		sc.client.handleReply(msg[cmd:])
 	case protocol.NodeHeartbeat:
-		sc.client.heartbeat <- struct{}{}
+		select {
+		case sc.client.heartbeat <- struct{}{}:
+		case <-sc.client.stopSignal:
+		}
 	case protocol.ErrCMDRecvNullMsg:
 		sc.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		sc.Close()

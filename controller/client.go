@@ -19,16 +19,9 @@ import (
 	"project/internal/xpanic"
 )
 
-// NodeGUID != nil for sync or other
-// NodeGUID = nil for trust node
-// NodeGUID = controller guid for discovery
-type clientOpts struct {
-	NodeGUID   []byte
-	MsgHandler func(msg []byte)
-}
-
 type client struct {
-	ctx  *CTRL
+	ctx *CTRL
+
 	node *bootstrap.Node
 	guid []byte // node guid
 
@@ -42,7 +35,10 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
-func newClient(ctx *CTRL, node *bootstrap.Node, opts *clientOpts) (*client, error) {
+// guid == nil        for trust node
+// guid != nil        for sender client
+// guid == ctrl guid, for discovery
+func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, handle bool) (*client, error) {
 	xnetCfg := xnet.Config{
 		Network: node.Network,
 		Address: node.Address,
@@ -52,13 +48,10 @@ func newClient(ctx *CTRL, node *bootstrap.Node, opts *clientOpts) (*client, erro
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if opts == nil {
-		opts = new(clientOpts)
-	}
 	client := client{
 		ctx:  ctx,
 		node: node,
-		guid: opts.NodeGUID,
+		guid: guid,
 	}
 	xconn, err := client.handshake(conn)
 	if err != nil {
@@ -79,7 +72,7 @@ func newClient(ctx *CTRL, node *bootstrap.Node, opts *clientOpts) (*client, erro
 	}
 	client.heartbeat = make(chan struct{}, 1)
 	client.stopSignal = make(chan struct{})
-	if opts.MsgHandler == nil {
+	if !handle {
 		// <warning> not add wg
 		go func() {
 			defer func() {
@@ -202,7 +195,10 @@ func (client *client) handleMessage(msg []byte) {
 	case protocol.NodeReply:
 		client.handleReply(msg[cmd:])
 	case protocol.NodeHeartbeat:
-		client.heartbeat <- struct{}{}
+		select {
+		case client.heartbeat <- struct{}{}:
+		case <-client.stopSignal:
+		}
 	case protocol.ErrCMDRecvNullMsg:
 		client.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		client.Close()

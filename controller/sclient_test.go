@@ -13,14 +13,16 @@ func TestNewSClient(t *testing.T) {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
-	config := &clientOpts{
-		Node: &bootstrap.Node{
-			Mode:    xnet.TLS,
-			Network: "tcp",
-			Address: "localhost:62300",
-		},
+	node := &bootstrap.Node{
+		Mode:    xnet.TLS,
+		Network: "tcp",
+		Address: "localhost:62300",
 	}
-	sClient, err := newSenderClient(ctrl.syncer, config)
+	req, err := ctrl.TrustNode(node)
+	require.NoError(t, err)
+	err = ctrl.ConfirmTrustNode(node, req)
+	require.NoError(t, err)
+	sClient, err := newSenderClient(ctrl, node, NODE.TestGetGUID())
 	require.NoError(t, err)
 	sClient.Close()
 }
