@@ -16,7 +16,7 @@ type boot struct {
 	ctx *CTRL
 
 	// key = mBoot.Tag
-	clients    map[string]*bClient
+	clients    map[string]*bootClient
 	clientsRWM sync.RWMutex
 
 	closing int32
@@ -25,139 +25,159 @@ type boot struct {
 func newBoot(ctx *CTRL) *boot {
 	return &boot{
 		ctx:     ctx,
-		clients: make(map[string]*bClient),
+		clients: make(map[string]*bootClient),
 	}
 }
 
 func (boot *boot) Add(m *mBoot) error {
-	if boot.isClosing() {
+	if atomic.LoadInt32(&boot.closing) != 0 {
 		return errors.New("boot is closed")
 	}
 	boot.clientsRWM.Lock()
 	defer boot.clientsRWM.Unlock()
 	// check exist
 	if _, ok := boot.clients[m.Tag]; ok {
-		err := errors.Errorf("boot %s is running", m.Tag)
-		boot.ctx.Printf(logger.Info, "boot", "add boot %s failed: %s", m.Tag, err)
-		return err
+		return errors.Errorf("boot %s is running", m.Tag)
 	}
-	// load
+	// load bootstrap
 	g := boot.ctx.global
 	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxyPool, g.dnsClient)
 	if err != nil {
-		err = errors.Wrapf(err, "load boot %s failed", m.Tag)
-		boot.ctx.Printf(logger.Info, "boot", "add boot %s failed: %s", m.Tag, err)
-		return err
+		return errors.Wrapf(err, "load bootstrap %s failed", m.Tag)
 	}
-	bc := bClient{
+	bc := bootClient{
 		ctx:        boot,
 		tag:        m.Tag,
 		interval:   time.Duration(m.Interval) * time.Second,
 		logSrc:     "boot-" + m.Tag,
-		bootstrap:  b,
+		boot:       b,
 		stopSignal: make(chan struct{}),
 	}
 	boot.clients[m.Tag] = &bc
 	bc.Boot()
-	boot.ctx.Printf(logger.Info, "boot", "add boot %s", m.Tag)
 	return nil
 }
 
 func (boot *boot) Delete(tag string) error {
-	if boot.isClosing() {
-		return errors.New("boot is closed")
-	}
-	boot.clientsRWM.Lock()
-	defer boot.clientsRWM.Unlock()
-	if client, ok := boot.clients[tag]; !ok {
-		return errors.Errorf("boot: %s doesn't exist", tag)
-	} else {
+	boot.clientsRWM.RLock()
+	if client, ok := boot.clients[tag]; ok {
+		defer boot.clientsRWM.RUnlock()
 		client.Stop()
-		delete(boot.clients, tag)
 		return nil
+	} else {
+		defer boot.clientsRWM.RUnlock()
+		return errors.Errorf("boot: %s doesn't exist", tag)
 	}
+}
+
+func (boot *boot) GetClients() map[string]*bootClient {
+	boot.clientsRWM.RLock()
+	clients := make(map[string]*bootClient, len(boot.clients))
+	for key, client := range boot.clients {
+		clients[key] = client
+	}
+	boot.clientsRWM.RUnlock()
+	return clients
 }
 
 func (boot *boot) Close() {
 	atomic.StoreInt32(&boot.closing, 1)
-	boot.clientsRWM.Lock()
-	defer boot.clientsRWM.Unlock()
-	for tag, client := range boot.clients {
-		client.Stop()
-		delete(boot.clients, tag)
+	for {
+		// stop all boot client
+		for _, client := range boot.GetClients() {
+			client.Stop()
+		}
+		// wait close
+		time.Sleep(10 * time.Millisecond)
+		if len(boot.GetClients()) == 0 {
+			break
+		}
 	}
 }
 
-func (boot *boot) isClosing() bool {
-	return atomic.LoadInt32(&boot.closing) != 0
-}
+type bootClient struct {
+	ctx *boot
 
-// TODO logger
+	tag      string
+	interval time.Duration
+	logSrc   string
 
-// boot client
-type bClient struct {
-	ctx        *boot
-	tag        string
-	interval   time.Duration
-	logSrc     string
-	bootstrap  bootstrap.Bootstrap
-	once       sync.Once
+	boot bootstrap.Bootstrap
+
+	closeOnce  sync.Once
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-func (bc *bClient) Boot() {
+func (bc *bootClient) Boot() {
 	bc.wg.Add(1)
 	go bc.bootLoop()
 }
 
-func (bc *bClient) bootLoop() {
+func (bc *bootClient) Stop() {
+	bc.closeOnce.Do(func() {
+		close(bc.stopSignal)
+		bc.wg.Wait()
+	})
+}
+
+func (bc *bootClient) logf(l logger.Level, format string, log ...interface{}) {
+	bc.ctx.ctx.logger.Printf(l, bc.logSrc, format, log...)
+}
+
+func (bc *bootClient) log(l logger.Level, log ...interface{}) {
+	bc.ctx.ctx.logger.Print(l, bc.logSrc, log...)
+}
+
+func (bc *bootClient) logln(l logger.Level, log ...interface{}) {
+	bc.ctx.ctx.logger.Println(l, bc.logSrc, log...)
+}
+
+func (bc *bootClient) bootLoop() {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error("bClient.bootLoop() panic:", r)
-			bc.ctx.ctx.Print(logger.Fatal, bc.logSrc, err)
+			err = xpanic.Error("bootClient.bootLoop() panic:", r)
+			bc.log(logger.Fatal, err)
 		}
-		bc.ctx.ctx.Printf(logger.Info, "boot", "boot %s stop", bc.tag)
+		// delete boot client
+		bc.ctx.clientsRWM.Lock()
+		delete(bc.ctx.clients, bc.tag)
+		bc.ctx.clientsRWM.Unlock()
+
+		bc.logf(logger.Info, "boot %s stopped", bc.tag)
 		bc.wg.Done()
 	}()
-	resolve := func() {
-		err = bc.resolve()
-		if err != nil {
-			bc.ctx.ctx.Println(logger.Warning, bc.logSrc, err)
-		} else {
-			// stop and delete self
-			close(bc.stopSignal)
-			bc.ctx.clientsRWM.Lock()
-			delete(bc.ctx.clients, bc.tag)
-			bc.ctx.clientsRWM.Unlock()
-		}
+	if bc.resolve() {
+		return
 	}
-	resolve()
+	ticker := time.NewTicker(bc.interval)
+	defer ticker.Stop()
 	for {
 		select {
-		case <-time.After(bc.interval):
-			resolve()
+		case <-ticker.C:
+			if bc.resolve() {
+				return
+			}
 		case <-bc.stopSignal:
 			return
 		}
 	}
 }
 
-func (bc *bClient) resolve() (err error) {
-	nodes, err := bc.bootstrap.Resolve()
+func (bc *bootClient) resolve() bool {
+	var err error
+	defer func() {
+		if err != nil {
+			bc.log(logger.Warning, err)
+		}
+	}()
+	nodes, err := bc.boot.Resolve()
 	if err != nil {
-		return
+		return false
 	}
-	// add syncer
+	// add to sender
 
 	nodes[0] = nil
-	return
-}
-
-func (bc *bClient) Stop() {
-	bc.once.Do(func() {
-		close(bc.stopSignal)
-		bc.wg.Wait()
-	})
+	return true
 }
