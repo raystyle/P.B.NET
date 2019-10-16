@@ -78,7 +78,7 @@ type sender struct {
 	guid *guid.GUID
 
 	// key = hex(guid)
-	clients    map[string]*senderClient
+	clients    map[string]*client
 	clientsRWM sync.RWMutex
 
 	// check beacon is in interactive mode
@@ -181,17 +181,26 @@ func (sender *sender) Connect(node *bootstrap.Node, guid []byte) error {
 	}
 	key := hex.EncodeToString(guid)
 	if _, ok := sender.clients[key]; ok {
-		return errors.Errorf("connect same node %s %s", node.Mode, node.Address)
+		return errors.Errorf("connect the same node %s %s", node.Mode, node.Address)
 	}
-	client, err := newSenderClient(sender.ctx, node, guid)
+	client, err := newClient(sender.ctx, node, guid, func() {
+		sender.clientsRWM.Lock()
+		delete(sender.clients, key)
+		sender.clientsRWM.Unlock()
+	})
 	if err != nil {
 		return errors.WithMessage(err, "connect node failed")
+	}
+	err = client.Sync()
+	if err != nil {
+		return err
 	}
 	sender.clients[key] = client
 	// sender.logf(logger.Info, "connect node %s %s", node.Mode, node.Address)
 	return nil
 }
 
+// Disconnect is used to disconnect node, guid is hex
 func (sender *sender) Disconnect(guid string) error {
 	guid = strings.ToLower(guid)
 	sender.clientsRWM.RLock()
@@ -372,9 +381,9 @@ func (sender *sender) isClosing() bool {
 	return atomic.LoadInt32(&sender.closing) != 0
 }
 
-func (sender *sender) GetClients() map[string]*senderClient {
+func (sender *sender) GetClients() map[string]*client {
 	sender.clientsRWM.RLock()
-	clients := make(map[string]*senderClient, len(sender.clients))
+	clients := make(map[string]*client, len(sender.clients))
 	for key, client := range sender.clients {
 		clients[key] = client
 	}
@@ -397,6 +406,7 @@ func (sender *sender) Close() {
 			break
 		}
 	}
+	sender.guid.Close()
 }
 
 func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
@@ -427,10 +437,10 @@ func (sender *sender) broadcast(guid, message []byte) (
 	}
 	// broadcast parallel
 	index := 0
-	for _, client := range clients {
-		go func(i int, c *senderClient) {
+	for _, c := range clients {
+		go func(i int, c *client) {
 			channels[i] <- c.Broadcast(guid, message)
-		}(index, client)
+		}(index, c)
 		index += 1
 	}
 	// get response and put
@@ -461,17 +471,17 @@ func (sender *sender) send(role protocol.Role, guid, message []byte) (
 	index := 0
 	switch role {
 	case protocol.Node:
-		for _, client := range clients {
-			go func(i int, c *senderClient) {
+		for _, c := range clients {
+			go func(i int, c *client) {
 				channels[i] <- c.SendToNode(guid, message)
-			}(index, client)
+			}(index, c)
 			index += 1
 		}
 	case protocol.Beacon:
-		for _, client := range clients {
-			go func(i int, c *senderClient) {
+		for _, c := range clients {
+			go func(i int, c *client) {
 				channels[i] <- c.SendToBeacon(guid, message)
-			}(index, client)
+			}(index, c)
 			index += 1
 		}
 	default:
@@ -499,20 +509,20 @@ func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) {
 	wg := sender.waitGroupPool.Get().(*sync.WaitGroup)
 	switch role {
 	case protocol.Node:
-		for _, client := range clients {
+		for _, c := range clients {
 			wg.Add(1)
-			go func(c *senderClient) {
+			go func(c *client) {
 				c.AcknowledgeToNode(guid, message)
 				wg.Done()
-			}(client)
+			}(c)
 		}
 	case protocol.Beacon:
-		for _, client := range clients {
+		for _, c := range clients {
 			wg.Add(1)
-			go func(c *senderClient) {
+			go func(c *client) {
 				c.AcknowledgeToBeacon(guid, message)
 				wg.Done()
-			}(client)
+			}(c)
 		}
 	default:
 		panic("invalid Role")

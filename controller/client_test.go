@@ -113,7 +113,7 @@ func testGenerateClient(t require.TestingT) *client {
 		Network: "tcp",
 		Address: "localhost:62300",
 	}
-	client, err := newClient(ctrl, n, nil, false)
+	client, err := newClient(ctrl, n, nil, nil)
 	require.NoError(t, err)
 	return client
 }
