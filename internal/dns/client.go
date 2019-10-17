@@ -41,14 +41,14 @@ type Server struct {
 
 type Client struct {
 	pool       *proxy.Pool
-	deadline   time.Duration      // cache expire time
+	expire     time.Duration      // cache expire time
 	servers    map[string]*Server // key = tag
 	serversRWM sync.RWMutex
 	caches     map[string]*cache // key = domain name
 	cachesRWM  sync.RWMutex
 }
 
-func NewClient(p *proxy.Pool, s map[string]*Server, deadline time.Duration) (*Client, error) {
+func NewClient(p *proxy.Pool, s map[string]*Server, expire time.Duration) (*Client, error) {
 	client := Client{
 		pool:    p,
 		servers: make(map[string]*Server),
@@ -61,11 +61,11 @@ func NewClient(p *proxy.Pool, s map[string]*Server, deadline time.Duration) (*Cl
 			return nil, fmt.Errorf("add dns server %s failed: %s", tag, err)
 		}
 	}
-	// set deadline
-	if deadline < 1 {
-		deadline = defaultCacheDeadline
+	// set expire
+	if expire < 1 {
+		expire = defaultCacheExpireTime
 	}
-	err := client.SetCacheDeadline(deadline)
+	err := client.SetCacheExpireTime(expire)
 	if err != nil {
 		return nil, err
 	}

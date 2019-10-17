@@ -10,6 +10,7 @@ import (
 type HostInfo struct {
 	IPs      []string
 	OS       string
+	Arch     string
 	Hostname string
 	Username string
 	PID      int
@@ -34,6 +35,7 @@ func Host() HostInfo {
 		hostInfo.IPs = ips
 	}
 	hostInfo.OS = runtime.GOOS
+	hostInfo.Arch = runtime.GOARCH
 	hn, err := os.Hostname()
 	if err != nil {
 		hostInfo.Hostname = "unknown"

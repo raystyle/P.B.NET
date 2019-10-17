@@ -6,9 +6,10 @@ import (
 )
 
 func TestFlushBytes(t *testing.T) {
-	b := []byte{1, 2, 3, 4}
-	FlushBytes(b)
-	if !bytes.Equal(b, bytes.Repeat([]byte{0}, 4)) {
+	b1 := []byte{1, 2, 3, 4}
+	b2 := []byte{1, 2, 3, 4}
+	FlushBytes(b2)
+	if bytes.Equal(b1, b2) {
 		t.Fatal("flush slice failed")
 	}
 }

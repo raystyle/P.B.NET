@@ -140,7 +140,7 @@ func TestClient(t *testing.T) {
 	ip_list, err = client_pool.Resolve(domain, opt)
 	require.NoError(t, err)
 	t.Log("UDP", ip_list)
-	//invalid deadline
+	//invalid expire
 	_, err = New(-1, nil)
 	require.NoError(t, err)
 	//not exist domain
@@ -160,13 +160,13 @@ func TestClient(t *testing.T) {
 	ip_list, err = client_pool.Resolve(domain, opt)
 	require.NoError(t, err)
 	t.Log("flush cache IPv4", ip_list)
-	//deadline
-	require.NotNil(t, client_pool.SetCacheDeadline(-1))
-	require.Nil(t, client_pool.SetCacheDeadline(1))
+	//expire
+	require.NotNil(t, client_pool.SetCacheExpireTime(-1))
+	require.Nil(t, client_pool.SetCacheExpireTime(1))
 	time.Sleep(time.Second * 2)
 	ip_list, err = client_pool.Resolve(domain, opt)
 	require.NoError(t, err)
-	t.Log("cache deadline IPv4", ip_list)
+	t.Log("cache expire IPv4", ip_list)
 	//update cache
 	client_pool.update_cache("xxx.com", nil, nil)
 	//delete

@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	defaultCacheDeadline = 1 * time.Minute
+	defaultCacheExpireTime = 2 * time.Minute
 )
 
 var (
-	ErrInvalidDeadline = errors.New("deadline < 60s or > 1h")
+	ErrInvalidExpireTime = errors.New("expire time < 60s or > 1h")
 )
 
 type cache struct {
@@ -21,21 +21,21 @@ type cache struct {
 	rwm        sync.RWMutex
 }
 
-func (c *Client) SetCacheDeadline(deadline time.Duration) error {
-	if deadline < time.Minute || deadline > time.Hour {
-		return ErrInvalidDeadline
+func (c *Client) SetCacheExpireTime(expire time.Duration) error {
+	if expire < time.Minute || expire > time.Hour {
+		return ErrInvalidExpireTime
 	}
 	c.cachesRWM.Lock()
-	c.deadline = deadline
+	c.expire = expire
 	c.cachesRWM.Unlock()
 	return nil
 }
 
-func (c *Client) GetCacheDeadline() time.Duration {
+func (c *Client) GetCacheExpireTime() time.Duration {
 	c.cachesRWM.RLock()
-	deadline := c.deadline
+	expire := c.expire
 	c.cachesRWM.RUnlock()
-	return deadline
+	return expire
 }
 
 func (c *Client) FlushCache() {
@@ -48,7 +48,7 @@ func (c *Client) queryCache(domain string, Type Type) []string {
 	// clean expire cache
 	c.cachesRWM.Lock()
 	for domain, cache := range c.caches {
-		if time.Now().Sub(cache.updateTime) > c.deadline {
+		if time.Now().Sub(cache.updateTime) > c.expire {
 			delete(c.caches, domain)
 		}
 	}

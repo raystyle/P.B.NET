@@ -86,11 +86,11 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 			return nil, err // not continue
 		}
 		// set timeout
-		deadline := opts.Timeout
+		timeout := opts.Timeout
 		if opts.Timeout < 1 {
-			deadline = 3 * time.Second
+			timeout = 3 * time.Second
 		}
-		c := xnet.NewDeadlineConn(conn, deadline)
+		c := xnet.NewDeadlineConn(conn, timeout)
 		_, _ = c.Write(message)
 		buffer := make([]byte, 512)
 		n, err := c.Read(buffer)
@@ -121,11 +121,11 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 		return nil, err
 	}
 	// set timeout
-	deadline := opts.Timeout
+	timeout := opts.Timeout
 	if opts.Timeout < 1 {
-		deadline = defaultTimeout
+		timeout = defaultTimeout
 	}
-	c := xnet.NewDeadlineConn(conn, deadline)
+	c := xnet.NewDeadlineConn(conn, timeout)
 	defer func() { _ = c.Close() }()
 	// add size header
 	m := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
@@ -195,11 +195,11 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 		return nil, fmt.Errorf("invalid address: %s", address)
 	}
 	// set timeout
-	deadline := opts.Timeout
+	timeout := opts.Timeout
 	if opts.Timeout < 1 {
-		deadline = defaultTimeout
+		timeout = defaultTimeout
 	}
-	c := xnet.NewDeadlineConn(conn, deadline)
+	c := xnet.NewDeadlineConn(conn, timeout)
 	defer func() { _ = c.Close() }()
 	// add size header
 	m := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
