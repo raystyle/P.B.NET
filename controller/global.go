@@ -51,7 +51,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		dnsServers["builtin_"+tag] = server
 		delete(dnsServers, tag) // rename
 	}
-	dnsClient, err := dns.NewClient(proxyPool, dnsServers, cfg.DNSCacheDeadline)
+	dnsClient, err := dns.NewClient(proxyPool, dnsServers, cfg.DNSCacheExpire)
 	if err != nil {
 		return nil, errors.Wrap(err, "new dns client failed")
 	}
@@ -75,7 +75,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		dnsClient,
 		logger,
 		tsConfigs,
-		cfg.TimeSyncerInterval)
+		cfg.TimeSyncInterval)
 	if err != nil {
 		return nil, errors.Wrap(err, "new time syncer failed")
 	}
@@ -256,6 +256,12 @@ func (global *global) CACertificatesStr() []string {
 	crt := global.objects[okCACertificatesStr]
 	global.objectsRWM.RUnlock()
 	return crt.([]string)
+}
+
+func (global *global) TestSetObject(key uint32, obj interface{}) {
+	global.objectsRWM.Lock()
+	global.objects[key] = obj
+	global.objectsRWM.Unlock()
 }
 
 func (global *global) Close() {

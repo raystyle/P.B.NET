@@ -12,8 +12,10 @@ func TestKeyGen(t *testing.T) {
 	const password = "0123456789012"
 	err := GenerateCtrlKeys(path, password)
 	require.NoError(t, err)
-	_, err = loadCtrlKeys(path, password)
+	keys, err := loadCtrlKeys(path, password)
 	require.NoError(t, err)
+	t.Logf("private key: %X\nAES Key: %X\nAES IV: %X",
+		keys[0], keys[1], keys[2])
 	err = os.Remove(path)
 	require.NoError(t, err)
 }

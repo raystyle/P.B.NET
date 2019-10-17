@@ -28,10 +28,10 @@ type Config struct {
 	} `toml:"database"`
 
 	Global struct {
-		BuiltinDir         string        `toml:"builtin_dir"`
-		KeyDir             string        `toml:"key_dir"`
-		DNSCacheDeadline   time.Duration `toml:"dns_cache_deadline"`
-		TimeSyncerInterval time.Duration `toml:"time_syncer_interval"`
+		BuiltinDir       string        `toml:"builtin_dir"`
+		KeyDir           string        `toml:"key_dir"`
+		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
+		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 	} `toml:"global"`
 
 	Sender struct {

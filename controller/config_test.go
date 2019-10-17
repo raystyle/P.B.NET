@@ -21,8 +21,8 @@ func testGenerateConfig() *Config {
 
 	c.Global.BuiltinDir = "../app/builtin"
 	c.Global.KeyDir = "../app/key"
-	c.Global.DNSCacheDeadline = 3 * time.Minute
-	c.Global.TimeSyncerInterval = 1 * time.Minute
+	c.Global.DNSCacheExpire = 3 * time.Minute
+	c.Global.TimeSyncInterval = 1 * time.Minute
 
 	c.Sender.MaxBufferSize = 16384
 	c.Sender.Worker = 64
