@@ -1,9 +1,13 @@
 package random
 
 import (
+	cr "crypto/rand"
+	"io"
 	"math/rand"
 	"sync"
 	"time"
+
+	"project/internal/convert"
 )
 
 var (
@@ -21,7 +25,14 @@ type Rand struct {
 
 func New(seed int64) *Rand {
 	if seed == 0 {
-		seed = time.Now().UnixNano()
+		// try crypto/rand.Reader
+		b := make([]byte, 8)
+		_, err := io.ReadFull(cr.Reader, b)
+		if err == nil {
+			seed = convert.BytesToInt64(b)
+		} else {
+			seed = time.Now().UnixNano()
+		}
 	}
 	return &Rand{
 		rand: rand.New(rand.NewSource(seed)),
