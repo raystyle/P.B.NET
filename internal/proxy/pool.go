@@ -19,6 +19,7 @@ import (
 type Mode = string
 
 const (
+	Direct Mode = "direct"
 	Socks5 Mode = "socks5"
 	HTTP   Mode = "http"
 )
@@ -29,45 +30,61 @@ var (
 	ErrReserveClient = errors.New("direct is reserve proxy client")
 )
 
-type Client interface {
+type Client struct {
+	Mode   Mode
+	Config string
+	client
+}
+
+type client interface {
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
 	HTTP(transport *http.Transport)
 	Info() string
-	Mode() string
 }
 
 type Pool struct {
-	clients map[string]Client // key = tag
+	clients map[string]*Client // key = tag
 	rwm     sync.RWMutex
 }
 
 // NewPool is used to create a proxy pool for role.global
-func NewPool() *Pool {
-	p := Pool{clients: make(map[string]Client)}
-	// set direct
-	d := new(direct.Direct)
-	p.clients[""] = d
-	p.clients["direct"] = d
-	return &p
+func NewPool(clients map[string]*Client) (*Pool, error) {
+	pool := Pool{clients: make(map[string]*Client)}
+	// add proxy clients
+	for tag, client := range clients {
+		err := pool.Add(tag, client)
+		if err != nil {
+			return nil, fmt.Errorf("add proxy client %s failed: %s", tag, err)
+		}
+	}
+	// add direct
+	dc := &Client{
+		Mode:   Direct,
+		client: new(direct.Direct),
+	}
+	pool.clients[""] = dc
+	pool.clients["direct"] = dc
+	return &pool, nil
 }
 
 // Add is used to add a proxy client
-func (p *Pool) Add(tag string, mode Mode, config string) error {
+func (p *Pool) Add(tag string, client *Client) error {
 	if tag == "" {
 		return ErrEmptyTag
 	}
 	if tag == "direct" {
 		return ErrReserveTag
 	}
-	var client Client
-	switch mode {
+	switch client.Mode {
+	case Direct:
+		return nil
 	case Socks5:
 		conf := &struct {
-			Clients []*socks5.Config
+			Clients []*socks5.Config `toml:"server"`
 		}{}
-		err := toml.Unmarshal([]byte(config), conf)
+		err := toml.Unmarshal([]byte(client.Config), conf)
 		if err != nil {
 			return err
 		}
@@ -75,15 +92,15 @@ func (p *Pool) Add(tag string, mode Mode, config string) error {
 		if err != nil {
 			return err
 		}
-		client = c
+		client.client = c
 	case HTTP:
-		c, err := hp.NewClient(config)
+		c, err := hp.NewClient(client.Config)
 		if err != nil {
 			return err
 		}
-		client = c
+		client.client = c
 	default:
-		return fmt.Errorf("unknown mode: %s", mode)
+		return fmt.Errorf("unknown mode: %s", client.Mode)
 	}
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
@@ -114,7 +131,7 @@ func (p *Pool) Delete(tag string) error {
 }
 
 // Get is used to get proxy client, if tag is "" or "direct" return Direct
-func (p *Pool) Get(tag string) (Client, error) {
+func (p *Pool) Get(tag string) (*Client, error) {
 	p.rwm.RLock()
 	defer p.rwm.RUnlock()
 	if client, ok := p.clients[tag]; ok {
@@ -125,8 +142,8 @@ func (p *Pool) Get(tag string) (Client, error) {
 }
 
 // Clients is used to get all proxy clients
-func (p *Pool) Clients() map[string]Client {
-	clients := make(map[string]Client)
+func (p *Pool) Clients() map[string]*Client {
+	clients := make(map[string]*Client)
 	p.rwm.RLock()
 	for tag, client := range p.clients {
 		clients[tag] = client
