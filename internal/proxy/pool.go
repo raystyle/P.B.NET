@@ -11,7 +11,8 @@ import (
 
 	"github.com/pelletier/go-toml"
 
-	"project/internal/proxy/httpproxy"
+	"project/internal/proxy/direct"
+	hp "project/internal/proxy/http"
 	"project/internal/proxy/socks5"
 )
 
@@ -23,95 +24,67 @@ const (
 )
 
 var (
-	ErrReserveProxy = errors.New("direct is reserve proxy")
+	ErrEmptyTag      = errors.New("proxy client tag is empty")
+	ErrReserveTag    = errors.New("direct is reserve tag")
+	ErrReserveClient = errors.New("direct is reserve proxy client")
 )
 
-type client interface {
+type Client interface {
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
 	HTTP(transport *http.Transport)
 	Info() string
-}
-
-type Client struct {
-	Mode   Mode   `toml:"mode"`
-	Config string `toml:"config"` // toml or other, see proxy/*
-	client
+	Mode() string
 }
 
 type Pool struct {
-	clients map[string]*Client // key = tag
+	clients map[string]Client // key = tag
 	rwm     sync.RWMutex
 }
 
-// NewPool is for x.global
-func NewPool(c map[string]*Client) (*Pool, error) {
-	p := Pool{
-		clients: make(map[string]*Client),
-	}
-	for tag, client := range c {
-		err := p.Add(tag, client)
-		if err != nil {
-			return nil, fmt.Errorf("add proxy client %s failed: %s", tag, err)
-		}
-	}
-	return &p, nil
+// NewPool is used to create a proxy pool for role.global
+func NewPool() *Pool {
+	p := Pool{clients: make(map[string]Client)}
+	// set direct
+	d := new(direct.Direct)
+	p.clients[""] = d
+	p.clients["direct"] = d
+	return &p
 }
 
-// if tag = "" return Direct
-func (p *Pool) Get(tag string) (*Client, error) {
-	if tag == "" || tag == "direct" {
-		return nil, nil
+// Add is used to add a proxy client
+func (p *Pool) Add(tag string, mode Mode, config string) error {
+	if tag == "" {
+		return ErrEmptyTag
 	}
-	p.rwm.RLock()
-	defer p.rwm.RUnlock()
-	if client, ok := p.clients[tag]; ok {
-		return client, nil
-	} else {
-		return nil, fmt.Errorf("proxy client: %s doesn't exist", tag)
+	if tag == "direct" {
+		return ErrReserveTag
 	}
-}
-
-func (p *Pool) Clients() map[string]*Client {
-	clients := make(map[string]*Client)
-	p.rwm.RLock()
-	for tag, client := range p.clients {
-		clients[tag] = client
-	}
-	p.rwm.RUnlock()
-	return clients
-}
-
-func (p *Pool) Add(tag string, client *Client) error {
-	if tag == "" || tag == "direct" {
-		return ErrReserveProxy
-	}
-	switch client.Mode {
+	var client Client
+	switch mode {
 	case Socks5:
 		conf := &struct {
 			Clients []*socks5.Config
 		}{}
-		err := toml.Unmarshal([]byte(client.Config), conf)
+		err := toml.Unmarshal([]byte(config), conf)
 		if err != nil {
 			return err
 		}
-		pc, err := socks5.NewClient(conf.Clients...)
+		c, err := socks5.NewClient(conf.Clients...)
 		if err != nil {
 			return err
 		}
-		client.client = pc
+		client = c
 	case HTTP:
-		pc, err := httpproxy.NewClient(client.Config)
+		c, err := hp.NewClient(config)
 		if err != nil {
 			return err
 		}
-		client.client = pc
+		client = c
 	default:
-		return fmt.Errorf("unknown mode: %s", client.Mode)
+		return fmt.Errorf("unknown mode: %s", mode)
 	}
-	// <security> set client config to ""
-	client.Config = ""
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if _, ok := p.clients[tag]; !ok {
@@ -122,9 +95,13 @@ func (p *Pool) Add(tag string, client *Client) error {
 	}
 }
 
+// Delete is used to delete proxy client
 func (p *Pool) Delete(tag string) error {
-	if tag == "" || tag == "direct" {
-		return ErrReserveProxy
+	if tag == "" {
+		return ErrEmptyTag
+	}
+	if tag == "direct" {
+		return ErrReserveClient
 	}
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
@@ -134,4 +111,26 @@ func (p *Pool) Delete(tag string) error {
 	} else {
 		return fmt.Errorf("proxy client: %s doesn't exist", tag)
 	}
+}
+
+// Get is used to get proxy client, if tag is "" or "direct" return Direct
+func (p *Pool) Get(tag string) (Client, error) {
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
+	if client, ok := p.clients[tag]; ok {
+		return client, nil
+	} else {
+		return nil, fmt.Errorf("proxy client: %s doesn't exist", tag)
+	}
+}
+
+// Clients is used to get all proxy clients
+func (p *Pool) Clients() map[string]Client {
+	clients := make(map[string]Client)
+	p.rwm.RLock()
+	for tag, client := range p.clients {
+		clients[tag] = client
+	}
+	p.rwm.RUnlock()
+	return clients
 }

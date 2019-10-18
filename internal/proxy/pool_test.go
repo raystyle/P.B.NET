@@ -12,78 +12,74 @@ const (
 )
 
 func TestPool(t *testing.T) {
-	clients := make(map[string]*Client)
-	// create socks5 client config(s5c)
+	pool := NewPool()
+	// add socks5 client
 	s5c := `
-        [[Clients]]
-          Address = "localhost:0"
-          Network = "tcp"
-          Password = "123456"
-          Username = "admin"
-        
-        [[Clients]]
-          Address = "localhost:0"
-          Network = "tcp"
-          Password = "123456"
-          Username = "admin"
+[[Clients]]
+  Address  = "localhost:0"
+  Network  = "tcp"
+  Password = "123456"
+  Username = "admin"
+
+[[Clients]]
+  Address  = "localhost:0"
+  Network  = "tcp"
+  Password = "123456"
+  Username = "admin"
 `
-	clients[tagSocks5] = &Client{
-		Mode:   Socks5,
-		Config: s5c,
-	}
-	clients[tagHTTP] = &Client{
-		Mode:   HTTP,
-		Config: "http://admin:123456@localhost:0",
-	}
-	// make
-	pool, err := NewPool(clients)
+	err := pool.Add(tagSocks5, Socks5, s5c)
 	require.NoError(t, err)
+	// add http proxy client
+	hpc := "http://admin:123456@localhost:8080"
+	err = pool.Add(tagHTTP, HTTP, hpc)
+	require.NoError(t, err)
+	// add empty tag
+	err = pool.Add("", Socks5, s5c)
+	require.Equal(t, ErrEmptyTag, err)
+	// add client with reserve tag
+	err = pool.Add("direct", Socks5, s5c)
+	require.Equal(t, ErrReserveTag, err)
+	// add unknown mode
+	err = pool.Add("foo", "foo", "")
+	require.Error(t, err)
+	require.Equal(t, "unknown mode: foo", err.Error())
+	// add exist
+	err = pool.Add(tagSocks5, Socks5, s5c)
+	require.Error(t, err)
+	require.Equal(t, "proxy client: "+tagSocks5+" already exists", err.Error())
 	// get
 	pc, err := pool.Get(tagSocks5)
 	require.NoError(t, err)
 	require.NotNil(t, pc)
-	// get nil
+	pc, err = pool.Get(tagHTTP)
+	require.NoError(t, err)
+	require.NotNil(t, pc)
+	// get direct
 	pc, err = pool.Get("")
 	require.NoError(t, err)
-	require.Nil(t, pc)
-	// get failed
+	require.NotNil(t, pc)
+	pc, err = pool.Get("direct")
+	require.NoError(t, err)
+	require.NotNil(t, pc)
+	// get doesn't exist
 	pc, err = pool.Get("doesn't exist")
 	require.Error(t, err)
 	require.Nil(t, pc)
-	// list
-	for k := range pool.Clients() {
-		t.Log("client:", k)
+	// get all clients
+	for tag, client := range pool.Clients() {
+		t.Logf("tag: %s mode: %s info: %s", tag, client.Mode(), client.Info())
 	}
-	// add reserve
-	err = pool.Add("", nil)
-	require.Equal(t, ErrReserveProxy, err)
-	// add exist
-	err = pool.Add(tagSocks5, &Client{
-		Mode:   Socks5,
-		Config: s5c},
-	)
-	require.Error(t, err)
-	// unknown mode
-	err = pool.Add("foo", &Client{
-		Mode:   "foo",
-		Config: s5c},
-	)
-	require.Error(t, err)
-	require.Equal(t, "unknown mode: foo", err.Error())
 	// delete
 	err = pool.Delete(tagHTTP)
 	require.NoError(t, err)
-	// delete reserve
-	err = pool.Delete("")
-	require.Equal(t, ErrReserveProxy, err)
 	// delete doesn't exist
 	err = pool.Delete(tagHTTP)
 	require.Error(t, err)
-	// New failed == add failed
-	clients[tagSocks5] = &Client{
-		Mode:   Socks5,
-		Config: "invalid toml config"}
-	pool, err = NewPool(clients)
-	require.Error(t, err)
-	require.Nil(t, pool)
+	require.Equal(t, "proxy client: "+tagHTTP+" doesn't exist", err.Error())
+	// delete client with empty tag
+	err = pool.Delete("")
+	require.Equal(t, ErrEmptyTag, err)
+	// delete reserve client
+	err = pool.Delete("direct")
+	require.Equal(t, ErrReserveClient, err)
 }
