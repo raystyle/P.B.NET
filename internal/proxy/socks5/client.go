@@ -84,6 +84,10 @@ func (c *Client) Info() string {
 	return c.chain
 }
 
+func (c *Client) Mode() string {
+	return "socks5"
+}
+
 func (c *Client) add(server *Config) error {
 	switch server.Network {
 	case "tcp", "tcp4", "tcp6":
