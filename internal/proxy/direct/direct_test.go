@@ -7,5 +7,6 @@ import (
 func TestDirect(t *testing.T) {
 	d := Direct{}
 	d.HTTP(nil)
-	d.Info()
+	t.Log(d.Info())
+	t.Log(d.Mode())
 }
