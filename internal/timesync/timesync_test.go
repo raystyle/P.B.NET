@@ -1,7 +1,6 @@
 package timesync
 
 import (
-	"net"
 	"testing"
 	"time"
 
@@ -9,18 +8,77 @@ import (
 
 	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/options"
 	"project/internal/proxy"
-	"project/internal/proxy/httpproxy"
-	"project/internal/proxy/socks5"
 )
+
+func TestTimeSyncer(t *testing.T) {
+	proxyPool, err := proxy.NewPool(nil)
+	require.NoError(t, err)
+	dnsClient := testGenerateDNSClient(t, proxyPool)
+	// create clients
+	clients := make(map[string]*Client)
+	clients["http"] = &Client{
+		Mode:   HTTP,
+		Config: testNewHTTPClient(t).ExportConfig(),
+	}
+	clients["ntp"] = &Client{
+		Mode:   NTP,
+		Config: testNewNTPClient(t).ExportConfig(),
+	}
+	timeSyncer, err := NewTimeSyncer(
+		proxyPool,
+		dnsClient,
+		logger.Test,
+		clients,
+		options.DefaultSyncInterval,
+	)
+	require.NoError(t, err)
+	err = timeSyncer.Test()
+	require.NoError(t, err)
+	err = timeSyncer.Start()
+	require.NoError(t, err)
+	time.Sleep(3 * time.Second)
+	t.Log("now:", timeSyncer.Now())
+	for tag, client := range timeSyncer.Clients() {
+		t.Logf("client: %s mode: %s \nconfig: %s",
+			tag, client.Mode, string(client.ExportConfig()))
+	}
+	timeSyncer.Stop()
+}
+
+func testGenerateDNSClient(t *testing.T, pool *proxy.Pool) *dns.Client {
+	servers := make(map[string]*dns.Server)
+	add := func(tag string, method dns.Method, address string) {
+		servers[tag] = &dns.Server{
+			Method:  method,
+			Address: address,
+		}
+	}
+	// google
+	add("udp_google", dns.UDP, "8.8.8.8:53")
+	add("tcp_google", dns.TCP, "8.8.8.8:53")
+	add("dot_google_domain", dns.DoT, "dns.google:853|8.8.8.8,8.8.4.4")
+	// cloudflare
+	add("udp_cloudflare", dns.UDP, "1.0.0.1:53")
+	add("tcp_cloudflare_ipv6", dns.TCP, "[2606:4700:4700::1001]:53")
+	add("dot_cloudflare_domain", dns.DoT, "cloudflare-dns.com:853|1.0.0.1")
+	// doh
+	add("doh_mozilla", dns.DoH, "https://mozilla.cloudflare-dns.com/dns-query")
+	// make dns client
+	dnsClient, err := dns.NewClient(pool, servers, options.DefaultCacheExpireTime)
+	require.NoError(t, err)
+	return dnsClient
+}
+
+/*
 
 const (
 	proxySocks5 = "test_socks5_client"
 	proxyHTTP   = "test_http_proxy_client"
 )
 
-func TestTimeSyncer(t *testing.T) {
-	// start socks5 proxy server(s5s)
+// start socks5 proxy server(s5s)
 	s5sOpts := &socks5.Options{
 		Username: "admin",
 		Password: "123456",
@@ -34,11 +92,11 @@ func TestTimeSyncer(t *testing.T) {
 		require.NoError(t, err)
 	}()
 	// start http proxy server(hps)
-	hpsOpts := &httpproxy.Options{
+	hpsOpts := &http.Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	hps, err := httpproxy.NewServer("test_http_proxy", logger.Test, hpsOpts)
+	hps, err := http.NewServer("test_http_proxy", logger.Test, hpsOpts)
 	require.NoError(t, err)
 	err = hps.ListenAndServe("localhost:0", 0)
 	require.NoError(t, err)
@@ -68,52 +126,7 @@ func TestTimeSyncer(t *testing.T) {
 		Config: "http://admin:123456@localhost:" + port,
 	}
 	// make proxy pool
-	proxyPool, err := proxy.NewPool(proxyClients)
-	require.NoError(t, err)
-	// create dns servers
-	servers := make(map[string]*dns.Server)
-	add := func(tag string, method dns.Method, address string) {
-		servers[tag] = &dns.Server{
-			Method:  method,
-			Address: address,
-		}
-	}
-	// google
-	add("udp_google", dns.UDP, "8.8.8.8:53")
-	add("tcp_google", dns.TCP, "8.8.8.8:53")
-	add("dot_google_domain", dns.DoT, "dns.google:853|8.8.8.8,8.8.4.4")
-	// cloudflare
-	add("udp_cloudflare", dns.UDP, "1.0.0.1:53")
-	add("tcp_cloudflare_ipv6", dns.TCP, "[2606:4700:4700::1001]:53")
-	add("dot_cloudflare_domain", dns.DoT, "cloudflare-dns.com:853|1.0.0.1")
-	// doh
-	add("doh_mozilla", dns.DoH, "https://mozilla.cloudflare-dns.com/dns-query")
-	// make dns client
-	dnsClient, err := dns.NewClient(proxyPool, servers, 0)
-	require.NoError(t, err)
-	// create time sync configs
-	configs := make(map[string]*Config)
-	configs["test_http"] = &Config{
-		Mode:    HTTP,
-		Address: "https://cloudflare-dns.com/",
-	}
-	configs["test_ntp"] = &Config{
-		Mode:    NTP,
-		Address: "pool.ntp.org:123",
-	}
-	timeSyncer, err := NewTimeSyncer(proxyPool, dnsClient, logger.Test, configs, 0)
-	require.NoError(t, err)
-	err = timeSyncer.Test()
-	require.NoError(t, err)
-	err = timeSyncer.Start()
-	require.NoError(t, err)
-	time.Sleep(3 * time.Second)
-	t.Log("now:", timeSyncer.Now())
-	for k, v := range timeSyncer.Configs() {
-		t.Log("configs:", k, v.Mode, v.Address)
-	}
-	timeSyncer.Stop()
-}
+*/
 
 /*
 
