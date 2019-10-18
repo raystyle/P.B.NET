@@ -17,6 +17,12 @@ import (
 	"project/internal/xnet"
 )
 
+const (
+	defaultTimeout = time.Minute // udp is 5 second
+
+	headerSize = 2 // tcp && tls need
+)
+
 var (
 	ErrNoConnection = errors.New("no connection")
 )
@@ -76,29 +82,29 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}
-	dial := net.Dial
+	dial := net.DialTimeout
 	if opts.dial != nil {
 		dial = opts.dial
 	}
+	// set timeout
+	timeout := opts.Timeout
+	if opts.Timeout < 1 {
+		timeout = 5 * time.Second
+	}
 	for i := 0; i < 3; i++ {
-		conn, err := dial(network, address)
+		conn, err := dial(network, address, timeout)
 		if err != nil {
 			return nil, err // not continue
 		}
-		// set timeout
-		timeout := opts.Timeout
-		if opts.Timeout < 1 {
-			timeout = 3 * time.Second
-		}
-		c := xnet.NewDeadlineConn(conn, timeout)
-		_, _ = c.Write(message)
+		xconn := xnet.NewDeadlineConn(conn, timeout)
+		_, _ = xconn.Write(message)
 		buffer := make([]byte, 512)
-		n, err := c.Read(buffer)
+		n, err := xconn.Read(buffer)
 		if err == nil {
-			_ = c.Close()
+			_ = xconn.Close()
 			return buffer[:n], nil
 		}
-		_ = c.Close()
+		_ = xconn.Close()
 	}
 	return nil, ErrNoConnection
 }
@@ -112,30 +118,30 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}
-	dial := net.Dial
-	if opts.dial != nil {
-		dial = opts.dial
-	}
-	conn, err := dial(network, address)
-	if err != nil {
-		return nil, err
-	}
 	// set timeout
 	timeout := opts.Timeout
 	if opts.Timeout < 1 {
 		timeout = defaultTimeout
 	}
-	c := xnet.NewDeadlineConn(conn, timeout)
-	defer func() { _ = c.Close() }()
+	dial := net.DialTimeout
+	if opts.dial != nil {
+		dial = opts.dial
+	}
+	conn, err := dial(network, address, timeout)
+	if err != nil {
+		return nil, err
+	}
+	xconn := xnet.NewDeadlineConn(conn, timeout)
+	defer func() { _ = xconn.Close() }()
 	// add size header
-	m := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
-	m.Write(message)
-	_, err = c.Write(m.Bytes())
+	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
+	header.Write(message)
+	_, err = xconn.Write(header.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	buffer := make([]byte, 512)
-	_, err = io.ReadFull(c, buffer[:headerSize])
+	_, err = io.ReadFull(xconn, buffer[:headerSize])
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +149,7 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	if l > 512 {
 		buffer = make([]byte, l)
 	}
-	_, err = io.ReadFull(c, buffer[:l])
+	_, err = io.ReadFull(xconn, buffer[:l])
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +165,12 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}
-	dial := net.Dial
+	// set timeout
+	timeout := opts.Timeout
+	if opts.Timeout < 1 {
+		timeout = defaultTimeout
+	}
+	dial := net.DialTimeout
 	if opts.dial != nil {
 		dial = opts.dial
 	}
@@ -174,7 +185,7 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	}
 	switch len(config) {
 	case 1: // ip mode     8.8.8.8:853
-		c, err := dial(network, address)
+		c, err := dial(network, address, timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +193,7 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	case 2: // domain mode dns.google:853|8.8.8.8,8.8.4.4
 		ipList := strings.Split(strings.TrimSpace(config[1]), ",")
 		for i := 0; i < len(ipList); i++ {
-			c, err := dial(network, ipList[i]+":"+port)
+			c, err := dial(network, ipList[i]+":"+port, timeout)
 			if err == nil {
 				conn = tls.Client(c, &tls.Config{ServerName: host})
 				break
@@ -194,23 +205,18 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("invalid address: %s", address)
 	}
-	// set timeout
-	timeout := opts.Timeout
-	if opts.Timeout < 1 {
-		timeout = defaultTimeout
-	}
-	c := xnet.NewDeadlineConn(conn, timeout)
-	defer func() { _ = c.Close() }()
+	xconn := xnet.NewDeadlineConn(conn, timeout)
+	defer func() { _ = xconn.Close() }()
 	// add size header
-	m := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
-	m.Write(message)
-	_, err = c.Write(m.Bytes())
+	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
+	header.Write(message)
+	_, err = xconn.Write(header.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	buffer := make([]byte, 512)
 	// read message size
-	_, err = io.ReadFull(c, buffer[:headerSize])
+	_, err = io.ReadFull(xconn, buffer[:headerSize])
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +224,7 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	if l > 512 {
 		buffer = make([]byte, l)
 	}
-	_, err = io.ReadFull(c, buffer[:l])
+	_, err = io.ReadFull(xconn, buffer[:l])
 	if err != nil {
 		return nil, err
 	}

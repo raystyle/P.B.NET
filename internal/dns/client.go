@@ -28,6 +28,10 @@ const (
 	DoH Method = "doh" // DNS-Over-HTTPS
 )
 
+const (
+	defaultMethod = UDP
+)
+
 type UnknownMethodError string
 
 func (m UnknownMethodError) Error() string {
@@ -40,7 +44,7 @@ type Server struct {
 }
 
 type Client struct {
-	pool       *proxy.Pool
+	proxyPool  *proxy.Pool
 	expire     time.Duration      // cache expire time
 	servers    map[string]*Server // key = tag
 	serversRWM sync.RWMutex
@@ -50,9 +54,9 @@ type Client struct {
 
 func NewClient(p *proxy.Pool, s map[string]*Server, expire time.Duration) (*Client, error) {
 	client := Client{
-		pool:    p,
-		servers: make(map[string]*Server),
-		caches:  make(map[string]*cache),
+		proxyPool: p,
+		servers:   make(map[string]*Server),
+		caches:    make(map[string]*cache),
 	}
 	// add clients
 	for tag, server := range s {
@@ -62,132 +66,11 @@ func NewClient(p *proxy.Pool, s map[string]*Server, expire time.Duration) (*Clie
 		}
 	}
 	// set expire
-	if expire < 1 {
-		expire = defaultCacheExpireTime
-	}
 	err := client.SetCacheExpireTime(expire)
 	if err != nil {
 		return nil, err
 	}
 	return &client, nil
-}
-
-// TODO test
-func (c *Client) Test() error {
-	return nil
-}
-
-type Options struct {
-	Mode      Mode                  `toml:"mode"`   // default is custom
-	Method    Method                `toml:"method"` // default is UDP if != "" ignore it
-	Type      Type                  `toml:"type"`   // default is IPv4
-	Timeout   time.Duration         `toml:"timeout"`
-	ServerTag string                `toml:"server_tag"` // if != "" use selected dns client
-	ProxyTag  string                `toml:"proxy_tag"`  // proxy tag
-	Network   string                `toml:"network"`
-	Header    http.Header           `toml:"header"`    // about DOH
-	Transport options.HTTPTransport `toml:"transport"` // about DOH
-
-	dial      func(network, address string) (net.Conn, error) // for proxy, useless for doh
-	transport *http.Transport                                 // about DOH
-}
-
-// select custom or system to resolve dns
-// set domain & options
-func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
-	if opts == nil {
-		opts = new(Options)
-	}
-	_type := opts.Type
-	if _type == "" {
-		_type = IPv4
-	}
-	// first query caches
-	cache := c.queryCache(domain, _type)
-	if cache != nil {
-		return cache, nil
-	}
-	var (
-		result []string
-		err    error
-	)
-	switch opts.Mode {
-	case "", Custom:
-		// apply doh options(http Transport)
-		if opts.Method == DoH {
-			opts.transport, err = opts.Transport.Apply()
-			if err != nil {
-				return nil, err
-			}
-		}
-		// set proxy
-		p, err := c.pool.Get(opts.ProxyTag)
-		if err != nil {
-			return nil, err
-		}
-		if p != nil {
-			switch opts.Method {
-			case "", UDP, TCP, DoT:
-				opts.dial = p.Dial
-			case DoH:
-				p.HTTP(opts.transport)
-			default:
-				return nil, UnknownMethodError(opts.Method)
-			}
-		}
-		// check tag exist
-		if opts.ServerTag != "" {
-			c.serversRWM.RLock()
-			defer c.serversRWM.RUnlock()
-			if server, ok := c.servers[opts.ServerTag]; !ok {
-				return nil, fmt.Errorf("dns server: %s doesn't exist", opts.ServerTag)
-			} else {
-				opts.Method = server.Method
-				return resolve(server.Address, domain, opts)
-			}
-		}
-		// query dns
-		_method := opts.Method
-		if _method == "" {
-			_method = defaultMethod
-		}
-		for _, server := range c.Servers() {
-			if server.Method == _method {
-				result, err = resolve(server.Address, domain, opts)
-				if err == nil {
-					break
-				}
-			}
-		}
-	case System:
-		result, err = systemResolve(domain, _type)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("unknown mode: %s", opts.Mode)
-	}
-	// update cache
-	if result != nil {
-		switch _type {
-		case IPv4:
-			c.updateCache(domain, result, nil)
-		case IPv6:
-			c.updateCache(domain, nil, result)
-		}
-		return result, nil
-	}
-	return nil, ErrNoResolveResult
-}
-
-func (c *Client) Servers() map[string]*Server {
-	servers := make(map[string]*Server)
-	c.serversRWM.RLock()
-	for tag, server := range c.servers {
-		servers[tag] = server
-	}
-	c.serversRWM.RUnlock()
-	return servers
 }
 
 func (c *Client) Add(tag string, server *Server) error {
@@ -215,4 +98,121 @@ func (c *Client) Delete(tag string) error {
 	} else {
 		return fmt.Errorf("dns server: %s doesn't exist", tag)
 	}
+}
+
+func (c *Client) Servers() map[string]*Server {
+	servers := make(map[string]*Server)
+	c.serversRWM.RLock()
+	for tag, server := range c.servers {
+		servers[tag] = server
+	}
+	c.serversRWM.RUnlock()
+	return servers
+}
+
+// TODO test
+func (c *Client) Test() error {
+	return nil
+}
+
+type Options struct {
+	Mode      Mode                  `toml:"mode"`   // default is custom
+	Method    Method                `toml:"method"` // default is UDP if != "" ignore it
+	Type      Type                  `toml:"type"`   // default is IPv4
+	Timeout   time.Duration         `toml:"timeout"`
+	ServerTag string                `toml:"server_tag"` // if != "" use selected dns client
+	ProxyTag  string                `toml:"proxy_tag"`  // proxy tag
+	Network   string                `toml:"network"`
+	Header    http.Header           `toml:"header"`    // about DOH
+	Transport options.HTTPTransport `toml:"transport"` // about DOH
+
+	dial      func(network, address string, timeout time.Duration) (net.Conn, error)
+	transport *http.Transport // about DOH
+}
+
+// select custom or system to resolve dns
+// set domain & options
+func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
+	if opts == nil {
+		opts = new(Options)
+	}
+	Type := opts.Type
+	if Type == "" {
+		Type = IPv4
+	}
+	// first query caches
+	cache := c.queryCache(domain, Type)
+	if cache != nil {
+		return cache, nil
+	}
+	var (
+		result []string
+		err    error
+	)
+	switch opts.Mode {
+	case "", Custom:
+		// apply doh options(http Transport)
+		if opts.Method == DoH {
+			opts.transport, err = opts.Transport.Apply()
+			if err != nil {
+				return nil, err
+			}
+		}
+		// set proxy
+		p, err := c.proxyPool.Get(opts.ProxyTag)
+		if err != nil {
+			return nil, err
+		}
+		switch opts.Method {
+		case "", UDP, TCP, DoT:
+			opts.dial = p.DialTimeout
+		case DoH:
+			p.HTTP(opts.transport)
+		default:
+			return nil, UnknownMethodError(opts.Method)
+		}
+		// check tag exist
+		if opts.ServerTag != "" {
+			c.serversRWM.RLock()
+			if server, ok := c.servers[opts.ServerTag]; !ok {
+				c.serversRWM.RUnlock()
+				return nil, fmt.Errorf("dns server: %s doesn't exist", opts.ServerTag)
+			} else {
+				c.serversRWM.RUnlock()
+				opts.Method = server.Method
+				return resolve(server.Address, domain, opts)
+			}
+		}
+		// query dns
+		method := opts.Method
+		if method == "" {
+			method = defaultMethod
+		}
+		for _, server := range c.Servers() {
+			if server.Method == method {
+				result, err = resolve(server.Address, domain, opts)
+				if err == nil {
+					break
+				}
+			}
+		}
+	case System:
+		result, err = systemResolve(domain, Type)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unknown mode: %s", opts.Mode)
+	}
+	// update cache
+	if result != nil {
+		switch Type {
+		case IPv4:
+			c.updateCache(domain, result, nil)
+		case IPv6:
+			c.updateCache(domain, nil, result)
+		}
+		return result, nil
+	}
+	return nil, ErrNoResolveResult
 }

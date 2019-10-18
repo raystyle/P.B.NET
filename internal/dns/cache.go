@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-const (
-	defaultCacheExpireTime = 2 * time.Minute
-)
-
 var (
 	ErrInvalidExpireTime = errors.New("expire time < 60s or > 1h")
 )

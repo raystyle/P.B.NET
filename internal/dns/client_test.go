@@ -3,12 +3,13 @@ package dns
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
 	"project/internal/proxy"
-	"project/internal/proxy/httpproxy"
+	"project/internal/proxy/http"
 	"project/internal/proxy/socks5"
 )
 
@@ -32,11 +33,11 @@ func TestClient(t *testing.T) {
 		require.NoError(t, err)
 	}()
 	// start http proxy server(hps)
-	hpsOpts := &httpproxy.Options{
+	hpsOpts := &http.Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	hps, err := httpproxy.NewServer("test_http_proxy", logger.Test, hpsOpts)
+	hps, err := http.NewServer("test_http_proxy", logger.Test, hpsOpts)
 	require.NoError(t, err)
 	err = hps.ListenAndServe("localhost:0", 0)
 	require.NoError(t, err)
@@ -87,7 +88,7 @@ func TestClient(t *testing.T) {
 	// doh
 	add("doh_mozilla", DoH, "https://mozilla.cloudflare-dns.com/dns-query")
 	// make dns client
-	client, err := NewClient(pool, servers, 0)
+	client, err := NewClient(pool, servers, time.Minute)
 	require.NoError(t, err)
 	// resolve with default options
 	ipList, err := client.Resolve(domain, nil)

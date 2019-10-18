@@ -3,7 +3,6 @@ package dns
 import (
 	"errors"
 	"net"
-	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
 
@@ -24,13 +23,6 @@ var (
 		IPv4: dnsmessage.TypeA,
 		IPv6: dnsmessage.TypeAAAA,
 	}
-)
-
-const (
-	defaultMethod  = UDP
-	defaultTimeout = time.Minute // udp is 5 second
-	// tcp && tls need
-	headerSize = 2
 )
 
 var (

@@ -93,7 +93,7 @@ func TestIsDomainName(t *testing.T) {
 func TestDialUDP(t *testing.T) {
 	opt := Options{
 		Network: "udp",
-		dial:    net.Dial,
+		dial:    net.DialTimeout,
 	}
 	msg := packMessage(dnsmessage.TypeA, domain)
 	msg, err := dialUDP(dnsServer, msg, &opt)
@@ -112,7 +112,7 @@ func TestDialUDP(t *testing.T) {
 func TestDialTCP(t *testing.T) {
 	opt := Options{
 		Network: "tcp",
-		dial:    net.Dial,
+		dial:    net.DialTimeout,
 	}
 	msg := packMessage(dnsmessage.TypeA, domain)
 	msg, err := dialTCP(dnsServer, msg, &opt)
@@ -128,7 +128,7 @@ func TestDialTCP(t *testing.T) {
 func TestDialDoT(t *testing.T) {
 	opt := Options{
 		Network: "tcp",
-		dial:    net.Dial,
+		dial:    net.DialTimeout,
 	}
 	msg := packMessage(dnsmessage.TypeA, domain)
 	// domain name mode
