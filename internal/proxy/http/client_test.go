@@ -38,5 +38,4 @@ func TestClient(t *testing.T) {
 	_, err = client.DialTimeout("", "", 0)
 	require.Equal(t, err, ErrNotSupportDial)
 	t.Log(client.Info())
-	t.Log(client.Mode())
 }

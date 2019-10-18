@@ -31,7 +31,3 @@ func (d *Direct) HTTP(_ *http.Transport) {}
 func (d *Direct) Info() string {
 	return "Direct"
 }
-
-func (d *Direct) Mode() string {
-	return "direct"
-}

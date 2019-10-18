@@ -18,10 +18,10 @@ import (
 )
 
 type Config struct {
-	Network  string
-	Address  string
-	Username string
-	Password string
+	Network  string `toml:"network"`
+	Address  string `toml:"address"`
+	Username string `toml:"username"`
+	Password string `toml:"password"`
 }
 
 // support proxy chain
@@ -82,10 +82,6 @@ func (c *Client) HTTP(t *http.Transport) {
 
 func (c *Client) Info() string {
 	return c.chain
-}
-
-func (c *Client) Mode() string {
-	return "socks5"
 }
 
 func (c *Client) add(server *Config) error {

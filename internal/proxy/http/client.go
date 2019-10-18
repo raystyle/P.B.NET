@@ -51,7 +51,3 @@ func (c *Client) HTTP(t *http.Transport) {
 func (c *Client) Info() string {
 	return c.url.String()
 }
-
-func (c *Client) Mode() string {
-	return "http"
-}
