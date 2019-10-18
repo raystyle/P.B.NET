@@ -36,12 +36,12 @@ func isNil(t *testing.T, err error) bool {
 	}
 }
 
-func assertValid(t *testing.T, r *response) {
+func assertValid(t *testing.T, r *Response) {
 	err := r.Validate()
 	_ = isNil(t, err)
 }
 
-func assertInvalid(t *testing.T, r *response) {
+func assertInvalid(t *testing.T, r *Response) {
 	err := r.Validate()
 	if err == nil {
 		t.Errorf("[%s] Response unexpectedly valid\n", host)
@@ -92,7 +92,7 @@ func stringOrEmpty(s string) string {
 
 func TestValidate(t *testing.T) {
 	var m msg
-	var r *response
+	var r *Response
 	m.Stratum = 1
 	m.ReferenceID = refID
 	m.ReferenceTime = 1 << 32

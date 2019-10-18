@@ -150,9 +150,9 @@ func (m *msg) getLeap() leapIndicator {
 	return leapIndicator((m.LiVnMode >> 6) & 0x03)
 }
 
-// A response contains time data, some of which is returned by the NTP server
+// A Response contains time data, some of which is returned by the NTP server
 // and some of which is calculated by the client.
-type response struct {
+type Response struct {
 	// Time is the transmit time reported by the server just before it
 	// responded to the client's NTP query.
 	Time time.Time
@@ -203,13 +203,13 @@ type response struct {
 	// MinError is a lower bound on the error between the client and server
 	// clocks. When the client and server are not synchronized to the same
 	// clock, the reported timestamps may appear to violate the principle of
-	// causality. In other words, the NTP server's response may indicate
+	// causality. In other words, the NTP server's Response may indicate
 	// that a message was received before it was sent. In such cases, the
 	// minimum error may be useful.
 	MinError time.Duration
 
 	// KissCode is a 4-character string describing the reason for a
-	// "kiss of death" response (stratum = 0). For a list of standard kiss
+	// "kiss of death" Response (stratum = 0). For a list of standard kiss
 	// codes, see https://tools.ietf.org/html/rfc5905#section-7.4.
 	KissCode string
 
@@ -218,15 +218,15 @@ type response struct {
 	Poll time.Duration
 }
 
-// Validate checks if the response is valid for the purposes of time
+// Validate checks if the Response is valid for the purposes of time
 // synchronization.
-func (r *response) Validate() error {
+func (r *Response) Validate() error {
 	// Handle invalid stratum values.
 	if r.Stratum == 0 {
 		return fmt.Errorf("kiss of death received: %s", r.KissCode)
 	}
 	if r.Stratum >= maxStratum {
-		return errors.New("invalid stratum in response")
+		return errors.New("invalid stratum in Response")
 	}
 
 	// Handle invalid leap second indicator.
@@ -252,12 +252,12 @@ func (r *response) Validate() error {
 	}
 
 	// If the server's transmit time is before its reference time, the
-	// response is invalid.
+	// Response is invalid.
 	if r.Time.Before(r.ReferenceTime) {
 		return errors.New("invalid time reported")
 	}
 
-	// nil means the response is valid.
+	// nil means the Response is valid.
 	return nil
 }
 
@@ -272,7 +272,7 @@ type Options struct {
 	Dial func(network, address string, timeout time.Duration) (net.Conn, error)
 }
 
-func Query(address string, opts *Options) (*response, error) {
+func Query(address string, opts *Options) (*Response, error) {
 	var (
 		m   *msg
 		now ntpTime
@@ -297,7 +297,7 @@ func Query(address string, opts *Options) (*response, error) {
 	return r, nil
 }
 
-// getTime performs the NTP server query and returns the response message
+// getTime performs the NTP server query and returns the Response message
 // along with the local system time it was received.
 func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 	if opts == nil {
@@ -336,7 +336,7 @@ func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 	// Set a timeout on the connection.
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	// Allocate a message to hold the response.
+	// Allocate a message to hold the Response.
 	recvMsg := new(msg)
 
 	// Allocate a message to hold the query.
@@ -366,13 +366,13 @@ func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 		return nil, 0, err
 	}
 
-	// Receive the response.
+	// Receive the Response.
 	err = binary.Read(conn, binary.BigEndian, recvMsg)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Keep track of the time the response was received.
+	// Keep track of the time the Response was received.
 	delta := time.Since(xmitTime)
 	// The local system may have had its clock adjusted since it
 	// sent the query. In go 1.9 and later, time.Since ensures
@@ -386,13 +386,13 @@ func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 
 	// Check for invalid fields.
 	if recvMsg.getMode() != server {
-		return nil, 0, errors.New("invalid mode in response")
+		return nil, 0, errors.New("invalid mode in Response")
 	}
 	if recvMsg.TransmitTime == ntpTime(0) {
-		return nil, 0, errors.New("invalid transmit time in response")
+		return nil, 0, errors.New("invalid transmit time in Response")
 	}
 	if recvMsg.OriginTime != xmitMsg.TransmitTime {
-		return nil, 0, errors.New("server response mismatch")
+		return nil, 0, errors.New("server Response mismatch")
 	}
 	if recvMsg.ReceiveTime > recvMsg.TransmitTime {
 		return nil, 0, errors.New("server clock ticked backwards")
@@ -407,8 +407,8 @@ func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 
 // parseTime parses the NTP packet along with the packet receive time to
 // generate a Response record.
-func parseTime(m *msg, recvTime ntpTime) *response {
-	r := &response{
+func parseTime(m *msg, recvTime ntpTime) *Response {
+	r := &Response{
 		Time:           m.TransmitTime.Time(),
 		ClockOffset:    offset(m.OriginTime, m.ReceiveTime, m.TransmitTime, recvTime),
 		RTT:            rtt(m.OriginTime, m.ReceiveTime, m.TransmitTime, recvTime),
@@ -465,7 +465,7 @@ func offset(org, rec, xmt, dst ntpTime) time.Duration {
 }
 
 func minError(org, rec, xmt, dst ntpTime) time.Duration {
-	// Each NTP response contains two pairs of send/receive timestamps.
+	// Each NTP Response contains two pairs of send/receive timestamps.
 	// When either pair indicates a "causality violation", we calculate the
 	// error as the difference in time between them. The minimum error is
 	// the greater of the two causality violations.
