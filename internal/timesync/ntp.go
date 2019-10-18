@@ -150,16 +150,6 @@ func (m *msg) getLeap() leapIndicator {
 	return leapIndicator((m.LiVnMode >> 6) & 0x03)
 }
 
-// Options contains the list of configurable options that may be used
-// with the QueryWithOptions function.
-type ntpOptions struct {
-	Version int           // NTP protocol version, defaults to 4
-	Network string        // network to use, defaults to udp
-	Timeout time.Duration // defaults to 5 seconds
-	// for proxy
-	Dial func(network, address string) (net.Conn, error)
-}
-
 // A response contains time data, some of which is returned by the NTP server
 // and some of which is calculated by the client.
 type response struct {
@@ -271,6 +261,17 @@ func (r *response) Validate() error {
 	return nil
 }
 
+// ntpOptions contains the list of configurable options that may be used
+// with the QueryWithOptions function.
+type ntpOptions struct {
+	Version int           // NTP protocol version, defaults to 4
+	Network string        // network to use, defaults to udp
+	Timeout time.Duration // defaults to 5 seconds
+
+	// for proxy
+	Dial func(network, address string, timeout time.Duration) (net.Conn, error)
+}
+
 func queryNTPServer(address string, opts *ntpOptions) (*response, error) {
 	var (
 		m   *msg
@@ -322,12 +323,12 @@ func getTime(address string, opts *ntpOptions) (*msg, ntpTime, error) {
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
-	dial := net.Dial
+	dial := net.DialTimeout
 	if opts.Dial != nil {
 		dial = opts.Dial
 	}
 	// Prepare a "connection" to the remote server.
-	conn, err := dial(network, address)
+	conn, err := dial(network, address, timeout)
 	if err != nil {
 		return nil, 0, err
 	}
