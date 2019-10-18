@@ -7,20 +7,19 @@ import (
 	"runtime"
 )
 
-type HostInfo struct {
+type System struct {
 	IPs      []string
 	OS       string
 	Arch     string
+	PID      int
 	Hostname string
 	Username string
-	PID      int
 }
 
-func Host() HostInfo {
-	hostInfo := HostInfo{}
+func GetSystemInfo() *System {
+	system := System{}
 	ifaces, err := net.Interfaces()
 	if err == nil {
-		var ips []string
 		for i := 0; i < len(ifaces); i++ {
 			if ifaces[i].Flags == net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
 				addrs, err := ifaces[i].Addrs()
@@ -28,26 +27,23 @@ func Host() HostInfo {
 					continue
 				}
 				for j := 0; j < len(addrs); j++ {
-					ips = append(ips, addrs[j].String())
+					system.IPs = append(system.IPs, addrs[j].String())
 				}
 			}
 		}
-		hostInfo.IPs = ips
 	}
-	hostInfo.OS = runtime.GOOS
-	hostInfo.Arch = runtime.GOARCH
-	hn, err := os.Hostname()
+	system.OS = runtime.GOOS
+	system.Arch = runtime.GOARCH
+	system.PID = os.Getpid()
+	system.Hostname, err = os.Hostname()
 	if err != nil {
-		hostInfo.Hostname = "unknown"
-	} else {
-		hostInfo.Hostname = hn
+		system.Hostname = "unknown"
 	}
 	u, err := user.Current()
 	if err != nil {
-		hostInfo.Username = "unknown"
+		system.Username = "unknown"
 	} else {
-		hostInfo.Username = u.Username
+		system.Username = u.Username
 	}
-	hostInfo.PID = os.Getpid()
-	return hostInfo
+	return &system
 }
