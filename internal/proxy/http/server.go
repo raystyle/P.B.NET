@@ -1,7 +1,6 @@
-package httpproxy
+package http
 
 import (
-	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/options"
+	"project/internal/xpanic"
 )
 
 var (
@@ -44,7 +44,7 @@ type Server struct {
 
 func NewServer(tag string, l logger.Logger, opts *Options) (*Server, error) {
 	if tag == "" {
-		return nil, errors.New("no tag")
+		return nil, errors.New("empty tag")
 	}
 	if opts == nil {
 		opts = new(Options)
@@ -184,7 +184,7 @@ func (l *log) String() string {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			s.log(logger.Error, &log{Log: fmt.Sprint("panic: ", rec), Req: r})
+			s.log(logger.Error, &log{Log: xpanic.Sprint(rec), Req: r})
 		}
 	}()
 	// auth
@@ -216,18 +216,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// handle https
 	if r.Method == http.MethodConnect {
-		// dial
-		conn, err := s.transport.DialContext(context.Background(), "tcp", r.URL.Host)
-		if err != nil {
-			s.log(logger.Error, &log{Log: err, Req: r})
-			return
-		}
 		// get client conn
 		wc, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
 			s.log(logger.Error, &log{Log: err, Req: r})
 			return
 		}
+		defer func() { _ = wc.Close() }()
+		// dial
+		conn, err := net.Dial("tcp", r.URL.Host)
+		if err != nil {
+			s.log(logger.Error, &log{Log: err, Req: r})
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		_, err = wc.Write(connectionEstablished)
 		if err != nil {
 			s.log(logger.Error, &log{Log: err, Req: r})

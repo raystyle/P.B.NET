@@ -1,4 +1,4 @@
-package httpproxy
+package http
 
 import (
 	"io/ioutil"
@@ -16,15 +16,12 @@ func TestClient(t *testing.T) {
 		err = server.Stop()
 		require.NoError(t, err)
 	}()
-	httpProxy, err := NewClient("http://admin:123456@" + server.Addr())
+	client, err := NewClient("http://admin:123456@" + server.Addr())
 	require.NoError(t, err)
-	transport := &http.Transport{}
-	httpProxy.HTTP(transport)
-	client := http.Client{
-		Transport: transport,
-	}
 	get := func(url string) {
-		resp, err := client.Get(url)
+		transport := &http.Transport{}
+		client.HTTP(transport)
+		resp, err := (&http.Client{Transport: transport}).Get(url)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		_, err = ioutil.ReadAll(resp.Body)
@@ -34,11 +31,12 @@ func TestClient(t *testing.T) {
 	get("http://github.com/")
 	get("http://admin:123456@" + server.Addr())
 	// test other
-	_, err = httpProxy.Dial("", "")
+	_, err = client.Dial("", "")
 	require.Equal(t, err, ErrNotSupportDial)
-	_, err = httpProxy.DialContext(nil, "", "")
+	_, err = client.DialContext(nil, "", "")
 	require.Equal(t, err, ErrNotSupportDial)
-	_, err = httpProxy.DialTimeout("", "", 0)
+	_, err = client.DialTimeout("", "", 0)
 	require.Equal(t, err, ErrNotSupportDial)
-	t.Log(httpProxy.Info())
+	t.Log(client.Info())
+	t.Log(client.Mode())
 }
