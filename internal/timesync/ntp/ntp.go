@@ -8,7 +8,7 @@
 //
 // This approach grew out of a go-nuts post by Michael Hofmann:
 // https://groups.google.com/forum/?fromgroups#!topic/golang-nuts/FlcdMU5fkLQ
-package timesync
+package ntp
 
 import (
 	"crypto/rand"
@@ -263,16 +263,16 @@ func (r *response) Validate() error {
 
 // ntpOptions contains the list of configurable options that may be used
 // with the QueryWithOptions function.
-type ntpOptions struct {
-	Version int           // NTP protocol version, defaults to 4
+type Options struct {
 	Network string        // network to use, defaults to udp
 	Timeout time.Duration // defaults to 5 seconds
+	Version int           // NTP protocol version, defaults to 4
 
 	// for proxy
 	Dial func(network, address string, timeout time.Duration) (net.Conn, error)
 }
 
-func queryNTPServer(address string, opts *ntpOptions) (*response, error) {
+func Query(address string, opts *Options) (*response, error) {
 	var (
 		m   *msg
 		now ntpTime
@@ -299,9 +299,9 @@ func queryNTPServer(address string, opts *ntpOptions) (*response, error) {
 
 // getTime performs the NTP server query and returns the response message
 // along with the local system time it was received.
-func getTime(address string, opts *ntpOptions) (*msg, ntpTime, error) {
+func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 	if opts == nil {
-		opts = new(ntpOptions)
+		opts = new(Options)
 	}
 	// apply options
 	version := defaultNtpVersion

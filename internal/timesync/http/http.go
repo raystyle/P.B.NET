@@ -1,4 +1,4 @@
-package timesync
+package http
 
 import (
 	"io"
@@ -9,7 +9,7 @@ import (
 	"project/internal/options"
 )
 
-func queryHTTPServer(req *http.Request, client *http.Client) (time.Time, error) {
+func Query(req *http.Request, client *http.Client) (time.Time, error) {
 	if client.Timeout < 1 {
 		client.Timeout = options.DefaultDialTimeout
 	}

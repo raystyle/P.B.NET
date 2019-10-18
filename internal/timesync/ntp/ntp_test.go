@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package timesync
+package ntp
 
 import (
 	"strings"
@@ -48,11 +48,11 @@ func assertInvalid(t *testing.T, r *response) {
 	}
 }
 
-func TestQueryNTPServer(t *testing.T) {
+func TestQuery(t *testing.T) {
 	t.Logf("[%s] ----------------------", host)
 	t.Logf("[%s] NTP protocol version %d", host, 4)
 
-	r, err := queryNTPServer(host, &ntpOptions{Version: 4})
+	r, err := Query(host, &Options{Version: 4})
 	if !isNil(t, err) {
 		t.Fatal(err)
 	}
@@ -77,9 +77,9 @@ func TestQueryNTPServer(t *testing.T) {
 }
 
 func TestQueryFailure(t *testing.T) {
-	_, err := queryNTPServer("169.254.1.1", &ntpOptions{Version: 4})
+	_, err := Query("169.254.1.1", &Options{Version: 4})
 	assert.NotNil(t, err)
-	_, err = queryNTPServer("169.254.1.1:15345", &ntpOptions{Version: 4})
+	_, err = Query("169.254.1.1:15345", &Options{Version: 4})
 	assert.NotNil(t, err)
 }
 
@@ -153,7 +153,7 @@ func TestTTL(t *testing.T) {
 
 func TestQueryTimeout(t *testing.T) {
 	// Force an immediate timeout.
-	tm, err := queryNTPServer(host, &ntpOptions{Version: 4, Timeout: time.Nanosecond})
+	tm, err := Query(host, &Options{Version: 4, Timeout: time.Nanosecond})
 	assert.Nil(t, tm)
 	assert.NotNil(t, err)
 }
