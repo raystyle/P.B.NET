@@ -13,12 +13,60 @@ import (
 	"project/internal/proxy/socks5"
 )
 
+func TestClient(t *testing.T) {
+	// make proxy pool
+	pool, err := proxy.NewPool(nil)
+	require.NoError(t, err)
+	// create dns servers
+	servers := make(map[string]*Server)
+	add := func(tag string, method Method, address string) {
+		servers[tag] = &Server{
+			Method:  method,
+			Address: address,
+		}
+	}
+	// google
+	add("udp_google", UDP, "8.8.8.8:53")
+	add("tcp_google", TCP, "8.8.8.8:53")
+	add("dot_google_domain", DoT, "dns.google:853|8.8.8.8,8.8.4.4")
+	// cloudflare
+	add("udp_cloudflare", UDP, "1.0.0.1:53")
+	add("tcp_cloudflare_ipv6", TCP, "[2606:4700:4700::1001]:53")
+	add("dot_cloudflare_domain", DoT, "cloudflare-dns.com:853|1.0.0.1")
+	// doh
+	add("doh_mozilla", DoH, "https://mozilla.cloudflare-dns.com/dns-query")
+	// make dns client
+	client, err := NewClient(pool, servers, time.Minute)
+	require.NoError(t, err)
+	// delete dns server
+	err = client.Delete("udp_google")
+	require.NoError(t, err)
+	// delete doesn't exist
+	err = client.Delete("udp_google")
+	require.Error(t, err)
+	// print servers
+	for tag, server := range client.Servers() {
+		t.Log(tag, server)
+	}
+	// resolve with default options
+	ipList, err := client.Resolve(domain, nil)
+	require.NoError(t, err)
+	t.Log("use default options", ipList)
+	// resolve with tag
+	opts := Options{ServerTag: "tcp_google"}
+	ipList, err = client.Resolve(domain, &opts)
+	require.NoError(t, err)
+	t.Log("with tag", ipList)
+	// client.FlushCache()
+	client.FlushCache()
+}
+
 const (
 	proxySocks5 = "test_socks5_client"
 	proxyHTTP   = "test_http_proxy_client"
 )
 
-func TestClient(t *testing.T) {
+func testGenerateProxyPool(t require.TestingT) *proxy.Pool {
 	// start socks5 proxy server(s5s)
 	s5sOpts := &socks5.Options{
 		Username: "admin",
@@ -66,40 +114,11 @@ func TestClient(t *testing.T) {
 		Mode:   proxy.HTTP,
 		Config: "http://admin:123456@localhost:" + port,
 	}
-	// make proxy pool
-	pool, err := proxy.NewPool(proxyClients)
-	require.NoError(t, err)
-	// create dns servers
-	servers := make(map[string]*Server)
-	add := func(tag string, method Method, address string) {
-		servers[tag] = &Server{
-			Method:  method,
-			Address: address,
-		}
-	}
-	// google
-	add("udp_google", UDP, "8.8.8.8:53")
-	add("tcp_google", TCP, "8.8.8.8:53")
-	add("dot_google_domain", DoT, "dns.google:853|8.8.8.8,8.8.4.4")
-	// cloudflare
-	add("udp_cloudflare", UDP, "1.0.0.1:53")
-	add("tcp_cloudflare_ipv6", TCP, "[2606:4700:4700::1001]:53")
-	add("dot_cloudflare_domain", DoT, "cloudflare-dns.com:853|1.0.0.1")
-	// doh
-	add("doh_mozilla", DoH, "https://mozilla.cloudflare-dns.com/dns-query")
-	// make dns client
-	client, err := NewClient(pool, servers, time.Minute)
-	require.NoError(t, err)
-	// resolve with default options
-	ipList, err := client.Resolve(domain, nil)
-	require.NoError(t, err)
-	t.Log("use default options", ipList)
-	// resolve with tag
-	opts := Options{ServerTag: "tcp_google"}
-	ipList, err = client.Resolve(domain, &opts)
-	require.NoError(t, err)
-	t.Log("with tag", ipList)
-	// client.FlushCache()
+	return nil
+}
+
+func TestClient_Resolve(t *testing.T) {
+
 }
 
 /*
