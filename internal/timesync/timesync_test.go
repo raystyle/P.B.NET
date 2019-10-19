@@ -1,9 +1,11 @@
 package timesync
 
 import (
+	"io/ioutil"
 	"testing"
 	"time"
 
+	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/dns"
@@ -49,22 +51,10 @@ func TestTimeSyncer(t *testing.T) {
 
 func testGenerateDNSClient(t *testing.T, pool *proxy.Pool) *dns.Client {
 	servers := make(map[string]*dns.Server)
-	add := func(tag string, method dns.Method, address string) {
-		servers[tag] = &dns.Server{
-			Method:  method,
-			Address: address,
-		}
-	}
-	// google
-	add("udp_google", dns.UDP, "8.8.8.8:53")
-	add("tcp_google", dns.TCP, "8.8.8.8:53")
-	add("dot_google_domain", dns.DoT, "dns.google:853|8.8.8.8,8.8.4.4")
-	// cloudflare
-	add("udp_cloudflare", dns.UDP, "1.0.0.1:53")
-	add("tcp_cloudflare_ipv6", dns.TCP, "[2606:4700:4700::1001]:53")
-	add("dot_cloudflare_domain", dns.DoT, "cloudflare-dns.com:853|1.0.0.1")
-	// doh
-	add("doh_mozilla", dns.DoH, "https://mozilla.cloudflare-dns.com/dns-query")
+	b, err := ioutil.ReadFile("testdata/dnsclient.toml")
+	require.NoError(t, err)
+	err = toml.Unmarshal(b, &servers)
+	require.NoError(t, err)
 	// make dns client
 	dnsClient, err := dns.NewClient(pool, servers, options.DefaultCacheExpireTime)
 	require.NoError(t, err)

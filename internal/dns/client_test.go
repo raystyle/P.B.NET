@@ -1,9 +1,11 @@
 package dns
 
 import (
+	"io/ioutil"
 	"net"
 	"testing"
 
+	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
@@ -19,22 +21,10 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 	// create dns servers
 	servers := make(map[string]*Server)
-	add := func(tag string, method Method, address string) {
-		servers[tag] = &Server{
-			Method:  method,
-			Address: address,
-		}
-	}
-	// google
-	add("udp_google", UDP, "8.8.8.8:53")
-	add("tcp_google", TCP, "8.8.8.8:53")
-	add("dot_google_domain", DoT, "dns.google:853|8.8.8.8,8.8.4.4")
-	// cloudflare
-	add("udp_cloudflare", UDP, "1.0.0.1:53")
-	add("tcp_cloudflare_ipv6", TCP, "[2606:4700:4700::1001]:53")
-	add("dot_cloudflare_domain", DoT, "cloudflare-dns.com:853|1.0.0.1")
-	// doh
-	add("doh_mozilla", DoH, "https://mozilla.cloudflare-dns.com/dns-query")
+	b, err := ioutil.ReadFile("testdata/dnsclient.toml")
+	require.NoError(t, err)
+	err = toml.Unmarshal(b, &servers)
+	require.NoError(t, err)
 	// make dns client
 	client, err := NewClient(pool, servers, options.DefaultCacheExpireTime)
 	require.NoError(t, err)
@@ -100,19 +90,19 @@ func testGenerateProxyPool(t *testing.T) *proxy.Pool {
 	require.NoError(t, err)
 	proxyClients[proxySocks5] = &proxy.Client{
 		Mode: proxy.Socks5,
-		Config: `
+		Config: []byte(`
         [[Clients]]
           Address = "localhost:` + port + `"
           Network = "tcp"
           Password = "123456"
           Username = "admin"
-    `}
+    `)}
 	// http
 	_, port, err = net.SplitHostPort(hps.Addr())
 	require.NoError(t, err)
 	proxyClients[proxyHTTP] = &proxy.Client{
 		Mode:   proxy.HTTP,
-		Config: "http://admin:123456@localhost:" + port,
+		Config: []byte("http://admin:123456@localhost:" + port),
 	}
 	return nil
 }

@@ -85,6 +85,8 @@ func (h *HTTP) Validate() error {
 }
 
 func (h *HTTP) Generate(nodes []*Node) (string, error) {
+	// padding data for HTTP.Validate()
+	h.Request.URL = "https://www.google.com/"
 	err := h.Validate()
 	if err != nil {
 		return "", err

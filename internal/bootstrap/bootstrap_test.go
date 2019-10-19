@@ -73,13 +73,13 @@ func newMockProxyPool(t *testing.T) *mockProxyPool {
 	require.NoError(t, err)
 	mpp.socks5Client = &proxy.Client{
 		Mode: proxy.Socks5,
-		Config: `
+		Config: []byte(`
         [[Clients]]
           Address = "localhost:` + port + `"
           Network = "tcp"
           Password = "123456"
           Username = "admin"
-    `}
+    `)}
 	// start http proxy server(hps)
 	hpsOpts := &http.Options{
 		Username: "admin",
@@ -95,7 +95,7 @@ func newMockProxyPool(t *testing.T) *mockProxyPool {
 	require.NoError(t, err)
 	mpp.httpClient = &proxy.Client{
 		Mode:   proxy.HTTP,
-		Config: "http://admin:123456@localhost:" + port,
+		Config: []byte("http://admin:123456@localhost:" + port),
 	}
 	return &mpp
 }
