@@ -219,7 +219,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		closeChan := make(chan struct{})
 		s.wg.Add(1)
 		go func() {
-			defer s.wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					s.log(logger.Fatal, xpanic.Sprint(r, "Server.ServeHTTP()"))
+				}
+				s.wg.Done()
+			}()
 			select {
 			case <-closeChan:
 			case <-s.stopSignal:
@@ -230,7 +235,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// start copy
 		s.wg.Add(1)
 		go func() {
-			defer s.wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					s.log(logger.Fatal, xpanic.Sprint(r, "Server.ServeHTTP()"))
+				}
+				s.wg.Done()
+			}()
 			_, _ = io.Copy(conn, wc)
 		}()
 		_, _ = io.Copy(wc, conn)

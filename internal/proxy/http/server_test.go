@@ -1,6 +1,9 @@
 package http
 
 import (
+	"io"
+	"io/ioutil"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,7 +18,8 @@ func TestServer(t *testing.T) {
 	t.Log(server.Info())
 	t.Log(server.Addr())
 	require.NoError(t, server.Close())
-	testutil.IsDestroyed(t, server, 1)
+	require.NoError(t, server.Close())
+	testutil.IsDestroyed(t, server, 2)
 }
 
 func testGenerateServer(t *testing.T) *Server {
@@ -26,4 +30,36 @@ func testGenerateServer(t *testing.T) *Server {
 	server, err := NewServer("test", logger.Test, &opts)
 	require.NoError(t, err)
 	return server
+}
+
+func TestAuthenticate(t *testing.T) {
+	server := testGenerateServer(t)
+	require.NoError(t, server.ListenAndServe("localhost:0"))
+	defer func() {
+		require.NoError(t, server.Close())
+		testutil.IsDestroyed(t, server, 2)
+	}()
+	// no auth method
+	resp, err := http.Get("http://" + server.Addr())
+	require.NoError(t, err)
+	_, err = io.Copy(ioutil.Discard, resp.Body)
+	require.NoError(t, err)
+	// not support method
+	req, err := http.NewRequest(http.MethodGet, "http://"+server.Addr(), nil)
+	require.NoError(t, err)
+	req.Header.Set("Proxy-Authorization", "method not-support")
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	_, err = io.Copy(ioutil.Discard, resp.Body)
+	require.NoError(t, err)
+	// invalid username/password
+	client, err := NewClient("http://admin:123457@" + server.Addr())
+	require.NoError(t, err)
+	transport := &http.Transport{}
+	client.HTTP(transport)
+	_, err = (&http.Client{Transport: transport}).Get("https://github.com/")
+	require.Error(t, err)
+	transport.CloseIdleConnections()
+	transport.Proxy = nil
+	testutil.IsDestroyed(t, client, 2)
 }
