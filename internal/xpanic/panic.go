@@ -10,21 +10,20 @@ import (
 
 const depth = 32
 
-func Sprint(panic interface{}) string {
+func Sprint(panic interface{}, title string) string {
 	b := &bytes.Buffer{}
+	b.WriteString(title)
+	b.WriteString(":\n\n")
 	_, _ = fmt.Fprintln(b, panic)
 	printStack(b)
 	return b.String()
 }
 
-func Error(prefix string, panic interface{}) error {
-	b := &bytes.Buffer{}
-	b.WriteString(prefix)
-	b.WriteString(" ")
-	_, _ = fmt.Fprintln(b, panic)
-	printStack(b)
-	return errors.New(b.String())
+func Error(panic interface{}, title string) error {
+	return errors.New(Sprint(panic, title))
 }
+
+// from github.com/pkg/errors
 
 func printStack(b *bytes.Buffer) {
 	b.WriteString("\n")
@@ -45,8 +44,6 @@ func printStack(b *bytes.Buffer) {
 		_, _ = fmt.Fprintf(b, "%d\n", f.line())
 	}
 }
-
-// from github.com/pkg/errors
 
 // Frame represents a program counter inside a stack frame.
 type frame uintptr
