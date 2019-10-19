@@ -6,7 +6,7 @@ import (
 
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
-	"project/internal/info"
+	"project/internal/modules/info"
 	"project/internal/xnet"
 )
 
@@ -32,7 +32,7 @@ type NodeRegisterRequest struct {
 	GUID         []byte
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
-	HostInfo     info.HostInfo
+	SystemInfo   *info.System
 	RequestTime  time.Time
 }
 
@@ -45,6 +45,9 @@ func (r *NodeRegisterRequest) Validate() error {
 	}
 	if len(r.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange public key size")
+	}
+	if r.SystemInfo == nil {
+		return errors.New("empty system info")
 	}
 	return nil
 }
@@ -84,7 +87,7 @@ type BeaconRegisterRequest struct {
 	GUID         []byte
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
-	HostInfo     info.HostInfo
+	SystemInfo   *info.System
 	RequestTime  time.Time
 }
 
@@ -97,6 +100,9 @@ func (r *BeaconRegisterRequest) Validate() error {
 	}
 	if len(r.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange public key size")
+	}
+	if r.SystemInfo == nil {
+		return errors.New("empty system info")
 	}
 	return nil
 }

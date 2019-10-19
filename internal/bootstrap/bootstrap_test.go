@@ -10,7 +10,7 @@ import (
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
-	"project/internal/proxy/httpproxy"
+	"project/internal/proxy/http"
 	"project/internal/proxy/socks5"
 	"project/internal/xnet"
 )
@@ -52,7 +52,7 @@ func (dr *mockDNSResolver) Resolve(domain string, opts *dns.Options) ([]string, 
 type mockProxyPool struct {
 	socks5Server *socks5.Server
 	socks5Client *proxy.Client
-	httpServer   *httpproxy.Server
+	httpServer   *http.Server
 	httpClient   *proxy.Client
 }
 
@@ -81,11 +81,11 @@ func newMockProxyPool(t *testing.T) *mockProxyPool {
           Username = "admin"
     `}
 	// start http proxy server(hps)
-	hpsOpts := &httpproxy.Options{
+	hpsOpts := &http.Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	hps, err := httpproxy.NewServer("test_http_proxy", logger.Test, hpsOpts)
+	hps, err := http.NewServer("test_http_proxy", logger.Test, hpsOpts)
 	require.NoError(t, err)
 	err = hps.ListenAndServe("localhost:0", 0)
 	require.NoError(t, err)
