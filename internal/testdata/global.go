@@ -13,36 +13,43 @@ import (
 
 func ProxyClients(t require.TestingT) map[string]*proxy.Client {
 	clients := make(map[string]*proxy.Client)
-	b, err := ioutil.ReadFile("../config/global/proxyclient.toml")
+	config, err := ioutil.ReadFile("../internal/proxy/testdata/socks5.toml")
 	require.NoError(t, err)
-	err = toml.Unmarshal(b, &clients)
+	clients["socks5"] = &proxy.Client{
+		Mode:   proxy.Socks5,
+		Config: config,
+	}
+	config, err = ioutil.ReadFile("../internal/proxy/testdata/http.txt")
 	require.NoError(t, err)
+	clients["http"] = &proxy.Client{
+		Mode:   proxy.HTTP,
+		Config: config,
+	}
 	return clients
 }
 
 func DNSServers(t require.TestingT) map[string]*dns.Server {
 	servers := make(map[string]*dns.Server)
-	b, err := ioutil.ReadFile("../config/global/dnsclient.toml")
+	b, err := ioutil.ReadFile("../internal/dns/testdata/dnsclient.toml")
 	require.NoError(t, err)
 	err = toml.Unmarshal(b, &servers)
 	require.NoError(t, err)
 	return servers
 }
 
-func TimeSyncerConfigs(t require.TestingT) map[string]*timesync.Config {
-	configs := make(map[string]*timesync.Config)
-	b, err := ioutil.ReadFile("../config/global/timesyncer.toml")
+func TimeSyncerClients(t require.TestingT) map[string]*timesync.Client {
+	clients := make(map[string]*timesync.Client)
+	config, err := ioutil.ReadFile("../internal/timesync/testdata/http.toml")
 	require.NoError(t, err)
-	err = toml.Unmarshal(b, &configs)
+	clients["http"] = &timesync.Client{
+		Mode:   timesync.HTTP,
+		Config: config,
+	}
+	config, err = ioutil.ReadFile("../internal/timesync/testdata/ntp.toml")
 	require.NoError(t, err)
-	return configs
-}
-
-func TimeSyncerConfigsFull(t require.TestingT) map[string]*timesync.Config {
-	c := make(map[string]*timesync.Config)
-	b, err := ioutil.ReadFile("../config/global/timesyncer_full.toml")
-	require.NoError(t, err)
-	err = toml.Unmarshal(b, &c)
-	require.NoError(t, err)
-	return c
+	clients["ntp"] = &timesync.Client{
+		Mode:   timesync.NTP,
+		Config: config,
+	}
+	return clients
 }

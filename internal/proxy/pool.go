@@ -32,7 +32,7 @@ var (
 
 type Client struct {
 	Mode   Mode
-	Config string
+	Config []byte
 	client
 }
 
@@ -84,7 +84,7 @@ func (p *Pool) Add(tag string, client *Client) error {
 		conf := &struct {
 			Clients []*socks5.Config `toml:"server"`
 		}{}
-		err := toml.Unmarshal([]byte(client.Config), conf)
+		err := toml.Unmarshal(client.Config, conf)
 		if err != nil {
 			return err
 		}
@@ -94,7 +94,7 @@ func (p *Pool) Add(tag string, client *Client) error {
 		}
 		client.client = c
 	case HTTP:
-		c, err := hp.NewClient(client.Config)
+		c, err := hp.NewClient(string(client.Config))
 		if err != nil {
 			return err
 		}

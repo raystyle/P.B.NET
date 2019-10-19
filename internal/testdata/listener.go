@@ -4,28 +4,28 @@ import (
 	"io/ioutil"
 
 	"github.com/stretchr/testify/require"
-	
+
 	"project/internal/messages"
 	"project/internal/xnet"
 )
 
 func Listeners(t require.TestingT) []*messages.Listener {
-	var ls []*messages.Listener
-	b, err := ioutil.ReadFile("../config/listener/tls.toml")
+	var listeners []*messages.Listener
+	config, err := ioutil.ReadFile("../internal/xnet/testdata/tls.toml")
 	require.NoError(t, err)
-	l := &messages.Listener{
+	listener := &messages.Listener{
 		Tag:    "tls",
 		Mode:   xnet.TLS,
-		Config: b,
+		Config: config,
 	}
-	ls = append(ls, l)
-	b, err = ioutil.ReadFile("../config/listener/light.toml")
+	listeners = append(listeners, listener)
+	config, err = ioutil.ReadFile("../internal/xnet/testdata/light.toml")
 	require.NoError(t, err)
-	l = &messages.Listener{
+	listener = &messages.Listener{
 		Tag:    "light",
 		Mode:   xnet.Light,
-		Config: b,
+		Config: config,
 	}
-	ls = append(ls, l)
-	return ls
+	listeners = append(listeners, listener)
+	return listeners
 }

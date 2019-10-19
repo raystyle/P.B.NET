@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,24 +13,17 @@ const (
 )
 
 func TestPool(t *testing.T) {
+	config, err := ioutil.ReadFile("testdata/socks5.toml")
+	require.NoError(t, err)
 	s5c := &Client{
-		Mode: Socks5,
-		Config: `
-[[Clients]]
-  Address  = "localhost:0"
-  Network  = "tcp"
-  Password = "123456"
-  Username = "admin"
-
-[[Clients]]
-  Address  = "localhost:0"
-  Network  = "tcp"
-  Password = "123456"
-  Username = "admin"
-`}
+		Mode:   Socks5,
+		Config: config,
+	}
+	config, err = ioutil.ReadFile("testdata/http.txt")
+	require.NoError(t, err)
 	hp := &Client{
 		Mode:   HTTP,
-		Config: "http://admin:123456@localhost:8080",
+		Config: config,
 	}
 	clients := make(map[string]*Client)
 	clients[tagSocks5] = s5c
