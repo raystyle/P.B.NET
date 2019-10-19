@@ -6,17 +6,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/testutil"
 )
 
 func TestServer(t *testing.T) {
-	s := testGenerateServer(t)
-	err := s.ListenAndServe("localhost:0", 0)
-	require.NoError(t, err)
-	t.Log(s.Info())
-	t.Log(s.Addr())
-	// select {}
-	err = s.Stop()
-	require.NoError(t, err)
+	server := testGenerateServer(t)
+	require.NoError(t, server.ListenAndServe("localhost:0"))
+	t.Log(server.Info())
+	t.Log(server.Addr())
+	require.NoError(t, server.Close())
+	testutil.IsDestroyed(t, server, 1)
 }
 
 func testGenerateServer(t *testing.T) *Server {
@@ -24,7 +23,7 @@ func testGenerateServer(t *testing.T) *Server {
 		Username: "admin",
 		Password: "123456",
 	}
-	s, err := NewServer("test", logger.Test, &opts)
+	server, err := NewServer("test", logger.Test, &opts)
 	require.NoError(t, err)
-	return s
+	return server
 }

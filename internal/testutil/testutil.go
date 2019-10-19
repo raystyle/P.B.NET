@@ -18,5 +18,5 @@ func isDestroyed(object interface{}, gcNum int) bool {
 }
 
 func IsDestroyed(t require.TestingT, object interface{}, gcNum int) {
-	require.True(t, isDestroyed(object, gcNum))
+	require.True(t, isDestroyed(object, gcNum), "object not destroyed")
 }

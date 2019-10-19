@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
@@ -26,23 +25,29 @@ var (
 type Options struct {
 	Username  string
 	Password  string
-	Server    *options.HTTPServer
-	Transport *options.HTTPTransport
 	MaxConns  int
+	ExitFunc  func()
+	Server    options.HTTPServer
+	Transport options.HTTPTransport
 }
 
 type Server struct {
-	tag       string
-	logger    logger.Logger
+	tag      string
+	logger   logger.Logger
+	maxConns int
+	exitFunc func()
+
 	server    *http.Server
-	transport *http.Transport // for client
-	maxConns  int
-	addr      string
+	transport *http.Transport
+	address   string
 	basicAuth []byte
-	m         sync.Mutex
+	rwm       sync.RWMutex
+
+	stopSignal chan struct{}
+	wg         sync.WaitGroup
 }
 
-func NewServer(tag string, l logger.Logger, opts *Options) (*Server, error) {
+func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
@@ -50,122 +55,94 @@ func NewServer(tag string, l logger.Logger, opts *Options) (*Server, error) {
 		opts = new(Options)
 	}
 	s := &Server{
-		tag:      tag,
-		logger:   l,
+		tag:      "http proxy-" + tag,
+		logger:   lg,
 		maxConns: opts.MaxConns,
 	}
 	var err error
-	// http server
-	if opts.Server != nil {
-		s.server, err = opts.Server.Apply()
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-	} else {
-		s.server, _ = new(options.HTTPServer).Apply()
+	// server
+	s.server, err = opts.Server.Apply()
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
-	s.server.Handler = s
-	s.server.ErrorLog = logger.Wrap(logger.Error, s.tag, l)
-	// client transport
-	if opts.Transport != nil {
-		s.transport, err = opts.Transport.Apply()
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-	} else {
-		s.transport, _ = new(options.HTTPTransport).Apply()
+	// transport
+	s.transport, err = opts.Transport.Apply()
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
-	if opts.MaxConns < 1 {
+	if s.maxConns < 1 {
 		s.maxConns = options.DefaultConnectionLimit
 	}
 	// basic authentication
 	if opts.Username != "" {
-		s.basicAuth = []byte(base64.StdEncoding.EncodeToString(
-			[]byte(opts.Username + ":" + opts.Password)))
+		auth := []byte(opts.Username + ":" + opts.Password)
+		s.basicAuth = []byte(base64.StdEncoding.EncodeToString(auth))
 	}
+	s.server.Handler = s
+	s.server.ErrorLog = logger.Wrap(logger.Error, s.tag, lg)
+	s.stopSignal = make(chan struct{})
 	return s, nil
 }
 
-// from GOROOT/src/net/http/server.go
-type tcpKeepAliveListener struct {
-	*net.TCPListener
-}
-
-func (ln tcpKeepAliveListener) Accept() (net.Conn, error) {
-	tc, err := ln.AcceptTCP()
-	if err != nil {
-		return nil, err
-	}
-	_ = tc.SetKeepAlive(true)
-	_ = tc.SetKeepAlivePeriod(3 * time.Minute)
-	return tc, nil
-}
-
-func (s *Server) ListenAndServe(address string, timeout time.Duration) error {
+func (s *Server) ListenAndServe(address string) error {
 	l, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
-	return s.Serve(tcpKeepAliveListener{l.(*net.TCPListener)}, timeout)
+	s.Serve(l)
+	return nil
 }
 
-func (s *Server) Serve(l net.Listener, timeout time.Duration) error {
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.addr = l.Addr().String()
-	limitListener := netutil.LimitListener(l, s.maxConns)
-	return s.start(func() error { return s.server.Serve(limitListener) }, timeout)
-}
-
-func (s *Server) start(f func() error, timeout time.Duration) error {
-	if timeout < 1 {
-		timeout = options.DefaultStartTimeout
-	}
-	errChan := make(chan error, 1)
+func (s *Server) Serve(l net.Listener) {
+	s.rwm.Lock()
+	s.address = l.Addr().String()
+	s.rwm.Unlock()
+	ll := netutil.LimitListener(l, s.maxConns)
+	s.wg.Add(1)
 	go func() {
-		var err error
 		defer func() {
 			if r := recover(); r != nil {
-				switch v := r.(type) {
-				case error:
-					err = v
-				default:
-					err = errors.New("unknown panic")
-				}
+				s.log(logger.Fatal, xpanic.Sprint(r, "Server.Serve()"))
 			}
-			errChan <- err
-			close(errChan)
+			close(s.stopSignal)
+			s.transport.CloseIdleConnections()
+			s.rwm.Lock()
+			s.server = nil
+			s.rwm.Unlock()
+			// exit func
+			if s.exitFunc != nil {
+				s.exitFunc()
+			}
+			s.log(logger.Info, "server stopped")
+			s.wg.Done()
 		}()
-		err = f()
+		s.log(logger.Info, "start server")
+		_ = s.server.Serve(ll)
 	}()
-	select {
-	case err := <-errChan:
-		s.log(logger.Info, "start server failed:", err)
-		return err
-	case <-time.After(timeout):
-		s.log(logger.Info, "start server success:", s.addr)
-		return nil
-	}
 }
 
-func (s *Server) Stop() error {
-	err := s.server.Close()
-	s.transport.CloseIdleConnections()
-	s.log(logger.Info, "server stopped")
+func (s *Server) Close() (err error) {
+	s.rwm.RLock()
+	p := s.server
+	s.rwm.RUnlock()
+	if p != nil {
+		err = p.Close()
+		s.wg.Wait()
+	}
 	return err
 }
 
 func (s *Server) Info() string {
-	s.m.Lock()
-	defer s.m.Unlock()
+	s.rwm.RLock()
+	defer s.rwm.RUnlock()
 	auth, _ := base64.StdEncoding.DecodeString(string(s.basicAuth))
-	return fmt.Sprintf("Listen: %s Auth: %s", s.addr, auth)
+	return fmt.Sprintf("Listen: %s Auth: %s", s.address, auth)
 }
 
 func (s *Server) Addr() string {
-	s.m.Lock()
-	defer s.m.Unlock()
-	return s.addr
+	s.rwm.RLock()
+	defer s.rwm.RUnlock()
+	return s.address
 }
 
 func (s *Server) log(l logger.Level, log ...interface{}) {
@@ -182,12 +159,14 @@ func (l *log) String() string {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.wg.Add(1)
 	defer func() {
 		if rec := recover(); rec != nil {
-			s.log(logger.Error, &log{Log: xpanic.Sprint(rec), Req: r})
+			s.log(logger.Fatal, &log{Log: xpanic.Sprint(rec, "Server.ServeHTTP()"), Req: r})
 		}
+		s.wg.Done()
 	}()
-	// auth
+	// authenticate
 	if s.basicAuth != nil {
 		authFailed := func() {
 			w.Header().Set("Proxy-Authenticate", "Basic")
@@ -195,7 +174,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		auth := strings.Split(r.Header.Get("Proxy-Authorization"), " ")
 		if len(auth) != 2 {
-			// not log
 			authFailed()
 			return
 		}
@@ -214,31 +192,49 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// handle https
-	if r.Method == http.MethodConnect {
-		// get client conn
+	s.log(logger.Debug, &log{Log: "handle request", Req: r})
+	if r.Method == http.MethodConnect { // handle https
+		var err error
+		defer func() {
+			if err != nil {
+				s.log(logger.Error, &log{Log: err, Req: r})
+			}
+		}()
+		// hijack client conn
 		wc, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
-			s.log(logger.Error, &log{Log: err, Req: r})
 			return
 		}
 		defer func() { _ = wc.Close() }()
-		// dial
+		// dial target
 		conn, err := net.Dial("tcp", r.URL.Host)
 		if err != nil {
-			s.log(logger.Error, &log{Log: err, Req: r})
 			return
 		}
 		defer func() { _ = conn.Close() }()
 		_, err = wc.Write(connectionEstablished)
 		if err != nil {
-			s.log(logger.Error, &log{Log: err, Req: r})
 			return
 		}
-		go func() { _, _ = io.Copy(conn, wc) }()
+		closeChan := make(chan struct{})
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			select {
+			case <-closeChan:
+			case <-s.stopSignal:
+				_ = wc.Close()
+				_ = conn.Close()
+			}
+		}()
+		// start copy
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			_, _ = io.Copy(conn, wc)
+		}()
 		_, _ = io.Copy(wc, conn)
-		_ = conn.Close()
-		_ = wc.Close()
+		close(closeChan)
 	} else { // handle http
 		resp, err := s.transport.RoundTrip(r)
 		if err != nil {
