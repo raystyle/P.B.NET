@@ -3,11 +3,11 @@ package dns
 import (
 	"net"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/options"
 	"project/internal/proxy"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks5"
@@ -36,7 +36,7 @@ func TestClient(t *testing.T) {
 	// doh
 	add("doh_mozilla", DoH, "https://mozilla.cloudflare-dns.com/dns-query")
 	// make dns client
-	client, err := NewClient(pool, servers, time.Minute)
+	client, err := NewClient(pool, servers, options.DefaultCacheExpireTime)
 	require.NoError(t, err)
 	// delete dns server
 	err = client.Delete("udp_google")
@@ -66,7 +66,7 @@ const (
 	proxyHTTP   = "test_http_proxy_client"
 )
 
-func testGenerateProxyPool(t require.TestingT) *proxy.Pool {
+func testGenerateProxyPool(t *testing.T) *proxy.Pool {
 	// start socks5 proxy server(s5s)
 	s5sOpts := &socks5.Options{
 		Username: "admin",

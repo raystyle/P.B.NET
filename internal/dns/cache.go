@@ -17,6 +17,13 @@ type cache struct {
 	rwm        sync.RWMutex
 }
 
+func (c *Client) GetCacheExpireTime() time.Duration {
+	c.cachesRWM.RLock()
+	expire := c.expire
+	c.cachesRWM.RUnlock()
+	return expire
+}
+
 func (c *Client) SetCacheExpireTime(expire time.Duration) error {
 	if expire < time.Minute || expire > time.Hour {
 		return ErrInvalidExpireTime
@@ -25,13 +32,6 @@ func (c *Client) SetCacheExpireTime(expire time.Duration) error {
 	c.expire = expire
 	c.cachesRWM.Unlock()
 	return nil
-}
-
-func (c *Client) GetCacheExpireTime() time.Duration {
-	c.cachesRWM.RLock()
-	expire := c.expire
-	c.cachesRWM.RUnlock()
-	return expire
 }
 
 func (c *Client) FlushCache() {
