@@ -26,9 +26,9 @@ type Options struct {
 	Username  string
 	Password  string
 	MaxConns  int
-	ExitFunc  func()
 	Server    options.HTTPServer
 	Transport options.HTTPTransport
+	ExitFunc  func()
 }
 
 type Server struct {
@@ -71,7 +71,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		return nil, errors.WithStack(err)
 	}
 	if s.maxConns < 1 {
-		s.maxConns = options.DefaultConnectionLimit
+		s.maxConns = options.DefaultMaxConns
 	}
 	// basic authentication
 	if opts.Username != "" {
@@ -116,7 +116,7 @@ func (s *Server) Serve(l net.Listener) {
 			s.log(logger.Info, "server stopped")
 			s.wg.Done()
 		}()
-		s.log(logger.Info, "start server")
+		s.logf(logger.Info, "start server (%s)", s.address)
 		_ = s.server.Serve(ll)
 	}()
 }
@@ -132,21 +132,27 @@ func (s *Server) Close() (err error) {
 	return err
 }
 
-func (s *Server) Info() string {
+func (s *Server) Address() string {
 	s.rwm.RLock()
-	defer s.rwm.RUnlock()
-	auth, _ := base64.StdEncoding.DecodeString(string(s.basicAuth))
-	return fmt.Sprintf("Listen: %s Auth: %s", s.address, auth)
+	addr := s.address
+	s.rwm.RUnlock()
+	return addr
 }
 
-func (s *Server) Addr() string {
+func (s *Server) Info() string {
 	s.rwm.RLock()
-	defer s.rwm.RUnlock()
-	return s.address
+	auth, _ := base64.StdEncoding.DecodeString(string(s.basicAuth))
+	addr := s.address
+	s.rwm.RUnlock()
+	return fmt.Sprintf("listen: %s auth: %s", addr, auth)
 }
 
 func (s *Server) log(l logger.Level, log ...interface{}) {
 	s.logger.Println(l, s.tag, log...)
+}
+
+func (s *Server) logf(l logger.Level, format string, log ...interface{}) {
+	s.logger.Printf(l, s.tag, format, log...)
 }
 
 type log struct {
@@ -162,7 +168,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.wg.Add(1)
 	defer func() {
 		if rec := recover(); rec != nil {
-			s.log(logger.Fatal, &log{Log: xpanic.Sprint(rec, "Server.ServeHTTP()"), Req: r})
+			l := &log{Log: xpanic.Sprint(rec, "Server.ServeHTTP()"), Req: r}
+			s.log(logger.Fatal, l)
 		}
 		s.wg.Done()
 	}()
@@ -216,12 +223,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
+		// http.Server.Close() not close hijacked conn
 		closeChan := make(chan struct{})
 		s.wg.Add(1)
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					s.log(logger.Fatal, xpanic.Sprint(r, "Server.ServeHTTP()"))
+				if rec := recover(); rec != nil {
+					l := &log{Log: xpanic.Sprint(rec, "Server.ServeHTTP()"), Req: r}
+					s.log(logger.Fatal, l)
 				}
 				s.wg.Done()
 			}()
@@ -236,8 +245,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.wg.Add(1)
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-					s.log(logger.Fatal, xpanic.Sprint(r, "Server.ServeHTTP()"))
+				if rec := recover(); rec != nil {
+					l := &log{Log: xpanic.Sprint(rec, "Server.ServeHTTP()"), Req: r}
+					s.log(logger.Fatal, l)
 				}
 				s.wg.Done()
 			}()

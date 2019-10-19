@@ -15,8 +15,8 @@ import (
 func TestServer(t *testing.T) {
 	server := testGenerateServer(t)
 	require.NoError(t, server.ListenAndServe("localhost:0"))
-	t.Log(server.Info())
-	t.Log(server.Addr())
+	t.Log("address:", server.Address())
+	t.Log("info:", server.Info())
 	require.NoError(t, server.Close())
 	require.NoError(t, server.Close())
 	testutil.IsDestroyed(t, server, 2)
@@ -40,12 +40,12 @@ func TestAuthenticate(t *testing.T) {
 		testutil.IsDestroyed(t, server, 2)
 	}()
 	// no auth method
-	resp, err := http.Get("http://" + server.Addr())
+	resp, err := http.Get("http://" + server.Address())
 	require.NoError(t, err)
 	_, err = io.Copy(ioutil.Discard, resp.Body)
 	require.NoError(t, err)
 	// not support method
-	req, err := http.NewRequest(http.MethodGet, "http://"+server.Addr(), nil)
+	req, err := http.NewRequest(http.MethodGet, "http://"+server.Address(), nil)
 	require.NoError(t, err)
 	req.Header.Set("Proxy-Authorization", "method not-support")
 	resp, err = http.DefaultClient.Do(req)
@@ -53,7 +53,7 @@ func TestAuthenticate(t *testing.T) {
 	_, err = io.Copy(ioutil.Discard, resp.Body)
 	require.NoError(t, err)
 	// invalid username/password
-	client, err := NewClient("http://admin:123457@" + server.Addr())
+	client, err := NewClient("http://admin:123457@" + server.Address())
 	require.NoError(t, err)
 	transport := &http.Transport{}
 	client.HTTP(transport)

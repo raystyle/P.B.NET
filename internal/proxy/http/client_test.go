@@ -19,7 +19,7 @@ func TestClient(t *testing.T) {
 		require.NoError(t, server.Close())
 		testutil.IsDestroyed(t, server, 2)
 	}()
-	client, err := NewClient("http://admin:123456@" + server.Addr())
+	client, err := NewClient("http://admin:123456@" + server.Address())
 	require.NoError(t, err)
 	wg := sync.WaitGroup{}
 	get := func(url string) {
@@ -31,7 +31,7 @@ func TestClient(t *testing.T) {
 		_, err = io.Copy(ioutil.Discard, resp.Body)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
-		transport.CloseIdleConnections()
+		// transport.CloseIdleConnections()
 		transport.Proxy = nil
 	}
 	wg.Add(3)
