@@ -2,9 +2,11 @@ package testutil
 
 import (
 	"runtime"
+
+	"github.com/stretchr/testify/require"
 )
 
-func IsDestroyed(object interface{}, gcNum int) bool {
+func isDestroyed(object interface{}, gcNum int) bool {
 	destroyed := false
 	runtime.SetFinalizer(object, func(_ interface{}) {
 		destroyed = true
@@ -13,4 +15,8 @@ func IsDestroyed(object interface{}, gcNum int) bool {
 		runtime.GC()
 	}
 	return destroyed
+}
+
+func IsDestroyed(t require.TestingT, object interface{}, gcNum int) {
+	require.True(t, isDestroyed(object, gcNum))
 }
