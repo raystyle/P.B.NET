@@ -3,6 +3,8 @@ package guid
 import (
 	"testing"
 	"time"
+
+	"project/internal/testutil"
 )
 
 func TestGUID(t *testing.T) {
@@ -11,20 +13,23 @@ func TestGUID(t *testing.T) {
 		t.Log(g.Get())
 	}
 	g.Close()
-	// now
+	testutil.IsDestroyed(t, g, 1)
+	// with now
 	g = New(16, time.Now)
 	for i := 0; i < 4; i++ {
 		t.Log(g.Get())
 	}
 	g.Close()
+	testutil.IsDestroyed(t, g, 1)
 	// 0 size
-	g = New(-1, time.Now)
+	g = New(0, time.Now)
 	for i := 0; i < 4; i++ {
 		t.Log(g.Get())
 	}
 	g.Close()
 	// twice
 	g.Close()
+	testutil.IsDestroyed(t, g, 1)
 }
 
 func BenchmarkGenerator_Get(b *testing.B) {
@@ -35,4 +40,6 @@ func BenchmarkGenerator_Get(b *testing.B) {
 		g.Get()
 	}
 	b.StopTimer()
+	g.Close()
+	testutil.IsDestroyed(b, g, 1)
 }

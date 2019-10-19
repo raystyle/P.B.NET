@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"net"
 	"os"
-	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -73,7 +72,6 @@ func New(size int, now func() time.Time) *GUID {
 	g.head = sha256.Bytes(buffer.Bytes())
 	g.wg.Add(1)
 	go g.generateLoop()
-	runtime.SetFinalizer(g, (*GUID).Close)
 	return g
 }
 
@@ -90,7 +88,6 @@ func (g *GUID) Close() {
 	g.closeOnce.Do(func() {
 		close(g.stopSignal)
 		g.wg.Wait()
-		runtime.SetFinalizer(g, nil)
 	})
 }
 
