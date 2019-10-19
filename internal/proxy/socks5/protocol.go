@@ -16,7 +16,8 @@ const (
 	statusSucceeded         uint8 = 0x00
 	statusFailed            uint8 = 0x01
 
-	reserve uint8 = 0x00
+	reserve   uint8 = 0x00
+	noReserve uint8 = 0x01
 	// cmd
 	connect uint8 = 0x01
 	// address
