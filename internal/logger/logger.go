@@ -3,6 +3,7 @@ package logger
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -150,13 +151,51 @@ func Conn(conn net.Conn) *bytes.Buffer {
 	return &b
 }
 
-// TODO print more info
+const postLineLength = 50
 
-// address: 127.0.0.1:2275
+// HTTPRequest is used to print http.Request
 //
-// GET /index.html
-// foo:foo
+// client: 127.0.0.1:1234
+//
+// POST /index HTTP/1.1
+// Accept: text/html
+// Connection: keep-alive
+// User-Agent: Mozilla
+//
+// post data...
+// post data...
 func HTTPRequest(r *http.Request) string {
-	return fmt.Sprintf("address: %s\n\n%s %s\n%s",
-		r.RemoteAddr, r.Method, r.RequestURI, r.Header)
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(b, "client: %s\n\n", r.RemoteAddr)
+	_, _ = fmt.Fprintf(b, "%s %s %s", r.Method, r.RequestURI, r.Proto)
+	for k, v := range r.Header {
+		_, _ = fmt.Fprintf(b, "\n%s: %s", k, v[0])
+	}
+	if r.Body != nil {
+		buffer := make([]byte, postLineLength)
+		// check body
+		n, err := io.ReadFull(r.Body, buffer)
+		if err != nil {
+			if n == 0 { // no body
+				return b.String()
+			}
+			// 0 < data size < postLineLength
+			_, _ = fmt.Fprintf(b, "\n\n%s", buffer[:n])
+			return b.String()
+		}
+		// new line and write data
+		_, _ = fmt.Fprintf(b, "\n\n%s", buffer)
+		for {
+			n, err := io.ReadFull(r.Body, buffer)
+			if err != nil {
+				// write last line
+				if n != 0 {
+					_, _ = fmt.Fprintf(b, "\n%s", buffer[:n])
+				}
+				break
+			}
+			_, _ = fmt.Fprintf(b, "\n%s", buffer)
+		}
+	}
+	return b.String()
 }

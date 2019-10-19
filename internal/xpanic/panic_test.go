@@ -8,9 +8,9 @@ import (
 func TestXpanic(t *testing.T) {
 	defer func() {
 		r := recover()
-		fmt.Println("----start----")
+		fmt.Println("-----begin-----")
 		fmt.Println(Error(r, "TestXpanic"))
-		fmt.Println("----end----")
+		fmt.Println("-----end-----")
 	}()
 	testPanic()
 }

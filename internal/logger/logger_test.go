@@ -1,8 +1,12 @@
 package logger
 
 import (
+	"bytes"
+	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -71,10 +75,39 @@ func TestConn(t *testing.T) {
 }
 
 func TestHTTPRequest(t *testing.T) {
-	r := http.Request{
-		Method:     http.MethodGet,
-		RequestURI: "/",
-		RemoteAddr: "127.0.0.1:1234",
-	}
-	t.Log(HTTPRequest(&r))
+	r, err := http.NewRequest(http.MethodGet, "https://github.com/", nil)
+	require.NoError(t, err)
+	r.RemoteAddr = "127.0.0.1:1234"
+	r.RequestURI = "/index"
+	r.Header.Set("User-Agent", "Mozilla")
+	r.Header.Set("Accept", "text/html")
+	r.Header.Set("Connection", "keep-alive")
+
+	fmt.Println("-----begin (GET and no body)-----")
+	fmt.Println(HTTPRequest(r))
+	fmt.Printf("-----end-----\n\n")
+
+	body := new(bytes.Buffer)
+	r.Body = ioutil.NopCloser(body)
+	fmt.Println("-----begin (GET with body but no data)-----")
+	fmt.Println(HTTPRequest(r))
+	fmt.Printf("-----end-----\n\n")
+
+	body.Reset()
+	body.WriteString(strings.Repeat("a", postLineLength-10))
+	fmt.Println("-----begin (POST with data <postLineLength)-----")
+	fmt.Println(HTTPRequest(r))
+	fmt.Printf("-----end-----\n\n")
+
+	body.Reset()
+	body.WriteString(strings.Repeat("a", postLineLength))
+	fmt.Println("-----begin (POST with data postLineLength)-----")
+	fmt.Println(HTTPRequest(r))
+	fmt.Printf("-----end-----\n\n")
+
+	body.Reset()
+	body.WriteString(strings.Repeat("a", 2*postLineLength-1))
+	fmt.Println("-----begin (POST with data 2*postLineLength-1)-----")
+	fmt.Println(HTTPRequest(r))
+	fmt.Printf("-----end-----\n\n")
 }
