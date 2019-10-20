@@ -5,7 +5,7 @@ import "time"
 const (
 	// role.global
 	DefaultCacheExpireTime = 2 * time.Minute  // dns client
-	DefaultSyncInterval    = 15 * time.Minute // timesyncer
+	DefaultSyncInterval    = 10 * time.Minute // timesyncer
 
 	// xnet
 	DefaultMaxConns         = 1000

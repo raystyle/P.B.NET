@@ -13,8 +13,8 @@ import (
 
 const (
 	httpDefaultTimeout                      = time.Minute
-	httpDefaultMaxHeaderBytes               = 4 * 1048576 // 4MB
-	httpDefaultMaxResponseHeaderBytes int64 = 4 * 1048576 // 4MB
+	httpDefaultMaxHeaderBytes               = 512 * 1024 // 512KB
+	httpDefaultMaxResponseHeaderBytes int64 = 512 * 1024 // 512KB
 )
 
 type HTTPRequest struct {
