@@ -169,7 +169,7 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 	if err != nil {
 		return err
 	}
-	xconn := xnet.DeadlineConn(conn, timeout)
+	dConn := xnet.DeadlineConn(conn, timeout)
 	// request authentication
 	buffer := bytes.Buffer{}
 	buffer.WriteByte(version5)
@@ -181,12 +181,12 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 		buffer.WriteByte(notRequired)
 		buffer.WriteByte(usernamePassword)
 	}
-	_, err = xconn.Write(buffer.Bytes())
+	_, err = dConn.Write(buffer.Bytes())
 	if err != nil {
 		return err
 	}
 	response := make([]byte, 2)
-	_, err = io.ReadFull(xconn, response)
+	_, err = io.ReadFull(dConn, response)
 	if err != nil {
 		return err
 	}
@@ -213,12 +213,12 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 		buffer.WriteString(username)
 		buffer.WriteByte(byte(len(password)))
 		buffer.WriteString(password)
-		_, err := xconn.Write(buffer.Bytes())
+		_, err := dConn.Write(buffer.Bytes())
 		if err != nil {
 			return err
 		}
 		response := make([]byte, 2)
-		_, err = io.ReadFull(xconn, response)
+		_, err = io.ReadFull(dConn, response)
 		if err != nil {
 			return err
 		}
@@ -260,13 +260,13 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 		buffer.Write([]byte(host))
 	}
 	buffer.Write(convert.Uint16ToBytes(uint16(port)))
-	_, err = xconn.Write(buffer.Bytes())
+	_, err = dConn.Write(buffer.Bytes())
 	if err != nil {
 		return err
 	}
 	// receive reply
 	response = make([]byte, 4)
-	_, err = io.ReadFull(xconn, response)
+	_, err = io.ReadFull(dConn, response)
 	if err != nil {
 		return err
 	}
@@ -286,7 +286,7 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 	case ipv6:
 		l += net.IPv6len
 	case fqdn:
-		_, err = io.ReadFull(xconn, response[:1])
+		_, err = io.ReadFull(dConn, response[:1])
 		if err != nil {
 			return err
 		}
@@ -298,7 +298,7 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 	} else {
 		response = response[:l]
 	}
-	_, err = io.ReadFull(xconn, response)
+	_, err = io.ReadFull(dConn, response)
 	if err != nil {
 		return err
 	}
