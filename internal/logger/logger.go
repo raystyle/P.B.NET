@@ -158,6 +158,7 @@ const postLineLength = 50
 // client: 127.0.0.1:1234
 //
 // POST /index HTTP/1.1
+// Host: github.com
 // Accept: text/html
 // Connection: keep-alive
 // User-Agent: Mozilla
@@ -167,7 +168,11 @@ const postLineLength = 50
 func HTTPRequest(r *http.Request) string {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, "client: %s\n\n", r.RemoteAddr)
+	// request
 	_, _ = fmt.Fprintf(b, "%s %s %s", r.Method, r.RequestURI, r.Proto)
+	// host
+	_, _ = fmt.Fprintf(b, "\nHost: %s", r.Host)
+	// header
 	for k, v := range r.Header {
 		_, _ = fmt.Fprintf(b, "\n%s: %s", k, v[0])
 	}
