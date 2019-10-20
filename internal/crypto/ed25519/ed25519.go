@@ -1,9 +1,10 @@
 package ed25519
 
 import (
-	"crypto/ed25519"
 	"errors"
 	"io"
+
+	"golang.org/x/crypto/ed25519"
 
 	"project/internal/crypto/rand"
 )
