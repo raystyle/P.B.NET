@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -151,7 +152,7 @@ func Conn(conn net.Conn) *bytes.Buffer {
 	return &b
 }
 
-const postLineLength = 50
+const postLineLength = 64
 
 // HTTPRequest is used to print http.Request
 //
@@ -165,42 +166,51 @@ const postLineLength = 50
 //
 // post data...
 // post data...
-func HTTPRequest(r *http.Request) string {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(b, "client: %s\n\n", r.RemoteAddr)
+func HTTPRequest(r *http.Request) *bytes.Buffer {
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(buf, "client: %s\n\n", r.RemoteAddr)
 	// request
-	_, _ = fmt.Fprintf(b, "%s %s %s", r.Method, r.RequestURI, r.Proto)
+	_, _ = fmt.Fprintf(buf, "%s %s %s", r.Method, r.RequestURI, r.Proto)
 	// host
-	_, _ = fmt.Fprintf(b, "\nHost: %s", r.Host)
+	_, _ = fmt.Fprintf(buf, "\nHost: %s", r.Host)
 	// header
 	for k, v := range r.Header {
-		_, _ = fmt.Fprintf(b, "\n%s: %s", k, v[0])
+		_, _ = fmt.Fprintf(buf, "\n%s: %s", k, v[0])
 	}
 	if r.Body != nil {
+		rawBody := new(bytes.Buffer)
+		defer func() {
+			r.Body = ioutil.NopCloser(rawBody)
+		}()
+		// start print
 		buffer := make([]byte, postLineLength)
 		// check body
 		n, err := io.ReadFull(r.Body, buffer)
 		if err != nil {
 			if n == 0 { // no body
-				return b.String()
+				return buf
 			}
 			// 0 < data size < postLineLength
-			_, _ = fmt.Fprintf(b, "\n\n%s", buffer[:n])
-			return b.String()
+			_, _ = fmt.Fprintf(buf, "\n\n%s", buffer[:n])
+			rawBody.Write(buffer[:n])
+			return buf
 		}
 		// new line and write data
-		_, _ = fmt.Fprintf(b, "\n\n%s", buffer)
+		_, _ = fmt.Fprintf(buf, "\n\n%s", buffer)
+		rawBody.Write(buffer)
 		for {
 			n, err := io.ReadFull(r.Body, buffer)
 			if err != nil {
 				// write last line
 				if n != 0 {
-					_, _ = fmt.Fprintf(b, "\n%s", buffer[:n])
+					_, _ = fmt.Fprintf(buf, "\n%s", buffer[:n])
+					rawBody.Write(buffer[:n])
 				}
 				break
 			}
-			_, _ = fmt.Fprintf(b, "\n%s", buffer)
+			_, _ = fmt.Fprintf(buf, "\n%s", buffer)
+			rawBody.Write(buffer)
 		}
 	}
-	return b.String()
+	return buf
 }

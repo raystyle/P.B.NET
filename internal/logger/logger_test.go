@@ -3,6 +3,7 @@ package logger
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -87,27 +88,46 @@ func TestHTTPRequest(t *testing.T) {
 	fmt.Println(HTTPRequest(r))
 	fmt.Printf("-----end-----\n\n")
 
+	equalBody := func(b1, b2 io.Reader) {
+		d1, err := ioutil.ReadAll(b1)
+		require.NoError(t, err)
+		d2, err := ioutil.ReadAll(b2)
+		require.NoError(t, err)
+		require.Equal(t, d1, d2)
+	}
+
 	body := new(bytes.Buffer)
+	rawBody := bytes.NewReader(body.Bytes())
 	r.Body = ioutil.NopCloser(body)
 	fmt.Println("-----begin (GET with body but no data)-----")
 	fmt.Println(HTTPRequest(r))
 	fmt.Printf("-----end-----\n\n")
+	equalBody(rawBody, r.Body)
 
 	body.Reset()
 	body.WriteString(strings.Repeat("a", postLineLength-10))
+	rawBody = bytes.NewReader(body.Bytes())
+	r.Body = ioutil.NopCloser(body)
 	fmt.Println("-----begin (POST with data <postLineLength)-----")
 	fmt.Println(HTTPRequest(r))
 	fmt.Printf("-----end-----\n\n")
+	equalBody(rawBody, r.Body)
 
 	body.Reset()
 	body.WriteString(strings.Repeat("a", postLineLength))
+	rawBody = bytes.NewReader(body.Bytes())
+	r.Body = ioutil.NopCloser(body)
 	fmt.Println("-----begin (POST with data postLineLength)-----")
 	fmt.Println(HTTPRequest(r))
 	fmt.Printf("-----end-----\n\n")
+	equalBody(rawBody, r.Body)
 
 	body.Reset()
-	body.WriteString(strings.Repeat("a", 2*postLineLength-1))
-	fmt.Println("-----begin (POST with data 2*postLineLength-1)-----")
+	body.WriteString(strings.Repeat("a", 3*postLineLength-1))
+	rawBody = bytes.NewReader(body.Bytes())
+	r.Body = ioutil.NopCloser(body)
+	fmt.Println("-----begin (POST with data 3*postLineLength-1)-----")
 	fmt.Println(HTTPRequest(r))
 	fmt.Printf("-----end-----\n\n")
+	equalBody(rawBody, r.Body)
 }
