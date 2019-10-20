@@ -1,6 +1,7 @@
 package xhttp
 
 import (
+	"bytes"
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -79,7 +80,7 @@ func newListener(network, address string, cfg *tls.Config, timeout time.Duration
 		close(listener.stopSignal)
 	})
 	serveMux := http.ServeMux{}
-	serveMux.HandleFunc("/", listener.handleRequest)
+	serveMux.HandleFunc("/a", listener.handleRequest)
 	server.Handler = &serveMux
 	listener.server = &server
 	go listener.deploy()
@@ -94,18 +95,26 @@ func ListenTLS(network, address string, cfg *tls.Config, timeout time.Duration) 
 	return newListener(network, address, cfg, timeout)
 }
 
-// TODO finish Dial
 func Dial(r *http.Request, tr *http.Transport, timeout time.Duration) (net.Conn, error) {
 	if tr == nil {
 		tr = new(http.Transport)
 	}
-	conn, err := net.Dial("tcp", r.Host)
+	conn, err := net.Dial("tcp", r.URL.Host)
 	if err != nil {
 		return nil, err
 	}
-	err = r.Write(conn)
+	buf := bytes.Buffer{}
+	buf.WriteString("GET /a HTTP/1.1\r\n")
+	buf.WriteString("Host: " + r.URL.Host + "\r\n")
+	buf.WriteString("User-Agent: Go-http-client/1.1\r\n")
+	buf.WriteString("\r\n")
+	_, err = conn.Write(buf.Bytes())
 	if err != nil {
 		return nil, err
 	}
+	// b, err := ioutil.ReadAll(conn)
+	// fmt.Println(string(b))
+
+	time.Sleep(100 * time.Millisecond)
 	return conn, nil
 }

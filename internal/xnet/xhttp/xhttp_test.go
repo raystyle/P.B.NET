@@ -3,7 +3,6 @@ package xhttp
 import (
 	"io"
 	"net/http"
-	_ "net/http/pprof"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,12 +10,7 @@ import (
 	"project/internal/xnet/testdata"
 )
 
-func pprof() {
-	go func() { _ = http.ListenAndServe("localhost:8080", nil) }()
-}
-
 func TestXHTTP(t *testing.T) {
-	pprof()
 	listener, err := Listen("tcp", "localhost:0", 0)
 	require.NoError(t, err)
 	go func() {
@@ -39,7 +33,6 @@ func TestXHTTP(t *testing.T) {
 		write()
 		read()
 	}()
-	return
 	url := "http://" + listener.Addr().String()
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
