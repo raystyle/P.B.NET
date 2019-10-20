@@ -3,18 +3,14 @@ package light
 import (
 	"net"
 	"time"
-
-	"project/internal/xnet/internal"
 )
 
 func Server(conn net.Conn, timeout time.Duration) *Conn {
-	dc := internal.NewDeadlineConn(conn, timeout)
-	return &Conn{Conn: dc, handshakeTimeout: timeout}
+	return &Conn{Conn: conn, handshakeTimeout: timeout}
 }
 
 func Client(conn net.Conn, timeout time.Duration) *Conn {
-	dc := internal.NewDeadlineConn(conn, timeout)
-	return &Conn{Conn: dc, handshakeTimeout: timeout, isClient: true}
+	return &Conn{Conn: conn, handshakeTimeout: timeout, isClient: true}
 }
 
 type listener struct {
@@ -23,11 +19,11 @@ type listener struct {
 }
 
 func (l *listener) Accept() (net.Conn, error) {
-	c, err := l.Listener.Accept()
+	conn, err := l.Listener.Accept()
 	if err != nil {
 		return nil, err
 	}
-	return Server(c, l.timeout), nil
+	return Server(conn, l.timeout), nil
 }
 
 func Listen(network, address string, timeout time.Duration) (net.Listener, error) {
@@ -45,9 +41,8 @@ func NewListener(inner net.Listener, timeout time.Duration) net.Listener {
 	}
 }
 
-// timeout is for handshake
 func Dial(network, address string, timeout time.Duration) (*Conn, error) {
-	conn, err := net.Dial(network, address)
+	conn, err := net.DialTimeout(network, address, timeout)
 	if err != nil {
 		return nil, err
 	}

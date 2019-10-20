@@ -70,7 +70,9 @@ func Listen(network, address string, cfg *tls.Config, timeout time.Duration) (ne
 		IdleTimeout:      timeout,
 		KeepAlive:        true,
 	}
-	cfg.NextProtos = []string{nextProto}
+	if len(cfg.NextProtos) == 0 {
+		cfg.NextProtos = []string{nextProto}
+	}
 	l, err := quic.Listen(conn, cfg, &quicCfg)
 	if err != nil {
 		return nil, err

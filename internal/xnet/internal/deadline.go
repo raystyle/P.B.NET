@@ -3,6 +3,8 @@ package internal
 import (
 	"net"
 	"time"
+
+	"project/internal/options"
 )
 
 type deadlineConn struct {
@@ -20,13 +22,13 @@ func (d *deadlineConn) Write(p []byte) (n int, err error) {
 	return d.Conn.Write(p)
 }
 
-func NewDeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
-	dc := &deadlineConn{
+func DeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
+	dc := deadlineConn{
 		deadline: deadline,
 		Conn:     conn,
 	}
-	if deadline < 1 {
-		dc.deadline = time.Minute
+	if dc.deadline < 1 {
+		dc.deadline = options.DefaultDeadline
 	}
-	return dc
+	return &dc
 }
