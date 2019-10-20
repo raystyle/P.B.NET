@@ -171,12 +171,12 @@ func (s *Server) Info() string {
 	return fmt.Sprintf("listen: %s auth: %s %s", a, u, p)
 }
 
-func (s *Server) log(l logger.Level, log ...interface{}) {
-	s.logger.Println(l, s.tag, log...)
+func (s *Server) log(lv logger.Level, log ...interface{}) {
+	s.logger.Println(lv, s.tag, log...)
 }
 
-func (s *Server) logf(l logger.Level, format string, log ...interface{}) {
-	s.logger.Printf(l, s.tag, format, log...)
+func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
+	s.logger.Printf(lv, s.tag, format, log...)
 }
 
 func (s *Server) shuttingDown() bool {

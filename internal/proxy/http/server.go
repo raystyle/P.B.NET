@@ -18,10 +18,6 @@ import (
 	"project/internal/xpanic"
 )
 
-var (
-	connectionEstablished = []byte("HTTP/1.1 200 Connection established\r\n\r\n")
-)
-
 type Options struct {
 	Username  string
 	Password  string
@@ -147,12 +143,12 @@ func (s *Server) Info() string {
 	return fmt.Sprintf("listen: %s auth: %s", addr, auth)
 }
 
-func (s *Server) log(l logger.Level, log ...interface{}) {
-	s.logger.Println(l, s.tag, log...)
+func (s *Server) log(lv logger.Level, log ...interface{}) {
+	s.logger.Println(lv, s.tag, log...)
 }
 
-func (s *Server) logf(l logger.Level, format string, log ...interface{}) {
-	s.logger.Printf(l, s.tag, format, log...)
+func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
+	s.logger.Printf(lv, s.tag, format, log...)
 }
 
 type log struct {
@@ -163,6 +159,10 @@ type log struct {
 func (l *log) String() string {
 	return fmt.Sprint(l.Log, "\n", logger.HTTPRequest(l.Req))
 }
+
+var (
+	connectionEstablished = []byte("HTTP/1.1 200 Connection established\r\n\r\n")
+)
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.wg.Add(1)
