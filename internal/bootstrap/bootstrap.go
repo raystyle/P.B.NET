@@ -29,11 +29,11 @@ type Bootstrap interface {
 	Resolve() ([]*Node, error)
 }
 
-type dnsResolver interface {
+type DNSResolver interface {
 	Resolve(domain string, opts *dns.Options) ([]string, error)
 }
 
-type proxyPool interface {
+type ProxyPool interface {
 	Get(tag string) (*proxy.Client, error)
 }
 
@@ -46,7 +46,7 @@ func (f *fPanic) Error() string {
 	return fmt.Sprintf("bootstrap %s internal error: %s", f.Mode, f.Err)
 }
 
-func Load(mode Mode, config []byte, p proxyPool, d dnsResolver) (Bootstrap, error) {
+func Load(mode Mode, config []byte, p ProxyPool, d DNSResolver) (Bootstrap, error) {
 	switch mode {
 	case ModeHTTP:
 		http := NewHTTP(p, d)

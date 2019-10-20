@@ -24,14 +24,14 @@ type DNS struct {
 	ListenerPort    string      `toml:"listener_port"`
 	Options         dns.Options `toml:"dns_options"`
 	// runtime
-	resolver dnsResolver
+	resolver DNSResolver
 	// self store all encrypted options by msgpack
 	optsEnc []byte
 	cbc     *aes.CBC
 }
 
 // input ctx for resolve
-func NewDNS(r dnsResolver) *DNS {
+func NewDNS(r DNSResolver) *DNS {
 	return &DNS{
 		resolver: r,
 	}

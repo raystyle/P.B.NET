@@ -65,11 +65,11 @@ func newMockProxyPool(t *testing.T) *mockProxyPool {
 	}
 	s5s, err := socks5.NewServer("test_socks5", logger.Test, s5sOpts)
 	require.NoError(t, err)
-	err = s5s.ListenAndServe("localhost:0", 0)
+	err = s5s.ListenAndServe("localhost:0")
 	require.NoError(t, err)
 	mpp.socks5Server = s5s
 	// create socks5 client(s5c)
-	_, port, err := net.SplitHostPort(s5s.Addr())
+	_, port, err := net.SplitHostPort(s5s.Address())
 	require.NoError(t, err)
 	mpp.socks5Client = &proxy.Client{
 		Mode: proxy.Socks5,
@@ -87,11 +87,11 @@ func newMockProxyPool(t *testing.T) *mockProxyPool {
 	}
 	hps, err := http.NewServer("test_http_proxy", logger.Test, hpsOpts)
 	require.NoError(t, err)
-	err = hps.ListenAndServe("localhost:0", 0)
+	err = hps.ListenAndServe("localhost:0")
 	require.NoError(t, err)
 	mpp.httpServer = hps
 	// create http proxy client(hc)
-	_, port, err = net.SplitHostPort(hps.Addr())
+	_, port, err = net.SplitHostPort(hps.Address())
 	require.NoError(t, err)
 	mpp.httpClient = &proxy.Client{
 		Mode:   proxy.HTTP,
@@ -114,6 +114,6 @@ func (p *mockProxyPool) Get(tag string) (*proxy.Client, error) {
 }
 
 func (p *mockProxyPool) Close() {
-	_ = p.socks5Server.Stop()
-	_ = p.httpServer.Stop()
+	_ = p.socks5Server.Close()
+	_ = p.httpServer.Close()
 }

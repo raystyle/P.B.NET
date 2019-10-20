@@ -46,15 +46,15 @@ type HTTP struct {
 	PrivateKey ed25519.PrivateKey `toml:"-"` // <security>
 
 	// runtime
-	proxy    proxyPool
-	resolver dnsResolver
+	proxy    ProxyPool
+	resolver DNSResolver
 
 	// self encrypt all options
 	optsEnc []byte
 	cbc     *aes.CBC
 }
 
-func NewHTTP(p proxyPool, r dnsResolver) *HTTP {
+func NewHTTP(p ProxyPool, r DNSResolver) *HTTP {
 	return &HTTP{
 		resolver: r,
 		proxy:    p,
