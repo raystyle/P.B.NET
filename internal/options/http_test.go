@@ -36,7 +36,6 @@ func TestHTTPTransportDefault(t *testing.T) {
 	require.Equal(t, httpDefaultMaxResponseHeaderBytes, transport.MaxResponseHeaderBytes)
 	require.Equal(t, false, transport.DisableKeepAlives)
 	require.Equal(t, false, transport.DisableCompression)
-	require.Equal(t, false, transport.ForceAttemptHTTP2)
 }
 
 func TestHTTPServerDefault(t *testing.T) {
@@ -87,7 +86,6 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 	require.Equal(t, int64(16384), transport.MaxResponseHeaderBytes)
 	require.Equal(t, true, transport.DisableKeepAlives)
 	require.Equal(t, true, transport.DisableCompression)
-	require.Equal(t, true, transport.ForceAttemptHTTP2)
 }
 
 func TestHTTPServerUnmarshal(t *testing.T) {

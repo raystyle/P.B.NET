@@ -4,12 +4,12 @@ import "time"
 
 const (
 	// role.global
-	DefaultCacheExpireTime = 2 * time.Minute
+	DefaultCacheExpireTime = 2 * time.Minute  // dns client
 	DefaultSyncInterval    = 15 * time.Minute // timesyncer
 
 	// xnet
-	DefaultStartTimeout     = 250 * time.Millisecond // max serve timeout
-	DefaultConnectionLimit  = 1000                   // server max connection
+	DefaultMaxConns         = 1000
+	DefaultDeadline         = time.Minute
 	DefaultDialTimeout      = time.Minute
 	DefaultHandshakeTimeout = time.Minute
 )

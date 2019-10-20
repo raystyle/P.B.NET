@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 const (
@@ -58,7 +60,7 @@ type HTTPTransport struct {
 	MaxResponseHeaderBytes int64         `toml:"max_response_header_bytes"`
 	DisableKeepAlives      bool          `toml:"disable_keep_alives"`
 	DisableCompression     bool          `toml:"disable_compression"`
-	ForceAttemptHTTP2      bool          `toml:"force_attempt_http2"`
+	DisableHTTP2           bool          `toml:"disable_http2"`
 }
 
 func (ht *HTTPTransport) failed(err error) error {
@@ -77,13 +79,18 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 		MaxResponseHeaderBytes: ht.MaxResponseHeaderBytes,
 		DisableKeepAlives:      ht.DisableKeepAlives,
 		DisableCompression:     ht.DisableCompression,
-		ForceAttemptHTTP2:      ht.ForceAttemptHTTP2,
 	}
 	// tls config
 	var err error
 	tr.TLSClientConfig, err = ht.TLSClientConfig.Apply()
 	if err != nil {
 		return nil, ht.failed(err)
+	}
+	if !ht.DisableHTTP2 {
+		err = http2.ConfigureTransport(tr)
+		if err != nil {
+			return nil, ht.failed(err)
+		}
 	}
 	// conn
 	if tr.MaxIdleConns < 1 {
