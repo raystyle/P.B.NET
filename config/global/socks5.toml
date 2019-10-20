@@ -1,31 +1,11 @@
-[http_proxy]
-  mode   = "http"
-  config = "http://admin:123456@localhost:40001"
+[[server]]
+  network  = "tcp"
+  address  = "localhost:40002"
+  username = "admin"
+  password = "123456"
 
-# config is client list (toml)
-[socks5]
-  mode   = "socks5"
-  config = """
-    [[Clients]]
-      Network  = "tcp"
-      Address  = "localhost:40002"
-      Password = "123456"
-      Username = "admin"
-  """
-
-# socks5 support proxychains
-[socks5_chains]
-  mode   = "socks5"
-  config = """
-    [[Clients]]
-      Network  = "tcp"
-      Address  = "localhost:40002"
-      Password = "123456"
-      Username = "admin"
-
-    [[Clients]]
-      Address  = "localhost:40003"
-      Network  = "tcp"
-      Password = "123456"
-      Username = "admin"
-  """
+[[server]]
+  network  = "tcp"
+  address  = "localhost:40003"
+  username = "admin"
+  password = "123456"
