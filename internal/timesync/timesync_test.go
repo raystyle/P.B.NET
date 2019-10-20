@@ -12,12 +12,19 @@ import (
 	"project/internal/logger"
 	"project/internal/options"
 	"project/internal/proxy"
+	"project/internal/testutil"
 )
 
 func TestTimeSyncer(t *testing.T) {
 	proxyPool, err := proxy.NewPool(nil)
 	require.NoError(t, err)
+	defer func() {
+		testutil.IsDestroyed(t, proxyPool, 1)
+	}()
 	dnsClient := testGenerateDNSClient(t, proxyPool)
+	defer func() {
+		testutil.IsDestroyed(t, dnsClient, 1)
+	}()
 	// create clients
 	clients := make(map[string]*Client)
 	clients["http"] = &Client{
@@ -47,11 +54,12 @@ func TestTimeSyncer(t *testing.T) {
 			tag, client.Mode, string(client.ExportConfig()))
 	}
 	timeSyncer.Stop()
+	testutil.IsDestroyed(t, timeSyncer, 1)
 }
 
 func testGenerateDNSClient(t *testing.T, pool *proxy.Pool) *dns.Client {
 	servers := make(map[string]*dns.Server)
-	b, err := ioutil.ReadFile("testdata/dnsclient.toml")
+	b, err := ioutil.ReadFile("../dns/testdata/dnsclient.toml")
 	require.NoError(t, err)
 	err = toml.Unmarshal(b, &servers)
 	require.NoError(t, err)

@@ -114,7 +114,7 @@ func (ts *TimeSyncer) Add(tag string, client *Client) error {
 		ts.clients[tag] = client
 		return nil
 	} else {
-		return errors.New("time syncer client: " + tag + " already exists")
+		return fmt.Errorf("time syncer client: %s already exists", tag)
 	}
 }
 
@@ -125,7 +125,7 @@ func (ts *TimeSyncer) Delete(tag string) error {
 		delete(ts.clients, tag)
 		return nil
 	} else {
-		return errors.New("time syncer client: " + tag + " doesn't exist")
+		return fmt.Errorf("time syncer client: %s doesn't exist", tag)
 	}
 }
 
@@ -248,7 +248,7 @@ func (ts *TimeSyncer) syncLoop() {
 func (ts *TimeSyncer) sync(acceptFailed, syncAll bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error("TimeSyncer.sync() panic:", r)
+			err = xpanic.Error(r, "TimeSyncer.sync() panic:")
 			ts.log(logger.Fatal, err)
 		}
 	}()

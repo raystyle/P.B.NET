@@ -13,12 +13,16 @@ import (
 	"project/internal/proxy"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks5"
+	"project/internal/testutil"
 )
 
 func TestClient(t *testing.T) {
 	// make proxy pool
-	pool, err := proxy.NewPool(nil)
+	proxyPool, err := proxy.NewPool(nil)
 	require.NoError(t, err)
+	defer func() {
+		testutil.IsDestroyed(t, proxyPool, 1)
+	}()
 	// create dns servers
 	servers := make(map[string]*Server)
 	b, err := ioutil.ReadFile("testdata/dnsclient.toml")
@@ -26,7 +30,7 @@ func TestClient(t *testing.T) {
 	err = toml.Unmarshal(b, &servers)
 	require.NoError(t, err)
 	// make dns client
-	client, err := NewClient(pool, servers, options.DefaultCacheExpireTime)
+	client, err := NewClient(proxyPool, servers, options.DefaultCacheExpireTime)
 	require.NoError(t, err)
 	// delete dns server
 	err = client.Delete("udp_google")
@@ -49,6 +53,7 @@ func TestClient(t *testing.T) {
 	t.Log("with tag", ipList)
 	// client.FlushCache()
 	client.FlushCache()
+	testutil.IsDestroyed(t, client, 1)
 }
 
 const (

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testutil"
 )
 
 const (
@@ -79,4 +81,5 @@ func TestPool(t *testing.T) {
 	// delete reserve client
 	err = pool.Delete("direct")
 	require.Equal(t, ErrReserveClient, err)
+	testutil.IsDestroyed(t, pool, 1)
 }
