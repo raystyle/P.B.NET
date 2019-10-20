@@ -64,10 +64,10 @@ func testGenerateProxyPool(t *testing.T) *proxy.Pool {
 	}
 	s5s, err := socks5.NewServer("test_socks5", logger.Test, s5sOpts)
 	require.NoError(t, err)
-	err = s5s.ListenAndServe("localhost:0", 0)
+	err = s5s.ListenAndServe("localhost:0")
 	require.NoError(t, err)
 	defer func() {
-		err = s5s.Stop()
+		err = s5s.Close()
 		require.NoError(t, err)
 	}()
 	// start http proxy server(hps)
@@ -77,16 +77,16 @@ func testGenerateProxyPool(t *testing.T) *proxy.Pool {
 	}
 	hps, err := http.NewServer("test_http_proxy", logger.Test, hpsOpts)
 	require.NoError(t, err)
-	err = hps.ListenAndServe("localhost:0", 0)
+	err = hps.ListenAndServe("localhost:0")
 	require.NoError(t, err)
 	defer func() {
-		err = hps.Stop()
+		err = hps.Close()
 		require.NoError(t, err)
 	}()
 	// create proxy clients
 	proxyClients := make(map[string]*proxy.Client)
 	// socks5
-	_, port, err := net.SplitHostPort(hps.Addr())
+	_, port, err := net.SplitHostPort(hps.Address())
 	require.NoError(t, err)
 	proxyClients[proxySocks5] = &proxy.Client{
 		Mode: proxy.Socks5,
@@ -98,7 +98,7 @@ func testGenerateProxyPool(t *testing.T) *proxy.Pool {
           Username = "admin"
     `)}
 	// http
-	_, port, err = net.SplitHostPort(hps.Addr())
+	_, port, err = net.SplitHostPort(hps.Address())
 	require.NoError(t, err)
 	proxyClients[proxyHTTP] = &proxy.Client{
 		Mode:   proxy.HTTP,

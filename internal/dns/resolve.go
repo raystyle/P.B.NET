@@ -96,15 +96,15 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 		if err != nil {
 			return nil, err // not continue
 		}
-		xconn := xnet.NewDeadlineConn(conn, timeout)
-		_, _ = xconn.Write(message)
+		dConn := xnet.DeadlineConn(conn, timeout)
+		_, _ = dConn.Write(message)
 		buffer := make([]byte, 512)
-		n, err := xconn.Read(buffer)
+		n, err := dConn.Read(buffer)
 		if err == nil {
-			_ = xconn.Close()
+			_ = dConn.Close()
 			return buffer[:n], nil
 		}
-		_ = xconn.Close()
+		_ = dConn.Close()
 	}
 	return nil, ErrNoConnection
 }
@@ -131,17 +131,17 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	xconn := xnet.NewDeadlineConn(conn, timeout)
-	defer func() { _ = xconn.Close() }()
+	dConn := xnet.DeadlineConn(conn, timeout)
+	defer func() { _ = dConn.Close() }()
 	// add size header
 	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
 	header.Write(message)
-	_, err = xconn.Write(header.Bytes())
+	_, err = dConn.Write(header.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	buffer := make([]byte, 512)
-	_, err = io.ReadFull(xconn, buffer[:headerSize])
+	_, err = io.ReadFull(dConn, buffer[:headerSize])
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	if l > 512 {
 		buffer = make([]byte, l)
 	}
-	_, err = io.ReadFull(xconn, buffer[:l])
+	_, err = io.ReadFull(dConn, buffer[:l])
 	if err != nil {
 		return nil, err
 	}
@@ -205,18 +205,18 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("invalid address: %s", address)
 	}
-	xconn := xnet.NewDeadlineConn(conn, timeout)
-	defer func() { _ = xconn.Close() }()
+	dConn := xnet.DeadlineConn(conn, timeout)
+	defer func() { _ = dConn.Close() }()
 	// add size header
 	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
 	header.Write(message)
-	_, err = xconn.Write(header.Bytes())
+	_, err = dConn.Write(header.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	buffer := make([]byte, 512)
 	// read message size
-	_, err = io.ReadFull(xconn, buffer[:headerSize])
+	_, err = io.ReadFull(dConn, buffer[:headerSize])
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	if l > 512 {
 		buffer = make([]byte, l)
 	}
-	_, err = io.ReadFull(xconn, buffer[:l])
+	_, err = io.ReadFull(dConn, buffer[:l])
 	if err != nil {
 		return nil, err
 	}
@@ -256,22 +256,22 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 	}
 	req.Header.Set("Accept", "application/dns-message")
 	// http client
-	c := http.Client{
+	client := http.Client{
 		Timeout: opts.Timeout,
 	}
 	if opts.transport != nil {
-		c.Transport = opts.transport
+		client.Transport = opts.transport
 	}
 	if opts.Timeout < 1 {
-		c.Timeout = defaultTimeout
+		client.Timeout = defaultTimeout
 	}
-	resp, err := c.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		_ = resp.Body.Close()
-		c.CloseIdleConnections()
+		client.CloseIdleConnections()
 	}()
 	return ioutil.ReadAll(resp.Body)
 }
