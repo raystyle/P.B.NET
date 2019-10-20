@@ -153,7 +153,7 @@ func Conn(conn net.Conn) *bytes.Buffer {
 }
 
 const (
-	postLineLength = 64
+	bodyLineLength = 64
 	maxBodyLength  = 1024
 )
 
@@ -186,14 +186,14 @@ func HTTPRequest(r *http.Request) *bytes.Buffer {
 			r.Body = ioutil.NopCloser(io.MultiReader(rawBody, r.Body))
 		}()
 		// start print
-		buffer := make([]byte, postLineLength)
+		buffer := make([]byte, bodyLineLength)
 		// check body
 		n, err := io.ReadFull(r.Body, buffer)
 		if err != nil {
 			if n == 0 { // no body
 				return buf
 			}
-			// 0 < data size < postLineLength
+			// 0 < data size < bodyLineLength
 			_, _ = fmt.Fprintf(buf, "\n\n%s", buffer[:n])
 			rawBody.Write(buffer[:n])
 			return buf
