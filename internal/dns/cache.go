@@ -88,10 +88,10 @@ func (c *Client) updateCache(domain string, ipv4, ipv6 []string) {
 	if cache, ok := c.caches[domain]; ok {
 		c.cachesRWM.RUnlock()
 		cache.rwm.Lock()
-		if ipv4 != nil {
+		if len(ipv4) != 0 {
 			cache.ipv4List = ipv4
 		}
-		if ipv6 != nil {
+		if len(ipv6) != 0 {
 			cache.ipv6List = ipv6
 		}
 		cache.updateTime = time.Now()

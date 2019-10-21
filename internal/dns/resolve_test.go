@@ -21,73 +21,80 @@ const (
 	// dnsDOH           = "https://mozilla.cloudflare-dns.com/dns-query"
 )
 
-func TestResolve(t *testing.T) {
+func TestSystemResolve(t *testing.T) {
+	// ipv4
+	ipList, err := systemResolve(domain, IPv4)
+	require.NoError(t, err)
+	t.Log("system resolve ipv4:", ipList)
+	// ipv6
+	ipList, err = systemResolve(domain, IPv6)
+	require.NoError(t, err)
+	t.Log("system resolve ipv6:", ipList)
+	// invalid host
+	ipList, err = systemResolve("asd.asd", IPv4)
+	require.Error(t, err)
+	require.Nil(t, ipList)
+	// invalid type
+	ipList, err = systemResolve(domain, "asd")
+	require.Error(t, err)
+	require.Nil(t, ipList)
+}
+
+func TestCustomResolve(t *testing.T) {
 	opt := Options{}
 	// udp
-	ipList, err := resolve(dnsServer, domain, &opt)
+	ipList, err := customResolve(dnsServer, domain, &opt)
 	require.NoError(t, err)
 	t.Log("UDP IPv4:", ipList)
 	// punycode
-	ipList, err = resolve(dnsServer, domainPunycode, &opt)
+	ipList, err = customResolve(dnsServer, domainPunycode, &opt)
 	require.NoError(t, err)
 	t.Log("UDP IPv4 punycode:", ipList)
 	// tcp
 	opt.Method = TCP
 	opt.Type = IPv6
-	ipList, err = resolve(dnsServer, domain, &opt)
+	ipList, err = customResolve(dnsServer, domain, &opt)
 	require.NoError(t, err)
 	t.Log("TCP IPv6:", ipList)
 	// tls
 	opt.Method = DoT
 	opt.Type = IPv4
-	ipList, err = resolve(dnsTLSDomainMode, domain, &opt)
+	ipList, err = customResolve(dnsTLSDomainMode, domain, &opt)
 	require.NoError(t, err)
 	t.Log("DoT IPv4:", ipList)
 	// doh
 	opt.Method = DoH
-	ipList, err = resolve(dnsDOH, domain, &opt)
+	ipList, err = customResolve(dnsDOH, domain, &opt)
 	require.NoError(t, err)
 	t.Log("DoH IPv4:", ipList)
 	// is ip
-	ipList, err = resolve(dnsServer, "8.8.8.8", &opt)
+	ipList, err = customResolve(dnsServer, "8.8.8.8", &opt)
 	require.NoError(t, err)
 	require.Equal(t, "8.8.8.8", ipList[0])
-	ipList, err = resolve(dnsServer, "::1", &opt)
+	ipList, err = customResolve(dnsServer, "::1", &opt)
 	require.NoError(t, err)
 	require.Equal(t, "::1", ipList[0])
 	// not domain
-	_, err = resolve(dnsServer, "xxx-", &opt)
+	_, err = customResolve(dnsServer, "xxx-", &opt)
 	require.Error(t, err)
 	require.Equal(t, "invalid domain name: xxx-", err.Error())
 	// invalid Type
 	opt.Type = "foo"
-	_, err = resolve(dnsServer, domain, &opt)
+	_, err = customResolve(dnsServer, domain, &opt)
 	require.Error(t, err)
 	require.Equal(t, "unknown type: foo", err.Error())
 	// invalid method
 	opt.Type = IPv4
 	opt.Method = "foo"
-	_, err = resolve(dnsServer, domain, &opt)
+	_, err = customResolve(dnsServer, domain, &opt)
 	require.Error(t, err)
 	require.Equal(t, "unknown method: foo", err.Error())
 	// dial failed
 	opt.Network = "udp"
 	opt.Method = UDP
 	opt.Timeout = time.Millisecond * 500
-	_, err = resolve("8.8.8.8:153", domain, &opt)
+	_, err = customResolve("8.8.8.8:153", domain, &opt)
 	require.Equal(t, ErrNoConnection, err)
-}
-
-func TestIsDomainName(t *testing.T) {
-	require.True(t, IsDomainName("asd.com"))
-	require.True(t, IsDomainName("asd-asd.com"))
-	// invalid domain
-	require.False(t, IsDomainName(""))
-	require.False(t, IsDomainName(string([]byte{255, 254, 12, 35})))
-	require.False(t, IsDomainName("asd-"))
-	require.False(t, IsDomainName("asd.-"))
-	require.False(t, IsDomainName("asd.."))
-	require.False(t, IsDomainName(strings.Repeat("a", 64)+".com"))
 }
 
 func TestDialUDP(t *testing.T) {

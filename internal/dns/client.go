@@ -185,7 +185,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 			} else {
 				c.serversRWM.RUnlock()
 				opts.Method = server.Method
-				return resolve(server.Address, domain, opts)
+				return customResolve(server.Address, domain, opts)
 			}
 		}
 		// query dns
@@ -195,7 +195,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		}
 		for _, server := range c.Servers() {
 			if server.Method == method {
-				result, err = resolve(server.Address, domain, opts)
+				result, err = customResolve(server.Address, domain, opts)
 				if err == nil {
 					break
 				}
@@ -210,7 +210,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		return nil, fmt.Errorf("unknown mode: %s", opts.Mode)
 	}
 	// update cache
-	if result != nil {
+	if len(result) != 0 {
 		switch Type {
 		case IPv4:
 			c.updateCache(domain, result, nil)

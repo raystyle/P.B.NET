@@ -34,8 +34,36 @@ func (t UnknownTypeError) Error() string {
 	return fmt.Sprintf("unknown type: %s", string(t))
 }
 
+func systemResolve(domain string, Type Type) ([]string, error) {
+	addrs, err := net.LookupHost(domain)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		ipv4List []string
+		ipv6List []string
+	)
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		ipv4 := ip.To4()
+		if ipv4 != nil {
+			ipv4List = append(ipv4List, ipv4.String())
+		} else {
+			ipv6List = append(ipv6List, ip.To16().String())
+		}
+	}
+	switch Type {
+	case IPv4:
+		return ipv4List, nil
+	case IPv6:
+		return ipv6List, nil
+	default:
+		return nil, UnknownTypeError(Type)
+	}
+}
+
 // address = dns server(doh server) ip + port
-func resolve(address, domain string, opts *Options) ([]string, error) {
+func customResolve(address, domain string, opts *Options) ([]string, error) {
 	// check domain name
 	if net.ParseIP(domain) != nil { // ip
 		return []string{domain}, nil

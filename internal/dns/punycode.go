@@ -9,6 +9,7 @@ package dns
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"unicode/utf8"
 )
@@ -28,6 +29,78 @@ const (
 
 	acePrefix = "xn--"
 )
+
+type labelError struct{ label, code_ string }
+
+func (e labelError) code() string { return e.code_ }
+func (e labelError) Error() string {
+	return fmt.Sprintf("idna: invalid label %q", e.label)
+}
+
+func punyError(s string) error { return &labelError{s, "A3"} }
+
+// decode decodes a string as specified in section 6.2.
+func decode(encoded string) (string, error) {
+	if encoded == "" {
+		return "", nil
+	}
+	pos := 1 + strings.LastIndex(encoded, "-")
+	if pos == 1 {
+		return "", punyError(encoded)
+	}
+	if pos == len(encoded) {
+		return encoded[:len(encoded)-1], nil
+	}
+	output := make([]rune, 0, len(encoded))
+	if pos != 0 {
+		for _, r := range encoded[:pos-1] {
+			output = append(output, r)
+		}
+	}
+	i, n, bias := int32(0), initialN, initialBias
+	for pos < len(encoded) {
+		oldI, w := i, int32(1)
+		for k := base; ; k += base {
+			if pos == len(encoded) {
+				return "", punyError(encoded)
+			}
+			digit, ok := decodeDigit(encoded[pos])
+			if !ok {
+				return "", punyError(encoded)
+			}
+			pos++
+			i += digit * w
+			if i < 0 {
+				return "", punyError(encoded)
+			}
+			t := k - bias
+			if t < tmin {
+				t = tmin
+			} else if t > tmax {
+				t = tmax
+			}
+			if digit < t {
+				break
+			}
+			w *= base - t
+			if w >= math.MaxInt32/base {
+				return "", punyError(encoded)
+			}
+		}
+		x := int32(len(output) + 1)
+		bias = adapt(i-oldI, x, oldI == 0)
+		n += i / x
+		i %= x
+		if n > utf8.MaxRune || len(output) >= 1024 {
+			return "", punyError(encoded)
+		}
+		output = append(output, 0)
+		copy(output[i+1:], output[i:])
+		output[i] = n
+		i++
+	}
+	return string(output), nil
+}
 
 // encode encodes a string as specified in section 6.3 and prepends prefix to
 // the result.
@@ -100,6 +173,18 @@ func encode(prefix, s string) (string, error) {
 	return string(output), nil
 }
 
+func decodeDigit(x byte) (digit int32, ok bool) {
+	switch {
+	case '0' <= x && x <= '9':
+		return int32(x - ('0' - 26)), true
+	case 'A' <= x && x <= 'Z':
+		return int32(x - 'A'), true
+	case 'a' <= x && x <= 'z':
+		return int32(x - 'a'), true
+	}
+	return 0, false
+}
+
 func encodeDigit(digit int32) byte {
 	switch {
 	case 0 <= digit && digit < 26:
@@ -126,6 +211,15 @@ func adapt(delta, numPoints int32, firstTime bool) int32 {
 	return k + (base-tmin+1)*delta/(delta+skew)
 }
 
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
+}
+
 func toASCII(s string) (string, error) {
 	if isASCII(s) {
 		return s, nil
@@ -141,13 +235,4 @@ func toASCII(s string) (string, error) {
 		}
 	}
 	return strings.Join(labels, "."), nil
-}
-
-func isASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] >= utf8.RuneSelf {
-			return false
-		}
-	}
-	return true
 }
