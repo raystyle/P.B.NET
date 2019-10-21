@@ -1,1 +1,1 @@
-go build -v -i -ldflags "-s -w" -o server.exe
+go build -v -i -ldflags "-s -w" -o bootstrap.exe
