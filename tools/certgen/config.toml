@@ -1,13 +1,14 @@
-DNSNames    = ["localhost"]
-IPAddresses = ["127.0.0.1","192.168.1.11","::1"]
+dns_names    = ["localhost"]
+ip_addresses = ["127.0.0.1","192.168.1.11","::1"]
+# not_after    = 2020-11-27T00:00:00
 
-[Subject]
-  CommonName         = "P.B.NET"
-  Country            = []
-  Locality           = []
-  Organization       = []
-  OrganizationalUnit = []
-  PostalCode         = []
-  Province           = []
-  SerialNumber       = ""
-  StreetAddress      = []
+[subject]
+  common_name         = "P.B.NET"
+  serial_number       = ""
+  country             = []
+  organization        = []
+  organizational_unit = []
+  locality            = []
+  province            = []
+  street_address      = []
+  postal_code         = []
