@@ -3,7 +3,7 @@ package cert
 import (
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
+	"fmt"
 	"math/big"
 	"net"
 	"time"
@@ -13,112 +13,138 @@ import (
 	"project/internal/random"
 )
 
-var (
-	ErrInvalidPEMBlock     = errors.New("invalid PEM block")
-	ErrInvalidPEMBlockType = errors.New("invalid PEM block type")
-
-	// now = 2018-11-27 00:00:00.000000000 UTC >>>>>> date of project start
-	now = time.Time{}.AddDate(2017, 10, 26)
-)
+var now = time.Time{}.AddDate(2017, 10, 26) // 2018-11-27
 
 type Config struct {
-	Subject     Subject
-	NotAfter    time.Time
-	DNSNames    []string
-	IPAddresses []string // IP SANS
+	Subject     Subject   `toml:"subject"`
+	NotAfter    time.Time `toml:"not_after"`
+	DNSNames    []string  `toml:"dns_names"`
+	IPAddresses []string  `toml:"ip_addresses"` // IP SANS
 }
 
 type Subject struct {
-	CommonName         string
-	SerialNumber       string
-	Country            []string
-	Organization       []string
-	OrganizationalUnit []string
-	Locality           []string
-	Province           []string
-	StreetAddress      []string
-	PostalCode         []string
+	CommonName         string   `toml:"common_name"`
+	SerialNumber       string   `toml:"serial_number"`
+	Country            []string `toml:"country"`
+	Organization       []string `toml:"organization"`
+	OrganizationalUnit []string `toml:"organizational_unit"`
+	Locality           []string `toml:"locality"`
+	Province           []string `toml:"province"`
+	StreetAddress      []string `toml:"street_address"`
+	PostalCode         []string `toml:"postal_code"`
 }
 
-func generate(c *Config) *x509.Certificate {
+type KeyPair struct {
+	Certificate *x509.Certificate
+	PrivateKey  *rsa.PrivateKey
+
+	certBytes []byte
+}
+
+func (kp *KeyPair) EncodeToPEM() (cert, key []byte) {
+	certBlock := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: kp.certBytes,
+	}
+	keyBlock := &pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: rsa.ExportPrivateKey(kp.PrivateKey),
+	}
+	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
+}
+
+func generate(cfg *Config) *x509.Certificate {
+	if cfg == nil {
+		cfg = new(Config)
+	}
 	cert := &x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
 	cert.SubjectKeyId = random.Bytes(4)
 	// Subject.CommonName
-	if c.Subject.CommonName == "" {
+	if cfg.Subject.CommonName == "" {
 		cert.Subject.CommonName = random.String(6 + random.Int(8))
 	} else {
-		cert.Subject.CommonName = c.Subject.CommonName
+		cert.Subject.CommonName = cfg.Subject.CommonName
 	}
 	// Subject.Organization
-	if c.Subject.Organization == nil {
+	if cfg.Subject.Organization == nil {
 		cert.Subject.Organization = []string{random.String(6 + random.Int(8))}
 	} else {
-		copy(cert.Subject.Organization, c.Subject.Organization)
+		copy(cert.Subject.Organization, cfg.Subject.Organization)
 	}
-	cert.Subject.Country = make([]string, len(c.Subject.Country))
-	copy(cert.Subject.Country, c.Subject.Country)
-	cert.Subject.OrganizationalUnit = make([]string, len(c.Subject.OrganizationalUnit))
-	copy(cert.Subject.OrganizationalUnit, c.Subject.OrganizationalUnit)
-	cert.Subject.Locality = make([]string, len(c.Subject.Locality))
-	copy(cert.Subject.Locality, c.Subject.Locality)
-	cert.Subject.Province = make([]string, len(c.Subject.Province))
-	copy(cert.Subject.Province, c.Subject.Province)
-	cert.Subject.StreetAddress = make([]string, len(c.Subject.StreetAddress))
-	copy(cert.Subject.StreetAddress, c.Subject.StreetAddress)
-	cert.Subject.PostalCode = make([]string, len(c.Subject.PostalCode))
-	copy(cert.Subject.PostalCode, c.Subject.PostalCode)
-	cert.Subject.SerialNumber = c.Subject.SerialNumber
-	// time
-	if c.NotAfter.Equal(time.Time{}) {
-		years := 1 + random.Int(4)
-		months := random.Int(12)
-		days := random.Int(31)
-		cert.NotBefore = now.AddDate(-years, -months, -days)
-	}
-	if c.NotAfter.Equal(time.Time{}) {
-		years := 10 + random.Int(10)
-		months := random.Int(12)
-		days := random.Int(31)
+	cert.Subject.Country = make([]string, len(cfg.Subject.Country))
+	copy(cert.Subject.Country, cfg.Subject.Country)
+	cert.Subject.OrganizationalUnit = make([]string, len(cfg.Subject.OrganizationalUnit))
+	copy(cert.Subject.OrganizationalUnit, cfg.Subject.OrganizationalUnit)
+	cert.Subject.Locality = make([]string, len(cfg.Subject.Locality))
+	copy(cert.Subject.Locality, cfg.Subject.Locality)
+	cert.Subject.Province = make([]string, len(cfg.Subject.Province))
+	copy(cert.Subject.Province, cfg.Subject.Province)
+	cert.Subject.StreetAddress = make([]string, len(cfg.Subject.StreetAddress))
+	copy(cert.Subject.StreetAddress, cfg.Subject.StreetAddress)
+	cert.Subject.PostalCode = make([]string, len(cfg.Subject.PostalCode))
+	copy(cert.Subject.PostalCode, cfg.Subject.PostalCode)
+	cert.Subject.SerialNumber = cfg.Subject.SerialNumber
+
+	// set time
+	years := 1 + random.Int(4)
+	months := random.Int(12)
+	days := random.Int(31)
+	cert.NotBefore = now.AddDate(-years, -months, -days)
+
+	if cfg.NotAfter.Equal(time.Time{}) {
+		years = 10 + random.Int(10)
+		months = random.Int(12)
+		days = random.Int(31)
 		cert.NotAfter = now.AddDate(years, months, days)
 	}
 	return cert
 }
 
 // return certificate pem and private key pem
-func GenerateCA(c *Config) (cert []byte, pri []byte) {
-	ca := generate(c)
+func GenerateCA(cfg *Config) (*KeyPair, error) {
+	ca := generate(cfg)
 	ca.KeyUsage = x509.KeyUsageCertSign
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
+
 	privateKey, _ := rsa.GenerateKey(2048)
 	certBytes, _ := x509.CreateCertificate(rand.Reader, ca, ca,
 		&privateKey.PublicKey, privateKey)
-	certBlock := &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certBytes,
-	}
-	keyBlock := &pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: rsa.ExportPrivateKey(privateKey),
-	}
-	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
+
+	xc, _ := x509.ParseCertificate(certBytes)
+
+	return &KeyPair{
+		Certificate: xc,
+		PrivateKey:  privateKey,
+		certBytes:   certBytes,
+	}, nil
 }
 
-// return cert pem and private key pem , ip is IP SANS
-func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, c *Config) ([]byte, []byte, error) {
-	cert := generate(c)
+// Generate is used to generate tls.KeyPair
+func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, cfg *Config) (*KeyPair, error) {
+	cert := generate(cfg)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
-	cert.DNSNames = make([]string, len(c.DNSNames))
-	copy(cert.DNSNames, c.DNSNames)
-	ips := c.IPAddresses
+
+	dn := cfg.DNSNames
+	for i := 0; i < len(dn); i++ {
+		if !isDomainName(dn[i]) {
+			return nil, fmt.Errorf("%s is not a domain name", dn[i])
+		}
+		cert.DNSNames = append(cert.DNSNames, dn[i])
+	}
+
+	ips := cfg.IPAddresses
 	for i := 0; i < len(ips); i++ {
 		ip := net.ParseIP(ips[i])
-		if ip != nil {
-			cert.IPAddresses = append(cert.IPAddresses, ip)
+		if ip == nil {
+			return nil, fmt.Errorf("%s is not a IP", ips[i])
 		}
+		cert.IPAddresses = append(cert.IPAddresses, ip)
 	}
+
 	privateKey, _ := rsa.GenerateKey(2048)
+
 	var (
 		certBytes []byte
 		err       error
@@ -131,26 +157,71 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, c *Config) ([]byte,
 			rand.Reader, cert, cert, &privateKey.PublicKey, privateKey)
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	certBlock := &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certBytes,
-	}
-	keyBlock := &pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: rsa.ExportPrivateKey(privateKey),
-	}
-	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock), nil
+
+	xc, _ := x509.ParseCertificate(certBytes)
+
+	return &KeyPair{
+		Certificate: xc,
+		PrivateKey:  privateKey,
+		certBytes:   certBytes,
+	}, nil
 }
 
-func Parse(cert []byte) (*x509.Certificate, error) {
-	block, _ := pem.Decode(cert)
-	if block == nil {
-		return nil, ErrInvalidPEMBlock
+// from GOROOT/src/net/dnsclient.go
+
+// checks if a string is a presentation-format domain name
+// (currently restricted to hostname-compatible "preferred name" LDH labels and
+// SRV-like "underscore labels"; see golang.org/issue/12421).
+func isDomainName(s string) bool {
+	// See RFC 1035, RFC 3696.
+	// Presentation format has dots before every label except the first, and the
+	// terminal empty label is optional here because we assume fully-qualified
+	// (absolute) input. We must therefore reserve space for the first and last
+	// labels' length octets in wire format, where they are necessary and the
+	// maximum total length is 255.
+	// So our _effective_ maximum is 253, but 254 is not rejected if the last
+	// character is a dot.
+	l := len(s)
+	if l == 0 || l > 254 || l == 254 && s[l-1] != '.' {
+		return false
 	}
-	if block.Type != "CERTIFICATE" {
-		return nil, ErrInvalidPEMBlockType
+	last := byte('.')
+	nonNumeric := false // true once we've seen a letter or hyphen
+	partLen := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		default:
+			return false
+		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_':
+			nonNumeric = true
+			partLen++
+		case '0' <= c && c <= '9':
+			// fine
+			partLen++
+		case c == '-':
+			// Byte before dash cannot be dot.
+			if last == '.' {
+				return false
+			}
+			partLen++
+			nonNumeric = true
+		case c == '.':
+			// Byte before dot cannot be dot, dash.
+			if last == '.' || last == '-' {
+				return false
+			}
+			if partLen > 63 || partLen == 0 {
+				return false
+			}
+			partLen = 0
+		}
+		last = c
 	}
-	return x509.ParseCertificate(block.Bytes)
+	if last == '-' || partLen > 63 {
+		return false
+	}
+	return nonNumeric
 }

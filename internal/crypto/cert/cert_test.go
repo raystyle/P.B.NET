@@ -3,145 +3,118 @@ package cert
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/crypto/rsa"
 )
 
 func TestGenerateCA(t *testing.T) {
-	caCert, caKey := GenerateCA(&Config{})
-	_, err := Parse(caCert)
+	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
-	_, err = rsa.ImportPrivateKeyPEM(caKey)
+	_, err = tls.X509KeyPair(ca.EncodeToPEM())
 	require.NoError(t, err)
-	// invalid pem
-	_, err = Parse(nil)
-	require.Equal(t, err, ErrInvalidPEMBlock)
-	// invalid type
-	block := pem.Block{}
-	block.Type = "CERTIFICATE foo"
-	_, err = Parse(pem.EncodeToMemory(&block))
-	require.Equal(t, err, ErrInvalidPEMBlockType)
 }
 
 func TestGenerate(t *testing.T) {
-	caCert, caKey := GenerateCA(new(Config))
-	parent, err := Parse(caCert)
+	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
-	caPri, err := rsa.ImportPrivateKeyPEM(caKey)
-	require.NoError(t, err)
-	c := &Config{
+	testGenerate(t, ca)  // CA sign
+	testGenerate(t, nil) // self sign
+}
+
+func testGenerate(t *testing.T, ca *KeyPair) {
+	cfg := &Config{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
-	cert, key, err := Generate(parent, caPri, c)
-	require.NoError(t, err)
-	s := http.Server{}
-	port := mockHTTPSServer(t, &s, cert, key)
-	defer func() { _ = s.Close() }()
-	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
-	tlsConfig.RootCAs.AddCert(parent)
-	client := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tlsConfig,
-		},
+	var (
+		kp  *KeyPair
+		err error
+	)
+	if ca != nil {
+		kp, err = Generate(ca.Certificate, ca.PrivateKey, cfg)
+		require.NoError(t, err)
+	} else {
+		kp, err = Generate(nil, nil, cfg)
+		require.NoError(t, err)
 	}
-	get := func(hostname string) {
+
+	server1 := http.Server{Addr: "127.0.0.1:0"}
+	port1 := deployHTTPSServer(t, &server1, kp)
+	defer func() { _ = server1.Close() }()
+
+	server2 := http.Server{Addr: "[::1]:0"}
+	port2 := deployHTTPSServer(t, &server2, kp)
+	defer func() { _ = server2.Close() }()
+
+	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
+	if ca != nil {
+		tlsConfig.RootCAs.AddCert(ca.Certificate)
+	} else {
+		tlsConfig.RootCAs.AddCert(kp.Certificate)
+	}
+	client := http.Client{Transport: &http.Transport{TLSClientConfig: &tlsConfig}}
+
+	get := func(hostname, port string) {
 		resp, err := client.Get(fmt.Sprintf("https://%s:%s/", hostname, port))
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		t.Log(string(b))
+		require.Equal(t, "hello", string(b))
 	}
-	get("localhost")
-	get("127.0.0.1")
-	// get("[::1]")
+	get("localhost", port1)
+	get("127.0.0.1", port1)
+	get("[::1]", port2)
 }
 
-func TestGenerate_Self(t *testing.T) {
-	c := &Config{
-		DNSNames:    []string{"localhost"},
-		IPAddresses: []string{"127.0.0.1", "::1"},
-	}
-	cert, key, err := Generate(nil, nil, c)
+func deployHTTPSServer(t *testing.T, server *http.Server, kp *KeyPair) string {
+	listener, err := net.Listen("tcp", server.Addr)
 	require.NoError(t, err)
-	s := http.Server{}
-	port := mockHTTPSServer(t, &s, cert, key)
-	defer func() { _ = s.Close() }()
-	// not add trust and check error
-	client := http.Client{}
-	_, err = client.Get("https://localhost:" + port + "/")
-	require.Error(t, err)
-	// add trust
-	cer, err := Parse(cert)
-	require.NoError(t, err)
-	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
-	tlsConfig.RootCAs.AddCert(cer)
-	client = http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tlsConfig,
-		},
-	}
-	get := func(hostname string) {
-		resp, err := client.Get(fmt.Sprintf("https://%s:%s/", hostname, port))
-		require.NoError(t, err)
-		defer func() { _ = resp.Body.Close() }()
-		b, err := ioutil.ReadAll(resp.Body)
-		require.NoError(t, err)
-		t.Log(string(b))
-	}
-	get("localhost")
-	get("127.0.0.1")
-	// get("[::1]")
-}
 
-func mockHTTPSServer(t *testing.T, s *http.Server, cert, key []byte) string {
-	l, err := net.Listen("tcp", "localhost:0")
+	tlsCert, err := tls.X509KeyPair(kp.EncodeToPEM())
 	require.NoError(t, err)
-	certificate, err := tls.X509KeyPair(cert, key)
-	require.NoError(t, err)
-	s.TLSConfig = &tls.Config{Certificates: []tls.Certificate{certificate}}
-	data := []byte("hello")
+	server.TLSConfig = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
+
+	resp := []byte("hello")
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(data)
+		_, _ = w.Write(resp)
 	})
-	s.Handler = serveMux
+	server.Handler = serveMux
+
+	// run
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- s.ServeTLS(l, "", "")
-		close(errChan)
+		errChan <- server.ServeTLS(listener, "", "")
 	}()
-	// start
 	select {
 	case err := <-errChan:
-		t.Fatal(err)
+		require.NoError(t, err)
 	case <-time.After(250 * time.Millisecond):
 	}
+
 	// get port
-	_, port, err := net.SplitHostPort(l.Addr().String())
+	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)
 	return port
 }
 
-func TestInvalid(t *testing.T) {
-	caCert, caKey := GenerateCA(new(Config))
-	parent, err := Parse(caCert)
-	require.NoError(t, err)
-	privateKey, err := rsa.ImportPrivateKeyPEM(caKey)
-	require.NoError(t, err)
-	// invalid privateKey
-	privateKey.PublicKey.N.SetBytes(nil)
-	_, _, err = Generate(parent, privateKey, new(Config))
-	require.Error(t, err)
+func TestIsDomainName(t *testing.T) {
+	require.True(t, isDomainName("asd.com"))
+	require.True(t, isDomainName("asd-asd.com"))
+	require.True(t, isDomainName("asd-asd6.com"))
+	// invalid domain
+	require.False(t, isDomainName(""))
+	require.False(t, isDomainName(string([]byte{255, 254, 12, 35})))
+	require.False(t, isDomainName("asd-"))
+	require.False(t, isDomainName("asd.-"))
+	require.False(t, isDomainName("asd.."))
+	require.False(t, isDomainName(strings.Repeat("a", 64)+".com"))
 }
