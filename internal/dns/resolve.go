@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	defaultTimeout = time.Minute // udp is 5 second
+	defaultTimeout     = time.Minute // udp is 5 second
+	defaultMaxBodySize = 4096        // about DOH
 
 	headerSize = 2 // tcp && tls need
 )
@@ -267,7 +268,7 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 	}
 	maxBodySize := opts.MaxBodySize
 	if maxBodySize < 1 {
-		maxBodySize = 4096
+		maxBodySize = defaultMaxBodySize
 	}
 	resp, err := client.Do(req)
 	if err != nil {
