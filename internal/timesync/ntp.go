@@ -20,12 +20,11 @@ type NTPClient struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
-	Network  string        `toml:"network"`
-	Address  string        `toml:"address"`
-	Timeout  time.Duration `toml:"timeout"`
-	Version  int           `toml:"version"`
-	ProxyTag string        `toml:"proxy_tag"`
-	DNSOpts  dns.Options   `toml:"dns_options"`
+	Network string        `toml:"network"`
+	Address string        `toml:"address"`
+	Timeout time.Duration `toml:"timeout"`
+	Version int           `toml:"version"`
+	DNSOpts dns.Options   `toml:"dns_options"`
 }
 
 func NewNTPClient(config []byte) (*NTPClient, error) {
@@ -56,13 +55,6 @@ func (client *NTPClient) Query() (now time.Time, isOptsErr bool, err error) {
 		Timeout: client.Timeout,
 		Version: client.Version,
 	}
-	// set proxy
-	p, err := client.proxyPool.Get(client.ProxyTag)
-	if err != nil {
-		isOptsErr = true
-		return
-	}
-	ntpOpts.Dial = p.DialTimeout
 	// dns
 	ipList, err := client.dnsClient.Resolve(host, &client.DNSOpts)
 	if err != nil {
