@@ -23,8 +23,7 @@ func TestHTTP(t *testing.T) {
 	nodes := testGenerateNodes()
 	// --------------------------http---------------------------
 	HTTP := testGenerateHTTP(t, proxyPool)
-	info, err := HTTP.Generate(nodes)
-	require.NoError(t, err)
+	info := HTTP.Generate(nodes)
 	t.Log("(http) bootstrap nodes info:", info)
 	// init mock http server
 	httpServer := http.Server{
@@ -46,7 +45,7 @@ func TestHTTP(t *testing.T) {
 	require.Equal(t, nodes, resolved)
 	// --------------------------https--------------------------
 	HTTP = testGenerateHTTP(t, proxyPool)
-	info, err = HTTP.Generate(nodes)
+	info = HTTP.Generate(nodes)
 	require.NoError(t, err)
 	t.Log("(https) bootstrap nodes info:", info)
 	// init mock https server

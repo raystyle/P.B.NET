@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -19,6 +20,10 @@ import (
 	"project/internal/options"
 	"project/internal/random"
 	"project/internal/security"
+)
+
+const (
+	defaultMaxBodySize = 65535
 )
 
 var (
@@ -44,6 +49,8 @@ type HTTP struct {
 
 	// for generate&marshal
 	PrivateKey ed25519.PrivateKey `toml:"-"` // <security>
+
+	MaxBodySize int64 `toml:"max_body_size"`
 
 	// runtime
 	proxy    ProxyPool
@@ -84,13 +91,7 @@ func (h *HTTP) Validate() error {
 	return err
 }
 
-func (h *HTTP) Generate(nodes []*Node) (string, error) {
-	// padding data for HTTP.Validate()
-	h.Request.URL = "https://www.google.com/"
-	err := h.Validate()
-	if err != nil {
-		return "", err
-	}
+func (h *HTTP) Generate(nodes []*Node) string {
 	data, err := msgpack.Marshal(nodes)
 	if err != nil {
 		panic(&fPanic{Mode: ModeHTTP, Err: err})
@@ -128,7 +129,7 @@ func (h *HTTP) Generate(nodes []*Node) (string, error) {
 	if err != nil {
 		panic(&fPanic{Mode: ModeHTTP, Err: err})
 	}
-	return base64.StdEncoding.EncodeToString(cipherData), nil
+	return base64.StdEncoding.EncodeToString(cipherData)
 }
 
 func (h *HTTP) Marshal() ([]byte, error) {
@@ -198,11 +199,15 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	if port != "" {
 		port = ":" + port
 	}
+	maxBodySize := h.MaxBodySize
+	if maxBodySize < 1 {
+		maxBodySize = defaultMaxBodySize
+	}
 	switch opts.h.DNSOpts.Type {
 	case "", dns.IPv4:
 		for i := 0; i < len(ipList); i++ {
 			opts.req.URL.Host = ipList[i] + port
-			info, err := do(opts.req, opts.hc)
+			info, err := do(opts.req, opts.hc, maxBodySize)
 			if err == nil {
 				return resolve(opts.h, info)
 			}
@@ -210,7 +215,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	case dns.IPv6:
 		for i := 0; i < len(ipList); i++ {
 			opts.req.URL.Host = "[" + ipList[i] + "]" + port
-			info, err := do(opts.req, opts.hc)
+			info, err := do(opts.req, opts.hc, maxBodySize)
 			if err == nil {
 				return resolve(opts.h, info)
 			}
@@ -219,6 +224,22 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 		panic(&fPanic{Mode: ModeHTTP, Err: dns.UnknownTypeError(opts.h.DNSOpts.Type)})
 	}
 	return nil, ErrNoResponse
+}
+
+func do(req *http.Request, client *http.Client, length int64) (string, error) {
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+		client.CloseIdleConnections()
+	}()
+	b, err := ioutil.ReadAll(io.LimitReader(resp.Body, length))
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 type httpOpts struct {
@@ -268,22 +289,6 @@ func (h *HTTP) applyOptions() (*httpOpts, error) {
 		},
 		h: tempHTTP,
 	}, nil
-}
-
-func do(req *http.Request, c *http.Client) (string, error) {
-	resp, err := c.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-		c.CloseIdleConnections()
-	}()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
 }
 
 func resolve(h *HTTP, info string) ([]*Node, error) {
