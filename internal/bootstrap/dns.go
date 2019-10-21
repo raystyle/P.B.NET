@@ -24,16 +24,16 @@ type DNS struct {
 	ListenerPort    string      `toml:"listener_port"`
 	Options         dns.Options `toml:"dns_options"`
 	// runtime
-	resolver DNSResolver
+	dnsClient DNSClient
 	// self store all encrypted options by msgpack
 	optsEnc []byte
 	cbc     *aes.CBC
 }
 
 // input ctx for resolve
-func NewDNS(r DNSResolver) *DNS {
+func NewDNS(client DNSClient) *DNS {
 	return &DNS{
-		resolver: r,
+		dnsClient: client,
 	}
 }
 
@@ -115,7 +115,7 @@ func (d *DNS) Resolve() ([]*Node, error) {
 	security.FlushBytes(b)
 	memory.Padding()
 	// resolve dns
-	ipList, err := d.resolver.Resolve(tempDNS.DomainName, &tempDNS.Options)
+	ipList, err := d.dnsClient.Resolve(tempDNS.DomainName, &tempDNS.Options)
 	if err != nil {
 		return nil, err
 	}

@@ -29,7 +29,7 @@ func TestDNS(t *testing.T) {
 	DNS.ListenerPort = "443"
 	b, err := DNS.Marshal()
 	require.NoError(t, err)
-	DNS = NewDNS(new(mockDNSResolver))
+	DNS = NewDNS(new(mockDNSClient))
 	err = DNS.Unmarshal(b)
 	require.NoError(t, err)
 	resolved, err := DNS.Resolve()
@@ -55,7 +55,7 @@ func TestDNS(t *testing.T) {
 	DNS.Options.Type = dns.IPv6
 	b, err = DNS.Marshal()
 	require.NoError(t, err)
-	DNS = NewDNS(new(mockDNSResolver))
+	DNS = NewDNS(new(mockDNSClient))
 	err = DNS.Unmarshal(b)
 	require.NoError(t, err)
 	resolved, err = DNS.Resolve()

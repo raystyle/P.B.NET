@@ -29,7 +29,7 @@ type Bootstrap interface {
 	Resolve() ([]*Node, error)
 }
 
-type DNSResolver interface {
+type DNSClient interface {
 	Resolve(domain string, opts *dns.Options) ([]string, error)
 }
 
@@ -46,30 +46,21 @@ func (f *fPanic) Error() string {
 	return fmt.Sprintf("bootstrap %s internal error: %s", f.Mode, f.Err)
 }
 
-func Load(mode Mode, config []byte, p ProxyPool, d DNSResolver) (Bootstrap, error) {
+func Load(mode Mode, config []byte, pool ProxyPool, client DNSClient) (Bootstrap, error) {
+	var bootstrap Bootstrap
 	switch mode {
 	case ModeHTTP:
-		http := NewHTTP(p, d)
-		err := http.Unmarshal(config)
-		if err != nil {
-			return nil, err
-		}
-		return http, nil
+		bootstrap = NewHTTP(pool, client)
 	case ModeDNS:
-		_dns := NewDNS(d)
-		err := _dns.Unmarshal(config)
-		if err != nil {
-			return nil, err
-		}
-		return _dns, nil
+		bootstrap = NewDNS(client)
 	case ModeDirect:
-		direct := NewDirect(nil)
-		err := direct.Unmarshal(config)
-		if err != nil {
-			return nil, err
-		}
-		return direct, nil
+		bootstrap = NewDirect(nil)
 	default:
 		return nil, fmt.Errorf("unknown bootstrap mode: %s", mode)
 	}
+	err := bootstrap.Unmarshal(config)
+	if err != nil {
+		return nil, err
+	}
+	return bootstrap, nil
 }

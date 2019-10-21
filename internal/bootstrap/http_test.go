@@ -37,7 +37,7 @@ func TestHTTP(t *testing.T) {
 	b, err := HTTP.Marshal()
 	require.NoError(t, err)
 	// unmarshal
-	HTTP = NewHTTP(proxyPool, new(mockDNSResolver))
+	HTTP = NewHTTP(proxyPool, new(mockDNSClient))
 	err = HTTP.Unmarshal(b)
 	require.NoError(t, err)
 	resolved, err := HTTP.Resolve()
@@ -71,7 +71,7 @@ func TestHTTP(t *testing.T) {
 	b, err = HTTP.Marshal()
 	require.NoError(t, err)
 	// unmarshal
-	HTTP = NewHTTP(proxyPool, new(mockDNSResolver))
+	HTTP = NewHTTP(proxyPool, new(mockDNSClient))
 	err = HTTP.Unmarshal(b)
 	require.NoError(t, err)
 	resolved, err = HTTP.Resolve()
@@ -80,7 +80,7 @@ func TestHTTP(t *testing.T) {
 }
 
 func testGenerateHTTP(t *testing.T, p *mockProxyPool) *HTTP {
-	HTTP := NewHTTP(p, new(mockDNSResolver))
+	HTTP := NewHTTP(p, new(mockDNSClient))
 	HTTP.AESKey = strings.Repeat("FF", aes.Bit256)
 	HTTP.AESIV = strings.Repeat("FF", aes.IVSize)
 	// generate privateKey

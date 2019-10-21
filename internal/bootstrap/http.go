@@ -53,18 +53,18 @@ type HTTP struct {
 	MaxBodySize int64 `toml:"max_body_size"`
 
 	// runtime
-	proxy    ProxyPool
-	resolver DNSResolver
+	proxyPool ProxyPool
+	dnsClient DNSClient
 
 	// self encrypt all options
 	optsEnc []byte
 	cbc     *aes.CBC
 }
 
-func NewHTTP(p ProxyPool, r DNSResolver) *HTTP {
+func NewHTTP(pool ProxyPool, client DNSClient) *HTTP {
 	return &HTTP{
-		resolver: r,
-		proxy:    p,
+		dnsClient: client,
+		proxyPool: pool,
 	}
 }
 
@@ -186,7 +186,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	}
 	// dns
 	hostname := opts.req.URL.Hostname()
-	ipList, err := h.resolver.Resolve(hostname, &opts.h.DNSOpts)
+	ipList, err := h.dnsClient.Resolve(hostname, &opts.h.DNSOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +274,7 @@ func (h *HTTP) applyOptions() (*httpOpts, error) {
 	}
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
 	// set proxy
-	proxy, err := h.proxy.Get(h.ProxyTag)
+	proxy, err := h.proxyPool.Get(h.ProxyTag)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +285,7 @@ func (h *HTTP) applyOptions() (*httpOpts, error) {
 		req: req,
 		hc: &http.Client{
 			Transport: tr,
-			Timeout:   tempHTTP.Timeout,
+			Timeout:   tempHTTP.Timeout, // TODO set timeout
 		},
 		h: tempHTTP,
 	}, nil

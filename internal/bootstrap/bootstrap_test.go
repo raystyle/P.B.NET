@@ -30,9 +30,9 @@ func testGenerateNodes() []*Node {
 	return nodes
 }
 
-type mockDNSResolver struct{}
+type mockDNSClient struct{}
 
-func (dr *mockDNSResolver) Resolve(domain string, opts *dns.Options) ([]string, error) {
+func (dr *mockDNSClient) Resolve(domain string, opts *dns.Options) ([]string, error) {
 	if domain != domain {
 		return nil, errors.New("domain changed")
 	}
