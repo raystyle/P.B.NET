@@ -265,6 +265,10 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 	if opts.Timeout < 1 {
 		client.Timeout = defaultTimeout
 	}
+	maxBodySize := opts.MaxBodySize
+	if maxBodySize < 1 {
+		maxBodySize = 4096
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -273,5 +277,5 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 		_ = resp.Body.Close()
 		client.CloseIdleConnections()
 	}()
-	return ioutil.ReadAll(resp.Body)
+	return ioutil.ReadAll(io.LimitReader(resp.Body, maxBodySize))
 }

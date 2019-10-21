@@ -120,15 +120,16 @@ func (c *Client) Test() error {
 }
 
 type Options struct {
-	Mode      Mode                  `toml:"mode"`   // default is custom
-	Method    Method                `toml:"method"` // default is UDP if != "" ignore it
-	Type      Type                  `toml:"type"`   // default is IPv4
-	Timeout   time.Duration         `toml:"timeout"`
-	ServerTag string                `toml:"server_tag"` // if != "" use selected dns client
-	ProxyTag  string                `toml:"proxy_tag"`  // proxy tag
-	Network   string                `toml:"network"`
-	Header    http.Header           `toml:"header"`    // about DOH
-	Transport options.HTTPTransport `toml:"transport"` // about DOH
+	Mode        Mode                  `toml:"mode"`   // default is custom
+	Method      Method                `toml:"method"` // default is UDP if != "" ignore it
+	Type        Type                  `toml:"type"`   // default is IPv4
+	Timeout     time.Duration         `toml:"timeout"`
+	ServerTag   string                `toml:"server_tag"`    // if != "" use selected dns client
+	ProxyTag    string                `toml:"proxy_tag"`     // proxy tag
+	Network     string                `toml:"network"`       // useless for DOH
+	Header      http.Header           `toml:"header"`        // about DOH
+	Transport   options.HTTPTransport `toml:"transport"`     // about DOH
+	MaxBodySize int64                 `toml:"max_body_size"` // about DOH
 
 	dial      func(network, address string, timeout time.Duration) (net.Conn, error)
 	transport *http.Transport // about DOH
