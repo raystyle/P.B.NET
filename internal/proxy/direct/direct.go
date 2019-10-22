@@ -29,5 +29,5 @@ func (d *Direct) DialTimeout(network, address string, timeout time.Duration) (ne
 func (d *Direct) HTTP(_ *http.Transport) {}
 
 func (d *Direct) Info() string {
-	return "Direct"
+	return "direct"
 }
