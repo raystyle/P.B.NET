@@ -17,7 +17,7 @@ const (
 	rsaBits           = 2136 // need to encrypt 256 bytes data
 	rsaPublicKeySize  = 281  // export public key = 281 bytes
 	rsaCipherDataSize = 267  // encrypted password = 267 bytes
-	passwordSize      = 256  // light
+	passwordSize      = 256  // light crypto
 )
 
 var (
@@ -30,7 +30,7 @@ var (
 // +--------------+--------------+----------------+
 // | padding size | padding data | rsa public key |
 // +--------------+--------------+----------------+
-// |      2       |     xxxx     |       281      |
+// |    uint16    |     xxxx     |       281      |
 // +--------------+--------------+----------------+
 func (c *Conn) clientHandshake() error {
 	privateKey, _ := rsa.GenerateKey(rsaBits)
@@ -87,7 +87,7 @@ func (c *Conn) clientHandshake() error {
 // +--------------+--------------+--------------+
 // | padding size | padding data |   password   |
 // +--------------+--------------+--------------+
-// |      2       |     xxxx     |      267     |
+// |    uint16    |     xxxx     |      267     |
 // +--------------+--------------+--------------+
 func (c *Conn) serverHandshake() error {
 	// receive padding size

@@ -1,96 +1,39 @@
 package light
 
 import (
-	"io"
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/xnet/testdata"
+	"project/internal/testutil"
 )
 
 func TestLight(t *testing.T) {
 	listener, err := Listen("tcp", "localhost:0", 0)
 	require.NoError(t, err)
-	go func() {
-		conn, err := listener.Accept()
-		require.NoError(t, err)
-		write := func() {
-			data := testdata.GenerateData()
-			_, err = conn.Write(data)
+	wg := sync.WaitGroup{}
+	for i := 0; i < 3; i++ {
+		var server net.Conn
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			server, err = listener.Accept()
 			require.NoError(t, err)
-			require.Equal(t, testdata.GenerateData(), data)
-		}
-		read := func() {
-			data := make([]byte, 256)
-			_, err = io.ReadFull(conn, data)
-			require.NoError(t, err)
-			require.Equal(t, testdata.GenerateData(), data)
-		}
-		read()
-		write()
-		write()
-		read()
-	}()
-	conn, err := Dial("tcp", listener.Addr().String(), 0)
-	require.NoError(t, err)
-	write := func() {
-		data := testdata.GenerateData()
-		_, err = conn.Write(data)
+		}()
+		client, err := Dial("tcp", listener.Addr().String(), 0, nil)
 		require.NoError(t, err)
-		// check data is changed after write
-		require.Equal(t, testdata.GenerateData(), data)
+		wg.Wait()
+		testutil.Conn(t, server, client, true)
 	}
-	read := func() {
-		data := make([]byte, 256)
-		_, err = io.ReadFull(conn, data)
-		require.NoError(t, err)
-		require.Equal(t, testdata.GenerateData(), data)
-	}
-	write()
-	read()
-	read()
-	write()
+	require.NoError(t, listener.Close())
+	testutil.IsDestroyed(t, listener, 1)
 }
 
 func TestLightConn(t *testing.T) {
 	server, client := net.Pipe()
-	go func() {
-		conn := Server(server, 0)
-		write := func() {
-			data := testdata.GenerateData()
-			_, err := conn.Write(data)
-			require.NoError(t, err)
-			require.Equal(t, testdata.GenerateData(), data)
-		}
-		read := func() {
-			data := make([]byte, 256)
-			_, err := io.ReadFull(conn, data)
-			require.NoError(t, err)
-			require.Equal(t, testdata.GenerateData(), data)
-		}
-		read()
-		write()
-		write()
-		read()
-	}()
-	conn := Client(client, 0)
-	write := func() {
-		data := testdata.GenerateData()
-		_, err := conn.Write(data)
-		require.NoError(t, err)
-		// check data is changed after write
-		require.Equal(t, testdata.GenerateData(), data)
-	}
-	read := func() {
-		data := make([]byte, 256)
-		_, err := io.ReadFull(conn, data)
-		require.NoError(t, err)
-		require.Equal(t, testdata.GenerateData(), data)
-	}
-	write()
-	read()
-	read()
-	write()
+	server = Server(server, 0)
+	client = Client(client, 0)
+	testutil.Conn(t, server, client, true)
 }

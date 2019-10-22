@@ -4,13 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testutil"
 )
 
 func TestCrypto(t *testing.T) {
-	testdata := make([]byte, 256)
-	for i := 0; i < 256; i++ {
-		testdata[i] = byte(i)
-	}
+	testdata := testutil.GenerateData()
 	c := newCrypto(nil)
 	cipherData := c.encrypt(testdata)
 	require.NotEqual(t, testdata, cipherData)

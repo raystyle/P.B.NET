@@ -3,6 +3,10 @@ package light
 import (
 	"net"
 	"time"
+
+	"project/internal/options"
+	"project/internal/proxy/direct"
+	"project/internal/xnet/internal"
 )
 
 func Server(conn net.Conn, timeout time.Duration) *Conn {
@@ -41,8 +45,19 @@ func NewListener(inner net.Listener, timeout time.Duration) net.Listener {
 	}
 }
 
-func Dial(network, address string, timeout time.Duration) (*Conn, error) {
-	conn, err := net.DialTimeout(network, address, timeout)
+func Dial(
+	network string,
+	address string,
+	timeout time.Duration,
+	dialer internal.Dialer,
+) (*Conn, error) {
+	if timeout < 1 {
+		timeout = options.DefaultDialTimeout
+	}
+	if dialer == nil {
+		dialer = new(direct.Direct)
+	}
+	conn, err := dialer.DialTimeout(network, address, timeout)
 	if err != nil {
 		return nil, err
 	}
