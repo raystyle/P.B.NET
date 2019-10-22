@@ -142,7 +142,7 @@ func (d *discard) Print(l Level, src string, log ...interface{}) {}
 
 func (d *discard) Println(l Level, src string, log ...interface{}) {}
 
-// Conn is used to print conn info
+// Conn is used to print connection info
 // tcp 127.0.0.1:123 <-> tcp 127.0.0.1:124
 func Conn(conn net.Conn) *bytes.Buffer {
 	b := bytes.Buffer{}
