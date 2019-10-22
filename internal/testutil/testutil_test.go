@@ -2,7 +2,9 @@ package testutil
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -68,6 +70,19 @@ func TestConn(t *testing.T) {
 }
 
 func TestDeployHTTPServer(t *testing.T) {
+	// http
+	httpServer := http.Server{Addr: "127.0.0.1:0"}
+	port := DeployHTTPServer(t, &httpServer, nil)
+	t.Log("http server port:", port)
+	defer func() { _ = httpServer.Close() }()
+	// http client
+	client := http.Client{}
+	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%s/", port))
+	require.NoError(t, err)
+	_, err = io.Copy(ioutil.Discard, resp.Body)
+	require.NoError(t, err)
+	client.CloseIdleConnections()
+
 	// https
 	certCfg := cert.Config{
 		DNSNames:    []string{"localhost"},
@@ -75,15 +90,21 @@ func TestDeployHTTPServer(t *testing.T) {
 	}
 	kp, err := cert.Generate(nil, nil, &certCfg)
 	require.NoError(t, err)
-	server := http.Server{Addr: "127.0.0.1:0"}
-	port := DeployHTTPServer(t, &server, kp)
+	httpsServer := http.Server{Addr: "127.0.0.1:0"}
+	port = DeployHTTPServer(t, &httpsServer, kp)
 	t.Log("https server port:", port)
-	_ = server.Close()
-
-	// http
-	server = http.Server{Addr: "127.0.0.1:0"}
-	port = DeployHTTPServer(t, &server, nil)
-	t.Log("http server port:", port)
-	_ = server.Close()
-
+	defer func() { _ = httpsServer.Close() }()
+	// https client
+	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
+	tlsConfig.RootCAs.AddCert(kp.Certificate)
+	client = http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tlsConfig,
+		},
+	}
+	resp, err = client.Get(fmt.Sprintf("https://127.0.0.1:%s/", port))
+	require.NoError(t, err)
+	_, err = io.Copy(ioutil.Discard, resp.Body)
+	require.NoError(t, err)
+	client.CloseIdleConnections()
 }
