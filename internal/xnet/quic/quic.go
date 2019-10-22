@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	nextProto = "h2"
+	defaultNextProto = "h3-23" // HTTP/3
 )
 
 // Conn implement net.Conn
@@ -49,14 +49,22 @@ func (l *listener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	stream, err := session.AcceptStream(context.Background())
 	if err != nil {
+		_ = session.Close()
 		return nil, err
 	}
+
 	return newConn(session, stream), nil
 }
 
-func Listen(network, address string, cfg *tls.Config, timeout time.Duration) (net.Listener, error) {
+func Listen(
+	network string,
+	address string,
+	config *tls.Config,
+	timeout time.Duration,
+) (net.Listener, error) {
 	addr, err := net.ResolveUDPAddr(network, address)
 	if err != nil {
 		return nil, err
@@ -70,17 +78,23 @@ func Listen(network, address string, cfg *tls.Config, timeout time.Duration) (ne
 		IdleTimeout:      timeout,
 		KeepAlive:        true,
 	}
-	if len(cfg.NextProtos) == 0 {
-		cfg.NextProtos = []string{nextProto}
+	if len(config.NextProtos) == 0 {
+		config.NextProtos = []string{defaultNextProto}
 	}
-	l, err := quic.Listen(conn, cfg, &quicCfg)
+	l, err := quic.Listen(conn, config, &quicCfg)
 	if err != nil {
+		_ = conn.Close()
 		return nil, err
 	}
 	return &listener{Listener: l}, nil
 }
 
-func Dial(network, address string, cfg *tls.Config, timeout time.Duration) (*Conn, error) {
+func Dial(
+	network string,
+	address string,
+	config *tls.Config,
+	timeout time.Duration,
+) (*Conn, error) {
 	rAddr, err := net.ResolveUDPAddr(network, address)
 	if err != nil {
 		return nil, err
@@ -101,13 +115,17 @@ func Dial(network, address string, cfg *tls.Config, timeout time.Duration) (*Con
 		IdleTimeout:      timeout,
 		KeepAlive:        true,
 	}
-	cfg.NextProtos = []string{nextProto}
-	session, err := quic.Dial(conn, rAddr, address, cfg, &quicCfg)
+	if len(config.NextProtos) == 0 {
+		config.NextProtos = []string{defaultNextProto}
+	}
+	session, err := quic.Dial(conn, rAddr, address, config, &quicCfg)
 	if err != nil {
+		_ = conn.Close()
 		return nil, err
 	}
-	stream, err := session.OpenStreamSync(context.Background())
+	stream, err := session.OpenStream()
 	if err != nil {
+		_ = session.Close()
 		return nil, err
 	}
 	return newConn(session, stream), nil
