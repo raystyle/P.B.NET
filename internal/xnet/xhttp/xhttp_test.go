@@ -1,58 +1,33 @@
 package xhttp
 
 import (
-	"io"
-	"net/http"
+	"net"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/xnet/testdata"
+	"project/internal/testutil"
 )
 
 func TestXHTTP(t *testing.T) {
 	listener, err := Listen("tcp", "localhost:0", 0)
 	require.NoError(t, err)
-	go func() {
-		conn, err := listener.Accept()
-		require.NoError(t, err)
-		write := func() {
-			data := testdata.GenerateData()
-			_, err = conn.Write(data)
+	wg := sync.WaitGroup{}
+	for i := 0; i < 3; i++ {
+		var server net.Conn
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			server, err = listener.Accept()
 			require.NoError(t, err)
-			require.Equal(t, testdata.GenerateData(), data)
-		}
-		read := func() {
-			data := make([]byte, 256)
-			_, err = io.ReadFull(conn, data)
-			require.NoError(t, err)
-			require.Equal(t, testdata.GenerateData(), data)
-		}
-		read()
-		write()
-		write()
-		read()
-	}()
-	url := "http://" + listener.Addr().String()
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-	conn, err := Dial(req, &http.Transport{}, 0)
-	require.NoError(t, err)
-	write := func() {
-		data := testdata.GenerateData()
-		_, err = conn.Write(data)
+		}()
+		// addr := listener.Addr().String()
+		client, err := Dial(nil, nil, 0)
 		require.NoError(t, err)
-		// check data is changed after write
-		require.Equal(t, testdata.GenerateData(), data)
+		wg.Wait()
+		testutil.Conn(t, server, client, true)
 	}
-	read := func() {
-		data := make([]byte, 256)
-		_, err = io.ReadFull(conn, data)
-		require.NoError(t, err)
-		require.Equal(t, testdata.GenerateData(), data)
-	}
-	write()
-	read()
-	read()
-	write()
+	require.NoError(t, listener.Close())
+	testutil.IsDestroyed(t, listener, 1)
 }
