@@ -22,7 +22,7 @@ func GenerateKey(bits int) (*PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, bits)
 }
 
-func ImportPrivateKeyPEM(data []byte) (*PrivateKey, error) {
+func ImportPrivateKeyFromPEM(data []byte) (*PrivateKey, error) {
 	block, _ := pem.Decode(data)
 	if block == nil {
 		return nil, ErrInvalidPEMBlock
