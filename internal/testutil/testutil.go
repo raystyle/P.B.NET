@@ -70,8 +70,8 @@ func GenerateData() []byte {
 }
 
 // Conn is used to client & server Conn Read() Write() and Close()
-// if close == true, IsDestroyed will be run after Conn.Close()
 //
+// if close == true, IsDestroyed will be run after Conn.Close()
 // if Conn about TLS and use net.Pipe(), set close = false
 // server, client := net.Pipe()
 // tlsServer = tls.Server(server, cfg)
@@ -115,20 +115,28 @@ func Conn(t require.TestingT, server, client net.Conn, close bool) {
 	wg.Wait()
 }
 
-// DeployHTTPSServer is used to deploy a https server for test
+// DeployHTTPServer is used to deploy a http or https server
+//
+// if kp is nil, will deploy http server
 // if deploy success, will return server port
-func DeployHTTPSServer(t require.TestingT, server *http.Server, kp *cert.KeyPair) string {
+func DeployHTTPServer(t require.TestingT, server *http.Server, kp *cert.KeyPair) string {
 	listener, err := net.Listen("tcp", server.Addr)
 	require.NoError(t, err)
 
-	tlsCert, err := tls.X509KeyPair(kp.EncodeToPEM())
-	require.NoError(t, err)
-	server.TLSConfig = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
+	if kp != nil {
+		tlsCert, err := tls.X509KeyPair(kp.EncodeToPEM())
+		require.NoError(t, err)
+		server.TLSConfig = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
+	}
 
 	// run
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- server.ServeTLS(listener, "", "")
+		if kp != nil {
+			errChan <- server.ServeTLS(listener, "", "")
+		} else {
+			errChan <- server.Serve(listener)
+		}
 	}()
 	select {
 	case err = <-errChan:

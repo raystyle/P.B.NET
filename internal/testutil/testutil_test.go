@@ -67,7 +67,8 @@ func TestConn(t *testing.T) {
 	Conn(t, server, client, true)
 }
 
-func TestDeployHTTPSServer(t *testing.T) {
+func TestDeployHTTPServer(t *testing.T) {
+	// https
 	certCfg := cert.Config{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
@@ -75,7 +76,14 @@ func TestDeployHTTPSServer(t *testing.T) {
 	kp, err := cert.Generate(nil, nil, &certCfg)
 	require.NoError(t, err)
 	server := http.Server{Addr: "127.0.0.1:0"}
-	port := DeployHTTPSServer(t, &server, kp)
+	port := DeployHTTPServer(t, &server, kp)
 	t.Log("https server port:", port)
 	_ = server.Close()
+
+	// http
+	server = http.Server{Addr: "127.0.0.1:0"}
+	port = DeployHTTPServer(t, &server, nil)
+	t.Log("http server port:", port)
+	_ = server.Close()
+
 }
