@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"unicode/utf8"
 )
 
 // These parameter values are specified in section 5.
@@ -91,7 +90,8 @@ func decode(encoded string) (string, error) {
 		bias = adapt(i-oldI, x, oldI == 0)
 		n += i / x
 		i %= x
-		if n > utf8.MaxRune || len(output) >= 1024 {
+		// if n > utf8.MaxRune || len(output) >= 1024 {
+		if n > '\U0010FFFF' || len(output) >= 1024 {
 			return "", punyError(encoded)
 		}
 		output = append(output, 0)
@@ -213,7 +213,8 @@ func adapt(delta, numPoints int32, firstTime bool) int32 {
 
 func isASCII(s string) bool {
 	for i := 0; i < len(s); i++ {
-		if s[i] >= utf8.RuneSelf {
+		// if s[i] >= utf8.RuneSelf {
+		if s[i] >= 0x80 {
 			return false
 		}
 	}

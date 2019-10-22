@@ -123,19 +123,19 @@ func unpackMessage(message []byte) ([]string, error) {
 	if l == 0 {
 		return nil, ErrNoResolveResult
 	}
-	result := make([]string, l)
+	var result []string
 	for i := 0; i < l; i++ {
 		switch msg.Answers[i].Header.Type {
 		case dnsmessage.TypeA:
-			a := msg.Answers[i].Body.(*dnsmessage.AResource)
+			res := msg.Answers[i].Body.(*dnsmessage.AResource)
 			ip := make([]byte, net.IPv4len)
-			copy(ip, a.A[:])
-			result[i] = net.IP(ip).String()
+			copy(ip, res.A[:])
+			result = append(result, net.IP(ip).String())
 		case dnsmessage.TypeAAAA:
-			a := msg.Answers[i].Body.(*dnsmessage.AAAAResource)
+			res := msg.Answers[i].Body.(*dnsmessage.AAAAResource)
 			ip := make([]byte, net.IPv6len)
-			copy(ip, a.AAAA[:])
-			result[i] = net.IP(ip).String()
+			copy(ip, res.AAAA[:])
+			result = append(result, net.IP(ip).String())
 		}
 	}
 	return result, nil
