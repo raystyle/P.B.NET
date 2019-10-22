@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"errors"
 	"net"
 	"testing"
 
@@ -32,10 +31,7 @@ func testGenerateNodes() []*Node {
 
 type mockDNSClient struct{}
 
-func (dr *mockDNSClient) Resolve(domain string, opts *dns.Options) ([]string, error) {
-	if domain != domain {
-		return nil, errors.New("domain changed")
-	}
+func (dr *mockDNSClient) Resolve(_ string, opts *dns.Options) ([]string, error) {
 	if opts == nil {
 		opts = new(dns.Options)
 	}

@@ -156,7 +156,7 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	memory := security.NewMemory()
 	defer memory.Flush()
 	rand := random.New(0)
-	key := rand.Bytes(aes.Bit256)
+	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
 	h.cbc, err = aes.NewCBC(key, iv)
 	if err != nil {
