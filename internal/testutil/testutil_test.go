@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,8 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/crypto/cert"
 )
 
 func TestPPROF(t *testing.T) {
@@ -64,45 +61,53 @@ func TestTLSConfigPair(t *testing.T) {
 	Conn(t, server, client, true)
 }
 
+func TestListenerAndDial(t *testing.T) {
+	l, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	ListenerAndDial(t, l, func() (net.Conn, error) {
+		return net.Dial("tcp4", addr)
+	}, true)
+
+	l, err = net.Listen("tcp6", "localhost:0")
+	require.NoError(t, err)
+	addr = l.Addr().String()
+	ListenerAndDial(t, l, func() (net.Conn, error) {
+		return net.Dial("tcp6", addr)
+	}, true)
+}
+
 func TestConn(t *testing.T) {
 	server, client := net.Pipe()
 	Conn(t, server, client, true)
 }
 
-func TestDeployHTTPServer(t *testing.T) {
+func TestHTTPServer(t *testing.T) {
 	// http
-	httpServer := http.Server{Addr: "127.0.0.1:0"}
-	port := DeployHTTPServer(t, &httpServer, nil)
+	httpServer := http.Server{Addr: "localhost:0"}
+	port, _ := HTTPServer(t, "tcp", &httpServer, false)
 	t.Log("http server port:", port)
 	defer func() { _ = httpServer.Close() }()
-	// http client
+
 	client := http.Client{}
-	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%s/", port))
+	resp, err := client.Get(fmt.Sprintf("http://localhost:%s/", port))
 	require.NoError(t, err)
 	_, err = io.Copy(ioutil.Discard, resp.Body)
 	require.NoError(t, err)
 	client.CloseIdleConnections()
 
 	// https
-	certCfg := cert.Config{
-		DNSNames:    []string{"localhost"},
-		IPAddresses: []string{"127.0.0.1", "::1"},
-	}
-	kp, err := cert.Generate(nil, nil, &certCfg)
-	require.NoError(t, err)
-	httpsServer := http.Server{Addr: "127.0.0.1:0"}
-	port = DeployHTTPServer(t, &httpsServer, kp)
+	httpsServer := http.Server{Addr: "localhost:0"}
+	port, tlsConfig := HTTPServer(t, "tcp", &httpsServer, true)
 	t.Log("https server port:", port)
 	defer func() { _ = httpsServer.Close() }()
-	// https client
-	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
-	tlsConfig.RootCAs.AddCert(kp.Certificate)
+
 	client = http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tlsConfig,
+			TLSClientConfig: tlsConfig,
 		},
 	}
-	resp, err = client.Get(fmt.Sprintf("https://127.0.0.1:%s/", port))
+	resp, err = client.Get(fmt.Sprintf("https://localhost:%s/", port))
 	require.NoError(t, err)
 	_, err = io.Copy(ioutil.Discard, resp.Body)
 	require.NoError(t, err)
