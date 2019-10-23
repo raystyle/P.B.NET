@@ -9,8 +9,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/xnet"
 )
 
 const (
@@ -73,6 +76,13 @@ func TestConn(t *testing.T) {
 	require.NoError(t, err)
 	t.Log(Conn(conn))
 	_ = conn.Close()
+
+	// xnet
+	conn, err = net.Dial("tcp", "github.com:443")
+	require.NoError(t, err)
+	xConn := xnet.NewConn(conn, time.Now())
+	t.Log(Conn(xConn))
+	_ = xConn.Close()
 }
 
 func TestHTTPRequest(t *testing.T) {
