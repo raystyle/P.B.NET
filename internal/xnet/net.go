@@ -4,14 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
 	"time"
 
 	"project/internal/options"
-	"project/internal/xnet/internal"
 	"project/internal/xnet/light"
 	"project/internal/xnet/quic"
 	"project/internal/xnet/xtls"
+)
+
+var (
+	ErrEmptyMode    = errors.New("empty mode")
+	ErrEmptyNetwork = errors.New("empty network")
 )
 
 type Mode = string
@@ -20,21 +23,8 @@ const (
 	TLS   Mode = "tls"
 	QUIC  Mode = "quic"
 	HTTP  Mode = "http"
-	HTTPS Mode = "https"
 	Light Mode = "light"
 )
-
-var (
-	ErrEmptyPort    = errors.New("empty port")
-	ErrEmptyMode    = errors.New("empty mode")
-	ErrEmptyNetwork = errors.New("empty network")
-)
-
-type InvalidPortError int
-
-func (p InvalidPortError) Error() string {
-	return fmt.Sprintf("invalid port: %d", p)
-}
 
 type UnknownModeError string
 
@@ -48,36 +38,10 @@ type mismatchedModeNetwork struct {
 }
 
 func (mn *mismatchedModeNetwork) Error() string {
-	return fmt.Sprintf("mismatched mode and network: %s %s",
-		mn.mode, mn.network)
+	return fmt.Sprintf("mismatched mode and network: %s %s", mn.mode, mn.network)
 }
 
-type Config struct {
-	Network   string            `toml:"network"`
-	Address   string            `toml:"address"`
-	Timeout   time.Duration     `toml:"timeout"`
-	TLSConfig options.TLSConfig `toml:"tls_config"`
-}
-
-func CheckPortString(port string) error {
-	if port == "" {
-		return ErrEmptyPort
-	}
-	n, err := strconv.Atoi(port)
-	if err != nil {
-		return err
-	}
-	return CheckPort(n)
-}
-
-func CheckPort(port int) error {
-	if port < 1 || port > 65535 {
-		return InvalidPortError(port)
-	}
-	return nil
-}
-
-func CheckModeNetwork(mode Mode, network string) error {
+func CheckModeNetwork(mode string, network string) error {
 	if mode == "" {
 		return ErrEmptyMode
 	}
@@ -107,6 +71,19 @@ func CheckModeNetwork(mode Mode, network string) error {
 		return UnknownModeError(mode)
 	}
 	return nil
+}
+
+type Dialer interface {
+	Dial(network, address string) (net.Conn, error)
+	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
+}
+
+type Config struct {
+	Network   string
+	Address   string
+	Timeout   time.Duration
+	TLSConfig options.TLSConfig
+	Dialer    Dialer
 }
 
 func Listen(mode Mode, cfg *Config) (net.Listener, error) {
@@ -153,7 +130,7 @@ func Dial(mode Mode, cfg *Config) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		return xtls.Dial(cfg.Network, cfg.Address, tlsConfig, cfg.Timeout)
+		return xtls.Dial(cfg.Network, cfg.Address, tlsConfig, cfg.Timeout, cfg.Dialer.DialTimeout)
 	case QUIC:
 		err := CheckModeNetwork(QUIC, cfg.Network)
 		if err != nil {
@@ -169,14 +146,8 @@ func Dial(mode Mode, cfg *Config) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		return light.Dial(cfg.Network, cfg.Address, cfg.Timeout)
+		return light.Dial(cfg.Network, cfg.Address, cfg.Timeout, cfg.Dialer.DialTimeout)
 	default:
 		return nil, UnknownModeError(mode)
 	}
-}
-
-// NewDeadlineConn return a net.Conn that
-// set deadline before each Read() and Write()
-func NewDeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
-	return internal.NewDeadlineConn(conn, deadline)
 }

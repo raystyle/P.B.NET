@@ -1,42 +1,10 @@
 package xnet
 
 import (
-	"net"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/crypto/cert"
-	"project/internal/options"
 )
-
-func TestCheckPortString(t *testing.T) {
-	err := CheckPortString("1234")
-	require.NoError(t, err)
-
-	err = CheckPortString("")
-	require.Equal(t, ErrEmptyPort, err)
-
-	err = CheckPortString("s")
-	require.Error(t, err)
-	err = CheckPortString("0")
-	require.Error(t, err)
-	err = CheckPortString("65536")
-	require.Error(t, err)
-}
-
-func TestCheckPort(t *testing.T) {
-	err := CheckPort(123)
-	require.NoError(t, err)
-
-	err = CheckPort(0)
-	require.Error(t, err)
-	require.Equal(t, "invalid port: 0", err.Error())
-	err = CheckPort(65536)
-	require.Error(t, err)
-	require.Equal(t, "invalid port: 65536", err.Error())
-}
 
 func TestCheckModeNetwork(t *testing.T) {
 	err := CheckModeNetwork(TLS, "tcp")
@@ -65,6 +33,8 @@ func TestCheckModeNetwork(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, "unknown mode: xxxx", err.Error())
 }
+
+/*
 
 func TestListenAndDialTLS(t *testing.T) {
 	cfg := &Config{
@@ -173,3 +143,4 @@ func TestListenAndDialLight(t *testing.T) {
 	_ = conn.Close()
 	wg.Wait()
 }
+*/
