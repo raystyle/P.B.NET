@@ -1,11 +1,63 @@
-package internal
+package xnetutil
 
 import (
+	"errors"
+	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"project/internal/options"
 )
+
+var ErrEmptyPort = errors.New("empty port")
+
+type InvalidPortError int
+
+func (p InvalidPortError) Error() string {
+	return fmt.Sprintf("invalid port: %d", p)
+}
+
+func CheckPort(port int) error {
+	if port < 1 || port > 65535 {
+		return InvalidPortError(port)
+	}
+	return nil
+}
+
+func CheckPortString(port string) error {
+	if port == "" {
+		return ErrEmptyPort
+	}
+	n, err := strconv.Atoi(port)
+	if err != nil {
+		return err
+	}
+	return CheckPort(n)
+}
+
+type TrafficUnit int
+
+func (ts TrafficUnit) String() string {
+	const (
+		b  = 1024
+		kb = 1024 * 1024
+		mb = 1024 * 1024 * 1024
+		gb = 1024 * 1024 * 1024 * 1024
+	)
+	switch {
+	case ts < b:
+		return fmt.Sprintf("%d Byte", ts)
+	case ts < kb:
+		return fmt.Sprintf("%.3f KB", float64(ts)/b)
+	case ts < mb:
+		return fmt.Sprintf("%.3f MB", float64(ts)/kb)
+	case ts < gb:
+		return fmt.Sprintf("%.3f GB", float64(ts)/mb)
+	default:
+		return fmt.Sprintf("%.3f TB", float64(ts)/gb)
+	}
+}
 
 type deadlineConn struct {
 	net.Conn
