@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"project/internal/options"
-	"project/internal/proxy/direct"
-	"project/internal/xnet/internal"
 	"project/internal/xnet/light"
 )
 
@@ -43,15 +41,15 @@ func Dial(
 	address string,
 	config *tls.Config,
 	timeout time.Duration,
-	dialer internal.Dialer,
+	dial func(string, string, time.Duration) (net.Conn, error),
 ) (*Conn, error) {
 	if timeout < 1 {
 		timeout = options.DefaultHandshakeTimeout
 	}
-	if dialer == nil {
-		dialer = new(direct.Direct)
+	if dial == nil {
+		dial = net.DialTimeout
 	}
-	rawConn, err := dialer.DialTimeout(network, address, timeout)
+	rawConn, err := dial(network, address, timeout)
 	if err != nil {
 		return nil, err
 	}

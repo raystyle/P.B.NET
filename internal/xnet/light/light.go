@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"project/internal/options"
-	"project/internal/proxy/direct"
-	"project/internal/xnet/internal"
 )
 
 func Server(conn net.Conn, timeout time.Duration) *Conn {
@@ -49,15 +47,15 @@ func Dial(
 	network string,
 	address string,
 	timeout time.Duration,
-	dialer internal.Dialer,
+	dial func(string, string, time.Duration) (net.Conn, error),
 ) (*Conn, error) {
 	if timeout < 1 {
 		timeout = options.DefaultDialTimeout
 	}
-	if dialer == nil {
-		dialer = new(direct.Direct)
+	if dial == nil {
+		dial = net.DialTimeout
 	}
-	conn, err := dialer.DialTimeout(network, address, timeout)
+	conn, err := dial(network, address, timeout)
 	if err != nil {
 		return nil, err
 	}
