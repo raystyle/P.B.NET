@@ -11,6 +11,7 @@ import (
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/xnet"
+	"project/internal/xnet/xnetutil"
 )
 
 var (
@@ -45,7 +46,7 @@ func (d *DNS) Validate() error {
 	if err != nil {
 		return err
 	}
-	err = xnet.CheckPortString(d.ListenerPort)
+	err = xnetutil.CheckPortString(d.ListenerPort)
 	if err != nil {
 		return err
 	}

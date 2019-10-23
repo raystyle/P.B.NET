@@ -14,7 +14,7 @@ import (
 
 	"project/internal/convert"
 	"project/internal/proxy/direct"
-	"project/internal/xnet"
+	"project/internal/xnet/xnetutil"
 )
 
 type Config struct {
@@ -169,7 +169,7 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 	if err != nil {
 		return err
 	}
-	dConn := xnet.DeadlineConn(conn, timeout)
+	dConn := xnetutil.DeadlineConn(conn, timeout)
 	// request authentication
 	buffer := bytes.Buffer{}
 	buffer.WriteByte(version5)
@@ -314,7 +314,7 @@ func splitHostPort(address string) (string, int, error) {
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	err = xnet.CheckPort(portNum)
+	err = xnetutil.CheckPort(portNum)
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}

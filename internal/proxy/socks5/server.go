@@ -16,7 +16,7 @@ import (
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/options"
-	"project/internal/xnet"
+	"project/internal/xnet/xnetutil"
 	"project/internal/xpanic"
 )
 
@@ -187,7 +187,7 @@ func (s *Server) newConn(c net.Conn) *conn {
 	if !s.shuttingDown() {
 		conn := &conn{
 			server: s,
-			conn:   xnet.DeadlineConn(c, s.timeout),
+			conn:   xnetutil.DeadlineConn(c, s.timeout),
 		}
 		s.connsRWM.Lock()
 		s.conns[conn.key()] = conn

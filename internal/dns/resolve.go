@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"project/internal/convert"
-	"project/internal/xnet"
+	"project/internal/xnet/xnetutil"
 )
 
 const (
@@ -125,7 +125,7 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 		if err != nil {
 			return nil, err // not continue
 		}
-		dConn := xnet.DeadlineConn(conn, timeout)
+		dConn := xnetutil.DeadlineConn(conn, timeout)
 		_, _ = dConn.Write(message)
 		buffer := make([]byte, 512)
 		n, err := dConn.Read(buffer)
@@ -160,7 +160,7 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dConn := xnet.DeadlineConn(conn, timeout)
+	dConn := xnetutil.DeadlineConn(conn, timeout)
 	defer func() { _ = dConn.Close() }()
 	// add size header
 	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
@@ -234,7 +234,7 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("invalid address: %s", address)
 	}
-	dConn := xnet.DeadlineConn(conn, timeout)
+	dConn := xnetutil.DeadlineConn(conn, timeout)
 	defer func() { _ = dConn.Close() }()
 	// add size header
 	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
