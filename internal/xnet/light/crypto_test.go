@@ -9,7 +9,7 @@ import (
 )
 
 func TestCrypto(t *testing.T) {
-	testdata := testutil.GenerateData()
+	testdata := testutil.Bytes()
 	c := newCrypto(nil)
 	cipherData := c.encrypt(testdata)
 	require.NotEqual(t, testdata, cipherData)
