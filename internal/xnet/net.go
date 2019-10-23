@@ -1,12 +1,12 @@
 package xnet
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
 	"time"
 
-	"project/internal/options"
 	"project/internal/xnet/light"
 	"project/internal/xnet/quic"
 	"project/internal/xnet/xtls"
@@ -38,7 +38,8 @@ type mismatchedModeNetwork struct {
 }
 
 func (mn *mismatchedModeNetwork) Error() string {
-	return fmt.Sprintf("mismatched mode and network: %s %s", mn.mode, mn.network)
+	return fmt.Sprintf("mismatched mode and network: %s %s",
+		mn.mode, mn.network)
 }
 
 func CheckModeNetwork(mode string, network string) error {
@@ -82,7 +83,7 @@ type Config struct {
 	Network   string
 	Address   string
 	Timeout   time.Duration
-	TLSConfig options.TLSConfig
+	TLSConfig *tls.Config
 	Dialer    Dialer
 }
 
@@ -93,21 +94,13 @@ func Listen(mode Mode, cfg *Config) (net.Listener, error) {
 		if err != nil {
 			return nil, err
 		}
-		tlsConfig, err := cfg.TLSConfig.Apply()
-		if err != nil {
-			return nil, err
-		}
-		return xtls.Listen(cfg.Network, cfg.Address, tlsConfig, cfg.Timeout)
+		return xtls.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
 	case QUIC:
 		err := CheckModeNetwork(QUIC, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
-		tlsConfig, err := cfg.TLSConfig.Apply()
-		if err != nil {
-			return nil, err
-		}
-		return quic.Listen(cfg.Network, cfg.Address, tlsConfig, cfg.Timeout)
+		return quic.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
 	case Light:
 		err := CheckModeNetwork(Light, cfg.Network)
 		if err != nil {
@@ -126,27 +119,32 @@ func Dial(mode Mode, cfg *Config) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		tlsConfig, err := cfg.TLSConfig.Apply()
-		if err != nil {
-			return nil, err
-		}
-		return xtls.Dial(cfg.Network, cfg.Address, tlsConfig, cfg.Timeout, cfg.Dialer.DialTimeout)
+		return xtls.Dial(
+			cfg.Network,
+			cfg.Address,
+			cfg.TLSConfig,
+			cfg.Timeout,
+			cfg.Dialer.DialTimeout)
 	case QUIC:
 		err := CheckModeNetwork(QUIC, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
-		tlsConfig, err := cfg.TLSConfig.Apply()
-		if err != nil {
-			return nil, err
-		}
-		return quic.Dial(cfg.Network, cfg.Address, tlsConfig, cfg.Timeout)
+		return quic.Dial(
+			cfg.Network,
+			cfg.Address,
+			cfg.TLSConfig,
+			cfg.Timeout)
 	case Light:
 		err := CheckModeNetwork(Light, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
-		return light.Dial(cfg.Network, cfg.Address, cfg.Timeout, cfg.Dialer.DialTimeout)
+		return light.Dial(
+			cfg.Network,
+			cfg.Address,
+			cfg.Timeout,
+			cfg.Dialer.DialTimeout)
 	default:
 		return nil, UnknownModeError(mode)
 	}
