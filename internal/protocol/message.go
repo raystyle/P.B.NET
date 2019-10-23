@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"errors"
+	"math"
 	"net"
 	"runtime"
 	"time"
@@ -41,15 +42,16 @@ var (
 )
 
 var (
-	SlotSize = 16 * runtime.NumCPU() // message id is uint16 < 65536
-	MaxMsgID = SlotSize - 1          // check invalid message id
+	SlotSize int // message id is uint16 < 65536
+	MaxMsgID int // check invalid message id
 )
 
 func init() {
+	SlotSize = 16 * (int(math.Abs(float64(runtime.NumCPU()))) + 1)
 	if SlotSize > 65536 {
 		SlotSize = 65536
-		MaxMsgID = 65535
 	}
+	MaxMsgID = SlotSize - 1
 }
 
 // Slot is used to handle message async
