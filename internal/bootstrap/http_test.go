@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"crypto/tls"
 	"net/http"
 	"strings"
 	"testing"
@@ -31,6 +32,7 @@ func TestHTTP(t *testing.T) {
 	dnsClient := new(mockDNSClient)
 	// generate bootstrap nodes info
 	nodes := testGenerateNodes()
+
 	// --------------------------http---------------------------
 	HTTP := testGenerateHTTP(t, proxyPool)
 	nodesInfo := HTTP.Generate(nodes)
@@ -47,8 +49,9 @@ func TestHTTP(t *testing.T) {
 		Addr:    "localhost:0",
 		Handler: serveMux,
 	}
-	port := testutil.DeployHTTPServer(t, &httpServer, nil)
+	port := testutil.RunHTTPServer(t, "tcp", &httpServer)
 	defer func() { _ = httpServer.Close() }()
+
 	// config
 	HTTP.Request.URL = "http://localhost:" + port
 	// marshal
@@ -61,6 +64,8 @@ func TestHTTP(t *testing.T) {
 	resolved, err := HTTP.Resolve()
 	require.NoError(t, err)
 	require.Equal(t, nodes, resolved)
+	testutil.IsDestroyed(t, HTTP, 1)
+
 	// --------------------------https--------------------------
 	HTTP = testGenerateHTTP(t, proxyPool)
 	nodesInfo = HTTP.Generate(nodes)
@@ -75,12 +80,16 @@ func TestHTTP(t *testing.T) {
 	}
 	kp, err := cert.Generate(nil, nil, &certCfg)
 	require.NoError(t, err)
+	cc, err := kp.TLSCertificate()
+	require.NoError(t, err)
 	httpsServer := http.Server{
-		Addr:    "localhost:0",
-		Handler: serveMux,
+		Addr:      "localhost:0",
+		Handler:   serveMux,
+		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cc}},
 	}
-	port = testutil.DeployHTTPServer(t, &httpServer, kp)
+	port = testutil.RunHTTPServer(t, "tcp", &httpsServer)
 	defer func() { _ = httpsServer.Close() }()
+
 	// config
 	HTTP.Request.URL = "https://localhost:" + port
 	// add cert to trust
@@ -96,4 +105,5 @@ func TestHTTP(t *testing.T) {
 	resolved, err = HTTP.Resolve()
 	require.NoError(t, err)
 	require.Equal(t, nodes, resolved)
+	testutil.IsDestroyed(t, HTTP, 1)
 }
