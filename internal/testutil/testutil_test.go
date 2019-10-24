@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIPv6(t *testing.T) {
+	IPv6()
+}
+
 func TestPPROF(t *testing.T) {
 	PPROF()
 }

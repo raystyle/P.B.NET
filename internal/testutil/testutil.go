@@ -20,6 +20,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	ipv6 bool
+)
+
+func init() {
+	// check IPv6 available
+	conn, err := net.Dial("tcp6", "cloudflare-dns.com:443")
+	if err == nil {
+		_ = conn.Close()
+		ipv6 = true
+	}
+}
+
+// IPv6 is used to determine whether IPv6 is available
+func IPv6() bool {
+	return ipv6
+}
+
 // PPROF is used to open pprof
 func PPROF() {
 	go func() { _ = http.ListenAndServe("localhost:1999", nil) }()
