@@ -10,17 +10,17 @@ import (
 
 const depth = 32
 
-func Sprint(panic interface{}, title string) string {
+func Print(panic interface{}, title string) *bytes.Buffer {
 	b := &bytes.Buffer{}
 	b.WriteString(title)
 	b.WriteString(":\n\n")
 	_, _ = fmt.Fprintln(b, panic)
 	printStack(b)
-	return b.String()
+	return b
 }
 
 func Error(panic interface{}, title string) error {
-	return errors.New(Sprint(panic, title))
+	return errors.New(Print(panic, title).String())
 }
 
 // from github.com/pkg/errors
