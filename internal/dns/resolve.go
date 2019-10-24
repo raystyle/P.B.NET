@@ -21,7 +21,7 @@ import (
 
 const (
 	defaultTimeout     = time.Minute // udp is 5 second
-	defaultMaxBodySize = 4096        // about DOH
+	defaultMaxBodySize = 65535       // about DOH
 
 	headerSize = 2 // tcp && tls need
 )
@@ -215,16 +215,21 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 		return nil, err
 	}
 	switch len(config) {
-	case 1: // ip mode     8.8.8.8:853
+	case 1: // ip mode
+		// 8.8.8.8:853
+		// [2606:4700:4700::1001]:853
 		c, err := dial(network, address, timeout)
 		if err != nil {
 			return nil, err
 		}
 		conn = tls.Client(c, &tls.Config{ServerName: host})
-	case 2: // domain mode dns.google:853|8.8.8.8,8.8.4.4
+	case 2: // domain mode
+		// dns.google:853|8.8.8.8,8.8.4.4
+		// dns.google:853|8.8.8.8,8.8.4.4
+		// cloudflare-dns.com:853|2606:4700:4700::1001
 		ipList := strings.Split(strings.TrimSpace(config[1]), ",")
 		for i := 0; i < len(ipList); i++ {
-			c, err := dial(network, ipList[i]+":"+port, timeout)
+			c, err := dial(network, net.JoinHostPort(ipList[i], port), timeout)
 			if err == nil {
 				conn = tls.Client(c, &tls.Config{ServerName: host})
 				break

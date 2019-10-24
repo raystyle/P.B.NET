@@ -1,3 +1,4 @@
+# ------------------------UDP--------------------------
 [udp_google]
   method  = "udp"
   address = "8.8.8.8:53"
@@ -9,6 +10,8 @@
 [udp_ipv6_cloudflare]
   method  = "udp"
   address = "[2606:4700:4700::1001]:53"
+
+# ------------------------TCP--------------------------
 
 [tcp_google]
   method  = "tcp"
@@ -48,7 +51,7 @@
 
 [dot_ipv6_cloudflare_domain]
   method  = "dot"
-  address = "cloudflare-dns.com:853|[2606:4700:4700::1001]"
+  address = "cloudflare-dns.com:853|2606:4700:4700::1001"
 
 # ------------------DNS-Over-HTTPS---------------------
 
