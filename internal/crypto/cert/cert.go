@@ -1,6 +1,7 @@
 package cert
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 
 	"project/internal/crypto/rand"
 	"project/internal/crypto/rsa"
+	"project/internal/dns"
 	"project/internal/random"
 )
 
@@ -37,8 +39,7 @@ type Subject struct {
 type KeyPair struct {
 	Certificate *x509.Certificate
 	PrivateKey  *rsa.PrivateKey
-
-	certBytes []byte
+	certBytes   []byte
 }
 
 func (kp *KeyPair) EncodeToPEM() (cert, key []byte) {
@@ -51,6 +52,10 @@ func (kp *KeyPair) EncodeToPEM() (cert, key []byte) {
 		Bytes: rsa.ExportPrivateKey(kp.PrivateKey),
 	}
 	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
+}
+
+func (kp *KeyPair) TLSCertificate() (tls.Certificate, error) {
+	return tls.X509KeyPair(kp.EncodeToPEM())
 }
 
 func generate(cfg *Config) *x509.Certificate {
@@ -112,10 +117,10 @@ func GenerateCA(cfg *Config) (*KeyPair, error) {
 	certBytes, _ := x509.CreateCertificate(rand.Reader, ca, ca,
 		&privateKey.PublicKey, privateKey)
 
-	xc, _ := x509.ParseCertificate(certBytes)
+	caCert, _ := x509.ParseCertificate(certBytes)
 
 	return &KeyPair{
-		Certificate: xc,
+		Certificate: caCert,
 		PrivateKey:  privateKey,
 		certBytes:   certBytes,
 	}, nil
@@ -128,7 +133,7 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, cfg *Config) (*KeyP
 
 	dn := cfg.DNSNames
 	for i := 0; i < len(dn); i++ {
-		if !isDomainName(dn[i]) {
+		if !dns.IsDomainName(dn[i]) {
 			return nil, fmt.Errorf("%s is not a domain name", dn[i])
 		}
 		cert.DNSNames = append(cert.DNSNames, dn[i])
@@ -160,68 +165,11 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, cfg *Config) (*KeyP
 		return nil, err
 	}
 
-	xc, _ := x509.ParseCertificate(certBytes)
+	sCert, _ := x509.ParseCertificate(certBytes)
 
 	return &KeyPair{
-		Certificate: xc,
+		Certificate: sCert,
 		PrivateKey:  privateKey,
 		certBytes:   certBytes,
 	}, nil
-}
-
-// from GOROOT/src/net/dnsclient.go
-
-// checks if a string is a presentation-format domain name
-// (currently restricted to hostname-compatible "preferred name" LDH labels and
-// SRV-like "underscore labels"; see golang.org/issue/12421).
-func isDomainName(s string) bool {
-	// See RFC 1035, RFC 3696.
-	// Presentation format has dots before every label except the first, and the
-	// terminal empty label is optional here because we assume fully-qualified
-	// (absolute) input. We must therefore reserve space for the first and last
-	// labels' length octets in wire format, where they are necessary and the
-	// maximum total length is 255.
-	// So our _effective_ maximum is 253, but 254 is not rejected if the last
-	// character is a dot.
-	l := len(s)
-	if l == 0 || l > 254 || l == 254 && s[l-1] != '.' {
-		return false
-	}
-	last := byte('.')
-	nonNumeric := false // true once we've seen a letter or hyphen
-	partLen := 0
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		default:
-			return false
-		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_':
-			nonNumeric = true
-			partLen++
-		case '0' <= c && c <= '9':
-			// fine
-			partLen++
-		case c == '-':
-			// Byte before dash cannot be dot.
-			if last == '.' {
-				return false
-			}
-			partLen++
-			nonNumeric = true
-		case c == '.':
-			// Byte before dot cannot be dot, dash.
-			if last == '.' || last == '-' {
-				return false
-			}
-			if partLen > 63 || partLen == 0 {
-				return false
-			}
-			partLen = 0
-		}
-		last = c
-	}
-	if last == '-' || partLen > 63 {
-		return false
-	}
-	return nonNumeric
 }

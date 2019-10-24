@@ -5,13 +5,12 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testutil"
 )
 
 func TestGenerateCA(t *testing.T) {
@@ -45,14 +44,42 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		require.NoError(t, err)
 	}
 
-	server1 := http.Server{Addr: "127.0.0.1:0"}
-	port1 := deployHTTPSServer(t, &server1, kp)
+	// handler
+	respData := []byte("hello")
+	serveMux := http.NewServeMux()
+	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(respData)
+	})
+	// certificate
+	tlsCert, err := kp.TLSCertificate()
+	require.NoError(t, err)
+
+	// run https servers
+	server1 := http.Server{
+		Addr:      "localhost:0",
+		Handler:   serveMux,
+		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
+	}
+	port1 := testutil.RunHTTPServer(t, "tcp", &server1)
 	defer func() { _ = server1.Close() }()
 
-	server2 := http.Server{Addr: "[::1]:0"}
-	port2 := deployHTTPSServer(t, &server2, kp)
+	server2 := http.Server{
+		Addr:      "127.0.0.1:0",
+		Handler:   serveMux,
+		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
+	}
+	port2 := testutil.RunHTTPServer(t, "tcp", &server2)
 	defer func() { _ = server2.Close() }()
 
+	server3 := http.Server{
+		Addr:      "[::1]:0",
+		Handler:   serveMux,
+		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
+	}
+	port3 := testutil.RunHTTPServer(t, "tcp", &server3)
+	defer func() { _ = server3.Close() }()
+
+	// client
 	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
 	if ca != nil {
 		tlsConfig.RootCAs.AddCert(ca.Certificate)
@@ -60,61 +87,15 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		tlsConfig.RootCAs.AddCert(kp.Certificate)
 	}
 	client := http.Client{Transport: &http.Transport{TLSClientConfig: &tlsConfig}}
-
 	get := func(hostname, port string) {
 		resp, err := client.Get(fmt.Sprintf("https://%s:%s/", hostname, port))
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, "hello", string(b))
+		require.Equal(t, respData, b)
 	}
 	get("localhost", port1)
-	get("127.0.0.1", port1)
-	get("[::1]", port2)
-}
-
-func deployHTTPSServer(t *testing.T, server *http.Server, kp *KeyPair) string {
-	listener, err := net.Listen("tcp", server.Addr)
-	require.NoError(t, err)
-
-	tlsCert, err := tls.X509KeyPair(kp.EncodeToPEM())
-	require.NoError(t, err)
-	server.TLSConfig = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
-
-	resp := []byte("hello")
-	serveMux := http.NewServeMux()
-	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write(resp)
-	})
-	server.Handler = serveMux
-
-	// run
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- server.ServeTLS(listener, "", "")
-	}()
-	select {
-	case err := <-errChan:
-		require.NoError(t, err)
-	case <-time.After(250 * time.Millisecond):
-	}
-
-	// get port
-	_, port, err := net.SplitHostPort(listener.Addr().String())
-	require.NoError(t, err)
-	return port
-}
-
-func TestIsDomainName(t *testing.T) {
-	require.True(t, isDomainName("asd.com"))
-	require.True(t, isDomainName("asd-asd.com"))
-	require.True(t, isDomainName("asd-asd6.com"))
-	// invalid domain
-	require.False(t, isDomainName(""))
-	require.False(t, isDomainName(string([]byte{255, 254, 12, 35})))
-	require.False(t, isDomainName("asd-"))
-	require.False(t, isDomainName("asd.-"))
-	require.False(t, isDomainName("asd.."))
-	require.False(t, isDomainName(strings.Repeat("a", 64)+".com"))
+	get("127.0.0.1", port2)
+	get("[::1]", port3)
 }
