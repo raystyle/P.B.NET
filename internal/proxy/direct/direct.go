@@ -12,11 +12,11 @@ import (
 type Direct struct{}
 
 func (d *Direct) Dial(network, address string) (net.Conn, error) {
-	return new(net.Dialer).Dial(network, address)
+	return (&net.Dialer{Timeout: options.DefaultDialTimeout}).Dial(network, address)
 }
 
 func (d *Direct) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	return new(net.Dialer).DialContext(ctx, network, address)
+	return (&net.Dialer{Timeout: options.DefaultDialTimeout}).DialContext(ctx, network, address)
 }
 
 func (d *Direct) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
@@ -24,6 +24,10 @@ func (d *Direct) DialTimeout(network, address string, timeout time.Duration) (ne
 		timeout = options.DefaultDialTimeout
 	}
 	return (&net.Dialer{Timeout: timeout}).Dial(network, address)
+}
+
+func (d *Direct) Connect(_ net.Conn, _, _ string) error {
+	return nil
 }
 
 func (d *Direct) HTTP(_ *http.Transport) {}
