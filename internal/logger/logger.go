@@ -190,7 +190,7 @@ const (
 // post data...
 func HTTPRequest(r *http.Request) *bytes.Buffer {
 	buf := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(buf, "client: %s\n\n", r.RemoteAddr)
+	_, _ = fmt.Fprintf(buf, "client: %s\n", r.RemoteAddr)
 	// request
 	_, _ = fmt.Fprintf(buf, "%s %s %s", r.Method, r.RequestURI, r.Proto)
 	// host
