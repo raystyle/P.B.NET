@@ -15,10 +15,10 @@ func TestAES(t *testing.T) {
 	iv := []byte{11, 12, 13, 14, 15, 16, 17, 18, 19, 10, 111, 112, 113, 114, 115, 116}
 	// encrypt & decrypt
 	f := func(key []byte) {
-		testdata := testutil.GenerateData()
+		testdata := testutil.Bytes()
 		cipherData, err := CBCEncrypt(testdata, key, iv)
 		require.NoError(t, err)
-		require.Equal(t, testutil.GenerateData(), testdata)
+		require.Equal(t, testutil.Bytes(), testdata)
 		require.NotEqual(t, testdata, cipherData)
 		plainData, err := CBCDecrypt(cipherData, key, iv)
 		require.NoError(t, err)
@@ -67,12 +67,12 @@ func TestCBC(t *testing.T) {
 	f := func(key []byte) {
 		cbc, err := NewCBC(key, iv)
 		require.NoError(t, err)
-		testdata := testutil.GenerateData()
+		testdata := testutil.Bytes()
 
 		for i := 0; i < 10; i++ {
 			cipherData, err := cbc.Encrypt(testdata)
 			require.NoError(t, err)
-			require.Equal(t, testutil.GenerateData(), testdata)
+			require.Equal(t, testutil.Bytes(), testdata)
 			require.NotEqual(t, testdata, cipherData)
 		}
 
