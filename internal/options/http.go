@@ -27,7 +27,7 @@ type HTTPRequest struct {
 }
 
 func (hr *HTTPRequest) failed(err error) error {
-	return fmt.Errorf("apply http request failed: %s", err)
+	return fmt.Errorf("failed to apply http request: %s", err)
 }
 
 func (hr *HTTPRequest) Apply() (*http.Request, error) {
@@ -43,6 +43,9 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 		return nil, hr.failed(err)
 	}
 	r.Header = hr.Header.Clone()
+	if r.Header == nil {
+		r.Header = make(http.Header)
+	}
 	r.Host = hr.Host
 	r.Close = hr.Close
 	return r, nil
@@ -64,7 +67,7 @@ type HTTPTransport struct {
 }
 
 func (ht *HTTPTransport) failed(err error) error {
-	return fmt.Errorf("apply http transport failed: %s", err)
+	return fmt.Errorf("failed to apply http transport: %s", err)
 }
 
 func (ht *HTTPTransport) Apply() (*http.Transport, error) {
@@ -133,7 +136,7 @@ type HTTPServer struct {
 }
 
 func (hs *HTTPServer) failed(err error) error {
-	return fmt.Errorf("apply http server failed: %s", err)
+	return fmt.Errorf("failed to apply http server: %s", err)
 }
 
 func (hs *HTTPServer) Apply() (*http.Server, error) {

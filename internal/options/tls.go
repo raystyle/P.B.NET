@@ -29,7 +29,7 @@ type X509KeyPair struct {
 }
 
 func (t *TLSConfig) failed(err error) error {
-	return fmt.Errorf("tls config apply failed: %s", err)
+	return fmt.Errorf("failed to apply tls config: %s", err)
 }
 
 func (t *TLSConfig) Apply() (*tls.Config, error) {

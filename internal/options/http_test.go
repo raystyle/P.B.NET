@@ -18,7 +18,7 @@ func TestHTTPRequestDefault(t *testing.T) {
 	require.Equal(t, http.MethodGet, request.Method)
 	require.Equal(t, url, request.URL.String())
 	require.Equal(t, http.NoBody, request.Body)
-	require.Nil(t, request.Header)
+	require.NotNil(t, request.Header)
 	require.Equal(t, "", request.Host)
 	require.Equal(t, false, request.Close)
 }
