@@ -1,9 +1,7 @@
 package quic
 
 import (
-	"fmt"
 	"net"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,35 +10,18 @@ import (
 )
 
 func TestQUIC(t *testing.T) {
-	testutil.PPROF()
 	serverCfg, clientCfg := testutil.TLSConfigPair(t)
-	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+	listener, err := Listen("udp4", "localhost:0", serverCfg, 0)
 	require.NoError(t, err)
-	go func() {
-		// time.Sleep(3 * time.Second)
-		// listener.Close()
-	}()
+	addr := listener.Addr().String()
+	testutil.ListenerAndDial(t, listener, func() (net.Conn, error) {
+		return Dial("udp4", addr, clientCfg, 0)
+	}, true)
 
-	wg := sync.WaitGroup{}
-	for i := 0; i < 3; i++ {
-		var server net.Conn
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			server, err = listener.Accept()
-
-			fmt.Println("asdsdasdasd")
-
-			fmt.Println("asdsdsss", server, err)
-			require.NoError(t, err)
-
-			fmt.Println("asdsd")
-		}()
-		client, err := Dial("udp", listener.Addr().String(), clientCfg, 0)
-		require.NoError(t, err)
-		wg.Wait()
-		testutil.Conn(t, server, client, true)
-	}
-	require.NoError(t, listener.Close())
-	testutil.IsDestroyed(t, listener, 1)
+	listener, err = Listen("udp6", "localhost:0", serverCfg, 0)
+	require.NoError(t, err)
+	addr = listener.Addr().String()
+	testutil.ListenerAndDial(t, listener, func() (net.Conn, error) {
+		return Dial("udp6", addr, clientCfg, 0)
+	}, true)
 }

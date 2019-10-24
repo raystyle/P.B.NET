@@ -16,14 +16,38 @@ const (
 // Conn implement net.Conn
 type Conn struct {
 	session quic.Session
-	quic.Stream
+	send    quic.SendStream
+	receive quic.ReceiveStream
 }
 
-func newConn(session quic.Session, stream quic.Stream) *Conn {
+func newConn(session quic.Session) (*Conn, error) {
+	send, err := session.OpenUniStream()
+	if err != nil {
+		return nil, err
+	}
 	return &Conn{
 		session: session,
-		Stream:  stream,
+		send:    send,
+	}, nil
+}
+
+func (c *Conn) Read(b []byte) (n int, err error) {
+	if c.receive == nil {
+		receive, err := c.session.AcceptUniStream(context.Background())
+		if err != nil {
+			return 0, err
+		}
+		c.receive = receive
 	}
+	return c.receive.Read(b)
+}
+
+func (c *Conn) Write(b []byte) (n int, err error) {
+	return c.send.Write(b)
+}
+
+func (c *Conn) Close() error {
+	return c.session.Close()
 }
 
 func (c *Conn) LocalAddr() net.Addr {
@@ -34,10 +58,20 @@ func (c *Conn) RemoteAddr() net.Addr {
 	return c.session.RemoteAddr()
 }
 
-func (c *Conn) Close() error {
-	_ = c.session.Close()
-	_ = c.Stream.Close()
-	return nil
+func (c *Conn) SetDeadline(t time.Time) error {
+	err := c.receive.SetReadDeadline(t)
+	if err != nil {
+		return err
+	}
+	return c.send.SetWriteDeadline(t)
+}
+
+func (c *Conn) SetReadDeadline(t time.Time) error {
+	return c.receive.SetReadDeadline(t)
+}
+
+func (c *Conn) SetWriteDeadline(t time.Time) error {
+	return c.send.SetWriteDeadline(t)
 }
 
 type listener struct {
@@ -49,14 +83,7 @@ func (l *listener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	stream, err := session.AcceptStream(context.Background())
-	if err != nil {
-		_ = session.Close()
-		return nil, err
-	}
-
-	return newConn(session, stream), nil
+	return newConn(session)
 }
 
 func Listen(
@@ -99,20 +126,13 @@ func Dial(
 	if err != nil {
 		return nil, err
 	}
-	var lAddr *net.UDPAddr
-	switch network {
-	case "udp", "udp4":
-		lAddr = &net.UDPAddr{IP: net.IPv4zero, Port: 0}
-	case "udp6":
-		lAddr = &net.UDPAddr{IP: net.IPv6zero, Port: 0}
-	}
-	conn, err := net.ListenUDP(network, lAddr)
+	conn, err := net.ListenUDP(network, nil)
 	if err != nil {
 		return nil, err
 	}
 	quicCfg := quic.Config{
 		HandshakeTimeout: timeout,
-		IdleTimeout:      timeout,
+		IdleTimeout:      5 * timeout,
 		KeepAlive:        true,
 	}
 	if len(config.NextProtos) == 0 {
@@ -123,10 +143,5 @@ func Dial(
 		_ = conn.Close()
 		return nil, err
 	}
-	stream, err := session.OpenStream()
-	if err != nil {
-		_ = session.Close()
-		return nil, err
-	}
-	return newConn(session, stream), nil
+	return newConn(session)
 }
