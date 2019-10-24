@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/idna"
+
 	"project/internal/convert"
 	"project/internal/xnet/xnetutil"
 )
@@ -69,7 +71,7 @@ func customResolve(address, domain string, opts *Options) ([]string, error) {
 		return []string{domain}, nil
 	}
 	// punycode
-	domain, err := toASCII(domain)
+	domain, err := idna.ToASCII(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +280,7 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 	}
 	req.Header = opts.Header.Clone()
 	if req.Header == nil {
-		req.Header = http.Header{}
+		req.Header = make(http.Header)
 	}
 	if req.Method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/dns-message")
