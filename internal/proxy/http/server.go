@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
@@ -19,8 +21,15 @@ import (
 )
 
 type Options struct {
-	Username  string
-	Password  string
+	Username string
+	Password string
+	Timeout  time.Duration
+
+	// only client
+	Header    http.Header
+	TLSConfig options.TLSConfig
+
+	// only server
 	MaxConns  int
 	Server    options.HTTPServer
 	Transport options.HTTPTransport
@@ -54,6 +63,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		tag:      "http proxy-" + tag,
 		logger:   lg,
 		maxConns: opts.MaxConns,
+		exitFunc: opts.ExitFunc,
 	}
 	var err error
 	// server
@@ -80,8 +90,8 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) ListenAndServe(address string) error {
-	l, err := net.Listen("tcp", address)
+func (s *Server) ListenAndServe(network, address string) error {
+	l, err := net.Listen(network, address)
 	if err != nil {
 		return err
 	}
@@ -98,7 +108,7 @@ func (s *Server) Serve(l net.Listener) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				s.log(logger.Fatal, xpanic.Sprint(r, "Server.Serve()"))
+				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
 			}
 			close(s.stopSignal)
 			s.transport.CloseIdleConnections()
@@ -109,7 +119,7 @@ func (s *Server) Serve(l net.Listener) {
 			if s.exitFunc != nil {
 				s.exitFunc()
 			}
-			s.log(logger.Info, "server stopped")
+			s.logf(logger.Info, "server stopped (%s)", s.address)
 			s.wg.Done()
 		}()
 		s.logf(logger.Info, "start server (%s)", s.address)
@@ -144,32 +154,35 @@ func (s *Server) Info() string {
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
-	s.logger.Println(lv, s.tag, log...)
+	l := len(log)
+	logs := make([]interface{}, l)
+	for i := 0; i < l; i++ {
+		if r, ok := log[i].(*http.Request); ok {
+			logs[i] = logger.HTTPRequest(r)
+		} else {
+			logs[i] = log[i]
+		}
+	}
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprint(buf, logs...)
+	s.logger.Println(lv, s.tag, buf)
 }
 
 func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
 	s.logger.Printf(lv, s.tag, format, log...)
 }
 
-type log struct {
-	Log interface{}
-	Req *http.Request
-}
-
-func (l *log) String() string {
-	return fmt.Sprint(l.Log, "\n", logger.HTTPRequest(l.Req))
-}
-
 var (
-	connectionEstablished = []byte("HTTP/1.1 200 Connection established\r\n\r\n")
+	connectionEstablished    = []byte("HTTP/1.0 200 Connection established\r\n\r\n")
+	connectionEstablishedLen = len(connectionEstablished)
 )
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	const title = "Server.ServeHTTP()"
 	s.wg.Add(1)
 	defer func() {
 		if rec := recover(); rec != nil {
-			l := &log{Log: xpanic.Sprint(rec, "Server.ServeHTTP()"), Req: r}
-			s.log(logger.Fatal, l)
+			s.log(logger.Fatal, xpanic.Print(rec, title), "\n", r)
 		}
 		s.wg.Done()
 	}()
@@ -190,21 +203,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "Basic":
 			if subtle.ConstantTimeCompare(s.basicAuth, []byte(authBase64)) != 1 {
 				authFailed()
-				s.log(logger.Exploit, &log{Log: "invalid basic authenticate", Req: r})
+				s.log(logger.Exploit, "invalid basic authenticate\n", r)
 				return
 			}
 		default: // not support method
 			authFailed()
-			s.log(logger.Exploit, &log{Log: "unsupport auth method: " + authMethod, Req: r})
+			s.log(logger.Exploit, "unsupport auth method: "+authMethod+"\n", r)
 			return
 		}
 	}
-	s.log(logger.Debug, &log{Log: "handle request", Req: r})
+	s.log(logger.Debug, "handle request\n", r)
 	if r.Method == http.MethodConnect { // handle https
 		var err error
 		defer func() {
 			if err != nil {
-				s.log(logger.Error, &log{Log: err, Req: r})
+				s.log(logger.Error, err, "\n", r)
 			}
 		}()
 		// hijack client conn
@@ -229,8 +242,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					l := &log{Log: xpanic.Sprint(rec, "Server.ServeHTTP()"), Req: r}
-					s.log(logger.Fatal, l)
+					s.log(logger.Fatal, xpanic.Print(rec, title), "\n", r)
 				}
 				s.wg.Done()
 			}()
@@ -246,8 +258,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					l := &log{Log: xpanic.Sprint(rec, "Server.ServeHTTP()"), Req: r}
-					s.log(logger.Fatal, l)
+					s.log(logger.Fatal, xpanic.Print(rec, title), "\n", r)
 				}
 				s.wg.Done()
 			}()
@@ -256,9 +267,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(wc, conn)
 		close(closeChan)
 	} else { // handle http
+		// remove Proxy-Authorization
+		r.Header.Del("Proxy-Authorization")
 		resp, err := s.transport.RoundTrip(r)
 		if err != nil {
-			s.log(logger.Error, &log{Log: err, Req: r})
+			s.log(logger.Error, err, "\n", r)
 			return
 		}
 		defer func() { _ = resp.Body.Close() }()
