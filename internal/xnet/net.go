@@ -2,7 +2,6 @@ package xnet
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -13,8 +12,8 @@ import (
 )
 
 var (
-	ErrEmptyMode    = errors.New("empty mode")
-	ErrEmptyNetwork = errors.New("empty network")
+	ErrEmptyMode    = fmt.Errorf("empty mode")
+	ErrEmptyNetwork = fmt.Errorf("empty network")
 )
 
 type Mode = string

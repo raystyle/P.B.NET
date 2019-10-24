@@ -1,12 +1,11 @@
 package xnet
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/xnet/xnetutil"
@@ -77,7 +76,7 @@ func (c *Conn) Receive() ([]byte, error) {
 	}
 	size := int(convert.BytesToUint32(sizeBytes))
 	if size > MaxDataLength {
-		return nil, errors.Errorf(
+		return nil, fmt.Errorf(
 			"%s %s receive too big message: %d",
 			c.RemoteAddr().Network(), c.RemoteAddr(), size)
 	}
