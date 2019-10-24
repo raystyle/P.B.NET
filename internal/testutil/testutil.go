@@ -12,6 +12,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -118,6 +119,7 @@ func ListenerAndDial(t testing.TB, l net.Listener, d func() (net.Conn, error), c
 		require.NoError(t, err)
 		wg.Wait()
 		Conn(t, server, client, close)
+		t.Log("") // new line for Conn
 	}
 	require.NoError(t, l.Close())
 	IsDestroyed(t, l, 1)
@@ -133,14 +135,17 @@ func ListenerAndDial(t testing.TB, l net.Listener, d func() (net.Conn, error), c
 // Conn(t, tlsServer, tlsClient, false) must set false
 func Conn(t testing.TB, server, client net.Conn, close bool) {
 	// Addr
-	require.Equal(t, server.RemoteAddr().Network(), client.LocalAddr().Network())
-	require.Equal(t, server.RemoteAddr(), client.LocalAddr())
+	t.Log("server remote:", server.RemoteAddr().Network(), server.RemoteAddr())
+	t.Log("client local:", client.LocalAddr().Network(), client.LocalAddr())
+	t.Log("server local:", server.LocalAddr().Network(), server.LocalAddr())
+	t.Log("client remote:", client.RemoteAddr().Network(), client.RemoteAddr())
+	// skip udp, because client.LocalAddr() always net.IPv4zero or net.IPv6zero
+	if !strings.HasPrefix(server.RemoteAddr().Network(), "udp") {
+		require.Equal(t, server.RemoteAddr().Network(), client.LocalAddr().Network())
+		require.Equal(t, server.RemoteAddr().String(), client.LocalAddr().String())
+	}
 	require.Equal(t, server.LocalAddr().Network(), client.RemoteAddr().Network())
-	require.Equal(t, server.LocalAddr(), client.RemoteAddr())
-	t.Log("server local", server.LocalAddr().Network(), server.LocalAddr())
-	t.Log("server remote", server.RemoteAddr().Network(), server.RemoteAddr())
-	t.Log("client local", client.LocalAddr().Network(), client.LocalAddr())
-	t.Log("client remote", client.RemoteAddr().Network(), client.RemoteAddr())
+	require.Equal(t, server.LocalAddr().String(), client.RemoteAddr().String())
 
 	// Read() and Write()
 	write := func(conn net.Conn) {
@@ -204,32 +209,22 @@ func Conn(t testing.TB, server, client net.Conn, close bool) {
 	}
 }
 
-// HTTPServer is used to deploy a http or https server
-//
-// if https is true, will deploy https server
-// if deploy success, will return server port and
-// client tls config(if use https)
-func HTTPServer(t testing.TB, network string, s *http.Server, https bool) (string, *tls.Config) {
-	listener, err := net.Listen(network, s.Addr)
+// RunHTTPServer is used to start a http or https server
+func RunHTTPServer(t testing.TB, network string, server *http.Server) string {
+	listener, err := net.Listen(network, server.Addr)
 	require.NoError(t, err)
-
-	var clientTLSConfig *tls.Config
-	if https {
-		s.TLSConfig, clientTLSConfig = TLSConfigPair(t)
-	}
 
 	// run
 	go func() {
-		if s.TLSConfig != nil {
-			_ = s.ServeTLS(listener, "", "")
+		if server.TLSConfig != nil {
+			_ = server.ServeTLS(listener, "", "")
 		} else {
-			_ = s.Serve(listener)
+			_ = server.Serve(listener)
 		}
 	}()
-	time.Sleep(250 * time.Millisecond)
 
 	// get port
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)
-	return port, clientTLSConfig
+	return port
 }

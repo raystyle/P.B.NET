@@ -85,10 +85,9 @@ func TestConn(t *testing.T) {
 func TestHTTPServer(t *testing.T) {
 	// http
 	httpServer := http.Server{Addr: "localhost:0"}
-	port, _ := HTTPServer(t, "tcp", &httpServer, false)
-	t.Log("http server port:", port)
+	port := RunHTTPServer(t, "tcp", &httpServer)
 	defer func() { _ = httpServer.Close() }()
-
+	t.Log("http server port:", port)
 	client := http.Client{}
 	resp, err := client.Get(fmt.Sprintf("http://localhost:%s/", port))
 	require.NoError(t, err)
@@ -97,14 +96,17 @@ func TestHTTPServer(t *testing.T) {
 	client.CloseIdleConnections()
 
 	// https
-	httpsServer := http.Server{Addr: "localhost:0"}
-	port, tlsConfig := HTTPServer(t, "tcp", &httpsServer, true)
-	t.Log("https server port:", port)
+	serverCfg, clientCfg := TLSConfigPair(t)
+	httpsServer := http.Server{
+		Addr:      "localhost:0",
+		TLSConfig: serverCfg,
+	}
+	port = RunHTTPServer(t, "tcp", &httpsServer)
 	defer func() { _ = httpsServer.Close() }()
-
+	t.Log("https server port:", port)
 	client = http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
+			TLSClientConfig: clientCfg,
 		},
 	}
 	resp, err = client.Get(fmt.Sprintf("https://localhost:%s/", port))
