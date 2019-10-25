@@ -61,7 +61,7 @@ func NewServer(tag string, lg logger.Logger, https bool, opts *Options) (*Server
 	if opts == nil {
 		opts = new(Options)
 	}
-	s := &Server{
+	s := Server{
 		logger:   lg,
 		https:    https,
 		maxConns: opts.MaxConns,
@@ -106,10 +106,10 @@ func NewServer(tag string, lg logger.Logger, https bool, opts *Options) (*Server
 		s.basicAuth = []byte(base64.StdEncoding.EncodeToString([]byte(auth)))
 	}
 
-	s.server.Handler = s
+	s.server.Handler = &s
 	s.server.ErrorLog = logger.Wrap(logger.Error, s.tag, lg)
 	s.stopSignal = make(chan struct{})
-	return s, nil
+	return &s, nil
 }
 
 func (s *Server) ListenAndServe(network, address string) error {
@@ -153,17 +153,6 @@ func (s *Server) Serve(l net.Listener) {
 	}()
 }
 
-func (s *Server) Close() (err error) {
-	s.rwm.RLock()
-	p := s.server
-	s.rwm.RUnlock()
-	if p != nil {
-		err = p.Close()
-		s.wg.Wait()
-	}
-	return err
-}
-
 func (s *Server) Address() string {
 	s.rwm.RLock()
 	addr := s.address
@@ -171,18 +160,23 @@ func (s *Server) Address() string {
 	return addr
 }
 
+// Info is used to get http proxy server info
+// "http proxy listen: 127.0.0.1:8080"
+// "http proxy listen: 127.0.0.1:8080 admin:123456"
 func (s *Server) Info() string {
-	auth, _ := base64.StdEncoding.DecodeString(string(s.basicAuth))
-	s.rwm.RLock()
-	addr := s.address
-	s.rwm.RUnlock()
-	var info string
+	buf := new(bytes.Buffer)
 	if s.https {
-		info = fmt.Sprintf("https proxy listen: %s auth: %s", addr, auth)
+		buf.WriteString("https")
 	} else {
-		info = fmt.Sprintf("http proxy listen: %s auth: %s", addr, auth)
+		buf.WriteString("http")
 	}
-	return info
+	_, _ = fmt.Fprintf(buf, " proxy listen: %s", s.Address())
+	if s.basicAuth != nil {
+		auth, _ := base64.StdEncoding.DecodeString(string(s.basicAuth))
+		buf.WriteString(" ")
+		buf.Write(auth)
+	}
+	return buf.String()
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
@@ -208,6 +202,17 @@ var (
 	connectionEstablished    = []byte("HTTP/1.0 200 Connection established\r\n\r\n")
 	connectionEstablishedLen = len(connectionEstablished)
 )
+
+func (s *Server) Close() (err error) {
+	s.rwm.RLock()
+	p := s.server
+	s.rwm.RUnlock()
+	if p != nil {
+		err = p.Close()
+		s.wg.Wait()
+	}
+	return err
+}
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	const title = "Server.ServeHTTP()"
