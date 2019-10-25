@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"runtime"
 	"time"
 
 	"project/internal/crypto/rand"
@@ -172,4 +173,11 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, cfg *Config) (*KeyP
 		PrivateKey:  privateKey,
 		certBytes:   certBytes,
 	}, nil
+}
+
+func SystemCertPool() (*x509.CertPool, error) {
+	if runtime.GOOS == "windows" {
+		return systemCertPool()
+	}
+	return x509.SystemCertPool()
 }

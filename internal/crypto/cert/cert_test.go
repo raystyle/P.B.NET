@@ -53,7 +53,6 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	// certificate
 	tlsCert, err := kp.TLSCertificate()
 	require.NoError(t, err)
-
 	// run https servers
 	server1 := http.Server{
 		Addr:      "localhost:0",
@@ -71,13 +70,19 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	port2 := testutil.RunHTTPServer(t, "tcp", &server2)
 	defer func() { _ = server2.Close() }()
 
-	server3 := http.Server{
-		Addr:      "[::1]:0",
-		Handler:   serveMux,
-		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
+	var (
+		server3 http.Server
+		port3   string
+	)
+	if testutil.IPv6() {
+		server3 = http.Server{
+			Addr:      "[::1]:0",
+			Handler:   serveMux,
+			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
+		}
+		port3 = testutil.RunHTTPServer(t, "tcp", &server3)
+		defer func() { _ = server3.Close() }()
 	}
-	port3 := testutil.RunHTTPServer(t, "tcp", &server3)
-	defer func() { _ = server3.Close() }()
 
 	// client
 	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
@@ -97,5 +102,13 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	}
 	get("localhost", port1)
 	get("127.0.0.1", port2)
-	get("[::1]", port3)
+	if testutil.IPv6() {
+		get("[::1]", port3)
+	}
+}
+
+func TestSystemCertPool(t *testing.T) {
+	pool, err := SystemCertPool()
+	require.NoError(t, err)
+	t.Log("the number of the system certificates:", len(pool.Subjects()))
 }
