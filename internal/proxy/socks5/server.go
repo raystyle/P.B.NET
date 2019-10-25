@@ -23,8 +23,10 @@ import (
 type Options struct {
 	Username string
 	Password string
-	MaxConns int
 	Timeout  time.Duration // handshake timeout
+
+	// only server
+	MaxConns int
 	ExitFunc func()
 }
 
@@ -75,8 +77,8 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return server, nil
 }
 
-func (s *Server) ListenAndServe(address string) error {
-	l, err := net.Listen("tcp", address)
+func (s *Server) ListenAndServe(network, address string) error {
+	l, err := net.Listen(network, address)
 	if err != nil {
 		return err
 	}
@@ -94,7 +96,7 @@ func (s *Server) Serve(l net.Listener) {
 		var err error
 		defer func() {
 			if r := recover(); r != nil {
-				s.log(logger.Fatal, xpanic.Sprint(r, "Server.Serve()"))
+				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
 			}
 			s.closeOnce.Do(func() { err = s.listener.Close() })
 			if err != nil {
@@ -165,9 +167,9 @@ func (s *Server) Address() string {
 func (s *Server) Info() string {
 	s.rwm.RLock()
 	a := s.address
+	s.rwm.RUnlock()
 	u := s.username
 	p := s.password
-	s.rwm.RUnlock()
 	return fmt.Sprintf("listen: %s auth: %s %s", a, u, p)
 }
 
@@ -229,7 +231,7 @@ func (c *conn) serve() {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			l := &log{Log: xpanic.Sprint(r, "conn.serve()"), C: c.conn}
+			l := &log{Log: xpanic.Print(r, "conn.serve()"), C: c.conn}
 			c.server.log(logger.Error, l)
 		}
 		if err != nil {
@@ -426,7 +428,7 @@ func (c *conn) serve() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				l := &log{Log: xpanic.Sprint(r, "conn.serve()"), C: c.conn}
+				l := &log{Log: xpanic.Print(r, "conn.serve()"), C: c.conn}
 				c.server.log(logger.Error, l)
 			}
 			c.server.wg.Done()

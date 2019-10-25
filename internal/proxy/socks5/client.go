@@ -13,167 +13,113 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
-	"project/internal/proxy/direct"
+	"project/internal/options"
 	"project/internal/xnet/xnetutil"
 )
 
-type Config struct {
-	Network  string `toml:"network"`
-	Address  string `toml:"address"`
-	Username string `toml:"username"`
-	Password string `toml:"password"`
-}
-
 // support proxy chain
 type Client struct {
-	dial        func(network, address string) (net.Conn, error)
-	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
-	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
-	chain       string
+	network  string
+	address  string
+	username string
+	password string
+	timeout  time.Duration
+
+	info string
 }
 
-func NewClient(c ...*Config) (*Client, error) {
-	d := direct.Direct{}
-	client := Client{
-		dial:        d.Dial,
-		dialContext: d.DialContext,
-		dialTimeout: d.DialTimeout,
-		chain:       "direct",
+func NewClient(network, address string, opts *Options) (*Client, error) {
+	switch network {
+	case "":
+		network = "tcp"
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, ErrNotSupportNetwork
 	}
-	for i := 0; i < len(c); i++ {
-		err := client.add(c[i])
-		if err != nil {
-			return nil, err
-		}
+	if opts == nil {
+		opts = new(Options)
+	}
+	client := Client{
+		network:  network,
+		address:  address,
+		username: opts.Username,
+		password: opts.Password,
+		timeout:  opts.Timeout,
+	}
+	if client.timeout < 1 {
+		client.timeout = options.DefaultDialTimeout
+	}
+	if client.username != "" {
+		client.info = fmt.Sprintf("%s %s %s:%s",
+			client.network, client.address, client.username, client.password)
+	} else {
+		client.info = fmt.Sprintf("%s %s", client.network, client.address)
 	}
 	return &client, nil
 }
 
-func (c *Client) add(server *Config) error {
-	switch server.Network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return ErrNotSupportNetwork
-	}
-	d := &dialer{
-		server:      server,
-		dial:        c.dial,
-		dialContext: c.dialContext,
-		dialTimeout: c.dialTimeout,
-	}
-	c.dial = d.Dial
-	c.dialContext = d.DialContext
-	c.dialTimeout = d.DialTimeout
-	// update chain
-	buffer := bytes.Buffer{}
-	buffer.WriteString(c.chain)
-	buffer.WriteString(" -> [")
-	buffer.WriteString(server.Network)
-	buffer.WriteString(" ")
-	buffer.WriteString(server.Address)
-	buffer.WriteString("]")
-	c.chain = buffer.String()
-	return nil
-}
-
-func (c *Client) Dial(network, address string) (net.Conn, error) {
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, ErrNotSupportNetwork
-	}
-	return c.dial(network, address)
-}
-
-func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, ErrNotSupportNetwork
-	}
-	return c.dialContext(ctx, network, address)
-}
-
-func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, ErrNotSupportNetwork
-	}
-	return c.dialTimeout(network, address, timeout)
-}
-
-func (c *Client) HTTP(t *http.Transport) {
-	t.DialContext = c.dialContext
-}
-
-func (c *Client) Info() string {
-	return c.chain
-}
-
-type dialer struct {
-	server      *Config
-	dial        func(network, address string) (net.Conn, error)
-	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
-	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
-}
-
-func (d *dialer) Dial(network, address string) (net.Conn, error) {
-	conn, err := d.dial(d.server.Network, d.server.Address)
+func (c *Client) Dial(_, address string) (net.Conn, error) {
+	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "dial socks5 server %s failed",
-			d.server.Address)
+		const format = "dial: connect socks5 server %s failed"
+		return nil, errors.Wrapf(err, format, c.address)
 	}
-	err = d.connect(conn, network, address, 0)
+	err = c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.WithMessagef(err, "dial: socks5 server %s connect %s failed",
-			d.server.Address, address)
+		const format = "dial: socks5 server %s connect %s failed"
+		return nil, errors.WithMessagef(err, format, c.address, address)
 	}
+	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
 }
 
-func (d *dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	conn, err := d.dialContext(ctx, d.server.Network, d.server.Address)
+func (c *Client) DialContext(ctx context.Context, _, address string) (net.Conn, error) {
+	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "dial context socks5 Server %s failed",
-			d.server.Address)
+		const format = "dial context: connect socks5 server %s failed"
+		return nil, errors.Wrapf(err, format, c.address)
 	}
-	err = d.connect(conn, network, address, 0)
+	err = c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.WithMessagef(err, "dial context: socks5 server %s connect %s failed",
-			d.server.Address, address)
+		const format = "dial context: socks5 server %s connect %s failed"
+		return nil, errors.WithMessagef(err, format, c.address, address)
 	}
+	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
 }
 
-func (d *dialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	conn, err := d.dialTimeout(d.server.Network, d.server.Address, timeout)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "dial timeout socks5 server %s failed",
-			d.server.Address)
+func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn, error) {
+	if timeout < 1 {
+		timeout = options.DefaultDialTimeout
 	}
-	err = d.connect(conn, network, address, timeout)
+	conn, err := (&net.Dialer{Timeout: timeout}).Dial(c.network, c.address)
+	if err != nil {
+		const format = "dial timeout: connect socks5 server %s failed"
+		return nil, errors.Wrapf(err, format, c.address)
+	}
+	err = c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.WithMessagef(err, "dial timeout: socks5 server %s connect %s failed",
-			d.server.Address, address)
+		const format = "dial timeout: socks5 server %s connect %s failed"
+		return nil, errors.WithMessagef(err, format, c.address, address)
 	}
+	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
 }
 
 // https://www.ietf.org/rfc/rfc1928.txt
-func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Duration) error {
+func (c *Client) Connect(conn net.Conn, _, address string) error {
+	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	host, port, err := splitHostPort(address)
 	if err != nil {
 		return err
 	}
-	dConn := xnetutil.DeadlineConn(conn, timeout)
 	// request authentication
 	buffer := bytes.Buffer{}
 	buffer.WriteByte(version5)
-	if d.server.Username == "" {
+	if c.username == "" {
 		buffer.WriteByte(1)
 		buffer.WriteByte(notRequired)
 	} else {
@@ -181,12 +127,12 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 		buffer.WriteByte(notRequired)
 		buffer.WriteByte(usernamePassword)
 	}
-	_, err = dConn.Write(buffer.Bytes())
+	_, err = conn.Write(buffer.Bytes())
 	if err != nil {
 		return err
 	}
 	response := make([]byte, 2)
-	_, err = io.ReadFull(dConn, response)
+	_, err = io.ReadFull(conn, response)
 	if err != nil {
 		return err
 	}
@@ -201,8 +147,8 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 	switch am {
 	case notRequired:
 	case usernamePassword:
-		username := d.server.Username
-		password := d.server.Password
+		username := c.username
+		password := c.password
 		if len(username) == 0 || len(username) > 255 {
 			return errors.New("invalid username length")
 		}
@@ -213,12 +159,12 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 		buffer.WriteString(username)
 		buffer.WriteByte(byte(len(password)))
 		buffer.WriteString(password)
-		_, err := dConn.Write(buffer.Bytes())
+		_, err := conn.Write(buffer.Bytes())
 		if err != nil {
 			return err
 		}
 		response := make([]byte, 2)
-		_, err = io.ReadFull(dConn, response)
+		_, err = io.ReadFull(conn, response)
 		if err != nil {
 			return err
 		}
@@ -260,13 +206,13 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 		buffer.Write([]byte(host))
 	}
 	buffer.Write(convert.Uint16ToBytes(uint16(port)))
-	_, err = dConn.Write(buffer.Bytes())
+	_, err = conn.Write(buffer.Bytes())
 	if err != nil {
 		return err
 	}
 	// receive reply
 	response = make([]byte, 4)
-	_, err = io.ReadFull(dConn, response)
+	_, err = io.ReadFull(conn, response)
 	if err != nil {
 		return err
 	}
@@ -286,7 +232,7 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 	case ipv6:
 		l += net.IPv6len
 	case fqdn:
-		_, err = io.ReadFull(dConn, response[:1])
+		_, err = io.ReadFull(conn, response[:1])
 		if err != nil {
 			return err
 		}
@@ -298,11 +244,16 @@ func (d *dialer) connect(conn net.Conn, network, address string, timeout time.Du
 	} else {
 		response = response[:l]
 	}
-	_, err = io.ReadFull(dConn, response)
-	if err != nil {
-		return err
-	}
-	return conn.SetDeadline(time.Time{})
+	_, err = io.ReadFull(conn, response)
+	return err
+}
+
+func (c *Client) HTTP(t *http.Transport) {
+	t.DialContext = c.DialContext
+}
+
+func (c *Client) Info() string {
+	return c.info
 }
 
 func splitHostPort(address string) (string, int, error) {
