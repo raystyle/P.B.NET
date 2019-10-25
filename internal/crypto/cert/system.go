@@ -4,30 +4,36 @@ package cert
 
 import (
 	"crypto/x509"
+	"errors"
 	"sync"
 	"syscall"
 	"unsafe"
 )
 
 var (
-	once          sync.Once
-	systemCert    []*x509.Certificate
-	systemCertErr error
+	systemCert      []*x509.Certificate
+	systemCertErr   = errors.New("no system certificates")
+	systemCertMutex sync.Mutex
 )
 
 func systemCertPool() (*x509.CertPool, error) {
-	once.Do(func() {
-		systemCert, systemCertErr = loadSystemCert()
-	})
 	var certs []*x509.Certificate
+	systemCertMutex.Lock()
 	if systemCertErr == nil {
-		certs = systemCert
+		systemCertMutex.Unlock()
+		certs = make([]*x509.Certificate, len(systemCert))
+		copy(certs, systemCert)
 	} else {
 		c, err := loadSystemCert()
 		if err != nil {
+			systemCertMutex.Unlock()
 			return nil, err
 		}
-		certs = c
+		systemCert = c
+		systemCertErr = nil
+		systemCertMutex.Unlock()
+		certs = make([]*x509.Certificate, len(systemCert))
+		copy(certs, systemCert)
 	}
 	// must new pool
 	pool := x509.NewCertPool()

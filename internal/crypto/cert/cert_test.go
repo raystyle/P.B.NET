@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -108,7 +109,15 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 }
 
 func TestSystemCertPool(t *testing.T) {
-	pool, err := SystemCertPool()
-	require.NoError(t, err)
-	t.Log("the number of the system certificates:", len(pool.Subjects()))
+	wg := sync.WaitGroup{}
+	wg.Add(5)
+	for i := 0; i < 5; i++ {
+		go func() {
+			defer wg.Done()
+			pool, err := SystemCertPool()
+			require.NoError(t, err)
+			t.Log("the number of the system certificates:", len(pool.Subjects()))
+		}()
+	}
+	wg.Wait()
 }
