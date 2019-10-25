@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -28,6 +27,7 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 	wg := sync.WaitGroup{}
 
+	// set test address
 	var addresses = []string{
 		"8.8.8.8:53",
 		"cloudflare-dns.com:443",
@@ -56,16 +56,53 @@ func TestClient(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		transport := &http.Transport{DialContext: client.DialContext}
-		resp, err := (&http.Client{Transport: transport}).Get("https://github.com/")
+		transport := http.Transport{DialContext: client.DialContext}
+		client := http.Client{Transport: &transport}
+		resp, err := client.Get("https://github.com/robots.txt")
 		require.NoError(t, err)
-		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
+		require.Equal(t, "# If you w", string(b)[:10])
 		_ = resp.Body.Close()
 		transport.CloseIdleConnections()
 	}()
 
-	t.Log(client.Info())
+	// https
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		transport := &http.Transport{}
+		client.HTTP(transport)
+		client := http.Client{Transport: transport}
+		resp, err := client.Get("https://github.com/robots.txt")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "# If you w", string(b)[:10])
+		_ = resp.Body.Close()
+		transport.CloseIdleConnections()
+	}()
+
+	// http
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		transport := &http.Transport{}
+		client.HTTP(transport)
+		client := http.Client{Transport: transport}
+		resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "Microsoft Connect Test", string(b))
+		_ = resp.Body.Close()
+		transport.CloseIdleConnections()
+	}()
+
 	wg.Wait()
+	t.Log(client.Info())
 	testutil.IsDestroyed(t, client, 1)
 }
