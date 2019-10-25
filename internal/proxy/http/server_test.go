@@ -1,13 +1,17 @@
 package http
 
 import (
+	"crypto/tls"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/options"
 	"project/internal/testutil"
@@ -38,21 +42,87 @@ func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
 }
 
 func TestServer(t *testing.T) {
+	wg := sync.WaitGroup{}
 	// http
-	server := testGenerateHTTPServer(t)
-	t.Log("address:", server.Address())
-	t.Log("info:", server.Info())
-	require.NoError(t, server.Close())
-	require.NoError(t, server.Close())
-	testutil.IsDestroyed(t, server, 1)
+	httpServer := testGenerateHTTPServer(t)
+	t.Log("http server address:", httpServer.Address())
+	t.Log("http server info:", httpServer.Info())
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		u, err := url.Parse("http://admin:123456@" + httpServer.Address())
+		require.NoError(t, err)
+		transport := &http.Transport{Proxy: http.ProxyURL(u)}
+		client := http.Client{Transport: transport}
+		defer client.CloseIdleConnections()
+
+		// get https
+		resp, err := client.Get("https://github.com/robots.txt")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "# If you w", string(b)[:10])
+
+		// get http
+		resp, err = client.Get("http://www.msftconnecttest.com/connecttest.txt")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err = ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "Microsoft Connect Test", string(b))
+	}()
 
 	// https
-	server, _ = testGenerateHTTPSServer(t)
-	t.Log("address:", server.Address())
-	t.Log("info:", server.Info())
-	require.NoError(t, server.Close())
-	require.NoError(t, server.Close())
-	testutil.IsDestroyed(t, server, 1)
+	httpsServer, tlsConfig := testGenerateHTTPSServer(t)
+	t.Log("https server address:", httpsServer.Address())
+	t.Log("https server info:", httpsServer.Info())
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		u, err := url.Parse("https://admin:123456@" + httpsServer.Address())
+		require.NoError(t, err)
+		transport := &http.Transport{Proxy: http.ProxyURL(u)}
+		transport.TLSClientConfig = new(tls.Config)
+		require.NoError(t, err)
+		// add cert
+		transport.TLSClientConfig.RootCAs, err = cert.SystemCertPool()
+		require.NoError(t, err)
+		rootCAs, err := tlsConfig.RootCA()
+		require.NoError(t, err)
+		transport.TLSClientConfig.RootCAs.AddCert(rootCAs[0])
+		client := http.Client{Transport: transport}
+		defer client.CloseIdleConnections()
+
+		// get https
+		resp, err := client.Get("https://github.com/robots.txt")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "# If you w", string(b)[:10])
+
+		// get http
+		resp, err = client.Get("http://www.msftconnecttest.com/connecttest.txt")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err = ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "Microsoft Connect Test", string(b))
+	}()
+
+	wg.Wait()
+	require.NoError(t, httpServer.Close())
+	require.NoError(t, httpServer.Close())
+	require.NoError(t, httpsServer.Close())
+	require.NoError(t, httpsServer.Close())
+
+	testutil.IsDestroyed(t, httpServer, 1)
+	testutil.IsDestroyed(t, httpsServer, 1)
 }
 
 func TestAuthenticate(t *testing.T) {

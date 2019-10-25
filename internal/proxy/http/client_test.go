@@ -81,14 +81,14 @@ func testHTTPProxyClient(t *testing.T, server *Server, client *Client) {
 		defer wg.Done()
 		transport := http.Transport{DialContext: client.DialContext}
 		client := http.Client{Transport: &transport}
+		defer client.CloseIdleConnections()
 		resp, err := client.Get("https://github.com/robots.txt")
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+		defer func() { _ = resp.Body.Close() }()
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, "# If you w", string(b)[:10])
-		_ = resp.Body.Close()
-		transport.CloseIdleConnections()
 	}()
 
 	// https
@@ -98,14 +98,14 @@ func testHTTPProxyClient(t *testing.T, server *Server, client *Client) {
 		transport := &http.Transport{}
 		client.HTTP(transport)
 		client := http.Client{Transport: transport}
+		defer client.CloseIdleConnections()
 		resp, err := client.Get("https://github.com/robots.txt")
 		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, "# If you w", string(b)[:10])
-		_ = resp.Body.Close()
-		transport.CloseIdleConnections()
 	}()
 
 	// http
@@ -115,14 +115,14 @@ func testHTTPProxyClient(t *testing.T, server *Server, client *Client) {
 		transport := &http.Transport{}
 		client.HTTP(transport)
 		client := http.Client{Transport: transport}
+		defer client.CloseIdleConnections()
 		resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
 		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, "Microsoft Connect Test", string(b))
-		_ = resp.Body.Close()
-		transport.CloseIdleConnections()
 	}()
 
 	wg.Wait()
