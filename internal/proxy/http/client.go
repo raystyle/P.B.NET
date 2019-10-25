@@ -30,12 +30,16 @@ type Client struct {
 
 	rootCAs    []*x509.Certificate
 	rootCAsLen int
-	proxyURL   *url.URL
 	proxy      func(*http.Request) (*url.URL, error)
 	basicAuth  string
+	info       string
 }
 
 func NewClient(network, address string, https bool, opts *Options) (*Client, error) {
+	if opts == nil {
+		opts = new(Options)
+	}
+
 	client := Client{
 		network: network,
 		address: address,
@@ -115,7 +119,7 @@ func NewClient(network, address string, https bool, opts *Options) (*Client, err
 		return nil, errors.WithStack(err)
 	}
 	client.proxy = http.ProxyURL(u)
-	client.proxyURL = u
+	client.info = u.String()
 	return &client, nil
 }
 
@@ -243,5 +247,5 @@ func (c *Client) HTTP(t *http.Transport) {
 }
 
 func (c *Client) Info() string {
-	return c.proxyURL.String()
+	return c.info
 }

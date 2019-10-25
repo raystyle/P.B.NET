@@ -20,6 +20,7 @@ func testGenerateHTTPServer(t *testing.T) *Server {
 	}
 	server, err := NewServer("test", logger.Test, false, &opts)
 	require.NoError(t, err)
+	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	return server
 }
 
@@ -32,13 +33,13 @@ func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
 	opts.Server.TLSConfig = *serverCfg
 	server, err := NewServer("test", logger.Test, true, &opts)
 	require.NoError(t, err)
+	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	return server, clientCfg
 }
 
 func TestServer(t *testing.T) {
 	// http
 	server := testGenerateHTTPServer(t)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	t.Log("address:", server.Address())
 	t.Log("info:", server.Info())
 	require.NoError(t, server.Close())
@@ -47,7 +48,6 @@ func TestServer(t *testing.T) {
 
 	// https
 	server, _ = testGenerateHTTPSServer(t)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	t.Log("address:", server.Address())
 	t.Log("info:", server.Info())
 	require.NoError(t, server.Close())
@@ -57,13 +57,13 @@ func TestServer(t *testing.T) {
 
 func TestAuthenticate(t *testing.T) {
 	server := testGenerateHTTPServer(t)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	defer func() {
 		require.NoError(t, server.Close())
 		testutil.IsDestroyed(t, server, 1)
 	}()
 
 	hc := http.Client{}
+	defer hc.CloseIdleConnections()
 	// no auth method
 	resp, err := hc.Get("http://" + server.Address())
 	require.NoError(t, err)
@@ -80,8 +80,6 @@ func TestAuthenticate(t *testing.T) {
 	_, err = io.Copy(ioutil.Discard, resp.Body)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
-
-	hc.CloseIdleConnections()
 
 	// invalid username/password
 	opts := Options{

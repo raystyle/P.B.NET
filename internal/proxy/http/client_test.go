@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/logger"
 	"project/internal/testutil"
 )
 
@@ -22,7 +23,6 @@ func init() {
 
 func TestHTTPProxyClient(t *testing.T) {
 	server := testGenerateHTTPServer(t)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	opts := Options{
 		Username: "admin",
 		Password: "123456",
@@ -34,13 +34,21 @@ func TestHTTPProxyClient(t *testing.T) {
 
 func TestHTTPSProxyClient(t *testing.T) {
 	server, tlsConfig := testGenerateHTTPSServer(t)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	opts := Options{
 		Username:  "admin",
 		Password:  "123456",
 		TLSConfig: *tlsConfig,
 	}
 	client, err := NewClient("tcp", server.Address(), true, &opts)
+	require.NoError(t, err)
+	testHTTPProxyClient(t, server, client)
+}
+
+func TestHTTPProxyClientWithoutPassword(t *testing.T) {
+	server, err := NewServer("test", logger.Test, false, nil)
+	require.NoError(t, err)
+	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
+	client, err := NewClient("tcp", server.Address(), false, nil)
 	require.NoError(t, err)
 	testHTTPProxyClient(t, server, client)
 }
