@@ -12,30 +12,45 @@ import (
 	"project/internal/testutil"
 )
 
-func TestClient(t *testing.T) {
-	server := testGenerateServer(t)
+var addresses = []string{"8.8.8.8:53", "cloudflare-dns.com:443"}
+
+func init() {
+	if testutil.IPv6() {
+		addresses = append(addresses, "[2606:4700::6810:f9f9]:443")
+	}
+}
+
+func TestHTTPProxyClient(t *testing.T) {
+	server := testGenerateHTTPServer(t)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
-	defer func() {
-		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server, 1)
-	}()
 	opts := Options{
 		Username: "admin",
 		Password: "123456",
 	}
 	client, err := NewClient("tcp", server.Address(), false, &opts)
 	require.NoError(t, err)
+	testHTTPProxyClient(t, server, client)
+}
+
+func TestHTTPSProxyClient(t *testing.T) {
+	server, tlsConfig := testGenerateHTTPSServer(t)
+	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
+	opts := Options{
+		Username:  "admin",
+		Password:  "123456",
+		TLSConfig: *tlsConfig,
+	}
+	client, err := NewClient("tcp", server.Address(), true, &opts)
+	require.NoError(t, err)
+	testHTTPProxyClient(t, server, client)
+}
+
+func testHTTPProxyClient(t *testing.T, server *Server, client *Client) {
+	defer func() {
+		require.NoError(t, server.Close())
+		testutil.IsDestroyed(t, server, 1)
+	}()
 	wg := sync.WaitGroup{}
-
-	// set test address
-	var addresses = []string{
-		"8.8.8.8:53",
-		"cloudflare-dns.com:443",
-	}
-	if testutil.IPv6() {
-		addresses = append(addresses, "[2606:4700::6810:f9f9]:443")
-	}
-
 	for _, address := range addresses {
 		wg.Add(1)
 		go func(address string) {

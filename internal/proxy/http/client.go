@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/cert"
 	"project/internal/options"
 )
 
@@ -26,9 +28,11 @@ type Client struct {
 	tlsConfig *tls.Config
 	timeout   time.Duration
 
-	proxyURL  *url.URL
-	proxy     func(*http.Request) (*url.URL, error)
-	basicAuth string
+	rootCAs    []*x509.Certificate
+	rootCAsLen int
+	proxyURL   *url.URL
+	proxy      func(*http.Request) (*url.URL, error)
+	basicAuth  string
 }
 
 func NewClient(network, address string, https bool, opts *Options) (*Client, error) {
@@ -50,6 +54,23 @@ func NewClient(network, address string, https bool, opts *Options) (*Client, err
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+
+		// add system cert and self cert(usually is https proxy server)
+		if client.tlsConfig.RootCAs != nil {
+			pool, err := cert.SystemCertPool()
+			if err != nil {
+				return nil, err
+			}
+			client.rootCAs, _ = opts.TLSConfig.RootCA()
+			client.rootCAsLen = len(client.rootCAs)
+			for i := 0; i < client.rootCAsLen; i++ {
+				if client.rootCAs[i] != nil { // <security>
+					pool.AddCert(client.rootCAs[i])
+				}
+			}
+			client.tlsConfig.RootCAs = pool
+		}
+
 		if client.tlsConfig.ServerName == "" {
 			colonPos := strings.LastIndex(address, ":")
 			if colonPos == -1 {
@@ -67,22 +88,26 @@ func NewClient(network, address string, https bool, opts *Options) (*Client, err
 	}
 
 	// set proxy function for Client.HTTP()
-	u := &url.URL{
-		Scheme: "http",
-		Host:   address,
-	}
+	u := &url.URL{Host: address}
 	if https {
 		u.Scheme = "https"
+	} else {
+		u.Scheme = "http"
 	}
+
+	// basic authentication
+	var auth string
 	if opts.Username != "" && opts.Password != "" {
 		u.User = url.UserPassword(opts.Username, opts.Password)
-		auth := u.User.String()
-		client.basicAuth = "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+		auth = u.User.String()
 	} else if opts.Username != "" {
 		u.User = url.User(opts.Username)
-		auth := u.User.String()
+		auth = u.User.String()
+	}
+	if auth != "" {
 		client.basicAuth = "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 	}
+
 	// check proxy url
 	var err error
 	u, err = url.Parse(u.String())
@@ -204,6 +229,17 @@ func (c *Client) Connect(conn net.Conn, _, address string) error {
 
 func (c *Client) HTTP(t *http.Transport) {
 	t.Proxy = c.proxy
+	// add root CA about https proxy
+	if t.TLSClientConfig == nil {
+		t.TLSClientConfig = new(tls.Config)
+	}
+	if t.TLSClientConfig.RootCAs == nil {
+		t.TLSClientConfig.RootCAs, _ = cert.SystemCertPool()
+	}
+	// add certificate for connect https proxy
+	for i := 0; i < c.rootCAsLen; i++ {
+		t.TLSClientConfig.RootCAs.AddCert(c.rootCAs[i])
+	}
 }
 
 func (c *Client) Info() string {

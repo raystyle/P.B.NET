@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,7 @@ type Options struct {
 type Server struct {
 	tag      string
 	logger   logger.Logger
+	https    bool
 	maxConns int
 	exitFunc func()
 
@@ -52,7 +54,7 @@ type Server struct {
 	wg         sync.WaitGroup
 }
 
-func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+func NewServer(tag string, lg logger.Logger, https bool, opts *Options) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
@@ -60,30 +62,50 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		opts = new(Options)
 	}
 	s := &Server{
-		tag:      "http proxy-" + tag,
 		logger:   lg,
+		https:    https,
 		maxConns: opts.MaxConns,
 		exitFunc: opts.ExitFunc,
 	}
 	var err error
-	// server
+
 	s.server, err = opts.Server.Apply()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// transport
+	timeout := opts.Timeout
+	if timeout < 1 {
+		timeout = options.DefaultDeadline
+	}
+	s.server.ReadTimeout = timeout
+	s.server.WriteTimeout = timeout
+
 	s.transport, err = opts.Transport.Apply()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	if https {
+		s.tag = "https proxy-" + tag
+	} else {
+		s.tag = "http proxy-" + tag
+	}
+
 	if s.maxConns < 1 {
 		s.maxConns = options.DefaultMaxConns
 	}
+
 	// basic authentication
-	if opts.Username != "" {
-		auth := []byte(opts.Username + ":" + opts.Password)
-		s.basicAuth = []byte(base64.StdEncoding.EncodeToString(auth))
+	var auth string
+	if opts.Username != "" && opts.Password != "" {
+		auth = url.UserPassword(opts.Username, opts.Password).String()
+	} else if opts.Username != "" {
+		auth = url.User(opts.Username).String()
 	}
+	if auth != "" {
+		s.basicAuth = []byte(base64.StdEncoding.EncodeToString([]byte(auth)))
+	}
+
 	s.server.Handler = s
 	s.server.ErrorLog = logger.Wrap(logger.Error, s.tag, lg)
 	s.stopSignal = make(chan struct{})
@@ -123,7 +145,11 @@ func (s *Server) Serve(l net.Listener) {
 			s.wg.Done()
 		}()
 		s.logf(logger.Info, "start server (%s)", s.address)
-		_ = s.server.Serve(ll)
+		if s.https {
+			_ = s.server.ServeTLS(ll, "", "")
+		} else {
+			_ = s.server.Serve(ll)
+		}
 	}()
 }
 
@@ -146,11 +172,17 @@ func (s *Server) Address() string {
 }
 
 func (s *Server) Info() string {
-	s.rwm.RLock()
 	auth, _ := base64.StdEncoding.DecodeString(string(s.basicAuth))
+	s.rwm.RLock()
 	addr := s.address
 	s.rwm.RUnlock()
-	return fmt.Sprintf("listen: %s auth: %s", addr, auth)
+	var info string
+	if s.https {
+		info = fmt.Sprintf("https proxy listen: %s auth: %s", addr, auth)
+	} else {
+		info = fmt.Sprintf("http proxy listen: %s auth: %s", addr, auth)
+	}
+	return info
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
