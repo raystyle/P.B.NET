@@ -73,12 +73,14 @@ func TestListenerAndDial(t *testing.T) {
 		return net.Dial("tcp4", addr)
 	}, true)
 
-	l, err = net.Listen("tcp6", "localhost:0")
-	require.NoError(t, err)
-	addr = l.Addr().String()
-	ListenerAndDial(t, l, func() (net.Conn, error) {
-		return net.Dial("tcp6", addr)
-	}, true)
+	if IPv6() {
+		l, err = net.Listen("tcp6", "localhost:0")
+		require.NoError(t, err)
+		addr = l.Addr().String()
+		ListenerAndDial(t, l, func() (net.Conn, error) {
+			return net.Dial("tcp6", addr)
+		}, true)
+	}
 }
 
 func TestConn(t *testing.T) {
