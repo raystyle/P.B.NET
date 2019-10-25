@@ -37,6 +37,13 @@ type Client struct {
 }
 
 func NewClient(network, address string, https bool, opts *Options) (*Client, error) {
+	// check network
+	switch network {
+	case "", "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
+
 	if opts == nil {
 		opts = new(Options)
 	}
