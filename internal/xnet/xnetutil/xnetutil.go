@@ -40,22 +40,22 @@ type TrafficUnit int
 
 func (ts TrafficUnit) String() string {
 	const (
-		b  = 1024
-		kb = 1024 * 1024
-		mb = 1024 * 1024 * 1024
-		gb = 1024 * 1024 * 1024 * 1024
+		kb = 1 << 10
+		mb = 1 << 20
+		gb = 1 << 30
+		tb = 1 << 40
 	)
 	switch {
-	case ts < b:
-		return fmt.Sprintf("%d Byte", ts)
 	case ts < kb:
-		return fmt.Sprintf("%.3f KB", float64(ts)/b)
+		return fmt.Sprintf("%d Byte", ts)
 	case ts < mb:
-		return fmt.Sprintf("%.3f MB", float64(ts)/kb)
+		return fmt.Sprintf("%.3f KB", float64(ts)/kb)
 	case ts < gb:
-		return fmt.Sprintf("%.3f GB", float64(ts)/mb)
+		return fmt.Sprintf("%.3f MB", float64(ts)/mb)
+	case ts < tb:
+		return fmt.Sprintf("%.3f GB", float64(ts)/gb)
 	default:
-		return fmt.Sprintf("%.3f TB", float64(ts)/gb)
+		return fmt.Sprintf("%.3f TB", float64(ts)/tb)
 	}
 }
 
