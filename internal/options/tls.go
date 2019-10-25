@@ -32,6 +32,18 @@ func (t *TLSConfig) failed(err error) error {
 	return fmt.Errorf("failed to apply tls config: %s", err)
 }
 
+func (t *TLSConfig) RootCA() ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	for i := 0; i < len(t.RootCAs); i++ {
+		cert, err := parseCertificate([]byte(t.RootCAs[i]))
+		if err != nil {
+			return nil, t.failed(err)
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
+}
+
 func (t *TLSConfig) Apply() (*tls.Config, error) {
 	nextProtos := make([]string, len(t.NextProtos))
 	copy(nextProtos, t.NextProtos)
@@ -54,17 +66,19 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 			config.Certificates[i] = tlsCert
 		}
 	}
-	l = len(t.RootCAs)
+
+	rootCAs, err := t.RootCA()
+	if err != nil {
+		return nil, err
+	}
+	l = len(rootCAs)
 	if l != 0 {
 		config.RootCAs = x509.NewCertPool()
 		for i := 0; i < l; i++ {
-			cert, err := parseCertificate([]byte(t.RootCAs[i]))
-			if err != nil {
-				return nil, t.failed(err)
-			}
-			config.RootCAs.AddCert(cert)
+			config.RootCAs.AddCert(rootCAs[i])
 		}
 	}
+
 	l = len(t.ClientCAs)
 	if l != 0 {
 		config.ClientCAs = x509.NewCertPool()
