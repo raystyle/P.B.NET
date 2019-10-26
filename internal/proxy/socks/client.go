@@ -1,10 +1,8 @@
-package socks5
+package socks
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -12,240 +10,125 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/convert"
 	"project/internal/options"
 	"project/internal/xnet/xnetutil"
 )
 
-// support proxy chain
 type Client struct {
-	network  string
-	address  string
-	username string
-	password string
-	timeout  time.Duration
+	network    string
+	address    string
+	username   string
+	password   string
+	timeout    time.Duration
+	socks4     bool
+	userID     []byte
+	disableExt bool // socks4A remote hostname resolving feature
 
-	info string
+	protocol string
+	info     string
 }
 
-func NewClient(network, address string, opts *Options) (*Client, error) {
+func NewClient(network, address string, socks4 bool, opts *Options) (*Client, error) {
+	// check network
 	switch network {
-	case "":
-		network = "tcp"
-	case "tcp", "tcp4", "tcp6":
+	case "", "tcp", "tcp4", "tcp6":
 	default:
-		return nil, ErrNotSupportNetwork
+		return nil, errors.Errorf("unsupport network: %s", network)
 	}
+
 	if opts == nil {
 		opts = new(Options)
 	}
-	client := Client{
-		network:  network,
-		address:  address,
-		username: opts.Username,
-		password: opts.Password,
-		timeout:  opts.Timeout,
+
+	c := Client{
+		network:    network,
+		address:    address,
+		username:   opts.Username,
+		password:   opts.Password,
+		timeout:    opts.Timeout,
+		socks4:     socks4,
+		userID:     []byte(opts.UserID),
+		disableExt: opts.DisableSocks4A,
 	}
-	if client.timeout < 1 {
-		client.timeout = options.DefaultDialTimeout
+
+	if c.timeout < 1 {
+		c.timeout = options.DefaultDialTimeout
 	}
-	if client.username != "" {
-		client.info = fmt.Sprintf("%s %s %s:%s",
-			client.network, client.address, client.username, client.password)
+
+	switch {
+	case !socks4:
+		c.protocol = "socks5"
+	case socks4 && opts.DisableSocks4A:
+		c.protocol = "socks4"
+	default:
+		c.protocol = "socks4a"
+	}
+
+	if c.username != "" {
+		c.info = fmt.Sprintf("%s %s %s %s:%s",
+			c.protocol, c.network, c.address, c.username, c.password)
 	} else {
-		client.info = fmt.Sprintf("%s %s", client.network, client.address)
+		c.info = fmt.Sprintf("%s %s %s", c.protocol, c.network, c.address)
 	}
-	return &client, nil
+	return &c, nil
 }
 
-func (c *Client) Dial(_, address string) (net.Conn, error) {
+func (c *Client) Dial(network, address string) (net.Conn, error) {
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
-		const format = "dial: connect socks5 server %s failed"
-		return nil, errors.Wrapf(err, format, c.address)
+		const format = "dial: connect %s server %s failed"
+		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	err = c.Connect(conn, "", address)
+	err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial: socks5 server %s connect %s failed"
-		return nil, errors.WithMessagef(err, format, c.address, address)
+		const format = "dial: %s server %s connect %s failed"
+		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
 }
 
-func (c *Client) DialContext(ctx context.Context, _, address string) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
-		const format = "dial context: connect socks5 server %s failed"
-		return nil, errors.Wrapf(err, format, c.address)
+		const format = "dial context: connect %s server %s failed"
+		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	err = c.Connect(conn, "", address)
+	err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial context: socks5 server %s connect %s failed"
-		return nil, errors.WithMessagef(err, format, c.address, address)
+		const format = "dial context: %s server %s connect %s failed"
+		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
 }
 
-func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn, error) {
+func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	if timeout < 1 {
 		timeout = options.DefaultDialTimeout
 	}
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(c.network, c.address)
 	if err != nil {
-		const format = "dial timeout: connect socks5 server %s failed"
-		return nil, errors.Wrapf(err, format, c.address)
+		const format = "dial timeout: connect %s server %s failed"
+		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	err = c.Connect(conn, "", address)
+	err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial timeout: socks5 server %s connect %s failed"
-		return nil, errors.WithMessagef(err, format, c.address, address)
+		const format = "dial timeout: %s server %s connect %s failed"
+		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
 }
 
-// https://www.ietf.org/rfc/rfc1928.txt
 func (c *Client) Connect(conn net.Conn, _, address string) error {
-	_ = conn.SetDeadline(time.Now().Add(c.timeout))
-	host, port, err := splitHostPort(address)
-	if err != nil {
-		return err
+	if c.socks4 {
+		return c.connectSocks4(conn, "", address)
 	}
-	// request authentication
-	buffer := bytes.Buffer{}
-	buffer.WriteByte(version5)
-	if c.username == "" {
-		buffer.WriteByte(1)
-		buffer.WriteByte(notRequired)
-	} else {
-		buffer.WriteByte(2)
-		buffer.WriteByte(notRequired)
-		buffer.WriteByte(usernamePassword)
-	}
-	_, err = conn.Write(buffer.Bytes())
-	if err != nil {
-		return err
-	}
-	response := make([]byte, 2)
-	_, err = io.ReadFull(conn, response)
-	if err != nil {
-		return err
-	}
-	if response[0] != version5 {
-		return fmt.Errorf("unexpected protocol version %d", response[0])
-	}
-	am := response[1]
-	if am == noAcceptableMethods {
-		return ErrNoAcceptableMethods
-	}
-	// authenticate
-	switch am {
-	case notRequired:
-	case usernamePassword:
-		username := c.username
-		password := c.password
-		if len(username) == 0 || len(username) > 255 {
-			return errors.New("invalid username length")
-		}
-		// https://www.ietf.org/rfc/rfc1929.txt
-		buffer.Reset()
-		buffer.WriteByte(usernamePasswordVersion)
-		buffer.WriteByte(byte(len(username)))
-		buffer.WriteString(username)
-		buffer.WriteByte(byte(len(password)))
-		buffer.WriteString(password)
-		_, err := conn.Write(buffer.Bytes())
-		if err != nil {
-			return err
-		}
-		response := make([]byte, 2)
-		_, err = io.ReadFull(conn, response)
-		if err != nil {
-			return err
-		}
-		if response[0] != usernamePasswordVersion {
-			return errors.New("invalid username/password version")
-		}
-		if response[1] != statusSucceeded {
-			return errors.New("invalid username/password")
-		}
-	default:
-		return fmt.Errorf("unsupported authentication method %d", am)
-	}
-	// send connect target
-	buffer.Reset()
-	buffer.WriteByte(version5)
-	buffer.WriteByte(connect)
-	buffer.WriteByte(reserve)
-	ip := net.ParseIP(host)
-	if ip != nil {
-		ip4 := ip.To4()
-		if ip4 != nil {
-			buffer.WriteByte(ipv4)
-			buffer.Write(ip4)
-		} else {
-			ip6 := ip.To16()
-			if ip6 != nil {
-				buffer.WriteByte(ipv6)
-				buffer.Write(ip6)
-			} else {
-				return errors.New("unknown address type")
-			}
-		}
-	} else {
-		if len(host) > 255 {
-			return errors.New("FQDN too long")
-		}
-		buffer.WriteByte(fqdn)
-		buffer.WriteByte(byte(len(host)))
-		buffer.Write([]byte(host))
-	}
-	buffer.Write(convert.Uint16ToBytes(uint16(port)))
-	_, err = conn.Write(buffer.Bytes())
-	if err != nil {
-		return err
-	}
-	// receive reply
-	response = make([]byte, 4)
-	_, err = io.ReadFull(conn, response)
-	if err != nil {
-		return err
-	}
-	if response[0] != version5 {
-		return fmt.Errorf("unexpected protocol version %d", response[0])
-	}
-	if response[1] != succeeded {
-		return errors.New(Reply(response[1]).String())
-	}
-	if response[2] != 0 {
-		return errors.New("non-zero reserved field")
-	}
-	l := 2 // port
-	switch response[3] {
-	case ipv4:
-		l += net.IPv4len
-	case ipv6:
-		l += net.IPv6len
-	case fqdn:
-		_, err = io.ReadFull(conn, response[:1])
-		if err != nil {
-			return err
-		}
-		l += int(response[0])
-	}
-	// grow
-	if cap(response) < l {
-		response = make([]byte, l)
-	} else {
-		response = response[:l]
-	}
-	_, err = io.ReadFull(conn, response)
-	return err
+	return c.connectSocks5(conn, "", address)
 }
 
 func (c *Client) HTTP(t *http.Transport) {
@@ -256,7 +139,7 @@ func (c *Client) Info() string {
 	return c.info
 }
 
-func splitHostPort(address string) (string, int, error) {
+func splitHostPort(address string) (string, uint16, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return "", 0, errors.WithStack(err)
@@ -269,5 +152,5 @@ func splitHostPort(address string) (string, int, error) {
 	if err != nil {
 		return "", 0, errors.WithStack(err)
 	}
-	return host, portNum, nil
+	return host, uint16(portNum), nil
 }

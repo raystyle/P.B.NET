@@ -1,9 +1,8 @@
-package socks5
+package socks
 
 import (
-	"crypto/subtle"
+	"bytes"
 	"fmt"
-	"io"
 	"net"
 	"strings"
 	"sync"
@@ -13,17 +12,19 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
 
-	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/options"
-	"project/internal/xnet/xnetutil"
 	"project/internal/xpanic"
 )
 
 type Options struct {
-	Username string
-	Password string
+	Username string        // useless for socks4
+	Password string        // useless for socks4
 	Timeout  time.Duration // handshake timeout
+	UserID   string
+
+	// only client
+	DisableSocks4A bool
 
 	// only server
 	MaxConns int
@@ -33,8 +34,10 @@ type Options struct {
 type Server struct {
 	tag      string
 	logger   logger.Logger
+	socks4   bool
 	maxConns int
 	timeout  time.Duration
+	userID   []byte
 	exitFunc func()
 
 	listener net.Listener
@@ -50,31 +53,42 @@ type Server struct {
 	wg         sync.WaitGroup
 }
 
-func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+func NewServer(tag string, lg logger.Logger, socks4 bool, opts *Options) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
 	if opts == nil {
 		opts = new(Options)
 	}
-	server := &Server{
-		tag:      "socks5-" + tag,
+	s := Server{
 		logger:   lg,
-		timeout:  opts.Timeout,
+		socks4:   socks4,
 		maxConns: opts.MaxConns,
+		timeout:  opts.Timeout,
+		userID:   []byte(opts.UserID),
 		conns:    make(map[string]*conn),
+		exitFunc: opts.ExitFunc,
 	}
+
+	if socks4 {
+		s.tag = "socks4a-" + tag
+	} else {
+		s.tag = "socks5-" + tag
+	}
+
+	if s.timeout < 1 {
+		s.timeout = options.DefaultHandshakeTimeout
+	}
+
+	if s.maxConns < 1 {
+		s.maxConns = options.DefaultMaxConns
+	}
+
 	if opts.Username != "" {
-		server.username = []byte(opts.Username)
-		server.password = []byte(opts.Password)
+		s.username = []byte(opts.Username)
+		s.password = []byte(opts.Password)
 	}
-	if server.timeout < 1 {
-		server.timeout = options.DefaultHandshakeTimeout
-	}
-	if server.maxConns < 1 {
-		server.maxConns = options.DefaultMaxConns
-	}
-	return server, nil
+	return &s, nil
 }
 
 func (s *Server) ListenAndServe(network, address string) error {
@@ -95,6 +109,7 @@ func (s *Server) Serve(l net.Listener) {
 	go func() {
 		var err error
 		defer func() {
+			atomic.StoreInt32(&s.inShutdown, 1)
 			if r := recover(); r != nil {
 				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
 			}
@@ -102,7 +117,7 @@ func (s *Server) Serve(l net.Listener) {
 			if err != nil {
 				s.log(logger.Error, err)
 			}
-			// close all conns
+			// close all connections
 			s.connsRWM.Lock()
 			for _, conn := range s.conns {
 				_ = conn.conn.Close()
@@ -112,7 +127,7 @@ func (s *Server) Serve(l net.Listener) {
 			if s.exitFunc != nil {
 				s.exitFunc()
 			}
-			s.log(logger.Info, "server stopped")
+			s.logf(logger.Info, "server stopped (%s)", s.address)
 			s.wg.Done()
 		}()
 		s.logf(logger.Info, "start server (%s)", s.address)
@@ -143,18 +158,16 @@ func (s *Server) Serve(l net.Listener) {
 			delay = 0
 			c := s.newConn(conn)
 			if c != nil {
+				_ = conn.SetDeadline(time.Now().Add(s.timeout))
 				s.wg.Add(1)
-				go c.serve()
+				if s.socks4 {
+					go c.serveSocks4()
+				} else {
+					go c.serveSocks5()
+				}
 			}
 		}
 	}()
-}
-
-func (s *Server) Close() (err error) {
-	atomic.StoreInt32(&s.inShutdown, 1)
-	s.closeOnce.Do(func() { err = s.listener.Close() })
-	s.wg.Wait()
-	return
 }
 
 func (s *Server) Address() string {
@@ -164,17 +177,36 @@ func (s *Server) Address() string {
 	return addr
 }
 
+// Info is used to get http proxy server info
+// "socks5 listen: 127.0.0.1:8080"
+// "socks5 listen: 127.0.0.1:8080 admin:123456"
 func (s *Server) Info() string {
-	s.rwm.RLock()
-	a := s.address
-	s.rwm.RUnlock()
-	u := s.username
-	p := s.password
-	return fmt.Sprintf("listen: %s auth: %s %s", a, u, p)
+	buf := new(bytes.Buffer)
+	if s.socks4 {
+		buf.WriteString("socks4a")
+	} else {
+		buf.WriteString("socks5")
+	}
+	_, _ = fmt.Fprintf(buf, " listen: %s", s.Address())
+	if s.username != nil {
+		_, _ = fmt.Fprintf(buf, " %s:%s", s.username, s.password)
+	}
+	return buf.String()
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
-	s.logger.Println(lv, s.tag, log...)
+	l := len(log)
+	logs := make([]interface{}, l)
+	for i := 0; i < l; i++ {
+		if c, ok := log[i].(net.Conn); ok {
+			logs[i] = logger.Conn(c)
+		} else {
+			logs[i] = log[i]
+		}
+	}
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprint(buf, logs...)
+	s.logger.Println(lv, s.tag, buf)
 }
 
 func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
@@ -185,11 +217,18 @@ func (s *Server) shuttingDown() bool {
 	return atomic.LoadInt32(&s.inShutdown) != 0
 }
 
+func (s *Server) Close() (err error) {
+	atomic.StoreInt32(&s.inShutdown, 1)
+	s.closeOnce.Do(func() { err = s.listener.Close() })
+	s.wg.Wait()
+	return
+}
+
 func (s *Server) newConn(c net.Conn) *conn {
 	if !s.shuttingDown() {
 		conn := &conn{
 			server: s,
-			conn:   xnetutil.DeadlineConn(c, s.timeout),
+			conn:   c,
 		}
 		s.connsRWM.Lock()
 		s.conns[conn.key()] = conn
@@ -198,21 +237,6 @@ func (s *Server) newConn(c net.Conn) *conn {
 	}
 	_ = c.Close()
 	return nil
-}
-
-var (
-	ReplySucceeded         = []byte{version5, succeeded, reserve, ipv4, 0, 0, 0, 0, 0, 0}
-	ReplyConnectRefused    = []byte{version5, connRefused, reserve, ipv4, 0, 0, 0, 0, 0, 0}
-	ReplyAddressNotSupport = []byte{version5, addressNotSupport, reserve, ipv4, 0, 0, 0, 0, 0, 0}
-)
-
-type log struct {
-	Log interface{}
-	C   net.Conn
-}
-
-func (l *log) String() string {
-	return fmt.Sprint(l.Log, "\n", logger.Conn(l.C))
 }
 
 type conn struct {
@@ -227,213 +251,6 @@ func (c *conn) key() string {
 	)
 }
 
-func (c *conn) serve() {
-	var err error
-	defer func() {
-		if r := recover(); r != nil {
-			l := &log{Log: xpanic.Print(r, "conn.serve()"), C: c.conn}
-			c.server.log(logger.Error, l)
-		}
-		if err != nil {
-			c.server.log(logger.Error, &log{Log: err, C: c.conn})
-		}
-		_ = c.conn.Close()
-		c.server.connsRWM.Lock()
-		delete(c.server.conns, c.key())
-		c.server.connsRWM.Unlock()
-		c.server.wg.Done()
-	}()
-	buffer := make([]byte, 16) // prepare
-	// read version
-	_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
-	if err != nil {
-		return
-	}
-	if buffer[0] != version5 {
-		c.server.log(logger.Exploit, &log{Log: "unexpected protocol version", C: c.conn})
-		return
-	}
-	// read authentication methods
-	_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
-	if err != nil {
-		return
-	}
-	l := int(buffer[0])
-	if l == 0 {
-		c.server.log(logger.Exploit, &log{Log: "no authentication method", C: c.conn})
-		return
-	}
-	if l > len(buffer) {
-		buffer = make([]byte, l)
-	}
-	_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
-	if err != nil {
-		return
-	}
-	// write authentication method
-	if c.server.username != nil {
-		_, err = c.conn.Write([]byte{version5, usernamePassword})
-		if err != nil {
-			return
-		}
-		// read username and password version
-		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
-		if err != nil {
-			return
-		}
-		if buffer[0] != usernamePasswordVersion {
-			l := &log{Log: "unexpected username password version", C: c.conn}
-			c.server.log(logger.Exploit, l)
-			return
-		}
-		// read username length
-		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
-		if err != nil {
-			return
-		}
-		l = int(buffer[0])
-		if l > len(buffer) {
-			buffer = make([]byte, l)
-		}
-		// read username
-		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
-		if err != nil {
-			return
-		}
-		username := make([]byte, l)
-		copy(username, buffer[:l])
-		// read password length
-		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
-		if err != nil {
-			return
-		}
-		l = int(buffer[0])
-		if l > len(buffer) {
-			buffer = make([]byte, l)
-		}
-		// read password
-		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
-		if err != nil {
-			return
-		}
-		password := make([]byte, l)
-		copy(password, buffer[:l])
-		// write username password version
-		_, err = c.conn.Write([]byte{usernamePasswordVersion})
-		if err != nil {
-			return
-		}
-		if subtle.ConstantTimeCompare(c.server.username, username) != 1 ||
-			subtle.ConstantTimeCompare(c.server.password, password) != 1 {
-			l := fmt.Sprintf("invalid username password: %s %s", username, password)
-			c.server.log(logger.Exploit, &log{Log: l, C: c.conn})
-			_, err = c.conn.Write([]byte{statusFailed})
-			return
-		} else {
-			_, err = c.conn.Write([]byte{statusSucceeded})
-			if err != nil {
-				return
-			}
-		}
-	} else {
-		_, err = c.conn.Write([]byte{version5, notRequired})
-		if err != nil {
-			return
-		}
-	}
-	// receive connect target
-	// version | cmd | reserve | address type
-	if len(buffer) < 10 {
-		buffer = make([]byte, 4+net.IPv4len+2) // 4 + 4(ipv4) + 2(port)
-	}
-	_, err = io.ReadAtLeast(c.conn, buffer[:4], 4)
-	if err != nil {
-		return
-	}
-	if buffer[0] != version5 {
-		c.server.log(logger.Exploit, &log{Log: "unexpected connect protocol version", C: c.conn})
-		return
-	}
-	if buffer[1] != connect {
-		c.server.log(logger.Exploit, &log{Log: "unknown command", C: c.conn})
-		_, err = c.conn.Write([]byte{version5, commandNotSupport, reserve})
-		return
-	}
-	if buffer[2] != reserve { // reserve
-		c.server.log(logger.Exploit, &log{Log: "non-zero reserved field", C: c.conn})
-		_, err = c.conn.Write([]byte{version5, noReserve, reserve})
-		return
-	}
-	// read address
-	var host string
-	switch buffer[3] {
-	case ipv4:
-		_, err = io.ReadAtLeast(c.conn, buffer[:net.IPv4len], net.IPv4len)
-		if err != nil {
-			return
-		}
-		host = net.IP(buffer[:net.IPv4len]).String()
-	case ipv6:
-		buffer = make([]byte, net.IPv6len)
-		_, err = io.ReadAtLeast(c.conn, buffer[:net.IPv6len], net.IPv6len)
-		if err != nil {
-			return
-		}
-		host = "[" + net.IP(buffer[:net.IPv6len]).String() + "]"
-	case fqdn:
-		// get FQDN length
-		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
-		if err != nil {
-			return
-		}
-		l = int(buffer[0])
-		if l > len(buffer) {
-			buffer = make([]byte, l)
-		}
-		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
-		if err != nil {
-			return
-		}
-		host = string(buffer[:l])
-	default:
-		c.server.log(logger.Exploit, &log{Log: "address type not supported", C: c.conn})
-		_, err = c.conn.Write(ReplyAddressNotSupport)
-		return
-	}
-	// get port
-	_, err = io.ReadAtLeast(c.conn, buffer[:2], 2)
-	if err != nil {
-		return
-	}
-	// start dial
-	port := convert.BytesToUint16(buffer[:2])
-	address := fmt.Sprintf("%s:%d", host, port)
-	c.server.log(logger.Debug, &log{Log: "connect: " + address, C: c.conn})
-	var remoteConn net.Conn
-	remoteConn, err = net.Dial("tcp", address)
-	if err != nil {
-		_, err = c.conn.Write(ReplyConnectRefused)
-		return
-	}
-	defer func() { _ = remoteConn.Close() }()
-	// write reply
-	// ipv4 + 0.0.0.0 + 0(port)
-	_, err = c.conn.Write(ReplySucceeded)
-	if err != nil {
-		return
-	}
-	_ = remoteConn.SetDeadline(time.Time{})
-	_ = c.conn.SetDeadline(time.Time{})
-	c.server.wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				l := &log{Log: xpanic.Print(r, "conn.serve()"), C: c.conn}
-				c.server.log(logger.Error, l)
-			}
-			c.server.wg.Done()
-		}()
-		_, _ = io.Copy(c.conn, remoteConn)
-	}()
-	_, _ = io.Copy(remoteConn, c.conn)
+func (c *conn) log(lv logger.Level, log ...interface{}) {
+	c.server.log(lv, append(log, "\n", c.conn)...)
 }
