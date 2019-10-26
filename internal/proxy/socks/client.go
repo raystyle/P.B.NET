@@ -14,6 +14,7 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
+// Client implement internal/proxy.Client
 type Client struct {
 	network    string
 	address    string
@@ -76,13 +77,13 @@ func NewClient(network, address string, socks4 bool, opts *Options) (*Client, er
 func (c *Client) Dial(network, address string) (net.Conn, error) {
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
-		const format = "dial: connect %s server %s failed"
+		const format = "dial: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
 	err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial: %s server %s connect %s failed"
+		const format = "dial: %s server %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
@@ -92,13 +93,13 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
-		const format = "dial context: connect %s server %s failed"
+		const format = "dial context: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
 	err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial context: %s server %s connect %s failed"
+		const format = "dial context: %s server %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
@@ -111,13 +112,13 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	}
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(c.network, c.address)
 	if err != nil {
-		const format = "dial timeout: connect %s server %s failed"
+		const format = "dial timeout: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
 	err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial timeout: %s server %s connect %s failed"
+		const format = "dial timeout: %s server %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.protocol, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
@@ -135,6 +136,17 @@ func (c *Client) HTTP(t *http.Transport) {
 	t.DialContext = c.DialContext
 }
 
+func (c *Client) Timeout() time.Duration {
+	return c.timeout
+}
+
+func (c *Client) Address() (string, string) {
+	return c.network, c.address
+}
+
+// Info is used to get the proxy info
+// socks5 tcp 127.0.0.1:1080 admin 123456
+// socks4a tcp 127.0.0.1:1080
 func (c *Client) Info() string {
 	return c.info
 }

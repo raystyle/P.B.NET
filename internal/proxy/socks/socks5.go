@@ -36,10 +36,10 @@ const (
 	fqdn uint8 = 0x03
 	ipv6 uint8 = 0x04
 	// reply
-	succeeded         uint8 = 0x00
-	connRefused       uint8 = 0x05
-	commandNotSupport uint8 = 0x07
-	addressNotSupport uint8 = 0x08
+	succeeded      uint8 = 0x00
+	connRefused    uint8 = 0x05
+	cmdNotSupport  uint8 = 0x07
+	addrNotSupport uint8 = 0x08
 )
 
 type v5Reply uint8
@@ -209,7 +209,7 @@ func (c *Client) connectSocks5(conn net.Conn, _, address string) error {
 var (
 	v5ReplySucceeded         = []byte{version5, succeeded, reserve, ipv4, 0, 0, 0, 0, 0, 0}
 	v5ReplyConnectRefused    = []byte{version5, connRefused, reserve, ipv4, 0, 0, 0, 0, 0, 0}
-	v5ReplyAddressNotSupport = []byte{version5, addressNotSupport, reserve, ipv4, 0, 0, 0, 0, 0, 0}
+	v5ReplyAddressNotSupport = []byte{version5, addrNotSupport, reserve, ipv4, 0, 0, 0, 0, 0, 0}
 )
 
 func (c *conn) serveSocks5() {
@@ -338,7 +338,7 @@ func (c *conn) serveSocks5() {
 	}
 	if buffer[1] != connect {
 		c.log(logger.Exploit, "unknown command")
-		_, _ = c.conn.Write([]byte{version5, commandNotSupport, reserve})
+		_, _ = c.conn.Write([]byte{version5, cmdNotSupport, reserve})
 		return
 	}
 	if buffer[2] != reserve { // reserve
@@ -378,7 +378,7 @@ func (c *conn) serveSocks5() {
 		}
 		host = string(buffer[:l])
 	default:
-		c.log(logger.Exploit, "address type not supported")
+		c.log(logger.Exploit, "invalid address type")
 		_, _ = c.conn.Write(v5ReplyAddressNotSupport)
 		return
 	}

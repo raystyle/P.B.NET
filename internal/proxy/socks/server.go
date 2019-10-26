@@ -18,19 +18,20 @@ import (
 )
 
 type Options struct {
-	Username string        // useless for socks4
-	Password string        // useless for socks4
-	Timeout  time.Duration // handshake timeout
-	UserID   string
+	Username string        `toml:"username"` // useless for socks4
+	Password string        `toml:"password"` // useless for socks4
+	Timeout  time.Duration `toml:"timeout"`  // handshake timeout
+	UserID   string        `toml:"user_id"`  // useless for socks5
 
 	// only client
-	DisableSocks4A bool
+	DisableSocks4A bool `toml:"disable_socks4a"`
 
 	// only server
-	MaxConns int
-	ExitFunc func()
+	MaxConns int    `toml:"max_conns"`
+	ExitFunc func() `toml:"-"`
 }
 
+// Server implement internal/proxy.Server
 type Server struct {
 	tag      string
 	logger   logger.Logger

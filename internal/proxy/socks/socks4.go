@@ -57,7 +57,7 @@ func (c *Client) connectSocks4(conn net.Conn, _, address string) error {
 			return errors.New("socks4 or socks4a don't support IPv6")
 		}
 	} else if c.disableExt {
-		return errors.Errorf("%s is not a socks4a server", c.protocol)
+		return errors.Errorf("%s is not a socks4a server", c.address)
 	} else {
 		l := len(host)
 		if l > 255 {
