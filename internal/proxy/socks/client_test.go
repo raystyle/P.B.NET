@@ -1,4 +1,4 @@
-package socks5
+package socks
 
 import (
 	"context"
@@ -14,40 +14,59 @@ import (
 	"project/internal/testutil"
 )
 
-var addresses = []string{"8.8.8.8:53", "cloudflare-dns.com:443"}
-
-func init() {
-	if testutil.IPv6() {
-		addresses = append(addresses, "[2606:4700::6810:f9f9]:443")
-	}
-}
-
 func TestSocks5Client(t *testing.T) {
-	server := testGenerateServer(t)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
+	server := testGenerateSocks5Server(t)
 	opts := Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	client, err := NewClient("tcp", server.Address(), &opts)
+	client, err := NewClient("tcp", server.Address(), false, &opts)
 	require.NoError(t, err)
-	testSocks5Client(t, server, client)
+	testSocksClient(t, server, client)
+}
+
+func TestSocks4Client(t *testing.T) {
+	server := testGenerateSocks4aServer(t)
+	opts := Options{
+		UserID: "admin",
+	}
+	client, err := NewClient("tcp", server.Address(), true, &opts)
+	require.NoError(t, err)
+	testSocksClient(t, server, client)
 }
 
 func TestSocks5ClientWithoutPassword(t *testing.T) {
-	server, err := NewServer("test", logger.Test, nil)
+	server, err := NewServer("test", logger.Test, false, nil)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
-	client, err := NewClient("tcp", server.Address(), nil)
+	client, err := NewClient("tcp", server.Address(), false, nil)
 	require.NoError(t, err)
-	testSocks5Client(t, server, client)
+	testSocksClient(t, server, client)
 }
 
-func testSocks5Client(t *testing.T, server *Server, client *Client) {
+func TestSocks4ClientWithoutUserID(t *testing.T) {
+	server, err := NewServer("test", logger.Test, true, nil)
+	require.NoError(t, err)
+	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
+	client, err := NewClient("tcp", server.Address(), true, nil)
+	require.NoError(t, err)
+	testSocksClient(t, server, client)
+}
+
+func testSocksClient(t *testing.T, server *Server, client *Client) {
 	defer func() {
 		require.NoError(t, server.Close())
 		testutil.IsDestroyed(t, server, 1)
 	}()
+
+	// test target
+	var addresses = []string{"8.8.8.8:53", "cloudflare-dns.com:443"}
+	if !server.socks4 {
+		if testutil.IPv6() {
+			addresses = append(addresses, "[2606:4700::6810:f9f9]:443")
+		}
+	}
+
 	wg := sync.WaitGroup{}
 	for _, address := range addresses {
 		wg.Add(1)
@@ -72,14 +91,31 @@ func testSocks5Client(t *testing.T, server *Server, client *Client) {
 		transport := &http.Transport{}
 		client.HTTP(transport)
 		client := http.Client{Transport: transport}
+		defer client.CloseIdleConnections()
 		resp, err := client.Get("https://github.com/robots.txt")
 		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, "# If you w", string(b)[:10])
-		_ = resp.Body.Close()
-		transport.CloseIdleConnections()
+	}()
+
+	// https (don't need)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		transport := &http.Transport{}
+		client.HTTP(transport)
+		client := http.Client{Transport: transport}
+		defer client.CloseIdleConnections()
+		resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "Microsoft Connect Test", string(b))
 	}()
 
 	wg.Add(1)
@@ -92,5 +128,6 @@ func testSocks5Client(t *testing.T, server *Server, client *Client) {
 	}()
 
 	wg.Wait()
+	t.Log(client.Info())
 	testutil.IsDestroyed(t, client, 1)
 }
