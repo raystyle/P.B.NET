@@ -9,29 +9,38 @@ import (
 	"project/internal/options"
 )
 
+// Direct implement internal/proxy.Client
 type Direct struct{}
 
-func (d *Direct) Dial(network, address string) (net.Conn, error) {
+func (d Direct) Dial(network, address string) (net.Conn, error) {
 	return (&net.Dialer{Timeout: options.DefaultDialTimeout}).Dial(network, address)
 }
 
-func (d *Direct) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+func (d Direct) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	return (&net.Dialer{Timeout: options.DefaultDialTimeout}).DialContext(ctx, network, address)
 }
 
-func (d *Direct) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+func (d Direct) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	if timeout < 1 {
 		timeout = options.DefaultDialTimeout
 	}
 	return (&net.Dialer{Timeout: timeout}).Dial(network, address)
 }
 
-func (d *Direct) Connect(_ net.Conn, _, _ string) error {
+func (d Direct) Connect(_ net.Conn, _, _ string) error {
 	return nil
 }
 
-func (d *Direct) HTTP(_ *http.Transport) {}
+func (d Direct) HTTP(_ *http.Transport) {}
 
-func (d *Direct) Info() string {
+func (d Direct) Timeout() time.Duration {
+	return options.DefaultDialTimeout
+}
+
+func (d Direct) Address() (string, string) {
+	return "", ""
+}
+
+func (d Direct) Info() string {
 	return "direct"
 }

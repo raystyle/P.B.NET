@@ -9,11 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pelletier/go-toml"
-
 	"project/internal/proxy/direct"
-	hp "project/internal/proxy/http"
-	"project/internal/proxy/socks5"
 )
 
 type Mode = string
@@ -24,25 +20,29 @@ const (
 	HTTP   Mode = "http"
 )
 
+type Client interface {
+	Dial(network, address string) (net.Conn, error)
+	DialContext(ctx context.Context, network, address string) (net.Conn, error)
+	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
+	Connect(conn net.Conn, network, address string) error
+	HTTP(t *http.Transport)
+	Timeout() time.Duration
+	Address() (network, address string)
+	Info() string
+}
+
+type Server interface {
+	ListenAndServe(network, address string) error
+	Serve(l net.Listener)
+	Address() string
+	Info() string
+}
+
 var (
 	ErrEmptyTag      = errors.New("proxy client tag is empty")
 	ErrReserveTag    = errors.New("direct is reserve tag")
 	ErrReserveClient = errors.New("direct is reserve proxy client")
 )
-
-type Client struct {
-	Mode   Mode
-	Config []byte
-	client
-}
-
-type client interface {
-	Dial(network, address string) (net.Conn, error)
-	DialContext(ctx context.Context, network, address string) (net.Conn, error)
-	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
-	HTTP(transport *http.Transport)
-	Info() string
-}
 
 type Pool struct {
 	clients map[string]*Client // key = tag
@@ -50,7 +50,7 @@ type Pool struct {
 }
 
 // NewPool is used to create a proxy pool for role.global
-func NewPool(clients map[string]*Client) (*Pool, error) {
+func NewPool(clients map[string]*Chain) (*Pool, error) {
 	pool := Pool{clients: make(map[string]*Client)}
 	// add proxy clients
 	for tag, client := range clients {
@@ -60,9 +60,9 @@ func NewPool(clients map[string]*Client) (*Pool, error) {
 		}
 	}
 	// add direct
-	dc := &Client{
+	dc := &Chain{
 		Mode:   Direct,
-		client: new(direct.Direct),
+		Client: new(direct.Direct),
 	}
 	pool.clients[""] = dc
 	pool.clients["direct"] = dc
@@ -70,7 +70,7 @@ func NewPool(clients map[string]*Client) (*Pool, error) {
 }
 
 // Add is used to add a proxy client
-func (p *Pool) Add(tag string, client *Client) error {
+func (p *Pool) Add(tag string, client *Chain) error {
 	if tag == "" {
 		return ErrEmptyTag
 	}
@@ -81,24 +81,29 @@ func (p *Pool) Add(tag string, client *Client) error {
 	case Direct:
 		return nil
 	case Socks5:
-		conf := &struct {
-			Clients []*socks5.Config `toml:"server"`
-		}{}
-		err := toml.Unmarshal(client.Config, conf)
-		if err != nil {
-			return err
-		}
-		c, err := socks5.NewClient(conf.Clients...)
-		if err != nil {
-			return err
-		}
-		client.client = c
+		/*
+			conf := &struct {
+				Clients []*socks5.Config `toml:"server"`
+			}{}
+			err := toml.Unmarshal(client.Config, conf)
+			if err != nil {
+				return err
+			}
+			c, err := socks5.NewClient(conf.Clients...)
+			if err != nil {
+				return err
+			}
+			client.client = c
+		*/
 	case HTTP:
-		c, err := hp.NewClient(string(client.Config))
-		if err != nil {
-			return err
-		}
-		client.client = c
+		/*
+			c, err := hp.NewClient(string(client.Config))
+			if err != nil {
+				return err
+			}
+			client.client = c
+
+		*/
 	default:
 		return fmt.Errorf("unknown mode: %s", client.Mode)
 	}
@@ -131,7 +136,7 @@ func (p *Pool) Delete(tag string) error {
 }
 
 // Get is used to get proxy client, if tag is "" or "direct" return Direct
-func (p *Pool) Get(tag string) (*Client, error) {
+func (p *Pool) Get(tag string) (*Chain, error) {
 	p.rwm.RLock()
 	defer p.rwm.RUnlock()
 	if client, ok := p.clients[tag]; ok {
@@ -142,8 +147,8 @@ func (p *Pool) Get(tag string) (*Client, error) {
 }
 
 // Clients is used to get all proxy clients
-func (p *Pool) Clients() map[string]*Client {
-	clients := make(map[string]*Client)
+func (p *Pool) Clients() map[string]*Chain {
+	clients := make(map[string]*Chain)
 	p.rwm.RLock()
 	for tag, client := range p.clients {
 		clients[tag] = client

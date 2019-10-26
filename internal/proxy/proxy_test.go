@@ -17,17 +17,17 @@ const (
 func TestPool(t *testing.T) {
 	config, err := ioutil.ReadFile("testdata/socks5.toml")
 	require.NoError(t, err)
-	s5c := &Client{
+	s5c := &Chain{
 		Mode:   Socks5,
 		Config: config,
 	}
 	config, err = ioutil.ReadFile("testdata/http.txt")
 	require.NoError(t, err)
-	hp := &Client{
+	hp := &Chain{
 		Mode:   HTTP,
 		Config: config,
 	}
-	clients := make(map[string]*Client)
+	clients := make(map[string]*Chain)
 	clients[tagSocks5] = s5c
 	clients[tagHTTP] = hp
 	pool, err := NewPool(clients)
@@ -39,7 +39,7 @@ func TestPool(t *testing.T) {
 	err = pool.Add("direct", s5c)
 	require.Equal(t, ErrReserveTag, err)
 	// add unknown mode
-	err = pool.Add("foo", &Client{Mode: "foo"})
+	err = pool.Add("foo", &Chain{Mode: "foo"})
 	require.Error(t, err)
 	require.Equal(t, "unknown mode: foo", err.Error())
 	// add exist
