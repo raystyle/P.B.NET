@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 
@@ -108,6 +109,19 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	}
 }
 
+func TestIsDomainName(t *testing.T) {
+	require.True(t, isDomainName("asd.com"))
+	require.True(t, isDomainName("asd-asd.com"))
+	require.True(t, isDomainName("asd-asd6.com"))
+	// invalid domain
+	require.False(t, isDomainName(""))
+	require.False(t, isDomainName(string([]byte{255, 254, 12, 35})))
+	require.False(t, isDomainName("asd-"))
+	require.False(t, isDomainName("asd.-"))
+	require.False(t, isDomainName("asd.."))
+	require.False(t, isDomainName(strings.Repeat("a", 64)+".com"))
+}
+
 func TestSystemCertPool(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(5)
@@ -117,6 +131,10 @@ func TestSystemCertPool(t *testing.T) {
 			pool, err := SystemCertPool()
 			require.NoError(t, err)
 			t.Log("the number of the system certificates:", len(pool.Subjects()))
+
+			// for _, sub := range pool.Subjects() {
+			// 	 t.Log(string(sub))
+			// }
 		}()
 	}
 	wg.Wait()
