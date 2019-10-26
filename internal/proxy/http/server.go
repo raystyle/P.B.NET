@@ -22,21 +22,22 @@ import (
 )
 
 type Options struct {
-	Username string
-	Password string
-	Timeout  time.Duration
+	Username string        `toml:"username"`
+	Password string        `toml:"password"`
+	Timeout  time.Duration `toml:"timeout"`
 
 	// only client
-	Header    http.Header
-	TLSConfig options.TLSConfig
+	Header    http.Header       `toml:"header"`
+	TLSConfig options.TLSConfig `toml:"tls_config"`
 
 	// only server
-	MaxConns  int
-	Server    options.HTTPServer
-	Transport options.HTTPTransport
-	ExitFunc  func()
+	MaxConns  int                   `toml:"max_conns"`
+	Server    options.HTTPServer    `toml:"server"`
+	Transport options.HTTPTransport `toml:"transport"`
+	ExitFunc  func()                `toml:"-"`
 }
 
+// Server implement internal/proxy.Server
 type Server struct {
 	tag      string
 	logger   logger.Logger

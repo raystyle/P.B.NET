@@ -20,6 +20,7 @@ import (
 	"project/internal/options"
 )
 
+// Client implement internal/proxy.Client
 type Client struct {
 	network   string
 	address   string
@@ -135,7 +136,7 @@ func NewClient(network, address string, https bool, opts *Options) (*Client, err
 func (c *Client) Dial(_, address string) (net.Conn, error) {
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
-		const format = "dial: connect %s proxy %s failed"
+		const format = "dial: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
 	if c.https {
@@ -144,7 +145,7 @@ func (c *Client) Dial(_, address string) (net.Conn, error) {
 	err = c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial: %s proxy %s connect %s failed"
+		const format = "dial: %s proxy %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
@@ -154,7 +155,7 @@ func (c *Client) Dial(_, address string) (net.Conn, error) {
 func (c *Client) DialContext(ctx context.Context, _, address string) (net.Conn, error) {
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
-		const format = "dial context: connect %s proxy %s failed"
+		const format = "dial context: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
 	if c.https {
@@ -163,7 +164,7 @@ func (c *Client) DialContext(ctx context.Context, _, address string) (net.Conn, 
 	err = c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial context: %s proxy %s connect %s failed"
+		const format = "dial context: %s proxy %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
@@ -176,7 +177,7 @@ func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn
 	}
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(c.network, c.address)
 	if err != nil {
-		const format = "dial timeout: connect %s proxy %s failed"
+		const format = "dial timeout: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
 	if c.https {
@@ -185,7 +186,7 @@ func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn
 	err = c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
-		const format = "dial timeout: %s proxy %s connect %s failed"
+		const format = "dial timeout: %s proxy %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
 	_ = conn.SetDeadline(time.Time{})
@@ -234,8 +235,9 @@ func (c *Client) Connect(conn net.Conn, _, address string) error {
 	if len(p) != 4 {
 		return errors.Errorf(format, c.scheme, rAddr, address)
 	}
-	// HTTP/1.0 200 Connection established or HTTP/1.1 200 Connection established
-	// skip HTTP/1.0 or HTTP/1.1
+	// accept HTTP/1.0 200 Connection established
+	//        HTTP/1.1 200 Connection established
+	// skip   HTTP/1.0 and HTTP/1.1
 	if p[1] == "200" && p[2] == "Connection" && p[3] == "established" {
 		return nil
 	}
@@ -257,6 +259,17 @@ func (c *Client) HTTP(t *http.Transport) {
 	}
 }
 
+func (c *Client) Timeout() time.Duration {
+	return c.timeout
+}
+
+func (c *Client) Address() (string, string) {
+	return c.network, c.address
+}
+
+// Info is used to get the proxy info
+// http://admin:123456@127.0.0.1:8080
+// https://admin:123456@[::1]:8081
 func (c *Client) Info() string {
 	return c.info
 }
