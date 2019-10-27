@@ -115,20 +115,25 @@ func (s *Server) Serve(l net.Listener) {
 			if r := recover(); r != nil {
 				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
 			}
-			s.closeOnce.Do(func() { err = s.listener.Close() })
 			if err != nil {
 				s.log(logger.Error, err)
 			}
+
 			// close all connections
 			s.connsRWM.Lock()
 			for _, conn := range s.conns {
 				_ = conn.conn.Close()
 			}
 			s.connsRWM.Unlock()
-			// exit func
-			if s.exitFunc != nil {
-				s.exitFunc()
-			}
+
+			// close listener and execute exit function
+			s.closeOnce.Do(func() {
+				err = s.listener.Close()
+				if s.exitFunc != nil {
+					s.exitFunc()
+				}
+			})
+
 			s.logf(logger.Info, "server stopped (%s)", s.address)
 			s.wg.Done()
 		}()
@@ -176,6 +181,9 @@ func (s *Server) Close() (err error) {
 		s.rwm.RUnlock()
 		if l != nil {
 			err = l.Close()
+		}
+		if s.exitFunc != nil {
+			s.exitFunc()
 		}
 	})
 	s.wg.Wait()

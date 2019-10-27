@@ -45,6 +45,7 @@ type Server struct {
 	https    bool
 	maxConns int
 	exitFunc func()
+	execOnce sync.Once
 
 	server    *http.Server
 	transport *http.Transport
@@ -139,10 +140,11 @@ func (s *Server) Serve(l net.Listener) {
 			s.rwm.Lock()
 			s.server = nil
 			s.rwm.Unlock()
-			// exit func
-			if s.exitFunc != nil {
-				s.exitFunc()
-			}
+			s.execOnce.Do(func() {
+				if s.exitFunc != nil {
+					s.exitFunc()
+				}
+			})
 			s.logf(logger.Info, "server stopped (%s)", s.address)
 			s.wg.Done()
 		}()
@@ -162,6 +164,11 @@ func (s *Server) Close() (err error) {
 	if server != nil {
 		err = server.Close()
 		s.wg.Wait()
+		s.execOnce.Do(func() {
+			if s.exitFunc != nil {
+				s.exitFunc()
+			}
+		})
 	}
 	return err
 }
