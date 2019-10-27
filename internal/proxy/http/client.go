@@ -263,10 +263,6 @@ func (c *Client) Timeout() time.Duration {
 	return c.timeout
 }
 
-func (c *Client) Address() (string, string) {
-	return c.network, c.address
-}
-
 // Info is used to get the proxy info
 // http://admin:123456@127.0.0.1:8080
 // https://admin:123456@[::1]:8081

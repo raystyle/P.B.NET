@@ -140,10 +140,6 @@ func (c *Client) Timeout() time.Duration {
 	return c.timeout
 }
 
-func (c *Client) Address() (string, string) {
-	return c.network, c.address
-}
-
 // Info is used to get the proxy info
 // socks5 tcp 127.0.0.1:1080 admin 123456
 // socks4a tcp 127.0.0.1:1080

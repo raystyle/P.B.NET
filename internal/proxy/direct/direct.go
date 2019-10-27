@@ -37,10 +37,6 @@ func (d Direct) Timeout() time.Duration {
 	return options.DefaultDialTimeout
 }
 
-func (d Direct) Address() (string, string) {
-	return "", ""
-}
-
 func (d Direct) Info() string {
 	return "direct"
 }
