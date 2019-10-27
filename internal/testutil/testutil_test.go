@@ -17,10 +17,6 @@ func TestIPv6(t *testing.T) {
 	IPv6()
 }
 
-func TestPPROF(t *testing.T) {
-	PPROF()
-}
-
 func TestIsDestroyed(t *testing.T) {
 	a := 1
 	n, err := fmt.Fprintln(ioutil.Discard, a)

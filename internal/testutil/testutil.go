@@ -27,6 +27,12 @@ var (
 )
 
 func init() {
+	go func() {
+		err := http.ListenAndServe("localhost:19993", nil)
+		if err != nil {
+			panic(err)
+		}
+	}()
 	// check IPv6 available
 	conn, err := net.Dial("tcp6", "cloudflare-dns.com:443")
 	if err == nil {
@@ -38,11 +44,6 @@ func init() {
 // IPv6 is used to determine whether IPv6 is available
 func IPv6() bool {
 	return ipv6
-}
-
-// PPROF is used to open pprof
-func PPROF() {
-	go func() { _ = http.ListenAndServe("localhost:1999", nil) }()
 }
 
 // Bytes is used to generate test data: []byte{0, 1, .... 254, 255}
