@@ -170,7 +170,14 @@ func (s *Server) Serve(l net.Listener) {
 
 func (s *Server) Close() (err error) {
 	atomic.StoreInt32(&s.inShutdown, 1)
-	s.closeOnce.Do(func() { err = s.listener.Close() })
+	s.closeOnce.Do(func() {
+		s.rwm.RLock()
+		l := s.listener
+		s.rwm.RUnlock()
+		if l != nil {
+			err = l.Close()
+		}
+	})
 	s.wg.Wait()
 	return
 }
