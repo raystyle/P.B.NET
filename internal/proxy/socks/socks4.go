@@ -116,21 +116,11 @@ var (
 )
 
 func (c *conn) serveSocks4() {
-	const title = "conn.serveSocks4()"
 	var err error
 	defer func() {
-		if r := recover(); r != nil {
-			c.log(logger.Fatal, xpanic.Print(r, title))
-		}
 		if err != nil {
 			c.log(logger.Error, err)
 		}
-		_ = c.conn.Close()
-		// delete conn
-		c.server.connsRWM.Lock()
-		delete(c.server.conns, c.key())
-		c.server.connsRWM.Unlock()
-		c.server.wg.Done()
 	}()
 	// 10 = version(1) + cmd(1) + port(2) + address(4) + 2xNULL(2) maybe
 	// 16 = domain name
@@ -213,7 +203,7 @@ func (c *conn) serveSocks4() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				c.log(logger.Fatal, xpanic.Print(r, title))
+				c.log(logger.Fatal, xpanic.Print(r, "conn.serveSocks4()"))
 			}
 			c.server.wg.Done()
 		}()

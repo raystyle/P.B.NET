@@ -29,7 +29,7 @@ type Client struct {
 	info     string
 }
 
-func NewClient(network, address string, socks4 bool, opts *Options) (*Client, error) {
+func NewClient(network, address string, opts *Options) (*Client, error) {
 	// check network
 	switch network {
 	case "", "tcp", "tcp4", "tcp6":
@@ -47,7 +47,7 @@ func NewClient(network, address string, socks4 bool, opts *Options) (*Client, er
 		username:   opts.Username,
 		password:   opts.Password,
 		timeout:    opts.Timeout,
-		socks4:     socks4,
+		socks4:     opts.Socks4,
 		userID:     []byte(opts.UserID),
 		disableExt: opts.DisableSocks4A,
 	}
@@ -57,9 +57,9 @@ func NewClient(network, address string, socks4 bool, opts *Options) (*Client, er
 	}
 
 	switch {
-	case !socks4:
+	case !c.socks4:
 		c.protocol = "socks5"
-	case socks4 && opts.DisableSocks4A:
+	case c.socks4 && opts.DisableSocks4A:
 		c.protocol = "socks4"
 	default:
 		c.protocol = "socks4a"

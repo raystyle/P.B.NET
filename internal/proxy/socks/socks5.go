@@ -213,21 +213,11 @@ var (
 )
 
 func (c *conn) serveSocks5() {
-	const title = "conn.serveSocks5()"
 	var err error
 	defer func() {
-		if r := recover(); r != nil {
-			c.log(logger.Fatal, xpanic.Print(r, title))
-		}
 		if err != nil {
 			c.log(logger.Error, err)
 		}
-		_ = c.conn.Close()
-		// delete conn
-		c.server.connsRWM.Lock()
-		delete(c.server.conns, c.key())
-		c.server.connsRWM.Unlock()
-		c.server.wg.Done()
 	}()
 	buffer := make([]byte, 16) // prepare
 	// read version
@@ -411,7 +401,7 @@ func (c *conn) serveSocks5() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				c.log(logger.Fatal, xpanic.Print(r, title))
+				c.log(logger.Fatal, xpanic.Print(r, "conn.serveSocks5()"))
 			}
 			c.server.wg.Done()
 		}()

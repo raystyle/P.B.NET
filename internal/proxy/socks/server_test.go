@@ -18,7 +18,7 @@ func testGenerateSocks5Server(t *testing.T) *Server {
 		Username: "admin",
 		Password: "123456",
 	}
-	server, err := NewServer("test", logger.Test, false, &opts)
+	server, err := NewServer("test", logger.Test, &opts)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	return server
@@ -26,9 +26,10 @@ func testGenerateSocks5Server(t *testing.T) *Server {
 
 func testGenerateSocks4aServer(t *testing.T) *Server {
 	opts := Options{
+		Socks4: true,
 		UserID: "admin",
 	}
-	server, err := NewServer("test", logger.Test, true, &opts)
+	server, err := NewServer("test", logger.Test, &opts)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	return server
@@ -94,7 +95,7 @@ func TestSocks5Authenticate(t *testing.T) {
 		Username: "admin",
 		Password: "123457",
 	}
-	client, err := NewClient("tcp", server.Address(), false, &opt)
+	client, err := NewClient("tcp", server.Address(), &opt)
 	require.NoError(t, err)
 	_, err = client.Dial("tcp", "github.com:443")
 	require.Error(t, err)
@@ -108,9 +109,10 @@ func TestSocks4aUserID(t *testing.T) {
 		testutil.IsDestroyed(t, server, 1)
 	}()
 	opt := Options{
+		Socks4: true,
 		UserID: "invalid admin",
 	}
-	client, err := NewClient("tcp", server.Address(), true, &opt)
+	client, err := NewClient("tcp", server.Address(), &opt)
 	require.NoError(t, err)
 	_, err = client.Dial("tcp", "github.com:443")
 	require.Error(t, err)

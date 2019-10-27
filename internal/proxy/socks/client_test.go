@@ -20,7 +20,7 @@ func TestSocks5Client(t *testing.T) {
 		Username: "admin",
 		Password: "123456",
 	}
-	client, err := NewClient("tcp", server.Address(), false, &opts)
+	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
 	testSocksClient(t, server, client)
 }
@@ -28,27 +28,29 @@ func TestSocks5Client(t *testing.T) {
 func TestSocks4Client(t *testing.T) {
 	server := testGenerateSocks4aServer(t)
 	opts := Options{
+		Socks4: true,
 		UserID: "admin",
 	}
-	client, err := NewClient("tcp", server.Address(), true, &opts)
+	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
 	testSocksClient(t, server, client)
 }
 
 func TestSocks5ClientWithoutPassword(t *testing.T) {
-	server, err := NewServer("test", logger.Test, false, nil)
+	server, err := NewServer("test", logger.Test, nil)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
-	client, err := NewClient("tcp", server.Address(), false, nil)
+	client, err := NewClient("tcp", server.Address(), nil)
 	require.NoError(t, err)
 	testSocksClient(t, server, client)
 }
 
 func TestSocks4ClientWithoutUserID(t *testing.T) {
-	server, err := NewServer("test", logger.Test, true, nil)
+	opts := &Options{Socks4: true}
+	server, err := NewServer("test", logger.Test, opts)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
-	client, err := NewClient("tcp", server.Address(), true, nil)
+	client, err := NewClient("tcp", server.Address(), opts)
 	require.NoError(t, err)
 	testSocksClient(t, server, client)
 }
@@ -132,5 +134,45 @@ func testSocksClient(t *testing.T, server *Server, client *Client) {
 	network, address := client.Address()
 	t.Logf("client address: %s %s", network, address)
 	t.Log("client info:", client.Info())
+	testutil.IsDestroyed(t, client, 1)
+}
+
+func TestClientFailedToDialAndConnect(t *testing.T) {
+	// dial unreachable proxy server
+	client, err := NewClient("tcp", "localhost:0", nil)
+	require.NoError(t, err)
+	_, err = client.Dial("", "")
+	require.Error(t, err)
+	t.Log("Dial:\n", err)
+	_, err = client.DialContext(context.Background(), "", "")
+	require.Error(t, err)
+	t.Log("DialContext:\n", err)
+	_, err = client.DialTimeout("", "", time.Second)
+	require.Error(t, err)
+	t.Log("DialTimeout:\n", err)
+	testutil.IsDestroyed(t, client, 1)
+
+	// connect unreachable target
+	server := testGenerateSocks5Server(t)
+	defer func() {
+		require.NoError(t, server.Close())
+		testutil.IsDestroyed(t, server, 1)
+	}()
+	opts := Options{
+		Username: "admin",
+		Password: "123456",
+	}
+	client, err = NewClient("tcp", server.Address(), &opts)
+	require.NoError(t, err)
+	const unreachableTarget = "0.0.0.0:1"
+	_, err = client.Dial("", unreachableTarget)
+	require.Error(t, err)
+	t.Log("Dial -> Connect:\n", err)
+	_, err = client.DialContext(context.Background(), "", unreachableTarget)
+	require.Error(t, err)
+	t.Log("DialContext -> Connect:\n", err)
+	_, err = client.DialTimeout("", unreachableTarget, time.Second)
+	require.Error(t, err)
+	t.Log("DialTimeout -> Connect:\n", err)
 	testutil.IsDestroyed(t, client, 1)
 }

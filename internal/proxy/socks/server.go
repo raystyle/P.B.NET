@@ -18,6 +18,7 @@ import (
 )
 
 type Options struct {
+	Socks4   bool          `toml:"socks4"`
 	Username string        `toml:"username"` // useless for socks4
 	Password string        `toml:"password"` // useless for socks4
 	Timeout  time.Duration `toml:"timeout"`  // handshake timeout
@@ -54,7 +55,7 @@ type Server struct {
 	wg         sync.WaitGroup
 }
 
-func NewServer(tag string, lg logger.Logger, socks4 bool, opts *Options) (*Server, error) {
+func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
@@ -63,7 +64,7 @@ func NewServer(tag string, lg logger.Logger, socks4 bool, opts *Options) (*Serve
 	}
 	s := Server{
 		logger:   lg,
-		socks4:   socks4,
+		socks4:   opts.Socks4,
 		maxConns: opts.MaxConns,
 		timeout:  opts.Timeout,
 		userID:   []byte(opts.UserID),
@@ -71,7 +72,7 @@ func NewServer(tag string, lg logger.Logger, socks4 bool, opts *Options) (*Serve
 		exitFunc: opts.ExitFunc,
 	}
 
-	if socks4 {
+	if s.socks4 {
 		s.tag = "socks4a-" + tag
 	} else {
 		s.tag = "socks5-" + tag
@@ -161,14 +162,17 @@ func (s *Server) Serve(l net.Listener) {
 			if c != nil {
 				_ = conn.SetDeadline(time.Now().Add(s.timeout))
 				s.wg.Add(1)
-				if s.socks4 {
-					go c.serveSocks4()
-				} else {
-					go c.serveSocks5()
-				}
+				go c.serve()
 			}
 		}
 	}()
+}
+
+func (s *Server) Close() (err error) {
+	atomic.StoreInt32(&s.inShutdown, 1)
+	s.closeOnce.Do(func() { err = s.listener.Close() })
+	s.wg.Wait()
+	return
 }
 
 func (s *Server) Address() string {
@@ -214,19 +218,8 @@ func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
 	s.logger.Printf(lv, s.tag, format, log...)
 }
 
-func (s *Server) shuttingDown() bool {
-	return atomic.LoadInt32(&s.inShutdown) != 0
-}
-
-func (s *Server) Close() (err error) {
-	atomic.StoreInt32(&s.inShutdown, 1)
-	s.closeOnce.Do(func() { err = s.listener.Close() })
-	s.wg.Wait()
-	return
-}
-
 func (s *Server) newConn(c net.Conn) *conn {
-	if !s.shuttingDown() {
+	if atomic.LoadInt32(&s.inShutdown) == 0 {
 		conn := &conn{
 			server: s,
 			conn:   c,
@@ -254,4 +247,23 @@ func (c *conn) key() string {
 
 func (c *conn) log(lv logger.Level, log ...interface{}) {
 	c.server.log(lv, append(log, "\n", c.conn)...)
+}
+
+func (c *conn) serve() {
+	defer func() {
+		if r := recover(); r != nil {
+			c.log(logger.Fatal, xpanic.Print(r, "conn.serve()"))
+		}
+		_ = c.conn.Close()
+		// delete conn
+		c.server.connsRWM.Lock()
+		delete(c.server.conns, c.key())
+		c.server.connsRWM.Unlock()
+		c.server.wg.Done()
+	}()
+	if c.server.socks4 {
+		c.serveSocks4()
+	} else {
+		c.serveSocks5()
+	}
 }
