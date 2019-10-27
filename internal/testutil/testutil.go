@@ -27,12 +27,7 @@ var (
 )
 
 func init() {
-	go func() {
-		err := http.ListenAndServe("localhost:19993", nil)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	go func() { _ = http.ListenAndServe("localhost:19993", nil) }()
 	// check IPv6 available
 	conn, err := net.Dial("tcp6", "cloudflare-dns.com:443")
 	if err == nil {
