@@ -17,11 +17,11 @@ type Pool struct {
 }
 
 // NewPool is used to create a proxy client pool
-func NewPool(configs map[string]*Client) (*Pool, error) {
+func NewPool(clients map[string]*Client) (*Pool, error) {
 	pool := Pool{clients: make(map[string]*Client)}
 	// add proxy clients
-	for tag, config := range configs {
-		err := pool.Add(tag, config)
+	for tag, client := range clients {
+		err := pool.Add(tag, client)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "failed to add %s:", tag)
 		}
@@ -51,22 +51,22 @@ func (p *Pool) Add(tag string, client *Client) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		sc, err := socks.NewClient(client.Network, client.Address, opts)
+		c, err := socks.NewClient(client.Network, client.Address, opts)
 		if err != nil {
 			return err
 		}
-		client.client = sc
+		client.client = c
 	case ModeHTTP:
 		opts := new(http.Options)
 		err := toml.Unmarshal([]byte(client.Options), opts)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		hc, err := http.NewClient(client.Network, client.Address, opts)
+		c, err := http.NewClient(client.Network, client.Address, opts)
 		if err != nil {
 			return err
 		}
-		client.client = hc
+		client.client = c
 	default:
 		return errors.Errorf("unknown mode %s", client.Mode)
 	}

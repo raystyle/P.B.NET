@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -12,22 +13,6 @@ const (
 	ModeSocks  = "socks"
 	ModeHTTP   = "http"
 )
-
-type Client struct {
-	Mode    string
-	Network string
-	Address string
-	Options string
-	client
-}
-
-type Server struct {
-	Mode    string
-	Network string
-	Address string
-	Options string
-	server
-}
 
 type client interface {
 	Dial(network, address string) (net.Conn, error)
@@ -45,4 +30,55 @@ type server interface {
 	Close() error
 	Address() string
 	Info() string
+}
+
+type Client struct {
+	Mode    string
+	Network string
+	Address string
+	Options string
+	client
+}
+
+type Server struct {
+	Mode    string
+	Options string
+	server
+
+	CreateAt  time.Time // maybe inaccurate
+	serveAt   time.Time
+	rwm       sync.RWMutex
+	serveOnce sync.Once
+	closeOnce sync.Once
+}
+
+func (s *Server) ListenAndServe(network, address string) (err error) {
+	s.serveOnce.Do(func() {
+		err = s.server.ListenAndServe(network, address)
+		s.rwm.Lock()
+		s.serveAt = time.Now()
+		s.rwm.Unlock()
+	})
+	return
+}
+
+func (s *Server) Serve(l net.Listener) {
+	s.serveOnce.Do(func() {
+		s.server.Serve(l)
+		s.rwm.Lock()
+		s.serveAt = time.Now()
+		s.rwm.Unlock()
+	})
+}
+
+func (s *Server) Close() (err error) {
+	s.closeOnce.Do(func() { err = s.server.Close() })
+	return
+}
+
+func (s *Server) ServeAt() time.Time {
+	s.rwm.RLock()
+	t := s.serveAt
+	s.rwm.RUnlock()
+	return t
 }
