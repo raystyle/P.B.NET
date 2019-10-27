@@ -19,8 +19,8 @@ type Manager struct {
 }
 
 // NewManager is used to create a proxy server manager
-func NewManager() *Manager {
-	return &Manager{servers: make(map[string]*Server)}
+func NewManager(lg logger.Logger) *Manager {
+	return &Manager{logger: lg, servers: make(map[string]*Server)}
 }
 
 // Add is used to add proxy server, but not listen or serve
@@ -72,26 +72,27 @@ func (m *Manager) Add(tag string, server *Server) error {
 	}
 }
 
-// Close is used to close proxy server
-func (m *Manager) Close(tag string) error {
+// Delete is used to delete proxy server
+// it will self delete it
+func (m *Manager) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty proxy server tag")
 	}
 	m.rwm.Lock()
-	defer m.rwm.Unlock()
 	if server, ok := m.servers[tag]; ok {
-		// if server not serve
-		m.rwm.Lock()
-		delete(m.servers, tag)
 		m.rwm.Unlock()
 		return server.Close()
 	} else {
+		m.rwm.Unlock()
 		return errors.Errorf("proxy server %s doesn't exist", tag)
 	}
 }
 
 // Get is used to get proxy server
 func (m *Manager) Get(tag string) (*Server, error) {
+	if tag == "" {
+		return nil, errors.New("empty proxy server tag")
+	}
 	m.rwm.RLock()
 	defer m.rwm.RUnlock()
 	if server, ok := m.servers[tag]; ok {

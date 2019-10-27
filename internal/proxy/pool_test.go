@@ -35,7 +35,7 @@ func TestPool(t *testing.T) {
 	clients[tagHTTP] = hp
 	pool, err := NewPool(clients)
 	require.NoError(t, err)
-	// add empty tag
+	// add client with empty tag
 	err = pool.Add("", s5c)
 	require.Errorf(t, err, "empty proxy client tag")
 	// add client with reserve tag
@@ -65,7 +65,7 @@ func TestPool(t *testing.T) {
 	pc, err = pool.Get("foo")
 	require.Errorf(t, err, "proxy client foo doesn't exist")
 	require.Nil(t, pc)
-	// get all clients
+	// get all clients info
 	for tag, client := range pool.Clients() {
 		t.Logf("tag: %s mode: %s info: %s", tag, client.Mode, client.Info())
 	}
