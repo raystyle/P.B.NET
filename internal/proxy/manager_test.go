@@ -12,22 +12,22 @@ import (
 )
 
 func TestManager(t *testing.T) {
-	options, err := ioutil.ReadFile("testdata/socks.toml")
+	const (
+		tagSocks = "test_socks"
+		tagHTTP  = "test_http"
+	)
+	options, err := ioutil.ReadFile("testdata/socks5_opts.toml")
 	require.NoError(t, err)
 	socksServer := &Server{
 		Mode:    ModeSocks,
 		Options: string(options),
 	}
-	options, err = ioutil.ReadFile("testdata/http.toml")
+	options, err = ioutil.ReadFile("testdata/http_opts.toml")
 	require.NoError(t, err)
 	httpServer := &Server{
 		Mode:    ModeHTTP,
 		Options: string(options),
 	}
-	const (
-		tagSocks = "test_socks"
-		tagHTTP  = "test_http"
-	)
 	manager := NewManager(logger.Test)
 	err = manager.Add(tagSocks, socksServer)
 	require.NoError(t, err)

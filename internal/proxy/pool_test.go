@@ -10,42 +10,58 @@ import (
 )
 
 func TestPool(t *testing.T) {
-	options, err := ioutil.ReadFile("testdata/socks.toml")
+	options, err := ioutil.ReadFile("testdata/socks5_opts.toml")
 	require.NoError(t, err)
-	s5c := &Client{
+	socksClient := &Client{
 		Mode:    ModeSocks,
 		Network: "tcp",
 		Address: "localhost:1080",
 		Options: string(options),
 	}
-	options, err = ioutil.ReadFile("testdata/http.toml")
+	options, err = ioutil.ReadFile("testdata/http_opts.toml")
 	require.NoError(t, err)
-	hp := &Client{
+	httpClient := &Client{
 		Mode:    ModeHTTP,
 		Network: "tcp",
 		Address: "localhost:1080",
 		Options: string(options),
 	}
+	options, err = ioutil.ReadFile("testdata/chain.toml")
+	require.NoError(t, err)
+	chain := &Client{
+		Mode:    ModeChain,
+		Options: string(options),
+	}
+	options, err = ioutil.ReadFile("testdata/balance.toml")
+	require.NoError(t, err)
+	balance := &Client{
+		Mode:    ModeBalance,
+		Options: string(options),
+	}
 	const (
-		tagSocks = "test_socks"
-		tagHTTP  = "test_http"
+		tagSocks   = "test_socks"
+		tagHTTP    = "test_http"
+		tagChain   = "test_chain"
+		tagBalance = "test_balance"
 	)
 	clients := make(map[string]*Client)
-	clients[tagSocks] = s5c
-	clients[tagHTTP] = hp
+	clients[tagSocks] = socksClient
+	clients[tagHTTP] = httpClient
+	clients[tagChain] = chain
+	clients[tagBalance] = balance
 	pool, err := NewPool(clients)
 	require.NoError(t, err)
 	// add client with empty tag
-	err = pool.Add("", s5c)
+	err = pool.Add("", socksClient)
 	require.Errorf(t, err, "empty proxy client tag")
 	// add client with reserve tag
-	err = pool.Add("direct", s5c)
+	err = pool.Add("direct", socksClient)
 	require.Errorf(t, err, "direct is the reserve proxy client")
 	// add unknown mode
 	err = pool.Add("foo", &Client{Mode: "foo mode"})
 	require.Errorf(t, err, "unknown mode: foo mode")
 	// add exist
-	err = pool.Add(tagSocks, s5c)
+	err = pool.Add(tagSocks, socksClient)
 	require.Errorf(t, err, "proxy client %s already exists", tagSocks)
 	// get
 	pc, err := pool.Get(tagSocks)

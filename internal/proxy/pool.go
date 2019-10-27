@@ -19,15 +19,30 @@ type Pool struct {
 // NewPool is used to create a proxy client pool
 func NewPool(clients map[string]*Client) (*Pool, error) {
 	pool := Pool{clients: make(map[string]*Client)}
-	// add proxy clients
+	rest := make(map[string]*Client)
+	// add proxy clients(don't include ModeChain and ModeBalance)
 	for tag, client := range clients {
+		switch client.Mode {
+		case ModeChain, ModeBalance:
+			rest[tag] = client
+		default:
+			err := pool.Add(tag, client)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	// add proxy chain and balance
+	// proxy chain and balance's proxy client tags must exists in pool
+	for tag, client := range rest {
 		err := pool.Add(tag, client)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "failed to add %s:", tag)
+			return nil, err
 		}
 	}
 	// add direct
 	dc := &Client{
+		tag:    ModeDirect,
 		Mode:   ModeDirect,
 		client: new(direct.Direct),
 	}
@@ -38,18 +53,28 @@ func NewPool(clients map[string]*Client) (*Pool, error) {
 
 // Add is used to add a proxy client
 func (p *Pool) Add(tag string, client *Client) error {
+	err := p.add(tag, client)
+	if err != nil {
+		return errors.WithMessagef(err, "failed to add proxy client %s:", tag)
+	}
+	return nil
+}
+
+func (p *Pool) add(tag string, client *Client) error {
 	if tag == "" {
 		return errors.New("empty proxy client tag")
 	}
-	if tag == "direct" {
+	if tag == ModeDirect {
 		return errors.New("direct is the reserve proxy client tag")
 	}
 	switch client.Mode {
 	case ModeSocks:
 		opts := new(socks.Options)
-		err := toml.Unmarshal([]byte(client.Options), opts)
-		if err != nil {
-			return errors.WithStack(err)
+		if client.Options != "" {
+			err := toml.Unmarshal([]byte(client.Options), opts)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 		c, err := socks.NewClient(client.Network, client.Address, opts)
 		if err != nil {
@@ -58,11 +83,55 @@ func (p *Pool) Add(tag string, client *Client) error {
 		client.client = c
 	case ModeHTTP:
 		opts := new(http.Options)
-		err := toml.Unmarshal([]byte(client.Options), opts)
+		if client.Options != "" {
+			err := toml.Unmarshal([]byte(client.Options), opts)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+		c, err := http.NewClient(client.Network, client.Address, opts)
+		if err != nil {
+			return err
+		}
+		client.client = c
+	case ModeChain:
+		tags := struct {
+			Tags []string `toml:"tags"`
+		}{} // client tags
+		err := toml.Unmarshal([]byte(client.Options), &tags)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		c, err := http.NewClient(client.Network, client.Address, opts)
+		var clients []*Client
+		for i := 0; i < len(tags.Tags); i++ {
+			client, err := p.Get(tags.Tags[i])
+			if err != nil {
+				return err
+			}
+			clients = append(clients, client)
+		}
+		c, err := NewChain(tag, clients...)
+		if err != nil {
+			return err
+		}
+		client.client = c
+	case ModeBalance:
+		tags := struct {
+			Tags []string `toml:"tags"`
+		}{} // client tags
+		err := toml.Unmarshal([]byte(client.Options), &tags)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		var clients []*Client
+		for i := 0; i < len(tags.Tags); i++ {
+			client, err := p.Get(tags.Tags[i])
+			if err != nil {
+				return err
+			}
+			clients = append(clients, client)
+		}
+		c, err := NewBalance(tag, clients...)
 		if err != nil {
 			return err
 		}
@@ -73,6 +142,7 @@ func (p *Pool) Add(tag string, client *Client) error {
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
 	if _, ok := p.clients[tag]; !ok {
+		client.tag = tag
 		p.clients[tag] = client
 		return nil
 	} else {
@@ -85,7 +155,7 @@ func (p *Pool) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty proxy client tag")
 	}
-	if tag == "direct" {
+	if tag == ModeDirect {
 		return errors.New("direct is the reserve proxy client")
 	}
 	p.rwm.Lock()
