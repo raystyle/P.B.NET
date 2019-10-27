@@ -1,11 +1,9 @@
-[[server]]
-  network  = "tcp"
-  address  = "localhost:40002"
-  username = "admin"
-  password = "123456"
+socks4   = false
+username = "admin"
+password = "123456"
+timeout  = "30s"
+user_id  = ""
 
-[[server]]
-  network  = "tcp"
-  address  = "localhost:40003"
-  username = "admin"
-  password = "123456"
+disable_socks4a = false
+
+max_conns = 1000
