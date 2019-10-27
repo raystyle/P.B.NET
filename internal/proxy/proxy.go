@@ -9,9 +9,11 @@ import (
 )
 
 const (
-	ModeDirect = "direct"
-	ModeSocks  = "socks"
-	ModeHTTP   = "http"
+	ModeDirect  = "direct"
+	ModeSocks   = "socks"
+	ModeHTTP    = "http"
+	ModeChain   = "chain"
+	ModeBalance = "balance"
 )
 
 type client interface {
@@ -21,6 +23,7 @@ type client interface {
 	Connect(conn net.Conn, network, address string) error
 	HTTP(t *http.Transport)
 	Timeout() time.Duration
+	Server() (network string, address string)
 	Info() string
 }
 
@@ -37,6 +40,7 @@ type Client struct {
 	Network string
 	Address string
 	Options string
+	tag     string
 	client
 }
 

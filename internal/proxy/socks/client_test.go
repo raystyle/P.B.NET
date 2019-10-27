@@ -130,8 +130,10 @@ func testSocksClient(t *testing.T, server *Server, client *Client) {
 	}()
 
 	wg.Wait()
-	t.Log("client timeout:", client.Timeout())
-	t.Log("client info:", client.Info())
+	t.Log("timeout:", client.Timeout())
+	network, address := client.Server()
+	t.Log("server:", network, address)
+	t.Log("info:", client.Info())
 	testutil.IsDestroyed(t, client, 1)
 }
 

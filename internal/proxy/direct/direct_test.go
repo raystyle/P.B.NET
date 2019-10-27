@@ -21,5 +21,6 @@ func TestDirect(t *testing.T) {
 	d.HTTP(nil)
 	_ = d.Connect(nil, "", "")
 	t.Log(d.Timeout())
+	t.Log(d.Server())
 	t.Log(d.Info())
 }
