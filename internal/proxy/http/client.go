@@ -226,14 +226,14 @@ func (c *Client) Connect(conn net.Conn, _, address string) error {
 	resp := make([]byte, connectionEstablishedLen)
 	_, err = io.ReadAtLeast(conn, resp, connectionEstablishedLen)
 	if err != nil {
-		return errors.Errorf("failed to read response to %s because %s", rAddr, err)
+		return errors.Errorf("failed to read response from %s because %s", rAddr, err)
 	}
 	// check response
 	// HTTP/1.0 200 Connection established
 	const format = "%s proxy %s failed to connect to %s"
 	p := strings.Split(strings.ReplaceAll(string(resp), "\r\n", ""), " ")
 	if len(p) != 4 {
-		return errors.Errorf(format, c.scheme, rAddr, address)
+		return errors.Errorf(format, c.scheme, c.address, address)
 	}
 	// accept HTTP/1.0 200 Connection established
 	//        HTTP/1.1 200 Connection established
@@ -241,7 +241,7 @@ func (c *Client) Connect(conn net.Conn, _, address string) error {
 	if p[1] == "200" && p[2] == "Connection" && p[3] == "established" {
 		return nil
 	}
-	return errors.Errorf(format, c.scheme, rAddr, address)
+	return errors.Errorf(format, c.scheme, c.address, address)
 }
 
 func (c *Client) HTTP(t *http.Transport) {

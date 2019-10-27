@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -131,5 +132,45 @@ func testHTTPProxyClient(t *testing.T, server *Server, client *Client) {
 	network, address := client.Address()
 	t.Logf("client address: %s %s", network, address)
 	t.Log("client info:", client.Info())
+	testutil.IsDestroyed(t, client, 1)
+}
+
+func TestClientFailedToDialAndConnect(t *testing.T) {
+	// dial unreachable proxy server
+	client, err := NewClient("tcp", "localhost:0", nil)
+	require.NoError(t, err)
+	_, err = client.Dial("", "")
+	require.Error(t, err)
+	t.Log("Dial:\n", err)
+	_, err = client.DialContext(context.Background(), "", "")
+	require.Error(t, err)
+	t.Log("DialContext:\n", err)
+	_, err = client.DialTimeout("", "", time.Second)
+	require.Error(t, err)
+	t.Log("DialTimeout:\n", err)
+	testutil.IsDestroyed(t, client, 1)
+
+	// connect unreachable target
+	server := testGenerateHTTPServer(t)
+	defer func() {
+		require.NoError(t, server.Close())
+		testutil.IsDestroyed(t, server, 1)
+	}()
+	opts := Options{
+		Username: "admin",
+		Password: "123456",
+	}
+	client, err = NewClient("tcp", server.Address(), &opts)
+	require.NoError(t, err)
+	const unreachableTarget = "0.0.0.0:1"
+	_, err = client.Dial("", unreachableTarget)
+	require.Error(t, err)
+	t.Log("Dial -> Connect:\n", err)
+	_, err = client.DialContext(context.Background(), "", unreachableTarget)
+	require.Error(t, err)
+	t.Log("DialContext -> Connect:\n", err)
+	_, err = client.DialTimeout("", unreachableTarget, time.Second)
+	require.Error(t, err)
+	t.Log("DialTimeout -> Connect:\n", err)
 	testutil.IsDestroyed(t, client, 1)
 }

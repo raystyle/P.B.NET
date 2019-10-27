@@ -155,6 +155,17 @@ func (s *Server) Serve(l net.Listener) {
 	}()
 }
 
+func (s *Server) Close() (err error) {
+	s.rwm.RLock()
+	server := s.server
+	s.rwm.RUnlock()
+	if server != nil {
+		err = server.Close()
+		s.wg.Wait()
+	}
+	return err
+}
+
 func (s *Server) Address() string {
 	s.rwm.RLock()
 	addr := s.address
@@ -204,17 +215,6 @@ var (
 	connectionEstablished    = []byte("HTTP/1.0 200 Connection established\r\n\r\n")
 	connectionEstablishedLen = len(connectionEstablished)
 )
-
-func (s *Server) Close() (err error) {
-	s.rwm.RLock()
-	p := s.server
-	s.rwm.RUnlock()
-	if p != nil {
-		err = p.Close()
-		s.wg.Wait()
-	}
-	return err
-}
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	const title = "Server.ServeHTTP()"
