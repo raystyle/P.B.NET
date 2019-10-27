@@ -9,45 +9,46 @@ import (
 	"project/internal/testutil"
 )
 
-const (
-	tagSocks5 = "test_socks5_client"
-	tagHTTP   = "test_http_proxy_client"
-)
-
 func TestPool(t *testing.T) {
-	config, err := ioutil.ReadFile("testdata/socks5.toml")
+	options, err := ioutil.ReadFile("testdata/socks.toml")
 	require.NoError(t, err)
-	s5c := &Chain{
-		Mode:   Socks5,
-		Config: config,
+	s5c := &Client{
+		Mode:    ModeSocks,
+		Network: "tcp",
+		Address: "localhost:1080",
+		Options: string(options),
 	}
-	config, err = ioutil.ReadFile("testdata/http.txt")
+	options, err = ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
-	hp := &Chain{
-		Mode:   HTTP,
-		Config: config,
+	hp := &Client{
+		Mode:    ModeHTTP,
+		Network: "tcp",
+		Address: "localhost:1080",
+		Options: string(options),
 	}
-	clients := make(map[string]*Chain)
-	clients[tagSocks5] = s5c
+	const (
+		tagSocks = "test_socks"
+		tagHTTP  = "test_http"
+	)
+	clients := make(map[string]*Client)
+	clients[tagSocks] = s5c
 	clients[tagHTTP] = hp
 	pool, err := NewPool(clients)
 	require.NoError(t, err)
 	// add empty tag
 	err = pool.Add("", s5c)
-	require.Equal(t, ErrEmptyTag, err)
+	require.Errorf(t, err, "empty proxy client tag")
 	// add client with reserve tag
 	err = pool.Add("direct", s5c)
-	require.Equal(t, ErrReserveTag, err)
+	require.Errorf(t, err, "direct is the reserve proxy client")
 	// add unknown mode
-	err = pool.Add("foo", &Chain{Mode: "foo"})
-	require.Error(t, err)
-	require.Equal(t, "unknown mode: foo", err.Error())
+	err = pool.Add("foo", &Client{Mode: "foo mode"})
+	require.Errorf(t, err, "unknown mode: foo mode")
 	// add exist
-	err = pool.Add(tagSocks5, s5c)
-	require.Error(t, err)
-	require.Equal(t, "proxy client: "+tagSocks5+" already exists", err.Error())
+	err = pool.Add(tagSocks, s5c)
+	require.Errorf(t, err, "proxy client %s already exists", tagSocks)
 	// get
-	pc, err := pool.Get(tagSocks5)
+	pc, err := pool.Get(tagSocks)
 	require.NoError(t, err)
 	require.NotNil(t, pc)
 	pc, err = pool.Get(tagHTTP)
@@ -61,8 +62,8 @@ func TestPool(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pc)
 	// get doesn't exist
-	pc, err = pool.Get("doesn't exist")
-	require.Error(t, err)
+	pc, err = pool.Get("foo")
+	require.Errorf(t, err, "proxy client foo doesn't exist")
 	require.Nil(t, pc)
 	// get all clients
 	for tag, client := range pool.Clients() {
@@ -73,13 +74,12 @@ func TestPool(t *testing.T) {
 	require.NoError(t, err)
 	// delete doesn't exist
 	err = pool.Delete(tagHTTP)
-	require.Error(t, err)
-	require.Equal(t, "proxy client: "+tagHTTP+" doesn't exist", err.Error())
+	require.Errorf(t, err, "proxy client %s doesn't exist", tagHTTP)
 	// delete client with empty tag
 	err = pool.Delete("")
-	require.Equal(t, ErrEmptyTag, err)
-	// delete reserve client
+	require.Errorf(t, err, "empty proxy client tag")
+	// delete direct
 	err = pool.Delete("direct")
-	require.Equal(t, ErrReserveClient, err)
+	require.Errorf(t, err, "direct is the reserve proxy client")
 	testutil.IsDestroyed(t, pool, 1)
 }

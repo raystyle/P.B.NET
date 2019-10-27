@@ -11,69 +11,64 @@ import (
 	"project/internal/proxy/socks"
 )
 
-type ClientConfig struct {
-	Mode    string
-	Network string
-	Address string
-	Options string
-}
-
 type Pool struct {
-	clients map[string]Client // key = tag
+	clients map[string]*Client // key = tag
 	rwm     sync.RWMutex
 }
 
 // NewPool is used to create a proxy client pool
-func NewPool(configs map[string]*ClientConfig) (*Pool, error) {
-	pool := Pool{clients: make(map[string]Client)}
+func NewPool(configs map[string]*Client) (*Pool, error) {
+	pool := Pool{clients: make(map[string]*Client)}
 	// add proxy clients
 	for tag, config := range configs {
 		err := pool.Add(tag, config)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "failed to add proxy client %s:", tag)
+			return nil, errors.WithMessagef(err, "failed to add %s:", tag)
 		}
 	}
 	// add direct
-	d := new(direct.Direct)
-	pool.clients[""] = d
-	pool.clients["direct"] = d
+	dc := &Client{
+		Mode:   ModeDirect,
+		client: new(direct.Direct),
+	}
+	pool.clients[""] = dc
+	pool.clients["direct"] = dc
 	return &pool, nil
 }
 
 // Add is used to add a proxy client
-func (p *Pool) Add(tag string, cfg *ClientConfig) error {
+func (p *Pool) Add(tag string, client *Client) error {
 	if tag == "" {
 		return errors.New("empty proxy client tag")
 	}
 	if tag == "direct" {
 		return errors.New("direct is the reserve proxy client tag")
 	}
-	var client Client
-	switch cfg.Mode {
-	case ModeDirect:
-		return nil
+	switch client.Mode {
 	case ModeSocks:
 		opts := new(socks.Options)
-		err := toml.Unmarshal([]byte(cfg.Options), opts)
+		err := toml.Unmarshal([]byte(client.Options), opts)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		client, err = socks.NewClient(cfg.Network, cfg.Address, opts)
+		sc, err := socks.NewClient(client.Network, client.Address, opts)
 		if err != nil {
 			return err
 		}
+		client.client = sc
 	case ModeHTTP:
 		opts := new(http.Options)
-		err := toml.Unmarshal([]byte(cfg.Options), opts)
+		err := toml.Unmarshal([]byte(client.Options), opts)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		client, err = socks.NewClient(cfg.Network, cfg.Address, opts)
+		hc, err := http.NewClient(client.Network, client.Address, opts)
 		if err != nil {
 			return err
 		}
+		client.client = hc
 	default:
-		return errors.Errorf("unknown mode %s", mode)
+		return errors.Errorf("unknown mode %s", client.Mode)
 	}
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
@@ -105,7 +100,7 @@ func (p *Pool) Delete(tag string) error {
 
 // Get is used to get proxy client
 // return Direct if tag is "" or "direct"
-func (p *Pool) Get(tag string) (Client, error) {
+func (p *Pool) Get(tag string) (*Client, error) {
 	p.rwm.RLock()
 	defer p.rwm.RUnlock()
 	if client, ok := p.clients[tag]; ok {
@@ -116,8 +111,8 @@ func (p *Pool) Get(tag string) (Client, error) {
 }
 
 // Clients is used to get all proxy clients
-func (p *Pool) Clients() map[string]Client {
-	clients := make(map[string]Client)
+func (p *Pool) Clients() map[string]*Client {
+	clients := make(map[string]*Client)
 	p.rwm.RLock()
 	for tag, client := range p.clients {
 		clients[tag] = client
