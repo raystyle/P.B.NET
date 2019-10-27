@@ -22,6 +22,7 @@ import (
 )
 
 type Options struct {
+	HTTPS    bool          `toml:"https"`
 	Username string        `toml:"username"`
 	Password string        `toml:"password"`
 	Timeout  time.Duration `toml:"timeout"`
@@ -55,7 +56,7 @@ type Server struct {
 	wg         sync.WaitGroup
 }
 
-func NewServer(tag string, lg logger.Logger, https bool, opts *Options) (*Server, error) {
+func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
@@ -64,7 +65,7 @@ func NewServer(tag string, lg logger.Logger, https bool, opts *Options) (*Server
 	}
 	s := Server{
 		logger:   lg,
-		https:    https,
+		https:    opts.HTTPS,
 		maxConns: opts.MaxConns,
 		exitFunc: opts.ExitFunc,
 	}
@@ -86,7 +87,7 @@ func NewServer(tag string, lg logger.Logger, https bool, opts *Options) (*Server
 		return nil, errors.WithStack(err)
 	}
 
-	if https {
+	if s.https {
 		s.tag = "https proxy-" + tag
 	} else {
 		s.tag = "http proxy-" + tag

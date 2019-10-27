@@ -22,7 +22,7 @@ func testGenerateHTTPServer(t *testing.T) *Server {
 		Username: "admin",
 		Password: "123456",
 	}
-	server, err := NewServer("test", logger.Test, false, &opts)
+	server, err := NewServer("test", logger.Test, &opts)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	return server
@@ -31,11 +31,12 @@ func testGenerateHTTPServer(t *testing.T) *Server {
 func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
 	serverCfg, clientCfg := testutil.TLSConfigOptionPair(t)
 	opts := Options{
+		HTTPS:    true,
 		Username: "admin",
 		Password: "123456",
 	}
 	opts.Server.TLSConfig = *serverCfg
-	server, err := NewServer("test", logger.Test, true, &opts)
+	server, err := NewServer("test", logger.Test, &opts)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	return server, clientCfg
@@ -156,7 +157,7 @@ func TestAuthenticate(t *testing.T) {
 		Username: "admin",
 		Password: "123457",
 	}
-	client, err := NewClient("tcp", server.Address(), false, &opts)
+	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
 	transport := &http.Transport{}
 	client.HTTP(transport)

@@ -37,7 +37,7 @@ type Client struct {
 	info       string
 }
 
-func NewClient(network, address string, https bool, opts *Options) (*Client, error) {
+func NewClient(network, address string, opts *Options) (*Client, error) {
 	// check network
 	switch network {
 	case "", "tcp", "tcp4", "tcp6":
@@ -52,7 +52,7 @@ func NewClient(network, address string, https bool, opts *Options) (*Client, err
 	client := Client{
 		network: network,
 		address: address,
-		https:   https,
+		https:   opts.HTTPS,
 		header:  opts.Header.Clone(),
 		timeout: opts.Timeout,
 	}
@@ -61,7 +61,7 @@ func NewClient(network, address string, https bool, opts *Options) (*Client, err
 		client.header = make(http.Header)
 	}
 
-	if https {
+	if client.https {
 		var err error
 		client.tlsConfig, err = opts.TLSConfig.Apply()
 		if err != nil {
@@ -102,7 +102,7 @@ func NewClient(network, address string, https bool, opts *Options) (*Client, err
 
 	// set proxy function for Client.HTTP()
 	u := &url.URL{Host: address}
-	if https {
+	if client.https {
 		u.Scheme = "https"
 	} else {
 		u.Scheme = "http"

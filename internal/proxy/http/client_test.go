@@ -27,7 +27,7 @@ func TestHTTPProxyClient(t *testing.T) {
 		Username: "admin",
 		Password: "123456",
 	}
-	client, err := NewClient("tcp", server.Address(), false, &opts)
+	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
 	testHTTPProxyClient(t, server, client)
 }
@@ -35,20 +35,21 @@ func TestHTTPProxyClient(t *testing.T) {
 func TestHTTPSProxyClient(t *testing.T) {
 	server, tlsConfig := testGenerateHTTPSServer(t)
 	opts := Options{
+		HTTPS:     true,
 		Username:  "admin",
 		Password:  "123456",
 		TLSConfig: *tlsConfig,
 	}
-	client, err := NewClient("tcp", server.Address(), true, &opts)
+	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
 	testHTTPProxyClient(t, server, client)
 }
 
 func TestHTTPProxyClientWithoutPassword(t *testing.T) {
-	server, err := NewServer("test", logger.Test, false, nil)
+	server, err := NewServer("test", logger.Test, nil)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
-	client, err := NewClient("tcp", server.Address(), false, nil)
+	client, err := NewClient("tcp", server.Address(), nil)
 	require.NoError(t, err)
 	testHTTPProxyClient(t, server, client)
 }
