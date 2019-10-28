@@ -5,50 +5,51 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/proxy/socks"
+	"project/internal/random"
 	"project/internal/testutil"
 )
 
-func TestChain(t *testing.T) {
-	groups := testGenerateGroup(t)
-	defer func() {
-		for _, group := range groups {
-			group.Close(t)
-		}
-		testutil.IsDestroyed(t, &groups, 1)
-	}()
-
+func TestProxyChainSelect(t *testing.T) {
+	groups := testGenerateProxyGroup(t)
 	// use select
-	clients := make([]*Client, 3)
-	clients[0] = groups["http"].client
-	// clients[1] = groups["https"].client
-	clients[1] = groups["socks5"].client
-	clients[2] = groups["socks4a"].client
-	chain, err := NewChain("select", clients...)
+	clients := make([]*Client, 4)
+	clients[0] = groups["socks4a"].client
+	clients[1] = groups["https"].client
+	clients[2] = groups["http"].client
+	clients[3] = groups["socks5"].client
+	chain, err := NewChain("chain-select", clients...)
 	require.NoError(t, err)
-	conn, err := chain.Dial("tcp", "github.com:443")
-	require.NoError(t, err)
-	_ = conn.Close()
+	testutil.ProxyClient(t, &groups, chain)
+}
 
-	// use random
-	getClients := func(n int) []*Client {
-		if n > 4 {
-			return nil
-		}
-		clients := make([]*Client, n)
+func TestProxyChainRandom(t *testing.T) {
+	groups := testGenerateProxyGroup(t)
+	clients := make([]*Client, 4)
+	for ri := 0; ri < 3+random.Int(10); ri++ {
 		i := 0
 		for _, group := range groups {
-			if i < n {
+			if i < 4 {
 				clients[i] = group.client
 			} else {
 				break
 			}
 			i += 1
 		}
-		return clients
 	}
-	chain, err = NewChain("two-chain", getClients(4)...)
+	chain, err := NewChain("chain-random", clients...)
 	require.NoError(t, err)
-	conn, err = chain.Dial("tcp", "github.com:443")
+	testutil.ProxyClient(t, &groups, chain)
+}
+
+func TestProxyChainFailure(t *testing.T) {
+	socks5Client, err := socks.NewClient("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	_ = conn.Close()
+	chain, err := NewChain("chain-can't connect", &Client{
+		Mode:   ModeSocks,
+		client: socks5Client,
+	})
+	testutil.ProxyClientWithUnreachableProxyServer(t, chain)
+
+	// the first connect successfully but second failed
 }

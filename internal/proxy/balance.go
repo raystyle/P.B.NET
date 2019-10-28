@@ -119,13 +119,13 @@ func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (n
 // Connect is used to connect target, for Chain
 // Connect must with Timeout() and Server() at the same time
 // or Connect maybe failed because incorrect conn
-func (b *Balance) Connect(conn net.Conn, network, address string) error {
+func (b *Balance) Connect(conn net.Conn, network, address string) (net.Conn, error) {
 	defer b.setNext()
-	err := b.getNext().Connect(conn, network, address)
+	pConn, err := b.getNext().Connect(conn, network, address)
 	if err != nil {
-		return errors.WithMessagef(err, "balance %s Connect:", b.tag)
+		return nil, errors.WithMessagef(err, "balance %s Connect:", b.tag)
 	}
-	return nil
+	return pConn, nil
 }
 
 func (b *Balance) HTTP(t *http.Transport) {
