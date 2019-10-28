@@ -46,7 +46,7 @@ func TestHTTPProxyServer(t *testing.T) {
 	defer func() {
 		require.NoError(t, server.Close())
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server, 1)
+		testutil.IsDestroyed(t, server)
 	}()
 	t.Log("http proxy address:", server.Address())
 	t.Log("http proxy info:", server.Info())
@@ -82,7 +82,7 @@ func TestHTTPSProxyServer(t *testing.T) {
 	defer func() {
 		require.NoError(t, server.Close())
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server, 1)
+		testutil.IsDestroyed(t, server)
 	}()
 	t.Log("https proxy address:", server.Address())
 	t.Log("https proxy info:", server.Info())
@@ -125,7 +125,7 @@ func TestAuthenticate(t *testing.T) {
 	server := testGenerateHTTPServer(t)
 	defer func() {
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server, 1)
+		testutil.IsDestroyed(t, server)
 	}()
 
 	hc := http.Client{}
@@ -160,5 +160,5 @@ func TestAuthenticate(t *testing.T) {
 	require.Error(t, err)
 	transport.CloseIdleConnections()
 	transport.Proxy = nil
-	testutil.IsDestroyed(t, client, 1)
+	testutil.IsDestroyed(t, client)
 }

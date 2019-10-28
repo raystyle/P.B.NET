@@ -22,12 +22,12 @@ func TestIsDestroyed(t *testing.T) {
 	n, err := fmt.Fprintln(ioutil.Discard, a)
 	require.Equal(t, n, 2)
 	require.NoError(t, err)
-	if !isDestroyed(&a, 1) {
+	if !isDestroyed(&a) {
 		t.Fatal("doesn't destroyed")
 	}
 
 	b := 2
-	if isDestroyed(&b, 1) {
+	if isDestroyed(&b) {
 		t.Fatal("destroyed")
 	}
 	n, err = fmt.Fprintln(ioutil.Discard, b)
@@ -38,7 +38,7 @@ func TestIsDestroyed(t *testing.T) {
 	n, err = fmt.Fprintln(ioutil.Discard, c)
 	require.Equal(t, n, 2)
 	require.NoError(t, err)
-	IsDestroyed(t, &c, 1)
+	IsDestroyed(t, &c)
 }
 
 func TestTLSConfigPair(t *testing.T) {

@@ -52,26 +52,25 @@ func Bytes() []byte {
 	return testdata
 }
 
-func isDestroyed(object interface{}, gcNum int) bool {
+func isDestroyed(object interface{}) bool {
 	destroyed := make(chan struct{})
 	runtime.SetFinalizer(object, func(_ interface{}) {
 		close(destroyed)
 	})
-	for i := 0; i < gcNum; i++ {
+	for i := 0; i < 40; i++ {
 		runtime.GC()
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-destroyed:
+			return true
+		case <-time.After(25 * time.Millisecond):
+		}
 	}
-	select {
-	case <-destroyed:
-		return true
-	case <-time.After(time.Second):
-		return false
-	}
+	return false
 }
 
 // IsDestroyed is used to check if the object has been recycled by the GC
-func IsDestroyed(t testing.TB, object interface{}, gcNum int) {
-	require.True(t, isDestroyed(object, gcNum), "object not destroyed")
+func IsDestroyed(t testing.TB, object interface{}) {
+	require.True(t, isDestroyed(object), "object not destroyed")
 }
 
 // TLSCertificate is used to generate CA ASN1 data, signed certificate
@@ -175,7 +174,7 @@ func ListenerAndDial(t testing.TB, l net.Listener, d func() (net.Conn, error), c
 		t.Log("") // new line for Conn
 	}
 	require.NoError(t, l.Close())
-	IsDestroyed(t, l, 1)
+	IsDestroyed(t, l)
 }
 
 // Conn is used to test client & server Conn
@@ -257,8 +256,8 @@ func Conn(t testing.TB, server, client net.Conn, close bool) {
 		require.NoError(t, server.Close())
 		require.NoError(t, client.Close())
 
-		IsDestroyed(t, server, 1)
-		IsDestroyed(t, client, 1)
+		IsDestroyed(t, server)
+		IsDestroyed(t, client)
 	}
 }
 
@@ -297,7 +296,7 @@ type proxyClient interface {
 func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	defer func() {
 		require.NoError(t, server.Close())
-		IsDestroyed(t, server, 1)
+		IsDestroyed(t, server)
 	}()
 	wg := sync.WaitGroup{}
 
@@ -395,7 +394,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	network, address := client.Server()
 	t.Log("server:", network, address)
 	t.Log("info:", client.Info())
-	IsDestroyed(t, client, 1)
+	IsDestroyed(t, client)
 }
 
 // ProxyClientWithUnreachableProxyServer is used to test proxy client that
@@ -410,7 +409,7 @@ func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
 	_, err = client.DialTimeout("", "", time.Second)
 	require.Error(t, err)
 	t.Log("DialTimeout:\n", err)
-	IsDestroyed(t, client, 1)
+	IsDestroyed(t, client)
 }
 
 // ProxyClientWithUnreachableTarget is used to test proxy client that
@@ -418,7 +417,7 @@ func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
 func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client proxyClient) {
 	defer func() {
 		require.NoError(t, server.Close())
-		IsDestroyed(t, server, 1)
+		IsDestroyed(t, server)
 	}()
 	const unreachableTarget = "0.0.0.0:1"
 	_, err := client.Dial("", unreachableTarget)
@@ -430,5 +429,5 @@ func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client pro
 	_, err = client.DialTimeout("", unreachableTarget, time.Second)
 	require.Error(t, err)
 	t.Log("DialTimeout -> Connect:\n", err)
-	IsDestroyed(t, client, 1)
+	IsDestroyed(t, client)
 }
