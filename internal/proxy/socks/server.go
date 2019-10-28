@@ -32,7 +32,7 @@ type Options struct {
 	ExitFunc func() `toml:"-"`
 }
 
-// Server implement internal/proxy.Server
+// Server implement internal/proxy.server
 type Server struct {
 	tag      string
 	logger   logger.Logger
