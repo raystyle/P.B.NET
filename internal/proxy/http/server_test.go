@@ -42,18 +42,17 @@ func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
 }
 
 func TestHTTPProxyServer(t *testing.T) {
-	// deploy proxy server
-	httpServer := testGenerateHTTPServer(t)
+	server := testGenerateHTTPServer(t)
 	defer func() {
-		require.NoError(t, httpServer.Close())
-		require.NoError(t, httpServer.Close())
-		testutil.IsDestroyed(t, httpServer, 1)
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Close())
+		testutil.IsDestroyed(t, server, 1)
 	}()
-	t.Log("http server address:", httpServer.Address())
-	t.Log("http server info:", httpServer.Info())
+	t.Log("http proxy address:", server.Address())
+	t.Log("http proxy info:", server.Info())
 
 	// make client
-	u, err := url.Parse("http://admin:123456@" + httpServer.Address())
+	u, err := url.Parse("http://admin:123456@" + server.Address())
 	require.NoError(t, err)
 	transport := &http.Transport{Proxy: http.ProxyURL(u)}
 	client := http.Client{Transport: transport}
@@ -79,18 +78,17 @@ func TestHTTPProxyServer(t *testing.T) {
 }
 
 func TestHTTPSProxyServer(t *testing.T) {
-	// deploy proxy server
-	httpsServer, tlsConfig := testGenerateHTTPSServer(t)
+	server, tlsConfig := testGenerateHTTPSServer(t)
 	defer func() {
-		require.NoError(t, httpsServer.Close())
-		require.NoError(t, httpsServer.Close())
-		testutil.IsDestroyed(t, httpsServer, 1)
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Close())
+		testutil.IsDestroyed(t, server, 1)
 	}()
-	t.Log("https server address:", httpsServer.Address())
-	t.Log("https server info:", httpsServer.Info())
+	t.Log("https proxy address:", server.Address())
+	t.Log("https proxy info:", server.Info())
 
 	// make client
-	u, err := url.Parse("https://admin:123456@" + httpsServer.Address())
+	u, err := url.Parse("https://admin:123456@" + server.Address())
 	require.NoError(t, err)
 	transport := &http.Transport{Proxy: http.ProxyURL(u)}
 	transport.TLSClientConfig = new(tls.Config)

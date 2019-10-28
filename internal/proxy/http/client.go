@@ -20,7 +20,7 @@ import (
 	"project/internal/options"
 )
 
-// Client implement internal/proxy.Client
+// Client implement internal/proxy.client
 type Client struct {
 	network   string
 	address   string
@@ -139,17 +139,14 @@ func (c *Client) Dial(_, address string) (net.Conn, error) {
 		const format = "dial: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	if c.https {
-		conn = tls.Client(conn, c.tlsConfig)
-	}
-	err = c.Connect(conn, "", address)
+	pConn, err := c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial: %s proxy %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
-	_ = conn.SetDeadline(time.Time{})
-	return conn, nil
+	_ = pConn.SetDeadline(time.Time{})
+	return pConn, nil
 }
 
 func (c *Client) DialContext(ctx context.Context, _, address string) (net.Conn, error) {
@@ -158,17 +155,14 @@ func (c *Client) DialContext(ctx context.Context, _, address string) (net.Conn, 
 		const format = "dial context: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	if c.https {
-		conn = tls.Client(conn, c.tlsConfig)
-	}
-	err = c.Connect(conn, "", address)
+	pConn, err := c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial context: %s proxy %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
-	_ = conn.SetDeadline(time.Time{})
-	return conn, nil
+	_ = pConn.SetDeadline(time.Time{})
+	return pConn, nil
 }
 
 func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn, error) {
@@ -180,20 +174,20 @@ func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn
 		const format = "dial timeout: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	if c.https {
-		conn = tls.Client(conn, c.tlsConfig)
-	}
-	err = c.Connect(conn, "", address)
+	pConn, err := c.Connect(conn, "", address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial timeout: %s proxy %s failed to connect %s"
 		return nil, errors.WithMessagef(err, format, c.scheme, c.address, address)
 	}
-	_ = conn.SetDeadline(time.Time{})
-	return conn, nil
+	_ = pConn.SetDeadline(time.Time{})
+	return pConn, nil
 }
 
-func (c *Client) Connect(conn net.Conn, _, address string) error {
+func (c *Client) Connect(conn net.Conn, _, address string) (net.Conn, error) {
+	if c.https {
+		conn = tls.Client(conn, c.tlsConfig)
+	}
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	// CONNECT github.com:443 HTTP/1.1
 	// User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:70.0)
@@ -220,28 +214,28 @@ func (c *Client) Connect(conn net.Conn, _, address string) error {
 	rAddr := conn.RemoteAddr().String()
 	_, err := io.Copy(conn, buf)
 	if err != nil {
-		return errors.Errorf("failed to write request to %s because %s", rAddr, err)
+		return nil, errors.Errorf("failed to write request to %s because %s", rAddr, err)
 	}
 	// read response
 	resp := make([]byte, connectionEstablishedLen)
 	_, err = io.ReadAtLeast(conn, resp, connectionEstablishedLen)
 	if err != nil {
-		return errors.Errorf("failed to read response from %s because %s", rAddr, err)
+		return nil, errors.Errorf("failed to read response from %s because %s", rAddr, err)
 	}
 	// check response
 	// HTTP/1.0 200 Connection established
 	const format = "%s proxy %s failed to connect to %s"
 	p := strings.Split(strings.ReplaceAll(string(resp), "\r\n", ""), " ")
 	if len(p) != 4 {
-		return errors.Errorf(format, c.scheme, c.address, address)
+		return nil, errors.Errorf(format, c.scheme, c.address, address)
 	}
 	// accept HTTP/1.0 200 Connection established
 	//        HTTP/1.1 200 Connection established
 	// skip   HTTP/1.0 and HTTP/1.1
 	if p[1] == "200" && p[2] == "Connection" && p[3] == "established" {
-		return nil
+		return conn, nil
 	}
-	return errors.Errorf(format, c.scheme, c.address, address)
+	return nil, errors.Errorf(format, c.scheme, c.address, address)
 }
 
 func (c *Client) HTTP(t *http.Transport) {
