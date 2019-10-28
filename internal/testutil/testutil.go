@@ -1,12 +1,14 @@
 package testutil
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"io"
+	"io/ioutil"
 	"math/big"
 	"net"
 	"net/http"
@@ -278,4 +280,155 @@ func RunHTTPServer(t testing.TB, network string, server *http.Server) string {
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)
 	return port
+}
+
+// for test proxy client
+type proxyClient interface {
+	Dial(network, address string) (net.Conn, error)
+	DialContext(ctx context.Context, network, address string) (net.Conn, error)
+	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
+	HTTP(t *http.Transport)
+	Timeout() time.Duration
+	Server() (network string, address string)
+	Info() string
+}
+
+// ProxyClient is used to test proxy client
+func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
+	defer func() {
+		require.NoError(t, server.Close())
+		IsDestroyed(t, server, 1)
+	}()
+	wg := sync.WaitGroup{}
+
+	// test Dial and DialTimeout
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var targets = []string{"8.8.8.8:53", "cloudflare-dns.com:443"}
+		if IPv6() {
+			targets = append(targets, "[2606:4700::6810:f9f9]:443")
+		}
+		for _, target := range targets {
+			wg.Add(1)
+			go func(target string) {
+				defer wg.Done()
+				conn, err := client.Dial("tcp", target)
+				require.NoError(t, err)
+				_ = conn.Close()
+				conn, err = client.DialTimeout("tcp", target, 0)
+				require.NoError(t, err)
+				_ = conn.Close()
+			}(target)
+		}
+	}()
+
+	// test DialContext (http)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		transport := http.Transport{DialContext: client.DialContext}
+		client := http.Client{Transport: &transport}
+		defer client.CloseIdleConnections()
+		resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		defer func() { _ = resp.Body.Close() }()
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "Microsoft Connect Test", string(b))
+	}()
+
+	// test DialContext (https)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		transport := http.Transport{DialContext: client.DialContext}
+		client := http.Client{Transport: &transport}
+		defer client.CloseIdleConnections()
+		resp, err := client.Get("https://github.com/robots.txt")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		defer func() { _ = resp.Body.Close() }()
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "# If you w", string(b)[:10])
+	}()
+
+	// test HTTP with http target
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		transport := &http.Transport{}
+		client.HTTP(transport)
+		client := http.Client{Transport: transport}
+		defer client.CloseIdleConnections()
+		resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "Microsoft Connect Test", string(b))
+	}()
+
+	// test HTTP with https target
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		transport := &http.Transport{}
+		client.HTTP(transport)
+		client := http.Client{Transport: transport}
+		defer client.CloseIdleConnections()
+		resp, err := client.Get("https://github.com/robots.txt")
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "# If you w", string(b)[:10])
+	}()
+
+	wg.Wait()
+
+	t.Log("timeout:", client.Timeout())
+	network, address := client.Server()
+	t.Log("server:", network, address)
+	t.Log("info:", client.Info())
+	IsDestroyed(t, client, 1)
+}
+
+// ProxyClientWithUnreachableProxyServer is used to test proxy client that
+// can't connect proxy server
+func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
+	_, err := client.Dial("", "")
+	require.Error(t, err)
+	t.Log("Dial:\n", err)
+	_, err = client.DialContext(context.Background(), "", "")
+	require.Error(t, err)
+	t.Log("DialContext:\n", err)
+	_, err = client.DialTimeout("", "", time.Second)
+	require.Error(t, err)
+	t.Log("DialTimeout:\n", err)
+	IsDestroyed(t, client, 1)
+}
+
+// ProxyClientWithUnreachableTarget is used to test proxy client that
+// connect unreachable target
+func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client proxyClient) {
+	defer func() {
+		require.NoError(t, server.Close())
+		IsDestroyed(t, server, 1)
+	}()
+	const unreachableTarget = "0.0.0.0:1"
+	_, err := client.Dial("", unreachableTarget)
+	require.Error(t, err)
+	t.Log("Dial -> Connect:\n", err)
+	_, err = client.DialContext(context.Background(), "", unreachableTarget)
+	require.Error(t, err)
+	t.Log("DialContext -> Connect:\n", err)
+	_, err = client.DialTimeout("", unreachableTarget, time.Second)
+	require.Error(t, err)
+	t.Log("DialTimeout -> Connect:\n", err)
+	IsDestroyed(t, client, 1)
 }
