@@ -52,25 +52,25 @@ func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 
 func (b *Balance) setNext() {
 	b.mutex.Lock()
-	for client, count := range b.count {
-		if count < b.current {
-			b.count[client] += 1
-			if b.count[client] == math.MaxUint8 {
-				b.count[client] = 0
+	for {
+		for client, count := range b.count {
+			if count < b.current {
+				b.count[client] += 1
+				if b.count[client] == math.MaxUint8 {
+					b.count[client] = 0
+				}
+				b.next = client
+				b.mutex.Unlock()
+				return
 			}
-			b.next = client
-			b.mutex.Unlock()
-			return
+		}
+		// if all > current, current add 1
+		if b.current == math.MaxUint8 {
+			b.current = 1
+		} else {
+			b.current += 1
 		}
 	}
-	// if all > current, current add 1
-	if b.current == math.MaxUint8 {
-		b.current = 1
-	} else {
-		b.current += 1
-	}
-	b.mutex.Unlock()
-	b.setNext()
 }
 
 func (b *Balance) getNext() *Client {
