@@ -19,7 +19,7 @@ func TestDirect(t *testing.T) {
 	require.NoError(t, err)
 	_ = conn.Close()
 	d.HTTP(nil)
-	_ = d.Connect(nil, "", "")
+	_, _ = d.Connect(nil, "", "")
 	t.Log(d.Timeout())
 	t.Log(d.Server())
 	t.Log(d.Info())
