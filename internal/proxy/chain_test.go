@@ -25,19 +25,7 @@ func TestProxyChainSelect(t *testing.T) {
 
 func TestProxyChainRandom(t *testing.T) {
 	groups := testGenerateProxyGroup(t)
-	clients := make([]*Client, 4)
-	for ri := 0; ri < 3+random.Int(10); ri++ {
-		i := 0
-		for _, group := range groups {
-			if i < 4 {
-				clients[i] = group.client
-			} else {
-				break
-			}
-			i += 1
-		}
-	}
-	chain, err := NewChain("chain-random", clients...)
+	chain, err := NewChain("chain-random", groups.Clients()...)
 	require.NoError(t, err)
 	testutil.ProxyClient(t, &groups, chain)
 }

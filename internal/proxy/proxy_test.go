@@ -8,10 +8,27 @@ import (
 	"project/internal/logger"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
+	"project/internal/random"
 	"project/internal/testutil"
 )
 
 type groups map[string]*group
+
+func (g groups) Clients() []*Client {
+	clients := make([]*Client, len(g))
+	for ri := 0; ri < 3+random.Int(10); ri++ {
+		i := 0
+		for _, group := range g {
+			if i < 4 {
+				clients[i] = group.client
+			} else {
+				break
+			}
+			i += 1
+		}
+	}
+	return clients
+}
 
 func (g groups) Close() error {
 	for _, group := range g {
@@ -49,6 +66,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	groups["socks5"] = &group{
 		server: socks5Server,
 		client: &Client{
+			tag:     "socks5-c",
 			Mode:    ModeSocks,
 			Network: "tcp",
 			Address: address,
@@ -70,6 +88,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	groups["socks4a"] = &group{
 		server: socks4aServer,
 		client: &Client{
+			tag:     "socks4a-c",
 			Mode:    ModeSocks,
 			Network: "tcp",
 			Address: address,
@@ -91,6 +110,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	groups["http"] = &group{
 		server: httpServer,
 		client: &Client{
+			tag:     "http-c",
 			Mode:    ModeHTTP,
 			Network: "tcp",
 			Address: address,
@@ -116,6 +136,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	groups["https"] = &group{
 		server: httpsServer,
 		client: &Client{
+			tag:     "https-c",
 			Mode:    ModeHTTP,
 			Network: "tcp",
 			Address: address,

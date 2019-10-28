@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"net"
 	"net/http"
 	"sync"
@@ -14,15 +13,17 @@ import (
 )
 
 // Balance implement client
+//
+// <warning> Balance must be used independently, if you add a
+// Balance to a proxy chain, you can't use this balance elsewhere
 type Balance struct {
 	tag     string
 	clients []*Client // must > 0
 	length  int
 
-	current int
-	count   map[*Client]int
-	next    *Client
-	mutex   sync.Mutex
+	flags map[*Client]bool
+	next  *Client
+	mutex sync.Mutex
 }
 
 func NewBalance(tag string, clients ...*Client) (*Balance, error) {
@@ -35,40 +36,33 @@ func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 	}
 	c := make([]*Client, l)
 	copy(c, clients)
-	count := make(map[*Client]int)
+	// init flags
+	flags := make(map[*Client]bool)
 	for i := 0; i < l; i++ {
-		count[c[i]] = 0
+		flags[c[i]] = false
 	}
 	b := Balance{
 		tag:     tag,
 		clients: c,
 		length:  l,
-		current: 1,
-		count:   count,
+		flags:   flags,
 	}
 	b.setNext()
 	return &b, nil
 }
 
 func (b *Balance) setNext() {
-	b.mutex.Lock()
 	for {
-		for client, count := range b.count {
-			if count < b.current {
-				b.count[client] += 1
-				if b.count[client] == math.MaxUint8 {
-					b.count[client] = 0
-				}
+		for client, used := range b.flags {
+			if !used {
+				b.flags[client] = true
 				b.next = client
-				b.mutex.Unlock()
 				return
 			}
 		}
-		// if all > current, current add 1
-		if b.current == math.MaxUint8 {
-			b.current = 1
-		} else {
-			b.current += 1
+		// reset all clients flag
+		for client := range b.flags {
+			b.flags[client] = false
 		}
 	}
 }
@@ -84,14 +78,12 @@ func (b *Balance) getAndSetNext() *Client {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	next := b.next
-
+	b.setNext()
 	return next
 }
 
 func (b *Balance) Dial(network, address string) (net.Conn, error) {
-	next := b.getNext()
-	b.setNext()
-	conn, err := next.Dial(network, address)
+	conn, err := b.getAndSetNext().Dial(network, address)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "balance %s Dial:", b.tag)
 	}
@@ -99,8 +91,7 @@ func (b *Balance) Dial(network, address string) (net.Conn, error) {
 }
 
 func (b *Balance) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	defer b.setNext()
-	conn, err := b.getNext().DialContext(ctx, network, address)
+	conn, err := b.getAndSetNext().DialContext(ctx, network, address)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "balance %s DialContext:", b.tag)
 	}
@@ -108,8 +99,7 @@ func (b *Balance) DialContext(ctx context.Context, network, address string) (net
 }
 
 func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	defer b.setNext()
-	conn, err := b.getNext().DialTimeout(network, address, timeout)
+	conn, err := b.getAndSetNext().DialTimeout(network, address, timeout)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "balance %s DialTimeout:", b.tag)
 	}
@@ -120,8 +110,7 @@ func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (n
 // Connect must with Timeout() and Server() at the same time
 // or Connect maybe failed because incorrect conn
 func (b *Balance) Connect(conn net.Conn, network, address string) (net.Conn, error) {
-	defer b.setNext()
-	pConn, err := b.getNext().Connect(conn, network, address)
+	pConn, err := b.getAndSetNext().Connect(conn, network, address)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "balance %s Connect:", b.tag)
 	}
@@ -144,15 +133,16 @@ func (b *Balance) Server() (string, string) {
 
 // Info is used to get the balance info
 // balance: tag
-// http://admin:123456@127.0.0.1:8080
-// socks5 tcp 127.0.0.1:1080 admin 123456
-// socks4a tcp 127.0.0.1:1081
+// 1. tag-a: http://admin:123456@127.0.0.1:8080
+// 2. tag-b: socks5 tcp 127.0.0.1:1080 admin 123456
+// 3. tag-c: socks4a tcp 127.0.0.1:1081
 func (b *Balance) Info() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString("balance: ")
 	buf.WriteString(b.tag)
 	for i := 0; i < b.length; i++ {
-		_, _ = fmt.Fprintf(buf, "\n%s", b.clients[i].Info())
+		c := b.clients[i]
+		_, _ = fmt.Fprintf(buf, "\n%d. %s: %s", i+1, c.tag, c.Info())
 	}
 	return buf.String()
 }
