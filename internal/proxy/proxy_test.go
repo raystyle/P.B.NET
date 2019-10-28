@@ -11,6 +11,18 @@ import (
 	"project/internal/testutil"
 )
 
+type groups map[string]*group
+
+func (g groups) Close() error {
+	for _, group := range g {
+		err := group.server.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type group struct {
 	server server
 	client *Client
@@ -20,7 +32,7 @@ func (g *group) Close(t *testing.T) {
 	require.NoError(t, g.server.Close())
 }
 
-func testGenerateGroup(t *testing.T) map[string]*group {
+func testGenerateProxyGroup(t *testing.T) groups {
 	groups := make(map[string]*group)
 
 	// add socks5
