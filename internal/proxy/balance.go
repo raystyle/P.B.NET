@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Balance implement Client
+// Balance implement client
 type Balance struct {
 	tag     string
 	clients []*Client // must > 0

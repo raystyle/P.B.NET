@@ -42,14 +42,38 @@ func TestProxyChainRandom(t *testing.T) {
 	testutil.ProxyClient(t, &groups, chain)
 }
 
+func TestProxyChainWithSingleClient(t *testing.T) {
+	groups := testGenerateProxyGroup(t)
+	var client *Client
+	for ri := 0; ri < 3+random.Int(10); ri++ {
+		for _, group := range groups {
+			client = group.client
+		}
+	}
+	chain, err := NewChain("chain-random-single", client)
+	require.NoError(t, err)
+	testutil.ProxyClient(t, &groups, chain)
+}
+
 func TestProxyChainFailure(t *testing.T) {
+	// no tag
+	_, err := NewChain("")
+	require.Errorf(t, err, "empty proxy chain tag")
+	// no proxy clients
+	_, err = NewChain("chain-no-client")
+	require.Errorf(t, err, "proxy chain need at least one proxy client")
+
+	// unreachable first proxy server
 	socks5Client, err := socks.NewClient("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	chain, err := NewChain("chain-can't connect", &Client{
-		Mode:   ModeSocks,
-		client: socks5Client,
-	})
+	invalidClient := &Client{Mode: ModeSocks, client: socks5Client}
+	chain, err := NewChain("chain-can't connect", invalidClient)
 	testutil.ProxyClientWithUnreachableProxyServer(t, chain)
 
 	// the first connect successfully but second failed
+	groups := testGenerateProxyGroup(t)
+	firstClient := groups["https"].client
+	chain, err = NewChain("chain-unreachable target", firstClient, invalidClient)
+	require.NoError(t, err)
+	testutil.ProxyClientWithUnreachableTarget(t, &groups, chain)
 }

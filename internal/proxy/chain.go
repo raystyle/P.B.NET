@@ -13,7 +13,7 @@ import (
 	"project/internal/options"
 )
 
-// Chain implement Client
+// Chain implement client
 type Chain struct {
 	tag     string
 	clients []*Client // must > 0

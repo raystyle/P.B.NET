@@ -83,5 +83,5 @@ func TestManager(t *testing.T) {
 	// check object
 	err = manager.Delete(tagSocks)
 	require.NoError(t, err)
-	testutil.IsDestroyed(t, manager, 1)
+	testutil.IsDestroyed(t, manager)
 }

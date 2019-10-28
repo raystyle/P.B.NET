@@ -97,5 +97,5 @@ func TestPool(t *testing.T) {
 	// delete direct
 	err = pool.Delete("direct")
 	require.Errorf(t, err, "direct is the reserve proxy client")
-	testutil.IsDestroyed(t, pool, 1)
+	testutil.IsDestroyed(t, pool)
 }
