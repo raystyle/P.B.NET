@@ -38,12 +38,7 @@ func (r v4Reply) String() string {
 // http://ftp.icm.edu.pl/packages/socks/socks4/SOCKS4.protocol
 // http://www.openssh.com/txt/socks4a.protocol
 
-func (c *Client) connectSocks4(conn net.Conn, _, address string) error {
-	// check address
-	host, port, err := splitHostPort(address)
-	if err != nil {
-		return err
-	}
+func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 	var (
 		hostData   []byte
 		socks4aExt bool
@@ -69,7 +64,6 @@ func (c *Client) connectSocks4(conn net.Conn, _, address string) error {
 	}
 
 	// handshake
-	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	buffer := bytes.Buffer{}
 	buffer.WriteByte(version4)
 	buffer.WriteByte(connect)
@@ -87,7 +81,7 @@ func (c *Client) connectSocks4(conn net.Conn, _, address string) error {
 		buffer.Write(hostData)
 		buffer.WriteByte(0x00) // NULL
 	}
-	_, err = conn.Write(buffer.Bytes())
+	_, err := conn.Write(buffer.Bytes())
 	if err != nil {
 		return errors.WithStack(err)
 	}

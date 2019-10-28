@@ -68,12 +68,7 @@ func (r v5Reply) String() string {
 }
 
 // https://www.ietf.org/rfc/rfc1928.txt
-func (c *Client) connectSocks5(conn net.Conn, _, address string) error {
-	_ = conn.SetDeadline(time.Now().Add(c.timeout))
-	host, port, err := splitHostPort(address)
-	if err != nil {
-		return err
-	}
+func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	// request authentication
 	buffer := bytes.Buffer{}
 	buffer.WriteByte(version5)
@@ -85,7 +80,7 @@ func (c *Client) connectSocks5(conn net.Conn, _, address string) error {
 		buffer.WriteByte(notRequired)
 		buffer.WriteByte(usernamePassword)
 	}
-	_, err = conn.Write(buffer.Bytes())
+	_, err := conn.Write(buffer.Bytes())
 	if err != nil {
 		return errors.WithStack(err)
 	}

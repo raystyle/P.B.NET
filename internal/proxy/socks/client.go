@@ -126,10 +126,15 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 }
 
 func (c *Client) Connect(conn net.Conn, _, address string) error {
-	if c.socks4 {
-		return c.connectSocks4(conn, "", address)
+	host, port, err := splitHostPort(address)
+	if err != nil {
+		return err
 	}
-	return c.connectSocks5(conn, "", address)
+	_ = conn.SetDeadline(time.Now().Add(c.timeout))
+	if c.socks4 {
+		return c.connectSocks4(conn, host, port)
+	}
+	return c.connectSocks5(conn, host, port)
 }
 
 func (c *Client) HTTP(t *http.Transport) {
