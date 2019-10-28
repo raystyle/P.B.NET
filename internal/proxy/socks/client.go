@@ -14,7 +14,7 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
-// Client implement internal/proxy.Client
+// Client implement internal/proxy.client
 type Client struct {
 	network    string
 	address    string
@@ -80,7 +80,7 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 		const format = "dial: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	err = c.Connect(conn, network, address)
+	_, err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial: %s server %s failed to connect %s"
@@ -96,7 +96,7 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 		const format = "dial context: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	err = c.Connect(conn, network, address)
+	_, err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial context: %s server %s failed to connect %s"
@@ -115,7 +115,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 		const format = "dial timeout: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	err = c.Connect(conn, network, address)
+	_, err = c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial timeout: %s server %s failed to connect %s"
@@ -125,16 +125,21 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	return conn, nil
 }
 
-func (c *Client) Connect(conn net.Conn, _, address string) error {
+func (c *Client) Connect(conn net.Conn, _, address string) (net.Conn, error) {
 	host, port, err := splitHostPort(address)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	if c.socks4 {
-		return c.connectSocks4(conn, host, port)
+		err = c.connectSocks4(conn, host, port)
+	} else {
+		err = c.connectSocks5(conn, host, port)
 	}
-	return c.connectSocks5(conn, host, port)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 func (c *Client) HTTP(t *http.Transport) {

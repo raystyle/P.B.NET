@@ -1,12 +1,7 @@
 package socks
 
 import (
-	"context"
-	"io/ioutil"
-	"net/http"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -22,10 +17,10 @@ func TestSocks5Client(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testSocksClient(t, server, client)
+	testutil.ProxyClient(t, server, client)
 }
 
-func TestSocks4Client(t *testing.T) {
+func TestSocks4aClient(t *testing.T) {
 	server := testGenerateSocks4aServer(t)
 	opts := Options{
 		Socks4: true,
@@ -33,7 +28,7 @@ func TestSocks4Client(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testSocksClient(t, server, client)
+	testutil.ProxyClient(t, server, client)
 }
 
 func TestSocks5ClientWithoutPassword(t *testing.T) {
@@ -42,137 +37,52 @@ func TestSocks5ClientWithoutPassword(t *testing.T) {
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	client, err := NewClient("tcp", server.Address(), nil)
 	require.NoError(t, err)
-	testSocksClient(t, server, client)
+	testutil.ProxyClient(t, server, client)
 }
 
-func TestSocks4ClientWithoutUserID(t *testing.T) {
+func TestSocks4aClientWithoutUserID(t *testing.T) {
 	opts := &Options{Socks4: true}
 	server, err := NewServer("test", logger.Test, opts)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	client, err := NewClient("tcp", server.Address(), opts)
 	require.NoError(t, err)
-	testSocksClient(t, server, client)
+	testutil.ProxyClient(t, server, client)
 }
 
-func testSocksClient(t *testing.T, server *Server, client *Client) {
-	defer func() {
-		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server, 1)
-	}()
-
-	// test target
-	var addresses = []string{"8.8.8.8:53", "cloudflare-dns.com:443"}
-	if !server.socks4 {
-		if testutil.IPv6() {
-			addresses = append(addresses, "[2606:4700::6810:f9f9]:443")
-		}
-	}
-
-	wg := sync.WaitGroup{}
-	for _, address := range addresses {
-		wg.Add(1)
-		go func(address string) {
-			defer wg.Done()
-			conn, err := client.Dial("tcp", address)
-			require.NoError(t, err)
-			_ = conn.Close()
-			conn, err = client.DialContext(context.Background(), "tcp", address)
-			require.NoError(t, err)
-			_ = conn.Close()
-			conn, err = client.DialTimeout("tcp", address, 0)
-			require.NoError(t, err)
-			_ = conn.Close()
-		}(address)
-	}
-
-	// http
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		transport := &http.Transport{}
-		client.HTTP(transport)
-		client := http.Client{Transport: transport}
-		defer client.CloseIdleConnections()
-		resp, err := client.Get("https://github.com/robots.txt")
-		require.NoError(t, err)
-		defer func() { _ = resp.Body.Close() }()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		b, err := ioutil.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Equal(t, "# If you w", string(b)[:10])
-	}()
-
-	// https (don't need)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		transport := &http.Transport{}
-		client.HTTP(transport)
-		client := http.Client{Transport: transport}
-		defer client.CloseIdleConnections()
-		resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
-		require.NoError(t, err)
-		defer func() { _ = resp.Body.Close() }()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		b, err := ioutil.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Equal(t, "Microsoft Connect Test", string(b))
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		// dial failed
-		addr := "127.0.0.1:65536"
-		_, err := client.DialTimeout("tcp", addr, time.Second)
-		require.Error(t, err)
-	}()
-
-	wg.Wait()
-	t.Log("timeout:", client.Timeout())
-	network, address := client.Server()
-	t.Log("server:", network, address)
-	t.Log("info:", client.Info())
-	testutil.IsDestroyed(t, client, 1)
-}
-
-func TestClientFailedToDialAndConnect(t *testing.T) {
-	// dial unreachable proxy server
+func TestSocks5ClientFailure(t *testing.T) {
+	// connect unreachable proxy server
 	client, err := NewClient("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	_, err = client.Dial("", "")
-	require.Error(t, err)
-	t.Log("Dial:\n", err)
-	_, err = client.DialContext(context.Background(), "", "")
-	require.Error(t, err)
-	t.Log("DialContext:\n", err)
-	_, err = client.DialTimeout("", "", time.Second)
-	require.Error(t, err)
-	t.Log("DialTimeout:\n", err)
-	testutil.IsDestroyed(t, client, 1)
+	testutil.ProxyClientWithUnreachableProxyServer(t, client)
 
 	// connect unreachable target
 	server := testGenerateSocks5Server(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server, 1)
-	}()
 	opts := Options{
 		Username: "admin",
 		Password: "123456",
 	}
 	client, err = NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	const unreachableTarget = "0.0.0.0:1"
-	_, err = client.Dial("", unreachableTarget)
-	require.Error(t, err)
-	t.Log("Dial -> Connect:\n", err)
-	_, err = client.DialContext(context.Background(), "", unreachableTarget)
-	require.Error(t, err)
-	t.Log("DialContext -> Connect:\n", err)
-	_, err = client.DialTimeout("", unreachableTarget, time.Second)
-	require.Error(t, err)
-	t.Log("DialTimeout -> Connect:\n", err)
-	testutil.IsDestroyed(t, client, 1)
+	testutil.ProxyClientWithUnreachableTarget(t, server, client)
+}
+
+func TestSocks4aClientFailure(t *testing.T) {
+	// connect unreachable proxy server
+	opts := Options{
+		Socks4: true,
+	}
+	client, err := NewClient("tcp", "localhost:0", &opts)
+	require.NoError(t, err)
+	testutil.ProxyClientWithUnreachableProxyServer(t, client)
+
+	// connect unreachable target
+	server := testGenerateSocks4aServer(t)
+	opts = Options{
+		Socks4: true,
+		UserID: "admin",
+	}
+	client, err = NewClient("tcp", server.Address(), &opts)
+	require.NoError(t, err)
+	testutil.ProxyClientWithUnreachableTarget(t, server, client)
 }
