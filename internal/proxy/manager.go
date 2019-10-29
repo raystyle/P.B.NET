@@ -12,6 +12,7 @@ import (
 	"project/internal/proxy/socks"
 )
 
+// Manager is a proxy server manager
 type Manager struct {
 	logger  logger.Logger
 	servers map[string]*Server // key = tag
@@ -61,7 +62,7 @@ func (m *Manager) Add(tag string, server *Server) error {
 	default:
 		return errors.Errorf("unknown mode %s", server.Mode)
 	}
-	server.CreateAt = time.Now()
+	server.createAt = time.Now()
 	m.rwm.Lock()
 	defer m.rwm.Unlock()
 	if _, ok := m.servers[tag]; !ok {
@@ -111,4 +112,14 @@ func (m *Manager) Servers() map[string]*Server {
 	}
 	m.rwm.RUnlock()
 	return servers
+}
+
+func (m *Manager) Close() (err error) {
+	for _, server := range m.Servers() {
+		err = server.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return
 }

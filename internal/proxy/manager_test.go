@@ -48,7 +48,7 @@ func TestManager(t *testing.T) {
 	require.NotNil(t, ps)
 	err = ps.ListenAndServe("tcp", "localhost:0")
 	require.NoError(t, err)
-	t.Logf("create at: %s, serve at: %s", ps.CreateAt, ps.ServeAt())
+	t.Logf("create at: %s, serve at: %s", ps.CreateAt(), ps.ServeAt())
 
 	ps, err = manager.Get(tagHTTP)
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestManager(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	ps.Serve(listener)
-	t.Logf("create at: %s, serve at: %s", ps.CreateAt, ps.ServeAt())
+	t.Logf("create at: %s, serve at: %s", ps.CreateAt(), ps.ServeAt())
 
 	// get ""
 	ps, err = manager.Get("")
@@ -81,7 +81,6 @@ func TestManager(t *testing.T) {
 	require.Errorf(t, err, "empty proxy server tag")
 
 	// check object
-	err = manager.Delete(tagSocks)
-	require.NoError(t, err)
+	require.NoError(t, manager.Close())
 	testutil.IsDestroyed(t, manager)
 }

@@ -11,6 +11,7 @@ import (
 	"project/internal/proxy/socks"
 )
 
+// Pool is a proxy client pool
 type Pool struct {
 	clients map[string]*Client // key = tag
 	rwm     sync.RWMutex
