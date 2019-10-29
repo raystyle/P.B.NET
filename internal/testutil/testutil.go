@@ -286,6 +286,7 @@ type proxyClient interface {
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
+	Connect(conn net.Conn, network, address string) (net.Conn, error)
 	HTTP(t *http.Transport)
 	Timeout() time.Duration
 	Server() (network string, address string)
@@ -304,7 +305,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		var targets = []string{"8.8.8.8:53", "cloudflare-dns.com:443"}
+		var targets = []string{"180.101.49.12:80", "www.baidu.com:443"}
 		if IPv6() {
 			targets = append(targets, "[2606:4700::6810:f9f9]:443")
 		}
@@ -327,7 +328,10 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	go func() {
 		defer wg.Done()
 		transport := http.Transport{DialContext: client.DialContext}
-		client := http.Client{Transport: &transport}
+		client := http.Client{
+			Transport: &transport,
+			Timeout:   time.Minute,
+		}
 		defer client.CloseIdleConnections()
 		resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
 		require.NoError(t, err)
@@ -343,7 +347,10 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	go func() {
 		defer wg.Done()
 		transport := http.Transport{DialContext: client.DialContext}
-		client := http.Client{Transport: &transport}
+		client := http.Client{
+			Transport: &transport,
+			Timeout:   time.Minute,
+		}
 		defer client.CloseIdleConnections()
 		resp, err := client.Get("https://github.com/robots.txt")
 		require.NoError(t, err)
@@ -360,7 +367,10 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 		defer wg.Done()
 		transport := &http.Transport{}
 		client.HTTP(transport)
-		client := http.Client{Transport: transport}
+		client := http.Client{
+			Transport: transport,
+			Timeout:   time.Minute,
+		}
 		defer client.CloseIdleConnections()
 		resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
 		require.NoError(t, err)
@@ -377,7 +387,10 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 		defer wg.Done()
 		transport := &http.Transport{}
 		client.HTTP(transport)
-		client := http.Client{Transport: transport}
+		client := http.Client{
+			Transport: transport,
+			Timeout:   time.Minute,
+		}
 		defer client.CloseIdleConnections()
 		resp, err := client.Get("https://github.com/robots.txt")
 		require.NoError(t, err)
@@ -400,13 +413,28 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 // ProxyClientWithUnreachableProxyServer is used to test proxy client that
 // can't connect proxy server
 func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
-	_, err := client.Dial("", "")
+	// unknown network
+	_, err := client.Dial("foo", "")
 	require.Error(t, err)
 	t.Log("Dial:\n", err)
-	_, err = client.DialContext(context.Background(), "", "")
+	_, err = client.DialContext(context.Background(), "foo", "")
 	require.Error(t, err)
 	t.Log("DialContext:\n", err)
-	_, err = client.DialTimeout("", "", time.Second)
+	_, err = client.DialTimeout("foo", "", time.Second)
+	require.Error(t, err)
+	t.Log("DialTimeout:\n", err)
+	_, err = client.Connect(nil, "foo", "")
+	require.Error(t, err)
+	t.Log("Connect:\n", err)
+
+	// unreachable proxy server
+	_, err = client.Dial("tcp", "")
+	require.Error(t, err)
+	t.Log("Dial:\n", err)
+	_, err = client.DialContext(context.Background(), "tcp", "")
+	require.Error(t, err)
+	t.Log("DialContext:\n", err)
+	_, err = client.DialTimeout("tcp", "", time.Second)
 	require.Error(t, err)
 	t.Log("DialTimeout:\n", err)
 	IsDestroyed(t, client)
@@ -420,13 +448,13 @@ func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client pro
 		IsDestroyed(t, server)
 	}()
 	const unreachableTarget = "0.0.0.0:1"
-	_, err := client.Dial("", unreachableTarget)
+	_, err := client.Dial("tcp", unreachableTarget)
 	require.Error(t, err)
 	t.Log("Dial -> Connect:\n", err)
-	_, err = client.DialContext(context.Background(), "", unreachableTarget)
+	_, err = client.DialContext(context.Background(), "tcp", unreachableTarget)
 	require.Error(t, err)
 	t.Log("DialContext -> Connect:\n", err)
-	_, err = client.DialTimeout("", unreachableTarget, time.Second)
+	_, err = client.DialTimeout("tcp", unreachableTarget, time.Second)
 	require.Error(t, err)
 	t.Log("DialTimeout -> Connect:\n", err)
 	IsDestroyed(t, client)
