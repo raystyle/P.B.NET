@@ -162,3 +162,9 @@ func TestAuthenticate(t *testing.T) {
 	transport.Proxy = nil
 	testutil.IsDestroyed(t, client)
 }
+
+func TestHTTPServerWithUnknownNetwork(t *testing.T) {
+	server, err := NewServer("test", logger.Test, nil)
+	require.NoError(t, err)
+	require.Error(t, server.ListenAndServe("foo", "localhost:0"))
+}

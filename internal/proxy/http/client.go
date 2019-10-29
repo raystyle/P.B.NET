@@ -40,7 +40,7 @@ type Client struct {
 func NewClient(network, address string, opts *Options) (*Client, error) {
 	// check network
 	switch network {
-	case "", "tcp", "tcp4", "tcp6":
+	case "tcp", "tcp4", "tcp6":
 	default:
 		return nil, errors.Errorf("unsupport network: %s", network)
 	}
@@ -133,13 +133,19 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	return &client, nil
 }
 
-func (c *Client) Dial(_, address string) (net.Conn, error) {
+func (c *Client) Dial(network, address string) (net.Conn, error) {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
 		const format = "dial: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	pConn, err := c.Connect(conn, "", address)
+	pConn, err := c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial: %s proxy %s failed to connect %s"
@@ -149,13 +155,19 @@ func (c *Client) Dial(_, address string) (net.Conn, error) {
 	return pConn, nil
 }
 
-func (c *Client) DialContext(ctx context.Context, _, address string) (net.Conn, error) {
+func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
 		const format = "dial context: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	pConn, err := c.Connect(conn, "", address)
+	pConn, err := c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial context: %s proxy %s failed to connect %s"
@@ -165,7 +177,13 @@ func (c *Client) DialContext(ctx context.Context, _, address string) (net.Conn, 
 	return pConn, nil
 }
 
-func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn, error) {
+func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
 	if timeout < 1 {
 		timeout = options.DefaultDialTimeout
 	}
@@ -174,7 +192,7 @@ func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn
 		const format = "dial timeout: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	pConn, err := c.Connect(conn, "", address)
+	pConn, err := c.Connect(conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial timeout: %s proxy %s failed to connect %s"
@@ -184,7 +202,13 @@ func (c *Client) DialTimeout(_, address string, timeout time.Duration) (net.Conn
 	return pConn, nil
 }
 
-func (c *Client) Connect(conn net.Conn, _, address string) (net.Conn, error) {
+func (c *Client) Connect(conn net.Conn, network, address string) (net.Conn, error) {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
 	if c.https {
 		conn = tls.Client(conn, c.tlsConfig)
 	}

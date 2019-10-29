@@ -32,7 +32,7 @@ type Client struct {
 func NewClient(network, address string, opts *Options) (*Client, error) {
 	// check network
 	switch network {
-	case "", "tcp", "tcp4", "tcp6":
+	case "tcp", "tcp4", "tcp6":
 	default:
 		return nil, errors.Errorf("unsupport network: %s", network)
 	}
@@ -75,6 +75,12 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 }
 
 func (c *Client) Dial(network, address string) (net.Conn, error) {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
 		const format = "dial: failed to connect %s server %s"
@@ -91,6 +97,12 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 }
 
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
 		const format = "dial context: failed to connect %s server %s"
@@ -107,6 +119,12 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 }
 
 func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
 	if timeout < 1 {
 		timeout = options.DefaultDialTimeout
 	}
@@ -125,7 +143,13 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	return conn, nil
 }
 
-func (c *Client) Connect(conn net.Conn, _, address string) (net.Conn, error) {
+func (c *Client) Connect(conn net.Conn, network, address string) (net.Conn, error) {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, errors.Errorf("unsupport network: %s", network)
+	}
 	host, port, err := splitHostPort(address)
 	if err != nil {
 		return nil, err

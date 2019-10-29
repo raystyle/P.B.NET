@@ -119,3 +119,9 @@ func TestSocks4aUserID(t *testing.T) {
 	_, err = client.Dial("tcp", "github.com:443")
 	require.Error(t, err)
 }
+
+func TestSocks5ServerWithUnknownNetwork(t *testing.T) {
+	server, err := NewServer("test", logger.Test, nil)
+	require.NoError(t, err)
+	require.Error(t, server.ListenAndServe("foo", "localhost:0"))
+}

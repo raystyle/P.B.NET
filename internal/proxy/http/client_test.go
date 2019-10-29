@@ -43,6 +43,10 @@ func TestHTTPProxyClientWithoutPassword(t *testing.T) {
 }
 
 func TestHTTPProxyClientFailure(t *testing.T) {
+	// unknown network
+	_, err := NewClient("foo", "localhost:0", nil)
+	require.Error(t, err)
+
 	// connect unreachable proxy server
 	client, err := NewClient("tcp", "localhost:0", nil)
 	require.NoError(t, err)

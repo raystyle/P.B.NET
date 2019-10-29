@@ -51,6 +51,10 @@ func TestSocks4aClientWithoutUserID(t *testing.T) {
 }
 
 func TestSocks5ClientFailure(t *testing.T) {
+	// unknown network
+	_, err := NewClient("foo", "localhost:0", nil)
+	require.Error(t, err)
+
 	// connect unreachable proxy server
 	client, err := NewClient("tcp", "localhost:0", nil)
 	require.NoError(t, err)

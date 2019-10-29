@@ -116,6 +116,13 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 }
 
 func (s *Server) ListenAndServe(network, address string) error {
+	// check network
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return errors.Errorf("unsupport network: %s", network)
+	}
+	// listen
 	l, err := net.Listen(network, address)
 	if err != nil {
 		return err
