@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func testGenerateSocks5Server(t *testing.T) *Server {
@@ -39,7 +39,7 @@ func TestSocks5Server(t *testing.T) {
 	defer func() {
 		require.NoError(t, server.Close())
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server)
+		testsuite.IsDestroyed(t, server)
 	}()
 	t.Log("socks5 address:", server.Address())
 	t.Log("socks5 info:", server.Info())
@@ -78,7 +78,7 @@ func TestSocks4aServer(t *testing.T) {
 	defer func() {
 		require.NoError(t, server.Close())
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server)
+		testsuite.IsDestroyed(t, server)
 	}()
 	t.Log("socks4a address:", server.Address())
 	t.Log("socks4a info:", server.Info())
@@ -92,7 +92,7 @@ func TestSocks5Authenticate(t *testing.T) {
 	server := testGenerateSocks5Server(t)
 	defer func() {
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server)
+		testsuite.IsDestroyed(t, server)
 	}()
 	opt := Options{
 		Username: "admin",
@@ -108,7 +108,7 @@ func TestSocks4aUserID(t *testing.T) {
 	server := testGenerateSocks4aServer(t)
 	defer func() {
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server)
+		testsuite.IsDestroyed(t, server)
 	}()
 	opt := Options{
 		Socks4: true,

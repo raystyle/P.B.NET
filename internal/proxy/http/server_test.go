@@ -13,7 +13,7 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/options"
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func testGenerateHTTPServer(t *testing.T) *Server {
@@ -28,7 +28,7 @@ func testGenerateHTTPServer(t *testing.T) *Server {
 }
 
 func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
-	serverCfg, clientCfg := testutil.TLSConfigOptionPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 	opts := Options{
 		HTTPS:    true,
 		Username: "admin",
@@ -46,7 +46,7 @@ func TestHTTPProxyServer(t *testing.T) {
 	defer func() {
 		require.NoError(t, server.Close())
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server)
+		testsuite.IsDestroyed(t, server)
 	}()
 	t.Log("http proxy address:", server.Address())
 	t.Log("http proxy info:", server.Info())
@@ -82,7 +82,7 @@ func TestHTTPSProxyServer(t *testing.T) {
 	defer func() {
 		require.NoError(t, server.Close())
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server)
+		testsuite.IsDestroyed(t, server)
 	}()
 	t.Log("https proxy address:", server.Address())
 	t.Log("https proxy info:", server.Info())
@@ -125,7 +125,7 @@ func TestAuthenticate(t *testing.T) {
 	server := testGenerateHTTPServer(t)
 	defer func() {
 		require.NoError(t, server.Close())
-		testutil.IsDestroyed(t, server)
+		testsuite.IsDestroyed(t, server)
 	}()
 
 	hc := http.Client{}
@@ -160,7 +160,7 @@ func TestAuthenticate(t *testing.T) {
 	require.Error(t, err)
 	transport.CloseIdleConnections()
 	transport.Proxy = nil
-	testutil.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestHTTPServerWithUnknownNetwork(t *testing.T) {

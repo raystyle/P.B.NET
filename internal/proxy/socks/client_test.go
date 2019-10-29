@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestSocks5Client(t *testing.T) {
@@ -17,7 +17,7 @@ func TestSocks5Client(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, server, client)
+	testsuite.ProxyClient(t, server, client)
 }
 
 func TestSocks4aClient(t *testing.T) {
@@ -28,7 +28,7 @@ func TestSocks4aClient(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, server, client)
+	testsuite.ProxyClient(t, server, client)
 }
 
 func TestSocks5ClientWithoutPassword(t *testing.T) {
@@ -37,7 +37,7 @@ func TestSocks5ClientWithoutPassword(t *testing.T) {
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	client, err := NewClient("tcp", server.Address(), nil)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, server, client)
+	testsuite.ProxyClient(t, server, client)
 }
 
 func TestSocks4aClientWithoutUserID(t *testing.T) {
@@ -47,7 +47,7 @@ func TestSocks4aClientWithoutUserID(t *testing.T) {
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	client, err := NewClient("tcp", server.Address(), opts)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, server, client)
+	testsuite.ProxyClient(t, server, client)
 }
 
 func TestSocks5ClientFailure(t *testing.T) {
@@ -58,7 +58,7 @@ func TestSocks5ClientFailure(t *testing.T) {
 	// connect unreachable proxy server
 	client, err := NewClient("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableProxyServer(t, client)
+	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
 
 	// connect unreachable target
 	server := testGenerateSocks5Server(t)
@@ -68,7 +68,7 @@ func TestSocks5ClientFailure(t *testing.T) {
 	}
 	client, err = NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableTarget(t, server, client)
+	testsuite.ProxyClientWithUnreachableTarget(t, server, client)
 }
 
 func TestSocks4aClientFailure(t *testing.T) {
@@ -78,7 +78,7 @@ func TestSocks4aClientFailure(t *testing.T) {
 	}
 	client, err := NewClient("tcp", "localhost:0", &opts)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableProxyServer(t, client)
+	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
 
 	// connect unreachable target
 	server := testGenerateSocks4aServer(t)
@@ -88,5 +88,5 @@ func TestSocks4aClientFailure(t *testing.T) {
 	}
 	client, err = NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableTarget(t, server, client)
+	testsuite.ProxyClientWithUnreachableTarget(t, server, client)
 }

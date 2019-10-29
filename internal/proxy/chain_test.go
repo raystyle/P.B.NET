@@ -7,7 +7,7 @@ import (
 
 	"project/internal/proxy/socks"
 	"project/internal/random"
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestProxyChainSelect(t *testing.T) {
@@ -20,14 +20,14 @@ func TestProxyChainSelect(t *testing.T) {
 	clients[3] = groups["socks5"].client
 	chain, err := NewChain("chain-select", clients...)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, &groups, chain)
+	testsuite.ProxyClient(t, &groups, chain)
 }
 
 func TestProxyChainRandom(t *testing.T) {
 	groups := testGenerateProxyGroup(t)
 	chain, err := NewChain("chain-random", groups.Clients()...)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, &groups, chain)
+	testsuite.ProxyClient(t, &groups, chain)
 }
 
 func TestProxyChainWithSingleClient(t *testing.T) {
@@ -40,7 +40,7 @@ func TestProxyChainWithSingleClient(t *testing.T) {
 	}
 	chain, err := NewChain("chain-random-single", client)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, &groups, chain)
+	testsuite.ProxyClient(t, &groups, chain)
 }
 
 func TestProxyChainFailure(t *testing.T) {
@@ -56,12 +56,12 @@ func TestProxyChainFailure(t *testing.T) {
 	require.NoError(t, err)
 	invalidClient := &Client{Mode: ModeSocks, client: socks5Client}
 	chain, err := NewChain("chain-can't connect", invalidClient)
-	testutil.ProxyClientWithUnreachableProxyServer(t, chain)
+	testsuite.ProxyClientWithUnreachableProxyServer(t, chain)
 
 	// the first connect successfully but second failed
 	groups := testGenerateProxyGroup(t)
 	firstClient := groups["https"].client
 	chain, err = NewChain("chain-unreachable target", firstClient, invalidClient)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableTarget(t, &groups, chain)
+	testsuite.ProxyClientWithUnreachableTarget(t, &groups, chain)
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 // example: a b c d
@@ -58,7 +58,7 @@ func TestBalance(t *testing.T) {
 	require.NoError(t, err)
 	_ = pConn.Close()
 
-	testutil.ProxyClient(t, &groups, balance)
+	testsuite.ProxyClient(t, &groups, balance)
 }
 
 func TestBalanceFailure(t *testing.T) {
@@ -72,7 +72,7 @@ func TestBalanceFailure(t *testing.T) {
 	groups := testGenerateProxyGroup(t)
 	balance, err := NewBalance("balance-unreachable target", groups.Clients()...)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableTarget(t, &groups, balance)
+	testsuite.ProxyClientWithUnreachableTarget(t, &groups, balance)
 
 	// connect unreachable target
 	groupsC := testGenerateProxyGroup(t)
@@ -85,5 +85,5 @@ func TestBalanceFailure(t *testing.T) {
 	require.NoError(t, err)
 	_, err = balance.Connect(conn, "tcp", "0.0.0.0:1")
 	require.Error(t, err)
-	testutil.IsDestroyed(t, balance)
+	testsuite.IsDestroyed(t, balance)
 }

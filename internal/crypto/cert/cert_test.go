@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestGenerateCA(t *testing.T) {
@@ -61,7 +61,7 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		Handler:   serveMux,
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 	}
-	port1 := testutil.RunHTTPServer(t, "tcp", &server1)
+	port1 := testsuite.RunHTTPServer(t, "tcp", &server1)
 	defer func() { _ = server1.Close() }()
 
 	server2 := http.Server{
@@ -69,20 +69,20 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		Handler:   serveMux,
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 	}
-	port2 := testutil.RunHTTPServer(t, "tcp", &server2)
+	port2 := testsuite.RunHTTPServer(t, "tcp", &server2)
 	defer func() { _ = server2.Close() }()
 
 	var (
 		server3 http.Server
 		port3   string
 	)
-	if testutil.IPv6() {
+	if testsuite.IPv6() {
 		server3 = http.Server{
 			Addr:      "[::1]:0",
 			Handler:   serveMux,
 			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 		}
-		port3 = testutil.RunHTTPServer(t, "tcp", &server3)
+		port3 = testsuite.RunHTTPServer(t, "tcp", &server3)
 		defer func() { _ = server3.Close() }()
 	}
 
@@ -104,7 +104,7 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	}
 	get("localhost", port1)
 	get("127.0.0.1", port2)
-	if testutil.IPv6() {
+	if testsuite.IPv6() {
 		get("[::1]", port3)
 	}
 }

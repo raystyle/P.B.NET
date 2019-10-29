@@ -1,4 +1,4 @@
-package testutil
+package testsuite
 
 import (
 	"context"
@@ -82,7 +82,7 @@ func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte
 		NotBefore:    time.Now().AddDate(0, 0, -1),
 		NotAfter:     time.Now().AddDate(0, 0, 1),
 	}
-	caCert.Subject.CommonName = "testutil CA"
+	caCert.Subject.CommonName = "testsuite CA"
 	caCert.KeyUsage = x509.KeyUsageCertSign
 	caCert.BasicConstraintsValid = true
 	caCert.IsCA = true
@@ -100,7 +100,7 @@ func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte
 		NotBefore:    time.Now().AddDate(0, 0, -1),
 		NotAfter:     time.Now().AddDate(0, 0, 1),
 	}
-	cert.Subject.CommonName = "testutil certificate"
+	cert.Subject.CommonName = "testsuite certificate"
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 	cert.DNSNames = []string{"localhost"}
 	cert.IPAddresses = []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}

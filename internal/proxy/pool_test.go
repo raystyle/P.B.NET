@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestPool(t *testing.T) {
@@ -97,5 +97,5 @@ func TestPool(t *testing.T) {
 	// delete direct
 	err = pool.Delete("direct")
 	require.Errorf(t, err, "direct is the reserve proxy client")
-	testutil.IsDestroyed(t, pool)
+	testsuite.IsDestroyed(t, pool)
 }

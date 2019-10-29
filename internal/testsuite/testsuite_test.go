@@ -1,4 +1,4 @@
-package testutil
+package testsuite
 
 import (
 	"crypto/tls"

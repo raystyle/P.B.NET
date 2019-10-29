@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestGUID(t *testing.T) {
@@ -13,14 +13,14 @@ func TestGUID(t *testing.T) {
 		t.Log(g.Get())
 	}
 	g.Close()
-	testutil.IsDestroyed(t, g)
+	testsuite.IsDestroyed(t, g)
 	// with now
 	g = New(16, time.Now)
 	for i := 0; i < 4; i++ {
 		t.Log(g.Get())
 	}
 	g.Close()
-	testutil.IsDestroyed(t, g)
+	testsuite.IsDestroyed(t, g)
 	// 0 size
 	g = New(0, time.Now)
 	for i := 0; i < 4; i++ {
@@ -29,7 +29,7 @@ func TestGUID(t *testing.T) {
 	g.Close()
 	// twice
 	g.Close()
-	testutil.IsDestroyed(t, g)
+	testsuite.IsDestroyed(t, g)
 }
 
 func BenchmarkGenerator_Get(b *testing.B) {
@@ -41,5 +41,5 @@ func BenchmarkGenerator_Get(b *testing.B) {
 	}
 	b.StopTimer()
 	g.Close()
-	testutil.IsDestroyed(b, g)
+	testsuite.IsDestroyed(b, g)
 }

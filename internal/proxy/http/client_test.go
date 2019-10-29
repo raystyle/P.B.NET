@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestHTTPProxyClient(t *testing.T) {
@@ -17,7 +17,7 @@ func TestHTTPProxyClient(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, server, client)
+	testsuite.ProxyClient(t, server, client)
 }
 
 func TestHTTPSProxyClient(t *testing.T) {
@@ -30,7 +30,7 @@ func TestHTTPSProxyClient(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, server, client)
+	testsuite.ProxyClient(t, server, client)
 }
 
 func TestHTTPProxyClientWithoutPassword(t *testing.T) {
@@ -39,7 +39,7 @@ func TestHTTPProxyClientWithoutPassword(t *testing.T) {
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
 	client, err := NewClient("tcp", server.Address(), nil)
 	require.NoError(t, err)
-	testutil.ProxyClient(t, server, client)
+	testsuite.ProxyClient(t, server, client)
 }
 
 func TestHTTPProxyClientFailure(t *testing.T) {
@@ -50,7 +50,7 @@ func TestHTTPProxyClientFailure(t *testing.T) {
 	// connect unreachable proxy server
 	client, err := NewClient("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableProxyServer(t, client)
+	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
 
 	// connect unreachable target
 	server := testGenerateHTTPServer(t)
@@ -60,7 +60,7 @@ func TestHTTPProxyClientFailure(t *testing.T) {
 	}
 	client, err = NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableTarget(t, server, client)
+	testsuite.ProxyClientWithUnreachableTarget(t, server, client)
 }
 
 func TestHTTPSProxyClientFailure(t *testing.T) {
@@ -70,7 +70,7 @@ func TestHTTPSProxyClientFailure(t *testing.T) {
 	}
 	client, err := NewClient("tcp", "localhost:0", &opts)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableProxyServer(t, client)
+	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
 
 	// connect unreachable target
 	server, tlsConfig := testGenerateHTTPSServer(t)
@@ -82,5 +82,5 @@ func TestHTTPSProxyClientFailure(t *testing.T) {
 	}
 	client, err = NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	testutil.ProxyClientWithUnreachableTarget(t, server, client)
+	testsuite.ProxyClientWithUnreachableTarget(t, server, client)
 }

@@ -9,7 +9,7 @@ import (
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
 	"project/internal/random"
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 type groups map[string]*group
@@ -119,7 +119,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	}
 
 	// add https
-	serverCfg, clientCfg := testutil.TLSConfigOptionPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 	httpOpts = &http.Options{
 		HTTPS:    true,
 		Username: "admin",

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestManager(t *testing.T) {
@@ -82,5 +82,5 @@ func TestManager(t *testing.T) {
 
 	// check object
 	require.NoError(t, manager.Close())
-	testutil.IsDestroyed(t, manager)
+	testsuite.IsDestroyed(t, manager)
 }
