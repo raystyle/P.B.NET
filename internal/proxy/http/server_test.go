@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -43,11 +44,6 @@ func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
 
 func TestHTTPProxyServer(t *testing.T) {
 	server := testGenerateHTTPServer(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	t.Log("http proxy address:", server.Address())
 	t.Log("http proxy info:", server.Info())
 
@@ -55,35 +51,17 @@ func TestHTTPProxyServer(t *testing.T) {
 	u, err := url.Parse("http://admin:123456@" + server.Address())
 	require.NoError(t, err)
 	transport := &http.Transport{Proxy: http.ProxyURL(u)}
-	client := http.Client{Transport: transport}
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   time.Minute,
+	}
 	defer client.CloseIdleConnections()
 
-	// get https
-	resp, err := client.Get("https://github.com/robots.txt")
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "# If you w", string(b)[:10])
-
-	// get http
-	resp, err = client.Get("http://www.msftconnecttest.com/connecttest.txt")
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	b, err = ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "Microsoft Connect Test", string(b))
+	testsuite.ProxyServer(t, server, client)
 }
 
 func TestHTTPSProxyServer(t *testing.T) {
 	server, tlsConfig := testGenerateHTTPSServer(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	t.Log("https proxy address:", server.Address())
 	t.Log("https proxy info:", server.Info())
 
@@ -99,26 +77,13 @@ func TestHTTPSProxyServer(t *testing.T) {
 	rootCAs, err := tlsConfig.RootCA()
 	require.NoError(t, err)
 	transport.TLSClientConfig.RootCAs.AddCert(rootCAs[0])
-	client := http.Client{Transport: transport}
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   time.Minute,
+	}
 	defer client.CloseIdleConnections()
 
-	// get https
-	resp, err := client.Get("https://github.com/robots.txt")
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "# If you w", string(b)[:10])
-
-	// get http
-	resp, err = client.Get("http://www.msftconnecttest.com/connecttest.txt")
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	b, err = ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "Microsoft Connect Test", string(b))
+	testsuite.ProxyServer(t, server, client)
 }
 
 func TestAuthenticate(t *testing.T) {
@@ -154,13 +119,8 @@ func TestAuthenticate(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
 	require.NoError(t, err)
-	transport := &http.Transport{}
-	client.HTTP(transport)
-	_, err = (&http.Client{Transport: transport}).Get("https://github.com/")
+	_, err = client.Dial("tcp", "localhost:0")
 	require.Error(t, err)
-	transport.CloseIdleConnections()
-	transport.Proxy = nil
-	testsuite.IsDestroyed(t, client)
 }
 
 func TestHTTPServerWithUnknownNetwork(t *testing.T) {

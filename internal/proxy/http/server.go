@@ -160,6 +160,7 @@ func (s *Server) Serve(l net.Listener) {
 			close(s.stopSignal)
 			s.transport.CloseIdleConnections()
 			s.rwm.Lock()
+			s.transport = nil
 			s.server = nil
 			s.rwm.Unlock()
 			s.execOnce.Do(func() {
@@ -337,18 +338,23 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else { // handle http
 		// remove Proxy-Authorization
 		r.Header.Del("Proxy-Authorization")
-		resp, err := s.transport.RoundTrip(r)
-		if err != nil {
-			s.log(logger.Error, err, "\n", r)
-			return
+		s.rwm.RLock()
+		tr := s.transport
+		s.rwm.RUnlock()
+		if tr != nil {
+			resp, err := tr.RoundTrip(r)
+			if err != nil {
+				s.log(logger.Error, err, "\n", r)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+			// header
+			for k, v := range resp.Header {
+				w.Header().Set(k, v[0])
+			}
+			// write status and body
+			w.WriteHeader(resp.StatusCode)
+			_, _ = io.Copy(w, resp.Body)
 		}
-		defer func() { _ = resp.Body.Close() }()
-		// header
-		for k, v := range resp.Header {
-			w.Header().Set(k, v[0])
-		}
-		// write status and body
-		w.WriteHeader(resp.StatusCode)
-		_, _ = io.Copy(w, resp.Body)
 	}
 }
