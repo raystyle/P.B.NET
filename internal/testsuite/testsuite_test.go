@@ -1,20 +1,21 @@
 package testsuite
 
 import (
-	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestIPv6(t *testing.T) {
-	IPv6()
+func TestEnableIPv4(t *testing.T) {
+	EnableIPv4()
+}
+
+func TestEnableIPv6(t *testing.T) {
+	EnableIPv6()
 }
 
 func TestIsDestroyed(t *testing.T) {
@@ -39,73 +40,6 @@ func TestIsDestroyed(t *testing.T) {
 	require.Equal(t, n, 2)
 	require.NoError(t, err)
 	IsDestroyed(t, &c)
-}
-
-func TestTLSConfigPair(t *testing.T) {
-	serverCfg, clientCfg := TLSConfigPair(t)
-	listener, err := tls.Listen("tcp", "localhost:0", serverCfg)
-	require.NoError(t, err)
-	var server net.Conn
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		server, err = listener.Accept()
-		require.NoError(t, err)
-		// must Handshake
-		require.NoError(t, server.(*tls.Conn).Handshake())
-	}()
-	client, err := tls.Dial("tcp", listener.Addr().String(), clientCfg)
-	require.NoError(t, err)
-	wg.Wait()
-	Conn(t, server, client, true)
-}
-
-func TestTLSConfigOptionPair(t *testing.T) {
-	serverCfg, clientCfg := TLSConfigOptionPair(t)
-	sc, err := serverCfg.Apply()
-	require.NoError(t, err)
-	cc, err := clientCfg.Apply()
-	require.NoError(t, err)
-	listener, err := tls.Listen("tcp", "localhost:0", sc)
-	require.NoError(t, err)
-	var server net.Conn
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		server, err = listener.Accept()
-		require.NoError(t, err)
-		// must Handshake
-		require.NoError(t, server.(*tls.Conn).Handshake())
-	}()
-	client, err := tls.Dial("tcp", listener.Addr().String(), cc)
-	require.NoError(t, err)
-	wg.Wait()
-	Conn(t, server, client, true)
-}
-
-func TestListenerAndDial(t *testing.T) {
-	l, err := net.Listen("tcp4", "localhost:0")
-	require.NoError(t, err)
-	addr := l.Addr().String()
-	ListenerAndDial(t, l, func() (net.Conn, error) {
-		return net.Dial("tcp4", addr)
-	}, true)
-
-	if IPv6() {
-		l, err = net.Listen("tcp6", "localhost:0")
-		require.NoError(t, err)
-		addr = l.Addr().String()
-		ListenerAndDial(t, l, func() (net.Conn, error) {
-			return net.Dial("tcp6", addr)
-		}, true)
-	}
-}
-
-func TestConn(t *testing.T) {
-	server, client := net.Pipe()
-	Conn(t, server, client, true)
 }
 
 func TestHTTPServer(t *testing.T) {
