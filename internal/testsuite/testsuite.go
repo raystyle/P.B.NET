@@ -306,7 +306,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	go func() {
 		defer wg.Done()
 		var targets = []string{"180.101.49.12:80", "www.baidu.com:443"}
-		if IPv6() {
+		if IPv6() && !strings.Contains(client.Info(), "socks4") {
 			targets = append(targets, "[2606:4700::6810:f9f9]:443")
 		}
 		for _, target := range targets {
