@@ -19,8 +19,6 @@ var (
 )
 
 func init() {
-	deployPPROF()
-
 	initGetIPv4Address()
 	initGetIPv6Address()
 	initGetHTTP()
@@ -28,21 +26,27 @@ func init() {
 
 	// check IPv4
 	if os.Getenv("skip_ipv4") != "1" {
-		// check IPv4
-		conn, err := net.Dial("tcp4", GetIPv4Address())
-		if err == nil {
-			_ = conn.Close()
-			enableIPv4 = true
+		for i := 0; i < 5; i++ {
+			addr := GetIPv4Address()
+			conn, err := net.DialTimeout("tcp4", addr, 15*time.Second)
+			if err == nil {
+				_ = conn.Close()
+				enableIPv4 = true
+				break
+			}
 		}
 	}
 
 	// check IPv6
 	if os.Getenv("skip_ipv6") != "1" {
-		// check IPv6
-		conn, err := net.Dial("tcp6", GetIPv6Address())
-		if err == nil {
-			_ = conn.Close()
-			enableIPv6 = true
+		for i := 0; i < 5; i++ {
+			addr := GetIPv6Address()
+			conn, err := net.DialTimeout("tcp6", addr, 15*time.Second)
+			if err == nil {
+				_ = conn.Close()
+				enableIPv6 = true
+				break
+			}
 		}
 	}
 
@@ -51,9 +55,8 @@ func init() {
 		fmt.Print("network unavailable")
 		os.Exit(0)
 	}
-}
 
-func deployPPROF() {
+	// deploy pprof
 	serverMux := http.NewServeMux()
 	serverMux.HandleFunc("/debug/pprof/", pprof.Index)
 	serverMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
