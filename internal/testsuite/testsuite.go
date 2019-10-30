@@ -21,8 +21,6 @@ var (
 func init() {
 	initGetIPv4Address()
 	initGetIPv6Address()
-	initGetHTTP()
-	initGetHTTPS()
 
 	// check IPv4
 	if os.Getenv("skip_ipv4") != "1" {
@@ -55,6 +53,9 @@ func init() {
 		fmt.Print("network unavailable")
 		os.Exit(0)
 	}
+
+	initGetHTTP()
+	initGetHTTPS()
 
 	// deploy pprof
 	serverMux := http.NewServeMux()
@@ -100,7 +101,7 @@ func isDestroyed(object interface{}) bool {
 		select {
 		case <-destroyed:
 			return true
-		case <-time.After(25 * time.Millisecond):
+		case <-time.After(250 * time.Millisecond):
 		}
 	}
 	return false

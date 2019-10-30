@@ -107,6 +107,28 @@ func initGetHTTP() {
 	} {
 		testHTTP[address] = false
 	}
+
+	if EnableIPv4() {
+		for _, address := range []string{
+			"ipv4.vm0.test-ipv6.com",
+			"ipv4.vm1.test-ipv6.com",
+			"ipv4.vm2.test-ipv6.com",
+			"ipv4.test-ipv6.hkg.vr.org",
+		} {
+			testHTTP[address] = false
+		}
+	}
+
+	if EnableIPv6() {
+		for _, address := range []string{
+			"ipv6.vm0.test-ipv6.com",
+			"ipv6.vm1.test-ipv6.com",
+			"ipv6.vm2.test-ipv6.com",
+			"ipv6.test-ipv6.hkg.vr.org",
+		} {
+			testHTTP[address] = false
+		}
+	}
 }
 
 // GetHTTP is used to return a url for test http client
@@ -142,6 +164,28 @@ func initGetHTTPS() {
 		"ds.test-ipv6.hkg.vr.org",
 	} {
 		testHTTPS[address] = false
+	}
+
+	if EnableIPv4() {
+		for _, address := range []string{
+			"ipv4.vm0.test-ipv6.com",
+			"ipv4.vm1.test-ipv6.com",
+			"ipv4.vm2.test-ipv6.com",
+			"ipv4.test-ipv6.hkg.vr.org",
+		} {
+			testHTTPS[address] = false
+		}
+	}
+
+	if EnableIPv6() {
+		for _, address := range []string{
+			"ipv6.vm0.test-ipv6.com",
+			"ipv6.vm1.test-ipv6.com",
+			"ipv6.vm2.test-ipv6.com",
+			"ipv6.test-ipv6.hkg.vr.org",
+		} {
+			testHTTPS[address] = false
+		}
 	}
 }
 
