@@ -111,15 +111,17 @@ type program struct {
 }
 
 func (p *program) Start(s service.Service) error {
+	const tag = "server"
 	p.manager = proxy.NewManager(logger.Test)
-	err := p.manager.Add("proxy", &proxy.Server{
+	err := p.manager.Add(&proxy.Server{
+		Tag:     tag,
 		Mode:    p.configs.Proxy.Mode,
 		Options: p.configs.Proxy.Options,
 	})
 	if err != nil {
 		return err
 	}
-	ps, _ := p.manager.Get("proxy")
+	ps, _ := p.manager.Get(tag)
 	network := p.configs.Proxy.Network
 	address := p.configs.Proxy.Address
 	return ps.ListenAndServe(network, address)
