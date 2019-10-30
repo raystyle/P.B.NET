@@ -28,7 +28,7 @@ func TestPool(t *testing.T) {
 	options, err = ioutil.ReadFile("testdata/http_opts.toml")
 	require.NoError(t, err)
 	httpClient := &Client{
-		Tag:     tagSocks,
+		Tag:     tagHTTP,
 		Mode:    ModeHTTP,
 		Network: "tcp",
 		Address: "localhost:1080",

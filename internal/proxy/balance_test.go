@@ -50,13 +50,27 @@ func TestBalance(t *testing.T) {
 	}
 
 	// test Connect
-	timeout := balance.Timeout()
-	network, address := balance.Server()
-	conn, err := net.DialTimeout(network, address, timeout)
-	require.NoError(t, err)
-	pConn, err := balance.Connect(conn, "tcp", "8.8.8.8:53")
-	require.NoError(t, err)
-	_ = pConn.Close()
+	if testsuite.EnableIPv4() {
+		timeout := balance.Timeout()
+		network, address := balance.Server()
+		conn, err := net.DialTimeout(network, address, timeout)
+		require.NoError(t, err)
+		addr := testsuite.GetIPv4Address()
+		pConn, err := balance.Connect(conn, "tcp4", addr)
+		require.NoError(t, err)
+		_ = pConn.Close()
+	}
+
+	if testsuite.EnableIPv6() {
+		timeout := balance.Timeout()
+		network, address := balance.Server()
+		conn, err := net.DialTimeout(network, address, timeout)
+		require.NoError(t, err)
+		addr := testsuite.GetIPv6Address()
+		pConn, err := balance.Connect(conn, "tcp6", addr)
+		require.NoError(t, err)
+		_ = pConn.Close()
+	}
 
 	testsuite.ProxyClient(t, &groups, balance)
 }
