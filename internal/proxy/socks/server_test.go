@@ -1,7 +1,6 @@
 package socks
 
 import (
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"testing"
@@ -36,11 +35,6 @@ func testGenerateSocks4aServer(t *testing.T) *Server {
 
 func TestSocks5Server(t *testing.T) {
 	server := testGenerateSocks5Server(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	t.Log("socks5 address:", server.Address())
 	t.Log("socks5 info:", server.Info())
 
@@ -51,23 +45,7 @@ func TestSocks5Server(t *testing.T) {
 	client := http.Client{Transport: transport}
 	defer client.CloseIdleConnections()
 
-	// get https
-	resp, err := client.Get("https://github.com/robots.txt")
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "# If you w", string(b)[:10])
-
-	// get http
-	resp, err = client.Get("http://www.msftconnecttest.com/connecttest.txt")
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	b, err = ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "Microsoft Connect Test", string(b))
+	testsuite.ProxyServer(t, server, &client)
 }
 
 func TestSocks4aServer(t *testing.T) {
@@ -82,8 +60,8 @@ func TestSocks4aServer(t *testing.T) {
 	}()
 	t.Log("socks4a address:", server.Address())
 	t.Log("socks4a info:", server.Info())
-	// use firefox to test it, because http.Client
-	// only support socks5, http, https
+	// use firefox to test it, because the http.Client
+	// only support socks5, http and https
 
 	// select {}
 }
@@ -100,7 +78,7 @@ func TestSocks5Authenticate(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opt)
 	require.NoError(t, err)
-	_, err = client.Dial("tcp", "github.com:443")
+	_, err = client.Dial("tcp", "localhost:0")
 	require.Error(t, err)
 }
 
@@ -116,7 +94,7 @@ func TestSocks4aUserID(t *testing.T) {
 	}
 	client, err := NewClient("tcp", server.Address(), &opt)
 	require.NoError(t, err)
-	_, err = client.Dial("tcp", "github.com:443")
+	_, err = client.Dial("tcp", "localhost:0")
 	require.Error(t, err)
 }
 
