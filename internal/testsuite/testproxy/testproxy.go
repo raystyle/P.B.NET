@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	tagSocks5  = "test proxy 1"
-	tagHTTP    = "test proxy 2"
+	tagSocks5 = "test proxy 1"
+	tagHTTP   = "test proxy 2"
+
 	TagBalance = "balance"
 )
 
@@ -21,10 +22,16 @@ func ProxyPoolAndManager(t *testing.T) (*proxy.Manager, *proxy.Pool) {
 	// create proxy server manager
 	manager := proxy.NewManager(logger.Test)
 	// add socks5 server
-	err := manager.Add(tagSocks5, &proxy.Server{Mode: proxy.ModeSocks})
+	err := manager.Add(&proxy.Server{
+		Tag:  tagSocks5,
+		Mode: proxy.ModeSocks,
+	})
 	require.NoError(t, err)
 	// add http proxy server
-	err = manager.Add(tagHTTP, &proxy.Server{Mode: proxy.ModeHTTP})
+	err = manager.Add(&proxy.Server{
+		Tag:  tagHTTP,
+		Mode: proxy.ModeHTTP,
+	})
 	require.NoError(t, err)
 	// start all proxy servers
 	for _, server := range manager.Servers() {
@@ -32,12 +39,12 @@ func ProxyPoolAndManager(t *testing.T) (*proxy.Manager, *proxy.Pool) {
 	}
 
 	// create proxy client pool
-	pool, err := proxy.NewPool(nil)
-	require.NoError(t, err)
+	pool := proxy.NewPool()
 	// add socks5 client
 	server, err := manager.Get(tagSocks5)
 	require.NoError(t, err)
-	err = pool.Add(tagSocks5, &proxy.Client{
+	err = pool.Add(&proxy.Client{
+		Tag:     tagSocks5,
 		Mode:    proxy.ModeSocks,
 		Network: "tcp",
 		Address: server.Address(),
@@ -46,14 +53,17 @@ func ProxyPoolAndManager(t *testing.T) (*proxy.Manager, *proxy.Pool) {
 	// add http proxy client
 	server, err = manager.Get(tagHTTP)
 	require.NoError(t, err)
-	err = pool.Add(tagHTTP, &proxy.Client{
+	err = pool.Add(&proxy.Client{
+		Tag:     tagHTTP,
 		Mode:    proxy.ModeHTTP,
 		Network: "tcp",
 		Address: server.Address(),
 	})
 	require.NoError(t, err)
+
 	// add balance
-	err = pool.Add(TagBalance, &proxy.Client{
+	err = pool.Add(&proxy.Client{
+		Tag:     TagBalance,
 		Mode:    proxy.ModeBalance,
 		Options: `tags = ["test proxy 1","test proxy 2"]`,
 	})

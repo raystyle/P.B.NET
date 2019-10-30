@@ -1,7 +1,6 @@
 package testproxy
 
 import (
-	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
@@ -29,13 +28,9 @@ func TestProxyPoolAndManager(t *testing.T) {
 		Timeout:   time.Minute,
 	}
 	defer client.CloseIdleConnections()
-	resp, err := client.Get("http://www.msftconnecttest.com/connecttest.txt")
+	resp, err := client.Get(testsuite.GetHTTPS())
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	defer func() { _ = resp.Body.Close() }()
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "Microsoft Connect Test", string(b))
+	testsuite.HTTPResponse(t, resp)
 
 	testsuite.IsDestroyed(t, pool)
 }
