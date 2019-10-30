@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
@@ -35,17 +36,22 @@ type Options struct {
 	MaxConns  int                   `toml:"max_conns"`
 	Server    options.HTTPServer    `toml:"server"`
 	Transport options.HTTPTransport `toml:"transport"`
-	ExitFunc  func()                `toml:"-"`
+
+	DialTimeout func(network, address string, timeout time.Duration) (net.Conn, error) `toml:"-"`
+	DialContext func(ctx context.Context, network, address string) (net.Conn, error)   `toml:"-"`
+	ExitFunc    func()                                                                 `toml:"-"`
 }
 
 // Server implement internal/proxy.server
 type Server struct {
-	tag      string
-	logger   logger.Logger
-	https    bool
-	maxConns int
-	exitFunc func()
-	execOnce sync.Once
+	tag         string
+	logger      logger.Logger
+	https       bool
+	maxConns    int
+	timeout     time.Duration
+	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
+	exitFunc    func()
+	execOnce    sync.Once
 
 	server    *http.Server
 	transport *http.Transport
@@ -65,13 +71,13 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		opts = new(Options)
 	}
 	s := Server{
-		logger:   lg,
-		https:    opts.HTTPS,
-		maxConns: opts.MaxConns,
-		exitFunc: opts.ExitFunc,
+		logger:      lg,
+		https:       opts.HTTPS,
+		maxConns:    opts.MaxConns,
+		dialTimeout: opts.DialTimeout,
+		exitFunc:    opts.ExitFunc,
 	}
 	var err error
-
 	s.server, err = opts.Server.Apply()
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -82,6 +88,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	}
 	s.server.ReadTimeout = timeout
 	s.server.WriteTimeout = timeout
+	s.timeout = timeout
 
 	s.transport, err = opts.Transport.Apply()
 	if err != nil {
@@ -96,6 +103,14 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 
 	if s.maxConns < 1 {
 		s.maxConns = options.DefaultMaxConns
+	}
+
+	if s.dialTimeout == nil {
+		s.dialTimeout = net.DialTimeout
+	}
+
+	if opts.DialContext != nil {
+		s.transport.DialContext = opts.DialContext
 	}
 
 	// basic authentication
@@ -280,7 +295,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		defer func() { _ = wc.Close() }()
 		// dial target
-		conn, err := net.Dial("tcp", r.URL.Host)
+		conn, err := s.dialTimeout("tcp", r.URL.Host, s.timeout)
 		if err != nil {
 			return
 		}
