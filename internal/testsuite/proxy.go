@@ -13,6 +13,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// http header User-Agent
+	ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0"
+	// http header Accept
+	accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+	// http header Accept-Language
+	acceptLanguage = "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2"
+)
+
+var header = make(http.Header)
+
+func init() {
+	header.Set("User-Agent", ua)
+	header.Set("Accept", accept)
+	header.Set("Accept-Language", acceptLanguage)
+	header.Set("Connection", "keep-alive")
+}
+
 func ProxyServer(t testing.TB, server io.Closer, client *http.Client) {
 	defer func() {
 		require.NoError(t, server.Close())
@@ -20,13 +38,19 @@ func ProxyServer(t testing.TB, server io.Closer, client *http.Client) {
 		IsDestroyed(t, server)
 	}()
 
-	// get https
-	resp, err := client.Get(GetHTTPS())
+	// get http
+	req, err := http.NewRequest(http.MethodGet, GetHTTP(), nil)
+	require.NoError(t, err)
+	req.Header = header.Clone()
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	HTTPResponse(t, resp)
 
-	// get http
-	resp, err = client.Get(GetHTTP())
+	// get https
+	req, err = http.NewRequest(http.MethodGet, GetHTTPS(), nil)
+	require.NoError(t, err)
+	req.Header = header.Clone()
+	resp, err = client.Do(req)
 	require.NoError(t, err)
 	HTTPResponse(t, resp)
 }
@@ -49,61 +73,49 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 		require.NoError(t, server.Close())
 		IsDestroyed(t, server)
 	}()
-	wg := sync.WaitGroup{}
 
+	wg := sync.WaitGroup{}
 	// test Dial and DialTimeout
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		var targets []string
 		if EnableIPv4() {
-			targets = append(targets, GetIPv4Address())
+			const network = "tcp4"
+
+			addr := GetIPv4Address()
+			conn, err := client.Dial(network, addr)
+			require.NoError(t, err)
+			_ = conn.Close()
+
+			addr = GetIPv4Address()
+			conn, err = client.DialContext(context.Background(), network, addr)
+			require.NoError(t, err)
+			_ = conn.Close()
+
+			addr = GetIPv4Address()
+			conn, err = client.DialTimeout(network, addr, 0)
+			require.NoError(t, err)
+			_ = conn.Close()
 		}
+
 		if EnableIPv6() && !strings.Contains(client.Info(), "socks4") {
-			targets = append(targets, GetIPv6Address())
-		}
-		for _, target := range targets {
-			wg.Add(1)
-			go func(target string) {
-				defer wg.Done()
-				conn, err := client.Dial("tcp", target)
-				require.NoError(t, err)
-				_ = conn.Close()
-				conn, err = client.DialTimeout("tcp", target, 0)
-				require.NoError(t, err)
-				_ = conn.Close()
-			}(target)
-		}
-	}()
+			const network = "tcp6"
 
-	// test DialContext (http)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		transport := http.Transport{DialContext: client.DialContext}
-		client := http.Client{
-			Transport: &transport,
-			Timeout:   time.Minute,
-		}
-		defer client.CloseIdleConnections()
-		resp, err := client.Get(GetHTTP())
-		require.NoError(t, err)
-		HTTPResponse(t, resp)
-	}()
+			addr := GetIPv6Address()
+			conn, err := client.Dial(network, addr)
+			require.NoError(t, err)
+			_ = conn.Close()
 
-	// test DialContext (https)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		transport := http.Transport{DialContext: client.DialContext}
-		client := http.Client{
-			Transport: &transport,
-			Timeout:   time.Minute,
+			addr = GetIPv6Address()
+			conn, err = client.DialContext(context.Background(), network, addr)
+			require.NoError(t, err)
+			_ = conn.Close()
+
+			addr = GetIPv6Address()
+			conn, err = client.DialTimeout(network, addr, 0)
+			require.NoError(t, err)
+			_ = conn.Close()
 		}
-		defer client.CloseIdleConnections()
-		resp, err := client.Get(GetHTTPS())
-		require.NoError(t, err)
-		HTTPResponse(t, resp)
 	}()
 
 	// test HTTP with http target
@@ -117,7 +129,10 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 			Timeout:   time.Minute,
 		}
 		defer client.CloseIdleConnections()
-		resp, err := client.Get(GetHTTP())
+		req, err := http.NewRequest(http.MethodGet, GetHTTP(), nil)
+		require.NoError(t, err)
+		req.Header = header.Clone()
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		HTTPResponse(t, resp)
 	}()
@@ -133,11 +148,13 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 			Timeout:   time.Minute,
 		}
 		defer client.CloseIdleConnections()
-		resp, err := client.Get(GetHTTPS())
+		req, err := http.NewRequest(http.MethodGet, GetHTTPS(), nil)
+		require.NoError(t, err)
+		req.Header = header.Clone()
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		HTTPResponse(t, resp)
 	}()
-
 	wg.Wait()
 
 	t.Log("timeout:", client.Timeout())
