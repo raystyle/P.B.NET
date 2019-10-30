@@ -112,7 +112,7 @@ func TestSocks4aUserID(t *testing.T) {
 	}()
 	opt := Options{
 		Socks4: true,
-		UserID: "invalid user id",
+		UserID: "foo-user-id",
 	}
 	client, err := NewClient("tcp", server.Address(), &opt)
 	require.NoError(t, err)

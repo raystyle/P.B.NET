@@ -7,13 +7,11 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/logger"
-	"project/internal/xpanic"
 )
 
 const (
@@ -376,31 +374,17 @@ func (c *conn) serveSocks5() {
 	port := convert.BytesToUint16(buffer[:2])
 	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
 	c.log(logger.Debug, "connect: "+address)
-	var remoteConn net.Conn
-	remoteConn, err = net.Dial("tcp", address)
+	remote, err := c.server.dialTimeout("tcp", address, c.server.timeout)
 	if err != nil {
 		_, _ = c.conn.Write(v5ReplyConnectRefused)
 		return
 	}
-	defer func() { _ = remoteConn.Close() }()
 	// write reply
 	// ipv4 + 0.0.0.0 + 0(port)
 	_, err = c.conn.Write(v5ReplySucceeded)
 	if err != nil {
+		_ = remote.Close()
 		return
 	}
-	// start copy
-	_ = remoteConn.SetDeadline(time.Time{})
-	_ = c.conn.SetDeadline(time.Time{})
-	c.server.wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				c.log(logger.Fatal, xpanic.Print(r, "conn.serveSocks5()"))
-			}
-			c.server.wg.Done()
-		}()
-		_, _ = io.Copy(c.conn, remoteConn)
-	}()
-	_, _ = io.Copy(remoteConn, c.conn)
+	c.remote = remote
 }

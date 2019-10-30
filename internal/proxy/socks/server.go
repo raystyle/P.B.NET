@@ -3,6 +3,7 @@ package socks
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -28,8 +29,10 @@ type Options struct {
 	DisableSocks4A bool `toml:"disable_socks4a"`
 
 	// only server
-	MaxConns int    `toml:"max_conns"`
-	ExitFunc func() `toml:"-"`
+	MaxConns int `toml:"max_conns"`
+
+	DialTimeout func(network, address string, timeout time.Duration) (net.Conn, error) `toml:"-"`
+	ExitFunc    func()                                                                 `toml:"-"`
 }
 
 // Server implement internal/proxy.server
@@ -40,7 +43,9 @@ type Server struct {
 	maxConns int
 	timeout  time.Duration
 	userID   []byte
-	exitFunc func()
+
+	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
+	exitFunc    func()
 
 	listener net.Listener
 	username []byte
@@ -63,13 +68,14 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		opts = new(Options)
 	}
 	s := Server{
-		logger:   lg,
-		socks4:   opts.Socks4,
-		maxConns: opts.MaxConns,
-		timeout:  opts.Timeout,
-		userID:   []byte(opts.UserID),
-		conns:    make(map[string]*conn),
-		exitFunc: opts.ExitFunc,
+		logger:      lg,
+		socks4:      opts.Socks4,
+		maxConns:    opts.MaxConns,
+		timeout:     opts.Timeout,
+		userID:      []byte(opts.UserID),
+		conns:       make(map[string]*conn),
+		dialTimeout: opts.DialTimeout,
+		exitFunc:    opts.ExitFunc,
 	}
 
 	if s.socks4 {
@@ -84,6 +90,10 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 
 	if s.maxConns < 1 {
 		s.maxConns = options.DefaultMaxConns
+	}
+
+	if s.dialTimeout == nil {
+		s.dialTimeout = net.DialTimeout
 	}
 
 	if opts.Username != "" {
@@ -258,6 +268,7 @@ func (s *Server) newConn(c net.Conn) *conn {
 type conn struct {
 	server *Server
 	conn   net.Conn
+	remote net.Conn
 }
 
 func (c *conn) key() string {
@@ -272,9 +283,10 @@ func (c *conn) log(lv logger.Level, log ...interface{}) {
 }
 
 func (c *conn) serve() {
+	const title = "conn.serve()"
 	defer func() {
 		if r := recover(); r != nil {
-			c.log(logger.Fatal, xpanic.Print(r, "conn.serve()"))
+			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
 		_ = c.conn.Close()
 		// delete conn
@@ -287,5 +299,22 @@ func (c *conn) serve() {
 		c.serveSocks4()
 	} else {
 		c.serveSocks5()
+	}
+	// start copy
+	if c.remote != nil {
+		defer func() { _ = c.remote.Close() }()
+		_ = c.remote.SetDeadline(time.Time{})
+		_ = c.conn.SetDeadline(time.Time{})
+		c.server.wg.Add(1)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					c.log(logger.Fatal, xpanic.Print(r, title))
+				}
+				c.server.wg.Done()
+			}()
+			_, _ = io.Copy(c.conn, c.remote)
+		}()
+		_, _ = io.Copy(c.remote, c.conn)
 	}
 }
