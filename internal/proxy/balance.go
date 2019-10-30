@@ -142,7 +142,7 @@ func (b *Balance) Info() string {
 	buf.WriteString(b.tag)
 	for i := 0; i < b.length; i++ {
 		c := b.clients[i]
-		_, _ = fmt.Fprintf(buf, "\n%d. %s: %s", i+1, c.tag, c.Info())
+		_, _ = fmt.Fprintf(buf, "\n%d. %s: %s", i+1, c.Tag, c.Info())
 	}
 	return buf.String()
 }

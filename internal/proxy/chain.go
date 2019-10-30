@@ -145,7 +145,7 @@ func (c *Chain) Info() string {
 	buf.WriteString(c.tag)
 	for i := 0; i < c.length; i++ {
 		c := c.clients[i]
-		_, _ = fmt.Fprintf(buf, "\n%d. %s: %s", i+1, c.tag, c.Info())
+		_, _ = fmt.Fprintf(buf, "\n%d. %s: %s", i+1, c.Tag, c.Info())
 	}
 	return buf.String()
 }

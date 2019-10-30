@@ -66,7 +66,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	groups["socks5"] = &group{
 		server: socks5Server,
 		client: &Client{
-			tag:     "socks5-c",
+			Tag:     "socks5-c",
 			Mode:    ModeSocks,
 			Network: "tcp",
 			Address: address,
@@ -88,7 +88,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	groups["socks4a"] = &group{
 		server: socks4aServer,
 		client: &Client{
-			tag:     "socks4a-c",
+			Tag:     "socks4a-c",
 			Mode:    ModeSocks,
 			Network: "tcp",
 			Address: address,
@@ -110,7 +110,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	groups["http"] = &group{
 		server: httpServer,
 		client: &Client{
-			tag:     "http-c",
+			Tag:     "http-c",
 			Mode:    ModeHTTP,
 			Network: "tcp",
 			Address: address,
@@ -136,7 +136,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	groups["https"] = &group{
 		server: httpsServer,
 		client: &Client{
-			tag:     "https-c",
+			Tag:     "https-c",
 			Mode:    ModeHTTP,
 			Network: "tcp",
 			Address: address,

@@ -18,54 +18,33 @@ type Pool struct {
 }
 
 // NewPool is used to create a proxy client pool
-func NewPool(clients map[string]*Client) (*Pool, error) {
+func NewPool() *Pool {
 	pool := Pool{clients: make(map[string]*Client)}
-	rest := make(map[string]*Client)
-	// add proxy clients(don't include ModeChain and ModeBalance)
-	for tag, client := range clients {
-		switch client.Mode {
-		case ModeChain, ModeBalance:
-			rest[tag] = client
-		default:
-			err := pool.Add(tag, client)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	// add proxy chain and balance
-	// proxy chain and balance's proxy client tags must exists in pool
-	for tag, client := range rest {
-		err := pool.Add(tag, client)
-		if err != nil {
-			return nil, err
-		}
-	}
 	// add direct
 	dc := &Client{
-		tag:    ModeDirect,
+		Tag:    ModeDirect,
 		Mode:   ModeDirect,
 		client: new(direct.Direct),
 	}
 	pool.clients[""] = dc
 	pool.clients["direct"] = dc
-	return &pool, nil
+	return &pool
 }
 
 // Add is used to add a proxy client
-func (p *Pool) Add(tag string, client *Client) error {
-	err := p.add(tag, client)
+func (p *Pool) Add(client *Client) error {
+	err := p.add(client)
 	if err != nil {
-		return errors.WithMessagef(err, "failed to add proxy client %s:", tag)
+		return errors.WithMessagef(err, "failed to add proxy client %s:", client.Tag)
 	}
 	return nil
 }
 
-func (p *Pool) add(tag string, client *Client) error {
-	if tag == "" {
+func (p *Pool) add(client *Client) error {
+	if client.Tag == "" {
 		return errors.New("empty proxy client tag")
 	}
-	if tag == ModeDirect {
+	if client.Tag == ModeDirect {
 		return errors.New("direct is the reserve proxy client tag")
 	}
 	switch client.Mode {
@@ -111,7 +90,7 @@ func (p *Pool) add(tag string, client *Client) error {
 			}
 			clients = append(clients, client)
 		}
-		c, err := NewChain(tag, clients...)
+		c, err := NewChain(client.Tag, clients...)
 		if err != nil {
 			return err
 		}
@@ -132,7 +111,7 @@ func (p *Pool) add(tag string, client *Client) error {
 			}
 			clients = append(clients, client)
 		}
-		c, err := NewBalance(tag, clients...)
+		c, err := NewBalance(client.Tag, clients...)
 		if err != nil {
 			return err
 		}
@@ -142,12 +121,11 @@ func (p *Pool) add(tag string, client *Client) error {
 	}
 	p.rwm.Lock()
 	defer p.rwm.Unlock()
-	if _, ok := p.clients[tag]; !ok {
-		client.tag = tag
-		p.clients[tag] = client
+	if _, ok := p.clients[client.Tag]; !ok {
+		p.clients[client.Tag] = client
 		return nil
 	} else {
-		return errors.Errorf("proxy client %s already exists", tag)
+		return errors.Errorf("proxy client %s already exists", client.Tag)
 	}
 }
 

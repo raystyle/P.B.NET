@@ -25,13 +25,13 @@ func NewManager(lg logger.Logger) *Manager {
 }
 
 // Add is used to add proxy server, but not listen or serve
-func (m *Manager) Add(tag string, server *Server) error {
-	if tag == "" {
+func (m *Manager) Add(server *Server) error {
+	if server.Tag == "" {
 		return errors.New("empty proxy server tag")
 	}
 	deleteServer := func() {
 		m.rwm.Lock()
-		delete(m.servers, tag)
+		delete(m.servers, server.Tag)
 		m.rwm.Unlock()
 	}
 	switch server.Mode {
@@ -42,7 +42,7 @@ func (m *Manager) Add(tag string, server *Server) error {
 			return errors.WithStack(err)
 		}
 		opts.ExitFunc = deleteServer
-		s, err := socks.NewServer(tag, m.logger, opts)
+		s, err := socks.NewServer(server.Tag, m.logger, opts)
 		if err != nil {
 			return err
 		}
@@ -54,7 +54,7 @@ func (m *Manager) Add(tag string, server *Server) error {
 			return errors.WithStack(err)
 		}
 		opts.ExitFunc = deleteServer
-		s, err := http.NewServer(tag, m.logger, opts)
+		s, err := http.NewServer(server.Tag, m.logger, opts)
 		if err != nil {
 			return err
 		}
@@ -65,11 +65,11 @@ func (m *Manager) Add(tag string, server *Server) error {
 	server.createAt = time.Now()
 	m.rwm.Lock()
 	defer m.rwm.Unlock()
-	if _, ok := m.servers[tag]; !ok {
-		m.servers[tag] = server
+	if _, ok := m.servers[server.Tag]; !ok {
+		m.servers[server.Tag] = server
 		return nil
 	} else {
-		return errors.Errorf("proxy server %s already exists", tag)
+		return errors.Errorf("proxy server %s already exists", server.Tag)
 	}
 }
 
@@ -114,12 +114,13 @@ func (m *Manager) Servers() map[string]*Server {
 	return servers
 }
 
-func (m *Manager) Close() (err error) {
+func (m *Manager) Close() error {
+	var err error
 	for _, server := range m.Servers() {
-		err = server.Close()
-		if err != nil {
-			return err
+		e := server.Close()
+		if err == nil {
+			err = e
 		}
 	}
-	return
+	return err
 }

@@ -36,15 +36,16 @@ type server interface {
 }
 
 type Client struct {
+	Tag     string
 	Mode    string
 	Network string
 	Address string
 	Options string
-	tag     string
 	client
 }
 
 type Server struct {
+	Tag     string
 	Mode    string
 	Options string
 	server

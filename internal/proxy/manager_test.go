@@ -19,28 +19,33 @@ func TestManager(t *testing.T) {
 	options, err := ioutil.ReadFile("testdata/socks5_opts.toml")
 	require.NoError(t, err)
 	socksServer := &Server{
+		Tag:     tagSocks,
 		Mode:    ModeSocks,
 		Options: string(options),
 	}
 	options, err = ioutil.ReadFile("testdata/http_opts.toml")
 	require.NoError(t, err)
 	httpServer := &Server{
+		Tag:     tagHTTP,
 		Mode:    ModeHTTP,
 		Options: string(options),
 	}
 	manager := NewManager(logger.Test)
-	err = manager.Add(tagSocks, socksServer)
+	err = manager.Add(socksServer)
 	require.NoError(t, err)
-	err = manager.Add(tagHTTP, httpServer)
+	err = manager.Add(httpServer)
 	require.NoError(t, err)
 	// add client with empty tag
-	err = manager.Add("", socksServer)
+	testServer := &Server{}
+	err = manager.Add(testServer)
 	require.Errorf(t, err, "empty proxy server tag")
 	// add unknown mode
-	err = manager.Add("foo", &Server{Mode: "foo mode"})
+	testServer.Tag = "foo"
+	testServer.Mode = "foo mode"
+	err = manager.Add(testServer)
 	require.Errorf(t, err, "unknown mode: foo mode")
 	// add exist
-	err = manager.Add(tagSocks, socksServer)
+	err = manager.Add(socksServer)
 	require.Errorf(t, err, "proxy server %s already exists", tagSocks)
 	// get
 	ps, err := manager.Get(tagSocks)
