@@ -31,6 +31,23 @@ func init() {
 	header.Set("Connection", "keep-alive")
 }
 
+type nopCloser struct {
+	padding string
+}
+
+func (nc *nopCloser) Get() string {
+	return nc.padding
+}
+
+func (nc *nopCloser) Close() error {
+	nc.padding = "padding"
+	return nil
+}
+
+func NopCloser() *nopCloser {
+	return new(nopCloser)
+}
+
 func ProxyServer(t testing.TB, server io.Closer, client *http.Client) {
 	defer func() {
 		require.NoError(t, server.Close())
