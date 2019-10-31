@@ -112,7 +112,7 @@ type program struct {
 
 func (p *program) Start(s service.Service) error {
 	const tag = "server"
-	p.manager = proxy.NewManager(logger.Test)
+	p.manager = proxy.NewManager(logger.Test, nil)
 	err := p.manager.Add(&proxy.Server{
 		Tag:     tag,
 		Mode:    p.configs.Proxy.Mode,

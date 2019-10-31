@@ -22,9 +22,10 @@ func TestProxyPoolAndManager(t *testing.T) {
 	require.NoError(t, err)
 
 	// create http client
-	transport := http.Transport{DialContext: balance.DialContext}
+	transport := new(http.Transport)
+	balance.HTTP(transport)
 	client := http.Client{
-		Transport: &transport,
+		Transport: transport,
 		Timeout:   time.Minute,
 	}
 	defer client.CloseIdleConnections()

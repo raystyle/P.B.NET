@@ -30,7 +30,7 @@ func TestManager(t *testing.T) {
 		Mode:    ModeHTTP,
 		Options: string(options),
 	}
-	manager := NewManager(logger.Test)
+	manager := NewManager(logger.Test, nil)
 	err = manager.Add(socksServer)
 	require.NoError(t, err)
 	err = manager.Add(httpServer)
@@ -91,7 +91,7 @@ func TestManager(t *testing.T) {
 }
 
 func TestManager_Add(t *testing.T) {
-	manager := NewManager(logger.Test)
+	manager := NewManager(logger.Test, nil)
 	// add socks server with invalid toml data
 	err := manager.Add(&Server{
 		Tag:     "invalid socks5",

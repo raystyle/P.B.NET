@@ -20,7 +20,7 @@ const (
 // with balance and proxy manager
 func ProxyPoolAndManager(t *testing.T) (*proxy.Manager, *proxy.Pool) {
 	// create proxy server manager
-	manager := proxy.NewManager(logger.Test)
+	manager := proxy.NewManager(logger.Test, nil)
 	// add socks5 server
 	err := manager.Add(&proxy.Server{
 		Tag:  tagSocks5,

@@ -50,7 +50,8 @@ type Server struct {
 	Options string
 	server
 
-	createAt  time.Time // maybe inaccurate
+	now       func() time.Time
+	createAt  time.Time
 	serveAt   time.Time
 	rwm       sync.RWMutex
 	serveOnce sync.Once
@@ -61,7 +62,7 @@ func (s *Server) ListenAndServe(network, address string) (err error) {
 	s.serveOnce.Do(func() {
 		err = s.server.ListenAndServe(network, address)
 		s.rwm.Lock()
-		s.serveAt = time.Now()
+		s.serveAt = s.now()
 		s.rwm.Unlock()
 	})
 	return
@@ -71,7 +72,7 @@ func (s *Server) Serve(l net.Listener) {
 	s.serveOnce.Do(func() {
 		s.server.Serve(l)
 		s.rwm.Lock()
-		s.serveAt = time.Now()
+		s.serveAt = s.now()
 		s.rwm.Unlock()
 	})
 }

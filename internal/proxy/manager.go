@@ -15,13 +15,17 @@ import (
 // Manager is a proxy server manager
 type Manager struct {
 	logger  logger.Logger
+	now     func() time.Time
 	servers map[string]*Server // key = tag
 	rwm     sync.RWMutex
 }
 
 // NewManager is used to create a proxy server manager
-func NewManager(lg logger.Logger) *Manager {
-	return &Manager{logger: lg, servers: make(map[string]*Server)}
+func NewManager(lg logger.Logger, now func() time.Time) *Manager {
+	if now == nil {
+		now = time.Now
+	}
+	return &Manager{logger: lg, now: now, servers: make(map[string]*Server)}
 }
 
 // Add is used to add proxy server, but not listen or serve
@@ -60,7 +64,8 @@ func (m *Manager) Add(server *Server) error {
 	default:
 		return errors.Errorf("unknown mode %s", server.Mode)
 	}
-	server.createAt = time.Now()
+	server.now = m.now
+	server.createAt = m.now()
 	m.rwm.Lock()
 	defer m.rwm.Unlock()
 	if _, ok := m.servers[server.Tag]; !ok {
