@@ -1,22 +1,14 @@
-package main
+package client
 
 import (
-	"flag"
-	"io/ioutil"
-	"log"
-	"os"
-	"strings"
 	"sync"
-
-	"github.com/kardianos/service"
-	"github.com/pelletier/go-toml"
 
 	"project/internal/logger"
 	"project/internal/proxy"
 	"project/internal/proxy/socks"
 )
 
-type configs struct {
+type Configs struct {
 	Service struct {
 		Name        string `toml:"name"`
 		DisplayName string `toml:"display_name"`
@@ -40,95 +32,20 @@ type configs struct {
 	} `toml:"clients"`
 }
 
-func main() {
-	var (
-		tag       string
-		config    string
-		debug     bool
-		install   bool
-		uninstall bool
-	)
-	flag.StringVar(&tag, "tag", "", "proxy client tag")
-	flag.StringVar(&config, "config", "config.toml", "config file path")
-	flag.BoolVar(&install, "install", false, "install service")
-	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
-	flag.BoolVar(&debug, "debug", false, "don't change current path")
-	flag.Parse()
-
-	// changed path for service
-	if !debug {
-		path, err := os.Executable()
-		if err != nil {
-			log.Fatal(err)
-		}
-		path = strings.Replace(path, "\\", "/", -1) // windows
-		err = os.Chdir(path[:strings.LastIndex(path, "/")])
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	// load config
-	b, err := ioutil.ReadFile(config)
-	if err != nil {
-		log.Fatal(err)
-	}
-	var configs configs
-	err = toml.Unmarshal(b, &configs)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// start service
-	svcCfg := service.Config{
-		Name:        configs.Service.Name,
-		DisplayName: configs.Service.DisplayName,
-		Description: configs.Service.Description,
-	}
-	pg := program{
-		tag:     tag,
-		configs: &configs,
-	}
-	svc, err := service.New(&pg, &svcCfg)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	switch {
-	case install:
-		err = svc.Install()
-		if err != nil {
-			log.Fatalf("failed to install service: %s", err)
-		}
-		log.Print("install service successfully")
-	case uninstall:
-		err = svc.Uninstall()
-		if err != nil {
-			log.Fatalf("failed to uninstall service: %s", err)
-		}
-		log.Print("uninstall service successfully")
-	default:
-		lg, err := svc.Logger(nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-		err = svc.Run()
-		if err != nil {
-			_ = lg.Error(err)
-		}
-	}
-}
-
-type program struct {
+type Client struct {
 	tag      string
-	configs  *configs
+	configs  *Configs
 	server   *socks.Server
 	stopOnce sync.Once
 }
 
-func (p *program) Start(s service.Service) error {
+func New(tag string, config *Configs) *Client {
+	return &Client{tag: tag, configs: config}
+}
+
+func (client *Client) Start() error {
 	pool := proxy.NewPool()
-	for _, client := range p.configs.Clients {
+	for _, client := range client.configs.Clients {
 		err := pool.Add(&proxy.Client{
 			Tag:     client.Tag,
 			Mode:    client.Mode,
@@ -141,34 +58,35 @@ func (p *program) Start(s service.Service) error {
 		}
 	}
 	// if tag, use the last proxy client
-	if p.tag == "" {
-		p.tag = p.configs.Clients[len(p.configs.Clients)-1].Tag
+	if client.tag == "" {
+		client.tag = client.configs.Clients[len(client.configs.Clients)-1].Tag
 	}
 
-	client, err := pool.Get(p.tag)
+	// set proxy client
+	pc, err := pool.Get(client.tag)
 	if err != nil {
 		return err
 	}
 
 	// start socks5 server
-	lConfig := p.configs.Listener
+	lc := client.configs.Listener
 	opts := socks.Options{
-		Username:    lConfig.Username,
-		Password:    lConfig.Password,
-		MaxConns:    lConfig.MaxConns,
-		DialTimeout: client.DialTimeout,
+		Username:    lc.Username,
+		Password:    lc.Password,
+		MaxConns:    lc.MaxConns,
+		DialTimeout: pc.DialTimeout,
 	}
-	p.server, err = socks.NewServer("mix", logger.Test, &opts)
+	client.server, err = socks.NewServer("proxy", logger.Test, &opts)
 	if err != nil {
 		return err
 	}
-	return p.server.ListenAndServe(lConfig.Network, lConfig.Address)
+	return client.server.ListenAndServe(lc.Network, lc.Address)
 }
 
-func (p *program) Stop(_ service.Service) error {
+func (client *Client) Stop() error {
 	var err error
-	p.stopOnce.Do(func() {
-		err = p.server.Close()
+	client.stopOnce.Do(func() {
+		err = client.server.Close()
 	})
 	return err
 }
