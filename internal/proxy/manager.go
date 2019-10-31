@@ -41,9 +41,11 @@ func (m *Manager) Add(server *Server) error {
 	switch server.Mode {
 	case ModeSocks:
 		opts := new(socks.Options)
-		err := toml.Unmarshal([]byte(server.Options), opts)
-		if err != nil {
-			return errors.WithStack(err)
+		if server.Options != "" {
+			err := toml.Unmarshal([]byte(server.Options), opts)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 		opts.ExitFunc = deleteServer
 		// because the tag is never empty, it will never go wrong
@@ -51,9 +53,11 @@ func (m *Manager) Add(server *Server) error {
 		server.server = s
 	case ModeHTTP:
 		opts := new(http.Options)
-		err := toml.Unmarshal([]byte(server.Options), opts)
-		if err != nil {
-			return errors.WithStack(err)
+		if server.Options != "" {
+			err := toml.Unmarshal([]byte(server.Options), opts)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 		opts.ExitFunc = deleteServer
 		s, err := http.NewServer(server.Tag, m.logger, opts)
