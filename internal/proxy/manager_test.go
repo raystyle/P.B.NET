@@ -89,3 +89,34 @@ func TestManager(t *testing.T) {
 	require.NoError(t, manager.Close())
 	testsuite.IsDestroyed(t, manager)
 }
+
+func TestManager_Add(t *testing.T) {
+	manager := NewManager(logger.Test)
+	// add socks server with invalid toml data
+	err := manager.Add(&Server{
+		Tag:     "invalid socks5",
+		Mode:    ModeSocks,
+		Options: "socks4 = foo",
+	})
+	require.Error(t, err)
+
+	// add http proxy server with invalid toml data
+	err = manager.Add(&Server{
+		Tag:     "invalid http",
+		Mode:    ModeHTTP,
+		Options: "https = foo",
+	})
+	require.Error(t, err)
+
+	// add http proxy server with invalid options
+	err = manager.Add(&Server{
+		Tag:  "http with invalid options",
+		Mode: ModeHTTP,
+		Options: `
+[transport]
+  [transport.tls_config]
+    root_ca = ["foo data"]
+`,
+	})
+	require.Error(t, err)
+}

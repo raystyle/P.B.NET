@@ -42,10 +42,8 @@ func (m *Manager) Add(server *Server) error {
 			return errors.WithStack(err)
 		}
 		opts.ExitFunc = deleteServer
-		s, err := socks.NewServer(server.Tag, m.logger, opts)
-		if err != nil {
-			return err
-		}
+		// because the tag is never empty, it will never go wrong
+		s, _ := socks.NewServer(server.Tag, m.logger, opts)
 		server.server = s
 	case ModeHTTP:
 		opts := new(http.Options)
