@@ -90,3 +90,7 @@ func (client *Client) Stop() error {
 	})
 	return err
 }
+
+func (client *Client) Address() string {
+	return client.server.Address()
+}
