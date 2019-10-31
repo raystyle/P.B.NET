@@ -51,13 +51,13 @@ func TestHTTPProxyServer(t *testing.T) {
 	u, err := url.Parse("http://admin:123456@" + server.Address())
 	require.NoError(t, err)
 	transport := &http.Transport{Proxy: http.ProxyURL(u)}
-	client := &http.Client{
+	client := http.Client{
 		Transport: transport,
 		Timeout:   time.Minute,
 	}
 	defer client.CloseIdleConnections()
 
-	testsuite.ProxyServer(t, server, client)
+	testsuite.ProxyServer(t, server, &client)
 }
 
 func TestHTTPSProxyServer(t *testing.T) {
@@ -77,13 +77,13 @@ func TestHTTPSProxyServer(t *testing.T) {
 	rootCAs, err := tlsConfig.RootCA()
 	require.NoError(t, err)
 	transport.TLSClientConfig.RootCAs.AddCert(rootCAs[0])
-	client := &http.Client{
+	client := http.Client{
 		Transport: transport,
 		Timeout:   time.Minute,
 	}
 	defer client.CloseIdleConnections()
 
-	testsuite.ProxyServer(t, server, client)
+	testsuite.ProxyServer(t, server, &client)
 }
 
 func TestAuthenticate(t *testing.T) {
