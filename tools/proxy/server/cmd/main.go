@@ -69,6 +69,7 @@ func main() {
 		Description: configs.Service.Description,
 	}
 
+	configs.Tag = "server"
 	pg := program{server: server.New(&configs)}
 	svc, err := service.New(&pg, &svcCfg)
 	if err != nil {

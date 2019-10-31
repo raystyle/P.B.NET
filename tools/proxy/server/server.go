@@ -8,6 +8,7 @@ import (
 )
 
 type Configs struct {
+	Tag     string `toml:"tag"`
 	Service struct {
 		Name        string `toml:"name"`
 		DisplayName string `toml:"display_name"`
@@ -33,7 +34,7 @@ func New(config *Configs) *Server {
 }
 
 func (server *Server) Start() error {
-	const tag = "server"
+	tag := server.configs.Tag
 	manager := proxy.NewManager(logger.Test, nil)
 	err := manager.Add(&proxy.Server{
 		Tag:     tag,

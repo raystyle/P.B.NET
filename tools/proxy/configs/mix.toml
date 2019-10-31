@@ -148,7 +148,7 @@
   """
 
 [[clients]]
-  tag     = "finally-chain"
+  tag     = "final-chain"
   mode    = "chain"
   options = """
     tags = ["balance-01","balance-02","balance-03"]
