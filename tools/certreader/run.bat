@@ -1,0 +1,1 @@
+go run certreader.go
