@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"project/internal/crypto/cert/certutil"
 	"project/internal/security"
 )
 
@@ -16,11 +17,12 @@ var (
 )
 
 type TLSConfig struct {
-	Certificates       []X509KeyPair `toml:"certificates"` // tls.X509KeyPair
-	RootCAs            []string      `toml:"root_ca"`      // PEM
-	ClientCAs          []string      `toml:"client_ca"`    // PEM
-	NextProtos         []string      `toml:"next_protos"`
-	InsecureSkipVerify bool          `toml:"insecure_skip_verify"`
+	Certificates []X509KeyPair `toml:"certificates"`
+	RootCAs      []string      `toml:"root_ca"`   // PEM
+	ClientCAs    []string      `toml:"client_ca"` // PEM
+	NextProtos   []string      `toml:"next_protos"`
+
+	InsecureLoadFromSystem bool `toml:"insecure_load_from_system"`
 }
 
 type X509KeyPair struct {
@@ -35,22 +37,24 @@ func (t *TLSConfig) failed(err error) error {
 func (t *TLSConfig) RootCA() ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate
 	for i := 0; i < len(t.RootCAs); i++ {
-		cert, err := parseCertificate([]byte(t.RootCAs[i]))
+		cert, err := parseCertificates([]byte(t.RootCAs[i]))
 		if err != nil {
 			return nil, t.failed(err)
 		}
-		certs = append(certs, cert)
+		certs = append(certs, cert...)
 	}
 	return certs, nil
 }
 
 func (t *TLSConfig) Apply() (*tls.Config, error) {
+	// set next protocols
 	nextProtos := make([]string, len(t.NextProtos))
 	copy(nextProtos, t.NextProtos)
 	config := &tls.Config{
-		NextProtos:         nextProtos,
-		InsecureSkipVerify: t.InsecureSkipVerify,
+		NextProtos: nextProtos,
 	}
+
+	// set certificates
 	l := len(t.Certificates)
 	if l != 0 {
 		config.Certificates = make([]tls.Certificate, l)
@@ -67,39 +71,65 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 		}
 	}
 
+	var err error
+	// <security> warning: load certificates pool from system
+	if t.InsecureLoadFromSystem {
+		config.RootCAs, err = certutil.SystemCertPool()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// <security> force new certificate pool
+	// not use system certificates
+	if config.RootCAs == nil {
+		config.RootCAs = x509.NewCertPool()
+	}
+
+	// set Root CA
 	rootCAs, err := t.RootCA()
 	if err != nil {
 		return nil, err
 	}
-	l = len(rootCAs)
-	if l != 0 {
-		config.RootCAs = x509.NewCertPool()
-		for i := 0; i < l; i++ {
-			config.RootCAs.AddCert(rootCAs[i])
-		}
+	for i := 0; i < len(rootCAs); i++ {
+		config.RootCAs.AddCert(rootCAs[i])
 	}
 
-	l = len(t.ClientCAs)
-	if l != 0 {
-		config.ClientCAs = x509.NewCertPool()
-		for i := 0; i < l; i++ {
-			cert, err := parseCertificate([]byte(t.ClientCAs[i]))
-			if err != nil {
-				return nil, t.failed(err)
-			}
-			config.ClientCAs.AddCert(cert)
+	// set Client CA
+	config.ClientCAs = x509.NewCertPool()
+	for i := 0; i < len(t.ClientCAs); i++ {
+		cert, err := parseCertificates([]byte(t.ClientCAs[i]))
+		if err != nil {
+			return nil, t.failed(err)
+		}
+		for i := 0; i < len(cert); i++ {
+			config.ClientCAs.AddCert(cert[i])
 		}
 	}
 	return config, nil
 }
 
-func parseCertificate(cert []byte) (*x509.Certificate, error) {
-	block, _ := pem.Decode(cert)
-	if block == nil {
-		return nil, ErrInvalidPEMBlock
+func parseCertificates(certPEMBlock []byte) ([]*x509.Certificate, error) {
+	var (
+		certs []*x509.Certificate
+		block *pem.Block
+	)
+	for {
+		block, certPEMBlock = pem.Decode(certPEMBlock)
+		if block == nil {
+			return nil, ErrInvalidPEMBlock
+		}
+		if block.Type != "CERTIFICATE" {
+			return nil, ErrInvalidPEMBlockType
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		certs = append(certs, cert)
+		if len(certPEMBlock) == 0 {
+			break
+		}
 	}
-	if block.Type != "CERTIFICATE" {
-		return nil, ErrInvalidPEMBlockType
-	}
-	return x509.ParseCertificate(block.Bytes)
+	return certs, nil
 }
