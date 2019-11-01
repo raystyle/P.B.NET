@@ -16,7 +16,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certutil"
 	"project/internal/options"
 )
 
@@ -70,7 +70,7 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 
 		// add system cert and self cert(usually is https proxy server)
 		if client.tlsConfig.RootCAs != nil {
-			pool, err := cert.SystemCertPool()
+			pool, err := certutil.SystemCertPool()
 			if err != nil {
 				return nil, err
 			}
@@ -269,7 +269,7 @@ func (c *Client) HTTP(t *http.Transport) {
 		t.TLSClientConfig = new(tls.Config)
 	}
 	if t.TLSClientConfig.RootCAs == nil {
-		t.TLSClientConfig.RootCAs, _ = cert.SystemCertPool()
+		t.TLSClientConfig.RootCAs, _ = certutil.SystemCertPool()
 	}
 	// add certificate for connect https proxy
 	for i := 0; i < c.rootCAsLen; i++ {

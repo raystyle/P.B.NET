@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certutil"
 	"project/internal/logger"
 	"project/internal/options"
 	"project/internal/testsuite"
@@ -72,7 +72,7 @@ func TestHTTPSProxyServer(t *testing.T) {
 	transport.TLSClientConfig = new(tls.Config)
 	require.NoError(t, err)
 	// add cert
-	transport.TLSClientConfig.RootCAs, err = cert.SystemCertPool()
+	transport.TLSClientConfig.RootCAs, err = certutil.SystemCertPool()
 	require.NoError(t, err)
 	rootCAs, err := tlsConfig.RootCA()
 	require.NoError(t, err)
