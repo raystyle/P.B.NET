@@ -23,31 +23,6 @@ func TestHTTPRequestDefault(t *testing.T) {
 	require.Equal(t, false, request.Close)
 }
 
-func TestHTTPTransportDefault(t *testing.T) {
-	transport, err := new(HTTPTransport).Apply()
-	require.NoError(t, err)
-	require.Equal(t, 1, transport.MaxIdleConns)
-	require.Equal(t, 1, transport.MaxIdleConnsPerHost)
-	require.Equal(t, 1, transport.MaxConnsPerHost)
-	require.Equal(t, httpDefaultTimeout, transport.TLSHandshakeTimeout)
-	require.Equal(t, httpDefaultTimeout, transport.IdleConnTimeout)
-	require.Equal(t, httpDefaultTimeout, transport.ResponseHeaderTimeout)
-	require.Equal(t, httpDefaultTimeout, transport.ExpectContinueTimeout)
-	require.Equal(t, httpDefaultMaxResponseHeaderBytes, transport.MaxResponseHeaderBytes)
-	require.Equal(t, false, transport.DisableKeepAlives)
-	require.Equal(t, false, transport.DisableCompression)
-}
-
-func TestHTTPServerDefault(t *testing.T) {
-	server, err := new(HTTPServer).Apply()
-	require.NoError(t, err)
-	require.Equal(t, time.Duration(0), server.ReadTimeout)
-	require.Equal(t, time.Duration(0), server.WriteTimeout)
-	require.Equal(t, httpDefaultTimeout, server.ReadHeaderTimeout)
-	require.Equal(t, httpDefaultTimeout, server.IdleTimeout)
-	require.Equal(t, httpDefaultMaxHeaderBytes, server.MaxHeaderBytes)
-}
-
 func TestHTTPRequestUnmarshal(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/http_request.toml")
 	require.NoError(t, err)
@@ -62,8 +37,49 @@ func TestHTTPRequestUnmarshal(t *testing.T) {
 	postData, err := ioutil.ReadAll(request.Body)
 	require.Equal(t, []byte{1, 2}, postData)
 	require.Equal(t, []string{"keep-alive"}, request.Header["Connection"])
+	require.Equal(t, 7, len(request.Header))
 	require.Equal(t, "localhost", request.Host)
 	require.Equal(t, true, request.Close)
+}
+
+func TestHTTPRequest_Apply_failed(t *testing.T) {
+	// empty url
+	hr := HTTPRequest{}
+	_, err := hr.Apply()
+	require.Errorf(t, err, "failed to apply http request options: empty url")
+
+	// invalid post data
+	hr = HTTPRequest{
+		URL:  "http://localhost/",
+		Post: "foo post data",
+	}
+	_, err = hr.Apply()
+	require.Error(t, err)
+
+	// invalid method
+	hr.Post = "0102"
+	hr.Method = "invalid method"
+	_, err = hr.Apply()
+	require.Error(t, err)
+}
+
+var testInvalidTLSConfig = TLSConfig{
+	RootCAs: []string{"foo data"},
+}
+
+func TestHTTPTransportDefault(t *testing.T) {
+	transport, err := new(HTTPTransport).Apply()
+	require.NoError(t, err)
+	require.Equal(t, 1, transport.MaxIdleConns)
+	require.Equal(t, 1, transport.MaxIdleConnsPerHost)
+	require.Equal(t, 1, transport.MaxConnsPerHost)
+	require.Equal(t, httpDefaultTimeout, transport.TLSHandshakeTimeout)
+	require.Equal(t, httpDefaultTimeout, transport.IdleConnTimeout)
+	require.Equal(t, httpDefaultTimeout, transport.ResponseHeaderTimeout)
+	require.Equal(t, httpDefaultTimeout, transport.ExpectContinueTimeout)
+	require.Equal(t, httpDefaultMaxResponseHeaderBytes, transport.MaxResponseHeaderBytes)
+	require.Equal(t, false, transport.DisableKeepAlives)
+	require.Equal(t, false, transport.DisableCompression)
 }
 
 func TestHTTPTransportUnmarshal(t *testing.T) {
@@ -88,6 +104,25 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 	require.Equal(t, true, transport.DisableCompression)
 }
 
+func TestHTTPTransport_Apply_failed(t *testing.T) {
+	// invalid tls config
+	tr := HTTPTransport{
+		TLSClientConfig: testInvalidTLSConfig,
+	}
+	_, err := tr.Apply()
+	require.Error(t, err)
+}
+
+func TestHTTPServerDefault(t *testing.T) {
+	server, err := new(HTTPServer).Apply()
+	require.NoError(t, err)
+	require.Equal(t, time.Duration(0), server.ReadTimeout)
+	require.Equal(t, time.Duration(0), server.WriteTimeout)
+	require.Equal(t, httpDefaultTimeout, server.ReadHeaderTimeout)
+	require.Equal(t, httpDefaultTimeout, server.IdleTimeout)
+	require.Equal(t, httpDefaultMaxHeaderBytes, server.MaxHeaderBytes)
+}
+
 func TestHTTPServerUnmarshal(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/http_server.toml")
 	require.NoError(t, err)
@@ -103,4 +138,23 @@ func TestHTTPServerUnmarshal(t *testing.T) {
 	require.Equal(t, timeout, server.ReadHeaderTimeout)
 	require.Equal(t, timeout, server.IdleTimeout)
 	require.Equal(t, 16384, server.MaxHeaderBytes)
+}
+
+func TestHTTPServer_Apply_failed(t *testing.T) {
+	// invalid tls config
+	s := HTTPServer{
+		TLSConfig: testInvalidTLSConfig,
+	}
+	_, err := s.Apply()
+	require.Error(t, err)
+}
+
+func TestHTTPServerSetReadWriteTimeout(t *testing.T) {
+	// invalid tls config
+	s := HTTPServer{
+		ReadTimeout:  -1,
+		WriteTimeout: -1,
+	}
+	_, err := s.Apply()
+	require.NoError(t, err)
 }

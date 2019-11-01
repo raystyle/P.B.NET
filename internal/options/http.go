@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	"golang.org/x/net/http2"
 )
 
 const (
@@ -27,16 +25,16 @@ type HTTPRequest struct {
 }
 
 func (hr *HTTPRequest) failed(err error) error {
-	return fmt.Errorf("failed to apply http request: %s", err)
+	return fmt.Errorf("failed to apply http request options: %s", err)
 }
 
 func (hr *HTTPRequest) Apply() (*http.Request, error) {
+	if hr.URL == "" {
+		return nil, hr.failed(errors.New("empty url"))
+	}
 	post, err := hex.DecodeString(hr.Post)
 	if err != nil {
 		return nil, hr.failed(err)
-	}
-	if hr.URL == "" {
-		return nil, hr.failed(errors.New("URL is empty"))
 	}
 	r, err := http.NewRequest(hr.Method, hr.URL, bytes.NewReader(post))
 	if err != nil {
@@ -63,11 +61,10 @@ type HTTPTransport struct {
 	MaxResponseHeaderBytes int64         `toml:"max_response_header_bytes"`
 	DisableKeepAlives      bool          `toml:"disable_keep_alives"`
 	DisableCompression     bool          `toml:"disable_compression"`
-	DisableHTTP2           bool          `toml:"disable_http2"`
 }
 
 func (ht *HTTPTransport) failed(err error) error {
-	return fmt.Errorf("failed to apply http transport: %s", err)
+	return fmt.Errorf("failed to apply http transport options: %s", err)
 }
 
 func (ht *HTTPTransport) Apply() (*http.Transport, error) {
@@ -88,12 +85,6 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	tr.TLSClientConfig, err = ht.TLSClientConfig.Apply()
 	if err != nil {
 		return nil, ht.failed(err)
-	}
-	if !ht.DisableHTTP2 {
-		err = http2.ConfigureTransport(tr)
-		if err != nil {
-			return nil, ht.failed(err)
-		}
 	}
 	// conn
 	if tr.MaxIdleConns < 1 {
@@ -136,7 +127,7 @@ type HTTPServer struct {
 }
 
 func (hs *HTTPServer) failed(err error) error {
-	return fmt.Errorf("failed to apply http server: %s", err)
+	return fmt.Errorf("failed to apply http server options: %s", err)
 }
 
 func (hs *HTTPServer) Apply() (*http.Server, error) {

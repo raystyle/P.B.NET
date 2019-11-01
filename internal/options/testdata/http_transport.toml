@@ -8,6 +8,5 @@ expect_continue_timeout   = "10s"
 max_response_header_bytes = 16384
 disable_keep_alives       = true
 disable_compression       = true
-disable_http2             = true
 
 [tls_config] # see tls.toml
