@@ -65,17 +65,15 @@ func customResolve(method, address, domain, typ string, opts *Options) ([]string
 		return []string{ip.String()}, nil
 	}
 	// punycode
-	domain, err := idna.ToASCII(domain)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
+	domain, _ = idna.ToASCII(domain)
 	// check domain name
 	if !IsDomainName(domain) {
 		return nil, errors.Errorf("invalid domain name: %s", domain)
 	}
 	message := packMessage(types[typ], domain)
+	var err error
 	switch method {
-	case UDP: // default
+	case UDP:
 		message, err = dialUDP(address, message, opts)
 	case TCP:
 		message, err = dialTCP(address, message, opts)
@@ -95,7 +93,7 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
 	case "":
-		network = "udp" // default
+		network = "udp"
 	case "udp", "udp4", "udp6":
 	default:
 		return nil, net.UnknownNetworkError(network)
