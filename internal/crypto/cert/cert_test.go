@@ -62,15 +62,21 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	}
 	port1 := testsuite.RunHTTPServer(t, "tcp", &server1)
 	defer func() { _ = server1.Close() }()
-
-	server2 := http.Server{
-		Addr:      "127.0.0.1:0",
-		Handler:   serveMux,
-		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
+	// server2
+	var (
+		server2 http.Server
+		port2   string
+	)
+	if testsuite.EnableIPv4() {
+		server2 = http.Server{
+			Addr:      "127.0.0.1:0",
+			Handler:   serveMux,
+			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
+		}
+		port2 = testsuite.RunHTTPServer(t, "tcp", &server2)
+		defer func() { _ = server2.Close() }()
 	}
-	port2 := testsuite.RunHTTPServer(t, "tcp", &server2)
-	defer func() { _ = server2.Close() }()
-
+	// server3
 	var (
 		server3 http.Server
 		port3   string
@@ -101,8 +107,12 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		require.NoError(t, err)
 		require.Equal(t, respData, b)
 	}
+
+	// test
 	get("localhost", port1)
-	get("127.0.0.1", port2)
+	if testsuite.EnableIPv4() {
+		get("127.0.0.1", port2)
+	}
 	if testsuite.EnableIPv6() {
 		get("[::1]", port3)
 	}
