@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/net/idna"
 
 	"project/internal/convert"
@@ -30,14 +30,8 @@ var (
 	ErrNoConnection = errors.New("no connection")
 )
 
-type UnknownTypeError string
-
-func (t UnknownTypeError) Error() string {
-	return fmt.Sprintf("unknown type: %s", string(t))
-}
-
-func systemResolve(domain string, Type Type) ([]string, error) {
-	addrs, err := net.LookupHost(domain)
+func systemResolve(typ string, domain string) ([]string, error) {
+	ips, err := net.LookupHost(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -45,48 +39,43 @@ func systemResolve(domain string, Type Type) ([]string, error) {
 		ipv4List []string
 		ipv6List []string
 	)
-	for _, addr := range addrs {
-		ip := net.ParseIP(addr)
+	for _, ip := range ips {
+		ip := net.ParseIP(ip)
 		ipv4 := ip.To4()
 		if ipv4 != nil {
 			ipv4List = append(ipv4List, ipv4.String())
 		} else {
-			ipv6List = append(ipv6List, ip.To16().String())
+			ipv6 := ip.To16()
+			if ipv6 != nil {
+				ipv6List = append(ipv6List, ip.To16().String())
+			}
 		}
 	}
-	switch Type {
-	case IPv4:
+	if typ == IPv4 {
 		return ipv4List, nil
-	case IPv6:
+	} else { // about error type
 		return ipv6List, nil
-	default:
-		return nil, UnknownTypeError(Type)
 	}
 }
 
-// address = dns server(doh server) ip + port
-func customResolve(address, domain string, opts *Options) ([]string, error) {
-	// check domain name
-	if net.ParseIP(domain) != nil { // ip
-		return []string{domain}, nil
+// address is dns server address
+func customResolve(method, address, domain, typ string, opts *Options) ([]string, error) {
+	// check domain name is IP
+	if ip := net.ParseIP(domain); ip != nil {
+		return []string{ip.String()}, nil
 	}
 	// punycode
 	domain, err := idna.ToASCII(domain)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
+	// check domain name
 	if !IsDomainName(domain) {
-		return nil, fmt.Errorf("invalid domain name: %s", domain)
+		return nil, errors.Errorf("invalid domain name: %s", domain)
 	}
-	// check type
-	switch opts.Type {
-	case "", IPv4, IPv6:
-	default:
-		return nil, UnknownTypeError(opts.Type)
-	}
-	message := packMessage(types[opts.Type], domain)
-	switch opts.Method {
-	case "", UDP: // default
+	message := packMessage(types[typ], domain)
+	switch method {
+	case UDP: // default
 		message, err = dialUDP(address, message, opts)
 	case TCP:
 		message, err = dialTCP(address, message, opts)
@@ -94,8 +83,6 @@ func customResolve(address, domain string, opts *Options) ([]string, error) {
 		message, err = dialDoT(address, message, opts)
 	case DoH:
 		message, err = dialDoH(address, message, opts)
-	default:
-		return nil, UnknownMethodError(opts.Method)
 	}
 	if err != nil {
 		return nil, err
@@ -113,17 +100,14 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}
-	dial := net.DialTimeout
-	if opts.dial != nil {
-		dial = opts.dial
-	}
 	// set timeout
 	timeout := opts.Timeout
-	if opts.Timeout < 1 {
+	if timeout < 1 {
 		timeout = 5 * time.Second
 	}
+	// dial
 	for i := 0; i < 3; i++ {
-		conn, err := dial(network, address, timeout)
+		conn, err := opts.dial(network, address, timeout)
 		if err != nil {
 			return nil, err // not continue
 		}
@@ -151,14 +135,11 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	}
 	// set timeout
 	timeout := opts.Timeout
-	if opts.Timeout < 1 {
+	if timeout < 1 {
 		timeout = defaultTimeout
 	}
-	dial := net.DialTimeout
-	if opts.dial != nil {
-		dial = opts.dial
-	}
-	conn, err := dial(network, address, timeout)
+	// dial
+	conn, err := opts.dial(network, address, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -198,12 +179,8 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	}
 	// set timeout
 	timeout := opts.Timeout
-	if opts.Timeout < 1 {
+	if timeout < 1 {
 		timeout = defaultTimeout
-	}
-	dial := net.DialTimeout
-	if opts.dial != nil {
-		dial = opts.dial
 	}
 	config := strings.Split(address, "|")
 	var (
@@ -218,18 +195,17 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	case 1: // ip mode
 		// 8.8.8.8:853
 		// [2606:4700:4700::1001]:853
-		c, err := dial(network, address, timeout)
+		c, err := opts.dial(network, address, timeout)
 		if err != nil {
 			return nil, err
 		}
 		conn = tls.Client(c, &tls.Config{ServerName: host})
 	case 2: // domain mode
 		// dns.google:853|8.8.8.8,8.8.4.4
-		// dns.google:853|8.8.8.8,8.8.4.4
-		// cloudflare-dns.com:853|2606:4700:4700::1001
+		// cloudflare-dns.com:853|2606:4700:4700::1001,2606:4700:4700::1111
 		ipList := strings.Split(strings.TrimSpace(config[1]), ",")
 		for i := 0; i < len(ipList); i++ {
-			c, err := dial(network, net.JoinHostPort(ipList[i], port), timeout)
+			c, err := opts.dial(network, net.JoinHostPort(ipList[i], port), timeout)
 			if err == nil {
 				conn = tls.Client(c, &tls.Config{ServerName: host})
 				break
@@ -239,10 +215,12 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 			return nil, ErrNoConnection
 		}
 	default:
-		return nil, fmt.Errorf("invalid address: %s", address)
+		return nil, errors.Errorf("invalid address: %s", address)
 	}
+
 	dConn := xnetutil.DeadlineConn(conn, timeout)
 	defer func() { _ = dConn.Close() }()
+
 	// add size header
 	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
 	header.Write(message)
@@ -251,6 +229,7 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 		return nil, err
 	}
 	buffer := make([]byte, 512)
+
 	// read message size
 	_, err = io.ReadFull(dConn, buffer[:headerSize])
 	if err != nil {
@@ -283,6 +262,8 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// set header
 	req.Header = opts.Header.Clone()
 	if req.Header == nil {
 		req.Header = make(http.Header)
@@ -291,14 +272,14 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 		req.Header.Set("Content-Type", "application/dns-message")
 	}
 	req.Header.Set("Accept", "application/dns-message")
+
 	// http client
 	client := http.Client{
-		Timeout: opts.Timeout,
+		Transport: opts.transport,
+		Timeout:   opts.Timeout,
 	}
-	if opts.transport != nil {
-		client.Transport = opts.transport
-	}
-	if opts.Timeout < 1 {
+	defer client.CloseIdleConnections()
+	if client.Timeout < 1 {
 		client.Timeout = defaultTimeout
 	}
 	maxBodySize := opts.MaxBodySize
@@ -309,9 +290,6 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-		client.CloseIdleConnections()
-	}()
+	defer func() { _ = resp.Body.Close() }()
 	return ioutil.ReadAll(io.LimitReader(resp.Body, maxBodySize))
 }

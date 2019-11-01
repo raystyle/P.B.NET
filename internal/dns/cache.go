@@ -40,7 +40,7 @@ func (c *Client) FlushCache() {
 	c.cachesRWM.Unlock()
 }
 
-func (c *Client) queryCache(domain string, Type Type) []string {
+func (c *Client) queryCache(domain, typ string) []string {
 	// clean expire cache
 	c.cachesRWM.Lock()
 	for domain, cache := range c.caches {
@@ -51,17 +51,15 @@ func (c *Client) queryCache(domain string, Type Type) []string {
 	// query
 	if cache, ok := c.caches[domain]; ok {
 		c.cachesRWM.Unlock()
-		switch Type {
+		switch typ {
 		case IPv4:
 			cache.rwm.RLock()
-			ipList := make([]string, len(cache.ipv4List))
-			copy(ipList, cache.ipv4List)
+			ipList := cache.ipv4List
 			cache.rwm.RUnlock()
 			return ipList
 		case IPv6:
 			cache.rwm.RLock()
-			ipList := make([]string, len(cache.ipv6List))
-			copy(ipList, cache.ipv6List)
+			ipList := cache.ipv6List
 			cache.rwm.RUnlock()
 			return ipList
 		default:

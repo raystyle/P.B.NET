@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	testDomain = "github.com"
+	testCacheDomain = "github.com"
 )
 
 var (
@@ -37,23 +37,23 @@ func TestClientCache(t *testing.T) {
 	require.Equal(t, ErrInvalidExpireTime, client.SetCacheExpireTime(3*time.Hour))
 
 	// query empty cache, then create it
-	result := client.queryCache(testDomain, IPv4)
+	result := client.queryCache(testCacheDomain, IPv4)
 	require.Equal(t, 0, len(result))
 
 	// update cache
-	client.updateCache(testDomain, testExpectIPv4, testExpectIPv6)
+	client.updateCache(testCacheDomain, testExpectIPv4, testExpectIPv6)
 	// <security> update doesn't exists domain
 	client.updateCache("a", testExpectIPv4, testExpectIPv6)
 
 	// query exist cache
-	result = client.queryCache(testDomain, IPv4)
+	result = client.queryCache(testCacheDomain, IPv4)
 	require.Equal(t, testExpectIPv4, result)
-	result = client.queryCache(testDomain, IPv6)
+	result = client.queryCache(testCacheDomain, IPv6)
 	require.Equal(t, testExpectIPv6, result)
 
 	// flush cache
 	client.FlushCache()
-	result = client.queryCache(testDomain, IPv4)
+	result = client.queryCache(testCacheDomain, IPv4)
 	require.Equal(t, 0, len(result))
 }
 
@@ -64,14 +64,14 @@ func TestClientCacheAboutExpire(t *testing.T) {
 	client := NewClient(pool)
 	client.expire = 10 * time.Millisecond
 	// query empty cache, then create it
-	result := client.queryCache(testDomain, IPv4)
+	result := client.queryCache(testCacheDomain, IPv4)
 	require.Equal(t, 0, len(result))
 	// update cache
-	client.updateCache(testDomain, testExpectIPv4, testExpectIPv6)
+	client.updateCache(testCacheDomain, testExpectIPv4, testExpectIPv6)
 	// expire
 	time.Sleep(50 * time.Millisecond)
 	// clean cache
-	result = client.queryCache(testDomain, IPv4)
+	result = client.queryCache(testCacheDomain, IPv4)
 	require.Equal(t, 0, len(result))
 }
 
@@ -81,11 +81,11 @@ func TestClientCacheAboutSpecial(t *testing.T) {
 	// make dns client
 	client := NewClient(pool)
 	// query empty cache, then create it
-	result := client.queryCache(testDomain, IPv4)
+	result := client.queryCache(testCacheDomain, IPv4)
 	require.Equal(t, 0, len(result))
 	// update cache
-	client.updateCache(testDomain, testExpectIPv4, testExpectIPv6)
+	client.updateCache(testCacheDomain, testExpectIPv4, testExpectIPv6)
 	// query invalid type
-	result = client.queryCache(testDomain, "invalid type")
+	result = client.queryCache(testCacheDomain, "invalid type")
 	require.Equal(t, 0, len(result))
 }

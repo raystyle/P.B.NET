@@ -1,25 +1,21 @@
 package dns
 
 import (
-	"errors"
 	"net"
 
+	"github.com/pkg/errors"
 	"golang.org/x/net/dns/dnsmessage"
 
 	"project/internal/random"
 )
 
-// A Type is a type of DNS request and response.
-type Type string
-
 const (
-	IPv4 Type = "ipv4"
-	IPv6 Type = "ipv6"
+	IPv4 = "ipv4"
+	IPv6 = "ipv6"
 )
 
 var (
-	types = map[Type]dnsmessage.Type{
-		"":   dnsmessage.TypeA, // default is type A(IPv4)
+	types = map[string]dnsmessage.Type{
 		IPv4: dnsmessage.TypeA,
 		IPv6: dnsmessage.TypeAAAA,
 	}
@@ -117,14 +113,10 @@ func unpackMessage(message []byte) ([]string, error) {
 	msg := dnsmessage.Message{}
 	err := msg.Unpack(message)
 	if err != nil {
-		return nil, err
-	}
-	l := len(msg.Answers)
-	if l == 0 {
-		return nil, ErrNoResolveResult
+		return nil, errors.WithStack(err)
 	}
 	var result []string
-	for i := 0; i < l; i++ {
+	for i := 0; i < len(msg.Answers); i++ {
 		switch msg.Answers[i].Header.Type {
 		case dnsmessage.TypeA:
 			res := msg.Answers[i].Body.(*dnsmessage.AResource)
@@ -137,6 +129,9 @@ func unpackMessage(message []byte) ([]string, error) {
 			copy(ip, res.AAAA[:])
 			result = append(result, net.IP(ip).String())
 		}
+	}
+	if len(result) == 0 {
+		return nil, ErrNoResolveResult
 	}
 	return result, nil
 }
