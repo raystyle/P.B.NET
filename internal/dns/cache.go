@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ErrInvalidExpireTime = errors.New("expire time < 60s or > 1h")
+	ErrInvalidExpireTime = errors.New("expire time < 60 second or > 1 hour")
 )
 
 type cache struct {
@@ -48,39 +48,32 @@ func (c *Client) queryCache(domain string, Type Type) []string {
 			delete(c.caches, domain)
 		}
 	}
-	// try query
-	if _cache, ok := c.caches[domain]; ok {
+	// query
+	if cache, ok := c.caches[domain]; ok {
 		c.cachesRWM.Unlock()
 		switch Type {
 		case IPv4:
-			_cache.rwm.RLock()
-			l := len(_cache.ipv4List)
-			if l != 0 {
-				ipList := make([]string, l)
-				copy(ipList, _cache.ipv4List)
-				_cache.rwm.RUnlock()
-				return ipList
-			} else {
-				_cache.rwm.RUnlock()
-			}
+			cache.rwm.RLock()
+			ipList := make([]string, len(cache.ipv4List))
+			copy(ipList, cache.ipv4List)
+			cache.rwm.RUnlock()
+			return ipList
 		case IPv6:
-			_cache.rwm.RLock()
-			l := len(_cache.ipv6List)
-			if l != 0 {
-				ipList := make([]string, len(_cache.ipv6List))
-				copy(ipList, _cache.ipv6List)
-				_cache.rwm.RUnlock()
-				return ipList
-			} else {
-				_cache.rwm.RUnlock()
-			}
+			cache.rwm.RLock()
+			ipList := make([]string, len(cache.ipv6List))
+			copy(ipList, cache.ipv6List)
+			cache.rwm.RUnlock()
+			return ipList
+		default:
+			// <security> In theory,
+			// it's never going to work here
+			return nil
 		}
-		return nil
-	} else {
-		c.caches[domain] = &cache{updateTime: time.Now()}
-		c.cachesRWM.Unlock()
-		return nil
 	}
+	// create cache object
+	c.caches[domain] = &cache{updateTime: time.Now()}
+	c.cachesRWM.Unlock()
+	return nil
 }
 
 func (c *Client) updateCache(domain string, ipv4, ipv6 []string) {
@@ -97,6 +90,8 @@ func (c *Client) updateCache(domain string, ipv4, ipv6 []string) {
 		cache.updateTime = time.Now()
 		cache.rwm.Unlock()
 	} else {
+		// <security> In theory,
+		// it's never going to work here
 		c.cachesRWM.RUnlock()
 	}
 }

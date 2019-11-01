@@ -51,7 +51,7 @@
 
 [dot_ipv6_cloudflare_domain]
   method  = "dot"
-  address = "cloudflare-dns.com:853|2606:4700:4700::1001"
+  address = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
 
 # ------------------DNS-Over-HTTPS---------------------
 
