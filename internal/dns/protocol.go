@@ -82,7 +82,7 @@ func IsDomainName(s string) bool {
 	return nonNumeric
 }
 
-func packMessage(Type dnsmessage.Type, domain string) []byte {
+func packMessage(typ dnsmessage.Type, domain string) []byte {
 	header := dnsmessage.Header{
 		ID:                 uint16(random.Int(65536)),
 		Response:           false,
@@ -98,7 +98,7 @@ func packMessage(Type dnsmessage.Type, domain string) []byte {
 	name, _ := dnsmessage.NewName(domain)
 	question := dnsmessage.Question{
 		Name:  name,
-		Type:  Type,
+		Type:  typ,
 		Class: dnsmessage.ClassINET,
 	}
 	msg := dnsmessage.Message{
