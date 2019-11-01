@@ -40,6 +40,8 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 		}
 		testsuite.IsDestroyed(t, &proxyServers)
 	}()
+
+	// make proxy client
 	cfg := client.Configs{
 		Listener: struct {
 			Network  string `toml:"network"`
@@ -75,9 +77,6 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 		tag2 := "socks5-0" + strconv.Itoa(i+2)
 		tag3 := "socks5-0" + strconv.Itoa(i+3)
 		tags := fmt.Sprintf(`tags = ["%s","%s","%s"]`, tag1, tag2, tag3)
-
-		fmt.Println(tags)
-
 		cfg.Clients = append(cfg.Clients, &struct {
 			Tag     string `toml:"tag"`
 			Mode    string `toml:"mode"`
@@ -106,6 +105,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 
 	proxyClient := client.New("", &cfg)
 	require.NoError(t, proxyClient.Start())
+
 	defer func() {
 		require.NoError(t, proxyClient.Stop())
 		testsuite.IsDestroyed(t, proxyClient)
