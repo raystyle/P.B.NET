@@ -1,6 +1,6 @@
 // +build windows
 
-package cert
+package certutil
 
 import (
 	"crypto/x509"
@@ -16,7 +16,10 @@ var (
 	systemCertMutex sync.Mutex
 )
 
-func systemCertPool() (*x509.CertPool, error) {
+// SystemCertPool is used to return system certificate pool
+// on windows, the number of the CA and ROOT Certificate is
+// incorrect because the CA "Root Agency" is for test
+func SystemCertPool() (*x509.CertPool, error) {
 	var certs []*x509.Certificate
 	systemCertMutex.Lock()
 	if systemCertErr == nil {

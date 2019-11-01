@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -76,7 +75,7 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		server3 http.Server
 		port3   string
 	)
-	if testsuite.IPv6() {
+	if testsuite.EnableIPv6() {
 		server3 = http.Server{
 			Addr:      "[::1]:0",
 			Handler:   serveMux,
@@ -104,7 +103,7 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	}
 	get("localhost", port1)
 	get("127.0.0.1", port2)
-	if testsuite.IPv6() {
+	if testsuite.EnableIPv6() {
 		get("[::1]", port3)
 	}
 }
@@ -120,22 +119,4 @@ func TestIsDomainName(t *testing.T) {
 	require.False(t, isDomainName("asd.-"))
 	require.False(t, isDomainName("asd.."))
 	require.False(t, isDomainName(strings.Repeat("a", 64)+".com"))
-}
-
-func TestSystemCertPool(t *testing.T) {
-	wg := sync.WaitGroup{}
-	wg.Add(5)
-	for i := 0; i < 5; i++ {
-		go func() {
-			defer wg.Done()
-			pool, err := SystemCertPool()
-			require.NoError(t, err)
-			t.Log("the number of the system certificates:", len(pool.Subjects()))
-
-			// for _, sub := range pool.Subjects() {
-			// 	 t.Log(string(sub))
-			// }
-		}()
-	}
-	wg.Wait()
 }

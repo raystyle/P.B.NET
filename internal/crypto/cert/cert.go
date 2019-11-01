@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/big"
 	"net"
-	"runtime"
 	"time"
 
 	"project/internal/crypto/rand"
@@ -233,14 +232,4 @@ func isDomainName(s string) bool {
 		return false
 	}
 	return nonNumeric
-}
-
-// SystemCertPool is used to return system certificate pool
-// on windows, the number of the CA and ROOT Certificate is
-// incorrect because the CA "Root Agency" is for test
-func SystemCertPool() (*x509.CertPool, error) {
-	if runtime.GOOS == "windows" {
-		return systemCertPool()
-	}
-	return x509.SystemCertPool()
 }
