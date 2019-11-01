@@ -2,50 +2,39 @@ package certutil
 
 import (
 	"crypto/x509"
-	"encoding/pem"
-	"fmt"
-	"io/ioutil"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadCertificates(t *testing.T) {
-	root, err := loadSystemCertWithName("ROOT")
-	if err != nil {
-		return
-	}
-	ca, err := loadSystemCertWithName("CA")
-	if err != nil {
-		return
-	}
+func TestLoadSystemCertWithName(t *testing.T) {
+	root, err := LoadSystemCertWithName("ROOT")
+	require.NoError(t, err)
+	ca, err := LoadSystemCertWithName("CA")
+	require.NoError(t, err)
+
 	certs := append(root, ca...)
+	t.Log("raw number:", len(certs))
 
-	fmt.Println("number:", len(certs))
-
+	count := 0
 	for i := 0; i < len(certs); i++ {
-
-		if i == 54 {
-			_, err := x509.ParseCertificate(certs[i])
-			if err != nil {
-				fmt.Println(err)
-			}
-
+		cert, err := x509.ParseCertificate(certs[i])
+		if err != nil {
+			t.Log(err)
+			continue
 		}
+		count += 1
 
-		block := pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: certs[i],
+		// print CA info
+		const format = "V%d %s\n"
+		switch {
+		case cert.Subject.CommonName != "":
+			t.Logf(format, cert.Version, cert.Subject.CommonName)
+		case len(cert.Subject.Organization) != 0:
+			t.Logf(format, cert.Version, cert.Subject.Organization[0])
+		default:
+			t.Logf(format, cert.Version, cert.Subject)
 		}
-		bs := pem.EncodeToMemory(&block)
-		path := "e:/certs/" + strconv.Itoa(i) + ".pem"
-		require.NoError(t, ioutil.WriteFile(path, bs, 644))
-		_, err := x509.ParseCertificate(certs[i])
-		if err == nil {
-			// fmt.Println(cert.Issuer.CommonName)
-
-		}
-
 	}
+	t.Log("actual number:", count)
 }

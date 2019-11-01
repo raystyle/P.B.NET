@@ -22,19 +22,17 @@ var (
 func SystemCertPool() (*x509.CertPool, error) {
 	var certs []*x509.Certificate
 	systemCertMutex.Lock()
+	defer systemCertMutex.Unlock()
 	if systemCertErr == nil {
-		systemCertMutex.Unlock()
 		certs = make([]*x509.Certificate, len(systemCert))
 		copy(certs, systemCert)
 	} else {
 		c, err := loadSystemCert()
 		if err != nil {
-			systemCertMutex.Unlock()
 			return nil, err
 		}
 		systemCert = c
 		systemCertErr = nil
-		systemCertMutex.Unlock()
 		certs = make([]*x509.Certificate, len(systemCert))
 		copy(certs, systemCert)
 	}
@@ -47,11 +45,11 @@ func SystemCertPool() (*x509.CertPool, error) {
 }
 
 func loadSystemCert() ([]*x509.Certificate, error) {
-	root, err := loadSystemCertWithName("ROOT")
+	root, err := LoadSystemCertWithName("ROOT")
 	if err != nil {
 		return nil, err
 	}
-	ca, err := loadSystemCertWithName("CA")
+	ca, err := LoadSystemCertWithName("CA")
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +64,7 @@ func loadSystemCert() ([]*x509.Certificate, error) {
 	return pool, nil
 }
 
-func loadSystemCertWithName(n string) ([][]byte, error) {
+func LoadSystemCertWithName(n string) ([][]byte, error) {
 	name, err := syscall.UTF16PtrFromString(n)
 	if err != nil {
 		return nil, err
