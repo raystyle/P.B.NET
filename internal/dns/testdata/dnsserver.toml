@@ -66,3 +66,8 @@
 [doh_mozilla]
   method  = "doh"
   address = "https://mozilla.cloudflare-dns.com/dns-query"
+
+[skip_test]
+  method    = "udp"
+  address   = "192.168.1.1:53"
+  skip_test = true
