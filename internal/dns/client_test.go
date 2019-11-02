@@ -8,6 +8,7 @@ import (
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
+	"project/internal/options"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testproxy"
 )
@@ -96,8 +97,8 @@ func TestClient_TestDNSServers(t *testing.T) {
 		Timeout: 10 * time.Second,
 	}
 	opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
-
 	require.NoError(t, client.TestDNSServers(testDomain, opts))
+
 	// test unreachable DNS server
 	// delete all DNS servers
 	client.servers = make(map[string]*Server)
@@ -148,28 +149,60 @@ func TestClient_TestOptions(t *testing.T) {
 	require.NoError(t, client.TestOptions(testDomain, opts))
 
 	opts.ProxyTag = ""
+
+	// with cache
+	require.NoError(t, client.TestOptions(testDomain, opts))
 	client.FlushCache()
 
 	// unknown type
 	opts.Type = "foo type"
 	err := client.TestOptions(testDomain, opts)
-	require.Errorf(t, err, "unknown type: foo type")
+	require.Error(t, err, "unknown type: foo type")
+	t.Log(err)
 
 	opts.Type = TypeIPv4
 
 	// unknown mode
 	opts.Mode = "foo mode"
 	err = client.TestOptions(testDomain, opts)
-	require.Errorf(t, err, "unknown mode: foo mode")
+	require.Error(t, err, "unknown mode: foo mode")
+	t.Log(err)
 
 	opts.Mode = ModeCustom
 
 	// unknown method
 	opts.Method = "foo method"
 	err = client.TestOptions(testDomain, opts)
-	require.Errorf(t, err, "unknown method: foo method")
+	require.Error(t, err, "unknown method: foo method")
 
-	opts.Method = MethodTCP
+	// invalid http transport options
+	opts.Method = MethodDoH
+	opts.Transport.TLSClientConfig.RootCAs = []string{"foo CA"}
+	err = client.TestOptions(testDomain, opts)
+	require.Error(t, err, "invalid http transport options")
+
+	opts.ServerTag = "doh_cloudflare"
+	opts.Method = MethodDoH
+	opts.Transport.TLSClientConfig.RootCAs = []string{"foo CA"}
+	err = client.TestOptions(testDomain, opts)
+	require.Error(t, err, "invalid http transport options")
+
+	opts.ServerTag = ""
+	opts.Transport = options.HTTPTransport{}
+
+	// doesn't exist proxy
+	opts.ProxyTag = "foo proxy"
+	err = client.TestOptions(testDomain, opts)
+	require.Error(t, err, "doesn't exist proxy")
+
+	opts.ProxyTag = ""
+
+	// doesn't exist server tag
+	opts.ServerTag = "foo server"
+	err = client.TestOptions(testDomain, opts)
+	require.Error(t, err, "doesn't exist server tag")
+
+	opts.ServerTag = ""
 
 	// no result
 	err = client.TestOptions("asd.ads.qwq.aa", opts)
