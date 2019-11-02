@@ -13,11 +13,9 @@ import (
 	"project/internal/proxy"
 )
 
-type Mode string
-
 const (
-	Custom Mode = "custom"
-	System Mode = "system"
+	ModeCustom = "custom"
+	ModeSystem = "system"
 )
 
 type UnknownTypeError string
@@ -26,14 +24,11 @@ func (t UnknownTypeError) Error() string {
 	return fmt.Sprintf("unknown type: %s", string(t))
 }
 
-// resolve method
-type Method = string
-
 const (
-	UDP Method = "udp"
-	TCP Method = "tcp"
-	DoT Method = "dot" // DNS-Over-TLS
-	DoH Method = "doh" // DNS-Over-HTTPS
+	MethodUDP = "udp"
+	MethodTCP = "tcp"
+	MethodDoT = "dot" // DNS-Over-TLS
+	MethodDoH = "doh" // DNS-Over-HTTPS
 )
 
 type UnknownMethodError string
@@ -43,23 +38,23 @@ func (m UnknownMethodError) Error() string {
 }
 
 const (
-	defaultMode   = Custom
-	defaultType   = IPv4
-	defaultMethod = UDP
+	defaultMode   = ModeCustom
+	defaultType   = TypeIPv4
+	defaultMethod = MethodUDP
 )
 
 type Server struct {
-	Method   Method `toml:"method"`
+	Method   string `toml:"method"`
 	Address  string `toml:"address"`
 	SkipTest bool   `toml:"skip_test"`
 }
 
 // Options is used to Resolve domain name
 type Options struct {
-	Mode Mode `toml:"mode"`
+	Mode string `toml:"mode"`
 
 	// if ServerTag != "" ignore it
-	Method Method `toml:"method"`
+	Method string `toml:"method"`
 
 	// ipv4 or ipv6
 	Type string `toml:"type"`
@@ -126,7 +121,7 @@ func (c *Client) Add(tag string, server *Server) error {
 
 func (c *Client) add(tag string, server *Server) error {
 	switch server.Method {
-	case UDP, TCP, DoT, DoH:
+	case MethodUDP, MethodTCP, MethodDoT, MethodDoH:
 	default:
 		return UnknownMethodError(server.Method)
 	}
@@ -181,7 +176,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 
 	// check type
 	switch typ {
-	case IPv4, IPv6:
+	case TypeIPv4, TypeIPv6:
 	default:
 		return nil, UnknownTypeError(typ)
 	}
@@ -202,14 +197,14 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		err    error
 	)
 	switch mode {
-	case Custom:
+	case ModeCustom:
 		method := opts.Method
 		if method == "" {
 			method = defaultMethod
 		}
 
 		// apply doh options (http.Transport)
-		if method == DoH {
+		if method == MethodDoH {
 			opts.transport, err = opts.Transport.Apply()
 			if err != nil {
 				return nil, err
@@ -221,21 +216,28 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		switch method {
-		case UDP, TCP, DoT:
-			opts.dial = p.DialTimeout
-		case DoH:
-			p.HTTP(opts.transport)
-		default:
-			return nil, UnknownMethodError(method)
+
+		setProxy := func(method string) error {
+			switch method {
+			case MethodUDP, MethodTCP, MethodDoT:
+				opts.dial = p.DialTimeout
+			case MethodDoH:
+				p.HTTP(opts.transport)
+			default:
+				return UnknownMethodError(method)
+			}
+			return nil
 		}
 
-		// check tag exist
 		if opts.ServerTag != "" {
 			c.serversRWM.RLock()
 			if server, ok := c.servers[opts.ServerTag]; ok {
 				c.serversRWM.RUnlock()
 				method = server.Method
+				err = setProxy(method)
+				if err != nil {
+					return nil, err
+				}
 				return customResolve(method, server.Address, domain, typ, opts)
 			} else {
 				c.serversRWM.RUnlock()
@@ -243,6 +245,10 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 			}
 		}
 
+		err = setProxy(method)
+		if err != nil {
+			return nil, err
+		}
 		// query dns from random dns server
 		for _, server := range c.Servers() {
 			if server.Method == method {
@@ -252,7 +258,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 				}
 			}
 		}
-	case System:
+	case ModeSystem:
 		result, err = systemResolve(typ, domain)
 		if err != nil {
 			return nil, err
@@ -268,9 +274,9 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		cp := make([]string, l)
 		copy(cp, result)
 		switch typ {
-		case IPv4:
+		case TypeIPv4:
 			c.updateCache(domain, cp, nil)
-		case IPv6:
+		case TypeIPv6:
 			c.updateCache(domain, nil, cp)
 		}
 		return result, nil

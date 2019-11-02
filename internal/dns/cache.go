@@ -52,12 +52,12 @@ func (c *Client) queryCache(domain, typ string) []string {
 	if cache, ok := c.caches[domain]; ok {
 		c.cachesRWM.Unlock()
 		switch typ {
-		case IPv4:
+		case TypeIPv4:
 			cache.rwm.RLock()
 			ipList := cache.ipv4List
 			cache.rwm.RUnlock()
 			return ipList
-		case IPv6:
+		case TypeIPv6:
 			cache.rwm.RLock()
 			ipList := cache.ipv6List
 			cache.rwm.RUnlock()

@@ -10,14 +10,14 @@ import (
 )
 
 const (
-	IPv4 = "ipv4"
-	IPv6 = "ipv6"
+	TypeIPv4 = "ipv4"
+	TypeIPv6 = "ipv6"
 )
 
 var (
 	types = map[string]dnsmessage.Type{
-		IPv4: dnsmessage.TypeA,
-		IPv6: dnsmessage.TypeAAAA,
+		TypeIPv4: dnsmessage.TypeA,
+		TypeIPv6: dnsmessage.TypeAAAA,
 	}
 )
 

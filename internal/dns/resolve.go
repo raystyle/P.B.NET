@@ -51,7 +51,7 @@ func systemResolve(typ string, domain string) ([]string, error) {
 			}
 		}
 	}
-	if typ == IPv4 {
+	if typ == TypeIPv4 {
 		return ipv4List, nil
 	} else { // about error type
 		return ipv6List, nil
@@ -73,13 +73,13 @@ func customResolve(method, address, domain, typ string, opts *Options) ([]string
 	message := packMessage(types[typ], domain)
 	var err error
 	switch method {
-	case UDP:
+	case MethodUDP:
 		message, err = dialUDP(address, message, opts)
-	case TCP:
+	case MethodTCP:
 		message, err = dialTCP(address, message, opts)
-	case DoT:
+	case MethodDoT:
 		message, err = dialDoT(address, message, opts)
-	case DoH:
+	case MethodDoH:
 		message, err = dialDoH(address, message, opts)
 	}
 	if err != nil {

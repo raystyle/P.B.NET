@@ -20,15 +20,15 @@ const (
 
 func TestSystemResolve(t *testing.T) {
 	// ipv4
-	ipList, err := systemResolve(IPv4, testDomain)
+	ipList, err := systemResolve(TypeIPv4, testDomain)
 	require.NoError(t, err)
 	t.Log("system resolve ipv4:", ipList)
 	// ipv6
-	ipList, err = systemResolve(IPv6, testDomain)
+	ipList, err = systemResolve(TypeIPv6, testDomain)
 	require.NoError(t, err)
 	t.Log("system resolve ipv6:", ipList)
 	// invalid host
-	ipList, err = systemResolve(IPv4, "asd")
+	ipList, err = systemResolve(TypeIPv4, "asd")
 	require.Error(t, err)
 	require.Equal(t, 0, len(ipList))
 }
@@ -47,19 +47,19 @@ func TestCustomResolve(t *testing.T) {
 			tlsDomain = "dns.google:853|8.8.8.8,8.8.4.4"
 		)
 		// udp
-		ipList, err := customResolve(UDP, udpServer, testDomain, IPv4, opts)
+		ipList, err := customResolve(MethodUDP, udpServer, testDomain, TypeIPv4, opts)
 		require.NoError(t, err)
 		t.Log("UDP IPv4:", ipList)
 		// tcp
-		ipList, err = customResolve(TCP, tcpServer, testDomain, IPv4, opts)
+		ipList, err = customResolve(MethodTCP, tcpServer, testDomain, TypeIPv4, opts)
 		require.NoError(t, err)
 		t.Log("TCP IPv4:", ipList)
 		// dot ip mode
-		ipList, err = customResolve(DoT, tlsIP, testDomain, IPv4, opts)
+		ipList, err = customResolve(MethodDoT, tlsIP, testDomain, TypeIPv4, opts)
 		require.NoError(t, err)
 		t.Log("DOT-IP IPv4:", ipList)
 		// dot domain mode
-		ipList, err = customResolve(DoT, tlsDomain, testDomain, IPv4, opts)
+		ipList, err = customResolve(MethodDoT, tlsDomain, testDomain, TypeIPv4, opts)
 		require.NoError(t, err)
 		t.Log("DOT-Domain IPv4:", ipList)
 	case testsuite.EnableIPv6():
@@ -70,48 +70,48 @@ func TestCustomResolve(t *testing.T) {
 			TLSDomain = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
 		)
 		// udp
-		ipList, err := customResolve(UDP, udpServer, testDomain, IPv6, opts)
+		ipList, err := customResolve(MethodUDP, udpServer, testDomain, TypeIPv6, opts)
 		require.NoError(t, err)
 		t.Log("UDP IPv6:", ipList)
 		// tcp
-		ipList, err = customResolve(TCP, tcpServer, testDomain, IPv6, opts)
+		ipList, err = customResolve(MethodTCP, tcpServer, testDomain, TypeIPv6, opts)
 		require.NoError(t, err)
 		t.Log("TCP IPv6:", ipList)
 		// dot ip mode
-		ipList, err = customResolve(DoT, TLSIP, testDomain, IPv6, opts)
+		ipList, err = customResolve(MethodDoT, TLSIP, testDomain, TypeIPv6, opts)
 		require.NoError(t, err)
 		t.Log("DOT-IP IPv6:", ipList)
 		// dot domain mode
-		ipList, err = customResolve(DoT, TLSDomain, testDomain, IPv6, opts)
+		ipList, err = customResolve(MethodDoT, TLSDomain, testDomain, TypeIPv6, opts)
 		require.NoError(t, err)
 		t.Log("DOT-Domain IPv6:", ipList)
 	}
 	// doh
 	const dnsDOH = "https://cloudflare-dns.com/dns-query"
-	ipList, err := customResolve(DoH, dnsDOH, testDomain, IPv4, opts)
+	ipList, err := customResolve(MethodDoH, dnsDOH, testDomain, TypeIPv4, opts)
 	require.NoError(t, err)
 	t.Log("DOH:", ipList)
 
 	// resolve ip
 	const dnsServer = "1.0.0.1:53"
-	ipList, err = customResolve(UDP, dnsServer, "1.1.1.1", IPv4, opts)
+	ipList, err = customResolve(MethodUDP, dnsServer, "1.1.1.1", TypeIPv4, opts)
 	require.NoError(t, err)
 	require.Equal(t, []string{"1.1.1.1"}, ipList)
 
 	// resolve domain name with punycode
 	const domainPunycode = "münchen.com"
-	ipList, err = customResolve(UDP, "8.8.8.8:53", domainPunycode, IPv4, opts)
+	ipList, err = customResolve(MethodUDP, "8.8.8.8:53", domainPunycode, TypeIPv4, opts)
 	require.NoError(t, err)
 	t.Log("punycode:", ipList)
 
 	// empty domain
-	ipList, err = customResolve(UDP, dnsServer, "", IPv4, opts)
+	ipList, err = customResolve(MethodUDP, dnsServer, "", TypeIPv4, opts)
 	require.Error(t, err)
 	require.Equal(t, 0, len(ipList))
 
 	// resolve failed
 	opts.Timeout = time.Second
-	ipList, err = customResolve(UDP, "0.0.0.0:1", domainPunycode, IPv4, opts)
+	ipList, err = customResolve(MethodUDP, "0.0.0.0:1", domainPunycode, TypeIPv4, opts)
 	require.Error(t, err)
 	require.Equal(t, 0, len(ipList))
 }
