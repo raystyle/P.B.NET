@@ -198,30 +198,21 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 	)
 	switch mode {
 	case ModeCustom:
-		method := opts.Method
-		if method == "" {
-			method = defaultMethod
-		}
-
-		// apply doh options (http.Transport)
-		if method == MethodDoH {
-			opts.transport, err = opts.Transport.Apply()
-			if err != nil {
-				return nil, err
-			}
-		}
-
 		// set proxy and check method
 		p, err := c.proxyPool.Get(opts.ProxyTag)
 		if err != nil {
 			return nil, err
 		}
-
 		setProxy := func(method string) error {
 			switch method {
 			case MethodUDP, MethodTCP, MethodDoT:
 				opts.dial = p.DialTimeout
 			case MethodDoH:
+				// apply doh options (http.Transport)
+				opts.transport, err = opts.Transport.Apply()
+				if err != nil {
+					return err
+				}
 				p.HTTP(opts.transport)
 			default:
 				return UnknownMethodError(method)
@@ -229,27 +220,31 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 			return nil
 		}
 
+		// check server tag
 		if opts.ServerTag != "" {
 			c.serversRWM.RLock()
 			if server, ok := c.servers[opts.ServerTag]; ok {
 				c.serversRWM.RUnlock()
-				method = server.Method
-				err = setProxy(method)
+				err = setProxy(server.Method)
 				if err != nil {
 					return nil, err
 				}
-				return customResolve(method, server.Address, domain, typ, opts)
+				return customResolve(server.Method, server.Address, domain, typ, opts)
 			} else {
 				c.serversRWM.RUnlock()
 				return nil, errors.Errorf("dns server: %s doesn't exist", opts.ServerTag)
 			}
 		}
 
+		// query dns from random dns server
+		method := opts.Method
+		if method == "" {
+			method = defaultMethod
+		}
 		err = setProxy(method)
 		if err != nil {
 			return nil, err
 		}
-		// query dns from random dns server
 		for _, server := range c.Servers() {
 			if server.Method == method {
 				result, err = customResolve(method, server.Address, domain, typ, opts)
@@ -284,14 +279,10 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 	return nil, ErrNoResolveResult
 }
 
-func (c *Client) TestDNSServers(domain, typ string) error {
+func (c *Client) TestDNSServers(domain string, opts *Options) error {
 	for tag, server := range c.Servers() {
 		if server.SkipTest {
 			continue
-		}
-		opts := &Options{
-			Type:    typ,
-			Timeout: 10 * time.Second,
 		}
 		// set server tag to use DNS server that selected
 		opts.ServerTag = tag

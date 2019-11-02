@@ -1,0 +1,9 @@
+# ------------------DNS-Over-HTTPS---------------------
+
+[doh_cloudflare]
+  method  = "doh"
+  address = "https://cloudflare-dns.com/dns-query"
+
+[doh_mozilla]
+  method  = "doh"
+  address = "https://mozilla.cloudflare-dns.com/dns-query"

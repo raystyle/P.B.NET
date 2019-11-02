@@ -266,6 +266,6 @@ func TestDialDoH(t *testing.T) {
 	_, err = dialDoH(url, testDNSMessage, opt)
 	require.Error(t, err)
 	// unreachable doh server
-	_, err = dialDoH("https://asd.1dsa.asd", testDNSMessage, opt)
+	_, err = dialDoH("https://1.2.3.4", testDNSMessage, opt)
 	require.Error(t, err)
 }
