@@ -115,4 +115,63 @@ func TestClient_TestOptions(t *testing.T) {
 	defer func() { _ = manager.Close() }()
 	client := NewClient(pool)
 	testAddAllDNSServers(t, client)
+
+	// skip test
+	opts := &Options{SkipTest: true}
+	require.NoError(t, client.TestOptions(testDomain, opts))
+
+	opts.SkipTest = false
+
+	// skip proxy
+	opts.ProxyTag = "foo proxy tag"
+	opts.SkipProxy = true
+	require.NoError(t, client.TestOptions(testDomain, opts))
+
+	opts.SkipProxy = false
+	client.FlushCache()
+
+	// test system mode
+	opts.Mode = ModeSystem
+	require.NoError(t, client.TestOptions(testDomain, opts))
+
+	client.FlushCache()
+
+	// invalid domain name
+	opts.Mode = ModeSystem
+	require.Error(t, client.TestOptions("asd", opts))
+
+	opts.Mode = ModeCustom
+
+	// with proxy
+	opts.Method = MethodTCP // must not use udp
+	opts.ProxyTag = testproxy.TagBalance
+	require.NoError(t, client.TestOptions(testDomain, opts))
+
+	opts.ProxyTag = ""
+	client.FlushCache()
+
+	// unknown type
+	opts.Type = "foo type"
+	err := client.TestOptions(testDomain, opts)
+	require.Errorf(t, err, "unknown type: foo type")
+
+	opts.Type = TypeIPv4
+
+	// unknown mode
+	opts.Mode = "foo mode"
+	err = client.TestOptions(testDomain, opts)
+	require.Errorf(t, err, "unknown mode: foo mode")
+
+	opts.Mode = ModeCustom
+
+	// unknown method
+	opts.Method = "foo method"
+	err = client.TestOptions(testDomain, opts)
+	require.Errorf(t, err, "unknown method: foo method")
+
+	opts.Method = MethodTCP
+
+	// no result
+	err = client.TestOptions("asd.ads.qwq.aa", opts)
+	require.Error(t, err)
 }

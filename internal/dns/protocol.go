@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/pkg/errors"
@@ -22,7 +23,7 @@ var (
 )
 
 var (
-	ErrNoResolveResult = errors.New("no resolve result")
+	ErrNoResolveResult = fmt.Errorf("no resolve result")
 )
 
 // from GOROOT/src/net/dnsclient.go
