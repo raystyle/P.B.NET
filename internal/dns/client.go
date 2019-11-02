@@ -61,11 +61,11 @@ type Options struct {
 
 	Timeout time.Duration `toml:"timeout"`
 
-	// ServerTag used to select DNS server
-	ServerTag string `toml:"server_tag"`
-
 	// ProxyTag is used to set proxy
 	ProxyTag string `toml:"proxy_tag"`
+
+	// ServerTag used to select DNS server
+	ServerTag string `toml:"server_tag"`
 
 	// network is useless for DOH
 	Network string `toml:"network"`

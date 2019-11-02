@@ -182,7 +182,6 @@ func TestClient_TestOptions(t *testing.T) {
 	require.Error(t, err, "invalid http transport options")
 
 	opts.ServerTag = "doh_cloudflare"
-	opts.Method = MethodDoH
 	opts.Transport.TLSClientConfig.RootCAs = []string{"foo CA"}
 	err = client.TestOptions(testDomain, opts)
 	require.Error(t, err, "invalid http transport options")
@@ -205,6 +204,37 @@ func TestClient_TestOptions(t *testing.T) {
 	opts.ServerTag = ""
 
 	// no result
+	opts.Method = MethodUDP
 	err = client.TestOptions("asd.ads.qwq.aa", opts)
 	require.Error(t, err)
+}
+
+func TestOptions(t *testing.T) {
+	// DNS
+	b, err := ioutil.ReadFile("testdata/server.toml")
+	require.NoError(t, err)
+	server := Server{}
+	require.NoError(t, toml.Unmarshal(b, &server))
+	// compare
+	require.Equal(t, "udp", server.Method)
+	require.Equal(t, "1.1.1.1:53", server.Address)
+	require.Equal(t, true, server.SkipTest)
+
+	// Options
+	b, err = ioutil.ReadFile("testdata/options.toml")
+	require.NoError(t, err)
+	opts := Options{}
+	require.NoError(t, toml.Unmarshal(b, &opts))
+	require.Equal(t, "custom", opts.Mode)
+	require.Equal(t, "dot", opts.Method)
+	require.Equal(t, "ipv6", opts.Type)
+	require.Equal(t, time.Minute, opts.Timeout)
+	require.Equal(t, "balance", opts.ProxyTag)
+	require.Equal(t, "cloudflare", opts.ServerTag)
+	require.Equal(t, "tcp", opts.Network)
+	require.Equal(t, int64(65536), opts.MaxBodySize)
+	require.Equal(t, true, opts.SkipProxy)
+	require.Equal(t, true, opts.SkipTest)
+	require.Equal(t, "keep-alive", opts.Header.Get("Connection"))
+	require.Equal(t, 2, opts.Transport.MaxIdleConns)
 }

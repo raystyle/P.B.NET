@@ -19,3 +19,8 @@ func TestIsDomainName(t *testing.T) {
 	require.False(t, IsDomainName("asd.."))
 	require.False(t, IsDomainName(strings.Repeat("a", 64)+".com"))
 }
+
+func TestUnpackMessage(t *testing.T) {
+	_, err := unpackMessage([]byte{1, 2, 3, 4})
+	require.Error(t, err)
+}

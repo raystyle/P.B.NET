@@ -1,0 +1,3 @@
+method    = "udp"
+address   = "1.1.1.1:53"
+skip_test = true
