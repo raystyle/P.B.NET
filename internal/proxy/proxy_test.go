@@ -1,8 +1,11 @@
 package proxy
 
 import (
+	"io/ioutil"
 	"testing"
+	"time"
 
+	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
@@ -144,4 +147,35 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		},
 	}
 	return groups
+}
+
+func TestOptions(t *testing.T) {
+	// socks
+	socksOpts := socks.Options{}
+	b, err := ioutil.ReadFile("testdata/socks.toml")
+	require.NoError(t, err)
+	require.NoError(t, toml.Unmarshal(b, &socksOpts))
+	// compare value
+	require.Equal(t, true, socksOpts.Socks4)
+	require.Equal(t, "admin", socksOpts.Username)
+	require.Equal(t, "123456", socksOpts.Password)
+	require.Equal(t, time.Minute, socksOpts.Timeout)
+	require.Equal(t, "test", socksOpts.UserID)
+	require.Equal(t, true, socksOpts.DisableSocks4A)
+	require.Equal(t, 100, socksOpts.MaxConns)
+
+	// http
+	httpOpts := http.Options{}
+	b, err = ioutil.ReadFile("testdata/http.toml")
+	require.NoError(t, err)
+	require.NoError(t, toml.Unmarshal(b, &httpOpts))
+	// compare value
+	require.Equal(t, true, httpOpts.HTTPS)
+	require.Equal(t, "admin", httpOpts.Username)
+	require.Equal(t, "123456", httpOpts.Password)
+	require.Equal(t, time.Minute, httpOpts.Timeout)
+	require.Equal(t, 100, httpOpts.MaxConns)
+	require.Equal(t, "keep-alive", httpOpts.Header.Get("Connection"))
+	require.Equal(t, 10*time.Second, httpOpts.Server.ReadTimeout)
+	require.Equal(t, 2, httpOpts.Transport.MaxIdleConns)
 }
