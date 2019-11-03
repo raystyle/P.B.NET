@@ -114,9 +114,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	// make client
 	u, err := url.Parse("socks5://" + proxyClient.Address())
 	require.NoError(t, err)
-	transport := &http.Transport{Proxy: http.ProxyURL(u)}
-	hc := http.Client{Transport: transport}
-	defer hc.CloseIdleConnections()
+	transport := http.Transport{Proxy: http.ProxyURL(u)}
 
-	testsuite.ProxyServer(t, testsuite.NopCloser(), &hc)
+	testsuite.ProxyServer(t, testsuite.NopCloser(), &transport)
 }
