@@ -3,7 +3,6 @@ package testproxy
 import (
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -24,12 +23,7 @@ func TestProxyPoolAndManager(t *testing.T) {
 	// test http client
 	transport := new(http.Transport)
 	balance.HTTP(transport)
-	client := http.Client{
-		Transport: transport,
-		Timeout:   time.Minute,
-	}
-	defer client.CloseIdleConnections()
-	testsuite.HTTPClient(t, &client, testsuite.GetHTTP())
+	testsuite.HTTPClient(t, transport, "localhost")
 
 	testsuite.IsDestroyed(t, pool)
 }
