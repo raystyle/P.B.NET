@@ -1,15 +1,18 @@
 package dns
 
 import (
+	"io"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/dns/dnsmessage"
 
+	"project/internal/convert"
 	"project/internal/testsuite"
 )
 
@@ -276,4 +279,40 @@ func TestDialDoH(t *testing.T) {
 	// unreachable doh server
 	_, err = dialDoH("https://1.2.3.4", testDNSMessage, opt)
 	require.Error(t, err)
+}
+
+func TestFailedToSendMessage(t *testing.T) {
+	// failed to write message
+	server, client := net.Pipe()
+	_ = server.Close()
+	_, err := sendMessage(client, testDNSMessage, time.Second)
+	require.Error(t, err)
+
+	// failed to read response size
+	server, client = net.Pipe()
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := io.ReadFull(server, make([]byte, headerSize+len(testDNSMessage)))
+		require.NoError(t, err)
+		_ = server.Close()
+	}()
+	_, err = sendMessage(client, testDNSMessage, time.Second)
+	require.Error(t, err)
+	wg.Wait()
+
+	// failed to read response
+	server, client = net.Pipe()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := io.ReadFull(server, make([]byte, headerSize+len(testDNSMessage)))
+		require.NoError(t, err)
+		_, _ = server.Write(convert.Uint16ToBytes(4))
+		_ = server.Close()
+	}()
+	_, err = sendMessage(client, testDNSMessage, time.Second)
+	require.Error(t, err)
+	wg.Wait()
 }
