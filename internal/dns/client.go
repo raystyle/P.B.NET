@@ -303,7 +303,7 @@ func (c *Client) TestOptions(domain string, opts *Options) error {
 	}
 	_, err := c.Resolve(domain, opts)
 	if err != nil {
-		return errors.WithMessage(err, "failed to test option")
+		return errors.WithMessage(err, "failed to test dns option")
 	}
 	return nil
 }

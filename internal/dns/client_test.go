@@ -89,20 +89,27 @@ func TestClient_TestDNSServers(t *testing.T) {
 	manager, pool := testproxy.ProxyPoolAndManager(t)
 	defer func() { _ = manager.Close() }()
 	client := NewClient(pool)
-	testAddAllDNSServers(t, client)
+
+	// add reachable and skip test
+	err := client.Add("reachable", &Server{
+		Method:  MethodUDP,
+		Address: "1.1.1.1:53",
+	})
+	require.NoError(t, err)
+	err = client.Add("skip_test", &Server{
+		Method:   MethodUDP,
+		Address:  "1.1.1.1:53",
+		SkipTest: true,
+	})
+	require.NoError(t, err)
 
 	// set options
-	opts := &Options{
-		Type:    TypeIPv4,
-		Timeout: 10 * time.Second,
-	}
-	opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
+	opts := new(Options)
 	require.NoError(t, client.TestDNSServers(testDomain, opts))
 
 	// test unreachable DNS server
-	// delete all DNS servers
-	client.servers = make(map[string]*Server)
-	err := client.Add("unreachable", &Server{
+	require.NoError(t, client.Delete("reachable"))
+	err = client.Add("unreachable", &Server{
 		Method:  MethodUDP,
 		Address: "1.2.3.4",
 	})

@@ -20,10 +20,14 @@ import (
 )
 
 const (
-	defaultTimeout     = time.Minute // udp is 5 second
-	defaultMaxBodySize = 65535       // about DOH
+	// udp is 1 second
+	defaultTimeout = 5 * time.Second
 
-	headerSize = 2 // tcp && tls need
+	// about DOH
+	defaultMaxBodySize = 65535
+
+	// tcp && tls need it
+	headerSize = 2
 )
 
 var (
@@ -41,14 +45,11 @@ func systemResolve(typ string, domain string) ([]string, error) {
 	)
 	for _, ip := range ips {
 		ip := net.ParseIP(ip)
-		ipv4 := ip.To4()
-		if ipv4 != nil {
-			ipv4List = append(ipv4List, ipv4.String())
+		ip4 := ip.To4()
+		if ip4 != nil {
+			ipv4List = append(ipv4List, ip4.String())
 		} else {
-			ipv6 := ip.To16()
-			if ipv6 != nil {
-				ipv6List = append(ipv6List, ip.To16().String())
-			}
+			ipv6List = append(ipv6List, ip.To16().String())
 		}
 	}
 	if typ == TypeIPv4 {
@@ -101,7 +102,7 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 	// set timeout
 	timeout := opts.Timeout
 	if timeout < 1 {
-		timeout = 5 * time.Second
+		timeout = time.Second
 	}
 	// dial
 	for i := 0; i < 3; i++ {
@@ -120,6 +121,31 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 		_ = dConn.Close()
 	}
 	return nil, ErrNoConnection
+}
+
+func sendMessage(conn net.Conn, message []byte, timeout time.Duration) ([]byte, error) {
+	dConn := xnetutil.DeadlineConn(conn, timeout)
+	defer func() { _ = dConn.Close() }()
+	// add size header
+	header := new(bytes.Buffer)
+	header.Write(convert.Uint16ToBytes(uint16(len(message))))
+	header.Write(message)
+	_, err := dConn.Write(header.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	// read message size
+	length := make([]byte, headerSize)
+	_, err = io.ReadFull(dConn, length)
+	if err != nil {
+		return nil, err
+	}
+	resp := make([]byte, int(convert.BytesToUint16(length)))
+	_, err = io.ReadFull(dConn, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
@@ -141,29 +167,7 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dConn := xnetutil.DeadlineConn(conn, timeout)
-	defer func() { _ = dConn.Close() }()
-	// add size header
-	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
-	header.Write(message)
-	_, err = dConn.Write(header.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	buffer := make([]byte, 512)
-	_, err = io.ReadFull(dConn, buffer[:headerSize])
-	if err != nil {
-		return nil, err
-	}
-	l := int(convert.BytesToUint16(buffer[:headerSize]))
-	if l > 512 {
-		buffer = make([]byte, l)
-	}
-	_, err = io.ReadFull(dConn, buffer[:l])
-	if err != nil {
-		return nil, err
-	}
-	return buffer[:l], nil
+	return sendMessage(conn, message, timeout)
 }
 
 func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
@@ -215,33 +219,7 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	default:
 		return nil, errors.Errorf("invalid address: %s", address)
 	}
-
-	dConn := xnetutil.DeadlineConn(conn, timeout)
-	defer func() { _ = dConn.Close() }()
-
-	// add size header
-	header := bytes.NewBuffer(convert.Uint16ToBytes(uint16(len(message))))
-	header.Write(message)
-	_, err = dConn.Write(header.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	buffer := make([]byte, 512)
-
-	// read message size
-	_, err = io.ReadFull(dConn, buffer[:headerSize])
-	if err != nil {
-		return nil, err
-	}
-	l := int(convert.BytesToUint16(buffer[:headerSize]))
-	if l > 512 {
-		buffer = make([]byte, l)
-	}
-	_, err = io.ReadFull(dConn, buffer[:l])
-	if err != nil {
-		return nil, err
-	}
-	return buffer[:l], nil
+	return sendMessage(conn, message, timeout)
 }
 
 // support RFC 8484
