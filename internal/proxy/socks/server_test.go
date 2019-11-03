@@ -41,11 +41,9 @@ func TestSocks5Server(t *testing.T) {
 	// make client
 	u, err := url.Parse("socks5://admin:123456@" + server.Address())
 	require.NoError(t, err)
-	transport := &http.Transport{Proxy: http.ProxyURL(u)}
-	client := http.Client{Transport: transport}
-	defer client.CloseIdleConnections()
+	transport := http.Transport{Proxy: http.ProxyURL(u)}
 
-	testsuite.ProxyServer(t, server, &client)
+	testsuite.ProxyServer(t, server, &transport)
 }
 
 func TestSocks4aServer(t *testing.T) {

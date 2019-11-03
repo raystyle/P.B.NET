@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -50,14 +49,9 @@ func TestHTTPProxyServer(t *testing.T) {
 	// make client
 	u, err := url.Parse("http://admin:123456@" + server.Address())
 	require.NoError(t, err)
-	transport := &http.Transport{Proxy: http.ProxyURL(u)}
-	client := http.Client{
-		Transport: transport,
-		Timeout:   time.Minute,
-	}
-	defer client.CloseIdleConnections()
+	transport := http.Transport{Proxy: http.ProxyURL(u)}
 
-	testsuite.ProxyServer(t, server, &client)
+	testsuite.ProxyServer(t, server, &transport)
 }
 
 func TestHTTPSProxyServer(t *testing.T) {
@@ -68,7 +62,7 @@ func TestHTTPSProxyServer(t *testing.T) {
 	// make client
 	u, err := url.Parse("https://admin:123456@" + server.Address())
 	require.NoError(t, err)
-	transport := &http.Transport{Proxy: http.ProxyURL(u)}
+	transport := http.Transport{Proxy: http.ProxyURL(u)}
 	transport.TLSClientConfig = new(tls.Config)
 	require.NoError(t, err)
 	// add cert
@@ -77,13 +71,8 @@ func TestHTTPSProxyServer(t *testing.T) {
 	rootCAs, err := tlsConfig.RootCA()
 	require.NoError(t, err)
 	transport.TLSClientConfig.RootCAs.AddCert(rootCAs[0])
-	client := http.Client{
-		Transport: transport,
-		Timeout:   time.Minute,
-	}
-	defer client.CloseIdleConnections()
 
-	testsuite.ProxyServer(t, server, &client)
+	testsuite.ProxyServer(t, server, &transport)
 }
 
 func TestAuthenticate(t *testing.T) {
