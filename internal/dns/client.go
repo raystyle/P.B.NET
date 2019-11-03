@@ -276,7 +276,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		}
 		return result, nil
 	}
-	return nil, ErrNoResolveResult
+	return nil, errors.WithStack(ErrNoResolveResult)
 }
 
 func (c *Client) TestDNSServers(domain string, opts *Options) error {

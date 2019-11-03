@@ -66,7 +66,7 @@ func TestCustomResolve(t *testing.T) {
 		const (
 			udpServer = "[2606:4700:4700::1001]:53"
 			tcpServer = "[2606:4700:4700::1001]:53"
-			TLSIP     = "[2606:4700:4700::1001]:853"
+			TLSIP     = "[2606:4700:4700::1111]:853"
 			TLSDomain = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
 		)
 		// udp
@@ -86,23 +86,25 @@ func TestCustomResolve(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("DOT-Domain IPv6:", ipList)
 	}
+
 	// doh
 	const dnsDOH = "https://cloudflare-dns.com/dns-query"
 	ipList, err := customResolve(MethodDoH, dnsDOH, testDomain, TypeIPv4, opts)
 	require.NoError(t, err)
 	t.Log("DOH:", ipList)
 
+	// resolve domain name with punycode
+	const domainPunycode = "münchen.com"
+
+	ipList, err = customResolve(MethodUDP, "8.8.8.8:53", domainPunycode, TypeIPv4, opts)
+	require.NoError(t, err)
+	t.Log("punycode:", ipList)
+
 	// resolve ip
 	const dnsServer = "1.0.0.1:53"
 	ipList, err = customResolve(MethodUDP, dnsServer, "1.1.1.1", TypeIPv4, opts)
 	require.NoError(t, err)
 	require.Equal(t, []string{"1.1.1.1"}, ipList)
-
-	// resolve domain name with punycode
-	const domainPunycode = "münchen.com"
-	ipList, err = customResolve(MethodUDP, "8.8.8.8:53", domainPunycode, TypeIPv4, opts)
-	require.NoError(t, err)
-	t.Log("punycode:", ipList)
 
 	// empty domain
 	ipList, err = customResolve(MethodUDP, dnsServer, "", TypeIPv4, opts)
@@ -150,8 +152,14 @@ func TestDialUDP(t *testing.T) {
 	require.Error(t, err)
 	// no response
 	opt.Timeout = time.Second
-	_, err = dialUDP("1.2.3.4:23421", nil, opt)
-	require.Equal(t, ErrNoConnection, err)
+	if testsuite.EnableIPv4() {
+		_, err = dialUDP("1.2.3.4:23421", nil, opt)
+		require.Equal(t, ErrNoConnection, err)
+	}
+	if testsuite.EnableIPv6() {
+		_, err = dialUDP("[::1]:23421", nil, opt)
+		require.Equal(t, ErrNoConnection, err)
+	}
 }
 
 func TestDialTCP(t *testing.T) {

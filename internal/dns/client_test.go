@@ -56,7 +56,48 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("use default options", ipList)
 
+	client.FlushCache()
+
+	// resolve IPv6
+	ipList, err = client.Resolve(testDomain, &Options{Type: TypeIPv6})
+	require.NoError(t, err)
+	t.Log("IPv6:", ipList)
+
+	client.FlushCache()
+
+	// use DoH
+	opts := &Options{Method: MethodDoH}
+	opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
+	ipList, err = client.Resolve(testDomain, opts)
+	require.NoError(t, err)
+	t.Log("DoH:", ipList)
+
 	testsuite.IsDestroyed(t, client)
+}
+
+func TestClient_No_Result(t *testing.T) {
+	manager, pool := testproxy.ProxyPoolAndManager(t)
+	defer func() { _ = manager.Close() }()
+	client := NewClient(pool)
+	if testsuite.EnableIPv4() {
+		err := client.Add("reachable-ipv4", &Server{
+			Method:  MethodUDP,
+			Address: "1.1.1.1:53",
+		})
+		require.NoError(t, err)
+	}
+	if testsuite.EnableIPv6() {
+		err := client.Add("reachable-ipv6", &Server{
+			Method:  MethodUDP,
+			Address: "[2606:4700:4700::1111]:53",
+		})
+		require.NoError(t, err)
+	}
+	// no result
+	opts := &Options{Method: MethodUDP}
+	ipList, err := client.Resolve("asd.ads.qwq.aa", opts)
+	require.Error(t, err)
+	require.Equal(t, 0, len(ipList))
 }
 
 func TestClient_Add_Delete(t *testing.T) {
@@ -89,14 +130,22 @@ func TestClient_TestDNSServers(t *testing.T) {
 	manager, pool := testproxy.ProxyPoolAndManager(t)
 	defer func() { _ = manager.Close() }()
 	client := NewClient(pool)
-
 	// add reachable and skip test
-	err := client.Add("reachable", &Server{
-		Method:  MethodUDP,
-		Address: "1.1.1.1:53",
-	})
-	require.NoError(t, err)
-	err = client.Add("skip_test", &Server{
+	if testsuite.EnableIPv4() {
+		err := client.Add("reachable-ipv4", &Server{
+			Method:  MethodUDP,
+			Address: "1.1.1.1:53",
+		})
+		require.NoError(t, err)
+	}
+	if testsuite.EnableIPv6() {
+		err := client.Add("reachable-ipv6", &Server{
+			Method:  MethodUDP,
+			Address: "[2606:4700:4700::1111]:53",
+		})
+		require.NoError(t, err)
+	}
+	err := client.Add("skip_test", &Server{
 		Method:   MethodUDP,
 		Address:  "1.1.1.1:53",
 		SkipTest: true,
@@ -108,7 +157,12 @@ func TestClient_TestDNSServers(t *testing.T) {
 	require.NoError(t, client.TestDNSServers(testDomain, opts))
 
 	// test unreachable DNS server
-	require.NoError(t, client.Delete("reachable"))
+	if testsuite.EnableIPv4() {
+		require.NoError(t, client.Delete("reachable-ipv4"))
+	}
+	if testsuite.EnableIPv6() {
+		require.NoError(t, client.Delete("reachable-ipv6"))
+	}
 	err = client.Add("unreachable", &Server{
 		Method:  MethodUDP,
 		Address: "1.2.3.4",
@@ -140,15 +194,23 @@ func TestClient_TestOptions(t *testing.T) {
 
 	// test system mode
 	opts.Mode = ModeSystem
-	require.NoError(t, client.TestOptions(testDomain, opts))
-
-	client.FlushCache()
+	if testsuite.EnableIPv4() {
+		opts.Type = TypeIPv4
+		require.NoError(t, client.TestOptions(testDomain, opts))
+		client.FlushCache()
+	}
+	if testsuite.EnableIPv6() {
+		opts.Type = TypeIPv6
+		require.NoError(t, client.TestOptions(testDomain, opts))
+		client.FlushCache()
+	}
 
 	// invalid domain name
 	opts.Mode = ModeSystem
 	require.Error(t, client.TestOptions("asd", opts))
 
 	opts.Mode = ModeCustom
+	opts.Type = TypeIPv4
 
 	// with proxy
 	opts.Method = MethodTCP // must not use udp
@@ -207,13 +269,6 @@ func TestClient_TestOptions(t *testing.T) {
 	opts.ServerTag = "foo server"
 	err = client.TestOptions(testDomain, opts)
 	require.Error(t, err, "doesn't exist server tag")
-
-	opts.ServerTag = ""
-
-	// no result
-	opts.Method = MethodUDP
-	err = client.TestOptions("asd.ads.qwq.aa", opts)
-	require.Error(t, err)
 }
 
 func TestOptions(t *testing.T) {

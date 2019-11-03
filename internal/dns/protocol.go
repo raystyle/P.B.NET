@@ -132,7 +132,7 @@ func unpackMessage(message []byte) ([]string, error) {
 		}
 	}
 	if len(result) == 0 {
-		return nil, ErrNoResolveResult
+		return nil, errors.WithStack(ErrNoResolveResult)
 	}
 	return result, nil
 }

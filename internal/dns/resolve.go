@@ -182,17 +182,15 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	// set timeout
 	timeout := opts.Timeout
 	if timeout < 1 {
-		timeout = defaultTimeout
+		timeout = 2 * defaultTimeout
 	}
+	// load config
 	config := strings.Split(address, "|")
-	var (
-		conn *tls.Conn
-		err  error
-	)
 	host, port, err := net.SplitHostPort(config[0])
 	if err != nil {
 		return nil, err
 	}
+	var conn *tls.Conn
 	switch len(config) {
 	case 1: // ip mode
 		// 8.8.8.8:853
@@ -256,7 +254,7 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 	}
 	defer client.CloseIdleConnections()
 	if client.Timeout < 1 {
-		client.Timeout = defaultTimeout
+		client.Timeout = 2 * defaultTimeout
 	}
 	maxBodySize := opts.MaxBodySize
 	if maxBodySize < 1 {
