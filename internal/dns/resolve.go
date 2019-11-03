@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// udp is 1 second
+	// udp is 3 second
 	defaultTimeout = 5 * time.Second
 
 	// about DOH
@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	ErrNoConnection = errors.New("no connection")
+	ErrNoConnection = fmt.Errorf("no connection")
 )
 
 func systemResolve(typ string, domain string) ([]string, error) {
@@ -84,7 +84,7 @@ func customResolve(method, address, domain, typ string, opts *Options) ([]string
 		message, err = dialDoH(address, message, opts)
 	}
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return unpackMessage(message)
 }
@@ -102,7 +102,7 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 	// set timeout
 	timeout := opts.Timeout
 	if timeout < 1 {
-		timeout = time.Second
+		timeout = 3 * time.Second
 	}
 	// dial
 	for i := 0; i < 3; i++ {

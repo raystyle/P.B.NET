@@ -37,15 +37,17 @@ func TestSystemResolve(t *testing.T) {
 }
 
 func TestCustomResolve(t *testing.T) {
+	const domainPunycode = "错的是.世界"
+
 	opts := &Options{
 		dial:      net.DialTimeout,
 		transport: &http.Transport{},
 	}
-	switch {
-	case testsuite.EnableIPv4():
+
+	if testsuite.EnableIPv4() {
 		const (
 			udpServer = "1.1.1.1:53"
-			tcpServer = "8.8.8.8:53"
+			tcpServer = "1.0.0.1:53"
 			tlsIP     = "8.8.4.4:853"
 			tlsDomain = "dns.google:853|8.8.8.8,8.8.4.4"
 		)
@@ -65,11 +67,17 @@ func TestCustomResolve(t *testing.T) {
 		ipList, err = customResolve(MethodDoT, tlsDomain, testDomain, TypeIPv4, opts)
 		require.NoError(t, err)
 		t.Log("DOT-Domain IPv4:", ipList)
-	case testsuite.EnableIPv6():
+		// punycode
+		ipList, err = customResolve(MethodUDP, udpServer, domainPunycode, TypeIPv4, opts)
+		require.NoError(t, err)
+		t.Log("punycode:", ipList)
+	}
+
+	if testsuite.EnableIPv6() {
 		const (
-			udpServer = "[2606:4700:4700::1001]:53"
+			udpServer = "[2606:4700:4700::1111]:53"
 			tcpServer = "[2606:4700:4700::1001]:53"
-			TLSIP     = "[2606:4700:4700::1111]:853"
+			TLSIP     = "[2606:4700:4700::64]:853"
 			TLSDomain = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
 		)
 		// udp
@@ -88,6 +96,10 @@ func TestCustomResolve(t *testing.T) {
 		ipList, err = customResolve(MethodDoT, TLSDomain, testDomain, TypeIPv6, opts)
 		require.NoError(t, err)
 		t.Log("DOT-Domain IPv6:", ipList)
+		// punycode
+		ipList, err = customResolve(MethodUDP, udpServer, domainPunycode, TypeIPv6, opts)
+		require.NoError(t, err)
+		t.Log("punycode:", ipList)
 	}
 
 	// doh
@@ -95,13 +107,6 @@ func TestCustomResolve(t *testing.T) {
 	ipList, err := customResolve(MethodDoH, dnsDOH, testDomain, TypeIPv4, opts)
 	require.NoError(t, err)
 	t.Log("DOH:", ipList)
-
-	// resolve domain name with punycode
-	const domainPunycode = "münchen.com"
-
-	ipList, err = customResolve(MethodUDP, "8.8.8.8:53", domainPunycode, TypeIPv4, opts)
-	require.NoError(t, err)
-	t.Log("punycode:", ipList)
 
 	// resolve ip
 	const dnsServer = "1.0.0.1:53"
@@ -126,20 +131,16 @@ var (
 )
 
 func TestDialUDP(t *testing.T) {
-	const (
-		dnsServerIPV4 = "8.8.8.8:53"
-		dnsServerIPv6 = "[2606:4700:4700::1001]:53"
-	)
 	opt := &Options{dial: net.DialTimeout}
 	if testsuite.EnableIPv4() {
-		msg, err := dialUDP(dnsServerIPV4, testDNSMessage, opt)
+		msg, err := dialUDP("8.8.8.8:53", testDNSMessage, opt)
 		require.NoError(t, err)
 		ipList, err := unpackMessage(msg)
 		require.NoError(t, err)
 		t.Log("UDP (IPv4 DNS Server):", ipList)
 	}
 	if testsuite.EnableIPv6() {
-		msg, err := dialUDP(dnsServerIPv6, testDNSMessage, opt)
+		msg, err := dialUDP("[2606:4700:4700::1001]:53", testDNSMessage, opt)
 		require.NoError(t, err)
 		ipList, err := unpackMessage(msg)
 		require.NoError(t, err)
@@ -166,20 +167,16 @@ func TestDialUDP(t *testing.T) {
 }
 
 func TestDialTCP(t *testing.T) {
-	const (
-		dnsServerIPV4 = "8.8.8.8:53"
-		dnsServerIPv6 = "[2606:4700:4700::1001]:53"
-	)
 	opt := &Options{dial: net.DialTimeout}
 	if testsuite.EnableIPv4() {
-		msg, err := dialTCP(dnsServerIPV4, testDNSMessage, opt)
+		msg, err := dialTCP("8.8.8.8:53", testDNSMessage, opt)
 		require.NoError(t, err)
 		ipList, err := unpackMessage(msg)
 		require.NoError(t, err)
 		t.Log("TCP (IPv4 DNS Server):", ipList)
 	}
 	if testsuite.EnableIPv6() {
-		msg, err := dialTCP(dnsServerIPv6, testDNSMessage, opt)
+		msg, err := dialTCP("[2606:4700:4700::1001]:53", testDNSMessage, opt)
 		require.NoError(t, err)
 		ipList, err := unpackMessage(msg)
 		require.NoError(t, err)
@@ -196,14 +193,12 @@ func TestDialTCP(t *testing.T) {
 }
 
 func TestDialDoT(t *testing.T) {
-	const (
-		dnsServerIPV4 = "8.8.8.8:853"
-		dnsDomainIPv4 = "dns.google:853|8.8.8.8,8.8.4.4"
-		dnsServerIPv6 = "[2606:4700:4700::1001]:853"
-		dnsDomainIPv6 = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
-	)
 	opt := &Options{dial: net.DialTimeout}
 	if testsuite.EnableIPv4() {
+		const (
+			dnsServerIPV4 = "8.8.8.8:853"
+			dnsDomainIPv4 = "dns.google:853|8.8.8.8,8.8.4.4"
+		)
 		// IP mode
 		msg, err := dialDoT(dnsServerIPV4, testDNSMessage, opt)
 		require.NoError(t, err)
@@ -218,6 +213,10 @@ func TestDialDoT(t *testing.T) {
 		t.Log("DoT-Domain (IPv4 DNS Server):", ipList)
 	}
 	if testsuite.EnableIPv6() {
+		const (
+			dnsServerIPv6 = "[2606:4700:4700::64]:853"
+			dnsDomainIPv6 = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
+		)
 		// IP mode
 		msg, err := dialDoT(dnsServerIPv6, testDNSMessage, opt)
 		require.NoError(t, err)
@@ -277,7 +276,7 @@ func TestDialDoH(t *testing.T) {
 	_, err = dialDoH(url, testDNSMessage, opt)
 	require.Error(t, err)
 	// unreachable doh server
-	_, err = dialDoH("https://1.2.3.4", testDNSMessage, opt)
+	_, err = dialDoH("https://1.2.3.4/", testDNSMessage, opt)
 	require.Error(t, err)
 }
 
