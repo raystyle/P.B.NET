@@ -21,7 +21,7 @@ func TestProxyPoolAndManager(t *testing.T) {
 	balance, err := pool.Get(TagBalance)
 	require.NoError(t, err)
 
-	// create http client
+	// test http client
 	transport := new(http.Transport)
 	balance.HTTP(transport)
 	client := http.Client{
@@ -29,9 +29,7 @@ func TestProxyPoolAndManager(t *testing.T) {
 		Timeout:   time.Minute,
 	}
 	defer client.CloseIdleConnections()
-	resp, err := client.Get(testsuite.GetHTTPS())
-	require.NoError(t, err)
-	testsuite.HTTPResponse(t, resp)
+	testsuite.HTTPClient(t, &client, testsuite.GetHTTP())
 
 	testsuite.IsDestroyed(t, pool)
 }

@@ -2,13 +2,10 @@ package testsuite
 
 import (
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"sync"
-	"testing"
-
-	"github.com/stretchr/testify/require"
 )
+
+const suffix = "/ip/?callback=?&testdomain=test-ipv6.com&testname=test_a"
 
 var (
 	testIPv4Addresses  map[string]bool
@@ -18,16 +15,10 @@ var (
 func initGetIPv4Address() {
 	testIPv4Addresses = make(map[string]bool)
 	for _, address := range []string{
-		"ipv4.vm0.test-ipv6.com:80",
-		"ipv4.vm1.test-ipv6.com:80",
-		"ipv4.vm2.test-ipv6.com:80",
-
-		"ds.vm0.test-ipv6.com:80",
-		"ds.vm1.test-ipv6.com:80",
-		"ds.vm2.test-ipv6.com:80",
-
-		"ipv4.test-ipv6.hkg.vr.org:80",
-		"ds.test-ipv6.hkg.vr.org:80",
+		"66.220.4.230:80",    // ipv4.vm0.test-ipv6.com:80
+		"216.218.228.119:80", // ipv4.vm1.test-ipv6.com:80
+		"216.218.228.125:80", // ipv4.vm2.test-ipv6.com:80
+		"103.6.84.104:80",    // ipv4.test-ipv6.hkg.vr.org:80
 	} {
 		testIPv4Addresses[address] = false
 	}
@@ -59,16 +50,10 @@ var (
 func initGetIPv6Address() {
 	testIPv6Addresses = make(map[string]bool)
 	for _, address := range []string{
-		"ipv6.vm0.test-ipv6.com:80",
-		"ipv6.vm1.test-ipv6.com:80",
-		"ipv6.vm2.test-ipv6.com:80",
-
-		"ds.vm0.test-ipv6.com:80",
-		"ds.vm1.test-ipv6.com:80",
-		"ds.vm2.test-ipv6.com:80",
-
-		"ipv6.test-ipv6.hkg.vr.org:80",
-		"ds.test-ipv6.hkg.vr.org:80",
+		"2001:470:1:18::4:230",  // "ipv6.vm0.test-ipv6.com:80",
+		"2001:470:1:18::119",    // "ipv6.vm1.test-ipv6.com:80",
+		"2001:470:1:18::125",    // "ipv6.vm2.test-ipv6.com:80",
+		"2403:2500:8000:1::aa2", // "ipv6.test-ipv6.hkg.vr.org:80",
 	} {
 		testIPv6Addresses[address] = false
 	}
@@ -93,6 +78,76 @@ func GetIPv6Address() string {
 }
 
 var (
+	testIPv4Domains  map[string]bool
+	testIPv4DomainsM sync.Mutex
+)
+
+func initGetIPv4Domain() {
+	testIPv4Domains = make(map[string]bool)
+	for _, domain := range []string{
+		"ipv4.vm0.test-ipv6.com:80",
+		"ipv4.vm1.test-ipv6.com:80",
+		"ipv4.vm2.test-ipv6.com:80",
+		"ipv4.test-ipv6.hkg.vr.org:80",
+	} {
+		testIPv4Domains[domain] = false
+	}
+}
+
+// GetIPv4Domain is used to return a domain name for test Dial(tcp4)
+func GetIPv4Domain() string {
+	testIPv4DomainsM.Lock()
+	defer testIPv4DomainsM.Unlock()
+	for {
+		for domain, used := range testIPv4Domains {
+			if !used {
+				testIPv4Domains[domain] = true
+				return domain
+			}
+		}
+		// reset all clients flag
+		for domain := range testIPv4Domains {
+			testIPv4Domains[domain] = false
+		}
+	}
+}
+
+var (
+	testIPv6Domains  map[string]bool
+	testIPv6DomainsM sync.Mutex
+)
+
+func initGetIPv6Domain() {
+	testIPv6Domains = make(map[string]bool)
+	for _, domain := range []string{
+		"ipv6.vm0.test-ipv6.com:80",
+		"ipv6.vm1.test-ipv6.com:80",
+		"ipv6.vm2.test-ipv6.com:80",
+		"ipv6.test-ipv6.hkg.vr.org:80",
+	} {
+		testIPv6Domains[domain] = false
+	}
+}
+
+// GetIPv6Domain is used to return a domain name for test Dial(tcp6)
+func GetIPv6Domain() string {
+	testIPv6DomainsM.Lock()
+	defer testIPv6DomainsM.Unlock()
+	for {
+		for domain, used := range testIPv6Domains {
+			if !used {
+				testIPv6Domains[domain] = true
+				return domain
+			}
+		}
+		// reset all clients flag
+		for domain := range testIPv6Domains {
+			testIPv6Domains[domain] = false
+		}
+	}
+}
+
+var (
 	testHTTP  map[string]bool
 	testHTTPM sync.Mutex
 )
@@ -107,33 +162,11 @@ func initGetHTTP() {
 	} {
 		testHTTP[address] = false
 	}
-
-	if EnableIPv4() {
-		for _, address := range []string{
-			"ipv4.vm0.test-ipv6.com",
-			"ipv4.vm1.test-ipv6.com",
-			"ipv4.vm2.test-ipv6.com",
-			"ipv4.test-ipv6.hkg.vr.org",
-		} {
-			testHTTP[address] = false
-		}
-	}
-
-	if EnableIPv6() {
-		for _, address := range []string{
-			"ipv6.vm0.test-ipv6.com",
-			"ipv6.vm1.test-ipv6.com",
-			"ipv6.vm2.test-ipv6.com",
-			"ipv6.test-ipv6.hkg.vr.org",
-		} {
-			testHTTP[address] = false
-		}
-	}
 }
 
 // GetHTTP is used to return a url for test http client
 func GetHTTP() string {
-	const format = "http://%s/ip/?callback=?&testdomain=test-ipv6.com&testname=test_a"
+	const format = "http://%s" + suffix
 	testHTTPM.Lock()
 	defer testHTTPM.Unlock()
 	for {
@@ -165,33 +198,11 @@ func initGetHTTPS() {
 	} {
 		testHTTPS[address] = false
 	}
-
-	if EnableIPv4() {
-		for _, address := range []string{
-			"ipv4.vm0.test-ipv6.com",
-			"ipv4.vm1.test-ipv6.com",
-			"ipv4.vm2.test-ipv6.com",
-			"ipv4.test-ipv6.hkg.vr.org",
-		} {
-			testHTTPS[address] = false
-		}
-	}
-
-	if EnableIPv6() {
-		for _, address := range []string{
-			"ipv6.vm0.test-ipv6.com",
-			"ipv6.vm1.test-ipv6.com",
-			"ipv6.vm2.test-ipv6.com",
-			"ipv6.test-ipv6.hkg.vr.org",
-		} {
-			testHTTPS[address] = false
-		}
-	}
 }
 
 // GetHTTP is used to return a url for test http client
 func GetHTTPS() string {
-	const format = "https://%s/ip/?callback=?&testdomain=test-ipv6.com&testname=test_a"
+	const format = "https://%s" + suffix
 	testHTTPSM.Lock()
 	defer testHTTPSM.Unlock()
 	for {
@@ -206,13 +217,4 @@ func GetHTTPS() string {
 			testHTTPS[address] = false
 		}
 	}
-}
-
-// HTTPResponse is used to validate http client get
-func HTTPResponse(t testing.TB, resp *http.Response) {
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	defer func() { _ = resp.Body.Close() }()
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "callback", string(b)[:8])
 }

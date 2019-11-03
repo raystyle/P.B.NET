@@ -21,12 +21,16 @@ var (
 func init() {
 	initGetIPv4Address()
 	initGetIPv6Address()
+	initGetIPv4Domain()
+	initGetIPv6Domain()
+	initGetHTTP()
+	initGetHTTPS()
 
 	// check IPv4
 	if os.Getenv("skip_ipv4") != "1" {
 		for i := 0; i < 5; i++ {
 			addr := GetIPv4Address()
-			conn, err := net.DialTimeout("tcp4", addr, 15*time.Second)
+			conn, err := net.DialTimeout("tcp4", addr, 5*time.Second)
 			if err == nil {
 				_ = conn.Close()
 				enableIPv4 = true
@@ -39,7 +43,7 @@ func init() {
 	if os.Getenv("skip_ipv6") != "1" {
 		for i := 0; i < 5; i++ {
 			addr := GetIPv6Address()
-			conn, err := net.DialTimeout("tcp6", addr, 15*time.Second)
+			conn, err := net.DialTimeout("tcp6", addr, 5*time.Second)
 			if err == nil {
 				_ = conn.Close()
 				enableIPv6 = true
@@ -53,9 +57,6 @@ func init() {
 		fmt.Print("network unavailable")
 		os.Exit(0)
 	}
-
-	initGetHTTP()
-	initGetHTTPS()
 
 	// deploy pprof
 	serverMux := http.NewServeMux()
