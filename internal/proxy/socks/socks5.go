@@ -140,13 +140,8 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 			buffer.WriteByte(ipv4)
 			buffer.Write(ip4)
 		} else {
-			ip6 := ip.To16()
-			if ip6 != nil {
-				buffer.WriteByte(ipv6)
-				buffer.Write(ip6)
-			} else {
-				return errors.New("unknown address type")
-			}
+			buffer.WriteByte(ipv6)
+			buffer.Write(ip.To16())
 		}
 	} else {
 		if len(host) > 255 {
