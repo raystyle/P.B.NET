@@ -10,44 +10,44 @@ import (
 )
 
 func TestDirect(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
 	d := Direct{}
 
 	if testsuite.EnableIPv4() {
 		const network = "tcp4"
 
-		addr := testsuite.GetIPv4Address()
+		addr := "127.0.0.1:" + testsuite.HTTPServerPort
 		conn, err := d.Dial(network, addr)
 		require.NoError(t, err)
-		_ = conn.Close()
+		testsuite.ProxyConn(t, conn)
 
-		addr = testsuite.GetIPv4Address()
 		conn, err = d.DialContext(context.Background(), network, addr)
 		require.NoError(t, err)
-		_ = conn.Close()
+		testsuite.ProxyConn(t, conn)
 
-		addr = testsuite.GetIPv4Address()
+		addr = "localhost:" + testsuite.HTTPServerPort
 		conn, err = d.DialTimeout(network, addr, 0)
 		require.NoError(t, err)
-		_ = conn.Close()
+		testsuite.ProxyConn(t, conn)
 	}
 
 	if testsuite.EnableIPv6() {
 		const network = "tcp6"
 
-		addr := testsuite.GetIPv6Address()
+		addr := "[::1]:" + testsuite.HTTPServerPort
 		conn, err := d.Dial(network, addr)
 		require.NoError(t, err)
-		_ = conn.Close()
+		testsuite.ProxyConn(t, conn)
 
-		addr = testsuite.GetIPv6Address()
 		conn, err = d.DialContext(context.Background(), network, addr)
 		require.NoError(t, err)
-		_ = conn.Close()
+		testsuite.ProxyConn(t, conn)
 
-		addr = testsuite.GetIPv6Address()
+		addr = "localhost:" + testsuite.HTTPServerPort
 		conn, err = d.DialTimeout(network, addr, 0)
 		require.NoError(t, err)
-		_ = conn.Close()
+		testsuite.ProxyConn(t, conn)
 	}
 
 	// padding
