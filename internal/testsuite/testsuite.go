@@ -21,15 +21,11 @@ var (
 func init() {
 	initGetIPv4Address()
 	initGetIPv6Address()
-	initGetIPv4Domain()
-	initGetIPv6Domain()
-	initGetHTTP()
-	initGetHTTPS()
 
 	// check IPv4
 	if os.Getenv("skip_ipv4") != "1" {
 		for i := 0; i < 5; i++ {
-			addr := GetIPv4Address()
+			addr := getIPv4Address()
 			conn, err := net.DialTimeout("tcp4", addr, 5*time.Second)
 			if err == nil {
 				_ = conn.Close()
@@ -42,7 +38,7 @@ func init() {
 	// check IPv6
 	if os.Getenv("skip_ipv6") != "1" {
 		for i := 0; i < 5; i++ {
-			addr := GetIPv6Address()
+			addr := getIPv6Address()
 			conn, err := net.DialTimeout("tcp6", addr, 5*time.Second)
 			if err == nil {
 				_ = conn.Close()

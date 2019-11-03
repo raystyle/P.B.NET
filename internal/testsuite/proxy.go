@@ -1,7 +1,10 @@
 package testsuite
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -32,55 +35,155 @@ func NopCloser() *nopCloser {
 	return new(nopCloser)
 }
 
+var (
+	httpServer         http.Server
+	HTTPServerPort     string
+	httpsServer        http.Server
+	HTTPSServerPort    string
+	httpsCA            *x509.Certificate
+	initHTTPServerOnce sync.Once
+)
+
+// InitHTTPServers is used to create  http test server
+func InitHTTPServers(t testing.TB) {
+	initHTTPServerOnce.Do(func() {
+		// set handler
+		var data = []byte("hello")
+		serverMux := http.NewServeMux()
+		serverMux.HandleFunc("/t", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(200)
+			_, _ = w.Write(data)
+		})
+
+		// initialize http server
+		httpServer.Handler = serverMux
+
+		// initialize https server
+		httpsServer.Handler = serverMux
+		caASN1, cPEMBlock, cPriPEMBlock := TLSCertificate(t)
+		cert, err := tls.X509KeyPair(cPEMBlock, cPriPEMBlock)
+		require.NoError(t, err)
+		httpsServer.TLSConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+
+		// client Root CA
+		httpsCA, err = x509.ParseCertificate(caASN1)
+		require.NoError(t, err)
+
+		// start servers
+		if EnableIPv4() {
+			l1, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			_, HTTPServerPort, err = net.SplitHostPort(l1.Addr().String())
+			require.NoError(t, err)
+			go func() { _ = httpServer.Serve(l1) }()
+
+			l2, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			_, HTTPSServerPort, err = net.SplitHostPort(l2.Addr().String())
+			require.NoError(t, err)
+			go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
+		}
+
+		if EnableIPv6() {
+			l1, err := net.Listen("tcp", "[::1]:"+HTTPServerPort)
+			require.NoError(t, err)
+			go func() { _ = httpServer.Serve(l1) }()
+
+			l2, err := net.Listen("tcp", "[::1]:"+HTTPSServerPort)
+			require.NoError(t, err)
+			go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
+		}
+	})
+}
+
 // HTTPClient is used to get target and compare result
-func HTTPClient(t testing.TB, client *http.Client, url string) {
-	const (
-		// http header User-Agent
-		ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0"
-		// http header Accept
-		accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-		// http header Accept-Language
-		acceptLanguage = "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2"
-	)
+func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
+	InitHTTPServers(t)
+
+	// add CA
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = new(tls.Config)
+	}
+	if transport.TLSClientConfig.RootCAs == nil {
+		transport.TLSClientConfig.RootCAs = x509.NewCertPool()
+	}
+	transport.TLSClientConfig.RootCAs.AddCert(httpsCA)
+
+	// make http client
+	client := http.Client{
+		Transport: transport,
+		Timeout:   5 * time.Second,
+	}
+	defer client.CloseIdleConnections()
+
+	do := func(req *http.Request) {
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		defer func() { _ = resp.Body.Close() }()
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "hello", string(b))
+	}
+	// get http
+	url := fmt.Sprintf("http://%s:%s/t", hostname, HTTPServerPort)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
-	req.Header = make(http.Header)
-	req.Header.Set("User-Agent", ua)
-	req.Header.Set("Accept", accept)
-	req.Header.Set("Accept-Language", acceptLanguage)
-	req.Header.Set("Connection", "keep-alive")
-	resp, err := client.Do(req)
+	do(req)
+	// get https
+	url = fmt.Sprintf("https://%s:%s/t", hostname, HTTPSServerPort)
+	req, err = http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
-
-	// compare response
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	defer func() { _ = resp.Body.Close() }()
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "callback", string(b)[:8])
+	do(req)
 }
 
 // ProxyServer is used to test proxy server
-func ProxyServer(t testing.TB, server io.Closer, client *http.Client) {
+func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
 	defer func() {
 		require.NoError(t, server.Close())
 		require.NoError(t, server.Close())
 		IsDestroyed(t, server)
 	}()
-
-	const format = "http://%s" + suffix
-
 	if EnableIPv4() {
-		HTTPClient(t, client, fmt.Sprintf(format, GetIPv4Address()))
+		HTTPClient(t, transport, "127.0.0.1")
 	}
-
 	if EnableIPv6() {
-		HTTPClient(t, client, fmt.Sprintf(format, GetIPv6Address()))
+		HTTPClient(t, transport, "[::1]")
+	}
+	HTTPClient(t, transport, "localhost")
+}
+
+// ProxyConn is used to check proxy client Dial
+func ProxyConn(t testing.TB, conn net.Conn) {
+	defer func() { _ = conn.Close() }()
+	// send http request
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprint(buf, "GET /t HTTP/1.1\r\n")
+	_, _ = fmt.Fprint(buf, "Host: localhost\r\n\r\n")
+	_, err := io.Copy(conn, buf)
+	require.NoError(t, err)
+
+	// get response
+	buf.Reset()
+	buffer := make([]byte, 1)
+	for {
+		n, err := conn.Read(buffer)
+		require.NoError(t, err)
+		buf.Write(buffer[:n])
+		if buf.Len() > 4 {
+			if bytes.Equal(buf.Bytes()[buf.Len()-4:], []byte("\r\n\r\n")) {
+				break
+			}
+		}
 	}
 
-	// get http
-	HTTPClient(t, client, GetHTTP())
-	HTTPClient(t, client, GetHTTPS())
+	// read body
+	hello := make([]byte, 5)
+	_, err = io.ReadFull(conn, hello)
+	require.NoError(t, err)
+	require.Equal(t, "hello", string(hello))
 }
 
 // for test proxy client
@@ -97,6 +200,8 @@ type proxyClient interface {
 
 // ProxyClient is used to test proxy client
 func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
+	InitHTTPServers(t)
+
 	defer func() {
 		require.NoError(t, server.Close())
 		IsDestroyed(t, server)
@@ -111,67 +216,46 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 		if EnableIPv4() {
 			const network = "tcp4"
 
-			addr := GetIPv4Address()
-			conn, err := client.Dial(network, addr)
+			address := "127.0.0.1:" + HTTPServerPort
+			conn, err := client.Dial(network, address)
 			require.NoError(t, err)
-			_ = conn.Close()
+			ProxyConn(t, conn)
 
-			addr = GetIPv4Address()
-			conn, err = client.DialContext(context.Background(), network, addr)
+			conn, err = client.DialContext(context.Background(), network, address)
 			require.NoError(t, err)
-			_ = conn.Close()
+			ProxyConn(t, conn)
 
-			addr = GetIPv4Domain()
-			conn, err = client.DialTimeout(network, addr, 0)
+			address = "localhost:" + HTTPServerPort
+			conn, err = client.DialTimeout(network, address, 0)
 			require.NoError(t, err)
-			_ = conn.Close()
+			ProxyConn(t, conn)
 		}
 
 		if EnableIPv6() && !strings.Contains(client.Info(), "socks4") {
 			const network = "tcp6"
 
-			addr := GetIPv6Address()
-			conn, err := client.Dial(network, addr)
+			address := "[::1]:" + HTTPServerPort
+			conn, err := client.Dial(network, address)
 			require.NoError(t, err)
-			_ = conn.Close()
+			ProxyConn(t, conn)
 
-			addr = GetIPv6Address()
-			conn, err = client.DialContext(context.Background(), network, addr)
+			conn, err = client.DialContext(context.Background(), network, address)
 			require.NoError(t, err)
-			_ = conn.Close()
+			ProxyConn(t, conn)
 
-			addr = GetIPv6Domain()
-			conn, err = client.DialTimeout(network, addr, 0)
+			address = "localhost:" + HTTPServerPort
+			conn, err = client.DialTimeout(network, address, 0)
 			require.NoError(t, err)
-			_ = conn.Close()
+			ProxyConn(t, conn)
 		}
 	}()
 
-	makeHTTPClient := func() *http.Client {
-		transport := &http.Transport{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		transport := new(http.Transport)
 		client.HTTP(transport)
-		return &http.Client{
-			Transport: transport,
-			Timeout:   time.Minute,
-		}
-	}
-
-	// test HTTP with http target
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		client := makeHTTPClient()
-		defer client.CloseIdleConnections()
-		HTTPClient(t, client, GetHTTP())
-	}()
-
-	// test HTTP with https target
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		client := makeHTTPClient()
-		defer client.CloseIdleConnections()
-		HTTPClient(t, client, GetHTTPS())
+		HTTPClient(t, transport, "localhost")
 	}()
 
 	wg.Wait()
