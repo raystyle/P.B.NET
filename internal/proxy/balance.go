@@ -85,7 +85,7 @@ func (b *Balance) getAndSetNext() *Client {
 func (b *Balance) Dial(network, address string) (net.Conn, error) {
 	conn, err := b.getAndSetNext().Dial(network, address)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "balance %s Dial:", b.tag)
+		return nil, errors.WithMessagef(err, "balance %s Dial", b.tag)
 	}
 	return conn, nil
 }
@@ -93,7 +93,7 @@ func (b *Balance) Dial(network, address string) (net.Conn, error) {
 func (b *Balance) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := b.getAndSetNext().DialContext(ctx, network, address)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "balance %s DialContext:", b.tag)
+		return nil, errors.WithMessagef(err, "balance %s DialContext", b.tag)
 	}
 	return conn, nil
 }
@@ -101,7 +101,7 @@ func (b *Balance) DialContext(ctx context.Context, network, address string) (net
 func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	conn, err := b.getAndSetNext().DialTimeout(network, address, timeout)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "balance %s DialTimeout:", b.tag)
+		return nil, errors.WithMessagef(err, "balance %s DialTimeout", b.tag)
 	}
 	return conn, nil
 }
@@ -112,7 +112,7 @@ func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (n
 func (b *Balance) Connect(conn net.Conn, network, address string) (net.Conn, error) {
 	pConn, err := b.getAndSetNext().Connect(conn, network, address)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "balance %s Connect:", b.tag)
+		return nil, errors.WithMessagef(err, "balance %s Connect", b.tag)
 	}
 	return pConn, nil
 }

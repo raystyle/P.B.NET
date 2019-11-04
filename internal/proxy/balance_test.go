@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,16 @@ func TestBalance(t *testing.T) {
 		testsuite.ProxyConn(t, pConn)
 	}
 	if testsuite.EnableIPv6() {
+		// remove socks4
+		var clients []*Client
+		for _, client := range groups.Clients() {
+			if !strings.Contains(client.Info(), "socks4") {
+				clients = append(clients, client)
+			}
+		}
+		balance, err := NewBalance("balance", clients...)
+		require.NoError(t, err)
+		// test
 		timeout := balance.Timeout()
 		network, address := balance.Server()
 		conn, err := net.DialTimeout(network, address, timeout)
@@ -84,14 +95,14 @@ func TestBalanceFailure(t *testing.T) {
 	require.Errorf(t, err, "balance need at least one proxy client")
 
 	groups := testGenerateProxyGroup(t)
-	balance, err := NewBalance("balance-unreachable target", groups.Clients()...)
+	balance, err := NewBalance("01", groups.Clients()...)
 	require.NoError(t, err)
 	testsuite.ProxyClientWithUnreachableTarget(t, &groups, balance)
 
 	// connect unreachable target
 	groupsC := testGenerateProxyGroup(t)
 	defer func() { _ = groupsC.Close() }()
-	balance, err = NewBalance("balance-connect unreachable target", groupsC.Clients()...)
+	balance, err = NewBalance("02", groupsC.Clients()...)
 	require.NoError(t, err)
 	timeout := balance.Timeout()
 	network, address := balance.Server()
