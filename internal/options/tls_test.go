@@ -1,6 +1,7 @@
 package options
 
 import (
+	"crypto/tls"
 	"io/ioutil"
 	"testing"
 
@@ -30,15 +31,18 @@ func TestTLSUnmarshal(t *testing.T) {
 	tlsConfig, err := config.Apply()
 	require.NoError(t, err)
 	// check
+	require.Equal(t, "test.com", config.ServerName)
+	require.Equal(t, "h2", tlsConfig.NextProtos[0])
+	require.Equal(t, "h2c", tlsConfig.NextProtos[1])
+	require.Equal(t, uint16(tls.VersionTLS11), config.MinVersion)
+	require.Equal(t, uint16(tls.VersionTLS12), config.MaxVersion)
+	require.Equal(t, false, tlsConfig.InsecureSkipVerify)
 	require.Equal(t, true, config.InsecureLoadFromSystem)
 	require.Equal(t, 2, len(tlsConfig.Certificates))
 	systemPool, err := certutil.SystemCertPool()
 	require.NoError(t, err)
 	require.Equal(t, 2+len(systemPool.Subjects()), len(tlsConfig.RootCAs.Subjects()))
 	require.Equal(t, 2, len(tlsConfig.ClientCAs.Subjects()))
-	require.Equal(t, "h2", tlsConfig.NextProtos[0])
-	require.Equal(t, "h2c", tlsConfig.NextProtos[1])
-	require.Equal(t, false, tlsConfig.InsecureSkipVerify)
 }
 
 func TestTLSConfig_Apply_failed(t *testing.T) {

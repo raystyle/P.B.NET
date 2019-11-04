@@ -1,4 +1,7 @@
+server_name = "test.com"
 next_protos = ["h2", "h2c"]
+min_version = 0x0302
+max_version = 0x0303
 
 insecure_load_from_system = true
 
