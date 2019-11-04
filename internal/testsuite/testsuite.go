@@ -23,35 +23,31 @@ func init() {
 	initGetIPv6Address()
 
 	// check IPv4
-	if os.Getenv("skip_ipv4") != "1" {
-		for i := 0; i < 5; i++ {
-			addr := getIPv4Address()
-			conn, err := net.DialTimeout("tcp4", addr, 5*time.Second)
-			if err == nil {
-				_ = conn.Close()
-				enableIPv4 = true
-				break
-			}
+	for i := 0; i < 5; i++ {
+		addr := getIPv4Address()
+		conn, err := net.DialTimeout("tcp4", addr, 5*time.Second)
+		if err == nil {
+			_ = conn.Close()
+			enableIPv4 = true
+			break
 		}
 	}
 
 	// check IPv6
-	if os.Getenv("skip_ipv6") != "1" {
-		for i := 0; i < 5; i++ {
-			addr := getIPv6Address()
-			conn, err := net.DialTimeout("tcp6", addr, 5*time.Second)
-			if err == nil {
-				_ = conn.Close()
-				enableIPv6 = true
-				break
-			}
+	for i := 0; i < 5; i++ {
+		addr := getIPv6Address()
+		conn, err := net.DialTimeout("tcp6", addr, 5*time.Second)
+		if err == nil {
+			_ = conn.Close()
+			enableIPv6 = true
+			break
 		}
 	}
 
 	// check network
 	if !enableIPv4 && !enableIPv6 {
 		fmt.Print("network unavailable")
-		os.Exit(0)
+		os.Exit(1)
 	}
 
 	// deploy pprof
@@ -71,7 +67,7 @@ func init() {
 		listener, err = net.Listen("tcp", "localhost:0")
 		if err != nil {
 			fmt.Printf("failed to deploy pprof: %s\n", err)
-			os.Exit(0)
+			os.Exit(1)
 		}
 	}
 	fmt.Printf("[debug] pprof: %s\n", listener.Addr())
@@ -93,7 +89,8 @@ func isDestroyed(object interface{}) bool {
 	runtime.SetFinalizer(object, func(_ interface{}) {
 		close(destroyed)
 	})
-	for i := 0; i < 40; i++ {
+	// total 3 second
+	for i := 0; i < 12; i++ {
 		runtime.GC()
 		select {
 		case <-destroyed:
@@ -109,20 +106,10 @@ func IsDestroyed(t testing.TB, object interface{}) {
 	require.True(t, isDestroyed(object), "object not destroyed")
 }
 
-// Bytes is used to generate test data: []byte{0, 1, .... 254, 255}
-func Bytes() []byte {
-	testdata := make([]byte, 256)
-	for i := 0; i < 256; i++ {
-		testdata[i] = byte(i)
-	}
-	return testdata
-}
-
 // RunHTTPServer is used to start a http or https server
 func RunHTTPServer(t testing.TB, network string, server *http.Server) string {
 	listener, err := net.Listen(network, server.Addr)
 	require.NoError(t, err)
-
 	// run
 	go func() {
 		if server.TLSConfig != nil {
@@ -131,9 +118,17 @@ func RunHTTPServer(t testing.TB, network string, server *http.Server) string {
 			_ = server.Serve(listener)
 		}
 	}()
-
 	// get port
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)
 	return port
+}
+
+// Bytes is used to generate test data: []byte{0, 1, .... 254, 255}
+func Bytes() []byte {
+	testdata := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		testdata[i] = byte(i)
+	}
+	return testdata
 }
