@@ -110,16 +110,10 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	client.scheme = u.Scheme
 
 	// basic authentication
-	var auth string
-	if opts.Username != "" && opts.Password != "" {
+	if opts.Username != "" || opts.Password != "" {
 		u.User = url.UserPassword(opts.Username, opts.Password)
-		auth = u.User.String()
-	} else if opts.Username != "" {
-		u.User = url.User(opts.Username)
-		auth = u.User.String()
-	}
-	if auth != "" {
-		client.basicAuth = "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+		auth := []byte(u.User.String())
+		client.basicAuth = "Basic " + base64.StdEncoding.EncodeToString(auth)
 	}
 
 	// check proxy url

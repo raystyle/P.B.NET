@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -47,16 +46,17 @@ type Server struct {
 	tag         string
 	logger      logger.Logger
 	https       bool
-	maxConns    int
 	timeout     time.Duration
+	maxConns    int
 	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
 	exitFunc    func()
 	execOnce    sync.Once
 
 	server    *http.Server
 	transport *http.Transport
+	username  []byte
+	password  []byte
 	address   string
-	basicAuth []byte
 	rwm       sync.RWMutex
 
 	stopSignal chan struct{}
@@ -84,7 +84,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	}
 	timeout := opts.Timeout
 	if timeout < 1 {
-		timeout = options.DefaultDeadline
+		timeout = options.DefaultDialTimeout
 	}
 	s.server.ReadTimeout = timeout
 	s.server.WriteTimeout = timeout
@@ -93,6 +93,13 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	s.transport, err = opts.Transport.Apply()
 	if err != nil {
 		return nil, errors.WithStack(err)
+	}
+
+	if opts.Username != "" {
+		s.username = []byte(opts.Username)
+	}
+	if opts.Password != "" {
+		s.password = []byte(opts.Password)
 	}
 
 	if s.https {
@@ -111,17 +118,6 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 
 	if opts.DialContext != nil {
 		s.transport.DialContext = opts.DialContext
-	}
-
-	// basic authentication
-	var auth string
-	if opts.Username != "" && opts.Password != "" {
-		auth = url.UserPassword(opts.Username, opts.Password).String()
-	} else if opts.Username != "" {
-		auth = url.User(opts.Username).String()
-	}
-	if auth != "" {
-		s.basicAuth = []byte(base64.StdEncoding.EncodeToString([]byte(auth)))
 	}
 
 	s.server.Handler = &s
@@ -214,10 +210,8 @@ func (s *Server) Info() string {
 		buf.WriteString("http")
 	}
 	_, _ = fmt.Fprintf(buf, " proxy listen: %s", s.Address())
-	if s.basicAuth != nil {
-		auth, _ := base64.StdEncoding.DecodeString(string(s.basicAuth))
-		buf.WriteString(" ")
-		buf.Write(auth)
+	if s.username != nil {
+		_, _ = fmt.Fprintf(buf, " %s:%s", s.username, s.password)
 	}
 	return buf.String()
 }
@@ -256,7 +250,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.wg.Done()
 	}()
 	// authenticate
-	if s.basicAuth != nil {
+	if s.username != nil || s.password != nil {
 		authFailed := func() {
 			w.Header().Set("Proxy-Authenticate", "Basic")
 			w.WriteHeader(http.StatusProxyAuthRequired)
@@ -270,7 +264,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		authBase64 := auth[1]
 		switch authMethod {
 		case "Basic":
-			if subtle.ConstantTimeCompare(s.basicAuth, []byte(authBase64)) != 1 {
+			auth, err := base64.StdEncoding.DecodeString(authBase64)
+			if err != nil {
+				authFailed()
+				s.log(logger.Exploit, "invalid basic base64 data\n", r)
+				return
+			}
+			userPass := strings.Split(string(auth), ":")
+			if len(userPass) < 2 {
+				userPass = append(userPass, "")
+			}
+			if subtle.ConstantTimeCompare(s.username, []byte(userPass[0])) != 1 ||
+				subtle.ConstantTimeCompare(s.password, []byte(userPass[1])) != 1 {
 				authFailed()
 				s.log(logger.Exploit, "invalid basic authenticate\n", r)
 				return
@@ -281,6 +286,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// remove Proxy-Authorization
+	r.Header.Del("Proxy-Authorization")
 	s.log(logger.Debug, "handle request\n", r)
 	if r.Method == http.MethodConnect { // handle https
 		var err error
@@ -336,12 +343,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(wc, conn)
 		close(closeChan)
 	} else { // handle http
-		// remove Proxy-Authorization
-		r.Header.Del("Proxy-Authorization")
 		s.rwm.RLock()
 		tr := s.transport
 		s.rwm.RUnlock()
 		if tr != nil {
+			// do
 			resp, err := tr.RoundTrip(r)
 			if err != nil {
 				s.log(logger.Error, err, "\n", r)

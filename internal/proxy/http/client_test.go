@@ -25,7 +25,6 @@ func TestHTTPSProxyClient(t *testing.T) {
 	opts := Options{
 		HTTPS:     true,
 		Username:  "admin",
-		Password:  "123456",
 		TLSConfig: *tlsConfig,
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
@@ -77,7 +76,6 @@ func TestHTTPSProxyClientFailure(t *testing.T) {
 	opts = Options{
 		HTTPS:     true,
 		Username:  "admin",
-		Password:  "123456",
 		TLSConfig: *tlsConfig,
 	}
 	client, err = NewClient("tcp", server.Address(), &opts)

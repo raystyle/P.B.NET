@@ -32,7 +32,6 @@ func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
 	opts := Options{
 		HTTPS:    true,
 		Username: "admin",
-		Password: "123456",
 	}
 	opts.Server.TLSConfig = *serverCfg
 	server, err := NewServer("test", logger.Test, &opts)
@@ -60,7 +59,7 @@ func TestHTTPSProxyServer(t *testing.T) {
 	t.Log("https proxy info:", server.Info())
 
 	// make client
-	u, err := url.Parse("https://admin:123456@" + server.Address())
+	u, err := url.Parse("https://admin@" + server.Address())
 	require.NoError(t, err)
 	transport := http.Transport{Proxy: http.ProxyURL(u)}
 	transport.TLSClientConfig = new(tls.Config)
