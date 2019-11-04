@@ -71,30 +71,27 @@ func InitHTTPServers(t testing.TB) {
 		httpsCA, err = x509.ParseCertificate(caASN1)
 		require.NoError(t, err)
 
-		// start servers
-		if EnableIPv4() {
-			l1, err := net.Listen("tcp", "127.0.0.1:0")
-			require.NoError(t, err)
-			_, HTTPServerPort, err = net.SplitHostPort(l1.Addr().String())
-			require.NoError(t, err)
-			go func() { _ = httpServer.Serve(l1) }()
-
-			l2, err := net.Listen("tcp", "127.0.0.1:0")
-			require.NoError(t, err)
-			_, HTTPSServerPort, err = net.SplitHostPort(l2.Addr().String())
-			require.NoError(t, err)
-			go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
-		}
-
-		if EnableIPv6() {
-			l1, err := net.Listen("tcp", "[::1]:"+HTTPServerPort)
-			require.NoError(t, err)
-			go func() { _ = httpServer.Serve(l1) }()
-
-			l2, err := net.Listen("tcp", "[::1]:"+HTTPSServerPort)
-			require.NoError(t, err)
-			go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
-		}
+		// start HTTP Server Listener
+		l1, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		_, HTTPServerPort, err = net.SplitHostPort(l1.Addr().String())
+		require.NoError(t, err)
+		l2, err := net.Listen("tcp", "[::1]:"+HTTPServerPort)
+		require.NoError(t, err)
+		// start HTTPS Server Listener
+		l3, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		_, HTTPSServerPort, err = net.SplitHostPort(l3.Addr().String())
+		require.NoError(t, err)
+		l4, err := net.Listen("tcp", "[::1]:"+HTTPSServerPort)
+		require.NoError(t, err)
+		go func() { _ = httpServer.Serve(l1) }()
+		go func() { _ = httpServer.Serve(l2) }()
+		go func() { _ = httpsServer.ServeTLS(l3, "", "") }()
+		go func() { _ = httpsServer.ServeTLS(l4, "", "") }()
+		// print proxy server address
+		fmt.Println("HTTP Server Port:", HTTPServerPort)
+		fmt.Println("HTTPS Server Port:", HTTPSServerPort)
 	})
 }
 
