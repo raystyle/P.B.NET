@@ -74,7 +74,7 @@ func (client *Client) Start() error {
 		Username:    lc.Username,
 		Password:    lc.Password,
 		MaxConns:    lc.MaxConns,
-		DialTimeout: pc.DialTimeout,
+		DialContext: pc.DialContext,
 	}
 	client.server, err = socks.NewServer("proxy", logger.Test, &opts)
 	if err != nil {
