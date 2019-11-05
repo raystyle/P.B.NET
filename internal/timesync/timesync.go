@@ -1,11 +1,13 @@
 package timesync
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"project/internal/dns"
 	"project/internal/logger"
@@ -15,36 +17,30 @@ import (
 	"project/internal/xpanic"
 )
 
-type Mode = string
-
 const (
-	HTTP Mode = "http" // get response header: Date
-	NTP  Mode = "ntp"
-)
-
-const (
-	addLoopInterval = 500 * time.Millisecond
+	ModeHTTP = "http"
+	ModeNTP  = "ntp"
 )
 
 var (
-	ErrNoClient         = errors.New("no time syncer client")
-	ErrAllClientsFailed = errors.New("all time sync clients query failed")
-	ErrInvalidInterval  = errors.New("interval < 60s or > 1h")
+	ErrNoClient         = fmt.Errorf("no time syncer client")
+	ErrAllClientsFailed = fmt.Errorf("all time syncer clients query failed")
+	ErrInvalidInterval  = fmt.Errorf("interval < 60 second or > 1 hour")
 )
 
 type Client struct {
-	Mode   Mode
+	Mode   string
 	Config []byte
 	client
 }
 
 type client interface {
-	Query() (now time.Time, isOptsErr bool, err error)
-	ImportConfig(b []byte) error
-	ExportConfig() []byte
+	Query() (now time.Time, optsErr bool, err error)
+	Import(b []byte) error
+	Export() []byte
 }
 
-type TimeSyncer struct {
+type Syncer struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 	logger    logger.Logger
@@ -55,106 +51,110 @@ type TimeSyncer struct {
 	now        time.Time
 	nowRWM     sync.RWMutex // now
 
-	stopSignal chan struct{}
-	wg         sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
-func NewTimeSyncer(
-	pool *proxy.Pool,
-	client *dns.Client,
-	logger logger.Logger,
-	clients map[string]*Client,
-	interval time.Duration,
-) (*TimeSyncer, error) {
-	ts := TimeSyncer{
-		proxyPool:  pool,
-		dnsClient:  client,
-		logger:     logger,
-		now:        time.Now(),
-		clients:    make(map[string]*Client),
-		stopSignal: make(chan struct{}),
+func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
+	syncer := Syncer{
+		proxyPool: pool,
+		dnsClient: client,
+		logger:    logger,
+		now:       time.Now(),
+		clients:   make(map[string]*Client),
 	}
-	// add clients
-	for tag, client := range clients {
-		err := ts.Add(tag, client)
-		if err != nil {
-			return nil, err
-		}
-	}
-	err := ts.SetSyncInterval(interval)
-	if err != nil {
-		return nil, err
-	}
-	return &ts, nil
+	syncer.ctx, syncer.cancel = context.WithCancel(context.Background())
+	return &syncer
 }
 
-func (ts *TimeSyncer) Add(tag string, client *Client) error {
+func (syncer *Syncer) Add(tag string, client *Client) error {
 	switch client.Mode {
-	case HTTP:
-		client.client = &HTTPClient{
-			proxyPool: ts.proxyPool,
-			dnsClient: ts.dnsClient,
-		}
-	case NTP:
-		client.client = &NTPClient{
-			proxyPool: ts.proxyPool,
-			dnsClient: ts.dnsClient,
-		}
+	case ModeHTTP:
+		client.client = NewHTTP(syncer.ctx, syncer.proxyPool, syncer.dnsClient)
+	case ModeNTP:
+		client.client = NewNTP(syncer.proxyPool, syncer.dnsClient)
 	default:
-		return fmt.Errorf("unknown mode: %s", client.Mode)
+		return errors.Errorf("unknown mode: %s", client.Mode)
 	}
-	err := client.client.ImportConfig(client.Config)
+	err := client.client.Import(client.Config)
 	if err != nil {
 		return err
 	}
 	security.FlushBytes(client.Config)
-	ts.clientsRWM.Lock()
-	defer ts.clientsRWM.Unlock()
-	if _, ok := ts.clients[tag]; !ok {
-		ts.clients[tag] = client
+	syncer.clientsRWM.Lock()
+	defer syncer.clientsRWM.Unlock()
+	if _, ok := syncer.clients[tag]; !ok {
+		syncer.clients[tag] = client
 		return nil
 	} else {
 		return fmt.Errorf("time syncer client: %s already exists", tag)
 	}
 }
 
-func (ts *TimeSyncer) Delete(tag string) error {
-	ts.clientsRWM.Lock()
-	defer ts.clientsRWM.Unlock()
-	if _, exist := ts.clients[tag]; exist {
-		delete(ts.clients, tag)
+func (syncer *Syncer) Delete(tag string) error {
+	syncer.clientsRWM.Lock()
+	defer syncer.clientsRWM.Unlock()
+	if _, exist := syncer.clients[tag]; exist {
+		delete(syncer.clients, tag)
 		return nil
 	} else {
 		return fmt.Errorf("time syncer client: %s doesn't exist", tag)
 	}
 }
 
-func (ts *TimeSyncer) Clients() map[string]*Client {
+func (syncer *Syncer) Clients() map[string]*Client {
 	clients := make(map[string]*Client)
-	ts.clientsRWM.RLock()
-	for tag, client := range ts.clients {
+	syncer.clientsRWM.RLock()
+	defer syncer.clientsRWM.RUnlock()
+	for tag, client := range syncer.clients {
 		clients[tag] = client
 	}
-	ts.clientsRWM.RUnlock()
 	return clients
 }
 
-func (ts *TimeSyncer) Start() error {
-	if len(ts.Clients()) == 0 {
+func (syncer *Syncer) Now() time.Time {
+	syncer.nowRWM.RLock()
+	defer syncer.nowRWM.RUnlock()
+	return syncer.now
+}
+
+func (syncer *Syncer) GetSyncInterval() time.Duration {
+	syncer.clientsRWM.RLock()
+	defer syncer.clientsRWM.RUnlock()
+	return syncer.interval
+}
+
+func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
+	if interval < time.Minute || interval > time.Hour*1 {
+		return ErrInvalidInterval
+	}
+	syncer.clientsRWM.Lock()
+	defer syncer.clientsRWM.Unlock()
+	syncer.interval = interval
+	return nil
+}
+
+func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {
+	syncer.logger.Println(lv, "timesyncer", log...)
+}
+
+func (syncer *Syncer) Start() error {
+	if len(syncer.Clients()) == 0 {
 		return ErrNoClient
 	}
 	// first time sync must success
 	for {
-		err := ts.sync(false, false)
+		err := syncer.sync(false)
 		switch err {
 		case nil:
-			ts.wg.Add(2)
-			go ts.addLoop()
-			go ts.syncLoop()
+			syncer.wg.Add(2)
+			go syncer.addLoop()
+			go syncer.syncLoop()
 			return nil
 		case ErrAllClientsFailed:
-			ts.dnsClient.FlushCache()
-			ts.log(logger.Warning, ErrAllClientsFailed)
+			syncer.dnsClient.FlushCache()
+			syncer.log(logger.Warning, ErrAllClientsFailed)
 			random.Sleep(10, 20)
 		default:
 			return err
@@ -163,127 +163,95 @@ func (ts *TimeSyncer) Start() error {
 }
 
 // stop once
-func (ts *TimeSyncer) Stop() {
-	close(ts.stopSignal)
-	ts.wg.Wait()
-}
-
-func (ts *TimeSyncer) Now() time.Time {
-	ts.nowRWM.RLock()
-	t := ts.now
-	ts.nowRWM.RUnlock()
-	return t
-}
-
-func (ts *TimeSyncer) GetSyncInterval() time.Duration {
-	ts.nowRWM.RLock()
-	i := ts.interval
-	ts.nowRWM.RUnlock()
-	return i
-}
-
-func (ts *TimeSyncer) SetSyncInterval(interval time.Duration) error {
-	if interval < time.Minute || interval > time.Hour*1 {
-		return ErrInvalidInterval
-	}
-	ts.nowRWM.Lock()
-	ts.interval = interval
-	ts.nowRWM.Unlock()
-	return nil
+func (syncer *Syncer) Stop() {
+	syncer.cancel()
+	syncer.wg.Wait()
 }
 
 // Test is used to test all client
-func (ts *TimeSyncer) Test() error {
-	if len(ts.Clients()) == 0 {
+func (syncer *Syncer) Test() error {
+	if len(syncer.Clients()) == 0 {
 		return ErrNoClient
 	}
-	return ts.sync(false, true)
-}
-
-func (ts *TimeSyncer) log(lv logger.Level, log ...interface{}) {
-	ts.logger.Println(lv, "timesyncer", log...)
+	return syncer.sync(true)
 }
 
 // self walk
-func (ts *TimeSyncer) addLoop() {
-	defer ts.wg.Done()
+func (syncer *Syncer) addLoop() {
+	const addLoopInterval = 500 * time.Millisecond
+	defer syncer.wg.Done()
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	ticker := time.NewTicker(addLoopInterval)
 	defer ticker.Stop()
+	add := func() {
+		syncer.nowRWM.Lock()
+		defer syncer.nowRWM.Unlock()
+		syncer.now = syncer.now.Add(addLoopInterval)
+	}
 	for {
 		select {
-		case <-ts.stopSignal:
-			return
 		case <-ticker.C:
-			ts.nowRWM.Lock()
-			ts.now = ts.now.Add(addLoopInterval)
-			ts.nowRWM.Unlock()
-		}
-	}
-}
-
-func (ts *TimeSyncer) syncLoop() {
-	defer ts.wg.Done()
-	var interval time.Duration
-	for {
-		ts.nowRWM.RLock()
-		interval = ts.interval
-		ts.nowRWM.RUnlock()
-		select {
-		case <-ts.stopSignal:
+			add()
+		case <-syncer.ctx.Done():
 			return
-		case <-time.After(interval):
-			err := ts.sync(true, false)
-			if err != nil {
-				ts.log(logger.Warning, "sync time failed:", err)
-			}
 		}
 	}
 }
 
-// if accept_failed == true when sync time all failed
-// set this.now = time.Now()
-// sync_all is for test all clients
-func (ts *TimeSyncer) sync(acceptFailed, syncAll bool) (err error) {
+func (syncer *Syncer) syncLoop() {
+	defer syncer.wg.Done()
+	for {
+		select {
+		case <-time.After(syncer.GetSyncInterval()):
+			err := syncer.sync(false)
+			if err != nil {
+				syncer.log(logger.Fatal, "failed to sync time:", err)
+			}
+		case <-syncer.ctx.Done():
+			return
+		}
+	}
+}
+
+// all is for test all clients
+func (syncer *Syncer) sync(all bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error(r, "TimeSyncer.sync() panic:")
-			ts.log(logger.Fatal, err)
+			err = xpanic.Error(r, "Syncer.sync() panic:")
+			syncer.log(logger.Fatal, err)
 		}
 	}()
 	var (
-		now       time.Time
-		isOptsErr bool
+		now     time.Time
+		optsErr bool
 	)
-	for tag, client := range ts.Clients() {
-		now, isOptsErr, err = client.Query()
-		if isOptsErr {
-			return fmt.Errorf("client %s has invalid config: %s", tag, err)
-		}
+	update := func() {
+		syncer.nowRWM.Lock()
+		defer syncer.nowRWM.Unlock()
+		syncer.now = now
+	}
+	for tag, client := range syncer.Clients() {
+		now, optsErr, err = client.Query()
 		if err != nil {
-			err = fmt.Errorf("client %s sync time failed: %s", tag, err)
-			if syncAll {
+			if optsErr {
+				return fmt.Errorf("client %s with invalid config: %s", tag, err)
+			}
+			err = fmt.Errorf("client %s failed to sync time: %s", tag, err)
+			if all {
 				return err
 			}
-			ts.log(logger.Warning, err)
+			syncer.log(logger.Warning, err)
 		} else {
-			ts.nowRWM.Lock()
-			ts.now = now
-			ts.nowRWM.Unlock()
-			if syncAll {
+			update()
+			if all {
 				continue
 			}
 			return
 		}
 	}
-	if syncAll {
+	if all {
 		return
-	}
-	if acceptFailed {
-		ts.nowRWM.Lock()
-		ts.now = time.Now()
-		ts.nowRWM.Unlock()
 	}
 	return ErrAllClientsFailed
 }
