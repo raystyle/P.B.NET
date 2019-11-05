@@ -48,4 +48,6 @@ func TestDNSClient(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("IPv6 DoH(proxy):", result)
 	}
+
+	testsuite.IsDestroyed(t, client)
 }
