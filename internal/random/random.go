@@ -45,10 +45,10 @@ func (r *Rand) String(n int) string {
 		return ""
 	}
 	result := make([]rune, n)
+	r.m.Lock()
+	defer r.m.Unlock()
 	for i := 0; i < n; i++ {
-		r.m.Lock()
 		ri := r.rand.Intn(90)
-		r.m.Unlock()
 		result[i] = rune(33 + ri)
 	}
 	return string(result)
@@ -58,11 +58,11 @@ func (r *Rand) Bytes(n int) []byte {
 	if n < 1 {
 		return nil
 	}
+	r.m.Lock()
+	defer r.m.Unlock()
 	result := make([]byte, n)
 	for i := 0; i < n; i++ {
-		r.m.Lock()
 		ri := r.rand.Intn(256)
-		r.m.Unlock()
 		result[i] = byte(ri)
 	}
 	return result
@@ -74,11 +74,11 @@ func (r *Rand) Cookie(n int) string {
 		return ""
 	}
 	result := make([]rune, n)
+	r.m.Lock()
+	defer r.m.Unlock()
 	for i := 0; i < n; i++ {
-		r.m.Lock()
 		// after space
 		ri := 33 + r.rand.Intn(90)
-		r.m.Unlock()
 		switch {
 		case ri > 47 && ri < 58: //  48-57 number
 		case ri > 64 && ri < 91: //  65-90 A-Z
@@ -97,23 +97,20 @@ func (r *Rand) Int(n int) int {
 		return 0
 	}
 	r.m.Lock()
-	i := r.rand.Intn(n)
-	r.m.Unlock()
-	return i
+	defer r.m.Unlock()
+	return r.rand.Intn(n)
 }
 
 func (r *Rand) Int64() int64 {
 	r.m.Lock()
-	i := r.rand.Int63()
-	r.m.Unlock()
-	return i
+	defer r.m.Unlock()
+	return r.rand.Int63()
 }
 
 func (r *Rand) Uint64() uint64 {
 	r.m.Lock()
-	ui := r.rand.Uint64()
-	r.m.Unlock()
-	return ui
+	defer r.m.Unlock()
+	return r.rand.Uint64()
 }
 
 func String(n int) string {
@@ -140,7 +137,9 @@ func Uint64() uint64 {
 	return gRand.Uint64()
 }
 
-// sleep  fixed <= time < fixed + random
+// Sleep is used to sleep random time
+// fixed <= time < fixed + random
+// all time is fixed time + random time
 func Sleep(fixed, random int) {
 	time.Sleep(time.Duration(fixed+Int(random)) * time.Second)
 }

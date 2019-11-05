@@ -33,17 +33,17 @@ func NewMemory() *Memory {
 
 func (m *Memory) Padding() {
 	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	for i := 0; i < 16; i++ {
-		m.padding[m.rand.String(8)] =
-			m.rand.Bytes(8 + m.rand.Int(256))
+		data := m.rand.Bytes(8 + m.rand.Int(256))
+		m.padding[m.rand.String(8)] = data
 	}
-	m.mutex.Unlock()
 }
 
 func (m *Memory) Flush() {
 	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	m.padding = make(map[string][]byte)
-	m.mutex.Unlock()
 }
 
 func PaddingMemory() {
