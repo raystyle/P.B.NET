@@ -16,9 +16,9 @@ const (
 	TagBalance = "balance"
 )
 
-// ProxyPoolAndManager is used to create a proxy pool
+// PoolAndManager is used to create a proxy pool
 // with balance and proxy manager
-func ProxyPoolAndManager(t *testing.T) (*proxy.Manager, *proxy.Pool) {
+func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
 	// create proxy server manager
 	manager := proxy.NewManager(logger.Test, nil)
 	// add socks5 server
@@ -68,5 +68,5 @@ func ProxyPoolAndManager(t *testing.T) (*proxy.Manager, *proxy.Pool) {
 		Options: `tags = ["test proxy 1","test proxy 2"]`,
 	})
 	require.NoError(t, err)
-	return manager, pool
+	return pool, manager
 }

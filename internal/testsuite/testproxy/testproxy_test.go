@@ -9,8 +9,8 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestProxyPoolAndManager(t *testing.T) {
-	manager, pool := ProxyPoolAndManager(t)
+func TestPoolAndManager(t *testing.T) {
+	pool, manager := PoolAndManager(t)
 	defer func() {
 		require.NoError(t, manager.Close())
 		testsuite.IsDestroyed(t, manager)

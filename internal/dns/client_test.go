@@ -42,8 +42,8 @@ func testAddDNSServers(t *testing.T, client *Client, filename string) {
 
 func TestClient(t *testing.T) {
 	// make DNS client
-	manager, pool := testproxy.ProxyPoolAndManager(t)
-	defer func() { _ = manager.Close() }()
+	pool, manager := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, manager.Close()) }()
 	client := NewClient(pool)
 	testAddAllDNSServers(t, client)
 
@@ -78,8 +78,8 @@ func TestClient(t *testing.T) {
 
 func TestClient_Cache(t *testing.T) {
 	// make DNS client
-	manager, pool := testproxy.ProxyPoolAndManager(t)
-	defer func() { _ = manager.Close() }()
+	pool, manager := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, manager.Close()) }()
 	client := NewClient(pool)
 	testAddAllDNSServers(t, client)
 
@@ -95,8 +95,8 @@ func TestClient_Cache(t *testing.T) {
 }
 
 func TestClient_Cancel(t *testing.T) {
-	manager, pool := testproxy.ProxyPoolAndManager(t)
-	defer func() { _ = manager.Close() }()
+	pool, manager := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, manager.Close()) }()
 	client := NewClient(pool)
 	testAddAllDNSServers(t, client)
 
@@ -108,8 +108,8 @@ func TestClient_Cancel(t *testing.T) {
 }
 
 func TestClient_No_Result(t *testing.T) {
-	manager, pool := testproxy.ProxyPoolAndManager(t)
-	defer func() { _ = manager.Close() }()
+	pool, manager := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, manager.Close()) }()
 	client := NewClient(pool)
 	if testsuite.EnableIPv4() {
 		err := client.Add("reachable-ipv4", &Server{
@@ -159,8 +159,8 @@ func TestClient_Add_Delete(t *testing.T) {
 
 func TestClient_TestServers(t *testing.T) {
 	// make DNS client
-	manager, pool := testproxy.ProxyPoolAndManager(t)
-	defer func() { _ = manager.Close() }()
+	pool, manager := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, manager.Close()) }()
 	client := NewClient(pool)
 	// add reachable and skip test
 	if testsuite.EnableIPv4() {
@@ -209,8 +209,8 @@ func TestClient_TestServers(t *testing.T) {
 
 func TestClient_TestOptions(t *testing.T) {
 	// make DNS client
-	manager, pool := testproxy.ProxyPoolAndManager(t)
-	defer func() { _ = manager.Close() }()
+	pool, manager := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, manager.Close()) }()
 	client := NewClient(pool)
 	testAddAllDNSServers(t, client)
 
