@@ -69,9 +69,8 @@ func (b *Balance) setNext() {
 
 func (b *Balance) getNext() *Client {
 	b.mutex.Lock()
-	client := b.next
-	b.mutex.Unlock()
-	return client
+	defer b.mutex.Unlock()
+	return b.next
 }
 
 func (b *Balance) getAndSetNext() *Client {

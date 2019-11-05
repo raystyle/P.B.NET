@@ -35,8 +35,8 @@ func (m *Manager) Add(server *Server) error {
 	}
 	deleteServer := func() {
 		m.rwm.Lock()
+		defer m.rwm.Unlock()
 		delete(m.servers, server.Tag)
-		m.rwm.Unlock()
 	}
 	switch server.Mode {
 	case ModeSocks:
@@ -86,12 +86,9 @@ func (m *Manager) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty proxy server tag")
 	}
-	m.rwm.Lock()
-	if server, ok := m.servers[tag]; ok {
-		m.rwm.Unlock()
-		return server.Close()
+	if server, ok := m.Servers()[tag]; ok {
+		return server.Close() // Close use m.rwm, must use m.Servers()
 	} else {
-		m.rwm.Unlock()
 		return errors.Errorf("proxy server %s doesn't exist", tag)
 	}
 }
@@ -114,13 +111,14 @@ func (m *Manager) Get(tag string) (*Server, error) {
 func (m *Manager) Servers() map[string]*Server {
 	servers := make(map[string]*Server)
 	m.rwm.RLock()
+	defer m.rwm.RUnlock()
 	for tag, server := range m.servers {
 		servers[tag] = server
 	}
-	m.rwm.RUnlock()
 	return servers
 }
 
+// Close is used to close all proxy servers
 func (m *Manager) Close() error {
 	var err error
 	for _, server := range m.Servers() {

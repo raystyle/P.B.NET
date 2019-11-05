@@ -163,9 +163,9 @@ func (p *Pool) Get(tag string) (*Client, error) {
 func (p *Pool) Clients() map[string]*Client {
 	clients := make(map[string]*Client)
 	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	for tag, client := range p.clients {
 		clients[tag] = client
 	}
-	p.rwm.RUnlock()
 	return clients
 }
