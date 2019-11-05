@@ -1,9 +1,25 @@
 # ------------------DNS-Over-HTTPS---------------------
 
-[doh_cloudflare]
+[doh_ipv4_cloudflare]
+  method  = "doh"
+  address = "https://1.1.1.1/dns-query"
+
+[doh_ipv6_cloudflare]
+  method  = "doh"
+  address = "https://[2606:4700:4700::1111]/dns-query"
+
+[doh_ds_cloudflare]
   method  = "doh"
   address = "https://cloudflare-dns.com/dns-query"
 
-[doh_mozilla]
+[doh_ipv4_mozilla]
+  method  = "doh"
+  address = "https://162.159.132.53/dns-query"
+
+[doh_ipv6_mozilla]
+  method  = "doh"
+  address = "https://2606:4700::6810:f8f9/dns-query"
+
+[doh_ds_mozilla]
   method  = "doh"
   address = "https://mozilla.cloudflare-dns.com/dns-query"
