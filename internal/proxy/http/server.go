@@ -36,9 +36,8 @@ type Options struct {
 	Server    options.HTTPServer    `toml:"server"`
 	Transport options.HTTPTransport `toml:"transport"`
 
-	DialTimeout func(network, address string, timeout time.Duration) (net.Conn, error) `toml:"-"`
-	DialContext func(ctx context.Context, network, address string) (net.Conn, error)   `toml:"-"`
-	ExitFunc    func()                                                                 `toml:"-"`
+	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
+	ExitFunc    func()                                                               `toml:"-"`
 }
 
 // Server implement internal/proxy.server
@@ -48,7 +47,7 @@ type Server struct {
 	https       bool
 	timeout     time.Duration
 	maxConns    int
-	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
+	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
 	exitFunc    func()
 	execOnce    sync.Once
 
@@ -59,8 +58,11 @@ type Server struct {
 	address   string
 	rwm       sync.RWMutex
 
-	stopSignal chan struct{}
-	wg         sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	closeOnce sync.Once
+	wg        sync.WaitGroup
 }
 
 func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
@@ -74,7 +76,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		logger:      lg,
 		https:       opts.HTTPS,
 		maxConns:    opts.MaxConns,
-		dialTimeout: opts.DialTimeout,
+		dialContext: opts.DialContext,
 		exitFunc:    opts.ExitFunc,
 	}
 	var err error
@@ -112,8 +114,8 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		s.maxConns = options.DefaultMaxConns
 	}
 
-	if s.dialTimeout == nil {
-		s.dialTimeout = net.DialTimeout
+	if s.dialContext == nil {
+		s.dialContext = new(net.Dialer).DialContext
 	}
 
 	if opts.DialContext != nil {
@@ -122,7 +124,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 
 	s.server.Handler = &s
 	s.server.ErrorLog = logger.Wrap(logger.Error, s.tag, lg)
-	s.stopSignal = make(chan struct{})
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 	return &s, nil
 }
 
@@ -144,8 +146,8 @@ func (s *Server) ListenAndServe(network, address string) error {
 
 func (s *Server) Serve(l net.Listener) {
 	s.rwm.Lock()
+	defer s.rwm.Unlock()
 	s.address = l.Addr().String()
-	s.rwm.Unlock()
 	ll := netutil.LimitListener(l, s.maxConns)
 	s.wg.Add(1)
 	go func() {
@@ -153,17 +155,12 @@ func (s *Server) Serve(l net.Listener) {
 			if r := recover(); r != nil {
 				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
 			}
-			close(s.stopSignal)
+			s.cancel()
 			s.transport.CloseIdleConnections()
 			s.rwm.Lock()
-			s.transport = nil
-			s.server = nil
-			s.rwm.Unlock()
-			s.execOnce.Do(func() {
-				if s.exitFunc != nil {
-					s.exitFunc()
-				}
-			})
+			defer s.rwm.Unlock()
+			s.server = nil // must use it
+			s.doExitFunc()
 			s.logf(logger.Info, "server stopped (%s)", s.address)
 			s.wg.Done()
 		}()
@@ -176,27 +173,20 @@ func (s *Server) Serve(l net.Listener) {
 	}()
 }
 
-func (s *Server) Close() (err error) {
-	s.rwm.RLock()
-	server := s.server
-	s.rwm.RUnlock()
-	if server != nil {
-		err = server.Close()
+func (s *Server) Close() error {
+	var err error
+	s.closeOnce.Do(func() {
+		err = s.server.Close()
 		s.wg.Wait()
-		s.execOnce.Do(func() {
-			if s.exitFunc != nil {
-				s.exitFunc()
-			}
-		})
-	}
+		s.doExitFunc()
+	})
 	return err
 }
 
 func (s *Server) Address() string {
 	s.rwm.RLock()
-	addr := s.address
-	s.rwm.RUnlock()
-	return addr
+	defer s.rwm.RUnlock()
+	return s.address
 }
 
 // Info is used to get http proxy server info
@@ -210,10 +200,18 @@ func (s *Server) Info() string {
 		buf.WriteString("http")
 	}
 	_, _ = fmt.Fprintf(buf, " proxy listen: %s", s.Address())
-	if s.username != nil {
+	if s.username != nil || s.password != nil {
 		_, _ = fmt.Fprintf(buf, " %s:%s", s.username, s.password)
 	}
 	return buf.String()
+}
+
+func (s *Server) doExitFunc() {
+	s.execOnce.Do(func() {
+		if s.exitFunc != nil {
+			s.exitFunc()
+		}
+	})
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
@@ -302,8 +300,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer func() { _ = wc.Close() }()
+		ctx, cancel := context.WithTimeout(s.ctx, s.timeout)
+		defer cancel()
 		// dial target
-		conn, err := s.dialTimeout("tcp", r.URL.Host, s.timeout)
+		conn, err := s.dialContext(ctx, "tcp", r.URL.Host)
 		if err != nil {
 			return
 		}
@@ -324,7 +324,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}()
 			select {
 			case <-closeChan:
-			case <-s.stopSignal:
+			case <-s.ctx.Done():
 				_ = wc.Close()
 				_ = conn.Close()
 			}
@@ -343,24 +343,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(wc, conn)
 		close(closeChan)
 	} else { // handle http
-		s.rwm.RLock()
-		tr := s.transport
-		s.rwm.RUnlock()
-		if tr != nil {
-			// do
-			resp, err := tr.RoundTrip(r)
-			if err != nil {
-				s.log(logger.Error, err, "\n", r)
-				return
-			}
-			defer func() { _ = resp.Body.Close() }()
-			// header
-			for k, v := range resp.Header {
-				w.Header().Set(k, v[0])
-			}
-			// write status and body
-			w.WriteHeader(resp.StatusCode)
-			_, _ = io.Copy(w, resp.Body)
+		ctx, cancel := context.WithTimeout(s.ctx, s.timeout)
+		defer cancel()
+		resp, err := s.transport.RoundTrip(r.Clone(ctx))
+		if err != nil {
+			s.log(logger.Error, err, "\n", r)
+			return
 		}
+		defer func() { _ = resp.Body.Close() }()
+		// header
+		for k, v := range resp.Header {
+			w.Header().Set(k, v[0])
+		}
+		// write status and body
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
 	}
 }

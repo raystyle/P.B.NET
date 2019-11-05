@@ -2,6 +2,7 @@ package socks
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -31,8 +32,8 @@ type Options struct {
 	// only server
 	MaxConns int `toml:"max_conns"`
 
-	DialTimeout func(network, address string, timeout time.Duration) (net.Conn, error) `toml:"-"`
-	ExitFunc    func()                                                                 `toml:"-"`
+	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
+	ExitFunc    func()                                                               `toml:"-"`
 }
 
 // Server implement internal/proxy.server
@@ -44,7 +45,7 @@ type Server struct {
 	timeout  time.Duration
 	userID   []byte
 
-	dialTimeout func(network, address string, timeout time.Duration) (net.Conn, error)
+	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
 	exitFunc    func()
 
 	listener net.Listener
@@ -54,6 +55,9 @@ type Server struct {
 	rwm      sync.RWMutex
 	conns    map[string]*conn
 	connsRWM sync.RWMutex
+
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	inShutdown int32
 	closeOnce  sync.Once
@@ -74,7 +78,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		timeout:     opts.Timeout,
 		userID:      []byte(opts.UserID),
 		conns:       make(map[string]*conn),
-		dialTimeout: opts.DialTimeout,
+		dialContext: opts.DialContext,
 		exitFunc:    opts.ExitFunc,
 	}
 
@@ -92,14 +96,16 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 		s.maxConns = options.DefaultMaxConns
 	}
 
-	if s.dialTimeout == nil {
-		s.dialTimeout = net.DialTimeout
+	if s.dialContext == nil {
+		s.dialContext = new(net.Dialer).DialContext
 	}
 
 	if opts.Username != "" {
 		s.username = []byte(opts.Username)
 		s.password = []byte(opts.Password)
 	}
+
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 	return &s, nil
 }
 
@@ -121,9 +127,10 @@ func (s *Server) ListenAndServe(network, address string) error {
 
 func (s *Server) Serve(l net.Listener) {
 	s.rwm.Lock()
+	defer s.rwm.Unlock()
 	s.address = l.Addr().String()
 	s.listener = netutil.LimitListener(l, s.maxConns)
-	s.rwm.Unlock()
+
 	s.wg.Add(1)
 	go func() {
 		var err error
@@ -136,21 +143,22 @@ func (s *Server) Serve(l net.Listener) {
 				s.log(logger.Error, err)
 			}
 
+			s.cancel()
+
 			// close all connections
 			s.connsRWM.Lock()
+			defer s.connsRWM.Unlock()
 			for _, conn := range s.conns {
-				_ = conn.conn.Close()
+				_ = conn.local.Close()
 			}
-			s.connsRWM.Unlock()
 
 			// close listener and execute exit function
 			s.closeOnce.Do(func() {
-				err = s.listener.Close()
+				_ = s.listener.Close()
 				if s.exitFunc != nil {
 					s.exitFunc()
 				}
 			})
-
 			s.logf(logger.Info, "server stopped (%s)", s.address)
 			s.wg.Done()
 		}()
@@ -190,28 +198,27 @@ func (s *Server) Serve(l net.Listener) {
 	}()
 }
 
-func (s *Server) Close() (err error) {
+func (s *Server) Close() error {
+	var err error
 	atomic.StoreInt32(&s.inShutdown, 1)
 	s.closeOnce.Do(func() {
 		s.rwm.RLock()
-		l := s.listener
-		s.rwm.RUnlock()
-		if l != nil {
-			err = l.Close()
+		defer s.rwm.RUnlock()
+		if s.listener != nil {
+			err = s.listener.Close()
 		}
 		if s.exitFunc != nil {
 			s.exitFunc()
 		}
 	})
 	s.wg.Wait()
-	return
+	return err
 }
 
 func (s *Server) Address() string {
 	s.rwm.RLock()
-	addr := s.address
-	s.rwm.RUnlock()
-	return addr
+	defer s.rwm.RUnlock()
+	return s.address
 }
 
 // Info is used to get http proxy server info
@@ -225,7 +232,7 @@ func (s *Server) Info() string {
 		buf.WriteString("socks5")
 	}
 	_, _ = fmt.Fprintf(buf, " listen: %s", s.Address())
-	if s.username != nil {
+	if s.username != nil || s.password != nil {
 		_, _ = fmt.Fprintf(buf, " %s:%s", s.username, s.password)
 	}
 	return buf.String()
@@ -254,11 +261,11 @@ func (s *Server) newConn(c net.Conn) *conn {
 	if atomic.LoadInt32(&s.inShutdown) == 0 {
 		conn := &conn{
 			server: s,
-			conn:   c,
+			local:  c,
 		}
 		s.connsRWM.Lock()
+		defer s.connsRWM.Unlock()
 		s.conns[conn.key()] = conn
-		s.connsRWM.Unlock()
 		return conn
 	}
 	_ = c.Close()
@@ -267,19 +274,19 @@ func (s *Server) newConn(c net.Conn) *conn {
 
 type conn struct {
 	server *Server
-	conn   net.Conn
-	remote net.Conn
+	local  net.Conn // listener accepted conn
+	remote net.Conn // dial
 }
 
 func (c *conn) key() string {
 	return fmt.Sprintf("%s%s%s%s",
-		c.conn.LocalAddr().Network(), c.conn.LocalAddr(),
-		c.conn.RemoteAddr().Network(), c.conn.RemoteAddr(),
+		c.local.LocalAddr().Network(), c.local.LocalAddr(),
+		c.local.RemoteAddr().Network(), c.local.RemoteAddr(),
 	)
 }
 
 func (c *conn) log(lv logger.Level, log ...interface{}) {
-	c.server.log(lv, append(log, "\n", c.conn)...)
+	c.server.log(lv, append(log, "\n", c.local)...)
 }
 
 func (c *conn) serve() {
@@ -288,11 +295,11 @@ func (c *conn) serve() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
-		_ = c.conn.Close()
+		_ = c.local.Close()
 		// delete conn
 		c.server.connsRWM.Lock()
+		defer c.server.connsRWM.Unlock()
 		delete(c.server.conns, c.key())
-		c.server.connsRWM.Unlock()
 		c.server.wg.Done()
 	}()
 	if c.server.socks4 {
@@ -304,7 +311,7 @@ func (c *conn) serve() {
 	if c.remote != nil {
 		defer func() { _ = c.remote.Close() }()
 		_ = c.remote.SetDeadline(time.Time{})
-		_ = c.conn.SetDeadline(time.Time{})
+		_ = c.local.SetDeadline(time.Time{})
 		c.server.wg.Add(1)
 		go func() {
 			defer func() {
@@ -313,8 +320,8 @@ func (c *conn) serve() {
 				}
 				c.server.wg.Done()
 			}()
-			_, _ = io.Copy(c.conn, c.remote)
+			_, _ = io.Copy(c.local, c.remote)
 		}()
-		_, _ = io.Copy(c.remote, c.conn)
+		_, _ = io.Copy(c.remote, c.local)
 	}
 }

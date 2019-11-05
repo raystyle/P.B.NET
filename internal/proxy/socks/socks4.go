@@ -2,6 +2,7 @@ package socks
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"io"
@@ -117,7 +118,7 @@ func (c *conn) serveSocks4() {
 	// 10 = version(1) + cmd(1) + port(2) + address(4) + 2xNULL(2) maybe
 	// 16 = domain name
 	buffer := make([]byte, 10+16) // prepare
-	_, err = io.ReadAtLeast(c.conn, buffer[:8], 8)
+	_, err = io.ReadAtLeast(c.local, buffer[:8], 8)
 	if err != nil {
 		return
 	}
@@ -144,7 +145,7 @@ func (c *conn) serveSocks4() {
 	}
 	var userID []byte
 	for {
-		_, err = c.conn.Read(buffer[:1])
+		_, err = c.local.Read(buffer[:1])
 		if err != nil {
 			return
 		}
@@ -162,7 +163,7 @@ func (c *conn) serveSocks4() {
 	if domain { // read domain
 		var dn []byte
 		for {
-			_, err = c.conn.Read(buffer[:1])
+			_, err = c.local.Read(buffer[:1])
 			if err != nil {
 				return
 			}
@@ -177,13 +178,15 @@ func (c *conn) serveSocks4() {
 	// connect target
 	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
 	c.log(logger.Debug, "connect: "+address)
-	remote, err := c.server.dialTimeout("tcp4", address, c.server.timeout)
+	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
+	defer cancel()
+	remote, err := c.server.dialContext(ctx, "tcp4", address)
 	if err != nil {
-		_, _ = c.conn.Write(v4ReplyConnectRefused)
+		_, _ = c.local.Write(v4ReplyConnectRefused)
 		return
 	}
 	// write reply
-	_, err = c.conn.Write(v4ReplySucceeded)
+	_, err = c.local.Write(v4ReplySucceeded)
 	if err != nil {
 		_ = remote.Close()
 		return

@@ -2,6 +2,7 @@ package socks
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"io"
@@ -209,7 +210,7 @@ func (c *conn) serveSocks5() {
 	}()
 	buffer := make([]byte, 16) // prepare
 	// read version
-	_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
+	_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 	if err != nil {
 		return
 	}
@@ -218,7 +219,7 @@ func (c *conn) serveSocks5() {
 		return
 	}
 	// read authentication methods
-	_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
+	_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 	if err != nil {
 		return
 	}
@@ -230,18 +231,18 @@ func (c *conn) serveSocks5() {
 	if l > len(buffer) {
 		buffer = make([]byte, l)
 	}
-	_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
+	_, err = io.ReadAtLeast(c.local, buffer[:l], l)
 	if err != nil {
 		return
 	}
 	// write authentication method
 	if c.server.username != nil {
-		_, err = c.conn.Write([]byte{version5, usernamePassword})
+		_, err = c.local.Write([]byte{version5, usernamePassword})
 		if err != nil {
 			return
 		}
 		// read username and password version
-		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
+		_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 		if err != nil {
 			return
 		}
@@ -250,7 +251,7 @@ func (c *conn) serveSocks5() {
 			return
 		}
 		// read username length
-		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
+		_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 		if err != nil {
 			return
 		}
@@ -259,14 +260,14 @@ func (c *conn) serveSocks5() {
 			buffer = make([]byte, l)
 		}
 		// read username
-		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
+		_, err = io.ReadAtLeast(c.local, buffer[:l], l)
 		if err != nil {
 			return
 		}
 		username := make([]byte, l)
 		copy(username, buffer[:l])
 		// read password length
-		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
+		_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 		if err != nil {
 			return
 		}
@@ -275,14 +276,14 @@ func (c *conn) serveSocks5() {
 			buffer = make([]byte, l)
 		}
 		// read password
-		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
+		_, err = io.ReadAtLeast(c.local, buffer[:l], l)
 		if err != nil {
 			return
 		}
 		password := make([]byte, l)
 		copy(password, buffer[:l])
 		// write username password version
-		_, err = c.conn.Write([]byte{usernamePasswordVersion})
+		_, err = c.local.Write([]byte{usernamePasswordVersion})
 		if err != nil {
 			return
 		}
@@ -290,13 +291,13 @@ func (c *conn) serveSocks5() {
 			subtle.ConstantTimeCompare(c.server.password, password) != 1 {
 			l := fmt.Sprintf("invalid username password: %s %s", username, password)
 			c.log(logger.Exploit, l)
-			_, _ = c.conn.Write([]byte{statusFailed})
+			_, _ = c.local.Write([]byte{statusFailed})
 			return
 		} else {
-			_, err = c.conn.Write([]byte{statusSucceeded})
+			_, err = c.local.Write([]byte{statusSucceeded})
 		}
 	} else {
-		_, err = c.conn.Write([]byte{version5, notRequired})
+		_, err = c.local.Write([]byte{version5, notRequired})
 	}
 	if err != nil {
 		return
@@ -306,7 +307,7 @@ func (c *conn) serveSocks5() {
 	if len(buffer) < 10 {
 		buffer = make([]byte, 4+net.IPv4len+2) // 4 + 4(ipv4) + 2(port)
 	}
-	_, err = io.ReadAtLeast(c.conn, buffer[:4], 4)
+	_, err = io.ReadAtLeast(c.local, buffer[:4], 4)
 	if err != nil {
 		return
 	}
@@ -316,33 +317,33 @@ func (c *conn) serveSocks5() {
 	}
 	if buffer[1] != connect {
 		c.log(logger.Exploit, "unknown command")
-		_, _ = c.conn.Write([]byte{version5, cmdNotSupport, reserve})
+		_, _ = c.local.Write([]byte{version5, cmdNotSupport, reserve})
 		return
 	}
 	if buffer[2] != reserve { // reserve
 		c.log(logger.Exploit, "non-zero reserved field")
-		_, err = c.conn.Write([]byte{version5, noReserve, reserve})
+		_, err = c.local.Write([]byte{version5, noReserve, reserve})
 		return
 	}
 	// read address
 	var host string
 	switch buffer[3] {
 	case ipv4:
-		_, err = io.ReadAtLeast(c.conn, buffer[:net.IPv4len], net.IPv4len)
+		_, err = io.ReadAtLeast(c.local, buffer[:net.IPv4len], net.IPv4len)
 		if err != nil {
 			return
 		}
 		host = net.IP(buffer[:net.IPv4len]).String()
 	case ipv6:
 		buffer = make([]byte, net.IPv6len)
-		_, err = io.ReadAtLeast(c.conn, buffer[:net.IPv6len], net.IPv6len)
+		_, err = io.ReadAtLeast(c.local, buffer[:net.IPv6len], net.IPv6len)
 		if err != nil {
 			return
 		}
 		host = net.IP(buffer[:net.IPv6len]).String()
 	case fqdn:
 		// get FQDN length
-		_, err = io.ReadAtLeast(c.conn, buffer[:1], 1)
+		_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 		if err != nil {
 			return
 		}
@@ -350,18 +351,18 @@ func (c *conn) serveSocks5() {
 		if l > len(buffer) {
 			buffer = make([]byte, l)
 		}
-		_, err = io.ReadAtLeast(c.conn, buffer[:l], l)
+		_, err = io.ReadAtLeast(c.local, buffer[:l], l)
 		if err != nil {
 			return
 		}
 		host = string(buffer[:l])
 	default:
 		c.log(logger.Exploit, "invalid address type")
-		_, _ = c.conn.Write(v5ReplyAddressNotSupport)
+		_, _ = c.local.Write(v5ReplyAddressNotSupport)
 		return
 	}
 	// get port
-	_, err = io.ReadAtLeast(c.conn, buffer[:2], 2)
+	_, err = io.ReadAtLeast(c.local, buffer[:2], 2)
 	if err != nil {
 		return
 	}
@@ -369,14 +370,15 @@ func (c *conn) serveSocks5() {
 	port := convert.BytesToUint16(buffer[:2])
 	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
 	c.log(logger.Debug, "connect: "+address)
-	remote, err := c.server.dialTimeout("tcp", address, c.server.timeout)
+	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
+	defer cancel()
+	remote, err := c.server.dialContext(ctx, "tcp", address)
 	if err != nil {
-		_, _ = c.conn.Write(v5ReplyConnectRefused)
+		_, _ = c.local.Write(v5ReplyConnectRefused)
 		return
 	}
 	// write reply
-	// ipv4 + 0.0.0.0 + 0(port)
-	_, err = c.conn.Write(v5ReplySucceeded)
+	_, err = c.local.Write(v5ReplySucceeded)
 	if err != nil {
 		_ = remote.Close()
 		return
