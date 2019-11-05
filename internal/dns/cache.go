@@ -19,8 +19,8 @@ type cache struct {
 
 func (c *Client) GetCacheExpireTime() time.Duration {
 	c.cachesRWM.RLock()
+	defer c.cachesRWM.RUnlock()
 	expire := c.expire
-	c.cachesRWM.RUnlock()
 	return expire
 }
 
@@ -29,56 +29,52 @@ func (c *Client) SetCacheExpireTime(expire time.Duration) error {
 		return ErrInvalidExpireTime
 	}
 	c.cachesRWM.Lock()
+	defer c.cachesRWM.Unlock()
 	c.expire = expire
-	c.cachesRWM.Unlock()
 	return nil
 }
 
 func (c *Client) FlushCache() {
 	c.cachesRWM.Lock()
+	defer c.cachesRWM.Unlock()
 	c.caches = make(map[string]*cache)
-	c.cachesRWM.Unlock()
 }
 
 func (c *Client) queryCache(domain, typ string) []string {
 	// clean expire cache
 	c.cachesRWM.Lock()
+	defer c.cachesRWM.Unlock()
 	for domain, cache := range c.caches {
 		if time.Now().Sub(cache.updateTime) > c.expire {
 			delete(c.caches, domain)
 		}
 	}
-	// query
+	// query cache
 	if cache, ok := c.caches[domain]; ok {
-		c.cachesRWM.Unlock()
+		var result []string
 		switch typ {
 		case TypeIPv4:
 			cache.rwm.RLock()
-			ipList := cache.ipv4List
-			cache.rwm.RUnlock()
-			return ipList
+			defer cache.rwm.RUnlock()
+			result = cache.ipv4List
 		case TypeIPv6:
 			cache.rwm.RLock()
-			ipList := cache.ipv6List
-			cache.rwm.RUnlock()
-			return ipList
-		default:
-			// <security> In theory,
-			// it's never going to work here
-			return nil
+			defer cache.rwm.RUnlock()
+			result = cache.ipv6List
 		}
+		return result
 	}
 	// create cache object
 	c.caches[domain] = &cache{updateTime: time.Now()}
-	c.cachesRWM.Unlock()
 	return nil
 }
 
 func (c *Client) updateCache(domain string, ipv4, ipv6 []string) {
 	c.cachesRWM.RLock()
+	defer c.cachesRWM.RUnlock()
 	if cache, ok := c.caches[domain]; ok {
-		c.cachesRWM.RUnlock()
 		cache.rwm.Lock()
+		defer cache.rwm.Unlock()
 		if len(ipv4) != 0 {
 			cache.ipv4List = ipv4
 		}
@@ -86,10 +82,5 @@ func (c *Client) updateCache(domain string, ipv4, ipv6 []string) {
 			cache.ipv6List = ipv6
 		}
 		cache.updateTime = time.Now()
-		cache.rwm.Unlock()
-	} else {
-		// <security> In theory,
-		// it's never going to work here
-		c.cachesRWM.RUnlock()
 	}
 }
