@@ -1,25 +1,27 @@
 package timesync
 
 import (
-	"errors"
-	"fmt"
+	"context"
+	"io"
+	"io/ioutil"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/pelletier/go-toml"
-	"github.com/vmihailenco/msgpack/v4"
+	"github.com/pkg/errors"
 
 	"project/internal/dns"
 	"project/internal/options"
 	"project/internal/proxy"
-	ht "project/internal/timesync/http"
+	"project/internal/random"
 )
 
-var ErrQueryHTTPFailed = errors.New("query http server failed")
-
-type HTTPClient struct {
+type HTTP struct {
+	// copy from Syncer
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
+	ctx       context.Context
 
 	Request   options.HTTPRequest   `toml:"request"`
 	Transport options.HTTPTransport `toml:"transport"`
@@ -28,96 +30,119 @@ type HTTPClient struct {
 	DNSOpts   dns.Options           `toml:"dns_options"`
 }
 
-func NewHTTPClient(config []byte) (*HTTPClient, error) {
-	hc := HTTPClient{}
-	err := toml.Unmarshal(config, &hc)
-	if err != nil {
-		return nil, err
+// NewHTTP is used to create HTTP
+func NewHTTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *HTTP {
+	return &HTTP{
+		ctx:       ctx,
+		proxyPool: pool,
+		dnsClient: client,
 	}
-	return &hc, nil
 }
 
-func (client *HTTPClient) Query() (now time.Time, isOptsErr bool, err error) {
+// Query is used to query time
+func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	// http request
-	req, err := client.Request.Apply()
+	req, err := h.Request.Apply()
 	if err != nil {
-		isOptsErr = true
+		optsErr = true
 		return
 	}
 	hostname := req.URL.Hostname()
+
 	// http transport
-	tr, err := client.Transport.Apply()
+	tr, err := h.Transport.Apply()
 	if err != nil {
-		isOptsErr = true
+		optsErr = true
 		return
 	}
-	tr.TLSClientConfig.ServerName = hostname
+	if tr.TLSClientConfig.ServerName == "" {
+		tr.TLSClientConfig.ServerName = hostname
+	}
+
 	// set proxy
-	p, err := client.proxyPool.Get(client.ProxyTag)
+	p, err := h.proxyPool.Get(h.ProxyTag)
 	if err != nil {
-		isOptsErr = true
+		optsErr = true
 		return
 	}
 	p.HTTP(tr)
-	// dns
-	ipList, err := client.dnsClient.Resolve(hostname, &client.DNSOpts)
+
+	// resolve domain name
+	dnsOptsCopy := h.DNSOpts
+	result, err := h.dnsClient.Resolve(hostname, &dnsOptsCopy)
 	if err != nil {
-		isOptsErr = true
-		err = fmt.Errorf("resolve domain name failed: %s", err)
+		optsErr = true
+		err = errors.WithMessage(err, "failed to resolve domain name")
 		return
 	}
-	// https://github.com/ -> http://1.1.1.1:443/
-	if req.URL.Scheme == "https" {
-		if req.Host == "" {
+
+	// do http request
+	port := req.URL.Port()
+	hc := &http.Client{
+		Transport: tr,
+		Timeout:   h.Timeout,
+	}
+
+	for i := 0; i < len(result); i++ {
+		req := req.Clone(h.ctx)
+		// replace to ip
+		if port != "" {
+			req.URL.Host = net.JoinHostPort(result[i], port)
+		} else {
+			req.URL.Host = result[i]
+		}
+
+		// set Host header
+		// http://www.msfconnecttest.com/ -> http://96.126.123.244/
+		// http will set host that not show domain name
+		// but https useless, because TLS
+		if req.Host == "" && req.URL.Scheme == "http" {
 			req.Host = req.URL.Host
 		}
-	}
-	port := req.URL.Port()
-	if port != "" {
-		port = ":" + port
-	}
-	switch client.DNSOpts.Type {
-	case "", dns.IPv4:
-		for i := 0; i < len(ipList); i++ {
-			// replace to ip
-			req.URL.Host = ipList[i] + port
-			now, err = ht.Query(req, &http.Client{
-				Transport: tr,
-				Timeout:   client.Timeout,
-			})
-			if err == nil {
-				return
-			}
+
+		now, err = getHeaderDate(req, hc)
+		if err == nil {
+			return
 		}
-	case dns.IPv6:
-		for i := 0; i < len(ipList); i++ {
-			// replace to ip
-			req.URL.Host = "[" + ipList[i] + "]" + port
-			now, err = ht.Query(req, &http.Client{
-				Transport: tr,
-				Timeout:   client.Timeout,
-			})
-			if err == nil {
-				return
-			}
-		}
-	default:
-		err = fmt.Errorf("timesyncer internal error: %s",
-			dns.UnknownTypeError(client.DNSOpts.Type))
-		panic(err)
 	}
-	err = ErrQueryHTTPFailed
+	err = errors.New("failed to query http server")
 	return
 }
 
-func (client *HTTPClient) ImportConfig(b []byte) error {
-	return msgpack.Unmarshal(b, client)
+// getHeaderDate is used to get date from http response header
+func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
+	defer client.CloseIdleConnections()
+	if client.Timeout < 1 {
+		client.Timeout = options.DefaultDialTimeout
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer func() {
+		// <security>
+		n := int64(4096 + random.Int(64*(1<<10))) // 4KB - 68KB
+		_, _ = io.CopyN(ioutil.Discard, resp.Body, n)
+		_ = resp.Body.Close()
+	}()
+	return http.ParseTime(resp.Header.Get("Date"))
 }
 
-func (client *HTTPClient) ExportConfig() []byte {
-	b, err := msgpack.Marshal(client)
+// ImportConfig is for time syncer
+func (h *HTTP) Import(b []byte) error {
+	return toml.Unmarshal(b, h)
+}
+
+// ExportConfig is for time syncer
+func (h *HTTP) Export() []byte {
+	b, err := toml.Marshal(h)
 	if err != nil {
 		panic(err)
 	}
 	return b
+}
+
+// TestHTTP is used to create a HTTP client to test toml config
+func TestHTTP(config []byte) error {
+	return new(HTTP).Import(config)
 }
