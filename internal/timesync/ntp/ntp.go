@@ -269,7 +269,7 @@ type Options struct {
 	Version int           // NTP protocol version, defaults to 4
 
 	// for proxy
-	Dial func(network, address string, timeout time.Duration) (net.Conn, error)
+	Dial func(network, address string) (net.Conn, error)
 }
 
 func Query(address string, opts *Options) (*Response, error) {
@@ -323,12 +323,12 @@ func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
-	dial := net.DialTimeout
+	dial := net.Dial
 	if opts.Dial != nil {
 		dial = opts.Dial
 	}
 	// Prepare a "connection" to the remote server.
-	conn, err := dial(network, address, timeout)
+	conn, err := dial(network, address)
 	if err != nil {
 		return nil, 0, err
 	}

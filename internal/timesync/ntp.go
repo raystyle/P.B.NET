@@ -7,16 +7,13 @@ import (
 	"time"
 
 	"github.com/pelletier/go-toml"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/dns"
 	"project/internal/proxy"
 	"project/internal/timesync/ntp"
 )
 
-var ErrQueryNTPFailed = errors.New("query ntp server failed")
-
-type NTPClient struct {
+type NTP struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
@@ -27,76 +24,81 @@ type NTPClient struct {
 	DNSOpts dns.Options   `toml:"dns_options"`
 }
 
-func NewNTPClient(config []byte) (*NTPClient, error) {
-	nc := NTPClient{}
-	err := toml.Unmarshal(config, &nc)
-	if err != nil {
-		return nil, err
+func NewNTP(pool *proxy.Pool, client *dns.Client) *NTP {
+	return &NTP{
+		proxyPool: pool,
+		dnsClient: client,
 	}
-	return &nc, nil
 }
 
-func (client *NTPClient) Query() (now time.Time, isOptsErr bool, err error) {
+func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	// check network
-	switch client.Network {
+	switch n.Network {
 	case "", "udp", "udp4", "udp6":
 	default:
-		isOptsErr = true
-		err = fmt.Errorf("unknown network: %s", client.Network)
+		optsErr = true
+		err = fmt.Errorf("unknown network: %s", n.Network)
 		return
 	}
-	host, port, err := net.SplitHostPort(client.Address)
+	// check address
+	host, port, err := net.SplitHostPort(n.Address)
 	if err != nil {
-		isOptsErr = true
+		optsErr = true
 		return
 	}
+	// set NTP options
 	ntpOpts := ntp.Options{
-		Network: client.Network,
-		Timeout: client.Timeout,
-		Version: client.Version,
+		Network: n.Network,
+		Timeout: n.Timeout,
+		Version: n.Version,
 	}
-	// dns
-	ipList, err := client.dnsClient.Resolve(host, &client.DNSOpts)
+	if ntpOpts.Network == "" {
+		ntpOpts.Network = "udp"
+	}
+
+	// set proxy
+	p, err := n.proxyPool.Get("") // support udp proxy future
 	if err != nil {
-		isOptsErr = true
+		optsErr = true
+		return
+	}
+	ntpOpts.Dial = p.Dial
+
+	// resolve domain name
+	dnsOptsCopy := n.DNSOpts
+	result, err := n.dnsClient.Resolve(host, &dnsOptsCopy)
+	if err != nil {
+		optsErr = true
 		err = fmt.Errorf("resolve domain name failed: %s", err)
 		return
 	}
+
+	// query NTP server
 	var resp *ntp.Response
-	switch client.DNSOpts.Type {
-	case "", dns.IPv4:
-		for i := 0; i < len(ipList); i++ {
-			resp, err = ntp.Query(ipList[i]+":"+port, &ntpOpts)
-			if err == nil {
-				now = resp.Time
-				return
-			}
+	for i := 0; i < len(result); i++ {
+		resp, err = ntp.Query(net.JoinHostPort(result[i], port), &ntpOpts)
+		if err == nil {
+			now = resp.Time
+			return
 		}
-	case dns.IPv6:
-		for i := 0; i < len(ipList); i++ {
-			resp, err = ntp.Query("["+ipList[i]+"]:"+port, &ntpOpts)
-			if err == nil {
-				now = resp.Time
-				return
-			}
-		}
-	default:
-		err = fmt.Errorf("timesyncer internal error: %s",
-			dns.UnknownTypeError(client.DNSOpts.Type))
-		panic(err)
 	}
-	err = ErrQueryNTPFailed
+	err = errors.New("query ntp server failed")
 	return
 }
 
-func (client *NTPClient) ImportConfig(b []byte) error {
-	return msgpack.Unmarshal(b, client)
+func (n *NTP) Import(b []byte) error {
+	return toml.Unmarshal(b, n)
 }
 
-func (client *NTPClient) ExportConfig() []byte {
-	b, err := msgpack.Marshal(client)
+func (n *NTP) Export() []byte {
+	b, err := toml.Marshal(n)
 	if err != nil {
 		panic(err)
 	}
 	return b
+}
+
+// TestNTP is used to create a NTP client to test toml config
+func TestNTP(config []byte) error {
+	return new(NTP).Import(config)
 }

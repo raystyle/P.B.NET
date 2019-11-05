@@ -11,10 +11,8 @@ func TestNTPClient_Query(t *testing.T) {
 
 }
 
-func testNewNTPClient(t *testing.T) *NTPClient {
+func TestTestNTP(t *testing.T) {
 	b, err := ioutil.ReadFile("testdata/ntp.toml")
 	require.NoError(t, err)
-	client, err := NewNTPClient(b)
-	require.NoError(t, err)
-	return client
+	require.NoError(t, TestNTP(b))
 }
