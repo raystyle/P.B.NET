@@ -27,7 +27,7 @@ func (d Direct) DialTimeout(network, address string, timeout time.Duration) (net
 	return (&net.Dialer{Timeout: timeout}).Dial(network, address)
 }
 
-func (d Direct) Connect(conn net.Conn, _, _ string) (net.Conn, error) {
+func (d Direct) Connect(_ context.Context, conn net.Conn, _, _ string) (net.Conn, error) {
 	return conn, nil
 }
 

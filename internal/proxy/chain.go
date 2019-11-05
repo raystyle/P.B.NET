@@ -48,7 +48,7 @@ func (c *Chain) Dial(network, address string) (net.Conn, error) {
 		const format = "proxy chain %s dial: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
-	pConn, err := c.Connect(conn, network, address)
+	pConn, err := c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -64,7 +64,7 @@ func (c *Chain) DialContext(ctx context.Context, network, address string) (net.C
 		const format = "proxy chain %s dial context: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
-	pConn, err := c.Connect(conn, network, address)
+	pConn, err := c.Connect(ctx, conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -82,7 +82,7 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 		const format = "proxy chain %s dial timeout: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
-	pConn, err := c.Connect(conn, network, address)
+	pConn, err := c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -90,15 +90,25 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 	return pConn, nil
 }
 
-func (c *Chain) Connect(conn net.Conn, network, address string) (net.Conn, error) {
-	conn, err := c.connect(conn, network, address)
+func (c *Chain) Connect(
+	ctx context.Context,
+	conn net.Conn,
+	network string,
+	address string,
+) (net.Conn, error) {
+	conn, err := c.connect(ctx, conn, network, address)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "proxy chain %s", c.tag)
 	}
 	return conn, nil
 }
 
-func (c *Chain) connect(conn net.Conn, network, address string) (net.Conn, error) {
+func (c *Chain) connect(
+	ctx context.Context,
+	conn net.Conn,
+	network string,
+	address string,
+) (net.Conn, error) {
 	var (
 		err  error
 		next int
@@ -107,7 +117,7 @@ func (c *Chain) connect(conn net.Conn, network, address string) (net.Conn, error
 		next = i + 1
 		if next < c.length {
 			nextNetwork, nextAddress := c.clients[next].Server()
-			conn, err = c.clients[i].Connect(conn, nextNetwork, nextAddress)
+			conn, err = c.clients[i].Connect(ctx, conn, nextNetwork, nextAddress)
 			if err != nil {
 				return nil, err
 			}
@@ -115,7 +125,7 @@ func (c *Chain) connect(conn net.Conn, network, address string) (net.Conn, error
 			break
 		}
 	}
-	return c.clients[next-1].Connect(conn, network, address)
+	return c.clients[next-1].Connect(ctx, conn, network, address)
 }
 
 func (c *Chain) HTTP(t *http.Transport) {

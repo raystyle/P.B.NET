@@ -20,7 +20,7 @@ type client interface {
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
-	Connect(conn net.Conn, network, address string) (net.Conn, error)
+	Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error)
 	HTTP(t *http.Transport)
 	Timeout() time.Duration
 	Server() (network string, address string)

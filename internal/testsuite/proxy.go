@@ -188,7 +188,7 @@ type proxyClient interface {
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
-	Connect(conn net.Conn, network, address string) (net.Conn, error)
+	Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error)
 	HTTP(t *http.Transport)
 	Timeout() time.Duration
 	Server() (network string, address string)
@@ -277,7 +277,7 @@ func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
 	_, err = client.DialTimeout("foo", "", time.Second)
 	require.Error(t, err)
 	t.Log("DialTimeout:\n", err)
-	_, err = client.Connect(nil, "foo", "")
+	_, err = client.Connect(context.Background(), nil, "foo", "")
 	require.Error(t, err)
 	t.Log("Connect:\n", err)
 

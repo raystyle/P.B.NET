@@ -125,7 +125,7 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 		const format = "dial: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	pConn, err := c.Connect(conn, network, address)
+	pConn, err := c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial: %s proxy %s failed to connect %s"
@@ -147,7 +147,7 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 		const format = "dial context: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	pConn, err := c.Connect(conn, network, address)
+	pConn, err := c.Connect(ctx, conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial context: %s proxy %s failed to connect %s"
@@ -172,7 +172,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 		const format = "dial timeout: failed to connect %s proxy %s"
 		return nil, errors.Wrapf(err, format, c.scheme, c.address)
 	}
-	pConn, err := c.Connect(conn, network, address)
+	pConn, err := c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial timeout: %s proxy %s failed to connect %s"
@@ -182,7 +182,12 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	return pConn, nil
 }
 
-func (c *Client) Connect(conn net.Conn, network, address string) (net.Conn, error) {
+func (c *Client) Connect(
+	ctx context.Context,
+	conn net.Conn,
+	network string,
+	address string,
+) (net.Conn, error) {
 	// check network
 	switch network {
 	case "tcp", "tcp4", "tcp6":
@@ -214,6 +219,17 @@ func (c *Client) Connect(conn net.Conn, network, address string) (net.Conn, erro
 	_, _ = fmt.Fprintf(buf, "Host: %s\r\n", address)
 	// end
 	buf.WriteString("\r\n")
+	// context
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		defer func() { recover() }()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			_ = conn.Close()
+		}
+	}()
 	// write to connection
 	rAddr := conn.RemoteAddr().String()
 	_, err := io.Copy(conn, buf)

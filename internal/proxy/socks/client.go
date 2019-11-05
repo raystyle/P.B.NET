@@ -86,7 +86,7 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 		const format = "dial: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	_, err = c.Connect(conn, network, address)
+	_, err = c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial: %s server %s failed to connect %s"
@@ -108,7 +108,7 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 		const format = "dial context: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	_, err = c.Connect(conn, network, address)
+	_, err = c.Connect(ctx, conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial context: %s server %s failed to connect %s"
@@ -133,7 +133,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 		const format = "dial timeout: failed to connect %s server %s"
 		return nil, errors.Wrapf(err, format, c.protocol, c.address)
 	}
-	_, err = c.Connect(conn, network, address)
+	_, err = c.Connect(context.Background(), conn, network, address)
 	if err != nil {
 		_ = conn.Close()
 		const format = "dial timeout: %s server %s failed to connect %s"
@@ -143,7 +143,12 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	return conn, nil
 }
 
-func (c *Client) Connect(conn net.Conn, network, address string) (net.Conn, error) {
+func (c *Client) Connect(
+	ctx context.Context,
+	conn net.Conn,
+	network string,
+	address string,
+) (net.Conn, error) {
 	// check network
 	switch network {
 	case "tcp", "tcp4", "tcp6":
@@ -154,6 +159,18 @@ func (c *Client) Connect(conn net.Conn, network, address string) (net.Conn, erro
 	if err != nil {
 		return nil, err
 	}
+	// context
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		defer func() { recover() }()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			_ = conn.Close()
+		}
+	}()
+	// connect
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	if c.socks4 {
 		err = c.connectSocks4(conn, host, port)

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"net"
 	"strings"
 	"testing"
@@ -58,7 +59,7 @@ func TestBalance(t *testing.T) {
 		conn, err := net.DialTimeout(network, address, timeout)
 		require.NoError(t, err)
 		addr := "127.0.0.1:" + testsuite.HTTPServerPort
-		pConn, err := balance.Connect(conn, "tcp4", addr)
+		pConn, err := balance.Connect(context.Background(), conn, "tcp4", addr)
 		require.NoError(t, err)
 		testsuite.ProxyConn(t, pConn)
 	}
@@ -78,7 +79,7 @@ func TestBalance(t *testing.T) {
 		conn, err := net.DialTimeout(network, address, timeout)
 		require.NoError(t, err)
 		addr := "[::1]:" + testsuite.HTTPServerPort
-		pConn, err := balance.Connect(conn, "tcp6", addr)
+		pConn, err := balance.Connect(context.Background(), conn, "tcp6", addr)
 		require.NoError(t, err)
 		testsuite.ProxyConn(t, pConn)
 	}
@@ -108,7 +109,7 @@ func TestBalanceFailure(t *testing.T) {
 	network, address := balance.Server()
 	conn, err := net.DialTimeout(network, address, timeout)
 	require.NoError(t, err)
-	_, err = balance.Connect(conn, "tcp", "0.0.0.0:1")
+	_, err = balance.Connect(context.Background(), conn, "tcp", "0.0.0.0:1")
 	require.Error(t, err)
 	testsuite.IsDestroyed(t, balance)
 }
