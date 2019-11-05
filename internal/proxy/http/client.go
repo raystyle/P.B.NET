@@ -16,7 +16,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/cert/certutil"
 	"project/internal/options"
 )
 
@@ -67,27 +66,14 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-
-		// add system cert and self cert(usually is https proxy server)
-		if client.tlsConfig.RootCAs != nil {
-			pool, err := certutil.SystemCertPool()
-			if err != nil {
-				return nil, err
-			}
-			client.rootCAs, _ = opts.TLSConfig.RootCA()
-			client.rootCAsLen = len(client.rootCAs)
-			for i := 0; i < client.rootCAsLen; i++ {
-				if client.rootCAs[i] != nil { // <security>
-					pool.AddCert(client.rootCAs[i])
-				}
-			}
-			client.tlsConfig.RootCAs = pool
-		}
-
+		// copy certs
+		client.rootCAs, _ = opts.TLSConfig.RootCA()
+		client.rootCAsLen = len(client.rootCAs)
+		// set server name
 		if client.tlsConfig.ServerName == "" {
 			colonPos := strings.LastIndex(address, ":")
 			if colonPos == -1 {
-				colonPos = len(address)
+				return nil, errors.New("missing port in address")
 			}
 			hostname := address[:colonPos]
 			c := client.tlsConfig.Clone()
@@ -263,7 +249,7 @@ func (c *Client) HTTP(t *http.Transport) {
 		t.TLSClientConfig = new(tls.Config)
 	}
 	if t.TLSClientConfig.RootCAs == nil {
-		t.TLSClientConfig.RootCAs, _ = certutil.SystemCertPool()
+		t.TLSClientConfig.RootCAs = x509.NewCertPool()
 	}
 	// add certificate for connect https proxy
 	for i := 0; i < c.rootCAsLen; i++ {

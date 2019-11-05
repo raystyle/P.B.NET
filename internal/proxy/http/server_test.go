@@ -1,7 +1,6 @@
 package http
 
 import (
-	"crypto/tls"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert/certutil"
 	"project/internal/logger"
 	"project/internal/options"
 	"project/internal/testsuite"
@@ -62,14 +60,8 @@ func TestHTTPSProxyServer(t *testing.T) {
 	u, err := url.Parse("https://admin@" + server.Address())
 	require.NoError(t, err)
 	transport := http.Transport{Proxy: http.ProxyURL(u)}
-	transport.TLSClientConfig = new(tls.Config)
+	transport.TLSClientConfig, err = tlsConfig.Apply()
 	require.NoError(t, err)
-	// add cert
-	transport.TLSClientConfig.RootCAs, err = certutil.SystemCertPool()
-	require.NoError(t, err)
-	rootCAs, err := tlsConfig.RootCA()
-	require.NoError(t, err)
-	transport.TLSClientConfig.RootCAs.AddCert(rootCAs[0])
 
 	testsuite.ProxyServer(t, server, &transport)
 }
