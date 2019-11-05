@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
@@ -34,8 +35,8 @@ var (
 	ErrNoConnection = fmt.Errorf("no connection")
 )
 
-func systemResolve(typ string, domain string) ([]string, error) {
-	ips, err := net.LookupHost(domain)
+func systemResolve(ctx context.Context, typ string, domain string) ([]string, error) {
+	ips, err := net.DefaultResolver.LookupHost(ctx, domain)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +61,14 @@ func systemResolve(typ string, domain string) ([]string, error) {
 }
 
 // address is dns server address
-func customResolve(method, address, domain, typ string, opts *Options) ([]string, error) {
+func customResolve(
+	ctx context.Context,
+	method string,
+	address string,
+	domain string,
+	typ string,
+	opts *Options,
+) ([]string, error) {
 	// check domain name is IP
 	if ip := net.ParseIP(domain); ip != nil {
 		return []string{ip.String()}, nil
@@ -75,13 +83,13 @@ func customResolve(method, address, domain, typ string, opts *Options) ([]string
 	var err error
 	switch method {
 	case MethodUDP:
-		message, err = dialUDP(address, message, opts)
+		message, err = dialUDP(ctx, address, message, opts)
 	case MethodTCP:
-		message, err = dialTCP(address, message, opts)
+		message, err = dialTCP(ctx, address, message, opts)
 	case MethodDoT:
-		message, err = dialDoT(address, message, opts)
+		message, err = dialDoT(ctx, address, message, opts)
 	case MethodDoH:
-		message, err = dialDoH(address, message, opts)
+		message, err = dialDoH(ctx, address, message, opts)
 	}
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -90,7 +98,7 @@ func customResolve(method, address, domain, typ string, opts *Options) ([]string
 }
 
 // if question > 512 use tcp tls doh
-func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
+func dialUDP(ctx context.Context, address string, message []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
 	case "":
@@ -106,8 +114,10 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 	}
 	// dial
 	for i := 0; i < 3; i++ {
-		conn, err := opts.dial(network, address, timeout)
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		conn, err := opts.dialContext(ctx, network, address)
 		if err != nil {
+			cancel()
 			return nil, err // not continue
 		}
 		dConn := xnetutil.DeadlineConn(conn, timeout)
@@ -116,9 +126,11 @@ func dialUDP(address string, message []byte, opts *Options) ([]byte, error) {
 		n, err := dConn.Read(buffer)
 		if err == nil {
 			_ = dConn.Close()
+			cancel()
 			return buffer[:n], nil
 		}
 		_ = dConn.Close()
+		cancel()
 	}
 	return nil, ErrNoConnection
 }
@@ -148,7 +160,7 @@ func sendMessage(conn net.Conn, message []byte, timeout time.Duration) ([]byte, 
 	return resp, nil
 }
 
-func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
+func dialTCP(ctx context.Context, address string, message []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
 	case "":
@@ -162,15 +174,17 @@ func dialTCP(address string, message []byte, opts *Options) ([]byte, error) {
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	// dial
-	conn, err := opts.dial(network, address, timeout)
+	conn, err := opts.dialContext(ctx, network, address)
 	if err != nil {
 		return nil, err
 	}
 	return sendMessage(conn, message, timeout)
 }
 
-func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
+func dialDoT(ctx context.Context, address string, message []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
 	case "": // default
@@ -195,7 +209,9 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	case 1: // ip mode
 		// 8.8.8.8:853
 		// [2606:4700:4700::1001]:853
-		c, err := opts.dial(network, address, timeout)
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		c, err := opts.dialContext(ctx, network, address)
 		if err != nil {
 			return nil, err
 		}
@@ -203,13 +219,16 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 	case 2: // domain mode
 		// dns.google:853|8.8.8.8,8.8.4.4
 		// cloudflare-dns.com:853|2606:4700:4700::1001,2606:4700:4700::1111
-		ipList := strings.Split(strings.TrimSpace(config[1]), ",")
-		for i := 0; i < len(ipList); i++ {
-			c, err := opts.dial(network, net.JoinHostPort(ipList[i], port), timeout)
+		ips := strings.Split(strings.TrimSpace(config[1]), ",")
+		for i := 0; i < len(ips); i++ {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			c, err := opts.dialContext(ctx, network, net.JoinHostPort(ips[i], port))
 			if err == nil {
 				conn = tls.Client(c, &tls.Config{ServerName: host})
+				cancel()
 				break
 			}
+			cancel()
 		}
 		if conn == nil {
 			return nil, ErrNoConnection
@@ -221,7 +240,7 @@ func dialDoT(address string, message []byte, opts *Options) ([]byte, error) {
 }
 
 // support RFC 8484
-func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
+func dialDoH(ctx context.Context, server string, question []byte, opts *Options) ([]byte, error) {
 	str := base64.RawURLEncoding.EncodeToString(question)
 	url := fmt.Sprintf("%s?ct=application/dns-message&dns=%s", server, str)
 	var (
@@ -229,9 +248,10 @@ func dialDoH(server string, question []byte, opts *Options) ([]byte, error) {
 		err error
 	)
 	if len(url) < 2048 { // GET
-		req, err = http.NewRequest(http.MethodGet, url, nil)
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	} else { // POST
-		req, err = http.NewRequest(http.MethodPost, server, bytes.NewReader(question))
+		body := bytes.NewReader(question)
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, server, body)
 	}
 	if err != nil {
 		return nil, err

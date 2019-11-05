@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"io/ioutil"
 	"testing"
 	"time"
@@ -52,27 +53,58 @@ func TestClient(t *testing.T) {
 	}
 
 	// resolve with default options
-	ipList, err := client.Resolve(testDomain, nil)
+	result, err := client.Resolve(testDomain, nil)
 	require.NoError(t, err)
-	t.Log("use default options", ipList)
+	t.Log("use default options", result)
 
 	client.FlushCache()
 
 	// resolve IPv6
-	ipList, err = client.Resolve(testDomain, &Options{Type: TypeIPv6})
+	result, err = client.Resolve(testDomain, &Options{Type: TypeIPv6})
 	require.NoError(t, err)
-	t.Log("IPv6:", ipList)
+	t.Log("IPv6:", result)
 
 	client.FlushCache()
 
 	// use DoH
 	opts := &Options{Method: MethodDoH}
 	opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
-	ipList, err = client.Resolve(testDomain, opts)
+	result, err = client.Resolve(testDomain, opts)
 	require.NoError(t, err)
-	t.Log("DoH:", ipList)
+	t.Log("DoH:", result)
 
 	testsuite.IsDestroyed(t, client)
+}
+
+func TestClient_Cache(t *testing.T) {
+	// make DNS client
+	manager, pool := testproxy.ProxyPoolAndManager(t)
+	defer func() { _ = manager.Close() }()
+	client := NewClient(pool)
+	testAddAllDNSServers(t, client)
+
+	// resolve with default options
+	result, err := client.Resolve(testDomain, nil)
+	require.NoError(t, err)
+	t.Log("[no cache]:", result)
+
+	// cache
+	result, err = client.Resolve(testDomain, nil)
+	require.NoError(t, err)
+	t.Log("[cache]:", result)
+}
+
+func TestClient_Cancel(t *testing.T) {
+	manager, pool := testproxy.ProxyPoolAndManager(t)
+	defer func() { _ = manager.Close() }()
+	client := NewClient(pool)
+	testAddAllDNSServers(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	result, err := client.ResolveWithContext(ctx, testDomain, &Options{Method: MethodTCP})
+	require.Error(t, err)
+	require.Equal(t, 0, len(result))
 }
 
 func TestClient_No_Result(t *testing.T) {
@@ -95,9 +127,9 @@ func TestClient_No_Result(t *testing.T) {
 	}
 	// no result
 	opts := &Options{Method: MethodUDP}
-	ipList, err := client.Resolve("asd.ads.qwq.aa", opts)
+	result, err := client.Resolve("asd.ads.qwq.aa", opts)
 	require.Error(t, err)
-	require.Equal(t, 0, len(ipList))
+	require.Equal(t, 0, len(result))
 }
 
 func TestClient_Add_Delete(t *testing.T) {
@@ -125,7 +157,7 @@ func TestClient_Add_Delete(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestClient_TestDNSServers(t *testing.T) {
+func TestClient_TestServers(t *testing.T) {
 	// make DNS client
 	manager, pool := testproxy.ProxyPoolAndManager(t)
 	defer func() { _ = manager.Close() }()
@@ -154,7 +186,9 @@ func TestClient_TestDNSServers(t *testing.T) {
 
 	// set options
 	opts := new(Options)
-	require.NoError(t, client.TestDNSServers(testDomain, opts))
+	result, err := client.TestServers(context.Background(), testDomain, opts)
+	require.NoError(t, err)
+	t.Log(result)
 
 	// test unreachable DNS server
 	if testsuite.EnableIPv4() {
@@ -168,7 +202,9 @@ func TestClient_TestDNSServers(t *testing.T) {
 		Address: "1.2.3.4",
 	})
 	require.NoError(t, err)
-	require.Error(t, client.TestDNSServers(testDomain, opts))
+	result, err = client.TestServers(context.Background(), testDomain, opts)
+	require.Error(t, err)
+	require.Equal(t, 0, len(result))
 }
 
 func TestClient_TestOptions(t *testing.T) {
@@ -180,14 +216,18 @@ func TestClient_TestOptions(t *testing.T) {
 
 	// skip test
 	opts := &Options{SkipTest: true}
-	require.NoError(t, client.TestOptions(testDomain, opts))
+	result, err := client.TestOptions(context.Background(), testDomain, opts)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(result))
 
 	opts.SkipTest = false
 
 	// skip proxy
 	opts.ProxyTag = "foo proxy tag"
 	opts.SkipProxy = true
-	require.NoError(t, client.TestOptions(testDomain, opts))
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
+	require.NoError(t, err)
+	require.NotEqual(t, 0, len(result))
 
 	opts.SkipProxy = false
 	client.FlushCache()
@@ -196,18 +236,23 @@ func TestClient_TestOptions(t *testing.T) {
 	opts.Mode = ModeSystem
 	if testsuite.EnableIPv4() {
 		opts.Type = TypeIPv4
-		require.NoError(t, client.TestOptions(testDomain, opts))
-		client.FlushCache()
+		result, err = client.TestOptions(context.Background(), testDomain, opts)
+		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
+
 	}
 	if testsuite.EnableIPv6() {
 		opts.Type = TypeIPv6
-		require.NoError(t, client.TestOptions(testDomain, opts))
-		client.FlushCache()
+		result, err = client.TestOptions(context.Background(), testDomain, opts)
+		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
 	}
 
 	// invalid domain name
 	opts.Mode = ModeSystem
-	require.Error(t, client.TestOptions("asd", opts))
+	result, err = client.TestOptions(context.Background(), "asd", opts)
+	require.Error(t, err)
+	require.Equal(t, 0, len(result))
 
 	opts.Mode = ModeCustom
 	opts.Type = TypeIPv4
@@ -215,60 +260,65 @@ func TestClient_TestOptions(t *testing.T) {
 	// with proxy
 	opts.Method = MethodTCP // must not use udp
 	opts.ProxyTag = testproxy.TagBalance
-	require.NoError(t, client.TestOptions(testDomain, opts))
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
+	require.NoError(t, err)
+	require.NotEqual(t, 0, len(result))
 
 	opts.ProxyTag = ""
 
-	// with cache
-	require.NoError(t, client.TestOptions(testDomain, opts))
-	client.FlushCache()
-
 	// unknown type
 	opts.Type = "foo type"
-	err := client.TestOptions(testDomain, opts)
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
 	require.Error(t, err, "unknown type: foo type")
 	t.Log(err)
+	require.Equal(t, 0, len(result))
 
 	opts.Type = TypeIPv4
 
 	// unknown mode
 	opts.Mode = "foo mode"
-	err = client.TestOptions(testDomain, opts)
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
 	require.Error(t, err, "unknown mode: foo mode")
 	t.Log(err)
+	require.Equal(t, 0, len(result))
 
 	opts.Mode = ModeCustom
 
 	// unknown method
 	opts.Method = "foo method"
-	err = client.TestOptions(testDomain, opts)
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
 	require.Error(t, err, "unknown method: foo method")
+	require.Equal(t, 0, len(result))
 
 	// invalid http transport options
 	opts.Method = MethodDoH
 	opts.Transport.TLSClientConfig.RootCAs = []string{"foo CA"}
-	err = client.TestOptions(testDomain, opts)
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
 	require.Error(t, err, "invalid http transport options")
+	require.Equal(t, 0, len(result))
 
 	opts.ServerTag = "doh_cloudflare"
 	opts.Transport.TLSClientConfig.RootCAs = []string{"foo CA"}
-	err = client.TestOptions(testDomain, opts)
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
 	require.Error(t, err, "invalid http transport options")
+	require.Equal(t, 0, len(result))
 
 	opts.ServerTag = ""
 	opts.Transport = options.HTTPTransport{}
 
 	// doesn't exist proxy
 	opts.ProxyTag = "foo proxy"
-	err = client.TestOptions(testDomain, opts)
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
 	require.Error(t, err, "doesn't exist proxy")
+	require.Equal(t, 0, len(result))
 
 	opts.ProxyTag = ""
 
 	// doesn't exist server tag
 	opts.ServerTag = "foo server"
-	err = client.TestOptions(testDomain, opts)
+	result, err = client.TestOptions(context.Background(), testDomain, opts)
 	require.Error(t, err, "doesn't exist server tag")
+	require.Equal(t, 0, len(result))
 }
 
 func TestOptions(t *testing.T) {

@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -88,8 +89,8 @@ type Options struct {
 	SkipTest bool `toml:"skip_test"`
 
 	// context
-	dial      func(network, address string, timeout time.Duration) (net.Conn, error)
-	transport *http.Transport // about DOH
+	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+	transport   *http.Transport // about DOH
 }
 
 type Client struct {
@@ -149,17 +150,26 @@ func (c *Client) Delete(tag string) error {
 func (c *Client) Servers() map[string]*Server {
 	servers := make(map[string]*Server)
 	c.serversRWM.RLock()
+	defer c.serversRWM.RUnlock()
 	for tag, server := range c.servers {
 		servers[tag] = server
 	}
-	c.serversRWM.RUnlock()
 	return servers
 }
 
-// Resolve is used to resolve domain name with options
+// Resolve is used to resolve domain name
 // select custom or system to resolve dns
 // set domain & options
 func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
+	return c.ResolveWithContext(context.Background(), domain, opts)
+}
+
+// ResolveWithContext is used to resolve domain name with context
+func (c *Client) ResolveWithContext(
+	ctx context.Context,
+	domain string,
+	opts *Options,
+) ([]string, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
@@ -206,7 +216,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		setProxy := func(method string) error {
 			switch method {
 			case MethodUDP, MethodTCP, MethodDoT:
-				opts.dial = p.DialTimeout
+				opts.dialContext = p.DialContext
 			case MethodDoH:
 				// apply doh options (http.Transport)
 				opts.transport, err = opts.Transport.Apply()
@@ -222,16 +232,13 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 
 		// check server tag
 		if opts.ServerTag != "" {
-			c.serversRWM.RLock()
-			if server, ok := c.servers[opts.ServerTag]; ok {
-				c.serversRWM.RUnlock()
+			if server, ok := c.Servers()[opts.ServerTag]; ok {
 				err = setProxy(server.Method)
 				if err != nil {
 					return nil, err
 				}
-				return customResolve(server.Method, server.Address, domain, typ, opts)
+				return customResolve(ctx, server.Method, server.Address, domain, typ, opts)
 			} else {
-				c.serversRWM.RUnlock()
 				return nil, errors.Errorf("dns server: %s doesn't exist", opts.ServerTag)
 			}
 		}
@@ -247,14 +254,20 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 		}
 		for _, server := range c.Servers() {
 			if server.Method == method {
-				result, err = customResolve(method, server.Address, domain, typ, opts)
+				result, err = customResolve(ctx, method, server.Address, domain, typ, opts)
 				if err == nil {
 					break
 				}
 			}
 		}
 	case ModeSystem:
-		result, err = systemResolve(typ, domain)
+		timeout := opts.Timeout
+		if timeout < 1 {
+			timeout = 3 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		result, err = systemResolve(ctx, typ, domain)
 		if err != nil {
 			return nil, err
 		}
@@ -279,31 +292,35 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 	return nil, errors.WithStack(ErrNoResolveResult)
 }
 
-func (c *Client) TestDNSServers(domain string, opts *Options) error {
+func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) ([]string, error) {
+	var result []string
 	for tag, server := range c.Servers() {
+		c.FlushCache()
 		if server.SkipTest {
 			continue
 		}
 		// set server tag to use DNS server that selected
 		opts.ServerTag = tag
-		_, err := c.Resolve(domain, opts)
+		var err error
+		result, err = c.ResolveWithContext(ctx, domain, opts)
 		if err != nil {
-			return errors.WithMessagef(err, "failed to test dns server: %s", tag)
+			return nil, errors.WithMessagef(err, "failed to test dns server %s", tag)
 		}
 	}
-	return nil
+	return result, nil
 }
 
-func (c *Client) TestOptions(domain string, opts *Options) error {
+func (c *Client) TestOptions(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts.SkipTest {
-		return nil
+		return nil, nil
 	}
+	c.FlushCache()
 	if opts.SkipProxy {
 		opts.ProxyTag = ""
 	}
-	_, err := c.Resolve(domain, opts)
+	result, err := c.ResolveWithContext(ctx, domain, opts)
 	if err != nil {
-		return errors.WithMessage(err, "failed to test dns option")
+		return nil, errors.WithMessage(err, "failed to test dns option")
 	}
-	return nil
+	return result, nil
 }
