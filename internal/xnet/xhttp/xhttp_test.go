@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestXHTTP(t *testing.T) {
@@ -27,8 +27,8 @@ func TestXHTTP(t *testing.T) {
 		client, err := Dial(nil, nil, 0)
 		require.NoError(t, err)
 		wg.Wait()
-		testutil.Conn(t, server, client, true)
+		testsuite.Conn(t, server, client, true)
 	}
 	require.NoError(t, listener.Close())
-	testutil.IsDestroyed(t, listener, 1)
+	testsuite.IsDestroyed(t, listener)
 }

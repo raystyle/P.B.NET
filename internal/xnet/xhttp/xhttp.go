@@ -96,7 +96,6 @@ func ListenTLS(network, address string, cfg *tls.Config, timeout time.Duration) 
 	return newListener(network, address, cfg, timeout)
 }
 
-// TODO more header and options
 func Dial(r *http.Request, tr *http.Transport, timeout time.Duration) (net.Conn, error) {
 	if tr == nil {
 		tr = new(http.Transport)
