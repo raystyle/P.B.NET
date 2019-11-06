@@ -10,6 +10,10 @@ import (
 	"project/internal/xnet/light"
 )
 
+const (
+	defaultNextProto = "http/1.1"
+)
+
 type Conn = light.Conn
 
 func Server(conn net.Conn, cfg *tls.Config, timeout time.Duration) *Conn {
@@ -29,6 +33,9 @@ func Listen(
 	config *tls.Config,
 	timeout time.Duration,
 ) (net.Listener, error) {
+	if len(config.NextProtos) == 0 {
+		config.NextProtos = []string{defaultNextProto}
+	}
 	tl, err := tls.Listen(network, address, config)
 	if err != nil {
 		return nil, err
@@ -52,6 +59,9 @@ func Dial(
 	rawConn, err := dial(network, address, timeout)
 	if err != nil {
 		return nil, err
+	}
+	if len(config.NextProtos) == 0 {
+		config.NextProtos = []string{defaultNextProto}
 	}
 	if config.ServerName == "" {
 		colonPos := strings.LastIndex(address, ":")

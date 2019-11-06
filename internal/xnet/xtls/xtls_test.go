@@ -6,33 +6,37 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestXTLS(t *testing.T) {
-	serverCfg, clientCfg := testutil.TLSConfigPair(t)
-	listener, err := Listen("tcp4", "localhost:0", serverCfg, 0)
-	require.NoError(t, err)
-	addr := listener.Addr().String()
-	testutil.ListenerAndDial(t, listener, func() (net.Conn, error) {
-		return Dial("tcp4", addr, clientCfg, 0, nil)
-	}, true)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	if testsuite.EnableIPv4() {
+		listener, err := Listen("tcp4", "localhost:0", serverCfg, 0)
+		require.NoError(t, err)
+		addr := listener.Addr().String()
+		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+			return Dial("tcp4", addr, clientCfg, 0, nil)
+		}, true)
+	}
 
-	listener, err = Listen("tcp6", "localhost:0", serverCfg, 0)
-	require.NoError(t, err)
-	addr = listener.Addr().String()
-	testutil.ListenerAndDial(t, listener, func() (net.Conn, error) {
-		return Dial("tcp6", addr, clientCfg, 0, nil)
-	}, true)
+	if testsuite.EnableIPv6() {
+		listener, err := Listen("tcp6", "localhost:0", serverCfg, 0)
+		require.NoError(t, err)
+		addr := listener.Addr().String()
+		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+			return Dial("tcp6", addr, clientCfg, 0, nil)
+		}, true)
+	}
 }
 
 func TestXTLSConn(t *testing.T) {
-	serverCfg, clientCfg := testutil.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	server, client := net.Pipe()
 	server = Server(server, serverCfg, 0)
 	clientCfg.ServerName = "localhost"
 	client = Client(client, clientCfg, 0)
-	testutil.Conn(t, server, client, false)
-	testutil.IsDestroyed(t, server, 1)
-	testutil.IsDestroyed(t, client, 1)
+	testsuite.Conn(t, server, client, false)
+	testsuite.IsDestroyed(t, server)
+	testsuite.IsDestroyed(t, client)
 }
