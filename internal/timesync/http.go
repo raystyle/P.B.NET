@@ -27,7 +27,7 @@ type HTTP struct {
 	Transport options.HTTPTransport `toml:"transport"`
 	Timeout   time.Duration         `toml:"timeout"`
 	ProxyTag  string                `toml:"proxy_tag"`
-	DNSOpts   dns.Options           `toml:"dns_options"`
+	DNSOpts   dns.Options           `toml:"dns"`
 }
 
 // NewHTTP is used to create HTTP
@@ -120,8 +120,8 @@ func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
 		return time.Time{}, err
 	}
 	defer func() {
-		// <security>
-		n := int64(4096 + random.Int(64*(1<<10))) // 4KB - 68KB
+		// <security> read limit
+		n := int64(1<<20 + random.Int(2*(1<<20))) // 1-3 MB
 		_, _ = io.CopyN(ioutil.Discard, resp.Body, n)
 		_ = resp.Body.Close()
 	}()
@@ -135,10 +135,7 @@ func (h *HTTP) Import(b []byte) error {
 
 // ExportConfig is for time syncer
 func (h *HTTP) Export() []byte {
-	b, err := toml.Marshal(h)
-	if err != nil {
-		panic(err)
-	}
+	b, _ := toml.Marshal(h)
 	return b
 }
 

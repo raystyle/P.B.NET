@@ -10,18 +10,83 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite/testdns"
+	"project/internal/testsuite/testproxy"
 )
 
 func TestHTTPClient_Query(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
-	NewHTTP(context.Background(), pool, dnsClient)
+	HTTP := NewHTTP(context.Background(), pool, dnsClient)
+	b, err := ioutil.ReadFile("testdata/http_opts.toml")
+	require.NoError(t, err)
+	require.NoError(t, HTTP.Import(b))
+
+	// simple query
+	now, optsErr, err := HTTP.Query()
+	require.NoError(t, err)
+	require.False(t, optsErr)
+	t.Log("now(HTTP) simple:", now.Local())
+
+	// http
+	HTTP.Request.URL = "http://test-ipv6.com/"
+	now, optsErr, err = HTTP.Query()
+	require.NoError(t, err)
+	require.False(t, optsErr)
+	t.Log("now(HTTP) http:", now.Local())
+
+	// with proxy
+	HTTP.ProxyTag = testproxy.TagBalance
+	HTTP.Request.URL = "http://test-ipv6.com:80/"
+	now, optsErr, err = HTTP.Query()
+	require.NoError(t, err)
+	require.False(t, optsErr)
+	t.Log("now(HTTP): with proxy", now.Local())
 }
 
-func TestTestHTTP(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/http.toml")
+func TestHTTPClient_Query_Failed(t *testing.T) {
+	dnsClient, pool, manager := testdns.DNSClient(t)
+	defer func() { require.NoError(t, manager.Close()) }()
+	HTTP := NewHTTP(context.Background(), pool, dnsClient)
+	b, err := ioutil.ReadFile("testdata/http_opts.toml")
 	require.NoError(t, err)
-	require.NoError(t, TestHTTP(b))
+	require.NoError(t, HTTP.Import(b))
+
+	// invalid request
+	HTTP.Request.Post = "foo data"
+	_, optsErr, err := HTTP.Query()
+	require.Error(t, err)
+	require.True(t, optsErr)
+
+	HTTP.Request.Post = ""
+
+	// invalid transport
+	HTTP.Transport.TLSClientConfig.RootCAs = []string{"foo data"}
+	_, optsErr, err = HTTP.Query()
+	require.Error(t, err)
+	require.True(t, optsErr)
+
+	HTTP.Transport.TLSClientConfig.RootCAs = nil
+
+	// doesn't exist proxy
+	HTTP.ProxyTag = "foo proxy"
+	_, optsErr, err = HTTP.Query()
+	require.Error(t, err)
+	require.True(t, optsErr)
+
+	HTTP.ProxyTag = ""
+
+	// invalid domain name
+	HTTP.Request.URL = "http://asdasd1516ads.com/"
+	_, optsErr, err = HTTP.Query()
+	require.Error(t, err)
+	require.True(t, optsErr)
+
+	// all failed
+	HTTP.Request.URL = "https://github.com:8989/"
+	HTTP.Timeout = time.Second
+	_, optsErr, err = HTTP.Query()
+	require.Error(t, err)
+	require.False(t, optsErr)
 }
 
 func TestGetHeaderDate(t *testing.T) {
@@ -50,5 +115,21 @@ func TestGetHeaderDate(t *testing.T) {
 }
 
 func TestHTTPOptions(t *testing.T) {
+	b, err := ioutil.ReadFile("testdata/http.toml")
+	require.NoError(t, err)
+	require.NoError(t, TestHTTP(b))
+	HTTP := new(HTTP)
+	require.NoError(t, HTTP.Import(b))
 
+	// compare
+	require.Equal(t, 15*time.Second, HTTP.Timeout)
+	require.Equal(t, "balance", HTTP.ProxyTag)
+	require.Equal(t, "http://abc.com/", HTTP.Request.URL)
+	require.Equal(t, 2, HTTP.Transport.MaxIdleConns)
+	require.Equal(t, "system", HTTP.DNSOpts.Mode)
+
+	// export
+	export := HTTP.Export()
+	require.NotEqual(t, 0, len(export))
+	t.Log(string(export))
 }

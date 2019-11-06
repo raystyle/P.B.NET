@@ -1,2 +1,6 @@
 [request]
   url = "https://www.cloudflare.com/"
+
+[transport]
+  [transport.tls_config]
+    insecure_load_from_system = true
