@@ -12,15 +12,9 @@ import (
 
 var ErrEmptyPort = errors.New("empty port")
 
-type InvalidPortError int
-
-func (p InvalidPortError) Error() string {
-	return fmt.Sprintf("invalid port: %d", p)
-}
-
 func CheckPort(port int) error {
 	if port < 1 || port > 65535 {
-		return InvalidPortError(port)
+		return fmt.Errorf("invalid port: %d", port)
 	}
 	return nil
 }

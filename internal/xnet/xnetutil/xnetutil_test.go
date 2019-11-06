@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestCheckPortString(t *testing.T) {
@@ -62,8 +62,8 @@ func TestDeadlineConn(t *testing.T) {
 	require.Error(t, err)
 	_ = client.Close()
 	_ = server.Close()
-	testutil.IsDestroyed(t, client, 1)
-	testutil.IsDestroyed(t, server, 1)
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
 
 	// default deadline
 	server, client = net.Pipe()
@@ -71,6 +71,6 @@ func TestDeadlineConn(t *testing.T) {
 	server = DeadlineConn(server, 0)
 	_ = client.Close()
 	_ = server.Close()
-	testutil.IsDestroyed(t, client, 1)
-	testutil.IsDestroyed(t, server, 1)
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
 }
