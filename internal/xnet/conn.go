@@ -47,16 +47,16 @@ func NewConn(conn net.Conn, connect time.Time) *Conn {
 func (c *Conn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	c.rwm.Lock()
+	defer c.rwm.Unlock()
 	c.received += n
-	c.rwm.Unlock()
 	return n, err
 }
 
 func (c *Conn) Write(b []byte) (int, error) {
 	n, err := c.Conn.Write(b)
 	c.rwm.Lock()
-	c.sent += n
 	c.rwm.Unlock()
+	c.sent += n
 	return n, err
 }
 
@@ -90,11 +90,11 @@ func (c *Conn) Receive() ([]byte, error) {
 
 func (c *Conn) Status() *Status {
 	c.rwm.RLock()
+	defer c.rwm.RUnlock()
 	s := &Status{
 		Send:    xnetutil.TrafficUnit(c.sent),
 		Receive: xnetutil.TrafficUnit(c.received),
 	}
-	c.rwm.RUnlock()
 	// the remote address maybe changed, such as QUIC
 	s.LocalNetwork = c.LocalAddr().Network()
 	s.LocalAddress = c.LocalAddr().String()

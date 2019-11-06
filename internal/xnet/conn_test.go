@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestConn(t *testing.T) {
@@ -27,7 +27,7 @@ func TestConn(t *testing.T) {
 	require.NoError(t, clientC.Send(msg))
 	wg.Wait()
 	t.Log(serverC.Status())
-	testutil.Conn(t, serverC, clientC, true)
+	testsuite.Conn(t, serverC, clientC, true)
 }
 
 func TestConnWithTooBigMessage(t *testing.T) {
@@ -43,5 +43,37 @@ func TestConnWithTooBigMessage(t *testing.T) {
 	}()
 	_, err := clientC.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
 	require.NoError(t, err)
+	wg.Wait()
+}
+
+func TestConn_Receive_DataSize(t *testing.T) {
+	server, client := net.Pipe()
+	serverC := NewConn(server, time.Now())
+	clientC := NewConn(client, time.Now())
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		require.NoError(t, serverC.Close())
+	}()
+	_, err := clientC.Receive()
+	require.Error(t, err)
+	wg.Wait()
+}
+
+func TestConn_Receive_Data(t *testing.T) {
+	server, client := net.Pipe()
+	serverC := NewConn(server, time.Now())
+	clientC := NewConn(client, time.Now())
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := serverC.Write([]byte{0x00, 0x00, 0x10, 0x00})
+		require.NoError(t, err)
+		require.NoError(t, serverC.Close())
+	}()
+	_, err := clientC.Receive()
+	require.Error(t, err)
 	wg.Wait()
 }
