@@ -87,7 +87,7 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 			return
 		}
 	}
-	err = errors.New("query ntp server failed")
+	err = errors.New("failed to query ntp server")
 	return
 }
 

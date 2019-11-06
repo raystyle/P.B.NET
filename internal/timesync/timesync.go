@@ -3,7 +3,6 @@ package timesync
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"sync"
 	"time"
 
@@ -29,8 +28,9 @@ var (
 )
 
 type Client struct {
-	Mode   string
-	Config []byte
+	Mode     string
+	Config   []byte
+	SkipTest bool
 	client
 }
 
@@ -44,6 +44,9 @@ type Syncer struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 	logger    logger.Logger
+
+	FixedSleep  int
+	RandomSleep int
 
 	clients    map[string]*Client // key = tag
 	clientsRWM sync.RWMutex
@@ -126,7 +129,7 @@ func (syncer *Syncer) GetSyncInterval() time.Duration {
 }
 
 func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
-	if interval < time.Minute || interval > time.Hour*1 {
+	if interval < time.Minute || interval > time.Hour {
 		return ErrInvalidInterval
 	}
 	syncer.clientsRWM.Lock()
@@ -155,7 +158,7 @@ func (syncer *Syncer) Start() error {
 		case ErrAllClientsFailed:
 			syncer.dnsClient.FlushCache()
 			syncer.log(logger.Warning, ErrAllClientsFailed)
-			random.Sleep(10, 20)
+			random.Sleep(syncer.FixedSleep, syncer.FixedSleep)
 		default:
 			return err
 		}
@@ -180,8 +183,6 @@ func (syncer *Syncer) Test() error {
 func (syncer *Syncer) addLoop() {
 	const addLoopInterval = 500 * time.Millisecond
 	defer syncer.wg.Done()
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 	ticker := time.NewTicker(addLoopInterval)
 	defer ticker.Stop()
 	add := func() {
@@ -232,6 +233,12 @@ func (syncer *Syncer) sync(all bool) (err error) {
 		syncer.now = now
 	}
 	for tag, client := range syncer.Clients() {
+		// check skip test
+		if all {
+			if client.SkipTest {
+				continue
+			}
+		}
 		now, optsErr, err = client.Query()
 		if err != nil {
 			if optsErr {
@@ -245,6 +252,7 @@ func (syncer *Syncer) sync(all bool) (err error) {
 		} else {
 			update()
 			if all {
+				// test all syncer clients
 				continue
 			}
 			return
