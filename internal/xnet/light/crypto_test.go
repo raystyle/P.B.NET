@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/testutil"
+	"project/internal/testsuite"
 )
 
 func TestCrypto(t *testing.T) {
-	testdata := testutil.Bytes()
+	testdata := testsuite.Bytes()
 	c := newCrypto(nil)
 	cipherData := c.encrypt(testdata)
 	require.NotEqual(t, testdata, cipherData)
