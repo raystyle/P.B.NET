@@ -21,9 +21,10 @@ type NTP struct {
 	Address string        `toml:"address"`
 	Timeout time.Duration `toml:"timeout"`
 	Version int           `toml:"version"`
-	DNSOpts dns.Options   `toml:"dns_options"`
+	DNSOpts dns.Options   `toml:"dns"`
 }
 
+// NewNTP is used to create NTP client
 func NewNTP(pool *proxy.Pool, client *dns.Client) *NTP {
 	return &NTP{
 		proxyPool: pool,
@@ -31,6 +32,7 @@ func NewNTP(pool *proxy.Pool, client *dns.Client) *NTP {
 	}
 }
 
+// Query is used to query time
 func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	// check network
 	switch n.Network {
@@ -57,11 +59,14 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	}
 
 	// set proxy
-	p, err := n.proxyPool.Get("") // support udp proxy future
-	if err != nil {
-		optsErr = true
-		return
-	}
+	p, err := n.proxyPool.Get("")
+	// support udp proxy future
+	/*
+		if err != nil {
+			optsErr = true
+			return
+		}
+	*/
 	ntpOpts.Dial = p.Dial
 
 	// resolve domain name
@@ -91,10 +96,7 @@ func (n *NTP) Import(b []byte) error {
 }
 
 func (n *NTP) Export() []byte {
-	b, err := toml.Marshal(n)
-	if err != nil {
-		panic(err)
-	}
+	b, _ := toml.Marshal(n)
 	return b
 }
 

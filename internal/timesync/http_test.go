@@ -132,4 +132,5 @@ func TestHTTPOptions(t *testing.T) {
 	export := HTTP.Export()
 	require.NotEqual(t, 0, len(export))
 	t.Log(string(export))
+	require.NoError(t, HTTP.Import(export))
 }

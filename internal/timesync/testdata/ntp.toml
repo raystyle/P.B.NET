@@ -1,0 +1,7 @@
+network = "udp4"
+address = "1.2.3.4:123"
+timeout = "15s"
+version = 4
+
+[dns]
+  mode = "system"
