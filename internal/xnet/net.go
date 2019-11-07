@@ -1,6 +1,7 @@
 package xnet
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -16,13 +17,10 @@ var (
 	ErrEmptyNetwork = fmt.Errorf("empty network")
 )
 
-type Mode = string
-
 const (
-	TLS   Mode = "tls"
-	QUIC  Mode = "quic"
-	HTTP  Mode = "http"
-	Light Mode = "light"
+	ModeTLS   = "tls"
+	ModeQUIC  = "quic"
+	ModeLight = "light"
 )
 
 type UnknownModeError string
@@ -49,19 +47,19 @@ func CheckModeNetwork(mode string, network string) error {
 		return ErrEmptyNetwork
 	}
 	switch mode {
-	case TLS:
+	case ModeTLS:
 		switch network {
 		case "tcp", "tcp4", "tcp6":
 		default:
 			return &mismatchedModeNetwork{mode: mode, network: network}
 		}
-	case QUIC:
+	case ModeQUIC:
 		switch network {
 		case "udp", "udp4", "udp6":
 		default:
 			return &mismatchedModeNetwork{mode: mode, network: network}
 		}
-	case Light:
+	case ModeLight:
 		switch network {
 		case "tcp", "tcp4", "tcp6":
 		default:
@@ -73,10 +71,7 @@ func CheckModeNetwork(mode string, network string) error {
 	return nil
 }
 
-type Dialer interface {
-	Dial(network, address string) (net.Conn, error)
-	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
-}
+type Dialer func(ctx context.Context, network, address string) (net.Conn, error)
 
 type Config struct {
 	Network   string
@@ -86,64 +81,74 @@ type Config struct {
 	Dialer    Dialer
 }
 
-func Listen(mode Mode, cfg *Config) (net.Listener, error) {
+func Listen(mode string, config *Config) (net.Listener, error) {
 	switch mode {
-	case TLS:
-		err := CheckModeNetwork(TLS, cfg.Network)
+	case ModeTLS:
+		err := CheckModeNetwork(ModeTLS, config.Network)
 		if err != nil {
 			return nil, err
 		}
-		return xtls.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
-	case QUIC:
-		err := CheckModeNetwork(QUIC, cfg.Network)
+		return xtls.Listen(config.Network, config.Address, config.TLSConfig, config.Timeout)
+	case ModeQUIC:
+		err := CheckModeNetwork(ModeQUIC, config.Network)
 		if err != nil {
 			return nil, err
 		}
-		return quic.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
-	case Light:
-		err := CheckModeNetwork(Light, cfg.Network)
+		return quic.Listen(config.Network, config.Address, config.TLSConfig, config.Timeout)
+	case ModeLight:
+		err := CheckModeNetwork(ModeLight, config.Network)
 		if err != nil {
 			return nil, err
 		}
-		return light.Listen(cfg.Network, cfg.Address, cfg.Timeout)
+		return light.Listen(config.Network, config.Address, config.Timeout)
 	default:
 		return nil, UnknownModeError(mode)
 	}
 }
 
-func Dial(mode Mode, cfg *Config) (net.Conn, error) {
+func Dial(mode string, config *Config) (net.Conn, error) {
+	return DialContext(context.Background(), mode, config)
+}
+
+func DialContext(ctx context.Context, mode string, config *Config) (net.Conn, error) {
 	switch mode {
-	case TLS:
-		err := CheckModeNetwork(TLS, cfg.Network)
+	case ModeTLS:
+		err := CheckModeNetwork(ModeTLS, config.Network)
 		if err != nil {
 			return nil, err
 		}
-		return xtls.Dial(
-			cfg.Network,
-			cfg.Address,
-			cfg.TLSConfig,
-			cfg.Timeout,
-			cfg.Dialer.DialTimeout)
-	case QUIC:
-		err := CheckModeNetwork(QUIC, cfg.Network)
+		return xtls.DialContext(
+			ctx,
+			config.Network,
+			config.Address,
+			config.TLSConfig,
+			config.Timeout,
+			config.Dialer,
+		)
+	case ModeQUIC:
+		err := CheckModeNetwork(ModeQUIC, config.Network)
 		if err != nil {
 			return nil, err
 		}
-		return quic.Dial(
-			cfg.Network,
-			cfg.Address,
-			cfg.TLSConfig,
-			cfg.Timeout)
-	case Light:
-		err := CheckModeNetwork(Light, cfg.Network)
+		return quic.DialContext(
+			ctx,
+			config.Network,
+			config.Address,
+			config.TLSConfig,
+			config.Timeout,
+		)
+	case ModeLight:
+		err := CheckModeNetwork(ModeLight, config.Network)
 		if err != nil {
 			return nil, err
 		}
-		return light.Dial(
-			cfg.Network,
-			cfg.Address,
-			cfg.Timeout,
-			cfg.Dialer.DialTimeout)
+		return light.DialContext(
+			ctx,
+			config.Network,
+			config.Address,
+			config.Timeout,
+			config.Dialer,
+		)
 	default:
 		return nil, UnknownModeError(mode)
 	}

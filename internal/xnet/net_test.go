@@ -7,29 +7,41 @@ import (
 )
 
 func TestCheckModeNetwork(t *testing.T) {
-	err := CheckModeNetwork(TLS, "tcp")
+	err := CheckModeNetwork(ModeTLS, "tcp")
 	require.NoError(t, err)
-	err = CheckModeNetwork(QUIC, "udp")
+	err = CheckModeNetwork(ModeQUIC, "udp")
 	require.NoError(t, err)
-	err = CheckModeNetwork(Light, "tcp")
+	err = CheckModeNetwork(ModeLight, "tcp")
 	require.NoError(t, err)
 
-	err = CheckModeNetwork(TLS, "udp")
+	err = CheckModeNetwork(ModeTLS, "udp")
 	require.Error(t, err)
 	require.Equal(t, "mismatched mode and network: tls udp", err.Error())
-	err = CheckModeNetwork(QUIC, "tcp")
+	err = CheckModeNetwork(ModeQUIC, "tcp")
 	require.Error(t, err)
 	require.Equal(t, "mismatched mode and network: quic tcp", err.Error())
-	err = CheckModeNetwork(Light, "udp")
+	err = CheckModeNetwork(ModeLight, "udp")
 	require.Error(t, err)
 	require.Equal(t, "mismatched mode and network: light udp", err.Error())
 
 	err = CheckModeNetwork("", "")
 	require.Equal(t, ErrEmptyMode, err)
-	err = CheckModeNetwork(TLS, "")
+	err = CheckModeNetwork(ModeTLS, "")
 	require.Equal(t, ErrEmptyNetwork, err)
 
-	err = CheckModeNetwork("xxxx", "xxxx")
+	err = CheckModeNetwork("foo mode", "foo network")
 	require.Error(t, err)
-	require.Equal(t, "unknown mode: xxxx", err.Error())
+	require.Equal(t, "unknown mode: foo mode", err.Error())
+}
+
+func TestListenAndDial_TLS(t *testing.T) {
+
+}
+
+func TestListenAndDial_QUIC(t *testing.T) {
+
+}
+
+func TestListenAndDial_Light(t *testing.T) {
+
 }
