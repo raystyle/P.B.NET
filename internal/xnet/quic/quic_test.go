@@ -1,7 +1,6 @@
 package quic
 
 import (
-	"context"
 	"net"
 	"testing"
 
@@ -17,7 +16,7 @@ func TestQUIC(t *testing.T) {
 		require.NoError(t, err)
 		addr := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial(context.Background(), "udp4", addr, clientCfg, 0)
+			return Dial("udp4", addr, clientCfg, 0)
 		}, true)
 	}
 
@@ -26,7 +25,7 @@ func TestQUIC(t *testing.T) {
 		require.NoError(t, err)
 		addr := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial(context.Background(), "udp6", addr, clientCfg, 0)
+			return Dial("udp6", addr, clientCfg, 0)
 		}, true)
 	}
 }

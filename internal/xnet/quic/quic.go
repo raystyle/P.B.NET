@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
+
+	"project/internal/options"
 )
 
 const (
@@ -128,6 +130,15 @@ func Listen(
 }
 
 func Dial(
+	network string,
+	address string,
+	config *tls.Config,
+	timeout time.Duration,
+) (*Conn, error) {
+	return DialContext(context.Background(), network, address, config, timeout)
+}
+
+func DialContext(
 	ctx context.Context,
 	network string,
 	address string,
@@ -141,6 +152,9 @@ func Dial(
 	conn, err := net.ListenUDP(network, nil)
 	if err != nil {
 		return nil, err
+	}
+	if timeout < 1 {
+		timeout = options.DefaultDialTimeout
 	}
 	quicCfg := quic.Config{
 		HandshakeTimeout: timeout,
