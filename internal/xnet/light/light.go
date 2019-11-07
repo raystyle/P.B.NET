@@ -58,17 +58,17 @@ func Dial(
 	network string,
 	address string,
 	timeout time.Duration,
-	dial func(context.Context, string, string) (net.Conn, error),
+	dialContext func(context.Context, string, string) (net.Conn, error),
 ) (*Conn, error) {
 	if timeout < 1 {
 		timeout = options.DefaultDialTimeout
 	}
+	if dialContext == nil {
+		dialContext = new(net.Dialer).DialContext
+	}
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if dial == nil {
-		dial = new(net.Dialer).DialContext
-	}
-	conn, err := dial(dialCtx, network, address)
+	conn, err := dialContext(dialCtx, network, address)
 	if err != nil {
 		return nil, err
 	}
