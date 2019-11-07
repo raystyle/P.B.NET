@@ -2,11 +2,13 @@ package bootstrap
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
 	"project/internal/options"
+	"project/internal/proxy"
 	"project/internal/random"
 	"project/internal/security"
 )
@@ -40,6 +43,8 @@ type HTTP struct {
 	ProxyTag  string                `toml:"proxy_tag"`
 	DNSOpts   dns.Options           `toml:"dns_options"`
 
+	MaxBodySize int64 `toml:"max_body_size"` // <security>
+
 	// encrypt&decrypt generate data(nodes) hex
 	AESKey string `toml:"aes_key"`
 	AESIV  string `toml:"aes_iv"`
@@ -50,19 +55,19 @@ type HTTP struct {
 	// for generate&marshal
 	PrivateKey ed25519.PrivateKey `toml:"-"` // <security>
 
-	MaxBodySize int64 `toml:"max_body_size"`
-
 	// runtime
-	proxyPool ProxyPool
-	dnsClient DNSClient
+	ctx       context.Context
+	proxyPool *proxy.Pool
+	dnsClient *dns.Client
 
 	// self encrypt all options
 	optsEnc []byte
 	cbc     *aes.CBC
 }
 
-func NewHTTP(pool ProxyPool, client DNSClient) *HTTP {
+func NewHTTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *HTTP {
 	return &HTTP{
+		ctx:       ctx,
 		dnsClient: client,
 		proxyPool: pool,
 	}
@@ -179,69 +184,6 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	return nil
 }
 
-func (h *HTTP) Resolve() ([]*Node, error) {
-	opts, err := h.applyOptions()
-	if err != nil {
-		return nil, err
-	}
-	// dns
-	hostname := opts.req.URL.Hostname()
-	ipList, err := h.dnsClient.Resolve(hostname, &opts.h.DNSOpts)
-	if err != nil {
-		return nil, err
-	}
-	if opts.req.URL.Scheme == "https" {
-		if opts.req.Host == "" {
-			opts.req.Host = opts.req.URL.Host
-		}
-	}
-	port := opts.req.URL.Port()
-	if port != "" {
-		port = ":" + port
-	}
-	maxBodySize := h.MaxBodySize
-	if maxBodySize < 1 {
-		maxBodySize = defaultMaxBodySize
-	}
-	switch opts.h.DNSOpts.Type {
-	case "", dns.IPv4:
-		for i := 0; i < len(ipList); i++ {
-			opts.req.URL.Host = ipList[i] + port
-			info, err := do(opts.req, opts.hc, maxBodySize)
-			if err == nil {
-				return resolve(opts.h, info)
-			}
-		}
-	case dns.IPv6:
-		for i := 0; i < len(ipList); i++ {
-			opts.req.URL.Host = "[" + ipList[i] + "]" + port
-			info, err := do(opts.req, opts.hc, maxBodySize)
-			if err == nil {
-				return resolve(opts.h, info)
-			}
-		}
-	default:
-		panic(&fPanic{Mode: ModeHTTP, Err: dns.UnknownTypeError(opts.h.DNSOpts.Type)})
-	}
-	return nil, ErrNoResponse
-}
-
-func do(req *http.Request, client *http.Client, length int64) (string, error) {
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-		client.CloseIdleConnections()
-	}()
-	b, err := ioutil.ReadAll(io.LimitReader(resp.Body, length))
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
-}
-
 type httpOpts struct {
 	req *http.Request
 	hc  *http.Client
@@ -274,21 +216,82 @@ func (h *HTTP) applyOptions() (*httpOpts, error) {
 	}
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
 	// set proxy
-	proxy, err := h.proxyPool.Get(h.ProxyTag)
+	p, err := h.proxyPool.Get(h.ProxyTag)
 	if err != nil {
 		return nil, err
 	}
-	if proxy != nil {
-		proxy.HTTP(tr)
+	p.HTTP(tr)
+	timeout := tempHTTP.Timeout
+	if timeout < 1 {
+		timeout = options.DefaultDialTimeout
 	}
 	return &httpOpts{
 		req: req,
 		hc: &http.Client{
 			Transport: tr,
-			Timeout:   tempHTTP.Timeout, // TODO set timeout
+			Timeout:   timeout,
 		},
 		h: tempHTTP,
 	}, nil
+}
+
+func (h *HTTP) Resolve() ([]*Node, error) {
+	opts, err := h.applyOptions()
+	if err != nil {
+		return nil, err
+	}
+	hostname := opts.req.URL.Hostname()
+
+	// resolve domain name
+	result, err := h.dnsClient.Resolve(hostname, &opts.h.DNSOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	port := opts.req.URL.Port()
+
+	maxBodySize := h.MaxBodySize
+	if maxBodySize < 1 {
+		maxBodySize = defaultMaxBodySize
+	}
+
+	for i := 0; i < len(result); i++ {
+		req := opts.req.Clone(h.ctx)
+		// replace to ip
+		if port != "" {
+			req.URL.Host = net.JoinHostPort(result[i], port)
+		} else {
+			req.URL.Host = result[i]
+		}
+
+		// set Host header
+		// http://www.msfconnecttest.com/ -> http://96.126.123.244/
+		// http will set host that not show domain name
+		// but https useless, because TLS
+		if req.Host == "" && req.URL.Scheme == "http" {
+			req.Host = req.URL.Host
+		}
+
+		info, err := do(req, opts.hc, maxBodySize)
+		if err == nil {
+			return resolve(opts.h, info)
+		}
+	}
+	return nil, ErrNoResponse
+}
+
+func do(req *http.Request, client *http.Client, length int64) (string, error) {
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	b, err := ioutil.ReadAll(io.LimitReader(resp.Body, length))
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func resolve(h *HTTP, info string) ([]*Node, error) {
@@ -338,20 +341,20 @@ func resolve(h *HTTP, info string) ([]*Node, error) {
 	}
 	security.FlushBytes(pub)
 	// confuse
-	nodesBuffer := bytes.Buffer{}
+	nodesBuf := bytes.Buffer{}
 	l = len(nodesData)
 	i := 0
 	for i = 0; i < l; i += 12 {
 		if len(nodesData[i:]) > 11 {
-			nodesBuffer.Write(nodesData[i+8 : i+12])
+			nodesBuf.Write(nodesData[i+8 : i+12])
 		}
 	}
 	if i != l {
 		if len(nodesData[i-12:]) > 8 {
-			nodesBuffer.Write(nodesData[i-4:]) // i+8-12
+			nodesBuf.Write(nodesData[i-4:]) // i+8-12
 		}
 	}
-	nodesBytes := nodesBuffer.Bytes()
+	nodesBytes := nodesBuf.Bytes()
 	var nodes []*Node
 	err = msgpack.Unmarshal(nodesBytes, &nodes)
 	if err != nil {
