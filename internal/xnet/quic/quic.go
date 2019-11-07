@@ -15,17 +15,19 @@ const (
 
 // Conn implement net.Conn
 type Conn struct {
+	ctx     context.Context
 	session quic.Session
 	send    quic.SendStream
 	receive quic.ReceiveStream
 }
 
-func newConn(session quic.Session) (*Conn, error) {
+func newConn(ctx context.Context, session quic.Session) (*Conn, error) {
 	send, err := session.OpenUniStream()
 	if err != nil {
 		return nil, err
 	}
 	return &Conn{
+		ctx:     ctx,
 		session: session,
 		send:    send,
 	}, nil
@@ -33,7 +35,7 @@ func newConn(session quic.Session) (*Conn, error) {
 
 func (c *Conn) Read(b []byte) (n int, err error) {
 	if c.receive == nil {
-		receive, err := c.session.AcceptUniStream(context.Background())
+		receive, err := c.session.AcceptUniStream(c.ctx)
 		if err != nil {
 			return 0, err
 		}
@@ -75,15 +77,22 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 }
 
 type listener struct {
+	ctx    context.Context
+	cancel context.CancelFunc
 	quic.Listener
 }
 
 func (l *listener) Accept() (net.Conn, error) {
-	session, err := l.Listener.Accept(context.Background())
+	session, err := l.Listener.Accept(l.ctx)
 	if err != nil {
 		return nil, err
 	}
-	return newConn(session)
+	return newConn(l.ctx, session)
+}
+
+func (l *listener) Close() error {
+	l.cancel()
+	return l.Listener.Close()
 }
 
 func Listen(
@@ -113,10 +122,13 @@ func Listen(
 		_ = conn.Close()
 		return nil, err
 	}
-	return &listener{Listener: l}, nil
+	ll := listener{Listener: l}
+	ll.ctx, ll.cancel = context.WithCancel(context.Background())
+	return &ll, nil
 }
 
 func Dial(
+	ctx context.Context,
 	network string,
 	address string,
 	config *tls.Config,
@@ -138,10 +150,10 @@ func Dial(
 	if len(config.NextProtos) == 0 {
 		config.NextProtos = []string{defaultNextProto}
 	}
-	session, err := quic.Dial(conn, rAddr, address, config, &quicCfg)
+	session, err := quic.DialContext(ctx, conn, rAddr, address, config, &quicCfg)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
-	return newConn(session)
+	return newConn(ctx, session)
 }
