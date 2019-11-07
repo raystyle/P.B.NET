@@ -1,25 +1,25 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/pkg/errors"
 
 	"project/internal/dns"
 	"project/internal/proxy"
-	"project/internal/xnet"
 )
 
-type Mode = string
-
 const (
-	ModeHTTP   Mode = "http"
-	ModeDNS    Mode = "dns"
-	ModeDirect Mode = "direct"
+	ModeHTTP   = "http"
+	ModeDNS    = "dns"
+	ModeDirect = "direct"
 )
 
 type Node struct {
-	Mode    xnet.Mode `toml:"mode"`
-	Network string    `toml:"network"`
-	Address string    `toml:"address"`
+	Mode    string `toml:"mode"`
+	Network string `toml:"network"`
+	Address string `toml:"address"`
 }
 
 type Bootstrap interface {
@@ -29,38 +29,36 @@ type Bootstrap interface {
 	Resolve() ([]*Node, error)
 }
 
-type DNSClient interface {
-	Resolve(domain string, opts *dns.Options) ([]string, error)
-}
-
-type ProxyPool interface {
-	Get(tag string) (*proxy.Client, error)
-}
-
-type fPanic struct {
-	Mode Mode
-	Err  error
-}
-
-func (f *fPanic) Error() string {
-	return fmt.Sprintf("bootstrap %s internal error: %s", f.Mode, f.Err)
-}
-
-func Load(mode Mode, config []byte, pool ProxyPool, client DNSClient) (Bootstrap, error) {
+func Load(
+	ctx context.Context,
+	mode string,
+	config []byte,
+	pool *proxy.Pool,
+	client *dns.Client,
+) (Bootstrap, error) {
 	var bootstrap Bootstrap
 	switch mode {
 	case ModeHTTP:
-		bootstrap = NewHTTP(pool, client)
+		bootstrap = NewHTTP(ctx, pool, client)
 	case ModeDNS:
-		bootstrap = NewDNS(client)
+		bootstrap = NewDNS(ctx, client)
 	case ModeDirect:
 		bootstrap = NewDirect(nil)
 	default:
-		return nil, fmt.Errorf("unknown bootstrap mode: %s", mode)
+		return nil, errors.Errorf("unknown bootstrap mode: %s", mode)
 	}
 	err := bootstrap.Unmarshal(config)
 	if err != nil {
 		return nil, err
 	}
 	return bootstrap, nil
+}
+
+type fPanic struct {
+	Mode string
+	Err  error
+}
+
+func (f *fPanic) Error() string {
+	return fmt.Sprintf("bootstrap %s internal error: %s", f.Mode, f.Err)
 }
