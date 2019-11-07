@@ -11,7 +11,7 @@ import (
 )
 
 func TestDNSClient(t *testing.T) {
-	client, manager := DNSClient(t)
+	client, _, manager := DNSClient(t)
 	defer func() {
 		require.NoError(t, manager.Close())
 		testsuite.IsDestroyed(t, manager)

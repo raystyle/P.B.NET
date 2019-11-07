@@ -18,7 +18,7 @@ const (
 )
 
 // DNSClient is used to create a DNS client for test
-func DNSClient(t *testing.T) (*dns.Client, *proxy.Manager) {
+func DNSClient(t *testing.T) (*dns.Client, *proxy.Pool, *proxy.Manager) {
 	pool, manager := testproxy.PoolAndManager(t)
 	client := dns.NewClient(pool)
 	err := client.Add(TagGoogleIPv4UDP, &dns.Server{
@@ -41,5 +41,5 @@ func DNSClient(t *testing.T) (*dns.Client, *proxy.Manager) {
 		Address: "[2606:4700::6810:f8f9]:853",
 	})
 	require.NoError(t, err)
-	return client, manager
+	return client, pool, manager
 }
