@@ -1,6 +1,7 @@
 package xtls
 
 import (
+	"context"
 	"net"
 	"testing"
 
@@ -33,9 +34,9 @@ func TestXTLS(t *testing.T) {
 func TestXTLSConn(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	server, client := net.Pipe()
-	server = Server(server, serverCfg, 0)
+	server = Server(context.Background(), server, serverCfg, 0)
 	clientCfg.ServerName = "localhost"
-	client = Client(client, clientCfg, 0)
+	client = Client(context.Background(), client, clientCfg, 0)
 	testsuite.Conn(t, server, client, false)
 	testsuite.IsDestroyed(t, server)
 	testsuite.IsDestroyed(t, client)
