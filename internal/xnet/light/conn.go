@@ -1,6 +1,7 @@
 package light
 
 import (
+	"context"
 	"net"
 	"sync"
 	"time"
@@ -9,6 +10,7 @@ import (
 )
 
 type Conn struct {
+	ctx context.Context
 	net.Conn
 	isClient         bool
 	handshakeTimeout time.Duration
@@ -29,8 +31,18 @@ func (c *Conn) Handshake() error {
 		if c.handshakeTimeout < 1 {
 			c.handshakeTimeout = options.DefaultHandshakeTimeout
 		}
-		deadline := time.Now().Add(c.handshakeTimeout)
-		c.handshakeErr = c.SetDeadline(deadline)
+		// context
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			defer func() { recover() }()
+			select {
+			case <-done:
+			case <-c.ctx.Done():
+				_ = c.Conn.Close()
+			}
+		}()
+		c.handshakeErr = c.SetDeadline(time.Now().Add(c.handshakeTimeout))
 		if c.handshakeErr != nil {
 			return
 		}

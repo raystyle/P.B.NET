@@ -1,23 +1,26 @@
 package light
 
 import (
+	"context"
 	"net"
 	"time"
 
 	"project/internal/options"
 )
 
-func Server(conn net.Conn, timeout time.Duration) *Conn {
-	return &Conn{Conn: conn, handshakeTimeout: timeout}
+func Server(ctx context.Context, conn net.Conn, timeout time.Duration) *Conn {
+	return &Conn{ctx: ctx, Conn: conn, handshakeTimeout: timeout}
 }
 
-func Client(conn net.Conn, timeout time.Duration) *Conn {
-	return &Conn{Conn: conn, handshakeTimeout: timeout, isClient: true}
+func Client(ctx context.Context, conn net.Conn, timeout time.Duration) *Conn {
+	return &Conn{ctx: ctx, Conn: conn, handshakeTimeout: timeout, isClient: true}
 }
 
 type listener struct {
 	net.Listener
 	timeout time.Duration // handshake timeout
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 func (l *listener) Accept() (net.Conn, error) {
@@ -25,7 +28,12 @@ func (l *listener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Server(conn, l.timeout), nil
+	return Server(l.ctx, conn, l.timeout), nil
+}
+
+func (l *listener) Close() error {
+	l.cancel()
+	return l.Listener.Close()
 }
 
 func Listen(network, address string, timeout time.Duration) (net.Listener, error) {
@@ -37,27 +45,32 @@ func Listen(network, address string, timeout time.Duration) (net.Listener, error
 }
 
 func NewListener(inner net.Listener, timeout time.Duration) net.Listener {
-	return &listener{
+	l := listener{
 		Listener: inner,
 		timeout:  timeout,
 	}
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	return &l
 }
 
 func Dial(
+	ctx context.Context,
 	network string,
 	address string,
 	timeout time.Duration,
-	dial func(string, string, time.Duration) (net.Conn, error),
+	dial func(context.Context, string, string) (net.Conn, error),
 ) (*Conn, error) {
 	if timeout < 1 {
 		timeout = options.DefaultDialTimeout
 	}
+	dialCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	if dial == nil {
-		dial = net.DialTimeout
+		dial = new(net.Dialer).DialContext
 	}
-	conn, err := dial(network, address, timeout)
+	conn, err := dial(dialCtx, network, address)
 	if err != nil {
 		return nil, err
 	}
-	return Client(conn, timeout), nil
+	return Client(ctx, conn, timeout), nil
 }

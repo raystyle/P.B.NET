@@ -1,6 +1,7 @@
 package light
 
 import (
+	"context"
 	"net"
 	"testing"
 
@@ -15,7 +16,7 @@ func TestLight(t *testing.T) {
 		require.NoError(t, err)
 		addr := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("tcp4", addr, 0, nil)
+			return Dial(context.Background(), "tcp4", addr, 0, nil)
 		}, true)
 	}
 
@@ -24,14 +25,14 @@ func TestLight(t *testing.T) {
 		require.NoError(t, err)
 		addr := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("tcp6", addr, 0, nil)
+			return Dial(context.Background(), "tcp6", addr, 0, nil)
 		}, true)
 	}
 }
 
 func TestLightConn(t *testing.T) {
 	server, client := net.Pipe()
-	server = Server(server, 0)
-	client = Client(client, 0)
+	server = Server(context.Background(), server, 0)
+	client = Client(context.Background(), client, 0)
 	testsuite.Conn(t, server, client, true)
 }
