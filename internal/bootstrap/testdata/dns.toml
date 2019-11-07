@@ -2,3 +2,5 @@ domain_name      = "localhost"
 listener_mode    = "tls"
 listener_network = "tcp"
 listener_port    = "443"
+
+[options]

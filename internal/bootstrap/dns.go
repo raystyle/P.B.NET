@@ -1,9 +1,11 @@
 package bootstrap
 
 import (
-	"errors"
+	"context"
+	"net"
 
 	"github.com/pelletier/go-toml"
+	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
@@ -14,33 +16,31 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
-var (
-	ErrEmptyDomainName = errors.New("domain name is empty")
-)
-
 type DNS struct {
 	DomainName      string      `toml:"domain_name"`
-	ListenerMode    xnet.Mode   `toml:"listener_mode"`
+	ListenerMode    string      `toml:"listener_mode"`
 	ListenerNetwork string      `toml:"listener_network"`
 	ListenerPort    string      `toml:"listener_port"`
-	Options         dns.Options `toml:"dns_options"`
+	Options         dns.Options `toml:"options"`
 	// runtime
-	dnsClient DNSClient
+	ctx       context.Context
+	dnsClient *dns.Client
 	// self store all encrypted options by msgpack
 	optsEnc []byte
 	cbc     *aes.CBC
 }
 
 // input ctx for resolve
-func NewDNS(client DNSClient) *DNS {
+func NewDNS(ctx context.Context, client *dns.Client) *DNS {
 	return &DNS{
+		ctx:       ctx,
 		dnsClient: client,
 	}
 }
 
 func (d *DNS) Validate() error {
 	if d.DomainName == "" {
-		return ErrEmptyDomainName
+		return errors.New("domain name is empty")
 	}
 	err := xnet.CheckModeNetwork(d.ListenerMode, d.ListenerNetwork)
 	if err != nil {
@@ -108,42 +108,34 @@ func (d *DNS) Resolve() ([]*Node, error) {
 	if err != nil {
 		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
-	tempDNS := &DNS{}
-	err = msgpack.Unmarshal(b, tempDNS)
+	tDNS := &DNS{}
+	err = msgpack.Unmarshal(b, tDNS)
 	if err != nil {
 		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
 	security.FlushBytes(b)
 	memory.Padding()
 	// resolve dns
-	ipList, err := d.dnsClient.Resolve(tempDNS.DomainName, &tempDNS.Options)
+	dn := tDNS.DomainName
+	dnsOpts := tDNS.Options
+	result, err := d.dnsClient.ResolveWithContext(d.ctx, dn, &dnsOpts)
 	if err != nil {
 		return nil, err
 	}
-	tempDNS.DomainName = "" // <security>
-	l := len(ipList)
+	l := len(result)
 	nodes := make([]*Node, l)
 	for i := 0; i < l; i++ {
 		nodes[i] = &Node{
-			Mode:    tempDNS.ListenerMode,
-			Network: tempDNS.ListenerNetwork,
+			Mode:    tDNS.ListenerMode,
+			Network: tDNS.ListenerNetwork,
 		}
 	}
-	switch tempDNS.Options.Type {
-	case "", dns.IPv4:
-		for i := 0; i < l; i++ {
-			nodes[i].Address = ipList[i] + ":" + tempDNS.ListenerPort
-		}
-	case dns.IPv6:
-		for i := 0; i < l; i++ {
-			nodes[i].Address = "[" + ipList[i] + "]:" + tempDNS.ListenerPort
-		}
-	default:
-		panic(&fPanic{Mode: ModeDNS, Err: err})
+	for i := 0; i < l; i++ {
+		nodes[i].Address = net.JoinHostPort(result[i], tDNS.ListenerPort)
 	}
-	tempDNS = nil
-	for i := 0; i < l; i++ { // <security>
-		ipList[i] = ""
+	tDNS = nil
+	for i := 0; i < l; i++ {
+		result[i] = ""
 	}
 	return nodes, nil
 }
