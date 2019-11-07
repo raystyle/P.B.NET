@@ -10,6 +10,7 @@ import (
 
 	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/options"
 	"project/internal/proxy"
 	"project/internal/random"
 	"project/internal/security"
@@ -45,8 +46,8 @@ type Syncer struct {
 	dnsClient *dns.Client
 	logger    logger.Logger
 
-	FixedSleep  int
-	RandomSleep int
+	FixedSleep  int // about Start
+	RandomSleep int // about Start
 
 	clients    map[string]*Client // key = tag
 	clientsRWM sync.RWMutex
@@ -61,11 +62,14 @@ type Syncer struct {
 
 func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 	syncer := Syncer{
-		proxyPool: pool,
-		dnsClient: client,
-		logger:    logger,
-		now:       time.Now(),
-		clients:   make(map[string]*Client),
+		proxyPool:   pool,
+		dnsClient:   client,
+		logger:      logger,
+		FixedSleep:  10,
+		RandomSleep: 20,
+		clients:     make(map[string]*Client),
+		interval:    options.DefaultSyncInterval,
+		now:         time.Now(),
 	}
 	syncer.ctx, syncer.cancel = context.WithCancel(context.Background())
 	return &syncer

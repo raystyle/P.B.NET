@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/options"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 )
@@ -42,8 +43,10 @@ func TestTimeSyncer(t *testing.T) {
 	defer func() { require.NoError(t, manager.Close()) }()
 	syncer := New(pool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
-	// set sync interval
-	require.NoError(t, syncer.SetSyncInterval(10*time.Minute))
+
+	// check default sync interval
+	require.Equal(t, options.DefaultSyncInterval, syncer.GetSyncInterval())
+
 	// set invalid sync interval
 	require.Error(t, syncer.SetSyncInterval(3*time.Hour))
 	require.NoError(t, syncer.Start())
