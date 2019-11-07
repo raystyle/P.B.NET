@@ -16,7 +16,7 @@ func TestLight(t *testing.T) {
 		require.NoError(t, err)
 		addr := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial(context.Background(), "tcp4", addr, 0, nil)
+			return Dial("tcp4", addr, 0, nil)
 		}, true)
 	}
 
@@ -25,7 +25,7 @@ func TestLight(t *testing.T) {
 		require.NoError(t, err)
 		addr := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial(context.Background(), "tcp6", addr, 0, nil)
+			return Dial("tcp6", addr, 0, nil)
 		}, true)
 	}
 }

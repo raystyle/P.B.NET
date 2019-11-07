@@ -54,6 +54,15 @@ func NewListener(inner net.Listener, timeout time.Duration) net.Listener {
 }
 
 func Dial(
+	network string,
+	address string,
+	timeout time.Duration,
+	dialContext func(context.Context, string, string) (net.Conn, error),
+) (*Conn, error) {
+	return DialContext(context.Background(), network, address, timeout, dialContext)
+}
+
+func DialContext(
 	ctx context.Context,
 	network string,
 	address string,
