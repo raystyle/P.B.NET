@@ -81,26 +81,26 @@ type Config struct {
 	Dialer    Dialer
 }
 
-func Listen(mode string, config *Config) (net.Listener, error) {
+func Listen(mode string, cfg *Config) (net.Listener, error) {
 	switch mode {
 	case ModeTLS:
-		err := CheckModeNetwork(ModeTLS, config.Network)
+		err := CheckModeNetwork(ModeTLS, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
-		return xtls.Listen(config.Network, config.Address, config.TLSConfig, config.Timeout)
+		return xtls.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
 	case ModeQUIC:
-		err := CheckModeNetwork(ModeQUIC, config.Network)
+		err := CheckModeNetwork(ModeQUIC, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
-		return quic.Listen(config.Network, config.Address, config.TLSConfig, config.Timeout)
+		return quic.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
 	case ModeLight:
-		err := CheckModeNetwork(ModeLight, config.Network)
+		err := CheckModeNetwork(ModeLight, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
-		return light.Listen(config.Network, config.Address, config.Timeout)
+		return light.Listen(cfg.Network, cfg.Address, cfg.Timeout)
 	default:
 		return nil, UnknownModeError(mode)
 	}
@@ -110,44 +110,44 @@ func Dial(mode string, config *Config) (net.Conn, error) {
 	return DialContext(context.Background(), mode, config)
 }
 
-func DialContext(ctx context.Context, mode string, config *Config) (net.Conn, error) {
+func DialContext(ctx context.Context, mode string, cfg *Config) (net.Conn, error) {
 	switch mode {
 	case ModeTLS:
-		err := CheckModeNetwork(ModeTLS, config.Network)
+		err := CheckModeNetwork(ModeTLS, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
 		return xtls.DialContext(
 			ctx,
-			config.Network,
-			config.Address,
-			config.TLSConfig,
-			config.Timeout,
-			config.Dialer,
+			cfg.Network,
+			cfg.Address,
+			cfg.TLSConfig,
+			cfg.Timeout,
+			cfg.Dialer,
 		)
 	case ModeQUIC:
-		err := CheckModeNetwork(ModeQUIC, config.Network)
+		err := CheckModeNetwork(ModeQUIC, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
 		return quic.DialContext(
 			ctx,
-			config.Network,
-			config.Address,
-			config.TLSConfig,
-			config.Timeout,
+			cfg.Network,
+			cfg.Address,
+			cfg.TLSConfig,
+			cfg.Timeout,
 		)
 	case ModeLight:
-		err := CheckModeNetwork(ModeLight, config.Network)
+		err := CheckModeNetwork(ModeLight, cfg.Network)
 		if err != nil {
 			return nil, err
 		}
 		return light.DialContext(
 			ctx,
-			config.Network,
-			config.Address,
-			config.Timeout,
-			config.Dialer,
+			cfg.Network,
+			cfg.Address,
+			cfg.Timeout,
+			cfg.Dialer,
 		)
 	default:
 		return nil, UnknownModeError(mode)
