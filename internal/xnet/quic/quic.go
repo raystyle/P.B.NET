@@ -150,7 +150,9 @@ func Dial(
 	if len(config.NextProtos) == 0 {
 		config.NextProtos = []string{defaultNextProto}
 	}
-	session, err := quic.DialContext(ctx, conn, rAddr, address, config, &quicCfg)
+	dialCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	session, err := quic.DialContext(dialCtx, conn, rAddr, address, config, &quicCfg)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
