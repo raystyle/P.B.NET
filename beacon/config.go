@@ -3,7 +3,6 @@ package beacon
 import (
 	"time"
 
-	"project/internal/config"
 	"project/internal/dns"
 	"project/internal/proxy"
 	"project/internal/timesync"
@@ -28,7 +27,7 @@ type Config struct {
 	LogLevel string `toml:"log_level"`
 
 	// global
-	ProxyClients       map[string]*proxy.Client    `toml:"proxy_clients"`
+	ProxyClients       map[string]*proxy.Chain     `toml:"proxy_clients"`
 	DNSServers         map[string]*dns.Server      `toml:"dns_servers"`
 	DnsCacheDeadline   time.Duration               `toml:"dns_cache_deadline"`
 	TimeSyncerConfigs  map[string]*timesync.Config `toml:"time_syncer_configs"`
