@@ -119,7 +119,7 @@ func (s *Server) ListenAndServe(network, address string) error {
 	// listen
 	l, err := net.Listen(network, address)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	s.Serve(l)
 	return nil

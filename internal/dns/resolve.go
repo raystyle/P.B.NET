@@ -38,7 +38,7 @@ var (
 func systemResolve(ctx context.Context, typ string, domain string) ([]string, error) {
 	ips, err := net.DefaultResolver.LookupHost(ctx, domain)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	var (
 		ipv4List []string
@@ -92,7 +92,7 @@ func customResolve(
 		message, err = dialDoH(ctx, address, message, opts)
 	}
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	return unpackMessage(message)
 }
@@ -105,7 +105,7 @@ func dialUDP(ctx context.Context, address string, message []byte, opts *Options)
 		network = "udp"
 	case "udp", "udp4", "udp6":
 	default:
-		return nil, net.UnknownNetworkError(network)
+		return nil, errors.WithStack(net.UnknownNetworkError(network))
 	}
 	// set timeout
 	timeout := opts.Timeout
@@ -118,7 +118,7 @@ func dialUDP(ctx context.Context, address string, message []byte, opts *Options)
 		conn, err := opts.dialContext(ctx, network, address)
 		if err != nil {
 			cancel()
-			return nil, err // not continue
+			return nil, errors.WithStack(err) // not continue
 		}
 		dConn := xnetutil.DeadlineConn(conn, timeout)
 		_, _ = dConn.Write(message)
@@ -132,7 +132,7 @@ func dialUDP(ctx context.Context, address string, message []byte, opts *Options)
 		_ = dConn.Close()
 		cancel()
 	}
-	return nil, ErrNoConnection
+	return nil, errors.WithStack(ErrNoConnection)
 }
 
 func sendMessage(conn net.Conn, message []byte, timeout time.Duration) ([]byte, error) {
@@ -144,18 +144,18 @@ func sendMessage(conn net.Conn, message []byte, timeout time.Duration) ([]byte, 
 	header.Write(message)
 	_, err := dConn.Write(header.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	// read message size
 	length := make([]byte, headerSize)
 	_, err = io.ReadFull(dConn, length)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	resp := make([]byte, int(convert.BytesToUint16(length)))
 	_, err = io.ReadFull(dConn, resp)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return resp, nil
 }
@@ -167,7 +167,7 @@ func dialTCP(ctx context.Context, address string, message []byte, opts *Options)
 		network = "tcp" // default
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, net.UnknownNetworkError(network)
+		return nil, errors.WithStack(net.UnknownNetworkError(network))
 	}
 	// set timeout
 	timeout := opts.Timeout
@@ -179,7 +179,7 @@ func dialTCP(ctx context.Context, address string, message []byte, opts *Options)
 	// dial
 	conn, err := opts.dialContext(ctx, network, address)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return sendMessage(conn, message, timeout)
 }
@@ -191,7 +191,7 @@ func dialDoT(ctx context.Context, address string, message []byte, opts *Options)
 		network = "tcp"
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, net.UnknownNetworkError(network)
+		return nil, errors.WithStack(net.UnknownNetworkError(network))
 	}
 	// set timeout
 	timeout := opts.Timeout
@@ -202,7 +202,7 @@ func dialDoT(ctx context.Context, address string, message []byte, opts *Options)
 	config := strings.Split(address, "|")
 	host, port, err := net.SplitHostPort(config[0])
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	var conn *tls.Conn
 	switch len(config) {
@@ -231,7 +231,7 @@ func dialDoT(ctx context.Context, address string, message []byte, opts *Options)
 			cancel()
 		}
 		if conn == nil {
-			return nil, ErrNoConnection
+			return nil, errors.WithStack(ErrNoConnection)
 		}
 	default:
 		return nil, errors.Errorf("invalid address: %s", address)
@@ -254,7 +254,7 @@ func dialDoH(ctx context.Context, server string, question []byte, opts *Options)
 		req, err = http.NewRequestWithContext(ctx, http.MethodPost, server, body)
 	}
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	// set header
@@ -282,7 +282,7 @@ func dialDoH(ctx context.Context, server string, question []byte, opts *Options)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	return ioutil.ReadAll(io.LimitReader(resp.Body, maxBodySize))

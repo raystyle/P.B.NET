@@ -33,11 +33,8 @@ func NewPool() *Pool {
 
 // Add is used to add a proxy client
 func (p *Pool) Add(client *Client) error {
-	err := p.add(client)
-	if err != nil {
-		return errors.WithMessagef(err, "failed to add proxy client %s:", client.Tag)
-	}
-	return nil
+	const format = "failed to add proxy client %s:"
+	return errors.WithMessagef(p.add(client), format, client.Tag)
 }
 
 func (p *Pool) add(client *Client) error {

@@ -113,18 +113,15 @@ func NewClient(pool *proxy.Pool) *Client {
 }
 
 func (c *Client) Add(tag string, server *Server) error {
-	err := c.add(tag, server)
-	if err != nil {
-		return errors.WithMessagef(err, "failed to add dns server %s", tag)
-	}
-	return nil
+	const format = "failed to add dns server %s"
+	return errors.WithMessagef(c.add(tag, server), format, tag)
 }
 
 func (c *Client) add(tag string, server *Server) error {
 	switch server.Method {
 	case MethodUDP, MethodTCP, MethodDoT, MethodDoH:
 	default:
-		return UnknownMethodError(server.Method)
+		return errors.WithStack(UnknownMethodError(server.Method))
 	}
 	c.serversRWM.Lock()
 	defer c.serversRWM.Unlock()
