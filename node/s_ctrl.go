@@ -50,7 +50,7 @@ func (server *server) serveCtrl(conn net.Conn) {
 	ctrl.log(logger.Debug, "controller connected")
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("serve controller panic:", r)
+			err := xpanic.Error(r, "serve controller panic:")
 			ctrl.log(logger.Exploit, err)
 		}
 		ctrl.Close()
@@ -574,7 +574,7 @@ func (ctrl *ctrlConn) handleTrustNode(id []byte) {
 func (ctrl *ctrlConn) handleTrustNodeData(id []byte, data []byte) {
 	err := ctrl.ctx.global.SetCertificate(data)
 	if err == nil {
-		ctrl.reply(id, messages.OnlineSucceed)
+		ctrl.reply(id, messages.RegisterSucceed)
 	} else {
 		ctrl.reply(id, []byte(err.Error()))
 	}

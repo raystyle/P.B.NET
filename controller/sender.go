@@ -566,7 +566,7 @@ type senderWorker struct {
 func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("senderWorker.Work() panic:", r)
+			err := xpanic.Error(r, "senderWorker.Work() panic:")
 			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)
@@ -625,7 +625,7 @@ func (sw *senderWorker) handleSendTask() {
 	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("senderWorker.handleSendTask() panic:", r)
+			err := xpanic.Error(r, "senderWorker.handleSendTask() panic:")
 			sw.ctx.log(logger.Fatal, err)
 			result.Err = err
 		}
@@ -718,7 +718,7 @@ func (sw *senderWorker) handleBroadcastTask() {
 	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("senderWorker.handleBroadcastTask() panic:", r)
+			err := xpanic.Error(r, "senderWorker.handleBroadcastTask() panic:")
 			sw.ctx.log(logger.Fatal, err)
 			result.Err = err
 		}

@@ -48,7 +48,7 @@ func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, closeFunc func()) (
 		Network: node.Network,
 		Address: node.Address,
 	}
-	xnetCfg.TLSConfig.RootCAs = ctx.global.CACertificatesStr()
+	// xnetCfg.TLSConfig.RootCAs = ctx.global.CACertificatesStr()
 	conn, err := xnet.Dial(node.Mode, &xnetCfg)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -82,7 +82,7 @@ func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, closeFunc func()) (
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				err := xpanic.Error("client panic:", r)
+				err := xpanic.Error(r, "client panic:")
 				client.log(logger.Fatal, err)
 			}
 			client.Close()
@@ -358,7 +358,7 @@ func (client *client) logln(l logger.Level, log ...interface{}) {
 }
 
 func (client *client) handshake(conn net.Conn) (*xnet.Conn, error) {
-	dConn := xnet.NewDeadlineConn(conn, time.Minute)
+	dConn := xnet.DeadlineConn(conn, time.Minute)
 	xConn := xnet.NewConn(dConn, client.ctx.global.Now())
 	// receive certificate
 	cert, err := xConn.Receive()

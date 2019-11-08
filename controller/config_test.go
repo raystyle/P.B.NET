@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"os"
 	"time"
 )
 
@@ -20,7 +21,7 @@ func testGenerateConfig() *Config {
 	c.Database.GORMDetailedLog = false
 
 	c.Global.BuiltinDir = "../app/builtin"
-	c.Global.KeyDir = "../app/key"
+	c.Global.KeyDir = os.TempDir() + "/p.b.net/key"
 	c.Global.DNSCacheExpire = 3 * time.Minute
 	c.Global.TimeSyncInterval = 1 * time.Minute
 

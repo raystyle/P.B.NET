@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestKeyGen(t *testing.T) {
+func TestGenerateCtrlKeys(t *testing.T) {
 	path := os.TempDir() + "/ctrl.key"
 	const password = "0123456789012"
 	err := GenerateCtrlKeys(path, password)

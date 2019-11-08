@@ -39,7 +39,7 @@ func TestHandleTrustNode(t *testing.T) {
 	defer NODE.Exit(nil)
 	testInitCtrl(t)
 	m := &mTrustNode{
-		Mode:    xnet.TLS,
+		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:9950",
 	}

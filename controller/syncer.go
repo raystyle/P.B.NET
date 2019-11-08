@@ -83,23 +83,6 @@ func newSyncer(ctx *CTRL, config *Config) (*syncer, error) {
 	return &syncer, nil
 }
 
-func (syncer *syncer) Close() {
-	close(syncer.stopSignal)
-	syncer.wg.Wait()
-}
-
-func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
-	syncer.ctx.logger.Printf(l, "syncer", format, log...)
-}
-
-func (syncer *syncer) log(l logger.Level, log ...interface{}) {
-	syncer.ctx.logger.Print(l, "syncer", log...)
-}
-
-func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
-	syncer.ctx.logger.Println(l, "syncer", log...)
-}
-
 // task from syncer client
 func (syncer *syncer) AddNodeSend(s *protocol.Send) {
 	select {
@@ -192,11 +175,28 @@ func (syncer *syncer) CheckBeaconQueryGUID(guid []byte, add bool, timestamp int6
 	}
 }
 
+func (syncer *syncer) Close() {
+	close(syncer.stopSignal)
+	syncer.wg.Wait()
+}
+
+func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
+	syncer.ctx.logger.Printf(l, "syncer", format, log...)
+}
+
+func (syncer *syncer) log(l logger.Level, log ...interface{}) {
+	syncer.ctx.logger.Print(l, "syncer", log...)
+}
+
+func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
+	syncer.ctx.logger.Println(l, "syncer", log...)
+}
+
 // guidCleaner is use to clean expired guid
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("syncer guid cleaner panic:", r)
+			err := xpanic.Error(r, "syncer guid cleaner panic:")
 			syncer.log(logger.Fatal, err)
 			// restart guid cleaner
 			time.Sleep(time.Second)
@@ -266,7 +266,7 @@ type syncerWorker struct {
 func (sw *syncerWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("syncerWorker.Work() panic:", r)
+			err := xpanic.Error(r, "syncerWorker.Work() panic:")
 			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)

@@ -13,8 +13,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
 
-	"project/internal/config"
 	"project/internal/logger"
+	"project/internal/messages"
 	"project/internal/options"
 	"project/internal/protocol"
 	"project/internal/random"
@@ -28,9 +28,9 @@ var (
 
 // accept beacon node controller
 type server struct {
-	ctx       *NODE
-	connLimit int           // every listener
-	hsTimeout time.Duration // handshake timeout
+	ctx *NODE
+
+	maxConns int // every listener
 
 	listeners      map[string]*listener
 	listenersRWM   sync.RWMutex
@@ -51,23 +51,19 @@ type server struct {
 }
 
 type listener struct {
-	Mode     xnet.Mode
-	sTimeout time.Duration // start timeout
+	Mode xnet.Mode
 	net.Listener
 }
 
-func newServer(ctx *NODE, cfg *Config) (*server, error) {
+func newServer(ctx *NODE, config *Config) (*server, error) {
+	cfg := config.Server
 	s := &server{
 		ctx:       ctx,
-		connLimit: cfg.ConnLimit,
-		hsTimeout: cfg.HandshakeTimeout,
+		maxConns:  cfg.MaxConns,
 		listeners: make(map[string]*listener),
 	}
-	if s.connLimit < 1 {
-		s.connLimit = options.DefaultConnectionLimit
-	}
-	if s.hsTimeout < 1 {
-		s.hsTimeout = options.DefaultHandshakeTimeout
+	if s.maxConns < 1 {
+		s.maxConns = options.DefaultMaxConns
 	}
 	for _, listener := range cfg.Listeners {
 		_, err := s.addListener(listener)
@@ -102,11 +98,33 @@ func (server *server) Deploy() error {
 	return nil
 }
 
+func (server *server) Close() {
+	atomic.StoreInt32(&server.closing, 1)
+	close(server.stopSignal)
+	// close all listeners
+	server.listenersRWM.RLock()
+	for _, listener := range server.listeners {
+		_ = listener.Close()
+	}
+	server.listenersRWM.RUnlock()
+	// close all conns
+	server.connsRWM.Lock()
+	for _, conn := range server.conns {
+		_ = conn.Close()
+	}
+	server.connsRWM.Unlock()
+	server.wg.Wait()
+}
+
 func (server *server) isClosing() bool {
 	return atomic.LoadInt32(&server.closing) != 0
 }
 
-func (server *server) AddListener(l *config.Listener) error {
+func (server *server) AddListener(listener *messages.Listener) error {
+	if server.isClosing() {
+		return errServerClosed
+	}
+
 	listener, err := server.addListener(l)
 	if err != nil {
 		return err
@@ -115,9 +133,7 @@ func (server *server) AddListener(l *config.Listener) error {
 }
 
 func (server *server) addListener(l *config.Listener) (*listener, error) {
-	if server.isClosing() {
-		return nil, errServerClosed
-	}
+
 	c := &xnet.Config{}
 	err := toml.Unmarshal(l.Config, c)
 	if err != nil {
@@ -127,7 +143,7 @@ func (server *server) addListener(l *config.Listener) (*listener, error) {
 	if err != nil {
 		return nil, errors.Errorf("listen %s failed: %s", l.Tag, err)
 	}
-	li = netutil.LimitListener(li, server.connLimit)
+	li = netutil.LimitListener(li, server.maxConns)
 	listener := &listener{Mode: l.Mode, sTimeout: l.Timeout, Listener: li}
 	// add
 	server.listenersRWM.Lock()
@@ -162,7 +178,7 @@ func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error("serve panic:", r) // front var err
+			err = xpanic.Error(r, "serve panic:") // front var err
 			server.log(logger.Fatal, err)
 		}
 		errChan <- err
@@ -222,24 +238,6 @@ func (server *server) CloseConn(address string) {
 
 }
 
-func (server *server) Close() {
-	atomic.StoreInt32(&server.closing, 1)
-	close(server.stopSignal)
-	// close all listeners
-	server.listenersRWM.Lock()
-	for _, listener := range server.listeners {
-		_ = listener.Close()
-	}
-	server.listenersRWM.Unlock()
-	// close all conns
-	server.connsRWM.Lock()
-	for _, conn := range server.conns {
-		_ = conn.Close()
-	}
-	server.connsRWM.Unlock()
-	server.wg.Wait()
-}
-
 func (server *server) logf(lv logger.Level, format string, log ...interface{}) {
 	server.ctx.logger.Printf(lv, "server", format, log...)
 }
@@ -270,11 +268,11 @@ func (sl *sLog) String() string {
 }
 
 func (server *server) handshake(listenerTag string, conn net.Conn) {
-	dConn := xnet.NewDeadlineConn(conn, server.hsTimeout)
+	dConn := xnet.DeadlineConn(conn, options.DefaultHandshakeTimeout)
 	xconn := xnet.NewConn(dConn, server.ctx.global.Now())
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("handshake panic:", r)
+			err := xpanic.Error(r, "handshake panic:")
 			server.log(logger.Exploit, &sLog{c: xconn, e: err})
 		}
 		_ = xconn.Close()
@@ -337,7 +335,7 @@ func (server *server) verifyNode(conn net.Conn) {
 }
 
 func (server *server) verifyCtrl(conn net.Conn) {
-	dConn := xnet.NewDeadlineConn(conn, server.hsTimeout)
+	dConn := xnet.DeadlineConn(conn, options.DefaultHandshakeTimeout)
 	xconn := xnet.NewConn(dConn, server.ctx.global.Now())
 	// <danger>
 	// send random challenge code(length 2048-4096)

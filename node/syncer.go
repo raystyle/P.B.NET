@@ -194,7 +194,7 @@ func (syncer *syncer) getMaxSyncerClient() int {
 func (syncer *syncer) watcher() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("syncer watcher panic:", r)
+			err := xpanic.Error(r, "syncer watcher panic:")
 			syncer.log(logger.Fatal, err)
 			// restart watcher
 			time.Sleep(time.Second)
@@ -482,7 +482,7 @@ func (syncer *syncer) checkSyncReceiveGUID(role protocol.Role, guid []byte) bool
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("syncer guid cleaner panic:", r)
+			err := xpanic.Error(r, "syncer guid cleaner panic:")
 			syncer.log(logger.Fatal, err)
 			// restart guid cleaner
 			time.Sleep(time.Second)
@@ -532,7 +532,7 @@ func (syncer *syncer) guidCleaner() {
 func (syncer *syncer) worker() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("syncer.worker() panic:", r)
+			err := xpanic.Error(r, "syncer.worker() panic:")
 			syncer.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)

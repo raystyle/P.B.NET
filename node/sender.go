@@ -341,7 +341,7 @@ type senderWorker struct {
 func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("sender.worker() panic:", r)
+			err := xpanic.Error(r, "sender.worker() panic:")
 			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)

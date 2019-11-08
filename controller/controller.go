@@ -3,13 +3,9 @@ package controller
 import (
 	"sync"
 
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
-	"project/internal/dns"
 	"project/internal/logger"
-	"project/internal/proxy"
-	"project/internal/timesync"
 )
 
 type CTRL struct {
@@ -53,55 +49,6 @@ func New(cfg *Config) (*CTRL, error) {
 		return nil, errors.WithMessage(err, "initialize global failed")
 	}
 	ctrl.global = global
-	// load proxy clients from database
-	pcs, err := ctrl.db.SelectProxyClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "load proxy clients failed")
-	}
-	for i := 0; i < len(pcs); i++ {
-		tag := pcs[i].Tag
-		client := &proxy.Client{
-			Mode:   pcs[i].Mode,
-			Config: pcs[i].Config,
-		}
-		err = ctrl.global.AddProxyClient(tag, client)
-		if err != nil {
-			return nil, errors.Wrapf(err, "add proxy client %s failed", tag)
-		}
-	}
-	// load dns servers from database
-	dss, err := ctrl.db.SelectDNSServer()
-	if err != nil {
-		return nil, errors.Wrap(err, "load dns servers failed")
-	}
-	for i := 0; i < len(dss); i++ {
-		tag := dss[i].Tag
-		server := &dns.Server{
-			Method:  dss[i].Method,
-			Address: dss[i].Address,
-		}
-		err = ctrl.global.AddDNSSever(tag, server)
-		if err != nil {
-			return nil, errors.Wrapf(err, "add dns server %s failed", tag)
-		}
-	}
-	// load time syncer configs from database
-	tcs, err := ctrl.db.SelectTimeSyncer()
-	if err != nil {
-		return nil, errors.Wrap(err, "select time syncer failed")
-	}
-	for i := 0; i < len(tcs); i++ {
-		cfg := &timesync.Config{}
-		err = toml.Unmarshal([]byte(tcs[i].Config), cfg)
-		if err != nil {
-			return nil, errors.Wrapf(err, "load time syncer config: %s failed", tcs[i].Tag)
-		}
-		tag := tcs[i].Tag
-		err = ctrl.global.AddTimeSyncerConfig(tag, cfg)
-		if err != nil {
-			return nil, errors.Wrapf(err, "add time syncer config %s failed", tag)
-		}
-	}
 	// handler
 	ctrl.handler = &handler{ctx: ctrl}
 	// sender
@@ -148,21 +95,24 @@ func (ctrl *CTRL) Main() error {
 	}
 	ctrl.logger.Println(logger.Info, "init", "http server:", ctrl.web.Address())
 	ctrl.logger.Print(logger.Info, "init", "controller is running")
-	go func() {
-		// wait to load controller keys
-		ctrl.global.WaitLoadKeys()
-		ctrl.logger.Print(logger.Info, "init", "load keys successfully")
-		// load boots
-		ctrl.logger.Print(logger.Info, "init", "start discover bootstrap nodes")
-		boots, err := ctrl.db.SelectBoot()
+	// wait to load controller keys
+	if !ctrl.global.WaitLoadKeys() {
+		return nil
+	}
+	ctrl.logger.Print(logger.Info, "init", "load keys successfully")
+	// load boots
+	ctrl.logger.Print(logger.Info, "init", "start discover bootstrap nodes")
+	boots, err := ctrl.db.SelectBoot()
+	if err != nil {
+		ctrl.logger.Println(logger.Error, "init", "select boot failed:", err)
+		return nil
+	}
+	for i := 0; i < len(boots); i++ {
+		err = ctrl.boot.Add(boots[i])
 		if err != nil {
-			ctrl.logger.Println(logger.Error, "init", "select boot failed:", err)
-			return
+			ctrl.logger.Println(logger.Error, "init", "add boot failed:", err)
 		}
-		for i := 0; i < len(boots); i++ {
-			_ = ctrl.boot.Add(boots[i])
-		}
-	}()
+	}
 	ctrl.wait <- struct{}{}
 	return <-ctrl.exit
 }
@@ -240,7 +190,7 @@ func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 
 // ------------------------------------test-------------------------------------
 
-// TestWait is used to wait for Main()
-func (ctrl *CTRL) TestWait() {
+// TestWaitMain is used to wait for Main()
+func (ctrl *CTRL) TestWaitMain() {
 	<-ctrl.wait
 }

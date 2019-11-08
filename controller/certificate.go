@@ -16,7 +16,7 @@ import (
 
 // TrustNode is used to trust Genesis Node
 // receive host info for confirm
-func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, error) {
+func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeRegisterRequest, error) {
 	client, err := newClient(ctrl, node, nil, nil)
 	if err != nil {
 		return nil, errors.WithMessage(err, "connect node failed")
@@ -27,7 +27,7 @@ func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, 
 	if err != nil {
 		return nil, errors.WithMessage(err, "send trust node command failed")
 	}
-	req := messages.NodeOnlineRequest{}
+	req := messages.NodeRegisterRequest{}
 	err = msgpack.Unmarshal(reply, &req)
 	if err != nil {
 		err = errors.Wrap(err, "invalid node online request")
@@ -45,7 +45,7 @@ func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeOnlineRequest, 
 
 // ConfirmTrustNode is used to confirm trust node
 // issue certificates and insert to database
-func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlineRequest) error {
+func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeRegisterRequest) error {
 	client, err := newClient(ctrl, node, nil, nil)
 	if err != nil {
 		return errors.WithMessage(err, "connect node failed")
@@ -58,7 +58,7 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeOnlin
 	if err != nil {
 		return errors.WithMessage(err, "send trust node data failed")
 	}
-	if !bytes.Equal(reply, messages.OnlineSucceed) {
+	if !bytes.Equal(reply, messages.RegisterSucceed) {
 		return errors.Errorf("trust node failed: %s", string(reply))
 	}
 	// calculate aes key

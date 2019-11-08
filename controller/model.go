@@ -8,7 +8,6 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
-	"project/internal/config"
 	"project/internal/xnet"
 )
 
@@ -83,16 +82,6 @@ type mListener struct {
 	Timeout uint32 `gorm:"not null"`
 	Config  string `gorm:"size:16000;not null"`
 	Model
-}
-
-func (ml *mListener) Configure() *config.Listener {
-	l := &config.Listener{
-		Tag:    ml.Tag,
-		Mode:   ml.Mode,
-		Config: []byte(ml.Config),
-	}
-	l.Timeout = time.Duration(ml.Timeout) * time.Second
-	return l
 }
 
 type mNode struct {

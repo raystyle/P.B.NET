@@ -1,17 +1,13 @@
 package node
 
 import (
-	"github.com/davecgh/go-spew/spew"
-	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
-	"project/internal/bootstrap"
-	"project/internal/crypto/aes"
-	"project/internal/info"
 	"project/internal/messages"
-	"project/internal/security"
+	"project/internal/modules/info"
 )
 
+/*
 // success once
 func (node *NODE) register(c *Config) error {
 	global := node.global
@@ -43,7 +39,7 @@ func (node *NODE) register(c *Config) error {
 				return errors.Wrap(err, "load bootstrap failed")
 			}
 			security.FlushBytes(c)
-			// TODO more time
+
 			for i := 0; i < 10; i++ {
 				nodes, err := boot.Resolve()
 				if err == nil {
@@ -54,13 +50,14 @@ func (node *NODE) register(c *Config) error {
 		}
 	}
 }
+*/
 
 func (node *NODE) packOnlineRequest() []byte {
-	req := messages.NodeOnlineRequest{
+	req := messages.NodeRegisterRequest{
 		GUID:         node.global.GUID(),
 		PublicKey:    node.global.PublicKey(),
 		KexPublicKey: node.global.KeyExchangePub(),
-		HostInfo:     info.Host(),
+		SystemInfo:   info.GetSystemInfo(),
 		RequestTime:  node.global.Now(),
 	}
 	b, err := msgpack.Marshal(&req)

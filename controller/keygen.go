@@ -29,7 +29,7 @@ func GenerateCtrlKeys(path, password string) error {
 		return errors.WithStack(err)
 	}
 	// generate aes key & iv(for broadcast message)
-	aesKey := random.Bytes(aes.Bit256)
+	aesKey := random.Bytes(aes.Key256Bit)
 	aesIV := random.Bytes(aes.IVSize)
 	// write
 	buffer := new(bytes.Buffer)
@@ -64,7 +64,7 @@ func loadCtrlKeys(path, password string) ([3][]byte, error) {
 	if err != nil {
 		return keys, errors.WithStack(err)
 	}
-	if len(keyDec) != ed25519.PrivateKeySize+aes.Bit256+aes.IVSize {
+	if len(keyDec) != ed25519.PrivateKeySize+aes.Key256Bit+aes.IVSize {
 		return keys, errors.New("invalid controller keys size")
 	}
 	// ed25519 private key
@@ -73,9 +73,9 @@ func loadCtrlKeys(path, password string) ([3][]byte, error) {
 	// aes key & aes iv
 	memory.Padding()
 	offset := ed25519.PrivateKeySize
-	aesKey := keyDec[offset : offset+aes.Bit256]
+	aesKey := keyDec[offset : offset+aes.Key256Bit]
 	memory.Padding()
-	offset += aes.Bit256
+	offset += aes.Key256Bit
 	aesIV := keyDec[offset : offset+aes.IVSize]
 	// write
 	keys[0] = privateKey

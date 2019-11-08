@@ -8,7 +8,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/guid"
-	"project/internal/info"
+	"project/internal/modules/info"
 	"project/internal/protocol"
 	"project/internal/xnet"
 )
@@ -54,14 +54,14 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
 	node := &bootstrap.Node{
-		Mode:    xnet.TLS,
+		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:62300",
 	}
 	req, err := ctrl.TrustNode(node)
 	require.NoError(t, err)
-	require.Equal(t, info.Host(), req.HostInfo)
-	t.Log(req.HostInfo)
+	require.Equal(t, info.GetSystemInfo(), req.SystemInfo)
+	t.Log(req.SystemInfo)
 	err = ctrl.ConfirmTrustNode(node, req)
 	require.NoError(t, err)
 }

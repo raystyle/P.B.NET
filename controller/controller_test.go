@@ -6,8 +6,6 @@ import (
 	"sync"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/testdata"
 )
 
 var (
@@ -41,12 +39,15 @@ func testInitCtrl(t require.TestingT) {
 		} else {
 			ctrl = controller
 		}
-		err = ctrl.LoadKeys(testdata.CtrlKeysPWD)
+
+		// set controller keys
+		err = ctrl.LoadKeys("123456789012")
 		require.NoError(t, err)
+
 		go func() {
 			err := ctrl.Main()
 			require.NoError(t, err)
 		}()
-		ctrl.TestWait()
+		ctrl.TestWaitMain()
 	})
 }

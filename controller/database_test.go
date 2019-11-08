@@ -129,7 +129,7 @@ func testInsertTimeSyncerConfig(t require.TestingT) {
 	err := ctrl.db.db.Unscoped().Delete(&mTimeSyncer{}).Error
 	require.NoError(t, err)
 	// insert
-	configs := testdata.TimeSyncerConfigs(t)
+	configs := testdata.TimeSyncerClients(t)
 	for tag, config := range configs {
 		b, err := toml.Marshal(config)
 		require.NoError(t, err)
@@ -282,7 +282,7 @@ func TestInsertNode(t *testing.T) {
 	testInitCtrl(t)
 	node := &mNode{
 		GUID:       bytes.Repeat([]byte{52}, guid.Size),
-		SessionKey: bytes.Repeat([]byte{52}, aes.Bit256),
+		SessionKey: bytes.Repeat([]byte{52}, aes.Key256Bit),
 		PublicKey:  bytes.Repeat([]byte{52}, ed25519.PublicKeySize),
 	}
 	err := ctrl.db.db.Unscoped().Delete(node).Error
@@ -293,7 +293,7 @@ func TestInsertNode(t *testing.T) {
 	nl := &mNodeListener{
 		GUID:    node.GUID,
 		Tag:     "tls_1",
-		Mode:    xnet.TLS,
+		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "127.0.0.1:1234",
 	}
@@ -302,7 +302,7 @@ func TestInsertNode(t *testing.T) {
 	nl = &mNodeListener{
 		GUID:    node.GUID,
 		Tag:     "tls_2",
-		Mode:    xnet.TLS,
+		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "127.0.0.1:1235",
 	}

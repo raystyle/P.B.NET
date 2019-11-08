@@ -159,8 +159,8 @@ func (db *db) InsertDNSServer(m *mDNSServer) error {
 }
 
 func (db *db) SelectDNSServer() ([]*mDNSServer, error) {
-	var clients []*mDNSServer
-	return clients, db.db.Find(&clients).Error
+	var servers []*mDNSServer
+	return servers, db.db.Find(&servers).Error
 }
 
 func (db *db) UpdateDNSServer(m *mDNSServer) error {

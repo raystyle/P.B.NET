@@ -114,7 +114,7 @@ func (web *web) Close() {
 
 func (web *web) handlePanic(w hRW, r *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
-	_, _ = w.Write([]byte(xpanic.Sprint(e)))
+	_, _ = w.Write([]byte(xpanic.Print(e)))
 }
 
 func (web *web) handleLogin(w hRW, r *hR, p hP) {
@@ -122,6 +122,7 @@ func (web *web) handleLogin(w hRW, r *hR, p hP) {
 }
 
 func (web *web) handleLoadKeys(w hRW, r *hR, p hP) {
+	// TODO size
 	pwd, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return

@@ -31,7 +31,7 @@ func (h *handler) logln(l logger.Level, log ...interface{}) {
 func (h *handler) HandleNodeSend(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("handler.HandleNodeSend panic:", r)
+			err := xpanic.Error(r, "handler.HandleNodeSend panic:")
 			h.log(logger.Fatal, err)
 		}
 	}()
@@ -62,7 +62,7 @@ func (h *handler) HandleNodeSend(send *protocol.Send) {
 func (h *handler) HandleBeaconSend(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error("handler.HandleBeaconSend panic:", r)
+			err := xpanic.Error(r, "handler.HandleBeaconSend panic:")
 			h.log(logger.Fatal, err)
 		}
 	}()

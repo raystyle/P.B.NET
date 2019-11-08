@@ -26,10 +26,10 @@ type global struct {
 
 	proxyPool    *proxy.Pool
 	dnsClient    *dns.Client
-	timeSyncer   *timesync.TimeSyncer
+	timeSyncer   *timesync.Syncer
 	objects      map[uint32]interface{}
 	objectsRWM   sync.RWMutex
-	isLoadKeys   int32
+	loadKeys     int32
 	waitLoadKeys chan struct{}
 }
 
@@ -38,7 +38,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	proxyPool, _ := proxy.NewPool(nil)
 	// load builtin dns clients
 	dnsServers := make(map[string]*dns.Server)
-	b, err := ioutil.ReadFile(cfg.BuiltinDir + "/dnsclient.toml")
+	b, err := ioutil.ReadFile(cfg.BuiltinDir + "/dnsserver.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "load builtin dns clients failed")
 	}
@@ -70,7 +70,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		tsConfigs["builtin_"+tag] = config
 		delete(tsConfigs, tag) // rename
 	}
-	timeSyncer, err := timesync.NewTimeSyncer(
+	timeSyncer, err := timesync.New(
 		proxyPool,
 		dnsClient,
 		logger,
@@ -97,35 +97,23 @@ func (global *global) Now() time.Time {
 	return global.timeSyncer.Now().Local()
 }
 
-func (global *global) WaitLoadKeys() {
-	<-global.waitLoadKeys
-}
-
-func (global *global) AddProxyClient(tag string, client *proxy.Client) error {
-	return global.proxyPool.Add(tag, client)
-}
-
-func (global *global) AddDNSSever(tag string, server *dns.Server) error {
-	return global.dnsClient.Add(tag, server)
-}
-
-func (global *global) AddTimeSyncerConfig(tag string, config *timesync.Config) error {
-	return global.timeSyncer.Add(tag, config)
-}
-
-type objectKey = uint32
-
+// <warning> must < 1048576
 const (
-	okPrivateKey        objectKey = iota // verify controller role & sign message
-	okPublicKey                          // for role
-	okKeyExPub                           // for key exchange
-	okAESCrypto                          // encrypt controller broadcast message
-	okCACertificates                     // x509.Certificate
-	okCAPrivateKeys                      // rsa.PrivateKey
-	okCACertificatesStr                  // x509.Certificate
+	_ uint32 = iota
+
+	objPrivateKey        // verify controller role & sign message
+	objPublicKey         // for role
+	objKeyExPub          // for key exchange
+	objAESCrypto         // encrypt controller broadcast message
+	objCACertificates    // x509.Certificate
+	objCAPrivateKeys     // rsa.PrivateKey
+	objCACertificatesStr // x509.Certificate
 )
 
 func (global *global) LoadKeys(password string) error {
+	if global.isLoadKeys() {
+		return errors.New("already load keys")
+	}
 	global.objectsRWM.Lock()
 	defer global.objectsRWM.Unlock()
 	// load CAs
@@ -157,50 +145,53 @@ func (global *global) LoadKeys(password string) error {
 		}
 		caCerts[i] = crt
 		caCertsStr[i] = caList.CA[i].Cert
-		pri, err := rsa.ImportPrivateKeyPEM([]byte(caList.CA[i].Key))
+		pri, err := rsa.ImportPrivateKeyFromPEM([]byte(caList.CA[i].Key))
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		caKeys[i] = pri
 	}
-	global.objects[okCACertificates] = caCerts
-	global.objects[okCACertificatesStr] = caCertsStr
-	global.objects[okCAPrivateKeys] = caKeys
+	global.objects[objCACertificates] = caCerts
+	global.objects[objCACertificatesStr] = caCertsStr
+	global.objects[objCAPrivateKeys] = caKeys
 	// keys
-	if global.objects[okPrivateKey] != nil {
-		return errors.New("already load keys")
-	}
 	keys, err := loadCtrlKeys(global.keyDir+"/ctrl.key", password)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// ed25519
 	pri, _ := ed25519.ImportPrivateKey(keys[0])
-	global.objects[okPrivateKey] = pri
+	global.objects[objPrivateKey] = pri
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
-	global.objects[okPublicKey] = pub
+	global.objects[objPublicKey] = pub
 	// curve25519
 	keyEXPub, err := curve25519.ScalarBaseMult(pri[:32])
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	global.objects[okKeyExPub] = keyEXPub
+	global.objects[objKeyExPub] = keyEXPub
 	// aes crypto
 	cbc, _ := aes.NewCBC(keys[1], keys[2])
-	global.objects[okAESCrypto] = cbc
-	atomic.StoreInt32(&global.isLoadKeys, 1)
+	global.objects[objAESCrypto] = cbc
+
+	atomic.StoreInt32(&global.loadKeys, 1)
 	close(global.waitLoadKeys)
 	return nil
 }
 
-func (global *global) IsLoadKeys() bool {
-	return atomic.LoadInt32(&global.isLoadKeys) != 0
+func (global *global) isLoadKeys() bool {
+	return atomic.LoadInt32(&global.loadKeys) != 0
+}
+
+func (global *global) WaitLoadKeys() bool {
+	<-global.waitLoadKeys
+	return global.isLoadKeys()
 }
 
 // Encrypt is used to encrypt controller broadcast message
 func (global *global) Encrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
-	cbc := global.objects[okAESCrypto]
+	cbc := global.objects[objAESCrypto]
 	global.objectsRWM.RUnlock()
 	return cbc.(*aes.CBC).Encrypt(data)
 }
@@ -208,7 +199,7 @@ func (global *global) Encrypt(data []byte) ([]byte, error) {
 // Sign is used to verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
 	global.objectsRWM.RLock()
-	pri := global.objects[okPrivateKey]
+	pri := global.objects[objPrivateKey]
 	global.objectsRWM.RUnlock()
 	return ed25519.Sign(pri.(ed25519.PrivateKey), message)
 }
@@ -216,7 +207,7 @@ func (global *global) Sign(message []byte) []byte {
 // Verify is used to verify node certificate
 func (global *global) Verify(message, signature []byte) bool {
 	global.objectsRWM.RLock()
-	pub := global.objects[okPublicKey]
+	pub := global.objects[objPublicKey]
 	global.objectsRWM.RUnlock()
 	return ed25519.Verify(pub.(ed25519.PublicKey), message, signature)
 }
@@ -224,7 +215,7 @@ func (global *global) Verify(message, signature []byte) bool {
 // KeyExchangePub is used to get key exchange public key
 func (global *global) KeyExchangePub() []byte {
 	global.objectsRWM.RLock()
-	pub := global.objects[okKeyExPub]
+	pub := global.objects[objKeyExPub]
 	global.objectsRWM.RUnlock()
 	return pub.([]byte)
 }
@@ -232,28 +223,28 @@ func (global *global) KeyExchangePub() []byte {
 // KeyExchange is use to calculate session key
 func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
-	pri := global.objects[okPrivateKey]
+	pri := global.objects[objPrivateKey]
 	global.objectsRWM.RUnlock()
 	return curve25519.ScalarMult(pri.(ed25519.PrivateKey)[:32], publicKey)
 }
 
 func (global *global) CACertificates() []*x509.Certificate {
 	global.objectsRWM.RLock()
-	crt := global.objects[okCACertificates]
+	crt := global.objects[objCACertificates]
 	global.objectsRWM.RUnlock()
 	return crt.([]*x509.Certificate)
 }
 
 func (global *global) CAPrivateKeys() []*rsa.PrivateKey {
 	global.objectsRWM.RLock()
-	pri := global.objects[okCAPrivateKeys]
+	pri := global.objects[objCAPrivateKeys]
 	global.objectsRWM.RUnlock()
 	return pri.([]*rsa.PrivateKey)
 }
 
 func (global *global) CACertificatesStr() []string {
 	global.objectsRWM.RLock()
-	crt := global.objects[okCACertificatesStr]
+	crt := global.objects[objCACertificatesStr]
 	global.objectsRWM.RUnlock()
 	return crt.([]string)
 }
@@ -266,4 +257,7 @@ func (global *global) TestSetObject(key uint32, obj interface{}) {
 
 func (global *global) Close() {
 	global.timeSyncer.Stop()
+	if !global.isLoadKeys() {
+		close(global.waitLoadKeys)
+	}
 }

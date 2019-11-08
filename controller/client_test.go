@@ -11,9 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
-	"project/internal/config"
 	"project/internal/convert"
-	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
 	"project/internal/options"
 	"project/internal/protocol"
@@ -23,7 +21,6 @@ import (
 )
 
 func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
-	regAESKey := bytes.Repeat([]byte{0}, aes.Bit256+aes.IVSize)
 	cfg := node.Config{
 		// logger
 		LogLevel: "debug",
@@ -32,7 +29,7 @@ func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
 		ProxyClients:       testdata.ProxyClients(t),
 		DNSServers:         testdata.DNSServers(t),
 		DnsCacheDeadline:   3 * time.Minute,
-		TimeSyncerConfigs:  testdata.TimeSyncerConfigs(t),
+		TimeSyncerConfigs:  testdata.TimeSyncerClients(t),
 		TimeSyncerInterval: 15 * time.Minute,
 
 		// sender
@@ -62,15 +59,7 @@ func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
 		ConnLimit: 10,
 	}
 	cfg.Debug.SkipTimeSyncer = true
-	// encrypt register info
-	register := testdata.Register(t)
-	for i := 0; i < len(register); i++ {
-		configEnc, err := aes.CBCEncrypt(register[i].Config,
-			regAESKey[:aes.Bit256], regAESKey[aes.Bit256:])
-		require.NoError(t, err)
-		register[i].Config = configEnc
-	}
-	cfg.RegisterBootstraps = register
+
 	return &cfg
 }
 
@@ -86,7 +75,7 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 	// generate listener config
 	listenerCfg := config.Listener{
 		Tag:  "test_tls_listener",
-		Mode: xnet.TLS,
+		Mode: xnet.ModeTLS,
 	}
 	xnetCfg := xnet.Config{
 		Network: "tcp",
@@ -109,7 +98,7 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
 
 func testGenerateClient(t require.TestingT) *client {
 	n := &bootstrap.Node{
-		Mode:    xnet.TLS,
+		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:62300",
 	}

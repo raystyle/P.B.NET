@@ -137,7 +137,7 @@ func (bc *bootClient) bootLoop() {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error("bootClient.bootLoop() panic:", r)
+			err = xpanic.Error(r, "bootClient.bootLoop() panic:")
 			bc.log(logger.Fatal, err)
 		}
 		// delete boot client

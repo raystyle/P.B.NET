@@ -16,7 +16,7 @@ func TestSender_Connect(t *testing.T) {
 	NODE := testGenerateNode(t, true)
 	defer NODE.Exit(nil)
 	node := bootstrap.Node{
-		Mode:    xnet.TLS,
+		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: address,
 	}
