@@ -1,9 +1,5 @@
 package messages
 
-import (
-	"project/internal/bootstrap"
-)
-
 const (
 	Test uint32 = 0xFEFFFFFF
 )
@@ -21,6 +17,6 @@ const (
 
 type Bootstrap struct {
 	Tag    string
-	Mode   bootstrap.Mode
+	Mode   string
 	Config []byte
 }

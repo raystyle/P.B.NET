@@ -7,7 +7,6 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/modules/info"
-	"project/internal/xnet"
 )
 
 type RegisterResult = uint8
@@ -24,7 +23,7 @@ var (
 
 type Listener struct {
 	Tag    string
-	Mode   xnet.Mode
+	Mode   string
 	Config []byte // xnet.Config
 }
 
