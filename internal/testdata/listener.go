@@ -15,7 +15,7 @@ func Listeners(t require.TestingT) []*messages.Listener {
 	require.NoError(t, err)
 	listener := &messages.Listener{
 		Tag:    "tls",
-		Mode:   xnet.TLS,
+		Mode:   xnet.ModeTLS,
 		Config: config,
 	}
 	listeners = append(listeners, listener)
@@ -23,7 +23,7 @@ func Listeners(t require.TestingT) []*messages.Listener {
 	require.NoError(t, err)
 	listener = &messages.Listener{
 		Tag:    "light",
-		Mode:   xnet.Light,
+		Mode:   xnet.ModeLight,
 		Config: config,
 	}
 	listeners = append(listeners, listener)

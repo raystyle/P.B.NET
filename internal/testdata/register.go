@@ -12,7 +12,7 @@ import (
 func Register(t require.TestingT) []*messages.Bootstrap {
 	var bootstraps []*messages.Bootstrap
 	// http
-	config, err := ioutil.ReadFile("../internal/bootstrap/testdata/http.toml")
+	config, err := ioutil.ReadFile("../internal/bootstrap/testdata/http_opts.toml")
 	require.NoError(t, err)
 	boot := &messages.Bootstrap{
 		Tag:    "http",
