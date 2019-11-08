@@ -49,7 +49,7 @@ func (p *program) Start(s service.Service) error {
 		initDB    bool
 		genKey    string
 	)
-	flag.BoolVar(&debug, "debug", false, "not changed path")
+	flag.BoolVar(&debug, "debug", false, "don't change current path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
 	flag.BoolVar(&initDB, "initdb", false, "initialize database")
