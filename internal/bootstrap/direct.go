@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"github.com/pelletier/go-toml"
+	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
@@ -9,77 +10,66 @@ import (
 	"project/internal/security"
 )
 
+// Direct is used to resolve bootstrap nodes
+// from local config
 type Direct struct {
-	nodes []*Node
+	Nodes []*Node `toml:"nodes"`
 
-	// self store all encrypted nodes by msgpack
-	nodesEnc []byte
-	cbc      *aes.CBC
+	// self store all encrypted nodes
+	// by msgpack and AES CBC
+	enc []byte
+	cbc *aes.CBC
 }
 
-func NewDirect(n []*Node) *Direct {
-	d := &Direct{nodes: make([]*Node, len(n))}
-	copy(d.nodes, n)
-	return d
+// NewDirect is used to
+func NewDirect() *Direct {
+	return new(Direct)
 }
 
 func (d *Direct) Validate() error { return nil }
 
 func (d *Direct) Marshal() ([]byte, error) {
-	nodes := &struct {
-		Nodes []*Node `toml:"nodes"`
-	}{}
-	nodes.Nodes = make([]*Node, len(d.nodes))
-	copy(nodes.Nodes, d.nodes)
-	return toml.Marshal(nodes)
+	if len(d.Nodes) == 0 {
+		return nil, errors.New("no bootstrap nodes")
+	}
+	return toml.Marshal(d)
 }
 
-func (d *Direct) Unmarshal(data []byte) error {
-	nodes := &struct {
-		Nodes []*Node `toml:"nodes"`
-	}{}
-	err := toml.Unmarshal(data, nodes)
+func (d *Direct) Unmarshal(config []byte) error {
+	memory := security.NewMemory()
+	defer memory.Flush()
+	err := toml.Unmarshal(config, d)
 	if err != nil {
 		return err
 	}
-	memory := security.NewMemory()
-	defer memory.Flush()
 	rand := random.New(0)
 	memory.Padding()
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
-	d.cbc, err = aes.NewCBC(key, iv)
-	if err != nil {
-		panic(&fPanic{Mode: ModeDirect, Err: err})
-	}
+	d.cbc, _ = aes.NewCBC(key, iv)
 	security.FlushBytes(key)
 	security.FlushBytes(iv)
-	b, err := msgpack.Marshal(&nodes.Nodes)
-	if err != nil {
-		panic(&fPanic{Mode: ModeDirect, Err: err})
-	}
 	memory.Padding()
-	d.nodesEnc, err = d.cbc.Encrypt(b)
-	if err != nil {
-		panic(&fPanic{Err: err})
-	}
-	security.FlushBytes(b)
+	b, _ := msgpack.Marshal(d.Nodes)
+	defer security.FlushBytes(b)
+	memory.Padding()
+	d.enc, _ = d.cbc.Encrypt(b)
 	return nil
 }
 
 func (d *Direct) Resolve() ([]*Node, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
-	b, err := d.cbc.Decrypt(d.nodesEnc)
+	b, err := d.cbc.Decrypt(d.enc)
+	defer security.FlushBytes(b)
 	if err != nil {
-		panic(&fPanic{Mode: ModeDirect, Err: err})
+		panic(&bPanic{Mode: ModeDirect, Err: err})
 	}
 	memory.Padding()
 	var nodes []*Node
 	err = msgpack.Unmarshal(b, &nodes)
 	if err != nil {
-		panic(&fPanic{Mode: ModeDirect, Err: err})
+		panic(&bPanic{Mode: ModeDirect, Err: err})
 	}
-	security.FlushBytes(b)
 	return nodes, nil
 }
