@@ -14,14 +14,14 @@ func TestDirect(t *testing.T) {
 	_ = direct.Validate()
 	b, err := direct.Marshal()
 	require.NoError(t, err)
+	testsuite.IsDestroyed(t, direct)
+
 	direct = NewDirect(nil)
 	err = direct.Unmarshal(b)
 	require.NoError(t, err)
-
 	for i := 0; i < 10; i++ {
 		resolved, _ := direct.Resolve()
 		require.Equal(t, nodes, resolved)
 	}
-
 	testsuite.IsDestroyed(t, direct)
 }

@@ -22,9 +22,11 @@ type DNS struct {
 	ListenerNetwork string      `toml:"listener_network"`
 	ListenerPort    string      `toml:"listener_port"`
 	Options         dns.Options `toml:"options"`
+
 	// runtime
 	ctx       context.Context
 	dnsClient *dns.Client
+
 	// self store all encrypted options by msgpack
 	optsEnc []byte
 	cbc     *aes.CBC
@@ -90,7 +92,7 @@ func (d *DNS) Unmarshal(data []byte) error {
 	if err != nil {
 		panic(&fPanic{Mode: ModeDNS, Err: err})
 	}
-	tempDNS = nil // <security>
+	security.FlushString(&tempDNS.DomainName)
 	memory.Padding()
 	d.optsEnc, err = d.cbc.Encrypt(b)
 	if err != nil {
@@ -118,6 +120,10 @@ func (d *DNS) Resolve() ([]*Node, error) {
 	// resolve dns
 	dn := tDNS.DomainName
 	dnsOpts := tDNS.Options
+	defer func() {
+		security.FlushString(&tDNS.DomainName)
+		security.FlushString(&dn)
+	}()
 	result, err := d.dnsClient.ResolveWithContext(d.ctx, dn, &dnsOpts)
 	if err != nil {
 		return nil, err
@@ -133,7 +139,6 @@ func (d *DNS) Resolve() ([]*Node, error) {
 	for i := 0; i < l; i++ {
 		nodes[i].Address = net.JoinHostPort(result[i], tDNS.ListenerPort)
 	}
-	tDNS = nil
 	for i := 0; i < l; i++ {
 		result[i] = ""
 	}

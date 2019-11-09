@@ -31,12 +31,17 @@ func TestDNS(t *testing.T) {
 		DNS.Options.Type = dns.TypeIPv4
 		b, err := DNS.Marshal()
 		require.NoError(t, err)
+		testsuite.IsDestroyed(t, DNS)
+
 		DNS = NewDNS(context.Background(), client)
 		err = DNS.Unmarshal(b)
 		require.NoError(t, err)
-		resolved, err := DNS.Resolve()
-		require.NoError(t, err)
-		require.Equal(t, nodes, resolved)
+		for i := 0; i < 10; i++ {
+			resolved, err := DNS.Resolve()
+			require.NoError(t, err)
+			require.Equal(t, nodes, resolved)
+		}
+		testsuite.IsDestroyed(t, DNS)
 	}
 
 	if testsuite.EnableIPv6() {
@@ -54,11 +59,19 @@ func TestDNS(t *testing.T) {
 		DNS.Options.Type = dns.TypeIPv6
 		b, err := DNS.Marshal()
 		require.NoError(t, err)
+		testsuite.IsDestroyed(t, DNS)
+
 		DNS = NewDNS(context.Background(), client)
 		err = DNS.Unmarshal(b)
 		require.NoError(t, err)
 		resolved, err := DNS.Resolve()
 		require.NoError(t, err)
 		require.Equal(t, nodes, resolved)
+		for i := 0; i < 10; i++ {
+			resolved, err := DNS.Resolve()
+			require.NoError(t, err)
+			require.Equal(t, nodes, resolved)
+		}
+		testsuite.IsDestroyed(t, DNS)
 	}
 }
