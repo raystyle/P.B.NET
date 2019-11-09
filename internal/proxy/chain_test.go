@@ -56,6 +56,7 @@ func TestProxyChainFailure(t *testing.T) {
 	require.NoError(t, err)
 	invalidClient := &Client{Mode: ModeSocks, client: socks5Client}
 	chain, err := NewChain("chain-can't connect", invalidClient)
+	require.NoError(t, err)
 	testsuite.ProxyClientWithUnreachableProxyServer(t, chain)
 
 	// the first connect successfully but second failed
