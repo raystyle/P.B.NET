@@ -35,6 +35,7 @@ func TestHTTPRequestUnmarshal(t *testing.T) {
 	require.Equal(t, http.MethodPost, request.Method)
 	require.Equal(t, "https://127.0.0.1/", request.URL.String())
 	postData, err := ioutil.ReadAll(request.Body)
+	require.NoError(t, err)
 	require.Equal(t, []byte{1, 2}, postData)
 	require.Equal(t, []string{"keep-alive"}, request.Header["Connection"])
 	require.Equal(t, 7, len(request.Header))
