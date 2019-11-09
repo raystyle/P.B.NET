@@ -127,8 +127,6 @@ func (d *DNS) Resolve() ([]*Node, error) {
 			Mode:    tDNS.Mode,
 			Network: tDNS.Network,
 		}
-	}
-	for i := 0; i < l; i++ {
 		nodes[i].Address = net.JoinHostPort(result[i], tDNS.Port)
 		security.FlushString(&result[i])
 	}
