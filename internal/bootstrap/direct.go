@@ -53,8 +53,8 @@ func (d *Direct) Unmarshal(config []byte) error {
 	b, _ := msgpack.Marshal(d.Nodes)
 	defer security.FlushBytes(b)
 	memory.Padding()
-	d.enc, _ = d.cbc.Encrypt(b)
-	return nil
+	d.enc, err = d.cbc.Encrypt(b)
+	return err
 }
 
 func (d *Direct) Resolve() ([]*Node, error) {

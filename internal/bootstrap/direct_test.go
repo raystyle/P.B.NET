@@ -39,28 +39,29 @@ func TestDirectWithIncorrectConfig(t *testing.T) {
 
 func TestDirectPanic(t *testing.T) {
 	func() {
+		direct := NewDirect()
+		defer testsuite.IsDestroyed(t, direct)
 		defer func() {
 			r := recover()
 			require.NotNil(t, r)
 			t.Log(r)
 		}()
-		direct := NewDirect()
 		_, _ = direct.Resolve()
-		testsuite.IsDestroyed(t, direct)
 	}()
 	func() {
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
 		direct := NewDirect()
+		defer testsuite.IsDestroyed(t, direct)
 		err := direct.Unmarshal(nil)
 		require.NoError(t, err)
 		// make invalid encrypt data
 		enc, err := direct.cbc.Encrypt(testsuite.Bytes())
 		require.NoError(t, err)
 		direct.enc = enc
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
 		_, _ = direct.Resolve()
 	}()
 }
