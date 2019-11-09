@@ -17,19 +17,19 @@ import (
 )
 
 type DNS struct {
-	DomainName      string      `toml:"domain_name"`
-	ListenerMode    string      `toml:"listener_mode"`
-	ListenerNetwork string      `toml:"listener_network"`
-	ListenerPort    string      `toml:"listener_port"`
-	Options         dns.Options `toml:"options"`
+	Host    string      `toml:"host"`    // domain name
+	Mode    string      `toml:"mode"`    // listener mode (see xnet)
+	Network string      `toml:"network"` // listener network
+	Port    string      `toml:"port"`    // listener port
+	Options dns.Options `toml:"options"` // dns options
 
 	// runtime
 	ctx       context.Context
 	dnsClient *dns.Client
 
 	// self store all encrypted options by msgpack
-	optsEnc []byte
-	cbc     *aes.CBC
+	enc []byte
+	cbc *aes.CBC
 }
 
 // input ctx for resolve
@@ -41,18 +41,18 @@ func NewDNS(ctx context.Context, client *dns.Client) *DNS {
 }
 
 func (d *DNS) Validate() error {
-	if d.DomainName == "" {
-		return errors.New("domain name is empty")
+	if d.Host == "" {
+		return errors.New("empty host")
 	}
-	err := xnet.CheckModeNetwork(d.ListenerMode, d.ListenerNetwork)
+	if !dns.IsDomainName(d.Host) {
+		return errors.Errorf("invalid domain name: %s", d.Host)
+	}
+	err := xnet.CheckModeNetwork(d.Mode, d.Network)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
-	err = xnetutil.CheckPortString(d.ListenerPort)
-	if err != nil {
-		return err
-	}
-	return nil
+	err = xnetutil.CheckPortString(d.Port)
+	return errors.WithStack(err)
 }
 
 func (d *DNS) Marshal() ([]byte, error) {
@@ -64,10 +64,10 @@ func (d *DNS) Marshal() ([]byte, error) {
 }
 
 // Unmarshal
-// store encrypted data to d.optsEnc
-func (d *DNS) Unmarshal(data []byte) error {
+// store encrypted data to d.enc
+func (d *DNS) Unmarshal(config []byte) error {
 	tempDNS := &DNS{}
-	err := toml.Unmarshal(data, tempDNS)
+	err := toml.Unmarshal(config, tempDNS)
 	if err != nil {
 		return err
 	}
@@ -81,47 +81,39 @@ func (d *DNS) Unmarshal(data []byte) error {
 	rand := random.New(0)
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
-	d.cbc, err = aes.NewCBC(key, iv)
-	if err != nil {
-		panic(&fPanic{Mode: ModeDNS, Err: err})
-	}
+	d.cbc, _ = aes.NewCBC(key, iv)
 	security.FlushBytes(key)
 	security.FlushBytes(iv)
 	memory.Padding()
-	b, err := msgpack.Marshal(tempDNS)
-	if err != nil {
-		panic(&fPanic{Mode: ModeDNS, Err: err})
-	}
-	security.FlushString(&tempDNS.DomainName)
+	b, _ := msgpack.Marshal(tempDNS)
+	defer security.FlushBytes(b)
+	security.FlushString(&tempDNS.Host)
 	memory.Padding()
-	d.optsEnc, err = d.cbc.Encrypt(b)
-	if err != nil {
-		panic(&fPanic{Mode: ModeDNS, Err: err})
-	}
-	security.FlushBytes(b)
-	return nil
+	d.enc, err = d.cbc.Encrypt(b)
+	return err
 }
 
 func (d *DNS) Resolve() ([]*Node, error) {
 	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
-	b, err := d.cbc.Decrypt(d.optsEnc)
+	b, err := d.cbc.Decrypt(d.enc)
+	defer security.FlushBytes(b)
 	if err != nil {
-		panic(&fPanic{Mode: ModeDNS, Err: err})
+		panic(&bPanic{Mode: ModeDNS, Err: err})
 	}
 	tDNS := &DNS{}
 	err = msgpack.Unmarshal(b, tDNS)
 	if err != nil {
-		panic(&fPanic{Mode: ModeDNS, Err: err})
+		panic(&bPanic{Mode: ModeDNS, Err: err})
 	}
 	security.FlushBytes(b)
 	memory.Padding()
 	// resolve dns
-	dn := tDNS.DomainName
+	dn := tDNS.Host
 	dnsOpts := tDNS.Options
 	defer func() {
-		security.FlushString(&tDNS.DomainName)
+		security.FlushString(&tDNS.Host)
 		security.FlushString(&dn)
 	}()
 	result, err := d.dnsClient.ResolveWithContext(d.ctx, dn, &dnsOpts)
@@ -132,15 +124,13 @@ func (d *DNS) Resolve() ([]*Node, error) {
 	nodes := make([]*Node, l)
 	for i := 0; i < l; i++ {
 		nodes[i] = &Node{
-			Mode:    tDNS.ListenerMode,
-			Network: tDNS.ListenerNetwork,
+			Mode:    tDNS.Mode,
+			Network: tDNS.Network,
 		}
 	}
 	for i := 0; i < l; i++ {
-		nodes[i].Address = net.JoinHostPort(result[i], tDNS.ListenerPort)
-	}
-	for i := 0; i < l; i++ {
-		result[i] = ""
+		nodes[i].Address = net.JoinHostPort(result[i], tDNS.Port)
+		security.FlushString(&result[i])
 	}
 	return nodes, nil
 }
