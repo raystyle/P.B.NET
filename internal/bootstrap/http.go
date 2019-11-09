@@ -174,7 +174,7 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	if err != nil {
 		panic(&fPanic{Mode: ModeHTTP, Err: err})
 	}
-	tempHTTP = nil // <security>
+	security.FlushRequestOption(&tempHTTP.Request)
 	memory.Padding()
 	h.optsEnc, err = h.cbc.Encrypt(b)
 	if err != nil {
@@ -240,7 +240,12 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer security.FlushRequestOption(&opts.h.Request)
+	defer security.FlushRequest(opts.req)
+
 	hostname := opts.req.URL.Hostname()
+
+	defer security.FlushString(&hostname)
 
 	// resolve domain name
 	result, err := h.dnsClient.Resolve(hostname, &opts.h.DNSOpts)
@@ -281,6 +286,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 }
 
 func do(req *http.Request, client *http.Client, length int64) (string, error) {
+	defer security.FlushRequest(req)
 	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {

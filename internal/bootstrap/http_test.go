@@ -65,9 +65,12 @@ func TestHTTP(t *testing.T) {
 		HTTP = NewHTTP(context.Background(), pool, client)
 		err = HTTP.Unmarshal(b)
 		require.NoError(t, err)
-		resolved, err := HTTP.Resolve()
-		require.NoError(t, err)
-		require.Equal(t, nodes, resolved)
+
+		for i := 0; i < 10; i++ {
+			resolved, err := HTTP.Resolve()
+			require.NoError(t, err)
+			require.Equal(t, nodes, resolved)
+		}
 	}
 
 	if testsuite.EnableIPv6() {
@@ -92,6 +95,12 @@ func TestHTTP(t *testing.T) {
 		resolved, err := HTTP.Resolve()
 		require.NoError(t, err)
 		require.Equal(t, nodes, resolved)
+
+		for i := 0; i < 10; i++ {
+			resolved, err := HTTP.Resolve()
+			require.NoError(t, err)
+			require.Equal(t, nodes, resolved)
+		}
 	}
 
 	// --------------------------https--------------------------
@@ -126,6 +135,12 @@ func TestHTTP(t *testing.T) {
 		resolved, err := HTTP.Resolve()
 		require.NoError(t, err)
 		require.Equal(t, nodes, resolved)
+
+		for i := 0; i < 10; i++ {
+			resolved, err := HTTP.Resolve()
+			require.NoError(t, err)
+			require.Equal(t, nodes, resolved)
+		}
 	}
 
 	if testsuite.EnableIPv6() {
@@ -153,6 +168,12 @@ func TestHTTP(t *testing.T) {
 		resolved, err := HTTP.Resolve()
 		require.NoError(t, err)
 		require.Equal(t, nodes, resolved)
+
+		for i := 0; i < 10; i++ {
+			resolved, err := HTTP.Resolve()
+			require.NoError(t, err)
+			require.Equal(t, nodes, resolved)
+		}
 	}
 
 	testsuite.IsDestroyed(t, HTTP)
