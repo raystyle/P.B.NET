@@ -162,7 +162,7 @@ func TestDialUDP(t *testing.T) {
 	opt.Timeout = time.Second
 	if testsuite.EnableIPv4() {
 		_, err = dialUDP(ctx, "1.2.3.4:23421", nil, opt)
-		require.Equal(t, ErrNoConnection, err)
+		require.EqualError(t, err, ErrNoConnection.Error())
 	}
 	if testsuite.EnableIPv6() {
 		_, err = dialUDP(ctx, "[::1]:23421", nil, opt)
@@ -251,7 +251,7 @@ func TestDialDoT(t *testing.T) {
 	require.Error(t, err)
 	// error ip(domain mode)
 	_, err = dialDoT(ctx, "dns.google:853|127.0.0.1", nil, opt)
-	require.Equal(t, ErrNoConnection, err)
+	require.EqualError(t, err, ErrNoConnection.Error())
 	// no port(domain mode)
 	_, err = dialDoT(ctx, "dns.google|1.2.3.235", nil, opt)
 	require.Error(t, err)
