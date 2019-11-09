@@ -1,10 +1,12 @@
 package security
 
 import (
+	"net/http"
 	"reflect"
 	"sync"
 	"unsafe"
 
+	"project/internal/options"
 	"project/internal/random"
 )
 
@@ -79,4 +81,18 @@ func FlushString(s *string) {
 		*b = randBytes[i]
 		mem.Flush()
 	}
+}
+
+// FlushRequest is used to cover string field if has secret
+func FlushRequest(r *http.Request) {
+	FlushString(&r.URL.Host)
+	FlushString(&r.URL.Path)
+	FlushString(&r.URL.RawPath)
+}
+
+// FlushRequestOption is used to cover string field if has secret
+func FlushRequestOption(r *options.HTTPRequest) {
+	FlushString(&r.URL)
+	FlushString(&r.Post)
+	FlushString(&r.Host)
 }
