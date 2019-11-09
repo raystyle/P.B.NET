@@ -49,7 +49,7 @@ func TestTimeSyncer(t *testing.T) {
 
 	// set sync interval
 	const interval = 30 * time.Minute
-	require.Error(t, syncer.SetSyncInterval(interval))
+	require.NoError(t, syncer.SetSyncInterval(interval))
 	require.Equal(t, interval, syncer.GetSyncInterval())
 
 	// set invalid sync interval
