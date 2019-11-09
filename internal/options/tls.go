@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"project/internal/crypto/cert/certutil"
-	"project/internal/security"
+	"project/internal/random"
 )
 
 var (
@@ -71,8 +71,8 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 			if err != nil {
 				return nil, t.failed(err)
 			}
-			security.FlushBytes(c)
-			security.FlushBytes(k)
+			flushBytes(c)
+			flushBytes(k)
 			config.Certificates[i] = tlsCert
 		}
 	}
@@ -143,4 +143,10 @@ func parseCertificates(certPEMBlock []byte) ([]*x509.Certificate, error) {
 		}
 	}
 	return certs, nil
+}
+
+func flushBytes(b []byte) {
+	rand := random.New(0)
+	randBytes := rand.Bytes(len(b))
+	copy(b, randBytes)
 }
