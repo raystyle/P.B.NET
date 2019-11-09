@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testsuite"
 )
 
 func TestDirect(t *testing.T) {
@@ -15,6 +17,11 @@ func TestDirect(t *testing.T) {
 	direct = NewDirect(nil)
 	err = direct.Unmarshal(b)
 	require.NoError(t, err)
-	resolved, _ := direct.Resolve()
-	require.Equal(t, nodes, resolved)
+
+	for i := 0; i < 10; i++ {
+		resolved, _ := direct.Resolve()
+		require.Equal(t, nodes, resolved)
+	}
+
+	testsuite.IsDestroyed(t, direct)
 }

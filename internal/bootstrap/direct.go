@@ -11,6 +11,7 @@ import (
 
 type Direct struct {
 	nodes []*Node
+
 	// self store all encrypted nodes by msgpack
 	nodesEnc []byte
 	cbc      *aes.CBC
