@@ -206,7 +206,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
 
 	// set proxy
-	p, err := h.proxyPool.Get(h.ProxyTag)
+	p, err := h.proxyPool.Get(tHTTP.ProxyTag)
 	if err != nil {
 		return nil, err
 	}
@@ -216,14 +216,14 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	defer security.FlushString(&hostname)
 
 	// resolve domain name
-	result, err := h.dnsClient.Resolve(hostname, &tHTTP.DNSOpts)
+	result, err := h.dnsClient.ResolveWithContext(h.ctx, hostname, &tHTTP.DNSOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	port := req.URL.Port()
 
-	maxBodySize := h.MaxBodySize
+	maxBodySize := tHTTP.MaxBodySize
 	if maxBodySize < 1 {
 		maxBodySize = defaultMaxBodySize
 	}
@@ -260,7 +260,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 
 		info, err := do(req, hc, maxBodySize)
 		if err == nil {
-			return resolve(tHTTP, info)
+			return resolve(tHTTP, info), nil
 		}
 	}
 	return nil, ErrNoResponse
@@ -277,16 +277,16 @@ func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
 	return ioutil.ReadAll(io.LimitReader(resp.Body, length))
 }
 
-func resolve(h *HTTP, info []byte) ([]*Node, error) {
+func resolve(h *HTTP, info []byte) []*Node {
 	// decrypt data
 	cipherData := make([]byte, len(info)/2)
 	_, err := hex.Decode(cipherData, info)
 	if err != nil {
-		return nil, err
+		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
-	aesKey, err := hex.DecodeString(h.AESKey)
+	aesKey, _ := hex.DecodeString(h.AESKey)
 	security.FlushString(&h.AESKey)
-	aesIV, err := hex.DecodeString(h.AESIV)
+	aesIV, _ := hex.DecodeString(h.AESIV)
 	security.FlushString(&h.AESIV)
 	data, err := aes.CBCDecrypt(cipherData, aesKey, aesIV)
 	security.FlushBytes(aesKey)
@@ -295,14 +295,13 @@ func resolve(h *HTTP, info []byte) ([]*Node, error) {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
 
-	// verify signature + nodesData
+	// verify
 	l := len(data)
 	if l < ed25519.SignatureSize {
-		return nil, ErrInvalidSignatureSize
+		panic(&bPanic{Mode: ModeHTTP, Err: ErrInvalidSignatureSize})
 	}
 	signature := data[:ed25519.SignatureSize]
 	nodesData := data[ed25519.SignatureSize:]
-	// verify
 	pub, err := hex.DecodeString(h.PublicKey)
 	security.FlushString(&h.PublicKey)
 	if err != nil {
@@ -316,6 +315,7 @@ func resolve(h *HTTP, info []byte) ([]*Node, error) {
 	if !ed25519.Verify(publicKey, nodesData, signature) {
 		panic(&bPanic{Mode: ModeHTTP, Err: ErrInvalidSignature})
 	}
+
 	// confuse
 	nodesBuf := bytes.Buffer{}
 	l = len(nodesData)
@@ -330,12 +330,14 @@ func resolve(h *HTTP, info []byte) ([]*Node, error) {
 			nodesBuf.Write(nodesData[i-4:]) // i+8-12
 		}
 	}
+
+	// resolve bootstrap nodes
 	nodesBytes := nodesBuf.Bytes()
 	var nodes []*Node
 	err = msgpack.Unmarshal(nodesBytes, &nodes)
 	if err != nil {
-		return nil, err
+		panic(&bPanic{Mode: ModeHTTP, Err: ErrInvalidSignature})
 	}
 	security.FlushBytes(nodesBytes)
-	return nodes, nil
+	return nodes
 }

@@ -12,17 +12,17 @@ import (
 
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
-	"project/internal/proxy"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 )
 
-func testGenerateHTTP(t *testing.T, p *proxy.Pool, c *dns.Client) *HTTP {
-	HTTP := NewHTTP(context.Background(), p, c)
+func testGenerateHTTP(t *testing.T) *HTTP {
+	HTTP := NewHTTP(context.Background(), nil, nil)
 	HTTP.AESKey = strings.Repeat("FF", aes.Key256Bit)
 	HTTP.AESIV = strings.Repeat("FF", aes.IVSize)
 	privateKey, err := ed25519.GenerateKey()
@@ -38,7 +38,7 @@ func TestHTTP(t *testing.T) {
 	nodes := testGenerateNodes()
 
 	// --------------------------http---------------------------
-	HTTP := testGenerateHTTP(t, pool, client)
+	HTTP := testGenerateHTTP(t)
 	nodesInfo, err := HTTP.Generate(nodes)
 	require.NoError(t, err)
 	t.Logf("(http) bootstrap nodes info: %s\n", nodesInfo)
@@ -111,7 +111,7 @@ func TestHTTP(t *testing.T) {
 	}
 
 	// --------------------------https--------------------------
-	HTTP = testGenerateHTTP(t, pool, client)
+	HTTP = testGenerateHTTP(t)
 	nodesInfo, err = HTTP.Generate(nodes)
 	require.NoError(t, err)
 	t.Logf("(https) bootstrap nodes info: %s\n", nodesInfo)
@@ -256,11 +256,268 @@ func TestHTTP_Unmarshal(t *testing.T) {
 }
 
 func TestHTTP_Resolve(t *testing.T) {
+	t.Parallel()
 
+	client, pool, manager := testdns.DNSClient(t)
+	defer func() { require.NoError(t, manager.Close()) }()
+
+	t.Run("doesn't exist proxy server", func(t *testing.T) {
+		HTTP := testGenerateHTTP(t)
+		HTTP.Request.URL = "http://localhost/"
+		HTTP.DNSOpts.Mode = dns.ModeSystem
+		HTTP.ProxyTag = "doesn't exist"
+		b, err := HTTP.Marshal()
+		require.NoError(t, err)
+		HTTP = NewHTTP(context.Background(), pool, client)
+		require.NoError(t, HTTP.Unmarshal(b))
+		nodes, err := HTTP.Resolve()
+		require.Error(t, err)
+		require.Nil(t, nodes)
+	})
+
+	t.Run("invalid dns options", func(t *testing.T) {
+		HTTP := testGenerateHTTP(t)
+		HTTP.Request.URL = "http://localhost/"
+		HTTP.DNSOpts.Mode = "foo mode"
+		b, err := HTTP.Marshal()
+		require.NoError(t, err)
+		HTTP = NewHTTP(context.Background(), pool, client)
+		require.NoError(t, HTTP.Unmarshal(b))
+		nodes, err := HTTP.Resolve()
+		require.Error(t, err)
+		require.Nil(t, nodes)
+	})
+
+	t.Run("unreachable server", func(t *testing.T) {
+		HTTP := testGenerateHTTP(t)
+		HTTP.Request.URL = "http://localhost/"
+		HTTP.DNSOpts.Mode = dns.ModeSystem
+		b, err := HTTP.Marshal()
+		require.NoError(t, err)
+		HTTP = NewHTTP(context.Background(), pool, client)
+		require.NoError(t, HTTP.Unmarshal(b))
+		nodes, err := HTTP.Resolve()
+		require.Error(t, err)
+		require.Nil(t, nodes)
+	})
 }
 
 func TestHTTPPanic(t *testing.T) {
+	t.Parallel()
 
+	t.Run("no CBC", func(t *testing.T) {
+		HTTP := NewHTTP(nil, nil, nil)
+		defer testsuite.IsDestroyed(t, HTTP)
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		_, _ = HTTP.Resolve()
+	})
+
+	t.Run("invalid encrypted data", func(t *testing.T) {
+		HTTP := NewHTTP(nil, nil, nil)
+		defer testsuite.IsDestroyed(t, HTTP)
+		var err error
+		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+		HTTP.cbc, err = aes.NewCBC(key, key)
+		require.NoError(t, err)
+
+		enc, err := HTTP.cbc.Encrypt(testsuite.Bytes())
+		require.NoError(t, err)
+		HTTP.enc = enc
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		_, _ = HTTP.Resolve()
+	})
+
+	t.Run("invalid http request", func(t *testing.T) {
+		dHTTP := NewHTTP(nil, nil, nil)
+		defer testsuite.IsDestroyed(t, dHTTP)
+		var err error
+		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+		dHTTP.cbc, err = aes.NewCBC(key, key)
+		require.NoError(t, err)
+
+		b, err := msgpack.Marshal(new(HTTP))
+		require.NoError(t, err)
+		enc, err := dHTTP.cbc.Encrypt(b)
+		require.NoError(t, err)
+		dHTTP.enc = enc
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		_, _ = dHTTP.Resolve()
+	})
+
+	t.Run("invalid http transport", func(t *testing.T) {
+		dHTTP := NewHTTP(nil, nil, nil)
+		defer testsuite.IsDestroyed(t, dHTTP)
+		var err error
+		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+		dHTTP.cbc, err = aes.NewCBC(key, key)
+		require.NoError(t, err)
+
+		tHTTP := HTTP{}
+		tHTTP.Request.URL = "http://localhost/"
+		tHTTP.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
+		b, err := msgpack.Marshal(&tHTTP)
+		require.NoError(t, err)
+		enc, err := dHTTP.cbc.Encrypt(b)
+		require.NoError(t, err)
+		dHTTP.enc = enc
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		_, _ = dHTTP.Resolve()
+	})
+
+	// resolve
+	t.Run("invalid info", func(t *testing.T) {
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		resolve(nil, []byte("foo data"))
+	})
+
+	t.Run("invalid cipher data", func(t *testing.T) {
+		HTTP := HTTP{
+			AESKey: strings.Repeat("f", aes.Key128Bit),
+			AESIV:  strings.Repeat("f", aes.IVSize),
+		}
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		resolve(&HTTP, []byte("ff"))
+	})
+
+	t.Run("invalid info size", func(t *testing.T) {
+		key := bytes.Repeat([]byte{0xFF}, aes.Key128Bit)
+		cbc, err := aes.NewCBC(key, key)
+		require.NoError(t, err)
+		cipherData, err := cbc.Encrypt([]byte{0x00})
+		require.NoError(t, err)
+		HTTP := HTTP{
+			AESKey: hex.EncodeToString(key),
+			AESIV:  hex.EncodeToString(key),
+		}
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+	})
+
+	t.Run("invalid public key string", func(t *testing.T) {
+		key := bytes.Repeat([]byte{0xFF}, aes.Key128Bit)
+		cbc, err := aes.NewCBC(key, key)
+		require.NoError(t, err)
+		data := bytes.Repeat([]byte{0}, ed25519.SignatureSize+1)
+		cipherData, err := cbc.Encrypt(data)
+		require.NoError(t, err)
+		HTTP := HTTP{
+			AESKey: hex.EncodeToString(key),
+			AESIV:  hex.EncodeToString(key),
+
+			// must generate, because security.FlushString
+			PublicKey: strings.Repeat("foo public key", 1),
+		}
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+	})
+
+	t.Run("invalid public key", func(t *testing.T) {
+		key := bytes.Repeat([]byte{0xFF}, aes.Key128Bit)
+		cbc, err := aes.NewCBC(key, key)
+		require.NoError(t, err)
+		data := bytes.Repeat([]byte{0}, ed25519.SignatureSize+1)
+		cipherData, err := cbc.Encrypt(data)
+		require.NoError(t, err)
+		HTTP := HTTP{
+			AESKey: hex.EncodeToString(key),
+			AESIV:  hex.EncodeToString(key),
+
+			// must generate, because security.FlushString
+			PublicKey: strings.Repeat("ff", 1),
+		}
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		key := bytes.Repeat([]byte{0xFF}, aes.Key128Bit)
+		cbc, err := aes.NewCBC(key, key)
+		require.NoError(t, err)
+		data := bytes.Repeat([]byte{0}, ed25519.SignatureSize+1)
+		cipherData, err := cbc.Encrypt(data)
+		require.NoError(t, err)
+		HTTP := HTTP{
+			AESKey: hex.EncodeToString(key),
+			AESIV:  hex.EncodeToString(key),
+
+			// must generate, because security.FlushString
+			PublicKey: strings.Repeat("ff", ed25519.PublicKeySize),
+		}
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+	})
+
+	t.Run("invalid nodes data", func(t *testing.T) {
+		key := bytes.Repeat([]byte{0xFF}, aes.Key128Bit)
+		cbc, err := aes.NewCBC(key, key)
+		require.NoError(t, err)
+		data := bytes.Repeat([]byte{0}, ed25519.SignatureSize+1)
+		privateKey, err := ed25519.GenerateKey()
+		require.NoError(t, err)
+		signature := ed25519.Sign(privateKey, data)
+		cipherData, err := cbc.Encrypt(append(signature, data...))
+		require.NoError(t, err)
+		HTTP := HTTP{
+			AESKey:    hex.EncodeToString(key),
+			AESIV:     hex.EncodeToString(key),
+			PublicKey: hex.EncodeToString(privateKey.PublicKey()),
+		}
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Log(r)
+		}()
+		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
+	})
 }
 
 func TestHTTPOptions(t *testing.T) {

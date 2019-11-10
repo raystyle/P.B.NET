@@ -59,7 +59,7 @@ func TestDirectPanic(t *testing.T) {
 		direct.cbc, err = aes.NewCBC(key, key)
 		require.NoError(t, err)
 
-		// make invalid encrypt data
+		// make invalid encrypted data
 		enc, err := direct.cbc.Encrypt(testsuite.Bytes())
 		require.NoError(t, err)
 		direct.enc = enc

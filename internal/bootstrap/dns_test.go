@@ -160,7 +160,7 @@ func TestDNSPanic(t *testing.T) {
 		DNS.cbc, err = aes.NewCBC(key, key)
 		require.NoError(t, err)
 
-		// make invalid encrypt data
+		// make invalid encrypted data
 		enc, err := DNS.cbc.Encrypt(testsuite.Bytes())
 		require.NoError(t, err)
 		DNS.enc = enc

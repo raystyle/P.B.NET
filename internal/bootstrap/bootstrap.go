@@ -68,6 +68,6 @@ type bPanic struct {
 	Err  error
 }
 
-func (f *bPanic) String() string {
-	return fmt.Sprintf("bootstrap %s internal error: %s", f.Mode, f.Err)
+func (b *bPanic) String() string {
+	return fmt.Sprintf("bootstrap %s internal error: %s", b.Mode, b.Err)
 }
