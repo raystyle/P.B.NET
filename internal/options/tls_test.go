@@ -30,15 +30,24 @@ func TestTLSUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	tlsConfig, err := config.Apply()
 	require.NoError(t, err)
-	// check
-	require.Equal(t, "test.com", config.ServerName)
-	require.Equal(t, "h2", tlsConfig.NextProtos[0])
-	require.Equal(t, "h2c", tlsConfig.NextProtos[1])
-	require.Equal(t, uint16(tls.VersionTLS11), config.MinVersion)
-	require.Equal(t, uint16(tls.VersionTLS12), config.MaxVersion)
-	require.Equal(t, false, tlsConfig.InsecureSkipVerify)
-	require.Equal(t, true, config.InsecureLoadFromSystem)
-	require.Equal(t, 2, len(tlsConfig.Certificates))
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "test.com", actual: tlsConfig.ServerName},
+		{expected: "h2", actual: tlsConfig.NextProtos[0]},
+		{expected: "h2c", actual: tlsConfig.NextProtos[1]},
+		{expected: uint16(tls.VersionTLS11), actual: tlsConfig.MinVersion},
+		{expected: uint16(tls.VersionTLS12), actual: tlsConfig.MaxVersion},
+		{expected: false, actual: tlsConfig.InsecureSkipVerify},
+		{expected: true, actual: config.InsecureLoadFromSystem},
+		{expected: 2, actual: len(tlsConfig.Certificates)},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
+
 	systemPool, err := certutil.SystemCertPool()
 	require.NoError(t, err)
 	require.Equal(t, 2+len(systemPool.Subjects()), len(tlsConfig.RootCAs.Subjects()))

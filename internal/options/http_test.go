@@ -31,16 +31,24 @@ func TestHTTPRequestUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	request, err := hr.Apply()
 	require.NoError(t, err)
-	// check
-	require.Equal(t, http.MethodPost, request.Method)
-	require.Equal(t, "https://127.0.0.1/", request.URL.String())
 	postData, err := ioutil.ReadAll(request.Body)
 	require.NoError(t, err)
-	require.Equal(t, []byte{1, 2}, postData)
-	require.Equal(t, []string{"keep-alive"}, request.Header["Connection"])
-	require.Equal(t, 7, len(request.Header))
-	require.Equal(t, "localhost", request.Host)
-	require.Equal(t, true, request.Close)
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: http.MethodPost, actual: request.Method},
+		{expected: "https://127.0.0.1/", actual: request.URL.String()},
+		{expected: []byte{1, 2}, actual: postData},
+		{expected: []string{"keep-alive"}, actual: request.Header["Connection"]},
+		{expected: 7, actual: len(request.Header)},
+		{expected: "localhost", actual: request.Host},
+		{expected: true, actual: request.Close},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 }
 
 func TestHTTPRequest_Apply_failed(t *testing.T) {
@@ -91,18 +99,26 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	transport, err := ht.Apply()
 	require.NoError(t, err)
-	// check
 	const timeout = 10 * time.Second
-	require.Equal(t, 2, transport.MaxIdleConns)
-	require.Equal(t, 2, transport.MaxIdleConnsPerHost)
-	require.Equal(t, 2, transport.MaxConnsPerHost)
-	require.Equal(t, timeout, transport.TLSHandshakeTimeout)
-	require.Equal(t, timeout, transport.IdleConnTimeout)
-	require.Equal(t, timeout, transport.ResponseHeaderTimeout)
-	require.Equal(t, timeout, transport.ExpectContinueTimeout)
-	require.Equal(t, int64(16384), transport.MaxResponseHeaderBytes)
-	require.Equal(t, true, transport.DisableKeepAlives)
-	require.Equal(t, true, transport.DisableCompression)
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: 2, actual: transport.MaxIdleConns},
+		{expected: 2, actual: transport.MaxIdleConnsPerHost},
+		{expected: 2, actual: transport.MaxConnsPerHost},
+		{expected: timeout, actual: transport.TLSHandshakeTimeout},
+		{expected: timeout, actual: transport.IdleConnTimeout},
+		{expected: timeout, actual: transport.ResponseHeaderTimeout},
+		{expected: timeout, actual: transport.ExpectContinueTimeout},
+		{expected: int64(16384), actual: transport.MaxResponseHeaderBytes},
+		{expected: true, actual: transport.DisableKeepAlives},
+		{expected: true, actual: transport.DisableCompression},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 }
 
 func TestHTTPTransport_Apply_failed(t *testing.T) {
@@ -132,13 +148,21 @@ func TestHTTPServerUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	server, err := hs.Apply()
 	require.NoError(t, err)
-	// check
 	const timeout = 10 * time.Second
-	require.Equal(t, timeout, server.ReadTimeout)
-	require.Equal(t, timeout, server.WriteTimeout)
-	require.Equal(t, timeout, server.ReadHeaderTimeout)
-	require.Equal(t, timeout, server.IdleTimeout)
-	require.Equal(t, 16384, server.MaxHeaderBytes)
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: timeout, actual: server.ReadTimeout},
+		{expected: timeout, actual: server.WriteTimeout},
+		{expected: timeout, actual: server.ReadHeaderTimeout},
+		{expected: timeout, actual: server.IdleTimeout},
+		{expected: 16384, actual: server.MaxHeaderBytes},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 }
 
 func TestHTTPServer_Apply_failed(t *testing.T) {
