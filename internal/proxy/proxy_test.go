@@ -154,6 +154,7 @@ func TestSocksOptions(t *testing.T) {
 	require.NoError(t, err)
 	socksOpts := socks.Options{}
 	require.NoError(t, toml.Unmarshal(b, &socksOpts))
+
 	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
@@ -176,6 +177,7 @@ func TestHTTPOptions(t *testing.T) {
 	require.NoError(t, err)
 	httpOpts := http.Options{}
 	require.NoError(t, toml.Unmarshal(b, &httpOpts))
+
 	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
