@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/dns"
 	"project/internal/testsuite/testdns"
 )
 
@@ -68,12 +69,19 @@ func TestNTPOptions(t *testing.T) {
 	NTP := new(NTP)
 	require.NoError(t, NTP.Import(b))
 
-	// compare
-	require.Equal(t, "udp4", NTP.Network)
-	require.Equal(t, "1.2.3.4:123", NTP.Address)
-	require.Equal(t, 15*time.Second, NTP.Timeout)
-	require.Equal(t, 4, NTP.Version)
-	require.Equal(t, "system", NTP.DNSOpts.Mode)
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "udp4", actual: NTP.Network},
+		{expected: "1.2.3.4:123", actual: NTP.Address},
+		{expected: 15 * time.Second, actual: NTP.Timeout},
+		{expected: 4, actual: NTP.Version},
+		{expected: dns.ModeSystem, actual: NTP.DNSOpts.Mode},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 
 	// export
 	export := NTP.Export()

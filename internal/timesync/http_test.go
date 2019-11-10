@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/dns"
 	"project/internal/testsuite/testdns"
 	"project/internal/testsuite/testproxy"
 )
@@ -121,12 +122,19 @@ func TestHTTPOptions(t *testing.T) {
 	HTTP := new(HTTP)
 	require.NoError(t, HTTP.Import(b))
 
-	// compare
-	require.Equal(t, 15*time.Second, HTTP.Timeout)
-	require.Equal(t, "balance", HTTP.ProxyTag)
-	require.Equal(t, "http://abc.com/", HTTP.Request.URL)
-	require.Equal(t, 2, HTTP.Transport.MaxIdleConns)
-	require.Equal(t, "system", HTTP.DNSOpts.Mode)
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: 15 * time.Second, actual: HTTP.Timeout},
+		{expected: "balance", actual: HTTP.ProxyTag},
+		{expected: "http://abc.com/", actual: HTTP.Request.URL},
+		{expected: 2, actual: HTTP.Transport.MaxIdleConns},
+		{expected: dns.ModeSystem, actual: HTTP.DNSOpts.Mode},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 
 	// export
 	export := HTTP.Export()
