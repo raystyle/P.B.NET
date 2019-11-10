@@ -22,13 +22,22 @@ type Node struct {
 	Address string `toml:"address"`
 }
 
+// Bootstrap is used to get bootstrap nodes
 type Bootstrap interface {
+	// Validate is used to check bootstrap config correct
 	Validate() error
+
+	// Marshal is used to marshal bootstrap to []byte
 	Marshal() ([]byte, error)
+
+	// Unmarshal is used to unmarshal []byte to bootstrap
 	Unmarshal([]byte) error
+
+	// Resolve is used to get bootstrap nodes
 	Resolve() ([]*Node, error)
 }
 
+// Load is used to make a bootstrap from config
 func Load(
 	ctx context.Context,
 	mode string,
@@ -43,7 +52,7 @@ func Load(
 	case ModeDNS:
 		bootstrap = NewDNS(ctx, client)
 	case ModeDirect:
-		bootstrap = NewDirect(nil)
+		bootstrap = NewDirect()
 	default:
 		return nil, errors.Errorf("unknown bootstrap mode: %s", mode)
 	}
@@ -54,11 +63,11 @@ func Load(
 	return bootstrap, nil
 }
 
-type fPanic struct {
+type bPanic struct {
 	Mode string
 	Err  error
 }
 
-func (f *fPanic) Error() string {
+func (f *bPanic) String() string {
 	return fmt.Sprintf("bootstrap %s internal error: %s", f.Mode, f.Err)
 }

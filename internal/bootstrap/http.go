@@ -3,9 +3,8 @@ package bootstrap
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
-	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -13,9 +12,9 @@ import (
 	"time"
 
 	"github.com/pelletier/go-toml"
+	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
-	"project/internal/convert"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
@@ -30,10 +29,9 @@ const (
 )
 
 var (
-	ErrNoResponse           = errors.New("no response")
-	ErrInvalidHeader        = errors.New("invalid signature header")
-	ErrInvalidSignatureSize = errors.New("invalid signature size")
-	ErrInvalidSignature     = errors.New("invalid signature")
+	ErrNoResponse           = fmt.Errorf("no response")
+	ErrInvalidSignatureSize = fmt.Errorf("invalid signature size")
+	ErrInvalidSignature     = fmt.Errorf("invalid signature")
 )
 
 type HTTP struct {
@@ -53,7 +51,7 @@ type HTTP struct {
 	PublicKey string `toml:"public_key"`
 
 	// for generate&marshal
-	PrivateKey ed25519.PrivateKey `toml:"-"` // <security>
+	PrivateKey ed25519.PrivateKey `toml:"-"`
 
 	// runtime
 	ctx       context.Context
@@ -61,8 +59,8 @@ type HTTP struct {
 	dnsClient *dns.Client
 
 	// self encrypt all options
-	optsEnc []byte
-	cbc     *aes.CBC
+	enc []byte
+	cbc *aes.CBC
 }
 
 func NewHTTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *HTTP {
@@ -76,31 +74,33 @@ func NewHTTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *HTTP {
 func (h *HTTP) Validate() error {
 	_, err := h.Request.Apply()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	_, err = h.Transport.Apply()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	aesKey, err := hex.DecodeString(h.AESKey)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	aesIV, err := hex.DecodeString(h.AESIV)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
+	defer func() {
+		security.FlushBytes(aesKey)
+		security.FlushBytes(aesIV)
+	}()
 	_, err = aes.NewCBC(aesKey, aesIV)
-	security.FlushBytes(aesKey)
-	security.FlushBytes(aesIV)
-	return err
+	return errors.WithStack(err)
 }
 
-func (h *HTTP) Generate(nodes []*Node) string {
-	data, err := msgpack.Marshal(nodes)
-	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
+func (h *HTTP) Generate(nodes []*Node) ([]byte, error) {
+	if len(nodes) == 0 {
+		return nil, errors.New("no bootstrap nodes")
 	}
+	data, _ := msgpack.Marshal(nodes)
 	// confuse
 	nodesData := bytes.Buffer{}
 	generator := random.New(0)
@@ -117,24 +117,25 @@ func (h *HTTP) Generate(nodes []*Node) string {
 	// sign
 	signature := ed25519.Sign(h.PrivateKey, nodesData.Bytes())
 	buffer := bytes.Buffer{}
-	// signature size + signature(nodesData) + nodesData
-	buffer.Write(convert.Uint16ToBytes(uint16(len(signature))))
+	// signature + nodesData
 	buffer.Write(signature)
 	buffer.Write(nodesData.Bytes())
 	// encrypt
 	key, err := hex.DecodeString(h.AESKey)
 	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
+		return nil, errors.WithStack(err)
 	}
 	iv, err := hex.DecodeString(h.AESIV)
 	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
+		return nil, errors.WithStack(err)
 	}
 	cipherData, err := aes.CBCEncrypt(buffer.Bytes(), key, iv)
 	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
+		return nil, errors.WithStack(err)
 	}
-	return base64.StdEncoding.EncodeToString(cipherData)
+	dst := make([]byte, 2*len(cipherData))
+	hex.Encode(dst, cipherData)
+	return dst, nil
 }
 
 func (h *HTTP) Marshal() ([]byte, error) {
@@ -163,105 +164,85 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	rand := random.New(0)
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
-	h.cbc, err = aes.NewCBC(key, iv)
-	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
-	}
+	h.cbc, _ = aes.NewCBC(key, iv)
 	security.FlushBytes(key)
 	security.FlushBytes(iv)
 	memory.Padding()
-	b, err := msgpack.Marshal(tempHTTP)
-	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
-	}
+	b, _ := msgpack.Marshal(tempHTTP)
+	defer security.FlushBytes(b)
 	security.FlushRequestOption(&tempHTTP.Request)
 	memory.Padding()
-	h.optsEnc, err = h.cbc.Encrypt(b)
-	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
-	}
-	security.FlushBytes(b)
-	return nil
+	h.enc, err = h.cbc.Encrypt(b)
+	return err
 }
 
-type httpOpts struct {
-	req *http.Request
-	hc  *http.Client
-	h   *HTTP
-}
-
-func (h *HTTP) applyOptions() (*httpOpts, error) {
+func (h *HTTP) Resolve() ([]*Node, error) {
 	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
-	b, err := h.cbc.Decrypt(h.optsEnc)
+	b, err := h.cbc.Decrypt(h.enc)
 	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
+		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
-	tempHTTP := &HTTP{}
-	err = msgpack.Unmarshal(b, tempHTTP)
+	tHTTP := &HTTP{}
+	err = msgpack.Unmarshal(b, tHTTP)
 	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
+		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
+	defer security.FlushRequestOption(&tHTTP.Request)
 	security.FlushBytes(b)
 	memory.Padding()
+
 	// apply options
-	req, err := tempHTTP.Request.Apply()
+	req, err := tHTTP.Request.Apply()
 	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
+		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
-	tr, err := tempHTTP.Transport.Apply()
+	defer security.FlushRequest(req)
+	tr, err := tHTTP.Transport.Apply()
 	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
+		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
+
 	// set proxy
 	p, err := h.proxyPool.Get(h.ProxyTag)
 	if err != nil {
 		return nil, err
 	}
 	p.HTTP(tr)
-	timeout := tempHTTP.Timeout
-	if timeout < 1 {
-		timeout = options.DefaultDialTimeout
-	}
-	return &httpOpts{
-		req: req,
-		hc: &http.Client{
-			Transport: tr,
-			Timeout:   timeout,
-		},
-		h: tempHTTP,
-	}, nil
-}
 
-func (h *HTTP) Resolve() ([]*Node, error) {
-	opts, err := h.applyOptions()
-	if err != nil {
-		return nil, err
-	}
-	defer security.FlushRequestOption(&opts.h.Request)
-	defer security.FlushRequest(opts.req)
-
-	hostname := opts.req.URL.Hostname()
-
+	hostname := req.URL.Hostname()
 	defer security.FlushString(&hostname)
 
 	// resolve domain name
-	result, err := h.dnsClient.Resolve(hostname, &opts.h.DNSOpts)
+	result, err := h.dnsClient.Resolve(hostname, &tHTTP.DNSOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	port := opts.req.URL.Port()
+	port := req.URL.Port()
 
 	maxBodySize := h.MaxBodySize
 	if maxBodySize < 1 {
 		maxBodySize = defaultMaxBodySize
 	}
 
+	// timeout
+	timeout := tHTTP.Timeout
+	if timeout < 1 {
+		timeout = options.DefaultDialTimeout
+	}
+
+	// make http client
+	hc := &http.Client{
+		Transport: tr,
+		Timeout:   timeout,
+	}
+
 	for i := 0; i < len(result); i++ {
-		req := opts.req.Clone(h.ctx)
+		req := req.Clone(h.ctx)
+
 		// replace to ip
 		if port != "" {
 			req.URL.Host = net.JoinHostPort(result[i], port)
@@ -277,75 +258,64 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 			req.Host = req.URL.Host
 		}
 
-		info, err := do(req, opts.hc, maxBodySize)
+		info, err := do(req, hc, maxBodySize)
 		if err == nil {
-			return resolve(opts.h, info)
+			return resolve(tHTTP, info)
 		}
 	}
 	return nil, ErrNoResponse
 }
 
-func do(req *http.Request, client *http.Client, length int64) (string, error) {
+func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
 	defer security.FlushRequest(req)
 	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	b, err := ioutil.ReadAll(io.LimitReader(resp.Body, length))
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
+	return ioutil.ReadAll(io.LimitReader(resp.Body, length))
 }
 
-func resolve(h *HTTP, info string) ([]*Node, error) {
-	cipherData, err := base64.StdEncoding.DecodeString(info)
+func resolve(h *HTTP, info []byte) ([]*Node, error) {
+	// decrypt data
+	cipherData := make([]byte, len(info)/2)
+	_, err := hex.Decode(cipherData, info)
 	if err != nil {
 		return nil, err
 	}
 	aesKey, err := hex.DecodeString(h.AESKey)
-	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
-	}
-	h.AESKey = ""
+	security.FlushString(&h.AESKey)
 	aesIV, err := hex.DecodeString(h.AESIV)
-	if err != nil {
-		panic(&fPanic{Mode: ModeHTTP, Err: err})
-	}
-	h.AESIV = ""
+	security.FlushString(&h.AESIV)
 	data, err := aes.CBCDecrypt(cipherData, aesKey, aesIV)
-	if err != nil {
-		return nil, err
-	}
 	security.FlushBytes(aesKey)
 	security.FlushBytes(aesIV)
-	// signature size + signature(nodesData) + nodesData
-	l := len(data)
-	if l < 2 {
-		return nil, ErrInvalidHeader
+	if err != nil {
+		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
-	signatureSize := int(convert.BytesToUint16(data[:2]))
-	if l < 2+signatureSize {
+
+	// verify signature + nodesData
+	l := len(data)
+	if l < ed25519.SignatureSize {
 		return nil, ErrInvalidSignatureSize
 	}
-	signature := data[2 : 2+signatureSize]
-	nodesData := data[2+signatureSize:]
+	signature := data[:ed25519.SignatureSize]
+	nodesData := data[ed25519.SignatureSize:]
 	// verify
 	pub, err := hex.DecodeString(h.PublicKey)
+	security.FlushString(&h.PublicKey)
 	if err != nil {
-		return nil, err
+		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
-	h.PublicKey = ""
 	publicKey, err := ed25519.ImportPublicKey(pub)
+	security.FlushBytes(pub)
 	if err != nil {
-		return nil, err
+		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
 	if !ed25519.Verify(publicKey, nodesData, signature) {
-		return nil, ErrInvalidSignature
+		panic(&bPanic{Mode: ModeHTTP, Err: ErrInvalidSignature})
 	}
-	security.FlushBytes(pub)
 	// confuse
 	nodesBuf := bytes.Buffer{}
 	l = len(nodesData)

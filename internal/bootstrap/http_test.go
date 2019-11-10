@@ -1,11 +1,16 @@
 package bootstrap
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/aes"
@@ -20,7 +25,6 @@ func testGenerateHTTP(t *testing.T, p *proxy.Pool, c *dns.Client) *HTTP {
 	HTTP := NewHTTP(context.Background(), p, c)
 	HTTP.AESKey = strings.Repeat("FF", aes.Key256Bit)
 	HTTP.AESIV = strings.Repeat("FF", aes.IVSize)
-	// generate privateKey
 	privateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
 	HTTP.PrivateKey = privateKey
@@ -35,18 +39,20 @@ func TestHTTP(t *testing.T) {
 
 	// --------------------------http---------------------------
 	HTTP := testGenerateHTTP(t, pool, client)
-	nodesInfo := HTTP.Generate(nodes)
-	t.Log("(http) bootstrap nodes info:", nodesInfo)
+	nodesInfo, err := HTTP.Generate(nodes)
+	require.NoError(t, err)
+	t.Logf("(http) bootstrap nodes info: %s\n", nodesInfo)
 
 	// set test http server mux
 	serveMux := http.NewServeMux()
-	nodesData := []byte(nodesInfo)
+	nodesData := nodesInfo
 	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(nodesData)
 	})
 
 	if testsuite.EnableIPv4() {
+		// run HTTP server
 		httpServer := http.Server{
 			Addr:    "localhost:0",
 			Handler: serveMux,
@@ -74,6 +80,7 @@ func TestHTTP(t *testing.T) {
 	}
 
 	if testsuite.EnableIPv6() {
+		// run HTTP server
 		httpServer := http.Server{
 			Addr:    "localhost:0",
 			Handler: serveMux,
@@ -105,12 +112,14 @@ func TestHTTP(t *testing.T) {
 
 	// --------------------------https--------------------------
 	HTTP = testGenerateHTTP(t, pool, client)
-	nodesInfo = HTTP.Generate(nodes)
-	t.Log("(https) bootstrap nodes info:", nodesInfo)
-	nodesData = []byte(nodesInfo)
+	nodesInfo, err = HTTP.Generate(nodes)
+	require.NoError(t, err)
+	t.Logf("(https) bootstrap nodes info: %s\n", nodesInfo)
+	nodesData = nodesInfo
 	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 
 	if testsuite.EnableIPv4() {
+		// run HTTPS server
 		tlsConfig, err := serverCfg.Apply()
 		require.NoError(t, err)
 		httpsServer := http.Server{
@@ -120,6 +129,7 @@ func TestHTTP(t *testing.T) {
 		}
 		port := testsuite.RunHTTPServer(t, "tcp4", &httpsServer)
 		defer func() { _ = httpsServer.Close() }()
+
 		// config
 		HTTP.Request.URL = "https://localhost:" + port
 		HTTP.DNSOpts.Mode = dns.ModeSystem
@@ -144,6 +154,7 @@ func TestHTTP(t *testing.T) {
 	}
 
 	if testsuite.EnableIPv6() {
+		// run HTTPS server
 		tlsConfig, err := serverCfg.Apply()
 		require.NoError(t, err)
 		httpsServer := http.Server{
@@ -153,6 +164,7 @@ func TestHTTP(t *testing.T) {
 		}
 		port := testsuite.RunHTTPServer(t, "tcp6", &httpsServer)
 		defer func() { _ = httpsServer.Close() }()
+
 		// config
 		HTTP.Request.URL = "https://localhost:" + port
 		HTTP.DNSOpts.Mode = dns.ModeSystem
@@ -177,4 +189,101 @@ func TestHTTP(t *testing.T) {
 	}
 
 	testsuite.IsDestroyed(t, HTTP)
+}
+
+func TestHTTP_Validate(t *testing.T) {
+	HTTP := NewHTTP(nil, nil, nil)
+	// invalid request
+	require.Error(t, HTTP.Validate())
+
+	// invalid transport
+	HTTP.Request.URL = "http://abc.com/"
+	HTTP.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
+	require.Error(t, HTTP.Validate())
+
+	HTTP.Transport.TLSClientConfig.RootCAs = nil
+
+	// invalid AES Key
+	HTTP.AESKey = "foo key"
+	require.Error(t, HTTP.Validate())
+
+	HTTP.AESKey = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.Key128Bit))
+
+	// invalid AES IV
+	HTTP.AESIV = "foo iv"
+
+	b, err := HTTP.Marshal()
+	require.Error(t, err)
+	require.Nil(t, b)
+}
+
+func TestHTTP_Generate(t *testing.T) {
+	HTTP := NewHTTP(nil, nil, nil)
+
+	// no bootstrap nodes
+	_, err := HTTP.Generate(nil)
+	require.Error(t, err)
+
+	// invalid AES Key
+	HTTP.PrivateKey, err = ed25519.GenerateKey()
+	require.NoError(t, err)
+	nodes := testGenerateNodes()
+	HTTP.AESKey = "foo key"
+	_, err = HTTP.Generate(nodes)
+	require.Error(t, err)
+
+	HTTP.AESKey = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.Key128Bit))
+
+	// invalid AES IV
+	HTTP.AESIV = "foo iv"
+	_, err = HTTP.Generate(nodes)
+	require.Error(t, err)
+
+	// invalid Key IV
+	HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, 32))
+	_, err = HTTP.Generate(nodes)
+	require.Error(t, err)
+}
+
+func TestHTTP_Unmarshal(t *testing.T) {
+	HTTP := NewHTTP(nil, nil, nil)
+
+	// unmarshal invalid config
+	require.Error(t, HTTP.Unmarshal([]byte{0x00}))
+
+	// with incorrect config
+	require.Error(t, HTTP.Unmarshal(nil))
+}
+
+func TestHTTP_Resolve(t *testing.T) {
+
+}
+
+func TestHTTPPanic(t *testing.T) {
+
+}
+
+func TestHTTPOptions(t *testing.T) {
+	config, err := ioutil.ReadFile("testdata/http.toml")
+	require.NoError(t, err)
+	HTTP := NewHTTP(nil, nil, nil)
+	require.NoError(t, toml.Unmarshal(config, HTTP))
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: 15 * time.Second, actual: HTTP.Timeout},
+		{expected: "balance", actual: HTTP.ProxyTag},
+		{expected: int64(65535), actual: HTTP.MaxBodySize},
+		{expected: "FF", actual: HTTP.AESKey},
+		{expected: "AA", actual: HTTP.AESIV},
+		{expected: "E3", actual: HTTP.PublicKey},
+		{expected: "http://abc.com/", actual: HTTP.Request.URL},
+		{expected: 2, actual: HTTP.Transport.MaxIdleConns},
+		{expected: dns.ModeSystem, actual: HTTP.DNSOpts.Mode},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 }
