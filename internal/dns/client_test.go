@@ -322,31 +322,48 @@ func TestClient_TestOptions(t *testing.T) {
 }
 
 func TestOptions(t *testing.T) {
-	// DNS
+	// DNS Server
 	b, err := ioutil.ReadFile("testdata/server.toml")
 	require.NoError(t, err)
 	server := Server{}
 	require.NoError(t, toml.Unmarshal(b, &server))
-	// compare
-	require.Equal(t, "udp", server.Method)
-	require.Equal(t, "1.1.1.1:53", server.Address)
-	require.Equal(t, true, server.SkipTest)
+
+	testdata := []*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "udp", actual: server.Method},
+		{expected: "1.1.1.1:53", actual: server.Address},
+		{expected: true, actual: server.SkipTest},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 
 	// Options
 	b, err = ioutil.ReadFile("testdata/options.toml")
 	require.NoError(t, err)
 	opts := Options{}
 	require.NoError(t, toml.Unmarshal(b, &opts))
-	require.Equal(t, "custom", opts.Mode)
-	require.Equal(t, "dot", opts.Method)
-	require.Equal(t, "ipv6", opts.Type)
-	require.Equal(t, time.Minute, opts.Timeout)
-	require.Equal(t, "balance", opts.ProxyTag)
-	require.Equal(t, "cloudflare", opts.ServerTag)
-	require.Equal(t, "tcp", opts.Network)
-	require.Equal(t, int64(65536), opts.MaxBodySize)
-	require.Equal(t, true, opts.SkipProxy)
-	require.Equal(t, true, opts.SkipTest)
-	require.Equal(t, "keep-alive", opts.Header.Get("Connection"))
-	require.Equal(t, 2, opts.Transport.MaxIdleConns)
+
+	testdata = []*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "custom", actual: opts.Mode},
+		{expected: "dot", actual: opts.Method},
+		{expected: "ipv6", actual: opts.Type},
+		{expected: time.Minute, actual: opts.Timeout},
+		{expected: "balance", actual: opts.ProxyTag},
+		{expected: "cloudflare", actual: opts.ServerTag},
+		{expected: "tcp", actual: opts.Network},
+		{expected: int64(65536), actual: opts.MaxBodySize},
+		{expected: true, actual: opts.SkipProxy},
+		{expected: true, actual: opts.SkipTest},
+		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
+		{expected: 2, actual: opts.Transport.MaxIdleConns},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 }
