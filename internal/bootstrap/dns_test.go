@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/aes"
 	"project/internal/dns"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
@@ -116,13 +118,13 @@ func TestDNS_Resolve(t *testing.T) {
 
 	DNS := NewDNS(context.Background(), client)
 	config := []byte(`
-         host    = "asd.foo.asa.awf.32gg2"
+         host    = "localhost"
          mode    = "tls"
          network = "tcp"
          port    = "443"
          
          [options]
-           mode = "system"  `)
+           mode = "foo mode"  `)
 	require.NoError(t, DNS.Unmarshal(config))
 
 	if testsuite.EnableIPv4() {
@@ -149,19 +151,15 @@ func TestDNSPanic(t *testing.T) {
 		}()
 		_, _ = DNS.Resolve()
 	}()
+
 	func() {
 		DNS := NewDNS(nil, nil)
 		defer testsuite.IsDestroyed(t, DNS)
-		config := []byte(`
-         host    = "asd.foo.asa.awf.32gg2"
-         mode    = "tls"
-         network = "tcp"
-         port    = "443"
-         
-         [options]
-           mode = "system"  `)
-		err := DNS.Unmarshal(config)
+		var err error
+		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+		DNS.cbc, err = aes.NewCBC(key, key)
 		require.NoError(t, err)
+
 		// make invalid encrypt data
 		enc, err := DNS.cbc.Encrypt(testsuite.Bytes())
 		require.NoError(t, err)

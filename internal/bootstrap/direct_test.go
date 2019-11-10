@@ -1,11 +1,13 @@
 package bootstrap
 
 import (
+	"bytes"
 	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/aes"
 	"project/internal/testsuite"
 )
 
@@ -48,11 +50,15 @@ func TestDirectPanic(t *testing.T) {
 		}()
 		_, _ = direct.Resolve()
 	}()
+
 	func() {
 		direct := NewDirect()
 		defer testsuite.IsDestroyed(t, direct)
-		err := direct.Unmarshal(nil)
+		var err error
+		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+		direct.cbc, err = aes.NewCBC(key, key)
 		require.NoError(t, err)
+
 		// make invalid encrypt data
 		enc, err := direct.cbc.Encrypt(testsuite.Bytes())
 		require.NoError(t, err)
