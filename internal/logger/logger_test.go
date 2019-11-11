@@ -141,4 +141,13 @@ func TestHTTPRequest(t *testing.T) {
 	fmt.Println(HTTPRequest(r))
 	fmt.Printf("-----end-----\n\n")
 	equalBody(rawBody, r.Body)
+
+	body.Reset()
+	body.WriteString(strings.Repeat("a", 100*bodyLineLength-1))
+	rawBody = bytes.NewReader(body.Bytes())
+	r.Body = ioutil.NopCloser(body)
+	fmt.Println("-----begin (POST with data 100*bodyLineLength-1)-----")
+	fmt.Println(HTTPRequest(r))
+	fmt.Printf("-----end-----\n\n")
+	equalBody(rawBody, r.Body)
 }
