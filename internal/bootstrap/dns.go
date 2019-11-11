@@ -27,7 +27,7 @@ type DNS struct {
 	ctx       context.Context
 	dnsClient *dns.Client
 
-	// self store all encrypted options by msgpack
+	// self encrypt all options
 	enc []byte
 	cbc *aes.CBC
 }

@@ -40,11 +40,13 @@ func TestDNS(t *testing.T) {
 		DNS = NewDNS(context.Background(), client)
 		err = DNS.Unmarshal(b)
 		require.NoError(t, err)
+
 		for i := 0; i < 10; i++ {
 			resolved, err := DNS.Resolve()
 			require.NoError(t, err)
 			require.Equal(t, nodes, resolved)
 		}
+
 		testsuite.IsDestroyed(t, DNS)
 	}
 
@@ -68,14 +70,13 @@ func TestDNS(t *testing.T) {
 		DNS = NewDNS(context.Background(), client)
 		err = DNS.Unmarshal(b)
 		require.NoError(t, err)
-		resolved, err := DNS.Resolve()
-		require.NoError(t, err)
-		require.Equal(t, nodes, resolved)
+
 		for i := 0; i < 10; i++ {
 			resolved, err := DNS.Resolve()
 			require.NoError(t, err)
 			require.Equal(t, nodes, resolved)
 		}
+
 		testsuite.IsDestroyed(t, DNS)
 	}
 }
@@ -141,7 +142,9 @@ func TestDNS_Resolve(t *testing.T) {
 }
 
 func TestDNSPanic(t *testing.T) {
-	func() {
+	t.Parallel()
+
+	t.Run("no CBC", func(t *testing.T) {
 		DNS := NewDNS(nil, nil)
 		defer testsuite.IsDestroyed(t, DNS)
 		defer func() {
@@ -150,27 +153,26 @@ func TestDNSPanic(t *testing.T) {
 			t.Log(r)
 		}()
 		_, _ = DNS.Resolve()
-	}()
+	})
 
-	func() {
+	t.Run("invalid options", func(t *testing.T) {
 		DNS := NewDNS(nil, nil)
 		defer testsuite.IsDestroyed(t, DNS)
 		var err error
 		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
 		DNS.cbc, err = aes.NewCBC(key, key)
 		require.NoError(t, err)
-
-		// make invalid encrypted data
 		enc, err := DNS.cbc.Encrypt(testsuite.Bytes())
 		require.NoError(t, err)
 		DNS.enc = enc
+
 		defer func() {
 			r := recover()
 			require.NotNil(t, r)
 			t.Log(r)
 		}()
 		_, _ = DNS.Resolve()
-	}()
+	})
 }
 
 func TestDNSOptions(t *testing.T) {
