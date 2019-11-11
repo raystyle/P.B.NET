@@ -54,7 +54,8 @@ func TestConvert(t *testing.T) {
 	if BytesToFloat64([]byte{64, 94, 199, 223, 59, 100, 90, 29}) != 123.123 {
 		t.Fatal("BytesToFloat64() invalid bytes")
 	}
-	// wrong
+
+	// invalid bytes
 	if BytesToInt16([]byte{1}) != 0 {
 		t.Fatal("BytesToInt16() invalid bytes & result")
 	}
@@ -79,9 +80,10 @@ func TestConvert(t *testing.T) {
 	if BytesToFloat64([]byte{1}) != 0 {
 		t.Fatal("BytesToFloat64() invalid bytes & result")
 	}
-	// -
+
+	// negative number
 	n := int64(-0x12345678)
 	if BytesToInt64(Int64ToBytes(n)) != n {
-		t.Fatal("wrong n")
+		t.Fatal("negative number")
 	}
 }
