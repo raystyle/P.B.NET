@@ -72,13 +72,14 @@ func TestWrap(t *testing.T) {
 }
 
 func TestConn(t *testing.T) {
-	conn, err := net.Dial("tcp", "github.com:443")
+	// net.Conn
+	conn, err := net.Dial("tcp", "ds.vm0.test-ipv6.com:80")
 	require.NoError(t, err)
 	t.Log(Conn(conn))
 	_ = conn.Close()
 
-	// xnet
-	conn, err = net.Dial("tcp", "github.com:443")
+	// xnet.Conn
+	conn, err = net.Dial("tcp", "ds.vm1.test-ipv6.com:80")
 	require.NoError(t, err)
 	xConn := xnet.NewConn(conn, time.Now())
 	t.Log(Conn(xConn))

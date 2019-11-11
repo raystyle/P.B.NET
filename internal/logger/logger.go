@@ -27,94 +27,19 @@ const (
 
 const TimeLayout = "2006-01-02 15:04:05"
 
-var (
-	Test    = new(test)
-	Discard = new(discard)
-)
-
 type Logger interface {
 	Printf(l Level, src string, format string, log ...interface{})
 	Print(l Level, src string, log ...interface{})
 	Println(l Level, src string, log ...interface{})
 }
 
-// Parse
-func Parse(level string) (Level, error) {
-	l := Level(0)
-	switch level {
-	case "debug":
-		l = Debug
-	case "info":
-		l = Info
-	case "warning":
-		l = Warning
-	case "error":
-		l = Error
-	case "exploit":
-		l = Exploit
-	case "fatal":
-		l = Fatal
-	case "off":
-		l = Off
-	default:
-		return l, fmt.Errorf("unknown logger level: %s", level)
-	}
-	return l, nil
-}
+var (
+	// Test is used to go test
+	Test = new(test)
 
-// Prefix
-// time + level + source + log
-// source usually like class name + "-" + instance tag
-// [2006-01-02 15:04:05] [info] <http proxy-test> start http proxy server
-func Prefix(l Level, src string) *bytes.Buffer {
-	lv := ""
-	switch l {
-	case Debug:
-		lv = "debug"
-	case Info:
-		lv = "info"
-	case Warning:
-		lv = "warning"
-	case Error:
-		lv = "error"
-	case Exploit:
-		lv = "exploit"
-	case Fatal:
-		lv = "fatal"
-	default:
-		lv = "unknown"
-	}
-	buffer := bytes.Buffer{}
-	buffer.WriteString("[")
-	buffer.WriteString(time.Now().Local().Format(TimeLayout))
-	buffer.WriteString("] [")
-	buffer.WriteString(lv)
-	buffer.WriteString("] <")
-	buffer.WriteString(src)
-	buffer.WriteString("> ")
-	return &buffer
-}
-
-// Wrap is for go internal logger like http.Server.ErrorLog
-func Wrap(l Level, src string, logger Logger) *log.Logger {
-	w := &writer{
-		level:  l,
-		src:    src,
-		logger: logger,
-	}
-	return log.New(w, "", 0)
-}
-
-type writer struct {
-	level  Level
-	src    string
-	logger Logger
-}
-
-func (w *writer) Write(p []byte) (int, error) {
-	w.logger.Println(w.level, w.src, string(p[:len(p)-1]))
-	return len(p), nil
-}
+	// Discard is used to discard log in object test
+	Discard = new(discard)
+)
 
 type test struct{}
 
@@ -144,6 +69,86 @@ func (d *discard) Print(l Level, src string, log ...interface{}) {}
 
 func (d *discard) Println(l Level, src string, log ...interface{}) {}
 
+// Parse is used to parse logger level from string
+func Parse(level string) (Level, error) {
+	l := Level(0)
+	switch level {
+	case "debug":
+		l = Debug
+	case "info":
+		l = Info
+	case "warning":
+		l = Warning
+	case "error":
+		l = Error
+	case "exploit":
+		l = Exploit
+	case "fatal":
+		l = Fatal
+	case "off":
+		l = Off
+	default:
+		return l, fmt.Errorf("unknown logger level: %s", level)
+	}
+	return l, nil
+}
+
+// Prefix is used to print logger level and source
+//
+// time + level + source + log
+// source usually like class name + "-" + instance tag
+//
+// [2006-01-02 15:04:05] [info] <ctrl> start http proxy server
+func Prefix(l Level, src string) *bytes.Buffer {
+	lv := ""
+	switch l {
+	case Debug:
+		lv = "debug"
+	case Info:
+		lv = "info"
+	case Warning:
+		lv = "warning"
+	case Error:
+		lv = "error"
+	case Exploit:
+		lv = "exploit"
+	case Fatal:
+		lv = "fatal"
+	default:
+		lv = "unknown"
+	}
+	buffer := bytes.Buffer{}
+	buffer.WriteString("[")
+	buffer.WriteString(time.Now().Local().Format(TimeLayout))
+	buffer.WriteString("] [")
+	buffer.WriteString(lv)
+	buffer.WriteString("] <")
+	buffer.WriteString(src)
+	buffer.WriteString("> ")
+	return &buffer
+}
+
+type writer struct {
+	level  Level
+	src    string
+	logger Logger
+}
+
+func (w *writer) Write(p []byte) (int, error) {
+	w.logger.Println(w.level, w.src, string(p[:len(p)-1]))
+	return len(p), nil
+}
+
+// Wrap is for go internal logger like http.Server.ErrorLog
+func Wrap(l Level, src string, logger Logger) *log.Logger {
+	w := &writer{
+		level:  l,
+		src:    src,
+		logger: logger,
+	}
+	return log.New(w, "", 0)
+}
+
 // Conn is used to print connection info
 // local tcp 127.0.0.1:123 <-> remote tcp 127.0.0.1:124
 //
@@ -172,8 +177,11 @@ func Conn(conn net.Conn) *bytes.Buffer {
 }
 
 const (
+	// post data length in one line
 	bodyLineLength = 64
-	maxBodyLength  = 1024
+
+	// <security> prevent too big resp.Body
+	maxBodyLength = 1024
 )
 
 // HTTPRequest is used to print http.Request
