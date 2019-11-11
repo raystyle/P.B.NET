@@ -30,7 +30,7 @@ func TestDirect(t *testing.T) {
 	testsuite.IsDestroyed(t, direct)
 }
 
-func TestDirectWithIncorrectConfig(t *testing.T) {
+func TestDirect_Unmarshal(t *testing.T) {
 	direct := NewDirect()
 	b, err := direct.Marshal()
 	require.Error(t, err)
@@ -40,7 +40,9 @@ func TestDirectWithIncorrectConfig(t *testing.T) {
 }
 
 func TestDirectPanic(t *testing.T) {
-	func() {
+	t.Parallel()
+
+	t.Run("no CBC", func(t *testing.T) {
 		direct := NewDirect()
 		defer testsuite.IsDestroyed(t, direct)
 		defer func() {
@@ -49,27 +51,26 @@ func TestDirectPanic(t *testing.T) {
 			t.Log(r)
 		}()
 		_, _ = direct.Resolve()
-	}()
+	})
 
-	func() {
+	t.Run("invalid nodes data", func(t *testing.T) {
 		direct := NewDirect()
 		defer testsuite.IsDestroyed(t, direct)
 		var err error
 		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
 		direct.cbc, err = aes.NewCBC(key, key)
 		require.NoError(t, err)
-
-		// make invalid encrypted data
 		enc, err := direct.cbc.Encrypt(testsuite.Bytes())
 		require.NoError(t, err)
 		direct.enc = enc
+
 		defer func() {
 			r := recover()
 			require.NotNil(t, r)
 			t.Log(r)
 		}()
 		_, _ = direct.Resolve()
-	}()
+	})
 }
 
 func TestDirectOptions(t *testing.T) {

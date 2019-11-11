@@ -10,13 +10,11 @@ import (
 	"project/internal/security"
 )
 
-// Direct is used to resolve bootstrap nodes
-// from local config
+// Direct is used to resolve bootstrap nodes from local config
 type Direct struct {
 	Nodes []*Node `toml:"nodes"`
 
-	// self store all encrypted nodes
-	// by msgpack and AES CBC
+	// self encrypt all options
 	enc []byte
 	cbc *aes.CBC
 }
