@@ -32,163 +32,194 @@ func testGenerateHTTP(t *testing.T) *HTTP {
 }
 
 func TestHTTP(t *testing.T) {
+	t.Parallel()
+
 	client, pool, manager := testdns.DNSClient(t)
 	defer func() { _ = manager.Close() }()
 	// generate bootstrap nodes info
 	nodes := testGenerateNodes()
 
-	// --------------------------http---------------------------
-	HTTP := testGenerateHTTP(t)
-	nodesInfo, err := HTTP.Generate(nodes)
-	require.NoError(t, err)
-	t.Logf("(http) bootstrap nodes info: %s\n", nodesInfo)
+	t.Run("http", func(t *testing.T) {
+		// set test http server mux
+		var nodesData []byte
+		serveMux := http.NewServeMux()
+		serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(nodesData)
+		})
 
-	// set test http server mux
-	serveMux := http.NewServeMux()
-	nodesData := nodesInfo
-	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(nodesData)
+		if testsuite.EnableIPv4() {
+			HTTP := testGenerateHTTP(t)
+			nodesInfo, err := HTTP.Generate(nodes)
+			require.NoError(t, err)
+			nodesData = nodesInfo
+			t.Logf("(http-IPv4) bootstrap nodes info: %s\n", nodesInfo)
+
+			// run HTTP server
+			httpServer := http.Server{
+				Addr:    "localhost:0",
+				Handler: serveMux,
+			}
+			port := testsuite.RunHTTPServer(t, "tcp4", &httpServer)
+			defer func() { _ = httpServer.Close() }()
+
+			// config
+			HTTP.Request.URL = "http://localhost:" + port
+			HTTP.DNSOpts.Mode = dns.ModeSystem
+			HTTP.DNSOpts.Type = dns.TypeIPv4
+			// marshal
+			b, err := HTTP.Marshal()
+			require.NoError(t, err)
+			// unmarshal
+			HTTP = NewHTTP(context.Background(), pool, client)
+			err = HTTP.Unmarshal(b)
+			require.NoError(t, err)
+
+			for i := 0; i < 10; i++ {
+				resolved, err := HTTP.Resolve()
+				require.NoError(t, err)
+				require.Equal(t, nodes, resolved)
+			}
+
+			testsuite.IsDestroyed(t, HTTP)
+		}
+
+		if testsuite.EnableIPv6() {
+			HTTP := testGenerateHTTP(t)
+			nodesInfo, err := HTTP.Generate(nodes)
+			require.NoError(t, err)
+			nodesData = nodesInfo
+			t.Logf("(http-IPv6) bootstrap nodes info: %s\n", nodesInfo)
+
+			// run HTTP server
+			httpServer := http.Server{
+				Addr:    "localhost:0",
+				Handler: serveMux,
+			}
+			port := testsuite.RunHTTPServer(t, "tcp6", &httpServer)
+			defer func() { _ = httpServer.Close() }()
+
+			// config
+			HTTP.Request.URL = "http://localhost:" + port
+			HTTP.DNSOpts.Mode = dns.ModeSystem
+			HTTP.DNSOpts.Type = dns.TypeIPv6
+			// marshal
+			b, err := HTTP.Marshal()
+			require.NoError(t, err)
+			// unmarshal
+			HTTP = NewHTTP(context.Background(), pool, client)
+			err = HTTP.Unmarshal(b)
+			require.NoError(t, err)
+			resolved, err := HTTP.Resolve()
+			require.NoError(t, err)
+			require.Equal(t, nodes, resolved)
+
+			for i := 0; i < 10; i++ {
+				resolved, err := HTTP.Resolve()
+				require.NoError(t, err)
+				require.Equal(t, nodes, resolved)
+			}
+
+			testsuite.IsDestroyed(t, HTTP)
+		}
 	})
 
-	if testsuite.EnableIPv4() {
-		// run HTTP server
-		httpServer := http.Server{
-			Addr:    "localhost:0",
-			Handler: serveMux,
-		}
-		port := testsuite.RunHTTPServer(t, "tcp4", &httpServer)
-		defer func() { _ = httpServer.Close() }()
+	t.Run("https", func(t *testing.T) {
+		// set test http server mux
+		var nodesData []byte
+		serveMux := http.NewServeMux()
+		serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(nodesData)
+		})
+		serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 
-		// config
-		HTTP.Request.URL = "http://localhost:" + port
-		HTTP.DNSOpts.Mode = dns.ModeSystem
-		HTTP.DNSOpts.Type = dns.TypeIPv4
-		// marshal
-		b, err := HTTP.Marshal()
-		require.NoError(t, err)
-		// unmarshal
-		HTTP = NewHTTP(context.Background(), pool, client)
-		err = HTTP.Unmarshal(b)
-		require.NoError(t, err)
+		if testsuite.EnableIPv4() {
+			HTTP := testGenerateHTTP(t)
+			nodesInfo, err := HTTP.Generate(nodes)
+			require.NoError(t, err)
+			t.Logf("(https-IPv4) bootstrap nodes info: %s\n", nodesInfo)
+			nodesData = nodesInfo
 
-		for i := 0; i < 10; i++ {
+			// run HTTPS server
+			tlsConfig, err := serverCfg.Apply()
+			require.NoError(t, err)
+			httpsServer := http.Server{
+				Addr:      "localhost:0",
+				Handler:   serveMux,
+				TLSConfig: tlsConfig,
+			}
+			port := testsuite.RunHTTPServer(t, "tcp4", &httpsServer)
+			defer func() { _ = httpsServer.Close() }()
+
+			// config
+			HTTP.Request.URL = "https://localhost:" + port
+			HTTP.DNSOpts.Mode = dns.ModeSystem
+			HTTP.DNSOpts.Type = dns.TypeIPv4
+			HTTP.Transport.TLSClientConfig = *clientCfg
+			// marshal
+			b, err := HTTP.Marshal()
+			require.NoError(t, err)
+			// unmarshal
+			HTTP = NewHTTP(context.Background(), pool, client)
+			err = HTTP.Unmarshal(b)
+			require.NoError(t, err)
 			resolved, err := HTTP.Resolve()
 			require.NoError(t, err)
 			require.Equal(t, nodes, resolved)
+
+			for i := 0; i < 10; i++ {
+				resolved, err := HTTP.Resolve()
+				require.NoError(t, err)
+				require.Equal(t, nodes, resolved)
+			}
+
+			testsuite.IsDestroyed(t, HTTP)
 		}
-	}
 
-	if testsuite.EnableIPv6() {
-		// run HTTP server
-		httpServer := http.Server{
-			Addr:    "localhost:0",
-			Handler: serveMux,
-		}
-		port := testsuite.RunHTTPServer(t, "tcp6", &httpServer)
-		defer func() { _ = httpServer.Close() }()
+		if testsuite.EnableIPv6() {
+			HTTP := testGenerateHTTP(t)
+			nodesInfo, err := HTTP.Generate(nodes)
+			require.NoError(t, err)
+			t.Logf("(https-IPv6) bootstrap nodes info: %s\n", nodesInfo)
+			nodesData = nodesInfo
 
-		// config
-		HTTP.Request.URL = "http://localhost:" + port
-		HTTP.DNSOpts.Mode = dns.ModeSystem
-		HTTP.DNSOpts.Type = dns.TypeIPv6
-		// marshal
-		b, err := HTTP.Marshal()
-		require.NoError(t, err)
-		// unmarshal
-		HTTP = NewHTTP(context.Background(), pool, client)
-		err = HTTP.Unmarshal(b)
-		require.NoError(t, err)
-		resolved, err := HTTP.Resolve()
-		require.NoError(t, err)
-		require.Equal(t, nodes, resolved)
+			// run HTTPS server
+			tlsConfig, err := serverCfg.Apply()
+			require.NoError(t, err)
+			httpsServer := http.Server{
+				Addr:      "localhost:0",
+				Handler:   serveMux,
+				TLSConfig: tlsConfig,
+			}
+			port := testsuite.RunHTTPServer(t, "tcp6", &httpsServer)
+			defer func() { _ = httpsServer.Close() }()
 
-		for i := 0; i < 10; i++ {
+			// config
+			HTTP.Request.URL = "https://localhost:" + port
+			HTTP.DNSOpts.Mode = dns.ModeSystem
+			HTTP.DNSOpts.Type = dns.TypeIPv6
+			HTTP.Transport.TLSClientConfig = *clientCfg
+			// marshal
+			b, err := HTTP.Marshal()
+			require.NoError(t, err)
+			// unmarshal
+			HTTP = NewHTTP(context.Background(), pool, client)
+			err = HTTP.Unmarshal(b)
+			require.NoError(t, err)
 			resolved, err := HTTP.Resolve()
 			require.NoError(t, err)
 			require.Equal(t, nodes, resolved)
+
+			for i := 0; i < 10; i++ {
+				resolved, err := HTTP.Resolve()
+				require.NoError(t, err)
+				require.Equal(t, nodes, resolved)
+			}
+
+			testsuite.IsDestroyed(t, HTTP)
 		}
-	}
-
-	// --------------------------https--------------------------
-	HTTP = testGenerateHTTP(t)
-	nodesInfo, err = HTTP.Generate(nodes)
-	require.NoError(t, err)
-	t.Logf("(https) bootstrap nodes info: %s\n", nodesInfo)
-	nodesData = nodesInfo
-	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
-
-	if testsuite.EnableIPv4() {
-		// run HTTPS server
-		tlsConfig, err := serverCfg.Apply()
-		require.NoError(t, err)
-		httpsServer := http.Server{
-			Addr:      "localhost:0",
-			Handler:   serveMux,
-			TLSConfig: tlsConfig,
-		}
-		port := testsuite.RunHTTPServer(t, "tcp4", &httpsServer)
-		defer func() { _ = httpsServer.Close() }()
-
-		// config
-		HTTP.Request.URL = "https://localhost:" + port
-		HTTP.DNSOpts.Mode = dns.ModeSystem
-		HTTP.DNSOpts.Type = dns.TypeIPv4
-		HTTP.Transport.TLSClientConfig = *clientCfg
-		// marshal
-		b, err := HTTP.Marshal()
-		require.NoError(t, err)
-		// unmarshal
-		HTTP = NewHTTP(context.Background(), pool, client)
-		err = HTTP.Unmarshal(b)
-		require.NoError(t, err)
-		resolved, err := HTTP.Resolve()
-		require.NoError(t, err)
-		require.Equal(t, nodes, resolved)
-
-		for i := 0; i < 10; i++ {
-			resolved, err := HTTP.Resolve()
-			require.NoError(t, err)
-			require.Equal(t, nodes, resolved)
-		}
-	}
-
-	if testsuite.EnableIPv6() {
-		// run HTTPS server
-		tlsConfig, err := serverCfg.Apply()
-		require.NoError(t, err)
-		httpsServer := http.Server{
-			Addr:      "localhost:0",
-			Handler:   serveMux,
-			TLSConfig: tlsConfig,
-		}
-		port := testsuite.RunHTTPServer(t, "tcp6", &httpsServer)
-		defer func() { _ = httpsServer.Close() }()
-
-		// config
-		HTTP.Request.URL = "https://localhost:" + port
-		HTTP.DNSOpts.Mode = dns.ModeSystem
-		HTTP.DNSOpts.Type = dns.TypeIPv6
-		HTTP.Transport.TLSClientConfig = *clientCfg
-		// marshal
-		b, err := HTTP.Marshal()
-		require.NoError(t, err)
-		// unmarshal
-		HTTP = NewHTTP(context.Background(), pool, client)
-		err = HTTP.Unmarshal(b)
-		require.NoError(t, err)
-		resolved, err := HTTP.Resolve()
-		require.NoError(t, err)
-		require.Equal(t, nodes, resolved)
-
-		for i := 0; i < 10; i++ {
-			resolved, err := HTTP.Resolve()
-			require.NoError(t, err)
-			require.Equal(t, nodes, resolved)
-		}
-	}
-
-	testsuite.IsDestroyed(t, HTTP)
+	})
 }
 
 func TestHTTP_Validate(t *testing.T) {
@@ -393,10 +424,10 @@ func TestHTTPPanic(t *testing.T) {
 		resolve(nil, []byte("foo data"))
 	})
 
-	t.Run("invalid cipher data", func(t *testing.T) {
+	t.Run("invalid AES Key IV", func(t *testing.T) {
 		HTTP := HTTP{
-			AESKey: strings.Repeat("f", aes.Key128Bit),
-			AESIV:  strings.Repeat("f", aes.IVSize),
+			AESKey: strings.Repeat("F", aes.Key128Bit),
+			AESIV:  strings.Repeat("F", aes.IVSize),
 		}
 
 		defer func() {
@@ -404,7 +435,7 @@ func TestHTTPPanic(t *testing.T) {
 			require.NotNil(t, r)
 			t.Log(r)
 		}()
-		resolve(&HTTP, []byte("ff"))
+		resolve(&HTTP, []byte("FF"))
 	})
 
 	t.Run("invalid info size", func(t *testing.T) {
@@ -461,7 +492,7 @@ func TestHTTPPanic(t *testing.T) {
 			AESIV:  hex.EncodeToString(key),
 
 			// must generate, because security.FlushString
-			PublicKey: strings.Repeat("ff", 1),
+			PublicKey: strings.Repeat("FF", 1),
 		}
 
 		defer func() {
@@ -484,7 +515,7 @@ func TestHTTPPanic(t *testing.T) {
 			AESIV:  hex.EncodeToString(key),
 
 			// must generate, because security.FlushString
-			PublicKey: strings.Repeat("ff", ed25519.PublicKeySize),
+			PublicKey: strings.Repeat("FF", ed25519.PublicKeySize),
 		}
 
 		defer func() {
@@ -536,7 +567,7 @@ func TestHTTPOptions(t *testing.T) {
 		{expected: "FF", actual: HTTP.AESKey},
 		{expected: "AA", actual: HTTP.AESIV},
 		{expected: "E3", actual: HTTP.PublicKey},
-		{expected: "http://abc.com/", actual: HTTP.Request.URL},
+		{expected: "http://test.com/", actual: HTTP.Request.URL},
 		{expected: 2, actual: HTTP.Transport.MaxIdleConns},
 		{expected: dns.ModeSystem, actual: HTTP.DNSOpts.Mode},
 	}
