@@ -1,12 +1,13 @@
 package timesync
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/pelletier/go-toml"
+	"github.com/pkg/errors"
 
 	"project/internal/dns"
 	"project/internal/proxy"
@@ -14,6 +15,8 @@ import (
 )
 
 type NTP struct {
+	// copy from Syncer
+	ctx       context.Context
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
@@ -25,8 +28,9 @@ type NTP struct {
 }
 
 // NewNTP is used to create NTP client
-func NewNTP(pool *proxy.Pool, client *dns.Client) *NTP {
+func NewNTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *NTP {
 	return &NTP{
+		ctx:       ctx,
 		proxyPool: pool,
 		dnsClient: client,
 	}
@@ -42,25 +46,28 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 		err = fmt.Errorf("unknown network: %s", n.Network)
 		return
 	}
+
 	// check address
 	host, port, err := net.SplitHostPort(n.Address)
 	if err != nil {
 		optsErr = true
 		return
 	}
+
 	// set NTP options
 	ntpOpts := ntp.Options{
 		Network: n.Network,
 		Timeout: n.Timeout,
 		Version: n.Version,
 	}
+
 	if ntpOpts.Network == "" {
 		ntpOpts.Network = "udp"
 	}
 
 	// set proxy
-	p, err := n.proxyPool.Get("")
-	// support udp proxy future
+	p, _ := n.proxyPool.Get("")
+	// support udp proxy in the future
 	/*
 		if err != nil {
 			optsErr = true
@@ -71,10 +78,10 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 
 	// resolve domain name
 	dnsOptsCopy := n.DNSOpts
-	result, err := n.dnsClient.Resolve(host, &dnsOptsCopy)
+	result, err := n.dnsClient.ResolveWithContext(n.ctx, host, &dnsOptsCopy)
 	if err != nil {
 		optsErr = true
-		err = fmt.Errorf("resolve domain name failed: %s", err)
+		err = errors.WithMessage(err, "failed to resolve domain name")
 		return
 	}
 

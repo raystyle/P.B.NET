@@ -1,6 +1,7 @@
 package timesync
 
 import (
+	"context"
 	"io/ioutil"
 	"testing"
 	"time"
@@ -8,13 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/dns"
+	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 )
 
 func TestNTPClient_Query(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
-	NTP := NewNTP(pool, dnsClient)
+
+	NTP := NewNTP(context.Background(), pool, dnsClient)
 	b, err := ioutil.ReadFile("testdata/ntp_opts.toml")
 	require.NoError(t, err)
 	require.NoError(t, NTP.Import(b))
@@ -24,42 +27,64 @@ func TestNTPClient_Query(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, optsErr)
 	t.Log("now(NTP) simple:", now.Local())
+
+	testsuite.IsDestroyed(t, NTP)
 }
 
 func TestNTPClient_Query_Failed(t *testing.T) {
+	t.Parallel()
+
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
-	NTP := NewNTP(pool, dnsClient)
-	b, err := ioutil.ReadFile("testdata/ntp_opts.toml")
-	require.NoError(t, err)
-	require.NoError(t, NTP.Import(b))
 
-	// invalid network
-	NTP.Network = "foo network"
-	_, optsErr, err := NTP.Query()
-	require.Error(t, err)
-	require.True(t, optsErr)
+	t.Run("invalid network", func(t *testing.T) {
+		NTP := NewNTP(context.Background(), pool, dnsClient)
 
-	NTP.Network = ""
+		NTP.Network = "foo network"
 
-	// invalid address
-	NTP.Address = "foo address"
-	_, optsErr, err = NTP.Query()
-	require.Error(t, err)
-	require.True(t, optsErr)
+		_, optsErr, err := NTP.Query()
+		require.Error(t, err)
+		require.True(t, optsErr)
 
-	// invalid domain
-	NTP.Address = "foo1516ads.com:123"
-	_, optsErr, err = NTP.Query()
-	require.Error(t, err)
-	require.True(t, optsErr)
+		testsuite.IsDestroyed(t, NTP)
+	})
 
-	// all failed
-	NTP.Address = "github.com:8989"
-	NTP.Timeout = time.Second
-	_, optsErr, err = NTP.Query()
-	require.Error(t, err)
-	require.False(t, optsErr)
+	t.Run("invalid address", func(t *testing.T) {
+		NTP := NewNTP(context.Background(), pool, dnsClient)
+
+		NTP.Address = "foo address"
+
+		_, optsErr, err := NTP.Query()
+		require.Error(t, err)
+		require.True(t, optsErr)
+
+		testsuite.IsDestroyed(t, NTP)
+	})
+
+	t.Run("invalid domain", func(t *testing.T) {
+		NTP := NewNTP(context.Background(), pool, dnsClient)
+
+		NTP.Address = "test:123"
+
+		_, optsErr, err := NTP.Query()
+		require.Error(t, err)
+		require.True(t, optsErr)
+
+		testsuite.IsDestroyed(t, NTP)
+	})
+
+	t.Run("all failed", func(t *testing.T) {
+		NTP := NewNTP(context.Background(), pool, dnsClient)
+
+		NTP.Address = "github.com:8989"
+		NTP.Timeout = time.Second
+
+		_, optsErr, err := NTP.Query()
+		require.Error(t, err)
+		require.False(t, optsErr)
+
+		testsuite.IsDestroyed(t, NTP)
+	})
 }
 
 func TestNTPOptions(t *testing.T) {
