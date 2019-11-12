@@ -135,7 +135,8 @@ func TestGetHeaderDate(t *testing.T) {
 	}
 
 	t.Run("http", func(t *testing.T) {
-		r, err := http.NewRequest(http.MethodGet, "http://test-ipv6.com/", nil)
+		const url = "http://ds.vm2.test-ipv6.com/"
+		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		now, err := getHeaderDate(r, client)
 		require.NoError(t, err)
@@ -143,7 +144,8 @@ func TestGetHeaderDate(t *testing.T) {
 	})
 
 	t.Run("https", func(t *testing.T) {
-		r, err := http.NewRequest(http.MethodGet, "https://cloudflare-dns.com/", nil)
+		const url = "https://cloudflare-dns.com/"
+		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		now, err := getHeaderDate(r, client)
 		require.NoError(t, err)
@@ -151,7 +153,8 @@ func TestGetHeaderDate(t *testing.T) {
 	})
 
 	t.Run("failed to query date", func(t *testing.T) {
-		r, err := http.NewRequest(http.MethodGet, "http://test/", nil)
+		const url = "http://test/"
+		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		_, err = getHeaderDate(r, client)
 		require.Error(t, err)
