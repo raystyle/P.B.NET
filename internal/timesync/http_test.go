@@ -31,7 +31,7 @@ func TestHTTPClient_Query(t *testing.T) {
 		now, optsErr, err := HTTP.Query()
 		require.NoError(t, err)
 		require.False(t, optsErr)
-		t.Log("now(HTTP) simple:", now.Local())
+		t.Log("now(HTTPS):", now.Local())
 
 		testsuite.IsDestroyed(t, HTTP)
 	})

@@ -19,9 +19,9 @@ import (
 
 type HTTP struct {
 	// copy from Syncer
+	ctx       context.Context
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
-	ctx       context.Context
 
 	Request   options.HTTPRequest   `toml:"request"`
 	Transport options.HTTPTransport `toml:"transport"`
@@ -69,7 +69,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 
 	// resolve domain name
 	dnsOptsCopy := h.DNSOpts
-	result, err := h.dnsClient.Resolve(hostname, &dnsOptsCopy)
+	result, err := h.dnsClient.ResolveWithContext(h.ctx, hostname, &dnsOptsCopy)
 	if err != nil {
 		optsErr = true
 		err = errors.WithMessage(err, "failed to resolve domain name")
