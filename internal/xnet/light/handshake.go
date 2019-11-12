@@ -30,7 +30,7 @@ var (
 // +--------------+--------------+----------------+
 // | padding size | padding data | rsa public key |
 // +--------------+--------------+----------------+
-// |    uint16    |     xxxx     |       281      |
+// |    uint16    |     xxx      |       281      |
 // +--------------+--------------+----------------+
 func (c *Conn) clientHandshake() error {
 	privateKey, _ := rsa.GenerateKey(rsaBits)
@@ -83,11 +83,11 @@ func (c *Conn) clientHandshake() error {
 
 // server generate light password,
 // use rsa public key encrypt it,
-// send encrypted data with padding data,
+// send encrypted data with padding data
 // +--------------+--------------+--------------+
 // | padding size | padding data |   password   |
 // +--------------+--------------+--------------+
-// |    uint16    |     xxxx     |      267     |
+// |    uint16    |      xxx     |      267     |
 // +--------------+--------------+--------------+
 func (c *Conn) serverHandshake() error {
 	// receive padding size
