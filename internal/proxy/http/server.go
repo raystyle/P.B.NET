@@ -133,7 +133,7 @@ func (s *Server) ListenAndServe(network, address string) error {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return errors.Errorf("unsupport network: %s", network)
+		return errors.Errorf("unsupported network: %s", network)
 	}
 	// listen
 	l, err := net.Listen(network, address)
@@ -280,7 +280,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		default: // not support method
 			authFailed()
-			s.log(logger.Exploit, "unsupport auth method: "+authMethod+"\n", r)
+			s.log(logger.Exploit, "unsupported auth method: "+authMethod+"\n", r)
 			return
 		}
 	}

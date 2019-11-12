@@ -34,7 +34,7 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, errors.Errorf("unsupport network: %s", network)
+		return nil, errors.Errorf("unsupported network: %s", network)
 	}
 
 	if opts == nil {
@@ -79,7 +79,7 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, errors.Errorf("unsupport network: %s", network)
+		return nil, errors.Errorf("unsupported network: %s", network)
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
@@ -101,7 +101,7 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, errors.Errorf("unsupport network: %s", network)
+		return nil, errors.Errorf("unsupported network: %s", network)
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
@@ -123,7 +123,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, errors.Errorf("unsupport network: %s", network)
+		return nil, errors.Errorf("unsupported network: %s", network)
 	}
 	if timeout < 1 {
 		timeout = options.DefaultDialTimeout
@@ -153,7 +153,7 @@ func (c *Client) Connect(
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, errors.Errorf("unsupport network: %s", network)
+		return nil, errors.Errorf("unsupported network: %s", network)
 	}
 	host, port, err := splitHostPort(address)
 	if err != nil {

@@ -114,7 +114,7 @@ func (s *Server) ListenAndServe(network, address string) error {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return errors.Errorf("unsupport network: %s", network)
+		return errors.Errorf("unsupported network: %s", network)
 	}
 	// listen
 	l, err := net.Listen(network, address)

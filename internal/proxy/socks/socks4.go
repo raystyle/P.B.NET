@@ -26,9 +26,9 @@ func (r v4Reply) String() string {
 	case 0x5b:
 		return "request rejected or failed"
 	case 0x5c:
-		return "request rejected because SOCKS server cannot connect to identd on the client"
+		return "request rejected because SOCKS server cannot connect to ident on the client"
 	case 0x5d:
-		return "request rejected because the client program and identd report different user-ids"
+		return "request rejected because the client program and ident report different user-ids"
 	default:
 		return "unknown reply: " + strconv.Itoa(int(r))
 	}
