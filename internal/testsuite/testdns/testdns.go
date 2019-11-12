@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	TagGoogleIPv4UDP  = "google_ipv4_udp"
-	TagGoogleIPv4DoT  = "google_ipv4_dot"
-	TagMozillaIPv6UDP = "mozilla_ipv6_udp"
-	TagMozillaIPv6DoT = "mozilla_ipv6_dot"
+	TagGoogleIPv4UDP     = "google_ipv4_udp"
+	TagGoogleIPv4DoT     = "google_ipv4_dot"
+	TagCloudflareIPv6UDP = "cloudflare_ipv6_udp"
+	TagCloudflareIPv6DoT = "cloudflare_ipv6_dot"
 )
 
 // DNSClient is used to create a DNS client for test
@@ -31,14 +31,14 @@ func DNSClient(t *testing.T) (*dns.Client, *proxy.Pool, *proxy.Manager) {
 		Address: "8.8.8.8:853",
 	})
 	require.NoError(t, err)
-	err = client.Add(TagMozillaIPv6UDP, &dns.Server{
+	err = client.Add(TagCloudflareIPv6UDP, &dns.Server{
 		Method:  dns.MethodUDP,
-		Address: "[2606:4700::6810:f8f9]:53",
+		Address: "[2606:4700:4700::64]:53",
 	})
 	require.NoError(t, err)
-	err = client.Add(TagMozillaIPv6DoT, &dns.Server{
+	err = client.Add(TagCloudflareIPv6DoT, &dns.Server{
 		Method:  dns.MethodDoT,
-		Address: "[2606:4700::6810:f8f9]:853",
+		Address: "[2606:4700:4700::1111]:853",
 	})
 	require.NoError(t, err)
 	return client, pool, manager

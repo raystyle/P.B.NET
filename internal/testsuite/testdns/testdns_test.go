@@ -16,7 +16,9 @@ func TestDNSClient(t *testing.T) {
 		require.NoError(t, manager.Close())
 		testsuite.IsDestroyed(t, manager)
 	}()
+
 	const domain = "cloudflare-dns.com"
+
 	if testsuite.EnableIPv4() {
 		opts := &dns.Options{ServerTag: TagGoogleIPv4UDP}
 		result, err := client.Resolve(domain, opts)
@@ -33,12 +35,13 @@ func TestDNSClient(t *testing.T) {
 		t.Log("IPv4 DoH(proxy):", result)
 
 	}
+
 	if testsuite.EnableIPv6() {
-		opts := &dns.Options{ServerTag: TagMozillaIPv6UDP}
+		opts := &dns.Options{ServerTag: TagCloudflareIPv6UDP}
 		result, err := client.Resolve(domain, opts)
 		require.NoError(t, err)
 		t.Log("IPv6 UDP:", result)
-		opts.ServerTag = TagMozillaIPv6DoT
+		opts.ServerTag = TagCloudflareIPv6DoT
 		result, err = client.Resolve(domain, opts)
 		require.NoError(t, err)
 		t.Log("IPv6 DoH:", result)
