@@ -79,7 +79,7 @@ func TestCustomResolve(t *testing.T) {
 		const (
 			udpServer = "[2606:4700:4700::1111]:53"
 			tcpServer = "[2606:4700:4700::1001]:53"
-			TLSIP     = "[2606:4700:4700::64]:853"
+			TLSip     = "[2606:4700:4700::64]:853"
 			TLSDomain = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
 		)
 		// udp
@@ -91,7 +91,7 @@ func TestCustomResolve(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("TCP IPv6:", result)
 		// dot ip mode
-		result, err = customResolve(ctx, MethodDoT, TLSIP, testDomain, TypeIPv6, opts)
+		result, err = customResolve(ctx, MethodDoT, TLSip, testDomain, TypeIPv6, opts)
 		require.NoError(t, err)
 		t.Log("DOT-IP IPv6:", result)
 		// dot domain mode
@@ -166,7 +166,7 @@ func TestDialUDP(t *testing.T) {
 	}
 	if testsuite.EnableIPv6() {
 		_, err = dialUDP(ctx, "[::1]:23421", nil, opt)
-		require.Equal(t, ErrNoConnection, err)
+		require.EqualError(t, err, ErrNoConnection.Error())
 	}
 }
 
