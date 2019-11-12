@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-func TestXpanic(t *testing.T) {
+func TestXPanic(t *testing.T) {
 	defer func() {
 		r := recover()
 		fmt.Println("-----begin-----")
-		fmt.Println(Error(r, "TestXpanic"))
+		fmt.Println(Error(r, "TestXPanic"))
 		fmt.Println("-----end-----")
 	}()
 	testPanic()
