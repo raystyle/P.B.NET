@@ -30,7 +30,7 @@ func ProxyClients(t require.TestingT) map[string]*proxy.Client {
 
 func DNSServers(t require.TestingT) map[string]*dns.Server {
 	servers := make(map[string]*dns.Server)
-	b, err := ioutil.ReadFile("../internal/dns/testdata/dnsserver.toml")
+	b, err := ioutil.ReadFile("../internal/dns/testdata/server.toml")
 	require.NoError(t, err)
 	err = toml.Unmarshal(b, &servers)
 	require.NoError(t, err)
