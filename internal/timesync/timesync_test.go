@@ -41,6 +41,7 @@ func testAddClients(t *testing.T, syncer *Syncer) {
 func TestTimeSyncer(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
+
 	syncer := New(pool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
 
@@ -56,6 +57,7 @@ func TestTimeSyncer(t *testing.T) {
 	require.Error(t, syncer.SetSyncInterval(3*time.Hour))
 	require.NoError(t, syncer.Start())
 	t.Log("now: ", syncer.Now().Local())
+
 	// wait addLoop
 	time.Sleep(3 * time.Second)
 	syncer.Stop()
@@ -76,8 +78,8 @@ func testUnreachableClient() *Client {
 func TestTimeSyncer_Start(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
-	syncer := New(pool, dnsClient, logger.Test)
 
+	syncer := New(pool, dnsClient, logger.Test)
 	// set random sleep
 	syncer.FixedSleep = 3
 	syncer.RandomSleep = 5
@@ -116,25 +118,32 @@ func TestTimeSyncer_Start(t *testing.T) {
 func TestTimeSyncer_Add_Delete(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
+
 	syncer := New(pool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
+
 	// add unknown mode
 	err := syncer.Add("foo mode", &Client{Mode: "foo mode"})
 	require.Error(t, err)
+
 	// invalid config
 	err = syncer.Add("invalid config", &Client{
 		Mode:   ModeNTP,
 		Config: []byte{1, 2, 3, 4},
 	})
 	require.Error(t, err)
+
 	// add exist
 	err = syncer.Add("ntp", &Client{
 		Mode: ModeNTP,
 	})
 	require.Error(t, err)
 
+	// delete
 	require.NoError(t, syncer.Delete("http"))
 	require.Error(t, syncer.Delete("http"))
+
+	testsuite.IsDestroyed(t, syncer)
 }
 
 func TestTimeSyncer_Test(t *testing.T) {
@@ -155,6 +164,7 @@ func TestTimeSyncer_Test(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// test
 	require.NoError(t, syncer.Test())
 
 	// test failed
@@ -169,12 +179,17 @@ func TestTimeSyncer_Test(t *testing.T) {
 func TestTimeSyncer_SyncLoop(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
+
 	syncer := New(pool, dnsClient, logger.Test)
+
 	// force sync
 	syncer.interval = time.Second
+
 	// add reachable
 	testAddHTTP(t, syncer)
 	require.NoError(t, syncer.Start())
+
+	// wait failed to sync
 	require.NoError(t, syncer.Delete("http"))
 	time.Sleep(3 * time.Second)
 	syncer.Stop()
@@ -182,12 +197,15 @@ func TestTimeSyncer_SyncLoop(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestTimeSyncer_Sync_Panic(t *testing.T) {
+func TestTimeSyncer_syncPanic(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
+
 	syncer := New(pool, dnsClient, logger.Test)
+
 	// add reachable
 	testAddHTTP(t, syncer)
+
 	// remove context
 	syncer.Clients()["http"].client.(*HTTP).ctx = nil
 

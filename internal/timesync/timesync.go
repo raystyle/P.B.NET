@@ -80,7 +80,7 @@ func (syncer *Syncer) Add(tag string, client *Client) error {
 	case ModeHTTP:
 		client.client = NewHTTP(syncer.ctx, syncer.proxyPool, syncer.dnsClient)
 	case ModeNTP:
-		client.client = NewNTP(syncer.proxyPool, syncer.dnsClient)
+		client.client = NewNTP(syncer.ctx, syncer.proxyPool, syncer.dnsClient)
 	default:
 		return errors.Errorf("unknown mode: %s", client.Mode)
 	}
