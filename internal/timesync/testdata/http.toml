@@ -2,7 +2,7 @@ timeout   = "15s"
 proxy_tag = "balance"
 
 [request]
-  url = "http://abc.com/"
+  url = "http://test.com/"
 
 [transport]
   max_idle_conns = 2
