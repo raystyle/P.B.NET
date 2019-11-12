@@ -18,26 +18,29 @@ import (
 )
 
 const (
-	// resolve target
 	testDomain = "cloudflare-dns.com"
 )
 
 func TestSystemResolve(t *testing.T) {
-	// ipv4
+	// IPv4
 	result, err := systemResolve(context.Background(), TypeIPv4, testDomain)
 	require.NoError(t, err)
-	t.Log("system resolve ipv4:", result)
-	// ipv6
+	t.Log("system resolve IPv4:", result)
+
+	// IPv6
 	result, err = systemResolve(context.Background(), TypeIPv6, testDomain)
 	require.NoError(t, err)
-	t.Log("system resolve ipv6:", result)
-	// invalid host
-	result, err = systemResolve(context.Background(), TypeIPv4, "asd")
+	t.Log("system resolve IPv6:", result)
+
+	// invalid domain name
+	result, err = systemResolve(context.Background(), TypeIPv4, "test")
 	require.Error(t, err)
 	require.Equal(t, 0, len(result))
 }
 
 func TestCustomResolve(t *testing.T) {
+	t.Parallel()
+
 	const domainPunycode = "错的是.世界"
 
 	ctx := context.Background()
@@ -53,26 +56,36 @@ func TestCustomResolve(t *testing.T) {
 			tlsIP     = "8.8.4.4:853"
 			tlsDomain = "dns.google:853|8.8.8.8,8.8.4.4"
 		)
-		// udp
-		result, err := customResolve(ctx, MethodUDP, udpServer, testDomain, TypeIPv4, opts)
-		require.NoError(t, err)
-		t.Log("UDP IPv4:", result)
-		// tcp
-		result, err = customResolve(ctx, MethodTCP, tcpServer, testDomain, TypeIPv4, opts)
-		require.NoError(t, err)
-		t.Log("TCP IPv4:", result)
-		// dot ip mode
-		result, err = customResolve(ctx, MethodDoT, tlsIP, testDomain, TypeIPv4, opts)
-		require.NoError(t, err)
-		t.Log("DOT-IP IPv4:", result)
-		// dot domain mode
-		result, err = customResolve(ctx, MethodDoT, tlsDomain, testDomain, TypeIPv4, opts)
-		require.NoError(t, err)
-		t.Log("DOT-Domain IPv4:", result)
-		// punycode
-		result, err = customResolve(ctx, MethodUDP, udpServer, domainPunycode, TypeIPv4, opts)
-		require.NoError(t, err)
-		t.Log("punycode:", result)
+
+		t.Run("IPv4 UDP", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodUDP, udpServer, testDomain, TypeIPv4, opts)
+			require.NoError(t, err)
+			t.Log("UDP IPv4:", result)
+		})
+
+		t.Run("IPv4 TCP", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodTCP, tcpServer, testDomain, TypeIPv4, opts)
+			require.NoError(t, err)
+			t.Log("TCP IPv4:", result)
+		})
+
+		t.Run("IPv4 DoT IP mode", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodDoT, tlsIP, testDomain, TypeIPv4, opts)
+			require.NoError(t, err)
+			t.Log("DOT-IP IPv4:", result)
+		})
+
+		t.Run("IPv4 DoT domain mode", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodDoT, tlsDomain, testDomain, TypeIPv4, opts)
+			require.NoError(t, err)
+			t.Log("DOT-Domain IPv4:", result)
+		})
+
+		t.Run("IPv4 punycode", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodUDP, udpServer, domainPunycode, TypeIPv4, opts)
+			require.NoError(t, err)
+			t.Log("punycode:", result)
+		})
 	}
 
 	if testsuite.EnableIPv6() {
@@ -82,50 +95,65 @@ func TestCustomResolve(t *testing.T) {
 			TLSip     = "[2606:4700:4700::64]:853"
 			TLSDomain = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
 		)
-		// udp
-		result, err := customResolve(ctx, MethodUDP, udpServer, testDomain, TypeIPv6, opts)
-		require.NoError(t, err)
-		t.Log("UDP IPv6:", result)
-		// tcp
-		result, err = customResolve(ctx, MethodTCP, tcpServer, testDomain, TypeIPv6, opts)
-		require.NoError(t, err)
-		t.Log("TCP IPv6:", result)
-		// dot ip mode
-		result, err = customResolve(ctx, MethodDoT, TLSip, testDomain, TypeIPv6, opts)
-		require.NoError(t, err)
-		t.Log("DOT-IP IPv6:", result)
-		// dot domain mode
-		result, err = customResolve(ctx, MethodDoT, TLSDomain, testDomain, TypeIPv6, opts)
-		require.NoError(t, err)
-		t.Log("DOT-Domain IPv6:", result)
-		// punycode
-		result, err = customResolve(ctx, MethodUDP, udpServer, domainPunycode, TypeIPv6, opts)
-		require.NoError(t, err)
-		t.Log("punycode:", result)
+
+		t.Run("IPv6 UDP", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodUDP, udpServer, testDomain, TypeIPv6, opts)
+			require.NoError(t, err)
+			t.Log("UDP IPv6:", result)
+		})
+
+		t.Run("IPv6 TCP", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodTCP, tcpServer, testDomain, TypeIPv6, opts)
+			require.NoError(t, err)
+			t.Log("TCP IPv6:", result)
+		})
+
+		t.Run("IPv6 DoT IP mode", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodDoT, TLSip, testDomain, TypeIPv6, opts)
+			require.NoError(t, err)
+			t.Log("DOT-IP IPv6:", result)
+		})
+
+		t.Run("IPv6 DoT domain mode", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodDoT, TLSDomain, testDomain, TypeIPv6, opts)
+			require.NoError(t, err)
+			t.Log("DOT-Domain IPv6:", result)
+		})
+
+		t.Run("IPv6 punycode", func(t *testing.T) {
+			result, err := customResolve(ctx, MethodUDP, udpServer, domainPunycode, TypeIPv6, opts)
+			require.NoError(t, err)
+			t.Log("punycode:", result)
+		})
 	}
 
-	// doh
-	const dnsDOH = "https://cloudflare-dns.com/dns-query"
-	result, err := customResolve(ctx, MethodDoH, dnsDOH, testDomain, TypeIPv4, opts)
-	require.NoError(t, err)
-	t.Log("DOH:", result)
+	t.Run("DoH", func(t *testing.T) {
+		const dnsDOH = "https://cloudflare-dns.com/dns-query"
+		result, err := customResolve(ctx, MethodDoH, dnsDOH, testDomain, TypeIPv4, opts)
+		require.NoError(t, err)
+		t.Log("DOH:", result)
+	})
 
-	// resolve ip
 	const dnsServer = "1.0.0.1:53"
-	result, err = customResolve(ctx, MethodUDP, dnsServer, "1.1.1.1", TypeIPv4, opts)
-	require.NoError(t, err)
-	require.Equal(t, []string{"1.1.1.1"}, result)
 
-	// empty domain
-	result, err = customResolve(ctx, MethodUDP, dnsServer, "", TypeIPv4, opts)
-	require.Error(t, err)
-	require.Equal(t, 0, len(result))
+	t.Run("resolve IP", func(t *testing.T) {
+		result, err := customResolve(ctx, MethodUDP, dnsServer, "1.1.1.1", TypeIPv4, opts)
+		require.NoError(t, err)
+		require.Equal(t, []string{"1.1.1.1"}, result)
+	})
 
-	// resolve failed
-	opts.Timeout = time.Second
-	result, err = customResolve(ctx, MethodUDP, "0.0.0.0:1", domainPunycode, TypeIPv4, opts)
-	require.Error(t, err)
-	require.Equal(t, 0, len(result))
+	t.Run("empty domain", func(t *testing.T) {
+		result, err := customResolve(ctx, MethodUDP, dnsServer, "", TypeIPv4, opts)
+		require.Error(t, err)
+		require.Equal(t, 0, len(result))
+	})
+
+	t.Run("failed to resolve", func(t *testing.T) {
+		opts.Timeout = time.Second
+		result, err := customResolve(ctx, MethodUDP, "0.0.0.0:1", domainPunycode, TypeIPv4, opts)
+		require.Error(t, err)
+		require.Equal(t, 0, len(result))
+	})
 }
 
 var (
@@ -143,6 +171,7 @@ func TestDialUDP(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("UDP (IPv4 DNS Server):", result)
 	}
+
 	if testsuite.EnableIPv6() {
 		msg, err := dialUDP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opt)
 		require.NoError(t, err)
@@ -150,14 +179,17 @@ func TestDialUDP(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("UDP (IPv6 DNS Server):", result)
 	}
+
 	// unknown network
 	opt.Network = "foo network"
 	_, err := dialUDP(ctx, "", nil, opt)
 	require.Error(t, err)
+
 	// no port
 	opt.Network = "udp"
 	_, err = dialUDP(ctx, "1.2.3.4", nil, opt)
 	require.Error(t, err)
+
 	// no response
 	opt.Timeout = time.Second
 	if testsuite.EnableIPv4() {
@@ -181,6 +213,7 @@ func TestDialTCP(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("TCP (IPv4 DNS Server):", result)
 	}
+
 	if testsuite.EnableIPv6() {
 		msg, err := dialTCP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opt)
 		require.NoError(t, err)
@@ -188,10 +221,12 @@ func TestDialTCP(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("TCP (IPv6 DNS Server):", result)
 	}
+
 	// unknown network
 	opt.Network = "foo network"
 	_, err := dialTCP(ctx, "", nil, opt)
 	require.Error(t, err)
+
 	// no port
 	opt.Network = "tcp"
 	_, err = dialTCP(ctx, "1.2.3.4", nil, opt)
@@ -220,6 +255,7 @@ func TestDialDoT(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("DoT-Domain (IPv4 DNS Server):", result)
 	}
+
 	if testsuite.EnableIPv6() {
 		const (
 			dnsServerIPv6 = "[2606:4700:4700::64]:853"
@@ -238,23 +274,29 @@ func TestDialDoT(t *testing.T) {
 		require.NoError(t, err)
 		t.Log("DoT-Domain (IPv6 DNS Server):", result)
 	}
+
 	// unknown network
 	opt.Network = "foo network"
 	_, err := dialDoT(ctx, "", nil, opt)
 	require.Error(t, err)
+
 	// no port(ip mode)
 	opt.Network = "tcp"
 	_, err = dialDoT(ctx, "1.2.3.4", nil, opt)
 	require.Error(t, err)
-	// dial failed
+
+	// failed to dial
 	_, err = dialDoT(ctx, "127.0.0.1:888", nil, opt)
 	require.Error(t, err)
+
 	// error ip(domain mode)
 	_, err = dialDoT(ctx, "dns.google:853|127.0.0.1", nil, opt)
 	require.EqualError(t, err, ErrNoConnection.Error())
+
 	// no port(domain mode)
 	_, err = dialDoT(ctx, "dns.google|1.2.3.235", nil, opt)
 	require.Error(t, err)
+
 	// invalid config
 	cfg := "asd:153|xxx|xxx"
 	_, err = dialDoT(ctx, cfg, nil, opt)
@@ -272,6 +314,7 @@ func TestDialDoH(t *testing.T) {
 	result, err := unpackMessage(resp)
 	require.NoError(t, err)
 	t.Log("DoH GET:", result)
+
 	// post
 	url := dnsServer + "#" + strings.Repeat("a", 2048)
 	resp, err = dialDoH(ctx, url, testDNSMessage, opt)
@@ -279,12 +322,14 @@ func TestDialDoH(t *testing.T) {
 	result, err = unpackMessage(resp)
 	require.NoError(t, err)
 	t.Log("DoH POST:", result)
+
 	// invalid doh server
 	_, err = dialDoH(ctx, "foo\n", testDNSMessage, opt)
 	require.Error(t, err)
 	url = "foo\n" + "#" + strings.Repeat("a", 2048)
 	_, err = dialDoH(ctx, url, testDNSMessage, opt)
 	require.Error(t, err)
+
 	// unreachable doh server
 	_, err = dialDoH(ctx, "https://1.2.3.4/", testDNSMessage, opt)
 	require.Error(t, err)
