@@ -46,11 +46,13 @@ func systemResolve(ctx context.Context, typ string, domain string) ([]string, er
 	)
 	for _, ip := range ips {
 		ip := net.ParseIP(ip)
-		ip4 := ip.To4()
-		if ip4 != nil {
-			ipv4List = append(ipv4List, ip4.String())
-		} else {
-			ipv6List = append(ipv6List, ip.To16().String())
+		if ip != nil {
+			ip4 := ip.To4()
+			if ip4 != nil {
+				ipv4List = append(ipv4List, ip4.String())
+			} else {
+				ipv6List = append(ipv6List, ip.To16().String())
+			}
 		}
 	}
 	if typ == TypeIPv4 {
