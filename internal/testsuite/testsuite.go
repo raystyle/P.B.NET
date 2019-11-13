@@ -5,8 +5,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,38 +19,53 @@ var (
 )
 
 func init() {
-	initGetIPv4Address()
-	initGetIPv6Address()
+	checkNetwork()
 
-	// check IPv4
-	for i := 0; i < 5; i++ {
-		addr := getIPv4Address()
-		conn, err := net.DialTimeout("tcp4", addr, 5*time.Second)
-		if err == nil {
-			_ = conn.Close()
-			enableIPv4 = true
+	// pprof
+	for port := 9931; port < 65536; port++ {
+		actualPort := deployPPROF(port)
+		if actualPort != "" {
+			fmt.Printf("[debug] pprof port: %s\n", actualPort)
 			break
 		}
 	}
+}
 
-	// check IPv6
-	for i := 0; i < 5; i++ {
-		addr := getIPv6Address()
-		conn, err := net.DialTimeout("tcp6", addr, 5*time.Second)
-		if err == nil {
-			_ = conn.Close()
-			enableIPv6 = true
-			break
+func checkNetwork() {
+	ifaces, _ := net.Interfaces()
+	for i := 0; i < len(ifaces); i++ {
+		if ifaces[i].Flags == net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
+			addrs, _ := ifaces[i].Addrs()
+			for j := 0; j < len(addrs); j++ {
+				// check IPv4 or IPv6
+				ipAddr := strings.Split(addrs[j].String(), "/")[0]
+				ip := net.ParseIP(ipAddr)
+				if ip != nil {
+					ip4 := ip.To4()
+					if ip4 != nil {
+						if ip4.IsGlobalUnicast() {
+							enableIPv4 = true
+						}
+					} else {
+						if ip.To16().IsGlobalUnicast() {
+							enableIPv6 = true
+						}
+					}
+				}
+			}
+			if enableIPv4 && enableIPv6 {
+				break
+			}
 		}
 	}
 
-	// check network
 	if !enableIPv4 && !enableIPv6 {
-		fmt.Print("network unavailable")
-		os.Exit(1)
+		fmt.Println("[warning] network unavailable")
 	}
+}
 
-	// deploy pprof
+// return port
+func deployPPROF(port int) string {
 	serverMux := http.NewServeMux()
 	serverMux.HandleFunc("/debug/pprof/", pprof.Index)
 	serverMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -59,19 +74,23 @@ func init() {
 	serverMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	server := http.Server{Handler: serverMux}
 	var (
-		listener net.Listener
-		err      error
+		ipv4 net.Listener
+		ipv6 net.Listener
+		err  error
 	)
-	listener, err = net.Listen("tcp", "localhost:9931")
+	address := fmt.Sprintf("localhost:%d", port)
+	ipv4, err = net.Listen("tcp4", address)
 	if err != nil {
-		listener, err = net.Listen("tcp", "localhost:0")
-		if err != nil {
-			fmt.Printf("failed to deploy pprof: %s\n", err)
-			os.Exit(1)
-		}
+		return ""
 	}
-	fmt.Printf("[debug] pprof: %s\n", listener.Addr())
-	go func() { _ = server.Serve(listener) }()
+	ipv6, err = net.Listen("tcp6", address)
+	if err != nil {
+		return ""
+	}
+	go func() { _ = server.Serve(ipv4) }()
+	go func() { _ = server.Serve(ipv6) }()
+	_, p, _ := net.SplitHostPort(address)
+	return p
 }
 
 // EnableIPv4 is used to determine whether IPv4 is available

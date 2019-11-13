@@ -11,11 +11,11 @@ import (
 )
 
 func TestEnableIPv4(t *testing.T) {
-	EnableIPv4()
+	t.Log("IPv4:", EnableIPv4())
 }
 
 func TestEnableIPv6(t *testing.T) {
-	EnableIPv6()
+	t.Log("IPv6:", EnableIPv6())
 }
 
 func TestIsDestroyed(t *testing.T) {
