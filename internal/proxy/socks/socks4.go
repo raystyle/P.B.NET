@@ -180,7 +180,7 @@ func (c *conn) serveSocks4() {
 	c.log(logger.Debug, "connect: "+address)
 	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
 	defer cancel()
-	remote, err := c.server.dialContext(ctx, "tcp4", address)
+	remote, err := c.server.dialContext(ctx, "tcp", address)
 	if err != nil {
 		_, _ = c.local.Write(v4ReplyConnectRefused)
 		return

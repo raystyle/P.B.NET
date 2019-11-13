@@ -55,10 +55,10 @@ func InitHTTPServers(t testing.TB) {
 			_, _ = w.Write(data)
 		})
 
-		// initialize http server
+		// initialize HTTP server
 		httpServer.Handler = serverMux
 
-		// initialize https server
+		// initialize HTTPS server
 		httpsServer.Handler = serverMux
 		caASN1, cPEMBlock, cPriPEMBlock := TLSCertificate(t)
 		cert, err := tls.X509KeyPair(cPEMBlock, cPriPEMBlock)
@@ -71,24 +71,52 @@ func InitHTTPServers(t testing.TB) {
 		httpsCA, err = x509.ParseCertificate(caASN1)
 		require.NoError(t, err)
 
-		// start HTTP Server Listener
-		l1, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		_, HTTPServerPort, err = net.SplitHostPort(l1.Addr().String())
-		require.NoError(t, err)
-		l2, err := net.Listen("tcp", "[::1]:"+HTTPServerPort)
-		require.NoError(t, err)
-		// start HTTPS Server Listener
-		l3, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		_, HTTPSServerPort, err = net.SplitHostPort(l3.Addr().String())
-		require.NoError(t, err)
-		l4, err := net.Listen("tcp", "[::1]:"+HTTPSServerPort)
-		require.NoError(t, err)
-		go func() { _ = httpServer.Serve(l1) }()
-		go func() { _ = httpServer.Serve(l2) }()
-		go func() { _ = httpsServer.ServeTLS(l3, "", "") }()
-		go func() { _ = httpsServer.ServeTLS(l4, "", "") }()
+		// start HTTP and HTTPS Server Listeners
+		var (
+			l1 net.Listener // HTTP IPv4
+			l2 net.Listener // HTTPS IPv4
+			l3 net.Listener // HTTP IPv6
+			l4 net.Listener // HTTPS IPv6
+		)
+
+		if EnableIPv4() {
+			l1, err = net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			_, HTTPServerPort, err = net.SplitHostPort(l1.Addr().String())
+			require.NoError(t, err)
+
+			l2, err = net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			_, HTTPSServerPort, err = net.SplitHostPort(l2.Addr().String())
+			require.NoError(t, err)
+
+			go func() { _ = httpServer.Serve(l1) }()
+			go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
+		}
+
+		if EnableIPv6() {
+			if HTTPServerPort != "" {
+				l3, err = net.Listen("tcp", "[::1]:"+HTTPServerPort)
+				require.NoError(t, err)
+
+				l4, err = net.Listen("tcp", "[::1]:"+HTTPSServerPort)
+				require.NoError(t, err)
+			} else { // IPv6 Only
+				l3, err = net.Listen("tcp", "[::1]:0")
+				require.NoError(t, err)
+				_, HTTPServerPort, err = net.SplitHostPort(l3.Addr().String())
+				require.NoError(t, err)
+
+				l4, err = net.Listen("tcp", "[::1]:0")
+				require.NoError(t, err)
+				_, HTTPSServerPort, err = net.SplitHostPort(l4.Addr().String())
+				require.NoError(t, err)
+			}
+
+			go func() { _ = httpServer.Serve(l3) }()
+			go func() { _ = httpsServer.ServeTLS(l4, "", "") }()
+		}
+
 		// print proxy server address
 		fmt.Printf("[debug] HTTP Server Port: %s\n", HTTPServerPort)
 		fmt.Printf("[debug] HTTPS Server Port: %s\n", HTTPSServerPort)
@@ -291,6 +319,7 @@ func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
 	_, err = client.DialTimeout("tcp", "", time.Second)
 	require.Error(t, err)
 	t.Log("DialTimeout:\n", err)
+
 	IsDestroyed(t, client)
 }
 
@@ -311,5 +340,6 @@ func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client pro
 	_, err = client.DialTimeout("tcp", unreachableTarget, time.Second)
 	require.Error(t, err)
 	t.Log("DialTimeout -> Connect:\n", err)
+
 	IsDestroyed(t, client)
 }
