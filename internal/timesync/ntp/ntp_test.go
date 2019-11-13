@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	host  = "pool.ntp.org:123" // "pool.ntp.org" 144.76.76.107 94.130.49.186
-	refID = 0x58585858         // 'XXXX'
+	host  = "2.pool.ntp.org:123" // "pool.ntp.org" 144.76.76.107 94.130.49.186
+	refID = 0x58585858           // 'XXXX'
 )
 
 func isNil(t *testing.T, err error) bool {

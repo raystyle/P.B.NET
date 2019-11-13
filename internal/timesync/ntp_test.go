@@ -26,7 +26,7 @@ func TestNTPClient_Query(t *testing.T) {
 	now, optsErr, err := NTP.Query()
 	require.NoError(t, err)
 	require.False(t, optsErr)
-	t.Log("now(NTP) simple:", now.Local())
+	t.Log("now(NTP):", now.Local())
 
 	testsuite.IsDestroyed(t, NTP)
 }
