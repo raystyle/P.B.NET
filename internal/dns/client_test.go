@@ -45,9 +45,14 @@ func TestClient(t *testing.T) {
 	pool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	t.Run("print DNS servers", func(t *testing.T) {
+	newClient := func(t *testing.T) *Client {
 		client := NewClient(pool)
 		testAddAllDNSServers(t, client)
+		return client
+	}
+
+	t.Run("print DNS servers", func(t *testing.T) {
+		client := newClient(t)
 
 		for tag, server := range client.Servers() {
 			t.Log(tag, server.Address)
@@ -57,35 +62,71 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("use default options", func(t *testing.T) {
-		client := NewClient(pool)
-		testAddAllDNSServers(t, client)
+		client := newClient(t)
 
 		result, err := client.Resolve(testDomain, nil)
 		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
 		t.Log("use default options", result)
 
 		testsuite.IsDestroyed(t, client)
 	})
 
+	t.Run("system mode", func(t *testing.T) {
+		client := newClient(t)
+
+		opts := &Options{Mode: ModeSystem}
+
+		if testsuite.EnableIPv4() {
+			opts.Type = TypeIPv4
+			result, err := client.TestOptions(context.Background(), testDomain, opts)
+			require.NoError(t, err)
+			require.NotEqual(t, 0, len(result))
+		}
+
+		if testsuite.EnableIPv6() {
+			opts.Type = TypeIPv6
+			result, err := client.TestOptions(context.Background(), testDomain, opts)
+			require.NoError(t, err)
+			require.NotEqual(t, 0, len(result))
+		}
+
+		// IPv4 and IPv6
+		if testsuite.EnableIPv4() || testsuite.EnableIPv6() {
+			opts.Type = ""
+			result, err := client.TestOptions(context.Background(), testDomain, opts)
+			require.NoError(t, err)
+			require.NotEqual(t, 0, len(result))
+		}
+
+		// invalid type
+		opts.Type = "foo type"
+		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		require.Error(t, err)
+		require.Equal(t, 0, len(result))
+
+		testsuite.IsDestroyed(t, client)
+	})
+
 	t.Run("resolve IPv6", func(t *testing.T) {
-		client := NewClient(pool)
-		testAddAllDNSServers(t, client)
+		client := newClient(t)
 
 		result, err := client.Resolve(testDomain, &Options{Type: TypeIPv6})
 		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
 		t.Log("resolve IPv6:", result)
 
 		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("use DoH", func(t *testing.T) {
-		client := NewClient(pool)
-		testAddAllDNSServers(t, client)
+		client := newClient(t)
 
 		opts := &Options{Method: MethodDoH}
 		opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
 		result, err := client.Resolve(testDomain, opts)
 		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
 		t.Log("use DoH:", result)
 
 		testsuite.IsDestroyed(t, client)
@@ -101,10 +142,12 @@ func TestClient_Cache(t *testing.T) {
 
 	result, err := client.Resolve(testDomain, nil)
 	require.NoError(t, err)
+	require.NotEqual(t, 0, len(result))
 	t.Log("[no cache]:", result)
 
 	result, err = client.Resolve(testDomain, nil)
 	require.NoError(t, err)
+	require.NotEqual(t, 0, len(result))
 	t.Log("[cache]:", result)
 
 	testsuite.IsDestroyed(t, client)
@@ -216,6 +259,7 @@ func TestClient_TestServers(t *testing.T) {
 
 		result, err := client.TestServers(context.Background(), testDomain, new(Options))
 		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
 		t.Log(result)
 
 		if testsuite.EnableIPv4() {
@@ -281,27 +325,6 @@ func TestClient_TestOptions(t *testing.T) {
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("system mode", func(t *testing.T) {
-		client := newClient(t)
-
-		opts := &Options{Mode: ModeSystem}
-		if testsuite.EnableIPv4() {
-			opts.Type = TypeIPv4
-			result, err := client.TestOptions(context.Background(), testDomain, opts)
-			require.NoError(t, err)
-			require.NotEqual(t, 0, len(result))
-		}
-
-		if testsuite.EnableIPv6() {
-			opts.Type = TypeIPv6
-			result, err := client.TestOptions(context.Background(), testDomain, opts)
-			require.NoError(t, err)
-			require.NotEqual(t, 0, len(result))
-		}
-
-		testsuite.IsDestroyed(t, client)
-	})
-
 	t.Run("invalid domain name", func(t *testing.T) {
 		client := newClient(t)
 
@@ -317,7 +340,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{
-			Method:   MethodTCP, // must not use udp
+			Method:   MethodTCP, // must don't use udp
 			ProxyTag: testproxy.TagBalance,
 		}
 		result, err := client.TestOptions(context.Background(), testDomain, opts)
