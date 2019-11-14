@@ -51,35 +51,42 @@ func (c *Client) queryCache(domain, typ string) []string {
 	}
 	// query cache
 	if cache, ok := c.caches[domain]; ok {
-		var result []string
+		var ip []string
 		switch typ {
 		case TypeIPv4:
 			cache.rwm.RLock()
 			defer cache.rwm.RUnlock()
-			result = cache.ipv4List
+			ip = cache.ipv4List
 		case TypeIPv6:
 			cache.rwm.RLock()
 			defer cache.rwm.RUnlock()
-			result = cache.ipv6List
+			ip = cache.ipv6List
 		}
-		return result
+		// must copy
+		cp := make([]string, len(ip))
+		copy(cp, ip)
+		return cp
 	}
 	// create cache object
 	c.caches[domain] = &cache{updateTime: time.Now()}
 	return nil
 }
 
-func (c *Client) updateCache(domain string, ipv4, ipv6 []string) {
+func (c *Client) updateCache(domain, typ string, ip []string) {
+	// must copy
+	cp := make([]string, len(ip))
+	copy(cp, ip)
+
 	c.cachesRWM.RLock()
 	defer c.cachesRWM.RUnlock()
 	if cache, ok := c.caches[domain]; ok {
 		cache.rwm.Lock()
 		defer cache.rwm.Unlock()
-		if len(ipv4) != 0 {
-			cache.ipv4List = ipv4
-		}
-		if len(ipv6) != 0 {
-			cache.ipv6List = ipv6
+		switch typ {
+		case TypeIPv4:
+			cache.ipv4List = cp
+		case TypeIPv6:
+			cache.ipv6List = cp
 		}
 		cache.updateTime = time.Now()
 	}

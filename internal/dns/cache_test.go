@@ -18,6 +18,11 @@ var (
 	testExpectIPv6 = []string{"2f0c::1"}
 )
 
+func testUpdateCache(client *Client, domain string) {
+	client.updateCache(domain, TypeIPv4, testExpectIPv4)
+	client.updateCache(domain, TypeIPv6, testExpectIPv6)
+}
+
 func TestClientCache(t *testing.T) {
 	// make DNS client
 	client := NewClient(nil)
@@ -38,9 +43,10 @@ func TestClientCache(t *testing.T) {
 	require.Equal(t, 0, len(result))
 
 	// update cache
-	client.updateCache(testCacheDomain, testExpectIPv4, testExpectIPv6)
+	testUpdateCache(client, testCacheDomain)
+
 	// <security> update doesn't exists domain
-	client.updateCache("a", testExpectIPv4, testExpectIPv6)
+	testUpdateCache(client, "a")
 
 	// query exist cache
 	result = client.queryCache(testCacheDomain, TypeIPv4)
@@ -62,7 +68,7 @@ func TestClientCacheAboutExpire(t *testing.T) {
 	result := client.queryCache(testCacheDomain, TypeIPv4)
 	require.Equal(t, 0, len(result))
 	// update cache
-	client.updateCache(testCacheDomain, testExpectIPv4, testExpectIPv6)
+	testUpdateCache(client, testCacheDomain)
 	// expire
 	time.Sleep(50 * time.Millisecond)
 	// clean cache
@@ -77,7 +83,7 @@ func TestClientCacheAboutType(t *testing.T) {
 	result := client.queryCache(testCacheDomain, TypeIPv4)
 	require.Equal(t, 0, len(result))
 	// update cache
-	client.updateCache(testCacheDomain, testExpectIPv4, testExpectIPv6)
+	testUpdateCache(client, testCacheDomain)
 	// query invalid type
 	result = client.queryCache(testCacheDomain, "invalid type")
 	require.Equal(t, 0, len(result))
