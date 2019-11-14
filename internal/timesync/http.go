@@ -121,7 +121,7 @@ func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
 	}
 	defer func() {
 		// <security> read limit
-		n := int64(1<<20 + random.Int(2*(1<<20))) // 1-3 MB
+		n := int64(4<<20 + random.Int(4<<20)) // 4-8 MB
 		_, _ = io.CopyN(ioutil.Discard, resp.Body, n)
 		_ = resp.Body.Close()
 	}()
