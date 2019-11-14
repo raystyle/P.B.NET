@@ -21,23 +21,6 @@ const (
 	testDomain = "cloudflare-dns.com"
 )
 
-func TestSystemResolve(t *testing.T) {
-	// IPv4
-	result, err := systemResolve(context.Background(), TypeIPv4, testDomain)
-	require.NoError(t, err)
-	t.Log("system resolve IPv4:", result)
-
-	// IPv6
-	result, err = systemResolve(context.Background(), TypeIPv6, testDomain)
-	require.NoError(t, err)
-	t.Log("system resolve IPv6:", result)
-
-	// invalid domain name
-	result, err = systemResolve(context.Background(), TypeIPv4, "test")
-	require.Error(t, err)
-	require.Equal(t, 0, len(result))
-}
-
 func TestCustomResolve(t *testing.T) {
 	t.Parallel()
 
@@ -58,31 +41,31 @@ func TestCustomResolve(t *testing.T) {
 		)
 
 		t.Run("IPv4 UDP", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodUDP, udpServer, testDomain, TypeIPv4, opts)
+			result, err := resolve(ctx, MethodUDP, udpServer, testDomain, TypeIPv4, opts)
 			require.NoError(t, err)
 			t.Log("UDP IPv4:", result)
 		})
 
 		t.Run("IPv4 TCP", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodTCP, tcpServer, testDomain, TypeIPv4, opts)
+			result, err := resolve(ctx, MethodTCP, tcpServer, testDomain, TypeIPv4, opts)
 			require.NoError(t, err)
 			t.Log("TCP IPv4:", result)
 		})
 
 		t.Run("IPv4 DoT IP mode", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodDoT, tlsIP, testDomain, TypeIPv4, opts)
+			result, err := resolve(ctx, MethodDoT, tlsIP, testDomain, TypeIPv4, opts)
 			require.NoError(t, err)
 			t.Log("DOT-IP IPv4:", result)
 		})
 
 		t.Run("IPv4 DoT domain mode", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodDoT, tlsDomain, testDomain, TypeIPv4, opts)
+			result, err := resolve(ctx, MethodDoT, tlsDomain, testDomain, TypeIPv4, opts)
 			require.NoError(t, err)
 			t.Log("DOT-Domain IPv4:", result)
 		})
 
 		t.Run("IPv4 punycode", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodUDP, udpServer, domainPunycode, TypeIPv4, opts)
+			result, err := resolve(ctx, MethodUDP, udpServer, domainPunycode, TypeIPv4, opts)
 			require.NoError(t, err)
 			t.Log("punycode:", result)
 		})
@@ -97,31 +80,31 @@ func TestCustomResolve(t *testing.T) {
 		)
 
 		t.Run("IPv6 UDP", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodUDP, udpServer, testDomain, TypeIPv6, opts)
+			result, err := resolve(ctx, MethodUDP, udpServer, testDomain, TypeIPv6, opts)
 			require.NoError(t, err)
 			t.Log("UDP IPv6:", result)
 		})
 
 		t.Run("IPv6 TCP", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodTCP, tcpServer, testDomain, TypeIPv6, opts)
+			result, err := resolve(ctx, MethodTCP, tcpServer, testDomain, TypeIPv6, opts)
 			require.NoError(t, err)
 			t.Log("TCP IPv6:", result)
 		})
 
 		t.Run("IPv6 DoT IP mode", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodDoT, TLSip, testDomain, TypeIPv6, opts)
+			result, err := resolve(ctx, MethodDoT, TLSip, testDomain, TypeIPv6, opts)
 			require.NoError(t, err)
 			t.Log("DOT-IP IPv6:", result)
 		})
 
 		t.Run("IPv6 DoT domain mode", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodDoT, TLSDomain, testDomain, TypeIPv6, opts)
+			result, err := resolve(ctx, MethodDoT, TLSDomain, testDomain, TypeIPv6, opts)
 			require.NoError(t, err)
 			t.Log("DOT-Domain IPv6:", result)
 		})
 
 		t.Run("IPv6 punycode", func(t *testing.T) {
-			result, err := customResolve(ctx, MethodUDP, udpServer, domainPunycode, TypeIPv6, opts)
+			result, err := resolve(ctx, MethodUDP, udpServer, domainPunycode, TypeIPv6, opts)
 			require.NoError(t, err)
 			t.Log("punycode:", result)
 		})
@@ -129,7 +112,7 @@ func TestCustomResolve(t *testing.T) {
 
 	t.Run("DoH", func(t *testing.T) {
 		const dnsDOH = "https://cloudflare-dns.com/dns-query"
-		result, err := customResolve(ctx, MethodDoH, dnsDOH, testDomain, TypeIPv4, opts)
+		result, err := resolve(ctx, MethodDoH, dnsDOH, testDomain, TypeIPv4, opts)
 		require.NoError(t, err)
 		t.Log("DOH:", result)
 	})
@@ -137,20 +120,20 @@ func TestCustomResolve(t *testing.T) {
 	const dnsServer = "1.0.0.1:53"
 
 	t.Run("resolve IP", func(t *testing.T) {
-		result, err := customResolve(ctx, MethodUDP, dnsServer, "1.1.1.1", TypeIPv4, opts)
+		result, err := resolve(ctx, MethodUDP, dnsServer, "1.1.1.1", TypeIPv4, opts)
 		require.NoError(t, err)
 		require.Equal(t, []string{"1.1.1.1"}, result)
 	})
 
 	t.Run("empty domain", func(t *testing.T) {
-		result, err := customResolve(ctx, MethodUDP, dnsServer, "", TypeIPv4, opts)
+		result, err := resolve(ctx, MethodUDP, dnsServer, "", TypeIPv4, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 	})
 
 	t.Run("failed to resolve", func(t *testing.T) {
 		opts.Timeout = time.Second
-		result, err := customResolve(ctx, MethodUDP, "0.0.0.0:1", domainPunycode, TypeIPv4, opts)
+		result, err := resolve(ctx, MethodUDP, "0.0.0.0:1", domainPunycode, TypeIPv4, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 	})

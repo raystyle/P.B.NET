@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	// udp is 3 second
-	defaultTimeout = 5 * time.Second
+	// udp is 5 second
+	defaultTimeout = 10 * time.Second
 
 	// about DOH
 	defaultMaxBodySize = 65535
@@ -35,35 +35,7 @@ var (
 	ErrNoConnection = fmt.Errorf("no connection")
 )
 
-func systemResolve(ctx context.Context, typ string, domain string) ([]string, error) {
-	ips, err := net.DefaultResolver.LookupHost(ctx, domain)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	var (
-		ipv4List []string
-		ipv6List []string
-	)
-	for _, ip := range ips {
-		ip := net.ParseIP(ip)
-		if ip != nil {
-			ip4 := ip.To4()
-			if ip4 != nil {
-				ipv4List = append(ipv4List, ip4.String())
-			} else {
-				ipv6List = append(ipv6List, ip.To16().String())
-			}
-		}
-	}
-	if typ == TypeIPv4 {
-		return ipv4List, nil
-	} else { // about error type
-		return ipv6List, nil
-	}
-}
-
-// address is dns server address
-func customResolve(
+func resolve(
 	ctx context.Context,
 	method string,
 	address string,
@@ -112,7 +84,7 @@ func dialUDP(ctx context.Context, address string, message []byte, opts *Options)
 	// set timeout
 	timeout := opts.Timeout
 	if timeout < 1 {
-		timeout = 3 * time.Second
+		timeout = 5 * time.Second
 	}
 	// dial
 	for i := 0; i < 3; i++ {
