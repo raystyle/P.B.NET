@@ -28,7 +28,7 @@ const (
 const TimeLayout = "2006-01-02 15:04:05"
 
 type Logger interface {
-	Printf(l Level, src string, format string, log ...interface{})
+	Printf(l Level, src, format string, log ...interface{})
 	Print(l Level, src string, log ...interface{})
 	Println(l Level, src string, log ...interface{})
 }
@@ -43,19 +43,19 @@ var (
 
 type test struct{}
 
-func (t *test) Printf(l Level, src string, format string, log ...interface{}) {
+func (t test) Printf(l Level, src, format string, log ...interface{}) {
 	b := Prefix(l, src)
 	_, _ = fmt.Fprintf(b, format, log...)
 	fmt.Println(b.String())
 }
 
-func (t *test) Print(l Level, src string, log ...interface{}) {
+func (t test) Print(l Level, src string, log ...interface{}) {
 	b := Prefix(l, src)
 	_, _ = fmt.Fprint(b, log...)
 	fmt.Println(b.String())
 }
 
-func (t *test) Println(l Level, src string, log ...interface{}) {
+func (t test) Println(l Level, src string, log ...interface{}) {
 	b := Prefix(l, src)
 	_, _ = fmt.Fprintln(b, log...)
 	fmt.Print(b.String())
@@ -63,11 +63,11 @@ func (t *test) Println(l Level, src string, log ...interface{}) {
 
 type discard struct{}
 
-func (d *discard) Printf(l Level, src string, format string, log ...interface{}) {}
+func (d discard) Printf(_ Level, _, _ string, _ ...interface{}) {}
 
-func (d *discard) Print(l Level, src string, log ...interface{}) {}
+func (d discard) Print(_ Level, _ string, _ ...interface{}) {}
 
-func (d *discard) Println(l Level, src string, log ...interface{}) {}
+func (d discard) Println(_ Level, _ string, _ ...interface{}) {}
 
 // Parse is used to parse logger level from string
 func Parse(level string) (Level, error) {

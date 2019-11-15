@@ -25,7 +25,7 @@ func newLogger(ctx *NODE, level string) (*xLogger, error) {
 	}, nil
 }
 
-func (lg *xLogger) Printf(lv logger.Level, src string, format string, log ...interface{}) {
+func (lg *xLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
