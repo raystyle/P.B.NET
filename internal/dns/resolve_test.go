@@ -31,6 +31,7 @@ func TestCustomResolve(t *testing.T) {
 		dialContext: new(net.Dialer).DialContext,
 		transport:   new(http.Transport),
 	}
+	opts.TLSConfig.InsecureLoadFromSystem = true
 
 	if testsuite.EnableIPv4() {
 		const (
@@ -145,10 +146,10 @@ var (
 
 func TestDialUDP(t *testing.T) {
 	ctx := context.Background()
-	opt := &Options{dialContext: new(net.Dialer).DialContext}
+	opts := &Options{dialContext: new(net.Dialer).DialContext}
 
 	if testsuite.EnableIPv4() {
-		msg, err := dialUDP(ctx, "8.8.8.8:53", testDNSMessage, opt)
+		msg, err := dialUDP(ctx, "8.8.8.8:53", testDNSMessage, opts)
 		require.NoError(t, err)
 		result, err := unpackMessage(msg)
 		require.NoError(t, err)
@@ -156,7 +157,7 @@ func TestDialUDP(t *testing.T) {
 	}
 
 	if testsuite.EnableIPv6() {
-		msg, err := dialUDP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opt)
+		msg, err := dialUDP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opts)
 		require.NoError(t, err)
 		result, err := unpackMessage(msg)
 		require.NoError(t, err)
@@ -164,33 +165,33 @@ func TestDialUDP(t *testing.T) {
 	}
 
 	// unknown network
-	opt.Network = "foo network"
-	_, err := dialUDP(ctx, "", nil, opt)
+	opts.Network = "foo network"
+	_, err := dialUDP(ctx, "", nil, opts)
 	require.Error(t, err)
 
 	// no port
-	opt.Network = "udp"
-	_, err = dialUDP(ctx, "1.2.3.4", nil, opt)
+	opts.Network = "udp"
+	_, err = dialUDP(ctx, "1.2.3.4", nil, opts)
 	require.Error(t, err)
 
 	// no response
-	opt.Timeout = time.Second
+	opts.Timeout = time.Second
 	if testsuite.EnableIPv4() {
-		_, err = dialUDP(ctx, "1.2.3.4:23421", nil, opt)
+		_, err = dialUDP(ctx, "1.2.3.4:23421", nil, opts)
 		require.EqualError(t, err, ErrNoConnection.Error())
 	}
 	if testsuite.EnableIPv6() {
-		_, err = dialUDP(ctx, "[::1]:23421", nil, opt)
+		_, err = dialUDP(ctx, "[::1]:23421", nil, opts)
 		require.EqualError(t, err, ErrNoConnection.Error())
 	}
 }
 
 func TestDialTCP(t *testing.T) {
 	ctx := context.Background()
-	opt := &Options{dialContext: new(net.Dialer).DialContext}
+	opts := &Options{dialContext: new(net.Dialer).DialContext}
 
 	if testsuite.EnableIPv4() {
-		msg, err := dialTCP(ctx, "8.8.8.8:53", testDNSMessage, opt)
+		msg, err := dialTCP(ctx, "8.8.8.8:53", testDNSMessage, opts)
 		require.NoError(t, err)
 		result, err := unpackMessage(msg)
 		require.NoError(t, err)
@@ -198,7 +199,7 @@ func TestDialTCP(t *testing.T) {
 	}
 
 	if testsuite.EnableIPv6() {
-		msg, err := dialTCP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opt)
+		msg, err := dialTCP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opts)
 		require.NoError(t, err)
 		result, err := unpackMessage(msg)
 		require.NoError(t, err)
@@ -206,19 +207,20 @@ func TestDialTCP(t *testing.T) {
 	}
 
 	// unknown network
-	opt.Network = "foo network"
-	_, err := dialTCP(ctx, "", nil, opt)
+	opts.Network = "foo network"
+	_, err := dialTCP(ctx, "", nil, opts)
 	require.Error(t, err)
 
 	// no port
-	opt.Network = "tcp"
-	_, err = dialTCP(ctx, "1.2.3.4", nil, opt)
+	opts.Network = "tcp"
+	_, err = dialTCP(ctx, "1.2.3.4", nil, opts)
 	require.Error(t, err)
 }
 
 func TestDialDoT(t *testing.T) {
 	ctx := context.Background()
-	opt := &Options{dialContext: new(net.Dialer).DialContext}
+	opts := &Options{dialContext: new(net.Dialer).DialContext}
+	opts.TLSConfig.InsecureLoadFromSystem = true
 
 	if testsuite.EnableIPv4() {
 		const (
@@ -226,13 +228,13 @@ func TestDialDoT(t *testing.T) {
 			dnsDomainIPv4 = "dns.google:853|8.8.8.8,8.8.4.4"
 		)
 		// IP mode
-		msg, err := dialDoT(ctx, dnsServerIPV4, testDNSMessage, opt)
+		msg, err := dialDoT(ctx, dnsServerIPV4, testDNSMessage, opts)
 		require.NoError(t, err)
 		result, err := unpackMessage(msg)
 		require.NoError(t, err)
 		t.Log("DoT-IP (IPv4 DNS Server):", result)
 		// domain mode
-		msg, err = dialDoT(ctx, dnsDomainIPv4, testDNSMessage, opt)
+		msg, err = dialDoT(ctx, dnsDomainIPv4, testDNSMessage, opts)
 		require.NoError(t, err)
 		result, err = unpackMessage(msg)
 		require.NoError(t, err)
@@ -245,13 +247,13 @@ func TestDialDoT(t *testing.T) {
 			dnsDomainIPv6 = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
 		)
 		// IP mode
-		msg, err := dialDoT(ctx, dnsServerIPv6, testDNSMessage, opt)
+		msg, err := dialDoT(ctx, dnsServerIPv6, testDNSMessage, opts)
 		require.NoError(t, err)
 		result, err := unpackMessage(msg)
 		require.NoError(t, err)
 		t.Log("DoT-IP (IPv6 DNS Server):", result)
 		// domain mode
-		msg, err = dialDoT(ctx, dnsDomainIPv6, testDNSMessage, opt)
+		msg, err = dialDoT(ctx, dnsDomainIPv6, testDNSMessage, opts)
 		require.NoError(t, err)
 		result, err = unpackMessage(msg)
 		require.NoError(t, err)
@@ -259,40 +261,49 @@ func TestDialDoT(t *testing.T) {
 	}
 
 	// unknown network
-	opt.Network = "foo network"
-	_, err := dialDoT(ctx, "", nil, opt)
+	opts.Network = "foo network"
+	_, err := dialDoT(ctx, "", nil, opts)
 	require.Error(t, err)
 
 	// no port(ip mode)
-	opt.Network = "tcp"
-	_, err = dialDoT(ctx, "1.2.3.4", nil, opt)
+	opts.Network = "tcp"
+	_, err = dialDoT(ctx, "1.2.3.4", nil, opts)
 	require.Error(t, err)
 
 	// failed to dial
-	_, err = dialDoT(ctx, "127.0.0.1:888", nil, opt)
+	_, err = dialDoT(ctx, "127.0.0.1:888", nil, opts)
 	require.Error(t, err)
 
 	// error ip(domain mode)
-	_, err = dialDoT(ctx, "dns.google:853|127.0.0.1", nil, opt)
+	_, err = dialDoT(ctx, "dns.google:853|127.0.0.1", nil, opts)
 	require.EqualError(t, err, ErrNoConnection.Error())
 
 	// no port(domain mode)
-	_, err = dialDoT(ctx, "dns.google|1.2.3.235", nil, opt)
+	_, err = dialDoT(ctx, "dns.google|1.2.3.235", nil, opts)
 	require.Error(t, err)
 
 	// invalid config
 	cfg := "asd:153|xxx|xxx"
-	_, err = dialDoT(ctx, cfg, nil, opt)
-	require.Errorf(t, err, "invalid address: %s", cfg)
+	_, err = dialDoT(ctx, cfg, nil, opts)
+	require.EqualError(t, err, "invalid configs: "+cfg)
+
+	// invalid TLS config
+	opts.TLSConfig.RootCAs = []string{"foo ca"}
+	_, err = dialDoT(ctx, "127.0.0.1:888", nil, opts)
+	require.Error(t, err)
 }
 
 func TestDialDoH(t *testing.T) {
 	const dnsServer = "https://cloudflare-dns.com/dns-query"
 	ctx := context.Background()
-	opt := &Options{transport: new(http.Transport)}
+	opts := new(Options)
+	opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
+	var err error
+	opts.transport, err = opts.Transport.Apply()
+	require.NoError(t, err)
 
 	// get
-	resp, err := dialDoH(ctx, dnsServer, testDNSMessage, opt)
+	resp, err := dialDoH(ctx, dnsServer, testDNSMessage, opts)
 	require.NoError(t, err)
 	result, err := unpackMessage(resp)
 	require.NoError(t, err)
@@ -300,21 +311,21 @@ func TestDialDoH(t *testing.T) {
 
 	// post
 	url := dnsServer + "#" + strings.Repeat("a", 2048)
-	resp, err = dialDoH(ctx, url, testDNSMessage, opt)
+	resp, err = dialDoH(ctx, url, testDNSMessage, opts)
 	require.NoError(t, err)
 	result, err = unpackMessage(resp)
 	require.NoError(t, err)
 	t.Log("DoH POST:", result)
 
 	// invalid doh server
-	_, err = dialDoH(ctx, "foo\n", testDNSMessage, opt)
+	_, err = dialDoH(ctx, "foo\n", testDNSMessage, opts)
 	require.Error(t, err)
 	url = "foo\n" + "#" + strings.Repeat("a", 2048)
-	_, err = dialDoH(ctx, url, testDNSMessage, opt)
+	_, err = dialDoH(ctx, url, testDNSMessage, opts)
 	require.Error(t, err)
 
 	// unreachable doh server
-	_, err = dialDoH(ctx, "https://1.2.3.4/", testDNSMessage, opt)
+	_, err = dialDoH(ctx, "https://1.2.3.4/", testDNSMessage, opts)
 	require.Error(t, err)
 }
 

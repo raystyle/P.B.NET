@@ -464,6 +464,7 @@ func TestOptions(t *testing.T) {
 		{expected: int64(65536), actual: opts.MaxBodySize},
 		{expected: true, actual: opts.SkipProxy},
 		{expected: true, actual: opts.SkipTest},
+		{expected: "test.com", actual: opts.TLSConfig.ServerName},
 		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
 		{expected: 2, actual: opts.Transport.MaxIdleConns},
 	}

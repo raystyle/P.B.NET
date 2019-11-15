@@ -50,7 +50,7 @@ type Server struct {
 	SkipTest bool   `toml:"skip_test"`
 }
 
-// Options is used to Resolve domain name
+// Options is used to resolve domain name
 type Options struct {
 	Mode string `toml:"mode"`
 
@@ -69,17 +69,20 @@ type Options struct {
 	// ServerTag used to select DNS server
 	ServerTag string `toml:"server_tag"`
 
-	// network is useless for DOH
+	// network is useless for DoH
 	Network string `toml:"network"`
 
-	// about DOH, set http.Request Header
+	// about DoT
+	TLSConfig options.TLSConfig `toml:"tls_config"`
+
+	// about DoH, set http.Request Header
 	Header http.Header `toml:"header"`
 
-	// about DOH, set http.Client Transport
+	// about DoH, set http.Client Transport
 	Transport options.HTTPTransport `toml:"transport"`
 
 	// MaxBodySize set the max response body that will read
-	// about DOH max message size
+	// about DoH max message size
 	MaxBodySize int64 `toml:"max_body_size"`
 
 	// SkipProxy set Options.ProxyTag = ""
@@ -89,9 +92,9 @@ type Options struct {
 	// SkipTest skip all Options test
 	SkipTest bool `toml:"skip_test"`
 
-	// context
+	// about set proxy
 	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
-	transport   *http.Transport // about DOH
+	transport   *http.Transport // about DoH
 }
 
 // Clone is used to clone dns.Options
@@ -285,7 +288,7 @@ func (c *Client) customResolve(
 		case MethodUDP, MethodTCP, MethodDoT:
 			opts.dialContext = p.DialContext
 		case MethodDoH:
-			// apply doh options (http.Transport)
+			// apply DoH options (http.Transport)
 			opts.transport, err = opts.Transport.Apply()
 			if err != nil {
 				return err

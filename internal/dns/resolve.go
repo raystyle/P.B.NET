@@ -158,7 +158,7 @@ func dialTCP(ctx context.Context, address string, message []byte, opts *Options)
 	return sendMessage(conn, message, timeout)
 }
 
-func dialDoT(ctx context.Context, address string, message []byte, opts *Options) ([]byte, error) {
+func dialDoT(ctx context.Context, config string, message []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {
 	case "": // default
@@ -167,38 +167,46 @@ func dialDoT(ctx context.Context, address string, message []byte, opts *Options)
 	default:
 		return nil, errors.WithStack(net.UnknownNetworkError(network))
 	}
+	// load configs
+	configs := strings.Split(config, "|")
+	host, port, err := net.SplitHostPort(configs[0])
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	// set TLS Config
+	tlsConfig, err := opts.TLSConfig.Apply()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if tlsConfig.ServerName == "" {
+		tlsConfig.ServerName = host
+	}
 	// set timeout
 	timeout := opts.Timeout
 	if timeout < 1 {
 		timeout = 2 * defaultTimeout
 	}
-	// load config
-	config := strings.Split(address, "|")
-	host, port, err := net.SplitHostPort(config[0])
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 	var conn *tls.Conn
-	switch len(config) {
+	switch len(configs) {
 	case 1: // ip mode
 		// 8.8.8.8:853
 		// [2606:4700:4700::1001]:853
 		ctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		c, err := opts.dialContext(ctx, network, address)
+		c, err := opts.dialContext(ctx, network, config)
 		if err != nil {
 			return nil, err
 		}
-		conn = tls.Client(c, &tls.Config{ServerName: host})
+		conn = tls.Client(c, tlsConfig)
 	case 2: // domain mode
 		// dns.google:853|8.8.8.8,8.8.4.4
 		// cloudflare-dns.com:853|2606:4700:4700::1001,2606:4700:4700::1111
-		ips := strings.Split(strings.TrimSpace(config[1]), ",")
+		ips := strings.Split(strings.TrimSpace(configs[1]), ",")
 		for i := 0; i < len(ips); i++ {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			c, err := opts.dialContext(ctx, network, net.JoinHostPort(ips[i], port))
 			if err == nil {
-				conn = tls.Client(c, &tls.Config{ServerName: host})
+				conn = tls.Client(c, tlsConfig)
 				cancel()
 				break
 			}
@@ -208,7 +216,7 @@ func dialDoT(ctx context.Context, address string, message []byte, opts *Options)
 			return nil, errors.WithStack(ErrNoConnection)
 		}
 	default:
-		return nil, errors.Errorf("invalid address: %s", address)
+		return nil, errors.Errorf("invalid configs: %s", config)
 	}
 	return sendMessage(conn, message, timeout)
 }

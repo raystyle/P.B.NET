@@ -12,6 +12,9 @@ max_body_size = 65536
 skip_proxy = true
 skip_test  = true
 
+[tls_config]
+  server_name = "test.com"
+
 [header]
   Connection = ["keep-alive"]
 
