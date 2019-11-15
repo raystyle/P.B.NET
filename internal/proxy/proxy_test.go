@@ -187,6 +187,7 @@ func TestHTTPOptions(t *testing.T) {
 		{expected: "123456", actual: httpOpts.Password},
 		{expected: time.Minute, actual: httpOpts.Timeout},
 		{expected: 100, actual: httpOpts.MaxConns},
+		{expected: "test.com", actual: httpOpts.TLSConfig.ServerName},
 		{expected: "keep-alive", actual: httpOpts.Header.Get("Connection")},
 		{expected: 10 * time.Second, actual: httpOpts.Server.ReadTimeout},
 		{expected: 2, actual: httpOpts.Transport.MaxIdleConns},

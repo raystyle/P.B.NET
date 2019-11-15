@@ -8,6 +8,9 @@ max_conns = 100
 [header]
   Connection = ["keep-alive"]
 
+[tls_config]
+  server_name = "test.com"
+
 [server]
   read_timeout = "10s"
 
