@@ -31,17 +31,27 @@ func (c *Conn) Handshake() error {
 		if c.handshakeTimeout < 1 {
 			c.handshakeTimeout = options.DefaultHandshakeTimeout
 		}
-		// context
+
+		// interrupt
+		wg := sync.WaitGroup{}
 		done := make(chan struct{})
-		defer close(done)
+		defer func() {
+			close(done)
+			wg.Wait()
+		}()
+		wg.Add(1)
 		go func() {
-			defer func() { recover() }()
+			defer func() {
+				recover()
+				wg.Done()
+			}()
 			select {
 			case <-done:
 			case <-c.ctx.Done():
 				_ = c.Conn.Close()
 			}
 		}()
+
 		c.handshakeErr = c.SetDeadline(time.Now().Add(c.handshakeTimeout))
 		if c.handshakeErr != nil {
 			return

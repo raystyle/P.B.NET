@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -219,17 +220,27 @@ func (c *Client) Connect(
 	_, _ = fmt.Fprintf(buf, "Host: %s\r\n", address)
 	// end
 	buf.WriteString("\r\n")
-	// context
+
+	// interrupt
+	wg := sync.WaitGroup{}
 	done := make(chan struct{})
-	defer close(done)
+	defer func() {
+		close(done)
+		wg.Wait()
+	}()
+	wg.Add(1)
 	go func() {
-		defer func() { recover() }()
+		defer func() {
+			recover()
+			wg.Done()
+		}()
 		select {
 		case <-done:
 		case <-ctx.Done():
 			_ = conn.Close()
 		}
 	}()
+
 	// write to connection
 	rAddr := conn.RemoteAddr().String()
 	_, err := io.Copy(conn, buf)

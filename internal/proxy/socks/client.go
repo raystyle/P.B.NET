@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -157,19 +158,29 @@ func (c *Client) Connect(
 	}
 	host, port, err := splitHostPort(address)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
-	// context
+
+	// interrupt
+	wg := sync.WaitGroup{}
 	done := make(chan struct{})
-	defer close(done)
+	defer func() {
+		close(done)
+		wg.Wait()
+	}()
+	wg.Add(1)
 	go func() {
-		defer func() { recover() }()
+		defer func() {
+			recover()
+			wg.Done()
+		}()
 		select {
 		case <-done:
 		case <-ctx.Done():
 			_ = conn.Close()
 		}
 	}()
+
 	// connect
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	if c.socks4 {
