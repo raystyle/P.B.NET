@@ -10,7 +10,7 @@ import (
 	"github.com/kardianos/service"
 	"github.com/pelletier/go-toml"
 
-	"project/tools/proxy/server"
+	"project/tool/proxy/server"
 )
 
 type program struct {

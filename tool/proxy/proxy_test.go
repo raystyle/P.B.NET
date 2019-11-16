@@ -11,8 +11,8 @@ import (
 
 	"project/internal/proxy"
 	"project/internal/testsuite"
-	"project/tools/proxy/client"
-	"project/tools/proxy/server"
+	"project/tool/proxy/client"
+	"project/tool/proxy/server"
 )
 
 func TestProxyClientWithBalanceAndChain(t *testing.T) {
