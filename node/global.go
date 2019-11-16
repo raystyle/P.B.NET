@@ -30,14 +30,13 @@ type global struct {
 
 func newGlobal(lg logger.Logger, config *Config) (*global, error) {
 	cfg := config.Global
-	// <security> basic
 	memory := security.NewMemory()
 	memory.Padding()
-	proxyPool, err := proxy.NewPool(cfg.ProxyClients)
-	if err != nil {
-		return nil, errors.Wrap(err, "new proxy pool failed")
-	}
+	// add proxy client
+	proxyPool := proxy.NewPool()
+
 	memory.Padding()
+	// set cache expire
 	dnsClient, err := dns.NewClient(proxyPool, cfg.DNSServers, cfg.DNSCacheExpire)
 	if err != nil {
 		return nil, errors.Wrap(err, "new dns client failed")
@@ -51,7 +50,7 @@ func newGlobal(lg logger.Logger, config *Config) (*global, error) {
 		proxyPool,
 		dnsClient,
 		lg,
-		cfg.TimeSyncerConfigs,
+		cfg.TimeSyncerClients,
 		cfg.TimeSyncInterval)
 	if err != nil {
 		return nil, errors.Wrap(err, "new time syncer failed")

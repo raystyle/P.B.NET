@@ -14,50 +14,46 @@ type gLogger struct {
 }
 
 func newLogger(ctx *NODE, level string) (*gLogger, error) {
-	// init logger
 	lv, err := logger.Parse(level)
 	if err != nil {
 		return nil, err
 	}
-	return &gLogger{
-		ctx:   ctx,
-		level: lv,
-	}, nil
+	return &gLogger{ctx: ctx, level: lv}, nil
 }
 
 func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
-	buffer := logger.Prefix(lv, src)
+	buf := logger.Prefix(lv, src)
 	// log with level and src
 	logStr := fmt.Sprintf(format, log...)
-	buffer.WriteString(logStr)
-	buffer.WriteString("\n")
-	lg.writeLog(lv, src, logStr, buffer)
+	buf.WriteString(logStr)
+	buf.WriteString("\n")
+	lg.writeLog(lv, src, logStr, buf)
 }
 
 func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
-	buffer := logger.Prefix(lv, src)
+	buf := logger.Prefix(lv, src)
 	// log with level and src
 	logStr := fmt.Sprint(log...)
-	buffer.WriteString(logStr)
-	buffer.WriteString("\n")
-	lg.writeLog(lv, src, logStr, buffer)
+	buf.WriteString(logStr)
+	buf.WriteString("\n")
+	lg.writeLog(lv, src, logStr, buf)
 }
 
 func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
-	buffer := logger.Prefix(lv, src)
+	buf := logger.Prefix(lv, src)
 	// log with level and src
 	logStr := fmt.Sprintln(log...)
-	buffer.WriteString(logStr)
-	lg.writeLog(lv, src, logStr[:len(logStr)-1], buffer) // delete "\n"
+	buf.WriteString(logStr)
+	lg.writeLog(lv, src, logStr[:len(logStr)-1], buf) // delete "\n"
 }
 
 // log don't include time level src, for database

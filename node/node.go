@@ -10,14 +10,14 @@ import (
 )
 
 type NODE struct {
-	Debug *Debug
+	Debug *Debug // for test
 
-	logger  *gLogger // logger
-	global  *global
-	handler *handler
-	sender  *sender
-	syncer  *syncer
-	server  *server
+	logger  *gLogger // global logger
+	global  *global  // proxy clients, DNS Clients, time syncer
+	handler *handler // handle message from Controller
+	sender  *sender  // send message to Controller
+	syncer  *syncer  // receive message from Controller
+	server  *server  // listen and serve Roles
 
 	once sync.Once
 	wait chan struct{}

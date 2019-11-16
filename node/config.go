@@ -1,6 +1,9 @@
 package node
 
 import (
+	"bytes"
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/vmihailenco/msgpack/v4"
@@ -12,6 +15,7 @@ import (
 )
 
 type Debug struct {
+	// skip sync time
 	SkipTimeSyncer bool
 
 	// from controller
@@ -32,19 +36,19 @@ type Config struct {
 		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 
-		ProxyClients      map[string]*proxy.Chain     `toml:"-"`
+		ProxyClients      map[string]*proxy.Client    `toml:"-"`
 		DNSServers        map[string]*dns.Server      `toml:"-"`
-		TimeSyncerConfigs map[string]*timesync.Config `toml:"-"`
+		TimeSyncerClients map[string]*timesync.Client `toml:"-"`
 	} `toml:"global"`
 
 	Sender struct {
 		MaxBufferSize int `toml:"max_buffer_size"`
 		Worker        int `toml:"worker"`
 		QueueSize     int `toml:"queue_size"`
-		MaxConns      int `toml:"max_conn"`
 	} `toml:"sender"`
 
 	Syncer struct {
+		MaxConns      int           `toml:"max_conns"`
 		MaxBufferSize int           `toml:"max_buffer_size"`
 		Worker        int           `toml:"worker"`
 		QueueSize     int           `toml:"queue_size"`
@@ -70,22 +74,35 @@ type Config struct {
 }
 
 // before create a node need check config
-func (cfg *Config) Check() error {
+func (cfg *Config) Check(ctx context.Context, domain string) (*bytes.Buffer, error) {
 	cfg.CheckMode = true
 	node, err := New(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer node.Exit(nil)
-	err = node.global.dnsClient.TestServers()
-	if err != nil {
-		return err
+
+	// test DNS client
+	output := new(bytes.Buffer)
+	output.WriteString("----------------------DNS client-----------------------")
+	// print DNS servers
+	for tag, server := range node.global.dnsClient.Servers() {
+		const format = "tag: %s method: %s address: %s skip test: %t"
+		_, _ = fmt.Fprintf(output, format, tag, server.Method, server.Address, server.SkipTest)
 	}
+	result, err := node.global.dnsClient.TestServers(ctx, domain, new(dns.Options))
+	if err != nil {
+		return nil, err
+	}
+	_, _ = fmt.Fprintf(output, "test domain: %s, result: %s", domain, result)
+
+	// test time syncer
+	output.WriteString("----------------------time syncer-----------------------")
 	err = node.global.timeSyncer.Test()
 	if err != nil {
-		return err
+		return output, err
 	}
-	return nil
+	return output, nil
 }
 
 func (cfg *Config) Build() ([]byte, error) {
