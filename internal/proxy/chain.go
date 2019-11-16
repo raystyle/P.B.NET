@@ -53,6 +53,7 @@ func (c *Chain) Dial(network, address string) (net.Conn, error) {
 		_ = conn.Close()
 		return nil, err
 	}
+	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
 }
 
@@ -69,6 +70,7 @@ func (c *Chain) DialContext(ctx context.Context, network, address string) (net.C
 		_ = conn.Close()
 		return nil, err
 	}
+	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
 }
 
@@ -87,6 +89,7 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 		_ = conn.Close()
 		return nil, err
 	}
+	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
 }
 
@@ -97,10 +100,7 @@ func (c *Chain) Connect(
 	address string,
 ) (net.Conn, error) {
 	conn, err := c.connect(ctx, conn, network, address)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "proxy chain %s", c.tag)
-	}
-	return conn, nil
+	return conn, errors.WithMessagef(err, "proxy chain %s", c.tag)
 }
 
 func (c *Chain) connect(
@@ -110,8 +110,8 @@ func (c *Chain) connect(
 	address string,
 ) (net.Conn, error) {
 	var (
-		err  error
 		next int
+		err  error
 	)
 	for i := 0; i < c.length; i++ {
 		next = i + 1

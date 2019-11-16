@@ -83,26 +83,17 @@ func (b *Balance) getAndSetNext() *Client {
 
 func (b *Balance) Dial(network, address string) (net.Conn, error) {
 	conn, err := b.getAndSetNext().Dial(network, address)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "balance %s Dial", b.tag)
-	}
-	return conn, nil
+	return conn, errors.WithMessagef(err, "balance %s Dial", b.tag)
 }
 
 func (b *Balance) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := b.getAndSetNext().DialContext(ctx, network, address)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "balance %s DialContext", b.tag)
-	}
-	return conn, nil
+	return conn, errors.WithMessagef(err, "balance %s DialContext", b.tag)
 }
 
 func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	conn, err := b.getAndSetNext().DialTimeout(network, address, timeout)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "balance %s DialTimeout", b.tag)
-	}
-	return conn, nil
+	return conn, errors.WithMessagef(err, "balance %s DialTimeout", b.tag)
 }
 
 // Connect is used to connect target, for Chain
@@ -115,10 +106,7 @@ func (b *Balance) Connect(
 	address string,
 ) (net.Conn, error) {
 	pConn, err := b.getAndSetNext().Connect(ctx, conn, network, address)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "balance %s Connect", b.tag)
-	}
-	return pConn, nil
+	return pConn, errors.WithMessagef(err, "balance %s Connect", b.tag)
 }
 
 func (b *Balance) HTTP(t *http.Transport) {
