@@ -146,17 +146,19 @@ func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 	do := func(req *http.Request) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
 		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 		b, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, "hello", string(b))
 	}
+
 	// get http
 	url := fmt.Sprintf("http://%s:%s/t", hostname, HTTPServerPort)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 	do(req)
+
 	// get https
 	url = fmt.Sprintf("https://%s:%s/t", hostname, HTTPSServerPort)
 	req, err = http.NewRequest(http.MethodGet, url, nil)
