@@ -81,20 +81,21 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	}
 	_, err := conn.Write(buffer.Bytes())
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.Wrap(err, "failed to write socks5 request authentication")
 	}
-	response := make([]byte, 2)
-	_, err = io.ReadFull(conn, response)
+	reply := make([]byte, 2)
+	_, err = io.ReadFull(conn, reply)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.Wrap(err, "failed to read socks5 request authentication")
 	}
-	if response[0] != version5 {
-		return errors.Errorf("unexpected protocol version %d", response[0])
+	if reply[0] != version5 {
+		return errors.Errorf("unexpected socks5 version %d", reply[0])
 	}
-	am := response[1]
+	am := reply[1]
 	if am == noAcceptableMethods {
 		return errors.New("no acceptable authentication methods")
 	}
+
 	// authenticate
 	switch am {
 	case notRequired:
@@ -113,12 +114,12 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 		buffer.WriteString(password)
 		_, err := conn.Write(buffer.Bytes())
 		if err != nil {
-			return errors.WithStack(err)
+			return errors.Wrap(err, "failed to write socks5 username password")
 		}
 		response := make([]byte, 2)
 		_, err = io.ReadFull(conn, response)
 		if err != nil {
-			return errors.WithStack(err)
+			return errors.Wrap(err, "failed to read socks5 username password reply")
 		}
 		if response[0] != usernamePasswordVersion {
 			return errors.New("invalid username/password version")
@@ -129,6 +130,7 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	default:
 		return errors.Errorf("unsupported authentication method %d", am)
 	}
+
 	// send connect target
 	buffer.Reset()
 	buffer.WriteByte(version5)
@@ -155,44 +157,46 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	buffer.Write(convert.Uint16ToBytes(port))
 	_, err = conn.Write(buffer.Bytes())
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.Wrap(err, "failed to write connect target")
 	}
+
 	// receive reply
-	response = make([]byte, 4)
-	_, err = io.ReadFull(conn, response)
+	reply = make([]byte, 4)
+	_, err = io.ReadFull(conn, reply)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.Wrap(err, "failed to read connect target reply")
 	}
-	if response[0] != version5 {
-		return errors.Errorf("unexpected protocol version %d", response[0])
+	if reply[0] != version5 {
+		return errors.Errorf("unexpected socks5 version %d", reply[0])
 	}
-	if response[1] != succeeded {
-		return errors.New(v5Reply(response[1]).String())
+	if reply[1] != succeeded {
+		return errors.New(v5Reply(reply[1]).String())
 	}
-	if response[2] != 0 {
+	if reply[2] != 0 {
 		return errors.New("non-zero reserved field")
 	}
 	l := 2 // port
-	switch response[3] {
+	switch reply[3] {
 	case ipv4:
 		l += net.IPv4len
 	case ipv6:
 		l += net.IPv6len
 	case fqdn:
-		_, err = io.ReadFull(conn, response[:1])
+		_, err = io.ReadFull(conn, reply[:1])
 		if err != nil {
-			return errors.WithStack(err)
+			return errors.Wrap(err, "failed to read connect target reply FQDN size")
 		}
-		l += int(response[0])
+		l += int(reply[0])
 	}
+
 	// grow
-	if cap(response) < l {
-		response = make([]byte, l)
+	if cap(reply) < l {
+		reply = make([]byte, l)
 	} else {
-		response = response[:l]
+		reply = reply[:l]
 	}
-	_, err = io.ReadFull(conn, response)
-	return errors.WithStack(err)
+	_, err = io.ReadFull(conn, reply)
+	return errors.Wrap(err, "failed to read socks5 rest reply")
 }
 
 var (
@@ -202,25 +206,24 @@ var (
 )
 
 func (c *conn) serveSocks5() {
-	var err error
-	defer func() {
-		if err != nil {
-			c.log(logger.Error, err)
-		}
-	}()
 	buffer := make([]byte, 16) // prepare
+
 	// read version
-	_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
+	_, err := io.ReadAtLeast(c.local, buffer[:1], 1)
 	if err != nil {
+		c.log(logger.Error, errors.Wrap(err, "failed to read socks5 version"))
 		return
 	}
 	if buffer[0] != version5 {
-		c.log(logger.Error, "unexpected protocol version")
+		c.log(logger.Error, "unexpected socks5 version")
 		return
 	}
+
 	// read authentication methods
 	_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 	if err != nil {
+		const msg = "failed to read the number of the authentication methods"
+		c.log(logger.Error, errors.Wrap(err, msg))
 		return
 	}
 	l := int(buffer[0])
@@ -233,17 +236,21 @@ func (c *conn) serveSocks5() {
 	}
 	_, err = io.ReadAtLeast(c.local, buffer[:l], l)
 	if err != nil {
+		c.log(logger.Error, errors.Wrap(err, "failed to read authentication methods"))
 		return
 	}
+
 	// write authentication method
 	if c.server.username != nil {
 		_, err = c.local.Write([]byte{version5, usernamePassword})
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to write authentication methods"))
 			return
 		}
 		// read username and password version
 		_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read username password version"))
 			return
 		}
 		if buffer[0] != usernamePasswordVersion {
@@ -253,6 +260,7 @@ func (c *conn) serveSocks5() {
 		// read username length
 		_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read username length"))
 			return
 		}
 		l = int(buffer[0])
@@ -262,6 +270,7 @@ func (c *conn) serveSocks5() {
 		// read username
 		_, err = io.ReadAtLeast(c.local, buffer[:l], l)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read username"))
 			return
 		}
 		username := make([]byte, l)
@@ -269,6 +278,7 @@ func (c *conn) serveSocks5() {
 		// read password length
 		_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read password length"))
 			return
 		}
 		l = int(buffer[0])
@@ -278,6 +288,7 @@ func (c *conn) serveSocks5() {
 		// read password
 		_, err = io.ReadAtLeast(c.local, buffer[:l], l)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read password"))
 			return
 		}
 		password := make([]byte, l)
@@ -285,6 +296,7 @@ func (c *conn) serveSocks5() {
 		// write username password version
 		_, err = c.local.Write([]byte{usernamePasswordVersion})
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to write username password version"))
 			return
 		}
 		if subtle.ConstantTimeCompare(c.server.username, username) != 1 ||
@@ -300,8 +312,10 @@ func (c *conn) serveSocks5() {
 		_, err = c.local.Write([]byte{version5, notRequired})
 	}
 	if err != nil {
+		c.log(logger.Error, errors.Wrap(err, "failed to write authentication reply"))
 		return
 	}
+
 	// receive connect target
 	// version | cmd | reserve | address type
 	if len(buffer) < 10 {
@@ -309,10 +323,11 @@ func (c *conn) serveSocks5() {
 	}
 	_, err = io.ReadAtLeast(c.local, buffer[:4], 4)
 	if err != nil {
+		c.log(logger.Error, errors.Wrap(err, "failed to read version cmd address type"))
 		return
 	}
 	if buffer[0] != version5 {
-		c.log(logger.Exploit, "unexpected connect protocol version")
+		c.log(logger.Exploit, "unexpected socks5 version")
 		return
 	}
 	if buffer[1] != connect {
@@ -325,12 +340,14 @@ func (c *conn) serveSocks5() {
 		_, err = c.local.Write([]byte{version5, noReserve, reserve})
 		return
 	}
+
 	// read address
 	var host string
 	switch buffer[3] {
 	case ipv4:
 		_, err = io.ReadAtLeast(c.local, buffer[:net.IPv4len], net.IPv4len)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read IPv4 address"))
 			return
 		}
 		host = net.IP(buffer[:net.IPv4len]).String()
@@ -338,6 +355,7 @@ func (c *conn) serveSocks5() {
 		buffer = make([]byte, net.IPv6len)
 		_, err = io.ReadAtLeast(c.local, buffer[:net.IPv6len], net.IPv6len)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read IPv6 address"))
 			return
 		}
 		host = net.IP(buffer[:net.IPv6len]).String()
@@ -345,6 +363,7 @@ func (c *conn) serveSocks5() {
 		// get FQDN length
 		_, err = io.ReadAtLeast(c.local, buffer[:1], 1)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read FQDN length"))
 			return
 		}
 		l = int(buffer[0])
@@ -353,6 +372,7 @@ func (c *conn) serveSocks5() {
 		}
 		_, err = io.ReadAtLeast(c.local, buffer[:l], l)
 		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read FQDN"))
 			return
 		}
 		host = string(buffer[:l])
@@ -361,25 +381,31 @@ func (c *conn) serveSocks5() {
 		_, _ = c.local.Write(v5ReplyAddressNotSupport)
 		return
 	}
+
 	// get port
 	_, err = io.ReadAtLeast(c.local, buffer[:2], 2)
 	if err != nil {
+		c.log(logger.Error, errors.Wrap(err, "failed to read port"))
 		return
 	}
-	// connect target
 	port := convert.BytesToUint16(buffer[:2])
 	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
+
+	// connect target
 	c.log(logger.Debug, "connect: "+address)
 	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
 	defer cancel()
 	remote, err := c.server.dialContext(ctx, "tcp", address)
 	if err != nil {
+		c.log(logger.Error, errors.WithStack(err))
 		_, _ = c.local.Write(v5ReplyConnectRefused)
 		return
 	}
+
 	// write reply
 	_, err = c.local.Write(v5ReplySucceeded)
 	if err != nil {
+		c.log(logger.Error, errors.WithStack(err))
 		_ = remote.Close()
 		return
 	}

@@ -135,7 +135,6 @@ func (s *Server) Serve(l net.Listener) {
 	go func() {
 		var err error
 		defer func() {
-			atomic.StoreInt32(&s.inShutdown, 1)
 			if r := recover(); r != nil {
 				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
 			}
@@ -143,6 +142,7 @@ func (s *Server) Serve(l net.Listener) {
 				s.log(logger.Error, err)
 			}
 
+			atomic.StoreInt32(&s.inShutdown, 1)
 			s.cancel()
 
 			// close all connections
@@ -159,6 +159,7 @@ func (s *Server) Serve(l net.Listener) {
 					s.exitFunc()
 				}
 			})
+
 			s.logf(logger.Info, "server stopped (%s)", s.address)
 			s.wg.Done()
 		}()
