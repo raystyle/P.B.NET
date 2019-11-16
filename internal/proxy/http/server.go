@@ -288,15 +288,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Header.Del("Proxy-Authorization")
 	s.log(logger.Debug, "handle request\n", r)
 	if r.Method == http.MethodConnect { // handle https
-		var err error
-		defer func() {
-			if err != nil {
-				s.log(logger.Error, err, "\n", r)
-			}
-		}()
 		// hijack client conn
 		wc, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
+			s.log(logger.Error, errors.Wrap(err, "failed to hijack"), "\n", r)
 			return
 		}
 		defer func() { _ = wc.Close() }()
@@ -305,11 +300,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// dial target
 		conn, err := s.dialContext(ctx, "tcp", r.URL.Host)
 		if err != nil {
+			s.log(logger.Error, errors.WithStack(err), "\n", r)
 			return
 		}
 		defer func() { _ = conn.Close() }()
 		_, err = wc.Write(connectionEstablished)
 		if err != nil {
+			s.log(logger.Error, errors.New("failed to write response"), "\n", r)
 			return
 		}
 		// http.Server.Close() not close hijacked conn
@@ -347,11 +344,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		resp, err := s.transport.RoundTrip(r.Clone(ctx))
 		if err != nil {
-			s.log(logger.Error, err, "\n", r)
+			s.log(logger.Error, errors.WithStack(err), "\n", r)
 			return
 		}
 		defer func() { _ = resp.Body.Close() }()
-		// header
+		// copy header
 		for k, v := range resp.Header {
 			w.Header().Set(k, v[0])
 		}
