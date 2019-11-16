@@ -35,7 +35,9 @@ type global struct {
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	cfg := config.Global
-	proxyPool, _ := proxy.NewPool(nil)
+	proxyPool := proxy.NewPool()
+	// load builtin proxy client
+
 	// load builtin dns clients
 	dnsServers := make(map[string]*dns.Server)
 	b, err := ioutil.ReadFile(cfg.BuiltinDir + "/dnsserver.toml")
@@ -51,12 +53,14 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		dnsServers["builtin_"+tag] = server
 		delete(dnsServers, tag) // rename
 	}
-	dnsClient, err := dns.NewClient(proxyPool, dnsServers, cfg.DNSCacheExpire)
-	if err != nil {
-		return nil, errors.Wrap(err, "new dns client failed")
-	}
+	dnsClient := dns.NewClient(proxyPool)
+
+	// add DNS clients
+
+	// set expire time
+
 	// load builtin time syncer config
-	tsConfigs := make(map[string]*timesync.Config)
+	tsConfigs := make(map[string]*timesync.Client)
 	b, err = ioutil.ReadFile(cfg.BuiltinDir + "/timesyncer.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "load builtin time syncer configs failed")
@@ -70,15 +74,10 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		tsConfigs["builtin_"+tag] = config
 		delete(tsConfigs, tag) // rename
 	}
-	timeSyncer, err := timesync.New(
-		proxyPool,
-		dnsClient,
-		logger,
-		tsConfigs,
-		cfg.TimeSyncInterval)
-	if err != nil {
-		return nil, errors.Wrap(err, "new time syncer failed")
-	}
+	timeSyncer := timesync.New(proxyPool, dnsClient, logger)
+
+	// set time sync interval
+
 	return &global{
 		proxyPool:    proxyPool,
 		dnsClient:    dnsClient,

@@ -9,10 +9,10 @@ import (
 )
 
 type CTRL struct {
-	Debug *Debug
+	Debug *Debug // for test
 
 	db      *db      // database
-	logger  *xLogger // logger
+	logger  *gLogger // global logger
 	global  *global  // proxy, dns, time syncer, and ...
 	handler *handler // handle message from Node or Beacon
 	sender  *sender  // broadcast and send message
@@ -131,7 +131,8 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
 		ctrl.db.Close()
-		// clean point
+
+		// clean points
 		ctrl.db = nil
 		ctrl.logger = nil
 		ctrl.global = nil

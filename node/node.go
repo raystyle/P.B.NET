@@ -12,7 +12,7 @@ import (
 type NODE struct {
 	Debug *Debug
 
-	logger  *xLogger // logger
+	logger  *gLogger // logger
 	global  *global
 	handler *handler
 	sender  *sender

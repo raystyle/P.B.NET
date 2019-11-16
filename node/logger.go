@@ -8,24 +8,24 @@ import (
 	"project/internal/logger"
 )
 
-type xLogger struct {
+type gLogger struct {
 	ctx   *NODE
 	level logger.Level
 }
 
-func newLogger(ctx *NODE, level string) (*xLogger, error) {
+func newLogger(ctx *NODE, level string) (*gLogger, error) {
 	// init logger
 	lv, err := logger.Parse(level)
 	if err != nil {
 		return nil, err
 	}
-	return &xLogger{
+	return &gLogger{
 		ctx:   ctx,
 		level: lv,
 	}, nil
 }
 
-func (lg *xLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
+func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
@@ -37,7 +37,7 @@ func (lg *xLogger) Printf(lv logger.Level, src, format string, log ...interface{
 	lg.writeLog(lv, src, logStr, buffer)
 }
 
-func (lg *xLogger) Print(lv logger.Level, src string, log ...interface{}) {
+func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
@@ -49,7 +49,7 @@ func (lg *xLogger) Print(lv logger.Level, src string, log ...interface{}) {
 	lg.writeLog(lv, src, logStr, buffer)
 }
 
-func (lg *xLogger) Println(lv logger.Level, src string, log ...interface{}) {
+func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
@@ -61,7 +61,7 @@ func (lg *xLogger) Println(lv logger.Level, src string, log ...interface{}) {
 }
 
 // log don't include time level src, for database
-func (lg *xLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
+func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 	// send to controller
 
 	// print to console

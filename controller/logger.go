@@ -18,7 +18,7 @@ type dbLogger struct {
 func newDBLogger(db, path string) (*dbLogger, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
-		return nil, errors.Wrapf(err, "create %s logger failed", db)
+		return nil, errors.Wrapf(err, "failed to create %s logger", db)
 	}
 	return &dbLogger{db: db, file: f}, nil
 }
@@ -42,7 +42,7 @@ type gormLogger struct {
 func newGormLogger(path string) (*gormLogger, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
-		return nil, errors.Wrap(err, "create gorm logger failed")
+		return nil, errors.Wrap(err, "failed to create gorm logger")
 	}
 	return &gormLogger{file: f}, nil
 }
@@ -59,24 +59,24 @@ func (l *gormLogger) Close() {
 	_ = l.file.Close()
 }
 
-type xLogger struct {
+type gLogger struct {
 	ctx   *CTRL
 	level logger.Level
 }
 
-func newLogger(ctx *CTRL, level string) (*xLogger, error) {
+func newLogger(ctx *CTRL, level string) (*gLogger, error) {
 	// init logger
 	lv, err := logger.Parse(level)
 	if err != nil {
 		return nil, err
 	}
-	return &xLogger{
+	return &gLogger{
 		ctx:   ctx,
 		level: lv,
 	}, nil
 }
 
-func (lg *xLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
+func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
@@ -88,7 +88,7 @@ func (lg *xLogger) Printf(lv logger.Level, src, format string, log ...interface{
 	lg.writeLog(lv, src, logStr, buffer)
 }
 
-func (lg *xLogger) Print(lv logger.Level, src string, log ...interface{}) {
+func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
@@ -100,7 +100,7 @@ func (lg *xLogger) Print(lv logger.Level, src string, log ...interface{}) {
 	lg.writeLog(lv, src, logStr, buffer)
 }
 
-func (lg *xLogger) Println(lv logger.Level, src string, log ...interface{}) {
+func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
@@ -112,7 +112,7 @@ func (lg *xLogger) Println(lv logger.Level, src string, log ...interface{}) {
 }
 
 // log don't include time level src, for database
-func (lg *xLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
+func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 	// write to database
 	m := mCtrlLog{
 		Level:  lv,

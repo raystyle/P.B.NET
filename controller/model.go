@@ -7,8 +7,6 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
-
-	"project/internal/xnet"
 )
 
 func init() {
@@ -98,7 +96,7 @@ type mNodeListener struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
 	Tag       string     `gorm:"size:32;not null"`
-	Mode      xnet.Mode  `gorm:"size:32;not null"`
+	Mode      string     `gorm:"size:32;not null"`
 	Network   string     `gorm:"size:32;not null"`
 	Address   string     `gorm:"size:2048;not null"`
 	CreatedAt time.Time  `gorm:"not null"`
@@ -118,7 +116,7 @@ type mBeaconListener struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
 	Tag       string     `gorm:"size:32;not null"`
-	Mode      xnet.Mode  `gorm:"size:32;not null"`
+	Mode      string     `gorm:"size:32;not null"`
 	Network   string     `gorm:"size:32;not null"`
 	Address   string     `gorm:"size:2048;not null"`
 	CreatedAt time.Time  `gorm:"not null"`
@@ -146,9 +144,9 @@ type mRoleLog struct {
 }
 
 type mTrustNode struct {
-	Mode    xnet.Mode `json:"mode"`
-	Network string    `json:"network"`
-	Address string    `json:"address"`
+	Mode    string `json:"mode"`
+	Network string `json:"network"`
+	Address string `json:"address"`
 }
 
 func getStructureName(v interface{}) string {

@@ -3,6 +3,7 @@ package controller
 import (
 	"crypto/tls"
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -69,16 +70,18 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	router.GET("/", web.handleIndex)
 	router.GET("/login", web.handleLogin)
 	router.POST("/load_keys", web.handleLoadKeys)
+
 	// debug api
 	router.GET("/api/debug/shutdown", web.handleShutdown)
-	// operate
+
+	// API
 	router.GET("/api/boot", web.handleGetBoot)
 	router.POST("/api/node/trust", web.handleTrustNode)
-	// http server
+
+	// HTTPS server
 	tlsConfig := &tls.Config{
-		Certificates: make([]tls.Certificate, 1),
+		Certificates: []tls.Certificate{cert},
 	}
-	tlsConfig.Certificates[0] = cert
 	web.server = &http.Server{
 		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: time.Minute,
@@ -114,7 +117,7 @@ func (web *web) Close() {
 
 func (web *web) handlePanic(w hRW, r *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
-	_, _ = w.Write([]byte(xpanic.Print(e)))
+	_, _ = io.Copy(w, xpanic.Print(e, "web"))
 }
 
 func (web *web) handleLogin(w hRW, r *hR, p hP) {
@@ -177,5 +180,9 @@ func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 		return
 	}
 	b, err := json.Marshal(req)
+	if err != nil {
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
 	_, _ = w.Write(b)
 }
