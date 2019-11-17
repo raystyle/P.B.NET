@@ -59,6 +59,7 @@ func (role Role) Error() string {
 	return role.String()
 }
 
+// Bytes is used to return bytes
 func (role Role) Bytes() []byte {
 	switch role {
 	case Ctrl:
@@ -72,6 +73,7 @@ func (role Role) Bytes() []byte {
 	}
 }
 
+// Bytes is used to return byte
 func (role Role) Byte() byte {
 	switch role {
 	case Ctrl:
@@ -86,8 +88,8 @@ func (role Role) Byte() byte {
 }
 
 var (
-	ErrInvalidCert = errors.New("invalid certificate")
-	ErrAuthFailed  = errors.New("failed to authenticate")
+	ErrInvalidCertificate = errors.New("invalid certificate")
+	ErrAuthenticateFailed = errors.New("failed to authenticate")
 )
 
 var (

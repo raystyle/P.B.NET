@@ -10,10 +10,10 @@ import (
 )
 
 var (
-	BroadcastExpired   = []byte{0}
-	BroadcastUnhandled = []byte{1}
-	BroadcastHandled   = []byte{2}
-	BroadcastSucceed   = []byte{3}
+	BroadcastReplyExpired   = []byte{0}
+	BroadcastReplyUnhandled = []byte{1}
+	BroadcastReplyHandled   = []byte{2}
+	BroadcastReplySucceed   = []byte{3}
 
 	ErrBroadcastExpired = errors.New("broadcast expired")
 	ErrBroadcastHandled = errors.New("broadcast has been handled")
@@ -30,11 +30,13 @@ type Broadcast struct {
 	Signature []byte
 }
 
+// Validate is used to validate broadcast fields
 func (b *Broadcast) Validate() error {
 	if len(b.GUID) != guid.Size {
-		return errors.New("invalid GUID size")
+		return errors.New("invalid guid size")
 	}
-	if len(b.Message) < aes.BlockSize {
+	l := len(b.Message)
+	if l < aes.BlockSize || l%aes.BlockSize != 0 {
 		return errors.New("invalid message size")
 	}
 	if len(b.Hash) != sha256.Size {
@@ -60,6 +62,7 @@ type BroadcastResult struct {
 	Err       error
 }
 
+// Clean is used to clean BroadcastResult for sync.Pool
 func (br *BroadcastResult) Clean() {
 	br.Success = 0
 	br.Responses = nil
