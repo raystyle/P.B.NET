@@ -16,7 +16,7 @@ import (
 )
 
 type syncer struct {
-	ctx              *NODE
+	ctx              *Node
 	maxBufferSize    int
 	workerQueueSize  int
 	maxBlockWorker   int
@@ -57,7 +57,7 @@ type syncer struct {
 	wg         sync.WaitGroup
 }
 
-func newSyncer(ctx *NODE, cfg *Config) (*syncer, error) {
+func newSyncer(ctx *Node, cfg *Config) (*syncer, error) {
 	// check config
 	if cfg.MaxBufferSize < 4096 {
 		return nil, errors.New("max buffer size < 4096")

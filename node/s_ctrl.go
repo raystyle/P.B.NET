@@ -24,7 +24,7 @@ import (
 )
 
 type ctrlConn struct {
-	ctx *NODE
+	ctx *Node
 
 	conn   *xnet.Conn
 	slots  []*protocol.Slot

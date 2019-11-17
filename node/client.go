@@ -31,7 +31,7 @@ type clientCfg struct {
 }
 
 type client struct {
-	ctx        *NODE
+	ctx        *Node
 	node       *bootstrap.Node
 	guid       []byte
 	closeLog   bool
@@ -44,7 +44,7 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
-func newClient(ctx *NODE, cfg *clientCfg) (*client, error) {
+func newClient(ctx *Node, cfg *clientCfg) (*client, error) {
 	cfg.Network = cfg.Node.Network
 	cfg.Address = cfg.Node.Address
 	// cfg.TLSConfig.RootCAs = ctx.global.CACertificatesStr()

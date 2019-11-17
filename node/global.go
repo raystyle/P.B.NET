@@ -37,31 +37,30 @@ func newGlobal(lg logger.Logger, config *Config) (*global, error) {
 
 	memory.Padding()
 	// set cache expire
-	dnsClient, err := dns.NewClient(proxyPool, cfg.DNSServers, cfg.DNSCacheExpire)
-	if err != nil {
-		return nil, errors.Wrap(err, "new dns client failed")
-	}
+	// add servers
+	dnsClient := dns.NewClient(proxyPool)
+
 	memory.Padding()
 	// replace logger
 	if config.CheckMode {
 		lg = logger.Discard
 	}
-	timeSyncer, err := timesync.New(
+
+	// expire time
+
+	// add client
+	timeSyncer := timesync.New(
 		proxyPool,
 		dnsClient,
 		lg,
-		cfg.TimeSyncerClients,
-		cfg.TimeSyncInterval)
-	if err != nil {
-		return nil, errors.Wrap(err, "new time syncer failed")
-	}
+	)
 	memory.Flush()
 	g := global{
 		proxyPool:  proxyPool,
 		dnsClient:  dnsClient,
 		timeSyncer: timeSyncer,
 	}
-	err = g.configure(config)
+	err := g.configure(config)
 	if err != nil {
 		return nil, err
 	}

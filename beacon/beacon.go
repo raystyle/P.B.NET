@@ -4,12 +4,12 @@ import (
 	"project/internal/logger"
 )
 
-type BEACON struct {
+type Beacon struct {
 	Debug *Debug
 	logLv logger.Level
 }
 
-func New(cfg *Config) (*BEACON, error) {
+func New(cfg *Config) (*Beacon, error) {
 	// init logger
 	lv, err := logger.Parse(cfg.LogLevel)
 	if err != nil {
@@ -17,7 +17,7 @@ func New(cfg *Config) (*BEACON, error) {
 	}
 	// copy debug config
 	debug := cfg.Debug
-	beacon := &BEACON{
+	beacon := &Beacon{
 		Debug: &debug,
 		logLv: lv,
 	}

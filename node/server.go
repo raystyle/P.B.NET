@@ -28,7 +28,7 @@ var (
 
 // accept beacon node controller
 type server struct {
-	ctx *NODE
+	ctx *Node
 
 	maxConns int // every listener
 
@@ -55,7 +55,7 @@ type listener struct {
 	net.Listener
 }
 
-func newServer(ctx *NODE, config *Config) (*server, error) {
+func newServer(ctx *Node, config *Config) (*server, error) {
 	cfg := config.Server
 	s := &server{
 		ctx:       ctx,

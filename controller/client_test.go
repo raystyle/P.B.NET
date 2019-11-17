@@ -63,7 +63,7 @@ func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
 	return &cfg
 }
 
-func testGenerateNode(t require.TestingT, genesis bool) *node.NODE {
+func testGenerateNode(t require.TestingT, genesis bool) *node.Node {
 	cfg := testGenerateNodeConfig(t, genesis)
 	NODE, err := node.New(cfg)
 	require.NoError(t, err)

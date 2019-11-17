@@ -33,7 +33,7 @@ type syncSendTask struct {
 }
 
 type sender struct {
-	ctx *NODE
+	ctx *Node
 
 	broadcastTaskQueue   chan *broadcastTask
 	syncSendTaskQueue    chan *syncSendTask
@@ -53,7 +53,7 @@ type sender struct {
 	wg         sync.WaitGroup
 }
 
-func newSender(ctx *NODE, cfg *Config) (*sender, error) {
+func newSender(ctx *Node, cfg *Config) (*sender, error) {
 	// check config
 	if cfg.SenderWorker < 1 {
 		return nil, errors.New("sender worker number < 1")

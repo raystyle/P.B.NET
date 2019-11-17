@@ -52,7 +52,7 @@ func (node *NODE) register(c *Config) error {
 }
 */
 
-func (node *NODE) packOnlineRequest() []byte {
+func (node *Node) packOnlineRequest() []byte {
 	req := messages.NodeRegisterRequest{
 		GUID:         node.global.GUID(),
 		PublicKey:    node.global.PublicKey(),
