@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"project/internal/random"
 )
 
@@ -36,4 +38,25 @@ read:
 		}
 	}
 	time.Sleep(time.Millisecond * time.Duration(50+rand.Int(100)))
+}
+
+// Execute is used to execute shellcode in current system
+// in windows, default method is VirtualProtect
+// warning: shellcode will be clean
+func Execute(method string, shellcode []byte) error {
+	switch runtime.GOOS {
+	case "windows":
+		switch method {
+		case "", "vp":
+			return VirtualProtect(shellcode)
+		case "thread":
+			return CreateThread(shellcode)
+		default:
+			return errors.Errorf("unknown method: %s", method)
+		}
+	case "linux":
+		return errors.New("todo")
+	default:
+		return errors.New("execute unsupported current system")
+	}
 }
