@@ -3,22 +3,24 @@ package node
 import (
 	"bytes"
 	"fmt"
-	"os"
+	"io"
 
 	"project/internal/logger"
 )
 
 type gLogger struct {
-	ctx   *NODE
-	level logger.Level
+	ctx    *Node
+	level  logger.Level
+	writer io.Writer
 }
 
-func newLogger(ctx *NODE, level string) (*gLogger, error) {
-	lv, err := logger.Parse(level)
+func newLogger(ctx *Node, config *Config) (*gLogger, error) {
+	cfg := config.Logger
+	lv, err := logger.Parse(cfg.Level)
 	if err != nil {
 		return nil, err
 	}
-	return &gLogger{ctx: ctx, level: lv}, nil
+	return &gLogger{ctx: ctx, level: lv, writer: cfg.Writer}, nil
 }
 
 func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
@@ -61,5 +63,5 @@ func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 	// send to controller
 
 	// print to console
-	_, _ = b.WriteTo(os.Stdout)
+	_, _ = b.WriteTo(lg.writer)
 }

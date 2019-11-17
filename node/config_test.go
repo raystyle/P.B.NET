@@ -1,6 +1,8 @@
 package node
 
 import (
+	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -8,12 +10,12 @@ import (
 )
 
 func testGenerateConfig() *Config {
-	c := Config{
-		Debug: Debug{
-			SkipTimeSyncer: true,
-		},
-		LogLevel: "debug",
-	}
+	c := Config{}
+
+	c.Debug.SkipTimeSyncer = true
+
+	c.Logger.Level = "debug"
+	c.Logger.Writer = os.Stdout
 
 	c.Global.DNSCacheExpire = 3 * time.Minute
 	c.Global.TimeSyncInterval = 1 * time.Minute
@@ -21,7 +23,6 @@ func testGenerateConfig() *Config {
 	c.Sender.MaxBufferSize = 16384
 	c.Sender.Worker = 64
 	c.Sender.QueueSize = 512
-	c.Sender.MaxConns = 3
 
 	c.Syncer.MaxBufferSize = 16384
 	c.Syncer.Worker = 64
@@ -32,17 +33,9 @@ func testGenerateConfig() *Config {
 
 func TestConfig_Check(t *testing.T) {
 	config := testGenerateConfig()
-	err := config.Check()
+	output, err := config.Check(context.Background(), nil)
 	require.NoError(t, err)
-	node, err := New(config)
+	t.Log(output)
+	_, err = New(config)
 	require.NoError(t, err)
-	for k := range node.global.proxyPool.Clients() {
-		t.Log("proxy client:", k)
-	}
-	for k := range node.global.dnsClient.Servers() {
-		t.Log("dns server:", k)
-	}
-	for k := range node.global.timeSyncer.Clients() {
-		t.Log("time syncer config:", k)
-	}
 }

@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/dns"
-	"project/internal/messages"
 	"project/internal/proxy"
 	"project/internal/timesync"
 )
@@ -30,12 +30,16 @@ type Config struct {
 	// the configuration is correct
 	CheckMode bool `toml:"-"`
 
-	LogLevel string `toml:"log_level"`
+	Logger struct {
+		Level  string    `toml:"level"`
+		Writer io.Writer `toml:"-"` // for check config
+	} `toml:"logger"`
 
 	Global struct {
 		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 
+		// generate configs from controller
 		ProxyClients      map[string]*proxy.Client    `toml:"-"`
 		DNSServers        map[string]*dns.Server      `toml:"-"`
 		TimeSyncerClients map[string]*timesync.Client `toml:"-"`
@@ -56,53 +60,85 @@ type Config struct {
 	} `toml:"syncer"`
 
 	Register struct {
-		Bootstraps []*messages.Bootstrap `toml:"-"`
+
+		// generate configs from controller
+		Bootstraps []byte `toml:"-"`
 	} `toml:"register"`
 
 	Server struct {
 		MaxConns int `toml:"max_conns"` // single listener
-		// key = tag
-		Listeners []*messages.Listener `toml:"-"`
+
+		// generate configs from controller
+		Listeners []byte `toml:"-"`
 	} `toml:"server"`
 
-	// controller configs
+	// generate configs from controller
 	CTRL struct {
-		PublicKey   []byte // ed25519
-		ExPublicKey []byte // curve25519
-		AESCrypto   []byte // key + iv
+		ExPublicKey []byte // key exchange curve25519
+		PublicKey   []byte // verify message ed25519
+		AESCrypto   []byte // decrypt broadcast, key + iv
 	} `toml:"-"`
 }
 
+type CheckOptions struct {
+	Domain     string
+	DNSOptions *dns.Options
+}
+
 // before create a node need check config
-func (cfg *Config) Check(ctx context.Context, domain string) (*bytes.Buffer, error) {
+func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes.Buffer, err error) {
+	// options
+	if opts == nil {
+		opts = new(CheckOptions)
+	}
+	domain := opts.Domain
+	if domain == "" {
+		domain = "github.com"
+	}
+
+	output = new(bytes.Buffer)
+	defer func() {
+		if err != nil {
+			_, _ = fmt.Fprintln(output, err)
+		}
+	}()
 	cfg.CheckMode = true
+	cfg.Logger.Writer = output
+
+	// create Node
 	node, err := New(cfg)
 	if err != nil {
-		return nil, err
+		return
 	}
 	defer node.Exit(nil)
 
+	// print proxy clients
+	pLine := "------------------------------proxy client-------------------------------"
+	output.WriteString(pLine)
+	for tag, client := range node.global.proxyPool.Clients() {
+		const format = "tag: %-10s mode: %-7s network: %-3s address: %s"
+		_, _ = fmt.Fprintf(output, format, tag, client.Mode, client.Network, client.Address)
+	}
+
 	// test DNS client
-	output := new(bytes.Buffer)
-	output.WriteString("----------------------DNS client-----------------------")
+	dLine := "-------------------------------DNS client--------------------------------"
+	output.WriteString(dLine)
 	// print DNS servers
 	for tag, server := range node.global.dnsClient.Servers() {
-		const format = "tag: %s method: %s address: %s skip test: %t"
-		_, _ = fmt.Fprintf(output, format, tag, server.Method, server.Address, server.SkipTest)
+		const format = "tag: %-10s skip test: %t method: %-3s address: %s"
+		_, _ = fmt.Fprintf(output, format, tag, server.SkipTest, server.Method, server.Address)
 	}
-	result, err := node.global.dnsClient.TestServers(ctx, domain, new(dns.Options))
+	result, err := node.global.dnsClient.TestServers(ctx, domain, opts.DNSOptions)
 	if err != nil {
-		return nil, err
+		return
 	}
 	_, _ = fmt.Fprintf(output, "test domain: %s, result: %s", domain, result)
 
 	// test time syncer
-	output.WriteString("----------------------time syncer-----------------------")
+	tLine := "-------------------------------time syncer-------------------------------"
+	output.WriteString(tLine)
 	err = node.global.timeSyncer.Test()
-	if err != nil {
-		return output, err
-	}
-	return output, nil
+	return
 }
 
 func (cfg *Config) Build() ([]byte, error) {
