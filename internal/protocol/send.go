@@ -185,3 +185,56 @@ func (qr *QueryResult) Clean() {
 	qr.Responses = nil
 	qr.Err = nil
 }
+
+// Answer is used to return queried message
+type Answer struct {
+	GUID       []byte // prevent duplicate handle it
+	BeaconGUID []byte
+	Index      uint64
+	Message    []byte // encrypted
+	Hash       []byte // raw message hash
+	Signature  []byte
+}
+
+// Validate is used to validate Answer fields
+func (a *Answer) Validate() error {
+	if len(a.GUID) != guid.Size {
+		return errors.New("invalid guid size")
+	}
+	if len(a.BeaconGUID) != guid.Size {
+		return errors.New("invalid beacon guid size")
+	}
+	l := len(a.Message)
+	if l < aes.BlockSize || l%aes.BlockSize != 0 {
+		return errors.New("invalid message size")
+	}
+	if len(a.Hash) != sha256.Size {
+		return errors.New("invalid hash size")
+	}
+	if len(a.Signature) != ed25519.SignatureSize {
+		return errors.New("invalid signature size")
+	}
+	return nil
+}
+
+// AnswerResponse is use to get answer response.
+type AnswerResponse struct {
+	Role Role
+	GUID []byte // Role GUID
+	Err  error
+}
+
+// AnswerResult is use to get answer result.
+// it include all AnswerResponse.
+type AnswerResult struct {
+	Success   int
+	Responses []*AnswerResponse
+	Err       error
+}
+
+// Clean is used to clean AnswerResult for sync.Pool
+func (ar *AnswerResult) Clean() {
+	ar.Success = 0
+	ar.Responses = nil
+	ar.Err = nil
+}

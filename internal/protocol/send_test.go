@@ -83,3 +83,32 @@ func TestQuery_Validate(t *testing.T) {
 func TestQueryResult_Clean(t *testing.T) {
 	new(QueryResult).Clean()
 }
+
+func TestAnswer_Validate(t *testing.T) {
+	a := new(Answer)
+	require.EqualError(t, a.Validate(), "invalid guid size")
+
+	a.GUID = CtrlGUID
+
+	require.EqualError(t, a.Validate(), "invalid beacon guid size")
+
+	a.BeaconGUID = CtrlGUID
+
+	require.EqualError(t, a.Validate(), "invalid message size")
+	a.Message = bytes.Repeat([]byte{0}, 30)
+	require.EqualError(t, a.Validate(), "invalid message size")
+
+	a.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
+
+	require.EqualError(t, a.Validate(), "invalid hash size")
+
+	a.Hash = bytes.Repeat([]byte{0}, sha256.Size)
+	require.EqualError(t, a.Validate(), "invalid signature size")
+
+	a.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+	require.NoError(t, a.Validate())
+}
+
+func TestAnswerResult_Clean(t *testing.T) {
+	new(AnswerResult).Clean()
+}
