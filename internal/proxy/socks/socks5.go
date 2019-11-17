@@ -337,7 +337,7 @@ func (c *conn) serveSocks5() {
 	}
 	if buffer[2] != reserve { // reserve
 		c.log(logger.Exploit, "non-zero reserved field")
-		_, err = c.local.Write([]byte{version5, noReserve, reserve})
+		_, _ = c.local.Write([]byte{version5, noReserve, reserve})
 		return
 	}
 

@@ -10,9 +10,9 @@ import (
 
 type System struct {
 	IP        []string // 192.168.1.11/24, fe80::5456:5f8:1690:5792/64
-	OS        string   // windows
-	Arch      string   // amd64
-	GoVersion string   // 1.13.5
+	OS        string   // windows, linux
+	Arch      string   // amd64, 386
+	GoVersion string   // go1.13.5 -> 1.13.5
 	PID       int      // 2000
 	PPID      int      // 1999
 	Hostname  string   // WIN-F0F2A61229S
@@ -35,8 +35,7 @@ func GetSystemInfo() *System {
 	system.PID = os.Getpid()
 	system.PPID = os.Getppid()
 	system.GoVersion = strings.Split(runtime.Version(), "go")[1]
-	var err error
-	system.Hostname, err = os.Hostname()
+	system.Hostname, _ = os.Hostname()
 	u, err := user.Current()
 	if err == nil {
 		system.Username = u.Username
