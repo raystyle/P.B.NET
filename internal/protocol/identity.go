@@ -51,7 +51,7 @@ func (role Role) String() string {
 	case Beacon:
 		return "beacon"
 	default:
-		return fmt.Sprintf("invalid role: %d", uint8(role))
+		return fmt.Sprintf("invalid role: %d", role)
 	}
 }
 
