@@ -294,7 +294,7 @@ func (ctrl *ctrlConn) Broadcast(token, message []byte) *protocol.BroadcastRespon
 		br.Err = err
 		return &br
 	}
-	if !bytes.Equal(reply, protocol.BroadcastUnhandled) {
+	if !bytes.Equal(reply, protocol.BroadcastReplyUnhandled) {
 		br.Err = protocol.ErrBroadcastHandled
 		return &br
 	}
@@ -304,7 +304,7 @@ func (ctrl *ctrlConn) Broadcast(token, message []byte) *protocol.BroadcastRespon
 		br.Err = err
 		return &br
 	}
-	if bytes.Equal(reply, protocol.BroadcastSucceed) {
+	if bytes.Equal(reply, protocol.BroadcastReplySucceed) {
 		return &br
 	} else {
 		br.Err = errors.New(string(reply))
@@ -321,7 +321,7 @@ func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
 		sr.Err = err
 		return sr
 	}
-	if !bytes.Equal(resp, protocol.SendUnhandled) {
+	if !bytes.Equal(resp, protocol.SendReplyUnhandled) {
 		sr.Err = protocol.ErrSyncHandled
 		return sr
 	}
@@ -330,7 +330,7 @@ func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
 		sr.Err = err
 		return sr
 	}
-	if bytes.Equal(resp, protocol.SendSucceed) {
+	if bytes.Equal(resp, protocol.SendReplySucceed) {
 		return sr
 	} else {
 		sr.Err = errors.New(string(resp))
@@ -348,7 +348,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 		sr.Err = err
 		return sr
 	}
-	if !bytes.Equal(resp, protocol.SendUnhandled) {
+	if !bytes.Equal(resp, protocol.SendReplyUnhandled) {
 		sr.Err = protocol.ErrSyncHandled
 		return sr
 	}
@@ -357,7 +357,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 		sr.Err = err
 		return sr
 	}
-	if bytes.Equal(resp, protocol.SendSucceed) {
+	if bytes.Equal(resp, protocol.SendReplySucceed) {
 		return sr
 	} else {
 		sr.Err = errors.New(string(resp))
@@ -379,21 +379,21 @@ func (ctrl *ctrlConn) handleBroadcastToken(id, message []byte) {
 	if len(message) != 1+guid.Size {
 		// fake reply and close
 		ctrl.log(logger.Exploit, "invalid broadcast token size")
-		ctrl.reply(id, protocol.BroadcastHandled)
+		ctrl.reply(id, protocol.BroadcastReplyHandled)
 		ctrl.Close()
 		return
 	}
 	role := protocol.Role(message[0])
 	if role != protocol.Ctrl {
 		ctrl.log(logger.Exploit, "handle invalid broadcast token role")
-		ctrl.reply(id, protocol.BroadcastHandled)
+		ctrl.reply(id, protocol.BroadcastReplyHandled)
 		ctrl.Close()
 		return
 	}
 	if ctrl.ctx.syncer.checkBroadcastToken(role, message[1:]) {
-		ctrl.reply(id, protocol.BroadcastUnhandled)
+		ctrl.reply(id, protocol.BroadcastReplyUnhandled)
 	} else {
-		ctrl.reply(id, protocol.BroadcastHandled)
+		ctrl.reply(id, protocol.BroadcastReplyHandled)
 	}
 }
 
@@ -402,21 +402,21 @@ func (ctrl *ctrlConn) handleSyncSendToken(id, message []byte) {
 	if len(message) != 1+guid.Size {
 		// fake reply and close
 		ctrl.log(logger.Exploit, "invalid sync send token size")
-		ctrl.reply(id, protocol.SendHandled)
+		ctrl.reply(id, protocol.SendReplyHandled)
 		ctrl.Close()
 		return
 	}
 	role := protocol.Role(message[0])
 	if role != protocol.Ctrl {
 		ctrl.log(logger.Exploit, "handle invalid sync send token role")
-		ctrl.reply(id, protocol.SendHandled)
+		ctrl.reply(id, protocol.SendReplyHandled)
 		ctrl.Close()
 		return
 	}
 	if ctrl.ctx.syncer.checkSyncSendToken(role, message[1:]) {
-		ctrl.reply(id, protocol.SendUnhandled)
+		ctrl.reply(id, protocol.SendReplyUnhandled)
 	} else {
-		ctrl.reply(id, protocol.SendHandled)
+		ctrl.reply(id, protocol.SendReplyHandled)
 	}
 }
 
@@ -425,21 +425,21 @@ func (ctrl *ctrlConn) handleSyncReceiveToken(id, message []byte) {
 	if len(message) != 1+guid.Size {
 		// fake reply and close
 		ctrl.log(logger.Exploit, "invalid sync receive token size")
-		ctrl.reply(id, protocol.SendHandled)
+		ctrl.reply(id, protocol.SendReplyHandled)
 		ctrl.Close()
 		return
 	}
 	role := protocol.Role(message[0])
 	if role != protocol.Ctrl {
 		ctrl.log(logger.Exploit, "handle invalid sync receive token role")
-		ctrl.reply(id, protocol.SendHandled)
+		ctrl.reply(id, protocol.SendReplyHandled)
 		ctrl.Close()
 		return
 	}
 	if ctrl.ctx.syncer.checkSyncReceiveToken(role, message[1:]) {
-		ctrl.reply(id, protocol.SendUnhandled)
+		ctrl.reply(id, protocol.SendReplyUnhandled)
 	} else {
-		ctrl.reply(id, protocol.SendHandled)
+		ctrl.reply(id, protocol.SendReplyHandled)
 	}
 }
 
@@ -468,7 +468,7 @@ func (ctrl *ctrlConn) handleBroadcast(id, message []byte) {
 		return
 	}
 	ctrl.ctx.syncer.addBroadcast(&br)
-	ctrl.reply(id, protocol.BroadcastSucceed)
+	ctrl.reply(id, protocol.BroadcastReplySucceed)
 }
 
 func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
@@ -501,7 +501,7 @@ func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
 		return
 	}
 	ctrl.ctx.syncer.addSyncSend(&ss)
-	ctrl.reply(id, protocol.SendSucceed)
+	ctrl.reply(id, protocol.SendReplySucceed)
 }
 
 // notice node to delete message
@@ -526,7 +526,7 @@ func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
 		return
 	}
 	ctrl.ctx.syncer.addSyncReceive(&sr)
-	ctrl.reply(id, protocol.SendSucceed)
+	ctrl.reply(id, protocol.SendReplySucceed)
 }
 
 func (ctrl *ctrlConn) handleSyncQueryBeacon(id, message []byte) {
@@ -544,7 +544,7 @@ func (ctrl *ctrlConn) handleSyncQueryBeacon(id, message []byte) {
 		return
 	}
 	// TODO reply
-	ctrl.reply(id, protocol.SendSucceed)
+	ctrl.reply(id, protocol.SendReplySucceed)
 }
 
 func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
@@ -562,7 +562,7 @@ func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
 		return
 	}
 	// TODO reply
-	ctrl.reply(id, protocol.SendSucceed)
+	ctrl.reply(id, protocol.SendReplySucceed)
 }
 
 // handle trust

@@ -203,7 +203,7 @@ func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastRespon
 	if br.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.BroadcastUnhandled) {
+	if !bytes.Equal(reply, protocol.BroadcastReplyUnhandled) {
 		br.Err = errors.New(string(reply))
 		return
 	}
@@ -212,7 +212,7 @@ func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastRespon
 	if br.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.BroadcastSucceed) {
+	if !bytes.Equal(reply, protocol.BroadcastReplySucceed) {
 		br.Err = errors.New(string(reply))
 	}
 	return
@@ -228,7 +228,7 @@ func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) 
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendUnhandled) {
+	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
 		sr.Err = errors.New(string(reply))
 		return
 	}
@@ -236,7 +236,7 @@ func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) 
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendSucceed) {
+	if !bytes.Equal(reply, protocol.SendReplySucceed) {
 		sr.Err = errors.New(string(reply))
 	}
 	return
@@ -252,7 +252,7 @@ func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendUnhandled) {
+	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
 		sr.Err = errors.New(string(reply))
 		return
 	}
@@ -260,7 +260,7 @@ func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendSucceed) {
+	if !bytes.Equal(reply, protocol.SendReplySucceed) {
 		sr.Err = errors.New(string(reply))
 	}
 	return
@@ -282,14 +282,14 @@ func (client *client) AcknowledgeToNode(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendUnhandled) {
+	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
 		return
 	}
 	reply, err = client.Send(protocol.CtrlAckToNode, data)
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendSucceed) {
+	if !bytes.Equal(reply, protocol.SendReplySucceed) {
 		err = errors.New(string(reply))
 	}
 }
@@ -310,14 +310,14 @@ func (client *client) AcknowledgeToBeacon(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendUnhandled) {
+	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
 		return
 	}
 	reply, err = client.Send(protocol.CtrlAckToBeacon, data)
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendSucceed) {
+	if !bytes.Equal(reply, protocol.SendReplySucceed) {
 		err = errors.New(string(reply))
 	}
 }
@@ -366,8 +366,8 @@ func (client *client) handshake(conn net.Conn) (*xnet.Conn, error) {
 		return nil, errors.Wrap(err, "receive certificate failed")
 	}
 	if !client.ctx.verifyCertificate(cert, client.node.Address, client.guid) {
-		client.log(logger.Exploit, protocol.ErrInvalidCert)
-		return nil, protocol.ErrInvalidCert
+		client.log(logger.Exploit, protocol.ErrInvalidCertificate)
+		return nil, protocol.ErrInvalidCertificate
 	}
 	// send role
 	_, err = xConn.Write(protocol.Ctrl.Bytes())
@@ -399,7 +399,7 @@ func (client *client) handshake(conn net.Conn) (*xnet.Conn, error) {
 		return nil, errors.Wrap(err, "receive authentication response failed")
 	}
 	if !bytes.Equal(resp, protocol.AuthSucceed) {
-		err = errors.WithStack(protocol.ErrAuthFailed)
+		err = errors.WithStack(protocol.ErrAuthenticateFailed)
 		client.log(logger.Exploit, err)
 		return nil, err
 	}
@@ -527,16 +527,16 @@ func (client *client) handleNodeSendGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid node send guid size")
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
-		client.Reply(id, protocol.SendExpired)
+		client.Reply(id, protocol.SendReplyExpired)
 	} else if client.ctx.syncer.CheckNodeSendGUID(guid_, false, 0) {
-		client.Reply(id, protocol.SendUnhandled)
+		client.Reply(id, protocol.SendReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 	}
 }
 
@@ -544,16 +544,16 @@ func (client *client) handleBeaconSendGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon send guid size")
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
-		client.Reply(id, protocol.SendExpired)
+		client.Reply(id, protocol.SendReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconSendGUID(guid_, false, 0) {
-		client.Reply(id, protocol.SendUnhandled)
+		client.Reply(id, protocol.SendReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 	}
 }
 
@@ -561,16 +561,16 @@ func (client *client) handleBeaconQueryGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon query guid size")
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
-		client.Reply(id, protocol.SendExpired)
+		client.Reply(id, protocol.SendReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconQueryGUID(guid_, false, 0) {
-		client.Reply(id, protocol.SendUnhandled)
+		client.Reply(id, protocol.SendReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 	}
 }
 
@@ -589,12 +589,12 @@ func (client *client) handleNodeSend(id, data []byte) {
 		return
 	}
 	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID); expired {
-		client.Reply(id, protocol.SendExpired)
+		client.Reply(id, protocol.SendReplyExpired)
 	} else if client.ctx.syncer.CheckNodeSendGUID(s.GUID, true, timestamp) {
-		client.Reply(id, protocol.SendSucceed)
+		client.Reply(id, protocol.SendReplySucceed)
 		client.ctx.syncer.AddNodeSend(&s)
 	} else {
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 	}
 }
 
@@ -613,12 +613,12 @@ func (client *client) handleBeaconSend(id, data []byte) {
 		return
 	}
 	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID); expired {
-		client.Reply(id, protocol.SendExpired)
+		client.Reply(id, protocol.SendReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconSendGUID(s.GUID, true, timestamp) {
-		client.Reply(id, protocol.SendSucceed)
+		client.Reply(id, protocol.SendReplySucceed)
 		client.ctx.syncer.AddBeaconSend(&s)
 	} else {
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 	}
 }
 
@@ -637,11 +637,11 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 		return
 	}
 	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(q.GUID); expired {
-		client.Reply(id, protocol.SendExpired)
+		client.Reply(id, protocol.SendReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconQueryGUID(q.GUID, true, timestamp) {
-		client.Reply(id, protocol.SendSucceed)
+		client.Reply(id, protocol.SendReplySucceed)
 		client.ctx.syncer.AddBeaconQuery(&q)
 	} else {
-		client.Reply(id, protocol.SendHandled)
+		client.Reply(id, protocol.SendReplyHandled)
 	}
 }

@@ -13,10 +13,10 @@ type Node struct {
 	Debug *Debug // for test
 
 	logger  *gLogger // global logger
-	global  *global  // proxy clients, DNS Clients, time syncer
+	global  *global  // proxy clients, DNS clients, time syncer
 	handler *handler // handle message from Controller
 	sender  *sender  // send message to Controller
-	syncer  *syncer  // receive message from Controller
+	syncer  *syncer  // receive message from Controller, Nodes, and Beacons
 	server  *server  // listen and serve Roles
 
 	once sync.Once
@@ -69,7 +69,7 @@ func (node *Node) Main() error {
 	if !node.Debug.SkipTimeSyncer {
 		err := node.global.StartTimeSyncer()
 		if err != nil {
-			return node.fatal(err, "synchronize time failed")
+			return node.fatal(err, "failed to synchronize time")
 		}
 	}
 	now := node.global.Now().Format(logger.TimeLayout)
@@ -79,7 +79,7 @@ func (node *Node) Main() error {
 	// deploy server
 	err := node.server.Deploy()
 	if err != nil {
-		return node.fatal(err, "deploy server failed")
+		return node.fatal(err, "failed to deploy server")
 	}
 
 	node.logger.Print(logger.Debug, "init", "node is running")
@@ -105,9 +105,8 @@ func (node *Node) Exit(err error) {
 		node.global.Close()
 		node.logger.Print(logger.Debug, "exit", "global is stopped")
 		node.logger.Print(logger.Debug, "exit", "node is stopped")
+		node.logger.Close()
 		// clean point
-		node.logger = nil
-		node.global = nil
 		node.handler = nil
 		node.sender = nil
 		node.syncer = nil
