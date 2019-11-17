@@ -8,6 +8,28 @@ import (
 	"project/internal/guid"
 )
 
+type Role uint8
+
+const (
+	// Ctrl is controller, broadcast messages to Nodes,
+	// send messages to Nodes or Beacons, and receive
+	// broadcast messages or messages sent from Nodes
+	// or Beacons.
+	Ctrl Role = iota
+
+	// Node broadcast and send messages to controller,
+	// and receive broadcast messages or messages sent
+	// from controller.
+	// store messages sent from controller, nodes and
+	// beacons.
+	// synchronize message between Nodes.
+	Node
+
+	// Beacon broadcast and send messages to controller,
+	// and receive messages sent from controller.
+	Beacon
+)
+
 const (
 	byteCtrl = iota
 	byteNode
@@ -19,8 +41,6 @@ var (
 	bytesNode   = []byte{1}
 	bytesBeacon = []byte{2}
 )
-
-type Role uint8
 
 func (role Role) String() string {
 	switch role {
@@ -65,29 +85,9 @@ func (role Role) Byte() byte {
 	}
 }
 
-const (
-	// Ctrl is controller, broadcast messages to Nodes,
-	// send messages to Nodes or Beacons, and receive
-	// broadcast messages or messages sent from Nodes
-	// or Beacons.
-	Ctrl Role = iota
-
-	// Node broadcast and send messages to controller,
-	// and receive broadcast messages or messages sent
-	// from controller.
-	// store messages sent from controller, nodes and
-	// beacons.
-	// synchronize message between Nodes.
-	Node
-
-	// Beacon broadcast and send messages to controller,
-	// and receive messages sent from controller.
-	Beacon
-)
-
 var (
 	ErrInvalidCert = errors.New("invalid certificate")
-	ErrAuthFailed  = errors.New("authenticate failed")
+	ErrAuthFailed  = errors.New("failed to authenticate")
 )
 
 var (

@@ -3,7 +3,6 @@ package protocol
 import (
 	"bytes"
 	"net"
-	"runtime"
 	"sync"
 	"testing"
 
@@ -155,43 +154,34 @@ func BenchmarkHandleConnParallel_1MB(b *testing.B) {
 }
 
 func benchmarkHandleConnParallel(b *testing.B, size int) {
-	var (
-		nOnce   = b.N / runtime.NumCPU()
-		message = bytes.Repeat([]byte{1}, size)
-		wg      sync.WaitGroup
-	)
+	message := bytes.Repeat([]byte{1}, size)
+	wg := sync.WaitGroup{}
+	msg := append(convert.Uint32ToBytes(uint32(size)), message...)
 	server, client := net.Pipe()
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		count := 0
 		HandleConn(server, func(msg []byte) {
 			if !bytes.Equal(msg, message) {
 				b.FailNow()
 			}
-			count += 1
 		})
 		_ = server.Close()
-		require.Equal(b, nOnce*runtime.NumCPU(), count)
 	}()
-	msg := append(convert.Uint32ToBytes(uint32(size)), message...)
-	writeWG := sync.WaitGroup{}
-	write := func() {
-		defer writeWG.Done()
-		for i := 0; i < nOnce; i++ {
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
 			_, err := client.Write(msg)
 			if err != nil {
 				b.FailNow()
 			}
 		}
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < runtime.NumCPU(); i++ {
-		writeWG.Add(1)
-		go write()
-	}
-	writeWG.Wait()
+	})
+
 	b.StopTimer()
 	_ = client.Close()
 	wg.Wait()
