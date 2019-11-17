@@ -31,31 +31,31 @@ func New(cfg *Config) (*Node, error) {
 	// logger
 	lg, err := newLogger(node, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize logger failed")
+		return nil, errors.WithMessage(err, "failed to initialize logger")
 	}
 	node.logger = lg
 	// global
 	global, err := newGlobal(node.logger, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize global failed")
+		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	node.global = global
 	// sender
 	sender, err := newSender(node, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize sender failed")
+		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	node.sender = sender
 	// syncer
 	syncer, err := newSyncer(node, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize syncer failed")
+		return nil, errors.WithMessage(err, "failed to initialize syncer")
 	}
 	node.syncer = syncer
 	// server
 	server, err := newServer(node, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize server failed")
+		return nil, errors.WithMessage(err, "failed to initialize server")
 	}
 	node.server = server
 	node.wait = make(chan struct{}, 2)

@@ -40,7 +40,7 @@ type Config struct {
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 
 		// generate configs from controller
-		ProxyClients      map[string]*proxy.Client    `toml:"-"`
+		ProxyClients      []*proxy.Client             `toml:"-"`
 		DNSServers        map[string]*dns.Server      `toml:"-"`
 		TimeSyncerClients map[string]*timesync.Client `toml:"-"`
 	} `toml:"global"`

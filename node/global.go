@@ -28,39 +28,58 @@ type global struct {
 	wg         sync.WaitGroup
 }
 
-func newGlobal(lg logger.Logger, config *Config) (*global, error) {
+func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	cfg := config.Global
 	memory := security.NewMemory()
-	memory.Padding()
-	// add proxy client
+	defer memory.Flush()
+
+	// proxy client
 	proxyPool := proxy.NewPool()
-
 	memory.Padding()
-	// set cache expire
-	// add servers
-	dnsClient := dns.NewClient(proxyPool)
-
-	memory.Padding()
-	// replace logger
-	if config.CheckMode {
-		lg = logger.Discard
+	for i := 0; i < len(cfg.ProxyClients); i++ {
+		memory.Padding()
+		err := proxyPool.Add(cfg.ProxyClients[i])
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// expire time
+	// DNS client
+	dnsClient := dns.NewClient(proxyPool)
+	memory.Padding()
+	err := dnsClient.SetCacheExpireTime(cfg.DNSCacheExpire)
+	if err != nil {
+		return nil, err
+	}
+	for tag, server := range cfg.DNSServers {
+		memory.Padding()
+		err = dnsClient.Add(tag, server)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	// add client
-	timeSyncer := timesync.New(
-		proxyPool,
-		dnsClient,
-		lg,
-	)
-	memory.Flush()
+	// time syncer
+	timeSyncer := timesync.New(proxyPool, dnsClient, logger)
+	memory.Padding()
+	err = timeSyncer.SetSyncInterval(cfg.TimeSyncInterval)
+	if err != nil {
+		return nil, err
+	}
+	for tag, client := range cfg.TimeSyncerClients {
+		memory.Padding()
+		err = timeSyncer.Add(tag, client)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	g := global{
 		proxyPool:  proxyPool,
 		dnsClient:  dnsClient,
 		timeSyncer: timeSyncer,
 	}
-	err := g.configure(config)
+	err = g.configure(config)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +215,7 @@ func (global *global) configure(cfg *Config) error {
 
 const spmCount = 8 // secPaddingMemory execute time
 
-// check secPaddingMemory
+// OK is used to check debug
 func (global *global) OK() bool {
 	return global.spmCount == spmCount
 }
@@ -247,8 +266,8 @@ func (global *global) SetCertificate(cert []byte) error {
 	}
 }
 
-// KeyExchangePub is used to get node key exchange public key
-func (global *global) KeyExchangePub() []byte {
+// KeyExchangePublicKey is used to get node key exchange public key
+func (global *global) KeyExchangePublicKey() []byte {
 	global.objectRWM.RLock()
 	pub := global.object[objKeyExPublicKey]
 	global.objectRWM.RUnlock()

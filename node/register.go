@@ -56,7 +56,7 @@ func (node *Node) packOnlineRequest() []byte {
 	req := messages.NodeRegisterRequest{
 		GUID:         node.global.GUID(),
 		PublicKey:    node.global.PublicKey(),
-		KexPublicKey: node.global.KeyExchangePub(),
+		KexPublicKey: node.global.KeyExchangePublicKey(),
 		SystemInfo:   info.GetSystemInfo(),
 		RequestTime:  node.global.Now(),
 	}
