@@ -11,7 +11,7 @@ import (
 	"project/internal/crypto/sha256"
 )
 
-func TestBroadcast(t *testing.T) {
+func TestBroadcast_Validate(t *testing.T) {
 	b := new(Broadcast)
 	require.EqualError(t, b.Validate(), "invalid guid size")
 

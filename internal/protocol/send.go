@@ -10,16 +10,16 @@ import (
 )
 
 var (
-	SendExpired   = []byte{10}
-	SendUnhandled = []byte{11}
-	SendHandled   = []byte{12}
-	SendSucceed   = []byte{13}
+	SendReplyExpired   = []byte{10}
+	SendReplyUnhandled = []byte{11}
+	SendReplyHandled   = []byte{12}
+	SendReplySucceed   = []byte{13}
 
-	ErrSendExpired = errors.New("send GUID expired")
+	ErrSendExpired = errors.New("send expired")
 	ErrSendHandled = errors.New("send has been handled")
 )
 
-// -------------------------------interactive mode----------------------------------
+// --------------------------interactive mode-------------------------------
 
 // Send is used to send messages in interactive mode.
 //
@@ -40,14 +40,16 @@ type Send struct {
 	Signature []byte
 }
 
+// Validate is used to validate send fields
 func (s *Send) Validate() error {
 	if len(s.GUID) != guid.Size {
-		return errors.New("invalid GUID size")
+		return errors.New("invalid guid size")
 	}
 	if len(s.RoleGUID) != guid.Size {
-		return errors.New("invalid role GUID size")
+		return errors.New("invalid role guid size")
 	}
-	if len(s.Message) < aes.BlockSize {
+	l := len(s.Message)
+	if l < aes.BlockSize || l%aes.BlockSize != 0 {
 		return errors.New("invalid message size")
 	}
 	if len(s.Hash) != sha256.Size {
@@ -59,18 +61,22 @@ func (s *Send) Validate() error {
 	return nil
 }
 
+// SendResponse is use to get send response.
 type SendResponse struct {
 	Role Role
 	GUID []byte // Role GUID
 	Err  error
 }
 
+// SendResult is use to get send result.
+// it include all SendResponse.
 type SendResult struct {
 	Success   int
 	Responses []*SendResponse
 	Err       error
 }
 
+// Clean is used to clean SendResult for sync.Pool
 func (sr *SendResult) Clean() {
 	sr.Success = 0
 	sr.Responses = nil
@@ -80,8 +86,8 @@ func (sr *SendResult) Clean() {
 // Acknowledge is used to acknowledge sender that receiver
 // has receive this message
 //
-// When Controller use it, Role and RoleGUID = sender role
-// and sender GUID.
+// When Controller use it, Role = sender role and RoleGUID
+// = sender GUID.
 // When Node use it, Role = Node and RoleGUID = its GUID.
 // When Beacon use it, Role = Beacon and RoleGUID = its GUID.
 //
@@ -93,15 +99,16 @@ type Acknowledge struct {
 	Signature []byte
 }
 
+// Validate is used to validate acknowledge fields
 func (ack *Acknowledge) Validate() error {
 	if len(ack.GUID) != guid.Size {
-		return errors.New("invalid GUID size")
+		return errors.New("invalid guid size")
 	}
 	if len(ack.RoleGUID) != guid.Size {
-		return errors.New("invalid role GUID size")
+		return errors.New("invalid role guid size")
 	}
 	if len(ack.SendGUID) != guid.Size {
-		return errors.New("invalid send GUID size")
+		return errors.New("invalid send guid size")
 	}
 	if len(ack.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")
@@ -109,20 +116,47 @@ func (ack *Acknowledge) Validate() error {
 	return nil
 }
 
-// -------------------------------query mode----------------------------------
+// AcknowledgeResponse is use to get acknowledge response.
+type AcknowledgeResponse struct {
+	Role Role
+	GUID []byte // Role GUID
+	Err  error
+}
 
+// AcknowledgeResult is use to get acknowledge result.
+// it include all AcknowledgeResponse.
+type AcknowledgeResult struct {
+	Success   int
+	Responses []*AcknowledgeResponse
+	Err       error
+}
+
+// Clean is used to clean AcknowledgeResult for sync.Pool
+func (ar *AcknowledgeResult) Clean() {
+	ar.Success = 0
+	ar.Responses = nil
+	ar.Err = nil
+}
+
+// -------------------------------query mode--------------------------------
+
+// Query is used to query message from controller,
+// only Beacon will use it, because Node always
+// in interactive mode
 type Query struct {
 	GUID       []byte // prevent duplicate handle it
 	BeaconGUID []byte
+	Index      uint64
 	Signature  []byte
 }
 
+// Validate is used to validate query fields
 func (q *Query) Validate() error {
 	if len(q.GUID) != guid.Size {
-		return errors.New("invalid GUID size")
+		return errors.New("invalid guid size")
 	}
 	if len(q.BeaconGUID) != guid.Size {
-		return errors.New("invalid beacon GUID size")
+		return errors.New("invalid beacon guid size")
 	}
 	if len(q.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")
@@ -130,92 +164,24 @@ func (q *Query) Validate() error {
 	return nil
 }
 
-// SyncReceive is used to synchronize node_receive,
-// beacon_receive, controller_receive, (look database tables)
-// all roles will use it.
-//
-// When Ctrl send message to Node or Beacon, and they receive it,
-// they will send SyncReceive to they connected Nodes,
-// Node will delete corresponding controller send message.
-//
-// When Node or Beacon send message to Ctrl, and Ctrl receive it,
-// Ctrl will send SyncReceive to they connected Nodes,
-// Node will delete corresponding role send message.
-//
-// Signature = SenderRole.Sign(GUID + Height + Role + RoleGUID)
-type SyncReceive struct {
-	GUID      []byte // prevent duplicate handle it
-	Height    uint64
-	Role      Role
-	RoleGUID  []byte
-	Signature []byte
+// QueryResponse is use to get query response.
+type QueryResponse struct {
+	Role Role
+	GUID []byte // Role GUID
+	Err  error
 }
 
-func (srr *SyncReceive) Validate() error {
-	if len(srr.GUID) != guid.Size {
-		return errors.New("invalid GUID size")
-	}
-	if srr.Role > Beacon {
-		return errors.New("invalid role")
-	}
-	if len(srr.RoleGUID) != guid.Size {
-		return errors.New("invalid role GUID size")
-	}
-	if len(srr.Signature) != ed25519.SignatureSize {
-		return errors.New("invalid signature size")
-	}
-	return nil
-}
-
-// ---------------------active synchronize message----------------------
-
-// SyncQuery is used to query message from role.
-// When Ctrl use it, it can query messages sent to Ctrl by roles.
-// When Node use it, it can query all messages,
-// Ctrl <-> Node, Ctrl <-> Beacon
-// When Beacon use it, it can query messages sent to Beacon by Ctrl.
-type SyncQuery struct {
-	GUID  []byte
-	Index uint64 // message index
-}
-
-func (sq *SyncQuery) Validate() error {
-	if len(sq.GUID) != guid.Size {
-		return errors.New("invalid GUID Size")
-	}
-	return nil
-}
-
-// SyncReply is the reply of SyncQuery.
-type SyncReply struct {
-	GUID      []byte // SyncSend.GUID
-	Message   []byte // SyncSend.Message
-	Hash      []byte // SyncSend.Hash
-	Signature []byte // SyncSend.Signature
+// QueryResult is use to get query result.
+// it include all QueryResponse.
+type QueryResult struct {
+	Success   int
+	Responses []*QueryResponse
 	Err       error
 }
 
-func (sr *SyncReply) Validate() error {
-	if sr.Err == nil {
-		if len(sr.GUID) != guid.Size {
-			return errors.New("invalid GUID Size")
-		}
-		if len(sr.Message) < aes.BlockSize {
-			return errors.New("invalid message size")
-		}
-		if len(sr.Hash) != sha256.Size {
-			return errors.New("invalid message hash size")
-		}
-		if len(sr.Signature) != ed25519.SignatureSize {
-			return errors.New("invalid signature size")
-		}
-	}
-	return nil
-}
-
-// SyncTask is used to tell syncer.worker to
-// synchronize message actively.
-type SyncTask struct {
-	Role Role
-	GUID []byte
+// Clean is used to clean QueryResult for sync.Pool
+func (qr *QueryResult) Clean() {
+	qr.Success = 0
+	qr.Responses = nil
+	qr.Err = nil
 }

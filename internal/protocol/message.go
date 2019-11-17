@@ -47,10 +47,7 @@ var (
 )
 
 func init() {
-	SlotSize = 16 * (int(math.Abs(float64(runtime.NumCPU()))) + 1)
-	if SlotSize > 65536 {
-		SlotSize = 65536
-	}
+	SlotSize = int(uint16(math.Abs(float64(runtime.NumCPU()))) + 64)
 	MaxMsgID = SlotSize - 1
 }
 
