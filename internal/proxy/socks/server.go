@@ -125,6 +125,36 @@ func (s *Server) ListenAndServe(network, address string) error {
 	return nil
 }
 
+func (s *Server) close(err error) {
+	if r := recover(); r != nil {
+		s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
+	}
+	if err != nil {
+		s.log(logger.Error, err)
+	}
+
+	atomic.StoreInt32(&s.inShutdown, 1)
+	s.cancel()
+
+	// close all connections
+	s.connsRWM.Lock()
+	defer s.connsRWM.Unlock()
+	for _, conn := range s.conns {
+		_ = conn.local.Close()
+	}
+
+	// close listener and execute exit function
+	s.closeOnce.Do(func() {
+		_ = s.listener.Close()
+		if s.exitFunc != nil {
+			s.exitFunc()
+		}
+	})
+
+	s.logf(logger.Info, "server stopped (%s)", s.address)
+	s.wg.Done()
+}
+
 func (s *Server) Serve(l net.Listener) {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
@@ -134,38 +164,10 @@ func (s *Server) Serve(l net.Listener) {
 	s.wg.Add(1)
 	go func() {
 		var err error
-		defer func() {
-			if r := recover(); r != nil {
-				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
-			}
-			if err != nil {
-				s.log(logger.Error, err)
-			}
-
-			atomic.StoreInt32(&s.inShutdown, 1)
-			s.cancel()
-
-			// close all connections
-			s.connsRWM.Lock()
-			defer s.connsRWM.Unlock()
-			for _, conn := range s.conns {
-				_ = conn.local.Close()
-			}
-
-			// close listener and execute exit function
-			s.closeOnce.Do(func() {
-				_ = s.listener.Close()
-				if s.exitFunc != nil {
-					s.exitFunc()
-				}
-			})
-
-			s.logf(logger.Info, "server stopped (%s)", s.address)
-			s.wg.Done()
-		}()
+		defer s.close(err)
 		s.logf(logger.Info, "start server (%s)", s.address)
 		var delay time.Duration // how long to sleep on accept failure
-		maxDelay := 1 * time.Second
+		maxDelay := time.Second
 		for {
 			conn, e := s.listener.Accept()
 			if e != nil {
