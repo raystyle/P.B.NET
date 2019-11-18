@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -70,6 +71,7 @@ type Config struct {
 		MaxConns int `toml:"max_conns"` // single listener
 
 		// generate configs from controller
+		AESCrypto []byte `toml:"-"` // decrypt listeners data
 		Listeners []byte `toml:"-"`
 	} `toml:"server"`
 
@@ -83,18 +85,14 @@ type Config struct {
 
 type CheckOptions struct {
 	Domain     string
-	DNSOptions *dns.Options
+	DNSOptions dns.Options
+	Timeout    time.Duration
 }
 
 // before create a node need check config
 func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes.Buffer, err error) {
-	// options
 	if opts == nil {
 		opts = new(CheckOptions)
-	}
-	domain := opts.Domain
-	if domain == "" {
-		domain = "github.com"
 	}
 
 	output = new(bytes.Buffer)
@@ -129,7 +127,11 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 		const format = "tag: %-10s skip test: %t method: %-3s address: %s"
 		_, _ = fmt.Fprintf(output, format, tag, server.SkipTest, server.Method, server.Address)
 	}
-	result, err := node.global.dnsClient.TestServers(ctx, domain, opts.DNSOptions)
+	domain := opts.Domain
+	if domain == "" {
+		domain = "github.com"
+	}
+	result, err := node.global.dnsClient.TestServers(ctx, domain, &opts.DNSOptions)
 	if err != nil {
 		return
 	}
@@ -139,7 +141,24 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 	tLine := "-------------------------------time syncer-------------------------------"
 	output.WriteString(tLine)
 	err = node.global.timeSyncer.Test()
-	return
+	if err != nil {
+		return
+	}
+
+	// run Node
+	errChan := make(chan error)
+	go func() {
+		errChan <- node.Main()
+	}()
+	node.TestWait()
+	select {
+	case err = <-errChan:
+		return
+	case <-time.After(opts.Timeout):
+		node.Exit(nil)
+		err = errors.New("check timeout")
+		return
+	}
 }
 
 func (cfg *Config) Build() ([]byte, error) {
