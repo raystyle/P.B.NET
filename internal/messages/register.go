@@ -21,12 +21,6 @@ var (
 	RegisterSucceed = []byte("ok")
 )
 
-type Listener struct {
-	Tag    string
-	Mode   string
-	Config []byte // xnet.Config
-}
-
 type NodeRegisterRequest struct {
 	GUID         []byte
 	PublicKey    []byte

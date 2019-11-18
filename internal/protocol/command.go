@@ -5,13 +5,17 @@ const (
 	TestCommand uint8 = 0xEF
 )
 
+// ----------------------Connection---------------------------
+
+const (
+	ConnSendHeartbeat uint8 = 0x00 + iota
+	ConnReplyHeartbeat
+	ConnReply
+)
+
 // -----------------------Controller--------------------------
 const (
-	CtrlHeartbeat uint8 = 0x00 + iota
-	CtrlReply
-
-	CtrlSync
-	CtrlBroadcastGUID
+	CtrlBroadcastGUID uint8 = 0x10 + iota
 	CtrlBroadcast
 	CtrlSendToNodeGUID
 	CtrlSendToNode
@@ -35,11 +39,7 @@ const (
 
 // --------------------------Node-----------------------------
 const (
-	NodeHeartbeat uint8 = 0x60 + iota
-	NodeReply
-
-	NodeSync
-	NodeSendGUID
+	NodeSendGUID uint8 = 0x60 + iota
 	NodeSend
 )
 
@@ -56,11 +56,7 @@ const (
 
 // --------------------------Beacon-----------------------------
 const (
-	BeaconHeartbeat uint8 = 0xA0 + iota
-	BeaconReply
-
-	BeaconSyncStart
-	BeaconSendGUID
+	BeaconSendGUID uint8 = 0xA0 + iota
 	BeaconSend
 	BeaconQueryGUID
 	BeaconQuery
