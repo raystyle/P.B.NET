@@ -3,27 +3,31 @@ package node
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
+	"github.com/vmihailenco/msgpack/v4"
 	"golang.org/x/net/netutil"
 
+	"project/internal/crypto/aes"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/options"
 	"project/internal/protocol"
 	"project/internal/random"
+	"project/internal/security"
 	"project/internal/xnet"
 	"project/internal/xpanic"
 )
 
 var (
-	errServerClosed = errors.New("server closed")
+	errServerClosed = fmt.Errorf("server closed")
 )
 
 // accept beacon node controller
@@ -32,60 +36,87 @@ type server struct {
 
 	maxConns int // every listener
 
-	listeners      map[string]*listener
-	listenersRWM   sync.RWMutex
-	conns          map[string]*xnet.Conn // key = listener.Tag + Remote Address
-	connsRWM       sync.RWMutex
-	ctrlConns      map[string]*ctrlConn // key = base64(sha256(Remote Address))
+	listeners    map[string]*Listener
+	listenersRWM sync.RWMutex
+	conns        map[string]*xnet.Conn // key = listener.Tag + Remote Address
+	connsRWM     sync.RWMutex
+
+	ctrlConns      map[string]*conn // key = base64(sha256(Remote Address))
 	ctrlConnsRWM   sync.RWMutex
-	nodeConns      map[string]*nodeConn // key = base64(guid)
+	nodeConns      map[string]*conn // key = base64(guid)
 	nodeConnsRWM   sync.RWMutex
-	beaconConns    map[string]*beaconConn // key = base64(guid)
+	beaconConns    map[string]*conn // key = base64(guid)
 	beaconConnsRWM sync.RWMutex
 
-	random *random.Rand
+	rand *random.Rand
 
-	closing    int32
+	inShutdown int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-type listener struct {
-	Mode xnet.Mode
+type Listener struct {
+	Mode string
 	net.Listener
 }
 
 func newServer(ctx *Node, config *Config) (*server, error) {
 	cfg := config.Server
-	s := &server{
+
+	if cfg.MaxConns < 1 {
+		return nil, errors.New("listener max connection must > 0")
+	}
+
+	server := server{
 		ctx:       ctx,
 		maxConns:  cfg.MaxConns,
-		listeners: make(map[string]*listener),
+		listeners: make(map[string]*Listener),
 	}
-	if s.maxConns < 1 {
-		s.maxConns = options.DefaultMaxConns
+
+	// decrypt configs about listeners
+	if len(cfg.AESCrypto) != aes.Key256Bit+aes.IVSize {
+		return nil, errors.New("invalid aes key")
 	}
-	for _, listener := range cfg.Listeners {
-		_, err := s.addListener(listener)
+	aesKey := cfg.AESCrypto[:aes.Key256Bit]
+	aesIV := cfg.AESCrypto[aes.Key256Bit:]
+	defer func() {
+		security.FlushBytes(aesKey)
+		security.FlushBytes(aesIV)
+	}()
+	data, err := aes.CBCDecrypt(cfg.Listeners, aesKey, aesIV)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// load listeners
+	var listeners []*messages.Listener
+	err = msgpack.Unmarshal(data, &listeners)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	for i := 0; i < len(listeners); i++ {
+		_, err = server.addListener(listeners[i])
 		if err != nil {
 			return nil, err
 		}
 	}
-	s.conns = make(map[string]*xnet.Conn)
-	s.ctrlConns = make(map[string]*ctrlConn)
-	s.nodeConns = make(map[string]*nodeConn)
-	s.beaconConns = make(map[string]*beaconConn)
-	s.random = random.New(0)
-	s.stopSignal = make(chan struct{})
-	return s, nil
+
+	server.conns = make(map[string]*xnet.Conn)
+	server.ctrlConns = make(map[string]*conn)
+	server.nodeConns = make(map[string]*conn)
+	server.beaconConns = make(map[string]*conn)
+	server.rand = random.New(0)
+	server.stopSignal = make(chan struct{})
+	return &server, nil
 }
 
+// Deploy is used to deploy added listener
 func (server *server) Deploy() error {
 	// deploy all listener
 	l := len(server.listeners)
 	errs := make(chan error, l)
 	for tag, l := range server.listeners {
-		go func(tag string, l *listener) {
+		go func(tag string, l *Listener) {
 			errs <- server.deploy(tag, l)
 		}(tag, l)
 	}
@@ -98,87 +129,70 @@ func (server *server) Deploy() error {
 	return nil
 }
 
+// Close is used to close all listeners and connections
 func (server *server) Close() {
-	atomic.StoreInt32(&server.closing, 1)
+	atomic.StoreInt32(&server.inShutdown, 1)
 	close(server.stopSignal)
 	// close all listeners
 	server.listenersRWM.RLock()
+	defer server.listenersRWM.RUnlock()
 	for _, listener := range server.listeners {
 		_ = listener.Close()
 	}
-	server.listenersRWM.RUnlock()
 	// close all conns
 	server.connsRWM.Lock()
+	defer server.connsRWM.Unlock()
 	for _, conn := range server.conns {
 		_ = conn.Close()
 	}
-	server.connsRWM.Unlock()
 	server.wg.Wait()
 }
 
-func (server *server) isClosing() bool {
-	return atomic.LoadInt32(&server.closing) != 0
-}
-
-func (server *server) AddListener(listener *messages.Listener) error {
-	if server.isClosing() {
-		return errServerClosed
-	}
-
-	listener, err := server.addListener(l)
+func (server *server) addListener(l *messages.Listener) (*Listener, error) {
+	tlsConfig, err := l.TLSConfig.Apply()
 	if err != nil {
-		return err
+		return nil, errors.Wrapf(err, "listener %s", l.Tag)
 	}
-	return server.deploy(l.Tag, listener)
-}
-
-func (server *server) addListener(l *config.Listener) (*listener, error) {
-
-	c := &xnet.Config{}
-	err := toml.Unmarshal(l.Config, c)
+	tlsConfig.Time = server.ctx.global.Now // <security>
+	cfg := xnet.Config{
+		Network:   l.Network,
+		Address:   l.Address,
+		Timeout:   l.Timeout,
+		TLSConfig: tlsConfig,
+	}
+	listener, err := xnet.Listen(l.Mode, &cfg)
 	if err != nil {
-		return nil, errors.Errorf("load listener %s config failed: %s", l.Tag, err)
+		return nil, errors.Errorf("failed to listen %s: %s", l.Tag, err)
 	}
-	li, err := xnet.Listen(l.Mode, c)
-	if err != nil {
-		return nil, errors.Errorf("listen %s failed: %s", l.Tag, err)
-	}
-	li = netutil.LimitListener(li, server.maxConns)
-	listener := &listener{Mode: l.Mode, sTimeout: l.Timeout, Listener: li}
-	// add
+	listener = netutil.LimitListener(listener, server.maxConns)
+	ll := &Listener{Mode: l.Mode, Listener: listener}
 	server.listenersRWM.Lock()
-	if _, exist := server.listeners[l.Tag]; !exist {
-		server.listeners[l.Tag] = listener
-		server.listenersRWM.Unlock()
-	} else {
-		server.listenersRWM.Unlock()
-		return nil, errors.Errorf("listener: %s already exists", l.Tag)
+	defer server.listenersRWM.Unlock()
+	if _, ok := server.listeners[l.Tag]; !ok {
+		server.listeners[l.Tag] = ll
+		return ll, nil
 	}
-	return listener, nil
+	return nil, errors.Errorf("listener %s already exists", l.Tag)
 }
 
-func (server *server) deploy(tag string, l *listener) error {
-	timeout := l.sTimeout
-	if timeout < 1 {
-		timeout = options.DefaultStartTimeout
-	}
-	addr := l.Addr().String()
+func (server *server) deploy(tag string, listener *Listener) error {
 	errChan := make(chan error, 1)
 	server.wg.Add(1)
-	go server.serve(tag, l, errChan)
+	go server.serve(tag, listener, errChan)
 	select {
 	case err := <-errChan:
-		return errors.Errorf("listener: %s(%s) deploy failed: %s", tag, addr, err)
-	case <-time.After(timeout):
+		const format = "failed to deploy listener %s(%s): %s"
+		return errors.Errorf(format, tag, listener.Addr(), err)
+	case <-time.After(2 * time.Second):
 		return nil
 	}
 }
 
-func (server *server) serve(tag string, l *listener, errChan chan<- error) {
+func (server *server) serve(tag string, l *Listener, errChan chan<- error) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error(r, "serve panic:") // front var err
+			err = xpanic.Error(r, "server.serve()")
 			server.log(logger.Fatal, err)
 		}
 		errChan <- err
@@ -191,13 +205,13 @@ func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 		server.wg.Done()
 	}()
 	var delay time.Duration // how long to sleep on accept failure
-	max := 2 * time.Second
+	maxDelay := 2 * time.Second
 	for {
 		conn, e := l.Accept()
 		if e != nil {
 			select {
 			case <-server.stopSignal:
-				err = errServerClosed
+				err = errors.WithStack(errServerClosed)
 				return
 			default:
 			}
@@ -207,12 +221,15 @@ func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 				} else {
 					delay *= 2
 				}
-				if delay > max {
-					delay = max
+				if delay > maxDelay {
+					delay = maxDelay
 				}
 				server.logf(logger.Warning, "accept error: %s; retrying in %v", e, delay)
 				time.Sleep(delay)
 				continue
+			}
+			if !strings.Contains(e.Error(), "use of closed network connection") {
+				err = e
 			}
 			return
 		}
@@ -222,11 +239,26 @@ func (server *server) serve(tag string, l *listener, errChan chan<- error) {
 	}
 }
 
-func (server *server) GetListener(tag string) net.Listener {
+func (server *server) shuttingDown() bool {
+	return atomic.LoadInt32(&server.inShutdown) != 0
+}
+
+func (server *server) AddListener(l *messages.Listener) error {
+	if server.shuttingDown() {
+		return errors.WithStack(errServerClosed)
+	}
+	listener, err := server.addListener(l)
+	if err != nil {
+		return err
+	}
+	return server.deploy(l.Tag, listener)
+}
+
+func (server *server) Listeners() map[string]*Listener {
 	return nil
 }
 
-func (server *server) Listeners(tag string) map[string]net.Listener {
+func (server *server) GetListener(tag string) *Listener {
 	return nil
 }
 
@@ -244,27 +276,6 @@ func (server *server) logf(lv logger.Level, format string, log ...interface{}) {
 
 func (server *server) log(lv logger.Level, log ...interface{}) {
 	server.ctx.logger.Print(lv, "server", log...)
-}
-
-func (server *server) logln(lv logger.Level, log ...interface{}) {
-	server.ctx.logger.Println(lv, "server", log...)
-}
-
-// serve log(handshake client)
-type sLog struct {
-	c net.Conn
-	l string
-	e error
-}
-
-func (sl *sLog) String() string {
-	b := logger.Conn(sl.c)
-	b.WriteString(sl.l)
-	if sl.e != nil {
-		b.WriteString(": ")
-		b.WriteString(sl.e.Error())
-	}
-	return b.String()
 }
 
 func (server *server) handshake(listenerTag string, conn net.Conn) {
@@ -297,8 +308,8 @@ func (server *server) handshake(listenerTag string, conn net.Conn) {
 			return
 		}
 	} else { // if no certificate send padding data
-		paddingSize := 1024 + server.random.Int(1024)
-		err = xconn.Send(server.random.Bytes(paddingSize))
+		paddingSize := 1024 + server.rand.Int(1024)
+		err = xconn.Send(server.rand.Bytes(paddingSize))
 		if err != nil {
 			l := &sLog{c: xconn, l: "send padding data failed", e: err}
 			server.log(logger.Error, l)
@@ -342,7 +353,7 @@ func (server *server) verifyCtrl(conn net.Conn) {
 	// len(challenge) must > len(GUID + Mode + Network + Address)
 	// because maybe fake node will send some special data
 	// and controller sign it
-	challenge := server.random.Bytes(2048 + server.random.Int(2048))
+	challenge := server.rand.Bytes(2048 + server.rand.Int(2048))
 	err := xconn.Send(challenge)
 	if err != nil {
 		l := &sLog{c: xconn, l: "send challenge code failed", e: err}
