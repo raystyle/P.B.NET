@@ -68,7 +68,8 @@ type Config struct {
 	} `toml:"register"`
 
 	Server struct {
-		MaxConns int `toml:"max_conns"` // single listener
+		MaxConns int           `toml:"max_conns"` // single listener
+		Timeout  time.Duration `toml:"timeout"`   // handshake timeout
 
 		// generate configs from controller
 		AESCrypto []byte `toml:"-"` // decrypt listeners data

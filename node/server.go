@@ -34,18 +34,19 @@ var (
 type server struct {
 	ctx *Node
 
-	maxConns int // every listener
+	maxConns int           // every listener
+	timeout  time.Duration // handshake timeout
 
-	listeners    map[string]*Listener
+	listeners    map[string]*Listener // key = tag
 	listenersRWM sync.RWMutex
-	conns        map[string]*xnet.Conn // key = listener.Tag + Remote Address
+	conns        map[string]*xnet.Conn // key = guid
 	connsRWM     sync.RWMutex
 
-	ctrlConns      map[string]*conn // key = base64(sha256(Remote Address))
+	ctrlConns      map[string]*conn
 	ctrlConnsRWM   sync.RWMutex
-	nodeConns      map[string]*conn // key = base64(guid)
+	nodeConns      map[string]*conn
 	nodeConnsRWM   sync.RWMutex
-	beaconConns    map[string]*conn // key = base64(guid)
+	beaconConns    map[string]*conn
 	beaconConnsRWM sync.RWMutex
 
 	rand *random.Rand
@@ -66,11 +67,8 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	if cfg.MaxConns < 1 {
 		return nil, errors.New("listener max connection must > 0")
 	}
-
-	server := server{
-		ctx:       ctx,
-		maxConns:  cfg.MaxConns,
-		listeners: make(map[string]*Listener),
+	if cfg.Timeout < 15*time.Second {
+		return nil, errors.New("listener max connection must >= 15s")
 	}
 
 	// decrypt configs about listeners
@@ -94,6 +92,14 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	server := server{
+		ctx:       ctx,
+		maxConns:  cfg.MaxConns,
+		timeout:   cfg.Timeout,
+		listeners: make(map[string]*Listener),
+	}
+
 	for i := 0; i < len(listeners); i++ {
 		_, err = server.addListener(listeners[i])
 		if err != nil {

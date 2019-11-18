@@ -28,6 +28,10 @@ func testGenerateConfig() *Config {
 	cfg.Syncer.Worker = 64
 	cfg.Syncer.QueueSize = 512
 	cfg.Syncer.ExpireTime = 3 * time.Minute
+
+	cfg.Server.MaxConns = 10
+	cfg.Server.Timeout = 15 * time.Second
+
 	return &cfg
 }
 
