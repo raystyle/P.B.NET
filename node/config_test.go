@@ -10,25 +10,25 @@ import (
 )
 
 func testGenerateConfig() *Config {
-	c := Config{}
+	cfg := Config{}
 
-	c.Debug.SkipTimeSyncer = true
+	cfg.Debug.SkipTimeSyncer = true
 
-	c.Logger.Level = "debug"
-	c.Logger.Writer = os.Stdout
+	cfg.Logger.Level = "debug"
+	cfg.Logger.Writer = os.Stdout
 
-	c.Global.DNSCacheExpire = 3 * time.Minute
-	c.Global.TimeSyncInterval = 1 * time.Minute
+	cfg.Global.DNSCacheExpire = 3 * time.Minute
+	cfg.Global.TimeSyncInterval = 1 * time.Minute
 
-	c.Sender.MaxBufferSize = 16384
-	c.Sender.Worker = 64
-	c.Sender.QueueSize = 512
+	cfg.Sender.MaxBufferSize = 16384
+	cfg.Sender.Worker = 64
+	cfg.Sender.QueueSize = 512
 
-	c.Syncer.MaxBufferSize = 16384
-	c.Syncer.Worker = 64
-	c.Syncer.QueueSize = 512
-	c.Syncer.ExpireTime = 3 * time.Minute
-	return &c
+	cfg.Syncer.MaxBufferSize = 16384
+	cfg.Syncer.Worker = 64
+	cfg.Syncer.QueueSize = 512
+	cfg.Syncer.ExpireTime = 3 * time.Minute
+	return &cfg
 }
 
 func TestConfig_Check(t *testing.T) {

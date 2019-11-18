@@ -25,6 +25,8 @@ type sendTask struct {
 	Result   chan<- *protocol.SendResult
 }
 
+// sender is used to send message to Controller
+// it can connect other Node
 type sender struct {
 	ctx *Node
 

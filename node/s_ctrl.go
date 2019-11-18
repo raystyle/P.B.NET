@@ -23,6 +23,19 @@ import (
 	"project/internal/xpanic"
 )
 
+func (conn *conn) onFrameServeCtrl(frame []byte) {
+	if !conn.onFrame(frame) {
+		return
+	}
+	// check command
+	switch frame[0] {
+
+	default:
+		conn.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+		conn.Close()
+	}
+}
+
 type ctrlConn struct {
 	ctx *Node
 
