@@ -120,8 +120,8 @@ func newSyncer(ctx *Node, cfg *Config) (*syncer, error) {
 	return &syncer, nil
 }
 
-// SyncerClients return connected Nodes
-func (syncer *syncer) SyncerClients() map[string]*sClient {
+// Clients return connected Nodes
+func (syncer *syncer) Clients() map[string]*sClient {
 	syncer.sClientsRWM.RLock()
 	l := len(syncer.sClients)
 	if l == 0 {

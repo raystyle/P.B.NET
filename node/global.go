@@ -30,6 +30,7 @@ type global struct {
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	cfg := config.Global
+
 	memory := security.NewMemory()
 	defer memory.Flush()
 

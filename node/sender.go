@@ -18,173 +18,126 @@ import (
 	"project/internal/xpanic"
 )
 
-type broadcastTask struct {
-	Command  []byte      // for Broadcast
-	MessageI interface{} // for Broadcast
-	Message  []byte      // for BroadcastPlugin
-	Result   chan<- *protocol.BroadcastResult
-}
-
-type syncSendTask struct {
+type sendTask struct {
 	Command  []byte      // for Send
 	MessageI interface{} // for Send
-	Message  []byte      // for SendPlugin
-	Result   chan<- *protocol.SyncResult
+	Message  []byte      // for SendFromPlugin
+	Result   chan<- *protocol.SendResult
 }
 
 type sender struct {
 	ctx *Node
 
-	broadcastTaskQueue   chan *broadcastTask
-	syncSendTaskQueue    chan *syncSendTask
-	syncReceiveTaskQueue chan uint64 // height
+	sendTaskQueue chan *sendTask
 
-	broadcastTaskPool sync.Pool
-	syncSendTaskPool  sync.Pool
-
-	broadcastDonePool sync.Pool
-	syncSendDonePool  sync.Pool
-	broadcastRespPool sync.Pool
-	syncRespPool      sync.Pool
-
-	syncSendM sync.Mutex // just send to Controller
+	sendTaskPool     sync.Pool
+	sendResultPool   sync.Pool
+	sendDonePool     sync.Pool
+	sendResponsePool sync.Pool
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-func newSender(ctx *Node, cfg *Config) (*sender, error) {
+func newSender(ctx *Node, config *Config) (*sender, error) {
+	cfg := config.Sender
+
 	// check config
-	if cfg.SenderWorker < 1 {
-		return nil, errors.New("sender worker number < 1")
+	if cfg.Worker < 1 {
+		return nil, errors.New("the number of the sender worker must >= 0")
 	}
-	if cfg.SenderQueueSize < 512 {
-		return nil, errors.New("sender task queue size < 512")
+	if cfg.QueueSize < 128 {
+		return nil, errors.New("sender task queue size must >= 128")
 	}
+	if cfg.MaxBufferSize < 512<<10 {
+		return nil, errors.New("sender max buffer size must >= 512KB")
+	}
+	if cfg.Timeout < 15*time.Second {
+		return nil, errors.New("sender timeout must >= 15s")
+	}
+
 	sender := sender{
-		ctx:                  ctx,
-		broadcastTaskQueue:   make(chan *broadcastTask, cfg.SenderQueueSize),
-		syncSendTaskQueue:    make(chan *syncSendTask, cfg.SenderQueueSize),
-		syncReceiveTaskQueue: make(chan uint64, cfg.SenderQueueSize),
-		stopSignal:           make(chan struct{}),
+		ctx:           ctx,
+		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
+		stopSignal:    make(chan struct{}),
 	}
-	// init task sync pool
-	sender.broadcastTaskPool.New = func() interface{} {
-		return new(broadcastTask)
+
+	// init sync pool
+	sender.sendTaskPool.New = func() interface{} {
+		return new(sendTask)
 	}
-	sender.syncSendTaskPool.New = func() interface{} {
-		return new(syncSendTask)
+	sender.sendResultPool.New = func() interface{} {
+		return new(protocol.SendResult)
 	}
-	// init done sync pool
-	sender.broadcastDonePool.New = func() interface{} {
-		return make(chan *protocol.BroadcastResult, 1)
+	sender.sendDonePool.New = func() interface{} {
+		return make(chan *protocol.SendResult, 1)
 	}
-	sender.syncSendDonePool.New = func() interface{} {
-		return make(chan *protocol.SyncResult, 1)
+	sender.sendResponsePool.New = func() interface{} {
+		return make(chan *protocol.SendResponse, 1)
 	}
-	sender.broadcastRespPool.New = func() interface{} {
-		return make(chan *protocol.BroadcastResponse, 1)
-	}
-	sender.syncRespPool.New = func() interface{} {
-		return make(chan *protocol.SyncResponse, 1)
-	}
+
 	// start sender workers
-	for i := 0; i < cfg.SenderWorker; i++ {
+	sender.wg.Add(cfg.Worker)
+	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
 			ctx:           &sender,
 			maxBufferSize: cfg.MaxBufferSize,
 		}
-		sender.wg.Add(1)
 		go worker.Work()
 	}
 	return &sender, nil
 }
 
-func (sender *sender) Broadcast(
-	command []byte,
-	message interface{},
-) (r *protocol.BroadcastResult) {
-	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
-	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
-	bt.Command = command
-	bt.MessageI = message
-	bt.Result = done
-	sender.broadcastTaskQueue <- bt
-	r = <-done
-	sender.broadcastDonePool.Put(done)
-	return
+// SendAsync is used to asynchronous send message to Controller
+// must put *protocol.Send to sender.sendResultPool
+func (sender *sender) SendAsync(cmd []byte, msg interface{}, done chan<- *protocol.SendResult) {
+	st := sender.sendTaskPool.Get().(*sendTask)
+	st.Command = cmd
+	st.MessageI = msg
+	st.Result = done
+	sender.sendTaskQueue <- st
 }
 
-func (sender *sender) BroadcastAsync(
-	command []byte,
-	message interface{},
-	done chan<- *protocol.BroadcastResult,
-) {
-	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
-	bt.Command = command
-	bt.MessageI = message
-	bt.Result = done
-	sender.broadcastTaskQueue <- bt
+// Send is used to send message to Controller
+func (sender *sender) Send(cmd []byte, msg interface{}) error {
+	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
+	defer sender.sendDonePool.Put(done)
+	sender.SendAsync(cmd, msg, done)
+	result := <-done
+	defer func() {
+		result.Clean()
+		sender.sendResultPool.Put(result)
+	}()
+	err := result.Err
+	if err != nil {
+		sender.log(logger.Warning, "failed to send:", err)
+		return err
+	}
+	return nil
 }
 
-func (sender *sender) BroadcastPlugin(
-	message []byte,
-) (r *protocol.BroadcastResult) {
-	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
-	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
-	bt.Message = message
-	bt.Result = done
-	sender.broadcastTaskQueue <- bt
-	r = <-done
-	sender.broadcastDonePool.Put(done)
-	return
-}
+// SendFromPlugin is used to provide a interface
+// for plugins to send message to Controller
+func (sender *sender) SendFromPlugin(message []byte) error {
+	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
+	defer sender.sendDonePool.Put(done)
 
-func (sender *sender) Send(
-	command []byte,
-	message interface{},
-) error {
-	done := sender.syncSendDonePool.Get().(chan *protocol.SyncResult)
-	sst := sender.syncSendTaskPool.Get().(*syncSendTask)
-	sst.Command = command
-	sst.MessageI = message
-	sst.Result = done
-	sender.syncSendTaskQueue <- sst
-	r = <-done
-	sender.syncSendDonePool.Put(done)
-	return
-}
+	st := sender.sendTaskPool.Get().(*sendTask)
+	st.Message = message
+	st.Result = done
+	sender.sendTaskQueue <- st
 
-func (sender *sender) SendAsync(
-	command []byte,
-	message interface{},
-	done chan<- *protocol.SyncResult,
-) {
-	sst := sender.syncSendTaskPool.Get().(*syncSendTask)
-	sst.Command = command
-	sst.MessageI = message
-	sst.Result = done
-	sender.syncSendTaskQueue <- sst
-}
-
-func (sender *sender) SendPlugin(
-	message []byte,
-) (r *protocol.SyncResult) {
-	done := sender.syncSendDonePool.Get().(chan *protocol.SyncResult)
-	sst := sender.syncSendTaskPool.Get().(*syncSendTask)
-	sst.Message = message
-	sst.Result = done
-	sender.syncSendTaskQueue <- sst
-	r = <-done
-	sender.syncSendDonePool.Put(done)
-	return
-}
-
-// SyncReceive is used to sync node receive(controller send)
-// notice node to delete message
-// only for syncerWorker
-func (sender *sender) SyncReceive(height uint64) {
-	sender.syncReceiveTaskQueue <- height
+	result := <-done
+	defer func() {
+		result.Clean()
+		sender.sendResultPool.Put(result)
+	}()
+	err := result.Err
+	if err != nil {
+		sender.log(logger.Warning, "failed to send from plugin:", err)
+		return err
+	}
+	return nil
 }
 
 func (sender *sender) Close() {
@@ -193,102 +146,49 @@ func (sender *sender) Close() {
 }
 
 func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
-	sender.ctx.Printf(l, "sender", format, log...)
+	sender.ctx.logger.Printf(l, "sender", format, log...)
 }
 
 func (sender *sender) log(l logger.Level, log ...interface{}) {
-	sender.ctx.Print(l, "sender", log...)
+	sender.ctx.logger.Print(l, "sender", log...)
 }
 
-func (sender *sender) logln(l logger.Level, log ...interface{}) {
-	sender.ctx.Println(l, "sender", log...)
+type cSender interface {
+	Send(token, message []byte) *protocol.SendResponse
 }
 
-func (sender *sender) broadcastParallel(token, message []byte) (
-	resp []*protocol.BroadcastResponse, success int) {
-	// if connect controller, first send
-	ctrl := sender.ctx.syncer.CtrlConn()
-	if ctrl != nil {
-		br := ctrl.Broadcast(token, message)
-		if br.Err == nil {
+// return responses and the number of the success
+func (sender *sender) sendParallel(token, message []byte) ([]*protocol.SendResponse, int) {
+	clients := sender.ctx.syncer.Clients()
+
+	sClients := sender.ctx.syncer.sClients()
+	l := len(sClients)
+	if l == 0 {
+		return nil, 0
+	}
+	// padding channels
+	channels := make([]chan *protocol.SyncResponse, l)
+	for i := 0; i < l; i++ {
+		channels[i] = sender.sendResponsePool.Get().(chan *protocol.SyncResponse)
+	}
+	// sync send parallel
+	index := 0
+	for _, sc := range sClients {
+		go func(s *sClient) {
+			channels[index] <- s.SyncSend(token, message)
+		}(sc)
+		index += 1
+	}
+	// get response and put
+	resp = make([]*protocol.SyncResponse, l)
+	for i := 0; i < l; i++ {
+		resp[i] = <-channels[i]
+		if resp[i].Err == nil {
 			success += 1
 		}
+		sender.sendResponsePool.Put(channels[i])
 	}
 
-	/*
-		sClients := sender.ctx.syncer.sClients()
-		l := len(sClients)
-		if l == 0 {
-			return nil, 0
-		}
-		// padding channels
-		channels := make([]chan *protocol.BroadcastResponse, l)
-		for i := 0; i < l; i++ {
-			channels[i] = sender.broadcastRespPool.Get().(chan *protocol.BroadcastResponse)
-		}
-		// broadcast parallel
-		index := 0
-		for _, sc := range sClients {
-			go func(s *sClient) {
-				channels[index] <- s.Broadcast(token, message)
-			}(sc)
-			index += 1
-		}
-		// get response and put
-		resp = make([]*protocol.BroadcastResponse, l)
-		for i := 0; i < l; i++ {
-			resp[i] = <-channels[i]
-			if resp[i].Err == nil {
-				success += 1
-			}
-			sender.broadcastRespPool.Put(channels[i])
-		}
-
-	*/
-	return
-}
-
-func (sender *sender) syncSendParallel(token, message []byte) (
-	resp []*protocol.SyncResponse, success int) {
-	// if connect controller, first send
-	ctrl := sender.ctx.syncer.CtrlConn()
-	if ctrl != nil {
-		br := ctrl.SyncSend(token, message)
-		if br.Err == nil {
-			success += 1
-		}
-	}
-	/*
-		sClients := sender.ctx.syncer.sClients()
-		l := len(sClients)
-		if l == 0 {
-			return nil, 0
-		}
-		// padding channels
-		channels := make([]chan *protocol.SyncResponse, l)
-		for i := 0; i < l; i++ {
-			channels[i] = sender.syncRespPool.Get().(chan *protocol.SyncResponse)
-		}
-		// sync send parallel
-		index := 0
-		for _, sc := range sClients {
-			go func(s *sClient) {
-				channels[index] <- s.SyncSend(token, message)
-			}(sc)
-			index += 1
-		}
-		// get response and put
-		resp = make([]*protocol.SyncResponse, l)
-		for i := 0; i < l; i++ {
-			resp[i] = <-channels[i]
-			if resp[i].Err == nil {
-				success += 1
-			}
-			sender.syncRespPool.Put(channels[i])
-		}
-
-	*/
-	return
 }
 
 func (sender *sender) syncReceiveParallel(token, message []byte) {
@@ -381,7 +281,7 @@ func (sw *senderWorker) Work() {
 		select {
 		case sw.srt = <-sw.ctx.syncReceiveTaskQueue:
 			sw.handleSyncReceiveTask()
-		case sw.sst = <-sw.ctx.syncSendTaskQueue:
+		case sw.sst = <-sw.ctx.sendTaskQueue:
 			sw.handleSyncSendTask()
 		case sw.bt = <-sw.ctx.broadcastTaskQueue:
 			sw.handleBroadcastTask()
@@ -413,7 +313,8 @@ func (sw *senderWorker) handleSyncReceiveTask() {
 }
 
 func (sw *senderWorker) handleSyncSendTask() {
-	defer sw.ctx.syncSendTaskPool.Put(sw.sst)
+	defer sw.ctx.sendTaskPool.Put(sw.sst)
+
 	result := protocol.SyncResult{}
 	sw.preSS.GUID = sw.guid.Get()
 	// pack message(interface)

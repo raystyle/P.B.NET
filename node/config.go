@@ -46,9 +46,10 @@ type Config struct {
 	} `toml:"global"`
 
 	Sender struct {
-		MaxBufferSize int `toml:"max_buffer_size"`
-		Worker        int `toml:"worker"`
-		QueueSize     int `toml:"queue_size"`
+		Worker        int           `toml:"worker"`
+		QueueSize     int           `toml:"queue_size"`
+		MaxBufferSize int           `toml:"max_buffer_size"`
+		Timeout       time.Duration `toml:"timeout"`
 	} `toml:"sender"`
 
 	Syncer struct {

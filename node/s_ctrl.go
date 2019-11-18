@@ -47,7 +47,6 @@ func (server *server) serveCtrl(conn net.Conn) {
 	}
 	tag := sha256.String([]byte(ctrl.Status().RemoteAddress))
 	server.addCtrlConn(tag, &ctrl)
-	ctrl.log(logger.Debug, "controller connected")
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "serve controller panic:")
@@ -57,6 +56,7 @@ func (server *server) serveCtrl(conn net.Conn) {
 		server.deleteCtrlConn(tag)
 		ctrl.log(logger.Debug, "controller disconnected")
 	}()
+	ctrl.log(logger.Debug, "controller connected")
 	// init slot
 	ctrl.slots = make([]*protocol.Slot, protocol.SlotSize)
 	for i := 0; i < protocol.SlotSize; i++ {
