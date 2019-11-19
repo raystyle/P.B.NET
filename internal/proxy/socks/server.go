@@ -125,12 +125,9 @@ func (s *Server) ListenAndServe(network, address string) error {
 	return nil
 }
 
-func (s *Server) close(err error) {
+func (s *Server) close() {
 	if r := recover(); r != nil {
 		s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
-	}
-	if err != nil {
-		s.log(logger.Error, err)
 	}
 
 	atomic.StoreInt32(&s.inShutdown, 1)
@@ -163,16 +160,15 @@ func (s *Server) Serve(l net.Listener) {
 
 	s.wg.Add(1)
 	go func() {
-		var err error
-		defer s.close(err)
+		defer s.close()
 		s.logf(logger.Info, "start server (%s)", s.address)
 		var delay time.Duration // how long to sleep on accept failure
 		maxDelay := time.Second
 		for {
-			conn, e := s.listener.Accept()
-			if e != nil {
+			conn, err := s.listener.Accept()
+			if err != nil {
 				// check error
-				if ne, ok := e.(net.Error); ok && ne.Temporary() {
+				if ne, ok := err.(net.Error); ok && ne.Temporary() {
 					if delay == 0 {
 						delay = 5 * time.Millisecond
 					} else {
@@ -181,12 +177,13 @@ func (s *Server) Serve(l net.Listener) {
 					if delay > maxDelay {
 						delay = maxDelay
 					}
-					s.logf(logger.Warning, "accept error: %s; retrying in %v", e, delay)
+					s.logf(logger.Warning, "accept error: %s; retrying in %v", err, delay)
 					time.Sleep(delay)
 					continue
 				}
-				if !strings.Contains(e.Error(), "use of closed network connection") {
-					err = e
+				str := err.Error()
+				if !strings.Contains(str, "use of closed network connection") {
+					s.log(logger.Error, str)
 				}
 				return
 			}
