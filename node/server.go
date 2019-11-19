@@ -1,8 +1,8 @@
 package node
 
 import (
-	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -16,9 +16,9 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/crypto/aes"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
-	"project/internal/options"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
@@ -37,6 +37,7 @@ type server struct {
 	maxConns int           // every listener
 	timeout  time.Duration // handshake timeout
 
+	guid         *guid.GUID
 	listeners    map[string]*Listener // key = tag
 	listenersRWM sync.RWMutex
 	conns        map[string]*xnet.Conn // key = guid
@@ -93,13 +94,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	server := server{
-		ctx:       ctx,
-		maxConns:  cfg.MaxConns,
-		timeout:   cfg.Timeout,
-		listeners: make(map[string]*Listener),
-	}
-
+	server := server{listeners: make(map[string]*Listener)}
 	for i := 0; i < len(listeners); i++ {
 		_, err = server.addListener(listeners[i])
 		if err != nil {
@@ -107,6 +102,10 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		}
 	}
 
+	server.ctx = ctx
+	server.maxConns = cfg.MaxConns
+	server.timeout = cfg.Timeout
+	server.guid = guid.New(1024, server.ctx.global.Now)
 	server.conns = make(map[string]*xnet.Conn)
 	server.ctrlConns = make(map[string]*conn)
 	server.nodeConns = make(map[string]*conn)
@@ -152,6 +151,7 @@ func (server *server) Close() {
 		_ = conn.Close()
 	}
 	server.wg.Wait()
+	server.ctx = nil
 }
 
 func (server *server) addListener(l *messages.Listener) (*Listener, error) {
@@ -284,62 +284,85 @@ func (server *server) log(lv logger.Level, log ...interface{}) {
 	server.ctx.logger.Print(lv, "server", log...)
 }
 
-func (server *server) handshake(listenerTag string, conn net.Conn) {
-	dConn := xnet.DeadlineConn(conn, options.DefaultHandshakeTimeout)
-	xconn := xnet.NewConn(dConn, server.ctx.global.Now())
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handshake panic:")
-			server.log(logger.Exploit, &sLog{c: xconn, e: err})
-		}
-		_ = xconn.Close()
-		server.wg.Done()
-	}()
-	// conn tag
-	b := bytes.Buffer{}
-	b.WriteString(listenerTag)
-	b.WriteString(xconn.RemoteAddr().String())
-	connTag := b.String()
-	// add to conns for management
-	server.addConn(connTag, xconn)
-	defer server.deleteConn(connTag)
-	// send certificate
+// checkConn is used to check connection is from client
+func (server *server) checkConn(conn net.Conn) bool {
+	size := byte(100 + server.rand.Int(156))
+	data := server.rand.Bytes(int(size))
+	_, err := conn.Write(append([]byte{size}, data...))
+	if err != nil {
+		server.logf(logger.Warning, "failed to send check data: %s", err)
+		return false
+	}
+	n, err := io.ReadFull(conn, data)
+	if err != nil {
+		server.logf(logger.Warning, "test data: %X", data[:n])
+		return false
+	}
+	return true
+}
+
+func (server *server) sendCertificate(conn *xnet.Conn) bool {
 	var err error
 	cert := server.ctx.global.Certificate()
 	if cert != nil {
-		err = xconn.Send(cert)
+		err = conn.Send(cert)
 		if err != nil {
-			l := &sLog{c: xconn, l: "send certificate failed", e: err}
-			server.log(logger.Error, l)
-			return
+			server.logf(logger.Error, "failed to send certificate: %s", err)
+			return false
 		}
 	} else { // if no certificate send padding data
-		paddingSize := 1024 + server.rand.Int(1024)
-		err = xconn.Send(server.rand.Bytes(paddingSize))
+		size := 1024 + server.rand.Int(1024)
+		err = conn.Send(server.rand.Bytes(size))
 		if err != nil {
-			l := &sLog{c: xconn, l: "send padding data failed", e: err}
-			server.log(logger.Error, l)
-			return
+			server.logf(logger.Error, "failed to send padding data: %s", err)
+			return false
 		}
 	}
+	return true
+}
+
+func (server *server) handshake(tag string, conn net.Conn) {
+	now := server.ctx.global.Now()
+	xConn := xnet.NewConn(conn, now)
+	defer func() {
+		if r := recover(); r != nil {
+			server.log(logger.Exploit, xpanic.Error(r, "server.handshake"))
+		}
+		_ = xConn.Close()
+		server.wg.Done()
+	}()
+
+	// add to server.conns for management
+	connTag := tag + hex.EncodeToString(server.guid.Get())
+	server.addConn(connTag, xConn)
+	defer server.deleteConn(connTag)
+
+	_ = xConn.SetDeadline(now.Add(server.timeout))
+
+	if !server.checkConn(xConn) {
+		return
+	}
+	if !server.sendCertificate(xConn) {
+		return
+	}
+
 	// receive role
 	role := make([]byte, 1)
-	_, err = io.ReadFull(xconn, role)
+	_, err := io.ReadFull(xConn, role)
 	if err != nil {
-		l := &sLog{c: xconn, l: "receive role failed", e: err}
-		server.log(logger.Error, l)
+		server.log(logger.Error, "failed to receive role")
 		return
 	}
 	r := protocol.Role(role[0])
 	switch r {
 	case protocol.Beacon:
-		server.verifyBeacon(conn)
+		server.verifyBeacon(xConn)
 	case protocol.Node:
-		server.verifyNode(conn)
+		server.verifyNode(xConn)
 	case protocol.Ctrl:
-		server.verifyCtrl(conn)
+		server.verifyCtrl(xConn)
 	default:
-		server.log(logger.Exploit, &sLog{c: conn, e: r})
+		server.log(logger.Exploit, r)
 	}
 }
 
@@ -351,38 +374,36 @@ func (server *server) verifyNode(conn net.Conn) {
 
 }
 
-func (server *server) verifyCtrl(conn net.Conn) {
-	dConn := xnet.DeadlineConn(conn, options.DefaultHandshakeTimeout)
-	xconn := xnet.NewConn(dConn, server.ctx.global.Now())
+func (server *server) verifyCtrl(conn *xnet.Conn) {
 	// <danger>
 	// send random challenge code(length 2048-4096)
 	// len(challenge) must > len(GUID + Mode + Network + Address)
 	// because maybe fake node will send some special data
 	// and controller sign it
 	challenge := server.rand.Bytes(2048 + server.rand.Int(2048))
-	err := xconn.Send(challenge)
+	err := conn.Send(challenge)
 	if err != nil {
-		l := &sLog{c: xconn, l: "send challenge code failed", e: err}
+		l := &sLog{c: conn, l: "send challenge code failed", e: err}
 		server.log(logger.Error, l)
 		return
 	}
 	// receive signature
-	signature, err := xconn.Receive()
+	signature, err := conn.Receive()
 	if err != nil {
-		l := &sLog{c: xconn, l: "receive signature failed", e: err}
+		l := &sLog{c: conn, l: "receive signature failed", e: err}
 		server.log(logger.Error, l)
 		return
 	}
 	// verify signature
 	if !server.ctx.global.CtrlVerify(challenge, signature) {
-		l := &sLog{c: xconn, l: "invalid controller signature", e: err}
+		l := &sLog{c: conn, l: "invalid controller signature", e: err}
 		server.log(logger.Exploit, l)
 		return
 	}
 	// send success
-	err = xconn.Send(protocol.AuthSucceed)
+	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
-		l := &sLog{c: xconn, l: "send auth success response failed", e: err}
+		l := &sLog{c: conn, l: "send auth success response failed", e: err}
 		server.log(logger.Error, l)
 		return
 	}
@@ -401,7 +422,7 @@ func (server *server) deleteConn(tag string) {
 	server.connsRWM.Unlock()
 }
 
-func (server *server) addCtrlConn(tag string, conn *ctrlConn) {
+func (server *server) addCtrlConn(tag string, conn *conn) {
 	server.ctrlConnsRWM.Lock()
 	if _, ok := server.ctrlConns[tag]; !ok {
 		server.ctrlConns[tag] = conn
@@ -415,7 +436,7 @@ func (server *server) deleteCtrlConn(tag string) {
 	server.ctrlConnsRWM.Unlock()
 }
 
-func (server *server) addNodeConn(guid []byte, conn *nodeConn) {
+func (server *server) addNodeConn(guid []byte, conn *conn) {
 	tag := base64.StdEncoding.EncodeToString(guid)
 	server.nodeConnsRWM.Lock()
 	if _, ok := server.nodeConns[tag]; !ok {
@@ -431,7 +452,7 @@ func (server *server) deleteNodeConn(guid []byte) {
 	server.nodeConnsRWM.Unlock()
 }
 
-func (server *server) addBeaconConn(guid []byte, conn *beaconConn) {
+func (server *server) addBeaconConn(guid []byte, conn *conn) {
 	tag := base64.StdEncoding.EncodeToString(guid)
 	server.beaconConnsRWM.Lock()
 	if _, ok := server.beaconConns[tag]; !ok {
