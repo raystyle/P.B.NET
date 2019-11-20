@@ -51,15 +51,18 @@ type Config struct {
 		QueueSize     int           `toml:"queue_size"`
 		MaxBufferSize int           `toml:"max_buffer_size"`
 		Timeout       time.Duration `toml:"timeout"`
+		MaxConns      int           `toml:"max_conns"`
 	} `toml:"sender"`
 
 	Syncer struct {
-		MaxConns      int           `toml:"max_conns"`
-		MaxBufferSize int           `toml:"max_buffer_size"`
-		Worker        int           `toml:"worker"`
-		QueueSize     int           `toml:"queue_size"`
-		ExpireTime    time.Duration `toml:"expire_time"`
+		ExpireTime time.Duration `toml:"expire_time"`
 	} `toml:"syncer"`
+
+	Worker struct {
+		MaxBufferSize int `toml:"max_buffer_size"`
+		Worker        int `toml:"worker"`
+		QueueSize     int `toml:"queue_size"`
+	} `toml:"worker"`
 
 	Register struct {
 

@@ -4,477 +4,285 @@ import (
 	"encoding/base64"
 	"math"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/logger"
-	"project/internal/protocol"
 	"project/internal/xpanic"
 )
 
+// syncer is used to make sure every one message will
+// be handle once, and start a cleaner to release memory
 type syncer struct {
-	ctx              *Node
-	maxBufferSize    int
-	workerQueueSize  int
-	maxBlockWorker   int
-	retryTimes       int
-	retryInterval    time.Duration
-	broadcastTimeout float64
-	maxSyncerClient  int
-	maxSyncerClientM sync.Mutex
-	// -------------------handle broadcast------------------------
-	// key=base64(guid) value=timestamp, check whether handled
-	broadcastQueue   chan *protocol.Broadcast
-	broadcastGUID    [3]map[string]int64
-	broadcastGUIDRWM [3]sync.RWMutex
-	// -----------------handle sync message-----------------------
-	syncSendQueue      chan *protocol.Send
-	syncSendGUID       [3]map[string]int64
-	syncSendGUIDRWM    [3]sync.RWMutex
-	syncReceiveQueue   chan *protocol.SyncReceive
-	syncReceiveGUID    [3]map[string]int64
-	syncReceiveGUIDRWM [3]sync.RWMutex
-	// -------------------handle sync task------------------------
-	syncTaskQueue chan *protocol.SyncTask
+	ctx *Node
 
-	// connected node key=base64(guid)
-	sClients    map[string]*sClient
-	sClientsRWM sync.RWMutex
+	expireTime float64
 
-	// incoming role connections
-	ctrlConn       *ctrlConn // only one if has two Exploit!!!!
-	ctrlConnM      sync.Mutex
-	nodeConns      map[string]*nodeConn
-	nodeConnsRWM   sync.RWMutex
-	beaconConns    map[string]*beaconConn
-	beaconConnsRWM sync.RWMutex
+	// key = base64(GUID) value = timestamp
+	// controller send and broadcast
+	ctrlSendGUID         map[string]int64
+	ctrlSendGUIDRWM      sync.RWMutex
+	nodeAckCtrlGUID      map[string]int64
+	nodeAckCtrlGUIDRWM   sync.RWMutex
+	beaconAckCtrlGUID    map[string]int64
+	beaconAckCtrlGUIDRWM sync.RWMutex
+	broadcastGUID        map[string]int64
+	broadcastGUIDRWM     sync.RWMutex
 
-	inClose    int32
+	// node send
+	nodeSendGUID       map[string]int64
+	nodeSendGUIDRWM    sync.RWMutex
+	ctrlAckNodeGUID    map[string]int64
+	ctrlAckNodeGUIDRWM sync.RWMutex
+
+	// beacon send and query
+	beaconSendGUID       map[string]int64
+	beaconSendGUIDRWM    sync.RWMutex
+	ctrlAckBeaconGUID    map[string]int64
+	ctrlAckBeaconGUIDRWM sync.RWMutex
+	beaconQueryGUID      map[string]int64
+	beaconQueryGUIDRWM   sync.RWMutex
+	ctrlAnswerGUID       map[string]int64
+	ctrlAnswerGUIDRWM    sync.RWMutex
+
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-func newSyncer(ctx *Node, cfg *Config) (*syncer, error) {
-	// check config
-	if cfg.MaxBufferSize < 4096 {
-		return nil, errors.New("max buffer size < 4096")
+func newSyncer(ctx *Node, config *Config) (*syncer, error) {
+	cfg := config.Syncer
+
+	if cfg.ExpireTime < 5*time.Minute || cfg.ExpireTime > time.Hour {
+		return nil, errors.New("expire time < 5m or > 1h")
 	}
-	if cfg.MaxSyncerClient < 1 {
-		return nil, errors.New("max syncer < 1")
-	}
-	if cfg.SyncerWorker < 2 {
-		return nil, errors.New("worker number < 2")
-	}
-	if cfg.SyncerQueueSize < 512 {
-		return nil, errors.New("worker task queue size < 512")
-	}
-	if cfg.ReserveWorker >= cfg.SyncerWorker {
-		return nil, errors.New("reserve worker number >= worker number")
-	}
-	if cfg.RetryTimes < 3 {
-		return nil, errors.New("retry time < 3")
-	}
-	if cfg.RetryInterval < 5*time.Second {
-		return nil, errors.New("retry interval < 5s")
-	}
-	if cfg.BroadcastTimeout < 30*time.Second {
-		return nil, errors.New("broadcast timeout < 30s")
-	}
+
 	syncer := syncer{
-		ctx:              ctx,
-		maxBufferSize:    cfg.MaxBufferSize,
-		maxSyncerClient:  cfg.MaxSyncerClient,
-		workerQueueSize:  cfg.SyncerQueueSize,
-		maxBlockWorker:   cfg.SyncerWorker - cfg.ReserveWorker,
-		retryTimes:       cfg.RetryTimes,
-		retryInterval:    cfg.RetryInterval,
-		broadcastTimeout: cfg.BroadcastTimeout.Seconds(),
-		broadcastQueue:   make(chan *protocol.Broadcast, cfg.SyncerQueueSize),
-		syncSendQueue:    make(chan *protocol.Send, cfg.SyncerQueueSize),
-		syncReceiveQueue: make(chan *protocol.SyncReceive, cfg.SyncerQueueSize),
-		syncTaskQueue:    make(chan *protocol.SyncTask, cfg.SyncerQueueSize),
-		sClients:         make(map[string]*sClient),
-		nodeConns:        make(map[string]*nodeConn),
-		beaconConns:      make(map[string]*beaconConn),
+		ctx: ctx,
+
+		expireTime: cfg.ExpireTime.Seconds(),
+
+		ctrlSendGUID:      make(map[string]int64),
+		nodeAckCtrlGUID:   make(map[string]int64),
+		beaconAckCtrlGUID: make(map[string]int64),
+		broadcastGUID:     make(map[string]int64),
+
+		nodeSendGUID:    make(map[string]int64),
+		ctrlAckNodeGUID: make(map[string]int64),
+
+		beaconSendGUID:    make(map[string]int64),
+		ctrlAckBeaconGUID: make(map[string]int64),
+		beaconQueryGUID:   make(map[string]int64),
+		ctrlAnswerGUID:    make(map[string]int64),
 
 		stopSignal: make(chan struct{}),
 	}
 
-	for i := 0; i < 3; i++ {
-		syncer.broadcastGUID[i] = make(map[string]int64)
-		syncer.syncSendGUID[i] = make(map[string]int64)
-		syncer.syncReceiveGUID[i] = make(map[string]int64)
-	}
-	// start workers
-	for i := 0; i < cfg.SyncerWorker; i++ {
-		syncer.wg.Add(1)
-		go syncer.worker()
-	}
 	syncer.wg.Add(1)
 	go syncer.guidCleaner()
-	syncer.wg.Add(1)
-	go syncer.watcher()
+
 	return &syncer, nil
 }
 
-// Clients return connected Nodes
-func (syncer *syncer) Clients() map[string]*sClient {
-	syncer.sClientsRWM.RLock()
-	l := len(syncer.sClients)
-	if l == 0 {
-		syncer.sClientsRWM.RUnlock()
-		return nil
-	}
-	// copy map
-	sClients := make(map[string]*sClient, l)
-	for key, client := range syncer.sClients {
-		sClients[key] = client
-	}
-	syncer.sClientsRWM.RUnlock()
-	return sClients
-}
-
-func (syncer *syncer) SetCtrlConn(ctrl *ctrlConn) bool {
-	syncer.ctrlConnM.Lock()
-	defer syncer.ctrlConnM.Unlock()
-	if syncer.ctrlConn == nil {
-		syncer.ctrlConn = ctrl
-		return true
-	} else {
-		return false
-	}
-}
-
-func (syncer *syncer) CtrlConn() *ctrlConn {
-	syncer.ctrlConnM.Lock()
-	cc := syncer.ctrlConn
-	syncer.ctrlConnM.Unlock()
-	return cc
-}
-
-func (syncer *syncer) isClosed() bool {
-	return atomic.LoadInt32(&syncer.inClose) != 0
-}
-
-func (syncer *syncer) Close() {
-	atomic.StoreInt32(&syncer.inClose, 1)
-	// disconnect all syncer clients
-
-	// wait close
-
-	close(syncer.stopSignal)
-	syncer.wg.Wait()
-}
-
-func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
-	syncer.ctx.Printf(l, "syncer", format, log...)
-}
-
-func (syncer *syncer) log(l logger.Level, log ...interface{}) {
-	syncer.ctx.Print(l, "syncer", log...)
-}
-
-func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
-	syncer.ctx.Println(l, "syncer", log...)
-}
-
-// getMaxSyncerClient is used to get current max syncer client number
-func (syncer *syncer) getMaxSyncerClient() int {
-	syncer.maxSyncerClientM.Lock()
-	maxSyncer := syncer.maxSyncerClient
-	syncer.maxSyncerClientM.Unlock()
-	return maxSyncer
-}
-
-// watcher is used to check connect nodes number
-// connected nodes number < syncer.maxSyncerClient, try to connect more node
-func (syncer *syncer) watcher() {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "syncer watcher panic:")
-			syncer.log(logger.Fatal, err)
-			// restart watcher
-			time.Sleep(time.Second)
-			syncer.wg.Add(1)
-			go syncer.watcher()
-		}
-		syncer.wg.Done()
-	}()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	isMax := func() bool {
-		// get current syncer client number
-		syncer.sClientsRWM.RLock()
-		sClientsLen := len(syncer.sClients)
-		syncer.sClientsRWM.RUnlock()
-		return sClientsLen >= syncer.getMaxSyncerClient()
-	}
-	watch := func() {
-		if isMax() {
-			return
-		}
-		// select nodes
-		// TODO watcher
-	}
-	for {
-		select {
-		case <-ticker.C:
-			watch()
-		case <-syncer.stopSignal:
-			return
-		}
-	}
-}
-
-// task from syncer client
-func (syncer *syncer) addBroadcast(br *protocol.Broadcast) {
-	if len(syncer.broadcastQueue) == syncer.workerQueueSize {
-		go func() { // prevent block
-			select {
-			case syncer.broadcastQueue <- br:
-			case <-syncer.stopSignal:
-			}
-		}()
-	} else {
-		select {
-		case syncer.broadcastQueue <- br:
-		case <-syncer.stopSignal:
-		}
-	}
-}
-
-// task from syncer client
-func (syncer *syncer) addSyncSend(ss *protocol.Send) {
-	if len(syncer.syncSendQueue) == syncer.workerQueueSize {
-		go func() { // prevent block
-			select {
-			case syncer.syncSendQueue <- ss:
-			case <-syncer.stopSignal:
-			}
-		}()
-	} else {
-		select {
-		case syncer.syncSendQueue <- ss:
-		case <-syncer.stopSignal:
-		}
-	}
-}
-
-// task from syncer client
-func (syncer *syncer) addSyncReceive(sr *protocol.SyncReceive) {
-	if len(syncer.syncReceiveQueue) == syncer.workerQueueSize {
-		go func() { // prevent block
-			select {
-			case syncer.syncReceiveQueue <- sr:
-			case <-syncer.stopSignal:
-			}
-		}()
-	} else {
-		select {
-		case syncer.syncReceiveQueue <- sr:
-		case <-syncer.stopSignal:
-		}
-	}
-}
-
-// addSyncTask is used to
-// worker use it
-func (syncer *syncer) addSyncTask(task *protocol.SyncTask) {
-	if len(syncer.syncTaskQueue) == syncer.workerQueueSize {
-		go func() { // prevent block
-			select {
-			case syncer.syncTaskQueue <- task:
-			case <-syncer.stopSignal:
-			}
-		}()
-	} else {
-		select {
-		case syncer.syncTaskQueue <- task:
-		case <-syncer.stopSignal:
-		}
-	}
-}
-
-const (
-	syncerCtrl   = 0
-	syncerNode   = 1
-	syncerBeacon = 2
-)
-
-// check xxx Token is used to check xxx is been handled
-// xxx = broadcast, sync send, sync receive
-// just tell others, but they can still send it by force
-
-func (syncer *syncer) checkBroadcastToken(role protocol.Role, guid []byte) bool {
+// CheckGUIDTimestamp is used to get timestamp from GUID
+func (syncer *syncer) CheckGUIDTimestamp(guid []byte) (bool, int64) {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
+	if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+		return false, 0
 	}
-	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	case protocol.Ctrl:
-		i = syncerCtrl
-	default:
-		panic("invalid role")
-	}
-	syncer.broadcastGUIDRWM[i].RLock()
-	_, ok := syncer.broadcastGUID[i][key]
-	syncer.broadcastGUIDRWM[i].RUnlock()
-	return !ok
+	return true, timestamp
 }
 
-func (syncer *syncer) checkSyncSendToken(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(guid[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
-	}
+func (syncer *syncer) CheckCtrlSendGUID(guid []byte, add bool, timestamp int64) bool {
 	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	case protocol.Ctrl:
-		i = syncerCtrl
-	default:
-		panic("invalid role")
-	}
-	syncer.syncSendGUIDRWM[i].RLock()
-	_, ok := syncer.syncSendGUID[i][key]
-	syncer.syncSendGUIDRWM[i].RUnlock()
-	return !ok
-}
-
-func (syncer *syncer) checkSyncReceiveToken(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(guid[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
-	}
-	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	case protocol.Ctrl:
-		i = syncerCtrl
-	default:
-		panic("invalid role")
-	}
-	syncer.syncReceiveGUIDRWM[i].RLock()
-	_, ok := syncer.syncReceiveGUID[i][key]
-	syncer.syncReceiveGUIDRWM[i].RUnlock()
-	return !ok
-}
-
-// check xxx GUID is used to check xxx is been handled
-// prevent others send same message
-// xxx = broadcast, sync send, sync receive
-// must use Abs to prevent future timestamp
-
-func (syncer *syncer) checkBroadcastGUID(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(guid[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
-	}
-	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	case protocol.Ctrl:
-		i = syncerCtrl
-	default:
-		panic("invalid role")
-	}
-	syncer.broadcastGUIDRWM[i].Lock()
-	if _, ok := syncer.broadcastGUID[i][key]; !ok {
-		syncer.broadcastGUID[i][key] = timestamp
-		syncer.broadcastGUIDRWM[i].Unlock()
-		return true
+	if add {
+		syncer.ctrlSendGUIDRWM.Lock()
+		defer syncer.ctrlSendGUIDRWM.Unlock()
+		if _, ok := syncer.ctrlSendGUID[key]; ok {
+			return false
+		} else {
+			syncer.ctrlSendGUID[key] = timestamp
+			return true
+		}
 	} else {
-		syncer.broadcastGUIDRWM[i].Unlock()
-		return false
+		syncer.ctrlSendGUIDRWM.RLock()
+		defer syncer.ctrlSendGUIDRWM.RUnlock()
+		_, ok := syncer.ctrlSendGUID[key]
+		return !ok
 	}
 }
 
-func (syncer *syncer) checkSyncSendGUID(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(guid[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
-	}
+func (syncer *syncer) CheckNodeAckCtrlGUID(guid []byte, add bool, timestamp int64) bool {
 	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	case protocol.Ctrl:
-		i = syncerCtrl
-	default:
-		panic("invalid role")
-	}
-	syncer.syncSendGUIDRWM[i].Lock()
-	if _, ok := syncer.syncSendGUID[i][key]; !ok {
-		syncer.syncSendGUID[i][key] = timestamp
-		syncer.syncSendGUIDRWM[i].Unlock()
-		return true
+	if add {
+		syncer.nodeAckCtrlGUIDRWM.Lock()
+		defer syncer.nodeAckCtrlGUIDRWM.Unlock()
+		if _, ok := syncer.nodeAckCtrlGUID[key]; ok {
+			return false
+		} else {
+			syncer.nodeAckCtrlGUID[key] = timestamp
+			return true
+		}
 	} else {
-		syncer.syncSendGUIDRWM[i].Unlock()
-		return false
+		syncer.nodeAckCtrlGUIDRWM.RLock()
+		defer syncer.nodeAckCtrlGUIDRWM.RUnlock()
+		_, ok := syncer.nodeAckCtrlGUID[key]
+		return !ok
 	}
 }
 
-func (syncer *syncer) checkSyncReceiveGUID(role protocol.Role, guid []byte) bool {
-	// look internal/guid/guid.go
-	timestamp := convert.BytesToInt64(guid[36:44])
-	now := syncer.ctx.global.Now().Unix()
-	if math.Abs(float64(now-timestamp)) > syncer.broadcastTimeout {
-		return false
-	}
+func (syncer *syncer) CheckBeaconAckCtrlGUID(guid []byte, add bool, timestamp int64) bool {
 	key := base64.StdEncoding.EncodeToString(guid)
-	i := 0
-	switch role {
-	case protocol.Beacon:
-		i = syncerBeacon
-	case protocol.Node:
-		i = syncerNode
-	case protocol.Ctrl:
-		i = syncerCtrl
-	default:
-		panic("invalid role")
-	}
-	syncer.syncReceiveGUIDRWM[i].Lock()
-	if _, ok := syncer.syncReceiveGUID[i][key]; !ok {
-		syncer.syncReceiveGUID[i][key] = timestamp
-		syncer.syncReceiveGUIDRWM[i].Unlock()
-		return true
+	if add {
+		syncer.beaconAckCtrlGUIDRWM.Lock()
+		defer syncer.beaconAckCtrlGUIDRWM.Unlock()
+		if _, ok := syncer.beaconAckCtrlGUID[key]; ok {
+			return false
+		} else {
+			syncer.beaconAckCtrlGUID[key] = timestamp
+			return true
+		}
 	} else {
-		syncer.syncReceiveGUIDRWM[i].Unlock()
-		return false
+		syncer.beaconAckCtrlGUIDRWM.RLock()
+		defer syncer.beaconAckCtrlGUIDRWM.RUnlock()
+		_, ok := syncer.beaconAckCtrlGUID[key]
+		return !ok
+	}
+}
+
+func (syncer *syncer) CheckBroadcastGUID(guid []byte, add bool, timestamp int64) bool {
+	key := base64.StdEncoding.EncodeToString(guid)
+	if add {
+		syncer.broadcastGUIDRWM.Lock()
+		defer syncer.broadcastGUIDRWM.Unlock()
+		if _, ok := syncer.broadcastGUID[key]; ok {
+			return false
+		} else {
+			syncer.broadcastGUID[key] = timestamp
+			return true
+		}
+	} else {
+		syncer.broadcastGUIDRWM.RLock()
+		defer syncer.broadcastGUIDRWM.RUnlock()
+		_, ok := syncer.broadcastGUID[key]
+		return !ok
+	}
+}
+
+func (syncer *syncer) CheckNodeSendGUID(guid []byte, add bool, timestamp int64) bool {
+	key := base64.StdEncoding.EncodeToString(guid)
+	if add {
+		syncer.nodeSendGUIDRWM.Lock()
+		defer syncer.nodeSendGUIDRWM.Unlock()
+		if _, ok := syncer.nodeSendGUID[key]; ok {
+			return false
+		} else {
+			syncer.nodeSendGUID[key] = timestamp
+			return true
+		}
+	} else {
+		syncer.nodeSendGUIDRWM.RLock()
+		defer syncer.nodeSendGUIDRWM.RUnlock()
+		_, ok := syncer.nodeSendGUID[key]
+		return !ok
+	}
+}
+
+func (syncer *syncer) CheckCtrlAckNodeGUID(guid []byte, add bool, timestamp int64) bool {
+	key := base64.StdEncoding.EncodeToString(guid)
+	if add {
+		syncer.ctrlAckNodeGUIDRWM.Lock()
+		defer syncer.ctrlAckNodeGUIDRWM.Unlock()
+		if _, ok := syncer.ctrlAckNodeGUID[key]; ok {
+			return false
+		} else {
+			syncer.ctrlAckNodeGUID[key] = timestamp
+			return true
+		}
+	} else {
+		syncer.ctrlAckNodeGUIDRWM.RLock()
+		defer syncer.ctrlAckNodeGUIDRWM.RUnlock()
+		_, ok := syncer.ctrlAckNodeGUID[key]
+		return !ok
+	}
+}
+
+func (syncer *syncer) CheckBeaconSendGUID(guid []byte, add bool, timestamp int64) bool {
+	key := base64.StdEncoding.EncodeToString(guid)
+	if add {
+		syncer.beaconSendGUIDRWM.Lock()
+		defer syncer.beaconSendGUIDRWM.Unlock()
+		if _, ok := syncer.beaconSendGUID[key]; ok {
+			return false
+		} else {
+			syncer.beaconSendGUID[key] = timestamp
+			return true
+		}
+	} else {
+		syncer.beaconSendGUIDRWM.RLock()
+		defer syncer.beaconSendGUIDRWM.RUnlock()
+		_, ok := syncer.beaconSendGUID[key]
+		return !ok
+	}
+}
+
+func (syncer *syncer) CheckCtrlAckBeaconGUID(guid []byte, add bool, timestamp int64) bool {
+	key := base64.StdEncoding.EncodeToString(guid)
+	if add {
+		syncer.ctrlAckBeaconGUIDRWM.Lock()
+		defer syncer.ctrlAckBeaconGUIDRWM.Unlock()
+		if _, ok := syncer.ctrlAckBeaconGUID[key]; ok {
+			return false
+		} else {
+			syncer.ctrlAckBeaconGUID[key] = timestamp
+			return true
+		}
+	} else {
+		syncer.ctrlAckBeaconGUIDRWM.RLock()
+		defer syncer.ctrlAckBeaconGUIDRWM.RUnlock()
+		_, ok := syncer.ctrlAckBeaconGUID[key]
+		return !ok
+	}
+}
+
+func (syncer *syncer) CheckBeaconQueryGUID(guid []byte, add bool, timestamp int64) bool {
+	key := base64.StdEncoding.EncodeToString(guid)
+	if add {
+		syncer.beaconQueryGUIDRWM.Lock()
+		defer syncer.beaconQueryGUIDRWM.Unlock()
+		if _, ok := syncer.beaconQueryGUID[key]; ok {
+			return false
+		} else {
+			syncer.beaconQueryGUID[key] = timestamp
+			return true
+		}
+	} else {
+		syncer.beaconQueryGUIDRWM.RLock()
+		defer syncer.beaconQueryGUIDRWM.RUnlock()
+		_, ok := syncer.beaconQueryGUID[key]
+		return !ok
+	}
+}
+
+func (syncer *syncer) CheckCtrlAnswerGUID(guid []byte, add bool, timestamp int64) bool {
+	key := base64.StdEncoding.EncodeToString(guid)
+	if add {
+		syncer.ctrlAnswerGUIDRWM.Lock()
+		defer syncer.ctrlAnswerGUIDRWM.Unlock()
+		if _, ok := syncer.ctrlAnswerGUID[key]; ok {
+			return false
+		} else {
+			syncer.ctrlAnswerGUID[key] = timestamp
+			return true
+		}
+	} else {
+		syncer.ctrlAnswerGUIDRWM.RLock()
+		defer syncer.ctrlAnswerGUIDRWM.RUnlock()
+		_, ok := syncer.ctrlAnswerGUID[key]
+		return !ok
 	}
 }
 
@@ -482,46 +290,25 @@ func (syncer *syncer) checkSyncReceiveGUID(role protocol.Role, guid []byte) bool
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "syncer guid cleaner panic:")
-			syncer.log(logger.Fatal, err)
-			// restart guid cleaner
+			syncer.log(logger.Fatal, xpanic.Error(r, "syncer.guidCleaner"))
+			// restart GUID cleaner
 			time.Sleep(time.Second)
-			syncer.wg.Add(1)
 			go syncer.guidCleaner()
+		} else {
+			syncer.wg.Done()
 		}
-		syncer.wg.Done()
 	}()
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	count := 0
 	for {
 		select {
 		case <-ticker.C:
-			now := syncer.ctx.global.Now().Unix()
-			for i := 0; i < 3; i++ {
-				// clean broadcast
-				syncer.broadcastGUIDRWM[i].Lock()
-				for key, timestamp := range syncer.broadcastGUID[i] {
-					if float64(now-timestamp) > syncer.broadcastTimeout {
-						delete(syncer.broadcastGUID[i], key)
-					}
-				}
-				syncer.broadcastGUIDRWM[i].Unlock()
-				// clean sync send
-				syncer.syncSendGUIDRWM[i].Lock()
-				for key, timestamp := range syncer.syncSendGUID[i] {
-					if float64(now-timestamp) > syncer.broadcastTimeout {
-						delete(syncer.syncSendGUID[i], key)
-					}
-				}
-				syncer.syncSendGUIDRWM[i].Unlock()
-				// clean sync receive
-				syncer.syncReceiveGUIDRWM[i].Lock()
-				for key, timestamp := range syncer.syncReceiveGUID[i] {
-					if float64(now-timestamp) > syncer.broadcastTimeout {
-						delete(syncer.syncReceiveGUID[i], key)
-					}
-				}
-				syncer.syncReceiveGUIDRWM[i].Unlock()
+			syncer.cleanGUID()
+			count += 1
+			if count > 20 {
+				syncer.cleanGUIDMap()
+				count = 0
 			}
 		case <-syncer.stopSignal:
 			return
@@ -529,16 +316,240 @@ func (syncer *syncer) guidCleaner() {
 	}
 }
 
-func (syncer *syncer) worker() {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "syncer.worker() panic:")
-			syncer.log(logger.Fatal, err)
-			// restart worker
-			time.Sleep(time.Second)
-			syncer.wg.Add(1)
-			go syncer.worker()
+func (syncer *syncer) cleanGUID() {
+	now := syncer.ctx.global.Now().Unix()
+	syncer.cleanCtrlSendGUID(now)
+	syncer.cleanNodeAckCtrlGUID(now)
+	syncer.cleanBeaconAckCtrlGUID(now)
+	syncer.cleanBroadcastGUID(now)
+
+	syncer.cleanNodeSendGUID(now)
+	syncer.cleanCtrlAckNodeGUID(now)
+
+	syncer.cleanBeaconSendGUID(now)
+	syncer.cleanCtrlAckBeaconGUID(now)
+	syncer.cleanBeaconQueryGUID(now)
+	syncer.cleanCtrlAnswerGUID(now)
+
+}
+
+func (syncer *syncer) cleanCtrlSendGUID(now int64) {
+	syncer.ctrlSendGUIDRWM.Lock()
+	defer syncer.ctrlSendGUIDRWM.Unlock()
+	for key, timestamp := range syncer.ctrlSendGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.ctrlSendGUID, key)
 		}
-		syncer.wg.Done()
-	}()
+	}
+}
+
+func (syncer *syncer) cleanNodeAckCtrlGUID(now int64) {
+	syncer.nodeAckCtrlGUIDRWM.Lock()
+	defer syncer.nodeAckCtrlGUIDRWM.Unlock()
+	for key, timestamp := range syncer.nodeAckCtrlGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.nodeAckCtrlGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanBeaconAckCtrlGUID(now int64) {
+	syncer.beaconAckCtrlGUIDRWM.Lock()
+	defer syncer.beaconAckCtrlGUIDRWM.Unlock()
+	for key, timestamp := range syncer.beaconAckCtrlGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.beaconAckCtrlGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanBroadcastGUID(now int64) {
+	syncer.broadcastGUIDRWM.Lock()
+	defer syncer.broadcastGUIDRWM.Unlock()
+	for key, timestamp := range syncer.broadcastGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.broadcastGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanNodeSendGUID(now int64) {
+	syncer.nodeSendGUIDRWM.Lock()
+	defer syncer.nodeSendGUIDRWM.Unlock()
+	for key, timestamp := range syncer.nodeSendGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.nodeSendGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanCtrlAckNodeGUID(now int64) {
+	syncer.ctrlAckNodeGUIDRWM.Lock()
+	defer syncer.ctrlAckNodeGUIDRWM.Unlock()
+	for key, timestamp := range syncer.ctrlAckNodeGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.ctrlAckNodeGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanBeaconSendGUID(now int64) {
+	syncer.beaconSendGUIDRWM.Lock()
+	defer syncer.beaconSendGUIDRWM.Unlock()
+	for key, timestamp := range syncer.beaconSendGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.beaconSendGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanCtrlAckBeaconGUID(now int64) {
+	syncer.ctrlAckBeaconGUIDRWM.Lock()
+	defer syncer.ctrlAckBeaconGUIDRWM.Unlock()
+	for key, timestamp := range syncer.ctrlAckBeaconGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.ctrlAckBeaconGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanBeaconQueryGUID(now int64) {
+	syncer.beaconQueryGUIDRWM.Lock()
+	defer syncer.beaconQueryGUIDRWM.Unlock()
+	for key, timestamp := range syncer.beaconQueryGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.beaconQueryGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanCtrlAnswerGUID(now int64) {
+	syncer.ctrlAnswerGUIDRWM.Lock()
+	defer syncer.ctrlAnswerGUIDRWM.Unlock()
+	for key, timestamp := range syncer.ctrlAnswerGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.ctrlAnswerGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanGUIDMap() {
+	syncer.cleanCtrlSendGUIDMap()
+	syncer.cleanNodeAckCtrlGUIDMap()
+	syncer.cleanBeaconAckCtrlGUIDMap()
+	syncer.cleanBroadcastGUIDMap()
+
+	syncer.cleanNodeSendGUIDMap()
+	syncer.cleanCtrlAckNodeGUIDMap()
+
+	syncer.cleanBeaconSendGUIDMap()
+	syncer.cleanCtrlAckBeaconGUIDMap()
+	syncer.cleanBeaconQueryGUIDMap()
+	syncer.cleanCtrlAnswerGUIDMap()
+}
+
+func (syncer *syncer) cleanCtrlSendGUIDMap() {
+	syncer.ctrlSendGUIDRWM.Lock()
+	defer syncer.ctrlSendGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.ctrlSendGUID {
+		newMap[key] = timestamp
+	}
+	syncer.ctrlSendGUID = newMap
+}
+
+func (syncer *syncer) cleanNodeAckCtrlGUIDMap() {
+	syncer.nodeAckCtrlGUIDRWM.Lock()
+	defer syncer.nodeAckCtrlGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.nodeAckCtrlGUID {
+		newMap[key] = timestamp
+	}
+	syncer.nodeAckCtrlGUID = newMap
+}
+
+func (syncer *syncer) cleanBeaconAckCtrlGUIDMap() {
+	syncer.beaconAckCtrlGUIDRWM.Lock()
+	defer syncer.beaconAckCtrlGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.beaconAckCtrlGUID {
+		newMap[key] = timestamp
+	}
+	syncer.beaconAckCtrlGUID = newMap
+}
+
+func (syncer *syncer) cleanBroadcastGUIDMap() {
+	syncer.broadcastGUIDRWM.Lock()
+	defer syncer.broadcastGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.broadcastGUID {
+		newMap[key] = timestamp
+	}
+	syncer.broadcastGUID = newMap
+}
+
+func (syncer *syncer) cleanNodeSendGUIDMap() {
+	syncer.nodeSendGUIDRWM.Lock()
+	defer syncer.nodeSendGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.nodeSendGUID {
+		newMap[key] = timestamp
+	}
+	syncer.nodeSendGUID = newMap
+}
+
+func (syncer *syncer) cleanCtrlAckNodeGUIDMap() {
+	syncer.ctrlAckNodeGUIDRWM.Lock()
+	defer syncer.ctrlAckNodeGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.ctrlAckNodeGUID {
+		newMap[key] = timestamp
+	}
+	syncer.ctrlAckNodeGUID = newMap
+}
+
+func (syncer *syncer) cleanBeaconSendGUIDMap() {
+	syncer.beaconSendGUIDRWM.Lock()
+	defer syncer.beaconSendGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.beaconSendGUID {
+		newMap[key] = timestamp
+	}
+	syncer.beaconSendGUID = newMap
+}
+
+func (syncer *syncer) cleanCtrlAckBeaconGUIDMap() {
+	syncer.ctrlAckBeaconGUIDRWM.Lock()
+	defer syncer.ctrlAckBeaconGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.ctrlAckBeaconGUID {
+		newMap[key] = timestamp
+	}
+	syncer.ctrlAckBeaconGUID = newMap
+}
+
+func (syncer *syncer) cleanBeaconQueryGUIDMap() {
+	syncer.beaconQueryGUIDRWM.Lock()
+	defer syncer.beaconQueryGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.beaconQueryGUID {
+		newMap[key] = timestamp
+	}
+	syncer.beaconQueryGUID = newMap
+}
+
+func (syncer *syncer) cleanCtrlAnswerGUIDMap() {
+	syncer.ctrlAnswerGUIDRWM.Lock()
+	defer syncer.ctrlAnswerGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.ctrlAnswerGUID {
+		newMap[key] = timestamp
+	}
+	syncer.ctrlAnswerGUID = newMap
+}
+
+func (syncer *syncer) Close() {
+	close(syncer.stopSignal)
+	syncer.wg.Wait()
+	syncer.ctx = nil
 }

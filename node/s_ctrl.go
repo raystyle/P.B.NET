@@ -2,7 +2,6 @@ package node
 
 import (
 	"bytes"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,8 +25,9 @@ type ctrlConn struct {
 
 	conn *conn
 
-	buffer bytes.Buffer
-	rand   *random.Rand
+	heartbeat bytes.Buffer
+	rand      *random.Rand
+	inSync    int32
 
 	inClose    int32
 	closeOnce  sync.Once
@@ -63,9 +63,22 @@ func (ctrl *ctrlConn) onFrame(frame []byte) {
 	if !ctrl.conn.onFrame(frame) {
 		return
 	}
+	const (
+		cmd = protocol.MsgCMDSize
+		id  = protocol.MsgCMDSize + protocol.MsgIDSize
+	)
+
+	// if sync
+
 	// check command
 	switch frame[0] {
 
+	case protocol.CtrlSync:
+		ctrl.handleSyncStart(frame[cmd:id])
+	case protocol.CtrlTrustNode:
+		ctrl.handleTrustNode(frame[cmd:id])
+	case protocol.CtrlSetNodeCert:
+		ctrl.handleSetCertificate(frame[cmd:id], frame[id:])
 	case protocol.ConnSendHeartbeat:
 		ctrl.handleHeartbeat()
 	default:
@@ -78,13 +91,80 @@ func (ctrl *ctrlConn) handleHeartbeat() {
 	// <security> fake traffic like client
 	fakeSize := 64 + ctrl.rand.Int(256)
 	// size(4 Bytes) + heartbeat(1 byte) + fake data
-	ctrl.buffer.Reset()
-	ctrl.buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
-	ctrl.buffer.WriteByte(protocol.ConnReplyHeartbeat)
-	ctrl.buffer.Write(ctrl.rand.Bytes(fakeSize))
-	// send
+	ctrl.heartbeat.Reset()
+	ctrl.heartbeat.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
+	ctrl.heartbeat.WriteByte(protocol.ConnReplyHeartbeat)
+	ctrl.heartbeat.Write(ctrl.rand.Bytes(fakeSize))
+	// send heartbeat data
 	_ = ctrl.conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = ctrl.conn.conn.Write(ctrl.buffer.Bytes())
+	_, _ = ctrl.conn.conn.Write(ctrl.heartbeat.Bytes())
+}
+
+func (ctrl *ctrlConn) handleSendGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		// fake reply
+		ctrl.log(logger.Exploit, "invalid ctrl send guid size")
+		ctrl.conn.Reply(id, protocol.SendReplyHandled)
+		return
+	}
+
+	if ctrl.ctx.syncer.checkSyncSendToken(role, data[1:]) {
+		ctrl.reply(id, protocol.SendReplyUnhandled)
+	} else {
+		ctrl.reply(id, protocol.SendReplyHandled)
+	}
+}
+
+func (ctrl *ctrlConn) handleSend(id, data []byte) {
+
+	if ctrl.ctx.syncer.checkSyncSendToken(role, data[1:]) {
+		ctrl.reply(id, protocol.SendReplyUnhandled)
+	} else {
+		ctrl.reply(id, protocol.SendReplyHandled)
+	}
+}
+
+// Send is used to send message to connected controller
+func (ctrl *ctrlConn) Send(guid, message []byte) (sr *protocol.SendResponse) {
+	sr = &protocol.SendResponse{
+		Role: protocol.Ctrl,
+		GUID: protocol.CtrlGUID,
+	}
+	var reply []byte
+	reply, sr.Err = ctrl.conn.Send(protocol.NodeSendGUID, guid)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
+		sr.Err = protocol.GetSendReplyError(reply)
+		return
+	}
+	reply, sr.Err = ctrl.conn.Send(protocol.NodeSend, message)
+	if sr.Err != nil {
+		return
+	}
+	if bytes.Equal(reply, protocol.SendReplySucceed) {
+		return
+	} else {
+		sr.Err = errors.New(string(reply))
+		return sr
+	}
+}
+
+// handle trust node
+
+func (ctrl *ctrlConn) handleTrustNode(id []byte) {
+	ctrl.conn.Reply(id, ctrl.ctx.packOnlineRequest())
+}
+
+func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
+	err := ctrl.ctx.global.SetCertificate(data)
+	if err == nil {
+		ctrl.conn.Reply(id, messages.RegisterSucceed)
+		ctrl.log(logger.Debug, "trust node")
+	} else {
+		ctrl.conn.Reply(id, []byte(err.Error()))
+	}
 }
 
 func (ctrl *ctrlConn) Status() *xnet.Status {
@@ -144,8 +224,8 @@ func (ctrl *ctrlConn) handleMessage2(msg []byte) {
 		ctrl.handleSyncStart(msg[cmd:id])
 	case protocol.CtrlTrustNode:
 		ctrl.handleTrustNode(msg[cmd:id])
-	case protocol.CtrlTrustNodeData:
-		ctrl.handleTrustNodeData(msg[cmd:id], msg[id:])
+	case protocol.CtrlSetNodeCert:
+		ctrl.handleSetCertificate(msg[cmd:id], msg[id:])
 	case protocol.ErrCMDRecvNullMsg:
 		ctrl.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		ctrl.Close()
@@ -164,7 +244,7 @@ func (ctrl *ctrlConn) Broadcast(token, message []byte) *protocol.BroadcastRespon
 	br := protocol.BroadcastResponse{}
 	br.Role = protocol.Ctrl
 	br.GUID = protocol.CtrlGUID
-	reply, err := ctrl.Send(protocol.NodeBroadcastToken, token)
+	reply, err := ctrl.conn.Send(protocol.NodeBroadcastToken, token)
 	if err != nil {
 		br.Err = err
 		return &br
@@ -174,7 +254,7 @@ func (ctrl *ctrlConn) Broadcast(token, message []byte) *protocol.BroadcastRespon
 		return &br
 	}
 	// broadcast
-	reply, err = ctrl.Send(protocol.NodeBroadcast, message)
+	reply, err = ctrl.conn.Send(protocol.NodeBroadcast, message)
 	if err != nil {
 		br.Err = err
 		return &br
@@ -187,38 +267,12 @@ func (ctrl *ctrlConn) Broadcast(token, message []byte) *protocol.BroadcastRespon
 	}
 }
 
-func (ctrl *ctrlConn) SyncSend(token, message []byte) *protocol.SyncResponse {
-	sr := &protocol.SyncResponse{}
-	sr.Role = protocol.Ctrl
-	sr.GUID = protocol.CtrlGUID
-	resp, err := ctrl.Send(protocol.NodeSyncSendToken, token)
-	if err != nil {
-		sr.Err = err
-		return sr
-	}
-	if !bytes.Equal(resp, protocol.SendReplyUnhandled) {
-		sr.Err = protocol.ErrSyncHandled
-		return sr
-	}
-	resp, err = ctrl.Send(protocol.NodeSyncSend, message)
-	if err != nil {
-		sr.Err = err
-		return sr
-	}
-	if bytes.Equal(resp, protocol.SendReplySucceed) {
-		return sr
-	} else {
-		sr.Err = errors.New(string(resp))
-		return sr
-	}
-}
-
 // SyncReceive is used to notice node clean the message
 func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse {
 	sr := &protocol.SyncResponse{}
 	sr.Role = protocol.Ctrl
 	sr.GUID = protocol.CtrlGUID
-	resp, err := ctrl.Send(protocol.NodeSyncReceiveToken, token)
+	resp, err := ctrl.conn.Send(protocol.NodeSyncReceiveToken, token)
 	if err != nil {
 		sr.Err = err
 		return sr
@@ -227,7 +281,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 		sr.Err = protocol.ErrSyncHandled
 		return sr
 	}
-	resp, err = ctrl.Send(protocol.NodeSyncReceive, message)
+	resp, err = ctrl.conn.Send(protocol.NodeSyncReceive, message)
 	if err != nil {
 		sr.Err = err
 		return sr
@@ -269,29 +323,6 @@ func (ctrl *ctrlConn) handleBroadcastToken(id, message []byte) {
 		ctrl.reply(id, protocol.BroadcastReplyUnhandled)
 	} else {
 		ctrl.reply(id, protocol.BroadcastReplyHandled)
-	}
-}
-
-func (ctrl *ctrlConn) handleSyncSendToken(id, message []byte) {
-	// role + message guid
-	if len(message) != 1+guid.Size {
-		// fake reply and close
-		ctrl.log(logger.Exploit, "invalid sync send token size")
-		ctrl.reply(id, protocol.SendReplyHandled)
-		ctrl.Close()
-		return
-	}
-	role := protocol.Role(message[0])
-	if role != protocol.Ctrl {
-		ctrl.log(logger.Exploit, "handle invalid sync send token role")
-		ctrl.reply(id, protocol.SendReplyHandled)
-		ctrl.Close()
-		return
-	}
-	if ctrl.ctx.syncer.checkSyncSendToken(role, message[1:]) {
-		ctrl.reply(id, protocol.SendReplyUnhandled)
-	} else {
-		ctrl.reply(id, protocol.SendReplyHandled)
 	}
 }
 
@@ -438,20 +469,4 @@ func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
 	}
 	// TODO reply
 	ctrl.reply(id, protocol.SendReplySucceed)
-}
-
-// handle trust
-
-func (ctrl *ctrlConn) handleTrustNode(id []byte) {
-	ctrl.reply(id, ctrl.ctx.packOnlineRequest())
-}
-
-func (ctrl *ctrlConn) handleTrustNodeData(id []byte, data []byte) {
-	err := ctrl.ctx.global.SetCertificate(data)
-	if err == nil {
-		ctrl.reply(id, messages.RegisterSucceed)
-	} else {
-		ctrl.reply(id, []byte(err.Error()))
-	}
-	ctrl.log(logger.Debug, "trust node")
 }
