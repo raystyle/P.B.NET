@@ -2,63 +2,40 @@ package controller
 
 import (
 	"bytes"
+	"os"
 	"runtime"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
-	"project/internal/crypto/cert"
-	"project/internal/options"
 	"project/internal/protocol"
-	"project/internal/testdata"
 	"project/internal/xnet"
 	"project/node"
 )
 
 func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
-	cfg := node.Config{
-		// logger
-		LogLevel: "debug",
+	cfg := node.Config{}
 
-		// global
-		ProxyClients:       testdata.ProxyClients(t),
-		DNSServers:         testdata.DNSServers(t),
-		DnsCacheDeadline:   3 * time.Minute,
-		TimeSyncerConfigs:  testdata.TimeSyncerClients(t),
-		TimeSyncerInterval: 15 * time.Minute,
-
-		// sender
-		MaxBufferSize:   4096,
-		SenderWorker:    runtime.NumCPU(),
-		SenderQueueSize: 512,
-
-		// syncer
-		MaxSyncerClient:  2,
-		SyncerWorker:     64,
-		SyncerQueueSize:  512,
-		ReserveWorker:    16,
-		RetryTimes:       3,
-		RetryInterval:    5 * time.Second,
-		BroadcastTimeout: 30 * time.Second,
-
-		// controller configs
-		CtrlPublicKey:   testdata.CtrlED25519.PublicKey(),
-		CtrlExPublicKey: testdata.CtrlCurve25519,
-		CtrlAESCrypto:   testdata.CtrlBroadcastKey,
-
-		// register
-		IsGenesis:      genesis,
-		RegisterAESKey: regAESKey,
-
-		// server
-		ConnLimit: 10,
-	}
 	cfg.Debug.SkipTimeSyncer = true
+
+	cfg.Logger.Level = "debug"
+	cfg.Logger.Writer = os.Stdout
+
+	cfg.Global.DNSCacheExpire = 3 * time.Minute
+	cfg.Global.TimeSyncInterval = 1 * time.Minute
+
+	cfg.Sender.MaxBufferSize = 16384
+	cfg.Sender.Worker = 64
+	cfg.Sender.QueueSize = 512
+
+	cfg.Syncer.MaxBufferSize = 16384
+	cfg.Syncer.Worker = 64
+	cfg.Syncer.QueueSize = 512
+	cfg.Syncer.ExpireTime = 3 * time.Minute
 
 	return &cfg
 }
@@ -81,18 +58,21 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.Node {
 		Network: "tcp",
 		Address: "localhost:62300",
 	}
-	// generate node certificate
-	caCert := ctrl.global.CACertificates()
-	caPri := ctrl.global.CAPrivateKeys()
-	certCfg := cert.Config{DNSNames: []string{"localhost"}}
-	sCert, sPri, err := cert.Generate(caCert[0], caPri[0], &certCfg)
-	require.NoError(t, err)
-	kp := options.X509KeyPair{Cert: string(sCert), Key: string(sPri)}
-	xnetCfg.TLSConfig.Certificates = []options.X509KeyPair{kp}
-	// set config
-	listenerCfg.Config, err = toml.Marshal(&xnetCfg)
-	require.NoError(t, err)
-	require.NoError(t, NODE.AddListener(&listenerCfg))
+	/*
+		// generate node certificate
+		caCert := ctrl.global.CACertificates()
+		caPri := ctrl.global.CAPrivateKeys()
+		certCfg := cert.Config{DNSNames: []string{"localhost"}}
+		sCert, sPri, err := cert.Generate(caCert[0], caPri[0], &certCfg)
+		require.NoError(t, err)
+		kp := options.X509KeyPair{Cert: string(sCert), Key: string(sPri)}
+		xnetCfg.TLSConfig.Certificates = []options.X509KeyPair{kp}
+		// set config
+		listenerCfg.Config, err = toml.Marshal(&xnetCfg)
+		require.NoError(t, err)
+		require.NoError(t, NODE.AddListener(&listenerCfg))
+
+	*/
 	return NODE
 }
 

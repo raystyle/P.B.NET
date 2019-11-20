@@ -339,6 +339,7 @@ func (client *client) Close() {
 	})
 }
 
+// TODO remove  logger.Conn(client.conn)
 func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 	b := logger.Conn(client.conn)
 	_, _ = fmt.Fprintf(b, format, log...)
