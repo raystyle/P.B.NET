@@ -25,7 +25,6 @@ func (c *conn) onFrameClient(frame []byte) {
 }
 
 func (c *conn) sendHeartbeat() {
-	defer c.wg.Done()
 	var err error
 	rand := random.New(0)
 	buffer := bytes.NewBuffer(nil)

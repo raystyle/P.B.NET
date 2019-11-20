@@ -11,7 +11,6 @@ import (
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xnet"
-	"project/internal/xpanic"
 )
 
 const (
@@ -22,30 +21,26 @@ const (
 )
 
 type conn struct {
-	ctx *Node
-
-	conn  *xnet.Conn
-	usage int
-	guid  []byte
+	logger logger.Logger
+	conn   *xnet.Conn
+	usage  int
 
 	logSrc    string
 	slots     []*protocol.Slot
 	heartbeat chan struct{}
-	sync      int32
 
 	inClose    int32
 	closeOnce  sync.Once
 	stopSignal chan struct{}
-	wg         sync.WaitGroup
 }
 
-func newConn(ctx *Node, xc *xnet.Conn, usage int, guid []byte) *conn {
+func newConn(lg logger.Logger, xc *xnet.Conn, usage int) *conn {
 	conn := conn{
-		ctx:   ctx,
-		conn:  xc,
-		usage: usage,
-		guid:  guid,
+		logger:     lg,
+		conn:       xc,
+		stopSignal: make(chan struct{}),
 	}
+	_ = xc.SetDeadline(time.Time{})
 
 	conn.slots = make([]*protocol.Slot, protocol.SlotSize)
 	for i := 0; i < protocol.SlotSize; i++ {
@@ -58,8 +53,6 @@ func newConn(ctx *Node, xc *xnet.Conn, usage int, guid []byte) *conn {
 		conn.slots[i] = slot
 	}
 
-	conn.stopSignal = make(chan struct{})
-
 	switch usage {
 	case connUsageServeCtrl:
 		conn.logSrc = "ctrl-conn"
@@ -68,49 +61,18 @@ func newConn(ctx *Node, xc *xnet.Conn, usage int, guid []byte) *conn {
 	case connUsageServeBeacon:
 		conn.logSrc = "beacon-conn"
 	case connUsageClient:
-		conn.logSrc = "client"
-		conn.heartbeat = make(chan struct{}, 1)
-		conn.wg.Add(1)
-		go conn.sendHeartbeat()
+		conn.logSrc = "client-conn"
 	default:
 		panic(fmt.Sprintf("invalid conn usage: %d", usage))
 	}
-
-	// <warning> not add wg
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := xpanic.Error(r, conn.logSrc)
-				conn.log(logger.Fatal, err)
-			}
-			conn.Close()
-		}()
-		switch usage {
-		case connUsageServeCtrl:
-			protocol.HandleConn(conn.conn, conn.onFrameServeCtrl)
-		case connUsageServeNode:
-			protocol.HandleConn(conn.conn, conn.onFrameServeNode)
-		case connUsageServeBeacon:
-			protocol.HandleConn(conn.conn, conn.onFrameServeBeacon)
-		case connUsageClient:
-			protocol.HandleConn(conn.conn, conn.onFrameClient)
-		}
-	}()
 	return &conn
-}
-
-func (c *conn) logf(l logger.Level, format string, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprintf(b, "\n%s", c.conn)
-	c.ctx.logger.Print(l, c.logSrc, b)
 }
 
 func (c *conn) log(l logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprint(b, log...)
 	_, _ = fmt.Fprintf(b, "\n%s", c.conn)
-	c.ctx.logger.Print(l, c.logSrc, b)
+	c.logger.Print(l, c.logSrc, b)
 }
 
 func (c *conn) isClosed() bool {
@@ -253,20 +215,14 @@ func (c *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
+func (c *conn) Status() *xnet.Status {
+	return c.conn.Status()
+}
+
 func (c *conn) Close() {
 	c.closeOnce.Do(func() {
 		atomic.StoreInt32(&c.inClose, 1)
 		close(c.stopSignal)
 		_ = c.conn.Close()
-		c.wg.Wait()
-		// <security> can't record controller
-		// client don't need record
-		switch c.usage {
-		case connUsageServeNode:
-		case connUsageServeBeacon:
-		default:
-			return
-		}
-		c.log(logger.Info, "disconnected")
 	})
 }

@@ -3,7 +3,6 @@ package node
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
-	"project/internal/crypto/sha256"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
@@ -23,66 +21,70 @@ import (
 	"project/internal/xpanic"
 )
 
-func (c *conn) onFrameServeCtrl(frame []byte) {
-	if !c.onFrame(frame) {
+type ctrlConn struct {
+	ctx *Node
+
+	conn *conn
+
+	buffer bytes.Buffer
+	rand   *random.Rand
+
+	inClose    int32
+	closeOnce  sync.Once
+	stopSignal chan struct{}
+}
+
+func (s *server) serveCtrl(tag string, conn *conn) {
+	ctrl := ctrlConn{
+		ctx:        s.ctx,
+		conn:       conn,
+		rand:       random.New(s.ctx.global.Now().Unix()),
+		stopSignal: make(chan struct{}),
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			ctrl.log(logger.Exploit, xpanic.Error(r, "server.serveCtrl"))
+		}
+		ctrl.Close()
+		s.deleteCtrlConn(tag)
+		conn.log(logger.Debug, "controller disconnected")
+	}()
+	s.addCtrlConn(tag, &ctrl)
+	conn.log(logger.Debug, "controller connected")
+	protocol.HandleConn(conn.conn, ctrl.onFrame)
+}
+
+// TODO log
+func (ctrl *ctrlConn) log(l logger.Level, log ...interface{}) {
+	ctrl.ctx.logger.Print(l, "serve-ctrl", log...)
+}
+
+func (ctrl *ctrlConn) onFrame(frame []byte) {
+	if !ctrl.conn.onFrame(frame) {
 		return
 	}
 	// check command
 	switch frame[0] {
 
+	case protocol.ConnSendHeartbeat:
+		ctrl.handleHeartbeat()
 	default:
-		c.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
-		c.Close()
-	}
-}
-
-type ctrlConn struct {
-	ctx *Node
-
-	conn   *xnet.Conn
-	slots  []*protocol.Slot
-	rand   *random.Rand // for handleHeartbeat()
-	buffer bytes.Buffer // for handleHeartbeat()
-
-	closing    int32
-	closeOnce  sync.Once
-	stopSignal chan struct{}
-}
-
-func (s *server) serveCtrl(conn net.Conn) {
-	xConn := xnet.NewConn(conn, s.ctx.global.Now())
-	ctrl := ctrlConn{
-		ctx:        s.ctx,
-		conn:       xConn,
-		slots:      make([]*protocol.Slot, protocol.SlotSize),
-		rand:       random.New(s.ctx.global.Now().Unix()),
-		stopSignal: make(chan struct{}),
-	}
-	tag := sha256.String([]byte(ctrl.Status().RemoteAddress))
-	s.addCtrlConn(tag, &ctrl)
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "serve controller panic:")
-			ctrl.log(logger.Exploit, err)
-		}
+		ctrl.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
 		ctrl.Close()
-		s.deleteCtrlConn(tag)
-		ctrl.log(logger.Debug, "controller disconnected")
-	}()
-	ctrl.log(logger.Debug, "controller connected")
-	// init slot
-	ctrl.slots = make([]*protocol.Slot, protocol.SlotSize)
-	for i := 0; i < protocol.SlotSize; i++ {
-		s := &protocol.Slot{
-			Available: make(chan struct{}, 1),
-			Reply:     make(chan []byte, 1),
-			Timer:     time.NewTimer(protocol.RecvTimeout),
-		}
-		s.Available <- struct{}{}
-		s.Timer.Stop()
-		ctrl.slots[i] = s
 	}
-	protocol.HandleConn(xConn, ctrl.handleMessage)
+}
+
+func (ctrl *ctrlConn) handleHeartbeat() {
+	// <security> fake traffic like client
+	fakeSize := 64 + ctrl.rand.Int(256)
+	// size(4 Bytes) + heartbeat(1 byte) + fake data
+	ctrl.buffer.Reset()
+	ctrl.buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
+	ctrl.buffer.WriteByte(protocol.ConnReplyHeartbeat)
+	ctrl.buffer.Write(ctrl.rand.Bytes(fakeSize))
+	// send
+	_ = ctrl.conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, _ = ctrl.conn.conn.Write(ctrl.buffer.Bytes())
 }
 
 func (ctrl *ctrlConn) Status() *xnet.Status {
@@ -91,36 +93,18 @@ func (ctrl *ctrlConn) Status() *xnet.Status {
 
 func (ctrl *ctrlConn) Close() {
 	ctrl.closeOnce.Do(func() {
-		atomic.StoreInt32(&ctrl.closing, 1)
+		atomic.StoreInt32(&ctrl.inClose, 1)
 		close(ctrl.stopSignal)
-		_ = ctrl.conn.Close()
+		ctrl.conn.Close()
 	})
 }
 
 func (ctrl *ctrlConn) isClosing() bool {
-	return atomic.LoadInt32(&ctrl.closing) != 0
-}
-
-func (ctrl *ctrlConn) logf(l logger.Level, format string, log ...interface{}) {
-	b := logger.Conn(ctrl.conn)
-	_, _ = fmt.Fprintf(b, format, log...)
-	ctrl.ctx.Print(l, "ctrl-conn", b)
-}
-
-func (ctrl *ctrlConn) log(l logger.Level, log ...interface{}) {
-	b := logger.Conn(ctrl.conn)
-	_, _ = fmt.Fprint(b, log...)
-	ctrl.ctx.Print(l, "ctrl-conn", b)
-}
-
-func (ctrl *ctrlConn) logln(l logger.Level, log ...interface{}) {
-	b := logger.Conn(ctrl.conn)
-	_, _ = fmt.Fprintln(b, log...)
-	ctrl.ctx.Print(l, "ctrl-conn", b)
+	return atomic.LoadInt32(&ctrl.inClose) != 0
 }
 
 // if need async handle message must copy msg first
-func (ctrl *ctrlConn) handleMessage(msg []byte) {
+func (ctrl *ctrlConn) handleMessage2(msg []byte) {
 	const (
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
@@ -175,128 +159,6 @@ func (ctrl *ctrlConn) handleMessage(msg []byte) {
 		ctrl.Close()
 	}
 }
-
-func (ctrl *ctrlConn) handleHeartbeat() {
-	// <security> fake traffic like client
-	fakeSize := 64 + ctrl.rand.Int(256)
-	// size(4 Bytes) + heartbeat(1 byte) + fake data
-	ctrl.buffer.Reset()
-	ctrl.buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
-	ctrl.buffer.WriteByte(protocol.NodeHeartbeat)
-	ctrl.buffer.Write(ctrl.rand.Bytes(fakeSize))
-	// send
-	_ = ctrl.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = ctrl.conn.Write(ctrl.buffer.Bytes())
-}
-
-func (ctrl *ctrlConn) reply(id, reply []byte) {
-	if ctrl.isClosing() {
-		return
-	}
-	l := len(reply)
-	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
-	b := make([]byte, protocol.MsgHeaderSize+l)
-	// write size
-	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
-	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
-	// write cmd
-	b[protocol.MsgLenSize] = protocol.NodeReply
-	// write msg id
-	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
-	// write data
-	copy(b[protocol.MsgHeaderSize:], reply)
-	_ = ctrl.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = ctrl.conn.Write(b)
-}
-
-// msg id(2 bytes) + data
-func (ctrl *ctrlConn) handleReply(reply []byte) {
-	l := len(reply)
-	if l < protocol.MsgIDSize {
-		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
-		ctrl.Close()
-		return
-	}
-	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
-	if id > protocol.MaxMsgID {
-		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
-		ctrl.Close()
-		return
-	}
-	// must copy
-	r := make([]byte, l-protocol.MsgIDSize)
-	copy(r, reply[protocol.MsgIDSize:])
-	// <security> maybe wrong msg id
-	ctrl.replyTimer.Reset(time.Second)
-	select {
-	case ctrl.slots[id].Reply <- r:
-		if !ctrl.replyTimer.Stop() {
-			<-ctrl.replyTimer.C
-		}
-	case <-ctrl.replyTimer.C:
-		ctrl.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
-		ctrl.Close()
-	}
-}
-
-// Send is use to send command and receive reply
-// size(4 Bytes) + command(1 Byte) + msg id(2 bytes) + data
-func (ctrl *ctrlConn) Send(cmd uint8, data []byte) ([]byte, error) {
-	if ctrl.isClosing() {
-		return nil, protocol.ErrConnClosed
-	}
-	for {
-		for id := 0; id < protocol.SlotSize; id++ {
-			select {
-			case <-ctrl.slots[id].Available:
-				l := len(data)
-				b := make([]byte, protocol.MsgHeaderSize+l)
-				// write MsgLen
-				msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
-				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
-				// write cmd
-				b[protocol.MsgLenSize] = cmd
-				// write msg id
-				copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize],
-					convert.Uint16ToBytes(uint16(id)))
-				// write data
-				copy(b[protocol.MsgHeaderSize:], data)
-				// send
-				_ = ctrl.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-				_, err := ctrl.conn.Write(b)
-				if err != nil {
-					return nil, err
-				}
-				// wait for reply
-				ctrl.slots[id].Timer.Reset(protocol.RecvTimeout)
-				select {
-				case r := <-ctrl.slots[id].Reply:
-					if !ctrl.slots[id].Timer.Stop() {
-						<-ctrl.slots[id].Timer.C
-					}
-					ctrl.slots[id].Available <- struct{}{}
-					return r, nil
-				case <-ctrl.slots[id].Timer.C:
-					ctrl.Close()
-					return nil, protocol.ErrRecvTimeout
-				case <-ctrl.stopSignal:
-					return nil, protocol.ErrConnClosed
-				}
-			case <-ctrl.stopSignal:
-				return nil, protocol.ErrConnClosed
-			default:
-			}
-		}
-		// if full wait 1 second
-		select {
-		case <-time.After(time.Second):
-		case <-ctrl.stopSignal:
-			return nil, protocol.ErrConnClosed
-		}
-	}
-}
-
-// ----------------------------------sync----------------------------------------
 
 func (ctrl *ctrlConn) Broadcast(token, message []byte) *protocol.BroadcastResponse {
 	br := protocol.BroadcastResponse{}

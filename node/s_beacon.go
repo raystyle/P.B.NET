@@ -1,8 +1,6 @@
 package node
 
 import (
-	"net"
-
 	"project/internal/logger"
 	"project/internal/protocol"
 )
@@ -18,11 +16,4 @@ func (c *conn) onFrameServeBeacon(frame []byte) {
 		c.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
 		c.Close()
 	}
-}
-
-type beaconConn struct {
-}
-
-func (s *server) serveBeacon(conn net.Conn) {
-
 }

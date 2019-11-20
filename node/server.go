@@ -39,25 +39,25 @@ type server struct {
 	timeout  time.Duration // handshake timeout
 
 	guid         *guid.GUID
+	rand         *random.Rand
 	listeners    map[string]*Listener // key = tag
 	listenersRWM sync.RWMutex
 	conns        map[string]*xnet.Conn // key = guid
 	connsRWM     sync.RWMutex
 
-	ctrlConns      map[string]*conn
+	ctrlConns      map[string]*ctrlConn
 	ctrlConnsRWM   sync.RWMutex
 	nodeConns      map[string]*conn
 	nodeConnsRWM   sync.RWMutex
 	beaconConns    map[string]*conn
 	beaconConnsRWM sync.RWMutex
 
-	rand *random.Rand
-
 	inShutdown int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
+// Listener is used to wrap net.Listener with xnet.Mode
 type Listener struct {
 	Mode string
 	net.Listener
@@ -107,11 +107,11 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	server.maxConns = cfg.MaxConns
 	server.timeout = cfg.Timeout
 	server.guid = guid.New(1024, server.ctx.global.Now)
+	server.rand = random.New(0)
 	server.conns = make(map[string]*xnet.Conn)
-	server.ctrlConns = make(map[string]*conn)
+	server.ctrlConns = make(map[string]*ctrlConn)
 	server.nodeConns = make(map[string]*conn)
 	server.beaconConns = make(map[string]*conn)
-	server.rand = random.New(0)
 	server.stopSignal = make(chan struct{})
 	return &server, nil
 }
@@ -297,29 +297,22 @@ func (s *server) deleteConn(tag string) {
 	delete(s.conns, tag)
 }
 
-func (s *server) logfConn(c net.Conn, lv logger.Level, format string, log ...interface{}) {
+func (s *server) logfConn(c *xnet.Conn, lv logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
-	s.printConn(c, lv, b)
+	_, _ = fmt.Fprintf(b, "\n%s", c)
+	s.ctx.logger.Print(lv, "server", b)
 }
 
-func (s *server) logConn(c net.Conn, lv logger.Level, log ...interface{}) {
+func (s *server) logConn(c *xnet.Conn, lv logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprint(b, log...)
-	s.printConn(c, lv, b)
-}
-
-func (s *server) printConn(c net.Conn, lv logger.Level, b *bytes.Buffer) {
-	if xConn, ok := c.(*xnet.Conn); ok {
-		_, _ = fmt.Fprintf(b, "\n%s", xConn)
-	} else {
-		_, _ = fmt.Fprintf(b, "\n%s", logger.Conn(c))
-	}
+	_, _ = fmt.Fprintf(b, "\n%s", c)
 	s.ctx.logger.Print(lv, "server", b)
 }
 
 // checkConn is used to check connection is from client
-func (s *server) checkConn(conn net.Conn) bool {
+func (s *server) checkConn(conn *xnet.Conn) bool {
 	size := byte(100 + s.rand.Int(156))
 	data := s.rand.Bytes(int(size))
 	_, err := conn.Write(append([]byte{size}, data...))
@@ -360,7 +353,7 @@ func (s *server) handshake(tag string, conn net.Conn) {
 	xConn := xnet.NewConn(conn, now)
 	defer func() {
 		if r := recover(); r != nil {
-			s.logConn(conn, logger.Exploit, xpanic.Error(r, "server.handshake"))
+			s.logConn(xConn, logger.Exploit, xpanic.Error(r, "server.handshake"))
 		}
 		_ = xConn.Close()
 		s.wg.Done()
@@ -384,27 +377,27 @@ func (s *server) handshake(tag string, conn net.Conn) {
 	r := make([]byte, 1)
 	_, err := io.ReadFull(xConn, r)
 	if err != nil {
-		s.logConn(conn, logger.Error, "failed to receive role")
+		s.logConn(xConn, logger.Error, "failed to receive role")
 		return
 	}
 	role := protocol.Role(r[0])
 	switch role {
 	case protocol.Beacon:
-		s.verifyBeacon(xConn)
+		s.verifyBeacon(connTag, xConn)
 	case protocol.Node:
-		s.verifyNode(xConn)
+		s.verifyNode(connTag, xConn)
 	case protocol.Ctrl:
-		s.verifyCtrl(xConn)
+		s.verifyCtrl(connTag, xConn)
 	default:
-		s.logConn(conn, logger.Exploit, role)
+		s.logConn(xConn, logger.Exploit, role)
 	}
 }
 
-func (s *server) verifyBeacon(conn net.Conn) {
+func (s *server) verifyBeacon(tag string, conn *xnet.Conn) {
 
 }
 
-func (s *server) verifyNode(conn net.Conn) {
+func (s *server) verifyNode(tag string, conn *xnet.Conn) {
 
 }
 
@@ -413,7 +406,7 @@ func (s *server) verifyNode(conn net.Conn) {
 // len(challenge) must > len(GUID + Mode + Network + Address)
 // because maybe fake node will send some special data
 // and controller sign it
-func (s *server) verifyCtrl(conn *xnet.Conn) {
+func (s *server) verifyCtrl(tag string, conn *xnet.Conn) {
 	challenge := s.rand.Bytes(2048 + s.rand.Int(2048))
 	err := conn.Send(challenge)
 	if err != nil {
@@ -437,10 +430,10 @@ func (s *server) verifyCtrl(conn *xnet.Conn) {
 		s.logfConn(conn, logger.Error, "failed to send succeed response: %s", err)
 		return
 	}
-	s.serveCtrl(conn)
+	s.serveCtrl(tag, newConn(s.ctx.logger, conn, connUsageServeCtrl))
 }
 
-func (s *server) addCtrlConn(tag string, conn *conn) {
+func (s *server) addCtrlConn(tag string, conn *ctrlConn) {
 	s.ctrlConnsRWM.Lock()
 	defer s.ctrlConnsRWM.Unlock()
 	if _, ok := s.ctrlConns[tag]; !ok {
