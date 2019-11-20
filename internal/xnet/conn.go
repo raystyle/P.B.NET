@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"project/internal/convert"
+	"project/internal/logger"
 	"project/internal/xnet/xnetutil"
 )
 
@@ -15,9 +16,10 @@ import (
 //   uint32      n
 const (
 	DataSize      = 4
-	MaxDataLength = 256 * 1024
+	MaxDataLength = 256 << 10
 )
 
+// Status is used show connection status
 type Status struct {
 	LocalNetwork  string
 	LocalAddress  string
@@ -37,6 +39,7 @@ type Conn struct {
 	rwm      sync.RWMutex
 }
 
+// NewConn is used to wrap a net.Conn to *Conn
 func NewConn(conn net.Conn, connect time.Time) *Conn {
 	return &Conn{
 		Conn:    conn,
@@ -88,6 +91,7 @@ func (c *Conn) Receive() ([]byte, error) {
 	return msg, nil
 }
 
+// Status is used to get connection status
 func (c *Conn) Status() *Status {
 	c.rwm.RLock()
 	defer c.rwm.RUnlock()
@@ -102,4 +106,20 @@ func (c *Conn) Status() *Status {
 	s.RemoteAddress = c.RemoteAddr().String()
 	s.Connect = c.connect
 	return s
+}
+
+// local tcp 127.0.0.1:123 <-> remote tcp 127.0.0.1:124
+// sent: 123 Byte received: 1.101 KB
+// connect time: 2006-01-02 15:04:05
+func (c *Conn) String() string {
+	const format = "local %s %s <-> remote %s %s\n" +
+		"sent: %s received: %s\n" +
+		"connect time: %s"
+	s := c.Status()
+	return fmt.Sprintf(format,
+		s.LocalNetwork, s.LocalAddress,
+		s.RemoteNetwork, s.RemoteAddress,
+		s.Send, s.Receive,
+		s.Connect.Local().Format(logger.TimeLayout),
+	)
 }

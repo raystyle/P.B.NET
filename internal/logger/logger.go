@@ -9,8 +9,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"project/internal/xnet"
 )
 
 type Level = uint8
@@ -151,28 +149,11 @@ func Wrap(l Level, src string, logger Logger) *log.Logger {
 
 // Conn is used to print connection info
 // local tcp 127.0.0.1:123 <-> remote tcp 127.0.0.1:124
-//
-// if net.Conn is xnet.Conn will print more
-// local tcp 127.0.0.1:123 <-> remote tcp 127.0.0.1:124
-// sent: 123 Byte received: 1.101 KB
-// connect time: 2006-01-02 15:04:05
 func Conn(conn net.Conn) *bytes.Buffer {
 	b := bytes.Buffer{}
-	if c, ok := conn.(*xnet.Conn); ok {
-		const format = "local %s %s <-> remote %s %s\n" +
-			"sent: %s received: %s\n" +
-			"connect time: %s"
-		s := c.Status()
-		_, _ = fmt.Fprintf(&b, format,
-			conn.LocalAddr().Network(), conn.LocalAddr(),
-			conn.RemoteAddr().Network(), conn.RemoteAddr(),
-			s.Send, s.Receive,
-			s.Connect.Local().Format(TimeLayout))
-	} else {
-		_, _ = fmt.Fprintf(&b, "local %s %s <-> remote %s %s ",
-			conn.LocalAddr().Network(), conn.LocalAddr(),
-			conn.RemoteAddr().Network(), conn.RemoteAddr())
-	}
+	_, _ = fmt.Fprintf(&b, "local %s %s <-> remote %s %s ",
+		conn.LocalAddr().Network(), conn.LocalAddr(),
+		conn.RemoteAddr().Network(), conn.RemoteAddr())
 	return &b
 }
 
