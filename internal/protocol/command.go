@@ -15,7 +15,8 @@ const (
 
 // -----------------------Controller--------------------------
 const (
-	CtrlBroadcastGUID uint8 = 0x10 + iota
+	CtrlSync uint8 = 0x10 + iota
+	CtrlBroadcastGUID
 	CtrlBroadcast
 	CtrlSendToNodeGUID
 	CtrlSendToNode
@@ -29,7 +30,7 @@ const (
 
 const (
 	CtrlTrustNode uint8 = 0x20 + iota
-	CtrlTrustNodeData
+	CtrlSetNodeCert
 )
 
 const (

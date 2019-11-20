@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"errors"
+	"fmt"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
@@ -18,6 +19,21 @@ var (
 	ErrSendExpired = errors.New("send expired")
 	ErrSendHandled = errors.New("send has been handled")
 )
+
+// GetSendReplyError is used to get get send error from reply
+func GetSendReplyError(reply []byte) error {
+	if len(reply) == 0 {
+		return errors.New("empty send reply")
+	}
+	switch reply[0] {
+	case SendReplyExpired[0]:
+		return ErrSendExpired
+	case SendReplyHandled[0]:
+		return ErrSendHandled
+	default:
+		return fmt.Errorf("unknown send reply error: %X", reply)
+	}
+}
 
 // --------------------------interactive mode-------------------------------
 
@@ -86,10 +102,9 @@ func (sr *SendResult) Clean() {
 // Acknowledge is used to acknowledge sender that receiver
 // has receive this message
 //
-// When Controller use it, Role = sender role and RoleGUID
-// = sender GUID.
-// When Node use it, Role = Node and RoleGUID = its GUID.
-// When Beacon use it, Role = Beacon and RoleGUID = its GUID.
+// When Controller use it, RoleGUID = sender GUID.
+// When Node use it, RoleGUID = it's GUID.
+// When Beacon use it, RoleGUID = it's GUID.
 //
 // Signature = role.global.Sign(GUID + RoleGUID + SendGUID)
 type Acknowledge struct {
