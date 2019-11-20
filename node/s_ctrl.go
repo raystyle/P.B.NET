@@ -23,16 +23,16 @@ import (
 	"project/internal/xpanic"
 )
 
-func (conn *conn) onFrameServeCtrl(frame []byte) {
-	if !conn.onFrame(frame) {
+func (c *conn) onFrameServeCtrl(frame []byte) {
+	if !c.onFrame(frame) {
 		return
 	}
 	// check command
 	switch frame[0] {
 
 	default:
-		conn.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+		c.Close()
 	}
 }
 
@@ -49,24 +49,24 @@ type ctrlConn struct {
 	stopSignal chan struct{}
 }
 
-func (server *server) serveCtrl(conn net.Conn) {
-	xConn := xnet.NewConn(conn, server.ctx.global.Now())
+func (s *server) serveCtrl(conn net.Conn) {
+	xConn := xnet.NewConn(conn, s.ctx.global.Now())
 	ctrl := ctrlConn{
-		ctx:        server.ctx,
+		ctx:        s.ctx,
 		conn:       xConn,
 		slots:      make([]*protocol.Slot, protocol.SlotSize),
-		rand:       random.New(server.ctx.global.Now().Unix()),
+		rand:       random.New(s.ctx.global.Now().Unix()),
 		stopSignal: make(chan struct{}),
 	}
 	tag := sha256.String([]byte(ctrl.Status().RemoteAddress))
-	server.addCtrlConn(tag, &ctrl)
+	s.addCtrlConn(tag, &ctrl)
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "serve controller panic:")
 			ctrl.log(logger.Exploit, err)
 		}
 		ctrl.Close()
-		server.deleteCtrlConn(tag)
+		s.deleteCtrlConn(tag)
 		ctrl.log(logger.Debug, "controller disconnected")
 	}()
 	ctrl.log(logger.Debug, "controller connected")

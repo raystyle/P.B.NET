@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -116,13 +117,13 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 }
 
 // Deploy is used to deploy added listener
-func (server *server) Deploy() error {
+func (s *server) Deploy() error {
 	// deploy all listener
-	l := len(server.listeners)
+	l := len(s.listeners)
 	errs := make(chan error, l)
-	for tag, l := range server.listeners {
+	for tag, l := range s.listeners {
 		go func(tag string, l *Listener) {
-			errs <- server.deploy(tag, l)
+			errs <- s.deploy(tag, l)
 		}(tag, l)
 	}
 	for i := 0; i < l; i++ {
@@ -135,31 +136,31 @@ func (server *server) Deploy() error {
 }
 
 // Close is used to close all listeners and connections
-func (server *server) Close() {
-	atomic.StoreInt32(&server.inShutdown, 1)
-	close(server.stopSignal)
+func (s *server) Close() {
+	atomic.StoreInt32(&s.inShutdown, 1)
+	close(s.stopSignal)
 	// close all listeners
-	server.listenersRWM.RLock()
-	defer server.listenersRWM.RUnlock()
-	for _, listener := range server.listeners {
+	s.listenersRWM.RLock()
+	defer s.listenersRWM.RUnlock()
+	for _, listener := range s.listeners {
 		_ = listener.Close()
 	}
 	// close all conns
-	server.connsRWM.Lock()
-	defer server.connsRWM.Unlock()
-	for _, conn := range server.conns {
+	s.connsRWM.Lock()
+	defer s.connsRWM.Unlock()
+	for _, conn := range s.conns {
 		_ = conn.Close()
 	}
-	server.wg.Wait()
-	server.ctx = nil
+	s.wg.Wait()
+	s.ctx = nil
 }
 
-func (server *server) addListener(l *messages.Listener) (*Listener, error) {
+func (s *server) addListener(l *messages.Listener) (*Listener, error) {
 	tlsConfig, err := l.TLSConfig.Apply()
 	if err != nil {
 		return nil, errors.Wrapf(err, "listener %s", l.Tag)
 	}
-	tlsConfig.Time = server.ctx.global.Now // <security>
+	tlsConfig.Time = s.ctx.global.Now // <security>
 	cfg := xnet.Config{
 		Network:   l.Network,
 		Address:   l.Address,
@@ -170,21 +171,21 @@ func (server *server) addListener(l *messages.Listener) (*Listener, error) {
 	if err != nil {
 		return nil, errors.Errorf("failed to listen %s: %s", l.Tag, err)
 	}
-	listener = netutil.LimitListener(listener, server.maxConns)
+	listener = netutil.LimitListener(listener, s.maxConns)
 	ll := &Listener{Mode: l.Mode, Listener: listener}
-	server.listenersRWM.Lock()
-	defer server.listenersRWM.Unlock()
-	if _, ok := server.listeners[l.Tag]; !ok {
-		server.listeners[l.Tag] = ll
+	s.listenersRWM.Lock()
+	defer s.listenersRWM.Unlock()
+	if _, ok := s.listeners[l.Tag]; !ok {
+		s.listeners[l.Tag] = ll
 		return ll, nil
 	}
 	return nil, errors.Errorf("listener %s already exists", l.Tag)
 }
 
-func (server *server) deploy(tag string, listener *Listener) error {
+func (s *server) deploy(tag string, listener *Listener) error {
 	errChan := make(chan error, 1)
-	server.wg.Add(1)
-	go server.serve(tag, listener, errChan)
+	s.wg.Add(1)
+	go s.serve(tag, listener, errChan)
 	select {
 	case err := <-errChan:
 		const format = "failed to deploy listener %s(%s): %s"
@@ -194,21 +195,29 @@ func (server *server) deploy(tag string, listener *Listener) error {
 	}
 }
 
-func (server *server) serve(tag string, l *Listener, errChan chan<- error) {
+func (s *server) logf(lv logger.Level, format string, log ...interface{}) {
+	s.ctx.logger.Printf(lv, "server", format, log...)
+}
+
+func (s *server) log(lv logger.Level, log ...interface{}) {
+	s.ctx.logger.Print(lv, "server", log...)
+}
+
+func (s *server) serve(tag string, l *Listener, errChan chan<- error) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error(r, "server.serve()")
-			server.log(logger.Fatal, err)
+			s.log(logger.Fatal, err)
 		}
 		errChan <- err
 		close(errChan)
 		// delete
-		server.listenersRWM.Lock()
-		delete(server.listeners, tag)
-		server.listenersRWM.Unlock()
-		server.logf(logger.Info, "listener: %s(%s) is closed", tag, l.Addr())
-		server.wg.Done()
+		s.listenersRWM.Lock()
+		delete(s.listeners, tag)
+		s.listenersRWM.Unlock()
+		s.logf(logger.Info, "listener: %s(%s) is closed", tag, l.Addr())
+		s.wg.Done()
 	}()
 	var delay time.Duration // how long to sleep on accept failure
 	maxDelay := 2 * time.Second
@@ -216,7 +225,7 @@ func (server *server) serve(tag string, l *Listener, errChan chan<- error) {
 		conn, e := l.Accept()
 		if e != nil {
 			select {
-			case <-server.stopSignal:
+			case <-s.stopSignal:
 				err = errors.WithStack(errServerClosed)
 				return
 			default:
@@ -230,7 +239,7 @@ func (server *server) serve(tag string, l *Listener, errChan chan<- error) {
 				if delay > maxDelay {
 					delay = maxDelay
 				}
-				server.logf(logger.Warning, "accept error: %s; retrying in %v", e, delay)
+				s.logf(logger.Warning, "accept error: %s; retrying in %v", e, delay)
 				time.Sleep(delay)
 				continue
 			}
@@ -240,230 +249,239 @@ func (server *server) serve(tag string, l *Listener, errChan chan<- error) {
 			return
 		}
 		delay = 0
-		server.wg.Add(1)
-		go server.handshake(tag, conn)
+		s.wg.Add(1)
+		go s.handshake(tag, conn)
 	}
 }
 
-func (server *server) shuttingDown() bool {
-	return atomic.LoadInt32(&server.inShutdown) != 0
+func (s *server) shuttingDown() bool {
+	return atomic.LoadInt32(&s.inShutdown) != 0
 }
 
-func (server *server) AddListener(l *messages.Listener) error {
-	if server.shuttingDown() {
+func (s *server) AddListener(l *messages.Listener) error {
+	if s.shuttingDown() {
 		return errors.WithStack(errServerClosed)
 	}
-	listener, err := server.addListener(l)
+	listener, err := s.addListener(l)
 	if err != nil {
 		return err
 	}
-	return server.deploy(l.Tag, listener)
+	return s.deploy(l.Tag, listener)
 }
 
-func (server *server) Listeners() map[string]*Listener {
+func (s *server) Listeners() map[string]*Listener {
 	return nil
 }
 
-func (server *server) GetListener(tag string) *Listener {
+func (s *server) GetListener(tag string) *Listener {
 	return nil
 }
 
-func (server *server) CloseListener(tag string) {
+func (s *server) CloseListener(tag string) {
 
 }
 
-func (server *server) CloseConn(address string) {
+func (s *server) CloseConn(address string) {
 
 }
 
-func (server *server) logf(lv logger.Level, format string, log ...interface{}) {
-	server.ctx.logger.Printf(lv, "server", format, log...)
+func (s *server) addConn(tag string, conn *xnet.Conn) {
+	s.connsRWM.Lock()
+	defer s.connsRWM.Unlock()
+	s.conns[tag] = conn
 }
 
-func (server *server) log(lv logger.Level, log ...interface{}) {
-	server.ctx.logger.Print(lv, "server", log...)
+func (s *server) deleteConn(tag string) {
+	s.connsRWM.Lock()
+	defer s.connsRWM.Unlock()
+	delete(s.conns, tag)
+}
+
+func (s *server) logfConn(c net.Conn, lv logger.Level, format string, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(b, format, log...)
+	s.printConn(c, lv, b)
+}
+
+func (s *server) logConn(c net.Conn, lv logger.Level, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprint(b, log...)
+	s.printConn(c, lv, b)
+}
+
+func (s *server) printConn(c net.Conn, lv logger.Level, b *bytes.Buffer) {
+	if xConn, ok := c.(*xnet.Conn); ok {
+		_, _ = fmt.Fprintf(b, "\n%s", xConn)
+	} else {
+		_, _ = fmt.Fprintf(b, "\n%s", logger.Conn(c))
+	}
+	s.ctx.logger.Print(lv, "server", b)
 }
 
 // checkConn is used to check connection is from client
-func (server *server) checkConn(conn net.Conn) bool {
-	size := byte(100 + server.rand.Int(156))
-	data := server.rand.Bytes(int(size))
+func (s *server) checkConn(conn net.Conn) bool {
+	size := byte(100 + s.rand.Int(156))
+	data := s.rand.Bytes(int(size))
 	_, err := conn.Write(append([]byte{size}, data...))
 	if err != nil {
-		server.logf(logger.Warning, "failed to send check data: %s", err)
+		s.logfConn(conn, logger.Warning, "failed to send check data: %s", err)
 		return false
 	}
 	n, err := io.ReadFull(conn, data)
 	if err != nil {
-		server.logf(logger.Warning, "test data: %X", data[:n])
+		s.logfConn(conn, logger.Warning, "test data: %X", data[:n])
 		return false
 	}
 	return true
 }
 
-func (server *server) sendCertificate(conn *xnet.Conn) bool {
+func (s *server) sendCertificate(conn *xnet.Conn) bool {
 	var err error
-	cert := server.ctx.global.Certificate()
+	cert := s.ctx.global.Certificate()
 	if cert != nil {
 		err = conn.Send(cert)
 		if err != nil {
-			server.logf(logger.Error, "failed to send certificate: %s", err)
+			s.logfConn(conn, logger.Error, "failed to send certificate: %s", err)
 			return false
 		}
 	} else { // if no certificate send padding data
-		size := 1024 + server.rand.Int(1024)
-		err = conn.Send(server.rand.Bytes(size))
+		size := 1024 + s.rand.Int(1024)
+		err = conn.Send(s.rand.Bytes(size))
 		if err != nil {
-			server.logf(logger.Error, "failed to send padding data: %s", err)
+			s.logfConn(conn, logger.Error, "failed to send padding data: %s", err)
 			return false
 		}
 	}
 	return true
 }
 
-func (server *server) handshake(tag string, conn net.Conn) {
-	now := server.ctx.global.Now()
+func (s *server) handshake(tag string, conn net.Conn) {
+	now := s.ctx.global.Now()
 	xConn := xnet.NewConn(conn, now)
 	defer func() {
 		if r := recover(); r != nil {
-			server.log(logger.Exploit, xpanic.Error(r, "server.handshake"))
+			s.logConn(conn, logger.Exploit, xpanic.Error(r, "server.handshake"))
 		}
 		_ = xConn.Close()
-		server.wg.Done()
+		s.wg.Done()
 	}()
 
 	// add to server.conns for management
-	connTag := tag + hex.EncodeToString(server.guid.Get())
-	server.addConn(connTag, xConn)
-	defer server.deleteConn(connTag)
+	connTag := tag + hex.EncodeToString(s.guid.Get())
+	s.addConn(connTag, xConn)
+	defer s.deleteConn(connTag)
 
-	_ = xConn.SetDeadline(now.Add(server.timeout))
+	_ = xConn.SetDeadline(now.Add(s.timeout))
 
-	if !server.checkConn(xConn) {
+	if !s.checkConn(xConn) {
 		return
 	}
-	if !server.sendCertificate(xConn) {
+	if !s.sendCertificate(xConn) {
 		return
 	}
 
 	// receive role
-	role := make([]byte, 1)
-	_, err := io.ReadFull(xConn, role)
+	r := make([]byte, 1)
+	_, err := io.ReadFull(xConn, r)
 	if err != nil {
-		server.log(logger.Error, "failed to receive role")
+		s.logConn(conn, logger.Error, "failed to receive role")
 		return
 	}
-	r := protocol.Role(role[0])
-	switch r {
+	role := protocol.Role(r[0])
+	switch role {
 	case protocol.Beacon:
-		server.verifyBeacon(xConn)
+		s.verifyBeacon(xConn)
 	case protocol.Node:
-		server.verifyNode(xConn)
+		s.verifyNode(xConn)
 	case protocol.Ctrl:
-		server.verifyCtrl(xConn)
+		s.verifyCtrl(xConn)
 	default:
-		server.log(logger.Exploit, r)
+		s.logConn(conn, logger.Exploit, role)
 	}
 }
 
-func (server *server) verifyBeacon(conn net.Conn) {
+func (s *server) verifyBeacon(conn net.Conn) {
 
 }
 
-func (server *server) verifyNode(conn net.Conn) {
+func (s *server) verifyNode(conn net.Conn) {
 
 }
 
-func (server *server) verifyCtrl(conn *xnet.Conn) {
-	// <danger>
-	// send random challenge code(length 2048-4096)
-	// len(challenge) must > len(GUID + Mode + Network + Address)
-	// because maybe fake node will send some special data
-	// and controller sign it
-	challenge := server.rand.Bytes(2048 + server.rand.Int(2048))
+// <danger>
+// send random challenge code(length 2048-4096)
+// len(challenge) must > len(GUID + Mode + Network + Address)
+// because maybe fake node will send some special data
+// and controller sign it
+func (s *server) verifyCtrl(conn *xnet.Conn) {
+	challenge := s.rand.Bytes(2048 + s.rand.Int(2048))
 	err := conn.Send(challenge)
 	if err != nil {
-		l := &sLog{c: conn, l: "send challenge code failed", e: err}
-		server.log(logger.Error, l)
+		s.logfConn(conn, logger.Error, "failed to send challenge code: %s", err)
 		return
 	}
 	// receive signature
 	signature, err := conn.Receive()
 	if err != nil {
-		l := &sLog{c: conn, l: "receive signature failed", e: err}
-		server.log(logger.Error, l)
+		s.logfConn(conn, logger.Error, "failed to receive signature: %s", err)
 		return
 	}
 	// verify signature
-	if !server.ctx.global.CtrlVerify(challenge, signature) {
-		l := &sLog{c: conn, l: "invalid controller signature", e: err}
-		server.log(logger.Exploit, l)
+	if !s.ctx.global.CtrlVerify(challenge, signature) {
+		s.logConn(conn, logger.Exploit, "invalid controller signature")
 		return
 	}
-	// send success
+	// send succeed response
 	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
-		l := &sLog{c: conn, l: "send auth success response failed", e: err}
-		server.log(logger.Error, l)
+		s.logfConn(conn, logger.Error, "failed to send succeed response: %s", err)
 		return
 	}
-	server.serveCtrl(conn)
+	s.serveCtrl(conn)
 }
 
-func (server *server) addConn(tag string, conn *xnet.Conn) {
-	server.connsRWM.Lock()
-	server.conns[tag] = conn
-	server.connsRWM.Unlock()
-}
-
-func (server *server) deleteConn(tag string) {
-	server.connsRWM.Lock()
-	delete(server.conns, tag)
-	server.connsRWM.Unlock()
-}
-
-func (server *server) addCtrlConn(tag string, conn *conn) {
-	server.ctrlConnsRWM.Lock()
-	if _, ok := server.ctrlConns[tag]; !ok {
-		server.ctrlConns[tag] = conn
+func (s *server) addCtrlConn(tag string, conn *conn) {
+	s.ctrlConnsRWM.Lock()
+	defer s.ctrlConnsRWM.Unlock()
+	if _, ok := s.ctrlConns[tag]; !ok {
+		s.ctrlConns[tag] = conn
 	}
-	server.ctrlConnsRWM.Unlock()
 }
 
-func (server *server) deleteCtrlConn(tag string) {
-	server.ctrlConnsRWM.Lock()
-	delete(server.ctrlConns, tag)
-	server.ctrlConnsRWM.Unlock()
+func (s *server) deleteCtrlConn(tag string) {
+	s.ctrlConnsRWM.Lock()
+	defer s.ctrlConnsRWM.Unlock()
+	delete(s.ctrlConns, tag)
 }
 
-func (server *server) addNodeConn(guid []byte, conn *conn) {
+func (s *server) addNodeConn(guid []byte, conn *conn) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	server.nodeConnsRWM.Lock()
-	if _, ok := server.nodeConns[tag]; !ok {
-		server.nodeConns[tag] = conn
+	s.nodeConnsRWM.Lock()
+	defer s.nodeConnsRWM.Unlock()
+	if _, ok := s.nodeConns[tag]; !ok {
+		s.nodeConns[tag] = conn
 	}
-	server.nodeConnsRWM.Unlock()
 }
 
-func (server *server) deleteNodeConn(guid []byte) {
+func (s *server) deleteNodeConn(guid []byte) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	server.nodeConnsRWM.Lock()
-	delete(server.nodeConns, tag)
-	server.nodeConnsRWM.Unlock()
+	s.nodeConnsRWM.Lock()
+	defer s.nodeConnsRWM.Unlock()
+	delete(s.nodeConns, tag)
 }
 
-func (server *server) addBeaconConn(guid []byte, conn *conn) {
+func (s *server) addBeaconConn(guid []byte, conn *conn) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	server.beaconConnsRWM.Lock()
-	if _, ok := server.beaconConns[tag]; !ok {
-		server.beaconConns[tag] = conn
+	s.beaconConnsRWM.Lock()
+	defer s.beaconConnsRWM.Unlock()
+	if _, ok := s.beaconConns[tag]; !ok {
+		s.beaconConns[tag] = conn
 	}
-	server.beaconConnsRWM.Unlock()
 }
 
-func (server *server) deleteBeaconConn(guid []byte) {
+func (s *server) deleteBeaconConn(guid []byte) {
 	tag := base64.StdEncoding.EncodeToString(guid)
-	server.beaconConnsRWM.Lock()
-	delete(server.beaconConns, tag)
-	server.beaconConnsRWM.Unlock()
+	s.beaconConnsRWM.Lock()
+	defer s.beaconConnsRWM.Unlock()
+	delete(s.beaconConns, tag)
 }

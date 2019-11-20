@@ -7,22 +7,22 @@ import (
 	"project/internal/protocol"
 )
 
-func (conn *conn) onFrameServeBeacon(frame []byte) {
-	if !conn.onFrame(frame) {
+func (c *conn) onFrameServeBeacon(frame []byte) {
+	if !c.onFrame(frame) {
 		return
 	}
 	// check command
 	switch frame[0] {
 
 	default:
-		conn.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+		c.Close()
 	}
 }
 
 type beaconConn struct {
 }
 
-func (server *server) serveBeacon(conn net.Conn) {
+func (s *server) serveBeacon(conn net.Conn) {
 
 }

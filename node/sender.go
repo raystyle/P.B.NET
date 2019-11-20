@@ -161,7 +161,7 @@ type cSender interface {
 
 // return responses and the number of the success
 func (sender *sender) sendParallel(token, message []byte) ([]*protocol.SendResponse, int) {
-	clients := sender.ctx.syncer.Clients()
+	// clients := sender.ctx.syncer.Clients()
 
 	sClients := sender.ctx.syncer.sClients()
 	l := len(sClients)

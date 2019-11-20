@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -98,53 +99,36 @@ func newConn(ctx *Node, xc *xnet.Conn, usage int, guid []byte) *conn {
 	return &conn
 }
 
-func (conn *conn) logf(l logger.Level, format string, log ...interface{}) {
-	b := logger.Conn(conn.conn)
+func (c *conn) logf(l logger.Level, format string, log ...interface{}) {
+	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
-	conn.ctx.logger.Print(l, conn.logSrc, b)
+	_, _ = fmt.Fprintf(b, "\n%s", c.conn)
+	c.ctx.logger.Print(l, c.logSrc, b)
 }
 
-func (conn *conn) log(l logger.Level, log ...interface{}) {
-	b := logger.Conn(conn.conn)
+func (c *conn) log(l logger.Level, log ...interface{}) {
+	b := new(bytes.Buffer)
 	_, _ = fmt.Fprint(b, log...)
-	conn.ctx.logger.Print(l, conn.logSrc, b)
+	_, _ = fmt.Fprintf(b, "\n%s", c.conn)
+	c.ctx.logger.Print(l, c.logSrc, b)
 }
 
-func (conn *conn) isClosed() bool {
-	return atomic.LoadInt32(&conn.inClose) != 0
-}
-
-func (conn *conn) Close() {
-	conn.closeOnce.Do(func() {
-		atomic.StoreInt32(&conn.inClose, 1)
-		close(conn.stopSignal)
-		_ = conn.conn.Close()
-		conn.wg.Wait()
-
-		// <security> can't record controller
-		// client don't need record
-		switch conn.usage {
-		case connUsageServeNode:
-		case connUsageServeBeacon:
-		default:
-			return
-		}
-		conn.log(logger.Info, "disconnected")
-	})
+func (c *conn) isClosed() bool {
+	return atomic.LoadInt32(&c.inClose) != 0
 }
 
 // msg id(2 bytes) + data
-func (conn *conn) handleReply(reply []byte) {
+func (c *conn) handleReply(reply []byte) {
 	l := len(reply)
 	if l < protocol.MsgIDSize {
-		conn.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
+		c.Close()
 		return
 	}
 	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
 	if id > protocol.MaxMsgID {
-		conn.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
+		c.Close()
 		return
 	}
 	// must copy
@@ -152,48 +136,48 @@ func (conn *conn) handleReply(reply []byte) {
 	copy(r, reply[protocol.MsgIDSize:])
 	// <security> maybe wrong msg id
 	select {
-	case conn.slots[id].Reply <- r:
+	case c.slots[id].Reply <- r:
 	default:
-		conn.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
+		c.Close()
 	}
 }
 
-func (conn *conn) onFrame(frame []byte) bool {
+func (c *conn) onFrame(frame []byte) bool {
 	const (
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
 	)
-	if conn.isClosed() {
+	if c.isClosed() {
 		return false
 	}
 	// cmd(1) + msg id(2) or reply
 	if len(frame) < id {
-		conn.log(logger.Exploit, protocol.ErrInvalidMsgSize)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrInvalidMsgSize)
+		c.Close()
 		return false
 	}
 	// check command
 	switch frame[0] {
 	case protocol.ConnReply:
-		conn.handleReply(frame[cmd:])
+		c.handleReply(frame[cmd:])
 	case protocol.ErrCMDRecvNullMsg:
-		conn.log(logger.Exploit, protocol.ErrRecvNullMsg)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrRecvNullMsg)
+		c.Close()
 		return false
 	case protocol.ErrCMDTooBigMsg:
-		conn.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
+		c.Close()
 		return false
 	case protocol.TestCommand:
-		conn.Reply(frame[cmd:id], frame[id:])
+		c.Reply(frame[cmd:id], frame[id:])
 	}
 	return true
 }
 
 // Reply is used to reply command
-func (conn *conn) Reply(id, reply []byte) {
-	if conn.isClosed() {
+func (c *conn) Reply(id, reply []byte) {
+	if c.isClosed() {
 		return
 	}
 	l := len(reply)
@@ -208,20 +192,20 @@ func (conn *conn) Reply(id, reply []byte) {
 	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
 	// write data
 	copy(b[protocol.MsgHeaderSize:], reply)
-	_ = conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = conn.conn.Write(b)
+	_ = c.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, _ = c.conn.Write(b)
 }
 
 // Send is used to send command and receive reply
 // size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
-func (conn *conn) Send(cmd uint8, data []byte) ([]byte, error) {
-	if conn.isClosed() {
+func (c *conn) Send(cmd uint8, data []byte) ([]byte, error) {
+	if c.isClosed() {
 		return nil, protocol.ErrConnClosed
 	}
 	for {
 		for id := 0; id < protocol.SlotSize; id++ {
 			select {
-			case <-conn.slots[id].Available:
+			case <-c.slots[id].Available:
 				l := len(data)
 				b := make([]byte, protocol.MsgHeaderSize+l)
 				// write MsgLen
@@ -235,27 +219,27 @@ func (conn *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 				// write data
 				copy(b[protocol.MsgHeaderSize:], data)
 				// send
-				_ = conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-				_, err := conn.conn.Write(b)
+				_ = c.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+				_, err := c.conn.Write(b)
 				if err != nil {
 					return nil, err
 				}
 				// wait for reply
-				if !conn.slots[id].Timer.Stop() {
-					<-conn.slots[id].Timer.C
+				if !c.slots[id].Timer.Stop() {
+					<-c.slots[id].Timer.C
 				}
-				conn.slots[id].Timer.Reset(protocol.RecvTimeout)
+				c.slots[id].Timer.Reset(protocol.RecvTimeout)
 				select {
-				case r := <-conn.slots[id].Reply:
-					conn.slots[id].Available <- struct{}{}
+				case r := <-c.slots[id].Reply:
+					c.slots[id].Available <- struct{}{}
 					return r, nil
-				case <-conn.slots[id].Timer.C:
-					conn.Close()
+				case <-c.slots[id].Timer.C:
+					c.Close()
 					return nil, protocol.ErrRecvTimeout
-				case <-conn.stopSignal:
+				case <-c.stopSignal:
 					return nil, protocol.ErrConnClosed
 				}
-			case <-conn.stopSignal:
+			case <-c.stopSignal:
 				return nil, protocol.ErrConnClosed
 			default:
 			}
@@ -263,8 +247,26 @@ func (conn *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 		// if full wait 1 second
 		select {
 		case <-time.After(time.Second):
-		case <-conn.stopSignal:
+		case <-c.stopSignal:
 			return nil, protocol.ErrConnClosed
 		}
 	}
+}
+
+func (c *conn) Close() {
+	c.closeOnce.Do(func() {
+		atomic.StoreInt32(&c.inClose, 1)
+		close(c.stopSignal)
+		_ = c.conn.Close()
+		c.wg.Wait()
+		// <security> can't record controller
+		// client don't need record
+		switch c.usage {
+		case connUsageServeNode:
+		case connUsageServeBeacon:
+		default:
+			return
+		}
+		c.log(logger.Info, "disconnected")
+	})
 }

@@ -10,22 +10,22 @@ import (
 	"project/internal/random"
 )
 
-func (conn *conn) onFrameClient(frame []byte) {
-	if !conn.onFrame(frame) {
+func (c *conn) onFrameClient(frame []byte) {
+	if !c.onFrame(frame) {
 		return
 	}
 	// check command
 	switch frame[0] {
 	case protocol.ConnReplyHeartbeat:
-		conn.heartbeat <- struct{}{}
+		c.heartbeat <- struct{}{}
 	default:
-		conn.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
-		conn.Close()
+		c.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+		c.Close()
 	}
 }
 
-func (conn *conn) sendHeartbeat() {
-	defer conn.wg.Done()
+func (c *conn) sendHeartbeat() {
+	defer c.wg.Done()
 	var err error
 	rand := random.New(0)
 	buffer := bytes.NewBuffer(nil)
@@ -41,21 +41,21 @@ func (conn *conn) sendHeartbeat() {
 			buffer.WriteByte(protocol.ConnSendHeartbeat)
 			buffer.Write(rand.Bytes(fakeSize))
 			// send
-			_ = conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-			_, err = conn.conn.Write(buffer.Bytes())
+			_ = c.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+			_, err = c.conn.Write(buffer.Bytes())
 			if err != nil {
 				return
 			}
 			select {
-			case <-conn.heartbeat:
+			case <-c.heartbeat:
 			case <-time.After(t):
-				conn.log(logger.Warning, "receive heartbeat reply timeout")
-				_ = conn.conn.Close()
+				c.log(logger.Warning, "receive heartbeat reply timeout")
+				_ = c.conn.Close()
 				return
-			case <-conn.stopSignal:
+			case <-c.stopSignal:
 				return
 			}
-		case <-conn.stopSignal:
+		case <-c.stopSignal:
 			return
 		}
 	}
