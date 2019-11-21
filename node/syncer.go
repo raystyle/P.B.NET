@@ -290,7 +290,8 @@ func (syncer *syncer) CheckCtrlAnswerGUID(guid []byte, add bool, timestamp int64
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			syncer.log(logger.Fatal, xpanic.Error(r, "syncer.guidCleaner"))
+			err := xpanic.Error(r, "syncer.guidCleaner")
+			syncer.ctx.logger.Print(logger.Fatal, "syncer", err)
 			// restart GUID cleaner
 			time.Sleep(time.Second)
 			go syncer.guidCleaner()

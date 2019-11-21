@@ -59,9 +59,9 @@ type Config struct {
 	} `toml:"syncer"`
 
 	Worker struct {
-		MaxBufferSize int `toml:"max_buffer_size"`
-		Worker        int `toml:"worker"`
+		Number        int `toml:"number"`
 		QueueSize     int `toml:"queue_size"`
+		MaxBufferSize int `toml:"max_buffer_size"`
 	} `toml:"worker"`
 
 	Register struct {
