@@ -18,6 +18,7 @@ type Node struct {
 	sender  *sender  // send message to Controller
 	syncer  *syncer  // receive message from Controller, Nodes, and Beacons
 	server  *server  // listen and serve Roles
+	worker  *worker
 
 	once sync.Once
 	wait chan struct{}
@@ -52,6 +53,12 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize syncer")
 	}
 	node.syncer = syncer
+	// worker manager
+	worker, err := newWorker(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize worker")
+	}
+	node.worker = worker
 	// server
 	server, err := newServer(node, cfg)
 	if err != nil {

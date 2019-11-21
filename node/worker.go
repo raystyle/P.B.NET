@@ -1,6 +1,9 @@
 package node
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"hash"
 	"sync"
 	"time"
 
@@ -11,17 +14,20 @@ import (
 	"project/internal/xpanic"
 )
 
-type workerManager struct {
+type worker struct {
 	broadcastQueue chan *protocol.Broadcast
 	sendQueue      chan *protocol.Send
+
+	broadcastPool sync.Pool
+	sendPool      sync.Pool
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-func newWorkerManager(ctx *Node, config *Config) (*workerManager, error) {
+func newWorker(ctx *Node, config *Config) (*worker, error) {
 	cfg := config.Worker
-	// check config
+
 	if cfg.Number < 4 {
 		return nil, errors.New("worker number must >= 4")
 	}
@@ -32,33 +38,78 @@ func newWorkerManager(ctx *Node, config *Config) (*workerManager, error) {
 		return nil, errors.New("max buffer size >= 4096")
 	}
 
-	manager := workerManager{
+	worker := worker{
 		broadcastQueue: make(chan *protocol.Broadcast),
 		sendQueue:      make(chan *protocol.Send),
 		stopSignal:     make(chan struct{}),
 	}
 
-	// start workers
-	for i := 0; i < cfg.Number; i++ {
-		worker := worker{
-			ctx:            ctx,
-			maxBufferSize:  cfg.MaxBufferSize,
-			broadcastQueue: manager.broadcastQueue,
-			sendQueue:      manager.sendQueue,
-			stopSignal:     manager.stopSignal,
-			wg:             &manager.wg,
-		}
-		manager.wg.Add(1)
-		go worker.Work()
+	worker.broadcastPool.New = func() interface{} {
+		return new(protocol.Broadcast)
 	}
-	return &manager, nil
+
+	worker.sendPool.New = func() interface{} {
+		return new(protocol.Send)
+	}
+
+	// start sub workers
+	broadcastPoolP := &worker.broadcastPool
+	sendPoolP := &worker.sendPool
+	wgP := &worker.wg
+	for i := 0; i < cfg.Number; i++ {
+		sw := subWorker{
+			ctx: ctx,
+
+			maxBufferSize: cfg.MaxBufferSize,
+
+			broadcastQueue: worker.broadcastQueue,
+			sendQueue:      worker.sendQueue,
+
+			broadcastPool: broadcastPoolP,
+			sendPool:      sendPoolP,
+
+			stopSignal: worker.stopSignal,
+			wg:         wgP,
+		}
+		worker.wg.Add(1)
+		go sw.Work()
+	}
+	return &worker, nil
 }
 
-func (wm *workerManager) Close() {
-	close(wm.stopSignal)
+// GetBroadcastFromPool is used to get *protocol.Broadcast from broadcastPool
+func (ws *worker) GetBroadcastFromPool() *protocol.Broadcast {
+	return ws.broadcastPool.Get().(*protocol.Broadcast)
 }
 
-type worker struct {
+// GetSendFromPool is used to get *protocol.Send from sendPool
+func (ws *worker) GetSendFromPool() *protocol.Send {
+	return ws.sendPool.Get().(*protocol.Send)
+}
+
+// AddBroadcast is used to add broadcast to handler
+func (ws *worker) AddBroadcast(b *protocol.Broadcast) {
+	select {
+	case ws.broadcastQueue <- b:
+	case <-ws.stopSignal:
+	}
+}
+
+// AddSend is used to add send to handler
+func (ws *worker) AddSend(s *protocol.Send) {
+	select {
+	case ws.sendQueue <- s:
+	case <-ws.stopSignal:
+	}
+}
+
+// Close is used to close all workers
+func (ws *worker) Close() {
+	close(ws.stopSignal)
+	ws.wg.Wait()
+}
+
+type subWorker struct {
 	ctx *Node
 
 	maxBufferSize int
@@ -66,28 +117,62 @@ type worker struct {
 	broadcastQueue chan *protocol.Broadcast
 	sendQueue      chan *protocol.Send
 
+	broadcastPool *sync.Pool
+	sendPool      *sync.Pool
+
+	// runtime
+	buffer *bytes.Buffer
+	hash   hash.Hash
+
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
 }
 
-func (worker *worker) logf(l logger.Level, format string, log ...interface{}) {
-	worker.ctx.logger.Printf(l, "worker", format, log...)
+func (sw *subWorker) logf(l logger.Level, format string, log ...interface{}) {
+	sw.ctx.logger.Printf(l, "worker", format, log...)
 }
 
-func (worker *worker) log(l logger.Level, log ...interface{}) {
-	worker.ctx.logger.Print(l, "worker", log...)
+func (sw *subWorker) log(l logger.Level, log ...interface{}) {
+	sw.ctx.logger.Print(l, "worker", log...)
 }
 
-func (worker *worker) Work() {
+func (sw *subWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			worker.log(logger.Fatal, xpanic.Error(r, "worker.Work()"))
+			sw.log(logger.Fatal, xpanic.Error(r, "subWorker.Work()"))
 			// restart worker
 			time.Sleep(time.Second)
-			go worker.Work()
+			go sw.Work()
 		} else {
-			worker.wg.Done()
+			sw.wg.Done()
 		}
 	}()
+	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	sw.hash = sha256.New()
+	var (
+		b *protocol.Broadcast
+		s *protocol.Send
+	)
+	for {
+		// check buffer capacity
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+		}
+		select {
+		case b = <-sw.broadcastQueue:
+			sw.handleBroadcast(b)
+		case s = <-sw.sendQueue:
+			sw.handleSend(s)
+		case <-sw.stopSignal:
+			return
+		}
+	}
+}
+
+func (sw *subWorker) handleBroadcast(b *protocol.Broadcast) {
+
+}
+
+func (sw *subWorker) handleSend(s *protocol.Send) {
 
 }

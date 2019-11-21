@@ -10,6 +10,8 @@ import (
 	"project/internal/guid"
 )
 
+const SendMinBufferSize = 2*guid.Size + aes.BlockSize + sha256.Size + ed25519.SignatureSize
+
 var (
 	SendReplyExpired   = []byte{10}
 	SendReplyUnhandled = []byte{11}
