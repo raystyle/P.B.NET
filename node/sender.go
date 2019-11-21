@@ -142,6 +142,10 @@ func (sender *sender) SendFromPlugin(message []byte) error {
 	return nil
 }
 
+func (sender *sender) Acknowledge(guid []byte) {
+
+}
+
 func (sender *sender) Close() {
 	close(sender.stopSignal)
 	sender.wg.Wait()

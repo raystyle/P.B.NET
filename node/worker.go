@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/subtle"
 	"hash"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"project/internal/xpanic"
 )
 
+// worker is used to handle message from controller
 type worker struct {
 	broadcastQueue chan *protocol.Broadcast
 	sendQueue      chan *protocol.Send
@@ -123,6 +125,7 @@ type subWorker struct {
 	// runtime
 	buffer *bytes.Buffer
 	hash   hash.Hash
+	err    error
 
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
@@ -170,9 +173,70 @@ func (sw *subWorker) Work() {
 }
 
 func (sw *subWorker) handleBroadcast(b *protocol.Broadcast) {
-
+	defer sw.broadcastPool.Put(b)
+	// verify
+	sw.buffer.Reset()
+	sw.buffer.Write(b.GUID)
+	sw.buffer.Write(b.Message)
+	sw.buffer.Write(b.Hash)
+	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), b.Signature) {
+		const format = "invalid broadcast signature\nguid: %X"
+		sw.logf(logger.Exploit, format, b.GUID)
+		return
+	}
+	// decrypt message
+	b.Message, sw.err = sw.ctx.global.CtrlDecrypt(b.Message)
+	if sw.err != nil {
+		const format = "invalid broadcast message\nguid: %X\n%s"
+		sw.logf(logger.Exploit, format, b.GUID, sw.err)
+		return
+	}
+	// check hash
+	sw.hash.Reset()
+	sw.hash.Write(b.Message)
+	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), b.Hash) != 1 {
+		const format = "invalid broadcast hash\nguid: %X"
+		sw.logf(logger.Exploit, format, b.GUID)
+		return
+	}
+	// handle it, don't need acknowledge
+	sw.ctx.handler.HandleBroadcast(b)
 }
 
 func (sw *subWorker) handleSend(s *protocol.Send) {
-
+	defer sw.sendPool.Put(s)
+	// verify
+	sw.buffer.Reset()
+	sw.buffer.Write(s.GUID)
+	sw.buffer.Write(s.RoleGUID)
+	sw.buffer.Write(s.Message)
+	sw.buffer.Write(s.Hash)
+	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), s.Signature) {
+		const format = "invalid send signature\nguid: %X"
+		sw.logf(logger.Exploit, format, s.GUID)
+		return
+	}
+	// check role
+	if !bytes.Equal(s.RoleGUID, protocol.CtrlGUID) {
+		const format = "invalid send role guid\nguid: %X\nrole: %X"
+		sw.logf(logger.Exploit, format, s.GUID, s.RoleGUID)
+		return
+	}
+	// decrypt message
+	s.Message, sw.err = sw.ctx.global.Decrypt(s.Message)
+	if sw.err != nil {
+		const format = "invalid send message\nguid: %X\n%s"
+		sw.logf(logger.Exploit, format, s.GUID, sw.err)
+		return
+	}
+	// check hash
+	sw.hash.Reset()
+	sw.hash.Write(s.Message)
+	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), s.Hash) != 1 {
+		const format = "invalid send hash\nguid: %X"
+		sw.logf(logger.Exploit, format, s.GUID)
+		return
+	}
+	sw.ctx.handler.HandleSend(s)
+	sw.ctx.sender.Acknowledge(s.GUID)
 }
