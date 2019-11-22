@@ -54,31 +54,65 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 	protocol.HandleConn(conn.conn, ctrl.onFrame)
 }
 
+func (ctrl *ctrlConn) isClosing() bool {
+	return atomic.LoadInt32(&ctrl.inClose) != 0
+}
+
 // TODO log
 func (ctrl *ctrlConn) log(l logger.Level, log ...interface{}) {
 	ctrl.ctx.logger.Print(l, "serve-ctrl", log...)
 }
 
 func (ctrl *ctrlConn) onFrame(frame []byte) {
+	if ctrl.isClosing() {
+		return
+	}
 	if !ctrl.conn.onFrame(frame) {
 		return
 	}
-	const (
-		cmd = protocol.MsgCMDSize
-		id  = protocol.MsgCMDSize + protocol.MsgIDSize
-	)
+	id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
+	data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
+	if atomic.LoadInt32(&ctrl.inSync) != 0 {
+		switch frame[0] {
+		case protocol.CtrlSendToNodeGUID:
+			ctrl.handleSendToNodeGUID(id, data)
+		case protocol.CtrlSendToNode:
 
-	// if sync
+		case protocol.CtrlAckToNodeGUID:
 
-	// check command
+		case protocol.CtrlAckToNode:
+
+		case protocol.CtrlBroadcastGUID:
+
+		case protocol.CtrlBroadcast:
+
+		case protocol.CtrlSendToBeaconGUID:
+
+		case protocol.CtrlSendToBeacon:
+
+		case protocol.CtrlAckToBeaconGUID:
+
+		case protocol.CtrlAckToBeacon:
+
+		case protocol.CtrlAnswerBeaconGUID:
+
+		case protocol.CtrlAnswerBeacon:
+
+		case protocol.ConnSendHeartbeat:
+			ctrl.handleHeartbeat()
+		default:
+			ctrl.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+			ctrl.Close()
+		}
+		return
+	}
 	switch frame[0] {
-
 	case protocol.CtrlSync:
-		ctrl.handleSyncStart(frame[cmd:id])
+		ctrl.handleSyncStart(id)
 	case protocol.CtrlTrustNode:
-		ctrl.handleTrustNode(frame[cmd:id])
+		ctrl.handleTrustNode(id)
 	case protocol.CtrlSetNodeCert:
-		ctrl.handleSetCertificate(frame[cmd:id], frame[id:])
+		ctrl.handleSetCertificate(id, data)
 	case protocol.ConnSendHeartbeat:
 		ctrl.handleHeartbeat()
 	default:
@@ -100,58 +134,21 @@ func (ctrl *ctrlConn) handleHeartbeat() {
 	_, _ = ctrl.conn.conn.Write(ctrl.heartbeat.Bytes())
 }
 
-func (ctrl *ctrlConn) handleSendGUID(id, data []byte) {
+func (ctrl *ctrlConn) handleSendToNodeGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply
 		ctrl.log(logger.Exploit, "invalid ctrl send guid size")
-		ctrl.conn.Reply(id, protocol.SendReplyHandled)
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
 		return
 	}
-
-	if ctrl.ctx.syncer.checkSyncSendToken(role, data[1:]) {
-		ctrl.reply(id, protocol.SendReplyUnhandled)
+	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckNodeSendGUID(data, false, 0) {
+		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
-		ctrl.reply(id, protocol.SendReplyHandled)
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
 	}
 }
-
-func (ctrl *ctrlConn) handleSend(id, data []byte) {
-
-	if ctrl.ctx.syncer.checkSyncSendToken(role, data[1:]) {
-		ctrl.reply(id, protocol.SendReplyUnhandled)
-	} else {
-		ctrl.reply(id, protocol.SendReplyHandled)
-	}
-}
-
-// Send is used to send message to connected controller
-func (ctrl *ctrlConn) Send(guid, message []byte) (sr *protocol.SendResponse) {
-	sr = &protocol.SendResponse{
-		Role: protocol.Ctrl,
-		GUID: protocol.CtrlGUID,
-	}
-	var reply []byte
-	reply, sr.Err = ctrl.conn.Send(protocol.NodeSendGUID, guid)
-	if sr.Err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
-		sr.Err = protocol.GetSendReplyError(reply)
-		return
-	}
-	reply, sr.Err = ctrl.conn.Send(protocol.NodeSend, message)
-	if sr.Err != nil {
-		return
-	}
-	if bytes.Equal(reply, protocol.SendReplySucceed) {
-		return
-	} else {
-		sr.Err = errors.New(string(reply))
-		return sr
-	}
-}
-
-// handle trust node
 
 func (ctrl *ctrlConn) handleTrustNode(id []byte) {
 	ctrl.conn.Reply(id, ctrl.ctx.packOnlineRequest())
@@ -167,6 +164,59 @@ func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
 	}
 }
 
+// Send is used to send message to connected controller
+func (ctrl *ctrlConn) Send(guid, message []byte) (sr *protocol.SendResponse) {
+	sr = &protocol.SendResponse{
+		Role: protocol.Ctrl,
+		GUID: protocol.CtrlGUID,
+	}
+	var reply []byte
+	reply, sr.Err = ctrl.conn.Send(protocol.NodeSendGUID, guid)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+		sr.Err = protocol.GetReplyError(reply)
+		return
+	}
+	reply, sr.Err = ctrl.conn.Send(protocol.NodeSend, message)
+	if sr.Err != nil {
+		return
+	}
+	if bytes.Equal(reply, protocol.ReplySucceed) {
+		return
+	} else {
+		sr.Err = errors.New(string(reply))
+		return
+	}
+}
+
+func (ctrl *ctrlConn) Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse) {
+	ar = &protocol.AcknowledgeResponse{
+		Role: protocol.Ctrl,
+		GUID: protocol.CtrlGUID,
+	}
+	var reply []byte
+	reply, ar.Err = ctrl.conn.Send(protocol.NodeAckGUID, guid)
+	if ar.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+		ar.Err = protocol.GetReplyError(reply)
+		return
+	}
+	reply, ar.Err = ctrl.conn.Send(protocol.NodeAck, message)
+	if ar.Err != nil {
+		return
+	}
+	if bytes.Equal(reply, protocol.ReplySucceed) {
+		return
+	} else {
+		ar.Err = errors.New(string(reply))
+		return
+	}
+}
+
 func (ctrl *ctrlConn) Status() *xnet.Status {
 	return ctrl.conn.Status()
 }
@@ -177,10 +227,6 @@ func (ctrl *ctrlConn) Close() {
 		close(ctrl.stopSignal)
 		ctrl.conn.Close()
 	})
-}
-
-func (ctrl *ctrlConn) isClosing() bool {
-	return atomic.LoadInt32(&ctrl.inClose) != 0
 }
 
 // if need async handle message must copy msg first
@@ -277,7 +323,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 		sr.Err = err
 		return sr
 	}
-	if !bytes.Equal(resp, protocol.SendReplyUnhandled) {
+	if !bytes.Equal(resp, protocol.ReplyUnhandled) {
 		sr.Err = protocol.ErrSyncHandled
 		return sr
 	}
@@ -286,7 +332,7 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 		sr.Err = err
 		return sr
 	}
-	if bytes.Equal(resp, protocol.SendReplySucceed) {
+	if bytes.Equal(resp, protocol.ReplySucceed) {
 		return sr
 	} else {
 		sr.Err = errors.New(string(resp))
@@ -295,8 +341,11 @@ func (ctrl *ctrlConn) SyncReceive(token, message []byte) *protocol.SyncResponse 
 }
 
 func (ctrl *ctrlConn) handleSyncStart(id []byte) {
-	if ctrl.ctx.syncer.SetCtrlConn(ctrl) {
-		ctrl.reply(id, []byte{protocol.NodeSync})
+	if atomic.LoadInt32(&ctrl.inSync) == 0 {
+		atomic.StoreInt32(&ctrl.inSync, 1)
+		// register to sender
+
+		ctrl.conn.Reply(id, []byte{protocol.NodeSync})
 		ctrl.log(logger.Debug, "synchronizing")
 	} else {
 		ctrl.Close()
@@ -331,21 +380,21 @@ func (ctrl *ctrlConn) handleSyncReceiveToken(id, message []byte) {
 	if len(message) != 1+guid.Size {
 		// fake reply and close
 		ctrl.log(logger.Exploit, "invalid sync receive token size")
-		ctrl.reply(id, protocol.SendReplyHandled)
+		ctrl.reply(id, protocol.ReplyHandled)
 		ctrl.Close()
 		return
 	}
 	role := protocol.Role(message[0])
 	if role != protocol.Ctrl {
 		ctrl.log(logger.Exploit, "handle invalid sync receive token role")
-		ctrl.reply(id, protocol.SendReplyHandled)
+		ctrl.reply(id, protocol.ReplyHandled)
 		ctrl.Close()
 		return
 	}
 	if ctrl.ctx.syncer.checkSyncReceiveToken(role, message[1:]) {
-		ctrl.reply(id, protocol.SendReplyUnhandled)
+		ctrl.reply(id, protocol.ReplyUnhandled)
 	} else {
-		ctrl.reply(id, protocol.SendReplyHandled)
+		ctrl.reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -407,7 +456,7 @@ func (ctrl *ctrlConn) handleSyncSend(id, message []byte) {
 		return
 	}
 	ctrl.ctx.syncer.addSyncSend(&ss)
-	ctrl.reply(id, protocol.SendReplySucceed)
+	ctrl.reply(id, protocol.ReplySucceed)
 }
 
 // notice node to delete message
@@ -432,7 +481,7 @@ func (ctrl *ctrlConn) handleSyncReceive(id, message []byte) {
 		return
 	}
 	ctrl.ctx.syncer.addSyncReceive(&sr)
-	ctrl.reply(id, protocol.SendReplySucceed)
+	ctrl.reply(id, protocol.ReplySucceed)
 }
 
 func (ctrl *ctrlConn) handleSyncQueryBeacon(id, message []byte) {
@@ -450,7 +499,7 @@ func (ctrl *ctrlConn) handleSyncQueryBeacon(id, message []byte) {
 		return
 	}
 	// TODO reply
-	ctrl.reply(id, protocol.SendReplySucceed)
+	ctrl.reply(id, protocol.ReplySucceed)
 }
 
 func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
@@ -468,5 +517,5 @@ func (ctrl *ctrlConn) handleSyncQueryNode(id, message []byte) {
 		return
 	}
 	// TODO reply
-	ctrl.reply(id, protocol.SendReplySucceed)
+	ctrl.reply(id, protocol.ReplySucceed)
 }

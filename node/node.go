@@ -47,18 +47,18 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	node.sender = sender
+	// worker
+	worker, err := newWorker(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize worker")
+	}
+	node.worker = worker
 	// syncer
 	syncer, err := newSyncer(node, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize syncer")
 	}
 	node.syncer = syncer
-	// worker manager
-	worker, err := newWorker(node, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to initialize worker")
-	}
-	node.worker = worker
 	// server
 	server, err := newServer(node, cfg)
 	if err != nil {

@@ -106,23 +106,18 @@ func (c *conn) handleReply(reply []byte) {
 }
 
 func (c *conn) onFrame(frame []byte) bool {
-	const (
-		cmd = protocol.MsgCMDSize
-		id  = protocol.MsgCMDSize + protocol.MsgIDSize
-	)
 	if c.isClosed() {
 		return false
 	}
-	// cmd(1) + msg id(2) or reply
-	if len(frame) < id {
+	// cmd(1) + msg id(2)
+	if len(frame) < protocol.MsgCMDSize+protocol.MsgIDSize {
 		c.log(logger.Exploit, protocol.ErrInvalidMsgSize)
 		c.Close()
 		return false
 	}
-	// check command
 	switch frame[0] {
 	case protocol.ConnReply:
-		c.handleReply(frame[cmd:])
+		c.handleReply(frame[protocol.MsgCMDSize:])
 	case protocol.ErrCMDRecvNullMsg:
 		c.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		c.Close()
@@ -131,8 +126,6 @@ func (c *conn) onFrame(frame []byte) bool {
 		c.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		c.Close()
 		return false
-	case protocol.TestCommand:
-		c.Reply(frame[cmd:id], frame[id:])
 	}
 	return true
 }
