@@ -11,13 +11,6 @@ import (
 	"project/internal/crypto/sha256"
 )
 
-func TestGetSendReplyError(t *testing.T) {
-	require.EqualError(t, GetSendReplyError(nil), "empty send reply")
-	require.Equal(t, ErrSendExpired, GetSendReplyError(SendReplyExpired))
-	require.Equal(t, ErrSendHandled, GetSendReplyError(SendReplyHandled))
-	require.EqualError(t, GetSendReplyError([]byte{255}), "unknown send reply error: FF")
-}
-
 func TestSend_Validate(t *testing.T) {
 	s := new(Send)
 	require.EqualError(t, s.Validate(), "invalid guid size")

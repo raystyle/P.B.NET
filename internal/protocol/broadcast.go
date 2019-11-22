@@ -9,16 +9,6 @@ import (
 	"project/internal/guid"
 )
 
-var (
-	BroadcastReplyExpired   = []byte{0}
-	BroadcastReplyUnhandled = []byte{1}
-	BroadcastReplyHandled   = []byte{2}
-	BroadcastReplySucceed   = []byte{3}
-
-	ErrBroadcastExpired = errors.New("broadcast expired")
-	ErrBroadcastHandled = errors.New("broadcast has been handled")
-)
-
 // Broadcast is used to broadcast messages to Nodes.
 // Controller use broadcast key to encrypt Message.
 // look controller/keygen.go GenerateCtrlKeys()

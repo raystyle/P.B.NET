@@ -1,5 +1,35 @@
 package protocol
 
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	ReplyUnhandled = []byte{11}
+	ReplySucceed   = []byte{13}
+	ReplyExpired   = []byte{10}
+	ReplyHandled   = []byte{12}
+
+	ErrReplyExpired = errors.New("expired")
+	ErrReplyHandled = errors.New("operation has been handled")
+)
+
+// GetReplyError is used to get error from reply
+func GetReplyError(reply []byte) error {
+	if len(reply) == 0 {
+		return errors.New("empty reply")
+	}
+	switch reply[0] {
+	case ReplyExpired[0]:
+		return ErrReplyExpired
+	case ReplyHandled[0]:
+		return ErrReplyHandled
+	default:
+		return fmt.Errorf("custom error: %s", reply)
+	}
+}
+
 // --------------------------test-----------------------------
 const (
 	TestCommand uint8 = 0xEF
@@ -16,16 +46,18 @@ const (
 // -----------------------Controller--------------------------
 const (
 	CtrlSync uint8 = 0x10 + iota
-	CtrlBroadcastGUID
-	CtrlBroadcast
 	CtrlSendToNodeGUID
 	CtrlSendToNode
-	CtrlSendToBeaconGUID
-	CtrlSendToBeacon
 	CtrlAckToNodeGUID
 	CtrlAckToNode
+	CtrlBroadcastGUID
+	CtrlBroadcast
+	CtrlSendToBeaconGUID
+	CtrlSendToBeacon
 	CtrlAckToBeaconGUID
 	CtrlAckToBeacon
+	CtrlAnswerBeaconGUID
+	CtrlAnswerBeacon
 )
 
 const (
@@ -40,8 +72,11 @@ const (
 
 // --------------------------Node-----------------------------
 const (
-	NodeSendGUID uint8 = 0x60 + iota
+	NodeSync uint8 = 0x60 + iota
+	NodeSendGUID
 	NodeSend
+	NodeAckGUID
+	NodeAck
 )
 
 // node authentication

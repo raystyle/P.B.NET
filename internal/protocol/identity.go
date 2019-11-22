@@ -8,6 +8,7 @@ import (
 	"project/internal/guid"
 )
 
+// Role is used to show identity
 type Role uint8
 
 const (

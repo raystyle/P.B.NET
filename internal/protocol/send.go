@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"errors"
-	"fmt"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
@@ -10,32 +9,9 @@ import (
 	"project/internal/guid"
 )
 
-const SendMinBufferSize = 2*guid.Size + aes.BlockSize + sha256.Size + ed25519.SignatureSize
-
-var (
-	SendReplyExpired   = []byte{10}
-	SendReplyUnhandled = []byte{11}
-	SendReplyHandled   = []byte{12}
-	SendReplySucceed   = []byte{13}
-
-	ErrSendExpired = errors.New("send expired")
-	ErrSendHandled = errors.New("send has been handled")
+const (
+	SendMinBufferSize = 2*guid.Size + aes.BlockSize + sha256.Size + ed25519.SignatureSize
 )
-
-// GetSendReplyError is used to get get send error from reply
-func GetSendReplyError(reply []byte) error {
-	if len(reply) == 0 {
-		return errors.New("empty send reply")
-	}
-	switch reply[0] {
-	case SendReplyExpired[0]:
-		return ErrSendExpired
-	case SendReplyHandled[0]:
-		return ErrSendHandled
-	default:
-		return fmt.Errorf("unknown send reply error: %X", reply)
-	}
-}
 
 // --------------------------interactive mode-------------------------------
 
