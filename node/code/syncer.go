@@ -62,6 +62,7 @@ func generateCodeAboutSyncer(template string) {
 		"nodeAckCtrl",
 		"beaconAckCtrl",
 		"broadcast",
+		"answer",
 
 		"nodeSend",
 		"ctrlAckNode",
@@ -69,7 +70,6 @@ func generateCodeAboutSyncer(template string) {
 		"beaconSend",
 		"ctrlAckBeacon",
 		"beaconQuery",
-		"ctrlAnswer",
 	}
 	for i := 0; i < len(need); i++ {
 		a := strings.ReplaceAll(template, "<a>", need[i])

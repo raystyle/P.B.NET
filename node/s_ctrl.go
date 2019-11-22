@@ -104,11 +104,11 @@ func (ctrl *ctrlConn) onFrame(frame []byte) {
 		case protocol.CtrlAckToNodeGUID:
 			ctrl.handleAckToNodeGUID(id, data)
 		case protocol.CtrlAckToNode:
-
+			ctrl.handleAckToNode(id, data)
 		case protocol.CtrlBroadcastGUID:
 			ctrl.handleBroadcastGUID(id, data)
 		case protocol.CtrlBroadcast:
-
+			ctrl.handleBroadcast(id, data)
 		case protocol.CtrlSendToBeaconGUID:
 			ctrl.handleSendGUID(id, data)
 		case protocol.CtrlSendToBeacon:
@@ -116,26 +116,24 @@ func (ctrl *ctrlConn) onFrame(frame []byte) {
 		case protocol.CtrlAckToBeaconGUID:
 			ctrl.handleAckToBeaconGUID(id, data)
 		case protocol.CtrlAckToBeacon:
-
+			ctrl.handleAckToBeacon(id, data)
 		case protocol.CtrlAnswerGUID:
 			ctrl.handleAnswerGUID(id, data)
 		case protocol.CtrlAnswer:
-
-		case protocol.ConnSendHeartbeat:
-			ctrl.handleHeartbeat()
-		default:
-			ctrl.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
-			ctrl.Close()
+			ctrl.handleAnswer(id, data)
 		}
 		return
+	} else {
+		switch frame[0] {
+		case protocol.CtrlSync:
+			ctrl.handleSyncStart(id)
+		case protocol.CtrlTrustNode:
+			ctrl.handleTrustNode(id)
+		case protocol.CtrlSetNodeCert:
+			ctrl.handleSetCertificate(id, data)
+		}
 	}
 	switch frame[0] {
-	case protocol.CtrlSync:
-		ctrl.handleSyncStart(id)
-	case protocol.CtrlTrustNode:
-		ctrl.handleTrustNode(id)
-	case protocol.CtrlSetNodeCert:
-		ctrl.handleSetCertificate(id, data)
 	case protocol.ConnSendHeartbeat:
 		ctrl.handleHeartbeat()
 	default:
@@ -171,7 +169,7 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 
 func (ctrl *ctrlConn) handleSendGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid ctrl send guid size")
+		ctrl.log(logger.Exploit, "invalid send guid size")
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
 		ctrl.Close()
 		return
@@ -187,7 +185,7 @@ func (ctrl *ctrlConn) handleSendGUID(id, data []byte) {
 
 func (ctrl *ctrlConn) handleAckToNodeGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid ctrl acknowledge to node guid size")
+		ctrl.log(logger.Exploit, "invalid acknowledge to node guid size")
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
 		ctrl.Close()
 		return
@@ -203,7 +201,7 @@ func (ctrl *ctrlConn) handleAckToNodeGUID(id, data []byte) {
 
 func (ctrl *ctrlConn) handleAckToBeaconGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid ctrl acknowledge to beacon guid size")
+		ctrl.log(logger.Exploit, "invalid acknowledge to beacon guid size")
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
 		ctrl.Close()
 		return
@@ -219,7 +217,7 @@ func (ctrl *ctrlConn) handleAckToBeaconGUID(id, data []byte) {
 
 func (ctrl *ctrlConn) handleBroadcastGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid ctrl broadcast guid size")
+		ctrl.log(logger.Exploit, "invalid broadcast guid size")
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
 		ctrl.Close()
 		return
@@ -235,14 +233,14 @@ func (ctrl *ctrlConn) handleBroadcastGUID(id, data []byte) {
 
 func (ctrl *ctrlConn) handleAnswerGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid ctrl answer guid size")
+		ctrl.log(logger.Exploit, "invalid answer guid size")
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
 		ctrl.Close()
 		return
 	}
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAnswerGUID(data, false, 0) {
+	} else if ctrl.ctx.syncer.CheckAnswerGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -255,13 +253,15 @@ func (ctrl *ctrlConn) handleSend(id, data []byte, role protocol.Role) {
 
 	err := msgpack.Unmarshal(data, s)
 	if err != nil {
-		ctrl.logf(logger.Exploit, "invalid ctrl send msgpack data: %s", err)
+		const format = "invalid send msgpack data: %s"
+		ctrl.logf(logger.Exploit, format, err)
 		ctrl.Close()
 		return
 	}
 	err = s.Validate()
 	if err != nil {
-		ctrl.logf(logger.Exploit, "invalid ctrl send: %s\n%s", err, spew.Sdump(s))
+		const format = "invalid send: %s\n%s"
+		ctrl.logf(logger.Exploit, format, err, spew.Sdump(s))
 		ctrl.Close()
 		return
 	}
@@ -281,11 +281,132 @@ func (ctrl *ctrlConn) handleSend(id, data []byte, role protocol.Role) {
 }
 
 func (ctrl *ctrlConn) handleSendToNode(s *protocol.Send) {
+	if bytes.Equal(s.RoleGUID, ctrl.ctx.global.GUID()) {
+		ns := ctrl.ctx.worker.GetSendFromPool()
+		*ns = *s // must copy, because sync.Pool
+		ctrl.ctx.worker.AddSend(ns)
+	} else { // repeat
 
+	}
 }
 
 func (ctrl *ctrlConn) handleSendToBeacon(s *protocol.Send) {
+	// repeat
+	s.GUID = nil
+}
 
+func (ctrl *ctrlConn) handleAckToNode(id, data []byte) {
+	a := ctrl.acknowledgePool.Get().(*protocol.Acknowledge)
+	defer ctrl.acknowledgePool.Put(a)
+
+	err := msgpack.Unmarshal(data, a)
+	if err != nil {
+		const format = "invalid acknowledge to node msgpack data: %s"
+		ctrl.logf(logger.Exploit, format, err)
+		ctrl.Close()
+		return
+	}
+	err = a.Validate()
+	if err != nil {
+		const format = "invalid acknowledge to node: %s\n%s"
+		ctrl.logf(logger.Exploit, format, err, spew.Sdump(a))
+		ctrl.Close()
+		return
+	}
+	if expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(a.GUID); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckCtrlAckNodeGUID(a.GUID, true, timestamp) {
+		ctrl.conn.Reply(id, protocol.ReplySucceed)
+		// repeat
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (ctrl *ctrlConn) handleAckToBeacon(id, data []byte) {
+	a := ctrl.acknowledgePool.Get().(*protocol.Acknowledge)
+	defer ctrl.acknowledgePool.Put(a)
+
+	err := msgpack.Unmarshal(data, a)
+	if err != nil {
+		const format = "invalid acknowledge to beacon msgpack data: %s"
+		ctrl.logf(logger.Exploit, format, err)
+		ctrl.Close()
+		return
+	}
+	err = a.Validate()
+	if err != nil {
+		const format = "invalid acknowledge to beacon: %s\n%s"
+		ctrl.logf(logger.Exploit, format, err, spew.Sdump(a))
+		ctrl.Close()
+		return
+	}
+	if expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(a.GUID); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckCtrlAckBeaconGUID(a.GUID, true, timestamp) {
+		ctrl.conn.Reply(id, protocol.ReplySucceed)
+		// repeat
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (ctrl *ctrlConn) handleAnswer(id, data []byte) {
+	a := ctrl.answerPool.Get().(*protocol.Answer)
+	defer ctrl.answerPool.Put(a)
+
+	err := msgpack.Unmarshal(data, a)
+	if err != nil {
+		const format = "invalid answer msgpack data: %s"
+		ctrl.logf(logger.Exploit, format, err)
+		ctrl.Close()
+		return
+	}
+	err = a.Validate()
+	if err != nil {
+		const format = "invalid answer: %s\n%s"
+		ctrl.logf(logger.Exploit, format, err, spew.Sdump(a))
+		ctrl.Close()
+		return
+	}
+	if expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(a.GUID); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckAnswerGUID(a.GUID, true, timestamp) {
+		ctrl.conn.Reply(id, protocol.ReplySucceed)
+		// repeat
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (ctrl *ctrlConn) handleBroadcast(id, data []byte) {
+	b := ctrl.broadcastPool.Get().(*protocol.Broadcast)
+	defer ctrl.broadcastPool.Put(b)
+
+	err := msgpack.Unmarshal(data, b)
+	if err != nil {
+		const format = "invalid ctrl broadcast msgpack data: %s"
+		ctrl.logf(logger.Exploit, format, err)
+		ctrl.Close()
+		return
+	}
+	err = b.Validate()
+	if err != nil {
+		const format = "invalid ctrl broadcast: %s\n%s"
+		ctrl.logf(logger.Exploit, format, err, spew.Sdump(b))
+		ctrl.Close()
+		return
+	}
+	if expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(b.GUID); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckBroadcastGUID(b.GUID, true, timestamp) {
+		ctrl.conn.Reply(id, protocol.ReplySucceed)
+		nb := ctrl.ctx.worker.GetBroadcastFromPool()
+		*nb = *b // must copy, because sync.Pool
+		ctrl.ctx.worker.AddBroadcast(nb)
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
 }
 
 func (ctrl *ctrlConn) handleTrustNode(id []byte) {

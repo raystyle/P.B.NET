@@ -44,8 +44,8 @@ type syncer struct {
 	ctrlAckBeaconGUIDRWM sync.RWMutex
 	beaconQueryGUID      map[string]int64
 	beaconQueryGUIDRWM   sync.RWMutex
-	ctrlAnswerGUID       map[string]int64
-	ctrlAnswerGUIDRWM    sync.RWMutex
+	answerGUID           map[string]int64
+	answerGUIDRWM        sync.RWMutex
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -74,7 +74,7 @@ func newSyncer(ctx *Node, config *Config) (*syncer, error) {
 		beaconSendGUID:    make(map[string]int64),
 		ctrlAckBeaconGUID: make(map[string]int64),
 		beaconQueryGUID:   make(map[string]int64),
-		ctrlAnswerGUID:    make(map[string]int64),
+		answerGUID:        make(map[string]int64),
 
 		stopSignal: make(chan struct{}),
 	}
@@ -267,21 +267,21 @@ func (syncer *syncer) CheckBeaconQueryGUID(guid []byte, add bool, timestamp int6
 	}
 }
 
-func (syncer *syncer) CheckCtrlAnswerGUID(guid []byte, add bool, timestamp int64) bool {
+func (syncer *syncer) CheckAnswerGUID(guid []byte, add bool, timestamp int64) bool {
 	key := base64.StdEncoding.EncodeToString(guid)
 	if add {
-		syncer.ctrlAnswerGUIDRWM.Lock()
-		defer syncer.ctrlAnswerGUIDRWM.Unlock()
-		if _, ok := syncer.ctrlAnswerGUID[key]; ok {
+		syncer.answerGUIDRWM.Lock()
+		defer syncer.answerGUIDRWM.Unlock()
+		if _, ok := syncer.answerGUID[key]; ok {
 			return false
 		} else {
-			syncer.ctrlAnswerGUID[key] = timestamp
+			syncer.answerGUID[key] = timestamp
 			return true
 		}
 	} else {
-		syncer.ctrlAnswerGUIDRWM.RLock()
-		defer syncer.ctrlAnswerGUIDRWM.RUnlock()
-		_, ok := syncer.ctrlAnswerGUID[key]
+		syncer.answerGUIDRWM.RLock()
+		defer syncer.answerGUIDRWM.RUnlock()
+		_, ok := syncer.answerGUID[key]
 		return !ok
 	}
 }
@@ -425,11 +425,11 @@ func (syncer *syncer) cleanBeaconQueryGUID(now int64) {
 }
 
 func (syncer *syncer) cleanCtrlAnswerGUID(now int64) {
-	syncer.ctrlAnswerGUIDRWM.Lock()
-	defer syncer.ctrlAnswerGUIDRWM.Unlock()
-	for key, timestamp := range syncer.ctrlAnswerGUID {
+	syncer.answerGUIDRWM.Lock()
+	defer syncer.answerGUIDRWM.Unlock()
+	for key, timestamp := range syncer.answerGUID {
 		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
-			delete(syncer.ctrlAnswerGUID, key)
+			delete(syncer.answerGUID, key)
 		}
 	}
 }
@@ -540,13 +540,13 @@ func (syncer *syncer) cleanBeaconQueryGUIDMap() {
 }
 
 func (syncer *syncer) cleanCtrlAnswerGUIDMap() {
-	syncer.ctrlAnswerGUIDRWM.Lock()
-	defer syncer.ctrlAnswerGUIDRWM.Unlock()
+	syncer.answerGUIDRWM.Lock()
+	defer syncer.answerGUIDRWM.Unlock()
 	newMap := make(map[string]int64)
-	for key, timestamp := range syncer.ctrlAnswerGUID {
+	for key, timestamp := range syncer.answerGUID {
 		newMap[key] = timestamp
 	}
-	syncer.ctrlAnswerGUID = newMap
+	syncer.answerGUID = newMap
 }
 
 func (syncer *syncer) Close() {
