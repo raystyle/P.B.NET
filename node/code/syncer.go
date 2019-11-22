@@ -59,17 +59,17 @@ func (syncer *syncer) clean<f>GUIDMap() {
 func generateCodeAboutSyncer(template string) {
 	var need = [...]string{
 		"ctrlSend",
-		"nodeAckCtrl",
-		"beaconAckCtrl",
+		"ctrlAckToNode",
+		"ctrlAckToBeacon",
 		"broadcast",
 		"answer",
 
 		"nodeSend",
-		"ctrlAckNode",
+		"nodeAckToCtrl",
 
 		"beaconSend",
-		"ctrlAckBeacon",
-		"beaconQuery",
+		"beaconAckToCtrl",
+		"query",
 	}
 	for i := 0; i < len(need); i++ {
 		a := strings.ReplaceAll(template, "<a>", need[i])

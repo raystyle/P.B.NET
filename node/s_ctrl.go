@@ -192,7 +192,7 @@ func (ctrl *ctrlConn) handleAckToNodeGUID(id, data []byte) {
 	}
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAckNodeGUID(data, false, 0) {
+	} else if ctrl.ctx.syncer.CheckCtrlAckToNodeGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -208,7 +208,7 @@ func (ctrl *ctrlConn) handleAckToBeaconGUID(id, data []byte) {
 	}
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAckBeaconGUID(data, false, 0) {
+	} else if ctrl.ctx.syncer.CheckCtrlAckToBeaconGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -315,7 +315,7 @@ func (ctrl *ctrlConn) handleAckToNode(id, data []byte) {
 	}
 	if expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(a.GUID); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAckNodeGUID(a.GUID, true, timestamp) {
+	} else if ctrl.ctx.syncer.CheckCtrlAckToNodeGUID(a.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
 		// repeat
 	} else {
@@ -343,7 +343,7 @@ func (ctrl *ctrlConn) handleAckToBeacon(id, data []byte) {
 	}
 	if expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(a.GUID); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAckBeaconGUID(a.GUID, true, timestamp) {
+	} else if ctrl.ctx.syncer.CheckCtrlAckToBeaconGUID(a.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
 		// repeat
 	} else {
