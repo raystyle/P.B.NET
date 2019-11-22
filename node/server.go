@@ -135,26 +135,6 @@ func (s *server) Deploy() error {
 	return nil
 }
 
-// Close is used to close all listeners and connections
-func (s *server) Close() {
-	atomic.StoreInt32(&s.inShutdown, 1)
-	close(s.stopSignal)
-	// close all listeners
-	s.listenersRWM.RLock()
-	defer s.listenersRWM.RUnlock()
-	for _, listener := range s.listeners {
-		_ = listener.Close()
-	}
-	// close all conns
-	s.connsRWM.Lock()
-	defer s.connsRWM.Unlock()
-	for _, conn := range s.conns {
-		_ = conn.Close()
-	}
-	s.wg.Wait()
-	s.ctx = nil
-}
-
 func (s *server) addListener(l *messages.Listener) (*Listener, error) {
 	tlsConfig, err := l.TLSConfig.Apply()
 	if err != nil {
@@ -283,6 +263,26 @@ func (s *server) CloseListener(tag string) {
 
 func (s *server) CloseConn(address string) {
 
+}
+
+// Close is used to close all listeners and connections
+func (s *server) Close() {
+	atomic.StoreInt32(&s.inShutdown, 1)
+	close(s.stopSignal)
+	// close all listeners
+	s.listenersRWM.RLock()
+	defer s.listenersRWM.RUnlock()
+	for _, listener := range s.listeners {
+		_ = listener.Close()
+	}
+	// close all conns
+	s.connsRWM.Lock()
+	defer s.connsRWM.Unlock()
+	for _, conn := range s.conns {
+		_ = conn.Close()
+	}
+	s.wg.Wait()
+	s.ctx = nil
 }
 
 func (s *server) addConn(tag string, conn *xnet.Conn) {

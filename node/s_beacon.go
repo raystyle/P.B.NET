@@ -17,3 +17,6 @@ func (c *conn) onFrameServeBeacon(frame []byte) {
 		c.Close()
 	}
 }
+
+type beaconConn struct {
+}

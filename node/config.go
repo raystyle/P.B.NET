@@ -46,6 +46,18 @@ type Config struct {
 		TimeSyncerClients map[string]*timesync.Client `toml:"-"`
 	} `toml:"global"`
 
+	Register struct {
+
+		// generate configs from controller
+		Bootstraps []byte `toml:"-"`
+	} `toml:"register"`
+
+	Forwarder struct {
+		MaxCtrlConns   int `toml:"max_ctrl_conns"`
+		MaxNodeConns   int `toml:"max_node_conns"`
+		MaxBeaconConns int `toml:"max_beacon_conns"`
+	} `toml:"forwarder"`
+
 	Sender struct {
 		Worker        int           `toml:"worker"`
 		QueueSize     int           `toml:"queue_size"`
@@ -63,12 +75,6 @@ type Config struct {
 		QueueSize     int `toml:"queue_size"`
 		MaxBufferSize int `toml:"max_buffer_size"`
 	} `toml:"worker"`
-
-	Register struct {
-
-		// generate configs from controller
-		Bootstraps []byte `toml:"-"`
-	} `toml:"register"`
 
 	Server struct {
 		MaxConns int           `toml:"max_conns"` // single listener

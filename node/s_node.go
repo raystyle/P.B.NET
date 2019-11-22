@@ -17,3 +17,6 @@ func (c *conn) onFrameServeNode(frame []byte) {
 		c.Close()
 	}
 }
+
+type nodeConn struct {
+}
