@@ -5,15 +5,6 @@ import (
 	"strings"
 )
 
-func main() {
-	fmt.Println("---------------------generate CheckGUID-------------------------")
-	generateCheckGUID()
-	fmt.Println("---------------------generate CleanGUID-------------------------")
-	generateCleanGUID()
-	fmt.Println("--------------------generate CleanGUIDMap-----------------------")
-	generateCleanGUIDMap()
-}
-
 func generateCheckGUID() {
 	const template = `
 func (syncer *syncer) Check<f>GUID(guid []byte, add bool, timestamp int64) bool {
@@ -34,7 +25,7 @@ func (syncer *syncer) Check<f>GUID(guid []byte, add bool, timestamp int64) bool 
 		return !ok
 	}
 }`
-	generateCode(template)
+	generateCodeAboutSyncer(template)
 }
 
 func generateCleanGUID() {
@@ -48,7 +39,7 @@ func (syncer *syncer) clean<f>GUID(now int64) {
 		}
 	}
 }`
-	generateCode(template)
+	generateCodeAboutSyncer(template)
 }
 
 func generateCleanGUIDMap() {
@@ -62,10 +53,10 @@ func (syncer *syncer) clean<f>GUIDMap() {
 	}
 	syncer.<a>GUID = newMap
 }`
-	generateCode(template)
+	generateCodeAboutSyncer(template)
 }
 
-func generateCode(template string) {
+func generateCodeAboutSyncer(template string) {
 	var need = [...]string{
 		"ctrlSend",
 		"nodeAckCtrl",
