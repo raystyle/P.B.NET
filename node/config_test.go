@@ -20,14 +20,20 @@ func testGenerateConfig() *Config {
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
 
-	cfg.Sender.MaxBufferSize = 16384
+	cfg.Forwarder.MaxCtrlConns = 3
+	cfg.Forwarder.MaxNodeConns = 10
+	cfg.Forwarder.MaxBeaconConns = 16
+
 	cfg.Sender.Worker = 64
 	cfg.Sender.QueueSize = 512
+	cfg.Sender.MaxBufferSize = 16384
+	cfg.Sender.Timeout = 10 * time.Second
 
-	cfg.Syncer.MaxBufferSize = 16384
-	cfg.Syncer.Worker = 64
-	cfg.Syncer.QueueSize = 512
 	cfg.Syncer.ExpireTime = 3 * time.Minute
+
+	cfg.Worker.Number = 16
+	cfg.Worker.QueueSize = 1024
+	cfg.Worker.MaxBufferSize = 16384
 
 	cfg.Server.MaxConns = 10
 	cfg.Server.Timeout = 15 * time.Second

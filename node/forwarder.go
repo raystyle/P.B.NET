@@ -8,8 +8,6 @@ import (
 )
 
 type forwarder struct {
-	ctx *Node
-
 	maxCtrlConns   atomic.Value
 	maxNodeConns   atomic.Value
 	maxBeaconConns atomic.Value
@@ -22,12 +20,10 @@ type forwarder struct {
 	beaconConnsRWM sync.RWMutex
 }
 
-func newForwarder(ctx *Node, config *Config) (*forwarder, error) {
+func newForwarder(config *Config) (*forwarder, error) {
 	cfg := config.Forwarder
 
-	f := forwarder{
-		ctx: ctx,
-	}
+	f := forwarder{}
 
 	err := f.SetMaxCtrlConns(cfg.MaxCtrlConns)
 	if err != nil {
@@ -144,6 +140,32 @@ func (f *forwarder) LogoffBeacon(tag string) {
 	}
 }
 
-func (f *forwarder) Close() {
-	f.ctx = nil
+func (f *forwarder) GetCtrlConns() map[string]*ctrlConn {
+	f.ctrlConnsRWM.RLock()
+	defer f.ctrlConnsRWM.RUnlock()
+	conns := make(map[string]*ctrlConn, len(f.ctrlConns))
+	for tag, conn := range f.ctrlConns {
+		conns[tag] = conn
+	}
+	return conns
+}
+
+func (f *forwarder) GetNodeConns() map[string]*nodeConn {
+	f.ctrlConnsRWM.RLock()
+	defer f.ctrlConnsRWM.RUnlock()
+	conns := make(map[string]*nodeConn, len(f.nodeConns))
+	for tag, conn := range f.nodeConns {
+		conns[tag] = conn
+	}
+	return conns
+}
+
+func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
+	f.ctrlConnsRWM.RLock()
+	defer f.ctrlConnsRWM.RUnlock()
+	conns := make(map[string]*beaconConn, len(f.beaconConns))
+	for tag, conn := range f.beaconConns {
+		conns[tag] = conn
+	}
+	return conns
 }

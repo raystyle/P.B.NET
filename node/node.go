@@ -43,7 +43,7 @@ func New(cfg *Config) (*Node, error) {
 	}
 	node.global = global
 	// forwarder
-	forwarder, err := newForwarder(node, cfg)
+	forwarder, err := newForwarder(cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize forwarder")
 	}
@@ -108,10 +108,13 @@ func (node *Node) fatal(err error, msg string) error {
 	return err
 }
 
+// TODO check Exit
 func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Close()
-		node.logger.Print(logger.Debug, "exit", "web server is stopped")
+		node.logger.Print(logger.Debug, "exit", "server is stopped")
+		node.worker.Close()
+		node.logger.Print(logger.Debug, "exit", "worker is stopped")
 		node.syncer.Close()
 		node.logger.Print(logger.Debug, "exit", "syncer is stopped")
 		node.sender.Close()
@@ -120,11 +123,6 @@ func (node *Node) Exit(err error) {
 		node.logger.Print(logger.Debug, "exit", "global is stopped")
 		node.logger.Print(logger.Debug, "exit", "node is stopped")
 		node.logger.Close()
-		// clean point
-		node.handler = nil
-		node.sender = nil
-		node.syncer = nil
-		node.server = nil
 		node.exit <- err
 		close(node.exit)
 	})

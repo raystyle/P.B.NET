@@ -131,7 +131,6 @@ func (ctrl *ctrlConn) onFrame(frame []byte) {
 		case protocol.CtrlAnswer:
 			ctrl.handleAnswer(id, data)
 		}
-		return
 	} else {
 		switch frame[0] {
 		case protocol.CtrlSync:
