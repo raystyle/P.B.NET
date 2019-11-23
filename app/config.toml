@@ -2,7 +2,7 @@ log_level = "debug"
 
 [database]
   dialect           = "mysql"
-  dsn               = "root:123456@tcp(127.0.0.1:3306)/p.b.net?loc=Local&parseTime=true"
+  dsn               = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet?loc=Local&parseTime=true"
   max_open_conns    = 16
   max_idle_conns    = 16
   log_file          = "log/database.log"

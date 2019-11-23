@@ -1,15 +1,17 @@
-#deploy
+# deploy MySQL Server
 mysqld --initialize
 mysqld --install
 
-#change password
+# change root password
 mysql -u root -p
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';
 
-#database info
-utf8mb4 -- UTF-8 Unicode
-utf8mb4_general_ci
+# create database and user
+CREATE DATABASE `pbnet` CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_general_ci';
+CREATE USER `pbnet`@`localhost` IDENTIFIED WITH sha256_password BY 'pbnet';
+GRANT ALL ON `pbnet`.* TO `pbnet`@`localhost`;
 
-#foreign user
-CREATE USER `root`@`%` IDENTIFIED BY 'password';
-GRANT ALL ON *.* TO `root`@`%` WITH GRANT OPTION;
+# create test database if you want to change or test source code
+# the table will be created automatically
+CREATE DATABASE `pbnet_test` CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_general_ci';
+GRANT ALL ON `pbnet_test`.* TO `pbnet`@`localhost`;
