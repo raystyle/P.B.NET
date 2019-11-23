@@ -156,9 +156,9 @@ func (c *Client) Delete(tag string) error {
 }
 
 func (c *Client) Servers() map[string]*Server {
-	servers := make(map[string]*Server)
 	c.serversRWM.RLock()
 	defer c.serversRWM.RUnlock()
+	servers := make(map[string]*Server, len(c.servers))
 	for tag, server := range c.servers {
 		servers[tag] = server
 	}
