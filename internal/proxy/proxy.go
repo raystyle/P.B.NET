@@ -36,18 +36,18 @@ type server interface {
 }
 
 type Client struct {
-	Tag     string
-	Mode    string
-	Network string
-	Address string
-	Options string
+	Tag     string `toml:"tag"`
+	Mode    string `toml:"mode"`
+	Network string `toml:"network"`
+	Address string `toml:"address"`
+	Options string `toml:"options"`
 	client
 }
 
 type Server struct {
-	Tag     string
-	Mode    string
-	Options string
+	Tag     string `toml:"tag"`
+	Mode    string `toml:"mode"`
+	Options string `toml:"options"`
 	server
 
 	now       func() time.Time

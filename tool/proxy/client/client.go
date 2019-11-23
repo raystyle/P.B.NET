@@ -23,13 +23,7 @@ type Configs struct {
 		MaxConns int    `toml:"max_conns"`
 	} `toml:"listener"`
 
-	Clients []*struct {
-		Tag     string `toml:"tag"`
-		Mode    string `toml:"mode"`
-		Network string `toml:"network"`
-		Address string `toml:"address"`
-		Options string `toml:"options"`
-	} `toml:"clients"`
+	Clients []*proxy.Client `toml:"clients"`
 }
 
 type Client struct {
@@ -46,13 +40,7 @@ func New(tag string, config *Configs) *Client {
 func (client *Client) Start() error {
 	pool := proxy.NewPool()
 	for _, client := range client.configs.Clients {
-		err := pool.Add(&proxy.Client{
-			Tag:     client.Tag,
-			Mode:    client.Mode,
-			Network: client.Network,
-			Address: client.Address,
-			Options: client.Options,
-		})
+		err := pool.Add(client)
 		if err != nil {
 			return err
 		}
