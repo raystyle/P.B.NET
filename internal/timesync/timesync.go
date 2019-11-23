@@ -111,9 +111,9 @@ func (syncer *Syncer) Delete(tag string) error {
 }
 
 func (syncer *Syncer) Clients() map[string]*Client {
-	clients := make(map[string]*Client)
 	syncer.clientsRWM.RLock()
 	defer syncer.clientsRWM.RUnlock()
+	clients := make(map[string]*Client, len(syncer.clients))
 	for tag, client := range syncer.clients {
 		clients[tag] = client
 	}
