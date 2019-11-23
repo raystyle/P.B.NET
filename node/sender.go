@@ -1,21 +1,13 @@
 package node
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"hash"
-	"runtime"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
-	"project/internal/convert"
-	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
-	"project/internal/xpanic"
 )
 
 type sendTask struct {
@@ -82,8 +74,8 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	sender.wg.Add(cfg.Worker)
 	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
-			ctx:           &sender,
-			maxBufferSize: cfg.MaxBufferSize,
+			// ctx:           &sender,
+			// maxBufferSize: cfg.MaxBufferSize,
 		}
 		go worker.Work()
 	}
@@ -142,10 +134,6 @@ func (sender *sender) SendFromPlugin(message []byte) error {
 	return nil
 }
 
-func (sender *sender) Acknowledge(guid []byte) {
-
-}
-
 func (sender *sender) Close() {
 	close(sender.stopSignal)
 	sender.wg.Wait()
@@ -159,9 +147,14 @@ func (sender *sender) log(l logger.Level, log ...interface{}) {
 	sender.ctx.logger.Print(l, "sender", log...)
 }
 
-type cSender interface {
-	Send(token, message []byte) *protocol.SendResponse
+type senderWorker struct {
 }
+
+func (sw *senderWorker) Work() {
+
+}
+
+/*
 
 // return responses and the number of the success
 func (sender *sender) sendParallel(token, message []byte) ([]*protocol.SendResponse, int) {
@@ -195,30 +188,6 @@ func (sender *sender) sendParallel(token, message []byte) ([]*protocol.SendRespo
 		sender.sendResponsePool.Put(channels[i])
 	}
 
-}
-
-func (sender *sender) syncReceiveParallel(token, message []byte) {
-	// if connect controller, first send
-	ctrl := sender.ctx.syncer.CtrlConn()
-	if ctrl != nil {
-		ctrl.SyncReceive(token, message)
-	}
-	/*
-		sClients := sender.ctx.syncer.sClients()
-		l := len(sClients)
-		if l == 0 {
-			return
-		}
-		// must copy
-		msg := make([]byte, len(message))
-		copy(msg, message)
-		// sync receive parallel
-		for _, sc := range sClients {
-			go func(s *sClient) {
-				s.SyncReceive(token, msg)
-			}(sc)
-		}
-	*/
 }
 
 type senderWorker struct {
@@ -443,3 +412,6 @@ func (sw *senderWorker) handleBroadcastTask() {
 		sw.bt.Result <- &result
 	}
 }
+
+
+*/

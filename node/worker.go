@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/vmihailenco/msgpack/v4"
 
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xpanic"
@@ -66,9 +68,8 @@ func newWorker(ctx *Node, config *Config) (*worker, error) {
 
 			broadcastQueue: worker.broadcastQueue,
 			sendQueue:      worker.sendQueue,
-
-			broadcastPool: broadcastPoolP,
-			sendPool:      sendPoolP,
+			broadcastPool:  broadcastPoolP,
+			sendPool:       sendPoolP,
 
 			stopSignal: worker.stopSignal,
 			wg:         wgP,
@@ -118,14 +119,16 @@ type subWorker struct {
 
 	broadcastQueue chan *protocol.Broadcast
 	sendQueue      chan *protocol.Send
-
-	broadcastPool *sync.Pool
-	sendPool      *sync.Pool
+	broadcastPool  *sync.Pool
+	sendPool       *sync.Pool
 
 	// runtime
-	buffer *bytes.Buffer
-	hash   hash.Hash
-	err    error
+	buffer  *bytes.Buffer
+	hash    hash.Hash
+	guid    *guid.GUID
+	ack     *protocol.Acknowledge
+	encoder *msgpack.Encoder
+	err     error
 
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
@@ -152,6 +155,9 @@ func (sw *subWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
+	sw.guid = guid.New(len(sw.sendQueue), sw.ctx.global.Now)
+	sw.ack = new(protocol.Acknowledge)
+	sw.encoder = msgpack.NewEncoder(sw.buffer)
 	var (
 		b *protocol.Broadcast
 		s *protocol.Send
@@ -238,5 +244,25 @@ func (sw *subWorker) handleSend(s *protocol.Send) {
 		return
 	}
 	sw.ctx.handler.HandleSend(s)
-	sw.ctx.sender.Acknowledge(s.GUID)
+	sw.acknowledge(s)
+}
+
+func (sw *subWorker) acknowledge(s *protocol.Send) {
+	sw.ack.GUID = sw.guid.Get()
+	sw.ack.RoleGUID = sw.ctx.global.GUID()
+	sw.ack.SendGUID = s.GUID
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.ack.GUID)
+	sw.buffer.Write(sw.ack.RoleGUID)
+	sw.buffer.Write(sw.ack.SendGUID)
+	sw.ack.Signature = sw.ctx.global.Sign(sw.buffer.Bytes())
+	// encode
+	sw.buffer.Reset()
+	sw.err = sw.encoder.Encode(sw.ack)
+	if sw.err != nil {
+		panic(sw.err)
+	}
+	// send to Nodes and Controllers
+	sw.ctx.forwarder.Forward(sw.ack.GUID, sw.buffer.Bytes())
 }

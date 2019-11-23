@@ -1,12 +1,16 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/crypto/aes"
+	"project/internal/crypto/ed25519"
 )
 
 func testGenerateConfig() *Config {
@@ -22,14 +26,14 @@ func testGenerateConfig() *Config {
 
 	cfg.Forwarder.MaxCtrlConns = 3
 	cfg.Forwarder.MaxNodeConns = 10
-	cfg.Forwarder.MaxBeaconConns = 16
+	cfg.Forwarder.MaxBeaconConns = 64
 
 	cfg.Sender.Worker = 64
 	cfg.Sender.QueueSize = 512
-	cfg.Sender.MaxBufferSize = 16384
-	cfg.Sender.Timeout = 10 * time.Second
+	cfg.Sender.MaxBufferSize = 512 << 10
+	cfg.Sender.Timeout = 15 * time.Second
 
-	cfg.Syncer.ExpireTime = 3 * time.Minute
+	cfg.Syncer.ExpireTime = 5 * time.Minute
 
 	cfg.Worker.Number = 16
 	cfg.Worker.QueueSize = 1024
@@ -38,6 +42,9 @@ func testGenerateConfig() *Config {
 	cfg.Server.MaxConns = 10
 	cfg.Server.Timeout = 15 * time.Second
 
+	cfg.CTRL.ExPublicKey = bytes.Repeat([]byte{255}, 32)
+	cfg.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
+	cfg.CTRL.AESCrypto = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 	return &cfg
 }
 

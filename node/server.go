@@ -75,7 +75,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 
 	// decrypt configs about listeners
 	if len(cfg.AESCrypto) != aes.Key256Bit+aes.IVSize {
-		return nil, errors.New("invalid aes key")
+		return nil, errors.New("invalid aes key size")
 	}
 	aesKey := cfg.AESCrypto[:aes.Key256Bit]
 	aesIV := cfg.AESCrypto[aes.Key256Bit:]

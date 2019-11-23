@@ -169,3 +169,7 @@ func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
 	}
 	return conns
 }
+
+func (f *forwarder) Forward(guid, data []byte) {
+
+}
