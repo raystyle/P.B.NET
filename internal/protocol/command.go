@@ -30,11 +30,6 @@ func GetReplyError(reply []byte) error {
 	}
 }
 
-// --------------------------test-----------------------------
-const (
-	TestCommand uint8 = 0xEF
-)
-
 // ----------------------Connection---------------------------
 
 const (
@@ -56,8 +51,8 @@ const (
 	CtrlSendToBeacon
 	CtrlAckToBeaconGUID
 	CtrlAckToBeacon
-	CtrlAnswerBeaconGUID
-	CtrlAnswerBeacon
+	CtrlAnswerGUID
+	CtrlAnswer
 )
 
 const (
