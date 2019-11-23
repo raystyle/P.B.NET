@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"net/http"
-	_ "net/http/pprof"
 	"sync"
 
 	"github.com/stretchr/testify/require"
@@ -12,10 +10,6 @@ var (
 	ctrl     *CTRL
 	initOnce sync.Once
 )
-
-func init() {
-	go func() { _ = http.ListenAndServe("localhost:8080", nil) }()
-}
 
 func testInitCtrl(t require.TestingT) {
 	initOnce.Do(func() {

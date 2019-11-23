@@ -13,7 +13,7 @@ func testGenerateConfig() *Config {
 		LogLevel: "debug",
 	}
 	c.Database.Dialect = "mysql"
-	c.Database.DSN = "root:123456@tcp(127.0.0.1:3306)/p.b.net_test?loc=Local&parseTime=true"
+	c.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_test?loc=Local&parseTime=true"
 	c.Database.MaxOpenConns = 16
 	c.Database.MaxIdleConns = 16
 	c.Database.LogFile = "../app/log/database.log"
