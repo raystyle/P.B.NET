@@ -2,7 +2,6 @@ package node
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -47,10 +46,13 @@ type server struct {
 
 	ctrlConns      map[string]*ctrlConn
 	ctrlConnsRWM   sync.RWMutex
-	nodeConns      map[string]*conn
+	nodeConns      map[string]*nodeConn
 	nodeConnsRWM   sync.RWMutex
-	beaconConns    map[string]*conn
+	beaconConns    map[string]*beaconConn
 	beaconConnsRWM sync.RWMutex
+
+	// calculate key
+	hexPool sync.Pool
 
 	inShutdown int32
 	stopSignal chan struct{}
@@ -110,8 +112,11 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	server.rand = random.New(0)
 	server.conns = make(map[string]*xnet.Conn)
 	server.ctrlConns = make(map[string]*ctrlConn)
-	server.nodeConns = make(map[string]*conn)
-	server.beaconConns = make(map[string]*conn)
+	server.nodeConns = make(map[string]*nodeConn)
+	server.beaconConns = make(map[string]*beaconConn)
+	server.hexPool.New = func() interface{} {
+		return make([]byte, 2*guid.Size)
+	}
 	server.stopSignal = make(chan struct{})
 	return &server, nil
 }
@@ -447,8 +452,7 @@ func (s *server) deleteCtrlConn(tag string) {
 	delete(s.ctrlConns, tag)
 }
 
-func (s *server) addNodeConn(guid []byte, conn *conn) {
-	tag := base64.StdEncoding.EncodeToString(guid)
+func (s *server) addNodeConn(tag string, conn *nodeConn) {
 	s.nodeConnsRWM.Lock()
 	defer s.nodeConnsRWM.Unlock()
 	if _, ok := s.nodeConns[tag]; !ok {
@@ -456,15 +460,13 @@ func (s *server) addNodeConn(guid []byte, conn *conn) {
 	}
 }
 
-func (s *server) deleteNodeConn(guid []byte) {
-	tag := base64.StdEncoding.EncodeToString(guid)
+func (s *server) deleteNodeConn(tag string) {
 	s.nodeConnsRWM.Lock()
 	defer s.nodeConnsRWM.Unlock()
 	delete(s.nodeConns, tag)
 }
 
-func (s *server) addBeaconConn(guid []byte, conn *conn) {
-	tag := base64.StdEncoding.EncodeToString(guid)
+func (s *server) addBeaconConn(tag string, conn *beaconConn) {
 	s.beaconConnsRWM.Lock()
 	defer s.beaconConnsRWM.Unlock()
 	if _, ok := s.beaconConns[tag]; !ok {
@@ -472,8 +474,7 @@ func (s *server) addBeaconConn(guid []byte, conn *conn) {
 	}
 }
 
-func (s *server) deleteBeaconConn(guid []byte) {
-	tag := base64.StdEncoding.EncodeToString(guid)
+func (s *server) deleteBeaconConn(tag string) {
 	s.beaconConnsRWM.Lock()
 	defer s.beaconConnsRWM.Unlock()
 	delete(s.beaconConns, tag)

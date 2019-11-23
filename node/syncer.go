@@ -1,7 +1,7 @@
 package node
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 	"math"
 	"sync"
 	"time"
@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/xpanic"
 )
@@ -20,7 +21,7 @@ type syncer struct {
 
 	expireTime float64
 
-	// key = base64(GUID) value = timestamp
+	// key = hex(GUID) value = timestamp
 	// controller send and broadcast
 	ctrlSendGUID           map[string]int64
 	ctrlSendGUIDRWM        sync.RWMutex
@@ -46,6 +47,9 @@ type syncer struct {
 	beaconAckToCtrlGUIDRWM sync.RWMutex
 	queryGUID              map[string]int64
 	queryGUIDRWM           sync.RWMutex
+
+	// calculate key
+	hexPool sync.Pool
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -79,9 +83,12 @@ func newSyncer(ctx *Node, config *Config) (*syncer, error) {
 		stopSignal: make(chan struct{}),
 	}
 
+	syncer.hexPool.New = func() interface{} {
+		return make([]byte, 2*guid.Size)
+	}
+
 	syncer.wg.Add(1)
 	go syncer.guidCleaner()
-
 	return &syncer, nil
 }
 
@@ -96,8 +103,15 @@ func (syncer *syncer) CheckGUIDTimestamp(guid []byte) (bool, int64) {
 	return true, timestamp
 }
 
+func (syncer *syncer) calculateKey(guid []byte) string {
+	dst := syncer.hexPool.Get().([]byte)
+	defer syncer.hexPool.Put(dst)
+	hex.Encode(dst, guid)
+	return string(dst)
+}
+
 func (syncer *syncer) CheckCtrlSendGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.ctrlSendGUIDRWM.Lock()
 		defer syncer.ctrlSendGUIDRWM.Unlock()
@@ -116,7 +130,7 @@ func (syncer *syncer) CheckCtrlSendGUID(guid []byte, add bool, timestamp int64) 
 }
 
 func (syncer *syncer) CheckCtrlAckToNodeGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.ctrlAckToNodeGUIDRWM.Lock()
 		defer syncer.ctrlAckToNodeGUIDRWM.Unlock()
@@ -135,7 +149,7 @@ func (syncer *syncer) CheckCtrlAckToNodeGUID(guid []byte, add bool, timestamp in
 }
 
 func (syncer *syncer) CheckCtrlAckToBeaconGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.ctrlAckToBeaconGUIDRWM.Lock()
 		defer syncer.ctrlAckToBeaconGUIDRWM.Unlock()
@@ -154,7 +168,7 @@ func (syncer *syncer) CheckCtrlAckToBeaconGUID(guid []byte, add bool, timestamp 
 }
 
 func (syncer *syncer) CheckBroadcastGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.broadcastGUIDRWM.Lock()
 		defer syncer.broadcastGUIDRWM.Unlock()
@@ -173,7 +187,7 @@ func (syncer *syncer) CheckBroadcastGUID(guid []byte, add bool, timestamp int64)
 }
 
 func (syncer *syncer) CheckAnswerGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.answerGUIDRWM.Lock()
 		defer syncer.answerGUIDRWM.Unlock()
@@ -192,7 +206,7 @@ func (syncer *syncer) CheckAnswerGUID(guid []byte, add bool, timestamp int64) bo
 }
 
 func (syncer *syncer) CheckNodeSendGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.nodeSendGUIDRWM.Lock()
 		defer syncer.nodeSendGUIDRWM.Unlock()
@@ -211,7 +225,7 @@ func (syncer *syncer) CheckNodeSendGUID(guid []byte, add bool, timestamp int64) 
 }
 
 func (syncer *syncer) CheckNodeAckToCtrlGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.nodeAckToCtrlGUIDRWM.Lock()
 		defer syncer.nodeAckToCtrlGUIDRWM.Unlock()
@@ -230,7 +244,7 @@ func (syncer *syncer) CheckNodeAckToCtrlGUID(guid []byte, add bool, timestamp in
 }
 
 func (syncer *syncer) CheckBeaconSendGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.beaconSendGUIDRWM.Lock()
 		defer syncer.beaconSendGUIDRWM.Unlock()
@@ -249,7 +263,7 @@ func (syncer *syncer) CheckBeaconSendGUID(guid []byte, add bool, timestamp int64
 }
 
 func (syncer *syncer) CheckBeaconAckToCtrlGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.beaconAckToCtrlGUIDRWM.Lock()
 		defer syncer.beaconAckToCtrlGUIDRWM.Unlock()
@@ -268,7 +282,7 @@ func (syncer *syncer) CheckBeaconAckToCtrlGUID(guid []byte, add bool, timestamp 
 }
 
 func (syncer *syncer) CheckQueryGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.queryGUIDRWM.Lock()
 		defer syncer.queryGUIDRWM.Unlock()

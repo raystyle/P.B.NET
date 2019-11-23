@@ -8,7 +8,9 @@ import (
 func generateCheckGUID() {
 	const template = `
 func (syncer *syncer) Check<f>GUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	dst := syncer.hexPool.Get().([]byte)
+	hex.Encode(dst, guid)
+	key := string(dst)
 	if add {
 		syncer.<a>GUIDRWM.Lock()
 		defer syncer.<a>GUIDRWM.Unlock()
