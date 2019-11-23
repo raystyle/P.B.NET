@@ -182,9 +182,9 @@ func (p *Pool) Get(tag string) (*Client, error) {
 
 // Clients is used to get all proxy clients
 func (p *Pool) Clients() map[string]*Client {
-	clients := make(map[string]*Client)
 	p.rwm.RLock()
 	defer p.rwm.RUnlock()
+	clients := make(map[string]*Client, len(p.clients))
 	for tag, client := range p.clients {
 		clients[tag] = client
 	}

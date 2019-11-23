@@ -109,9 +109,9 @@ func (m *Manager) Get(tag string) (*Server, error) {
 
 // Servers is used to get all proxy servers
 func (m *Manager) Servers() map[string]*Server {
-	servers := make(map[string]*Server)
 	m.rwm.RLock()
 	defer m.rwm.RUnlock()
+	servers := make(map[string]*Server, len(m.servers))
 	for tag, server := range m.servers {
 		servers[tag] = server
 	}
