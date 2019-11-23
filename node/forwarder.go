@@ -1,10 +1,18 @@
 package node
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
+
+	"project/internal/protocol"
+)
+
+var (
+	errClosed        = fmt.Errorf("forwarder closed")
+	errNoConnections = fmt.Errorf("no connections")
 )
 
 type forwarder struct {
@@ -18,6 +26,8 @@ type forwarder struct {
 	nodeConnsRWM   sync.RWMutex
 	beaconConns    map[string]*beaconConn
 	beaconConnsRWM sync.RWMutex
+
+	stopSignal chan struct{}
 }
 
 func newForwarder(config *Config) (*forwarder, error) {
@@ -41,6 +51,7 @@ func newForwarder(config *Config) (*forwarder, error) {
 	f.ctrlConns = make(map[string]*ctrlConn, cfg.MaxCtrlConns)
 	f.nodeConns = make(map[string]*nodeConn, cfg.MaxNodeConns)
 	f.beaconConns = make(map[string]*beaconConn, cfg.MaxBeaconConns)
+	f.stopSignal = make(chan struct{})
 	return &f, nil
 }
 
@@ -170,6 +181,107 @@ func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
 	return conns
 }
 
-func (f *forwarder) Forward(guid, data []byte) {
+type fAck interface {
+	Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse)
+}
 
+func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol.AcknowledgeResult {
+	ctrlConns := f.GetCtrlConns()
+	nodeConns := f.GetNodeConns()
+	var (
+		conns map[string]fAck
+		l     int
+	)
+	if except != "" {
+		l = len(ctrlConns) + len(nodeConns) - 1
+	} else {
+		l = len(ctrlConns) + len(nodeConns)
+	}
+	if l < 1 {
+		return &protocol.AcknowledgeResult{
+			Err: errNoConnections,
+		}
+	}
+	conns = make(map[string]fAck, l)
+	for tag, conn := range ctrlConns {
+		if tag != except {
+			conns[tag] = conn
+		}
+	}
+	for tag, conn := range nodeConns {
+		if tag != except {
+			conns[tag] = conn
+		}
+	}
+	for _, conn := range conns {
+		go func(c fAck) {
+			c.Acknowledge(guid, data)
+		}(conn)
+	}
+	return &protocol.AcknowledgeResult{}
+}
+
+type fSend interface {
+	Send(guid, message []byte) (sr *protocol.SendResponse)
+}
+
+var errSendClosed = &protocol.SendResponse{
+	Role: 0,
+	GUID: nil,
+	Err:  errClosed,
+}
+
+func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protocol.SendResult {
+	ctrlConns := f.GetCtrlConns()
+	nodeConns := f.GetNodeConns()
+	var (
+		conns map[string]fSend
+		l     int
+	)
+	if except != "" {
+		l = len(ctrlConns) + len(nodeConns) - 1
+	} else {
+		l = len(ctrlConns) + len(nodeConns)
+	}
+	if l < 1 {
+		return &protocol.SendResult{
+			Err: errNoConnections,
+		}
+	}
+	conns = make(map[string]fSend, l)
+	for tag, conn := range ctrlConns {
+		if tag != except {
+			conns[tag] = conn
+		}
+	}
+	for tag, conn := range nodeConns {
+		if tag != except {
+			conns[tag] = conn
+		}
+	}
+	responses := make(chan *protocol.SendResponse, l)
+	for _, conn := range conns {
+		go func(c fSend) {
+			select {
+			case responses <- c.Send(guid, data):
+			case <-f.stopSignal:
+				responses <- errSendClosed
+			}
+		}(conn)
+	}
+	result := &protocol.SendResult{
+		Responses: make([]*protocol.SendResponse, l),
+	}
+	for i := 0; i < l; i++ {
+		resp := <-responses
+		if resp.Err == nil {
+			result.Success += 1
+		}
+		result.Responses[i] = resp
+	}
+	return result
+}
+
+func (f *forwarder) Close() {
+	close(f.stopSignal)
 }

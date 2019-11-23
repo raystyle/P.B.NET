@@ -263,6 +263,5 @@ func (sw *subWorker) acknowledge(s *protocol.Send) {
 	if sw.err != nil {
 		panic(sw.err)
 	}
-	// send to Nodes and Controllers
-	sw.ctx.forwarder.Forward(sw.ack.GUID, sw.buffer.Bytes())
+	sw.ctx.forwarder.AckToNodeAndCtrl(sw.ack.GUID, sw.buffer.Bytes(), "")
 }
