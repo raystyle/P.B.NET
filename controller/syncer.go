@@ -47,10 +47,10 @@ func newSyncer(ctx *CTRL, config *Config) (*syncer, error) {
 	cfg := config.Syncer
 	// check config
 	if cfg.MaxBufferSize < 4096 {
-		return nil, errors.New("max buffer size < 4096")
+		return nil, errors.New("max buffer size >= 4096")
 	}
-	if cfg.Worker < 2 {
-		return nil, errors.New("worker number < 2")
+	if cfg.Worker < 4 {
+		return nil, errors.New("worker number must >= 4")
 	}
 	if cfg.QueueSize < 512 {
 		return nil, errors.New("worker task queue size < 512")
@@ -266,8 +266,7 @@ type syncerWorker struct {
 func (sw *syncerWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "syncerWorker.Work() panic:")
-			sw.ctx.log(logger.Fatal, err)
+			sw.ctx.log(logger.Fatal, xpanic.Error(r, "syncerWorker.Work()"))
 			// restart worker
 			time.Sleep(time.Second)
 			go sw.Work()

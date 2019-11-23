@@ -54,7 +54,7 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeRegis
 	// issue certificates
 	cert := ctrl.issueCertificate(node.Address, req.GUID)
 	// send response
-	reply, err := client.Send(protocol.CtrlTrustNodeData, cert)
+	reply, err := client.Send(protocol.CtrlSetNodeCert, cert)
 	if err != nil {
 		return errors.WithMessage(err, "send trust node data failed")
 	}

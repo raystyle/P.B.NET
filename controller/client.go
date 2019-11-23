@@ -228,7 +228,7 @@ func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) 
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		sr.Err = errors.New(string(reply))
 		return
 	}
@@ -236,7 +236,7 @@ func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) 
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendReplySucceed) {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		sr.Err = errors.New(string(reply))
 	}
 	return
@@ -252,7 +252,7 @@ func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		sr.Err = errors.New(string(reply))
 		return
 	}
@@ -260,7 +260,7 @@ func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendReplySucceed) {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		sr.Err = errors.New(string(reply))
 	}
 	return
@@ -282,14 +282,14 @@ func (client *client) AcknowledgeToNode(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	reply, err = client.Send(protocol.CtrlAckToNode, data)
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendReplySucceed) {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		err = errors.New(string(reply))
 	}
 }
@@ -310,14 +310,14 @@ func (client *client) AcknowledgeToBeacon(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendReplyUnhandled) {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	reply, err = client.Send(protocol.CtrlAckToBeacon, data)
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.SendReplySucceed) {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		err = errors.New(string(reply))
 	}
 }
@@ -528,16 +528,16 @@ func (client *client) handleNodeSendGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid node send guid size")
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
-		client.Reply(id, protocol.SendReplyExpired)
+		client.Reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckNodeSendGUID(guid_, false, 0) {
-		client.Reply(id, protocol.SendReplyUnhandled)
+		client.Reply(id, protocol.ReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -545,16 +545,16 @@ func (client *client) handleBeaconSendGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon send guid size")
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
-		client.Reply(id, protocol.SendReplyExpired)
+		client.Reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconSendGUID(guid_, false, 0) {
-		client.Reply(id, protocol.SendReplyUnhandled)
+		client.Reply(id, protocol.ReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -562,16 +562,16 @@ func (client *client) handleBeaconQueryGUID(id, guid_ []byte) {
 	if len(guid_) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon query guid size")
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
-		client.Reply(id, protocol.SendReplyExpired)
+		client.Reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconQueryGUID(guid_, false, 0) {
-		client.Reply(id, protocol.SendReplyUnhandled)
+		client.Reply(id, protocol.ReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -590,12 +590,12 @@ func (client *client) handleNodeSend(id, data []byte) {
 		return
 	}
 	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID); expired {
-		client.Reply(id, protocol.SendReplyExpired)
+		client.Reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckNodeSendGUID(s.GUID, true, timestamp) {
-		client.Reply(id, protocol.SendReplySucceed)
+		client.Reply(id, protocol.ReplySucceed)
 		client.ctx.syncer.AddNodeSend(&s)
 	} else {
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -614,12 +614,12 @@ func (client *client) handleBeaconSend(id, data []byte) {
 		return
 	}
 	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID); expired {
-		client.Reply(id, protocol.SendReplyExpired)
+		client.Reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconSendGUID(s.GUID, true, timestamp) {
-		client.Reply(id, protocol.SendReplySucceed)
+		client.Reply(id, protocol.ReplySucceed)
 		client.ctx.syncer.AddBeaconSend(&s)
 	} else {
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -638,11 +638,11 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 		return
 	}
 	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(q.GUID); expired {
-		client.Reply(id, protocol.SendReplyExpired)
+		client.Reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconQueryGUID(q.GUID, true, timestamp) {
-		client.Reply(id, protocol.SendReplySucceed)
+		client.Reply(id, protocol.ReplySucceed)
 		client.ctx.syncer.AddBeaconQuery(&q)
 	} else {
-		client.Reply(id, protocol.SendReplyHandled)
+		client.Reply(id, protocol.ReplyHandled)
 	}
 }
