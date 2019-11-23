@@ -1,0 +1,10 @@
+[[clients]]
+  tag     = "socks5"
+  mode    = "socks"
+  network = "tcp"
+  address = "127.0.0.1:1080"
+  options = """
+    username = "admin"
+    password = "123456"
+    timeout  = "30s"
+  """

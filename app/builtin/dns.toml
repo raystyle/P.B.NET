@@ -1,0 +1,169 @@
+# ------------------------UDP--------------------------
+
+[udp_ipv4_google_1]
+  method  = "udp"
+  address = "8.8.8.8:53"
+
+[udp_ipv4_google_2]
+  method  = "udp"
+  address = "8.8.4.4:53"
+
+[udp_ipv4_cloudflare_1]
+  method  = "udp"
+  address = "1.1.1.1:53"
+
+[udp_ipv4_cloudflare_2]
+  method  = "udp"
+  address = "1.0.0.1:53"
+
+[udp_ipv6_cloudflare_1]
+  method  = "udp"
+  address = "[2606:4700:4700::1111]:53"
+
+[udp_ipv6_cloudflare_2]
+  method  = "udp"
+  address = "[2606:4700:4700::1001]:53"
+
+[udp_ipv6_cloudflare_3]
+  method  = "udp"
+  address = "[2606:4700:4700::64]:53"
+
+[udp_ipv6_cloudflare_4]
+  method  = "udp"
+  address = "[2606:4700:4700::6400]:53"
+
+[udp_ipv6_mozilla_1]
+  method  = "udp"
+  address = "[2606:4700::6810:f8f9]:53"
+
+[udp_ipv6_mozilla_2]
+  method  = "udp"
+  address = "[2606:4700::6810:f9f9]:53"
+
+# ------------------------TCP--------------------------
+
+[tcp_ipv4_google_1]
+  method  = "tcp"
+  address = "8.8.8.8:53"
+
+[tcp_ipv4_google_2]
+  method  = "tcp"
+  address = "8.8.4.4:53"
+
+[tcp_ipv4_cloudflare_1]
+  method  = "tcp"
+  address = "1.1.1.1:53"
+
+[tcp_ipv4_cloudflare_2]
+  method  = "tcp"
+  address = "1.0.0.1:53"
+
+[tcp_ipv6_cloudflare_1]
+  method  = "tcp"
+  address = "[2606:4700:4700::1111]:53"
+
+[tcp_ipv6_cloudflare_2]
+  method  = "tcp"
+  address = "[2606:4700:4700::1001]:53"
+
+[tcp_ipv6_cloudflare_3]
+  method  = "tcp"
+  address = "[2606:4700:4700::64]:53"
+
+[tcp_ipv6_cloudflare_4]
+  method  = "tcp"
+  address = "[2606:4700:4700::6400]:53"
+
+[tcp_ipv6_mozilla_1]
+  method  = "tcp"
+  address = "[2606:4700::6810:f8f9]:53"
+
+[tcp_ipv6_mozilla_2]
+  method  = "tcp"
+  address = "[2606:4700::6810:f9f9]:53"
+
+# -------------------DNS-Over-TLS----------------------
+
+# tls certificate need has IP SANS field
+[dot_ipv4_google_1]
+  method  = "dot"
+  address = "8.8.8.8:853"
+
+[dot_ipv4_google_2]
+  method  = "dot"
+  address = "8.8.4.4:853"
+
+[dot_ipv4_cloudflare_1]
+  method  = "dot"
+  address = "1.1.1.1:853"
+
+[dot_ipv4_cloudflare_2]
+  method  = "dot"
+  address = "1.0.0.1:853"
+
+[dot_ipv6_cloudflare_1]
+  method  = "dot"
+  address = "[2606:4700:4700::1111]:853"
+
+[dot_ipv6_cloudflare_2]
+  method  = "dot"
+  address = "[2606:4700:4700::1001]:853"
+
+[dot_ipv6_cloudflare_3]
+  method  = "dot"
+  address = "[2606:4700:4700::64]:853"
+
+[dot_ipv6_cloudflare_4]
+  method  = "dot"
+  address = "[2606:4700:4700::6400]:853"
+
+[dot_ipv6_mozilla_1]
+  method  = "dot"
+  address = "[2606:4700::6810:f8f9]:853"
+
+[dot_ipv6_mozilla_2]
+  method  = "dot"
+  address = "[2606:4700::6810:f9f9]:853"
+
+# if no IP SANS need set Server Name(domain) manully
+[dot_ipv4_google_domain]
+  method  = "dot"
+  address = "dns.google:853|8.8.8.8,8.8.4.4"
+
+[dot_ipv4_cloudflare_domain]
+  method  = "dot"
+  address = "cloudflare-dns.com:853|1.1.1.1,1.0.0.1"
+
+[dot_ipv6_cloudflare_domain]
+  method  = "dot"
+  address = "cloudflare-dns.com:853|2606:4700:4700::1111,2606:4700:4700::1001"
+
+[dot_ipv6_mozilla_domain]
+  method  = "dot"
+  address = "mozilla.cloudflare-dns.com:853|2606:4700::6810:f8f9,2606:4700::6810:f9f9"
+
+# ------------------DNS-Over-HTTPS---------------------
+
+[doh_ipv4_cloudflare]
+  method  = "doh"
+  address = "https://1.1.1.1/dns-query"
+
+[doh_ipv6_cloudflare]
+  method  = "doh"
+  address = "https://[2606:4700:4700::1111]/dns-query"
+
+[doh_ds_cloudflare]
+  method  = "doh"
+  address = "https://cloudflare-dns.com/dns-query"
+
+[doh_ipv4_mozilla]
+  method  = "doh"
+  address = "https://162.159.132.53/dns-query"
+
+[doh_ipv6_mozilla]
+  method  = "doh"
+  address = "https://2606:4700::6810:f8f9/dns-query"
+
+[doh_ds_mozilla]
+  method  = "doh"
+  address = "https://mozilla.cloudflare-dns.com/dns-query"
