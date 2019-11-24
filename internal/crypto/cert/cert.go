@@ -46,18 +46,28 @@ type KeyPair struct {
 	asn1Data    []byte // Certificate
 }
 
+// EncodeToPEM is used to encode certificate and private key to ASN1 and PKCS8
+func (kp *KeyPair) Encode() (cert, key []byte) {
+	cert = make([]byte, len(kp.asn1Data))
+	copy(cert, kp.asn1Data)
+	key, _ = x509.MarshalPKCS8PrivateKey(kp.PrivateKey)
+	return
+}
+
 // EncodeToPEM is used to encode certificate and private key to PEM data
 func (kp *KeyPair) EncodeToPEM() (cert, key []byte) {
+	c, k := kp.Encode()
 	certBlock := &pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: kp.asn1Data,
+		Bytes: c,
 	}
-	b, _ := x509.MarshalPKCS8PrivateKey(kp.PrivateKey)
+	cert = pem.EncodeToMemory(certBlock)
 	keyBlock := &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: b,
+		Bytes: k,
 	}
-	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
+	key = pem.EncodeToMemory(keyBlock)
+	return
 }
 
 // EncodeToPEM is used to generate tls certificate
