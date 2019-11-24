@@ -82,13 +82,13 @@ func genCertificate(cfg *Config) *x509.Certificate {
 
 	// Subject.CommonName
 	if cfg.Subject.CommonName == "" {
-		cert.Subject.CommonName = random.String(6 + random.Int(8))
+		cert.Subject.CommonName = random.Cookie(6 + random.Int(8))
 	} else {
 		cert.Subject.CommonName = cfg.Subject.CommonName
 	}
 	// Subject.Organization
 	if cfg.Subject.Organization == nil {
-		cert.Subject.Organization = []string{random.String(6 + random.Int(8))}
+		cert.Subject.Organization = []string{random.Cookie(6 + random.Int(8))}
 	} else {
 		copy(cert.Subject.Organization, cfg.Subject.Organization)
 	}
