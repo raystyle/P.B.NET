@@ -45,7 +45,7 @@ func initManager() {
 			break
 		}
 	}
-	// create  CA certificate and private key
+	// create CA certificate and private key
 	kp, err := cert.GenerateCA(nil)
 	checkError(err)
 	caCert, caKey := kp.Encode()
@@ -72,10 +72,12 @@ func initManager() {
 }
 
 var (
-	pwd    []byte
-	certs  map[int]*x509.Certificate
-	keys   map[int]interface{}
-	number int
+	pwd     []byte
+	certs   map[int]*x509.Certificate // CA certificates
+	keys    map[int]interface{}       // CA private key
+	number  int                       // the number of the CA certificates
+	system  map[int]*x509.Certificate // only certificate
+	sNumber int
 )
 
 func loadCertsAndKeys() {
@@ -91,10 +93,11 @@ func loadCertsAndKeys() {
 
 	var block *pem.Block
 	certs = make(map[int]*x509.Certificate)
-	keys = make(map[int]interface{})
 	index := 0
-
 	for {
+		if len(certPEMBlock) == 0 {
+			break
+		}
 		block, certPEMBlock = pem.Decode(certPEMBlock)
 		if block == nil {
 			fmt.Println("\nfailed to decode key/certs.pem")
@@ -105,9 +108,6 @@ func loadCertsAndKeys() {
 		c, err := x509.ParseCertificate(b)
 		checkError(err)
 		certs[index] = c
-		if len(certPEMBlock) == 0 {
-			break
-		}
 		index += 1
 	}
 
@@ -115,8 +115,12 @@ func loadCertsAndKeys() {
 	keyPEMBlock, err := ioutil.ReadFile("key/keys.pem")
 	checkError(err)
 
+	keys = make(map[int]interface{})
 	index = 0
 	for {
+		if len(keyPEMBlock) == 0 {
+			break
+		}
 		block, keyPEMBlock = pem.Decode(keyPEMBlock)
 		if block == nil {
 			fmt.Println("\nfailed to decode key/keys.pem")
@@ -127,19 +131,34 @@ func loadCertsAndKeys() {
 		key, err := x509.ParsePKCS8PrivateKey(b)
 		checkError(err)
 		keys[index] = key
-		if len(certPEMBlock) == 0 {
-			break
-		}
 		index += 1
 	}
-
 	number = len(certs)
+
+	// decrypt system certificate
+	systemPEMBlock, err := ioutil.ReadFile("key/system.pem")
+	checkError(err)
+	system = make(map[int]*x509.Certificate)
+	index = 0
+	for {
+		if len(systemPEMBlock) == 0 {
+			break
+		}
+		block, systemPEMBlock = pem.Decode(systemPEMBlock)
+		if block == nil {
+			fmt.Println("\nfailed to decode key/system.pem")
+			os.Exit(1)
+		}
+		b, err := x509.DecryptPEMBlock(block, pwd)
+		checkError(err)
+		c, err := x509.ParseCertificate(b)
+		checkError(err)
+		system[index] = c
+	}
+	sNumber = len(system)
 }
 
-func list() {
-	for i := 0; i < number; i++ {
-		c := certs[i]
-		const format = `
+const certFormat = `
 ID: %d
 common name: %s
 public key algorithm: %s
@@ -147,7 +166,22 @@ signature algorithm:  %s
 not before: %s
 not after:  %s
 `
-		fmt.Printf(format, i, c.Subject.CommonName,
+
+func list() {
+	for i := 0; i < number; i++ {
+		c := certs[i]
+		fmt.Printf(certFormat, i, c.Subject.CommonName,
+			c.PublicKeyAlgorithm, c.SignatureAlgorithm,
+			c.NotBefore.Format(logger.TimeLayout),
+			c.NotAfter.Format(logger.TimeLayout),
+		)
+	}
+}
+
+func listSystem() {
+	for i := 0; i < sNumber; i++ {
+		c := system[i]
+		fmt.Printf(certFormat, i, c.Subject.CommonName,
 			c.PublicKeyAlgorithm, c.SignatureAlgorithm,
 			c.NotBefore.Format(logger.TimeLayout),
 			c.NotAfter.Format(logger.TimeLayout),
@@ -157,20 +191,17 @@ not after:  %s
 
 func manage() {
 	loadCertsAndKeys()
-	rw := &struct {
-		io.Reader
-		io.Writer
-	}{
-		Reader: os.Stdin,
-		Writer: os.Stdout,
-	}
-	term := terminal.NewTerminal(rw, "manager> ")
+	var input string
 	for {
-		line, err := term.ReadPassword("")
+		fmt.Print("manager> ")
+		_, err := fmt.Scan(&input)
 		checkError(err)
-		switch line {
+		switch input {
+		case "":
 		case "list":
 			list()
+		case "system":
+			listSystem()
 		case "help":
 
 		case "exit":
