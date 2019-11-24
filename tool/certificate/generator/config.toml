@@ -1,0 +1,15 @@
+algorithm    = "rsa"
+dns_names    = ["localhost"]
+ip_addresses = ["127.0.0.1","::1"]
+not_after    = 2020-11-27T00:00:00
+
+[subject]
+  common_name         = "P.B.NET"
+  serial_number       = ""
+  country             = []
+  organization        = []
+  organizational_unit = []
+  locality            = []
+  province            = []
+  street_address      = []
+  postal_code         = []
