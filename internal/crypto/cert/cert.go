@@ -1,6 +1,10 @@
 package cert
 
 import (
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -10,19 +14,19 @@ import (
 	"time"
 
 	"project/internal/crypto/rand"
-	"project/internal/crypto/rsa"
 	"project/internal/random"
 )
 
-var now = time.Time{}.AddDate(2017, 10, 26) // 2018-11-27
-
+// Config include configuration about generate certificate
 type Config struct {
-	Subject     Subject   `toml:"subject"`
-	NotAfter    time.Time `toml:"not_after"`
+	Algorithm   string    `toml:"algorithm"` // rsa, ecdsa, ed25519
 	DNSNames    []string  `toml:"dns_names"`
 	IPAddresses []string  `toml:"ip_addresses"` // IP SANS
+	NotAfter    time.Time `toml:"not_after"`
+	Subject     Subject   `toml:"subject"`
 }
 
+// Subject certificate subject info
 type Subject struct {
 	CommonName         string   `toml:"common_name"`
 	SerialNumber       string   `toml:"serial_number"`
@@ -38,7 +42,7 @@ type Subject struct {
 // KeyPair include certificate, certificate ASN1 data and private key
 type KeyPair struct {
 	Certificate *x509.Certificate
-	PrivateKey  *rsa.PrivateKey
+	PrivateKey  interface{}
 	asn1Data    []byte // Certificate
 }
 
@@ -48,9 +52,10 @@ func (kp *KeyPair) EncodeToPEM() (cert, key []byte) {
 		Type:  "CERTIFICATE",
 		Bytes: kp.asn1Data,
 	}
+	b, _ := x509.MarshalPKCS8PrivateKey(kp.PrivateKey)
 	keyBlock := &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: rsa.ExportPrivateKey(kp.PrivateKey),
+		Bytes: b,
 	}
 	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
 }
@@ -60,13 +65,11 @@ func (kp *KeyPair) TLSCertificate() (tls.Certificate, error) {
 	return tls.X509KeyPair(kp.EncodeToPEM())
 }
 
-func generate(cfg *Config) *x509.Certificate {
-	if cfg == nil {
-		cfg = new(Config)
-	}
+func genCertificate(cfg *Config) *x509.Certificate {
 	cert := x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
 	cert.SubjectKeyId = random.Bytes(4)
+
 	// Subject.CommonName
 	if cfg.Subject.CommonName == "" {
 		cert.Subject.CommonName = random.String(6 + random.Int(8))
@@ -94,7 +97,8 @@ func generate(cfg *Config) *x509.Certificate {
 	cert.Subject.SerialNumber = cfg.Subject.SerialNumber
 
 	// set time
-	years := 1 + random.Int(4)
+	now := time.Time{}.AddDate(2017, 10, 26) // 2018-11-27
+	years := 10 + random.Int(10)
 	months := random.Int(12)
 	days := random.Int(31)
 	cert.NotBefore = now.AddDate(-years, -months, -days)
@@ -104,21 +108,39 @@ func generate(cfg *Config) *x509.Certificate {
 		days = random.Int(31)
 		cert.NotAfter = now.AddDate(years, months, days)
 	}
-
 	return &cert
+}
+
+func genKey(algorithm string) (interface{}, interface{}, error) {
+	switch algorithm {
+	case "rsa":
+		privateKey, _ := rsa.GenerateKey(rand.Reader, 4096)
+		return privateKey, &privateKey.PublicKey, nil
+	case "ecdsa":
+		privateKey, _ := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		return privateKey, &privateKey.PublicKey, nil
+	case "ed25519":
+		publicKey, privateKey, _ := ed25519.GenerateKey(rand.Reader)
+		return privateKey, publicKey, nil
+	default:
+		return nil, nil, fmt.Errorf("unknown algorithm: %s", algorithm)
+	}
 }
 
 // GenerateCA is used to generate a CA certificate from Config
 func GenerateCA(cfg *Config) (*KeyPair, error) {
-	ca := generate(cfg)
+	ca := genCertificate(cfg)
 	ca.KeyUsage = x509.KeyUsageCertSign
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
 
-	// generate certificate
-	privateKey, _ := rsa.GenerateKey(2048)
+	privateKey, publicKey, err := genKey(cfg.Algorithm)
+	if err != nil {
+		return nil, err
+	}
+
 	asn1Data, _ := x509.CreateCertificate(
-		rand.Reader, ca, ca, &privateKey.PublicKey, privateKey)
+		rand.Reader, ca, ca, publicKey, privateKey)
 	ca, _ = x509.ParseCertificate(asn1Data)
 
 	return &KeyPair{
@@ -129,8 +151,8 @@ func GenerateCA(cfg *Config) (*KeyPair, error) {
 }
 
 // Generate is used to generate a signed certificate by CA or self
-func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, cfg *Config) (*KeyPair, error) {
-	cert := generate(cfg)
+func Generate(parent *x509.Certificate, pri interface{}, cfg *Config) (*KeyPair, error) {
+	cert := genCertificate(cfg)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 
 	// check dns
@@ -153,23 +175,20 @@ func Generate(parent *x509.Certificate, pri *rsa.PrivateKey, cfg *Config) (*KeyP
 	}
 
 	// generate certificate
-	privateKey, _ := rsa.GenerateKey(2048)
-	var (
-		asn1Data []byte
-		err      error
-	)
+	privateKey, publicKey, err := genKey(cfg.Algorithm)
+	if err != nil {
+		return nil, err
+	}
+	var asn1Data []byte
 	if parent != nil && pri != nil { // by CA
-		asn1Data, err = x509.CreateCertificate(
-			rand.Reader, cert, parent, &privateKey.PublicKey, pri)
-	} else { // self sign
-		asn1Data, err = x509.CreateCertificate(
-			rand.Reader, cert, cert, &privateKey.PublicKey, privateKey)
+		asn1Data, err = x509.CreateCertificate(rand.Reader, cert, parent, publicKey, pri)
+	} else { // self-sign
+		asn1Data, err = x509.CreateCertificate(rand.Reader, cert, cert, publicKey, privateKey)
 	}
 	if err != nil {
 		return nil, err
 	}
 	cert, _ = x509.ParseCertificate(asn1Data)
-
 	return &KeyPair{
 		Certificate: cert,
 		PrivateKey:  privateKey,

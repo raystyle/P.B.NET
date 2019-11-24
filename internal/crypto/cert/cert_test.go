@@ -15,21 +15,26 @@ import (
 )
 
 func TestGenerateCA(t *testing.T) {
-	ca, err := GenerateCA(nil)
+	ca, err := GenerateCA(&Config{Algorithm: "rsa"})
 	require.NoError(t, err)
 	_, err = tls.X509KeyPair(ca.EncodeToPEM())
 	require.NoError(t, err)
 }
 
 func TestGenerate(t *testing.T) {
-	ca, err := GenerateCA(nil)
-	require.NoError(t, err)
-	testGenerate(t, ca)  // CA sign
-	testGenerate(t, nil) // self sign
+	cfg := new(Config)
+	for _, alg := range []string{"rsa", "ecdsa", "ed25519"} {
+		cfg.Algorithm = alg
+		ca, err := GenerateCA(cfg)
+		require.NoError(t, err)
+		testGenerate(t, ca)  // CA sign
+		testGenerate(t, nil) // self sign
+	}
 }
 
 func testGenerate(t *testing.T, ca *KeyPair) {
 	cfg := &Config{
+		Algorithm:   "rsa",
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
@@ -116,6 +121,25 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	if testsuite.EnableIPv6() {
 		get("[::1]", port3)
 	}
+}
+
+func TestUnknownAlgorithm(t *testing.T) {
+	pri, pub, err := genKey("foo alg")
+	require.EqualError(t, err, "unknown algorithm: foo alg")
+	require.Nil(t, pri)
+	require.Nil(t, pub)
+	cfg := new(Config)
+	kp, err := GenerateCA(cfg)
+	require.Error(t, err)
+	require.Nil(t, kp)
+
+	cfg.Algorithm = "rsa"
+	kp, err = GenerateCA(cfg)
+	require.NoError(t, err)
+	cfg.Algorithm = "foo alg"
+	kp, err = Generate(kp.Certificate, kp.PrivateKey, cfg)
+	require.Error(t, err)
+	require.Nil(t, kp)
 }
 
 func TestIsDomainName(t *testing.T) {
