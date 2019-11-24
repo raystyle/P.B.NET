@@ -15,7 +15,7 @@ import (
 )
 
 func TestGenerateCA(t *testing.T) {
-	ca, err := GenerateCA(&Config{Algorithm: "rsa"})
+	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
 	_, err = tls.X509KeyPair(ca.EncodeToPEM())
 	require.NoError(t, err)
@@ -128,7 +128,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 	require.EqualError(t, err, "unknown algorithm: foo alg")
 	require.Nil(t, pri)
 	require.Nil(t, pub)
-	cfg := new(Config)
+	cfg := &Config{Algorithm: "foo alg"}
 	kp, err := GenerateCA(cfg)
 	require.Error(t, err)
 	require.Nil(t, kp)
@@ -136,6 +136,10 @@ func TestUnknownAlgorithm(t *testing.T) {
 	cfg.Algorithm = "rsa"
 	kp, err = GenerateCA(cfg)
 	require.NoError(t, err)
+
+	_, err = Generate(kp.Certificate, kp.PrivateKey, nil)
+	require.NoError(t, err)
+
 	cfg.Algorithm = "foo alg"
 	kp, err = Generate(kp.Certificate, kp.PrivateKey, cfg)
 	require.Error(t, err)

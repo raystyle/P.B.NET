@@ -113,7 +113,7 @@ func genCertificate(cfg *Config) *x509.Certificate {
 
 func genKey(algorithm string) (interface{}, interface{}, error) {
 	switch algorithm {
-	case "rsa":
+	case "", "rsa":
 		privateKey, _ := rsa.GenerateKey(rand.Reader, 4096)
 		return privateKey, &privateKey.PublicKey, nil
 	case "ecdsa":
@@ -129,6 +129,10 @@ func genKey(algorithm string) (interface{}, interface{}, error) {
 
 // GenerateCA is used to generate a CA certificate from Config
 func GenerateCA(cfg *Config) (*KeyPair, error) {
+	if cfg == nil {
+		cfg = new(Config)
+	}
+
 	ca := genCertificate(cfg)
 	ca.KeyUsage = x509.KeyUsageCertSign
 	ca.BasicConstraintsValid = true
@@ -152,6 +156,10 @@ func GenerateCA(cfg *Config) (*KeyPair, error) {
 
 // Generate is used to generate a signed certificate by CA or self
 func Generate(parent *x509.Certificate, pri interface{}, cfg *Config) (*KeyPair, error) {
+	if cfg == nil {
+		cfg = new(Config)
+	}
+
 	cert := genCertificate(cfg)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 
