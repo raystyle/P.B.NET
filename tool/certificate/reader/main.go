@@ -15,13 +15,9 @@ import (
 
 func main() {
 	root, err := certutil.LoadSystemCertWithName("ROOT")
-	if err != nil {
-		log.Fatal(err)
-	}
+	checkError(err)
 	ca, err := certutil.LoadSystemCertWithName("CA")
-	if err != nil {
-		log.Fatal(err)
-	}
+	checkError(err)
 	certs := append(root, ca...)
 	l := len(certs)
 	buf := new(bytes.Buffer)
@@ -37,9 +33,7 @@ func main() {
 			Bytes: certs[i],
 		}
 		err = pem.Encode(buf, &block)
-		if err != nil {
-			log.Fatal(err)
-		}
+		checkError(err)
 		count += 1
 		// print CA info
 		const format = "V%d %s\n"
@@ -54,21 +48,16 @@ func main() {
 	}
 
 	log.Println("------------------------------------------------")
-	log.Println("the raw number of the system certificates:", l)
-	log.Println("the actual number of the system certificates:", count)
+	log.Println("the raw number of the system CA certificates:", l)
+	log.Println("the actual number of the system CA certificates:", count)
 
 	// write pem
 	err = ioutil.WriteFile("system.pem", buf.Bytes(), 644)
-	if err != nil {
-		log.Fatal(err)
-	}
+	checkError(err)
 
 	// test generate PEM
 	pemData, err := ioutil.ReadFile("system.pem")
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	checkError(err)
 	// load system
 	tlsConfig, _ := (&options.TLSConfig{
 		InsecureLoadFromSystem: true,
@@ -76,15 +65,19 @@ func main() {
 	sysNum := len(tlsConfig.RootCAs.Subjects())
 
 	// test load
-	tlsConfig, _ = (&options.TLSConfig{
-		RootCAs: []string{string(pemData)},
-	}).Apply()
+	tlsConfig, _ = (&options.TLSConfig{RootCAs: []string{string(pemData)}}).Apply()
 	loadNum := len(tlsConfig.RootCAs.Subjects())
 
 	// compare
 	if sysNum != loadNum {
 		log.Printf("warning: system: %d, test load: %d", sysNum, loadNum)
 	} else {
-		log.Println("export Windows System Root CAs successfully")
+		log.Println("export Windows System CA certificates successfully")
+	}
+}
+
+func checkError(err error) {
+	if err != nil {
+		log.Fatal(err)
 	}
 }
