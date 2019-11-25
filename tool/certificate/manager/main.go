@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"syscall"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -45,6 +46,8 @@ func initManager() {
 			break
 		}
 	}
+
+	_ = os.Mkdir("key", 644)
 	// create CA certificate and private key
 	kp, err := cert.GenerateCA(nil)
 	checkError(err)
@@ -69,15 +72,24 @@ func initManager() {
 	err = ioutil.WriteFile("key/keys.pem", buf.Bytes(), 644)
 	checkError(err)
 	fmt.Println("initialize certificate manager successfully")
+
+	// create system.pem
+	file, err := os.Create("key/system.pem")
+	checkError(err)
+	_ = file.Close()
 }
 
 var (
-	pwd     []byte
-	certs   map[int]*x509.Certificate // CA certificates
-	keys    map[int]interface{}       // CA private key
-	number  int                       // the number of the CA certificates
-	system  map[int]*x509.Certificate // only certificate
-	sNumber int
+	pwd []byte
+
+	certs     map[int]*x509.Certificate // CA certificates
+	certsASN1 map[int][]byte            // CA certificates ASN1 data
+	keys      map[int]interface{}       // CA private key
+	number    int                       // the number of the CA certificates
+
+	system     map[int]*x509.Certificate // only certificate
+	systemASN1 map[int][]byte            // CA certificates ASN1 data
+	sNumber    int                       // the number of the system CA certificates
 )
 
 func loadCertsAndKeys() {
@@ -93,7 +105,8 @@ func loadCertsAndKeys() {
 
 	var block *pem.Block
 	certs = make(map[int]*x509.Certificate)
-	index := 0
+	certsASN1 = make(map[int][]byte)
+	index := 1
 	for {
 		if len(certPEMBlock) == 0 {
 			break
@@ -108,6 +121,7 @@ func loadCertsAndKeys() {
 		c, err := x509.ParseCertificate(b)
 		checkError(err)
 		certs[index] = c
+		certsASN1[index] = b
 		index += 1
 	}
 
@@ -116,7 +130,7 @@ func loadCertsAndKeys() {
 	checkError(err)
 
 	keys = make(map[int]interface{})
-	index = 0
+	index = 1
 	for {
 		if len(keyPEMBlock) == 0 {
 			break
@@ -139,7 +153,8 @@ func loadCertsAndKeys() {
 	systemPEMBlock, err := ioutil.ReadFile("key/system.pem")
 	checkError(err)
 	system = make(map[int]*x509.Certificate)
-	index = 0
+	systemASN1 = make(map[int][]byte)
+	index = 1
 	for {
 		if len(systemPEMBlock) == 0 {
 			break
@@ -154,11 +169,16 @@ func loadCertsAndKeys() {
 		c, err := x509.ParseCertificate(b)
 		checkError(err)
 		system[index] = c
+		systemASN1[index] = b
+		index += 1
 	}
 	sNumber = len(system)
+
+	fmt.Println()
 }
 
-const certFormat = `
+func printCertificate(id int, c *x509.Certificate) {
+	const certFormat = `
 ID: %d
 common name: %s
 public key algorithm: %s
@@ -166,27 +186,85 @@ signature algorithm:  %s
 not before: %s
 not after:  %s
 `
+	fmt.Printf(certFormat, id, c.Subject.CommonName,
+		c.PublicKeyAlgorithm, c.SignatureAlgorithm,
+		c.NotBefore.Format(logger.TimeLayout),
+		c.NotAfter.Format(logger.TimeLayout),
+	)
+}
 
 func list() {
-	for i := 0; i < number; i++ {
-		c := certs[i]
-		fmt.Printf(certFormat, i, c.Subject.CommonName,
-			c.PublicKeyAlgorithm, c.SignatureAlgorithm,
-			c.NotBefore.Format(logger.TimeLayout),
-			c.NotAfter.Format(logger.TimeLayout),
-		)
+	for i := 1; i < number+1; i++ {
+		printCertificate(i, certs[i])
 	}
 }
 
 func listSystem() {
-	for i := 0; i < sNumber; i++ {
-		c := system[i]
-		fmt.Printf(certFormat, i, c.Subject.CommonName,
-			c.PublicKeyAlgorithm, c.SignatureAlgorithm,
-			c.NotBefore.Format(logger.TimeLayout),
-			c.NotAfter.Format(logger.TimeLayout),
-		)
+	for i := 1; i < sNumber+1; i++ {
+		printCertificate(i, system[i])
 	}
+}
+
+func addSystem() {
+	var block *pem.Block
+	systemPEMBlock, err := ioutil.ReadFile("system.pem")
+	checkError(err)
+	for {
+		if len(systemPEMBlock) == 0 {
+			break
+		}
+		block, systemPEMBlock = pem.Decode(systemPEMBlock)
+		if block == nil {
+			fmt.Println("\nfailed to decode system.pem")
+			os.Exit(1)
+		}
+		c, err := x509.ParseCertificate(block.Bytes)
+		checkError(err)
+		sNumber += 1
+		system[sNumber] = c
+		systemASN1[sNumber] = block.Bytes
+		printCertificate(sNumber, c)
+	}
+}
+
+func save() {
+	// encrypt certificates
+	buf := new(bytes.Buffer)
+	for i := 1; i < number+1; i++ {
+		block, err := x509.EncryptPEMBlock(rand.Reader, "CERTIFICATE",
+			certsASN1[i], pwd, x509.PEMCipherAES256)
+		checkError(err)
+		err = pem.Encode(buf, block)
+		checkError(err)
+	}
+	err := ioutil.WriteFile("key/certs.pem", buf.Bytes(), 644)
+	checkError(err)
+
+	// encrypt private key
+	buf.Reset()
+	for i := 1; i < len(keys)+1; i++ {
+		b, err := x509.MarshalPKCS8PrivateKey(keys[i])
+		checkError(err)
+		block, err := x509.EncryptPEMBlock(rand.Reader, "PRIVATE KEY",
+			b, pwd, x509.PEMCipherAES256)
+		checkError(err)
+		err = pem.Encode(buf, block)
+		checkError(err)
+	}
+	err = ioutil.WriteFile("key/keys.pem", buf.Bytes(), 644)
+	checkError(err)
+
+	// encrypt system certificates
+	buf.Reset()
+	for i := 1; i < sNumber+1; i++ {
+		block, err := x509.EncryptPEMBlock(rand.Reader, "CERTIFICATE",
+			systemASN1[i], pwd, x509.PEMCipherAES256)
+		checkError(err)
+		err = pem.Encode(buf, block)
+		checkError(err)
+	}
+	err = ioutil.WriteFile("key/system.pem", buf.Bytes(), 644)
+	checkError(err)
 }
 
 func manage() {
@@ -194,7 +272,7 @@ func manage() {
 	var input string
 	for {
 		fmt.Print("manager> ")
-		_, err := fmt.Scan(&input)
+		_, err := fmt.Scanln(&input)
 		checkError(err)
 		switch input {
 		case "":
@@ -202,9 +280,14 @@ func manage() {
 			list()
 		case "system":
 			listSystem()
+		case "add":
+			addSystem()
 		case "help":
 
+		case "save":
+			save()
 		case "exit":
+			fmt.Print("Bye!")
 			os.Exit(0)
 		}
 	}
@@ -212,6 +295,9 @@ func manage() {
 
 func checkError(err error) {
 	if err != nil {
+		if strings.Contains(err.Error(), "unexpected newline") {
+			return
+		}
 		if err != io.EOF {
 			fmt.Printf("\n%s", err)
 		}
