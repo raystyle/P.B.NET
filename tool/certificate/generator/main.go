@@ -21,19 +21,19 @@ func main() {
 	flag.BoolVar(&sign, "sign", false, "sign a certificate by CA")
 	flag.Parse()
 
-	config, err := ioutil.ReadFile("config.toml")
+	options, err := ioutil.ReadFile("options.toml")
 	if err != nil {
 		log.Fatalln(err)
 	}
-	cfg := &cert.Config{}
-	err = toml.Unmarshal(config, cfg)
+	opts := &cert.Options{}
+	err = toml.Unmarshal(options, opts)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	switch {
 	case ca:
-		ca, err := cert.GenerateCA(cfg)
+		ca, err := cert.GenerateCA(opts)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -57,7 +57,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		kp, err := cert.Generate(caCert, caKey, cfg)
+		kp, err := cert.Generate(caCert, caKey, opts)
 		if err != nil {
 			log.Fatalln(err)
 		}
