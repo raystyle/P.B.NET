@@ -46,12 +46,13 @@ func initManager() {
 			break
 		}
 	}
-
 	_ = os.Mkdir("key", 644)
+
 	// create CA certificate and private key
 	kp, err := cert.GenerateCA(nil)
 	checkError(err)
 	caCert, caKey := kp.Encode()
+
 	// encrypt certificate
 	block, err := x509.EncryptPEMBlock(rand.Reader, "CERTIFICATE",
 		caCert, pwd, x509.PEMCipherAES256)
@@ -85,7 +86,8 @@ var (
 	certs     map[int]*x509.Certificate // CA certificates
 	certsASN1 map[int][]byte            // CA certificates ASN1 data
 	keys      map[int]interface{}       // CA private key
-	number    int                       // the number of the CA certificates
+	keysPKCS8 map[int][]byte            // CA private key PKCS8 data
+	number    int                       // the number of the CA certificates(private keys)
 
 	system     map[int]*x509.Certificate // only certificate
 	systemASN1 map[int][]byte            // CA certificates ASN1 data
@@ -130,6 +132,7 @@ func loadCertsAndKeys() {
 	checkError(err)
 
 	keys = make(map[int]interface{})
+	keysPKCS8 = make(map[int][]byte)
 	index = 1
 	for {
 		if len(keyPEMBlock) == 0 {
@@ -145,6 +148,7 @@ func loadCertsAndKeys() {
 		key, err := x509.ParsePKCS8PrivateKey(b)
 		checkError(err)
 		keys[index] = key
+		keysPKCS8[index] = b
 		index += 1
 	}
 	number = len(certs)
@@ -188,8 +192,8 @@ not after:  %s
 `
 	fmt.Printf(certFormat, id, c.Subject.CommonName,
 		c.PublicKeyAlgorithm, c.SignatureAlgorithm,
-		c.NotBefore.Format(logger.TimeLayout),
-		c.NotAfter.Format(logger.TimeLayout),
+		c.NotBefore.Local().Format(logger.TimeLayout),
+		c.NotAfter.Local().Format(logger.TimeLayout),
 	)
 }
 
@@ -202,6 +206,47 @@ func list() {
 func listSystem() {
 	for i := 1; i < sNumber+1; i++ {
 		printCertificate(i, system[i])
+	}
+}
+
+func add() {
+	var block *pem.Block
+	certPEMBlock, err := ioutil.ReadFile("certs.pem")
+	checkError(err)
+	keyPEMBlock, err := ioutil.ReadFile("keys.pem")
+	checkError(err)
+	for {
+		if len(certPEMBlock) == 0 {
+			break
+		}
+
+		// load certificate
+		block, certPEMBlock = pem.Decode(certPEMBlock)
+		if block == nil {
+			fmt.Println("\nfailed to decode certs.pem")
+			os.Exit(1)
+		}
+		c, err := x509.ParseCertificate(block.Bytes)
+		checkError(err)
+		certASN1 := block.Bytes
+
+		// load private key
+		block, keyPEMBlock = pem.Decode(keyPEMBlock)
+		if block == nil {
+			fmt.Println("\nfailed to decode keys.pem")
+			os.Exit(1)
+		}
+		k, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		checkError(err)
+		keyPKCS8 := block.Bytes
+
+		// add
+		number += 1
+		certs[number] = c
+		certsASN1[number] = certASN1
+		keys[number] = k
+		keysPKCS8[number] = keyPKCS8
+		printCertificate(number, c)
 	}
 }
 
@@ -243,10 +288,8 @@ func save() {
 	// encrypt private key
 	buf.Reset()
 	for i := 1; i < len(keys)+1; i++ {
-		b, err := x509.MarshalPKCS8PrivateKey(keys[i])
-		checkError(err)
 		block, err := x509.EncryptPEMBlock(rand.Reader, "PRIVATE KEY",
-			b, pwd, x509.PEMCipherAES256)
+			keysPKCS8[i], pwd, x509.PEMCipherAES256)
 		checkError(err)
 		err = pem.Encode(buf, block)
 		checkError(err)
@@ -281,6 +324,8 @@ func manage() {
 		case "system":
 			listSystem()
 		case "add":
+			add()
+		case "adds":
 			addSystem()
 		case "help":
 
