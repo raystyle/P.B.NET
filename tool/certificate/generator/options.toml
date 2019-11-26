@@ -1,7 +1,8 @@
 algorithm    = "rsa"
 dns_names    = ["localhost"]
 ip_addresses = ["127.0.0.1","::1"]
-not_after    = 2020-11-27T00:00:00
+# not_before   = 2018-11-27
+# not_after    = 2049-11-27
 
 [subject]
   common_name         = "P.B.NET"

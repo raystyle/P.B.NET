@@ -17,13 +17,14 @@ import (
 	"project/internal/random"
 )
 
-// Config include configuration about generate certificate
-type Config struct {
+// Options include options about generate certificate
+type Options struct {
 	Algorithm   string    `toml:"algorithm"` // rsa, ecdsa, ed25519
 	DNSNames    []string  `toml:"dns_names"`
 	IPAddresses []string  `toml:"ip_addresses"` // IP SANS
-	NotAfter    time.Time `toml:"not_after"`
 	Subject     Subject   `toml:"subject"`
+	NotBefore   time.Time `toml:"not_before"`
+	NotAfter    time.Time `toml:"not_after"`
 }
 
 // Subject certificate subject info
@@ -75,48 +76,54 @@ func (kp *KeyPair) TLSCertificate() (tls.Certificate, error) {
 	return tls.X509KeyPair(kp.EncodeToPEM())
 }
 
-func genCertificate(cfg *Config) *x509.Certificate {
+func genCertificate(opts *Options) *x509.Certificate {
 	cert := x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
 	cert.SubjectKeyId = random.Bytes(4)
 
 	// Subject.CommonName
-	if cfg.Subject.CommonName == "" {
+	if opts.Subject.CommonName == "" {
 		cert.Subject.CommonName = random.Cookie(6 + random.Int(8))
 	} else {
-		cert.Subject.CommonName = cfg.Subject.CommonName
+		cert.Subject.CommonName = opts.Subject.CommonName
 	}
 	// Subject.Organization
-	if cfg.Subject.Organization == nil {
+	if opts.Subject.Organization == nil {
 		cert.Subject.Organization = []string{random.Cookie(6 + random.Int(8))}
 	} else {
-		copy(cert.Subject.Organization, cfg.Subject.Organization)
+		copy(cert.Subject.Organization, opts.Subject.Organization)
 	}
-	cert.Subject.Country = make([]string, len(cfg.Subject.Country))
-	copy(cert.Subject.Country, cfg.Subject.Country)
-	cert.Subject.OrganizationalUnit = make([]string, len(cfg.Subject.OrganizationalUnit))
-	copy(cert.Subject.OrganizationalUnit, cfg.Subject.OrganizationalUnit)
-	cert.Subject.Locality = make([]string, len(cfg.Subject.Locality))
-	copy(cert.Subject.Locality, cfg.Subject.Locality)
-	cert.Subject.Province = make([]string, len(cfg.Subject.Province))
-	copy(cert.Subject.Province, cfg.Subject.Province)
-	cert.Subject.StreetAddress = make([]string, len(cfg.Subject.StreetAddress))
-	copy(cert.Subject.StreetAddress, cfg.Subject.StreetAddress)
-	cert.Subject.PostalCode = make([]string, len(cfg.Subject.PostalCode))
-	copy(cert.Subject.PostalCode, cfg.Subject.PostalCode)
-	cert.Subject.SerialNumber = cfg.Subject.SerialNumber
+	cert.Subject.Country = make([]string, len(opts.Subject.Country))
+	copy(cert.Subject.Country, opts.Subject.Country)
+	cert.Subject.OrganizationalUnit = make([]string, len(opts.Subject.OrganizationalUnit))
+	copy(cert.Subject.OrganizationalUnit, opts.Subject.OrganizationalUnit)
+	cert.Subject.Locality = make([]string, len(opts.Subject.Locality))
+	copy(cert.Subject.Locality, opts.Subject.Locality)
+	cert.Subject.Province = make([]string, len(opts.Subject.Province))
+	copy(cert.Subject.Province, opts.Subject.Province)
+	cert.Subject.StreetAddress = make([]string, len(opts.Subject.StreetAddress))
+	copy(cert.Subject.StreetAddress, opts.Subject.StreetAddress)
+	cert.Subject.PostalCode = make([]string, len(opts.Subject.PostalCode))
+	copy(cert.Subject.PostalCode, opts.Subject.PostalCode)
+	cert.Subject.SerialNumber = opts.Subject.SerialNumber
 
 	// set time
 	now := time.Time{}.AddDate(2017, 10, 26) // 2018-11-27
-	years := 10 + random.Int(10)
-	months := random.Int(12)
-	days := random.Int(31)
-	cert.NotBefore = now.AddDate(-years, -months, -days)
-	if cfg.NotAfter.Equal(time.Time{}) {
-		years = 10 + random.Int(10)
-		months = random.Int(12)
-		days = random.Int(31)
+	if opts.NotBefore.Equal(time.Time{}) {
+		years := random.Int(10)
+		months := random.Int(12)
+		days := random.Int(31)
+		cert.NotBefore = now.AddDate(-years, -months, -days)
+	} else {
+		cert.NotBefore = opts.NotBefore
+	}
+	if opts.NotAfter.Equal(time.Time{}) {
+		years := 10 + random.Int(10)
+		months := random.Int(12)
+		days := random.Int(31)
 		cert.NotAfter = now.AddDate(years, months, days)
+	} else {
+		cert.NotAfter = opts.NotAfter
 	}
 	return &cert
 }
@@ -137,18 +144,18 @@ func genKey(algorithm string) (interface{}, interface{}, error) {
 	}
 }
 
-// GenerateCA is used to generate a CA certificate from Config
-func GenerateCA(cfg *Config) (*KeyPair, error) {
-	if cfg == nil {
-		cfg = new(Config)
+// GenerateCA is used to generate a CA certificate from Options
+func GenerateCA(opts *Options) (*KeyPair, error) {
+	if opts == nil {
+		opts = new(Options)
 	}
 
-	ca := genCertificate(cfg)
+	ca := genCertificate(opts)
 	ca.KeyUsage = x509.KeyUsageCertSign
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
 
-	privateKey, publicKey, err := genKey(cfg.Algorithm)
+	privateKey, publicKey, err := genKey(opts.Algorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -164,17 +171,18 @@ func GenerateCA(cfg *Config) (*KeyPair, error) {
 	}, nil
 }
 
-// Generate is used to generate a signed certificate by CA or self
-func Generate(parent *x509.Certificate, pri interface{}, cfg *Config) (*KeyPair, error) {
-	if cfg == nil {
-		cfg = new(Config)
+// Generate is used to generate a signed certificate by CA or
+// self-sign certificate from options
+func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPair, error) {
+	if opts == nil {
+		opts = new(Options)
 	}
 
-	cert := genCertificate(cfg)
+	cert := genCertificate(opts)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 
 	// check dns
-	dn := cfg.DNSNames
+	dn := opts.DNSNames
 	for i := 0; i < len(dn); i++ {
 		if !isDomainName(dn[i]) {
 			return nil, fmt.Errorf("%s is not a domain name", dn[i])
@@ -183,7 +191,7 @@ func Generate(parent *x509.Certificate, pri interface{}, cfg *Config) (*KeyPair,
 	}
 
 	// check ip
-	ips := cfg.IPAddresses
+	ips := opts.IPAddresses
 	for i := 0; i < len(ips); i++ {
 		ip := net.ParseIP(ips[i])
 		if ip == nil {
@@ -193,7 +201,7 @@ func Generate(parent *x509.Certificate, pri interface{}, cfg *Config) (*KeyPair,
 	}
 
 	// generate certificate
-	privateKey, publicKey, err := genKey(cfg.Algorithm)
+	privateKey, publicKey, err := genKey(opts.Algorithm)
 	if err != nil {
 		return nil, err
 	}
