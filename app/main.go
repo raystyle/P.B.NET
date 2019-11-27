@@ -16,110 +16,110 @@ import (
 )
 
 func main() {
-	cfg := &service.Config{
+	var (
+		debug     bool
+		initDB    bool
+		genKey    string
+		install   bool
+		uninstall bool
+	)
+	flag.BoolVar(&debug, "debug", false, "don't change current path")
+	flag.BoolVar(&initDB, "initdb", false, "initialize database")
+	flag.StringVar(&genKey, "genkey", "", "generate session key")
+	flag.BoolVar(&install, "install", false, "install service")
+	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
+	flag.Parse()
+
+	if !debug {
+		changePath()
+	}
+	config := loadConfig()
+	pg := &program{config: config}
+	svc, err := service.New(pg, &service.Config{
 		Name:        "P.B.NET Controller",
 		DisplayName: "P.B.NET Controller",
 		Description: "P.B.NET Controller Service",
-	}
-	pg := &program{}
-	svc, err := service.New(pg, cfg)
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	lg, err := svc.Logger(nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = svc.Run()
-	if err != nil {
-		_ = lg.Error(err)
+
+	switch {
+	case initDB:
+		err = controller.InitializeDatabase(config)
+		if err != nil {
+			log.Fatal(errors.Wrap(err, "failed to initialize database"))
+		}
+		log.Print("initialize database successfully")
+	case genKey != "":
+		err := controller.GenerateSessionKey(config.Global.KeyDir+"/session.key", genKey)
+		if err != nil {
+			log.Fatal(errors.Wrap(err, "failed to generate session key"))
+		}
+		log.Print("generate controller keys successfully")
+	case install:
+		err = svc.Install()
+		if err != nil {
+			log.Fatal(errors.Wrap(err, "failed to install service"))
+		}
+		log.Print("install service successfully")
+	case uninstall:
+		err := svc.Uninstall()
+		if err != nil {
+			log.Fatal(errors.Wrap(err, "failed to uninstall service"))
+		}
+		log.Print("uninstall service successfully")
+	default:
+		lg, err := svc.Logger(nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = svc.Run()
+		if err != nil {
+			_ = lg.Error(err)
+		}
 	}
 }
 
+func changePath() {
+	path, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
+	}
+	path = strings.Replace(path, "\\", "/", -1) // windows
+	err = os.Chdir(path[:strings.LastIndex(path, "/")])
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func loadConfig() *controller.Config {
+	data, err := ioutil.ReadFile("config.toml")
+	if err != nil {
+		log.Fatal(err)
+	}
+	config := new(controller.Config)
+	err = toml.Unmarshal(data, config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return config
+}
+
 type program struct {
-	*controller.CTRL
+	config   *controller.Config
+	ctrl     *controller.CTRL
 	stopOnce sync.Once
 }
 
 func (p *program) Start(s service.Service) error {
-	var (
-		debug     bool
-		install   bool
-		uninstall bool
-		initDB    bool
-		genKey    string
-	)
-	flag.BoolVar(&debug, "debug", false, "don't change current path")
-	flag.BoolVar(&install, "install", false, "install service")
-	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
-	flag.BoolVar(&initDB, "initdb", false, "initialize database")
-	flag.StringVar(&genKey, "genkey", "", "generate keys and encrypt it")
-	flag.Parse()
-	// install service
-	if install {
-		err := s.Install()
-		if err != nil {
-			return errors.Wrap(err, "install service failed")
-		}
-		log.Print("install service successfully")
-		os.Exit(0)
-	}
-	// uninstall service
-	if uninstall {
-		err := s.Uninstall()
-		if err != nil {
-			return errors.Wrap(err, "uninstall service failed")
-		}
-		log.Print("uninstall service successfully")
-		os.Exit(0)
-	}
-	// changed path for service
-	if !debug {
-		path, err := os.Executable()
-		if err != nil {
-			return err
-		}
-		path = strings.Replace(path, "\\", "/", -1) // windows
-		err = os.Chdir(path[:strings.LastIndex(path, "/")])
-		if err != nil {
-			return err
-		}
-	}
-	// load config
-	data, err := ioutil.ReadFile("config.toml")
-	if err != nil {
-		return err
-	}
-	config := &controller.Config{}
-	err = toml.Unmarshal(data, config)
-	if err != nil {
-		return err
-	}
-	// generate controller keys
-	if genKey != "" {
-		err := controller.GenerateCtrlKeys(config.Global.KeyDir+"/ctrl.key", genKey)
-		if err != nil {
-			return errors.Wrap(err, "generate keys failed")
-		}
-		log.Print("generate controller keys successfully")
-		os.Exit(0)
-	}
-	// initialize database
-	if initDB {
-		err = controller.InitializeDatabase(config)
-		if err != nil {
-			return errors.Wrap(err, "initialize database failed")
-		}
-		log.Print("initialize database successfully")
-		os.Exit(0)
-	}
-	// run
-	p.CTRL, err = controller.New(config)
+	var err error
+	p.ctrl, err = controller.New(p.config)
 	if err != nil {
 		return err
 	}
 	go func() {
-		err = p.Main()
+		err = p.ctrl.Main()
 		if err != nil {
 			l, e := s.Logger(nil)
 			if e == nil {
@@ -133,9 +133,9 @@ func (p *program) Start(s service.Service) error {
 	return nil
 }
 
-func (p *program) Stop(s service.Service) error {
+func (p *program) Stop(_ service.Service) error {
 	p.stopOnce.Do(func() {
-		p.Exit(nil)
+		p.ctrl.Exit(nil)
 	})
 	return nil
 }
