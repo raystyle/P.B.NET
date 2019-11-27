@@ -14,8 +14,8 @@ import (
 	"project/internal/security"
 )
 
-// name & ed25519 & aes key & aes iv
-func GenerateCtrlKeys(path, password string) error {
+// GenerateSessionKey is used to generate session key
+func GenerateSessionKey(path, password string) error {
 	_, err := os.Stat(path)
 	if !os.IsNotExist(err) {
 		return errors.Errorf("file: %s already exist", path)
@@ -47,7 +47,7 @@ func GenerateCtrlKeys(path, password string) error {
 }
 
 // return ed25519 private key & aes key & aes iv
-func loadCtrlKeys(path, password string) ([3][]byte, error) {
+func loadSessionKey(path, password string) ([3][]byte, error) {
 	var keys [3][]byte
 	if len(password) < 12 {
 		return keys, errors.New("password is too short")

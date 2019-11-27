@@ -11,7 +11,6 @@ import (
 
 // Broadcast is used to broadcast messages to Nodes.
 // Controller use broadcast key to encrypt Message.
-// look controller/keygen.go GenerateCtrlKeys()
 // Signature = CTRL.global.Sign(GUID + Message + Hash)
 type Broadcast struct {
 	GUID      []byte // prevent duplicate handle it
