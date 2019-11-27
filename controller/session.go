@@ -49,9 +49,6 @@ func GenerateSessionKey(path, password string) error {
 // return ed25519 private key & aes key & aes iv
 func loadSessionKey(path, password string) ([3][]byte, error) {
 	var keys [3][]byte
-	if len(password) < 12 {
-		return keys, errors.New("password is too short")
-	}
 	file, err := ioutil.ReadFile(path)
 	if err != nil {
 		return keys, errors.WithStack(err)

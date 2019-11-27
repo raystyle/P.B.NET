@@ -186,7 +186,7 @@ func (global *global) LoadKeys(password string) error {
 	global.objects[objCACertificatesStr] = caCertsStr
 	global.objects[objCAPrivateKeys] = caKeys
 	// keys
-	keys, err := loadCtrlKeys(global.keyDir+"/ctrl.key", password)
+	keys, err := loadSessionKey(global.keyDir+"/ctrl.key", password)
 	if err != nil {
 		return errors.WithStack(err)
 	}

@@ -10,9 +10,9 @@ import (
 func TestGenerateCtrlKeys(t *testing.T) {
 	path := os.TempDir() + "/ctrl.key"
 	const password = "0123456789012"
-	err := GenerateCtrlKeys(path, password)
+	err := GenerateSessionKey(path, password)
 	require.NoError(t, err)
-	keys, err := loadCtrlKeys(path, password)
+	keys, err := loadSessionKey(path, password)
 	require.NoError(t, err)
 	t.Logf("private key: %X\nAES Key: %X\nAES IV: %X",
 		keys[0], keys[1], keys[2])
