@@ -101,18 +101,35 @@ func loadCertsAndKeys() {
 	pwd, err = terminal.ReadPassword(int(syscall.Stdin))
 	checkError(err)
 
-	// decrypt certificates
+	// read PEM files
 	certPEMBlock, err := ioutil.ReadFile("key/certs.pem")
+	checkError(err)
+	keyPEMBlock, err := ioutil.ReadFile("key/keys.pem")
+	checkError(err)
+	systemPEMBlock, err := ioutil.ReadFile("key/system.pem")
+	checkError(err)
+
+	// create backup
+	err = ioutil.WriteFile("key/certs.bak", certPEMBlock, 644)
+	checkError(err)
+	err = ioutil.WriteFile("key/keys.bak", keyPEMBlock, 644)
+	checkError(err)
+	err = ioutil.WriteFile("key/system.bak", systemPEMBlock, 644)
 	checkError(err)
 
 	var block *pem.Block
+	// decrypt certificates and private key
 	certs = make(map[int]*x509.Certificate)
 	certsASN1 = make(map[int][]byte)
+	keys = make(map[int]interface{})
+	keysPKCS8 = make(map[int][]byte)
 	index := 1
 	for {
 		if len(certPEMBlock) == 0 {
 			break
 		}
+
+		// load CA certificate
 		block, certPEMBlock = pem.Decode(certPEMBlock)
 		if block == nil {
 			fmt.Println("\nfailed to decode key/certs.pem")
@@ -122,40 +139,30 @@ func loadCertsAndKeys() {
 		checkError(err)
 		c, err := x509.ParseCertificate(b)
 		checkError(err)
-		certs[index] = c
-		certsASN1[index] = b
-		index += 1
-	}
+		certASN1 := b
 
-	// decrypt private keys
-	keyPEMBlock, err := ioutil.ReadFile("key/keys.pem")
-	checkError(err)
-
-	keys = make(map[int]interface{})
-	keysPKCS8 = make(map[int][]byte)
-	index = 1
-	for {
-		if len(keyPEMBlock) == 0 {
-			break
-		}
+		// load private key
 		block, keyPEMBlock = pem.Decode(keyPEMBlock)
 		if block == nil {
 			fmt.Println("\nfailed to decode key/keys.pem")
 			os.Exit(1)
 		}
-		b, err := x509.DecryptPEMBlock(block, pwd)
+		b, err = x509.DecryptPEMBlock(block, pwd)
 		checkError(err)
 		key, err := x509.ParsePKCS8PrivateKey(b)
 		checkError(err)
+		keyPKCS8 := b
+
+		// add
+		certs[index] = c
+		certsASN1[index] = certASN1
 		keys[index] = key
-		keysPKCS8[index] = b
+		keysPKCS8[index] = keyPKCS8
 		index += 1
 	}
 	number = len(certs)
 
 	// decrypt system certificate
-	systemPEMBlock, err := ioutil.ReadFile("key/system.pem")
-	checkError(err)
 	system = make(map[int]*x509.Certificate)
 	systemASN1 = make(map[int][]byte)
 	index = 1
@@ -273,41 +280,50 @@ func addSystem() {
 }
 
 func save() {
-	// encrypt certificates
-	buf := new(bytes.Buffer)
+	certsPEM := new(bytes.Buffer)
+	keysPEM := new(bytes.Buffer)
+	systemPEM := new(bytes.Buffer)
+
 	for i := 1; i < number+1; i++ {
+		// encrypt certificates
 		block, err := x509.EncryptPEMBlock(rand.Reader, "CERTIFICATE",
 			certsASN1[i], pwd, x509.PEMCipherAES256)
 		checkError(err)
-		err = pem.Encode(buf, block)
+		err = pem.Encode(certsPEM, block)
 		checkError(err)
-	}
-	err := ioutil.WriteFile("key/certs.pem", buf.Bytes(), 644)
-	checkError(err)
 
-	// encrypt private key
-	buf.Reset()
-	for i := 1; i < len(keys)+1; i++ {
-		block, err := x509.EncryptPEMBlock(rand.Reader, "PRIVATE KEY",
+		// encrypt private key
+		block, err = x509.EncryptPEMBlock(rand.Reader, "PRIVATE KEY",
 			keysPKCS8[i], pwd, x509.PEMCipherAES256)
 		checkError(err)
-		err = pem.Encode(buf, block)
+		err = pem.Encode(keysPEM, block)
 		checkError(err)
 	}
-	err = ioutil.WriteFile("key/keys.pem", buf.Bytes(), 644)
-	checkError(err)
 
 	// encrypt system certificates
-	buf.Reset()
 	for i := 1; i < sNumber+1; i++ {
 		block, err := x509.EncryptPEMBlock(rand.Reader, "CERTIFICATE",
 			systemASN1[i], pwd, x509.PEMCipherAES256)
 		checkError(err)
-		err = pem.Encode(buf, block)
+		err = pem.Encode(systemPEM, block)
 		checkError(err)
 	}
-	err = ioutil.WriteFile("key/system.pem", buf.Bytes(), 644)
+
+	// write
+	err := ioutil.WriteFile("key/certs.pem", certsPEM.Bytes(), 644)
 	checkError(err)
+	err = ioutil.WriteFile("key/keys.pem", keysPEM.Bytes(), 644)
+	checkError(err)
+	err = ioutil.WriteFile("key/system.pem", systemPEM.Bytes(), 644)
+	checkError(err)
+}
+
+func exit() {
+	checkError(os.Remove("key/certs.bak"))
+	checkError(os.Remove("key/keys.bak"))
+	checkError(os.Remove("key/system.bak"))
+	fmt.Print("Bye!")
+	os.Exit(0)
 }
 
 func manage() {
@@ -318,7 +334,6 @@ func manage() {
 		_, err := fmt.Scanln(&input)
 		checkError(err)
 		switch input {
-		case "":
 		case "list":
 			list()
 		case "system":
@@ -332,8 +347,7 @@ func manage() {
 		case "save":
 			save()
 		case "exit":
-			fmt.Print("Bye!")
-			os.Exit(0)
+			exit()
 		}
 	}
 }
