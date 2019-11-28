@@ -1,8 +1,10 @@
 package controller
 
 import (
-	"crypto/x509"
+	"bytes"
+	"crypto/subtle"
 	"io/ioutil"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,13 +13,14 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
-	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
-	"project/internal/crypto/rsa"
+	"project/internal/crypto/sha256"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
+	"project/internal/random"
+	"project/internal/security"
 	"project/internal/timesync"
 )
 
@@ -37,7 +40,6 @@ type global struct {
 	objects    map[uint32]interface{}
 	objectsRWM sync.RWMutex
 
-	keyDir       string
 	loadKeys     int32
 	waitLoadKeys chan struct{}
 }
@@ -46,8 +48,8 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	cfg := config.Global
 
 	// load builtin proxy clients
-	const errProxy = "failed load builtin proxy clients"
-	b, err := ioutil.ReadFile(cfg.BuiltinDir + "/proxy.toml")
+	const errProxy = "failed to load builtin proxy clients"
+	b, err := ioutil.ReadFile("builtin/proxy.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, errProxy)
 	}
@@ -65,8 +67,8 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	}
 
 	// load builtin dns clients
-	const errDNS = "failed load builtin DNS clients"
-	b, err = ioutil.ReadFile(cfg.BuiltinDir + "/dns.toml")
+	const errDNS = "failed to load builtin DNS clients"
+	b, err = ioutil.ReadFile("builtin/dns.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, errDNS)
 	}
@@ -89,7 +91,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 
 	// load builtin time syncer client
 	const errTSC = "failed to load builtin time syncer clients"
-	b, err = ioutil.ReadFile(cfg.BuiltinDir + "/time.toml")
+	b, err = ioutil.ReadFile("builtin/time.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, errTSC)
 	}
@@ -114,7 +116,6 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		proxyPool:    proxyPool,
 		dnsClient:    dnsClient,
 		timeSyncer:   timeSyncer,
-		keyDir:       cfg.KeyDir,
 		objects:      make(map[uint32]interface{}),
 		waitLoadKeys: make(chan struct{}, 1),
 	}, nil
@@ -128,65 +129,112 @@ func (global *global) Now() time.Time {
 	return global.timeSyncer.Now().Local()
 }
 
+// GenerateSessionKey is used to generate session key
+func GenerateSessionKey(path string, password []byte) error {
+	_, err := os.Stat(path)
+	if !os.IsNotExist(err) {
+		return errors.Errorf("file: %s already exist", path)
+	}
+	if len(password) < 12 {
+		return errors.New("password is too short")
+	}
+
+	// generate ed25519 private key(for sign message)
+	privateKey, err := ed25519.GenerateKey()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// generate aes key & iv(for broadcast message)
+	aesKey := random.Bytes(aes.Key256Bit)
+	aesIV := random.Bytes(aes.IVSize)
+
+	// calculate hash
+	buf := new(bytes.Buffer)
+	buf.Write(privateKey)
+	buf.Write(aesKey)
+	buf.Write(aesIV)
+	hash := sha256.Bytes(buf.Bytes())
+
+	// encrypt
+	key := sha256.Bytes(password)
+	iv := sha256.Bytes(append(key, []byte{20, 18, 11, 27}...))[:aes.IVSize]
+	keyEnc, err := aes.CBCEncrypt(buf.Bytes(), key, iv)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return ioutil.WriteFile(path, append(hash, keyEnc...), 644)
+}
+
+const sessionKeySize = sha256.Size + ed25519.PrivateKeySize + aes.Key256Bit + aes.IVSize
+
+// return ed25519 private key & aes key & aes iv
+func loadSessionKey(path string, password []byte) (keys [3][]byte, err error) {
+	file, err := ioutil.ReadFile(path)
+	if err != nil {
+		err = errors.WithStack(err)
+		return
+	}
+	if len(file) != sessionKeySize {
+		err = errors.New("invalid session key size")
+		return
+	}
+
+	// decrypt
+	memory := security.NewMemory()
+	defer memory.Flush()
+	memory.Padding()
+	key := sha256.Bytes(password)
+	security.FlushBytes(password)
+	iv := sha256.Bytes(append(key, []byte{20, 18, 11, 27}...))[:aes.IVSize]
+	keyDec, err := aes.CBCDecrypt(file[sha256.Size:], key, iv)
+	if err != nil {
+		err = errors.WithStack(err)
+		return
+	}
+
+	// compare hash
+	if subtle.ConstantTimeCompare(file[:sha256.Size], keyDec) != 1 {
+		err = errors.New("invalid password")
+		return
+	}
+
+	// ed25519 private key
+	memory.Padding()
+	privateKey := keyDec[:ed25519.PrivateKeySize]
+	// aes key & aes iv
+	memory.Padding()
+	offset := ed25519.PrivateKeySize
+	aesKey := keyDec[offset : offset+aes.Key256Bit]
+	memory.Padding()
+	offset += aes.Key256Bit
+	aesIV := keyDec[offset : offset+aes.IVSize]
+
+	keys[0] = privateKey
+	keys[1] = aesKey
+	keys[2] = aesIV
+	return
+}
+
 // <warning> must < 1048576
 const (
 	_ uint32 = iota
 
-	objPrivateKey        // verify controller role & sign message
-	objPublicKey         // for role
-	objKeyExPub          // for key exchange
-	objAESCrypto         // encrypt controller broadcast message
-	objCACertificates    // x509.Certificate
-	objCAPrivateKeys     // rsa.PrivateKey
-	objCACertificatesStr // x509.Certificate
+	objPrivateKey // verify controller role & sign message
+	objPublicKey  // for role
+	objKeyExPub   // for key exchange
+	objAESCrypto  // encrypt controller broadcast message
 )
 
-func (global *global) LoadKeys(password string) error {
+func (global *global) LoadSessionKey(password []byte) error {
 	if global.isLoadKeys() {
-		return errors.New("already load keys")
+		return errors.New("already session load key")
 	}
 	global.objectsRWM.Lock()
 	defer global.objectsRWM.Unlock()
-	// load CAs
-	caData, err := ioutil.ReadFile(global.keyDir + "/ca.toml")
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	caList := struct {
-		CA []struct {
-			Cert string `toml:"cert"`
-			Key  string `toml:"key"`
-		} `toml:"ca"`
-	}{}
-	err = toml.Unmarshal(caData, &caList)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	l := len(caList.CA)
-	if l == 0 {
-		return errors.New("no CA certificates")
-	}
-	caCerts := make([]*x509.Certificate, l)
-	caCertsStr := make([]string, l)
-	caKeys := make([]*rsa.PrivateKey, l)
-	for i := 0; i < l; i++ {
-		crt, err := cert.Parse([]byte(caList.CA[i].Cert))
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		caCerts[i] = crt
-		caCertsStr[i] = caList.CA[i].Cert
-		pri, err := rsa.ImportPrivateKeyFromPEM([]byte(caList.CA[i].Key))
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		caKeys[i] = pri
-	}
-	global.objects[objCACertificates] = caCerts
-	global.objects[objCACertificatesStr] = caCertsStr
-	global.objects[objCAPrivateKeys] = caKeys
-	// keys
-	keys, err := loadSessionKey(global.keyDir+"/ctrl.key", password)
+
+	// load session keys
+	keys, err := loadSessionKey("key/session.key", password)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -240,6 +288,7 @@ func (global *global) Verify(message, signature []byte) bool {
 	global.objectsRWM.RLock()
 	pub := global.objects[objPublicKey]
 	global.objectsRWM.RUnlock()
+
 	return ed25519.Verify(pub.(ed25519.PublicKey), message, signature)
 }
 
@@ -256,34 +305,7 @@ func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	pri := global.objects[objPrivateKey]
 	global.objectsRWM.RUnlock()
-	return curve25519.ScalarMult(pri.(ed25519.PrivateKey)[:32], publicKey)
-}
-
-func (global *global) CACertificates() []*x509.Certificate {
-	global.objectsRWM.RLock()
-	crt := global.objects[objCACertificates]
-	global.objectsRWM.RUnlock()
-	return crt.([]*x509.Certificate)
-}
-
-func (global *global) CAPrivateKeys() []*rsa.PrivateKey {
-	global.objectsRWM.RLock()
-	pri := global.objects[objCAPrivateKeys]
-	global.objectsRWM.RUnlock()
-	return pri.([]*rsa.PrivateKey)
-}
-
-func (global *global) CACertificatesStr() []string {
-	global.objectsRWM.RLock()
-	crt := global.objects[objCACertificatesStr]
-	global.objectsRWM.RUnlock()
-	return crt.([]string)
-}
-
-func (global *global) TestSetObject(key uint32, obj interface{}) {
-	global.objectsRWM.Lock()
-	global.objects[key] = obj
-	global.objectsRWM.Unlock()
+	return curve25519.ScalarMult(pri.(ed25519.PrivateKey)[:ed25519.SeedSize], publicKey)
 }
 
 func (global *global) Close() {

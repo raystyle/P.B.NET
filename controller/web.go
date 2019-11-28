@@ -130,7 +130,7 @@ func (web *web) handleLoadKeys(w hRW, r *hR, p hP) {
 	if err != nil {
 		return
 	}
-	err = web.ctx.LoadKeys(string(pwd))
+	err = web.ctx.LoadSessionKey(string(pwd))
 	security.FlushBytes(pwd)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))

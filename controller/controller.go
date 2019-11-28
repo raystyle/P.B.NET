@@ -46,7 +46,7 @@ func New(cfg *Config) (*CTRL, error) {
 	// global
 	global, err := newGlobal(ctrl.logger, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize global failed")
+		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	ctrl.global = global
 	// handler

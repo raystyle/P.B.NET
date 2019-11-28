@@ -10,11 +10,11 @@ import (
 )
 
 func init() {
-	// gorm custom namer: table name delete "m"
+	// gorm custom name: table name delete "m"
 	// table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
-	namer := gorm.TheNamingStrategy.Table
+	n := gorm.TheNamingStrategy.Table
 	gorm.TheNamingStrategy.Table = func(name string) string {
-		return namer(name)[2:]
+		return n(name)[2:]
 	}
 }
 
@@ -156,17 +156,17 @@ func getStructureName(v interface{}) string {
 }
 
 // InitializeDatabase is used to initialize database
-// if first use this project
-func InitializeDatabase(cfg *Config) error {
+func InitializeDatabase(config *Config) error {
+	cfg := config.Database
+
 	// connect database
-	dbCfg := cfg.Database
-	db, err := gorm.Open(dbCfg.Dialect, dbCfg.DSN)
+	db, err := gorm.Open(cfg.Dialect, cfg.DSN)
 	if err != nil {
-		return errors.Wrapf(err, "connect %s server failed", dbCfg.Dialect)
+		return errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
 	}
 	err = db.DB().Ping()
 	if err != nil {
-		return errors.Wrapf(err, "ping %s server failed", dbCfg.Dialect)
+		return errors.Wrapf(err, "ping %s server failed", cfg.Dialect)
 	}
 	// not add s
 	db.SingularTable(true)

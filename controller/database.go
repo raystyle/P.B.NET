@@ -35,11 +35,11 @@ func newDB(config *Config) (*db, error) {
 	// connect database
 	gormDB, err := gorm.Open(cfg.Dialect, cfg.DSN)
 	if err != nil {
-		return nil, errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
+		return nil, errors.Wrapf(err, "failed to connect %s server", cfg.Dialect)
 	}
 	err = gormDB.DB().Ping()
 	if err != nil {
-		return nil, errors.Wrapf(err, "ping %s server failed", cfg.Dialect)
+		return nil, errors.Wrapf(err, "failed to ping %s server", cfg.Dialect)
 	}
 	gormDB.SingularTable(true) // not add s
 	// connection
