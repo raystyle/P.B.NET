@@ -1,1 +1,1 @@
-go build -v -i -ldflags "-s -w" -o manager.exe
+go build -v -i -ldflags "-s -w" -o certmgr.exe
