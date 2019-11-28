@@ -31,6 +31,7 @@ func main() {
 		initManager()
 		return
 	}
+	load()
 	manage()
 }
 
@@ -107,7 +108,7 @@ var (
 	sNumber    int                       // the number of the system CA certificates
 )
 
-func loadCertsAndKeys() {
+func load() {
 	var err error
 	// input password
 	fmt.Print("password: ")
@@ -246,6 +247,16 @@ func listSystem() {
 	}
 }
 
+// check if added repeatedly
+func checkRepeat(a map[int][]byte, b []byte) bool {
+	for _, v := range a {
+		if bytes.Equal(v, b) {
+			return true
+		}
+	}
+	return false
+}
+
 func add() {
 	var block *pem.Block
 	certPEMBlock, err := ioutil.ReadFile("certs.pem")
@@ -268,6 +279,11 @@ func add() {
 			fmt.Println("\nfailed to decode certs.pem")
 			os.Exit(1)
 		}
+
+		if checkRepeat(certsASN1, block.Bytes) {
+			continue
+		}
+
 		c, err := x509.ParseCertificate(block.Bytes)
 		checkError(err, false)
 		certASN1 := block.Bytes
@@ -305,6 +321,11 @@ func addSystem() {
 			fmt.Println("\nfailed to decode system.pem")
 			os.Exit(1)
 		}
+
+		if checkRepeat(systemASN1, block.Bytes) {
+			continue
+		}
+
 		c, err := x509.ParseCertificate(block.Bytes)
 		checkError(err, false)
 		sNumber += 1
@@ -371,7 +392,6 @@ func exit() {
 }
 
 func manage() {
-	loadCertsAndKeys()
 	var input string
 	for {
 		fmt.Print("manager> ")
