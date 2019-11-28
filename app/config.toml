@@ -10,8 +10,6 @@ log_level = "debug"
   gorm_detailed_log = false
 
 [global]
-  builtin_dir          = "builtin"
-  key_dir              = "key"
   dns_cache_deadline   = "2m"
   time_syncer_interval = "1m"
 

@@ -33,9 +33,9 @@ func main() {
 	if !debug {
 		changePath()
 	}
+
 	config := loadConfig()
-	pg := &program{config: config}
-	svc, err := service.New(pg, &service.Config{
+	svc, err := service.New(&program{config: config}, &service.Config{
 		Name:        "P.B.NET Controller",
 		DisplayName: "P.B.NET Controller",
 		Description: "P.B.NET Controller Service",
@@ -52,7 +52,7 @@ func main() {
 		}
 		log.Print("initialize database successfully")
 	case genKey != "":
-		err := controller.GenerateSessionKey(config.Global.KeyDir+"/session.key", genKey)
+		err := controller.GenerateSessionKey("key/session.key", genKey)
 		if err != nil {
 			log.Fatal(errors.Wrap(err, "failed to generate session key"))
 		}
