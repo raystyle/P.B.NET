@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"io"
 	"time"
 )
 
@@ -15,8 +16,6 @@ type Debug struct {
 type Config struct {
 	Debug Debug `toml:"-"`
 
-	LogLevel string `toml:"log_level"`
-
 	Database struct {
 		Dialect         string `toml:"dialect"` // "mysql"
 		DSN             string `toml:"dsn"`
@@ -27,17 +26,20 @@ type Config struct {
 		GORMDetailedLog bool   `toml:"gorm_detailed_log"`
 	} `toml:"database"`
 
+	Logger struct {
+		Level  string    `toml:"level"`
+		Writer io.Writer `toml:"-"`
+	} `toml:"logger"`
+
 	Global struct {
-		BuiltinDir       string        `toml:"builtin_dir"`
-		KeyDir           string        `toml:"key_dir"`
 		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 	} `toml:"global"`
 
 	Sender struct {
-		MaxBufferSize int `toml:"max_buffer_size"`
 		Worker        int `toml:"worker"`
 		QueueSize     int `toml:"queue_size"`
+		MaxBufferSize int `toml:"max_buffer_size"`
 		MaxConns      int `toml:"max_conn"`
 	} `toml:"sender"`
 

@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"os"
 	"time"
 )
 
@@ -20,8 +19,6 @@ func testGenerateConfig() *Config {
 	c.Database.GORMLogFile = "../app/log/gorm.log"
 	c.Database.GORMDetailedLog = false
 
-	c.Global.BuiltinDir = "../app/builtin"
-	c.Global.KeyDir = os.TempDir() + "/p.b.net/key"
 	c.Global.DNSCacheExpire = 3 * time.Minute
 	c.Global.TimeSyncInterval = 1 * time.Minute
 
@@ -36,8 +33,8 @@ func testGenerateConfig() *Config {
 	c.Syncer.ExpireTime = 3 * time.Minute
 
 	c.Web.Dir = "../app/web"
-	c.Web.CertFile = "../app/cert/server.crt"
-	c.Web.KeyFile = "../app/cert/server.key"
+	c.Web.CertFile = "../app/cert/cert.pem"
+	c.Web.KeyFile = "../app/cert/.key"
 	c.Web.Address = "localhost:9931"
 	c.Web.Username = "admin"
 	c.Web.Password = "56c10b0f6a18abe0247c31fd1d1a70e51e5a09f2"

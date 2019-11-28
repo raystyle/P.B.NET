@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/pkg/errors"
@@ -25,10 +26,10 @@ func newDBLogger(db, path string) (*dbLogger, error) {
 
 // [2006-01-02 15:04:05] [info] <mysql> test log
 func (l *dbLogger) Print(log ...interface{}) {
-	buffer := logger.Prefix(logger.Info, l.db)
-	_, _ = fmt.Fprintln(buffer, log...)
-	_, _ = l.file.Write(buffer.Bytes())
-	_, _ = buffer.WriteTo(os.Stdout)
+	buf := logger.Prefix(logger.Info, l.db)
+	_, _ = fmt.Fprintln(buf, log...)
+	_, _ = l.file.Write(buf.Bytes())
+	_, _ = buf.WriteTo(os.Stdout)
 }
 
 func (l *dbLogger) Close() {
@@ -49,10 +50,10 @@ func newGormLogger(path string) (*gormLogger, error) {
 
 // [2006-01-02 15:04:05] [info] <gorm> test log
 func (l *gormLogger) Print(log ...interface{}) {
-	buffer := logger.Prefix(logger.Info, "gorm")
-	_, _ = fmt.Fprintln(buffer, log...)
-	_, _ = l.file.Write(buffer.Bytes())
-	_, _ = buffer.WriteTo(os.Stdout)
+	buf := logger.Prefix(logger.Info, "gorm")
+	_, _ = fmt.Fprintln(buf, log...)
+	_, _ = l.file.Write(buf.Bytes())
+	_, _ = buf.WriteTo(os.Stdout)
 }
 
 func (l *gormLogger) Close() {
@@ -60,19 +61,22 @@ func (l *gormLogger) Close() {
 }
 
 type gLogger struct {
-	ctx   *CTRL
-	level logger.Level
+	ctx *CTRL
+
+	level  logger.Level
+	writer io.Writer
 }
 
-func newLogger(ctx *CTRL, level string) (*gLogger, error) {
-	// init logger
-	lv, err := logger.Parse(level)
+func newLogger(ctx *CTRL, config *Config) (*gLogger, error) {
+	cfg := config.Logger
+	lv, err := logger.Parse(cfg.Level)
 	if err != nil {
 		return nil, err
 	}
 	return &gLogger{
-		ctx:   ctx,
-		level: lv,
+		ctx:    ctx,
+		level:  lv,
+		writer: cfg.Writer,
 	}, nil
 }
 
@@ -80,46 +84,47 @@ func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{
 	if lv < lg.level {
 		return
 	}
-	buffer := logger.Prefix(lv, src)
+	buf := logger.Prefix(lv, src)
 	// log with level and src
 	logStr := fmt.Sprintf(format, log...)
-	buffer.WriteString(logStr)
-	buffer.WriteString("\n")
-	lg.writeLog(lv, src, logStr, buffer)
+	buf.WriteString(logStr)
+	buf.WriteString("\n")
+	lg.writeLog(lv, src, logStr, buf)
 }
 
 func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
-	buffer := logger.Prefix(lv, src)
+	buf := logger.Prefix(lv, src)
 	// log with level and src
 	logStr := fmt.Sprint(log...)
-	buffer.WriteString(logStr)
-	buffer.WriteString("\n")
-	lg.writeLog(lv, src, logStr, buffer)
+	buf.WriteString(logStr)
+	buf.WriteString("\n")
+	lg.writeLog(lv, src, logStr, buf)
 }
 
 func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level {
 		return
 	}
-	buffer := logger.Prefix(lv, src)
+	buf := logger.Prefix(lv, src)
 	// log with level and src
 	logStr := fmt.Sprintln(log...)
-	buffer.WriteString(logStr)
-	lg.writeLog(lv, src, logStr[:len(logStr)-1], buffer) // delete "\n"
+	buf.WriteString(logStr)
+	lg.writeLog(lv, src, logStr[:len(logStr)-1], buf) // delete "\n"
 }
 
-// log don't include time level src, for database
+// string log don't include time level src, for database
 func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
-	// write to database
-	m := mCtrlLog{
+	_ = lg.ctx.db.InsertCtrlLog(&mCtrlLog{
 		Level:  lv,
 		Source: src,
 		Log:    log,
-	}
-	_ = lg.ctx.db.InsertCtrlLog(&m)
-	// print to console
-	_, _ = b.WriteTo(os.Stdout)
+	})
+	_, _ = b.WriteTo(lg.writer)
+}
+
+func (lg *gLogger) Close() {
+	lg.ctx = nil
 }

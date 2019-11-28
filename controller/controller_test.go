@@ -35,7 +35,7 @@ func testInitCtrl(t require.TestingT) {
 		}
 
 		// set controller keys
-		err = ctrl.LoadKeys("123456789012")
+		err = ctrl.LoadSessionKey("123456789012")
 		require.NoError(t, err)
 
 		go func() {

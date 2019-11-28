@@ -29,7 +29,7 @@ func New(cfg *Config) (*CTRL, error) {
 	// database
 	db, err := newDB(cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize database failed")
+		return nil, errors.WithMessage(err, "failed to initialize database")
 	}
 	// copy debug config
 	debug := cfg.Debug
@@ -38,9 +38,9 @@ func New(cfg *Config) (*CTRL, error) {
 		db:    db,
 	}
 	// logger
-	lg, err := newLogger(ctrl, cfg.LogLevel)
+	lg, err := newLogger(ctrl, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize logger failed")
+		return nil, errors.WithMessage(err, "failed to initialize logger")
 	}
 	ctrl.logger = lg
 	// global
@@ -153,8 +153,8 @@ func (ctrl *CTRL) fatal(err error, msg string) error {
 	return err
 }
 
-func (ctrl *CTRL) LoadKeys(password string) error {
-	return ctrl.global.LoadKeys(password)
+func (ctrl *CTRL) LoadSessionKey(password string) error {
+	return ctrl.global.LoadSessionKey(password)
 }
 
 func (ctrl *CTRL) DeleteNode(guid []byte) error {
