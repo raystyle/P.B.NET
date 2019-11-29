@@ -345,7 +345,7 @@ func (sw *syncerWorker) handleBeaconSend() {
 		sw.ctx.logf(logger.Exploit, "decrypt beacon %X send failed: %s", sw.send.RoleGUID, sw.err)
 		return
 	}
-	// check hash
+	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(sw.send.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), sw.send.Hash) != 1 {
@@ -382,7 +382,7 @@ func (sw *syncerWorker) handleNodeSend() {
 		sw.ctx.logf(logger.Exploit, "decrypt node %X send failed: %s", sw.send.RoleGUID, sw.err)
 		return
 	}
-	// check hash
+	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(sw.send.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), sw.send.Hash) != 1 {

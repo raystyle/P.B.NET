@@ -3,6 +3,8 @@ package controller
 import (
 	"bytes"
 	"crypto/subtle"
+	"crypto/x509"
+	"encoding/pem"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/crypto/sha256"
@@ -22,6 +25,28 @@ import (
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/timesync"
+)
+
+// <warning> must < 1048576
+const (
+	// sign message
+	// hide ed25519 private key
+	objPrivateKey uint32 = 0
+
+	// check node certificate
+	objPublicKey uint32 = iota + 64
+
+	// for key exchange
+	objKeyExPub
+
+	// encrypt controller broadcast message
+	objAESCrypto
+
+	// self CA certificates and private keys
+	objSelfCA
+
+	// system CA certificates
+	objSystemCA
 )
 
 type global struct {
@@ -37,6 +62,7 @@ type global struct {
 	// without time syncer client
 	timeSyncer *timesync.Syncer
 
+	// objects include various things
 	objects    map[uint32]interface{}
 	objectsRWM sync.RWMutex
 
@@ -219,22 +245,93 @@ func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
 	return
 }
 
-// <warning> must < 1048576
+func loadSelfCertificates(hash *bytes.Buffer, password []byte) ([]*cert.KeyPair, error) {
+	// read PEM files
+	certPEMBlock, err := ioutil.ReadFile("key/certs.pem")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	keyPEMBlock, err := ioutil.ReadFile("key/keys.pem")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var (
+		block *pem.Block
+		self  []*cert.KeyPair
+	)
+	for {
+		if len(certPEMBlock) == 0 {
+			break
+		}
 
-const (
-	// verify controller role & sign message
-	// hide ed25519 private key
-	objPrivateKey uint32 = 0
+		// load CA certificate
+		block, certPEMBlock = pem.Decode(certPEMBlock)
+		if block == nil {
+			return nil, errors.New("failed to decode key/certs.pem")
+		}
+		b, err := x509.DecryptPEMBlock(block, password)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		c, err := x509.ParseCertificate(b)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		hash.Write(b)
 
-	// check node certificate
-	objPublicKey uint32 = iota + 64
+		// load private key
+		block, keyPEMBlock = pem.Decode(keyPEMBlock)
+		if block == nil {
+			return nil, errors.New("failed to decode key/keys.pem")
+		}
+		b, err = x509.DecryptPEMBlock(block, password)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		key, err := x509.ParsePKCS8PrivateKey(b)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		hash.Write(b)
+		self = append(self, &cert.KeyPair{
+			Certificate: c,
+			PrivateKey:  key,
+		})
+	}
+	return self, nil
+}
 
-	// for key exchange
-	objKeyExPub
-
-	// encrypt controller broadcast message
-	objAESCrypto
-)
+func loadSystemCertificates(hash *bytes.Buffer, password []byte) ([]*x509.Certificate, error) {
+	systemPEMBlock, err := ioutil.ReadFile("key/system.pem")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var (
+		block  *pem.Block
+		system []*x509.Certificate
+	)
+	for {
+		if len(systemPEMBlock) == 0 {
+			break
+		}
+		// load CA certificate
+		block, systemPEMBlock = pem.Decode(systemPEMBlock)
+		if block == nil {
+			return nil, errors.New("failed to decode key/system.pem")
+		}
+		b, err := x509.DecryptPEMBlock(block, password)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		c, err := x509.ParseCertificate(b)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		hash.Write(b)
+		system = append(system, c)
+	}
+	return system, nil
+}
 
 func (global *global) isLoadSessionKey() bool {
 	return atomic.LoadInt32(&global.loadSessionKey) != 0
@@ -253,7 +350,7 @@ func (global *global) LoadSessionKey(password []byte) error {
 	// load session keys
 	keys, err := loadSessionKey("key/session.key", password)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithMessage(err, "failed to load session key")
 	}
 	// ed25519
 	pri := keys[0]
@@ -278,6 +375,35 @@ func (global *global) LoadSessionKey(password []byte) error {
 		global.objects[objPrivateKey+uint32(i)] = pri[i]
 		pri[i] = byte(rand.Int64())
 	}
+
+	// load certificates
+	PEMHash, err := ioutil.ReadFile("key/pem.hash")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	hash := new(bytes.Buffer)
+	hash.Write(password)
+
+	memory.Padding()
+	kps, err := loadSelfCertificates(hash, password)
+	if err != nil {
+		return errors.WithMessage(err, "failed to load self CA certificates")
+	}
+	memory.Padding()
+	system, err := loadSystemCertificates(hash, password)
+	if err != nil {
+		return errors.WithMessage(err, "failed to load system CA certificates")
+	}
+
+	// compare hash
+	memory.Padding()
+	if subtle.ConstantTimeCompare(PEMHash, sha256.Bytes(hash.Bytes())) != 1 {
+		return errors.New("warning: PEM files has been tampered")
+	}
+	memory.Padding()
+	global.objects[objSelfCA] = kps
+	memory.Padding()
+	global.objects[objSystemCA] = system
 
 	global.closeOnce.Do(func() { close(global.waitLoadSessionKey) })
 	atomic.StoreInt32(&global.loadSessionKey, 1)
