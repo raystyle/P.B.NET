@@ -448,8 +448,7 @@ func (global *global) Verify(message, signature []byte) bool {
 func (global *global) KeyExchangePub() []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	pub := global.objects[objKeyExPub]
-	return pub.([]byte)
+	return global.objects[objKeyExPub].([]byte)
 }
 
 // KeyExchange is use to calculate session key
@@ -462,6 +461,20 @@ func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
 	}
 	return curve25519.ScalarMult(pri, publicKey)
+}
+
+// GetSelfCA is used to get self CA certificate to generate CA-sign certificate
+func (global *global) GetSelfCA() []*cert.KeyPair {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	return global.objects[objSelfCA].([]*cert.KeyPair)
+}
+
+// GetSystemCA is used to get system CA certificate
+func (global *global) GetSystemCA() []*x509.Certificate {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	return global.objects[objSystemCA].([]*x509.Certificate)
 }
 
 // Close is used to close global
