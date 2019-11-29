@@ -9,7 +9,7 @@ import (
 
 func TestGenerateSessionKey(t *testing.T) {
 	path := os.TempDir() + "/ctrl.key"
-	const password = "0123456789012"
+	password := []byte("0123456789012")
 	err := GenerateSessionKey(path, password)
 	require.NoError(t, err)
 	keys, err := loadSessionKey(path, password)

@@ -40,8 +40,9 @@ type global struct {
 	objects    map[uint32]interface{}
 	objectsRWM sync.RWMutex
 
-	loadKeys     int32
-	waitLoadKeys chan struct{}
+	loadSessionKey     int32
+	waitLoadSessionKey chan struct{}
+	closeOnce          sync.Once
 }
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
@@ -113,18 +114,20 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	}
 
 	return &global{
-		proxyPool:    proxyPool,
-		dnsClient:    dnsClient,
-		timeSyncer:   timeSyncer,
-		objects:      make(map[uint32]interface{}),
-		waitLoadKeys: make(chan struct{}, 1),
+		proxyPool:          proxyPool,
+		dnsClient:          dnsClient,
+		timeSyncer:         timeSyncer,
+		objects:            make(map[uint32]interface{}),
+		waitLoadSessionKey: make(chan struct{}, 1),
 	}, nil
 }
 
+// StartTimeSyncer is used to start time syncer
 func (global *global) StartTimeSyncer() error {
 	return global.timeSyncer.Start()
 }
 
+// Now is used to get current time
 func (global *global) Now() time.Time {
 	return global.timeSyncer.Now().Local()
 }
@@ -169,7 +172,7 @@ func GenerateSessionKey(path string, password []byte) error {
 const sessionKeySize = sha256.Size + ed25519.PrivateKeySize + aes.Key256Bit + aes.IVSize
 
 // return ed25519 private key & aes key & aes iv
-func loadSessionKey(path string, password []byte) (keys [3][]byte, err error) {
+func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
 	file, err := ioutil.ReadFile(path)
 	if err != nil {
 		err = errors.WithStack(err)
@@ -185,7 +188,6 @@ func loadSessionKey(path string, password []byte) (keys [3][]byte, err error) {
 	defer memory.Flush()
 	memory.Padding()
 	key := sha256.Bytes(password)
-	security.FlushBytes(password)
 	iv := sha256.Bytes(append(key, []byte{20, 18, 11, 27}...))[:aes.IVSize]
 	keyDec, err := aes.CBCDecrypt(file[sha256.Size:], key, iv)
 	if err != nil {
@@ -210,6 +212,7 @@ func loadSessionKey(path string, password []byte) (keys [3][]byte, err error) {
 	offset += aes.Key256Bit
 	aesIV := keyDec[offset : offset+aes.IVSize]
 
+	keys = make([][]byte, 3)
 	keys[0] = privateKey
 	keys[1] = aesKey
 	keys[2] = aesIV
@@ -217,30 +220,43 @@ func loadSessionKey(path string, password []byte) (keys [3][]byte, err error) {
 }
 
 // <warning> must < 1048576
-const (
-	_ uint32 = iota
 
-	objPrivateKey // verify controller role & sign message
-	objPublicKey  // for role
-	objKeyExPub   // for key exchange
-	objAESCrypto  // encrypt controller broadcast message
+const (
+	// verify controller role & sign message
+	// hide ed25519 private key
+	objPrivateKey uint32 = 0
+
+	// check node certificate
+	objPublicKey uint32 = iota + 64
+
+	// for key exchange
+	objKeyExPub
+
+	// encrypt controller broadcast message
+	objAESCrypto
 )
 
+func (global *global) isLoadSessionKey() bool {
+	return atomic.LoadInt32(&global.loadSessionKey) != 0
+}
+
+// LoadSessionKey is used to load session key
 func (global *global) LoadSessionKey(password []byte) error {
-	if global.isLoadKeys() {
-		return errors.New("already session load key")
-	}
+	defer security.FlushBytes(password)
+
 	global.objectsRWM.Lock()
 	defer global.objectsRWM.Unlock()
 
+	if global.isLoadSessionKey() {
+		return errors.New("already load session key")
+	}
 	// load session keys
 	keys, err := loadSessionKey("key/session.key", password)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// ed25519
-	pri, _ := ed25519.ImportPrivateKey(keys[0])
-	global.objects[objPrivateKey] = pri
+	pri := keys[0]
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
 	global.objects[objPublicKey] = pub
 	// curve25519
@@ -253,64 +269,77 @@ func (global *global) LoadSessionKey(password []byte) error {
 	cbc, _ := aes.NewCBC(keys[1], keys[2])
 	global.objects[objAESCrypto] = cbc
 
-	atomic.StoreInt32(&global.loadKeys, 1)
-	close(global.waitLoadKeys)
+	// hide ed25519 private key, not continuity in memory
+	rand := random.New(0)
+	memory := security.NewMemory()
+	defer memory.Flush()
+	for i := 0; i < ed25519.PrivateKeySize; i++ {
+		memory.Padding()
+		global.objects[objPrivateKey+uint32(i)] = pri[i]
+		pri[i] = byte(rand.Int64())
+	}
+
+	global.closeOnce.Do(func() { close(global.waitLoadSessionKey) })
+	atomic.StoreInt32(&global.loadSessionKey, 1)
 	return nil
 }
 
-func (global *global) isLoadKeys() bool {
-	return atomic.LoadInt32(&global.loadKeys) != 0
-}
-
-func (global *global) WaitLoadKeys() bool {
-	<-global.waitLoadKeys
-	return global.isLoadKeys()
+// WaitLoadSessionKey is used to wait load session key
+func (global *global) WaitLoadSessionKey() bool {
+	<-global.waitLoadSessionKey
+	return global.isLoadSessionKey()
 }
 
 // Encrypt is used to encrypt controller broadcast message
 func (global *global) Encrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
 	cbc := global.objects[objAESCrypto]
-	global.objectsRWM.RUnlock()
 	return cbc.(*aes.CBC).Encrypt(data)
 }
 
 // Sign is used to verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
+	pri := make([]byte, ed25519.PrivateKeySize)
+	defer security.FlushBytes(pri)
 	global.objectsRWM.RLock()
-	pri := global.objects[objPrivateKey]
-	global.objectsRWM.RUnlock()
-	return ed25519.Sign(pri.(ed25519.PrivateKey), message)
+	defer global.objectsRWM.RUnlock()
+	for i := 0; i < ed25519.PrivateKeySize; i++ {
+		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
+	}
+	return ed25519.Sign(pri, message)
 }
 
 // Verify is used to verify node certificate
 func (global *global) Verify(message, signature []byte) bool {
 	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
 	pub := global.objects[objPublicKey]
-	global.objectsRWM.RUnlock()
-
 	return ed25519.Verify(pub.(ed25519.PublicKey), message, signature)
 }
 
 // KeyExchangePub is used to get key exchange public key
 func (global *global) KeyExchangePub() []byte {
 	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
 	pub := global.objects[objKeyExPub]
-	global.objectsRWM.RUnlock()
 	return pub.([]byte)
 }
 
 // KeyExchange is use to calculate session key
 func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
+	pri := make([]byte, 32)
+	defer security.FlushBytes(pri)
 	global.objectsRWM.RLock()
-	pri := global.objects[objPrivateKey]
-	global.objectsRWM.RUnlock()
-	return curve25519.ScalarMult(pri.(ed25519.PrivateKey)[:ed25519.SeedSize], publicKey)
+	defer global.objectsRWM.RUnlock()
+	for i := 0; i < 32; i++ {
+		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
+	}
+	return curve25519.ScalarMult(pri, publicKey)
 }
 
+// Close is used to close global
 func (global *global) Close() {
 	global.timeSyncer.Stop()
-	if !global.isLoadKeys() {
-		close(global.waitLoadKeys)
-	}
+	global.closeOnce.Do(func() { close(global.waitLoadSessionKey) })
 }

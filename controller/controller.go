@@ -8,6 +8,7 @@ import (
 	"project/internal/logger"
 )
 
+// Controller
 type CTRL struct {
 	Debug *Debug // for test
 
@@ -25,6 +26,7 @@ type CTRL struct {
 	exit chan error
 }
 
+// New is used to create Controller from config
 func New(cfg *Config) (*CTRL, error) {
 	// database
 	db, err := newDB(cfg)
@@ -96,7 +98,7 @@ func (ctrl *CTRL) Main() error {
 	ctrl.logger.Println(logger.Info, "init", "http server:", ctrl.web.Address())
 	ctrl.logger.Print(logger.Info, "init", "controller is running")
 	// wait to load controller keys
-	if !ctrl.global.WaitLoadKeys() {
+	if !ctrl.global.WaitLoadSessionKey() {
 		return nil
 	}
 	ctrl.logger.Print(logger.Info, "init", "load keys successfully")
@@ -117,6 +119,7 @@ func (ctrl *CTRL) Main() error {
 	return <-ctrl.exit
 }
 
+// Exit is used to exit controller with a error
 func (ctrl *CTRL) Exit(err error) {
 	ctrl.once.Do(func() {
 		ctrl.web.Close()
@@ -153,7 +156,7 @@ func (ctrl *CTRL) fatal(err error, msg string) error {
 	return err
 }
 
-func (ctrl *CTRL) LoadSessionKey(password string) error {
+func (ctrl *CTRL) LoadSessionKey(password []byte) error {
 	return ctrl.global.LoadSessionKey(password)
 }
 
