@@ -211,7 +211,7 @@ func load() {
 	}
 	sNumber = len(system)
 
-	// check hash
+	// compare hash
 	if subtle.ConstantTimeCompare(PEMHash, hash.Sum(nil)) != 1 {
 		log.Fatal("warning: PEM files has been tampered")
 	}
@@ -371,7 +371,7 @@ func save() {
 		hash.Write(systemASN1[i])
 	}
 
-	// write
+	// write PEM files and hash
 	err := ioutil.WriteFile("key/certs.pem", certsPEM.Bytes(), 644)
 	checkError(err, false)
 	err = ioutil.WriteFile("key/keys.pem", keysPEM.Bytes(), 644)
