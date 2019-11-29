@@ -22,8 +22,6 @@ type TLSConfig struct {
 	RootCAs      []string      `toml:"root_ca"`   // PEM
 	ClientCAs    []string      `toml:"client_ca"` // PEM
 	NextProtos   []string      `toml:"next_protos"`
-	MinVersion   uint16        `toml:"min_version"`
-	MaxVersion   uint16        `toml:"max_version"`
 
 	InsecureLoadFromSystem bool `toml:"insecure_load_from_system"`
 }
@@ -56,8 +54,7 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 	config := &tls.Config{
 		ServerName: t.ServerName,
 		NextProtos: nextProtos,
-		MinVersion: t.MinVersion,
-		MaxVersion: t.MaxVersion,
+		MinVersion: tls.VersionTLS12,
 	}
 
 	// set certificates
@@ -111,11 +108,6 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 		for i := 0; i < len(cert); i++ {
 			config.ClientCAs.AddCert(cert[i])
 		}
-	}
-
-	// version
-	if config.MinVersion == 0 {
-		config.MinVersion = tls.VersionTLS12
 	}
 	return config, nil
 }
