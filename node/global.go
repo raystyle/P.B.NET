@@ -95,13 +95,13 @@ const (
 	objCtrlAESCrypto  // decrypt controller broadcast message
 	objCtrlSessionKey // after key exchange (aes crypto)
 
-	objStartupTime    // global.configure() time
-	objNodeGUID       // identification
-	objDBAESCrypto    // encrypt self data(database)
-	objCertificate    // for server.handshake
-	objPrivateKey     // for sign message
-	objPublicKey      // for role verify message
-	objKeyExPublicKey // for key exchange
+	objStartupTime // global.configure() time
+	objNodeGUID    // identification
+	objDBAESCrypto // encrypt self data(database)
+	objCertificate // for server.handshake
+	objPrivateKey  // for sign message
+	objPublicKey   // for role verify message
+	objKeyExPub    // for key exchange
 )
 
 // <security>
@@ -164,7 +164,7 @@ func (global *global) configure(cfg *Config) error {
 	if err != nil {
 		panic(err)
 	}
-	global.object[objKeyExPublicKey] = pub
+	global.object[objKeyExPub] = pub
 	// generate database aes
 	global.secPaddingMemory()
 	rand = random.New(0)
@@ -231,22 +231,20 @@ func (global *global) Now() time.Time {
 
 func (global *global) StartupTime() time.Time {
 	global.objectRWM.RLock()
-	t := global.object[objStartupTime]
-	global.objectRWM.RUnlock()
-	return t.(time.Time)
+	defer global.objectRWM.RUnlock()
+	return global.object[objStartupTime].(time.Time)
 }
 
 func (global *global) GUID() []byte {
 	global.objectRWM.RLock()
-	g := global.object[objNodeGUID]
-	global.objectRWM.RUnlock()
-	return g.([]byte)
+	defer global.objectRWM.RUnlock()
+	return global.object[objNodeGUID].([]byte)
 }
 
 func (global *global) Certificate() []byte {
 	global.objectRWM.RLock()
+	defer global.objectRWM.RUnlock()
 	c := global.object[objCertificate]
-	global.objectRWM.RUnlock()
 	if c != nil {
 		return c.([]byte)
 	} else {
@@ -267,76 +265,69 @@ func (global *global) SetCertificate(cert []byte) error {
 	}
 }
 
-// KeyExchangePublicKey is used to get node key exchange public key
-func (global *global) KeyExchangePublicKey() []byte {
-	global.objectRWM.RLock()
-	pub := global.object[objKeyExPublicKey]
-	global.objectRWM.RUnlock()
-	return pub.([]byte)
-}
-
 // PublicKey is used to get node public key
 func (global *global) PublicKey() ed25519.PublicKey {
 	global.objectRWM.RLock()
-	k := global.object[objPublicKey]
-	global.objectRWM.RUnlock()
-	return k.(ed25519.PublicKey)
+	defer global.objectRWM.RUnlock()
+	return global.object[objPublicKey].(ed25519.PublicKey)
 }
 
-// DBEncrypt is used to encrypt database data
-func (global *global) DBEncrypt(data []byte) ([]byte, error) {
+// KeyExchangePub is used to get node key exchange public key
+func (global *global) KeyExchangePub() []byte {
 	global.objectRWM.RLock()
-	cbc := global.object[objDBAESCrypto]
-	global.objectRWM.RUnlock()
-	return cbc.(*aes.CBC).Encrypt(data)
-}
-
-// DBDecrypt is used to decrypt database data
-func (global *global) DBDecrypt(data []byte) ([]byte, error) {
-	global.objectRWM.RLock()
-	cbc := global.object[objDBAESCrypto]
-	global.objectRWM.RUnlock()
-	return cbc.(*aes.CBC).Decrypt(data)
+	defer global.objectRWM.RUnlock()
+	return global.object[objKeyExPub].([]byte)
 }
 
 // Sign is used to sign node message
 func (global *global) Sign(message []byte) []byte {
 	global.objectRWM.RLock()
+	defer global.objectRWM.RUnlock()
 	k := global.object[objPrivateKey]
-	global.objectRWM.RUnlock()
 	return ed25519.Sign(k.(ed25519.PrivateKey), message)
 }
 
 // Encrypt is used to encrypt session data
 func (global *global) Encrypt(data []byte) ([]byte, error) {
 	global.objectRWM.RLock()
-	cbc := global.object[objCtrlSessionKey]
-	global.objectRWM.RUnlock()
-	return cbc.(*aes.CBC).Encrypt(data)
+	defer global.objectRWM.RUnlock()
+	return global.object[objCtrlSessionKey].(*aes.CBC).Encrypt(data)
 }
 
 // Decrypt is used to decrypt session data
 func (global *global) Decrypt(data []byte) ([]byte, error) {
 	global.objectRWM.RLock()
-	cbc := global.object[objCtrlSessionKey]
-	global.objectRWM.RUnlock()
-	return cbc.(*aes.CBC).Decrypt(data)
+	defer global.objectRWM.RUnlock()
+	return global.object[objCtrlSessionKey].(*aes.CBC).Decrypt(data)
 }
 
 // CtrlVerify is used to verify controller message
 func (global *global) CtrlVerify(message, signature []byte) bool {
 	global.objectRWM.RLock()
+	defer global.objectRWM.RUnlock()
 	p := global.object[objCtrlPublicKey]
-	global.objectRWM.RUnlock()
 	return ed25519.Verify(p.(ed25519.PublicKey), message, signature)
 }
 
 // CtrlDecrypt is used to decrypt controller broadcast message
 func (global *global) CtrlDecrypt(data []byte) ([]byte, error) {
 	global.objectRWM.RLock()
-	cbc := global.object[objCtrlAESCrypto]
-	global.objectRWM.RUnlock()
-	return cbc.(*aes.CBC).Decrypt(data)
+	defer global.objectRWM.RUnlock()
+	return global.object[objCtrlAESCrypto].(*aes.CBC).Decrypt(data)
+}
+
+// DBEncrypt is used to encrypt database data
+func (global *global) DBEncrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	defer global.objectRWM.RUnlock()
+	return global.object[objDBAESCrypto].(*aes.CBC).Encrypt(data)
+}
+
+// DBDecrypt is used to decrypt database data
+func (global *global) DBDecrypt(data []byte) ([]byte, error) {
+	global.objectRWM.RLock()
+	defer global.objectRWM.RUnlock()
+	return global.object[objDBAESCrypto].(*aes.CBC).Decrypt(data)
 }
 
 func (global *global) Close() {

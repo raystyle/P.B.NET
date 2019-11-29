@@ -197,7 +197,7 @@ func (sw *subWorker) handleBroadcast(b *protocol.Broadcast) {
 		sw.logf(logger.Exploit, format, b.GUID, sw.err)
 		return
 	}
-	// check hash
+	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(b.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), b.Hash) != 1 {
@@ -235,7 +235,7 @@ func (sw *subWorker) handleSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, s.GUID, sw.err)
 		return
 	}
-	// check hash
+	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(s.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), s.Hash) != 1 {
