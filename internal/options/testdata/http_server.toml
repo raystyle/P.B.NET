@@ -5,4 +5,5 @@ idle_timeout        = "10s"
 max_header_bytes    = 16384
 disable_keep_alive  = true
 
-[tls_config] # see tls.toml
+[tls_config]
+  server_name = "test.com"

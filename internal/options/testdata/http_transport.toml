@@ -9,4 +9,5 @@ max_response_header_bytes = 16384
 disable_keep_alives       = true
 disable_compression       = true
 
-[tls_config] # see tls.toml
+[tls_config]
+  server_name = "test.com"

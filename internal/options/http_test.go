@@ -72,10 +72,6 @@ func TestHTTPRequest_Apply_failed(t *testing.T) {
 	require.Error(t, err)
 }
 
-var testInvalidTLSConfig = TLSConfig{
-	RootCAs: []string{"foo data"},
-}
-
 func TestHTTPTransportDefault(t *testing.T) {
 	transport, err := new(HTTPTransport).Apply()
 	require.NoError(t, err)
@@ -115,10 +111,15 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 		{expected: int64(16384), actual: transport.MaxResponseHeaderBytes},
 		{expected: true, actual: transport.DisableKeepAlives},
 		{expected: true, actual: transport.DisableCompression},
+		{expected: "test.com", actual: transport.TLSClientConfig.ServerName},
 	}
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)
 	}
+}
+
+var testInvalidTLSConfig = TLSConfig{
+	RootCAs: []string{"foo data"},
 }
 
 func TestHTTPTransport_Apply_failed(t *testing.T) {
@@ -159,6 +160,7 @@ func TestHTTPServerUnmarshal(t *testing.T) {
 		{expected: timeout, actual: server.ReadHeaderTimeout},
 		{expected: timeout, actual: server.IdleTimeout},
 		{expected: 16384, actual: server.MaxHeaderBytes},
+		{expected: "test.com", actual: server.TLSConfig.ServerName},
 	}
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)
@@ -166,7 +168,6 @@ func TestHTTPServerUnmarshal(t *testing.T) {
 }
 
 func TestHTTPServer_Apply_failed(t *testing.T) {
-	// invalid tls config
 	s := HTTPServer{
 		TLSConfig: testInvalidTLSConfig,
 	}
@@ -175,7 +176,6 @@ func TestHTTPServer_Apply_failed(t *testing.T) {
 }
 
 func TestHTTPServerSetReadWriteTimeout(t *testing.T) {
-	// invalid tls config
 	s := HTTPServer{
 		ReadTimeout:  -1,
 		WriteTimeout: -1,
