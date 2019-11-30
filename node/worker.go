@@ -35,11 +35,11 @@ func newWorker(ctx *Node, config *Config) (*worker, error) {
 	if cfg.Number < 4 {
 		return nil, errors.New("worker number must >= 4")
 	}
-	if cfg.QueueSize < 512 {
-		return nil, errors.New("worker task queue size < 512")
+	if cfg.QueueSize < cfg.Number {
+		return nil, errors.New("worker task queue size < worker number")
 	}
-	if cfg.MaxBufferSize < 4096 {
-		return nil, errors.New("max buffer size >= 4096")
+	if cfg.MaxBufferSize < 16384 {
+		return nil, errors.New("max buffer size >= 16384")
 	}
 
 	worker := worker{

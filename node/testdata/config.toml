@@ -1,0 +1,39 @@
+[logger]
+  level      = "debug"
+  queue_size = 512
+
+[global]
+  dns_cache_expire   = "2m"
+  time_sync_interval = "1m"
+
+[client]
+  proxy_tag = "test"
+  timeout   = "15s"
+
+  [client.dns]
+    mode    = "custom"
+
+[register]
+
+[forwarder]
+  max_ctrl_conns   = 10
+  max_node_conns   = 8
+  max_beacon_conns = 128
+
+[sender]
+  worker          = 16
+  queue_size      = 512
+  max_buffer_size = 16384
+  timeout         = "15s"
+
+[syncer]
+  expire_time = "30s"
+
+[worker]
+  number          = 16
+  queue_size      = 32
+  max_buffer_size = 16384
+
+[server]
+  max_conns = 10
+  timeout   = "15s"
