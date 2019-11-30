@@ -75,33 +75,35 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		return nil, errors.New("listener max connection must >= 15s")
 	}
 
-	// decrypt configs about listeners
-	if len(cfg.AESCrypto) != aes.Key256Bit+aes.IVSize {
-		return nil, errors.New("invalid aes key size")
-	}
-	aesKey := cfg.AESCrypto[:aes.Key256Bit]
-	aesIV := cfg.AESCrypto[aes.Key256Bit:]
-	defer func() {
-		security.FlushBytes(aesKey)
-		security.FlushBytes(aesIV)
-	}()
-	data, err := aes.CBCDecrypt(cfg.Listeners, aesKey, aesIV)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	// load listeners
-	var listeners []*messages.Listener
-	err = msgpack.Unmarshal(data, &listeners)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
 	server := server{listeners: make(map[string]*Listener)}
-	for i := 0; i < len(listeners); i++ {
-		_, err = server.addListener(listeners[i])
+	if len(cfg.Listeners) != 0 {
+		// decrypt configs about listeners
+		if len(cfg.AESCrypto) != aes.Key256Bit+aes.IVSize {
+			return nil, errors.New("invalid aes key size")
+		}
+		aesKey := cfg.AESCrypto[:aes.Key256Bit]
+		aesIV := cfg.AESCrypto[aes.Key256Bit:]
+		defer func() {
+			security.FlushBytes(aesKey)
+			security.FlushBytes(aesIV)
+		}()
+		data, err := aes.CBCDecrypt(cfg.Listeners, aesKey, aesIV)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
+		}
+
+		// load listeners
+		var listeners []*messages.Listener
+		err = msgpack.Unmarshal(data, &listeners)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		for i := 0; i < len(listeners); i++ {
+			_, err = server.addListener(listeners[i])
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 

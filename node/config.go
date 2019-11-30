@@ -15,15 +15,7 @@ import (
 	"project/internal/timesync"
 )
 
-type Debug struct {
-	// skip sync time
-	SkipTimeSyncer bool
-
-	// from controller
-	Broadcast chan []byte
-	Send      chan []byte
-}
-
+// Config include configuration about Node
 type Config struct {
 	Debug Debug `toml:"-"`
 
@@ -32,19 +24,26 @@ type Config struct {
 	CheckMode bool `toml:"-"`
 
 	Logger struct {
-		Level  string    `toml:"level"`
-		Writer io.Writer `toml:"-"` // for check config
+		Level     string    `toml:"level"`
+		QueueSize int       `toml:"queue_size"`
+		Writer    io.Writer `toml:"-"` // for check config
 	} `toml:"logger"`
 
 	Global struct {
 		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 
-		// generate configs from controller
+		// generate from controller
 		ProxyClients      []*proxy.Client             `toml:"-"`
 		DNSServers        map[string]*dns.Server      `toml:"-"`
 		TimeSyncerClients map[string]*timesync.Client `toml:"-"`
 	} `toml:"global"`
+
+	Client struct { // options
+		ProxyTag string        `toml:"proxy_tag"`
+		Timeout  time.Duration `toml:"timeout"`
+		DNSOpts  dns.Options   `toml:"dns"`
+	} `toml:"client"`
 
 	Register struct {
 
@@ -63,7 +62,6 @@ type Config struct {
 		QueueSize     int           `toml:"queue_size"`
 		MaxBufferSize int           `toml:"max_buffer_size"`
 		Timeout       time.Duration `toml:"timeout"`
-		MaxConns      int           `toml:"max_conns"`
 	} `toml:"sender"`
 
 	Syncer struct {
@@ -80,12 +78,12 @@ type Config struct {
 		MaxConns int           `toml:"max_conns"` // single listener
 		Timeout  time.Duration `toml:"timeout"`   // handshake timeout
 
-		// generate configs from controller
-		AESCrypto []byte `toml:"-"` // decrypt listeners data
+		// generate from controller
+		AESCrypto []byte `toml:"-"`
 		Listeners []byte `toml:"-"`
 	} `toml:"server"`
 
-	// generate configs from controller
+	// generate from controller
 	CTRL struct {
 		ExPublicKey []byte // key exchange curve25519
 		PublicKey   []byte // verify message ed25519
@@ -93,13 +91,31 @@ type Config struct {
 	} `toml:"-"`
 }
 
-type CheckOptions struct {
-	Domain     string
-	DNSOptions dns.Options
-	Timeout    time.Duration
+// Debug is used to test
+type Debug struct {
+	// skip sync time
+	SkipTimeSyncer bool
+
+	// from controller
+	Broadcast chan []byte
+	Send      chan []byte
 }
 
-// before create a node need check config
+// copy Config.Client
+type opts struct {
+	ProxyTag string
+	Timeout  time.Duration
+	DNSOpts  dns.Options
+}
+
+// CheckOptions include options about check configuration
+type CheckOptions struct {
+	Domain     string        `toml:"domain"`
+	DNSOptions dns.Options   `toml:"dns"`
+	Timeout    time.Duration `toml:"timeout"`
+}
+
+// Check is used to check node configuration
 func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes.Buffer, err error) {
 	if opts == nil {
 		opts = new(CheckOptions)
@@ -108,7 +124,7 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 	output = new(bytes.Buffer)
 	defer func() {
 		if err != nil {
-			_, _ = fmt.Fprintln(output, err)
+			_, _ = fmt.Fprintln(output, "\ntests failed:", err)
 		}
 	}()
 	cfg.CheckMode = true
@@ -122,19 +138,23 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 	defer node.Exit(nil)
 
 	// print proxy clients
-	pLine := "------------------------------proxy client-------------------------------"
+	pLine := "------------------------------proxy client-------------------------------\n"
 	output.WriteString(pLine)
-	for tag, client := range node.global.proxyPool.Clients() {
-		const format = "tag: %-10s mode: %-7s network: %-3s address: %s"
+	for tag, client := range node.global.ProxyClients() {
+		// skip builtin proxy client
+		if tag == "" || tag == "direct" {
+			continue
+		}
+		const format = "tag: %-10s mode: %-7s network: %-3s address: %s\n"
 		_, _ = fmt.Fprintf(output, format, tag, client.Mode, client.Network, client.Address)
 	}
 
 	// test DNS client
-	dLine := "-------------------------------DNS client--------------------------------"
+	dLine := "-------------------------------DNS client--------------------------------\n"
 	output.WriteString(dLine)
 	// print DNS servers
-	for tag, server := range node.global.dnsClient.Servers() {
-		const format = "tag: %-10s skip test: %t method: %-3s address: %s"
+	for tag, server := range node.global.DNSServers() {
+		const format = "tag: %-10s skip test: %t method: %-3s address: %s\n"
 		_, _ = fmt.Fprintf(output, format, tag, server.SkipTest, server.Method, server.Address)
 	}
 	domain := opts.Domain
@@ -145,10 +165,15 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 	if err != nil {
 		return
 	}
-	_, _ = fmt.Fprintf(output, "test domain: %s, result: %s", domain, result)
+	_, _ = fmt.Fprintf(output, "test domain: %s, result: %s\n", domain, result)
 
 	// test time syncer
-	tLine := "-------------------------------time syncer-------------------------------"
+	tLine := "-------------------------------time syncer-------------------------------\n"
+	for tag, client := range node.global.TimeSyncerClients() {
+		const format = "tag: %-10s skip test: %t mode: %-4s\n"
+		_, _ = fmt.Fprintf(output, format, tag, client.SkipTest, client.Mode)
+	}
+
 	output.WriteString(tLine)
 	err = node.global.timeSyncer.Test()
 	if err != nil {
@@ -161,16 +186,21 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 		errChan <- node.Main()
 	}()
 	node.TestWait()
+	timeout := opts.Timeout
+	if timeout < 1 {
+		timeout = 15 * time.Second
+	}
 	select {
 	case err = <-errChan:
 		return
-	case <-time.After(opts.Timeout):
+	case <-time.After(timeout):
 		node.Exit(nil)
 		err = errors.New("check timeout")
 		return
 	}
 }
 
+// Build is used to build node configuration
 func (cfg *Config) Build() ([]byte, error) {
 	return msgpack.Marshal(cfg)
 }

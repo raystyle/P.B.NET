@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -51,8 +52,10 @@ func testGenerateConfig() *Config {
 func TestConfig_Check(t *testing.T) {
 	config := testGenerateConfig()
 	output, err := config.Check(context.Background(), nil)
+	defer fmt.Println(output)
 	require.NoError(t, err)
-	t.Log(output)
-	_, err = New(config)
-	require.NoError(t, err)
+}
+
+func TestConfig(t *testing.T) {
+
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/net/context"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
@@ -221,26 +222,60 @@ func (global *global) OK() bool {
 	return global.spmCount == spmCount
 }
 
+// GetProxyClient is used to get proxy client from proxy pool
+func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
+	return global.proxyPool.Get(tag)
+}
+
+// ProxyClients is used to get all proxy client in proxy pool
+func (global *global) ProxyClients() map[string]*proxy.Client {
+	return global.proxyPool.Clients()
+}
+
+// ResolveWithContext is used to resolve domain name with context and options
+func (global *global) ResolveWithContext(
+	ctx context.Context,
+	domain string,
+	opts *dns.Options,
+) ([]string, error) {
+	return global.dnsClient.ResolveWithContext(ctx, domain, opts)
+}
+
+// DNSServers is used to get all DNS servers in DNS client
+func (global *global) DNSServers() map[string]*dns.Server {
+	return global.dnsClient.Servers()
+}
+
+// TimeSyncerClients is used to get all time syncer clients in time syncer
+func (global *global) TimeSyncerClients() map[string]*timesync.Client {
+	return global.timeSyncer.Clients()
+}
+
+// StartTimeSyncer is used to start time syncer
 func (global *global) StartTimeSyncer() error {
 	return global.timeSyncer.Start()
 }
 
+// Now is used to get current time
 func (global *global) Now() time.Time {
 	return global.timeSyncer.Now().Local()
 }
 
+// StartupTime is used to get Node startup time
 func (global *global) StartupTime() time.Time {
 	global.objectRWM.RLock()
 	defer global.objectRWM.RUnlock()
 	return global.object[objStartupTime].(time.Time)
 }
 
+// GUID is used to get Node GUID
 func (global *global) GUID() []byte {
 	global.objectRWM.RLock()
 	defer global.objectRWM.RUnlock()
 	return global.object[objNodeGUID].([]byte)
 }
 
+// Certificate is used to get Node certificate
 func (global *global) Certificate() []byte {
 	global.objectRWM.RLock()
 	defer global.objectRWM.RUnlock()
@@ -252,6 +287,8 @@ func (global *global) Certificate() []byte {
 	}
 }
 
+// SetCertificate is used to set Node certificate
+// it can be set once
 func (global *global) SetCertificate(cert []byte) error {
 	global.objectRWM.Lock()
 	defer global.objectRWM.Unlock()
@@ -330,6 +367,7 @@ func (global *global) DBDecrypt(data []byte) ([]byte, error) {
 	return global.object[objDBAESCrypto].(*aes.CBC).Decrypt(data)
 }
 
+// Close is used to close global
 func (global *global) Close() {
 	global.timeSyncer.Stop()
 }

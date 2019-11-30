@@ -71,7 +71,7 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	}
 
 	// start sender workers
-	sender.wg.Add(cfg.Worker)
+	// sender.wg.Add(cfg.Worker)
 	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
 			// ctx:           &sender,

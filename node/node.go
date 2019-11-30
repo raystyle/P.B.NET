@@ -12,14 +12,15 @@ import (
 type Node struct {
 	Debug *Debug // for test
 
-	logger    *gLogger // global logger
-	global    *global  // proxy clients, DNS clients, time syncer
-	forwarder *forwarder
-	handler   *handler // handle message from Controller
-	sender    *sender  // send message to Controller
-	syncer    *syncer  // receive message from Controller, Nodes, and Beacons
-	server    *server  // listen and serve Roles
-	worker    *worker
+	logger    *gLogger   // global logger
+	global    *global    // proxy clients, DNS clients, time syncer
+	opts      *opts      // client options
+	forwarder *forwarder // forward messages
+	handler   *handler   // handle message from Controller
+	sender    *sender    // send message to Controller
+	syncer    *syncer    // receive message from Controller, Nodes, and Beacons
+	server    *server    // listen and serve Roles
+	worker    *worker    // do work
 
 	once sync.Once
 	wait chan struct{}
@@ -42,6 +43,12 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	node.global = global
+	// copy client options
+	node.opts = &opts{
+		ProxyTag: cfg.Client.ProxyTag,
+		Timeout:  cfg.Client.Timeout,
+		DNSOpts:  cfg.Client.DNSOpts,
+	}
 	// forwarder
 	forwarder, err := newForwarder(cfg)
 	if err != nil {
@@ -108,7 +115,6 @@ func (node *Node) fatal(err error, msg string) error {
 	return err
 }
 
-// TODO check Exit
 func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Close()
