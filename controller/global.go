@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"crypto/x509"
 	"encoding/pem"
@@ -156,6 +157,15 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 // GetProxyClient is used to get proxy client from proxy pool
 func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
 	return global.proxyPool.Get(tag)
+}
+
+// ResolveWithContext is used to resolve domain name with context and options
+func (global *global) ResolveWithContext(
+	ctx context.Context,
+	domain string,
+	opts *dns.Options,
+) ([]string, error) {
+	return global.dnsClient.ResolveWithContext(ctx, domain, opts)
 }
 
 // GetDNSServers is used to get DNS servers from DNS client

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -35,9 +36,9 @@ type client struct {
 	conn      *xnet.Conn
 	slots     []*protocol.Slot
 	heartbeat chan struct{}
-	sync      int32
+	inSync    int32
 
-	closing    int32
+	inClose    int32
 	closeOnce  sync.Once
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -46,52 +47,76 @@ type client struct {
 // when guid == nil        for trust node
 // when guid != nil        for sender client
 // when guid == ctrl guid, for discovery
-func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, close func()) (*client, error) {
+func newClient(
+	ctrl *CTRL,
+	ctx context.Context,
+	node *bootstrap.Node,
+	guid []byte,
+	closeFunc func(),
+) (*client, error) {
 	cfg := xnet.Config{
 		Network: node.Network,
-		Address: node.Address,
-		Timeout: ctx.opts.Timeout,
+		Timeout: ctrl.opts.Timeout,
 	}
 
 	cfg.TLSConfig = &tls.Config{
 		Rand:       rand.Reader,
-		Time:       ctx.global.Now,
+		Time:       ctrl.global.Now,
+		ServerName: node.Address,
 		RootCAs:    x509.NewCertPool(),
 		MinVersion: tls.VersionTLS12,
 	}
 
 	// add CA certificates
-	for _, cert := range ctx.global.GetSystemCA() {
+	for _, cert := range ctrl.global.GetSystemCA() {
 		cfg.TLSConfig.RootCAs.AddCert(cert)
 	}
-	for _, kp := range ctx.global.GetSelfCA() {
+	for _, kp := range ctrl.global.GetSelfCA() {
 		cfg.TLSConfig.RootCAs.AddCert(kp.Certificate)
 	}
 
 	// set proxy
-	p, _ := ctx.global.GetProxyClient(ctx.opts.ProxyTag)
+	p, _ := ctrl.global.GetProxyClient(ctrl.opts.ProxyTag)
 	cfg.Dialer = p.DialContext
 
-	// dns
-
-	conn, err := xnet.Dial(node.Mode, &cfg)
+	// resolve domain name
+	host, port, err := net.SplitHostPort(node.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	result, err := ctrl.global.ResolveWithContext(ctx, host, &ctrl.opts.DNSOpts)
+	if err != nil {
+		return nil, err
+	}
+	var conn *xnet.Conn
+	for i := 0; i < len(result); i++ {
+		cfg.Address = net.JoinHostPort(result[i], port)
+		c, err := xnet.DialContext(ctx, node.Mode, &cfg)
+		if err == nil {
+			conn = xnet.NewConn(c, ctrl.global.Now())
+			break
+		}
+	}
+	if conn == nil {
+		return nil, errors.Errorf("failed to connect node: %s", node.Address)
+	}
+
+	// handshake
 	client := client{
-		ctx:       ctx,
+		ctx:       ctrl,
 		node:      node,
 		guid:      guid,
-		closeFunc: close,
+		closeFunc: closeFunc,
 	}
-	xConn, err := client.handshake(conn)
+	err = client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.WithMessage(err, "failed to handshake")
+		const format = "failed to handshake with node: %s"
+		return nil, errors.WithMessagef(err, format, node.Address)
 	}
-	client.conn = xConn
+	client.conn = conn
 
-	// initialize slot
+	// initialize message slots
 	client.slots = make([]*protocol.Slot, protocol.SlotSize)
 	for i := 0; i < protocol.SlotSize; i++ {
 		s := &protocol.Slot{
@@ -120,8 +145,61 @@ func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, close func()) (*cli
 	return &client, nil
 }
 
+// Zero—Knowledge Proof
+func (client *client) handshake(conn *xnet.Conn) error {
+	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.opts.Timeout))
+	// receive certificate
+	cert, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive certificate")
+	}
+	if !client.ctx.verifyCertificate(cert, client.node.Address, client.guid) {
+		client.log(logger.Exploit, protocol.ErrInvalidCertificate)
+		return protocol.ErrInvalidCertificate
+	}
+	// send role
+	_, err = conn.Write(protocol.Ctrl.Bytes())
+	if err != nil {
+		return errors.Wrap(err, "failed to send role")
+	}
+	// receive challenge
+	challenge, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive challenge")
+	}
+	// <danger>
+	// receive random challenge data(length 2048-4096)
+	// len(challenge) must > len(GUID + Mode + Network + Address)
+	// because maybe fake node will send some special data
+	// and if controller sign it will destroy net
+	if len(challenge) < 2048 || len(challenge) > 4096 {
+		err = errors.New("invalid challenge size")
+		client.log(logger.Exploit, err)
+		return err
+	}
+	// send signature
+	err = conn.Send(client.ctx.global.Sign(challenge))
+	if err != nil {
+		return errors.Wrap(err, "failed to send challenge signature")
+	}
+	resp, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive authentication response")
+	}
+	if !bytes.Equal(resp, protocol.AuthSucceed) {
+		err = errors.WithStack(protocol.ErrAuthenticateFailed)
+		client.log(logger.Exploit, err)
+		return err
+	}
+	return conn.SetDeadline(time.Time{})
+}
+
+func (client *client) isSync() bool {
+	return atomic.LoadInt32(&client.inSync) != 0
+}
+
 func (client *client) isClosing() bool {
-	return atomic.LoadInt32(&client.closing) != 0
+	return atomic.LoadInt32(&client.inClose) != 0
 }
 
 func (client *client) Reply(id, reply []byte) {
@@ -202,10 +280,6 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
-func (client *client) isSync() bool {
-	return atomic.LoadInt32(&client.sync) != 0
-}
-
 func (client *client) Sync() error {
 	resp, err := client.Send(protocol.CtrlSync, nil)
 	if err != nil {
@@ -214,7 +288,7 @@ func (client *client) Sync() error {
 	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
 		return errors.Errorf("sync failed: %s", string(resp))
 	}
-	atomic.StoreInt32(&client.sync, 1)
+	atomic.StoreInt32(&client.inSync, 1)
 	return nil
 }
 
@@ -353,7 +427,7 @@ func (client *client) Status() *xnet.Status {
 
 func (client *client) Close() {
 	client.closeOnce.Do(func() {
-		atomic.StoreInt32(&client.closing, 1)
+		atomic.StoreInt32(&client.inClose, 1)
 		_ = client.conn.Close()
 		close(client.stopSignal)
 		client.wg.Wait()
@@ -381,55 +455,6 @@ func (client *client) logln(l logger.Level, log ...interface{}) {
 	b := logger.Conn(client.conn)
 	_, _ = fmt.Fprintln(b, log...)
 	client.ctx.logger.Print(l, "client", b)
-}
-
-func (client *client) handshake(conn net.Conn) (*xnet.Conn, error) {
-	xConn := xnet.NewConn(conn, client.ctx.global.Now())
-	// receive certificate
-	cert, err := xConn.Receive()
-	if err != nil {
-		return nil, errors.Wrap(err, "receive certificate failed")
-	}
-	if !client.ctx.verifyCertificate(cert, client.node.Address, client.guid) {
-		client.log(logger.Exploit, protocol.ErrInvalidCertificate)
-		return nil, protocol.ErrInvalidCertificate
-	}
-	// send role
-	_, err = xConn.Write(protocol.Ctrl.Bytes())
-	if err != nil {
-		return nil, errors.Wrap(err, "send role failed")
-	}
-	// receive challenge
-	challenge, err := xConn.Receive()
-	if err != nil {
-		return nil, errors.Wrap(err, "receive challenge data failed")
-	}
-	// <danger>
-	// receive random challenge data(length 2048-4096)
-	// len(challenge) must > len(GUID + Mode + Network + Address)
-	// because maybe fake node will send some special data
-	// and if controller sign it will destroy net
-	if len(challenge) < 2048 || len(challenge) > 4096 {
-		err = errors.New("invalid challenge size")
-		client.log(logger.Exploit, err)
-		return nil, err
-	}
-	// send signature
-	err = xConn.Send(client.ctx.global.Sign(challenge))
-	if err != nil {
-		return nil, errors.Wrap(err, "send challenge signature failed")
-	}
-	resp, err := xConn.Receive()
-	if err != nil {
-		return nil, errors.Wrap(err, "receive authentication response failed")
-	}
-	if !bytes.Equal(resp, protocol.AuthSucceed) {
-		err = errors.WithStack(protocol.ErrAuthenticateFailed)
-		client.log(logger.Exploit, err)
-		return nil, err
-	}
-	// remove deadline conn
-	return xnet.NewConn(conn, client.ctx.global.Now()), nil
 }
 
 func (client *client) sendHeartbeatLoop() {

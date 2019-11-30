@@ -27,7 +27,7 @@ type CTRL struct {
 	exit chan error
 }
 
-// New is used to create Controller from config
+// New is used to create controller from config
 func New(cfg *Config) (*CTRL, error) {
 	// database
 	db, err := newDB(cfg)
@@ -40,6 +40,7 @@ func New(cfg *Config) (*CTRL, error) {
 		opts: &opts{
 			ProxyTag: cfg.Client.ProxyTag,
 			Timeout:  cfg.Client.Timeout,
+			DNSOpts:  cfg.Client.DNSOpts,
 		},
 		db: db,
 	}

@@ -3,6 +3,8 @@ package controller
 import (
 	"io"
 	"time"
+
+	"project/internal/dns"
 )
 
 // Debug is used to test
@@ -14,9 +16,11 @@ type Debug struct {
 	BeaconSend chan []byte // Beacon send test message
 }
 
+// copy Config.Client
 type opts struct {
 	ProxyTag string
 	Timeout  time.Duration
+	DNSOpts  dns.Options
 }
 
 // Config include configuration about Controller
@@ -35,6 +39,7 @@ type Config struct {
 
 	Logger struct {
 		Level  string    `toml:"level"`
+		File   string    `toml:"file"`
 		Writer io.Writer `toml:"-"`
 	} `toml:"logger"`
 
@@ -46,6 +51,7 @@ type Config struct {
 	Client struct { // options
 		ProxyTag string        `toml:"proxy_tag"`
 		Timeout  time.Duration `toml:"timeout"`
+		DNSOpts  dns.Options   `toml:"dns"`
 	} `toml:"client"`
 
 	Sender struct {
