@@ -1,5 +1,3 @@
-log_level = "debug"
-
 [database]
   dialect           = "mysql"
   dsn               = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet?loc=Local&parseTime=true"
@@ -9,9 +7,21 @@ log_level = "debug"
   gorm_log_file     = "log/gorm.log"
   gorm_detailed_log = false
 
+[logger]
+  level = "debug"
+  file  = "log/controller.log"
+
 [global]
   dns_cache_deadline   = "2m"
   time_syncer_interval = "1m"
+
+[client]
+  proxy_tag = ""
+  timeout   = "15s"
+
+  [client.dns]
+    mode    = "custom"
+    method  = "dot"
 
 [sender]
   max_buffer_size = 16384 # sender & worker's buffer
@@ -27,8 +37,8 @@ log_level = "debug"
 
 [web]
   dir       = "web"
-  address   = "localhost:9932"
-  cert_file = "cert/server.crt"
-  key_file  = "cert/server.key"
-  username  = "admin"
-  password  = "56c10b0f6a18abe0247c31fd1d1a70e51e5a09f2"
+  address   = "localhost:1657"
+  cert_file = "ca/cert.pem"
+  key_file  = "ca/key.pem"
+  username  = "pbnet" # super user, password = sha256(sha256("pbnet"))
+  password  = "d6b3ced503b70f7894bd30f36001de4af84a8c2af898f06e29bca95f2dcf5100"

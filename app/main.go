@@ -52,7 +52,7 @@ func main() {
 		}
 		log.Print("initialize database successfully")
 	case genKey != "":
-		err := controller.GenerateSessionKey("key/session.key", genKey)
+		err := controller.GenerateSessionKey("key/session.key", []byte(genKey))
 		if err != nil {
 			log.Fatal(errors.Wrap(err, "failed to generate session key"))
 		}
