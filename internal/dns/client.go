@@ -385,8 +385,12 @@ func (c *Client) systemResolve(
 }
 
 func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) ([]string, error) {
+	servers := c.Servers()
+	if len(servers) == 0 {
+		return nil, errors.New("no DNS server")
+	}
 	var result []string
-	for tag, server := range c.Servers() {
+	for tag, server := range servers {
 		c.FlushCache()
 		if server.SkipTest {
 			continue

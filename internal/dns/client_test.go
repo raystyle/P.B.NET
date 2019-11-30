@@ -234,6 +234,12 @@ func TestClient_TestServers(t *testing.T) {
 
 	t.Run("reachable and skip test", func(t *testing.T) {
 		client := NewClient(pool)
+		opts := new(Options)
+
+		// no DNS server
+		result, err := client.TestServers(context.Background(), testDomain, opts)
+		require.EqualError(t, err, "no DNS server")
+		require.Equal(t, 0, len(result))
 
 		// add reachable and skip test
 		if testsuite.EnableIPv4() {
@@ -250,14 +256,14 @@ func TestClient_TestServers(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		err := client.Add("skip_test", &Server{
+		err = client.Add("skip_test", &Server{
 			Method:   MethodUDP,
 			Address:  "1.1.1.1:53",
 			SkipTest: true,
 		})
 		require.NoError(t, err)
 
-		result, err := client.TestServers(context.Background(), testDomain, new(Options))
+		result, err = client.TestServers(context.Background(), testDomain, opts)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
 		t.Log(result)
