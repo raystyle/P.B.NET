@@ -7,22 +7,6 @@ import (
 	"project/internal/dns"
 )
 
-// Debug is used to test
-type Debug struct {
-	SkipTimeSyncer bool // skip time sync
-
-	// see handler.go
-	NodeSend   chan []byte // Node send test message
-	BeaconSend chan []byte // Beacon send test message
-}
-
-// copy Config.Client
-type opts struct {
-	ProxyTag string
-	Timeout  time.Duration
-	DNSOpts  dns.Options
-}
-
 // Config include configuration about Controller
 type Config struct {
 	Debug Debug `toml:"-"`
@@ -76,4 +60,20 @@ type Config struct {
 		Username string `toml:"username"` // super user
 		Password string `toml:"password"`
 	} `toml:"web"`
+}
+
+// Debug is used to test
+type Debug struct {
+	SkipTimeSyncer bool // skip time sync
+
+	// see handler.go
+	NodeSend   chan []byte // Node send test message
+	BeaconSend chan []byte // Beacon send test message
+}
+
+// copy Config.Client
+type opts struct {
+	ProxyTag string
+	Timeout  time.Duration
+	DNSOpts  dns.Options
 }

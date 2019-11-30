@@ -12,10 +12,10 @@ import (
 type CTRL struct {
 	Debug *Debug // for test
 
-	opts    *opts    // client options
 	db      *db      // database
 	logger  *gLogger // global logger
 	global  *global  // proxy, dns, time syncer, and ...
+	opts    *opts    // client options
 	handler *handler // handle message from Node or Beacon
 	sender  *sender  // broadcast and send message
 	syncer  *syncer  // receive message
@@ -34,15 +34,11 @@ func New(cfg *Config) (*CTRL, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize database")
 	}
-	debug := cfg.Debug // must copy debug config
+	// copy debug config
+	debug := cfg.Debug
 	ctrl := &CTRL{
 		Debug: &debug,
-		opts: &opts{
-			ProxyTag: cfg.Client.ProxyTag,
-			Timeout:  cfg.Client.Timeout,
-			DNSOpts:  cfg.Client.DNSOpts,
-		},
-		db: db,
+		db:    db,
 	}
 	// logger
 	lg, err := newLogger(ctrl, cfg)
@@ -56,6 +52,12 @@ func New(cfg *Config) (*CTRL, error) {
 		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	ctrl.global = global
+	// copy client options
+	ctrl.opts = &opts{
+		ProxyTag: cfg.Client.ProxyTag,
+		Timeout:  cfg.Client.Timeout,
+		DNSOpts:  cfg.Client.DNSOpts,
+	}
 	// handler
 	ctrl.handler = &handler{ctx: ctrl}
 	// sender

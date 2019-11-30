@@ -168,13 +168,13 @@ func (global *global) ResolveWithContext(
 	return global.dnsClient.ResolveWithContext(ctx, domain, opts)
 }
 
-// GetDNSServers is used to get DNS servers from DNS client
-func (global *global) GetDNSServers() map[string]*dns.Server {
+// DNSServers is used to get all DNS servers in DNS client
+func (global *global) DNSServers() map[string]*dns.Server {
 	return global.dnsClient.Servers()
 }
 
-// GetTimeSyncerClients is used to get time syncer clients from time syncer
-func (global *global) GetTimeSyncerClients() map[string]*timesync.Client {
+// TimeSyncerClients is used to get all time syncer clients in time syncer
+func (global *global) TimeSyncerClients() map[string]*timesync.Client {
 	return global.timeSyncer.Clients()
 }
 
