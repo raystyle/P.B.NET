@@ -39,7 +39,7 @@ type HTTP struct {
 	Transport options.HTTPTransport `toml:"transport"`
 	Timeout   time.Duration         `toml:"timeout"`
 	ProxyTag  string                `toml:"proxy_tag"`
-	DNSOpts   dns.Options           `toml:"dns_options"`
+	DNSOpts   dns.Options           `toml:"dns"`
 
 	MaxBodySize int64 `toml:"max_body_size"` // <security>
 
