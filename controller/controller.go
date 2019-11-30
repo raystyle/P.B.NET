@@ -12,6 +12,7 @@ import (
 type CTRL struct {
 	Debug *Debug // for test
 
+	opts    *opts    // client options
 	db      *db      // database
 	logger  *gLogger // global logger
 	global  *global  // proxy, dns, time syncer, and ...
@@ -33,11 +34,14 @@ func New(cfg *Config) (*CTRL, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize database")
 	}
-	// copy debug config
-	debug := cfg.Debug
+	debug := cfg.Debug // must copy debug config
 	ctrl := &CTRL{
 		Debug: &debug,
-		db:    db,
+		opts: &opts{
+			ProxyTag: cfg.Client.ProxyTag,
+			Timeout:  cfg.Client.Timeout,
+		},
+		db: db,
 	}
 	// logger
 	lg, err := newLogger(ctrl, cfg)
@@ -56,13 +60,13 @@ func New(cfg *Config) (*CTRL, error) {
 	// sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize sender failed")
+		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	ctrl.sender = sender
 	// syncer
 	syncer, err := newSyncer(ctrl, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize syncer failed")
+		return nil, errors.WithMessage(err, "failed to initialize syncer")
 	}
 	ctrl.syncer = syncer
 	// boot
@@ -70,7 +74,7 @@ func New(cfg *Config) (*CTRL, error) {
 	// http server
 	web, err := newWeb(ctrl, cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "initialize web server failed")
+		return nil, errors.WithMessage(err, "failed to initialize web server")
 	}
 	ctrl.web = web
 	// wait and exit
@@ -134,16 +138,6 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
 		ctrl.db.Close()
-
-		// clean points
-		ctrl.db = nil
-		ctrl.logger = nil
-		ctrl.global = nil
-		ctrl.handler = nil
-		ctrl.sender = nil
-		ctrl.syncer = nil
-		ctrl.boot = nil
-		ctrl.web = nil
 		ctrl.exit <- err
 		close(ctrl.exit)
 	})
@@ -162,34 +156,22 @@ func (ctrl *CTRL) LoadSessionKey(password []byte) error {
 
 func (ctrl *CTRL) DeleteNode(guid []byte) error {
 	err := ctrl.db.DeleteNode(guid)
-	if err != nil {
-		return errors.Wrapf(err, "delete node %X failed", guid)
-	}
-	return nil
+	return errors.Wrapf(err, "delete node %X failed", guid)
 }
 
 func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
 	err := ctrl.db.DeleteBeacon(guid)
-	if err != nil {
-		return errors.Wrapf(err, "delete beacon %X failed", guid)
-	}
-	return nil
+	return errors.Wrapf(err, "delete beacon %X failed", guid)
 }
 
 func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
 	err := ctrl.db.DeleteNodeUnscoped(guid)
-	if err != nil {
-		return errors.Wrapf(err, "unscoped delete node %X failed", guid)
-	}
-	return nil
+	return errors.Wrapf(err, "unscoped delete node %X failed", guid)
 }
 
 func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 	err := ctrl.db.DeleteBeaconUnscoped(guid)
-	if err != nil {
-		return errors.Wrapf(err, "unscoped delete beacon %X failed", guid)
-	}
-	return nil
+	return errors.Wrapf(err, "unscoped delete beacon %X failed", guid)
 }
 
 // ------------------------------------test-------------------------------------

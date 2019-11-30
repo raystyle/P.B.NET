@@ -12,6 +12,9 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
+	"project/internal/crypto/cert"
+	"project/internal/messages"
+	"project/internal/options"
 	"project/internal/protocol"
 	"project/internal/xnet"
 	"project/node"
@@ -49,30 +52,30 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.Node {
 		require.NoError(t, err)
 	}()
 	NODE.TestWait()
-	// generate listener config
-	listenerCfg := config.Listener{
-		Tag:  "test_tls_listener",
-		Mode: xnet.ModeTLS,
-	}
-	xnetCfg := xnet.Config{
-		Network: "tcp",
-		Address: "localhost:62300",
-	}
-	/*
-		// generate node certificate
-		caCert := ctrl.global.CACertificates()
-		caPri := ctrl.global.CAPrivateKeys()
-		certCfg := cert.Config{DNSNames: []string{"localhost"}}
-		sCert, sPri, err := cert.Generate(caCert[0], caPri[0], &certCfg)
-		require.NoError(t, err)
-		kp := options.X509KeyPair{Cert: string(sCert), Key: string(sPri)}
-		xnetCfg.TLSConfig.Certificates = []options.X509KeyPair{kp}
-		// set config
-		listenerCfg.Config, err = toml.Marshal(&xnetCfg)
-		require.NoError(t, err)
-		require.NoError(t, NODE.AddListener(&listenerCfg))
 
-	*/
+	// generate certificate
+	pks := ctrl.global.GetSelfCA()
+	opts := cert.Options{DNSNames: []string{"localhost"}}
+	caCert := pks[0].Certificate
+	caKey := pks[0].PrivateKey
+	kp, err := cert.Generate(caCert, caKey, &opts)
+	require.NoError(t, err)
+
+	// generate listener config
+	listener := messages.Listener{
+		Tag:     "test_tls_listener",
+		Mode:    xnet.ModeTLS,
+		Network: "tcp",
+		Address: "localhost:0",
+	}
+	c, k := kp.EncodeToPEM()
+	listener.TLSConfig.Certificates = []options.X509KeyPair{
+		{
+			Cert: string(c),
+			Key:  string(k),
+		},
+	}
+	require.NoError(t, NODE.AddListener(&listener))
 	return NODE
 }
 

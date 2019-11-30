@@ -5,14 +5,21 @@ import (
 	"time"
 )
 
+// Debug is used to test
 type Debug struct {
-	SkipTimeSyncer bool
+	SkipTimeSyncer bool // skip time sync
 
 	// see handler.go
 	NodeSend   chan []byte // Node send test message
 	BeaconSend chan []byte // Beacon send test message
 }
 
+type opts struct {
+	ProxyTag string
+	Timeout  time.Duration
+}
+
+// Config include configuration about Controller
 type Config struct {
 	Debug Debug `toml:"-"`
 
@@ -35,6 +42,11 @@ type Config struct {
 		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 	} `toml:"global"`
+
+	Client struct { // options
+		ProxyTag string        `toml:"proxy_tag"`
+		Timeout  time.Duration `toml:"timeout"`
+	} `toml:"client"`
 
 	Sender struct {
 		Worker        int `toml:"worker"`

@@ -92,6 +92,11 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 			return nil, errors.Wrap(err, errProxy)
 		}
 	}
+	// try to get proxy client
+	_, err = proxyPool.Get(config.Client.ProxyTag)
+	if err != nil {
+		return nil, err
+	}
 
 	// load builtin dns clients
 	const errDNS = "failed to load builtin DNS clients"
@@ -122,13 +127,13 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, errTSC)
 	}
-	tsClients := make(map[string]*timesync.Client)
-	err = toml.Unmarshal(b, &tsClients)
+	timeSyncerClients := make(map[string]*timesync.Client)
+	err = toml.Unmarshal(b, &timeSyncerClients)
 	if err != nil {
 		return nil, errors.Wrap(err, errTSC)
 	}
 	timeSyncer := timesync.New(proxyPool, dnsClient, logger)
-	for tag, client := range tsClients {
+	for tag, client := range timeSyncerClients {
 		err = timeSyncer.Add("builtin_"+tag, client)
 		if err != nil {
 			return nil, errors.Wrap(err, errTSC)
@@ -146,6 +151,21 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		objects:            make(map[uint32]interface{}),
 		waitLoadSessionKey: make(chan struct{}, 1),
 	}, nil
+}
+
+// GetProxyClient is used to get proxy client from proxy pool
+func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
+	return global.proxyPool.Get(tag)
+}
+
+// GetDNSServers is used to get DNS servers from DNS client
+func (global *global) GetDNSServers() map[string]*dns.Server {
+	return global.dnsClient.Servers()
+}
+
+// GetTimeSyncerClients is used to get time syncer clients from time syncer
+func (global *global) GetTimeSyncerClients() map[string]*timesync.Client {
+	return global.timeSyncer.Clients()
 }
 
 // StartTimeSyncer is used to start time syncer

@@ -2,6 +2,8 @@ package controller
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"sync"
@@ -14,6 +16,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
+	"project/internal/crypto/rand"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -40,16 +43,38 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
-// guid == nil        for trust node
-// guid != nil        for sender client
-// guid == ctrl guid, for discovery
-func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, closeFunc func()) (*client, error) {
-	xnetCfg := xnet.Config{
+// when guid == nil        for trust node
+// when guid != nil        for sender client
+// when guid == ctrl guid, for discovery
+func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, close func()) (*client, error) {
+	cfg := xnet.Config{
 		Network: node.Network,
 		Address: node.Address,
+		Timeout: ctx.opts.Timeout,
 	}
-	// xnetCfg.TLSConfig.RootCAs = ctx.global.CACertificatesStr()
-	conn, err := xnet.Dial(node.Mode, &xnetCfg)
+
+	cfg.TLSConfig = &tls.Config{
+		Rand:       rand.Reader,
+		Time:       ctx.global.Now,
+		RootCAs:    x509.NewCertPool(),
+		MinVersion: tls.VersionTLS12,
+	}
+
+	// add CA certificates
+	for _, cert := range ctx.global.GetSystemCA() {
+		cfg.TLSConfig.RootCAs.AddCert(cert)
+	}
+	for _, kp := range ctx.global.GetSelfCA() {
+		cfg.TLSConfig.RootCAs.AddCert(kp.Certificate)
+	}
+
+	// set proxy
+	p, _ := ctx.global.GetProxyClient(ctx.opts.ProxyTag)
+	cfg.Dialer = p.DialContext
+
+	// dns
+
+	conn, err := xnet.Dial(node.Mode, &cfg)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -57,15 +82,16 @@ func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, closeFunc func()) (
 		ctx:       ctx,
 		node:      node,
 		guid:      guid,
-		closeFunc: closeFunc,
+		closeFunc: close,
 	}
-	xconn, err := client.handshake(conn)
+	xConn, err := client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.WithMessage(err, "handshake failed")
+		return nil, errors.WithMessage(err, "failed to handshake")
 	}
-	client.conn = xconn
-	// init slot
+	client.conn = xConn
+
+	// initialize slot
 	client.slots = make([]*protocol.Slot, protocol.SlotSize)
 	for i := 0; i < protocol.SlotSize; i++ {
 		s := &protocol.Slot{
@@ -78,16 +104,16 @@ func newClient(ctx *CTRL, node *bootstrap.Node, guid []byte, closeFunc func()) (
 	}
 	client.heartbeat = make(chan struct{}, 1)
 	client.stopSignal = make(chan struct{})
+
 	// <warning> not add wg
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				err := xpanic.Error(r, "client panic:")
-				client.log(logger.Fatal, err)
+				client.log(logger.Fatal, xpanic.Error(r, "client:"))
 			}
 			client.Close()
 		}()
-		protocol.HandleConn(client.conn, client.handleMessage)
+		protocol.HandleConn(client.conn, client.onFrame)
 	}()
 	client.wg.Add(1)
 	go client.sendHeartbeatLoop()
@@ -109,7 +135,7 @@ func (client *client) Reply(id, reply []byte) {
 	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
 	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
 	// write cmd
-	b[protocol.MsgLenSize] = protocol.NodeReply
+	b[protocol.MsgLenSize] = protocol.ConnReply
 	// write msg id
 	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
 	// write data
@@ -165,7 +191,6 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 			case <-client.stopSignal:
 				return nil, protocol.ErrConnClosed
 			default:
-				// try next slot
 			}
 		}
 		// if full wait 1 second
@@ -203,7 +228,7 @@ func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastRespon
 	if br.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.BroadcastReplyUnhandled) {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		br.Err = errors.New(string(reply))
 		return
 	}
@@ -212,7 +237,7 @@ func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastRespon
 	if br.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.BroadcastReplySucceed) {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		br.Err = errors.New(string(reply))
 	}
 	return
@@ -359,8 +384,7 @@ func (client *client) logln(l logger.Level, log ...interface{}) {
 }
 
 func (client *client) handshake(conn net.Conn) (*xnet.Conn, error) {
-	dConn := xnet.DeadlineConn(conn, time.Minute)
-	xConn := xnet.NewConn(dConn, client.ctx.global.Now())
+	xConn := xnet.NewConn(conn, client.ctx.global.Now())
 	// receive certificate
 	cert, err := xConn.Receive()
 	if err != nil {
@@ -411,25 +435,26 @@ func (client *client) handshake(conn net.Conn) (*xnet.Conn, error) {
 func (client *client) sendHeartbeatLoop() {
 	defer client.wg.Done()
 	var err error
-	rand := random.New(0)
+	r := random.New(client.ctx.global.Now().Unix())
 	buffer := bytes.NewBuffer(nil)
 	for {
-		t := time.Duration(30+rand.Int(60)) * time.Second
+		t := time.Duration(30+r.Int(60)) * time.Second
 		select {
 		case <-time.After(t):
 			// <security> fake traffic like client
-			fakeSize := 64 + rand.Int(256)
+			fakeSize := 64 + r.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
 			buffer.Reset()
 			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
-			buffer.WriteByte(protocol.CtrlHeartbeat)
-			buffer.Write(rand.Bytes(fakeSize))
+			buffer.WriteByte(protocol.ConnSendHeartbeat)
+			buffer.Write(r.Bytes(fakeSize))
 			// send
 			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 			_, err = client.conn.Write(buffer.Bytes())
 			if err != nil {
 				return
 			}
+			// receive reply
 			select {
 			case <-client.heartbeat:
 			case <-time.After(t):
@@ -446,7 +471,7 @@ func (client *client) sendHeartbeatLoop() {
 }
 
 // can use client.Close()
-func (client *client) handleMessage(msg []byte) {
+func (client *client) onFrame(msg []byte) {
 	const (
 		cmd = protocol.MsgCMDSize
 		id  = protocol.MsgCMDSize + protocol.MsgIDSize
@@ -477,9 +502,9 @@ func (client *client) handleMessage(msg []byte) {
 		}
 	}
 	switch msg[0] {
-	case protocol.NodeReply:
+	case protocol.ConnReply:
 		client.handleReply(msg[cmd:])
-	case protocol.NodeHeartbeat:
+	case protocol.ConnReplyHeartbeat:
 		select {
 		case client.heartbeat <- struct{}{}:
 		case <-client.stopSignal:
@@ -490,8 +515,6 @@ func (client *client) handleMessage(msg []byte) {
 	case protocol.ErrCMDTooBigMsg:
 		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		client.Close()
-	case protocol.TestCommand:
-		client.Reply(msg[cmd:id], msg[id:])
 	default:
 		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)
 		client.Close()
