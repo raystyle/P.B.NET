@@ -128,3 +128,5 @@ func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 func (lg *gLogger) Close() {
 	lg.ctx = nil
 }
+
+// asdadsadadasd

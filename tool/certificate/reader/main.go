@@ -55,18 +55,13 @@ func main() {
 	err = ioutil.WriteFile("system.pem", buf.Bytes(), 644)
 	checkError(err)
 
-	// test generate PEM
+	// test generated PEM
 	pemData, err := ioutil.ReadFile("system.pem")
 	checkError(err)
-	// load system
-	tlsConfig, _ := (&options.TLSConfig{
-		InsecureLoadFromSystem: true,
-	}).Apply()
-	sysNum := len(tlsConfig.RootCAs.Subjects())
-
-	// test load
-	tlsConfig, _ = (&options.TLSConfig{RootCAs: []string{string(pemData)}}).Apply()
+	tlsConfig, _ := (&options.TLSConfig{RootCAs: []string{string(pemData)}}).Apply()
 	loadNum := len(tlsConfig.RootCAs.Subjects())
+	tlsConfig, _ = (&options.TLSConfig{InsecureLoadFromSystem: true}).Apply()
+	sysNum := len(tlsConfig.RootCAs.Subjects())
 
 	// compare
 	if sysNum != loadNum {
