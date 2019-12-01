@@ -1,6 +1,7 @@
 package cert
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"project/internal/crypto/rand"
+	"project/internal/logger"
 	"project/internal/random"
 )
 
@@ -277,4 +279,27 @@ func isDomainName(s string) bool {
 		return false
 	}
 	return nonNumeric
+}
+
+// Print is used to print certificate information
+func Print(cert *x509.Certificate) *bytes.Buffer {
+	output := new(bytes.Buffer)
+	const certFormat = `subject
+  common name:  %s
+  organization: %s
+issuer
+  common name:  %s
+  organization: %s
+public key algorithm: %s
+signature algorithm:  %s
+not before: %s
+not after:  %s`
+	_, _ = fmt.Fprintf(output, certFormat,
+		cert.Subject.CommonName, cert.Subject.Organization,
+		cert.Issuer.CommonName, cert.Issuer.Organization,
+		cert.PublicKeyAlgorithm, cert.SignatureAlgorithm,
+		cert.NotBefore.Local().Format(logger.TimeLayout),
+		cert.NotAfter.Local().Format(logger.TimeLayout),
+	)
+	return output
 }

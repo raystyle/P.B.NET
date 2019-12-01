@@ -158,3 +158,9 @@ func TestIsDomainName(t *testing.T) {
 	require.False(t, isDomainName("asd.."))
 	require.False(t, isDomainName(strings.Repeat("a", 64)+".com"))
 }
+
+func TestPrint(t *testing.T) {
+	ca, err := GenerateCA(nil)
+	require.NoError(t, err)
+	t.Log("\n", Print(ca.Certificate))
+}
