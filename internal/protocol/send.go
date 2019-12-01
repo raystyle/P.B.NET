@@ -212,7 +212,6 @@ func (a *Answer) Validate() error {
 
 // AnswerResponse is use to get answer response.
 type AnswerResponse struct {
-	Role Role
 	GUID []byte // Role GUID
 	Err  error
 }
