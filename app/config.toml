@@ -12,8 +12,8 @@
   file  = "log/controller.log"
 
 [global]
-  dns_cache_deadline   = "2m"
-  time_syncer_interval = "1m"
+  dns_cache_expire   = "2m"
+  time_sync_interval = "1m"
 
 [client]
   proxy_tag = ""
