@@ -76,8 +76,10 @@ func newClient(
 	}
 
 	// set proxy
-	p, _ := ctrl.global.GetProxyClient(ctrl.opts.ProxyTag)
-	cfg.Dialer = p.DialContext
+	if node.Mode != "quic" {
+		p, _ := ctrl.global.GetProxyClient(ctrl.opts.ProxyTag)
+		cfg.Dialer = p.DialContext
+	}
 
 	// resolve domain name
 	host, port, err := net.SplitHostPort(node.Address)

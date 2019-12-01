@@ -1,10 +1,18 @@
 package controller
 
 import (
+	"os"
 	"sync"
 
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	err := os.Chdir("../app")
+	if err != nil {
+		panic(err)
+	}
+}
 
 var (
 	ctrl     *CTRL
@@ -12,6 +20,7 @@ var (
 )
 
 func testInitCtrl(t require.TestingT) {
+
 	initOnce.Do(func() {
 		cfg := testGenerateConfig()
 		controller, err := New(cfg)
@@ -35,7 +44,7 @@ func testInitCtrl(t require.TestingT) {
 		}
 
 		// set controller keys
-		err = ctrl.LoadSessionKey("123456789012")
+		err = ctrl.LoadSessionKey([]byte("pbnet"))
 		require.NoError(t, err)
 
 		go func() {

@@ -17,11 +17,11 @@ type dbLogger struct {
 }
 
 func newDBLogger(db, path string) (*dbLogger, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create %s logger", db)
 	}
-	return &dbLogger{db: db, file: f}, nil
+	return &dbLogger{db: db, file: file}, nil
 }
 
 // [2006-01-02 15:04:05] [info] <mysql> test log
@@ -41,11 +41,11 @@ type gormLogger struct {
 }
 
 func newGormLogger(path string) (*gormLogger, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create gorm logger")
 	}
-	return &gormLogger{file: f}, nil
+	return &gormLogger{file: file}, nil
 }
 
 // [2006-01-02 15:04:05] [info] <gorm> test log
@@ -64,6 +64,7 @@ type gLogger struct {
 	ctx *CTRL
 
 	level  logger.Level
+	file   *os.File
 	writer io.Writer
 }
 
@@ -73,10 +74,15 @@ func newLogger(ctx *CTRL, config *Config) (*gLogger, error) {
 	if err != nil {
 		return nil, err
 	}
+	file, err := os.OpenFile(cfg.File, os.O_CREATE|os.O_APPEND, 644)
+	if err != nil {
+		return nil, err
+	}
 	return &gLogger{
 		ctx:    ctx,
+		file:   file,
 		level:  lv,
-		writer: cfg.Writer,
+		writer: io.MultiWriter(file, cfg.Writer),
 	}, nil
 }
 
@@ -126,7 +132,6 @@ func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 }
 
 func (lg *gLogger) Close() {
+	_ = lg.file.Close()
 	lg.ctx = nil
 }
-
-// asdadsadadasd

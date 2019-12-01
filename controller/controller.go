@@ -140,6 +140,7 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.global.Close()
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
+		ctrl.logger.Close()
 		ctrl.db.Close()
 		ctrl.exit <- err
 		close(ctrl.exit)
@@ -148,7 +149,7 @@ func (ctrl *CTRL) Exit(err error) {
 
 func (ctrl *CTRL) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	ctrl.logger.Println(logger.Fatal, "init", err)
+	ctrl.logger.Println(logger.Fatal, "main", err)
 	ctrl.Exit(nil)
 	return err
 }

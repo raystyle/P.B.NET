@@ -1,26 +1,33 @@
 package controller
 
 import (
+	"os"
+	"testing"
 	"time"
 )
 
 func testGenerateConfig() *Config {
-	c := Config{
-		Debug: Debug{
-			SkipTimeSyncer: true,
-		},
-		LogLevel: "debug",
-	}
+	c := Config{}
+
+	c.Debug.SkipTimeSyncer = true
+
 	c.Database.Dialect = "mysql"
 	c.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_test?loc=Local&parseTime=true"
 	c.Database.MaxOpenConns = 16
 	c.Database.MaxIdleConns = 16
-	c.Database.LogFile = "../app/log/database.log"
-	c.Database.GORMLogFile = "../app/log/gorm.log"
-	c.Database.GORMDetailedLog = false
+	c.Database.LogFile = "log/database.log"
+	c.Database.GORMLogFile = "log/gorm.log"
+	c.Database.GORMDetailedLog = true
 
-	c.Global.DNSCacheExpire = 3 * time.Minute
-	c.Global.TimeSyncInterval = 1 * time.Minute
+	c.Logger.Level = "debug"
+	c.Logger.File = "log/controller.log"
+	c.Logger.Writer = os.Stdout
+
+	c.Global.DNSCacheExpire = time.Minute
+	c.Global.TimeSyncInterval = time.Minute
+
+	c.Client.ProxyTag = ""
+	c.Client.Timeout = 5 * time.Second
 
 	c.Sender.MaxBufferSize = 16384
 	c.Sender.Worker = 64
@@ -39,4 +46,8 @@ func testGenerateConfig() *Config {
 	c.Web.Username = "admin"
 	c.Web.Password = "56c10b0f6a18abe0247c31fd1d1a70e51e5a09f2"
 	return &c
+}
+
+func TestConfig(t *testing.T) {
+
 }
