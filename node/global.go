@@ -1,6 +1,8 @@
 package node
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"sync"
 	"time"
 
@@ -20,13 +22,17 @@ import (
 )
 
 type global struct {
+	certs      []*x509.Certificate
+	certASN1s  [][]byte
 	proxyPool  *proxy.Pool
 	dnsClient  *dns.Client
 	timeSyncer *timesync.Syncer
-	object     map[uint32]interface{}
-	objectRWM  sync.RWMutex
-	spmCount   int // secPaddingMemory execute time
-	wg         sync.WaitGroup
+
+	object    map[uint32]interface{}
+	objectRWM sync.RWMutex
+
+	spmCount int // secPaddingMemory execute time
+	wg       sync.WaitGroup
 }
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
@@ -35,9 +41,23 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
+	// load certificates
+	var (
+		certs     []*x509.Certificate
+		certASN1s [][]byte
+	)
+	for i := 0; i < len(cfg.Certificates); i++ {
+		memory.Padding()
+		cert, err := x509.ParseCertificate(cfg.Certificates[i])
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		certs = append(certs, cert)
+		certASN1s = append(certASN1s, cfg.Certificates[i])
+	}
+
 	// proxy client
 	proxyPool := proxy.NewPool()
-	memory.Padding()
 	for i := 0; i < len(cfg.ProxyClients); i++ {
 		memory.Padding()
 		err := proxyPool.Add(cfg.ProxyClients[i])
@@ -48,7 +68,6 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 
 	// DNS client
 	dnsClient := dns.NewClient(proxyPool)
-	memory.Padding()
 	err := dnsClient.SetCacheExpireTime(cfg.DNSCacheExpire)
 	if err != nil {
 		return nil, err
@@ -63,7 +82,6 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 
 	// time syncer
 	timeSyncer := timesync.New(proxyPool, dnsClient, logger)
-	memory.Padding()
 	err = timeSyncer.SetSyncInterval(cfg.TimeSyncInterval)
 	if err != nil {
 		return nil, err
@@ -77,6 +95,8 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	}
 
 	g := global{
+		certs:      certs,
+		certASN1s:  certASN1s,
 		proxyPool:  proxyPool,
 		dnsClient:  dnsClient,
 		timeSyncer: timeSyncer,
@@ -220,6 +240,23 @@ const spmCount = 8 // secPaddingMemory execute time
 // OK is used to check debug
 func (global *global) OK() bool {
 	return global.spmCount == spmCount
+}
+
+// Certificates is used to get all certificates
+func (global *global) Certificates() []*x509.Certificate {
+	return global.certs
+}
+
+// CertificatePEMs is used to get all certificates that encode to PEM
+func (global *global) CertificatePEMs() []string {
+	var certPEMs []string
+	block := new(pem.Block)
+	block.Type = "CERTIFICATE"
+	for i := 0; i < len(global.certASN1s); i++ {
+		block.Bytes = global.certASN1s[i]
+		certPEMs = append(certPEMs, string(pem.EncodeToMemory(block)))
+	}
+	return certPEMs
 }
 
 // GetProxyClient is used to get proxy client from proxy pool

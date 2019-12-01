@@ -94,7 +94,7 @@ func (node *Node) Main() error {
 		}
 	}
 	now := node.global.Now().Format(logger.TimeLayout)
-	node.logger.Println(logger.Debug, "init", "time:", now)
+	node.logger.Println(logger.Debug, "main", "time:", now)
 	// register
 
 	// deploy server
@@ -103,14 +103,14 @@ func (node *Node) Main() error {
 		return node.fatal(err, "failed to deploy server")
 	}
 
-	node.logger.Print(logger.Debug, "init", "node is running")
+	node.logger.Print(logger.Debug, "main", "node is running")
 	node.wait <- struct{}{}
 	return <-node.exit
 }
 
 func (node *Node) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
-	node.logger.Println(logger.Fatal, "init", err)
+	node.logger.Println(logger.Fatal, "main", err)
 	node.Exit(nil)
 	return err
 }

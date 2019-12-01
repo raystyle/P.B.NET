@@ -3,7 +3,6 @@ package node
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -14,9 +13,10 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
+	"project/testdata"
 )
 
-func testGenerateConfig() *Config {
+func testGenerateConfig(tb testing.TB) *Config {
 	cfg := Config{}
 
 	cfg.Debug.SkipTimeSyncer = true
@@ -26,6 +26,10 @@ func testGenerateConfig() *Config {
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
+	cfg.Global.Certificates = testdata.Certificates(tb)
+	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
+	cfg.Global.DNSServers = testdata.DNSServers()
+	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients(tb)
 
 	cfg.Client.ProxyTag = "balance"
 	cfg.Client.Timeout = 15 * time.Second
@@ -55,10 +59,12 @@ func testGenerateConfig() *Config {
 }
 
 func TestConfig_Check(t *testing.T) {
-	config := testGenerateConfig()
-	output, err := config.Check(context.Background(), nil)
-	defer fmt.Println(output)
+	config := testGenerateConfig(t)
+	output, err := config.Check(context.Background(), &CheckOptions{
+		Writer: os.Stdout,
+	})
 	require.NoError(t, err)
+	t.Log(output)
 }
 
 func TestConfig(t *testing.T) {
@@ -67,7 +73,7 @@ func TestConfig(t *testing.T) {
 	cfg := Config{}
 	require.NoError(t, toml.Unmarshal(b, &cfg))
 
-	testdata := [...]*struct {
+	tds := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -92,7 +98,12 @@ func TestConfig(t *testing.T) {
 		{expected: 10, actual: cfg.Server.MaxConns},
 		{expected: 15 * time.Second, actual: cfg.Server.Timeout},
 	}
-	for _, td := range testdata {
+	for _, td := range tds {
 		require.Equal(t, td.expected, td.actual)
 	}
+
+	// print build
+	b, err = cfg.Build()
+	require.NoError(t, err)
+	t.Log(string(b))
 }

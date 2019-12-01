@@ -14,7 +14,7 @@ func TestLogger(t *testing.T) {
 		testLog1 = "test"
 		testLog2 = "log"
 	)
-	node, err := New(testGenerateConfig())
+	node, err := New(testGenerateConfig(t))
 	require.NoError(t, err)
 	node.logger.Printf(logger.Debug, testSrc, "test format %s %s", testLog1, testLog2)
 	node.logger.Print(logger.Debug, testSrc, "test print", testLog1, testLog2)
