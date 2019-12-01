@@ -1,32 +1,46 @@
 package testdata
 
 import (
+	"encoding/pem"
 	"io/ioutil"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
 	"project/internal/proxy/socks"
+	"project/internal/testsuite"
 	"project/internal/timesync"
 )
 
-// ProxyClientTag is the tag of the proxy client in ProxyClients()
-const ProxyClientTag = "test_socks5"
+// Certificates is used to provide CA certificate for test
+func Certificates(t require.TestingT) [][]byte {
+	pemBlock, err := ioutil.ReadFile("../testdata/system.pem")
+	require.NoError(t, err)
+	var ASN1 [][]byte
+	var block *pem.Block
+	for {
+		block, pemBlock = pem.Decode(pemBlock)
+		require.NotNil(t, block)
+		ASN1 = append(ASN1, block.Bytes)
+		if len(pemBlock) == 0 {
+			break
+		}
+	}
+	return ASN1
+}
 
 // ProxyClients is used to deploy a test proxy server
 // and return corresponding proxy client
 func ProxyClients(t require.TestingT) []*proxy.Client {
-	// deploy test proxy server
 	server, err := socks.NewServer("test", logger.Test, nil)
 	require.NoError(t, err)
 	err = server.ListenAndServe("tcp", "localhost:0")
 	require.NoError(t, err)
 	return []*proxy.Client{
 		{
-			Tag:     ProxyClientTag,
+			Tag:     "test_socks5",
 			Mode:    proxy.ModeSocks,
 			Network: "tcp",
 			Address: server.Address(),
@@ -35,19 +49,41 @@ func ProxyClients(t require.TestingT) []*proxy.Client {
 }
 
 // DNSServers is used to provide test DNS servers
-func DNSServers(t require.TestingT) map[string]*dns.Server {
+func DNSServers() map[string]*dns.Server {
 	servers := make(map[string]*dns.Server)
-	files := [...]string{
-		"../internal/dns/testdata/dns_ds.toml",
-	}
-	for i := 0; i < 3; i++ {
-		b, err := ioutil.ReadFile(files[i])
-		require.NoError(t, err)
-		s := make(map[string]*dns.Server)
-		require.NoError(t, toml.Unmarshal(b, &s))
-		for tag, server := range s {
-			servers[tag] = server
+	if testsuite.EnableIPv4() {
+		servers["test_udp_ipv4"] = &dns.Server{
+			Method:  "udp",
+			Address: "8.8.8.8:53",
 		}
+		servers["test_dot_ipv4"] = &dns.Server{
+			Method:  "dot",
+			Address: "1.1.1.1:853",
+		}
+		servers["test_skip_ipv4"] = &dns.Server{
+			Method:   "udp",
+			Address:  "1.1.1.1:53",
+			SkipTest: true,
+		}
+	}
+	if testsuite.EnableIPv6() {
+		servers["test_udp_ipv6"] = &dns.Server{
+			Method:  "udp",
+			Address: "[2606:4700:4700::1111]:53",
+		}
+		servers["test_dot_ipv6"] = &dns.Server{
+			Method:  "udp",
+			Address: "[2606:4700:4700::1111]:853",
+		}
+		servers["test_skip_ipv6"] = &dns.Server{
+			Method:   "udp",
+			Address:  "[2606:4700:4700::1001]:53",
+			SkipTest: true,
+		}
+	}
+	servers["test_doh_ds"] = &dns.Server{
+		Method:  "doh",
+		Address: "https://cloudflare-dns.com/dns-query",
 	}
 	return servers
 }
