@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"io"
 
 	"github.com/pkg/errors"
@@ -16,16 +17,19 @@ import (
 
 // TrustNode is used to trust Genesis Node
 // receive host info for confirm
-func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeRegisterRequest, error) {
-	client, err := newClient(ctrl, node, nil, nil)
+func (ctrl *CTRL) TrustNode(
+	ctx context.Context,
+	node *bootstrap.Node,
+) (*messages.NodeRegisterRequest, error) {
+	client, err := newClient(ctrl, ctx, node, nil, nil)
 	if err != nil {
-		return nil, errors.WithMessage(err, "connect node failed")
+		return nil, err
 	}
 	defer client.Close()
 	// send trust node command
 	reply, err := client.Send(protocol.CtrlTrustNode, nil)
 	if err != nil {
-		return nil, errors.WithMessage(err, "send trust node command failed")
+		return nil, errors.WithMessage(err, "failed to send trust node command")
 	}
 	req := messages.NodeRegisterRequest{}
 	err = msgpack.Unmarshal(reply, &req)
@@ -45,10 +49,14 @@ func (ctrl *CTRL) TrustNode(node *bootstrap.Node) (*messages.NodeRegisterRequest
 
 // ConfirmTrustNode is used to confirm trust node
 // issue certificates and insert to database
-func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeRegisterRequest) error {
-	client, err := newClient(ctrl, node, nil, nil)
+func (ctrl *CTRL) ConfirmTrustNode(
+	ctx context.Context,
+	node *bootstrap.Node,
+	req *messages.NodeRegisterRequest,
+) error {
+	client, err := newClient(ctrl, ctx, node, nil, nil)
 	if err != nil {
-		return errors.WithMessage(err, "connect node failed")
+		return err
 	}
 	defer client.Close()
 	// issue certificates
@@ -56,15 +64,15 @@ func (ctrl *CTRL) ConfirmTrustNode(node *bootstrap.Node, req *messages.NodeRegis
 	// send response
 	reply, err := client.Send(protocol.CtrlSetNodeCert, cert)
 	if err != nil {
-		return errors.WithMessage(err, "send trust node data failed")
+		return errors.WithMessage(err, "failed to send trust node certificate")
 	}
 	if !bytes.Equal(reply, messages.RegisterSucceed) {
-		return errors.Errorf("trust node failed: %s", string(reply))
+		return errors.Errorf("failed to trust node: %s", string(reply))
 	}
 	// calculate aes key
 	sKey, err := ctrl.global.KeyExchange(req.KexPublicKey)
 	if err != nil {
-		err = errors.Wrap(err, "calculate session key failed")
+		err = errors.Wrap(err, "failed to calculate session key")
 		ctrl.logger.Print(logger.Exploit, "trust node", err)
 		return err
 	}

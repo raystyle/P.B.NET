@@ -556,7 +556,7 @@ func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastRespon
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
-		br.Err = errors.New(string(reply))
+		br.Err = protocol.GetReplyError(reply)
 		return
 	}
 	// broadcast
@@ -565,7 +565,7 @@ func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastRespon
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		br.Err = errors.New(string(reply))
+		br.Err = protocol.GetReplyError(reply)
 	}
 	return
 }
@@ -582,7 +582,7 @@ func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) 
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
-		sr.Err = errors.New(string(reply))
+		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
 	reply, sr.Err = client.Send(protocol.CtrlSendToNode, data)
@@ -590,7 +590,7 @@ func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) 
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		sr.Err = errors.New(string(reply))
+		sr.Err = protocol.GetReplyError(reply)
 	}
 	return
 }
@@ -607,7 +607,7 @@ func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
-		sr.Err = errors.New(string(reply))
+		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
 	reply, sr.Err = client.Send(protocol.CtrlSendToBeacon, data)
@@ -615,65 +615,82 @@ func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		sr.Err = errors.New(string(reply))
+		sr.Err = protocol.GetReplyError(reply)
 	}
 	return
 }
 
 // AcknowledgeToNode is used to notice Node that
 // Controller has received this message
-func (client *client) AcknowledgeToNode(guid, data []byte) {
-	var (
-		reply []byte
-		err   error
-	)
-	defer func() {
-		if err != nil {
-			client.log(logger.Error, "failed to acknowledge to node:", err)
-		}
-	}()
-	reply, err = client.Send(protocol.CtrlAckToNodeGUID, guid)
-	if err != nil {
+func (client *client) AcknowledgeToNode(guid, data []byte) (ar *protocol.AcknowledgeResponse) {
+	ar = &protocol.AcknowledgeResponse{
+		Role: protocol.Node,
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, ar.Err = client.Send(protocol.CtrlAckToNodeGUID, guid)
+	if ar.Err != nil {
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
-	reply, err = client.Send(protocol.CtrlAckToNode, data)
-	if err != nil {
+	reply, ar.Err = client.Send(protocol.CtrlAckToNode, data)
+	if ar.Err != nil {
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		err = errors.New(string(reply))
+		ar.Err = errors.New(string(reply))
 	}
+	return
 }
 
 // AcknowledgeToBeacon is used to notice Beacon that
 // Controller has received this message
-func (client *client) AcknowledgeToBeacon(guid, data []byte) {
-	var (
-		reply []byte
-		err   error
-	)
-	defer func() {
-		if err != nil {
-			client.log(logger.Error, "failed to acknowledge to beacon:", err)
-		}
-	}()
-	reply, err = client.Send(protocol.CtrlAckToBeaconGUID, guid)
-	if err != nil {
+func (client *client) AcknowledgeToBeacon(guid, data []byte) (ar *protocol.AcknowledgeResponse) {
+	ar = &protocol.AcknowledgeResponse{
+		Role: protocol.Node,
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, ar.Err = client.Send(protocol.CtrlAckToBeaconGUID, guid)
+	if ar.Err != nil {
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
-	reply, err = client.Send(protocol.CtrlAckToBeacon, data)
-	if err != nil {
+	reply, ar.Err = client.Send(protocol.CtrlAckToBeacon, data)
+	if ar.Err != nil {
 		return
 	}
 	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		err = errors.New(string(reply))
+		ar.Err = errors.New(string(reply))
 	}
+	return
+}
+
+// Answer is used to return the result of the beacon query
+func (client *client) Answer(guid, data []byte) (ar *protocol.AnswerResponse) {
+	ar = &protocol.AnswerResponse{
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, ar.Err = client.Send(protocol.CtrlAnswerGUID, guid)
+	if ar.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+		return
+	}
+	reply, ar.Err = client.Send(protocol.CtrlAnswer, data)
+	if ar.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
+		ar.Err = errors.New(string(reply))
+	}
+	return
 }
 
 // Status is used to get connection status
