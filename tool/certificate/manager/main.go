@@ -20,7 +20,6 @@ import (
 
 	"project/internal/crypto/cert"
 	"project/internal/crypto/rand"
-	"project/internal/logger"
 )
 
 func main() {
@@ -220,19 +219,7 @@ func load() {
 }
 
 func printCertificate(id int, c *x509.Certificate) {
-	const certFormat = `
-ID: %d
-common name: %s
-public key algorithm: %s
-signature algorithm:  %s
-not before: %s
-not after:  %s
-`
-	fmt.Printf(certFormat, id, c.Subject.CommonName,
-		c.PublicKeyAlgorithm, c.SignatureAlgorithm,
-		c.NotBefore.Local().Format(logger.TimeLayout),
-		c.NotAfter.Local().Format(logger.TimeLayout),
-	)
+	fmt.Printf("ID: %d\n%s\n\n", id, cert.Print(c))
 }
 
 func list() {
