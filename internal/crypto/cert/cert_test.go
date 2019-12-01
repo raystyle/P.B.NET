@@ -162,5 +162,8 @@ func TestIsDomainName(t *testing.T) {
 func TestPrint(t *testing.T) {
 	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
+	org := []string{"org a", "org b"}
+	ca.Certificate.Subject.Organization = org
+	ca.Certificate.Issuer.Organization = org
 	t.Log("\n", Print(ca.Certificate))
 }

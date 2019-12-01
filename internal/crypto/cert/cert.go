@@ -281,6 +281,18 @@ func isDomainName(s string) bool {
 	return nonNumeric
 }
 
+func printStrings(s []string) string {
+	var ss string
+	for i, s := range s {
+		if i == 0 {
+			ss = s
+		} else {
+			ss += ", " + s
+		}
+	}
+	return ss
+}
+
 // Print is used to print certificate information
 func Print(cert *x509.Certificate) *bytes.Buffer {
 	output := new(bytes.Buffer)
@@ -295,8 +307,8 @@ signature algorithm:  %s
 not before: %s
 not after:  %s`
 	_, _ = fmt.Fprintf(output, certFormat,
-		cert.Subject.CommonName, cert.Subject.Organization,
-		cert.Issuer.CommonName, cert.Issuer.Organization,
+		cert.Subject.CommonName, printStrings(cert.Subject.Organization),
+		cert.Issuer.CommonName, printStrings(cert.Issuer.Organization),
 		cert.PublicKeyAlgorithm, cert.SignatureAlgorithm,
 		cert.NotBefore.Local().Format(logger.TimeLayout),
 		cert.NotAfter.Local().Format(logger.TimeLayout),
