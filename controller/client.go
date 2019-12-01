@@ -54,6 +54,7 @@ func newClient(
 	guid []byte,
 	closeFunc func(),
 ) (*client, error) {
+
 	cfg := xnet.Config{
 		Network: node.Network,
 		Timeout: ctrl.opts.Timeout,
@@ -76,10 +77,8 @@ func newClient(
 	}
 
 	// set proxy
-	if node.Mode != "quic" {
-		p, _ := ctrl.global.GetProxyClient(ctrl.opts.ProxyTag)
-		cfg.Dialer = p.DialContext
-	}
+	p, _ := ctrl.global.GetProxyClient(ctrl.opts.ProxyTag)
+	cfg.Dialer = p.DialContext
 
 	// resolve domain name
 	host, port, err := net.SplitHostPort(node.Address)
@@ -147,6 +146,20 @@ func newClient(
 	return &client, nil
 }
 
+func (client *client) log(l logger.Level, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprint(b, log...)
+	_, _ = fmt.Fprint(b, "\n", client.conn)
+	client.ctx.logger.Print(l, "client", b)
+}
+
+func (client *client) logf(l logger.Level, format string, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(b, format, log...)
+	_, _ = fmt.Fprint(b, "\n", client.conn)
+	client.ctx.logger.Print(l, "client", b)
+}
+
 // Zero—Knowledge Proof
 func (client *client) handshake(conn *xnet.Conn) error {
 	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.opts.Timeout))
@@ -204,259 +217,53 @@ func (client *client) isClosing() bool {
 	return atomic.LoadInt32(&client.inClose) != 0
 }
 
-func (client *client) Reply(id, reply []byte) {
+// can use client.Close()
+func (client *client) onFrame(frame []byte) {
 	if client.isClosing() {
 		return
 	}
-	l := len(reply)
-	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
-	b := make([]byte, protocol.MsgHeaderSize+l)
-	// write size
-	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
-	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
-	// write cmd
-	b[protocol.MsgLenSize] = protocol.ConnReply
-	// write msg id
-	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
-	// write data
-	copy(b[protocol.MsgHeaderSize:], reply)
-	_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = client.conn.Write(b)
-}
-
-// send command and receive reply
-// size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
-// data(general) max size = MaxMsgSize -MsgCMDSize -MsgIDSize
-func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
-	if client.isClosing() {
-		return nil, protocol.ErrConnClosed
+	// cmd(1) + msg id(2) or reply
+	if len(frame) < protocol.MsgCMDSize+protocol.MsgIDSize {
+		client.log(logger.Exploit, protocol.ErrInvalidMsgSize)
+		client.Close()
+		return
 	}
-	for {
-		for id := 0; id < protocol.SlotSize; id++ {
-			select {
-			case <-client.slots[id].Available:
-				l := len(data)
-				b := make([]byte, protocol.MsgHeaderSize+l)
-				// write MsgLen
-				msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
-				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
-				// write cmd
-				b[protocol.MsgLenSize] = cmd
-				// write msg id
-				copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize],
-					convert.Uint16ToBytes(uint16(id)))
-				// write data
-				copy(b[protocol.MsgHeaderSize:], data)
-				// send
-				_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-				_, err := client.conn.Write(b)
-				if err != nil {
-					return nil, err
-				}
-				// wait for reply
-				if !client.slots[id].Timer.Stop() {
-					<-client.slots[id].Timer.C
-				}
-				client.slots[id].Timer.Reset(protocol.RecvTimeout)
-				select {
-				case r := <-client.slots[id].Reply:
-					client.slots[id].Available <- struct{}{}
-					return r, nil
-				case <-client.slots[id].Timer.C:
-					client.Close()
-					return nil, protocol.ErrRecvTimeout
-				case <-client.stopSignal:
-					return nil, protocol.ErrConnClosed
-				}
-			case <-client.stopSignal:
-				return nil, protocol.ErrConnClosed
-			default:
-			}
+	id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
+	data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
+	if client.isSync() {
+		switch frame[0] {
+		case protocol.BeaconQueryGUID:
+			client.handleBeaconQueryGUID(id, data)
+		case protocol.BeaconQuery:
+			client.handleBeaconQuery(id, data)
+		case protocol.BeaconSendGUID:
+			client.handleBeaconSendGUID(id, data)
+		case protocol.BeaconSend:
+			client.handleBeaconSend(id, data)
+		case protocol.NodeSendGUID:
+			client.handleNodeSendGUID(id, data)
+		case protocol.NodeSend:
+			client.handleNodeSend(id, data)
 		}
-		// if full wait 1 second
+	}
+	switch frame[0] {
+	case protocol.ConnReply:
+		client.handleReply(frame[protocol.MsgCMDSize:])
+	case protocol.ConnReplyHeartbeat:
 		select {
-		case <-time.After(time.Second):
+		case client.heartbeat <- struct{}{}:
 		case <-client.stopSignal:
-			return nil, protocol.ErrConnClosed
 		}
+	case protocol.ErrCMDRecvNullMsg:
+		client.log(logger.Exploit, protocol.ErrRecvNullMsg)
+		client.Close()
+	case protocol.ErrCMDTooBigMsg:
+		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
+		client.Close()
+	default:
+		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+		client.Close()
 	}
-}
-
-func (client *client) Sync() error {
-	resp, err := client.Send(protocol.CtrlSync, nil)
-	if err != nil {
-		return errors.Wrap(err, "receive sync response failed")
-	}
-	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
-		return errors.Errorf("sync failed: %s", string(resp))
-	}
-	atomic.StoreInt32(&client.inSync, 1)
-	return nil
-}
-
-// TODO error
-func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse) {
-	br = &protocol.BroadcastResponse{
-		GUID: client.guid,
-	}
-	var reply []byte
-	reply, br.Err = client.Send(protocol.CtrlBroadcastGUID, guid)
-	if br.Err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
-		br.Err = errors.New(string(reply))
-		return
-	}
-	// broadcast
-	reply, br.Err = client.Send(protocol.CtrlBroadcast, data)
-	if br.Err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		br.Err = errors.New(string(reply))
-	}
-	return
-}
-
-func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) {
-	sr = &protocol.SendResponse{
-		Role: protocol.Node,
-		GUID: client.guid,
-	}
-	var reply []byte
-	reply, sr.Err = client.Send(protocol.CtrlSendToNodeGUID, guid)
-	if sr.Err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
-		sr.Err = errors.New(string(reply))
-		return
-	}
-	reply, sr.Err = client.Send(protocol.CtrlSendToNode, data)
-	if sr.Err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		sr.Err = errors.New(string(reply))
-	}
-	return
-}
-
-func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse) {
-	sr = &protocol.SendResponse{
-		Role: protocol.Node,
-		GUID: client.guid,
-	}
-	var reply []byte
-	reply, sr.Err = client.Send(protocol.CtrlSendToBeaconGUID, guid)
-	if sr.Err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
-		sr.Err = errors.New(string(reply))
-		return
-	}
-	reply, sr.Err = client.Send(protocol.CtrlSendToBeacon, data)
-	if sr.Err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		sr.Err = errors.New(string(reply))
-	}
-	return
-}
-
-// AcknowledgeToNode is used to notice Node that
-// Controller has received this message
-func (client *client) AcknowledgeToNode(guid, data []byte) {
-	var (
-		reply []byte
-		err   error
-	)
-	defer func() {
-		if err != nil {
-			client.logln(logger.Error, "acknowledge to node failed:", err)
-		}
-	}()
-	reply, err = client.Send(protocol.CtrlAckToNodeGUID, guid)
-	if err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
-		return
-	}
-	reply, err = client.Send(protocol.CtrlAckToNode, data)
-	if err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		err = errors.New(string(reply))
-	}
-}
-
-// AcknowledgeToBeacon is used to notice Beacon that
-// Controller has received this message
-func (client *client) AcknowledgeToBeacon(guid, data []byte) {
-	var (
-		reply []byte
-		err   error
-	)
-	defer func() {
-		if err != nil {
-			client.logln(logger.Error, "acknowledge to beacon failed:", err)
-		}
-	}()
-	reply, err = client.Send(protocol.CtrlAckToBeaconGUID, guid)
-	if err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
-		return
-	}
-	reply, err = client.Send(protocol.CtrlAckToBeacon, data)
-	if err != nil {
-		return
-	}
-	if !bytes.Equal(reply, protocol.ReplySucceed) {
-		err = errors.New(string(reply))
-	}
-}
-
-func (client *client) Status() *xnet.Status {
-	return client.conn.Status()
-}
-
-func (client *client) Close() {
-	client.closeOnce.Do(func() {
-		atomic.StoreInt32(&client.inClose, 1)
-		_ = client.conn.Close()
-		close(client.stopSignal)
-		client.wg.Wait()
-		if client.closeFunc != nil {
-			client.closeFunc()
-		}
-		client.log(logger.Info, "disconnected")
-	})
-}
-
-// TODO remove  logger.Conn(client.conn)
-func (client *client) logf(l logger.Level, format string, log ...interface{}) {
-	b := logger.Conn(client.conn)
-	_, _ = fmt.Fprintf(b, format, log...)
-	client.ctx.logger.Print(l, "client", b)
-}
-
-func (client *client) log(l logger.Level, log ...interface{}) {
-	b := logger.Conn(client.conn)
-	_, _ = fmt.Fprint(b, log...)
-	client.ctx.logger.Print(l, "client", b)
-}
-
-func (client *client) logln(l logger.Level, log ...interface{}) {
-	b := logger.Conn(client.conn)
-	_, _ = fmt.Fprintln(b, log...)
-	client.ctx.logger.Print(l, "client", b)
 }
 
 func (client *client) sendHeartbeatLoop() {
@@ -494,57 +301,6 @@ func (client *client) sendHeartbeatLoop() {
 		case <-client.stopSignal:
 			return
 		}
-	}
-}
-
-// can use client.Close()
-func (client *client) onFrame(msg []byte) {
-	const (
-		cmd = protocol.MsgCMDSize
-		id  = protocol.MsgCMDSize + protocol.MsgIDSize
-	)
-	if client.isClosing() {
-		return
-	}
-	// cmd(1) + msg id(2) or reply
-	if len(msg) < id {
-		client.log(logger.Exploit, protocol.ErrInvalidMsgSize)
-		client.Close()
-		return
-	}
-	if client.isSync() {
-		switch msg[0] {
-		case protocol.BeaconQueryGUID:
-			client.handleBeaconQueryGUID(msg[cmd:id], msg[id:])
-		case protocol.BeaconQuery:
-			client.handleBeaconQuery(msg[cmd:id], msg[id:])
-		case protocol.BeaconSendGUID:
-			client.handleBeaconSendGUID(msg[cmd:id], msg[id:])
-		case protocol.BeaconSend:
-			client.handleBeaconSend(msg[cmd:id], msg[id:])
-		case protocol.NodeSendGUID:
-			client.handleNodeSendGUID(msg[cmd:id], msg[id:])
-		case protocol.NodeSend:
-			client.handleNodeSend(msg[cmd:id], msg[id:])
-		}
-	}
-	switch msg[0] {
-	case protocol.ConnReply:
-		client.handleReply(msg[cmd:])
-	case protocol.ConnReplyHeartbeat:
-		select {
-		case client.heartbeat <- struct{}{}:
-		case <-client.stopSignal:
-		}
-	case protocol.ErrCMDRecvNullMsg:
-		client.log(logger.Exploit, protocol.ErrRecvNullMsg)
-		client.Close()
-	case protocol.ErrCMDTooBigMsg:
-		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
-		client.Close()
-	default:
-		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, msg)
-		client.Close()
 	}
 }
 
@@ -629,7 +385,7 @@ func (client *client) handleNodeSend(id, data []byte) {
 	s := protocol.Send{}
 	err := msgpack.Unmarshal(data, &s)
 	if err != nil {
-		client.logln(logger.Exploit, "invalid node send msgpack data:", err)
+		client.log(logger.Exploit, "invalid node send msgpack data: ", err)
 		client.Close()
 		return
 	}
@@ -653,7 +409,7 @@ func (client *client) handleBeaconSend(id, data []byte) {
 	s := protocol.Send{}
 	err := msgpack.Unmarshal(data, &s)
 	if err != nil {
-		client.logln(logger.Exploit, "invalid beacon send msgpack data:", err)
+		client.log(logger.Exploit, "invalid beacon send msgpack data: ", err)
 		client.Close()
 		return
 	}
@@ -677,7 +433,7 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 	q := protocol.Query{}
 	err := msgpack.Unmarshal(data, &q)
 	if err != nil {
-		client.logln(logger.Exploit, "invalid beacon query msgpack data:", err)
+		client.log(logger.Exploit, "invalid beacon query msgpack data: ", err)
 		client.Close()
 		return
 	}
@@ -695,4 +451,246 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
 	}
+}
+
+// Reply is used to reply command
+func (client *client) Reply(id, reply []byte) {
+	if client.isClosing() {
+		return
+	}
+	l := len(reply)
+	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
+	b := make([]byte, protocol.MsgHeaderSize+l)
+	// write size
+	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+	// write cmd
+	b[protocol.MsgLenSize] = protocol.ConnReply
+	// write msg id
+	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
+	// write data
+	copy(b[protocol.MsgHeaderSize:], reply)
+	_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, _ = client.conn.Write(b)
+}
+
+// send command and receive reply
+// size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
+// data(general) max size = MaxMsgSize -MsgCMDSize -MsgIDSize
+func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
+	if client.isClosing() {
+		return nil, protocol.ErrConnClosed
+	}
+	for {
+		for id := 0; id < protocol.SlotSize; id++ {
+			select {
+			case <-client.slots[id].Available:
+				l := len(data)
+				b := make([]byte, protocol.MsgHeaderSize+l)
+				// write MsgLen
+				msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+				// write cmd
+				b[protocol.MsgLenSize] = cmd
+				// write msg id
+				copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize],
+					convert.Uint16ToBytes(uint16(id)))
+				// write data
+				copy(b[protocol.MsgHeaderSize:], data)
+				// send
+				_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+				_, err := client.conn.Write(b)
+				if err != nil {
+					return nil, err
+				}
+				// wait for reply
+				if !client.slots[id].Timer.Stop() {
+					<-client.slots[id].Timer.C
+				}
+				client.slots[id].Timer.Reset(protocol.RecvTimeout)
+				select {
+				case r := <-client.slots[id].Reply:
+					client.slots[id].Available <- struct{}{}
+					return r, nil
+				case <-client.slots[id].Timer.C:
+					client.Close()
+					return nil, protocol.ErrRecvTimeout
+				case <-client.stopSignal:
+					return nil, protocol.ErrConnClosed
+				}
+			case <-client.stopSignal:
+				return nil, protocol.ErrConnClosed
+			default:
+			}
+		}
+		// if full wait 1 second
+		select {
+		case <-time.After(time.Second):
+		case <-client.stopSignal:
+			return nil, protocol.ErrConnClosed
+		}
+	}
+}
+
+// Sync is used to switch to sync mode
+func (client *client) Sync() error {
+	resp, err := client.Send(protocol.CtrlSync, nil)
+	if err != nil {
+		return errors.Wrap(err, "receive sync response failed")
+	}
+	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
+		return errors.Errorf("sync failed: %s", string(resp))
+	}
+	atomic.StoreInt32(&client.inSync, 1)
+	return nil
+}
+
+// Broadcast is used to broadcast message to nodes
+func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse) {
+	br = &protocol.BroadcastResponse{
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, br.Err = client.Send(protocol.CtrlBroadcastGUID, guid)
+	if br.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+		br.Err = errors.New(string(reply))
+		return
+	}
+	// broadcast
+	reply, br.Err = client.Send(protocol.CtrlBroadcast, data)
+	if br.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
+		br.Err = errors.New(string(reply))
+	}
+	return
+}
+
+// SendToNode is used to send message to node
+func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) {
+	sr = &protocol.SendResponse{
+		Role: protocol.Node,
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, sr.Err = client.Send(protocol.CtrlSendToNodeGUID, guid)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+		sr.Err = errors.New(string(reply))
+		return
+	}
+	reply, sr.Err = client.Send(protocol.CtrlSendToNode, data)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
+		sr.Err = errors.New(string(reply))
+	}
+	return
+}
+
+// SendToBeacon is used to send message to beacon
+func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse) {
+	sr = &protocol.SendResponse{
+		Role: protocol.Node,
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, sr.Err = client.Send(protocol.CtrlSendToBeaconGUID, guid)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+		sr.Err = errors.New(string(reply))
+		return
+	}
+	reply, sr.Err = client.Send(protocol.CtrlSendToBeacon, data)
+	if sr.Err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
+		sr.Err = errors.New(string(reply))
+	}
+	return
+}
+
+// AcknowledgeToNode is used to notice Node that
+// Controller has received this message
+func (client *client) AcknowledgeToNode(guid, data []byte) {
+	var (
+		reply []byte
+		err   error
+	)
+	defer func() {
+		if err != nil {
+			client.log(logger.Error, "failed to acknowledge to node:", err)
+		}
+	}()
+	reply, err = client.Send(protocol.CtrlAckToNodeGUID, guid)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+		return
+	}
+	reply, err = client.Send(protocol.CtrlAckToNode, data)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
+		err = errors.New(string(reply))
+	}
+}
+
+// AcknowledgeToBeacon is used to notice Beacon that
+// Controller has received this message
+func (client *client) AcknowledgeToBeacon(guid, data []byte) {
+	var (
+		reply []byte
+		err   error
+	)
+	defer func() {
+		if err != nil {
+			client.log(logger.Error, "failed to acknowledge to beacon:", err)
+		}
+	}()
+	reply, err = client.Send(protocol.CtrlAckToBeaconGUID, guid)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+		return
+	}
+	reply, err = client.Send(protocol.CtrlAckToBeacon, data)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
+		err = errors.New(string(reply))
+	}
+}
+
+// Status is used to get connection status
+func (client *client) Status() *xnet.Status {
+	return client.conn.Status()
+}
+
+// Close is used to disconnect node
+func (client *client) Close() {
+	client.closeOnce.Do(func() {
+		atomic.StoreInt32(&client.inClose, 1)
+		_ = client.conn.Close()
+		close(client.stopSignal)
+		client.wg.Wait()
+		if client.closeFunc != nil {
+			client.closeFunc()
+		}
+		client.log(logger.Info, "disconnected")
+	})
 }

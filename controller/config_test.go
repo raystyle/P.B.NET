@@ -26,7 +26,6 @@ func testGenerateConfig() *Config {
 	c.Global.DNSCacheExpire = time.Minute
 	c.Global.TimeSyncInterval = time.Minute
 
-	c.Client.ProxyTag = ""
 	c.Client.Timeout = 5 * time.Second
 
 	c.Sender.MaxBufferSize = 16384
