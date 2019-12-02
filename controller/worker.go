@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
@@ -93,6 +92,16 @@ func (ws *worker) GetQueryFromPool() *protocol.Query {
 	return ws.queryPool.Get().(*protocol.Query)
 }
 
+// PutSendToPool is used to put *protocol.Send to sendPool
+func (ws *worker) PutSendToPool(s *protocol.Send) {
+	ws.sendPool.Put(s)
+}
+
+// PutQueryToPool is used to put *protocol.Query to queryPool
+func (ws *worker) PutQueryToPool(q *protocol.Query) {
+	ws.queryPool.Put(q)
+}
+
 // AddNodeSend is used to add node send to sub workers
 func (ws *worker) AddNodeSend(s *protocol.Send) {
 	select {
@@ -135,19 +144,15 @@ type subWorker struct {
 	queryPool       *sync.Pool
 
 	// runtime
-	buffer  *bytes.Buffer
-	hash    hash.Hash
-	guid    *guid.GUID
-	ack     *protocol.Acknowledge
-	encoder *msgpack.Encoder
-	err     error
-
-	node   *mNode
-	beacon *mBeacon
-
+	buffer    *bytes.Buffer
+	hash      hash.Hash
+	guid      *guid.GUID
+	node      *mNode
+	beacon    *mBeacon
 	publicKey ed25519.PublicKey
 	aesKey    []byte
 	aesIV     []byte
+	err       error
 
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
@@ -175,8 +180,6 @@ func (sw *subWorker) Work() {
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
 	sw.guid = guid.New(len(sw.nodeSendQueue), sw.ctx.global.Now)
-	sw.ack = new(protocol.Acknowledge)
-	sw.encoder = msgpack.NewEncoder(sw.buffer)
 	var (
 		s *protocol.Send
 		q *protocol.Query
@@ -185,6 +188,11 @@ func (sw *subWorker) Work() {
 		// check buffer capacity
 		if sw.buffer.Cap() > sw.maxBufferSize {
 			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+		}
+		select {
+		case <-sw.stopSignal:
+			return
+		default:
 		}
 		select {
 		case s = <-sw.nodeSendQueue:

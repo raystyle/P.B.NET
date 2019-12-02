@@ -330,51 +330,51 @@ func (client *client) handleReply(reply []byte) {
 	}
 }
 
-func (client *client) handleNodeSendGUID(id, guid_ []byte) {
-	if len(guid_) != guid.Size {
+func (client *client) handleNodeSendGUID(id, data []byte) {
+	if len(data) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid node send guid size")
 		client.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
-	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
+	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		client.Reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckNodeSendGUID(guid_, false, 0) {
+	} else if client.ctx.syncer.CheckNodeSendGUID(data, false, 0) {
 		client.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
 	}
 }
 
-func (client *client) handleBeaconSendGUID(id, guid_ []byte) {
-	if len(guid_) != guid.Size {
+func (client *client) handleBeaconSendGUID(id, data []byte) {
+	if len(data) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon send guid size")
 		client.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
-	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
+	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		client.Reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckBeaconSendGUID(guid_, false, 0) {
+	} else if client.ctx.syncer.CheckBeaconSendGUID(data, false, 0) {
 		client.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
 	}
 }
 
-func (client *client) handleBeaconQueryGUID(id, guid_ []byte) {
-	if len(guid_) != guid.Size {
+func (client *client) handleBeaconQueryGUID(id, data []byte) {
+	if len(data) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon query guid size")
 		client.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
-	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(guid_); expired {
+	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		client.Reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckBeaconQueryGUID(guid_, false, 0) {
+	} else if client.ctx.syncer.CheckBeaconQueryGUID(data, false, 0) {
 		client.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
@@ -382,74 +382,95 @@ func (client *client) handleBeaconQueryGUID(id, guid_ []byte) {
 }
 
 func (client *client) handleNodeSend(id, data []byte) {
-	s := protocol.Send{}
+	s := client.ctx.worker.GetSendFromPool()
 	err := msgpack.Unmarshal(data, &s)
 	if err != nil {
 		client.log(logger.Exploit, "invalid node send msgpack data: ", err)
+		client.ctx.worker.PutSendToPool(s)
 		client.Close()
 		return
 	}
 	err = s.Validate()
 	if err != nil {
 		client.logf(logger.Exploit, "invalid node send: %s\n%s", err, spew.Sdump(s))
+		client.ctx.worker.PutSendToPool(s)
 		client.Close()
 		return
 	}
-	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID); expired {
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	if expired {
 		client.Reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckNodeSendGUID(s.GUID, true, timestamp) {
+		client.ctx.worker.PutSendToPool(s)
+		return
+	}
+	if client.ctx.syncer.CheckNodeSendGUID(s.GUID, true, timestamp) {
 		client.Reply(id, protocol.ReplySucceed)
-		client.ctx.syncer.AddNodeSend(&s)
+		client.ctx.worker.AddNodeSend(s)
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
+		client.ctx.worker.PutSendToPool(s)
 	}
 }
 
 func (client *client) handleBeaconSend(id, data []byte) {
-	s := protocol.Send{}
-	err := msgpack.Unmarshal(data, &s)
+	s := client.ctx.worker.GetSendFromPool()
+	err := msgpack.Unmarshal(data, s)
 	if err != nil {
 		client.log(logger.Exploit, "invalid beacon send msgpack data: ", err)
+		client.ctx.worker.PutSendToPool(s)
 		client.Close()
 		return
 	}
 	err = s.Validate()
 	if err != nil {
 		client.logf(logger.Exploit, "invalid beacon send: %s\n%s", err, spew.Sdump(s))
+		client.ctx.worker.PutSendToPool(s)
 		client.Close()
 		return
 	}
-	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID); expired {
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	if expired {
 		client.Reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckBeaconSendGUID(s.GUID, true, timestamp) {
+		client.ctx.worker.PutSendToPool(s)
+		return
+	}
+	if client.ctx.syncer.CheckBeaconSendGUID(s.GUID, true, timestamp) {
 		client.Reply(id, protocol.ReplySucceed)
-		client.ctx.syncer.AddBeaconSend(&s)
+		client.ctx.worker.AddBeaconSend(s)
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
+		client.ctx.worker.PutSendToPool(s)
 	}
 }
 
 func (client *client) handleBeaconQuery(id, data []byte) {
-	q := protocol.Query{}
-	err := msgpack.Unmarshal(data, &q)
+	q := client.ctx.worker.GetQueryFromPool()
+	err := msgpack.Unmarshal(data, q)
 	if err != nil {
 		client.log(logger.Exploit, "invalid beacon query msgpack data: ", err)
+		client.ctx.worker.PutQueryToPool(q)
 		client.Close()
 		return
 	}
 	err = q.Validate()
 	if err != nil {
 		client.logf(logger.Exploit, "invalid beacon query: %s\n%s", err, spew.Sdump(q))
+		client.ctx.worker.PutQueryToPool(q)
 		client.Close()
 		return
 	}
-	if expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(q.GUID); expired {
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(q.GUID)
+	if expired {
 		client.Reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckBeaconQueryGUID(q.GUID, true, timestamp) {
+		client.ctx.worker.PutQueryToPool(q)
+		return
+	}
+	if client.ctx.syncer.CheckBeaconQueryGUID(q.GUID, true, timestamp) {
 		client.Reply(id, protocol.ReplySucceed)
-		client.ctx.syncer.AddBeaconQuery(&q)
+		client.ctx.worker.AddQuery(q)
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
+		client.ctx.worker.PutQueryToPool(q)
 	}
 }
 
