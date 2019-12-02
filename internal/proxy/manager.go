@@ -48,7 +48,7 @@ func (m *Manager) Add(server *Server) error {
 			}
 		}
 		opts.ExitFunc = deleteServer
-		// because the tag is never empty, it will never go wrong
+		// because the tag is never empty
 		s, _ := socks.NewServer(server.Tag, m.logger, opts)
 		server.server = s
 	case ModeHTTP:
