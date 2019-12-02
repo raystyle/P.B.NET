@@ -39,17 +39,14 @@ type Config struct {
 	} `toml:"client"`
 
 	Sender struct {
+		MaxConns      int `toml:"max_conn"`
 		Worker        int `toml:"worker"`
 		QueueSize     int `toml:"queue_size"`
 		MaxBufferSize int `toml:"max_buffer_size"`
-		MaxConns      int `toml:"max_conn"`
 	} `toml:"sender"`
 
 	Syncer struct {
-		MaxBufferSize int           `toml:"max_buffer_size"`
-		Worker        int           `toml:"worker"`
-		QueueSize     int           `toml:"queue_size"`
-		ExpireTime    time.Duration `toml:"expire_time"`
+		ExpireTime time.Duration `toml:"expire_time"`
 	} `toml:"syncer"`
 
 	Worker struct {

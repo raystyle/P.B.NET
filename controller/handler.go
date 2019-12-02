@@ -22,16 +22,12 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 	h.ctx.logger.Print(l, "handler", log...)
 }
 
-func (h *handler) logln(l logger.Level, log ...interface{}) {
-	h.ctx.logger.Println(l, "handler", log...)
-}
-
 // messages from syncer
 
-func (h *handler) HandleNodeSend(send *protocol.Send) {
+func (h *handler) OnNodeSend(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.HandleNodeSend panic:")
+			err := xpanic.Error(r, "handler.OnNodeSend")
 			h.log(logger.Fatal, err)
 		}
 	}()
@@ -59,10 +55,10 @@ func (h *handler) HandleNodeSend(send *protocol.Send) {
 	}
 }
 
-func (h *handler) HandleBeaconSend(send *protocol.Send) {
+func (h *handler) OnBeaconSend(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.HandleBeaconSend panic:")
+			err := xpanic.Error(r, "handler.OnBeaconSend")
 			h.log(logger.Fatal, err)
 		}
 	}()

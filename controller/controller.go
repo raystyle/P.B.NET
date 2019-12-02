@@ -19,6 +19,7 @@ type CTRL struct {
 	handler *handler // handle message from Node or Beacon
 	sender  *sender  // broadcast and send message
 	syncer  *syncer  // receive message
+	worker  *worker  // do work
 	boot    *boot    // auto discover bootstrap nodes
 	web     *web     // web server
 
@@ -58,8 +59,6 @@ func New(cfg *Config) (*CTRL, error) {
 		Timeout:  cfg.Client.Timeout,
 		DNSOpts:  cfg.Client.DNSOpts,
 	}
-	// handler
-	ctrl.handler = &handler{ctx: ctrl}
 	// sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {
@@ -72,6 +71,14 @@ func New(cfg *Config) (*CTRL, error) {
 		return nil, errors.WithMessage(err, "failed to initialize syncer")
 	}
 	ctrl.syncer = syncer
+	// handler
+	ctrl.handler = &handler{ctx: ctrl}
+	// worker
+	worker, err := newWorker(ctrl, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize worker")
+	}
+	ctrl.worker = worker
 	// boot
 	ctrl.boot = newBoot(ctrl)
 	// http server

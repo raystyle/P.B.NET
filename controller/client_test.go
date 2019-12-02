@@ -38,7 +38,7 @@ func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
 	cfg.Syncer.MaxBufferSize = 16384
 	cfg.Syncer.Worker = 64
 	cfg.Syncer.QueueSize = 512
-	cfg.Syncer.ExpireTime = 5 * time.Minute
+	cfg.Syncer.ExpireTime = 30 * time.Second
 
 	return &cfg
 }
