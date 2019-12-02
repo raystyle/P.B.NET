@@ -16,9 +16,9 @@ type CTRL struct {
 	logger  *gLogger // global logger
 	global  *global  // proxy, dns, time syncer, and ...
 	opts    *opts    // client options
-	handler *handler // handle message from Node or Beacon
 	sender  *sender  // broadcast and send message
 	syncer  *syncer  // receive message
+	handler *handler // handle message from Node or Beacon
 	worker  *worker  // do work
 	boot    *boot    // auto discover bootstrap nodes
 	web     *web     // web server
@@ -93,44 +93,57 @@ func New(cfg *Config) (*CTRL, error) {
 	return ctrl, nil
 }
 
+func (ctrl *CTRL) fatal(err error, msg string) error {
+	err = errors.WithMessage(err, msg)
+	ctrl.logger.Println(logger.Fatal, "main", err)
+	ctrl.Exit(nil)
+	return err
+}
+
+// Main is used to tun Controller, it will block until exit or return error
 func (ctrl *CTRL) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// first synchronize time
 	if !ctrl.Debug.SkipTimeSyncer {
 		err := ctrl.global.StartTimeSyncer()
 		if err != nil {
-			return ctrl.fatal(err, "synchronize time failed")
+			return ctrl.fatal(err, "failed to synchronize time")
 		}
 	}
 	now := ctrl.global.Now().Format(logger.TimeLayout)
-	ctrl.logger.Println(logger.Info, "init", "time:", now)
+	ctrl.logger.Println(logger.Info, "main", "time:", now)
 	// start web server
 	err := ctrl.web.Deploy()
 	if err != nil {
-		return ctrl.fatal(err, "deploy web server failed")
+		return ctrl.fatal(err, "failed to deploy web server")
 	}
-	ctrl.logger.Println(logger.Info, "init", "http server:", ctrl.web.Address())
-	ctrl.logger.Print(logger.Info, "init", "controller is running")
+	ctrl.logger.Println(logger.Info, "main", "HTTPS server:", ctrl.web.Address())
+	ctrl.logger.Print(logger.Info, "main", "controller is running")
 	// wait to load controller keys
 	if !ctrl.global.WaitLoadSessionKey() {
 		return nil
 	}
-	ctrl.logger.Print(logger.Info, "init", "load keys successfully")
+	ctrl.logger.Print(logger.Info, "main", "load keys successfully")
 	// load boots
-	ctrl.logger.Print(logger.Info, "init", "start discover bootstrap nodes")
+	ctrl.logger.Print(logger.Info, "main", "start discover bootstrap nodes")
 	boots, err := ctrl.db.SelectBoot()
 	if err != nil {
-		ctrl.logger.Println(logger.Error, "init", "select boot failed:", err)
+		ctrl.logger.Println(logger.Error, "main", "failed to select boot:", err)
 		return nil
 	}
 	for i := 0; i < len(boots); i++ {
 		err = ctrl.boot.Add(boots[i])
 		if err != nil {
-			ctrl.logger.Println(logger.Error, "init", "add boot failed:", err)
+			ctrl.logger.Println(logger.Error, "main", "failed to add boot:", err)
 		}
 	}
 	ctrl.wait <- struct{}{}
 	return <-ctrl.exit
+}
+
+// Wait is used to wait for Main()
+func (ctrl *CTRL) Wait() {
+	<-ctrl.wait
 }
 
 // Exit is used to exit controller with a error
@@ -154,40 +167,33 @@ func (ctrl *CTRL) Exit(err error) {
 	})
 }
 
-func (ctrl *CTRL) fatal(err error, msg string) error {
-	err = errors.WithMessage(err, msg)
-	ctrl.logger.Println(logger.Fatal, "main", err)
-	ctrl.Exit(nil)
-	return err
-}
-
+// LoadSessionKey is used to load session key
 func (ctrl *CTRL) LoadSessionKey(password []byte) error {
 	return ctrl.global.LoadSessionKey(password)
 }
 
+// DeleteNode is used to delete node
 func (ctrl *CTRL) DeleteNode(guid []byte) error {
 	err := ctrl.db.DeleteNode(guid)
-	return errors.Wrapf(err, "delete node %X failed", guid)
+	return errors.Wrapf(err, "failed to delete node %X", guid)
 }
 
+// DeleteBeacon is used to delete beacon
 func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
 	err := ctrl.db.DeleteBeacon(guid)
-	return errors.Wrapf(err, "delete beacon %X failed", guid)
+	return errors.Wrapf(err, "failed to delete beacon %X", guid)
 }
 
+// DeleteNodeUnscoped is used to unscoped delete node
 func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
 	err := ctrl.db.DeleteNodeUnscoped(guid)
-	return errors.Wrapf(err, "unscoped delete node %X failed", guid)
+	return errors.Wrapf(err, "failed to unscoped delete node %X", guid)
 }
 
+// DeleteBeaconUnscoped is used to unscoped delete beacon
 func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 	err := ctrl.db.DeleteBeaconUnscoped(guid)
-	return errors.Wrapf(err, "unscoped delete beacon %X failed", guid)
+	return errors.Wrapf(err, "failed to unscoped delete beacon %X", guid)
 }
 
 // ------------------------------------test-------------------------------------
-
-// TestWaitMain is used to wait for Main()
-func (ctrl *CTRL) TestWaitMain() {
-	<-ctrl.wait
-}

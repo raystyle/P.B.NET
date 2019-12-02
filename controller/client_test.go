@@ -51,7 +51,7 @@ func testGenerateNode(t require.TestingT, genesis bool) *node.Node {
 		err := NODE.Main()
 		require.NoError(t, err)
 	}()
-	NODE.TestWait()
+	NODE.Wait()
 
 	// generate certificate
 	pks := ctrl.global.GetSelfCA()

@@ -93,6 +93,7 @@ func (boot *boot) Close() {
 			break
 		}
 	}
+	boot.ctx = nil
 }
 
 type bootClient struct {

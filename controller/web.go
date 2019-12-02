@@ -113,6 +113,7 @@ func (web *web) Address() string {
 
 func (web *web) Close() {
 	_ = web.server.Close()
+	web.ctx = nil
 }
 
 func (web *web) handlePanic(w hRW, r *hR, e interface{}) {
