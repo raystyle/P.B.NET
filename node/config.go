@@ -193,7 +193,7 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 	go func() {
 		errChan <- node.Main()
 	}()
-	node.TestWait()
+	node.Wait()
 	timeout := opts.Timeout
 	if timeout < 1 {
 		timeout = 15 * time.Second

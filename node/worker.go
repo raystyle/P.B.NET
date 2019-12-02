@@ -168,6 +168,11 @@ func (sw *subWorker) Work() {
 			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 		}
 		select {
+		case <-sw.stopSignal:
+			return
+		default:
+		}
+		select {
 		case b = <-sw.broadcastQueue:
 			sw.handleBroadcast(b)
 		case s = <-sw.sendQueue:

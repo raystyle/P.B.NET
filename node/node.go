@@ -61,18 +61,21 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	node.sender = sender
-	// worker
-	worker, err := newWorker(node, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to initialize worker")
-	}
-	node.worker = worker
 	// syncer
 	syncer, err := newSyncer(node, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize syncer")
 	}
 	node.syncer = syncer
+	// handler
+	node.handler = &handler{ctx: node}
+	// worker
+	worker, err := newWorker(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize worker")
+	}
+	node.worker = worker
+
 	// server
 	server, err := newServer(node, cfg)
 	if err != nil {
@@ -115,6 +118,11 @@ func (node *Node) fatal(err error, msg string) error {
 	return err
 }
 
+// Wait is used to wait for Main()
+func (node *Node) Wait() {
+	<-node.wait
+}
+
 func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Close()
@@ -139,11 +147,6 @@ func (node *Node) AddListener(listener *messages.Listener) error {
 }
 
 // ------------------------------------test-------------------------------------
-
-// TestWaitMain is used to wait for Main()
-func (node *Node) TestWait() {
-	<-node.wait
-}
 
 func (node *Node) TestGetGUID() []byte {
 	return node.global.GUID()
