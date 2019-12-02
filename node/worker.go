@@ -150,6 +150,7 @@ func (sw *subWorker) Work() {
 			time.Sleep(time.Second)
 			go sw.Work()
 		} else {
+			sw.guid.Close()
 			sw.wg.Done()
 		}
 	}()
@@ -191,22 +192,22 @@ func (sw *subWorker) handleBroadcast(b *protocol.Broadcast) {
 	sw.buffer.Write(b.Message)
 	sw.buffer.Write(b.Hash)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), b.Signature) {
-		const format = "invalid broadcast signature\nguid: %X"
+		const format = "invalid broadcast signature\nGUID: %X"
 		sw.logf(logger.Exploit, format, b.GUID)
 		return
 	}
 	// decrypt message
 	b.Message, sw.err = sw.ctx.global.CtrlDecrypt(b.Message)
 	if sw.err != nil {
-		const format = "invalid broadcast message\nguid: %X\n%s"
-		sw.logf(logger.Exploit, format, b.GUID, sw.err)
+		const format = "failed to decrypt broadcast message: %s\nGUID: %X"
+		sw.logf(logger.Exploit, format, sw.err, b.GUID)
 		return
 	}
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(b.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), b.Hash) != 1 {
-		const format = "invalid broadcast hash\nguid: %X"
+		const format = "broadcast with incorrect hash\nGUID: %X"
 		sw.logf(logger.Exploit, format, b.GUID)
 		return
 	}
@@ -223,28 +224,28 @@ func (sw *subWorker) handleSend(s *protocol.Send) {
 	sw.buffer.Write(s.Message)
 	sw.buffer.Write(s.Hash)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), s.Signature) {
-		const format = "invalid send signature\nguid: %X"
+		const format = "invalid send signature\nGUID: %X"
 		sw.logf(logger.Exploit, format, s.GUID)
 		return
 	}
-	// check role
+	// check role GUID
 	if !bytes.Equal(s.RoleGUID, protocol.CtrlGUID) {
-		const format = "invalid send role guid\nguid: %X\nrole: %X"
+		const format = "invalid send role GUID\nGUID: %X\nrole GUID: %X"
 		sw.logf(logger.Exploit, format, s.GUID, s.RoleGUID)
 		return
 	}
 	// decrypt message
 	s.Message, sw.err = sw.ctx.global.Decrypt(s.Message)
 	if sw.err != nil {
-		const format = "invalid send message\nguid: %X\n%s"
-		sw.logf(logger.Exploit, format, s.GUID, sw.err)
+		const format = "failed to decrypt send message: %s\nGUID: %X"
+		sw.logf(logger.Exploit, format, sw.err, s.GUID)
 		return
 	}
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(s.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), s.Hash) != 1 {
-		const format = "invalid send hash\nguid: %X"
+		const format = "send with incorrect hash\nGUID: %X"
 		sw.logf(logger.Exploit, format, s.GUID)
 		return
 	}

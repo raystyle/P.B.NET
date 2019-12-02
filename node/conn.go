@@ -96,7 +96,7 @@ func (c *conn) handleReply(reply []byte) {
 	// must copy
 	r := make([]byte, l-protocol.MsgIDSize)
 	copy(r, reply[protocol.MsgIDSize:])
-	// <security> maybe wrong msg id
+	// <security> maybe incorrect msg id
 	select {
 	case c.slots[id].Reply <- r:
 	default:

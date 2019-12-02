@@ -288,6 +288,7 @@ func (s *server) Close() {
 	for _, conn := range s.conns {
 		_ = conn.Close()
 	}
+	s.guid.Close()
 	s.wg.Wait()
 	s.ctx = nil
 }
