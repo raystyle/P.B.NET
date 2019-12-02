@@ -52,6 +52,12 @@ type Config struct {
 		ExpireTime    time.Duration `toml:"expire_time"`
 	} `toml:"syncer"`
 
+	Worker struct {
+		Number        int `toml:"number"`
+		QueueSize     int `toml:"queue_size"`
+		MaxBufferSize int `toml:"max_buffer_size"`
+	} `toml:"worker"`
+
 	Web struct {
 		Dir      string `toml:"dir"`
 		CertFile string `toml:"cert_file"`

@@ -16,11 +16,11 @@ type Node struct {
 	global    *global    // proxy clients, DNS clients, time syncer
 	opts      *opts      // client options
 	forwarder *forwarder // forward messages
-	handler   *handler   // handle message from Controller
 	sender    *sender    // send message to Controller
 	syncer    *syncer    // receive message from Controller, Nodes, and Beacons
-	server    *server    // listen and serve Roles
+	handler   *handler   // handle message from Controller
 	worker    *worker    // do work
+	server    *server    // listen and serve Roles
 
 	once sync.Once
 	wait chan struct{}

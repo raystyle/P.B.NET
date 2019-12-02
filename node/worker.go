@@ -39,12 +39,12 @@ func newWorker(ctx *Node, config *Config) (*worker, error) {
 		return nil, errors.New("worker task queue size < worker number")
 	}
 	if cfg.MaxBufferSize < 16384 {
-		return nil, errors.New("max buffer size >= 16384")
+		return nil, errors.New("max buffer size must >= 16384")
 	}
 
 	worker := worker{
-		broadcastQueue: make(chan *protocol.Broadcast),
-		sendQueue:      make(chan *protocol.Send),
+		broadcastQueue: make(chan *protocol.Broadcast, cfg.QueueSize),
+		sendQueue:      make(chan *protocol.Send, cfg.QueueSize),
 		stopSignal:     make(chan struct{}),
 	}
 
@@ -90,7 +90,7 @@ func (ws *worker) GetSendFromPool() *protocol.Send {
 	return ws.sendPool.Get().(*protocol.Send)
 }
 
-// AddBroadcast is used to add broadcast to handler
+// AddBroadcast is used to add broadcast to sub workers
 func (ws *worker) AddBroadcast(b *protocol.Broadcast) {
 	select {
 	case ws.broadcastQueue <- b:
@@ -98,7 +98,7 @@ func (ws *worker) AddBroadcast(b *protocol.Broadcast) {
 	}
 }
 
-// AddSend is used to add send to handler
+// AddNodeSend is used to add send to sub workers
 func (ws *worker) AddSend(s *protocol.Send) {
 	select {
 	case ws.sendQueue <- s:
@@ -106,7 +106,7 @@ func (ws *worker) AddSend(s *protocol.Send) {
 	}
 }
 
-// Close is used to close all workers
+// Close is used to close all sub workers
 func (ws *worker) Close() {
 	close(ws.stopSignal)
 	ws.wg.Wait()

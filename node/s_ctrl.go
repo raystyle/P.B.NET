@@ -194,6 +194,22 @@ func (ctrl *ctrlConn) handleSendGUID(id, data []byte) {
 	}
 }
 
+func (ctrl *ctrlConn) handleBroadcastGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		ctrl.log(logger.Exploit, "invalid broadcast guid size")
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+		ctrl.Close()
+		return
+	}
+	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckBroadcastGUID(data, false, 0) {
+		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
 func (ctrl *ctrlConn) handleAckToNodeGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		ctrl.log(logger.Exploit, "invalid acknowledge to node guid size")
@@ -220,22 +236,6 @@ func (ctrl *ctrlConn) handleAckToBeaconGUID(id, data []byte) {
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
 	} else if ctrl.ctx.syncer.CheckCtrlAckToBeaconGUID(data, false, 0) {
-		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
-	} else {
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-	}
-}
-
-func (ctrl *ctrlConn) handleBroadcastGUID(id, data []byte) {
-	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid broadcast guid size")
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-		ctrl.Close()
-		return
-	}
-	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
-		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckBroadcastGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -297,6 +297,36 @@ func (ctrl *ctrlConn) handleSend(id, data []byte, role protocol.Role) {
 	}
 }
 
+func (ctrl *ctrlConn) handleBroadcast(id, data []byte) {
+	b := ctrl.broadcastPool.Get().(*protocol.Broadcast)
+	defer ctrl.broadcastPool.Put(b)
+
+	err := msgpack.Unmarshal(data, b)
+	if err != nil {
+		const format = "invalid ctrl broadcast msgpack data: %s"
+		ctrl.logf(logger.Exploit, format, err)
+		ctrl.Close()
+		return
+	}
+	err = b.Validate()
+	if err != nil {
+		const format = "invalid ctrl broadcast: %s\n%s"
+		ctrl.logf(logger.Exploit, format, err, spew.Sdump(b))
+		ctrl.Close()
+		return
+	}
+	if expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(b.GUID); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckBroadcastGUID(b.GUID, true, timestamp) {
+		ctrl.conn.Reply(id, protocol.ReplySucceed)
+		nb := ctrl.ctx.worker.GetBroadcastFromPool()
+		*nb = *b // must copy, because sync.Pool
+		ctrl.ctx.worker.AddBroadcast(nb)
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
 func (ctrl *ctrlConn) handleAckToNode(id, data []byte) {
 	a := ctrl.acknowledgePool.Get().(*protocol.Acknowledge)
 	defer ctrl.acknowledgePool.Put(a)
@@ -348,36 +378,6 @@ func (ctrl *ctrlConn) handleAckToBeacon(id, data []byte) {
 	} else if ctrl.ctx.syncer.CheckCtrlAckToBeaconGUID(a.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
 		// repeat
-	} else {
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-	}
-}
-
-func (ctrl *ctrlConn) handleBroadcast(id, data []byte) {
-	b := ctrl.broadcastPool.Get().(*protocol.Broadcast)
-	defer ctrl.broadcastPool.Put(b)
-
-	err := msgpack.Unmarshal(data, b)
-	if err != nil {
-		const format = "invalid ctrl broadcast msgpack data: %s"
-		ctrl.logf(logger.Exploit, format, err)
-		ctrl.Close()
-		return
-	}
-	err = b.Validate()
-	if err != nil {
-		const format = "invalid ctrl broadcast: %s\n%s"
-		ctrl.logf(logger.Exploit, format, err, spew.Sdump(b))
-		ctrl.Close()
-		return
-	}
-	if expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(b.GUID); expired {
-		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckBroadcastGUID(b.GUID, true, timestamp) {
-		ctrl.conn.Reply(id, protocol.ReplySucceed)
-		nb := ctrl.ctx.worker.GetBroadcastFromPool()
-		*nb = *b // must copy, because sync.Pool
-		ctrl.ctx.worker.AddBroadcast(nb)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
 	}
