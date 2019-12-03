@@ -4,8 +4,8 @@ go 1.13
 
 require (
 	github.com/davecgh/go-spew v1.1.1
-	github.com/go-sql-driver/mysql v1.4.1
-	github.com/jinzhu/gorm v1.9.11
+	github.com/go-sql-driver/mysql v1.5.0
+	github.com/jinzhu/gorm v1.9.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kardianos/service v1.0.1-0.20191017145738-4df36c9fc1c6
 	github.com/lucas-clemente/quic-go v0.14.1
@@ -14,6 +14,6 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/vmihailenco/msgpack/v4 v4.3.1
 
-	golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413
+	golang.org/x/crypto v0.0.0-20191227163750-53104e6ec876
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
 )
