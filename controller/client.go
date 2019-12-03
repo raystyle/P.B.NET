@@ -232,6 +232,14 @@ func (client *client) onFrame(frame []byte) {
 	data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
 	if client.isSync() {
 		switch frame[0] {
+		case protocol.NodeSendGUID:
+			client.handleNodeSendGUID(id, data)
+		case protocol.NodeSend:
+			client.handleNodeSend(id, data)
+		case protocol.NodeAckGUID:
+			client.handleNodeAckGUID(id, data)
+		case protocol.NodeAck:
+
 		case protocol.BeaconQueryGUID:
 			client.handleBeaconQueryGUID(id, data)
 		case protocol.BeaconQuery:
@@ -240,10 +248,10 @@ func (client *client) onFrame(frame []byte) {
 			client.handleBeaconSendGUID(id, data)
 		case protocol.BeaconSend:
 			client.handleBeaconSend(id, data)
-		case protocol.NodeSendGUID:
-			client.handleNodeSendGUID(id, data)
-		case protocol.NodeSend:
-			client.handleNodeSend(id, data)
+		case protocol.BeaconAckGUID:
+			client.handleBeaconAckGUID(id, data)
+		case protocol.BeaconAck:
+
 		}
 	}
 	switch frame[0] {
@@ -347,6 +355,23 @@ func (client *client) handleNodeSendGUID(id, data []byte) {
 	}
 }
 
+func (client *client) handleNodeAckGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		// fake reply and close
+		client.log(logger.Exploit, "invalid node acknowledge guid size")
+		client.Reply(id, protocol.ReplyHandled)
+		client.Close()
+		return
+	}
+	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
+		client.Reply(id, protocol.ReplyExpired)
+	} else if client.ctx.syncer.CheckNodeAckGUID(data, false, 0) {
+		client.Reply(id, protocol.ReplyUnhandled)
+	} else {
+		client.Reply(id, protocol.ReplyHandled)
+	}
+}
+
 func (client *client) handleBeaconSendGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply and close
@@ -358,6 +383,23 @@ func (client *client) handleBeaconSendGUID(id, data []byte) {
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		client.Reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconSendGUID(data, false, 0) {
+		client.Reply(id, protocol.ReplyUnhandled)
+	} else {
+		client.Reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (client *client) handleBeaconAckGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		// fake reply and close
+		client.log(logger.Exploit, "invalid beacon acknowledge guid size")
+		client.Reply(id, protocol.ReplyHandled)
+		client.Close()
+		return
+	}
+	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
+		client.Reply(id, protocol.ReplyExpired)
+	} else if client.ctx.syncer.CheckBeaconAckGUID(data, false, 0) {
 		client.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
