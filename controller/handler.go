@@ -24,6 +24,7 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 
 // messages from syncer
 
+// TODO maybe need copy data
 func (h *handler) OnNodeSend(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {

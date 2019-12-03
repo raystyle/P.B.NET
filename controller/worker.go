@@ -206,7 +206,6 @@ func (sw *subWorker) Work() {
 
 func (sw *subWorker) handleNodeSend(s *protocol.Send) {
 	defer sw.sendPool.Put(s)
-
 	// set key
 	sw.node, sw.err = sw.ctx.db.SelectNode(s.RoleGUID)
 	if sw.err != nil {
@@ -217,7 +216,6 @@ func (sw *subWorker) handleNodeSend(s *protocol.Send) {
 	sw.publicKey = sw.node.PublicKey
 	sw.aesKey = sw.node.SessionKey
 	sw.aesIV = sw.node.SessionKey[:aes.IVSize]
-
 	// verify
 	sw.buffer.Reset()
 	sw.buffer.Write(s.GUID)
@@ -229,7 +227,6 @@ func (sw *subWorker) handleNodeSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, s.RoleGUID)
 		return
 	}
-
 	// decrypt
 	s.Message, sw.err = aes.CBCDecrypt(s.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
@@ -237,7 +234,6 @@ func (sw *subWorker) handleNodeSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, sw.err, s.RoleGUID)
 		return
 	}
-
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(s.Message)
@@ -252,7 +248,6 @@ func (sw *subWorker) handleNodeSend(s *protocol.Send) {
 
 func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
 	defer sw.sendPool.Put(s)
-
 	// set key
 	sw.beacon, sw.err = sw.ctx.db.SelectBeacon(s.RoleGUID)
 	if sw.err != nil {
@@ -263,7 +258,6 @@ func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
 	sw.publicKey = sw.beacon.PublicKey
 	sw.aesKey = sw.beacon.SessionKey
 	sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
-
 	// verify
 	sw.buffer.Reset()
 	sw.buffer.Write(s.GUID)
@@ -275,7 +269,6 @@ func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, s.RoleGUID)
 		return
 	}
-
 	// decrypt
 	s.Message, sw.err = aes.CBCDecrypt(s.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
@@ -283,7 +276,6 @@ func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, sw.err, s.RoleGUID)
 		return
 	}
-
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(s.Message)
@@ -298,7 +290,6 @@ func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
 
 func (sw *subWorker) handleQuery(q *protocol.Query) {
 	defer sw.queryPool.Put(q)
-
 	// set key
 	sw.beacon, sw.err = sw.ctx.db.SelectBeacon(q.BeaconGUID)
 	if sw.err != nil {
@@ -309,7 +300,6 @@ func (sw *subWorker) handleQuery(q *protocol.Query) {
 	sw.publicKey = sw.beacon.PublicKey
 	sw.aesKey = sw.beacon.SessionKey
 	sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
-
 	// verify
 	sw.buffer.Reset()
 	sw.buffer.Write(q.GUID)
@@ -320,8 +310,8 @@ func (sw *subWorker) handleQuery(q *protocol.Query) {
 		sw.logf(logger.Exploit, format, q.BeaconGUID)
 		return
 	}
-
 	// query message
 
-	// TODO broadcast query message
+	// TODO query message and answer
+	// may be copy send
 }
