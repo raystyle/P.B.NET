@@ -63,24 +63,19 @@ func newSyncer(ctx *Node, config *Config) (*syncer, error) {
 	}
 
 	syncer := syncer{
-		ctx: ctx,
-
-		expireTime: cfg.ExpireTime.Seconds(),
-
+		ctx:                 ctx,
+		expireTime:          cfg.ExpireTime.Seconds(),
 		ctrlSendGUID:        make(map[string]int64),
 		ctrlAckToNodeGUID:   make(map[string]int64),
 		ctrlAckToBeaconGUID: make(map[string]int64),
 		answerGUID:          make(map[string]int64),
-
-		broadcastGUID:     make(map[string]int64),
-		nodeSendGUID:      make(map[string]int64),
-		nodeAckToCtrlGUID: make(map[string]int64),
-
+		broadcastGUID:       make(map[string]int64),
+		nodeSendGUID:        make(map[string]int64),
+		nodeAckToCtrlGUID:   make(map[string]int64),
 		beaconSendGUID:      make(map[string]int64),
 		beaconAckToCtrlGUID: make(map[string]int64),
 		queryGUID:           make(map[string]int64),
-
-		stopSignal: make(chan struct{}),
+		stopSignal:          make(chan struct{}),
 	}
 
 	syncer.hexPool.New = func() interface{} {

@@ -383,6 +383,7 @@ func (ctrl *ctrlConn) handleAckToBeacon(id, data []byte) {
 	}
 }
 
+// TODO may be copy send data
 func (ctrl *ctrlConn) handleAnswer(id, data []byte) {
 	a := ctrl.answerPool.Get().(*protocol.Answer)
 	defer ctrl.answerPool.Put(a)
