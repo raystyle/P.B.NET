@@ -13,7 +13,6 @@ import (
 	"project/internal/convert"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
-	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xpanic"
@@ -146,7 +145,6 @@ type subWorker struct {
 	// runtime
 	buffer    *bytes.Buffer
 	hash      hash.Hash
-	guid      *guid.GUID
 	node      *mNode
 	beacon    *mBeacon
 	publicKey ed25519.PublicKey
@@ -179,7 +177,6 @@ func (sw *subWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
-	sw.guid = guid.New(len(sw.nodeSendQueue), sw.ctx.global.Now)
 	var (
 		s *protocol.Send
 		q *protocol.Query
@@ -245,7 +242,7 @@ func (sw *subWorker) handleNodeSend(s *protocol.Send) {
 	sw.hash.Reset()
 	sw.hash.Write(s.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), s.Hash) != 1 {
-		const format = "node send with wrong hash\nGUID: %X"
+		const format = "node send with incorrect hash\nGUID: %X"
 		sw.logf(logger.Exploit, format, s.RoleGUID)
 		return
 	}
@@ -291,7 +288,7 @@ func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
 	sw.hash.Reset()
 	sw.hash.Write(s.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), s.Hash) != 1 {
-		const format = "beacon send with wrong hash\nGUID: %X"
+		const format = "beacon send with incorrect hash\nGUID: %X"
 		sw.logf(logger.Exploit, format, s.RoleGUID)
 		return
 	}

@@ -1,24 +1,16 @@
 package controller
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
-	"hash"
+	"encoding/hex"
 	"math"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
-	"project/internal/crypto/aes"
-	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
-	"project/internal/protocol"
 	"project/internal/xpanic"
 )
 
@@ -27,17 +19,16 @@ type syncer struct {
 
 	expireTime float64
 
-	// key = base64(GUID) value = timestamp
-	nodeSendGUID       map[string]int64
-	nodeSendGUIDRWM    sync.RWMutex
-	beaconSendGUID     map[string]int64
-	beaconSendGUIDRWM  sync.RWMutex
-	beaconQueryGUID    map[string]int64
-	beaconQueryGUIDRWM sync.RWMutex
+	// key = hex(GUID) value = timestamp
+	nodeSendGUID      map[string]int64
+	nodeSendGUIDRWM   sync.RWMutex
+	beaconSendGUID    map[string]int64
+	beaconSendGUIDRWM sync.RWMutex
+	queryGUID         map[string]int64
+	queryGUIDRWM      sync.RWMutex
 
-	nodeSendQueue    chan *protocol.Send
-	beaconSendQueue  chan *protocol.Send
-	beaconQueryQueue chan *protocol.Query
+	// calculate key
+	hexPool sync.Pool
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -45,66 +36,27 @@ type syncer struct {
 
 func newSyncer(ctx *CTRL, config *Config) (*syncer, error) {
 	cfg := config.Syncer
-	// check config
-	if cfg.MaxBufferSize < 4096 {
-		return nil, errors.New("max buffer size >= 4096")
-	}
-	if cfg.Worker < 4 {
-		return nil, errors.New("worker number must >= 4")
-	}
-	if cfg.QueueSize < 512 {
-		return nil, errors.New("worker task queue size < 512")
-	}
-	if cfg.ExpireTime < 5*time.Minute || cfg.ExpireTime > time.Hour {
-		return nil, errors.New("expire time < 5m or > 1h")
+
+	if cfg.ExpireTime < 30*time.Second || cfg.ExpireTime > 3*time.Minute {
+		return nil, errors.New("expire time < 30 seconds or > 3 minutes")
 	}
 	syncer := syncer{
-		ctx:              ctx,
-		expireTime:       cfg.ExpireTime.Seconds(),
-		nodeSendGUID:     make(map[string]int64, cfg.QueueSize),
-		beaconSendGUID:   make(map[string]int64, cfg.QueueSize),
-		beaconQueryGUID:  make(map[string]int64, cfg.QueueSize),
-		nodeSendQueue:    make(chan *protocol.Send, cfg.QueueSize),
-		beaconSendQueue:  make(chan *protocol.Send, cfg.QueueSize),
-		beaconQueryQueue: make(chan *protocol.Query, cfg.QueueSize),
-		stopSignal:       make(chan struct{}),
+		ctx:            ctx,
+		expireTime:     cfg.ExpireTime.Seconds(),
+		nodeSendGUID:   make(map[string]int64),
+		beaconSendGUID: make(map[string]int64),
+		queryGUID:      make(map[string]int64),
+		stopSignal:     make(chan struct{}),
 	}
-	// start workers
-	for i := 0; i < cfg.Worker; i++ {
-		worker := syncerWorker{
-			ctx:           &syncer,
-			maxBufferSize: cfg.MaxBufferSize,
-		}
-		syncer.wg.Add(1)
-		go worker.Work()
+	syncer.hexPool.New = func() interface{} {
+		return make([]byte, 2*guid.Size)
 	}
 	syncer.wg.Add(1)
 	go syncer.guidCleaner()
 	return &syncer, nil
 }
 
-// task from syncer client
-func (syncer *syncer) AddNodeSend(s *protocol.Send) {
-	select {
-	case syncer.nodeSendQueue <- s:
-	case <-syncer.stopSignal:
-	}
-}
-
-func (syncer *syncer) AddBeaconSend(s *protocol.Send) {
-	select {
-	case syncer.beaconSendQueue <- s:
-	case <-syncer.stopSignal:
-	}
-}
-
-func (syncer *syncer) AddBeaconQuery(q *protocol.Query) {
-	select {
-	case syncer.beaconQueryQueue <- q:
-	case <-syncer.stopSignal:
-	}
-}
-
+// CheckGUIDTimestamp is used to get timestamp from GUID
 func (syncer *syncer) CheckGUIDTimestamp(guid []byte) (bool, int64) {
 	// look internal/guid/guid.go
 	timestamp := convert.BytesToInt64(guid[36:44])
@@ -115,62 +67,66 @@ func (syncer *syncer) CheckGUIDTimestamp(guid []byte) (bool, int64) {
 	return true, timestamp
 }
 
+func (syncer *syncer) calculateKey(guid []byte) string {
+	dst := syncer.hexPool.Get().([]byte)
+	defer syncer.hexPool.Put(dst)
+	hex.Encode(dst, guid)
+	return string(dst)
+}
+
 func (syncer *syncer) CheckNodeSendGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.nodeSendGUIDRWM.Lock()
+		defer syncer.nodeSendGUIDRWM.Unlock()
 		if _, ok := syncer.nodeSendGUID[key]; ok {
-			syncer.nodeSendGUIDRWM.Unlock()
 			return false
 		} else {
 			syncer.nodeSendGUID[key] = timestamp
-			syncer.nodeSendGUIDRWM.Unlock()
 			return true
 		}
 	} else {
 		syncer.nodeSendGUIDRWM.RLock()
+		defer syncer.nodeSendGUIDRWM.RUnlock()
 		_, ok := syncer.nodeSendGUID[key]
-		syncer.nodeSendGUIDRWM.RUnlock()
 		return !ok
 	}
 }
 
 func (syncer *syncer) CheckBeaconSendGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.beaconSendGUIDRWM.Lock()
+		defer syncer.beaconSendGUIDRWM.Unlock()
 		if _, ok := syncer.beaconSendGUID[key]; ok {
-			syncer.beaconSendGUIDRWM.Unlock()
 			return false
 		} else {
 			syncer.beaconSendGUID[key] = timestamp
-			syncer.beaconSendGUIDRWM.Unlock()
 			return true
 		}
 	} else {
 		syncer.beaconSendGUIDRWM.RLock()
+		defer syncer.beaconSendGUIDRWM.RUnlock()
 		_, ok := syncer.beaconSendGUID[key]
-		syncer.beaconSendGUIDRWM.RUnlock()
 		return !ok
 	}
 }
 
-func (syncer *syncer) CheckBeaconQueryGUID(guid []byte, add bool, timestamp int64) bool {
-	key := base64.StdEncoding.EncodeToString(guid)
+func (syncer *syncer) CheckQueryGUID(guid []byte, add bool, timestamp int64) bool {
+	key := syncer.calculateKey(guid)
 	if add {
-		syncer.beaconQueryGUIDRWM.Lock()
-		if _, ok := syncer.beaconQueryGUID[key]; ok {
-			syncer.beaconQueryGUIDRWM.Unlock()
+		syncer.queryGUIDRWM.Lock()
+		defer syncer.queryGUIDRWM.Unlock()
+		if _, ok := syncer.queryGUID[key]; ok {
 			return false
 		} else {
-			syncer.beaconQueryGUID[key] = timestamp
-			syncer.beaconQueryGUIDRWM.Unlock()
+			syncer.queryGUID[key] = timestamp
 			return true
 		}
 	} else {
-		syncer.beaconQueryGUIDRWM.RLock()
-		_, ok := syncer.beaconQueryGUID[key]
-		syncer.beaconQueryGUIDRWM.RUnlock()
+		syncer.queryGUIDRWM.RLock()
+		defer syncer.queryGUIDRWM.RUnlock()
+		_, ok := syncer.queryGUID[key]
 		return !ok
 	}
 }
@@ -180,63 +136,106 @@ func (syncer *syncer) Close() {
 	syncer.wg.Wait()
 }
 
-func (syncer *syncer) logf(l logger.Level, format string, log ...interface{}) {
-	syncer.ctx.logger.Printf(l, "syncer", format, log...)
-}
-
-func (syncer *syncer) log(l logger.Level, log ...interface{}) {
-	syncer.ctx.logger.Print(l, "syncer", log...)
-}
-
-func (syncer *syncer) logln(l logger.Level, log ...interface{}) {
-	syncer.ctx.logger.Println(l, "syncer", log...)
-}
-
-// guidCleaner is use to clean expired guid
+// guidCleaner is use to clean expire guid
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "syncer guid cleaner panic:")
-			syncer.log(logger.Fatal, err)
-			// restart guid cleaner
+			err := xpanic.Error(r, "syncer.guidCleaner")
+			syncer.ctx.logger.Print(logger.Fatal, "syncer", err)
+			// restart GUID cleaner
 			time.Sleep(time.Second)
 			go syncer.guidCleaner()
 		} else {
 			syncer.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(time.Duration(syncer.expireTime / 100))
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	count := 0
 	for {
 		select {
 		case <-ticker.C:
-			now := syncer.ctx.global.Now().Unix()
-			// clean node send
-			syncer.nodeSendGUIDRWM.Lock()
-			for key, timestamp := range syncer.nodeSendGUID {
-				if float64(now-timestamp) > syncer.expireTime {
-					delete(syncer.nodeSendGUID, key)
-				}
+			syncer.cleanGUID()
+			count += 1
+			if count > 20 {
+				syncer.cleanGUIDMap()
+				count = 0
 			}
-			syncer.nodeSendGUIDRWM.Unlock()
-			// clean beacon send
-			syncer.beaconSendGUIDRWM.Lock()
-			for key, timestamp := range syncer.beaconSendGUID {
-				if float64(now-timestamp) > syncer.expireTime {
-					delete(syncer.beaconSendGUID, key)
-				}
-			}
-			syncer.beaconSendGUIDRWM.Unlock()
-			// clean beacon query
-			syncer.beaconQueryGUIDRWM.Lock()
-			for key, timestamp := range syncer.beaconQueryGUID {
-				if float64(now-timestamp) > syncer.expireTime {
-					delete(syncer.beaconQueryGUID, key)
-				}
-			}
-			syncer.beaconQueryGUIDRWM.Unlock()
 		case <-syncer.stopSignal:
 			return
 		}
 	}
+}
+
+func (syncer *syncer) cleanGUID() {
+	now := syncer.ctx.global.Now().Unix()
+	syncer.cleanNodeSendGUID(now)
+	syncer.cleanBeaconSendGUID(now)
+	syncer.cleanQueryGUID(now)
+}
+
+func (syncer *syncer) cleanNodeSendGUID(now int64) {
+	syncer.nodeSendGUIDRWM.Lock()
+	defer syncer.nodeSendGUIDRWM.Unlock()
+	for key, timestamp := range syncer.nodeSendGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.nodeSendGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanBeaconSendGUID(now int64) {
+	syncer.beaconSendGUIDRWM.Lock()
+	defer syncer.beaconSendGUIDRWM.Unlock()
+	for key, timestamp := range syncer.beaconSendGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.beaconSendGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanQueryGUID(now int64) {
+	syncer.queryGUIDRWM.Lock()
+	defer syncer.queryGUIDRWM.Unlock()
+	for key, timestamp := range syncer.queryGUID {
+		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+			delete(syncer.queryGUID, key)
+		}
+	}
+}
+
+func (syncer *syncer) cleanGUIDMap() {
+	syncer.cleanNodeSendGUIDMap()
+	syncer.cleanBeaconSendGUIDMap()
+	syncer.cleanQueryGUIDMap()
+}
+
+func (syncer *syncer) cleanNodeSendGUIDMap() {
+	syncer.nodeSendGUIDRWM.Lock()
+	defer syncer.nodeSendGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.nodeSendGUID {
+		newMap[key] = timestamp
+	}
+	syncer.nodeSendGUID = newMap
+}
+
+func (syncer *syncer) cleanBeaconSendGUIDMap() {
+	syncer.beaconSendGUIDRWM.Lock()
+	defer syncer.beaconSendGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.beaconSendGUID {
+		newMap[key] = timestamp
+	}
+	syncer.beaconSendGUID = newMap
+}
+
+func (syncer *syncer) cleanQueryGUIDMap() {
+	syncer.queryGUIDRWM.Lock()
+	defer syncer.queryGUIDRWM.Unlock()
+	newMap := make(map[string]int64)
+	for key, timestamp := range syncer.queryGUID {
+		newMap[key] = timestamp
+	}
+	syncer.queryGUID = newMap
 }

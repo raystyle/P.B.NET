@@ -321,7 +321,7 @@ func (client *client) handleReply(reply []byte) {
 	// must copy
 	r := make([]byte, l-protocol.MsgIDSize)
 	copy(r, reply[protocol.MsgIDSize:])
-	// <security> maybe wrong msg id
+	// <security> maybe incorrect msg id
 	select {
 	case client.slots[id].Reply <- r:
 	default:
@@ -374,7 +374,7 @@ func (client *client) handleBeaconQueryGUID(id, data []byte) {
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		client.Reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckBeaconQueryGUID(data, false, 0) {
+	} else if client.ctx.syncer.CheckQueryGUID(data, false, 0) {
 		client.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
@@ -465,7 +465,7 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 		client.ctx.worker.PutQueryToPool(q)
 		return
 	}
-	if client.ctx.syncer.CheckBeaconQueryGUID(q.GUID, true, timestamp) {
+	if client.ctx.syncer.CheckQueryGUID(q.GUID, true, timestamp) {
 		client.Reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddQuery(q)
 	} else {
