@@ -182,14 +182,14 @@ func (sw *subWorker) Work() {
 		q *protocol.Query
 	)
 	for {
-		// check buffer capacity
-		if sw.buffer.Cap() > sw.maxBufferSize {
-			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
-		}
 		select {
 		case <-sw.stopSignal:
 			return
 		default:
+		}
+		// check buffer capacity
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 		}
 		select {
 		case s = <-sw.nodeSendQueue:
