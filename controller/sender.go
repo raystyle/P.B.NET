@@ -2,9 +2,11 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"hash"
 	"io"
 	"strings"
@@ -24,25 +26,25 @@ import (
 )
 
 var (
-	ErrBroadcastFailed = errors.New("broadcast failed")
-	ErrSendFailed      = errors.New("send failed")
-	ErrSenderMaxConns  = errors.New("sender max connections")
-	ErrSenderClosed    = errors.New("sender closed")
+	ErrBroadcastFailed = fmt.Errorf("failed to broadcast")
+	ErrSendFailed      = fmt.Errorf("failed to send")
+	ErrSenderMaxConns  = fmt.Errorf("sender with max connections")
+	ErrSenderClosed    = fmt.Errorf("sender closed")
 )
 
 type broadcastTask struct {
-	Type     []byte // message type
-	MessageI interface{}
-	Message  []byte // Message include message type
+	Command  []byte      // for Broadcast
+	MessageI interface{} // for Broadcast
+	Message  []byte      // for BroadcastFromPlugin
 	Result   chan<- *protocol.BroadcastResult
 }
 
 type sendTask struct {
 	Role     protocol.Role // receiver role
 	GUID     []byte        // receiver role's GUID
-	Type     []byte        // message type
-	MessageI interface{}
-	Message  []byte // Message include message type
+	Command  []byte        // for Send
+	MessageI interface{}   // for Send
+	Message  []byte        // for SendFromPlugin
 	Result   chan<- *protocol.SendResult
 }
 
@@ -85,31 +87,35 @@ type sender struct {
 	interactive    map[string]bool // key = base64(Beacon GUID)
 	interactiveRWM sync.RWMutex
 
-	closing    int32
-	stopSignal chan struct{}
-	wg         sync.WaitGroup
+	closing int32
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	cfg := config.Sender
+
 	// check config
-	if cfg.Worker < 1 {
-		return nil, errors.New("sender worker number < 1")
+	if cfg.Worker < 4 {
+		return nil, errors.New("sender worker number must >= 4")
 	}
 	if cfg.QueueSize < 512 {
-		return nil, errors.New("sender task queue size < 512")
+		return nil, errors.New("sender queue size >= 512")
 	}
 	if cfg.MaxConns < 1 {
-		return nil, errors.New("sender max conns < 1")
+		return nil, errors.New("sender max conns >= 1")
 	}
+
 	sender := &sender{
 		ctx:                  ctx,
 		broadcastTaskQueue:   make(chan *broadcastTask, cfg.QueueSize),
 		sendTaskQueue:        make(chan *sendTask, cfg.QueueSize),
 		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.QueueSize),
-		stopSignal:           make(chan struct{}),
 	}
+
 	sender.maxConns.Store(cfg.MaxConns)
+
 	// init task sync pool
 	sender.broadcastTaskPool.New = func() interface{} {
 		return new(broadcastTask)
@@ -147,6 +153,8 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	}
 	// guid
 	sender.guid = guid.New(16*cfg.QueueSize, ctx.global.Now)
+
+	sender.context, sender.cancel = context.WithCancel(context.Background())
 	// start sender workers
 	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
@@ -179,67 +187,59 @@ func (sender *sender) Connect(node *bootstrap.Node, guid []byte) error {
 	if len(sender.clients) >= sender.GetMaxConns() {
 		return ErrSenderMaxConns
 	}
-	key := hex.EncodeToString(guid)
+	key := strings.ToUpper(hex.EncodeToString(guid))
 	if _, ok := sender.clients[key]; ok {
 		return errors.Errorf("connect the same node %s %s", node.Mode, node.Address)
 	}
-	client, err := newClient(sender.ctx, node, guid, func() {
+	client, err := newClient(sender.ctx, sender.context, node, guid, func() {
 		sender.clientsRWM.Lock()
+		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, key)
-		sender.clientsRWM.Unlock()
 	})
 	if err != nil {
-		return errors.WithMessage(err, "connect node failed")
+		return errors.WithMessage(err, "failed to connect node")
 	}
 	err = client.Sync()
 	if err != nil {
 		return err
 	}
 	sender.clients[key] = client
-	// sender.logf(logger.Info, "connect node %s %s", node.Mode, node.Address)
+	sender.logf(logger.Info, "connect node %s %s", node.Mode, node.Address)
 	return nil
 }
 
-// Disconnect is used to disconnect node, guid is hex
+// Disconnect is used to disconnect node, guid is hex, upper
 func (sender *sender) Disconnect(guid string) error {
-	guid = strings.ToLower(guid)
-	sender.clientsRWM.RLock()
-	if client, ok := sender.clients[guid]; ok {
-		sender.clientsRWM.RUnlock()
+	if client, ok := sender.GetClients()[guid]; ok {
 		client.Close()
-		// sender.logf(logger.Info, "disconnect node %s %s", sc.Node.Mode, sc.Node.Address)
 		return nil
-	} else {
-		sender.clientsRWM.RUnlock()
-		return errors.Errorf("syncer client %s doesn't exist", strings.ToUpper(guid))
 	}
+	return errors.Errorf("client %s doesn't exist", guid)
 }
 
 // Broadcast is used to broadcast message to all Nodes
 // message will not be saved
-func (sender *sender) Broadcast(Type []byte, message interface{}) error {
+func (sender *sender) Broadcast(command []byte, message interface{}) error {
 	if sender.isClosing() {
 		return ErrSenderClosed
 	}
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
+	defer sender.broadcastDonePool.Put(done)
 	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
-	bt.Type = Type
+	defer sender.broadcastTaskPool.Put(bt)
+
+	bt.Command = command
 	bt.MessageI = message
 	bt.Result = done
 	// send to task queue
 	select {
 	case sender.broadcastTaskQueue <- bt:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
-	// record
-	err := result.Err
-	// put
-	sender.broadcastDonePool.Put(done)
-	sender.broadcastTaskPool.Put(bt)
-	sender.broadcastResultPool.Put(result)
-	return err
+	defer sender.broadcastResultPool.Put(result)
+	return result.Err
 }
 
 // BroadcastFromPlugin is used to broadcast message to all Nodes from plugin
@@ -254,7 +254,7 @@ func (sender *sender) BroadcastFromPlugin(message []byte) error {
 	// send to task queue
 	select {
 	case sender.broadcastTaskQueue <- bt:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -272,8 +272,8 @@ func (sender *sender) BroadcastFromPlugin(message []byte) error {
 // will saved to database, and wait Beacon to query.
 func (sender *sender) Send(
 	role protocol.Role,
-	guid,
-	Type []byte,
+	guid []byte,
+	command []byte,
 	msg interface{},
 ) error {
 	if sender.isClosing() {
@@ -289,13 +289,13 @@ func (sender *sender) Send(
 	st := sender.sendTaskPool.Get().(*sendTask)
 	st.Role = role
 	st.GUID = guid
-	st.Type = Type
+	st.Command = command
 	st.MessageI = msg
 	st.Result = done
 	// send to task queue
 	select {
 	case sender.sendTaskQueue <- st:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -311,7 +311,7 @@ func (sender *sender) Send(
 // SendFromPlugin is used to send message to Node or Beacon from plugin
 func (sender *sender) SendFromPlugin(
 	role protocol.Role,
-	guid,
+	guid []byte,
 	msg []byte,
 ) error {
 	if sender.isClosing() {
@@ -332,7 +332,7 @@ func (sender *sender) SendFromPlugin(
 	// send to task queue
 	select {
 	case sender.sendTaskQueue <- st:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -393,7 +393,7 @@ func (sender *sender) GetClients() map[string]*client {
 
 func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.closing, 1)
-	close(sender.stopSignal)
+	sender.cancel()
 	sender.wg.Wait()
 	for {
 		// disconnect all sender client
@@ -415,10 +415,6 @@ func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
 
 func (sender *sender) log(l logger.Level, log ...interface{}) {
 	sender.ctx.logger.Print(l, "sender", log...)
-}
-
-func (sender *sender) logln(l logger.Level, log ...interface{}) {
-	sender.ctx.logger.Println(l, "sender", log...)
 }
 
 // TODO panic in go func
@@ -594,7 +590,7 @@ func (sw *senderWorker) Work() {
 			sw.handleSendTask()
 		case sw.bt = <-sw.ctx.broadcastTaskQueue:
 			sw.handleBroadcastTask()
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		}
 	}
@@ -639,7 +635,7 @@ func (sw *senderWorker) handleSendTask() {
 	// pack message(interface)
 	if sw.st.MessageI != nil {
 		sw.buffer.Reset()
-		sw.buffer.Write(sw.st.Type)
+		sw.buffer.Write(sw.st.Command)
 		result.Err = sw.msgpack.Encode(sw.st.MessageI)
 		if result.Err != nil {
 			return
@@ -727,7 +723,7 @@ func (sw *senderWorker) handleBroadcastTask() {
 	// pack message(interface)
 	if sw.bt.MessageI != nil {
 		sw.buffer.Reset()
-		sw.buffer.Write(sw.bt.Type)
+		sw.buffer.Write(sw.bt.Command)
 		result.Err = sw.msgpack.Encode(sw.bt.MessageI)
 		if result.Err != nil {
 			return
