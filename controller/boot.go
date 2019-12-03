@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,17 +42,20 @@ func (boot *boot) Add(m *mBoot) error {
 	}
 	// load bootstrap
 	g := boot.ctx.global
-	b, err := bootstrap.Load(m.Mode, []byte(m.Config), g.proxyPool, g.dnsClient)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	b, err := bootstrap.Load(ctx, m.Mode, []byte(m.Config), g.proxyPool, g.dnsClient)
 	if err != nil {
-		return errors.Wrapf(err, "load bootstrap %s failed", m.Tag)
+		return errors.Wrapf(err, "failed to load bootstrap %s", m.Tag)
 	}
 	bc := bootClient{
-		ctx:        boot,
-		tag:        m.Tag,
-		interval:   time.Duration(m.Interval) * time.Second,
-		logSrc:     "boot-" + m.Tag,
-		boot:       b,
-		stopSignal: make(chan struct{}),
+		ctx:      boot,
+		tag:      m.Tag,
+		interval: time.Duration(m.Interval) * time.Second,
+		logSrc:   "boot-" + m.Tag,
+		boot:     b,
+		context:  ctx,
+		cancel:   cancel,
 	}
 	boot.clients[m.Tag] = &bc
 	bc.Boot()
@@ -102,12 +106,12 @@ type bootClient struct {
 	tag      string
 	interval time.Duration
 	logSrc   string
+	boot     bootstrap.Bootstrap
 
-	boot bootstrap.Bootstrap
-
-	closeOnce  sync.Once
-	stopSignal chan struct{}
-	wg         sync.WaitGroup
+	closeOnce sync.Once
+	context   context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
 }
 
 func (bc *bootClient) Boot() {
@@ -117,7 +121,7 @@ func (bc *bootClient) Boot() {
 
 func (bc *bootClient) Stop() {
 	bc.closeOnce.Do(func() {
-		close(bc.stopSignal)
+		bc.cancel()
 		bc.wg.Wait()
 	})
 }
@@ -130,15 +134,11 @@ func (bc *bootClient) log(l logger.Level, log ...interface{}) {
 	bc.ctx.ctx.logger.Print(l, bc.logSrc, log...)
 }
 
-func (bc *bootClient) logln(l logger.Level, log ...interface{}) {
-	bc.ctx.ctx.logger.Println(l, bc.logSrc, log...)
-}
-
 func (bc *bootClient) bootLoop() {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error(r, "bootClient.bootLoop() panic:")
+			err = xpanic.Error(r, "bootClient.bootLoop()")
 			bc.log(logger.Fatal, err)
 		}
 		// delete boot client
@@ -160,7 +160,7 @@ func (bc *bootClient) bootLoop() {
 			if bc.resolve() {
 				return
 			}
-		case <-bc.stopSignal:
+		case <-bc.context.Done():
 			return
 		}
 	}

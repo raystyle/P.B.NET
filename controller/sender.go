@@ -336,6 +336,10 @@ func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
 	}
 }
 
+func (sender *sender) HandleAcknowledge() {
+
+}
+
 func (sender *sender) SetInteractiveMode(guid string) {
 	sender.interactiveRWM.Lock()
 	defer sender.interactiveRWM.Unlock()

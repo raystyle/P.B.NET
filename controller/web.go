@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"io"
@@ -131,7 +132,7 @@ func (web *web) handleLoadKeys(w hRW, r *hR, p hP) {
 	if err != nil {
 		return
 	}
-	err = web.ctx.LoadSessionKey(string(pwd))
+	err = web.ctx.LoadSessionKey(pwd)
 	security.FlushBytes(pwd)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
@@ -175,7 +176,7 @@ func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 		Network: m.Network,
 		Address: m.Address,
 	}
-	req, err := web.ctx.TrustNode(n)
+	req, err := web.ctx.TrustNode(context.TODO(), n)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
