@@ -45,12 +45,12 @@ const (
 	CtrlSendToNode
 	CtrlAckToNodeGUID
 	CtrlAckToNode
-	CtrlBroadcastGUID
-	CtrlBroadcast
 	CtrlSendToBeaconGUID
 	CtrlSendToBeacon
 	CtrlAckToBeaconGUID
 	CtrlAckToBeacon
+	CtrlBroadcastGUID
+	CtrlBroadcast
 	CtrlAnswerGUID
 	CtrlAnswer
 )
@@ -89,6 +89,8 @@ const (
 const (
 	BeaconSendGUID uint8 = 0xA0 + iota
 	BeaconSend
+	BeaconAckGUID
+	BeaconAck
 	BeaconQueryGUID
 	BeaconQuery
 )
