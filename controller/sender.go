@@ -110,7 +110,6 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 
 	sender.maxConns.Store(cfg.MaxConns)
 
-	// init task sync pool
 	sender.broadcastTaskPool.New = func() interface{} {
 		return new(broadcastTask)
 	}
@@ -123,21 +122,21 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 			SendGUID: make([]byte, guid.Size),
 		}
 	}
-	// init done sync pool
 	sender.broadcastDonePool.New = func() interface{} {
 		return make(chan *protocol.BroadcastResult, 1)
 	}
 	sender.sendDonePool.New = func() interface{} {
 		return make(chan *protocol.SendResult, 1)
 	}
-	// init result sync pool
 	sender.broadcastResultPool.New = func() interface{} {
 		return new(protocol.BroadcastResult)
 	}
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
 	}
+
 	sender.context, sender.cancel = context.WithCancel(context.Background())
+
 	// start sender workers
 	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
@@ -336,7 +335,7 @@ func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
 	}
 }
 
-func (sender *sender) HandleAcknowledge() {
+func (sender *sender) HandleAcknowledge(role protocol.Role, ack *protocol.Acknowledge) {
 
 }
 
