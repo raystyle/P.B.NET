@@ -27,6 +27,7 @@ import (
 var (
 	ErrBroadcastFailed = fmt.Errorf("failed to broadcast")
 	ErrSendFailed      = fmt.Errorf("failed to send")
+	ErrSendTimeout     = fmt.Errorf("send timeout")
 	ErrSenderMaxConns  = fmt.Errorf("sender with max connections")
 	ErrSenderClosed    = fmt.Errorf("sender closed")
 )
@@ -53,6 +54,13 @@ type acknowledgeTask struct {
 	SendGUID []byte
 }
 
+// wait role acknowledge
+type roleAckSlot struct {
+	// key = hex(send GUID) lower
+	slots map[string]chan struct{}
+	m     sync.Mutex
+}
+
 type sender struct {
 	ctx *CTRL
 
@@ -72,14 +80,23 @@ type sender struct {
 	broadcastResultPool sync.Pool
 	sendResultPool      sync.Pool
 
-	// key = hex(guid) upper
+	// key = hex(GUID) upper
 	clients    map[string]*client
 	clientsRWM sync.RWMutex
 
 	// check beacon is in interactive mode
-	// key = hex(guid) lower
-	interactive    map[string]bool
-	interactiveRWM sync.RWMutex
+	// key = hex(GUID) lower
+	nodeInteractive      map[string]bool
+	nodeInteractiveRWM   sync.RWMutex
+	beaconInteractive    map[string]bool
+	beaconInteractiveRWM sync.RWMutex
+
+	// receive acknowledge
+	// key = hex(role GUID) lower
+	nodeAckSlots      map[string]*roleAckSlot
+	nodeAckSlotsRWM   sync.RWMutex
+	beaconAckSlots    map[string]*roleAckSlot
+	beaconAckSlotsRWM sync.RWMutex
 
 	closing int32
 	context context.Context
@@ -94,6 +111,10 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	if cfg.Worker < 4 {
 		return nil, errors.New("sender worker number must >= 4")
 	}
+	if cfg.Timeout < 15*time.Second {
+		return nil, errors.New("sender timeout must >= 15 second")
+	}
+
 	if cfg.QueueSize < 512 {
 		return nil, errors.New("sender queue size >= 512")
 	}
@@ -106,6 +127,11 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 		broadcastTaskQueue:   make(chan *broadcastTask, cfg.QueueSize),
 		sendTaskQueue:        make(chan *sendTask, cfg.QueueSize),
 		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.QueueSize),
+		clients:              make(map[string]*client, cfg.MaxConns),
+		nodeInteractive:      make(map[string]bool),
+		beaconInteractive:    make(map[string]bool),
+		nodeAckSlots:         make(map[string]*roleAckSlot),
+		beaconAckSlots:       make(map[string]*roleAckSlot),
 	}
 
 	sender.maxConns.Store(cfg.MaxConns)
@@ -141,6 +167,7 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
 			ctx:           sender,
+			timeout:       cfg.Timeout,
 			maxBufferSize: cfg.MaxBufferSize,
 		}
 		sender.wg.Add(1)
@@ -339,22 +366,49 @@ func (sender *sender) HandleAcknowledge(role protocol.Role, ack *protocol.Acknow
 
 }
 
-func (sender *sender) SetInteractiveMode(guid string) {
-	sender.interactiveRWM.Lock()
-	defer sender.interactiveRWM.Unlock()
-	sender.interactive[strings.ToLower(guid)] = true
+func (sender *sender) Answer() {
+
 }
 
-func (sender *sender) DeleteInteractiveStatus(guid string) {
-	sender.interactiveRWM.Lock()
-	defer sender.interactiveRWM.Unlock()
-	delete(sender.interactive, strings.ToLower(guid))
+func (sender *sender) SetInteractiveMode(role protocol.Role, guid string) {
+	switch role {
+	case protocol.Node:
+		sender.nodeInteractiveRWM.Lock()
+		defer sender.nodeInteractiveRWM.Unlock()
+		sender.nodeInteractive[strings.ToLower(guid)] = true
+	case protocol.Beacon:
+		sender.beaconInteractiveRWM.Lock()
+		defer sender.beaconInteractiveRWM.Unlock()
+		sender.beaconInteractive[strings.ToLower(guid)] = true
+	}
 }
 
-func (sender *sender) isInInteractiveMode(guid string) bool {
-	sender.interactiveRWM.RLock()
-	defer sender.interactiveRWM.RUnlock()
-	return sender.interactive[guid]
+func (sender *sender) DeleteInteractiveStatus(role protocol.Role, guid string) {
+	switch role {
+	case protocol.Node:
+		sender.nodeInteractiveRWM.Lock()
+		defer sender.nodeInteractiveRWM.Unlock()
+		delete(sender.nodeInteractive, strings.ToLower(guid))
+	case protocol.Beacon:
+		sender.beaconInteractiveRWM.Lock()
+		defer sender.beaconInteractiveRWM.Unlock()
+		delete(sender.beaconInteractive, strings.ToLower(guid))
+	}
+}
+
+func (sender *sender) isInInteractiveMode(role protocol.Role, guid string) bool {
+	switch role {
+	case protocol.Node:
+		sender.nodeInteractiveRWM.RLock()
+		defer sender.nodeInteractiveRWM.RUnlock()
+		return sender.nodeInteractive[guid]
+	case protocol.Beacon:
+		sender.beaconInteractiveRWM.RLock()
+		defer sender.beaconInteractiveRWM.RUnlock()
+		return sender.beaconInteractive[guid]
+	default:
+		panic("invalid role")
+	}
 }
 
 func (sender *sender) GetClients() map[string]*client {
@@ -519,6 +573,7 @@ func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) (
 type senderWorker struct {
 	ctx *sender
 
+	timeout       time.Duration
 	maxBufferSize int
 
 	// runtime
@@ -531,15 +586,19 @@ type senderWorker struct {
 	err      error
 
 	// prepare task objects
-	preB protocol.Broadcast
-	preS protocol.Send
-	preA protocol.Acknowledge
+	preB  protocol.Broadcast
+	preS  protocol.Send
+	preA  protocol.Acknowledge
+	preSP *protocol.Send
 
 	// key
 	node   *mNode
 	beacon *mBeacon
 	aesKey []byte
 	aesIV  []byte
+
+	tHex  []byte
+	timer *time.Timer // receive acknowledge timeout
 }
 
 func (sw *senderWorker) Work() {
@@ -560,6 +619,11 @@ func (sw *senderWorker) Work() {
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.hex = hex.NewEncoder(sw.buffer)
 	sw.hash = sha256.New()
+
+	sw.preSP = &sw.preS
+
+	sw.tHex = make([]byte, 2*guid.Size)
+	sw.timer = time.NewTimer(sw.timeout)
 	var (
 		bt *broadcastTask
 		st *sendTask
@@ -607,6 +671,42 @@ func (sw *senderWorker) handleAcknowledgeTask(a *acknowledgeTask) {
 	}
 	// TODO try, if failed
 	sw.ctx.acknowledge(a.Role, sw.preA.GUID, sw.buffer.Bytes())
+}
+
+func (sw *senderWorker) createSlot(r protocol.Role, role string, send []byte) <-chan struct{} {
+	var rAck *roleAckSlot
+	switch r {
+	case protocol.Node:
+		sw.ctx.nodeAckSlotsRWM.Lock()
+		defer sw.ctx.nodeAckSlotsRWM.Unlock()
+		if ack, ok := sw.ctx.nodeAckSlots[role]; ok {
+			rAck = ack
+		} else {
+			rAck = &roleAckSlot{
+				slots: make(map[string]chan struct{}),
+			}
+			sw.ctx.nodeAckSlots[role] = rAck
+		}
+	case protocol.Beacon:
+		sw.ctx.beaconAckSlotsRWM.Lock()
+		defer sw.ctx.beaconAckSlotsRWM.Unlock()
+		if ack, ok := sw.ctx.beaconAckSlots[role]; ok {
+			rAck = ack
+		} else {
+			rAck = &roleAckSlot{
+				slots: make(map[string]chan struct{}),
+			}
+			sw.ctx.beaconAckSlots[role] = rAck
+		}
+	default:
+		panic("invalid role")
+	}
+	hex.Encode(sw.tHex, send)
+	s := string(sw.tHex)
+	rAck.m.Lock()
+	defer rAck.m.Unlock()
+	rAck.slots[s] = make(chan struct{})
+	return rAck.slots[s]
 }
 
 func (sw *senderWorker) handleSendTask(s *sendTask) {
@@ -686,7 +786,7 @@ func (sw *senderWorker) handleSendTask(s *sendTask) {
 	}
 	// TODO query
 	// check is need to write message to the database
-	if s.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(sw.roleGUID) {
+	if s.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(s.Role, sw.roleGUID) {
 		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(s.GUID, sw.buffer.Bytes())
 		if result.Err == nil {
 			result.Success = 1
@@ -694,10 +794,23 @@ func (sw *senderWorker) handleSendTask(s *sendTask) {
 		return
 	}
 	// send
+	wait := sw.createSlot(s.Role, sw.roleGUID, sw.preSP.GUID)
 	result.Responses, result.Success = sw.ctx.send(s.Role, sw.preS.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
 		result.Err = ErrSendFailed
 		return
+	}
+	// wait role acknowledge
+	if !sw.timer.Stop() {
+		<-sw.timer.C
+	}
+	sw.timer.Reset(sw.timeout)
+	select {
+	case <-wait:
+	case <-sw.timer.C:
+		result.Err = ErrSendTimeout
+	case <-sw.ctx.context.Done():
+		result.Err = ErrSenderClosed
 	}
 }
 

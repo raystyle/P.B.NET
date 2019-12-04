@@ -20,7 +20,6 @@ var (
 )
 
 func testInitCtrl(t require.TestingT) {
-
 	initOnce.Do(func() {
 		cfg := testGenerateConfig()
 		controller, err := New(cfg)
@@ -51,6 +50,6 @@ func testInitCtrl(t require.TestingT) {
 			err := ctrl.Main()
 			require.NoError(t, err)
 		}()
-		ctrl.TestWaitMain()
+		ctrl.Wait()
 	})
 }
