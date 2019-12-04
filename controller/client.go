@@ -239,7 +239,7 @@ func (client *client) onFrame(frame []byte) {
 		case protocol.NodeAckGUID:
 			client.handleNodeAckGUID(id, data)
 		case protocol.NodeAck:
-
+			client.handleNodeAck(id, data)
 		case protocol.BeaconSendGUID:
 			client.handleBeaconSendGUID(id, data)
 		case protocol.BeaconSend:
@@ -247,7 +247,7 @@ func (client *client) onFrame(frame []byte) {
 		case protocol.BeaconAckGUID:
 			client.handleBeaconAckGUID(id, data)
 		case protocol.BeaconAck:
-
+			client.handleBeaconAck(id, data)
 		case protocol.BeaconQueryGUID:
 			client.handleBeaconQueryGUID(id, data)
 		case protocol.BeaconQuery:
@@ -454,6 +454,37 @@ func (client *client) handleNodeSend(id, data []byte) {
 	}
 }
 
+func (client *client) handleNodeAck(id, data []byte) {
+	a := client.ctx.worker.GetAcknowledgeFromPool()
+	err := msgpack.Unmarshal(data, a)
+	if err != nil {
+		client.log(logger.Exploit, "invalid node ack msgpack data: ", err)
+		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.Close()
+		return
+	}
+	err = a.Validate()
+	if err != nil {
+		client.logf(logger.Exploit, "invalid node ack: %s\n%s", err, spew.Sdump(a))
+		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.Close()
+		return
+	}
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	if expired {
+		client.Reply(id, protocol.ReplyExpired)
+		client.ctx.worker.PutAcknowledgeToPool(a)
+		return
+	}
+	if client.ctx.syncer.CheckNodeAckGUID(a.GUID, true, timestamp) {
+		client.Reply(id, protocol.ReplySucceed)
+		client.ctx.worker.AddNodeAcknowledge(a)
+	} else {
+		client.Reply(id, protocol.ReplyHandled)
+		client.ctx.worker.PutAcknowledgeToPool(a)
+	}
+}
+
 func (client *client) handleBeaconSend(id, data []byte) {
 	s := client.ctx.worker.GetSendFromPool()
 	err := msgpack.Unmarshal(data, s)
@@ -482,6 +513,37 @@ func (client *client) handleBeaconSend(id, data []byte) {
 	} else {
 		client.Reply(id, protocol.ReplyHandled)
 		client.ctx.worker.PutSendToPool(s)
+	}
+}
+
+func (client *client) handleBeaconAck(id, data []byte) {
+	a := client.ctx.worker.GetAcknowledgeFromPool()
+	err := msgpack.Unmarshal(data, a)
+	if err != nil {
+		client.log(logger.Exploit, "invalid beacon ack msgpack data: ", err)
+		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.Close()
+		return
+	}
+	err = a.Validate()
+	if err != nil {
+		client.logf(logger.Exploit, "invalid beacon ack: %s\n%s", err, spew.Sdump(a))
+		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.Close()
+		return
+	}
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	if expired {
+		client.Reply(id, protocol.ReplyExpired)
+		client.ctx.worker.PutAcknowledgeToPool(a)
+		return
+	}
+	if client.ctx.syncer.CheckBeaconAckGUID(a.GUID, true, timestamp) {
+		client.Reply(id, protocol.ReplySucceed)
+		client.ctx.worker.AddBeaconAcknowledge(a)
+	} else {
+		client.Reply(id, protocol.ReplyHandled)
+		client.ctx.worker.PutAcknowledgeToPool(a)
 	}
 }
 
