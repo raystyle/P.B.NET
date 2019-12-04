@@ -240,10 +240,6 @@ func (client *client) onFrame(frame []byte) {
 			client.handleNodeAckGUID(id, data)
 		case protocol.NodeAck:
 
-		case protocol.BeaconQueryGUID:
-			client.handleBeaconQueryGUID(id, data)
-		case protocol.BeaconQuery:
-			client.handleBeaconQuery(id, data)
 		case protocol.BeaconSendGUID:
 			client.handleBeaconSendGUID(id, data)
 		case protocol.BeaconSend:
@@ -252,6 +248,10 @@ func (client *client) onFrame(frame []byte) {
 			client.handleBeaconAckGUID(id, data)
 		case protocol.BeaconAck:
 
+		case protocol.BeaconQueryGUID:
+			client.handleBeaconQueryGUID(id, data)
+		case protocol.BeaconQuery:
+			client.handleBeaconQuery(id, data)
 		}
 	}
 	switch frame[0] {

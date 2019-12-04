@@ -242,8 +242,8 @@ func (sw *subWorker) handleNodeSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, s.RoleGUID)
 		return
 	}
-	sw.ctx.handler.OnNodeSend(s)
 	sw.ctx.sender.Acknowledge(protocol.Node, s)
+	sw.ctx.handler.OnNodeSend(s)
 }
 
 func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
@@ -284,8 +284,8 @@ func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, s.RoleGUID)
 		return
 	}
-	sw.ctx.handler.OnBeaconSend(s)
 	sw.ctx.sender.Acknowledge(protocol.Beacon, s)
+	sw.ctx.handler.OnBeaconSend(s)
 }
 
 func (sw *subWorker) handleQuery(q *protocol.Query) {
