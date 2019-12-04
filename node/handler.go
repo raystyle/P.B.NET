@@ -8,10 +8,10 @@ type handler struct {
 	ctx *Node
 }
 
-func (h *handler) HandleSend(s *protocol.Send) {
+func (h *handler) OnSend(s *protocol.Send) {
 
 }
 
-func (h *handler) HandleBroadcast(b *protocol.Broadcast) {
+func (h *handler) OnBroadcast(b *protocol.Broadcast) {
 
 }

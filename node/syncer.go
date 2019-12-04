@@ -295,6 +295,12 @@ func (syncer *syncer) CheckQueryGUID(guid []byte, add bool, timestamp int64) boo
 	}
 }
 
+func (syncer *syncer) Close() {
+	close(syncer.stopSignal)
+	syncer.wg.Wait()
+	syncer.ctx = nil
+}
+
 // guidCleaner is use to clean expire guid
 func (syncer *syncer) guidCleaner() {
 	defer func() {
@@ -556,10 +562,4 @@ func (syncer *syncer) cleanQueryGUIDMap() {
 		newMap[key] = timestamp
 	}
 	syncer.queryGUID = newMap
-}
-
-func (syncer *syncer) Close() {
-	close(syncer.stopSignal)
-	syncer.wg.Wait()
-	syncer.ctx = nil
 }

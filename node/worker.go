@@ -212,7 +212,7 @@ func (sw *subWorker) handleBroadcast(b *protocol.Broadcast) {
 		return
 	}
 	// handle it, don't need acknowledge
-	sw.ctx.handler.HandleBroadcast(b)
+	sw.ctx.handler.OnBroadcast(b)
 }
 
 func (sw *subWorker) handleSend(s *protocol.Send) {
@@ -249,8 +249,8 @@ func (sw *subWorker) handleSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, s.GUID)
 		return
 	}
-	sw.ctx.handler.HandleSend(s)
 	sw.acknowledge(s)
+	sw.ctx.handler.OnSend(s)
 }
 
 func (sw *subWorker) acknowledge(s *protocol.Send) {
