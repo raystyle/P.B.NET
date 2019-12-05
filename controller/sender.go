@@ -362,8 +362,74 @@ func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
 	}
 }
 
-func (sender *sender) HandleAcknowledge(role protocol.Role, ack *protocol.Acknowledge) {
+func (sender *sender) createSlot(r protocol.Role, role, send string) <-chan struct{} {
+	var rAck *roleAckSlot
+	switch r {
+	case protocol.Node:
+		sender.nodeAckSlotsRWM.Lock()
+		defer sender.nodeAckSlotsRWM.Unlock()
+		if ack, ok := sender.nodeAckSlots[role]; ok {
+			rAck = ack
+		} else {
+			rAck = &roleAckSlot{
+				slots: make(map[string]chan struct{}),
+			}
+			sender.nodeAckSlots[role] = rAck
+		}
+	case protocol.Beacon:
+		sender.beaconAckSlotsRWM.Lock()
+		defer sender.beaconAckSlotsRWM.Unlock()
+		if ack, ok := sender.beaconAckSlots[role]; ok {
+			rAck = ack
+		} else {
+			rAck = &roleAckSlot{
+				slots: make(map[string]chan struct{}),
+			}
+			sender.beaconAckSlots[role] = rAck
+		}
+	default:
+		panic("invalid role")
+	}
+	rAck.m.Lock()
+	defer rAck.m.Unlock()
+	rAck.slots[send] = make(chan struct{})
+	return rAck.slots[send]
+}
 
+func (sender *sender) HandleAcknowledge(r protocol.Role, role, send string) {
+	var rAck *roleAckSlot
+	switch r {
+	case protocol.Node:
+		sender.nodeAckSlotsRWM.RLock()
+		defer sender.nodeAckSlotsRWM.RUnlock()
+		if ack, ok := sender.nodeAckSlots[role]; ok {
+			rAck = ack
+		} else {
+			return
+		}
+	case protocol.Beacon:
+		sender.beaconAckSlotsRWM.RLock()
+		defer sender.beaconAckSlotsRWM.RUnlock()
+		if ack, ok := sender.beaconAckSlots[role]; ok {
+			rAck = ack
+		} else {
+			return
+		}
+	default:
+		panic("invalid role")
+	}
+	rAck.m.Lock()
+	defer rAck.m.Unlock()
+	c := rAck.slots[send]
+	delete(rAck.slots, send)
+	if c != nil {
+		close(c)
+	} else {
+		const format = "doesn't exist send GUID\nRole: %s\nGUID: %s\nSend: %s"
+		role = strings.ToUpper(role)
+		send = strings.ToUpper(send)
+		sender.logf(logger.Exploit, format, r, role, send)
+	}
 }
 
 func (sender *sender) Answer() {
@@ -673,42 +739,6 @@ func (sw *senderWorker) handleAcknowledgeTask(a *acknowledgeTask) {
 	sw.ctx.acknowledge(a.Role, sw.preA.GUID, sw.buffer.Bytes())
 }
 
-func (sw *senderWorker) createSlot(r protocol.Role, role string, send []byte) <-chan struct{} {
-	var rAck *roleAckSlot
-	switch r {
-	case protocol.Node:
-		sw.ctx.nodeAckSlotsRWM.Lock()
-		defer sw.ctx.nodeAckSlotsRWM.Unlock()
-		if ack, ok := sw.ctx.nodeAckSlots[role]; ok {
-			rAck = ack
-		} else {
-			rAck = &roleAckSlot{
-				slots: make(map[string]chan struct{}),
-			}
-			sw.ctx.nodeAckSlots[role] = rAck
-		}
-	case protocol.Beacon:
-		sw.ctx.beaconAckSlotsRWM.Lock()
-		defer sw.ctx.beaconAckSlotsRWM.Unlock()
-		if ack, ok := sw.ctx.beaconAckSlots[role]; ok {
-			rAck = ack
-		} else {
-			rAck = &roleAckSlot{
-				slots: make(map[string]chan struct{}),
-			}
-			sw.ctx.beaconAckSlots[role] = rAck
-		}
-	default:
-		panic("invalid role")
-	}
-	hex.Encode(sw.tHex, send)
-	s := string(sw.tHex)
-	rAck.m.Lock()
-	defer rAck.m.Unlock()
-	rAck.slots[s] = make(chan struct{})
-	return rAck.slots[s]
-}
-
 func (sw *senderWorker) handleSendTask(s *sendTask) {
 	result := sw.ctx.sendResultPool.Get().(*protocol.SendResult)
 	result.Clean()
@@ -794,7 +824,8 @@ func (sw *senderWorker) handleSendTask(s *sendTask) {
 		return
 	}
 	// send
-	wait := sw.createSlot(s.Role, sw.roleGUID, sw.preSP.GUID)
+	hex.Encode(sw.tHex, sw.preSP.GUID)
+	wait := sw.ctx.createSlot(s.Role, sw.roleGUID, string(sw.tHex))
 	result.Responses, result.Success = sw.ctx.send(s.Role, sw.preS.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
 		result.Err = ErrSendFailed

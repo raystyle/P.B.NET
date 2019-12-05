@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"hash"
+	"io"
 	"sync"
 	"time"
 
@@ -201,6 +203,7 @@ type subWorker struct {
 	// runtime
 	buffer    *bytes.Buffer
 	hash      hash.Hash
+	hex       io.Writer
 	node      *mNode
 	beacon    *mBeacon
 	publicKey ed25519.PublicKey
@@ -233,6 +236,7 @@ func (sw *subWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
+	sw.hex = hex.NewEncoder(sw.buffer)
 	var (
 		s *protocol.Send
 		a *protocol.Acknowledge
@@ -358,6 +362,15 @@ func (sw *subWorker) verifyRoleAck(role protocol.Role, a *protocol.Acknowledge) 
 	return true
 }
 
+func (sw *subWorker) handleAck(role protocol.Role, a *protocol.Acknowledge) {
+	sw.buffer.Reset()
+	_, _ = sw.hex.Write(a.RoleGUID)
+	roleGUID := sw.buffer.String()
+	sw.buffer.Reset()
+	_, _ = sw.hex.Write(a.SendGUID)
+	sw.ctx.sender.HandleAcknowledge(role, roleGUID, sw.buffer.String())
+}
+
 func (sw *subWorker) handleNodeAcknowledge(a *protocol.Acknowledge) {
 	defer sw.ackPool.Put(a)
 	if !sw.getNodeKey(a.RoleGUID) {
@@ -366,7 +379,7 @@ func (sw *subWorker) handleNodeAcknowledge(a *protocol.Acknowledge) {
 	if !sw.verifyRoleAck(protocol.Node, a) {
 		return
 	}
-	sw.ctx.sender.HandleAcknowledge(protocol.Node, a)
+	sw.handleAck(protocol.Node, a)
 }
 
 func (sw *subWorker) handleBeaconAcknowledge(a *protocol.Acknowledge) {
@@ -377,7 +390,7 @@ func (sw *subWorker) handleBeaconAcknowledge(a *protocol.Acknowledge) {
 	if !sw.verifyRoleAck(protocol.Beacon, a) {
 		return
 	}
-	sw.ctx.sender.HandleAcknowledge(protocol.Beacon, a)
+	sw.handleAck(protocol.Beacon, a)
 }
 
 func (sw *subWorker) handleQuery(q *protocol.Query) {
