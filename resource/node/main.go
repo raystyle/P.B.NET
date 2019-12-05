@@ -49,7 +49,7 @@ func main() {
 
 	cfg.CTRL.ExPublicKey = bytes.Repeat([]byte{255}, 32)
 	cfg.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
-	cfg.CTRL.AESCrypto = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
+	cfg.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 
 	fmt.Println(node.New(&cfg))
 }
