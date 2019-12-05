@@ -206,15 +206,15 @@ func (global *global) configure(cfg *Config) error {
 		return errors.WithStack(err)
 	}
 	global.object[objCtrlPublicKey] = publicKey
-	// controller aes
+	// controller broadcast key
 	global.secPaddingMemory()
-	key := cfg.CTRL.AESCrypto
-	l := len(key)
-	if l < aes.Key128Bit+aes.IVSize {
+	aesKey = cfg.CTRL.BroadcastKey
+	l := len(aesKey)
+	if l != aes.Key256Bit+aes.IVSize {
 		return errors.New("invalid controller aes key size")
 	}
-	iv := key[l-aes.IVSize:]
-	key = key[:l-aes.IVSize]
+	key := aesKey[:aes.Key256Bit]
+	iv := aesKey[aes.Key256Bit:]
 	cbc, err = aes.NewCBC(key, iv)
 	if err != nil {
 		return errors.WithStack(err)

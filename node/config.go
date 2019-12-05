@@ -62,9 +62,9 @@ type Config struct {
 
 	Sender struct {
 		Worker        int           `toml:"worker"`
+		Timeout       time.Duration `toml:"timeout"`
 		QueueSize     int           `toml:"queue_size"`
 		MaxBufferSize int           `toml:"max_buffer_size"`
-		Timeout       time.Duration `toml:"timeout"`
 	} `toml:"sender"`
 
 	Syncer struct {
@@ -88,9 +88,9 @@ type Config struct {
 
 	// generate from controller
 	CTRL struct {
-		ExPublicKey []byte // key exchange curve25519
-		PublicKey   []byte // verify message ed25519
-		AESCrypto   []byte // decrypt broadcast, key + iv
+		ExPublicKey  []byte // key exchange curve25519
+		PublicKey    []byte // verify message ed25519
+		BroadcastKey []byte // decrypt broadcast, key + iv
 	} `toml:"-"`
 }
 

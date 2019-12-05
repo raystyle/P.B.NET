@@ -257,11 +257,22 @@ func (s *server) AddListener(l *messages.Listener) error {
 }
 
 func (s *server) Listeners() map[string]*Listener {
-	return nil
+	s.listenersRWM.RLock()
+	defer s.listenersRWM.RUnlock()
+	listeners := make(map[string]*Listener, len(s.listeners))
+	for tag, listener := range s.listeners {
+		listeners[tag] = listener
+	}
+	return listeners
 }
 
-func (s *server) GetListener(tag string) *Listener {
-	return nil
+func (s *server) GetListener(tag string) (*Listener, error) {
+	s.listenersRWM.RLock()
+	defer s.listenersRWM.RUnlock()
+	if listener, ok := s.listeners[tag]; ok {
+		return listener, nil
+	}
+	return nil, errors.Errorf("listener %s doesn't exists", tag)
 }
 
 func (s *server) CloseListener(tag string) {

@@ -9,6 +9,7 @@ import (
 	"project/internal/messages"
 )
 
+// Node
 type Node struct {
 	Debug *Debug // for test
 
@@ -27,6 +28,7 @@ type Node struct {
 	exit chan error
 }
 
+// New is used to create a Node from configuration
 func New(cfg *Config) (*Node, error) {
 	// copy debug config
 	debug := cfg.Debug
@@ -87,6 +89,14 @@ func New(cfg *Config) (*Node, error) {
 	return node, nil
 }
 
+func (node *Node) fatal(err error, msg string) error {
+	err = errors.WithMessage(err, msg)
+	node.logger.Println(logger.Fatal, "main", err)
+	node.Exit(nil)
+	return err
+}
+
+// Main is used to run
 func (node *Node) Main() error {
 	defer func() { node.wait <- struct{}{} }()
 	// first synchronize time
@@ -111,18 +121,12 @@ func (node *Node) Main() error {
 	return <-node.exit
 }
 
-func (node *Node) fatal(err error, msg string) error {
-	err = errors.WithMessage(err, msg)
-	node.logger.Println(logger.Fatal, "main", err)
-	node.Exit(nil)
-	return err
-}
-
 // Wait is used to wait for Main()
 func (node *Node) Wait() {
 	<-node.wait
 }
 
+// Exit is used to exit with a error
 func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Close()
@@ -142,8 +146,14 @@ func (node *Node) Exit(err error) {
 	})
 }
 
+// AddListener is used to add listener
 func (node *Node) AddListener(listener *messages.Listener) error {
 	return node.server.AddListener(listener)
+}
+
+// GetListener is used to get listener
+func (node *Node) GetListener(tag string) (*Listener, error) {
+	return node.server.GetListener(tag)
 }
 
 // ------------------------------------test-------------------------------------
