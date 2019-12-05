@@ -38,12 +38,12 @@ func testGenerateConfig() *Config {
 	c.Syncer.QueueSize = 512
 	c.Syncer.ExpireTime = 3 * time.Minute
 
-	c.Web.Dir = "../app/web"
-	c.Web.CertFile = "../app/cert/cert.pem"
-	c.Web.KeyFile = "../app/cert/.key"
-	c.Web.Address = "localhost:9931"
-	c.Web.Username = "admin"
-	c.Web.Password = "56c10b0f6a18abe0247c31fd1d1a70e51e5a09f2"
+	c.Web.Dir = "web"
+	c.Web.CertFile = "cert/cert.pem"
+	c.Web.KeyFile = "cert/.key"
+	c.Web.Address = "localhost:1657"
+	c.Web.Username = "pbnet" // # super user, password = sha256(sha256("pbnet"))
+	c.Web.Password = "d6b3ced503b70f7894bd30f36001de4af84a8c2af898f06e29bca95f2dcf5100"
 	return &c
 }
 

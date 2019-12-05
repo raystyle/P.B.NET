@@ -146,7 +146,7 @@ func (ctrl *CTRL) Wait() {
 	<-ctrl.wait
 }
 
-// Exit is used to exit controller with a error
+// Exit is used to exit with a error
 func (ctrl *CTRL) Exit(err error) {
 	ctrl.once.Do(func() {
 		ctrl.web.Close()

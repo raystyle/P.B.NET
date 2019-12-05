@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,17 +52,19 @@ func TestVerifyInvalidCertificate(t *testing.T) {
 
 func TestTrustNodeAndConfirm(t *testing.T) {
 	testInitCtrl(t)
-	NODE := testGenerateNode(t, true)
+	NODE := testGenerateNode(t)
 	defer NODE.Exit(nil)
+	listener, err := NODE.GetListener("test_tls_listener")
+	require.NoError(t, err)
 	node := &bootstrap.Node{
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
-		Address: "localhost:62300",
+		Address: listener.Addr().String(),
 	}
-	req, err := ctrl.TrustNode(node)
+	req, err := ctrl.TrustNode(context.Background(), node)
 	require.NoError(t, err)
 	require.Equal(t, info.GetSystemInfo(), req.SystemInfo)
 	t.Log(req.SystemInfo)
-	err = ctrl.ConfirmTrustNode(node, req)
+	err = ctrl.ConfirmTrustNode(context.Background(), node, req)
 	require.NoError(t, err)
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"runtime"
 	"sync"
@@ -18,9 +19,10 @@ import (
 	"project/internal/protocol"
 	"project/internal/xnet"
 	"project/node"
+	"project/testdata"
 )
 
-func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
+func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg := node.Config{}
 
 	cfg.Debug.SkipTimeSyncer = true
@@ -30,21 +32,40 @@ func testGenerateNodeConfig(t require.TestingT, genesis bool) *node.Config {
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
+	cfg.Global.Certificates = testdata.Certificates(tb)
+	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
+	cfg.Global.DNSServers = testdata.DNSServers()
+	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients(tb)
 
-	cfg.Sender.MaxBufferSize = 16384
+	cfg.Client.ProxyTag = "balance"
+	cfg.Client.Timeout = 15 * time.Second
+
+	cfg.Forwarder.MaxCtrlConns = 10
+	cfg.Forwarder.MaxNodeConns = 8
+	cfg.Forwarder.MaxBeaconConns = 128
+
 	cfg.Sender.Worker = 64
 	cfg.Sender.QueueSize = 512
+	cfg.Sender.MaxBufferSize = 512 << 10
+	cfg.Sender.Timeout = 15 * time.Second
 
-	cfg.Syncer.MaxBufferSize = 16384
-	cfg.Syncer.Worker = 64
-	cfg.Syncer.QueueSize = 512
 	cfg.Syncer.ExpireTime = 30 * time.Second
 
+	cfg.Worker.Number = 16
+	cfg.Worker.QueueSize = 1024
+	cfg.Worker.MaxBufferSize = 16384
+
+	cfg.Server.MaxConns = 10
+	cfg.Server.Timeout = 15 * time.Second
+
+	cfg.CTRL.ExPublicKey = ctrl.global.KeyExchangePub()
+	cfg.CTRL.PublicKey = ctrl.global.PublicKey()
+	cfg.CTRL.BroadcastKey = ctrl.global.BroadcastKey()
 	return &cfg
 }
 
-func testGenerateNode(t require.TestingT, genesis bool) *node.Node {
-	cfg := testGenerateNodeConfig(t, genesis)
+func testGenerateNode(t testing.TB) *node.Node {
+	cfg := testGenerateNodeConfig(t)
 	NODE, err := node.New(cfg)
 	require.NoError(t, err)
 	go func() {
@@ -85,14 +106,14 @@ func testGenerateClient(t require.TestingT) *client {
 		Network: "tcp",
 		Address: "localhost:62300",
 	}
-	client, err := newClient(ctrl, n, nil, nil)
+	client, err := newClient(ctrl, context.Background(), n, nil, nil)
 	require.NoError(t, err)
 	return client
 }
 
 func TestClient_Send(t *testing.T) {
 	testInitCtrl(t)
-	NODE := testGenerateNode(t, true)
+	NODE := testGenerateNode(t)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(t)
 	data := bytes.Repeat([]byte{1}, 128)

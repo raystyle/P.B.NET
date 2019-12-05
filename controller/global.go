@@ -41,7 +41,8 @@ const (
 	objKeyExPub
 
 	// encrypt controller broadcast message
-	objAESCrypto
+	// AES CBC
+	objBroadcastKey
 
 	// self CA certificates and private keys
 	objSelfCA
@@ -394,7 +395,7 @@ func (global *global) LoadSessionKey(password []byte) error {
 	global.objects[objKeyExPub] = keyEXPub
 	// aes crypto
 	cbc, _ := aes.NewCBC(keys[1], keys[2])
-	global.objects[objAESCrypto] = cbc
+	global.objects[objBroadcastKey] = cbc
 
 	// hide ed25519 private key, not continuity in memory
 	rand := random.New(0)
@@ -450,7 +451,7 @@ func (global *global) WaitLoadSessionKey() bool {
 func (global *global) Encrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objAESCrypto]
+	cbc := global.objects[objBroadcastKey]
 	return cbc.(*aes.CBC).Encrypt(data)
 }
 
@@ -472,6 +473,21 @@ func (global *global) Verify(message, signature []byte) bool {
 	defer global.objectsRWM.RUnlock()
 	pub := global.objects[objPublicKey]
 	return ed25519.Verify(pub.(ed25519.PublicKey), message, signature)
+}
+
+// PublicKey is used to get public key
+func (global *global) PublicKey() ed25519.PublicKey {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	return global.objects[objPublicKey].(ed25519.PublicKey)
+}
+
+// BroadcastKey is used to get broadcast key
+func (global *global) BroadcastKey() []byte {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	key, iv := global.objects[objBroadcastKey].(*aes.CBC).KeyIV()
+	return append(key, iv...)
 }
 
 // KeyExchangePub is used to get key exchange public key
