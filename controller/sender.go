@@ -192,6 +192,15 @@ func (sender *sender) isClosing() bool {
 
 // Connect is used to connect node for sync message
 func (sender *sender) Connect(node *bootstrap.Node, guid []byte) error {
+	return sender.ConnectWithContext(sender.context, node, guid)
+}
+
+// ConnectWithContext is used to connect node with context
+func (sender *sender) ConnectWithContext(
+	ctx context.Context,
+	node *bootstrap.Node,
+	guid []byte,
+) error {
 	if sender.isClosing() {
 		return ErrSenderClosed
 	}
@@ -204,7 +213,7 @@ func (sender *sender) Connect(node *bootstrap.Node, guid []byte) error {
 	if _, ok := sender.clients[key]; ok {
 		return errors.Errorf("connect the same node %s %s", node.Mode, node.Address)
 	}
-	client, err := newClient(sender.ctx, sender.context, node, guid, func() {
+	client, err := newClient(sender.ctx, ctx, node, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, key)
@@ -219,6 +228,7 @@ func (sender *sender) Connect(node *bootstrap.Node, guid []byte) error {
 	sender.clients[key] = client
 	sender.logf(logger.Info, "connect node %s %s", node.Mode, node.Address)
 	return nil
+
 }
 
 // Disconnect is used to disconnect node, guid is hex, upper

@@ -268,6 +268,8 @@ func (client *client) onFrame(frame []byte) {
 	case protocol.ErrCMDTooBigMsg:
 		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		client.Close()
+	case protocol.TestCommand:
+		client.Reply(id, data)
 	default:
 		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
 		client.Close()

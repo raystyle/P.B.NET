@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -17,10 +16,13 @@ import (
 	"project/internal/messages"
 	"project/internal/options"
 	"project/internal/protocol"
+	"project/internal/testsuite"
 	"project/internal/xnet"
 	"project/node"
 	"project/testdata"
 )
+
+const testListenerTag = "test_tls_listener"
 
 func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg := node.Config{}
@@ -84,7 +86,7 @@ func testGenerateNode(t testing.TB) *node.Node {
 
 	// generate listener config
 	listener := messages.Listener{
-		Tag:     "test_tls_listener",
+		Tag:     testListenerTag,
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:0",
@@ -100,14 +102,16 @@ func testGenerateNode(t testing.TB) *node.Node {
 	return NODE
 }
 
-func testGenerateClient(t require.TestingT) *client {
+func testGenerateClient(tb testing.TB, node *node.Node) *client {
+	listener, err := node.GetListener(testListenerTag)
+	require.NoError(tb, err)
 	n := &bootstrap.Node{
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
-		Address: "localhost:62300",
+		Address: listener.Addr().String(),
 	}
 	client, err := newClient(ctrl, context.Background(), n, nil, nil)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	return client
 }
 
@@ -115,22 +119,27 @@ func TestClient_Send(t *testing.T) {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t)
 	defer NODE.Exit(nil)
-	client := testGenerateClient(t)
-	data := bytes.Repeat([]byte{1}, 128)
-	reply, err := client.Send(protocol.TestCommand, data)
-	require.NoError(t, err)
-	require.Equal(t, data, reply)
+	client := testGenerateClient(t, NODE)
+	data := bytes.Buffer{}
+	for i := 0; i < 1024; i++ {
+		data.Write(convert.Int32ToBytes(int32(i)))
+		reply, err := client.Send(protocol.TestCommand, data.Bytes())
+		require.NoError(t, err)
+		require.Equal(t, data, reply)
+		data.Reset()
+	}
 	client.Close()
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SendParallel(t *testing.T) {
 	testInitCtrl(t)
-	NODE := testGenerateNode(t, true)
+	NODE := testGenerateNode(t)
 	defer NODE.Exit(nil)
-	client := testGenerateClient(t)
+	client := testGenerateClient(t, NODE)
 	wg := sync.WaitGroup{}
 	send := func() {
-		data := bytes.NewBuffer(nil)
+		data := bytes.Buffer{}
 		for i := 0; i < 1024; i++ {
 			data.Write(convert.Int32ToBytes(int32(i)))
 			reply, err := client.Send(protocol.TestCommand, data.Bytes())
@@ -140,60 +149,57 @@ func TestClient_SendParallel(t *testing.T) {
 		}
 		wg.Done()
 	}
-	for i := 0; i < runtime.NumCPU(); i++ {
+	for i := 0; i < 8; i++ {
 		wg.Add(1)
 		go send()
 	}
 	wg.Wait()
 	client.Close()
+	testsuite.IsDestroyed(t, client)
 }
 
 func BenchmarkClient_Send(b *testing.B) {
 	testInitCtrl(b)
-	NODE := testGenerateNode(b, true)
+	NODE := testGenerateNode(b)
 	defer NODE.Exit(nil)
-	client := testGenerateClient(b)
-	data := bytes.NewBuffer(nil)
+	client := testGenerateClient(b, NODE)
+	data := bytes.Buffer{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		data.Write(convert.Int32ToBytes(int32(b.N)))
-		_, _ = client.Send(protocol.TestCommand, data.Bytes())
-		// reply, err := client.Send(protocol.TestCommand, data.Bytes())
-		// require.NoError(b, err)
-		// require.Equal(b, data.Bytes(), reply)
+		// _, _ = client.Send(protocol.TestCommand, data.Bytes())
+		reply, err := client.Send(protocol.TestCommand, data.Bytes())
+		require.NoError(b, err)
+		require.Equal(b, data.Bytes(), reply)
 		data.Reset()
 	}
 	b.StopTimer()
 	client.Close()
+	testsuite.IsDestroyed(b, client)
 }
 
 func BenchmarkClient_SendParallel(b *testing.B) {
 	testInitCtrl(b)
-	NODE := testGenerateNode(b, true)
+	NODE := testGenerateNode(b)
 	defer NODE.Exit(nil)
-	client := testGenerateClient(b)
-	nOnce := b.N / runtime.NumCPU()
-	wg := sync.WaitGroup{}
-	send := func() {
-		data := bytes.NewBuffer(nil)
-		for i := 0; i < nOnce; i++ {
-			data.Write(convert.Int32ToBytes(int32(i)))
-			_, _ = client.Send(protocol.TestCommand, data.Bytes())
-			// reply, err := client.Send(protocol.TestCommand, data.Bytes())
-			// require.NoError(b, err)
-			// require.Equal(b, data.Bytes(), reply)
-			data.Reset()
-		}
-		wg.Done()
-	}
+	client := testGenerateClient(b, NODE)
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < runtime.NumCPU(); i++ {
-		wg.Add(1)
-		go send()
-	}
-	wg.Wait()
+	b.RunParallel(func(pb *testing.PB) {
+		data := bytes.Buffer{}
+		i := 0
+		for pb.Next() {
+			data.Write(convert.Int32ToBytes(int32(i)))
+			// _, _ = client.Send(protocol.TestCommand, data.Bytes())
+			reply, err := client.Send(protocol.TestCommand, data.Bytes())
+			require.NoError(b, err)
+			require.Equal(b, data.Bytes(), reply)
+			data.Reset()
+			i += 1
+		}
+	})
 	b.StopTimer()
 	client.Close()
+	testsuite.IsDestroyed(b, client)
 }

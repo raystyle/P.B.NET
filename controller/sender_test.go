@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/hex"
 	"testing"
 
@@ -13,7 +14,7 @@ import (
 func TestSender_Connect(t *testing.T) {
 	const address = "localhost:62300"
 	testInitCtrl(t)
-	NODE := testGenerateNode(t, true)
+	NODE := testGenerateNode(t)
 	defer NODE.Exit(nil)
 	node := bootstrap.Node{
 		Mode:    xnet.ModeTLS,
@@ -21,9 +22,9 @@ func TestSender_Connect(t *testing.T) {
 		Address: address,
 	}
 	// trust node
-	req, err := ctrl.TrustNode(&node)
+	req, err := ctrl.TrustNode(context.Background(), &node)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(&node, req)
+	err = ctrl.ConfirmTrustNode(context.Background(), &node, req)
 	require.NoError(t, err)
 	// connect
 	err = ctrl.sender.Connect(&node, NODE.TestGetGUID())

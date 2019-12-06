@@ -20,6 +20,7 @@ func init() {
 
 // different table have the same model
 const (
+	tableCtrlLog   = "log"
 	tableNodeLog   = "node_log"
 	tableBeaconLog = "beacon_log"
 )
@@ -40,26 +41,30 @@ type mCtrlLog struct {
 }
 
 type mProxyClient struct {
-	ID     uint64 `gorm:"primary_key"`
-	Tag    string `gorm:"size:32;not null;unique"`
-	Mode   string `gorm:"size:32;not null"`
-	Config string `gorm:"size:16000;not null"`
+	ID      uint64 `gorm:"primary_key"`
+	Tag     string `gorm:"size:32;not null;unique"`
+	Mode    string `gorm:"size:32;not null"`
+	Network string `gorm:"size:32;not null"`
+	Address string `gorm:"size:1024;not null"`
+	Options string `gorm:"size:1048576;not null"`
 	Model
 }
 
 type mDNSServer struct {
-	ID      uint64 `gorm:"primary_key"`
-	Tag     string `gorm:"size:32;not null;unique"`
-	Method  string `gorm:"size:32;not null"`
-	Address string `gorm:"size:2048;not null"`
+	ID       uint64 `gorm:"primary_key"`
+	Tag      string `gorm:"size:32;not null;unique"`
+	Method   string `gorm:"size:32;not null"`
+	Address  string `gorm:"size:2048;not null"`
+	SkipTest bool   `gorm:"not null"`
 	Model
 }
 
 type mTimeSyncer struct {
-	ID     uint64 `gorm:"primary_key"`
-	Tag    string `gorm:"size:32;not null;unique"`
-	Mode   string `gorm:"size:32;not null"`
-	Config string `gorm:"size:16000;not null"`
+	ID       uint64 `gorm:"primary_key"`
+	Tag      string `gorm:"size:32;not null;unique"`
+	Mode     string `gorm:"size:32;not null"`
+	Config   string `gorm:"size:16000;not null"`
+	SkipTest bool   `gorm:"not null"`
 	Model
 }
 
@@ -162,11 +167,11 @@ func InitializeDatabase(config *Config) error {
 	// connect database
 	db, err := gorm.Open(cfg.Dialect, cfg.DSN)
 	if err != nil {
-		return errors.Wrapf(err, "connect %s server failed", cfg.Dialect)
+		return errors.Wrapf(err, "failed to connect %s server", cfg.Dialect)
 	}
 	err = db.DB().Ping()
 	if err != nil {
-		return errors.Wrapf(err, "ping %s server failed", cfg.Dialect)
+		return errors.Wrapf(err, "failed to ping %s server", cfg.Dialect)
 	}
 	// not add s
 	db.SingularTable(true)
@@ -177,6 +182,7 @@ func InitializeDatabase(config *Config) error {
 		model interface{}
 	}{
 		{
+			name:  tableCtrlLog,
 			model: &mCtrlLog{},
 		},
 		{
@@ -227,13 +233,13 @@ func InitializeDatabase(config *Config) error {
 			err = db.DropTableIfExists(m).Error
 			if err != nil {
 				table := gorm.ToTableName(getStructureName(m))
-				return errors.Wrapf(err, "drop table %s failed", table)
+				return errors.Wrapf(err, "failed to drop table %s", table)
 			}
 		} else {
 			err = db.Table(n).DropTableIfExists(m).Error
 			if err != nil {
 				table := gorm.ToTableName(getStructureName(m))
-				return errors.Wrapf(err, "drop table %s failed", table)
+				return errors.Wrapf(err, "failed to drop table %s", table)
 			}
 		}
 	}
@@ -245,18 +251,18 @@ func InitializeDatabase(config *Config) error {
 			err = db.CreateTable(m).Error
 			if err != nil {
 				table := gorm.ToTableName(getStructureName(m))
-				return errors.Wrapf(err, "create table %s failed", table)
+				return errors.Wrapf(err, "failed to create table %s", table)
 			}
 		} else {
 			err = db.Table(n).CreateTable(m).Error
 			if err != nil {
-				return errors.Wrapf(err, "create table %s failed", n)
+				return errors.Wrapf(err, "failed to create table %s", n)
 			}
 		}
 	}
 	// add node foreign key
 	addErr := func(table string, err error) error {
-		return errors.Wrapf(err, "add %s foreign key failed", table)
+		return errors.Wrapf(err, "failed to add %s foreign key", table)
 	}
 	table := gorm.ToTableName(getStructureName(&mNode{}))
 	err = db.Model(&mNodeListener{}).AddForeignKey("guid", table+"(guid)",

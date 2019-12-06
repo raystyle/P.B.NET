@@ -130,7 +130,7 @@ func (cache *cache) DeleteBeacon(guid string) {
 }
 
 func (db *db) InsertCtrlLog(m *mCtrlLog) error {
-	return db.db.Create(m).Error
+	return db.db.Table(tableCtrlLog).Create(m).Error
 }
 
 // -------------------------------proxy client----------------------------------------
@@ -171,22 +171,22 @@ func (db *db) DeleteDNSServer(id uint64) error {
 	return db.db.Delete(&mDNSServer{ID: id}).Error
 }
 
-// -----------------------------time syncer config------------------------------------
+// -----------------------------time syncer client------------------------------------
 
-func (db *db) InsertTimeSyncer(m *mTimeSyncer) error {
+func (db *db) InsertTimeSyncerClient(m *mTimeSyncer) error {
 	return db.db.Create(m).Error
 }
 
-func (db *db) SelectTimeSyncer() ([]*mTimeSyncer, error) {
+func (db *db) SelectTimeSyncerClient() ([]*mTimeSyncer, error) {
 	var timeSyncer []*mTimeSyncer
 	return timeSyncer, db.db.Find(&timeSyncer).Error
 }
 
-func (db *db) UpdateTimeSyncer(m *mTimeSyncer) error {
+func (db *db) UpdateTimeSyncerClient(m *mTimeSyncer) error {
 	return db.db.Save(m).Error
 }
 
-func (db *db) DeleteTimeSyncer(id uint64) error {
+func (db *db) DeleteTimeSyncerClient(id uint64) error {
 	return db.db.Delete(&mTimeSyncer{ID: id}).Error
 }
 

@@ -33,7 +33,7 @@ func testInitCtrl(t require.TestingT) {
 			ctrl = &CTRL{db: db}
 			testInsertProxyClient(t)
 			testInsertDNSServer(t)
-			testInsertTimeSyncerConfig(t)
+			testInsertTimeSyncerClient(t)
 			testInsertBoot(t)
 			testInsertListener(t)
 			ctrl, err = New(cfg)
