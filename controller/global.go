@@ -82,13 +82,15 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, errProxy)
 	}
-	var proxyClients []*proxy.Client
+	proxyClients := struct {
+		Clients []*proxy.Client `toml:"clients"`
+	}{}
 	err = toml.Unmarshal(b, &proxyClients)
 	if err != nil {
 		return nil, errors.Wrap(err, errProxy)
 	}
 	proxyPool := proxy.NewPool()
-	for _, client := range proxyClients {
+	for _, client := range proxyClients.Clients {
 		err = proxyPool.Add(client)
 		if err != nil {
 			return nil, errors.Wrap(err, errProxy)
@@ -195,27 +197,20 @@ func GenerateSessionKey(path string, password []byte) error {
 	if !os.IsNotExist(err) {
 		return errors.Errorf("file: %s already exist", path)
 	}
-	if len(password) < 12 {
-		return errors.New("password is too short")
-	}
-
 	// generate ed25519 private key(for sign message)
 	privateKey, err := ed25519.GenerateKey()
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
 	// generate aes key & iv(for broadcast message)
 	aesKey := random.Bytes(aes.Key256Bit)
 	aesIV := random.Bytes(aes.IVSize)
-
 	// calculate hash
 	buf := new(bytes.Buffer)
 	buf.Write(privateKey)
 	buf.Write(aesKey)
 	buf.Write(aesIV)
 	hash := sha256.Bytes(buf.Bytes())
-
 	// encrypt
 	key := sha256.Bytes(password)
 	iv := sha256.Bytes(append(key, []byte{20, 18, 11, 27}...))[:aes.IVSize]
@@ -226,7 +221,9 @@ func GenerateSessionKey(path string, password []byte) error {
 	return ioutil.WriteFile(path, append(hash, keyEnc...), 644)
 }
 
-const sessionKeySize = sha256.Size + ed25519.PrivateKeySize + aes.Key256Bit + aes.IVSize
+const sessionKeySize = sha256.Size +
+	ed25519.PrivateKeySize + aes.Key256Bit + aes.IVSize +
+	aes.BlockSize
 
 // return ed25519 private key & aes key & aes iv
 func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
@@ -239,7 +236,6 @@ func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
 		err = errors.New("invalid session key size")
 		return
 	}
-
 	// decrypt
 	memory := security.NewMemory()
 	defer memory.Flush()
@@ -251,13 +247,11 @@ func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
 		err = errors.WithStack(err)
 		return
 	}
-
 	// compare hash
-	if subtle.ConstantTimeCompare(file[:sha256.Size], keyDec) != 1 {
+	if subtle.ConstantTimeCompare(file[:sha256.Size], sha256.Bytes(keyDec)) != 1 {
 		err = errors.New("invalid password")
 		return
 	}
-
 	// ed25519 private key
 	memory.Padding()
 	privateKey := keyDec[:ed25519.PrivateKeySize]
@@ -268,7 +262,7 @@ func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
 	memory.Padding()
 	offset += aes.Key256Bit
 	aesIV := keyDec[offset : offset+aes.IVSize]
-
+	// return keys
 	keys = make([][]byte, 3)
 	keys[0] = privateKey
 	keys[1] = aesKey
