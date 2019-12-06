@@ -9,10 +9,11 @@ import (
 	"project/internal/messages"
 )
 
-func Register(t require.TestingT) []*messages.Bootstrap {
+// Bootstrap is used to provide test bootstrap
+func Bootstrap(t require.TestingT) []*messages.Bootstrap {
 	var bootstraps []*messages.Bootstrap
 	// http
-	config, err := ioutil.ReadFile("../internal/bootstrap/testdata/http_opts.toml")
+	config, err := ioutil.ReadFile("../internal/bootstrap/testdata/http.toml")
 	require.NoError(t, err)
 	boot := &messages.Bootstrap{
 		Tag:    "http",
