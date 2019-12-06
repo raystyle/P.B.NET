@@ -11,7 +11,7 @@ import (
 )
 
 func (c *conn) onFrameClient(frame []byte) {
-	if !c.onFrame(frame) {
+	if c.onFrame(frame) {
 		return
 	}
 	// check command

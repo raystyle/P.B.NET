@@ -6,7 +6,7 @@ import (
 )
 
 func (c *conn) onFrameServeBeacon(frame []byte) {
-	if !c.onFrame(frame) {
+	if c.onFrame(frame) {
 		return
 	}
 	// check command

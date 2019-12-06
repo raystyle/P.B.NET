@@ -10,7 +10,7 @@ import (
 )
 
 func (c *conn) onFrameServeNode(frame []byte) {
-	if !c.onFrame(frame) {
+	if c.onFrame(frame) {
 		return
 	}
 	// check command

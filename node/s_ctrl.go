@@ -99,7 +99,7 @@ func (ctrl *ctrlConn) onFrame(frame []byte) {
 	if ctrl.isClosing() {
 		return
 	}
-	if !ctrl.conn.onFrame(frame) {
+	if ctrl.conn.onFrame(frame) {
 		return
 	}
 	id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
