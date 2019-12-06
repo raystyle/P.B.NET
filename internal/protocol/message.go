@@ -22,10 +22,6 @@ const (
 	MsgCMDSize    = 1
 	MsgIDSize     = 2
 	MsgHeaderSize = MsgLenSize + MsgCMDSize + MsgIDSize
-
-	// follow command.go
-	ErrCMDRecvNullMsg uint8 = 0xFF
-	ErrCMDTooBigMsg   uint8 = 0xFE
 )
 
 var (

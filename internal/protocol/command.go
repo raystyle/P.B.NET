@@ -30,15 +30,20 @@ func GetReplyError(reply []byte) error {
 	}
 }
 
-// ----------------------Connection---------------------------
+const TestCommand uint8 = 0xFF
+
+// -----------------------Connection---------------------------
 
 const (
 	ConnSendHeartbeat uint8 = 0x00 + iota
 	ConnReplyHeartbeat
 	ConnReply
+
+	ErrCMDRecvNullMsg uint8 = 0x0F
+	ErrCMDTooBigMsg   uint8 = 0x0E
 )
 
-// -----------------------Controller--------------------------
+// -----------------------Controller---------------------------
 const (
 	CtrlSync uint8 = 0x10 + iota
 	CtrlSendToNodeGUID
@@ -85,7 +90,7 @@ const (
 	NodeQueryAllNodes
 )
 
-// --------------------------Beacon-----------------------------
+// -------------------------Beacon-----------------------------
 const (
 	BeaconSendGUID uint8 = 0xA0 + iota
 	BeaconSend
