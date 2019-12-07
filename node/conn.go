@@ -118,22 +118,20 @@ func (c *conn) onFrame(frame []byte) bool {
 	switch frame[0] {
 	case protocol.ConnReply:
 		c.handleReply(frame[protocol.MsgCMDSize:])
-		return true
 	case protocol.ErrCMDRecvNullMsg:
 		c.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		c.Close()
-		return true
 	case protocol.ErrCMDTooBigMsg:
 		c.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		c.Close()
-		return true
 	case protocol.TestCommand:
 		id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
 		data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
 		c.Reply(id, data)
-		return true
+	default:
+		return false
 	}
-	return false
+	return true
 }
 
 // Reply is used to reply command

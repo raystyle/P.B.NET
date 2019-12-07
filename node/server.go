@@ -336,12 +336,12 @@ func (s *server) checkConn(conn *xnet.Conn) bool {
 	data := s.rand.Bytes(int(size))
 	_, err := conn.Write(append([]byte{size}, data...))
 	if err != nil {
-		s.logfConn(conn, logger.Warning, "failed to send check data: %s", err)
+		s.logfConn(conn, logger.Warning, "failed to send check connection data: %s", err)
 		return false
 	}
 	n, err := io.ReadFull(conn, data)
 	if err != nil {
-		s.logfConn(conn, logger.Warning, "test data: %X", data[:n])
+		s.logfConn(conn, logger.Warning, "receive test data in checkConn\n%X", data[:n])
 		return false
 	}
 	return true

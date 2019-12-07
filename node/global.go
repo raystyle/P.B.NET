@@ -153,8 +153,6 @@ func (global *global) configure(cfg *Config) error {
 	for i := 0; i < 32+rand.Int(512); i++ { // 544 * 160 bytes
 		key := uint32(1 + rand.Int(512))
 		global.object[key] = rand.Bytes(32 + rand.Int(128))
-		// clean certificate
-		global.object[objCertificate] = nil
 	}
 	// -----------------generate internal objects-----------------
 	// set startup time

@@ -102,52 +102,69 @@ func (ctrl *ctrlConn) onFrame(frame []byte) {
 	if ctrl.conn.onFrame(frame) {
 		return
 	}
+	if frame[0] == protocol.ConnSendHeartbeat {
+		ctrl.handleHeartbeat()
+		return
+	}
 	id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
 	data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
 	if ctrl.isSync() {
-		switch frame[0] {
-		case protocol.CtrlSendToNodeGUID:
-			ctrl.handleSendGUID(id, data)
-		case protocol.CtrlSendToNode:
-			ctrl.handleSend(id, data, protocol.Node)
-		case protocol.CtrlAckToNodeGUID:
-			ctrl.handleAckToNodeGUID(id, data)
-		case protocol.CtrlAckToNode:
-			ctrl.handleAckToNode(id, data)
-		case protocol.CtrlSendToBeaconGUID:
-			ctrl.handleSendGUID(id, data)
-		case protocol.CtrlSendToBeacon:
-			ctrl.handleSend(id, data, protocol.Beacon)
-		case protocol.CtrlAckToBeaconGUID:
-			ctrl.handleAckToBeaconGUID(id, data)
-		case protocol.CtrlAckToBeacon:
-			ctrl.handleAckToBeacon(id, data)
-		case protocol.CtrlBroadcastGUID:
-			ctrl.handleBroadcastGUID(id, data)
-		case protocol.CtrlBroadcast:
-			ctrl.handleBroadcast(id, data)
-		case protocol.CtrlAnswerGUID:
-			ctrl.handleAnswerGUID(id, data)
-		case protocol.CtrlAnswer:
-			ctrl.handleAnswer(id, data)
+		if ctrl.onFrameAfterSync(frame[0], id, data) {
+			return
 		}
 	} else {
-		switch frame[0] {
-		case protocol.CtrlSync:
-			ctrl.handleSyncStart(id)
-		case protocol.CtrlTrustNode:
-			ctrl.handleTrustNode(id)
-		case protocol.CtrlSetNodeCert:
-			ctrl.handleSetCertificate(id, data)
+		if ctrl.onFrameBeforeSync(frame[0], id, data) {
+			return
 		}
 	}
-	switch frame[0] {
-	case protocol.ConnSendHeartbeat:
-		ctrl.handleHeartbeat()
+	ctrl.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+	ctrl.Close()
+}
+
+func (ctrl *ctrlConn) onFrameBeforeSync(cmd byte, id, data []byte) bool {
+	switch cmd {
+	case protocol.CtrlSync:
+		ctrl.handleSyncStart(id)
+	case protocol.CtrlTrustNode:
+		ctrl.handleTrustNode(id)
+	case protocol.CtrlSetNodeCert:
+		ctrl.handleSetCertificate(id, data)
 	default:
-		ctrl.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
-		ctrl.Close()
+		return false
 	}
+	return true
+}
+
+func (ctrl *ctrlConn) onFrameAfterSync(cmd byte, id, data []byte) bool {
+	switch cmd {
+	case protocol.CtrlSendToNodeGUID:
+		ctrl.handleSendGUID(id, data)
+	case protocol.CtrlSendToNode:
+		ctrl.handleSend(id, data, protocol.Node)
+	case protocol.CtrlAckToNodeGUID:
+		ctrl.handleAckToNodeGUID(id, data)
+	case protocol.CtrlAckToNode:
+		ctrl.handleAckToNode(id, data)
+	case protocol.CtrlSendToBeaconGUID:
+		ctrl.handleSendGUID(id, data)
+	case protocol.CtrlSendToBeacon:
+		ctrl.handleSend(id, data, protocol.Beacon)
+	case protocol.CtrlAckToBeaconGUID:
+		ctrl.handleAckToBeaconGUID(id, data)
+	case protocol.CtrlAckToBeacon:
+		ctrl.handleAckToBeacon(id, data)
+	case protocol.CtrlBroadcastGUID:
+		ctrl.handleBroadcastGUID(id, data)
+	case protocol.CtrlBroadcast:
+		ctrl.handleBroadcast(id, data)
+	case protocol.CtrlAnswerGUID:
+		ctrl.handleAnswerGUID(id, data)
+	case protocol.CtrlAnswer:
+		ctrl.handleAnswer(id, data)
+	default:
+		return false
+	}
+	return true
 }
 
 func (ctrl *ctrlConn) handleHeartbeat() {
