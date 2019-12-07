@@ -91,17 +91,17 @@ func DNSServers() map[string]*dns.Server {
 // TimeSyncerClients is used to provide test time syncer clients
 func TimeSyncerClients(t require.TestingT) map[string]*timesync.Client {
 	clients := make(map[string]*timesync.Client)
-	config, err := ioutil.ReadFile("../internal/timesync/testdata/http_opts.toml")
+	config, err := ioutil.ReadFile("../internal/timesync/testdata/http.toml")
 	require.NoError(t, err)
 	clients["test_http"] = &timesync.Client{
 		Mode:   timesync.ModeHTTP,
-		Config: config,
+		Config: string(config),
 	}
-	config, err = ioutil.ReadFile("../internal/timesync/testdata/ntp_opts.toml")
+	config, err = ioutil.ReadFile("../internal/timesync/testdata/ntp.toml")
 	require.NoError(t, err)
 	clients["test_ntp"] = &timesync.Client{
 		Mode:   timesync.ModeNTP,
-		Config: config,
+		Config: string(config),
 	}
 	return clients
 }
