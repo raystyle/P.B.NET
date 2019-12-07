@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"project/internal/options"
 )
 
@@ -27,12 +29,11 @@ func (c *Conn) Handshake() error {
 		return c.handshakeErr
 	}
 	c.handshakeOnce.Do(func() {
-		// default handshake timeout
 		if c.handshakeTimeout < 1 {
 			c.handshakeTimeout = options.DefaultHandshakeTimeout
 		}
-
 		// interrupt
+		errChan := make(chan error, 1)
 		wg := sync.WaitGroup{}
 		done := make(chan struct{})
 		defer func() {
@@ -47,26 +48,23 @@ func (c *Conn) Handshake() error {
 			}()
 			select {
 			case <-done:
+			case <-time.After(c.handshakeTimeout):
+				errChan <- errors.New("handshake timeout")
+				_ = c.Conn.Close()
 			case <-c.ctx.Done():
+				errChan <- c.ctx.Err()
 				_ = c.Conn.Close()
 			}
 		}()
-
-		c.handshakeErr = c.SetDeadline(time.Now().Add(c.handshakeTimeout))
-		if c.handshakeErr != nil {
-			return
-		}
 		if c.isClient {
 			c.handshakeErr = c.clientHandshake()
 		} else {
 			c.handshakeErr = c.serverHandshake()
 		}
-		if c.handshakeErr != nil {
-			return
-		}
-		c.handshakeErr = c.SetDeadline(time.Time{})
-		if c.handshakeErr != nil {
-			return
+		select {
+		case err := <-errChan:
+			c.handshakeErr = err
+		default:
 		}
 	})
 	return c.handshakeErr
