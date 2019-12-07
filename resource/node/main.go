@@ -14,7 +14,7 @@ import (
 func main() {
 	cfg := node.Config{}
 
-	cfg.Debug.SkipTimeSyncer = true
+	cfg.Debug.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.Writer = os.Stdout
