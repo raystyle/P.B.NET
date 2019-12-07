@@ -69,17 +69,26 @@ func Conn(t testing.TB, server, client net.Conn, close bool) {
 		require.Equal(t, Bytes(), data)
 	}
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 	// server
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		read(server)
 		write(server)
-		write(server)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			write(server)
+		}()
+		go func() {
+			defer wg.Done()
+			write(server)
+		}()
 		read(server)
 	}()
 	// client
 	write(client)
+	read(client)
 	read(client)
 	read(client)
 	write(client)
