@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
@@ -21,6 +22,10 @@ type Conn struct {
 	session quic.Session
 	send    quic.SendStream
 	receive quic.ReceiveStream
+
+	// must use extra Mutex because SendStream
+	// is not safe for use by multiple goroutines
+	m sync.Mutex
 }
 
 func newConn(ctx context.Context, session quic.Session) (*Conn, error) {
@@ -47,6 +52,8 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 }
 
 func (c *Conn) Write(b []byte) (n int, err error) {
+	c.m.Lock()
+	defer c.m.Unlock()
 	return c.send.Write(b)
 }
 
