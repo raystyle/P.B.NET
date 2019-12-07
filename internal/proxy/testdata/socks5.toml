@@ -1,7 +1,5 @@
-socks4   = false
 username = "admin"
 password = "123456"
 timeout  = "30s"
-user_id  = ""
 
 max_conns = 1000

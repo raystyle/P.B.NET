@@ -1,1 +1,1 @@
-tags = ["test_socks","test_http"]
+tags = ["test_socks5","test_socks4a","test_http","test_https"]

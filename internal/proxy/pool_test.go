@@ -11,24 +11,44 @@ import (
 
 func TestPool(t *testing.T) {
 	const (
-		tagSocks   = "test_socks"
+		tagSocks5  = "test_socks5"
+		tagSocks4a = "test_socks4a"
 		tagHTTP    = "test_http"
+		tagHTTPS   = "test_https"
 		tagChain   = "test_chain"
 		tagBalance = "test_balance"
 	)
-	options, err := ioutil.ReadFile("testdata/socks5_opts.toml")
+	options, err := ioutil.ReadFile("testdata/socks5.toml")
 	require.NoError(t, err)
-	socksClient := &Client{
-		Tag:     tagSocks,
+	socks5Client := &Client{
+		Tag:     tagSocks5,
 		Mode:    ModeSocks,
 		Network: "tcp",
 		Address: "localhost:1080",
 		Options: string(options),
 	}
-	options, err = ioutil.ReadFile("testdata/http_opts.toml")
+	options, err = ioutil.ReadFile("testdata/socks4a.toml")
+	require.NoError(t, err)
+	socks4aClient := &Client{
+		Tag:     tagSocks4a,
+		Mode:    ModeSocks,
+		Network: "tcp",
+		Address: "localhost:1080",
+		Options: string(options),
+	}
+	options, err = ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
 	httpClient := &Client{
 		Tag:     tagHTTP,
+		Mode:    ModeHTTP,
+		Network: "tcp",
+		Address: "localhost:1080",
+		Options: string(options),
+	}
+	options, err = ioutil.ReadFile("testdata/https.toml")
+	require.NoError(t, err)
+	httpsClient := &Client{
+		Tag:     tagHTTPS,
 		Mode:    ModeHTTP,
 		Network: "tcp",
 		Address: "localhost:1080",
@@ -49,8 +69,10 @@ func TestPool(t *testing.T) {
 		Options: string(options),
 	}
 	pool := NewPool()
-	require.NoError(t, pool.Add(socksClient))
+	require.NoError(t, pool.Add(socks5Client))
+	require.NoError(t, pool.Add(socks4aClient))
 	require.NoError(t, pool.Add(httpClient))
+	require.NoError(t, pool.Add(httpsClient))
 	require.NoError(t, pool.Add(chain))
 	require.NoError(t, pool.Add(balance))
 	// add client with empty tag
@@ -67,10 +89,10 @@ func TestPool(t *testing.T) {
 	err = pool.Add(testClient)
 	require.Errorf(t, err, "unknown mode: foo mode")
 	// add exist
-	err = pool.Add(socksClient)
-	require.Errorf(t, err, "proxy client %s already exists", tagSocks)
+	err = pool.Add(socks5Client)
+	require.Errorf(t, err, "proxy client %s already exists", tagSocks5)
 	// get
-	pc, err := pool.Get(tagSocks)
+	pc, err := pool.Get(tagSocks5)
 	require.NoError(t, err)
 	require.NotNil(t, pc)
 	pc, err = pool.Get(tagHTTP)

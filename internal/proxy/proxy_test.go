@@ -150,7 +150,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 }
 
 func TestSocksOptions(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/socks.toml")
+	b, err := ioutil.ReadFile("testdata/socks_opts.toml")
 	require.NoError(t, err)
 	socksOpts := socks.Options{}
 	require.NoError(t, toml.Unmarshal(b, &socksOpts))
@@ -173,7 +173,7 @@ func TestSocksOptions(t *testing.T) {
 }
 
 func TestHTTPOptions(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/http.toml")
+	b, err := ioutil.ReadFile("testdata/http_opts.toml")
 	require.NoError(t, err)
 	httpOpts := http.Options{}
 	require.NoError(t, toml.Unmarshal(b, &httpOpts))

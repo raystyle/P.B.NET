@@ -16,14 +16,14 @@ func TestManager(t *testing.T) {
 		tagSocks = "test_socks"
 		tagHTTP  = "test_http"
 	)
-	options, err := ioutil.ReadFile("testdata/socks5_opts.toml")
+	options, err := ioutil.ReadFile("testdata/socks5.toml")
 	require.NoError(t, err)
 	socksServer := &Server{
 		Tag:     tagSocks,
 		Mode:    ModeSocks,
 		Options: string(options),
 	}
-	options, err = ioutil.ReadFile("testdata/http_opts.toml")
+	options, err = ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
 	httpServer := &Server{
 		Tag:     tagHTTP,
