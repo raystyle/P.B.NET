@@ -24,7 +24,7 @@ func TestHTTPClient_Query(t *testing.T) {
 	t.Run("https", func(t *testing.T) {
 		HTTP := NewHTTP(context.Background(), pool, dnsClient)
 
-		b, err := ioutil.ReadFile("testdata/http_opts.toml")
+		b, err := ioutil.ReadFile("testdata/http.toml")
 		require.NoError(t, err)
 		require.NoError(t, HTTP.Import(b))
 
@@ -162,7 +162,7 @@ func TestGetHeaderDate(t *testing.T) {
 }
 
 func TestHTTPOptions(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/http.toml")
+	b, err := ioutil.ReadFile("testdata/http_opts.toml")
 	require.NoError(t, err)
 	require.NoError(t, TestHTTP(b))
 	HTTP := new(HTTP)

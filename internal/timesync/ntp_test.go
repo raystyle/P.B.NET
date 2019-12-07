@@ -18,7 +18,7 @@ func TestNTPClient_Query(t *testing.T) {
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	NTP := NewNTP(context.Background(), pool, dnsClient)
-	b, err := ioutil.ReadFile("testdata/ntp_opts.toml")
+	b, err := ioutil.ReadFile("testdata/ntp.toml")
 	require.NoError(t, err)
 	require.NoError(t, NTP.Import(b))
 
@@ -88,7 +88,7 @@ func TestNTPClient_Query_Failed(t *testing.T) {
 }
 
 func TestNTPOptions(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/ntp.toml")
+	b, err := ioutil.ReadFile("testdata/ntp_opts.toml")
 	require.NoError(t, err)
 	require.NoError(t, TestNTP(b))
 	NTP := new(NTP)

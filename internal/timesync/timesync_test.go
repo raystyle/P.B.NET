@@ -14,21 +14,21 @@ import (
 )
 
 func testAddHTTP(t *testing.T, syncer *Syncer) {
-	b, err := ioutil.ReadFile("testdata/http_opts.toml")
+	b, err := ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
 	err = syncer.Add("http", &Client{
 		Mode:   ModeHTTP,
-		Config: b,
+		Config: string(b),
 	})
 	require.NoError(t, err)
 }
 
 func testAddNTP(t *testing.T, syncer *Syncer) {
-	b, err := ioutil.ReadFile("testdata/ntp_opts.toml")
+	b, err := ioutil.ReadFile("testdata/ntp.toml")
 	require.NoError(t, err)
 	err = syncer.Add("ntp", &Client{
 		Mode:   ModeNTP,
-		Config: b,
+		Config: string(b),
 	})
 	require.NoError(t, err)
 }
@@ -68,10 +68,10 @@ func TestTimeSyncer(t *testing.T) {
 func testUnreachableClient() *Client {
 	return &Client{
 		Mode: ModeNTP,
-		Config: []byte(`
+		Config: `
            network = "udp"
            address = "0.0.0.0:12"
-           timeout = "1s"         `),
+           timeout = "1s"         `,
 	}
 }
 
@@ -90,7 +90,7 @@ func TestTimeSyncer_Start(t *testing.T) {
 	// invalid config
 	err := syncer.Add("invalid config", &Client{
 		Mode:   ModeNTP,
-		Config: []byte(`network = "foo network"`),
+		Config: `network = "foo network"`,
 	})
 	require.NoError(t, err)
 	require.Error(t, syncer.Start())
@@ -129,7 +129,7 @@ func TestTimeSyncer_Add_Delete(t *testing.T) {
 	// invalid config
 	err = syncer.Add("invalid config", &Client{
 		Mode:   ModeNTP,
-		Config: []byte{1, 2, 3, 4},
+		Config: string([]byte{1, 2, 3, 4}),
 	})
 	require.Error(t, err)
 

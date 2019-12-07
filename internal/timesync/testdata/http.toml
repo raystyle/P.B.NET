@@ -1,11 +1,6 @@
-timeout   = "15s"
-proxy_tag = "balance"
-
 [request]
-  url = "http://test.com/"
+  url = "https://www.cloudflare.com/"
 
 [transport]
-  max_idle_conns = 2
-
-[dns]
-  mode = "system"
+  [transport.tls_config]
+    insecure_load_from_system = true
