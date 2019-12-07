@@ -117,13 +117,13 @@ func (ctrl *CTRL) Main() error {
 	if err != nil {
 		return ctrl.fatal(err, "failed to deploy web server")
 	}
-	ctrl.logger.Println(logger.Info, "main", "HTTPS server:", ctrl.web.Address())
+	ctrl.logger.Printf(logger.Info, "main", "web server: https://%s/", ctrl.web.Address())
 	ctrl.logger.Print(logger.Info, "main", "controller is running")
 	// wait to load controller keys
 	if !ctrl.global.WaitLoadSessionKey() {
 		return nil
 	}
-	ctrl.logger.Print(logger.Info, "main", "load keys successfully")
+	ctrl.logger.Print(logger.Info, "main", "load session key successfully")
 	// load boots
 	ctrl.logger.Print(logger.Info, "main", "start discover bootstrap nodes")
 	boots, err := ctrl.db.SelectBoot()

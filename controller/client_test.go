@@ -57,7 +57,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Worker.QueueSize = 1024
 	cfg.Worker.MaxBufferSize = 16384
 
-	cfg.Server.MaxConns = 10
+	cfg.Server.MaxConns = 128
 	cfg.Server.Timeout = 15 * time.Second
 
 	cfg.CTRL.ExPublicKey = ctrl.global.KeyExchangePub()
@@ -68,6 +68,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 
 func testGenerateNode(t testing.TB) *node.Node {
 	cfg := testGenerateNodeConfig(t)
+
 	NODE, err := node.New(cfg)
 	require.NoError(t, err)
 	go func() {
@@ -78,7 +79,10 @@ func testGenerateNode(t testing.TB) *node.Node {
 
 	// generate certificate
 	pks := ctrl.global.GetSelfCA()
-	opts := cert.Options{DNSNames: []string{"localhost"}}
+	opts := cert.Options{
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []string{"127.0.0.1", "::1"},
+	}
 	caCert := pks[0].Certificate
 	caKey := pks[0].PrivateKey
 	kp, err := cert.Generate(caCert, caKey, &opts)
@@ -118,14 +122,14 @@ func testGenerateClient(tb testing.TB, node *node.Node) *client {
 func TestClient_Send(t *testing.T) {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t)
-	defer NODE.Exit(nil)
+	// defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
 	data := bytes.Buffer{}
 	for i := 0; i < 1024; i++ {
 		data.Write(convert.Int32ToBytes(int32(i)))
 		reply, err := client.Send(protocol.TestCommand, data.Bytes())
 		require.NoError(t, err)
-		require.Equal(t, data, reply)
+		require.Equal(t, data.Bytes(), reply)
 		data.Reset()
 	}
 	client.Close()
@@ -135,7 +139,7 @@ func TestClient_Send(t *testing.T) {
 func TestClient_SendParallel(t *testing.T) {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t)
-	defer NODE.Exit(nil)
+	// defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
 	wg := sync.WaitGroup{}
 	send := func() {
@@ -161,7 +165,7 @@ func TestClient_SendParallel(t *testing.T) {
 func BenchmarkClient_Send(b *testing.B) {
 	testInitCtrl(b)
 	NODE := testGenerateNode(b)
-	defer NODE.Exit(nil)
+	// defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
 	data := bytes.Buffer{}
 	b.ReportAllocs()
@@ -182,7 +186,7 @@ func BenchmarkClient_Send(b *testing.B) {
 func BenchmarkClient_SendParallel(b *testing.B) {
 	testInitCtrl(b)
 	NODE := testGenerateNode(b)
-	defer NODE.Exit(nil)
+	// defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -26,7 +26,7 @@ func testGenerateConfig() *Config {
 	c.Global.DNSCacheExpire = time.Minute
 	c.Global.TimeSyncInterval = time.Minute
 
-	c.Client.Timeout = 5 * time.Second
+	c.Client.Timeout = 10 * time.Second
 
 	c.Sender.MaxConns = 3
 	c.Sender.Worker = 64

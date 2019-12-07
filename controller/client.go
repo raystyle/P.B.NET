@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -55,6 +56,11 @@ func newClient(
 	closeFunc func(),
 ) (*client, error) {
 
+	host, port, err := net.SplitHostPort(node.Address)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	cfg := xnet.Config{
 		Network: node.Network,
 		Timeout: ctrl.opts.Timeout,
@@ -63,7 +69,7 @@ func newClient(
 	cfg.TLSConfig = &tls.Config{
 		Rand:       rand.Reader,
 		Time:       ctrl.global.Now,
-		ServerName: node.Address,
+		ServerName: host,
 		RootCAs:    x509.NewCertPool(),
 		MinVersion: tls.VersionTLS12,
 	}
@@ -81,10 +87,6 @@ func newClient(
 	cfg.Dialer = p.DialContext
 
 	// resolve domain name
-	host, port, err := net.SplitHostPort(node.Address)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 	result, err := ctrl.global.ResolveWithContext(ctx, host, &ctrl.opts.DNSOpts)
 	if err != nil {
 		return nil, err
@@ -162,7 +164,24 @@ func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 
 // Zero—Knowledge Proof
 func (client *client) handshake(conn *xnet.Conn) error {
-	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.opts.Timeout))
+	now := client.ctx.global.Now()
+	_ = conn.SetDeadline(now.Add(client.ctx.opts.Timeout))
+	// about check connection
+	sizeByte := make([]byte, 1)
+	_, err := io.ReadFull(conn, sizeByte)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive check connection size")
+	}
+	size := int(sizeByte[0])
+	checkData := make([]byte, size)
+	_, err = io.ReadFull(conn, checkData)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive check connection data")
+	}
+	_, err = conn.Write(random.New(now.Unix()).Bytes(size))
+	if err != nil {
+		return errors.Wrap(err, "failed to send check connection data")
+	}
 	// receive certificate
 	cert, err := conn.Receive()
 	if err != nil {

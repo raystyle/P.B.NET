@@ -32,6 +32,7 @@ type Config struct {
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 	} `toml:"global"`
 
+	// TODO client Options
 	Client struct { // options
 		ProxyTag string        `toml:"proxy_tag"`
 		Timeout  time.Duration `toml:"timeout"`

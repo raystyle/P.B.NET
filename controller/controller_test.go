@@ -41,11 +41,9 @@ func testInitCtrl(t require.TestingT) {
 		} else {
 			ctrl = controller
 		}
-
 		// set controller keys
 		err = ctrl.LoadSessionKey([]byte("pbnet"))
 		require.NoError(t, err)
-
 		go func() {
 			err := ctrl.Main()
 			require.NoError(t, err)

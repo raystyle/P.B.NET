@@ -107,44 +107,45 @@ func (ctrl *CTRL) issueCertificate(address string, guid []byte) []byte {
 
 func (ctrl *CTRL) verifyCertificate(cert []byte, address string, guid []byte) bool {
 	// if guid = nil, skip verify
-	if guid != nil {
-		reader := bytes.NewReader(cert)
-		// read certificate size
-		certSize := make([]byte, 2)
-		_, err := io.ReadFull(reader, certSize)
+	if guid == nil {
+		return true
+	}
+	reader := bytes.NewReader(cert)
+	// read certificate size
+	certSize := make([]byte, 2)
+	_, err := io.ReadFull(reader, certSize)
+	if err != nil {
+		return false
+	}
+	// read certificate with node guid
+	certWithNodeGUID := make([]byte, convert.BytesToUint16(certSize))
+	_, err = io.ReadFull(reader, certWithNodeGUID)
+	if err != nil {
+		return false
+	}
+	// verify certificate
+	buffer := bytes.Buffer{}
+	buffer.WriteString(address)
+	buffer.Write(guid)
+	// switch certificate
+	if bytes.Equal(guid, protocol.CtrlGUID) {
+		// read cert size
+		_, err = io.ReadFull(reader, certSize)
 		if err != nil {
 			return false
 		}
-		// read certificate with node guid
-		certWithNodeGUID := make([]byte, convert.BytesToUint16(certSize))
-		_, err = io.ReadFull(reader, certWithNodeGUID)
+		// read cert
+		certWithCtrlGUID := make([]byte, convert.BytesToUint16(certSize))
+		_, err = io.ReadFull(reader, certWithCtrlGUID)
 		if err != nil {
 			return false
 		}
-		// verify certificate
-		buffer := bytes.Buffer{}
-		buffer.WriteString(address)
-		buffer.Write(guid)
-		// switch certificate
-		if bytes.Equal(guid, protocol.CtrlGUID) {
-			// read cert size
-			_, err = io.ReadFull(reader, certSize)
-			if err != nil {
-				return false
-			}
-			// read cert
-			certWithCtrlGUID := make([]byte, convert.BytesToUint16(certSize))
-			_, err = io.ReadFull(reader, certWithCtrlGUID)
-			if err != nil {
-				return false
-			}
-			if !ctrl.global.Verify(buffer.Bytes(), certWithCtrlGUID) {
-				return false
-			}
-		} else {
-			if !ctrl.global.Verify(buffer.Bytes(), certWithNodeGUID) {
-				return false
-			}
+		if !ctrl.global.Verify(buffer.Bytes(), certWithCtrlGUID) {
+			return false
+		}
+	} else {
+		if !ctrl.global.Verify(buffer.Bytes(), certWithNodeGUID) {
+			return false
 		}
 	}
 	return true
