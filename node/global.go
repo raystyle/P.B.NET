@@ -154,6 +154,7 @@ func (global *global) configure(cfg *Config) error {
 		key := uint32(1 + rand.Int(512))
 		global.object[key] = rand.Bytes(32 + rand.Int(128))
 	}
+	delete(global.object, objCertificate)
 	// -----------------generate internal objects-----------------
 	// set startup time
 	global.object[objStartupTime] = time.Now()
@@ -289,6 +290,11 @@ func (global *global) TimeSyncerClients() map[string]*timesync.Client {
 // StartTimeSyncer is used to start time syncer
 func (global *global) StartTimeSyncer() error {
 	return global.timeSyncer.Start()
+}
+
+// StartTimeSyncerAddLoop is used to start time syncer add loop
+func (global *global) StartTimeSyncerAddLoop() {
+	global.timeSyncer.StartAddLoop()
 }
 
 // Now is used to get current time

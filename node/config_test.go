@@ -19,7 +19,7 @@ import (
 func testGenerateConfig(tb testing.TB) *Config {
 	cfg := Config{}
 
-	cfg.Debug.SkipTimeSyncer = true
+	cfg.Debug.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.Writer = os.Stdout

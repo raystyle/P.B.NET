@@ -215,8 +215,7 @@ func (cfg *Config) Build() ([]byte, error) {
 
 // Debug is used to test
 type Debug struct {
-	// skip sync time
-	SkipTimeSyncer bool
+	SkipSynchronizeTime bool
 
 	// from controller
 	Broadcast chan []byte

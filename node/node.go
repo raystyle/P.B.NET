@@ -99,8 +99,10 @@ func (node *Node) fatal(err error, msg string) error {
 // Main is used to run
 func (node *Node) Main() error {
 	defer func() { node.wait <- struct{}{} }()
-	// first synchronize time
-	if !node.Debug.SkipTimeSyncer {
+	// synchronize time
+	if node.Debug.SkipSynchronizeTime {
+		node.global.StartTimeSyncerAddLoop()
+	} else {
 		err := node.global.StartTimeSyncer()
 		if err != nil {
 			return node.fatal(err, "failed to synchronize time")
@@ -158,7 +160,7 @@ func (node *Node) GetListener(tag string) (*Listener, error) {
 
 // ------------------------------------test-------------------------------------
 
-func (node *Node) TestGetGUID() []byte {
+func (node *Node) GUID() []byte {
 	return node.global.GUID()
 }
 
