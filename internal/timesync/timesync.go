@@ -13,7 +13,6 @@ import (
 	"project/internal/options"
 	"project/internal/proxy"
 	"project/internal/random"
-	"project/internal/security"
 	"project/internal/xpanic"
 )
 
@@ -28,10 +27,11 @@ var (
 	ErrInvalidInterval  = fmt.Errorf("interval < 60 second or > 1 hour")
 )
 
+// Client include mode and config
 type Client struct {
-	Mode     string
-	Config   []byte
-	SkipTest bool
+	Mode     string `toml:"mode"`
+	Config   string `toml:"config"`
+	SkipTest bool   `toml:"skip_test"`
 	client
 }
 
@@ -41,6 +41,7 @@ type client interface {
 	Export() []byte
 }
 
+// Syncer is used to synchronize time
 type Syncer struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
@@ -60,6 +61,7 @@ type Syncer struct {
 	wg     sync.WaitGroup
 }
 
+// New is used to create time syncer
 func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 	syncer := Syncer{
 		proxyPool:   pool,
@@ -75,6 +77,7 @@ func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 	return &syncer
 }
 
+// Add is used to add time syncer client
 func (syncer *Syncer) Add(tag string, client *Client) error {
 	switch client.Mode {
 	case ModeHTTP:
@@ -84,11 +87,10 @@ func (syncer *Syncer) Add(tag string, client *Client) error {
 	default:
 		return errors.Errorf("unknown mode: %s", client.Mode)
 	}
-	err := client.client.Import(client.Config)
+	err := client.client.Import([]byte(client.Config))
 	if err != nil {
 		return err
 	}
-	security.FlushBytes(client.Config)
 	syncer.clientsRWM.Lock()
 	defer syncer.clientsRWM.Unlock()
 	if _, ok := syncer.clients[tag]; !ok {
@@ -99,6 +101,7 @@ func (syncer *Syncer) Add(tag string, client *Client) error {
 	}
 }
 
+// Delete is used to delete syncer client
 func (syncer *Syncer) Delete(tag string) error {
 	syncer.clientsRWM.Lock()
 	defer syncer.clientsRWM.Unlock()
@@ -110,6 +113,7 @@ func (syncer *Syncer) Delete(tag string) error {
 	}
 }
 
+// Clients is used to get all time syncer clients
 func (syncer *Syncer) Clients() map[string]*Client {
 	syncer.clientsRWM.RLock()
 	defer syncer.clientsRWM.RUnlock()
@@ -120,18 +124,21 @@ func (syncer *Syncer) Clients() map[string]*Client {
 	return clients
 }
 
+// Now is used to get current time
 func (syncer *Syncer) Now() time.Time {
 	syncer.nowRWM.RLock()
 	defer syncer.nowRWM.RUnlock()
 	return syncer.now
 }
 
+// GetSyncInterval is used to get synchronize time interval
 func (syncer *Syncer) GetSyncInterval() time.Duration {
 	syncer.clientsRWM.RLock()
 	defer syncer.clientsRWM.RUnlock()
 	return syncer.interval
 }
 
+// SetSyncInterval is used to set synchronize time interval
 func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
 	if interval < time.Minute || interval > time.Hour {
 		return ErrInvalidInterval
@@ -143,9 +150,10 @@ func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
 }
 
 func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {
-	syncer.logger.Println(lv, "timesyncer", log...)
+	syncer.logger.Println(lv, "time syncer", log...)
 }
 
+// Start is used to time syncer
 func (syncer *Syncer) Start() error {
 	if len(syncer.Clients()) == 0 {
 		return ErrNoClient
@@ -169,7 +177,14 @@ func (syncer *Syncer) Start() error {
 	}
 }
 
-// stop once
+// StartAddLoop is used to start add loop
+// it only for test
+func (syncer *Syncer) StartAddLoop() {
+	syncer.wg.Add(1)
+	go syncer.addLoop()
+}
+
+// Stop is used to stop time syncer
 func (syncer *Syncer) Stop() {
 	syncer.cancel()
 	syncer.wg.Wait()

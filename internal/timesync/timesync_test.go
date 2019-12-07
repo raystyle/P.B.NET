@@ -38,7 +38,7 @@ func testAddClients(t *testing.T, syncer *Syncer) {
 	testAddNTP(t, syncer)
 }
 
-func TestTimeSyncer(t *testing.T) {
+func TestSyncer(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
@@ -75,7 +75,7 @@ func testUnreachableClient() *Client {
 	}
 }
 
-func TestTimeSyncer_Start(t *testing.T) {
+func TestSyncer_Start(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
@@ -115,7 +115,17 @@ func TestTimeSyncer_Start(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestTimeSyncer_Add_Delete(t *testing.T) {
+func TestSyncer_StartAddLoop(t *testing.T) {
+	dnsClient, pool, manager := testdns.DNSClient(t)
+	defer func() { require.NoError(t, manager.Close()) }()
+	syncer := New(pool, dnsClient, logger.Test)
+	syncer.StartAddLoop()
+	now := syncer.Now()
+	time.Sleep(2 * time.Second)
+	require.False(t, syncer.Now().Equal(now))
+}
+
+func TestSyncer_Add_Delete(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
@@ -146,7 +156,7 @@ func TestTimeSyncer_Add_Delete(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestTimeSyncer_Test(t *testing.T) {
+func TestSyncer_Test(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 	syncer := New(pool, dnsClient, logger.Test)
@@ -176,7 +186,7 @@ func TestTimeSyncer_Test(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestTimeSyncer_SyncLoop(t *testing.T) {
+func TestSyncer_SyncLoop(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
@@ -197,7 +207,7 @@ func TestTimeSyncer_SyncLoop(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestTimeSyncer_syncPanic(t *testing.T) {
+func TestSyncer_syncPanic(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 

@@ -17,6 +17,8 @@ import (
 	"project/internal/random"
 )
 
+// HTTP is used to create a HTTP client to do request
+// that get date in response header
 type HTTP struct {
 	// copy from Syncer
 	ctx       context.Context
@@ -127,12 +129,12 @@ func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
 	return http.ParseTime(resp.Header.Get("Date"))
 }
 
-// ImportConfig is for time syncer
+// Import is for time syncer
 func (h *HTTP) Import(b []byte) error {
 	return toml.Unmarshal(b, h)
 }
 
-// ExportConfig is for time syncer
+// Export is for time syncer
 func (h *HTTP) Export() []byte {
 	b, _ := toml.Marshal(h)
 	return b

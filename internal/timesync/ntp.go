@@ -14,6 +14,7 @@ import (
 	"project/internal/timesync/ntp"
 )
 
+// NTP is used to create a NTP client to synchronize time
 type NTP struct {
 	// copy from Syncer
 	ctx       context.Context
@@ -98,10 +99,12 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	return
 }
 
+// Import is for time syncer
 func (n *NTP) Import(b []byte) error {
 	return toml.Unmarshal(b, n)
 }
 
+// Export is for time syncer
 func (n *NTP) Export() []byte {
 	b, _ := toml.Marshal(n)
 	return b
