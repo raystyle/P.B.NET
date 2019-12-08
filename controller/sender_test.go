@@ -15,7 +15,7 @@ import (
 func TestSender_Connect(t *testing.T) {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t)
-	// defer NODE.Exit(nil)
+	defer NODE.Exit(nil)
 	listener, err := NODE.GetListener(testListenerTag)
 	require.NoError(t, err)
 	node := bootstrap.Node{

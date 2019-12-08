@@ -122,7 +122,7 @@ func testGenerateClient(tb testing.TB, node *node.Node) *client {
 func TestClient_Send(t *testing.T) {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t)
-	// defer NODE.Exit(nil)
+	defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
 	data := bytes.Buffer{}
 	for i := 0; i < 1024; i++ {
@@ -139,7 +139,7 @@ func TestClient_Send(t *testing.T) {
 func TestClient_SendParallel(t *testing.T) {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t)
-	// defer NODE.Exit(nil)
+	defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
 	wg := sync.WaitGroup{}
 	send := func() {
@@ -165,7 +165,7 @@ func TestClient_SendParallel(t *testing.T) {
 func BenchmarkClient_Send(b *testing.B) {
 	testInitCtrl(b)
 	NODE := testGenerateNode(b)
-	// defer NODE.Exit(nil)
+	defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
 	data := bytes.Buffer{}
 	b.ReportAllocs()
@@ -186,7 +186,7 @@ func BenchmarkClient_Send(b *testing.B) {
 func BenchmarkClient_SendParallel(b *testing.B) {
 	testInitCtrl(b)
 	NODE := testGenerateNode(b)
-	// defer NODE.Exit(nil)
+	defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
 	b.ReportAllocs()
 	b.ResetTimer()
