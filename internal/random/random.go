@@ -18,11 +18,13 @@ func init() {
 	gRand = New(0)
 }
 
+// Rand is used to generate random data
 type Rand struct {
 	rand *rand.Rand
 	m    sync.Mutex
 }
 
+// New is used to create a Rand from seed
 func New(seed int64) *Rand {
 	if seed == 0 {
 		// try crypto/rand.Reader
@@ -39,7 +41,7 @@ func New(seed int64) *Rand {
 	}
 }
 
-// no "|"
+// String return a string that not include "|"
 func (r *Rand) String(n int) string {
 	if n < 1 {
 		return ""
@@ -54,6 +56,7 @@ func (r *Rand) String(n int) string {
 	return string(result)
 }
 
+// Bytes is used to generate random []byte that size = n
 func (r *Rand) Bytes(n int) []byte {
 	if n < 1 {
 		return nil
@@ -68,7 +71,7 @@ func (r *Rand) Bytes(n int) []byte {
 	return result
 }
 
-// only number and A-Z a-z
+// Cookie return a string that only include number and A-Z a-z
 func (r *Rand) Cookie(n int) string {
 	if n < 1 {
 		return ""
@@ -92,6 +95,8 @@ func (r *Rand) Cookie(n int) string {
 	return string(result)
 }
 
+// Int returns, as an int, a non-negative pseudo-random number in [0,n).
+// It panics if n <= 0.
 func (r *Rand) Int(n int) int {
 	if n < 1 {
 		return 0
@@ -101,38 +106,47 @@ func (r *Rand) Int(n int) int {
 	return r.rand.Intn(n)
 }
 
+// Int64 returns a non-negative pseudo-random 63-bit integer as an int64.
 func (r *Rand) Int64() int64 {
 	r.m.Lock()
 	defer r.m.Unlock()
 	return r.rand.Int63()
 }
 
+// Uint64 returns a pseudo-random 64-bit value as a uint64.
 func (r *Rand) Uint64() uint64 {
 	r.m.Lock()
 	defer r.m.Unlock()
 	return r.rand.Uint64()
 }
 
+// String return a string that not include "|"
 func String(n int) string {
 	return gRand.String(n)
 }
 
+// Bytes is used to generate random []byte that size = n
 func Bytes(n int) []byte {
 	return gRand.Bytes(n)
 }
 
+// Cookie return a string that only include number and A-Z a-z
 func Cookie(n int) string {
 	return gRand.Cookie(n)
 }
 
+// Int returns, as an int, a non-negative pseudo-random number in [0,n).
+// It panics if n <= 0.
 func Int(n int) int {
 	return gRand.Int(n)
 }
 
+// Int64 returns a non-negative pseudo-random 63-bit integer as an int64.
 func Int64() int64 {
 	return gRand.Int64()
 }
 
+// Uint64 returns a pseudo-random 64-bit value as a uint64.
 func Uint64() uint64 {
 	return gRand.Uint64()
 }
