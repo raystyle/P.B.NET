@@ -31,7 +31,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(context.Background(), node, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.sender.Connect(node, NODE.TestGetGUID())
+	err = ctrl.sender.Connect(node, NODE.GUID())
 	require.NoError(t, err)
 	// node broadcast test message
 	msg := []byte("connected-node-send: hello controller")
@@ -51,7 +51,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 		}
 	}
 	// disconnect
-	guid := hex.EncodeToString(NODE.TestGetGUID())
+	guid := hex.EncodeToString(NODE.GUID())
 	err = ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
 }

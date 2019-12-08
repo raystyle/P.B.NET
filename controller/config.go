@@ -69,7 +69,7 @@ type Config struct {
 
 // Debug is used to test
 type Debug struct {
-	SkipTimeSyncer bool // skip time sync
+	SkipSynchronizeTime bool
 
 	// see handler.go
 	NodeSend   chan []byte // Node send test message

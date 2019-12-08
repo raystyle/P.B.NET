@@ -27,7 +27,7 @@ const testListenerTag = "test_tls_listener"
 func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg := node.Config{}
 
-	cfg.Debug.SkipTimeSyncer = true
+	cfg.Debug.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.Writer = os.Stdout
@@ -171,7 +171,7 @@ func BenchmarkClient_Send(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		data.Write(convert.Int32ToBytes(int32(b.N)))
+		data.Write(convert.Int32ToBytes(int32(i)))
 		// _, _ = client.Send(protocol.TestCommand, data.Bytes())
 		reply, err := client.Send(protocol.TestCommand, data.Bytes())
 		require.NoError(b, err)

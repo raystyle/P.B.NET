@@ -94,7 +94,7 @@ func TestSelectDNSServer(t *testing.T) {
 	testInitCtrl(t)
 	servers, err := ctrl.db.SelectDNSServer()
 	require.NoError(t, err)
-	t.Log("select dns client:", spew.Sdump(servers))
+	t.Log("select DNS server:", spew.Sdump(servers))
 }
 
 func TestUpdateDNSServer(t *testing.T) {
@@ -133,7 +133,7 @@ func testInsertTimeSyncerClient(t require.TestingT) {
 		m := &mTimeSyncer{
 			Tag:      tag,
 			Mode:     client.Mode,
-			Config:   string(client.Config),
+			Config:   client.Config,
 			SkipTest: client.SkipTest,
 		}
 		err = ctrl.db.InsertTimeSyncerClient(m)
@@ -145,7 +145,7 @@ func TestSelectTimeSyncerClient(t *testing.T) {
 	testInitCtrl(t)
 	clients, err := ctrl.db.SelectTimeSyncerClient()
 	require.NoError(t, err)
-	t.Log("select time syncer config:", spew.Sdump(clients))
+	t.Log("select time syncer client:", spew.Sdump(clients))
 }
 
 func TestUpdateTimeSyncerClient(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 
 func TestGenerateSessionKey(t *testing.T) {
 	path := os.TempDir() + "/session.key"
+	_ = os.Remove(path)
 	password := []byte("pbnet")
 	err := GenerateSessionKey(path, password)
 	require.NoError(t, err)

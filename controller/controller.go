@@ -103,8 +103,10 @@ func (ctrl *CTRL) fatal(err error, msg string) error {
 // Main is used to tun Controller, it will block until exit or return error
 func (ctrl *CTRL) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
-	// first synchronize time
-	if !ctrl.Debug.SkipTimeSyncer {
+	// synchronize time
+	if ctrl.Debug.SkipSynchronizeTime {
+		ctrl.global.StartTimeSyncerAddLoop()
+	} else {
 		err := ctrl.global.StartTimeSyncer()
 		if err != nil {
 			return ctrl.fatal(err, "failed to synchronize time")

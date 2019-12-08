@@ -9,7 +9,7 @@ import (
 func testGenerateConfig() *Config {
 	c := Config{}
 
-	c.Debug.SkipTimeSyncer = true
+	c.Debug.SkipSynchronizeTime = true
 
 	c.Database.Dialect = "mysql"
 	c.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_test?loc=Local&parseTime=true"

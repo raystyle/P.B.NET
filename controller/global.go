@@ -157,6 +157,20 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	}, nil
 }
 
+// GetSelfCA is used to get self CA certificate to generate CA-sign certificate
+func (global *global) GetSelfCA() []*cert.KeyPair {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	return global.objects[objSelfCA].([]*cert.KeyPair)
+}
+
+// GetSystemCA is used to get system CA certificate
+func (global *global) GetSystemCA() []*x509.Certificate {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	return global.objects[objSystemCA].([]*x509.Certificate)
+}
+
 // GetProxyClient is used to get proxy client from proxy pool
 func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
 	return global.proxyPool.Get(tag)
@@ -184,6 +198,11 @@ func (global *global) TimeSyncerClients() map[string]*timesync.Client {
 // StartTimeSyncer is used to start time syncer
 func (global *global) StartTimeSyncer() error {
 	return global.timeSyncer.Start()
+}
+
+// StartTimeSyncerAddLoop is used to start time syncer add loop
+func (global *global) StartTimeSyncerAddLoop() {
+	global.timeSyncer.StartAddLoop()
 }
 
 // Now is used to get current time
@@ -501,20 +520,6 @@ func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
 	}
 	return curve25519.ScalarMult(pri, publicKey)
-}
-
-// GetSelfCA is used to get self CA certificate to generate CA-sign certificate
-func (global *global) GetSelfCA() []*cert.KeyPair {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	return global.objects[objSelfCA].([]*cert.KeyPair)
-}
-
-// GetSystemCA is used to get system CA certificate
-func (global *global) GetSystemCA() []*x509.Certificate {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	return global.objects[objSystemCA].([]*x509.Certificate)
 }
 
 // Close is used to close global
