@@ -201,8 +201,8 @@ func (s *server) serve(tag string, l *Listener, errChan chan<- error) {
 		close(errChan)
 		// delete
 		s.listenersRWM.Lock()
+		defer s.listenersRWM.Unlock()
 		delete(s.listeners, tag)
-		s.listenersRWM.Unlock()
 		s.logf(logger.Info, "listener: %s(%s) is closed", tag, l.Addr())
 		s.wg.Done()
 	}()
@@ -288,9 +288,7 @@ func (s *server) Close() {
 	atomic.StoreInt32(&s.inShutdown, 1)
 	close(s.stopSignal)
 	// close all listeners
-	s.listenersRWM.RLock()
-	defer s.listenersRWM.RUnlock()
-	for _, listener := range s.listeners {
+	for _, listener := range s.Listeners() {
 		_ = listener.Close()
 	}
 	// close all conns

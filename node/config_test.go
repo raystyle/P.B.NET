@@ -79,22 +79,29 @@ func TestConfig(t *testing.T) {
 	}{
 		{expected: "debug", actual: cfg.Logger.Level},
 		{expected: 512, actual: cfg.Logger.QueueSize},
+
 		{expected: 2 * time.Minute, actual: cfg.Global.DNSCacheExpire},
 		{expected: time.Minute, actual: cfg.Global.TimeSyncInterval},
+
 		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
 		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
+
 		{expected: 10, actual: cfg.Forwarder.MaxCtrlConns},
 		{expected: 8, actual: cfg.Forwarder.MaxNodeConns},
 		{expected: 128, actual: cfg.Forwarder.MaxBeaconConns},
+
 		{expected: 16, actual: cfg.Sender.Worker},
 		{expected: 512, actual: cfg.Sender.QueueSize},
 		{expected: 16384, actual: cfg.Sender.MaxBufferSize},
 		{expected: 15 * time.Second, actual: cfg.Sender.Timeout},
+
 		{expected: 30 * time.Second, actual: cfg.Syncer.ExpireTime},
+
 		{expected: 16, actual: cfg.Worker.Number},
 		{expected: 32, actual: cfg.Worker.QueueSize},
 		{expected: 16384, actual: cfg.Worker.MaxBufferSize},
+
 		{expected: 10, actual: cfg.Server.MaxConns},
 		{expected: 15 * time.Second, actual: cfg.Server.Timeout},
 	}
