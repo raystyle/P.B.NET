@@ -28,6 +28,8 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg := node.Config{}
 
 	cfg.Debug.SkipSynchronizeTime = true
+	cfg.Debug.Broadcast = make(chan []byte, 4)
+	cfg.Debug.Send = make(chan []byte, 4)
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.Writer = os.Stdout

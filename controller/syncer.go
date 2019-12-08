@@ -87,16 +87,14 @@ func (syncer *syncer) CheckNodeSendGUID(guid []byte, add bool, timestamp int64) 
 		defer syncer.nodeSendGUIDRWM.Unlock()
 		if _, ok := syncer.nodeSendGUID[key]; ok {
 			return false
-		} else {
-			syncer.nodeSendGUID[key] = timestamp
-			return true
 		}
-	} else {
-		syncer.nodeSendGUIDRWM.RLock()
-		defer syncer.nodeSendGUIDRWM.RUnlock()
-		_, ok := syncer.nodeSendGUID[key]
-		return !ok
+		syncer.nodeSendGUID[key] = timestamp
+		return true
 	}
+	syncer.nodeSendGUIDRWM.RLock()
+	defer syncer.nodeSendGUIDRWM.RUnlock()
+	_, ok := syncer.nodeSendGUID[key]
+	return !ok
 }
 
 func (syncer *syncer) CheckNodeAckGUID(guid []byte, add bool, timestamp int64) bool {
@@ -106,16 +104,14 @@ func (syncer *syncer) CheckNodeAckGUID(guid []byte, add bool, timestamp int64) b
 		defer syncer.nodeAckGUIDRWM.Unlock()
 		if _, ok := syncer.nodeAckGUID[key]; ok {
 			return false
-		} else {
-			syncer.nodeAckGUID[key] = timestamp
-			return true
 		}
-	} else {
-		syncer.nodeAckGUIDRWM.RLock()
-		defer syncer.nodeAckGUIDRWM.RUnlock()
-		_, ok := syncer.nodeAckGUID[key]
-		return !ok
+		syncer.nodeAckGUID[key] = timestamp
+		return true
 	}
+	syncer.nodeAckGUIDRWM.RLock()
+	defer syncer.nodeAckGUIDRWM.RUnlock()
+	_, ok := syncer.nodeAckGUID[key]
+	return !ok
 }
 
 func (syncer *syncer) CheckBeaconSendGUID(guid []byte, add bool, timestamp int64) bool {
@@ -125,16 +121,14 @@ func (syncer *syncer) CheckBeaconSendGUID(guid []byte, add bool, timestamp int64
 		defer syncer.beaconSendGUIDRWM.Unlock()
 		if _, ok := syncer.beaconSendGUID[key]; ok {
 			return false
-		} else {
-			syncer.beaconSendGUID[key] = timestamp
-			return true
 		}
-	} else {
-		syncer.beaconSendGUIDRWM.RLock()
-		defer syncer.beaconSendGUIDRWM.RUnlock()
-		_, ok := syncer.beaconSendGUID[key]
-		return !ok
+		syncer.beaconSendGUID[key] = timestamp
+		return true
 	}
+	syncer.beaconSendGUIDRWM.RLock()
+	defer syncer.beaconSendGUIDRWM.RUnlock()
+	_, ok := syncer.beaconSendGUID[key]
+	return !ok
 }
 
 func (syncer *syncer) CheckBeaconAckGUID(guid []byte, add bool, timestamp int64) bool {
@@ -144,16 +138,14 @@ func (syncer *syncer) CheckBeaconAckGUID(guid []byte, add bool, timestamp int64)
 		defer syncer.beaconAckGUIDRWM.Unlock()
 		if _, ok := syncer.beaconAckGUID[key]; ok {
 			return false
-		} else {
-			syncer.beaconAckGUID[key] = timestamp
-			return true
 		}
-	} else {
-		syncer.beaconAckGUIDRWM.RLock()
-		defer syncer.beaconAckGUIDRWM.RUnlock()
-		_, ok := syncer.beaconAckGUID[key]
-		return !ok
+		syncer.beaconAckGUID[key] = timestamp
+		return true
 	}
+	syncer.beaconAckGUIDRWM.RLock()
+	defer syncer.beaconAckGUIDRWM.RUnlock()
+	_, ok := syncer.beaconAckGUID[key]
+	return !ok
 }
 
 func (syncer *syncer) CheckQueryGUID(guid []byte, add bool, timestamp int64) bool {
@@ -163,16 +155,14 @@ func (syncer *syncer) CheckQueryGUID(guid []byte, add bool, timestamp int64) boo
 		defer syncer.queryGUIDRWM.Unlock()
 		if _, ok := syncer.queryGUID[key]; ok {
 			return false
-		} else {
-			syncer.queryGUID[key] = timestamp
-			return true
 		}
-	} else {
-		syncer.queryGUIDRWM.RLock()
-		defer syncer.queryGUIDRWM.RUnlock()
-		_, ok := syncer.queryGUID[key]
-		return !ok
+		syncer.queryGUID[key] = timestamp
+		return true
 	}
+	syncer.queryGUIDRWM.RLock()
+	defer syncer.queryGUIDRWM.RUnlock()
+	_, ok := syncer.queryGUID[key]
+	return !ok
 }
 
 func (syncer *syncer) Close() {

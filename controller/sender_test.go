@@ -10,33 +10,46 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/xnet"
+	"project/node"
 )
 
-func TestSender_Connect(t *testing.T) {
+func testGenerateNodeAndTrust(t testing.TB) *node.Node {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t)
-	defer NODE.Exit(nil)
 	listener, err := NODE.GetListener(testListenerTag)
 	require.NoError(t, err)
-	node := bootstrap.Node{
+	n := bootstrap.Node{
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
 	// trust node
-	req, err := ctrl.TrustNode(context.Background(), &node)
+	req, err := ctrl.TrustNode(context.Background(), &n)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(context.Background(), &node, req)
+	err = ctrl.ConfirmTrustNode(context.Background(), &n, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.sender.Connect(&node, NODE.GUID())
+	err = ctrl.sender.Connect(&n, NODE.GUID())
 	require.NoError(t, err)
-	// disconnect
+	return NODE
+}
+
+func TestSender_Connect(t *testing.T) {
+	NODE := testGenerateNodeAndTrust(t)
+	defer NODE.Exit(nil)
 	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
-	err = ctrl.sender.Disconnect(guid)
+	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
 }
 
 func TestSender_Broadcast(t *testing.T) {
-
+	NODE := testGenerateNodeAndTrust(t)
+	defer func() {
+		// disconnect
+		guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+		err := ctrl.sender.Disconnect(guid)
+		require.NoError(t, err)
+		NODE.Exit(nil)
+	}()
+	// ctrl.sender.Broadcast(messages.Test, messages.TestBytes)
 }

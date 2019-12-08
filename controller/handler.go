@@ -22,8 +22,6 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 	h.ctx.logger.Print(l, "handler", log...)
 }
 
-// messages from syncer
-
 // TODO maybe need copy data
 func (h *handler) OnNodeSend(send *protocol.Send) {
 	defer func() {
