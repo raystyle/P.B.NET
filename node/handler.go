@@ -1,17 +1,83 @@
 package node
 
 import (
+	"github.com/vmihailenco/msgpack/v4"
+
+	"project/internal/convert"
+	"project/internal/logger"
+	"project/internal/messages"
 	"project/internal/protocol"
+	"project/internal/xpanic"
 )
 
 type handler struct {
 	ctx *Node
 }
 
-func (h *handler) OnSend(s *protocol.Send) {
-
+func (h *handler) logf(l logger.Level, format string, log ...interface{}) {
+	h.ctx.logger.Printf(l, "handler", format, log...)
 }
 
-func (h *handler) OnBroadcast(b *protocol.Broadcast) {
+func (h *handler) log(l logger.Level, log ...interface{}) {
+	h.ctx.logger.Print(l, "handler", log...)
+}
 
+func (h *handler) OnSend(s *protocol.Send) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "handler.OnSend")
+			h.log(logger.Fatal, err)
+		}
+	}()
+	if len(s.Message) < 4 {
+		h.logf(logger.Exploit, "controller send with invalid size")
+		return
+	}
+	switch convert.BytesToUint32(s.Message[:4]) {
+
+	case messages.Test:
+		if h.ctx.Debug.Send == nil {
+			return
+		}
+		var testMsg []byte
+		err := msgpack.Unmarshal(s.Message[4:], &testMsg)
+		if err != nil {
+			h.logf(logger.Exploit, "controller send invalid test message: %X", s.Message[4:])
+			return
+		}
+		h.ctx.Debug.Send <- testMsg
+		h.logf(logger.Debug, "controller send test message: %s", testMsg)
+	default:
+		h.logf(logger.Exploit, "controller send unknown message: %X", s.Message)
+	}
+}
+
+func (h *handler) OnBroadcast(s *protocol.Broadcast) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "handler.OnBroadcast")
+			h.log(logger.Fatal, err)
+		}
+	}()
+	if len(s.Message) < 4 {
+		h.logf(logger.Exploit, "controller broadcast with invalid size")
+		return
+	}
+	switch convert.BytesToUint32(s.Message[:4]) {
+
+	case messages.Test:
+		if h.ctx.Debug.Broadcast == nil {
+			return
+		}
+		var testMsg []byte
+		err := msgpack.Unmarshal(s.Message[4:], &testMsg)
+		if err != nil {
+			h.logf(logger.Exploit, "controller broadcast invalid test message: %X", s.Message[4:])
+			return
+		}
+		h.ctx.Debug.Broadcast <- testMsg
+		h.logf(logger.Debug, "controller broadcast test message: %s", testMsg)
+	default:
+		h.logf(logger.Exploit, "controller broadcast unknown message: %X", s.Message)
+	}
 }
