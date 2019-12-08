@@ -276,9 +276,7 @@ func (ctrl *ctrlConn) handleAnswerGUID(id, data []byte) {
 }
 
 func (ctrl *ctrlConn) handleSend(id, data []byte, role protocol.Role) {
-	s := ctrl.sendPool.Get().(*protocol.Send)
-	defer ctrl.sendPool.Put(s)
-
+	s := ctrl.ctx.worker.GetSendFromPool()
 	err := msgpack.Unmarshal(data, s)
 	if err != nil {
 		const format = "invalid send msgpack data: %s"
@@ -300,9 +298,7 @@ func (ctrl *ctrlConn) handleSend(id, data []byte, role protocol.Role) {
 		switch role {
 		case protocol.Node:
 			if bytes.Equal(s.RoleGUID, ctrl.ctx.global.GUID()) {
-				ns := ctrl.ctx.worker.GetSendFromPool()
-				*ns = *s // must copy, because sync.Pool
-				ctrl.ctx.worker.AddSend(ns)
+				ctrl.ctx.worker.AddSend(s)
 			} else { // repeat
 
 			}
@@ -315,9 +311,7 @@ func (ctrl *ctrlConn) handleSend(id, data []byte, role protocol.Role) {
 }
 
 func (ctrl *ctrlConn) handleBroadcast(id, data []byte) {
-	b := ctrl.broadcastPool.Get().(*protocol.Broadcast)
-	defer ctrl.broadcastPool.Put(b)
-
+	b := ctrl.ctx.worker.GetBroadcastFromPool()
 	err := msgpack.Unmarshal(data, b)
 	if err != nil {
 		const format = "invalid ctrl broadcast msgpack data: %s"
@@ -336,9 +330,7 @@ func (ctrl *ctrlConn) handleBroadcast(id, data []byte) {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
 	} else if ctrl.ctx.syncer.CheckBroadcastGUID(b.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
-		nb := ctrl.ctx.worker.GetBroadcastFromPool()
-		*nb = *b // must copy, because sync.Pool
-		ctrl.ctx.worker.AddBroadcast(nb)
+		ctrl.ctx.worker.AddBroadcast(b)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
 	}

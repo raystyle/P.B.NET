@@ -228,12 +228,6 @@ func (sw *subWorker) handleSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, s.GUID)
 		return
 	}
-	// check role GUID
-	if !bytes.Equal(s.RoleGUID, protocol.CtrlGUID) {
-		const format = "invalid send role GUID\nGUID: %X\nrole GUID: %X"
-		sw.logf(logger.Exploit, format, s.GUID, s.RoleGUID)
-		return
-	}
 	// decrypt message
 	s.Message, sw.err = sw.ctx.global.Decrypt(s.Message)
 	if sw.err != nil {
