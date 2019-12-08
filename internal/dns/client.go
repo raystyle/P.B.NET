@@ -44,6 +44,7 @@ const (
 	defaultMethod = MethodUDP
 )
 
+// Server include DNS server info
 type Server struct {
 	Method   string `toml:"method"`
 	Address  string `toml:"address"`
@@ -104,6 +105,7 @@ func (opts *Options) Clone() *Options {
 	return &optsC
 }
 
+// Client is a DNS client that support various DNS server
 type Client struct {
 	proxyPool *proxy.Pool
 
@@ -114,6 +116,7 @@ type Client struct {
 	cachesRWM  sync.RWMutex
 }
 
+// NewClient is used to create a DNS client
 func NewClient(pool *proxy.Pool) *Client {
 	return &Client{
 		proxyPool: pool,
@@ -123,6 +126,7 @@ func NewClient(pool *proxy.Pool) *Client {
 	}
 }
 
+// Add is used to add a DNS server
 func (c *Client) Add(tag string, server *Server) error {
 	const format = "failed to add dns server %s"
 	return errors.WithMessagef(c.add(tag, server), format, tag)
@@ -144,6 +148,7 @@ func (c *Client) add(tag string, server *Server) error {
 	}
 }
 
+// Delete is used to delete a DNS server
 func (c *Client) Delete(tag string) error {
 	c.serversRWM.Lock()
 	defer c.serversRWM.Unlock()
@@ -155,6 +160,7 @@ func (c *Client) Delete(tag string) error {
 	}
 }
 
+// Servers is used to get all DNS Servers
 func (c *Client) Servers() map[string]*Server {
 	c.serversRWM.RLock()
 	defer c.serversRWM.RUnlock()
@@ -384,6 +390,7 @@ func (c *Client) systemResolve(
 	}
 }
 
+// TestServers is used to test all DNS server
 func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	servers := c.Servers()
 	if len(servers) == 0 {
@@ -406,7 +413,8 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 	return result, nil
 }
 
-func (c *Client) TestOptions(ctx context.Context, domain string, opts *Options) ([]string, error) {
+// TestOption is used to test Options
+func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts.SkipTest {
 		return nil, nil
 	}

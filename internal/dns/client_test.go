@@ -79,14 +79,14 @@ func TestClient(t *testing.T) {
 
 		if testsuite.EnableIPv4() {
 			opts.Type = TypeIPv4
-			result, err := client.TestOptions(context.Background(), testDomain, opts)
+			result, err := client.TestOption(context.Background(), testDomain, opts)
 			require.NoError(t, err)
 			require.NotEqual(t, 0, len(result))
 		}
 
 		if testsuite.EnableIPv6() {
 			opts.Type = TypeIPv6
-			result, err := client.TestOptions(context.Background(), testDomain, opts)
+			result, err := client.TestOption(context.Background(), testDomain, opts)
 			require.NoError(t, err)
 			require.NotEqual(t, 0, len(result))
 		}
@@ -94,14 +94,14 @@ func TestClient(t *testing.T) {
 		// IPv4 and IPv6
 		if testsuite.EnableIPv4() || testsuite.EnableIPv6() {
 			opts.Type = ""
-			result, err := client.TestOptions(context.Background(), testDomain, opts)
+			result, err := client.TestOption(context.Background(), testDomain, opts)
 			require.NoError(t, err)
 			require.NotEqual(t, 0, len(result))
 		}
 
 		// invalid type
 		opts.Type = "foo type"
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
@@ -310,7 +310,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{SkipTest: true}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.NoError(t, err)
 		require.Equal(t, 0, len(result))
 
@@ -324,7 +324,7 @@ func TestClient_TestOptions(t *testing.T) {
 			ProxyTag:  "tag",
 			SkipProxy: true,
 		}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
 
@@ -335,7 +335,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{Mode: ModeSystem}
-		result, err := client.TestOptions(context.Background(), "test", opts)
+		result, err := client.TestOption(context.Background(), "test", opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
@@ -349,7 +349,7 @@ func TestClient_TestOptions(t *testing.T) {
 			Method:   MethodTCP, // must don't use udp
 			ProxyTag: testproxy.TagBalance,
 		}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
 
@@ -360,7 +360,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{Type: "foo type"}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 		t.Log(err)
@@ -372,7 +372,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{Mode: "foo mode"}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
@@ -383,7 +383,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{Method: "foo method"}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
@@ -395,13 +395,13 @@ func TestClient_TestOptions(t *testing.T) {
 
 		opts := &Options{Method: MethodDoH}
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
 		// with server tag
 		opts.ServerTag = "doh_ipv4_cloudflare"
-		result, err = client.TestOptions(context.Background(), testDomain, opts)
+		result, err = client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
@@ -412,7 +412,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{ProxyTag: "foo proxy"}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
@@ -423,7 +423,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{ServerTag: "foo server"}
-		result, err := client.TestOptions(context.Background(), testDomain, opts)
+		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
