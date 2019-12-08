@@ -68,6 +68,7 @@ type Config struct {
 
 // Debug is used to test
 type Debug struct {
+	SkipTestClientDNS   bool
 	SkipSynchronizeTime bool
 
 	// see handler.go

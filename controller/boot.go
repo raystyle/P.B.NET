@@ -42,7 +42,6 @@ func (boot *boot) Add(m *mBoot) error {
 	}
 	// load bootstrap
 	g := boot.ctx.global
-
 	ctx, cancel := context.WithCancel(context.Background())
 	b, err := bootstrap.Load(ctx, m.Mode, []byte(m.Config), g.proxyPool, g.dnsClient)
 	if err != nil {

@@ -103,6 +103,13 @@ func (ctrl *CTRL) fatal(err error, msg string) error {
 // Main is used to tun Controller, it will block until exit or return error
 func (ctrl *CTRL) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
+	// test client DNS option
+	if !ctrl.Debug.SkipTestClientDNS {
+		err := ctrl.global.TestDNSOption(&ctrl.opts.DNSOpts)
+		if err != nil {
+			return errors.WithMessage(err, "failed to test client DNS option")
+		}
+	}
 	// synchronize time
 	if ctrl.Debug.SkipSynchronizeTime {
 		ctrl.global.StartTimeSyncerAddLoop()

@@ -228,7 +228,6 @@ func (sender *sender) ConnectWithContext(
 	sender.clients[key] = client
 	sender.logf(logger.Info, "connect node %s %s", node.Mode, node.Address)
 	return nil
-
 }
 
 // Disconnect is used to disconnect node, guid is hex, upper

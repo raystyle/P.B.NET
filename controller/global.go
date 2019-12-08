@@ -70,7 +70,10 @@ type global struct {
 
 	loadSessionKey     int32
 	waitLoadSessionKey chan struct{}
-	closeOnce          sync.Once
+
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
 }
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
@@ -147,14 +150,15 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, errTSC)
 	}
-
-	return &global{
+	g := global{
 		proxyPool:          proxyPool,
 		dnsClient:          dnsClient,
 		timeSyncer:         timeSyncer,
 		objects:            make(map[uint32]interface{}),
 		waitLoadSessionKey: make(chan struct{}, 1),
-	}, nil
+	}
+	g.ctx, g.cancel = context.WithCancel(context.Background())
+	return &g, nil
 }
 
 // GetSelfCA is used to get self CA certificate to generate CA-sign certificate
@@ -188,6 +192,12 @@ func (global *global) ResolveWithContext(
 // DNSServers is used to get all DNS servers in DNS client
 func (global *global) DNSServers() map[string]*dns.Server {
 	return global.dnsClient.Servers()
+}
+
+// TestDNSOption is used to test client DNS option
+func (global *global) TestDNSOption(opts *dns.Options) error {
+	_, err := global.dnsClient.TestOption(global.ctx, "github.com", opts)
+	return err
 }
 
 // TimeSyncerClients is used to get all time syncer clients in time syncer
@@ -524,6 +534,7 @@ func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 
 // Close is used to close global
 func (global *global) Close() {
+	global.cancel()
 	global.timeSyncer.Stop()
 	global.closeOnce.Do(func() { close(global.waitLoadSessionKey) })
 }
