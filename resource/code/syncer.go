@@ -1,36 +1,32 @@
-package main
+package code
 
 import (
 	"fmt"
 	"strings"
 )
 
-func generateCheckGUID() {
+func generateCheckGUID(need []string) {
 	const template = `
 func (syncer *syncer) Check<f>GUID(guid []byte, add bool, timestamp int64) bool {
-	dst := syncer.hexPool.Get().([]byte)
-	hex.Encode(dst, guid)
-	key := string(dst)
+	key := syncer.calculateKey(guid)
 	if add {
 		syncer.<a>GUIDRWM.Lock()
 		defer syncer.<a>GUIDRWM.Unlock()
 		if _, ok := syncer.<a>GUID[key]; ok {
 			return false
-		} else {
-			syncer.<a>GUID[key] = timestamp
-			return true
 		}
-	} else {
-		syncer.<a>GUIDRWM.RLock()
-		defer syncer.<a>GUIDRWM.RUnlock()
-		_, ok := syncer.<a>GUID[key]
-		return !ok
+		syncer.<a>GUID[key] = timestamp
+		return true
 	}
+	syncer.<a>GUIDRWM.RLock()
+	defer syncer.<a>GUIDRWM.RUnlock()
+	_, ok := syncer.<a>GUID[key]
+	return !ok
 }`
-	generateCodeAboutSyncer(template)
+	generateCodeAboutSyncer(template, need)
 }
 
-func generateCleanGUID() {
+func generateCleanGUID(need []string) {
 	const template = `
 func (syncer *syncer) clean<f>GUID(now int64) {
 	syncer.<a>GUIDRWM.Lock()
@@ -41,10 +37,10 @@ func (syncer *syncer) clean<f>GUID(now int64) {
 		}
 	}
 }`
-	generateCodeAboutSyncer(template)
+	generateCodeAboutSyncer(template, need)
 }
 
-func generateCleanGUIDMap() {
+func generateCleanGUIDMap(need []string) {
 	const template = `
 func (syncer *syncer) clean<f>GUIDMap() {
 	syncer.<a>GUIDRWM.Lock()
@@ -55,17 +51,10 @@ func (syncer *syncer) clean<f>GUIDMap() {
 	}
 	syncer.<a>GUID = newMap
 }`
-	generateCodeAboutSyncer(template)
+	generateCodeAboutSyncer(template, need)
 }
 
-func generateCodeAboutSyncer(template string) {
-	var need = [...]string{
-		"nodeSend",
-		"nodeAck",
-		"beaconSend",
-		"beaconAck",
-		"query",
-	}
+func generateCodeAboutSyncer(template string, need []string) {
 	for i := 0; i < len(need); i++ {
 		a := strings.ReplaceAll(template, "<a>", need[i])
 		f := strings.ToUpper(need[i][:1]) + need[i][1:]
