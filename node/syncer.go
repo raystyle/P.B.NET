@@ -93,9 +93,9 @@ func (syncer *syncer) CheckGUIDTimestamp(guid []byte) (bool, int64) {
 	timestamp := convert.BytesToInt64(guid[36:44])
 	now := syncer.ctx.global.Now().Unix()
 	if math.Abs(float64(now-timestamp)) > syncer.expireTime {
-		return false, 0
+		return true, 0
 	}
-	return true, timestamp
+	return false, timestamp
 }
 
 func (syncer *syncer) calculateKey(guid []byte) string {

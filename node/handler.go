@@ -1,6 +1,8 @@
 package node
 
 import (
+	"context"
+
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
@@ -12,6 +14,17 @@ import (
 
 type handler struct {
 	ctx *Node
+
+	context context.Context
+	cancel  context.CancelFunc
+}
+
+func newHandler(ctx *Node) *handler {
+	h := handler{
+		ctx: ctx,
+	}
+	h.context, h.cancel = context.WithCancel(context.Background())
+	return &h
 }
 
 func (h *handler) logf(l logger.Level, format string, log ...interface{}) {
@@ -35,7 +48,7 @@ func (h *handler) OnSend(s *protocol.Send) {
 	}
 	switch convert.BytesToUint32(s.Message[:4]) {
 
-	case messages.Test:
+	case messages.CMDTest:
 		if h.ctx.Debug.Send == nil {
 			return
 		}
@@ -45,7 +58,11 @@ func (h *handler) OnSend(s *protocol.Send) {
 			h.logf(logger.Exploit, "controller send invalid test message: %X", s.Message[4:])
 			return
 		}
-		h.ctx.Debug.Send <- testMsg
+		select {
+		case h.ctx.Debug.Send <- testMsg:
+		case <-h.context.Done():
+			return
+		}
 		h.logf(logger.Debug, "controller send test message: %s", testMsg)
 	default:
 		h.logf(logger.Exploit, "controller send unknown message: %X", s.Message)
@@ -65,7 +82,7 @@ func (h *handler) OnBroadcast(s *protocol.Broadcast) {
 	}
 	switch convert.BytesToUint32(s.Message[:4]) {
 
-	case messages.Test:
+	case messages.CMDTest:
 		if h.ctx.Debug.Broadcast == nil {
 			return
 		}
@@ -75,9 +92,17 @@ func (h *handler) OnBroadcast(s *protocol.Broadcast) {
 			h.logf(logger.Exploit, "controller broadcast invalid test message: %X", s.Message[4:])
 			return
 		}
-		h.ctx.Debug.Broadcast <- testMsg
+		select {
+		case h.ctx.Debug.Broadcast <- testMsg:
+		case <-h.context.Done():
+			return
+		}
 		h.logf(logger.Debug, "controller broadcast test message: %s", testMsg)
 	default:
 		h.logf(logger.Exploit, "controller broadcast unknown message: %X", s.Message)
 	}
+}
+
+func (h *handler) Close() {
+	h.cancel()
 }

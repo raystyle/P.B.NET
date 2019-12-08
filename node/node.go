@@ -70,14 +70,13 @@ func New(cfg *Config) (*Node, error) {
 	}
 	node.syncer = syncer
 	// handler
-	node.handler = &handler{ctx: node}
+	node.handler = newHandler(node)
 	// worker
 	worker, err := newWorker(node, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize worker")
 	}
 	node.worker = worker
-
 	// server
 	server, err := newServer(node, cfg)
 	if err != nil {
@@ -133,6 +132,8 @@ func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Close()
 		node.logger.Print(logger.Debug, "exit", "server is stopped")
+		node.handler.Close()
+		node.logger.Print(logger.Debug, "exit", "handler is stopped") // TODO think handler block
 		node.worker.Close()
 		node.logger.Print(logger.Debug, "exit", "worker is stopped")
 		node.syncer.Close()
@@ -165,5 +166,5 @@ func (node *Node) GUID() []byte {
 }
 
 func (node *Node) TestSend(msg []byte) error {
-	return node.sender.Send(messages.TestBytes, msg)
+	return node.sender.Send(messages.CMDBytesTest, msg)
 }
