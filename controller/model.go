@@ -25,6 +25,7 @@ const (
 	tableBeaconLog = "beacon_log"
 )
 
+// Model include time, most model need it
 type Model struct {
 	CreatedAt time.Time  `gorm:"not null"`
 	UpdatedAt time.Time  `gorm:"not null"`

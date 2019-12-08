@@ -213,7 +213,7 @@ func (sender *sender) ConnectWithContext(
 	if _, ok := sender.clients[key]; ok {
 		return errors.Errorf("connect the same node %s %s", node.Mode, node.Address)
 	}
-	client, err := newClient(sender.ctx, ctx, node, guid, func() {
+	client, err := newClient(ctx, sender.ctx, node, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, key)

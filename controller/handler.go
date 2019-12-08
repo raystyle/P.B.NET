@@ -36,7 +36,7 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 	}
 	switch convert.BytesToUint32(send.Message[:4]) {
 
-	case messages.Test:
+	case messages.CMDTest:
 		var testMsg []byte
 		err := msgpack.Unmarshal(send.Message[4:], &testMsg)
 		if err != nil {
@@ -67,7 +67,7 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 	}
 	switch convert.BytesToUint32(send.Message[:4]) {
 
-	case messages.Test:
+	case messages.CMDTest:
 		var testMsg []byte
 		err := msgpack.Unmarshal(send.Message[4:], &testMsg)
 		if err != nil {

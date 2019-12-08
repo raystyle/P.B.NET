@@ -116,7 +116,7 @@ func testGenerateClient(tb testing.TB, node *node.Node) *client {
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
-	client, err := newClient(ctrl, context.Background(), n, nil, nil)
+	client, err := newClient(context.Background(), ctrl, n, nil, nil)
 	require.NoError(tb, err)
 	return client
 }

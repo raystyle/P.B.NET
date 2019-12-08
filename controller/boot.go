@@ -62,24 +62,20 @@ func (boot *boot) Add(m *mBoot) error {
 }
 
 func (boot *boot) Delete(tag string) error {
-	boot.clientsRWM.RLock()
-	if client, ok := boot.clients[tag]; ok {
-		defer boot.clientsRWM.RUnlock()
+	if client, ok := boot.Clients()[tag]; ok {
 		client.Stop()
 		return nil
-	} else {
-		defer boot.clientsRWM.RUnlock()
-		return errors.Errorf("boot: %s doesn't exist", tag)
 	}
+	return errors.Errorf("boot: %s doesn't exist", tag)
 }
 
-func (boot *boot) GetClients() map[string]*bootClient {
+func (boot *boot) Clients() map[string]*bootClient {
 	boot.clientsRWM.RLock()
+	defer boot.clientsRWM.RUnlock()
 	clients := make(map[string]*bootClient, len(boot.clients))
 	for key, client := range boot.clients {
 		clients[key] = client
 	}
-	boot.clientsRWM.RUnlock()
 	return clients
 }
 
@@ -87,12 +83,12 @@ func (boot *boot) Close() {
 	atomic.StoreInt32(&boot.closing, 1)
 	for {
 		// stop all boot client
-		for _, client := range boot.GetClients() {
+		for _, client := range boot.Clients() {
 			client.Stop()
 		}
 		// wait close
 		time.Sleep(10 * time.Millisecond)
-		if len(boot.GetClients()) == 0 {
+		if len(boot.Clients()) == 0 {
 			break
 		}
 	}
@@ -142,9 +138,8 @@ func (bc *bootClient) bootLoop() {
 		}
 		// delete boot client
 		bc.ctx.clientsRWM.Lock()
+		defer bc.ctx.clientsRWM.Unlock()
 		delete(bc.ctx.clients, bc.tag)
-		bc.ctx.clientsRWM.Unlock()
-
 		bc.logf(logger.Info, "boot %s stopped", bc.tag)
 		bc.wg.Done()
 	}()

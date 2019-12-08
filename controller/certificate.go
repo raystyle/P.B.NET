@@ -21,7 +21,7 @@ func (ctrl *CTRL) TrustNode(
 	ctx context.Context,
 	node *bootstrap.Node,
 ) (*messages.NodeRegisterRequest, error) {
-	client, err := newClient(ctrl, ctx, node, nil, nil)
+	client, err := newClient(ctx, ctrl, node, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (ctrl *CTRL) ConfirmTrustNode(
 	node *bootstrap.Node,
 	req *messages.NodeRegisterRequest,
 ) error {
-	client, err := newClient(ctrl, ctx, node, nil, nil)
+	client, err := newClient(ctx, ctrl, node, nil, nil)
 	if err != nil {
 		return err
 	}

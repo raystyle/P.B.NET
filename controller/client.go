@@ -49,13 +49,12 @@ type client struct {
 // when guid != nil        for sender client
 // when guid == ctrl guid, for discovery
 func newClient(
-	ctrl *CTRL,
 	ctx context.Context,
+	ctrl *CTRL,
 	node *bootstrap.Node,
 	guid []byte,
 	closeFunc func(),
 ) (*client, error) {
-
 	host, port, err := net.SplitHostPort(node.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)

@@ -8,7 +8,7 @@ import (
 	"project/internal/logger"
 )
 
-// Controller
+// CTRL is Controller
 type CTRL struct {
 	Debug *Debug // for test
 
