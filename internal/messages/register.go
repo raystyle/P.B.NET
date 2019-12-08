@@ -9,12 +9,16 @@ import (
 	"project/internal/modules/info"
 )
 
-type RegisterResult = uint8
+type Bootstrap struct {
+	Tag    string
+	Mode   string
+	Config []byte
+}
 
 const (
-	RegisterAccept RegisterResult = iota
-	RegisterRefused
-	RegisterTimeout
+	RegisterResultAccept uint8 = iota
+	RegisterResultRefused
+	RegisterResultTimeout
 )
 
 var (
@@ -49,7 +53,7 @@ type NodeRegisterResponse struct {
 	GUID         []byte
 	PublicKey    []byte // verify message
 	KexPublicKey []byte // aes key exchange
-	Result       RegisterResult
+	Result       uint8
 	Certificates []byte
 	Listeners    []*Listener
 	RequestTime  time.Time
@@ -66,7 +70,7 @@ func (r *NodeRegisterResponse) Validate() error {
 	if len(r.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange public key size")
 	}
-	if r.Result > RegisterRefused {
+	if r.Result > RegisterResultRefused {
 		return errors.New("invalid result")
 	}
 	// see controller/certificate.go CTRL.issueCertificate()
@@ -104,7 +108,7 @@ type BeaconRegisterResponse struct {
 	GUID         []byte
 	PublicKey    []byte // verify message
 	KexPublicKey []byte // aes key exchange
-	Result       RegisterResult
+	Result       uint8
 	RequestTime  time.Time
 	ReplyTime    time.Time
 }
@@ -119,7 +123,7 @@ func (r *BeaconRegisterResponse) Validate() error {
 	if len(r.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange public key size")
 	}
-	if r.Result > RegisterRefused {
+	if r.Result > RegisterResultRefused {
 		return errors.New("invalid result")
 	}
 	return nil
