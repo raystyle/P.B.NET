@@ -32,7 +32,6 @@ type Config struct {
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 	} `toml:"global"`
 
-	// TODO client Options
 	Client struct { // options
 		ProxyTag string        `toml:"proxy_tag"`
 		Timeout  time.Duration `toml:"timeout"`
@@ -40,7 +39,7 @@ type Config struct {
 	} `toml:"client"`
 
 	Sender struct {
-		MaxConns      int           `toml:"max_conn"`
+		MaxConns      int           `toml:"max_conns"`
 		Worker        int           `toml:"worker"`
 		Timeout       time.Duration `toml:"timeout"`
 		QueueSize     int           `toml:"queue_size"`

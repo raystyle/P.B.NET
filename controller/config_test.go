@@ -1,9 +1,13 @@
 package controller
 
 import (
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/pelletier/go-toml"
+	"github.com/stretchr/testify/require"
 )
 
 func testGenerateConfig() *Config {
@@ -50,5 +54,53 @@ func testGenerateConfig() *Config {
 }
 
 func TestConfig(t *testing.T) {
+	b, err := ioutil.ReadFile("../controller/testdata/config.toml")
+	require.NoError(t, err)
+	cfg := Config{}
+	require.NoError(t, toml.Unmarshal(b, &cfg))
 
+	tds := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "mysql", actual: cfg.Database.Dialect},
+		{expected: "dsn", actual: cfg.Database.DSN},
+		{expected: 16, actual: cfg.Database.MaxOpenConns},
+		{expected: 16, actual: cfg.Database.MaxIdleConns},
+		{expected: "log1", actual: cfg.Database.LogFile},
+		{expected: "log2", actual: cfg.Database.GORMLogFile},
+		{expected: true, actual: cfg.Database.GORMDetailedLog},
+
+		{expected: "debug", actual: cfg.Logger.Level},
+		{expected: "log3", actual: cfg.Logger.File},
+
+		{expected: 2 * time.Minute, actual: cfg.Global.DNSCacheExpire},
+		{expected: time.Minute, actual: cfg.Global.TimeSyncInterval},
+
+		{expected: "test", actual: cfg.Client.ProxyTag},
+		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
+		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
+
+		{expected: 7, actual: cfg.Sender.MaxConns},
+		{expected: 64, actual: cfg.Sender.Worker},
+		{expected: 15 * time.Second, actual: cfg.Sender.Timeout},
+		{expected: 512, actual: cfg.Sender.QueueSize},
+		{expected: 16384, actual: cfg.Sender.MaxBufferSize},
+
+		{expected: 3 * time.Minute, actual: cfg.Syncer.ExpireTime},
+
+		{expected: 64, actual: cfg.Worker.Number},
+		{expected: 512, actual: cfg.Worker.QueueSize},
+		{expected: 16384, actual: cfg.Worker.MaxBufferSize},
+
+		{expected: "web", actual: cfg.Web.Dir},
+		{expected: "ca/cert.pem", actual: cfg.Web.CertFile},
+		{expected: "ca/key.pem", actual: cfg.Web.KeyFile},
+		{expected: "localhost:1657", actual: cfg.Web.Address},
+		{expected: "pbnet", actual: cfg.Web.Username},
+		{expected: "sha256", actual: cfg.Web.Password},
+	}
+	for _, td := range tds {
+		require.Equal(t, td.expected, td.actual)
+	}
 }
