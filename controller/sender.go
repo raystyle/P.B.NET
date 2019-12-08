@@ -694,9 +694,7 @@ func (sw *senderWorker) Work() {
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.hex = hex.NewEncoder(sw.buffer)
 	sw.hash = sha256.New()
-
 	sw.preSP = &sw.preS
-
 	sw.tHex = make([]byte, 2*guid.Size)
 	sw.timer = time.NewTimer(sw.timeout)
 	var (
@@ -727,11 +725,11 @@ func (sw *senderWorker) Work() {
 	}
 }
 
-func (sw *senderWorker) handleAcknowledgeTask(a *acknowledgeTask) {
-	defer sw.ctx.acknowledgeTaskPool.Put(a)
+func (sw *senderWorker) handleAcknowledgeTask(at *acknowledgeTask) {
+	defer sw.ctx.acknowledgeTaskPool.Put(at)
 	sw.preA.GUID = sw.guid.Get()
-	sw.preA.RoleGUID = a.RoleGUID
-	sw.preA.SendGUID = a.SendGUID
+	sw.preA.RoleGUID = at.RoleGUID
+	sw.preA.SendGUID = at.SendGUID
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preA.GUID)
@@ -745,51 +743,51 @@ func (sw *senderWorker) handleAcknowledgeTask(a *acknowledgeTask) {
 		panic(sw.err)
 	}
 	// TODO try, if failed
-	sw.ctx.acknowledge(a.Role, sw.preA.GUID, sw.buffer.Bytes())
+	sw.ctx.acknowledge(at.Role, sw.preA.GUID, sw.buffer.Bytes())
 }
 
-func (sw *senderWorker) handleSendTask(s *sendTask) {
+func (sw *senderWorker) handleSendTask(st *sendTask) {
 	result := sw.ctx.sendResultPool.Get().(*protocol.SendResult)
 	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "senderWorker.handleSendTask() panic:")
+			err := xpanic.Error(r, "senderWorker.handleSendTask")
 			sw.ctx.log(logger.Fatal, err)
 			result.Err = err
 		}
-		s.Result <- result
+		st.Result <- result
 	}()
 	// role GUID string
 	sw.buffer.Reset()
-	_, _ = sw.hex.Write(s.GUID)
+	_, _ = sw.hex.Write(st.GUID)
 	sw.roleGUID = sw.buffer.String()
 	// pack message(interface)
-	if s.MessageI != nil {
+	if st.MessageI != nil {
 		sw.buffer.Reset()
-		sw.buffer.Write(s.Command)
-		result.Err = sw.msgpack.Encode(s.MessageI)
+		sw.buffer.Write(st.Command)
+		result.Err = sw.msgpack.Encode(st.MessageI)
 		if result.Err != nil {
 			return
 		}
 		// don't worry copy, because encrypt
-		s.Message = sw.buffer.Bytes()
+		st.Message = sw.buffer.Bytes()
 	}
 	// check message size
-	if len(s.Message) > protocol.MaxMsgSize {
+	if len(st.Message) > protocol.MaxMsgSize {
 		result.Err = protocol.ErrTooBigMsg
 		return
 	}
 	// set key
-	switch s.Role {
+	switch st.Role {
 	case protocol.Beacon:
-		sw.beacon, result.Err = sw.ctx.ctx.db.SelectBeacon(s.GUID)
+		sw.beacon, result.Err = sw.ctx.ctx.db.SelectBeacon(st.GUID)
 		if result.Err != nil {
 			return
 		}
 		sw.aesKey = sw.beacon.SessionKey
 		sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
 	case protocol.Node:
-		sw.node, result.Err = sw.ctx.ctx.db.SelectNode(s.GUID)
+		sw.node, result.Err = sw.ctx.ctx.db.SelectNode(st.GUID)
 		if result.Err != nil {
 			return
 		}
@@ -799,16 +797,16 @@ func (sw *senderWorker) handleSendTask(s *sendTask) {
 		panic("invalid s.Role")
 	}
 	// encrypt
-	sw.preS.Message, result.Err = aes.CBCEncrypt(s.Message, sw.aesKey, sw.aesIV)
+	sw.preS.Message, result.Err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
 	if result.Err != nil {
 		return
 	}
 	// set GUID
 	sw.preS.GUID = sw.guid.Get()
-	sw.preS.RoleGUID = s.GUID
+	sw.preS.RoleGUID = st.GUID
 	// hash
 	sw.hash.Reset()
-	sw.hash.Write(s.Message)
+	sw.hash.Write(st.Message)
 	sw.preS.Hash = sw.hash.Sum(nil)
 	// sign
 	sw.buffer.Reset()
@@ -825,8 +823,8 @@ func (sw *senderWorker) handleSendTask(s *sendTask) {
 	}
 	// TODO query
 	// check is need to write message to the database
-	if s.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(s.Role, sw.roleGUID) {
-		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(s.GUID, sw.buffer.Bytes())
+	if st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(st.Role, sw.roleGUID) {
+		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(st.GUID, sw.buffer.Bytes())
 		if result.Err == nil {
 			result.Success = 1
 		}
@@ -834,8 +832,8 @@ func (sw *senderWorker) handleSendTask(s *sendTask) {
 	}
 	// send
 	hex.Encode(sw.tHex, sw.preSP.GUID)
-	wait := sw.ctx.createSlot(s.Role, sw.roleGUID, string(sw.tHex))
-	result.Responses, result.Success = sw.ctx.send(s.Role, sw.preS.GUID, sw.buffer.Bytes())
+	wait := sw.ctx.createSlot(st.Role, sw.roleGUID, string(sw.tHex))
+	result.Responses, result.Success = sw.ctx.send(st.Role, sw.preS.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
 		result.Err = ErrSendFailed
 		return
@@ -854,35 +852,35 @@ func (sw *senderWorker) handleSendTask(s *sendTask) {
 	}
 }
 
-func (sw *senderWorker) handleBroadcastTask(b *broadcastTask) {
+func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 	result := sw.ctx.broadcastResultPool.Get().(*protocol.BroadcastResult)
 	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "senderWorker.handleBroadcastTask() panic:")
+			err := xpanic.Error(r, "senderWorker.handleBroadcastTask")
 			sw.ctx.log(logger.Fatal, err)
 			result.Err = err
 		}
-		b.Result <- result
+		bt.Result <- result
 	}()
 	// pack message(interface)
-	if b.MessageI != nil {
+	if bt.MessageI != nil {
 		sw.buffer.Reset()
-		sw.buffer.Write(b.Command)
-		result.Err = sw.msgpack.Encode(b.MessageI)
+		sw.buffer.Write(bt.Command)
+		result.Err = sw.msgpack.Encode(bt.MessageI)
 		if result.Err != nil {
 			return
 		}
 		// don't worry copy, because encrypt
-		b.Message = sw.buffer.Bytes()
+		bt.Message = sw.buffer.Bytes()
 	}
 	// check message size
-	if len(b.Message) > protocol.MaxMsgSize {
+	if len(bt.Message) > protocol.MaxMsgSize {
 		result.Err = protocol.ErrTooBigMsg
 		return
 	}
 	// encrypt
-	sw.preB.Message, result.Err = sw.ctx.ctx.global.Encrypt(b.Message)
+	sw.preB.Message, result.Err = sw.ctx.ctx.global.Encrypt(bt.Message)
 	if result.Err != nil {
 		return
 	}
@@ -890,7 +888,7 @@ func (sw *senderWorker) handleBroadcastTask(b *broadcastTask) {
 	sw.preB.GUID = sw.guid.Get()
 	// hash
 	sw.hash.Reset()
-	sw.hash.Write(b.Message)
+	sw.hash.Write(bt.Message)
 	sw.preB.Hash = sw.hash.Sum(nil)
 	// sign
 	sw.buffer.Reset()

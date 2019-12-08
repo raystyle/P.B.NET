@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/messages"
+	"project/internal/protocol"
 	"project/internal/xnet"
 	"project/node"
 )
@@ -77,5 +79,62 @@ func TestSender_Broadcast(t *testing.T) {
 	for i := 0; i < 1024; i++ {
 		need := fmt.Sprintf("test broadcast %d", i)
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
+	}
+}
+
+func TestSender_Send(t *testing.T) {
+	NODE := testGenerateNodeAndTrust(t)
+	defer func() {
+		guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+		err := ctrl.sender.Disconnect(guid)
+		require.NoError(t, err)
+		NODE.Exit(nil)
+	}()
+	// send to Node
+	roleGUID := NODE.GUID()
+	var (
+		goRoutines = 2
+		number     = 202400
+	)
+	send := func(start int) {
+		for i := start; i < start+number; i++ {
+			msg := []byte(fmt.Sprintf("test send %d", i))
+			err := ctrl.sender.Send(protocol.Node, roleGUID, messages.CMDBytesTest, msg)
+			require.NoError(t, err)
+		}
+	}
+	for i := 0; i < goRoutines; i++ {
+		go send(i * number)
+	}
+	// recv := bytes.Buffer{} // TODO memory
+
+	go func() {
+		for {
+			debug.FreeOSMemory()
+			time.Sleep(5 * time.Second)
+		}
+	}()
+
+	timer := time.NewTimer(5 * time.Second)
+	for i := 0; i < goRoutines*number; i++ {
+		timer.Reset(5 * time.Second)
+		select {
+		case <-NODE.Debug.Send:
+		// case b := <-NODE.Debug.Send:
+		// recv.Write(b)
+		// recv.WriteString("\n")
+		case <-timer.C:
+			t.Fatalf("read NODE.Debug.Send timeout id: %d", i)
+		}
+	}
+	select {
+	case <-NODE.Debug.Send:
+		t.Fatal("redundancy send")
+	case <-time.After(time.Second):
+	}
+	// str := recv.String()
+	for i := 0; i < goRoutines*number; i++ {
+		// need := fmt.Sprintf("test send %d", i)
+		// require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
 }

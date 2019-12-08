@@ -155,7 +155,7 @@ func TestClient_SendParallel(t *testing.T) {
 		}
 		wg.Done()
 	}
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 16; i++ {
 		wg.Add(1)
 		go send()
 	}

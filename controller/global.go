@@ -196,7 +196,7 @@ func (global *global) DNSServers() map[string]*dns.Server {
 
 // TestDNSOption is used to test client DNS option
 func (global *global) TestDNSOption(opts *dns.Options) error {
-	_, err := global.dnsClient.TestOption(global.ctx, "github.com", opts)
+	_, err := global.dnsClient.TestOption(global.ctx, "cloudflare.com", opts)
 	return err
 }
 
@@ -481,7 +481,11 @@ func (global *global) Encrypt(data []byte) ([]byte, error) {
 // Sign is used to verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
 	pri := make([]byte, ed25519.PrivateKeySize)
-	defer security.FlushBytes(pri)
+	defer func() {
+		for i := 0; i < ed25519.PrivateKeySize; i++ {
+			pri[i] = 0
+		}
+	}()
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	for i := 0; i < ed25519.PrivateKeySize; i++ {

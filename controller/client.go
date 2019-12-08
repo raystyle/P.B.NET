@@ -249,27 +249,8 @@ func (client *client) onFrame(frame []byte) {
 	id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
 	data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
 	if client.isSync() {
-		switch frame[0] {
-		case protocol.NodeSendGUID:
-			client.handleNodeSendGUID(id, data)
-		case protocol.NodeSend:
-			client.handleNodeSend(id, data)
-		case protocol.NodeAckGUID:
-			client.handleNodeAckGUID(id, data)
-		case protocol.NodeAck:
-			client.handleNodeAck(id, data)
-		case protocol.BeaconSendGUID:
-			client.handleBeaconSendGUID(id, data)
-		case protocol.BeaconSend:
-			client.handleBeaconSend(id, data)
-		case protocol.BeaconAckGUID:
-			client.handleBeaconAckGUID(id, data)
-		case protocol.BeaconAck:
-			client.handleBeaconAck(id, data)
-		case protocol.BeaconQueryGUID:
-			client.handleBeaconQueryGUID(id, data)
-		case protocol.BeaconQuery:
-			client.handleBeaconQuery(id, data)
+		if client.onFrameAfterSync(frame[0], id, data) {
+			return
 		}
 	}
 	switch frame[0] {
@@ -292,6 +273,34 @@ func (client *client) onFrame(frame []byte) {
 		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
 		client.Close()
 	}
+}
+
+func (client *client) onFrameAfterSync(cmd byte, id, data []byte) bool {
+	switch cmd {
+	case protocol.NodeSendGUID:
+		client.handleNodeSendGUID(id, data)
+	case protocol.NodeSend:
+		client.handleNodeSend(id, data)
+	case protocol.NodeAckGUID:
+		client.handleNodeAckGUID(id, data)
+	case protocol.NodeAck:
+		client.handleNodeAck(id, data)
+	case protocol.BeaconSendGUID:
+		client.handleBeaconSendGUID(id, data)
+	case protocol.BeaconSend:
+		client.handleBeaconSend(id, data)
+	case protocol.BeaconAckGUID:
+		client.handleBeaconAckGUID(id, data)
+	case protocol.BeaconAck:
+		client.handleBeaconAck(id, data)
+	case protocol.BeaconQueryGUID:
+		client.handleBeaconQueryGUID(id, data)
+	case protocol.BeaconQuery:
+		client.handleBeaconQuery(id, data)
+	default:
+		return false
+	}
+	return true
 }
 
 func (client *client) sendHeartbeatLoop() {

@@ -7,13 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func init() {
-	err := os.Chdir("../app")
-	if err != nil {
-		panic(err)
-	}
-}
-
 var (
 	ctrl     *CTRL
 	initOnce sync.Once
@@ -21,25 +14,21 @@ var (
 
 func testInitCtrl(t require.TestingT) {
 	initOnce.Do(func() {
+		err := os.Chdir("../app")
+		require.NoError(t, err)
 		cfg := testGenerateConfig()
-		controller, err := New(cfg)
+		ctrl, err = New(cfg)
+		require.NoError(t, err)
+		_, err = ctrl.db.SelectBoot()
 		if err != nil {
-			// initialize database
 			err = InitializeDatabase(cfg)
 			require.NoError(t, err)
 			// add test data
-			db, err := newDB(cfg)
-			require.NoError(t, err)
-			ctrl = &CTRL{db: db}
 			testInsertProxyClient(t)
 			testInsertDNSServer(t)
 			testInsertTimeSyncerClient(t)
 			testInsertBoot(t)
 			testInsertListener(t)
-			ctrl, err = New(cfg)
-			require.NoError(t, err)
-		} else {
-			ctrl = controller
 		}
 		// set controller keys
 		err = ctrl.LoadSessionKey([]byte("pbnet"))

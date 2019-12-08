@@ -184,7 +184,7 @@ func (syncer *syncer) guidCleaner() {
 			syncer.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	count := 0
 	for {
@@ -192,7 +192,7 @@ func (syncer *syncer) guidCleaner() {
 		case <-ticker.C:
 			syncer.cleanGUID()
 			count += 1
-			if count > 20 {
+			if count > 5 {
 				syncer.cleanGUIDMap()
 				count = 0
 			}

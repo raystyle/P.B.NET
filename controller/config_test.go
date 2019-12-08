@@ -13,6 +13,7 @@ import (
 func testGenerateConfig() *Config {
 	c := Config{}
 
+	c.Debug.SkipTestClientDNS = true
 	c.Debug.SkipSynchronizeTime = true
 
 	c.Database.Dialect = "mysql"
@@ -54,7 +55,7 @@ func testGenerateConfig() *Config {
 }
 
 func TestConfig(t *testing.T) {
-	b, err := ioutil.ReadFile("../controller/testdata/config.toml")
+	b, err := ioutil.ReadFile("testdata/config.toml")
 	require.NoError(t, err)
 	cfg := Config{}
 	require.NoError(t, toml.Unmarshal(b, &cfg))
