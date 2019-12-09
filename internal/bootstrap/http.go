@@ -148,6 +148,13 @@ func (h *HTTP) Marshal() ([]byte, error) {
 	return toml.Marshal(h)
 }
 
+// flushRequestOption is used to cover string field if has secret
+func flushRequestOption(r *options.HTTPRequest) {
+	security.FlushString(&r.URL)
+	security.FlushString(&r.Post)
+	security.FlushString(&r.Host)
+}
+
 func (h *HTTP) Unmarshal(data []byte) error {
 	tempHTTP := &HTTP{}
 	err := toml.Unmarshal(data, tempHTTP)
@@ -170,7 +177,7 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	memory.Padding()
 	b, _ := msgpack.Marshal(tempHTTP)
 	defer security.FlushBytes(b)
-	security.FlushRequestOption(&tempHTTP.Request)
+	flushRequestOption(&tempHTTP.Request)
 	memory.Padding()
 	h.enc, err = h.cbc.Encrypt(b)
 	return err
@@ -189,7 +196,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	if err != nil {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
-	defer security.FlushRequestOption(&tHTTP.Request)
+	defer flushRequestOption(&tHTTP.Request)
 	security.FlushBytes(b)
 	memory.Padding()
 
