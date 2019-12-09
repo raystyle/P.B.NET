@@ -75,32 +75,3 @@ func TestTLSConfig_Apply_failed(t *testing.T) {
 	_, err = config.Apply()
 	require.Error(t, err)
 }
-
-func TestParseCertificates(t *testing.T) {
-	certPEMBlock, err := ioutil.ReadFile("testdata/certs.pem")
-	require.NoError(t, err)
-	certs, err := parseCertificates(certPEMBlock)
-	require.NoError(t, err)
-	t.Log(certs[0].Issuer)
-	t.Log(certs[1].Issuer)
-
-	// parse invalid PEM data
-	_, err = parseCertificates([]byte{0, 1, 2, 3})
-	require.Equal(t, ErrInvalidPEMBlock, err)
-
-	// invalid Type
-	certPEMBlock = []byte(`
------BEGIN INVALID TYPE-----
------END INVALID TYPE-----
-`)
-	_, err = parseCertificates(certPEMBlock)
-	require.Equal(t, ErrInvalidPEMBlockType, err)
-
-	// invalid certificate data
-	certPEMBlock = []byte(`
------BEGIN CERTIFICATE-----
------END CERTIFICATE-----
-`)
-	_, err = parseCertificates(certPEMBlock)
-	require.Error(t, err)
-}

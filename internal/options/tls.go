@@ -3,19 +3,13 @@ package options
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
-	"errors"
 	"fmt"
 
 	"project/internal/crypto/cert/certutil"
-	"project/internal/random"
+	"project/internal/security"
 )
 
-var (
-	ErrInvalidPEMBlock     = errors.New("invalid PEM block")
-	ErrInvalidPEMBlockType = errors.New("invalid PEM block type")
-)
-
+// TLSConfig include options about tls.Config
 type TLSConfig struct {
 	ServerName   string        `toml:"server_name"`
 	Certificates []X509KeyPair `toml:"certificates"`
@@ -26,6 +20,7 @@ type TLSConfig struct {
 	InsecureLoadFromSystem bool `toml:"insecure_load_from_system"`
 }
 
+// X509KeyPair include certificate and private key
 type X509KeyPair struct {
 	Cert string `toml:"cert"` // PEM
 	Key  string `toml:"key"`  // PEM
@@ -35,10 +30,11 @@ func (t *TLSConfig) failed(err error) error {
 	return fmt.Errorf("failed to apply tls config: %s", err)
 }
 
+// RootCA is used to get TLSConfig.RootCAs and parse
 func (t *TLSConfig) RootCA() ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate
 	for i := 0; i < len(t.RootCAs); i++ {
-		cert, err := parseCertificates([]byte(t.RootCAs[i]))
+		cert, err := certutil.ParseCertificates([]byte(t.RootCAs[i]))
 		if err != nil {
 			return nil, t.failed(err)
 		}
@@ -47,6 +43,7 @@ func (t *TLSConfig) RootCA() ([]*x509.Certificate, error) {
 	return certs, nil
 }
 
+// Apply is used to create *tls.Config
 func (t *TLSConfig) Apply() (*tls.Config, error) {
 	// set next protocols
 	nextProtos := make([]string, len(t.NextProtos))
@@ -68,8 +65,8 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 			if err != nil {
 				return nil, t.failed(err)
 			}
-			flushBytes(c)
-			flushBytes(k)
+			security.FlushBytes(c)
+			security.FlushBytes(k)
 			config.Certificates[i] = tlsCert
 		}
 	}
@@ -101,7 +98,7 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 	// set Client CA
 	config.ClientCAs = x509.NewCertPool()
 	for i := 0; i < len(t.ClientCAs); i++ {
-		cert, err := parseCertificates([]byte(t.ClientCAs[i]))
+		cert, err := certutil.ParseCertificates([]byte(t.ClientCAs[i]))
 		if err != nil {
 			return nil, t.failed(err)
 		}
@@ -110,35 +107,4 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 		}
 	}
 	return config, nil
-}
-
-func parseCertificates(certPEMBlock []byte) ([]*x509.Certificate, error) {
-	var (
-		certs []*x509.Certificate
-		block *pem.Block
-	)
-	for {
-		block, certPEMBlock = pem.Decode(certPEMBlock)
-		if block == nil {
-			return nil, ErrInvalidPEMBlock
-		}
-		if block.Type != "CERTIFICATE" {
-			return nil, ErrInvalidPEMBlockType
-		}
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, err
-		}
-		certs = append(certs, cert)
-		if len(certPEMBlock) == 0 {
-			break
-		}
-	}
-	return certs, nil
-}
-
-func flushBytes(b []byte) {
-	rand := random.New(0)
-	randBytes := rand.Bytes(len(b))
-	copy(b, randBytes)
 }
