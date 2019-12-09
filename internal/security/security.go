@@ -6,7 +6,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"project/internal/options"
 	"project/internal/random"
 )
 
@@ -20,12 +19,14 @@ func init() {
 	FlushMemory()
 }
 
+// Memory include padding memory
 type Memory struct {
 	rand    *random.Rand
 	padding map[string][]byte
 	mutex   sync.Mutex
 }
 
+// NewMemory is used to new Memory
 func NewMemory() *Memory {
 	m := &Memory{
 		rand:    random.New(0),
@@ -35,6 +36,7 @@ func NewMemory() *Memory {
 	return m
 }
 
+// Padding is used to padding memory
 func (m *Memory) Padding() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -44,16 +46,19 @@ func (m *Memory) Padding() {
 	}
 }
 
+// Flush is used to flush memory
 func (m *Memory) Flush() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.padding = make(map[string][]byte)
 }
 
+// PaddingMemory is used to alloc memory
 func PaddingMemory() {
 	memory.Padding()
 }
 
+// FlushMemory is used to flush global memory
 func FlushMemory() {
 	memory.Flush()
 }
@@ -88,11 +93,4 @@ func FlushRequest(r *http.Request) {
 	FlushString(&r.URL.Host)
 	FlushString(&r.URL.Path)
 	FlushString(&r.URL.RawPath)
-}
-
-// FlushRequestOption is used to cover string field if has secret
-func FlushRequestOption(r *options.HTTPRequest) {
-	FlushString(&r.URL)
-	FlushString(&r.Post)
-	FlushString(&r.Host)
 }
