@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -144,19 +143,6 @@ func TestUnknownAlgorithm(t *testing.T) {
 	kp, err = Generate(kp.Certificate, kp.PrivateKey, opts)
 	require.Error(t, err)
 	require.Nil(t, kp)
-}
-
-func TestIsDomainName(t *testing.T) {
-	require.True(t, isDomainName("asd.com"))
-	require.True(t, isDomainName("asd-asd.com"))
-	require.True(t, isDomainName("asd-asd6.com"))
-	// invalid domain
-	require.False(t, isDomainName(""))
-	require.False(t, isDomainName(string([]byte{255, 254, 12, 35})))
-	require.False(t, isDomainName("asd-"))
-	require.False(t, isDomainName("asd.-"))
-	require.False(t, isDomainName("asd.."))
-	require.False(t, isDomainName(strings.Repeat("a", 64)+".com"))
 }
 
 func TestPrint(t *testing.T) {
