@@ -10,6 +10,8 @@ const (
 	DefaultHandshakeTimeout = 30 * time.Second
 
 	// role global default options
-	DefaultCacheExpireTime = 3 * time.Minute  // dns client
-	DefaultSyncInterval    = 10 * time.Minute // timesyncer
+	DefaultDNSCacheExpireTime = 3 * time.Minute
+	DefaultTimeSyncFixed      = 10 // second
+	DefaultTimeSyncRandom     = 20 // second
+	DefaultTimeSyncInterval   = 10 * time.Minute
 )
