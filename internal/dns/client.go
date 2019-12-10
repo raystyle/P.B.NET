@@ -120,7 +120,7 @@ type Client struct {
 func NewClient(pool *proxy.Pool) *Client {
 	return &Client{
 		proxyPool: pool,
-		expire:    options.DefaultCacheExpireTime,
+		expire:    options.DefaultDNSCacheExpireTime,
 		servers:   make(map[string]*Server),
 		caches:    make(map[string]*cache),
 	}

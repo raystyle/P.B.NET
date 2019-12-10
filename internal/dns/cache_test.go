@@ -28,7 +28,7 @@ func TestClientCache(t *testing.T) {
 	client := NewClient(nil)
 
 	// get cache expire time
-	require.Equal(t, options.DefaultCacheExpireTime, client.GetCacheExpireTime())
+	require.Equal(t, options.DefaultDNSCacheExpireTime, client.GetCacheExpireTime())
 
 	// set cache expire time
 	const expire = 10 * time.Minute

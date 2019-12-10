@@ -26,11 +26,10 @@ var (
 	ErrNoResolveResult = fmt.Errorf("no resolve result")
 )
 
-// from GOROOT/src/net/dnsclient.go
-
-// checks if a string is a presentation-format domain name
+// IsDomainName is used to checks if a string is a presentation-format domain name
 // (currently restricted to hostname-compatible "preferred name" LDH labels and
 // SRV-like "underscore labels"; see golang.org/issue/12421).
+// from GOROOT/src/net/dnsclient.go
 func IsDomainName(s string) bool {
 	// See RFC 1035, RFC 3696.
 	// Presentation format has dots before every label except the first, and the
