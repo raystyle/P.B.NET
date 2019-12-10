@@ -22,9 +22,8 @@ const (
 )
 
 var (
-	ErrNoClient         = fmt.Errorf("no time syncer client")
-	ErrAllClientsFailed = fmt.Errorf("all time syncer clients query failed")
-	ErrInvalidInterval  = fmt.Errorf("interval < 60 second or > 1 hour")
+	ErrNoClient         = fmt.Errorf("no time syncer clients")
+	ErrAllClientsFailed = fmt.Errorf("all time syncer clients failed to query")
 )
 
 // Client include mode and config
@@ -47,14 +46,13 @@ type Syncer struct {
 	dnsClient *dns.Client
 	logger    logger.Logger
 
-	FixedSleep  int // about Start
-	RandomSleep int // about Start
-
-	clients    map[string]*Client // key = tag
-	clientsRWM sync.RWMutex
-	interval   time.Duration // sync interval
-	now        time.Time
-	nowRWM     sync.RWMutex // now
+	clients     map[string]*Client // key = tag
+	clientsRWM  sync.RWMutex
+	fixedSleep  int           // about Start
+	randomSleep int           // about Start
+	interval    time.Duration // sync interval
+	now         time.Time
+	nowRWM      sync.RWMutex // now
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -67,10 +65,10 @@ func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 		proxyPool:   pool,
 		dnsClient:   client,
 		logger:      logger,
-		FixedSleep:  10,
-		RandomSleep: 20,
 		clients:     make(map[string]*Client),
-		interval:    options.DefaultSyncInterval,
+		fixedSleep:  options.DefaultTimeSyncFixed,
+		randomSleep: options.DefaultTimeSyncRandom,
+		interval:    options.DefaultTimeSyncInterval,
 		now:         time.Now(),
 	}
 	syncer.ctx, syncer.cancel = context.WithCancel(context.Background())
@@ -140,13 +138,26 @@ func (syncer *Syncer) GetSyncInterval() time.Duration {
 
 // SetSyncInterval is used to set synchronize time interval
 func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
-	if interval < time.Minute || interval > time.Hour {
-		return ErrInvalidInterval
+	if interval < time.Minute || interval > 15*time.Minute {
+		return errors.New("synchronize interval < 1 minute or > 15 minutes")
 	}
 	syncer.clientsRWM.Lock()
 	defer syncer.clientsRWM.Unlock()
 	syncer.interval = interval
 	return nil
+}
+
+// SetSleep is used to set random sleep time
+// must execute before Start()
+func (syncer *Syncer) SetSleep(fixed, random int) {
+	if fixed < 1 {
+		fixed = options.DefaultTimeSyncFixed
+	}
+	if random < 1 {
+		random = options.DefaultTimeSyncRandom
+	}
+	syncer.fixedSleep = fixed
+	syncer.randomSleep = random
 }
 
 func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {
@@ -160,28 +171,30 @@ func (syncer *Syncer) Start() error {
 	}
 	// first time sync must success
 	for {
-		err := syncer.sync(false)
+		err := syncer.synchronize(false)
 		switch err {
 		case nil:
 			syncer.wg.Add(2)
-			go syncer.addLoop()
-			go syncer.syncLoop()
+			go syncer.walker()
+			go syncer.synchronizeLoop()
 			return nil
 		case ErrAllClientsFailed:
 			syncer.dnsClient.FlushCache()
 			syncer.log(logger.Warning, ErrAllClientsFailed)
-			random.Sleep(syncer.FixedSleep, syncer.FixedSleep)
+			random.Sleep(syncer.fixedSleep, syncer.fixedSleep)
 		default:
 			return err
 		}
 	}
 }
 
-// StartAddLoop is used to start add loop
-// it only for test
-func (syncer *Syncer) StartAddLoop() {
+// StartWalker is used to start walker if role skip synchronize time
+func (syncer *Syncer) StartWalker() {
+	syncer.nowRWM.Lock()
+	defer syncer.nowRWM.Unlock()
+	syncer.now = time.Now()
 	syncer.wg.Add(1)
-	go syncer.addLoop()
+	go syncer.walker()
 }
 
 // Stop is used to stop time syncer
@@ -195,13 +208,26 @@ func (syncer *Syncer) Test() error {
 	if len(syncer.Clients()) == 0 {
 		return ErrNoClient
 	}
-	return syncer.sync(true)
+	return syncer.synchronize(true)
 }
 
-// self walk
-func (syncer *Syncer) addLoop() {
-	const addLoopInterval = 500 * time.Millisecond
-	defer syncer.wg.Done()
+func (syncer *Syncer) walker() {
+	defer func() {
+		if r := recover(); r != nil {
+			syncer.log(logger.Fatal, xpanic.Print(r, "Syncer.walker"))
+			// restart walker
+			time.Sleep(time.Second)
+			go syncer.walker()
+		} else {
+			syncer.wg.Done()
+		}
+	}()
+	// if addLoopInterval < 2 Millisecond, time will be inaccurate
+	// see GOROOT/src/time/tick.go NewTicker()
+	//
+	// "It adjusts the intervals or drops ticks
+	// to make up for slow receivers."
+	const addLoopInterval = 10 * time.Millisecond
 	ticker := time.NewTicker(addLoopInterval)
 	defer ticker.Stop()
 	add := func() {
@@ -219,14 +245,26 @@ func (syncer *Syncer) addLoop() {
 	}
 }
 
-func (syncer *Syncer) syncLoop() {
-	defer syncer.wg.Done()
+func (syncer *Syncer) synchronizeLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			syncer.log(logger.Fatal, xpanic.Print(r, "Syncer.synchronizeLoop"))
+			// restart synchronizeLoop
+			time.Sleep(time.Second)
+			go syncer.synchronizeLoop()
+		} else {
+			syncer.wg.Done()
+		}
+	}()
+	timer := time.NewTimer(syncer.GetSyncInterval())
+	defer timer.Stop()
 	for {
+		timer.Reset(syncer.GetSyncInterval())
 		select {
-		case <-time.After(syncer.GetSyncInterval()):
-			err := syncer.sync(false)
+		case <-timer.C:
+			err := syncer.synchronize(false)
 			if err != nil {
-				syncer.log(logger.Fatal, "failed to sync time:", err)
+				syncer.log(logger.Warning, "failed to synchronize time:", err)
 			}
 		case <-syncer.ctx.Done():
 			return
@@ -235,10 +273,10 @@ func (syncer *Syncer) syncLoop() {
 }
 
 // all is for test all clients
-func (syncer *Syncer) sync(all bool) (err error) {
+func (syncer *Syncer) synchronize(all bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error(r, "Syncer.sync() panic:")
+			err = xpanic.Error(r, "Syncer.synchronize")
 			syncer.log(logger.Fatal, err)
 		}
 	}()
@@ -261,9 +299,9 @@ func (syncer *Syncer) sync(all bool) (err error) {
 		now, optsErr, err = client.Query()
 		if err != nil {
 			if optsErr {
-				return fmt.Errorf("client %s with invalid config: %s", tag, err)
+				return fmt.Errorf("client %s with invalid configuartion: %s", tag, err)
 			}
-			err = fmt.Errorf("client %s failed to sync time: %s", tag, err)
+			err = fmt.Errorf("client %s failed to synchronize time: %s", tag, err)
 			if all {
 				return err
 			}

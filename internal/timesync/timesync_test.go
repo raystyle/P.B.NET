@@ -46,10 +46,10 @@ func TestSyncer(t *testing.T) {
 	testAddClients(t, syncer)
 
 	// check default sync interval
-	require.Equal(t, options.DefaultSyncInterval, syncer.GetSyncInterval())
+	require.Equal(t, options.DefaultTimeSyncInterval, syncer.GetSyncInterval())
 
 	// set sync interval
-	const interval = 30 * time.Minute
+	const interval = 15 * time.Minute
 	require.NoError(t, syncer.SetSyncInterval(interval))
 	require.Equal(t, interval, syncer.GetSyncInterval())
 
@@ -58,7 +58,7 @@ func TestSyncer(t *testing.T) {
 	require.NoError(t, syncer.Start())
 	t.Log("now: ", syncer.Now().Local())
 
-	// wait addLoop
+	// wait walker
 	time.Sleep(3 * time.Second)
 	syncer.Stop()
 
@@ -81,8 +81,8 @@ func TestSyncer_Start(t *testing.T) {
 
 	syncer := New(pool, dnsClient, logger.Test)
 	// set random sleep
-	syncer.FixedSleep = 3
-	syncer.RandomSleep = 5
+	syncer.SetSleep(0, 0)
+	syncer.SetSleep(3, 5)
 
 	// no clients
 	require.Equal(t, ErrNoClient, syncer.Start())
@@ -99,6 +99,7 @@ func TestSyncer_Start(t *testing.T) {
 
 	// test all failed
 	go func() {
+		// delete unreachable
 		time.Sleep(time.Second)
 		require.NoError(t, syncer.Delete("unreachable"))
 
@@ -106,20 +107,19 @@ func TestSyncer_Start(t *testing.T) {
 		testAddHTTP(t, syncer)
 	}()
 
-	// add client but with unreachable server
-	err = syncer.Add("unreachable", testUnreachableClient())
-	require.NoError(t, err)
+	// add unreachable server
+	require.NoError(t, syncer.Add("unreachable", testUnreachableClient()))
 	require.NoError(t, syncer.Start())
 	syncer.Stop()
 
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestSyncer_StartAddLoop(t *testing.T) {
+func TestSyncer_StartWalker(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 	syncer := New(pool, dnsClient, logger.Test)
-	syncer.StartAddLoop()
+	syncer.StartWalker()
 	now := syncer.Now()
 	time.Sleep(2 * time.Second)
 	require.False(t, syncer.Now().Equal(now))
@@ -192,14 +192,14 @@ func TestSyncer_SyncLoop(t *testing.T) {
 
 	syncer := New(pool, dnsClient, logger.Test)
 
-	// force sync
+	// force set synchronize interval
 	syncer.interval = time.Second
 
 	// add reachable
 	testAddHTTP(t, syncer)
 	require.NoError(t, syncer.Start())
 
-	// wait failed to sync
+	// wait failed to synchronize
 	require.NoError(t, syncer.Delete("http"))
 	time.Sleep(3 * time.Second)
 	syncer.Stop()
@@ -212,13 +212,10 @@ func TestSyncer_syncPanic(t *testing.T) {
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	syncer := New(pool, dnsClient, logger.Test)
-
 	// add reachable
 	testAddHTTP(t, syncer)
-
 	// remove context
 	syncer.Clients()["http"].client.(*HTTP).ctx = nil
-
 	require.Error(t, syncer.Start())
 	syncer.Stop()
 
