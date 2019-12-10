@@ -58,8 +58,8 @@ type syncer struct {
 func newSyncer(ctx *Node, config *Config) (*syncer, error) {
 	cfg := config.Syncer
 
-	if cfg.ExpireTime < 30*time.Second || cfg.ExpireTime > 3*time.Minute {
-		return nil, errors.New("expire time < 30 seconds or > 3 minutes")
+	if cfg.ExpireTime < 3*time.Second || cfg.ExpireTime > 30*time.Second {
+		return nil, errors.New("expire time < 3 seconds or > 30 seconds")
 	}
 
 	syncer := syncer{
@@ -297,12 +297,13 @@ func (syncer *syncer) guidCleaner() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	count := 0
+	max := int(syncer.expireTime)
 	for {
 		select {
 		case <-ticker.C:
 			syncer.cleanGUID()
 			count += 1
-			if count > 5 {
+			if count > max {
 				syncer.cleanGUIDMap()
 				count = 0
 			}

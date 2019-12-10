@@ -97,7 +97,7 @@ func (h *handler) OnBroadcast(s *protocol.Broadcast) {
 		case <-h.context.Done():
 			return
 		}
-		h.logf(logger.Debug, "controller broadcast test message: %s", testMsg)
+		// h.logf(logger.Debug, "controller broadcast test message: %s", testMsg)
 	default:
 		h.logf(logger.Exploit, "controller broadcast unknown message: %X", s.Message)
 	}

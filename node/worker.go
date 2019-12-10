@@ -157,7 +157,7 @@ func (sw *subWorker) Work() {
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
 	sw.guid = guid.New(len(sw.sendQueue), sw.ctx.global.Now)
-	sw.ack = new(protocol.Acknowledge)
+	sw.ack = &protocol.Acknowledge{SendGUID: make([]byte, guid.Size)}
 	sw.encoder = msgpack.NewEncoder(sw.buffer)
 	var (
 		b *protocol.Broadcast
@@ -250,7 +250,9 @@ func (sw *subWorker) handleSend(s *protocol.Send) {
 func (sw *subWorker) acknowledge(s *protocol.Send) {
 	sw.ack.GUID = sw.guid.Get()
 	sw.ack.RoleGUID = sw.ctx.global.GUID()
-	sw.ack.SendGUID = s.GUID
+	// must copy because s is from sync pool and
+	// sw.ctx.forwarder.AckToNodeAndCtrl will not block
+	copy(sw.ack.SendGUID, s.GUID)
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.ack.GUID)

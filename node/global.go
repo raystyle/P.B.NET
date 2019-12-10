@@ -68,24 +68,20 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 
 	// DNS client
 	dnsClient := dns.NewClient(proxyPool)
-	err := dnsClient.SetCacheExpireTime(cfg.DNSCacheExpire)
-	if err != nil {
-		return nil, err
-	}
 	for tag, server := range cfg.DNSServers {
 		memory.Padding()
-		err = dnsClient.Add(tag, server)
+		err := dnsClient.Add(tag, server)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	// time syncer
-	timeSyncer := timesync.New(proxyPool, dnsClient, logger)
-	err = timeSyncer.SetSyncInterval(cfg.TimeSyncInterval)
+	err := dnsClient.SetCacheExpireTime(cfg.DNSCacheExpire)
 	if err != nil {
 		return nil, err
 	}
+
+	// time syncer
+	timeSyncer := timesync.New(proxyPool, dnsClient, logger)
 	for tag, client := range cfg.TimeSyncerClients {
 		memory.Padding()
 		err = timeSyncer.Add(tag, client)
@@ -93,6 +89,11 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 			return nil, err
 		}
 	}
+	err = timeSyncer.SetSyncInterval(cfg.TimeSyncInterval)
+	if err != nil {
+		return nil, err
+	}
+	timeSyncer.SetSleep(cfg.TimeSyncFixed, cfg.TimeSyncRandom)
 
 	g := global{
 		certs:      certs,
@@ -130,6 +131,7 @@ func (global *global) secPaddingMemory() {
 	rand := random.New(0)
 	memory := security.NewMemory()
 	security.PaddingMemory()
+	defer security.FlushMemory()
 	padding := func() {
 		for i := 0; i < 32+rand.Int(256); i++ {
 			memory.Padding()
@@ -294,7 +296,7 @@ func (global *global) StartTimeSyncer() error {
 
 // StartTimeSyncerAddLoop is used to start time syncer add loop
 func (global *global) StartTimeSyncerAddLoop() {
-	global.timeSyncer.StartAddLoop()
+	global.timeSyncer.StartWalker()
 }
 
 // Now is used to get current time

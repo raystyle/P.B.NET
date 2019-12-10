@@ -275,6 +275,7 @@ func (ctrl *ctrlConn) handleAnswerGUID(id, data []byte) {
 	}
 }
 
+// TODO put s
 func (ctrl *ctrlConn) handleSend(id, data []byte, role protocol.Role) {
 	s := ctrl.ctx.worker.GetSendFromPool()
 	err := msgpack.Unmarshal(data, s)
