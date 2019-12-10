@@ -32,10 +32,11 @@ import (
 const (
 	// sign message
 	// hide ed25519 private key
-	objPrivateKey uint32 = 0
+	objPrivateKey    uint32 = 0
+	objPrivateKeyBuf uint32 = 64
 
 	// check node certificate
-	objPublicKey uint32 = iota + 64
+	objPublicKey uint32 = iota + 65
 
 	// for key exchange
 	objKeyExPub
@@ -150,6 +151,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, errTSC)
 	}
+	timeSyncer.SetSleep(cfg.TimeSyncFixed, cfg.TimeSyncRandom)
 	g := global{
 		proxyPool:          proxyPool,
 		dnsClient:          dnsClient,
@@ -212,7 +214,7 @@ func (global *global) StartTimeSyncer() error {
 
 // StartTimeSyncerAddLoop is used to start time syncer add loop
 func (global *global) StartTimeSyncerAddLoop() {
-	global.timeSyncer.StartAddLoop()
+	global.timeSyncer.StartWalker()
 }
 
 // Now is used to get current time
@@ -429,7 +431,7 @@ func (global *global) LoadSessionKey(password []byte) error {
 		global.objects[objPrivateKey+uint32(i)] = pri[i]
 		pri[i] = byte(rand.Int64())
 	}
-
+	global.objects[objPrivateKeyBuf] = make([]byte, ed25519.PrivateKeySize)
 	// load certificates
 	PEMHash, err := ioutil.ReadFile("key/pem.hash")
 	if err != nil {
@@ -478,16 +480,34 @@ func (global *global) Encrypt(data []byte) ([]byte, error) {
 	return cbc.(*aes.CBC).Encrypt(data)
 }
 
+// TODO sync pool
+
 // Sign is used to verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
 	pri := make([]byte, ed25519.PrivateKeySize)
 	defer func() {
 		for i := 0; i < ed25519.PrivateKeySize; i++ {
 			pri[i] = 0
 		}
 	}()
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
+	for i := 0; i < ed25519.PrivateKeySize; i++ {
+		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
+	}
+	return ed25519.Sign(pri, message)
+}
+
+// Sign is used to verify controller(handshake) and sign message
+func (global *global) SignO(message []byte) []byte {
+	global.objectsRWM.Lock()
+	defer global.objectsRWM.Unlock()
+	pri := global.objects[objPrivateKeyBuf].([]byte)
+	defer func() {
+		for i := 0; i < ed25519.PrivateKeySize; i++ {
+			pri[i] = 0
+		}
+	}()
 	for i := 0; i < ed25519.PrivateKeySize; i++ {
 		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
 	}

@@ -15,6 +15,8 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
+	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certutil"
 	"project/internal/logger"
 	"project/internal/security"
 	"project/internal/xpanic"
@@ -36,10 +38,35 @@ type web struct {
 
 func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	cfg := config.Web
+
+	// generate certificate
+	certFile, err := ioutil.ReadFile(cfg.CertFile)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	keyFile, err := ioutil.ReadFile(cfg.KeyFile)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	caCert, err := certutil.ParseCertificate(certFile)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	caPri, err := certutil.ParsePrivateKey(keyFile)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	// TODO set options
+	certOpts := cert.Options{
+		DNSNames: []string{"localhost"},
+		// IPAddresses: []string{cfg.Address},
+	}
+	kp, err := cert.Generate(caCert, caPri, &certOpts)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	// listen tls
-	certFile := cfg.CertFile
-	keyFile := cfg.KeyFile
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	tlsCert, err := tls.X509KeyPair(kp.EncodeToPEM())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -81,7 +108,8 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 
 	// HTTPS server
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{tlsCert},
 	}
 	web.server = &http.Server{
 		TLSConfig:         tlsConfig,

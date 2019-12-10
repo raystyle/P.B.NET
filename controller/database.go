@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"sync"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
+
+	"project/internal/guid"
 )
 
 type db struct {
@@ -68,65 +71,77 @@ func (db *db) Close() {
 	db.dbLogger.Close()
 }
 
-// key = base64(guid)
+// key = hex(guid) lower
 type cache struct {
 	nodes      map[string]*mNode
 	nodesRWM   sync.RWMutex
 	beacons    map[string]*mBeacon
 	beaconsRWM sync.RWMutex
+
+	// calculate key
+	hexPool sync.Pool
 }
 
 func newCache() *cache {
-	return &cache{
+	c := cache{
 		nodes:   make(map[string]*mNode),
 		beacons: make(map[string]*mBeacon),
 	}
+	c.hexPool.New = func() interface{} {
+		return make([]byte, 2*guid.Size)
+	}
+	return &c
+}
+
+func (cache *cache) calculateKey(guid []byte) string {
+	dst := cache.hexPool.Get().([]byte)
+	defer cache.hexPool.Put(dst)
+	hex.Encode(dst, guid)
+	return string(dst)
 }
 
 func (cache *cache) SelectNode(guid []byte) *mNode {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := cache.calculateKey(guid)
 	cache.nodesRWM.RLock()
-	node := cache.nodes[key]
-	cache.nodesRWM.RUnlock()
-	return node
+	defer cache.nodesRWM.RUnlock()
+	return cache.nodes[key]
 }
 
 func (cache *cache) InsertNode(node *mNode) {
-	key := base64.StdEncoding.EncodeToString(node.GUID)
+	key := hex.EncodeToString(node.GUID) // not use hexPool
 	cache.nodesRWM.Lock()
+	defer cache.nodesRWM.Unlock()
 	if _, ok := cache.nodes[key]; !ok {
 		cache.nodes[key] = node
 	}
-	cache.nodesRWM.Unlock()
 }
 
 func (cache *cache) DeleteNode(guid string) {
 	cache.nodesRWM.Lock()
+	defer cache.nodesRWM.Unlock()
 	delete(cache.nodes, guid)
-	cache.nodesRWM.Unlock()
 }
 
 func (cache *cache) SelectBeacon(guid []byte) *mBeacon {
-	key := base64.StdEncoding.EncodeToString(guid)
+	key := cache.calculateKey(guid)
 	cache.beaconsRWM.RLock()
-	beacon := cache.beacons[key]
-	cache.beaconsRWM.RUnlock()
-	return beacon
+	defer cache.beaconsRWM.RUnlock()
+	return cache.beacons[key]
 }
 
 func (cache *cache) InsertBeacon(beacon *mBeacon) {
-	key := base64.StdEncoding.EncodeToString(beacon.GUID)
+	key := hex.EncodeToString(beacon.GUID) // not use hexPool
 	cache.beaconsRWM.Lock()
+	defer cache.beaconsRWM.Unlock()
 	if _, ok := cache.beacons[key]; !ok {
 		cache.beacons[key] = beacon
 	}
-	cache.beaconsRWM.Unlock()
 }
 
 func (cache *cache) DeleteBeacon(guid string) {
 	cache.beaconsRWM.Lock()
+	defer cache.beaconsRWM.Unlock()
 	delete(cache.beacons, guid)
-	cache.beaconsRWM.Unlock()
 }
 
 func (db *db) InsertCtrlLog(m *mCtrlLog) error {

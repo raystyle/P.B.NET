@@ -371,7 +371,7 @@ func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
 	}
 }
 
-func (sender *sender) createSlot(r protocol.Role, role, send string) <-chan struct{} {
+func (sender *sender) getRoleAckSlot(r protocol.Role, role, send string) (<-chan struct{}, func()) {
 	var rAck *roleAckSlot
 	switch r {
 	case protocol.Node:
@@ -402,7 +402,11 @@ func (sender *sender) createSlot(r protocol.Role, role, send string) <-chan stru
 	rAck.m.Lock()
 	defer rAck.m.Unlock()
 	rAck.slots[send] = make(chan struct{})
-	return rAck.slots[send]
+	return rAck.slots[send], func() {
+		rAck.m.Lock()
+		defer rAck.m.Unlock()
+		delete(rAck.slots, send)
+	}
 }
 
 func (sender *sender) HandleAcknowledge(r protocol.Role, role, send string) {
@@ -430,14 +434,9 @@ func (sender *sender) HandleAcknowledge(r protocol.Role, role, send string) {
 	rAck.m.Lock()
 	defer rAck.m.Unlock()
 	c := rAck.slots[send]
-	delete(rAck.slots, send)
 	if c != nil {
 		close(c)
-	} else {
-		const format = "doesn't exist send GUID\nRole: %s\nGUID: %s\nSend: %s"
-		role = strings.ToUpper(role)
-		send = strings.ToUpper(send)
-		sender.logf(logger.Exploit, format, r, role, send)
+		delete(rAck.slots, send)
 	}
 }
 
@@ -831,8 +830,8 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	// send
-	hex.Encode(sw.tHex, sw.preSP.GUID)
-	wait := sw.ctx.createSlot(st.Role, sw.roleGUID, string(sw.tHex))
+	hex.Encode(sw.tHex, sw.preSP.GUID) // calculate send guid
+	wait, destroy := sw.ctx.getRoleAckSlot(st.Role, sw.roleGUID, string(sw.tHex))
 	result.Responses, result.Success = sw.ctx.send(st.Role, sw.preS.GUID, sw.buffer.Bytes())
 	if result.Success == 0 {
 		result.Err = ErrSendFailed
@@ -846,6 +845,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	select {
 	case <-wait:
 	case <-sw.timer.C:
+		destroy()
 		result.Err = ErrSendTimeout
 	case <-sw.ctx.context.Done():
 		result.Err = ErrSenderClosed

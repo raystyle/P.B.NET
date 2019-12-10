@@ -29,6 +29,8 @@ type Config struct {
 
 	Global struct {
 		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
+		TimeSyncFixed    int           `toml:"time_sync_fixed"`
+		TimeSyncRandom   int           `toml:"time_sync_random"`
 		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
 	} `toml:"global"`
 

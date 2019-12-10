@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -53,13 +54,13 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Sender.MaxBufferSize = 512 << 10
 	cfg.Sender.Timeout = 15 * time.Second
 
-	cfg.Syncer.ExpireTime = 30 * time.Second
+	cfg.Syncer.ExpireTime = 3 * time.Second
 
 	cfg.Worker.Number = 16
 	cfg.Worker.QueueSize = 1024
 	cfg.Worker.MaxBufferSize = 16384
 
-	cfg.Server.MaxConns = 128
+	cfg.Server.MaxConns = 16 * runtime.NumCPU()
 	cfg.Server.Timeout = 15 * time.Second
 
 	cfg.CTRL.ExPublicKey = ctrl.global.KeyExchangePub()

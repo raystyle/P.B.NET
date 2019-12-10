@@ -3,6 +3,7 @@ package controller
 import (
 	"io/ioutil"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -33,13 +34,13 @@ func testGenerateConfig() *Config {
 
 	c.Client.Timeout = 10 * time.Second
 
-	c.Sender.MaxConns = 3
+	c.Sender.MaxConns = 16 * runtime.NumCPU()
 	c.Sender.Worker = 64
 	c.Sender.Timeout = 15 * time.Second
 	c.Sender.QueueSize = 512
 	c.Sender.MaxBufferSize = 16384
 
-	c.Syncer.ExpireTime = 3 * time.Minute
+	c.Syncer.ExpireTime = 3 * time.Second
 
 	c.Worker.Number = 64
 	c.Worker.QueueSize = 512

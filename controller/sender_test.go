@@ -5,8 +5,9 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"runtime/debug"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 	"project/node"
 )
 
-func testGenerateNodeAndTrust(t testing.TB) *node.Node {
+func testGenerateNodeAndConnect(t testing.TB) *node.Node {
 	testInitCtrl(t)
 	NODE := testGenerateNode(t)
 	listener, err := NODE.GetListener(testListenerTag)
@@ -41,7 +42,7 @@ func testGenerateNodeAndTrust(t testing.TB) *node.Node {
 }
 
 func TestSender_Connect(t *testing.T) {
-	NODE := testGenerateNodeAndTrust(t)
+	NODE := testGenerateNodeAndConnect(t)
 	defer NODE.Exit(nil)
 	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
 	err := ctrl.sender.Disconnect(guid)
@@ -49,25 +50,34 @@ func TestSender_Connect(t *testing.T) {
 }
 
 func TestSender_Broadcast(t *testing.T) {
-	NODE := testGenerateNodeAndTrust(t)
-	defer func() {
-		guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
-		err := ctrl.sender.Disconnect(guid)
-		require.NoError(t, err)
-		NODE.Exit(nil)
-	}()
-	for i := 0; i < 1024; i++ {
-		msg := []byte(fmt.Sprintf("test broadcast %d", i))
-		require.NoError(t, ctrl.sender.Broadcast(messages.CMDBytesTest, msg))
+	NODE := testGenerateNodeAndConnect(t)
+	const (
+		goRoutines = 4
+		times      = 8192
+	)
+	broadcast := func(start int) {
+		for i := start; i < start+times; i++ {
+			msg := []byte(fmt.Sprintf("test broadcast %d", i))
+			err := ctrl.sender.Broadcast(messages.CMDBytesTest, msg)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}
+	for i := 0; i < goRoutines; i++ {
+		go broadcast(i * times)
 	}
 	recv := bytes.Buffer{}
-	for i := 0; i < 1024; i++ {
+	timer := time.NewTimer(5 * time.Second)
+	for i := 0; i < goRoutines*times; i++ {
+		timer.Reset(5 * time.Second)
 		select {
 		case b := <-NODE.Debug.Broadcast:
 			recv.Write(b)
 			recv.WriteString("\n")
-		case <-time.After(time.Second):
-			t.Fatal("read NODE.Debug.Broadcast timeout")
+		case <-timer.C:
+			t.Fatalf("read NODE.Debug.Broadcast timeout i: %d", i)
 		}
 	}
 	select {
@@ -76,55 +86,48 @@ func TestSender_Broadcast(t *testing.T) {
 	case <-time.After(time.Second):
 	}
 	str := recv.String()
-	for i := 0; i < 1024; i++ {
+	for i := 0; i < goRoutines*times; i++ {
 		need := fmt.Sprintf("test broadcast %d", i)
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
+	// clean
+	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+	err := ctrl.sender.Disconnect(guid)
+	require.NoError(t, err)
+	NODE.Exit(nil)
 }
 
 func TestSender_Send(t *testing.T) {
-	NODE := testGenerateNodeAndTrust(t)
-	defer func() {
-		guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
-		err := ctrl.sender.Disconnect(guid)
-		require.NoError(t, err)
-		NODE.Exit(nil)
-	}()
+	NODE := testGenerateNodeAndConnect(t)
 	// send to Node
 	roleGUID := NODE.GUID()
-	var (
-		goRoutines = 2
-		number     = 202400
+	const (
+		goRoutines = 4
+		times      = 8192
 	)
 	send := func(start int) {
-		for i := start; i < start+number; i++ {
+		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
 			err := ctrl.sender.Send(protocol.Node, roleGUID, messages.CMDBytesTest, msg)
-			require.NoError(t, err)
+			if err != nil {
+				t.Error(err)
+				return
+			}
 		}
 	}
 	for i := 0; i < goRoutines; i++ {
-		go send(i * number)
+		go send(i * times)
 	}
-	// recv := bytes.Buffer{} // TODO memory
-
-	go func() {
-		for {
-			debug.FreeOSMemory()
-			time.Sleep(5 * time.Second)
-		}
-	}()
-
+	recv := bytes.Buffer{}
 	timer := time.NewTimer(5 * time.Second)
-	for i := 0; i < goRoutines*number; i++ {
+	for i := 0; i < goRoutines*times; i++ {
 		timer.Reset(5 * time.Second)
 		select {
-		case <-NODE.Debug.Send:
-		// case b := <-NODE.Debug.Send:
-		// recv.Write(b)
-		// recv.WriteString("\n")
+		case b := <-NODE.Debug.Send:
+			recv.Write(b)
+			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read NODE.Debug.Send timeout id: %d", i)
+			t.Fatalf("read NODE.Debug.Send timeout i: %d", i)
 		}
 	}
 	select {
@@ -132,9 +135,101 @@ func TestSender_Send(t *testing.T) {
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
-	// str := recv.String()
-	for i := 0; i < goRoutines*number; i++ {
-		// need := fmt.Sprintf("test send %d", i)
-		// require.True(t, strings.Contains(str, need), "lost: %s", need)
+	str := recv.String()
+	for i := 0; i < goRoutines*times; i++ {
+		need := fmt.Sprintf("test send %d", i)
+		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
+	// clean
+	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+	err := ctrl.sender.Disconnect(guid)
+	require.NoError(t, err)
+	NODE.Exit(nil)
+}
+
+func BenchmarkSender_Broadcast(b *testing.B) {
+	b.SkipNow()
+	number := runtime.NumCPU()
+	NODEs := make([]*node.Node, number)
+	for i := 0; i < number; i++ {
+		NODEs[i] = testGenerateNodeAndConnect(b)
+	}
+	defer func() {
+		for i := 0; i < number; i++ {
+			guid := strings.ToUpper(hex.EncodeToString(NODEs[i].GUID()))
+			err := ctrl.sender.Disconnect(guid)
+			require.NoError(b, err)
+			NODEs[i].Exit(nil)
+		}
+	}()
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	count := 0
+	countM := sync.Mutex{}
+	wg := sync.WaitGroup{}
+	for i := 0; i < number; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			timer := time.NewTimer(5 * time.Second)
+			for {
+				timer.Reset(5 * time.Second)
+				select {
+				case <-NODEs[index].Debug.Broadcast:
+					countM.Lock()
+					count += 1
+					countM.Unlock()
+				case <-timer.C:
+					return
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+	b.StopTimer()
+}
+
+func TestSender_SendBenchmark(t *testing.T) {
+	NODE := testGenerateNodeAndConnect(t)
+	// send to Node
+	roleGUID := NODE.GUID()
+	const (
+		goRoutines = 256
+		times      = 1024
+	)
+	start := time.Now()
+	send := func(start int) {
+		for i := start; i < start+times; i++ {
+			msg := []byte(fmt.Sprintf("test send %d", i))
+			err := ctrl.sender.Send(protocol.Node, roleGUID, messages.CMDBytesTest, msg)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}
+	for i := 0; i < goRoutines; i++ {
+		go send(i * times)
+	}
+	timer := time.NewTimer(5 * time.Second)
+	for i := 0; i < goRoutines*times; i++ {
+		timer.Reset(5 * time.Second)
+		select {
+		case <-NODE.Debug.Send:
+		case <-timer.C:
+			t.Fatalf("read NODE.Debug.Send timeout i: %d", i)
+		}
+	}
+	select {
+	case <-NODE.Debug.Send:
+		t.Fatal("redundancy send")
+	case <-time.After(time.Second):
+	}
+	t.Logf("total time: %.2fs", time.Since(start).Seconds())
+	// clean
+	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+	err := ctrl.sender.Disconnect(guid)
+	require.NoError(t, err)
+	NODE.Exit(nil)
 }
