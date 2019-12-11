@@ -1,9 +1,9 @@
 package random
 
 import (
-	cr "crypto/rand"
-	"io"
+	"crypto/sha256"
 	"math/rand"
+	"runtime"
 	"sync"
 	"time"
 
@@ -15,7 +15,7 @@ var (
 )
 
 func init() {
-	gRand = New(0)
+	gRand = New()
 }
 
 // Rand is used to generate random data
@@ -25,20 +25,36 @@ type Rand struct {
 }
 
 // New is used to create a Rand from seed
-func New(seed int64) *Rand {
-	if seed == 0 {
-		// try crypto/rand.Reader
-		b := make([]byte, 8)
-		_, err := io.ReadFull(cr.Reader, b)
-		if err == nil {
-			seed = convert.BytesToInt64(b)
-		} else {
-			seed = time.Now().UnixNano()
+func New() *Rand {
+	goRoutines := 64 * runtime.NumCPU()
+	times := (4096 / goRoutines) + 8
+	data := make(chan []byte, goRoutines*times)
+	wg := sync.WaitGroup{}
+	wg.Add(goRoutines)
+	for i := 0; i < goRoutines; i++ {
+		go func() {
+			defer func() {
+				recover()
+				wg.Done()
+			}()
+			for i := 0; i < times; i++ {
+				data <- []byte{byte(i)}
+			}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(data)
+	}()
+	hash := sha256.New()
+	for i := 0; i < goRoutines*times; i++ {
+		d := <-data
+		if d != nil {
+			hash.Write(<-data)
 		}
 	}
-	return &Rand{
-		rand: rand.New(rand.NewSource(seed)),
-	}
+	seed := convert.BytesToInt64(hash.Sum(nil)[:8])
+	return &Rand{rand: rand.New(rand.NewSource(seed))}
 }
 
 // String return a string that not include "|"
