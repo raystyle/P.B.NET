@@ -94,7 +94,7 @@ func (g *Generator) generate() {
 		case <-g.stopSignal:
 			return
 		case g.guidQueue <- guid:
-			g.id += 1
+			g.id++
 		}
 	}
 }
