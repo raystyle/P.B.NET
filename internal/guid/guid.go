@@ -1,38 +1,36 @@
 package guid
 
 import (
-	"bytes"
-	"crypto/rand"
-	"net"
+	"crypto/sha256"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
 	"project/internal/convert"
-	"project/internal/crypto/sha256"
 	"project/internal/random"
 )
 
-// head = sha256(ip + hostname + pid + random data)
-// guid = head + 4 bytes(random) + timestamp + add id
-// total 32 + 4 + 8 + 8 = 52 Bytes
+// Size is the generated GUID size
+// GUID = head + 8 bytes(random) + timestamp + add id
+// total size = 28 + 8 + 8 + 8 = 52 Bytes
 const Size int = 52
 
-type GUID struct {
+// Generator is a custom GUID generator
+type Generator struct {
 	now        func() time.Time
 	random     *random.Rand
 	head       []byte
-	id         uint64 // self add
+	id         uint64
 	guidQueue  chan []byte
 	closeOnce  sync.Once
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-// if now is nil use time.Now
-func New(size int, now func() time.Time) *GUID {
-	g := &GUID{
+// New is used to create a GUID generator
+// if now is nil, use time.Now
+func New(size int, now func() time.Time) *Generator {
+	g := &Generator{
 		stopSignal: make(chan struct{}),
 	}
 	if size < 1 {
@@ -45,58 +43,42 @@ func New(size int, now func() time.Time) *GUID {
 	} else {
 		g.now = time.Now
 	}
-	g.random = random.New(g.now().Unix())
+	g.random = random.New()
 	// head
-	ip := "0.0.0.0"
-	addrs, err := net.InterfaceAddrs()
-	if err == nil && addrs != nil {
-		ip = addrs[0].String()
+	hash := sha256.New()
+	for i := 0; i < 1024; i++ {
+		hash.Write(g.random.Bytes(128))
 	}
-	hostname := "unknown"
-	h, err := os.Hostname()
-	if err == nil {
-		hostname = h
-	}
-	buffer := bytes.Buffer{}
-	buffer.WriteString(ip)
-	buffer.WriteString(hostname)
-	buffer.WriteString(strconv.Itoa(os.Getpid()))
-	// <security>
-	randBytes := make([]byte, 64)
-	_, err = rand.Reader.Read(randBytes)
-	if err != nil {
-		time.Sleep(2 * time.Second)
-		randBytes = random.New(g.now().Unix()).Bytes(64)
-	}
-	buffer.Write(randBytes)
-	g.head = sha256.Bytes(buffer.Bytes())
+	os.Getpid()
+	g.head = hash.Sum(nil)[:28]
 	g.wg.Add(1)
-	go g.generateLoop()
+	go g.generate()
 	return g
 }
 
-func (g *GUID) Get() []byte {
+// Get is used to get a GUID, if generator closed, Get will return nil
+func (g *Generator) Get() []byte {
 	guid := <-g.guidQueue
-	// chan not closed
-	if len(guid) != 0 {
+	if len(guid) != 0 { // chan not closed
 		copy(guid[36:44], convert.Int64ToBytes(g.now().Unix()))
 	}
 	return guid
 }
 
-func (g *GUID) Close() {
+// Close is used to close generator
+func (g *Generator) Close() {
 	g.closeOnce.Do(func() {
 		close(g.stopSignal)
 		g.wg.Wait()
 	})
 }
 
-func (g *GUID) generateLoop() {
+func (g *Generator) generate() {
 	defer func() {
 		if r := recover(); r != nil {
-			// restart generateLoop
+			// restart generate
 			time.Sleep(time.Second)
-			go g.generateLoop()
+			go g.generate()
 		} else {
 			close(g.guidQueue)
 			g.wg.Done()
@@ -105,7 +87,7 @@ func (g *GUID) generateLoop() {
 	for {
 		guid := make([]byte, Size)
 		copy(guid, g.head)
-		copy(guid[32:36], g.random.Bytes(4))
+		copy(guid[28:36], g.random.Bytes(8))
 		// reserve timestamp
 		copy(guid[44:52], convert.Uint64ToBytes(g.id))
 		select {

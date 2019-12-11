@@ -7,7 +7,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestGUID(t *testing.T) {
+func TestGenerator(t *testing.T) {
 	g := New(16, nil)
 	for i := 0; i < 4; i++ {
 		t.Log(g.Get())
