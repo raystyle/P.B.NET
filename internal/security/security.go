@@ -29,7 +29,7 @@ type Memory struct {
 // NewMemory is used to new Memory
 func NewMemory() *Memory {
 	m := &Memory{
-		rand:    random.New(0),
+		rand:    random.New(),
 		padding: make(map[string][]byte),
 	}
 	m.Padding()
@@ -63,21 +63,28 @@ func FlushMemory() {
 	memory.Flush()
 }
 
-// FlushBytes is used to cover []byte if []byte has secret
-func FlushBytes(b []byte) {
+// CoverBytes is used to cover []byte if []byte has secret
+func CoverBytes(b []byte) {
 	mem := NewMemory()
 	mem.Padding()
-	rand := random.New(0)
+	rand := random.New()
 	randBytes := rand.Bytes(len(b))
 	copy(b, randBytes)
 	mem.Flush()
 }
 
-// FlushString is used to cover string if string has secret
-func FlushString(s *string) {
+// CoverBytesFast is used to cover []byte fast
+func CoverBytesFast(b []byte) {
+	for i := 0; i < len(b); i++ {
+		b[i] = 0
+	}
+}
+
+// CoverString is used to cover string if string has secret
+func CoverString(s *string) {
 	mem := NewMemory()
 	mem.Padding()
-	rand := random.New(0)
+	rand := random.New()
 	sh := (*reflect.StringHeader)(unsafe.Pointer(s))
 	randBytes := rand.Bytes(sh.Len)
 	for i := 0; i < sh.Len; i++ {
@@ -88,9 +95,10 @@ func FlushString(s *string) {
 	}
 }
 
-// FlushRequest is used to cover string field if has secret
-func FlushRequest(r *http.Request) {
-	FlushString(&r.URL.Host)
-	FlushString(&r.URL.Path)
-	FlushString(&r.URL.RawPath)
+// CoverHTTPRequest is used to cover http.Request string field if has secret
+func CoverHTTPRequest(r *http.Request) {
+	CoverString(&r.Host)
+	CoverString(&r.URL.Host)
+	CoverString(&r.URL.Path)
+	CoverString(&r.URL.RawPath)
 }

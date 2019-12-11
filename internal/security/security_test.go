@@ -1,30 +1,45 @@
 package security
 
 import (
-	"bytes"
+	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestFlushBytes(t *testing.T) {
+func TestCoverBytes(t *testing.T) {
 	b1 := []byte{1, 2, 3, 4}
 	b2 := []byte{1, 2, 3, 4}
-	FlushBytes(b2)
-	if bytes.Equal(b1, b2) {
-		t.Fatal("failed to flush bytes")
-	}
+	CoverBytes(b2)
+	require.NotEqual(t, b1, b2, "failed to cover bytes")
 }
 
-func TestFlushString(t *testing.T) {
+func TestCoverBytesFast(t *testing.T) {
+	b1 := []byte{1, 2, 3, 4}
+	b2 := []byte{1, 2, 3, 4}
+	CoverBytesFast(b2)
+	require.NotEqual(t, b1, b2, "failed to cover bytes")
+}
+
+func TestCoverString(t *testing.T) {
 	// must use strings.Repeat to generate testdata
 	// if you use this
 	// s1 := "aaa"
 	// s2 := "aaa"
-	// FlushString(&s1) will panic, because it change const
+	// CoverString(&s1) will panic, because it change const
 	s1 := strings.Repeat("a", 10)
 	s2 := strings.Repeat("a", 10)
-	FlushString(&s1)
-	if s1 == s2 {
-		t.Fatal("failed to flush string")
-	}
+	CoverString(&s2)
+	require.NotEqual(t, s1, s2, "failed to cover string")
+}
+
+func TestCoverHTTPRequest(t *testing.T) {
+	url := strings.Repeat("http://test.com/", 1)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+	f1 := req.URL.String()
+	CoverHTTPRequest(req)
+	f2 := req.URL.String()
+	require.NotEqual(t, f1, f2, "failed to cover string fields")
 }
