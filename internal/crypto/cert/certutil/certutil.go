@@ -10,6 +10,7 @@ import (
 	"fmt"
 )
 
+// error
 var (
 	ErrInvalidPEMBlock = errors.New("invalid PEM block")
 )

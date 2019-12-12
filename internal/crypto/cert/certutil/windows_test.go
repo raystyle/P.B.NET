@@ -25,7 +25,7 @@ func TestLoadSystemCertWithName(t *testing.T) {
 			t.Log(err)
 			continue
 		}
-		count += 1
+		count++
 
 		// print CA info
 		const format = "V%d %s\n"

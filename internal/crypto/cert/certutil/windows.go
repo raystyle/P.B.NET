@@ -12,7 +12,7 @@ import (
 
 var (
 	systemCert      []*x509.Certificate
-	systemCertErr   = errors.New("no system certificates")
+	errSystemCert   = errors.New("no system certificates")
 	systemCertMutex sync.Mutex
 )
 
@@ -23,7 +23,7 @@ func SystemCertPool() (*x509.CertPool, error) {
 	var certs []*x509.Certificate
 	systemCertMutex.Lock()
 	defer systemCertMutex.Unlock()
-	if systemCertErr == nil {
+	if errSystemCert == nil {
 		certs = make([]*x509.Certificate, len(systemCert))
 		copy(certs, systemCert)
 	} else {
@@ -32,7 +32,7 @@ func SystemCertPool() (*x509.CertPool, error) {
 			return nil, err
 		}
 		systemCert = c
-		systemCertErr = nil
+		errSystemCert = nil
 		certs = make([]*x509.Certificate, len(systemCert))
 		copy(certs, systemCert)
 	}
@@ -64,12 +64,14 @@ func loadSystemCert() ([]*x509.Certificate, error) {
 	return pool, nil
 }
 
-func LoadSystemCertWithName(n string) ([][]byte, error) {
-	name, err := syscall.UTF16PtrFromString(n)
+// LoadSystemCertWithName is used to load system certificate pool
+// usually name is "ROOT" and "CA"
+func LoadSystemCertWithName(name string) ([][]byte, error) {
+	n, err := syscall.UTF16PtrFromString(name)
 	if err != nil {
 		return nil, err
 	}
-	store, err := syscall.CertOpenSystemStore(0, name)
+	store, err := syscall.CertOpenSystemStore(0, n)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +92,7 @@ func LoadSystemCertWithName(n string) ([][]byte, error) {
 		if cert == nil {
 			break
 		}
-		// Copy the buf, since ParseCertificate does not create its own copy.
+		// copy the buf, since ParseCertificate does not create its own copy.
 		buf := (*[1 << 20]byte)(unsafe.Pointer(cert.EncodedCert))[:]
 		buf2 := make([]byte, cert.Length)
 		copy(buf2, buf)
