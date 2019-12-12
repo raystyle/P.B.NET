@@ -50,7 +50,7 @@ type KeyPair struct {
 	asn1Data    []byte // Certificate
 }
 
-// EncodeToPEM is used to encode certificate and private key to ASN1 and PKCS8
+// Encode is used to encode certificate and private key to ASN1 and PKCS8
 func (kp *KeyPair) Encode() (cert, key []byte) {
 	cert = make([]byte, len(kp.asn1Data))
 	copy(cert, kp.asn1Data)
@@ -74,7 +74,7 @@ func (kp *KeyPair) EncodeToPEM() (cert, key []byte) {
 	return
 }
 
-// EncodeToPEM is used to generate tls certificate
+// TLSCertificate is used to generate tls certificate
 func (kp *KeyPair) TLSCertificate() (tls.Certificate, error) {
 	return tls.X509KeyPair(kp.EncodeToPEM())
 }
