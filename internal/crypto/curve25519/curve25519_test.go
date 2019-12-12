@@ -10,7 +10,6 @@ import (
 func TestScalarBaseMult(t *testing.T) {
 	x := make([]byte, 32)
 	x[0] = 1
-
 	for i := 0; i < 200; i++ {
 		var err error
 		x, err = ScalarBaseMult(x)
@@ -18,7 +17,6 @@ func TestScalarBaseMult(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
 	result := hex.EncodeToString(x)
 	const expectedHex = "89161fde887b2b53de549af483940106ecc114d6982daa98256de23bdf77661a"
 	require.Equal(t, expectedHex, result)
@@ -39,8 +37,7 @@ func TestKeyExchange(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, cKey, sKey)
 	t.Log(cKey)
-
-	// invalid in size
+	// invalid in data size
 	cPub, err = ScalarBaseMult(nil)
 	require.Error(t, err)
 	require.Nil(t, cPub)
