@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,7 @@ import (
 )
 
 func TestGenerateCA(t *testing.T) {
+	t.Parallel()
 	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
 	_, err = tls.X509KeyPair(ca.EncodeToPEM())
@@ -21,13 +23,25 @@ func TestGenerateCA(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	opts := new(Options)
+	t.Parallel()
 	for _, alg := range []string{"rsa", "ecdsa", "ed25519"} {
-		opts.Algorithm = alg
-		ca, err := GenerateCA(opts)
-		require.NoError(t, err)
-		testGenerate(t, ca)  // CA sign
-		testGenerate(t, nil) // self sign
+		t.Run(alg, func(t *testing.T) {
+			opts := Options{Algorithm: alg}
+			t.Parallel() // must here
+			ca, err := GenerateCA(&opts)
+			require.NoError(t, err)
+			wg := sync.WaitGroup{}
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				testGenerate(t, ca) // CA sign
+			}()
+			go func() {
+				defer wg.Done()
+				testGenerate(t, nil) // self sign
+			}()
+			wg.Wait()
+		})
 	}
 }
 
@@ -48,7 +62,6 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		kp, err = Generate(nil, nil, opts)
 		require.NoError(t, err)
 	}
-
 	// handler
 	respData := []byte("hello")
 	serveMux := http.NewServeMux()
@@ -66,13 +79,11 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	}
 	port1 := testsuite.RunHTTPServer(t, "tcp", &server1)
 	defer func() { _ = server1.Close() }()
-	// server2
-	var (
-		server2 http.Server
-		port2   string
-	)
+
+	// only IPv4
+	var port2 string
 	if testsuite.EnableIPv4() {
-		server2 = http.Server{
+		server2 := http.Server{
 			Addr:      "127.0.0.1:0",
 			Handler:   serveMux,
 			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
@@ -80,13 +91,11 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		port2 = testsuite.RunHTTPServer(t, "tcp", &server2)
 		defer func() { _ = server2.Close() }()
 	}
-	// server3
-	var (
-		server3 http.Server
-		port3   string
-	)
+
+	// only IPv6
+	var port3 string
 	if testsuite.EnableIPv6() {
-		server3 = http.Server{
+		server3 := http.Server{
 			Addr:      "[::1]:0",
 			Handler:   serveMux,
 			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
@@ -123,6 +132,7 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 }
 
 func TestUnknownAlgorithm(t *testing.T) {
+	t.Parallel()
 	pri, pub, err := genKey("foo alg")
 	require.EqualError(t, err, "unknown algorithm: foo alg")
 	require.Nil(t, pri)
@@ -146,6 +156,7 @@ func TestUnknownAlgorithm(t *testing.T) {
 }
 
 func TestPrint(t *testing.T) {
+	t.Parallel()
 	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
 	org := []string{"org a", "org b"}
