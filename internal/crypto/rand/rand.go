@@ -3,11 +3,12 @@ package rand
 import (
 	"crypto/rand"
 	"io"
-	"time"
 
 	"project/internal/random"
 )
 
+// Reader is a global, shared instance of a cryptographically
+// secure random number generator
 var Reader io.Reader
 
 func init() {
@@ -24,7 +25,7 @@ func (r reader) Read(b []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	g := random.New(time.Now().Unix())
+	g := random.New()
 	for i := 0; i < l; i++ {
 		b[i] = buffer[g.Int(size)]
 	}
