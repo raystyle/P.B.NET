@@ -6,27 +6,35 @@ import (
 	"errors"
 )
 
+// valid AES key size
 const (
 	Key128Bit = 16
 	Key192Bit = 24
 	Key256Bit = 32
+)
+
+// AES information
+const (
 	IVSize    = 16
 	BlockSize = 16
 )
 
+// errors
 var (
-	ErrInvalidIVSize     = errors.New("invalid iv size")
-	ErrInvalidCipherData = errors.New("invalid cipher data")
-	ErrEmptyData         = errors.New("empty data")
-	ErrUnPadding         = errors.New("un padding error")
+	ErrInvalidIVSize      = errors.New("invalid iv size")
+	ErrInvalidCipherData  = errors.New("invalid cipher data")
+	ErrEmptyData          = errors.New("empty data")
+	ErrInvalidPaddingSize = errors.New("invalid padding size")
 )
 
+// CBC is a AES CBC PKCS#5 encrypter
 type CBC struct {
 	key   []byte
 	iv    []byte
 	block cipher.Block
 }
 
+// NewCBC is used create a AES CBC PKCS#5 encrypter
 func NewCBC(key, iv []byte) (*CBC, error) {
 	if len(iv) != IVSize {
 		return nil, ErrInvalidIVSize
@@ -45,6 +53,7 @@ func NewCBC(key, iv []byte) (*CBC, error) {
 	return cbc, nil
 }
 
+// Encrypt is used to encrypt plain data
 func (c *CBC) Encrypt(plainData []byte) ([]byte, error) {
 	plainDataSize := len(plainData)
 	if plainDataSize == 0 {
@@ -64,6 +73,7 @@ func (c *CBC) Encrypt(plainData []byte) ([]byte, error) {
 	return cipherData, nil
 }
 
+// Decrypt is used to decrypt cipher data
 func (c *CBC) Decrypt(cipherData []byte) ([]byte, error) {
 	cipherDataSize := len(cipherData)
 	if cipherDataSize == 0 {
@@ -81,11 +91,12 @@ func (c *CBC) Decrypt(cipherData []byte) ([]byte, error) {
 	plainDataSize := len(plainData)
 	paddingSize := int(plainData[plainDataSize-1])
 	if plainDataSize-paddingSize < 0 {
-		return nil, ErrUnPadding
+		return nil, ErrInvalidPaddingSize
 	}
 	return plainData[:plainDataSize-paddingSize], nil
 }
 
+// KeyIV is used to get AES Key and IV
 func (c *CBC) KeyIV() ([]byte, []byte) {
 	key := make([]byte, len(c.key))
 	iv := make([]byte, IVSize)
@@ -94,6 +105,7 @@ func (c *CBC) KeyIV() ([]byte, []byte) {
 	return key, iv
 }
 
+// CBCEncrypt is used to encrypt plain data
 func CBCEncrypt(plainData, key, iv []byte) ([]byte, error) {
 	plainDataSize := len(plainData)
 	if plainDataSize == 0 {
@@ -120,6 +132,7 @@ func CBCEncrypt(plainData, key, iv []byte) ([]byte, error) {
 	return cipherData, nil
 }
 
+// CBCDecrypt is used to decrypt cipher data
 func CBCDecrypt(cipherData, key, iv []byte) ([]byte, error) {
 	cipherDataSize := len(cipherData)
 	if cipherDataSize == 0 {
@@ -144,7 +157,7 @@ func CBCDecrypt(cipherData, key, iv []byte) ([]byte, error) {
 	plainDataSize := len(plainData)
 	paddingSize := int(plainData[plainDataSize-1])
 	if plainDataSize-paddingSize < 0 {
-		return nil, ErrUnPadding
+		return nil, ErrInvalidPaddingSize
 	}
 	return plainData[:plainDataSize-paddingSize], nil
 }

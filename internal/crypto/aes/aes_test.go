@@ -47,9 +47,9 @@ func TestAES(t *testing.T) {
 	require.Equal(t, ErrInvalidCipherData, err)
 	_, err = CBCDecrypt(bytes.Repeat([]byte{0}, 63), key128, iv)
 	require.Equal(t, ErrInvalidCipherData, err)
-	// invalid data ErrUnPadding
+	// invalid data ErrInvalidPaddingSize
 	_, err = CBCDecrypt(bytes.Repeat([]byte{0}, 64), key128, iv)
-	require.Equal(t, ErrUnPadding, err)
+	require.Equal(t, ErrInvalidPaddingSize, err)
 }
 
 func TestCBC(t *testing.T) {
@@ -105,7 +105,7 @@ func TestCBC(t *testing.T) {
 	_, err = cbc.Decrypt(bytes.Repeat([]byte{0}, 63))
 	require.Equal(t, ErrInvalidCipherData, err)
 	_, err = cbc.Decrypt(bytes.Repeat([]byte{0}, 64))
-	require.Equal(t, ErrUnPadding, err)
+	require.Equal(t, ErrInvalidPaddingSize, err)
 	// key iv
 	k, v := cbc.KeyIV()
 	require.Equal(t, key128, k)
