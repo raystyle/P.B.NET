@@ -11,8 +11,10 @@ import (
 	"time"
 )
 
+// Level is the log level
 type Level = uint8
 
+// valid level
 const (
 	Debug Level = iota
 	Info
@@ -23,8 +25,10 @@ const (
 	Off
 )
 
+// TimeLayout is used to provide a parameter to time.Time.Format()
 const TimeLayout = "2006-01-02 15:04:05"
 
+// Logger is a generic logger
 type Logger interface {
 	Printf(l Level, src, format string, log ...interface{})
 	Print(l Level, src string, log ...interface{})
