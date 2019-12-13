@@ -65,8 +65,8 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 			if err != nil {
 				return nil, t.failed(err)
 			}
-			security.FlushBytes(c)
-			security.FlushBytes(k)
+			security.CoverBytes(c)
+			security.CoverBytes(k)
 			config.Certificates[i] = tlsCert
 		}
 	}
