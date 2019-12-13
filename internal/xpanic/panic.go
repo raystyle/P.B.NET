@@ -8,8 +8,7 @@ import (
 	"runtime"
 )
 
-const depth = 32
-
+// Print is used to print panic to a buf
 func Print(panic interface{}, title string) *bytes.Buffer {
 	b := &bytes.Buffer{}
 	b.WriteString(title)
@@ -19,15 +18,15 @@ func Print(panic interface{}, title string) *bytes.Buffer {
 	return b
 }
 
+// Error is used to print panic to a buf and return a error
 func Error(panic interface{}, title string) error {
 	return errors.New(Print(panic, title).String())
 }
 
 // from github.com/pkg/errors
-
 func printStack(b *bytes.Buffer) {
 	b.WriteString("\n")
-	var pcs [depth]uintptr
+	var pcs [32]uintptr // depth
 	n := runtime.Callers(3, pcs[:])
 	for _, pc := range pcs[2:n] {
 		f := frame(pc)
