@@ -16,8 +16,10 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+)
 
-	"project/internal/options"
+const (
+	defaultDialTimeout = 30 * time.Second
 )
 
 // Client implement internal/proxy.client
@@ -37,6 +39,7 @@ type Client struct {
 	info       string
 }
 
+// NewClient is used to create HTTP proxy client
 func NewClient(network, address string, opts *Options) (*Client, error) {
 	// check network
 	switch network {
@@ -84,7 +87,7 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	}
 
 	if client.timeout < 1 {
-		client.timeout = options.DefaultDialTimeout
+		client.timeout = defaultDialTimeout
 	}
 
 	// set proxy function for Client.HTTP()
@@ -114,6 +117,7 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	return &client, nil
 }
 
+// Dial is used to connect to address through proxy
 func (c *Client) Dial(network, address string) (net.Conn, error) {
 	// check network
 	switch network {
@@ -136,6 +140,7 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 	return pConn, nil
 }
 
+// DialContext is used to connect to address through proxy with context
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	// check network
 	switch network {
@@ -158,6 +163,7 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 	return pConn, nil
 }
 
+// DialTimeout is used to connect to address through proxy with timeout
 func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	// check network
 	switch network {
@@ -166,7 +172,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 		return nil, errors.Errorf("unsupported network: %s", network)
 	}
 	if timeout < 1 {
-		timeout = options.DefaultDialTimeout
+		timeout = defaultDialTimeout
 	}
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(c.network, c.address)
 	if err != nil {
@@ -183,6 +189,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	return pConn, nil
 }
 
+// Connect is used to connect to address through proxy with context
 func (c *Client) Connect(
 	ctx context.Context,
 	conn net.Conn,
@@ -269,6 +276,7 @@ func (c *Client) Connect(
 	return nil, errors.Errorf(format, c.scheme, c.address, address)
 }
 
+// HTTP is used to set http.Transport about proxy
 func (c *Client) HTTP(t *http.Transport) {
 	t.Proxy = c.proxy
 	// add root CA about https proxy
@@ -284,10 +292,12 @@ func (c *Client) HTTP(t *http.Transport) {
 	}
 }
 
+// Timeout is used to get client timeout
 func (c *Client) Timeout() time.Duration {
 	return c.timeout
 }
 
+// Server is used to get proxy server address
 func (c *Client) Server() (string, string) {
 	return c.network, c.address
 }

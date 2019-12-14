@@ -21,6 +21,12 @@ import (
 	"project/internal/xpanic"
 )
 
+const (
+	defaultConnectTimeout = 30 * time.Second
+	defaultMaxConnection  = 1000
+)
+
+// Options include client and server options
 type Options struct {
 	HTTPS    bool          `toml:"https"`
 	Username string        `toml:"username"`
@@ -65,6 +71,7 @@ type Server struct {
 	wg        sync.WaitGroup
 }
 
+// NewServer is used to create HTTP proxy server
 func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
@@ -86,7 +93,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	}
 	timeout := opts.Timeout
 	if timeout < 1 {
-		timeout = options.DefaultDialTimeout
+		timeout = defaultConnectTimeout
 	}
 	s.server.ReadTimeout = timeout
 	s.server.WriteTimeout = timeout
@@ -111,7 +118,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	}
 
 	if s.maxConns < 1 {
-		s.maxConns = options.DefaultMaxConns
+		s.maxConns = defaultMaxConnection
 	}
 
 	if s.dialContext == nil {
@@ -128,6 +135,8 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return &s, nil
 }
 
+// ListenAndServe is used to listen a listener and serve
+// it will not block
 func (s *Server) ListenAndServe(network, address string) error {
 	// check network
 	switch network {
@@ -144,6 +153,8 @@ func (s *Server) ListenAndServe(network, address string) error {
 	return nil
 }
 
+// Serve accepts incoming connections on the listener
+// it will not block
 func (s *Server) Serve(l net.Listener) {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
@@ -153,7 +164,7 @@ func (s *Server) Serve(l net.Listener) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
+				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve"))
 			}
 			s.cancel()
 			s.transport.CloseIdleConnections()
@@ -173,6 +184,7 @@ func (s *Server) Serve(l net.Listener) {
 	}()
 }
 
+// Close is used to close HTTP proxy server
 func (s *Server) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
@@ -183,6 +195,7 @@ func (s *Server) Close() error {
 	return err
 }
 
+// Address is used to get HTTP proxy address
 func (s *Server) Address() string {
 	s.rwm.RLock()
 	defer s.rwm.RUnlock()
@@ -238,6 +251,7 @@ var (
 	connectionEstablishedLen = len(connectionEstablished)
 )
 
+// ServeHTTP implement http.Handler
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	const title = "Server.ServeHTTP()"
 	s.wg.Add(1)

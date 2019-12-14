@@ -10,6 +10,8 @@ import (
 )
 
 func TestHTTPProxyClient(t *testing.T) {
+	t.Parallel()
+
 	server := testGenerateHTTPServer(t)
 	opts := Options{
 		Username: "admin",
@@ -21,6 +23,8 @@ func TestHTTPProxyClient(t *testing.T) {
 }
 
 func TestHTTPSProxyClient(t *testing.T) {
+	t.Parallel()
+
 	server, tlsConfig := testGenerateHTTPSServer(t)
 	opts := Options{
 		HTTPS:     true,
@@ -33,6 +37,8 @@ func TestHTTPSProxyClient(t *testing.T) {
 }
 
 func TestHTTPProxyClientWithoutPassword(t *testing.T) {
+	t.Parallel()
+
 	server, err := NewServer("test", logger.Test, nil)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
@@ -42,6 +48,8 @@ func TestHTTPProxyClientWithoutPassword(t *testing.T) {
 }
 
 func TestHTTPProxyClientFailure(t *testing.T) {
+	t.Parallel()
+
 	// unknown network
 	_, err := NewClient("foo", "localhost:0", nil)
 	require.Error(t, err)
@@ -63,6 +71,8 @@ func TestHTTPProxyClientFailure(t *testing.T) {
 }
 
 func TestHTTPSProxyClientFailure(t *testing.T) {
+	t.Parallel()
+
 	// connect unreachable proxy server
 	opts := Options{
 		HTTPS: true,

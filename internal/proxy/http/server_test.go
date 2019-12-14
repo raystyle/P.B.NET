@@ -39,6 +39,8 @@ func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
 }
 
 func TestHTTPProxyServer(t *testing.T) {
+	t.Parallel()
+
 	server := testGenerateHTTPServer(t)
 	t.Log("http proxy address:", server.Address())
 	t.Log("http proxy info:", server.Info())
@@ -52,6 +54,8 @@ func TestHTTPProxyServer(t *testing.T) {
 }
 
 func TestHTTPSProxyServer(t *testing.T) {
+	t.Parallel()
+
 	server, tlsConfig := testGenerateHTTPSServer(t)
 	t.Log("https proxy address:", server.Address())
 	t.Log("https proxy info:", server.Info())
@@ -67,6 +71,8 @@ func TestHTTPSProxyServer(t *testing.T) {
 }
 
 func TestAuthenticate(t *testing.T) {
+	t.Parallel()
+
 	server := testGenerateHTTPServer(t)
 	defer func() {
 		require.NoError(t, server.Close())
@@ -104,6 +110,8 @@ func TestAuthenticate(t *testing.T) {
 }
 
 func TestHTTPServerWithUnknownNetwork(t *testing.T) {
+	t.Parallel()
+
 	server, err := NewServer("test", logger.Test, nil)
 	require.NoError(t, err)
 	require.Error(t, server.ListenAndServe("foo", "localhost:0"))
