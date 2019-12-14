@@ -34,6 +34,8 @@ func testGenerateSocks4aServer(t *testing.T) *Server {
 }
 
 func TestSocks5Server(t *testing.T) {
+	t.Parallel()
+
 	server := testGenerateSocks5Server(t)
 	t.Log("socks5 address:", server.Address())
 	t.Log("socks5 info:", server.Info())
@@ -47,6 +49,8 @@ func TestSocks5Server(t *testing.T) {
 }
 
 func TestSocks4aServer(t *testing.T) {
+	t.Parallel()
+
 	opts := Options{Socks4: true}
 	server, err := NewServer("test", logger.Test, &opts)
 	require.NoError(t, err)
@@ -65,6 +69,8 @@ func TestSocks4aServer(t *testing.T) {
 }
 
 func TestSocks5Authenticate(t *testing.T) {
+	t.Parallel()
+
 	server := testGenerateSocks5Server(t)
 	defer func() {
 		require.NoError(t, server.Close())
@@ -81,6 +87,8 @@ func TestSocks5Authenticate(t *testing.T) {
 }
 
 func TestSocks4aUserID(t *testing.T) {
+	t.Parallel()
+
 	server := testGenerateSocks4aServer(t)
 	defer func() {
 		require.NoError(t, server.Close())
@@ -97,6 +105,8 @@ func TestSocks4aUserID(t *testing.T) {
 }
 
 func TestSocks5ServerWithUnknownNetwork(t *testing.T) {
+	t.Parallel()
+
 	server, err := NewServer("test", logger.Test, nil)
 	require.NoError(t, err)
 	require.Error(t, server.ListenAndServe("foo", "localhost:0"))

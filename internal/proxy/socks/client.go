@@ -14,9 +14,7 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
-const (
-	defaultDialTimeout = 30 * time.Second
-)
+const defaultDialTimeout = 30 * time.Second
 
 // Client implement internal/proxy.client
 type Client struct {
