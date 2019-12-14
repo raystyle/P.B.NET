@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
-	"project/internal/options"
 )
+
+const defaultDialTimeout = 30 * time.Second
 
 // Chain implement client
 type Chain struct {
@@ -22,6 +22,7 @@ type Chain struct {
 	first *Client
 }
 
+// NewChain is used to create a proxy chain
 func NewChain(tag string, clients ...*Client) (*Chain, error) {
 	if tag == "" {
 		return nil, errors.New("empty proxy chain tag")
@@ -40,6 +41,7 @@ func NewChain(tag string, clients ...*Client) (*Chain, error) {
 	}, nil
 }
 
+// Dial is used to connect to address through proxy chain
 func (c *Chain) Dial(network, address string) (net.Conn, error) {
 	fTimeout := c.first.Timeout()
 	fNetwork, fAddress := c.first.Server()
@@ -57,6 +59,7 @@ func (c *Chain) Dial(network, address string) (net.Conn, error) {
 	return pConn, nil
 }
 
+// DialContext is used to connect to address through proxy chain with context
 func (c *Chain) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	fTimeout := c.first.Timeout()
 	fNetwork, fAddress := c.first.Server()
@@ -74,9 +77,10 @@ func (c *Chain) DialContext(ctx context.Context, network, address string) (net.C
 	return pConn, nil
 }
 
+// DialTimeout is used to connect to address through proxy chain with timeout
 func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	if timeout < 1 {
-		timeout = options.DefaultDialTimeout
+		timeout = defaultDialTimeout
 	}
 	fNetwork, fAddress := c.first.Server()
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(fNetwork, fAddress)
@@ -93,6 +97,7 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 	return pConn, nil
 }
 
+// Connect is used to connect to address through proxy chain with context
 func (c *Chain) Connect(
 	ctx context.Context,
 	conn net.Conn,
@@ -128,10 +133,12 @@ func (c *Chain) connect(
 	return c.clients[next-1].Connect(ctx, conn, network, address)
 }
 
+// HTTP is used to set *http.Transport about proxy
 func (c *Chain) HTTP(t *http.Transport) {
 	t.DialContext = c.DialContext
 }
 
+// Timeout is used to get the proxy chain timeout
 func (c *Chain) Timeout() time.Duration {
 	var timeout time.Duration
 	for i := 0; i < c.length; i++ {
@@ -140,6 +147,7 @@ func (c *Chain) Timeout() time.Duration {
 	return timeout
 }
 
+// Server is used to get the first proxy client related proxy server address
 func (c *Chain) Server() (string, string) {
 	return c.first.Server()
 }

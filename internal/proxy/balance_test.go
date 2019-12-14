@@ -38,6 +38,8 @@ func TestCompareClients(t *testing.T) {
 }
 
 func TestBalance(t *testing.T) {
+	t.Parallel()
+
 	groups := testGenerateProxyGroup(t)
 	balance, err := NewBalance("balance", groups.Clients()...)
 	require.NoError(t, err)
@@ -46,7 +48,7 @@ func TestBalance(t *testing.T) {
 	for i := 0; i < 4000; i++ {
 		pcs := make([]*Client, 4)
 		for j := 0; j < 4; j++ {
-			pcs[j] = balance.getAndSetNext()
+			pcs[j] = balance.getAndSelect()
 		}
 		testCompareClients(t, pcs)
 	}
@@ -88,6 +90,8 @@ func TestBalance(t *testing.T) {
 }
 
 func TestBalanceFailure(t *testing.T) {
+	t.Parallel()
+
 	// no tag
 	_, err := NewBalance("")
 	require.Errorf(t, err, "empty balance tag")

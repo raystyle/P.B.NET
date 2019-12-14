@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// support mode
 const (
 	ModeDirect  = "direct"
 	ModeSocks   = "socks"
@@ -35,6 +36,7 @@ type server interface {
 	Info() string
 }
 
+// Client is proxy client
 type Client struct {
 	Tag     string `toml:"tag"`
 	Mode    string `toml:"mode"`
@@ -44,6 +46,7 @@ type Client struct {
 	client
 }
 
+// Server is proxy server
 type Server struct {
 	Tag     string `toml:"tag"`
 	Mode    string `toml:"mode"`
@@ -58,6 +61,8 @@ type Server struct {
 	closeOnce sync.Once
 }
 
+// ListenAndServe is used to listen a listener and serve
+// it will not block
 func (s *Server) ListenAndServe(network, address string) (err error) {
 	s.serveOnce.Do(func() {
 		err = s.server.ListenAndServe(network, address)
@@ -68,6 +73,8 @@ func (s *Server) ListenAndServe(network, address string) (err error) {
 	return
 }
 
+// Serve accepts incoming connections on the listener
+// it will not block
 func (s *Server) Serve(l net.Listener) {
 	s.serveOnce.Do(func() {
 		s.server.Serve(l)
@@ -77,10 +84,12 @@ func (s *Server) Serve(l net.Listener) {
 	})
 }
 
+// CreateAt is used get proxy server create time
 func (s *Server) CreateAt() time.Time {
 	return s.createAt
 }
 
+// ServeAt is used get proxy server serve time
 func (s *Server) ServeAt() time.Time {
 	s.rwm.RLock()
 	t := s.serveAt
@@ -88,6 +97,7 @@ func (s *Server) ServeAt() time.Time {
 	return t
 }
 
+// Close is used to close proxy server
 func (s *Server) Close() (err error) {
 	s.closeOnce.Do(func() { err = s.server.Close() })
 	return

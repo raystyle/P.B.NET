@@ -27,7 +27,7 @@ func (g groups) Clients() []*Client {
 			} else {
 				break
 			}
-			i += 1
+			i++
 		}
 	}
 	return clients

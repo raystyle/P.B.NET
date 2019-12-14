@@ -11,6 +11,8 @@ import (
 )
 
 func TestProxyChainSelect(t *testing.T) {
+	t.Parallel()
+
 	groups := testGenerateProxyGroup(t)
 	// use select
 	clients := make([]*Client, 4)
@@ -24,6 +26,8 @@ func TestProxyChainSelect(t *testing.T) {
 }
 
 func TestProxyChainRandom(t *testing.T) {
+	t.Parallel()
+
 	groups := testGenerateProxyGroup(t)
 	chain, err := NewChain("chain-random", groups.Clients()...)
 	require.NoError(t, err)
@@ -31,6 +35,8 @@ func TestProxyChainRandom(t *testing.T) {
 }
 
 func TestProxyChainWithSingleClient(t *testing.T) {
+	t.Parallel()
+
 	groups := testGenerateProxyGroup(t)
 	var client *Client
 	for ri := 0; ri < 3+random.Int(10); ri++ {
@@ -44,6 +50,8 @@ func TestProxyChainWithSingleClient(t *testing.T) {
 }
 
 func TestProxyChainFailure(t *testing.T) {
+	t.Parallel()
+
 	// no tag
 	_, err := NewChain("")
 	require.Errorf(t, err, "empty proxy chain tag")

@@ -65,9 +65,8 @@ func (p *Pool) add(client *Client) error {
 	if _, ok := p.clients[client.Tag]; !ok {
 		p.clients[client.Tag] = client
 		return nil
-	} else {
-		return errors.Errorf("proxy client %s already exists", client.Tag)
 	}
+	return errors.Errorf("proxy client %s already exists", client.Tag)
 }
 
 func (p *Pool) addSocks(client *Client) error {
@@ -163,9 +162,8 @@ func (p *Pool) Delete(tag string) error {
 	if _, ok := p.clients[tag]; ok {
 		delete(p.clients, tag)
 		return nil
-	} else {
-		return errors.Errorf("proxy client %s doesn't exist", tag)
 	}
+	return errors.Errorf("proxy client %s doesn't exist", tag)
 }
 
 // Get is used to get proxy client
@@ -175,9 +173,8 @@ func (p *Pool) Get(tag string) (*Client, error) {
 	defer p.rwm.RUnlock()
 	if client, ok := p.clients[tag]; ok {
 		return client, nil
-	} else {
-		return nil, errors.Errorf("proxy client %s doesn't exist", tag)
 	}
+	return nil, errors.Errorf("proxy client %s doesn't exist", tag)
 }
 
 // Clients is used to get all proxy clients

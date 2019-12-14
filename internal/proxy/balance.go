@@ -26,6 +26,7 @@ type Balance struct {
 	mutex sync.Mutex
 }
 
+// NewBalance is used to create a proxy client that with load balance
 func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 	if tag == "" {
 		return nil, errors.New("empty balance tag")
@@ -47,11 +48,11 @@ func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 		length:  l,
 		flags:   flags,
 	}
-	b.setNext()
+	b.selectNextProxyClient()
 	return &b, nil
 }
 
-func (b *Balance) setNext() {
+func (b *Balance) selectNextProxyClient() {
 	for {
 		for client, used := range b.flags {
 			if !used {
@@ -67,32 +68,35 @@ func (b *Balance) setNext() {
 	}
 }
 
-func (b *Balance) getNext() *Client {
+func (b *Balance) getNextProxyClient() *Client {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	return b.next
 }
 
-func (b *Balance) getAndSetNext() *Client {
+func (b *Balance) getAndSelect() *Client {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	next := b.next
-	b.setNext()
+	b.selectNextProxyClient()
 	return next
 }
 
+// Dial is used to connect to address through selected proxy client
 func (b *Balance) Dial(network, address string) (net.Conn, error) {
-	conn, err := b.getAndSetNext().Dial(network, address)
+	conn, err := b.getAndSelect().Dial(network, address)
 	return conn, errors.WithMessagef(err, "balance %s Dial", b.tag)
 }
 
+// DialContext is used to connect to address through selected proxy client with context
 func (b *Balance) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	conn, err := b.getAndSetNext().DialContext(ctx, network, address)
+	conn, err := b.getAndSelect().DialContext(ctx, network, address)
 	return conn, errors.WithMessagef(err, "balance %s DialContext", b.tag)
 }
 
+// DialTimeout is used to connect to address through selected proxy client with timeout
 func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	conn, err := b.getAndSetNext().DialTimeout(network, address, timeout)
+	conn, err := b.getAndSelect().DialTimeout(network, address, timeout)
 	return conn, errors.WithMessagef(err, "balance %s DialTimeout", b.tag)
 }
 
@@ -105,22 +109,26 @@ func (b *Balance) Connect(
 	network string,
 	address string,
 ) (net.Conn, error) {
-	pConn, err := b.getAndSetNext().Connect(ctx, conn, network, address)
+	pConn, err := b.getAndSelect().Connect(ctx, conn, network, address)
 	return pConn, errors.WithMessagef(err, "balance %s Connect", b.tag)
 }
 
+// HTTP is used to set *http.Transport about proxy
 func (b *Balance) HTTP(t *http.Transport) {
 	t.DialContext = b.DialContext
 }
 
+// Timeout is used to get the next proxy client timeout
 // if you want wo use balance in proxy chain
 // must add lock for Timeout() and Server()
 func (b *Balance) Timeout() time.Duration {
-	return b.getNext().Timeout()
+	return b.getNextProxyClient().Timeout()
 }
 
+// Server is used to get the next proxy client
+// related proxy server address
 func (b *Balance) Server() (string, string) {
-	return b.getNext().Server()
+	return b.getNextProxyClient().Server()
 }
 
 // Info is used to get the balance info

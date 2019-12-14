@@ -75,9 +75,8 @@ func (m *Manager) Add(server *Server) error {
 	if _, ok := m.servers[server.Tag]; !ok {
 		m.servers[server.Tag] = server
 		return nil
-	} else {
-		return errors.Errorf("proxy server %s already exists", server.Tag)
 	}
+	return errors.Errorf("proxy server %s already exists", server.Tag)
 }
 
 // Delete is used to delete proxy server
@@ -88,9 +87,8 @@ func (m *Manager) Delete(tag string) error {
 	}
 	if server, ok := m.Servers()[tag]; ok {
 		return server.Close() // Close use m.rwm, must use m.Servers()
-	} else {
-		return errors.Errorf("proxy server %s doesn't exist", tag)
 	}
+	return errors.Errorf("proxy server %s doesn't exist", tag)
 }
 
 // Get is used to get proxy server
@@ -102,9 +100,8 @@ func (m *Manager) Get(tag string) (*Server, error) {
 	defer m.rwm.RUnlock()
 	if server, ok := m.servers[tag]; ok {
 		return server, nil
-	} else {
-		return nil, errors.Errorf("proxy server %s doesn't exist", tag)
 	}
+	return nil, errors.Errorf("proxy server %s doesn't exist", tag)
 }
 
 // Servers is used to get all proxy servers
