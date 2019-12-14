@@ -305,9 +305,8 @@ func (c *conn) serveSocks5() {
 			c.log(logger.Exploit, l)
 			_, _ = c.local.Write([]byte{statusFailed})
 			return
-		} else {
-			_, err = c.local.Write([]byte{statusSucceeded})
 		}
+		_, err = c.local.Write([]byte{statusSucceeded})
 	} else {
 		_, err = c.local.Write([]byte{version5, notRequired})
 	}

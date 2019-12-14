@@ -11,8 +11,11 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/options"
 	"project/internal/xnet/xnetutil"
+)
+
+const (
+	defaultDialTimeout = 30 * time.Second
 )
 
 // Client implement internal/proxy.client
@@ -30,6 +33,7 @@ type Client struct {
 	info     string
 }
 
+// NewClient is used to create socks client
 func NewClient(network, address string, opts *Options) (*Client, error) {
 	// check network
 	switch network {
@@ -54,7 +58,7 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	}
 
 	if c.timeout < 1 {
-		c.timeout = options.DefaultDialTimeout
+		c.timeout = defaultDialTimeout
 	}
 
 	switch {
@@ -75,6 +79,7 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	return &c, nil
 }
 
+// Dial is used to connect to address through proxy
 func (c *Client) Dial(network, address string) (net.Conn, error) {
 	// check network
 	switch network {
@@ -97,6 +102,7 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 	return conn, nil
 }
 
+// DialContext is used to connect to address through proxy with context
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	// check network
 	switch network {
@@ -119,6 +125,7 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 	return conn, nil
 }
 
+// DialTimeout is used to connect to address through proxy with timeout
 func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	// check network
 	switch network {
@@ -127,7 +134,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 		return nil, errors.Errorf("unsupported network: %s", network)
 	}
 	if timeout < 1 {
-		timeout = options.DefaultDialTimeout
+		timeout = defaultDialTimeout
 	}
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(c.network, c.address)
 	if err != nil {
@@ -144,6 +151,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 	return conn, nil
 }
 
+// Connect is used to connect to address through proxy with context
 func (c *Client) Connect(
 	ctx context.Context,
 	conn net.Conn,
@@ -194,20 +202,23 @@ func (c *Client) Connect(
 	return conn, nil
 }
 
+// HTTP is used to set *http.Transport about proxy
 func (c *Client) HTTP(t *http.Transport) {
 	t.DialContext = c.DialContext
 }
 
+// Timeout is used to get the socks client timeout
 func (c *Client) Timeout() time.Duration {
 	return c.timeout
 }
 
+// Server is used to get the socks server address
 func (c *Client) Server() (string, string) {
 	return c.network, c.address
 }
 
-// Info is used to get the proxy info
-// socks5 tcp 127.0.0.1:1080 admin 123456
+// Info is used to get the socks client info
+// socks5 tcp 127.0.0.1:1080 admin:123456
 // socks4a tcp 127.0.0.1:1080
 func (c *Client) Info() string {
 	return c.info

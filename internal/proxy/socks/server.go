@@ -15,10 +15,15 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/logger"
-	"project/internal/options"
 	"project/internal/xpanic"
 )
 
+const (
+	defaultConnectTimeout = 30 * time.Second
+	defaultMaxConnections = 1000
+)
+
+// Options include client and server options
 type Options struct {
 	Socks4   bool          `toml:"socks4"`
 	Username string        `toml:"username"` // useless for socks4
@@ -64,6 +69,7 @@ type Server struct {
 	wg         sync.WaitGroup
 }
 
+// NewServer is used to create socks server
 func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
@@ -89,11 +95,11 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	}
 
 	if s.timeout < 1 {
-		s.timeout = options.DefaultHandshakeTimeout
+		s.timeout = defaultConnectTimeout
 	}
 
 	if s.maxConns < 1 {
-		s.maxConns = options.DefaultMaxConns
+		s.maxConns = defaultMaxConnections
 	}
 
 	if s.dialContext == nil {
@@ -109,6 +115,8 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return &s, nil
 }
 
+// ListenAndServe is used to listen a listener and serve
+// it will not block
 func (s *Server) ListenAndServe(network, address string) error {
 	// check network
 	switch network {
@@ -125,9 +133,9 @@ func (s *Server) ListenAndServe(network, address string) error {
 	return nil
 }
 
-func (s *Server) close() {
+func (s *Server) stopServe() {
 	if r := recover(); r != nil {
-		s.log(logger.Fatal, xpanic.Print(r, "Server.Serve()"))
+		s.log(logger.Fatal, xpanic.Print(r, "Server.Serve"))
 	}
 
 	atomic.StoreInt32(&s.inShutdown, 1)
@@ -152,15 +160,16 @@ func (s *Server) close() {
 	s.wg.Done()
 }
 
+// Serve accepts incoming connections on the listener
+// it will not block
 func (s *Server) Serve(l net.Listener) {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
 	s.address = l.Addr().String()
 	s.listener = netutil.LimitListener(l, s.maxConns)
-
 	s.wg.Add(1)
 	go func() {
-		defer s.close()
+		defer s.stopServe()
 		s.logf(logger.Info, "start server (%s)", s.address)
 		var delay time.Duration // how long to sleep on accept failure
 		maxDelay := time.Second
@@ -198,6 +207,7 @@ func (s *Server) Serve(l net.Listener) {
 	}()
 }
 
+// Close is used to close socks server
 func (s *Server) Close() error {
 	var err error
 	atomic.StoreInt32(&s.inShutdown, 1)
@@ -215,6 +225,7 @@ func (s *Server) Close() error {
 	return err
 }
 
+// Address is used to get socks server address
 func (s *Server) Address() string {
 	s.rwm.RLock()
 	defer s.rwm.RUnlock()
