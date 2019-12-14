@@ -285,7 +285,7 @@ func TestDialDoT(t *testing.T) {
 	// invalid config
 	cfg := "asd:153|xxx|xxx"
 	_, err = dialDoT(ctx, cfg, nil, opts)
-	require.EqualError(t, err, "invalid configs: "+cfg)
+	require.EqualError(t, err, "invalid config: "+cfg)
 
 	// invalid TLS config
 	opts.TLSConfig.RootCAs = []string{"foo ca"}

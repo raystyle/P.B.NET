@@ -15,7 +15,7 @@ import (
 	"project/internal/proxy"
 )
 
-// support mode
+// supported modes
 const (
 	ModeCustom = "custom"
 	ModeSystem = "system"
@@ -28,7 +28,7 @@ func (t UnknownTypeError) Error() string {
 	return fmt.Sprintf("unknown type: %s", string(t))
 }
 
-// support custom resolve method
+// supported custom resolve methods
 const (
 	MethodUDP = "udp"
 	MethodTCP = "tcp"
@@ -60,7 +60,7 @@ type Server struct {
 	SkipTest bool   `toml:"skip_test"`
 }
 
-// Options is used to resolve domain name
+// Options contains resolve options
 type Options struct {
 	Mode string `toml:"mode"`
 

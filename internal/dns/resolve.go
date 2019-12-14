@@ -215,7 +215,7 @@ func dialDoT(ctx context.Context, config string, message []byte, opts *Options) 
 			return nil, errors.WithStack(ErrNoConnection)
 		}
 	default:
-		return nil, errors.Errorf("invalid configs: %s", config)
+		return nil, errors.Errorf("invalid config: %s", config)
 	}
 	return sendMessage(conn, message, timeout)
 }
