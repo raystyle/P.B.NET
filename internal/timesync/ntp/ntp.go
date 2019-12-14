@@ -261,8 +261,7 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-// ntpOptions contains the list of configurable options that may be used
-// with the QueryWithOptions function.
+// Options contains the list of configurable options
 type Options struct {
 	Network string        // network to use, defaults to udp
 	Timeout time.Duration // defaults to 5 seconds
@@ -272,6 +271,7 @@ type Options struct {
 	Dial func(network, address string) (net.Conn, error)
 }
 
+// Query is used to query current time
 func Query(address string, opts *Options) (*Response, error) {
 	var (
 		m   *msg
