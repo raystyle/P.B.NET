@@ -10,6 +10,7 @@ import (
 	"project/internal/testsuite/testproxy"
 )
 
+// server tags
 const (
 	TagGoogleIPv4UDP     = "google_ipv4_udp"
 	TagGoogleIPv4DoT     = "google_ipv4_dot"
