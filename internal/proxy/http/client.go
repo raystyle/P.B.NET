@@ -276,7 +276,7 @@ func (c *Client) Connect(
 	return nil, errors.Errorf(format, c.scheme, c.address, address)
 }
 
-// HTTP is used to set http.Transport about proxy
+// HTTP is used to set *http.Transport about proxy
 func (c *Client) HTTP(t *http.Transport) {
 	t.Proxy = c.proxy
 	// add root CA about https proxy
@@ -292,17 +292,17 @@ func (c *Client) HTTP(t *http.Transport) {
 	}
 }
 
-// Timeout is used to get client timeout
+// Timeout is used to get the proxy client timeout
 func (c *Client) Timeout() time.Duration {
 	return c.timeout
 }
 
-// Server is used to get proxy server address
+// Server is used to get the proxy server address
 func (c *Client) Server() (string, string) {
 	return c.network, c.address
 }
 
-// Info is used to get the proxy info
+// Info is used to get the proxy client info
 // http://admin:123456@127.0.0.1:8080
 // https://admin:123456@[::1]:8081
 func (c *Client) Info() string {

@@ -23,7 +23,7 @@ import (
 
 const (
 	defaultConnectTimeout = 30 * time.Second
-	defaultMaxConnection  = 1000
+	defaultMaxConnections = 1000
 )
 
 // Options include client and server options
@@ -118,7 +118,7 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	}
 
 	if s.maxConns < 1 {
-		s.maxConns = defaultMaxConnection
+		s.maxConns = defaultMaxConnections
 	}
 
 	if s.dialContext == nil {
