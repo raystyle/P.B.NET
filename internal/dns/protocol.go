@@ -10,6 +10,7 @@ import (
 	"project/internal/random"
 )
 
+// support query type
 const (
 	TypeIPv4 = "ipv4"
 	TypeIPv6 = "ipv6"
@@ -22,9 +23,8 @@ var (
 	}
 )
 
-var (
-	ErrNoResolveResult = fmt.Errorf("no resolve result")
-)
+// ErrNoResolveResult is an error of the resolve
+var ErrNoResolveResult = fmt.Errorf("no resolve result")
 
 // IsDomainName is used to checks if a string is a presentation-format domain name
 // (currently restricted to hostname-compatible "preferred name" LDH labels and

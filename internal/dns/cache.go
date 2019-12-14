@@ -1,13 +1,8 @@
 package dns
 
 import (
-	"errors"
 	"sync"
 	"time"
-)
-
-var (
-	ErrInvalidExpireTime = errors.New("expire time < 60 second or > 1 hour")
 )
 
 type cache struct {
@@ -15,29 +10,6 @@ type cache struct {
 	ipv6List   []string
 	updateTime time.Time
 	rwm        sync.RWMutex
-}
-
-func (c *Client) GetCacheExpireTime() time.Duration {
-	c.cachesRWM.RLock()
-	defer c.cachesRWM.RUnlock()
-	expire := c.expire
-	return expire
-}
-
-func (c *Client) SetCacheExpireTime(expire time.Duration) error {
-	if expire < time.Minute || expire > time.Hour {
-		return ErrInvalidExpireTime
-	}
-	c.cachesRWM.Lock()
-	defer c.cachesRWM.Unlock()
-	c.expire = expire
-	return nil
-}
-
-func (c *Client) FlushCache() {
-	c.cachesRWM.Lock()
-	defer c.cachesRWM.Unlock()
-	c.caches = make(map[string]*cache)
 }
 
 func (c *Client) queryCache(domain, typ string) []string {

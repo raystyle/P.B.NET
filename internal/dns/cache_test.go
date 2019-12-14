@@ -5,13 +5,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/options"
 )
 
-const (
-	testCacheDomain = "github.com"
-)
+const testCacheDomain = "github.com"
 
 var (
 	testExpectIPv4 = []string{"1.1.1.1"}
@@ -28,7 +24,7 @@ func TestClientCache(t *testing.T) {
 	client := NewClient(nil)
 
 	// get cache expire time
-	require.Equal(t, options.DefaultDNSCacheExpireTime, client.GetCacheExpireTime())
+	require.Equal(t, defaultCacheExpireTime, client.GetCacheExpireTime())
 
 	// set cache expire time
 	const expire = 10 * time.Minute

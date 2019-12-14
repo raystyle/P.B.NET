@@ -15,17 +15,20 @@ import (
 	"project/internal/proxy"
 )
 
+// support mode
 const (
 	ModeCustom = "custom"
 	ModeSystem = "system"
 )
 
+// UnknownTypeError is an error of the type
 type UnknownTypeError string
 
 func (t UnknownTypeError) Error() string {
 	return fmt.Sprintf("unknown type: %s", string(t))
 }
 
+// support custom resolve method
 const (
 	MethodUDP = "udp"
 	MethodTCP = "tcp"
@@ -33,6 +36,7 @@ const (
 	MethodDoH = "doh" // DNS-Over-HTTPS
 )
 
+// UnknownMethodError is an error of the method
 type UnknownMethodError string
 
 func (m UnknownMethodError) Error() string {
@@ -42,7 +46,12 @@ func (m UnknownMethodError) Error() string {
 const (
 	defaultMode   = ModeCustom
 	defaultMethod = MethodUDP
+
+	defaultCacheExpireTime = time.Minute
 )
+
+// ErrInvalidExpireTime is an error of the invalid DNS cache expire time
+var ErrInvalidExpireTime = errors.New("expire time < 10 seconds or > 10 minutes")
 
 // Server include DNS server info
 type Server struct {
@@ -120,7 +129,7 @@ type Client struct {
 func NewClient(pool *proxy.Pool) *Client {
 	return &Client{
 		proxyPool: pool,
-		expire:    options.DefaultDNSCacheExpireTime,
+		expire:    defaultCacheExpireTime,
 		servers:   make(map[string]*Server),
 		caches:    make(map[string]*cache),
 	}
@@ -128,7 +137,7 @@ func NewClient(pool *proxy.Pool) *Client {
 
 // Add is used to add a DNS server
 func (c *Client) Add(tag string, server *Server) error {
-	const format = "failed to add dns server %s"
+	const format = "failed to add DNS server %s"
 	return errors.WithMessagef(c.add(tag, server), format, tag)
 }
 
@@ -143,9 +152,8 @@ func (c *Client) add(tag string, server *Server) error {
 	if _, ok := c.servers[tag]; !ok {
 		c.servers[tag] = server
 		return nil
-	} else {
-		return errors.New("already exists")
 	}
+	return errors.New("already exists")
 }
 
 // Delete is used to delete a DNS server
@@ -155,9 +163,8 @@ func (c *Client) Delete(tag string) error {
 	if _, ok := c.servers[tag]; ok {
 		delete(c.servers, tag)
 		return nil
-	} else {
-		return errors.Errorf("dns server: %s doesn't exist", tag)
 	}
+	return errors.Errorf("DNS server %s doesn't exist", tag)
 }
 
 // Servers is used to get all DNS Servers
@@ -172,25 +179,23 @@ func (c *Client) Servers() map[string]*Server {
 }
 
 func checkNetwork() (enableIPv4, enableIPv6 bool) {
-	ifaces, _ := net.Interfaces()
-	for i := 0; i < len(ifaces); i++ {
-		if ifaces[i].Flags == net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
-			addrs, _ := ifaces[i].Addrs()
-			for j := 0; j < len(addrs); j++ {
-				// check IPv4 or IPv6
-				ipAddr := strings.Split(addrs[j].String(), "/")[0]
-				ip := net.ParseIP(ipAddr)
-				if ip != nil {
-					ip4 := ip.To4()
-					if ip4 != nil {
-						if ip4.IsGlobalUnicast() {
-							enableIPv4 = true
-						}
-					} else {
-						if ip.To16().IsGlobalUnicast() {
-							enableIPv6 = true
-						}
-					}
+	interfaces, _ := net.Interfaces()
+	for _, iface := range interfaces {
+		if iface.Flags != net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			ipAddr := strings.Split(addr.String(), "/")[0]
+			ip := net.ParseIP(ipAddr)
+			ip4 := ip.To4()
+			if ip4 != nil {
+				if ip4.IsGlobalUnicast() {
+					enableIPv4 = true
+				}
+			} else {
+				if ip.To16().IsGlobalUnicast() {
+					enableIPv6 = true
 				}
 			}
 			if enableIPv4 && enableIPv6 {
@@ -388,6 +393,32 @@ func (c *Client) systemResolve(
 	default:
 		return nil, UnknownTypeError(opts.Type)
 	}
+}
+
+// GetCacheExpireTime is used to get cache expire time
+func (c *Client) GetCacheExpireTime() time.Duration {
+	c.cachesRWM.RLock()
+	defer c.cachesRWM.RUnlock()
+	expire := c.expire
+	return expire
+}
+
+// SetCacheExpireTime is used to set cache expire time
+func (c *Client) SetCacheExpireTime(expire time.Duration) error {
+	if expire < 10*time.Second || expire > 10*time.Minute {
+		return ErrInvalidExpireTime
+	}
+	c.cachesRWM.Lock()
+	defer c.cachesRWM.Unlock()
+	c.expire = expire
+	return nil
+}
+
+// FlushCache is used to flush all cache
+func (c *Client) FlushCache() {
+	c.cachesRWM.Lock()
+	defer c.cachesRWM.Unlock()
+	c.caches = make(map[string]*cache)
 }
 
 // TestServers is used to test all DNS server

@@ -35,10 +35,10 @@ func TestCustomResolve(t *testing.T) {
 
 	if testsuite.EnableIPv4() {
 		const (
-			udpServer = "1.1.1.1:53"
+			udpServer = "8.8.8.8:53"
 			tcpServer = "1.0.0.1:53"
-			tlsIP     = "8.8.4.4:853"
-			tlsDomain = "dns.google:853|8.8.8.8,8.8.4.4"
+			tlsIP     = "1.1.1.1:853"
+			tlsDomain = "cloudflare-dns.com:853|1.1.1.1,1.0.0.1"
 		)
 
 		t.Run("IPv4 UDP", func(t *testing.T) {
@@ -224,8 +224,8 @@ func TestDialDoT(t *testing.T) {
 
 	if testsuite.EnableIPv4() {
 		const (
-			dnsServerIPV4 = "8.8.8.8:853"
-			dnsDomainIPv4 = "dns.google:853|8.8.8.8,8.8.4.4"
+			dnsServerIPV4 = "1.1.1.1:853"
+			dnsDomainIPv4 = "cloudflare-dns.com:853|1.1.1.1,1.0.0.1"
 		)
 		// IP mode
 		msg, err := dialDoT(ctx, dnsServerIPV4, testDNSMessage, opts)

@@ -31,9 +31,8 @@ const (
 	headerSize = 2
 )
 
-var (
-	ErrNoConnection = fmt.Errorf("no connection")
-)
+// ErrNoConnection is an error of the dial
+var ErrNoConnection = fmt.Errorf("no connection")
 
 func resolve(
 	ctx context.Context,
