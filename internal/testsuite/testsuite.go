@@ -20,8 +20,7 @@ var (
 
 func init() {
 	checkNetwork()
-
-	// pprof
+	// deploy pprof
 	for port := 9931; port < 65536; port++ {
 		actualPort := deployPPROF(port)
 		if actualPort != "" {
@@ -32,25 +31,23 @@ func init() {
 }
 
 func checkNetwork() {
-	ifaces, _ := net.Interfaces()
-	for i := 0; i < len(ifaces); i++ {
-		if ifaces[i].Flags == net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
-			addrs, _ := ifaces[i].Addrs()
-			for j := 0; j < len(addrs); j++ {
-				// check IPv4 or IPv6
-				ipAddr := strings.Split(addrs[j].String(), "/")[0]
-				ip := net.ParseIP(ipAddr)
-				if ip != nil {
-					ip4 := ip.To4()
-					if ip4 != nil {
-						if ip4.IsGlobalUnicast() {
-							enableIPv4 = true
-						}
-					} else {
-						if ip.To16().IsGlobalUnicast() {
-							enableIPv6 = true
-						}
-					}
+	interfaces, _ := net.Interfaces()
+	for _, iface := range interfaces {
+		if iface.Flags != net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			ipAddr := strings.Split(addr.String(), "/")[0]
+			ip := net.ParseIP(ipAddr)
+			ip4 := ip.To4()
+			if ip4 != nil {
+				if ip4.IsGlobalUnicast() {
+					enableIPv4 = true
+				}
+			} else {
+				if ip.To16().IsGlobalUnicast() {
+					enableIPv6 = true
 				}
 			}
 			if enableIPv4 && enableIPv6 {
@@ -58,7 +55,6 @@ func checkNetwork() {
 			}
 		}
 	}
-
 	if !enableIPv4 && !enableIPv6 {
 		fmt.Println("[warning] network unavailable")
 	}

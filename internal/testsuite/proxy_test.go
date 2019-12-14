@@ -5,7 +5,7 @@ import (
 )
 
 func TestNopCloser(t *testing.T) {
-	closer := NopCloser()
+	closer := NewNopCloser()
 	closer.Get()
 	_ = closer.Close()
 }

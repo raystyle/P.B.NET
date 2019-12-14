@@ -18,28 +18,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type nopCloser struct {
-	padding string
-}
-
-func (nc *nopCloser) Get() string {
-	return nc.padding
-}
-
-func (nc *nopCloser) Close() error {
-	nc.padding = "padding"
-	return nil
-}
-
-func NopCloser() *nopCloser {
-	return new(nopCloser)
-}
+// HTTPServerPort is the test HTTP server port,
+// some test in internal/proxy need it
+var (
+	HTTPServerPort  string
+	HTTPSServerPort string
+)
 
 var (
 	httpServer         http.Server
-	HTTPServerPort     string
 	httpsServer        http.Server
-	HTTPSServerPort    string
 	httpsCA            *x509.Certificate
 	initHTTPServerOnce sync.Once
 )
@@ -164,6 +152,28 @@ func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 	req, err = http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 	do(req)
+}
+
+// NopCloser is a nop closer
+type NopCloser struct {
+	padding string
+}
+
+// Get is a padding method
+func (nc *NopCloser) Get() string {
+	return nc.padding
+}
+
+// Close is a padding method
+func (nc *NopCloser) Close() error {
+	nc.padding = "padding"
+	return nil
+}
+
+// NewNopCloser is used to create a nop closer for ProxyServer
+// but only has transport
+func NewNopCloser() *NopCloser {
+	return new(NopCloser)
 }
 
 // ProxyServer is used to test proxy server
