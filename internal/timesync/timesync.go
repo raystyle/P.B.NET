@@ -10,17 +10,24 @@ import (
 
 	"project/internal/dns"
 	"project/internal/logger"
-	"project/internal/options"
 	"project/internal/proxy"
 	"project/internal/random"
 	"project/internal/xpanic"
 )
 
+// supported modes
 const (
 	ModeHTTP = "http"
 	ModeNTP  = "ntp"
 )
 
+const (
+	defaultTimeSyncFixed    = 10
+	defaultTimeSyncRandom   = 20
+	defaultTimeSyncInterval = 3 * time.Minute
+)
+
+// errors
 var (
 	ErrNoClient         = fmt.Errorf("no time syncer clients")
 	ErrAllClientsFailed = fmt.Errorf("all time syncer clients failed to query")
@@ -66,9 +73,9 @@ func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 		dnsClient:   client,
 		logger:      logger,
 		clients:     make(map[string]*Client),
-		fixedSleep:  options.DefaultTimeSyncFixed,
-		randomSleep: options.DefaultTimeSyncRandom,
-		interval:    options.DefaultTimeSyncInterval,
+		fixedSleep:  defaultTimeSyncFixed,
+		randomSleep: defaultTimeSyncRandom,
+		interval:    defaultTimeSyncInterval,
 		now:         time.Now(),
 	}
 	syncer.ctx, syncer.cancel = context.WithCancel(context.Background())
@@ -94,9 +101,8 @@ func (syncer *Syncer) Add(tag string, client *Client) error {
 	if _, ok := syncer.clients[tag]; !ok {
 		syncer.clients[tag] = client
 		return nil
-	} else {
-		return fmt.Errorf("time syncer client: %s already exists", tag)
 	}
+	return fmt.Errorf("time syncer client: %s already exists", tag)
 }
 
 // Delete is used to delete syncer client
@@ -106,9 +112,8 @@ func (syncer *Syncer) Delete(tag string) error {
 	if _, exist := syncer.clients[tag]; exist {
 		delete(syncer.clients, tag)
 		return nil
-	} else {
-		return fmt.Errorf("time syncer client: %s doesn't exist", tag)
 	}
+	return fmt.Errorf("time syncer client: %s doesn't exist", tag)
 }
 
 // Clients is used to get all time syncer clients
@@ -151,10 +156,10 @@ func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
 // must execute before Start()
 func (syncer *Syncer) SetSleep(fixed, random int) {
 	if fixed < 1 {
-		fixed = options.DefaultTimeSyncFixed
+		fixed = defaultTimeSyncFixed
 	}
 	if random < 1 {
-		random = options.DefaultTimeSyncRandom
+		random = defaultTimeSyncRandom
 	}
 	syncer.fixedSleep = fixed
 	syncer.randomSleep = random
@@ -224,9 +229,7 @@ func (syncer *Syncer) walker() {
 	}()
 	// if addLoopInterval < 2 Millisecond, time will be inaccurate
 	// see GOROOT/src/time/tick.go NewTicker()
-	//
-	// "It adjusts the intervals or drops ticks
-	// to make up for slow receivers."
+	// "It adjusts the intervals or drops ticks to make up for slow receivers."
 	const addLoopInterval = 10 * time.Millisecond
 	ticker := time.NewTicker(addLoopInterval)
 	defer ticker.Stop()
@@ -256,10 +259,14 @@ func (syncer *Syncer) synchronizeLoop() {
 			syncer.wg.Done()
 		}
 	}()
-	timer := time.NewTimer(syncer.GetSyncInterval())
+	rand := random.New()
+	calcInterval := func() time.Duration {
+		extra := syncer.fixedSleep + rand.Int(syncer.randomSleep)
+		return syncer.GetSyncInterval() + time.Duration(extra)*time.Second
+	}
+	timer := time.NewTimer(calcInterval())
 	defer timer.Stop()
 	for {
-		timer.Reset(syncer.GetSyncInterval())
 		select {
 		case <-timer.C:
 			err := syncer.synchronize(false)
@@ -269,6 +276,7 @@ func (syncer *Syncer) synchronizeLoop() {
 		case <-syncer.ctx.Done():
 			return
 		}
+		timer.Reset(calcInterval())
 	}
 }
 
@@ -299,7 +307,7 @@ func (syncer *Syncer) synchronize(all bool) (err error) {
 		now, optsErr, err = client.Query()
 		if err != nil {
 			if optsErr {
-				return fmt.Errorf("client %s with invalid configuartion: %s", tag, err)
+				return fmt.Errorf("client %s with invalid config: %s", tag, err)
 			}
 			err = fmt.Errorf("client %s failed to synchronize time: %s", tag, err)
 			if all {

@@ -17,6 +17,8 @@ import (
 	"project/internal/random"
 )
 
+const defaultDialTimeout = 30 * time.Second
+
 // HTTP is used to create a HTTP client to do request
 // that get date in response header
 type HTTP struct {
@@ -114,7 +116,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
 	defer client.CloseIdleConnections()
 	if client.Timeout < 1 {
-		client.Timeout = options.DefaultDialTimeout
+		client.Timeout = defaultDialTimeout
 	}
 	resp, err := client.Do(req)
 	if err != nil {

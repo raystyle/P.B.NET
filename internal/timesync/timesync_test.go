@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
-	"project/internal/options"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 )
@@ -46,7 +45,7 @@ func TestSyncer(t *testing.T) {
 	testAddClients(t, syncer)
 
 	// check default sync interval
-	require.Equal(t, options.DefaultTimeSyncInterval, syncer.GetSyncInterval())
+	require.Equal(t, defaultTimeSyncInterval, syncer.GetSyncInterval())
 
 	// set sync interval
 	const interval = 15 * time.Minute
@@ -186,7 +185,7 @@ func TestSyncer_Test(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestSyncer_SyncLoop(t *testing.T) {
+func TestSyncer_synchronizeLoop(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
@@ -207,7 +206,7 @@ func TestSyncer_SyncLoop(t *testing.T) {
 	testsuite.IsDestroyed(t, syncer)
 }
 
-func TestSyncer_syncPanic(t *testing.T) {
+func TestSyncer_synchronizePanic(t *testing.T) {
 	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
