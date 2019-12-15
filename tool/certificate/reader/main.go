@@ -34,7 +34,7 @@ func main() {
 		}
 		err = pem.Encode(buf, &block)
 		checkError(err)
-		count += 1
+		count++
 		// print CA info
 		const format = "V%d %s\n"
 		switch {

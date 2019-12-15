@@ -180,7 +180,7 @@ func load() {
 		certsASN1[index] = certASN1
 		keys[index] = key
 		keysPKCS8[index] = keyPKCS8
-		index += 1
+		index++
 	}
 	number = len(certs)
 
@@ -206,7 +206,7 @@ func load() {
 		// add
 		system[index] = c
 		systemASN1[index] = b
-		index += 1
+		index++
 	}
 	sNumber = len(system)
 
@@ -286,7 +286,7 @@ func add() {
 		keyPKCS8 := block.Bytes
 
 		// add
-		number += 1
+		number++
 		certs[number] = c
 		certsASN1[number] = certASN1
 		keys[number] = k
@@ -315,7 +315,7 @@ func addSystem() {
 
 		c, err := x509.ParseCertificate(block.Bytes)
 		checkError(err, false)
-		sNumber += 1
+		sNumber++
 		system[sNumber] = c
 		systemASN1[sNumber] = block.Bytes
 		printCertificate(sNumber, c)
