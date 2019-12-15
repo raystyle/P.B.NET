@@ -31,11 +31,11 @@ func TestCheckPort(t *testing.T) {
 
 	err = CheckPort(0)
 	require.Error(t, err)
-	require.Equal(t, "invalid port: 0", err.Error())
+	require.Equal(t, "invalid port range: 0", err.Error())
 
 	err = CheckPort(65536)
 	require.Error(t, err)
-	require.Equal(t, "invalid port: 65536", err.Error())
+	require.Equal(t, "invalid port range: 65536", err.Error())
 }
 
 func TestTrafficUnit_String(t *testing.T) {
