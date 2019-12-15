@@ -1,11 +1,12 @@
 package protocol
 
 import (
+	"crypto/sha256"
 	"errors"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
-	"project/internal/crypto/sha256"
+
 	"project/internal/guid"
 )
 

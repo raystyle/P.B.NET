@@ -12,6 +12,7 @@ import (
 	"project/internal/xnet"
 )
 
+// about connection
 const (
 	MaxMsgSize  = 2 * 1048576 // 2MB
 	SendTimeout = time.Minute
@@ -24,6 +25,7 @@ const (
 	MsgHeaderSize = MsgLenSize + MsgCMDSize + MsgIDSize
 )
 
+// errors
 var (
 	ErrTooBigMsg            = errors.New("too big message")
 	ErrInvalidMsgSize       = errors.New("invalid message size")
@@ -37,6 +39,7 @@ var (
 	ErrRecvTimeout          = errors.New("receive reply timeout")
 )
 
+// it will change about the number of the current system
 var (
 	SlotSize int // message id is uint16 < 65536
 	MaxMsgID int // check invalid message id

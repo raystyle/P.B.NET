@@ -2,13 +2,13 @@ package protocol
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
-	"project/internal/crypto/sha256"
 )
 
 func TestBroadcast_Validate(t *testing.T) {

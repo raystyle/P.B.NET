@@ -23,7 +23,7 @@ func TestHandleConn(t *testing.T) {
 		defer wg.Done()
 		var count int
 		HandleConn(server, func(msg []byte) {
-			count += 1
+			count++
 			if count != 5 {
 				require.Equal(t, message, msg)
 			} else {
@@ -114,7 +114,7 @@ func benchmarkHandleConn(b *testing.B, size int) {
 			if !bytes.Equal(msg, message) {
 				b.FailNow()
 			}
-			count += 1
+			count++
 		})
 		_ = server.Close()
 		require.Equal(b, b.N, count)

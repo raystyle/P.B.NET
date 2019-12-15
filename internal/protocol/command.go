@@ -5,14 +5,18 @@ import (
 	"fmt"
 )
 
+// errors
+var (
+	ErrReplyExpired = errors.New("expired")
+	ErrReplyHandled = errors.New("operation has been handled")
+)
+
+// replies
 var (
 	ReplyUnhandled = []byte{11}
 	ReplySucceed   = []byte{13}
 	ReplyExpired   = []byte{10}
 	ReplyHandled   = []byte{12}
-
-	ErrReplyExpired = errors.New("expired")
-	ErrReplyHandled = errors.New("operation has been handled")
 )
 
 // GetReplyError is used to get error from reply
@@ -30,10 +34,10 @@ func GetReplyError(reply []byte) error {
 	}
 }
 
+// TestCommand is used to test role/client.go
 const TestCommand uint8 = 0xFF
 
 // -----------------------Connection---------------------------
-
 const (
 	ConnSendHeartbeat uint8 = 0x00 + iota
 	ConnReplyHeartbeat
@@ -60,14 +64,10 @@ const (
 	CtrlAnswer
 )
 
+// about trust node
 const (
 	CtrlTrustNode uint8 = 0x20 + iota
 	CtrlSetNodeCert
-)
-
-const (
-	CtrlQueryNodeStatus uint8 = 0x30 + iota
-	CtrlQueryAllNodes
 )
 
 // --------------------------Node-----------------------------
@@ -77,17 +77,6 @@ const (
 	NodeSend
 	NodeAckGUID
 	NodeAck
-)
-
-// node authentication
-const (
-	NodeQueryCertificate uint8 = 0x70 + iota
-)
-
-// query nodes
-const (
-	NodeQueryGUID uint8 = 0x80 + iota
-	NodeQueryAllNodes
 )
 
 // -------------------------Beacon-----------------------------

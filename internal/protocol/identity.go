@@ -74,7 +74,7 @@ func (role Role) Bytes() []byte {
 	}
 }
 
-// Bytes is used to return byte
+// Byte is used to return byte
 func (role Role) Byte() byte {
 	switch role {
 	case Ctrl:
@@ -88,11 +88,13 @@ func (role Role) Byte() byte {
 	}
 }
 
+// errors about identity
 var (
 	ErrInvalidCertificate = errors.New("invalid certificate")
 	ErrAuthenticateFailed = errors.New("failed to authenticate")
 )
 
+// identity
 var (
 	CtrlGUID    = bytes.Repeat([]byte{0}, guid.Size)
 	AuthSucceed = []byte("success")
