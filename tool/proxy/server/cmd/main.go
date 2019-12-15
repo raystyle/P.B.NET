@@ -18,11 +18,11 @@ type program struct {
 }
 
 func (p *program) Start(_ service.Service) error {
-	return p.server.Start()
+	return p.server.Main()
 }
 
 func (p *program) Stop(_ service.Service) error {
-	return p.server.Stop()
+	return p.server.Exit()
 }
 
 func main() {

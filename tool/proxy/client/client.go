@@ -8,6 +8,7 @@ import (
 	"project/internal/proxy/socks"
 )
 
+// Configs contains proxy/client configurations
 type Configs struct {
 	Service struct {
 		Name        string `toml:"name"`
@@ -26,6 +27,7 @@ type Configs struct {
 	Clients []*proxy.Client `toml:"clients"`
 }
 
+// Client is proxy client
 type Client struct {
 	tag      string
 	configs  *Configs
@@ -33,11 +35,13 @@ type Client struct {
 	stopOnce sync.Once
 }
 
+// New is used to create a proxy client
 func New(tag string, config *Configs) *Client {
 	return &Client{tag: tag, configs: config}
 }
 
-func (client *Client) Start() error {
+// Main is used to run program
+func (client *Client) Main() error {
 	pool := proxy.NewPool()
 	for _, client := range client.configs.Clients {
 		err := pool.Add(client)
@@ -71,7 +75,8 @@ func (client *Client) Start() error {
 	return client.server.ListenAndServe(lc.Network, lc.Address)
 }
 
-func (client *Client) Stop() error {
+// Exit is used to exit program
+func (client *Client) Exit() error {
 	var err error
 	client.stopOnce.Do(func() {
 		err = client.server.Close()
@@ -79,6 +84,7 @@ func (client *Client) Stop() error {
 	return err
 }
 
+// Address is used to get socks server address
 func (client *Client) Address() string {
 	return client.server.Address()
 }

@@ -32,11 +32,11 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 				Address: "localhost:0",
 			},
 		})
-		require.NoError(t, proxyServers[i].Start())
+		require.NoError(t, proxyServers[i].Main())
 	}
 	defer func() {
 		for i := 0; i < 9; i++ {
-			require.NoError(t, proxyServers[i].Stop())
+			require.NoError(t, proxyServers[i].Exit())
 		}
 		testsuite.IsDestroyed(t, &proxyServers)
 	}()
@@ -57,13 +57,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 
 	// add basic socks5 proxy clients
 	for i := 0; i < 9; i++ {
-		cfg.Clients = append(cfg.Clients, &struct {
-			Tag     string `toml:"tag"`
-			Mode    string `toml:"mode"`
-			Network string `toml:"network"`
-			Address string `toml:"address"`
-			Options string `toml:"options"`
-		}{
+		cfg.Clients = append(cfg.Clients, &proxy.Client{
 			Tag:     "socks5-0" + strconv.Itoa(i+1),
 			Mode:    proxy.ModeSocks,
 			Network: "tcp",
@@ -77,13 +71,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 		tag2 := "socks5-0" + strconv.Itoa(i+2)
 		tag3 := "socks5-0" + strconv.Itoa(i+3)
 		tags := fmt.Sprintf(`tags = ["%s","%s","%s"]`, tag1, tag2, tag3)
-		cfg.Clients = append(cfg.Clients, &struct {
-			Tag     string `toml:"tag"`
-			Mode    string `toml:"mode"`
-			Network string `toml:"network"`
-			Address string `toml:"address"`
-			Options string `toml:"options"`
-		}{
+		cfg.Clients = append(cfg.Clients, &proxy.Client{
 			Tag:     "balance-0" + strconv.Itoa(i/3+1),
 			Mode:    proxy.ModeBalance,
 			Options: tags,
@@ -91,23 +79,17 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	}
 
 	// add final chain
-	cfg.Clients = append(cfg.Clients, &struct {
-		Tag     string `toml:"tag"`
-		Mode    string `toml:"mode"`
-		Network string `toml:"network"`
-		Address string `toml:"address"`
-		Options string `toml:"options"`
-	}{
+	cfg.Clients = append(cfg.Clients, &proxy.Client{
 		Tag:     "final-chain",
 		Mode:    proxy.ModeChain,
 		Options: `tags = ["balance-01","balance-02","balance-03"]`,
 	})
 
 	proxyClient := client.New("", &cfg)
-	require.NoError(t, proxyClient.Start())
+	require.NoError(t, proxyClient.Main())
 
 	defer func() {
-		require.NoError(t, proxyClient.Stop())
+		require.NoError(t, proxyClient.Exit())
 		testsuite.IsDestroyed(t, proxyClient)
 	}()
 
@@ -116,5 +98,5 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	require.NoError(t, err)
 	transport := http.Transport{Proxy: http.ProxyURL(u)}
 
-	testsuite.ProxyServer(t, testsuite.NopCloser(), &transport)
+	testsuite.ProxyServer(t, testsuite.NewNopCloser(), &transport)
 }

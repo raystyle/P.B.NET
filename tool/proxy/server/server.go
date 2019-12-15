@@ -7,6 +7,7 @@ import (
 	"project/internal/proxy"
 )
 
+// Configs contains proxy/server configurations
 type Configs struct {
 	Tag     string `toml:"tag"`
 	Service struct {
@@ -23,17 +24,20 @@ type Configs struct {
 	} `toml:"proxy"`
 }
 
+// Server is proxy server
 type Server struct {
 	configs  *Configs
 	server   *proxy.Server
 	stopOnce sync.Once
 }
 
+// New is used to create a proxy server
 func New(config *Configs) *Server {
 	return &Server{configs: config}
 }
 
-func (server *Server) Start() error {
+// Main is used to run program
+func (server *Server) Main() error {
 	tag := server.configs.Tag
 	manager := proxy.NewManager(logger.Test, nil)
 	err := manager.Add(&proxy.Server{
@@ -51,7 +55,8 @@ func (server *Server) Start() error {
 	return ps.ListenAndServe(network, address)
 }
 
-func (server *Server) Stop() error {
+// Exit is used to exit program
+func (server *Server) Exit() error {
 	var err error
 	server.stopOnce.Do(func() {
 		err = server.server.Close()
@@ -59,6 +64,7 @@ func (server *Server) Stop() error {
 	return err
 }
 
+// Address is used to get proxy server address
 func (server *Server) Address() string {
 	return server.server.Address()
 }
