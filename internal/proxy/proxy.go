@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// support mode
+// supported modes
 const (
 	ModeDirect  = "direct"
 	ModeSocks   = "socks"

@@ -23,7 +23,7 @@ const (
 	defaultMaxConnections = 1000
 )
 
-// Options include client and server options
+// Options contains client and server options
 type Options struct {
 	Socks4   bool          `toml:"socks4"`
 	Username string        `toml:"username"` // useless for socks4

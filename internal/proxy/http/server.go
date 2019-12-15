@@ -26,7 +26,7 @@ const (
 	defaultMaxConnections = 1000
 )
 
-// Options include client and server options
+// Options contains client and server options
 type Options struct {
 	HTTPS    bool          `toml:"https"`
 	Username string        `toml:"username"`
