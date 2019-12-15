@@ -16,6 +16,8 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
+// DNS is used to resolve bootstrap nodes from DNS resolve result
+// network and port can't change
 type DNS struct {
 	Host    string      `toml:"host"`    // domain name
 	Mode    string      `toml:"mode"`    // listener mode (see xnet)
@@ -32,7 +34,7 @@ type DNS struct {
 	cbc *aes.CBC
 }
 
-// input ctx for resolve
+// NewDNS is used to create a DNS mode bootstrap
 func NewDNS(ctx context.Context, client *dns.Client) *DNS {
 	return &DNS{
 		ctx:       ctx,
@@ -40,6 +42,7 @@ func NewDNS(ctx context.Context, client *dns.Client) *DNS {
 	}
 }
 
+// Validate is used to check DNS config correct
 func (d *DNS) Validate() error {
 	if d.Host == "" {
 		return errors.New("empty host")
@@ -55,6 +58,7 @@ func (d *DNS) Validate() error {
 	return errors.WithStack(err)
 }
 
+// Marshal is used to marshal DNS to []byte
 func (d *DNS) Marshal() ([]byte, error) {
 	err := d.Validate()
 	if err != nil {
@@ -63,7 +67,7 @@ func (d *DNS) Marshal() ([]byte, error) {
 	return toml.Marshal(d)
 }
 
-// Unmarshal
+// Unmarshal is used to unmarshal []byte to DNS
 // store encrypted data to d.enc
 func (d *DNS) Unmarshal(config []byte) error {
 	tempDNS := &DNS{}
@@ -78,27 +82,28 @@ func (d *DNS) Unmarshal(config []byte) error {
 	// encrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
-	rand := random.New(0)
+	rand := random.New()
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
 	d.cbc, _ = aes.NewCBC(key, iv)
-	security.FlushBytes(key)
-	security.FlushBytes(iv)
+	security.CoverBytes(key)
+	security.CoverBytes(iv)
 	memory.Padding()
 	b, _ := msgpack.Marshal(tempDNS)
-	defer security.FlushBytes(b)
-	security.FlushString(&tempDNS.Host)
+	defer security.CoverBytes(b)
+	security.CoverString(&tempDNS.Host)
 	memory.Padding()
 	d.enc, err = d.cbc.Encrypt(b)
 	return err
 }
 
+// Resolve is used to get bootstrap nodes
 func (d *DNS) Resolve() ([]*Node, error) {
 	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
 	b, err := d.cbc.Decrypt(d.enc)
-	defer security.FlushBytes(b)
+	defer security.CoverBytes(b)
 	if err != nil {
 		panic(&bPanic{Mode: ModeDNS, Err: err})
 	}
@@ -107,14 +112,14 @@ func (d *DNS) Resolve() ([]*Node, error) {
 	if err != nil {
 		panic(&bPanic{Mode: ModeDNS, Err: err})
 	}
-	security.FlushBytes(b)
+	security.CoverBytes(b)
 	memory.Padding()
 	// resolve dns
 	dn := tDNS.Host
 	dnsOpts := tDNS.Options
 	defer func() {
-		security.FlushString(&tDNS.Host)
-		security.FlushString(&dn)
+		security.CoverString(&tDNS.Host)
+		security.CoverString(&dn)
 	}()
 	result, err := d.dnsClient.ResolveWithContext(d.ctx, dn, &dnsOpts)
 	if err != nil {
@@ -128,7 +133,7 @@ func (d *DNS) Resolve() ([]*Node, error) {
 			Network: tDNS.Network,
 		}
 		nodes[i].Address = net.JoinHostPort(result[i], tDNS.Port)
-		security.FlushString(&result[i])
+		security.CoverString(&result[i])
 	}
 	return nodes, nil
 }

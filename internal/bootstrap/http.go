@@ -25,15 +25,18 @@ import (
 )
 
 const (
+	defaultTimeout     = 30 * time.Second
 	defaultMaxBodySize = 65535
 )
 
+// errors
 var (
 	ErrNoResponse           = fmt.Errorf("no response")
 	ErrInvalidSignatureSize = fmt.Errorf("invalid signature size")
 	ErrInvalidSignature     = fmt.Errorf("invalid signature")
 )
 
+// HTTP is used to resolve bootstrap nodes from HTTP response body
 type HTTP struct {
 	Request   options.HTTPRequest   `toml:"request"`
 	Transport options.HTTPTransport `toml:"transport"`
@@ -63,6 +66,7 @@ type HTTP struct {
 	cbc *aes.CBC
 }
 
+// NewHTTP is used to create a HTTP mode bootstrap
 func NewHTTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *HTTP {
 	return &HTTP{
 		ctx:       ctx,
@@ -71,6 +75,7 @@ func NewHTTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *HTTP {
 	}
 }
 
+// Validate is used to check HTTP config correct
 func (h *HTTP) Validate() error {
 	_, err := h.Request.Apply()
 	if err != nil {
@@ -89,13 +94,14 @@ func (h *HTTP) Validate() error {
 		return errors.WithStack(err)
 	}
 	defer func() {
-		security.FlushBytes(aesKey)
-		security.FlushBytes(aesIV)
+		security.CoverBytes(aesKey)
+		security.CoverBytes(aesIV)
 	}()
 	_, err = aes.NewCBC(aesKey, aesIV)
 	return errors.WithStack(err)
 }
 
+// Generate is used to generate bootstrap info
 func (h *HTTP) Generate(nodes []*Node) ([]byte, error) {
 	if len(nodes) == 0 {
 		return nil, errors.New("no bootstrap nodes")
@@ -103,7 +109,7 @@ func (h *HTTP) Generate(nodes []*Node) ([]byte, error) {
 	data, _ := msgpack.Marshal(nodes)
 	// confuse
 	nodesData := bytes.Buffer{}
-	generator := random.New(0)
+	generator := random.New()
 	i := 0
 	for i = 4; i < len(data); i += 4 {
 		nodesData.Write(generator.Bytes(8))
@@ -138,6 +144,7 @@ func (h *HTTP) Generate(nodes []*Node) ([]byte, error) {
 	return dst, nil
 }
 
+// Marshal is used to marshal HTTP to []byte
 func (h *HTTP) Marshal() ([]byte, error) {
 	err := h.Validate()
 	if err != nil {
@@ -150,11 +157,12 @@ func (h *HTTP) Marshal() ([]byte, error) {
 
 // flushRequestOption is used to cover string field if has secret
 func flushRequestOption(r *options.HTTPRequest) {
-	security.FlushString(&r.URL)
-	security.FlushString(&r.Post)
-	security.FlushString(&r.Host)
+	security.CoverString(&r.URL)
+	security.CoverString(&r.Post)
+	security.CoverString(&r.Host)
 }
 
+// Unmarshal is used to unmarshal []byte to HTTP
 func (h *HTTP) Unmarshal(data []byte) error {
 	tempHTTP := &HTTP{}
 	err := toml.Unmarshal(data, tempHTTP)
@@ -168,21 +176,22 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	// encrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
-	rand := random.New(0)
+	rand := random.New()
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
 	h.cbc, _ = aes.NewCBC(key, iv)
-	security.FlushBytes(key)
-	security.FlushBytes(iv)
+	security.CoverBytes(key)
+	security.CoverBytes(iv)
 	memory.Padding()
 	b, _ := msgpack.Marshal(tempHTTP)
-	defer security.FlushBytes(b)
+	defer security.CoverBytes(b)
 	flushRequestOption(&tempHTTP.Request)
 	memory.Padding()
 	h.enc, err = h.cbc.Encrypt(b)
 	return err
 }
 
+// Resolve is used to get bootstrap nodes
 func (h *HTTP) Resolve() ([]*Node, error) {
 	// decrypt all options
 	memory := security.NewMemory()
@@ -197,7 +206,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
 	defer flushRequestOption(&tHTTP.Request)
-	security.FlushBytes(b)
+	security.CoverBytes(b)
 	memory.Padding()
 
 	// apply options
@@ -205,7 +214,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	if err != nil {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
-	defer security.FlushRequest(req)
+	defer security.CoverHTTPRequest(req)
 	tr, err := tHTTP.Transport.Apply()
 	if err != nil {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
@@ -220,7 +229,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	p.HTTP(tr)
 
 	hostname := req.URL.Hostname()
-	defer security.FlushString(&hostname)
+	defer security.CoverString(&hostname)
 
 	// resolve domain name
 	result, err := h.dnsClient.ResolveWithContext(h.ctx, hostname, &tHTTP.DNSOpts)
@@ -238,7 +247,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	// timeout
 	timeout := tHTTP.Timeout
 	if timeout < 1 {
-		timeout = options.DefaultDialTimeout
+		timeout = defaultTimeout
 	}
 
 	// make http client
@@ -274,7 +283,7 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 }
 
 func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
-	defer security.FlushRequest(req)
+	defer security.CoverHTTPRequest(req)
 	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
@@ -292,12 +301,12 @@ func resolve(h *HTTP, info []byte) []*Node {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
 	aesKey, _ := hex.DecodeString(h.AESKey)
-	security.FlushString(&h.AESKey)
+	security.CoverString(&h.AESKey)
 	aesIV, _ := hex.DecodeString(h.AESIV)
-	security.FlushString(&h.AESIV)
+	security.CoverString(&h.AESIV)
 	data, err := aes.CBCDecrypt(cipherData, aesKey, aesIV)
-	security.FlushBytes(aesKey)
-	security.FlushBytes(aesIV)
+	security.CoverBytes(aesKey)
+	security.CoverBytes(aesIV)
 	if err != nil {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
@@ -310,12 +319,12 @@ func resolve(h *HTTP, info []byte) []*Node {
 	signature := data[:ed25519.SignatureSize]
 	nodesData := data[ed25519.SignatureSize:]
 	pub, err := hex.DecodeString(h.PublicKey)
-	security.FlushString(&h.PublicKey)
+	security.CoverString(&h.PublicKey)
 	if err != nil {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
 	publicKey, err := ed25519.ImportPublicKey(pub)
-	security.FlushBytes(pub)
+	security.CoverBytes(pub)
 	if err != nil {
 		panic(&bPanic{Mode: ModeHTTP, Err: err})
 	}
@@ -345,6 +354,6 @@ func resolve(h *HTTP, info []byte) []*Node {
 	if err != nil {
 		panic(&bPanic{Mode: ModeHTTP, Err: ErrInvalidSignature})
 	}
-	security.FlushBytes(nodesBytes)
+	security.CoverBytes(nodesBytes)
 	return nodes
 }

@@ -10,12 +10,14 @@ import (
 	"project/internal/proxy"
 )
 
+// supported modes
 const (
 	ModeHTTP   = "http"
 	ModeDNS    = "dns"
 	ModeDirect = "direct"
 )
 
+// Node is the bootstrap node
 type Node struct {
 	Mode    string `toml:"mode"`
 	Network string `toml:"network"`
