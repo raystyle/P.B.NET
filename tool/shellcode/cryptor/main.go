@@ -1,13 +1,13 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
 
 	"project/internal/crypto/aes"
-	"project/internal/crypto/sha256"
 )
 
 func main() {
@@ -23,8 +23,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	aesKey := sha256.Bytes([]byte(key))
+	hash := sha256.New()
+	hash.Write([]byte(key))
+	aesKey := hash.Sum(nil)
 	cipherData, err := aes.CBCEncrypt(sc, aesKey, aesKey[:aes.IVSize])
 	if err != nil {
 		log.Fatal(err)
