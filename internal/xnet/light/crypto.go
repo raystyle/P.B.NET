@@ -32,10 +32,10 @@ func newCrypto(password []byte) *crypto {
 		}
 	} else {
 		// generate new encrypt password
-		generator := random.New(0)
+		rand := random.New()
 		pool := make(map[byte]bool)
 		// first select
-		crypto[0][0] = byte(generator.Int(256))
+		crypto[0][0] = byte(rand.Int(256))
 		pool[crypto[0][0]] = true
 		add := 1
 		for {
@@ -49,10 +49,10 @@ func newCrypto(password []byte) *crypto {
 				}
 			}
 			// select option
-			key := options[generator.Int(l)]
+			key := options[rand.Int(l)]
 			crypto[0][add] = key
 			pool[key] = true
-			add += 1
+			add++
 			if add == 256 {
 				break
 			}

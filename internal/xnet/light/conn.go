@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
-	"project/internal/options"
 )
 
+const defaultHandshakeTimeout = 30 * time.Second
+
+// Conn implement net.Conn
 type Conn struct {
 	ctx context.Context
 	net.Conn
@@ -22,6 +23,7 @@ type Conn struct {
 	crypto           *crypto
 }
 
+// Handshake is used to handshake with client or server
 func (c *Conn) Handshake() error {
 	c.handshakeM.Lock()
 	defer c.handshakeM.Unlock()
@@ -30,7 +32,7 @@ func (c *Conn) Handshake() error {
 	}
 	c.handshakeOnce.Do(func() {
 		if c.handshakeTimeout < 1 {
-			c.handshakeTimeout = options.DefaultHandshakeTimeout
+			c.handshakeTimeout = defaultHandshakeTimeout
 		}
 		// interrupt
 		errChan := make(chan error, 1)
@@ -70,6 +72,7 @@ func (c *Conn) Handshake() error {
 	return c.handshakeErr
 }
 
+// Read reads data from the connection
 func (c *Conn) Read(b []byte) (n int, err error) {
 	err = c.Handshake()
 	if err != nil {
@@ -83,6 +86,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
+// Write writes data to the connection
 func (c *Conn) Write(b []byte) (n int, err error) {
 	err = c.Handshake()
 	if err != nil {

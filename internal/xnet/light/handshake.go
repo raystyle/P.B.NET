@@ -6,44 +6,49 @@ import (
 	"io"
 
 	"project/internal/convert"
-	"project/internal/crypto/rsa"
+	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
+	"project/internal/crypto/rand"
 	"project/internal/random"
 )
 
 const (
-	paddingHeaderSize = 2    // uint16 2 bytes
-	paddingMinSize    = 281  // min padding = rsaPublicKeySize
-	paddingMaxSize    = 1024 // max random padding
-	rsaBits           = 2136 // need to encrypt 256 bytes data
-	rsaPublicKeySize  = 281  // export public key = 281 bytes
-	rsaCipherDataSize = 267  // encrypted password = 267 bytes
-	passwordSize      = 256  // light crypto
+	paddingHeaderSize = 2   // uint16 2 bytes
+	paddingMinSize    = 272 // min random padding
+	paddingMaxSize    = 512 // max random padding
+	passwordSize      = 256 // light crypto
 )
 
+// errors
 var (
 	ErrInvalidPaddingSize  = errors.New("invalid padding size")
 	ErrInvalidPasswordSize = errors.New("invalid password size")
 )
 
-// client generate rsa private key
-// send rsa public key with padding data
-// +--------------+--------------+----------------+
-// | padding size | padding data | rsa public key |
-// +--------------+--------------+----------------+
-// |    uint16    |     xxx      |       281      |
-// +--------------+--------------+----------------+
+// client generate curve25519 private data
+// send curve25519 public data with padding data
+// +--------------+--------------+------------+
+// | padding size | padding data | curve25519 |
+// +--------------+--------------+------------+
+// |    uint16    |     xxx      |     32     |
+// +--------------+--------------+------------+
 func (c *Conn) clientHandshake() error {
-	privateKey, _ := rsa.GenerateKey(rsaBits)
-	rand := random.New(0)
-	sendPaddingSize := paddingMinSize + rand.Int(paddingMaxSize)
+	pri := make([]byte, 32)
+	_, _ = io.ReadFull(rand.Reader, pri)
+	pub, err := curve25519.ScalarBaseMult(pri)
+	if err != nil {
+		return err
+	}
+	r := random.New()
+	sendPaddingSize := paddingMinSize + r.Int(paddingMaxSize)
 	handshake := bytes.Buffer{}
 	// write padding size
 	handshake.Write(convert.Uint16ToBytes(uint16(sendPaddingSize)))
 	// write padding data
-	handshake.Write(rand.Bytes(sendPaddingSize))
-	// write rsa public key
-	handshake.Write(rsa.ExportPublicKey(&privateKey.PublicKey))
-	_, err := c.Conn.Write(handshake.Bytes())
+	handshake.Write(r.Bytes(sendPaddingSize))
+	// write curve25519 out
+	handshake.Write(pub)
+	_, err = c.Conn.Write(handshake.Bytes())
 	if err != nil {
 		return err
 	}
@@ -64,13 +69,22 @@ func (c *Conn) clientHandshake() error {
 	if err != nil {
 		return err
 	}
-	// receive encrypted password
-	buffer = buffer[:rsaCipherDataSize]
-	_, err = io.ReadFull(c.Conn, buffer)
+	// receive server curve25519 out
+	_, err = io.ReadFull(c.Conn, buffer[:32])
 	if err != nil {
 		return err
 	}
-	password, err := rsa.Decrypt(privateKey, buffer)
+	// calculate AES key
+	aesKey, err := curve25519.ScalarMult(pri, buffer[:32])
+	if err != nil {
+		return err
+	}
+	// receive encrypted password
+	_, err = io.ReadFull(c.Conn, buffer[:256+16])
+	if err != nil {
+		return err
+	}
+	password, err := aes.CBCDecrypt(buffer[:256+16], aesKey, aesKey[:aes.IVSize])
 	if err != nil {
 		return err
 	}
@@ -81,14 +95,15 @@ func (c *Conn) clientHandshake() error {
 	return nil
 }
 
-// server generate light password,
-// use rsa public key encrypt it,
+// server generate curve25519 private data,
+// after key exchange, generate light password
+// use AES CBC to encrypt password,
 // send encrypted data with padding data
-// +--------------+--------------+--------------+
-// | padding size | padding data |   password   |
-// +--------------+--------------+--------------+
-// |    uint16    |      xxx     |      267     |
-// +--------------+--------------+--------------+
+// +--------------+--------------+------------+----------+
+// | padding size | padding data | curve25519 | password |
+// +--------------+--------------+------------+----------+
+// |    uint16    |      xxx     |     32     |  256+16  |
+// +--------------+--------------+------------+----------+
 func (c *Conn) serverHandshake() error {
 	// receive padding size
 	buffer := make([]byte, paddingHeaderSize)
@@ -107,31 +122,38 @@ func (c *Conn) serverHandshake() error {
 	if err != nil {
 		return err
 	}
-	// receive rsa public key
-	buffer = buffer[:rsaPublicKeySize]
-	_, err = io.ReadFull(c.Conn, buffer)
+	// receive client curve25519 public key
+	_, err = io.ReadFull(c.Conn, buffer[:32])
 	if err != nil {
 		return err
 	}
-	publicKey, err := rsa.ImportPublicKey(buffer)
+	pri := make([]byte, 32)
+	_, _ = io.ReadFull(rand.Reader, pri)
+	pub, err := curve25519.ScalarBaseMult(pri)
+	if err != nil {
+		return err
+	}
+	aesKey, err := curve25519.ScalarMult(pri, buffer[:32])
 	if err != nil {
 		return err
 	}
 	c.crypto = newCrypto(nil)
 	// encrypt password
-	cipherData, err := rsa.Encrypt(publicKey, c.crypto[0][:])
+	password, err := aes.CBCEncrypt(c.crypto[0][:], aesKey, aesKey[:aes.IVSize])
 	if err != nil {
 		return err
 	}
-	rand := random.New(0)
-	sendPaddingSize := paddingMinSize + rand.Int(paddingMaxSize)
+	r := random.New()
+	sendPaddingSize := paddingMinSize + r.Int(paddingMaxSize)
 	handshake := bytes.Buffer{}
 	// write padding size
 	handshake.Write(convert.Uint16ToBytes(uint16(sendPaddingSize)))
 	// write padding data
-	handshake.Write(rand.Bytes(sendPaddingSize))
+	handshake.Write(r.Bytes(sendPaddingSize))
+	// write curve25519 public
+	handshake.Write(pub)
 	// write encrypted password
-	handshake.Write(cipherData)
+	handshake.Write(password)
 	_, err = c.Conn.Write(handshake.Bytes())
 	return err
 }
