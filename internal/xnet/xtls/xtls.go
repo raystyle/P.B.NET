@@ -9,27 +9,30 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/options"
 	"project/internal/xnet/light"
 )
 
 const (
-	defaultNextProto = "http/1.1"
+	defaultDialTimeout = 30 * time.Second
+	defaultNextProto   = "http/1.1"
 )
 
+// Conn is light.Conn
 type Conn = light.Conn
 
+// Server is used to wrap a conn to server side conn
 func Server(ctx context.Context, conn net.Conn, cfg *tls.Config, timeout time.Duration) *Conn {
 	tlsConn := tls.Server(conn, cfg)
 	return light.Server(ctx, tlsConn, timeout)
 }
 
-// should set ServerName
+// Client is used to wrap a conn to client side conn
 func Client(ctx context.Context, conn net.Conn, cfg *tls.Config, timeout time.Duration) *Conn {
 	tlsConn := tls.Client(conn, cfg)
 	return light.Client(ctx, tlsConn, timeout)
 }
 
+// Listen is used to listen a inner listener
 func Listen(
 	network string,
 	address string,
@@ -46,6 +49,7 @@ func Listen(
 	return light.NewListener(tl, timeout), nil
 }
 
+// Dial is used to dial a connection with context.Background()
 func Dial(
 	network string,
 	address string,
@@ -56,6 +60,8 @@ func Dial(
 	return DialContext(context.Background(), network, address, config, timeout, dialContext)
 }
 
+// DialContext is used to dial a connection with context
+// if dialContext is nil, dialContext = new(net.Dialer).DialContext
 func DialContext(
 	ctx context.Context,
 	network string,
@@ -65,7 +71,7 @@ func DialContext(
 	dialContext func(context.Context, string, string) (net.Conn, error),
 ) (*Conn, error) {
 	if timeout < 1 {
-		timeout = options.DefaultHandshakeTimeout
+		timeout = defaultDialTimeout
 	}
 	if dialContext == nil {
 		dialContext = new(net.Dialer).DialContext
