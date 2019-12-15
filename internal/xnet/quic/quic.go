@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
-
-	"project/internal/options"
 )
 
 const (
-	defaultNextProto = "h3-23" // HTTP/3
+	defaultDialTimeout = 30 * time.Second
+	defaultNextProto   = "h3-23" // HTTP/3
 )
 
 // Conn implement net.Conn
@@ -40,6 +39,7 @@ func newConn(ctx context.Context, session quic.Session) (*Conn, error) {
 	}, nil
 }
 
+// Read reads data from the connection
 func (c *Conn) Read(b []byte) (n int, err error) {
 	if c.receive == nil {
 		receive, err := c.session.AcceptUniStream(c.ctx)
@@ -51,24 +51,29 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	return c.receive.Read(b)
 }
 
+// Write writes data to the connection
 func (c *Conn) Write(b []byte) (n int, err error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.send.Write(b)
 }
 
+// Close is used to close connection
 func (c *Conn) Close() error {
 	return c.session.Close()
 }
 
+// LocalAddr is used to get local address
 func (c *Conn) LocalAddr() net.Addr {
 	return c.session.LocalAddr()
 }
 
+// RemoteAddr is used to get remote address
 func (c *Conn) RemoteAddr() net.Addr {
 	return c.session.RemoteAddr()
 }
 
+// SetDeadline is used to set read and write deadline
 func (c *Conn) SetDeadline(t time.Time) error {
 	err := c.receive.SetReadDeadline(t)
 	if err != nil {
@@ -77,10 +82,12 @@ func (c *Conn) SetDeadline(t time.Time) error {
 	return c.send.SetWriteDeadline(t)
 }
 
+// SetReadDeadline is used to set read deadline
 func (c *Conn) SetReadDeadline(t time.Time) error {
 	return c.receive.SetReadDeadline(t)
 }
 
+// SetWriteDeadline is used to set write deadline
 func (c *Conn) SetWriteDeadline(t time.Time) error {
 	return c.send.SetWriteDeadline(t)
 }
@@ -104,6 +111,7 @@ func (l *listener) Close() error {
 	return l.Listener.Close()
 }
 
+// Listen is used to create a listener
 func Listen(
 	network string,
 	address string,
@@ -136,6 +144,7 @@ func Listen(
 	return &ll, nil
 }
 
+// Dial is used to dial a connection with context.Background()
 func Dial(
 	network string,
 	address string,
@@ -145,6 +154,7 @@ func Dial(
 	return DialContext(context.Background(), network, address, config, timeout)
 }
 
+// DialContext is used to dial a connection with context
 func DialContext(
 	ctx context.Context,
 	network string,
@@ -161,7 +171,7 @@ func DialContext(
 		return nil, err
 	}
 	if timeout < 1 {
-		timeout = options.DefaultDialTimeout
+		timeout = defaultDialTimeout
 	}
 	quicCfg := quic.Config{
 		HandshakeTimeout: timeout,
