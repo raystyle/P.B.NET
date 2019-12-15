@@ -12,7 +12,7 @@ import (
 
 func doUseless(c chan []byte) {
 	buf := bytes.Buffer{}
-	rand := random.New(0)
+	rand := random.New()
 	n := 100 + rand.Int(100)
 	for i := 0; i < n; i++ {
 		buf.Write(random.Bytes(16 + rand.Int(1024)))
@@ -21,7 +21,7 @@ func doUseless(c chan []byte) {
 }
 
 func schedule() {
-	rand := random.New(0)
+	rand := random.New()
 	bChan := make(chan []byte, 1024)
 	n := 8 + rand.Int(8)
 	for i := 0; i < n; i++ {

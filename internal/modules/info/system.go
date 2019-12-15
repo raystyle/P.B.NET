@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// System contains the current system info
 type System struct {
 	IP        []string // 192.168.1.11/24, fe80::5456:5f8:1690:5792/64
 	OS        string   // windows, linux
@@ -19,6 +20,7 @@ type System struct {
 	Username  string   // WIN-F0F2A61229S\Admin
 }
 
+// GetSystemInfo is used to get current system info
 func GetSystemInfo() *System {
 	system := System{}
 	ifaces, _ := net.Interfaces()
