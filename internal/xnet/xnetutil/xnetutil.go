@@ -6,19 +6,21 @@ import (
 	"net"
 	"strconv"
 	"time"
-
-	"project/internal/options"
 )
 
+// ErrEmptyPort is an error of CheckPortString
 var ErrEmptyPort = errors.New("empty port")
 
+// CheckPort is used to check port range
 func CheckPort(port int) error {
 	if port < 1 || port > 65535 {
-		return fmt.Errorf("invalid port: %d", port)
+		return fmt.Errorf("invalid port range: %d", port)
 	}
 	return nil
 }
 
+// CheckPortString is used to check port range
+// port is a string
 func CheckPortString(port string) error {
 	if port == "" {
 		return ErrEmptyPort
@@ -30,6 +32,7 @@ func CheckPortString(port string) error {
 	return CheckPort(n)
 }
 
+// TrafficUnit is used to convert bytes to another unit
 type TrafficUnit int
 
 func (ts TrafficUnit) String() string {
@@ -76,7 +79,7 @@ func DeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
 		deadline: deadline,
 	}
 	if dc.deadline < 1 {
-		dc.deadline = options.DefaultDeadline
+		dc.deadline = time.Minute
 	}
 	return &dc
 }
