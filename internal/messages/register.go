@@ -9,12 +9,14 @@ import (
 	"project/internal/modules/info"
 )
 
+// Bootstrap is padding
 type Bootstrap struct {
 	Tag    string
 	Mode   string
 	Config []byte
 }
 
+// about register result
 const (
 	RegisterResultAccept uint8 = iota
 	RegisterResultRefused
@@ -22,9 +24,12 @@ const (
 )
 
 var (
+	// RegisterSucceed is ok
 	RegisterSucceed = []byte("ok")
 )
 
+// NodeRegisterRequest is used to Node register,
+// controller trust node also use it
 type NodeRegisterRequest struct {
 	GUID         []byte
 	PublicKey    []byte
@@ -33,6 +38,7 @@ type NodeRegisterRequest struct {
 	RequestTime  time.Time
 }
 
+// Validate is used to validate request fields
 func (r *NodeRegisterRequest) Validate() error {
 	if len(r.GUID) != guid.Size {
 		return errors.New("invalid guid size")
@@ -49,10 +55,11 @@ func (r *NodeRegisterRequest) Validate() error {
 	return nil
 }
 
+// NodeRegisterResponse is used to return Node register response
 type NodeRegisterResponse struct {
 	GUID         []byte
 	PublicKey    []byte // verify message
-	KexPublicKey []byte // aes key exchange
+	KexPublicKey []byte // key exchange
 	Result       uint8
 	Certificates []byte
 	Listeners    []*Listener
@@ -60,6 +67,7 @@ type NodeRegisterResponse struct {
 	ReplyTime    time.Time
 }
 
+// Validate is used to validate response fields
 func (r *NodeRegisterResponse) Validate() error {
 	if len(r.GUID) != guid.Size {
 		return errors.New("invalid guid size")
@@ -80,6 +88,7 @@ func (r *NodeRegisterResponse) Validate() error {
 	return nil
 }
 
+// BeaconRegisterRequest is used to Beacon register
 type BeaconRegisterRequest struct {
 	GUID         []byte
 	PublicKey    []byte
@@ -88,6 +97,7 @@ type BeaconRegisterRequest struct {
 	RequestTime  time.Time
 }
 
+// Validate is used to validate request fields
 func (r *BeaconRegisterRequest) Validate() error {
 	if len(r.GUID) != guid.Size {
 		return errors.New("invalid guid size")
@@ -104,15 +114,17 @@ func (r *BeaconRegisterRequest) Validate() error {
 	return nil
 }
 
+// BeaconRegisterResponse is used to return Beacon register response
 type BeaconRegisterResponse struct {
 	GUID         []byte
 	PublicKey    []byte // verify message
-	KexPublicKey []byte // aes key exchange
+	KexPublicKey []byte // key exchange
 	Result       uint8
 	RequestTime  time.Time
 	ReplyTime    time.Time
 }
 
+// Validate is used to validate response fields
 func (r *BeaconRegisterResponse) Validate() error {
 	if len(r.GUID) != guid.Size {
 		return errors.New("invalid guid size")

@@ -6,6 +6,7 @@ import (
 	"project/internal/options"
 )
 
+// Listener is used to listen a listener to a Node
 type Listener struct {
 	Tag       string
 	Mode      string
