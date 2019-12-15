@@ -47,6 +47,8 @@ func NewConn(conn net.Conn, connect time.Time) *Conn {
 	}
 }
 
+// Read reads data from the connection
+// it will count network traffic
 func (c *Conn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	c.rwm.Lock()
@@ -55,6 +57,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 	return n, err
 }
 
+// Write writes data to the connection
+// it will count network traffic
 func (c *Conn) Write(b []byte) (int, error) {
 	n, err := c.Conn.Write(b)
 	c.rwm.Lock()
@@ -108,6 +112,7 @@ func (c *Conn) Status() *Status {
 	return s
 }
 
+// String is used to get connection info
 // local tcp 127.0.0.1:123 <-> remote tcp 127.0.0.1:124
 // sent: 123 Byte received: 1.101 KB
 // connect time: 2006-01-02 15:04:05

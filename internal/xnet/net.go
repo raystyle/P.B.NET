@@ -12,17 +12,20 @@ import (
 	"project/internal/xnet/xtls"
 )
 
+// errors
 var (
 	ErrEmptyMode    = fmt.Errorf("empty mode")
 	ErrEmptyNetwork = fmt.Errorf("empty network")
 )
 
+// supported modes
 const (
 	ModeTLS   = "tls"
 	ModeQUIC  = "quic"
 	ModeLight = "light"
 )
 
+// UnknownModeError is an error of the mode
 type UnknownModeError string
 
 func (m UnknownModeError) Error() string {
@@ -39,6 +42,7 @@ func (mn *mismatchedModeNetwork) Error() string {
 		mn.mode, mn.network)
 }
 
+// CheckModeNetwork is used to check if the mode and network matched
 func CheckModeNetwork(mode string, network string) error {
 	if mode == "" {
 		return ErrEmptyMode
@@ -71,8 +75,10 @@ func CheckModeNetwork(mode string, network string) error {
 	return nil
 }
 
+// Dialer is a link
 type Dialer func(ctx context.Context, network, address string) (net.Conn, error)
 
+// Config contains configs about all modes
 type Config struct {
 	Network   string
 	Address   string
@@ -81,6 +87,7 @@ type Config struct {
 	Dialer    Dialer
 }
 
+// Listen is used to listen a listener
 func Listen(mode string, cfg *Config) (net.Listener, error) {
 	switch mode {
 	case ModeTLS:
@@ -106,10 +113,12 @@ func Listen(mode string, cfg *Config) (net.Listener, error) {
 	}
 }
 
+// Dial is used to dial context with context.Background()
 func Dial(mode string, config *Config) (net.Conn, error) {
 	return DialContext(context.Background(), mode, config)
 }
 
+// DialContext is used to dial with context
 func DialContext(ctx context.Context, mode string, cfg *Config) (net.Conn, error) {
 	switch mode {
 	case ModeTLS:
