@@ -4,17 +4,12 @@ import (
 	"time"
 
 	"project/internal/dns"
+	"project/internal/messages"
 	"project/internal/proxy"
 	"project/internal/timesync"
 )
 
-type Debug struct {
-	SkipTimeSyncer bool
-
-	// test sender
-	BroadcastChan chan []byte
-}
-
+// Config contains configuration about Beacon
 type Config struct {
 	// TODO skip encode
 	Debug Debug `toml:"-"`
@@ -29,8 +24,8 @@ type Config struct {
 	// global
 	ProxyClients       map[string]*proxy.Chain     `toml:"proxy_clients"`
 	DNSServers         map[string]*dns.Server      `toml:"dns_servers"`
-	DnsCacheDeadline   time.Duration               `toml:"dns_cache_deadline"`
-	TimeSyncerConfigs  map[string]*timesync.Config `toml:"time_syncer_configs"`
+	DNSCacheDeadline   time.Duration               `toml:"dns_cache_deadline"`
+	TimeSyncerClients  map[string]*timesync.Client `toml:"time_syncer_clients"`
 	TimeSyncerInterval time.Duration               `toml:"time_syncer_interval"`
 
 	// sender
@@ -52,6 +47,15 @@ type Config struct {
 	CtrlExPublicKey []byte `toml:"-"`
 
 	// register
-	RegisterAESKey     []byte              `toml:"-"` // key + iv Config is encrypted
-	RegisterBootstraps []*config.Bootstrap `toml:"-"`
+	RegisterAESKey     []byte                `toml:"-"` // key + iv Config is encrypted
+	RegisterBootstraps []*messages.Bootstrap `toml:"-"`
+}
+
+// Debug is used to test
+type Debug struct {
+	SkipSynchronizeTime bool
+
+	// from controller
+	Broadcast chan []byte
+	Send      chan []byte
 }
