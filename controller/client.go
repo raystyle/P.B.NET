@@ -177,7 +177,7 @@ func (client *client) handshake(conn *xnet.Conn) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive check connection data")
 	}
-	_, err = conn.Write(random.New(now.Unix()).Bytes(size))
+	_, err = conn.Write(random.New().Bytes(size))
 	if err != nil {
 		return errors.Wrap(err, "failed to send check connection data")
 	}
@@ -306,7 +306,7 @@ func (client *client) onFrameAfterSync(cmd byte, id, data []byte) bool {
 func (client *client) sendHeartbeatLoop() {
 	defer client.wg.Done()
 	var err error
-	r := random.New(client.ctx.global.Now().Unix())
+	r := random.New()
 	buffer := bytes.NewBuffer(nil)
 	for {
 		t := time.Duration(30+r.Int(60)) * time.Second

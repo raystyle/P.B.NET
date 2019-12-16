@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/x509"
 	"encoding/pem"
@@ -19,7 +20,7 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
-	"project/internal/crypto/sha256"
+
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
@@ -241,15 +242,22 @@ func GenerateSessionKey(path string, password []byte) error {
 	buf.Write(privateKey)
 	buf.Write(aesKey)
 	buf.Write(aesIV)
-	hash := sha256.Bytes(buf.Bytes())
+	hash := sha256.New()
+	hash.Write(buf.Bytes())
+	hashData := hash.Sum(nil)
 	// encrypt
-	key := sha256.Bytes(password)
-	iv := sha256.Bytes(append(key, []byte{20, 18, 11, 27}...))[:aes.IVSize]
+	hash.Reset()
+	hash.Write(password)
+	key := hash.Sum(nil)
+	hash.Reset()
+	hash.Write(key)
+	hash.Write([]byte{20, 18, 11, 27})
+	iv := hash.Sum(nil)[:aes.IVSize]
 	keyEnc, err := aes.CBCEncrypt(buf.Bytes(), key, iv)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return ioutil.WriteFile(path, append(hash, keyEnc...), 644)
+	return ioutil.WriteFile(path, append(hashData, keyEnc...), 644)
 }
 
 const sessionKeySize = sha256.Size +
@@ -271,15 +279,22 @@ func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
 	memory.Padding()
-	key := sha256.Bytes(password)
-	iv := sha256.Bytes(append(key, []byte{20, 18, 11, 27}...))[:aes.IVSize]
+	hash := sha256.New()
+	hash.Write(password)
+	key := hash.Sum(nil)
+	hash.Reset()
+	hash.Write(key)
+	hash.Write([]byte{20, 18, 11, 27})
+	iv := hash.Sum(nil)[:aes.IVSize]
 	keyDec, err := aes.CBCDecrypt(file[sha256.Size:], key, iv)
 	if err != nil {
 		err = errors.WithStack(err)
 		return
 	}
 	// compare hash
-	if subtle.ConstantTimeCompare(file[:sha256.Size], sha256.Bytes(keyDec)) != 1 {
+	hash.Reset()
+	hash.Write(keyDec)
+	if subtle.ConstantTimeCompare(file[:sha256.Size], hash.Sum(nil)) != 1 {
 		err = errors.New("invalid password")
 		return
 	}
@@ -395,7 +410,7 @@ func (global *global) isLoadSessionKey() bool {
 
 // LoadSessionKey is used to load session key
 func (global *global) LoadSessionKey(password []byte) error {
-	defer security.FlushBytes(password)
+	defer security.CoverBytes(password)
 
 	global.objectsRWM.Lock()
 	defer global.objectsRWM.Unlock()
@@ -423,7 +438,7 @@ func (global *global) LoadSessionKey(password []byte) error {
 	global.objects[objBroadcastKey] = cbc
 
 	// hide ed25519 private key, not continuity in memory
-	rand := random.New(0)
+	rand := random.New()
 	memory := security.NewMemory()
 	defer memory.Flush()
 	for i := 0; i < ed25519.PrivateKeySize; i++ {
@@ -437,23 +452,25 @@ func (global *global) LoadSessionKey(password []byte) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	hash := new(bytes.Buffer)
-	hash.Write(password)
+	hashBuf := new(bytes.Buffer)
+	hashBuf.Write(password)
 
 	memory.Padding()
-	kps, err := loadSelfCertificates(hash, password)
+	kps, err := loadSelfCertificates(hashBuf, password)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load self CA certificates")
 	}
 	memory.Padding()
-	system, err := loadSystemCertificates(hash, password)
+	system, err := loadSystemCertificates(hashBuf, password)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load system CA certificates")
 	}
 
 	// compare hash
 	memory.Padding()
-	if subtle.ConstantTimeCompare(PEMHash, sha256.Bytes(hash.Bytes())) != 1 {
+	hash := sha256.New()
+	hash.Write(hashBuf.Bytes())
+	if subtle.ConstantTimeCompare(PEMHash, hash.Sum(nil)) != 1 {
 		return errors.New("warning: PEM files has been tampered")
 	}
 	memory.Padding()
@@ -487,11 +504,7 @@ func (global *global) Sign(message []byte) []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	pri := make([]byte, ed25519.PrivateKeySize)
-	defer func() {
-		for i := 0; i < ed25519.PrivateKeySize; i++ {
-			pri[i] = 0
-		}
-	}()
+	defer security.CoverBytesFast(pri)
 	for i := 0; i < ed25519.PrivateKeySize; i++ {
 		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
 	}
@@ -547,7 +560,7 @@ func (global *global) KeyExchangePub() []byte {
 // KeyExchange is use to calculate session key
 func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	pri := make([]byte, 32)
-	defer security.FlushBytes(pri)
+	defer security.CoverBytes(pri)
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	for i := 0; i < 32; i++ {

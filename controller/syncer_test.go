@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
+	"project/internal/messages"
 	"project/internal/xnet"
 )
 
@@ -38,7 +39,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 	ctrl.Debug.NodeSend = make(chan []byte, times)
 	go func() {
 		for i := 0; i < times; i++ {
-			require.NoError(t, NODE.TestSend(msg))
+			require.NoError(t, NODE.Send(messages.CMDBytesTest, msg))
 		}
 	}()
 	// read

@@ -24,6 +24,7 @@ import (
 	"project/internal/xpanic"
 )
 
+// errors
 var (
 	ErrBroadcastFailed = fmt.Errorf("failed to broadcast")
 	ErrSendFailed      = fmt.Errorf("failed to send")
@@ -544,7 +545,7 @@ func (sender *sender) broadcast(guid, message []byte) (
 	for i := 0; i < l; i++ {
 		resp[i] = <-respChan
 		if resp[i].Err == nil {
-			success += 1
+			success++
 		}
 	}
 	return
@@ -591,7 +592,7 @@ func (sender *sender) send(role protocol.Role, guid, message []byte) (
 	for i := 0; i < l; i++ {
 		resp[i] = <-respChan
 		if resp[i].Err == nil {
-			success += 1
+			success++
 		}
 	}
 	return
@@ -638,7 +639,7 @@ func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) (
 	for i := 0; i < l; i++ {
 		resp[i] = <-respChan
 		if resp[i].Err == nil {
-			success += 1
+			success++
 		}
 	}
 	return
@@ -651,7 +652,7 @@ type senderWorker struct {
 	maxBufferSize int
 
 	// runtime
-	guid     *guid.GUID
+	guid     *guid.Generator
 	buffer   *bytes.Buffer
 	msgpack  *msgpack.Encoder
 	hex      io.Writer

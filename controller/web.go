@@ -65,11 +65,11 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// listen tls
-	tlsCert, err := tls.X509KeyPair(kp.EncodeToPEM())
+	tlsCert, err := kp.TLSCertificate()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
 	listener, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -161,7 +161,7 @@ func (web *web) handleLoadKeys(w hRW, r *hR, p hP) {
 		return
 	}
 	err = web.ctx.LoadSessionKey(pwd)
-	security.FlushBytes(pwd)
+	security.CoverBytes(pwd)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return

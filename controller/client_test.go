@@ -203,7 +203,7 @@ func BenchmarkClient_SendParallel(b *testing.B) {
 			require.NoError(b, err)
 			require.Equal(b, data.Bytes(), reply)
 			data.Reset()
-			i += 1
+			i++
 		}
 	})
 	b.StopTimer()

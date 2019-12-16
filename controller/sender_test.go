@@ -52,8 +52,8 @@ func TestSender_Connect(t *testing.T) {
 func TestSender_Broadcast(t *testing.T) {
 	NODE := testGenerateNodeAndConnect(t)
 	const (
-		goRoutines = 4
-		times      = 8192
+		goRoutines = 256
+		times      = 1024
 	)
 	broadcast := func(start int) {
 		for i := start; i < start+times; i++ {
@@ -102,8 +102,8 @@ func TestSender_Send(t *testing.T) {
 	// send to Node
 	roleGUID := NODE.GUID()
 	const (
-		goRoutines = 4
-		times      = 8192
+		goRoutines = 256
+		times      = 1024
 	)
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
@@ -178,7 +178,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 				select {
 				case <-NODEs[index].Debug.Broadcast:
 					countM.Lock()
-					count += 1
+					count++
 					countM.Unlock()
 				case <-timer.C:
 					return

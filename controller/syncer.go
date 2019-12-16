@@ -193,7 +193,7 @@ func (syncer *syncer) guidCleaner() {
 		select {
 		case <-ticker.C:
 			syncer.cleanGUID()
-			count += 1
+			count++
 			if count > max {
 				syncer.cleanGUIDMap()
 				count = 0
