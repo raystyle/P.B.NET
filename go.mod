@@ -10,7 +10,7 @@ require (
 	github.com/kardianos/service v1.0.1-0.20191017145738-4df36c9fc1c6
 	github.com/lucas-clemente/quic-go v0.14.1
 	github.com/pelletier/go-toml v1.6.0
-	github.com/pkg/errors v0.8.1
+	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.4.0
 	github.com/vmihailenco/msgpack/v4 v4.3.4
 
