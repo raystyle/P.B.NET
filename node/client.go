@@ -26,7 +26,7 @@ func (c *conn) onFrameClient(frame []byte) {
 
 func (c *conn) sendHeartbeat() {
 	var err error
-	rand := random.New(0)
+	rand := random.New()
 	buffer := bytes.NewBuffer(nil)
 	for {
 		t := time.Duration(30+rand.Int(60)) * time.Second

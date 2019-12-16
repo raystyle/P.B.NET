@@ -128,7 +128,7 @@ const (
 
 // <security>
 func (global *global) secPaddingMemory() {
-	rand := random.New(0)
+	rand := random.New()
 	memory := security.NewMemory()
 	security.PaddingMemory()
 	defer security.FlushMemory()
@@ -144,13 +144,13 @@ func (global *global) secPaddingMemory() {
 	}()
 	padding()
 	global.wg.Wait()
-	global.spmCount += 1
+	global.spmCount++
 }
 
 func (global *global) configure(cfg *Config) error {
 	// random object map
 	global.secPaddingMemory()
-	rand := random.New(0)
+	rand := random.New()
 	global.object = make(map[uint32]interface{})
 	for i := 0; i < 32+rand.Int(512); i++ { // 544 * 160 bytes
 		key := uint32(1 + rand.Int(512))
@@ -162,7 +162,7 @@ func (global *global) configure(cfg *Config) error {
 	global.object[objStartupTime] = time.Now()
 	// generate guid and select one
 	global.secPaddingMemory()
-	rand = random.New(0)
+	rand = random.New()
 	g := guid.New(64, nil)
 	var guidPool [1024][]byte
 	for i := 0; i < len(guidPool); i++ {
@@ -189,15 +189,15 @@ func (global *global) configure(cfg *Config) error {
 	global.object[objKeyExPub] = pub
 	// generate database aes
 	global.secPaddingMemory()
-	rand = random.New(0)
+	rand = random.New()
 	aesKey := rand.Bytes(aes.Key256Bit)
 	aesIV := rand.Bytes(aes.IVSize)
 	cbc, err := aes.NewCBC(aesKey, aesIV)
 	if err != nil {
 		panic(err)
 	}
-	security.FlushBytes(aesKey)
-	security.FlushBytes(aesIV)
+	security.CoverBytes(aesKey)
+	security.CoverBytes(aesIV)
 	global.object[objDBAESCrypto] = cbc
 	// -----------------load controller configs-----------------
 	// controller public key
@@ -325,9 +325,8 @@ func (global *global) Certificate() []byte {
 	c := global.object[objCertificate]
 	if c != nil {
 		return c.([]byte)
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // SetCertificate is used to set Node certificate
@@ -340,9 +339,8 @@ func (global *global) SetCertificate(cert []byte) error {
 		copy(c, cert)
 		global.object[objCertificate] = c
 		return nil
-	} else {
-		return errors.New("certificate has been set")
 	}
+	return errors.New("certificate has been set")
 }
 
 // PublicKey is used to get node public key

@@ -37,7 +37,7 @@ type server struct {
 	maxConns int           // every listener
 	timeout  time.Duration // handshake timeout
 
-	guid         *guid.GUID
+	guid         *guid.Generator
 	rand         *random.Rand
 	listeners    map[string]*Listener // key = tag
 	listenersRWM sync.RWMutex
@@ -84,8 +84,8 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		aesKey := cfg.AESCrypto[:aes.Key256Bit]
 		aesIV := cfg.AESCrypto[aes.Key256Bit:]
 		defer func() {
-			security.FlushBytes(aesKey)
-			security.FlushBytes(aesIV)
+			security.CoverBytes(aesKey)
+			security.CoverBytes(aesIV)
 		}()
 		data, err := aes.CBCDecrypt(cfg.Listeners, aesKey, aesIV)
 		if err != nil {
@@ -111,7 +111,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	server.maxConns = cfg.MaxConns
 	server.timeout = cfg.Timeout
 	server.guid = guid.New(1024, server.ctx.global.Now)
-	server.rand = random.New(0)
+	server.rand = random.New()
 	server.conns = make(map[string]*xnet.Conn)
 	server.ctrlConns = make(map[string]*ctrlConn)
 	server.nodeConns = make(map[string]*nodeConn)

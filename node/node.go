@@ -9,7 +9,7 @@ import (
 	"project/internal/messages"
 )
 
-// Node
+// Node is a program
 type Node struct {
 	Debug *Debug // for test
 
@@ -133,7 +133,8 @@ func (node *Node) Exit(err error) {
 		node.server.Close()
 		node.logger.Print(logger.Debug, "exit", "server is stopped")
 		node.handler.Close()
-		node.logger.Print(logger.Debug, "exit", "handler is stopped") // TODO think handler block
+		// TODO think handler block
+		node.logger.Print(logger.Debug, "exit", "handler is stopped")
 		node.worker.Close()
 		node.logger.Print(logger.Debug, "exit", "worker is stopped")
 		node.syncer.Close()
@@ -159,12 +160,12 @@ func (node *Node) GetListener(tag string) (*Listener, error) {
 	return node.server.GetListener(tag)
 }
 
-// ------------------------------------test-------------------------------------
-
+// GUID is used to get Node GUID
 func (node *Node) GUID() []byte {
 	return node.global.GUID()
 }
 
-func (node *Node) TestSend(msg []byte) error {
-	return node.sender.Send(messages.CMDBytesTest, msg)
+// Send is used to send message to Controller
+func (node *Node) Send(cmd, msg []byte) error {
+	return node.sender.Send(cmd, msg)
 }

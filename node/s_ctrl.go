@@ -45,7 +45,7 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 		ctx:        s.ctx,
 		tag:        tag,
 		conn:       conn,
-		rand:       random.New(s.ctx.global.Now().Unix()),
+		rand:       random.New(),
 		stopSignal: make(chan struct{}),
 	}
 

@@ -275,7 +275,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protoco
 	for i := 0; i < l; i++ {
 		resp := <-responses
 		if resp.Err == nil {
-			result.Success += 1
+			result.Success++
 		}
 		result.Responses[i] = resp
 	}

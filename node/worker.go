@@ -125,7 +125,7 @@ type subWorker struct {
 	// runtime
 	buffer  *bytes.Buffer
 	hash    hash.Hash
-	guid    *guid.GUID
+	guid    *guid.Generator
 	ack     *protocol.Acknowledge
 	encoder *msgpack.Encoder
 	err     error

@@ -49,12 +49,10 @@ func (node *nodeConn) Send(guid, message []byte) (sr *protocol.SendResponse) {
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Equal(reply, protocol.ReplySucceed) {
-		return
-	} else {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		sr.Err = errors.New(string(reply))
-		return
 	}
+	return
 }
 
 // Acknowledge is used to acknowledge to controller
@@ -76,10 +74,8 @@ func (node *nodeConn) Acknowledge(guid, message []byte) (ar *protocol.Acknowledg
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Equal(reply, protocol.ReplySucceed) {
-		return
-	} else {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		ar.Err = errors.New(string(reply))
-		return
 	}
+	return
 }
