@@ -3,7 +3,6 @@ package random
 import (
 	"crypto/sha256"
 	"math/rand"
-	"runtime"
 	"sync"
 	"time"
 
@@ -24,10 +23,10 @@ type Rand struct {
 	m    sync.Mutex
 }
 
-// New is used to create a Rand from seed
+// New is used to create a Rand
 func New() *Rand {
-	goRoutines := 64 * runtime.NumCPU()
-	times := (4096 / goRoutines) + 8
+	goRoutines := 8
+	times := 128
 	data := make(chan []byte, goRoutines*times)
 	wg := sync.WaitGroup{}
 	wg.Add(goRoutines)
@@ -37,8 +36,9 @@ func New() *Rand {
 				recover()
 				wg.Done()
 			}()
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			for i := 0; i < times; i++ {
-				data <- []byte{byte(i)}
+				data <- []byte{byte(r.Intn(256) + i)}
 			}
 		}()
 	}
