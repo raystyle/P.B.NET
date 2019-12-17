@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"project/internal/crypto/rand"
@@ -22,7 +24,7 @@ import (
 
 // Options include options about generate certificate
 type Options struct {
-	Algorithm   string    `toml:"algorithm"` // rsa, ecdsa, ed25519
+	Algorithm   string    `toml:"algorithm"` // "rsa|2048", "ecdsa|p256", "ed25519"
 	DNSNames    []string  `toml:"dns_names"`
 	IPAddresses []string  `toml:"ip_addresses"` // IP SANS
 	Subject     Subject   `toml:"subject"`
@@ -79,7 +81,7 @@ func (kp *KeyPair) TLSCertificate() (tls.Certificate, error) {
 	return tls.X509KeyPair(kp.EncodeToPEM())
 }
 
-func genCertificate(opts *Options) *x509.Certificate {
+func generateCertificate(opts *Options) *x509.Certificate {
 	cert := x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
 	cert.SubjectKeyId = random.Bytes(4)
@@ -131,20 +133,44 @@ func genCertificate(opts *Options) *x509.Certificate {
 	return &cert
 }
 
-func genKey(algorithm string) (interface{}, interface{}, error) {
-	switch algorithm {
-	case "", "rsa":
-		privateKey, _ := rsa.GenerateKey(rand.Reader, 4096)
+func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
+	if algorithm == "" {
+		privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 		return privateKey, &privateKey.PublicKey, nil
-	case "ecdsa":
-		privateKey, _ := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-		return privateKey, &privateKey.PublicKey, nil
-	case "ed25519":
+	}
+	if algorithm == "ed25519" {
 		publicKey, privateKey, _ := ed25519.GenerateKey(rand.Reader)
 		return privateKey, publicKey, nil
-	default:
-		return nil, nil, fmt.Errorf("unknown algorithm: %s", algorithm)
 	}
+	configs := strings.Split(algorithm, "|")
+	if len(configs) != 2 {
+		return nil, nil, fmt.Errorf("invalid algorithm configs: %s", algorithm)
+	}
+	switch configs[0] {
+	case "rsa":
+		bits, err := strconv.Atoi(configs[1])
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid RSA bits: %s %s", algorithm, err)
+		}
+		privateKey, _ := rsa.GenerateKey(rand.Reader, bits)
+		return privateKey, &privateKey.PublicKey, nil
+	case "ecdsa":
+		var privateKey *ecdsa.PrivateKey
+		switch configs[1] {
+		case "p224":
+			privateKey, _ = ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+		case "p256":
+			privateKey, _ = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		case "p384":
+			privateKey, _ = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+		case "p521":
+			privateKey, _ = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		default:
+			return nil, nil, fmt.Errorf("unsupported elliptic curve: %s", configs[1])
+		}
+		return privateKey, &privateKey.PublicKey, nil
+	}
+	return nil, nil, fmt.Errorf("unknown algorithm: %s", algorithm)
 }
 
 // GenerateCA is used to generate a CA certificate from Options
@@ -153,12 +179,12 @@ func GenerateCA(opts *Options) (*KeyPair, error) {
 		opts = new(Options)
 	}
 
-	ca := genCertificate(opts)
+	ca := generateCertificate(opts)
 	ca.KeyUsage = x509.KeyUsageCertSign
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
 
-	privateKey, publicKey, err := genKey(opts.Algorithm)
+	privateKey, publicKey, err := generatePrivateKey(opts.Algorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +207,7 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPai
 		opts = new(Options)
 	}
 
-	cert := genCertificate(opts)
+	cert := generateCertificate(opts)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 
 	// check dns
@@ -204,7 +230,7 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPai
 	}
 
 	// generate certificate
-	privateKey, publicKey, err := genKey(opts.Algorithm)
+	privateKey, publicKey, err := generatePrivateKey(opts.Algorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +251,7 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPai
 	}, nil
 }
 
-func printStrings(s []string) string {
+func printStringSlice(s []string) string {
 	var ss string
 	for i, s := range s {
 		if i == 0 {
@@ -251,8 +277,8 @@ signature algorithm:  %s
 not before: %s
 not after:  %s`
 	_, _ = fmt.Fprintf(output, certFormat,
-		cert.Subject.CommonName, printStrings(cert.Subject.Organization),
-		cert.Issuer.CommonName, printStrings(cert.Issuer.Organization),
+		cert.Subject.CommonName, printStringSlice(cert.Subject.Organization),
+		cert.Issuer.CommonName, printStringSlice(cert.Issuer.Organization),
 		cert.PublicKeyAlgorithm, cert.SignatureAlgorithm,
 		cert.NotBefore.Local().Format(logger.TimeLayout),
 		cert.NotAfter.Local().Format(logger.TimeLayout),

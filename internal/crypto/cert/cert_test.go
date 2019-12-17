@@ -24,7 +24,7 @@ func TestGenerateCA(t *testing.T) {
 
 func TestGenerate(t *testing.T) {
 	t.Parallel()
-	for _, alg := range []string{"rsa", "ecdsa", "ed25519"} {
+	for _, alg := range []string{"", "rsa|1024", "ecdsa|p224", "ed25519"} {
 		t.Run(alg, func(t *testing.T) {
 			opts := Options{Algorithm: alg}
 			t.Parallel() // must here
@@ -47,7 +47,7 @@ func TestGenerate(t *testing.T) {
 
 func testGenerate(t *testing.T, ca *KeyPair) {
 	opts := &Options{
-		Algorithm:   "rsa",
+		Algorithm:   "rsa|1024",
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
@@ -133,8 +133,8 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 
 func TestUnknownAlgorithm(t *testing.T) {
 	t.Parallel()
-	pri, pub, err := genKey("foo alg")
-	require.EqualError(t, err, "unknown algorithm: foo alg")
+	pri, pub, err := generatePrivateKey("foo|alg")
+	require.EqualError(t, err, "unknown algorithm: foo|alg")
 	require.Nil(t, pri)
 	require.Nil(t, pub)
 	opts := &Options{Algorithm: "foo alg"}
@@ -142,14 +142,14 @@ func TestUnknownAlgorithm(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, kp)
 
-	opts.Algorithm = "rsa"
+	opts.Algorithm = "rsa|1024"
 	kp, err = GenerateCA(opts)
 	require.NoError(t, err)
 
 	_, err = Generate(kp.Certificate, kp.PrivateKey, nil)
 	require.NoError(t, err)
 
-	opts.Algorithm = "foo alg"
+	opts.Algorithm = "foo|alg"
 	kp, err = Generate(kp.Certificate, kp.PrivateKey, opts)
 	require.Error(t, err)
 	require.Nil(t, kp)
