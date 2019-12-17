@@ -1,4 +1,4 @@
-algorithm    = "rsa"
+algorithm    = "rsa|2048"
 dns_names    = ["localhost"]
 ip_addresses = ["127.0.0.1","::1"]
 # not_before   = 2018-11-27
