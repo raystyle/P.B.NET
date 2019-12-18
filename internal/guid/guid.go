@@ -2,7 +2,6 @@ package guid
 
 import (
 	"crypto/sha256"
-	"os"
 	"sync"
 	"time"
 
@@ -30,7 +29,7 @@ type Generator struct {
 // New is used to create a GUID generator
 // if now is nil, use time.Now
 func New(size int, now func() time.Time) *Generator {
-	g := &Generator{
+	g := Generator{
 		stopSignal: make(chan struct{}),
 	}
 	if size < 1 {
@@ -38,7 +37,7 @@ func New(size int, now func() time.Time) *Generator {
 	} else {
 		g.guidQueue = make(chan []byte, size)
 	}
-	if now != nil { // <security>
+	if now != nil {
 		g.now = now
 	} else {
 		g.now = time.Now
@@ -46,14 +45,13 @@ func New(size int, now func() time.Time) *Generator {
 	g.random = random.New()
 	// head
 	hash := sha256.New()
-	for i := 0; i < 1024; i++ {
-		hash.Write(g.random.Bytes(128))
+	for i := 0; i < 4096; i++ {
+		hash.Write(g.random.Bytes(64))
 	}
-	os.Getpid()
 	g.head = hash.Sum(nil)[:28]
 	g.wg.Add(1)
 	go g.generate()
-	return g
+	return &g
 }
 
 // Get is used to get a GUID, if generator closed, Get will return nil
