@@ -12,10 +12,7 @@ import (
 	"project/internal/xpanic"
 )
 
-var (
-	errForwarderClosed = fmt.Errorf("forwarder closed")
-	errNoConnections   = fmt.Errorf("no connections")
-)
+var errNoConnections = fmt.Errorf("no connections")
 
 type forwarder struct {
 	ctx *Node
@@ -194,12 +191,6 @@ type fAck interface {
 	Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse)
 }
 
-var errFAClosed = &protocol.AcknowledgeResponse{
-	Role: 0,
-	GUID: nil,
-	Err:  errForwarderClosed,
-}
-
 func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol.AcknowledgeResult {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
@@ -237,16 +228,11 @@ func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol
 					f.log(logger.Fatal, err)
 				}
 			}()
-			select {
-			case resp <- c.Acknowledge(guid, data):
-			case <-f.stopSignal:
-				resp <- errFAClosed
-			}
+			resp <- c.Acknowledge(guid, data)
 		}(conn)
 	}
 	ar := protocol.AcknowledgeResult{
 		Responses: make([]*protocol.AcknowledgeResponse, l),
-		Err:       nil,
 	}
 	for i := 0; i < l; i++ {
 		ar.Responses[i] = <-resp
@@ -259,12 +245,6 @@ func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol
 
 type fSend interface {
 	Send(guid, message []byte) (sr *protocol.SendResponse)
-}
-
-var errFSClosed = &protocol.SendResponse{
-	Role: 0,
-	GUID: nil,
-	Err:  errForwarderClosed,
 }
 
 func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protocol.SendResult {
@@ -295,7 +275,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protoco
 			conns[tag] = conn
 		}
 	}
-	respChan := make(chan *protocol.SendResponse, l)
+	resp := make(chan *protocol.SendResponse, l)
 	for _, conn := range conns {
 		go func(c fSend) {
 			defer func() {
@@ -304,24 +284,19 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protoco
 					f.log(logger.Fatal, err)
 				}
 			}()
-			select {
-			case respChan <- c.Send(guid, data):
-			case <-f.stopSignal:
-				respChan <- errFSClosed
-			}
+			resp <- c.Send(guid, data)
 		}(conn)
 	}
-	result := &protocol.SendResult{
+	sr := &protocol.SendResult{
 		Responses: make([]*protocol.SendResponse, l),
 	}
 	for i := 0; i < l; i++ {
-		resp := <-respChan
-		if resp.Err == nil {
-			result.Success++
+		sr.Responses[i] = <-resp
+		if sr.Responses[i].Err == nil {
+			sr.Success++
 		}
-		result.Responses[i] = resp
 	}
-	return result
+	return sr
 }
 
 func (f *forwarder) Close() {
