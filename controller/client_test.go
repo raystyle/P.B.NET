@@ -23,7 +23,7 @@ import (
 	"project/testdata"
 )
 
-const testListenerTag = "test_tls_listener"
+const testListenerTag = "test_tls"
 
 func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg := node.Config{}
@@ -51,14 +51,14 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 
 	cfg.Sender.Worker = 64
 	cfg.Sender.QueueSize = 512
-	cfg.Sender.MaxBufferSize = 512 << 10
+	cfg.Sender.MaxBufferSize = 16 << 10
 	cfg.Sender.Timeout = 15 * time.Second
 
 	cfg.Syncer.ExpireTime = 3 * time.Second
 
 	cfg.Worker.Number = 16
 	cfg.Worker.QueueSize = 1024
-	cfg.Worker.MaxBufferSize = 16384
+	cfg.Worker.MaxBufferSize = 16 << 10
 
 	cfg.Server.MaxConns = 16 * runtime.NumCPU()
 	cfg.Server.Timeout = 15 * time.Second
@@ -74,11 +74,6 @@ func testGenerateNode(t testing.TB) *node.Node {
 
 	NODE, err := node.New(cfg)
 	require.NoError(t, err)
-	go func() {
-		err := NODE.Main()
-		require.NoError(t, err)
-	}()
-	NODE.Wait()
 
 	// generate certificate
 	pks := ctrl.global.GetSelfCA()
@@ -105,6 +100,12 @@ func testGenerateNode(t testing.TB) *node.Node {
 			Key:  string(k),
 		},
 	}
+
+	go func() {
+		err := NODE.Main()
+		require.NoError(t, err)
+	}()
+	NODE.Wait()
 	require.NoError(t, NODE.AddListener(&listener))
 	return NODE
 }

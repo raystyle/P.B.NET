@@ -16,6 +16,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/messages"
 	"project/internal/protocol"
+	"project/internal/testsuite"
 	"project/internal/xnet"
 	"project/node"
 )
@@ -53,7 +54,7 @@ func TestSender_Broadcast(t *testing.T) {
 	NODE := testGenerateNodeAndConnect(t)
 	const (
 		goRoutines = 256
-		times      = 1024
+		times      = 64
 	)
 	broadcast := func(start int) {
 		for i := start; i < start+times; i++ {
@@ -95,6 +96,8 @@ func TestSender_Broadcast(t *testing.T) {
 	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
 	NODE.Exit(nil)
+
+	testsuite.IsDestroyed(t, NODE)
 }
 
 func TestSender_Send(t *testing.T) {
@@ -103,7 +106,7 @@ func TestSender_Send(t *testing.T) {
 	roleGUID := NODE.GUID()
 	const (
 		goRoutines = 256
-		times      = 1024
+		times      = 64
 	)
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
@@ -119,9 +122,9 @@ func TestSender_Send(t *testing.T) {
 		go send(i * times)
 	}
 	recv := bytes.Buffer{}
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goRoutines*times; i++ {
-		timer.Reset(5 * time.Second)
+		timer.Reset(10 * time.Second)
 		select {
 		case b := <-NODE.Debug.Send:
 			recv.Write(b)
@@ -145,6 +148,9 @@ func TestSender_Send(t *testing.T) {
 	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
 	NODE.Exit(nil)
+
+	// TODO check Node
+	// testsuite.IsDestroyed(t, NODE)
 }
 
 func BenchmarkSender_Broadcast(b *testing.B) {
@@ -172,9 +178,9 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			timer := time.NewTimer(5 * time.Second)
+			timer := time.NewTimer(3 * time.Second)
 			for {
-				timer.Reset(5 * time.Second)
+				timer.Reset(3 * time.Second)
 				select {
 				case <-NODEs[index].Debug.Broadcast:
 					countM.Lock()
@@ -190,19 +196,19 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 	b.StopTimer()
 }
 
-func TestSender_SendBenchmark(t *testing.T) {
+func TestSender_SendToNodeBenchmark(t *testing.T) {
 	NODE := testGenerateNodeAndConnect(t)
 	// send to Node
-	roleGUID := NODE.GUID()
-	const (
-		goRoutines = 256
-		times      = 1024
+	NodeGUID := NODE.GUID()
+	var (
+		goRoutines = runtime.NumCPU()
+		times      = 10000
 	)
 	start := time.Now()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.Send(protocol.Node, roleGUID, messages.CMDBytesTest, msg)
+			err := ctrl.sender.Send(protocol.Node, NodeGUID, messages.CMDBytesTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -212,24 +218,28 @@ func TestSender_SendBenchmark(t *testing.T) {
 	for i := 0; i < goRoutines; i++ {
 		go send(i * times)
 	}
-	timer := time.NewTimer(5 * time.Second)
-	for i := 0; i < goRoutines*times; i++ {
-		timer.Reset(5 * time.Second)
+	total := goRoutines * times
+	timer := time.NewTimer(3 * time.Second)
+	for i := 0; i < total; i++ {
+		timer.Reset(3 * time.Second)
 		select {
 		case <-NODE.Debug.Send:
 		case <-timer.C:
 			t.Fatalf("read NODE.Debug.Send timeout i: %d", i)
 		}
 	}
+	stop := time.Since(start).Seconds()
+	t.Logf("[benchmark] total time: %.2fs, times: %d", stop, total)
 	select {
 	case <-NODE.Debug.Send:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
-	t.Logf("total time: %.2fs", time.Since(start).Seconds())
 	// clean
 	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
 	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
 	NODE.Exit(nil)
+
+	// testsuite.IsDestroyed(t, NODE)
 }

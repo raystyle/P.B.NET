@@ -99,6 +99,8 @@ type sender struct {
 	beaconAckSlots    map[string]*roleAckSlot
 	beaconAckSlotsRWM sync.RWMutex
 
+	guid *guid.Generator
+
 	closing int32
 	context context.Context
 	cancel  context.CancelFunc
@@ -109,18 +111,20 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	cfg := config.Sender
 
 	// check config
+	if cfg.MaxConns < 1 {
+		return nil, errors.New("sender max conns >= 1")
+	}
 	if cfg.Worker < 4 {
 		return nil, errors.New("sender worker number must >= 4")
 	}
 	if cfg.Timeout < 15*time.Second {
 		return nil, errors.New("sender timeout must >= 15 second")
 	}
-
 	if cfg.QueueSize < 512 {
 		return nil, errors.New("sender queue size >= 512")
 	}
-	if cfg.MaxConns < 1 {
-		return nil, errors.New("sender max conns >= 1")
+	if cfg.MaxBufferSize < 16<<10 {
+		return nil, errors.New("sender max buffer size must >= 16KB")
 	}
 
 	sender := &sender{
@@ -161,7 +165,7 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
 	}
-
+	sender.guid = guid.New(64*cfg.QueueSize, ctx.global.Now)
 	sender.context, sender.cancel = context.WithCancel(context.Background())
 
 	// start sender workers
@@ -511,6 +515,7 @@ func (sender *sender) Close() {
 			break
 		}
 	}
+	sender.guid.Close()
 }
 
 func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
@@ -571,6 +576,7 @@ func (sender *sender) send(role protocol.Role, guid, message []byte) (
 					}
 				}()
 				respChan <- c.SendToNode(guid, message)
+				// TODO add select
 			}(c)
 		}
 	case protocol.Beacon:
@@ -593,6 +599,8 @@ func (sender *sender) send(role protocol.Role, guid, message []byte) (
 		resp[i] = <-respChan
 		if resp[i].Err == nil {
 			success++
+		} else { // TODO remove
+			fmt.Println(resp[i].Err)
 		}
 	}
 	return
@@ -652,7 +660,6 @@ type senderWorker struct {
 	maxBufferSize int
 
 	// runtime
-	guid     *guid.Generator
 	buffer   *bytes.Buffer
 	msgpack  *msgpack.Encoder
 	hex      io.Writer
@@ -685,11 +692,9 @@ func (sw *senderWorker) Work() {
 			time.Sleep(time.Second)
 			go sw.Work()
 		} else {
-			sw.guid.Close()
 			sw.ctx.wg.Done()
 		}
 	}()
-	sw.guid = guid.New(len(sw.ctx.sendTaskQueue), sw.ctx.ctx.global.Now)
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.hex = hex.NewEncoder(sw.buffer)
@@ -727,7 +732,7 @@ func (sw *senderWorker) Work() {
 
 func (sw *senderWorker) handleAcknowledgeTask(at *acknowledgeTask) {
 	defer sw.ctx.acknowledgeTaskPool.Put(at)
-	sw.preA.GUID = sw.guid.Get()
+	sw.preA.GUID = sw.ctx.guid.Get()
 	sw.preA.RoleGUID = at.RoleGUID
 	sw.preA.SendGUID = at.SendGUID
 	// sign
@@ -802,7 +807,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	// set GUID
-	sw.preS.GUID = sw.guid.Get()
+	sw.preS.GUID = sw.ctx.guid.Get()
 	sw.preS.RoleGUID = st.GUID
 	// hash
 	sw.hash.Reset()
@@ -886,7 +891,7 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 		return
 	}
 	// GUID
-	sw.preB.GUID = sw.guid.Get()
+	sw.preB.GUID = sw.ctx.guid.Get()
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(bt.Message)

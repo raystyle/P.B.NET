@@ -45,8 +45,8 @@ func newWorker(ctx *CTRL, config *Config) (*worker, error) {
 	if cfg.QueueSize < cfg.Number {
 		return nil, errors.New("worker task queue size < worker number")
 	}
-	if cfg.MaxBufferSize < 16384 {
-		return nil, errors.New("max buffer size must >= 16384")
+	if cfg.MaxBufferSize < 16<<10 {
+		return nil, errors.New("worker max buffer size must >= 16KB")
 	}
 
 	worker := worker{
