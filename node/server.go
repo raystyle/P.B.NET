@@ -203,7 +203,7 @@ func (s *server) serve(tag string, l *Listener, errChan chan<- error) {
 		s.listenersRWM.Lock()
 		defer s.listenersRWM.Unlock()
 		delete(s.listeners, tag)
-		s.logf(logger.Info, "listener: %s(%s) is closed", tag, l.Addr())
+		s.logf(logger.Info, "listener: %s (%s) is closed", tag, l.Addr())
 		s.wg.Done()
 	}()
 	var delay time.Duration // how long to sleep on accept failure

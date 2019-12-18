@@ -52,7 +52,7 @@ func New(cfg *Config) (*Node, error) {
 		DNSOpts:  cfg.Client.DNSOpts,
 	}
 	// forwarder
-	forwarder, err := newForwarder(cfg)
+	forwarder, err := newForwarder(node, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize forwarder")
 	}

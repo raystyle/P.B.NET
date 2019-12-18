@@ -7,15 +7,19 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/logger"
 	"project/internal/protocol"
+	"project/internal/xpanic"
 )
 
 var (
-	errClosed        = fmt.Errorf("forwarder closed")
-	errNoConnections = fmt.Errorf("no connections")
+	errForwarderClosed = fmt.Errorf("forwarder closed")
+	errNoConnections   = fmt.Errorf("no connections")
 )
 
 type forwarder struct {
+	ctx *Node
+
 	maxCtrlConns   atomic.Value
 	maxNodeConns   atomic.Value
 	maxBeaconConns atomic.Value
@@ -30,7 +34,7 @@ type forwarder struct {
 	stopSignal chan struct{}
 }
 
-func newForwarder(config *Config) (*forwarder, error) {
+func newForwarder(ctx *Node, config *Config) (*forwarder, error) {
 	cfg := config.Forwarder
 
 	f := forwarder{}
@@ -48,6 +52,7 @@ func newForwarder(config *Config) (*forwarder, error) {
 		return nil, err
 	}
 
+	f.ctx = ctx
 	f.ctrlConns = make(map[string]*ctrlConn, cfg.MaxCtrlConns)
 	f.nodeConns = make(map[string]*nodeConn, cfg.MaxNodeConns)
 	f.beaconConns = make(map[string]*beaconConn, cfg.MaxBeaconConns)
@@ -181,8 +186,18 @@ func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
 	return conns
 }
 
+func (f *forwarder) log(l logger.Level, log ...interface{}) {
+	f.ctx.logger.Print(l, "sender", log...)
+}
+
 type fAck interface {
 	Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse)
+}
+
+var errFAClosed = &protocol.AcknowledgeResponse{
+	Role: 0,
+	GUID: nil,
+	Err:  errForwarderClosed,
 }
 
 func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol.AcknowledgeResult {
@@ -213,22 +228,43 @@ func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol
 			conns[tag] = conn
 		}
 	}
+	resp := make(chan *protocol.AcknowledgeResponse, l)
 	for _, conn := range conns {
 		go func(c fAck) {
-			c.Acknowledge(guid, data)
+			defer func() {
+				if r := recover(); r != nil {
+					err := xpanic.Error(r, "forwarder.AckToNodeAndCtrl")
+					f.log(logger.Fatal, err)
+				}
+			}()
+			select {
+			case resp <- c.Acknowledge(guid, data):
+			case <-f.stopSignal:
+				resp <- errFAClosed
+			}
 		}(conn)
 	}
-	return &protocol.AcknowledgeResult{}
+	ar := protocol.AcknowledgeResult{
+		Responses: make([]*protocol.AcknowledgeResponse, l),
+		Err:       nil,
+	}
+	for i := 0; i < l; i++ {
+		ar.Responses[i] = <-resp
+		if ar.Responses[i].Err == nil {
+			ar.Success++
+		}
+	}
+	return &ar
 }
 
 type fSend interface {
 	Send(guid, message []byte) (sr *protocol.SendResponse)
 }
 
-var errSendClosed = &protocol.SendResponse{
+var errFSClosed = &protocol.SendResponse{
 	Role: 0,
 	GUID: nil,
-	Err:  errClosed,
+	Err:  errForwarderClosed,
 }
 
 func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protocol.SendResult {
@@ -259,13 +295,19 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protoco
 			conns[tag] = conn
 		}
 	}
-	responses := make(chan *protocol.SendResponse, l)
+	respChan := make(chan *protocol.SendResponse, l)
 	for _, conn := range conns {
 		go func(c fSend) {
+			defer func() {
+				if r := recover(); r != nil {
+					err := xpanic.Error(r, "forwarder.SendToNodeAndCtrl")
+					f.log(logger.Fatal, err)
+				}
+			}()
 			select {
-			case responses <- c.Send(guid, data):
+			case respChan <- c.Send(guid, data):
 			case <-f.stopSignal:
-				responses <- errSendClosed
+				respChan <- errFSClosed
 			}
 		}(conn)
 	}
@@ -273,7 +315,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protoco
 		Responses: make([]*protocol.SendResponse, l),
 	}
 	for i := 0; i < l; i++ {
-		resp := <-responses
+		resp := <-respChan
 		if resp.Err == nil {
 			result.Success++
 		}
@@ -284,4 +326,5 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protoco
 
 func (f *forwarder) Close() {
 	close(f.stopSignal)
+	f.ctx = nil
 }

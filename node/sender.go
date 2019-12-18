@@ -40,14 +40,14 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	if cfg.Worker < 1 {
 		return nil, errors.New("the number of the sender worker must >= 0")
 	}
+	if cfg.Timeout < 15*time.Second {
+		return nil, errors.New("sender timeout must >= 15s")
+	}
 	if cfg.QueueSize < 128 {
 		return nil, errors.New("sender task queue size must >= 128")
 	}
-	if cfg.MaxBufferSize < 512<<10 {
-		return nil, errors.New("sender max buffer size must >= 512KB")
-	}
-	if cfg.Timeout < 15*time.Second {
-		return nil, errors.New("sender timeout must >= 15s")
+	if cfg.MaxBufferSize < 16<<10 {
+		return nil, errors.New("sender max buffer size must >= 16KB")
 	}
 
 	sender := sender{
