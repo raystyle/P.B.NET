@@ -1,7 +1,10 @@
 package random
 
 import (
+	cr "crypto/rand"
 	"crypto/sha256"
+	"io"
+	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -25,7 +28,7 @@ type Rand struct {
 
 // New is used to create a Rand
 func New() *Rand {
-	goRoutines := 8
+	goRoutines := 16
 	times := 128
 	data := make(chan []byte, goRoutines*times)
 	wg := sync.WaitGroup{}
@@ -53,7 +56,15 @@ func New() *Rand {
 			hash.Write(<-data)
 		}
 	}
-	seed := convert.BytesToInt64(hash.Sum(nil)[:8])
+	n, _ := io.CopyN(hash, cr.Reader, 512)
+	hash.Write([]byte{byte(n)})
+	hashData := hash.Sum(nil)
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	selected := make([]byte, 8)
+	for i := 0; i < 8; i++ {
+		selected[i] = hashData[r.Intn(sha256.Size)]
+	}
+	seed := convert.BytesToInt64(selected)
 	return &Rand{rand: rand.New(rand.NewSource(seed))}
 }
 
@@ -81,7 +92,7 @@ func (r *Rand) Bytes(n int) []byte {
 	defer r.m.Unlock()
 	result := make([]byte, n)
 	for i := 0; i < n; i++ {
-		ri := r.rand.Intn(256)
+		ri := r.rand.Intn(math.MaxInt64)
 		result[i] = byte(ri)
 	}
 	return result
@@ -112,7 +123,6 @@ func (r *Rand) Cookie(n int) string {
 }
 
 // Int returns, as an int, a non-negative pseudo-random number in [0,n).
-// It panics if n <= 0.
 func (r *Rand) Int(n int) int {
 	if n < 1 {
 		return 0

@@ -1,6 +1,7 @@
 package random
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,24 @@ func TestRandom(t *testing.T) {
 	require.True(t, len(Bytes(-1)) == 0)
 	require.True(t, len(Cookie(-1)) == 0)
 	require.True(t, Int(-1) == 0)
+}
+
+func TestRandomEqual(t *testing.T) {
+	const n = 256
+	result := make(chan int, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			r := New()
+			result <- r.Int(math.MaxInt64)
+		}()
+	}
+	results := make(map[int]*struct{})
+	for i := 0; i < n; i++ {
+		r := <-result
+		_, ok := results[r]
+		require.False(t, ok, "appeared value: %d, i: %d", r, i)
+		results[r] = new(struct{})
+	}
 }
 
 func BenchmarkNew(b *testing.B) {
