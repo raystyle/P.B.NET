@@ -162,6 +162,7 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.logger.Print(logger.Info, "exit", "web server is stopped")
 		ctrl.boot.Close()
 		ctrl.logger.Print(logger.Info, "exit", "boot is stopped")
+		// close worker first
 		ctrl.syncer.Close()
 		ctrl.logger.Print(logger.Info, "exit", "syncer is stopped")
 		ctrl.sender.Close()

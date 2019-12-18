@@ -87,10 +87,8 @@ type sender struct {
 
 	// check beacon is in interactive mode
 	// key = hex(GUID) lower
-	nodeInteractive      map[string]bool
-	nodeInteractiveRWM   sync.RWMutex
-	beaconInteractive    map[string]bool
-	beaconInteractiveRWM sync.RWMutex
+	interactive    map[string]bool
+	interactiveRWM sync.RWMutex
 
 	// receive acknowledge
 	// key = hex(role GUID) lower
@@ -133,8 +131,7 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 		sendTaskQueue:        make(chan *sendTask, cfg.QueueSize),
 		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.QueueSize),
 		clients:              make(map[string]*client, cfg.MaxConns),
-		nodeInteractive:      make(map[string]bool),
-		beaconInteractive:    make(map[string]bool),
+		interactive:          make(map[string]bool),
 		nodeAckSlots:         make(map[string]*roleAckSlot),
 		beaconAckSlots:       make(map[string]*roleAckSlot),
 	}
@@ -449,45 +446,22 @@ func (sender *sender) Answer() {
 
 }
 
-func (sender *sender) SetInteractiveMode(role protocol.Role, guid string) {
-	switch role {
-	case protocol.Node:
-		sender.nodeInteractiveRWM.Lock()
-		defer sender.nodeInteractiveRWM.Unlock()
-		sender.nodeInteractive[strings.ToLower(guid)] = true
-	case protocol.Beacon:
-		sender.beaconInteractiveRWM.Lock()
-		defer sender.beaconInteractiveRWM.Unlock()
-		sender.beaconInteractive[strings.ToLower(guid)] = true
-	}
+func (sender *sender) SetInteractiveMode(guid string) {
+	sender.interactiveRWM.Lock()
+	defer sender.interactiveRWM.Unlock()
+	sender.interactive[strings.ToLower(guid)] = true
 }
 
-func (sender *sender) DeleteInteractiveStatus(role protocol.Role, guid string) {
-	switch role {
-	case protocol.Node:
-		sender.nodeInteractiveRWM.Lock()
-		defer sender.nodeInteractiveRWM.Unlock()
-		delete(sender.nodeInteractive, strings.ToLower(guid))
-	case protocol.Beacon:
-		sender.beaconInteractiveRWM.Lock()
-		defer sender.beaconInteractiveRWM.Unlock()
-		delete(sender.beaconInteractive, strings.ToLower(guid))
-	}
+func (sender *sender) DeleteInteractiveStatus(guid string) {
+	sender.interactiveRWM.Lock()
+	defer sender.interactiveRWM.Unlock()
+	delete(sender.interactive, strings.ToLower(guid))
 }
 
-func (sender *sender) isInInteractiveMode(role protocol.Role, guid string) bool {
-	switch role {
-	case protocol.Node:
-		sender.nodeInteractiveRWM.RLock()
-		defer sender.nodeInteractiveRWM.RUnlock()
-		return sender.nodeInteractive[guid]
-	case protocol.Beacon:
-		sender.beaconInteractiveRWM.RLock()
-		defer sender.beaconInteractiveRWM.RUnlock()
-		return sender.beaconInteractive[guid]
-	default:
-		panic("invalid role")
-	}
+func (sender *sender) isInInteractiveMode(guid string) bool {
+	sender.interactiveRWM.RLock()
+	defer sender.interactiveRWM.RUnlock()
+	return sender.interactive[guid]
 }
 
 func (sender *sender) GetClients() map[string]*client {
@@ -502,15 +476,22 @@ func (sender *sender) GetClients() map[string]*client {
 
 func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.closing, 1)
+	// TODO wait acknowledge handle
+	for {
+		if len(sender.acknowledgeTaskQueue) == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	sender.cancel()
-	sender.wg.Wait()
+	sender.wg.Wait() // wait all acknowledge task finish
 	for {
 		// disconnect all sender client
 		for _, client := range sender.GetClients() {
 			client.Close()
 		}
 		// wait close
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		if len(sender.GetClients()) == 0 {
 			break
 		}
@@ -526,131 +507,159 @@ func (sender *sender) log(l logger.Level, log ...interface{}) {
 	sender.ctx.logger.Print(l, "sender", log...)
 }
 
-func (sender *sender) broadcast(guid, message []byte) (
-	resp []*protocol.BroadcastResponse, success int) {
+func (sender *sender) broadcast(guid, message []byte) ([]*protocol.BroadcastResponse, int) {
 	clients := sender.GetClients()
 	l := len(clients)
 	if l == 0 {
-		return
+		return nil, 0
 	}
 	// broadcast parallel
-	respChan := make(chan *protocol.BroadcastResponse, l)
+	resp := make(chan *protocol.BroadcastResponse)
 	for _, c := range clients {
 		go func(c *client) {
 			defer func() {
 				if r := recover(); r != nil {
-					err := xpanic.Error(r, "sender.broadcast()")
+					err := xpanic.Error(r, "sender.broadcast")
 					sender.log(logger.Fatal, err)
 				}
 			}()
-			respChan <- c.Broadcast(guid, message)
+			resp <- c.Broadcast(guid, message)
 		}(c)
 	}
-	resp = make([]*protocol.BroadcastResponse, l)
+	var success int
+	response := make([]*protocol.BroadcastResponse, l)
 	for i := 0; i < l; i++ {
-		resp[i] = <-respChan
-		if resp[i].Err == nil {
+		response[i] = <-resp
+		if response[i].Err == nil {
 			success++
 		}
 	}
-	return
+	close(resp)
+	return response, success
 }
 
-func (sender *sender) send(role protocol.Role, guid, message []byte) (
-	resp []*protocol.SendResponse, success int) {
+func (sender *sender) sendToNode(guid, message []byte) ([]*protocol.SendResponse, int) {
 	clients := sender.GetClients()
 	l := len(clients)
 	if l == 0 {
-		return
+		return nil, 0
 	}
 	// send parallel
-	respChan := make(chan *protocol.SendResponse, l)
-	switch role {
-	case protocol.Node:
-		for _, c := range clients {
-			go func(c *client) {
-				defer func() {
-					if r := recover(); r != nil {
-						err := xpanic.Error(r, "sender.send()")
-						sender.log(logger.Fatal, err)
-					}
-				}()
-				respChan <- c.SendToNode(guid, message)
-				// TODO add select
-			}(c)
-		}
-	case protocol.Beacon:
-		for _, c := range clients {
-			go func(c *client) {
-				defer func() {
-					if r := recover(); r != nil {
-						err := xpanic.Error(r, "sender.send()")
-						sender.log(logger.Fatal, err)
-					}
-				}()
-				respChan <- c.SendToBeacon(guid, message)
-			}(c)
-		}
-	default:
-		panic("invalid Role")
+	resp := make(chan *protocol.SendResponse)
+	for _, c := range clients {
+		go func(c *client) {
+			defer func() {
+				if r := recover(); r != nil {
+					err := xpanic.Error(r, "sender.sendToNode")
+					sender.log(logger.Fatal, err)
+				}
+			}()
+			resp <- c.SendToNode(guid, message)
+		}(c)
 	}
-	resp = make([]*protocol.SendResponse, l)
+	var success int
+	response := make([]*protocol.SendResponse, l)
 	for i := 0; i < l; i++ {
-		resp[i] = <-respChan
-		if resp[i].Err == nil {
+		response[i] = <-resp
+		if response[i].Err == nil {
 			success++
-		} else { // TODO remove
-			fmt.Println(resp[i].Err)
 		}
 	}
-	return
+	close(resp)
+	return response, success
 }
 
-func (sender *sender) acknowledge(role protocol.Role, guid, message []byte) (
-	resp []*protocol.AcknowledgeResponse, success int) {
+func (sender *sender) sendToBeacon(guid, message []byte) ([]*protocol.SendResponse, int) {
 	clients := sender.GetClients()
 	l := len(clients)
 	if l == 0 {
-		return
+		return nil, 0
 	}
-	// acknowledge parallel
-	respChan := make(chan *protocol.AcknowledgeResponse, l)
-	switch role {
-	case protocol.Node:
-		for _, c := range clients {
-			go func(c *client) {
-				defer func() {
-					if r := recover(); r != nil {
-						err := xpanic.Error(r, "sender.acknowledge()")
-						sender.log(logger.Fatal, err)
-					}
-				}()
-				respChan <- c.AcknowledgeToNode(guid, message)
-			}(c)
-		}
-	case protocol.Beacon:
-		for _, c := range clients {
-			go func(c *client) {
-				defer func() {
-					if r := recover(); r != nil {
-						err := xpanic.Error(r, "sender.acknowledge()")
-						sender.log(logger.Fatal, err)
-					}
-				}()
-				respChan <- c.AcknowledgeToBeacon(guid, message)
-			}(c)
-		}
-	default:
-		panic("invalid Role")
+	// send parallel
+	resp := make(chan *protocol.SendResponse)
+	for _, c := range clients {
+		go func(c *client) {
+			defer func() {
+				if r := recover(); r != nil {
+					err := xpanic.Error(r, "sender.sendToBeacon")
+					sender.log(logger.Fatal, err)
+				}
+			}()
+			resp <- c.SendToBeacon(guid, message)
+		}(c)
 	}
-	resp = make([]*protocol.AcknowledgeResponse, l)
+	var success int
+	response := make([]*protocol.SendResponse, l)
 	for i := 0; i < l; i++ {
-		resp[i] = <-respChan
-		if resp[i].Err == nil {
+		response[i] = <-resp
+		if response[i].Err == nil {
 			success++
 		}
 	}
-	return
+	close(resp)
+	return response, success
+}
+
+func (sender *sender) acknowledgeToNode(guid, message []byte) ([]*protocol.AcknowledgeResponse, int) {
+	clients := sender.GetClients()
+	l := len(clients)
+	if l == 0 {
+		return nil, 0
+	}
+	// acknowledge parallel
+	resp := make(chan *protocol.AcknowledgeResponse, l)
+	for _, c := range clients {
+		go func(c *client) {
+			defer func() {
+				if r := recover(); r != nil {
+					err := xpanic.Error(r, "sender.acknowledgeToNode")
+					sender.log(logger.Fatal, err)
+				}
+			}()
+			resp <- c.AcknowledgeToNode(guid, message)
+		}(c)
+	}
+	var success int
+	response := make([]*protocol.AcknowledgeResponse, l)
+	for i := 0; i < l; i++ {
+		response[i] = <-resp
+		if response[i].Err == nil {
+			success++
+		}
+	}
+	close(resp)
+	return response, success
+}
+
+func (sender *sender) acknowledgeToBeacon(guid, message []byte) ([]*protocol.AcknowledgeResponse, int) {
+	clients := sender.GetClients()
+	l := len(clients)
+	if l == 0 {
+		return nil, 0
+	}
+	// acknowledge parallel
+	resp := make(chan *protocol.AcknowledgeResponse, l)
+	for _, c := range clients {
+		go func(c *client) {
+			defer func() {
+				if r := recover(); r != nil {
+					err := xpanic.Error(r, "sender.acknowledgeToBeacon")
+					sender.log(logger.Fatal, err)
+				}
+			}()
+			resp <- c.AcknowledgeToBeacon(guid, message)
+		}(c)
+	}
+	var success int
+	response := make([]*protocol.AcknowledgeResponse, l)
+	for i := 0; i < l; i++ {
+		response[i] = <-resp
+		if response[i].Err == nil {
+			success++
+		}
+	}
+	close(resp)
+	return response, success
 }
 
 type senderWorker struct {
@@ -686,7 +695,7 @@ type senderWorker struct {
 func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "senderWorker.Work()")
+			err := xpanic.Error(r, "senderWorker.Work")
 			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)
@@ -748,7 +757,14 @@ func (sw *senderWorker) handleAcknowledgeTask(at *acknowledgeTask) {
 		panic(sw.err)
 	}
 	// TODO try, if failed
-	sw.ctx.acknowledge(at.Role, sw.preA.GUID, sw.buffer.Bytes())
+	switch at.Role {
+	case protocol.Node:
+		sw.ctx.acknowledgeToNode(sw.preA.GUID, sw.buffer.Bytes())
+	case protocol.Beacon:
+		sw.ctx.acknowledgeToBeacon(sw.preA.GUID, sw.buffer.Bytes())
+	default:
+		panic("invalid at.Role")
+	}
 }
 
 func (sw *senderWorker) handleSendTask(st *sendTask) {
@@ -782,15 +798,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		result.Err = protocol.ErrTooBigMsg
 		return
 	}
-	// set key
 	switch st.Role {
-	case protocol.Beacon:
-		sw.beacon, result.Err = sw.ctx.ctx.db.SelectBeacon(st.GUID)
-		if result.Err != nil {
-			return
-		}
-		sw.aesKey = sw.beacon.SessionKey
-		sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
 	case protocol.Node:
 		sw.node, result.Err = sw.ctx.ctx.db.SelectNode(st.GUID)
 		if result.Err != nil {
@@ -798,8 +806,15 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		}
 		sw.aesKey = sw.node.SessionKey
 		sw.aesIV = sw.node.SessionKey[:aes.IVSize]
+	case protocol.Beacon:
+		sw.beacon, result.Err = sw.ctx.ctx.db.SelectBeacon(st.GUID)
+		if result.Err != nil {
+			return
+		}
+		sw.aesKey = sw.beacon.SessionKey
+		sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
 	default:
-		panic("invalid s.Role")
+		panic("invalid st.Role")
 	}
 	// encrypt
 	sw.preS.Message, result.Err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
@@ -828,7 +843,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	}
 	// TODO query
 	// check is need to write message to the database
-	if st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(st.Role, sw.roleGUID) {
+	if st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(sw.roleGUID) {
 		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(st.GUID, sw.buffer.Bytes())
 		if result.Err == nil {
 			result.Success = 1
@@ -838,7 +853,14 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	// send
 	hex.Encode(sw.tHex, sw.preSP.GUID) // calculate send guid
 	wait, destroy := sw.ctx.getRoleAckSlot(st.Role, sw.roleGUID, string(sw.tHex))
-	result.Responses, result.Success = sw.ctx.send(st.Role, sw.preS.GUID, sw.buffer.Bytes())
+	switch st.Role {
+	case protocol.Node:
+		result.Responses, result.Success = sw.ctx.sendToNode(sw.preS.GUID, sw.buffer.Bytes())
+	case protocol.Beacon:
+		result.Responses, result.Success = sw.ctx.sendToBeacon(sw.preS.GUID, sw.buffer.Bytes())
+	default:
+		panic("invalid st.Role")
+	}
 	if result.Success == 0 {
 		result.Err = ErrSendFailed
 		return

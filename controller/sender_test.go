@@ -16,7 +16,6 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/messages"
 	"project/internal/protocol"
-	"project/internal/testsuite"
 	"project/internal/xnet"
 	"project/node"
 )
@@ -97,7 +96,7 @@ func TestSender_Broadcast(t *testing.T) {
 	require.NoError(t, err)
 	NODE.Exit(nil)
 
-	testsuite.IsDestroyed(t, NODE)
+	// testsuite.IsDestroyed(t, NODE)
 }
 
 func TestSender_Send(t *testing.T) {
