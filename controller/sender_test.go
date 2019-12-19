@@ -69,9 +69,9 @@ func TestSender_Broadcast(t *testing.T) {
 		go broadcast(i * times)
 	}
 	recv := bytes.Buffer{}
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goRoutines*times; i++ {
-		timer.Reset(5 * time.Second)
+		timer.Reset(3 * time.Second)
 		select {
 		case b := <-NODE.Debug.Broadcast:
 			recv.Write(b)
@@ -101,8 +101,7 @@ func TestSender_Broadcast(t *testing.T) {
 
 func TestSender_SendToNode(t *testing.T) {
 	NODE := testGenerateNodeAndConnect(t)
-	// send to Node
-	roleGUID := NODE.GUID()
+	nodeGUID := NODE.GUID()
 	const (
 		goRoutines = 256
 		times      = 64
@@ -110,7 +109,7 @@ func TestSender_SendToNode(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.Send(protocol.Node, roleGUID, messages.CMDBytesTest, msg)
+			err := ctrl.sender.Send(protocol.Node, nodeGUID, messages.CMDBytesTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -123,7 +122,7 @@ func TestSender_SendToNode(t *testing.T) {
 	recv := bytes.Buffer{}
 	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goRoutines*times; i++ {
-		timer.Reset(10 * time.Second)
+		timer.Reset(3 * time.Second)
 		select {
 		case b := <-NODE.Debug.Send:
 			recv.Write(b)
@@ -143,7 +142,7 @@ func TestSender_SendToNode(t *testing.T) {
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+	guid := strings.ToUpper(hex.EncodeToString(nodeGUID))
 	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
 	NODE.Exit(nil)
@@ -197,7 +196,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 func TestSender_SendToNodeBenchmark(t *testing.T) {
 	NODE := testGenerateNodeAndConnect(t)
 	// send to Node
-	NodeGUID := NODE.GUID()
+	nodeGUID := NODE.GUID()
 	var (
 		goRoutines = runtime.NumCPU()
 		times      = 10000
@@ -206,7 +205,7 @@ func TestSender_SendToNodeBenchmark(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.Send(protocol.Node, NodeGUID, messages.CMDBytesTest, msg)
+			err := ctrl.sender.Send(protocol.Node, nodeGUID, messages.CMDBytesTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -234,7 +233,7 @@ func TestSender_SendToNodeBenchmark(t *testing.T) {
 	case <-time.After(time.Second):
 	}
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+	guid := strings.ToUpper(hex.EncodeToString(nodeGUID))
 	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
 	NODE.Exit(nil)

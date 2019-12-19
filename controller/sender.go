@@ -50,7 +50,7 @@ type sendTask struct {
 	Result   chan<- *protocol.SendResult
 }
 
-type acknowledgeTask struct {
+type ackTask struct {
 	Role     protocol.Role
 	RoleGUID []byte
 	SendGUID []byte
@@ -68,13 +68,13 @@ type sender struct {
 
 	maxConns atomic.Value
 
-	broadcastTaskQueue   chan *broadcastTask
-	sendTaskQueue        chan *sendTask
-	acknowledgeTaskQueue chan *acknowledgeTask
+	broadcastTaskQueue chan *broadcastTask
+	sendTaskQueue      chan *sendTask
+	ackTaskQueue       chan *ackTask
 
-	broadcastTaskPool   sync.Pool
-	sendTaskPool        sync.Pool
-	acknowledgeTaskPool sync.Pool
+	broadcastTaskPool sync.Pool
+	sendTaskPool      sync.Pool
+	ackTaskPool       sync.Pool
 
 	broadcastDonePool sync.Pool
 	sendDonePool      sync.Pool
@@ -127,14 +127,14 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	}
 
 	sender := &sender{
-		ctx:                  ctx,
-		broadcastTaskQueue:   make(chan *broadcastTask, cfg.QueueSize),
-		sendTaskQueue:        make(chan *sendTask, cfg.QueueSize),
-		acknowledgeTaskQueue: make(chan *acknowledgeTask, cfg.QueueSize),
-		clients:              make(map[string]*client, cfg.MaxConns),
-		interactive:          make(map[string]bool),
-		nodeAckSlots:         make(map[string]*roleAckSlot),
-		beaconAckSlots:       make(map[string]*roleAckSlot),
+		ctx:                ctx,
+		broadcastTaskQueue: make(chan *broadcastTask, cfg.QueueSize),
+		sendTaskQueue:      make(chan *sendTask, cfg.QueueSize),
+		ackTaskQueue:       make(chan *ackTask, cfg.QueueSize),
+		clients:            make(map[string]*client, cfg.MaxConns),
+		interactive:        make(map[string]bool),
+		nodeAckSlots:       make(map[string]*roleAckSlot),
+		beaconAckSlots:     make(map[string]*roleAckSlot),
 	}
 
 	sender.maxConns.Store(cfg.MaxConns)
@@ -145,8 +145,8 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	sender.sendTaskPool.New = func() interface{} {
 		return new(sendTask)
 	}
-	sender.acknowledgeTaskPool.New = func() interface{} {
-		return &acknowledgeTask{
+	sender.ackTaskPool.New = func() interface{} {
+		return &ackTask{
 			RoleGUID: make([]byte, guid.Size),
 			SendGUID: make([]byte, guid.Size),
 		}
@@ -363,13 +363,13 @@ func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
 	default:
 		panic("invalid role")
 	}
-	at := sender.acknowledgeTaskPool.Get().(*acknowledgeTask)
+	at := sender.ackTaskPool.Get().(*ackTask)
 	// must copy
 	at.Role = role
 	copy(at.RoleGUID, send.RoleGUID)
 	copy(at.SendGUID, send.GUID)
 	select {
-	case sender.acknowledgeTaskQueue <- at:
+	case sender.ackTaskQueue <- at:
 	case <-sender.context.Done():
 	}
 }
@@ -478,7 +478,7 @@ func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.closing, 1)
 	// TODO wait acknowledge handle
 	for {
-		if len(sender.acknowledgeTaskQueue) == 0 {
+		if len(sender.ackTaskQueue) == 0 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -713,7 +713,7 @@ func (sw *senderWorker) Work() {
 	var (
 		bt *broadcastTask
 		st *sendTask
-		at *acknowledgeTask
+		at *ackTask
 	)
 	for {
 		select {
@@ -726,7 +726,7 @@ func (sw *senderWorker) Work() {
 			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 		}
 		select {
-		case at = <-sw.ctx.acknowledgeTaskQueue:
+		case at = <-sw.ctx.ackTaskQueue:
 			sw.handleAcknowledgeTask(at)
 		case st = <-sw.ctx.sendTaskQueue:
 			sw.handleSendTask(st)
@@ -738,8 +738,14 @@ func (sw *senderWorker) Work() {
 	}
 }
 
-func (sw *senderWorker) handleAcknowledgeTask(at *acknowledgeTask) {
-	defer sw.ctx.acknowledgeTaskPool.Put(at)
+func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "senderWorker.handleAcknowledgeTask")
+			sw.ctx.log(logger.Fatal, err)
+		}
+		sw.ctx.ackTaskPool.Put(at)
+	}()
 	sw.preA.GUID = sw.ctx.guid.Get()
 	sw.preA.RoleGUID = at.RoleGUID
 	sw.preA.SendGUID = at.SendGUID

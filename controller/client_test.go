@@ -70,9 +70,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 }
 
 func testGenerateNode(t testing.TB) *node.Node {
-	cfg := testGenerateNodeConfig(t)
-
-	NODE, err := node.New(cfg)
+	NODE, err := node.New(testGenerateNodeConfig(t))
 	require.NoError(t, err)
 
 	// generate certificate

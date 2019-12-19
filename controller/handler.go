@@ -47,8 +47,6 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 		if h.ctx.Debug.NodeSend != nil {
 			h.ctx.Debug.NodeSend <- testMsg
 		}
-		h.logf(logger.Debug, "node %X send test message: %s",
-			send.RoleGUID, string(testMsg))
 	default:
 		h.logf(logger.Exploit, "node %X send unknown message", send.RoleGUID)
 	}
@@ -78,8 +76,6 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 		if h.ctx.Debug.BeaconSend != nil {
 			h.ctx.Debug.BeaconSend <- testMsg
 		}
-		h.logf(logger.Debug, "beacon %X send test message: %s",
-			send.RoleGUID, string(testMsg))
 	default:
 		h.logf(logger.Exploit, "beacon %X send unknown message", send.RoleGUID)
 	}

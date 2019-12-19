@@ -5,12 +5,14 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/bootstrap"
+	"project/internal/crypto/cert"
 	"project/internal/logger"
 )
 
 // CTRL is Controller
 type CTRL struct {
-	Debug *Debug // for test
+	Debug *Debug
 
 	db      *db      // database
 	logger  *gLogger // global logger
@@ -180,6 +182,36 @@ func (ctrl *CTRL) Exit(err error) {
 // LoadSessionKey is used to load session key
 func (ctrl *CTRL) LoadSessionKey(password []byte) error {
 	return ctrl.global.LoadSessionKey(password)
+}
+
+// KeyExchangePub is used to get key exchange public key
+func (ctrl *CTRL) KeyExchangePub() []byte {
+	return ctrl.global.KeyExchangePub()
+}
+
+// PublicKey is used to get public key
+func (ctrl *CTRL) PublicKey() []byte {
+	return ctrl.global.PublicKey()
+}
+
+// BroadcastKey is used to get broadcast key
+func (ctrl *CTRL) BroadcastKey() []byte {
+	return ctrl.global.BroadcastKey()
+}
+
+// GetSelfCA is used to get self CA certificate to generate CA-sign certificate
+func (ctrl *CTRL) GetSelfCA() []*cert.KeyPair {
+	return ctrl.global.GetSelfCA()
+}
+
+// Connect is used to connect node
+func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {
+	return ctrl.sender.Connect(node, guid)
+}
+
+// Disconnect is used to disconnect node, guid is hex, upper
+func (ctrl *CTRL) Disconnect(guid string) error {
+	return ctrl.sender.Disconnect(guid)
 }
 
 // DeleteNode is used to delete node
