@@ -11,7 +11,7 @@ import (
 
 // Node is a program
 type Node struct {
-	Debug *Debug // for test
+	Debug *Debug
 
 	logger    *gLogger   // global logger
 	global    *global    // proxy clients, DNS clients, time syncer
@@ -150,6 +150,11 @@ func (node *Node) Exit(err error) {
 	})
 }
 
+// GUID is used to get Node GUID
+func (node *Node) GUID() []byte {
+	return node.global.GUID()
+}
+
 // AddListener is used to add listener
 func (node *Node) AddListener(listener *messages.Listener) error {
 	return node.server.AddListener(listener)
@@ -158,11 +163,6 @@ func (node *Node) AddListener(listener *messages.Listener) error {
 // GetListener is used to get listener
 func (node *Node) GetListener(tag string) (*Listener, error) {
 	return node.server.GetListener(tag)
-}
-
-// GUID is used to get Node GUID
-func (node *Node) GUID() []byte {
-	return node.global.GUID()
 }
 
 // Send is used to send message to Controller

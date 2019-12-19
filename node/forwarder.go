@@ -161,8 +161,8 @@ func (f *forwarder) GetCtrlConns() map[string]*ctrlConn {
 }
 
 func (f *forwarder) GetNodeConns() map[string]*nodeConn {
-	f.ctrlConnsRWM.RLock()
-	defer f.ctrlConnsRWM.RUnlock()
+	f.nodeConnsRWM.RLock()
+	defer f.nodeConnsRWM.RUnlock()
 	conns := make(map[string]*nodeConn, len(f.nodeConns))
 	for tag, conn := range f.nodeConns {
 		conns[tag] = conn
@@ -171,8 +171,8 @@ func (f *forwarder) GetNodeConns() map[string]*nodeConn {
 }
 
 func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
-	f.ctrlConnsRWM.RLock()
-	defer f.ctrlConnsRWM.RUnlock()
+	f.beaconConnsRWM.RLock()
+	defer f.beaconConnsRWM.RUnlock()
 	conns := make(map[string]*beaconConn, len(f.beaconConns))
 	for tag, conn := range f.beaconConns {
 		conns[tag] = conn

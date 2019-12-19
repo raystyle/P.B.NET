@@ -40,8 +40,11 @@ type sender struct {
 	ctx *Node
 
 	sendTaskQueue chan *sendTask
+	ackTaskQueue  chan []byte
 
-	sendTaskPool   sync.Pool
+	sendTaskPool sync.Pool
+	ackTaskPool  sync.Pool
+
 	sendDonePool   sync.Pool
 	sendResultPool sync.Pool
 
@@ -77,12 +80,16 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	sender := &sender{
 		ctx:           ctx,
 		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
+		ackTaskQueue:  make(chan []byte, cfg.QueueSize),
 		slots:         make(map[string]chan struct{}),
 		stopSignal:    make(chan struct{}),
 	}
 
 	sender.sendTaskPool.New = func() interface{} {
 		return new(sendTask)
+	}
+	sender.ackTaskPool.New = func() interface{} {
+		return make([]byte, guid.Size)
 	}
 	sender.sendDonePool.New = func() interface{} {
 		return make(chan *protocol.SendResult, 1)
@@ -155,6 +162,20 @@ func (sender *sender) SendFromPlugin(message []byte) error {
 	return result.Err
 }
 
+// Acknowledge is used to acknowledge controller that
+// node has received this message
+func (sender *sender) Acknowledge(send *protocol.Send) {
+	if sender.isClosing() {
+		return
+	}
+	at := sender.ackTaskPool.Get().([]byte)
+	copy(at, send.GUID)
+	select {
+	case sender.ackTaskQueue <- at:
+	case <-sender.stopSignal:
+	}
+}
+
 func (sender *sender) HandleAcknowledge(send string) {
 	sender.slotsM.Lock()
 	defer sender.slotsM.Unlock()
@@ -180,10 +201,8 @@ func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.closing, 1)
 	close(sender.stopSignal)
 	sender.wg.Wait()
-}
-
-func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
-	sender.ctx.logger.Printf(l, "sender", format, log...)
+	sender.guid.Close()
+	sender.ctx = nil
 }
 
 func (sender *sender) log(l logger.Level, log ...interface{}) {
@@ -200,9 +219,11 @@ type senderWorker struct {
 	buffer  *bytes.Buffer
 	msgpack *msgpack.Encoder
 	hash    hash.Hash
+	err     error
 
 	// prepare task objects
 	preS protocol.Send
+	preA protocol.Acknowledge
 
 	// shortcut
 	forwarder *forwarder
@@ -227,9 +248,13 @@ func (sw *senderWorker) Work() {
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.hash = sha256.New()
+	sw.forwarder = sw.ctx.ctx.forwarder
 	sw.tHex = make([]byte, 2*guid.Size)
 	sw.timer = time.NewTimer(sw.timeout)
-	var st *sendTask
+	var (
+		st *sendTask
+		at []byte
+	)
 	for {
 		select {
 		case <-sw.ctx.stopSignal:
@@ -241,12 +266,40 @@ func (sw *senderWorker) Work() {
 			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 		}
 		select {
+		case at = <-sw.ctx.ackTaskQueue:
+			sw.handleAcknowledgeTask(at)
 		case st = <-sw.ctx.sendTaskQueue:
 			sw.handleSendTask(st)
 		case <-sw.ctx.stopSignal:
 			return
 		}
 	}
+}
+
+func (sw *senderWorker) handleAcknowledgeTask(at []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "senderWorker.handleAcknowledgeTask")
+			sw.ctx.log(logger.Fatal, err)
+		}
+		sw.ctx.ackTaskPool.Put(at)
+	}()
+	sw.preA.GUID = sw.ctx.guid.Get()
+	sw.preA.RoleGUID = sw.ctx.ctx.GUID()
+	sw.preA.SendGUID = at
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.preA.GUID)
+	sw.buffer.Write(sw.preA.RoleGUID)
+	sw.buffer.Write(sw.preA.SendGUID)
+	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// pack
+	sw.buffer.Reset()
+	sw.err = sw.msgpack.Encode(sw.preA)
+	if sw.err != nil {
+		panic(sw.err)
+	}
+	sw.forwarder.AckToNodeAndCtrl(sw.preA.GUID, sw.buffer.Bytes(), "")
 }
 
 func (sw *senderWorker) handleSendTask(st *sendTask) {

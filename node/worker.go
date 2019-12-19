@@ -4,13 +4,17 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"hash"
+	"io"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
+	"project/internal/crypto/aes"
+	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -21,9 +25,11 @@ import (
 type worker struct {
 	broadcastQueue chan *protocol.Broadcast
 	sendQueue      chan *protocol.Send
+	ackQueue       chan *protocol.Acknowledge
 
 	broadcastPool sync.Pool
 	sendPool      sync.Pool
+	ackPool       sync.Pool
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -38,27 +44,47 @@ func newWorker(ctx *Node, config *Config) (*worker, error) {
 	if cfg.QueueSize < cfg.Number {
 		return nil, errors.New("worker task queue size < worker number")
 	}
-	if cfg.MaxBufferSize < 16384 {
-		return nil, errors.New("max buffer size must >= 16384")
+	if cfg.MaxBufferSize < 16<<10 {
+		return nil, errors.New("worker max buffer size must >= 16KB")
 	}
 
 	worker := worker{
 		broadcastQueue: make(chan *protocol.Broadcast, cfg.QueueSize),
 		sendQueue:      make(chan *protocol.Send, cfg.QueueSize),
+		ackQueue:       make(chan *protocol.Acknowledge, cfg.QueueSize),
 		stopSignal:     make(chan struct{}),
 	}
 
 	worker.broadcastPool.New = func() interface{} {
-		return new(protocol.Broadcast)
+		return &protocol.Broadcast{
+			GUID:      make([]byte, guid.Size),
+			Message:   make([]byte, aes.BlockSize),
+			Hash:      make([]byte, sha256.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
 	}
-
 	worker.sendPool.New = func() interface{} {
-		return new(protocol.Send)
+		return &protocol.Send{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			Message:   make([]byte, aes.BlockSize),
+			Hash:      make([]byte, sha256.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	worker.ackPool.New = func() interface{} {
+		return &protocol.Acknowledge{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			SendGUID:  make([]byte, guid.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
 	}
 
 	// start sub workers
 	broadcastPoolP := &worker.broadcastPool
 	sendPoolP := &worker.sendPool
+	ackPoolP := &worker.ackPool
 	wgP := &worker.wg
 	worker.wg.Add(cfg.Number)
 	for i := 0; i < cfg.Number; i++ {
@@ -67,8 +93,10 @@ func newWorker(ctx *Node, config *Config) (*worker, error) {
 			maxBufferSize:  cfg.MaxBufferSize,
 			broadcastQueue: worker.broadcastQueue,
 			sendQueue:      worker.sendQueue,
+			ackQueue:       worker.ackQueue,
 			broadcastPool:  broadcastPoolP,
 			sendPool:       sendPoolP,
+			ackPool:        ackPoolP,
 			stopSignal:     worker.stopSignal,
 			wg:             wgP,
 		}
@@ -82,9 +110,29 @@ func (ws *worker) GetBroadcastFromPool() *protocol.Broadcast {
 	return ws.broadcastPool.Get().(*protocol.Broadcast)
 }
 
+// PutBroadcastToPool is used to put *protocol.Broadcast to broadcastPool
+func (ws *worker) PutBroadcastToPool(b *protocol.Broadcast) {
+	ws.broadcastPool.Put(b)
+}
+
 // GetSendFromPool is used to get *protocol.Send from sendPool
 func (ws *worker) GetSendFromPool() *protocol.Send {
 	return ws.sendPool.Get().(*protocol.Send)
+}
+
+// PutSendToPool is used to put *protocol.Send to sendPool
+func (ws *worker) PutSendToPool(s *protocol.Send) {
+	ws.sendPool.Put(s)
+}
+
+// GetAcknowledgeFromPool is used to get *protocol.Acknowledge from ackPool
+func (ws *worker) GetAcknowledgeFromPool() *protocol.Acknowledge {
+	return ws.ackPool.Get().(*protocol.Acknowledge)
+}
+
+// PutAcknowledgeToPool is used to put *protocol.Acknowledge to ackPool
+func (ws *worker) PutAcknowledgeToPool(a *protocol.Acknowledge) {
+	ws.ackPool.Put(a)
 }
 
 // AddBroadcast is used to add broadcast to sub workers
@@ -95,10 +143,18 @@ func (ws *worker) AddBroadcast(b *protocol.Broadcast) {
 	}
 }
 
-// AddNodeSend is used to add send to sub workers
+// AddSend is used to add send to sub workers
 func (ws *worker) AddSend(s *protocol.Send) {
 	select {
 	case ws.sendQueue <- s:
+	case <-ws.stopSignal:
+	}
+}
+
+// AddAcknowledge is used to add acknowledge to sub workers
+func (ws *worker) AddAcknowledge(a *protocol.Acknowledge) {
+	select {
+	case ws.ackQueue <- a:
 	case <-ws.stopSignal:
 	}
 }
@@ -116,13 +172,15 @@ type subWorker struct {
 
 	broadcastQueue chan *protocol.Broadcast
 	sendQueue      chan *protocol.Send
+	ackQueue       chan *protocol.Acknowledge
 	broadcastPool  *sync.Pool
 	sendPool       *sync.Pool
+	ackPool        *sync.Pool
 
 	// runtime
 	buffer  *bytes.Buffer
 	hash    hash.Hash
-	guid    *guid.Generator
+	hex     io.Writer
 	ack     *protocol.Acknowledge
 	encoder *msgpack.Encoder
 	err     error
@@ -147,18 +205,18 @@ func (sw *subWorker) Work() {
 			time.Sleep(time.Second)
 			go sw.Work()
 		} else {
-			sw.guid.Close()
 			sw.wg.Done()
 		}
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
-	sw.guid = guid.New(len(sw.sendQueue), sw.ctx.global.Now)
+	sw.hex = hex.NewEncoder(sw.buffer)
 	sw.ack = &protocol.Acknowledge{SendGUID: make([]byte, guid.Size)}
 	sw.encoder = msgpack.NewEncoder(sw.buffer)
 	var (
 		b *protocol.Broadcast
 		s *protocol.Send
+		a *protocol.Acknowledge
 	)
 	for {
 		// check buffer capacity
@@ -175,6 +233,8 @@ func (sw *subWorker) Work() {
 			sw.handleBroadcast(b)
 		case s = <-sw.sendQueue:
 			sw.handleSend(s)
+		case a = <-sw.ackQueue:
+			sw.handleAcknowledge(a)
 		case <-sw.stopSignal:
 			return
 		}
@@ -208,7 +268,6 @@ func (sw *subWorker) handleBroadcast(b *protocol.Broadcast) {
 		sw.logf(logger.Exploit, format, b.GUID)
 		return
 	}
-	// handle it, don't need acknowledge
 	sw.ctx.handler.OnBroadcast(b)
 }
 
@@ -240,27 +299,23 @@ func (sw *subWorker) handleSend(s *protocol.Send) {
 		sw.logf(logger.Exploit, format, s.GUID)
 		return
 	}
-	sw.acknowledge(s)
+	sw.ctx.sender.Acknowledge(s)
 	sw.ctx.handler.OnSend(s)
 }
 
-func (sw *subWorker) acknowledge(s *protocol.Send) {
-	sw.ack.GUID = sw.guid.Get()
-	sw.ack.RoleGUID = sw.ctx.global.GUID()
-	// must copy because s is from sync pool and
-	// sw.ctx.forwarder.AckToNodeAndCtrl will not block
-	copy(sw.ack.SendGUID, s.GUID)
-	// sign
+func (sw *subWorker) handleAcknowledge(a *protocol.Acknowledge) {
+	defer sw.ackPool.Put(a)
+	// verify
 	sw.buffer.Reset()
-	sw.buffer.Write(sw.ack.GUID)
-	sw.buffer.Write(sw.ack.RoleGUID)
-	sw.buffer.Write(sw.ack.SendGUID)
-	sw.ack.Signature = sw.ctx.global.Sign(sw.buffer.Bytes())
-	// encode
-	sw.buffer.Reset()
-	sw.err = sw.encoder.Encode(sw.ack)
-	if sw.err != nil {
-		panic(sw.err)
+	sw.buffer.Write(a.GUID)
+	sw.buffer.Write(a.RoleGUID)
+	sw.buffer.Write(a.SendGUID)
+	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), a.Signature) {
+		const format = "invalid acknowledge signature\nGUID: %X"
+		sw.logf(logger.Exploit, format, a.GUID)
+		return
 	}
-	sw.ctx.forwarder.AckToNodeAndCtrl(sw.ack.GUID, sw.buffer.Bytes(), "")
+	sw.buffer.Reset()
+	_, _ = sw.hex.Write(a.SendGUID)
+	sw.ctx.sender.HandleAcknowledge(sw.buffer.String())
 }
