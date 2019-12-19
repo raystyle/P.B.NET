@@ -1,13 +1,30 @@
 package node
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"hash"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/vmihailenco/msgpack/v4"
 
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
+	"project/internal/xpanic"
+)
+
+// errors
+var (
+	ErrNoConnections = fmt.Errorf("no connections")
+	ErrSendFailed    = fmt.Errorf("failed to send")
+	ErrSendTimeout   = fmt.Errorf("send timeout")
+	ErrSenderClosed  = fmt.Errorf("sender closed")
 )
 
 type sendTask struct {
@@ -24,11 +41,18 @@ type sender struct {
 
 	sendTaskQueue chan *sendTask
 
-	sendTaskPool     sync.Pool
-	sendResultPool   sync.Pool
-	sendDonePool     sync.Pool
-	sendResponsePool sync.Pool
+	sendTaskPool   sync.Pool
+	sendDonePool   sync.Pool
+	sendResultPool sync.Pool
 
+	// wait Controller acknowledge
+	// key = hex(send GUID) lower
+	slots  map[string]chan struct{}
+	slotsM sync.Mutex
+
+	guid *guid.Generator
+
+	closing    int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
@@ -37,104 +61,123 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	cfg := config.Sender
 
 	// check config
-	if cfg.Worker < 1 {
-		return nil, errors.New("the number of the sender worker must >= 0")
+	if cfg.Worker < 4 {
+		return nil, errors.New("sender worker number must >= 4")
 	}
 	if cfg.Timeout < 15*time.Second {
-		return nil, errors.New("sender timeout must >= 15s")
+		return nil, errors.New("sender timeout must >= 15 seconds")
 	}
-	if cfg.QueueSize < 128 {
-		return nil, errors.New("sender task queue size must >= 128")
+	if cfg.QueueSize < 512 {
+		return nil, errors.New("sender queue size >= 512")
 	}
 	if cfg.MaxBufferSize < 16<<10 {
 		return nil, errors.New("sender max buffer size must >= 16KB")
 	}
 
-	sender := sender{
+	sender := &sender{
 		ctx:           ctx,
 		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
+		slots:         make(map[string]chan struct{}),
 		stopSignal:    make(chan struct{}),
 	}
 
-	// init sync pool
 	sender.sendTaskPool.New = func() interface{} {
 		return new(sendTask)
-	}
-	sender.sendResultPool.New = func() interface{} {
-		return new(protocol.SendResult)
 	}
 	sender.sendDonePool.New = func() interface{} {
 		return make(chan *protocol.SendResult, 1)
 	}
-	sender.sendResponsePool.New = func() interface{} {
-		return make(chan *protocol.SendResponse, 1)
+	sender.sendResultPool.New = func() interface{} {
+		return new(protocol.SendResult)
 	}
+	sender.guid = guid.New(64*cfg.QueueSize, ctx.global.Now)
 
 	// start sender workers
-	// sender.wg.Add(cfg.Worker)
+	sender.wg.Add(cfg.Worker)
 	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
-			// ctx:           &sender,
-			// maxBufferSize: cfg.MaxBufferSize,
+			ctx:           sender,
+			timeout:       cfg.Timeout,
+			maxBufferSize: cfg.MaxBufferSize,
 		}
 		go worker.Work()
 	}
-	return &sender, nil
+	return sender, nil
 }
 
-// SendAsync is used to asynchronous send message to Controller
-// must put *protocol.Send to sender.sendResultPool
-func (sender *sender) SendAsync(cmd []byte, msg interface{}, done chan<- *protocol.SendResult) {
-	st := sender.sendTaskPool.Get().(*sendTask)
-	st.Command = cmd
-	st.MessageI = msg
-	st.Result = done
-	sender.sendTaskQueue <- st
+func (sender *sender) isClosing() bool {
+	return atomic.LoadInt32(&sender.closing) != 0
 }
 
 // Send is used to send message to Controller
 func (sender *sender) Send(cmd []byte, msg interface{}) error {
+	if sender.isClosing() {
+		return ErrSenderClosed
+	}
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
 	defer sender.sendDonePool.Put(done)
-	sender.SendAsync(cmd, msg, done)
-	result := <-done
-	defer func() {
-		result.Clean()
-		sender.sendResultPool.Put(result)
-	}()
-	err := result.Err
-	if err != nil {
-		sender.log(logger.Warning, "failed to send:", err)
-		return err
+	st := sender.sendTaskPool.Get().(*sendTask)
+	defer sender.sendTaskPool.Put(st)
+	st.Command = cmd
+	st.MessageI = msg
+	st.Result = done
+	// send to task queue
+	select {
+	case sender.sendTaskQueue <- st:
+	case <-sender.stopSignal:
+		return ErrSenderClosed
 	}
-	return nil
+	result := <-done
+	defer sender.sendResultPool.Put(result)
+	return result.Err
 }
 
 // SendFromPlugin is used to provide a interface
 // for plugins to send message to Controller
 func (sender *sender) SendFromPlugin(message []byte) error {
+	if sender.isClosing() {
+		return ErrSenderClosed
+	}
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
 	defer sender.sendDonePool.Put(done)
-
 	st := sender.sendTaskPool.Get().(*sendTask)
+	defer sender.sendTaskPool.Put(st)
 	st.Message = message
 	st.Result = done
-	sender.sendTaskQueue <- st
-
-	result := <-done
-	defer func() {
-		result.Clean()
-		sender.sendResultPool.Put(result)
-	}()
-	err := result.Err
-	if err != nil {
-		sender.log(logger.Warning, "failed to send from plugin:", err)
-		return err
+	// send to task queue
+	select {
+	case sender.sendTaskQueue <- st:
+	case <-sender.stopSignal:
+		return ErrSenderClosed
 	}
-	return nil
+	result := <-done
+	defer sender.sendResultPool.Put(result)
+	return result.Err
+}
+
+func (sender *sender) HandleAcknowledge(send string) {
+	sender.slotsM.Lock()
+	defer sender.slotsM.Unlock()
+	c := sender.slots[send]
+	if c != nil {
+		close(c)
+		delete(sender.slots, send)
+	}
+}
+
+func (sender *sender) createAckSlot(send string) (<-chan struct{}, func()) {
+	sender.slotsM.Lock()
+	defer sender.slotsM.Unlock()
+	sender.slots[send] = make(chan struct{})
+	return sender.slots[send], func() {
+		sender.slotsM.Lock()
+		defer sender.slotsM.Unlock()
+		delete(sender.slots, send)
+	}
 }
 
 func (sender *sender) Close() {
+	atomic.StoreInt32(&sender.closing, 1)
 	close(sender.stopSignal)
 	sender.wg.Wait()
 }
@@ -148,270 +191,140 @@ func (sender *sender) log(l logger.Level, log ...interface{}) {
 }
 
 type senderWorker struct {
-}
+	ctx *sender
 
-func (sw *senderWorker) Work() {
-
-}
-
-/*
-
-// return responses and the number of the success
-func (sender *sender) sendParallel(token, message []byte) ([]*protocol.SendResponse, int) {
-	// clients := sender.ctx.syncer.Clients()
-
-	sClients := sender.ctx.syncer.sClients()
-	l := len(sClients)
-	if l == 0 {
-		return nil, 0
-	}
-	// padding channels
-	channels := make([]chan *protocol.SyncResponse, l)
-	for i := 0; i < l; i++ {
-		channels[i] = sender.sendResponsePool.Get().(chan *protocol.SyncResponse)
-	}
-	// sync send parallel
-	index := 0
-	for _, sc := range sClients {
-		go func(s *sClient) {
-			channels[index] <- s.SyncSend(token, message)
-		}(sc)
-		index += 1
-	}
-	// get response and put
-	resp = make([]*protocol.SyncResponse, l)
-	for i := 0; i < l; i++ {
-		resp[i] = <-channels[i]
-		if resp[i].Err == nil {
-			success += 1
-		}
-		sender.sendResponsePool.Put(channels[i])
-	}
-
-}
-
-type senderWorker struct {
-	ctx           *sender
+	timeout       time.Duration
 	maxBufferSize int
 
-	// task
-	bt  *broadcastTask
-	sst *syncSendTask
-	srt uint64 // height
+	// runtime
+	buffer  *bytes.Buffer
+	msgpack *msgpack.Encoder
+	hash    hash.Hash
 
-	guid           *guid.GUID
-	buffer         *bytes.Buffer
-	msgpackEncoder *msgpack.Encoder
-	hash           hash.Hash
+	// prepare task objects
+	preS protocol.Send
 
-	preB  *protocol.Broadcast
-	preSS *protocol.Send
-	preSR *protocol.SyncReceive
+	// shortcut
+	forwarder *forwarder
 
-	// temp
-	token []byte
-	err   error
+	// receive acknowledge timeout
+	tHex  []byte
+	timer *time.Timer
 }
 
 func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "sender.worker() panic:")
+			err := xpanic.Error(r, "senderWorker.Work")
 			sw.ctx.log(logger.Fatal, err)
 			// restart worker
 			time.Sleep(time.Second)
-			sw.ctx.wg.Add(1)
 			go sw.Work()
+		} else {
+			sw.ctx.wg.Done()
 		}
-		sw.ctx.wg.Done()
 	}()
-	sw.guid = guid.New(16*(runtime.NumCPU()+1), sw.ctx.ctx.global.Now)
-	// prepare buffer, msgpack encoder
-	// syncReceiveTask = 1 + guid.Size + 8
-	minBufferSize := guid.Size + 9
-	sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
-	sw.msgpackEncoder = msgpack.NewEncoder(sw.buffer)
+	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.hash = sha256.New()
-	// prepare task objects
-	sw.preB = &protocol.Broadcast{
-		SenderRole: protocol.Node,
-		SenderGUID: sw.ctx.ctx.global.GUID(),
-	}
-	sw.preSS = &protocol.Send{
-		SenderRole:   protocol.Node,
-		SenderGUID:   sw.ctx.ctx.global.GUID(),
-		ReceiverRole: protocol.Ctrl,
-		ReceiverGUID: protocol.CtrlGUID,
-	}
-	sw.preSR = &protocol.SyncReceive{
-		Role: protocol.Node,
-		GUID: sw.ctx.ctx.global.GUID(),
-	}
-	// start handle task
+	sw.tHex = make([]byte, 2*guid.Size)
+	sw.timer = time.NewTimer(sw.timeout)
+	var st *sendTask
 	for {
+		select {
+		case <-sw.ctx.stopSignal:
+			return
+		default:
+		}
 		// check buffer capacity
 		if sw.buffer.Cap() > sw.maxBufferSize {
-			sw.buffer = bytes.NewBuffer(make([]byte, minBufferSize))
+			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 		}
 		select {
-		case sw.srt = <-sw.ctx.syncReceiveTaskQueue:
-			sw.handleSyncReceiveTask()
-		case sw.sst = <-sw.ctx.sendTaskQueue:
-			sw.handleSyncSendTask()
-		case sw.bt = <-sw.ctx.broadcastTaskQueue:
-			sw.handleBroadcastTask()
+		case st = <-sw.ctx.sendTaskQueue:
+			sw.handleSendTask(st)
 		case <-sw.ctx.stopSignal:
 			return
 		}
 	}
 }
 
-func (sw *senderWorker) handleSyncReceiveTask() {
-	sw.preSR.GUID = sw.guid.Get()
-	sw.preSR.Height = sw.srt
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preSR.GUID)
-	sw.buffer.Write(convert.Uint64ToBytes(sw.preSR.Height))
-	sw.buffer.WriteByte(sw.preSR.Role.Byte())
-	sw.buffer.Write(sw.preSR.RoleGUID)
-	sw.preSR.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
-	// pack syncReceive & token
-	sw.buffer.Reset()
-	sw.err = sw.msgpackEncoder.Encode(sw.preSR)
-	if sw.err != nil {
-		panic(sw.err)
-	}
-	// send
-	sw.token = append(protocol.Node.Bytes(), sw.preSR.GUID...)
-	sw.ctx.syncReceiveParallel(sw.token, sw.buffer.Bytes())
-}
-
-func (sw *senderWorker) handleSyncSendTask() {
-	defer sw.ctx.sendTaskPool.Put(sw.sst)
-
-	result := protocol.SyncResult{}
-	sw.preSS.GUID = sw.guid.Get()
+func (sw *senderWorker) handleSendTask(st *sendTask) {
+	result := sw.ctx.sendResultPool.Get().(*protocol.SendResult)
+	result.Clean()
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "senderWorker.handleSendTask")
+			sw.ctx.log(logger.Fatal, err)
+			result.Err = err
+		}
+		st.Result <- result
+	}()
 	// pack message(interface)
-	if sw.sst.MessageI != nil {
+	if st.MessageI != nil {
 		sw.buffer.Reset()
-		sw.err = sw.msgpackEncoder.Encode(sw.sst.MessageI)
-		if sw.err != nil {
-			if sw.sst.Result != nil {
-				result.Err = sw.err
-				sw.sst.Result <- &result
-			}
+		sw.buffer.Write(st.Command)
+		result.Err = sw.msgpack.Encode(st.MessageI)
+		if result.Err != nil {
 			return
 		}
-		sw.sst.Message = append(sw.sst.Command, sw.buffer.Bytes()...)
+		// don't worry copy, because encrypt
+		st.Message = sw.buffer.Bytes()
 	}
+	// check message size
+	if len(st.Message) > protocol.MaxMsgSize {
+		result.Err = protocol.ErrTooBigMsg
+		return
+	}
+	// encrypt
+	sw.preS.Message, result.Err = sw.ctx.ctx.global.Encrypt(st.Message)
+	if result.Err != nil {
+		return
+	}
+	// set GUID
+	sw.preS.GUID = sw.ctx.guid.Get()
+	sw.preS.RoleGUID = sw.ctx.ctx.GUID()
 	// hash
 	sw.hash.Reset()
-	sw.hash.Write(sw.sst.Message)
-	sw.preSS.Hash = sw.hash.Sum(nil)
-	// encrypt
-	sw.preSS.Message, sw.err = sw.ctx.ctx.global.Encrypt(sw.sst.Message)
-	if sw.err != nil {
-		if sw.sst.Result != nil {
-			result.Err = sw.err
-			sw.sst.Result <- &result
-		}
-		return
-	}
-	sw.ctx.syncSendM.Lock()
-	defer sw.ctx.syncSendM.Unlock()
-	// set sync height
-	sw.preSS.Height = sw.ctx.ctx.global.GetSyncSendHeight()
+	sw.hash.Write(st.Message)
+	sw.preS.Hash = sw.hash.Sum(nil)
 	// sign
 	sw.buffer.Reset()
-	sw.buffer.Write(sw.preSS.GUID)
-	sw.buffer.Write(convert.Uint64ToBytes(sw.preSS.Height))
-	sw.buffer.Write(sw.preSS.Message)
-	sw.buffer.Write(sw.preSS.Hash)
-	sw.buffer.WriteByte(sw.preSS.SenderRole.Byte())
-	sw.buffer.Write(sw.preSS.SenderGUID)
-	sw.buffer.WriteByte(sw.preSS.ReceiverRole.Byte())
-	sw.buffer.Write(sw.preSS.ReceiverGUID)
-	sw.preSS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
-	// pack protocol.syncSend and token
+	sw.buffer.Write(sw.preS.GUID)
+	sw.buffer.Write(sw.preS.RoleGUID)
+	sw.buffer.Write(sw.preS.Message)
+	sw.buffer.Write(sw.preS.Hash)
+	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// pack
 	sw.buffer.Reset()
-	sw.err = sw.msgpackEncoder.Encode(sw.preSS)
-	if sw.err != nil {
-		if sw.sst.Result != nil {
-			result.Err = sw.err
-			sw.sst.Result <- &result
-		}
-		return
-	}
-	// add message to database (self)
-
-	// !!! think order
-	// first must add send height
-	sw.ctx.ctx.global.SetSyncSendHeight(sw.preSS.Height + 1)
-	// !!! think order
-	// second send
-	sw.token = append(protocol.Node.Bytes(), sw.preSS.GUID...)
-	result.Response, result.Success = sw.ctx.syncSendParallel(sw.token, sw.buffer.Bytes())
-	if sw.sst.Result != nil {
-		sw.sst.Result <- &result
-	}
-}
-
-func (sw *senderWorker) handleBroadcastTask() {
-	defer sw.ctx.broadcastTaskPool.Put(sw.bt)
-	result := protocol.BroadcastResult{}
-	sw.preB.GUID = sw.guid.Get()
-	// pack message
-	if sw.bt.MessageI != nil {
-		sw.buffer.Reset()
-		sw.err = sw.msgpackEncoder.Encode(sw.bt.MessageI)
-		if sw.err != nil {
-			if sw.bt.Result != nil {
-				result.Err = sw.err
-				sw.bt.Result <- &result
-			}
-			return
-		}
-		sw.bt.Message = append(sw.bt.Command, sw.buffer.Bytes()...)
-	}
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(sw.bt.Message)
-	sw.preB.Hash = sw.hash.Sum(nil)
-	// encrypt
-	sw.preB.Message, sw.err = sw.ctx.ctx.global.Encrypt(sw.bt.Message)
-	if sw.err != nil {
-		if sw.bt.Result != nil {
-			result.Err = sw.err
-			sw.bt.Result <- &result
-		}
-		return
-	}
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preB.GUID)
-	sw.buffer.Write(sw.preB.Message)
-	sw.buffer.Write(sw.preB.Hash)
-	sw.buffer.WriteByte(sw.preB.SenderRole.Byte())
-	sw.buffer.Write(sw.preB.SenderGUID)
-	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
-	// pack broadcast & token
-	sw.buffer.Reset()
-	sw.err = sw.msgpackEncoder.Encode(sw.preB)
-	if sw.err != nil {
-		if sw.bt.Result != nil {
-			result.Err = sw.err
-			sw.bt.Result <- &result
-		}
+	result.Err = sw.msgpack.Encode(sw.preS)
+	if result.Err != nil {
 		return
 	}
 	// send
-	sw.token = append(protocol.Node.Bytes(), sw.preB.GUID...)
-	result.Response, result.Success = sw.ctx.broadcastParallel(sw.token, sw.buffer.Bytes())
-	if sw.bt.Result != nil {
-		sw.bt.Result <- &result
+	hex.Encode(sw.tHex, sw.preS.GUID) // calculate send guid
+	wait, destroy := sw.ctx.createAckSlot(string(sw.tHex))
+	result.Responses, result.Success = sw.forwarder.SendToNodeAndCtrl(
+		sw.preS.GUID, sw.buffer.Bytes(), "")
+	if len(result.Responses) == 0 {
+		result.Err = ErrNoConnections
+		return
+	}
+	if result.Success == 0 {
+		result.Err = ErrSendFailed
+		return
+	}
+	// wait role acknowledge
+	if !sw.timer.Stop() {
+		<-sw.timer.C
+	}
+	sw.timer.Reset(sw.timeout)
+	select {
+	case <-wait:
+	case <-sw.timer.C:
+		destroy()
+		result.Err = ErrSendTimeout
+	case <-sw.ctx.stopSignal:
+		result.Err = ErrSenderClosed
 	}
 }
-
-
-*/

@@ -1,7 +1,6 @@
 package node
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -11,8 +10,6 @@ import (
 	"project/internal/protocol"
 	"project/internal/xpanic"
 )
-
-var errNoConnections = fmt.Errorf("no connections")
 
 type forwarder struct {
 	ctx *Node
@@ -191,7 +188,8 @@ type fAck interface {
 	Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse)
 }
 
-func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol.AcknowledgeResult {
+func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) (
+	[]*protocol.AcknowledgeResponse, int) {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	var (
@@ -204,9 +202,7 @@ func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol
 		l = len(ctrlConns) + len(nodeConns)
 	}
 	if l < 1 {
-		return &protocol.AcknowledgeResult{
-			Err: errNoConnections,
-		}
+		return nil, 0
 	}
 	conns = make(map[string]fAck, l)
 	for tag, conn := range ctrlConns {
@@ -231,23 +227,24 @@ func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) *protocol
 			resp <- c.Acknowledge(guid, data)
 		}(conn)
 	}
-	ar := protocol.AcknowledgeResult{
-		Responses: make([]*protocol.AcknowledgeResponse, l),
-	}
+	var success int
+	response := make([]*protocol.AcknowledgeResponse, l)
 	for i := 0; i < l; i++ {
-		ar.Responses[i] = <-resp
-		if ar.Responses[i].Err == nil {
-			ar.Success++
+		response[i] = <-resp
+		if response[i].Err == nil {
+			success++
 		}
 	}
-	return &ar
+	close(resp)
+	return response, success
 }
 
 type fSend interface {
 	Send(guid, message []byte) (sr *protocol.SendResponse)
 }
 
-func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protocol.SendResult {
+func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
+	[]*protocol.SendResponse, int) {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	var (
@@ -260,9 +257,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protoco
 		l = len(ctrlConns) + len(nodeConns)
 	}
 	if l < 1 {
-		return &protocol.SendResult{
-			Err: errNoConnections,
-		}
+		return nil, 0
 	}
 	conns = make(map[string]fSend, l)
 	for tag, conn := range ctrlConns {
@@ -287,16 +282,16 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) *protoco
 			resp <- c.Send(guid, data)
 		}(conn)
 	}
-	sr := &protocol.SendResult{
-		Responses: make([]*protocol.SendResponse, l),
-	}
+	var success int
+	response := make([]*protocol.SendResponse, l)
 	for i := 0; i < l; i++ {
-		sr.Responses[i] = <-resp
-		if sr.Responses[i].Err == nil {
-			sr.Success++
+		response[i] = <-resp
+		if response[i].Err == nil {
+			success++
 		}
 	}
-	return sr
+	close(resp)
+	return response, success
 }
 
 func (f *forwarder) Close() {

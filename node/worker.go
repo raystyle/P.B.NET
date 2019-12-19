@@ -60,21 +60,18 @@ func newWorker(ctx *Node, config *Config) (*worker, error) {
 	broadcastPoolP := &worker.broadcastPool
 	sendPoolP := &worker.sendPool
 	wgP := &worker.wg
+	worker.wg.Add(cfg.Number)
 	for i := 0; i < cfg.Number; i++ {
 		sw := subWorker{
-			ctx: ctx,
-
-			maxBufferSize: cfg.MaxBufferSize,
-
+			ctx:            ctx,
+			maxBufferSize:  cfg.MaxBufferSize,
 			broadcastQueue: worker.broadcastQueue,
 			sendQueue:      worker.sendQueue,
 			broadcastPool:  broadcastPoolP,
 			sendPool:       sendPoolP,
-
-			stopSignal: worker.stopSignal,
-			wg:         wgP,
+			stopSignal:     worker.stopSignal,
+			wg:             wgP,
 		}
-		worker.wg.Add(1)
 		go sw.Work()
 	}
 	return &worker, nil
