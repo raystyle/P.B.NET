@@ -59,7 +59,7 @@ func TestNode_SendDirectly(t *testing.T) {
 	recv := bytes.Buffer{}
 	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goRoutines*times; i++ {
-		timer.Reset(10 * time.Second)
+		timer.Reset(3 * time.Second)
 		select {
 		case b := <-ctrl.Debug.NodeSend:
 			recv.Write(b)

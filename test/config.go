@@ -42,47 +42,49 @@ func initializeController(t require.TestingT) {
 }
 
 func generateControllerConfig() *controller.Config {
-	c := controller.Config{}
+	cfg := controller.Config{}
 
-	c.Debug.SkipTestClientDNS = true
-	c.Debug.SkipSynchronizeTime = true
+	cfg.Debug.SkipTestClientDNS = true
+	cfg.Debug.SkipSynchronizeTime = true
+	cfg.Debug.NodeSend = make(chan []byte, 4)
+	cfg.Debug.BeaconSend = make(chan []byte, 4)
 
-	c.Database.Dialect = "mysql"
-	c.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_test?loc=Local&parseTime=true"
-	c.Database.MaxOpenConns = 16
-	c.Database.MaxIdleConns = 16
-	c.Database.LogFile = "log/database.log"
-	c.Database.GORMLogFile = "log/gorm.log"
-	c.Database.GORMDetailedLog = false
+	cfg.Database.Dialect = "mysql"
+	cfg.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_test?loc=Local&parseTime=true"
+	cfg.Database.MaxOpenConns = 16
+	cfg.Database.MaxIdleConns = 16
+	cfg.Database.LogFile = "log/database.log"
+	cfg.Database.GORMLogFile = "log/gorm.log"
+	cfg.Database.GORMDetailedLog = false
 
-	c.Logger.Level = "debug"
-	c.Logger.File = "log/controller.log"
-	c.Logger.Writer = os.Stdout
+	cfg.Logger.Level = "debug"
+	cfg.Logger.File = "log/controller.log"
+	cfg.Logger.Writer = os.Stdout
 
-	c.Global.DNSCacheExpire = time.Minute
-	c.Global.TimeSyncInterval = time.Minute
+	cfg.Global.DNSCacheExpire = time.Minute
+	cfg.Global.TimeSyncInterval = time.Minute
 
-	c.Client.Timeout = 10 * time.Second
+	cfg.Client.Timeout = 10 * time.Second
 
-	c.Sender.MaxConns = 16 * runtime.NumCPU()
-	c.Sender.Worker = 64
-	c.Sender.Timeout = 15 * time.Second
-	c.Sender.QueueSize = 512
-	c.Sender.MaxBufferSize = 16 << 10
+	cfg.Sender.MaxConns = 16 * runtime.NumCPU()
+	cfg.Sender.Worker = 64
+	cfg.Sender.Timeout = 15 * time.Second
+	cfg.Sender.QueueSize = 512
+	cfg.Sender.MaxBufferSize = 16 << 10
 
-	c.Syncer.ExpireTime = 3 * time.Second
+	cfg.Syncer.ExpireTime = 3 * time.Second
 
-	c.Worker.Number = 64
-	c.Worker.QueueSize = 512
-	c.Worker.MaxBufferSize = 16 << 10
+	cfg.Worker.Number = 64
+	cfg.Worker.QueueSize = 512
+	cfg.Worker.MaxBufferSize = 16 << 10
 
-	c.Web.Dir = "web"
-	c.Web.CertFile = "ca/cert.pem"
-	c.Web.KeyFile = "ca/key.pem"
-	c.Web.Address = "localhost:1657"
-	c.Web.Username = "pbnet" // # super user, password = sha256(sha256("pbnet"))
-	c.Web.Password = "d6b3ced503b70f7894bd30f36001de4af84a8c2af898f06e29bca95f2dcf5100"
-	return &c
+	cfg.Web.Dir = "web"
+	cfg.Web.CertFile = "ca/cert.pem"
+	cfg.Web.KeyFile = "ca/key.pem"
+	cfg.Web.Address = "localhost:1657"
+	cfg.Web.Username = "pbnet" // # super user, password = sha256(sha256("pbnet"))
+	cfg.Web.Password = "d6b3ced503b70f7894bd30f36001de4af84a8c2af898f06e29bca95f2dcf5100"
+	return &cfg
 }
 
 func generateNodeConfig(tb testing.TB) *node.Config {
