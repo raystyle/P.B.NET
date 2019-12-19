@@ -88,6 +88,7 @@ func newWorker(ctx *CTRL, config *Config) (*worker, error) {
 	ackPoolP := &worker.ackPool
 	queryPoolP := &worker.queryPool
 	wgP := &worker.wg
+	worker.wg.Add(cfg.Number)
 	for i := 0; i < cfg.Number; i++ {
 		sw := subWorker{
 			ctx:             ctx,
@@ -103,7 +104,6 @@ func newWorker(ctx *CTRL, config *Config) (*worker, error) {
 			stopSignal:      worker.stopSignal,
 			wg:              wgP,
 		}
-		worker.wg.Add(1)
 		go sw.Work()
 	}
 	return &worker, nil
@@ -349,7 +349,7 @@ func (sw *subWorker) handleBeaconSend(s *protocol.Send) {
 	sw.ctx.handler.OnBeaconSend(s)
 }
 
-func (sw *subWorker) verifyRoleAck(role protocol.Role, a *protocol.Acknowledge) bool {
+func (sw *subWorker) verifyAcknowledge(role protocol.Role, a *protocol.Acknowledge) bool {
 	sw.buffer.Reset()
 	sw.buffer.Write(a.GUID)
 	sw.buffer.Write(a.RoleGUID)
@@ -362,13 +362,18 @@ func (sw *subWorker) verifyRoleAck(role protocol.Role, a *protocol.Acknowledge) 
 	return true
 }
 
-func (sw *subWorker) handleAck(role protocol.Role, a *protocol.Acknowledge) {
+func (sw *subWorker) handleAcknowledge(role protocol.Role, a *protocol.Acknowledge) {
 	sw.buffer.Reset()
 	_, _ = sw.hex.Write(a.RoleGUID)
 	roleGUID := sw.buffer.String()
 	sw.buffer.Reset()
 	_, _ = sw.hex.Write(a.SendGUID)
-	sw.ctx.sender.HandleAcknowledge(role, roleGUID, sw.buffer.String())
+	switch role {
+	case protocol.Node:
+		sw.ctx.sender.HandleNodeAcknowledge(roleGUID, sw.buffer.String())
+	case protocol.Beacon:
+		sw.ctx.sender.HandleBeaconAcknowledge(roleGUID, sw.buffer.String())
+	}
 }
 
 func (sw *subWorker) handleNodeAcknowledge(a *protocol.Acknowledge) {
@@ -376,10 +381,10 @@ func (sw *subWorker) handleNodeAcknowledge(a *protocol.Acknowledge) {
 	if !sw.getNodeKey(a.RoleGUID) {
 		return
 	}
-	if !sw.verifyRoleAck(protocol.Node, a) {
+	if !sw.verifyAcknowledge(protocol.Node, a) {
 		return
 	}
-	sw.handleAck(protocol.Node, a)
+	sw.handleAcknowledge(protocol.Node, a)
 }
 
 func (sw *subWorker) handleBeaconAcknowledge(a *protocol.Acknowledge) {
@@ -387,10 +392,10 @@ func (sw *subWorker) handleBeaconAcknowledge(a *protocol.Acknowledge) {
 	if !sw.getBeaconKey(a.RoleGUID) {
 		return
 	}
-	if !sw.verifyRoleAck(protocol.Beacon, a) {
+	if !sw.verifyAcknowledge(protocol.Beacon, a) {
 		return
 	}
-	sw.handleAck(protocol.Beacon, a)
+	sw.handleAcknowledge(protocol.Beacon, a)
 }
 
 func (sw *subWorker) handleQuery(q *protocol.Query) {

@@ -99,7 +99,7 @@ func TestSender_Broadcast(t *testing.T) {
 	// testsuite.IsDestroyed(t, NODE)
 }
 
-func TestSender_Send(t *testing.T) {
+func TestSender_SendToNode(t *testing.T) {
 	NODE := testGenerateNodeAndConnect(t)
 	// send to Node
 	roleGUID := NODE.GUID()
@@ -167,14 +167,13 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 			NODEs[i].Exit(nil)
 		}
 	}()
-	b.ReportAllocs()
-	b.ResetTimer()
-
 	count := 0
 	countM := sync.Mutex{}
 	wg := sync.WaitGroup{}
+	wg.Add(number)
+	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < number; i++ {
-		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
 			timer := time.NewTimer(3 * time.Second)

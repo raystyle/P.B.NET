@@ -26,6 +26,7 @@ import (
 
 // errors
 var (
+	ErrNoConnections   = fmt.Errorf("no connections")
 	ErrBroadcastFailed = fmt.Errorf("failed to broadcast")
 	ErrSendFailed      = fmt.Errorf("failed to send")
 	ErrSendTimeout     = fmt.Errorf("send timeout")
@@ -116,7 +117,7 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 		return nil, errors.New("sender worker number must >= 4")
 	}
 	if cfg.Timeout < 15*time.Second {
-		return nil, errors.New("sender timeout must >= 15 second")
+		return nil, errors.New("sender timeout must >= 15 seconds")
 	}
 	if cfg.QueueSize < 512 {
 		return nil, errors.New("sender queue size >= 512")
@@ -166,13 +167,13 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	sender.context, sender.cancel = context.WithCancel(context.Background())
 
 	// start sender workers
+	sender.wg.Add(cfg.Worker)
 	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
 			ctx:           sender,
 			timeout:       cfg.Timeout,
 			maxBufferSize: cfg.MaxBufferSize,
 		}
-		sender.wg.Add(1)
 		go worker.Work()
 	}
 	return sender, nil
@@ -234,7 +235,7 @@ func (sender *sender) ConnectWithContext(
 
 // Disconnect is used to disconnect node, guid is hex, upper
 func (sender *sender) Disconnect(guid string) error {
-	if client, ok := sender.GetClients()[guid]; ok {
+	if client, ok := sender.Clients()[guid]; ok {
 		client.Close()
 		return nil
 	}
@@ -373,72 +374,71 @@ func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
 	}
 }
 
-func (sender *sender) getRoleAckSlot(r protocol.Role, role, send string) (<-chan struct{}, func()) {
-	var rAck *roleAckSlot
-	switch r {
-	case protocol.Node:
-		sender.nodeAckSlotsRWM.Lock()
-		defer sender.nodeAckSlotsRWM.Unlock()
-		if ack, ok := sender.nodeAckSlots[role]; ok {
-			rAck = ack
-		} else {
-			rAck = &roleAckSlot{
-				slots: make(map[string]chan struct{}),
-			}
-			sender.nodeAckSlots[role] = rAck
-		}
-	case protocol.Beacon:
-		sender.beaconAckSlotsRWM.Lock()
-		defer sender.beaconAckSlotsRWM.Unlock()
-		if ack, ok := sender.beaconAckSlots[role]; ok {
-			rAck = ack
-		} else {
-			rAck = &roleAckSlot{
-				slots: make(map[string]chan struct{}),
-			}
-			sender.beaconAckSlots[role] = rAck
-		}
-	default:
-		panic("invalid role")
+func (sender *sender) HandleNodeAcknowledge(role, send string) {
+	sender.nodeAckSlotsRWM.RLock()
+	defer sender.nodeAckSlotsRWM.RUnlock()
+	as, ok := sender.nodeAckSlots[role]
+	if !ok {
+		return
 	}
-	rAck.m.Lock()
-	defer rAck.m.Unlock()
-	rAck.slots[send] = make(chan struct{})
-	return rAck.slots[send], func() {
-		rAck.m.Lock()
-		defer rAck.m.Unlock()
-		delete(rAck.slots, send)
+	as.m.Lock()
+	defer as.m.Unlock()
+	c := as.slots[send]
+	if c != nil {
+		close(c)
+		delete(as.slots, send)
 	}
 }
 
-func (sender *sender) HandleAcknowledge(r protocol.Role, role, send string) {
-	var rAck *roleAckSlot
-	switch r {
-	case protocol.Node:
-		sender.nodeAckSlotsRWM.RLock()
-		defer sender.nodeAckSlotsRWM.RUnlock()
-		if ack, ok := sender.nodeAckSlots[role]; ok {
-			rAck = ack
-		} else {
-			return
-		}
-	case protocol.Beacon:
-		sender.beaconAckSlotsRWM.RLock()
-		defer sender.beaconAckSlotsRWM.RUnlock()
-		if ack, ok := sender.beaconAckSlots[role]; ok {
-			rAck = ack
-		} else {
-			return
-		}
-	default:
-		panic("invalid role")
+func (sender *sender) HandleBeaconAcknowledge(role, send string) {
+	sender.beaconAckSlotsRWM.RLock()
+	defer sender.beaconAckSlotsRWM.RUnlock()
+	as, ok := sender.beaconAckSlots[role]
+	if !ok {
+		return
 	}
-	rAck.m.Lock()
-	defer rAck.m.Unlock()
-	c := rAck.slots[send]
+	as.m.Lock()
+	defer as.m.Unlock()
+	c := as.slots[send]
 	if c != nil {
 		close(c)
-		delete(rAck.slots, send)
+		delete(as.slots, send)
+	}
+}
+
+func (sender *sender) createNodeAckSlot(role, send string) (<-chan struct{}, func()) {
+	sender.nodeAckSlotsRWM.Lock()
+	defer sender.nodeAckSlotsRWM.Unlock()
+	as, ok := sender.nodeAckSlots[role]
+	if !ok {
+		sender.nodeAckSlots[role] = &roleAckSlot{
+			slots: make(map[string]chan struct{}),
+		}
+		as = sender.nodeAckSlots[role]
+	}
+	as.slots[send] = make(chan struct{})
+	return as.slots[send], func() {
+		as.m.Lock()
+		defer as.m.Unlock()
+		delete(as.slots, send)
+	}
+}
+
+func (sender *sender) createBeaconAckSlot(role, send string) (<-chan struct{}, func()) {
+	sender.beaconAckSlotsRWM.Lock()
+	defer sender.beaconAckSlotsRWM.Unlock()
+	as, ok := sender.beaconAckSlots[role]
+	if !ok {
+		sender.beaconAckSlots[role] = &roleAckSlot{
+			slots: make(map[string]chan struct{}),
+		}
+		as = sender.beaconAckSlots[role]
+	}
+	as.slots[send] = make(chan struct{})
+	return as.slots[send], func() {
+		as.m.Lock()
+		defer as.m.Unlock()
+		delete(as.slots, send)
 	}
 }
 
@@ -464,7 +464,7 @@ func (sender *sender) isInInteractiveMode(guid string) bool {
 	return sender.interactive[guid]
 }
 
-func (sender *sender) GetClients() map[string]*client {
+func (sender *sender) Clients() map[string]*client {
 	sender.clientsRWM.RLock()
 	defer sender.clientsRWM.RUnlock()
 	clients := make(map[string]*client, len(sender.clients))
@@ -487,12 +487,12 @@ func (sender *sender) Close() {
 	sender.wg.Wait() // wait all acknowledge task finish
 	for {
 		// disconnect all sender client
-		for _, client := range sender.GetClients() {
+		for _, client := range sender.Clients() {
 			client.Close()
 		}
 		// wait close
 		time.Sleep(100 * time.Millisecond)
-		if len(sender.GetClients()) == 0 {
+		if len(sender.Clients()) == 0 {
 			break
 		}
 	}
@@ -508,7 +508,7 @@ func (sender *sender) log(l logger.Level, log ...interface{}) {
 }
 
 func (sender *sender) broadcast(guid, message []byte) ([]*protocol.BroadcastResponse, int) {
-	clients := sender.GetClients()
+	clients := sender.Clients()
 	l := len(clients)
 	if l == 0 {
 		return nil, 0
@@ -539,7 +539,7 @@ func (sender *sender) broadcast(guid, message []byte) ([]*protocol.BroadcastResp
 }
 
 func (sender *sender) sendToNode(guid, message []byte) ([]*protocol.SendResponse, int) {
-	clients := sender.GetClients()
+	clients := sender.Clients()
 	l := len(clients)
 	if l == 0 {
 		return nil, 0
@@ -570,7 +570,7 @@ func (sender *sender) sendToNode(guid, message []byte) ([]*protocol.SendResponse
 }
 
 func (sender *sender) sendToBeacon(guid, message []byte) ([]*protocol.SendResponse, int) {
-	clients := sender.GetClients()
+	clients := sender.Clients()
 	l := len(clients)
 	if l == 0 {
 		return nil, 0
@@ -600,8 +600,8 @@ func (sender *sender) sendToBeacon(guid, message []byte) ([]*protocol.SendRespon
 	return response, success
 }
 
-func (sender *sender) acknowledgeToNode(guid, message []byte) ([]*protocol.AcknowledgeResponse, int) {
-	clients := sender.GetClients()
+func (sender *sender) acknowledgeToNode(guid, data []byte) ([]*protocol.AcknowledgeResponse, int) {
+	clients := sender.Clients()
 	l := len(clients)
 	if l == 0 {
 		return nil, 0
@@ -616,7 +616,7 @@ func (sender *sender) acknowledgeToNode(guid, message []byte) ([]*protocol.Ackno
 					sender.log(logger.Fatal, err)
 				}
 			}()
-			resp <- c.AcknowledgeToNode(guid, message)
+			resp <- c.AcknowledgeToNode(guid, data)
 		}(c)
 	}
 	var success int
@@ -631,8 +631,8 @@ func (sender *sender) acknowledgeToNode(guid, message []byte) ([]*protocol.Ackno
 	return response, success
 }
 
-func (sender *sender) acknowledgeToBeacon(guid, message []byte) ([]*protocol.AcknowledgeResponse, int) {
-	clients := sender.GetClients()
+func (sender *sender) acknowledgeToBeacon(guid, data []byte) ([]*protocol.AcknowledgeResponse, int) {
+	clients := sender.Clients()
 	l := len(clients)
 	if l == 0 {
 		return nil, 0
@@ -647,7 +647,7 @@ func (sender *sender) acknowledgeToBeacon(guid, message []byte) ([]*protocol.Ack
 					sender.log(logger.Fatal, err)
 				}
 			}()
-			resp <- c.AcknowledgeToBeacon(guid, message)
+			resp <- c.AcknowledgeToBeacon(guid, data)
 		}(c)
 	}
 	var success int
@@ -677,10 +677,9 @@ type senderWorker struct {
 	err      error
 
 	// prepare task objects
-	preB  protocol.Broadcast
-	preS  protocol.Send
-	preA  protocol.Acknowledge
-	preSP *protocol.Send
+	preB protocol.Broadcast
+	preS protocol.Send
+	preA protocol.Acknowledge
 
 	// key
 	node   *mNode
@@ -688,8 +687,9 @@ type senderWorker struct {
 	aesKey []byte
 	aesIV  []byte
 
+	// receive acknowledge timeout
 	tHex  []byte
-	timer *time.Timer // receive acknowledge timeout
+	timer *time.Timer
 }
 
 func (sw *senderWorker) Work() {
@@ -708,7 +708,6 @@ func (sw *senderWorker) Work() {
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.hex = hex.NewEncoder(sw.buffer)
 	sw.hash = sha256.New()
-	sw.preSP = &sw.preS
 	sw.tHex = make([]byte, 2*guid.Size)
 	sw.timer = time.NewTimer(sw.timeout)
 	var (
@@ -851,15 +850,24 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	// send
-	hex.Encode(sw.tHex, sw.preSP.GUID) // calculate send guid
-	wait, destroy := sw.ctx.getRoleAckSlot(st.Role, sw.roleGUID, string(sw.tHex))
+	hex.Encode(sw.tHex, sw.preS.GUID) // calculate send guid
+	var (
+		wait    <-chan struct{}
+		destroy func()
+	)
 	switch st.Role {
 	case protocol.Node:
+		wait, destroy = sw.ctx.createNodeAckSlot(sw.roleGUID, string(sw.tHex))
 		result.Responses, result.Success = sw.ctx.sendToNode(sw.preS.GUID, sw.buffer.Bytes())
 	case protocol.Beacon:
+		wait, destroy = sw.ctx.createBeaconAckSlot(sw.roleGUID, string(sw.tHex))
 		result.Responses, result.Success = sw.ctx.sendToBeacon(sw.preS.GUID, sw.buffer.Bytes())
 	default:
 		panic("invalid st.Role")
+	}
+	if len(result.Responses) == 0 {
+		result.Err = ErrNoConnections
+		return
 	}
 	if result.Success == 0 {
 		result.Err = ErrSendFailed
@@ -931,6 +939,10 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 		return
 	}
 	result.Responses, result.Success = sw.ctx.broadcast(sw.preB.GUID, sw.buffer.Bytes())
+	if len(result.Responses) == 0 {
+		result.Err = ErrNoConnections
+		return
+	}
 	if result.Success == 0 {
 		result.Err = ErrBroadcastFailed
 	}
