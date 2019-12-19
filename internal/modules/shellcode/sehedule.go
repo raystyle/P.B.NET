@@ -9,10 +9,10 @@ import (
 )
 
 func doUseless(c chan []byte) {
-	buf := bytes.Buffer{}
 	rand := random.New()
 	n := 100 + rand.Int(100)
 	for i := 0; i < n; i++ {
+		buf := bytes.Buffer{}
 		buf.Write(random.Bytes(16 + rand.Int(1024)))
 		c <- buf.Bytes()
 	}
