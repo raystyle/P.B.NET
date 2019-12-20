@@ -19,6 +19,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certutil"
 	"project/internal/crypto/rand"
 )
 
@@ -96,11 +97,11 @@ func initManager() {
 var (
 	pwd []byte
 
-	certs     map[int]*x509.Certificate // CA certificates
-	certsASN1 map[int][]byte            // CA certificates ASN1 data
-	keys      map[int]interface{}       // CA private key
-	keysPKCS8 map[int][]byte            // CA private key PKCS8 data
-	number    int                       // the number of the CA certificates(private keys)
+	certs      map[int]*x509.Certificate // CA certificates
+	certsASN1  map[int][]byte            // CA certificates ASN1 data
+	keys       map[int]interface{}       // CA private key
+	keysBlocks map[int][]byte            // CA private key block
+	number     int                       // the number of the CA certificates(private keys)
 
 	system     map[int]*x509.Certificate // only certificate
 	systemASN1 map[int][]byte            // CA certificates ASN1 data
@@ -142,7 +143,7 @@ func load() {
 	certs = make(map[int]*x509.Certificate)
 	certsASN1 = make(map[int][]byte)
 	keys = make(map[int]interface{})
-	keysPKCS8 = make(map[int][]byte)
+	keysBlocks = make(map[int][]byte)
 	index := 1
 	for {
 		if len(certPEMBlock) == 0 {
@@ -170,16 +171,16 @@ func load() {
 		}
 		b, err = x509.DecryptPEMBlock(block, pwd)
 		checkError(err, true)
-		key, err := x509.ParsePKCS8PrivateKey(b)
+		key, err := certutil.ParsePrivateKeyBytes(b)
 		checkError(err, true)
-		keyPKCS8 := b
+		keyBlock := b
 		hash.Write(b)
 
 		// add
 		certs[index] = c
 		certsASN1[index] = certASN1
 		keys[index] = key
-		keysPKCS8[index] = keyPKCS8
+		keysBlocks[index] = keyBlock
 		index++
 	}
 	number = len(certs)
@@ -247,13 +248,18 @@ func checkRepeat(a map[int][]byte, b []byte) bool {
 func add() {
 	var block *pem.Block
 	certPEMBlock, err := ioutil.ReadFile("certs.pem")
-	checkError(err, false)
+	if checkError(err, false) {
+		return
+	}
 	keyPEMBlock, err := ioutil.ReadFile("keys.pem")
-	checkError(err, false)
-
+	if checkError(err, false) {
+		return
+	}
 	// test load
 	_, err = tls.X509KeyPair(certPEMBlock, keyPEMBlock)
-	checkError(err, false)
+	if checkError(err, false) {
+		return
+	}
 
 	for {
 		if len(certPEMBlock) == 0 {
@@ -264,33 +270,37 @@ func add() {
 		block, certPEMBlock = pem.Decode(certPEMBlock)
 		if block == nil {
 			fmt.Println("\nfailed to decode certs.pem")
-			os.Exit(1)
+			return
 		}
-
+		c, err := x509.ParseCertificate(block.Bytes)
+		if checkError(err, false) {
+			return
+		}
 		if checkRepeat(certsASN1, block.Bytes) {
+			fmt.Printf("\nthis certificate has already exists:\n\n%s\n", cert.Print(c))
 			continue
 		}
-
-		c, err := x509.ParseCertificate(block.Bytes)
-		checkError(err, false)
 		certASN1 := block.Bytes
 
 		// load private key
 		block, keyPEMBlock = pem.Decode(keyPEMBlock)
 		if block == nil {
 			fmt.Println("\nfailed to decode keys.pem")
-			os.Exit(1)
+			return
 		}
-		k, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-		checkError(err, false)
-		keyPKCS8 := block.Bytes
+		k, err := certutil.ParsePrivateKeyBytes(block.Bytes)
+		if checkError(err, false) {
+			return
+		}
+		keyBlock := block.Bytes
 
 		// add
 		number++
 		certs[number] = c
 		certsASN1[number] = certASN1
 		keys[number] = k
-		keysPKCS8[number] = keyPKCS8
+		keysBlocks[number] = keyBlock
+		fmt.Println("add certificate successfully")
 		printCertificate(number, c)
 	}
 }
@@ -298,7 +308,9 @@ func add() {
 func addSystem() {
 	var block *pem.Block
 	systemPEMBlock, err := ioutil.ReadFile("system.pem")
-	checkError(err, false)
+	if checkError(err, false) {
+		return
+	}
 	for {
 		if len(systemPEMBlock) == 0 {
 			break
@@ -306,18 +318,20 @@ func addSystem() {
 		block, systemPEMBlock = pem.Decode(systemPEMBlock)
 		if block == nil {
 			fmt.Println("\nfailed to decode system.pem")
-			os.Exit(1)
+			return
 		}
-
+		c, err := x509.ParseCertificate(block.Bytes)
+		if checkError(err, false) {
+			return
+		}
 		if checkRepeat(systemASN1, block.Bytes) {
+			fmt.Printf("\nthis certificate has already exists:\n\n%s\n", cert.Print(c))
 			continue
 		}
-
-		c, err := x509.ParseCertificate(block.Bytes)
-		checkError(err, false)
 		sNumber++
 		system[sNumber] = c
 		systemASN1[sNumber] = block.Bytes
+		fmt.Println("add system certificate successfully")
 		printCertificate(sNumber, c)
 	}
 }
@@ -334,39 +348,69 @@ func save() {
 		// encrypt certificates
 		block, err := x509.EncryptPEMBlock(rand.Reader, "CERTIFICATE",
 			certsASN1[i], pwd, x509.PEMCipherAES256)
-		checkError(err, false)
+		if checkError(err, false) {
+			return
+		}
 		err = pem.Encode(certsPEM, block)
-		checkError(err, false)
+		if checkError(err, false) {
+			return
+		}
 		hash.Write(certsASN1[i])
 
 		// encrypt private key
 		block, err = x509.EncryptPEMBlock(rand.Reader, "PRIVATE KEY",
-			keysPKCS8[i], pwd, x509.PEMCipherAES256)
-		checkError(err, false)
+			keysBlocks[i], pwd, x509.PEMCipherAES256)
+		if checkError(err, false) {
+			return
+		}
 		err = pem.Encode(keysPEM, block)
-		checkError(err, false)
-		hash.Write(keysPKCS8[i])
+		if checkError(err, false) {
+			return
+		}
+		hash.Write(keysBlocks[i])
 	}
 
 	// encrypt system certificates
 	for i := 1; i < sNumber+1; i++ {
 		block, err := x509.EncryptPEMBlock(rand.Reader, "CERTIFICATE",
 			systemASN1[i], pwd, x509.PEMCipherAES256)
-		checkError(err, false)
+		if checkError(err, false) {
+			return
+		}
 		err = pem.Encode(systemPEM, block)
-		checkError(err, false)
+		if checkError(err, false) {
+			return
+		}
 		hash.Write(systemASN1[i])
 	}
 
 	// write PEM files and hash
-	err := ioutil.WriteFile("key/certs.pem", certsPEM.Bytes(), 644)
-	checkError(err, false)
-	err = ioutil.WriteFile("key/keys.pem", keysPEM.Bytes(), 644)
-	checkError(err, false)
-	err = ioutil.WriteFile("key/system.pem", systemPEM.Bytes(), 644)
-	checkError(err, false)
-	err = ioutil.WriteFile("key/pem.hash", hash.Sum(nil), 644)
-	checkError(err, false)
+	for _, p := range []*struct {
+		filename string
+		data     []byte
+	}{
+		{
+			filename: "key/certs.pem",
+			data:     certsPEM.Bytes(),
+		},
+		{
+			filename: "key/keys.pem",
+			data:     keysPEM.Bytes(),
+		},
+		{
+			filename: "key/system.pem",
+			data:     systemPEM.Bytes(),
+		},
+		{
+			filename: "key/pem.hash",
+			data:     hash.Sum(nil),
+		},
+	} {
+		err := ioutil.WriteFile(p.filename, p.data, 644)
+		if checkError(err, false) {
+			return
+		}
+	}
 }
 
 func exit() {
@@ -400,19 +444,22 @@ func manage() {
 		case "exit":
 			exit()
 		}
+		input = ""
 	}
 }
 
-func checkError(err error, exit bool) {
+func checkError(err error, exit bool) bool {
 	if err != nil {
 		if strings.Contains(err.Error(), "unexpected newline") {
-			return
+			return false
 		}
 		if err != io.EOF {
-			fmt.Printf("\n%s", err)
+			fmt.Printf("%s\n", err)
 		}
 		if exit {
 			os.Exit(1)
 		}
+		return true
 	}
+	return false
 }
