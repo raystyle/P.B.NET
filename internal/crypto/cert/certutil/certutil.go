@@ -1,9 +1,6 @@
 package certutil
 
 import (
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -34,19 +31,11 @@ func ParsePrivateKey(pemBlock []byte) (interface{}, error) {
 	if block == nil {
 		return nil, ErrInvalidPEMBlock
 	}
-	if block.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("invalid PEM block type: %s", block.Type)
-	}
 	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
 		return key, nil
 	}
 	if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
-		switch key := key.(type) {
-		case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-			return key, nil
-		default:
-			return nil, errors.New("found unknown private key type in PKCS#8 wrapping")
-		}
+		return key, nil
 	}
 	if key, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
 		return key, nil

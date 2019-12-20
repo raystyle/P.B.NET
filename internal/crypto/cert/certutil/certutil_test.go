@@ -37,6 +37,27 @@ func TestParseCertificates(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestParsePrivateKey(t *testing.T) {
+	for _, file := range []string{"pkcs1.key", "pkcs8.key", "ecp.key"} {
+		keyPEMBlock, err := ioutil.ReadFile("testdata/" + file)
+		require.NoError(t, err)
+		_, err = ParsePrivateKey(keyPEMBlock)
+		require.NoError(t, err)
+	}
+
+	// parse invalid PEM data
+	_, err := ParsePrivateKey([]byte{0, 1, 2, 3})
+	require.Equal(t, ErrInvalidPEMBlock, err)
+
+	// invalid certificate data
+	keyPEMBlock := []byte(`
+-----BEGIN PRIVATE KEY-----
+-----END PRIVATE KEY-----
+`)
+	_, err = ParsePrivateKey(keyPEMBlock)
+	require.Error(t, err)
+}
+
 func TestParseCertificate(t *testing.T) {
 	certPEMBlock, err := ioutil.ReadFile("testdata/certs.pem")
 	require.NoError(t, err)
