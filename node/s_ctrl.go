@@ -502,7 +502,7 @@ func (ctrl *ctrlConn) handleTrustNode(id []byte) {
 func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
 	err := ctrl.ctx.global.SetCertificate(data)
 	if err == nil {
-		ctrl.conn.Reply(id, messages.RegisterSucceed)
+		ctrl.conn.Reply(id, []byte{messages.RegisterResultAccept})
 		ctrl.log(logger.Debug, "trust node")
 	} else {
 		ctrl.conn.Reply(id, []byte(err.Error()))

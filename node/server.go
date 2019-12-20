@@ -177,7 +177,7 @@ func (s *server) deploy(tag string, listener *Listener) error {
 	case err := <-errChan:
 		const format = "failed to deploy listener %s(%s): %s"
 		return errors.Errorf(format, tag, listener.Addr(), err)
-	case <-time.After(2 * time.Second):
+	case <-time.After(time.Second):
 		return nil
 	}
 }
@@ -375,21 +375,17 @@ func (s *server) handshake(tag string, conn net.Conn) {
 		_ = xConn.Close()
 		s.wg.Done()
 	}()
-
 	// add to server.conns for management
 	connTag := tag + hex.EncodeToString(s.guid.Get())
 	s.addConn(connTag, xConn)
 	defer s.deleteConn(connTag)
-
 	_ = xConn.SetDeadline(now.Add(s.timeout))
-
 	if !s.checkConn(xConn) {
 		return
 	}
 	if !s.sendCertificate(xConn) {
 		return
 	}
-
 	// receive role
 	r := make([]byte, 1)
 	_, err := io.ReadFull(xConn, r)

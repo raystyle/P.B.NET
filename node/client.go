@@ -2,12 +2,16 @@ package node
 
 import (
 	"bytes"
+	"fmt"
+	"sync"
 	"time"
 
+	"project/internal/bootstrap"
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/random"
+	"project/internal/xnet"
 )
 
 func (c *conn) onFrameClient(frame []byte) {
@@ -24,37 +28,74 @@ func (c *conn) onFrameClient(frame []byte) {
 	}
 }
 
-func (c *conn) sendHeartbeat() {
+type client struct {
+	ctx *Node
+
+	node      *bootstrap.Node
+	guid      []byte // node guid
+	closeFunc func()
+
+	conn      *xnet.Conn
+	slots     []*protocol.Slot
+	heartbeat chan struct{}
+	inSync    int32
+
+	inClose    int32
+	closeOnce  sync.Once
+	stopSignal chan struct{}
+	wg         sync.WaitGroup
+}
+
+func (client *client) log(l logger.Level, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprint(b, log...)
+	_, _ = fmt.Fprint(b, "\n", client.conn)
+	client.ctx.logger.Print(l, "client", b)
+}
+
+func (client *client) logf(l logger.Level, format string, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(b, format, log...)
+	_, _ = fmt.Fprint(b, "\n", client.conn)
+	client.ctx.logger.Print(l, "client", b)
+}
+
+func (client *client) sendHeartbeatLoop() {
+	defer client.wg.Done()
 	var err error
-	rand := random.New()
+	r := random.New()
 	buffer := bytes.NewBuffer(nil)
+	timer := time.NewTimer(time.Minute)
+	defer timer.Stop()
 	for {
-		t := time.Duration(30+rand.Int(60)) * time.Second
+		timer.Reset(time.Duration(30+r.Int(60)) * time.Second)
 		select {
-		case <-time.After(t):
-			// <security> fake traffic
+		case <-timer.C:
+			// <security> fake traffic like client
+			fakeSize := 64 + r.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
-			fakeSize := 64 + rand.Int(256)
 			buffer.Reset()
 			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
 			buffer.WriteByte(protocol.ConnSendHeartbeat)
-			buffer.Write(rand.Bytes(fakeSize))
+			buffer.Write(r.Bytes(fakeSize))
 			// send
-			_ = c.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-			_, err = c.conn.Write(buffer.Bytes())
+			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+			_, err = client.conn.Write(buffer.Bytes())
 			if err != nil {
 				return
 			}
+			// receive reply
+			timer.Reset(time.Duration(30+r.Int(60)) * time.Second)
 			select {
-			case <-c.heartbeat:
-			case <-time.After(t):
-				c.log(logger.Warning, "receive heartbeat reply timeout")
-				_ = c.conn.Close()
+			case <-client.heartbeat:
+			case <-timer.C:
+				client.log(logger.Warning, "receive heartbeat timeout")
+				_ = client.conn.Close()
 				return
-			case <-c.stopSignal:
+			case <-client.stopSignal:
 				return
 			}
-		case <-c.stopSignal:
+		case <-client.stopSignal:
 			return
 		}
 	}
