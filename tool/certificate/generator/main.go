@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/x509"
-	"encoding/pem"
 	"flag"
 	"io/ioutil"
 	"log"
@@ -10,6 +8,7 @@ import (
 	"github.com/pelletier/go-toml"
 
 	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certutil"
 )
 
 func main() {
@@ -48,12 +47,20 @@ func main() {
 		}
 	case sign:
 		// load CA certificate
-		caCert, err := x509.ParseCertificate(parsePEM("ca.crt"))
+		pemData, err := ioutil.ReadFile("ca.crt")
+		if err != nil {
+			log.Fatalln(err)
+		}
+		caCert, err := certutil.ParseCertificate(pemData)
 		if err != nil {
 			log.Fatalln(err)
 		}
 		// load CA private key
-		caKey, err := x509.ParsePKCS8PrivateKey(parsePEM("ca.key"))
+		pemData, err = ioutil.ReadFile("ca.key")
+		if err != nil {
+			log.Fatalln(err)
+		}
+		caKey, err := certutil.ParsePrivateKey(pemData)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -71,16 +78,4 @@ func main() {
 			log.Fatalln(err)
 		}
 	}
-}
-
-func parsePEM(filename string) []byte {
-	pemData, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	block, _ := pem.Decode(pemData)
-	if block == nil {
-		log.Fatalf("invalid %s (file format need PEM)", filename)
-	}
-	return block.Bytes
 }
