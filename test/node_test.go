@@ -46,7 +46,7 @@ func TestNode_SendDirectly(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := NODE.Send(messages.CMDBytesTest, msg)
+			err := NODE.Send(messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
