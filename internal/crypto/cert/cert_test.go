@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/logger"
 	"project/internal/testsuite"
 )
 
@@ -20,6 +22,38 @@ func TestGenerateCA(t *testing.T) {
 	require.NoError(t, err)
 	_, err = tls.X509KeyPair(ca.EncodeToPEM())
 	require.NoError(t, err)
+
+	// set options
+	now := time.Now()
+	notAfter := now.AddDate(0, 0, 1)
+	opts := &Options{
+		Algorithm: "rsa|1024",
+		NotBefore: now,
+		NotAfter:  notAfter,
+	}
+	opts.Subject.CommonName = "test common name"
+	opts.Subject.Organization = []string{"test organization"}
+	ca, err = GenerateCA(opts)
+	require.NoError(t, err)
+	require.Equal(t, "test common name", ca.Certificate.Subject.CommonName)
+	require.Equal(t, []string{"test organization"}, ca.Certificate.Subject.Organization)
+	excepted := now.Format(logger.TimeLayout)
+	actual := ca.Certificate.NotBefore.Local().Format(logger.TimeLayout)
+	require.Equal(t, excepted, actual)
+	excepted = notAfter.Format(logger.TimeLayout)
+	actual = ca.Certificate.NotAfter.Local().Format(logger.TimeLayout)
+	require.Equal(t, excepted, actual)
+
+	// invalid domain name
+	opts.DNSNames = []string{"foo-"}
+	_, err = GenerateCA(opts)
+	require.Error(t, err)
+
+	opts.DNSNames = nil
+	// invalid IP address
+	opts.IPAddresses = []string{"foo ip"}
+	_, err = GenerateCA(opts)
+	require.Error(t, err)
 }
 
 func TestGenerate(t *testing.T) {
@@ -43,6 +77,17 @@ func TestGenerate(t *testing.T) {
 			wg.Wait()
 		})
 	}
+
+	// invalid domain name
+	opts := new(Options)
+	opts.DNSNames = []string{"foo-"}
+	_, err := Generate(nil, nil, opts)
+	require.Error(t, err)
+
+	opts.DNSNames = nil
+	// create failed
+	_, err = Generate(new(x509.Certificate), "foo", opts)
+	require.Error(t, err)
 }
 
 func testGenerate(t *testing.T, ca *KeyPair) {
@@ -129,6 +174,22 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	if testsuite.EnableIPv6() {
 		get("[::1]", port3)
 	}
+}
+
+func TestGeneratePrivateKey(t *testing.T) {
+	t.Parallel()
+	// rsa with invalid bits
+	_, _, err := generatePrivateKey("rsa|foo")
+	require.Error(t, err)
+	// ecdsa
+	_, _, err = generatePrivateKey("ecdsa|p256")
+	require.NoError(t, err)
+	_, _, err = generatePrivateKey("ecdsa|p384")
+	require.NoError(t, err)
+	_, _, err = generatePrivateKey("ecdsa|p521")
+	require.NoError(t, err)
+	_, _, err = generatePrivateKey("ecdsa|foo")
+	require.Error(t, err)
 }
 
 func TestUnknownAlgorithm(t *testing.T) {

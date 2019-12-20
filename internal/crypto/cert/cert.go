@@ -81,7 +81,7 @@ func (kp *KeyPair) TLSCertificate() (tls.Certificate, error) {
 	return tls.X509KeyPair(kp.EncodeToPEM())
 }
 
-func generateCertificate(opts *Options) *x509.Certificate {
+func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	cert := x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
 	cert.SubjectKeyId = random.Bytes(4)
@@ -96,6 +96,7 @@ func generateCertificate(opts *Options) *x509.Certificate {
 	if opts.Subject.Organization == nil {
 		cert.Subject.Organization = []string{random.Cookie(6 + random.Int(8))}
 	} else {
+		cert.Subject.Organization = make([]string, len(opts.Subject.Organization))
 		copy(cert.Subject.Organization, opts.Subject.Organization)
 	}
 	cert.Subject.Country = make([]string, len(opts.Subject.Country))
@@ -130,7 +131,25 @@ func generateCertificate(opts *Options) *x509.Certificate {
 	} else {
 		cert.NotAfter = opts.NotAfter
 	}
-	return &cert
+	// check domain name
+	dn := opts.DNSNames
+	for i := 0; i < len(dn); i++ {
+		if !dns.IsDomainName(dn[i]) {
+			return nil, fmt.Errorf("%s is not a domain name", dn[i])
+		}
+		cert.DNSNames = append(cert.DNSNames, dn[i])
+	}
+
+	// check IP address
+	ips := opts.IPAddresses
+	for i := 0; i < len(ips); i++ {
+		ip := net.ParseIP(ips[i])
+		if ip == nil {
+			return nil, fmt.Errorf("%s is not a IP", ips[i])
+		}
+		cert.IPAddresses = append(cert.IPAddresses, ip)
+	}
+	return &cert, nil
 }
 
 func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
@@ -179,7 +198,10 @@ func GenerateCA(opts *Options) (*KeyPair, error) {
 		opts = new(Options)
 	}
 
-	ca := generateCertificate(opts)
+	ca, err := generateCertificate(opts)
+	if err != nil {
+		return nil, err
+	}
 	ca.KeyUsage = x509.KeyUsageCertSign
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
@@ -188,11 +210,8 @@ func GenerateCA(opts *Options) (*KeyPair, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	asn1Data, _ := x509.CreateCertificate(
-		rand.Reader, ca, ca, publicKey, privateKey)
+	asn1Data, _ := x509.CreateCertificate(rand.Reader, ca, ca, publicKey, privateKey)
 	ca, _ = x509.ParseCertificate(asn1Data)
-
 	return &KeyPair{
 		Certificate: ca,
 		PrivateKey:  privateKey,
@@ -207,27 +226,11 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPai
 		opts = new(Options)
 	}
 
-	cert := generateCertificate(opts)
+	cert, err := generateCertificate(opts)
+	if err != nil {
+		return nil, err
+	}
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
-
-	// check dns
-	dn := opts.DNSNames
-	for i := 0; i < len(dn); i++ {
-		if !dns.IsDomainName(dn[i]) {
-			return nil, fmt.Errorf("%s is not a domain name", dn[i])
-		}
-		cert.DNSNames = append(cert.DNSNames, dn[i])
-	}
-
-	// check ip
-	ips := opts.IPAddresses
-	for i := 0; i < len(ips); i++ {
-		ip := net.ParseIP(ips[i])
-		if ip == nil {
-			return nil, fmt.Errorf("%s is not a IP", ips[i])
-		}
-		cert.IPAddresses = append(cert.IPAddresses, ip)
-	}
 
 	// generate certificate
 	privateKey, publicKey, err := generatePrivateKey(opts.Algorithm)
