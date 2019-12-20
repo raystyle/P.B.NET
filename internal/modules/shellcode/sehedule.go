@@ -26,12 +26,15 @@ func schedule() {
 		go doUseless(bChan)
 	}
 	runtime.Gosched()
+	timer := time.NewTimer(25 * time.Millisecond)
+	defer timer.Stop()
 read:
 	for {
+		timer.Reset(25 * time.Millisecond)
 		select {
 		case b := <-bChan:
 			b[0] = byte(rand.Int64())
-		case <-time.After(25 * time.Millisecond):
+		case <-timer.C:
 			break read
 		}
 	}
