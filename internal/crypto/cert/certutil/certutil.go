@@ -24,25 +24,6 @@ func ParseCertificate(pemBlock []byte) (*x509.Certificate, error) {
 	return x509.ParseCertificate(block.Bytes)
 }
 
-// ParsePrivateKey is used to parse private key from PEM
-// it support RSA ECDSA and ED25519
-func ParsePrivateKey(pemBlock []byte) (interface{}, error) {
-	block, _ := pem.Decode(pemBlock)
-	if block == nil {
-		return nil, ErrInvalidPEMBlock
-	}
-	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
-		return key, nil
-	}
-	if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
-		return key, nil
-	}
-	if key, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
-		return key, nil
-	}
-	return nil, errors.New("failed to parse private key")
-}
-
 // ParseCertificates is used to parse certificates from PEM
 func ParseCertificates(pemBlock []byte) ([]*x509.Certificate, error) {
 	var (
@@ -67,4 +48,29 @@ func ParseCertificates(pemBlock []byte) ([]*x509.Certificate, error) {
 		}
 	}
 	return certs, nil
+}
+
+// ParsePrivateKeyBytes is used to parse private key from bytes
+// it support RSA ECDSA and ED25519
+func ParsePrivateKeyBytes(bytes []byte) (interface{}, error) {
+	if key, err := x509.ParsePKCS1PrivateKey(bytes); err == nil {
+		return key, nil
+	}
+	if key, err := x509.ParsePKCS8PrivateKey(bytes); err == nil {
+		return key, nil
+	}
+	if key, err := x509.ParseECPrivateKey(bytes); err == nil {
+		return key, nil
+	}
+	return nil, errors.New("failed to parse private key")
+}
+
+// ParsePrivateKey is used to parse private key from PEM
+// it support RSA ECDSA and ED25519
+func ParsePrivateKey(pemBlock []byte) (interface{}, error) {
+	block, _ := pem.Decode(pemBlock)
+	if block == nil {
+		return nil, ErrInvalidPEMBlock
+	}
+	return ParsePrivateKeyBytes(block.Bytes)
 }
