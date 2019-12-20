@@ -48,9 +48,11 @@ func (c *Conn) Handshake() error {
 				recover()
 				wg.Done()
 			}()
+			timer := time.NewTimer(c.handshakeTimeout)
+			defer timer.Stop()
 			select {
 			case <-done:
-			case <-time.After(c.handshakeTimeout):
+			case <-timer.C:
 				errChan <- errors.New("handshake timeout")
 				_ = c.Conn.Close()
 			case <-c.ctx.Done():
