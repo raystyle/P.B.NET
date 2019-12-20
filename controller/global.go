@@ -18,6 +18,7 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certutil"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 
@@ -359,7 +360,7 @@ func loadSelfCertificates(hash *bytes.Buffer, password []byte) ([]*cert.KeyPair,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		key, err := x509.ParsePKCS8PrivateKey(b)
+		key, err := certutil.ParsePrivateKeyBytes(b)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}

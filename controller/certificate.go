@@ -66,7 +66,7 @@ func (ctrl *CTRL) ConfirmTrustNode(
 	if err != nil {
 		return errors.WithMessage(err, "failed to send trust node certificate")
 	}
-	if !bytes.Equal(reply, messages.RegisterSucceed) {
+	if !bytes.Equal(reply, []byte{messages.RegisterResultAccept}) {
 		return errors.Errorf("failed to trust node: %s", string(reply))
 	}
 	// calculate aes key
@@ -104,6 +104,8 @@ func (ctrl *CTRL) issueCertificate(address string, guid []byte) []byte {
 	buffer.Write(certWithCtrlGUID)
 	return buffer.Bytes()
 }
+
+// TODO remove size
 
 func (ctrl *CTRL) verifyCertificate(cert []byte, address string, guid []byte) bool {
 	// if guid = nil, skip verify

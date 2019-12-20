@@ -39,7 +39,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 	ctrl.Debug.NodeSend = make(chan []byte, times)
 	go func() {
 		for i := 0; i < times; i++ {
-			require.NoError(t, NODE.Send(messages.CMDBytesTest, msg))
+			require.NoError(t, NODE.Send(messages.CMDBTest, msg))
 		}
 	}()
 	// read

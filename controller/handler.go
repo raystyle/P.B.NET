@@ -36,6 +36,8 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 	}
 	switch convert.BytesToUint32(send.Message[:4]) {
 
+	case messages.CMDNodeRegisterRequest:
+
 	case messages.CMDTest:
 		var testMsg []byte
 		err := msgpack.Unmarshal(send.Message[4:], &testMsg)
