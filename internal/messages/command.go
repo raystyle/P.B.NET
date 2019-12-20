@@ -6,18 +6,22 @@ import (
 
 // test command
 const (
-	CMDTest uint32 = 0xFEFFFFFF
+	CMDTest uint32 = 0xF0000001
 )
 
-// commands about register
+// commands about role register
 const (
-	CMDRegisterNodeRequest uint32 = 0x01000000 + iota
-	CMDRegisterNodeResponse
-	CMDRegisterBeaconRequest
-	CMDRegisterBeaconResponse
+	CMDNodeRegisterRequest uint32 = 0x00000000 + iota
+	CMDNodeRegisterResponse
+	CMDBeaconRegisterRequest
+	CMDBeaconRegisterResponse
 )
 
-// CMDBytes is used to provide parameter to role.Send()
+// CMD Bytes
 var (
-	CMDBytesTest = convert.Uint32ToBytes(CMDTest)
+	CMDBTest                   = convert.Uint32ToBytes(CMDTest)
+	CMDBNodeRegisterRequest    = convert.Uint32ToBytes(CMDNodeRegisterRequest)
+	CMDBNodeRegisterResponse   = convert.Uint32ToBytes(CMDNodeRegisterResponse)
+	CMDBBeaconRegisterRequest  = convert.Uint32ToBytes(CMDBeaconRegisterRequest)
+	CMDBBeaconRegisterResponse = convert.Uint32ToBytes(CMDBeaconRegisterResponse)
 )

@@ -18,14 +18,9 @@ type Bootstrap struct {
 
 // about register result
 const (
-	RegisterResultAccept uint8 = iota
+	RegisterResultAccept uint8 = iota + 1
 	RegisterResultRefused
 	RegisterResultTimeout
-)
-
-var (
-	// RegisterSucceed is ok
-	RegisterSucceed = []byte("ok")
 )
 
 // NodeRegisterRequest is used to Node register,
@@ -78,11 +73,11 @@ func (r *NodeRegisterResponse) Validate() error {
 	if len(r.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange public key size")
 	}
-	if r.Result > RegisterResultRefused {
-		return errors.New("invalid result")
+	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {
+		return errors.New("unknown node register result")
 	}
 	// see controller/certificate.go CTRL.issueCertificate()
-	if len(r.Certificates) != 2*(2+ed25519.SignatureSize) {
+	if len(r.Certificates) != 2*ed25519.SignatureSize {
 		return errors.New("invalid certificate size")
 	}
 	return nil
@@ -135,8 +130,8 @@ func (r *BeaconRegisterResponse) Validate() error {
 	if len(r.KexPublicKey) != 32 {
 		return errors.New("invalid key exchange public key size")
 	}
-	if r.Result > RegisterResultRefused {
-		return errors.New("invalid result")
+	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {
+		return errors.New("unknown beacon register result")
 	}
 	return nil
 }
