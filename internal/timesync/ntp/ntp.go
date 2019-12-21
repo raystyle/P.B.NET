@@ -271,6 +271,31 @@ type Options struct {
 	Dial func(network, address string) (net.Conn, error)
 }
 
+func (opt *Options) apply() (*Options, error) {
+	nOpt := *opt
+	switch nOpt.Network {
+	case "":
+		nOpt.Network = defaultNetwork
+	case "udp", "udp4", "udp6":
+	default:
+		return nil, fmt.Errorf("unknown network: %s", nOpt.Network)
+	}
+	if nOpt.Timeout < 1 {
+		nOpt.Timeout = defaultTimeout
+	}
+	if nOpt.Version != 0 {
+		if nOpt.Version < 2 || nOpt.Version > 4 {
+			return nil, fmt.Errorf("unsupport protocol version %d", nOpt.Version)
+		}
+	} else {
+		nOpt.Version = defaultNtpVersion
+	}
+	if nOpt.Dial == nil {
+		nOpt.Dial = net.Dial
+	}
+	return &nOpt, nil
+}
+
 // Query is used to query current time
 func Query(address string, opts *Options) (*Response, error) {
 	var (
@@ -303,38 +328,19 @@ func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
-	// apply options
-	version := defaultNtpVersion
-	if opts.Version != 0 {
-		if opts.Version < 2 || opts.Version > 4 {
-			return nil, 0, fmt.Errorf("unsupport protocol version %d", opts.Version)
-		}
-		version = opts.Version
-	}
-	network := opts.Network
-	switch network {
-	case "":
-		network = defaultNetwork
-	case "udp", "udp4", "udp6":
-	default:
-		return nil, 0, errors.New("unknown network " + network)
-	}
-	timeout := opts.Timeout
-	if timeout < 1 {
-		timeout = defaultTimeout
-	}
-	dial := net.Dial
-	if opts.Dial != nil {
-		dial = opts.Dial
+	var err error
+	opts, err = opts.apply()
+	if err != nil {
+		return nil, 0, err
 	}
 	// Prepare a "connection" to the remote server.
-	conn, err := dial(network, address)
+	conn, err := opts.Dial(opts.Network, address)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer func() { _ = conn.Close() }()
 	// Set a timeout on the connection.
-	_ = conn.SetDeadline(time.Now().Add(timeout))
+	_ = conn.SetDeadline(time.Now().Add(opts.Timeout))
 
 	// Allocate a message to hold the Response.
 	recvMsg := new(msg)
@@ -342,7 +348,7 @@ func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 	// Allocate a message to hold the query.
 	xmitMsg := new(msg)
 	xmitMsg.setMode(client)
-	xmitMsg.setVersion(version)
+	xmitMsg.setVersion(opts.Version)
 	xmitMsg.setLeap(leapNotInSync)
 
 	// To ensure privacy and prevent spoofing, try to use a random 64-bit

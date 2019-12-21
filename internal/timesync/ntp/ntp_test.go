@@ -77,9 +77,13 @@ func TestQuery(t *testing.T) {
 }
 
 func TestQueryFailure(t *testing.T) {
-	_, err := Query("169.254.1.1", &Options{Version: 4})
+	opts := &Options{
+		Timeout: time.Second,
+		Version: 4,
+	}
+	_, err := Query("169.254.1.1", opts)
 	assert.NotNil(t, err)
-	_, err = Query("169.254.1.1:15345", &Options{Version: 4})
+	_, err = Query("169.254.1.1:15345", opts)
 	assert.NotNil(t, err)
 }
 
