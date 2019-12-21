@@ -100,3 +100,30 @@ func (client *client) sendHeartbeatLoop() {
 		}
 	}
 }
+
+func save() {
+	// switch certificate
+	// if bytes.Equal(guid, protocol.CtrlGUID) {
+	//	certWithCtrlGUID := cert[ed25519.SignatureSize:]
+	// 	return ctrl.global.Verify(buffer.Bytes(), certWithCtrlGUID)
+	// }
+	// // ----------------------with node guid--------------------------
+	//	// no size
+	//	require.False(t, ctrl.verifyCertificate(nil, address, g))
+	//	// invalid size
+	//	cert := []byte{0, 1}
+	//	require.False(t, ctrl.verifyCertificate(cert, address, g))
+	//	// invalid certificate
+	//	cert = []byte{0, 1, 0}
+	//	require.False(t, ctrl.verifyCertificate(cert, address, g))
+	//	// -------------------with controller guid-----------------------
+	//	// no size
+	//	cert = []byte{0, 1, 0}
+	//	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
+	//	// invalid size
+	//	cert = []byte{0, 1, 0, 0, 1}
+	//	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
+	//	// invalid certificate
+	//	cert = []byte{0, 1, 0, 0, 1, 0}
+	//	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
+}

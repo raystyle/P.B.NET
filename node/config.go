@@ -131,14 +131,12 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 	}
 	defer node.Exit(nil)
 
-	// print certificates
 	line := "------------------------------certificates--------------------------------\n"
 	_, _ = writer.Write([]byte(line))
 	for i, c := range node.global.Certificates() {
 		_, _ = fmt.Fprintf(writer, "ID: %d\n%s\n\n", i+1, cert.Print(c))
 	}
 
-	// print proxy clients
 	line = "------------------------------proxy clients-------------------------------\n"
 	_, _ = writer.Write([]byte(line))
 	for tag, client := range node.global.ProxyClients() {
@@ -150,7 +148,6 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 		_, _ = fmt.Fprintf(writer, format, tag, client.Mode, client.Network, client.Address)
 	}
 
-	// test DNS client
 	line = "-------------------------------DNS clients--------------------------------\n"
 	_, _ = writer.Write([]byte(line))
 	// print DNS servers
@@ -174,7 +171,6 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 	}
 	_, _ = fmt.Fprintf(writer, "\ntest domain: %s result: %s\n", domain, result)
 
-	// test time syncer
 	line = "---------------------------time syncer clients----------------------------\n"
 	_, _ = writer.Write([]byte(line))
 	// print time syncer clients
@@ -187,10 +183,13 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 		return
 	}
 	_, _ = fmt.Fprintf(writer, "\ntime: %s\n", node.global.Now().Format(logger.TimeLayout))
-
-	// run Node
-	line = "-------------------------------node logger-------------------------------\n"
+	line = "------------------------------node running--------------------------------\n"
 	_, _ = writer.Write([]byte(line))
+	err = cfg.run(node, opts)
+	return
+}
+
+func (cfg *Config) run(node *Node, opts *CheckOptions) error {
 	errChan := make(chan error)
 	go func() {
 		errChan <- node.Main()
@@ -201,12 +200,11 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 		timeout = 15 * time.Second
 	}
 	select {
-	case err = <-errChan:
-		return
+	case err := <-errChan:
+		return err
 	case <-time.After(timeout):
 		node.Exit(nil)
-		err = errors.New("check timeout")
-		return
+		return errors.New("node running timeout")
 	}
 }
 
