@@ -233,39 +233,7 @@ func (c *Client) ResolveWithContext(
 	case ModeCustom:
 		switch opts.Type {
 		case "":
-			enableIPv4, enableIPv6 := checkNetwork()
-			// if network is double stack, prefer IPv6
-			if enableIPv4 && enableIPv6 {
-				o := opts.Clone()
-				o.Type = TypeIPv6
-				ipv6, err := c.ResolveWithContext(ctx, domain, o)
-				if err != nil && errors.Cause(err) != ErrNoResolveResult { // check options errors
-					return nil, err
-				}
-
-				o = opts.Clone()
-				o.Type = TypeIPv4
-				ipv4, _ := c.ResolveWithContext(ctx, domain, o) // don't need check again
-
-				result := append(ipv6, ipv4...)
-				if len(result) != 0 {
-					return result, nil
-				}
-				return nil, errors.WithStack(ErrNoResolveResult)
-			}
-			// IPv4 only
-			if enableIPv4 {
-				o := opts.Clone()
-				o.Type = TypeIPv4
-				return c.ResolveWithContext(ctx, domain, o)
-			}
-			// IPv6 only
-			if enableIPv6 {
-				o := opts.Clone()
-				o.Type = TypeIPv6
-				return c.ResolveWithContext(ctx, domain, o)
-			}
-			return nil, errors.New("network unavailable")
+			return c.selectType(ctx, domain, opts)
 		case TypeIPv4, TypeIPv6:
 			return c.customResolve(ctx, domain, opts)
 		default:
@@ -276,6 +244,60 @@ func (c *Client) ResolveWithContext(
 	default:
 		return nil, errors.Errorf("unknown mode: %s", opts.Mode)
 	}
+}
+
+func (c *Client) selectType(ctx context.Context, domain string, opts *Options) ([]string, error) {
+	enableIPv4, enableIPv6 := checkNetwork()
+	// if network is double stack, prefer IPv6
+	if enableIPv4 && enableIPv6 {
+		o := opts.Clone()
+		o.Type = TypeIPv6
+		ipv6, err := c.ResolveWithContext(ctx, domain, o)
+		if err != nil && errors.Cause(err) != ErrNoResolveResult { // check options errors
+			return nil, err
+		}
+
+		o = opts.Clone()
+		o.Type = TypeIPv4
+		ipv4, _ := c.ResolveWithContext(ctx, domain, o) // don't need check again
+
+		result := append(ipv6, ipv4...)
+		if len(result) != 0 {
+			return result, nil
+		}
+		return nil, errors.WithStack(ErrNoResolveResult)
+	}
+	// IPv4 only
+	if enableIPv4 {
+		o := opts.Clone()
+		o.Type = TypeIPv4
+		return c.ResolveWithContext(ctx, domain, o)
+	}
+	// IPv6 only
+	if enableIPv6 {
+		o := opts.Clone()
+		o.Type = TypeIPv6
+		return c.ResolveWithContext(ctx, domain, o)
+	}
+	return nil, errors.New("network unavailable")
+}
+
+func (c *Client) setProxy(p *proxy.Client, method string, opts *Options) error {
+	switch method {
+	case MethodUDP, MethodTCP, MethodDoT:
+		opts.dialContext = p.DialContext
+	case MethodDoH:
+		// apply DoH options (http.Transport)
+		var err error
+		opts.transport, err = opts.Transport.Apply()
+		if err != nil {
+			return err
+		}
+		p.HTTP(opts.transport)
+	default:
+		return UnknownMethodError(method)
+	}
+	return nil
 }
 
 func (c *Client) customResolve(
@@ -294,28 +316,12 @@ func (c *Client) customResolve(
 	if err != nil {
 		return nil, err
 	}
-	setProxy := func(method string) error {
-		switch method {
-		case MethodUDP, MethodTCP, MethodDoT:
-			opts.dialContext = p.DialContext
-		case MethodDoH:
-			// apply DoH options (http.Transport)
-			opts.transport, err = opts.Transport.Apply()
-			if err != nil {
-				return err
-			}
-			p.HTTP(opts.transport)
-		default:
-			return UnknownMethodError(method)
-		}
-		return nil
-	}
 
 	// resolve
 	var result []string
 	if opts.ServerTag != "" { // use selected DNS server
 		if server, ok := c.Servers()[opts.ServerTag]; ok {
-			err = setProxy(server.Method)
+			err = c.setProxy(p, server.Method, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -331,7 +337,7 @@ func (c *Client) customResolve(
 		if method == "" {
 			method = defaultMethod
 		}
-		err = setProxy(method)
+		err = c.setProxy(p, method, opts)
 		if err != nil {
 			return nil, err
 		}
