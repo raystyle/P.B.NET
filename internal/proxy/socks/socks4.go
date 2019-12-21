@@ -120,13 +120,11 @@ func (c *conn) serveSocks4() {
 		c.log(logger.Error, errors.Wrap(err, "failed to read socks4 request"))
 		return
 	}
-
 	// check version
 	if buffer[0] != version4 {
 		c.log(logger.Error, "unexpected socks4 version")
 		return
 	}
-
 	// command
 	if buffer[1] != connect {
 		c.log(logger.Error, "unknown command")
@@ -137,30 +135,13 @@ func (c *conn) serveSocks4() {
 		domain bool
 		host   string
 	)
-
 	// check is domain 0.0.0.x is domain mode
 	if bytes.Equal(buffer[4:7], []byte{0x00, 0x00, 0x00}) && buffer[7] != 0x00 {
 		domain = true
 	} else {
 		host = net.IPv4(buffer[4], buffer[5], buffer[6], buffer[7]).String()
 	}
-	var userID []byte
-	for {
-		_, err = c.local.Read(buffer[:1])
-		if err != nil {
-			c.log(logger.Error, errors.Wrap(err, "failed to read user id"))
-			return
-		}
-		// find 0x00(end)
-		if buffer[0] == 0x00 {
-			break
-		}
-		userID = append(userID, buffer[0])
-	}
-
-	// compare user id
-	if subtle.ConstantTimeCompare(c.server.userID, userID) != 1 {
-		c.log(logger.Exploit, fmt.Sprintf("invalid user id: %s", userID))
+	if !c.checkUserID() {
 		return
 	}
 	if domain { // read domain
@@ -200,4 +181,30 @@ func (c *conn) serveSocks4() {
 		return
 	}
 	c.remote = remote
+}
+
+func (c *conn) checkUserID() bool {
+	var (
+		userID []byte
+		err    error
+	)
+	buffer := make([]byte, 1)
+	for {
+		_, err = c.local.Read(buffer)
+		if err != nil {
+			c.log(logger.Error, errors.Wrap(err, "failed to read user id"))
+			return false
+		}
+		// find 0x00(end)
+		if buffer[0] == 0x00 {
+			break
+		}
+		userID = append(userID, buffer[0])
+	}
+	// compare user id
+	if subtle.ConstantTimeCompare(c.server.userID, userID) != 1 {
+		c.log(logger.Exploit, fmt.Sprintf("invalid user id: %s", userID))
+		return false
+	}
+	return true
 }
