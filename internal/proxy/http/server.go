@@ -261,42 +261,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.wg.Done()
 	}()
-	// authenticate
-	if s.username != nil || s.password != nil {
-		authFailed := func() {
-			w.Header().Set("Proxy-Authenticate", "Basic")
-			w.WriteHeader(http.StatusProxyAuthRequired)
-		}
-		auth := strings.Split(r.Header.Get("Proxy-Authorization"), " ")
-		if len(auth) != 2 {
-			authFailed()
-			return
-		}
-		authMethod := auth[0]
-		authBase64 := auth[1]
-		switch authMethod {
-		case "Basic":
-			auth, err := base64.StdEncoding.DecodeString(authBase64)
-			if err != nil {
-				authFailed()
-				s.log(logger.Exploit, "invalid basic base64 data\n", r)
-				return
-			}
-			userPass := strings.Split(string(auth), ":")
-			if len(userPass) < 2 {
-				userPass = append(userPass, "")
-			}
-			if subtle.ConstantTimeCompare(s.username, []byte(userPass[0])) != 1 ||
-				subtle.ConstantTimeCompare(s.password, []byte(userPass[1])) != 1 {
-				authFailed()
-				s.log(logger.Exploit, "invalid basic authenticate\n", r)
-				return
-			}
-		default: // not support method
-			authFailed()
-			s.log(logger.Exploit, "unsupported auth method: "+authMethod+"\n", r)
-			return
-		}
+	if !s.authenticate(w, r) {
+		return
 	}
 	// remove Proxy-Authorization
 	r.Header.Del("Proxy-Authorization")
@@ -370,4 +336,45 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(resp.StatusCode)
 		_, _ = io.Copy(w, resp.Body)
 	}
+}
+
+func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) bool {
+	if s.username == nil && s.password == nil {
+		return true
+	}
+	authFailed := func() {
+		w.Header().Set("Proxy-Authenticate", "Basic")
+		w.WriteHeader(http.StatusProxyAuthRequired)
+	}
+	auth := strings.Split(r.Header.Get("Proxy-Authorization"), " ")
+	if len(auth) != 2 {
+		authFailed()
+		return false
+	}
+	authMethod := auth[0]
+	authBase64 := auth[1]
+	switch authMethod {
+	case "Basic":
+		auth, err := base64.StdEncoding.DecodeString(authBase64)
+		if err != nil {
+			authFailed()
+			s.log(logger.Exploit, "invalid basic base64 data\n", r)
+			return false
+		}
+		userPass := strings.Split(string(auth), ":")
+		if len(userPass) < 2 {
+			userPass = append(userPass, "")
+		}
+		if subtle.ConstantTimeCompare(s.username, []byte(userPass[0])) != 1 ||
+			subtle.ConstantTimeCompare(s.password, []byte(userPass[1])) != 1 {
+			authFailed()
+			s.log(logger.Exploit, "invalid basic authenticate\n", r)
+			return false
+		}
+	default: // not support method
+		authFailed()
+		s.log(logger.Exploit, "unsupported auth method: "+authMethod+"\n", r)
+		return false
+	}
+	return true
 }
