@@ -10,44 +10,20 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/guid"
 	"project/internal/modules/info"
-	"project/internal/protocol"
 	"project/internal/xnet"
 )
 
 func TestIssueVerifyCertificate(t *testing.T) {
-	const address = "localhost:9931"
 	testInitCtrl(t)
-	g := bytes.Repeat([]byte{1}, guid.Size)
-	cert := ctrl.issueCertificate(address, g)
-	// with node guid
-	require.True(t, ctrl.verifyCertificate(cert, address, g))
-	// with controller guid
-	require.True(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
+	const address = "localhost:9931"
+	nodeGUID := bytes.Repeat([]byte{1}, guid.Size)
+	cert := ctrl.issueCertificate(address, nodeGUID)
+	require.True(t, ctrl.verifyCertificate(cert, address, nodeGUID))
 }
 
 func TestVerifyInvalidCertificate(t *testing.T) {
-	const address = "localhost:9931"
 	testInitCtrl(t)
-	g := bytes.Repeat([]byte{1}, guid.Size)
-	// ----------------------with node guid--------------------------
-	// no size
-	require.False(t, ctrl.verifyCertificate(nil, address, g))
-	// invalid size
-	cert := []byte{0, 1}
-	require.False(t, ctrl.verifyCertificate(cert, address, g))
-	// invalid certificate
-	cert = []byte{0, 1, 0}
-	require.False(t, ctrl.verifyCertificate(cert, address, g))
-	// -------------------with controller guid-----------------------
-	// no size
-	cert = []byte{0, 1, 0}
-	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
-	// invalid size
-	cert = []byte{0, 1, 0, 0, 1}
-	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
-	// invalid certificate
-	cert = []byte{0, 1, 0, 0, 1, 0}
-	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
+	require.False(t, ctrl.verifyCertificate(nil, "foo", []byte{1}))
 }
 
 func TestTrustNodeAndConfirm(t *testing.T) {
