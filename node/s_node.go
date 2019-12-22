@@ -41,7 +41,7 @@ type nodeConn struct {
 }
 
 func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
-	node := nodeConn{
+	nodeConn := nodeConn{
 		ctx:        s.ctx,
 		tag:        tag,
 		guid:       nodeGUID,
@@ -50,7 +50,7 @@ func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
 		stopSignal: make(chan struct{}),
 	}
 
-	node.sendPool.New = func() interface{} {
+	nodeConn.sendPool.New = func() interface{} {
 		return &protocol.Send{
 			GUID:      make([]byte, guid.Size),
 			RoleGUID:  make([]byte, guid.Size),
@@ -59,7 +59,7 @@ func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
 			Signature: make([]byte, ed25519.SignatureSize),
 		}
 	}
-	node.acknowledgePool.New = func() interface{} {
+	nodeConn.acknowledgePool.New = func() interface{} {
 		return &protocol.Acknowledge{
 			GUID:      make([]byte, guid.Size),
 			RoleGUID:  make([]byte, guid.Size),
@@ -67,7 +67,7 @@ func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
 			Signature: make([]byte, ed25519.SignatureSize),
 		}
 	}
-	node.answerPool.New = func() interface{} {
+	nodeConn.answerPool.New = func() interface{} {
 		return &protocol.Answer{
 			GUID:       make([]byte, guid.Size),
 			BeaconGUID: make([]byte, guid.Size),
@@ -79,18 +79,19 @@ func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			node.log(logger.Exploit, xpanic.Error(r, "server.serveNode"))
+			nodeConn.log(logger.Exploit, xpanic.Error(r, "server.serveNode"))
 		}
-		node.Close()
-		if node.isSync() {
+		nodeConn.Close()
+		if nodeConn.isSync() {
 			s.ctx.forwarder.LogoffNode(tag)
 		}
 		s.deleteNodeConn(tag)
-		conn.log(logger.Debug, "node disconnected")
+		nodeConn.log(logger.Debug, "node disconnected")
 	}()
-	s.addNodeConn(tag, &node)
-	conn.log(logger.Debug, "node connected")
-	protocol.HandleConn(conn.conn, node.onFrame)
+	s.addNodeConn(tag, &nodeConn)
+	_ = conn.conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
+	nodeConn.logf(logger.Debug, "node %X connected", nodeGUID)
+	protocol.HandleConn(conn.conn, nodeConn.onFrame)
 }
 
 func (node *nodeConn) isSync() bool {

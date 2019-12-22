@@ -15,7 +15,8 @@ type Node struct {
 
 	logger    *gLogger   // global logger
 	global    *global    // proxy clients, DNS clients, time syncer
-	opts      *opts      // client options
+	client    *opts      // client options
+	storage   *storage   // storage
 	forwarder *forwarder // forward messages
 	sender    *sender    // send message to Controller
 	syncer    *syncer    // receive message from Controller, Nodes, and Beacons
@@ -46,11 +47,12 @@ func New(cfg *Config) (*Node, error) {
 	}
 	node.global = global
 	// copy client options
-	node.opts = &opts{
+	node.client = &opts{
 		ProxyTag: cfg.Client.ProxyTag,
 		Timeout:  cfg.Client.Timeout,
 		DNSOpts:  cfg.Client.DNSOpts,
 	}
+	node.storage = newStorage()
 	// forwarder
 	forwarder, err := newForwarder(node, cfg)
 	if err != nil {

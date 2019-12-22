@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
@@ -396,17 +397,17 @@ func (s *server) handshake(tag string, conn net.Conn) {
 	role := protocol.Role(r[0])
 	switch role {
 	case protocol.Beacon:
-		s.verifyBeacon(connTag, xConn)
+		s.handleBeacon(connTag, xConn)
 	case protocol.Node:
-		s.verifyNode(connTag, xConn)
+		s.handleNode(connTag, xConn)
 	case protocol.Ctrl:
-		s.verifyCtrl(connTag, xConn)
+		s.handleCtrl(connTag, xConn)
 	default:
 		s.logConn(xConn, logger.Exploit, role)
 	}
 }
 
-func (s *server) verifyBeacon(tag string, conn *xnet.Conn) {
+func (s *server) handleBeacon(tag string, conn *xnet.Conn) {
 	beaconGUID, err := conn.Receive()
 	if err != nil {
 		s.logfConn(conn, logger.Error, "failed to receive beacon guid: %s", err)
@@ -420,10 +421,10 @@ func (s *server) verifyBeacon(tag string, conn *xnet.Conn) {
 	s.serveBeacon(tag, beaconGUID, newConn(s.ctx.logger, conn, connUsageServeBeacon))
 }
 
-func (s *server) verifyNode(tag string, conn *xnet.Conn) {
+func (s *server) handleNode(tag string, conn *xnet.Conn) {
 	nodeGUID, err := conn.Receive()
 	if err != nil {
-		s.logfConn(conn, logger.Error, "failed to receive node guid: %s", err)
+		s.logConn(conn, logger.Error, "failed to receive node guid:", err)
 		return
 	}
 	if len(nodeGUID) != guid.Size {
@@ -432,29 +433,134 @@ func (s *server) verifyNode(tag string, conn *xnet.Conn) {
 	}
 	// check is self
 	if bytes.Equal(nodeGUID, s.ctx.global.GUID()) {
-		s.logConn(conn, logger.Info, "oh! self")
+		s.logConn(conn, logger.Debug, "oh! self")
 		return
 	}
-
+	// read operation
+	operation, err := conn.Receive()
+	if err != nil {
+		s.logConn(conn, logger.Exploit, "failed to receive node operation", err)
+		return
+	}
+	if len(operation) != 1 {
+		s.logConn(conn, logger.Exploit, "invalid node operation size")
+		return
+	}
+	switch operation[0] {
+	case 1: // register
+		if !s.registerNode(conn, nodeGUID) {
+			return
+		}
+	case 2: // connect
+		if !s.verifyNode(conn, nodeGUID) {
+			return
+		}
+	default:
+		s.logfConn(conn, logger.Exploit, "unknown node operation %d", operation[0])
+		return
+	}
 	s.serveNode(tag, nodeGUID, newConn(s.ctx.logger, conn, connUsageServeNode))
 }
 
-// <danger>
-// send random challenge code(length 2048-4096)
-// len(challenge) must > len(GUID + Mode + Network + Address)
-// because maybe fake node will send some special data
-// and controller sign it
-func (s *server) verifyCtrl(tag string, conn *xnet.Conn) {
+func (s *server) registerNode(conn *xnet.Conn, guid []byte) bool {
+	// receive node register request
+	req, err := conn.Receive()
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to receive node register request:", err)
+		return false
+	}
+	// try to unmarshal
+	nrr := new(messages.NodeRegisterRequest)
+	err = msgpack.Unmarshal(req, nrr)
+	if err != nil {
+		s.logConn(conn, logger.Exploit, "invalid node register request data:", err)
+		return false
+	}
+	err = nrr.Validate()
+	if err != nil {
+		s.logConn(conn, logger.Exploit, "invalid node register request:", err)
+		return false
+	}
+	// create node register
+	result := s.ctx.storage.CreateNodeRegister(guid)
+	if result == nil {
+		s.logfConn(conn, logger.Exploit, "failed to create node register\nguid: %X", guid)
+		return false
+	}
+	// send node register request to controller
+	// <security> must don't handle error
+	_ = s.ctx.sender.Send(messages.CMDBNodeRegisterRequest, nrr)
+
+	timeout := time.Duration(30+random.New().Int(30)) * time.Second
+	timer := time.AfterFunc(timeout, func() {
+		s.ctx.storage.SetNodeRegister(guid, messages.RegisterResultTimeout)
+	})
+	defer timer.Stop()
+	switch <-result {
+	case messages.RegisterResultAccept:
+		_ = conn.Send([]byte{messages.RegisterResultAccept})
+		return s.verifyNode(conn, guid)
+	case messages.RegisterResultRefused:
+		// TODO add IP black list only register(other role still pass)
+		_ = conn.Send([]byte{messages.RegisterResultRefused})
+		return false
+	case messages.RegisterResultTimeout:
+		_ = conn.Send([]byte{messages.RegisterResultTimeout})
+		return false
+	default:
+		panic("unknown result")
+		return false
+	}
+}
+
+func (s *server) verifyNode(conn *xnet.Conn, guid []byte) bool {
 	challenge := s.rand.Bytes(2048 + s.rand.Int(2048))
 	err := conn.Send(challenge)
 	if err != nil {
-		s.logfConn(conn, logger.Error, "failed to send challenge code: %s", err)
+		s.logConn(conn, logger.Error, "failed to send challenge to node:", err)
+		return false
+	}
+	// receive signature
+	signature, err := conn.Receive()
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to receive node signature:", err)
+		return false
+	}
+	// verify signature
+	sk := s.ctx.storage.GetNodeSessionKey(guid)
+	if sk == nil {
+		// TODO try to query from controller
+		return false
+	}
+	if ed25519.Verify(sk.PublicKey, challenge, signature) {
+		s.logConn(conn, logger.Exploit, "invalid node challenge signature")
+		return false
+	}
+	// send succeed response
+	err = conn.Send(protocol.AuthSucceed)
+	if err != nil {
+		s.logfConn(conn, logger.Error, "failed to send response to node:", err)
+		return false
+	}
+	return true
+}
+
+func (s *server) handleCtrl(tag string, conn *xnet.Conn) {
+	// <danger>
+	// send random challenge code(length 2048-4096)
+	// len(challenge) must > len(GUID + Mode + Network + Address)
+	// because maybe fake node will send some special data
+	// and controller sign it
+	challenge := s.rand.Bytes(2048 + s.rand.Int(2048))
+	err := conn.Send(challenge)
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to send challenge to controller:", err)
 		return
 	}
 	// receive signature
 	signature, err := conn.Receive()
 	if err != nil {
-		s.logfConn(conn, logger.Error, "failed to receive signature: %s", err)
+		s.logConn(conn, logger.Error, "failed to receive controller signature:", err)
 		return
 	}
 	// verify signature
@@ -465,7 +571,7 @@ func (s *server) verifyCtrl(tag string, conn *xnet.Conn) {
 	// send succeed response
 	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
-		s.logfConn(conn, logger.Error, "failed to send succeed response: %s", err)
+		s.logfConn(conn, logger.Error, "failed to send response to controller:", err)
 		return
 	}
 	s.serveCtrl(tag, newConn(s.ctx.logger, conn, connUsageServeCtrl))

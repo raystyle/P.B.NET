@@ -43,7 +43,7 @@ type ctrlConn struct {
 }
 
 func (s *server) serveCtrl(tag string, conn *conn) {
-	ctrl := ctrlConn{
+	ctrlConn := ctrlConn{
 		ctx:        s.ctx,
 		tag:        tag,
 		conn:       conn,
@@ -51,7 +51,7 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 		stopSignal: make(chan struct{}),
 	}
 
-	ctrl.sendPool.New = func() interface{} {
+	ctrlConn.sendPool.New = func() interface{} {
 		return &protocol.Send{
 			GUID:      make([]byte, guid.Size),
 			RoleGUID:  make([]byte, guid.Size),
@@ -60,7 +60,7 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 			Signature: make([]byte, ed25519.SignatureSize),
 		}
 	}
-	ctrl.acknowledgePool.New = func() interface{} {
+	ctrlConn.acknowledgePool.New = func() interface{} {
 		return &protocol.Acknowledge{
 			GUID:      make([]byte, guid.Size),
 			RoleGUID:  make([]byte, guid.Size),
@@ -68,7 +68,7 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 			Signature: make([]byte, ed25519.SignatureSize),
 		}
 	}
-	ctrl.answerPool.New = func() interface{} {
+	ctrlConn.answerPool.New = func() interface{} {
 		return &protocol.Answer{
 			GUID:       make([]byte, guid.Size),
 			BeaconGUID: make([]byte, guid.Size),
@@ -80,18 +80,19 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			ctrl.log(logger.Exploit, xpanic.Error(r, "server.serveCtrl"))
+			ctrlConn.log(logger.Exploit, xpanic.Error(r, "server.serveCtrl"))
 		}
-		ctrl.Close()
-		if ctrl.isSync() {
+		ctrlConn.Close()
+		if ctrlConn.isSync() {
 			s.ctx.forwarder.LogoffCtrl(tag)
 		}
 		s.deleteCtrlConn(tag)
-		conn.log(logger.Debug, "controller disconnected")
+		ctrlConn.log(logger.Debug, "controller disconnected")
 	}()
-	s.addCtrlConn(tag, &ctrl)
-	conn.log(logger.Debug, "controller connected")
-	protocol.HandleConn(conn.conn, ctrl.onFrame)
+	s.addCtrlConn(tag, &ctrlConn)
+	_ = conn.conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
+	ctrlConn.log(logger.Debug, "controller connected")
+	protocol.HandleConn(conn.conn, ctrlConn.onFrame)
 }
 
 func (ctrl *ctrlConn) isSync() bool {
