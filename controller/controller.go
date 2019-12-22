@@ -17,7 +17,7 @@ type CTRL struct {
 	db      *db      // database
 	logger  *gLogger // global logger
 	global  *global  // proxy, dns, time syncer, and ...
-	opts    *opts    // client options
+	client  *opts    // client options
 	sender  *sender  // broadcast and send message
 	syncer  *syncer  // receive message
 	handler *handler // handle message from Node or Beacon
@@ -56,7 +56,7 @@ func New(cfg *Config) (*CTRL, error) {
 	}
 	ctrl.global = global
 	// copy client options
-	ctrl.opts = &opts{
+	ctrl.client = &opts{
 		ProxyTag: cfg.Client.ProxyTag,
 		Timeout:  cfg.Client.Timeout,
 		DNSOpts:  cfg.Client.DNSOpts,
@@ -107,7 +107,7 @@ func (ctrl *CTRL) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// test client DNS option
 	if !ctrl.Debug.SkipTestClientDNS {
-		err := ctrl.global.TestDNSOption(&ctrl.opts.DNSOpts)
+		err := ctrl.global.TestDNSOption(&ctrl.client.DNSOpts)
 		if err != nil {
 			return errors.WithMessage(err, "failed to test client DNS option")
 		}
