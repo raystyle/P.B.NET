@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"project/internal/guid"
+	"project/internal/messages"
 )
 
 type storage struct {
 	// key = hex(role guid) lower
-	nodeRegisters    map[string]chan uint8 // register result
+	nodeRegisters    map[string]chan *messages.NodeRegisterResponse
 	nodeRegistersM   sync.Mutex
-	beaconRegisters  map[string]chan uint8 // register result
+	beaconRegisters  map[string]chan *messages.BeaconRegisterResponse
 	beaconRegistersM sync.Mutex
 
 	// key = hex(role guid) lower
@@ -38,8 +39,8 @@ type beaconSessionKey struct {
 
 func newStorage() *storage {
 	storage := storage{
-		nodeRegisters:     make(map[string]chan uint8),
-		beaconRegisters:   make(map[string]chan uint8),
+		nodeRegisters:     make(map[string]chan *messages.NodeRegisterResponse),
+		beaconRegisters:   make(map[string]chan *messages.BeaconRegisterResponse),
 		nodeSessionKeys:   make(map[string]*nodeSessionKey),
 		beaconSessionKeys: make(map[string]*beaconSessionKey),
 	}
@@ -56,47 +57,47 @@ func (storage *storage) calculateKey(guid []byte) string {
 	return string(dst)
 }
 
-func (storage *storage) CreateNodeRegister(guid []byte) <-chan uint8 {
+func (storage *storage) CreateNodeRegister(guid []byte) <-chan *messages.NodeRegisterResponse {
 	key := storage.calculateKey(guid)
 	storage.nodeRegistersM.Lock()
 	defer storage.nodeRegistersM.Unlock()
 	if _, ok := storage.nodeRegisters[key]; !ok {
-		c := make(chan uint8, 1)
+		c := make(chan *messages.NodeRegisterResponse, 1)
 		storage.nodeRegisters[key] = c
 		return c
 	}
 	return nil
 }
 
-func (storage *storage) CreateBeaconRegister(guid []byte) <-chan uint8 {
+func (storage *storage) CreateBeaconRegister(guid []byte) <-chan *messages.BeaconRegisterResponse {
 	key := storage.calculateKey(guid)
 	storage.beaconRegistersM.Lock()
 	defer storage.beaconRegistersM.Unlock()
 	if _, ok := storage.beaconRegisters[key]; !ok {
-		c := make(chan uint8, 1)
+		c := make(chan *messages.BeaconRegisterResponse, 1)
 		storage.beaconRegisters[key] = c
 		return c
 	}
 	return nil
 }
 
-func (storage *storage) SetNodeRegister(guid []byte, result uint8) {
+func (storage *storage) SetNodeRegister(guid []byte, response *messages.NodeRegisterResponse) {
 	key := storage.calculateKey(guid)
 	storage.nodeRegistersM.Lock()
 	defer storage.nodeRegistersM.Unlock()
 	if nr, ok := storage.nodeRegisters[key]; ok {
-		nr <- result
+		nr <- response
 		close(nr)
 		delete(storage.nodeRegisters, key)
 	}
 }
 
-func (storage *storage) SetBeaconRegister(guid []byte, result uint8) {
+func (storage *storage) SetBeaconRegister(guid []byte, response *messages.BeaconRegisterResponse) {
 	key := storage.calculateKey(guid)
 	storage.beaconRegistersM.Lock()
 	defer storage.beaconRegistersM.Unlock()
 	if nr, ok := storage.beaconRegisters[key]; ok {
-		nr <- result
+		nr <- response
 		close(nr)
 		delete(storage.beaconRegisters, key)
 	}

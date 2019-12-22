@@ -303,18 +303,6 @@ func (s *server) Close() {
 	s.ctx = nil
 }
 
-func (s *server) addConn(tag string, conn *xnet.Conn) {
-	s.connsRWM.Lock()
-	defer s.connsRWM.Unlock()
-	s.conns[tag] = conn
-}
-
-func (s *server) deleteConn(tag string) {
-	s.connsRWM.Lock()
-	defer s.connsRWM.Unlock()
-	delete(s.conns, tag)
-}
-
 func (s *server) logfConn(c *xnet.Conn, lv logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
@@ -327,6 +315,60 @@ func (s *server) logConn(c *xnet.Conn, lv logger.Level, log ...interface{}) {
 	_, _ = fmt.Fprint(b, log...)
 	_, _ = fmt.Fprintf(b, "\n%s", c)
 	s.ctx.logger.Print(lv, "server", b)
+}
+
+func (s *server) addConn(tag string, conn *xnet.Conn) {
+	s.connsRWM.Lock()
+	defer s.connsRWM.Unlock()
+	s.conns[tag] = conn
+}
+
+func (s *server) deleteConn(tag string) {
+	s.connsRWM.Lock()
+	defer s.connsRWM.Unlock()
+	delete(s.conns, tag)
+}
+
+func (s *server) addCtrlConn(tag string, conn *ctrlConn) {
+	s.ctrlConnsRWM.Lock()
+	defer s.ctrlConnsRWM.Unlock()
+	if _, ok := s.ctrlConns[tag]; !ok {
+		s.ctrlConns[tag] = conn
+	}
+}
+
+func (s *server) deleteCtrlConn(tag string) {
+	s.ctrlConnsRWM.Lock()
+	defer s.ctrlConnsRWM.Unlock()
+	delete(s.ctrlConns, tag)
+}
+
+func (s *server) addNodeConn(tag string, conn *nodeConn) {
+	s.nodeConnsRWM.Lock()
+	defer s.nodeConnsRWM.Unlock()
+	if _, ok := s.nodeConns[tag]; !ok {
+		s.nodeConns[tag] = conn
+	}
+}
+
+func (s *server) deleteNodeConn(tag string) {
+	s.nodeConnsRWM.Lock()
+	defer s.nodeConnsRWM.Unlock()
+	delete(s.nodeConns, tag)
+}
+
+func (s *server) addBeaconConn(tag string, conn *beaconConn) {
+	s.beaconConnsRWM.Lock()
+	defer s.beaconConnsRWM.Unlock()
+	if _, ok := s.beaconConns[tag]; !ok {
+		s.beaconConns[tag] = conn
+	}
+}
+
+func (s *server) deleteBeaconConn(tag string) {
+	s.beaconConnsRWM.Lock()
+	defer s.beaconConnsRWM.Unlock()
+	delete(s.beaconConns, tag)
 }
 
 // checkConn is used to check connection is from client
@@ -490,13 +532,15 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) bool {
 	// send node register request to controller
 	// <security> must don't handle error
 	_ = s.ctx.sender.Send(messages.CMDBNodeRegisterRequest, nrr)
-
-	timeout := time.Duration(30+random.New().Int(30)) * time.Second
+	// wait register result
+	timeout := time.Duration(15+random.New().Int(30)) * time.Second
 	timer := time.AfterFunc(timeout, func() {
-		s.ctx.storage.SetNodeRegister(guid, messages.RegisterResultTimeout)
+		s.ctx.storage.SetNodeRegister(guid, &messages.NodeRegisterResponse{
+			Result: messages.RegisterResultTimeout,
+		})
 	})
 	defer timer.Stop()
-	switch <-result {
+	switch (<-result).Result {
 	case messages.RegisterResultAccept:
 		_ = conn.Send([]byte{messages.RegisterResultAccept})
 		return s.verifyNode(conn, guid)
@@ -508,7 +552,7 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) bool {
 		_ = conn.Send([]byte{messages.RegisterResultTimeout})
 		return false
 	default:
-		panic("unknown result")
+		panic("unknown register result")
 		return false
 	}
 }
@@ -575,46 +619,4 @@ func (s *server) handleCtrl(tag string, conn *xnet.Conn) {
 		return
 	}
 	s.serveCtrl(tag, newConn(s.ctx.logger, conn, connUsageServeCtrl))
-}
-
-func (s *server) addCtrlConn(tag string, conn *ctrlConn) {
-	s.ctrlConnsRWM.Lock()
-	defer s.ctrlConnsRWM.Unlock()
-	if _, ok := s.ctrlConns[tag]; !ok {
-		s.ctrlConns[tag] = conn
-	}
-}
-
-func (s *server) deleteCtrlConn(tag string) {
-	s.ctrlConnsRWM.Lock()
-	defer s.ctrlConnsRWM.Unlock()
-	delete(s.ctrlConns, tag)
-}
-
-func (s *server) addNodeConn(tag string, conn *nodeConn) {
-	s.nodeConnsRWM.Lock()
-	defer s.nodeConnsRWM.Unlock()
-	if _, ok := s.nodeConns[tag]; !ok {
-		s.nodeConns[tag] = conn
-	}
-}
-
-func (s *server) deleteNodeConn(tag string) {
-	s.nodeConnsRWM.Lock()
-	defer s.nodeConnsRWM.Unlock()
-	delete(s.nodeConns, tag)
-}
-
-func (s *server) addBeaconConn(tag string, conn *beaconConn) {
-	s.beaconConnsRWM.Lock()
-	defer s.beaconConnsRWM.Unlock()
-	if _, ok := s.beaconConns[tag]; !ok {
-		s.beaconConns[tag] = conn
-	}
-}
-
-func (s *server) deleteBeaconConn(tag string) {
-	s.beaconConnsRWM.Lock()
-	defer s.beaconConnsRWM.Unlock()
-	delete(s.beaconConns, tag)
 }
