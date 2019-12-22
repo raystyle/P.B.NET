@@ -20,3 +20,7 @@ func (c *conn) onFrameServeBeacon(frame []byte) {
 
 type beaconConn struct {
 }
+
+func (s *server) serveBeacon(tag string, beaconGUID []byte, conn *conn) {
+
+}

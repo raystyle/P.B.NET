@@ -275,13 +275,13 @@ func (s *server) GetListener(tag string) (*Listener, error) {
 	return nil, errors.Errorf("listener %s doesn't exists", tag)
 }
 
-func (s *server) CloseListener(tag string) {
-
-}
-
-func (s *server) CloseConn(address string) {
-
-}
+// func (s *server) CloseListener(tag string) {
+//
+// }
+//
+// func (s *server) CloseConn(address string) {
+//
+// }
 
 // Close is used to close all listeners and connections
 func (s *server) Close() {
@@ -407,11 +407,36 @@ func (s *server) handshake(tag string, conn net.Conn) {
 }
 
 func (s *server) verifyBeacon(tag string, conn *xnet.Conn) {
+	beaconGUID, err := conn.Receive()
+	if err != nil {
+		s.logfConn(conn, logger.Error, "failed to receive beacon guid: %s", err)
+		return
+	}
+	if len(beaconGUID) != guid.Size {
+		s.logConn(conn, logger.Exploit, "invalid beacon guid size")
+		return
+	}
 
+	s.serveBeacon(tag, beaconGUID, newConn(s.ctx.logger, conn, connUsageServeBeacon))
 }
 
 func (s *server) verifyNode(tag string, conn *xnet.Conn) {
+	nodeGUID, err := conn.Receive()
+	if err != nil {
+		s.logfConn(conn, logger.Error, "failed to receive node guid: %s", err)
+		return
+	}
+	if len(nodeGUID) != guid.Size {
+		s.logConn(conn, logger.Exploit, "invalid node guid size")
+		return
+	}
+	// check is self
+	if bytes.Equal(nodeGUID, s.ctx.global.GUID()) {
+		s.logConn(conn, logger.Info, "oh! self")
+		return
+	}
 
+	s.serveNode(tag, nodeGUID, newConn(s.ctx.logger, conn, connUsageServeNode))
 }
 
 // <danger>
