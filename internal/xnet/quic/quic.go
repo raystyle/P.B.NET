@@ -39,14 +39,24 @@ func newConn(ctx context.Context, session quic.Session) (*Conn, error) {
 	}, nil
 }
 
-// Read reads data from the connection
-func (c *Conn) Read(b []byte) (n int, err error) {
+func (c *Conn) acceptUniStream() error {
+	c.m.Lock()
+	defer c.m.Unlock()
 	if c.receive == nil {
 		receive, err := c.session.AcceptUniStream(c.ctx)
 		if err != nil {
-			return 0, err
+			return err
 		}
 		c.receive = receive
+	}
+	return nil
+}
+
+// Read reads data from the connection
+func (c *Conn) Read(b []byte) (n int, err error) {
+	err = c.acceptUniStream()
+	if err != nil {
+		return
 	}
 	return c.receive.Read(b)
 }
@@ -75,15 +85,19 @@ func (c *Conn) RemoteAddr() net.Addr {
 
 // SetDeadline is used to set read and write deadline
 func (c *Conn) SetDeadline(t time.Time) error {
-	err := c.receive.SetReadDeadline(t)
+	err := c.SetReadDeadline(t)
 	if err != nil {
 		return err
 	}
-	return c.send.SetWriteDeadline(t)
+	return c.SetWriteDeadline(t)
 }
 
 // SetReadDeadline is used to set read deadline
 func (c *Conn) SetReadDeadline(t time.Time) error {
+	err := c.acceptUniStream()
+	if err != nil {
+		return err
+	}
 	return c.receive.SetReadDeadline(t)
 }
 
