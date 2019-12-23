@@ -2,31 +2,27 @@ package node
 
 import (
 	"bytes"
-	"fmt"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"io"
+	"net"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
+	"project/internal/crypto/ed25519"
+	"project/internal/crypto/rand"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
+	"project/internal/xpanic"
 )
-
-func (c *conn) onFrameClient(frame []byte) {
-	if c.onFrame(frame) {
-		return
-	}
-	// check command
-	switch frame[0] {
-	case protocol.ConnReplyHeartbeat:
-		c.heartbeat <- struct{}{}
-	default:
-		c.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
-		c.Close()
-	}
-}
 
 type client struct {
 	ctx *Node
@@ -35,8 +31,7 @@ type client struct {
 	guid      []byte // node guid
 	closeFunc func()
 
-	conn      *xnet.Conn
-	slots     []*protocol.Slot
+	conn      *conn
 	heartbeat chan struct{}
 	inSync    int32
 
@@ -46,18 +41,235 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
+// when guid != ctrl guid for forwarder
+// when guid == ctrl guid for register
+// switch Register() or Connect() after newClient()
+func newClient(
+	ctx context.Context,
+	node *Node,
+	n *bootstrap.Node,
+	guid []byte,
+	closeFunc func(),
+) (*client, error) {
+	host, port, err := net.SplitHostPort(n.Address)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	cfg := xnet.Config{
+		Network: n.Network,
+		Timeout: node.client.Timeout,
+	}
+	cfg.TLSConfig = &tls.Config{
+		Rand:       rand.Reader,
+		Time:       node.global.Now,
+		ServerName: host,
+		RootCAs:    x509.NewCertPool(),
+		MinVersion: tls.VersionTLS12,
+	}
+	// add CA certificates
+	for _, cert := range node.global.Certificates() {
+		cfg.TLSConfig.RootCAs.AddCert(cert)
+	}
+	// set proxy
+	p, _ := node.global.GetProxyClient(node.client.ProxyTag)
+	cfg.Dialer = p.DialContext
+	// resolve domain name
+	result, err := node.global.ResolveWithContext(ctx, host, &node.client.DNSOpts)
+	if err != nil {
+		return nil, err
+	}
+	var conn *xnet.Conn
+	for i := 0; i < len(result); i++ {
+		cfg.Address = net.JoinHostPort(result[i], port)
+		c, err := xnet.DialContext(ctx, n.Mode, &cfg)
+		if err == nil {
+			conn = xnet.NewConn(c, node.global.Now())
+			break
+		}
+	}
+	if conn == nil {
+		return nil, errors.Errorf("failed to connect node: %s", n.Address)
+	}
+
+	// handshake
+	client := client{
+		ctx:       node,
+		node:      n,
+		guid:      guid,
+		closeFunc: closeFunc,
+	}
+	err = client.handshake(conn)
+	if err != nil {
+		_ = conn.Close()
+		const format = "failed to handshake with node: %s"
+		return nil, errors.WithMessagef(err, format, n.Address)
+	}
+	client.conn = newConn(node.logger, conn, connUsageClient)
+	return &client, nil
+}
+
+// TODO log
 func (client *client) log(l logger.Level, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprint(b, log...)
-	_, _ = fmt.Fprint(b, "\n", client.conn)
-	client.ctx.logger.Print(l, "client", b)
+	client.ctx.logger.Print(l, "client", log...)
 }
 
 func (client *client) logf(l logger.Level, format string, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n", client.conn)
-	client.ctx.logger.Print(l, "client", b)
+	client.ctx.logger.Printf(l, "client", format, log...)
+}
+
+func (client *client) handshake(conn *xnet.Conn) error {
+	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.client.Timeout))
+	// about check connection
+	sizeByte := make([]byte, 1)
+	_, err := io.ReadFull(conn, sizeByte)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive check connection size")
+	}
+	size := int(sizeByte[0])
+	checkData := make([]byte, size)
+	_, err = io.ReadFull(conn, checkData)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive check connection data")
+	}
+	_, err = conn.Write(random.New().Bytes(size))
+	if err != nil {
+		return errors.Wrap(err, "failed to send check connection data")
+	}
+	// receive certificate
+	cert, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive certificate")
+	}
+	if !client.verifyCertificate(cert, client.node.Address, client.guid) {
+		client.log(logger.Exploit, protocol.ErrInvalidCertificate)
+		return protocol.ErrInvalidCertificate
+	}
+	// send role
+	_, err = conn.Write(protocol.Node.Bytes())
+	if err != nil {
+		return errors.Wrap(err, "failed to send role")
+	}
+	// send self guid
+	_, err = conn.Write(client.ctx.global.GUID())
+	return err
+}
+
+func (client *client) verifyCertificate(cert []byte, address string, guid []byte) bool {
+	if len(cert) != 2*ed25519.SignatureSize {
+		return false
+	}
+	// verify certificate
+	buffer := bytes.Buffer{}
+	buffer.WriteString(address)
+	buffer.Write(guid)
+	if bytes.Equal(guid, protocol.CtrlGUID) {
+		certWithCtrlGUID := cert[ed25519.SignatureSize:]
+		return client.ctx.global.CtrlVerify(buffer.Bytes(), certWithCtrlGUID)
+	}
+	certWithNodeGUID := cert[:ed25519.SignatureSize]
+	return client.ctx.global.CtrlVerify(buffer.Bytes(), certWithNodeGUID)
+}
+
+// if return error, must close manually
+func (client *client) Connect() error {
+	conn := client.conn.conn
+	// send operation
+	_, err := conn.Write([]byte{2})
+	if err != nil {
+		return errors.Wrap(err, "failed to send operation")
+	}
+	err = client.authenticate()
+	if err != nil {
+		return err
+	}
+	client.heartbeat = make(chan struct{}, 1)
+	client.stopSignal = make(chan struct{})
+
+	// <warning> not add wg
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				client.log(logger.Fatal, xpanic.Error(r, "client:"))
+			}
+			client.Close()
+		}()
+		protocol.HandleConn(client.conn.conn, client.onFrame)
+	}()
+	client.wg.Add(1)
+	go client.sendHeartbeatLoop()
+	return nil
+}
+
+func (client *client) authenticate() error {
+	conn := client.conn.conn
+	// receive challenge
+	challenge, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive challenge")
+	}
+	if len(challenge) < 2048 || len(challenge) > 4096 {
+		err = errors.New("invalid challenge size")
+		client.log(logger.Exploit, err)
+		return err
+	}
+	// send signature
+	err = conn.Send(client.ctx.global.Sign(challenge))
+	if err != nil {
+		return errors.Wrap(err, "failed to send challenge signature")
+	}
+	resp, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive authentication response")
+	}
+	if !bytes.Equal(resp, protocol.AuthSucceed) {
+		return errors.WithStack(protocol.ErrAuthenticateFailed)
+	}
+	return nil
+}
+
+func (client *client) isSync() bool {
+	return atomic.LoadInt32(&client.inSync) != 0
+}
+
+func (client *client) isClosing() bool {
+	return atomic.LoadInt32(&client.inClose) != 0
+}
+
+func (client *client) onFrame(frame []byte) {
+	if client.conn.onFrame(frame) {
+		return
+	}
+	if client.isSync() {
+		id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
+		data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
+		if client.onFrameAfterSync(frame[0], id, data) {
+			return
+		}
+	}
+	// check command
+	switch frame[0] {
+	case protocol.ConnReplyHeartbeat:
+		select {
+		case client.heartbeat <- struct{}{}:
+		case <-client.stopSignal:
+		}
+	default:
+		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+		client.Close()
+	}
+}
+
+func (client *client) onFrameAfterSync(cmd byte, id, data []byte) bool {
+	switch cmd {
+	case protocol.NodeSendGUID:
+
+	case protocol.NodeSend:
+
+	default:
+		return false
+	}
+	return true
 }
 
 func (client *client) sendHeartbeatLoop() {
@@ -79,8 +291,8 @@ func (client *client) sendHeartbeatLoop() {
 			buffer.WriteByte(protocol.ConnSendHeartbeat)
 			buffer.Write(r.Bytes(fakeSize))
 			// send
-			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-			_, err = client.conn.Write(buffer.Bytes())
+			_ = client.conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+			_, err = client.conn.conn.Write(buffer.Bytes())
 			if err != nil {
 				return
 			}
@@ -90,7 +302,7 @@ func (client *client) sendHeartbeatLoop() {
 			case <-client.heartbeat:
 			case <-timer.C:
 				client.log(logger.Warning, "receive heartbeat timeout")
-				_ = client.conn.Close()
+				client.conn.Close()
 				return
 			case <-client.stopSignal:
 				return
@@ -101,29 +313,21 @@ func (client *client) sendHeartbeatLoop() {
 	}
 }
 
-func save() {
-	// switch certificate
-	// if bytes.Equal(guid, protocol.CtrlGUID) {
-	//	certWithCtrlGUID := cert[ed25519.SignatureSize:]
-	// 	return ctrl.global.Verify(buffer.Bytes(), certWithCtrlGUID)
-	// }
-	// // ----------------------with node guid--------------------------
-	//	// no size
-	//	require.False(t, ctrl.verifyCertificate(nil, address, g))
-	//	// invalid size
-	//	cert := []byte{0, 1}
-	//	require.False(t, ctrl.verifyCertificate(cert, address, g))
-	//	// invalid certificate
-	//	cert = []byte{0, 1, 0}
-	//	require.False(t, ctrl.verifyCertificate(cert, address, g))
-	//	// -------------------with controller guid-----------------------
-	//	// no size
-	//	cert = []byte{0, 1, 0}
-	//	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
-	//	// invalid size
-	//	cert = []byte{0, 1, 0, 0, 1}
-	//	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
-	//	// invalid certificate
-	//	cert = []byte{0, 1, 0, 0, 1, 0}
-	//	require.False(t, ctrl.verifyCertificate(cert, address, protocol.CtrlGUID))
+// Status is used to get connection status
+func (client *client) Status() *xnet.Status {
+	return client.conn.Status()
+}
+
+// Close is used to disconnect node
+func (client *client) Close() {
+	client.closeOnce.Do(func() {
+		atomic.StoreInt32(&client.inClose, 1)
+		client.conn.Close()
+		close(client.stopSignal)
+		client.wg.Wait()
+		if client.closeFunc != nil {
+			client.closeFunc()
+		}
+		client.log(logger.Info, "disconnected")
+	})
 }
