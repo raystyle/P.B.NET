@@ -23,6 +23,13 @@ const (
 	RegisterResultTimeout
 )
 
+// about register error
+var (
+	ErrRegisterRefused       = errors.New("register refused")
+	ErrRegisterTimeout       = errors.New("register timeout")
+	ErrRegisterUnknownResult = errors.New("unknown register result")
+)
+
 // NodeRegisterRequest is used to Node register,
 // controller trust node also use it
 type NodeRegisterRequest struct {
