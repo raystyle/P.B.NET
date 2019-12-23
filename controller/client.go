@@ -45,9 +45,9 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
-// when guid == nil        for trust node
-// when guid != nil        for sender client
-// when guid == ctrl guid, for discovery
+// when guid == nil       for trust node
+// when guid != ctrl guid for sender client
+// when guid == ctrl guid for discovery
 func newClient(
 	ctx context.Context,
 	ctrl *CTRL,
@@ -64,7 +64,6 @@ func newClient(
 		Network: node.Network,
 		Timeout: ctrl.client.Timeout,
 	}
-
 	cfg.TLSConfig = &tls.Config{
 		Rand:       rand.Reader,
 		Time:       ctrl.global.Now,
@@ -72,7 +71,6 @@ func newClient(
 		RootCAs:    x509.NewCertPool(),
 		MinVersion: tls.VersionTLS12,
 	}
-
 	// add CA certificates
 	for _, cert := range ctrl.global.GetSystemCA() {
 		cfg.TLSConfig.RootCAs.AddCert(cert)
@@ -80,11 +78,9 @@ func newClient(
 	for _, kp := range ctrl.global.GetSelfCA() {
 		cfg.TLSConfig.RootCAs.AddCert(kp.Certificate)
 	}
-
 	// set proxy
 	p, _ := ctrl.global.GetProxyClient(ctrl.client.ProxyTag)
 	cfg.Dialer = p.DialContext
-
 	// resolve domain name
 	result, err := ctrl.global.ResolveWithContext(ctx, host, &ctrl.client.DNSOpts)
 	if err != nil {
@@ -163,8 +159,7 @@ func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 
 // Zero—Knowledge Proof
 func (client *client) handshake(conn *xnet.Conn) error {
-	now := client.ctx.global.Now()
-	_ = conn.SetDeadline(now.Add(client.ctx.client.Timeout))
+	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.client.Timeout))
 	// about check connection
 	sizeByte := make([]byte, 1)
 	_, err := io.ReadFull(conn, sizeByte)
