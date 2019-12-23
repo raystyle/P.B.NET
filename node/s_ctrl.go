@@ -497,7 +497,7 @@ func (ctrl *ctrlConn) handleAnswer(id, data []byte) {
 }
 
 func (ctrl *ctrlConn) handleTrustNode(id []byte) {
-	ctrl.conn.Reply(id, ctrl.ctx.packOnlineRequest())
+	ctrl.conn.Reply(id, ctrl.ctx.packRegisterRequest())
 }
 
 func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {

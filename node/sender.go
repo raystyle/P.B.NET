@@ -285,7 +285,7 @@ func (sw *senderWorker) handleAcknowledgeTask(at []byte) {
 		sw.ctx.ackTaskPool.Put(at)
 	}()
 	sw.preA.GUID = sw.ctx.guid.Get()
-	sw.preA.RoleGUID = sw.ctx.ctx.GUID()
+	sw.preA.RoleGUID = sw.ctx.ctx.global.GUID()
 	sw.preA.SendGUID = at
 	// sign
 	sw.buffer.Reset()
@@ -336,7 +336,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	}
 	// set GUID
 	sw.preS.GUID = sw.ctx.guid.Get()
-	sw.preS.RoleGUID = sw.ctx.ctx.GUID()
+	sw.preS.RoleGUID = sw.ctx.ctx.global.GUID()
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(st.Message)

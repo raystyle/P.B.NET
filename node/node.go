@@ -111,13 +111,12 @@ func (node *Node) Main() error {
 	}
 	now := node.global.Now().Format(logger.TimeLayout)
 	node.logger.Println(logger.Debug, "main", "time:", now)
-	// register
-
 	// deploy server
 	err := node.server.Deploy()
 	if err != nil {
 		return node.fatal(err, "failed to deploy server")
 	}
+	// register
 
 	node.logger.Print(logger.Debug, "main", "node is running")
 	node.wait <- struct{}{}

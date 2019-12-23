@@ -22,12 +22,10 @@ const (
 
 type conn struct {
 	logger logger.Logger
-	conn   *xnet.Conn
-	usage  int
+	*xnet.Conn
 
-	logSrc    string
-	slots     []*protocol.Slot
-	heartbeat chan struct{}
+	logSrc string
+	slots  []*protocol.Slot
 
 	inClose    int32
 	closeOnce  sync.Once
@@ -37,7 +35,7 @@ type conn struct {
 func newConn(lg logger.Logger, xc *xnet.Conn, usage int) *conn {
 	conn := conn{
 		logger:     lg,
-		conn:       xc,
+		Conn:       xc,
 		stopSignal: make(chan struct{}),
 	}
 	_ = xc.SetDeadline(time.Time{})
@@ -71,38 +69,12 @@ func newConn(lg logger.Logger, xc *xnet.Conn, usage int) *conn {
 func (c *conn) log(l logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprint(b, log...)
-	_, _ = fmt.Fprintf(b, "\n%s", c.conn)
+	_, _ = fmt.Fprintf(b, "\n%s", c)
 	c.logger.Print(l, c.logSrc, b)
 }
 
 func (c *conn) isClosed() bool {
 	return atomic.LoadInt32(&c.inClose) != 0
-}
-
-// msg id(2 bytes) + data
-func (c *conn) handleReply(reply []byte) {
-	l := len(reply)
-	if l < protocol.MsgIDSize {
-		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
-		c.Close()
-		return
-	}
-	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
-	if id > protocol.MaxMsgID {
-		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
-		c.Close()
-		return
-	}
-	// must copy
-	r := make([]byte, l-protocol.MsgIDSize)
-	copy(r, reply[protocol.MsgIDSize:])
-	// <security> maybe incorrect msg id
-	select {
-	case c.slots[id].Reply <- r:
-	default:
-		c.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
-		c.Close()
-	}
 }
 
 func (c *conn) onFrame(frame []byte) bool {
@@ -134,6 +106,32 @@ func (c *conn) onFrame(frame []byte) bool {
 	return true
 }
 
+// msg id(2 bytes) + data
+func (c *conn) handleReply(reply []byte) {
+	l := len(reply)
+	if l < protocol.MsgIDSize {
+		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
+		c.Close()
+		return
+	}
+	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
+	if id > protocol.MaxMsgID {
+		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
+		c.Close()
+		return
+	}
+	// must copy
+	r := make([]byte, l-protocol.MsgIDSize)
+	copy(r, reply[protocol.MsgIDSize:])
+	// <security> maybe incorrect msg id
+	select {
+	case c.slots[id].Reply <- r:
+	default:
+		c.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
+		c.Close()
+	}
+}
+
 // Reply is used to reply command
 func (c *conn) Reply(id, reply []byte) {
 	if c.isClosed() {
@@ -151,8 +149,8 @@ func (c *conn) Reply(id, reply []byte) {
 	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
 	// write data
 	copy(b[protocol.MsgHeaderSize:], reply)
-	_ = c.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = c.conn.Write(b)
+	_ = c.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, _ = c.Write(b)
 }
 
 // Send is used to send command and receive reply
@@ -178,8 +176,8 @@ func (c *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 				// write data
 				copy(b[protocol.MsgHeaderSize:], data)
 				// send
-				_ = c.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-				_, err := c.conn.Write(b)
+				_ = c.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+				_, err := c.Write(b)
 				if err != nil {
 					return nil, err
 				}
@@ -212,14 +210,10 @@ func (c *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
-func (c *conn) Status() *xnet.Status {
-	return c.conn.Status()
-}
-
 func (c *conn) Close() {
 	c.closeOnce.Do(func() {
 		atomic.StoreInt32(&c.inClose, 1)
 		close(c.stopSignal)
-		_ = c.conn.Close()
+		_ = c.Conn.Close()
 	})
 }

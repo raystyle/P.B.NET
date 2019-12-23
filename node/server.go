@@ -371,43 +371,6 @@ func (s *server) deleteBeaconConn(tag string) {
 	delete(s.beaconConns, tag)
 }
 
-// checkConn is used to check connection is from client
-func (s *server) checkConn(conn *xnet.Conn) bool {
-	size := byte(100 + s.rand.Int(156))
-	data := s.rand.Bytes(int(size))
-	_, err := conn.Write(append([]byte{size}, data...))
-	if err != nil {
-		s.logfConn(conn, logger.Warning, "failed to send check connection data: %s", err)
-		return false
-	}
-	n, err := io.ReadFull(conn, data)
-	if err != nil {
-		s.logfConn(conn, logger.Warning, "receive test data in checkConn\n%X", data[:n])
-		return false
-	}
-	return true
-}
-
-func (s *server) sendCertificate(conn *xnet.Conn) bool {
-	var err error
-	cert := s.ctx.global.Certificate()
-	if cert != nil {
-		err = conn.Send(cert)
-		if err != nil {
-			s.logfConn(conn, logger.Error, "failed to send certificate: %s", err)
-			return false
-		}
-	} else { // if no certificate send padding data
-		size := 1024 + s.rand.Int(1024)
-		err = conn.Send(s.rand.Bytes(size))
-		if err != nil {
-			s.logfConn(conn, logger.Error, "failed to send padding data: %s", err)
-			return false
-		}
-	}
-	return true
-}
-
 func (s *server) handshake(tag string, conn net.Conn) {
 	now := s.ctx.global.Now()
 	xConn := xnet.NewConn(conn, now)
@@ -449,6 +412,44 @@ func (s *server) handshake(tag string, conn net.Conn) {
 	}
 }
 
+// checkConn is used to check connection is from client
+func (s *server) checkConn(conn *xnet.Conn) bool {
+	size := byte(100 + s.rand.Int(156))
+	data := s.rand.Bytes(int(size))
+	_, err := conn.Write(append([]byte{size}, data...))
+	if err != nil {
+		s.logfConn(conn, logger.Error, "failed to send check connection data: %s", err)
+		return false
+	}
+	n, err := io.ReadFull(conn, data)
+	if err != nil {
+		d := data[:n]
+		s.logfConn(conn, logger.Error, "receive test data in checkConn\n%s\n\n%X", d, d)
+		return false
+	}
+	return true
+}
+
+func (s *server) sendCertificate(conn *xnet.Conn) bool {
+	var err error
+	cert := s.ctx.global.Certificate()
+	if cert != nil {
+		err = conn.Send(cert)
+		if err != nil {
+			s.logfConn(conn, logger.Error, "failed to send certificate: %s", err)
+			return false
+		}
+	} else { // if no certificate send padding data
+		size := 1024 + s.rand.Int(1024)
+		err = conn.Send(s.rand.Bytes(size))
+		if err != nil {
+			s.logfConn(conn, logger.Error, "failed to send padding data: %s", err)
+			return false
+		}
+	}
+	return true
+}
+
 func (s *server) handleBeacon(tag string, conn *xnet.Conn) {
 	beaconGUID, err := conn.Receive()
 	if err != nil {
@@ -464,13 +465,10 @@ func (s *server) handleBeacon(tag string, conn *xnet.Conn) {
 }
 
 func (s *server) handleNode(tag string, conn *xnet.Conn) {
-	nodeGUID, err := conn.Receive()
+	nodeGUID := make([]byte, guid.Size)
+	_, err := io.ReadFull(conn, nodeGUID)
 	if err != nil {
 		s.logConn(conn, logger.Error, "failed to receive node guid:", err)
-		return
-	}
-	if len(nodeGUID) != guid.Size {
-		s.logConn(conn, logger.Exploit, "invalid node guid size")
 		return
 	}
 	// check is self
@@ -479,81 +477,22 @@ func (s *server) handleNode(tag string, conn *xnet.Conn) {
 		return
 	}
 	// read operation
-	operation, err := conn.Receive()
+	operation := make([]byte, 1)
+	_, err = io.ReadFull(conn, operation)
 	if err != nil {
 		s.logConn(conn, logger.Exploit, "failed to receive node operation", err)
 		return
 	}
-	if len(operation) != 1 {
-		s.logConn(conn, logger.Exploit, "invalid node operation size")
-		return
-	}
 	switch operation[0] {
 	case 1: // register
-		if !s.registerNode(conn, nodeGUID) {
-			return
-		}
+		s.registerNode(conn, nodeGUID)
 	case 2: // connect
 		if !s.verifyNode(conn, nodeGUID) {
 			return
 		}
+		s.serveNode(tag, nodeGUID, newConn(s.ctx.logger, conn, connUsageServeNode))
 	default:
 		s.logfConn(conn, logger.Exploit, "unknown node operation %d", operation[0])
-		return
-	}
-	s.serveNode(tag, nodeGUID, newConn(s.ctx.logger, conn, connUsageServeNode))
-}
-
-func (s *server) registerNode(conn *xnet.Conn, guid []byte) bool {
-	// receive node register request
-	req, err := conn.Receive()
-	if err != nil {
-		s.logConn(conn, logger.Error, "failed to receive node register request:", err)
-		return false
-	}
-	// try to unmarshal
-	nrr := new(messages.NodeRegisterRequest)
-	err = msgpack.Unmarshal(req, nrr)
-	if err != nil {
-		s.logConn(conn, logger.Exploit, "invalid node register request data:", err)
-		return false
-	}
-	err = nrr.Validate()
-	if err != nil {
-		s.logConn(conn, logger.Exploit, "invalid node register request:", err)
-		return false
-	}
-	// create node register
-	result := s.ctx.storage.CreateNodeRegister(guid)
-	if result == nil {
-		s.logfConn(conn, logger.Exploit, "failed to create node register\nguid: %X", guid)
-		return false
-	}
-	// send node register request to controller
-	// <security> must don't handle error
-	_ = s.ctx.sender.Send(messages.CMDBNodeRegisterRequest, nrr)
-	// wait register result
-	timeout := time.Duration(15+random.New().Int(30)) * time.Second
-	timer := time.AfterFunc(timeout, func() {
-		s.ctx.storage.SetNodeRegister(guid, &messages.NodeRegisterResponse{
-			Result: messages.RegisterResultTimeout,
-		})
-	})
-	defer timer.Stop()
-	switch (<-result).Result {
-	case messages.RegisterResultAccept:
-		_ = conn.Send([]byte{messages.RegisterResultAccept})
-		return s.verifyNode(conn, guid)
-	case messages.RegisterResultRefused:
-		// TODO add IP black list only register(other role still pass)
-		_ = conn.Send([]byte{messages.RegisterResultRefused})
-		return false
-	case messages.RegisterResultTimeout:
-		_ = conn.Send([]byte{messages.RegisterResultTimeout})
-		return false
-	default:
-		panic("unknown register result")
-		return false
 	}
 }
 
