@@ -11,6 +11,11 @@ import (
 	"project/internal/convert"
 )
 
+func TestNewSlot(t *testing.T) {
+	slot := NewSlot()
+	<-slot.Available
+}
+
 func TestHandleConn(t *testing.T) {
 	var (
 		message = []byte{1, 1, 1, 1}

@@ -3,13 +3,10 @@ package protocol
 import (
 	"bytes"
 	"errors"
-	"math"
 	"net"
-	"runtime"
 	"time"
 
 	"project/internal/convert"
-	"project/internal/xnet"
 )
 
 // about connection
@@ -17,6 +14,8 @@ const (
 	MaxMsgSize  = 2 * 1048576 // 2MB
 	SendTimeout = time.Minute
 	RecvTimeout = 2 * SendTimeout // wait heartbeat send time
+	SlotSize    = 1024
+	MaxMsgID    = SlotSize - 1
 
 	// don't change
 	MsgLenSize    = 4
@@ -39,22 +38,22 @@ var (
 	ErrRecvTimeout          = errors.New("receive reply timeout")
 )
 
-// it will change about the number of the current system
-var (
-	SlotSize int // message id is uint16 < 65536
-	MaxMsgID int // check invalid message id
-)
-
-func init() {
-	SlotSize = int(uint16(math.Abs(float64(runtime.NumCPU()))) + 64)
-	MaxMsgID = SlotSize - 1
-}
-
 // Slot is used to handle message async
 type Slot struct {
 	Available chan struct{}
 	Reply     chan []byte
 	Timer     *time.Timer // receive reply timeout
+}
+
+// NewSlot is used to create slot
+func NewSlot() *Slot {
+	s := Slot{
+		Available: make(chan struct{}, 1),
+		Reply:     make(chan []byte, 1),
+		Timer:     time.NewTimer(RecvTimeout),
+	}
+	s.Available <- struct{}{}
+	return &s
 }
 
 var (
@@ -71,14 +70,19 @@ func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 		maxBufSize = 4 * bufSize
 
 		// 2048 for cmd msgID GUID Hash...
-		maxPayloadSize = MaxMsgSize + 2048
+		maxMsgSize = MaxMsgSize + 2048
 
 		// client send heartbeat
-		heartbeat = 120 * time.Second
+		heartbeatTimeout = 120 * time.Second
 	)
 	buffer := make([]byte, bufSize)
 	data := bytes.NewBuffer(make([]byte, 0, bufSize))
-	bodySize := 0
+	var (
+		bodySize int
+		n        int
+		l        int
+		err      error
+	)
 	flushAndWrite := func() {
 		// if Grow not NewBuffer
 		if bodySize == 0 {
@@ -92,24 +96,24 @@ func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 		}
 	}
 	for {
-		_ = conn.SetReadDeadline(time.Now().Add(heartbeat))
-		n, err := conn.Read(buffer)
+		_ = conn.SetReadDeadline(time.Now().Add(heartbeatTimeout))
+		n, err = conn.Read(buffer)
 		if err != nil {
 			return
 		}
 		data.Write(buffer[:n])
-		l := data.Len()
+		l = data.Len()
 		for {
-			if l < xnet.DataSize {
+			if l < MsgLenSize {
 				break
 			}
 			if bodySize == 0 { // avoid duplicate calculations
-				bodySize = int(convert.BytesToUint32(data.Next(xnet.DataSize)))
+				bodySize = int(convert.BytesToUint32(data.Next(MsgLenSize)))
 				if bodySize == 0 {
 					msgHandler(errNullMsg)
 					return
 				}
-				if bodySize > maxPayloadSize {
+				if bodySize > maxMsgSize {
 					msgHandler(errTooBigMsg)
 					return
 				}
