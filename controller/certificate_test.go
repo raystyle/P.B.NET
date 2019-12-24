@@ -18,12 +18,14 @@ func TestIssueVerifyCertificate(t *testing.T) {
 	const address = "localhost:9931"
 	nodeGUID := bytes.Repeat([]byte{1}, guid.Size)
 	cert := ctrl.issueCertificate(address, nodeGUID)
-	require.True(t, ctrl.verifyCertificate(cert, address, nodeGUID))
+	client := client{ctx: ctrl}
+	require.True(t, client.verifyCertificate(cert, address, nodeGUID))
 }
 
 func TestVerifyInvalidCertificate(t *testing.T) {
 	testInitCtrl(t)
-	require.False(t, ctrl.verifyCertificate(nil, "foo", []byte{1}))
+	client := client{ctx: ctrl}
+	require.False(t, client.verifyCertificate(nil, "foo", []byte{1}))
 }
 
 func TestTrustNodeAndConfirm(t *testing.T) {

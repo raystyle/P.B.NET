@@ -8,7 +8,6 @@ import (
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
-	"project/internal/crypto/ed25519"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
@@ -33,13 +32,13 @@ func (ctrl *CTRL) TrustNode(
 	req := messages.NodeRegisterRequest{}
 	err = msgpack.Unmarshal(reply, &req)
 	if err != nil {
-		err = errors.Wrap(err, "invalid node online request")
+		err = errors.Wrap(err, "invalid node register request msgpack data")
 		ctrl.logger.Print(logger.Exploit, "trust node", err)
 		return nil, err
 	}
 	err = req.Validate()
 	if err != nil {
-		err = errors.Wrap(err, "validate node online request failed")
+		err = errors.Wrap(err, "invalid node register request")
 		ctrl.logger.Print(logger.Exploit, "trust node", err)
 		return nil, err
 	}
@@ -63,10 +62,10 @@ func (ctrl *CTRL) ConfirmTrustNode(
 	// send response
 	reply, err := client.Send(protocol.CtrlSetNodeCert, cert)
 	if err != nil {
-		return errors.WithMessage(err, "failed to send trust node certificate")
+		return errors.WithMessage(err, "failed to set node certificate")
 	}
 	if !bytes.Equal(reply, []byte{messages.RegisterResultAccept}) {
-		return errors.Errorf("failed to trust node: %s", string(reply))
+		return errors.Errorf("failed to trust node: %s", reply)
 	}
 	// calculate session key
 	sessionKey, err := ctrl.global.KeyExchange(req.KexPublicKey)
@@ -100,20 +99,4 @@ func (ctrl *CTRL) issueCertificate(address string, guid []byte) []byte {
 	buffer.Write(certWithNodeGUID)
 	buffer.Write(certWithCtrlGUID)
 	return buffer.Bytes()
-}
-
-func (ctrl *CTRL) verifyCertificate(cert []byte, address string, guid []byte) bool {
-	// if guid = nil, skip verify
-	if guid == nil {
-		return true
-	}
-	if len(cert) != 2*ed25519.SignatureSize {
-		return false
-	}
-	// verify certificate
-	buffer := bytes.Buffer{}
-	buffer.WriteString(address)
-	buffer.Write(guid)
-	certWithNodeGUID := cert[:ed25519.SignatureSize]
-	return ctrl.global.Verify(buffer.Bytes(), certWithNodeGUID)
 }

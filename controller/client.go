@@ -18,6 +18,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
+	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -126,7 +127,7 @@ func newClient(
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				client.log(logger.Fatal, xpanic.Error(r, "client:"))
+				client.log(logger.Fatal, xpanic.Print(r, "client.HandleConn"))
 			}
 			client.Close()
 		}()
@@ -175,7 +176,7 @@ func (client *client) handshake(conn *xnet.Conn) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive certificate")
 	}
-	if !client.ctx.verifyCertificate(cert, client.node.Address, client.guid) {
+	if !client.verifyCertificate(cert, client.node.Address, client.guid) {
 		client.log(logger.Exploit, protocol.ErrInvalidCertificate)
 		return protocol.ErrInvalidCertificate
 	}
@@ -214,6 +215,22 @@ func (client *client) handshake(conn *xnet.Conn) error {
 		return err
 	}
 	return conn.SetDeadline(time.Time{})
+}
+
+func (client *client) verifyCertificate(cert []byte, address string, guid []byte) bool {
+	// if guid = nil, skip verify
+	if guid == nil {
+		return true
+	}
+	if len(cert) != 2*ed25519.SignatureSize {
+		return false
+	}
+	// verify certificate
+	buffer := bytes.Buffer{}
+	buffer.WriteString(address)
+	buffer.Write(guid)
+	certWithNodeGUID := cert[:ed25519.SignatureSize]
+	return client.ctx.global.Verify(buffer.Bytes(), certWithNodeGUID)
 }
 
 func (client *client) isSync() bool {
@@ -399,7 +416,7 @@ func (client *client) handleNodeSendGUID(id, data []byte) {
 func (client *client) handleNodeAckGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply and close
-		client.log(logger.Exploit, "invalid node acknowledge guid size")
+		client.log(logger.Exploit, "invalid node ack guid size")
 		client.reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
@@ -433,7 +450,7 @@ func (client *client) handleBeaconSendGUID(id, data []byte) {
 func (client *client) handleBeaconAckGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply and close
-		client.log(logger.Exploit, "invalid beacon acknowledge guid size")
+		client.log(logger.Exploit, "invalid beacon ack guid size")
 		client.reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
