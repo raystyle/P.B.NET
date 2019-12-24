@@ -14,18 +14,35 @@ var ctrlSyncerNeed = []string{
 }
 
 var nodeSyncerNeed = []string{
-	"ctrlSend",
+	"ctrlSendToNode",
+	"ctrlSendToBeacon",
 	"ctrlAckToNode",
 	"ctrlAckToBeacon",
 	"broadcast",
 	"answer",
 
 	"nodeSend",
-	"nodeAckToCtrl",
+	"nodeAck",
 
 	"beaconSend",
-	"beaconAckToCtrl",
+	"beaconAck",
 	"query",
+}
+
+func TestGenerateCTRLSyncer(_ *testing.T) {
+	TestGenerateCTRLSyncerCheckGUID(nil)
+	fmt.Println()
+	TestGenerateCTRLSyncerCleanGUID(nil)
+	fmt.Println()
+	TestGenerateCTRLSyncerCleanGUIDMap(nil)
+}
+
+func TestGenerateNodeSyncer(_ *testing.T) {
+	TestGenerateNodeSyncerCheckGUID(nil)
+	fmt.Println()
+	TestGenerateNodeSyncerCleanGUID(nil)
+	fmt.Println()
+	TestGenerateNodeSyncerCleanGUIDMap(nil)
 }
 
 func TestGenerateCTRLSyncerCheckGUID(_ *testing.T) {
