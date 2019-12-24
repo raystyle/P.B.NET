@@ -7,6 +7,16 @@ import (
 	"project/internal/dns"
 )
 
+// Debug is used to test
+type Debug struct {
+	SkipTestClientDNS   bool
+	SkipSynchronizeTime bool
+
+	// see handler.go
+	NodeSend   chan []byte // Node send test message
+	BeaconSend chan []byte // Beacon send test message
+}
+
 // Config include configuration about Controller
 type Config struct {
 	Debug Debug `toml:"-"`
@@ -28,17 +38,13 @@ type Config struct {
 	} `toml:"logger"`
 
 	Global struct {
-		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
-		TimeSyncFixed    int           `toml:"time_sync_fixed"`
-		TimeSyncRandom   int           `toml:"time_sync_random"`
-		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
+		DNSCacheExpire      time.Duration `toml:"dns_cache_expire"`
+		TimeSyncSleepFixed  int           `toml:"timesync_sleep_fixed"`
+		TimeSyncSleepRandom int           `toml:"timesync_sleep_random"`
+		TimeSyncInterval    time.Duration `toml:"timesync_interval"`
 	} `toml:"global"`
 
-	Client struct { // options
-		ProxyTag string        `toml:"proxy_tag"`
-		Timeout  time.Duration `toml:"timeout"`
-		DNSOpts  dns.Options   `toml:"dns"`
-	} `toml:"client"`
+	Client cOpts `toml:"client"`
 
 	Sender struct {
 		MaxConns      int           `toml:"max_conns"`
@@ -68,19 +74,9 @@ type Config struct {
 	} `toml:"web"`
 }
 
-// Debug is used to test
-type Debug struct {
-	SkipTestClientDNS   bool
-	SkipSynchronizeTime bool
-
-	// see handler.go
-	NodeSend   chan []byte // Node send test message
-	BeaconSend chan []byte // Beacon send test message
-}
-
-// copy Config.Client
-type opts struct {
-	ProxyTag string
-	Timeout  time.Duration
-	DNSOpts  dns.Options
+// client options
+type cOpts struct {
+	ProxyTag string        `toml:"proxy_tag"`
+	Timeout  time.Duration `toml:"timeout"`
+	DNSOpts  dns.Options   `toml:"dns"`
 }
