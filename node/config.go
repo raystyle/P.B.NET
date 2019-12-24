@@ -17,6 +17,15 @@ import (
 	"project/internal/timesync"
 )
 
+// Debug is used to test
+type Debug struct {
+	SkipSynchronizeTime bool
+
+	// from controller
+	Broadcast chan []byte
+	Send      chan []byte
+}
+
 // Config include configuration about Node
 type Config struct {
 	Debug Debug `toml:"-" msgpack:"-"`
@@ -32,10 +41,10 @@ type Config struct {
 	} `toml:"logger"`
 
 	Global struct {
-		DNSCacheExpire   time.Duration `toml:"dns_cache_expire"`
-		TimeSyncFixed    int           `toml:"time_sync_fixed"`
-		TimeSyncRandom   int           `toml:"time_sync_random"`
-		TimeSyncInterval time.Duration `toml:"time_sync_interval"`
+		DNSCacheExpire      time.Duration `toml:"dns_cache_expire"`
+		TimeSyncSleepFixed  int           `toml:"timesync_sleep_fixed"`
+		TimeSyncSleepRandom int           `toml:"timesync_sleep_random"`
+		TimeSyncInterval    time.Duration `toml:"timesync_interval"`
 
 		// generate from controller
 		Certificates      [][]byte                    `toml:"-"`
@@ -94,6 +103,13 @@ type Config struct {
 		PublicKey    []byte // verify message ed25519
 		BroadcastKey []byte // decrypt broadcast, key + iv
 	} `toml:"-"`
+}
+
+// copy Config.Client
+type opts struct {
+	ProxyTag string
+	Timeout  time.Duration
+	DNSOpts  dns.Options
 }
 
 // CheckOptions include options about check configuration
@@ -211,20 +227,4 @@ func (cfg *Config) run(node *Node, opts *CheckOptions) error {
 // Build is used to build node configuration
 func (cfg *Config) Build() ([]byte, error) {
 	return msgpack.Marshal(cfg)
-}
-
-// Debug is used to test
-type Debug struct {
-	SkipSynchronizeTime bool
-
-	// from controller
-	Broadcast chan []byte
-	Send      chan []byte
-}
-
-// copy Config.Client
-type opts struct {
-	ProxyTag string
-	Timeout  time.Duration
-	DNSOpts  dns.Options
 }

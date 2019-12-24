@@ -3,8 +3,10 @@
   queue_size = 512
 
 [global]
-  dns_cache_expire   = "2m"
-  time_sync_interval = "1m"
+  dns_cache_expire      = "2m"
+  timesync_sleep_fixed  = 15
+  timesync_sleep_random = 10
+  timesync_interval     = "1m"
 
 [client]
   proxy_tag = "test"

@@ -25,6 +25,8 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Logger.Writer = os.Stdout
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
+	cfg.Global.TimeSyncSleepFixed = 15
+	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
 	cfg.Global.Certificates = testdata.Certificates(tb)
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
@@ -81,6 +83,8 @@ func TestConfig(t *testing.T) {
 		{expected: 512, actual: cfg.Logger.QueueSize},
 
 		{expected: 2 * time.Minute, actual: cfg.Global.DNSCacheExpire},
+		{expected: 15, actual: cfg.Global.TimeSyncSleepFixed},
+		{expected: 10, actual: cfg.Global.TimeSyncSleepRandom},
 		{expected: time.Minute, actual: cfg.Global.TimeSyncInterval},
 
 		{expected: "test", actual: cfg.Client.ProxyTag},
