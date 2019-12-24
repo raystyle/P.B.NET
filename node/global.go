@@ -93,7 +93,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, err
 	}
-	timeSyncer.SetSleep(cfg.TimeSyncFixed, cfg.TimeSyncRandom)
+	timeSyncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
 
 	g := global{
 		certs:      certs,

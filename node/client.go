@@ -98,14 +98,15 @@ func newClient(
 		node:      n,
 		guid:      guid,
 		closeFunc: closeFunc,
+		conn:      newConn(node.logger, conn, connUsageClient),
 	}
-	err = client.handshake(conn)
+	err = client.handshake()
 	if err != nil {
-		_ = conn.Close()
+		_ = client.conn.Close()
 		const format = "failed to handshake with node: %s"
 		return nil, errors.WithMessagef(err, format, n.Address)
 	}
-	client.conn = newConn(node.logger, conn, connUsageClient)
+
 	return &client, nil
 }
 
@@ -118,26 +119,26 @@ func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 	client.ctx.logger.Printf(l, "client", format, log...)
 }
 
-func (client *client) handshake(conn *xnet.Conn) error {
-	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.client.Timeout))
+func (client *client) handshake() error {
+	_ = client.conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.client.Timeout))
 	// about check connection
 	sizeByte := make([]byte, 1)
-	_, err := io.ReadFull(conn, sizeByte)
+	_, err := io.ReadFull(client.conn, sizeByte)
 	if err != nil {
 		return errors.Wrap(err, "failed to receive check connection size")
 	}
 	size := int(sizeByte[0])
 	checkData := make([]byte, size)
-	_, err = io.ReadFull(conn, checkData)
+	_, err = io.ReadFull(client.conn, checkData)
 	if err != nil {
 		return errors.Wrap(err, "failed to receive check connection data")
 	}
-	_, err = conn.Write(random.New().Bytes(size))
+	_, err = client.conn.Write(random.New().Bytes(size))
 	if err != nil {
 		return errors.Wrap(err, "failed to send check connection data")
 	}
 	// receive certificate
-	cert, err := conn.Receive()
+	cert, err := client.conn.Receive()
 	if err != nil {
 		return errors.Wrap(err, "failed to receive certificate")
 	}
@@ -146,12 +147,12 @@ func (client *client) handshake(conn *xnet.Conn) error {
 		return protocol.ErrInvalidCertificate
 	}
 	// send role
-	_, err = conn.Write(protocol.Node.Bytes())
+	_, err = client.conn.Write(protocol.Node.Bytes())
 	if err != nil {
 		return errors.Wrap(err, "failed to send role")
 	}
 	// send self guid
-	_, err = conn.Write(client.ctx.global.GUID())
+	_, err = client.conn.Write(client.ctx.global.GUID())
 	return err
 }
 
@@ -173,9 +174,8 @@ func (client *client) verifyCertificate(cert []byte, address string, guid []byte
 
 // if return error, must close manually
 func (client *client) Connect() error {
-	conn := client.conn.conn
 	// send operation
-	_, err := conn.Write([]byte{2})
+	_, err := client.conn.Write([]byte{2})
 	if err != nil {
 		return errors.Wrap(err, "failed to send operation")
 	}
@@ -194,7 +194,7 @@ func (client *client) Connect() error {
 			}
 			client.Close()
 		}()
-		protocol.HandleConn(client.conn.conn, client.onFrame)
+		protocol.HandleConn(client.conn, client.onFrame)
 	}()
 	client.wg.Add(1)
 	go client.sendHeartbeatLoop()
@@ -202,9 +202,8 @@ func (client *client) Connect() error {
 }
 
 func (client *client) authenticate() error {
-	conn := client.conn.conn
 	// receive challenge
-	challenge, err := conn.Receive()
+	challenge, err := client.conn.Receive()
 	if err != nil {
 		return errors.Wrap(err, "failed to receive challenge")
 	}
@@ -214,11 +213,11 @@ func (client *client) authenticate() error {
 		return err
 	}
 	// send signature
-	err = conn.Send(client.ctx.global.Sign(challenge))
+	err = client.conn.SendRaw(client.ctx.global.Sign(challenge))
 	if err != nil {
 		return errors.Wrap(err, "failed to send challenge signature")
 	}
-	resp, err := conn.Receive()
+	resp, err := client.conn.Receive()
 	if err != nil {
 		return errors.Wrap(err, "failed to receive authentication response")
 	}
@@ -291,8 +290,8 @@ func (client *client) sendHeartbeatLoop() {
 			buffer.WriteByte(protocol.ConnSendHeartbeat)
 			buffer.Write(r.Bytes(fakeSize))
 			// send
-			_ = client.conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-			_, err = client.conn.conn.Write(buffer.Bytes())
+			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+			_, err = client.conn.Write(buffer.Bytes())
 			if err != nil {
 				return
 			}
@@ -302,7 +301,7 @@ func (client *client) sendHeartbeatLoop() {
 			case <-client.heartbeat:
 			case <-timer.C:
 				client.log(logger.Warning, "receive heartbeat timeout")
-				client.conn.Close()
+				_ = client.conn.Close()
 				return
 			case <-client.stopSignal:
 				return
@@ -322,7 +321,7 @@ func (client *client) Status() *xnet.Status {
 func (client *client) Close() {
 	client.closeOnce.Do(func() {
 		atomic.StoreInt32(&client.inClose, 1)
-		client.conn.Close()
+		_ = client.conn.Close()
 		close(client.stopSignal)
 		client.wg.Wait()
 		if client.closeFunc != nil {

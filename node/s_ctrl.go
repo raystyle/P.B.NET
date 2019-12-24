@@ -90,9 +90,9 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 		ctrlConn.log(logger.Debug, "controller disconnected")
 	}()
 	s.addCtrlConn(tag, &ctrlConn)
-	_ = conn.conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
+	_ = conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
 	ctrlConn.log(logger.Debug, "controller connected")
-	protocol.HandleConn(conn.conn, ctrlConn.onFrame)
+	protocol.HandleConn(conn, ctrlConn.onFrame)
 }
 
 func (ctrl *ctrlConn) isSync() bool {
@@ -193,8 +193,8 @@ func (ctrl *ctrlConn) handleHeartbeat() {
 	ctrl.heartbeat.WriteByte(protocol.ConnReplyHeartbeat)
 	ctrl.heartbeat.Write(ctrl.rand.Bytes(fakeSize))
 	// send heartbeat data
-	_ = ctrl.conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = ctrl.conn.conn.Write(ctrl.heartbeat.Bytes())
+	_ = ctrl.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, _ = ctrl.conn.Write(ctrl.heartbeat.Bytes())
 }
 
 func (ctrl *ctrlConn) handleSyncStart(id []byte) {
@@ -568,6 +568,6 @@ func (ctrl *ctrlConn) Close() {
 	ctrl.closeOnce.Do(func() {
 		atomic.StoreInt32(&ctrl.inClose, 1)
 		close(ctrl.stopSignal)
-		ctrl.conn.Close()
+		_ = ctrl.conn.Close()
 	})
 }

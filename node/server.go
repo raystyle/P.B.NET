@@ -418,7 +418,7 @@ func (s *server) checkConn(conn *xnet.Conn) bool {
 	data := s.rand.Bytes(int(size))
 	_, err := conn.Write(append([]byte{size}, data...))
 	if err != nil {
-		s.logfConn(conn, logger.Error, "failed to send check connection data: %s", err)
+		s.logConn(conn, logger.Error, "failed to send check connection data:", err)
 		return false
 	}
 	n, err := io.ReadFull(conn, data)
@@ -436,14 +436,14 @@ func (s *server) sendCertificate(conn *xnet.Conn) bool {
 	if cert != nil {
 		err = conn.Send(cert)
 		if err != nil {
-			s.logfConn(conn, logger.Error, "failed to send certificate: %s", err)
+			s.logConn(conn, logger.Error, "failed to send certificate:", err)
 			return false
 		}
 	} else { // if no certificate send padding data
 		size := 1024 + s.rand.Int(1024)
 		err = conn.Send(s.rand.Bytes(size))
 		if err != nil {
-			s.logfConn(conn, logger.Error, "failed to send padding data: %s", err)
+			s.logConn(conn, logger.Error, "failed to send padding data:", err)
 			return false
 		}
 	}
@@ -453,7 +453,7 @@ func (s *server) sendCertificate(conn *xnet.Conn) bool {
 func (s *server) handleBeacon(tag string, conn *xnet.Conn) {
 	beaconGUID, err := conn.Receive()
 	if err != nil {
-		s.logfConn(conn, logger.Error, "failed to receive beacon guid: %s", err)
+		s.logConn(conn, logger.Error, "failed to receive beacon guid:", err)
 		return
 	}
 	if len(beaconGUID) != guid.Size {
@@ -522,7 +522,7 @@ func (s *server) verifyNode(conn *xnet.Conn, guid []byte) bool {
 	// send succeed response
 	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
-		s.logfConn(conn, logger.Error, "failed to send response to node:", err)
+		s.logConn(conn, logger.Error, "failed to send response to node:", err)
 		return false
 	}
 	return true
@@ -554,7 +554,7 @@ func (s *server) handleCtrl(tag string, conn *xnet.Conn) {
 	// send succeed response
 	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
-		s.logfConn(conn, logger.Error, "failed to send response to controller:", err)
+		s.logConn(conn, logger.Error, "failed to send response to controller:", err)
 		return
 	}
 	s.serveCtrl(tag, newConn(s.ctx.logger, conn, connUsageServeCtrl))

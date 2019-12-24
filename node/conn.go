@@ -39,18 +39,10 @@ func newConn(lg logger.Logger, xc *xnet.Conn, usage int) *conn {
 		stopSignal: make(chan struct{}),
 	}
 	_ = xc.SetDeadline(time.Time{})
-
 	conn.slots = make([]*protocol.Slot, protocol.SlotSize)
 	for i := 0; i < protocol.SlotSize; i++ {
-		slot := &protocol.Slot{
-			Available: make(chan struct{}, 1),
-			Reply:     make(chan []byte, 1),
-			Timer:     time.NewTimer(protocol.RecvTimeout),
-		}
-		slot.Available <- struct{}{}
-		conn.slots[i] = slot
+		conn.slots[i] = protocol.NewSlot()
 	}
-
 	switch usage {
 	case connUsageServeCtrl:
 		conn.logSrc = "ctrl-conn"
@@ -84,7 +76,7 @@ func (c *conn) onFrame(frame []byte) bool {
 	// cmd(1) + msg id(2)
 	if len(frame) < protocol.MsgCMDSize+protocol.MsgIDSize {
 		c.log(logger.Exploit, protocol.ErrInvalidMsgSize)
-		c.Close()
+		_ = c.Close()
 		return true
 	}
 	switch frame[0] {
@@ -92,10 +84,10 @@ func (c *conn) onFrame(frame []byte) bool {
 		c.handleReply(frame[protocol.MsgCMDSize:])
 	case protocol.ErrCMDRecvNullMsg:
 		c.log(logger.Exploit, protocol.ErrRecvNullMsg)
-		c.Close()
+		_ = c.Close()
 	case protocol.ErrCMDTooBigMsg:
 		c.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
-		c.Close()
+		_ = c.Close()
 	case protocol.TestCommand:
 		id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
 		data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
@@ -111,13 +103,13 @@ func (c *conn) handleReply(reply []byte) {
 	l := len(reply)
 	if l < protocol.MsgIDSize {
 		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
 	if id > protocol.MaxMsgID {
 		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	// must copy
@@ -128,7 +120,7 @@ func (c *conn) handleReply(reply []byte) {
 	case c.slots[id].Reply <- r:
 	default:
 		c.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
-		c.Close()
+		_ = c.Close()
 	}
 }
 
@@ -191,7 +183,7 @@ func (c *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 					c.slots[id].Available <- struct{}{}
 					return r, nil
 				case <-c.slots[id].Timer.C:
-					c.Close()
+					_ = c.Close()
 					return nil, protocol.ErrRecvTimeout
 				case <-c.stopSignal:
 					return nil, protocol.ErrConnClosed
@@ -210,10 +202,16 @@ func (c *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
-func (c *conn) Close() {
+func (c *conn) SendRaw(b []byte) error {
+	return c.Conn.Send(b)
+}
+
+func (c *conn) Close() error {
+	var err error
 	c.closeOnce.Do(func() {
 		atomic.StoreInt32(&c.inClose, 1)
 		close(c.stopSignal)
-		_ = c.Conn.Close()
+		err = c.Conn.Close()
 	})
+	return err
 }

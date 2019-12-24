@@ -85,7 +85,7 @@ func (node *Node) packRegisterRequest() []byte {
 }
 
 func (client *client) Register() error {
-	conn := client.conn.conn
+	conn := client.conn
 	defer client.Close()
 	// send operation
 	_, err := conn.Write([]byte{1})
@@ -93,7 +93,7 @@ func (client *client) Register() error {
 		return errors.Wrap(err, "failed to send operation")
 	}
 	// send register request
-	err = conn.Send(client.ctx.packRegisterRequest())
+	err = conn.SendRaw(client.ctx.packRegisterRequest())
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}
@@ -107,7 +107,6 @@ func (client *client) Register() error {
 	switch result[0] {
 	case messages.RegisterResultAccept:
 		// receive certificate and listener configs
-
 		return nil
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)

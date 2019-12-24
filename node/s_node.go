@@ -89,9 +89,9 @@ func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
 		nodeConn.log(logger.Debug, "node disconnected")
 	}()
 	s.addNodeConn(tag, &nodeConn)
-	_ = conn.conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
+	_ = conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
 	nodeConn.logf(logger.Debug, "node %X connected", nodeGUID)
-	protocol.HandleConn(conn.conn, nodeConn.onFrame)
+	protocol.HandleConn(conn, nodeConn.onFrame)
 }
 
 func (node *nodeConn) isSync() bool {
@@ -136,8 +136,8 @@ func (node *nodeConn) handleHeartbeat() {
 	node.heartbeat.WriteByte(protocol.ConnReplyHeartbeat)
 	node.heartbeat.Write(node.rand.Bytes(fakeSize))
 	// send heartbeat data
-	_ = node.conn.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = node.conn.conn.Write(node.heartbeat.Bytes())
+	_ = node.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, _ = node.conn.Write(node.heartbeat.Bytes())
 }
 
 func (node *nodeConn) handleSyncStart(id []byte) {
@@ -213,6 +213,6 @@ func (node *nodeConn) Close() {
 	node.closeOnce.Do(func() {
 		atomic.StoreInt32(&node.inClose, 1)
 		close(node.stopSignal)
-		node.conn.Close()
+		_ = node.conn.Close()
 	})
 }
