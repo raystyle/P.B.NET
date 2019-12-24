@@ -22,7 +22,6 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 	h.ctx.logger.Print(l, "handler", log...)
 }
 
-// TODO maybe need copy data
 func (h *handler) OnNodeSend(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -35,9 +34,7 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 		return
 	}
 	switch convert.BytesToUint32(send.Message[:4]) {
-
 	case messages.CMDNodeRegisterRequest:
-
 	case messages.CMDTest:
 		var testMsg []byte
 		err := msgpack.Unmarshal(send.Message[4:], &testMsg)
@@ -66,7 +63,6 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 		return
 	}
 	switch convert.BytesToUint32(send.Message[:4]) {
-
 	case messages.CMDTest:
 		var testMsg []byte
 		err := msgpack.Unmarshal(send.Message[4:], &testMsg)

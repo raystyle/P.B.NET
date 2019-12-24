@@ -3,8 +3,11 @@ package controller
 import (
 	"os"
 	"sync"
+	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testsuite"
 )
 
 var (
@@ -12,7 +15,7 @@ var (
 	initOnce sync.Once
 )
 
-func testInitCtrl(t require.TestingT) {
+func testInitCtrl(t testing.TB) {
 	initOnce.Do(func() {
 		err := os.Chdir("../app")
 		require.NoError(t, err)
@@ -30,6 +33,7 @@ func testInitCtrl(t require.TestingT) {
 			testInsertBoot(t)
 			testInsertListener(t)
 		}
+		testsuite.IsDestroyed(t, cfg)
 		// set controller keys
 		err = ctrl.LoadSessionKey([]byte("pbnet"))
 		require.NoError(t, err)

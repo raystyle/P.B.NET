@@ -21,7 +21,6 @@ import (
 	"project/internal/crypto/cert/certutil"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
-
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
@@ -73,6 +72,9 @@ type global struct {
 
 	loadSessionKey     int32
 	waitLoadSessionKey chan struct{}
+
+	// for Sign()
+	keyPool sync.Pool
 
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -153,13 +155,16 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, errTSC)
 	}
-	timeSyncer.SetSleep(cfg.TimeSyncFixed, cfg.TimeSyncRandom)
+	timeSyncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
 	g := global{
 		proxyPool:          proxyPool,
 		dnsClient:          dnsClient,
 		timeSyncer:         timeSyncer,
 		objects:            make(map[uint32]interface{}),
 		waitLoadSessionKey: make(chan struct{}, 1),
+	}
+	g.keyPool.New = func() interface{} {
+		return make([]byte, ed25519.PrivateKeySize)
 	}
 	g.ctx, g.cancel = context.WithCancel(context.Background())
 	return &g, nil
@@ -498,13 +503,12 @@ func (global *global) Encrypt(data []byte) ([]byte, error) {
 	return cbc.(*aes.CBC).Encrypt(data)
 }
 
-// TODO sync pool
-
 // Sign is used to verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	pri := make([]byte, ed25519.PrivateKeySize)
+	pri := global.keyPool.Get().([]byte)
+	defer global.keyPool.Put(pri)
 	defer security.CoverBytesFast(pri)
 	for i := 0; i < ed25519.PrivateKeySize; i++ {
 		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)

@@ -36,6 +36,8 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Logger.Writer = os.Stdout
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
+	cfg.Global.TimeSyncSleepFixed = 15
+	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
 	cfg.Global.Certificates = testdata.Certificates(tb)
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
@@ -70,8 +72,10 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 }
 
 func testGenerateNode(t testing.TB) *node.Node {
-	NODE, err := node.New(testGenerateNodeConfig(t))
+	cfg := testGenerateNodeConfig(t)
+	NODE, err := node.New(cfg)
 	require.NoError(t, err)
+	testsuite.IsDestroyed(t, cfg)
 
 	// generate certificate
 	pks := ctrl.global.GetSelfCA()

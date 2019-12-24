@@ -117,13 +117,7 @@ func newClient(
 	// initialize message slots
 	client.slots = make([]*protocol.Slot, protocol.SlotSize)
 	for i := 0; i < protocol.SlotSize; i++ {
-		s := &protocol.Slot{
-			Available: make(chan struct{}, 1),
-			Reply:     make(chan []byte, 1),
-			Timer:     time.NewTimer(protocol.RecvTimeout),
-		}
-		s.Available <- struct{}{}
-		client.slots[i] = s
+		client.slots[i] = protocol.NewSlot()
 	}
 	client.heartbeat = make(chan struct{}, 1)
 	client.stopSignal = make(chan struct{})
@@ -263,7 +257,7 @@ func (client *client) onFrame(frame []byte) {
 		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		client.Close()
 	case protocol.TestCommand:
-		client.Reply(id, data)
+		client.reply(id, data)
 	default:
 		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
 		client.Close()
@@ -339,6 +333,26 @@ func (client *client) sendHeartbeatLoop() {
 	}
 }
 
+func (client *client) reply(id, reply []byte) {
+	if client.isClosing() {
+		return
+	}
+	l := len(reply)
+	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
+	b := make([]byte, protocol.MsgHeaderSize+l)
+	// write size
+	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+	// write cmd
+	b[protocol.MsgLenSize] = protocol.ConnReply
+	// write msg id
+	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
+	// write data
+	copy(b[protocol.MsgHeaderSize:], reply)
+	_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, _ = client.conn.Write(b)
+}
+
 // msg id(2 bytes) + data
 func (client *client) handleReply(reply []byte) {
 	l := len(reply)
@@ -369,16 +383,16 @@ func (client *client) handleNodeSendGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid node send guid size")
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckNodeSendGUID(data, false, 0) {
-		client.Reply(id, protocol.ReplyUnhandled)
+		client.reply(id, protocol.ReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -386,16 +400,16 @@ func (client *client) handleNodeAckGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid node acknowledge guid size")
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckNodeAckGUID(data, false, 0) {
-		client.Reply(id, protocol.ReplyUnhandled)
+		client.reply(id, protocol.ReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -403,16 +417,16 @@ func (client *client) handleBeaconSendGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon send guid size")
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconSendGUID(data, false, 0) {
-		client.Reply(id, protocol.ReplyUnhandled)
+		client.reply(id, protocol.ReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -420,16 +434,16 @@ func (client *client) handleBeaconAckGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon acknowledge guid size")
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckBeaconAckGUID(data, false, 0) {
-		client.Reply(id, protocol.ReplyUnhandled)
+		client.reply(id, protocol.ReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -437,16 +451,16 @@ func (client *client) handleBeaconQueryGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon query guid size")
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
 	}
 	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 	} else if client.ctx.syncer.CheckQueryGUID(data, false, 0) {
-		client.Reply(id, protocol.ReplyUnhandled)
+		client.reply(id, protocol.ReplyUnhandled)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 	}
 }
 
@@ -468,15 +482,15 @@ func (client *client) handleNodeSend(id, data []byte) {
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID)
 	if expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutSendToPool(s)
 		return
 	}
 	if client.ctx.syncer.CheckNodeSendGUID(s.GUID, true, timestamp) {
-		client.Reply(id, protocol.ReplySucceed)
+		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddNodeSend(s)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.ctx.worker.PutSendToPool(s)
 	}
 }
@@ -499,15 +513,15 @@ func (client *client) handleNodeAck(id, data []byte) {
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(a.GUID)
 	if expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutAcknowledgeToPool(a)
 		return
 	}
 	if client.ctx.syncer.CheckNodeAckGUID(a.GUID, true, timestamp) {
-		client.Reply(id, protocol.ReplySucceed)
+		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddNodeAcknowledge(a)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.ctx.worker.PutAcknowledgeToPool(a)
 	}
 }
@@ -530,15 +544,15 @@ func (client *client) handleBeaconSend(id, data []byte) {
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID)
 	if expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutSendToPool(s)
 		return
 	}
 	if client.ctx.syncer.CheckBeaconSendGUID(s.GUID, true, timestamp) {
-		client.Reply(id, protocol.ReplySucceed)
+		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddBeaconSend(s)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.ctx.worker.PutSendToPool(s)
 	}
 }
@@ -561,15 +575,15 @@ func (client *client) handleBeaconAck(id, data []byte) {
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(a.GUID)
 	if expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutAcknowledgeToPool(a)
 		return
 	}
 	if client.ctx.syncer.CheckBeaconAckGUID(a.GUID, true, timestamp) {
-		client.Reply(id, protocol.ReplySucceed)
+		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddBeaconAcknowledge(a)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.ctx.worker.PutAcknowledgeToPool(a)
 	}
 }
@@ -592,41 +606,20 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(q.GUID)
 	if expired {
-		client.Reply(id, protocol.ReplyExpired)
+		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutQueryToPool(q)
 		return
 	}
 	if client.ctx.syncer.CheckQueryGUID(q.GUID, true, timestamp) {
-		client.Reply(id, protocol.ReplySucceed)
+		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddQuery(q)
 	} else {
-		client.Reply(id, protocol.ReplyHandled)
+		client.reply(id, protocol.ReplyHandled)
 		client.ctx.worker.PutQueryToPool(q)
 	}
 }
 
-// Reply is used to reply command
-func (client *client) Reply(id, reply []byte) {
-	if client.isClosing() {
-		return
-	}
-	l := len(reply)
-	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
-	b := make([]byte, protocol.MsgHeaderSize+l)
-	// write size
-	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
-	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
-	// write cmd
-	b[protocol.MsgLenSize] = protocol.ConnReply
-	// write msg id
-	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
-	// write data
-	copy(b[protocol.MsgHeaderSize:], reply)
-	_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-	_, _ = client.conn.Write(b)
-}
-
-// send command and receive reply
+// Send is used to send command and receive reply
 // size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
 // data(general) max size = MaxMsgSize -MsgCMDSize -MsgIDSize
 func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {

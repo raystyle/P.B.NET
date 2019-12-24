@@ -17,7 +17,7 @@ type CTRL struct {
 	db      *db      // database
 	logger  *gLogger // global logger
 	global  *global  // proxy, dns, time syncer, and ...
-	client  *opts    // client options
+	client  *cOpts   // client options
 	sender  *sender  // broadcast and send message
 	syncer  *syncer  // receive message
 	handler *handler // handle message from Node or Beacon
@@ -56,11 +56,8 @@ func New(cfg *Config) (*CTRL, error) {
 	}
 	ctrl.global = global
 	// copy client options
-	ctrl.client = &opts{
-		ProxyTag: cfg.Client.ProxyTag,
-		Timeout:  cfg.Client.Timeout,
-		DNSOpts:  cfg.Client.DNSOpts,
-	}
+	cOpts := cfg.Client
+	ctrl.client = &cOpts
 	// sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {
