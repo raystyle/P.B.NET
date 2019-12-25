@@ -42,60 +42,32 @@ type ctrlConn struct {
 }
 
 func (s *server) serveCtrl(tag string, conn *conn) {
-	ctrlConn := ctrlConn{
+	cc := ctrlConn{
 		ctx:  s.ctx,
 		tag:  tag,
 		conn: conn,
 		rand: random.New(),
 	}
-
-	ctrlConn.sendPool.New = func() interface{} {
-		return &protocol.Send{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			Message:   make([]byte, aes.BlockSize),
-			Hash:      make([]byte, sha256.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
-	}
-	ctrlConn.ackPool.New = func() interface{} {
-		return &protocol.Acknowledge{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			SendGUID:  make([]byte, guid.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
-	}
-	ctrlConn.answerPool.New = func() interface{} {
-		return &protocol.Answer{
-			GUID:       make([]byte, guid.Size),
-			BeaconGUID: make([]byte, guid.Size),
-			Message:    make([]byte, aes.BlockSize),
-			Hash:       make([]byte, sha256.Size),
-			Signature:  make([]byte, ed25519.SignatureSize),
-		}
-	}
-
 	defer func() {
 		if r := recover(); r != nil {
-			ctrlConn.log(logger.Exploit, xpanic.Error(r, "server.serveCtrl"))
+			cc.log(logger.Exploit, xpanic.Error(r, "server.serveCtrl"))
 		}
-		ctrlConn.Close()
-		if ctrlConn.isSync() {
+		cc.Close()
+		if cc.isSync() {
 			s.ctx.forwarder.LogoffCtrl(tag)
 		}
 		s.deleteCtrlConn(tag)
-		ctrlConn.log(logger.Debug, "controller disconnected")
+		cc.log(logger.Debug, "controller disconnected")
 	}()
-	s.addCtrlConn(tag, &ctrlConn)
+	s.addCtrlConn(tag, &cc)
 	_ = conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
-	ctrlConn.log(logger.Debug, "controller connected")
-	protocol.HandleConn(conn, ctrlConn.onFrame)
+	cc.log(logger.Debug, "controller connected")
+	protocol.HandleConn(conn, cc.onFrame)
 }
 
 func (ctrl *ctrlConn) log(l logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
-	_, _ = fmt.Fprint(b, log...)
+	_, _ = fmt.Fprintln(b, log...)
 	_, _ = fmt.Fprint(b, "\n", ctrl.conn)
 	ctrl.ctx.logger.Print(l, "serve-ctrl", b)
 }
@@ -103,7 +75,7 @@ func (ctrl *ctrlConn) log(l logger.Level, log ...interface{}) {
 func (ctrl *ctrlConn) logf(l logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n", ctrl.conn)
+	_, _ = fmt.Fprint(b, "\n\n", ctrl.conn)
 	ctrl.ctx.logger.Print(l, "serve-ctrl", b)
 }
 
@@ -119,8 +91,8 @@ func (ctrl *ctrlConn) onFrame(frame []byte) {
 		ctrl.handleHeartbeat()
 		return
 	}
-	id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
-	data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
 	if ctrl.isSync() {
 		if ctrl.onFrameAfterSync(frame[0], id, data) {
 			return
@@ -130,7 +102,8 @@ func (ctrl *ctrlConn) onFrame(frame []byte) {
 			return
 		}
 	}
-	ctrl.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+	const format = "unknown command: %d\nframe:\n%s"
+	ctrl.logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
 	ctrl.Close()
 }
 
@@ -197,6 +170,32 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 	if ctrl.isSync() {
 		return
 	}
+	ctrl.sendPool.New = func() interface{} {
+		return &protocol.Send{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			Message:   make([]byte, aes.BlockSize),
+			Hash:      make([]byte, sha256.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	ctrl.ackPool.New = func() interface{} {
+		return &protocol.Acknowledge{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			SendGUID:  make([]byte, guid.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	ctrl.answerPool.New = func() interface{} {
+		return &protocol.Answer{
+			GUID:       make([]byte, guid.Size),
+			BeaconGUID: make([]byte, guid.Size),
+			Message:    make([]byte, aes.BlockSize),
+			Hash:       make([]byte, sha256.Size),
+			Signature:  make([]byte, ed25519.SignatureSize),
+		}
+	}
 	err := ctrl.ctx.forwarder.RegisterCtrl(ctrl.tag, ctrl)
 	if err != nil {
 		ctrl.conn.Reply(id, []byte(err.Error()))
@@ -205,6 +204,20 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 		atomic.StoreInt32(&ctrl.inSync, 1)
 		ctrl.conn.Reply(id, []byte{protocol.NodeSync})
 		ctrl.log(logger.Debug, "synchronizing")
+	}
+}
+
+func (ctrl *ctrlConn) handleTrustNode(id []byte) {
+	ctrl.conn.Reply(id, ctrl.ctx.packRegisterRequest())
+}
+
+func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
+	err := ctrl.ctx.global.SetCertificate(data)
+	if err == nil {
+		ctrl.conn.Reply(id, []byte{messages.RegisterResultAccept})
+		ctrl.log(logger.Debug, "trust node")
+	} else {
+		ctrl.conn.Reply(id, []byte(err.Error()))
 	}
 }
 
@@ -504,20 +517,6 @@ func (ctrl *ctrlConn) handleAnswer(id, data []byte) {
 		// repeat
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
-	}
-}
-
-func (ctrl *ctrlConn) handleTrustNode(id []byte) {
-	ctrl.conn.Reply(id, ctrl.ctx.packRegisterRequest())
-}
-
-func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
-	err := ctrl.ctx.global.SetCertificate(data)
-	if err == nil {
-		ctrl.conn.Reply(id, []byte{messages.RegisterResultAccept})
-		ctrl.log(logger.Debug, "trust node")
-	} else {
-		ctrl.conn.Reply(id, []byte(err.Error()))
 	}
 }
 

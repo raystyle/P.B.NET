@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
@@ -32,69 +33,42 @@ type nodeConn struct {
 	rand      *random.Rand
 	inSync    int32
 
-	sendPool        sync.Pool
-	acknowledgePool sync.Pool
-	answerPool      sync.Pool
+	sendPool   sync.Pool
+	ackPool    sync.Pool
+	answerPool sync.Pool
 
 	closeOnce sync.Once
 }
 
 func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
-	nodeConn := nodeConn{
+	nc := nodeConn{
 		ctx:  s.ctx,
 		tag:  tag,
 		guid: nodeGUID,
 		conn: conn,
 		rand: random.New(),
 	}
-
-	nodeConn.sendPool.New = func() interface{} {
-		return &protocol.Send{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			Message:   make([]byte, aes.BlockSize),
-			Hash:      make([]byte, sha256.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
-	}
-	nodeConn.acknowledgePool.New = func() interface{} {
-		return &protocol.Acknowledge{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			SendGUID:  make([]byte, guid.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
-	}
-	nodeConn.answerPool.New = func() interface{} {
-		return &protocol.Answer{
-			GUID:       make([]byte, guid.Size),
-			BeaconGUID: make([]byte, guid.Size),
-			Message:    make([]byte, aes.BlockSize),
-			Hash:       make([]byte, sha256.Size),
-			Signature:  make([]byte, ed25519.SignatureSize),
-		}
-	}
-
 	defer func() {
 		if r := recover(); r != nil {
-			nodeConn.log(logger.Exploit, xpanic.Error(r, "server.serveNode"))
+			nc.log(logger.Exploit, xpanic.Error(r, "server.serveNode"))
 		}
-		nodeConn.Close()
-		if nodeConn.isSync() {
+		nc.Close()
+		if nc.isSync() {
 			s.ctx.forwarder.LogoffNode(tag)
 		}
 		s.deleteNodeConn(tag)
-		nodeConn.log(logger.Debug, "node disconnected")
+		nc.logf(logger.Debug, "node %X disconnected", nodeGUID)
 	}()
-	s.addNodeConn(tag, &nodeConn)
+	s.addNodeConn(tag, &nc)
 	_ = conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
-	nodeConn.logf(logger.Debug, "node %X connected", nodeGUID)
-	protocol.HandleConn(conn, nodeConn.onFrame)
+	nc.logf(logger.Debug, "node %X connected", nodeGUID)
+	protocol.HandleConn(conn, nc.onFrame)
 }
 
+// TODO add guid
 func (node *nodeConn) log(l logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
-	_, _ = fmt.Fprint(b, log...)
+	_, _ = fmt.Fprintln(b, log...)
 	_, _ = fmt.Fprint(b, "\n", node.conn)
 	node.ctx.logger.Print(l, "serve-node", b)
 }
@@ -102,7 +76,7 @@ func (node *nodeConn) log(l logger.Level, log ...interface{}) {
 func (node *nodeConn) logf(l logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n", node.conn)
+	_, _ = fmt.Fprint(b, "\n\n", node.conn)
 	node.ctx.logger.Print(l, "serve-node", b)
 }
 
@@ -118,9 +92,38 @@ func (node *nodeConn) onFrame(frame []byte) {
 		node.handleHeartbeat()
 		return
 	}
-
-	node.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
+	if node.isSync() {
+		if node.onFrameAfterSync(frame[0], id, data) {
+			return
+		}
+	} else {
+		if node.onFrameBeforeSync(frame[0], id, data) {
+			return
+		}
+	}
+	const format = "unknown command: %d\nframe:\n%s"
+	node.logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
 	node.Close()
+}
+
+func (node *nodeConn) onFrameBeforeSync(cmd byte, id, data []byte) bool {
+	switch cmd {
+	case protocol.NodeSync:
+		node.handleSyncStart(id)
+	default:
+		return false
+	}
+	return true
+}
+
+func (node *nodeConn) onFrameAfterSync(cmd byte, id, data []byte) bool {
+	switch cmd {
+	default:
+		return false
+	}
+	return true
 }
 
 func (node *nodeConn) handleHeartbeat() {
@@ -139,6 +142,32 @@ func (node *nodeConn) handleHeartbeat() {
 func (node *nodeConn) handleSyncStart(id []byte) {
 	if node.isSync() {
 		return
+	}
+	node.sendPool.New = func() interface{} {
+		return &protocol.Send{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			Message:   make([]byte, aes.BlockSize),
+			Hash:      make([]byte, sha256.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	node.ackPool.New = func() interface{} {
+		return &protocol.Acknowledge{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			SendGUID:  make([]byte, guid.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	node.answerPool.New = func() interface{} {
+		return &protocol.Answer{
+			GUID:       make([]byte, guid.Size),
+			BeaconGUID: make([]byte, guid.Size),
+			Message:    make([]byte, aes.BlockSize),
+			Hash:       make([]byte, sha256.Size),
+			Signature:  make([]byte, ed25519.SignatureSize),
+		}
 	}
 	err := node.ctx.forwarder.RegisterNode(node.tag, node)
 	if err != nil {
