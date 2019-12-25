@@ -14,10 +14,10 @@ var ctrlSyncerNeed = []string{
 }
 
 var nodeSyncerNeed = []string{
-	"ctrlSendToNode",
-	"ctrlSendToBeacon",
-	"ctrlAckToNode",
-	"ctrlAckToBeacon",
+	"sendToNode",
+	"sendToBeacon",
+	"ackToNode",
+	"ackToBeacon",
 	"broadcast",
 	"answer",
 

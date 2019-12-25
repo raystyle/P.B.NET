@@ -22,27 +22,27 @@ type syncer struct {
 	expireTime float64
 
 	// key = hex(GUID) value = timestamp
-	// controller send and broadcast
-	ctrlSendToNodeGUID      map[string]int64
-	ctrlSendToNodeGUIDRWM   sync.RWMutex
-	ctrlSendToBeaconGUID    map[string]int64
-	ctrlSendToBeaconGUIDRWM sync.RWMutex
-	ctrlAckToNodeGUID       map[string]int64
-	ctrlAckToNodeGUIDRWM    sync.RWMutex
-	ctrlAckToBeaconGUID     map[string]int64
-	ctrlAckToBeaconGUIDRWM  sync.RWMutex
-	broadcastGUID           map[string]int64
-	broadcastGUIDRWM        sync.RWMutex
-	answerGUID              map[string]int64
-	answerGUIDRWM           sync.RWMutex
+	// about controller
+	sendToNodeGUID      map[string]int64
+	sendToNodeGUIDRWM   sync.RWMutex
+	sendToBeaconGUID    map[string]int64
+	sendToBeaconGUIDRWM sync.RWMutex
+	ackToNodeGUID       map[string]int64
+	ackToNodeGUIDRWM    sync.RWMutex
+	ackToBeaconGUID     map[string]int64
+	ackToBeaconGUIDRWM  sync.RWMutex
+	broadcastGUID       map[string]int64
+	broadcastGUIDRWM    sync.RWMutex
+	answerGUID          map[string]int64
+	answerGUIDRWM       sync.RWMutex
 
-	// node send
+	// about node
 	nodeSendGUID    map[string]int64
 	nodeSendGUIDRWM sync.RWMutex
 	nodeAckGUID     map[string]int64
 	nodeAckGUIDRWM  sync.RWMutex
 
-	// beacon send and query
+	// about beacon
 	beaconSendGUID    map[string]int64
 	beaconSendGUIDRWM sync.RWMutex
 	beaconAckGUID     map[string]int64
@@ -65,20 +65,20 @@ func newSyncer(ctx *Node, config *Config) (*syncer, error) {
 	}
 
 	syncer := syncer{
-		ctx:                  ctx,
-		expireTime:           cfg.ExpireTime.Seconds(),
-		ctrlSendToNodeGUID:   make(map[string]int64),
-		ctrlSendToBeaconGUID: make(map[string]int64),
-		ctrlAckToNodeGUID:    make(map[string]int64),
-		ctrlAckToBeaconGUID:  make(map[string]int64),
-		answerGUID:           make(map[string]int64),
-		broadcastGUID:        make(map[string]int64),
-		nodeSendGUID:         make(map[string]int64),
-		nodeAckGUID:          make(map[string]int64),
-		beaconSendGUID:       make(map[string]int64),
-		beaconAckGUID:        make(map[string]int64),
-		queryGUID:            make(map[string]int64),
-		stopSignal:           make(chan struct{}),
+		ctx:              ctx,
+		expireTime:       cfg.ExpireTime.Seconds(),
+		sendToNodeGUID:   make(map[string]int64),
+		sendToBeaconGUID: make(map[string]int64),
+		ackToNodeGUID:    make(map[string]int64),
+		ackToBeaconGUID:  make(map[string]int64),
+		answerGUID:       make(map[string]int64),
+		broadcastGUID:    make(map[string]int64),
+		nodeSendGUID:     make(map[string]int64),
+		nodeAckGUID:      make(map[string]int64),
+		beaconSendGUID:   make(map[string]int64),
+		beaconAckGUID:    make(map[string]int64),
+		queryGUID:        make(map[string]int64),
+		stopSignal:       make(chan struct{}),
 	}
 	syncer.hexPool.New = func() interface{} {
 		return make([]byte, 2*guid.Size)
@@ -106,71 +106,71 @@ func (syncer *syncer) calculateKey(guid []byte) string {
 	return string(dst)
 }
 
-func (syncer *syncer) CheckCtrlSendToNodeGUID(guid []byte, add bool, timestamp int64) bool {
+func (syncer *syncer) CheckSendToNodeGUID(guid []byte, add bool, timestamp int64) bool {
 	key := syncer.calculateKey(guid)
 	if add {
-		syncer.ctrlSendToNodeGUIDRWM.Lock()
-		defer syncer.ctrlSendToNodeGUIDRWM.Unlock()
-		if _, ok := syncer.ctrlSendToNodeGUID[key]; ok {
+		syncer.sendToNodeGUIDRWM.Lock()
+		defer syncer.sendToNodeGUIDRWM.Unlock()
+		if _, ok := syncer.sendToNodeGUID[key]; ok {
 			return false
 		}
-		syncer.ctrlSendToNodeGUID[key] = timestamp
+		syncer.sendToNodeGUID[key] = timestamp
 		return true
 	}
-	syncer.ctrlSendToNodeGUIDRWM.RLock()
-	defer syncer.ctrlSendToNodeGUIDRWM.RUnlock()
-	_, ok := syncer.ctrlSendToNodeGUID[key]
+	syncer.sendToNodeGUIDRWM.RLock()
+	defer syncer.sendToNodeGUIDRWM.RUnlock()
+	_, ok := syncer.sendToNodeGUID[key]
 	return !ok
 }
 
-func (syncer *syncer) CheckCtrlSendToBeaconGUID(guid []byte, add bool, timestamp int64) bool {
+func (syncer *syncer) CheckSendToBeaconGUID(guid []byte, add bool, timestamp int64) bool {
 	key := syncer.calculateKey(guid)
 	if add {
-		syncer.ctrlSendToBeaconGUIDRWM.Lock()
-		defer syncer.ctrlSendToBeaconGUIDRWM.Unlock()
-		if _, ok := syncer.ctrlSendToBeaconGUID[key]; ok {
+		syncer.sendToBeaconGUIDRWM.Lock()
+		defer syncer.sendToBeaconGUIDRWM.Unlock()
+		if _, ok := syncer.sendToBeaconGUID[key]; ok {
 			return false
 		}
-		syncer.ctrlSendToBeaconGUID[key] = timestamp
+		syncer.sendToBeaconGUID[key] = timestamp
 		return true
 	}
-	syncer.ctrlSendToBeaconGUIDRWM.RLock()
-	defer syncer.ctrlSendToBeaconGUIDRWM.RUnlock()
-	_, ok := syncer.ctrlSendToBeaconGUID[key]
+	syncer.sendToBeaconGUIDRWM.RLock()
+	defer syncer.sendToBeaconGUIDRWM.RUnlock()
+	_, ok := syncer.sendToBeaconGUID[key]
 	return !ok
 }
 
-func (syncer *syncer) CheckCtrlAckToNodeGUID(guid []byte, add bool, timestamp int64) bool {
+func (syncer *syncer) CheckAckToNodeGUID(guid []byte, add bool, timestamp int64) bool {
 	key := syncer.calculateKey(guid)
 	if add {
-		syncer.ctrlAckToNodeGUIDRWM.Lock()
-		defer syncer.ctrlAckToNodeGUIDRWM.Unlock()
-		if _, ok := syncer.ctrlAckToNodeGUID[key]; ok {
+		syncer.ackToNodeGUIDRWM.Lock()
+		defer syncer.ackToNodeGUIDRWM.Unlock()
+		if _, ok := syncer.ackToNodeGUID[key]; ok {
 			return false
 		}
-		syncer.ctrlAckToNodeGUID[key] = timestamp
+		syncer.ackToNodeGUID[key] = timestamp
 		return true
 	}
-	syncer.ctrlAckToNodeGUIDRWM.RLock()
-	defer syncer.ctrlAckToNodeGUIDRWM.RUnlock()
-	_, ok := syncer.ctrlAckToNodeGUID[key]
+	syncer.ackToNodeGUIDRWM.RLock()
+	defer syncer.ackToNodeGUIDRWM.RUnlock()
+	_, ok := syncer.ackToNodeGUID[key]
 	return !ok
 }
 
-func (syncer *syncer) CheckCtrlAckToBeaconGUID(guid []byte, add bool, timestamp int64) bool {
+func (syncer *syncer) CheckAckToBeaconGUID(guid []byte, add bool, timestamp int64) bool {
 	key := syncer.calculateKey(guid)
 	if add {
-		syncer.ctrlAckToBeaconGUIDRWM.Lock()
-		defer syncer.ctrlAckToBeaconGUIDRWM.Unlock()
-		if _, ok := syncer.ctrlAckToBeaconGUID[key]; ok {
+		syncer.ackToBeaconGUIDRWM.Lock()
+		defer syncer.ackToBeaconGUIDRWM.Unlock()
+		if _, ok := syncer.ackToBeaconGUID[key]; ok {
 			return false
 		}
-		syncer.ctrlAckToBeaconGUID[key] = timestamp
+		syncer.ackToBeaconGUID[key] = timestamp
 		return true
 	}
-	syncer.ctrlAckToBeaconGUIDRWM.RLock()
-	defer syncer.ctrlAckToBeaconGUIDRWM.RUnlock()
-	_, ok := syncer.ctrlAckToBeaconGUID[key]
+	syncer.ackToBeaconGUIDRWM.RLock()
+	defer syncer.ackToBeaconGUIDRWM.RUnlock()
+	_, ok := syncer.ackToBeaconGUID[key]
 	return !ok
 }
 
@@ -334,10 +334,10 @@ func (syncer *syncer) guidCleaner() {
 func (syncer *syncer) cleanGUID() {
 	now := syncer.ctx.global.Now().Unix()
 
-	syncer.cleanCtrlSendToNodeGUID(now)
-	syncer.cleanCtrlSendToBeaconGUID(now)
-	syncer.cleanCtrlAckToNodeGUID(now)
-	syncer.cleanCtrlAckToBeaconGUID(now)
+	syncer.cleanSendToNodeGUID(now)
+	syncer.cleanSendToBeaconGUID(now)
+	syncer.cleanAckToNodeGUID(now)
+	syncer.cleanAckToBeaconGUID(now)
 	syncer.cleanBroadcastGUID(now)
 	syncer.cleanAnswerGUID(now)
 
@@ -349,42 +349,42 @@ func (syncer *syncer) cleanGUID() {
 	syncer.cleanQueryGUID(now)
 }
 
-func (syncer *syncer) cleanCtrlSendToNodeGUID(now int64) {
-	syncer.ctrlSendToNodeGUIDRWM.Lock()
-	defer syncer.ctrlSendToNodeGUIDRWM.Unlock()
-	for key, timestamp := range syncer.ctrlSendToNodeGUID {
+func (syncer *syncer) cleanSendToNodeGUID(now int64) {
+	syncer.sendToNodeGUIDRWM.Lock()
+	defer syncer.sendToNodeGUIDRWM.Unlock()
+	for key, timestamp := range syncer.sendToNodeGUID {
 		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
-			delete(syncer.ctrlSendToNodeGUID, key)
+			delete(syncer.sendToNodeGUID, key)
 		}
 	}
 }
 
-func (syncer *syncer) cleanCtrlSendToBeaconGUID(now int64) {
-	syncer.ctrlSendToBeaconGUIDRWM.Lock()
-	defer syncer.ctrlSendToBeaconGUIDRWM.Unlock()
-	for key, timestamp := range syncer.ctrlSendToBeaconGUID {
+func (syncer *syncer) cleanSendToBeaconGUID(now int64) {
+	syncer.sendToBeaconGUIDRWM.Lock()
+	defer syncer.sendToBeaconGUIDRWM.Unlock()
+	for key, timestamp := range syncer.sendToBeaconGUID {
 		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
-			delete(syncer.ctrlSendToBeaconGUID, key)
+			delete(syncer.sendToBeaconGUID, key)
 		}
 	}
 }
 
-func (syncer *syncer) cleanCtrlAckToNodeGUID(now int64) {
-	syncer.ctrlAckToNodeGUIDRWM.Lock()
-	defer syncer.ctrlAckToNodeGUIDRWM.Unlock()
-	for key, timestamp := range syncer.ctrlAckToNodeGUID {
+func (syncer *syncer) cleanAckToNodeGUID(now int64) {
+	syncer.ackToNodeGUIDRWM.Lock()
+	defer syncer.ackToNodeGUIDRWM.Unlock()
+	for key, timestamp := range syncer.ackToNodeGUID {
 		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
-			delete(syncer.ctrlAckToNodeGUID, key)
+			delete(syncer.ackToNodeGUID, key)
 		}
 	}
 }
 
-func (syncer *syncer) cleanCtrlAckToBeaconGUID(now int64) {
-	syncer.ctrlAckToBeaconGUIDRWM.Lock()
-	defer syncer.ctrlAckToBeaconGUIDRWM.Unlock()
-	for key, timestamp := range syncer.ctrlAckToBeaconGUID {
+func (syncer *syncer) cleanAckToBeaconGUID(now int64) {
+	syncer.ackToBeaconGUIDRWM.Lock()
+	defer syncer.ackToBeaconGUIDRWM.Unlock()
+	for key, timestamp := range syncer.ackToBeaconGUID {
 		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
-			delete(syncer.ctrlAckToBeaconGUID, key)
+			delete(syncer.ackToBeaconGUID, key)
 		}
 	}
 }
@@ -460,10 +460,10 @@ func (syncer *syncer) cleanQueryGUID(now int64) {
 }
 
 func (syncer *syncer) cleanGUIDMap() {
-	syncer.cleanCtrlSendToNodeGUIDMap()
-	syncer.cleanCtrlSendToBeaconGUIDMap()
-	syncer.cleanCtrlAckToNodeGUIDMap()
-	syncer.cleanCtrlAckToBeaconGUIDMap()
+	syncer.cleanSendToNodeGUIDMap()
+	syncer.cleanSendToBeaconGUIDMap()
+	syncer.cleanAckToNodeGUIDMap()
+	syncer.cleanAckToBeaconGUIDMap()
 	syncer.cleanBroadcastGUIDMap()
 	syncer.cleanAnswerGUIDMap()
 
@@ -475,44 +475,44 @@ func (syncer *syncer) cleanGUIDMap() {
 	syncer.cleanQueryGUIDMap()
 }
 
-func (syncer *syncer) cleanCtrlSendToNodeGUIDMap() {
-	syncer.ctrlSendToNodeGUIDRWM.Lock()
-	defer syncer.ctrlSendToNodeGUIDRWM.Unlock()
+func (syncer *syncer) cleanSendToNodeGUIDMap() {
+	syncer.sendToNodeGUIDRWM.Lock()
+	defer syncer.sendToNodeGUIDRWM.Unlock()
 	newMap := make(map[string]int64)
-	for key, timestamp := range syncer.ctrlSendToNodeGUID {
+	for key, timestamp := range syncer.sendToNodeGUID {
 		newMap[key] = timestamp
 	}
-	syncer.ctrlSendToNodeGUID = newMap
+	syncer.sendToNodeGUID = newMap
 }
 
-func (syncer *syncer) cleanCtrlSendToBeaconGUIDMap() {
-	syncer.ctrlSendToBeaconGUIDRWM.Lock()
-	defer syncer.ctrlSendToBeaconGUIDRWM.Unlock()
+func (syncer *syncer) cleanSendToBeaconGUIDMap() {
+	syncer.sendToBeaconGUIDRWM.Lock()
+	defer syncer.sendToBeaconGUIDRWM.Unlock()
 	newMap := make(map[string]int64)
-	for key, timestamp := range syncer.ctrlSendToBeaconGUID {
+	for key, timestamp := range syncer.sendToBeaconGUID {
 		newMap[key] = timestamp
 	}
-	syncer.ctrlSendToBeaconGUID = newMap
+	syncer.sendToBeaconGUID = newMap
 }
 
-func (syncer *syncer) cleanCtrlAckToNodeGUIDMap() {
-	syncer.ctrlAckToNodeGUIDRWM.Lock()
-	defer syncer.ctrlAckToNodeGUIDRWM.Unlock()
+func (syncer *syncer) cleanAckToNodeGUIDMap() {
+	syncer.ackToNodeGUIDRWM.Lock()
+	defer syncer.ackToNodeGUIDRWM.Unlock()
 	newMap := make(map[string]int64)
-	for key, timestamp := range syncer.ctrlAckToNodeGUID {
+	for key, timestamp := range syncer.ackToNodeGUID {
 		newMap[key] = timestamp
 	}
-	syncer.ctrlAckToNodeGUID = newMap
+	syncer.ackToNodeGUID = newMap
 }
 
-func (syncer *syncer) cleanCtrlAckToBeaconGUIDMap() {
-	syncer.ctrlAckToBeaconGUIDRWM.Lock()
-	defer syncer.ctrlAckToBeaconGUIDRWM.Unlock()
+func (syncer *syncer) cleanAckToBeaconGUIDMap() {
+	syncer.ackToBeaconGUIDRWM.Lock()
+	defer syncer.ackToBeaconGUIDRWM.Unlock()
 	newMap := make(map[string]int64)
-	for key, timestamp := range syncer.ctrlAckToBeaconGUID {
+	for key, timestamp := range syncer.ackToBeaconGUID {
 		newMap[key] = timestamp
 	}
-	syncer.ctrlAckToBeaconGUID = newMap
+	syncer.ackToBeaconGUID = newMap
 }
 
 func (syncer *syncer) cleanBroadcastGUIDMap() {
