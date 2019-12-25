@@ -138,9 +138,10 @@ func newClient(
 	return &client, nil
 }
 
+// TODO guid
 func (client *client) log(l logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
-	_, _ = fmt.Fprint(b, log...)
+	_, _ = fmt.Fprintln(b, log...)
 	_, _ = fmt.Fprint(b, "\n", client.conn)
 	client.ctx.logger.Print(l, "client", b)
 }
@@ -148,7 +149,7 @@ func (client *client) log(l logger.Level, log ...interface{}) {
 func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n", client.conn)
+	_, _ = fmt.Fprint(b, "\n\n", client.conn)
 	client.ctx.logger.Print(l, "client", b)
 }
 
@@ -237,23 +238,23 @@ func (client *client) isSync() bool {
 	return atomic.LoadInt32(&client.inSync) != 0
 }
 
-func (client *client) isClosing() bool {
+func (client *client) isClosed() bool {
 	return atomic.LoadInt32(&client.inClose) != 0
 }
 
 // can use client.Close()
 func (client *client) onFrame(frame []byte) {
-	if client.isClosing() {
+	if client.isClosed() {
 		return
 	}
 	// cmd(1) + msg id(2) or reply
-	if len(frame) < protocol.MsgCMDSize+protocol.MsgIDSize {
-		client.log(logger.Exploit, protocol.ErrInvalidMsgSize)
+	if len(frame) < protocol.FrameCMDSize+protocol.FrameIDSize {
+		client.log(logger.Exploit, protocol.ErrInvalidFrameSize)
 		client.Close()
 		return
 	}
-	id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
-	data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
 	if client.isSync() {
 		if client.onFrameAfterSync(frame[0], id, data) {
 			return
@@ -261,22 +262,23 @@ func (client *client) onFrame(frame []byte) {
 	}
 	switch frame[0] {
 	case protocol.ConnReply:
-		client.handleReply(frame[protocol.MsgCMDSize:])
+		client.handleReply(frame[protocol.FrameCMDSize:])
 	case protocol.ConnReplyHeartbeat:
 		select {
 		case client.heartbeat <- struct{}{}:
 		case <-client.stopSignal:
 		}
-	case protocol.ErrCMDRecvNullMsg:
-		client.log(logger.Exploit, protocol.ErrRecvNullMsg)
+	case protocol.ConnErrRecvNullFrame:
+		client.log(logger.Exploit, protocol.ErrRecvNullFrame)
 		client.Close()
-	case protocol.ErrCMDTooBigMsg:
-		client.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
+	case protocol.ConnErrRecvTooBigFrame:
+		client.log(logger.Exploit, protocol.ErrRecvTooBigFrame)
 		client.Close()
 	case protocol.TestCommand:
 		client.reply(id, data)
 	default:
-		client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+		const format = "unknown command: %d\nframe:\n%s"
+		client.logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
 		client.Close()
 	}
 }
@@ -351,21 +353,21 @@ func (client *client) sendHeartbeatLoop() {
 }
 
 func (client *client) reply(id, reply []byte) {
-	if client.isClosing() {
+	if client.isClosed() {
 		return
 	}
 	l := len(reply)
 	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
-	b := make([]byte, protocol.MsgHeaderSize+l)
+	b := make([]byte, protocol.FrameHeaderSize+l)
 	// write size
-	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+	msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
 	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
 	// write cmd
-	b[protocol.MsgLenSize] = protocol.ConnReply
+	b[protocol.FrameLenSize] = protocol.ConnReply
 	// write msg id
-	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
+	copy(b[protocol.FrameLenSize+1:protocol.FrameLenSize+1+protocol.FrameIDSize], id)
 	// write data
-	copy(b[protocol.MsgHeaderSize:], reply)
+	copy(b[protocol.FrameHeaderSize:], reply)
 	_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 	_, _ = client.conn.Write(b)
 }
@@ -373,20 +375,20 @@ func (client *client) reply(id, reply []byte) {
 // msg id(2 bytes) + data
 func (client *client) handleReply(reply []byte) {
 	l := len(reply)
-	if l < protocol.MsgIDSize {
-		client.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
+	if l < protocol.FrameIDSize {
+		client.log(logger.Exploit, protocol.ErrRecvInvalidFrameIDSize)
 		client.Close()
 		return
 	}
-	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
-	if id > protocol.MaxMsgID {
-		client.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
+	id := int(convert.BytesToUint16(reply[:protocol.FrameIDSize]))
+	if id > protocol.MaxFrameID {
+		client.log(logger.Exploit, protocol.ErrRecvInvalidFrameID)
 		client.Close()
 		return
 	}
 	// must copy
-	r := make([]byte, l-protocol.MsgIDSize)
-	copy(r, reply[protocol.MsgIDSize:])
+	r := make([]byte, l-protocol.FrameIDSize)
+	copy(r, reply[protocol.FrameIDSize:])
 	// <security> maybe incorrect msg id
 	select {
 	case client.slots[id].Reply <- r:
@@ -396,9 +398,21 @@ func (client *client) handleReply(reply []byte) {
 	}
 }
 
+// Sync is used to switch to sync mode
+func (client *client) Sync() error {
+	resp, err := client.Send(protocol.CtrlSync, nil)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive sync response")
+	}
+	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
+		return errors.Errorf("failed to start sync: %s", resp)
+	}
+	atomic.StoreInt32(&client.inSync, 1)
+	return nil
+}
+
 func (client *client) handleNodeSendGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		// fake reply and close
 		client.log(logger.Exploit, "invalid node send guid size")
 		client.reply(id, protocol.ReplyHandled)
 		client.Close()
@@ -415,7 +429,6 @@ func (client *client) handleNodeSendGUID(id, data []byte) {
 
 func (client *client) handleNodeAckGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		// fake reply and close
 		client.log(logger.Exploit, "invalid node ack guid size")
 		client.reply(id, protocol.ReplyHandled)
 		client.Close()
@@ -432,7 +445,6 @@ func (client *client) handleNodeAckGUID(id, data []byte) {
 
 func (client *client) handleBeaconSendGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon send guid size")
 		client.reply(id, protocol.ReplyHandled)
 		client.Close()
@@ -449,7 +461,6 @@ func (client *client) handleBeaconSendGUID(id, data []byte) {
 
 func (client *client) handleBeaconAckGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon ack guid size")
 		client.reply(id, protocol.ReplyHandled)
 		client.Close()
@@ -466,7 +477,6 @@ func (client *client) handleBeaconAckGUID(id, data []byte) {
 
 func (client *client) handleBeaconQueryGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		// fake reply and close
 		client.log(logger.Exploit, "invalid beacon query guid size")
 		client.reply(id, protocol.ReplyHandled)
 		client.Close()
@@ -485,7 +495,7 @@ func (client *client) handleNodeSend(id, data []byte) {
 	s := client.ctx.worker.GetSendFromPool()
 	err := msgpack.Unmarshal(data, &s)
 	if err != nil {
-		client.log(logger.Exploit, "invalid node send msgpack data: ", err)
+		client.log(logger.Exploit, "invalid node send msgpack data:", err)
 		client.ctx.worker.PutSendToPool(s)
 		client.Close()
 		return
@@ -516,7 +526,7 @@ func (client *client) handleNodeAck(id, data []byte) {
 	a := client.ctx.worker.GetAcknowledgeFromPool()
 	err := msgpack.Unmarshal(data, a)
 	if err != nil {
-		client.log(logger.Exploit, "invalid node ack msgpack data: ", err)
+		client.log(logger.Exploit, "invalid node ack msgpack data:", err)
 		client.ctx.worker.PutAcknowledgeToPool(a)
 		client.Close()
 		return
@@ -547,7 +557,7 @@ func (client *client) handleBeaconSend(id, data []byte) {
 	s := client.ctx.worker.GetSendFromPool()
 	err := msgpack.Unmarshal(data, s)
 	if err != nil {
-		client.log(logger.Exploit, "invalid beacon send msgpack data: ", err)
+		client.log(logger.Exploit, "invalid beacon send msgpack data:", err)
 		client.ctx.worker.PutSendToPool(s)
 		client.Close()
 		return
@@ -578,7 +588,7 @@ func (client *client) handleBeaconAck(id, data []byte) {
 	a := client.ctx.worker.GetAcknowledgeFromPool()
 	err := msgpack.Unmarshal(data, a)
 	if err != nil {
-		client.log(logger.Exploit, "invalid beacon ack msgpack data: ", err)
+		client.log(logger.Exploit, "invalid beacon ack msgpack data:", err)
 		client.ctx.worker.PutAcknowledgeToPool(a)
 		client.Close()
 		return
@@ -609,7 +619,7 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 	q := client.ctx.worker.GetQueryFromPool()
 	err := msgpack.Unmarshal(data, q)
 	if err != nil {
-		client.log(logger.Exploit, "invalid beacon query msgpack data: ", err)
+		client.log(logger.Exploit, "invalid beacon query msgpack data:", err)
 		client.ctx.worker.PutQueryToPool(q)
 		client.Close()
 		return
@@ -638,9 +648,9 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 
 // Send is used to send command and receive reply
 // size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
-// data(general) max size = MaxMsgSize -MsgCMDSize -MsgIDSize
+// data(general) max size = MaxFrameSize - FrameCMDSize - FrameIDSize
 func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
-	if client.isClosing() {
+	if client.isClosed() {
 		return nil, protocol.ErrConnClosed
 	}
 	for {
@@ -648,17 +658,17 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 			select {
 			case <-client.slots[id].Available:
 				l := len(data)
-				b := make([]byte, protocol.MsgHeaderSize+l)
+				b := make([]byte, protocol.FrameHeaderSize+l)
 				// write MsgLen
-				msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+				msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
 				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
 				// write cmd
-				b[protocol.MsgLenSize] = cmd
+				b[protocol.FrameLenSize] = cmd
 				// write msg id
-				copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize],
+				copy(b[protocol.FrameLenSize+1:protocol.FrameLenSize+1+protocol.FrameIDSize],
 					convert.Uint16ToBytes(uint16(id)))
 				// write data
-				copy(b[protocol.MsgHeaderSize:], data)
+				copy(b[protocol.FrameHeaderSize:], data)
 				// send
 				_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 				_, err := client.conn.Write(b)
@@ -676,7 +686,7 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 					return r, nil
 				case <-client.slots[id].Timer.C:
 					client.Close()
-					return nil, protocol.ErrRecvTimeout
+					return nil, protocol.ErrRecvReplyTimeout
 				case <-client.stopSignal:
 					return nil, protocol.ErrConnClosed
 				}
@@ -692,19 +702,6 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 			return nil, protocol.ErrConnClosed
 		}
 	}
-}
-
-// Sync is used to switch to sync mode
-func (client *client) Sync() error {
-	resp, err := client.Send(protocol.CtrlSync, nil)
-	if err != nil {
-		return errors.Wrap(err, "failed to receive sync response")
-	}
-	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
-		return errors.Errorf("failed to start sync: %s", resp)
-	}
-	atomic.StoreInt32(&client.inSync, 1)
-	return nil
 }
 
 // Broadcast is used to broadcast message to nodes

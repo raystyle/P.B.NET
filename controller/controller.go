@@ -10,7 +10,8 @@ import (
 	"project/internal/logger"
 )
 
-// CTRL is Controller
+// CTRL is controller
+// broadcast messages to Nodes, send messages to Nodes or Beacons
 type CTRL struct {
 	Debug *Debug
 

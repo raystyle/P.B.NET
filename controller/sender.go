@@ -799,8 +799,8 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		st.Message = sw.buffer.Bytes()
 	}
 	// check message size
-	if len(st.Message) > protocol.MaxMsgSize {
-		result.Err = protocol.ErrTooBigMsg
+	if len(st.Message) > protocol.MaxFrameSize {
+		result.Err = protocol.ErrTooBigFrame
 		return
 	}
 	switch st.Role {
@@ -917,8 +917,8 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 		bt.Message = sw.buffer.Bytes()
 	}
 	// check message size
-	if len(bt.Message) > protocol.MaxMsgSize {
-		result.Err = protocol.ErrTooBigMsg
+	if len(bt.Message) > protocol.MaxFrameSize {
+		result.Err = protocol.ErrTooBigFrame
 		return
 	}
 	// encrypt
