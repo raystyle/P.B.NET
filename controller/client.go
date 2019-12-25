@@ -698,10 +698,10 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 func (client *client) Sync() error {
 	resp, err := client.Send(protocol.CtrlSync, nil)
 	if err != nil {
-		return errors.Wrap(err, "receive sync response failed")
+		return errors.Wrap(err, "failed to receive sync response")
 	}
 	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
-		return errors.Errorf("sync failed: %s", string(resp))
+		return errors.Errorf("failed to start sync: %s", resp)
 	}
 	atomic.StoreInt32(&client.inSync, 1)
 	return nil
