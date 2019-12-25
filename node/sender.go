@@ -325,8 +325,8 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		st.Message = sw.buffer.Bytes()
 	}
 	// check message size
-	if len(st.Message) > protocol.MaxMsgSize {
-		result.Err = protocol.ErrTooBigMsg
+	if len(st.Message) > protocol.MaxFrameSize {
+		result.Err = protocol.ErrTooBigFrame
 		return
 	}
 	// encrypt

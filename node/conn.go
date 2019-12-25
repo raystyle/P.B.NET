@@ -74,23 +74,23 @@ func (c *conn) onFrame(frame []byte) bool {
 		return true
 	}
 	// cmd(1) + msg id(2)
-	if len(frame) < protocol.MsgCMDSize+protocol.MsgIDSize {
-		c.log(logger.Exploit, protocol.ErrInvalidMsgSize)
+	if len(frame) < protocol.FrameCMDSize+protocol.FrameIDSize {
+		c.log(logger.Exploit, protocol.ErrInvalidFrameSize)
 		_ = c.Close()
 		return true
 	}
 	switch frame[0] {
 	case protocol.ConnReply:
-		c.handleReply(frame[protocol.MsgCMDSize:])
-	case protocol.ConnErrRecvNullMsg:
-		c.log(logger.Exploit, protocol.ErrRecvNullMsg)
+		c.handleReply(frame[protocol.FrameCMDSize:])
+	case protocol.ConnErrRecvNullFrame:
+		c.log(logger.Exploit, protocol.ErrRecvNullFrame)
 		_ = c.Close()
-	case protocol.ConnErrRecvTooBigMsg:
-		c.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
+	case protocol.ConnErrRecvTooBigFrame:
+		c.log(logger.Exploit, protocol.ErrRecvTooBigFrame)
 		_ = c.Close()
 	case protocol.TestCommand:
-		id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
-		data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
+		id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+		data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
 		c.Reply(id, data)
 	default:
 		return false
@@ -101,20 +101,20 @@ func (c *conn) onFrame(frame []byte) bool {
 // msg id(2 bytes) + data
 func (c *conn) handleReply(reply []byte) {
 	l := len(reply)
-	if l < protocol.MsgIDSize {
-		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgIDSize)
+	if l < protocol.FrameIDSize {
+		c.log(logger.Exploit, protocol.ErrRecvInvalidFrameIDSize)
 		_ = c.Close()
 		return
 	}
-	id := int(convert.BytesToUint16(reply[:protocol.MsgIDSize]))
-	if id > protocol.MaxMsgID {
-		c.log(logger.Exploit, protocol.ErrRecvInvalidMsgID)
+	id := int(convert.BytesToUint16(reply[:protocol.FrameIDSize]))
+	if id > protocol.MaxFrameID {
+		c.log(logger.Exploit, protocol.ErrRecvInvalidFrameID)
 		_ = c.Close()
 		return
 	}
 	// must copy
-	r := make([]byte, l-protocol.MsgIDSize)
-	copy(r, reply[protocol.MsgIDSize:])
+	r := make([]byte, l-protocol.FrameIDSize)
+	copy(r, reply[protocol.FrameIDSize:])
 	// <security> maybe incorrect msg id
 	select {
 	case c.slots[id].Reply <- r:
@@ -131,16 +131,16 @@ func (c *conn) Reply(id, reply []byte) {
 	}
 	l := len(reply)
 	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
-	b := make([]byte, protocol.MsgHeaderSize+l)
+	b := make([]byte, protocol.FrameHeaderSize+l)
 	// write size
-	msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+	msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
 	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
 	// write cmd
-	b[protocol.MsgLenSize] = protocol.ConnReply
+	b[protocol.FrameLenSize] = protocol.ConnReply
 	// write msg id
-	copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize], id)
+	copy(b[protocol.FrameLenSize+1:protocol.FrameLenSize+1+protocol.FrameIDSize], id)
 	// write data
-	copy(b[protocol.MsgHeaderSize:], reply)
+	copy(b[protocol.FrameHeaderSize:], reply)
 	_ = c.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 	_, _ = c.Write(b)
 }
@@ -156,17 +156,17 @@ func (c *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 			select {
 			case <-c.slots[id].Available:
 				l := len(data)
-				b := make([]byte, protocol.MsgHeaderSize+l)
+				b := make([]byte, protocol.FrameHeaderSize+l)
 				// write MsgLen
-				msgSize := protocol.MsgCMDSize + protocol.MsgIDSize + l
+				msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
 				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
 				// write cmd
-				b[protocol.MsgLenSize] = cmd
+				b[protocol.FrameLenSize] = cmd
 				// write msg id
-				copy(b[protocol.MsgLenSize+1:protocol.MsgLenSize+1+protocol.MsgIDSize],
+				copy(b[protocol.FrameLenSize+1:protocol.FrameLenSize+1+protocol.FrameIDSize],
 					convert.Uint16ToBytes(uint16(id)))
 				// write data
-				copy(b[protocol.MsgHeaderSize:], data)
+				copy(b[protocol.FrameHeaderSize:], data)
 				// send
 				_ = c.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 				_, err := c.Write(b)

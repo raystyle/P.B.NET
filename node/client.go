@@ -119,9 +119,10 @@ func newClient(
 	return &client, nil
 }
 
+// TODO guid
 func (client *client) log(l logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
-	_, _ = fmt.Fprint(b, log...)
+	_, _ = fmt.Fprintln(b, log...)
 	_, _ = fmt.Fprint(b, "\n", client.conn)
 	client.ctx.logger.Print(l, "client", b)
 }
@@ -129,7 +130,7 @@ func (client *client) log(l logger.Level, log ...interface{}) {
 func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n", client.conn)
+	_, _ = fmt.Fprint(b, "\n\n", client.conn)
 	client.ctx.logger.Print(l, "client", b)
 }
 
@@ -254,14 +255,15 @@ func (client *client) onFrame(frame []byte) {
 		case <-client.stopSignal:
 		}
 	}
-	id := frame[protocol.MsgCMDSize : protocol.MsgCMDSize+protocol.MsgIDSize]
-	data := frame[protocol.MsgCMDSize+protocol.MsgIDSize:]
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
 	if client.isSync() {
 		if client.onFrameAfterSync(frame[0], id, data) {
 			return
 		}
 	}
-	client.log(logger.Exploit, protocol.ErrRecvUnknownCMD, frame)
+	const format = "unknown command: %d\nframe:\n%s"
+	client.logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
 	client.Close()
 }
 
@@ -797,7 +799,8 @@ func (client *client) handleNodeSend(id, data []byte) {
 	}
 	err = s.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid node send: %s\n%s", err, spew.Sdump(s))
+		const format = "invalid node send: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(s))
 		client.Close()
 		return
 	}
@@ -825,7 +828,8 @@ func (client *client) handleNodeAck(id, data []byte) {
 	}
 	err = a.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid node ack: %s\n%s", err, spew.Sdump(a))
+		const format = "invalid node ack: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(a))
 		client.Close()
 		return
 	}
@@ -853,7 +857,8 @@ func (client *client) handleBeaconSend(id, data []byte) {
 	}
 	err = s.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid beacon send: %s\n%s", err, spew.Sdump(s))
+		const format = "invalid beacon send: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(s))
 		client.Close()
 		return
 	}
@@ -881,7 +886,8 @@ func (client *client) handleBeaconAck(id, data []byte) {
 	}
 	err = a.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid beacon ack: %s\n%s", err, spew.Sdump(a))
+		const format = "invalid beacon ack: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(a))
 		client.Close()
 		return
 	}
@@ -909,7 +915,8 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 	}
 	err = q.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid beacon query: %s\n%s", err, spew.Sdump(q))
+		const format = "invalid beacon query: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(q))
 		client.Close()
 		return
 	}
