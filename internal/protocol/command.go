@@ -42,8 +42,8 @@ const (
 	ConnReply uint8 = 0x00 + iota
 	ConnSendHeartbeat
 	ConnReplyHeartbeat
-	ConnErrRecvNullMsg
-	ConnErrRecvTooBigMsg
+	ConnErrRecvNullFrame
+	ConnErrRecvTooBigFrame
 )
 
 // -----------------------Controller---------------------------

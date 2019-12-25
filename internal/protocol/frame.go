@@ -11,34 +11,33 @@ import (
 
 // about connection
 const (
-	MaxMsgSize  = 2 * 1048576 // 2MB
-	SendTimeout = time.Minute
-	RecvTimeout = 2 * SendTimeout // wait heartbeat send time
-	SlotSize    = 1024
-	MaxMsgID    = SlotSize - 1
+	MaxFrameSize = 2 * 1048576 // 2MB
+	SendTimeout  = time.Minute
+	RecvTimeout  = 2 * SendTimeout // wait heartbeat send time
+	SlotSize     = 1024
+	MaxFrameID   = SlotSize - 1
 
 	// don't change
-	MsgLenSize    = 4
-	MsgCMDSize    = 1
-	MsgIDSize     = 2
-	MsgHeaderSize = MsgLenSize + MsgCMDSize + MsgIDSize
+	FrameLenSize    = 4
+	FrameCMDSize    = 1
+	FrameIDSize     = 2
+	FrameHeaderSize = FrameLenSize + FrameCMDSize + FrameIDSize
 )
 
 // errors
 var (
-	ErrTooBigMsg            = errors.New("too big message")
-	ErrInvalidMsgSize       = errors.New("invalid message size")
-	ErrRecvNullMsg          = errors.New("receive null message")
-	ErrRecvTooBigMsg        = errors.New("receive too big message")
-	ErrRecvUnknownCMD       = errors.New("receive unknown command")
-	ErrRecvInvalidMsgIDSize = errors.New("receive invalid message id size")
-	ErrRecvInvalidMsgID     = errors.New("receive invalid message id")
-	ErrRecvInvalidReplyID   = errors.New("receive invalid reply id")
-	ErrRecvReplyTimeout     = errors.New("receive reply timeout")
-	ErrConnClosed           = errors.New("connection closed")
+	ErrTooBigFrame            = errors.New("too big frame")
+	ErrInvalidFrameSize       = errors.New("invalid frame size")
+	ErrRecvNullFrame          = errors.New("receive null frame")
+	ErrRecvTooBigFrame        = errors.New("receive too big frame")
+	ErrRecvInvalidFrameIDSize = errors.New("receive invalid frame id size")
+	ErrRecvInvalidFrameID     = errors.New("receive invalid frame id")
+	ErrRecvInvalidReplyID     = errors.New("receive invalid reply id")
+	ErrRecvReplyTimeout       = errors.New("receive reply timeout")
+	ErrConnClosed             = errors.New("connection closed")
 )
 
-// Slot is used to handle message async
+// Slot is used to handle frame async
 type Slot struct {
 	Available chan struct{}
 	Reply     chan []byte
@@ -57,20 +56,19 @@ func NewSlot() *Slot {
 }
 
 var (
-	errNullMsg   = []byte{ConnErrRecvNullMsg}
-	errTooBigMsg = []byte{ConnErrRecvTooBigMsg}
+	errNullFrame   = []byte{ConnErrRecvNullFrame}
+	errTooBigFrame = []byte{ConnErrRecvTooBigFrame}
 )
 
-// HandleConn is used to handle message,
-// msgHandler receive message = cmd(1 byte) + other data
-func HandleConn(conn net.Conn, msgHandler func([]byte)) {
+// HandleConn is used to handle frame
+func HandleConn(conn net.Conn, handler func([]byte)) {
 	const (
 		// if data buffer bufSize > this, new buffer
 		bufSize    = 4096
 		maxBufSize = 4 * bufSize
 
-		// 2048 for cmd msgID GUID Hash...
-		maxMsgSize = MaxMsgSize + 2048
+		// 2048 for cmd frameID GUID Hash...
+		maxFrameSize = MaxFrameSize + 2048
 
 		// client send heartbeat
 		heartbeatTimeout = 120 * time.Second
@@ -104,17 +102,17 @@ func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 		data.Write(buffer[:n])
 		l = data.Len()
 		for {
-			if l < MsgLenSize {
+			if l < FrameLenSize {
 				break
 			}
 			if bodySize == 0 { // avoid duplicate calculations
-				bodySize = int(convert.BytesToUint32(data.Next(MsgLenSize)))
+				bodySize = int(convert.BytesToUint32(data.Next(FrameLenSize)))
 				if bodySize == 0 {
-					msgHandler(errNullMsg)
+					handler(errNullFrame)
 					return
 				}
-				if bodySize > maxMsgSize {
-					msgHandler(errTooBigMsg)
+				if bodySize > maxFrameSize {
+					handler(errTooBigFrame)
 					return
 				}
 			}
@@ -122,7 +120,7 @@ func HandleConn(conn net.Conn, msgHandler func([]byte)) {
 			if l < bodySize {
 				break
 			}
-			msgHandler(data.Next(bodySize))
+			handler(data.Next(bodySize))
 			bodySize = 0
 			l = data.Len()
 		}
