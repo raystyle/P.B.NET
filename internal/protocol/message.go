@@ -34,8 +34,8 @@ var (
 	ErrRecvInvalidMsgIDSize = errors.New("receive invalid message id size")
 	ErrRecvInvalidMsgID     = errors.New("receive invalid message id")
 	ErrRecvInvalidReplyID   = errors.New("receive invalid reply id")
+	ErrRecvReplyTimeout     = errors.New("receive reply timeout")
 	ErrConnClosed           = errors.New("connection closed")
-	ErrRecvTimeout          = errors.New("receive reply timeout")
 )
 
 // Slot is used to handle message async
@@ -57,8 +57,8 @@ func NewSlot() *Slot {
 }
 
 var (
-	errNullMsg   = []byte{ErrCMDRecvNullMsg}
-	errTooBigMsg = []byte{ErrCMDTooBigMsg}
+	errNullMsg   = []byte{ConnErrRecvNullMsg}
+	errTooBigMsg = []byte{ConnErrRecvTooBigMsg}
 )
 
 // HandleConn is used to handle message,

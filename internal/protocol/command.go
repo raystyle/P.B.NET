@@ -39,12 +39,11 @@ const TestCommand uint8 = 0xFF
 
 // -----------------------Connection---------------------------
 const (
-	ConnSendHeartbeat uint8 = 0x00 + iota
+	ConnReply uint8 = 0x00 + iota
+	ConnSendHeartbeat
 	ConnReplyHeartbeat
-	ConnReply
-
-	ErrCMDRecvNullMsg uint8 = 0x0F
-	ErrCMDTooBigMsg   uint8 = 0x0E
+	ConnErrRecvNullMsg
+	ConnErrRecvTooBigMsg
 )
 
 // -----------------------Controller---------------------------
@@ -70,7 +69,7 @@ const (
 	CtrlSetNodeCert
 )
 
-// --------------------------Node-----------------------------
+// --------------------------Node------------------------------
 const (
 	NodeSync uint8 = 0x60 + iota
 	NodeSendGUID
@@ -81,7 +80,8 @@ const (
 
 // -------------------------Beacon-----------------------------
 const (
-	BeaconSendGUID uint8 = 0xA0 + iota
+	BeaconSync uint8 = 0xA0 + iota
+	BeaconSendGUID
 	BeaconSend
 	BeaconAckGUID
 	BeaconAck
