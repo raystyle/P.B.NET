@@ -9,7 +9,7 @@ import (
 	"project/internal/messages"
 )
 
-// Node is a program
+// Node send messages to controller
 type Node struct {
 	Debug *Debug
 
@@ -134,7 +134,6 @@ func (node *Node) Exit(err error) {
 		node.server.Close()
 		node.logger.Print(logger.Debug, "exit", "server is stopped")
 		node.handler.Close()
-		// TODO think handler block
 		node.logger.Print(logger.Debug, "exit", "handler is stopped")
 		node.worker.Close()
 		node.logger.Print(logger.Debug, "exit", "worker is stopped")
@@ -142,6 +141,8 @@ func (node *Node) Exit(err error) {
 		node.logger.Print(logger.Debug, "exit", "syncer is stopped")
 		node.sender.Close()
 		node.logger.Print(logger.Debug, "exit", "sender is stopped")
+		node.forwarder.Close()
+		node.logger.Print(logger.Debug, "exit", "forwarder is stopped")
 		node.global.Close()
 		node.logger.Print(logger.Debug, "exit", "global is stopped")
 		node.logger.Print(logger.Debug, "exit", "node is stopped")

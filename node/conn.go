@@ -82,10 +82,10 @@ func (c *conn) onFrame(frame []byte) bool {
 	switch frame[0] {
 	case protocol.ConnReply:
 		c.handleReply(frame[protocol.MsgCMDSize:])
-	case protocol.ErrCMDRecvNullMsg:
+	case protocol.ConnErrRecvNullMsg:
 		c.log(logger.Exploit, protocol.ErrRecvNullMsg)
 		_ = c.Close()
-	case protocol.ErrCMDTooBigMsg:
+	case protocol.ConnErrRecvTooBigMsg:
 		c.log(logger.Exploit, protocol.ErrRecvTooBigMsg)
 		_ = c.Close()
 	case protocol.TestCommand:
@@ -184,7 +184,7 @@ func (c *conn) Send(cmd uint8, data []byte) ([]byte, error) {
 					return r, nil
 				case <-c.slots[id].Timer.C:
 					_ = c.Close()
-					return nil, protocol.ErrRecvTimeout
+					return nil, protocol.ErrRecvReplyTimeout
 				case <-c.stopSignal:
 					return nil, protocol.ErrConnClosed
 				}

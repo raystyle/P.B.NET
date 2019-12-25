@@ -184,63 +184,9 @@ func (f *forwarder) log(l logger.Level, log ...interface{}) {
 	f.ctx.logger.Print(l, "sender", log...)
 }
 
-type fAck interface {
-	Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse)
-}
-
-func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) (
-	[]*protocol.AcknowledgeResponse, int) {
-	ctrlConns := f.GetCtrlConns()
-	nodeConns := f.GetNodeConns()
-	var (
-		conns map[string]fAck
-		l     int
-	)
-	if except != "" {
-		l = len(ctrlConns) + len(nodeConns) - 1
-	} else {
-		l = len(ctrlConns) + len(nodeConns)
-	}
-	if l < 1 {
-		return nil, 0
-	}
-	conns = make(map[string]fAck, l)
-	for tag, conn := range ctrlConns {
-		if tag != except {
-			conns[tag] = conn
-		}
-	}
-	for tag, conn := range nodeConns {
-		if tag != except {
-			conns[tag] = conn
-		}
-	}
-	resp := make(chan *protocol.AcknowledgeResponse, l)
-	for _, conn := range conns {
-		go func(c fAck) {
-			defer func() {
-				if r := recover(); r != nil {
-					err := xpanic.Error(r, "forwarder.AckToNodeAndCtrl")
-					f.log(logger.Fatal, err)
-				}
-			}()
-			resp <- c.Acknowledge(guid, data)
-		}(conn)
-	}
-	var success int
-	response := make([]*protocol.AcknowledgeResponse, l)
-	for i := 0; i < l; i++ {
-		response[i] = <-resp
-		if response[i].Err == nil {
-			success++
-		}
-	}
-	close(resp)
-	return response, success
-}
-
-type fSend interface {
+type fConn interface {
 	Send(guid, message []byte) (sr *protocol.SendResponse)
+	Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse)
 }
 
 func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
@@ -248,7 +194,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	var (
-		conns map[string]fSend
+		conns map[string]fConn
 		l     int
 	)
 	if except != "" {
@@ -259,7 +205,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
 	if l < 1 {
 		return nil, 0
 	}
-	conns = make(map[string]fSend, l)
+	conns = make(map[string]fConn, l)
 	for tag, conn := range ctrlConns {
 		if tag != except {
 			conns[tag] = conn
@@ -272,7 +218,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
 	}
 	resp := make(chan *protocol.SendResponse, l)
 	for _, conn := range conns {
-		go func(c fSend) {
+		go func(c fConn) {
 			defer func() {
 				if r := recover(); r != nil {
 					err := xpanic.Error(r, "forwarder.SendToNodeAndCtrl")
@@ -284,6 +230,57 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
 	}
 	var success int
 	response := make([]*protocol.SendResponse, l)
+	for i := 0; i < l; i++ {
+		response[i] = <-resp
+		if response[i].Err == nil {
+			success++
+		}
+	}
+	close(resp)
+	return response, success
+}
+
+func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) (
+	[]*protocol.AcknowledgeResponse, int) {
+	ctrlConns := f.GetCtrlConns()
+	nodeConns := f.GetNodeConns()
+	var (
+		conns map[string]fConn
+		l     int
+	)
+	if except != "" {
+		l = len(ctrlConns) + len(nodeConns) - 1
+	} else {
+		l = len(ctrlConns) + len(nodeConns)
+	}
+	if l < 1 {
+		return nil, 0
+	}
+	conns = make(map[string]fConn, l)
+	for tag, conn := range ctrlConns {
+		if tag != except {
+			conns[tag] = conn
+		}
+	}
+	for tag, conn := range nodeConns {
+		if tag != except {
+			conns[tag] = conn
+		}
+	}
+	resp := make(chan *protocol.AcknowledgeResponse, l)
+	for _, conn := range conns {
+		go func(c fConn) {
+			defer func() {
+				if r := recover(); r != nil {
+					err := xpanic.Error(r, "forwarder.AckToNodeAndCtrl")
+					f.log(logger.Fatal, err)
+				}
+			}()
+			resp <- c.Acknowledge(guid, data)
+		}(conn)
+	}
+	var success int
+	response := make([]*protocol.AcknowledgeResponse, l)
 	for i := 0; i < l; i++ {
 		response[i] = <-resp
 		if response[i].Err == nil {

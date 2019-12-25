@@ -34,22 +34,19 @@ type ctrlConn struct {
 	rand      *random.Rand
 	inSync    int32
 
-	sendPool        sync.Pool
-	acknowledgePool sync.Pool
-	answerPool      sync.Pool
+	sendPool   sync.Pool
+	ackPool    sync.Pool
+	answerPool sync.Pool
 
-	inClose    int32
-	closeOnce  sync.Once
-	stopSignal chan struct{}
+	closeOnce sync.Once
 }
 
 func (s *server) serveCtrl(tag string, conn *conn) {
 	ctrlConn := ctrlConn{
-		ctx:        s.ctx,
-		tag:        tag,
-		conn:       conn,
-		rand:       random.New(),
-		stopSignal: make(chan struct{}),
+		ctx:  s.ctx,
+		tag:  tag,
+		conn: conn,
+		rand: random.New(),
 	}
 
 	ctrlConn.sendPool.New = func() interface{} {
@@ -61,7 +58,7 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 			Signature: make([]byte, ed25519.SignatureSize),
 		}
 	}
-	ctrlConn.acknowledgePool.New = func() interface{} {
+	ctrlConn.ackPool.New = func() interface{} {
 		return &protocol.Acknowledge{
 			GUID:      make([]byte, guid.Size),
 			RoleGUID:  make([]byte, guid.Size),
@@ -114,14 +111,7 @@ func (ctrl *ctrlConn) isSync() bool {
 	return atomic.LoadInt32(&ctrl.inSync) != 0
 }
 
-func (ctrl *ctrlConn) isClosing() bool {
-	return atomic.LoadInt32(&ctrl.inClose) != 0
-}
-
 func (ctrl *ctrlConn) onFrame(frame []byte) {
-	if ctrl.isClosing() {
-		return
-	}
 	if ctrl.conn.onFrame(frame) {
 		return
 	}
@@ -227,7 +217,7 @@ func (ctrl *ctrlConn) handleSendToNodeGUID(id, data []byte) {
 	}
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlSendToNodeGUID(data, false, 0) {
+	} else if ctrl.ctx.syncer.CheckSendToNodeGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -243,7 +233,7 @@ func (ctrl *ctrlConn) handleSendToBeaconGUID(id, data []byte) {
 	}
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlSendToBeaconGUID(data, false, 0) {
+	} else if ctrl.ctx.syncer.CheckSendToBeaconGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -259,7 +249,7 @@ func (ctrl *ctrlConn) handleAckToNodeGUID(id, data []byte) {
 	}
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAckToNodeGUID(data, false, 0) {
+	} else if ctrl.ctx.syncer.CheckAckToNodeGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -275,7 +265,7 @@ func (ctrl *ctrlConn) handleAckToBeaconGUID(id, data []byte) {
 	}
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAckToBeaconGUID(data, false, 0) {
+	} else if ctrl.ctx.syncer.CheckAckToBeaconGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -338,7 +328,7 @@ func (ctrl *ctrlConn) handleSendToNode(id, data []byte) {
 		ctrl.ctx.worker.PutSendToPool(s)
 		return
 	}
-	if ctrl.ctx.syncer.CheckCtrlSendToNodeGUID(s.GUID, true, timestamp) {
+	if ctrl.ctx.syncer.CheckSendToNodeGUID(s.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
 		if bytes.Equal(s.RoleGUID, ctrl.ctx.global.GUID()) {
 			ctrl.ctx.worker.AddSend(s)
@@ -377,7 +367,7 @@ func (ctrl *ctrlConn) handleAckToNode(id, data []byte) {
 		ctrl.ctx.worker.PutAcknowledgeToPool(a)
 		return
 	}
-	if ctrl.ctx.syncer.CheckCtrlAckToNodeGUID(a.GUID, true, timestamp) {
+	if ctrl.ctx.syncer.CheckAckToNodeGUID(a.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
 		if bytes.Equal(a.RoleGUID, ctrl.ctx.global.GUID()) {
 			ctrl.ctx.worker.AddAcknowledge(a)
@@ -414,7 +404,7 @@ func (ctrl *ctrlConn) handleSendToBeacon(id, data []byte) {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if ctrl.ctx.syncer.CheckCtrlSendToBeaconGUID(s.GUID, true, timestamp) {
+	if ctrl.ctx.syncer.CheckSendToBeaconGUID(s.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
 		// repeat
 	} else {
@@ -423,8 +413,8 @@ func (ctrl *ctrlConn) handleSendToBeacon(id, data []byte) {
 }
 
 func (ctrl *ctrlConn) handleAckToBeacon(id, data []byte) {
-	a := ctrl.acknowledgePool.Get().(*protocol.Acknowledge)
-	defer ctrl.acknowledgePool.Put(a)
+	a := ctrl.ackPool.Get().(*protocol.Acknowledge)
+	defer ctrl.ackPool.Put(a)
 
 	err := msgpack.Unmarshal(data, a)
 	if err != nil {
@@ -445,7 +435,7 @@ func (ctrl *ctrlConn) handleAckToBeacon(id, data []byte) {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if ctrl.ctx.syncer.CheckCtrlAckToBeaconGUID(a.GUID, true, timestamp) {
+	if ctrl.ctx.syncer.CheckAckToBeaconGUID(a.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
 		// repeat
 	} else {
@@ -531,7 +521,6 @@ func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
 	}
 }
 
-// Send is used to send message to connected controller
 func (ctrl *ctrlConn) Send(guid, message []byte) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Ctrl,
@@ -556,7 +545,6 @@ func (ctrl *ctrlConn) Send(guid, message []byte) (sr *protocol.SendResponse) {
 	return
 }
 
-// Acknowledge is used to acknowledge to controller
 func (ctrl *ctrlConn) Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse) {
 	ar = &protocol.AcknowledgeResponse{
 		Role: protocol.Ctrl,
@@ -581,14 +569,14 @@ func (ctrl *ctrlConn) Acknowledge(guid, message []byte) (ar *protocol.Acknowledg
 	return
 }
 
+// Status is used to get connection status
 func (ctrl *ctrlConn) Status() *xnet.Status {
 	return ctrl.conn.Status()
 }
 
+// Close is used to stop serve controller
 func (ctrl *ctrlConn) Close() {
 	ctrl.closeOnce.Do(func() {
-		atomic.StoreInt32(&ctrl.inClose, 1)
-		close(ctrl.stopSignal)
 		_ = ctrl.conn.Close()
 	})
 }

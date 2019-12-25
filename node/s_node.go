@@ -36,19 +36,16 @@ type nodeConn struct {
 	acknowledgePool sync.Pool
 	answerPool      sync.Pool
 
-	inClose    int32
-	closeOnce  sync.Once
-	stopSignal chan struct{}
+	closeOnce sync.Once
 }
 
 func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
 	nodeConn := nodeConn{
-		ctx:        s.ctx,
-		tag:        tag,
-		guid:       nodeGUID,
-		conn:       conn,
-		rand:       random.New(),
-		stopSignal: make(chan struct{}),
+		ctx:  s.ctx,
+		tag:  tag,
+		guid: nodeGUID,
+		conn: conn,
+		rand: random.New(),
 	}
 
 	nodeConn.sendPool.New = func() interface{} {
@@ -113,14 +110,7 @@ func (node *nodeConn) isSync() bool {
 	return atomic.LoadInt32(&node.inSync) != 0
 }
 
-func (node *nodeConn) isClosing() bool {
-	return atomic.LoadInt32(&node.inClose) != 0
-}
-
 func (node *nodeConn) onFrame(frame []byte) {
-	if node.isClosing() {
-		return
-	}
 	if node.conn.onFrame(frame) {
 		return
 	}
@@ -211,14 +201,14 @@ func (node *nodeConn) Acknowledge(guid, message []byte) (ar *protocol.Acknowledg
 	return
 }
 
+// Status is used to get connection status
 func (node *nodeConn) Status() *xnet.Status {
 	return node.conn.Status()
 }
 
+// Close is used to stop serve node
 func (node *nodeConn) Close() {
 	node.closeOnce.Do(func() {
-		atomic.StoreInt32(&node.inClose, 1)
-		close(node.stopSignal)
 		_ = node.conn.Close()
 	})
 }
