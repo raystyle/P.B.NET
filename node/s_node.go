@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"crypto/sha256"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -94,21 +95,26 @@ func (s *server) serveNode(tag string, nodeGUID []byte, conn *conn) {
 	protocol.HandleConn(conn, nodeConn.onFrame)
 }
 
+func (node *nodeConn) log(l logger.Level, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprint(b, log...)
+	_, _ = fmt.Fprint(b, "\n", node.conn)
+	node.ctx.logger.Print(l, "serve-node", b)
+}
+
+func (node *nodeConn) logf(l logger.Level, format string, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(b, format, log...)
+	_, _ = fmt.Fprint(b, "\n", node.conn)
+	node.ctx.logger.Print(l, "serve-node", b)
+}
+
 func (node *nodeConn) isSync() bool {
 	return atomic.LoadInt32(&node.inSync) != 0
 }
 
 func (node *nodeConn) isClosing() bool {
 	return atomic.LoadInt32(&node.inClose) != 0
-}
-
-// TODO log
-func (node *nodeConn) log(l logger.Level, log ...interface{}) {
-	node.ctx.logger.Print(l, "serve-node", log...)
-}
-
-func (node *nodeConn) logf(l logger.Level, format string, log ...interface{}) {
-	node.ctx.logger.Printf(l, "serve-node", format, log...)
 }
 
 func (node *nodeConn) onFrame(frame []byte) {

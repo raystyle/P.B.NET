@@ -32,13 +32,13 @@ type conn struct {
 	stopSignal chan struct{}
 }
 
-func newConn(lg logger.Logger, xc *xnet.Conn, usage int) *conn {
+func newConn(lg logger.Logger, xConn *xnet.Conn, usage int) *conn {
 	conn := conn{
 		logger:     lg,
-		Conn:       xc,
+		Conn:       xConn,
 		stopSignal: make(chan struct{}),
 	}
-	_ = xc.SetDeadline(time.Time{})
+	_ = xConn.SetDeadline(time.Time{})
 	conn.slots = make([]*protocol.Slot, protocol.SlotSize)
 	for i := 0; i < protocol.SlotSize; i++ {
 		conn.slots[i] = protocol.NewSlot()

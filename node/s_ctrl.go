@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"crypto/sha256"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -95,21 +96,26 @@ func (s *server) serveCtrl(tag string, conn *conn) {
 	protocol.HandleConn(conn, ctrlConn.onFrame)
 }
 
+func (ctrl *ctrlConn) log(l logger.Level, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprint(b, log...)
+	_, _ = fmt.Fprint(b, "\n", ctrl.conn)
+	ctrl.ctx.logger.Print(l, "serve-ctrl", b)
+}
+
+func (ctrl *ctrlConn) logf(l logger.Level, format string, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(b, format, log...)
+	_, _ = fmt.Fprint(b, "\n", ctrl.conn)
+	ctrl.ctx.logger.Print(l, "serve-ctrl", b)
+}
+
 func (ctrl *ctrlConn) isSync() bool {
 	return atomic.LoadInt32(&ctrl.inSync) != 0
 }
 
 func (ctrl *ctrlConn) isClosing() bool {
 	return atomic.LoadInt32(&ctrl.inClose) != 0
-}
-
-// TODO log
-func (ctrl *ctrlConn) log(l logger.Level, log ...interface{}) {
-	ctrl.ctx.logger.Print(l, "serve-ctrl", log...)
-}
-
-func (ctrl *ctrlConn) logf(l logger.Level, format string, log ...interface{}) {
-	ctrl.ctx.logger.Printf(l, "serve-ctrl", format, log...)
 }
 
 func (ctrl *ctrlConn) onFrame(frame []byte) {
@@ -155,7 +161,7 @@ func (ctrl *ctrlConn) onFrameBeforeSync(cmd byte, id, data []byte) bool {
 func (ctrl *ctrlConn) onFrameAfterSync(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.CtrlSendToNodeGUID:
-		ctrl.handleSendGUID(id, data)
+		ctrl.handleSendToNodeGUID(id, data)
 	case protocol.CtrlSendToNode:
 		ctrl.handleSendToNode(id, data)
 	case protocol.CtrlAckToNodeGUID:
@@ -163,7 +169,7 @@ func (ctrl *ctrlConn) onFrameAfterSync(cmd byte, id, data []byte) bool {
 	case protocol.CtrlAckToNode:
 		ctrl.handleAckToNode(id, data)
 	case protocol.CtrlSendToBeaconGUID:
-		ctrl.handleSendGUID(id, data)
+		ctrl.handleSendToBeaconGUID(id, data)
 	case protocol.CtrlSendToBeacon:
 		ctrl.handleSendToBeacon(id, data)
 	case protocol.CtrlAckToBeaconGUID:
@@ -212,16 +218,64 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 	}
 }
 
-func (ctrl *ctrlConn) handleSendGUID(id, data []byte) {
+func (ctrl *ctrlConn) handleSendToNodeGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid send guid size")
+		ctrl.log(logger.Exploit, "invalid send to node guid size")
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
 		ctrl.Close()
 		return
 	}
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlSendGUID(data, false, 0) {
+	} else if ctrl.ctx.syncer.CheckCtrlSendToNodeGUID(data, false, 0) {
+		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (ctrl *ctrlConn) handleSendToBeaconGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		ctrl.log(logger.Exploit, "invalid send to beacon guid size")
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+		ctrl.Close()
+		return
+	}
+	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckCtrlSendToBeaconGUID(data, false, 0) {
+		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (ctrl *ctrlConn) handleAckToNodeGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		ctrl.log(logger.Exploit, "invalid ack to node guid size")
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+		ctrl.Close()
+		return
+	}
+	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckCtrlAckToNodeGUID(data, false, 0) {
+		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (ctrl *ctrlConn) handleAckToBeaconGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		ctrl.log(logger.Exploit, "invalid ack to beacon guid size")
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+		ctrl.Close()
+		return
+	}
+	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+	} else if ctrl.ctx.syncer.CheckCtrlAckToBeaconGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -238,38 +292,6 @@ func (ctrl *ctrlConn) handleBroadcastGUID(id, data []byte) {
 	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
 		ctrl.conn.Reply(id, protocol.ReplyExpired)
 	} else if ctrl.ctx.syncer.CheckBroadcastGUID(data, false, 0) {
-		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
-	} else {
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-	}
-}
-
-func (ctrl *ctrlConn) handleAckToNodeGUID(id, data []byte) {
-	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid acknowledge to node guid size")
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-		ctrl.Close()
-		return
-	}
-	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
-		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAckToNodeGUID(data, false, 0) {
-		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
-	} else {
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-	}
-}
-
-func (ctrl *ctrlConn) handleAckToBeaconGUID(id, data []byte) {
-	if len(data) != guid.Size {
-		ctrl.log(logger.Exploit, "invalid acknowledge to beacon guid size")
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-		ctrl.Close()
-		return
-	}
-	if expired, _ := ctrl.ctx.syncer.CheckGUIDTimestamp(data); expired {
-		ctrl.conn.Reply(id, protocol.ReplyExpired)
-	} else if ctrl.ctx.syncer.CheckCtrlAckToBeaconGUID(data, false, 0) {
 		ctrl.conn.Reply(id, protocol.ReplyUnhandled)
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
@@ -316,7 +338,7 @@ func (ctrl *ctrlConn) handleSendToNode(id, data []byte) {
 		ctrl.ctx.worker.PutSendToPool(s)
 		return
 	}
-	if ctrl.ctx.syncer.CheckCtrlSendGUID(s.GUID, true, timestamp) {
+	if ctrl.ctx.syncer.CheckCtrlSendToNodeGUID(s.GUID, true, timestamp) {
 		ctrl.conn.Reply(id, protocol.ReplySucceed)
 		if bytes.Equal(s.RoleGUID, ctrl.ctx.global.GUID()) {
 			ctrl.ctx.worker.AddSend(s)
@@ -330,76 +352,12 @@ func (ctrl *ctrlConn) handleSendToNode(id, data []byte) {
 	}
 }
 
-func (ctrl *ctrlConn) handleSendToBeacon(id, data []byte) {
-	s := ctrl.sendPool.Get().(*protocol.Send)
-	defer ctrl.sendPool.Put(s)
-	err := msgpack.Unmarshal(data, s)
-	if err != nil {
-		const format = "invalid send to beacon msgpack data: %s"
-		ctrl.logf(logger.Exploit, format, err)
-		ctrl.Close()
-		return
-	}
-	err = s.Validate()
-	if err != nil {
-		const format = "invalid send to beacon: %s\n%s"
-		ctrl.logf(logger.Exploit, format, err, spew.Sdump(s))
-		ctrl.Close()
-		return
-	}
-	expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(s.GUID)
-	if expired {
-		ctrl.conn.Reply(id, protocol.ReplyExpired)
-		return
-	}
-	if ctrl.ctx.syncer.CheckCtrlSendGUID(s.GUID, true, timestamp) {
-		ctrl.conn.Reply(id, protocol.ReplySucceed)
-		// repeat
-	} else {
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-	}
-}
-
-func (ctrl *ctrlConn) handleBroadcast(id, data []byte) {
-	b := ctrl.ctx.worker.GetBroadcastFromPool()
-	err := msgpack.Unmarshal(data, b)
-	if err != nil {
-		const format = "invalid ctrl broadcast msgpack data: %s"
-		ctrl.logf(logger.Exploit, format, err)
-		ctrl.ctx.worker.PutBroadcastToPool(b)
-		ctrl.Close()
-		return
-	}
-	err = b.Validate()
-	if err != nil {
-		const format = "invalid ctrl broadcast: %s\n%s"
-		ctrl.logf(logger.Exploit, format, err, spew.Sdump(b))
-		ctrl.ctx.worker.PutBroadcastToPool(b)
-		ctrl.Close()
-		return
-	}
-	expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(b.GUID)
-	if expired {
-		ctrl.conn.Reply(id, protocol.ReplyExpired)
-		ctrl.ctx.worker.PutBroadcastToPool(b)
-		return
-	}
-	if ctrl.ctx.syncer.CheckBroadcastGUID(b.GUID, true, timestamp) {
-		ctrl.conn.Reply(id, protocol.ReplySucceed)
-		ctrl.ctx.worker.AddBroadcast(b)
-	} else {
-		ctrl.conn.Reply(id, protocol.ReplyHandled)
-		ctrl.ctx.worker.PutBroadcastToPool(b)
-	}
-}
-
-// TODO warning repeat
 func (ctrl *ctrlConn) handleAckToNode(id, data []byte) {
 	a := ctrl.ctx.worker.GetAcknowledgeFromPool()
 
 	err := msgpack.Unmarshal(data, a)
 	if err != nil {
-		const format = "invalid acknowledge to node msgpack data: %s"
+		const format = "invalid ack to node msgpack data: %s"
 		ctrl.logf(logger.Exploit, format, err)
 		ctrl.ctx.worker.PutAcknowledgeToPool(a)
 		ctrl.Close()
@@ -407,7 +365,7 @@ func (ctrl *ctrlConn) handleAckToNode(id, data []byte) {
 	}
 	err = a.Validate()
 	if err != nil {
-		const format = "invalid acknowledge to node: %s\n%s"
+		const format = "invalid ack to node: %s\n%s"
 		ctrl.logf(logger.Exploit, format, err, spew.Sdump(a))
 		ctrl.ctx.worker.PutAcknowledgeToPool(a)
 		ctrl.Close()
@@ -434,20 +392,50 @@ func (ctrl *ctrlConn) handleAckToNode(id, data []byte) {
 	}
 }
 
+func (ctrl *ctrlConn) handleSendToBeacon(id, data []byte) {
+	s := ctrl.sendPool.Get().(*protocol.Send)
+	defer ctrl.sendPool.Put(s)
+	err := msgpack.Unmarshal(data, s)
+	if err != nil {
+		const format = "invalid send to beacon msgpack data: %s"
+		ctrl.logf(logger.Exploit, format, err)
+		ctrl.Close()
+		return
+	}
+	err = s.Validate()
+	if err != nil {
+		const format = "invalid send to beacon: %s\n%s"
+		ctrl.logf(logger.Exploit, format, err, spew.Sdump(s))
+		ctrl.Close()
+		return
+	}
+	expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	if expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+		return
+	}
+	if ctrl.ctx.syncer.CheckCtrlSendToBeaconGUID(s.GUID, true, timestamp) {
+		ctrl.conn.Reply(id, protocol.ReplySucceed)
+		// repeat
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
 func (ctrl *ctrlConn) handleAckToBeacon(id, data []byte) {
 	a := ctrl.acknowledgePool.Get().(*protocol.Acknowledge)
 	defer ctrl.acknowledgePool.Put(a)
 
 	err := msgpack.Unmarshal(data, a)
 	if err != nil {
-		const format = "invalid acknowledge to beacon msgpack data: %s"
+		const format = "invalid ack to beacon msgpack data: %s"
 		ctrl.logf(logger.Exploit, format, err)
 		ctrl.Close()
 		return
 	}
 	err = a.Validate()
 	if err != nil {
-		const format = "invalid acknowledge to beacon: %s\n%s"
+		const format = "invalid ack to beacon: %s\n%s"
 		ctrl.logf(logger.Exploit, format, err, spew.Sdump(a))
 		ctrl.Close()
 		return
@@ -462,6 +450,39 @@ func (ctrl *ctrlConn) handleAckToBeacon(id, data []byte) {
 		// repeat
 	} else {
 		ctrl.conn.Reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (ctrl *ctrlConn) handleBroadcast(id, data []byte) {
+	b := ctrl.ctx.worker.GetBroadcastFromPool()
+	err := msgpack.Unmarshal(data, b)
+	if err != nil {
+		const format = "invalid broadcast msgpack data: %s"
+		ctrl.logf(logger.Exploit, format, err)
+		ctrl.ctx.worker.PutBroadcastToPool(b)
+		ctrl.Close()
+		return
+	}
+	err = b.Validate()
+	if err != nil {
+		const format = "invalid broadcast: %s\n%s"
+		ctrl.logf(logger.Exploit, format, err, spew.Sdump(b))
+		ctrl.ctx.worker.PutBroadcastToPool(b)
+		ctrl.Close()
+		return
+	}
+	expired, timestamp := ctrl.ctx.syncer.CheckGUIDTimestamp(b.GUID)
+	if expired {
+		ctrl.conn.Reply(id, protocol.ReplyExpired)
+		ctrl.ctx.worker.PutBroadcastToPool(b)
+		return
+	}
+	if ctrl.ctx.syncer.CheckBroadcastGUID(b.GUID, true, timestamp) {
+		ctrl.conn.Reply(id, protocol.ReplySucceed)
+		ctrl.ctx.worker.AddBroadcast(b)
+	} else {
+		ctrl.conn.Reply(id, protocol.ReplyHandled)
+		ctrl.ctx.worker.PutBroadcastToPool(b)
 	}
 }
 
