@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -26,6 +27,12 @@ func TestLogger(t *testing.T) {
 	Discard.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
 	Discard.Print(Debug, testSrc, "test-print", testLog1, testLog2)
 	Discard.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+}
+
+func TestNewWriterWithPrefix(t *testing.T) {
+	w := NewWriterWithPrefix(os.Stdout, "prefix")
+	_, err := w.Write([]byte("test\n"))
+	require.NoError(t, err)
 }
 
 func TestParse(t *testing.T) {
@@ -57,10 +64,10 @@ func TestParse(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 	for l := Level(0); l < Off; l++ {
-		t.Log(Prefix(l, testSrc).String())
+		fmt.Println(Prefix(l, testSrc).String())
 	}
 	// unknown level
-	t.Log(Prefix(Level(153), testSrc).String())
+	fmt.Println(Prefix(Level(153), testSrc).String())
 }
 
 func TestWrap(t *testing.T) {
@@ -71,7 +78,7 @@ func TestWrap(t *testing.T) {
 func TestConn(t *testing.T) {
 	conn, err := net.Dial("tcp", "ds.vm0.test-ipv6.com:80")
 	require.NoError(t, err)
-	t.Log(Conn(conn))
+	fmt.Println(Conn(conn))
 	_ = conn.Close()
 }
 

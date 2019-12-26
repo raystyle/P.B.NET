@@ -46,21 +46,24 @@ var (
 type test struct{}
 
 func (t test) Printf(l Level, src, format string, log ...interface{}) {
-	b := Prefix(l, src)
-	_, _ = fmt.Fprintf(b, format, log...)
-	fmt.Println(b.String())
+	out := bytes.NewBuffer([]byte("[Test] "))
+	_, _ = io.Copy(out, Prefix(l, src))
+	_, _ = fmt.Fprintf(out, format, log...)
+	fmt.Println(out)
 }
 
 func (t test) Print(l Level, src string, log ...interface{}) {
-	b := Prefix(l, src)
-	_, _ = fmt.Fprint(b, log...)
-	fmt.Println(b.String())
+	out := bytes.NewBuffer([]byte("[Test] "))
+	_, _ = io.Copy(out, Prefix(l, src))
+	_, _ = fmt.Fprint(out, log...)
+	fmt.Println(out)
 }
 
 func (t test) Println(l Level, src string, log ...interface{}) {
-	b := Prefix(l, src)
-	_, _ = fmt.Fprintln(b, log...)
-	fmt.Print(b.String())
+	out := bytes.NewBuffer([]byte("[Test] "))
+	_, _ = io.Copy(out, Prefix(l, src))
+	_, _ = fmt.Fprintln(out, log...)
+	fmt.Print(out)
 }
 
 type discard struct{}
@@ -70,6 +73,26 @@ func (d discard) Printf(_ Level, _, _ string, _ ...interface{}) {}
 func (d discard) Print(_ Level, _ string, _ ...interface{}) {}
 
 func (d discard) Println(_ Level, _ string, _ ...interface{}) {}
+
+type pWriter struct {
+	w      io.Writer
+	prefix []byte
+}
+
+func (p pWriter) Write(b []byte) (n int, err error) {
+	n = len(b)
+	_, err = p.w.Write(append(p.prefix, b...))
+	return
+}
+
+// NewWriterWithPrefix is used to print prefix before each log
+// it used for role test
+func NewWriterWithPrefix(w io.Writer, prefix string) io.Writer {
+	return pWriter{
+		w:      w,
+		prefix: []byte(fmt.Sprintf("[%s] ", prefix)),
+	}
+}
 
 // Parse is used to parse logger level from string
 func Parse(level string) (Level, error) {
@@ -100,7 +123,7 @@ func Parse(level string) (Level, error) {
 // time + level + source + log
 // source usually like class name + "-" + instance tag
 //
-// [2006-01-02 15:04:05] [info] <ctrl> start http proxy server
+// [2018-11-27 00:00:00] [info] <main> controller is running
 func Prefix(l Level, src string) *bytes.Buffer {
 	lv := ""
 	switch l {
@@ -152,10 +175,11 @@ func Wrap(l Level, src string, logger Logger) *log.Logger {
 }
 
 // Conn is used to print connection info
-// local tcp 127.0.0.1:123 <-> remote tcp 127.0.0.1:124
+// local:  tcp 127.0.0.1:123
+// remote: tcp 127.0.0.1:124
 func Conn(conn net.Conn) *bytes.Buffer {
 	b := bytes.Buffer{}
-	_, _ = fmt.Fprintf(&b, "local %s %s <-> remote %s %s ",
+	_, _ = fmt.Fprintf(&b, "local:  %s %s\nremote: %s %s ",
 		conn.LocalAddr().Network(), conn.LocalAddr(),
 		conn.RemoteAddr().Network(), conn.RemoteAddr())
 	return &b
@@ -172,7 +196,6 @@ const (
 // HTTPRequest is used to print http.Request
 //
 // client: 127.0.0.1:1234
-//
 // POST /index HTTP/1.1
 // Host: github.com
 // Accept: text/html
