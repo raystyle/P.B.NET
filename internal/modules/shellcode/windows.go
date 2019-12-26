@@ -47,31 +47,15 @@ func initFindProcVirtualProtect() {
 	}
 
 	procMap := [5]*struct {
-		proc **syscall.Proc
 		name string
+		proc **syscall.Proc
 	}{
-		{
-			&vpVirtualAlloc,
-			"VirtualAlloc",
-		},
-		{
-			&vpVirtualProtect,
-			"VirtualProtect",
-		},
-		{
-			&vpCreateThread,
-			"CreateThread",
-		},
-		{
-			&vpWaitForSingleObject,
-			"WaitForSingleObject",
-		},
-		{
-			&vpVirtualFree,
-			"VirtualFree",
-		},
+		{"VirtualAlloc", &vpVirtualAlloc},
+		{"VirtualProtect", &vpVirtualProtect},
+		{"CreateThread", &vpCreateThread},
+		{"WaitForSingleObject", &vpWaitForSingleObject},
+		{"VirtualFree", &vpVirtualFree},
 	}
-
 	for i := 0; i < 5; i++ {
 		schedule()
 		proc, err := kernel32.FindProc(procMap[i].name)
@@ -191,27 +175,14 @@ func initFindProcThread() {
 	}
 
 	procMap := [4]*struct {
-		proc **syscall.Proc
 		name string
+		proc **syscall.Proc
 	}{
-		{
-			&tVirtualAlloc,
-			"VirtualAlloc",
-		},
-		{
-			&tCreateThread,
-			"CreateThread",
-		},
-		{
-			&tWaitForSingleObject,
-			"WaitForSingleObject",
-		},
-		{
-			&tVirtualFree,
-			"VirtualFree",
-		},
+		{"VirtualAlloc", &tVirtualAlloc},
+		{"CreateThread", &tCreateThread},
+		{"WaitForSingleObject", &tWaitForSingleObject},
+		{"VirtualFree", &tVirtualFree},
 	}
-
 	for i := 0; i < 4; i++ {
 		schedule()
 		proc, err := kernel32.FindProc(procMap[i].name)

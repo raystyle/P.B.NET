@@ -7,7 +7,6 @@ import (
 	"log"
 
 	"project/internal/crypto/aes"
-
 	"project/internal/modules/shellcode"
 )
 
