@@ -113,12 +113,13 @@ func (c *Conn) Status() *Status {
 }
 
 // String is used to get connection info
-// local tcp 127.0.0.1:123 <-> remote tcp 127.0.0.1:124
-// sent: 123 Byte received: 1.101 KB
+// local:  tcp 127.0.0.1:123
+// remote: tcp 127.0.0.1:124
+// sent:   123 Byte received: 1.101 KB
 // connect time: 2006-01-02 15:04:05
 func (c *Conn) String() string {
-	const format = "local %s %s <-> remote %s %s\n" +
-		"sent: %s received: %s\n" +
+	const format = "local:  %s %s\nremote: %s %s\n" +
+		"sent:   %s received: %s\n" +
 		"connect time: %s"
 	s := c.Status()
 	return fmt.Sprintf(format,
