@@ -111,17 +111,16 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 
 // <warning> must < 1048576
 const (
-	_ uint32 = iota
-
-	objCtrlPublicKey  // verify controller role & message
-	objCtrlAESCrypto  // decrypt controller broadcast message
-	objCtrlSessionKey // after key exchange (aes crypto)
+	objCtrlPublicKey  uint32 = iota // verify controller role & message
+	objCtrlAESCrypto                // decrypt controller broadcast message
+	objCtrlSessionKey               // after key exchange (aes crypto)
 
 	objStartupTime // global.configure() time
 	objNodeGUID    // identification
 	objDBAESCrypto // encrypt self data(database)
-	objCertificate // for server.handshake
-	objPrivateKey  // for sign message
+
+	objCertificate // for server.handshake need protect
+	objPrivateKey  // for sign message need protect
 	objPublicKey   // for role verify message
 	objKeyExPub    // for key exchange
 )

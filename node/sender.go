@@ -55,7 +55,7 @@ type sender struct {
 
 	guid *guid.Generator
 
-	closing    int32
+	inClose    int32
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
@@ -112,13 +112,13 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	return sender, nil
 }
 
-func (sender *sender) isClosing() bool {
-	return atomic.LoadInt32(&sender.closing) != 0
+func (sender *sender) isClosed() bool {
+	return atomic.LoadInt32(&sender.inClose) != 0
 }
 
 // Send is used to send message to Controller
 func (sender *sender) Send(cmd []byte, msg interface{}) error {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return ErrSenderClosed
 	}
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
@@ -142,7 +142,7 @@ func (sender *sender) Send(cmd []byte, msg interface{}) error {
 // SendFromPlugin is used to provide a interface
 // for plugins to send message to Controller
 func (sender *sender) SendFromPlugin(message []byte) error {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return ErrSenderClosed
 	}
 	done := sender.sendDonePool.Get().(chan *protocol.SendResult)
@@ -165,7 +165,7 @@ func (sender *sender) SendFromPlugin(message []byte) error {
 // Acknowledge is used to acknowledge controller that
 // node has received this message
 func (sender *sender) Acknowledge(send *protocol.Send) {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return
 	}
 	at := sender.ackTaskPool.Get().([]byte)
@@ -198,7 +198,7 @@ func (sender *sender) createAckSlot(send string) (<-chan struct{}, func()) {
 }
 
 func (sender *sender) Close() {
-	atomic.StoreInt32(&sender.closing, 1)
+	atomic.StoreInt32(&sender.inClose, 1)
 	close(sender.stopSignal)
 	sender.wg.Wait()
 	sender.guid.Close()

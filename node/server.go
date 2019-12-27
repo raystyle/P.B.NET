@@ -2,6 +2,7 @@ package node
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 	"golang.org/x/net/netutil"
@@ -401,12 +403,12 @@ func (s *server) handshake(tag string, conn net.Conn) {
 	}
 	role := protocol.Role(r[0])
 	switch role {
-	case protocol.Beacon:
-		s.handleBeacon(connTag, xConn)
-	case protocol.Node:
-		s.handleNode(connTag, xConn)
 	case protocol.Ctrl:
 		s.handleCtrl(connTag, xConn)
+	case protocol.Node:
+		s.handleNode(connTag, xConn)
+	case protocol.Beacon:
+		s.handleBeacon(connTag, xConn)
 	default:
 		s.logConn(xConn, logger.Exploit, role)
 	}
@@ -450,18 +452,36 @@ func (s *server) sendCertificate(conn *xnet.Conn) bool {
 	return true
 }
 
-func (s *server) handleBeacon(tag string, conn *xnet.Conn) {
-	beaconGUID, err := conn.Receive()
+func (s *server) handleCtrl(tag string, conn *xnet.Conn) {
+	// <danger>
+	// send random challenge code(length 2048-4096)
+	// len(challenge) must > len(GUID + Mode + Network + Address)
+	// because maybe fake node will send some special data
+	// and controller sign it
+	challenge := s.rand.Bytes(2048 + s.rand.Int(2048))
+	err := conn.Send(challenge)
 	if err != nil {
-		s.logConn(conn, logger.Error, "failed to receive beacon guid:", err)
+		s.logConn(conn, logger.Error, "failed to send challenge to controller:", err)
 		return
 	}
-	if len(beaconGUID) != guid.Size {
-		s.logConn(conn, logger.Exploit, "invalid beacon guid size")
+	// receive signature
+	signature, err := conn.Receive()
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to receive controller signature:", err)
 		return
 	}
-
-	s.serveBeacon(tag, beaconGUID, newConn(s.ctx.logger, conn, connUsageServeBeacon))
+	// verify signature
+	if !s.ctx.global.CtrlVerify(challenge, signature) {
+		s.logConn(conn, logger.Exploit, "invalid controller signature")
+		return
+	}
+	// send succeed response
+	err = conn.Send(protocol.AuthSucceed)
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to send response to controller:", err)
+		return
+	}
+	s.serveCtrl(tag, conn)
 }
 
 func (s *server) handleNode(tag string, conn *xnet.Conn) {
@@ -490,7 +510,7 @@ func (s *server) handleNode(tag string, conn *xnet.Conn) {
 		if !s.verifyNode(conn, nodeGUID) {
 			return
 		}
-		s.serveNode(tag, nodeGUID, newConn(s.ctx.logger, conn, connUsageServeNode))
+		s.serveNode(tag, nodeGUID, conn)
 	default:
 		s.logfConn(conn, logger.Exploit, "unknown node operation %d", operation[0])
 	}
@@ -528,34 +548,510 @@ func (s *server) verifyNode(conn *xnet.Conn, guid []byte) bool {
 	return true
 }
 
-func (s *server) handleCtrl(tag string, conn *xnet.Conn) {
-	// <danger>
-	// send random challenge code(length 2048-4096)
-	// len(challenge) must > len(GUID + Mode + Network + Address)
-	// because maybe fake node will send some special data
-	// and controller sign it
-	challenge := s.rand.Bytes(2048 + s.rand.Int(2048))
-	err := conn.Send(challenge)
+func (s *server) handleBeacon(tag string, conn *xnet.Conn) {
+	beaconGUID, err := conn.Receive()
 	if err != nil {
-		s.logConn(conn, logger.Error, "failed to send challenge to controller:", err)
+		s.logConn(conn, logger.Error, "failed to receive beacon guid:", err)
 		return
 	}
-	// receive signature
-	signature, err := conn.Receive()
+	if len(beaconGUID) != guid.Size {
+		s.logConn(conn, logger.Exploit, "invalid beacon guid size")
+		return
+	}
+
+	s.serveBeacon(tag, beaconGUID, conn)
+}
+
+// ---------------------------------------serve controller-----------------------------------------
+
+type ctrlConn struct {
+	ctx *Node
+
+	tag  string
+	Conn *conn
+
+	inSync int32
+	syncM  sync.Mutex
+}
+
+func (s *server) serveCtrl(tag string, conn *xnet.Conn) {
+	cc := ctrlConn{
+		ctx:  s.ctx,
+		tag:  tag,
+		Conn: newConn(s.ctx, conn, protocol.CtrlGUID, connUsageServeCtrl),
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			cc.Conn.Log(logger.Exploit, xpanic.Error(r, "server.serveCtrl"))
+		}
+		cc.Close()
+		if cc.isSync() {
+			s.ctx.forwarder.LogoffCtrl(tag)
+		}
+		s.deleteCtrlConn(tag)
+		cc.Conn.Log(logger.Debug, "controller disconnected")
+	}()
+	s.addCtrlConn(tag, &cc)
+	cc.Conn.Log(logger.Debug, "controller connected")
+	protocol.HandleConn(conn, cc.onFrame)
+}
+
+func (ctrl *ctrlConn) isSync() bool {
+	return atomic.LoadInt32(&ctrl.inSync) != 0
+}
+
+func (ctrl *ctrlConn) onFrame(frame []byte) {
+	if ctrl.Conn.onFrame(frame) {
+		return
+	}
+	if frame[0] == protocol.ConnSendHeartbeat {
+		ctrl.Conn.HandleHeartbeat()
+		return
+	}
+	if ctrl.isSync() {
+		if ctrl.onFrameAfterSync(frame) {
+			return
+		}
+	} else {
+		if ctrl.onFrameBeforeSync(frame) {
+			return
+		}
+	}
+	const format = "unknown command: %d\nframe:\n%s"
+	ctrl.Conn.Logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
+	ctrl.Close()
+}
+
+func (ctrl *ctrlConn) onFrameBeforeSync(frame []byte) bool {
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
+	switch frame[0] {
+	case protocol.CtrlSync:
+		ctrl.handleSyncStart(id)
+	case protocol.CtrlTrustNode:
+		ctrl.handleTrustNode(id)
+	case protocol.CtrlSetNodeCert:
+		ctrl.handleSetCertificate(id, data)
+	default:
+		return false
+	}
+	return true
+}
+
+func (ctrl *ctrlConn) onFrameAfterSync(frame []byte) bool {
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
+	switch frame[0] {
+	case protocol.CtrlSendToNodeGUID:
+		ctrl.Conn.HandleSendToNodeGUID(id, data)
+	case protocol.CtrlSendToNode:
+		ctrl.Conn.HandleSendToNode(id, data)
+	case protocol.CtrlAckToNodeGUID:
+		ctrl.Conn.HandleAckToNodeGUID(id, data)
+	case protocol.CtrlAckToNode:
+		ctrl.Conn.HandleAckToNode(id, data)
+	case protocol.CtrlSendToBeaconGUID:
+		ctrl.Conn.HandleSendToBeaconGUID(id, data)
+	case protocol.CtrlSendToBeacon:
+		ctrl.Conn.HandleSendToBeacon(id, data)
+	case protocol.CtrlAckToBeaconGUID:
+		ctrl.Conn.HandleAckToBeaconGUID(id, data)
+	case protocol.CtrlAckToBeacon:
+		ctrl.Conn.HandleAckToBeacon(id, data)
+	case protocol.CtrlBroadcastGUID:
+		ctrl.Conn.HandleBroadcastGUID(id, data)
+	case protocol.CtrlBroadcast:
+		ctrl.Conn.HandleBroadcast(id, data)
+	case protocol.CtrlAnswerGUID:
+		ctrl.Conn.HandleAnswerGUID(id, data)
+	case protocol.CtrlAnswer:
+		ctrl.Conn.HandleAnswer(id, data)
+	default:
+		return false
+	}
+	return true
+}
+
+func (ctrl *ctrlConn) handleSyncStart(id []byte) {
+	ctrl.syncM.Lock()
+	defer ctrl.syncM.Unlock()
+	if ctrl.isSync() {
+		return
+	}
+	ctrl.Conn.SendPool.New = func() interface{} {
+		return &protocol.Send{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			Message:   make([]byte, aes.BlockSize),
+			Hash:      make([]byte, sha256.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	ctrl.Conn.AckPool.New = func() interface{} {
+		return &protocol.Acknowledge{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			SendGUID:  make([]byte, guid.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	ctrl.Conn.AnswerPool.New = func() interface{} {
+		return &protocol.Answer{
+			GUID:       make([]byte, guid.Size),
+			BeaconGUID: make([]byte, guid.Size),
+			Message:    make([]byte, aes.BlockSize),
+			Hash:       make([]byte, sha256.Size),
+			Signature:  make([]byte, ed25519.SignatureSize),
+		}
+	}
+	err := ctrl.ctx.forwarder.RegisterCtrl(ctrl.tag, ctrl)
 	if err != nil {
-		s.logConn(conn, logger.Error, "failed to receive controller signature:", err)
+		ctrl.Conn.Reply(id, []byte(err.Error()))
+		ctrl.Close()
+	} else {
+		atomic.StoreInt32(&ctrl.inSync, 1)
+		ctrl.Conn.Reply(id, []byte{protocol.NodeSync})
+		ctrl.Conn.Log(logger.Debug, "synchronizing")
+	}
+}
+
+func (ctrl *ctrlConn) handleTrustNode(id []byte) {
+	ctrl.Conn.Reply(id, ctrl.ctx.packRegisterRequest())
+}
+
+func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
+	err := ctrl.ctx.global.SetCertificate(data)
+	if err == nil {
+		ctrl.Conn.Reply(id, []byte{messages.RegisterResultAccept})
+		ctrl.Conn.Log(logger.Debug, "trust node")
+	} else {
+		ctrl.Conn.Reply(id, []byte(err.Error()))
+	}
+}
+
+func (ctrl *ctrlConn) Close() {
+	_ = ctrl.Conn.Close()
+}
+
+// ------------------------------------------serve node--------------------------------------------
+
+type nodeConn struct {
+	ctx *Node
+
+	tag  string
+	guid []byte
+	Conn *conn
+
+	inSync int32
+	syncM  sync.Mutex
+}
+
+func (s *server) serveNode(tag string, nodeGUID []byte, conn *xnet.Conn) {
+	nc := nodeConn{
+		ctx:  s.ctx,
+		tag:  tag,
+		guid: nodeGUID,
+		Conn: newConn(s.ctx, conn, nodeGUID, connUsageServeNode),
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			nc.Conn.Log(logger.Exploit, xpanic.Error(r, "server.serveNode"))
+		}
+		nc.Close()
+		if nc.isSync() {
+			s.ctx.forwarder.LogoffNode(tag)
+		}
+		s.deleteNodeConn(tag)
+		nc.Conn.Logf(logger.Debug, "node %X disconnected", nodeGUID)
+	}()
+	s.addNodeConn(tag, &nc)
+	_ = conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
+	nc.Conn.Logf(logger.Debug, "node %X connected", nodeGUID)
+	protocol.HandleConn(conn, nc.onFrame)
+}
+
+func (node *nodeConn) isSync() bool {
+	return atomic.LoadInt32(&node.inSync) != 0
+}
+
+func (node *nodeConn) onFrame(frame []byte) {
+	if node.Conn.onFrame(frame) {
 		return
 	}
-	// verify signature
-	if !s.ctx.global.CtrlVerify(challenge, signature) {
-		s.logConn(conn, logger.Exploit, "invalid controller signature")
+	if frame[0] == protocol.ConnSendHeartbeat {
+		node.Conn.HandleHeartbeat()
 		return
 	}
-	// send succeed response
-	err = conn.Send(protocol.AuthSucceed)
+	if node.isSync() {
+		if node.onFrameAfterSync(frame) {
+			return
+		}
+	} else {
+		if node.onFrameBeforeSync(frame) {
+			return
+		}
+	}
+	const format = "unknown command: %d\nframe:\n%s"
+	node.Conn.Logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
+	node.Close()
+}
+
+func (node *nodeConn) onFrameBeforeSync(frame []byte) bool {
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	switch frame[0] {
+	case protocol.NodeSync:
+		node.handleSyncStart(id)
+	default:
+		return false
+	}
+	return true
+}
+
+func (node *nodeConn) onFrameAfterSync(frame []byte) bool {
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
+	switch frame[0] {
+	case protocol.CtrlSendToNodeGUID:
+		node.Conn.HandleSendToNodeGUID(id, data)
+	case protocol.CtrlSendToNode:
+		node.Conn.HandleSendToNode(id, data)
+	case protocol.CtrlAckToNodeGUID:
+		node.Conn.HandleAckToNodeGUID(id, data)
+	case protocol.CtrlAckToNode:
+		node.Conn.HandleAckToNode(id, data)
+	case protocol.CtrlSendToBeaconGUID:
+		node.Conn.HandleSendToBeaconGUID(id, data)
+	case protocol.CtrlSendToBeacon:
+		node.Conn.HandleSendToBeacon(id, data)
+	case protocol.CtrlAckToBeaconGUID:
+		node.Conn.HandleAckToBeaconGUID(id, data)
+	case protocol.CtrlAckToBeacon:
+		node.Conn.HandleAckToBeacon(id, data)
+	case protocol.CtrlBroadcastGUID:
+		node.Conn.HandleBroadcastGUID(id, data)
+	case protocol.CtrlBroadcast:
+		node.Conn.HandleBroadcast(id, data)
+	case protocol.CtrlAnswerGUID:
+		node.Conn.HandleAnswerGUID(id, data)
+	case protocol.CtrlAnswer:
+		node.Conn.HandleAnswer(id, data)
+	case protocol.NodeSendGUID:
+		node.Conn.HandleNodeSendGUID(id, data)
+	case protocol.NodeSend:
+		node.Conn.HandleNodeSend(id, data)
+	case protocol.NodeAckGUID:
+		node.Conn.HandleNodeAckGUID(id, data)
+	case protocol.NodeAck:
+		node.Conn.HandleNodeAck(id, data)
+	case protocol.BeaconSendGUID:
+		node.Conn.HandleBeaconSendGUID(id, data)
+	case protocol.BeaconSend:
+		node.Conn.HandleBeaconSend(id, data)
+	case protocol.BeaconAckGUID:
+		node.Conn.HandleBeaconAckGUID(id, data)
+	case protocol.BeaconAck:
+		node.Conn.HandleBeaconAck(id, data)
+	case protocol.BeaconQueryGUID:
+		node.Conn.HandleBeaconQueryGUID(id, data)
+	case protocol.BeaconQuery:
+		node.Conn.HandleBeaconQuery(id, data)
+	default:
+		return false
+	}
+	return true
+}
+
+func (node *nodeConn) handleSyncStart(id []byte) {
+	node.syncM.Lock()
+	defer node.syncM.Unlock()
+	if node.isSync() {
+		return
+	}
+	node.Conn.SendPool.New = func() interface{} {
+		return &protocol.Send{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			Message:   make([]byte, aes.BlockSize),
+			Hash:      make([]byte, sha256.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	node.Conn.AckPool.New = func() interface{} {
+		return &protocol.Acknowledge{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			SendGUID:  make([]byte, guid.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	node.Conn.AnswerPool.New = func() interface{} {
+		return &protocol.Answer{
+			GUID:       make([]byte, guid.Size),
+			BeaconGUID: make([]byte, guid.Size),
+			Message:    make([]byte, aes.BlockSize),
+			Hash:       make([]byte, sha256.Size),
+			Signature:  make([]byte, ed25519.SignatureSize),
+		}
+	}
+	node.Conn.QueryPool.New = func() interface{} {
+		return &protocol.Query{
+			GUID:       make([]byte, guid.Size),
+			BeaconGUID: make([]byte, guid.Size),
+			Signature:  make([]byte, ed25519.SignatureSize),
+		}
+	}
+	err := node.ctx.forwarder.RegisterNode(node.tag, node)
 	if err != nil {
-		s.logConn(conn, logger.Error, "failed to send response to controller:", err)
+		node.Conn.Reply(id, []byte(err.Error()))
+		node.Close()
+	} else {
+		atomic.StoreInt32(&node.inSync, 1)
+		node.Conn.Reply(id, []byte{protocol.NodeSync})
+		node.Conn.Log(logger.Debug, "synchronizing")
+	}
+}
+
+func (node *nodeConn) Close() {
+	_ = node.Conn.Close()
+}
+
+// -----------------------------------------serve beacon-------------------------------------------
+
+type beaconConn struct {
+	ctx *Node
+
+	tag  string
+	guid []byte // beacon guid
+	Conn *conn
+
+	inSync int32
+	syncM  sync.Mutex
+}
+
+func (s *server) serveBeacon(tag string, beaconGUID []byte, conn *xnet.Conn) {
+	bc := beaconConn{
+		ctx:  s.ctx,
+		tag:  tag,
+		guid: beaconGUID,
+		Conn: newConn(s.ctx, conn, beaconGUID, connUsageServeBeacon),
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			bc.Conn.Log(logger.Exploit, xpanic.Error(r, "server.serveNode"))
+		}
+		bc.Close()
+		if bc.isSync() {
+			s.ctx.forwarder.LogoffBeacon(tag)
+		}
+		s.deleteBeaconConn(tag)
+		bc.Conn.Logf(logger.Debug, "beacon %X disconnected", beaconGUID)
+	}()
+	s.addBeaconConn(tag, &bc)
+	_ = conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
+	bc.Conn.Logf(logger.Debug, "beacon %X connected", beaconGUID)
+	protocol.HandleConn(conn, bc.onFrame)
+}
+
+func (beacon *beaconConn) isSync() bool {
+	return atomic.LoadInt32(&beacon.inSync) != 0
+}
+
+func (beacon *beaconConn) onFrame(frame []byte) {
+	if beacon.Conn.onFrame(frame) {
 		return
 	}
-	s.serveCtrl(tag, newConn(s.ctx.logger, conn, connUsageServeCtrl))
+	if frame[0] == protocol.ConnSendHeartbeat {
+		beacon.Conn.HandleHeartbeat()
+		return
+	}
+	if beacon.isSync() {
+		if beacon.onFrameAfterSync(frame) {
+			return
+		}
+	} else {
+		if beacon.onFrameBeforeSync(frame) {
+			return
+		}
+	}
+	const format = "unknown command: %d\nframe:\n%s"
+	beacon.Conn.Logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
+	beacon.Close()
+}
+
+func (beacon *beaconConn) onFrameBeforeSync(frame []byte) bool {
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	switch frame[0] {
+	case protocol.NodeSync:
+		beacon.handleSyncStart(id)
+	default:
+		return false
+	}
+	return true
+}
+
+func (beacon *beaconConn) onFrameAfterSync(frame []byte) bool {
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
+	switch frame[0] {
+	case protocol.BeaconSendGUID:
+		beacon.Conn.HandleBeaconSendGUID(id, data)
+	case protocol.BeaconSend:
+		beacon.Conn.HandleBeaconSend(id, data)
+	case protocol.BeaconAckGUID:
+		beacon.Conn.HandleBeaconAckGUID(id, data)
+	case protocol.BeaconAck:
+		beacon.Conn.HandleBeaconAck(id, data)
+	case protocol.BeaconQueryGUID:
+		beacon.Conn.HandleBeaconQueryGUID(id, data)
+	case protocol.BeaconQuery:
+		beacon.Conn.HandleBeaconQuery(id, data)
+	default:
+		return false
+	}
+	return true
+}
+
+func (beacon *beaconConn) handleSyncStart(id []byte) {
+	beacon.syncM.Lock()
+	defer beacon.syncM.Unlock()
+	if beacon.isSync() {
+		return
+	}
+	beacon.Conn.SendPool.New = func() interface{} {
+		return &protocol.Send{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			Message:   make([]byte, aes.BlockSize),
+			Hash:      make([]byte, sha256.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	beacon.Conn.AckPool.New = func() interface{} {
+		return &protocol.Acknowledge{
+			GUID:      make([]byte, guid.Size),
+			RoleGUID:  make([]byte, guid.Size),
+			SendGUID:  make([]byte, guid.Size),
+			Signature: make([]byte, ed25519.SignatureSize),
+		}
+	}
+	beacon.Conn.QueryPool.New = func() interface{} {
+		return &protocol.Query{
+			GUID:       make([]byte, guid.Size),
+			BeaconGUID: make([]byte, guid.Size),
+			Signature:  make([]byte, ed25519.SignatureSize),
+		}
+	}
+	err := beacon.ctx.forwarder.RegisterBeacon(beacon.tag, beacon)
+	if err != nil {
+		beacon.Conn.Reply(id, []byte(err.Error()))
+		beacon.Close()
+	} else {
+		atomic.StoreInt32(&beacon.inSync, 1)
+		beacon.Conn.Reply(id, []byte{protocol.NodeSync})
+		beacon.Conn.Log(logger.Debug, "synchronizing")
+	}
+}
+
+func (beacon *beaconConn) Close() {
+	_ = beacon.Conn.Close()
 }

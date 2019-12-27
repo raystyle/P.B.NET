@@ -102,14 +102,6 @@ func (f *forwarder) RegisterCtrl(tag string, conn *ctrlConn) error {
 	return nil
 }
 
-func (f *forwarder) LogoffCtrl(tag string) {
-	f.ctrlConnsRWM.Lock()
-	defer f.ctrlConnsRWM.Unlock()
-	if _, ok := f.ctrlConns[tag]; ok {
-		delete(f.ctrlConns, tag)
-	}
-}
-
 func (f *forwarder) RegisterNode(tag string, conn *nodeConn) error {
 	f.nodeConnsRWM.Lock()
 	defer f.nodeConnsRWM.Unlock()
@@ -122,14 +114,6 @@ func (f *forwarder) RegisterNode(tag string, conn *nodeConn) error {
 	return nil
 }
 
-func (f *forwarder) LogoffNode(tag string) {
-	f.nodeConnsRWM.Lock()
-	defer f.nodeConnsRWM.Unlock()
-	if _, ok := f.nodeConns[tag]; ok {
-		delete(f.nodeConns, tag)
-	}
-}
-
 func (f *forwarder) RegisterBeacon(tag string, conn *beaconConn) error {
 	f.beaconConnsRWM.Lock()
 	defer f.beaconConnsRWM.Unlock()
@@ -140,6 +124,22 @@ func (f *forwarder) RegisterBeacon(tag string, conn *beaconConn) error {
 		f.beaconConns[tag] = conn
 	}
 	return nil
+}
+
+func (f *forwarder) LogoffCtrl(tag string) {
+	f.ctrlConnsRWM.Lock()
+	defer f.ctrlConnsRWM.Unlock()
+	if _, ok := f.ctrlConns[tag]; ok {
+		delete(f.ctrlConns, tag)
+	}
+}
+
+func (f *forwarder) LogoffNode(tag string) {
+	f.nodeConnsRWM.Lock()
+	defer f.nodeConnsRWM.Unlock()
+	if _, ok := f.nodeConns[tag]; ok {
+		delete(f.nodeConns, tag)
+	}
 }
 
 func (f *forwarder) LogoffBeacon(tag string) {
@@ -181,12 +181,7 @@ func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
 }
 
 func (f *forwarder) log(l logger.Level, log ...interface{}) {
-	f.ctx.logger.Print(l, "sender", log...)
-}
-
-type fConn interface {
-	Send(guid, message []byte) (sr *protocol.SendResponse)
-	Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeResponse)
+	f.ctx.logger.Print(l, "forwarder", log...)
 }
 
 func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
@@ -194,7 +189,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	var (
-		conns map[string]fConn
+		conns map[string]*conn
 		l     int
 	)
 	if except != "" {
@@ -205,28 +200,28 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
 	if l < 1 {
 		return nil, 0
 	}
-	conns = make(map[string]fConn, l)
+	conns = make(map[string]*conn, l)
 	for tag, conn := range ctrlConns {
 		if tag != except {
-			conns[tag] = conn
+			conns[tag] = conn.Conn
 		}
 	}
 	for tag, conn := range nodeConns {
 		if tag != except {
-			conns[tag] = conn
+			conns[tag] = conn.Conn
 		}
 	}
 	resp := make(chan *protocol.SendResponse, l)
-	for _, conn := range conns {
-		go func(c fConn) {
+	for _, c := range conns {
+		go func(c *conn) {
 			defer func() {
 				if r := recover(); r != nil {
-					err := xpanic.Error(r, "forwarder.SendToNodeAndCtrl")
-					f.log(logger.Fatal, err)
+					b := xpanic.Print(r, "forwarder.SendToNodeAndCtrl")
+					f.log(logger.Fatal, b)
 				}
 			}()
 			resp <- c.Send(guid, data)
-		}(conn)
+		}(c)
 	}
 	var success int
 	response := make([]*protocol.SendResponse, l)
@@ -245,7 +240,7 @@ func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) (
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	var (
-		conns map[string]fConn
+		conns map[string]*conn
 		l     int
 	)
 	if except != "" {
@@ -256,28 +251,28 @@ func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) (
 	if l < 1 {
 		return nil, 0
 	}
-	conns = make(map[string]fConn, l)
+	conns = make(map[string]*conn, l)
 	for tag, conn := range ctrlConns {
 		if tag != except {
-			conns[tag] = conn
+			conns[tag] = conn.Conn
 		}
 	}
 	for tag, conn := range nodeConns {
 		if tag != except {
-			conns[tag] = conn
+			conns[tag] = conn.Conn
 		}
 	}
 	resp := make(chan *protocol.AcknowledgeResponse, l)
-	for _, conn := range conns {
-		go func(c fConn) {
+	for _, c := range conns {
+		go func(c *conn) {
 			defer func() {
 				if r := recover(); r != nil {
-					err := xpanic.Error(r, "forwarder.AckToNodeAndCtrl")
-					f.log(logger.Fatal, err)
+					b := xpanic.Print(r, "forwarder.AckToNodeAndCtrl")
+					f.log(logger.Fatal, b)
 				}
 			}()
 			resp <- c.Acknowledge(guid, data)
-		}(conn)
+		}(c)
 	}
 	var success int
 	response := make([]*protocol.AcknowledgeResponse, l)

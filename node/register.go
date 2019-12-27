@@ -78,7 +78,7 @@ func (client *client) Register() error {
 		return errors.Wrap(err, "failed to send operation")
 	}
 	// send register request
-	err = conn.SendRaw(client.ctx.packRegisterRequest())
+	err = conn.SendMessage(client.ctx.packRegisterRequest())
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}
@@ -99,7 +99,7 @@ func (client *client) Register() error {
 		return errors.WithStack(messages.ErrRegisterTimeout)
 	default:
 		err = errors.WithMessagef(messages.ErrRegisterUnknownResult, "%d", result[0])
-		client.log(logger.Exploit, err)
+		client.conn.Log(logger.Exploit, err)
 		return err
 	}
 }
