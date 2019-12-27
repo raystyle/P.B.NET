@@ -13,6 +13,7 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
+	"project/internal/logger"
 	"project/testdata"
 )
 
@@ -22,7 +23,7 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Debug.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = "debug"
-	cfg.Logger.Writer = os.Stdout
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
 	cfg.Global.TimeSyncSleepFixed = 15

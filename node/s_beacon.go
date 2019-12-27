@@ -25,7 +25,7 @@ type beaconConn struct {
 	ctx *Node
 
 	tag  string
-	guid []byte
+	guid []byte // beacon guid
 	conn *conn
 
 	heartbeat bytes.Buffer

@@ -119,18 +119,38 @@ func newClient(
 	return &client, nil
 }
 
-// TODO guid
+// [2019-12-26 21:44:17] [info] <client> disconnected
+// ----------------connected node guid-----------------
+// F50B876BE94437E2E678C5EB84627230C599B847BED5B00D5390
+// C38C4E155C0DD0305F7A000000005E04B92C00000000000003D5
+// -----------------connection status------------------
+// local:  tcp 127.0.0.1:2035
+// remote: tcp 127.0.0.1:2032
+// sent:   5.656 MB received: 5.379 MB
+// connect time: 2019-12-26 21:44:13
+// ----------------------------------------------------
 func (client *client) log(l logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(b, log...)
-	_, _ = fmt.Fprint(b, "\n", client.conn)
-	client.ctx.logger.Print(l, "client", b)
+	client.logExtra(l, b)
 }
 
 func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n\n", client.conn)
+	_, _ = fmt.Fprint(b, "\n")
+	client.logExtra(l, b)
+}
+
+func (client *client) logExtra(l logger.Level, b *bytes.Buffer) {
+	if client.guid != nil {
+		const format = "----------------connected node guid-----------------\n%X\n%X\n"
+		_, _ = fmt.Fprintf(b, format, client.guid[:guid.Size/2], client.guid[guid.Size/2:])
+	}
+	const breakLine = "-----------------connection status------------------\n"
+	_, _ = fmt.Fprintln(b, breakLine, client.conn)
+	const paddingLine = "----------------------------------------------------"
+	_, _ = fmt.Fprint(b, paddingLine)
 	client.ctx.logger.Print(l, "client", b)
 }
 
@@ -410,7 +430,7 @@ func (client *client) Sync() error {
 
 func (client *client) handleSendToNodeGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid ctrl send to node guid size")
+		client.log(logger.Exploit, "invalid send to node guid size")
 		client.conn.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
@@ -426,7 +446,7 @@ func (client *client) handleSendToNodeGUID(id, data []byte) {
 
 func (client *client) handleSendToBeaconGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid ctrl send to beacon guid size")
+		client.log(logger.Exploit, "invalid send to beacon guid size")
 		client.conn.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
@@ -442,7 +462,7 @@ func (client *client) handleSendToBeaconGUID(id, data []byte) {
 
 func (client *client) handleAckToNodeGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid ctrl ack to node guid size")
+		client.log(logger.Exploit, "invalid ack to node guid size")
 		client.conn.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
@@ -458,7 +478,7 @@ func (client *client) handleAckToNodeGUID(id, data []byte) {
 
 func (client *client) handleAckToBeaconGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid ctrl ack to beacon guid size")
+		client.log(logger.Exploit, "invalid ack to beacon guid size")
 		client.conn.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
@@ -474,7 +494,7 @@ func (client *client) handleAckToBeaconGUID(id, data []byte) {
 
 func (client *client) handleBroadcastGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid ctrl broadcast guid size")
+		client.log(logger.Exploit, "invalid broadcast guid size")
 		client.conn.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
@@ -490,7 +510,7 @@ func (client *client) handleBroadcastGUID(id, data []byte) {
 
 func (client *client) handleAnswerGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid ctrl answer guid size")
+		client.log(logger.Exploit, "invalid answer guid size")
 		client.conn.Reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
@@ -614,6 +634,7 @@ func (client *client) handleSendToNode(id, data []byte) {
 			client.ctx.worker.AddSend(s)
 		} else {
 			// repeat
+
 			client.ctx.worker.PutSendToPool(s)
 		}
 	} else {
@@ -909,13 +930,13 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 
 	err := msgpack.Unmarshal(data, q)
 	if err != nil {
-		client.log(logger.Exploit, "invalid beacon query msgpack data:", err)
+		client.log(logger.Exploit, "invalid query msgpack data:", err)
 		client.Close()
 		return
 	}
 	err = q.Validate()
 	if err != nil {
-		const format = "invalid beacon query: %s\n%s"
+		const format = "invalid query: %s\n%s"
 		client.logf(logger.Exploit, format, err, spew.Sdump(q))
 		client.Close()
 		return
