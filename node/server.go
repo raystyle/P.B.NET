@@ -810,7 +810,20 @@ func (node *nodeConn) onFrameBeforeSync(frame []byte) bool {
 func (node *nodeConn) onFrameAfterSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
-	switch frame[0] {
+	if node.onFrameAfterSyncAboutCTRL(frame[0], id, data) {
+		return true
+	}
+	if node.onFrameAfterSyncAboutNode(frame[0], id, data) {
+		return true
+	}
+	if node.onFrameAfterSyncAboutBeacon(frame[0], id, data) {
+		return true
+	}
+	return false
+}
+
+func (node *nodeConn) onFrameAfterSyncAboutCTRL(cmd byte, id, data []byte) bool {
+	switch cmd {
 	case protocol.CtrlSendToNodeGUID:
 		node.Conn.HandleSendToNodeGUID(id, data)
 	case protocol.CtrlSendToNode:
@@ -835,6 +848,14 @@ func (node *nodeConn) onFrameAfterSync(frame []byte) bool {
 		node.Conn.HandleAnswerGUID(id, data)
 	case protocol.CtrlAnswer:
 		node.Conn.HandleAnswer(id, data)
+	default:
+		return false
+	}
+	return true
+}
+
+func (node *nodeConn) onFrameAfterSyncAboutNode(cmd byte, id, data []byte) bool {
+	switch cmd {
 	case protocol.NodeSendGUID:
 		node.Conn.HandleNodeSendGUID(id, data)
 	case protocol.NodeSend:
@@ -843,6 +864,14 @@ func (node *nodeConn) onFrameAfterSync(frame []byte) bool {
 		node.Conn.HandleNodeAckGUID(id, data)
 	case protocol.NodeAck:
 		node.Conn.HandleNodeAck(id, data)
+	default:
+		return false
+	}
+	return true
+}
+
+func (node *nodeConn) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) bool {
+	switch cmd {
 	case protocol.BeaconSendGUID:
 		node.Conn.HandleBeaconSendGUID(id, data)
 	case protocol.BeaconSend:
