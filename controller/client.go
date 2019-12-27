@@ -39,6 +39,7 @@ type client struct {
 	slots     []*protocol.Slot
 	heartbeat chan struct{}
 	inSync    int32
+	syncM     sync.Mutex
 
 	inClose    int32
 	closeOnce  sync.Once
@@ -120,10 +121,13 @@ func newClient(
 	for i := 0; i < protocol.SlotSize; i++ {
 		client.slots[i] = protocol.NewSlot()
 	}
-	client.heartbeat = make(chan struct{}, 1)
 	client.stopSignal = make(chan struct{})
-
-	// <warning> not add wg
+	// heartbeat
+	client.heartbeat = make(chan struct{}, 1)
+	client.wg.Add(1)
+	go client.sendHeartbeatLoop()
+	// handle connection
+	// <warning> don't add wg
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -133,8 +137,6 @@ func newClient(
 		}()
 		protocol.HandleConn(client.conn, client.onFrame)
 	}()
-	client.wg.Add(1)
-	go client.sendHeartbeatLoop()
 	return &client, nil
 }
 
@@ -166,10 +168,10 @@ func (client *client) logExtra(l logger.Level, b *bytes.Buffer) {
 		const format = "----------------connected node guid-----------------\n%X\n%X\n"
 		_, _ = fmt.Fprintf(b, format, client.guid[:guid.Size/2], client.guid[guid.Size/2:])
 	}
-	const breakLine = "-----------------connection status------------------\n"
-	_, _ = fmt.Fprintln(b, breakLine, client.conn)
-	const paddingLine = "----------------------------------------------------"
-	_, _ = fmt.Fprint(b, paddingLine)
+	const conn = "-----------------connection status------------------\n%s\n"
+	_, _ = fmt.Fprintf(b, conn, client.conn)
+	const endLine = "----------------------------------------------------"
+	_, _ = fmt.Fprint(b, endLine)
 	client.ctx.logger.Print(l, "client", b)
 }
 
@@ -254,12 +256,12 @@ func (client *client) verifyCertificate(cert []byte, address string, guid []byte
 	return client.ctx.global.Verify(buffer.Bytes(), certWithNodeGUID)
 }
 
-func (client *client) isSync() bool {
-	return atomic.LoadInt32(&client.inSync) != 0
-}
-
 func (client *client) isClosed() bool {
 	return atomic.LoadInt32(&client.inClose) != 0
+}
+
+func (client *client) isSync() bool {
+	return atomic.LoadInt32(&client.inSync) != 0
 }
 
 // can use client.Close()
@@ -420,6 +422,11 @@ func (client *client) handleReply(reply []byte) {
 
 // Sync is used to switch to sync mode
 func (client *client) Sync() error {
+	client.syncM.Lock()
+	defer client.syncM.Unlock()
+	if client.isSync() {
+		return nil
+	}
 	resp, err := client.Send(protocol.CtrlSync, nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to receive sync response")
@@ -667,8 +674,6 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 }
 
 // Send is used to send command and receive reply
-// size(4 Bytes) + command(1 Byte) + msg_id(2 bytes) + data
-// data(general) max size = MaxFrameSize - FrameCMDSize - FrameIDSize
 func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 	if client.isClosed() {
 		return nil, protocol.ErrConnClosed

@@ -100,7 +100,7 @@ type sender struct {
 
 	guid *guid.Generator
 
-	closing int32
+	inClose int32
 	context context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -189,8 +189,8 @@ func (sender *sender) SetMaxConns(n int) {
 	sender.maxConns.Store(n)
 }
 
-func (sender *sender) isClosing() bool {
-	return atomic.LoadInt32(&sender.closing) != 0
+func (sender *sender) isClosed() bool {
+	return atomic.LoadInt32(&sender.inClose) != 0
 }
 
 // Connect is used to connect node for sync message
@@ -204,7 +204,7 @@ func (sender *sender) ConnectWithContext(
 	node *bootstrap.Node,
 	guid []byte,
 ) error {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return ErrSenderClosed
 	}
 	sender.clientsRWM.Lock()
@@ -245,7 +245,7 @@ func (sender *sender) Disconnect(guid string) error {
 // Broadcast is used to broadcast message to all Nodes
 // message will not be saved
 func (sender *sender) Broadcast(cmd []byte, msg interface{}) error {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return ErrSenderClosed
 	}
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
@@ -268,7 +268,7 @@ func (sender *sender) Broadcast(cmd []byte, msg interface{}) error {
 
 // BroadcastFromPlugin is used to broadcast message to all Nodes from plugin
 func (sender *sender) BroadcastFromPlugin(msg []byte) error {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return ErrSenderClosed
 	}
 	done := sender.broadcastDonePool.Get().(chan *protocol.BroadcastResult)
@@ -292,7 +292,7 @@ func (sender *sender) BroadcastFromPlugin(msg []byte) error {
 // if Beacon is not in interactive mode, message
 // will saved to database, and wait Beacon to query.
 func (sender *sender) Send(role protocol.Role, guid, cmd []byte, msg interface{}) error {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return ErrSenderClosed
 	}
 	// check role
@@ -323,7 +323,7 @@ func (sender *sender) Send(role protocol.Role, guid, cmd []byte, msg interface{}
 
 // SendFromPlugin is used to send message to Node or Beacon from plugin
 func (sender *sender) SendFromPlugin(role protocol.Role, guid []byte, msg []byte) error {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return ErrSenderClosed
 	}
 	// check role
@@ -354,7 +354,7 @@ func (sender *sender) SendFromPlugin(role protocol.Role, guid []byte, msg []byte
 // Acknowledge is used to acknowledge Role that
 // controller has received this message
 func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
-	if sender.isClosing() {
+	if sender.isClosed() {
 		return
 	}
 	// check role
@@ -475,7 +475,7 @@ func (sender *sender) Clients() map[string]*client {
 }
 
 func (sender *sender) Close() {
-	atomic.StoreInt32(&sender.closing, 1)
+	atomic.StoreInt32(&sender.inClose, 1)
 	// TODO wait acknowledge handle
 	for {
 		if len(sender.ackTaskQueue) == 0 {
