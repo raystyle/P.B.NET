@@ -9,6 +9,15 @@ import (
 	"project/internal/convert"
 )
 
+// +------------+---------+------------+------+
+// | frame size | command | [frame id] | data |
+// +------------+---------+------------+------+
+// |   uint32   |  uint8  |   uint16   |  var |
+// +------------+---------+------------+------+
+// frame size = command + frame id + data
+//
+// heartbeat don't need set frame id
+
 // about connection
 const (
 	MaxFrameSize = 2 * 1048576 // 2MB
