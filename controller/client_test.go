@@ -14,6 +14,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/convert"
 	"project/internal/crypto/cert"
+	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/options"
 	"project/internal/protocol"
@@ -33,7 +34,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Debug.Send = make(chan []byte, 4)
 
 	cfg.Logger.Level = "debug"
-	cfg.Logger.Writer = os.Stdout
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
 	cfg.Global.TimeSyncSleepFixed = 15

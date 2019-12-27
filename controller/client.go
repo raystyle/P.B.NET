@@ -138,18 +138,38 @@ func newClient(
 	return &client, nil
 }
 
-// TODO guid
+// [2019-12-26 21:44:17] [info] <client> disconnected
+// ----------------connected node guid-----------------
+// F50B876BE94437E2E678C5EB84627230C599B847BED5B00D5390
+// C38C4E155C0DD0305F7A000000005E04B92C00000000000003D5
+// -----------------connection status------------------
+// local:  tcp 127.0.0.1:2035
+// remote: tcp 127.0.0.1:2032
+// sent:   5.656 MB received: 5.379 MB
+// connect time: 2019-12-26 21:44:13
+// ----------------------------------------------------
 func (client *client) log(l logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(b, log...)
-	_, _ = fmt.Fprint(b, "\n", client.conn)
-	client.ctx.logger.Print(l, "client", b)
+	client.logExtra(l, b)
 }
 
 func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n\n", client.conn)
+	_, _ = fmt.Fprint(b, "\n")
+	client.logExtra(l, b)
+}
+
+func (client *client) logExtra(l logger.Level, b *bytes.Buffer) {
+	if client.guid != nil {
+		const format = "----------------connected node guid-----------------\n%X\n%X\n"
+		_, _ = fmt.Fprintf(b, format, client.guid[:guid.Size/2], client.guid[guid.Size/2:])
+	}
+	const breakLine = "-----------------connection status------------------\n"
+	_, _ = fmt.Fprintln(b, breakLine, client.conn)
+	const paddingLine = "----------------------------------------------------"
+	_, _ = fmt.Fprint(b, paddingLine)
 	client.ctx.logger.Print(l, "client", b)
 }
 
@@ -477,7 +497,7 @@ func (client *client) handleBeaconAckGUID(id, data []byte) {
 
 func (client *client) handleBeaconQueryGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid beacon query guid size")
+		client.log(logger.Exploit, "invalid query guid size")
 		client.reply(id, protocol.ReplyHandled)
 		client.Close()
 		return
@@ -619,14 +639,14 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 	q := client.ctx.worker.GetQueryFromPool()
 	err := msgpack.Unmarshal(data, q)
 	if err != nil {
-		client.log(logger.Exploit, "invalid beacon query msgpack data:", err)
+		client.log(logger.Exploit, "invalid query msgpack data:", err)
 		client.ctx.worker.PutQueryToPool(q)
 		client.Close()
 		return
 	}
 	err = q.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid beacon query: %s\n%s", err, spew.Sdump(q))
+		client.logf(logger.Exploit, "invalid query: %s\n%s", err, spew.Sdump(q))
 		client.ctx.worker.PutQueryToPool(q)
 		client.Close()
 		return

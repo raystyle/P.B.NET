@@ -9,6 +9,8 @@ import (
 
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
+
+	"project/internal/logger"
 )
 
 func testGenerateConfig() *Config {
@@ -29,7 +31,7 @@ func testGenerateConfig() *Config {
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.File = "log/controller.log"
-	cfg.Logger.Writer = os.Stdout
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
 
 	cfg.Global.DNSCacheExpire = time.Minute
 	cfg.Global.TimeSyncSleepFixed = 15
