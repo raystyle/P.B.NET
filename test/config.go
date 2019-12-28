@@ -11,6 +11,7 @@ import (
 
 	"project/controller"
 	"project/internal/crypto/cert"
+	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/options"
 	"project/internal/xnet"
@@ -59,9 +60,11 @@ func generateControllerConfig() *controller.Config {
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.File = "log/controller.log"
-	cfg.Logger.Writer = os.Stdout
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
 
 	cfg.Global.DNSCacheExpire = time.Minute
+	cfg.Global.TimeSyncSleepFixed = 15
+	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = time.Minute
 
 	cfg.Client.Timeout = 10 * time.Second
@@ -95,9 +98,11 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Debug.Send = make(chan []byte, 4)
 
 	cfg.Logger.Level = "debug"
-	cfg.Logger.Writer = os.Stdout
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
+	cfg.Global.TimeSyncSleepFixed = 15
+	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
 	cfg.Global.Certificates = testdata.Certificates(tb)
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
