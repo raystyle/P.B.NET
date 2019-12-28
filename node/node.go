@@ -11,16 +11,15 @@ import (
 
 // Node send messages to controller
 type Node struct {
-	Debug *Debug
-
+	Test      *Test
+	storage   *storage   // storage
 	logger    *gLogger   // global logger
 	global    *global    // proxy clients, DNS clients, time syncer
-	client    *opts      // client options
-	storage   *storage   // storage
+	client    *cOpts     // client options
 	forwarder *forwarder // forward messages
-	sender    *sender    // send message to Controller
-	syncer    *syncer    // receive message from Controller, Nodes, and Beacons
-	handler   *handler   // handle message from Controller
+	sender    *sender    // send message to controller
+	syncer    *syncer    // sync network guid
+	handler   *handler   // handle message from controller
 	worker    *worker    // do work
 	server    *server    // listen and serve Roles
 
@@ -32,8 +31,10 @@ type Node struct {
 // New is used to create a Node from configuration
 func New(cfg *Config) (*Node, error) {
 	// copy debug config
-	debug := cfg.Debug
-	node := &Node{Debug: &debug}
+	debug := cfg.Test
+	node := &Node{Test: &debug}
+	// storage
+	node.storage = newStorage()
 	// logger
 	lg, err := newLogger(node, cfg)
 	if err != nil {
@@ -47,12 +48,8 @@ func New(cfg *Config) (*Node, error) {
 	}
 	node.global = global
 	// copy client options
-	node.client = &opts{
-		ProxyTag: cfg.Client.ProxyTag,
-		Timeout:  cfg.Client.Timeout,
-		DNSOpts:  cfg.Client.DNSOpts,
-	}
-	node.storage = newStorage()
+	cOpts := cfg.Client
+	node.client = &cOpts
 	// forwarder
 	forwarder, err := newForwarder(node, cfg)
 	if err != nil {
@@ -101,7 +98,7 @@ func (node *Node) fatal(err error, msg string) error {
 func (node *Node) Main() error {
 	defer func() { node.wait <- struct{}{} }()
 	// synchronize time
-	if node.Debug.SkipSynchronizeTime {
+	if node.Test.SkipSynchronizeTime {
 		node.global.StartTimeSyncerAddLoop()
 	} else {
 		err := node.global.StartTimeSyncer()

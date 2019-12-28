@@ -67,7 +67,7 @@ func (h *handler) handleSendTestMessage(message []byte) {
 			h.log(logger.Fatal, err)
 		}
 	}()
-	if h.ctx.Debug.Send == nil {
+	if h.ctx.Test.Send == nil {
 		return
 	}
 	var testMsg []byte
@@ -78,7 +78,7 @@ func (h *handler) handleSendTestMessage(message []byte) {
 		return
 	}
 	select {
-	case h.ctx.Debug.Send <- testMsg:
+	case h.ctx.Test.Send <- testMsg:
 	case <-h.context.Done():
 		return
 	}
@@ -160,7 +160,7 @@ func (h *handler) handleBroadcastTestMessage(message []byte) {
 			h.log(logger.Fatal, err)
 		}
 	}()
-	if h.ctx.Debug.Broadcast == nil {
+	if h.ctx.Test.Broadcast == nil {
 		return
 	}
 	var testMsg []byte
@@ -171,7 +171,7 @@ func (h *handler) handleBroadcastTestMessage(message []byte) {
 		return
 	}
 	select {
-	case h.ctx.Debug.Broadcast <- testMsg:
+	case h.ctx.Test.Broadcast <- testMsg:
 	case <-h.context.Done():
 		return
 	}

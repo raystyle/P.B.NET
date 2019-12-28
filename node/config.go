@@ -17,8 +17,8 @@ import (
 	"project/internal/timesync"
 )
 
-// Debug is used to test
-type Debug struct {
+// Test is used to test
+type Test struct {
 	SkipSynchronizeTime bool
 
 	// from controller
@@ -28,7 +28,7 @@ type Debug struct {
 
 // Config include configuration about Node
 type Config struct {
-	Debug Debug `toml:"-" msgpack:"-"`
+	Test Test `toml:"-" msgpack:"-"`
 
 	// CheckMode is used to check whether
 	// the configuration is correct
@@ -53,14 +53,9 @@ type Config struct {
 		TimeSyncerClients map[string]*timesync.Client `toml:"-"`
 	} `toml:"global"`
 
-	Client struct { // options
-		ProxyTag string        `toml:"proxy_tag"`
-		Timeout  time.Duration `toml:"timeout"`
-		DNSOpts  dns.Options   `toml:"dns"`
-	} `toml:"client"`
+	Client cOpts `toml:"client"`
 
 	Register struct {
-
 		// generate configs from controller
 		Bootstraps []byte `toml:"-"`
 	} `toml:"register"`
@@ -105,11 +100,11 @@ type Config struct {
 	} `toml:"-"`
 }
 
-// copy Config.Client
-type opts struct {
-	ProxyTag string
-	Timeout  time.Duration
-	DNSOpts  dns.Options
+// client options
+type cOpts struct {
+	ProxyTag string        `toml:"proxy_tag"`
+	Timeout  time.Duration `toml:"timeout"`
+	DNSOpts  dns.Options   `toml:"dns"`
 }
 
 // CheckOptions include options about check configuration
