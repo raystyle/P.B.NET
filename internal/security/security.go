@@ -65,26 +65,17 @@ func FlushMemory() {
 
 // CoverBytes is used to cover byte slice if byte slice has secret
 func CoverBytes(b []byte) {
-	mem := NewMemory()
-	mem.Padding()
-	rand := random.New()
-	randBytes := rand.Bytes(len(b))
-	copy(b, randBytes)
-	mem.Flush()
+	for i := 0; i < len(b); i++ {
+		b[i] = 0
+	}
 }
 
 // CoverString is used to cover string if string has secret
 func CoverString(s *string) {
-	mem := NewMemory()
-	mem.Padding()
-	rand := random.New()
 	sh := (*reflect.StringHeader)(unsafe.Pointer(s))
-	randBytes := rand.Bytes(sh.Len)
 	for i := 0; i < sh.Len; i++ {
-		mem.Padding()
 		b := (*byte)(unsafe.Pointer(sh.Data + uintptr(i)))
-		*b = randBytes[i]
-		mem.Flush()
+		*b = 0
 	}
 }
 
