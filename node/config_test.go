@@ -67,6 +67,7 @@ func TestConfig_Run(t *testing.T) {
 	output, err := config.Run(
 		context.Background(),
 		&TestOptions{
+			Domain: "cloudflare.com",
 			Writer: os.Stdout,
 		})
 	require.NoError(t, err)

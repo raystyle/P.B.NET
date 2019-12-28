@@ -11,7 +11,8 @@ import (
 
 // Node send messages to controller
 type Node struct {
-	Test      *Test
+	Test *Test
+
 	storage   *storage   // storage
 	logger    *gLogger   // global logger
 	global    *global    // proxy clients, DNS clients, time syncer
@@ -99,7 +100,7 @@ func (node *Node) Main() error {
 	defer func() { node.wait <- struct{}{} }()
 	// synchronize time
 	if node.Test.SkipSynchronizeTime {
-		node.global.StartTimeSyncerAddLoop()
+		node.global.StartTimeSyncerWalker()
 	} else {
 		err := node.global.StartTimeSyncer()
 		if err != nil {
@@ -113,9 +114,9 @@ func (node *Node) Main() error {
 	if err != nil {
 		return node.fatal(err, "failed to deploy server")
 	}
+	node.logger.Print(logger.Debug, "main", "node is running")
 	// register
 
-	node.logger.Print(logger.Debug, "main", "node is running")
 	node.wait <- struct{}{}
 	return <-node.exit
 }

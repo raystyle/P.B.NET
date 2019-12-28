@@ -94,7 +94,8 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-
+		security.CoverBytes(aesKey)
+		security.CoverBytes(aesIV)
 		// load listeners
 		var listeners []*messages.Listener
 		err = msgpack.Unmarshal(data, &listeners)

@@ -22,20 +22,19 @@ import (
 )
 
 type global struct {
+	// about certificate
 	certs     []*x509.Certificate
 	certASN1s [][]byte
 
-	proxyPool  *proxy.Pool
-	dnsClient  *dns.Client
-	timeSyncer *timesync.Syncer
-
-	rand *random.Rand
+	ProxyPool  *proxy.Pool
+	DNSClient  *dns.Client
+	TimeSyncer *timesync.Syncer
 
 	objects    map[uint32]interface{}
 	objectsRWM sync.RWMutex
-
-	spmCount int // paddingMemory execute time
-	wg       sync.WaitGroup
+	rand       *random.Rand
+	spmCount   int // paddingMemory execute time
+	wg         sync.WaitGroup
 
 	// TODO client test
 }
@@ -103,9 +102,9 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	g := global{
 		certs:      certs,
 		certASN1s:  certASN1s,
-		proxyPool:  proxyPool,
-		dnsClient:  dnsClient,
-		timeSyncer: timeSyncer,
+		ProxyPool:  proxyPool,
+		DNSClient:  dnsClient,
+		TimeSyncer: timeSyncer,
 		rand:       random.New(),
 	}
 	err = g.configure(config)
@@ -269,12 +268,12 @@ func (global *global) CertificatePEMs() []string {
 
 // GetProxyClient is used to get proxy client from proxy pool
 func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
-	return global.proxyPool.Get(tag)
+	return global.ProxyPool.Get(tag)
 }
 
 // ProxyClients is used to get all proxy client in proxy pool
 func (global *global) ProxyClients() map[string]*proxy.Client {
-	return global.proxyPool.Clients()
+	return global.ProxyPool.Clients()
 }
 
 // ResolveWithContext is used to resolve domain name with context and options
@@ -283,32 +282,32 @@ func (global *global) ResolveWithContext(
 	domain string,
 	opts *dns.Options,
 ) ([]string, error) {
-	return global.dnsClient.ResolveWithContext(ctx, domain, opts)
+	return global.DNSClient.ResolveWithContext(ctx, domain, opts)
 }
 
 // DNSServers is used to get all DNS servers in DNS client
 func (global *global) DNSServers() map[string]*dns.Server {
-	return global.dnsClient.Servers()
+	return global.DNSClient.Servers()
 }
 
 // TimeSyncerClients is used to get all time syncer clients in time syncer
 func (global *global) TimeSyncerClients() map[string]*timesync.Client {
-	return global.timeSyncer.Clients()
+	return global.TimeSyncer.Clients()
 }
 
 // StartTimeSyncer is used to start time syncer
 func (global *global) StartTimeSyncer() error {
-	return global.timeSyncer.Start()
+	return global.TimeSyncer.Start()
 }
 
-// StartTimeSyncerAddLoop is used to start time syncer add loop
-func (global *global) StartTimeSyncerAddLoop() {
-	global.timeSyncer.StartWalker()
+// StartTimeSyncerWalker is used to start time syncer add loop
+func (global *global) StartTimeSyncerWalker() {
+	global.TimeSyncer.StartWalker()
 }
 
 // Now is used to get current time
 func (global *global) Now() time.Time {
-	return global.timeSyncer.Now().Local()
+	return global.TimeSyncer.Now().Local()
 }
 
 // StartupTime is used to get Node startup time
@@ -424,5 +423,5 @@ func (global *global) DBDecrypt(data []byte) ([]byte, error) {
 
 // Close is used to close global
 func (global *global) Close() {
-	global.timeSyncer.Stop()
+	global.TimeSyncer.Stop()
 }

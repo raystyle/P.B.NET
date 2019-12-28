@@ -44,10 +44,10 @@ type Config struct {
 		TimeSyncInterval    time.Duration `toml:"timesync_interval"     msgpack:"d"`
 
 		// generate from controller
-		Certificates      [][]byte                    `toml:"-" msgpack:"e"`
-		ProxyClients      []*proxy.Client             `toml:"-" msgpack:"f"`
-		DNSServers        map[string]*dns.Server      `toml:"-" msgpack:"g"`
-		TimeSyncerClients map[string]*timesync.Client `toml:"-" msgpack:"h"`
+		Certificates      [][]byte                    `toml:"-" msgpack:"w"`
+		ProxyClients      []*proxy.Client             `toml:"-" msgpack:"x"`
+		DNSServers        map[string]*dns.Server      `toml:"-" msgpack:"y"`
+		TimeSyncerClients map[string]*timesync.Client `toml:"-" msgpack:"z"`
 	} `toml:"global" msgpack:"bb"`
 
 	Client cOpts `toml:"client" msgpack:"cc"`
@@ -133,6 +133,7 @@ func (cfg *Config) Run(ctx context.Context, opts *TestOptions) (output *bytes.Bu
 			_, _ = fmt.Fprintln(writer, "\ntests passed")
 		}
 	}()
+	cfg.Logger.Level = "debug"
 	node, err := New(cfg)
 	if err != nil {
 		return
@@ -146,47 +147,19 @@ func (cfg *Config) Run(ctx context.Context, opts *TestOptions) (output *bytes.Bu
 	_, _ = writer.Write([]byte(line))
 	_, _ = io.Copy(writer, cfg.ProxyClients(node))
 	line = "-------------------------------DNS servers--------------------------------\n"
-
 	_, _ = writer.Write([]byte(line))
-	// print DNS servers
-	for tag, server := range node.global.DNSServers() {
-		const format = "tag: %-14s skip: %-5t method: %-3s address: %s\n"
-		_, _ = fmt.Fprintf(writer, format, tag, server.SkipTest, server.Method, server.Address)
-	}
-	// test resolve
-	domain := opts.Domain
-	if domain == "" {
-		domain = "github.com"
-	}
-	// add certificates to opts.DNSOptions about TLS
-	certs := node.global.CertificatePEMs()
-	// TLS
-	tCerts := opts.DNSOptions.TLSConfig.RootCAs
-	tCerts = append(tCerts, certs...)
-	opts.DNSOptions.TLSConfig.RootCAs = tCerts
-	// http.Transport TLS
-	ttCerts := opts.DNSOptions.Transport.TLSClientConfig.RootCAs
-	ttCerts = append(ttCerts, certs...)
-	opts.DNSOptions.Transport.TLSClientConfig.RootCAs = ttCerts
-	result, err := node.global.DNSClient.TestServers(ctx, domain, &opts.DNSOptions)
+	buf, err := cfg.DNSServers(node, ctx, opts)
+	_, _ = io.Copy(writer, buf)
 	if err != nil {
 		return
 	}
-	_, _ = fmt.Fprintf(writer, "\ntest domain: %s\nresolve result: %s\n", domain, result)
-
 	line = "---------------------------time syncer clients----------------------------\n"
 	_, _ = writer.Write([]byte(line))
-	// print time syncer clients
-	for tag, client := range node.global.TimeSyncerClients() {
-		const format = "tag: %-10s skip: %-5t mode: %-4s\n"
-		_, _ = fmt.Fprintf(writer, format, tag, client.SkipTest, client.Mode)
-	}
-	err = node.global.TimeSyncer.Test()
+	buf, err = cfg.TimeSyncerClients(node)
+	_, _ = io.Copy(writer, buf)
 	if err != nil {
 		return
 	}
-	now := node.global.Now().Format(logger.TimeLayout)
-	_, _ = fmt.Fprintf(writer, "\ncurrent time: %s\n", now)
 	line = "------------------------------node running--------------------------------\n"
 	_, _ = writer.Write([]byte(line))
 	err = cfg.wait(node, opts.Timeout)
@@ -195,24 +168,78 @@ func (cfg *Config) Run(ctx context.Context, opts *TestOptions) (output *bytes.Bu
 
 // Certificates is used to print certificates
 func (cfg *Config) Certificates(node *Node) *bytes.Buffer {
-	buf := bytes.NewBuffer(nil)
+	output := bytes.NewBuffer(nil)
 	for i, c := range node.global.Certificates() {
-		_, _ = fmt.Fprintf(buf, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
 	}
-	return buf
+	return output
 }
 
 // ProxyClients is used to print proxy clients
 func (cfg *Config) ProxyClients(node *Node) *bytes.Buffer {
-	buf := bytes.NewBuffer(nil)
+	output := bytes.NewBuffer(nil)
 	for tag, client := range node.global.ProxyClients() {
 		if tag == "" || tag == "direct" { // skip builtin proxy client
 			continue
 		}
 		const format = "tag: %-10s mode: %-7s network: %-3s address: %s\n"
-		_, _ = fmt.Fprintf(buf, format, tag, client.Mode, client.Network, client.Address)
+		_, _ = fmt.Fprintf(output, format, tag, client.Mode, client.Network, client.Address)
 	}
-	return buf
+	return output
+}
+
+// DNSServers is used to print and test DNS servers
+// if tests passed, show resolved ip
+func (cfg *Config) DNSServers(node *Node, ctx context.Context, opts *TestOptions) (*bytes.Buffer, error) {
+	output := bytes.NewBuffer(nil)
+	// print DNS servers
+	for tag, server := range node.global.DNSServers() {
+		const format = "tag: %-14s skip: %-5t method: %-3s address: %s\n"
+		_, _ = fmt.Fprintf(output, format, tag, server.SkipTest, server.Method, server.Address)
+	}
+	// add certificates to opts.DNSOptions about TLS
+	certs := node.global.CertificatePEMs()
+	// about TLS
+	tCerts := opts.DNSOptions.TLSConfig.RootCAs
+	tCerts = append(tCerts, certs...)
+	opts.DNSOptions.TLSConfig.RootCAs = tCerts
+	// about http.Transport TLS
+	ttCerts := opts.DNSOptions.Transport.TLSClientConfig.RootCAs
+	ttCerts = append(ttCerts, certs...)
+	opts.DNSOptions.Transport.TLSClientConfig.RootCAs = ttCerts
+	result, err := node.global.DNSClient.TestServers(ctx, opts.Domain, &opts.DNSOptions)
+	if err != nil {
+		return output, err
+	}
+	// print string slice
+	var r string
+	for i, s := range result {
+		if i == 0 {
+			r = s
+		} else {
+			r += ", " + s
+		}
+	}
+	_, _ = fmt.Fprintf(output, "\ntest domain: %s\nresolved ip: %s\n", opts.Domain, r)
+	return output, nil
+}
+
+// TimeSyncerClients is used to print and test time syncer clients
+// if tests passed, show the current time
+func (cfg *Config) TimeSyncerClients(node *Node) (*bytes.Buffer, error) {
+	output := bytes.NewBuffer(nil)
+	// print time syncer clients
+	for tag, client := range node.global.TimeSyncerClients() {
+		const format = "tag: %-10s skip: %-5t mode: %-4s\n"
+		_, _ = fmt.Fprintf(output, format, tag, client.SkipTest, client.Mode)
+	}
+	err := node.global.TimeSyncer.Test()
+	if err != nil {
+		return output, err
+	}
+	now := node.global.Now().Format(logger.TimeLayout)
+	_, _ = fmt.Fprintf(output, "\ncurrent time: %s\n", now)
+	return output, nil
 }
 
 func (cfg *Config) wait(node *Node, timeout time.Duration) error {
@@ -224,10 +251,12 @@ func (cfg *Config) wait(node *Node, timeout time.Duration) error {
 	if timeout < 1 {
 		timeout = 15 * time.Second
 	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	select {
 	case err := <-errChan:
 		return err
-	case <-time.After(timeout):
+	case <-timer.C:
 		node.Exit(nil)
 		return errors.New("node running timeout")
 	}
