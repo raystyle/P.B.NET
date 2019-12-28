@@ -425,21 +425,22 @@ func (global *global) LoadSessionKey(password []byte) error {
 	defer security.CoverBytes(pri)
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
 	global.objects[objPublicKey] = pub
-	// curve25519
-	keyEXPub, err := curve25519.ScalarBaseMult(pri[:32])
+	// calculate key exchange public key
+	keyExPub, err := curve25519.ScalarBaseMult(pri[:32])
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	global.objects[objKeyExPub] = keyEXPub
-	// aes crypto
-	cbc, _ := aes.NewCBC(keys[1], keys[2])
-	global.objects[objBroadcastKey] = cbc
-
-	// hide ed25519 private key
+	global.objects[objKeyExPub] = keyExPub
+	// hide private key
 	memory := security.NewMemory()
 	defer memory.Flush()
 	global.objects[objPrivateKey] = security.NewBytes(pri)
 	security.CoverBytes(pri)
+
+	// aes crypto about broadcast
+	cbc, _ := aes.NewCBC(keys[1], keys[2])
+	global.objects[objBroadcastKey] = cbc
+
 	// load certificates
 	PEMHash, err := ioutil.ReadFile("key/pem.hash")
 	if err != nil {
@@ -447,7 +448,6 @@ func (global *global) LoadSessionKey(password []byte) error {
 	}
 	hashBuf := new(bytes.Buffer)
 	hashBuf.Write(password)
-
 	memory.Padding()
 	kps, err := loadSelfCertificates(hashBuf, password)
 	if err != nil {
@@ -458,7 +458,6 @@ func (global *global) LoadSessionKey(password []byte) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to load system CA certificates")
 	}
-
 	// compare hash
 	memory.Padding()
 	hash := sha256.New()
@@ -482,14 +481,6 @@ func (global *global) WaitLoadSessionKey() bool {
 	return global.isLoadSessionKey()
 }
 
-// Encrypt is used to encrypt controller broadcast message
-func (global *global) Encrypt(data []byte) ([]byte, error) {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objBroadcastKey].(*aes.CBC)
-	return cbc.Encrypt(data)
-}
-
 // Sign is used to verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
 	global.objectsRWM.RLock()
@@ -508,19 +499,21 @@ func (global *global) Verify(message, signature []byte) bool {
 	return ed25519.Verify(pub, message, signature)
 }
 
+// KeyExchange is use to calculate session key
+func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	pri := global.objects[objPrivateKey].(*security.Bytes)
+	b := pri.Get()
+	defer pri.Put(b)
+	return curve25519.ScalarMult(b[:32], publicKey)
+}
+
 // PublicKey is used to get public key
 func (global *global) PublicKey() ed25519.PublicKey {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objPublicKey].(ed25519.PublicKey)
-}
-
-// BroadcastKey is used to get broadcast key
-func (global *global) BroadcastKey() []byte {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	key, iv := global.objects[objBroadcastKey].(*aes.CBC).KeyIV()
-	return append(key, iv...)
 }
 
 // KeyExchangePub is used to get key exchange public key
@@ -530,14 +523,20 @@ func (global *global) KeyExchangePub() []byte {
 	return global.objects[objKeyExPub].([]byte)
 }
 
-// KeyExchange is use to calculate session key
-func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
+// Encrypt is used to encrypt controller broadcast message
+func (global *global) Encrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	pri := global.objects[objPrivateKey].(*security.Bytes)
-	b := pri.Get()
-	defer pri.Put(b)
-	return curve25519.ScalarMult(b[:32], publicKey)
+	cbc := global.objects[objBroadcastKey].(*aes.CBC)
+	return cbc.Encrypt(data)
+}
+
+// BroadcastKey is used to get broadcast key
+func (global *global) BroadcastKey() []byte {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	key, iv := global.objects[objBroadcastKey].(*aes.CBC).KeyIV()
+	return append(key, iv...)
 }
 
 // Close is used to close global
