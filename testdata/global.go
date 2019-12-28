@@ -56,6 +56,10 @@ func DNSServers() map[string]*dns.Server {
 			Method:  "udp",
 			Address: "8.8.8.8:53",
 		}
+		servers["test_tcp_ipv4"] = &dns.Server{
+			Method:  "tcp",
+			Address: "8.8.8.8:53",
+		}
 		servers["test_dot_ipv4"] = &dns.Server{
 			Method:  "dot",
 			Address: "1.1.1.1:853",
@@ -71,8 +75,12 @@ func DNSServers() map[string]*dns.Server {
 			Method:  "udp",
 			Address: "[2606:4700:4700::1111]:53",
 		}
+		servers["test_tcp_ipv6"] = &dns.Server{
+			Method:  "tcp",
+			Address: "[2606:4700:4700::1111]:53",
+		}
 		servers["test_dot_ipv6"] = &dns.Server{
-			Method:  "udp",
+			Method:  "dot",
 			Address: "[2606:4700:4700::1111]:853",
 		}
 		servers["test_skip_ipv6"] = &dns.Server{
