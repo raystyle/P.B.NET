@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -61,13 +62,15 @@ func testGenerateConfig(tb testing.TB) *Config {
 	return &cfg
 }
 
-func TestConfig_Check(t *testing.T) {
+func TestConfig_Run(t *testing.T) {
 	config := testGenerateConfig(t)
-	output, err := config.Check(context.Background(), &CheckOptions{
-		Writer: os.Stdout,
-	})
+	output, err := config.Run(
+		context.Background(),
+		&TestOptions{
+			Writer: os.Stdout,
+		})
 	require.NoError(t, err)
-	t.Log(output)
+	fmt.Println(output)
 }
 
 func TestConfig(t *testing.T) {

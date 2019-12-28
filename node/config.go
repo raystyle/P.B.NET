@@ -17,125 +17,122 @@ import (
 	"project/internal/timesync"
 )
 
-// Test is used to test
+// Test contains test data
 type Test struct {
+	// Node.Main()
 	SkipSynchronizeTime bool
 
-	// from controller
-	Broadcast chan []byte
-	Send      chan []byte
+	// test messages from controller
+	BroadcastTestMsg chan []byte
+	SendTestMsg      chan []byte
 }
 
-// Config include configuration about Node
+// Config contains configuration about Node
 type Config struct {
 	Test Test `toml:"-" msgpack:"-"`
 
-	// CheckMode is used to check whether
-	// the configuration is correct
-	CheckMode bool `toml:"-" msgpack:"-"`
-
 	Logger struct {
-		Level     string    `toml:"level"`
-		QueueSize int       `toml:"queue_size"`
-		Writer    io.Writer `toml:"-" msgpack:"-"` // for check config
-	} `toml:"logger"`
+		Level     string    `toml:"level"      msgpack:"a"`
+		QueueSize int       `toml:"queue_size" msgpack:"b"`
+		Writer    io.Writer `toml:"-"          msgpack:"-"`
+	} `toml:"logger" msgpack:"aa"`
 
 	Global struct {
-		DNSCacheExpire      time.Duration `toml:"dns_cache_expire"`
-		TimeSyncSleepFixed  int           `toml:"timesync_sleep_fixed"`
-		TimeSyncSleepRandom int           `toml:"timesync_sleep_random"`
-		TimeSyncInterval    time.Duration `toml:"timesync_interval"`
+		DNSCacheExpire      time.Duration `toml:"dns_cache_expire"      msgpack:"a"`
+		TimeSyncSleepFixed  int           `toml:"timesync_sleep_fixed"  msgpack:"b"`
+		TimeSyncSleepRandom int           `toml:"timesync_sleep_random" msgpack:"c"`
+		TimeSyncInterval    time.Duration `toml:"timesync_interval"     msgpack:"d"`
 
 		// generate from controller
-		Certificates      [][]byte                    `toml:"-"`
-		ProxyClients      []*proxy.Client             `toml:"-"`
-		DNSServers        map[string]*dns.Server      `toml:"-"`
-		TimeSyncerClients map[string]*timesync.Client `toml:"-"`
-	} `toml:"global"`
+		Certificates      [][]byte                    `toml:"-" msgpack:"e"`
+		ProxyClients      []*proxy.Client             `toml:"-" msgpack:"f"`
+		DNSServers        map[string]*dns.Server      `toml:"-" msgpack:"g"`
+		TimeSyncerClients map[string]*timesync.Client `toml:"-" msgpack:"h"`
+	} `toml:"global" msgpack:"bb"`
 
-	Client cOpts `toml:"client"`
+	Client cOpts `toml:"client" msgpack:"cc"`
 
 	Register struct {
+		Skip bool `toml:"skip" msgpack:"a"` // skip register for genesis node
+
 		// generate configs from controller
-		Bootstraps []byte `toml:"-"`
-	} `toml:"register"`
+		Bootstraps []byte `toml:"-" msgpack:"b"`
+	} `toml:"register" msgpack:"dd"`
 
 	Forwarder struct {
-		MaxCtrlConns   int `toml:"max_ctrl_conns"`
-		MaxNodeConns   int `toml:"max_node_conns"`
-		MaxBeaconConns int `toml:"max_beacon_conns"`
-	} `toml:"forwarder"`
+		MaxCtrlConns   int `toml:"max_ctrl_conns"   msgpack:"a"`
+		MaxNodeConns   int `toml:"max_node_conns"   msgpack:"b"`
+		MaxBeaconConns int `toml:"max_beacon_conns" msgpack:"c"`
+	} `toml:"forwarder" msgpack:"ee"`
 
 	Sender struct {
-		Worker        int           `toml:"worker"`
-		Timeout       time.Duration `toml:"timeout"`
-		QueueSize     int           `toml:"queue_size"`
-		MaxBufferSize int           `toml:"max_buffer_size"`
-	} `toml:"sender"`
+		Worker        int           `toml:"worker"          msgpack:"a"`
+		Timeout       time.Duration `toml:"timeout"         msgpack:"b"`
+		QueueSize     int           `toml:"queue_size"      msgpack:"c"`
+		MaxBufferSize int           `toml:"max_buffer_size" msgpack:"d"`
+	} `toml:"sender" msgpack:"ff"`
 
 	Syncer struct {
-		ExpireTime time.Duration `toml:"expire_time"`
-	} `toml:"syncer"`
+		ExpireTime time.Duration `toml:"expire_time" msgpack:"a"`
+	} `toml:"syncer" msgpack:"gg"`
 
 	Worker struct {
-		Number        int `toml:"number"`
-		QueueSize     int `toml:"queue_size"`
-		MaxBufferSize int `toml:"max_buffer_size"`
-	} `toml:"worker"`
+		Number        int `toml:"number"          msgpack:"a"`
+		QueueSize     int `toml:"queue_size"      msgpack:"b"`
+		MaxBufferSize int `toml:"max_buffer_size" msgpack:"c"`
+	} `toml:"worker" msgpack:"hh"`
 
 	Server struct {
-		MaxConns int           `toml:"max_conns"` // single listener
-		Timeout  time.Duration `toml:"timeout"`   // handshake timeout
+		MaxConns int           `toml:"max_conns" msgpack:"a"` // single listener
+		Timeout  time.Duration `toml:"timeout"   msgpack:"b"` // handshake timeout
 
 		// generate from controller
-		AESCrypto []byte `toml:"-"`
-		Listeners []byte `toml:"-"`
-	} `toml:"server"`
+		AESCrypto []byte `toml:"-" msgpack:"y"` // decrypt Listeners data
+		Listeners []byte `toml:"-" msgpack:"z"` // type: []*messages.Listener
+	} `toml:"server" msgpack:"ii"`
 
 	// generate from controller
 	CTRL struct {
-		ExPublicKey  []byte // key exchange curve25519
-		PublicKey    []byte // verify message ed25519
-		BroadcastKey []byte // decrypt broadcast, key + iv
-	} `toml:"-"`
+		ExPublicKey  []byte `msgpack:"x"` // key exchange curve25519
+		PublicKey    []byte `msgpack:"y"` // verify message ed25519
+		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
+	} `toml:"-" msgpack:"jj"`
 }
 
 // client options
 type cOpts struct {
-	ProxyTag string        `toml:"proxy_tag"`
-	Timeout  time.Duration `toml:"timeout"`
-	DNSOpts  dns.Options   `toml:"dns"`
+	ProxyTag string        `toml:"proxy_tag" msgpack:"a"`
+	Timeout  time.Duration `toml:"timeout"   msgpack:"b"`
+	DNSOpts  dns.Options   `toml:"dns"       msgpack:"c"`
 }
 
-// CheckOptions include options about check configuration
-type CheckOptions struct {
-	Domain     string        `toml:"domain"`
-	DNSOptions dns.Options   `toml:"dns"`
-	Timeout    time.Duration `toml:"timeout"`
-	Writer     io.Writer     `toml:"-"`
+// TestOptions include options about test
+type TestOptions struct {
+	Domain     string        `toml:"domain"`  // node.global.DNSClient.TestServers()
+	DNSOptions dns.Options   `toml:"dns"`     // node.global.DNSClient.TestServers()
+	Timeout    time.Duration `toml:"timeout"` // node run timeout
+	Writer     io.Writer     `toml:"-"`       // node logger writer
 }
 
-// Check is used to check node configuration
-func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes.Buffer, err error) {
+// Run is used to create a node with current configuration and run it to check error
+func (cfg *Config) Run(ctx context.Context, opts *TestOptions) (output *bytes.Buffer, err error) {
 	output = new(bytes.Buffer)
-
 	var writer io.Writer
 	if opts.Writer == nil {
 		writer = output
 	} else {
 		writer = io.MultiWriter(output, opts.Writer)
 	}
+	cfg.Logger.Writer = writer
 
+	// create Node and run
 	defer func() {
 		if err != nil {
 			_, _ = fmt.Fprintln(writer, "\ntests failed:", err)
+		} else {
+			_, _ = fmt.Fprintln(writer, "\ntests passed")
 		}
 	}()
-
-	cfg.CheckMode = true
-	cfg.Logger.Writer = writer
-
-	// create Node
 	node, err := New(cfg)
 	if err != nil {
 		return
@@ -144,43 +141,38 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 
 	line := "------------------------------certificates--------------------------------\n"
 	_, _ = writer.Write([]byte(line))
-	for i, c := range node.global.Certificates() {
-		_, _ = fmt.Fprintf(writer, "ID: %d\n%s\n\n", i+1, cert.Print(c))
-	}
-
+	_, _ = io.Copy(writer, cfg.Certificates(node))
 	line = "------------------------------proxy clients-------------------------------\n"
 	_, _ = writer.Write([]byte(line))
-	for tag, client := range node.global.ProxyClients() {
-		// skip builtin proxy client
-		if tag == "" || tag == "direct" {
-			continue
-		}
-		const format = "tag: %-10s mode: %-7s network: %-3s address: %s\n"
-		_, _ = fmt.Fprintf(writer, format, tag, client.Mode, client.Network, client.Address)
-	}
+	_, _ = io.Copy(writer, cfg.ProxyClients(node))
+	line = "-------------------------------DNS servers--------------------------------\n"
 
-	line = "-------------------------------DNS clients--------------------------------\n"
 	_, _ = writer.Write([]byte(line))
 	// print DNS servers
 	for tag, server := range node.global.DNSServers() {
 		const format = "tag: %-14s skip: %-5t method: %-3s address: %s\n"
 		_, _ = fmt.Fprintf(writer, format, tag, server.SkipTest, server.Method, server.Address)
 	}
+	// test resolve
 	domain := opts.Domain
 	if domain == "" {
 		domain = "github.com"
 	}
-	// add certificates
+	// add certificates to opts.DNSOptions about TLS
 	certs := node.global.CertificatePEMs()
+	// TLS
 	tCerts := opts.DNSOptions.TLSConfig.RootCAs
-	opts.DNSOptions.TLSConfig.RootCAs = append(tCerts, certs...)
+	tCerts = append(tCerts, certs...)
+	opts.DNSOptions.TLSConfig.RootCAs = tCerts
+	// http.Transport TLS
 	ttCerts := opts.DNSOptions.Transport.TLSClientConfig.RootCAs
-	opts.DNSOptions.Transport.TLSClientConfig.RootCAs = append(ttCerts, certs...)
-	result, err := node.global.dnsClient.TestServers(ctx, domain, &opts.DNSOptions)
+	ttCerts = append(ttCerts, certs...)
+	opts.DNSOptions.Transport.TLSClientConfig.RootCAs = ttCerts
+	result, err := node.global.DNSClient.TestServers(ctx, domain, &opts.DNSOptions)
 	if err != nil {
 		return
 	}
-	_, _ = fmt.Fprintf(writer, "\ntest domain: %s result: %s\n", domain, result)
+	_, _ = fmt.Fprintf(writer, "\ntest domain: %s\nresolve result: %s\n", domain, result)
 
 	line = "---------------------------time syncer clients----------------------------\n"
 	_, _ = writer.Write([]byte(line))
@@ -189,24 +181,46 @@ func (cfg *Config) Check(ctx context.Context, opts *CheckOptions) (output *bytes
 		const format = "tag: %-10s skip: %-5t mode: %-4s\n"
 		_, _ = fmt.Fprintf(writer, format, tag, client.SkipTest, client.Mode)
 	}
-	err = node.global.timeSyncer.Test()
+	err = node.global.TimeSyncer.Test()
 	if err != nil {
 		return
 	}
-	_, _ = fmt.Fprintf(writer, "\ntime: %s\n", node.global.Now().Format(logger.TimeLayout))
+	now := node.global.Now().Format(logger.TimeLayout)
+	_, _ = fmt.Fprintf(writer, "\ncurrent time: %s\n", now)
 	line = "------------------------------node running--------------------------------\n"
 	_, _ = writer.Write([]byte(line))
-	err = cfg.run(node, opts)
+	err = cfg.wait(node, opts.Timeout)
 	return
 }
 
-func (cfg *Config) run(node *Node, opts *CheckOptions) error {
+// Certificates is used to print certificates
+func (cfg *Config) Certificates(node *Node) *bytes.Buffer {
+	buf := bytes.NewBuffer(nil)
+	for i, c := range node.global.Certificates() {
+		_, _ = fmt.Fprintf(buf, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	return buf
+}
+
+// ProxyClients is used to print proxy clients
+func (cfg *Config) ProxyClients(node *Node) *bytes.Buffer {
+	buf := bytes.NewBuffer(nil)
+	for tag, client := range node.global.ProxyClients() {
+		if tag == "" || tag == "direct" { // skip builtin proxy client
+			continue
+		}
+		const format = "tag: %-10s mode: %-7s network: %-3s address: %s\n"
+		_, _ = fmt.Fprintf(buf, format, tag, client.Mode, client.Network, client.Address)
+	}
+	return buf
+}
+
+func (cfg *Config) wait(node *Node, timeout time.Duration) error {
 	errChan := make(chan error)
 	go func() {
 		errChan <- node.Main()
 	}()
 	node.Wait()
-	timeout := opts.Timeout
 	if timeout < 1 {
 		timeout = 15 * time.Second
 	}
