@@ -29,30 +29,6 @@ import (
 	"project/internal/timesync"
 )
 
-// <warning> must < 1048576
-const (
-	// sign message
-	// hide ed25519 private key
-	objPrivateKey    uint32 = 0
-	objPrivateKeyBuf uint32 = 64
-
-	// check node certificate
-	objPublicKey uint32 = iota + 65
-
-	// for key exchange
-	objKeyExPub
-
-	// encrypt controller broadcast message
-	// AES CBC
-	objBroadcastKey
-
-	// self CA certificates and private keys
-	objSelfCA
-
-	// system CA certificates
-	objSystemCA
-)
-
 type global struct {
 	// when configure Node or Beacon, these proxies will not appear
 	proxyPool *proxy.Pool
@@ -72,9 +48,6 @@ type global struct {
 
 	loadSessionKey     int32
 	waitLoadSessionKey chan struct{}
-
-	// for Sign()
-	keyPool sync.Pool
 
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -163,12 +136,30 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		objects:            make(map[uint32]interface{}),
 		waitLoadSessionKey: make(chan struct{}, 1),
 	}
-	g.keyPool.New = func() interface{} {
-		return make([]byte, ed25519.PrivateKeySize)
-	}
 	g.ctx, g.cancel = context.WithCancel(context.Background())
 	return &g, nil
 }
+
+// <warning> must < 1048576
+const (
+	// sign message, issue node certificate, type []byte
+	objPrivateKey uint32 = iota
+
+	// check node certificate, type []byte
+	objPublicKey
+
+	// for key exchange, type []byte
+	objKeyExPub
+
+	// encrypt controller broadcast message, type: *aes.CBC
+	objBroadcastKey
+
+	// self CA certificates and private keys, type []*cert.KeyPair
+	objSelfCA
+
+	// system CA certificates, type []*x509.Certificate
+	objSystemCA
+)
 
 // GetSelfCA is used to get self CA certificate to generate CA-sign certificate
 func (global *global) GetSelfCA() []*cert.KeyPair {
@@ -431,6 +422,7 @@ func (global *global) LoadSessionKey(password []byte) error {
 	}
 	// ed25519
 	pri := keys[0]
+	defer security.CoverBytes(pri)
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
 	global.objects[objPublicKey] = pub
 	// curve25519
@@ -443,16 +435,11 @@ func (global *global) LoadSessionKey(password []byte) error {
 	cbc, _ := aes.NewCBC(keys[1], keys[2])
 	global.objects[objBroadcastKey] = cbc
 
-	// hide ed25519 private key, not continuity in memory
-	rand := random.New()
+	// hide ed25519 private key
 	memory := security.NewMemory()
 	defer memory.Flush()
-	for i := 0; i < ed25519.PrivateKeySize; i++ {
-		memory.Padding()
-		global.objects[objPrivateKey+uint32(i)] = pri[i]
-		pri[i] = byte(rand.Int64())
-	}
-	global.objects[objPrivateKeyBuf] = make([]byte, ed25519.PrivateKeySize)
+	global.objects[objPrivateKey] = security.NewBytes(pri)
+	security.CoverBytes(pri)
 	// load certificates
 	PEMHash, err := ioutil.ReadFile("key/pem.hash")
 	if err != nil {
@@ -499,45 +486,26 @@ func (global *global) WaitLoadSessionKey() bool {
 func (global *global) Encrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objBroadcastKey]
-	return cbc.(*aes.CBC).Encrypt(data)
+	cbc := global.objects[objBroadcastKey].(*aes.CBC)
+	return cbc.Encrypt(data)
 }
 
 // Sign is used to verify controller(handshake) and sign message
 func (global *global) Sign(message []byte) []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	pri := global.keyPool.Get().([]byte)
-	defer global.keyPool.Put(pri)
-	defer security.CoverBytesFast(pri)
-	for i := 0; i < ed25519.PrivateKeySize; i++ {
-		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
-	}
-	return ed25519.Sign(pri, message)
-}
-
-// Sign is used to verify controller(handshake) and sign message
-func (global *global) SignO(message []byte) []byte {
-	global.objectsRWM.Lock()
-	defer global.objectsRWM.Unlock()
-	pri := global.objects[objPrivateKeyBuf].([]byte)
-	defer func() {
-		for i := 0; i < ed25519.PrivateKeySize; i++ {
-			pri[i] = 0
-		}
-	}()
-	for i := 0; i < ed25519.PrivateKeySize; i++ {
-		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
-	}
-	return ed25519.Sign(pri, message)
+	pri := global.objects[objPrivateKey].(*security.Bytes)
+	b := pri.Get()
+	defer pri.Put(b)
+	return ed25519.Sign(b, message)
 }
 
 // Verify is used to verify node certificate
 func (global *global) Verify(message, signature []byte) bool {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	pub := global.objects[objPublicKey]
-	return ed25519.Verify(pub.(ed25519.PublicKey), message, signature)
+	pub := global.objects[objPublicKey].(ed25519.PublicKey)
+	return ed25519.Verify(pub, message, signature)
 }
 
 // PublicKey is used to get public key
@@ -564,14 +532,12 @@ func (global *global) KeyExchangePub() []byte {
 
 // KeyExchange is use to calculate session key
 func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
-	pri := make([]byte, 32)
-	defer security.CoverBytes(pri)
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	for i := 0; i < 32; i++ {
-		pri[i] = global.objects[objPrivateKey+uint32(i)].(byte)
-	}
-	return curve25519.ScalarMult(pri, publicKey)
+	pri := global.objects[objPrivateKey].(*security.Bytes)
+	b := pri.Get()
+	defer pri.Put(b)
+	return curve25519.ScalarMult(b[:32], publicKey)
 }
 
 // Close is used to close global
