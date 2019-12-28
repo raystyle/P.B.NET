@@ -36,6 +36,7 @@ type client struct {
 	closeFunc func()
 
 	conn      *conn
+	rand      *random.Rand
 	heartbeat chan struct{}
 	inSync    int32
 	syncM     sync.Mutex
@@ -102,6 +103,7 @@ func newClient(
 		node:      n,
 		guid:      guid,
 		closeFunc: closeFunc,
+		rand:      random.New(),
 	}
 	err = client.handshake(conn)
 	if err != nil {
@@ -127,7 +129,7 @@ func (client *client) handshake(conn *xnet.Conn) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive check connection data")
 	}
-	_, err = conn.Write(random.New().Bytes(size))
+	_, err = conn.Write(client.rand.Bytes(size))
 	if err != nil {
 		return errors.Wrap(err, "failed to send check connection data")
 	}
@@ -332,21 +334,20 @@ func (client *client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) boo
 func (client *client) sendHeartbeatLoop() {
 	defer client.wg.Done()
 	var err error
-	r := random.New()
 	buffer := bytes.NewBuffer(nil)
 	timer := time.NewTimer(time.Minute)
 	defer timer.Stop()
 	for {
-		timer.Reset(time.Duration(30+r.Int(60)) * time.Second)
+		timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
 		select {
 		case <-timer.C:
 			// <security> fake traffic like client
-			fakeSize := 64 + r.Int(256)
+			fakeSize := 64 + client.rand.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
 			buffer.Reset()
 			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
 			buffer.WriteByte(protocol.ConnSendHeartbeat)
-			buffer.Write(r.Bytes(fakeSize))
+			buffer.Write(client.rand.Bytes(fakeSize))
 			// send
 			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 			_, err = client.conn.Write(buffer.Bytes())
@@ -354,7 +355,7 @@ func (client *client) sendHeartbeatLoop() {
 				return
 			}
 			// receive reply
-			timer.Reset(time.Duration(30+r.Int(60)) * time.Second)
+			timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
 			select {
 			case <-client.heartbeat:
 			case <-timer.C:

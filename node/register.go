@@ -10,7 +10,6 @@ import (
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/modules/info"
-	"project/internal/random"
 	"project/internal/xnet"
 )
 
@@ -44,7 +43,7 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 	// <security> must don't handle error
 	_ = s.ctx.sender.Send(messages.CMDBNodeRegisterRequest, nrr)
 	// wait register result
-	timeout := time.Duration(15+random.New().Int(30)) * time.Second
+	timeout := time.Duration(15+s.rand.Int(30)) * time.Second
 	timer := time.AfterFunc(timeout, func() {
 		s.ctx.storage.SetNodeRegister(guid, &messages.NodeRegisterResponse{
 			Result: messages.RegisterResultTimeout,

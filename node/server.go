@@ -434,7 +434,7 @@ func (s *server) checkConn(conn *xnet.Conn) bool {
 
 func (s *server) sendCertificate(conn *xnet.Conn) bool {
 	var err error
-	cert := s.ctx.global.Certificate()
+	cert := s.ctx.global.GetCertificate()
 	if cert != nil {
 		err = conn.Send(cert)
 		if err != nil {
