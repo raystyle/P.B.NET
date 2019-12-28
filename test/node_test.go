@@ -17,9 +17,9 @@ import (
 	"project/node"
 )
 
-func testGenerateNodeAndConnect(t testing.TB) *node.Node {
+func testGenerateNodeAndTrust(t testing.TB) *node.Node {
 	NODE := generateNodeWithListener(t)
-	listener, err := NODE.GetListener(initNodeListenerTag)
+	listener, err := NODE.GetListener(nodeInitListenerTag)
 	require.NoError(t, err)
 	n := bootstrap.Node{
 		Mode:    xnet.ModeTLS,
@@ -38,7 +38,7 @@ func testGenerateNodeAndConnect(t testing.TB) *node.Node {
 }
 
 func TestNode_SendDirectly(t *testing.T) {
-	NODE := testGenerateNodeAndConnect(t)
+	NODE := testGenerateNodeAndTrust(t)
 	const (
 		goRoutines = 256
 		times      = 64
@@ -65,11 +65,11 @@ func TestNode_SendDirectly(t *testing.T) {
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read ctrl.Debug.NodeSend timeout i: %d", i)
+			t.Fatalf("read ctrl.Test.NodeSend timeout i: %d", i)
 		}
 	}
 	select {
-	case <-NODE.Debug.Send:
+	case <-ctrl.Debug.NodeSend:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}

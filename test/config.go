@@ -24,24 +24,6 @@ var (
 	initCtrlOnce sync.Once
 )
 
-func initializeController(t require.TestingT) {
-	initCtrlOnce.Do(func() {
-		err := os.Chdir("../app")
-		require.NoError(t, err)
-		cfg := generateControllerConfig()
-		ctrl, err = controller.New(cfg)
-		require.NoError(t, err)
-		// set controller keys
-		err = ctrl.LoadSessionKey([]byte("pbnet"))
-		require.NoError(t, err)
-		go func() {
-			err := ctrl.Main()
-			require.NoError(t, err)
-		}()
-		ctrl.Wait()
-	})
-}
-
 func generateControllerConfig() *controller.Config {
 	cfg := controller.Config{}
 
@@ -90,12 +72,30 @@ func generateControllerConfig() *controller.Config {
 	return &cfg
 }
 
+func initializeController(t require.TestingT) {
+	initCtrlOnce.Do(func() {
+		err := os.Chdir("../app")
+		require.NoError(t, err)
+		cfg := generateControllerConfig()
+		ctrl, err = controller.New(cfg)
+		require.NoError(t, err)
+		// set controller keys
+		err = ctrl.LoadSessionKey([]byte("pbnet"))
+		require.NoError(t, err)
+		go func() {
+			err := ctrl.Main()
+			require.NoError(t, err)
+		}()
+		ctrl.Wait()
+	})
+}
+
 func generateNodeConfig(tb testing.TB) *node.Config {
 	cfg := node.Config{}
 
-	cfg.Debug.SkipSynchronizeTime = true
-	cfg.Debug.Broadcast = make(chan []byte, 4)
-	cfg.Debug.Send = make(chan []byte, 4)
+	cfg.Test.SkipSynchronizeTime = true
+	cfg.Test.BroadcastTestMsg = make(chan []byte, 4)
+	cfg.Test.SendTestMsg = make(chan []byte, 4)
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
@@ -136,7 +136,7 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
-const initNodeListenerTag = "init_node_tls"
+const nodeInitListenerTag = "init_tls"
 
 // generateNodeWithListener is used to create init Node
 // controller will trust it
@@ -144,7 +144,6 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 	initializeController(t)
 
 	cfg := generateNodeConfig(t)
-
 	NODE, err := node.New(cfg)
 	require.NoError(t, err)
 
@@ -161,17 +160,14 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 
 	// generate listener config
 	listener := messages.Listener{
-		Tag:     initNodeListenerTag,
+		Tag:     nodeInitListenerTag,
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:0",
 	}
 	c, k := kp.EncodeToPEM()
 	listener.TLSConfig.Certificates = []options.X509KeyPair{
-		{
-			Cert: string(c),
-			Key:  string(k),
-		},
+		{Cert: string(c), Key: string(k)},
 	}
 
 	go func() {
