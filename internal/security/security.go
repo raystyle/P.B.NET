@@ -26,7 +26,7 @@ type Memory struct {
 	mutex   sync.Mutex
 }
 
-// NewMemory is used to new Memory
+// NewMemory is used to create Memory
 func NewMemory() *Memory {
 	m := &Memory{
 		rand:    random.New(),
@@ -63,7 +63,7 @@ func FlushMemory() {
 	memory.Flush()
 }
 
-// CoverBytes is used to cover []byte if []byte has secret
+// CoverBytes is used to cover byte slice if byte slice has secret
 func CoverBytes(b []byte) {
 	mem := NewMemory()
 	mem.Padding()
@@ -71,13 +71,6 @@ func CoverBytes(b []byte) {
 	randBytes := rand.Bytes(len(b))
 	copy(b, randBytes)
 	mem.Flush()
-}
-
-// CoverBytesFast is used to cover []byte fast
-func CoverBytesFast(b []byte) {
-	for i := 0; i < len(b); i++ {
-		b[i] = 0
-	}
 }
 
 // CoverString is used to cover string if string has secret
@@ -101,4 +94,44 @@ func CoverHTTPRequest(r *http.Request) {
 	CoverString(&r.URL.Host)
 	CoverString(&r.URL.Path)
 	CoverString(&r.URL.RawPath)
+}
+
+// Bytes make byte slice discontinuous, it safe for use by multiple goroutines
+type Bytes struct {
+	data  map[int]byte
+	len   int
+	cache sync.Pool
+}
+
+// NewBytes is used to create Bytes
+func NewBytes(b []byte) *Bytes {
+	l := len(b)
+	bytes := Bytes{
+		data: make(map[int]byte, l),
+		len:  l,
+	}
+	for i := 0; i < l; i++ {
+		bytes.data[i] = b[i]
+	}
+	bytes.cache.New = func() interface{} {
+		return make([]byte, bytes.len)
+	}
+	return &bytes
+}
+
+// Get is used to get stored byte slice
+func (b *Bytes) Get() []byte {
+	bytes := b.cache.Get().([]byte)
+	for i := 0; i < b.len; i++ {
+		bytes[i] = b.data[i]
+	}
+	return bytes
+}
+
+// Put is used to put byte slice to cache, slice will be cover
+func (b *Bytes) Put(s []byte) {
+	for i := 0; i < b.len; i++ {
+		s[i] = 0
+	}
+	b.cache.Put(s)
 }
