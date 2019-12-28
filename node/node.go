@@ -31,9 +31,9 @@ type Node struct {
 
 // New is used to create a Node from configuration
 func New(cfg *Config) (*Node, error) {
-	// copy debug config
-	debug := cfg.Test
-	node := &Node{Test: &debug}
+	// copy test
+	test := cfg.Test
+	node := &Node{Test: &test}
 	// storage
 	node.storage = newStorage()
 	// logger

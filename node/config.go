@@ -148,7 +148,7 @@ func (cfg *Config) Run(ctx context.Context, opts *TestOptions) (output *bytes.Bu
 	_, _ = io.Copy(writer, cfg.ProxyClients(node))
 	line = "-------------------------------DNS servers--------------------------------\n"
 	_, _ = writer.Write([]byte(line))
-	buf, err := cfg.DNSServers(node, ctx, opts)
+	buf, err := cfg.DNSServers(ctx, node, opts)
 	_, _ = io.Copy(writer, buf)
 	if err != nil {
 		return
@@ -190,7 +190,7 @@ func (cfg *Config) ProxyClients(node *Node) *bytes.Buffer {
 
 // DNSServers is used to print and test DNS servers
 // if tests passed, show resolved ip
-func (cfg *Config) DNSServers(node *Node, ctx context.Context, opts *TestOptions) (*bytes.Buffer, error) {
+func (cfg *Config) DNSServers(ctx context.Context, node *Node, opts *TestOptions) (*bytes.Buffer, error) {
 	output := bytes.NewBuffer(nil)
 	// print DNS servers
 	for tag, server := range node.global.DNSServers() {
