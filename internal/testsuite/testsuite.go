@@ -20,14 +20,7 @@ var (
 
 func init() {
 	checkNetwork()
-	// deploy pprof
-	for port := 9931; port < 65536; port++ {
-		actualPort := deployPPROF(port)
-		if actualPort != "" {
-			fmt.Printf("[debug] pprof port: %s\n", actualPort)
-			break
-		}
-	}
+	deployPPROF()
 }
 
 func checkNetwork() {
@@ -60,8 +53,19 @@ func checkNetwork() {
 	}
 }
 
+func deployPPROF() {
+	for port := 9931; port < 65536; port++ {
+		actualPort := startPPROF(port)
+		if actualPort != "" {
+			fmt.Printf("[Debug] pprof http server port: %s\n", actualPort)
+			return
+		}
+	}
+	panic("failed to deploy pprof http server")
+}
+
 // return port
-func deployPPROF(port int) string {
+func startPPROF(port int) string {
 	serverMux := http.NewServeMux()
 	serverMux.HandleFunc("/debug/pprof/", pprof.Index)
 	serverMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
