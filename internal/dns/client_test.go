@@ -19,16 +19,6 @@ const (
 	testDSDNS   = "dns_ds.toml" // DS: double stack
 )
 
-func testAddAllDNSServers(t *testing.T, client *Client) {
-	if testsuite.EnableIPv4() {
-		testAddDNSServers(t, client, testIPv4DNS)
-	}
-	if testsuite.EnableIPv6() {
-		testAddDNSServers(t, client, testIPv6DNS)
-	}
-	testAddDNSServers(t, client, testDSDNS)
-}
-
 func testAddDNSServers(t *testing.T, client *Client, filename string) {
 	servers := make(map[string]*Server)
 	b, err := ioutil.ReadFile("testdata/" + filename)
@@ -37,6 +27,16 @@ func testAddDNSServers(t *testing.T, client *Client, filename string) {
 	for tag, server := range servers {
 		require.NoError(t, client.Add(tag, server))
 	}
+}
+
+func testAddAllDNSServers(t *testing.T, client *Client) {
+	if testsuite.EnableIPv4() {
+		testAddDNSServers(t, client, testIPv4DNS)
+	}
+	if testsuite.EnableIPv6() {
+		testAddDNSServers(t, client, testIPv6DNS)
+	}
+	testAddDNSServers(t, client, testDSDNS)
 }
 
 func TestClient(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -118,21 +119,26 @@ func (opts *Options) Clone() *Options {
 type Client struct {
 	proxyPool *proxy.Pool
 
-	expire     time.Duration      // cache expire time, default is 5 minute
+	expire time.Duration // cache expire time, default is 5 minute
+
 	servers    map[string]*Server // key = tag
 	serversRWM sync.RWMutex
-	caches     map[string]*cache // key = domain name
-	cachesRWM  sync.RWMutex
+
+	enableCache atomic.Value      // usually for TestServers
+	caches      map[string]*cache // key = domain name
+	cachesRWM   sync.RWMutex
 }
 
 // NewClient is used to create a DNS client
 func NewClient(pool *proxy.Pool) *Client {
-	return &Client{
+	c := Client{
 		proxyPool: pool,
 		expire:    defaultCacheExpireTime,
 		servers:   make(map[string]*Server),
 		caches:    make(map[string]*cache),
 	}
+	c.EnableCache()
+	return &c
 }
 
 // Add is used to add a DNS server
@@ -306,9 +312,11 @@ func (c *Client) customResolve(
 	opts *Options,
 ) ([]string, error) {
 
-	cache := c.queryCache(domain, opts.Type)
-	if len(cache) != 0 {
-		return cache, nil
+	if c.isEnableCache() {
+		cache := c.queryCache(domain, opts.Type)
+		if len(cache) != 0 {
+			return cache, nil
+		}
 	}
 
 	// set proxy and check method
@@ -350,13 +358,14 @@ func (c *Client) customResolve(
 			}
 		}
 	}
-
-	// update cache
-	if len(result) != 0 {
-		c.updateCache(domain, opts.Type, result)
-		return result, nil
+	if len(result) == 0 {
+		return nil, errors.WithStack(ErrNoResolveResult)
 	}
-	return nil, errors.WithStack(ErrNoResolveResult)
+	// update cache
+	if c.isEnableCache() {
+		c.updateCache(domain, opts.Type, result)
+	}
+	return result, nil
 }
 
 func (c *Client) systemResolve(
@@ -401,6 +410,20 @@ func (c *Client) systemResolve(
 	}
 }
 
+func (c *Client) isEnableCache() bool {
+	return c.enableCache.Load().(bool)
+}
+
+// EnableCache is used to enable cache
+func (c *Client) EnableCache() {
+	c.enableCache.Store(true)
+}
+
+// DisableCache is used to disable cache
+func (c *Client) DisableCache() {
+	c.enableCache.Store(false)
+}
+
 // GetCacheExpireTime is used to get cache expire time
 func (c *Client) GetCacheExpireTime() time.Duration {
 	c.cachesRWM.RLock()
@@ -427,25 +450,53 @@ func (c *Client) FlushCache() {
 	c.caches = make(map[string]*cache)
 }
 
-// TestServers is used to test all DNS server
+// TestServers is used to test all DNS servers
 func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	servers := c.Servers()
-	if len(servers) == 0 {
+	l := len(servers)
+	if l == 0 {
 		return nil, errors.New("no DNS server")
 	}
-	var result []string
+	c.DisableCache()
+	defer c.EnableCache()
+	allResults := make(map[string]struct{}) // remove duplicate result
+	errChan := make(chan error, l)
+	mutex := sync.Mutex{}
+	wg := sync.WaitGroup{}
 	for tag, server := range servers {
-		c.FlushCache()
 		if server.SkipTest {
 			continue
 		}
 		// set server tag to use DNS server that selected
-		opts.ServerTag = tag
-		var err error
-		result, err = c.ResolveWithContext(ctx, domain, opts)
-		if err != nil {
-			return nil, errors.WithMessagef(err, "failed to test dns server %s", tag)
-		}
+		o := opts.Clone()
+		o.ServerTag = tag
+		wg.Add(1)
+		go func() {
+			defer func() {
+				recover()
+				wg.Done()
+			}()
+			result, err := c.ResolveWithContext(ctx, domain, o)
+			if err != nil {
+				errChan <- errors.WithMessagef(err, "failed to test dns server %s", tag)
+				return
+			}
+			mutex.Lock()
+			defer mutex.Unlock()
+			for i := 0; i < len(result); i++ {
+				allResults[result[i]] = struct{}{}
+			}
+		}()
+	}
+	wg.Wait()
+	select {
+	case err := <-errChan:
+		return nil, err
+	default:
+	}
+	result := make([]string, 0, len(allResults)/l+2)
+	for ip := range allResults {
+		result = append(result, ip)
 	}
 	return result, nil
 }
