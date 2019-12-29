@@ -35,7 +35,7 @@ func TestCtrlLogger(t *testing.T) {
 		testLog1 = "test"
 		testLog2 = "log"
 	)
-	testInitCtrl(t)
+	testInitializeController(t)
 	ctrl.logger.Printf(logger.Debug, testSrc, "test format %s %s", testLog1, testLog2)
 	ctrl.logger.Print(logger.Debug, testSrc, "test print", testLog1, testLog2)
 	ctrl.logger.Println(logger.Debug, testSrc, "test println", testLog1, testLog2)

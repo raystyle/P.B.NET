@@ -20,8 +20,8 @@ import (
 	"project/node"
 )
 
-func testGenerateNodeAndConnect(t testing.TB) *node.Node {
-	testInitCtrl(t)
+func testGenerateNodeAndTrust(t testing.TB) *node.Node {
+	testInitializeController(t)
 	NODE := testGenerateNode(t)
 	listener, err := NODE.GetListener(testListenerTag)
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func testGenerateNodeAndConnect(t testing.TB) *node.Node {
 }
 
 func TestSender_Connect(t *testing.T) {
-	NODE := testGenerateNodeAndConnect(t)
+	NODE := testGenerateNodeAndTrust(t)
 	defer NODE.Exit(nil)
 	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
 	err := ctrl.sender.Disconnect(guid)
@@ -50,7 +50,7 @@ func TestSender_Connect(t *testing.T) {
 }
 
 func TestSender_Broadcast(t *testing.T) {
-	NODE := testGenerateNodeAndConnect(t)
+	NODE := testGenerateNodeAndTrust(t)
 	const (
 		goRoutines = 256
 		times      = 64
@@ -73,15 +73,15 @@ func TestSender_Broadcast(t *testing.T) {
 	for i := 0; i < goRoutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-NODE.Debug.Broadcast:
+		case b := <-NODE.Test.BroadcastTestMsg:
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read NODE.Debug.Broadcast timeout i: %d", i)
+			t.Fatalf("read NODE.Test.Broadcast timeout i: %d", i)
 		}
 	}
 	select {
-	case <-NODE.Debug.Broadcast:
+	case <-NODE.Test.BroadcastTestMsg:
 		t.Fatal("redundancy broadcast")
 	case <-time.After(time.Second):
 	}
@@ -100,7 +100,7 @@ func TestSender_Broadcast(t *testing.T) {
 }
 
 func TestSender_SendToNode(t *testing.T) {
-	NODE := testGenerateNodeAndConnect(t)
+	NODE := testGenerateNodeAndTrust(t)
 	nodeGUID := NODE.GUID()
 	const (
 		goRoutines = 256
@@ -124,15 +124,15 @@ func TestSender_SendToNode(t *testing.T) {
 	for i := 0; i < goRoutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-NODE.Debug.Send:
+		case b := <-NODE.Test.SendTestMsg:
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read NODE.Debug.Send timeout i: %d", i)
+			t.Fatalf("read NODE.Test.Send timeout i: %d", i)
 		}
 	}
 	select {
-	case <-NODE.Debug.Send:
+	case <-NODE.Test.SendTestMsg:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
@@ -156,7 +156,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 	number := runtime.NumCPU()
 	NODEs := make([]*node.Node, number)
 	for i := 0; i < number; i++ {
-		NODEs[i] = testGenerateNodeAndConnect(b)
+		NODEs[i] = testGenerateNodeAndTrust(b)
 	}
 	defer func() {
 		for i := 0; i < number; i++ {
@@ -179,7 +179,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 			for {
 				timer.Reset(3 * time.Second)
 				select {
-				case <-NODEs[index].Debug.Broadcast:
+				case <-NODEs[index].Test.BroadcastTestMsg:
 					countM.Lock()
 					count++
 					countM.Unlock()
@@ -194,7 +194,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 }
 
 func TestSender_SendToNodeBenchmark(t *testing.T) {
-	NODE := testGenerateNodeAndConnect(t)
+	NODE := testGenerateNodeAndTrust(t)
 	// send to Node
 	nodeGUID := NODE.GUID()
 	var (
@@ -220,15 +220,15 @@ func TestSender_SendToNodeBenchmark(t *testing.T) {
 	for i := 0; i < total; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case <-NODE.Debug.Send:
+		case <-NODE.Test.SendTestMsg:
 		case <-timer.C:
-			t.Fatalf("read NODE.Debug.Send timeout i: %d", i)
+			t.Fatalf("read NODE.Test.Send timeout i: %d", i)
 		}
 	}
 	stop := time.Since(start).Seconds()
 	t.Logf("[benchmark] total time: %.2fs, times: %d", stop, total)
 	select {
-	case <-NODE.Debug.Send:
+	case <-NODE.Test.SendTestMsg:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}

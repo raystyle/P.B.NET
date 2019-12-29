@@ -29,9 +29,9 @@ const testListenerTag = "test_tls"
 func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg := node.Config{}
 
-	cfg.Debug.SkipSynchronizeTime = true
-	cfg.Debug.Broadcast = make(chan []byte, 4)
-	cfg.Debug.Send = make(chan []byte, 4)
+	cfg.Test.SkipSynchronizeTime = true
+	cfg.Test.BroadcastTestMsg = make(chan []byte, 4)
+	cfg.Test.SendTestMsg = make(chan []byte, 4)
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
@@ -98,10 +98,7 @@ func testGenerateNode(t testing.TB) *node.Node {
 	}
 	c, k := kp.EncodeToPEM()
 	listener.TLSConfig.Certificates = []options.X509KeyPair{
-		{
-			Cert: string(c),
-			Key:  string(k),
-		},
+		{Cert: string(c), Key: string(k)},
 	}
 
 	go func() {
@@ -127,7 +124,7 @@ func testGenerateClient(tb testing.TB, node *node.Node) *client {
 }
 
 func TestClient_Send(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	NODE := testGenerateNode(t)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
@@ -144,7 +141,7 @@ func TestClient_Send(t *testing.T) {
 }
 
 func TestClient_SendParallel(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	NODE := testGenerateNode(t)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
@@ -170,7 +167,7 @@ func TestClient_SendParallel(t *testing.T) {
 }
 
 func BenchmarkClient_Send(b *testing.B) {
-	testInitCtrl(b)
+	testInitializeController(b)
 	NODE := testGenerateNode(b)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
@@ -191,7 +188,7 @@ func BenchmarkClient_Send(b *testing.B) {
 }
 
 func BenchmarkClient_SendParallel(b *testing.B) {
-	testInitCtrl(b)
+	testInitializeController(b)
 	NODE := testGenerateNode(b)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)

@@ -13,7 +13,7 @@ import (
 // CTRL is controller
 // broadcast messages to Nodes, send messages to Nodes or Beacons
 type CTRL struct {
-	Debug *Debug
+	Test *Test
 
 	db      *db      // database
 	logger  *gLogger // global logger
@@ -38,11 +38,11 @@ func New(cfg *Config) (*CTRL, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize database")
 	}
-	// copy debug config
-	debug := cfg.Debug
+	// copy test
+	test := cfg.Test
 	ctrl := &CTRL{
-		Debug: &debug,
-		db:    db,
+		Test: &test,
+		db:   db,
 	}
 	// logger
 	lg, err := newLogger(ctrl, cfg)
@@ -104,14 +104,14 @@ func (ctrl *CTRL) fatal(err error, msg string) error {
 func (ctrl *CTRL) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// test client DNS option
-	if !ctrl.Debug.SkipTestClientDNS {
+	if !ctrl.Test.SkipTestClientDNS {
 		err := ctrl.global.TestDNSOption(&ctrl.client.DNSOpts)
 		if err != nil {
 			return errors.WithMessage(err, "failed to test client DNS option")
 		}
 	}
 	// synchronize time
-	if ctrl.Debug.SkipSynchronizeTime {
+	if ctrl.Test.SkipSynchronizeTime {
 		ctrl.global.StartTimeSyncerAddLoop()
 	} else {
 		err := ctrl.global.StartTimeSyncer()

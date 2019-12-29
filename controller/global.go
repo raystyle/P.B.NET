@@ -31,16 +31,16 @@ import (
 
 type global struct {
 	// when configure Node or Beacon, these proxies will not appear
-	proxyPool *proxy.Pool
+	ProxyPool *proxy.Pool
 
 	// when configure Node or Beacon, DNS Server in *dns.Client
 	// will appear for select if database without DNS Server
-	dnsClient *dns.Client
+	DNSClient *dns.Client
 
 	// when configure Node or Beacon, time syncer client in
 	// *timesync.Syncer will appear for select if database
 	// without time syncer client
-	timeSyncer *timesync.Syncer
+	TimeSyncer *timesync.Syncer
 
 	// objects include various things
 	objects    map[uint32]interface{}
@@ -130,9 +130,9 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	}
 	timeSyncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
 	g := global{
-		proxyPool:          proxyPool,
-		dnsClient:          dnsClient,
-		timeSyncer:         timeSyncer,
+		ProxyPool:          proxyPool,
+		DNSClient:          dnsClient,
+		TimeSyncer:         timeSyncer,
 		objects:            make(map[uint32]interface{}),
 		waitLoadSessionKey: make(chan struct{}, 1),
 	}
@@ -177,7 +177,7 @@ func (global *global) GetSystemCA() []*x509.Certificate {
 
 // GetProxyClient is used to get proxy client from proxy pool
 func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
-	return global.proxyPool.Get(tag)
+	return global.ProxyPool.Get(tag)
 }
 
 // ResolveWithContext is used to resolve domain name with context and options
@@ -186,38 +186,38 @@ func (global *global) ResolveWithContext(
 	domain string,
 	opts *dns.Options,
 ) ([]string, error) {
-	return global.dnsClient.ResolveWithContext(ctx, domain, opts)
+	return global.DNSClient.ResolveWithContext(ctx, domain, opts)
 }
 
 // DNSServers is used to get all DNS servers in DNS client
 func (global *global) DNSServers() map[string]*dns.Server {
-	return global.dnsClient.Servers()
+	return global.DNSClient.Servers()
 }
 
 // TestDNSOption is used to test client DNS option
 func (global *global) TestDNSOption(opts *dns.Options) error {
-	_, err := global.dnsClient.TestOption(global.ctx, "cloudflare.com", opts)
+	_, err := global.DNSClient.TestOption(global.ctx, "cloudflare.com", opts)
 	return err
 }
 
 // TimeSyncerClients is used to get all time syncer clients in time syncer
 func (global *global) TimeSyncerClients() map[string]*timesync.Client {
-	return global.timeSyncer.Clients()
+	return global.TimeSyncer.Clients()
 }
 
 // StartTimeSyncer is used to start time syncer
 func (global *global) StartTimeSyncer() error {
-	return global.timeSyncer.Start()
+	return global.TimeSyncer.Start()
 }
 
 // StartTimeSyncerAddLoop is used to start time syncer add loop
 func (global *global) StartTimeSyncerAddLoop() {
-	global.timeSyncer.StartWalker()
+	global.TimeSyncer.StartWalker()
 }
 
 // Now is used to get current time
 func (global *global) Now() time.Time {
-	return global.timeSyncer.Now().Local()
+	return global.TimeSyncer.Now().Local()
 }
 
 // GenerateSessionKey is used to generate session key
@@ -542,6 +542,6 @@ func (global *global) BroadcastKey() []byte {
 // Close is used to close global
 func (global *global) Close() {
 	global.cancel()
-	global.timeSyncer.Stop()
+	global.TimeSyncer.Stop()
 	global.closeOnce.Do(func() { close(global.waitLoadSessionKey) })
 }

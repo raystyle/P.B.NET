@@ -7,8 +7,9 @@ import (
 	"project/internal/dns"
 )
 
-// Debug is used to test
-type Debug struct {
+// Test contains test data
+type Test struct {
+	// CTRL.Main()
 	SkipTestClientDNS   bool
 	SkipSynchronizeTime bool
 
@@ -19,7 +20,7 @@ type Debug struct {
 
 // Config include configuration about Controller
 type Config struct {
-	Debug Debug `toml:"-"`
+	Test Test `toml:"-"`
 
 	Database struct {
 		Dialect         string `toml:"dialect"` // "mysql"

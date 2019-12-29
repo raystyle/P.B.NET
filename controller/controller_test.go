@@ -15,7 +15,7 @@ var (
 	initOnce sync.Once
 )
 
-func testInitCtrl(t testing.TB) {
+func testInitializeController(t testing.TB) {
 	initOnce.Do(func() {
 		err := os.Chdir("../app")
 		require.NoError(t, err)

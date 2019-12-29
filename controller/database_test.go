@@ -17,7 +17,7 @@ import (
 )
 
 func TestInsertProxyClient(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	testInsertProxyClient(t)
 }
 
@@ -40,14 +40,14 @@ func testInsertProxyClient(t require.TestingT) {
 }
 
 func TestSelectProxyClient(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	clients, err := ctrl.db.SelectProxyClient()
 	require.NoError(t, err)
 	t.Log("select proxy client:", spew.Sdump(clients))
 }
 
 func TestUpdateProxyClient(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	clients, err := ctrl.db.SelectProxyClient()
 	require.NoError(t, err)
 	raw := clients[0].Mode
@@ -60,7 +60,7 @@ func TestUpdateProxyClient(t *testing.T) {
 }
 
 func TestDeleteProxyClient(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	clients, err := ctrl.db.SelectProxyClient()
 	require.NoError(t, err)
 	err = ctrl.db.DeleteProxyClient(clients[0].ID)
@@ -69,7 +69,7 @@ func TestDeleteProxyClient(t *testing.T) {
 }
 
 func TestInsertDNSServer(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	testInsertDNSServer(t)
 }
 
@@ -91,14 +91,14 @@ func testInsertDNSServer(t require.TestingT) {
 }
 
 func TestSelectDNSServer(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	servers, err := ctrl.db.SelectDNSServer()
 	require.NoError(t, err)
 	t.Log("select DNS server:", spew.Sdump(servers))
 }
 
 func TestUpdateDNSServer(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	servers, err := ctrl.db.SelectDNSServer()
 	require.NoError(t, err)
 	raw := servers[0].Method
@@ -111,7 +111,7 @@ func TestUpdateDNSServer(t *testing.T) {
 }
 
 func TestDeleteDNSServer(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	servers, err := ctrl.db.SelectDNSServer()
 	require.NoError(t, err)
 	err = ctrl.db.DeleteDNSServer(servers[0].ID)
@@ -120,7 +120,7 @@ func TestDeleteDNSServer(t *testing.T) {
 }
 
 func TestInsertTimeSyncerClient(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	testInsertTimeSyncerClient(t)
 }
 
@@ -142,14 +142,14 @@ func testInsertTimeSyncerClient(t require.TestingT) {
 }
 
 func TestSelectTimeSyncerClient(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	clients, err := ctrl.db.SelectTimeSyncerClient()
 	require.NoError(t, err)
 	t.Log("select time syncer client:", spew.Sdump(clients))
 }
 
 func TestUpdateTimeSyncerClient(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	configs, err := ctrl.db.SelectTimeSyncerClient()
 	require.NoError(t, err)
 	raw := configs[0].Mode
@@ -162,7 +162,7 @@ func TestUpdateTimeSyncerClient(t *testing.T) {
 }
 
 func TestDeleteTimeSyncerClient(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	configs, err := ctrl.db.SelectTimeSyncerClient()
 	require.NoError(t, err)
 	err = ctrl.db.DeleteTimeSyncerClient(configs[0].ID)
@@ -171,7 +171,7 @@ func TestDeleteTimeSyncerClient(t *testing.T) {
 }
 
 func TestInsertBoot(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	testInsertBoot(t)
 }
 
@@ -197,14 +197,14 @@ func testInsertBoot(t require.TestingT) {
 }
 
 func TestSelectBoot(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	boots, err := ctrl.db.SelectBoot()
 	require.NoError(t, err)
 	t.Log("select boot:", spew.Sdump(boots))
 }
 
 func TestUpdateBoot(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	boots, err := ctrl.db.SelectBoot()
 	require.NoError(t, err)
 	raw := boots[0].Mode
@@ -217,7 +217,7 @@ func TestUpdateBoot(t *testing.T) {
 }
 
 func TestDeleteBoot(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	boots, err := ctrl.db.SelectBoot()
 	require.NoError(t, err)
 	err = ctrl.db.DeleteBoot(boots[0].ID)
@@ -226,7 +226,7 @@ func TestDeleteBoot(t *testing.T) {
 }
 
 func TestInsertListener(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	testInsertListener(t)
 }
 
@@ -247,14 +247,14 @@ func testInsertListener(t require.TestingT) {
 }
 
 func TestSelectListener(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	listeners, err := ctrl.db.SelectListener()
 	require.NoError(t, err)
 	t.Log("select listener:", spew.Sdump(listeners))
 }
 
 func TestUpdateListener(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	listeners, err := ctrl.db.SelectListener()
 	require.NoError(t, err)
 	raw := listeners[0].Mode
@@ -267,7 +267,7 @@ func TestUpdateListener(t *testing.T) {
 }
 
 func TestDeleteListener(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	listeners, err := ctrl.db.SelectListener()
 	require.NoError(t, err)
 	err = ctrl.db.DeleteListener(listeners[0].ID)
@@ -276,7 +276,7 @@ func TestDeleteListener(t *testing.T) {
 }
 
 func TestInsertNode(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	node := &mNode{
 		GUID:       bytes.Repeat([]byte{52}, guid.Size),
 		SessionKey: bytes.Repeat([]byte{52}, aes.Key256Bit),
@@ -317,13 +317,13 @@ func TestInsertNode(t *testing.T) {
 }
 
 func TestDeleteNode(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	err := ctrl.db.DeleteNode(bytes.Repeat([]byte{52}, guid.Size))
 	require.NoError(t, err)
 }
 
 func TestDeleteNodeUnscoped(t *testing.T) {
-	testInitCtrl(t)
+	testInitializeController(t)
 	err := ctrl.db.DeleteNodeUnscoped(bytes.Repeat([]byte{52}, guid.Size))
 	require.NoError(t, err)
 }
