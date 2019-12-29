@@ -11,8 +11,8 @@ import (
 
 // server tags
 const (
-	TagSocks5  = "test proxy 1"
-	TagHTTP    = "test proxy 2"
+	TagSocks5  = "p1"
+	TagHTTP    = "p2"
 	TagBalance = "balance"
 )
 
@@ -65,7 +65,7 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
 	err = pool.Add(&proxy.Client{
 		Tag:     TagBalance,
 		Mode:    proxy.ModeBalance,
-		Options: `tags = ["test proxy 1","test proxy 2"]`,
+		Options: `tags = ["p1", "p2"]`,
 	})
 	require.NoError(t, err)
 	return pool, manager
