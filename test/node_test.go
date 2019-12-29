@@ -61,7 +61,7 @@ func TestNode_SendDirectly(t *testing.T) {
 	for i := 0; i < goRoutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-ctrl.Debug.NodeSend:
+		case b := <-ctrl.Test.NodeSend:
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
@@ -69,7 +69,7 @@ func TestNode_SendDirectly(t *testing.T) {
 		}
 	}
 	select {
-	case <-ctrl.Debug.NodeSend:
+	case <-ctrl.Test.NodeSend:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
