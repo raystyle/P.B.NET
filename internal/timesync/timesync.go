@@ -29,7 +29,7 @@ const (
 
 // errors
 var (
-	ErrNoClient         = fmt.Errorf("no time syncer clients")
+	ErrNoClients        = fmt.Errorf("no time syncer clients")
 	ErrAllClientsFailed = fmt.Errorf("all time syncer clients failed to query")
 )
 
@@ -53,13 +53,16 @@ type Syncer struct {
 	dnsClient *dns.Client
 	logger    logger.Logger
 
-	clients     map[string]*Client // key = tag
-	clientsRWM  sync.RWMutex
-	fixedSleep  int           // about Start
-	randomSleep int           // about Start
-	interval    time.Duration // sync interval
-	now         time.Time
-	nowRWM      sync.RWMutex // now
+	// about random.Sleep() in Start()
+	sleepFixed  int
+	sleepRandom int
+	// synchronize interval
+	interval time.Duration
+
+	clients    map[string]*Client // key = tag
+	clientsRWM sync.RWMutex
+	now        time.Time
+	nowRWM     sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -73,8 +76,8 @@ func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 		dnsClient:   client,
 		logger:      logger,
 		clients:     make(map[string]*Client),
-		fixedSleep:  defaultTimeSyncFixed,
-		randomSleep: defaultTimeSyncRandom,
+		sleepFixed:  defaultTimeSyncFixed,
+		sleepRandom: defaultTimeSyncRandom,
 		interval:    defaultTimeSyncInterval,
 		now:         time.Now(),
 	}
@@ -161,8 +164,8 @@ func (syncer *Syncer) SetSleep(fixed, random int) {
 	if random < 1 {
 		random = defaultTimeSyncRandom
 	}
-	syncer.fixedSleep = fixed
-	syncer.randomSleep = random
+	syncer.sleepFixed = fixed
+	syncer.sleepRandom = random
 }
 
 func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {
@@ -172,11 +175,11 @@ func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {
 // Start is used to time syncer
 func (syncer *Syncer) Start() error {
 	if len(syncer.Clients()) == 0 {
-		return ErrNoClient
+		return ErrNoClients
 	}
 	// first time sync must success
 	for {
-		err := syncer.synchronize(false)
+		err := syncer.synchronize()
 		switch err {
 		case nil:
 			syncer.wg.Add(2)
@@ -186,7 +189,7 @@ func (syncer *Syncer) Start() error {
 		case ErrAllClientsFailed:
 			syncer.dnsClient.FlushCache()
 			syncer.log(logger.Warning, ErrAllClientsFailed)
-			random.Sleep(syncer.fixedSleep, syncer.fixedSleep)
+			random.Sleep(syncer.sleepFixed, syncer.sleepFixed)
 		default:
 			return err
 		}
@@ -200,20 +203,6 @@ func (syncer *Syncer) StartWalker() {
 	syncer.now = time.Now()
 	syncer.wg.Add(1)
 	go syncer.walker()
-}
-
-// Stop is used to stop time syncer
-func (syncer *Syncer) Stop() {
-	syncer.cancel()
-	syncer.wg.Wait()
-}
-
-// Test is used to test all client
-func (syncer *Syncer) Test() error {
-	if len(syncer.Clients()) == 0 {
-		return ErrNoClient
-	}
-	return syncer.synchronize(true)
 }
 
 func (syncer *Syncer) walker() {
@@ -230,7 +219,7 @@ func (syncer *Syncer) walker() {
 	// if addLoopInterval < 2 Millisecond, time will be inaccurate
 	// see GOROOT/src/time/tick.go NewTicker()
 	// "It adjusts the intervals or drops ticks to make up for slow receivers."
-	const addLoopInterval = 10 * time.Millisecond
+	const addLoopInterval = 100 * time.Millisecond
 	ticker := time.NewTicker(addLoopInterval)
 	defer ticker.Stop()
 	add := func() {
@@ -261,7 +250,7 @@ func (syncer *Syncer) synchronizeLoop() {
 	}()
 	rand := random.New()
 	calcInterval := func() time.Duration {
-		extra := syncer.fixedSleep + rand.Int(syncer.randomSleep)
+		extra := syncer.sleepFixed + rand.Int(syncer.sleepRandom)
 		return syncer.GetSyncInterval() + time.Duration(extra)*time.Second
 	}
 	timer := time.NewTimer(calcInterval())
@@ -269,7 +258,7 @@ func (syncer *Syncer) synchronizeLoop() {
 	for {
 		select {
 		case <-timer.C:
-			err := syncer.synchronize(false)
+			err := syncer.synchronize()
 			if err != nil {
 				syncer.log(logger.Warning, "failed to synchronize time:", err)
 			}
@@ -281,50 +270,77 @@ func (syncer *Syncer) synchronizeLoop() {
 }
 
 // all is for test all clients
-func (syncer *Syncer) synchronize(all bool) (err error) {
+func (syncer *Syncer) synchronize() (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error(r, "Syncer.synchronize")
 			syncer.log(logger.Fatal, err)
 		}
 	}()
-	var (
-		now     time.Time
-		optsErr bool
-	)
-	update := func() {
-		syncer.nowRWM.Lock()
-		defer syncer.nowRWM.Unlock()
-		syncer.now = now
-	}
 	for tag, client := range syncer.Clients() {
-		// check skip test
-		if all {
-			if client.SkipTest {
-				continue
-			}
-		}
-		now, optsErr, err = client.Query()
+		now, optsErr, err := client.Query()
 		if err != nil {
 			if optsErr {
-				return fmt.Errorf("client %s with invalid config: %s", tag, err)
+				return errors.WithMessagef(err, "client %s with invalid config", tag)
 			}
-			err = fmt.Errorf("client %s failed to synchronize time: %s", tag, err)
-			if all {
-				return err
-			}
+			err = errors.WithMessagef(err, "client %s failed to synchronize time", tag)
 			syncer.log(logger.Warning, err)
 		} else {
-			update()
-			if all {
-				// test all syncer clients
-				continue
-			}
-			return
+			syncer.updateTime(now)
+			return nil
 		}
 	}
-	if all {
-		return
-	}
 	return ErrAllClientsFailed
+}
+
+func (syncer *Syncer) updateTime(now time.Time) {
+	syncer.nowRWM.Lock()
+	defer syncer.nowRWM.Unlock()
+	syncer.now = now
+}
+
+// Test is used to test all clients
+func (syncer *Syncer) Test(ctx context.Context) error {
+	l := len(syncer.clients)
+	if l == 0 {
+		return ErrNoClients
+	}
+	errChan := make(chan error, l)
+	for tag, client := range syncer.clients {
+		if client.SkipTest {
+			errChan <- nil
+			continue
+		}
+		go func(tag string, client *Client) {
+			var err error
+			defer func() {
+				if r := recover(); r != nil {
+					err = xpanic.Error(r, "Syncer.Test")
+				}
+				errChan <- err
+			}()
+			_, _, err = client.Query()
+			if err != nil {
+				err = errors.WithMessagef(err, "failed to test client %s", tag)
+			}
+		}(tag, client)
+	}
+	for i := 0; i < l; i++ {
+		select {
+		case err := <-errChan:
+			if err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	close(errChan)
+	return nil
+}
+
+// Stop is used to stop time syncer
+func (syncer *Syncer) Stop() {
+	syncer.cancel()
+	syncer.wg.Wait()
 }

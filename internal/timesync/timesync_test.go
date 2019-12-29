@@ -1,6 +1,7 @@
 package timesync
 
 import (
+	"context"
 	"io/ioutil"
 	"testing"
 	"time"
@@ -84,7 +85,7 @@ func TestSyncer_Start(t *testing.T) {
 	syncer.SetSleep(3, 5)
 
 	// no clients
-	require.Equal(t, ErrNoClient, syncer.Start())
+	require.Equal(t, ErrNoClients, syncer.Start())
 
 	// invalid config
 	err := syncer.Add("invalid config", &Client{
@@ -161,7 +162,7 @@ func TestSyncer_Test(t *testing.T) {
 	syncer := New(pool, dnsClient, logger.Test)
 
 	// no clients
-	require.Equal(t, ErrNoClient, syncer.Test())
+	require.Equal(t, ErrNoClients, syncer.Test(context.Background()))
 
 	// add reachable
 	testAddHTTP(t, syncer)
@@ -174,13 +175,13 @@ func TestSyncer_Test(t *testing.T) {
 	require.NoError(t, err)
 
 	// test
-	require.NoError(t, syncer.Test())
+	require.NoError(t, syncer.Test(context.Background()))
 
 	// test failed
 	require.NoError(t, syncer.Delete("http"))
 	err = syncer.Add("unreachable", testUnreachableClient())
 	require.NoError(t, err)
-	require.Error(t, syncer.Test())
+	require.Error(t, syncer.Test(context.Background()))
 
 	testsuite.IsDestroyed(t, syncer)
 }
@@ -213,6 +214,7 @@ func TestSyncer_synchronizePanic(t *testing.T) {
 	syncer := New(pool, dnsClient, logger.Test)
 	// add reachable
 	testAddHTTP(t, syncer)
+
 	// remove context
 	syncer.Clients()["http"].client.(*HTTP).ctx = nil
 	require.Error(t, syncer.Start())
