@@ -14,6 +14,7 @@ import (
 
 	"project/internal/options"
 	"project/internal/proxy"
+	"project/internal/xpanic"
 )
 
 // supported modes
@@ -472,13 +473,17 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 		o.ServerTag = tag
 		wg.Add(1)
 		go func() {
+			var err error
 			defer func() {
-				recover()
+				if r := recover(); r != nil {
+					err = xpanic.Error(r, "Client.TestServers")
+				}
+				errChan <- err
 				wg.Done()
 			}()
 			result, err := c.ResolveWithContext(ctx, domain, o)
 			if err != nil {
-				errChan <- errors.WithMessagef(err, "failed to test dns server %s", tag)
+				err = errors.WithMessagef(err, "failed to test dns server %s", tag)
 				return
 			}
 			mutex.Lock()
