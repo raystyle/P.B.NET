@@ -478,7 +478,9 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 				if r := recover(); r != nil {
 					err = xpanic.Error(r, "Client.TestServers")
 				}
-				errChan <- err
+				if err != nil {
+					errChan <- err
+				}
 				wg.Done()
 			}()
 			result, err := c.ResolveWithContext(ctx, domain, o)
