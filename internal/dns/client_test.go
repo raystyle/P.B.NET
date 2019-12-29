@@ -238,7 +238,7 @@ func TestClient_TestServers(t *testing.T) {
 
 		// no DNS server
 		result, err := client.TestServers(context.Background(), testDomain, opts)
-		require.EqualError(t, err, "no DNS server")
+		require.Equal(t, err, ErrNoDNSServers)
 		require.Equal(t, 0, len(result))
 
 		// add reachable and skip test

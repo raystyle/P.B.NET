@@ -52,8 +52,11 @@ const (
 	defaultCacheExpireTime = time.Minute
 )
 
-// ErrInvalidExpireTime is an error of the invalid DNS cache expire time
-var ErrInvalidExpireTime = errors.New("expire time < 10 seconds or > 10 minutes")
+// errors
+var (
+	ErrInvalidExpireTime = fmt.Errorf("expire time < 10 seconds or > 10 minutes")
+	ErrNoDNSServers      = fmt.Errorf("no DNS servers")
+)
 
 // Server include DNS server info
 type Server struct {
@@ -453,56 +456,55 @@ func (c *Client) FlushCache() {
 
 // TestServers is used to test all DNS servers
 func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) ([]string, error) {
-	servers := c.Servers()
-	l := len(servers)
+	l := len(c.servers)
 	if l == 0 {
-		return nil, errors.New("no DNS server")
+		return nil, ErrNoDNSServers
 	}
 	c.DisableCache()
 	defer c.EnableCache()
-	allResults := make(map[string]struct{}) // remove duplicate result
+	results := make(map[string]struct{}) // remove duplicate result
+	resultsM := sync.Mutex{}
 	errChan := make(chan error, l)
-	mutex := sync.Mutex{}
-	wg := sync.WaitGroup{}
-	for tag, server := range servers {
+	for tag, server := range c.servers {
 		if server.SkipTest {
+			errChan <- nil
 			continue
 		}
 		// set server tag to use DNS server that selected
 		o := opts.Clone()
 		o.ServerTag = tag
-		wg.Add(1)
 		go func() {
 			var err error
 			defer func() {
 				if r := recover(); r != nil {
 					err = xpanic.Error(r, "Client.TestServers")
 				}
-				if err != nil {
-					errChan <- err
-				}
-				wg.Done()
+				errChan <- err
 			}()
 			result, err := c.ResolveWithContext(ctx, domain, o)
 			if err != nil {
-				err = errors.WithMessagef(err, "failed to test dns server %s", tag)
+				err = errors.WithMessagef(err, "failed to test servers %s", tag)
 				return
 			}
-			mutex.Lock()
-			defer mutex.Unlock()
+			resultsM.Lock()
+			defer resultsM.Unlock()
 			for i := 0; i < len(result); i++ {
-				allResults[result[i]] = struct{}{}
+				results[result[i]] = struct{}{}
 			}
 		}()
 	}
-	wg.Wait()
-	select {
-	case err := <-errChan:
-		return nil, err
-	default:
+	for i := 0; i < l; i++ {
+		select {
+		case err := <-errChan:
+			if err != nil {
+				return nil, err
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
-	result := make([]string, 0, len(allResults)/l+2)
-	for ip := range allResults {
+	result := make([]string, 0, len(results)/l+2)
+	for ip := range results {
 		result = append(result, ip)
 	}
 	return result, nil
@@ -513,13 +515,15 @@ func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) (
 	if opts.SkipTest {
 		return nil, nil
 	}
-	c.FlushCache()
-	if opts.SkipProxy {
-		opts.ProxyTag = ""
+	c.DisableCache()
+	defer c.EnableCache()
+	o := opts.Clone()
+	if o.SkipProxy {
+		o.ProxyTag = ""
 	}
-	result, err := c.ResolveWithContext(ctx, domain, opts)
+	result, err := c.ResolveWithContext(ctx, domain, o)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to test dns option")
+		return nil, errors.WithMessage(err, "failed to test option")
 	}
 	return result, nil
 }
