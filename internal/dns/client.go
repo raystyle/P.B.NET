@@ -224,12 +224,7 @@ func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
 }
 
 // ResolveWithContext is used to resolve domain name with context
-func (c *Client) ResolveWithContext(
-	ctx context.Context,
-	domain string,
-	opts *Options,
-) ([]string, error) {
-
+func (c *Client) ResolveWithContext(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
@@ -470,10 +465,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 			errChan <- nil
 			continue
 		}
-		// set server tag to use DNS server that selected
-		o := opts.Clone()
-		o.ServerTag = tag
-		go func() {
+		go func(tag string) {
 			var err error
 			defer func() {
 				if r := recover(); r != nil {
@@ -481,9 +473,12 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 				}
 				errChan <- err
 			}()
+			// set server tag to use DNS server that selected
+			o := opts.Clone()
+			o.ServerTag = tag
 			result, err := c.ResolveWithContext(ctx, domain, o)
 			if err != nil {
-				err = errors.WithMessagef(err, "failed to test servers %s", tag)
+				err = errors.WithMessagef(err, "failed to test server %s", tag)
 				return
 			}
 			resultsM.Lock()
@@ -491,8 +486,9 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 			for i := 0; i < len(result); i++ {
 				results[result[i]] = struct{}{}
 			}
-		}()
+		}(tag)
 	}
+	// get errors
 	for i := 0; i < l; i++ {
 		select {
 		case err := <-errChan:
@@ -503,6 +499,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 			return nil, ctx.Err()
 		}
 	}
+	close(errChan)
 	result := make([]string, 0, len(results)/l+2)
 	for ip := range results {
 		result = append(result, ip)
