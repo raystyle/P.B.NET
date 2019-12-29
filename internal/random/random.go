@@ -28,8 +28,10 @@ type Rand struct {
 
 // New is used to create a Rand
 func New() *Rand {
-	goRoutines := 16
-	times := 128
+	const (
+		goRoutines = 16
+		times      = 128
+	)
 	data := make(chan []byte, goRoutines*times)
 	wg := sync.WaitGroup{}
 	wg.Add(goRoutines)
