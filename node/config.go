@@ -29,6 +29,7 @@ type Test struct {
 }
 
 // Config contains configuration about Node
+// use extra msgpack tag to hide raw field name
 type Config struct {
 	Test Test `toml:"-" msgpack:"-"`
 
@@ -57,7 +58,7 @@ type Config struct {
 		Skip bool `toml:"skip" msgpack:"a"` // skip register for genesis node
 
 		// generate configs from controller
-		Bootstraps []byte `toml:"-" msgpack:"b"`
+		Bootstraps []byte `toml:"-" msgpack:"z"`
 	} `toml:"register" msgpack:"dd"`
 
 	Forwarder struct {
@@ -312,7 +313,12 @@ func (cfg *Config) wait(ctx context.Context, node *Node, timeout time.Duration) 
 	}
 }
 
-// Build is used to build node configuration
+// Build is used to build configuration
 func (cfg *Config) Build() ([]byte, error) {
 	return msgpack.Marshal(cfg)
+}
+
+// Load is used to load built configuration
+func (cfg *Config) Load(built []byte) error {
+	return msgpack.Unmarshal(built, &cfg)
 }

@@ -72,6 +72,28 @@ func TestConfig_Run(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestConfig_Build_Load(t *testing.T) {
+	config := testGenerateConfig(t)
+	config.Test.SkipSynchronizeTime = false
+	config.Logger.Writer = nil
+
+	cfg := testGenerateConfig(t)
+	cfg.Test.SkipSynchronizeTime = false
+	cfg.Logger.Writer = nil
+
+	require.Equal(t, config, cfg)
+
+	cfg.Logger.Level = "info"
+	require.NotEqual(t, config, cfg)
+
+	built, err := config.Build()
+	require.NoError(t, err)
+	newConfig := new(Config)
+	err = newConfig.Load(built)
+	require.NoError(t, err)
+	require.Equal(t, config, newConfig)
+}
+
 func TestConfig(t *testing.T) {
 	b, err := ioutil.ReadFile("testdata/config.toml")
 	require.NoError(t, err)
@@ -115,9 +137,4 @@ func TestConfig(t *testing.T) {
 	for _, td := range tds {
 		require.Equal(t, td.expected, td.actual)
 	}
-
-	// print build
-	b, err = cfg.Build()
-	require.NoError(t, err)
-	t.Log(string(b))
 }
