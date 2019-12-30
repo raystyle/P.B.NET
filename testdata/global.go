@@ -3,6 +3,7 @@ package testdata
 import (
 	"encoding/pem"
 	"io/ioutil"
+	"sync"
 
 	"github.com/stretchr/testify/require"
 
@@ -31,19 +32,27 @@ func Certificates(t require.TestingT) [][]byte {
 	return ASN1
 }
 
+var (
+	initProxyClientsOnce sync.Once
+	proxyServer          *socks.Server
+)
+
 // ProxyClients is used to deploy a test proxy server
 // and return corresponding proxy client
 func ProxyClients(t require.TestingT) []*proxy.Client {
-	server, err := socks.NewServer("test", logger.Test, nil)
-	require.NoError(t, err)
-	err = server.ListenAndServe("tcp", "localhost:0")
-	require.NoError(t, err)
+	initProxyClientsOnce.Do(func() {
+		var err error
+		proxyServer, err = socks.NewServer("test", logger.Test, nil)
+		require.NoError(t, err)
+		err = proxyServer.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	})
 	return []*proxy.Client{
 		{
 			Tag:     "test_socks5",
 			Mode:    proxy.ModeSocks,
 			Network: "tcp",
-			Address: server.Address(),
+			Address: proxyServer.Address(),
 		},
 	}
 }
