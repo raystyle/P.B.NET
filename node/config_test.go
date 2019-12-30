@@ -3,7 +3,6 @@ package node
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -64,14 +63,13 @@ func testGenerateConfig(tb testing.TB) *Config {
 
 func TestConfig_Run(t *testing.T) {
 	config := testGenerateConfig(t)
-	output, err := config.Run(
+	err := config.Run(
 		context.Background(),
+		os.Stdout,
 		&TestOptions{
 			Domain: "cloudflare.com",
-			Writer: os.Stdout,
 		})
 	require.NoError(t, err)
-	fmt.Println(output)
 }
 
 func TestConfig(t *testing.T) {
