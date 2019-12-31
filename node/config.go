@@ -52,7 +52,11 @@ type Config struct {
 		TimeSyncerClients map[string]*timesync.Client `toml:"-" msgpack:"z"`
 	} `toml:"global" msgpack:"bb"`
 
-	Client cOpts `toml:"client" msgpack:"cc"`
+	Client struct {
+		ProxyTag string        `toml:"proxy_tag" msgpack:"a"`
+		Timeout  time.Duration `toml:"timeout"   msgpack:"b"`
+		DNSOpts  dns.Options   `toml:"dns"       msgpack:"c"`
+	} `toml:"client" msgpack:"cc"`
 
 	Register struct {
 		Skip bool `toml:"skip" msgpack:"a"` // skip register for genesis node
@@ -99,13 +103,6 @@ type Config struct {
 		PublicKey    []byte `msgpack:"y"` // verify message ed25519
 		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
 	} `toml:"-" msgpack:"jj"`
-}
-
-// client options
-type cOpts struct {
-	ProxyTag string        `toml:"proxy_tag" msgpack:"a"`
-	Timeout  time.Duration `toml:"timeout"   msgpack:"b"`
-	DNSOpts  dns.Options   `toml:"dns"       msgpack:"c"`
 }
 
 // TestOptions include options about test

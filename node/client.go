@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"io"
 	"net"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
+	"project/internal/dns"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -35,6 +37,7 @@ type client struct {
 	guid      []byte // node guid
 	closeFunc func()
 
+	tag       string
 	conn      *conn
 	rand      *random.Rand
 	heartbeat chan struct{}
@@ -48,7 +51,6 @@ type client struct {
 
 // when guid != ctrl guid for forwarder
 // when guid == ctrl guid for register
-// switch Register() or Connect() after newClient()
 func newClient(
 	ctx context.Context,
 	node *Node,
@@ -56,14 +58,14 @@ func newClient(
 	guid []byte,
 	closeFunc func(),
 ) (*client, error) {
+	// dial
 	host, port, err := net.SplitHostPort(n.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
 	cfg := xnet.Config{
 		Network: n.Network,
-		Timeout: node.client.Timeout,
+		Timeout: node.clientMgr.GetTimeout(),
 	}
 	cfg.TLSConfig = &tls.Config{
 		Rand:       rand.Reader,
@@ -77,10 +79,10 @@ func newClient(
 		cfg.TLSConfig.RootCAs.AddCert(cert)
 	}
 	// set proxy
-	p, _ := node.global.GetProxyClient(node.client.ProxyTag)
+	p, _ := node.global.GetProxyClient(node.clientMgr.GetProxyTag())
 	cfg.Dialer = p.DialContext
 	// resolve domain name
-	result, err := node.global.ResolveWithContext(ctx, host, &node.client.DNSOpts)
+	result, err := node.global.ResolveWithContext(ctx, host, node.clientMgr.GetDNSOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +114,15 @@ func newClient(
 		return nil, errors.WithMessagef(err, format, n.Address)
 	}
 	client.conn = newConn(node, conn, guid, connUsageClient)
+
+	// add client to client manager
+	client.tag = node.clientMgr.GenerateTag()
+	node.clientMgr.Add(&client)
 	return &client, nil
 }
 
 func (client *client) handshake(conn *xnet.Conn) error {
-	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.client.Timeout))
+	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.clientMgr.GetTimeout()))
 	// about check connection
 	sizeByte := make([]byte, 1)
 	_, err := io.ReadFull(conn, sizeByte)
@@ -168,15 +174,16 @@ func (client *client) verifyCertificate(cert []byte, address string, guid []byte
 	return client.ctx.global.CtrlVerify(buffer.Bytes(), certWithNodeGUID)
 }
 
-// if return error, must close manually
 func (client *client) Connect() error {
 	// send operation
-	_, err := client.conn.Write([]byte{2})
+	_, err := client.conn.Write([]byte{2}) // 2 = connect
 	if err != nil {
+		client.Close()
 		return errors.Wrap(err, "failed to send operation")
 	}
 	err = client.authenticate()
 	if err != nil {
+		client.Close()
 		return err
 	}
 	client.stopSignal = make(chan struct{})
@@ -436,9 +443,126 @@ func (client *client) Close() {
 		_ = client.conn.Close()
 		close(client.stopSignal)
 		client.wg.Wait()
+		client.ctx.clientMgr.Delete(client.tag)
 		if client.closeFunc != nil {
 			client.closeFunc()
 		}
 		client.conn.Log(logger.Info, "disconnected")
 	})
+}
+
+// clients contains all clients from newClient() and client options from Config
+// it can generate client tag, you can manage all clients here
+type clientMgr struct {
+	ctx *Node
+
+	// options from Config
+	proxyTag string
+	timeout  time.Duration
+	dnsOpts  dns.Options
+	optsRWM  sync.RWMutex
+
+	guid       *guid.Generator
+	clients    map[string]*client
+	clientsRWM sync.RWMutex
+}
+
+func newClientManager(ctx *Node, config *Config) *clientMgr {
+	cfg := config.Client
+	clientMgr := clientMgr{
+		ctx:      ctx,
+		proxyTag: cfg.ProxyTag,
+		timeout:  cfg.Timeout,
+		dnsOpts:  cfg.DNSOpts,
+		guid:     guid.New(4, ctx.global.Now),
+	}
+	clientMgr.clients = make(map[string]*client)
+	return &clientMgr
+}
+
+func (cm *clientMgr) GetProxyTag() string {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return cm.proxyTag
+}
+
+func (cm *clientMgr) GetTimeout() time.Duration {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return cm.timeout
+}
+
+func (cm *clientMgr) GetDNSOptions() *dns.Options {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return cm.dnsOpts.Clone()
+}
+
+func (cm *clientMgr) SetProxyTag(tag string) error {
+	// check proxy is exist
+	_, err := cm.ctx.global.GetProxyClient(tag)
+	if err != nil {
+		return err
+	}
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.proxyTag = tag
+	return nil
+}
+
+func (cm *clientMgr) SetTimeout(timeout time.Duration) {
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.timeout = timeout
+}
+
+func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.dnsOpts = *opts.Clone()
+}
+
+// GenerateTag is used to generate client tag, it for newClient()
+func (cm *clientMgr) GenerateTag() string {
+	return hex.EncodeToString(cm.guid.Get())
+}
+
+// for newClient()
+func (cm *clientMgr) Add(client *client) {
+	cm.clientsRWM.Lock()
+	defer cm.clientsRWM.Unlock()
+	if _, ok := cm.clients[client.tag]; !ok {
+		cm.clients[client.tag] = client
+	}
+}
+
+// for client.Close()
+func (cm *clientMgr) Delete(tag string) {
+	cm.clientsRWM.Lock()
+	defer cm.clientsRWM.Unlock()
+	delete(cm.clients, tag)
+}
+
+// Clients is used to get all clients
+func (cm *clientMgr) Clients() map[string]*client {
+	cm.clientsRWM.RLock()
+	defer cm.clientsRWM.RUnlock()
+	cs := make(map[string]*client, len(cm.clients))
+	for tag, client := range cm.clients {
+		cs[tag] = client
+	}
+	return cs
+}
+
+// Kill is used to close client
+func (cm *clientMgr) Kill(tag string) {
+	// must use cm.Clients(), because client.Close() will use cm.clientsRWM
+	if client, ok := cm.Clients()[tag]; ok {
+		client.Close()
+	}
+}
+
+func (cm *clientMgr) Close() {
+	cm.guid.Close()
+	cm.ctx = nil
 }

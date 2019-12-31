@@ -16,7 +16,7 @@ type Node struct {
 	storage   *storage   // storage
 	logger    *gLogger   // global logger
 	global    *global    // proxy clients, DNS clients, time syncer
-	client    *cOpts     // client options
+	clientMgr *clientMgr // clients manager
 	forwarder *forwarder // forward messages
 	sender    *sender    // send message to controller
 	syncer    *syncer    // sync network guid
@@ -48,9 +48,8 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	node.global = global
-	// copy client options
-	cOpts := cfg.Client
-	node.client = &cOpts
+	// client manager
+	node.clientMgr = newClientManager(node, cfg)
 	// forwarder
 	forwarder, err := newForwarder(node, cfg)
 	if err != nil {
@@ -141,8 +140,10 @@ func (node *Node) Exit(err error) {
 		node.logger.Print(logger.Debug, "exit", "sender is stopped")
 		node.forwarder.Close()
 		node.logger.Print(logger.Debug, "exit", "forwarder is stopped")
+		node.clientMgr.Close()
+		node.logger.Print(logger.Debug, "exit", "client manager is closed")
 		node.global.Close()
-		node.logger.Print(logger.Debug, "exit", "global is stopped")
+		node.logger.Print(logger.Debug, "exit", "global is closed")
 		node.logger.Print(logger.Debug, "exit", "node is stopped")
 		node.logger.Close()
 		node.exit <- err

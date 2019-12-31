@@ -68,6 +68,21 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 	}
 }
 
+func (node *Node) packRegisterRequest() []byte {
+	req := messages.NodeRegisterRequest{
+		GUID:         node.global.GUID(),
+		PublicKey:    node.global.PublicKey(),
+		KexPublicKey: node.global.KeyExchangePub(),
+		SystemInfo:   info.GetSystemInfo(),
+		RequestTime:  node.global.Now(),
+	}
+	b, err := msgpack.Marshal(&req)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
 func (client *client) Register() error {
 	conn := client.conn
 	defer client.Close()
@@ -101,19 +116,4 @@ func (client *client) Register() error {
 		client.conn.Log(logger.Exploit, err)
 		return err
 	}
-}
-
-func (node *Node) packRegisterRequest() []byte {
-	req := messages.NodeRegisterRequest{
-		GUID:         node.global.GUID(),
-		PublicKey:    node.global.PublicKey(),
-		KexPublicKey: node.global.KeyExchangePub(),
-		SystemInfo:   info.GetSystemInfo(),
-		RequestTime:  node.global.Now(),
-	}
-	b, err := msgpack.Marshal(&req)
-	if err != nil {
-		panic(err)
-	}
-	return b
 }

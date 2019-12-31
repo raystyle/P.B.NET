@@ -44,7 +44,7 @@ type server struct {
 	rand         *random.Rand
 	listeners    map[string]*Listener // key = tag
 	listenersRWM sync.RWMutex
-	conns        map[string]*xnet.Conn // key = guid
+	conns        map[string]*xnet.Conn
 	connsRWM     sync.RWMutex
 
 	ctrlConns      map[string]*ctrlConn
@@ -53,9 +53,6 @@ type server struct {
 	nodeConnsRWM   sync.RWMutex
 	beaconConns    map[string]*beaconConn
 	beaconConnsRWM sync.RWMutex
-
-	// calculate key
-	hexPool sync.Pool
 
 	inShutdown int32
 	stopSignal chan struct{}
@@ -120,9 +117,6 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	server.ctrlConns = make(map[string]*ctrlConn)
 	server.nodeConns = make(map[string]*nodeConn)
 	server.beaconConns = make(map[string]*beaconConn)
-	server.hexPool.New = func() interface{} {
-		return make([]byte, 2*guid.Size)
-	}
 	server.stopSignal = make(chan struct{})
 	return &server, nil
 }
