@@ -17,6 +17,8 @@ type Node struct {
 	logger    *gLogger   // global logger
 	global    *global    // proxy clients, DNS clients, time syncer
 	clientMgr *clientMgr // clients manager
+	bootMgr   *bootMgr   // bootstrap manager
+	register  *register  // about node register to Controller
 	forwarder *forwarder // forward messages
 	sender    *sender    // send message to controller
 	syncer    *syncer    // sync network guid
@@ -50,6 +52,10 @@ func New(cfg *Config) (*Node, error) {
 	node.global = global
 	// client manager
 	node.clientMgr = newClientManager(node, cfg)
+	// bootstrap manager
+	node.bootMgr = newBootManager(node, cfg)
+	// register
+	node.register = newRegister(node, cfg)
 	// forwarder
 	forwarder, err := newForwarder(node, cfg)
 	if err != nil {
@@ -113,9 +119,15 @@ func (node *Node) Main() error {
 	if err != nil {
 		return node.fatal(err, "failed to deploy server")
 	}
-	node.logger.Print(logger.Debug, "main", "node is running")
-	// register
-
+	// automatic register
+	if !node.register.Skip() {
+		node.logger.Print(logger.Debug, "main", "automatic register")
+		err = node.register.AutoRegister()
+		if err != nil {
+			return node.fatal(err, "failed to register automatically")
+		}
+	}
+	node.logger.Print(logger.Debug, "main", "running")
 	node.wait <- struct{}{}
 	return <-node.exit
 }
@@ -140,6 +152,10 @@ func (node *Node) Exit(err error) {
 		node.logger.Print(logger.Debug, "exit", "sender is stopped")
 		node.forwarder.Close()
 		node.logger.Print(logger.Debug, "exit", "forwarder is stopped")
+		node.register.Close()
+		node.logger.Print(logger.Debug, "exit", "register is closed")
+		node.bootMgr.Close()
+		node.logger.Print(logger.Debug, "exit", "bootstrap manager is closed")
 		node.clientMgr.Close()
 		node.logger.Print(logger.Debug, "exit", "client manager is closed")
 		node.global.Close()

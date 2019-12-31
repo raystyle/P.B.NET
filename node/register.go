@@ -1,80 +1,54 @@
 package node
 
 import (
+	"context"
 	"io"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
+	"project/internal/bootstrap"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/modules/info"
-	"project/internal/xnet"
+	"project/internal/protocol"
 )
 
-func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
-	// receive node register request
-	req, err := conn.Receive()
-	if err != nil {
-		s.logConn(conn, logger.Error, "failed to receive node register request:", err)
-		return
-	}
-	// try to unmarshal
-	nrr := new(messages.NodeRegisterRequest)
-	err = msgpack.Unmarshal(req, nrr)
-	if err != nil {
-		s.logConn(conn, logger.Exploit, "invalid node register request data:", err)
-		return
-	}
-	err = nrr.Validate()
-	if err != nil {
-		s.logConn(conn, logger.Exploit, "invalid node register request:", err)
-		return
-	}
-	// create node register
-	response := s.ctx.storage.CreateNodeRegister(guid)
-	if response == nil {
-		_ = conn.Send([]byte{messages.RegisterResultRefused})
-		s.logfConn(conn, logger.Exploit, "failed to create node register\nguid: %X", guid)
-		return
-	}
-	// send node register request to controller
-	// <security> must don't handle error
-	_ = s.ctx.sender.Send(messages.CMDBNodeRegisterRequest, nrr)
-	// wait register result
-	timeout := time.Duration(15+s.rand.Int(30)) * time.Second
-	timer := time.AfterFunc(timeout, func() {
-		s.ctx.storage.SetNodeRegister(guid, &messages.NodeRegisterResponse{
-			Result: messages.RegisterResultTimeout,
-		})
-	})
-	defer timer.Stop()
-	resp := <-response
-	switch resp.Result {
-	case messages.RegisterResultAccept:
-		_ = conn.Send([]byte{messages.RegisterResultAccept})
-		if !s.verifyNode(conn, guid) {
-			_ = conn.Send([]byte{messages.RegisterResultRefused})
-			return
-		}
-		// send certificate and listener configs
-	case messages.RegisterResultRefused: // TODO add IP black list only register(other role still pass)
-		_ = conn.Send([]byte{messages.RegisterResultRefused})
-	case messages.RegisterResultTimeout:
-		_ = conn.Send([]byte{messages.RegisterResultTimeout})
-	default:
-		s.logfConn(conn, logger.Exploit, "unknown register result: %d", resp.Result)
-	}
+type register struct {
+	ctx *Node
+
+	// skip register for genesis node
+	// or Controller trust node manually
+	skip bool
 }
 
-func (node *Node) packRegisterRequest() []byte {
+func newRegister(ctx *Node, config *Config) *register {
+	cfg := config.Register
+	register := register{
+		ctx:  ctx,
+		skip: cfg.Skip,
+	}
+	return &register
+}
+
+func (reg *register) logf(l logger.Level, format string, log ...interface{}) {
+	reg.ctx.logger.Printf(l, "register", format, log...)
+}
+
+func (reg *register) log(l logger.Level, log ...interface{}) {
+	reg.ctx.logger.Print(l, "register", log...)
+}
+
+// PackRequest is used to pack node register request
+// is used to register.Register() and ctrlConn.handleTrustNode()
+func (reg *register) PackRequest() []byte {
 	req := messages.NodeRegisterRequest{
-		GUID:         node.global.GUID(),
-		PublicKey:    node.global.PublicKey(),
-		KexPublicKey: node.global.KeyExchangePub(),
+		GUID:         reg.ctx.global.GUID(),
+		PublicKey:    reg.ctx.global.PublicKey(),
+		KexPublicKey: reg.ctx.global.KeyExchangePub(),
 		SystemInfo:   info.GetSystemInfo(),
-		RequestTime:  node.global.Now(),
+		RequestTime:  reg.ctx.global.Now(),
 	}
 	b, err := msgpack.Marshal(&req)
 	if err != nil {
@@ -83,21 +57,26 @@ func (node *Node) packRegisterRequest() []byte {
 	return b
 }
 
-func (client *client) Register() error {
-	conn := client.conn
-	defer client.Close()
-	// send operation
-	_, err := conn.Write([]byte{1})
+// Register is used to register to Controller with Node
+func (reg *register) Register(ctx context.Context, node *bootstrap.Node) error {
+	client, err := newClient(ctx, reg.ctx, node, protocol.CtrlGUID, nil)
 	if err != nil {
-		return errors.Wrap(err, "failed to send operation")
+		return err
+	}
+	defer client.Close()
+	conn := client.Conn
+	// send register operation
+	_, err = conn.Write([]byte{1}) // 1 = register
+	if err != nil {
+		return errors.Wrap(err, "failed to send register operation")
 	}
 	// send register request
-	err = conn.SendMessage(client.ctx.packRegisterRequest())
+	err = conn.SendMessage(reg.PackRequest())
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}
 	// wait register result
-	_ = conn.SetDeadline(client.ctx.global.Now().Add(time.Minute))
+	_ = conn.SetDeadline(reg.ctx.global.Now().Add(time.Minute))
 	result := make([]byte, 1)
 	_, err = io.ReadFull(conn, result)
 	if err != nil {
@@ -106,6 +85,7 @@ func (client *client) Register() error {
 	switch result[0] {
 	case messages.RegisterResultAccept:
 		// receive certificate and listener configs
+
 		return nil
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)
@@ -113,7 +93,20 @@ func (client *client) Register() error {
 		return errors.WithStack(messages.ErrRegisterTimeout)
 	default:
 		err = errors.WithMessagef(messages.ErrRegisterUnknownResult, "%d", result[0])
-		client.conn.Log(logger.Exploit, err)
+		reg.log(logger.Exploit, "register", err)
 		return err
 	}
+}
+
+func (reg *register) Skip() bool {
+	return reg.skip
+}
+
+// AutoRegister is used to register to Controller automatically
+func (reg *register) AutoRegister() error {
+	return nil
+}
+
+func (reg *register) Close() {
+	reg.ctx = nil
 }

@@ -59,7 +59,9 @@ type Config struct {
 	} `toml:"client" msgpack:"cc"`
 
 	Register struct {
-		Skip bool `toml:"skip" msgpack:"a"` // skip register for genesis node
+		// skip register for genesis node
+		// or Controller trust node manually
+		Skip bool `toml:"skip" msgpack:"a"`
 
 		// generate configs from controller
 		Bootstraps []byte `toml:"-" msgpack:"z"`
