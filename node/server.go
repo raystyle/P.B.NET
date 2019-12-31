@@ -75,9 +75,12 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		return nil, errors.New("listener max connection must >= 15s")
 	}
 
+	memory := security.NewMemory()
+	defer memory.Flush()
+
 	server := server{listeners: make(map[string]*Listener)}
+	// decrypt configs about listeners
 	if len(cfg.Listeners) != 0 {
-		// decrypt configs about listeners
 		if len(cfg.AESCrypto) != aes.Key256Bit+aes.IVSize {
 			return nil, errors.New("invalid aes key size")
 		}
@@ -87,6 +90,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 			security.CoverBytes(aesKey)
 			security.CoverBytes(aesIV)
 		}()
+		memory.Padding()
 		data, err := aes.CBCDecrypt(cfg.Listeners, aesKey, aesIV)
 		if err != nil {
 			return nil, errors.WithStack(err)
@@ -94,6 +98,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		security.CoverBytes(aesKey)
 		security.CoverBytes(aesIV)
 		// load listeners
+		memory.Padding()
 		var listeners []*messages.Listener
 		err = msgpack.Unmarshal(data, &listeners)
 		if err != nil {
@@ -101,6 +106,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		}
 
 		for i := 0; i < len(listeners); i++ {
+			memory.Padding()
 			_, err = server.addListener(listeners[i])
 			if err != nil {
 				return nil, err
@@ -154,7 +160,7 @@ func (s *server) addListener(l *messages.Listener) (*Listener, error) {
 	}
 	listener, err := xnet.Listen(l.Mode, &cfg)
 	if err != nil {
-		return nil, errors.Errorf("failed to listen %s: %s", l.Tag, err)
+		return nil, errors.Wrapf(err, "failed to listen %s", l.Tag)
 	}
 	listener = netutil.LimitListener(listener, s.maxConns)
 	ll := &Listener{Mode: l.Mode, Listener: listener}

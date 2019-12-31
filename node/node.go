@@ -17,7 +17,6 @@ type Node struct {
 	logger    *gLogger   // global logger
 	global    *global    // proxy clients, DNS clients, time syncer
 	clientMgr *clientMgr // clients manager
-	bootMgr   *bootMgr   // bootstrap manager
 	register  *register  // about node register to Controller
 	forwarder *forwarder // forward messages
 	sender    *sender    // send message to controller
@@ -52,10 +51,12 @@ func New(cfg *Config) (*Node, error) {
 	node.global = global
 	// client manager
 	node.clientMgr = newClientManager(node, cfg)
-	// bootstrap manager
-	node.bootMgr = newBootManager(node, cfg)
 	// register
-	node.register = newRegister(node, cfg)
+	register, err := newRegister(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize register")
+	}
+	node.register = register
 	// forwarder
 	forwarder, err := newForwarder(node, cfg)
 	if err != nil {
@@ -154,8 +155,6 @@ func (node *Node) Exit(err error) {
 		node.logger.Print(logger.Debug, "exit", "forwarder is stopped")
 		node.register.Close()
 		node.logger.Print(logger.Debug, "exit", "register is closed")
-		node.bootMgr.Close()
-		node.logger.Print(logger.Debug, "exit", "bootstrap manager is closed")
 		node.clientMgr.Close()
 		node.logger.Print(logger.Debug, "exit", "client manager is closed")
 		node.global.Close()

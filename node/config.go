@@ -64,7 +64,8 @@ type Config struct {
 		Skip bool `toml:"skip" msgpack:"a"`
 
 		// generate configs from controller
-		Bootstraps []byte `toml:"-" msgpack:"z"`
+		AESCrypto  []byte `toml:"-" msgpack:"y"` // decrypt Bootstraps data
+		Bootstraps []byte `toml:"-" msgpack:"z"` // type: []*messages.Bootstrap
 	} `toml:"register" msgpack:"dd"`
 
 	Forwarder struct {

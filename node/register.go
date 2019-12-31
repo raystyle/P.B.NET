@@ -3,33 +3,90 @@ package node
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
+	"project/internal/crypto/aes"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/modules/info"
 	"project/internal/protocol"
+	"project/internal/security"
 )
 
 type register struct {
 	ctx *Node
 
-	// skip register for genesis node
+	// skip automatic register for genesis node,
 	// or Controller trust node manually
 	skip bool
+
+	// register only use the first bootstrap
+	firstBootstrap string
+	bootstraps     map[string]bootstrap.Bootstrap
+	bootstrapsRWM  sync.RWMutex
+
+	context context.Context
+	cancel  context.CancelFunc
 }
 
-func newRegister(ctx *Node, config *Config) *register {
+func newRegister(ctx *Node, config *Config) (*register, error) {
 	cfg := config.Register
-	register := register{
-		ctx:  ctx,
-		skip: cfg.Skip,
+
+	if !cfg.Skip && len(cfg.Bootstraps) == 0 {
+		return nil, errors.New("not skip automatic register but no bootstraps")
 	}
-	return &register
+
+	memory := security.NewMemory()
+	defer memory.Flush()
+
+	reg := register{bootstraps: make(map[string]bootstrap.Bootstrap)}
+	// decrypt bootstraps
+	if len(cfg.Bootstraps) != 0 {
+		if len(cfg.AESCrypto) != aes.Key256Bit+aes.IVSize {
+			return nil, errors.New("invalid aes key size")
+		}
+		aesKey := cfg.AESCrypto[:aes.Key256Bit]
+		aesIV := cfg.AESCrypto[aes.Key256Bit:]
+		defer func() {
+			security.CoverBytes(aesKey)
+			security.CoverBytes(aesIV)
+		}()
+		memory.Padding()
+		data, err := aes.CBCDecrypt(cfg.Bootstraps, aesKey, aesIV)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		security.CoverBytes(aesKey)
+		security.CoverBytes(aesIV)
+		// load bootstraps
+		memory.Padding()
+		var bootstraps []*messages.Bootstrap
+		err = msgpack.Unmarshal(data, &bootstraps)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		if len(bootstraps) == 0 {
+			return nil, errors.New("no bootstraps")
+		}
+		for i := 0; i < len(bootstraps); i++ {
+			memory.Padding()
+			err = reg.AddBootstrap(bootstraps[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+		reg.firstBootstrap = bootstraps[0].Tag
+	}
+
+	reg.ctx = ctx
+	reg.skip = cfg.Skip
+	reg.context, reg.cancel = context.WithCancel(context.Background())
+	return &reg, nil
 }
 
 func (reg *register) logf(l logger.Level, format string, log ...interface{}) {
@@ -38,6 +95,43 @@ func (reg *register) logf(l logger.Level, format string, log ...interface{}) {
 
 func (reg *register) log(l logger.Level, log ...interface{}) {
 	reg.ctx.logger.Print(l, "register", log...)
+}
+
+func (reg *register) AddBootstrap(b *messages.Bootstrap) error {
+	reg.bootstrapsRWM.Lock()
+	defer reg.bootstrapsRWM.Unlock()
+	if _, ok := reg.bootstraps[b.Tag]; ok {
+		return errors.Errorf("bootstrap %s already exists", b.Tag)
+	}
+	boot, err := bootstrap.Load(
+		reg.context, b.Mode, b.Config,
+		reg.ctx.global.ProxyPool, reg.ctx.global.DNSClient,
+	)
+	if err != nil {
+		return errors.Wrapf(err, "failed to load bootstrap %s", b.Tag)
+	}
+	reg.bootstraps[b.Tag] = boot
+	return nil
+}
+
+func (reg *register) DeleteBootstrap(tag string) error {
+	reg.bootstrapsRWM.Lock()
+	defer reg.bootstrapsRWM.Unlock()
+	if _, ok := reg.bootstraps[tag]; ok {
+		delete(reg.bootstraps, tag)
+		return nil
+	}
+	return errors.Errorf("bootstrap %s doesn't exists", tag)
+}
+
+func (reg *register) Bootstraps() map[string]bootstrap.Bootstrap {
+	reg.bootstrapsRWM.RLock()
+	defer reg.bootstrapsRWM.RUnlock()
+	bs := make(map[string]bootstrap.Bootstrap, len(reg.bootstraps))
+	for tag, boot := range reg.bootstraps {
+		bs[tag] = boot
+	}
+	return bs
 }
 
 // PackRequest is used to pack node register request
@@ -108,5 +202,6 @@ func (reg *register) AutoRegister() error {
 }
 
 func (reg *register) Close() {
+	reg.cancel()
 	reg.ctx = nil
 }
