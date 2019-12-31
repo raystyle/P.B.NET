@@ -60,7 +60,11 @@ func Load(
 	}
 	err := bootstrap.Unmarshal(config)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to unmarshal bootstrap")
+	}
+	err = bootstrap.Validate()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to validate bootstrap")
 	}
 	return bootstrap, nil
 }
