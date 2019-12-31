@@ -34,11 +34,11 @@ type client struct {
 	ctx *Node
 
 	node      *bootstrap.Node
-	guid      []byte // node guid
+	guid      []byte
 	closeFunc func()
 
 	tag       string
-	conn      *conn
+	Conn      *conn
 	rand      *random.Rand
 	heartbeat chan struct{}
 	inSync    int32
@@ -113,7 +113,7 @@ func newClient(
 		const format = "failed to handshake with node: %s"
 		return nil, errors.WithMessagef(err, format, n.Address)
 	}
-	client.conn = newConn(node, conn, guid, connUsageClient)
+	client.Conn = newConn(node, conn, guid, connUsageClient)
 
 	// add client to client manager
 	client.tag = node.clientMgr.GenerateTag()
@@ -145,7 +145,7 @@ func (client *client) handshake(conn *xnet.Conn) error {
 		return errors.Wrap(err, "failed to receive certificate")
 	}
 	if !client.verifyCertificate(cert, client.node.Address, client.guid) {
-		client.conn.Log(logger.Exploit, protocol.ErrInvalidCertificate)
+		client.Conn.Log(logger.Exploit, protocol.ErrInvalidCertificate)
 		return protocol.ErrInvalidCertificate
 	}
 	// send role
@@ -174,17 +174,21 @@ func (client *client) verifyCertificate(cert []byte, address string, guid []byte
 	return client.ctx.global.CtrlVerify(buffer.Bytes(), certWithNodeGUID)
 }
 
-func (client *client) Connect() error {
-	// send operation
-	_, err := client.conn.Write([]byte{2}) // 2 = connect
+func (client *client) Connect() (err error) {
+	defer func() {
+		if err != nil {
+			client.Close()
+		}
+	}()
+	// send connect operation
+	_, err = client.Conn.Write([]byte{2}) // 2 = connect
 	if err != nil {
-		client.Close()
-		return errors.Wrap(err, "failed to send operation")
+		err = errors.Wrap(err, "failed to send connect operation")
+		return
 	}
 	err = client.authenticate()
 	if err != nil {
-		client.Close()
-		return err
+		return
 	}
 	client.stopSignal = make(chan struct{})
 	// heartbeat
@@ -196,32 +200,32 @@ func (client *client) Connect() error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				client.conn.Log(logger.Fatal, xpanic.Error(r, "client.HandleConn"))
+				client.Conn.Log(logger.Fatal, xpanic.Error(r, "client.HandleConn"))
 			}
 			client.Close()
 		}()
-		protocol.HandleConn(client.conn, client.onFrame)
+		protocol.HandleConn(client.Conn, client.onFrame)
 	}()
-	return nil
+	return
 }
 
 func (client *client) authenticate() error {
 	// receive challenge
-	challenge, err := client.conn.Receive()
+	challenge, err := client.Conn.Receive()
 	if err != nil {
 		return errors.Wrap(err, "failed to receive challenge")
 	}
 	if len(challenge) < 2048 || len(challenge) > 4096 {
 		err = errors.New("invalid challenge size")
-		client.conn.Log(logger.Exploit, err)
+		client.Conn.Log(logger.Exploit, err)
 		return err
 	}
 	// send signature
-	err = client.conn.SendMessage(client.ctx.global.Sign(challenge))
+	err = client.Conn.SendMessage(client.ctx.global.Sign(challenge))
 	if err != nil {
 		return errors.Wrap(err, "failed to send challenge signature")
 	}
-	resp, err := client.conn.Receive()
+	resp, err := client.Conn.Receive()
 	if err != nil {
 		return errors.Wrap(err, "failed to receive authentication response")
 	}
@@ -236,7 +240,7 @@ func (client *client) isSync() bool {
 }
 
 func (client *client) onFrame(frame []byte) {
-	if client.conn.onFrame(frame) {
+	if client.Conn.onFrame(frame) {
 		return
 	}
 	if frame[0] == protocol.ConnReplyHeartbeat {
@@ -251,7 +255,7 @@ func (client *client) onFrame(frame []byte) {
 		}
 	}
 	const format = "unknown command: %d\nframe:\n%s"
-	client.conn.Logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
+	client.Conn.Logf(logger.Exploit, format, frame[0], spew.Sdump(frame))
 	client.Close()
 }
 
@@ -273,29 +277,29 @@ func (client *client) onFrameAfterSync(frame []byte) bool {
 func (client *client) onFrameAfterSyncAboutCTRL(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.CtrlSendToNodeGUID:
-		client.conn.HandleSendToNodeGUID(id, data)
+		client.Conn.HandleSendToNodeGUID(id, data)
 	case protocol.CtrlSendToNode:
-		client.conn.HandleSendToNode(id, data)
+		client.Conn.HandleSendToNode(id, data)
 	case protocol.CtrlAckToNodeGUID:
-		client.conn.HandleAckToNodeGUID(id, data)
+		client.Conn.HandleAckToNodeGUID(id, data)
 	case protocol.CtrlAckToNode:
-		client.conn.HandleAckToNode(id, data)
+		client.Conn.HandleAckToNode(id, data)
 	case protocol.CtrlSendToBeaconGUID:
-		client.conn.HandleSendToBeaconGUID(id, data)
+		client.Conn.HandleSendToBeaconGUID(id, data)
 	case protocol.CtrlSendToBeacon:
-		client.conn.HandleSendToBeacon(id, data)
+		client.Conn.HandleSendToBeacon(id, data)
 	case protocol.CtrlAckToBeaconGUID:
-		client.conn.HandleAckToBeaconGUID(id, data)
+		client.Conn.HandleAckToBeaconGUID(id, data)
 	case protocol.CtrlAckToBeacon:
-		client.conn.HandleAckToBeacon(id, data)
+		client.Conn.HandleAckToBeacon(id, data)
 	case protocol.CtrlBroadcastGUID:
-		client.conn.HandleBroadcastGUID(id, data)
+		client.Conn.HandleBroadcastGUID(id, data)
 	case protocol.CtrlBroadcast:
-		client.conn.HandleBroadcast(id, data)
+		client.Conn.HandleBroadcast(id, data)
 	case protocol.CtrlAnswerGUID:
-		client.conn.HandleAnswerGUID(id, data)
+		client.Conn.HandleAnswerGUID(id, data)
 	case protocol.CtrlAnswer:
-		client.conn.HandleAnswer(id, data)
+		client.Conn.HandleAnswer(id, data)
 	default:
 		return false
 	}
@@ -305,13 +309,13 @@ func (client *client) onFrameAfterSyncAboutCTRL(cmd byte, id, data []byte) bool 
 func (client *client) onFrameAfterSyncAboutNode(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.NodeSendGUID:
-		client.conn.HandleNodeSendGUID(id, data)
+		client.Conn.HandleNodeSendGUID(id, data)
 	case protocol.NodeSend:
-		client.conn.HandleNodeSend(id, data)
+		client.Conn.HandleNodeSend(id, data)
 	case protocol.NodeAckGUID:
-		client.conn.HandleNodeAckGUID(id, data)
+		client.Conn.HandleNodeAckGUID(id, data)
 	case protocol.NodeAck:
-		client.conn.HandleNodeAck(id, data)
+		client.Conn.HandleNodeAck(id, data)
 	default:
 		return false
 	}
@@ -321,17 +325,17 @@ func (client *client) onFrameAfterSyncAboutNode(cmd byte, id, data []byte) bool 
 func (client *client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.BeaconSendGUID:
-		client.conn.HandleBeaconSendGUID(id, data)
+		client.Conn.HandleBeaconSendGUID(id, data)
 	case protocol.BeaconSend:
-		client.conn.HandleBeaconSend(id, data)
+		client.Conn.HandleBeaconSend(id, data)
 	case protocol.BeaconAckGUID:
-		client.conn.HandleBeaconAckGUID(id, data)
+		client.Conn.HandleBeaconAckGUID(id, data)
 	case protocol.BeaconAck:
-		client.conn.HandleBeaconAck(id, data)
+		client.Conn.HandleBeaconAck(id, data)
 	case protocol.BeaconQueryGUID:
-		client.conn.HandleBeaconQueryGUID(id, data)
+		client.Conn.HandleBeaconQueryGUID(id, data)
 	case protocol.BeaconQuery:
-		client.conn.HandleBeaconQuery(id, data)
+		client.Conn.HandleBeaconQuery(id, data)
 	default:
 		return false
 	}
@@ -356,8 +360,8 @@ func (client *client) sendHeartbeatLoop() {
 			buffer.WriteByte(protocol.ConnSendHeartbeat)
 			buffer.Write(client.rand.Bytes(fakeSize))
 			// send
-			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-			_, err = client.conn.Write(buffer.Bytes())
+			_ = client.Conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+			_, err = client.Conn.Write(buffer.Bytes())
 			if err != nil {
 				return
 			}
@@ -366,8 +370,8 @@ func (client *client) sendHeartbeatLoop() {
 			select {
 			case <-client.heartbeat:
 			case <-timer.C:
-				client.conn.Log(logger.Warning, "receive heartbeat timeout")
-				_ = client.conn.Close()
+				client.Conn.Log(logger.Warning, "receive heartbeat timeout")
+				_ = client.Conn.Close()
 				return
 			case <-client.stopSignal:
 				return
@@ -385,7 +389,7 @@ func (client *client) Sync() error {
 	if client.isSync() {
 		return nil
 	}
-	resp, err := client.conn.SendCommand(protocol.NodeSync, nil)
+	resp, err := client.Conn.SendCommand(protocol.NodeSync, nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to receive sync response")
 	}
@@ -393,7 +397,7 @@ func (client *client) Sync() error {
 		return errors.Errorf("failed to start sync: %s", resp)
 	}
 	// initialize sync pool
-	client.conn.SendPool.New = func() interface{} {
+	client.Conn.SendPool.New = func() interface{} {
 		return &protocol.Send{
 			GUID:      make([]byte, guid.Size),
 			RoleGUID:  make([]byte, guid.Size),
@@ -402,7 +406,7 @@ func (client *client) Sync() error {
 			Signature: make([]byte, ed25519.SignatureSize),
 		}
 	}
-	client.conn.AckPool.New = func() interface{} {
+	client.Conn.AckPool.New = func() interface{} {
 		return &protocol.Acknowledge{
 			GUID:      make([]byte, guid.Size),
 			RoleGUID:  make([]byte, guid.Size),
@@ -410,7 +414,7 @@ func (client *client) Sync() error {
 			Signature: make([]byte, ed25519.SignatureSize),
 		}
 	}
-	client.conn.AnswerPool.New = func() interface{} {
+	client.Conn.AnswerPool.New = func() interface{} {
 		return &protocol.Answer{
 			GUID:       make([]byte, guid.Size),
 			BeaconGUID: make([]byte, guid.Size),
@@ -419,7 +423,7 @@ func (client *client) Sync() error {
 			Signature:  make([]byte, ed25519.SignatureSize),
 		}
 	}
-	client.conn.QueryPool.New = func() interface{} {
+	client.Conn.QueryPool.New = func() interface{} {
 		return &protocol.Query{
 			GUID:       make([]byte, guid.Size),
 			BeaconGUID: make([]byte, guid.Size),
@@ -434,20 +438,20 @@ func (client *client) Sync() error {
 
 // Status is used to get connection status
 func (client *client) Status() *xnet.Status {
-	return client.conn.Status()
+	return client.Conn.Status()
 }
 
 // Close is used to disconnect node
 func (client *client) Close() {
 	client.closeOnce.Do(func() {
-		_ = client.conn.Close()
+		_ = client.Conn.Close()
 		close(client.stopSignal)
 		client.wg.Wait()
 		client.ctx.clientMgr.Delete(client.tag)
 		if client.closeFunc != nil {
 			client.closeFunc()
 		}
-		client.conn.Log(logger.Info, "disconnected")
+		client.Conn.Log(logger.Info, "disconnected")
 	})
 }
 
@@ -469,15 +473,15 @@ type clientMgr struct {
 
 func newClientManager(ctx *Node, config *Config) *clientMgr {
 	cfg := config.Client
-	clientMgr := clientMgr{
+	mgr := clientMgr{
 		ctx:      ctx,
 		proxyTag: cfg.ProxyTag,
 		timeout:  cfg.Timeout,
 		dnsOpts:  cfg.DNSOpts,
 		guid:     guid.New(4, ctx.global.Now),
+		clients:  make(map[string]*client),
 	}
-	clientMgr.clients = make(map[string]*client)
-	return &clientMgr
+	return &mgr
 }
 
 func (cm *clientMgr) GetProxyTag() string {
