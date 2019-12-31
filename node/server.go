@@ -511,6 +511,61 @@ func (s *server) handleNode(tag string, conn *xnet.Conn) {
 	}
 }
 
+func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
+	// receive node register request
+	req, err := conn.Receive()
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to receive node register request:", err)
+		return
+	}
+	// try to unmarshal
+	nrr := new(messages.NodeRegisterRequest)
+	err = msgpack.Unmarshal(req, nrr)
+	if err != nil {
+		s.logConn(conn, logger.Exploit, "invalid node register request data:", err)
+		return
+	}
+	err = nrr.Validate()
+	if err != nil {
+		s.logConn(conn, logger.Exploit, "invalid node register request:", err)
+		return
+	}
+	// create node register
+	response := s.ctx.storage.CreateNodeRegister(guid)
+	if response == nil {
+		_ = conn.Send([]byte{messages.RegisterResultRefused})
+		s.logfConn(conn, logger.Exploit, "failed to create node register\nguid: %X", guid)
+		return
+	}
+	// send node register request to controller
+	// <security> must don't handle error
+	_ = s.ctx.sender.Send(messages.CMDBNodeRegisterRequest, nrr)
+	// wait register result
+	timeout := time.Duration(15+s.rand.Int(30)) * time.Second
+	timer := time.AfterFunc(timeout, func() {
+		s.ctx.storage.SetNodeRegister(guid, &messages.NodeRegisterResponse{
+			Result: messages.RegisterResultTimeout,
+		})
+	})
+	defer timer.Stop()
+	resp := <-response
+	switch resp.Result {
+	case messages.RegisterResultAccept:
+		_ = conn.Send([]byte{messages.RegisterResultAccept})
+		if !s.verifyNode(conn, guid) {
+			_ = conn.Send([]byte{messages.RegisterResultRefused})
+			return
+		}
+		// send certificate and listener configs
+	case messages.RegisterResultRefused: // TODO add IP black list only register(other role still pass)
+		_ = conn.Send([]byte{messages.RegisterResultRefused})
+	case messages.RegisterResultTimeout:
+		_ = conn.Send([]byte{messages.RegisterResultTimeout})
+	default:
+		s.logfConn(conn, logger.Exploit, "unknown register result: %d", resp.Result)
+	}
+}
+
 func (s *server) verifyNode(conn *xnet.Conn, guid []byte) bool {
 	challenge := s.rand.Bytes(2048 + s.rand.Int(2048))
 	err := conn.Send(challenge)
@@ -711,7 +766,7 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 }
 
 func (ctrl *ctrlConn) handleTrustNode(id []byte) {
-	ctrl.Conn.Reply(id, ctrl.ctx.packRegisterRequest())
+	ctrl.Conn.Reply(id, ctrl.ctx.register.PackRequest())
 }
 
 func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
