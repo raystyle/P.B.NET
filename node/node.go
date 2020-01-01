@@ -2,11 +2,13 @@ package node
 
 import (
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
 	"project/internal/messages"
+	"project/internal/xpanic"
 )
 
 // Node send messages to controller
@@ -120,17 +122,28 @@ func (node *Node) Main() error {
 	if err != nil {
 		return node.fatal(err, "failed to deploy server")
 	}
-	// automatic register
-	if !node.register.Skip() {
-		node.logger.Print(logger.Debug, "main", "automatic register")
-		err = node.register.AutoRegister()
-		if err != nil {
-			return node.fatal(err, "failed to register automatically")
-		}
+	// register
+	err = node.register.Register()
+	if err != nil {
+		return node.fatal(err, "failed to register")
 	}
+	// driver
+	go node.driver()
 	node.logger.Print(logger.Debug, "main", "running")
 	node.wait <- struct{}{}
 	return <-node.exit
+}
+
+func (node *Node) driver() {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "node.driver")
+			node.logger.Print(logger.Fatal, "driver", err)
+			// restart driver
+			time.Sleep(time.Second)
+			go node.driver()
+		}
+	}()
 }
 
 // Wait is used to wait for Main()

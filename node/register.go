@@ -15,20 +15,26 @@ import (
 	"project/internal/messages"
 	"project/internal/modules/info"
 	"project/internal/protocol"
+	"project/internal/random"
 	"project/internal/security"
 )
 
 type register struct {
 	ctx *Node
 
+	// about random.Sleep() in Register()
+	sleepFixed  int
+	sleepRandom int
 	// skip automatic register for genesis node,
 	// or Controller trust node manually
 	skip bool
 
-	// register only use the first bootstrap
-	firstBootstrap string
-	bootstraps     map[string]bootstrap.Bootstrap
-	bootstrapsRWM  sync.RWMutex
+	// Register() only use the first bootstrap
+	firstTag string
+
+	// key = messages.Bootstrap.Tag
+	bootstraps    map[string]bootstrap.Bootstrap
+	bootstrapsRWM sync.RWMutex
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -37,6 +43,12 @@ type register struct {
 func newRegister(ctx *Node, config *Config) (*register, error) {
 	cfg := config.Register
 
+	if cfg.SleepFixed < 10 {
+		return nil, errors.New("register SleepFixed must >= 10")
+	}
+	if cfg.SleepRandom < 20 {
+		return nil, errors.New("register SleepRandom must >= 20")
+	}
 	if !cfg.Skip && len(cfg.Bootstraps) == 0 {
 		return nil, errors.New("not skip automatic register but no bootstraps")
 	}
@@ -80,10 +92,12 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 				return nil, err
 			}
 		}
-		reg.firstBootstrap = bootstraps[0].Tag
+		reg.firstTag = bootstraps[0].Tag
 	}
 
 	reg.ctx = ctx
+	reg.sleepFixed = cfg.SleepFixed
+	reg.sleepRandom = cfg.SleepRandom
 	reg.skip = cfg.Skip
 	reg.context, reg.cancel = context.WithCancel(context.Background())
 	return &reg, nil
@@ -151,16 +165,16 @@ func (reg *register) PackRequest() []byte {
 	return b
 }
 
-// Register is used to register to Controller with Node
-func (reg *register) Register(ctx context.Context, node *bootstrap.Node) error {
-	client, err := newClient(ctx, reg.ctx, node, protocol.CtrlGUID, nil)
+// register is used to register to Controller with Node
+func (reg *register) register(node *bootstrap.Node) error {
+	client, err := newClient(reg.context, reg.ctx, node, protocol.CtrlGUID, nil)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 	conn := client.Conn
 	// send register operation
-	_, err = conn.Write([]byte{1}) // 1 = register
+	_, err = conn.Write([]byte{nodeOperationRegister})
 	if err != nil {
 		return errors.Wrap(err, "failed to send register operation")
 	}
@@ -178,8 +192,7 @@ func (reg *register) Register(ctx context.Context, node *bootstrap.Node) error {
 	}
 	switch result[0] {
 	case messages.RegisterResultAccept:
-		// receive certificate and listener configs
-
+		// receive certificate and a part of node listeners that controller select
 		return nil
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)
@@ -187,18 +200,51 @@ func (reg *register) Register(ctx context.Context, node *bootstrap.Node) error {
 		return errors.WithStack(messages.ErrRegisterTimeout)
 	default:
 		err = errors.WithMessagef(messages.ErrRegisterUnknownResult, "%d", result[0])
-		reg.log(logger.Exploit, "register", err)
+		reg.log(logger.Exploit, err)
 		return err
 	}
 }
 
-func (reg *register) Skip() bool {
-	return reg.skip
-}
-
-// AutoRegister is used to register to Controller automatically
-func (reg *register) AutoRegister() error {
-	return nil
+// Register is used to register to Controller
+func (reg *register) Register() error {
+	if reg.skip {
+		return nil
+	}
+	reg.log(logger.Debug, "start register")
+	// <security> only use the first bootstrap
+	boot := reg.bootstraps[reg.firstTag]
+	// try 3 times
+	var (
+		nodes []*bootstrap.Node
+		err   error
+	)
+	for i := 0; i < 3; i++ {
+		nodes, err = boot.Resolve() // resolve bootstrap nodes
+		if err == nil {
+			break
+		}
+		reg.log(logger.Error, err)
+		random.Sleep(reg.sleepFixed, reg.sleepRandom)
+	}
+	if err != nil {
+		return errors.WithMessage(err, "failed to resolve bootstrap nodes")
+	}
+	// try all resolved bootstrap nodes, 3 times
+	for i := 0; i < 3; i++ {
+		for _, node := range nodes {
+			err = reg.register(node)
+			if err == nil {
+				reg.log(logger.Debug, "register successfully")
+				return nil
+			}
+			reg.log(logger.Error, err)
+			if errors.Cause(err) != messages.ErrRegisterTimeout {
+				return err
+			}
+			random.Sleep(reg.sleepFixed, reg.sleepRandom)
+		}
+	}
+	return err
 }
 
 func (reg *register) Close() {

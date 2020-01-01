@@ -181,7 +181,7 @@ func (client *client) Connect() (err error) {
 		}
 	}()
 	// send connect operation
-	_, err = client.Conn.Write([]byte{2}) // 2 = connect
+	_, err = client.Conn.Write([]byte{nodeOperationConnect})
 	if err != nil {
 		err = errors.Wrap(err, "failed to send connect operation")
 		return
@@ -455,7 +455,7 @@ func (client *client) Close() {
 	})
 }
 
-// clients contains all clients from newClient() and client options from Config
+// clientMgr contains all clients from newClient() and client options from Config
 // it can generate client tag, you can manage all clients here
 type clientMgr struct {
 	ctx *Node
