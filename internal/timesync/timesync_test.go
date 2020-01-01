@@ -46,7 +46,7 @@ func TestSyncer(t *testing.T) {
 	testAddClients(t, syncer)
 
 	// check default sync interval
-	require.Equal(t, defaultTimeSyncInterval, syncer.GetSyncInterval())
+	require.Equal(t, defaultSyncInterval, syncer.GetSyncInterval())
 
 	// set sync interval
 	const interval = 15 * time.Minute

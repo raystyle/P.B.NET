@@ -22,9 +22,9 @@ const (
 )
 
 const (
-	defaultTimeSyncFixed    = 10
-	defaultTimeSyncRandom   = 20
-	defaultTimeSyncInterval = 3 * time.Minute
+	defaultSleepFixed   = 10
+	defaultSleepRandom  = 20
+	defaultSyncInterval = 3 * time.Minute
 )
 
 // errors
@@ -33,7 +33,7 @@ var (
 	ErrAllClientsFailed = fmt.Errorf("all time syncer clients failed to query")
 )
 
-// Client include mode and config
+// Client contains mode and config
 type Client struct {
 	Mode     string `toml:"mode"`
 	Config   string `toml:"config"`
@@ -76,9 +76,9 @@ func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 		dnsClient:   client,
 		logger:      logger,
 		clients:     make(map[string]*Client),
-		sleepFixed:  defaultTimeSyncFixed,
-		sleepRandom: defaultTimeSyncRandom,
-		interval:    defaultTimeSyncInterval,
+		sleepFixed:  defaultSleepFixed,
+		sleepRandom: defaultSleepRandom,
+		interval:    defaultSyncInterval,
 		now:         time.Now(),
 	}
 	syncer.ctx, syncer.cancel = context.WithCancel(context.Background())
@@ -159,10 +159,10 @@ func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
 // must execute before Start()
 func (syncer *Syncer) SetSleep(fixed, random int) {
 	if fixed < 1 {
-		fixed = defaultTimeSyncFixed
+		fixed = defaultSleepFixed
 	}
 	if random < 1 {
-		random = defaultTimeSyncRandom
+		random = defaultSleepRandom
 	}
 	syncer.sleepFixed = fixed
 	syncer.sleepRandom = random
