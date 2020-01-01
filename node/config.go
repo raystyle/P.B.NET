@@ -64,8 +64,10 @@ type Config struct {
 		Skip        bool `toml:"skip"         msgpack:"c"` // wait controller trust it
 
 		// generate configs from controller
-		AESCrypto  []byte `toml:"-" msgpack:"y"` // decrypt Bootstraps data
-		Bootstraps []byte `toml:"-" msgpack:"z"` // type: []*messages.Bootstrap
+		FirstBoot []byte `toml:"-" msgpack:"w"` // type: *messages.Bootstrap
+		FirstKey  []byte `toml:"-" msgpack:"x"` // decrypt the first bootstrap data, AES CBC
+		RestBoots []byte `toml:"-" msgpack:"y"` // type: []*messages.Bootstrap
+		RestKey   []byte `toml:"-" msgpack:"z"` // decrypt rest bootstraps data, AES CBC
 	} `toml:"register" msgpack:"dd"`
 
 	Forwarder struct {
@@ -92,12 +94,12 @@ type Config struct {
 	} `toml:"worker" msgpack:"hh"`
 
 	Server struct {
-		MaxConns int           `toml:"max_conns" msgpack:"a"` // single listener
+		MaxConns int           `toml:"max_conns" msgpack:"a"` // each listener
 		Timeout  time.Duration `toml:"timeout"   msgpack:"b"` // handshake timeout
 
 		// generate from controller
-		AESCrypto []byte `toml:"-" msgpack:"y"` // decrypt Listeners data
-		Listeners []byte `toml:"-" msgpack:"z"` // type: []*messages.Listener
+		Listeners    []byte `toml:"-" msgpack:"y"` // type: []*messages.Listener
+		ListenersKey []byte `toml:"-" msgpack:"z"` // decrypt Listeners data, AES CBC
 	} `toml:"server" msgpack:"ii"`
 
 	// generate from controller
@@ -110,12 +112,9 @@ type Config struct {
 
 // TestOptions include options about test
 type TestOptions struct {
-	// about node.global.DNSClient.TestServers()
-	Domain     string      `toml:"domain"`
-	DNSOptions dns.Options `toml:"dns"`
-
-	// node run timeout
-	Timeout time.Duration `toml:"timeout"`
+	Domain     string        `toml:"domain"` // about node.global.DNSClient.TestServers()
+	DNSOptions dns.Options   `toml:"dns"`
+	Timeout    time.Duration `toml:"timeout"` // node run timeout
 }
 
 // Run is used to create a node with current configuration and run it to check error

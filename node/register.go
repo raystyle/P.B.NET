@@ -49,7 +49,7 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 	if cfg.SleepRandom < 20 {
 		return nil, errors.New("register SleepRandom must >= 20")
 	}
-	if !cfg.Skip && len(cfg.Bootstraps) == 0 {
+	if !cfg.Skip && len(cfg.RestBoots) == 0 {
 		return nil, errors.New("not skip automatic register but no bootstraps")
 	}
 
@@ -58,18 +58,18 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 
 	reg := register{bootstraps: make(map[string]bootstrap.Bootstrap)}
 	// decrypt bootstraps
-	if len(cfg.Bootstraps) != 0 {
-		if len(cfg.AESCrypto) != aes.Key256Bit+aes.IVSize {
+	if len(cfg.RestBoots) != 0 {
+		if len(cfg.RestKey) != aes.Key256Bit+aes.IVSize {
 			return nil, errors.New("invalid aes key size")
 		}
-		aesKey := cfg.AESCrypto[:aes.Key256Bit]
-		aesIV := cfg.AESCrypto[aes.Key256Bit:]
+		aesKey := cfg.RestKey[:aes.Key256Bit]
+		aesIV := cfg.RestKey[aes.Key256Bit:]
 		defer func() {
 			security.CoverBytes(aesKey)
 			security.CoverBytes(aesIV)
 		}()
 		memory.Padding()
-		data, err := aes.CBCDecrypt(cfg.Bootstraps, aesKey, aesIV)
+		data, err := aes.CBCDecrypt(cfg.RestBoots, aesKey, aesIV)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}

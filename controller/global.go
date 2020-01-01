@@ -257,10 +257,6 @@ func GenerateSessionKey(path string, password []byte) error {
 	return ioutil.WriteFile(path, append(hashData, keyEnc...), 644)
 }
 
-const sessionKeySize = sha256.Size +
-	ed25519.PrivateKeySize + aes.Key256Bit + aes.IVSize +
-	aes.BlockSize
-
 // return ed25519 private key & aes key & aes iv
 func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
 	file, err := ioutil.ReadFile(path)
@@ -268,6 +264,9 @@ func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
 		err = errors.WithStack(err)
 		return
 	}
+	const sessionKeySize = sha256.Size +
+		ed25519.PrivateKeySize + aes.Key256Bit + aes.IVSize +
+		aes.BlockSize
 	if len(file) != sessionKeySize {
 		err = errors.New("invalid session key size")
 		return

@@ -116,13 +116,12 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 
 // <warning> must < 1048576
 const (
-	objCtrlPublicKey  uint32 = iota // verify controller role & message
-	objCtrlAESCrypto                // decrypt controller broadcast message
-	objCtrlSessionKey               // after key exchange (aes crypto)
+	objCtrlPublicKey    uint32 = iota // verify controller role & message
+	objCtrlBroadcastKey               // decrypt controller broadcast message
+	objCtrlSessionKey                 // after key exchange (aes crypto)
 
 	objStartupTime // global.configure() time
 	objNodeGUID    // identification
-	objDBAESCrypto // encrypt self data(database)
 
 	objCertificate // for server.handshake need protect
 	objPrivateKey  // for sign message
@@ -191,17 +190,6 @@ func (global *global) configure(cfg *Config) error {
 	global.paddingMemory()
 	global.objects[objPrivateKey] = security.NewBytes(pri)
 	security.CoverBytes(pri)
-	// generate database aes
-	global.paddingMemory()
-	aesKey := global.rand.Bytes(aes.Key256Bit)
-	aesIV := global.rand.Bytes(aes.IVSize)
-	cbc, err := aes.NewCBC(aesKey, aesIV)
-	if err != nil {
-		panic(err)
-	}
-	security.CoverBytes(aesKey)
-	security.CoverBytes(aesIV)
-	global.objects[objDBAESCrypto] = cbc
 	// -----------------load controller configs-----------------
 	// controller public key
 	global.paddingMemory()
@@ -212,19 +200,18 @@ func (global *global) configure(cfg *Config) error {
 	global.objects[objCtrlPublicKey] = publicKey
 	// controller broadcast key
 	global.paddingMemory()
-	aesKey = cfg.CTRL.BroadcastKey
-	if len(aesKey) != aes.Key256Bit+aes.IVSize {
+	if len(cfg.CTRL.BroadcastKey) != aes.Key256Bit+aes.IVSize {
 		return errors.New("invalid controller aes key size")
 	}
-	key := aesKey[:aes.Key256Bit]
-	iv := aesKey[aes.Key256Bit:]
-	cbc, err = aes.NewCBC(key, iv)
+	aesKey := cfg.CTRL.BroadcastKey[:aes.Key256Bit]
+	aesIV := cfg.CTRL.BroadcastKey[aes.Key256Bit:]
+	cbc, err := aes.NewCBC(aesKey, aesIV)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	security.CoverBytes(key)
-	security.CoverBytes(iv)
-	global.objects[objCtrlAESCrypto] = cbc
+	security.CoverBytes(aesKey)
+	security.CoverBytes(aesIV)
+	global.objects[objCtrlBroadcastKey] = cbc
 	// calculate session key and set aes crypto
 	global.paddingMemory()
 	sb := global.objects[objPrivateKey].(*security.Bytes)
@@ -234,11 +221,11 @@ func (global *global) configure(cfg *Config) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	sessionCrypto, err := aes.NewCBC(sessionKey, sessionKey[:aes.IVSize])
+	cbc, err = aes.NewCBC(sessionKey, sessionKey[:aes.IVSize])
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	global.objects[objCtrlSessionKey] = sessionCrypto
+	global.objects[objCtrlSessionKey] = cbc
 	return nil
 }
 
@@ -401,23 +388,7 @@ func (global *global) CtrlVerify(message, signature []byte) bool {
 func (global *global) CtrlDecrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objCtrlAESCrypto].(*aes.CBC)
-	return cbc.Decrypt(data)
-}
-
-// DBEncrypt is used to encrypt database data
-func (global *global) DBEncrypt(data []byte) ([]byte, error) {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objDBAESCrypto].(*aes.CBC)
-	return cbc.Encrypt(data)
-}
-
-// DBDecrypt is used to decrypt database data
-func (global *global) DBDecrypt(data []byte) ([]byte, error) {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objDBAESCrypto].(*aes.CBC)
+	cbc := global.objects[objCtrlBroadcastKey].(*aes.CBC)
 	return cbc.Decrypt(data)
 }
 

@@ -81,11 +81,11 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	server := server{listeners: make(map[string]*Listener)}
 	// decrypt configs about listeners
 	if len(cfg.Listeners) != 0 {
-		if len(cfg.AESCrypto) != aes.Key256Bit+aes.IVSize {
+		if len(cfg.ListenersKey) != aes.Key256Bit+aes.IVSize {
 			return nil, errors.New("invalid aes key size")
 		}
-		aesKey := cfg.AESCrypto[:aes.Key256Bit]
-		aesIV := cfg.AESCrypto[aes.Key256Bit:]
+		aesKey := cfg.ListenersKey[:aes.Key256Bit]
+		aesIV := cfg.ListenersKey[aes.Key256Bit:]
 		defer func() {
 			security.CoverBytes(aesKey)
 			security.CoverBytes(aesIV)
