@@ -1,2 +1,0 @@
-network = "tcp"
-address = "localhost:0"

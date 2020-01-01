@@ -72,7 +72,7 @@ func (d *deadlineConn) Write(p []byte) (n int, err error) {
 }
 
 // DeadlineConn is used to return a net.Conn that SetReadDeadline()
-// and SetWriteDeadline() before each Read and Write
+// and SetWriteDeadline() before each Read() and Write()
 func DeadlineConn(conn net.Conn, deadline time.Duration) net.Conn {
 	dc := deadlineConn{
 		Conn:     conn,

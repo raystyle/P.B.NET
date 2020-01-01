@@ -51,10 +51,11 @@ func TestTrafficUnit_String(t *testing.T) {
 }
 
 func TestDeadlineConn(t *testing.T) {
-	// read timeout
 	server, client := net.Pipe()
 	client = DeadlineConn(client, 100*time.Millisecond)
 	server = DeadlineConn(server, 100*time.Millisecond)
+
+	// deadline
 	buf := make([]byte, 1024)
 	_, err := client.Read(buf)
 	require.Error(t, err)
