@@ -65,13 +65,13 @@ func (d *Direct) Resolve() ([]*Node, error) {
 	b, err := d.cbc.Decrypt(d.enc)
 	defer security.CoverBytes(b)
 	if err != nil {
-		panic(&bPanic{Mode: ModeDirect, Err: err})
+		panic(err)
 	}
 	memory.Padding()
 	var nodes []*Node
 	err = msgpack.Unmarshal(b, &nodes)
 	if err != nil {
-		panic(&bPanic{Mode: ModeDirect, Err: err})
+		panic(err)
 	}
 	return nodes, nil
 }

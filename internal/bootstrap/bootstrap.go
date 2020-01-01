@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pkg/errors"
 
@@ -19,12 +18,12 @@ const (
 
 // Node is the bootstrap node
 type Node struct {
-	Mode    string `toml:"mode"`
+	Mode    string `toml:"mode"` // see internal/xnet
 	Network string `toml:"network"`
 	Address string `toml:"address"`
 }
 
-// Bootstrap is used to get bootstrap nodes
+// Bootstrap is used to resolve bootstrap nodes
 type Bootstrap interface {
 	// Validate is used to check bootstrap config correct
 	Validate() error
@@ -35,11 +34,11 @@ type Bootstrap interface {
 	// Unmarshal is used to unmarshal []byte to bootstrap
 	Unmarshal([]byte) error
 
-	// Resolve is used to get bootstrap nodes
+	// Resolve is used to resolve bootstrap nodes
 	Resolve() ([]*Node, error)
 }
 
-// Load is used to make a bootstrap from config
+// Load is used to create a bootstrap from config
 func Load(
 	ctx context.Context,
 	mode string,
@@ -60,20 +59,7 @@ func Load(
 	}
 	err := bootstrap.Unmarshal(config)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal bootstrap")
-	}
-	err = bootstrap.Validate()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to validate bootstrap")
+		return nil, err
 	}
 	return bootstrap, nil
-}
-
-type bPanic struct {
-	Mode string
-	Err  error
-}
-
-func (b *bPanic) String() string {
-	return fmt.Sprintf("bootstrap %s internal error: %s", b.Mode, b.Err)
 }

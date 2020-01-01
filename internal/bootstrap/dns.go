@@ -105,12 +105,12 @@ func (d *DNS) Resolve() ([]*Node, error) {
 	b, err := d.cbc.Decrypt(d.enc)
 	defer security.CoverBytes(b)
 	if err != nil {
-		panic(&bPanic{Mode: ModeDNS, Err: err})
+		panic(err)
 	}
 	tDNS := &DNS{}
 	err = msgpack.Unmarshal(b, tDNS)
 	if err != nil {
-		panic(&bPanic{Mode: ModeDNS, Err: err})
+		panic(err)
 	}
 	security.CoverBytes(b)
 	memory.Padding()

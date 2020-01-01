@@ -198,12 +198,12 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	defer memory.Flush()
 	b, err := h.cbc.Decrypt(h.enc)
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: err})
+		panic(err)
 	}
 	tHTTP := &HTTP{}
 	err = msgpack.Unmarshal(b, tHTTP)
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: err})
+		panic(err)
 	}
 	defer flushRequestOption(&tHTTP.Request)
 	security.CoverBytes(b)
@@ -212,12 +212,12 @@ func (h *HTTP) Resolve() ([]*Node, error) {
 	// apply options
 	req, err := tHTTP.Request.Apply()
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: err})
+		panic(err)
 	}
 	defer security.CoverHTTPRequest(req)
 	tr, err := tHTTP.Transport.Apply()
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: err})
+		panic(err)
 	}
 	tr.TLSClientConfig.ServerName = req.URL.Hostname()
 
@@ -298,7 +298,7 @@ func resolve(h *HTTP, info []byte) []*Node {
 	cipherData := make([]byte, len(info)/2)
 	_, err := hex.Decode(cipherData, info)
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: err})
+		panic(err)
 	}
 	aesKey, _ := hex.DecodeString(h.AESKey)
 	security.CoverString(&h.AESKey)
@@ -308,31 +308,31 @@ func resolve(h *HTTP, info []byte) []*Node {
 	security.CoverBytes(aesKey)
 	security.CoverBytes(aesIV)
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: err})
+		panic(err)
 	}
 
 	// verify
 	l := len(data)
 	if l < ed25519.SignatureSize {
-		panic(&bPanic{Mode: ModeHTTP, Err: ErrInvalidSignatureSize})
+		panic(ErrInvalidSignatureSize)
 	}
 	signature := data[:ed25519.SignatureSize]
 	nodesData := data[ed25519.SignatureSize:]
 	pub, err := hex.DecodeString(h.PublicKey)
 	security.CoverString(&h.PublicKey)
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: err})
+		panic(err)
 	}
 	publicKey, err := ed25519.ImportPublicKey(pub)
 	security.CoverBytes(pub)
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: err})
+		panic(err)
 	}
 	if !ed25519.Verify(publicKey, nodesData, signature) {
-		panic(&bPanic{Mode: ModeHTTP, Err: ErrInvalidSignature})
+		panic(ErrInvalidSignature)
 	}
 
-	// confuse
+	// remove confuse
 	nodesBuf := bytes.Buffer{}
 	l = len(nodesData)
 	i := 0
@@ -352,7 +352,7 @@ func resolve(h *HTTP, info []byte) []*Node {
 	var nodes []*Node
 	err = msgpack.Unmarshal(nodesBytes, &nodes)
 	if err != nil {
-		panic(&bPanic{Mode: ModeHTTP, Err: ErrInvalidSignature})
+		panic(err)
 	}
 	security.CoverBytes(nodesBytes)
 	return nodes
