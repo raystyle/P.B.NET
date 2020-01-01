@@ -1,6 +1,7 @@
 package xnet
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,30 +13,12 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
-// data size + data
-//   uint32      n
-const (
-	DataSize      = 4
-	MaxDataLength = 256 << 10
-)
-
-// Status is used show connection status
-type Status struct {
-	LocalNetwork  string
-	LocalAddress  string
-	RemoteNetwork string
-	RemoteAddress string
-	Connect       time.Time
-	Send          xnetutil.TrafficUnit
-	Receive       xnetutil.TrafficUnit
-}
-
-// Conn is used to role handshake, and count network traffic
+// Conn is used to count network traffic and save connect time
 type Conn struct {
 	net.Conn
-	connect  time.Time
 	sent     int // imprecise
 	received int // imprecise
+	connect  time.Time
 	rwm      sync.RWMutex
 }
 
@@ -43,7 +26,7 @@ type Conn struct {
 func NewConn(conn net.Conn, connect time.Time) *Conn {
 	return &Conn{
 		Conn:    conn,
-		connect: connect,
+		connect: connect.Local(),
 	}
 }
 
@@ -67,27 +50,45 @@ func (c *Conn) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// +--------+---------+
+// |  size  | message |
+// +--------+---------+
+// | uint32 |   var   |
+// +--------+---------+
+const (
+	headerSize   = 4         // message size
+	MaxMsgLength = 256 << 10 // 256 KB
+)
+
+// errors
+var (
+	ErrSendTooBigMessage    = errors.New("send too big message")
+	ErrReceiveTooBigMessage = errors.New("receive too big message")
+)
+
 // Send is used to send one message
 func (c *Conn) Send(msg []byte) error {
-	size := convert.Uint32ToBytes(uint32(len(msg)))
-	_, err := c.Write(append(size, msg...))
+	size := len(msg)
+	if size > MaxMsgLength {
+		return ErrSendTooBigMessage
+	}
+	header := convert.Uint32ToBytes(uint32(size))
+	_, err := c.Write(append(header, msg...))
 	return err
 }
 
 // Receive is used to receive one message
 func (c *Conn) Receive() ([]byte, error) {
-	sizeBytes := make([]byte, DataSize)
-	_, err := io.ReadFull(c, sizeBytes)
+	header := make([]byte, headerSize)
+	_, err := io.ReadFull(c, header)
 	if err != nil {
 		return nil, err
 	}
-	size := int(convert.BytesToUint32(sizeBytes))
-	if size > MaxDataLength {
-		return nil, fmt.Errorf(
-			"%s %s receive too big message: %d",
-			c.RemoteAddr().Network(), c.RemoteAddr(), size)
+	msgSize := int(convert.BytesToUint32(header))
+	if msgSize > MaxMsgLength {
+		return nil, ErrReceiveTooBigMessage
 	}
-	msg := make([]byte, size)
+	msg := make([]byte, msgSize)
 	_, err = io.ReadFull(c, msg)
 	if err != nil {
 		return nil, err
@@ -95,37 +96,51 @@ func (c *Conn) Receive() ([]byte, error) {
 	return msg, nil
 }
 
+// Status contains connection status
+type Status struct {
+	LocalNetwork  string
+	LocalAddress  string
+	RemoteNetwork string
+	RemoteAddress string
+	Connect       time.Time
+	Sent          xnetutil.TrafficUnit
+	Received      xnetutil.TrafficUnit
+}
+
 // Status is used to get connection status
 func (c *Conn) Status() *Status {
 	c.rwm.RLock()
 	defer c.rwm.RUnlock()
-	s := &Status{
-		Send:    xnetutil.TrafficUnit(c.sent),
-		Receive: xnetutil.TrafficUnit(c.received),
+	s := Status{
+		Sent:     xnetutil.TrafficUnit(c.sent),
+		Received: xnetutil.TrafficUnit(c.received),
 	}
-	// the remote address maybe changed, such as QUIC
+	// remote address maybe changed, such as QUIC
 	s.LocalNetwork = c.LocalAddr().Network()
 	s.LocalAddress = c.LocalAddr().String()
 	s.RemoteNetwork = c.RemoteAddr().Network()
 	s.RemoteAddress = c.RemoteAddr().String()
 	s.Connect = c.connect
-	return s
+	return &s
 }
 
 // String is used to get connection info
+//
 // local:  tcp 127.0.0.1:123
 // remote: tcp 127.0.0.1:124
 // sent:   123 Byte received: 1.101 KB
-// connect time: 2006-01-02 15:04:05
+// connect time: 2018-11-27 00:00:00
 func (c *Conn) String() string {
-	const format = "local:  %s %s\nremote: %s %s\n" +
+	const format = "" +
+		"local:  %s %s\n" +
+		"remote: %s %s\n" +
 		"sent:   %s received: %s\n" +
 		"connect time: %s"
 	s := c.Status()
 	return fmt.Sprintf(format,
 		s.LocalNetwork, s.LocalAddress,
 		s.RemoteNetwork, s.RemoteAddress,
-		s.Send, s.Receive,
-		s.Connect.Local().Format(logger.TimeLayout),
+		s.Sent, s.Received,
+		s.Connect.Format(logger.TimeLayout),
 	)
 }

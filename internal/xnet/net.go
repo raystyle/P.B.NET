@@ -12,12 +12,6 @@ import (
 	"project/internal/xnet/xtls"
 )
 
-// errors
-var (
-	ErrEmptyMode    = fmt.Errorf("empty mode")
-	ErrEmptyNetwork = fmt.Errorf("empty network")
-)
-
 // supported modes
 const (
 	ModeTLS   = "tls"
@@ -32,15 +26,21 @@ func (m UnknownModeError) Error() string {
 	return fmt.Sprintf("unknown mode: %s", string(m))
 }
 
-type mismatchedModeNetwork struct {
+// MismatchedModeNetwork is an error of the mode and network
+type MismatchedModeNetwork struct {
 	mode    string
 	network string
 }
 
-func (mn *mismatchedModeNetwork) Error() string {
-	return fmt.Sprintf("mismatched mode and network: %s %s",
-		mn.mode, mn.network)
+func (m *MismatchedModeNetwork) Error() string {
+	return fmt.Sprintf("mismatched mode and network: %s %s", m.mode, m.network)
 }
+
+// errors
+var (
+	ErrEmptyMode    = fmt.Errorf("empty mode")
+	ErrEmptyNetwork = fmt.Errorf("empty network")
+)
 
 // CheckModeNetwork is used to check if the mode and network matched
 func CheckModeNetwork(mode string, network string) error {
@@ -55,19 +55,19 @@ func CheckModeNetwork(mode string, network string) error {
 		switch network {
 		case "tcp", "tcp4", "tcp6":
 		default:
-			return &mismatchedModeNetwork{mode: mode, network: network}
+			return &MismatchedModeNetwork{mode: mode, network: network}
 		}
 	case ModeQUIC:
 		switch network {
 		case "udp", "udp4", "udp6":
 		default:
-			return &mismatchedModeNetwork{mode: mode, network: network}
+			return &MismatchedModeNetwork{mode: mode, network: network}
 		}
 	case ModeLight:
 		switch network {
 		case "tcp", "tcp4", "tcp6":
 		default:
-			return &mismatchedModeNetwork{mode: mode, network: network}
+			return &MismatchedModeNetwork{mode: mode, network: network}
 		}
 	default:
 		return UnknownModeError(mode)
