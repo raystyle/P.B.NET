@@ -13,9 +13,12 @@
   timeout   = "15s"
 
   [client.dns]
-    mode    = "custom"
+    mode = "custom"
 
 [register]
+  sleep_fixed  = 15
+  sleep_random = 30
+  skip         = true
 
 [forwarder]
   max_ctrl_conns   = 10

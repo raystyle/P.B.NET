@@ -59,9 +59,9 @@ type Config struct {
 	} `toml:"client" msgpack:"cc"`
 
 	Register struct {
-		// skip register for genesis node
-		// or Controller trust node manually
-		Skip bool `toml:"skip" msgpack:"a"`
+		SleepFixed  int  `toml:"sleep_fixed"  msgpack:"a"` // about register failed
+		SleepRandom int  `toml:"sleep_random" msgpack:"b"`
+		Skip        bool `toml:"skip"         msgpack:"c"` // wait controller trust it
 
 		// generate configs from controller
 		AESCrypto  []byte `toml:"-" msgpack:"y"` // decrypt Bootstraps data

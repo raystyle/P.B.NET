@@ -485,6 +485,11 @@ func (s *server) handleCtrl(tag string, conn *xnet.Conn) {
 	s.serveCtrl(tag, conn)
 }
 
+const (
+	nodeOperationRegister byte = iota + 1
+	nodeOperationConnect
+)
+
 func (s *server) handleNode(tag string, conn *xnet.Conn) {
 	nodeGUID := make([]byte, guid.Size)
 	_, err := io.ReadFull(conn, nodeGUID)
@@ -505,9 +510,9 @@ func (s *server) handleNode(tag string, conn *xnet.Conn) {
 		return
 	}
 	switch operation[0] {
-	case 1: // register
+	case nodeOperationRegister: // register
 		s.registerNode(conn, nodeGUID)
-	case 2: // connect
+	case nodeOperationConnect: // connect
 		if !s.verifyNode(conn, nodeGUID) {
 			return
 		}

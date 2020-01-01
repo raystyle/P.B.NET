@@ -37,6 +37,9 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Client.ProxyTag = "balance"
 	cfg.Client.Timeout = 15 * time.Second
 
+	cfg.Register.SleepFixed = 10
+	cfg.Register.SleepRandom = 20
+
 	cfg.Forwarder.MaxCtrlConns = 10
 	cfg.Forwarder.MaxNodeConns = 8
 	cfg.Forwarder.MaxBeaconConns = 128
@@ -115,6 +118,10 @@ func TestConfig(t *testing.T) {
 		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
 		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
+
+		{expected: 15, actual: cfg.Register.SleepFixed},
+		{expected: 30, actual: cfg.Register.SleepRandom},
+		{expected: true, actual: cfg.Register.Skip},
 
 		{expected: 10, actual: cfg.Forwarder.MaxCtrlConns},
 		{expected: 8, actual: cfg.Forwarder.MaxNodeConns},
