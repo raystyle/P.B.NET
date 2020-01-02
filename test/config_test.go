@@ -107,7 +107,7 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Global.Certificates = testdata.Certificates(tb)
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
 	cfg.Global.DNSServers = testdata.DNSServers()
-	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients(tb)
+	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
 
 	cfg.Client.ProxyTag = "balance"
 	cfg.Client.Timeout = 15 * time.Second
@@ -148,13 +148,13 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 	require.NoError(t, err)
 
 	// generate certificate
-	pks := ctrl.GetSelfCA()
+	keyPairs := ctrl.GetSelfCA()
 	opts := cert.Options{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
-	caCert := pks[0].Certificate
-	caKey := pks[0].PrivateKey
+	caCert := keyPairs[0].Certificate
+	caKey := keyPairs[0].PrivateKey
 	kp, err := cert.Generate(caCert, caKey, &opts)
 	require.NoError(t, err)
 

@@ -129,7 +129,7 @@ func testInsertTimeSyncerClient(t require.TestingT) {
 	err := ctrl.db.db.Unscoped().Delete(&mTimeSyncer{}).Error
 	require.NoError(t, err)
 	// insert
-	for tag, client := range testdata.TimeSyncerClients(t) {
+	for tag, client := range testdata.TimeSyncerClients() {
 		m := &mTimeSyncer{
 			Tag:      tag,
 			Mode:     client.Mode,

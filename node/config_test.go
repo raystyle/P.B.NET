@@ -32,7 +32,7 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Global.Certificates = testdata.Certificates(tb)
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
 	cfg.Global.DNSServers = testdata.DNSServers()
-	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients(tb)
+	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
 
 	cfg.Client.ProxyTag = "balance"
 	cfg.Client.Timeout = 15 * time.Second

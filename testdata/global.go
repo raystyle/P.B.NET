@@ -15,7 +15,8 @@ import (
 	"project/internal/timesync"
 )
 
-// Certificates is used to provide CA certificate for test
+// Certificates is used to provide CA certificates for test,
+// certificates are from Windows
 func Certificates(t require.TestingT) [][]byte {
 	pemBlock, err := ioutil.ReadFile("../testdata/system.pem")
 	require.NoError(t, err)
@@ -37,7 +38,7 @@ var (
 	proxyServer          *socks.Server
 )
 
-// ProxyClients is used to deploy a test proxy server
+// ProxyClients is used to deploy a proxy server
 // and return corresponding proxy client
 func ProxyClients(t require.TestingT) []*proxy.Client {
 	initProxyClientsOnce.Do(func() {
@@ -57,7 +58,7 @@ func ProxyClients(t require.TestingT) []*proxy.Client {
 	}
 }
 
-// DNSServers is used to provide test DNS servers
+// DNSServers is used to provide DNS servers for test
 func DNSServers() map[string]*dns.Server {
 	servers := make(map[string]*dns.Server)
 	if testsuite.EnableIPv4() {
@@ -105,20 +106,37 @@ func DNSServers() map[string]*dns.Server {
 	return servers
 }
 
-// TimeSyncerClients is used to provide test time syncer clients
-func TimeSyncerClients(t require.TestingT) map[string]*timesync.Client {
+// TimeSyncerClients is used to provide time syncer clients for test
+func TimeSyncerClients() map[string]*timesync.Client {
 	clients := make(map[string]*timesync.Client)
-	config, err := ioutil.ReadFile("../internal/timesync/testdata/http.toml")
-	require.NoError(t, err)
+	config := `
+timeout = "15s"
+
+[request]
+  url   = "https://www.cloudflare.com/"
+  close = true
+
+  [request.header]
+    User-Agent      = ["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0"]
+    Accept          = ["text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"]
+    Accept-Language = ["zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2"]
+    DNT             = ["1"]
+    Pragma          = ["no-cache"]
+    Cache-Control   = ["no-cache"]
+
+[transport]
+
+  [transport.tls_config]
+    insecure_load_from_system = true
+`
 	clients["test_http"] = &timesync.Client{
 		Mode:   timesync.ModeHTTP,
-		Config: string(config),
+		Config: config,
 	}
-	config, err = ioutil.ReadFile("../internal/timesync/testdata/ntp.toml")
-	require.NoError(t, err)
+	config = `address = "2.pool.ntp.org:123"`
 	clients["test_ntp"] = &timesync.Client{
 		Mode:   timesync.ModeNTP,
-		Config: string(config),
+		Config: config,
 	}
 	return clients
 }
