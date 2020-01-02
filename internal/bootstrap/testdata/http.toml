@@ -1,5 +1,5 @@
-timeout    = "15s"
-proxy_tag  = "balance"
+timeout   = "15s"
+proxy_tag = "balance"
 
 max_body_size = 65535
 
