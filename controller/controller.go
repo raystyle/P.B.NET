@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"io/ioutil"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -178,28 +179,8 @@ func (ctrl *CTRL) Exit(err error) {
 }
 
 // LoadSessionKey is used to load session key
-func (ctrl *CTRL) LoadSessionKey(password []byte) error {
-	return ctrl.global.LoadSessionKey(password)
-}
-
-// KeyExchangePub is used to get key exchange public key
-func (ctrl *CTRL) KeyExchangePub() []byte {
-	return ctrl.global.KeyExchangePub()
-}
-
-// PublicKey is used to get public key
-func (ctrl *CTRL) PublicKey() []byte {
-	return ctrl.global.PublicKey()
-}
-
-// BroadcastKey is used to get broadcast key
-func (ctrl *CTRL) BroadcastKey() []byte {
-	return ctrl.global.BroadcastKey()
-}
-
-// GetSelfCA is used to get self CA certificate to generate CA-sign certificate
-func (ctrl *CTRL) GetSelfCA() []*cert.KeyPair {
-	return ctrl.global.GetSelfCA()
+func (ctrl *CTRL) LoadSessionKey(data, password []byte) error {
+	return ctrl.global.LoadSessionKey(data, password)
 }
 
 // Connect is used to connect node
@@ -237,3 +218,32 @@ func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 }
 
 // ------------------------------------test-------------------------------------
+
+// LoadSessionKeyFromFile is used to load session key from file
+func (ctrl *CTRL) LoadSessionKeyFromFile(filename string, password []byte) error {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	return ctrl.global.LoadSessionKey(data, password)
+}
+
+// KeyExchangePub is used to get key exchange public key
+func (ctrl *CTRL) KeyExchangePub() []byte {
+	return ctrl.global.KeyExchangePub()
+}
+
+// PublicKey is used to get public key
+func (ctrl *CTRL) PublicKey() []byte {
+	return ctrl.global.PublicKey()
+}
+
+// BroadcastKey is used to get broadcast key
+func (ctrl *CTRL) BroadcastKey() []byte {
+	return ctrl.global.BroadcastKey()
+}
+
+// GetSelfCA is used to get self CA certificate to generate CA-sign certificate
+func (ctrl *CTRL) GetSelfCA() []*cert.KeyPair {
+	return ctrl.global.GetSelfCA()
+}

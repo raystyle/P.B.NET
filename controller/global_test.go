@@ -1,24 +1,17 @@
 package controller
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerateSessionKey(t *testing.T) {
-	path := os.TempDir() + "/session.key"
-	_ = os.Remove(path)
+func TestGenerateAndLoadSessionKey(t *testing.T) {
 	password := []byte("pbnet")
-	err := GenerateSessionKey(path, password)
+	data, err := generateSessionKey(password)
 	require.NoError(t, err)
-	defer func() {
-		err = os.Remove(path)
-		require.NoError(t, err)
-	}()
-	keys, err := loadSessionKey(path, password)
+	keys, err := loadSessionKey(data, password)
 	require.NoError(t, err)
-	t.Logf("private key: %X\nAES Key: %X\nAES IV: %X",
-		keys[0], keys[1], keys[2])
+	const format = "private key: %X\nAES Key: %X\nAES IV: %X"
+	t.Logf(format, keys[0], keys[1], keys[2])
 }

@@ -97,7 +97,7 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	router.GET("/favicon.ico", handleFavicon)
 	router.GET("/", web.handleIndex)
 	router.GET("/login", web.handleLogin)
-	router.POST("/load_keys", web.handleLoadKeys)
+	router.POST("/load_keys", web.handleLoadSessionKey)
 
 	// debug api
 	router.GET("/api/debug/shutdown", web.handleShutdown)
@@ -154,13 +154,13 @@ func (web *web) handleLogin(w hRW, r *hR, p hP) {
 	_, _ = w.Write([]byte("hello"))
 }
 
-func (web *web) handleLoadKeys(w hRW, r *hR, p hP) {
-	// TODO size
+func (web *web) handleLoadSessionKey(w hRW, r *hR, p hP) {
+	// TODO size, check is load session key
 	pwd, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return
 	}
-	err = web.ctx.LoadSessionKey(pwd)
+	err = web.ctx.LoadSessionKey(pwd, pwd)
 	security.CoverBytes(pwd)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))

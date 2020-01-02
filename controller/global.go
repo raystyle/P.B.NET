@@ -46,12 +46,13 @@ type global struct {
 	objects    map[uint32]interface{}
 	objectsRWM sync.RWMutex
 
+	// about load session key
 	loadSessionKey     int32
 	waitLoadSessionKey chan struct{}
+	closeOnce          sync.Once
 
-	ctx       context.Context
-	cancel    context.CancelFunc
-	closeOnce sync.Once
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
@@ -134,7 +135,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		DNSClient:          dnsClient,
 		TimeSyncer:         timeSyncer,
 		objects:            make(map[uint32]interface{}),
-		waitLoadSessionKey: make(chan struct{}, 1),
+		waitLoadSessionKey: make(chan struct{}),
 	}
 	g.ctx, g.cancel = context.WithCancel(context.Background())
 	return &g, nil
@@ -220,96 +221,92 @@ func (global *global) Now() time.Time {
 	return global.TimeSyncer.Now().Local()
 }
 
-// GenerateSessionKey is used to generate session key
+// GenerateSessionKey is used to generate session key and save to file
 func GenerateSessionKey(path string, password []byte) error {
 	_, err := os.Stat(path)
 	if !os.IsNotExist(err) {
 		return errors.Errorf("file: %s already exist", path)
 	}
+	key, err := generateSessionKey(password)
+	if err != nil {
+		return nil
+	}
+	return ioutil.WriteFile(path, key, 644)
+}
+
+func createAESKeyIVFromPassword(password []byte) ([]byte, []byte) {
+	hash := sha256.New()
+	hash.Write(password)
+	aesKey := hash.Sum(nil)
+	hash.Reset()
+	hash.Write(aesKey)
+	hash.Write([]byte{20, 18, 11, 27})
+	aesIV := hash.Sum(nil)[:aes.IVSize]
+	return aesKey, aesIV
+}
+
+func generateSessionKey(password []byte) ([]byte, error) {
 	// generate ed25519 private key(for sign message)
 	privateKey, err := ed25519.GenerateKey()
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	// generate aes key & iv(for broadcast message)
-	aesKey := random.Bytes(aes.Key256Bit)
-	aesIV := random.Bytes(aes.IVSize)
-	// calculate hash
+	broadcastKey := append(random.Bytes(aes.Key256Bit), random.Bytes(aes.IVSize)...)
+	// save keys
 	buf := new(bytes.Buffer)
 	buf.Write(privateKey)
-	buf.Write(aesKey)
-	buf.Write(aesIV)
+	buf.Write(broadcastKey)
+	// calculate hash
 	hash := sha256.New()
 	hash.Write(buf.Bytes())
-	hashData := hash.Sum(nil)
-	// encrypt
-	hash.Reset()
-	hash.Write(password)
-	key := hash.Sum(nil)
-	hash.Reset()
-	hash.Write(key)
-	hash.Write([]byte{20, 18, 11, 27})
-	iv := hash.Sum(nil)[:aes.IVSize]
-	keyEnc, err := aes.CBCEncrypt(buf.Bytes(), key, iv)
+	keysHash := hash.Sum(nil)
+	// encrypt keys
+	aesKey, aesIV := createAESKeyIVFromPassword(password)
+	keysEnc, err := aes.CBCEncrypt(buf.Bytes(), aesKey, aesIV)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
-	return ioutil.WriteFile(path, append(hashData, keyEnc...), 644)
+	return append(keysHash, keysEnc...), nil
 }
 
 // return ed25519 private key & aes key & aes iv
-func loadSessionKey(path string, password []byte) (keys [][]byte, err error) {
-	file, err := ioutil.ReadFile(path)
-	if err != nil {
-		err = errors.WithStack(err)
-		return
-	}
+func loadSessionKey(data, password []byte) ([][]byte, error) {
 	const sessionKeySize = sha256.Size +
 		ed25519.PrivateKeySize + aes.Key256Bit + aes.IVSize +
 		aes.BlockSize
-	if len(file) != sessionKeySize {
-		err = errors.New("invalid session key size")
-		return
+	if len(data) != sessionKeySize {
+		return nil, errors.New("invalid session key size")
 	}
-	// decrypt
 	memory := security.NewMemory()
 	defer memory.Flush()
-	memory.Padding()
-	hash := sha256.New()
-	hash.Write(password)
-	key := hash.Sum(nil)
-	hash.Reset()
-	hash.Write(key)
-	hash.Write([]byte{20, 18, 11, 27})
-	iv := hash.Sum(nil)[:aes.IVSize]
-	keyDec, err := aes.CBCDecrypt(file[sha256.Size:], key, iv)
+	// decrypt session key
+	aesKey, aesIV := createAESKeyIVFromPassword(password)
+	keysDec, err := aes.CBCDecrypt(data[sha256.Size:], aesKey, aesIV)
 	if err != nil {
-		err = errors.WithStack(err)
-		return
+		return nil, errors.WithStack(err)
 	}
 	// compare hash
-	hash.Reset()
-	hash.Write(keyDec)
-	if subtle.ConstantTimeCompare(file[:sha256.Size], hash.Sum(nil)) != 1 {
-		err = errors.New("invalid password")
-		return
+	hash := sha256.New()
+	hash.Write(keysDec)
+	if subtle.ConstantTimeCompare(data[:sha256.Size], hash.Sum(nil)) != 1 {
+		return nil, errors.New("invalid password")
 	}
 	// ed25519 private key
 	memory.Padding()
-	privateKey := keyDec[:ed25519.PrivateKeySize]
+	privateKey := keysDec[:ed25519.PrivateKeySize]
 	// aes key & aes iv
 	memory.Padding()
 	offset := ed25519.PrivateKeySize
-	aesKey := keyDec[offset : offset+aes.Key256Bit]
+	aesKey = keysDec[offset : offset+aes.Key256Bit]
 	memory.Padding()
 	offset += aes.Key256Bit
-	aesIV := keyDec[offset : offset+aes.IVSize]
-	// return keys
-	keys = make([][]byte, 3)
-	keys[0] = privateKey
-	keys[1] = aesKey
-	keys[2] = aesIV
-	return
+	aesIV = keysDec[offset : offset+aes.IVSize]
+	key := make([][]byte, 3)
+	key[0] = privateKey
+	key[1] = aesKey
+	key[2] = aesIV
+	return key, nil
 }
 
 func loadSelfCertificates(hash *bytes.Buffer, password []byte) ([]*cert.KeyPair, error) {
@@ -400,27 +397,36 @@ func loadSystemCertificates(hash *bytes.Buffer, password []byte) ([]*x509.Certif
 	return system, nil
 }
 
-func (global *global) isLoadSessionKey() bool {
+// IsLoadSessionKey is used to check is load session key
+func (global *global) IsLoadSessionKey() bool {
 	return atomic.LoadInt32(&global.loadSessionKey) != 0
 }
 
+func (global *global) closeWaitLoadSessionKey() {
+	global.closeOnce.Do(func() {
+		close(global.waitLoadSessionKey)
+	})
+}
+
 // LoadSessionKey is used to load session key
-func (global *global) LoadSessionKey(password []byte) error {
-	defer security.CoverBytes(password)
+func (global *global) LoadSessionKey(data, password []byte) error {
+	defer func() {
+		security.CoverBytes(data)
+		security.CoverBytes(password)
+	}()
 
 	global.objectsRWM.Lock()
 	defer global.objectsRWM.Unlock()
 
-	if global.isLoadSessionKey() {
+	if global.IsLoadSessionKey() {
 		return errors.New("already load session key")
 	}
-	// load session keys
-	keys, err := loadSessionKey("key/session.key", password)
+	key, err := loadSessionKey(data, password)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load session key")
 	}
 	// ed25519
-	pri := keys[0]
+	pri := key[0]
 	defer security.CoverBytes(pri)
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
 	global.objects[objPublicKey] = pub
@@ -437,7 +443,7 @@ func (global *global) LoadSessionKey(password []byte) error {
 	security.CoverBytes(pri)
 
 	// aes crypto about broadcast
-	cbc, _ := aes.NewCBC(keys[1], keys[2])
+	cbc, _ := aes.NewCBC(key[1], key[2])
 	global.objects[objBroadcastKey] = cbc
 
 	// load certificates
@@ -448,7 +454,7 @@ func (global *global) LoadSessionKey(password []byte) error {
 	hashBuf := new(bytes.Buffer)
 	hashBuf.Write(password)
 	memory.Padding()
-	kps, err := loadSelfCertificates(hashBuf, password)
+	self, err := loadSelfCertificates(hashBuf, password)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load self CA certificates")
 	}
@@ -465,11 +471,11 @@ func (global *global) LoadSessionKey(password []byte) error {
 		return errors.New("warning: PEM files has been tampered")
 	}
 	memory.Padding()
-	global.objects[objSelfCA] = kps
+	global.objects[objSelfCA] = self
 	memory.Padding()
 	global.objects[objSystemCA] = system
 
-	global.closeOnce.Do(func() { close(global.waitLoadSessionKey) })
+	global.closeWaitLoadSessionKey()
 	atomic.StoreInt32(&global.loadSessionKey, 1)
 	return nil
 }
@@ -477,7 +483,7 @@ func (global *global) LoadSessionKey(password []byte) error {
 // WaitLoadSessionKey is used to wait load session key
 func (global *global) WaitLoadSessionKey() bool {
 	<-global.waitLoadSessionKey
-	return global.isLoadSessionKey()
+	return global.IsLoadSessionKey()
 }
 
 // Sign is used to verify controller(handshake) and sign message
@@ -540,7 +546,7 @@ func (global *global) BroadcastKey() []byte {
 
 // Close is used to close global
 func (global *global) Close() {
+	global.closeWaitLoadSessionKey()
 	global.cancel()
 	global.TimeSyncer.Stop()
-	global.closeOnce.Do(func() { close(global.waitLoadSessionKey) })
 }

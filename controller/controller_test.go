@@ -35,7 +35,7 @@ func testInitializeController(t testing.TB) {
 		}
 		testsuite.IsDestroyed(t, cfg)
 		// set controller keys
-		err = ctrl.LoadSessionKey([]byte("pbnet"))
+		err = ctrl.LoadSessionKeyFromFile("key/session.key", []byte("pbnet"))
 		require.NoError(t, err)
 		go func() {
 			err := ctrl.Main()
