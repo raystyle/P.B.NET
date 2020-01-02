@@ -80,7 +80,7 @@ func initializeController(t require.TestingT) {
 		ctrl, err = controller.New(cfg)
 		require.NoError(t, err)
 		// set controller keys
-		err = ctrl.LoadSessionKey([]byte("pbnet"))
+		err = ctrl.LoadSessionKeyFromFile("key/session.key", []byte("pbnet"))
 		require.NoError(t, err)
 		go func() {
 			err := ctrl.Main()
