@@ -34,7 +34,7 @@ func testGenerateHTTP(t *testing.T) *HTTP {
 func TestHTTP(t *testing.T) {
 	t.Parallel()
 
-	client, pool, manager := testdns.DNSClient(t)
+	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { _ = manager.Close() }()
 	// generate bootstrap nodes info
 	nodes := testGenerateNodes()
@@ -71,7 +71,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), pool, client)
+			HTTP = NewHTTP(context.Background(), pool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 
@@ -107,7 +107,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), pool, client)
+			HTTP = NewHTTP(context.Background(), pool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 			resolved, err := HTTP.Resolve()
@@ -161,7 +161,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), pool, client)
+			HTTP = NewHTTP(context.Background(), pool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 			resolved, err := HTTP.Resolve()
@@ -204,7 +204,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), pool, client)
+			HTTP = NewHTTP(context.Background(), pool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 			resolved, err := HTTP.Resolve()
@@ -302,7 +302,7 @@ func TestHTTP_Unmarshal(t *testing.T) {
 func TestHTTP_Resolve(t *testing.T) {
 	t.Parallel()
 
-	client, pool, manager := testdns.DNSClient(t)
+	dnsClient, pool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	t.Run("doesn't exist proxy server", func(t *testing.T) {
@@ -312,7 +312,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.ProxyTag = "doesn't exist"
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), pool, client)
+		HTTP = NewHTTP(context.Background(), pool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		nodes, err := HTTP.Resolve()
 		require.Error(t, err)
@@ -325,7 +325,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.DNSOpts.Mode = "foo mode"
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), pool, client)
+		HTTP = NewHTTP(context.Background(), pool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		nodes, err := HTTP.Resolve()
 		require.Error(t, err)
@@ -338,7 +338,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.DNSOpts.Mode = dns.ModeSystem
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), pool, client)
+		HTTP = NewHTTP(context.Background(), pool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		nodes, err := HTTP.Resolve()
 		require.Error(t, err)
@@ -569,6 +569,7 @@ func TestHTTPOptions(t *testing.T) {
 	require.NoError(t, err)
 	HTTP := NewHTTP(nil, nil, nil)
 	require.NoError(t, toml.Unmarshal(config, HTTP))
+	require.NoError(t, HTTP.Validate())
 
 	testdata := [...]*struct {
 		expected interface{}

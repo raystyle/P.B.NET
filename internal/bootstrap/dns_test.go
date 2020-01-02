@@ -17,7 +17,7 @@ import (
 )
 
 func TestDNS(t *testing.T) {
-	client, _, manager := testdns.DNSClient(t)
+	dnsClient, _, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	if testsuite.EnableIPv4() {
@@ -37,7 +37,7 @@ func TestDNS(t *testing.T) {
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, DNS)
 
-		DNS = NewDNS(context.Background(), client)
+		DNS = NewDNS(context.Background(), dnsClient)
 		err = DNS.Unmarshal(b)
 		require.NoError(t, err)
 
@@ -67,7 +67,7 @@ func TestDNS(t *testing.T) {
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, DNS)
 
-		DNS = NewDNS(context.Background(), client)
+		DNS = NewDNS(context.Background(), dnsClient)
 		err = DNS.Unmarshal(b)
 		require.NoError(t, err)
 
@@ -114,10 +114,10 @@ func TestDNS_Unmarshal(t *testing.T) {
 }
 
 func TestDNS_Resolve(t *testing.T) {
-	client, _, manager := testdns.DNSClient(t)
+	dnsClient, _, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	DNS := NewDNS(context.Background(), client)
+	DNS := NewDNS(context.Background(), dnsClient)
 	config := []byte(`
          host    = "localhost"
          mode    = "tls"
@@ -180,6 +180,7 @@ func TestDNSOptions(t *testing.T) {
 	require.NoError(t, err)
 	DNS := NewDNS(nil, nil)
 	require.NoError(t, toml.Unmarshal(config, DNS))
+	require.NoError(t, DNS.Validate())
 
 	testdata := [...]*struct {
 		expected interface{}

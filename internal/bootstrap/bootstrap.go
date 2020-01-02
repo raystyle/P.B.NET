@@ -55,7 +55,7 @@ func Load(
 	case ModeDirect:
 		bootstrap = NewDirect()
 	default:
-		return nil, errors.Errorf("unknown bootstrap mode: %s", mode)
+		return nil, errors.Errorf("unknown mode: %s", mode)
 	}
 	err := bootstrap.Unmarshal(config)
 	if err != nil {
