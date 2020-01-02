@@ -46,14 +46,14 @@ type HTTP struct {
 
 	MaxBodySize int64 `toml:"max_body_size"` // <security>
 
-	// encrypt&decrypt generate data(nodes) hex
+	// encrypt & decrypt generate data(nodes) ,hex encoded
 	AESKey string `toml:"aes_key"`
 	AESIV  string `toml:"aes_iv"`
 
-	// for resolve verify  hex
+	// for verify resolve nodes data, hex encoded
 	PublicKey string `toml:"public_key"`
 
-	// for generate&marshal
+	// for generate & marshal, controller set it
 	PrivateKey ed25519.PrivateKey `toml:"-"`
 
 	// runtime
@@ -89,15 +89,21 @@ func (h *HTTP) Validate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer security.CoverBytes(aesKey)
 	aesIV, err := hex.DecodeString(h.AESIV)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	defer func() {
-		security.CoverBytes(aesKey)
-		security.CoverBytes(aesIV)
-	}()
+	defer security.CoverBytes(aesIV)
 	_, err = aes.NewCBC(aesKey, aesIV)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	publicKey, err := hex.DecodeString(h.PublicKey)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	_, err = ed25519.ImportPublicKey(publicKey)
 	return errors.WithStack(err)
 }
 
@@ -146,12 +152,12 @@ func (h *HTTP) Generate(nodes []*Node) ([]byte, error) {
 
 // Marshal is used to marshal HTTP to []byte
 func (h *HTTP) Marshal() ([]byte, error) {
+	publicKey := h.PrivateKey.PublicKey()
+	h.PublicKey = hex.EncodeToString(publicKey)
 	err := h.Validate()
 	if err != nil {
 		return nil, err
 	}
-	publicKey := h.PrivateKey.PublicKey()
-	h.PublicKey = hex.EncodeToString(publicKey)
 	return toml.Marshal(h)
 }
 

@@ -238,11 +238,24 @@ func TestHTTP_Validate(t *testing.T) {
 	HTTP.AESKey = "foo key"
 	require.Error(t, HTTP.Validate())
 
-	HTTP.AESKey = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.Key128Bit))
+	HTTP.AESKey = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.Key256Bit))
 
 	// invalid AES IV
 	HTTP.AESIV = "foo iv"
+	require.Error(t, HTTP.Validate())
+	HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.IVSize+1))
+	require.Error(t, HTTP.Validate())
 
+	HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.IVSize))
+
+	// invalid public key
+	HTTP.PublicKey = "foo public key"
+	require.Error(t, HTTP.Validate())
+
+	var err error
+	HTTP.PrivateKey, err = ed25519.GenerateKey()
+	require.NoError(t, err)
+	HTTP.AESIV = "foo iv"
 	b, err := HTTP.Marshal()
 	require.Error(t, err)
 	require.Nil(t, b)
@@ -564,10 +577,10 @@ func TestHTTPOptions(t *testing.T) {
 		{expected: 15 * time.Second, actual: HTTP.Timeout},
 		{expected: "balance", actual: HTTP.ProxyTag},
 		{expected: int64(65535), actual: HTTP.MaxBodySize},
-		{expected: "FF", actual: HTTP.AESKey},
-		{expected: "AA", actual: HTTP.AESIV},
-		{expected: "E3", actual: HTTP.PublicKey},
-		{expected: "http://test.com/", actual: HTTP.Request.URL},
+		{expected: strings.Repeat("FF", aes.Key256Bit), actual: HTTP.AESKey},
+		{expected: strings.Repeat("FF", aes.IVSize), actual: HTTP.AESIV},
+		{expected: strings.Repeat("FF", ed25519.PublicKeySize), actual: HTTP.PublicKey},
+		{expected: "https://test.com/", actual: HTTP.Request.URL},
 		{expected: 2, actual: HTTP.Transport.MaxIdleConns},
 		{expected: dns.ModeSystem, actual: HTTP.DNSOpts.Mode},
 	}

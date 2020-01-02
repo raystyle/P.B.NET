@@ -3,12 +3,12 @@ proxy_tag  = "balance"
 
 max_body_size = 65535
 
-aes_key    = "FF"
-aes_iv     = "AA"
-public_key = "E3"
+aes_key    = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+aes_iv     = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+public_key = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
 
 [request]
-  url = "http://test.com/"
+  url = "https://test.com/"
 
 [transport]
   max_idle_conns = 2
