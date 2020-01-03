@@ -9,16 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func init() {
-	// gorm custom name: table name delete "m"
-	// table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
-	n := gorm.TheNamingStrategy.Table
-	gorm.TheNamingStrategy.Table = func(name string) string {
-		return n(name)[2:]
-	}
-}
-
-// different table have the same model
+// different table with the same model
 const (
 	tableCtrlLog   = "log"
 	tableNodeLog   = "node_log"
@@ -155,6 +146,17 @@ type mTrustNode struct {
 	Address string `json:"address"`
 }
 
+// setGORMCustomName is used to set gorm.TheNamingStrategy.Table
+// gorm custom name: table name delete "m"
+// table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
+func setGORMCustomName() {
+	n := gorm.TheNamingStrategy.Table
+	gorm.TheNamingStrategy.Table = func(name string) string {
+		return n(name)[2:]
+	}
+}
+
+// getStructureName is used to get structure name
 func getStructureName(v interface{}) string {
 	s := reflect.TypeOf(v).String()
 	ss := strings.Split(s, ".")
@@ -174,7 +176,9 @@ func InitializeDatabase(config *Config) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to ping %s server", cfg.Dialect)
 	}
-	// not add s
+
+	// table name will not add "s"
+	setGORMCustomName()
 	db.SingularTable(true)
 	db.LogMode(false)
 	defer func() { _ = db.Close() }()
@@ -182,116 +186,96 @@ func InitializeDatabase(config *Config) error {
 		name  string
 		model interface{}
 	}{
-		{
-			name:  tableCtrlLog,
-			model: &mCtrlLog{},
-		},
-		{
-			model: &mProxyClient{},
-		},
-		{
-			model: &mDNSServer{},
-		},
-		{
-			model: &mTimeSyncer{},
-		},
-		{
-			model: &mBoot{},
-		},
-		{
-			model: &mListener{},
-		},
-		{
-			model: &mNode{},
-		},
-		{
-			model: &mNodeListener{},
-		},
-		{
-			name:  tableNodeLog,
-			model: &mRoleLog{},
-		},
-		{
-			model: &mBeacon{},
-		},
-		{
-			model: &mBeaconMessage{},
-		},
-		{
-			model: &mBeaconListener{},
-		},
-		{
-			name:  tableBeaconLog,
-			model: &mRoleLog{},
-		},
+		// about controller
+		{name: tableCtrlLog, model: &mCtrlLog{}},
+		{model: &mProxyClient{}},
+		{model: &mDNSServer{}},
+		{model: &mTimeSyncer{}},
+		{model: &mBoot{}},
+		{model: &mListener{}},
+
+		// about node
+		{model: &mNode{}},
+		{model: &mNodeListener{}},
+		{name: tableNodeLog, model: &mRoleLog{}},
+
+		// about beacon
+		{model: &mBeacon{}},
+		{model: &mBeaconMessage{}},
+		{model: &mBeaconListener{}},
+		{name: tableBeaconLog, model: &mRoleLog{}},
 	}
 	l := len(tables)
 	// because of foreign key, drop tables by inverted order
 	for i := l - 1; i > -1; i-- {
-		n := tables[i].name
-		m := tables[i].model
-		if n == "" {
-			err = db.DropTableIfExists(m).Error
+		const format = "failed to drop table %s"
+		name := tables[i].name
+		model := tables[i].model
+		if name == "" {
+			err = db.DropTableIfExists(model).Error
 			if err != nil {
-				table := gorm.ToTableName(getStructureName(m))
-				return errors.Wrapf(err, "failed to drop table %s", table)
+				table := gorm.ToTableName(getStructureName(model))
+				return errors.Wrapf(err, format, table)
 			}
 		} else {
-			err = db.Table(n).DropTableIfExists(m).Error
+			err = db.Table(name).DropTableIfExists(model).Error
 			if err != nil {
-				table := gorm.ToTableName(getStructureName(m))
-				return errors.Wrapf(err, "failed to drop table %s", table)
+				table := gorm.ToTableName(getStructureName(model))
+				return errors.Wrapf(err, format, table)
 			}
 		}
 	}
 	// create tables
 	for i := 0; i < l; i++ {
-		n := tables[i].name
-		m := tables[i].model
-		if n == "" {
-			err = db.CreateTable(m).Error
+		const format = "failed to create table %s"
+		name := tables[i].name
+		model := tables[i].model
+		if name == "" {
+			err = db.CreateTable(model).Error
 			if err != nil {
-				table := gorm.ToTableName(getStructureName(m))
-				return errors.Wrapf(err, "failed to create table %s", table)
+				table := gorm.ToTableName(getStructureName(model))
+				return errors.Wrapf(err, format, table)
 			}
 		} else {
-			err = db.Table(n).CreateTable(m).Error
+			err = db.Table(name).CreateTable(model).Error
 			if err != nil {
-				return errors.Wrapf(err, "failed to create table %s", n)
+				return errors.Wrapf(err, format, name)
 			}
 		}
 	}
+	return initializeDatabaseForeignKey(db)
+}
+
+func initializeDatabaseForeignKey(db *gorm.DB) error {
+	const (
+		field    = "guid"
+		onDelete = "CASCADE"
+		onUpdate = "CASCADE"
+	)
 	// add node foreign key
-	addErr := func(table string, err error) error {
-		return errors.Wrapf(err, "failed to add %s foreign key", table)
-	}
 	table := gorm.ToTableName(getStructureName(&mNode{}))
-	err = db.Model(&mNodeListener{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
-	if err != nil {
-		return addErr(table, err)
-	}
-	err = db.Table(tableNodeLog).Model(&mRoleLog{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
-	if err != nil {
-		return addErr(table, err)
+	dest := table + "(guid)"
+	for _, model := range []*gorm.DB{
+		db.Model(&mNodeListener{}),
+		db.Table(tableNodeLog).Model(&mRoleLog{}),
+	} {
+		err := model.AddForeignKey(field, dest, onDelete, onUpdate).Error
+		if err != nil {
+			return errors.Wrap(err, "failed to add node foreign key")
+		}
 	}
 	// add beacon foreign key
 	table = gorm.ToTableName(getStructureName(&mBeacon{}))
-	err = db.Model(&mBeaconMessage{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
-	if err != nil {
-		return addErr(table, err)
-	}
-	err = db.Model(&mBeaconListener{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
-	if err != nil {
-		return addErr(table, err)
-	}
-	err = db.Table(tableBeaconLog).Model(&mRoleLog{}).AddForeignKey("guid", table+"(guid)",
-		"CASCADE", "CASCADE").Error
-	if err != nil {
-		return addErr(table, err)
+	dest = table + "(guid)"
+	for _, model := range []*gorm.DB{
+		db.Model(&mBeaconMessage{}),
+		db.Model(&mBeaconListener{}),
+		db.Table(tableBeaconLog).Model(&mRoleLog{}),
+	} {
+		err := model.AddForeignKey(field, dest, onDelete, onUpdate).Error
+		if err != nil {
+			return errors.Wrap(err, "failed to add beacon foreign key")
+		}
 	}
 	return nil
 }
