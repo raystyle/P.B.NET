@@ -48,6 +48,8 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Client.ProxyTag = "balance"
 	cfg.Client.Timeout = 15 * time.Second
 
+	cfg.Register.SleepFixed = 10
+	cfg.Register.SleepRandom = 20
 	cfg.Register.Skip = true
 
 	cfg.Forwarder.MaxCtrlConns = 10

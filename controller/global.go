@@ -56,80 +56,18 @@ type global struct {
 }
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
-	cfg := config.Global
-
-	// load builtin proxy clients
-	const errProxy = "failed to load builtin proxy clients"
-	b, err := ioutil.ReadFile("builtin/proxy.toml")
-	if err != nil {
-		return nil, errors.Wrap(err, errProxy)
-	}
-	proxyClients := struct {
-		Clients []*proxy.Client `toml:"clients"`
-	}{}
-	err = toml.Unmarshal(b, &proxyClients)
-	if err != nil {
-		return nil, errors.Wrap(err, errProxy)
-	}
-	proxyPool := proxy.NewPool()
-	for _, client := range proxyClients.Clients {
-		err = proxyPool.Add(client)
-		if err != nil {
-			return nil, errors.Wrap(err, errProxy)
-		}
-	}
-	// try to get proxy client
-	_, err = proxyPool.Get(config.Client.ProxyTag)
+	proxyPool, err := loadBuiltinProxyClients(config)
 	if err != nil {
 		return nil, err
 	}
-
-	// load builtin dns clients
-	const errDNS = "failed to load builtin DNS clients"
-	b, err = ioutil.ReadFile("builtin/dns.toml")
+	dnsClient, err := loadBuiltinDNSClients(proxyPool, config)
 	if err != nil {
-		return nil, errors.Wrap(err, errDNS)
+		return nil, err
 	}
-	dnsServers := make(map[string]*dns.Server)
-	err = toml.Unmarshal(b, &dnsServers)
+	timeSyncer, err := loadBuiltinTimeSyncerClients(proxyPool, dnsClient, logger, config)
 	if err != nil {
-		return nil, errors.Wrap(err, errDNS)
+		return nil, err
 	}
-	dnsClient := dns.NewClient(proxyPool)
-	for tag, server := range dnsServers {
-		err = dnsClient.Add("builtin_"+tag, server)
-		if err != nil {
-			return nil, errors.Wrap(err, errDNS)
-		}
-	}
-	err = dnsClient.SetCacheExpireTime(cfg.DNSCacheExpire)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	// load builtin time syncer client
-	const errTSC = "failed to load builtin time syncer clients"
-	b, err = ioutil.ReadFile("builtin/time.toml")
-	if err != nil {
-		return nil, errors.Wrap(err, errTSC)
-	}
-	timeSyncerClients := make(map[string]*timesync.Client)
-	err = toml.Unmarshal(b, &timeSyncerClients)
-	if err != nil {
-		return nil, errors.Wrap(err, errTSC)
-	}
-	timeSyncer := timesync.New(proxyPool, dnsClient, logger)
-	for tag, client := range timeSyncerClients {
-		err = timeSyncer.Add("builtin_"+tag, client)
-		if err != nil {
-			return nil, errors.Wrap(err, errTSC)
-		}
-	}
-	err = timeSyncer.SetSyncInterval(cfg.TimeSyncInterval)
-	if err != nil {
-		return nil, errors.Wrap(err, errTSC)
-	}
-	timeSyncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
 	g := global{
 		ProxyPool:          proxyPool,
 		DNSClient:          dnsClient,
@@ -139,6 +77,91 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	}
 	g.ctx, g.cancel = context.WithCancel(context.Background())
 	return &g, nil
+}
+
+func loadBuiltinProxyClients(config *Config) (*proxy.Pool, error) {
+	const errorMsg = "failed to load builtin proxy clients"
+	data, err := ioutil.ReadFile("builtin/proxy.toml")
+	if err != nil {
+		return nil, errors.Wrap(err, errorMsg)
+	}
+	proxyClients := struct {
+		Clients []*proxy.Client `toml:"clients"`
+	}{}
+	err = toml.Unmarshal(data, &proxyClients)
+	if err != nil {
+		return nil, errors.Wrap(err, errorMsg)
+	}
+	pool := proxy.NewPool()
+	for _, client := range proxyClients.Clients {
+		err = pool.Add(client)
+		if err != nil {
+			return nil, errors.Wrap(err, errorMsg)
+		}
+	}
+	// try to get proxy client
+	_, err = pool.Get(config.Client.ProxyTag)
+	if err != nil {
+		return nil, err
+	}
+	return pool, nil
+}
+
+func loadBuiltinDNSClients(pool *proxy.Pool, config *Config) (*dns.Client, error) {
+	const errorMsg = "failed to load builtin DNS clients"
+	data, err := ioutil.ReadFile("builtin/dns.toml")
+	if err != nil {
+		return nil, errors.Wrap(err, errorMsg)
+	}
+	servers := make(map[string]*dns.Server)
+	err = toml.Unmarshal(data, &servers)
+	if err != nil {
+		return nil, errors.Wrap(err, errorMsg)
+	}
+	client := dns.NewClient(pool)
+	for tag, server := range servers {
+		err = client.Add("builtin_"+tag, server)
+		if err != nil {
+			return nil, errors.Wrap(err, errorMsg)
+		}
+	}
+	err = client.SetCacheExpireTime(config.Global.DNSCacheExpire)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return client, nil
+}
+
+func loadBuiltinTimeSyncerClients(
+	pool *proxy.Pool,
+	client *dns.Client,
+	logger logger.Logger,
+	config *Config,
+) (*timesync.Syncer, error) {
+	const errorMsg = "failed to load builtin time syncer clients"
+	data, err := ioutil.ReadFile("builtin/time.toml")
+	if err != nil {
+		return nil, errors.Wrap(err, errorMsg)
+	}
+	clients := make(map[string]*timesync.Client)
+	err = toml.Unmarshal(data, &clients)
+	if err != nil {
+		return nil, errors.Wrap(err, errorMsg)
+	}
+	syncer := timesync.New(pool, client, logger)
+	for tag, client := range clients {
+		err = syncer.Add("builtin_"+tag, client)
+		if err != nil {
+			return nil, errors.Wrap(err, errorMsg)
+		}
+	}
+	cfg := config.Global
+	err = syncer.SetSyncInterval(cfg.TimeSyncInterval)
+	if err != nil {
+		return nil, err
+	}
+	syncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
+	return syncer, nil
 }
 
 // <warning> must < 1048576
