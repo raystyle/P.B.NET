@@ -16,16 +16,16 @@ import (
 type CTRL struct {
 	Test *Test
 
-	database *database // database
-	logger   *gLogger  // global logger
-	global   *global   // proxy, dns, time syncer, and ...
-	client   *cOpts    // client options
-	sender   *sender   // broadcast and send message
-	syncer   *syncer   // receive message
-	handler  *handler  // handle message from Node or Beacon
-	worker   *worker   // do work
-	boot     *boot     // auto discover bootstrap nodes
-	web      *web      // web server
+	database  *database  // database
+	logger    *gLogger   // global logger
+	global    *global    // certificate , proxy, dns, time syncer, and ...
+	clientMgr *clientMgr // clients manager
+	sender    *sender    // broadcast and send message
+	syncer    *syncer    // receive message
+	handler   *handler   // handle message from Node or Beacon
+	worker    *worker    // do work
+	boot      *boot      // auto discover bootstrap nodes
+	web       *web       // web server
 
 	once sync.Once
 	wait chan struct{}
@@ -55,9 +55,8 @@ func New(cfg *Config) (*CTRL, error) {
 		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	ctrl.global = global
-	// copy client options
-	cOpts := cfg.Client
-	ctrl.client = &cOpts
+	// client manager
+	ctrl.clientMgr = newClientManager(ctrl, cfg)
 	// sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {
@@ -104,7 +103,7 @@ func (ctrl *CTRL) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// test client DNS option
 	if !ctrl.Test.SkipTestClientDNS {
-		err := ctrl.global.TestDNSOption(&ctrl.client.DNSOpts)
+		err := ctrl.global.TestDNSOption(ctrl.clientMgr.GetDNSOptions())
 		if err != nil {
 			return errors.WithMessage(err, "failed to test client DNS option")
 		}

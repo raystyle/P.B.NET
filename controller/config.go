@@ -46,7 +46,11 @@ type Config struct {
 		TimeSyncInterval    time.Duration `toml:"timesync_interval"`
 	} `toml:"global"`
 
-	Client cOpts `toml:"client"`
+	Client struct {
+		ProxyTag string        `toml:"proxy_tag"`
+		Timeout  time.Duration `toml:"timeout"`
+		DNSOpts  dns.Options   `toml:"dns"`
+	} `toml:"client"`
 
 	Sender struct {
 		MaxConns      int           `toml:"max_conns"`
@@ -74,11 +78,4 @@ type Config struct {
 		Username string `toml:"username"` // super user
 		Password string `toml:"password"`
 	} `toml:"web"`
-}
-
-// client options
-type cOpts struct {
-	ProxyTag string        `toml:"proxy_tag"`
-	Timeout  time.Duration `toml:"timeout"`
-	DNSOpts  dns.Options   `toml:"dns"`
 }
