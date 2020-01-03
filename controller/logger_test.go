@@ -11,9 +11,9 @@ import (
 
 func TestDBLogger(t *testing.T) {
 	path := os.TempDir() + "/database.log"
-	l, err := newDBLogger("mysql", path)
+	l, err := newDatabaseLogger("mysql", path, os.Stdout)
 	require.NoError(t, err)
-	l.Print("test", "db", "log")
+	l.Print("test", "database", "log")
 	l.Close()
 	err = os.Remove(path)
 	require.NoError(t, err)
@@ -21,7 +21,7 @@ func TestDBLogger(t *testing.T) {
 
 func TestGormLogger(t *testing.T) {
 	path := os.TempDir() + "/gorm.log"
-	l, err := newGormLogger(path)
+	l, err := newGormLogger(path, os.Stdout)
 	require.NoError(t, err)
 	l.Print("test", "gorm", "log")
 	l.Close()

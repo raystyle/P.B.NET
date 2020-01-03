@@ -28,6 +28,7 @@ func testGenerateConfig() *Config {
 	cfg.Database.LogFile = "log/database.log"
 	cfg.Database.GORMLogFile = "log/gorm.log"
 	cfg.Database.GORMDetailedLog = false
+	cfg.Database.LogWriter = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.File = "log/controller.log"

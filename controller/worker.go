@@ -270,7 +270,7 @@ func (sw *subWorker) Work() {
 }
 
 func (sw *subWorker) getNodeKey(guid []byte) bool {
-	sw.node, sw.err = sw.ctx.db.SelectNode(guid)
+	sw.node, sw.err = sw.ctx.database.SelectNode(guid)
 	if sw.err != nil {
 		const format = "failed to select node: %s\nGUID: %X"
 		sw.logf(logger.Warning, format, sw.err, guid)
@@ -283,7 +283,7 @@ func (sw *subWorker) getNodeKey(guid []byte) bool {
 }
 
 func (sw *subWorker) getBeaconKey(guid []byte) bool {
-	sw.beacon, sw.err = sw.ctx.db.SelectBeacon(guid)
+	sw.beacon, sw.err = sw.ctx.database.SelectBeacon(guid)
 	if sw.err != nil {
 		const format = "failed to select beacon: %s\nGUID: %X"
 		sw.logf(logger.Warning, format, sw.err, guid)

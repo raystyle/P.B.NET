@@ -805,14 +805,14 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	}
 	switch st.Role {
 	case protocol.Node:
-		sw.node, result.Err = sw.ctx.ctx.db.SelectNode(st.GUID)
+		sw.node, result.Err = sw.ctx.ctx.database.SelectNode(st.GUID)
 		if result.Err != nil {
 			return
 		}
 		sw.aesKey = sw.node.SessionKey
 		sw.aesIV = sw.node.SessionKey[:aes.IVSize]
 	case protocol.Beacon:
-		sw.beacon, result.Err = sw.ctx.ctx.db.SelectBeacon(st.GUID)
+		sw.beacon, result.Err = sw.ctx.ctx.database.SelectBeacon(st.GUID)
 		if result.Err != nil {
 			return
 		}
@@ -849,7 +849,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	// TODO query
 	// check is need to write message to the database
 	if st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(sw.roleGUID) {
-		result.Err = sw.ctx.ctx.db.InsertBeaconMessage(st.GUID, sw.buffer.Bytes())
+		result.Err = sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, sw.buffer.Bytes())
 		if result.Err == nil {
 			result.Success = 1
 		}

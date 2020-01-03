@@ -16,16 +16,16 @@ import (
 type CTRL struct {
 	Test *Test
 
-	db      *db      // database
-	logger  *gLogger // global logger
-	global  *global  // proxy, dns, time syncer, and ...
-	client  *cOpts   // client options
-	sender  *sender  // broadcast and send message
-	syncer  *syncer  // receive message
-	handler *handler // handle message from Node or Beacon
-	worker  *worker  // do work
-	boot    *boot    // auto discover bootstrap nodes
-	web     *web     // web server
+	database *database // database
+	logger   *gLogger  // global logger
+	global   *global   // proxy, dns, time syncer, and ...
+	client   *cOpts    // client options
+	sender   *sender   // broadcast and send message
+	syncer   *syncer   // receive message
+	handler  *handler  // handle message from Node or Beacon
+	worker   *worker   // do work
+	boot     *boot     // auto discover bootstrap nodes
+	web      *web      // web server
 
 	once sync.Once
 	wait chan struct{}
@@ -34,17 +34,15 @@ type CTRL struct {
 
 // New is used to create controller from config
 func New(cfg *Config) (*CTRL, error) {
+	// copy test
+	test := cfg.Test
+	ctrl := &CTRL{Test: &test}
 	// database
-	db, err := newDB(cfg)
+	database, err := newDatabase(cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize database")
 	}
-	// copy test
-	test := cfg.Test
-	ctrl := &CTRL{
-		Test: &test,
-		db:   db,
-	}
+	ctrl.database = database
 	// logger
 	lg, err := newLogger(ctrl, cfg)
 	if err != nil {
@@ -136,7 +134,7 @@ func (ctrl *CTRL) Main() error {
 	ctrl.logger.Print(logger.Info, "main", "load session key successfully")
 	// load boots
 	ctrl.logger.Print(logger.Info, "main", "start discover bootstrap nodes")
-	boots, err := ctrl.db.SelectBoot()
+	boots, err := ctrl.database.SelectBoot()
 	if err != nil {
 		ctrl.logger.Println(logger.Error, "main", "failed to select boot:", err)
 		return nil
@@ -172,7 +170,7 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
 		ctrl.logger.Close()
-		ctrl.db.Close()
+		ctrl.database.Close()
 		ctrl.exit <- err
 		close(ctrl.exit)
 	})
@@ -195,25 +193,25 @@ func (ctrl *CTRL) Disconnect(guid string) error {
 
 // DeleteNode is used to delete node
 func (ctrl *CTRL) DeleteNode(guid []byte) error {
-	err := ctrl.db.DeleteNode(guid)
+	err := ctrl.database.DeleteNode(guid)
 	return errors.Wrapf(err, "failed to delete node %X", guid)
 }
 
 // DeleteBeacon is used to delete beacon
 func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
-	err := ctrl.db.DeleteBeacon(guid)
+	err := ctrl.database.DeleteBeacon(guid)
 	return errors.Wrapf(err, "failed to delete beacon %X", guid)
 }
 
 // DeleteNodeUnscoped is used to unscoped delete node
 func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
-	err := ctrl.db.DeleteNodeUnscoped(guid)
+	err := ctrl.database.DeleteNodeUnscoped(guid)
 	return errors.Wrapf(err, "failed to unscoped delete node %X", guid)
 }
 
 // DeleteBeaconUnscoped is used to unscoped delete beacon
 func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
-	err := ctrl.db.DeleteBeaconUnscoped(guid)
+	err := ctrl.database.DeleteBeaconUnscoped(guid)
 	return errors.Wrapf(err, "failed to unscoped delete beacon %X", guid)
 }
 

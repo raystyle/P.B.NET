@@ -14,17 +14,17 @@ import (
 	"project/internal/guid"
 )
 
-type db struct {
+type database struct {
 	dbLogger   *dbLogger
 	gormLogger *gormLogger
 	db         *gorm.DB
 	cache      *cache
 }
 
-func newDB(config *Config) (*db, error) {
-	// set db logger
+func newDatabase(config *Config) (*database, error) {
+	// set database logger
 	cfg := config.Database
-	dbLogger, err := newDBLogger(cfg.Dialect, cfg.LogFile)
+	dbLogger, err := newDatabaseLogger(cfg.Dialect, cfg.LogFile, cfg.LogWriter)
 	if err != nil {
 		return nil, err
 	}
@@ -44,12 +44,13 @@ func newDB(config *Config) (*db, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to ping %s server", cfg.Dialect)
 	}
-	gormDB.SingularTable(true) // not add s
+	// table name will not add "s"
+	gormDB.SingularTable(true)
 	// connection
 	gormDB.DB().SetMaxOpenConns(cfg.MaxOpenConns)
 	gormDB.DB().SetMaxIdleConns(cfg.MaxIdleConns)
 	// gorm logger
-	gormLogger, err := newGormLogger(cfg.GORMLogFile)
+	gormLogger, err := newGormLogger(cfg.GORMLogFile, cfg.LogWriter)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func newDB(config *Config) (*db, error) {
 	if cfg.GORMDetailedLog {
 		gormDB.LogMode(true)
 	}
-	return &db{
+	return &database{
 		dbLogger:   dbLogger,
 		gormLogger: gormLogger,
 		db:         gormDB,
@@ -65,7 +66,7 @@ func newDB(config *Config) (*db, error) {
 	}, nil
 }
 
-func (db *db) Close() {
+func (db *database) Close() {
 	_ = db.db.Close()
 	db.gormLogger.Close()
 	db.dbLogger.Close()
@@ -144,108 +145,108 @@ func (cache *cache) DeleteBeacon(guid string) {
 	delete(cache.beacons, guid)
 }
 
-func (db *db) InsertCtrlLog(m *mCtrlLog) error {
+func (db *database) InsertCtrlLog(m *mCtrlLog) error {
 	return db.db.Table(tableCtrlLog).Create(m).Error
 }
 
 // -------------------------------proxy client----------------------------------------
 
-func (db *db) InsertProxyClient(m *mProxyClient) error {
+func (db *database) InsertProxyClient(m *mProxyClient) error {
 	return db.db.Create(m).Error
 }
 
-func (db *db) SelectProxyClient() ([]*mProxyClient, error) {
+func (db *database) SelectProxyClient() ([]*mProxyClient, error) {
 	var clients []*mProxyClient
 	return clients, db.db.Find(&clients).Error
 }
 
-func (db *db) UpdateProxyClient(m *mProxyClient) error {
+func (db *database) UpdateProxyClient(m *mProxyClient) error {
 	return db.db.Save(m).Error
 }
 
-func (db *db) DeleteProxyClient(id uint64) error {
+func (db *database) DeleteProxyClient(id uint64) error {
 	return db.db.Delete(&mProxyClient{ID: id}).Error
 }
 
 // ---------------------------------dns client----------------------------------------
 
-func (db *db) InsertDNSServer(m *mDNSServer) error {
+func (db *database) InsertDNSServer(m *mDNSServer) error {
 	return db.db.Create(m).Error
 }
 
-func (db *db) SelectDNSServer() ([]*mDNSServer, error) {
+func (db *database) SelectDNSServer() ([]*mDNSServer, error) {
 	var servers []*mDNSServer
 	return servers, db.db.Find(&servers).Error
 }
 
-func (db *db) UpdateDNSServer(m *mDNSServer) error {
+func (db *database) UpdateDNSServer(m *mDNSServer) error {
 	return db.db.Save(m).Error
 }
 
-func (db *db) DeleteDNSServer(id uint64) error {
+func (db *database) DeleteDNSServer(id uint64) error {
 	return db.db.Delete(&mDNSServer{ID: id}).Error
 }
 
 // -----------------------------time syncer client------------------------------------
 
-func (db *db) InsertTimeSyncerClient(m *mTimeSyncer) error {
+func (db *database) InsertTimeSyncerClient(m *mTimeSyncer) error {
 	return db.db.Create(m).Error
 }
 
-func (db *db) SelectTimeSyncerClient() ([]*mTimeSyncer, error) {
+func (db *database) SelectTimeSyncerClient() ([]*mTimeSyncer, error) {
 	var timeSyncer []*mTimeSyncer
 	return timeSyncer, db.db.Find(&timeSyncer).Error
 }
 
-func (db *db) UpdateTimeSyncerClient(m *mTimeSyncer) error {
+func (db *database) UpdateTimeSyncerClient(m *mTimeSyncer) error {
 	return db.db.Save(m).Error
 }
 
-func (db *db) DeleteTimeSyncerClient(id uint64) error {
+func (db *database) DeleteTimeSyncerClient(id uint64) error {
 	return db.db.Delete(&mTimeSyncer{ID: id}).Error
 }
 
 // -------------------------------------boot------------------------------------------
 
-func (db *db) InsertBoot(m *mBoot) error {
+func (db *database) InsertBoot(m *mBoot) error {
 	return db.db.Create(m).Error
 }
 
-func (db *db) SelectBoot() ([]*mBoot, error) {
+func (db *database) SelectBoot() ([]*mBoot, error) {
 	var boot []*mBoot
 	return boot, db.db.Find(&boot).Error
 }
 
-func (db *db) UpdateBoot(m *mBoot) error {
+func (db *database) UpdateBoot(m *mBoot) error {
 	return db.db.Save(m).Error
 }
 
-func (db *db) DeleteBoot(id uint64) error {
+func (db *database) DeleteBoot(id uint64) error {
 	return db.db.Delete(&mBoot{ID: id}).Error
 }
 
 // ----------------------------------listener-----------------------------------------
 
-func (db *db) InsertListener(m *mListener) error {
+func (db *database) InsertListener(m *mListener) error {
 	return db.db.Create(m).Error
 }
 
-func (db *db) SelectListener() ([]*mListener, error) {
+func (db *database) SelectListener() ([]*mListener, error) {
 	var listener []*mListener
 	return listener, db.db.Find(&listener).Error
 }
 
-func (db *db) UpdateListener(m *mListener) error {
+func (db *database) UpdateListener(m *mListener) error {
 	return db.db.Save(m).Error
 }
 
-func (db *db) DeleteListener(id uint64) error {
+func (db *database) DeleteListener(id uint64) error {
 	return db.db.Delete(&mListener{ID: id}).Error
 }
 
 // ------------------------------------node-------------------------------------------
 
-func (db *db) SelectNode(guid []byte) (node *mNode, err error) {
+func (db *database) SelectNode(guid []byte) (node *mNode, err error) {
 	node = db.cache.SelectNode(guid)
 	if node != nil {
 		return
@@ -259,7 +260,7 @@ func (db *db) SelectNode(guid []byte) (node *mNode, err error) {
 	return
 }
 
-func (db *db) InsertNode(m *mNode) error {
+func (db *database) InsertNode(m *mNode) error {
 	err := db.db.Create(m).Error
 	if err != nil {
 		return err
@@ -268,7 +269,7 @@ func (db *db) InsertNode(m *mNode) error {
 	return nil
 }
 
-func (db *db) DeleteNode(guid []byte) error {
+func (db *database) DeleteNode(guid []byte) error {
 	tx := db.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
 	err := tx.Error
 	if err != nil {
@@ -297,7 +298,7 @@ func (db *db) DeleteNode(guid []byte) error {
 	return err
 }
 
-func (db *db) DeleteNodeUnscoped(guid []byte) error {
+func (db *database) DeleteNodeUnscoped(guid []byte) error {
 	err := db.db.Unscoped().Delete(&mNode{GUID: guid}).Error
 	if err != nil {
 		return err
@@ -306,25 +307,25 @@ func (db *db) DeleteNodeUnscoped(guid []byte) error {
 	return nil
 }
 
-func (db *db) InsertNodeListener(m *mNodeListener) error {
+func (db *database) InsertNodeListener(m *mNodeListener) error {
 	return db.db.Create(m).Error
 }
 
-func (db *db) DeleteNodeListener(id uint64) error {
+func (db *database) DeleteNodeListener(id uint64) error {
 	return db.db.Delete(&mNodeListener{ID: id}).Error
 }
 
-func (db *db) InsertNodeLog(m *mRoleLog) error {
+func (db *database) InsertNodeLog(m *mRoleLog) error {
 	return db.db.Table(tableNodeLog).Create(m).Error
 }
 
-func (db *db) DeleteNodeLog(id uint64) error {
+func (db *database) DeleteNodeLog(id uint64) error {
 	return db.db.Table(tableNodeLog).Delete(&mRoleLog{ID: id}).Error
 }
 
 // -----------------------------------beacon------------------------------------------
 
-func (db *db) SelectBeacon(guid []byte) (beacon *mBeacon, err error) {
+func (db *database) SelectBeacon(guid []byte) (beacon *mBeacon, err error) {
 	beacon = db.cache.SelectBeacon(guid)
 	if beacon != nil {
 		return
@@ -338,7 +339,7 @@ func (db *db) SelectBeacon(guid []byte) (beacon *mBeacon, err error) {
 	return
 }
 
-func (db *db) InsertBeacon(m *mBeacon) error {
+func (db *database) InsertBeacon(m *mBeacon) error {
 	err := db.db.Create(m).Error
 	if err != nil {
 		return err
@@ -347,7 +348,7 @@ func (db *db) InsertBeacon(m *mBeacon) error {
 	return nil
 }
 
-func (db *db) DeleteBeacon(guid []byte) error {
+func (db *database) DeleteBeacon(guid []byte) error {
 	tx := db.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
 	err := tx.Error
 	if err != nil {
@@ -376,7 +377,7 @@ func (db *db) DeleteBeacon(guid []byte) error {
 	return err
 }
 
-func (db *db) DeleteBeaconUnscoped(guid []byte) error {
+func (db *database) DeleteBeaconUnscoped(guid []byte) error {
 	err := db.db.Unscoped().Delete(&mBeacon{GUID: guid}).Error
 	if err != nil {
 		return err
@@ -387,22 +388,22 @@ func (db *db) DeleteBeaconUnscoped(guid []byte) error {
 
 // TODO BeaconMessage
 
-func (db *db) InsertBeaconMessage(guid, message []byte) error {
+func (db *database) InsertBeaconMessage(guid, message []byte) error {
 	return db.db.Create(&mBeaconMessage{GUID: guid, Message: message}).Error
 }
 
-func (db *db) InsertBeaconListener(m *mBeaconListener) error {
+func (db *database) InsertBeaconListener(m *mBeaconListener) error {
 	return db.db.Create(m).Error
 }
 
-func (db *db) DeleteBeaconListener(id uint64) error {
+func (db *database) DeleteBeaconListener(id uint64) error {
 	return db.db.Delete(&mBeaconListener{ID: id}).Error
 }
 
-func (db *db) InsertBeaconLog(m *mRoleLog) error {
+func (db *database) InsertBeaconLog(m *mRoleLog) error {
 	return db.db.Table(tableBeaconLog).Create(m).Error
 }
 
-func (db *db) DeleteBeaconLog(id uint64) error {
+func (db *database) DeleteBeaconLog(id uint64) error {
 	return db.db.Table(tableBeaconLog).Delete(&mRoleLog{ID: id}).Error
 }

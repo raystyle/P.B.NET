@@ -23,13 +23,14 @@ type Config struct {
 	Test Test `toml:"-"`
 
 	Database struct {
-		Dialect         string `toml:"dialect"` // "mysql"
-		DSN             string `toml:"dsn"`
-		MaxOpenConns    int    `toml:"max_open_conns"`
-		MaxIdleConns    int    `toml:"max_idle_conns"`
-		LogFile         string `toml:"log_file"`
-		GORMLogFile     string `toml:"gorm_log_file"`
-		GORMDetailedLog bool   `toml:"gorm_detailed_log"`
+		Dialect         string    `toml:"dialect"` // "mysql"
+		DSN             string    `toml:"dsn"`
+		MaxOpenConns    int       `toml:"max_open_conns"`
+		MaxIdleConns    int       `toml:"max_idle_conns"`
+		LogFile         string    `toml:"log_file"`
+		GORMLogFile     string    `toml:"gorm_log_file"`
+		GORMDetailedLog bool      `toml:"gorm_detailed_log"`
+		LogWriter       io.Writer `toml:"-"`
 	} `toml:"database"`
 
 	Logger struct {

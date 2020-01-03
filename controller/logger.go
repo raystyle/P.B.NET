@@ -12,52 +12,59 @@ import (
 )
 
 type dbLogger struct {
-	db   string // "mysql"
-	file *os.File
+	dialect string // "mysql"
+	file    *os.File
+	writer  io.Writer
 }
 
-func newDBLogger(db, path string) (*dbLogger, error) {
+func newDatabaseLogger(dialect, path string, writer io.Writer) (*dbLogger, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create %s logger", db)
+		return nil, errors.Wrapf(err, "failed to create %s logger", dialect)
 	}
-	return &dbLogger{db: db, file: file}, nil
+	return &dbLogger{
+		dialect: dialect,
+		file:    file,
+		writer:  io.MultiWriter(file, writer),
+	}, nil
 }
 
-// [2006-01-02 15:04:05] [info] <mysql> test log
-func (l *dbLogger) Print(log ...interface{}) {
-	buf := logger.Prefix(logger.Info, l.db)
+// [2018-11-27 00:00:00] [info] <mysql> test log
+func (lg *dbLogger) Print(log ...interface{}) {
+	buf := logger.Prefix(logger.Info, lg.dialect)
 	_, _ = fmt.Fprintln(buf, log...)
-	_, _ = l.file.Write(buf.Bytes())
-	_, _ = buf.WriteTo(os.Stdout)
+	_, _ = buf.WriteTo(lg.writer)
 }
 
-func (l *dbLogger) Close() {
-	_ = l.file.Close()
+func (lg *dbLogger) Close() {
+	_ = lg.file.Close()
 }
 
 type gormLogger struct {
-	file *os.File
+	file   *os.File
+	writer io.Writer
 }
 
-func newGormLogger(path string) (*gormLogger, error) {
+func newGormLogger(path string, writer io.Writer) (*gormLogger, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 644)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create gorm logger")
 	}
-	return &gormLogger{file: file}, nil
+	return &gormLogger{
+		file:   file,
+		writer: io.MultiWriter(file, writer),
+	}, nil
 }
 
-// [2006-01-02 15:04:05] [info] <gorm> test log
-func (l *gormLogger) Print(log ...interface{}) {
+// [2018-11-27 00:00:00] [info] <gorm> test log
+func (lg *gormLogger) Print(log ...interface{}) {
 	buf := logger.Prefix(logger.Info, "gorm")
 	_, _ = fmt.Fprintln(buf, log...)
-	_, _ = l.file.Write(buf.Bytes())
-	_, _ = buf.WriteTo(os.Stdout)
+	_, _ = buf.WriteTo(lg.writer)
 }
 
-func (l *gormLogger) Close() {
-	_ = l.file.Close()
+func (lg *gormLogger) Close() {
+	_ = lg.file.Close()
 }
 
 type gLogger struct {
@@ -80,8 +87,8 @@ func newLogger(ctx *CTRL, config *Config) (*gLogger, error) {
 	}
 	return &gLogger{
 		ctx:    ctx,
-		file:   file,
 		level:  lv,
+		file:   file,
 		writer: io.MultiWriter(file, cfg.Writer),
 	}, nil
 }
@@ -123,7 +130,7 @@ func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 
 // string log don't include time level src, for database
 func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
-	_ = lg.ctx.db.InsertCtrlLog(&mCtrlLog{
+	_ = lg.ctx.database.InsertCtrlLog(&mCtrlLog{
 		Level:  lv,
 		Source: src,
 		Log:    log,

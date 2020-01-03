@@ -22,7 +22,7 @@ func testInitializeController(t testing.TB) {
 		cfg := testGenerateConfig()
 		ctrl, err = New(cfg)
 		require.NoError(t, err)
-		_, err = ctrl.db.SelectBoot()
+		_, err = ctrl.database.SelectBoot()
 		if err != nil {
 			err = InitializeDatabase(cfg)
 			require.NoError(t, err)

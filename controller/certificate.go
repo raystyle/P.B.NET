@@ -74,7 +74,7 @@ func (ctrl *CTRL) ConfirmTrustNode(
 		ctrl.logger.Print(logger.Exploit, "trust node", err)
 		return err
 	}
-	return ctrl.db.InsertNode(&mNode{
+	return ctrl.database.InsertNode(&mNode{
 		GUID:        req.GUID,
 		PublicKey:   req.PublicKey,
 		SessionKey:  sessionKey,
