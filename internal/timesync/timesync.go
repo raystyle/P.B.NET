@@ -85,6 +85,20 @@ func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 	return &syncer
 }
 
+// SetSleep is used to set random sleep time
+// must execute before Start()
+func (syncer *Syncer) SetSleep(fixed, random int) error {
+	if fixed < 3 {
+		return errors.New("sleep fixed must >= 3")
+	}
+	if random < 5 {
+		return errors.New("sleep random must >= 5")
+	}
+	syncer.sleepFixed = fixed
+	syncer.sleepRandom = random
+	return nil
+}
+
 // Add is used to add time syncer client
 func (syncer *Syncer) Add(tag string, client *Client) error {
 	switch client.Mode {
@@ -147,25 +161,12 @@ func (syncer *Syncer) GetSyncInterval() time.Duration {
 // SetSyncInterval is used to set synchronize time interval
 func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
 	if interval < time.Minute || interval > 15*time.Minute {
-		return errors.New("synchronize interval < 1 minute or > 15 minutes")
+		return errors.New("synchronize interval must < 1 minute or > 15 minutes")
 	}
 	syncer.clientsRWM.Lock()
 	defer syncer.clientsRWM.Unlock()
 	syncer.interval = interval
 	return nil
-}
-
-// SetSleep is used to set random sleep time
-// must execute before Start()
-func (syncer *Syncer) SetSleep(fixed, random int) {
-	if fixed < 1 {
-		fixed = defaultSleepFixed
-	}
-	if random < 1 {
-		random = defaultSleepRandom
-	}
-	syncer.sleepFixed = fixed
-	syncer.sleepRandom = random
 }
 
 func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {

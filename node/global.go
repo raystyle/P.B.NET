@@ -97,7 +97,10 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, err
 	}
-	timeSyncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
+	err = timeSyncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
+	if err != nil {
+		return nil, err
+	}
 
 	g := global{
 		certs:      certs,
@@ -114,7 +117,6 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	return &g, nil
 }
 
-// <warning> must < 1048576
 const (
 	objCtrlPublicKey    uint32 = iota // verify controller role & message
 	objCtrlBroadcastKey               // decrypt controller broadcast message

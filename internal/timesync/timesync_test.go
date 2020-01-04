@@ -39,10 +39,10 @@ func testAddClients(t *testing.T, syncer *Syncer) {
 }
 
 func TestSyncer(t *testing.T) {
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	syncer := New(pool, dnsClient, logger.Test)
+	syncer := New(proxyPool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
 
 	// check default sync interval
@@ -76,13 +76,15 @@ func testUnreachableClient() *Client {
 }
 
 func TestSyncer_Start(t *testing.T) {
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	syncer := New(pool, dnsClient, logger.Test)
+	syncer := New(proxyPool, dnsClient, logger.Test)
+
 	// set random sleep
-	syncer.SetSleep(0, 0)
-	syncer.SetSleep(3, 5)
+	require.Error(t, syncer.SetSleep(0, 0))
+	require.Error(t, syncer.SetSleep(10, 0))
+	require.NoError(t, syncer.SetSleep(3, 5))
 
 	// no clients
 	require.Equal(t, ErrNoClients, syncer.Start())
@@ -116,9 +118,9 @@ func TestSyncer_Start(t *testing.T) {
 }
 
 func TestSyncer_StartWalker(t *testing.T) {
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
-	syncer := New(pool, dnsClient, logger.Test)
+	syncer := New(proxyPool, dnsClient, logger.Test)
 	syncer.StartWalker()
 	now := syncer.Now()
 	time.Sleep(2 * time.Second)
@@ -126,10 +128,10 @@ func TestSyncer_StartWalker(t *testing.T) {
 }
 
 func TestSyncer_Add_Delete(t *testing.T) {
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	syncer := New(pool, dnsClient, logger.Test)
+	syncer := New(proxyPool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
 
 	// add unknown mode
@@ -157,9 +159,9 @@ func TestSyncer_Add_Delete(t *testing.T) {
 }
 
 func TestSyncer_Test(t *testing.T) {
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
-	syncer := New(pool, dnsClient, logger.Test)
+	syncer := New(proxyPool, dnsClient, logger.Test)
 
 	// no clients
 	require.Equal(t, ErrNoClients, syncer.Test(context.Background()))
@@ -187,10 +189,10 @@ func TestSyncer_Test(t *testing.T) {
 }
 
 func TestSyncer_synchronizeLoop(t *testing.T) {
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	syncer := New(pool, dnsClient, logger.Test)
+	syncer := New(proxyPool, dnsClient, logger.Test)
 
 	// force set synchronize interval
 	syncer.interval = time.Second
@@ -208,10 +210,10 @@ func TestSyncer_synchronizeLoop(t *testing.T) {
 }
 
 func TestSyncer_synchronizePanic(t *testing.T) {
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	syncer := New(pool, dnsClient, logger.Test)
+	syncer := New(proxyPool, dnsClient, logger.Test)
 	// add reachable
 	testAddHTTP(t, syncer)
 

@@ -160,11 +160,13 @@ func loadBuiltinTimeSyncerClients(
 	if err != nil {
 		return nil, err
 	}
-	syncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
+	err = syncer.SetSleep(cfg.TimeSyncSleepFixed, cfg.TimeSyncSleepRandom)
+	if err != nil {
+		return nil, err
+	}
 	return syncer, nil
 }
 
-// <warning> must < 1048576
 const (
 	// sign message, issue node certificate, type []byte
 	objPrivateKey uint32 = iota
