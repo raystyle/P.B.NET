@@ -45,40 +45,6 @@ type Subject struct {
 	PostalCode         []string `toml:"postal_code"`
 }
 
-// KeyPair contains certificate, certificate ASN1 data and private key
-type KeyPair struct {
-	Certificate *x509.Certificate
-	ASN1Data    []byte
-	PrivateKey  interface{}
-}
-
-// Encode is used to get certificate ASN1 data and encode private key to PKCS8
-func (kp *KeyPair) Encode() ([]byte, []byte) {
-	cert := make([]byte, len(kp.ASN1Data))
-	copy(cert, kp.ASN1Data)
-	key, _ := x509.MarshalPKCS8PrivateKey(kp.PrivateKey)
-	return cert, key
-}
-
-// EncodeToPEM is used to encode certificate and private key to PEM data
-func (kp *KeyPair) EncodeToPEM() ([]byte, []byte) {
-	cert, key := kp.Encode()
-	certBlock := &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: cert,
-	}
-	keyBlock := &pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: key,
-	}
-	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
-}
-
-// TLSCertificate is used to generate tls certificate
-func (kp *KeyPair) TLSCertificate() (tls.Certificate, error) {
-	return tls.X509KeyPair(kp.EncodeToPEM())
-}
-
 func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	cert := x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
@@ -191,8 +157,42 @@ func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
 	return nil, nil, fmt.Errorf("unknown algorithm: %s", algorithm)
 }
 
+// Pair contains certificate, certificate ASN1 data and private key
+type Pair struct {
+	Certificate *x509.Certificate
+	ASN1Data    []byte
+	PrivateKey  interface{}
+}
+
+// Encode is used to get certificate ASN1 data and encode private key to PKCS8
+func (p *Pair) Encode() ([]byte, []byte) {
+	cert := make([]byte, len(p.ASN1Data))
+	copy(cert, p.ASN1Data)
+	key, _ := x509.MarshalPKCS8PrivateKey(p.PrivateKey)
+	return cert, key
+}
+
+// EncodeToPEM is used to encode certificate and private key to PEM data
+func (p *Pair) EncodeToPEM() ([]byte, []byte) {
+	cert, key := p.Encode()
+	certBlock := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert,
+	}
+	keyBlock := &pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: key,
+	}
+	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
+}
+
+// TLSCertificate is used to generate tls certificate
+func (p *Pair) TLSCertificate() (tls.Certificate, error) {
+	return tls.X509KeyPair(p.EncodeToPEM())
+}
+
 // GenerateCA is used to generate a CA certificate from Options
-func GenerateCA(opts *Options) (*KeyPair, error) {
+func GenerateCA(opts *Options) (*Pair, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
@@ -211,7 +211,7 @@ func GenerateCA(opts *Options) (*KeyPair, error) {
 	}
 	asn1Data, _ := x509.CreateCertificate(rand.Reader, ca, ca, publicKey, privateKey)
 	ca, _ = x509.ParseCertificate(asn1Data)
-	return &KeyPair{
+	return &Pair{
 		Certificate: ca,
 		ASN1Data:    asn1Data,
 		PrivateKey:  privateKey,
@@ -220,7 +220,7 @@ func GenerateCA(opts *Options) (*KeyPair, error) {
 
 // Generate is used to generate a signed certificate by CA or
 // self-sign certificate from options
-func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPair, error) {
+func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*Pair, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
@@ -246,7 +246,7 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPai
 		return nil, err
 	}
 	cert, _ = x509.ParseCertificate(asn1Data)
-	return &KeyPair{
+	return &Pair{
 		Certificate: cert,
 		ASN1Data:    asn1Data,
 		PrivateKey:  privateKey,

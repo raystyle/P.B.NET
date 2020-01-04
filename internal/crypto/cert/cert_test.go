@@ -90,21 +90,21 @@ func TestGenerate(t *testing.T) {
 	require.Error(t, err)
 }
 
-func testGenerate(t *testing.T, ca *KeyPair) {
+func testGenerate(t *testing.T, ca *Pair) {
 	opts := &Options{
 		Algorithm:   "rsa|1024",
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
 	var (
-		kp  *KeyPair
-		err error
+		pair *Pair
+		err  error
 	)
 	if ca != nil {
-		kp, err = Generate(ca.Certificate, ca.PrivateKey, opts)
+		pair, err = Generate(ca.Certificate, ca.PrivateKey, opts)
 		require.NoError(t, err)
 	} else {
-		kp, err = Generate(nil, nil, opts)
+		pair, err = Generate(nil, nil, opts)
 		require.NoError(t, err)
 	}
 	// handler
@@ -114,7 +114,7 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 		_, _ = w.Write(respData)
 	})
 	// certificate
-	tlsCert, err := kp.TLSCertificate()
+	tlsCert, err := pair.TLSCertificate()
 	require.NoError(t, err)
 	// run https servers
 	server1 := http.Server{
@@ -154,7 +154,7 @@ func testGenerate(t *testing.T, ca *KeyPair) {
 	if ca != nil {
 		tlsConfig.RootCAs.AddCert(ca.Certificate)
 	} else {
-		tlsConfig.RootCAs.AddCert(kp.Certificate)
+		tlsConfig.RootCAs.AddCert(pair.Certificate)
 	}
 	client := http.Client{Transport: &http.Transport{TLSClientConfig: &tlsConfig}}
 	get := func(hostname, port string) {
@@ -199,21 +199,21 @@ func TestUnknownAlgorithm(t *testing.T) {
 	require.Nil(t, pri)
 	require.Nil(t, pub)
 	opts := &Options{Algorithm: "foo alg"}
-	kp, err := GenerateCA(opts)
+	pair, err := GenerateCA(opts)
 	require.Error(t, err)
-	require.Nil(t, kp)
+	require.Nil(t, pair)
 
 	opts.Algorithm = "rsa|1024"
-	kp, err = GenerateCA(opts)
+	pair, err = GenerateCA(opts)
 	require.NoError(t, err)
 
-	_, err = Generate(kp.Certificate, kp.PrivateKey, nil)
+	_, err = Generate(pair.Certificate, pair.PrivateKey, nil)
 	require.NoError(t, err)
 
 	opts.Algorithm = "foo|alg"
-	kp, err = Generate(kp.Certificate, kp.PrivateKey, opts)
+	pair, err = Generate(pair.Certificate, pair.PrivateKey, opts)
 	require.Error(t, err)
-	require.Nil(t, kp)
+	require.Nil(t, pair)
 }
 
 func TestPrint(t *testing.T) {
