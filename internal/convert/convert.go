@@ -2,6 +2,7 @@ package convert
 
 import (
 	"encoding/binary"
+	"fmt"
 	"unsafe"
 )
 
@@ -127,4 +128,26 @@ func BytesToFloat64(Bytes []byte) float64 {
 	}
 	b := binary.BigEndian.Uint64(Bytes)
 	return *(*float64)(unsafe.Pointer(&b))
+}
+
+// ByteToString is used to covert Byte to KB, MB, GB or TB
+func ByteToString(n uint64) string {
+	const (
+		kb = 1 << 10
+		mb = 1 << 20
+		gb = 1 << 30
+		tb = 1 << 40
+	)
+	switch {
+	case n < kb:
+		return fmt.Sprintf("%d Byte", n)
+	case n < mb:
+		return fmt.Sprintf("%.3f KB", float64(n)/kb)
+	case n < gb:
+		return fmt.Sprintf("%.3f MB", float64(n)/mb)
+	case n < tb:
+		return fmt.Sprintf("%.3f GB", float64(n)/gb)
+	default:
+		return fmt.Sprintf("%.3f TB", float64(n)/tb)
+	}
 }

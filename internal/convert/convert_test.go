@@ -3,6 +3,8 @@ package convert
 import (
 	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNumberToBytes(t *testing.T) {
@@ -89,4 +91,16 @@ func TestBytesToNumberWithInvalidBytes(t *testing.T) {
 	if BytesToInt64(Int64ToBytes(n)) != n {
 		t.Fatal("negative number")
 	}
+}
+
+func TestByteToString(t *testing.T) {
+	require.Equal(t, "1023 Byte", ByteToString(1023))
+	require.Equal(t, "1.000 KB", ByteToString(1024))
+	require.Equal(t, "1.500 KB", ByteToString(1536))
+	require.Equal(t, "1.000 MB", ByteToString(1024*1<<10))
+	require.Equal(t, "1.500 MB", ByteToString(1536*1<<10))
+	require.Equal(t, "1.000 GB", ByteToString(1024*1<<20))
+	require.Equal(t, "1.500 GB", ByteToString(1536*1<<20))
+	require.Equal(t, "1.000 TB", ByteToString(1024*1<<30))
+	require.Equal(t, "1.500 TB", ByteToString(1536*1<<30))
 }
