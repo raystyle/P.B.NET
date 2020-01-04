@@ -85,10 +85,14 @@ func newClient(
 		cfg.TLSConfig.RootCAs.AddCert(kp.Certificate)
 	}
 	// set proxy
-	p, _ := ctrl.global.GetProxyClient(ctrl.clientMgr.GetProxyTag())
-	cfg.Dialer = p.DialContext
+	proxy, err := ctrl.global.GetProxyClient(ctrl.clientMgr.GetProxyTag())
+	if err != nil {
+		return nil, err
+	}
+	cfg.Dialer = proxy.DialContext
 	// resolve domain name
-	result, err := ctrl.global.ResolveWithContext(ctx, host, ctrl.clientMgr.GetDNSOptions())
+	dnsOpts := ctrl.clientMgr.GetDNSOptions()
+	result, err := ctrl.global.ResolveWithContext(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +110,7 @@ func newClient(
 	}
 
 	// handshake
-	client := client{
+	client := &client{
 		ctx:       ctrl,
 		node:      node,
 		guid:      guid,
@@ -145,8 +149,8 @@ func newClient(
 
 	// add client to client manager
 	client.tag = ctrl.clientMgr.GenerateTag()
-	ctrl.clientMgr.Add(&client)
-	return &client, nil
+	ctrl.clientMgr.Add(client)
+	return client, nil
 }
 
 // [2019-12-26 21:44:17] [info] <client> disconnected

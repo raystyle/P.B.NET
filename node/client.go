@@ -79,10 +79,14 @@ func newClient(
 		cfg.TLSConfig.RootCAs.AddCert(cert)
 	}
 	// set proxy
-	p, _ := node.global.GetProxyClient(node.clientMgr.GetProxyTag())
-	cfg.Dialer = p.DialContext
+	proxy, err := node.global.GetProxyClient(node.clientMgr.GetProxyTag())
+	if err != nil {
+		return nil, err
+	}
+	cfg.Dialer = proxy.DialContext
 	// resolve domain name
-	result, err := node.global.ResolveWithContext(ctx, host, node.clientMgr.GetDNSOptions())
+	dnsOpts := node.clientMgr.GetDNSOptions()
+	result, err := node.global.ResolveWithContext(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +104,7 @@ func newClient(
 	}
 
 	// handshake
-	client := client{
+	client := &client{
 		ctx:       node,
 		node:      n,
 		guid:      guid,
@@ -117,8 +121,8 @@ func newClient(
 
 	// add client to client manager
 	client.tag = node.clientMgr.GenerateTag()
-	node.clientMgr.Add(&client)
-	return &client, nil
+	node.clientMgr.Add(client)
+	return client, nil
 }
 
 func (client *client) handshake(conn *xnet.Conn) error {
