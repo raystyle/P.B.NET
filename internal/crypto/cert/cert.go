@@ -213,8 +213,8 @@ func GenerateCA(opts *Options) (*KeyPair, error) {
 	ca, _ = x509.ParseCertificate(asn1Data)
 	return &KeyPair{
 		Certificate: ca,
-		PrivateKey:  privateKey,
 		ASN1Data:    asn1Data,
+		PrivateKey:  privateKey,
 	}, nil
 }
 
@@ -248,8 +248,8 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPai
 	cert, _ = x509.ParseCertificate(asn1Data)
 	return &KeyPair{
 		Certificate: cert,
-		PrivateKey:  privateKey,
 		ASN1Data:    asn1Data,
+		PrivateKey:  privateKey,
 	}, nil
 }
 
