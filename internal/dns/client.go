@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/net/idna"
 
 	"project/internal/options"
 	"project/internal/proxy"
@@ -188,34 +189,6 @@ func (c *Client) Servers() map[string]*Server {
 	return servers
 }
 
-func checkNetwork() (enableIPv4, enableIPv6 bool) {
-	interfaces, _ := net.Interfaces()
-	for _, iface := range interfaces {
-		if iface.Flags != net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
-			continue
-		}
-		addrs, _ := iface.Addrs()
-		for _, addr := range addrs {
-			ipAddr := strings.Split(addr.String(), "/")[0]
-			ip := net.ParseIP(ipAddr)
-			ip4 := ip.To4()
-			if ip4 != nil {
-				if ip4.IsGlobalUnicast() {
-					enableIPv4 = true
-				}
-			} else {
-				if ip.To16().IsGlobalUnicast() {
-					enableIPv6 = true
-				}
-			}
-			if enableIPv4 && enableIPv6 {
-				break
-			}
-		}
-	}
-	return
-}
-
 // Resolve is used to resolve domain name
 // select custom or system to resolve dns
 // set domain & options
@@ -249,6 +222,34 @@ func (c *Client) ResolveWithContext(ctx context.Context, domain string, opts *Op
 	default:
 		return nil, errors.Errorf("unknown mode: %s", opts.Mode)
 	}
+}
+
+func checkNetwork() (enableIPv4, enableIPv6 bool) {
+	interfaces, _ := net.Interfaces()
+	for _, iface := range interfaces {
+		if iface.Flags != net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			ipAddr := strings.Split(addr.String(), "/")[0]
+			ip := net.ParseIP(ipAddr)
+			ip4 := ip.To4()
+			if ip4 != nil {
+				if ip4.IsGlobalUnicast() {
+					enableIPv4 = true
+				}
+			} else {
+				if ip.To16().IsGlobalUnicast() {
+					enableIPv6 = true
+				}
+			}
+			if enableIPv4 && enableIPv6 {
+				break
+			}
+		}
+	}
+	return
 }
 
 func (c *Client) selectType(ctx context.Context, domain string, opts *Options) ([]string, error) {
@@ -305,12 +306,29 @@ func (c *Client) setProxy(p *proxy.Client, method string, opts *Options) error {
 	return nil
 }
 
-func (c *Client) customResolve(
-	ctx context.Context,
-	domain string,
-	opts *Options,
-) ([]string, error) {
+func (c *Client) customResolve(ctx context.Context, domain string, opts *Options) ([]string, error) {
+	// check domain name is IP
+	if ip := net.ParseIP(domain); ip != nil {
+		switch opts.Type {
+		case TypeIPv4:
+			if ip.To4() != nil {
+				return []string{ip.String()}, nil
+			}
+		case TypeIPv6:
+			if ip.To4() == nil && ip.To16() != nil {
+				return []string{ip.String()}, nil
+			}
+		}
+		return nil, nil
+	}
 
+	// check domain name
+	domain, _ = idna.ToASCII(domain) // punycode
+	if !IsDomainName(domain) {
+		return nil, errors.Errorf("invalid domain name: %s", domain)
+	}
+
+	// query cache
 	if c.isEnableCache() {
 		cache := c.queryCache(domain, opts.Type)
 		if len(cache) != 0 {
@@ -367,11 +385,7 @@ func (c *Client) customResolve(
 	return result, nil
 }
 
-func (c *Client) systemResolve(
-	ctx context.Context,
-	domain string,
-	opts *Options,
-) ([]string, error) {
+func (c *Client) systemResolve(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	timeout := opts.Timeout
 	if timeout < 1 {
 		timeout = defaultTimeout

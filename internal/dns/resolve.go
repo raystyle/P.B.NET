@@ -14,21 +14,15 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"golang.org/x/net/idna"
 
 	"project/internal/convert"
 	"project/internal/xnet/xnetutil"
 )
 
 const (
-	// udp is 5 second
-	defaultTimeout = 10 * time.Second
-
-	// about DOH
-	defaultMaxBodySize = 65535
-
-	// tcp && tls need it
-	headerSize = 2
+	defaultTimeout     = 10 * time.Second // udp is 5 second
+	defaultMaxBodySize = 65535            // about DOH
+	headerSize         = 2                // tcp && tls need it
 )
 
 // ErrNoConnection is an error of the dial
@@ -42,16 +36,6 @@ func resolve(
 	typ string,
 	opts *Options,
 ) ([]string, error) {
-	// check domain name is IP
-	if ip := net.ParseIP(domain); ip != nil {
-		return []string{ip.String()}, nil
-	}
-	// punycode
-	domain, _ = idna.ToASCII(domain)
-	// check domain name
-	if !IsDomainName(domain) {
-		return nil, errors.Errorf("invalid domain name: %s", domain)
-	}
 	message := packMessage(types[typ], domain)
 	var err error
 	switch method {

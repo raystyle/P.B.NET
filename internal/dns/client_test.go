@@ -72,6 +72,41 @@ func TestClient(t *testing.T) {
 		testsuite.IsDestroyed(t, client)
 	})
 
+	t.Run("resolve IPv6", func(t *testing.T) {
+		client := newClient(t)
+
+		result, err := client.Resolve(testDomain, &Options{Type: TypeIPv6})
+		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
+		t.Log("resolve IPv6:", result)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("resolve punycode", func(t *testing.T) {
+		client := newClient(t)
+
+		result, err := client.Resolve("错的是.世界", &Options{Type: TypeIPv6})
+		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
+		t.Log("resolve IPv6:", result)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("use DoH", func(t *testing.T) {
+		client := newClient(t)
+
+		opts := &Options{Method: MethodDoH}
+		opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
+		result, err := client.Resolve(testDomain, opts)
+		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
+		t.Log("use DoH:", result)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
 	t.Run("system mode", func(t *testing.T) {
 		client := newClient(t)
 
@@ -108,26 +143,26 @@ func TestClient(t *testing.T) {
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("resolve IPv6", func(t *testing.T) {
+	t.Run("resolve IP", func(t *testing.T) {
 		client := newClient(t)
 
-		result, err := client.Resolve(testDomain, &Options{Type: TypeIPv6})
+		result, err := client.Resolve("1.1.1.1", nil)
 		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
-		t.Log("resolve IPv6:", result)
+		require.Equal(t, []string{"1.1.1.1"}, result)
+
+		result, err = client.Resolve("::1", nil)
+		require.NoError(t, err)
+		require.Equal(t, []string{"::1"}, result)
 
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("use DoH", func(t *testing.T) {
+	t.Run("empty domain", func(t *testing.T) {
 		client := newClient(t)
 
-		opts := &Options{Method: MethodDoH}
-		opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
-		result, err := client.Resolve(testDomain, opts)
-		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
-		t.Log("use DoH:", result)
+		result, err := client.Resolve("", nil)
+		require.Error(t, err)
+		require.Equal(t, 0, len(result))
 
 		testsuite.IsDestroyed(t, client)
 	})
