@@ -22,7 +22,7 @@ import (
 	"project/internal/random"
 )
 
-// Options include options about generate certificate
+// Options contains options about generate certificate
 type Options struct {
 	Algorithm   string    `toml:"algorithm"` // "rsa|2048", "ecdsa|p256", "ed25519"
 	DNSNames    []string  `toml:"dns_names"`
@@ -32,7 +32,7 @@ type Options struct {
 	NotAfter    time.Time `toml:"not_after"`
 }
 
-// Subject certificate subject info
+// Subject contains certificate subject info
 type Subject struct {
 	CommonName         string   `toml:"common_name"`
 	SerialNumber       string   `toml:"serial_number"`
@@ -45,35 +45,33 @@ type Subject struct {
 	PostalCode         []string `toml:"postal_code"`
 }
 
-// KeyPair include certificate, certificate ASN1 data and private key
+// KeyPair contains certificate, certificate ASN1 data and private key
 type KeyPair struct {
 	Certificate *x509.Certificate
+	ASN1Data    []byte
 	PrivateKey  interface{}
-	asn1Data    []byte // Certificate
 }
 
-// Encode is used to encode certificate and private key to ASN1 and PKCS8
-func (kp *KeyPair) Encode() (cert, key []byte) {
-	cert = make([]byte, len(kp.asn1Data))
-	copy(cert, kp.asn1Data)
-	key, _ = x509.MarshalPKCS8PrivateKey(kp.PrivateKey)
-	return
+// Encode is used to get certificate ASN1 data and encode private key to PKCS8
+func (kp *KeyPair) Encode() ([]byte, []byte) {
+	cert := make([]byte, len(kp.ASN1Data))
+	copy(cert, kp.ASN1Data)
+	key, _ := x509.MarshalPKCS8PrivateKey(kp.PrivateKey)
+	return cert, key
 }
 
 // EncodeToPEM is used to encode certificate and private key to PEM data
-func (kp *KeyPair) EncodeToPEM() (cert, key []byte) {
-	c, k := kp.Encode()
+func (kp *KeyPair) EncodeToPEM() ([]byte, []byte) {
+	cert, key := kp.Encode()
 	certBlock := &pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: c,
+		Bytes: cert,
 	}
-	cert = pem.EncodeToMemory(certBlock)
 	keyBlock := &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: k,
+		Bytes: key,
 	}
-	key = pem.EncodeToMemory(keyBlock)
-	return
+	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
 }
 
 // TLSCertificate is used to generate tls certificate
@@ -131,6 +129,7 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	} else {
 		cert.NotAfter = opts.NotAfter
 	}
+
 	// check domain name
 	dn := opts.DNSNames
 	for i := 0; i < len(dn); i++ {
@@ -215,7 +214,7 @@ func GenerateCA(opts *Options) (*KeyPair, error) {
 	return &KeyPair{
 		Certificate: ca,
 		PrivateKey:  privateKey,
-		asn1Data:    asn1Data,
+		ASN1Data:    asn1Data,
 	}, nil
 }
 
@@ -250,7 +249,7 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*KeyPai
 	return &KeyPair{
 		Certificate: cert,
 		PrivateKey:  privateKey,
-		asn1Data:    asn1Data,
+		ASN1Data:    asn1Data,
 	}, nil
 }
 
