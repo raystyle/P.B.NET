@@ -56,7 +56,11 @@ func New(cfg *Config) (*CTRL, error) {
 	}
 	ctrl.global = global
 	// client manager
-	ctrl.clientMgr = newClientManager(ctrl, cfg)
+	clientMgr, err := newClientManager(ctrl, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize client manager")
+	}
+	ctrl.clientMgr = clientMgr
 	// sender
 	sender, err := newSender(ctrl, cfg)
 	if err != nil {

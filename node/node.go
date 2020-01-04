@@ -52,7 +52,11 @@ func New(cfg *Config) (*Node, error) {
 	}
 	node.global = global
 	// client manager
-	node.clientMgr = newClientManager(node, cfg)
+	clientMgr, err := newClientManager(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize client manager")
+	}
+	node.clientMgr = clientMgr
 	// register
 	register, err := newRegister(node, cfg)
 	if err != nil {

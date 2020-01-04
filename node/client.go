@@ -471,17 +471,21 @@ type clientMgr struct {
 	clientsRWM sync.RWMutex
 }
 
-func newClientManager(ctx *Node, config *Config) *clientMgr {
+func newClientManager(ctx *Node, config *Config) (*clientMgr, error) {
 	cfg := config.Client
-	mgr := clientMgr{
+
+	if cfg.Timeout < 10*time.Second {
+		return nil, errors.New("client timeout must >= 10 seconds")
+	}
+
+	return &clientMgr{
 		ctx:      ctx,
 		proxyTag: cfg.ProxyTag,
 		timeout:  cfg.Timeout,
 		dnsOpts:  cfg.DNSOpts,
 		guid:     guid.New(4, ctx.global.Now),
 		clients:  make(map[string]*client),
-	}
-	return &mgr
+	}, nil
 }
 
 func (cm *clientMgr) GetProxyTag() string {
@@ -514,10 +518,14 @@ func (cm *clientMgr) SetProxyTag(tag string) error {
 	return nil
 }
 
-func (cm *clientMgr) SetTimeout(timeout time.Duration) {
+func (cm *clientMgr) SetTimeout(timeout time.Duration) error {
+	if timeout < 10*time.Second {
+		return errors.New("timeout must >= 10 seconds")
+	}
 	cm.optsRWM.Lock()
 	defer cm.optsRWM.Unlock()
 	cm.timeout = timeout
+	return nil
 }
 
 func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
