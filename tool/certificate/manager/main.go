@@ -97,15 +97,15 @@ func initManager() {
 var (
 	pwd []byte
 
-	certs      map[int]*x509.Certificate // CA certificates
-	certsASN1  map[int][]byte            // CA certificates ASN1 data
-	keys       map[int]interface{}       // CA private key
-	keysBlocks map[int][]byte            // CA private key block
-	number     int                       // the number of the CA certificates(private keys)
+	certs     map[int]*x509.Certificate // certificate
+	certsASN1 map[int][]byte            // certificate ASN1 data
+	keys      map[int]interface{}       // private key
+	keysBytes map[int][]byte            // private key data
+	number    int                       // the number of the certificates(private keys)
 
 	system     map[int]*x509.Certificate // only certificate
-	systemASN1 map[int][]byte            // CA certificates ASN1 data
-	sNumber    int                       // the number of the system CA certificates
+	systemASN1 map[int][]byte            // certificate ASN1 data
+	sNumber    int                       // the number of the system certificates
 )
 
 func load() {
@@ -143,14 +143,14 @@ func load() {
 	certs = make(map[int]*x509.Certificate)
 	certsASN1 = make(map[int][]byte)
 	keys = make(map[int]interface{})
-	keysBlocks = make(map[int][]byte)
+	keysBytes = make(map[int][]byte)
 	index := 1
 	for {
 		if len(certPEMBlock) == 0 {
 			break
 		}
 
-		// load CA certificate
+		// load certificate
 		block, certPEMBlock = pem.Decode(certPEMBlock)
 		if block == nil {
 			fmt.Println("\nfailed to decode key/certs.pem")
@@ -173,14 +173,14 @@ func load() {
 		checkError(err, true)
 		key, err := certutil.ParsePrivateKeyBytes(b)
 		checkError(err, true)
-		keyBlock := b
+		keyBytes := b
 		hash.Write(b)
 
 		// add
 		certs[index] = c
 		certsASN1[index] = certASN1
 		keys[index] = key
-		keysBlocks[index] = keyBlock
+		keysBytes[index] = keyBytes
 		index++
 	}
 	number = len(certs)
@@ -292,14 +292,14 @@ func add() {
 		if checkError(err, false) {
 			return
 		}
-		keyBlock := block.Bytes
+		keyBytes := block.Bytes
 
 		// add
 		number++
 		certs[number] = c
 		certsASN1[number] = certASN1
 		keys[number] = k
-		keysBlocks[number] = keyBlock
+		keysBytes[number] = keyBytes
 		fmt.Println("add certificate successfully")
 		printCertificate(number, c)
 	}
@@ -359,7 +359,7 @@ func save() {
 
 		// encrypt private key
 		block, err = x509.EncryptPEMBlock(rand.Reader, "PRIVATE KEY",
-			keysBlocks[i], pwd, x509.PEMCipherAES256)
+			keysBytes[i], pwd, x509.PEMCipherAES256)
 		if checkError(err, false) {
 			return
 		}
@@ -367,7 +367,7 @@ func save() {
 		if checkError(err, false) {
 			return
 		}
-		hash.Write(keysBlocks[i])
+		hash.Write(keysBytes[i])
 	}
 
 	// encrypt system certificates
@@ -389,22 +389,10 @@ func save() {
 		filename string
 		data     []byte
 	}{
-		{
-			filename: "key/certs.pem",
-			data:     certsPEM.Bytes(),
-		},
-		{
-			filename: "key/keys.pem",
-			data:     keysPEM.Bytes(),
-		},
-		{
-			filename: "key/system.pem",
-			data:     systemPEM.Bytes(),
-		},
-		{
-			filename: "key/pem.hash",
-			data:     hash.Sum(nil),
-		},
+		{filename: "key/certs.pem", data: certsPEM.Bytes()},
+		{filename: "key/keys.pem", data: keysPEM.Bytes()},
+		{filename: "key/system.pem", data: systemPEM.Bytes()},
+		{filename: "key/pem.hash", data: hash.Sum(nil)},
 	} {
 		err := ioutil.WriteFile(p.filename, p.data, 644)
 		if checkError(err, false) {
