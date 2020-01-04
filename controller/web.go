@@ -61,11 +61,11 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 		DNSNames: []string{"localhost"},
 		// IPAddresses: []string{cfg.Address},
 	}
-	kp, err := cert.Generate(caCert, caPri, &certOpts)
+	pair, err := cert.Generate(caCert, caPri, &certOpts)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	tlsCert, err := kp.TLSCertificate()
+	tlsCert, err := pair.TLSCertificate()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

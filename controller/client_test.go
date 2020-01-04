@@ -38,7 +38,19 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
-	cfg.Global.Certificates = testdata.Certificates(tb)
+
+	var certificates [][]byte
+	for _, pair := range ctrl.GetSelfCerts() {
+		c := make([]byte, len(pair.ASN1Data))
+		copy(c, pair.ASN1Data)
+		certificates = append(certificates, c)
+	}
+	for _, pair := range ctrl.GetSystemCerts() {
+		c := make([]byte, len(pair.ASN1Data))
+		copy(c, pair.ASN1Data)
+		certificates = append(certificates, c)
+	}
+	cfg.Global.Certificates = certificates
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
@@ -83,14 +95,14 @@ func testGenerateNode(t testing.TB) *node.Node {
 	testsuite.IsDestroyed(t, cfg)
 
 	// generate certificate
-	keyPairs := ctrl.global.GetSelfCA()
+	keyPairs := ctrl.global.GetSelfCerts()
 	opts := cert.Options{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
 	caCert := keyPairs[0].Certificate
 	caKey := keyPairs[0].PrivateKey
-	kp, err := cert.Generate(caCert, caKey, &opts)
+	pair, err := cert.Generate(caCert, caKey, &opts)
 	require.NoError(t, err)
 
 	// generate listener config
@@ -100,7 +112,7 @@ func testGenerateNode(t testing.TB) *node.Node {
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	c, k := kp.EncodeToPEM()
+	c, k := pair.EncodeToPEM()
 	listener.TLSConfig.Certificates = []options.X509KeyPair{
 		{Cert: string(c), Key: string(k)},
 	}

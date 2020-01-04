@@ -168,37 +168,37 @@ func loadBuiltinTimeSyncerClients(
 }
 
 const (
-	// sign message, issue node certificate, type []byte
+	// sign message, issue node certificate, type: []byte
 	objPrivateKey uint32 = iota
 
-	// check node certificate, type []byte
+	// check node certificate, type: []byte
 	objPublicKey
 
-	// for key exchange, type []byte
+	// for key exchange, type: []byte
 	objKeyExPub
 
 	// encrypt controller broadcast message, type: *aes.CBC
 	objBroadcastKey
 
-	// self CA certificates and private keys, type []*cert.KeyPair
-	objSelfCA
+	// self certificates and private keys, type: []*cert.Pair
+	objSelfCerts
 
-	// system CA certificates, type []*x509.Certificate
-	objSystemCA
+	// system certificates, type: []*cert.Pair <warning> Pair.PrivateKey is nil
+	objSystemCerts
 )
 
-// GetSelfCA is used to get self CA certificate to generate CA-sign certificate
-func (global *global) GetSelfCA() []*cert.KeyPair {
+// GetSelfCerts is used to get self certificates to generate CA-sign certificate
+func (global *global) GetSelfCerts() []*cert.Pair {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	return global.objects[objSelfCA].([]*cert.KeyPair)
+	return global.objects[objSelfCerts].([]*cert.Pair)
 }
 
-// GetSystemCA is used to get system CA certificate
-func (global *global) GetSystemCA() []*x509.Certificate {
+// GetSystemCerts is used to get system certificates
+func (global *global) GetSystemCerts() []*cert.Pair {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	return global.objects[objSystemCA].([]*x509.Certificate)
+	return global.objects[objSystemCerts].([]*cert.Pair)
 }
 
 // GetProxyClient is used to get proxy client from proxy pool
@@ -334,7 +334,7 @@ func loadSessionKey(data, password []byte) ([][]byte, error) {
 	return key, nil
 }
 
-func loadSelfCertificates(hash *bytes.Buffer, password []byte) ([]*cert.KeyPair, error) {
+func loadSelfCertificates(hash *bytes.Buffer, password []byte) ([]*cert.Pair, error) {
 	// read PEM files
 	certPEMBlock, err := ioutil.ReadFile("key/certs.pem")
 	if err != nil {
@@ -346,78 +346,85 @@ func loadSelfCertificates(hash *bytes.Buffer, password []byte) ([]*cert.KeyPair,
 	}
 	var (
 		block *pem.Block
-		self  []*cert.KeyPair
+		self  []*cert.Pair
 	)
 	for {
 		if len(certPEMBlock) == 0 {
 			break
 		}
 
-		// load CA certificate
+		// load certificate
 		block, certPEMBlock = pem.Decode(certPEMBlock)
 		if block == nil {
 			return nil, errors.New("failed to decode key/certs.pem")
 		}
-		b, err := x509.DecryptPEMBlock(block, password)
+		asn1Data, err := x509.DecryptPEMBlock(block, password)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		c, err := x509.ParseCertificate(b)
+		certificate, err := x509.ParseCertificate(asn1Data)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		hash.Write(b)
+		hash.Write(asn1Data)
 
 		// load private key
 		block, keyPEMBlock = pem.Decode(keyPEMBlock)
 		if block == nil {
 			return nil, errors.New("failed to decode key/keys.pem")
 		}
-		b, err = x509.DecryptPEMBlock(block, password)
+		keyBytes, err := x509.DecryptPEMBlock(block, password)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		key, err := certutil.ParsePrivateKeyBytes(b)
+		key, err := certutil.ParsePrivateKeyBytes(keyBytes)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		hash.Write(b)
-		self = append(self, &cert.KeyPair{
-			Certificate: c,
+		hash.Write(keyBytes)
+		security.CoverBytes(keyBytes)
+
+		self = append(self, &cert.Pair{
+			Certificate: certificate,
+			ASN1Data:    asn1Data,
 			PrivateKey:  key,
 		})
 	}
 	return self, nil
 }
 
-func loadSystemCertificates(hash *bytes.Buffer, password []byte) ([]*x509.Certificate, error) {
+func loadSystemCertificates(hash *bytes.Buffer, password []byte) ([]*cert.Pair, error) {
 	systemPEMBlock, err := ioutil.ReadFile("key/system.pem")
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	var (
 		block  *pem.Block
-		system []*x509.Certificate
+		system []*cert.Pair
 	)
 	for {
 		if len(systemPEMBlock) == 0 {
 			break
 		}
-		// load CA certificate
+		// load certificate
 		block, systemPEMBlock = pem.Decode(systemPEMBlock)
 		if block == nil {
 			return nil, errors.New("failed to decode key/system.pem")
 		}
-		b, err := x509.DecryptPEMBlock(block, password)
+		asn1Data, err := x509.DecryptPEMBlock(block, password)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		c, err := x509.ParseCertificate(b)
+		certificate, err := x509.ParseCertificate(asn1Data)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		hash.Write(b)
-		system = append(system, c)
+		hash.Write(asn1Data)
+
+		system = append(system, &cert.Pair{
+			Certificate: certificate,
+			ASN1Data:    asn1Data,
+		})
 	}
 	return system, nil
 }
@@ -481,12 +488,12 @@ func (global *global) LoadSessionKey(data, password []byte) error {
 	memory.Padding()
 	self, err := loadSelfCertificates(hashBuf, password)
 	if err != nil {
-		return errors.WithMessage(err, "failed to load self CA certificates")
+		return errors.WithMessage(err, "failed to load self certificates")
 	}
 	memory.Padding()
 	system, err := loadSystemCertificates(hashBuf, password)
 	if err != nil {
-		return errors.WithMessage(err, "failed to load system CA certificates")
+		return errors.WithMessage(err, "failed to load system certificates")
 	}
 	// compare hash
 	memory.Padding()
@@ -496,9 +503,9 @@ func (global *global) LoadSessionKey(data, password []byte) error {
 		return errors.New("warning: PEM files has been tampered")
 	}
 	memory.Padding()
-	global.objects[objSelfCA] = self
+	global.objects[objSelfCerts] = self
 	memory.Padding()
-	global.objects[objSystemCA] = system
+	global.objects[objSystemCerts] = system
 
 	global.closeWaitLoadSessionKey()
 	atomic.StoreInt32(&global.loadSessionKey, 1)

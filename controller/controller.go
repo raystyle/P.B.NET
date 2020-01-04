@@ -244,7 +244,12 @@ func (ctrl *CTRL) BroadcastKey() []byte {
 	return ctrl.global.BroadcastKey()
 }
 
-// GetSelfCA is used to get self CA certificate to generate CA-sign certificate
-func (ctrl *CTRL) GetSelfCA() []*cert.KeyPair {
-	return ctrl.global.GetSelfCA()
+// GetSelfCerts is used to get self certificates to generate CA-sign certificate
+func (ctrl *CTRL) GetSelfCerts() []*cert.Pair {
+	return ctrl.global.GetSelfCerts()
+}
+
+// GetSystemCerts is used to get system certificates
+func (ctrl *CTRL) GetSystemCerts() []*cert.Pair {
+	return ctrl.global.GetSystemCerts()
 }

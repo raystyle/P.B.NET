@@ -77,12 +77,12 @@ func newClient(
 		RootCAs:    x509.NewCertPool(),
 		MinVersion: tls.VersionTLS12,
 	}
-	// add CA certificates
-	for _, cert := range ctrl.global.GetSystemCA() {
-		cfg.TLSConfig.RootCAs.AddCert(cert)
+	// add certificates
+	for _, pair := range ctrl.global.GetSystemCerts() {
+		cfg.TLSConfig.RootCAs.AddCert(pair.Certificate)
 	}
-	for _, kp := range ctrl.global.GetSelfCA() {
-		cfg.TLSConfig.RootCAs.AddCert(kp.Certificate)
+	for _, pair := range ctrl.global.GetSelfCerts() {
+		cfg.TLSConfig.RootCAs.AddCert(pair.Certificate)
 	}
 	// set proxy
 	proxy, err := ctrl.global.GetProxyClient(ctrl.clientMgr.GetProxyTag())
