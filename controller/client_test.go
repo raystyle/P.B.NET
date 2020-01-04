@@ -24,8 +24,6 @@ import (
 	"project/testdata"
 )
 
-const testListenerTag = "test_tls"
-
 func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg := node.Config{}
 
@@ -75,6 +73,8 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.CTRL.BroadcastKey = ctrl.global.BroadcastKey()
 	return &cfg
 }
+
+const testListenerTag = "test_tls"
 
 func testGenerateNode(t testing.TB) *node.Node {
 	cfg := testGenerateNodeConfig(t)

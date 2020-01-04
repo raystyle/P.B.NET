@@ -4,7 +4,13 @@ import (
 	"io"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/vmihailenco/msgpack/v4"
+
+	"project/internal/crypto/aes"
 	"project/internal/dns"
+	"project/internal/messages"
+	"project/internal/random"
 )
 
 // Test contains test data
@@ -78,4 +84,45 @@ type Config struct {
 		Username string `toml:"username"` // super user
 		Password string `toml:"password"`
 	} `toml:"web"`
+}
+
+// GenerateRoleConfigAboutTheFirstBootstrap is used to generate the first bootstrap
+func GenerateRoleConfigAboutTheFirstBootstrap(b *messages.Bootstrap) ([]byte, []byte, error) {
+	return generateRoleConfigAboutBootstraps(b)
+}
+
+// GenerateRoleConfigAboutRestBootstraps is used to generate role rest bootstraps
+func GenerateRoleConfigAboutRestBootstraps(b ...*messages.Bootstrap) ([]byte, []byte, error) {
+	if len(b) == 0 {
+		return nil, nil, nil
+	}
+	return generateRoleConfigAboutBootstraps(b)
+}
+
+func generateRoleConfigAboutBootstraps(b interface{}) ([]byte, []byte, error) {
+	data, _ := msgpack.Marshal(b)
+	rand := random.New()
+	aesKey := rand.Bytes(aes.Key256Bit)
+	aesIV := rand.Bytes(aes.IVSize)
+	enc, err := aes.CBCEncrypt(data, aesKey, aesIV)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+	return enc, append(aesKey, aesIV...), nil
+}
+
+// GenerateNodeConfigAboutListeners is used to generate node listener and encrypt it
+func GenerateNodeConfigAboutListeners(l ...*messages.Listener) ([]byte, []byte, error) {
+	if len(l) == 0 {
+		return nil, nil, errors.New("no listeners")
+	}
+	data, _ := msgpack.Marshal(l)
+	rand := random.New()
+	aesKey := rand.Bytes(aes.Key256Bit)
+	aesIV := rand.Bytes(aes.IVSize)
+	enc, err := aes.CBCEncrypt(data, aesKey, aesIV)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+	return enc, append(aesKey, aesIV...), nil
 }
