@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,8 +14,8 @@ var ErrEmptyPort = errors.New("empty port")
 
 // CheckPort is used to check port range
 func CheckPort(port int) error {
-	if port < 1 || port > 65535 {
-		return fmt.Errorf("invalid port range: %d", port)
+	if port < 0 || port > 65535 {
+		return fmt.Errorf("invalid port: %d", port)
 	}
 	return nil
 }
@@ -25,35 +26,40 @@ func CheckPortString(port string) error {
 	if port == "" {
 		return ErrEmptyPort
 	}
-	n, err := strconv.Atoi(port)
+	p, err := strconv.Atoi(port)
 	if err != nil {
 		return err
 	}
-	return CheckPort(n)
+	return CheckPort(p)
 }
 
-// TrafficUnit is used to convert bytes to another unit
-type TrafficUnit int
-
-func (ts TrafficUnit) String() string {
-	const (
-		kb = 1 << 10
-		mb = 1 << 20
-		gb = 1 << 30
-		tb = 1 << 40
-	)
-	switch {
-	case ts < kb:
-		return fmt.Sprintf("%d Byte", ts)
-	case ts < mb:
-		return fmt.Sprintf("%.3f KB", float64(ts)/kb)
-	case ts < gb:
-		return fmt.Sprintf("%.3f MB", float64(ts)/mb)
-	case ts < tb:
-		return fmt.Sprintf("%.3f GB", float64(ts)/gb)
-	default:
-		return fmt.Sprintf("%.3f TB", float64(ts)/tb)
+// IPEnabled is used to get system IP enabled
+func IPEnabled() (ipv4Enabled, ipv6Enabled bool) {
+	interfaces, _ := net.Interfaces()
+	for _, iface := range interfaces {
+		if iface.Flags != net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			ipAddr := strings.Split(addr.String(), "/")[0]
+			ip := net.ParseIP(ipAddr)
+			ip4 := ip.To4()
+			if ip4 != nil {
+				if ip4.IsGlobalUnicast() {
+					ipv4Enabled = true
+				}
+			} else {
+				if ip.To16().IsGlobalUnicast() {
+					ipv6Enabled = true
+				}
+			}
+			if ipv4Enabled && ipv6Enabled {
+				break
+			}
+		}
 	}
+	return
 }
 
 type deadlineConn struct {
