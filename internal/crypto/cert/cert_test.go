@@ -127,7 +127,7 @@ func testGenerate(t *testing.T, ca *Pair) {
 
 	// only IPv4
 	var port2 string
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		server2 := http.Server{
 			Addr:      "127.0.0.1:0",
 			Handler:   serveMux,
@@ -139,7 +139,7 @@ func testGenerate(t *testing.T, ca *Pair) {
 
 	// only IPv6
 	var port3 string
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		server3 := http.Server{
 			Addr:      "[::1]:0",
 			Handler:   serveMux,
@@ -168,10 +168,10 @@ func testGenerate(t *testing.T, ca *Pair) {
 
 	// test
 	get("localhost", port1)
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		get("127.0.0.1", port2)
 	}
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		get("[::1]", port3)
 	}
 }

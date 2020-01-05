@@ -20,17 +20,17 @@ import (
 func Certificates(t require.TestingT) [][]byte {
 	pemBlock, err := ioutil.ReadFile("../testdata/system.pem")
 	require.NoError(t, err)
-	var ASN1 [][]byte
+	var certs [][]byte // ASN1 data
 	var block *pem.Block
 	for {
 		block, pemBlock = pem.Decode(pemBlock)
 		require.NotNil(t, block)
-		ASN1 = append(ASN1, block.Bytes)
+		certs = append(certs, block.Bytes)
 		if len(pemBlock) == 0 {
 			break
 		}
 	}
-	return ASN1
+	return certs
 }
 
 var (
@@ -61,7 +61,7 @@ func ProxyClients(t require.TestingT) []*proxy.Client {
 // DNSServers is used to provide DNS servers for test
 func DNSServers() map[string]*dns.Server {
 	servers := make(map[string]*dns.Server)
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		servers["test_udp_ipv4"] = &dns.Server{
 			Method:  "udp",
 			Address: "8.8.8.8:53",
@@ -80,7 +80,7 @@ func DNSServers() map[string]*dns.Server {
 			SkipTest: true,
 		}
 	}
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		servers["test_udp_ipv6"] = &dns.Server{
 			Method:  "udp",
 			Address: "[2606:4700:4700::1111]:53",
