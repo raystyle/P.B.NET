@@ -29,5 +29,7 @@ func TestListenerAndDial(t *testing.T) {
 
 func TestConn(t *testing.T) {
 	server, client := net.Pipe()
-	Conn(t, server, client, true)
+	ConnSC(t, server, client, true)
+	server, client = net.Pipe()
+	ConnCS(t, client, server, true)
 }

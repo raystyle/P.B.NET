@@ -26,22 +26,53 @@ func ListenerAndDial(t testing.TB, l net.Listener, d func() (net.Conn, error), c
 		client, err := d()
 		require.NoError(t, err)
 		wg.Wait()
-		Conn(t, server, client, close)
+		ConnSC(t, server, client, close)
+
+		t.Log("") // new line for Conn
+	}
+	for i := 0; i < 3; i++ {
+		var server net.Conn
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var err error
+			server, err = l.Accept()
+			require.NoError(t, err)
+		}()
+		client, err := d()
+		require.NoError(t, err)
+		wg.Wait()
+		ConnCS(t, client, server, close)
+
 		t.Log("") // new line for Conn
 	}
 	require.NoError(t, l.Close())
 	IsDestroyed(t, l)
 }
 
-// Conn is used to test client & server Conn
-//
 // if close == true, IsDestroyed will be run after Conn.Close()
-// if Conn about TLS and use net.Pipe(), set close = false
+// if connection about TLS and use net.Pipe(), set close = false
+//
 // server, client := net.Pipe()
 // tlsServer = tls.Server(server, tlsConfig)
 // tlsClient = tls.Client(client, tlsConfig)
-// Conn(t, tlsServer, tlsClient, false) must set false
-func Conn(t testing.TB, server, client net.Conn, close bool) {
+// ConnSC(t, tlsServer, tlsClient, false) must set false
+
+// ConnSC is used to test server & client connection,
+// server connection will send data firstly
+func ConnSC(t testing.TB, server, client net.Conn, close bool) {
+	connAddr(t, server, client)
+	conn(t, server, client, close)
+}
+
+// ConnCS is used to test client & server connection,
+// client connection will send data firstly
+func ConnCS(t testing.TB, client, server net.Conn, close bool) {
+	connAddr(t, server, client)
+	conn(t, client, server, close)
+}
+
+func connAddr(t testing.TB, server, client net.Conn) {
 	t.Log("server remote:", server.RemoteAddr().Network(), server.RemoteAddr())
 	t.Log("client local:", client.LocalAddr().Network(), client.LocalAddr())
 	t.Log("server local:", server.LocalAddr().Network(), server.LocalAddr())
@@ -54,6 +85,13 @@ func Conn(t testing.TB, server, client net.Conn, close bool) {
 	}
 	require.Equal(t, server.LocalAddr().Network(), client.RemoteAddr().Network())
 	require.Equal(t, server.LocalAddr().String(), client.RemoteAddr().String())
+}
+
+// conn1 will send data firstly
+func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
+	// Deadline()
+	require.NoError(t, conn1.SetDeadline(time.Now().Add(5*time.Second)))
+	require.NoError(t, conn2.SetDeadline(time.Now().Add(5*time.Second)))
 
 	// Read() and Write()
 	write := func(conn net.Conn) {
@@ -69,59 +107,71 @@ func Conn(t testing.TB, server, client net.Conn, close bool) {
 		require.Equal(t, Bytes(), data)
 	}
 	wg := sync.WaitGroup{}
-	// server
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		read(server)
-		write(server)
+		read(conn2)
+		write(conn2)
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			write(server)
+			write(conn2)
 		}()
 		go func() {
 			defer wg.Done()
-			write(server)
+			write(conn2)
 		}()
-		read(server)
+		read(conn2)
 	}()
-	// client
-	write(client)
-	read(client)
-	read(client)
-	read(client)
-	write(client)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			write(conn1)
+		}()
+		read(conn1)
+		read(conn1)
+		read(conn1)
+		go func() {
+			defer wg.Done()
+			write(conn1)
+		}()
+	}()
 	wg.Wait()
 
 	// about Deadline()
-	require.NoError(t, server.SetDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, client.SetDeadline(time.Now().Add(10*time.Millisecond)))
-	time.Sleep(20 * time.Millisecond)
-	buf := []byte{0, 0, 0, 0}
-	_, err := client.Write(buf)
+	require.NoError(t, conn1.SetDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn2.SetDeadline(time.Now().Add(10*time.Millisecond)))
+	time.Sleep(30 * time.Millisecond)
+	buf := Bytes()
+	_, err := conn1.Write(buf)
 	require.Error(t, err)
-	_, err = server.Read(buf)
-	require.Error(t, err)
-
-	require.NoError(t, server.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, client.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
-	time.Sleep(20 * time.Millisecond)
-	_, err = client.Write(buf)
-	require.Error(t, err)
-	_, err = server.Read(buf)
+	_, err = conn2.Read(buf)
 	require.Error(t, err)
 
-	// recovery deadline
-	require.NoError(t, server.SetDeadline(time.Time{}))
-	require.NoError(t, client.SetDeadline(time.Time{}))
+	require.NoError(t, conn1.SetDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn2.SetDeadline(time.Now().Add(10*time.Millisecond)))
+	time.Sleep(30 * time.Millisecond)
+	buf = Bytes()
+	_, err = conn1.Write(buf)
+	require.Error(t, err)
+	_, err = conn2.Read(buf)
+	require.Error(t, err)
+
+	// recover about net.Pipe()
+	require.NoError(t, conn1.SetDeadline(time.Time{}))
+	require.NoError(t, conn2.SetDeadline(time.Time{}))
 
 	// Close()
 	if close {
-		require.NoError(t, server.Close())
-		require.NoError(t, client.Close())
+		require.NoError(t, conn1.Close())
+		require.NoError(t, conn2.Close())
 
-		IsDestroyed(t, server)
-		IsDestroyed(t, client)
+		IsDestroyed(t, conn1)
+		IsDestroyed(t, conn2)
 	}
 }
