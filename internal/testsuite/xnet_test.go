@@ -8,7 +8,7 @@ import (
 )
 
 func TestListenerAndDial(t *testing.T) {
-	if EnableIPv4() {
+	if IPv4Enabled {
 		l, err := net.Listen("tcp4", "localhost:0")
 		require.NoError(t, err)
 		addr := l.Addr().String()
@@ -17,7 +17,7 @@ func TestListenerAndDial(t *testing.T) {
 		}, true)
 	}
 
-	if EnableIPv6() {
+	if IPv6Enabled {
 		l, err := net.Listen("tcp6", "localhost:0")
 		require.NoError(t, err)
 		addr := l.Addr().String()

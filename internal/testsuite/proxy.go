@@ -67,7 +67,7 @@ func InitHTTPServers(t testing.TB) {
 			l4 net.Listener // HTTPS IPv6
 		)
 
-		if EnableIPv4() {
+		if IPv4Enabled {
 			l1, err = net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
 			_, HTTPServerPort, err = net.SplitHostPort(l1.Addr().String())
@@ -82,7 +82,7 @@ func InitHTTPServers(t testing.TB) {
 			go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
 		}
 
-		if EnableIPv6() {
+		if IPv6Enabled {
 			if HTTPServerPort != "" {
 				l3, err = net.Listen("tcp", "[::1]:"+HTTPServerPort)
 				require.NoError(t, err)
@@ -183,10 +183,10 @@ func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
 		require.NoError(t, server.Close())
 		IsDestroyed(t, server)
 	}()
-	if EnableIPv4() {
+	if IPv4Enabled {
 		HTTPClient(t, transport, "127.0.0.1")
 	}
-	if EnableIPv6() {
+	if IPv6Enabled {
 		HTTPClient(t, transport, "[::1]")
 	}
 	HTTPClient(t, transport, "localhost")
@@ -250,7 +250,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if EnableIPv4() {
+		if IPv4Enabled {
 			const network = "tcp4"
 
 			address := "127.0.0.1:" + HTTPServerPort
@@ -268,7 +268,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 			ProxyConn(t, conn)
 		}
 
-		if EnableIPv6() && !strings.Contains(client.Info(), "socks4") {
+		if IPv6Enabled && !strings.Contains(client.Info(), "socks4") {
 			const network = "tcp6"
 
 			address := "[::1]:" + HTTPServerPort

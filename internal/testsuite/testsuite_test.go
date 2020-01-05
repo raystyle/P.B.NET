@@ -10,14 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEnableIPv4(t *testing.T) {
-	t.Log("IPv4:", EnableIPv4())
-}
-
-func TestEnableIPv6(t *testing.T) {
-	t.Log("IPv6:", EnableIPv6())
-}
-
 func TestIsDestroyed(t *testing.T) {
 	a := 1
 	n, err := fmt.Fprintln(ioutil.Discard, a)
