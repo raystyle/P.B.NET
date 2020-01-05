@@ -10,14 +10,13 @@ import (
 
 	"project/internal/convert"
 	"project/internal/logger"
-	"project/internal/xnet/xnetutil"
 )
 
 // Conn is used to count network traffic and save connect time
 type Conn struct {
 	net.Conn
-	sent     int // imprecise
-	received int // imprecise
+	sent     uint64 // imprecise
+	received uint64 // imprecise
 	connect  time.Time
 	rwm      sync.RWMutex
 }
@@ -36,7 +35,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	c.rwm.Lock()
 	defer c.rwm.Unlock()
-	c.received += n
+	c.received += uint64(n)
 	return n, err
 }
 
@@ -46,7 +45,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 	n, err := c.Conn.Write(b)
 	c.rwm.Lock()
 	defer c.rwm.Unlock()
-	c.sent += n
+	c.sent += uint64(n)
 	return n, err
 }
 
@@ -103,25 +102,24 @@ type Status struct {
 	RemoteNetwork string
 	RemoteAddress string
 	Connect       time.Time
-	Sent          xnetutil.TrafficUnit
-	Received      xnetutil.TrafficUnit
+	Sent          uint64
+	Received      uint64
 }
 
 // Status is used to get connection status
+// address maybe changed, such as QUIC
 func (c *Conn) Status() *Status {
 	c.rwm.RLock()
 	defer c.rwm.RUnlock()
-	s := Status{
-		Sent:     xnetutil.TrafficUnit(c.sent),
-		Received: xnetutil.TrafficUnit(c.received),
+	return &Status{
+		LocalNetwork:  c.LocalAddr().Network(),
+		LocalAddress:  c.LocalAddr().String(),
+		RemoteNetwork: c.RemoteAddr().Network(),
+		RemoteAddress: c.RemoteAddr().String(),
+		Connect:       c.connect,
+		Sent:          c.sent,
+		Received:      c.received,
 	}
-	// remote address maybe changed, such as QUIC
-	s.LocalNetwork = c.LocalAddr().Network()
-	s.LocalAddress = c.LocalAddr().String()
-	s.RemoteNetwork = c.RemoteAddr().Network()
-	s.RemoteAddress = c.RemoteAddr().String()
-	s.Connect = c.connect
-	return &s
 }
 
 // String is used to get connection info
@@ -140,7 +138,8 @@ func (c *Conn) String() string {
 	return fmt.Sprintf(format,
 		s.LocalNetwork, s.LocalAddress,
 		s.RemoteNetwork, s.RemoteAddress,
-		s.Sent, s.Received,
+		convert.ByteToString(s.Sent),
+		convert.ByteToString(s.Received),
 		s.Connect.Format(logger.TimeLayout),
 	)
 }

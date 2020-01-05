@@ -35,7 +35,7 @@ func TestCheckModeNetwork(t *testing.T) {
 
 func TestListenAndDial_TLS(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		sCfg := &Config{
 			Network:   "tcp4",
 			Address:   "localhost:0",
@@ -54,7 +54,7 @@ func TestListenAndDial_TLS(t *testing.T) {
 		}, true)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		sCfg := &Config{
 			Network:   "tcp6",
 			Address:   "localhost:0",
@@ -76,7 +76,7 @@ func TestListenAndDial_TLS(t *testing.T) {
 
 func TestListenAndDial_QUIC(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		sCfg := &Config{
 			Network:   "udp4",
 			Address:   "localhost:0",
@@ -95,7 +95,7 @@ func TestListenAndDial_QUIC(t *testing.T) {
 		}, true)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		sCfg := &Config{
 			Network:   "udp6",
 			Address:   "localhost:0",
@@ -116,7 +116,7 @@ func TestListenAndDial_QUIC(t *testing.T) {
 }
 
 func TestListenAndDial_Light(t *testing.T) {
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		sCfg := &Config{
 			Network: "tcp4",
 			Address: "localhost:0",
@@ -133,7 +133,7 @@ func TestListenAndDial_Light(t *testing.T) {
 		}, true)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		sCfg := &Config{
 			Network: "tcp6",
 			Address: "localhost:0",

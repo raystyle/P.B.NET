@@ -29,7 +29,7 @@ func TestConn(t *testing.T) {
 	wg.Wait()
 	t.Log(serverC.Status())
 	t.Log(serverC)
-	testsuite.Conn(t, serverC, clientC, true)
+	testsuite.ConnSC(t, serverC, clientC, true)
 }
 
 func TestConnWithTooBigMessage(t *testing.T) {
