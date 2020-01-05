@@ -504,7 +504,7 @@ func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
 }
 
 func (sender *sender) log(l logger.Level, log ...interface{}) {
-	sender.ctx.logger.Print(l, "sender", log...)
+	sender.ctx.logger.Println(l, "sender", log...)
 }
 
 func (sender *sender) broadcast(guid, message []byte) ([]*protocol.BroadcastResponse, int) {

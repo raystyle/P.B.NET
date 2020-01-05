@@ -126,7 +126,7 @@ func (bc *bootClient) logf(l logger.Level, format string, log ...interface{}) {
 }
 
 func (bc *bootClient) log(l logger.Level, log ...interface{}) {
-	bc.ctx.ctx.logger.Print(l, bc.logSrc, log...)
+	bc.ctx.ctx.logger.Println(l, bc.logSrc, log...)
 }
 
 func (bc *bootClient) bootLoop() {

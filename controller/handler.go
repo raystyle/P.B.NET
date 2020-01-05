@@ -19,7 +19,7 @@ func (h *handler) logf(l logger.Level, format string, log ...interface{}) {
 }
 
 func (h *handler) log(l logger.Level, log ...interface{}) {
-	h.ctx.logger.Print(l, "handler", log...)
+	h.ctx.logger.Println(l, "handler", log...)
 }
 
 func (h *handler) OnNodeSend(send *protocol.Send) {
