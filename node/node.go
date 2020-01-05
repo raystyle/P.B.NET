@@ -120,7 +120,7 @@ func (node *Node) Main() error {
 		}
 	}
 	now := node.global.Now().Format(logger.TimeLayout)
-	node.logger.Println(logger.Debug, "main", "time:", now)
+	node.logger.Println(logger.Info, "main", "time:", now)
 	// deploy server
 	err := node.server.Deploy()
 	if err != nil {
@@ -133,7 +133,7 @@ func (node *Node) Main() error {
 	}
 	// driver
 	go node.driver()
-	node.logger.Print(logger.Debug, "main", "running")
+	node.logger.Print(logger.Info, "main", "running")
 	node.wait <- struct{}{}
 	return <-node.exit
 }
@@ -159,24 +159,24 @@ func (node *Node) Wait() {
 func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Close()
-		node.logger.Print(logger.Debug, "exit", "server is stopped")
+		node.logger.Print(logger.Info, "exit", "server is stopped")
 		node.handler.Close()
-		node.logger.Print(logger.Debug, "exit", "handler is stopped")
+		node.logger.Print(logger.Info, "exit", "handler is stopped")
 		node.worker.Close()
-		node.logger.Print(logger.Debug, "exit", "worker is stopped")
+		node.logger.Print(logger.Info, "exit", "worker is stopped")
 		node.syncer.Close()
-		node.logger.Print(logger.Debug, "exit", "syncer is stopped")
+		node.logger.Print(logger.Info, "exit", "syncer is stopped")
 		node.sender.Close()
-		node.logger.Print(logger.Debug, "exit", "sender is stopped")
+		node.logger.Print(logger.Info, "exit", "sender is stopped")
 		node.forwarder.Close()
-		node.logger.Print(logger.Debug, "exit", "forwarder is stopped")
+		node.logger.Print(logger.Info, "exit", "forwarder is stopped")
 		node.register.Close()
-		node.logger.Print(logger.Debug, "exit", "register is closed")
+		node.logger.Print(logger.Info, "exit", "register is closed")
 		node.clientMgr.Close()
-		node.logger.Print(logger.Debug, "exit", "client manager is closed")
+		node.logger.Print(logger.Info, "exit", "client manager is closed")
 		node.global.Close()
-		node.logger.Print(logger.Debug, "exit", "global is closed")
-		node.logger.Print(logger.Debug, "exit", "node is stopped")
+		node.logger.Print(logger.Info, "exit", "global is closed")
+		node.logger.Print(logger.Info, "exit", "node is stopped")
 		node.logger.Close()
 		node.exit <- err
 		close(node.exit)

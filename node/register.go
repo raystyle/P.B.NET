@@ -25,7 +25,8 @@ type register struct {
 	// about random.Sleep() in Register()
 	sleepFixed  int
 	sleepRandom int
-	// skip automatic register for genesis node,
+
+	// skip register for the initial node,
 	// or Controller trust node manually
 	skip bool
 
@@ -50,13 +51,21 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 		return nil, errors.New("register SleepRandom must >= 20")
 	}
 	if !cfg.Skip && len(cfg.RestBoots) == 0 {
-		return nil, errors.New("not skip automatic register but no bootstraps")
+		return nil, errors.New("not skip register but no bootstraps")
 	}
 
 	memory := security.NewMemory()
 	defer memory.Flush()
 
-	reg := register{bootstraps: make(map[string]bootstrap.Bootstrap)}
+	reg := register{
+		ctx:         ctx,
+		sleepFixed:  cfg.SleepFixed,
+		sleepRandom: cfg.SleepRandom,
+		skip:        cfg.Skip,
+		bootstraps:  make(map[string]bootstrap.Bootstrap),
+	}
+	reg.context, reg.cancel = context.WithCancel(context.Background())
+
 	// decrypt bootstraps
 	if len(cfg.RestBoots) != 0 {
 		if len(cfg.RestKey) != aes.Key256Bit+aes.IVSize {
@@ -94,12 +103,6 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 		}
 		reg.firstTag = bootstraps[0].Tag
 	}
-
-	reg.ctx = ctx
-	reg.sleepFixed = cfg.SleepFixed
-	reg.sleepRandom = cfg.SleepRandom
-	reg.skip = cfg.Skip
-	reg.context, reg.cancel = context.WithCancel(context.Background())
 	return &reg, nil
 }
 
@@ -108,7 +111,7 @@ func (reg *register) logf(l logger.Level, format string, log ...interface{}) {
 }
 
 func (reg *register) log(l logger.Level, log ...interface{}) {
-	reg.ctx.logger.Print(l, "register", log...)
+	reg.ctx.logger.Println(l, "register", log...)
 }
 
 func (reg *register) AddBootstrap(b *messages.Bootstrap) error {

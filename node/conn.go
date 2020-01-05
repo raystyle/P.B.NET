@@ -107,16 +107,16 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid []byte, usage int) *conn {
 // sent:   5.656 MB received: 5.379 MB
 // connect time: 2019-12-26 21:44:13
 // ----------------------------------------------------
-func (c *conn) Log(l logger.Level, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintln(b, log...)
-	c.logExtra(l, b)
-}
-
 func (c *conn) Logf(l logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
 	_, _ = fmt.Fprint(b, "\n")
+	c.logExtra(l, b)
+}
+
+func (c *conn) Log(l logger.Level, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(b, log...)
 	c.logExtra(l, b)
 }
 

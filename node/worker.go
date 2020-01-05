@@ -194,7 +194,7 @@ func (sw *subWorker) logf(l logger.Level, format string, log ...interface{}) {
 }
 
 func (sw *subWorker) log(l logger.Level, log ...interface{}) {
-	sw.ctx.logger.Print(l, "worker", log...)
+	sw.ctx.logger.Println(l, "worker", log...)
 }
 
 func (sw *subWorker) Work() {

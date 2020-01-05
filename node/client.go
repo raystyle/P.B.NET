@@ -126,7 +126,8 @@ func newClient(
 }
 
 func (client *client) handshake(conn *xnet.Conn) error {
-	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.clientMgr.GetTimeout()))
+	timeout := client.ctx.clientMgr.GetTimeout()
+	_ = conn.SetDeadline(client.ctx.global.Now().Add(timeout))
 	// about check connection
 	sizeByte := make([]byte, 1)
 	_, err := io.ReadFull(conn, sizeByte)

@@ -206,7 +206,7 @@ func (sender *sender) Close() {
 }
 
 func (sender *sender) log(l logger.Level, log ...interface{}) {
-	sender.ctx.logger.Print(l, "sender", log...)
+	sender.ctx.logger.Println(l, "sender", log...)
 }
 
 type senderWorker struct {

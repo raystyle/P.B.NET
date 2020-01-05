@@ -181,7 +181,7 @@ func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
 }
 
 func (f *forwarder) log(l logger.Level, log ...interface{}) {
-	f.ctx.logger.Print(l, "forwarder", log...)
+	f.ctx.logger.Println(l, "forwarder", log...)
 }
 
 func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (

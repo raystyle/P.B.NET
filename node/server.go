@@ -78,8 +78,21 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
-	server := server{listeners: make(map[string]*Listener)}
-	// decrypt configs about listeners
+	server := server{
+		ctx:         ctx,
+		maxConns:    cfg.MaxConns,
+		timeout:     cfg.Timeout,
+		rand:        random.New(),
+		listeners:   make(map[string]*Listener),
+		conns:       make(map[string]*xnet.Conn),
+		ctrlConns:   make(map[string]*ctrlConn),
+		nodeConns:   make(map[string]*nodeConn),
+		beaconConns: make(map[string]*beaconConn),
+		stopSignal:  make(chan struct{}),
+	}
+	server.guid = guid.New(1024, server.ctx.global.Now)
+
+	// decrypt listeners configs
 	if len(cfg.Listeners) != 0 {
 		if len(cfg.ListenersKey) != aes.Key256Bit+aes.IVSize {
 			return nil, errors.New("invalid aes key size")
@@ -97,7 +110,6 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		}
 		security.CoverBytes(aesKey)
 		security.CoverBytes(aesIV)
-		// load listeners
 		memory.Padding()
 		var listeners []*messages.Listener
 		err = msgpack.Unmarshal(data, &listeners)
@@ -113,17 +125,6 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 			}
 		}
 	}
-
-	server.ctx = ctx
-	server.maxConns = cfg.MaxConns
-	server.timeout = cfg.Timeout
-	server.guid = guid.New(1024, server.ctx.global.Now)
-	server.rand = random.New()
-	server.conns = make(map[string]*xnet.Conn)
-	server.ctrlConns = make(map[string]*ctrlConn)
-	server.nodeConns = make(map[string]*nodeConn)
-	server.beaconConns = make(map[string]*beaconConn)
-	server.stopSignal = make(chan struct{})
 	return &server, nil
 }
 
@@ -132,10 +133,10 @@ func (s *server) Deploy() error {
 	// deploy all listener
 	l := len(s.listeners)
 	errs := make(chan error, l)
-	for tag, l := range s.listeners {
-		go func(tag string, l *Listener) {
-			errs <- s.deploy(tag, l)
-		}(tag, l)
+	for tag, listener := range s.listeners {
+		go func(tag string, listener *Listener) {
+			errs <- s.deploy(tag, listener)
+		}(tag, listener)
 	}
 	for i := 0; i < l; i++ {
 		err := <-errs
@@ -182,6 +183,9 @@ func (s *server) deploy(tag string, listener *Listener) error {
 		const format = "failed to deploy listener %s(%s): %s"
 		return errors.Errorf(format, tag, listener.Addr(), err)
 	case <-time.After(time.Second):
+		network := listener.Addr().Network()
+		address := listener.Addr().String()
+		s.logf(logger.Info, "deploy listener %s: %s %s", tag, network, address)
 		return nil
 	}
 }
@@ -191,7 +195,7 @@ func (s *server) logf(lv logger.Level, format string, log ...interface{}) {
 }
 
 func (s *server) log(lv logger.Level, log ...interface{}) {
-	s.ctx.logger.Print(lv, "server", log...)
+	s.ctx.logger.Println(lv, "server", log...)
 }
 
 func (s *server) serve(tag string, l *Listener, errChan chan<- error) {
@@ -279,6 +283,16 @@ func (s *server) GetListener(tag string) (*Listener, error) {
 	return nil, errors.Errorf("listener %s doesn't exists", tag)
 }
 
+func (s *server) Conns() map[string]*xnet.Conn {
+	s.connsRWM.RLock()
+	defer s.connsRWM.RUnlock()
+	conns := make(map[string]*xnet.Conn, len(s.conns))
+	for tag, conn := range s.conns {
+		conns[tag] = conn
+	}
+	return conns
+}
+
 // func (s *server) CloseListener(tag string) {
 //
 // }
@@ -296,9 +310,7 @@ func (s *server) Close() {
 		_ = listener.Close()
 	}
 	// close all conns
-	s.connsRWM.Lock()
-	defer s.connsRWM.Unlock()
-	for _, conn := range s.conns {
+	for _, conn := range s.Conns() {
 		_ = conn.Close()
 	}
 	s.guid.Close()
@@ -315,8 +327,8 @@ func (s *server) logfConn(c *xnet.Conn, lv logger.Level, format string, log ...i
 
 func (s *server) logConn(c *xnet.Conn, lv logger.Level, log ...interface{}) {
 	b := new(bytes.Buffer)
-	_, _ = fmt.Fprint(b, log...)
-	_, _ = fmt.Fprintf(b, "\n%s", c)
+	_, _ = fmt.Fprintln(b, log...)
+	_, _ = fmt.Fprintf(b, "%s", c)
 	s.ctx.logger.Print(lv, "server", b)
 }
 
