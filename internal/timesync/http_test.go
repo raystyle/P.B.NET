@@ -18,11 +18,11 @@ import (
 func TestHTTPClient_Query(t *testing.T) {
 	t.Parallel()
 
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	t.Run("https", func(t *testing.T) {
-		HTTP := NewHTTP(context.Background(), pool, dnsClient)
+		HTTP := NewHTTP(context.Background(), proxyPool, dnsClient)
 
 		b, err := ioutil.ReadFile("testdata/http.toml")
 		require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestHTTPClient_Query(t *testing.T) {
 	})
 
 	t.Run("http with proxy", func(t *testing.T) {
-		HTTP := NewHTTP(context.Background(), pool, dnsClient)
+		HTTP := NewHTTP(context.Background(), proxyPool, dnsClient)
 
 		HTTP.ProxyTag = testproxy.TagBalance
 		HTTP.Request.URL = "http://ds.vm2.test-ipv6.com:80/"
@@ -54,11 +54,11 @@ func TestHTTPClient_Query(t *testing.T) {
 func TestHTTPClient_Query_Failed(t *testing.T) {
 	t.Parallel()
 
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	newHTTP := func(t *testing.T) *HTTP {
-		HTTP := NewHTTP(context.Background(), pool, dnsClient)
+		HTTP := NewHTTP(context.Background(), proxyPool, dnsClient)
 		HTTP.Request.URL = "test.com"
 		HTTP.Transport.TLSClientConfig.InsecureLoadFromSystem = true
 		return HTTP

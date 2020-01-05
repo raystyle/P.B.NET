@@ -270,7 +270,6 @@ func (syncer *Syncer) synchronizeLoop() {
 	}
 }
 
-// all is for test all clients
 func (syncer *Syncer) synchronize() (err error) {
 	defer func() {
 		if r := recover(); r != nil {

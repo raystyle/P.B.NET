@@ -195,6 +195,8 @@ func TestSyncer_synchronizeLoop(t *testing.T) {
 	syncer := New(proxyPool, dnsClient, logger.Test)
 
 	// force set synchronize interval
+	syncer.sleepFixed = 0
+	syncer.sleepRandom = 0
 	syncer.interval = time.Second
 
 	// add reachable

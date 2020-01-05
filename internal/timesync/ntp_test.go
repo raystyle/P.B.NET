@@ -14,10 +14,10 @@ import (
 )
 
 func TestNTPClient_Query(t *testing.T) {
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	NTP := NewNTP(context.Background(), pool, dnsClient)
+	NTP := NewNTP(context.Background(), proxyPool, dnsClient)
 	b, err := ioutil.ReadFile("testdata/ntp.toml")
 	require.NoError(t, err)
 	require.NoError(t, NTP.Import(b))
@@ -34,11 +34,11 @@ func TestNTPClient_Query(t *testing.T) {
 func TestNTPClient_Query_Failed(t *testing.T) {
 	t.Parallel()
 
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	t.Run("invalid network", func(t *testing.T) {
-		NTP := NewNTP(context.Background(), pool, dnsClient)
+		NTP := NewNTP(context.Background(), proxyPool, dnsClient)
 
 		NTP.Network = "foo network"
 
@@ -50,7 +50,7 @@ func TestNTPClient_Query_Failed(t *testing.T) {
 	})
 
 	t.Run("invalid address", func(t *testing.T) {
-		NTP := NewNTP(context.Background(), pool, dnsClient)
+		NTP := NewNTP(context.Background(), proxyPool, dnsClient)
 
 		NTP.Address = "foo address"
 
@@ -62,7 +62,7 @@ func TestNTPClient_Query_Failed(t *testing.T) {
 	})
 
 	t.Run("invalid domain", func(t *testing.T) {
-		NTP := NewNTP(context.Background(), pool, dnsClient)
+		NTP := NewNTP(context.Background(), proxyPool, dnsClient)
 
 		NTP.Address = "test:123"
 
@@ -74,7 +74,7 @@ func TestNTPClient_Query_Failed(t *testing.T) {
 	})
 
 	t.Run("all failed", func(t *testing.T) {
-		NTP := NewNTP(context.Background(), pool, dnsClient)
+		NTP := NewNTP(context.Background(), proxyPool, dnsClient)
 
 		NTP.Address = "github.com:8989"
 		NTP.Timeout = time.Second
