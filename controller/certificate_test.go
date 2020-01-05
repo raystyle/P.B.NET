@@ -30,13 +30,13 @@ func TestVerifyInvalidCertificate(t *testing.T) {
 
 func TestTrustNodeAndConfirm(t *testing.T) {
 	testInitializeController(t)
-	NODE := testGenerateNode(t)
+	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
-	listener, err := NODE.GetListener(testListenerTag)
+	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
 	node := &bootstrap.Node{
-		Mode:    xnet.ModeTLS,
-		Network: "tcp",
+		Mode:    xnet.ModeQUIC,
+		Network: "udp",
 		Address: listener.Addr().String(),
 	}
 	req, err := ctrl.TrustNode(context.Background(), node)

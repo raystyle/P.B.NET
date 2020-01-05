@@ -22,8 +22,8 @@ import (
 
 func testGenerateNodeAndTrust(t testing.TB) *node.Node {
 	testInitializeController(t)
-	NODE := testGenerateNode(t)
-	listener, err := NODE.GetListener(testListenerTag)
+	NODE := testGenerateInitialNode(t)
+	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
 	n := bootstrap.Node{
 		Mode:    xnet.ModeTLS,

@@ -19,7 +19,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 		times   = 10
 	)
 	testInitializeController(t)
-	NODE := testGenerateNode(t)
+	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
 	node := &bootstrap.Node{
 		Mode:    xnet.ModeTLS,

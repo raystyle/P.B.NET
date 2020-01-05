@@ -35,7 +35,7 @@ func testRestfulAPI(method, path string, model interface{}) ([]byte, error) {
 }
 
 func TestHandleTrustNode(t *testing.T) {
-	NODE := testGenerateNode(t)
+	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
 	testInitializeController(t)
 	m := &mTrustNode{

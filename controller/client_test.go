@@ -60,7 +60,6 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
-	cfg.Register.Skip = true
 
 	cfg.Forwarder.MaxCtrlConns = 10
 	cfg.Forwarder.MaxNodeConns = 8
@@ -86,30 +85,28 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
-const testListenerTag = "test_tls"
+const testInitialNodeListenerTag = "test_quic"
 
-func testGenerateNode(t testing.TB) *node.Node {
+func testGenerateInitialNode(t testing.TB) *node.Node {
 	cfg := testGenerateNodeConfig(t)
-	NODE, err := node.New(cfg)
-	require.NoError(t, err)
-	testsuite.IsDestroyed(t, cfg)
+	cfg.Register.Skip = true
 
 	// generate certificate
-	keyPairs := ctrl.global.GetSelfCerts()
+	certs := ctrl.global.GetSelfCerts()
 	opts := cert.Options{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
-	caCert := keyPairs[0].Certificate
-	caKey := keyPairs[0].PrivateKey
+	caCert := certs[0].Certificate
+	caKey := certs[0].PrivateKey
 	pair, err := cert.Generate(caCert, caKey, &opts)
 	require.NoError(t, err)
 
 	// generate listener config
 	listener := messages.Listener{
-		Tag:     testListenerTag,
-		Mode:    xnet.ModeTLS,
-		Network: "tcp",
+		Tag:     testInitialNodeListenerTag,
+		Mode:    xnet.ModeQUIC,
+		Network: "udp",
 		Address: "localhost:0",
 	}
 	c, k := pair.EncodeToPEM()
@@ -117,21 +114,29 @@ func testGenerateNode(t testing.TB) *node.Node {
 		{Cert: string(c), Key: string(k)},
 	}
 
+	// set node config
+	config, key, err := GenerateNodeConfigAboutListeners(&listener)
+	require.NoError(t, err)
+	cfg.Server.Listeners = config
+	cfg.Server.ListenersKey = key
+
+	NODE, err := node.New(cfg)
+	require.NoError(t, err)
+	testsuite.IsDestroyed(t, cfg)
 	go func() {
 		err := NODE.Main()
 		require.NoError(t, err)
 	}()
 	NODE.Wait()
-	require.NoError(t, NODE.AddListener(&listener))
 	return NODE
 }
 
 func testGenerateClient(tb testing.TB, node *node.Node) *client {
-	listener, err := node.GetListener(testListenerTag)
+	listener, err := node.GetListener(testInitialNodeListenerTag)
 	require.NoError(tb, err)
 	n := &bootstrap.Node{
-		Mode:    xnet.ModeTLS,
-		Network: "tcp",
+		Mode:    xnet.ModeQUIC,
+		Network: "udp",
 		Address: listener.Addr().String(),
 	}
 	client, err := newClient(context.Background(), ctrl, n, nil, nil)
@@ -141,7 +146,7 @@ func testGenerateClient(tb testing.TB, node *node.Node) *client {
 
 func TestClient_Send(t *testing.T) {
 	testInitializeController(t)
-	NODE := testGenerateNode(t)
+	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
 	data := bytes.Buffer{}
@@ -158,7 +163,7 @@ func TestClient_Send(t *testing.T) {
 
 func TestClient_SendParallel(t *testing.T) {
 	testInitializeController(t)
-	NODE := testGenerateNode(t)
+	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
 	wg := sync.WaitGroup{}
@@ -184,7 +189,7 @@ func TestClient_SendParallel(t *testing.T) {
 
 func BenchmarkClient_Send(b *testing.B) {
 	testInitializeController(b)
-	NODE := testGenerateNode(b)
+	NODE := testGenerateInitialNode(b)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
 	data := bytes.Buffer{}
@@ -205,7 +210,7 @@ func BenchmarkClient_Send(b *testing.B) {
 
 func BenchmarkClient_SendParallel(b *testing.B) {
 	testInitializeController(b)
-	NODE := testGenerateNode(b)
+	NODE := testGenerateInitialNode(b)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
 	b.ReportAllocs()

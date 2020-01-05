@@ -163,16 +163,16 @@ func newClient(
 // sent:   5.656 MB received: 5.379 MB
 // connect time: 2019-12-26 21:44:13
 // ----------------------------------------------------
-func (client *client) log(l logger.Level, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintln(b, log...)
-	client.logExtra(l, b)
-}
-
 func (client *client) logf(l logger.Level, format string, log ...interface{}) {
 	b := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(b, format, log...)
 	_, _ = fmt.Fprint(b, "\n")
+	client.logExtra(l, b)
+}
+
+func (client *client) log(l logger.Level, log ...interface{}) {
+	b := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(b, log...)
 	client.logExtra(l, b)
 }
 
@@ -190,7 +190,8 @@ func (client *client) logExtra(l logger.Level, b *bytes.Buffer) {
 
 // Zero—Knowledge Proof
 func (client *client) handshake(conn *xnet.Conn) error {
-	_ = conn.SetDeadline(client.ctx.global.Now().Add(client.ctx.clientMgr.GetTimeout()))
+	timeout := client.ctx.clientMgr.GetTimeout()
+	_ = conn.SetDeadline(client.ctx.global.Now().Add(timeout))
 	// about check connection
 	sizeByte := make([]byte, 1)
 	_, err := io.ReadFull(conn, sizeByte)

@@ -13,8 +13,8 @@ import (
 	"project/internal/protocol"
 )
 
-// TrustNode is used to trust Genesis Node
-// receive host info for confirm
+// TrustNode is used to trust Node, receive system info for confirm it.
+// usually for the initial node or the test
 func (ctrl *CTRL) TrustNode(
 	ctx context.Context,
 	node *bootstrap.Node,
@@ -45,7 +45,7 @@ func (ctrl *CTRL) TrustNode(
 	return &req, nil
 }
 
-// ConfirmTrustNode is used to confirm trust node
+// ConfirmTrustNode is used to confirm trust node,
 // issue certificates and insert to database
 func (ctrl *CTRL) ConfirmTrustNode(
 	ctx context.Context,
