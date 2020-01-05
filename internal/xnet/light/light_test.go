@@ -10,27 +10,27 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestLight(t *testing.T) {
+func TestListenAndDial(t *testing.T) {
 	if testsuite.IPv4Enabled {
 		listener, err := Listen("tcp4", "localhost:0", 0)
 		require.NoError(t, err)
-		addr := listener.Addr().String()
+		address := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("tcp4", addr, 0, nil)
+			return Dial("tcp4", address, 0, nil)
 		}, true)
 	}
 
 	if testsuite.IPv6Enabled {
 		listener, err := Listen("tcp6", "localhost:0", 0)
 		require.NoError(t, err)
-		addr := listener.Addr().String()
+		address := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("tcp6", addr, 0, nil)
+			return Dial("tcp6", address, 0, nil)
 		}, true)
 	}
 }
 
-func TestLightConn(t *testing.T) {
+func TestConn(t *testing.T) {
 	server, client := net.Pipe()
 	server = Server(context.Background(), server, 0)
 	client = Client(context.Background(), client, 0)

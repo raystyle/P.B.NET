@@ -10,28 +10,28 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestXTLS(t *testing.T) {
+func TestListenAndDial(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	if testsuite.IPv4Enabled {
 		listener, err := Listen("tcp4", "localhost:0", serverCfg, 0)
 		require.NoError(t, err)
-		addr := listener.Addr().String()
+		address := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("tcp4", addr, clientCfg, 0, nil)
+			return Dial("tcp4", address, clientCfg, 0, nil)
 		}, true)
 	}
 
 	if testsuite.IPv6Enabled {
 		listener, err := Listen("tcp6", "localhost:0", serverCfg, 0)
 		require.NoError(t, err)
-		addr := listener.Addr().String()
+		address := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("tcp6", addr, clientCfg, 0, nil)
+			return Dial("tcp6", address, clientCfg, 0, nil)
 		}, true)
 	}
 }
 
-func TestXTLSConn(t *testing.T) {
+func TestConn(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	clientCfg.ServerName = "localhost"
 
