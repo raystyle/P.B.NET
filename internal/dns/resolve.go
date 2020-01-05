@@ -33,10 +33,9 @@ func resolve(
 	method string,
 	address string,
 	domain string,
-	typ string,
 	opts *Options,
 ) ([]string, error) {
-	message := packMessage(types[typ], domain)
+	message := packMessage(types[opts.Type], domain)
 	var err error
 	switch method {
 	case MethodUDP:

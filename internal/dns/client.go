@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 	"project/internal/options"
 	"project/internal/proxy"
+	"project/internal/xnet/xnetutil"
 	"project/internal/xpanic"
 )
 
@@ -201,12 +201,19 @@ func (c *Client) ResolveWithContext(ctx context.Context, domain string, opts *Op
 	if opts == nil {
 		opts = new(Options)
 	}
-
+	// is IP address
+	if ip := net.ParseIP(domain); ip != nil {
+		return []string{ip.String()}, nil
+	}
+	// punycode
+	domain, _ = idna.ToASCII(domain)
+	if !IsDomainName(domain) {
+		return nil, errors.Errorf("invalid domain name: %s", domain)
+	}
 	mode := opts.Mode
 	if mode == "" {
 		mode = defaultMode
 	}
-
 	switch mode {
 	case ModeCustom:
 		switch opts.Type {
@@ -224,71 +231,45 @@ func (c *Client) ResolveWithContext(ctx context.Context, domain string, opts *Op
 	}
 }
 
-func checkNetwork() (enableIPv4, enableIPv6 bool) {
-	interfaces, _ := net.Interfaces()
-	for _, iface := range interfaces {
-		if iface.Flags != net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
-			continue
-		}
-		addrs, _ := iface.Addrs()
-		for _, addr := range addrs {
-			ipAddr := strings.Split(addr.String(), "/")[0]
-			ip := net.ParseIP(ipAddr)
-			ip4 := ip.To4()
-			if ip4 != nil {
-				if ip4.IsGlobalUnicast() {
-					enableIPv4 = true
-				}
-			} else {
-				if ip.To16().IsGlobalUnicast() {
-					enableIPv6 = true
-				}
-			}
-			if enableIPv4 && enableIPv6 {
-				break
-			}
-		}
-	}
-	return
-}
-
 func (c *Client) selectType(ctx context.Context, domain string, opts *Options) ([]string, error) {
-	enableIPv4, enableIPv6 := checkNetwork()
-	// if network is double stack, prefer IPv6
-	if enableIPv4 && enableIPv6 {
+	ipv4Enabled, ipv6Enabled := xnetutil.IPEnabled()
+	// double stack
+	if ipv4Enabled && ipv6Enabled {
 		o := opts.Clone()
 		o.Type = TypeIPv6
-		ipv6, err := c.ResolveWithContext(ctx, domain, o)
+		ipv6, err := c.customResolve(ctx, domain, o)
 		if err != nil && errors.Cause(err) != ErrNoResolveResult { // check options errors
 			return nil, err
 		}
-
-		o = opts.Clone()
 		o.Type = TypeIPv4
-		ipv4, _ := c.ResolveWithContext(ctx, domain, o) // don't need check again
+		ipv4, _ := c.customResolve(ctx, domain, o) // don't need check again
 
-		result := append(ipv6, ipv4...)
+		result := append(ipv6, ipv4...) // prefer IPv6
 		if len(result) != 0 {
 			return result, nil
 		}
 		return nil, errors.WithStack(ErrNoResolveResult)
 	}
 	// IPv4 only
-	if enableIPv4 {
+	if ipv4Enabled {
 		o := opts.Clone()
 		o.Type = TypeIPv4
-		return c.ResolveWithContext(ctx, domain, o)
+		return c.customResolve(ctx, domain, o)
 	}
 	// IPv6 only
-	if enableIPv6 {
+	if ipv6Enabled {
 		o := opts.Clone()
 		o.Type = TypeIPv6
-		return c.ResolveWithContext(ctx, domain, o)
+		return c.customResolve(ctx, domain, o)
 	}
 	return nil, errors.New("network unavailable")
 }
 
-func (c *Client) setProxy(p *proxy.Client, method string, opts *Options) error {
+func (c *Client) setProxy(method string, opts *Options) error {
+	p, err := c.proxyPool.Get(opts.ProxyTag)
+	if err != nil {
+		return err
+	}
 	switch method {
 	case MethodUDP, MethodTCP, MethodDoT:
 		opts.dialContext = p.DialContext
@@ -307,27 +288,6 @@ func (c *Client) setProxy(p *proxy.Client, method string, opts *Options) error {
 }
 
 func (c *Client) customResolve(ctx context.Context, domain string, opts *Options) ([]string, error) {
-	// check domain name is IP
-	if ip := net.ParseIP(domain); ip != nil {
-		switch opts.Type {
-		case TypeIPv4:
-			if ip.To4() != nil {
-				return []string{ip.String()}, nil
-			}
-		case TypeIPv6:
-			if ip.To4() == nil && ip.To16() != nil {
-				return []string{ip.String()}, nil
-			}
-		}
-		return nil, nil
-	}
-
-	// check domain name
-	domain, _ = idna.ToASCII(domain) // punycode
-	if !IsDomainName(domain) {
-		return nil, errors.Errorf("invalid domain name: %s", domain)
-	}
-
 	// query cache
 	if c.isEnableCache() {
 		cache := c.queryCache(domain, opts.Type)
@@ -335,22 +295,15 @@ func (c *Client) customResolve(ctx context.Context, domain string, opts *Options
 			return cache, nil
 		}
 	}
-
-	// set proxy and check method
-	p, err := c.proxyPool.Get(opts.ProxyTag)
-	if err != nil {
-		return nil, err
-	}
-
 	// resolve
 	var result []string
 	if opts.ServerTag != "" { // use selected DNS server
 		if server, ok := c.Servers()[opts.ServerTag]; ok {
-			err = c.setProxy(p, server.Method, opts)
+			err := c.setProxy(server.Method, opts)
 			if err != nil {
 				return nil, err
 			}
-			result, err = resolve(ctx, server.Method, server.Address, domain, opts.Type, opts)
+			result, err = resolve(ctx, server.Method, server.Address, domain, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -362,13 +315,13 @@ func (c *Client) customResolve(ctx context.Context, domain string, opts *Options
 		if method == "" {
 			method = defaultMethod
 		}
-		err = c.setProxy(p, method, opts)
+		err := c.setProxy(method, opts)
 		if err != nil {
 			return nil, err
 		}
 		for _, server := range c.Servers() {
 			if server.Method == method {
-				result, err = resolve(ctx, method, server.Address, domain, opts.Type, opts)
+				result, err = resolve(ctx, method, server.Address, domain, opts)
 				if err == nil {
 					break
 				}

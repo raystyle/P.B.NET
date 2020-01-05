@@ -30,16 +30,16 @@ func testAddDNSServers(t *testing.T, client *Client, filename string) {
 }
 
 func testAddAllDNSServers(t *testing.T, client *Client) {
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		testAddDNSServers(t, client, testIPv4DNS)
 	}
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		testAddDNSServers(t, client, testIPv6DNS)
 	}
 	testAddDNSServers(t, client, testDSDNS)
 }
 
-func TestClient(t *testing.T) {
+func TestClient_Resolve(t *testing.T) {
 	t.Parallel()
 
 	pool, manager := testproxy.PoolAndManager(t)
@@ -72,7 +72,20 @@ func TestClient(t *testing.T) {
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("resolve IPv6", func(t *testing.T) {
+	t.Run("use method DoH", func(t *testing.T) {
+		client := newClient(t)
+
+		opts := &Options{Method: MethodDoH}
+		opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
+		result, err := client.Resolve(testDomain, opts)
+		require.NoError(t, err)
+		require.NotEqual(t, 0, len(result))
+		t.Log("use DoH:", result)
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("resolve type IPv6", func(t *testing.T) {
 		client := newClient(t)
 
 		result, err := client.Resolve(testDomain, &Options{Type: TypeIPv6})
@@ -86,57 +99,47 @@ func TestClient(t *testing.T) {
 	t.Run("resolve punycode", func(t *testing.T) {
 		client := newClient(t)
 
-		result, err := client.Resolve("错的是.世界", &Options{Type: TypeIPv6})
+		result, err := client.Resolve("错的是.世界", nil)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
-		t.Log("resolve IPv6:", result)
+		t.Log("resolve punycode:", result)
 
 		testsuite.IsDestroyed(t, client)
 	})
 
-	t.Run("use DoH", func(t *testing.T) {
-		client := newClient(t)
-
-		opts := &Options{Method: MethodDoH}
-		opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
-		result, err := client.Resolve(testDomain, opts)
-		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
-		t.Log("use DoH:", result)
-
-		testsuite.IsDestroyed(t, client)
-	})
-
-	t.Run("system mode", func(t *testing.T) {
+	t.Run("use system mode", func(t *testing.T) {
 		client := newClient(t)
 
 		opts := &Options{Mode: ModeSystem}
 
-		if testsuite.EnableIPv4() {
+		if testsuite.IPv4Enabled {
 			opts.Type = TypeIPv4
-			result, err := client.TestOption(context.Background(), testDomain, opts)
+			result, err := client.Resolve(testDomain, opts)
 			require.NoError(t, err)
 			require.NotEqual(t, 0, len(result))
+			t.Log("IPv4:", result)
 		}
 
-		if testsuite.EnableIPv6() {
+		if testsuite.IPv6Enabled {
 			opts.Type = TypeIPv6
-			result, err := client.TestOption(context.Background(), testDomain, opts)
+			result, err := client.Resolve(testDomain, opts)
 			require.NoError(t, err)
 			require.NotEqual(t, 0, len(result))
+			t.Log("IPv6:", result)
 		}
 
 		// IPv4 and IPv6
-		if testsuite.EnableIPv4() || testsuite.EnableIPv6() {
+		if testsuite.IPv4Enabled || testsuite.IPv6Enabled {
 			opts.Type = ""
-			result, err := client.TestOption(context.Background(), testDomain, opts)
+			result, err := client.Resolve(testDomain, opts)
 			require.NoError(t, err)
 			require.NotEqual(t, 0, len(result))
+			t.Log("IPv4 & IPv6:", result)
 		}
 
 		// invalid type
 		opts.Type = "foo type"
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.Resolve(testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
@@ -211,7 +214,7 @@ func TestClient_NoResult(t *testing.T) {
 
 	client := NewClient(pool)
 
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		err := client.Add("reachable-ipv4", &Server{
 			Method:  MethodUDP,
 			Address: "1.1.1.1:53",
@@ -219,7 +222,7 @@ func TestClient_NoResult(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		err := client.Add("reachable-ipv6", &Server{
 			Method:  MethodUDP,
 			Address: "[2606:4700:4700::1111]:53",
@@ -277,14 +280,14 @@ func TestClient_TestServers(t *testing.T) {
 		require.Equal(t, 0, len(result))
 
 		// add reachable and skip test
-		if testsuite.EnableIPv4() {
+		if testsuite.IPv4Enabled {
 			err := client.Add("reachable-ipv4", &Server{
 				Method:  MethodUDP,
 				Address: "1.1.1.1:53",
 			})
 			require.NoError(t, err)
 		}
-		if testsuite.EnableIPv6() {
+		if testsuite.IPv6Enabled {
 			err := client.Add("reachable-ipv6", &Server{
 				Method:  MethodUDP,
 				Address: "[2606:4700:4700::1111]:53",
@@ -303,10 +306,10 @@ func TestClient_TestServers(t *testing.T) {
 		require.NotEqual(t, 0, len(result))
 		t.Log(result)
 
-		if testsuite.EnableIPv4() {
+		if testsuite.IPv4Enabled {
 			require.NoError(t, client.Delete("reachable-ipv4"))
 		}
-		if testsuite.EnableIPv6() {
+		if testsuite.IPv6Enabled {
 			require.NoError(t, client.Delete("reachable-ipv6"))
 		}
 
@@ -467,7 +470,7 @@ func TestClient_TestOptions(t *testing.T) {
 }
 
 func TestOptions(t *testing.T) {
-	// DNS Server
+	// load DNS Servers
 	b, err := ioutil.ReadFile("testdata/server.toml")
 	require.NoError(t, err)
 	server := Server{}
@@ -485,7 +488,7 @@ func TestOptions(t *testing.T) {
 		require.Equal(t, td.expected, td.actual)
 	}
 
-	// Resolve Options
+	// resolve options
 	b, err = ioutil.ReadFile("testdata/options.toml")
 	require.NoError(t, err)
 	opts := Options{}
