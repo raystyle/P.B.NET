@@ -55,7 +55,7 @@ func TestBalance(t *testing.T) {
 
 	// test Connect
 	testsuite.InitHTTPServers(t)
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		timeout := balance.Timeout()
 		network, address := balance.Server()
 		conn, err := net.DialTimeout(network, address, timeout)
@@ -65,7 +65,7 @@ func TestBalance(t *testing.T) {
 		require.NoError(t, err)
 		testsuite.ProxyConn(t, pConn)
 	}
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		// remove socks4
 		var clients []*Client
 		for _, client := range groups.Clients() {

@@ -14,7 +14,7 @@ func TestDirect(t *testing.T) {
 
 	d := Direct{}
 
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		const network = "tcp4"
 
 		addr := "127.0.0.1:" + testsuite.HTTPServerPort
@@ -32,7 +32,7 @@ func TestDirect(t *testing.T) {
 		testsuite.ProxyConn(t, conn)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		const network = "tcp6"
 
 		addr := "[::1]:" + testsuite.HTTPServerPort
