@@ -11,7 +11,7 @@ import (
 )
 
 func TestLight(t *testing.T) {
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		listener, err := Listen("tcp4", "localhost:0", 0)
 		require.NoError(t, err)
 		addr := listener.Addr().String()
@@ -20,7 +20,7 @@ func TestLight(t *testing.T) {
 		}, true)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		listener, err := Listen("tcp6", "localhost:0", 0)
 		require.NoError(t, err)
 		addr := listener.Addr().String()
@@ -34,5 +34,10 @@ func TestLightConn(t *testing.T) {
 	server, client := net.Pipe()
 	server = Server(context.Background(), server, 0)
 	client = Client(context.Background(), client, 0)
-	testsuite.Conn(t, server, client, true)
+	testsuite.ConnSC(t, server, client, true)
+
+	server, client = net.Pipe()
+	server = Server(context.Background(), server, 0)
+	client = Client(context.Background(), client, 0)
+	testsuite.ConnCS(t, client, server, true)
 }

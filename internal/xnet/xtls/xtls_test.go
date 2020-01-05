@@ -12,7 +12,7 @@ import (
 
 func TestXTLS(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		listener, err := Listen("tcp4", "localhost:0", serverCfg, 0)
 		require.NoError(t, err)
 		addr := listener.Addr().String()
@@ -21,7 +21,7 @@ func TestXTLS(t *testing.T) {
 		}, true)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		listener, err := Listen("tcp6", "localhost:0", serverCfg, 0)
 		require.NoError(t, err)
 		addr := listener.Addr().String()
@@ -33,11 +33,19 @@ func TestXTLS(t *testing.T) {
 
 func TestXTLSConn(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	clientCfg.ServerName = "localhost"
+
 	server, client := net.Pipe()
 	server = Server(context.Background(), server, serverCfg, 0)
-	clientCfg.ServerName = "localhost"
 	client = Client(context.Background(), client, clientCfg, 0)
-	testsuite.Conn(t, server, client, false)
+	testsuite.ConnSC(t, server, client, false)
+	testsuite.IsDestroyed(t, server)
+	testsuite.IsDestroyed(t, client)
+
+	server, client = net.Pipe()
+	server = Server(context.Background(), server, serverCfg, 0)
+	client = Client(context.Background(), client, clientCfg, 0)
+	testsuite.ConnCS(t, server, client, false)
 	testsuite.IsDestroyed(t, server)
 	testsuite.IsDestroyed(t, client)
 }
