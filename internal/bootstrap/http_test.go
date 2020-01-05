@@ -34,7 +34,7 @@ func testGenerateHTTP(t *testing.T) *HTTP {
 func TestHTTP(t *testing.T) {
 	t.Parallel()
 
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { _ = manager.Close() }()
 	// generate bootstrap nodes info
 	nodes := testGenerateNodes()
@@ -48,7 +48,7 @@ func TestHTTP(t *testing.T) {
 			_, _ = w.Write(nodesData)
 		})
 
-		if testsuite.EnableIPv4() {
+		if testsuite.IPv4Enabled {
 			HTTP := testGenerateHTTP(t)
 			nodesInfo, err := HTTP.Generate(nodes)
 			require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), pool, dnsClient)
+			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 
@@ -84,7 +84,7 @@ func TestHTTP(t *testing.T) {
 			testsuite.IsDestroyed(t, HTTP)
 		}
 
-		if testsuite.EnableIPv6() {
+		if testsuite.IPv6Enabled {
 			HTTP := testGenerateHTTP(t)
 			nodesInfo, err := HTTP.Generate(nodes)
 			require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), pool, dnsClient)
+			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 			resolved, err := HTTP.Resolve()
@@ -134,7 +134,7 @@ func TestHTTP(t *testing.T) {
 		})
 		serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 
-		if testsuite.EnableIPv4() {
+		if testsuite.IPv4Enabled {
 			HTTP := testGenerateHTTP(t)
 			nodesInfo, err := HTTP.Generate(nodes)
 			require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), pool, dnsClient)
+			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 			resolved, err := HTTP.Resolve()
@@ -177,7 +177,7 @@ func TestHTTP(t *testing.T) {
 			testsuite.IsDestroyed(t, HTTP)
 		}
 
-		if testsuite.EnableIPv6() {
+		if testsuite.IPv6Enabled {
 			HTTP := testGenerateHTTP(t)
 			nodesInfo, err := HTTP.Generate(nodes)
 			require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), pool, dnsClient)
+			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 			resolved, err := HTTP.Resolve()
@@ -302,7 +302,7 @@ func TestHTTP_Unmarshal(t *testing.T) {
 func TestHTTP_Resolve(t *testing.T) {
 	t.Parallel()
 
-	dnsClient, pool, manager := testdns.DNSClient(t)
+	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	t.Run("doesn't exist proxy server", func(t *testing.T) {
@@ -312,7 +312,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.ProxyTag = "doesn't exist"
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), pool, dnsClient)
+		HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		nodes, err := HTTP.Resolve()
 		require.Error(t, err)
@@ -325,7 +325,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.DNSOpts.Mode = "foo mode"
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), pool, dnsClient)
+		HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		nodes, err := HTTP.Resolve()
 		require.Error(t, err)
@@ -338,7 +338,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.DNSOpts.Mode = dns.ModeSystem
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), pool, dnsClient)
+		HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		nodes, err := HTTP.Resolve()
 		require.Error(t, err)

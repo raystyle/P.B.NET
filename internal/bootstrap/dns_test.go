@@ -20,7 +20,7 @@ func TestDNS(t *testing.T) {
 	dnsClient, _, manager := testdns.DNSClient(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		nodes := []*Node{{
 			Mode:    xnet.ModeTLS,
 			Network: "tcp",
@@ -50,7 +50,7 @@ func TestDNS(t *testing.T) {
 		testsuite.IsDestroyed(t, DNS)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		nodes := []*Node{{
 			Mode:    xnet.ModeTLS,
 			Network: "tcp",
@@ -128,13 +128,13 @@ func TestDNS_Resolve(t *testing.T) {
            mode = "foo mode"  `)
 	require.NoError(t, DNS.Unmarshal(config))
 
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		nodes, err := DNS.Resolve()
 		require.Error(t, err)
 		require.Nil(t, nodes)
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		nodes, err := DNS.Resolve()
 		require.Error(t, err)
 		require.Nil(t, nodes)
