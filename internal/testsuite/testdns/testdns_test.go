@@ -19,7 +19,7 @@ func TestDNSClient(t *testing.T) {
 
 	const domain = "cloudflare-dns.com"
 
-	if testsuite.EnableIPv4() {
+	if testsuite.IPv4Enabled {
 		opts := &dns.Options{ServerTag: TagGoogleIPv4UDP}
 		result, err := client.Resolve(domain, opts)
 		require.NoError(t, err)
@@ -36,7 +36,7 @@ func TestDNSClient(t *testing.T) {
 
 	}
 
-	if testsuite.EnableIPv6() {
+	if testsuite.IPv6Enabled {
 		opts := &dns.Options{ServerTag: TagCloudflareIPv6UDP}
 		result, err := client.Resolve(domain, opts)
 		require.NoError(t, err)
