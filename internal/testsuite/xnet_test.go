@@ -1,6 +1,7 @@
 package testsuite
 
 import (
+	"context"
 	"net"
 	"testing"
 
@@ -9,20 +10,48 @@ import (
 
 func TestListenerAndDial(t *testing.T) {
 	if IPv4Enabled {
-		l, err := net.Listen("tcp4", "localhost:0")
+		const network = "tcp4"
+		listener, err := net.Listen(network, "127.0.0.1:0")
 		require.NoError(t, err)
-		addr := l.Addr().String()
-		ListenerAndDial(t, l, func() (net.Conn, error) {
-			return net.Dial("tcp4", addr)
+		address := listener.Addr().String()
+		ListenerAndDial(t, listener, func() (net.Conn, error) {
+			return net.Dial(network, address)
 		}, true)
 	}
 
 	if IPv6Enabled {
-		l, err := net.Listen("tcp6", "localhost:0")
+		const network = "tcp6"
+		listener, err := net.Listen(network, "[::1]:0")
 		require.NoError(t, err)
-		addr := l.Addr().String()
-		ListenerAndDial(t, l, func() (net.Conn, error) {
-			return net.Dial("tcp6", addr)
+		address := listener.Addr().String()
+		ListenerAndDial(t, listener, func() (net.Conn, error) {
+			return net.Dial(network, address)
+		}, true)
+	}
+}
+
+func TestListenerAndDialContext(t *testing.T) {
+	if IPv4Enabled {
+		const network = "tcp4"
+		listener, err := net.Listen(network, "127.0.0.1:0")
+		require.NoError(t, err)
+		address := listener.Addr().String()
+		ListenerAndDial(t, listener, func() (net.Conn, error) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			return new(net.Dialer).DialContext(ctx, network, address)
+		}, true)
+	}
+
+	if IPv6Enabled {
+		const network = "tcp6"
+		listener, err := net.Listen(network, "[::1]:0")
+		require.NoError(t, err)
+		address := listener.Addr().String()
+		ListenerAndDial(t, listener, func() (net.Conn, error) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			return new(net.Dialer).DialContext(ctx, network, address)
 		}, true)
 	}
 }
