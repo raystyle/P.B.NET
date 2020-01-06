@@ -48,6 +48,7 @@ func New() *Rand {
 		}()
 	}
 	go func() {
+		defer func() { recover() }()
 		wg.Wait()
 		close(data)
 	}()
