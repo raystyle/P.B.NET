@@ -3,6 +3,7 @@ package quic
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -11,65 +12,77 @@ import (
 )
 
 const (
-	defaultDialTimeout = 30 * time.Second
-	defaultNextProto   = "h3-23" // HTTP/3
+	defaultTimeout   = 30 * time.Second // dial and accept
+	defaultNextProto = "h3-24"          // HTTP/3
 )
+
+// ErrConnClosed is an error about closed
+var ErrConnClosed = errors.New("connection closed")
 
 // Conn implement net.Conn
 type Conn struct {
-	ctx     context.Context
 	session quic.Session
-	send    quic.SendStream
-	receive quic.ReceiveStream
+	stream  quic.Stream
 
 	// must use extra Mutex because SendStream
 	// is not safe for use by multiple goroutines
-	m sync.Mutex
+	//
+	// stream.Close() must not be called concurrently with Write()
+	sendMutex sync.Mutex
+
+	// only server connection need it
+	timeout    time.Duration
+	ctx        context.Context
+	cancel     context.CancelFunc
+	acceptErr  error
+	acceptOnce sync.Once
 }
 
-func newConn(ctx context.Context, session quic.Session) (*Conn, error) {
-	send, err := session.OpenUniStream()
-	if err != nil {
-		return nil, err
-	}
-	return &Conn{
-		ctx:     ctx,
-		session: session,
-		send:    send,
-	}, nil
-}
-
-func (c *Conn) acceptUniStream() error {
-	c.m.Lock()
-	defer c.m.Unlock()
-	if c.receive == nil {
-		receive, err := c.session.AcceptUniStream(c.ctx)
-		if err != nil {
-			return err
+func (c *Conn) acceptStream() error {
+	c.acceptOnce.Do(func() {
+		if c.stream == nil {
+			defer c.cancel()
+			c.stream, c.acceptErr = c.session.AcceptStream(c.ctx)
+			if c.acceptErr != nil {
+				return
+			}
+			_ = c.stream.SetReadDeadline(time.Now().Add(c.timeout))
+			_, c.acceptErr = c.stream.Read(make([]byte, 1))
 		}
-		c.receive = receive
-	}
-	return nil
+	})
+	return c.acceptErr
 }
 
 // Read reads data from the connection
 func (c *Conn) Read(b []byte) (n int, err error) {
-	err = c.acceptUniStream()
+	err = c.acceptStream()
 	if err != nil {
 		return
 	}
-	return c.receive.Read(b)
+	return c.stream.Read(b)
 }
 
 // Write writes data to the connection
 func (c *Conn) Write(b []byte) (n int, err error) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	return c.send.Write(b)
+	err = c.acceptStream()
+	if err != nil {
+		return
+	}
+	c.sendMutex.Lock()
+	defer c.sendMutex.Unlock()
+	return c.stream.Write(b)
 }
 
 // Close is used to close connection
 func (c *Conn) Close() error {
+	c.acceptOnce.Do(func() {
+		c.acceptErr = ErrConnClosed
+	})
+	c.sendMutex.Lock()
+	defer c.sendMutex.Unlock()
+	if c.stream != nil {
+		_ = c.stream.Close()
+	}
 	return c.session.Close()
 }
 
@@ -94,22 +107,28 @@ func (c *Conn) SetDeadline(t time.Time) error {
 
 // SetReadDeadline is used to set read deadline
 func (c *Conn) SetReadDeadline(t time.Time) error {
-	err := c.acceptUniStream()
+	err := c.acceptStream()
 	if err != nil {
 		return err
 	}
-	return c.receive.SetReadDeadline(t)
+	return c.stream.SetReadDeadline(t)
 }
 
 // SetWriteDeadline is used to set write deadline
 func (c *Conn) SetWriteDeadline(t time.Time) error {
-	return c.send.SetWriteDeadline(t)
+	err := c.acceptStream()
+	if err != nil {
+		return err
+	}
+	return c.stream.SetWriteDeadline(t)
 }
 
 type listener struct {
+	quic.Listener
+	timeout time.Duration
+
 	ctx    context.Context
 	cancel context.CancelFunc
-	quic.Listener
 }
 
 func (l *listener) Accept() (net.Conn, error) {
@@ -117,7 +136,12 @@ func (l *listener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newConn(l.ctx, session)
+	conn := Conn{
+		session: session,
+		timeout: l.timeout,
+	}
+	conn.ctx, conn.cancel = context.WithTimeout(l.ctx, l.timeout)
+	return &conn, nil
 }
 
 func (l *listener) Close() error {
@@ -140,6 +164,9 @@ func Listen(
 	if err != nil {
 		return nil, err
 	}
+	if timeout < 1 {
+		timeout = defaultTimeout
+	}
 	quicCfg := quic.Config{
 		HandshakeTimeout: timeout,
 		IdleTimeout:      timeout,
@@ -148,14 +175,17 @@ func Listen(
 	if len(config.NextProtos) == 0 {
 		config.NextProtos = []string{defaultNextProto}
 	}
-	l, err := quic.Listen(conn, config, &quicCfg)
+	quicListener, err := quic.Listen(conn, config, &quicCfg)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
-	ll := listener{Listener: l}
-	ll.ctx, ll.cancel = context.WithCancel(context.Background())
-	return &ll, nil
+	l := listener{
+		Listener: quicListener,
+		timeout:  timeout,
+	}
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	return &l, nil
 }
 
 // Dial is used to dial a connection with context.Background()
@@ -185,7 +215,7 @@ func DialContext(
 		return nil, err
 	}
 	if timeout < 1 {
-		timeout = defaultDialTimeout
+		timeout = defaultTimeout
 	}
 	quicCfg := quic.Config{
 		HandshakeTimeout: timeout,
@@ -195,12 +225,24 @@ func DialContext(
 	if len(config.NextProtos) == 0 {
 		config.NextProtos = []string{defaultNextProto}
 	}
-	dialCtx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	session, err := quic.DialContext(dialCtx, conn, rAddr, address, config, &quicCfg)
+	session, err := quic.DialContext(ctx, conn, rAddr, address, config, &quicCfg)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
-	return newConn(ctx, session)
+	stream, err := session.OpenStreamSync(ctx)
+	if err != nil {
+		_ = session.Close()
+		return nil, err
+	}
+	_ = stream.SetWriteDeadline(time.Now().Add(timeout))
+	_, err = stream.Write([]byte{0})
+	if err != nil {
+		_ = stream.Close()
+		_ = session.Close()
+		return nil, err
+	}
+	return &Conn{session: session, stream: stream}, nil
 }
