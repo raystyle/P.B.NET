@@ -89,11 +89,7 @@ func connAddr(t testing.TB, server, client net.Conn) {
 
 // conn1 will send data firstly
 func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
-	// Deadline()
-	require.NoError(t, conn1.SetDeadline(time.Now().Add(5*time.Second)))
-	require.NoError(t, conn2.SetDeadline(time.Now().Add(5*time.Second)))
-
-	// Read() and Write()
+	// Read(), Write() and SetDeadline()
 	write := func(conn net.Conn) {
 		data := Bytes()
 		_, err := conn.Write(data)
@@ -111,6 +107,7 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		require.NoError(t, conn2.SetDeadline(time.Now().Add(5*time.Second)))
 		read(conn2)
 		write(conn2)
 		wg.Add(2)
@@ -128,6 +125,7 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		require.NoError(t, conn1.SetDeadline(time.Now().Add(5*time.Second)))
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
@@ -168,8 +166,23 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 
 	// Close()
 	if close {
-		require.NoError(t, conn1.Close())
+		wg.Add(8)
+		for i := 0; i < 4; i++ {
+			go func() {
+				defer wg.Done()
+				_, _ = conn1.Write(buf)
+			}()
+			go func() {
+				defer wg.Done()
+				_, _ = conn2.Write(buf)
+			}()
+		}
+
+		// tls.Conn.Close still send data
+		// so conn2 Close first
 		require.NoError(t, conn2.Close())
+		require.NoError(t, conn1.Close())
+		wg.Wait()
 
 		IsDestroyed(t, conn1)
 		IsDestroyed(t, conn2)
