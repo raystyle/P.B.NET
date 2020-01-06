@@ -1,6 +1,7 @@
 package quic
 
 import (
+	"context"
 	"net"
 	"sync"
 	"testing"
@@ -13,20 +14,49 @@ import (
 func TestListenAndDial(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	if testsuite.IPv4Enabled {
-		listener, err := Listen("udp4", "localhost:0", serverCfg, 0)
+		const network = "udp4"
+		listener, err := Listen(network, "127.0.0.1:0", serverCfg, 0)
 		require.NoError(t, err)
 		address := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("udp4", address, clientCfg, 0)
+			return Dial(network, address, clientCfg.Clone(), 0)
 		}, true)
 	}
 
 	if testsuite.IPv6Enabled {
-		listener, err := Listen("udp6", "localhost:0", serverCfg, 0)
+		const network = "udp6"
+		listener, err := Listen(network, "[::1]:0", serverCfg, 0)
 		require.NoError(t, err)
 		address := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("udp6", address, clientCfg, 0)
+			return Dial(network, address, clientCfg.Clone(), 0)
+		}, true)
+	}
+}
+
+func TestListenAndDialContext(t *testing.T) {
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	if testsuite.IPv4Enabled {
+		const network = "udp4"
+		listener, err := Listen(network, "127.0.0.1:0", serverCfg, 0)
+		require.NoError(t, err)
+		address := listener.Addr().String()
+		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			return DialContext(ctx, network, address, clientCfg.Clone(), 0)
+		}, true)
+	}
+
+	if testsuite.IPv6Enabled {
+		const network = "udp6"
+		listener, err := Listen(network, "[::1]:0", serverCfg, 0)
+		require.NoError(t, err)
+		address := listener.Addr().String()
+		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			return DialContext(ctx, network, address, clientCfg.Clone(), 0)
 		}, true)
 	}
 }
