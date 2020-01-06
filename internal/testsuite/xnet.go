@@ -12,9 +12,11 @@ import (
 )
 
 // ListenerAndDial is used to test net.Listener and Dial
-func ListenerAndDial(t testing.TB, l net.Listener, d func() (net.Conn, error), close bool) {
+func ListenerAndDial(t testing.TB, l net.Listener, dial func() (net.Conn, error), close bool) {
 	wg := sync.WaitGroup{}
+	t.Log("ConnSC")
 	for i := 0; i < 3; i++ {
+		t.Logf("%d\n", i)
 		var server net.Conn
 		wg.Add(1)
 		go func() {
@@ -23,14 +25,14 @@ func ListenerAndDial(t testing.TB, l net.Listener, d func() (net.Conn, error), c
 			server, err = l.Accept()
 			require.NoError(t, err)
 		}()
-		client, err := d()
+		client, err := dial()
 		require.NoError(t, err)
 		wg.Wait()
 		ConnSC(t, server, client, close)
-
-		t.Log("") // new line for Conn
 	}
+	t.Log("ConnCS")
 	for i := 0; i < 3; i++ {
+		t.Logf("%d\n", i)
 		var server net.Conn
 		wg.Add(1)
 		go func() {
@@ -39,12 +41,10 @@ func ListenerAndDial(t testing.TB, l net.Listener, d func() (net.Conn, error), c
 			server, err = l.Accept()
 			require.NoError(t, err)
 		}()
-		client, err := d()
+		client, err := dial()
 		require.NoError(t, err)
 		wg.Wait()
 		ConnCS(t, client, server, close)
-
-		t.Log("") // new line for Conn
 	}
 	require.NoError(t, l.Close())
 	IsDestroyed(t, l)
@@ -103,7 +103,6 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 		require.Equal(t, Bytes(), data)
 	}
 	wg := sync.WaitGroup{}
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -126,7 +125,7 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	go func() {
 		defer wg.Done()
 		require.NoError(t, conn1.SetDeadline(time.Now().Add(5*time.Second)))
-		wg.Add(2)
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			write(conn1)
@@ -134,6 +133,7 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 		read(conn1)
 		read(conn1)
 		read(conn1)
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			write(conn1)
