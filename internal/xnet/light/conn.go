@@ -18,34 +18,26 @@ type Conn struct {
 	isClient         bool
 	handshakeTimeout time.Duration
 	handshakeErr     error
-	handshakeM       sync.Mutex
 	handshakeOnce    sync.Once
 	crypto           *crypto
+	closeOnce        sync.Once
 }
 
 // Handshake is used to handshake with client or server
 func (c *Conn) Handshake() error {
-	c.handshakeM.Lock()
-	defer c.handshakeM.Unlock()
-	if c.handshakeErr != nil {
-		return c.handshakeErr
-	}
 	c.handshakeOnce.Do(func() {
 		if c.handshakeTimeout < 1 {
 			c.handshakeTimeout = defaultHandshakeTimeout
 		}
 		// interrupt
-		errChan := make(chan error, 1)
 		wg := sync.WaitGroup{}
+		errChan := make(chan error, 1)
 		done := make(chan struct{})
-		defer func() {
-			close(done)
-			wg.Wait()
-		}()
 		wg.Add(1)
 		go func() {
 			defer func() {
 				recover()
+				close(errChan)
 				wg.Done()
 			}()
 			timer := time.NewTimer(c.handshakeTimeout)
@@ -54,11 +46,15 @@ func (c *Conn) Handshake() error {
 			case <-done:
 			case <-timer.C:
 				errChan <- errors.New("handshake timeout")
-				_ = c.Conn.Close()
+				_ = c.Close()
 			case <-c.ctx.Done():
 				errChan <- c.ctx.Err()
-				_ = c.Conn.Close()
+				_ = c.Close()
 			}
+		}()
+		defer func() {
+			close(done)
+			wg.Wait()
 		}()
 		if c.isClient {
 			c.handshakeErr = c.clientHandshake()
@@ -84,7 +80,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
-	c.crypto.decrypt(b)
+	c.crypto.Decrypt(b)
 	return n, nil
 }
 
@@ -94,5 +90,14 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
-	return c.Conn.Write(c.crypto.encrypt(b))
+	return c.Conn.Write(c.crypto.Encrypt(b))
+}
+
+// Close is used to close the connection
+func (c *Conn) Close() error {
+	var err error
+	c.closeOnce.Do(func() {
+		err = c.Conn.Close()
+	})
+	return err
 }
