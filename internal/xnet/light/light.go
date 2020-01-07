@@ -82,11 +82,16 @@ func DialContext(
 	if dialContext == nil {
 		dialContext = new(net.Dialer).DialContext
 	}
-	dialCtx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	conn, err := dialContext(dialCtx, network, address)
+	conn, err := dialContext(ctx, network, address)
 	if err != nil {
 		return nil, err
 	}
-	return Client(ctx, conn, timeout), nil
+	client := Client(ctx, conn, timeout)
+	err = client.Handshake()
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }

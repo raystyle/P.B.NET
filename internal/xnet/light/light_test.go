@@ -10,34 +10,71 @@ import (
 	"project/internal/testsuite"
 )
 
+// prevent block in Dial()
+type tListener struct {
+	net.Listener
+}
+
+func (l *tListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	err = conn.(*Conn).Handshake()
+	if err != nil {
+		return nil, err
+	}
+	return conn, err
+}
+
 func TestListenAndDial(t *testing.T) {
 	if testsuite.IPv4Enabled {
-		listener, err := Listen("tcp4", "localhost:0", 0)
+		const network = "tcp4"
+		listener, err := Listen(network, "127.0.0.1:0", 0)
 		require.NoError(t, err)
+		listener = &tListener{Listener: listener}
 		address := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("tcp4", address, 0, nil)
+			return Dial(network, address, 0, nil)
 		}, true)
 	}
 
 	if testsuite.IPv6Enabled {
-		listener, err := Listen("tcp6", "localhost:0", 0)
+		const network = "tcp6"
+		listener, err := Listen(network, "[::1]:0", 0)
 		require.NoError(t, err)
+		listener = &tListener{Listener: listener}
 		address := listener.Addr().String()
 		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return Dial("tcp6", address, 0, nil)
+			return Dial(network, address, 0, nil)
 		}, true)
 	}
 }
 
-func TestConn(t *testing.T) {
-	server, client := net.Pipe()
-	server = Server(context.Background(), server, 0)
-	client = Client(context.Background(), client, 0)
-	testsuite.ConnSC(t, server, client, true)
+func TestListenAndDialContext(t *testing.T) {
+	if testsuite.IPv4Enabled {
+		const network = "tcp4"
+		listener, err := Listen(network, "127.0.0.1:0", 0)
+		require.NoError(t, err)
+		listener = &tListener{Listener: listener}
+		address := listener.Addr().String()
+		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			return DialContext(ctx, network, address, 0, nil)
+		}, true)
+	}
 
-	server, client = net.Pipe()
-	server = Server(context.Background(), server, 0)
-	client = Client(context.Background(), client, 0)
-	testsuite.ConnCS(t, client, server, true)
+	if testsuite.IPv6Enabled {
+		const network = "tcp6"
+		listener, err := Listen(network, "[::1]:0", 0)
+		require.NoError(t, err)
+		listener = &tListener{Listener: listener}
+		address := listener.Addr().String()
+		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			return DialContext(ctx, network, address, 0, nil)
+		}, true)
+	}
 }
