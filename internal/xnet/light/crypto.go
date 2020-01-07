@@ -8,7 +8,7 @@ import (
 // 1 for decrypt
 type crypto [2][256]byte
 
-func (c *crypto) encrypt(plainData []byte) []byte {
+func (c *crypto) Encrypt(plainData []byte) []byte {
 	l := len(plainData)
 	cipherData := make([]byte, l)
 	for i := 0; i < len(plainData); i++ {
@@ -17,7 +17,7 @@ func (c *crypto) encrypt(plainData []byte) []byte {
 	return cipherData
 }
 
-func (c *crypto) decrypt(cipherData []byte) {
+func (c *crypto) Decrypt(cipherData []byte) {
 	for i := 0; i < len(cipherData); i++ {
 		cipherData[i] = c[1][cipherData[i]]
 	}
