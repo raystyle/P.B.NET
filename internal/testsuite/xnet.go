@@ -11,6 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// some server side connection must Handshake(),
+// otherwise Dial() will block
+type handshake interface {
+	Handshake() error
+}
+
 // ListenerAndDial is used to test net.Listener and Dial
 func ListenerAndDial(t testing.TB, l net.Listener, dial func() (net.Conn, error), close bool) {
 	wg := sync.WaitGroup{}
@@ -24,6 +30,9 @@ func ListenerAndDial(t testing.TB, l net.Listener, dial func() (net.Conn, error)
 			var err error
 			server, err = l.Accept()
 			require.NoError(t, err)
+			if s, ok := server.(handshake); ok {
+				require.NoError(t, s.Handshake())
+			}
 		}()
 		client, err := dial()
 		require.NoError(t, err)
@@ -40,6 +49,9 @@ func ListenerAndDial(t testing.TB, l net.Listener, dial func() (net.Conn, error)
 			var err error
 			server, err = l.Accept()
 			require.NoError(t, err)
+			if s, ok := server.(handshake); ok {
+				require.NoError(t, s.Handshake())
+			}
 		}()
 		client, err := dial()
 		require.NoError(t, err)

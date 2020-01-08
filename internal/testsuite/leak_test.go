@@ -30,6 +30,7 @@ func TestGoRoutineMark_Leak(t *testing.T) {
 }
 
 func TestMemoryMark(t *testing.T) {
+	t.Skip()
 	mm := MarkMemory(t)
 
 	asd := make([]byte, 1024)
@@ -42,6 +43,7 @@ func TestMemoryMark(t *testing.T) {
 }
 
 func TestMemoryMark_Leak(t *testing.T) {
+	t.Skip()
 	mm := MarkMemory(t)
 	defer mm.Compare()
 

@@ -9,54 +9,53 @@ import (
 )
 
 func TestListenerAndDial(t *testing.T) {
-	if IPv4Enabled {
-		const network = "tcp4"
-		listener, err := net.Listen(network, "127.0.0.1:0")
-		require.NoError(t, err)
-		address := listener.Addr().String()
-		ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return net.Dial(network, address)
-		}, true)
-	}
+	gm := MarkGoRoutines(t)
+	defer gm.Compare()
 
-	if IPv6Enabled {
-		const network = "tcp6"
-		listener, err := net.Listen(network, "[::1]:0")
-		require.NoError(t, err)
-		address := listener.Addr().String()
-		ListenerAndDial(t, listener, func() (net.Conn, error) {
-			return net.Dial(network, address)
-		}, true)
+	if IPv4Enabled {
+		testListenerAndDial(t, "tcp4")
 	}
+	if IPv6Enabled {
+		testListenerAndDial(t, "tcp6")
+	}
+}
+
+func testListenerAndDial(t *testing.T, network string) {
+	listener, err := net.Listen(network, "localhost:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	ListenerAndDial(t, listener, func() (net.Conn, error) {
+		return net.Dial(network, address)
+	}, true)
 }
 
 func TestListenerAndDialContext(t *testing.T) {
-	if IPv4Enabled {
-		const network = "tcp4"
-		listener, err := net.Listen(network, "127.0.0.1:0")
-		require.NoError(t, err)
-		address := listener.Addr().String()
-		ListenerAndDial(t, listener, func() (net.Conn, error) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			return new(net.Dialer).DialContext(ctx, network, address)
-		}, true)
-	}
+	gm := MarkGoRoutines(t)
+	defer gm.Compare()
 
+	if IPv4Enabled {
+		testListenerAndDialContext(t, "tcp4")
+	}
 	if IPv6Enabled {
-		const network = "tcp6"
-		listener, err := net.Listen(network, "[::1]:0")
-		require.NoError(t, err)
-		address := listener.Addr().String()
-		ListenerAndDial(t, listener, func() (net.Conn, error) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			return new(net.Dialer).DialContext(ctx, network, address)
-		}, true)
+		testListenerAndDialContext(t, "tcp6")
 	}
 }
 
+func testListenerAndDialContext(t *testing.T, network string) {
+	listener, err := net.Listen(network, "localhost:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	ListenerAndDial(t, listener, func() (net.Conn, error) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		return new(net.Dialer).DialContext(ctx, network, address)
+	}, true)
+}
+
 func TestConn(t *testing.T) {
+	gm := MarkGoRoutines(t)
+	defer gm.Compare()
+
 	server, client := net.Pipe()
 	ConnSC(t, server, client, true)
 	server, client = net.Pipe()
