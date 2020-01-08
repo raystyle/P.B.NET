@@ -64,6 +64,16 @@ func DialContext(
 	timeout time.Duration,
 	dialContext func(context.Context, string, string) (net.Conn, error),
 ) (*Conn, error) {
+	if config.ServerName == "" {
+		colonPos := strings.LastIndex(address, ":")
+		if colonPos == -1 {
+			return nil, errors.New("missing port in address")
+		}
+		hostname := address[:colonPos]
+		c := config.Clone()
+		c.ServerName = hostname
+		config = c
+	}
 	if timeout < 1 {
 		timeout = defaultDialTimeout
 	}
@@ -75,16 +85,6 @@ func DialContext(
 	rawConn, err := dialContext(ctx, network, address)
 	if err != nil {
 		return nil, err
-	}
-	if config.ServerName == "" {
-		colonPos := strings.LastIndex(address, ":")
-		if colonPos == -1 {
-			return nil, errors.New("missing port in address")
-		}
-		hostname := address[:colonPos]
-		c := config.Clone()
-		c.ServerName = hostname
-		config = c
 	}
 	client := light.Client(ctx, tls.Client(rawConn, config), timeout)
 	err = client.Handshake()
