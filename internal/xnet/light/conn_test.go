@@ -3,24 +3,39 @@ package light
 import (
 	"context"
 	"net"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite"
 )
 
-func TestConn(t *testing.T) {
+func TestConnWithBackground(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
+	testConnWithBackground(t, testsuite.ConnSC)
+	testConnWithBackground(t, testsuite.ConnCS)
+}
+
+func testConnWithBackground(t *testing.T, f func(testing.TB, net.Conn, net.Conn, bool)) {
 	server, client := net.Pipe()
 	server = Server(context.Background(), server, 0)
 	client = Client(context.Background(), client, 0)
-	testsuite.ConnSC(t, server, client, true)
-
-	server, client = net.Pipe()
-	server = Server(context.Background(), server, 0)
-	client = Client(context.Background(), client, 0)
-	testsuite.ConnCS(t, client, server, true)
+	f(t, server, client, true)
 }
 
-func TestConnSCWithContext(t *testing.T) {
+func TestConnWithCancel(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
+	testConnWithCancel(t, testsuite.ConnSC)
+	testConnWithCancel(t, testsuite.ConnCS)
+}
+
+func testConnWithCancel(t *testing.T, f func(testing.TB, net.Conn, net.Conn, bool)) {
 	server, client := net.Pipe()
 	sCtx, sCancel := context.WithCancel(context.Background())
 	defer sCancel()
@@ -28,10 +43,31 @@ func TestConnSCWithContext(t *testing.T) {
 	cCtx, cCancel := context.WithCancel(context.Background())
 	defer cCancel()
 	client = Client(cCtx, client, 0)
-	testsuite.ConnSC(t, server, client, true)
+	f(t, server, client, true)
 }
 
-func TestConnCSWithContext(t *testing.T) {
+func TestConn_Handshake_Timeout(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
+	server, client := net.Pipe()
+	sCtx, sCancel := context.WithCancel(context.Background())
+	defer sCancel()
+	server = Server(sCtx, server, time.Second)
+	cCtx, cCancel := context.WithCancel(context.Background())
+	defer cCancel()
+	client = Client(cCtx, client, time.Second)
+
+	_, err := client.Read(make([]byte, 1))
+	require.Error(t, err)
+	_, err = server.Write(make([]byte, 1))
+	require.Error(t, err)
+}
+
+func TestConn_Handshake_Cancel(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
 	server, client := net.Pipe()
 	sCtx, sCancel := context.WithCancel(context.Background())
 	defer sCancel()
@@ -39,5 +75,16 @@ func TestConnCSWithContext(t *testing.T) {
 	cCtx, cCancel := context.WithCancel(context.Background())
 	defer cCancel()
 	client = Client(cCtx, client, 0)
-	testsuite.ConnCS(t, client, server, true)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sCancel()
+		cCancel()
+	}()
+	_, err := client.Read(make([]byte, 1))
+	require.Error(t, err)
+	_, err = server.Write(make([]byte, 1))
+	require.Error(t, err)
 }
