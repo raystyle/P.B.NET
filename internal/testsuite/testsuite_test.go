@@ -35,6 +35,9 @@ func TestIsDestroyed(t *testing.T) {
 }
 
 func TestHTTPServer(t *testing.T) {
+	gm := MarkGoRoutines(t)
+	defer gm.Compare()
+
 	// http
 	httpServer := http.Server{Addr: "localhost:0"}
 	port := RunHTTPServer(t, "tcp", &httpServer)
