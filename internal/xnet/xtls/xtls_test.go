@@ -127,14 +127,13 @@ func TestDialContext_Cancel(t *testing.T) {
 	const network = "tcp"
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	clientCfg.ServerName = "localhost"
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	listener, err := Listen(network, "localhost:0", serverCfg, 0)
 	require.NoError(t, err)
 	address := listener.Addr().String()
 
-	// cancel
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -142,7 +141,6 @@ func TestDialContext_Cancel(t *testing.T) {
 		time.Sleep(time.Second)
 		cancel()
 	}()
-
 	_, err = DialContext(ctx, network, address, clientCfg, 0, nil)
 	require.Error(t, err)
 
