@@ -80,11 +80,15 @@ func TestConn_Handshake_Cancel(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		time.Sleep(100 * time.Millisecond)
 		sCancel()
 		cCancel()
 	}()
+
 	_, err := client.Read(make([]byte, 1))
 	require.Error(t, err)
 	_, err = server.Write(make([]byte, 1))
 	require.Error(t, err)
+
+	wg.Wait()
 }
