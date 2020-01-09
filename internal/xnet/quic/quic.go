@@ -21,6 +21,11 @@ var ErrConnClosed = errors.New("connection closed")
 
 // Conn implement net.Conn
 type Conn struct {
+	// must close rawConn manually to prevent goroutine leak
+	// in package github.com/lucas-clemente/quic-go
+	// go m.listen() in newPacketHandlerMap()
+	rawConn net.PacketConn
+
 	session quic.Session
 	stream  quic.Stream
 
@@ -46,6 +51,7 @@ func (c *Conn) acceptStream() error {
 			if c.acceptErr != nil {
 				return
 			}
+			// read data for handshake, prevent block
 			_ = c.stream.SetReadDeadline(time.Now().Add(c.timeout))
 			_, c.acceptErr = c.stream.Read(make([]byte, 1))
 		}
@@ -83,7 +89,11 @@ func (c *Conn) Close() error {
 	if c.stream != nil {
 		_ = c.stream.Close()
 	}
-	return c.session.Close()
+	_ = c.session.Close()
+	if c.rawConn != nil {
+		return c.rawConn.Close()
+	}
+	return nil
 }
 
 // LocalAddr is used to get local address
@@ -124,6 +134,7 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 }
 
 type listener struct {
+	rawConn net.PacketConn // see Conn
 	quic.Listener
 	timeout time.Duration
 
@@ -146,7 +157,8 @@ func (l *listener) Accept() (net.Conn, error) {
 
 func (l *listener) Close() error {
 	l.cancel()
-	return l.Listener.Close()
+	_ = l.Listener.Close()
+	return l.rawConn.Close()
 }
 
 // Listen is used to create a listener
@@ -180,12 +192,13 @@ func Listen(
 		_ = conn.Close()
 		return nil, err
 	}
-	l := listener{
+	listener := listener{
+		rawConn:  conn,
 		Listener: quicListener,
 		timeout:  timeout,
 	}
-	l.ctx, l.cancel = context.WithCancel(context.Background())
-	return &l, nil
+	listener.ctx, listener.cancel = context.WithCancel(context.Background())
+	return &listener, nil
 }
 
 // Dial is used to dial a connection with context.Background()
@@ -214,6 +227,12 @@ func DialContext(
 	if err != nil {
 		return nil, err
 	}
+	var success bool
+	defer func() {
+		if !success {
+			_ = conn.Close()
+		}
+	}()
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
@@ -232,17 +251,26 @@ func DialContext(
 		_ = conn.Close()
 		return nil, err
 	}
+	defer func() {
+		if !success {
+			_ = session.Close()
+		}
+	}()
 	stream, err := session.OpenStreamSync(ctx)
 	if err != nil {
-		_ = session.Close()
 		return nil, err
 	}
+	defer func() {
+		if !success {
+			_ = stream.Close()
+		}
+	}()
+	// write data for handshake, prevent block
 	_ = stream.SetWriteDeadline(time.Now().Add(timeout))
 	_, err = stream.Write([]byte{0})
 	if err != nil {
-		_ = stream.Close()
-		_ = session.Close()
 		return nil, err
 	}
-	return &Conn{session: session, stream: stream}, nil
+	success = true
+	return &Conn{rawConn: conn, session: session, stream: stream}, nil
 }
