@@ -14,9 +14,9 @@ import (
 
 // supported modes
 const (
-	ModeTLS   = "tls"
 	ModeQUIC  = "quic"
 	ModeLight = "light"
+	ModeTLS   = "tls"
 )
 
 // UnknownModeError is an error of the mode
@@ -51,12 +51,6 @@ func CheckModeNetwork(mode string, network string) error {
 		return ErrEmptyNetwork
 	}
 	switch mode {
-	case ModeTLS:
-		switch network {
-		case "tcp", "tcp4", "tcp6":
-		default:
-			return &MismatchedModeNetwork{mode: mode, network: network}
-		}
 	case ModeQUIC:
 		switch network {
 		case "udp", "udp4", "udp6":
@@ -64,6 +58,12 @@ func CheckModeNetwork(mode string, network string) error {
 			return &MismatchedModeNetwork{mode: mode, network: network}
 		}
 	case ModeLight:
+		switch network {
+		case "tcp", "tcp4", "tcp6":
+		default:
+			return &MismatchedModeNetwork{mode: mode, network: network}
+		}
+	case ModeTLS:
 		switch network {
 		case "tcp", "tcp4", "tcp6":
 		default:
@@ -90,12 +90,6 @@ type Config struct {
 // Listen is used to listen a listener
 func Listen(mode string, cfg *Config) (net.Listener, error) {
 	switch mode {
-	case ModeTLS:
-		err := CheckModeNetwork(ModeTLS, cfg.Network)
-		if err != nil {
-			return nil, err
-		}
-		return xtls.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
 	case ModeQUIC:
 		err := CheckModeNetwork(ModeQUIC, cfg.Network)
 		if err != nil {
@@ -108,6 +102,12 @@ func Listen(mode string, cfg *Config) (net.Listener, error) {
 			return nil, err
 		}
 		return light.Listen(cfg.Network, cfg.Address, cfg.Timeout)
+	case ModeTLS:
+		err := CheckModeNetwork(ModeTLS, cfg.Network)
+		if err != nil {
+			return nil, err
+		}
+		return xtls.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
 	default:
 		return nil, UnknownModeError(mode)
 	}
@@ -121,19 +121,6 @@ func Dial(mode string, config *Config) (net.Conn, error) {
 // DialContext is used to dial with context
 func DialContext(ctx context.Context, mode string, cfg *Config) (net.Conn, error) {
 	switch mode {
-	case ModeTLS:
-		err := CheckModeNetwork(ModeTLS, cfg.Network)
-		if err != nil {
-			return nil, err
-		}
-		return xtls.DialContext(
-			ctx,
-			cfg.Network,
-			cfg.Address,
-			cfg.TLSConfig,
-			cfg.Timeout,
-			cfg.Dialer,
-		)
 	case ModeQUIC:
 		err := CheckModeNetwork(ModeQUIC, cfg.Network)
 		if err != nil {
@@ -155,6 +142,19 @@ func DialContext(ctx context.Context, mode string, cfg *Config) (net.Conn, error
 			ctx,
 			cfg.Network,
 			cfg.Address,
+			cfg.Timeout,
+			cfg.Dialer,
+		)
+	case ModeTLS:
+		err := CheckModeNetwork(ModeTLS, cfg.Network)
+		if err != nil {
+			return nil, err
+		}
+		return xtls.DialContext(
+			ctx,
+			cfg.Network,
+			cfg.Address,
+			cfg.TLSConfig,
 			cfg.Timeout,
 			cfg.Dialer,
 		)

@@ -10,19 +10,19 @@ import (
 )
 
 func TestCheckModeNetwork(t *testing.T) {
-	err := CheckModeNetwork(ModeTLS, "tcp")
-	require.NoError(t, err)
-	err = CheckModeNetwork(ModeQUIC, "udp")
+	err := CheckModeNetwork(ModeQUIC, "udp")
 	require.NoError(t, err)
 	err = CheckModeNetwork(ModeLight, "tcp")
 	require.NoError(t, err)
+	err = CheckModeNetwork(ModeTLS, "tcp")
+	require.NoError(t, err)
 
-	err = CheckModeNetwork(ModeTLS, "udp")
-	require.EqualError(t, err, "mismatched mode and network: tls udp")
 	err = CheckModeNetwork(ModeQUIC, "tcp")
 	require.EqualError(t, err, "mismatched mode and network: quic tcp")
 	err = CheckModeNetwork(ModeLight, "udp")
 	require.EqualError(t, err, "mismatched mode and network: light udp")
+	err = CheckModeNetwork(ModeTLS, "udp")
+	require.EqualError(t, err, "mismatched mode and network: tls udp")
 
 	err = CheckModeNetwork("", "")
 	require.Equal(t, ErrEmptyMode, err)
@@ -33,136 +33,115 @@ func TestCheckModeNetwork(t *testing.T) {
 	require.EqualError(t, err, "unknown mode: foo mode")
 }
 
-func TestListenAndDial_TLS(t *testing.T) {
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	if testsuite.IPv4Enabled {
-		sCfg := &Config{
-			Network:   "tcp4",
-			Address:   "localhost:0",
-			TLSConfig: serverCfg,
-		}
-		listener, err := Listen(ModeTLS, sCfg)
-		require.NoError(t, err)
-		addr := listener.Addr().String()
-		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			cCfg := &Config{
-				Network:   "tcp4",
-				Address:   addr,
-				TLSConfig: clientCfg,
-			}
-			return Dial(ModeTLS, cCfg)
-		}, true)
-	}
+func TestListenAndDial_QUIC(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
 
+	if testsuite.IPv4Enabled {
+		testListenAndDialQUIC(t, "udp4")
+	}
 	if testsuite.IPv6Enabled {
-		sCfg := &Config{
-			Network:   "tcp6",
-			Address:   "localhost:0",
-			TLSConfig: serverCfg,
-		}
-		listener, err := Listen(ModeTLS, sCfg)
-		require.NoError(t, err)
-		addr := listener.Addr().String()
-		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			cCfg := &Config{
-				Network:   "tcp6",
-				Address:   addr,
-				TLSConfig: clientCfg,
-			}
-			return Dial(ModeTLS, cCfg)
-		}, true)
+		testListenAndDialQUIC(t, "udp6")
 	}
 }
 
-func TestListenAndDial_QUIC(t *testing.T) {
+func testListenAndDialQUIC(t *testing.T, network string) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	if testsuite.IPv4Enabled {
-		sCfg := &Config{
-			Network:   "udp4",
-			Address:   "localhost:0",
-			TLSConfig: serverCfg,
-		}
-		listener, err := Listen(ModeQUIC, sCfg)
-		require.NoError(t, err)
-		addr := listener.Addr().String()
-		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			cCfg := &Config{
-				Network:   "udp4",
-				Address:   addr,
-				TLSConfig: clientCfg,
-			}
-			return Dial(ModeQUIC, cCfg)
-		}, true)
-	}
+	clientCfg.ServerName = "localhost"
 
-	if testsuite.IPv6Enabled {
-		sCfg := &Config{
-			Network:   "udp6",
-			Address:   "localhost:0",
-			TLSConfig: serverCfg,
-		}
-		listener, err := Listen(ModeQUIC, sCfg)
-		require.NoError(t, err)
-		addr := listener.Addr().String()
-		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			cCfg := &Config{
-				Network:   "udp6",
-				Address:   addr,
-				TLSConfig: clientCfg,
-			}
-			return Dial(ModeQUIC, cCfg)
-		}, true)
+	cfg := &Config{
+		Network:   network,
+		Address:   "localhost:0",
+		TLSConfig: serverCfg,
 	}
+	listener, err := Listen(ModeQUIC, cfg)
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+		cfg := &Config{
+			Network:   network,
+			Address:   address,
+			TLSConfig: clientCfg,
+		}
+		return Dial(ModeQUIC, cfg)
+	}, true)
 }
 
 func TestListenAndDial_Light(t *testing.T) {
-	if testsuite.IPv4Enabled {
-		sCfg := &Config{
-			Network: "tcp4",
-			Address: "localhost:0",
-		}
-		listener, err := Listen(ModeLight, sCfg)
-		require.NoError(t, err)
-		addr := listener.Addr().String()
-		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			cCfg := &Config{
-				Network: "tcp4",
-				Address: addr,
-			}
-			return Dial(ModeLight, cCfg)
-		}, true)
-	}
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
 
+	if testsuite.IPv4Enabled {
+		testListenAndDialLight(t, "tcp4")
+	}
 	if testsuite.IPv6Enabled {
-		sCfg := &Config{
-			Network: "tcp6",
-			Address: "localhost:0",
-		}
-		listener, err := Listen(ModeLight, sCfg)
-		require.NoError(t, err)
-		addr := listener.Addr().String()
-		testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
-			cCfg := &Config{
-				Network: "tcp6",
-				Address: addr,
-			}
-			return Dial(ModeLight, cCfg)
-		}, true)
+		testListenAndDialLight(t, "tcp6")
 	}
 }
 
-func TestListenAndDial_Failed(t *testing.T) {
-	// listen
-	listener, err := Listen(ModeTLS, &Config{Network: "udp"})
-	require.EqualError(t, err, "mismatched mode and network: tls udp")
-	require.Nil(t, listener)
+func testListenAndDialLight(t *testing.T, network string) {
+	cfg := &Config{
+		Network: network,
+		Address: "localhost:0",
+	}
+	listener, err := Listen(ModeLight, cfg)
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+		cfg := &Config{
+			Network: network,
+			Address: address,
+		}
+		return Dial(ModeLight, cfg)
+	}, true)
+}
 
-	listener, err = Listen(ModeQUIC, &Config{Network: "tcp"})
+func TestListenAndDial_TLS(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
+	if testsuite.IPv4Enabled {
+		testListenAndDialTLS(t, "tcp4")
+	}
+	if testsuite.IPv6Enabled {
+		testListenAndDialTLS(t, "tcp6")
+	}
+}
+
+func testListenAndDialTLS(t *testing.T, network string) {
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	clientCfg.ServerName = "localhost"
+
+	cfg := &Config{
+		Network:   network,
+		Address:   "localhost:0",
+		TLSConfig: serverCfg,
+	}
+	listener, err := Listen(ModeTLS, cfg)
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+		cfg := &Config{
+			Network:   network,
+			Address:   address,
+			TLSConfig: clientCfg,
+		}
+		return Dial(ModeTLS, cfg)
+	}, true)
+}
+
+func TestFailedToListenAndDial(t *testing.T) {
+	// listen
+	listener, err := Listen(ModeQUIC, &Config{Network: "tcp"})
 	require.EqualError(t, err, "mismatched mode and network: quic tcp")
 	require.Nil(t, listener)
 
 	listener, err = Listen(ModeLight, &Config{Network: "udp"})
 	require.EqualError(t, err, "mismatched mode and network: light udp")
+	require.Nil(t, listener)
+
+	listener, err = Listen(ModeTLS, &Config{Network: "udp"})
+	require.EqualError(t, err, "mismatched mode and network: tls udp")
 	require.Nil(t, listener)
 
 	// listen with unknown mode
@@ -171,16 +150,16 @@ func TestListenAndDial_Failed(t *testing.T) {
 	require.Nil(t, listener)
 
 	// dial
-	conn, err := Dial(ModeTLS, &Config{Network: "udp"})
-	require.EqualError(t, err, "mismatched mode and network: tls udp")
-	require.Nil(t, conn)
-
-	conn, err = Dial(ModeQUIC, &Config{Network: "tcp"})
+	conn, err := Dial(ModeQUIC, &Config{Network: "tcp"})
 	require.EqualError(t, err, "mismatched mode and network: quic tcp")
 	require.Nil(t, conn)
 
 	conn, err = Dial(ModeLight, &Config{Network: "udp"})
 	require.EqualError(t, err, "mismatched mode and network: light udp")
+	require.Nil(t, conn)
+
+	conn, err = Dial(ModeTLS, &Config{Network: "udp"})
+	require.EqualError(t, err, "mismatched mode and network: tls udp")
 	require.Nil(t, conn)
 
 	// dial with unknown mode
