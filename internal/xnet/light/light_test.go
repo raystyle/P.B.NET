@@ -70,7 +70,12 @@ func TestDialContext_Timeout(t *testing.T) {
 	// handshake timeout
 	listener, err := Listen(network, "localhost:0", 0)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, listener.Close())
+		testsuite.IsDestroyed(t, listener)
+	}()
 	address = listener.Addr().String()
+
 	_, err = Dial(network, address, time.Second, nil)
 	require.Error(t, err)
 }
@@ -83,6 +88,10 @@ func TestDialContext_Cancel(t *testing.T) {
 
 	listener, err := Listen(network, "localhost:0", 0)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, listener.Close())
+		testsuite.IsDestroyed(t, listener)
+	}()
 	address := listener.Addr().String()
 
 	ctx, cancel := context.WithCancel(context.Background())

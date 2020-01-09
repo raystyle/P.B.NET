@@ -62,6 +62,11 @@ func TestConn_Handshake_Timeout(t *testing.T) {
 	require.Error(t, err)
 	_, err = server.Write(make([]byte, 1))
 	require.Error(t, err)
+
+	require.NoError(t, client.Close())
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestConn_Handshake_Cancel(t *testing.T) {
@@ -91,4 +96,9 @@ func TestConn_Handshake_Cancel(t *testing.T) {
 	require.Error(t, err)
 
 	wg.Wait()
+
+	require.NoError(t, client.Close())
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
 }
