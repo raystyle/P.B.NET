@@ -80,7 +80,7 @@ func startPPROFHTTPServer(port int) bool {
 
 func isDestroyed(object interface{}) bool {
 	destroyed := make(chan struct{})
-	runtime.SetFinalizer(object, func(_ interface{}) {
+	runtime.SetFinalizer(object, func(interface{}) {
 		close(destroyed)
 	})
 	// total 3 second
