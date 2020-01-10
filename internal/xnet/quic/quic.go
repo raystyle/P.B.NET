@@ -89,11 +89,11 @@ func (c *Conn) Close() error {
 	if c.stream != nil {
 		_ = c.stream.Close()
 	}
-	_ = c.session.Close()
+	err := c.session.Close()
 	if c.rawConn != nil {
-		return c.rawConn.Close()
+		_ = c.rawConn.Close()
 	}
-	return nil
+	return err
 }
 
 // LocalAddr is used to get local address
@@ -157,8 +157,9 @@ func (l *listener) Accept() (net.Conn, error) {
 
 func (l *listener) Close() error {
 	l.cancel()
-	_ = l.Listener.Close()
-	return l.rawConn.Close()
+	err := l.Listener.Close()
+	_ = l.rawConn.Close()
+	return err
 }
 
 // Listen is used to create a listener
