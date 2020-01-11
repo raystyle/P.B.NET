@@ -3,6 +3,7 @@ package light
 import (
 	"context"
 	"net"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -112,4 +113,26 @@ func TestDialContext_Cancel(t *testing.T) {
 func TestFailedToListen(t *testing.T) {
 	_, err := Listen("tcp", "foo address", 0)
 	require.Error(t, err)
+}
+
+func TestFailedToAccept(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
+	// patch
+	var tcpListener *net.TCPListener
+	typ := reflect.TypeOf(tcpListener)
+	patchFunc := func(*net.TCPListener) (net.Conn, error) {
+		return nil, testsuite.ErrMonkey
+	}
+	pg := testsuite.PatchInstanceMethod(typ, "Accept", patchFunc)
+	defer pg.Unpatch()
+
+	listener, err := Listen("tcp", "localhost:0", 0)
+	require.NoError(t, err)
+	_, err = listener.Accept()
+	testsuite.IsMonkeyError(t, err)
+
+	require.NoError(t, listener.Close())
+	testsuite.IsDestroyed(t, listener)
 }
