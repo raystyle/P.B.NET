@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bouk/monkey"
 	"github.com/lucas-clemente/quic-go"
 	"github.com/stretchr/testify/require"
 
@@ -68,7 +67,7 @@ func TestConn_Close(t *testing.T) {
 	defer gm.Compare()
 
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	listener, err := Listen("udp4", "localhost:0", serverCfg, 0)
+	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, listener.Close())
@@ -76,6 +75,7 @@ func TestConn_Close(t *testing.T) {
 	}()
 	address := listener.Addr().String()
 
+	// accept and dial
 	var server net.Conn
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -85,45 +85,25 @@ func TestConn_Close(t *testing.T) {
 		server, err = listener.Accept()
 		require.NoError(t, err)
 	}()
-	client, err := Dial("udp4", address, clientCfg, 0)
+	client, err := Dial("udp", address, clientCfg, 0)
 	require.NoError(t, err)
 	wg.Wait()
 
+	writeAndClose := func(conn net.Conn) {
+		go func() {
+			defer wg.Done()
+			_ = conn.Close()
+		}()
+		go func() {
+			defer wg.Done()
+			_, _ = conn.Write(testsuite.Bytes())
+		}()
+	}
 	wg.Add(8)
-	// server
-	go func() {
-		defer wg.Done()
-		_ = server.Close()
-	}()
-	go func() {
-		defer wg.Done()
-		_, _ = server.Write(testsuite.Bytes())
-	}()
-	go func() {
-		defer wg.Done()
-		_ = server.Close()
-	}()
-	go func() {
-		defer wg.Done()
-		_, _ = server.Write(testsuite.Bytes())
-	}()
-	// client
-	go func() {
-		defer wg.Done()
-		_ = client.Close()
-	}()
-	go func() {
-		defer wg.Done()
-		_, _ = client.Write(testsuite.Bytes())
-	}()
-	go func() {
-		defer wg.Done()
-		_ = client.Close()
-	}()
-	go func() {
-		defer wg.Done()
-		_, _ = client.Write(testsuite.Bytes())
-	}()
+	writeAndClose(server)
+	writeAndClose(server)
+	writeAndClose(client)
+	writeAndClose(client)
 	wg.Wait()
 
 	testsuite.IsDestroyed(t, client)
@@ -148,7 +128,7 @@ func TestFailedToListen(t *testing.T) {
 		patchFunc := func(net.PacketConn, *tls.Config, *quic.Config) (quic.Listener, error) {
 			return nil, errors.New("monkey error")
 		}
-		pg := monkey.Patch(quic.Listen, patchFunc)
+		pg := testsuite.Patch(quic.Listen, patchFunc)
 		defer pg.Unpatch()
 
 		_, err := Listen("udp", "localhost:0", new(tls.Config), 0)
@@ -169,7 +149,7 @@ func TestFailedToDialContext(t *testing.T) {
 		patchFunc := func(string, *net.UDPAddr) (*net.UDPConn, error) {
 			return nil, errors.New("monkey error")
 		}
-		pg := monkey.Patch(net.ListenUDP, patchFunc)
+		pg := testsuite.Patch(net.ListenUDP, patchFunc)
 		defer pg.Unpatch()
 
 		_, err := Dial("udp", "localhost:0", nil, 0)
@@ -182,29 +162,56 @@ func TestFailedToDialContext(t *testing.T) {
 	})
 
 	t.Run("session.OpenStreamSync", func(t *testing.T) {
-		t.Skip()
-
 		serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-		listener, err := Listen("udp4", "localhost:0", serverCfg, 0)
+		listener, err := Listen("udp", "localhost:0", serverCfg, 0)
 		require.NoError(t, err)
 		defer func() {
-			// require.NoError(t, listener.Close())
-			// testsuite.IsDestroyed(t, listener)
+			require.NoError(t, listener.Close())
+			testsuite.IsDestroyed(t, listener)
 		}()
 		address := listener.Addr().String()
 
+		// get *quic.session
 		clientCfg.NextProtos = []string{defaultNextProto}
 		session, err := quic.DialAddr(address, clientCfg, nil)
 		require.NoError(t, err)
-
+		// patch
 		patchFunc := func(interface{}, context.Context) (quic.Stream, error) {
 			return nil, errors.New("monkey error")
 		}
 		typ := reflect.TypeOf(session)
-		pg := monkey.PatchInstanceMethod(typ, "OpenStreamSync", patchFunc)
+		pg := testsuite.PatchInstanceMethod(typ, "OpenStreamSync", patchFunc)
 		defer pg.Unpatch()
 
-		_, err = Dial("udp4", address, clientCfg, time.Second)
+		_, err = Dial("udp", address, clientCfg, time.Second)
+		require.Error(t, err)
+	})
+
+	t.Run("stream.Write", func(t *testing.T) {
+		serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+		listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, listener.Close())
+			testsuite.IsDestroyed(t, listener)
+		}()
+		address := listener.Addr().String()
+
+		// get *quic.stream
+		clientCfg.NextProtos = []string{defaultNextProto}
+		session, err := quic.DialAddr(address, clientCfg, nil)
+		require.NoError(t, err)
+		stream, err := session.OpenStreamSync(context.Background())
+		require.NoError(t, err)
+		// patch
+		patchFunc := func(interface{}, []byte) (int, error) {
+			return 0, errors.New("monkey error")
+		}
+		typ := reflect.TypeOf(stream)
+		pg := testsuite.PatchInstanceMethod(typ, "Write", patchFunc)
+		defer pg.Unpatch()
+
+		_, err = Dial("udp", address, clientCfg, time.Second)
 		require.Error(t, err)
 	})
 }
