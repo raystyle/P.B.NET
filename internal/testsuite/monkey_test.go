@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -47,11 +46,10 @@ func (p *private) Get(s string) string {
 
 func ExamplePatchInstanceMethod() {
 	pri := &private{str: "pri"}
-	typ := reflect.TypeOf(pri)
 	patchFunc := func(interface{}, string) string {
 		return "monkey"
 	}
-	pg := PatchInstanceMethod(typ, "Get", patchFunc)
+	pg := PatchInstanceMethod(pri, "Get", patchFunc)
 	defer pg.Unpatch()
 
 	fmt.Println(pri.Get("foo"))
@@ -60,21 +58,19 @@ func ExamplePatchInstanceMethod() {
 	// monkey
 }
 
-func TestPatchInstanceMethod(t *testing.T) {
+func TestPatchInstanceMethodType(t *testing.T) {
 	t.Run("unknown method", func(t *testing.T) {
 		defer func() { recover() }()
 		pri := &private{str: "pri"}
-		typ := reflect.TypeOf(pri)
-		PatchInstanceMethod(typ, "foo", nil)
+		PatchInstanceMethod(pri, "foo", nil)
 	})
 
 	t.Run("invalid parameter", func(t *testing.T) {
 		defer func() { recover() }()
 		pri := &private{str: "pri"}
-		typ := reflect.TypeOf(pri)
 		patchFunc := func(interface{}, string, string) string {
 			return "monkey"
 		}
-		PatchInstanceMethod(typ, "Get", patchFunc)
+		PatchInstanceMethod(pri, "Get", patchFunc)
 	})
 }

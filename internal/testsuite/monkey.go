@@ -24,9 +24,14 @@ func Patch(target, replacement interface{}) *monkey.PatchGuard {
 	return monkey.Patch(target, replacement)
 }
 
-// PatchInstanceMethod is used to PatchInstanceMethod if target is private structure
+// PatchInstanceMethod will add reflect.TypeOf(target)
+func PatchInstanceMethod(target interface{}, method string, replacement interface{}) *monkey.PatchGuard {
+	return PatchInstanceMethodType(reflect.TypeOf(target), method, replacement)
+}
+
+// PatchInstanceMethodType is used to PatchInstanceMethod if target is private structure
 // see ExamplePatchInstanceMethod()
-func PatchInstanceMethod(target reflect.Type, method string, replacement interface{}) *monkey.PatchGuard {
+func PatchInstanceMethodType(target reflect.Type, method string, replacement interface{}) *monkey.PatchGuard {
 	m, ok := target.MethodByName(method)
 	if !ok {
 		panic(fmt.Sprintf("unknown method %s", method))
