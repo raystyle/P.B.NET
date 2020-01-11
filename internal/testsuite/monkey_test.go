@@ -2,20 +2,34 @@ package testsuite
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 )
 
+func TestIsMonkeyError(t *testing.T) {
+	pg := Patch(net.Dial, func(string, string) (net.Conn, error) {
+		return nil, ErrMonkey
+	})
+	defer pg.Unpatch()
+
+	_, err := net.Dial("", "")
+	IsMonkeyError(t, err)
+}
+
 func ExamplePatch() {
-	Patch(fmt.Println, func(a ...interface{}) (n int, err error) {
+	patchFunc := func(a ...interface{}) (n int, err error) {
 		s := make([]interface{}, len(a))
 		for i, v := range a {
 			s[i] = strings.ReplaceAll(fmt.Sprint(v), "hell", "*bleep*")
 		}
 		return fmt.Fprintln(os.Stdout, s...)
-	})
+	}
+	pg := Patch(fmt.Println, patchFunc)
+	defer pg.Unpatch()
+
 	fmt.Println("what the hell?")
 
 	// output:
@@ -39,6 +53,7 @@ func ExamplePatchInstanceMethod() {
 	}
 	pg := PatchInstanceMethod(typ, "Get", patchFunc)
 	defer pg.Unpatch()
+
 	fmt.Println(pri.Get("foo"))
 
 	// output:
