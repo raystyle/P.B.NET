@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -109,8 +108,7 @@ func TestFailedToAccept(t *testing.T) {
 	patchFunc := func(interface{}, context.Context) (quic.Session, error) {
 		return nil, testsuite.ErrMonkey
 	}
-	typ := reflect.TypeOf(quicListener)
-	pg := testsuite.PatchInstanceMethod(typ, "Accept", patchFunc)
+	pg := testsuite.PatchInstanceMethod(quicListener, "Accept", patchFunc)
 	defer pg.Unpatch()
 
 	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
@@ -166,8 +164,7 @@ func TestFailedToDialContext(t *testing.T) {
 		patchFunc := func(interface{}, context.Context) (quic.Stream, error) {
 			return nil, testsuite.ErrMonkey
 		}
-		typ := reflect.TypeOf(session)
-		pg := testsuite.PatchInstanceMethod(typ, "OpenStreamSync", patchFunc)
+		pg := testsuite.PatchInstanceMethod(session, "OpenStreamSync", patchFunc)
 		defer pg.Unpatch()
 
 		_, err = Dial("udp", address, clientCfg, time.Second)
@@ -194,8 +191,7 @@ func TestFailedToDialContext(t *testing.T) {
 		patchFunc := func(interface{}, []byte) (int, error) {
 			return 0, testsuite.ErrMonkey
 		}
-		typ := reflect.TypeOf(stream)
-		pg := testsuite.PatchInstanceMethod(typ, "Write", patchFunc)
+		pg := testsuite.PatchInstanceMethod(stream, "Write", patchFunc)
 		defer pg.Unpatch()
 
 		_, err = Dial("udp", address, clientCfg, time.Second)

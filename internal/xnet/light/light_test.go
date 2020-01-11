@@ -3,7 +3,6 @@ package light
 import (
 	"context"
 	"net"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -121,11 +120,10 @@ func TestFailedToAccept(t *testing.T) {
 
 	// patch
 	var tcpListener *net.TCPListener
-	typ := reflect.TypeOf(tcpListener)
 	patchFunc := func(*net.TCPListener) (net.Conn, error) {
 		return nil, testsuite.ErrMonkey
 	}
-	pg := testsuite.PatchInstanceMethod(typ, "Accept", patchFunc)
+	pg := testsuite.PatchInstanceMethod(tcpListener, "Accept", patchFunc)
 	defer pg.Unpatch()
 
 	listener, err := Listen("tcp", "localhost:0", 0)
