@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type dialer func() (net.Conn, error)
+
 // some server side connection must Handshake(),
 // otherwise Dial() will block
 type handshake interface {
@@ -18,48 +20,41 @@ type handshake interface {
 }
 
 // ListenerAndDial is used to test net.Listener and Dial
-func ListenerAndDial(t testing.TB, l net.Listener, dial func() (net.Conn, error), close bool) {
-	wg := sync.WaitGroup{}
+func ListenerAndDial(t testing.TB, listener net.Listener, dial dialer, close bool) {
 	t.Log("ConnSC")
 	for i := 0; i < 3; i++ {
 		t.Logf("%d\n", i)
-		var server net.Conn
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			var err error
-			server, err = l.Accept()
-			require.NoError(t, err)
-			if s, ok := server.(handshake); ok {
-				require.NoError(t, s.Handshake())
-			}
-		}()
-		client, err := dial()
-		require.NoError(t, err)
-		wg.Wait()
+		server, client := AcceptAndDial(t, listener, dial)
 		ConnSC(t, server, client, close)
 	}
 	t.Log("ConnCS")
 	for i := 0; i < 3; i++ {
 		t.Logf("%d\n", i)
-		var server net.Conn
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			var err error
-			server, err = l.Accept()
-			require.NoError(t, err)
-			if s, ok := server.(handshake); ok {
-				require.NoError(t, s.Handshake())
-			}
-		}()
-		client, err := dial()
-		require.NoError(t, err)
-		wg.Wait()
+		server, client := AcceptAndDial(t, listener, dial)
 		ConnCS(t, client, server, close)
 	}
-	require.NoError(t, l.Close())
-	IsDestroyed(t, l)
+	require.NoError(t, listener.Close())
+	IsDestroyed(t, listener)
+}
+
+// AcceptAndDial is used to accept and dial a connection
+func AcceptAndDial(t testing.TB, listener net.Listener, dial dialer) (net.Conn, net.Conn) {
+	wg := sync.WaitGroup{}
+	var server net.Conn
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var err error
+		server, err = listener.Accept()
+		require.NoError(t, err)
+		if s, ok := server.(handshake); ok {
+			require.NoError(t, s.Handshake())
+		}
+	}()
+	client, err := dial()
+	require.NoError(t, err)
+	wg.Wait()
+	return server, client
 }
 
 // if close == true, IsDestroyed will be run after Conn.Close()
