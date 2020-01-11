@@ -3,7 +3,6 @@ package quic
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"reflect"
 	"sync"
@@ -78,13 +77,13 @@ func TestFailedToListen(t *testing.T) {
 
 	t.Run("quic.Listen", func(t *testing.T) {
 		patchFunc := func(net.PacketConn, *tls.Config, *quic.Config) (quic.Listener, error) {
-			return nil, errors.New("monkey error")
+			return nil, testsuite.ErrMonkey
 		}
 		pg := testsuite.Patch(quic.Listen, patchFunc)
 		defer pg.Unpatch()
 
 		_, err := Listen("udp", "localhost:0", new(tls.Config), 0)
-		require.Error(t, err)
+		testsuite.IsMonkeyError(t, err)
 	})
 }
 
@@ -108,7 +107,7 @@ func TestFailedToAccept(t *testing.T) {
 	}()
 	// patch
 	patchFunc := func(interface{}, context.Context) (quic.Session, error) {
-		return nil, errors.New("monkey error")
+		return nil, testsuite.ErrMonkey
 	}
 	typ := reflect.TypeOf(quicListener)
 	pg := testsuite.PatchInstanceMethod(typ, "Accept", patchFunc)
@@ -121,7 +120,7 @@ func TestFailedToAccept(t *testing.T) {
 		testsuite.IsDestroyed(t, listener)
 	}()
 	_, err = listener.Accept()
-	require.Error(t, err)
+	testsuite.IsMonkeyError(t, err)
 }
 
 func TestFailedToDialContext(t *testing.T) {
@@ -135,13 +134,13 @@ func TestFailedToDialContext(t *testing.T) {
 
 	t.Run("net.ListenUDP", func(t *testing.T) {
 		patchFunc := func(string, *net.UDPAddr) (*net.UDPConn, error) {
-			return nil, errors.New("monkey error")
+			return nil, testsuite.ErrMonkey
 		}
 		pg := testsuite.Patch(net.ListenUDP, patchFunc)
 		defer pg.Unpatch()
 
 		_, err := Dial("udp", "localhost:0", nil, 0)
-		require.Error(t, err)
+		testsuite.IsMonkeyError(t, err)
 	})
 
 	t.Run("quic.DialContext", func(t *testing.T) {
@@ -165,14 +164,14 @@ func TestFailedToDialContext(t *testing.T) {
 		require.NoError(t, err)
 		// patch
 		patchFunc := func(interface{}, context.Context) (quic.Stream, error) {
-			return nil, errors.New("monkey error")
+			return nil, testsuite.ErrMonkey
 		}
 		typ := reflect.TypeOf(session)
 		pg := testsuite.PatchInstanceMethod(typ, "OpenStreamSync", patchFunc)
 		defer pg.Unpatch()
 
 		_, err = Dial("udp", address, clientCfg, time.Second)
-		require.Error(t, err)
+		testsuite.IsMonkeyError(t, err)
 	})
 
 	t.Run("stream.Write", func(t *testing.T) {
@@ -193,14 +192,14 @@ func TestFailedToDialContext(t *testing.T) {
 		require.NoError(t, err)
 		// patch
 		patchFunc := func(interface{}, []byte) (int, error) {
-			return 0, errors.New("monkey error")
+			return 0, testsuite.ErrMonkey
 		}
 		typ := reflect.TypeOf(stream)
 		pg := testsuite.PatchInstanceMethod(typ, "Write", patchFunc)
 		defer pg.Unpatch()
 
 		_, err = Dial("udp", address, clientCfg, time.Second)
-		require.Error(t, err)
+		testsuite.IsMonkeyError(t, err)
 	})
 }
 
