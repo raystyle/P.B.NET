@@ -62,54 +62,6 @@ func testListenAndDialContext(t *testing.T, network string) {
 	}, true)
 }
 
-func TestConn_Close(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
-	defer gm.Compare()
-
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, listener.Close())
-		testsuite.IsDestroyed(t, listener)
-	}()
-	address := listener.Addr().String()
-
-	// accept and dial
-	var server net.Conn
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-		server, err = listener.Accept()
-		require.NoError(t, err)
-	}()
-	client, err := Dial("udp", address, clientCfg, 0)
-	require.NoError(t, err)
-	wg.Wait()
-
-	writeAndClose := func(conn net.Conn) {
-		go func() {
-			defer wg.Done()
-			_ = conn.Close()
-		}()
-		go func() {
-			defer wg.Done()
-			_, _ = conn.Write(testsuite.Bytes())
-		}()
-	}
-	wg.Add(8)
-	writeAndClose(server)
-	writeAndClose(server)
-	writeAndClose(client)
-	writeAndClose(client)
-	wg.Wait()
-
-	testsuite.IsDestroyed(t, client)
-	testsuite.IsDestroyed(t, server)
-}
-
 func TestFailedToListen(t *testing.T) {
 	gm := testsuite.MarkGoRoutines(t)
 	defer gm.Compare()
@@ -134,6 +86,42 @@ func TestFailedToListen(t *testing.T) {
 		_, err := Listen("udp", "localhost:0", new(tls.Config), 0)
 		require.Error(t, err)
 	})
+}
+
+func TestFailedToAccept(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
+	// get *quic.baseServer
+	rawConn, err := net.ListenUDP("udp", nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, rawConn.Close())
+		testsuite.IsDestroyed(t, rawConn)
+	}()
+	serverCfg, _ := testsuite.TLSConfigPair(t)
+	quicListener, err := quic.Listen(rawConn, serverCfg.Clone(), nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, quicListener.Close())
+		testsuite.IsDestroyed(t, quicListener)
+	}()
+	// patch
+	patchFunc := func(interface{}, context.Context) (quic.Session, error) {
+		return nil, errors.New("monkey error")
+	}
+	typ := reflect.TypeOf(quicListener)
+	pg := testsuite.PatchInstanceMethod(typ, "Accept", patchFunc)
+	defer pg.Unpatch()
+
+	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, listener.Close())
+		testsuite.IsDestroyed(t, listener)
+	}()
+	_, err = listener.Accept()
+	require.Error(t, err)
 }
 
 func TestFailedToDialContext(t *testing.T) {
@@ -214,4 +202,92 @@ func TestFailedToDialContext(t *testing.T) {
 		_, err = Dial("udp", address, clientCfg, time.Second)
 		require.Error(t, err)
 	})
+}
+
+func TestConn_Close(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, listener.Close())
+		testsuite.IsDestroyed(t, listener)
+	}()
+	address := listener.Addr().String()
+	server, client := testsuite.AcceptAndDial(t, listener, func() (conn net.Conn, err error) {
+		return Dial("udp", address, clientCfg, 0)
+	})
+
+	wg := sync.WaitGroup{}
+	writeAndClose := func(conn net.Conn) {
+		go func() {
+			defer wg.Done()
+			_ = conn.Close()
+		}()
+		go func() {
+			defer wg.Done()
+			_, _ = conn.Write(testsuite.Bytes())
+		}()
+	}
+	wg.Add(8)
+	writeAndClose(server)
+	writeAndClose(server)
+	writeAndClose(client)
+	writeAndClose(client)
+	wg.Wait()
+
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
+
+	// Close() before acceptStream()
+	client, err = Dial("udp", address, clientCfg, 0)
+	require.NoError(t, err)
+	require.NoError(t, client.Close())
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestFailedToAcceptStream(t *testing.T) {
+	gm := testsuite.MarkGoRoutines(t)
+	defer gm.Compare()
+
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, listener.Close())
+		testsuite.IsDestroyed(t, listener)
+	}()
+	address := listener.Addr().String()
+
+	// client close
+	server, client := testsuite.AcceptAndDial(t, listener, func() (conn net.Conn, err error) {
+		return Dial("udp", address, clientCfg, 0)
+	})
+	require.NoError(t, client.Close())
+	require.Error(t, server.SetDeadline(time.Time{}))
+	require.Error(t, server.SetWriteDeadline(time.Time{}))
+	buf := make([]byte, 1)
+	_, err = server.Read(buf)
+	require.Error(t, err)
+	_, err = server.Write(buf)
+	require.Error(t, err)
+
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
+
+	// server close
+	server, client = testsuite.AcceptAndDial(t, listener, func() (conn net.Conn, err error) {
+		return Dial("udp", address, clientCfg, 0)
+	})
+	require.NoError(t, server.Close())
+	_, err = server.Read(buf)
+	require.Equal(t, ErrConnClosed, err)
+
+	require.NoError(t, client.Close())
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
 }
