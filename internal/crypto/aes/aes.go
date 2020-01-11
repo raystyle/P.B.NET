@@ -90,10 +90,11 @@ func (c *CBC) Decrypt(cipherData []byte) ([]byte, error) {
 	decrypter.CryptBlocks(plainData, cipherData)
 	plainDataSize := len(plainData)
 	paddingSize := int(plainData[plainDataSize-1])
-	if plainDataSize-paddingSize < 0 {
+	offset := plainDataSize - paddingSize
+	if offset < 0 {
 		return nil, ErrInvalidPaddingSize
 	}
-	return plainData[:plainDataSize-paddingSize], nil
+	return plainData[:offset], nil
 }
 
 // KeyIV is used to get AES Key and IV
@@ -156,8 +157,9 @@ func CBCDecrypt(cipherData, key, iv []byte) ([]byte, error) {
 	decrypter.CryptBlocks(plainData, cipherData)
 	plainDataSize := len(plainData)
 	paddingSize := int(plainData[plainDataSize-1])
-	if plainDataSize-paddingSize < 0 {
+	offset := plainDataSize - paddingSize
+	if offset < 0 {
 		return nil, ErrInvalidPaddingSize
 	}
-	return plainData[:plainDataSize-paddingSize], nil
+	return plainData[:offset], nil
 }
