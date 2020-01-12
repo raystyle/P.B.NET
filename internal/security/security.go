@@ -72,9 +72,9 @@ func CoverBytes(b []byte) {
 
 // CoverString is used to cover string if string has secret
 func CoverString(s *string) {
-	sh := (*reflect.StringHeader)(unsafe.Pointer(s))
+	sh := (*reflect.StringHeader)(unsafe.Pointer(s)) // #nosec
 	for i := 0; i < sh.Len; i++ {
-		b := (*byte)(unsafe.Pointer(sh.Data + uintptr(i)))
+		b := (*byte)(unsafe.Pointer(sh.Data + uintptr(i))) // #nosec
 		*b = 0
 	}
 }
