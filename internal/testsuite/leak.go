@@ -10,21 +10,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// GoRoutineMark contains testing.TB and then go routines number
-type GoRoutineMark struct {
+// GoroutineMark contains testing.TB and then goroutine number
+type GoroutineMark struct {
 	t    testing.TB
 	then int
 }
 
-// MarkGoRoutines is used to mark the number of the go routines
-func MarkGoRoutines(t testing.TB) *GoRoutineMark {
-	return &GoRoutineMark{
+// MarkGoroutines is used to mark the number of the goroutines
+func MarkGoroutines(t testing.TB) *GoroutineMark {
+	return &GoroutineMark{
 		t:    t,
 		then: runtime.NumGoroutine(),
 	}
 }
 
-func (m *GoRoutineMark) calculate() int {
+func (m *GoroutineMark) calculate() int {
 	// total 3 second
 	var n int
 	for i := 0; i < 60; i++ {
@@ -37,9 +37,9 @@ func (m *GoRoutineMark) calculate() int {
 	return runtime.NumGoroutine() - m.then
 }
 
-// Compare is used to compare the number of the go routines
-func (m *GoRoutineMark) Compare() {
-	require.Equal(m.t, 0, m.calculate(), "go routine leaks")
+// Compare is used to compare the number of the goroutines
+func (m *GoroutineMark) Compare() {
+	require.Equal(m.t, 0, m.calculate(), "goroutine leaks")
 }
 
 // MemoryMark contains testing.TB, then and now memory status

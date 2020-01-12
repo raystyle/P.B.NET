@@ -9,7 +9,7 @@ import (
 )
 
 func TestTLSConfigPair(t *testing.T) {
-	gm := MarkGoRoutines(t)
+	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
 	const network = "tcp"
@@ -23,7 +23,7 @@ func TestTLSConfigPair(t *testing.T) {
 }
 
 func TestTLSConfigOptionPair(t *testing.T) {
-	gm := MarkGoRoutines(t)
+	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
 	serverCfg, clientCfg := TLSConfigOptionPair(t)

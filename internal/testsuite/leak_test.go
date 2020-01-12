@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGoRoutineMark(t *testing.T) {
-	gm := MarkGoRoutines(t)
+func TestMarkGoroutine(t *testing.T) {
+	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
 	c := make(chan struct{})
@@ -17,8 +17,8 @@ func TestGoRoutineMark(t *testing.T) {
 	<-c
 }
 
-func TestGoRoutineMark_Leak(t *testing.T) {
-	gm := MarkGoRoutines(t)
+func TestMarkGoroutine_Leak(t *testing.T) {
+	gm := MarkGoroutines(t)
 	defer func() { require.Equal(t, 1, gm.calculate()) }()
 
 	c := make(chan struct{})
@@ -27,7 +27,7 @@ func TestGoRoutineMark_Leak(t *testing.T) {
 	}()
 }
 
-func TestMemoryMark(t *testing.T) {
+func TestMarkMemory(t *testing.T) {
 	t.Skip()
 	mm := MarkMemory(t)
 
@@ -40,7 +40,7 @@ func TestMemoryMark(t *testing.T) {
 	mm.Compare()
 }
 
-func TestMemoryMark_Leak(t *testing.T) {
+func TestMarkMemory_Leak(t *testing.T) {
 	t.Skip()
 	mm := MarkMemory(t)
 	defer mm.Compare()

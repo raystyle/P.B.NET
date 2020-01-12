@@ -35,7 +35,7 @@ func TestIsDestroyed(t *testing.T) {
 }
 
 func TestHTTPServer(t *testing.T) {
-	gm := MarkGoRoutines(t)
+	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
 	// http

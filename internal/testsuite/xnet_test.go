@@ -9,7 +9,7 @@ import (
 )
 
 func TestListenerAndDial(t *testing.T) {
-	gm := MarkGoRoutines(t)
+	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
 	if IPv4Enabled {
@@ -30,7 +30,7 @@ func testListenerAndDial(t *testing.T, network string) {
 }
 
 func TestListenerAndDialContext(t *testing.T) {
-	gm := MarkGoRoutines(t)
+	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
 	if IPv4Enabled {
@@ -53,7 +53,7 @@ func testListenerAndDialContext(t *testing.T, network string) {
 }
 
 func TestConn(t *testing.T) {
-	gm := MarkGoRoutines(t)
+	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
 	server, client := net.Pipe()
