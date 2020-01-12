@@ -34,7 +34,7 @@ func TestCheckModeNetwork(t *testing.T) {
 }
 
 func TestListenAndDial_QUIC(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	if testsuite.IPv4Enabled {
@@ -68,7 +68,7 @@ func testListenAndDialQUIC(t *testing.T, network string) {
 }
 
 func TestListenAndDial_Light(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	if testsuite.IPv4Enabled {
@@ -97,7 +97,7 @@ func testListenAndDialLight(t *testing.T, network string) {
 }
 
 func TestListenAndDial_TLS(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	if testsuite.IPv4Enabled {
