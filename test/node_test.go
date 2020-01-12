@@ -40,7 +40,7 @@ func testGenerateNodeAndTrust(t testing.TB) *node.Node {
 func TestNode_SendDirectly(t *testing.T) {
 	NODE := testGenerateNodeAndTrust(t)
 	const (
-		goRoutines = 256
+		goroutines = 256
 		times      = 64
 	)
 	send := func(start int) {
@@ -53,12 +53,12 @@ func TestNode_SendDirectly(t *testing.T) {
 			}
 		}
 	}
-	for i := 0; i < goRoutines; i++ {
+	for i := 0; i < goroutines; i++ {
 		go send(i * times)
 	}
 	recv := bytes.Buffer{}
 	timer := time.NewTimer(3 * time.Second)
-	for i := 0; i < goRoutines*times; i++ {
+	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
 		case b := <-ctrl.Test.NodeSend:
@@ -74,7 +74,7 @@ func TestNode_SendDirectly(t *testing.T) {
 	case <-time.After(time.Second):
 	}
 	str := recv.String()
-	for i := 0; i < goRoutines*times; i++ {
+	for i := 0; i < goroutines*times; i++ {
 		need := fmt.Sprintf("test send %d", i)
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}

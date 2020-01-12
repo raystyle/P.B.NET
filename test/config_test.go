@@ -113,6 +113,10 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Client.ProxyTag = "balance"
 	cfg.Client.Timeout = 15 * time.Second
 
+	cfg.Register.SleepFixed = 10
+	cfg.Register.SleepRandom = 20
+	cfg.Register.Skip = true // TODO remove
+
 	cfg.Forwarder.MaxCtrlConns = 10
 	cfg.Forwarder.MaxNodeConns = 8
 	cfg.Forwarder.MaxBeaconConns = 128
@@ -149,14 +153,14 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 	require.NoError(t, err)
 
 	// generate certificate
-	keyPairs := ctrl.GetSelfCA()
+	pairs := ctrl.GetSelfCerts()
 	opts := cert.Options{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
-	caCert := keyPairs[0].Certificate
-	caKey := keyPairs[0].PrivateKey
-	kp, err := cert.Generate(caCert, caKey, &opts)
+	caCert := pairs[0].Certificate
+	caKey := pairs[0].PrivateKey
+	pair, err := cert.Generate(caCert, caKey, &opts)
 	require.NoError(t, err)
 
 	// generate listener config
@@ -166,7 +170,7 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	c, k := kp.EncodeToPEM()
+	c, k := pair.EncodeToPEM()
 	listener.TLSConfig.Certificates = []options.X509KeyPair{
 		{Cert: string(c), Key: string(k)},
 	}
