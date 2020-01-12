@@ -109,7 +109,7 @@ func VirtualProtect(shellcode []byte) error {
 			count++
 		}
 		// set shellcode
-		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i)))
+		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = shellcode[i]
 
 		// clean shellcode
@@ -120,7 +120,7 @@ func VirtualProtect(shellcode []byte) error {
 	schedule()
 	var run uintptr
 	ok, _, err := vpVirtualProtect.Call(memAddr, uintptr(l),
-		pageExecute, uintptr(unsafe.Pointer(&run)))
+		pageExecute, uintptr(unsafe.Pointer(&run))) // #nosec
 	if ok == 0 {
 		return errors.WithStack(err)
 	}
@@ -137,7 +137,7 @@ func VirtualProtect(shellcode []byte) error {
 	// set read write
 	schedule()
 	ok, _, err = vpVirtualProtect.Call(memAddr, uintptr(l),
-		pageReadWrite, uintptr(unsafe.Pointer(&run)))
+		pageReadWrite, uintptr(unsafe.Pointer(&run))) // #nosec
 	if ok == 0 {
 		return errors.WithStack(err)
 	}
@@ -146,7 +146,7 @@ func VirtualProtect(shellcode []byte) error {
 	schedule()
 	rand = random.New()
 	for i := 0; i < l; i++ {
-		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i)))
+		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = byte(rand.Int64())
 	}
 	_, _, _ = vpVirtualFree.Call(memAddr, 0, memRelease)
@@ -235,7 +235,7 @@ func CreateThread(shellcode []byte) error {
 			count++
 		}
 		// set shellcode
-		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i)))
+		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = shellcode[i]
 
 		// clean shellcode
@@ -255,7 +255,7 @@ func CreateThread(shellcode []byte) error {
 	schedule()
 	rand = random.New()
 	for i := 0; i < l; i++ {
-		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i)))
+		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = byte(rand.Int64())
 	}
 	_, _, _ = tVirtualFree.Call(memAddr, 0, memRelease)
