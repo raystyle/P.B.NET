@@ -29,13 +29,13 @@ type Rand struct {
 // New is used to create a Rand
 func New() *Rand {
 	const (
-		goRoutines = 16
+		goroutines = 16
 		times      = 128
 	)
-	data := make(chan []byte, goRoutines*times)
+	data := make(chan []byte, goroutines*times)
 	wg := sync.WaitGroup{}
-	wg.Add(goRoutines)
-	for i := 0; i < goRoutines; i++ {
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer func() {
 				recover()
@@ -53,7 +53,7 @@ func New() *Rand {
 		close(data)
 	}()
 	hash := sha256.New()
-	for i := 0; i < goRoutines*times; i++ {
+	for i := 0; i < goroutines*times; i++ {
 		d := <-data
 		if d != nil {
 			hash.Write(<-data)
