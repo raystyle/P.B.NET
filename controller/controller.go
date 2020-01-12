@@ -222,7 +222,7 @@ func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
 
 // LoadSessionKeyFromFile is used to load session key from file
 func (ctrl *CTRL) LoadSessionKeyFromFile(filename string, password []byte) error {
-	data, err := ioutil.ReadFile(filename)
+	data, err := ioutil.ReadFile(filename) // #nosec
 	if err != nil {
 		return err
 	}
