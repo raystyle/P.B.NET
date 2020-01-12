@@ -51,7 +51,7 @@ func Uint64ToBytes(Uint64 uint64) []byte {
 // Float32ToBytes is used to convert float32 to bytes
 func Float32ToBytes(Float32 float32) []byte {
 	b := make([]byte, 4)
-	n := *(*uint32)(unsafe.Pointer(&Float32))
+	n := *(*uint32)(unsafe.Pointer(&Float32)) // #nosec
 	binary.BigEndian.PutUint32(b, n)
 	return b
 }
@@ -59,7 +59,7 @@ func Float32ToBytes(Float32 float32) []byte {
 // Float64ToBytes is used to convert float64 to bytes
 func Float64ToBytes(Float64 float64) []byte {
 	b := make([]byte, 8)
-	n := *(*uint64)(unsafe.Pointer(&Float64))
+	n := *(*uint64)(unsafe.Pointer(&Float64)) // #nosec
 	binary.BigEndian.PutUint64(b, n)
 	return b
 }
@@ -118,7 +118,7 @@ func BytesToFloat32(Bytes []byte) float32 {
 		return 0
 	}
 	b := binary.BigEndian.Uint32(Bytes)
-	return *(*float32)(unsafe.Pointer(&b))
+	return *(*float32)(unsafe.Pointer(&b)) // #nosec
 }
 
 // BytesToFloat64 is used to convert bytes to float64
@@ -127,7 +127,7 @@ func BytesToFloat64(Bytes []byte) float64 {
 		return 0
 	}
 	b := binary.BigEndian.Uint64(Bytes)
-	return *(*float64)(unsafe.Pointer(&b))
+	return *(*float64)(unsafe.Pointer(&b)) // #nosec
 }
 
 // ByteToString is used to covert Byte to KB, MB, GB or TB
