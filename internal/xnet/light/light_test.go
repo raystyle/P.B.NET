@@ -13,7 +13,7 @@ import (
 )
 
 func TestListenAndDial(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	if testsuite.IPv4Enabled {
@@ -34,7 +34,7 @@ func testListenAndDial(t *testing.T, network string) {
 }
 
 func TestListenAndDialContext(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	if testsuite.IPv4Enabled {
@@ -57,7 +57,7 @@ func testListenAndDialContext(t *testing.T, network string) {
 }
 
 func TestDialContext_Timeout(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	const network = "tcp"
@@ -81,7 +81,7 @@ func TestDialContext_Timeout(t *testing.T) {
 }
 
 func TestDialContext_Cancel(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	const network = "tcp"
@@ -115,7 +115,7 @@ func TestFailedToListen(t *testing.T) {
 }
 
 func TestFailedToAccept(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	// patch

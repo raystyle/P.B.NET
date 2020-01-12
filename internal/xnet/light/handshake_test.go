@@ -56,7 +56,7 @@ func testConnClientHandshake(t *testing.T, f func(t *testing.T, server *Conn), e
 }
 
 func TestConn_clientHandshake(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	t.Run("curve25519.ScalarBaseMult", func(t *testing.T) {
@@ -203,7 +203,7 @@ func testConnServerHandshake(t *testing.T, f func(t *testing.T, client *Conn), e
 }
 
 func TestConn_serverHandshake(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	t.Run("invalid padding size", func(t *testing.T) {

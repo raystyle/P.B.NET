@@ -13,7 +13,7 @@ import (
 )
 
 func TestConnWithBackground(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	testConnWithBackground(t, testsuite.ConnSC)
@@ -28,7 +28,7 @@ func testConnWithBackground(t *testing.T, f func(testing.TB, net.Conn, net.Conn,
 }
 
 func TestConnWithCancel(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	testConnWithCancel(t, testsuite.ConnSC)
@@ -47,7 +47,7 @@ func testConnWithCancel(t *testing.T, f func(testing.TB, net.Conn, net.Conn, boo
 }
 
 func TestConn_Handshake_Timeout(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	server, client := net.Pipe()
@@ -70,7 +70,7 @@ func TestConn_Handshake_Timeout(t *testing.T) {
 }
 
 func TestConn_Handshake_Cancel(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	server, client := net.Pipe()
