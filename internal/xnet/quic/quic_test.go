@@ -15,7 +15,7 @@ import (
 )
 
 func TestListenAndDial(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	if testsuite.IPv4Enabled {
@@ -37,7 +37,7 @@ func testListenAndDial(t *testing.T, network string) {
 }
 
 func TestListenAndDialContext(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	if testsuite.IPv4Enabled {
@@ -61,7 +61,7 @@ func testListenAndDialContext(t *testing.T, network string) {
 }
 
 func TestFailedToListen(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	t.Run("invalid address", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestFailedToListen(t *testing.T) {
 }
 
 func TestFailedToAccept(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	// get *quic.baseServer
@@ -122,7 +122,7 @@ func TestFailedToAccept(t *testing.T) {
 }
 
 func TestFailedToDialContext(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	t.Run("invalid address", func(t *testing.T) {
@@ -200,7 +200,7 @@ func TestFailedToDialContext(t *testing.T) {
 }
 
 func TestConn_Close(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
@@ -245,7 +245,7 @@ func TestConn_Close(t *testing.T) {
 }
 
 func TestFailedToAcceptStream(t *testing.T) {
-	gm := testsuite.MarkGoRoutines(t)
+	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
