@@ -52,7 +52,7 @@ func TestSender_Connect(t *testing.T) {
 func TestSender_Broadcast(t *testing.T) {
 	NODE := testGenerateNodeAndTrust(t)
 	const (
-		goRoutines = 256
+		goroutines = 256
 		times      = 64
 	)
 	broadcast := func(start int) {
@@ -65,12 +65,12 @@ func TestSender_Broadcast(t *testing.T) {
 			}
 		}
 	}
-	for i := 0; i < goRoutines; i++ {
+	for i := 0; i < goroutines; i++ {
 		go broadcast(i * times)
 	}
 	recv := bytes.Buffer{}
 	timer := time.NewTimer(3 * time.Second)
-	for i := 0; i < goRoutines*times; i++ {
+	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
 		case b := <-NODE.Test.BroadcastTestMsg:
@@ -86,7 +86,7 @@ func TestSender_Broadcast(t *testing.T) {
 	case <-time.After(time.Second):
 	}
 	str := recv.String()
-	for i := 0; i < goRoutines*times; i++ {
+	for i := 0; i < goroutines*times; i++ {
 		need := fmt.Sprintf("test broadcast %d", i)
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
@@ -103,7 +103,7 @@ func TestSender_SendToNode(t *testing.T) {
 	NODE := testGenerateNodeAndTrust(t)
 	nodeGUID := NODE.GUID()
 	const (
-		goRoutines = 256
+		goroutines = 256
 		times      = 64
 	)
 	send := func(start int) {
@@ -116,12 +116,12 @@ func TestSender_SendToNode(t *testing.T) {
 			}
 		}
 	}
-	for i := 0; i < goRoutines; i++ {
+	for i := 0; i < goroutines; i++ {
 		go send(i * times)
 	}
 	recv := bytes.Buffer{}
 	timer := time.NewTimer(3 * time.Second)
-	for i := 0; i < goRoutines*times; i++ {
+	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
 		case b := <-NODE.Test.SendTestMsg:
@@ -137,7 +137,7 @@ func TestSender_SendToNode(t *testing.T) {
 	case <-time.After(time.Second):
 	}
 	str := recv.String()
-	for i := 0; i < goRoutines*times; i++ {
+	for i := 0; i < goroutines*times; i++ {
 		need := fmt.Sprintf("test send %d", i)
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
@@ -198,7 +198,7 @@ func TestSender_SendToNodeBenchmark(t *testing.T) {
 	// send to Node
 	nodeGUID := NODE.GUID()
 	var (
-		goRoutines = runtime.NumCPU()
+		goroutines = runtime.NumCPU()
 		times      = 10000
 	)
 	start := time.Now()
@@ -212,10 +212,10 @@ func TestSender_SendToNodeBenchmark(t *testing.T) {
 			}
 		}
 	}
-	for i := 0; i < goRoutines; i++ {
+	for i := 0; i < goroutines; i++ {
 		go send(i * times)
 	}
-	total := goRoutines * times
+	total := goroutines * times
 	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < total; i++ {
 		timer.Reset(3 * time.Second)
