@@ -52,7 +52,7 @@ func main() {
 	}
 
 	// load config
-	b, err := ioutil.ReadFile(config)
+	b, err := ioutil.ReadFile(config) // #nosec
 	if err != nil {
 		log.Fatal(err)
 	}
