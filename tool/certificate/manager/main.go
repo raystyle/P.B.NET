@@ -51,7 +51,7 @@ func initManager() {
 			break
 		}
 	}
-	_ = os.Mkdir("key", 644)
+	_ = os.Mkdir("key", 0750)
 
 	// create CA certificate and private key
 	kp, err := cert.GenerateCA(nil)
