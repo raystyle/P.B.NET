@@ -24,27 +24,23 @@ func main() {
 	flag.StringVar(&key, "key", "", "private key (pem)")
 	flag.Parse()
 
-	bootstrap, err := ioutil.ReadFile(file)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
 	server := http.Server{Addr: addr}
 	mux := http.NewServeMux()
 	mux.HandleFunc(web, func(w http.ResponseWriter, r *http.Request) {
 		log.Print(logger.HTTPRequest(r), "\n\n")
 		w.WriteHeader(http.StatusOK)
+		bootstrap, _ := ioutil.ReadFile(file) // #nosec
 		_, _ = w.Write(bootstrap)
 	})
 	server.Handler = mux
 
 	if cert != "" && key != "" {
-		err = server.ListenAndServeTLS(cert, key)
+		err := server.ListenAndServeTLS(cert, key)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	} else {
-		err = server.ListenAndServe()
+		err := server.ListenAndServe()
 		if err != nil {
 			log.Fatalln(err)
 		}
