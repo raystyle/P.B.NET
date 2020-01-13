@@ -23,7 +23,7 @@ func main() {
 	flag.StringVar(&url, "u", "", "shellcode url")
 	flag.Parse()
 
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) // #nosec
 	if err != nil {
 		log.Fatal(err)
 	}
