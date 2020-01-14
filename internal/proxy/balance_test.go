@@ -82,6 +82,7 @@ func TestBalanceFailure(t *testing.T) {
 	groups := testGenerateProxyGroup(t)
 	balance, err := NewBalance("01", groups.Clients()...)
 	require.NoError(t, err)
+
 	testsuite.ProxyClientWithUnreachableTarget(t, &groups, balance)
 }
 
@@ -109,6 +110,9 @@ func TestBalanceInBalance(t *testing.T) {
 	defer gm.Compare()
 
 	groups, fb := testGenerateBalanceInBalance(t)
+
+	fmt.Println(fb.GetAndSelectNext())
+
 	testsuite.ProxyClient(t, &groups, fb)
 }
 

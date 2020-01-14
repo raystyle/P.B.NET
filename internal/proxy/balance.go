@@ -78,24 +78,24 @@ func (b *Balance) GetAndSelectNext() *Client {
 // Dial is used to connect to address through selected proxy client
 func (b *Balance) Dial(network, address string) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().Dial(network, address)
-	return conn, errors.WithMessagef(err, "balance %s Dial", b.tag)
+	return conn, errors.WithMessagef(err, "balance %s", b.tag)
 }
 
 // DialContext is used to connect to address through selected proxy client with context
 func (b *Balance) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().DialContext(ctx, network, address)
-	return conn, errors.WithMessagef(err, "balance %s DialContext", b.tag)
+	return conn, errors.WithMessagef(err, "balance %s", b.tag)
 }
 
 // DialTimeout is used to connect to address through selected proxy client with timeout
 func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().DialTimeout(network, address, timeout)
-	return conn, errors.WithMessagef(err, "balance %s DialTimeout", b.tag)
+	return conn, errors.WithMessagef(err, "balance %s", b.tag)
 }
 
 // Connect is a padding function
 func (b *Balance) Connect(context.Context, net.Conn, string, string) (net.Conn, error) {
-	return nil, errors.New("balance doesn't support Connect")
+	return nil, errors.New("balance doesn't support connect")
 }
 
 // HTTP is used to set *http.Transport about proxy

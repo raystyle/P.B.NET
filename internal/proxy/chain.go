@@ -95,7 +95,7 @@ func (c *Chain) Dial(network, address string) (net.Conn, error) {
 	pConn, err := connect(context.Background(), conn, network, address, clients)
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.WithMessagef(err, "chain %s dial", c.tag)
+		return nil, errors.WithMessagef(err, "chain %s", c.tag)
 	}
 	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
@@ -114,7 +114,7 @@ func (c *Chain) DialContext(ctx context.Context, network, address string) (net.C
 	pConn, err := connect(ctx, conn, network, address, clients)
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.WithMessagef(err, "chain %s dial context", c.tag)
+		return nil, errors.WithMessagef(err, "chain %s", c.tag)
 	}
 	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
@@ -135,7 +135,7 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 	pConn, err := connect(context.Background(), conn, network, address, clients)
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.WithMessagef(err, "chain %s dial timeout", c.tag)
+		return nil, errors.WithMessagef(err, "chain %s", c.tag)
 	}
 	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
@@ -143,7 +143,7 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 
 // Connect is is a padding function
 func (c *Chain) Connect(context.Context, net.Conn, string, string) (net.Conn, error) {
-	return nil, errors.New("chain doesn't support Connect")
+	return nil, errors.New("chain doesn't support connect")
 }
 
 // HTTP is used to set *http.Transport about proxy

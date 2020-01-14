@@ -10,7 +10,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestProxyChainSelect(t *testing.T) {
+func TestChainSelect(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
 	gm := testsuite.MarkGoroutines(t)
@@ -31,19 +31,21 @@ func TestProxyChainSelect(t *testing.T) {
 	testsuite.ProxyClient(t, &groups, chain)
 }
 
-func TestProxyChainRandom(t *testing.T) {
+func TestChainRandom(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	groups := testGenerateProxyGroup(t)
+
 	chain, err := NewChain("chain-random", groups.Clients()...)
 	require.NoError(t, err)
+
 	testsuite.ProxyClient(t, &groups, chain)
 }
 
-func TestProxyChainWithSingleClient(t *testing.T) {
+func TestChainWithSingleClient(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
 	gm := testsuite.MarkGoroutines(t)
@@ -56,12 +58,36 @@ func TestProxyChainWithSingleClient(t *testing.T) {
 			client = group.client
 		}
 	}
-	chain, err := NewChain("chain-random-single", client)
+
+	chain, err := NewChain("chain-single", client)
 	require.NoError(t, err)
+
 	testsuite.ProxyClient(t, &groups, chain)
 }
 
-func TestProxyChainFailure(t *testing.T) {
+func TestChainWithMixClient(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	groups := testGenerateProxyGroup(t)
+	// make a chain
+	fChain, err := NewChain("fChain", groups.Clients()...)
+	require.NoError(t, err)
+	fChainC := &Client{Tag: fChain.tag, Mode: ModeChain, client: fChain}
+	// make a balance that include chain
+	fBalance, err := NewBalance("fBalance", append(groups.Clients(), fChainC)...)
+	require.NoError(t, err)
+	fBalanceC := &Client{Tag: fBalance.tag, Mode: ModeBalance, client: fBalance}
+	// create final chain
+	chain, err := NewChain("chain-mix", append(groups.Clients(), fChainC, fBalanceC)...)
+	require.NoError(t, err)
+
+	testsuite.ProxyClient(t, &groups, chain)
+}
+
+func TestChainFailure(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
