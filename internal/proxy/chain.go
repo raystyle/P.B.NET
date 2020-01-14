@@ -3,10 +3,8 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -21,34 +19,42 @@ type Chain struct {
 	length  int
 
 	first *Client
+	fib   bool // first client is balance
 }
 
 // NewChain is used to create a proxy chain
 func NewChain(tag string, clients ...*Client) (*Chain, error) {
 	if tag == "" {
-		return nil, errors.New("empty proxy chain tag")
+		return nil, errors.New("empty chain tag")
 	}
 	l := len(clients)
 	if l == 0 {
-		return nil, errors.New("proxy chain need at least one proxy client")
+		return nil, errors.New("chain need at least one proxy client")
 	}
 	cs := make([]*Client, l)
 	copy(cs, clients)
-	return &Chain{
+	chain := Chain{
 		tag:     tag,
 		clients: cs,
 		length:  l,
 		first:   cs[0],
-	}, nil
+	}
+	if _, ok := chain.first.client.(*Balance); ok {
+		chain.fib = true
+	}
+	return &chain, nil
 }
 
 // Dial is used to connect to address through proxy chain
 func (c *Chain) Dial(network, address string) (net.Conn, error) {
+	if c.fib {
+
+	}
 	fTimeout := c.first.Timeout()
 	fNetwork, fAddress := c.first.Server()
 	conn, err := (&net.Dialer{Timeout: fTimeout}).Dial(fNetwork, fAddress)
 	if err != nil {
-		const format = "proxy chain %s dial: failed to connect the first proxy %s"
+		const format = "chain %s dial: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
 	pConn, err := c.Connect(context.Background(), conn, network, address)
@@ -62,11 +68,14 @@ func (c *Chain) Dial(network, address string) (net.Conn, error) {
 
 // DialContext is used to connect to address through proxy chain with context
 func (c *Chain) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	if c.fib {
+
+	}
 	fTimeout := c.first.Timeout()
 	fNetwork, fAddress := c.first.Server()
 	conn, err := (&net.Dialer{Timeout: fTimeout}).DialContext(ctx, fNetwork, fAddress)
 	if err != nil {
-		const format = "proxy chain %s dial context: failed to connect the first proxy %s"
+		const format = "chain %s dial context: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
 	pConn, err := c.Connect(ctx, conn, network, address)
@@ -83,10 +92,13 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 	if timeout < 1 {
 		timeout = defaultDialTimeout
 	}
+	if c.fib {
+
+	}
 	fNetwork, fAddress := c.first.Server()
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(fNetwork, fAddress)
 	if err != nil {
-		const format = "proxy chain %s dial timeout: failed to connect the first proxy %s"
+		const format = "chain %s dial timeout: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
 	pConn, err := c.Connect(context.Background(), conn, network, address)
@@ -99,22 +111,12 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 }
 
 // Connect is used to connect to address through proxy chain with context
-func (c *Chain) Connect(
-	ctx context.Context,
-	conn net.Conn,
-	network string,
-	address string,
-) (net.Conn, error) {
+func (c *Chain) Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error) {
 	conn, err := c.connect(ctx, conn, network, address)
-	return conn, errors.WithMessagef(err, "proxy chain %s", c.tag)
+	return conn, errors.WithMessagef(err, "chain %s", c.tag)
 }
 
-func (c *Chain) connect(
-	ctx context.Context,
-	conn net.Conn,
-	network string,
-	address string,
-) (net.Conn, error) {
+func (c *Chain) connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error) {
 	var (
 		next int
 		err  error
@@ -122,6 +124,7 @@ func (c *Chain) connect(
 	for i := 0; i < c.length; i++ {
 		next = i + 1
 		if next < c.length {
+
 			nextNetwork, nextAddress := c.clients[next].Server()
 			conn, err = c.clients[i].Connect(ctx, conn, nextNetwork, nextAddress)
 			if err != nil {
@@ -154,30 +157,10 @@ func (c *Chain) Server() (string, string) {
 }
 
 // Info is used to get the proxy chain info, it will print all proxy client info
-//
-// proxy chain: tag
-// 1. tag-a:  http://admin:123456@127.0.0.1:8080
-// 2. tag-b:  https://admin:123456@127.0.0.1:8080
-// 3. tag-c:  socks5 tcp 127.0.0.1:1080 admin 123456
-// 4. tag-dd: socks4a tcp 127.0.0.1:1081
 func (c *Chain) Info() string {
 	buf := new(bytes.Buffer)
-	buf.WriteString("proxy chain: ")
+	buf.WriteString("chain: ")
 	buf.WriteString(c.tag)
-
-	// get max tag length
-	var maxTagLen int
-	for i := 0; i < c.length; i++ {
-		l := len(c.clients[i].Tag)
-		if l > maxTagLen {
-			maxTagLen = l
-		}
-	}
-	l := strconv.Itoa(maxTagLen + 1) // add ":"
-	format := "\n%d. %-" + l + "s %s"
-	for i := 0; i < c.length; i++ {
-		c := c.clients[i]
-		_, _ = fmt.Fprintf(buf, format, i+1, c.Tag+":", c.Info())
-	}
+	printInfo(buf, c.clients, c.length)
 	return buf.String()
 }

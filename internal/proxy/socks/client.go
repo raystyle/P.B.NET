@@ -72,7 +72,7 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 		c.info = fmt.Sprintf("%s %s %s %s:%s",
 			c.protocol, c.network, c.address, c.username, c.password)
 	} else {
-		c.info = fmt.Sprintf("%s %s %s", c.protocol, c.network, c.address)
+		c.info = fmt.Sprintf("%s %s %s", c.protocol, c.network, c.address) // TODO ID
 	}
 	return &c, nil
 }
