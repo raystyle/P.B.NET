@@ -229,10 +229,6 @@ func (c *Client) Connect(
 	// interrupt
 	wg := sync.WaitGroup{}
 	done := make(chan struct{})
-	defer func() {
-		close(done)
-		wg.Wait()
-	}()
 	wg.Add(1)
 	go func() {
 		defer func() {
@@ -244,6 +240,10 @@ func (c *Client) Connect(
 		case <-ctx.Done():
 			_ = conn.Close()
 		}
+	}()
+	defer func() {
+		close(done)
+		wg.Wait()
 	}()
 
 	// write to connection
@@ -301,6 +301,7 @@ func (c *Client) Server() (string, string) {
 }
 
 // Info is used to get the proxy client info
+//
 // http://admin:123456@127.0.0.1:8080
 // https://admin:123456@[::1]:8081
 func (c *Client) Info() string {

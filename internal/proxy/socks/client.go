@@ -170,10 +170,6 @@ func (c *Client) Connect(
 	// interrupt
 	wg := sync.WaitGroup{}
 	done := make(chan struct{})
-	defer func() {
-		close(done)
-		wg.Wait()
-	}()
 	wg.Add(1)
 	go func() {
 		defer func() {
@@ -185,6 +181,10 @@ func (c *Client) Connect(
 		case <-ctx.Done():
 			_ = conn.Close()
 		}
+	}()
+	defer func() {
+		close(done)
+		wg.Wait()
 	}()
 
 	// connect
@@ -216,6 +216,7 @@ func (c *Client) Server() (string, string) {
 }
 
 // Info is used to get the socks client info
+//
 // socks5 tcp 127.0.0.1:1080 admin:123456
 // socks4a tcp 127.0.0.1:1080
 func (c *Client) Info() string {
