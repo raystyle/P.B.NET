@@ -38,13 +38,16 @@ func TestCompareClients(t *testing.T) {
 }
 
 func TestBalance(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
 	groups := testGenerateProxyGroup(t)
 	balance, err := NewBalance("balance", groups.Clients()...)
 	require.NoError(t, err)
 
-	// test get next
+	// test getAndSelect()
 	for i := 0; i < 4000; i++ {
 		pcs := make([]*Client, 4)
 		for j := 0; j < 4; j++ {
@@ -53,8 +56,6 @@ func TestBalance(t *testing.T) {
 		testCompareClients(t, pcs)
 	}
 
-	// test Connect
-	testsuite.InitHTTPServers(t)
 	if testsuite.IPv4Enabled {
 		timeout := balance.Timeout()
 		network, address := balance.Server()
@@ -90,9 +91,10 @@ func TestBalance(t *testing.T) {
 }
 
 func TestBalanceFailure(t *testing.T) {
-	t.Parallel()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	// no tag
+	// empty tag
 	_, err := NewBalance("")
 	require.Errorf(t, err, "empty balance tag")
 	// no proxy clients

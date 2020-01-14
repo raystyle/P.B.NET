@@ -115,4 +115,16 @@ func TestHTTPServerWithUnknownNetwork(t *testing.T) {
 	server, err := NewServer("test", logger.Test, nil)
 	require.NoError(t, err)
 	require.Error(t, server.ListenAndServe("foo", "localhost:0"))
+
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestServer_Close(t *testing.T) {
+	t.Parallel()
+
+	server, err := NewServer("test", logger.Test, nil)
+	require.NoError(t, err)
+	require.Error(t, server.ListenAndServe("tcp", "localhost:0"))
+
 }

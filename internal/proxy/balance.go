@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -100,9 +101,7 @@ func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (n
 	return conn, errors.WithMessagef(err, "balance %s DialTimeout", b.tag)
 }
 
-// Connect is used to connect target, for Chain
-// Connect must with Timeout() and Server() at the same time
-// or Connect maybe failed because incorrect conn
+// Connect is used to connect target
 func (b *Balance) Connect(
 	ctx context.Context,
 	conn net.Conn,
@@ -119,30 +118,39 @@ func (b *Balance) HTTP(t *http.Transport) {
 }
 
 // Timeout is used to get the next proxy client timeout
-// if you want wo use balance in proxy chain
-// must add lock for Timeout() and Server()
 func (b *Balance) Timeout() time.Duration {
 	return b.getNextProxyClient().Timeout()
 }
 
-// Server is used to get the next proxy client
-// related proxy server address
+// Server is used to get the next proxy client related proxy server address
 func (b *Balance) Server() (string, string) {
 	return b.getNextProxyClient().Server()
 }
 
-// Info is used to get the balance info
+// Info is used to get the balance info, it will print all proxy client info
+//
 // balance: tag
-// 1. tag-a: http://admin:123456@127.0.0.1:8080
-// 2. tag-b: socks5 tcp 127.0.0.1:1080 admin 123456
-// 3. tag-c: socks4a tcp 127.0.0.1:1081
+// 1. tag-a:  http://admin:123456@127.0.0.1:8080
+// 2. tag-b:  https://admin:123456@127.0.0.1:8080
+// 3. tag-c:  socks5 tcp 127.0.0.1:1080 admin 123456
+// 4. tag-dd: socks4a tcp 127.0.0.1:1081
 func (b *Balance) Info() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString("balance: ")
 	buf.WriteString(b.tag)
+	// get max tag length
+	var maxTagLen int
+	for i := 0; i < b.length; i++ {
+		l := len(b.clients[i].Tag)
+		if l > maxTagLen {
+			maxTagLen = l
+		}
+	}
+	l := strconv.Itoa(maxTagLen + 1) // add ":"
+	format := "\n%d. %-" + l + "s %s"
 	for i := 0; i < b.length; i++ {
 		c := b.clients[i]
-		_, _ = fmt.Fprintf(buf, "\n%d. %s: %s", i+1, c.Tag, c.Info())
+		_, _ = fmt.Fprintf(buf, format, i+1, c.Tag+":", c.Info())
 	}
 	return buf.String()
 }

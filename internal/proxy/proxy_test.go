@@ -57,8 +57,8 @@ func testGenerateProxyGroup(t *testing.T) groups {
 
 	// add socks5
 	socksOpts := &socks.Options{
-		Username: "admin",
-		Password: "123456",
+		Username: "admin1",
+		Password: "1234561",
 	}
 	socks5Server, err := socks.NewServer("test", logger.Test, socksOpts)
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	// add socks4a
 	socksOpts = &socks.Options{
 		Socks4: true,
-		UserID: "admin",
+		UserID: "admin2",
 	}
 	socks4aServer, err := socks.NewServer("test", logger.Test, socksOpts)
 	require.NoError(t, err)
@@ -101,8 +101,8 @@ func testGenerateProxyGroup(t *testing.T) groups {
 
 	// add http
 	httpOpts := &http.Options{
-		Username: "admin",
-		Password: "123456",
+		Username: "admin3",
+		Password: "1234563",
 	}
 	httpServer, err := http.NewServer("test", logger.Test, httpOpts)
 	require.NoError(t, err)
@@ -125,8 +125,8 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 	httpOpts = &http.Options{
 		HTTPS:    true,
-		Username: "admin",
-		Password: "123456",
+		Username: "admin4",
+		Password: "1234564",
 	}
 	httpOpts.Server.TLSConfig = *serverCfg
 	httpsServer, err := http.NewServer("test", logger.Test, httpOpts)

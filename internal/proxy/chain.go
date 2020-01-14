@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -152,18 +153,31 @@ func (c *Chain) Server() (string, string) {
 	return c.first.Server()
 }
 
-// Info is used to get the proxy chain info
+// Info is used to get the proxy chain info, it will print all proxy client info
+//
 // proxy chain: tag
-// 1. tag-a: http://admin:123456@127.0.0.1:8080
-// 2. tag-b: socks5 tcp 127.0.0.1:1080 admin 123456
-// 3. tag-c: socks4a tcp 127.0.0.1:1081
+// 1. tag-a:  http://admin:123456@127.0.0.1:8080
+// 2. tag-b:  https://admin:123456@127.0.0.1:8080
+// 3. tag-c:  socks5 tcp 127.0.0.1:1080 admin 123456
+// 4. tag-dd: socks4a tcp 127.0.0.1:1081
 func (c *Chain) Info() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString("proxy chain: ")
 	buf.WriteString(c.tag)
+
+	// get max tag length
+	var maxTagLen int
+	for i := 0; i < c.length; i++ {
+		l := len(c.clients[i].Tag)
+		if l > maxTagLen {
+			maxTagLen = l
+		}
+	}
+	l := strconv.Itoa(maxTagLen + 1) // add ":"
+	format := "\n%d. %-" + l + "s %s"
 	for i := 0; i < c.length; i++ {
 		c := c.clients[i]
-		_, _ = fmt.Fprintf(buf, "\n%d. %s: %s", i+1, c.Tag, c.Info())
+		_, _ = fmt.Fprintf(buf, format, i+1, c.Tag+":", c.Info())
 	}
 	return buf.String()
 }

@@ -11,7 +11,10 @@ import (
 )
 
 func TestProxyChainSelect(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
 	groups := testGenerateProxyGroup(t)
 	// use select
@@ -26,7 +29,10 @@ func TestProxyChainSelect(t *testing.T) {
 }
 
 func TestProxyChainRandom(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
 	groups := testGenerateProxyGroup(t)
 	chain, err := NewChain("chain-random", groups.Clients()...)
@@ -35,7 +41,10 @@ func TestProxyChainRandom(t *testing.T) {
 }
 
 func TestProxyChainWithSingleClient(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
 	groups := testGenerateProxyGroup(t)
 	var client *Client
@@ -50,7 +59,8 @@ func TestProxyChainWithSingleClient(t *testing.T) {
 }
 
 func TestProxyChainFailure(t *testing.T) {
-	t.Parallel()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
 	// no tag
 	_, err := NewChain("")

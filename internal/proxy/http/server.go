@@ -155,11 +155,11 @@ func (s *Server) ListenAndServe(network, address string) error {
 
 // Serve accepts incoming connections on the listener
 // it will not block
-func (s *Server) Serve(l net.Listener) {
+func (s *Server) Serve(listener net.Listener) {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
-	s.address = l.Addr().String()
-	ll := netutil.LimitListener(l, s.maxConns)
+	s.address = listener.Addr().String()
+	listener = netutil.LimitListener(listener, s.maxConns)
 	s.wg.Add(1)
 	go func() {
 		defer func() {
@@ -177,9 +177,9 @@ func (s *Server) Serve(l net.Listener) {
 		}()
 		s.logf(logger.Info, "start server (%s)", s.address)
 		if s.https {
-			_ = s.server.ServeTLS(ll, "", "")
+			_ = s.server.ServeTLS(listener, "", "")
 		} else {
-			_ = s.server.Serve(ll)
+			_ = s.server.Serve(listener)
 		}
 	}()
 }
@@ -193,6 +193,14 @@ func (s *Server) Close() error {
 		s.doExitFunc()
 	})
 	return err
+}
+
+func (s *Server) doExitFunc() {
+	s.execOnce.Do(func() {
+		if s.exitFunc != nil {
+			s.exitFunc()
+		}
+	})
 }
 
 // Address is used to get HTTP proxy address
@@ -219,12 +227,8 @@ func (s *Server) Info() string {
 	return buf.String()
 }
 
-func (s *Server) doExitFunc() {
-	s.execOnce.Do(func() {
-		if s.exitFunc != nil {
-			s.exitFunc()
-		}
-	})
+func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
+	s.logger.Printf(lv, s.tag, format, log...)
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
@@ -239,11 +243,7 @@ func (s *Server) log(lv logger.Level, log ...interface{}) {
 	}
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprint(buf, logs...)
-	s.logger.Println(lv, s.tag, buf)
-}
-
-func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
-	s.logger.Printf(lv, s.tag, format, log...)
+	s.logger.Print(lv, s.tag, buf)
 }
 
 var (
@@ -319,7 +319,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}()
 		_, _ = io.Copy(wc, conn)
 		close(closeChan)
-	} else { // handle http
+	} else { // handle http request
 		ctx, cancel := context.WithTimeout(s.ctx, s.timeout)
 		defer cancel()
 		resp, err := s.transport.RoundTrip(r.Clone(ctx))

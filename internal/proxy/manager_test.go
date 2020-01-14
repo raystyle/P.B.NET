@@ -12,6 +12,9 @@ import (
 )
 
 func TestManager(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	const (
 		tagSocks = "test_socks"
 		tagHTTP  = "test_http"
@@ -91,6 +94,9 @@ func TestManager(t *testing.T) {
 }
 
 func TestManager_Add(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	manager := NewManager(logger.Test, nil)
 	// add socks server with invalid toml data
 	err := manager.Add(&Server{

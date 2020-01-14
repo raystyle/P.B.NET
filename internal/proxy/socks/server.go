@@ -217,6 +217,9 @@ func (s *Server) Close() error {
 		if s.listener != nil {
 			err = s.listener.Close()
 		}
+
+		// TODO close Conns
+
 		if s.exitFunc != nil {
 			s.exitFunc()
 		}
@@ -249,6 +252,10 @@ func (s *Server) Info() string {
 	return buf.String()
 }
 
+func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
+	s.logger.Printf(lv, s.tag, format, log...)
+}
+
 func (s *Server) log(lv logger.Level, log ...interface{}) {
 	l := len(log)
 	logs := make([]interface{}, l)
@@ -261,11 +268,7 @@ func (s *Server) log(lv logger.Level, log ...interface{}) {
 	}
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprint(buf, logs...)
-	s.logger.Println(lv, s.tag, buf)
-}
-
-func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
-	s.logger.Printf(lv, s.tag, format, log...)
+	s.logger.Print(lv, s.tag, buf)
 }
 
 func (s *Server) newConn(c net.Conn) *conn {
