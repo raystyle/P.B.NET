@@ -25,6 +25,9 @@ func TestProxyChainSelect(t *testing.T) {
 	clients[3] = groups["socks5"].client
 	chain, err := NewChain("chain-select", clients...)
 	require.NoError(t, err)
+
+	_, _ = chain.Connect(nil, nil, "", "")
+
 	testsuite.ProxyClient(t, &groups, chain)
 }
 

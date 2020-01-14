@@ -15,11 +15,8 @@ const defaultDialTimeout = 30 * time.Second
 // Chain implement client
 type Chain struct {
 	tag     string
-	clients []*Client // must > 0
-	length  int
-
-	first *Client
-	fib   bool // first client is balance
+	clients []*Client // not nil
+	count   int       // len(clients)
 }
 
 // NewChain is used to create a proxy chain
@@ -36,31 +33,69 @@ func NewChain(tag string, clients ...*Client) (*Chain, error) {
 	chain := Chain{
 		tag:     tag,
 		clients: cs,
-		length:  l,
-		first:   cs[0],
-	}
-	if _, ok := chain.first.client.(*Balance); ok {
-		chain.fib = true
+		count:   l,
 	}
 	return &chain, nil
 }
 
+// []*Client will not include ModeBalance or ModeChain
+func (c *Chain) getClients() []*Client {
+	// if chain in clients, len(clients) will bigger than c.count
+	clients := make([]*Client, 0, c.count)
+	for _, client := range c.clients {
+		switch client.Mode {
+		case ModeBalance:
+			c := client.client.(*Balance).GetAndSelectNext()
+			if c.Mode == ModeChain {
+				clients = append(clients, c.client.(*Chain).getClients()...)
+			} else {
+				clients = append(clients, c)
+			}
+		case ModeChain:
+			clients = append(clients, client.client.(*Chain).getClients()...)
+		default:
+			clients = append(clients, client)
+		}
+	}
+	return clients
+}
+
+func connect(
+	ctx context.Context,
+	conn net.Conn,
+	network string,
+	address string,
+	clients []*Client,
+) (net.Conn, error) {
+	l := len(clients)
+	var err error
+	for i := 1; i < l; i++ {
+		// get next proxy server network and address
+		network, address := clients[i].Server()
+		// use current client to connect next proxy server
+		conn, err = clients[i-1].Connect(ctx, conn, network, address)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// connect the target
+	return clients[l-1].Connect(ctx, conn, network, address)
+}
+
 // Dial is used to connect to address through proxy chain
 func (c *Chain) Dial(network, address string) (net.Conn, error) {
-	if c.fib {
-
-	}
-	fTimeout := c.first.Timeout()
-	fNetwork, fAddress := c.first.Server()
+	clients := c.getClients()
+	fTimeout := clients[0].Timeout()
+	fNetwork, fAddress := clients[0].Server()
 	conn, err := (&net.Dialer{Timeout: fTimeout}).Dial(fNetwork, fAddress)
 	if err != nil {
 		const format = "chain %s dial: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
-	pConn, err := c.Connect(context.Background(), conn, network, address)
+	pConn, err := connect(context.Background(), conn, network, address, clients)
 	if err != nil {
 		_ = conn.Close()
-		return nil, err
+		return nil, errors.WithMessagef(err, "chain %s dial", c.tag)
 	}
 	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
@@ -68,20 +103,18 @@ func (c *Chain) Dial(network, address string) (net.Conn, error) {
 
 // DialContext is used to connect to address through proxy chain with context
 func (c *Chain) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	if c.fib {
-
-	}
-	fTimeout := c.first.Timeout()
-	fNetwork, fAddress := c.first.Server()
+	clients := c.getClients()
+	fTimeout := clients[0].Timeout()
+	fNetwork, fAddress := clients[0].Server()
 	conn, err := (&net.Dialer{Timeout: fTimeout}).DialContext(ctx, fNetwork, fAddress)
 	if err != nil {
 		const format = "chain %s dial context: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
-	pConn, err := c.Connect(ctx, conn, network, address)
+	pConn, err := connect(ctx, conn, network, address, clients)
 	if err != nil {
 		_ = conn.Close()
-		return nil, err
+		return nil, errors.WithMessagef(err, "chain %s dial context", c.tag)
 	}
 	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
@@ -92,49 +125,25 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 	if timeout < 1 {
 		timeout = defaultDialTimeout
 	}
-	if c.fib {
-
-	}
-	fNetwork, fAddress := c.first.Server()
+	clients := c.getClients()
+	fNetwork, fAddress := clients[0].Server()
 	conn, err := (&net.Dialer{Timeout: timeout}).Dial(fNetwork, fAddress)
 	if err != nil {
 		const format = "chain %s dial timeout: failed to connect the first proxy %s"
 		return nil, errors.Wrapf(err, format, c.tag, fAddress)
 	}
-	pConn, err := c.Connect(context.Background(), conn, network, address)
+	pConn, err := connect(context.Background(), conn, network, address, clients)
 	if err != nil {
 		_ = conn.Close()
-		return nil, err
+		return nil, errors.WithMessagef(err, "chain %s dial timeout", c.tag)
 	}
 	_ = pConn.SetDeadline(time.Time{})
 	return pConn, nil
 }
 
-// Connect is used to connect to address through proxy chain with context
-func (c *Chain) Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error) {
-	conn, err := c.connect(ctx, conn, network, address)
-	return conn, errors.WithMessagef(err, "chain %s", c.tag)
-}
-
-func (c *Chain) connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error) {
-	var (
-		next int
-		err  error
-	)
-	for i := 0; i < c.length; i++ {
-		next = i + 1
-		if next < c.length {
-
-			nextNetwork, nextAddress := c.clients[next].Server()
-			conn, err = c.clients[i].Connect(ctx, conn, nextNetwork, nextAddress)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			break
-		}
-	}
-	return c.clients[next-1].Connect(ctx, conn, network, address)
+// Connect is is a padding function
+func (c *Chain) Connect(context.Context, net.Conn, string, string) (net.Conn, error) {
+	return nil, errors.New("chain doesn't support Connect")
 }
 
 // HTTP is used to set *http.Transport about proxy
@@ -142,18 +151,14 @@ func (c *Chain) HTTP(t *http.Transport) {
 	t.DialContext = c.DialContext
 }
 
-// Timeout is used to get the proxy chain timeout
+// Timeout is a padding function
 func (c *Chain) Timeout() time.Duration {
-	var timeout time.Duration
-	for i := 0; i < c.length; i++ {
-		timeout += c.clients[i].Timeout()
-	}
-	return timeout
+	return 0
 }
 
-// Server is used to get the first proxy client related proxy server address
+// Server is a padding function
 func (c *Chain) Server() (string, string) {
-	return c.first.Server()
+	return "", ""
 }
 
 // Info is used to get the proxy chain info, it will print all proxy client info
@@ -161,6 +166,6 @@ func (c *Chain) Info() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString("chain: ")
 	buf.WriteString(c.tag)
-	printInfo(buf, c.clients, c.length)
+	printInfo(buf, c.clients)
 	return buf.String()
 }

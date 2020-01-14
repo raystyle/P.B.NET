@@ -63,14 +63,15 @@ type Server struct {
 
 // ListenAndServe is used to listen a listener and serve
 // it will not block
-func (s *Server) ListenAndServe(network, address string) (err error) {
+func (s *Server) ListenAndServe(network, address string) error {
+	var err error
 	s.serveOnce.Do(func() {
 		err = s.server.ListenAndServe(network, address)
 		s.rwm.Lock()
+		defer s.rwm.Unlock()
 		s.serveAt = s.now()
-		s.rwm.Unlock()
 	})
-	return
+	return err
 }
 
 // Serve accepts incoming connections on the listener
@@ -79,8 +80,8 @@ func (s *Server) Serve(l net.Listener) {
 	s.serveOnce.Do(func() {
 		s.server.Serve(l)
 		s.rwm.Lock()
+		defer s.rwm.Unlock()
 		s.serveAt = s.now()
-		s.rwm.Unlock()
 	})
 }
 
@@ -92,9 +93,8 @@ func (s *Server) CreateAt() time.Time {
 // ServeAt is used get proxy server serve time
 func (s *Server) ServeAt() time.Time {
 	s.rwm.RLock()
-	t := s.serveAt
-	s.rwm.RUnlock()
-	return t
+	defer s.rwm.RUnlock()
+	return s.serveAt
 }
 
 // Close is used to close proxy server

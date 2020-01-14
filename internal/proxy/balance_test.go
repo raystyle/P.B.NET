@@ -1,10 +1,7 @@
 package proxy
 
 import (
-	"context"
 	"fmt"
-	"net"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -66,36 +63,7 @@ func TestBalance(t *testing.T) {
 	balance, err := NewBalance("balance", groups.Clients()...)
 	require.NoError(t, err)
 
-	if testsuite.IPv4Enabled {
-		timeout := balance.Timeout()
-		network, address := balance.Server()
-		conn, err := net.DialTimeout(network, address, timeout)
-		require.NoError(t, err)
-		addr := "127.0.0.1:" + testsuite.HTTPServerPort
-		pConn, err := balance.Connect(context.Background(), conn, "tcp4", addr)
-		require.NoError(t, err)
-		testsuite.ProxyConn(t, pConn)
-	}
-	if testsuite.IPv6Enabled {
-		// remove socks4
-		var clients []*Client
-		for _, client := range groups.Clients() {
-			if !strings.Contains(client.Info(), "socks4") {
-				clients = append(clients, client)
-			}
-		}
-		balance, err := NewBalance("balance", clients...)
-		require.NoError(t, err)
-		// test
-		timeout := balance.Timeout()
-		network, address := balance.Server()
-		conn, err := net.DialTimeout(network, address, timeout)
-		require.NoError(t, err)
-		addr := "[::1]:" + testsuite.HTTPServerPort
-		pConn, err := balance.Connect(context.Background(), conn, "tcp6", addr)
-		require.NoError(t, err)
-		testsuite.ProxyConn(t, pConn)
-	}
+	_, _ = balance.Connect(nil, nil, "", "")
 
 	testsuite.ProxyClient(t, &groups, balance)
 }
@@ -115,20 +83,6 @@ func TestBalanceFailure(t *testing.T) {
 	balance, err := NewBalance("01", groups.Clients()...)
 	require.NoError(t, err)
 	testsuite.ProxyClientWithUnreachableTarget(t, &groups, balance)
-
-	// connect unreachable target
-	groupsC := testGenerateProxyGroup(t)
-	defer func() { _ = groupsC.Close() }()
-	balance, err = NewBalance("02", groupsC.Clients()...)
-	require.NoError(t, err)
-	timeout := balance.Timeout()
-	network, address := balance.Server()
-	conn, err := net.DialTimeout(network, address, timeout)
-	require.NoError(t, err)
-	_, err = balance.Connect(context.Background(), conn, "tcp", "0.0.0.0:1")
-	require.Error(t, err)
-
-	testsuite.IsDestroyed(t, balance)
 }
 
 func testGenerateBalanceInBalance(t *testing.T) (groups, *Balance) {
