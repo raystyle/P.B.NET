@@ -15,6 +15,7 @@ import (
 
 func TestIssueVerifyCertificate(t *testing.T) {
 	testInitializeController(t)
+
 	const address = "localhost:9931"
 	nodeGUID := bytes.Repeat([]byte{1}, guid.Size)
 	cert := ctrl.issueCertificate(address, nodeGUID)
@@ -24,14 +25,17 @@ func TestIssueVerifyCertificate(t *testing.T) {
 
 func TestVerifyInvalidCertificate(t *testing.T) {
 	testInitializeController(t)
+
 	client := client{ctx: ctrl}
 	require.False(t, client.verifyCertificate(nil, "foo", []byte{1}))
 }
 
 func TestTrustNodeAndConfirm(t *testing.T) {
 	testInitializeController(t)
+
 	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
+
 	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
 	node := &bootstrap.Node{
@@ -39,6 +43,7 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 		Network: "udp",
 		Address: listener.Addr().String(),
 	}
+
 	req, err := ctrl.TrustNode(context.Background(), node)
 	require.NoError(t, err)
 	require.Equal(t, info.GetSystemInfo(), req.SystemInfo)

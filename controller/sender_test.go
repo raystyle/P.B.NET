@@ -20,37 +20,38 @@ import (
 	"project/node"
 )
 
-func testGenerateNodeAndTrust(t testing.TB) *node.Node {
+func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
 	testInitializeController(t)
+
 	NODE := testGenerateInitialNode(t)
 	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
-	n := bootstrap.Node{
-		Mode:    xnet.ModeTLS,
-		Network: "tcp",
+	bn := bootstrap.Node{
+		Mode:    xnet.ModeQUIC,
+		Network: "udp",
 		Address: listener.Addr().String(),
 	}
 	// trust node
-	req, err := ctrl.TrustNode(context.Background(), &n)
+	req, err := ctrl.TrustNode(context.Background(), &bn)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(context.Background(), &n, req)
+	err = ctrl.ConfirmTrustNode(context.Background(), &bn, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.sender.Connect(&n, NODE.GUID())
+	err = ctrl.Connect(&bn, NODE.GUID())
 	require.NoError(t, err)
 	return NODE
 }
 
 func TestSender_Connect(t *testing.T) {
-	NODE := testGenerateNodeAndTrust(t)
+	NODE := testGenerateInitialNodeAndTrust(t)
 	defer NODE.Exit(nil)
 	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
-	err := ctrl.sender.Disconnect(guid)
+	err := ctrl.Disconnect(guid)
 	require.NoError(t, err)
 }
 
 func TestSender_Broadcast(t *testing.T) {
-	NODE := testGenerateNodeAndTrust(t)
+	NODE := testGenerateInitialNodeAndTrust(t)
 	const (
 		goroutines = 256
 		times      = 64
@@ -100,7 +101,7 @@ func TestSender_Broadcast(t *testing.T) {
 }
 
 func TestSender_SendToNode(t *testing.T) {
-	NODE := testGenerateNodeAndTrust(t)
+	NODE := testGenerateInitialNodeAndTrust(t)
 	nodeGUID := NODE.GUID()
 	const (
 		goroutines = 256
@@ -156,7 +157,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 	number := runtime.NumCPU()
 	NODEs := make([]*node.Node, number)
 	for i := 0; i < number; i++ {
-		NODEs[i] = testGenerateNodeAndTrust(b)
+		NODEs[i] = testGenerateInitialNodeAndTrust(b)
 	}
 	defer func() {
 		for i := 0; i < number; i++ {
@@ -194,7 +195,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 }
 
 func TestSender_SendToNodeBenchmark(t *testing.T) {
-	NODE := testGenerateNodeAndTrust(t)
+	NODE := testGenerateInitialNodeAndTrust(t)
 	// send to Node
 	nodeGUID := NODE.GUID()
 	var (

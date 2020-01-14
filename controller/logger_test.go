@@ -9,7 +9,7 @@ import (
 	"project/internal/logger"
 )
 
-func TestDBLogger(t *testing.T) {
+func TestDatabaseLogger(t *testing.T) {
 	path := os.TempDir() + "/database.log"
 	l, err := newDatabaseLogger("mysql", path, os.Stdout)
 	require.NoError(t, err)
@@ -29,13 +29,13 @@ func TestGormLogger(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestCtrlLogger(t *testing.T) {
+func TestLogger(t *testing.T) {
+	testInitializeController(t)
 	const (
 		testSrc  = "test src"
 		testLog1 = "test"
 		testLog2 = "log"
 	)
-	testInitializeController(t)
 	ctrl.logger.Printf(logger.Debug, testSrc, "test format %s %s", testLog1, testLog2)
 	ctrl.logger.Print(logger.Debug, testSrc, "test print", testLog1, testLog2)
 	ctrl.logger.Println(logger.Debug, testSrc, "test println", testLog1, testLog2)
