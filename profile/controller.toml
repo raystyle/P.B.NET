@@ -1,0 +1,44 @@
+[database]
+  dialect           = "mysql"
+  dsn               = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet?loc=Local&parseTime=true"
+  max_open_conns    = 16
+  max_idle_conns    = 16
+  log_file          = "log/database.log"
+  gorm_log_file     = "log/gorm.log"
+  gorm_detailed_log = false
+
+[logger]
+  level = "debug"
+  file  = "log/controller.log"
+
+[global]
+  dns_cache_expire   = "2m"
+  time_sync_interval = "1m"
+
+[client]
+  proxy_tag = ""
+  timeout   = "15s"
+
+  [client.dns]
+    mode    = "custom"
+    method  = "dot"
+
+[sender]
+  max_buffer_size = 16384 # sender & worker's buffer
+  worker          = 64    # number of sender worker
+  queue_size      = 512   # sender chan buffer size
+  max_conns       = 7     # max node connected
+
+[syncer]
+  max_buffer_size = 16384 # syncer & worker's buffer
+  worker          = 64    # number of syncer worker
+  queue_size      = 512   # worker chan buffer size
+  expire_time     = "3m"  # send GUID expired
+
+[web]
+  dir       = "web"
+  address   = "localhost:1657"
+  cert_file = "ca/cert.pem"
+  key_file  = "ca/key.pem"
+  username  = "pbnet" # super user, password = sha256(sha256("pbnet"))
+  password  = "d6b3ced503b70f7894bd30f36001de4af84a8c2af898f06e29bca95f2dcf5100"
