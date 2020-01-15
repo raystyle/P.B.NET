@@ -1,0 +1,10 @@
+https    = true
+username = "admin"
+password = "123456"
+timeout  = "1m"
+
+[header]
+  Connection = ["keep-alive"]
+
+[tls_config]
+  server_name = "test.com"

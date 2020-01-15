@@ -1,0 +1,11 @@
+https     = true
+username  = "admin"
+password  = "123456"
+timeout   = "1m"
+max_conns = 1000
+
+[server]
+  read_timeout = "10s"
+
+[transport]
+  max_idle_conns = 2
