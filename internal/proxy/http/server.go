@@ -17,7 +17,6 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/logger"
-	"project/internal/options"
 	"project/internal/xpanic"
 )
 
@@ -26,68 +25,48 @@ const (
 	defaultMaxConnections = 1000
 )
 
-// Options contains client and server options
-type Options struct {
-	HTTPS    bool          `toml:"https"`
-	Username string        `toml:"username"`
-	Password string        `toml:"password"`
-	Timeout  time.Duration `toml:"timeout"`
-
-	// only client
-	Header    http.Header       `toml:"header"`
-	TLSConfig options.TLSConfig `toml:"tls_config"`
-
-	// only server
-	MaxConns  int                   `toml:"max_conns"`
-	Server    options.HTTPServer    `toml:"server"`
-	Transport options.HTTPTransport `toml:"transport"`
-
-	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
-	ExitFunc    func()                                                               `toml:"-"`
-}
-
 // Server implement internal/proxy.server
 type Server struct {
-	tag         string
-	logger      logger.Logger
-	https       bool
-	timeout     time.Duration
-	maxConns    int
-	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
-	exitFunc    func()
-	execOnce    sync.Once
+	tag      string
+	logger   logger.Logger
+	https    bool
+	maxConns int
 
-	server    *http.Server
-	transport *http.Transport
-	username  []byte
-	password  []byte
-	address   string
-	rwm       sync.RWMutex
-
-	ctx    context.Context
-	cancel context.CancelFunc
+	// accept client request
+	server  *http.Server
+	handler *handler
 
 	closeOnce sync.Once
-	wg        sync.WaitGroup
 }
 
-// NewServer is used to create HTTP proxy server
-func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+// NewHTTPServer is used to create a HTTPS proxy server
+func NewHTTPServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+	return newServer(tag, lg, opts, false)
+}
+
+// NewHTTPSServer is used to create a HTTPS proxy server
+func NewHTTPSServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+	return newServer(tag, lg, opts, true)
+}
+
+func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
 	if opts == nil {
 		opts = new(Options)
 	}
-	s := Server{
-		logger:      lg,
-		https:       opts.HTTPS,
-		maxConns:    opts.MaxConns,
-		dialContext: opts.DialContext,
-		exitFunc:    opts.ExitFunc,
+	srv := Server{
+		logger:   lg,
+		https:    https,
+		maxConns: opts.MaxConns,
 	}
 	var err error
-	s.server, err = opts.Server.Apply()
+	srv.server, err = opts.Server.Apply()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	transport, err := opts.Transport.Apply()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -95,93 +74,78 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	if timeout < 1 {
 		timeout = defaultConnectTimeout
 	}
-	s.server.ReadTimeout = timeout
-	s.server.WriteTimeout = timeout
-	s.timeout = timeout
-
-	s.transport, err = opts.Transport.Apply()
-	if err != nil {
-		return nil, errors.WithStack(err)
+	srv.server.ReadTimeout = timeout
+	srv.server.WriteTimeout = timeout
+	if srv.maxConns < 1 {
+		srv.maxConns = defaultMaxConnections
 	}
 
+	if srv.https {
+		tag = "https proxy-" + tag
+	} else {
+		tag = "http proxy-" + tag
+	}
+	srv.tag = tag
+
+	handler := &handler{
+		tag:         tag,
+		logger:      lg,
+		timeout:     timeout,
+		transport:   transport,
+		dialContext: opts.DialContext,
+	}
+	if handler.dialContext == nil {
+		handler.dialContext = new(net.Dialer).DialContext
+	}
+	if opts.DialContext != nil {
+		transport.DialContext = opts.DialContext
+	}
 	if opts.Username != "" {
-		s.username = []byte(opts.Username)
+		handler.username = []byte(opts.Username)
 	}
 	if opts.Password != "" {
-		s.password = []byte(opts.Password)
+		handler.password = []byte(opts.Password)
 	}
+	handler.ctx, handler.cancel = context.WithCancel(context.Background())
 
-	if s.https {
-		s.tag = "https proxy-" + tag
-	} else {
-		s.tag = "http proxy-" + tag
-	}
+	srv.handler = handler
+	srv.server.Handler = handler
+	srv.server.ErrorLog = logger.Wrap(logger.Error, srv.tag, lg)
+	return &srv, nil
+}
 
-	if s.maxConns < 1 {
-		s.maxConns = defaultMaxConnections
-	}
-
-	if s.dialContext == nil {
-		s.dialContext = new(net.Dialer).DialContext
-	}
-
-	if opts.DialContext != nil {
-		s.transport.DialContext = opts.DialContext
-	}
-
-	s.server.Handler = &s
-	s.server.ErrorLog = logger.Wrap(logger.Error, s.tag, lg)
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-	return &s, nil
+func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
+	s.logger.Printf(lv, s.tag, format, log...)
 }
 
 // ListenAndServe is used to listen a listener and serve
-// it will not block
 func (s *Server) ListenAndServe(network, address string) error {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return errors.Errorf("unsupported network: %s", network)
+	err := CheckNetwork(network)
+	if err != nil {
+		return err
 	}
-	// listen
-	l, err := net.Listen(network, address)
+	listener, err := net.Listen(network, address)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	s.Serve(l)
-	return nil
+	return s.Serve(listener)
 }
 
 // Serve accepts incoming connections on the listener
-// it will not block
-func (s *Server) Serve(listener net.Listener) {
-	s.rwm.Lock()
-	defer s.rwm.Unlock()
-	s.address = listener.Addr().String()
+func (s *Server) Serve(listener net.Listener) error {
 	listener = netutil.LimitListener(listener, s.maxConns)
-	s.wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				s.log(logger.Fatal, xpanic.Print(r, "Server.Serve"))
-			}
-			s.cancel()
-			s.transport.CloseIdleConnections()
-			s.rwm.Lock()
-			defer s.rwm.Unlock()
-			s.server = nil // must use it
-			s.doExitFunc()
-			s.logf(logger.Info, "server stopped (%s)", s.address)
-			s.wg.Done()
-		}()
-		s.logf(logger.Info, "start server (%s)", s.address)
-		if s.https {
-			_ = s.server.ServeTLS(listener, "", "")
-		} else {
-			_ = s.server.Serve(listener)
+	address := listener.Addr().String()
+	defer func() {
+		if r := recover(); r != nil {
+			s.logf(logger.Fatal, xpanic.Print(r, "Server.Serve").String())
 		}
+		s.logf(logger.Info, "listener closed (%s)", address)
 	}()
+	s.logf(logger.Info, "start listener (%s)", address)
+	if s.https {
+		return s.server.ServeTLS(listener, "", "")
+	}
+	return s.server.Serve(listener)
 }
 
 // Close is used to close HTTP proxy server
@@ -189,61 +153,21 @@ func (s *Server) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
 		err = s.server.Close()
-		s.wg.Wait()
-		s.doExitFunc()
+		s.handler.Close()
 	})
 	return err
 }
 
-func (s *Server) doExitFunc() {
-	s.execOnce.Do(func() {
-		if s.exitFunc != nil {
-			s.exitFunc()
-		}
-	})
-}
-
-// Address is used to get HTTP proxy address
-func (s *Server) Address() string {
-	s.rwm.RLock()
-	defer s.rwm.RUnlock()
-	return s.address
-}
-
 // Info is used to get http proxy server info
-// "http proxy listen: 127.0.0.1:8080"
-// "http proxy listen: 127.0.0.1:8080 admin:123456"
+// ""
+// "admin:123456"
 func (s *Server) Info() string {
-	buf := new(bytes.Buffer)
-	if s.https {
-		buf.WriteString("https")
-	} else {
-		buf.WriteString("http")
+	username := s.handler.username
+	password := s.handler.password
+	if username != nil || password != nil {
+		return fmt.Sprintf(" %s:%s", username, password)
 	}
-	_, _ = fmt.Fprintf(buf, " proxy listen: %s", s.Address())
-	if s.username != nil || s.password != nil {
-		_, _ = fmt.Fprintf(buf, " %s:%s", s.username, s.password)
-	}
-	return buf.String()
-}
-
-func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
-	s.logger.Printf(lv, s.tag, format, log...)
-}
-
-func (s *Server) log(lv logger.Level, log ...interface{}) {
-	l := len(log)
-	logs := make([]interface{}, l)
-	for i := 0; i < l; i++ {
-		if r, ok := log[i].(*http.Request); ok {
-			logs[i] = logger.HTTPRequest(r)
-		} else {
-			logs[i] = log[i]
-		}
-	}
-	buf := new(bytes.Buffer)
-	_, _ = fmt.Fprint(buf, logs...)
-	s.logger.Print(lv, s.tag, buf)
+	return ""
 }
 
 var (
@@ -251,80 +175,119 @@ var (
 	connectionEstablishedLen = len(connectionEstablished)
 )
 
+type handler struct {
+	tag    string
+	logger logger.Logger
+
+	// dial timeout
+	timeout time.Duration
+
+	// proxy server http client
+	transport *http.Transport
+
+	// secondary proxy
+	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+
+	username []byte
+	password []byte
+
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	wg sync.WaitGroup
+}
+
+// [2018-11-27 00:00:00] [info] <http proxy-tag> test log
+// client: 127.0.0.1:1234
+// POST /index HTTP/1.1
+// Host: github.com
+// Accept: text/html
+// Connection: keep-alive
+// User-Agent: Mozilla
+//
+// post data...
+// post data...
+func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(buf, log...)
+	_, _ = logger.HTTPRequest(r).WriteTo(buf)
+	h.logger.Print(lv, h.tag, buf)
+}
+
 // ServeHTTP implement http.Handler
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	const title = "Server.ServeHTTP()"
-	s.wg.Add(1)
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	const title = "server.ServeHTTP()"
+	h.wg.Add(1)
 	defer func() {
 		if rec := recover(); rec != nil {
-			s.log(logger.Fatal, xpanic.Print(rec, title), "\n", r)
+			h.log(logger.Fatal, r, xpanic.Print(rec, title))
 		}
-		s.wg.Done()
+		h.wg.Done()
 	}()
-	if !s.authenticate(w, r) {
+	if !h.authenticate(w, r) {
 		return
 	}
+	h.log(logger.Debug, r, "handle request")
 	// remove Proxy-Authorization
 	r.Header.Del("Proxy-Authorization")
-	s.log(logger.Debug, "handle request\n", r)
 	if r.Method == http.MethodConnect { // handle https
 		// hijack client conn
 		wc, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
-			s.log(logger.Error, errors.Wrap(err, "failed to hijack"), "\n", r)
+			h.log(logger.Error, r, err)
 			return
 		}
 		defer func() { _ = wc.Close() }()
-		ctx, cancel := context.WithTimeout(s.ctx, s.timeout)
+		ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
 		defer cancel()
 		// dial target
-		conn, err := s.dialContext(ctx, "tcp", r.URL.Host)
+		conn, err := h.dialContext(ctx, "tcp", r.URL.Host)
 		if err != nil {
-			s.log(logger.Error, errors.WithStack(err), "\n", r)
+			h.log(logger.Error, r, err)
 			return
 		}
 		defer func() { _ = conn.Close() }()
 		_, err = wc.Write(connectionEstablished)
 		if err != nil {
-			s.log(logger.Error, errors.New("failed to write response"), "\n", r)
+			h.log(logger.Error, r, "failed to write response:", err)
 			return
 		}
 		// http.Server.Close() not close hijacked conn
 		closeChan := make(chan struct{})
-		s.wg.Add(1)
+		h.wg.Add(1)
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					s.log(logger.Fatal, xpanic.Print(rec, title), "\n", r)
+					h.log(logger.Fatal, r, xpanic.Print(rec, title))
 				}
-				s.wg.Done()
+				h.wg.Done()
 			}()
 			select {
 			case <-closeChan:
-			case <-s.ctx.Done():
+			case <-h.ctx.Done():
 				_ = wc.Close()
 				_ = conn.Close()
 			}
 		}()
 		// start copy
-		s.wg.Add(1)
+		h.wg.Add(1)
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					s.log(logger.Fatal, xpanic.Print(rec, title), "\n", r)
+					h.log(logger.Fatal, r, xpanic.Print(rec, title))
 				}
-				s.wg.Done()
+				h.wg.Done()
 			}()
 			_, _ = io.Copy(conn, wc)
 		}()
 		_, _ = io.Copy(wc, conn)
 		close(closeChan)
 	} else { // handle http request
-		ctx, cancel := context.WithTimeout(s.ctx, s.timeout)
+		ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
 		defer cancel()
-		resp, err := s.transport.RoundTrip(r.Clone(ctx))
+		resp, err := h.transport.RoundTrip(r.Clone(ctx))
 		if err != nil {
-			s.log(logger.Error, errors.WithStack(err), "\n", r)
+			h.log(logger.Error, r, err)
 			return
 		}
 		defer func() { _ = resp.Body.Close() }()
@@ -338,43 +301,51 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) bool {
-	if s.username == nil && s.password == nil {
+func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
+	if h.username == nil && h.password == nil {
 		return true
 	}
-	authFailed := func() {
+	failedToAuth := func() {
 		w.Header().Set("Proxy-Authenticate", "Basic")
 		w.WriteHeader(http.StatusProxyAuthRequired)
 	}
-	auth := strings.Split(r.Header.Get("Proxy-Authorization"), " ")
-	if len(auth) != 2 {
-		authFailed()
+	authInfo := strings.Split(r.Header.Get("Proxy-Authorization"), " ")
+	if len(authInfo) != 2 {
+		failedToAuth()
 		return false
 	}
-	authMethod := auth[0]
-	authBase64 := auth[1]
+	authMethod := authInfo[0]
+	authBase64 := authInfo[1]
 	switch authMethod {
 	case "Basic":
 		auth, err := base64.StdEncoding.DecodeString(authBase64)
 		if err != nil {
-			authFailed()
-			s.log(logger.Exploit, "invalid basic base64 data\n", r)
+			failedToAuth()
+			h.log(logger.Exploit, r, "invalid basic base64 data")
 			return false
 		}
 		userPass := strings.Split(string(auth), ":")
 		if len(userPass) < 2 {
 			userPass = append(userPass, "")
 		}
-		if subtle.ConstantTimeCompare(s.username, []byte(userPass[0])) != 1 ||
-			subtle.ConstantTimeCompare(s.password, []byte(userPass[1])) != 1 {
-			authFailed()
-			s.log(logger.Exploit, "invalid basic authenticate\n", r)
+		user := []byte(userPass[0])
+		pass := []byte(userPass[1])
+		if subtle.ConstantTimeCompare(h.username, user) != 1 ||
+			subtle.ConstantTimeCompare(h.password, pass) != 1 {
+			failedToAuth()
+			h.log(logger.Exploit, r, "invalid username or password: %s:%s", user, pass)
 			return false
 		}
-	default: // not support method
-		authFailed()
-		s.log(logger.Exploit, "unsupported auth method: "+authMethod+"\n", r)
+		return true
+	default:
+		failedToAuth()
+		h.log(logger.Exploit, r, "unsupported authenticate method:", authMethod)
 		return false
 	}
-	return true
+}
+
+func (h *handler) Close() {
+	h.cancel()
+	h.wg.Wait()
+	h.transport.CloseIdleConnections()
 }
