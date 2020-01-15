@@ -2,9 +2,12 @@ package options
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"io/ioutil"
 	"testing"
 
+	"github.com/bouk/monkey"
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
@@ -14,11 +17,16 @@ import (
 func TestTLSDefault(t *testing.T) {
 	config, err := new(TLSConfig).Apply()
 	require.NoError(t, err)
-	// check
-	require.Equal(t, 0, len(config.Certificates))
+
+	require.Nil(t, config.Certificates)
 	require.Equal(t, 0, len(config.RootCAs.Subjects()))
-	require.Equal(t, 0, len(config.ClientCAs.Subjects()))
-	require.Equal(t, 0, len(config.NextProtos))
+	require.Nil(t, config.ClientCAs)
+	require.Equal(t, tls.ClientAuthType(0), config.ClientAuth)
+	require.Equal(t, "", config.ServerName)
+	require.Nil(t, config.NextProtos)
+	require.Equal(t, uint16(tls.VersionTLS12), config.MinVersion)
+	require.Equal(t, uint16(0), config.MaxVersion)
+	require.Nil(t, config.CipherSuites)
 	require.Equal(t, false, config.InsecureSkipVerify)
 }
 
@@ -31,29 +39,31 @@ func TestTLSUnmarshal(t *testing.T) {
 	tlsConfig, err := config.Apply()
 	require.NoError(t, err)
 
+	systemPool, err := certutil.SystemCertPool()
+	require.NoError(t, err)
+
 	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
+		{expected: 2, actual: len(tlsConfig.Certificates)},
+		{expected: 2 + len(systemPool.Subjects()), actual: len(tlsConfig.RootCAs.Subjects())},
+		{expected: 2, actual: len(tlsConfig.ClientCAs.Subjects())},
+		{expected: tls.ClientAuthType(4), actual: tlsConfig.ClientAuth},
 		{expected: "test.com", actual: tlsConfig.ServerName},
-		{expected: "h2", actual: tlsConfig.NextProtos[0]},
-		{expected: "h2c", actual: tlsConfig.NextProtos[1]},
-		{expected: uint16(tls.VersionTLS12), actual: tlsConfig.MinVersion},
+		{expected: []string{"h2", "h2c"}, actual: tlsConfig.NextProtos},
+		{expected: uint16(tls.VersionTLS11), actual: tlsConfig.MinVersion},
+		{expected: uint16(tls.VersionTLS13), actual: tlsConfig.MaxVersion},
+		{expected: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256}, actual: tlsConfig.CipherSuites},
 		{expected: false, actual: tlsConfig.InsecureSkipVerify},
 		{expected: true, actual: config.InsecureLoadFromSystem},
-		{expected: 2, actual: len(tlsConfig.Certificates)},
 	}
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)
 	}
-
-	systemPool, err := certutil.SystemCertPool()
-	require.NoError(t, err)
-	require.Equal(t, 2+len(systemPool.Subjects()), len(tlsConfig.RootCAs.Subjects()))
-	require.Equal(t, 2, len(tlsConfig.ClientCAs.Subjects()))
 }
 
-func TestTLSConfig_Apply_failed(t *testing.T) {
+func TestTLSConfig_Apply(t *testing.T) {
 	// invalid certificates
 	config := TLSConfig{}
 	config.Certificates = append(config.Certificates, X509KeyPair{
@@ -74,4 +84,13 @@ func TestTLSConfig_Apply_failed(t *testing.T) {
 	config.ClientCAs = []string{"foo data"}
 	_, err = config.Apply()
 	require.Error(t, err)
+
+	// failed to get system certificate pool
+	config.InsecureLoadFromSystem = true
+	pg := monkey.Patch(certutil.SystemCertPool, func() (*x509.CertPool, error) {
+		return nil, errors.New("monkey error")
+	})
+	defer pg.Unpatch()
+	_, err = config.Apply()
+	require.EqualError(t, err, "monkey error")
 }

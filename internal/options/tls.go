@@ -9,13 +9,17 @@ import (
 	"project/internal/security"
 )
 
-// TLSConfig include options about tls.Config
+// TLSConfig contains options about tls.Config
 type TLSConfig struct {
-	ServerName   string        `toml:"server_name"`
-	Certificates []X509KeyPair `toml:"certificates"`
-	RootCAs      []string      `toml:"root_ca"`   // PEM
-	ClientCAs    []string      `toml:"client_ca"` // PEM
-	NextProtos   []string      `toml:"next_protos"`
+	Certificates []X509KeyPair      `toml:"certificates"`
+	RootCAs      []string           `toml:"root_ca"`   // PEM
+	ClientCAs    []string           `toml:"client_ca"` // PEM
+	ClientAuth   tls.ClientAuthType `toml:"client_auth"`
+	ServerName   string             `toml:"server_name"`
+	NextProtos   []string           `toml:"next_protos"`
+	MinVersion   uint16             `toml:"min_version"`
+	MaxVersion   uint16             `toml:"max_version"`
+	CipherSuites []uint16           `toml:"cipher_suites"`
 
 	InsecureLoadFromSystem bool `toml:"insecure_load_from_system"`
 }
@@ -30,11 +34,20 @@ func (t *TLSConfig) failed(err error) error {
 	return fmt.Errorf("failed to apply tls config: %s", err)
 }
 
-// RootCA is used to get TLSConfig.RootCAs and parse
-func (t *TLSConfig) RootCA() ([]*x509.Certificate, error) {
+// GetRootCAs is used to parse TLSConfig.RootCAs
+func (t *TLSConfig) GetRootCAs() ([]*x509.Certificate, error) {
+	return t.parseCertificates(t.RootCAs)
+}
+
+// GetClientCAs is used to parse TLSConfig.ClientCAs
+func (t *TLSConfig) GetClientCAs() ([]*x509.Certificate, error) {
+	return t.parseCertificates(t.ClientCAs)
+}
+
+func (t *TLSConfig) parseCertificates(s []string) ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate
-	for i := 0; i < len(t.RootCAs); i++ {
-		cert, err := certutil.ParseCertificates([]byte(t.RootCAs[i]))
+	for _, cert := range s {
+		cert, err := certutil.ParseCertificates([]byte(cert))
 		if err != nil {
 			return nil, t.failed(err)
 		}
@@ -45,14 +58,7 @@ func (t *TLSConfig) RootCA() ([]*x509.Certificate, error) {
 
 // Apply is used to create *tls.Config
 func (t *TLSConfig) Apply() (*tls.Config, error) {
-	// set next protocols
-	nextProtos := make([]string, len(t.NextProtos))
-	copy(nextProtos, t.NextProtos)
-	config := &tls.Config{
-		ServerName: t.ServerName,
-		NextProtos: nextProtos,
-		MinVersion: tls.VersionTLS12,
-	}
+	config := new(tls.Config)
 
 	// set certificates
 	l := len(t.Certificates)
@@ -71,23 +77,20 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 		}
 	}
 
-	var err error
-	// <security> warning: load certificates pool from system
+	// set Root CAs
 	if t.InsecureLoadFromSystem {
+		var err error
 		config.RootCAs, err = certutil.SystemCertPool()
 		if err != nil {
 			return nil, err
 		}
 	}
-
 	// <security> force new certificate pool
-	// not use system certificates
+	// that not use system certificates
 	if config.RootCAs == nil {
 		config.RootCAs = x509.NewCertPool()
 	}
-
-	// set Root CA
-	rootCAs, err := t.RootCA()
+	rootCAs, err := t.GetRootCAs()
 	if err != nil {
 		return nil, err
 	}
@@ -95,16 +98,42 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 		config.RootCAs.AddCert(rootCAs[i])
 	}
 
-	// set Client CA
-	config.ClientCAs = x509.NewCertPool()
-	for i := 0; i < len(t.ClientCAs); i++ {
-		cert, err := certutil.ParseCertificates([]byte(t.ClientCAs[i]))
-		if err != nil {
-			return nil, t.failed(err)
-		}
-		for i := 0; i < len(cert); i++ {
-			config.ClientCAs.AddCert(cert[i])
+	// set Client CAs
+	clientCAs, err := t.GetClientCAs()
+	if err != nil {
+		return nil, err
+	}
+	l = len(clientCAs)
+	if l > 0 {
+		config.ClientCAs = x509.NewCertPool()
+		for i := 0; i < l; i++ {
+			config.ClientCAs.AddCert(clientCAs[i])
 		}
 	}
+
+	// set next protocols
+	l = len(t.NextProtos)
+	if l > 0 {
+		config.NextProtos = make([]string, len(t.NextProtos))
+		copy(config.NextProtos, t.NextProtos)
+	}
+
+	// set the minimum version
+	minVersion := t.MinVersion
+	if minVersion == 0 {
+		minVersion = tls.VersionTLS12
+	}
+
+	// set cipher suites
+	l = len(t.CipherSuites)
+	if l > 0 {
+		config.CipherSuites = make([]uint16, len(t.CipherSuites))
+		copy(config.CipherSuites, t.CipherSuites)
+	}
+
+	config.ServerName = t.ServerName
+	config.MinVersion = minVersion
+	config.MaxVersion = t.MaxVersion
+	config.ClientAuth = t.ClientAuth
 	return config, nil
 }

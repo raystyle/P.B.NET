@@ -1,5 +1,9 @@
-server_name = "test.com"
-next_protos = ["h2", "h2c"]
+client_auth   = 4 # RequireAndVerifyClientCert
+server_name   = "test.com"
+next_protos   = ["h2", "h2c"]
+min_version   = 0x0302   # TLS 1.1
+max_version   = 0x0304   # TLS 1.3
+cipher_suites = [0x009c] # TLS_RSA_WITH_AES_128_GCM_SHA256
 
 insecure_load_from_system = true
 
@@ -21,8 +25,9 @@ root_ca = [
   KTOAZpEua82lPoq0A5pXzsv1QpJOHhd8eeAvnZla1Gw8UWmBh43LM3Z/HN9ZE7rb\
   lSKVFkMcPEZpBQ4k3HeCQqetvdrp/ffaqFOg+Fhe5SebRY09hzrLoIN1kGxMVlEQ\
   dvsOg1GypWd+lFITg7a3Rmf2ibDl2TItb2LpWelmDCdIlmgVJ5y9F4Yo+m+tHpPv\
-  NWmjTj3iH5tH958tf64=\
-  \n-----END CERTIFICATE-----"""
+  NWmjTj3iH5tH958tf64=\n\
+  -----END CERTIFICATE-----\
+  """
 ,
   """\
   -----BEGIN CERTIFICATE-----\n\
@@ -41,8 +46,9 @@ root_ca = [
   lEwt7ePJi/x8cQyhnPFDwWltNaLtL8gYlSVF4OB1HkwBqSUP8kYh0UzrzvBzo/PZ\
   8PHavW1XzBREpbuRDVtXoDbMTLXI565ox7UPMbXA16OQNcd4KpHrBVRs+YhXRYr3\
   PgXg8Sz5WSgQCGOnuOvsmSQDabHY+awEQBrxzgdSLOw3KBRgEjpeBuAIpp2zGt/A\
-  jlc2PdegfTBPWobKx3k=\
-  \n-----END CERTIFICATE-----"""
+  jlc2PdegfTBPWobKx3k=\n\
+  -----END CERTIFICATE-----\
+  """
 ]
 
 client_ca = [
@@ -63,10 +69,8 @@ client_ca = [
   KTOAZpEua82lPoq0A5pXzsv1QpJOHhd8eeAvnZla1Gw8UWmBh43LM3Z/HN9ZE7rb\
   lSKVFkMcPEZpBQ4k3HeCQqetvdrp/ffaqFOg+Fhe5SebRY09hzrLoIN1kGxMVlEQ\
   dvsOg1GypWd+lFITg7a3Rmf2ibDl2TItb2LpWelmDCdIlmgVJ5y9F4Yo+m+tHpPv\
-  NWmjTj3iH5tH958tf64=\
-  \n-----END CERTIFICATE-----"""
-,
-  """\
+  NWmjTj3iH5tH958tf64=\n\
+  -----END CERTIFICATE-----\n\
   -----BEGIN CERTIFICATE-----\n\
   MIIC2jCCAcKgAwIBAgIIG5g6rPffc9MwDQYJKoZIhvcNAQELBQAwEjEQMA4GA1UE\
   AxMHUC5CLk5FVDAgFw0xODExMjcwMDAwMDBaGA8yMDU1MTAyMzAwMDAwMFowEjEQ\
@@ -83,8 +87,9 @@ client_ca = [
   lEwt7ePJi/x8cQyhnPFDwWltNaLtL8gYlSVF4OB1HkwBqSUP8kYh0UzrzvBzo/PZ\
   8PHavW1XzBREpbuRDVtXoDbMTLXI565ox7UPMbXA16OQNcd4KpHrBVRs+YhXRYr3\
   PgXg8Sz5WSgQCGOnuOvsmSQDabHY+awEQBrxzgdSLOw3KBRgEjpeBuAIpp2zGt/A\
-  jlc2PdegfTBPWobKx3k=\
-  \n-----END CERTIFICATE-----"""
+  jlc2PdegfTBPWobKx3k=\n\
+  -----END CERTIFICATE-----\
+  """
 ]
 
 [[certificates]]
@@ -106,8 +111,9 @@ client_ca = [
   DqDo8VXotLQCu1wuGFycol+kLZEUk0dj8J7FLdWzYjMQbp1tL6t3fIHxMVNqFFuT\
   kV1sc4eOZ9PsCBFA1ylC9CucaO2IWSORWIr3L5l9aaHqSLUVzthm8ty0BdKjuX80\
   dsn9BIR8g7Gk5G/tFOT22XqD1hrju0FhLceqTUNjjEpx9y79ie+ZZqlp7wM1Cu8q\
-  8G76qFVWe0fK/uGm6Sj5mFiB6v94Ks+afhXQkfL/r9vLkS6/nIhah/RqVwI=\
-  \n-----END CERTIFICATE-----"""
+  8G76qFVWe0fK/uGm6Sj5mFiB6v94Ks+afhXQkfL/r9vLkS6/nIhah/RqVwI=\n\
+  -----END CERTIFICATE-----\
+  """
 
   key = """\
   -----BEGIN RSA PRIVATE KEY-----\n\
@@ -135,8 +141,9 @@ client_ca = [
   DWFBpLp0VVRML21SNwNsJdXgq7uh14/+kUiKy4kVk8H+Khhze0TJ0xp0tIveFuPR\
   r1oXHLk7AoGBAMNr4YEMa88xE+IaQ6bjyv/fsoIcMNCCXcBY5++pLPMlLAeb57b7\
   oOe6DOnEyPzi1aua296ihw6w47xTXJVY5J2q8X6hB/ghn3Mn6nKiqn9aFhh3pySA\
-  z4RrZ85clQSQO3Wjb/ectaHAIPt7obkyFMW7dyhxiJrMYKtGwSQK15lk\
-  \n-----END RSA PRIVATE KEY-----"""
+  z4RrZ85clQSQO3Wjb/ectaHAIPt7obkyFMW7dyhxiJrMYKtGwSQK15lk\n\
+  -----END RSA PRIVATE KEY-----\
+  """
 
 [[certificates]]
   cert = """\
@@ -157,8 +164,9 @@ client_ca = [
   DqDo8VXotLQCu1wuGFycol+kLZEUk0dj8J7FLdWzYjMQbp1tL6t3fIHxMVNqFFuT\
   kV1sc4eOZ9PsCBFA1ylC9CucaO2IWSORWIr3L5l9aaHqSLUVzthm8ty0BdKjuX80\
   dsn9BIR8g7Gk5G/tFOT22XqD1hrju0FhLceqTUNjjEpx9y79ie+ZZqlp7wM1Cu8q\
-  8G76qFVWe0fK/uGm6Sj5mFiB6v94Ks+afhXQkfL/r9vLkS6/nIhah/RqVwI=\
-  \n-----END CERTIFICATE-----"""
+  8G76qFVWe0fK/uGm6Sj5mFiB6v94Ks+afhXQkfL/r9vLkS6/nIhah/RqVwI=\n\
+  -----END CERTIFICATE-----\
+  """
 
   key = """\
   -----BEGIN RSA PRIVATE KEY-----\n\
@@ -186,5 +194,6 @@ client_ca = [
   DWFBpLp0VVRML21SNwNsJdXgq7uh14/+kUiKy4kVk8H+Khhze0TJ0xp0tIveFuPR\
   r1oXHLk7AoGBAMNr4YEMa88xE+IaQ6bjyv/fsoIcMNCCXcBY5++pLPMlLAeb57b7\
   oOe6DOnEyPzi1aua296ihw6w47xTXJVY5J2q8X6hB/ghn3Mn6nKiqn9aFhh3pySA\
-  z4RrZ85clQSQO3Wjb/ectaHAIPt7obkyFMW7dyhxiJrMYKtGwSQK15lk\
-  \n-----END RSA PRIVATE KEY-----"""
+  z4RrZ85clQSQO3Wjb/ectaHAIPt7obkyFMW7dyhxiJrMYKtGwSQK15lk\n\
+  -----END RSA PRIVATE KEY-----\
+  """

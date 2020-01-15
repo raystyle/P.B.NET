@@ -51,7 +51,7 @@ func TestHTTPRequestUnmarshal(t *testing.T) {
 	}
 }
 
-func TestHTTPRequest_Apply_failed(t *testing.T) {
+func TestHTTPRequest_Apply(t *testing.T) {
 	// empty url
 	hr := HTTPRequest{}
 	_, err := hr.Apply()
@@ -122,7 +122,7 @@ var testInvalidTLSConfig = TLSConfig{
 	RootCAs: []string{"foo data"},
 }
 
-func TestHTTPTransport_Apply_failed(t *testing.T) {
+func TestHTTPTransport_Apply(t *testing.T) {
 	// invalid tls config
 	tr := HTTPTransport{
 		TLSClientConfig: testInvalidTLSConfig,
@@ -167,7 +167,7 @@ func TestHTTPServerUnmarshal(t *testing.T) {
 	}
 }
 
-func TestHTTPServer_Apply_failed(t *testing.T) {
+func TestHTTPServer_Apply(t *testing.T) {
 	s := HTTPServer{
 		TLSConfig: testInvalidTLSConfig,
 	}
