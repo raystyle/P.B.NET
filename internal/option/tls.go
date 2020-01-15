@@ -1,4 +1,4 @@
-package options
+package option
 
 import (
 	"crypto/tls"
@@ -30,7 +30,7 @@ type X509KeyPair struct {
 	Key  string `toml:"key"`  // PEM
 }
 
-func (t *TLSConfig) failed(err error) error {
+func (t *TLSConfig) error(err error) error {
 	return fmt.Errorf("failed to apply tls config: %s", err)
 }
 
@@ -49,7 +49,7 @@ func (t *TLSConfig) parseCertificates(s []string) ([]*x509.Certificate, error) {
 	for _, cert := range s {
 		cert, err := certutil.ParseCertificates([]byte(cert))
 		if err != nil {
-			return nil, t.failed(err)
+			return nil, err
 		}
 		certs = append(certs, cert...)
 	}
@@ -69,7 +69,7 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 			k := []byte(t.Certificates[i].Key)
 			tlsCert, err := tls.X509KeyPair(c, k)
 			if err != nil {
-				return nil, t.failed(err)
+				return nil, t.error(err)
 			}
 			security.CoverBytes(c)
 			security.CoverBytes(k)
@@ -82,7 +82,7 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 		var err error
 		config.RootCAs, err = certutil.SystemCertPool()
 		if err != nil {
-			return nil, err
+			return nil, t.error(err)
 		}
 	}
 	// <security> force new certificate pool
@@ -92,7 +92,7 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 	}
 	rootCAs, err := t.GetRootCAs()
 	if err != nil {
-		return nil, err
+		return nil, t.error(err)
 	}
 	for i := 0; i < len(rootCAs); i++ {
 		config.RootCAs.AddCert(rootCAs[i])
@@ -101,7 +101,7 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 	// set Client CAs
 	clientCAs, err := t.GetClientCAs()
 	if err != nil {
-		return nil, err
+		return nil, t.error(err)
 	}
 	l = len(clientCAs)
 	if l > 0 {

@@ -1,4 +1,4 @@
-package options
+package option
 
 import (
 	"io/ioutil"
@@ -123,7 +123,6 @@ var testInvalidTLSConfig = TLSConfig{
 }
 
 func TestHTTPTransport_Apply(t *testing.T) {
-	// invalid tls config
 	tr := HTTPTransport{
 		TLSClientConfig: testInvalidTLSConfig,
 	}
@@ -175,7 +174,7 @@ func TestHTTPServer_Apply(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestHTTPServerSetReadWriteTimeout(t *testing.T) {
+func TestHTTPServerSetTimeout(t *testing.T) {
 	s := HTTPServer{
 		ReadTimeout:  -1,
 		WriteTimeout: -1,

@@ -1,4 +1,4 @@
-package options
+package option
 
 import (
 	"bytes"
@@ -25,22 +25,22 @@ type HTTPRequest struct {
 	Close  bool        `toml:"close"`
 }
 
-func (hr *HTTPRequest) failed(err error) error {
+func (hr *HTTPRequest) error(err error) error {
 	return fmt.Errorf("failed to apply http request options: %s", err)
 }
 
 // Apply is used to create *http.Request
 func (hr *HTTPRequest) Apply() (*http.Request, error) {
 	if hr.URL == "" {
-		return nil, hr.failed(errors.New("empty url"))
+		return nil, hr.error(errors.New("empty url"))
 	}
 	post, err := hex.DecodeString(hr.Post)
 	if err != nil {
-		return nil, hr.failed(err)
+		return nil, hr.error(err)
 	}
 	r, err := http.NewRequest(hr.Method, hr.URL, bytes.NewReader(post))
 	if err != nil {
-		return nil, hr.failed(err)
+		return nil, hr.error(err)
 	}
 	r.Header = hr.Header.Clone()
 	if r.Header == nil {
@@ -66,10 +66,6 @@ type HTTPTransport struct {
 	DisableCompression     bool          `toml:"disable_compression"`
 }
 
-func (ht *HTTPTransport) failed(err error) error {
-	return fmt.Errorf("failed to apply http transport options: %s", err)
-}
-
 // Apply is used to create *http.Transport
 func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	tr := &http.Transport{
@@ -88,7 +84,7 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	var err error
 	tr.TLSClientConfig, err = ht.TLSClientConfig.Apply()
 	if err != nil {
-		return nil, ht.failed(err)
+		return nil, err
 	}
 	// conn
 	if tr.MaxIdleConns < 1 {
@@ -131,10 +127,6 @@ type HTTPServer struct {
 	DisableKeepAlive  bool          `toml:"disable_keep_alive"`
 }
 
-func (hs *HTTPServer) failed(err error) error {
-	return fmt.Errorf("failed to apply http server options: %s", err)
-}
-
 // Apply is used to create *http.Server
 func (hs *HTTPServer) Apply() (*http.Server, error) {
 	s := &http.Server{
@@ -148,7 +140,7 @@ func (hs *HTTPServer) Apply() (*http.Server, error) {
 	var err error
 	s.TLSConfig, err = hs.TLSConfig.Apply()
 	if err != nil {
-		return nil, hs.failed(err)
+		return nil, err
 	}
 	// timeout
 	if s.ReadTimeout < 0 {

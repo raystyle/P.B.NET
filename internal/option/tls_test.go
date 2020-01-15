@@ -1,4 +1,4 @@
-package options
+package option
 
 import (
 	"crypto/tls"
@@ -92,5 +92,5 @@ func TestTLSConfig_Apply(t *testing.T) {
 	})
 	defer pg.Unpatch()
 	_, err = config.Apply()
-	require.EqualError(t, err, "monkey error")
+	require.EqualError(t, err, "failed to apply tls config: monkey error")
 }
