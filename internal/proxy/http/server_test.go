@@ -6,47 +6,64 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
-	"project/internal/options"
+	"project/internal/option"
 	"project/internal/testsuite"
 )
 
-func testGenerateHTTPServer(t *testing.T) *Server {
+func testGenerateHTTPProxyServer(t *testing.T) *Server {
 	opts := Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	server, err := NewServer("test", logger.Test, &opts)
+	server, err := NewHTTPServer("test", logger.Test, &opts)
 	require.NoError(t, err)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
+	go func() {
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	time.Sleep(250 * time.Millisecond)
 	return server
 }
 
-func testGenerateHTTPSServer(t *testing.T) (*Server, *options.TLSConfig) {
+func testGenerateHTTPSProxyServer(t *testing.T) (*Server, *option.TLSConfig) {
 	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 	opts := Options{
-		HTTPS:    true,
 		Username: "admin",
 	}
 	opts.Server.TLSConfig = *serverCfg
-	server, err := NewServer("test", logger.Test, &opts)
+	server, err := NewHTTPSServer("test", logger.Test, &opts)
 	require.NoError(t, err)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
+	go func() {
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	go func() {
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	time.Sleep(250 * time.Millisecond)
 	return server, clientCfg
 }
 
 func TestHTTPProxyServer(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
 
-	server := testGenerateHTTPServer(t)
-	t.Log("http proxy address:", server.Address())
-	t.Log("http proxy info:", server.Info())
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server := testGenerateHTTPProxyServer(t)
+	addresses := server.Addresses()
+
+	t.Log("http proxy address:\n", addresses)
+	t.Log("http proxy info:\n", server.Info())
 
 	// make client
-	u, err := url.Parse("http://admin:123456@" + server.Address())
+	u, err := url.Parse("http://admin:123456@" + addresses[0].String())
 	require.NoError(t, err)
 	transport := http.Transport{Proxy: http.ProxyURL(u)}
 
@@ -54,16 +71,21 @@ func TestHTTPProxyServer(t *testing.T) {
 }
 
 func TestHTTPSProxyServer(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
 
-	server, tlsConfig := testGenerateHTTPSServer(t)
-	t.Log("https proxy address:", server.Address())
-	t.Log("https proxy info:", server.Info())
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, tlsConfig := testGenerateHTTPSProxyServer(t)
+	addresses := server.Addresses()
+
+	t.Log("https proxy address:\n", addresses)
+	t.Log("https proxy info:\n", server.Info())
 
 	// make client
-	u, err := url.Parse("https://admin@" + server.Address())
+	proxyURL, err := url.Parse("https://admin@" + addresses[1].String())
 	require.NoError(t, err)
-	transport := http.Transport{Proxy: http.ProxyURL(u)}
+	transport := http.Transport{Proxy: http.ProxyURL(proxyURL)}
 	transport.TLSClientConfig, err = tlsConfig.Apply()
 	require.NoError(t, err)
 
@@ -71,63 +93,71 @@ func TestHTTPSProxyServer(t *testing.T) {
 }
 
 func TestAuthenticate(t *testing.T) {
-	t.Parallel()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	server := testGenerateHTTPServer(t)
+	server := testGenerateHTTPProxyServer(t)
 	defer func() {
 		require.NoError(t, server.Close())
 		testsuite.IsDestroyed(t, server)
 	}()
+	address := server.Addresses()[0].String()
 
-	hc := http.Client{}
-	defer hc.CloseIdleConnections()
-	// no auth method
-	resp, err := hc.Get("http://" + server.Address())
-	require.NoError(t, err)
-	_, err = io.Copy(ioutil.Discard, resp.Body)
-	require.NoError(t, err)
-	_ = resp.Body.Close()
+	client := http.Client{}
+	defer client.CloseIdleConnections()
 
-	// not support method
-	req, err := http.NewRequest(http.MethodGet, "http://"+server.Address(), nil)
-	require.NoError(t, err)
-	req.Header.Set("Proxy-Authorization", "method not-support")
-	resp, err = hc.Do(req)
-	require.NoError(t, err)
-	_, err = io.Copy(ioutil.Discard, resp.Body)
-	require.NoError(t, err)
-	_ = resp.Body.Close()
+	t.Run("no authenticate method", func(t *testing.T) {
+		resp, err := client.Get("http://" + address)
+		require.NoError(t, err)
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	})
 
-	// invalid username/password
-	opts := Options{
-		Username: "admin",
-		Password: "123457",
-	}
-	client, err := NewClient("tcp", server.Address(), &opts)
-	require.NoError(t, err)
-	_, err = client.Dial("tcp", "localhost:0")
-	require.Error(t, err)
+	t.Run("unsupported authenticate method", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
+		require.NoError(t, err)
+		req.Header.Set("Proxy-Authorization", "method not-support")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid username/password", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://"+address, nil)
+		require.NoError(t, err)
+		userInfo := url.UserPassword("admin1", "123")
+		req.Header.Set("Proxy-Authorization", "Basic "+userInfo.String())
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		_, err = io.Copy(ioutil.Discard, resp.Body)
+		require.NoError(t, err)
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	})
 }
 
-func TestHTTPServerWithUnknownNetwork(t *testing.T) {
-	t.Skip()
+func TestServer_ListenAndServe(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	t.Parallel()
-
-	server, err := NewServer("test", logger.Test, nil)
+	server, err := NewHTTPServer("test", logger.Test, nil)
 	require.NoError(t, err)
 	require.Error(t, server.ListenAndServe("foo", "localhost:0"))
-
 	require.NoError(t, server.Close())
 	testsuite.IsDestroyed(t, server)
 }
 
 func TestServer_Close(t *testing.T) {
-	t.Skip()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	t.Parallel()
-
-	server, err := NewServer("test", logger.Test, nil)
+	server, err := NewHTTPSServer("test", logger.Test, nil)
 	require.NoError(t, err)
-	require.Error(t, server.ListenAndServe("tcp", "localhost:0"))
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }

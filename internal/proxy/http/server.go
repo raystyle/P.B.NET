@@ -36,6 +36,10 @@ type Server struct {
 	server  *http.Server
 	handler *handler
 
+	// listener address
+	addrs    map[*net.Addr]struct{}
+	addrsRWM sync.RWMutex
+
 	closeOnce sync.Once
 }
 
@@ -111,11 +115,24 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	srv.handler = handler
 	srv.server.Handler = handler
 	srv.server.ErrorLog = logger.Wrap(logger.Error, srv.tag, lg)
+	srv.addrs = make(map[*net.Addr]struct{})
 	return &srv, nil
 }
 
 func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
 	s.logger.Printf(lv, s.tag, format, log...)
+}
+
+func (s *Server) addAddress(addr *net.Addr) {
+	s.addrsRWM.Lock()
+	defer s.addrsRWM.Unlock()
+	s.addrs[addr] = struct{}{}
+}
+
+func (s *Server) deleteAddress(addr *net.Addr) {
+	s.addrsRWM.Lock()
+	defer s.addrsRWM.Unlock()
+	delete(s.addrs, addr)
 }
 
 // ListenAndServe is used to listen a listener and serve
@@ -134,7 +151,9 @@ func (s *Server) ListenAndServe(network, address string) error {
 // Serve accepts incoming connections on the listener
 func (s *Server) Serve(listener net.Listener) error {
 	listener = netutil.LimitListener(listener, s.maxConns)
-	address := listener.Addr().String()
+	address := listener.Addr()
+	s.addAddress(&address)
+	defer s.deleteAddress(&address)
 	defer func() {
 		if r := recover(); r != nil {
 			s.logf(logger.Fatal, xpanic.Print(r, "Server.Serve").String())
@@ -142,10 +161,27 @@ func (s *Server) Serve(listener net.Listener) error {
 		s.logf(logger.Info, "listener closed (%s)", address)
 	}()
 	s.logf(logger.Info, "start listener (%s)", address)
+	var err error
 	if s.https {
-		return s.server.ServeTLS(listener, "", "")
+		err = s.server.ServeTLS(listener, "", "")
+	} else {
+		err = s.server.Serve(listener)
 	}
-	return s.server.Serve(listener)
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
+}
+
+// Addresses is used to get listener addresses
+func (s *Server) Addresses() []net.Addr {
+	s.addrsRWM.RLock()
+	defer s.addrsRWM.RUnlock()
+	addrs := make([]net.Addr, 0, len(s.addrs))
+	for addr := range s.addrs {
+		addrs = append(addrs, *addr)
+	}
+	return addrs
 }
 
 // Close is used to close HTTP proxy server
@@ -159,15 +195,34 @@ func (s *Server) Close() error {
 }
 
 // Info is used to get http proxy server info
-// ""
-// "admin:123456"
+//
+// "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
+// "address: tcp 127.0.0.1:1999 auth: admin:123456"
 func (s *Server) Info() string {
+	buf := new(bytes.Buffer)
+	addresses := s.Addresses()
+	l := len(addresses)
+	if l > 0 {
+		buf.WriteString("address: ")
+		for i := 0; i < l; i++ {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			network := addresses[i].Network()
+			address := addresses[i].String()
+			_, _ = fmt.Fprintf(buf, "%s %s", network, address)
+		}
+	}
 	username := s.handler.username
 	password := s.handler.password
 	if username != nil || password != nil {
-		return fmt.Sprintf(" %s:%s", username, password)
+		format := "auth: %s:%s"
+		if buf.Len() > 0 {
+			format = " " + format
+		}
+		_, _ = fmt.Fprintf(buf, format, username, password)
 	}
-	return ""
+	return buf.String()
 }
 
 var (
@@ -320,8 +375,8 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 	case "Basic":
 		auth, err := base64.StdEncoding.DecodeString(authBase64)
 		if err != nil {
-			failedToAuth()
 			h.log(logger.Exploit, r, "invalid basic base64 data")
+			failedToAuth()
 			return false
 		}
 		userPass := strings.Split(string(auth), ":")
@@ -332,14 +387,15 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 		pass := []byte(userPass[1])
 		if subtle.ConstantTimeCompare(h.username, user) != 1 ||
 			subtle.ConstantTimeCompare(h.password, pass) != 1 {
+			userInfo := fmt.Sprintf("%s:%s", user, pass)
+			h.log(logger.Exploit, r, "invalid username or password:", userInfo)
 			failedToAuth()
-			h.log(logger.Exploit, r, "invalid username or password: %s:%s", user, pass)
 			return false
 		}
 		return true
 	default:
-		failedToAuth()
 		h.log(logger.Exploit, r, "unsupported authenticate method:", authMethod)
+		failedToAuth()
 		return false
 	}
 }
