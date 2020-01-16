@@ -25,25 +25,37 @@ type Client struct {
 	network   string
 	address   string
 	https     bool
+	timeout   time.Duration
 	header    http.Header
 	tlsConfig *tls.Config
-	timeout   time.Duration
 
-	scheme     string
-	rootCAs    []*x509.Certificate
-	rootCAsLen int
-	proxy      func(*http.Request) (*url.URL, error)
-	basicAuth  string
-	info       string
+	rootCAs   []*x509.Certificate
+	clientCAs []*x509.Certificate
+	certs     []tls.Certificate // client side
+
+	rootCAsLen   int
+	clientCAsLen int
+
+	scheme    string // "http" or "https"
+	proxy     func(*http.Request) (*url.URL, error)
+	basicAuth string
+	info      string
 }
 
-// NewClient is used to create HTTP proxy client
-func NewClient(network, address string, opts *Options) (*Client, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+// NewHTTPClient is used to create a HTTP proxy client
+func NewHTTPClient(network, address string, opts *Options) (*Client, error) {
+	return newClient(network, address, opts, false)
+}
+
+// NewHTTPSClient is used to create a HTTPS proxy client
+func NewHTTPSClient(network, address string, opts *Options) (*Client, error) {
+	return newClient(network, address, opts, true)
+}
+
+func newClient(network, address string, opts *Options, https bool) (*Client, error) {
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
 
 	if opts == nil {
@@ -53,13 +65,9 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	client := Client{
 		network: network,
 		address: address,
-		https:   opts.HTTPS,
-		header:  opts.Header.Clone(),
+		https:   https,
 		timeout: opts.Timeout,
-	}
-
-	if client.header == nil {
-		client.header = make(http.Header)
+		header:  opts.Header.Clone(),
 	}
 
 	if client.https {
@@ -68,9 +76,16 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		// copy certs
-		client.rootCAs, _ = opts.TLSConfig.RootCA()
+		// copy certificates
+		client.rootCAs, _ = opts.TLSConfig.GetRootCAs()
 		client.rootCAsLen = len(client.rootCAs)
+		client.clientCAs, _ = opts.TLSConfig.GetClientCAs()
+		client.clientCAsLen = len(client.clientCAs)
+		l := len(client.tlsConfig.Certificates)
+		if l > 0 {
+			client.certs = make([]tls.Certificate, l)
+			copy(client.certs, client.tlsConfig.Certificates)
+		}
 		// set server name
 		if client.tlsConfig.ServerName == "" {
 			colonPos := strings.LastIndex(address, ":")
@@ -82,6 +97,10 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 			c.ServerName = hostname
 			client.tlsConfig = c
 		}
+	}
+
+	if client.header == nil {
+		client.header = make(http.Header)
 	}
 
 	if client.timeout < 1 {
@@ -104,12 +123,6 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 		client.basicAuth = "Basic " + base64.StdEncoding.EncodeToString(auth)
 	}
 
-	// check proxy url
-	var err error
-	u, err = url.Parse(u.String())
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 	client.proxy = http.ProxyURL(u)
 	client.info = u.String()
 	return &client, nil
@@ -117,11 +130,9 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 
 // Dial is used to connect to address through proxy
 func (c *Client) Dial(network, address string) (net.Conn, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
@@ -140,11 +151,9 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 
 // DialContext is used to connect to address through proxy with context
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
@@ -163,11 +172,9 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 
 // DialTimeout is used to connect to address through proxy with timeout
 func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
 	if timeout < 1 {
 		timeout = defaultDialTimeout
@@ -194,16 +201,15 @@ func (c *Client) Connect(
 	network string,
 	address string,
 ) (net.Conn, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
 	if c.https {
 		conn = tls.Client(conn, c.tlsConfig)
 	}
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
+
 	// CONNECT github.com:443 HTTP/1.1
 	// User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:70.0)
 	// Connection: keep-alive
@@ -248,16 +254,18 @@ func (c *Client) Connect(
 
 	// write to connection
 	rAddr := conn.RemoteAddr().String()
-	_, err := io.Copy(conn, buf)
+	_, err = io.Copy(conn, buf)
 	if err != nil {
 		return nil, errors.Errorf("failed to write request to %s because %s", rAddr, err)
 	}
+
 	// read response
 	resp := make([]byte, connectionEstablishedLen)
 	_, err = io.ReadAtLeast(conn, resp, connectionEstablishedLen)
 	if err != nil {
 		return nil, errors.Errorf("failed to read response from %s because %s", rAddr, err)
 	}
+
 	// check response
 	// HTTP/1.0 200 Connection established
 	const format = "%s proxy %s failed to connect to %s"
@@ -265,6 +273,7 @@ func (c *Client) Connect(
 	if len(p) != 4 {
 		return nil, errors.Errorf(format, c.scheme, c.address, address)
 	}
+
 	// accept HTTP/1.0 200 Connection established
 	//        HTTP/1.1 200 Connection established
 	// skip   HTTP/1.0 and HTTP/1.1
@@ -277,16 +286,24 @@ func (c *Client) Connect(
 // HTTP is used to set *http.Transport about proxy
 func (c *Client) HTTP(t *http.Transport) {
 	t.Proxy = c.proxy
-	// add root CA about https proxy
-	if t.TLSClientConfig == nil {
-		t.TLSClientConfig = new(tls.Config)
-	}
-	if t.TLSClientConfig.RootCAs == nil {
-		t.TLSClientConfig.RootCAs = x509.NewCertPool()
-	}
-	// add certificate for connect https proxy
-	for i := 0; i < c.rootCAsLen; i++ {
-		t.TLSClientConfig.RootCAs.AddCert(c.rootCAs[i])
+	// add certificates if connect https proxy server
+	if c.https {
+		if t.TLSClientConfig == nil {
+			t.TLSClientConfig = new(tls.Config)
+		}
+		if t.TLSClientConfig.RootCAs == nil {
+			t.TLSClientConfig.RootCAs = x509.NewCertPool()
+		}
+		for i := 0; i < c.rootCAsLen; i++ {
+			t.TLSClientConfig.RootCAs.AddCert(c.rootCAs[i])
+		}
+		if t.TLSClientConfig.ClientCAs == nil {
+			t.TLSClientConfig.ClientCAs = x509.NewCertPool()
+		}
+		for i := 0; i < c.clientCAsLen; i++ {
+			t.TLSClientConfig.ClientCAs.AddCert(c.clientCAs[i])
+		}
+		t.TLSClientConfig.Certificates = append(t.TLSClientConfig.Certificates, c.certs...)
 	}
 }
 

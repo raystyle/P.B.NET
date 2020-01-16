@@ -2,6 +2,7 @@ package http
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -10,85 +11,132 @@ import (
 )
 
 func TestHTTPProxyClient(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
 
-	server := testGenerateHTTPServer(t)
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server := testGenerateHTTPProxyServer(t)
+	address := server.Addresses()[0].String()
+
 	opts := Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	client, err := NewClient("tcp", server.Address(), &opts)
+	client, err := NewHTTPClient("tcp", address, &opts)
 	require.NoError(t, err)
+
 	testsuite.ProxyClient(t, server, client)
 }
 
 func TestHTTPSProxyClient(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
 
-	server, tlsConfig := testGenerateHTTPSServer(t)
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, tlsConfig := testGenerateHTTPSProxyServer(t)
+	address := server.Addresses()[0].String()
+
 	opts := Options{
-		HTTPS:     true,
 		Username:  "admin",
 		TLSConfig: *tlsConfig,
 	}
-	client, err := NewClient("tcp", server.Address(), &opts)
+
+	client, err := NewHTTPSClient("tcp", address, &opts)
 	require.NoError(t, err)
+
 	testsuite.ProxyClient(t, server, client)
 }
 
 func TestHTTPProxyClientWithoutPassword(t *testing.T) {
-	t.Parallel()
+	testsuite.InitHTTPServers(t)
 
-	server, err := NewServer("test", logger.Test, nil)
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewHTTPServer("test", logger.Test, nil)
 	require.NoError(t, err)
-	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
-	client, err := NewClient("tcp", server.Address(), nil)
+	go func() {
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	time.Sleep(250 * time.Millisecond)
+	address := server.Addresses()[0].String()
+
+	client, err := NewHTTPClient("tcp", address, nil)
 	require.NoError(t, err)
 	testsuite.ProxyClient(t, server, client)
 }
 
-func TestHTTPProxyClientFailure(t *testing.T) {
-	t.Parallel()
+func TestNewHTTPProxyClientWithIncorrectUserInfo(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	// unknown network
-	_, err := NewClient("foo", "localhost:0", nil)
-	require.Error(t, err)
+	server := testGenerateHTTPProxyServer(t)
+	defer func() {
+		require.NoError(t, server.Close())
+		testsuite.IsDestroyed(t, server)
+	}()
+	address := server.Addresses()[0].String()
 
-	// connect unreachable proxy server
-	client, err := NewClient("tcp", "localhost:0", nil)
-	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
-
-	// connect unreachable target
-	server := testGenerateHTTPServer(t)
 	opts := Options{
 		Username: "admin",
-		Password: "123456",
+		Password: "123457",
 	}
-	client, err = NewClient("tcp", server.Address(), &opts)
+	client, err := NewHTTPClient("tcp", address, &opts)
 	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableTarget(t, server, client)
+	_, err = client.Dial("tcp", "localhost:0")
+	require.Error(t, err)
+}
+
+func TestHTTPProxyClientFailure(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("unknown network", func(t *testing.T) {
+		_, err := NewHTTPClient("foo", "localhost:0", nil)
+		require.Error(t, err)
+	})
+
+	t.Run("connect unreachable proxy server", func(t *testing.T) {
+		client, err := NewHTTPClient("tcp", "localhost:0", nil)
+		require.NoError(t, err)
+		testsuite.ProxyClientWithUnreachableProxyServer(t, client)
+	})
+
+	t.Run("connect unreachable target", func(t *testing.T) {
+		server := testGenerateHTTPProxyServer(t)
+		address := server.Addresses()[0].String()
+		opts := Options{
+			Username: "admin",
+			Password: "123456",
+		}
+		client, err := NewHTTPClient("tcp", address, &opts)
+		require.NoError(t, err)
+		testsuite.ProxyClientWithUnreachableTarget(t, server, client)
+	})
 }
 
 func TestHTTPSProxyClientFailure(t *testing.T) {
-	t.Parallel()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	// connect unreachable proxy server
-	opts := Options{
-		HTTPS: true,
-	}
-	client, err := NewClient("tcp", "localhost:0", &opts)
-	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
+	t.Run("connect unreachable proxy server", func(t *testing.T) {
+		client, err := NewHTTPSClient("tcp", "localhost:0", nil)
+		require.NoError(t, err)
+		testsuite.ProxyClientWithUnreachableProxyServer(t, client)
+	})
 
-	// connect unreachable target
-	server, tlsConfig := testGenerateHTTPSServer(t)
-	opts = Options{
-		HTTPS:     true,
-		Username:  "admin",
-		TLSConfig: *tlsConfig,
-	}
-	client, err = NewClient("tcp", server.Address(), &opts)
-	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableTarget(t, server, client)
+	t.Run("connect unreachable target", func(t *testing.T) {
+		server, tlsConfig := testGenerateHTTPSProxyServer(t)
+		address := server.Addresses()[0].String()
+		opts := Options{
+			Username:  "admin",
+			TLSConfig: *tlsConfig,
+		}
+		client, err := NewHTTPSClient("tcp", address, &opts)
+		require.NoError(t, err)
+		testsuite.ProxyClientWithUnreachableTarget(t, server, client)
+	})
 }
