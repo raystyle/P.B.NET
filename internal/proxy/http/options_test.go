@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestServerOptions(t *testing.T) {
-	data, err := ioutil.ReadFile("testdata/server.toml")
+func TestHTTPServerOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/http_server.toml")
 	require.NoError(t, err)
 	opts := Options{}
 	require.NoError(t, toml.Unmarshal(data, &opts))
@@ -19,7 +19,6 @@ func TestServerOptions(t *testing.T) {
 		expected interface{}
 		actual   interface{}
 	}{
-		{expected: true, actual: opts.HTTPS},
 		{expected: "admin", actual: opts.Username},
 		{expected: "123456", actual: opts.Password},
 		{expected: time.Minute, actual: opts.Timeout},
@@ -32,8 +31,8 @@ func TestServerOptions(t *testing.T) {
 	}
 }
 
-func TestClientOptions(t *testing.T) {
-	data, err := ioutil.ReadFile("testdata/client.toml")
+func TestHTTPSServerOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/https_server.toml")
 	require.NoError(t, err)
 	opts := Options{}
 	require.NoError(t, toml.Unmarshal(data, &opts))
@@ -42,12 +41,54 @@ func TestClientOptions(t *testing.T) {
 		expected interface{}
 		actual   interface{}
 	}{
-		{expected: true, actual: opts.HTTPS},
 		{expected: "admin", actual: opts.Username},
 		{expected: "123456", actual: opts.Password},
 		{expected: time.Minute, actual: opts.Timeout},
-		{expected: "test.com", actual: opts.TLSConfig.ServerName},
+		{expected: 1000, actual: opts.MaxConns},
+		{expected: 10 * time.Second, actual: opts.Server.ReadTimeout},
+		{expected: "test.com", actual: opts.Server.TLSConfig.ServerName},
+		{expected: 2, actual: opts.Transport.MaxIdleConns},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
+}
+
+func TestHTTPClientOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/http_client.toml")
+	require.NoError(t, err)
+	opts := Options{}
+	require.NoError(t, toml.Unmarshal(data, &opts))
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "admin", actual: opts.Username},
+		{expected: "123456", actual: opts.Password},
+		{expected: time.Minute, actual: opts.Timeout},
 		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
+}
+
+func TestHTTPSClientOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/https_client.toml")
+	require.NoError(t, err)
+	opts := Options{}
+	require.NoError(t, toml.Unmarshal(data, &opts))
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "admin", actual: opts.Username},
+		{expected: "123456", actual: opts.Password},
+		{expected: time.Minute, actual: opts.Timeout},
+		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
+		{expected: "test.com", actual: opts.TLSConfig.ServerName},
 	}
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)

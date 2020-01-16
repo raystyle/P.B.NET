@@ -8,27 +8,25 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/options"
+	"project/internal/option"
 )
 
 // Options contains client and server options
 type Options struct {
-	HTTPS    bool          `toml:"https"`
 	Username string        `toml:"username"`
 	Password string        `toml:"password"`
 	Timeout  time.Duration `toml:"timeout"`
 
 	// only client
-	Header    http.Header       `toml:"header"`
-	TLSConfig options.TLSConfig `toml:"tls_config"` // https
+	Header    http.Header      `toml:"header"`
+	TLSConfig option.TLSConfig `toml:"tls_config"` // only https
 
 	// only server
-	MaxConns  int                   `toml:"max_conns"`
-	Server    options.HTTPServer    `toml:"server"`
-	Transport options.HTTPTransport `toml:"transport"`
+	MaxConns  int                  `toml:"max_conns"`
+	Server    option.HTTPServer    `toml:"server"`
+	Transport option.HTTPTransport `toml:"transport"`
 
 	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
-	ExitFunc    func()                                                               `toml:"-"`
 }
 
 // CheckNetwork is used to check network is supported
