@@ -26,105 +26,127 @@ var (
 )
 
 var (
-	httpServer         http.Server
-	httpsServer        http.Server
-	httpsCA            *x509.Certificate
+	httpServer  http.Server
+	httpsServer http.Server
+
+	// Root CA about server side
+	httpsServerCA *x509.Certificate
+
+	// certificate about client side
+	httpsClientCert tls.Certificate
+
 	initHTTPServerOnce sync.Once
 )
 
 // InitHTTPServers is used to create  http test server
 func InitHTTPServers(t testing.TB) {
-	initHTTPServerOnce.Do(func() {
-		// set handler
-		var data = []byte("hello")
-		serverMux := http.NewServeMux()
-		serverMux.HandleFunc("/t", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(200)
-			_, _ = w.Write(data)
-		})
+	initHTTPServerOnce.Do(func() { initHTTPServers(t) })
+}
 
-		// initialize HTTP server
-		httpServer.Handler = serverMux
-
-		// initialize HTTPS server
-		httpsServer.Handler = serverMux
-		caASN1, cPEMBlock, cPriPEMBlock := TLSCertificate(t)
-		cert, err := tls.X509KeyPair(cPEMBlock, cPriPEMBlock)
-		require.NoError(t, err)
-		httpsServer.TLSConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
-		}
-
-		// client Root CA
-		httpsCA, err = x509.ParseCertificate(caASN1)
-		require.NoError(t, err)
-
-		// start HTTP and HTTPS Server Listeners
-		var (
-			l1 net.Listener // HTTP IPv4
-			l2 net.Listener // HTTPS IPv4
-			l3 net.Listener // HTTP IPv6
-			l4 net.Listener // HTTPS IPv6
-		)
-
-		if IPv4Enabled {
-			l1, err = net.Listen("tcp", "127.0.0.1:0")
-			require.NoError(t, err)
-			_, HTTPServerPort, err = net.SplitHostPort(l1.Addr().String())
-			require.NoError(t, err)
-
-			l2, err = net.Listen("tcp", "127.0.0.1:0")
-			require.NoError(t, err)
-			_, HTTPSServerPort, err = net.SplitHostPort(l2.Addr().String())
-			require.NoError(t, err)
-
-			go func() { _ = httpServer.Serve(l1) }()
-			go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
-		}
-
-		if IPv6Enabled {
-			if HTTPServerPort != "" {
-				l3, err = net.Listen("tcp", "[::1]:"+HTTPServerPort)
-				require.NoError(t, err)
-
-				l4, err = net.Listen("tcp", "[::1]:"+HTTPSServerPort)
-				require.NoError(t, err)
-			} else { // IPv6 Only
-				l3, err = net.Listen("tcp", "[::1]:0")
-				require.NoError(t, err)
-				_, HTTPServerPort, err = net.SplitHostPort(l3.Addr().String())
-				require.NoError(t, err)
-
-				l4, err = net.Listen("tcp", "[::1]:0")
-				require.NoError(t, err)
-				_, HTTPSServerPort, err = net.SplitHostPort(l4.Addr().String())
-				require.NoError(t, err)
-			}
-
-			go func() { _ = httpServer.Serve(l3) }()
-			go func() { _ = httpsServer.ServeTLS(l4, "", "") }()
-		}
-
-		// wait go func()
-		time.Sleep(250 * time.Millisecond)
-		// print proxy server address
-		fmt.Printf("[debug] HTTP Server Port: %s\n", HTTPServerPort)
-		fmt.Printf("[debug] HTTPS Server Port: %s\n", HTTPSServerPort)
+func initHTTPServers(t testing.TB) {
+	// set handler
+	var data = []byte("hello")
+	serverMux := http.NewServeMux()
+	serverMux.HandleFunc("/t", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write(data)
 	})
+
+	// initialize HTTP server
+	httpServer.Handler = serverMux
+
+	// initialize HTTPS server
+	httpsServer.Handler = serverMux
+
+	// server side certificate
+	caASN1, cPEMBlock, cPriPEMBlock := TLSCertificate(t)
+	serverCert, err := tls.X509KeyPair(cPEMBlock, cPriPEMBlock)
+	require.NoError(t, err)
+	// require client certificate
+	httpsServer.TLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}
+	httpsServerCA, err = x509.ParseCertificate(caASN1)
+	require.NoError(t, err)
+
+	// client side certificate
+	caASN1, cPEMBlock, cPriPEMBlock = TLSCertificate(t)
+	httpsClientCert, err = tls.X509KeyPair(cPEMBlock, cPriPEMBlock)
+	require.NoError(t, err)
+	httpsServer.TLSConfig.ClientCAs = x509.NewCertPool()
+	httpsClientCA, err := x509.ParseCertificate(caASN1)
+	require.NoError(t, err)
+	httpsServer.TLSConfig.ClientCAs.AddCert(httpsClientCA)
+
+	// start HTTP and HTTPS Server Listeners
+	var (
+		l1 net.Listener // HTTP  IPv4
+		l2 net.Listener // HTTPS IPv4
+		l3 net.Listener // HTTP  IPv6
+		l4 net.Listener // HTTPS IPv6
+	)
+
+	if IPv4Enabled {
+		l1, err = net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		_, HTTPServerPort, err = net.SplitHostPort(l1.Addr().String())
+		require.NoError(t, err)
+
+		l2, err = net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		_, HTTPSServerPort, err = net.SplitHostPort(l2.Addr().String())
+		require.NoError(t, err)
+
+		go func() { _ = httpServer.Serve(l1) }()
+		go func() { _ = httpsServer.ServeTLS(l2, "", "") }()
+	}
+
+	if IPv6Enabled {
+		if HTTPServerPort != "" {
+			l3, err = net.Listen("tcp", "[::1]:"+HTTPServerPort)
+			require.NoError(t, err)
+
+			l4, err = net.Listen("tcp", "[::1]:"+HTTPSServerPort)
+			require.NoError(t, err)
+		} else { // IPv6 Only
+			l3, err = net.Listen("tcp", "[::1]:0")
+			require.NoError(t, err)
+			_, HTTPServerPort, err = net.SplitHostPort(l3.Addr().String())
+			require.NoError(t, err)
+
+			l4, err = net.Listen("tcp", "[::1]:0")
+			require.NoError(t, err)
+			_, HTTPSServerPort, err = net.SplitHostPort(l4.Addr().String())
+			require.NoError(t, err)
+		}
+
+		go func() { _ = httpServer.Serve(l3) }()
+		go func() { _ = httpsServer.ServeTLS(l4, "", "") }()
+	}
+
+	// wait go func()
+	time.Sleep(250 * time.Millisecond)
+	// print proxy server address
+	fmt.Printf("[debug] HTTP Server Port: %s\n", HTTPServerPort)
+	fmt.Printf("[debug] HTTPS Server Port: %s\n", HTTPSServerPort)
 }
 
 // HTTPClient is used to get target and compare result
 func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 	InitHTTPServers(t)
 
-	// add CA
+	// add certificate
 	if transport.TLSClientConfig == nil {
 		transport.TLSClientConfig = new(tls.Config)
 	}
 	if transport.TLSClientConfig.RootCAs == nil {
 		transport.TLSClientConfig.RootCAs = x509.NewCertPool()
 	}
-	transport.TLSClientConfig.RootCAs.AddCert(httpsCA)
+	transport.TLSClientConfig.RootCAs.AddCert(httpsServerCA)
+	tlsCerts := transport.TLSClientConfig.Certificates
+	// add client side certificate
+	transport.TLSClientConfig.Certificates = append(tlsCerts, httpsClientCert)
 
 	// make http client
 	client := http.Client{
@@ -197,6 +219,7 @@ func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
 // ProxyConn is used to check proxy client Dial
 func ProxyConn(t testing.TB, conn net.Conn) {
 	defer func() { _ = conn.Close() }()
+
 	// send http request
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprint(buf, "GET /t HTTP/1.1\r\n")
@@ -248,11 +271,11 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 
 	wg := sync.WaitGroup{}
 
-	// test Dial and DialTimeout
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if IPv4Enabled {
+	// Dial
+	if IPv4Enabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			const network = "tcp4"
 
 			address := "127.0.0.1:" + HTTPServerPort
@@ -268,9 +291,13 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 			conn, err = client.DialTimeout(network, address, 0)
 			require.NoError(t, err)
 			ProxyConn(t, conn)
-		}
+		}()
+	}
 
-		if IPv6Enabled && !strings.Contains(client.Info(), "socks4") {
+	if IPv6Enabled && !strings.Contains(client.Info(), "socks4") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			const network = "tcp6"
 
 			address := "[::1]:" + HTTPServerPort
@@ -286,9 +313,31 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 			conn, err = client.DialTimeout(network, address, 0)
 			require.NoError(t, err)
 			ProxyConn(t, conn)
-		}
+		}()
+	}
+
+	// Cancel
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// cancel
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cancel()
+		}()
+		time.Sleep(250 * time.Millisecond)
+
+		address := "127.0.0.1:" + HTTPServerPort
+		_, err := client.DialContext(ctx, "tcp", address)
+		require.Error(t, err)
 	}()
 
+	// HTTP
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -303,6 +352,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	network, address := client.Server()
 	t.Log("server:", network, address)
 	t.Log("info:", client.Info())
+
 	IsDestroyed(t, client)
 }
 
