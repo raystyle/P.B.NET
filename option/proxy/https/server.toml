@@ -5,7 +5,7 @@ max_conns = 1000
 
 [server]
   [server.tls_config]
-    [[certificates]]
+    [[server.tls_config.certificates]]
       cert = """\
       -----BEGIN CERTIFICATE-----\n\
       MIIDKDCCAhACCQDiUM4OpOZ1jTANBgkqhkiG9w0BAQsFADBWMQswCQYDVQQGEwJY\
