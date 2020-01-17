@@ -8,17 +8,17 @@ import (
 	"runtime"
 )
 
-// Print is used to print panic to a buf
+// Print is used to print panic to a *bytes.Buffer
 func Print(panic interface{}, title string) *bytes.Buffer {
 	b := &bytes.Buffer{}
 	b.WriteString(title)
-	b.WriteString(":\n\n")
+	b.WriteString(":\n")
 	_, _ = fmt.Fprintln(b, panic)
 	printStack(b)
 	return b
 }
 
-// Error is used to print panic to a buf and return a error
+// Error is used to print panic to *bytes.Buffer buf and return an error
 func Error(panic interface{}, title string) error {
 	return errors.New(Print(panic, title).String())
 }
@@ -44,7 +44,7 @@ func printStack(b *bytes.Buffer) {
 	}
 }
 
-// Frame represents a program counter inside a stack frame.
+// frame represents a program counter inside a stack frame.
 type frame uintptr
 
 // pc returns the program counter for this frame;
