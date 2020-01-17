@@ -18,7 +18,6 @@ func TestHTTPProxyClient(t *testing.T) {
 
 	server := testGenerateHTTPProxyServer(t)
 	address := server.Addresses()[0].String()
-
 	opts := Options{
 		Username: "admin",
 		Password: "123456",
@@ -37,16 +36,32 @@ func TestHTTPSProxyClient(t *testing.T) {
 
 	server, tlsConfig := testGenerateHTTPSProxyServer(t)
 	address := server.Addresses()[0].String()
-
 	opts := Options{
 		Username:  "admin",
 		TLSConfig: *tlsConfig,
 	}
-
 	client, err := NewHTTPSClient("tcp", address, &opts)
 	require.NoError(t, err)
 
 	testsuite.ProxyClient(t, server, client)
+}
+
+func TestHTTPProxyClientCancelConnect(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server := testGenerateHTTPProxyServer(t)
+	address := server.Addresses()[0].String()
+	opts := Options{
+		Username: "admin",
+		Password: "123456",
+	}
+	client, err := NewHTTPClient("tcp", address, &opts)
+	require.NoError(t, err)
+
+	testsuite.ProxyClientCancelConnect(t, server, client)
 }
 
 func TestHTTPProxyClientWithoutPassword(t *testing.T) {
@@ -63,9 +78,9 @@ func TestHTTPProxyClientWithoutPassword(t *testing.T) {
 	}()
 	time.Sleep(250 * time.Millisecond)
 	address := server.Addresses()[0].String()
-
 	client, err := NewHTTPClient("tcp", address, nil)
 	require.NoError(t, err)
+
 	testsuite.ProxyClient(t, server, client)
 }
 
@@ -79,15 +94,17 @@ func TestNewHTTPProxyClientWithIncorrectUserInfo(t *testing.T) {
 		testsuite.IsDestroyed(t, server)
 	}()
 	address := server.Addresses()[0].String()
-
 	opts := Options{
 		Username: "admin",
 		Password: "123457",
 	}
 	client, err := NewHTTPClient("tcp", address, &opts)
 	require.NoError(t, err)
+
 	_, err = client.Dial("tcp", "localhost:0")
 	require.Error(t, err)
+
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestHTTPProxyClientFailure(t *testing.T) {

@@ -124,11 +124,11 @@ func initHTTPServers(t testing.TB) {
 		go func() { _ = httpServer.Serve(l3) }()
 		go func() { _ = httpsServer.ServeTLS(l4, "", "") }()
 	}
-
 	// wait go func()
 	time.Sleep(250 * time.Millisecond)
-	// print proxy server address
-	fmt.Printf("[debug] HTTP Server Port: %s\n", HTTPServerPort)
+
+	// print proxy server addresses
+	fmt.Printf("[debug] HTTP Server Port:  %s\n", HTTPServerPort)
 	fmt.Printf("[debug] HTTPS Server Port: %s\n", HTTPSServerPort)
 }
 
@@ -316,27 +316,6 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 		}()
 	}
 
-	// Cancel
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		// cancel
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cancel()
-		}()
-		time.Sleep(250 * time.Millisecond)
-
-		address := "127.0.0.1:" + HTTPServerPort
-		_, err := client.DialContext(ctx, "tcp", address)
-		require.Error(t, err)
-	}()
-
 	// HTTP
 	wg.Add(1)
 	go func() {
@@ -352,6 +331,38 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	network, address := client.Server()
 	t.Log("server:", network, address)
 	t.Log("info:", client.Info())
+
+	IsDestroyed(t, client)
+}
+
+// ProxyClientCancelConnect is used to cancel proxy client Connect()
+func ProxyClientCancelConnect(t testing.TB, server io.Closer, client proxyClient) {
+	InitHTTPServers(t)
+
+	defer func() {
+		require.NoError(t, server.Close())
+		IsDestroyed(t, server)
+	}()
+
+	conn, err := net.Dial(client.Server())
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// cancel
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		cancel()
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	address := "127.0.0.1:" + HTTPServerPort
+	_, err = client.Connect(ctx, conn, "tcp", address)
+	require.Error(t, err)
+	wg.Wait()
 
 	IsDestroyed(t, client)
 }
