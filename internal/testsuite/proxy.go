@@ -105,6 +105,8 @@ func InitHTTPServers(t testing.TB) {
 			go func() { _ = httpsServer.ServeTLS(l4, "", "") }()
 		}
 
+		// wait go func()
+		time.Sleep(250 * time.Millisecond)
 		// print proxy server address
 		fmt.Printf("[debug] HTTP Server Port: %s\n", HTTPServerPort)
 		fmt.Printf("[debug] HTTPS Server Port: %s\n", HTTPSServerPort)

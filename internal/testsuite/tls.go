@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/options"
+	"project/internal/option"
 )
 
 // TLSCertificate is used to generate CA ASN1 data, signed certificate
@@ -80,20 +80,20 @@ func TLSConfigPair(t testing.TB) (server, client *tls.Config) {
 }
 
 // TLSConfigOptionPair is used to build server and client *options.TLSConfig
-func TLSConfigOptionPair(t testing.TB) (server, client *options.TLSConfig) {
+func TLSConfigOptionPair(t testing.TB) (server, client *option.TLSConfig) {
 	caASN1, cPEMBlock, cPriPEMBlock := TLSCertificate(t)
 	caPEMBlock := pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caASN1,
 	})
 	// server *options.TLSConfig
-	server = &options.TLSConfig{Certificates: make([]options.X509KeyPair, 1)}
-	server.Certificates[0] = options.X509KeyPair{
+	server = &option.TLSConfig{Certificates: make([]option.X509KeyPair, 1)}
+	server.Certificates[0] = option.X509KeyPair{
 		Cert: string(cPEMBlock),
 		Key:  string(cPriPEMBlock),
 	}
 	// client *options.TLSConfig
-	client = &options.TLSConfig{RootCAs: make([]string, 1)}
+	client = &option.TLSConfig{RootCAs: make([]string, 1)}
 	client.RootCAs[0] = string(caPEMBlock)
 	return
 }
