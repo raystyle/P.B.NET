@@ -26,6 +26,8 @@ type Options struct {
 	Server    option.HTTPServer    `toml:"server"`
 	Transport option.HTTPTransport `toml:"transport"`
 
+	// secondary proxy
+	// internal/proxy.client.DialContext()
 	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
 }
 

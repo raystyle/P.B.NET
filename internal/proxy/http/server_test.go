@@ -1,10 +1,13 @@
 package http
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -92,6 +95,44 @@ func TestHTTPSProxyServer(t *testing.T) {
 	testsuite.ProxyServer(t, server, &transport)
 }
 
+func TestHTTPProxyServerWithSecondaryProxy(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	var (
+		secondary bool
+		mutex     sync.Mutex
+	)
+	dialContext := func(ctx context.Context, network, address string) (net.Conn, error) {
+		mutex.Lock()
+		secondary = true
+		mutex.Unlock()
+		return new(net.Dialer).DialContext(ctx, network, address)
+	}
+	opts := Options{
+		DialContext: dialContext,
+	}
+	server, err := NewHTTPServer("test", logger.Test, &opts)
+	require.NoError(t, err)
+	go func() {
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	time.Sleep(250 * time.Millisecond)
+	address := server.Addresses()[0].String()
+
+	// make client
+	u, err := url.Parse("http://" + address)
+	require.NoError(t, err)
+	transport := http.Transport{Proxy: http.ProxyURL(u)}
+
+	testsuite.ProxyServer(t, server, &transport)
+
+	require.True(t, secondary)
+}
+
 func TestAuthenticate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -141,13 +182,54 @@ func TestAuthenticate(t *testing.T) {
 	})
 }
 
+func TestFailedToNewServer(t *testing.T) {
+	t.Run("empty tag", func(t *testing.T) {
+		_, err := NewHTTPServer("", nil, nil)
+		require.EqualError(t, err, "empty tag")
+	})
+
+	t.Run("failed to apply server options", func(t *testing.T) {
+		opts := Options{}
+		opts.Server.TLSConfig.RootCAs = []string{"foo"}
+		_, err := NewHTTPServer("server", nil, &opts)
+		require.Error(t, err)
+	})
+
+	t.Run("failed to apply transport options", func(t *testing.T) {
+		opts := Options{}
+		opts.Transport.TLSClientConfig.RootCAs = []string{"foo"}
+		_, err := NewHTTPServer("transport", nil, &opts)
+		require.Error(t, err)
+	})
+}
+
 func TestServer_ListenAndServe(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	server, err := NewHTTPServer("test", logger.Test, nil)
 	require.NoError(t, err)
+
 	require.Error(t, server.ListenAndServe("foo", "localhost:0"))
+	require.Error(t, server.ListenAndServe("tcp", "foo"))
+
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestServer_Serve(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewHTTPServer("test", logger.Test, nil)
+	require.NoError(t, err)
+
+	err = server.Serve(testsuite.NewMockListenerWithError())
+	testsuite.IsMockListenerError(t, err)
+
+	err = server.Serve(testsuite.NewMockListenerWithPanic())
+	testsuite.IsMockListenerPanic(t, err)
+
 	require.NoError(t, server.Close())
 	testsuite.IsDestroyed(t, server)
 }
@@ -158,6 +240,7 @@ func TestServer_Close(t *testing.T) {
 
 	server, err := NewHTTPSServer("test", logger.Test, nil)
 	require.NoError(t, err)
+
 	require.NoError(t, server.Close())
 	testsuite.IsDestroyed(t, server)
 }

@@ -123,6 +123,10 @@ func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
 	s.logger.Printf(lv, s.tag, format, log...)
 }
 
+func (s *Server) log(lv logger.Level, log ...interface{}) {
+	s.logger.Println(lv, s.tag, log...)
+}
+
 func (s *Server) addAddress(addr *net.Addr) {
 	s.addrsRWM.Lock()
 	defer s.addrsRWM.Unlock()
@@ -149,19 +153,20 @@ func (s *Server) ListenAndServe(network, address string) error {
 }
 
 // Serve accepts incoming connections on the listener
-func (s *Server) Serve(listener net.Listener) error {
+func (s *Server) Serve(listener net.Listener) (err error) {
 	listener = netutil.LimitListener(listener, s.maxConns)
 	address := listener.Addr()
+	network := address.Network()
 	s.addAddress(&address)
 	defer s.deleteAddress(&address)
 	defer func() {
 		if r := recover(); r != nil {
-			s.logf(logger.Fatal, xpanic.Print(r, "Server.Serve").String())
+			err = xpanic.Error(r, "Server.Serve")
+			s.log(logger.Fatal, err)
 		}
-		s.logf(logger.Info, "listener closed (%s)", address)
+		s.logf(logger.Info, "listener closed (%s %s)", network, address)
 	}()
-	s.logf(logger.Info, "start listener (%s)", address)
-	var err error
+	s.logf(logger.Info, "start listener (%s %s)", network, address)
 	if s.https {
 		err = s.server.ServeTLS(listener, "", "")
 	} else {
