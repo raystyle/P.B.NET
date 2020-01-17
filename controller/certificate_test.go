@@ -9,7 +9,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/guid"
-	"project/internal/modules/info"
+	"project/internal/module/info"
 	"project/internal/xnet"
 )
 

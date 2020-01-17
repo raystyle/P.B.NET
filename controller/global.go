@@ -256,7 +256,7 @@ func GenerateSessionKey(path string, password []byte) error {
 	if err != nil {
 		return nil
 	}
-	return ioutil.WriteFile(path, key, 644)
+	return ioutil.WriteFile(path, key, 0600)
 }
 
 func createAESKeyIVFromPassword(password []byte) ([]byte, []byte) {

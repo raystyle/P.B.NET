@@ -205,7 +205,7 @@ func (client *client) Connect() (err error) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				client.Conn.Log(logger.Fatal, xpanic.Error(r, "client.HandleConn"))
+				client.Conn.Log(logger.Fatal, xpanic.Print(r, "client.HandleConn"))
 			}
 			client.Close()
 		}()

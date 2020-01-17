@@ -13,7 +13,7 @@ import (
 	"project/internal/crypto/aes"
 	"project/internal/logger"
 	"project/internal/messages"
-	"project/internal/modules/info"
+	"project/internal/module/info"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"

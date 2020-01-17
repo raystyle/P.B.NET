@@ -147,6 +147,14 @@ func (s *server) Deploy() error {
 	return nil
 }
 
+func (s *server) logf(lv logger.Level, format string, log ...interface{}) {
+	s.ctx.logger.Printf(lv, "server", format, log...)
+}
+
+func (s *server) log(lv logger.Level, log ...interface{}) {
+	s.ctx.logger.Println(lv, "server", log...)
+}
+
 func (s *server) addListener(l *messages.Listener) (*Listener, error) {
 	tlsConfig, err := l.TLSConfig.Apply()
 	if err != nil {
@@ -188,14 +196,6 @@ func (s *server) deploy(tag string, listener *Listener) error {
 		s.logf(logger.Info, "deploy listener %s: %s %s", tag, network, address)
 		return nil
 	}
-}
-
-func (s *server) logf(lv logger.Level, format string, log ...interface{}) {
-	s.ctx.logger.Printf(lv, "server", format, log...)
-}
-
-func (s *server) log(lv logger.Level, log ...interface{}) {
-	s.ctx.logger.Println(lv, "server", log...)
 }
 
 func (s *server) serve(tag string, l *Listener, errChan chan<- error) {
@@ -391,7 +391,7 @@ func (s *server) handshake(tag string, conn net.Conn) {
 	xConn := xnet.NewConn(conn, now)
 	defer func() {
 		if r := recover(); r != nil {
-			s.logConn(xConn, logger.Exploit, xpanic.Error(r, "server.handshake"))
+			s.logConn(xConn, logger.Exploit, xpanic.Print(r, "server.handshake"))
 		}
 		_ = xConn.Close()
 		s.wg.Done()
@@ -655,7 +655,7 @@ func (s *server) serveCtrl(tag string, conn *xnet.Conn) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			cc.Conn.Log(logger.Exploit, xpanic.Error(r, "server.serveCtrl"))
+			cc.Conn.Log(logger.Exploit, xpanic.Print(r, "server.serveCtrl"))
 		}
 		cc.Close()
 		if cc.isSync() {
@@ -828,7 +828,7 @@ func (s *server) serveNode(tag string, nodeGUID []byte, conn *xnet.Conn) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			nc.Conn.Log(logger.Exploit, xpanic.Error(r, "server.serveNode"))
+			nc.Conn.Log(logger.Exploit, xpanic.Print(r, "server.serveNode"))
 		}
 		nc.Close()
 		if nc.isSync() {
@@ -1039,7 +1039,7 @@ func (s *server) serveBeacon(tag string, beaconGUID []byte, conn *xnet.Conn) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			bc.Conn.Log(logger.Exploit, xpanic.Error(r, "server.serveNode"))
+			bc.Conn.Log(logger.Exploit, xpanic.Print(r, "server.serveNode"))
 		}
 		bc.Close()
 		if bc.isSync() {

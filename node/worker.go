@@ -200,7 +200,7 @@ func (sw *subWorker) log(l logger.Level, log ...interface{}) {
 func (sw *subWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			sw.log(logger.Fatal, xpanic.Error(r, "subWorker.Work()"))
+			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.Work()"))
 			// restart worker
 			time.Sleep(time.Second)
 			go sw.Work()
