@@ -20,7 +20,7 @@ import (
 
 const defaultDialTimeout = 30 * time.Second
 
-// Client implement internal/proxy.client
+// Client implemented internal/proxy.client
 type Client struct {
 	network   string
 	address   string

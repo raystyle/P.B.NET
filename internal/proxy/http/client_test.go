@@ -1,6 +1,12 @@
 package http
 
 import (
+	"context"
+	"io"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -131,6 +137,8 @@ func TestHTTPProxyClientFailure(t *testing.T) {
 		}
 		client, err := NewHTTPClient("tcp", address, &opts)
 		require.NoError(t, err)
+
+		testFailedToHandleHTTPRequest(t, client)
 		testsuite.ProxyClientWithUnreachableTarget(t, server, client)
 	})
 }
@@ -154,8 +162,19 @@ func TestHTTPSProxyClientFailure(t *testing.T) {
 		}
 		client, err := NewHTTPSClient("tcp", address, &opts)
 		require.NoError(t, err)
+
+		testFailedToHandleHTTPRequest(t, client)
 		testsuite.ProxyClientWithUnreachableTarget(t, server, client)
 	})
+}
+
+func testFailedToHandleHTTPRequest(t testing.TB, client *Client) {
+	transport := new(http.Transport)
+	client.HTTP(transport)
+	httpClient := http.Client{Transport: transport}
+	resp, err := httpClient.Get("http://0.0.0.1/")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 }
 
 func TestFailedToNewClient(t *testing.T) {
@@ -200,4 +219,44 @@ func TestHTTPSClientWithCertificate(t *testing.T) {
 	require.NoError(t, err)
 
 	testsuite.ProxyClient(t, server, client)
+}
+
+func TestClient_Connect(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const network = "tcp"
+	client, err := NewHTTPClient(network, "127.0.0.1:0", nil)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	t.Run("failed to write request", func(t *testing.T) {
+		srv, cli := net.Pipe()
+		defer func() { require.NoError(t, cli.Close()) }()
+		require.NoError(t, srv.Close())
+		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+		require.Error(t, err)
+	})
+
+	t.Run("invalid response", func(t *testing.T) {
+		srv, cli := net.Pipe()
+		defer func() {
+			require.NoError(t, srv.Close())
+			require.NoError(t, cli.Close())
+		}()
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(ioutil.Discard, srv)
+		}()
+		go func() {
+			defer wg.Done()
+			_, _ = srv.Write([]byte("HTTP/1.0 302 Connection established\r\n\r\n"))
+		}()
+		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+		require.Error(t, err)
+		require.NoError(t, cli.Close())
+		wg.Wait()
+	})
 }
