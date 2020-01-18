@@ -24,7 +24,6 @@ func testGenerateSocks5Server(t *testing.T) *Server {
 
 func testGenerateSocks4aServer(t *testing.T) *Server {
 	opts := Options{
-		Socks4: true,
 		UserID: "admin",
 	}
 	server, err := NewServer("test", logger.Test, &opts)
@@ -51,7 +50,7 @@ func TestSocks5Server(t *testing.T) {
 func TestSocks4aServer(t *testing.T) {
 	t.Parallel()
 
-	opts := Options{Socks4: true}
+	opts := Options{}
 	server, err := NewServer("test", logger.Test, &opts)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
@@ -95,7 +94,6 @@ func TestSocks4aUserID(t *testing.T) {
 		testsuite.IsDestroyed(t, server)
 	}()
 	opt := Options{
-		Socks4: true,
 		UserID: "foo-user-id",
 	}
 	client, err := NewClient("tcp", server.Address(), &opt)

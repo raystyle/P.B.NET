@@ -16,7 +16,7 @@ import (
 
 const defaultDialTimeout = 30 * time.Second
 
-// Client implement internal/proxy.client
+// Client implemented internal/proxy.client
 type Client struct {
 	network    string
 	address    string
@@ -45,14 +45,12 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	}
 
 	c := Client{
-		network:    network,
-		address:    address,
-		username:   opts.Username,
-		password:   opts.Password,
-		timeout:    opts.Timeout,
-		socks4:     opts.Socks4,
-		userID:     []byte(opts.UserID),
-		disableExt: opts.DisableSocks4A,
+		network:  network,
+		address:  address,
+		username: opts.Username,
+		password: opts.Password,
+		timeout:  opts.Timeout,
+		userID:   []byte(opts.UserID),
 	}
 
 	if c.timeout < 1 {
@@ -62,8 +60,8 @@ func NewClient(network, address string, opts *Options) (*Client, error) {
 	switch {
 	case !c.socks4:
 		c.protocol = "socks5"
-	case c.socks4 && opts.DisableSocks4A:
-		c.protocol = "socks4"
+	// case c.socks4 && opts.DisableSocks4A:
+	// 	c.protocol = "socks4"
 	default:
 		c.protocol = "socks4a"
 	}

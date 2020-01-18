@@ -23,25 +23,7 @@ const (
 	defaultMaxConnections = 1000
 )
 
-// Options contains client and server options
-type Options struct {
-	Socks4   bool          `toml:"socks4"`
-	Username string        `toml:"username"` // useless for socks4
-	Password string        `toml:"password"` // useless for socks4
-	Timeout  time.Duration `toml:"timeout"`  // handshake timeout
-	UserID   string        `toml:"user_id"`  // useless for socks5
-
-	// only client
-	DisableSocks4A bool `toml:"disable_socks4a"`
-
-	// only server
-	MaxConns int `toml:"max_conns"`
-
-	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
-	ExitFunc    func()                                                               `toml:"-"`
-}
-
-// Server implement internal/proxy.server
+// Server implemented internal/proxy.server
 type Server struct {
 	tag      string
 	logger   logger.Logger
@@ -79,13 +61,11 @@ func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	}
 	s := Server{
 		logger:      lg,
-		socks4:      opts.Socks4,
 		maxConns:    opts.MaxConns,
 		timeout:     opts.Timeout,
 		userID:      []byte(opts.UserID),
 		conns:       make(map[string]*conn),
 		dialContext: opts.DialContext,
-		exitFunc:    opts.ExitFunc,
 	}
 
 	if s.socks4 {

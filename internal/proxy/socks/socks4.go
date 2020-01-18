@@ -136,7 +136,7 @@ func (c *conn) serveSocks4() {
 		host   string
 	)
 	// check is domain 0.0.0.x is domain mode
-	if bytes.Equal(buffer[4:7], []byte{0x00, 0x00, 0x00}) && buffer[7] != 0x00 {
+	if bytes.Compare(buffer[4:7], []byte{0x00, 0x00, 0x00}) == 0 && buffer[7] != 0x00 {
 		domain = true
 	} else {
 		host = net.IPv4(buffer[4], buffer[5], buffer[6], buffer[7]).String()

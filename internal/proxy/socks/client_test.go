@@ -27,7 +27,6 @@ func TestSocks4aClient(t *testing.T) {
 
 	server := testGenerateSocks4aServer(t)
 	opts := Options{
-		Socks4: true,
 		UserID: "admin",
 	}
 	client, err := NewClient("tcp", server.Address(), &opts)
@@ -49,7 +48,7 @@ func TestSocks5ClientWithoutPassword(t *testing.T) {
 func TestSocks4aClientWithoutUserID(t *testing.T) {
 	t.Parallel()
 
-	opts := &Options{Socks4: true}
+	opts := &Options{}
 	server, err := NewServer("test", logger.Test, opts)
 	require.NoError(t, err)
 	require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
@@ -85,9 +84,7 @@ func TestSocks4aClientFailure(t *testing.T) {
 	t.Parallel()
 
 	// connect unreachable proxy server
-	opts := Options{
-		Socks4: true,
-	}
+	opts := Options{}
 	client, err := NewClient("tcp", "localhost:0", &opts)
 	require.NoError(t, err)
 	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
@@ -95,7 +92,7 @@ func TestSocks4aClientFailure(t *testing.T) {
 	// connect unreachable target
 	server := testGenerateSocks4aServer(t)
 	opts = Options{
-		Socks4: true,
+
 		UserID: "admin",
 	}
 	client, err = NewClient("tcp", server.Address(), &opts)
