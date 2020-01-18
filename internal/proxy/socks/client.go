@@ -1,11 +1,11 @@
 package socks
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -20,68 +20,88 @@ const defaultDialTimeout = 30 * time.Second
 type Client struct {
 	network    string
 	address    string
-	username   string
-	password   string
-	timeout    time.Duration
 	socks4     bool
-	userID     []byte
-	disableExt bool // socks4A remote hostname resolving feature
+	disableExt bool // socks4, disable resolve domain name
 
-	protocol string
+	// options
+	username []byte
+	password []byte
+	userID   []byte
+	timeout  time.Duration
+
+	protocol string // "socks5", "socks4a", "socks4"
 	info     string
 }
 
-// NewClient is used to create socks client
-func NewClient(network, address string, opts *Options) (*Client, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
-	}
+// NewSocks5Client is used to create a socks5 client
+func NewSocks5Client(network, address string, opts *Options) (*Client, error) {
+	return newClient(network, address, opts, false, false)
+}
 
+// NewSocks4aClient is used to create a socks4a client
+func NewSocks4aClient(network, address string, opts *Options) (*Client, error) {
+	return newClient(network, address, opts, true, false)
+}
+
+// NewSocks4Client is used to create a socks4 client
+func NewSocks4Client(network, address string, opts *Options) (*Client, error) {
+	return newClient(network, address, opts, true, true)
+}
+
+func newClient(network, address string, opts *Options, socks4, disableExt bool) (*Client, error) {
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
+	}
 	if opts == nil {
 		opts = new(Options)
 	}
-
-	c := Client{
-		network:  network,
-		address:  address,
-		username: opts.Username,
-		password: opts.Password,
-		timeout:  opts.Timeout,
-		userID:   []byte(opts.UserID),
+	client := Client{
+		network:    network,
+		address:    address,
+		socks4:     socks4,
+		disableExt: disableExt,
+		username:   []byte(opts.Username),
+		password:   []byte(opts.Password),
+		userID:     []byte(opts.UserID),
+		timeout:    opts.Timeout,
 	}
-
-	if c.timeout < 1 {
-		c.timeout = defaultDialTimeout
+	if client.timeout < 1 {
+		client.timeout = defaultDialTimeout
 	}
-
+	// switch protocol
 	switch {
-	case !c.socks4:
-		c.protocol = "socks5"
-	// case c.socks4 && opts.DisableSocks4A:
-	// 	c.protocol = "socks4"
+	case !client.socks4:
+		client.protocol = "socks5"
+	case client.socks4 && disableExt:
+		client.protocol = "socks4"
 	default:
-		c.protocol = "socks4a"
+		client.protocol = "socks4a"
 	}
-
-	if c.username != "" {
-		c.info = fmt.Sprintf("%s %s %s %s:%s",
-			c.protocol, c.network, c.address, c.username, c.password)
+	// info
+	buf := new(bytes.Buffer)
+	const format = "%-7s %s %s"
+	_, _ = fmt.Fprintf(buf, format, client.protocol, client.network, client.address)
+	if client.protocol == "socks5" {
+		if opts.Username != "" {
+			const format = " auth: %s:%s"
+			_, _ = fmt.Fprintf(buf, format, client.username, client.password)
+		}
 	} else {
-		c.info = fmt.Sprintf("%s %s %s", c.protocol, c.network, c.address) // TODO ID
+		if opts.UserID != "" {
+			const format = " user id: %s"
+			_, _ = fmt.Fprintf(buf, format, client.userID)
+		}
 	}
-	return &c, nil
+	client.info = buf.String()
+	return &client, nil
 }
 
 // Dial is used to connect to address through proxy
 func (c *Client) Dial(network, address string) (net.Conn, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).Dial(c.network, c.address)
 	if err != nil {
@@ -100,11 +120,9 @@ func (c *Client) Dial(network, address string) (net.Conn, error) {
 
 // DialContext is used to connect to address through proxy with context
 func (c *Client) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
 	conn, err := (&net.Dialer{Timeout: c.timeout}).DialContext(ctx, c.network, c.address)
 	if err != nil {
@@ -123,11 +141,9 @@ func (c *Client) DialContext(ctx context.Context, network, address string) (net.
 
 // DialTimeout is used to connect to address through proxy with timeout
 func (c *Client) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
 	if timeout < 1 {
 		timeout = defaultDialTimeout
@@ -148,23 +164,15 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 }
 
 // Connect is used to connect to address through proxy with context
-func (c *Client) Connect(
-	ctx context.Context,
-	conn net.Conn,
-	network string,
-	address string,
-) (net.Conn, error) {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, errors.Errorf("unsupported network: %s", network)
+func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error) {
+	err := CheckNetwork(network)
+	if err != nil {
+		return nil, err
 	}
-	host, port, err := splitHostPort(address)
+	host, port, err := xnetutil.SplitHostPort(address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
 	// interrupt
 	wg := sync.WaitGroup{}
 	done := make(chan struct{})
@@ -184,7 +192,6 @@ func (c *Client) Connect(
 		close(done)
 		wg.Wait()
 	}()
-
 	// connect
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	if c.socks4 {
@@ -215,24 +222,8 @@ func (c *Client) Server() (string, string) {
 
 // Info is used to get the socks client info
 //
-// socks5 tcp 127.0.0.1:1080 admin:123456
-// socks4a tcp 127.0.0.1:1080
+// socks5  tcp 127.0.0.1:1080 auth: admin:123456
+// socks4a tcp 127.0.0.1:1080 user id: test
 func (c *Client) Info() string {
 	return c.info
-}
-
-func splitHostPort(address string) (string, uint16, error) {
-	host, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return "", 0, errors.WithStack(err)
-	}
-	portNum, err := strconv.Atoi(port)
-	if err != nil {
-		return "", 0, errors.WithStack(err)
-	}
-	err = xnetutil.CheckPort(portNum)
-	if err != nil {
-		return "", 0, errors.WithStack(err)
-	}
-	return host, uint16(portNum), nil
 }

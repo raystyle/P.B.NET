@@ -22,7 +22,7 @@ func TestSocks5Client(t *testing.T) {
 		Username: "admin",
 		Password: "123456",
 	}
-	client, err := NewClient("tcp", address, &opts)
+	client, err := NewSocks5Client("tcp", address, &opts)
 	require.NoError(t, err)
 
 	testsuite.ProxyClient(t, server, client)
@@ -39,7 +39,7 @@ func TestSocks4aClient(t *testing.T) {
 	opts := Options{
 		UserID: "admin",
 	}
-	client, err := NewClient("tcp", address, &opts)
+	client, err := NewSocks4aClient("tcp", address, &opts)
 	require.NoError(t, err)
 
 	testsuite.ProxyClient(t, server, client)
@@ -56,7 +56,7 @@ func TestSocks4Client(t *testing.T) {
 	opts := Options{
 		UserID: "admin",
 	}
-	client, err := NewClient("tcp", address, &opts)
+	client, err := NewSocks4Client("tcp", address, &opts)
 	require.NoError(t, err)
 
 	testsuite.ProxyClient(t, server, client)
@@ -74,7 +74,7 @@ func TestSocks5ClientCancelConnect(t *testing.T) {
 		Username: "admin",
 		Password: "123456",
 	}
-	client, err := NewClient("tcp", address, &opts)
+	client, err := NewSocks5Client("tcp", address, &opts)
 	require.NoError(t, err)
 
 	testsuite.ProxyClientCancelConnect(t, server, client)
@@ -94,7 +94,7 @@ func TestSocks5ClientWithoutPassword(t *testing.T) {
 	}()
 	time.Sleep(250 * time.Millisecond)
 	address := server.Addresses()[0].String()
-	client, err := NewClient("tcp", address, nil)
+	client, err := NewSocks5Client("tcp", address, nil)
 	require.NoError(t, err)
 
 	testsuite.ProxyClient(t, server, client)
@@ -114,7 +114,7 @@ func TestSocks4aClientWithoutUserID(t *testing.T) {
 	}()
 	time.Sleep(250 * time.Millisecond)
 	address := server.Addresses()[0].String()
-	client, err := NewClient("tcp", address, nil)
+	client, err := NewSocks4aClient("tcp", address, nil)
 	require.NoError(t, err)
 
 	testsuite.ProxyClient(t, server, client)
@@ -130,15 +130,17 @@ func TestSocks5Authenticate(t *testing.T) {
 		testsuite.IsDestroyed(t, server)
 	}()
 	address := server.Addresses()[0].String()
-
 	opt := Options{
 		Username: "admin",
 		Password: "123457",
 	}
-	client, err := NewClient("tcp", address, &opt)
+	client, err := NewSocks5Client("tcp", address, &opt)
 	require.NoError(t, err)
+
 	_, err = client.Dial("tcp", "localhost:0")
 	require.Error(t, err)
+
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestSocks4aUserID(t *testing.T) {
@@ -151,57 +153,76 @@ func TestSocks4aUserID(t *testing.T) {
 		testsuite.IsDestroyed(t, server)
 	}()
 	address := server.Addresses()[0].String()
-
 	opt := Options{
 		UserID: "foo-user-id",
 	}
-	client, err := NewClient("tcp", address, &opt)
+	client, err := NewSocks4aClient("tcp", address, &opt)
 	require.NoError(t, err)
+
 	_, err = client.Dial("tcp", "localhost:0")
 	require.Error(t, err)
+
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestSocks5ClientFailure(t *testing.T) {
-	t.Parallel()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	// unknown network
-	_, err := NewClient("foo", "localhost:0", nil)
-	require.Error(t, err)
+	t.Run("unknown network", func(t *testing.T) {
+		_, err := NewSocks5Client("foo", "localhost:0", nil)
+		require.Error(t, err)
+	})
 
-	// connect unreachable proxy server
-	client, err := NewClient("tcp", "localhost:0", nil)
-	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
+	t.Run("connect unreachable proxy server", func(t *testing.T) {
+		client, err := NewSocks5Client("tcp", "localhost:0", nil)
+		require.NoError(t, err)
+		testsuite.ProxyClientWithUnreachableProxyServer(t, client)
+	})
 
-	// connect unreachable target
-	server := testGenerateSocks5Server(t)
-	opts := Options{
-		Username: "admin",
-		Password: "123456",
-	}
-	address := server.Addresses()[0].String()
+	t.Run("connect unreachable target", func(t *testing.T) {
+		server := testGenerateSocks5Server(t)
+		opts := Options{
+			Username: "admin",
+			Password: "123456",
+		}
+		address := server.Addresses()[0].String()
+		client, err := NewSocks5Client("tcp", address, &opts)
+		require.NoError(t, err)
 
-	client, err = NewClient("tcp", address, &opts)
-	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableTarget(t, server, client)
+		testsuite.ProxyClientWithUnreachableTarget(t, server, client)
+	})
 }
 
 func TestSocks4aClientFailure(t *testing.T) {
-	t.Parallel()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
-	// connect unreachable proxy server
-	opts := Options{}
-	client, err := NewClient("tcp", "localhost:0", &opts)
-	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableProxyServer(t, client)
+	t.Run("connect unreachable proxy server", func(t *testing.T) {
+		client, err := NewSocks4aClient("tcp", "localhost:0", nil)
+		require.NoError(t, err)
+		testsuite.ProxyClientWithUnreachableProxyServer(t, client)
+	})
 
-	// connect unreachable target
-	server := testGenerateSocks4aServer(t)
-	opts = Options{
-		UserID: "admin",
-	}
-	address := server.Addresses()[0].String()
-	client, err = NewClient("tcp", address, &opts)
+	t.Run("connect unreachable target", func(t *testing.T) {
+		server := testGenerateSocks4aServer(t)
+		opts := Options{
+			UserID: "admin",
+		}
+		address := server.Addresses()[0].String()
+		client, err := NewSocks4aClient("tcp", address, &opts)
+		require.NoError(t, err)
+
+		testsuite.ProxyClientWithUnreachableTarget(t, server, client)
+	})
+}
+
+func TestClient_Connect(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	client, err := NewSocks5Client("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	testsuite.ProxyClientWithUnreachableTarget(t, server, client)
+	_, err = client.Connect(nil, nil, "tcp", "foo address")
+	require.Error(t, err)
 }

@@ -88,6 +88,7 @@ func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt b
 		listeners:   make(map[*net.Listener]struct{}),
 		conns:       make(map[*conn]struct{}),
 	}
+	// tag
 	if srv.socks4 {
 		if srv.disableExt {
 			srv.tag = "socks4-" + tag
@@ -97,6 +98,7 @@ func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt b
 	} else {
 		srv.tag = "socks5-" + tag
 	}
+	// auth
 	if opts.Username != "" || opts.Password != "" {
 		srv.username = []byte(opts.Username)
 		srv.password = []byte(opts.Password)

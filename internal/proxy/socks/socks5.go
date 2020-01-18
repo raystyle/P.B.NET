@@ -72,7 +72,7 @@ func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	// request authentication
 	buf := bytes.Buffer{}
 	buf.WriteByte(version5)
-	if c.username == "" {
+	if len(c.username) == 0 {
 		buf.WriteByte(1)
 		buf.WriteByte(notRequired)
 	} else {
@@ -140,9 +140,9 @@ func (c *Client) authenticate(am uint8, conn net.Conn) error {
 		buf := bytes.Buffer{}
 		buf.WriteByte(usernamePasswordVersion)
 		buf.WriteByte(byte(len(username)))
-		buf.WriteString(username)
+		buf.Write(username)
 		buf.WriteByte(byte(len(password)))
-		buf.WriteString(password)
+		buf.Write(password)
 		_, err := conn.Write(buf.Bytes())
 		if err != nil {
 			return errors.Wrap(err, "failed to write socks5 username password")
