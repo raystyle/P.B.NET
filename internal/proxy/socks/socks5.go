@@ -15,6 +15,8 @@ import (
 	"project/internal/logger"
 )
 
+// https://www.ietf.org/rfc/rfc1928.txt
+
 const (
 	version5 uint8 = 0x05
 	// auth method
@@ -66,7 +68,6 @@ func (r v5Reply) String() string {
 	}
 }
 
-// https://www.ietf.org/rfc/rfc1928.txt
 func (c *Client) connectSocks5(conn net.Conn, host string, port uint16) error {
 	// request authentication
 	buf := bytes.Buffer{}

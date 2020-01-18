@@ -15,9 +15,14 @@ import (
 	"project/internal/logger"
 )
 
+// http://ftp.icm.edu.pl/packages/socks/socks4/SOCKS4.protocol
+// http://www.openssh.com/txt/socks4a.protocol
+
 const (
 	version4 uint8 = 0x04
 )
+
+var v4IPPadding = []byte{0x00, 0x00, 0x00, 0x01} // domain
 
 type v4Reply uint8
 
@@ -33,9 +38,6 @@ func (r v4Reply) String() string {
 		return "unknown reply: " + strconv.Itoa(int(r))
 	}
 }
-
-// http://ftp.icm.edu.pl/packages/socks/socks4/SOCKS4.protocol
-// http://www.openssh.com/txt/socks4a.protocol
 
 func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 	var (
@@ -68,16 +70,14 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 	buffer.WriteByte(connect)
 	buffer.Write(convert.Uint16ToBytes(port))
 	if socks4aExt { // socks4a ext
-		buffer.Write([]byte{0x00, 0x00, 0x00, 0x01}) // padding IPv4
+		buffer.Write(v4IPPadding) // padding IPv4
 	} else {
 		buffer.Write(hostData) // IPv4
 	}
-
 	// user id
 	buffer.Write(c.userID)
 	buffer.WriteByte(0x00) // NULL
-
-	// write host
+	// write domain
 	if socks4aExt {
 		buffer.Write(hostData)
 		buffer.WriteByte(0x00) // NULL
@@ -87,8 +87,7 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 		return errors.Wrap(err, "failed to write socks4 request data")
 	}
 
-	// read response
-	// version4, reply, port, ip
+	// read response, version4, reply, port, ip
 	reply := make([]byte, 1+1+2+net.IPv4len)
 	_, err = io.ReadFull(conn, reply)
 	if err != nil {
@@ -102,9 +101,6 @@ func (c *Client) connectSocks4(conn net.Conn, host string, port uint16) error {
 	}
 	return nil
 }
-
-// http://ftp.icm.edu.pl/packages/socks/socks4/SOCKS4.protocol
-// http://www.openssh.com/txt/socks4a.protocol
 
 var (
 	v4ReplySucceeded      = []byte{0x00, 0x5a, 0, 0, 0, 0, 0, 0}
@@ -130,40 +126,48 @@ func (c *conn) serveSocks4() {
 		c.log(logger.Error, "unknown command")
 		return
 	}
-	port := convert.BytesToUint16(buffer[2:4])
-	var (
-		domain bool
-		host   string
-	)
-	// check is domain 0.0.0.x is domain mode
-	if bytes.Compare(buffer[4:7], []byte{0x00, 0x00, 0x00}) == 0 && buffer[7] != 0x00 {
-		domain = true
-	} else {
-		host = net.IPv4(buffer[4], buffer[5], buffer[6], buffer[7]).String()
-	}
 	if !c.checkUserID() {
 		return
 	}
+	// address
+	port := convert.BytesToUint16(buffer[2:4])
+	var (
+		domain bool
+		ip     bool
+		host   string
+	)
+	if c.server.disableExt {
+		ip = true
+	} else {
+		// check is domain, 0.0.0.x is domain mode
+		if bytes.Compare(buffer[4:7], []byte{0x00, 0x00, 0x00}) == 0 && buffer[7] != 0x00 {
+			domain = true
+		} else {
+			ip = true
+		}
+	}
+	if ip {
+		host = net.IPv4(buffer[4], buffer[5], buffer[6], buffer[7]).String()
+	}
 	if domain { // read domain // TODO disable ext
-		var dn []byte
+		var domainName []byte
 		for {
 			_, err = c.local.Read(buffer[:1])
 			if err != nil {
-				c.log(logger.Error, errors.Wrap(err, "failed to read domain"))
+				c.log(logger.Error, errors.Wrap(err, "failed to read domain name"))
 				return
 			}
 			// find 0x00(end)
 			if buffer[0] == 0x00 {
 				break
 			}
-			dn = append(dn, buffer[0])
+			domainName = append(domainName, buffer[0])
 		}
-		host = string(dn)
+		host = string(domainName)
 	}
 	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
-
 	// connect target
-	c.log(logger.Debug, "connect: "+address)
+	c.log(logger.Debug, "connect:", address)
 	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
 	defer cancel()
 	remote, err := c.server.dialContext(ctx, "tcp", address)
@@ -172,7 +176,6 @@ func (c *conn) serveSocks4() {
 		_, _ = c.local.Write(v4ReplyConnectRefused)
 		return
 	}
-
 	// write reply
 	_, err = c.local.Write(v4ReplySucceeded)
 	if err != nil {

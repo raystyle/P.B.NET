@@ -261,8 +261,8 @@ func (s *Server) Close() error {
 				err = e
 			}
 		}
-		s.wg.Wait()
 	})
+	s.wg.Wait()
 	return err
 }
 
