@@ -145,7 +145,6 @@ func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 	}
 	transport.TLSClientConfig.RootCAs.AddCert(httpsServerCA)
 	tlsCerts := transport.TLSClientConfig.Certificates
-	// add client side certificate
 	transport.TLSClientConfig.Certificates = append(tlsCerts, httpsClientCert)
 
 	// make http client
@@ -235,7 +234,7 @@ func ProxyConn(t testing.TB, conn net.Conn) {
 		require.NoError(t, err)
 		buf.Write(buffer[:n])
 		if buf.Len() > 4 {
-			if bytes.Equal(buf.Bytes()[buf.Len()-4:], []byte("\r\n\r\n")) {
+			if bytes.Compare(buf.Bytes()[buf.Len()-4:], []byte("\r\n\r\n")) == 0 {
 				break
 			}
 		}
@@ -319,8 +318,10 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	// HTTP
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer wg.Done() // twice
 		transport := new(http.Transport)
+		client.HTTP(transport)
+		HTTPClient(t, transport, "localhost")
 		client.HTTP(transport)
 		HTTPClient(t, transport, "localhost")
 	}()

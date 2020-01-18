@@ -14,18 +14,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/option"
+	"project/internal/random"
 )
 
 // TLSCertificate is used to generate CA ASN1 data, signed certificate
 func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte) {
 	// generate CA certificate
 	caCert := &x509.Certificate{
-		SerialNumber: big.NewInt(1234),
-		SubjectKeyId: []byte{0x00, 0x01, 0x02, 0x03},
+		SerialNumber: big.NewInt(random.Int64()),
+		SubjectKeyId: random.Bytes(4),
 		NotBefore:    time.Now().AddDate(0, 0, -1),
 		NotAfter:     time.Now().AddDate(0, 0, 1),
 	}
-	caCert.Subject.CommonName = "testsuite CA"
+	caCert.Subject.CommonName = "testsuite CA " + random.String(4)
 	caCert.KeyUsage = x509.KeyUsageCertSign
 	caCert.BasicConstraintsValid = true
 	caCert.IsCA = true
@@ -39,12 +40,12 @@ func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte
 
 	// sign certificate
 	cert := &x509.Certificate{
-		SerialNumber: big.NewInt(5678),
-		SubjectKeyId: []byte{0x04, 0x05, 0x06, 0x07},
+		SerialNumber: big.NewInt(random.Int64()),
+		SubjectKeyId: random.Bytes(4),
 		NotBefore:    time.Now().AddDate(0, 0, -1),
 		NotAfter:     time.Now().AddDate(0, 0, 1),
 	}
-	cert.Subject.CommonName = "testsuite certificate"
+	cert.Subject.CommonName = "testsuite certificate " + random.String(4)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 	cert.DNSNames = []string{"localhost"}
 	cert.IPAddresses = []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}
