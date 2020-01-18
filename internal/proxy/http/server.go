@@ -25,7 +25,7 @@ const (
 	defaultMaxConnections = 1000
 )
 
-// Server implement internal/proxy.server
+// Server implemented internal/proxy.server
 type Server struct {
 	tag      string
 	logger   logger.Logger
@@ -292,7 +292,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Header.Del("Proxy-Authorization")
 	if r.Method == http.MethodConnect { // handle https
 		// hijack client conn
-		wc, _, err := w.(http.Hijacker).Hijack()
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			panic("http.ResponseWriter don't implemented http.Hijacker")
+		}
+		wc, _, err := hijacker.Hijack()
 		if err != nil {
 			h.log(logger.Error, r, err)
 			return
@@ -347,6 +351,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		resp, err := h.transport.RoundTrip(r.Clone(ctx))
 		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
 			h.log(logger.Error, r, err)
 			return
 		}

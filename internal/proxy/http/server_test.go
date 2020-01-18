@@ -2,10 +2,13 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"sync"
 	"testing"
@@ -243,4 +246,71 @@ func TestServer_Close(t *testing.T) {
 
 	require.NoError(t, server.Close())
 	testsuite.IsDestroyed(t, server)
+}
+
+func TestHandler_ServeHTTP(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, err := NewHTTPServer("test", logger.Test, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, server.Close())
+		testsuite.IsDestroyed(t, server)
+	}()
+	go func() {
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	time.Sleep(250 * time.Millisecond)
+	u := fmt.Sprintf("http://%s/", server.Addresses()[0])
+	r, err := http.NewRequest(http.MethodConnect, u, nil)
+	require.NoError(t, err)
+
+	t.Run("don't implemented http.Hijacker", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		server.handler.ServeHTTP(w, r)
+	})
+
+	t.Run("failed to hijack", func(t *testing.T) {
+		w := testsuite.NewMockResponseWriterWithFailedToHijack()
+		server.handler.ServeHTTP(w, r)
+	})
+
+	t.Run("failed to response", func(t *testing.T) {
+		w := testsuite.NewMockResponseWriterWithFailedToWrite()
+		server.handler.ServeHTTP(w, r)
+	})
+
+	t.Run("copy with panic", func(t *testing.T) {
+		go func() {
+			w := testsuite.NewMockResponseWriterWithMockConn()
+			server.handler.ServeHTTP(w, r)
+		}()
+		time.Sleep(250 * time.Millisecond)
+		// close proxy server
+	})
+}
+
+func TestHandler_authenticate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	opts := Options{
+		Username: "admin",
+		Password: "123456",
+	}
+	server, err := NewHTTPServer("test", logger.Test, &opts)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, server.Close())
+		testsuite.IsDestroyed(t, server)
+	}()
+	w := httptest.NewRecorder()
+	r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
+	require.NoError(t, err)
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin")) // without ":"
+	r.Header.Set("Proxy-Authorization", auth)
+
+	server.handler.authenticate(w, r)
 }
