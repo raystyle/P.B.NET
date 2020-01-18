@@ -286,13 +286,31 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 			require.NoError(t, err)
 			ProxyConn(t, conn)
 
-			address = "localhost:" + HTTPServerPort
 			conn, err = client.DialTimeout(network, address, 0)
 			require.NoError(t, err)
 			ProxyConn(t, conn)
+
+			// except socks4
+			if !strings.Contains(client.Info(), "socks4 ") {
+				address = "localhost:" + HTTPServerPort
+				conn, err = client.DialTimeout(network, address, 0)
+				require.NoError(t, err)
+				ProxyConn(t, conn)
+			}
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				transport := new(http.Transport)
+				client.HTTP(transport)
+				HTTPClient(t, transport, "127.0.0.1")
+				client.HTTP(transport)
+				HTTPClient(t, transport, "127.0.0.1")
+			}()
 		}()
 	}
 
+	// except socks4a, socks4
 	if IPv6Enabled && !strings.Contains(client.Info(), "socks4") {
 		wg.Add(1)
 		go func() {
@@ -308,23 +326,39 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 			require.NoError(t, err)
 			ProxyConn(t, conn)
 
+			conn, err = client.DialTimeout(network, address, 0)
+			require.NoError(t, err)
+			ProxyConn(t, conn)
+
 			address = "localhost:" + HTTPServerPort
 			conn, err = client.DialTimeout(network, address, 0)
 			require.NoError(t, err)
 			ProxyConn(t, conn)
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				transport := new(http.Transport)
+				client.HTTP(transport)
+				HTTPClient(t, transport, "[::1]")
+				client.HTTP(transport)
+				HTTPClient(t, transport, "[::1]")
+			}()
 		}()
 	}
 
 	// HTTP
-	wg.Add(1)
-	go func() {
-		defer wg.Done() // twice
-		transport := new(http.Transport)
-		client.HTTP(transport)
-		HTTPClient(t, transport, "localhost")
-		client.HTTP(transport)
-		HTTPClient(t, transport, "localhost")
-	}()
+	if !strings.Contains(client.Info(), "socks4 ") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done() // twice
+			transport := new(http.Transport)
+			client.HTTP(transport)
+			HTTPClient(t, transport, "localhost")
+			client.HTTP(transport)
+			HTTPClient(t, transport, "localhost")
+		}()
+	}
 
 	wg.Wait()
 
