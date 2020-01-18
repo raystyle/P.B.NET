@@ -53,11 +53,9 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 	if err != nil {
 		return nil, err
 	}
-
 	if opts == nil {
 		opts = new(Options)
 	}
-
 	client := Client{
 		network: network,
 		address: address,
@@ -65,7 +63,6 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 		timeout: opts.Timeout,
 		header:  opts.Header.Clone(),
 	}
-
 	if client.https {
 		var err error
 		client.tlsConfig, err = opts.TLSConfig.Apply()
@@ -87,15 +84,12 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 			client.tlsConfig = c
 		}
 	}
-
-	if client.header == nil {
-		client.header = make(http.Header)
-	}
-
 	if client.timeout < 1 {
 		client.timeout = defaultDialTimeout
 	}
-
+	if client.header == nil {
+		client.header = make(http.Header)
+	}
 	// set proxy function for Client.HTTP()
 	u := &url.URL{Host: address}
 	if client.https {
@@ -104,14 +98,12 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 		u.Scheme = "http"
 	}
 	client.scheme = u.Scheme
-
 	// basic authentication
 	if opts.Username != "" || opts.Password != "" {
 		u.User = url.UserPassword(opts.Username, opts.Password)
 		auth := []byte(u.User.String())
 		client.basicAuth = "Basic " + base64.StdEncoding.EncodeToString(auth)
 	}
-
 	client.proxy = http.ProxyURL(u)
 	client.info = u.String()
 	return &client, nil
@@ -184,12 +176,7 @@ func (c *Client) DialTimeout(network, address string, timeout time.Duration) (ne
 }
 
 // Connect is used to connect to address through proxy with context
-func (c *Client) Connect(
-	ctx context.Context,
-	conn net.Conn,
-	network string,
-	address string,
-) (net.Conn, error) {
+func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address string) (net.Conn, error) {
 	err := CheckNetwork(network)
 	if err != nil {
 		return nil, err
@@ -247,7 +234,6 @@ func (c *Client) Connect(
 	if err != nil {
 		return nil, errors.Errorf("failed to write request to %s because %s", rAddr, err)
 	}
-
 	// read response
 	resp := make([]byte, connectionEstablishedLen)
 	_, err = io.ReadAtLeast(conn, resp, connectionEstablishedLen)

@@ -65,6 +65,7 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 		https:    https,
 		maxConns: opts.MaxConns,
 	}
+	// apply options
 	var err error
 	srv.server, err = opts.Server.Apply()
 	if err != nil {
@@ -83,14 +84,14 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	if srv.maxConns < 1 {
 		srv.maxConns = defaultMaxConnections
 	}
-
+	// tag
 	if srv.https {
 		tag = "https proxy-" + tag
 	} else {
 		tag = "http proxy-" + tag
 	}
 	srv.tag = tag
-
+	// initialize http handler
 	handler := &handler{
 		tag:         tag,
 		logger:      lg,
