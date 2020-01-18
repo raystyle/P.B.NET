@@ -82,9 +82,6 @@ func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt b
 		logger:      lg,
 		socks4:      socks4,
 		disableExt:  disableExt,
-		username:    []byte(opts.Username),
-		password:    []byte(opts.Password),
-		userID:      []byte(opts.UserID),
 		timeout:     opts.Timeout,
 		maxConns:    opts.MaxConns,
 		dialContext: opts.DialContext,
@@ -99,6 +96,13 @@ func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt b
 		}
 	} else {
 		srv.tag = "socks5-" + tag
+	}
+	if opts.Username != "" || opts.Password != "" {
+		srv.username = []byte(opts.Username)
+		srv.password = []byte(opts.Password)
+	}
+	if opts.UserID != "" {
+		srv.userID = []byte(opts.UserID)
 	}
 	if srv.timeout < 1 {
 		srv.timeout = defaultConnectTimeout
