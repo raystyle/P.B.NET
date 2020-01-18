@@ -12,8 +12,9 @@ func TestTLSConfigPair(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
-	const network = "tcp"
 	serverCfg, clientCfg := TLSConfigPair(t)
+	const network = "tcp"
+
 	listener, err := tls.Listen(network, "localhost:0", serverCfg)
 	require.NoError(t, err)
 	address := listener.Addr().String()
@@ -27,16 +28,16 @@ func TestTLSConfigOptionPair(t *testing.T) {
 	defer gm.Compare()
 
 	serverCfg, clientCfg := TLSConfigOptionPair(t)
-	sc, err := serverCfg.Apply()
+	server, err := serverCfg.Apply()
 	require.NoError(t, err)
-	cc, err := clientCfg.Apply()
+	client, err := clientCfg.Apply()
 	require.NoError(t, err)
-
 	const network = "tcp"
-	listener, err := tls.Listen(network, "localhost:0", sc)
+
+	listener, err := tls.Listen(network, "localhost:0", server)
 	require.NoError(t, err)
 	address := listener.Addr().String()
 	ListenerAndDial(t, listener, func() (net.Conn, error) {
-		return tls.Dial(network, address, cc.Clone())
+		return tls.Dial(network, address, client.Clone())
 	}, true)
 }

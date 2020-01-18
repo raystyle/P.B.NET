@@ -18,7 +18,7 @@ import (
 
 // TLSCertificate is used to generate CA ASN1 data, signed certificate
 func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte) {
-	// generate CA
+	// generate CA certificate
 	caCert := &x509.Certificate{
 		SerialNumber: big.NewInt(1234),
 		SubjectKeyId: []byte{0x00, 0x01, 0x02, 0x03},
@@ -36,7 +36,8 @@ func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte
 	require.NoError(t, err)
 	caCert, err = x509.ParseCertificate(caASN1)
 	require.NoError(t, err)
-	// sign cert
+
+	// sign certificate
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(5678),
 		SubjectKeyId: []byte{0x04, 0x05, 0x06, 0x07},
@@ -65,35 +66,62 @@ func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte
 
 // TLSConfigPair is used to build server and client *tls.Config
 func TLSConfigPair(t testing.TB) (server, client *tls.Config) {
-	caASN1, cPEMBlock, cPriPEMBlock := TLSCertificate(t)
-	// ca certificate
+	// certificates about server
+	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t)
 	caCert, err := x509.ParseCertificate(caASN1)
 	require.NoError(t, err)
-	// server tls config
-	tlsCert, err := tls.X509KeyPair(cPEMBlock, cPriPEMBlock)
+	tlsCert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
 	require.NoError(t, err)
-	server = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
-	// client tls config
+
+	server = &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}
 	client = &tls.Config{RootCAs: x509.NewCertPool()}
 	client.RootCAs.AddCert(caCert)
+
+	// certificates about client
+	caASN1, certPEMBlock, keyPEMBlock = TLSCertificate(t)
+	caCert, err = x509.ParseCertificate(caASN1)
+	require.NoError(t, err)
+	tlsCert, err = tls.X509KeyPair(certPEMBlock, keyPEMBlock)
+	require.NoError(t, err)
+
+	server.ClientCAs = x509.NewCertPool()
+	server.ClientCAs.AddCert(caCert)
+	client.Certificates = []tls.Certificate{tlsCert}
 	return
 }
 
 // TLSConfigOptionPair is used to build server and client *options.TLSConfig
-func TLSConfigOptionPair(t testing.TB) (server, client *option.TLSConfig) {
-	caASN1, cPEMBlock, cPriPEMBlock := TLSCertificate(t)
-	caPEMBlock := pem.EncodeToMemory(&pem.Block{
+func TLSConfigOptionPair(t testing.TB) (server, client option.TLSConfig) {
+	// certificates about server
+	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t)
+	caPEMBlock := string(pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caASN1,
-	})
-	// server *options.TLSConfig
-	server = &option.TLSConfig{Certificates: make([]option.X509KeyPair, 1)}
-	server.Certificates[0] = option.X509KeyPair{
-		Cert: string(cPEMBlock),
-		Key:  string(cPriPEMBlock),
+	}))
+	server.Certificates = []option.X509KeyPair{
+		{
+			Cert: string(certPEMBlock),
+			Key:  string(keyPEMBlock),
+		},
 	}
-	// client *options.TLSConfig
-	client = &option.TLSConfig{RootCAs: make([]string, 1)}
-	client.RootCAs[0] = string(caPEMBlock)
+	server.ClientAuth = tls.RequireAndVerifyClientCert
+	client.RootCAs = []string{caPEMBlock}
+
+	// certificates about client
+	caASN1, certPEMBlock, keyPEMBlock = TLSCertificate(t)
+	caPEMBlock = string(pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: caASN1,
+	}))
+	server.ClientCAs = []string{caPEMBlock}
+	client.Certificates = []option.X509KeyPair{
+		{
+			Cert: string(certPEMBlock),
+			Key:  string(keyPEMBlock),
+		},
+	}
 	return
 }
