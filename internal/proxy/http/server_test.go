@@ -33,12 +33,12 @@ func testGenerateHTTPProxyServer(t *testing.T) *Server {
 	return server
 }
 
-func testGenerateHTTPSProxyServer(t *testing.T) (*Server, *option.TLSConfig) {
+func testGenerateHTTPSProxyServer(t *testing.T) (*Server, option.TLSConfig) {
 	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 	opts := Options{
 		Username: "admin",
 	}
-	opts.Server.TLSConfig = *serverCfg
+	opts.Server.TLSConfig = serverCfg
 	server, err := NewHTTPSServer("test", logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {

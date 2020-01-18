@@ -38,7 +38,7 @@ func TestHTTPSProxyClient(t *testing.T) {
 	address := server.Addresses()[0].String()
 	opts := Options{
 		Username:  "admin",
-		TLSConfig: *tlsConfig,
+		TLSConfig: tlsConfig,
 	}
 	client, err := NewHTTPSClient("tcp", address, &opts)
 	require.NoError(t, err)
@@ -150,10 +150,54 @@ func TestHTTPSProxyClientFailure(t *testing.T) {
 		address := server.Addresses()[0].String()
 		opts := Options{
 			Username:  "admin",
-			TLSConfig: *tlsConfig,
+			TLSConfig: tlsConfig,
 		}
 		client, err := NewHTTPSClient("tcp", address, &opts)
 		require.NoError(t, err)
 		testsuite.ProxyClientWithUnreachableTarget(t, server, client)
 	})
+}
+
+func TestFailedToNewClient(t *testing.T) {
+	t.Run("unsupported network", func(t *testing.T) {
+		_, err := NewHTTPClient("foo network", "", nil)
+		require.Error(t, err)
+	})
+
+	t.Run("failed to apply tls config", func(t *testing.T) {
+		opts := Options{}
+		opts.TLSConfig.RootCAs = []string{"foo CA"}
+		_, err := NewHTTPSClient("tcp", "", &opts)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid address", func(t *testing.T) {
+		_, err := NewHTTPSClient("tcp", "", nil)
+		require.Error(t, err)
+	})
+}
+
+func TestHTTPSClientWithCertificate(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
+	opts := Options{}
+	opts.Server.TLSConfig = serverCfg
+	server, err := NewHTTPSServer("test", logger.Test, &opts)
+	require.NoError(t, err)
+	go func() {
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	time.Sleep(250 * time.Millisecond)
+
+	address := server.Addresses()[0].String()
+	opts = Options{TLSConfig: clientCfg}
+	client, err := NewHTTPSClient("tcp", address, &opts)
+	require.NoError(t, err)
+
+	testsuite.ProxyClient(t, server, client)
 }

@@ -29,12 +29,8 @@ type Client struct {
 	header    http.Header
 	tlsConfig *tls.Config
 
-	rootCAs   []*x509.Certificate
-	clientCAs []*x509.Certificate
-	certs     []tls.Certificate // client side
-
-	rootCAsLen   int
-	clientCAsLen int
+	rootCAs    []*x509.Certificate
+	rootCAsLen int
 
 	scheme    string // "http" or "https"
 	proxy     func(*http.Request) (*url.URL, error)
@@ -79,13 +75,6 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 		// copy certificates
 		client.rootCAs, _ = opts.TLSConfig.GetRootCAs()
 		client.rootCAsLen = len(client.rootCAs)
-		client.clientCAs, _ = opts.TLSConfig.GetClientCAs()
-		client.clientCAsLen = len(client.clientCAs)
-		l := len(client.tlsConfig.Certificates)
-		if l > 0 {
-			client.certs = make([]tls.Certificate, l)
-			copy(client.certs, client.tlsConfig.Certificates)
-		}
 		// set server name
 		if client.tlsConfig.ServerName == "" {
 			colonPos := strings.LastIndex(address, ":")
@@ -297,13 +286,21 @@ func (c *Client) HTTP(t *http.Transport) {
 		for i := 0; i < c.rootCAsLen; i++ {
 			t.TLSClientConfig.RootCAs.AddCert(c.rootCAs[i])
 		}
-		if t.TLSClientConfig.ClientCAs == nil {
-			t.TLSClientConfig.ClientCAs = x509.NewCertPool()
+		// add client certificates, if certificate exists, will not add again
+		for _, cert := range c.tlsConfig.Certificates {
+			contain := false
+			cc := cert.Certificate[0]
+			for _, tCert := range t.TLSClientConfig.Certificates {
+				if bytes.Compare(cc, tCert.Certificate[0]) == 0 {
+					contain = true
+					break
+				}
+			}
+			if !contain {
+				certs := t.TLSClientConfig.Certificates
+				t.TLSClientConfig.Certificates = append(certs, cert)
+			}
 		}
-		for i := 0; i < c.clientCAsLen; i++ {
-			t.TLSClientConfig.ClientCAs.AddCert(c.clientCAs[i])
-		}
-		t.TLSClientConfig.Certificates = append(t.TLSClientConfig.Certificates, c.certs...)
 	}
 }
 
