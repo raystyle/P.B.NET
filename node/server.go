@@ -510,7 +510,7 @@ func (s *server) handleNode(tag string, conn *xnet.Conn) {
 		return
 	}
 	// check is self
-	if bytes.Equal(nodeGUID, s.ctx.global.GUID()) {
+	if bytes.Compare(nodeGUID, s.ctx.global.GUID()) == 0 {
 		s.logConn(conn, logger.Debug, "oh! self")
 		return
 	}

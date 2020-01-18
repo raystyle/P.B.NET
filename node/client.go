@@ -171,7 +171,7 @@ func (client *client) verifyCertificate(cert []byte, address string, guid []byte
 	buffer := bytes.Buffer{}
 	buffer.WriteString(address)
 	buffer.Write(guid)
-	if bytes.Equal(guid, protocol.CtrlGUID) {
+	if bytes.Compare(guid, protocol.CtrlGUID) == 0 {
 		certWithCtrlGUID := cert[ed25519.SignatureSize:]
 		return client.ctx.global.CtrlVerify(buffer.Bytes(), certWithCtrlGUID)
 	}
@@ -234,7 +234,7 @@ func (client *client) authenticate() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive authentication response")
 	}
-	if !bytes.Equal(resp, protocol.AuthSucceed) {
+	if bytes.Compare(resp, protocol.AuthSucceed) != 0 {
 		return errors.WithStack(protocol.ErrAuthenticateFailed)
 	}
 	return nil
@@ -387,8 +387,8 @@ func (client *client) sendHeartbeatLoop() {
 	}
 }
 
-// Sync is used to switch to sync mode
-func (client *client) Sync() error {
+// Synchronize is used to switch to synchronize mode
+func (client *client) Synchronize() error {
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
 	if client.isSync() {
@@ -396,10 +396,10 @@ func (client *client) Sync() error {
 	}
 	resp, err := client.Conn.SendCommand(protocol.NodeSync, nil)
 	if err != nil {
-		return errors.Wrap(err, "failed to receive sync response")
+		return errors.Wrap(err, "failed to receive synchronize response")
 	}
-	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
-		return errors.Errorf("failed to start sync: %s", resp)
+	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
+		return errors.Errorf("failed to start synchronize: %s", resp)
 	}
 	// initialize sync pool
 	client.Conn.SendPool.New = func() interface{} {

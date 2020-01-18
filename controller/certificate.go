@@ -64,7 +64,7 @@ func (ctrl *CTRL) ConfirmTrustNode(
 	if err != nil {
 		return errors.WithMessage(err, "failed to set node certificate")
 	}
-	if !bytes.Equal(reply, []byte{messages.RegisterResultAccept}) {
+	if bytes.Compare(reply, []byte{messages.RegisterResultAccept}) != 0 {
 		return errors.Errorf("failed to trust node: %s", reply)
 	}
 	// calculate session key

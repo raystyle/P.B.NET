@@ -224,7 +224,7 @@ func (sender *sender) ConnectWithContext(
 	if err != nil {
 		return errors.WithMessage(err, "failed to connect node")
 	}
-	err = client.Sync()
+	err = client.Synchronize()
 	if err != nil {
 		return err
 	}

@@ -423,7 +423,7 @@ func (c *conn) HandleSendToNode(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckSendToNodeGUID(s.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		if bytes.Equal(s.RoleGUID, c.ctx.global.GUID()) {
+		if bytes.Compare(s.RoleGUID, c.ctx.global.GUID()) == 0 {
 			c.ctx.worker.AddSend(s)
 		} else {
 			// forwarder
@@ -461,7 +461,7 @@ func (c *conn) HandleAckToNode(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckAckToNodeGUID(a.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		if bytes.Equal(a.RoleGUID, c.ctx.global.GUID()) {
+		if bytes.Compare(a.RoleGUID, c.ctx.global.GUID()) == 0 {
 			c.ctx.worker.AddAcknowledge(a)
 
 		} else {
@@ -805,7 +805,7 @@ func (c *conn) Send(guid, message []byte) (sr *protocol.SendResponse) {
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
 		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -813,7 +813,7 @@ func (c *conn) Send(guid, message []byte) (sr *protocol.SendResponse) {
 	if sr.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.ReplySucceed) {
+	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
 		sr.Err = errors.New(string(reply))
 	}
 	return
@@ -829,7 +829,7 @@ func (c *conn) Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeRespon
 	if ar.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
 		ar.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -837,7 +837,7 @@ func (c *conn) Acknowledge(guid, message []byte) (ar *protocol.AcknowledgeRespon
 	if ar.Err != nil {
 		return
 	}
-	if !bytes.Equal(reply, protocol.ReplySucceed) {
+	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
 		ar.Err = errors.New(string(reply))
 	}
 	return
