@@ -37,6 +37,30 @@ func TestCheckPortString(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSplitHostPort(t *testing.T) {
+	t.Run("host and port", func(t *testing.T) {
+		host, port, err := SplitHostPort("host:123")
+		require.NoError(t, err)
+		require.Equal(t, "host", host)
+		require.Equal(t, uint16(123), port)
+	})
+
+	t.Run("miss port", func(t *testing.T) {
+		_, _, err := SplitHostPort("host")
+		require.Error(t, err)
+	})
+
+	t.Run("port is NaN", func(t *testing.T) {
+		_, _, err := SplitHostPort("host:NaN")
+		require.Error(t, err)
+	})
+
+	t.Run("invalid port", func(t *testing.T) {
+		_, _, err := SplitHostPort("host:99999")
+		require.Error(t, err)
+	})
+}
+
 func TestIPEnabled(t *testing.T) {
 	t.Log(IPEnabled())
 }

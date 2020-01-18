@@ -33,6 +33,23 @@ func CheckPortString(port string) error {
 	return CheckPort(p)
 }
 
+// SplitHostPort is used to split address to host and port
+func SplitHostPort(address string) (string, uint16, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", 0, err
+	}
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return "", 0, err
+	}
+	err = CheckPort(portNum)
+	if err != nil {
+		return "", 0, err
+	}
+	return host, uint16(portNum), nil
+}
+
 // IPEnabled is used to get system IP enabled
 func IPEnabled() (ipv4Enabled, ipv6Enabled bool) {
 	interfaces, _ := net.Interfaces()
