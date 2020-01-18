@@ -18,6 +18,10 @@ import (
 	"project/internal/xpanic"
 )
 
+// ErrServerClosed is returned by the Server's Serve, ListenAndServe,
+// methods after a call Close
+var ErrServerClosed = errors.New("socks server closed")
+
 const (
 	defaultConnectTimeout = 30 * time.Second
 	defaultMaxConnections = 1000
@@ -25,211 +29,88 @@ const (
 
 // Server implemented internal/proxy.server
 type Server struct {
-	tag      string
-	logger   logger.Logger
-	socks4   bool
-	maxConns int
-	timeout  time.Duration
-	userID   []byte
+	tag        string
+	logger     logger.Logger
+	socks4     bool
+	disableExt bool // socks4, disable resolve domain name
 
-	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
-	exitFunc    func()
-
-	listener net.Listener
+	// options
 	username []byte
 	password []byte
-	address  string
-	rwm      sync.RWMutex
-	conns    map[string]*conn
-	connsRWM sync.RWMutex
+	userID   []byte
+	timeout  time.Duration
+	maxConns int
+
+	// secondary proxy
+	dialContext func(ctx context.Context, network, address string) (net.Conn, error)
+
+	listeners  map[*net.Listener]struct{}
+	conns      map[*conn]struct{}
+	inShutdown int32
+	rwm        sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	inShutdown int32
-	closeOnce  sync.Once
-	wg         sync.WaitGroup
+	closeOnce sync.Once
+	wg        sync.WaitGroup
 }
 
-// NewServer is used to create socks server
-func NewServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+// NewSocks5Server is used to create a socks5 server
+func NewSocks5Server(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+	return newServer(tag, lg, opts, false, false)
+}
+
+// NewSocks4aServer is used to create a socks4a server
+func NewSocks4aServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+	return newServer(tag, lg, opts, true, false)
+}
+
+// NewSocks4Server is used to create a socks4 server
+func NewSocks4Server(tag string, lg logger.Logger, opts *Options) (*Server, error) {
+	return newServer(tag, lg, opts, true, true)
+}
+
+func newServer(tag string, lg logger.Logger, opts *Options, socks4, disableExt bool) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
 	if opts == nil {
 		opts = new(Options)
 	}
-	s := Server{
+	srv := Server{
 		logger:      lg,
-		maxConns:    opts.MaxConns,
-		timeout:     opts.Timeout,
+		socks4:      socks4,
+		disableExt:  disableExt,
+		username:    []byte(opts.Username),
+		password:    []byte(opts.Password),
 		userID:      []byte(opts.UserID),
-		conns:       make(map[string]*conn),
+		timeout:     opts.Timeout,
+		maxConns:    opts.MaxConns,
 		dialContext: opts.DialContext,
+		listeners:   make(map[*net.Listener]struct{}),
+		conns:       make(map[*conn]struct{}),
 	}
-
-	if s.socks4 {
-		s.tag = "socks4a-" + tag
+	if srv.socks4 {
+		if srv.disableExt {
+			srv.tag = "socks4-" + tag
+		} else {
+			srv.tag = "socks4a-" + tag
+		}
 	} else {
-		s.tag = "socks5-" + tag
+		srv.tag = "socks5-" + tag
 	}
-
-	if s.timeout < 1 {
-		s.timeout = defaultConnectTimeout
+	if srv.timeout < 1 {
+		srv.timeout = defaultConnectTimeout
 	}
-
-	if s.maxConns < 1 {
-		s.maxConns = defaultMaxConnections
+	if srv.maxConns < 1 {
+		srv.maxConns = defaultMaxConnections
 	}
-
-	if s.dialContext == nil {
-		s.dialContext = new(net.Dialer).DialContext
+	if srv.dialContext == nil {
+		srv.dialContext = new(net.Dialer).DialContext
 	}
-
-	if opts.Username != "" {
-		s.username = []byte(opts.Username)
-		s.password = []byte(opts.Password)
-	}
-
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-	return &s, nil
-}
-
-// ListenAndServe is used to listen a listener and serve
-// it will not block
-func (s *Server) ListenAndServe(network, address string) error {
-	// check network
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return errors.Errorf("unsupported network: %s", network)
-	}
-	// listen
-	l, err := net.Listen(network, address)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	s.Serve(l)
-	return nil
-}
-
-func (s *Server) stopServe() {
-	if r := recover(); r != nil {
-		s.log(logger.Fatal, xpanic.Print(r, "Server.Serve"))
-	}
-
-	atomic.StoreInt32(&s.inShutdown, 1)
-	s.cancel()
-
-	// close all connections
-	s.connsRWM.Lock()
-	defer s.connsRWM.Unlock()
-	for _, conn := range s.conns {
-		_ = conn.local.Close()
-	}
-
-	// close listener and execute exit function
-	s.closeOnce.Do(func() {
-		_ = s.listener.Close()
-		if s.exitFunc != nil {
-			s.exitFunc()
-		}
-	})
-
-	s.logf(logger.Info, "server stopped (%s)", s.address)
-	s.wg.Done()
-}
-
-// Serve accepts incoming connections on the listener
-// it will not block
-func (s *Server) Serve(l net.Listener) {
-	s.rwm.Lock()
-	defer s.rwm.Unlock()
-	s.address = l.Addr().String()
-	s.listener = netutil.LimitListener(l, s.maxConns)
-	s.wg.Add(1)
-	go func() {
-		defer s.stopServe()
-		s.logf(logger.Info, "start server (%s)", s.address)
-		var delay time.Duration // how long to sleep on accept failure
-		maxDelay := time.Second
-		for {
-			conn, err := s.listener.Accept()
-			if err != nil {
-				// check error
-				if ne, ok := err.(net.Error); ok && ne.Temporary() {
-					if delay == 0 {
-						delay = 5 * time.Millisecond
-					} else {
-						delay *= 2
-					}
-					if delay > maxDelay {
-						delay = maxDelay
-					}
-					s.logf(logger.Warning, "accept error: %s; retrying in %v", err, delay)
-					time.Sleep(delay)
-					continue
-				}
-				str := err.Error()
-				if !strings.Contains(str, "use of closed network connection") {
-					s.log(logger.Error, str)
-				}
-				return
-			}
-			delay = 0
-			c := s.newConn(conn)
-			if c != nil {
-				_ = conn.SetDeadline(time.Now().Add(s.timeout))
-				s.wg.Add(1)
-				go c.serve()
-			}
-		}
-	}()
-}
-
-// Close is used to close socks server
-func (s *Server) Close() error {
-	var err error
-	atomic.StoreInt32(&s.inShutdown, 1)
-	s.closeOnce.Do(func() {
-		s.rwm.RLock()
-		defer s.rwm.RUnlock()
-		if s.listener != nil {
-			err = s.listener.Close()
-		}
-
-		// TODO close Conns
-
-		if s.exitFunc != nil {
-			s.exitFunc()
-		}
-	})
-	s.wg.Wait()
-	return err
-}
-
-// Address is used to get socks server address
-func (s *Server) Address() string {
-	s.rwm.RLock()
-	defer s.rwm.RUnlock()
-	return s.address
-}
-
-// Info is used to get http proxy server info
-// "socks5 listen: 127.0.0.1:8080"
-// "socks5 listen: 127.0.0.1:8080 admin:123456"
-func (s *Server) Info() string {
-	buf := new(bytes.Buffer)
-	if s.socks4 {
-		buf.WriteString("socks4a")
-	} else {
-		buf.WriteString("socks5")
-	}
-	_, _ = fmt.Fprintf(buf, " listen: %s", s.Address())
-	if s.username != nil || s.password != nil {
-		_, _ = fmt.Fprintf(buf, " %s:%s", s.username, s.password)
-	}
-	return buf.String()
+	srv.ctx, srv.cancel = context.WithCancel(context.Background())
+	return &srv, nil
 }
 
 func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
@@ -237,33 +118,191 @@ func (s *Server) logf(lv logger.Level, format string, log ...interface{}) {
 }
 
 func (s *Server) log(lv logger.Level, log ...interface{}) {
-	l := len(log)
-	logs := make([]interface{}, l)
-	for i := 0; i < l; i++ {
-		if c, ok := log[i].(net.Conn); ok {
-			logs[i] = logger.Conn(c)
-		} else {
-			logs[i] = log[i]
+	s.logger.Println(lv, s.tag, log...)
+}
+
+func (s *Server) shuttingDown() bool {
+	return atomic.LoadInt32(&s.inShutdown) != 0
+}
+
+func (s *Server) trackListener(listener *net.Listener, add bool) bool {
+	s.rwm.Lock()
+	defer s.rwm.Unlock()
+	if add {
+		if s.shuttingDown() {
+			return false
+		}
+		s.listeners[listener] = struct{}{}
+	} else {
+		delete(s.listeners, listener)
+	}
+	return true
+}
+
+// ListenAndServe is used to listen a listener and serve
+func (s *Server) ListenAndServe(network, address string) error {
+	err := CheckNetwork(network)
+	if err != nil {
+		return err
+	}
+	listener, err := net.Listen(network, address)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return s.Serve(listener)
+}
+
+// Serve accepts incoming connections on the listener
+func (s *Server) Serve(listener net.Listener) (err error) {
+	listener = netutil.LimitListener(listener, s.maxConns)
+	if !s.trackListener(&listener, true) {
+		return ErrServerClosed
+	}
+	defer s.trackListener(&listener, false)
+
+	address := listener.Addr()
+	network := address.Network()
+	defer func() {
+		if r := recover(); r != nil {
+			err = xpanic.Error(r, "Server.Serve")
+			s.log(logger.Fatal, err)
+		}
+		s.logf(logger.Info, "listener closed (%s %s)", network, address)
+	}()
+	s.logf(logger.Info, "start listener (%s %s)", network, address)
+
+	// start accept
+	var delay time.Duration // how long to sleep on accept failure
+	maxDelay := time.Second
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			// check error
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				if delay == 0 {
+					delay = 5 * time.Millisecond
+				} else {
+					delay *= 2
+				}
+				if delay > maxDelay {
+					delay = maxDelay
+				}
+				s.logf(logger.Warning, "accept error: %s; retrying in %v", err, delay)
+				time.Sleep(delay)
+				continue
+			}
+			errStr := err.Error()
+			if !strings.Contains(errStr, "closed") {
+				s.log(logger.Warning, errStr)
+				return err
+			}
+			return nil
+		}
+		delay = 0
+		c := s.newConn(conn)
+		if s.trackConn(c, true) {
+			s.wg.Add(1)
+			go c.serve()
 		}
 	}
-	buf := new(bytes.Buffer)
-	_, _ = fmt.Fprint(buf, logs...)
-	s.logger.Print(lv, s.tag, buf)
 }
 
 func (s *Server) newConn(c net.Conn) *conn {
-	if atomic.LoadInt32(&s.inShutdown) == 0 {
-		conn := &conn{
-			server: s,
-			local:  c,
-		}
-		s.connsRWM.Lock()
-		defer s.connsRWM.Unlock()
-		s.conns[conn.key()] = conn
-		return conn
+	return &conn{
+		server: s,
+		local:  c,
 	}
-	_ = c.Close()
-	return nil
+}
+
+func (s *Server) trackConn(conn *conn, add bool) bool {
+	s.rwm.Lock()
+	defer s.rwm.Unlock()
+	if add {
+		if s.shuttingDown() {
+			return false
+		}
+		s.conns[conn] = struct{}{}
+	} else {
+		delete(s.conns, conn)
+	}
+	return true
+}
+
+// Addresses is used to get listener addresses
+func (s *Server) Addresses() []net.Addr {
+	s.rwm.RLock()
+	defer s.rwm.RUnlock()
+	addrs := make([]net.Addr, 0, len(s.listeners))
+	for listener := range s.listeners {
+		addrs = append(addrs, (*listener).Addr())
+	}
+	return addrs
+}
+
+// Close is used to close socks server
+func (s *Server) Close() error {
+	var err error
+	s.closeOnce.Do(func() {
+		atomic.StoreInt32(&s.inShutdown, 1)
+		s.cancel()
+		s.rwm.Lock()
+		defer s.rwm.Unlock()
+		// close all listeners
+		for listener := range s.listeners {
+			e := (*listener).Close()
+			if e != nil && err == nil {
+				err = e
+			}
+		}
+		// close all connections
+		for conn := range s.conns {
+			e := conn.Close()
+			if e != nil && err == nil {
+				err = e
+			}
+		}
+		s.wg.Wait()
+	})
+	return err
+}
+
+// Info is used to get socks server info
+// "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
+// "address: tcp 127.0.0.1:1999 user id: test"
+// "address: tcp 127.0.0.1:1999 auth: admin:123456"
+func (s *Server) Info() string {
+	buf := new(bytes.Buffer)
+	addresses := s.Addresses()
+	l := len(addresses)
+	if l > 0 {
+		buf.WriteString("address: ")
+		for i := 0; i < l; i++ {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			network := addresses[i].Network()
+			address := addresses[i].String()
+			_, _ = fmt.Fprintf(buf, "%s %s", network, address)
+		}
+	}
+	if s.socks4 {
+		if s.userID != nil {
+			format := "user id: %s"
+			if buf.Len() > 0 {
+				format = " " + format
+			}
+			_, _ = fmt.Fprintf(buf, format, s.userID)
+		}
+	} else {
+		if s.username != nil || s.password != nil {
+			format := "auth: %s:%s"
+			if buf.Len() > 0 {
+				format = " " + format
+			}
+			_, _ = fmt.Fprintf(buf, format, s.username, s.password)
+		}
+	}
+	return buf.String()
 }
 
 type conn struct {
@@ -272,15 +311,11 @@ type conn struct {
 	remote net.Conn // dial
 }
 
-func (c *conn) key() string {
-	return fmt.Sprintf("%s%s%s%s",
-		c.local.LocalAddr().Network(), c.local.LocalAddr(),
-		c.local.RemoteAddr().Network(), c.local.RemoteAddr(),
-	)
-}
-
 func (c *conn) log(lv logger.Level, log ...interface{}) {
-	c.server.log(lv, append(log, "\n", c.local)...)
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(buf, log...)
+	_, _ = logger.Conn(c.local).WriteTo(buf)
+	c.server.log(lv, buf)
 }
 
 func (c *conn) serve() {
@@ -290,12 +325,10 @@ func (c *conn) serve() {
 			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
 		_ = c.local.Close()
-		// delete conn
-		c.server.connsRWM.Lock()
-		defer c.server.connsRWM.Unlock()
-		delete(c.server.conns, c.key())
 		c.server.wg.Done()
 	}()
+	defer c.server.trackConn(c, false)
+	_ = c.local.SetDeadline(time.Now().Add(c.server.timeout))
 	if c.server.socks4 {
 		c.serveSocks4()
 	} else {
@@ -318,4 +351,8 @@ func (c *conn) serve() {
 		}()
 		_, _ = io.Copy(c.remote, c.local)
 	}
+}
+
+func (c *conn) Close() error {
+	return c.local.Close()
 }

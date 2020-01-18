@@ -144,7 +144,7 @@ func (c *conn) serveSocks4() {
 	if !c.checkUserID() {
 		return
 	}
-	if domain { // read domain
+	if domain { // read domain // TODO disable ext
 		var dn []byte
 		for {
 			_, err = c.local.Read(buffer[:1])
