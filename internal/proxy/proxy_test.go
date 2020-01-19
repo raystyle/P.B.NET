@@ -199,3 +199,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	}
 	return groups
 }
+
+func TestServer(t *testing.T) {
+
+}

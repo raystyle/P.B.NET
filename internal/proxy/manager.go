@@ -30,8 +30,12 @@ func NewManager(lg logger.Logger, now func() time.Time) *Manager {
 
 // Add is used to add proxy server, but not listen or serve
 func (m *Manager) Add(server *Server) error {
-	const format = "failed to add proxy server %s:"
-	return errors.WithMessagef(m.add(server), format, server.Tag)
+	err := m.add(server)
+	if err != nil {
+		const format = "failed to add proxy server %s"
+		return errors.WithMessagef(err, format, server.Tag)
+	}
+	return nil
 }
 
 func (m *Manager) add(server *Server) error {
@@ -45,7 +49,7 @@ func (m *Manager) add(server *Server) error {
 	case ModeHTTP, ModeHTTPS:
 		err = m.addHTTP(server)
 	default:
-		return errors.Errorf("unknown mode %s", server.Mode)
+		return errors.Errorf("unknown mode: %s", server.Mode)
 	}
 	if err != nil {
 		return err
@@ -58,7 +62,7 @@ func (m *Manager) add(server *Server) error {
 		m.servers[server.Tag] = server
 		return nil
 	}
-	return errors.Errorf("proxy server %s already exists", server.Tag)
+	return errors.New("already exists")
 }
 
 func (m *Manager) addSocks(server *Server) error {
@@ -138,12 +142,15 @@ func (m *Manager) Servers() map[string]*Server {
 
 // Close is used to close all proxy servers
 func (m *Manager) Close() error {
+	m.rwm.Lock()
+	defer m.rwm.Unlock()
 	var err error
-	for _, server := range m.Servers() {
+	for tag, server := range m.servers {
 		e := server.Close()
 		if e != nil && err == nil {
 			err = e
 		}
+		delete(m.servers, tag)
 	}
 	return err
 }

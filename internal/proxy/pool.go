@@ -33,8 +33,12 @@ func NewPool() *Pool {
 
 // Add is used to add a proxy client
 func (p *Pool) Add(client *Client) error {
-	const format = "failed to add proxy client %s:"
-	return errors.WithMessagef(p.add(client), format, client.Tag)
+	err := p.add(client)
+	if err != nil {
+		const format = "failed to add proxy client %s"
+		return errors.WithMessagef(err, format, client.Tag)
+	}
+	return nil
 }
 
 func (p *Pool) add(client *Client) error {
@@ -55,7 +59,7 @@ func (p *Pool) add(client *Client) error {
 	case ModeBalance:
 		err = p.addBalance(client)
 	default:
-		return errors.Errorf("unknown mode %s", client.Mode)
+		return errors.Errorf("unknown mode: %s", client.Mode)
 	}
 	if err != nil {
 		return err
@@ -66,7 +70,7 @@ func (p *Pool) add(client *Client) error {
 		p.clients[client.Tag] = client
 		return nil
 	}
-	return errors.Errorf("proxy client %s already exists", client.Tag)
+	return errors.New("already exists")
 }
 
 func (p *Pool) addSocks(client *Client) error {
