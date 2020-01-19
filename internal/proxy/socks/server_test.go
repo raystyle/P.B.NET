@@ -204,3 +204,16 @@ func TestServer_Close(t *testing.T) {
 	require.NoError(t, server.Close())
 	testsuite.IsDestroyed(t, server)
 }
+
+func TestServer_Info(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server := testGenerateSocks4Server(t)
+	defer func() {
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Close())
+		testsuite.IsDestroyed(t, server)
+	}()
+	t.Log("socks4 info:", server.Info())
+}
