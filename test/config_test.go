@@ -13,7 +13,7 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/messages"
-	"project/internal/options"
+	"project/internal/option"
 	"project/internal/xnet"
 	"project/node"
 	"project/testdata"
@@ -171,7 +171,7 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 		Address: "localhost:0",
 	}
 	c, k := pair.EncodeToPEM()
-	listener.TLSConfig.Certificates = []options.X509KeyPair{
+	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(c), Key: string(k)},
 	}
 
