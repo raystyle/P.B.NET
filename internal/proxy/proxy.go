@@ -22,7 +22,7 @@ const (
 	ModeBalance = "balance"
 
 	// reserve proxy client in Pool
-	modeDirect = "direct"
+	ModeDirect = "direct"
 )
 
 type client interface {

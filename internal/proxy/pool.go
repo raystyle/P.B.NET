@@ -22,8 +22,8 @@ func NewPool() *Pool {
 	pool := Pool{clients: make(map[string]*Client)}
 	// add direct
 	dc := &Client{
-		Tag:    modeDirect,
-		Mode:   modeDirect,
+		Tag:    ModeDirect,
+		Mode:   ModeDirect,
 		client: new(direct.Direct),
 	}
 	pool.clients[""] = dc
@@ -41,7 +41,7 @@ func (p *Pool) add(client *Client) error {
 	if client.Tag == "" {
 		return errors.New("empty proxy client tag")
 	}
-	if client.Tag == modeDirect {
+	if client.Tag == ModeDirect {
 		return errors.New("direct is the reserve proxy client tag")
 	}
 	var err error
@@ -152,7 +152,7 @@ func (p *Pool) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty proxy client tag")
 	}
-	if tag == modeDirect {
+	if tag == ModeDirect {
 		return errors.New("direct is the reserve proxy client")
 	}
 	p.rwm.Lock()

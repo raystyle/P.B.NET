@@ -1,5 +1,0 @@
-username = "admin"
-password = "123456"
-timeout  = "30s"
-
-max_conns = 1000
