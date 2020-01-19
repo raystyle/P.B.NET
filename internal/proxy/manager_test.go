@@ -2,8 +2,12 @@ package proxy
 
 import (
 	"io/ioutil"
+	"net"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/bouk/monkey"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
@@ -170,5 +174,50 @@ func TestManager_Delete(t *testing.T) {
 }
 
 func TestManager_Close(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	manager := NewManager(logger.Test, nil)
+	server := Server{
+		Tag:  "test",
+		Mode: ModeSocks5,
+	}
+	err := manager.Add(&server)
+	require.NoError(t, err)
+
+	// patch
+	var pg *monkey.PatchGuard
+	var tcpListener *net.TCPListener
+	patchFunc := func(l *net.TCPListener) error {
+		pg.Unpatch()
+		require.NoError(t, l.Close())
+		return testsuite.ErrMonkey
+	}
+	pg = testsuite.PatchInstanceMethod(tcpListener, "Close", patchFunc)
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	go func() {
+		defer wg.Done()
+		listener, err := net.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		err = server.Serve(listener)
+		require.NoError(t, err)
+	}()
+	// wait serve
+	time.Sleep(250 * time.Millisecond)
+
+	t.Log("create at:", server.CreateAt())
+	t.Log("serve at:", server.ServeAt())
+
+	err = manager.Close()
+	testsuite.IsMonkeyError(t, err)
+	wg.Wait()
+
+	testsuite.IsDestroyed(t, manager)
 }
