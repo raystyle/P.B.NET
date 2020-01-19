@@ -4,12 +4,14 @@ import (
 	"encoding/pem"
 	"io/ioutil"
 	"sync"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
+	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
 	"project/internal/testsuite"
 	"project/internal/timesync"
@@ -35,7 +37,9 @@ func Certificates(t require.TestingT) [][]byte {
 
 var (
 	initProxyClientsOnce sync.Once
-	proxyServer          *socks.Server
+	socks5Server         *socks.Server
+	httpServer           *http.Server
+	wg                   sync.WaitGroup
 )
 
 // ProxyClients is used to deploy a proxy server
@@ -43,17 +47,38 @@ var (
 func ProxyClients(t require.TestingT) []*proxy.Client {
 	initProxyClientsOnce.Do(func() {
 		var err error
-		proxyServer, err = socks.NewServer("test", logger.Test, nil)
+		// socks5 server
+		socks5Server, err = socks.NewSocks5Server("test", logger.Test, nil)
 		require.NoError(t, err)
-		err = proxyServer.ListenAndServe("tcp", "localhost:0")
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err = socks5Server.ListenAndServe("tcp", "localhost:0")
+			require.NoError(t, err)
+		}()
+		// http proxy server
+		httpServer, err = http.NewHTTPServer("test", logger.Test, nil)
 		require.NoError(t, err)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err = httpServer.ListenAndServe("tcp", "localhost:0")
+			require.NoError(t, err)
+		}()
+		time.Sleep(250 * time.Millisecond)
 	})
 	return []*proxy.Client{
 		{
 			Tag:     "test_socks5",
-			Mode:    proxy.ModeSocks,
+			Mode:    proxy.ModeSocks5,
 			Network: "tcp",
-			Address: proxyServer.Address(),
+			Address: socks5Server.Addresses()[0].String(),
+		},
+		{
+			Tag:     "test_http",
+			Mode:    proxy.ModeHTTP,
+			Network: "tcp",
+			Address: httpServer.Addresses()[0].String(),
 		},
 	}
 }
@@ -139,4 +164,11 @@ timeout = "15s"
 		Config: config,
 	}
 	return clients
+}
+
+// Clean is used to clean test data
+func Clean(t require.TestingT) {
+	require.NoError(t, socks5Server.Close())
+	require.NoError(t, httpServer.Close())
+	wg.Wait()
 }
