@@ -1,6 +1,6 @@
 [[clients]]
   tag     = "socks5"
-  mode    = "socks"
+  mode    = "socks5"
   network = "tcp"
   address = "127.0.0.1:1080"
   options = """
