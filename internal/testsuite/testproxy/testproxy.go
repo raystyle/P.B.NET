@@ -2,6 +2,7 @@ package testproxy
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,12 +20,11 @@ const (
 // PoolAndManager is used to create a proxy pool
 // with balance and proxy manager
 func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
-	// create proxy server manager
 	manager := proxy.NewManager(logger.Test, nil)
 	// add socks5 server
 	err := manager.Add(&proxy.Server{
 		Tag:  TagSocks5,
-		Mode: proxy.ModeSocks,
+		Mode: proxy.ModeSocks5,
 	})
 	require.NoError(t, err)
 	// add http proxy server
@@ -35,19 +35,22 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
 	require.NoError(t, err)
 	// start all proxy servers
 	for _, server := range manager.Servers() {
-		require.NoError(t, server.ListenAndServe("tcp", "localhost:0"))
+		go func(server *proxy.Server) {
+			err := server.ListenAndServe("tcp", "localhost:0")
+			require.NoError(t, err)
+		}(server)
 	}
+	time.Sleep(250 * time.Millisecond)
 
-	// create proxy client pool
 	pool := proxy.NewPool()
 	// add socks5 client
 	server, err := manager.Get(TagSocks5)
 	require.NoError(t, err)
 	err = pool.Add(&proxy.Client{
 		Tag:     TagSocks5,
-		Mode:    proxy.ModeSocks,
+		Mode:    proxy.ModeSocks5,
 		Network: "tcp",
-		Address: server.Address(),
+		Address: server.Addresses()[0].String(),
 	})
 	require.NoError(t, err)
 	// add http proxy client
@@ -57,10 +60,9 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
 		Tag:     TagHTTP,
 		Mode:    proxy.ModeHTTP,
 		Network: "tcp",
-		Address: server.Address(),
+		Address: server.Addresses()[0].String(),
 	})
 	require.NoError(t, err)
-
 	// add balance
 	err = pool.Add(&proxy.Client{
 		Tag:     TagBalance,
