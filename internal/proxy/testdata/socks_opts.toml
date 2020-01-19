@@ -1,9 +1,0 @@
-socks4   = true
-username = "admin"
-password = "123456"
-timeout  = "1m"
-user_id  = "test"
-
-disable_socks4a = true
-
-max_conns = 100
