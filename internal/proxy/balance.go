@@ -122,35 +122,39 @@ func (b *Balance) Info() string {
 	return buf.String()
 }
 
-// balance: tag
-// 1. tag-a:  http://admin:123456@127.0.0.1:8080
-// 2. https-c:  https://admin:123456@127.0.0.1:8080
-// 3. tag-c:  socks5 tcp 127.0.0.1:1080 auth: admin1:1234561
-// 4. tag-dd: socks4a tcp 127.0.0.1:1081 user id: admin2
+// balance: general
+// 1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
+// 2. http-c:    http://admin4:1234564@127.0.0.1:6319
+// 3. https-c:   https://admin5:1234565@127.0.0.1:6323
+// 4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
+// 5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
 //
 // if balance in balance, chain in balance or ...
 //
 // balance: final-balance
 // 1. balance-1:
 //     mode: balance
-//     1. socks5-c:  socks5 tcp 127.0.0.1:4627 admin1:1234561
-//     2. socks4a-c: socks4a tcp 127.0.0.1:4628
-//     3. http-c:    http://admin3:1234563@127.0.0.1:4629
-//     4. https-c:   https://admin4:1234564@127.0.0.1:4630
+//     1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
+//     2. http-c:    http://admin4:1234564@127.0.0.1:6319
+//     3. https-c:   https://admin5:1234565@127.0.0.1:6323
+//     4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
+//     5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
 // 2. balance-2:
 //     mode: balance
-//     1. socks5-c:  socks5 tcp 127.0.0.1:4627 admin1:1234561
-//     2. socks4a-c: socks4a tcp 127.0.0.1:4628
-//     3. http-c:    http://admin3:1234563@127.0.0.1:4629
-//     4. https-c:   https://admin4:1234564@127.0.0.1:4630
-// 3. chain-3:
-//     mode: chain
-//     1. socks5-c:  socks5 tcp 127.0.0.1:4627 admin1:1234561
-//     2. socks4a-c: socks4a tcp 127.0.0.1:4628
-//     3. http-c:    http://admin3:1234563@127.0.0.1:4629
-//     4. https-c:   https://admin4:1234564@127.0.0.1:4630
-// 4. https-ccc: https://admin4:1234564@127.0.0.1:4630
-// 5. http-ccc:  http://admin3:1234563@127.0.0.1:4629
+//     1. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
+//     2. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
+//     3. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
+//     4. http-c:    http://admin4:1234564@127.0.0.1:6319
+//     5. https-c:   https://admin5:1234565@127.0.0.1:6323
+// 3. balance-3:
+//     mode: balance
+//     1. socks4-c:  socks4  tcp 127.0.0.1:6321 user id: admin3
+//     2. http-c:    http://admin4:1234564@127.0.0.1:6319
+//     3. https-c:   https://admin5:1234565@127.0.0.1:6323
+//     4. socks5-c:  socks5  tcp 127.0.0.1:6320 auth: admin1:1234561
+//     5. socks4a-c: socks4a tcp 127.0.0.1:6322 user id: admin2
+// 4. http-c:  http://admin4:1234564@127.0.0.1:6319
+// 5. https-c: https://admin5:1234565@127.0.0.1:6323
 func printInfo(buf *bytes.Buffer, clients []*Client) {
 	// get max tag length
 	var maxTagLen int

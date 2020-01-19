@@ -27,8 +27,8 @@ func testCompareClients(t *testing.T, clients []*Client) {
 }
 
 func TestCompareClients(t *testing.T) {
-	ccc := make([]*Client, 4)
-	for i := 0; i < 4; i++ {
+	ccc := make([]*Client, 5)
+	for i := 0; i < 5; i++ {
 		ccc[i] = new(Client)
 	}
 	testCompareClients(t, ccc)
@@ -44,9 +44,9 @@ func TestBalance_GetAndSelectNext(t *testing.T) {
 	balance, err := NewBalance("balance", groups.Clients()...)
 	require.NoError(t, err)
 
-	for i := 0; i < 4000; i++ {
-		pcs := make([]*Client, 4)
-		for j := 0; j < 4; j++ {
+	for i := 0; i < 5000; i++ {
+		pcs := make([]*Client, 5)
+		for j := 0; j < 5; j++ {
 			pcs[j] = balance.GetAndSelectNext()
 		}
 		testCompareClients(t, pcs)

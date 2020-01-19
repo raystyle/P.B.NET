@@ -18,11 +18,12 @@ func TestChainSelect(t *testing.T) {
 
 	groups := testGenerateProxyGroup(t)
 	// use select
-	clients := make([]*Client, 4)
+	clients := make([]*Client, 5)
 	clients[0] = groups["socks4a"].client
 	clients[1] = groups["https"].client
 	clients[2] = groups["http"].client
 	clients[3] = groups["socks5"].client
+	clients[4] = groups["socks4"].client
 	chain, err := NewChain("chain-select", clients...)
 	require.NoError(t, err)
 
