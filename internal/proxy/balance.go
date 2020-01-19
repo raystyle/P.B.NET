@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Balance implement client
+// Balance implemented client
 type Balance struct {
 	tag     string
 	clients []*Client // not nil
@@ -124,9 +124,9 @@ func (b *Balance) Info() string {
 
 // balance: tag
 // 1. tag-a:  http://admin:123456@127.0.0.1:8080
-// 2. tag-b:  https://admin:123456@127.0.0.1:8080
-// 3. tag-c:  socks5 tcp 127.0.0.1:1080 admin 123456
-// 4. tag-dd: socks4a tcp 127.0.0.1:1081
+// 2. https-c:  https://admin:123456@127.0.0.1:8080
+// 3. tag-c:  socks5 tcp 127.0.0.1:1080 auth: admin1:1234561
+// 4. tag-dd: socks4a tcp 127.0.0.1:1081 user id: admin2
 //
 // if balance in balance, chain in balance or ...
 //

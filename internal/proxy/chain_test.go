@@ -99,9 +99,9 @@ func TestChainFailure(t *testing.T) {
 	require.Errorf(t, err, "proxy chain need at least one proxy client")
 
 	// unreachable first proxy server
-	socks5Client, err := socks.NewClient("tcp", "localhost:0", nil)
+	socks5Client, err := socks.NewSocks5Client("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	invalidClient := &Client{Mode: ModeSocks, client: socks5Client}
+	invalidClient := &Client{Mode: ModeSocks5, client: socks5Client}
 	chain, err := NewChain("chain-can't connect", invalidClient)
 	require.NoError(t, err)
 	testsuite.ProxyClientWithUnreachableProxyServer(t, chain)

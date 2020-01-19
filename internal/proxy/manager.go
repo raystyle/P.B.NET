@@ -30,43 +30,25 @@ func NewManager(lg logger.Logger, now func() time.Time) *Manager {
 
 // Add is used to add proxy server, but not listen or serve
 func (m *Manager) Add(server *Server) error {
+	const format = "failed to add proxy server %s:"
+	return errors.WithMessagef(m.add(server), format, server.Tag)
+}
+
+func (m *Manager) add(server *Server) error {
 	if server.Tag == "" {
 		return errors.New("empty proxy server tag")
 	}
-	deleteServer := func() {
-		m.rwm.Lock()
-		defer m.rwm.Unlock()
-		delete(m.servers, server.Tag)
-	}
+	var err error
 	switch server.Mode {
-	case ModeSocks:
-		opts := new(socks.Options)
-		if server.Options != "" {
-			err := toml.Unmarshal([]byte(server.Options), opts)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
-		opts.ExitFunc = deleteServer
-		// because the tag is never empty
-		s, _ := socks.NewServer(server.Tag, m.logger, opts)
-		server.server = s
-	case ModeHTTP:
-		opts := new(http.Options)
-		if server.Options != "" {
-			err := toml.Unmarshal([]byte(server.Options), opts)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
-		opts.ExitFunc = deleteServer
-		s, err := http.NewServer(server.Tag, m.logger, opts)
-		if err != nil {
-			return err
-		}
-		server.server = s
+	case ModeSocks5, ModeSocks4a, ModeSocks4:
+		err = m.addSocks(server)
+	case ModeHTTP, ModeHTTPS:
+		err = m.addHTTP(server)
 	default:
 		return errors.Errorf("unknown mode %s", server.Mode)
+	}
+	if err != nil {
+		return err
 	}
 	server.now = m.now
 	server.createAt = m.now()
@@ -77,6 +59,45 @@ func (m *Manager) Add(server *Server) error {
 		return nil
 	}
 	return errors.Errorf("proxy server %s already exists", server.Tag)
+}
+
+func (m *Manager) addSocks(server *Server) error {
+	opts := new(socks.Options)
+	if server.Options != "" {
+		err := toml.Unmarshal([]byte(server.Options), opts)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	// because the tag is never empty
+	// socks.NewServer will not return error
+	switch server.Mode {
+	case ModeSocks5:
+		server.server, _ = socks.NewSocks5Server(server.Tag, m.logger, opts)
+	case ModeSocks4a:
+		server.server, _ = socks.NewSocks4aServer(server.Tag, m.logger, opts)
+	case ModeSocks4:
+		server.server, _ = socks.NewSocks4Server(server.Tag, m.logger, opts)
+	}
+	return nil
+}
+
+func (m *Manager) addHTTP(server *Server) error {
+	opts := new(http.Options)
+	if server.Options != "" {
+		err := toml.Unmarshal([]byte(server.Options), opts)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	var err error
+	switch server.Mode {
+	case ModeHTTP:
+		server.server, err = http.NewHTTPServer(server.Tag, m.logger, opts)
+	case ModeHTTPS:
+		server.server, err = http.NewHTTPSServer(server.Tag, m.logger, opts)
+	}
+	return err
 }
 
 // Delete is used to delete proxy server
@@ -120,7 +141,7 @@ func (m *Manager) Close() error {
 	var err error
 	for _, server := range m.Servers() {
 		e := server.Close()
-		if err == nil {
+		if e != nil && err == nil {
 			err = e
 		}
 	}

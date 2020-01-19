@@ -128,12 +128,12 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		Username: "admin4",
 		Password: "1234564",
 	}
-	httpOpts.Server.TLSConfig = *serverCfg
+	httpOpts.Server.TLSConfig = serverCfg
 	httpsServer, err := http.NewServer("test", logger.Test, httpOpts)
 	require.NoError(t, err)
 	require.NoError(t, httpsServer.ListenAndServe("tcp", "localhost:0"))
 	address = httpsServer.Address()
-	httpOpts.TLSConfig = *clientCfg
+	httpOpts.TLSConfig = clientCfg
 	httpsClient, err := http.NewClient("tcp", address, httpOpts)
 	require.NoError(t, err)
 	groups["https"] = &group{
@@ -150,10 +150,10 @@ func testGenerateProxyGroup(t *testing.T) groups {
 }
 
 func TestSocksOptions(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/socks_opts.toml")
+	data, err := ioutil.ReadFile("testdata/socks_opts.toml")
 	require.NoError(t, err)
 	socksOpts := socks.Options{}
-	require.NoError(t, toml.Unmarshal(b, &socksOpts))
+	require.NoError(t, toml.Unmarshal(data, &socksOpts))
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -166,31 +166,6 @@ func TestSocksOptions(t *testing.T) {
 		{expected: "test", actual: socksOpts.UserID},
 		{expected: true, actual: socksOpts.DisableSocks4A},
 		{expected: 100, actual: socksOpts.MaxConns},
-	}
-	for _, td := range testdata {
-		require.Equal(t, td.expected, td.actual)
-	}
-}
-
-func TestHTTPOptions(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/http_opts.toml")
-	require.NoError(t, err)
-	httpOpts := http.Options{}
-	require.NoError(t, toml.Unmarshal(b, &httpOpts))
-
-	testdata := [...]*struct {
-		expected interface{}
-		actual   interface{}
-	}{
-		{expected: true, actual: httpOpts.HTTPS},
-		{expected: "admin", actual: httpOpts.Username},
-		{expected: "123456", actual: httpOpts.Password},
-		{expected: time.Minute, actual: httpOpts.Timeout},
-		{expected: 100, actual: httpOpts.MaxConns},
-		{expected: "test.com", actual: httpOpts.TLSConfig.ServerName},
-		{expected: "keep-alive", actual: httpOpts.Header.Get("Connection")},
-		{expected: 10 * time.Second, actual: httpOpts.Server.ReadTimeout},
-		{expected: 2, actual: httpOpts.Transport.MaxIdleConns},
 	}
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)

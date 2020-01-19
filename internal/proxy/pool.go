@@ -22,8 +22,8 @@ func NewPool() *Pool {
 	pool := Pool{clients: make(map[string]*Client)}
 	// add direct
 	dc := &Client{
-		Tag:    ModeDirect,
-		Mode:   ModeDirect,
+		Tag:    modeDirect,
+		Mode:   modeDirect,
 		client: new(direct.Direct),
 	}
 	pool.clients[""] = dc
@@ -41,14 +41,14 @@ func (p *Pool) add(client *Client) error {
 	if client.Tag == "" {
 		return errors.New("empty proxy client tag")
 	}
-	if client.Tag == ModeDirect {
+	if client.Tag == modeDirect {
 		return errors.New("direct is the reserve proxy client tag")
 	}
 	var err error
 	switch client.Mode {
-	case ModeSocks:
+	case ModeSocks5, ModeSocks4a, ModeSocks4:
 		err = p.addSocks(client)
-	case ModeHTTP:
+	case ModeHTTP, ModeHTTPS:
 		err = p.addHTTP(client)
 	case ModeChain:
 		err = p.addChain(client)
@@ -77,12 +77,16 @@ func (p *Pool) addSocks(client *Client) error {
 			return errors.WithStack(err)
 		}
 	}
-	c, err := socks.NewClient(client.Network, client.Address, opts)
-	if err != nil {
-		return err
+	var err error
+	switch client.Mode {
+	case ModeSocks5:
+		client.client, err = socks.NewSocks5Client(client.Network, client.Address, opts)
+	case ModeSocks4a:
+		client.client, err = socks.NewSocks4aClient(client.Network, client.Address, opts)
+	case ModeSocks4:
+		client.client, err = socks.NewSocks4Client(client.Network, client.Address, opts)
 	}
-	client.client = c
-	return nil
+	return err
 }
 
 func (p *Pool) addHTTP(client *Client) error {
@@ -93,18 +97,20 @@ func (p *Pool) addHTTP(client *Client) error {
 			return errors.WithStack(err)
 		}
 	}
-	c, err := http.NewClient(client.Network, client.Address, opts)
-	if err != nil {
-		return err
+	var err error
+	switch client.Mode {
+	case ModeHTTP:
+		client.client, err = http.NewHTTPClient(client.Network, client.Address, opts)
+	case ModeHTTPS:
+		client.client, err = http.NewHTTPSClient(client.Network, client.Address, opts)
 	}
-	client.client = c
-	return nil
+	return err
 }
 
 func (p *Pool) addChain(client *Client) error {
 	tags := struct {
 		Tags []string `toml:"tags"`
-	}{} // client tags
+	}{}
 	err := toml.Unmarshal([]byte(client.Options), &tags)
 	if err != nil {
 		return errors.WithStack(err)
@@ -117,18 +123,14 @@ func (p *Pool) addChain(client *Client) error {
 		}
 		clients = append(clients, client)
 	}
-	c, err := NewChain(client.Tag, clients...)
-	if err != nil {
-		return err
-	}
-	client.client = c
-	return nil
+	client.client, err = NewChain(client.Tag, clients...)
+	return err
 }
 
 func (p *Pool) addBalance(client *Client) error {
 	tags := struct {
 		Tags []string `toml:"tags"`
-	}{} // client tags
+	}{}
 	err := toml.Unmarshal([]byte(client.Options), &tags)
 	if err != nil {
 		return errors.WithStack(err)
@@ -141,12 +143,8 @@ func (p *Pool) addBalance(client *Client) error {
 		}
 		clients = append(clients, client)
 	}
-	c, err := NewBalance(client.Tag, clients...)
-	if err != nil {
-		return err
-	}
-	client.client = c
-	return nil
+	client.client, err = NewBalance(client.Tag, clients...)
+	return err
 }
 
 // Delete is used to delete proxy client
@@ -154,7 +152,7 @@ func (p *Pool) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty proxy client tag")
 	}
-	if tag == ModeDirect {
+	if tag == modeDirect {
 		return errors.New("direct is the reserve proxy client")
 	}
 	p.rwm.Lock()

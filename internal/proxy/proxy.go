@@ -10,11 +10,19 @@ import (
 
 // supported modes
 const (
-	ModeDirect  = "direct"
-	ModeSocks   = "socks"
+	// basic
+	ModeSocks5  = "socks5"
+	ModeSocks4a = "socks4a"
+	ModeSocks4  = "socks4"
 	ModeHTTP    = "http"
+	ModeHTTPS   = "https"
+
+	// combine proxy client, include basic proxy client
 	ModeChain   = "chain"
 	ModeBalance = "balance"
+
+	// reserve proxy client in Pool
+	modeDirect = "direct"
 )
 
 type client interface {
@@ -30,10 +38,10 @@ type client interface {
 
 type server interface {
 	ListenAndServe(network, address string) error
-	Serve(l net.Listener)
-	Close() error
-	Address() string
+	Serve(l net.Listener) error
+	Addresses() []net.Addr
 	Info() string
+	Close() error
 }
 
 // Client is proxy client
@@ -53,36 +61,28 @@ type Server struct {
 	Options string `toml:"options"`
 	server
 
-	now       func() time.Time
-	createAt  time.Time
-	serveAt   time.Time
-	rwm       sync.RWMutex
-	serveOnce sync.Once
-	closeOnce sync.Once
+	now      func() time.Time
+	createAt time.Time
+	serveAt  []time.Time
+	rwm      sync.RWMutex
+}
+
+func (s *Server) addServeAt() {
+	s.rwm.Lock()
+	defer s.rwm.Unlock()
+	s.serveAt = append(s.serveAt, s.now())
 }
 
 // ListenAndServe is used to listen a listener and serve
-// it will not block
 func (s *Server) ListenAndServe(network, address string) error {
-	var err error
-	s.serveOnce.Do(func() {
-		err = s.server.ListenAndServe(network, address)
-		s.rwm.Lock()
-		defer s.rwm.Unlock()
-		s.serveAt = s.now()
-	})
-	return err
+	s.addServeAt()
+	return s.server.ListenAndServe(network, address)
 }
 
 // Serve accepts incoming connections on the listener
-// it will not block
-func (s *Server) Serve(l net.Listener) {
-	s.serveOnce.Do(func() {
-		s.server.Serve(l)
-		s.rwm.Lock()
-		defer s.rwm.Unlock()
-		s.serveAt = s.now()
-	})
+func (s *Server) Serve(listener net.Listener) error {
+	s.addServeAt()
+	return s.server.Serve(listener)
 }
 
 // CreateAt is used get proxy server create time
@@ -91,14 +91,8 @@ func (s *Server) CreateAt() time.Time {
 }
 
 // ServeAt is used get proxy server serve time
-func (s *Server) ServeAt() time.Time {
+func (s *Server) ServeAt() []time.Time {
 	s.rwm.RLock()
 	defer s.rwm.RUnlock()
 	return s.serveAt
-}
-
-// Close is used to close proxy server
-func (s *Server) Close() (err error) {
-	s.closeOnce.Do(func() { err = s.server.Close() })
-	return
 }

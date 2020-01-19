@@ -12,7 +12,7 @@ import (
 
 const defaultDialTimeout = 30 * time.Second
 
-// Chain implement client
+// Chain implemented client
 type Chain struct {
 	tag     string
 	clients []*Client // not nil
