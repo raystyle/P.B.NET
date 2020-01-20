@@ -10,7 +10,7 @@ import (
 	"log"
 
 	"project/internal/crypto/cert/certutil"
-	"project/internal/options"
+	"project/internal/option"
 )
 
 func main() {
@@ -52,15 +52,15 @@ func main() {
 	log.Println("the actual number of the system CA certificates:", count)
 
 	// write pem
-	err = ioutil.WriteFile("system.pem", buf.Bytes(), 644)
+	err = ioutil.WriteFile("system.pem", buf.Bytes(), 0600)
 	checkError(err)
 
 	// test generated PEM
 	pemData, err := ioutil.ReadFile("system.pem")
 	checkError(err)
-	tlsConfig, _ := (&options.TLSConfig{RootCAs: []string{string(pemData)}}).Apply()
+	tlsConfig, _ := (&option.TLSConfig{RootCAs: []string{string(pemData)}}).Apply()
 	loadNum := len(tlsConfig.RootCAs.Subjects())
-	tlsConfig, _ = (&options.TLSConfig{InsecureLoadFromSystem: true}).Apply()
+	tlsConfig, _ = (&option.TLSConfig{InsecureLoadFromSystem: true}).Apply()
 	sysNum := len(tlsConfig.RootCAs.Subjects())
 
 	// compare

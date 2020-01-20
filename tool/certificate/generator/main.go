@@ -37,11 +37,11 @@ func main() {
 			log.Fatalln(err)
 		}
 		caCert, caKey := ca.EncodeToPEM()
-		err = ioutil.WriteFile("ca.crt", caCert, 644)
+		err = ioutil.WriteFile("ca.crt", caCert, 0600)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		err = ioutil.WriteFile("ca.key", caKey, 644)
+		err = ioutil.WriteFile("ca.key", caKey, 0600)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -69,11 +69,11 @@ func main() {
 			log.Fatalln(err)
 		}
 		crt, key := kp.EncodeToPEM()
-		err = ioutil.WriteFile("server.crt", crt, 644)
+		err = ioutil.WriteFile("server.crt", crt, 0600)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		err = ioutil.WriteFile("server.key", key, 644)
+		err = ioutil.WriteFile("server.key", key, 0600)
 		if err != nil {
 			log.Fatalln(err)
 		}
