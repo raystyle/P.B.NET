@@ -6,7 +6,7 @@ import (
 
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
-	"project/internal/modules/info"
+	"project/internal/module/info"
 )
 
 // Bootstrap is padding

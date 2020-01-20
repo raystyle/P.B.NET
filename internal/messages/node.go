@@ -3,7 +3,7 @@ package messages
 import (
 	"time"
 
-	"project/internal/options"
+	"project/internal/option"
 )
 
 // Listener is used to listen a listener to a Node
@@ -13,5 +13,5 @@ type Listener struct {
 	Network   string
 	Address   string
 	Timeout   time.Duration
-	TLSConfig options.TLSConfig
+	TLSConfig option.TLSConfig
 }

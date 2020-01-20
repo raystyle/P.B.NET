@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/ed25519"
-	"project/internal/modules/info"
+	"project/internal/module/info"
 	"project/internal/protocol"
 )
 
