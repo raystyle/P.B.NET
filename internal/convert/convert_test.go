@@ -8,28 +8,28 @@ import (
 )
 
 func TestNumberToBytes(t *testing.T) {
-	if !bytes.Equal(Int16ToBytes(int16(0x0102)), []byte{1, 2}) {
+	if bytes.Compare(Int16ToBytes(int16(0x0102)), []byte{1, 2}) != 0 {
 		t.Fatal("Int16ToBytes() invalid number")
 	}
-	if !bytes.Equal(Int32ToBytes(int32(0x01020304)), []byte{1, 2, 3, 4}) {
+	if bytes.Compare(Int32ToBytes(int32(0x01020304)), []byte{1, 2, 3, 4}) != 0 {
 		t.Fatal("Int32ToBytes() invalid number")
 	}
-	if !bytes.Equal(Int64ToBytes(int64(0x0102030405060708)), []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
+	if bytes.Compare(Int64ToBytes(int64(0x0102030405060708)), []byte{1, 2, 3, 4, 5, 6, 7, 8}) != 0 {
 		t.Fatal("Int16ToBytes() invalid number")
 	}
-	if !bytes.Equal(Uint16ToBytes(uint16(0x0102)), []byte{1, 2}) {
+	if bytes.Compare(Uint16ToBytes(uint16(0x0102)), []byte{1, 2}) != 0 {
 		t.Fatal("Uint16ToBytes() invalid number")
 	}
-	if !bytes.Equal(Uint32ToBytes(uint32(0x01020304)), []byte{1, 2, 3, 4}) {
+	if bytes.Compare(Uint32ToBytes(uint32(0x01020304)), []byte{1, 2, 3, 4}) != 0 {
 		t.Fatal("Uint32ToBytes() invalid number")
 	}
-	if !bytes.Equal(Uint64ToBytes(uint64(0x0102030405060708)), []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
+	if bytes.Compare(Uint64ToBytes(uint64(0x0102030405060708)), []byte{1, 2, 3, 4, 5, 6, 7, 8}) != 0 {
 		t.Fatal("Uint64ToBytes() invalid number")
 	}
-	if !bytes.Equal(Float32ToBytes(float32(123.123)), []byte{66, 246, 62, 250}) {
+	if bytes.Compare(Float32ToBytes(float32(123.123)), []byte{66, 246, 62, 250}) != 0 {
 		t.Fatal("Float32ToBytes() invalid number")
 	}
-	if !bytes.Equal(Float64ToBytes(123.123), []byte{64, 94, 199, 223, 59, 100, 90, 29}) {
+	if bytes.Compare(Float64ToBytes(123.123), []byte{64, 94, 199, 223, 59, 100, 90, 29}) != 0 {
 		t.Fatal("Float64ToBytes() invalid number")
 	}
 }

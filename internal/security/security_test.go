@@ -45,7 +45,7 @@ func TestBytes(t *testing.T) {
 	sb := NewBytes(testdata)
 	for i := 0; i < 10; i++ {
 		b := sb.Get()
-		require.True(t, bytes.Equal(testdata, b))
+		require.True(t, bytes.Compare(testdata, b) == 0)
 		sb.Put(b)
 	}
 	wg := sync.WaitGroup{}
@@ -56,7 +56,7 @@ func TestBytes(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 			for i := 0; i < 10; i++ {
 				b := sb.Get()
-				require.True(t, bytes.Equal(testdata, b))
+				require.True(t, bytes.Compare(testdata, b) == 0)
 				sb.Put(b)
 			}
 		}()

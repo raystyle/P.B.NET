@@ -116,7 +116,7 @@ func benchmarkHandleConn(b *testing.B, size int) {
 		defer wg.Done()
 		count := 0
 		HandleConn(server, func(frame []byte) {
-			if !bytes.Equal(frame, frameData) {
+			if bytes.Compare(frame, frameData) != 0 {
 				b.FailNow()
 			}
 			count++
@@ -168,7 +168,7 @@ func benchmarkHandleConnParallel(b *testing.B, size int) {
 	go func() {
 		defer wg.Done()
 		HandleConn(server, func(frame []byte) {
-			if !bytes.Equal(frame, frameData) {
+			if bytes.Compare(frame, frameData) != 0 {
 				b.FailNow()
 			}
 		})
