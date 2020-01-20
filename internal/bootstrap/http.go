@@ -18,7 +18,7 @@ import (
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
-	"project/internal/options"
+	"project/internal/option"
 	"project/internal/proxy"
 	"project/internal/random"
 	"project/internal/security"
@@ -38,11 +38,11 @@ var (
 
 // HTTP is used to resolve bootstrap nodes from HTTP response body
 type HTTP struct {
-	Request   options.HTTPRequest   `toml:"request"`
-	Transport options.HTTPTransport `toml:"transport"`
-	Timeout   time.Duration         `toml:"timeout"`
-	ProxyTag  string                `toml:"proxy_tag"`
-	DNSOpts   dns.Options           `toml:"dns"`
+	Request   option.HTTPRequest   `toml:"request"`
+	Transport option.HTTPTransport `toml:"transport"`
+	Timeout   time.Duration        `toml:"timeout"`
+	ProxyTag  string               `toml:"proxy_tag"`
+	DNSOpts   dns.Options          `toml:"dns"`
 
 	MaxBodySize int64 `toml:"max_body_size"` // <security>
 
@@ -162,7 +162,7 @@ func (h *HTTP) Marshal() ([]byte, error) {
 }
 
 // flushRequestOption is used to cover string field if has secret
-func flushRequestOption(r *options.HTTPRequest) {
+func flushRequestOption(r *option.HTTPRequest) {
 	security.CoverString(&r.URL)
 	security.CoverString(&r.Post)
 	security.CoverString(&r.Host)

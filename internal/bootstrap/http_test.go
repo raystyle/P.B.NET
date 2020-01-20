@@ -156,7 +156,7 @@ func TestHTTP(t *testing.T) {
 			HTTP.Request.URL = "https://localhost:" + port
 			HTTP.DNSOpts.Mode = dns.ModeSystem
 			HTTP.DNSOpts.Type = dns.TypeIPv4
-			HTTP.Transport.TLSClientConfig = *clientCfg
+			HTTP.Transport.TLSClientConfig = clientCfg
 			// marshal
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
@@ -199,7 +199,7 @@ func TestHTTP(t *testing.T) {
 			HTTP.Request.URL = "https://localhost:" + port
 			HTTP.DNSOpts.Mode = dns.ModeSystem
 			HTTP.DNSOpts.Type = dns.TypeIPv6
-			HTTP.Transport.TLSClientConfig = *clientCfg
+			HTTP.Transport.TLSClientConfig = clientCfg
 			// marshal
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)

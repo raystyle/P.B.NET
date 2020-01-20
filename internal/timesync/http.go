@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/dns"
-	"project/internal/options"
+	"project/internal/option"
 	"project/internal/proxy"
 	"project/internal/random"
 )
@@ -27,11 +27,11 @@ type HTTP struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
-	Request   options.HTTPRequest   `toml:"request"`
-	Transport options.HTTPTransport `toml:"transport"`
-	Timeout   time.Duration         `toml:"timeout"`
-	ProxyTag  string                `toml:"proxy_tag"`
-	DNSOpts   dns.Options           `toml:"dns"`
+	Request   option.HTTPRequest   `toml:"request"`
+	Transport option.HTTPTransport `toml:"transport"`
+	Timeout   time.Duration        `toml:"timeout"`
+	ProxyTag  string               `toml:"proxy_tag"`
+	DNSOpts   dns.Options          `toml:"dns"`
 }
 
 // NewHTTP is used to create HTTP

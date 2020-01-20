@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/idna"
 
-	"project/internal/options"
+	"project/internal/option"
 	"project/internal/proxy"
 	"project/internal/xnet/xnetutil"
 	"project/internal/xpanic"
@@ -89,13 +89,13 @@ type Options struct {
 	Network string `toml:"network"`
 
 	// about DoT
-	TLSConfig options.TLSConfig `toml:"tls_config"`
+	TLSConfig option.TLSConfig `toml:"tls_config"`
 
 	// about DoH, set http.Request Header
 	Header http.Header `toml:"header"`
 
 	// about DoH, set http.Client Transport
-	Transport options.HTTPTransport `toml:"transport"`
+	Transport option.HTTPTransport `toml:"transport"`
 
 	// MaxBodySize set the max response body that will read
 	// about DoH max message size
