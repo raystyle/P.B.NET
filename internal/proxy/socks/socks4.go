@@ -149,7 +149,7 @@ func (c *conn) serveSocks4() {
 	if ip {
 		host = net.IPv4(buffer[4], buffer[5], buffer[6], buffer[7]).String()
 	}
-	if domain { // read domain // TODO disable ext
+	if domain { // read domain
 		var domainName []byte
 		for {
 			_, err = c.local.Read(buffer[:1])
