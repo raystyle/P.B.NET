@@ -44,7 +44,7 @@ func initManager() {
 		fmt.Print("\nretype: ")
 		retype, err := terminal.ReadPassword(int(syscall.Stdin))
 		checkError(err, true)
-		if !bytes.Equal(pwd, retype) {
+		if bytes.Compare(pwd, retype) != 0 {
 			fmt.Print("\ndifferent password")
 		} else {
 			fmt.Println()
@@ -65,7 +65,7 @@ func initManager() {
 	buf := new(bytes.Buffer)
 	err = pem.Encode(buf, block)
 	checkError(err, true)
-	err = ioutil.WriteFile("key/certs.pem", buf.Bytes(), 644)
+	err = ioutil.WriteFile("key/certs.pem", buf.Bytes(), 0600)
 	checkError(err, true)
 
 	// encrypt private key
@@ -75,20 +75,19 @@ func initManager() {
 	buf.Reset()
 	err = pem.Encode(buf, block)
 	checkError(err, true)
-	err = ioutil.WriteFile("key/keys.pem", buf.Bytes(), 644)
+	err = ioutil.WriteFile("key/keys.pem", buf.Bytes(), 0600)
 	checkError(err, true)
 
 	// create system.pem
-	file, err := os.Create("key/system.pem")
+	err = ioutil.WriteFile("key/system.pem", nil, 0600)
 	checkError(err, true)
-	defer func() { _ = file.Close() }()
 
 	// calculate hash
 	hash := sha256.New()
 	hash.Write(pwd)
 	hash.Write(caCert)
 	hash.Write(caKey)
-	err = ioutil.WriteFile("key/pem.hash", hash.Sum(nil), 644)
+	err = ioutil.WriteFile("key/pem.hash", hash.Sum(nil), 0600)
 	checkError(err, true)
 
 	fmt.Println("initialize certificate manager successfully")
@@ -126,13 +125,13 @@ func load() {
 	checkError(err, true)
 
 	// create backup
-	err = ioutil.WriteFile("key/certs.bak", certPEMBlock, 644)
+	err = ioutil.WriteFile("key/certs.bak", certPEMBlock, 0600)
 	checkError(err, true)
-	err = ioutil.WriteFile("key/keys.bak", keyPEMBlock, 644)
+	err = ioutil.WriteFile("key/keys.bak", keyPEMBlock, 0600)
 	checkError(err, true)
-	err = ioutil.WriteFile("key/system.bak", systemPEMBlock, 644)
+	err = ioutil.WriteFile("key/system.bak", systemPEMBlock, 0600)
 	checkError(err, true)
-	err = ioutil.WriteFile("key/hash.bak", PEMHash, 644)
+	err = ioutil.WriteFile("key/hash.bak", PEMHash, 0600)
 	checkError(err, true)
 
 	var block *pem.Block
@@ -238,7 +237,7 @@ func listSystem() {
 // check if added repeatedly
 func checkRepeat(a map[int][]byte, b []byte) bool {
 	for _, v := range a {
-		if bytes.Equal(v, b) {
+		if bytes.Compare(v, b) == 0 {
 			return true
 		}
 	}
@@ -394,7 +393,7 @@ func save() {
 		{filename: "key/system.pem", data: systemPEM.Bytes()},
 		{filename: "key/pem.hash", data: hash.Sum(nil)},
 	} {
-		err := ioutil.WriteFile(p.filename, p.data, 644)
+		err := ioutil.WriteFile(p.filename, p.data, 0600)
 		if checkError(err, false) {
 			return
 		}
