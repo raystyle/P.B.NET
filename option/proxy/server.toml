@@ -1,0 +1,10 @@
+tag  = "test"
+mode = "socks5"
+
+# see option/proxy/http, https ...
+options = """
+  username  = "admin"
+  password  = "123456"
+  timeout   = "1m"
+  max_conns = 1000
+"""

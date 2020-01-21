@@ -1,0 +1,3 @@
+user_id   = "test"
+timeout   = "1m"
+max_conns = 1000

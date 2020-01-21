@@ -1,0 +1,11 @@
+tag     = "test"
+mode    = "socks5"
+network = "tcp"
+address = "127.0.0.1:1080"
+
+# see option/proxy/http, https ...
+options = """
+  username = "admin"
+  password = "123456"
+  timeout  = "1m"
+"""
