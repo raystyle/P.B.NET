@@ -9,7 +9,6 @@ import (
 
 // Configs contains proxy/server configurations
 type Configs struct {
-	Tag     string `toml:"tag"`
 	Service struct {
 		Name        string `toml:"name"`
 		DisplayName string `toml:"display_name"`
@@ -22,6 +21,8 @@ type Configs struct {
 		Address string `toml:"address"`
 		Options string `toml:"options"`
 	} `toml:"proxy"`
+
+	Tag string // for test
 }
 
 // Server is proxy server
@@ -38,21 +39,20 @@ func New(config *Configs) *Server {
 
 // Main is used to run program
 func (server *Server) Main() error {
-	tag := server.configs.Tag
-	manager := proxy.NewManager(logger.Test, nil)
-	err := manager.Add(&proxy.Server{
-		Tag:     tag,
+	manager := proxy.NewManager(logger.Common, nil)
+	srv := &proxy.Server{
+		Tag:     server.configs.Tag,
 		Mode:    server.configs.Proxy.Mode,
 		Options: server.configs.Proxy.Options,
-	})
+	}
+	err := manager.Add(srv)
 	if err != nil {
 		return err
 	}
-	ps, _ := manager.Get(tag)
-	server.server = ps
+	server.server = srv
 	network := server.configs.Proxy.Network
 	address := server.configs.Proxy.Address
-	return ps.ListenAndServe(network, address)
+	return srv.ListenAndServe(network, address)
 }
 
 // Exit is used to exit program
@@ -66,5 +66,5 @@ func (server *Server) Exit() error {
 
 // Address is used to get proxy server address
 func (server *Server) Address() string {
-	return server.server.Address()
+	return server.server.Addresses()[0].String()
 }

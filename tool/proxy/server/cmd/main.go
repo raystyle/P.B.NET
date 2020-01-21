@@ -6,24 +6,13 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/kardianos/service"
 	"github.com/pelletier/go-toml"
 
 	"project/tool/proxy/server"
 )
-
-type program struct {
-	server *server.Server
-}
-
-func (p *program) Start(_ service.Service) error {
-	return p.server.Main()
-}
-
-func (p *program) Stop(_ service.Service) error {
-	return p.server.Exit()
-}
 
 func main() {
 	var (
@@ -61,16 +50,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	configs.Tag = "server"
 
 	// start service
+	pg := program{server: server.New(&configs)}
 	svcCfg := service.Config{
 		Name:        configs.Service.Name,
 		DisplayName: configs.Service.DisplayName,
 		Description: configs.Service.Description,
 	}
-
-	configs.Tag = "server"
-	pg := program{server: server.New(&configs)}
 	svc, err := service.New(&pg, &svcCfg)
 	if err != nil {
 		log.Fatal(err)
@@ -99,4 +87,31 @@ func main() {
 			_ = lg.Error(err)
 		}
 	}
+}
+
+type program struct {
+	server *server.Server
+	wg     sync.WaitGroup
+}
+
+func (p *program) Start(s service.Service) error {
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		err := p.server.Main()
+		if err != nil {
+			l, e := s.Logger(nil)
+			if e == nil {
+				_ = l.Error(err)
+			}
+			os.Exit(1)
+		}
+	}()
+	return nil
+}
+
+func (p *program) Stop(_ service.Service) error {
+	err := p.server.Exit()
+	p.wg.Wait()
+	return err
 }
