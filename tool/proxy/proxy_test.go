@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -16,6 +17,11 @@ import (
 )
 
 func TestProxyClientWithBalanceAndChain(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	proxyServers := make([]*server.Server, 9)
 	// generate 9 proxy server
 	for i := 0; i < 9; i++ {
@@ -27,13 +33,18 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 				Address string `toml:"address"`
 				Options string `toml:"options"`
 			}{
-				Mode:    proxy.ModeSocks,
+				Mode:    proxy.ModeSocks5,
 				Network: "tcp",
 				Address: "localhost:0",
 			},
 		})
-		require.NoError(t, proxyServers[i].Main())
+		go func(srv *server.Server) {
+			err := srv.Main()
+			require.NoError(t, err)
+		}(proxyServers[i])
 	}
+	// wait proxy server serve
+	time.Sleep(250 * time.Millisecond)
 	defer func() {
 		for i := 0; i < 9; i++ {
 			require.NoError(t, proxyServers[i].Exit())
@@ -59,7 +70,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	for i := 0; i < 9; i++ {
 		cfg.Clients = append(cfg.Clients, &proxy.Client{
 			Tag:     "socks5-0" + strconv.Itoa(i+1),
-			Mode:    proxy.ModeSocks,
+			Mode:    proxy.ModeSocks5,
 			Network: "tcp",
 			Address: proxyServers[i].Address(),
 		})
@@ -86,8 +97,12 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	})
 
 	proxyClient := client.New("", &cfg)
-	require.NoError(t, proxyClient.Main())
-
+	go func() {
+		err := proxyClient.Main()
+		require.NoError(t, err)
+	}()
+	// wait proxy server in client serve
+	time.Sleep(250 * time.Millisecond)
 	defer func() {
 		require.NoError(t, proxyClient.Exit())
 		testsuite.IsDestroyed(t, proxyClient)
