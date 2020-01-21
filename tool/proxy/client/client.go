@@ -29,10 +29,10 @@ type Configs struct {
 
 // Client is proxy client
 type Client struct {
-	tag      string
-	configs  *Configs
-	server   *socks.Server
-	stopOnce sync.Once
+	tag     string
+	configs *Configs
+	server  *socks.Server
+	exit    sync.Once
 }
 
 // New is used to create a proxy client
@@ -53,13 +53,11 @@ func (client *Client) Main() error {
 	if client.tag == "" {
 		client.tag = client.configs.Clients[len(client.configs.Clients)-1].Tag
 	}
-
 	// set proxy client
 	pc, err := pool.Get(client.tag)
 	if err != nil {
 		return err
 	}
-
 	// start socks5 server
 	lc := client.configs.Listener
 	opts := socks.Options{
@@ -68,7 +66,7 @@ func (client *Client) Main() error {
 		MaxConns:    lc.MaxConns,
 		DialContext: pc.DialContext,
 	}
-	client.server, err = socks.NewServer("proxy", logger.Test, &opts)
+	client.server, err = socks.NewSocks5Server("proxy", logger.Common, &opts)
 	if err != nil {
 		return err
 	}
@@ -78,13 +76,13 @@ func (client *Client) Main() error {
 // Exit is used to exit program
 func (client *Client) Exit() error {
 	var err error
-	client.stopOnce.Do(func() {
+	client.exit.Do(func() {
 		err = client.server.Close()
 	})
 	return err
 }
 
-// Address is used to get socks server address
+// Address is used to get socks5 server address
 func (client *Client) Address() string {
-	return client.server.Address()
+	return client.server.Addresses()[0].String()
 }

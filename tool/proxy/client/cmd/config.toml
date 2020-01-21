@@ -4,36 +4,32 @@
   description = "Proxy Client Service"
 
 [listener]
-  network  = "tcp"
-  address  = "127.0.0.1:8001"
-  username = "admin"
-  password = "123456"
+  network   = "tcp"
+  address   = "127.0.0.1:8001"
+  username  = "admin"
+  password  = "123456"
+  max_conns = 1000
 
 [[clients]]
   tag     = "socks5-01"
-  mode    = "socks"
+  mode    = "socks5"
   network = "tcp"
   address = "127.0.0.1:9001"
   options = """
     username = "admin"
     password = "123456"
     timeout  = "30s"
-
-    max_conns = 1000
   """
-  # see internal/proxy/testdata/*
 
 [[clients]]
   tag     = "socks5-02"
-  mode    = "socks"
+  mode    = "socks5"
   network = "tcp"
   address = "127.0.0.1:9002"
   options = """
     username = "admin"
     password = "123456"
     timeout  = "30s"
-
-    max_conns = 1000
   """
 
 [[clients]]
