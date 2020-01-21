@@ -1,0 +1,22 @@
+mode    = "custom"
+method  = "dot"
+type    = "ipv6"
+timeout = "1m"
+
+proxy_tag  = "balance"
+server_tag = "cloudflare"
+network    = "tcp"
+
+max_body_size = 65536
+
+skip_proxy = true
+skip_test  = true
+
+[tls_config]
+  server_name = "test.com"
+
+[header]
+  Connection = ["keep-alive"]
+
+[transport]
+  max_idle_conns = 2

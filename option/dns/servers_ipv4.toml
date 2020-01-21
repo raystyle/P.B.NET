@@ -1,0 +1,68 @@
+# ------------------------UDP--------------------------
+
+[udp_ipv4_google_1]
+  method  = "udp"
+  address = "8.8.8.8:53"
+
+[udp_ipv4_google_2]
+  method  = "udp"
+  address = "8.8.4.4:53"
+
+[udp_ipv4_cloudflare_1]
+  method  = "udp"
+  address = "1.1.1.1:53"
+
+[udp_ipv4_cloudflare_2]
+  method  = "udp"
+  address = "1.0.0.1:53"
+
+# ------------------------TCP--------------------------
+
+[tcp_ipv4_google_1]
+  method  = "tcp"
+  address = "8.8.8.8:53"
+
+[tcp_ipv4_google_2]
+  method  = "tcp"
+  address = "8.8.4.4:53"
+
+[tcp_ipv4_cloudflare_1]
+  method  = "tcp"
+  address = "1.1.1.1:53"
+
+[tcp_ipv4_cloudflare_2]
+  method  = "tcp"
+  address = "1.0.0.1:53"
+
+# -------------------DNS-Over-TLS----------------------
+
+# tls certificate need has IP SANS field
+[dot_ipv4_google_1]
+  method  = "dot"
+  address = "8.8.8.8:853"
+
+[dot_ipv4_google_2]
+  method  = "dot"
+  address = "8.8.4.4:853"
+
+[dot_ipv4_cloudflare_1]
+  method  = "dot"
+  address = "1.1.1.1:853"
+
+[dot_ipv4_cloudflare_2]
+  method  = "dot"
+  address = "1.0.0.1:853"
+
+# if no IP SANS need set Server Name(domain) manully
+[dot_ipv4_google_domain]
+  method  = "dot"
+  address = "dns.google:853|8.8.8.8,8.8.4.4"
+
+[dot_ipv4_cloudflare_domain]
+  method  = "dot"
+  address = "cloudflare-dns.com:853|1.1.1.1,1.0.0.1"
+
+[skip_test_ipv4]
+  method    = "udp"
+  address   = "1.1.1.1:53"
+  skip_test = true
