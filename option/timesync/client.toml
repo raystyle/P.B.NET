@@ -1,0 +1,7 @@
+mode      = "ntp"
+skip_test = false
+
+# see option/timesync/http.toml & ntp.toml
+config = """
+  address = "2.pool.ntp.org:123"
+"""
