@@ -21,9 +21,14 @@ const (
 )
 
 func TestLogger(t *testing.T) {
+	Common.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
+	Common.Print(Debug, testSrc, "test-print", testLog1, testLog2)
+	Common.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+
 	Test.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
 	Test.Print(Debug, testSrc, "test-print", testLog1, testLog2)
 	Test.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+
 	Discard.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
 	Discard.Print(Debug, testSrc, "test-print", testLog1, testLog2)
 	Discard.Println(Debug, testSrc, "test-println", testLog1, testLog2)

@@ -28,7 +28,7 @@ const (
 // TimeLayout is used to provide a parameter to time.Time.Format()
 const TimeLayout = "2006-01-02 15:04:05"
 
-// Logger is a generic logger
+// Logger is a common logger
 type Logger interface {
 	Printf(l Level, src, format string, log ...interface{})
 	Print(l Level, src string, log ...interface{})
@@ -36,6 +36,9 @@ type Logger interface {
 }
 
 var (
+	// Common is a common logger, some tools need it
+	Common = new(common)
+
 	// Test is used to go test
 	Test = new(test)
 
@@ -43,36 +46,66 @@ var (
 	Discard = new(discard)
 )
 
+// [2020-01-21 12:36:41] [debug] <test src> test-format test log
+
+type common struct{}
+
+func (common) Printf(l Level, src, format string, log ...interface{}) {
+	output := Prefix(l, src)
+	_, _ = fmt.Fprintf(output, format, log...)
+	fmt.Println(output)
+}
+
+func (common) Print(l Level, src string, log ...interface{}) {
+	output := Prefix(l, src)
+	_, _ = fmt.Fprint(output, log...)
+	fmt.Println(output)
+}
+
+func (common) Println(l Level, src string, log ...interface{}) {
+	output := Prefix(l, src)
+	_, _ = fmt.Fprintln(output, log...)
+	fmt.Print(output)
+}
+
+// [Test] [2020-01-21 12:36:41] [debug] <test src> test-format test log
+
 type test struct{}
 
-func (t test) Printf(l Level, src, format string, log ...interface{}) {
-	out := bytes.NewBuffer([]byte("[Test] "))
-	_, _ = io.Copy(out, Prefix(l, src))
-	_, _ = fmt.Fprintf(out, format, log...)
-	fmt.Println(out)
+var testPrefix = []byte("[Test] ")
+
+func writePrefix(l Level, src string) *bytes.Buffer {
+	output := new(bytes.Buffer)
+	output.Write(testPrefix)
+	_, _ = io.Copy(output, Prefix(l, src))
+	return output
 }
 
-func (t test) Print(l Level, src string, log ...interface{}) {
-	out := bytes.NewBuffer([]byte("[Test] "))
-	_, _ = io.Copy(out, Prefix(l, src))
-	_, _ = fmt.Fprint(out, log...)
-	fmt.Println(out)
+func (test) Printf(l Level, src, format string, log ...interface{}) {
+	output := writePrefix(l, src)
+	_, _ = fmt.Fprintf(output, format, log...)
+	fmt.Println(output)
 }
 
-func (t test) Println(l Level, src string, log ...interface{}) {
-	out := bytes.NewBuffer([]byte("[Test] "))
-	_, _ = io.Copy(out, Prefix(l, src))
-	_, _ = fmt.Fprintln(out, log...)
-	fmt.Print(out)
+func (test) Print(l Level, src string, log ...interface{}) {
+	output := writePrefix(l, src)
+	_, _ = fmt.Fprint(output, log...)
+	fmt.Println(output)
+}
+
+func (test) Println(l Level, src string, log ...interface{}) {
+	output := writePrefix(l, src)
+	_, _ = fmt.Fprintln(output, log...)
+	fmt.Print(output)
 }
 
 type discard struct{}
 
-func (d discard) Printf(_ Level, _, _ string, _ ...interface{}) {}
+func (discard) Printf(_ Level, _, _ string, _ ...interface{}) {}
 
-func (d discard) Print(_ Level, _ string, _ ...interface{}) {}
+func (discard) Print(_ Level, _ string, _ ...interface{}) {}
 
-func (d discard) Println(_ Level, _ string, _ ...interface{}) {}
+func (discard) Println(_ Level, _ string, _ ...interface{}) {}
 
 type pWriter struct {
 	w      io.Writer
