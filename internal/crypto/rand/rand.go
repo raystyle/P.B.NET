@@ -1,10 +1,10 @@
 package rand
 
 import (
-	"crypto/rand"
+	cr "crypto/rand"
 	"io"
-
-	"project/internal/random"
+	"math/rand"
+	"time"
 )
 
 // Reader is a global, shared instance of a cryptographically
@@ -21,13 +21,13 @@ func (r reader) Read(b []byte) (int, error) {
 	l := len(b)
 	size := 4 * l
 	buffer := make([]byte, size)
-	_, err := io.ReadFull(rand.Reader, buffer)
+	_, err := io.ReadFull(cr.Reader, buffer)
 	if err != nil {
 		return 0, err
 	}
-	g := random.New()
+	rd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := 0; i < l; i++ {
-		b[i] = buffer[g.Int(size)]
+		b[i] = buffer[rd.Intn(size)]
 	}
 	return l, nil
 }
