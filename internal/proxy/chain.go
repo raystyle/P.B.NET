@@ -28,14 +28,11 @@ func NewChain(tag string, clients ...*Client) (*Chain, error) {
 	if l == 0 {
 		return nil, errors.New("chain need at least one proxy client")
 	}
-	cs := make([]*Client, l)
-	copy(cs, clients)
-	chain := Chain{
+	return &Chain{
 		tag:     tag,
-		clients: cs,
+		clients: clients,
 		count:   l,
-	}
-	return &chain, nil
+	}, nil
 }
 
 // []*Client will not include ModeBalance or ModeChain

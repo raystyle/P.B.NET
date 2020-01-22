@@ -33,19 +33,16 @@ func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 	if l == 0 {
 		return nil, errors.New("balance need at least one proxy client")
 	}
-	c := make([]*Client, l)
-	copy(c, clients)
-	// init flags
+	// initialize flags
 	flags := make(map[*Client]bool)
 	for i := 0; i < l; i++ {
-		flags[c[i]] = false
+		flags[clients[i]] = false
 	}
-	b := Balance{
+	return &Balance{
 		tag:     tag,
-		clients: c,
+		clients: clients,
 		flags:   flags,
-	}
-	return &b, nil
+	}, nil
 }
 
 func (b *Balance) selectNextProxyClient() *Client {
