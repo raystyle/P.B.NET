@@ -1,6 +1,6 @@
 module project
 
-go 1.13
+go 1.14
 
 require (
 	github.com/bouk/monkey v1.0.1
