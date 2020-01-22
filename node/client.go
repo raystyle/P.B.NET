@@ -63,16 +63,16 @@ func newClient(
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	cfg := xnet.Config{
-		Network: n.Network,
+	cfg := xnet.Options{
+		TLSConfig: &tls.Config{
+			Rand:       rand.Reader,
+			Time:       node.global.Now,
+			ServerName: host,
+			RootCAs:    x509.NewCertPool(),
+			MinVersion: tls.VersionTLS12,
+		},
 		Timeout: node.clientMgr.GetTimeout(),
-	}
-	cfg.TLSConfig = &tls.Config{
-		Rand:       rand.Reader,
-		Time:       node.global.Now,
-		ServerName: host,
-		RootCAs:    x509.NewCertPool(),
-		MinVersion: tls.VersionTLS12,
+		Now:     node.global.Now,
 	}
 	// add CA certificates
 	for _, cert := range node.global.Certificates() {
@@ -92,10 +92,9 @@ func newClient(
 	}
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
-		cfg.Address = net.JoinHostPort(result[i], port)
-		c, err := xnet.DialContext(ctx, n.Mode, &cfg)
+		address := net.JoinHostPort(result[i], port)
+		conn, err = xnet.DialContext(ctx, n.Mode, n.Network, address, &cfg)
 		if err == nil {
-			conn = xnet.NewConn(c, node.global.Now())
 			break
 		}
 	}

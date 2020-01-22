@@ -8,6 +8,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/messages"
+	"project/internal/xnet"
 	"project/internal/xpanic"
 )
 
@@ -194,7 +195,7 @@ func (node *Node) AddListener(listener *messages.Listener) error {
 }
 
 // GetListener is used to get listener
-func (node *Node) GetListener(tag string) (*Listener, error) {
+func (node *Node) GetListener(tag string) (*xnet.Listener, error) {
 	return node.server.GetListener(tag)
 }
 

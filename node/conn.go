@@ -104,31 +104,31 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid []byte, usage int) *conn {
 // -----------------connection status------------------
 // local:  tcp 127.0.0.1:2035
 // remote: tcp 127.0.0.1:2032
-// sent:   5.656 MB received: 5.379 MB
+// sent:   5.656 MB, received: 5.379 MB
+// mode:   tls,  default network: tcp
 // connect time: 2019-12-26 21:44:13
 // ----------------------------------------------------
-func (c *conn) Logf(l logger.Level, format string, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n")
-	c.logExtra(l, b)
+func (c *conn) Logf(lv logger.Level, format string, log ...interface{}) {
+	output := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(output, format+"\n", log...)
+	c.logExtra(lv, output)
 }
 
-func (c *conn) Log(l logger.Level, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintln(b, log...)
-	c.logExtra(l, b)
+func (c *conn) Log(lv logger.Level, log ...interface{}) {
+	output := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(output, log...)
+	c.logExtra(lv, output)
 }
 
-func (c *conn) logExtra(l logger.Level, b *bytes.Buffer) {
+func (c *conn) logExtra(lv logger.Level, buf *bytes.Buffer) {
 	if c.role != protocol.Ctrl {
-		_, _ = fmt.Fprintf(b, c.guidLine, c.guid[:guid.Size/2], c.guid[guid.Size/2:])
+		_, _ = fmt.Fprintf(buf, c.guidLine, c.guid[:guid.Size/2], c.guid[guid.Size/2:])
 	}
 	const conn = "-----------------connection status------------------\n%s\n"
-	_, _ = fmt.Fprintf(b, conn, c)
+	_, _ = fmt.Fprintf(buf, conn, c)
 	const endLine = "----------------------------------------------------"
-	_, _ = fmt.Fprint(b, endLine)
-	c.ctx.logger.Print(l, c.logSrc, b)
+	_, _ = fmt.Fprint(buf, endLine)
+	c.ctx.logger.Print(lv, c.logSrc, buf)
 }
 
 func (c *conn) isClosed() bool {
