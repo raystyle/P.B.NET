@@ -15,16 +15,23 @@ import (
 // Conn is used to count network traffic and save connect time
 type Conn struct {
 	net.Conn
-	sent     uint64 // imprecise
-	received uint64 // imprecise
-	connect  time.Time
+
+	// imprecise
+	sent     uint64
+	received uint64
 	rwm      sync.RWMutex
+
+	mode    string
+	network string // default network
+	connect time.Time
 }
 
 // NewConn is used to wrap a net.Conn to *Conn
-func NewConn(conn net.Conn, connect time.Time) *Conn {
+func NewConn(conn net.Conn, mode string, connect time.Time) *Conn {
 	return &Conn{
 		Conn:    conn,
+		mode:    mode,
+		network: defaultNetwork[mode],
 		connect: connect.Local(),
 	}
 }
@@ -97,13 +104,15 @@ func (c *Conn) Receive() ([]byte, error) {
 
 // Status contains connection status
 type Status struct {
-	LocalNetwork  string
-	LocalAddress  string
-	RemoteNetwork string
-	RemoteAddress string
-	Connect       time.Time
-	Sent          uint64
-	Received      uint64
+	LocalNetwork   string
+	LocalAddress   string
+	RemoteNetwork  string
+	RemoteAddress  string
+	Sent           uint64
+	Received       uint64
+	Mode           string
+	DefaultNetwork string
+	Connect        time.Time
 }
 
 // Status is used to get connection status
@@ -112,13 +121,15 @@ func (c *Conn) Status() *Status {
 	c.rwm.RLock()
 	defer c.rwm.RUnlock()
 	return &Status{
-		LocalNetwork:  c.LocalAddr().Network(),
-		LocalAddress:  c.LocalAddr().String(),
-		RemoteNetwork: c.RemoteAddr().Network(),
-		RemoteAddress: c.RemoteAddr().String(),
-		Connect:       c.connect,
-		Sent:          c.sent,
-		Received:      c.received,
+		LocalNetwork:   c.LocalAddr().Network(),
+		LocalAddress:   c.LocalAddr().String(),
+		RemoteNetwork:  c.RemoteAddr().Network(),
+		RemoteAddress:  c.RemoteAddr().String(),
+		Sent:           c.sent,
+		Received:       c.received,
+		Mode:           c.mode,
+		DefaultNetwork: c.network,
+		Connect:        c.connect,
 	}
 }
 
@@ -126,13 +137,15 @@ func (c *Conn) Status() *Status {
 //
 // local:  tcp 127.0.0.1:123
 // remote: tcp 127.0.0.1:124
-// sent:   123 Byte received: 1.101 KB
+// sent:   123 Byte, received: 1.101 KB
+// mode:   tls,  default network: tcp
 // connect time: 2018-11-27 00:00:00
 func (c *Conn) String() string {
 	const format = "" +
 		"local:  %s %s\n" +
 		"remote: %s %s\n" +
-		"sent:   %s received: %s\n" +
+		"sent:   %s, received: %s\n" +
+		"mode:   %-5s default network: %s\n" +
 		"connect time: %s"
 	s := c.Status()
 	return fmt.Sprintf(format,
@@ -140,6 +153,7 @@ func (c *Conn) String() string {
 		s.RemoteNetwork, s.RemoteAddress,
 		convert.ByteToString(s.Sent),
 		convert.ByteToString(s.Received),
+		s.Mode+",", s.DefaultNetwork,
 		s.Connect.Format(logger.TimeLayout),
 	)
 }

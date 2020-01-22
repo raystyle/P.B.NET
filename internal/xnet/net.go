@@ -19,24 +19,14 @@ const (
 	ModeTLS   = "tls"
 )
 
-// UnknownModeError is an error of the mode
-type UnknownModeError string
-
-func (m UnknownModeError) Error() string {
-	return fmt.Sprintf("unknown mode: %s", string(m))
+var defaultNetwork = map[string]string{
+	ModeQUIC:  "udp",
+	ModeLight: "tcp",
+	ModeTLS:   "tcp",
+	"pipe":    "pipe", // for test
 }
 
-// MismatchedModeNetwork is an error of the mode and network
-type MismatchedModeNetwork struct {
-	mode    string
-	network string
-}
-
-func (m *MismatchedModeNetwork) Error() string {
-	return fmt.Sprintf("mismatched mode and network: %s %s", m.mode, m.network)
-}
-
-// errors
+// errors about check network
 var (
 	ErrEmptyMode    = fmt.Errorf("empty mode")
 	ErrEmptyNetwork = fmt.Errorf("empty network")
@@ -54,111 +44,118 @@ func CheckModeNetwork(mode string, network string) error {
 	case ModeQUIC:
 		switch network {
 		case "udp", "udp4", "udp6":
-		default:
-			return &MismatchedModeNetwork{mode: mode, network: network}
+			return nil
 		}
 	case ModeLight:
 		switch network {
 		case "tcp", "tcp4", "tcp6":
-		default:
-			return &MismatchedModeNetwork{mode: mode, network: network}
+			return nil
 		}
 	case ModeTLS:
 		switch network {
 		case "tcp", "tcp4", "tcp6":
-		default:
-			return &MismatchedModeNetwork{mode: mode, network: network}
+			return nil
 		}
 	default:
-		return UnknownModeError(mode)
+		return fmt.Errorf("unknown mode: %s", mode)
 	}
-	return nil
+	return fmt.Errorf("mismatched mode and network: %s %s", mode, network)
+}
+
+// Listener contains a net.Listener and listener's mode
+type Listener struct {
+	net.Listener
+	mode string
+	now  func() time.Time
+}
+
+// AcceptEx is used to accept *Conn, role will use it
+func (l Listener) AcceptEx() (*Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return NewConn(conn, l.mode, l.now()), nil
+}
+
+// Mode is used to get the listener mode
+func (l Listener) Mode() string {
+	return l.mode
 }
 
 // Dialer is a link
 type Dialer func(ctx context.Context, network, address string) (net.Conn, error)
 
-// Config contains configs about all modes
-type Config struct {
-	Network   string
-	Address   string
-	Timeout   time.Duration
-	TLSConfig *tls.Config
-	Dialer    Dialer
+// Options contains options about all modes
+type Options struct {
+	TLSConfig *tls.Config      // tls, quic need it
+	Timeout   time.Duration    // handshake timeout
+	Dialer    Dialer           // for proxy
+	Now       func() time.Time // get connect time
+	MaxConns  int              // only listener
 }
 
 // Listen is used to listen a listener
-func Listen(mode string, cfg *Config) (net.Listener, error) {
+func Listen(mode, network, address string, opts *Options) (*Listener, error) {
+	err := CheckModeNetwork(mode, network)
+	if err != nil {
+		return nil, err
+	}
+	if opts == nil {
+		opts = new(Options)
+	}
+	var listener net.Listener
 	switch mode {
 	case ModeQUIC:
-		err := CheckModeNetwork(ModeQUIC, cfg.Network)
-		if err != nil {
-			return nil, err
-		}
-		return quic.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
+		listener, err = quic.Listen(network, address, opts.TLSConfig, opts.Timeout)
 	case ModeLight:
-		err := CheckModeNetwork(ModeLight, cfg.Network)
-		if err != nil {
-			return nil, err
-		}
-		return light.Listen(cfg.Network, cfg.Address, cfg.Timeout)
+		listener, err = light.Listen(network, address, opts.Timeout)
 	case ModeTLS:
-		err := CheckModeNetwork(ModeTLS, cfg.Network)
-		if err != nil {
-			return nil, err
-		}
-		return xtls.Listen(cfg.Network, cfg.Address, cfg.TLSConfig, cfg.Timeout)
-	default:
-		return nil, UnknownModeError(mode)
+		listener, err = xtls.Listen(network, address, opts.TLSConfig, opts.Timeout)
 	}
+	if err != nil {
+		return nil, err
+	}
+	now := opts.Now
+	if now == nil {
+		now = time.Now
+	}
+	return &Listener{
+		Listener: listener,
+		mode:     mode,
+		now:      now,
+	}, nil
 }
 
 // Dial is used to dial context with context.Background()
-func Dial(mode string, config *Config) (net.Conn, error) {
-	return DialContext(context.Background(), mode, config)
+func Dial(mode, network, address string, opts *Options) (*Conn, error) {
+	return DialContext(context.Background(), mode, network, address, opts)
 }
 
 // DialContext is used to dial with context
-func DialContext(ctx context.Context, mode string, cfg *Config) (net.Conn, error) {
+func DialContext(ctx context.Context, mode, network, address string, opts *Options) (*Conn, error) {
+	err := CheckModeNetwork(mode, network)
+	if err != nil {
+		return nil, err
+	}
+	if opts == nil {
+		opts = new(Options)
+	}
+	var conn net.Conn
 	switch mode {
 	case ModeQUIC:
-		err := CheckModeNetwork(ModeQUIC, cfg.Network)
-		if err != nil {
-			return nil, err
-		}
-		return quic.DialContext(
-			ctx,
-			cfg.Network,
-			cfg.Address,
-			cfg.TLSConfig,
-			cfg.Timeout,
-		)
+		conn, err = quic.DialContext(ctx, network, address, opts.TLSConfig, opts.Timeout)
 	case ModeLight:
-		err := CheckModeNetwork(ModeLight, cfg.Network)
-		if err != nil {
-			return nil, err
-		}
-		return light.DialContext(
-			ctx,
-			cfg.Network,
-			cfg.Address,
-			cfg.Timeout,
-			cfg.Dialer,
-		)
+		conn, err = light.DialContext(ctx, network, address, opts.Timeout, opts.Dialer)
 	case ModeTLS:
-		err := CheckModeNetwork(ModeTLS, cfg.Network)
-		if err != nil {
-			return nil, err
-		}
-		return xtls.DialContext(
-			ctx,
-			cfg.Network,
-			cfg.Address,
-			cfg.TLSConfig,
-			cfg.Timeout,
-			cfg.Dialer,
-		)
-	default:
-		return nil, UnknownModeError(mode)
+		conn, err = xtls.DialContext(ctx, network, address, opts.TLSConfig, opts.Timeout, opts.Dialer)
 	}
+	if err != nil {
+		return nil, err
+	}
+	now := opts.Now
+	if now == nil {
+		now = time.Now
+	}
+	return NewConn(conn, mode, now()), nil
 }

@@ -14,8 +14,8 @@ import (
 
 func TestConn(t *testing.T) {
 	server, client := net.Pipe()
-	serverC := NewConn(server, time.Now())
-	clientC := NewConn(client, time.Now())
+	serverC := NewConn(server, "pipe", time.Now())
+	clientC := NewConn(client, "pipe", time.Now())
 	msg := []byte("hello server")
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -27,15 +27,15 @@ func TestConn(t *testing.T) {
 	}()
 	require.NoError(t, clientC.Send(msg))
 	wg.Wait()
-	t.Log(serverC.Status())
-	t.Log(serverC)
+	t.Log("status:\n", serverC.Status())
+	t.Logf("string:\n%s", serverC)
 	testsuite.ConnSC(t, serverC, clientC, true)
 }
 
 func TestConnWithTooBigMessage(t *testing.T) {
 	server, client := net.Pipe()
-	serverC := NewConn(server, time.Now())
-	clientC := NewConn(client, time.Now())
+	serverC := NewConn(server, "pipe", time.Now())
+	clientC := NewConn(client, "pipe", time.Now())
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -52,8 +52,8 @@ func TestConnWithTooBigMessage(t *testing.T) {
 
 func TestConnReceiveHeader(t *testing.T) {
 	server, client := net.Pipe()
-	serverC := NewConn(server, time.Now())
-	clientC := NewConn(client, time.Now())
+	serverC := NewConn(server, "pipe", time.Now())
+	clientC := NewConn(client, "pipe", time.Now())
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -69,8 +69,8 @@ func TestConnReceiveHeader(t *testing.T) {
 
 func TestConnClosed(t *testing.T) {
 	server, client := net.Pipe()
-	serverC := NewConn(server, time.Now())
-	clientC := NewConn(client, time.Now())
+	serverC := NewConn(server, "pipe", time.Now())
+	clientC := NewConn(client, "pipe", time.Now())
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
