@@ -192,7 +192,7 @@ func (s *server) deploy(tag string, listener *xnet.Listener) error {
 	case <-time.After(time.Second):
 		network := listener.Addr().Network()
 		address := listener.Addr().String()
-		s.logf(logger.Info, "add listener %s: %s %s", tag, network, address)
+		s.logf(logger.Info, "add listener: %s (%s %s)", tag, network, address)
 		return nil
 	}
 }
@@ -210,7 +210,9 @@ func (s *server) serve(tag string, l *xnet.Listener, errChan chan<- error) {
 		s.rwm.Lock()
 		defer s.rwm.Unlock()
 		delete(s.listeners, tag)
-		s.logf(logger.Info, "listener: %s (%s) is closed", tag, l.Addr())
+		addr := l.Addr()
+		network := addr.Network()
+		s.logf(logger.Info, "listener: %s (%s %s) is closed", tag, network, addr)
 		s.wg.Done()
 	}()
 	var delay time.Duration // how long to sleep on accept failure
