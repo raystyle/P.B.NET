@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
+	"path/filepath"
 	"sync"
 
 	"github.com/kardianos/service"
@@ -33,8 +33,8 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		path = strings.Replace(path, "\\", "/", -1) // windows
-		err = os.Chdir(path[:strings.LastIndex(path, "/")])
+		dir, _ := filepath.Split(path)
+		err = os.Chdir(dir)
 		if err != nil {
 			log.Fatal(err)
 		}
