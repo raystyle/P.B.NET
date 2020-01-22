@@ -22,6 +22,8 @@ import (
 	"project/internal/xpanic"
 )
 
+// TODO password need use bCrypt
+
 type hRW = http.ResponseWriter
 type hR = http.Request
 type hP = httprouter.Params

@@ -105,7 +105,8 @@ func newClient(
 		}
 	}
 	if conn == nil {
-		return nil, errors.Errorf("failed to connect node: %s", node.Address)
+		const format = "failed to connect node %s, because %s"
+		return nil, errors.Errorf(format, node.Address, err)
 	}
 
 	// handshake

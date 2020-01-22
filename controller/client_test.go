@@ -85,7 +85,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
-const testInitialNodeListenerTag = "test_quic"
+const testInitialNodeListenerTag = "test_tls"
 
 func testGenerateInitialNode(t testing.TB) *node.Node {
 	cfg := testGenerateNodeConfig(t)
@@ -105,8 +105,8 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	// generate listener config
 	listener := messages.Listener{
 		Tag:     testInitialNodeListenerTag,
-		Mode:    xnet.ModeQUIC,
-		Network: "udp",
+		Mode:    xnet.ModeTLS,
+		Network: "tcp",
 		Address: "localhost:0",
 	}
 	c, k := pair.EncodeToPEM()
@@ -135,8 +135,8 @@ func testGenerateClient(tb testing.TB, node *node.Node) *client {
 	listener, err := node.GetListener(testInitialNodeListenerTag)
 	require.NoError(tb, err)
 	n := &bootstrap.Node{
-		Mode:    xnet.ModeQUIC,
-		Network: "udp",
+		Mode:    xnet.ModeTLS,
+		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
 	client, err := newClient(context.Background(), ctrl, n, nil, nil)

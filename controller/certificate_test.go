@@ -39,8 +39,8 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
 	node := &bootstrap.Node{
-		Mode:    xnet.ModeQUIC,
-		Network: "udp",
+		Mode:    xnet.ModeTLS,
+		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
 

@@ -27,8 +27,8 @@ func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
 	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
 	bn := bootstrap.Node{
-		Mode:    xnet.ModeQUIC,
-		Network: "udp",
+		Mode:    xnet.ModeTLS,
+		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
 	// trust node
@@ -153,7 +153,7 @@ func TestSender_SendToNode(t *testing.T) {
 }
 
 func BenchmarkSender_Broadcast(b *testing.B) {
-	b.SkipNow()
+	b.Skip()
 	number := runtime.NumCPU()
 	NODEs := make([]*node.Node, number)
 	for i := 0; i < number; i++ {
@@ -194,13 +194,13 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 	b.StopTimer()
 }
 
-func TestSender_SendToNodeBenchmark(t *testing.T) {
+func TestBenchmarkSender_SendToNode(t *testing.T) {
 	NODE := testGenerateInitialNodeAndTrust(t)
 	// send to Node
 	nodeGUID := NODE.GUID()
 	var (
 		goroutines = runtime.NumCPU()
-		times      = 10000
+		times      = 600000
 	)
 	start := time.Now()
 	send := func(start int) {
