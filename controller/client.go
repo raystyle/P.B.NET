@@ -66,16 +66,16 @@ func newClient(
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	cfg := xnet.Config{
-		Network: node.Network,
+	cfg := xnet.Options{
+		TLSConfig: &tls.Config{
+			Rand:       rand.Reader,
+			Time:       ctrl.global.Now,
+			ServerName: host,
+			RootCAs:    x509.NewCertPool(),
+			MinVersion: tls.VersionTLS12,
+		},
 		Timeout: ctrl.clientMgr.GetTimeout(),
-	}
-	cfg.TLSConfig = &tls.Config{
-		Rand:       rand.Reader,
-		Time:       ctrl.global.Now,
-		ServerName: host,
-		RootCAs:    x509.NewCertPool(),
-		MinVersion: tls.VersionTLS12,
+		Now:     ctrl.global.Now,
 	}
 	// add certificates
 	for _, pair := range ctrl.global.GetSystemCerts() {
@@ -98,10 +98,9 @@ func newClient(
 	}
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
-		cfg.Address = net.JoinHostPort(result[i], port)
-		c, err := xnet.DialContext(ctx, node.Mode, &cfg)
+		address := net.JoinHostPort(result[i], port)
+		conn, err = xnet.DialContext(ctx, node.Mode, node.Network, address, &cfg)
 		if err == nil {
-			conn = xnet.NewConn(c, ctrl.global.Now())
 			break
 		}
 	}
@@ -161,31 +160,31 @@ func newClient(
 // local:  tcp 127.0.0.1:2035
 // remote: tcp 127.0.0.1:2032
 // sent:   5.656 MB received: 5.379 MB
+// mode:   tls,  default network: tcp
 // connect time: 2019-12-26 21:44:13
 // ----------------------------------------------------
-func (client *client) logf(l logger.Level, format string, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprint(b, "\n")
-	client.logExtra(l, b)
+func (client *client) logf(lv logger.Level, format string, log ...interface{}) {
+	output := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(output, format+"\n", log...)
+	client.logExtra(lv, output)
 }
 
-func (client *client) log(l logger.Level, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintln(b, log...)
-	client.logExtra(l, b)
+func (client *client) log(lv logger.Level, log ...interface{}) {
+	output := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(output, log...)
+	client.logExtra(lv, output)
 }
 
-func (client *client) logExtra(l logger.Level, b *bytes.Buffer) {
+func (client *client) logExtra(lv logger.Level, buf *bytes.Buffer) {
 	if client.guid != nil {
 		const format = "----------------connected node guid-----------------\n%X\n%X\n"
-		_, _ = fmt.Fprintf(b, format, client.guid[:guid.Size/2], client.guid[guid.Size/2:])
+		_, _ = fmt.Fprintf(buf, format, client.guid[:guid.Size/2], client.guid[guid.Size/2:])
 	}
 	const conn = "-----------------connection status------------------\n%s\n"
-	_, _ = fmt.Fprintf(b, conn, client.conn)
+	_, _ = fmt.Fprintf(buf, conn, client.conn)
 	const endLine = "----------------------------------------------------"
-	_, _ = fmt.Fprint(b, endLine)
-	client.ctx.logger.Print(l, "client", b)
+	_, _ = fmt.Fprint(buf, endLine)
+	client.ctx.logger.Print(lv, "client", buf)
 }
 
 // Zero—Knowledge Proof
