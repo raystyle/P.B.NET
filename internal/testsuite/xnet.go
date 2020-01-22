@@ -13,9 +13,10 @@ import (
 
 type dialer func() (net.Conn, error)
 
+// Handshake is used to call connection Handshake()
 // some server side connection must Handshake(),
 // otherwise Dial() will block
-type handshake interface {
+type Handshake interface {
 	Handshake() error
 }
 
@@ -47,7 +48,7 @@ func AcceptAndDial(t testing.TB, listener net.Listener, dial dialer) (net.Conn, 
 		var err error
 		server, err = listener.Accept()
 		require.NoError(t, err)
-		if s, ok := server.(handshake); ok {
+		if s, ok := server.(Handshake); ok {
 			require.NoError(t, s.Handshake())
 		}
 	}()
