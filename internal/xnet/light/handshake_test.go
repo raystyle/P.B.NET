@@ -28,10 +28,7 @@ func testGenerateConnPair() (*Conn, *Conn) {
 
 func testConnClientHandshake(t *testing.T, f func(t *testing.T, server *Conn), expect error) {
 	server, client := testGenerateConnPair()
-	defer func() {
-		testsuite.IsDestroyed(t, server)
-		testsuite.IsDestroyed(t, client)
-	}()
+
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
@@ -42,17 +39,18 @@ func testConnClientHandshake(t *testing.T, f func(t *testing.T, server *Conn), e
 		defer wg.Done()
 		f(t, server)
 	}()
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, client.Close())
-		wg.Wait()
-	}()
 	err := client.clientHandshake()
 	if expect != nil {
 		require.Equal(t, expect, err)
 	} else {
 		require.Error(t, err)
 	}
+	require.NoError(t, server.Close())
+	require.NoError(t, client.Close())
+	wg.Wait()
+
+	testsuite.IsDestroyed(t, server)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestConn_clientHandshake(t *testing.T) {
@@ -175,10 +173,7 @@ func TestConn_clientHandshake(t *testing.T) {
 
 func testConnServerHandshake(t *testing.T, f func(t *testing.T, client *Conn), expect error) {
 	server, client := testGenerateConnPair()
-	defer func() {
-		testsuite.IsDestroyed(t, server)
-		testsuite.IsDestroyed(t, client)
-	}()
+
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
@@ -189,17 +184,18 @@ func testConnServerHandshake(t *testing.T, f func(t *testing.T, client *Conn), e
 		defer wg.Done()
 		f(t, client)
 	}()
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, client.Close())
-		wg.Wait()
-	}()
 	err := server.serverHandshake()
 	if expect != nil {
 		require.Equal(t, expect, err)
 	} else {
 		require.Error(t, err)
 	}
+	require.NoError(t, server.Close())
+	require.NoError(t, client.Close())
+	wg.Wait()
+
+	testsuite.IsDestroyed(t, server)
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestConn_serverHandshake(t *testing.T) {

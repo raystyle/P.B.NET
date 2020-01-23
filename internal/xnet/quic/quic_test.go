@@ -93,17 +93,11 @@ func TestFailedToAccept(t *testing.T) {
 	// get *quic.baseServer
 	rawConn, err := net.ListenUDP("udp", nil)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, rawConn.Close())
-		testsuite.IsDestroyed(t, rawConn)
-	}()
+
 	serverCfg, _ := testsuite.TLSConfigPair(t)
 	quicListener, err := quic.Listen(rawConn, serverCfg.Clone(), nil)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, quicListener.Close())
-		testsuite.IsDestroyed(t, quicListener)
-	}()
+
 	// patch
 	patchFunc := func(interface{}, context.Context) (quic.Session, error) {
 		return nil, testsuite.ErrMonkey
@@ -113,12 +107,17 @@ func TestFailedToAccept(t *testing.T) {
 
 	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, listener.Close())
-		testsuite.IsDestroyed(t, listener)
-	}()
 	_, err = listener.Accept()
 	testsuite.IsMonkeyError(t, err)
+
+	require.NoError(t, listener.Close())
+	testsuite.IsDestroyed(t, listener)
+
+	require.NoError(t, quicListener.Close())
+	testsuite.IsDestroyed(t, quicListener)
+
+	require.NoError(t, rawConn.Close())
+	testsuite.IsDestroyed(t, rawConn)
 }
 
 func TestFailedToDialContext(t *testing.T) {
@@ -150,10 +149,6 @@ func TestFailedToDialContext(t *testing.T) {
 		serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 		listener, err := Listen("udp", "localhost:0", serverCfg, 0)
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-			testsuite.IsDestroyed(t, listener)
-		}()
 		address := listener.Addr().String()
 
 		// get *quic.session
@@ -169,16 +164,15 @@ func TestFailedToDialContext(t *testing.T) {
 
 		_, err = Dial("udp", address, clientCfg, time.Second)
 		testsuite.IsMonkeyError(t, err)
+
+		require.NoError(t, listener.Close())
+		testsuite.IsDestroyed(t, listener)
 	})
 
 	t.Run("stream.Write", func(t *testing.T) {
 		serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 		listener, err := Listen("udp", "localhost:0", serverCfg, 0)
 		require.NoError(t, err)
-		defer func() {
-			require.NoError(t, listener.Close())
-			testsuite.IsDestroyed(t, listener)
-		}()
 		address := listener.Addr().String()
 
 		// get *quic.stream
@@ -196,6 +190,9 @@ func TestFailedToDialContext(t *testing.T) {
 
 		_, err = Dial("udp", address, clientCfg, time.Second)
 		testsuite.IsMonkeyError(t, err)
+
+		require.NoError(t, listener.Close())
+		testsuite.IsDestroyed(t, listener)
 	})
 }
 
@@ -206,10 +203,6 @@ func TestConn_Close(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, listener.Close())
-		testsuite.IsDestroyed(t, listener)
-	}()
 	address := listener.Addr().String()
 	server, client := testsuite.AcceptAndDial(t, listener, func() (conn net.Conn, err error) {
 		return Dial("udp", address, clientCfg, 0)
@@ -242,6 +235,9 @@ func TestConn_Close(t *testing.T) {
 	require.NoError(t, client.Close())
 
 	testsuite.IsDestroyed(t, client)
+
+	require.NoError(t, listener.Close())
+	testsuite.IsDestroyed(t, listener)
 }
 
 func TestFailedToAcceptStream(t *testing.T) {
@@ -251,10 +247,6 @@ func TestFailedToAcceptStream(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, listener.Close())
-		testsuite.IsDestroyed(t, listener)
-	}()
 	address := listener.Addr().String()
 
 	// client close
@@ -262,8 +254,8 @@ func TestFailedToAcceptStream(t *testing.T) {
 		return Dial("udp", address, clientCfg, 0)
 	})
 	require.NoError(t, client.Close())
-	require.Error(t, server.SetDeadline(time.Time{}))
-	require.Error(t, server.SetWriteDeadline(time.Time{}))
+	require.Error(t, client.SetDeadline(time.Time{}))
+	require.Error(t, client.SetWriteDeadline(time.Time{}))
 	buf := make([]byte, 1)
 	_, err = server.Read(buf)
 	require.Error(t, err)
@@ -285,4 +277,7 @@ func TestFailedToAcceptStream(t *testing.T) {
 	require.NoError(t, client.Close())
 	testsuite.IsDestroyed(t, client)
 	testsuite.IsDestroyed(t, server)
+
+	require.NoError(t, listener.Close())
+	testsuite.IsDestroyed(t, listener)
 }
