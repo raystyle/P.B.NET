@@ -351,80 +351,96 @@ func TestHTTPPanic(t *testing.T) {
 
 	t.Run("no CBC", func(t *testing.T) {
 		HTTP := NewHTTP(nil, nil, nil)
-		defer testsuite.IsDestroyed(t, HTTP)
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
+
+		func() {
+			defer func() {
+				r := recover()
+				require.NotNil(t, r)
+				t.Log(r)
+			}()
+			_, _ = HTTP.Resolve()
 		}()
-		_, _ = HTTP.Resolve()
+
+		testsuite.IsDestroyed(t, HTTP)
 	})
 
 	t.Run("invalid encrypted data", func(t *testing.T) {
 		HTTP := NewHTTP(nil, nil, nil)
-		defer testsuite.IsDestroyed(t, HTTP)
-		var err error
-		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
-		HTTP.cbc, err = aes.NewCBC(key, key)
-		require.NoError(t, err)
 
-		enc, err := HTTP.cbc.Encrypt(testsuite.Bytes())
-		require.NoError(t, err)
-		HTTP.enc = enc
+		func() {
+			var err error
+			key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+			HTTP.cbc, err = aes.NewCBC(key, key)
+			require.NoError(t, err)
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
+			enc, err := HTTP.cbc.Encrypt(testsuite.Bytes())
+			require.NoError(t, err)
+			HTTP.enc = enc
+
+			defer func() {
+				r := recover()
+				require.NotNil(t, r)
+				t.Log(r)
+			}()
+			_, _ = HTTP.Resolve()
 		}()
-		_, _ = HTTP.Resolve()
+
+		testsuite.IsDestroyed(t, HTTP)
 	})
 
 	t.Run("invalid http request", func(t *testing.T) {
 		dHTTP := NewHTTP(nil, nil, nil)
-		defer testsuite.IsDestroyed(t, dHTTP)
-		var err error
-		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
-		dHTTP.cbc, err = aes.NewCBC(key, key)
-		require.NoError(t, err)
 
-		b, err := msgpack.Marshal(new(HTTP))
-		require.NoError(t, err)
-		enc, err := dHTTP.cbc.Encrypt(b)
-		require.NoError(t, err)
-		dHTTP.enc = enc
+		func() {
+			var err error
+			key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+			dHTTP.cbc, err = aes.NewCBC(key, key)
+			require.NoError(t, err)
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
+			b, err := msgpack.Marshal(new(HTTP))
+			require.NoError(t, err)
+			enc, err := dHTTP.cbc.Encrypt(b)
+			require.NoError(t, err)
+			dHTTP.enc = enc
+
+			defer func() {
+				r := recover()
+				require.NotNil(t, r)
+				t.Log(r)
+			}()
+			_, _ = dHTTP.Resolve()
 		}()
-		_, _ = dHTTP.Resolve()
+
+		testsuite.IsDestroyed(t, dHTTP)
 	})
 
 	t.Run("invalid http transport", func(t *testing.T) {
 		dHTTP := NewHTTP(nil, nil, nil)
-		defer testsuite.IsDestroyed(t, dHTTP)
-		var err error
-		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
-		dHTTP.cbc, err = aes.NewCBC(key, key)
-		require.NoError(t, err)
 
-		tHTTP := HTTP{}
-		tHTTP.Request.URL = "http://localhost/"
-		tHTTP.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
-		b, err := msgpack.Marshal(&tHTTP)
-		require.NoError(t, err)
-		enc, err := dHTTP.cbc.Encrypt(b)
-		require.NoError(t, err)
-		dHTTP.enc = enc
+		func() {
+			var err error
+			key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+			dHTTP.cbc, err = aes.NewCBC(key, key)
+			require.NoError(t, err)
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
+			tHTTP := HTTP{}
+			tHTTP.Request.URL = "http://localhost/"
+			tHTTP.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
+			b, err := msgpack.Marshal(&tHTTP)
+			require.NoError(t, err)
+			enc, err := dHTTP.cbc.Encrypt(b)
+			require.NoError(t, err)
+			dHTTP.enc = enc
+
+			defer func() {
+				r := recover()
+				require.NotNil(t, r)
+				t.Log(r)
+			}()
+			_, _ = dHTTP.Resolve()
 		}()
-		_, _ = dHTTP.Resolve()
+
+		testsuite.IsDestroyed(t, dHTTP)
 	})
 
 	// resolve

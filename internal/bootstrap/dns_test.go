@@ -146,32 +146,40 @@ func TestDNSPanic(t *testing.T) {
 
 	t.Run("no CBC", func(t *testing.T) {
 		DNS := NewDNS(nil, nil)
-		defer testsuite.IsDestroyed(t, DNS)
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
+
+		func() {
+			defer func() {
+				r := recover()
+				require.NotNil(t, r)
+				t.Log(r)
+			}()
+			_, _ = DNS.Resolve()
 		}()
-		_, _ = DNS.Resolve()
+
+		testsuite.IsDestroyed(t, DNS)
 	})
 
 	t.Run("invalid options", func(t *testing.T) {
 		DNS := NewDNS(nil, nil)
-		defer testsuite.IsDestroyed(t, DNS)
-		var err error
-		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
-		DNS.cbc, err = aes.NewCBC(key, key)
-		require.NoError(t, err)
-		enc, err := DNS.cbc.Encrypt(testsuite.Bytes())
-		require.NoError(t, err)
-		DNS.enc = enc
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
+		func() {
+			var err error
+			key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+			DNS.cbc, err = aes.NewCBC(key, key)
+			require.NoError(t, err)
+			enc, err := DNS.cbc.Encrypt(testsuite.Bytes())
+			require.NoError(t, err)
+			DNS.enc = enc
+
+			defer func() {
+				r := recover()
+				require.NotNil(t, r)
+				t.Log(r)
+			}()
+			_, _ = DNS.Resolve()
 		}()
-		_, _ = DNS.Resolve()
+
+		testsuite.IsDestroyed(t, DNS)
 	})
 }
 

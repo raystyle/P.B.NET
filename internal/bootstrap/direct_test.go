@@ -44,32 +44,40 @@ func TestDirectPanic(t *testing.T) {
 
 	t.Run("no CBC", func(t *testing.T) {
 		direct := NewDirect()
-		defer testsuite.IsDestroyed(t, direct)
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
+
+		func() {
+			defer func() {
+				r := recover()
+				require.NotNil(t, r)
+				t.Log(r)
+			}()
+			_, _ = direct.Resolve()
 		}()
-		_, _ = direct.Resolve()
+
+		testsuite.IsDestroyed(t, direct)
 	})
 
 	t.Run("invalid nodes data", func(t *testing.T) {
 		direct := NewDirect()
-		defer testsuite.IsDestroyed(t, direct)
-		var err error
-		key := bytes.Repeat([]byte{0}, aes.Key128Bit)
-		direct.cbc, err = aes.NewCBC(key, key)
-		require.NoError(t, err)
-		enc, err := direct.cbc.Encrypt(testsuite.Bytes())
-		require.NoError(t, err)
-		direct.enc = enc
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
+		func() {
+			var err error
+			key := bytes.Repeat([]byte{0}, aes.Key128Bit)
+			direct.cbc, err = aes.NewCBC(key, key)
+			require.NoError(t, err)
+			enc, err := direct.cbc.Encrypt(testsuite.Bytes())
+			require.NoError(t, err)
+			direct.enc = enc
+
+			defer func() {
+				r := recover()
+				require.NotNil(t, r)
+				t.Log(r)
+			}()
+			_, _ = direct.Resolve()
 		}()
-		_, _ = direct.Resolve()
+
+		testsuite.IsDestroyed(t, direct)
 	})
 }
 
