@@ -141,10 +141,6 @@ func TestAuthenticate(t *testing.T) {
 	defer gm.Compare()
 
 	server := testGenerateHTTPProxyServer(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	address := server.Addresses()[0].String()
 
 	client := http.Client{}
@@ -183,6 +179,9 @@ func TestAuthenticate(t *testing.T) {
 		err = resp.Body.Close()
 		require.NoError(t, err)
 	})
+
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestFailedToNewServer(t *testing.T) {
@@ -254,10 +253,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	server, err := NewHTTPServer("test", logger.Test, nil)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	go func() {
 		err := server.ListenAndServe("tcp", "localhost:0")
 		require.NoError(t, err)
@@ -290,6 +285,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 		// close proxy server
 	})
+
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestHandler_authenticate(t *testing.T) {
@@ -302,10 +300,6 @@ func TestHandler_authenticate(t *testing.T) {
 	}
 	server, err := NewHTTPServer("test", logger.Test, &opts)
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	w := httptest.NewRecorder()
 	r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
 	require.NoError(t, err)
@@ -313,4 +307,7 @@ func TestHandler_authenticate(t *testing.T) {
 	r.Header.Set("Proxy-Authorization", auth)
 
 	server.handler.authenticate(w, r)
+
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }

@@ -125,10 +125,6 @@ func TestSocks5Authenticate(t *testing.T) {
 	defer gm.Compare()
 
 	server := testGenerateSocks5Server(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	address := server.Addresses()[0].String()
 	opt := Options{
 		Username: "admin",
@@ -141,6 +137,8 @@ func TestSocks5Authenticate(t *testing.T) {
 	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, client)
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestSocks4aUserID(t *testing.T) {
@@ -148,10 +146,6 @@ func TestSocks4aUserID(t *testing.T) {
 	defer gm.Compare()
 
 	server := testGenerateSocks4aServer(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	address := server.Addresses()[0].String()
 	opt := Options{
 		UserID: "foo-user-id",
@@ -163,6 +157,8 @@ func TestSocks4aUserID(t *testing.T) {
 	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, client)
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestSocks5ClientFailure(t *testing.T) {

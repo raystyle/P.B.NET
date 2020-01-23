@@ -88,17 +88,16 @@ func TestSocks4aServer(t *testing.T) {
 
 	server := testGenerateSocks4aServer(t)
 	server.userID = nil
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	t.Log("socks4a address:", server.Addresses())
 	t.Log("socks4a info:", server.Info())
 
 	// use external tool to test it, because the http.Client
 	// only support socks5, http and https
 	// time.Sleep(30 * time.Second)
+
+	require.NoError(t, server.Close())
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestSocks4Server(t *testing.T) {
@@ -107,17 +106,16 @@ func TestSocks4Server(t *testing.T) {
 
 	server := testGenerateSocks4Server(t)
 	server.userID = nil
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	t.Log("socks4 address:", server.Addresses()[0])
 	t.Log("socks4 info:", server.Info())
 
 	// use external tool to test it, because the http.Client
 	// only support socks5, http and https
 	// time.Sleep(30 * time.Second)
+
+	require.NoError(t, server.Close())
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestSocks5ServerWithSecondaryProxy(t *testing.T) {
@@ -210,10 +208,9 @@ func TestServer_Info(t *testing.T) {
 	defer gm.Compare()
 
 	server := testGenerateSocks4Server(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	t.Log("socks4 info:", server.Info())
+
+	require.NoError(t, server.Close())
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }

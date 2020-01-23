@@ -95,10 +95,6 @@ func TestNewHTTPProxyClientWithIncorrectUserInfo(t *testing.T) {
 	defer gm.Compare()
 
 	server := testGenerateHTTPProxyServer(t)
-	defer func() {
-		require.NoError(t, server.Close())
-		testsuite.IsDestroyed(t, server)
-	}()
 	address := server.Addresses()[0].String()
 	opts := Options{
 		Username: "admin",
@@ -111,6 +107,8 @@ func TestNewHTTPProxyClientWithIncorrectUserInfo(t *testing.T) {
 	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, client)
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, server)
 }
 
 func TestHTTPProxyClientFailure(t *testing.T) {
