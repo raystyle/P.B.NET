@@ -11,11 +11,10 @@ import (
 )
 
 func TestDNSClient(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	client, _, manager := DNSClient(t)
-	defer func() {
-		require.NoError(t, manager.Close())
-		testsuite.IsDestroyed(t, manager)
-	}()
 
 	const domain = "cloudflare-dns.com"
 
@@ -53,4 +52,6 @@ func TestDNSClient(t *testing.T) {
 	}
 
 	testsuite.IsDestroyed(t, client)
+	require.NoError(t, manager.Close())
+	testsuite.IsDestroyed(t, manager)
 }

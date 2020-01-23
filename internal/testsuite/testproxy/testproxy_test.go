@@ -10,11 +10,12 @@ import (
 )
 
 func TestPoolAndManager(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	pool, manager := PoolAndManager(t)
-	defer func() {
-		require.NoError(t, manager.Close())
-		testsuite.IsDestroyed(t, manager)
-	}()
 
 	// test balance
 	balance, err := pool.Get(TagBalance)
@@ -26,4 +27,6 @@ func TestPoolAndManager(t *testing.T) {
 	testsuite.HTTPClient(t, transport, "localhost")
 
 	testsuite.IsDestroyed(t, pool)
+	require.NoError(t, manager.Close())
+	testsuite.IsDestroyed(t, manager)
 }
