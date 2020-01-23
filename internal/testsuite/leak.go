@@ -25,14 +25,14 @@ func MarkGoroutines(t testing.TB) *GoroutineMark {
 }
 
 func (m *GoroutineMark) calculate() int {
-	// total 3 second
+	// total 3 seconds
 	var n int
-	for i := 0; i < 60; i++ {
+	for i := 0; i < 300; i++ {
 		n = runtime.NumGoroutine() - m.then
 		if n == 0 {
 			return 0
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	return runtime.NumGoroutine() - m.then
 }

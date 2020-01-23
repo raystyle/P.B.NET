@@ -201,11 +201,6 @@ func NewNopCloser() *NopCloser {
 
 // ProxyServer is used to test proxy server
 func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
-	defer func() {
-		require.NoError(t, server.Close())
-		require.NoError(t, server.Close())
-		IsDestroyed(t, server)
-	}()
 	if IPv4Enabled {
 		HTTPClient(t, transport, "127.0.0.1")
 	}
@@ -213,6 +208,10 @@ func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
 		HTTPClient(t, transport, "[::1]")
 	}
 	HTTPClient(t, transport, "localhost")
+
+	require.NoError(t, server.Close())
+	require.NoError(t, server.Close())
+	IsDestroyed(t, server)
 }
 
 // ProxyConn is used to check proxy client Dial
@@ -262,11 +261,6 @@ type proxyClient interface {
 // ProxyClient is used to test proxy client
 func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	InitHTTPServers(t)
-
-	defer func() {
-		require.NoError(t, server.Close())
-		IsDestroyed(t, server)
-	}()
 
 	wg := sync.WaitGroup{}
 
@@ -368,16 +362,13 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	t.Log("info:", client.Info())
 
 	IsDestroyed(t, client)
+	require.NoError(t, server.Close())
+	IsDestroyed(t, server)
 }
 
 // ProxyClientCancelConnect is used to cancel proxy client Connect()
 func ProxyClientCancelConnect(t testing.TB, server io.Closer, client proxyClient) {
 	InitHTTPServers(t)
-
-	defer func() {
-		require.NoError(t, server.Close())
-		IsDestroyed(t, server)
-	}()
 
 	conn, err := net.Dial(client.Server())
 	require.NoError(t, err)
@@ -400,6 +391,8 @@ func ProxyClientCancelConnect(t testing.TB, server io.Closer, client proxyClient
 	wg.Wait()
 
 	IsDestroyed(t, client)
+	require.NoError(t, server.Close())
+	IsDestroyed(t, server)
 }
 
 // ProxyClientWithUnreachableProxyServer is used to test proxy client that
@@ -436,10 +429,6 @@ func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
 // ProxyClientWithUnreachableTarget is used to test proxy client that
 // connect unreachable target
 func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client proxyClient) {
-	defer func() {
-		require.NoError(t, server.Close())
-		IsDestroyed(t, server)
-	}()
 	const unreachableTarget = "0.0.0.0:1"
 	_, err := client.Dial("tcp", unreachableTarget)
 	require.Error(t, err)
@@ -452,4 +441,6 @@ func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client pro
 	t.Log("DialTimeout -> Connect:\n", err)
 
 	IsDestroyed(t, client)
+	require.NoError(t, server.Close())
+	IsDestroyed(t, server)
 }

@@ -83,13 +83,13 @@ func isDestroyed(object interface{}) bool {
 	runtime.SetFinalizer(object, func(interface{}) {
 		close(destroyed)
 	})
-	// total 3 second
-	for i := 0; i < 12; i++ {
+	// total 3 seconds
+	for i := 0; i < 300; i++ {
 		runtime.GC()
 		select {
 		case <-destroyed:
 			return true
-		case <-time.After(250 * time.Millisecond):
+		case <-time.After(10 * time.Millisecond):
 		}
 	}
 	return false
