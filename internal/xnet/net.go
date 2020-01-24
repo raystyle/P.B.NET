@@ -17,12 +17,14 @@ const (
 	ModeQUIC  = "quic"
 	ModeLight = "light"
 	ModeTLS   = "tls"
+	ModeTCP   = "tcp"
 )
 
 var defaultNetwork = map[string]string{
 	ModeQUIC:  "udp",
 	ModeLight: "tcp",
 	ModeTLS:   "tcp",
+	ModeTCP:   "tcp",
 	"pipe":    "pipe", // for test
 }
 
@@ -52,6 +54,11 @@ func CheckModeNetwork(mode string, network string) error {
 			return nil
 		}
 	case ModeTLS:
+		switch network {
+		case "tcp", "tcp4", "tcp6":
+			return nil
+		}
+	case ModeTCP:
 		switch network {
 		case "tcp", "tcp4", "tcp6":
 			return nil
@@ -110,7 +117,9 @@ func Listen(mode, network, address string, opts *Options) (*Listener, error) {
 	case ModeLight:
 		listener, err = light.Listen(network, address, opts.Timeout)
 	case ModeTLS:
-		listener, err = xtls.Listen(network, address, opts.TLSConfig, opts.Timeout)
+		listener, err = xtls.Listen(network, address, opts.TLSConfig)
+	case ModeTCP:
+		listener, err = net.Listen(network, address)
 	}
 	if err != nil {
 		return nil, err
@@ -148,6 +157,8 @@ func DialContext(ctx context.Context, mode, network, address string, opts *Optio
 		conn, err = light.DialContext(ctx, network, address, opts.Timeout, opts.Dialer)
 	case ModeTLS:
 		conn, err = xtls.DialContext(ctx, network, address, opts.TLSConfig, opts.Timeout, opts.Dialer)
+	case ModeTCP:
+		conn, err = (&net.Dialer{Timeout: opts.Timeout}).DialContext(ctx, network, address)
 	}
 	if err != nil {
 		return nil, err

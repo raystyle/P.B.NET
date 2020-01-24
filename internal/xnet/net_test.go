@@ -153,6 +153,27 @@ func testListenAndDialTLS(t *testing.T, network string) {
 	}, true)
 }
 
+func TestListenAndDial_TCP(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	if testsuite.IPv4Enabled {
+		testListenAndDialTCP(t, "tcp4")
+	}
+	if testsuite.IPv6Enabled {
+		testListenAndDialTCP(t, "tcp6")
+	}
+}
+
+func testListenAndDialTCP(t *testing.T, network string) {
+	listener, err := Listen(ModeTCP, network, "localhost:0", nil)
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
+		return Dial(ModeTCP, network, address, nil)
+	}, true)
+}
+
 func TestFailedToListenAndDial(t *testing.T) {
 	t.Run("failed to Listen-Check", func(t *testing.T) {
 		listener, err := Listen(ModeTLS, "udp", "", nil)
