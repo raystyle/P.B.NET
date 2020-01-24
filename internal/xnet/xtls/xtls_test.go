@@ -27,7 +27,7 @@ func TestListenAndDial(t *testing.T) {
 
 func testListenAndDial(t *testing.T, network string) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	listener, err := Listen(network, "localhost:0", serverCfg, 0)
+	listener, err := Listen(network, "localhost:0", serverCfg)
 	require.NoError(t, err)
 	address := listener.Addr().String()
 	testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
@@ -49,7 +49,7 @@ func TestListenAndDialContext(t *testing.T) {
 
 func testListenAndDialContext(t *testing.T, network string) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	listener, err := Listen(network, "localhost:0", serverCfg, 0)
+	listener, err := Listen(network, "localhost:0", serverCfg)
 	require.NoError(t, err)
 	address := listener.Addr().String()
 	testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
@@ -59,43 +59,21 @@ func testListenAndDialContext(t *testing.T, network string) {
 	}, true)
 }
 
-func TestConnWithBackground(t *testing.T) {
+func TestConn(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	testConnWithBackground(t, testsuite.ConnSC)
-	testConnWithBackground(t, testsuite.ConnCS)
+	testConn(t, testsuite.ConnSC)
+	testConn(t, testsuite.ConnCS)
 }
 
-func testConnWithBackground(t *testing.T, f func(testing.TB, net.Conn, net.Conn, bool)) {
+func testConn(t *testing.T, f func(testing.TB, net.Conn, net.Conn, bool)) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	clientCfg.ServerName = "localhost"
 
 	server, client := net.Pipe()
-	server = Server(context.Background(), server, serverCfg, 0)
-	client = Client(context.Background(), client, clientCfg, 0)
-	f(t, server, client, false)
-}
-
-func TestConnWithCancel(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	testConnWithCancel(t, testsuite.ConnSC)
-	testConnWithCancel(t, testsuite.ConnCS)
-}
-
-func testConnWithCancel(t *testing.T, f func(testing.TB, net.Conn, net.Conn, bool)) {
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	clientCfg.ServerName = "localhost"
-
-	server, client := net.Pipe()
-	sCtx, sCancel := context.WithCancel(context.Background())
-	defer sCancel()
-	server = Server(sCtx, server, serverCfg, 0)
-	cCtx, cCancel := context.WithCancel(context.Background())
-	defer cCancel()
-	client = Client(cCtx, client, clientCfg, 0)
+	server = Server(server, serverCfg)
+	client = Client(client, clientCfg)
 	f(t, server, client, false)
 }
 
@@ -113,7 +91,7 @@ func TestDialContext_Timeout(t *testing.T) {
 	require.Error(t, err)
 
 	// handshake timeout
-	listener, err := Listen(network, "localhost:0", serverCfg, 0)
+	listener, err := Listen(network, "localhost:0", serverCfg)
 	require.NoError(t, err)
 	address = listener.Addr().String()
 
@@ -132,7 +110,7 @@ func TestDialContext_Cancel(t *testing.T) {
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
 	clientCfg.ServerName = "localhost"
 
-	listener, err := Listen(network, "localhost:0", serverCfg, 0)
+	listener, err := Listen(network, "localhost:0", serverCfg)
 	require.NoError(t, err)
 	address := listener.Addr().String()
 
@@ -155,7 +133,7 @@ func TestDialContext_Cancel(t *testing.T) {
 }
 
 func TestFailedToListenAndDial(t *testing.T) {
-	_, err := Listen("udp", "", nil, 0)
+	_, err := Listen("udp", "", nil)
 	require.Error(t, err)
 	_, err = Dial("udp", "", new(tls.Config), 0, nil)
 	require.Error(t, err)

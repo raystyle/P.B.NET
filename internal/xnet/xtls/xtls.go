@@ -5,42 +5,29 @@ import (
 	"crypto/tls"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
-
-	"project/internal/xnet/light"
 )
 
 const (
 	defaultDialTimeout = 30 * time.Second
 )
 
-// Conn is light.Conn
-type Conn = light.Conn
-
-// Server is used to wrap a conn to server side conn
-func Server(ctx context.Context, conn net.Conn, cfg *tls.Config, timeout time.Duration) *Conn {
-	return light.Server(ctx, tls.Server(conn, cfg), timeout)
+// Server is a link
+func Server(conn net.Conn, cfg *tls.Config) *tls.Conn {
+	return tls.Server(conn, cfg)
 }
 
-// Client is used to wrap a conn to client side conn
-func Client(ctx context.Context, conn net.Conn, cfg *tls.Config, timeout time.Duration) *Conn {
-	return light.Client(ctx, tls.Client(conn, cfg), timeout)
+// Client is a link
+func Client(conn net.Conn, cfg *tls.Config) *tls.Conn {
+	return tls.Client(conn, cfg)
 }
 
-// Listen is used to listen a inner listener
-func Listen(
-	network string,
-	address string,
-	config *tls.Config,
-	timeout time.Duration,
-) (net.Listener, error) {
-	listener, err := tls.Listen(network, address, config)
-	if err != nil {
-		return nil, err
-	}
-	return light.NewListener(listener, timeout), nil
+// Listen is a link
+func Listen(network, address string, config *tls.Config) (net.Listener, error) {
+	return tls.Listen(network, address, config)
 }
 
 // Dial is used to dial a connection with context.Background()
@@ -50,7 +37,7 @@ func Dial(
 	config *tls.Config,
 	timeout time.Duration,
 	dialContext func(context.Context, string, string) (net.Conn, error),
-) (*Conn, error) {
+) (*tls.Conn, error) {
 	return DialContext(context.Background(), network, address, config, timeout, dialContext)
 }
 
@@ -63,7 +50,8 @@ func DialContext(
 	config *tls.Config,
 	timeout time.Duration,
 	dialContext func(context.Context, string, string) (net.Conn, error),
-) (*Conn, error) {
+) (*tls.Conn, error) {
+	// set server name
 	if config.ServerName == "" {
 		colonPos := strings.LastIndex(address, ":")
 		if colonPos == -1 {
@@ -86,10 +74,31 @@ func DialContext(
 	if err != nil {
 		return nil, err
 	}
-	client := light.Client(ctx, tls.Client(rawConn, config), timeout)
-	err = client.Handshake()
+	tlsConn := tls.Client(rawConn, config)
+
+	// interrupt
+	wg := sync.WaitGroup{}
+	done := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer func() {
+			recover()
+			wg.Done()
+		}()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			_ = tlsConn.Close()
+		}
+	}()
+	defer func() {
+		close(done)
+		wg.Wait()
+	}()
+
+	err = tlsConn.Handshake()
 	if err != nil {
 		return nil, err
 	}
-	return client, nil
+	return tlsConn, nil
 }
