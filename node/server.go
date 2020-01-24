@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -162,16 +164,22 @@ func (s *server) addListener(l *messages.Listener) (*xnet.Listener, error) {
 	// <security>
 	tlsConfig.Rand = rand.Reader
 	tlsConfig.Time = s.ctx.global.Now
-	cfg := xnet.Options{
+	opts := xnet.Options{
 		TLSConfig: tlsConfig,
 		Timeout:   l.Timeout,
 		Now:       s.ctx.global.Now,
 	}
-	listener, err := xnet.Listen(l.Mode, l.Network, l.Address, &cfg)
+	// fake nginx server
+	if len(tlsConfig.NextProtos) == 0 {
+		tlsConfig.NextProtos = []string{"http/1.1"}
+	}
+	listener, err := xnet.Listen(l.Mode, l.Network, l.Address, &opts)
 	if err != nil {
 		return nil, failed(err)
 	}
+	// add limit connections
 	listener.Listener = netutil.LimitListener(listener.Listener, s.maxConns)
+
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
 	if _, ok := s.listeners[l.Tag]; !ok {
@@ -233,8 +241,10 @@ func (s *server) serve(tag string, l *xnet.Listener, errChan chan<- error) {
 				time.Sleep(delay)
 				continue
 			}
-			if !strings.Contains(e.Error(), "use of closed network connection") {
+			errStr := e.Error()
+			if !strings.Contains(errStr, "closed") {
 				err = e
+				s.log(logger.Warning, errStr)
 			}
 			return
 		}
@@ -411,10 +421,13 @@ func (s *server) handshake(tag string, conn *xnet.Conn) {
 		_ = conn.Close()
 		s.wg.Done()
 	}()
+
 	// add to server.conns for management
 	connTag := tag + hex.EncodeToString(s.guid.Get())
 	s.addConn(connTag, conn)
 	defer s.deleteConn(connTag)
+
+	// check connection
 	_ = conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
 	if !s.checkConn(conn) {
 		return
@@ -422,6 +435,7 @@ func (s *server) handshake(tag string, conn *xnet.Conn) {
 	if !s.sendCertificate(conn) {
 		return
 	}
+
 	// receive role
 	r := make([]byte, 1)
 	_, err := io.ReadFull(conn, r)
@@ -443,20 +457,71 @@ func (s *server) handshake(tag string, conn *xnet.Conn) {
 }
 
 // checkConn is used to check connection is from client
+// if read http request, return a fake http response
 func (s *server) checkConn(conn *xnet.Conn) bool {
-	size := byte(100 + s.rand.Int(156))
-	data := s.rand.Bytes(int(size))
-	_, err := conn.Write(append([]byte{size}, data...))
+	// read generated random data size
+	size := make([]byte, 1)
+	_, err := io.ReadFull(conn, size)
 	if err != nil {
-		s.logConn(conn, logger.Error, "failed to send check connection data:", err)
 		return false
 	}
-	n, err := io.ReadFull(conn, data)
+	// read random data
+	randomData := make([]byte, size[0])
+	n, err := io.ReadFull(conn, randomData)
+	total := append(size, randomData[:n]...)
 	if err != nil {
-		d := data[:n]
-		s.logfConn(conn, logger.Error, "receive test data in checkConn\n%s\n\n%X", d, d)
+		const format = "receive test data in checkConn\n%s\n\n%X"
+		s.logfConn(conn, logger.Error, format, total, total)
 		return false
 	}
+	if s.isHTTPRequest(total, conn) {
+		return false
+	}
+	// write generated random data
+	_, err = conn.Write(s.rand.Bytes(int(size[0])))
+	return err == nil
+}
+
+var nginxBody = strings.ReplaceAll(`<html>
+<head><title>403 Forbidden</title></head>
+<body>
+<center><h1>403 Forbidden</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+`, "\n", "\r\n")
+
+func (s *server) isHTTPRequest(data []byte, conn *xnet.Conn) bool {
+	// check is http request
+	lines := strings.Split(string(data), "\r\n")
+	// GET / HTTP/1.1
+	rl := strings.Split(lines[0], " ") // request line
+	if len(rl) != 3 {
+		return false
+	}
+	if !strings.Contains(rl[2], "HTTP") {
+		return false
+	}
+	// read rest data
+	go func() {
+		defer func() { recover() }()
+		_, _ = io.Copy(ioutil.Discard, conn)
+	}()
+	// write 403 response
+	buf := new(bytes.Buffer)
+	// status line
+	_, _ = fmt.Fprintf(buf, "%s 403 Forbidden\r\n", rl[2])
+	// fake nginx server
+	buf.WriteString("Server: nginx\r\n")
+	// write date
+	date := s.ctx.global.Now().Format(http.TimeFormat)
+	_, _ = fmt.Fprintf(buf, "Date: %s\r\n", date)
+	// other
+	buf.WriteString("Content-Type: text/html\r\n")
+	_, _ = fmt.Fprintf(buf, "Content-Length: %d\r\n", len(nginxBody))
+	buf.WriteString("Connection: keep-alive\r\n\r\n")
+	buf.WriteString(nginxBody)
+	_, _ = io.Copy(conn, buf)
 	return true
 }
 

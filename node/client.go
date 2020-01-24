@@ -63,7 +63,7 @@ func newClient(
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	cfg := xnet.Options{
+	opts := xnet.Options{
 		TLSConfig: &tls.Config{
 			Rand:       rand.Reader,
 			Time:       node.global.Now,
@@ -76,14 +76,14 @@ func newClient(
 	}
 	// add CA certificates
 	for _, cert := range node.global.Certificates() {
-		cfg.TLSConfig.RootCAs.AddCert(cert)
+		opts.TLSConfig.RootCAs.AddCert(cert)
 	}
 	// set proxy
 	proxy, err := node.global.GetProxyClient(node.clientMgr.GetProxyTag())
 	if err != nil {
 		return nil, err
 	}
-	cfg.Dialer = proxy.DialContext
+	opts.Dialer = proxy.DialContext
 	// resolve domain name
 	dnsOpts := node.clientMgr.GetDNSOptions()
 	result, err := node.global.ResolveWithContext(ctx, host, dnsOpts)
@@ -93,7 +93,7 @@ func newClient(
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
 		address := net.JoinHostPort(result[i], port)
-		conn, err = xnet.DialContext(ctx, n.Mode, n.Network, address, &cfg)
+		conn, err = xnet.DialContext(ctx, n.Mode, n.Network, address, &opts)
 		if err == nil {
 			break
 		}
@@ -128,20 +128,9 @@ func (client *client) handshake(conn *xnet.Conn) error {
 	timeout := client.ctx.clientMgr.GetTimeout()
 	_ = conn.SetDeadline(client.ctx.global.Now().Add(timeout))
 	// about check connection
-	sizeByte := make([]byte, 1)
-	_, err := io.ReadFull(conn, sizeByte)
+	err := client.checkConn(conn)
 	if err != nil {
-		return errors.Wrap(err, "failed to receive check connection size")
-	}
-	size := int(sizeByte[0])
-	checkData := make([]byte, size)
-	_, err = io.ReadFull(conn, checkData)
-	if err != nil {
-		return errors.Wrap(err, "failed to receive check connection data")
-	}
-	_, err = conn.Write(client.rand.Bytes(size))
-	if err != nil {
-		return errors.Wrap(err, "failed to send check connection data")
+		return err
 	}
 	// receive certificate
 	cert, err := conn.Receive()
@@ -160,6 +149,23 @@ func (client *client) handshake(conn *xnet.Conn) error {
 	// send self guid
 	_, err = conn.Write(client.ctx.global.GUID())
 	return err
+}
+
+func (client *client) checkConn(conn *xnet.Conn) error {
+	size := byte(100 + client.rand.Int(156))
+	data := client.rand.Bytes(int(size))
+	_, err := conn.Write(append([]byte{size}, data...))
+	if err != nil {
+		return errors.WithMessage(err, "failed to send check connection data")
+	}
+	n, err := io.ReadFull(conn, data)
+	if err != nil {
+		d := data[:n]
+		const format = "error in client.checkConn(): %s\nreceive unexpected check data\n%s\n\n%X"
+		client.Conn.Logf(logger.Exploit, format, err, d, d)
+		return err
+	}
+	return nil
 }
 
 func (client *client) verifyCertificate(cert []byte, address string, guid []byte) bool {
