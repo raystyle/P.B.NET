@@ -6,7 +6,6 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
-
 	"project/internal/guid"
 )
 
@@ -28,12 +27,14 @@ const (
 // Beacon encrypt Message with its session key.
 //
 // Signature = role.global.Sign(GUID + RoleGUID + Message + Hash)
+//
+// <security> use fake structure field tag
 type Send struct {
-	GUID      []byte // prevent duplicate handle it
-	RoleGUID  []byte // receiver GUID
-	Message   []byte // encrypted
-	Hash      []byte // raw message hash
-	Signature []byte
+	GUID      []byte `msgpack:"signature"` // prevent duplicate handle it
+	RoleGUID  []byte `msgpack:"token"`     // receiver GUID
+	Message   []byte `msgpack:"un"`        // encrypted
+	Hash      []byte `msgpack:"pw"`        // raw message hash
+	Signature []byte `msgpack:"note"`
 }
 
 // Validate is used to validate send fields
@@ -87,11 +88,13 @@ func (sr *SendResult) Clean() {
 // When Beacon use it, RoleGUID = it's GUID.
 //
 // Signature = role.global.Sign(GUID + RoleGUID + SendGUID)
+//
+// <security> use fake structure field tag
 type Acknowledge struct {
-	GUID      []byte // prevent duplicate handle it
-	RoleGUID  []byte
-	SendGUID  []byte // Send.GUID
-	Signature []byte
+	GUID      []byte `msgpack:"signature"` // prevent duplicate handle it
+	RoleGUID  []byte `msgpack:"token"`
+	SendGUID  []byte `msgpack:"pw"` // Send.GUID
+	Signature []byte `msgpack:"note"`
 }
 
 // Validate is used to validate acknowledge fields
@@ -138,11 +141,13 @@ func (ar *AcknowledgeResult) Clean() {
 // Query is used to query message from controller,
 // only Beacon will use it, because Node always
 // in interactive mode
+//
+// <security> use fake structure field tag
 type Query struct {
-	GUID       []byte // prevent duplicate handle it
-	BeaconGUID []byte
-	Index      uint64
-	Signature  []byte
+	GUID       []byte `msgpack:"signature"` // prevent duplicate handle it
+	BeaconGUID []byte `msgpack:"un"`
+	Index      uint64 `msgpack:"pw"`
+	Signature  []byte `msgpack:"note"`
 }
 
 // Validate is used to validate query fields
@@ -182,13 +187,15 @@ func (qr *QueryResult) Clean() {
 }
 
 // Answer is used to return queried message
+//
+// <security> use fake structure field tag
 type Answer struct {
-	GUID       []byte // prevent duplicate handle it
-	BeaconGUID []byte
-	Index      uint64
-	Message    []byte // encrypted
-	Hash       []byte // raw message hash
-	Signature  []byte
+	GUID       []byte `msgpack:"signature"` // prevent duplicate handle it
+	BeaconGUID []byte `msgpack:"token"`
+	Index      uint64 `msgpack:"index"`
+	Message    []byte `msgpack:"un"` // encrypted
+	Hash       []byte `msgpack:"pw"` // raw message hash
+	Signature  []byte `msgpack:"note"`
 }
 
 // Validate is used to validate Answer fields

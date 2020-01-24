@@ -6,18 +6,19 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
-
 	"project/internal/guid"
 )
 
 // Broadcast is used to broadcast messages to Nodes.
 // Controller use broadcast key to encrypt Message.
 // Signature = CTRL.global.Sign(GUID + Message + Hash)
+//
+// <security> use fake structure field tag
 type Broadcast struct {
-	GUID      []byte // prevent duplicate handle it
-	Message   []byte // encrypted
-	Hash      []byte // raw message hash
-	Signature []byte
+	GUID      []byte `msgpack:"signature"` // prevent duplicate handle it
+	Message   []byte `msgpack:"un"`        // encrypted
+	Hash      []byte `msgpack:"pw"`        // raw message hash
+	Signature []byte `msgpack:"guid"`
 }
 
 // Validate is used to validate broadcast fields
