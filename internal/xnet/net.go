@@ -70,7 +70,7 @@ type Listener struct {
 }
 
 // AcceptEx is used to accept *Conn, role will use it
-func (l Listener) AcceptEx() (*Conn, error) {
+func (l *Listener) AcceptEx() (*Conn, error) {
 	conn, err := l.Listener.Accept()
 	if err != nil {
 		return nil, err
@@ -79,11 +79,11 @@ func (l Listener) AcceptEx() (*Conn, error) {
 }
 
 // Mode is used to get the listener mode
-func (l Listener) Mode() string {
+func (l *Listener) Mode() string {
 	return l.mode
 }
 
-// Dialer is a link
+// Dialer is a shortcut
 type Dialer func(ctx context.Context, network, address string) (net.Conn, error)
 
 // Options contains options about all modes
@@ -92,7 +92,6 @@ type Options struct {
 	Timeout   time.Duration    // handshake timeout
 	Dialer    Dialer           // for proxy
 	Now       func() time.Time // get connect time
-	MaxConns  int              // only listener
 }
 
 // Listen is used to listen a listener
