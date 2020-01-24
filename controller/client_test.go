@@ -105,7 +105,7 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	// generate listener config
 	listener := messages.Listener{
 		Tag:     testInitialNodeListenerTag,
-		Mode:    xnet.ModeTLS,
+		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: "localhost:0",
 	}

@@ -27,7 +27,7 @@ func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
 	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
 	bn := bootstrap.Node{
-		Mode:    xnet.ModeTLS,
+		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
@@ -211,6 +211,7 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 				t.Error(err)
 				return
 			}
+			// time.Sleep(time.Second)
 		}
 	}
 	for i := 0; i < goroutines; i++ {
