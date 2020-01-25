@@ -427,7 +427,6 @@ func (s *server) handshake(tag string, conn *xnet.Conn) {
 	s.addConn(connTag, conn)
 	defer s.deleteConn(connTag)
 
-	// check connection
 	_ = conn.SetDeadline(s.ctx.global.Now().Add(s.timeout))
 	if !s.checkConn(conn) {
 		return
@@ -435,10 +434,22 @@ func (s *server) handshake(tag string, conn *xnet.Conn) {
 	if !s.sendCertificate(conn) {
 		return
 	}
+	// receive challenge and sign it
+	challenge := make([]byte, protocol.ChallengeSize)
+	_, err := io.ReadFull(conn, challenge)
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to receive challenge")
+		return
+	}
+	_, err = conn.Write(s.ctx.global.Sign(challenge))
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to send challenge signature")
+		return
+	}
 
 	// receive role
 	r := make([]byte, 1)
-	_, err := io.ReadFull(conn, r)
+	_, err = io.ReadFull(conn, r)
 	if err != nil {
 		s.logConn(conn, logger.Error, "failed to receive role")
 		return
@@ -529,29 +540,28 @@ func (s *server) sendCertificate(conn *xnet.Conn) bool {
 	var err error
 	cert := s.ctx.global.GetCertificate()
 	if cert != nil {
-		err = conn.Send(cert)
-		if err != nil {
-			s.logConn(conn, logger.Error, "failed to send certificate:", err)
-			return false
+		_, err = conn.Write(cert)
+	} else { // if no certificate, send random certificate with Node GUID and public key
+		cert := protocol.Certificate{
+			GUID:      s.ctx.global.GUID(),
+			PublicKey: s.ctx.global.PublicKey(),
 		}
-	} else { // if no certificate send padding data
-		size := 1024 + s.rand.Int(1024)
-		err = conn.Send(s.rand.Bytes(size))
-		if err != nil {
-			s.logConn(conn, logger.Error, "failed to send padding data:", err)
-			return false
-		}
+		cert.Signatures[0] = s.rand.Bytes(ed25519.SignatureSize)
+		cert.Signatures[1] = s.rand.Bytes(ed25519.SignatureSize)
+		_, err = conn.Write(cert.Encode())
+	}
+	if err != nil {
+		s.logConn(conn, logger.Error, "failed to send certificate:", err)
+		return false
 	}
 	return true
 }
 
 func (s *server) handleCtrl(tag string, conn *xnet.Conn) {
 	// <danger>
-	// send random challenge code(length 2048-4096)
-	// len(challenge) must > len(GUID + Mode + Network + Address)
-	// because maybe fake node will send some special data
+	// maybe fake node will send some special data
 	// and controller sign it
-	challenge := s.rand.Bytes(2048 + s.rand.Int(2048))
+	challenge := s.rand.Bytes(protocol.ChallengeSize)
 	err := conn.Send(challenge)
 	if err != nil {
 		s.logConn(conn, logger.Error, "failed to send challenge to controller:", err)
@@ -646,21 +656,24 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 	// wait register result
 	timeout := time.Duration(15+s.rand.Int(30)) * time.Second
 	timer := time.AfterFunc(timeout, func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.log(logger.Fatal, xpanic.Print(r, "server.registerNode"))
+			}
+		}()
 		s.ctx.storage.SetNodeRegister(guid, &messages.NodeRegisterResponse{
 			Result: messages.RegisterResultTimeout,
 		})
 	})
 	defer timer.Stop()
+	// read register response result
 	resp := <-response
 	switch resp.Result {
 	case messages.RegisterResultAccept:
 		_ = conn.Send([]byte{messages.RegisterResultAccept})
-		if !s.verifyNode(conn, guid) {
-			_ = conn.Send([]byte{messages.RegisterResultRefused})
-			return
-		}
 		// send certificate and listener configs
-	case messages.RegisterResultRefused: // TODO add IP black list only register(other role still pass)
+	case messages.RegisterResultRefused:
+		// TODO add IP black list only register(other role still pass)
 		_ = conn.Send([]byte{messages.RegisterResultRefused})
 	case messages.RegisterResultTimeout:
 		_ = conn.Send([]byte{messages.RegisterResultTimeout})
@@ -735,7 +748,7 @@ func (s *server) serveCtrl(tag string, conn *xnet.Conn) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			cc.Conn.Log(logger.Exploit, xpanic.Print(r, "server.serveCtrl"))
+			cc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveCtrl"))
 		}
 		cc.Close()
 		if cc.isSync() {
@@ -908,7 +921,7 @@ func (s *server) serveNode(tag string, nodeGUID []byte, conn *xnet.Conn) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			nc.Conn.Log(logger.Exploit, xpanic.Print(r, "server.serveNode"))
+			nc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveNode"))
 		}
 		nc.Close()
 		if nc.isSync() {
@@ -1119,7 +1132,7 @@ func (s *server) serveBeacon(tag string, beaconGUID []byte, conn *xnet.Conn) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			bc.Conn.Log(logger.Exploit, xpanic.Print(r, "server.serveNode"))
+			bc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveNode"))
 		}
 		bc.Close()
 		if bc.isSync() {

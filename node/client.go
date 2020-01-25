@@ -49,11 +49,11 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
+// newClient is used to create a client that connected Node
 // when guid != ctrl guid for forwarder
 // when guid == ctrl guid for register
-func newClient(
+func (node *Node) newClient(
 	ctx context.Context,
-	node *Node,
 	n *bootstrap.Node,
 	guid []byte,
 	closeFunc func(),
@@ -110,13 +110,13 @@ func newClient(
 		closeFunc: closeFunc,
 		rand:      random.New(),
 	}
+	client.Conn = newConn(node, conn, guid, connUsageClient)
 	err = client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
 		const format = "failed to handshake with node: %s"
 		return nil, errors.WithMessagef(err, format, n.Address)
 	}
-	client.Conn = newConn(node, conn, guid, connUsageClient)
 
 	// add client to client manager
 	client.tag = node.clientMgr.GenerateTag()

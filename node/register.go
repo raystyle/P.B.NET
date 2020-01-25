@@ -198,11 +198,12 @@ func (reg *register) PackRequest() []byte {
 
 // register is used to register to Controller with Node
 func (reg *register) register(node *bootstrap.Node) error {
-	client, err := newClient(reg.context, reg.ctx, node, protocol.CtrlGUID, nil)
+	client, err := reg.ctx.newClient(reg.context, node, protocol.CtrlGUID, nil)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
+
 	conn := client.Conn
 	// send register operation
 	_, err = conn.Write([]byte{nodeOperationRegister})
@@ -223,7 +224,6 @@ func (reg *register) register(node *bootstrap.Node) error {
 	}
 	switch result[0] {
 	case messages.RegisterResultAccept:
-
 		// TODO receive certificate and a part of
 		// node listeners that controller select
 		return nil
@@ -245,13 +245,13 @@ func (reg *register) Register() error {
 		return nil
 	}
 	reg.log(logger.Debug, "start register")
-	// try 3 times
+	// resolve bootstrap nodes with the first bootstrap, try 3 times
 	var (
 		nodes []*bootstrap.Node
 		err   error
 	)
 	for i := 0; i < 3; i++ {
-		nodes, err = reg.first.Resolve() // resolve bootstrap nodes
+		nodes, err = reg.first.Resolve()
 		if err == nil {
 			break
 		}
@@ -261,9 +261,10 @@ func (reg *register) Register() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to resolve bootstrap nodes")
 	}
-	// try all resolved bootstrap nodes, 3 times
-	for i := 0; i < 3; i++ {
-		for _, node := range nodes {
+	// try to register with all resolved bootstrap nodes,
+	// each node try 3 times
+	for _, node := range nodes {
+		for i := 0; i < 3; i++ {
 			err = reg.register(node)
 			if err == nil {
 				reg.log(logger.Debug, "register successfully")
