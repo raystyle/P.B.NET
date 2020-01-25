@@ -546,6 +546,19 @@ func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	return curve25519.ScalarMult(b[:32], publicKey)
 }
 
+// PrivateKey is used to get private key
+// <danger> must remember cover it after use
+func (global *global) PrivateKey() ed25519.PrivateKey {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	pri := global.objects[objPrivateKey].(*security.Bytes)
+	b := pri.Get()
+	defer pri.Put(b)
+	bs := make([]byte, ed25519.PrivateKeySize)
+	copy(bs, b)
+	return bs
+}
+
 // PublicKey is used to get public key
 func (global *global) PublicKey() ed25519.PublicKey {
 	global.objectsRWM.RLock()

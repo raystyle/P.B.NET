@@ -11,13 +11,6 @@ import (
 	"project/internal/xnet"
 )
 
-func TestVerifyInvalidCertificate(t *testing.T) {
-	testInitializeController(t)
-
-	client := client{ctx: ctrl}
-	require.False(t, client.verifyCertificate(nil, "foo", []byte{1}))
-}
-
 func TestTrustNodeAndConfirm(t *testing.T) {
 	testInitializeController(t)
 
@@ -27,7 +20,7 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
 	node := &bootstrap.Node{
-		Mode:    xnet.ModeTLS,
+		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}

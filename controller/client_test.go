@@ -85,7 +85,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
-const testInitialNodeListenerTag = "test_tls"
+const testInitialNodeListenerTag = "test_tcp"
 
 func testGenerateInitialNode(t testing.TB) *node.Node {
 	cfg := testGenerateNodeConfig(t)
@@ -135,11 +135,11 @@ func testGenerateClient(tb testing.TB, node *node.Node) *client {
 	listener, err := node.GetListener(testInitialNodeListenerTag)
 	require.NoError(tb, err)
 	n := &bootstrap.Node{
-		Mode:    xnet.ModeTLS,
+		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
-	client, err := newClient(context.Background(), ctrl, n, nil, nil)
+	client, err := ctrl.newClient(context.Background(), n, nil, nil)
 	require.NoError(tb, err)
 	return client
 }

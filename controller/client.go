@@ -19,7 +19,6 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
-	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
 	"project/internal/dns"
 	"project/internal/guid"
@@ -51,12 +50,12 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
+// newClient is used to create a client that connected Node
 // when guid == nil       for trust node
 // when guid != ctrl guid for sender client
 // when guid == ctrl guid for discovery
-func newClient(
+func (ctrl *CTRL) newClient(
 	ctx context.Context,
-	ctrl *CTRL,
 	node *bootstrap.Node,
 	guid []byte,
 	closeFunc func(),
@@ -114,6 +113,7 @@ func newClient(
 		ctx:       ctrl,
 		node:      node,
 		guid:      guid,
+		conn:      conn,
 		closeFunc: closeFunc,
 		rand:      random.New(),
 	}
@@ -123,7 +123,6 @@ func newClient(
 		const format = "failed to handshake with node: %s"
 		return nil, errors.WithMessagef(err, format, node.Address)
 	}
-	client.conn = conn
 
 	// initialize message slots
 	client.slots = make([]*protocol.Slot, protocol.SlotSize)
@@ -197,14 +196,14 @@ func (client *client) handshake(conn *xnet.Conn) error {
 	if err != nil {
 		return err
 	}
-	// receive certificate
-	cert, err := conn.Receive()
+	// verify certificate
+	ok, err := protocol.VerifyCertificate(conn, client.ctx.global.PublicKey(), client.guid)
 	if err != nil {
-		return errors.Wrap(err, "failed to receive certificate")
+		client.log(logger.Exploit, err)
+		return err
 	}
-	if !client.verifyCertificate(cert, client.node.Address, client.guid) {
-		client.log(logger.Exploit, protocol.ErrInvalidCertificate)
-		return protocol.ErrInvalidCertificate
+	if !ok {
+		return errors.New("failed to verify certificate")
 	}
 	// send role
 	_, err = conn.Write(protocol.Ctrl.Bytes())
@@ -217,11 +216,9 @@ func (client *client) handshake(conn *xnet.Conn) error {
 		return errors.Wrap(err, "failed to receive challenge")
 	}
 	// <danger>
-	// receive random challenge data(length 2048-4096)
-	// len(challenge) must > len(GUID + Mode + Network + Address)
-	// because maybe fake node will send some special data
+	// maybe fake node will send some special data
 	// and if controller sign it will destroy net
-	if len(challenge) < 2048 || len(challenge) > 4096 {
+	if len(challenge) != protocol.ChallengeSize {
 		err = errors.New("invalid challenge size")
 		client.log(logger.Exploit, err)
 		return err
@@ -258,22 +255,6 @@ func (client *client) checkConn(conn *xnet.Conn) error {
 		return err
 	}
 	return nil
-}
-
-func (client *client) verifyCertificate(cert []byte, address string, guid []byte) bool {
-	// if guid = nil, skip verify
-	if guid == nil {
-		return true
-	}
-	if len(cert) != 2*ed25519.SignatureSize {
-		return false
-	}
-	// verify certificate
-	buffer := bytes.Buffer{}
-	buffer.WriteString(address)
-	buffer.Write(guid)
-	certWithNodeGUID := cert[:ed25519.SignatureSize]
-	return client.ctx.global.Verify(buffer.Bytes(), certWithNodeGUID)
 }
 
 func (client *client) isClosed() bool {
