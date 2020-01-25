@@ -105,11 +105,11 @@ func TestVerifyCertificate(t *testing.T) {
 		// send certificate
 		_, err := conn.Write(certBytes)
 		require.NoError(t, err)
-		// receive role challenge data
-		challenge := make([]byte, 32)
+		// receive role challenge
+		challenge := make([]byte, ChallengeSize)
 		_, err = io.ReadFull(conn, challenge)
 		require.NoError(t, err)
-		// signature challenge data (ha ha, remember check challenge size)
+		// signature challenge (ha ha, remember check challenge size)
 		signature := ed25519.Sign(nodePrivateKey, challenge)
 		_, err = conn.Write(signature)
 		require.NoError(t, err)
@@ -128,7 +128,7 @@ func TestVerifyCertificate(t *testing.T) {
 		require.True(t, ok)
 	})
 
-	t.Run("with ctrl guid", func(t *testing.T) {
+	t.Run("with controller guid", func(t *testing.T) {
 		server, client := net.Pipe()
 		defer func() {
 			require.NoError(t, server.Close())
@@ -137,6 +137,19 @@ func TestVerifyCertificate(t *testing.T) {
 		wg.Add(1)
 		go serverAck(server)
 		ok, err := VerifyCertificate(client, ctrlPrivateKey.PublicKey(), CtrlGUID)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run("skip verify", func(t *testing.T) {
+		server, client := net.Pipe()
+		defer func() {
+			require.NoError(t, server.Close())
+			require.NoError(t, client.Close())
+		}()
+		wg.Add(1)
+		go serverAck(server)
+		ok, err := VerifyCertificate(client, nil, nil)
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
@@ -162,7 +175,7 @@ func TestVerifyCertificate(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := server.Write(bytes.Repeat([]byte{0}, certificateSize))
+			_, err := server.Write(bytes.Repeat([]byte{0}, CertificateSize))
 			require.NoError(t, err)
 		}()
 		ok, err := VerifyCertificate(client, nil, nodeGUID)
@@ -179,7 +192,7 @@ func TestVerifyCertificate(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cert := make([]byte, certificateSize)
+			cert := make([]byte, CertificateSize)
 			copy(cert, nodeGUID)
 			_, err := server.Write(cert)
 			require.NoError(t, err)
@@ -189,7 +202,7 @@ func TestVerifyCertificate(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("failed to generate challenge data", func(t *testing.T) {
+	t.Run("failed to generate challenge", func(t *testing.T) {
 		server, client := net.Pipe()
 		defer func() {
 			require.NoError(t, server.Close())
@@ -214,7 +227,7 @@ func TestVerifyCertificate(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("failed to send challenge data", func(t *testing.T) {
+	t.Run("failed to send challenge", func(t *testing.T) {
 		server, client := net.Pipe()
 		defer func() {
 			require.NoError(t, client.Close())
@@ -242,8 +255,8 @@ func TestVerifyCertificate(t *testing.T) {
 			defer wg.Done()
 			_, err := server.Write(certBytes)
 			require.NoError(t, err)
-			// read challenge data
-			challenge := make([]byte, 32)
+			// read challenge
+			challenge := make([]byte, ChallengeSize)
 			_, err = io.ReadFull(server, challenge)
 			require.NoError(t, err)
 			err = server.Close()
@@ -264,8 +277,8 @@ func TestVerifyCertificate(t *testing.T) {
 			defer wg.Done()
 			_, err := server.Write(certBytes)
 			require.NoError(t, err)
-			// read challenge data
-			challenge := make([]byte, 32)
+			// read challenge
+			challenge := make([]byte, ChallengeSize)
 			_, err = io.ReadFull(server, challenge)
 			require.NoError(t, err)
 			_, err = server.Write(bytes.Repeat([]byte{0}, ed25519.SignatureSize))

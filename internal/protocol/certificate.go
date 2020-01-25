@@ -2,16 +2,21 @@ package protocol
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"net"
+
+	"github.com/pkg/errors"
 
 	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
 	"project/internal/guid"
 )
 
-const certificateSize = guid.Size + ed25519.PublicKeySize + 2*ed25519.SignatureSize
+// certificate and challenge size
+const (
+	CertificateSize = guid.Size + ed25519.PublicKeySize + 2*ed25519.SignatureSize
+	ChallengeSize   = 32
+)
 
 // Certificate is used to verify node
 type Certificate struct {
@@ -27,7 +32,7 @@ type Certificate struct {
 
 // Encode is used to encode certificate to bytes
 func (cert *Certificate) Encode() []byte {
-	b := make([]byte, certificateSize)
+	b := make([]byte, CertificateSize)
 	offset := 0
 	copy(b, cert.GUID)
 	offset += guid.Size
@@ -41,7 +46,7 @@ func (cert *Certificate) Encode() []byte {
 
 // Decode is used to decode bytes to certificate
 func (cert *Certificate) Decode(b []byte) error {
-	if len(b) != certificateSize {
+	if len(b) != CertificateSize {
 		return errors.New("invalid certificate size")
 	}
 	// initialize slice
@@ -105,29 +110,32 @@ func IssueCertificate(cert *Certificate, pri ed25519.PrivateKey) error {
 // if errors != nil, role must log with level Exploit
 func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid []byte) (bool, error) {
 	// receive node certificate
-	buf := make([]byte, certificateSize)
+	buf := make([]byte, CertificateSize)
 	_, err := io.ReadFull(conn, buf)
 	if err != nil {
 		return false, nil
 	}
 	var cert Certificate
 	_ = cert.Decode(buf) // no error
-	// verify certificate signature
-	var ok bool
-	if bytes.Compare(CtrlGUID, guid) == 0 {
-		ok = cert.VerifySignatureWithCTRLGUID(pub)
-	} else {
-		// verify node guid
-		if bytes.Compare(cert.GUID, guid) != 0 {
-			return false, errors.New("guid in certificate is different")
+	// if guid == nil, skip verify
+	if guid != nil {
+		// verify certificate signature
+		var ok bool
+		if bytes.Compare(CtrlGUID, guid) == 0 {
+			ok = cert.VerifySignatureWithCTRLGUID(pub)
+		} else {
+			// verify node guid
+			if bytes.Compare(cert.GUID, guid) != 0 {
+				return false, errors.New("guid in certificate is different")
+			}
+			ok = cert.VerifySignatureWithNodeGUID(pub)
 		}
-		ok = cert.VerifySignatureWithNodeGUID(pub)
-	}
-	if !ok {
-		return false, errors.New("invalid certificate signature")
+		if !ok {
+			return false, errors.New("invalid certificate signature")
+		}
 	}
 	// send challenge to verify public key
-	challenge := buf[ed25519.SignatureSize : ed25519.SignatureSize+32]
+	challenge := buf[ed25519.SignatureSize : ed25519.SignatureSize+ChallengeSize]
 	_, err = io.ReadFull(rand.Reader, challenge)
 	if err != nil {
 		return false, nil
