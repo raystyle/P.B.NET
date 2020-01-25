@@ -18,6 +18,7 @@ const (
 	ModeLight = "light"
 	ModeTLS   = "tls"
 	ModeTCP   = "tcp"
+	ModePipe  = "pipe"
 )
 
 var defaultNetwork = map[string]string{
@@ -25,7 +26,7 @@ var defaultNetwork = map[string]string{
 	ModeLight: "tcp",
 	ModeTLS:   "tcp",
 	ModeTCP:   "tcp",
-	"pipe":    "pipe", // for test
+	ModePipe:  "pipe",
 }
 
 // errors about check network
