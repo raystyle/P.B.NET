@@ -30,12 +30,12 @@ type register struct {
 	// or Controller trust node manually
 	skip bool
 
-	// Register() only use the first bootstrap
-	firstTag string
-
 	// key = messages.Bootstrap.Tag
 	bootstraps    map[string]bootstrap.Bootstrap
 	bootstrapsRWM sync.RWMutex
+
+	// Register() only use the first bootstrap
+	first bootstrap.Bootstrap
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -50,60 +50,88 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 	if cfg.SleepRandom < 20 {
 		return nil, errors.New("register SleepRandom must >= 20")
 	}
-	if !cfg.Skip && len(cfg.RestBoots) == 0 {
+	if !cfg.Skip && len(cfg.FirstBoot) == 0 {
 		return nil, errors.New("not skip register but no bootstraps")
 	}
 
 	memory := security.NewMemory()
 	defer memory.Flush()
 
-	reg := register{
+	register := register{
 		ctx:         ctx,
 		sleepFixed:  cfg.SleepFixed,
 		sleepRandom: cfg.SleepRandom,
 		skip:        cfg.Skip,
 		bootstraps:  make(map[string]bootstrap.Bootstrap),
 	}
-	reg.context, reg.cancel = context.WithCancel(context.Background())
+	register.context, register.cancel = context.WithCancel(context.Background())
 
-	// decrypt bootstraps
-	if len(cfg.RestBoots) != 0 {
-		if len(cfg.RestKey) != aes.Key256Bit+aes.IVSize {
-			return nil, errors.New("invalid aes key size")
-		}
-		aesKey := cfg.RestKey[:aes.Key256Bit]
-		aesIV := cfg.RestKey[aes.Key256Bit:]
-		defer func() {
-			security.CoverBytes(aesKey)
-			security.CoverBytes(aesIV)
-		}()
-		memory.Padding()
-		data, err := aes.CBCDecrypt(cfg.RestBoots, aesKey, aesIV)
+	// decrypt the first bootstrap
+	if !cfg.Skip {
+		err := register.loadBootstraps(cfg.FirstBoot, cfg.FirstKey)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
+		// set the first bootstrap(s)
+		// if the cfg.FirstBoot contains more than one bootstrap,
+		// register will select a bootstrap randomly
+		for _, boot := range register.bootstraps {
+			register.first = boot
+		}
+	}
+
+	// decrypt the rest bootstraps
+	if len(cfg.RestBoots) != 0 {
+		err := register.loadBootstraps(cfg.RestBoots, cfg.RestKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &register, nil
+}
+
+func (reg *register) loadBootstraps(boot, key []byte) error {
+	memory := security.NewMemory()
+	defer memory.Flush()
+
+	if len(key) != aes.Key256Bit+aes.IVSize {
+		return errors.New("invalid aes key size")
+	}
+	aesKey := key[:aes.Key256Bit]
+	aesIV := key[aes.Key256Bit:]
+	defer func() {
 		security.CoverBytes(aesKey)
 		security.CoverBytes(aesIV)
-		// load bootstraps
-		memory.Padding()
-		var bootstraps []*messages.Bootstrap
-		err = msgpack.Unmarshal(data, &bootstraps)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		if len(bootstraps) == 0 {
-			return nil, errors.New("no bootstraps")
-		}
-		for i := 0; i < len(bootstraps); i++ {
-			memory.Padding()
-			err = reg.AddBootstrap(bootstraps[i])
-			if err != nil {
-				return nil, err
-			}
-		}
-		reg.firstTag = bootstraps[0].Tag
+	}()
+
+	// decrypt bootstraps
+	memory.Padding()
+	data, err := aes.CBCDecrypt(boot, aesKey, aesIV)
+	if err != nil {
+		return errors.WithStack(err)
 	}
-	return &reg, nil
+	// cover bytes at once
+	security.CoverBytes(aesKey)
+	security.CoverBytes(aesIV)
+
+	// load bootstraps
+	memory.Padding()
+	var bootstraps []*messages.Bootstrap
+	err = msgpack.Unmarshal(data, &bootstraps)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if len(bootstraps) == 0 {
+		return errors.New("no bootstraps")
+	}
+	for i := 0; i < len(bootstraps); i++ {
+		memory.Padding()
+		err = reg.AddBootstrap(bootstraps[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (reg *register) logf(l logger.Level, format string, log ...interface{}) {
@@ -151,8 +179,8 @@ func (reg *register) Bootstraps() map[string]bootstrap.Bootstrap {
 	return bs
 }
 
-// PackRequest is used to pack node register request
-// is used to register.Register() and ctrlConn.handleTrustNode()
+// PackRequest is used to pack node register request,
+// it is used to register.Register() and ctrlConn.handleTrustNode()
 func (reg *register) PackRequest() []byte {
 	req := messages.NodeRegisterRequest{
 		GUID:         reg.ctx.global.GUID(),
@@ -195,7 +223,9 @@ func (reg *register) register(node *bootstrap.Node) error {
 	}
 	switch result[0] {
 	case messages.RegisterResultAccept:
-		// receive certificate and a part of node listeners that controller select
+
+		// TODO receive certificate and a part of
+		// node listeners that controller select
 		return nil
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)
@@ -209,20 +239,19 @@ func (reg *register) register(node *bootstrap.Node) error {
 }
 
 // Register is used to register to Controller
+// <security> only use the first bootstrap
 func (reg *register) Register() error {
 	if reg.skip {
 		return nil
 	}
 	reg.log(logger.Debug, "start register")
-	// <security> only use the first bootstrap
-	boot := reg.bootstraps[reg.firstTag]
 	// try 3 times
 	var (
 		nodes []*bootstrap.Node
 		err   error
 	)
 	for i := 0; i < 3; i++ {
-		nodes, err = boot.Resolve() // resolve bootstrap nodes
+		nodes, err = reg.first.Resolve() // resolve bootstrap nodes
 		if err == nil {
 			break
 		}

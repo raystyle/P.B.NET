@@ -127,7 +127,7 @@ func (node *Node) Main() error {
 	if err != nil {
 		return node.fatal(err, "failed to deploy server")
 	}
-	// register
+	// start register
 	err = node.register.Register()
 	if err != nil {
 		return node.fatal(err, "failed to register")
