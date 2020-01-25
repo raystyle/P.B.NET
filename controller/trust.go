@@ -11,6 +11,7 @@ import (
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
+	"project/internal/security"
 )
 
 // TrustNode is used to trust Node, receive system info for confirm it.
@@ -19,7 +20,7 @@ func (ctrl *CTRL) TrustNode(
 	ctx context.Context,
 	node *bootstrap.Node,
 ) (*messages.NodeRegisterRequest, error) {
-	client, err := newClient(ctx, ctrl, node, nil, nil)
+	client, err := ctrl.newClient(ctx, node, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -52,15 +53,25 @@ func (ctrl *CTRL) ConfirmTrustNode(
 	node *bootstrap.Node,
 	req *messages.NodeRegisterRequest,
 ) error {
-	client, err := newClient(ctx, ctrl, node, nil, nil)
+	client, err := ctrl.newClient(ctx, node, nil, nil)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 	// issue certificates
-	cert := ctrl.issueCertificate(node.Address, req.GUID)
-	// send response
-	reply, err := client.Send(protocol.CtrlSetNodeCert, cert)
+	cert := protocol.Certificate{
+		GUID:      req.GUID,
+		PublicKey: req.PublicKey,
+	}
+	privateKey := ctrl.global.PrivateKey()
+	defer security.CoverBytes(privateKey)
+	err = protocol.IssueCertificate(&cert, privateKey)
+	if err != nil {
+		return err
+	}
+	security.CoverBytes(privateKey)
+	// send certificate
+	reply, err := client.Send(protocol.CtrlSetNodeCert, cert.Encode())
 	if err != nil {
 		return errors.WithMessage(err, "failed to set node certificate")
 	}
@@ -80,23 +91,4 @@ func (ctrl *CTRL) ConfirmTrustNode(
 		SessionKey:  sessionKey,
 		IsBootstrap: true,
 	})
-}
-
-func (ctrl *CTRL) issueCertificate(address string, guid []byte) []byte {
-	// sign certificate with node guid
-	buffer := bytes.Buffer{}
-	buffer.WriteString(address)
-	buffer.Write(guid)
-	certWithNodeGUID := ctrl.global.Sign(buffer.Bytes())
-	// sign certificate with controller guid
-	buffer.Truncate(len(address))
-	buffer.Write(protocol.CtrlGUID)
-	certWithCtrlGUID := ctrl.global.Sign(buffer.Bytes())
-	// pack certificates
-	// ed25519 signature with node guid
-	// ed25519 signature with ctrl guid
-	buffer.Reset()
-	buffer.Write(certWithNodeGUID)
-	buffer.Write(certWithCtrlGUID)
-	return buffer.Bytes()
 }

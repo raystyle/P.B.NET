@@ -7,6 +7,7 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/module/info"
+	"project/internal/protocol"
 )
 
 // Bootstrap is padding
@@ -63,7 +64,7 @@ type NodeRegisterResponse struct {
 	PublicKey    []byte // verify message
 	KexPublicKey []byte // key exchange
 	Result       uint8
-	Certificates []byte
+	Certificate  []byte
 	Listeners    []*Listener
 	RequestTime  time.Time
 	ReplyTime    time.Time
@@ -83,8 +84,7 @@ func (r *NodeRegisterResponse) Validate() error {
 	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {
 		return errors.New("unknown node register result")
 	}
-	// see controller/certificate.go CTRL.issueCertificate()
-	if len(r.Certificates) != 2*ed25519.SignatureSize {
+	if len(r.Certificate) != protocol.CertificateSize {
 		return errors.New("invalid certificate size")
 	}
 	return nil

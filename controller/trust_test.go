@@ -1,27 +1,15 @@
 package controller
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
-	"project/internal/guid"
 	"project/internal/module/info"
 	"project/internal/xnet"
 )
-
-func TestIssueVerifyCertificate(t *testing.T) {
-	testInitializeController(t)
-
-	const address = "localhost:9931"
-	nodeGUID := bytes.Repeat([]byte{1}, guid.Size)
-	cert := ctrl.issueCertificate(address, nodeGUID)
-	client := client{ctx: ctrl}
-	require.True(t, client.verifyCertificate(cert, address, nodeGUID))
-}
 
 func TestVerifyInvalidCertificate(t *testing.T) {
 	testInitializeController(t)

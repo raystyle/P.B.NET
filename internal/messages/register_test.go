@@ -45,7 +45,7 @@ func TestNodeRegisterResponse_Validate(t *testing.T) {
 	nrr.Result = RegisterResultAccept
 
 	require.EqualError(t, nrr.Validate(), "invalid certificate size")
-	nrr.Certificates = bytes.Repeat([]byte{0}, 2*ed25519.SignatureSize)
+	nrr.Certificate = bytes.Repeat([]byte{0}, protocol.CertificateSize)
 
 	require.NoError(t, nrr.Validate())
 }
