@@ -10,13 +10,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/controller"
 	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/option"
 	"project/internal/xnet"
+
+	"project/controller"
 	"project/node"
 	"project/testdata"
 )
@@ -177,11 +178,13 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 		{Cert: string(c), Key: string(k)},
 	}
 
+	// run
 	go func() {
 		err := NODE.Main()
 		require.NoError(t, err)
 	}()
 	NODE.Wait()
+
 	require.NoError(t, NODE.AddListener(&listener))
 	return NODE
 }
