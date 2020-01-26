@@ -131,7 +131,7 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	return NODE
 }
 
-func testGenerateClient(tb testing.TB, node *node.Node) *client {
+func testGenerateClient(tb testing.TB, node *node.Node) *Client {
 	listener, err := node.GetListener(testInitialNodeListenerTag)
 	require.NoError(tb, err)
 	bListener := &bootstrap.Listener{
@@ -139,7 +139,7 @@ func testGenerateClient(tb testing.TB, node *node.Node) *client {
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
-	client, err := ctrl.newClient(context.Background(), bListener, nil, nil)
+	client, err := ctrl.NewClient(context.Background(), bListener, nil, nil)
 	require.NoError(tb, err)
 	return client
 }
@@ -173,6 +173,7 @@ func TestClient_SendParallel(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	send := func() {
+		defer wg.Done()
 		data := bytes.Buffer{}
 		for i := 0; i < 1024; i++ {
 			data.Write(convert.Int32ToBytes(int32(i)))
@@ -181,7 +182,6 @@ func TestClient_SendParallel(t *testing.T) {
 			require.Equal(t, data.Bytes(), reply)
 			data.Reset()
 		}
-		wg.Done()
 	}
 	for i := 0; i < 16; i++ {
 		wg.Add(1)

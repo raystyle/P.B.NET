@@ -98,7 +98,7 @@ func (ctrl *CTRL) TrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 ) (*messages.NodeRegisterRequest, error) {
-	client, err := ctrl.newClient(ctx, listener, nil, nil)
+	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (ctrl *CTRL) ConfirmTrustNode(
 	listener *bootstrap.Listener,
 	req *messages.NodeRegisterRequest,
 ) error {
-	client, err := ctrl.newClient(ctx, listener, nil, nil)
+	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
 		return err
 	}

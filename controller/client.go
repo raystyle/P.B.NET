@@ -29,7 +29,8 @@ import (
 	"project/internal/xpanic"
 )
 
-type client struct {
+// Client is used to connect node listener
+type Client struct {
 	ctx *CTRL
 
 	guid      []byte // node guid
@@ -49,16 +50,16 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
-// newClient is used to create a client that connected Node
+// NewClient is used to create a client and connect node listener
 // when guid == nil       for trust node
 // when guid != ctrl guid for sender client
 // when guid == ctrl guid for discovery
-func (ctrl *CTRL) newClient(
+func (ctrl *CTRL) NewClient(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 	guid []byte,
 	closeFunc func(),
-) (*client, error) {
+) (*Client, error) {
 	// dial
 	host, port, err := net.SplitHostPort(listener.Address)
 	if err != nil {
@@ -71,6 +72,7 @@ func (ctrl *CTRL) newClient(
 			ServerName: host,
 			RootCAs:    x509.NewCertPool(),
 			MinVersion: tls.VersionTLS12,
+			NextProtos: []string{"http/1.1"}, // TODO add config
 		},
 		Timeout: ctrl.clientMgr.GetTimeout(),
 		Now:     ctrl.global.Now,
@@ -108,7 +110,7 @@ func (ctrl *CTRL) newClient(
 	}
 
 	// handshake
-	client := &client{
+	client := &Client{
 		ctx:       ctrl,
 		guid:      guid,
 		conn:      conn,
@@ -118,8 +120,8 @@ func (ctrl *CTRL) newClient(
 	err = client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
-		const format = "failed to handshake with node: %s"
-		return nil, errors.WithMessagef(err, format, listener.Address)
+		const format = "failed to handshake with node listener: %s"
+		return nil, errors.WithMessagef(err, format, listener)
 	}
 
 	// initialize message slots
@@ -161,19 +163,19 @@ func (ctrl *CTRL) newClient(
 // mode:   tls,  default network: tcp
 // connect time: 2019-12-26 21:44:13
 // ----------------------------------------------------
-func (client *client) logf(lv logger.Level, format string, log ...interface{}) {
+func (client *Client) logf(lv logger.Level, format string, log ...interface{}) {
 	output := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(output, format+"\n", log...)
 	client.logExtra(lv, output)
 }
 
-func (client *client) log(lv logger.Level, log ...interface{}) {
+func (client *Client) log(lv logger.Level, log ...interface{}) {
 	output := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(output, log...)
 	client.logExtra(lv, output)
 }
 
-func (client *client) logExtra(lv logger.Level, buf *bytes.Buffer) {
+func (client *Client) logExtra(lv logger.Level, buf *bytes.Buffer) {
 	if client.guid != nil {
 		const format = "----------------connected node guid-----------------\n%X\n%X\n"
 		_, _ = fmt.Fprintf(buf, format, client.guid[:guid.Size/2], client.guid[guid.Size/2:])
@@ -186,7 +188,7 @@ func (client *client) logExtra(lv logger.Level, buf *bytes.Buffer) {
 }
 
 // Zero—Knowledge Proof
-func (client *client) handshake(conn *xnet.Conn) error {
+func (client *Client) handshake(conn *xnet.Conn) error {
 	timeout := client.ctx.clientMgr.GetTimeout()
 	_ = conn.SetDeadline(client.ctx.global.Now().Add(timeout))
 	// check connection
@@ -238,7 +240,7 @@ func (client *client) handshake(conn *xnet.Conn) error {
 	return conn.SetDeadline(time.Time{})
 }
 
-func (client *client) checkConn(conn *xnet.Conn) error {
+func (client *Client) checkConn(conn *xnet.Conn) error {
 	size := byte(100 + client.rand.Int(156))
 	data := client.rand.Bytes(int(size))
 	_, err := conn.Write(append([]byte{size}, data...))
@@ -255,16 +257,16 @@ func (client *client) checkConn(conn *xnet.Conn) error {
 	return nil
 }
 
-func (client *client) isClosed() bool {
+func (client *Client) isClosed() bool {
 	return atomic.LoadInt32(&client.inClose) != 0
 }
 
-func (client *client) isSync() bool {
+func (client *Client) isSync() bool {
 	return atomic.LoadInt32(&client.inSync) != 0
 }
 
 // can use client.Close()
-func (client *client) onFrame(frame []byte) {
+func (client *Client) onFrame(frame []byte) {
 	if client.isClosed() {
 		return
 	}
@@ -304,7 +306,7 @@ func (client *client) onFrame(frame []byte) {
 	}
 }
 
-func (client *client) onFrameAfterSync(cmd byte, id, data []byte) bool {
+func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.NodeSendGUID:
 		client.handleNodeSendGUID(id, data)
@@ -332,7 +334,7 @@ func (client *client) onFrameAfterSync(cmd byte, id, data []byte) bool {
 	return true
 }
 
-func (client *client) sendHeartbeatLoop() {
+func (client *Client) sendHeartbeatLoop() {
 	defer client.wg.Done()
 	var err error
 	buffer := bytes.NewBuffer(nil)
@@ -372,7 +374,7 @@ func (client *client) sendHeartbeatLoop() {
 	}
 }
 
-func (client *client) reply(id, reply []byte) {
+func (client *Client) reply(id, reply []byte) {
 	if client.isClosed() {
 		return
 	}
@@ -393,7 +395,7 @@ func (client *client) reply(id, reply []byte) {
 }
 
 // msg id(2 bytes) + data
-func (client *client) handleReply(reply []byte) {
+func (client *Client) handleReply(reply []byte) {
 	l := len(reply)
 	if l < protocol.FrameIDSize {
 		client.log(logger.Exploit, protocol.ErrRecvInvalidFrameIDSize)
@@ -419,7 +421,7 @@ func (client *client) handleReply(reply []byte) {
 }
 
 // Synchronize is used to switch to synchronize mode
-func (client *client) Synchronize() error {
+func (client *Client) Synchronize() error {
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
 	if client.isSync() {
@@ -436,7 +438,7 @@ func (client *client) Synchronize() error {
 	return nil
 }
 
-func (client *client) handleNodeSendGUID(id, data []byte) {
+func (client *Client) handleNodeSendGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		client.log(logger.Exploit, "invalid node send guid size")
 		client.reply(id, protocol.ReplyHandled)
@@ -452,7 +454,7 @@ func (client *client) handleNodeSendGUID(id, data []byte) {
 	}
 }
 
-func (client *client) handleNodeAckGUID(id, data []byte) {
+func (client *Client) handleNodeAckGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		client.log(logger.Exploit, "invalid node ack guid size")
 		client.reply(id, protocol.ReplyHandled)
@@ -468,7 +470,7 @@ func (client *client) handleNodeAckGUID(id, data []byte) {
 	}
 }
 
-func (client *client) handleBeaconSendGUID(id, data []byte) {
+func (client *Client) handleBeaconSendGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		client.log(logger.Exploit, "invalid beacon send guid size")
 		client.reply(id, protocol.ReplyHandled)
@@ -484,7 +486,7 @@ func (client *client) handleBeaconSendGUID(id, data []byte) {
 	}
 }
 
-func (client *client) handleBeaconAckGUID(id, data []byte) {
+func (client *Client) handleBeaconAckGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		client.log(logger.Exploit, "invalid beacon ack guid size")
 		client.reply(id, protocol.ReplyHandled)
@@ -500,7 +502,7 @@ func (client *client) handleBeaconAckGUID(id, data []byte) {
 	}
 }
 
-func (client *client) handleBeaconQueryGUID(id, data []byte) {
+func (client *Client) handleBeaconQueryGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		client.log(logger.Exploit, "invalid query guid size")
 		client.reply(id, protocol.ReplyHandled)
@@ -516,7 +518,7 @@ func (client *client) handleBeaconQueryGUID(id, data []byte) {
 	}
 }
 
-func (client *client) handleNodeSend(id, data []byte) {
+func (client *Client) handleNodeSend(id, data []byte) {
 	s := client.ctx.worker.GetSendFromPool()
 	err := msgpack.Unmarshal(data, &s)
 	if err != nil {
@@ -547,7 +549,7 @@ func (client *client) handleNodeSend(id, data []byte) {
 	}
 }
 
-func (client *client) handleNodeAck(id, data []byte) {
+func (client *Client) handleNodeAck(id, data []byte) {
 	a := client.ctx.worker.GetAcknowledgeFromPool()
 	err := msgpack.Unmarshal(data, a)
 	if err != nil {
@@ -578,7 +580,7 @@ func (client *client) handleNodeAck(id, data []byte) {
 	}
 }
 
-func (client *client) handleBeaconSend(id, data []byte) {
+func (client *Client) handleBeaconSend(id, data []byte) {
 	s := client.ctx.worker.GetSendFromPool()
 	err := msgpack.Unmarshal(data, s)
 	if err != nil {
@@ -609,7 +611,7 @@ func (client *client) handleBeaconSend(id, data []byte) {
 	}
 }
 
-func (client *client) handleBeaconAck(id, data []byte) {
+func (client *Client) handleBeaconAck(id, data []byte) {
 	a := client.ctx.worker.GetAcknowledgeFromPool()
 	err := msgpack.Unmarshal(data, a)
 	if err != nil {
@@ -640,7 +642,7 @@ func (client *client) handleBeaconAck(id, data []byte) {
 	}
 }
 
-func (client *client) handleBeaconQuery(id, data []byte) {
+func (client *Client) handleBeaconQuery(id, data []byte) {
 	q := client.ctx.worker.GetQueryFromPool()
 	err := msgpack.Unmarshal(data, q)
 	if err != nil {
@@ -672,7 +674,7 @@ func (client *client) handleBeaconQuery(id, data []byte) {
 }
 
 // Send is used to send command and receive reply
-func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
+func (client *Client) Send(cmd uint8, data []byte) ([]byte, error) {
 	if client.isClosed() {
 		return nil, protocol.ErrConnClosed
 	}
@@ -728,7 +730,7 @@ func (client *client) Send(cmd uint8, data []byte) ([]byte, error) {
 }
 
 // Broadcast is used to broadcast message to nodes
-func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse) {
+func (client *Client) Broadcast(guid, data []byte) (br *protocol.BroadcastResponse) {
 	br = &protocol.BroadcastResponse{
 		GUID: client.guid,
 	}
@@ -753,7 +755,7 @@ func (client *client) Broadcast(guid, data []byte) (br *protocol.BroadcastRespon
 }
 
 // SendToNode is used to send message to node
-func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) {
+func (client *Client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
@@ -778,7 +780,7 @@ func (client *client) SendToNode(guid, data []byte) (sr *protocol.SendResponse) 
 }
 
 // SendToBeacon is used to send message to beacon
-func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse) {
+func (client *Client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
@@ -804,7 +806,7 @@ func (client *client) SendToBeacon(guid, data []byte) (sr *protocol.SendResponse
 
 // AcknowledgeToNode is used to notice Node that
 // Controller has received this message
-func (client *client) AcknowledgeToNode(guid, data []byte) (ar *protocol.AcknowledgeResponse) {
+func (client *Client) AcknowledgeToNode(guid, data []byte) (ar *protocol.AcknowledgeResponse) {
 	ar = &protocol.AcknowledgeResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
@@ -829,7 +831,7 @@ func (client *client) AcknowledgeToNode(guid, data []byte) (ar *protocol.Acknowl
 
 // AcknowledgeToBeacon is used to notice Beacon that
 // Controller has received this message
-func (client *client) AcknowledgeToBeacon(guid, data []byte) (ar *protocol.AcknowledgeResponse) {
+func (client *Client) AcknowledgeToBeacon(guid, data []byte) (ar *protocol.AcknowledgeResponse) {
 	ar = &protocol.AcknowledgeResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
@@ -853,7 +855,7 @@ func (client *client) AcknowledgeToBeacon(guid, data []byte) (ar *protocol.Ackno
 }
 
 // Answer is used to return the result of the beacon query
-func (client *client) Answer(guid, data []byte) (ar *protocol.AnswerResponse) {
+func (client *Client) Answer(guid, data []byte) (ar *protocol.AnswerResponse) {
 	ar = &protocol.AnswerResponse{
 		GUID: client.guid,
 	}
@@ -876,12 +878,12 @@ func (client *client) Answer(guid, data []byte) (ar *protocol.AnswerResponse) {
 }
 
 // Status is used to get connection status
-func (client *client) Status() *xnet.Status {
+func (client *Client) Status() *xnet.Status {
 	return client.conn.Status()
 }
 
 // Close is used to disconnect node
-func (client *client) Close() {
+func (client *Client) Close() {
 	client.closeOnce.Do(func() {
 		atomic.StoreInt32(&client.inClose, 1)
 		_ = client.conn.Close()
@@ -895,7 +897,7 @@ func (client *client) Close() {
 	})
 }
 
-// clientMgr contains all clients from newClient() and client options from Config
+// clientMgr contains all clients from NewClient() and client options from Config
 // it can generate client tag, you can manage all clients here
 type clientMgr struct {
 	ctx *CTRL
@@ -907,7 +909,7 @@ type clientMgr struct {
 	optsRWM  sync.RWMutex
 
 	guid       *guid.Generator
-	clients    map[string]*client
+	clients    map[string]*Client
 	clientsRWM sync.RWMutex
 }
 
@@ -924,7 +926,7 @@ func newClientManager(ctx *CTRL, config *Config) (*clientMgr, error) {
 		timeout:  cfg.Timeout,
 		dnsOpts:  cfg.DNSOpts,
 		guid:     guid.New(4, ctx.global.Now),
-		clients:  make(map[string]*client),
+		clients:  make(map[string]*Client),
 	}, nil
 }
 
@@ -974,13 +976,13 @@ func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 	cm.dnsOpts = *opts.Clone()
 }
 
-// GenerateTag is used to generate client tag, it for newClient()
+// GenerateTag is used to generate client tag, it for NewClient()
 func (cm *clientMgr) GenerateTag() string {
 	return hex.EncodeToString(cm.guid.Get())
 }
 
-// for newClient()
-func (cm *clientMgr) Add(client *client) {
+// for NewClient()
+func (cm *clientMgr) Add(client *Client) {
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
 	if _, ok := cm.clients[client.tag]; !ok {
@@ -996,10 +998,10 @@ func (cm *clientMgr) Delete(tag string) {
 }
 
 // Clients is used to get all clients
-func (cm *clientMgr) Clients() map[string]*client {
+func (cm *clientMgr) Clients() map[string]*Client {
 	cm.clientsRWM.RLock()
 	defer cm.clientsRWM.RUnlock()
-	cs := make(map[string]*client, len(cm.clients))
+	cs := make(map[string]*Client, len(cm.clients))
 	for tag, client := range cm.clients {
 		cs[tag] = client
 	}

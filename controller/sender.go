@@ -83,7 +83,7 @@ type sender struct {
 	sendResultPool      sync.Pool
 
 	// key = hex(GUID) upper
-	clients    map[string]*client
+	clients    map[string]*Client
 	clientsRWM sync.RWMutex
 
 	// check beacon is in interactive mode
@@ -131,7 +131,7 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 		broadcastTaskQueue: make(chan *broadcastTask, cfg.QueueSize),
 		sendTaskQueue:      make(chan *sendTask, cfg.QueueSize),
 		ackTaskQueue:       make(chan *ackTask, cfg.QueueSize),
-		clients:            make(map[string]*client, cfg.MaxConns),
+		clients:            make(map[string]*Client, cfg.MaxConns),
 		interactive:        make(map[string]bool),
 		nodeAckSlots:       make(map[string]*roleAckSlot),
 		beaconAckSlots:     make(map[string]*roleAckSlot),
@@ -216,7 +216,7 @@ func (sender *sender) ConnectWithContext(
 	if _, ok := sender.clients[key]; ok {
 		return errors.Errorf("connect the same node listener %s", listener)
 	}
-	client, err := sender.ctx.newClient(ctx, listener, guid, func() {
+	client, err := sender.ctx.NewClient(ctx, listener, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, key)
@@ -464,10 +464,10 @@ func (sender *sender) isInInteractiveMode(guid string) bool {
 	return sender.interactive[guid]
 }
 
-func (sender *sender) Clients() map[string]*client {
+func (sender *sender) Clients() map[string]*Client {
 	sender.clientsRWM.RLock()
 	defer sender.clientsRWM.RUnlock()
-	clients := make(map[string]*client, len(sender.clients))
+	clients := make(map[string]*Client, len(sender.clients))
 	for key, client := range sender.clients {
 		clients[key] = client
 	}
@@ -516,7 +516,7 @@ func (sender *sender) broadcast(guid, message []byte) ([]*protocol.BroadcastResp
 	// broadcast parallel
 	resp := make(chan *protocol.BroadcastResponse)
 	for _, c := range clients {
-		go func(c *client) {
+		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
 					err := xpanic.Error(r, "sender.broadcast")
@@ -547,7 +547,7 @@ func (sender *sender) sendToNode(guid, message []byte) ([]*protocol.SendResponse
 	// send parallel
 	resp := make(chan *protocol.SendResponse)
 	for _, c := range clients {
-		go func(c *client) {
+		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
 					err := xpanic.Error(r, "sender.sendToNode")
@@ -578,7 +578,7 @@ func (sender *sender) sendToBeacon(guid, message []byte) ([]*protocol.SendRespon
 	// send parallel
 	resp := make(chan *protocol.SendResponse)
 	for _, c := range clients {
-		go func(c *client) {
+		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
 					err := xpanic.Error(r, "sender.sendToBeacon")
@@ -609,7 +609,7 @@ func (sender *sender) acknowledgeToNode(guid, data []byte) ([]*protocol.Acknowle
 	// acknowledge parallel
 	resp := make(chan *protocol.AcknowledgeResponse, l)
 	for _, c := range clients {
-		go func(c *client) {
+		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
 					err := xpanic.Error(r, "sender.acknowledgeToNode")
@@ -640,7 +640,7 @@ func (sender *sender) acknowledgeToBeacon(guid, data []byte) ([]*protocol.Acknow
 	// acknowledge parallel
 	resp := make(chan *protocol.AcknowledgeResponse, l)
 	for _, c := range clients {
-		go func(c *client) {
+		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
 					err := xpanic.Error(r, "sender.acknowledgeToBeacon")
