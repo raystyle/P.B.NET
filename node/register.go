@@ -215,7 +215,7 @@ func (reg *register) register(node *bootstrap.Node) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}
-	// wait register result
+	// wait Controller broadcast register result
 	_ = conn.SetDeadline(reg.ctx.global.Now().Add(time.Minute))
 	result := make([]byte, 1)
 	_, err = io.ReadFull(conn, result)
@@ -224,9 +224,13 @@ func (reg *register) register(node *bootstrap.Node) error {
 	}
 	switch result[0] {
 	case messages.RegisterResultAccept:
-		// TODO receive certificate and a part of
-		// node listeners that controller select
-		return nil
+		// receive node certificate
+		cert := make([]byte, protocol.CertificateSize)
+		_, err = io.ReadFull(conn, cert)
+		if err != nil {
+			return errors.Wrap(err, "failed to receive certificate")
+		}
+		return reg.ctx.global.SetCertificate(cert)
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)
 	case messages.RegisterResultTimeout:

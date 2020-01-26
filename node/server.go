@@ -646,8 +646,7 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 	// create node register
 	response := s.ctx.storage.CreateNodeRegister(guid)
 	if response == nil {
-		_ = conn.Send([]byte{messages.RegisterResultRefused})
-		s.logfConn(conn, logger.Exploit, "failed to create node register\nguid: %X", guid)
+		s.logfConn(conn, logger.Warning, "failed to create node register\nguid: %X", guid)
 		return
 	}
 	// send node register request to controller
@@ -670,13 +669,13 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 	resp := <-response
 	switch resp.Result {
 	case messages.RegisterResultAccept:
-		_ = conn.Send([]byte{messages.RegisterResultAccept})
-		// send certificate and listener configs
+		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
+		_, _ = conn.Write(resp.Certificate)
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
-		_ = conn.Send([]byte{messages.RegisterResultRefused})
+		_, _ = conn.Write([]byte{messages.RegisterResultRefused})
 	case messages.RegisterResultTimeout:
-		_ = conn.Send([]byte{messages.RegisterResultTimeout})
+		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	default:
 		s.logfConn(conn, logger.Exploit, "unknown register result: %d", resp.Result)
 	}
