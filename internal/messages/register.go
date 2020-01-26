@@ -4,13 +4,14 @@ import (
 	"errors"
 	"time"
 
+	"project/internal/bootstrap"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/module/info"
 	"project/internal/protocol"
 )
 
-// Bootstrap is padding
+// Bootstrap contains tag, mode and configuration
 type Bootstrap struct {
 	Tag    string
 	Mode   string
@@ -34,7 +35,7 @@ var (
 // NodeRegisterRequest is used to Node register,
 // controller trust node also use it
 type NodeRegisterRequest struct {
-	GUID         []byte
+	GUID         []byte // Node GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
 	SystemInfo   *info.System
@@ -60,14 +61,21 @@ func (r *NodeRegisterRequest) Validate() error {
 
 // NodeRegisterResponse is used to return Node register response
 type NodeRegisterResponse struct {
-	GUID         []byte
-	PublicKey    []byte // verify message
-	KexPublicKey []byte // key exchange
-	Result       uint8
-	Certificate  []byte
-	Listeners    []*Listener
-	RequestTime  time.Time
-	ReplyTime    time.Time
+	GUID []byte // Node GUID
+
+	// all node save it
+	PublicKey    []byte
+	KexPublicKey []byte
+
+	RequestTime time.Time
+	ReplyTime   time.Time
+
+	Result      uint8
+	Certificate []byte
+
+	// key = hex(node guid)
+	// a part of all node listeners
+	Listeners map[string][]*bootstrap.Listener
 }
 
 // Validate is used to validate response fields
@@ -92,7 +100,7 @@ func (r *NodeRegisterResponse) Validate() error {
 
 // BeaconRegisterRequest is used to Beacon register
 type BeaconRegisterRequest struct {
-	GUID         []byte
+	GUID         []byte // Beacon GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
 	SystemInfo   *info.System
@@ -118,12 +126,20 @@ func (r *BeaconRegisterRequest) Validate() error {
 
 // BeaconRegisterResponse is used to return Beacon register response
 type BeaconRegisterResponse struct {
-	GUID         []byte
-	PublicKey    []byte // verify message
-	KexPublicKey []byte // key exchange
-	Result       uint8
-	RequestTime  time.Time
-	ReplyTime    time.Time
+	GUID []byte // Beacon GUID
+
+	// all node save it
+	PublicKey    []byte
+	KexPublicKey []byte
+
+	RequestTime time.Time
+	ReplyTime   time.Time
+
+	Result uint8
+
+	// key = hex(node guid)
+	// a part of all node listeners
+	Listeners map[string][]*bootstrap.Listener // key = hex(node guid)
 }
 
 // Validate is used to validate response fields
