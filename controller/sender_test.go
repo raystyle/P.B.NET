@@ -26,18 +26,18 @@ func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
 	NODE := testGenerateInitialNode(t)
 	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
-	bn := bootstrap.Node{
+	bListener := &bootstrap.Listener{
 		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
 	// trust node
-	req, err := ctrl.TrustNode(context.Background(), &bn)
+	req, err := ctrl.TrustNode(context.Background(), bListener)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(context.Background(), &bn, req)
+	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.Connect(&bn, NODE.GUID())
+	err = ctrl.Connect(bListener, NODE.GUID())
 	require.NoError(t, err)
 	return NODE
 }

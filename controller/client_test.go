@@ -134,21 +134,23 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 func testGenerateClient(tb testing.TB, node *node.Node) *client {
 	listener, err := node.GetListener(testInitialNodeListenerTag)
 	require.NoError(tb, err)
-	n := &bootstrap.Node{
+	bListener := &bootstrap.Listener{
 		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
-	client, err := ctrl.newClient(context.Background(), n, nil, nil)
+	client, err := ctrl.newClient(context.Background(), bListener, nil, nil)
 	require.NoError(tb, err)
 	return client
 }
 
 func TestClient_Send(t *testing.T) {
 	testInitializeController(t)
+
 	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
+
 	data := bytes.Buffer{}
 	for i := 0; i < 1024; i++ {
 		data.Write(convert.Int32ToBytes(int32(i)))
@@ -157,15 +159,18 @@ func TestClient_Send(t *testing.T) {
 		require.Equal(t, data.Bytes(), reply)
 		data.Reset()
 	}
+
 	client.Close()
 	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_SendParallel(t *testing.T) {
 	testInitializeController(t)
+
 	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(t, NODE)
+
 	wg := sync.WaitGroup{}
 	send := func() {
 		data := bytes.Buffer{}
@@ -183,18 +188,21 @@ func TestClient_SendParallel(t *testing.T) {
 		go send()
 	}
 	wg.Wait()
+
 	client.Close()
 	testsuite.IsDestroyed(t, client)
 }
 
 func BenchmarkClient_Send(b *testing.B) {
 	testInitializeController(b)
+
 	NODE := testGenerateInitialNode(b)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
 	data := bytes.Buffer{}
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		data.Write(convert.Int32ToBytes(int32(i)))
 		// _, _ = client.Send(protocol.TestCommand, data.Bytes())
@@ -203,6 +211,7 @@ func BenchmarkClient_Send(b *testing.B) {
 		require.Equal(b, data.Bytes(), reply)
 		data.Reset()
 	}
+
 	b.StopTimer()
 	client.Close()
 	testsuite.IsDestroyed(b, client)
@@ -210,11 +219,13 @@ func BenchmarkClient_Send(b *testing.B) {
 
 func BenchmarkClient_SendParallel(b *testing.B) {
 	testInitializeController(b)
+
 	NODE := testGenerateInitialNode(b)
 	defer NODE.Exit(nil)
 	client := testGenerateClient(b, NODE)
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	b.RunParallel(func(pb *testing.PB) {
 		data := bytes.Buffer{}
 		i := 0
@@ -228,6 +239,7 @@ func BenchmarkClient_SendParallel(b *testing.B) {
 			i++
 		}
 	})
+
 	b.StopTimer()
 	client.Close()
 	testsuite.IsDestroyed(b, client)

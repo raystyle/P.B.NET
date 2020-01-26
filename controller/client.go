@@ -32,7 +32,6 @@ import (
 type client struct {
 	ctx *CTRL
 
-	node      *bootstrap.Node
 	guid      []byte // node guid
 	closeFunc func()
 
@@ -56,12 +55,12 @@ type client struct {
 // when guid == ctrl guid for discovery
 func (ctrl *CTRL) newClient(
 	ctx context.Context,
-	node *bootstrap.Node,
+	listener *bootstrap.Listener,
 	guid []byte,
 	closeFunc func(),
 ) (*client, error) {
 	// dial
-	host, port, err := net.SplitHostPort(node.Address)
+	host, port, err := net.SplitHostPort(listener.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -98,20 +97,19 @@ func (ctrl *CTRL) newClient(
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
 		address := net.JoinHostPort(result[i], port)
-		conn, err = xnet.DialContext(ctx, node.Mode, node.Network, address, &opts)
+		conn, err = xnet.DialContext(ctx, listener.Mode, listener.Network, address, &opts)
 		if err == nil {
 			break
 		}
 	}
 	if conn == nil {
-		const format = "failed to connect node %s, because %s"
-		return nil, errors.Errorf(format, node.Address, err)
+		const format = "failed to connect node listener %s, because %s"
+		return nil, errors.Errorf(format, listener, err)
 	}
 
 	// handshake
 	client := &client{
 		ctx:       ctrl,
-		node:      node,
 		guid:      guid,
 		conn:      conn,
 		closeFunc: closeFunc,
@@ -121,7 +119,7 @@ func (ctrl *CTRL) newClient(
 	if err != nil {
 		_ = conn.Close()
 		const format = "failed to handshake with node: %s"
-		return nil, errors.WithMessagef(err, format, node.Address)
+		return nil, errors.WithMessagef(err, format, listener.Address)
 	}
 
 	// initialize message slots

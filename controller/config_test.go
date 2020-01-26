@@ -128,16 +128,16 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 
 	listener, err := NODE.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
-	node := &bootstrap.Node{
+	bListener := &bootstrap.Listener{
 		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
 
-	req, err := ctrl.TrustNode(context.Background(), node)
+	req, err := ctrl.TrustNode(context.Background(), bListener)
 	require.NoError(t, err)
 	require.Equal(t, info.GetSystemInfo(), req.SystemInfo)
 	t.Log(req.SystemInfo)
-	err = ctrl.ConfirmTrustNode(context.Background(), node, req)
+	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
 	require.NoError(t, err)
 }

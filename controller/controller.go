@@ -24,7 +24,7 @@ type CTRL struct {
 	syncer    *syncer    // receive message
 	handler   *handler   // handle message from Node or Beacon
 	worker    *worker    // do work
-	boot      *boot      // auto discover bootstrap nodes
+	boot      *boot      // auto discover bootstrap node listeners
 	web       *web       // web server
 
 	once sync.Once
@@ -136,7 +136,7 @@ func (ctrl *CTRL) Main() error {
 	}
 	ctrl.logger.Print(logger.Info, "main", "load session key successfully")
 	// load boots
-	ctrl.logger.Print(logger.Info, "main", "start discover bootstrap nodes")
+	ctrl.logger.Print(logger.Info, "main", "start discover bootstrap node listeners")
 	boots, err := ctrl.database.SelectBoot()
 	if err != nil {
 		ctrl.logger.Println(logger.Error, "main", "failed to select boot:", err)
@@ -184,9 +184,9 @@ func (ctrl *CTRL) LoadSessionKey(data, password []byte) error {
 	return ctrl.global.LoadSessionKey(data, password)
 }
 
-// Connect is used to connect node
-func (ctrl *CTRL) Connect(node *bootstrap.Node, guid []byte) error {
-	return ctrl.sender.Connect(node, guid)
+// Connect is used to connect node listener
+func (ctrl *CTRL) Connect(listener *bootstrap.Listener, guid []byte) error {
+	return ctrl.sender.Connect(listener, guid)
 }
 
 // Disconnect is used to disconnect node, guid is hex, upper

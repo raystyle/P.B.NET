@@ -201,12 +201,12 @@ func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	n := &bootstrap.Node{
+	listener := bootstrap.Listener{
 		Mode:    m.Mode,
 		Network: m.Network,
 		Address: m.Address,
 	}
-	req, err := web.ctx.TrustNode(context.TODO(), n)
+	req, err := web.ctx.TrustNode(context.TODO(), &listener)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return

@@ -96,9 +96,9 @@ type Config struct {
 // usually for the initial node or the test
 func (ctrl *CTRL) TrustNode(
 	ctx context.Context,
-	node *bootstrap.Node,
+	listener *bootstrap.Listener,
 ) (*messages.NodeRegisterRequest, error) {
-	client, err := ctrl.newClient(ctx, node, nil, nil)
+	client, err := ctrl.newClient(ctx, listener, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -128,10 +128,10 @@ func (ctrl *CTRL) TrustNode(
 // issue certificates and insert to database
 func (ctrl *CTRL) ConfirmTrustNode(
 	ctx context.Context,
-	node *bootstrap.Node,
+	listener *bootstrap.Listener,
 	req *messages.NodeRegisterRequest,
 ) error {
-	client, err := ctrl.newClient(ctx, node, nil, nil)
+	client, err := ctrl.newClient(ctx, listener, nil, nil)
 	if err != nil {
 		return err
 	}

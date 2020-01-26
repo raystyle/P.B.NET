@@ -21,7 +21,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 	testInitializeController(t)
 	NODE := testGenerateInitialNode(t)
 	defer NODE.Exit(nil)
-	node := &bootstrap.Node{
+	node := &bootstrap.Listener{
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: address,

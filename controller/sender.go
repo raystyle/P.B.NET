@@ -163,7 +163,7 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
 	}
-	sender.guid = guid.New(64*cfg.QueueSize, ctx.global.Now)
+	sender.guid = guid.New(cfg.QueueSize, ctx.global.Now)
 	sender.context, sender.cancel = context.WithCancel(context.Background())
 
 	// start sender workers
@@ -194,14 +194,14 @@ func (sender *sender) isClosed() bool {
 }
 
 // Connect is used to connect node for sync message
-func (sender *sender) Connect(node *bootstrap.Node, guid []byte) error {
-	return sender.ConnectWithContext(sender.context, node, guid)
+func (sender *sender) Connect(listener *bootstrap.Listener, guid []byte) error {
+	return sender.ConnectWithContext(sender.context, listener, guid)
 }
 
-// ConnectWithContext is used to connect node with context
+// ConnectWithContext is used to connect node listener with context
 func (sender *sender) ConnectWithContext(
 	ctx context.Context,
-	node *bootstrap.Node,
+	listener *bootstrap.Listener,
 	guid []byte,
 ) error {
 	if sender.isClosed() {
@@ -214,22 +214,22 @@ func (sender *sender) ConnectWithContext(
 	}
 	key := strings.ToUpper(hex.EncodeToString(guid))
 	if _, ok := sender.clients[key]; ok {
-		return errors.Errorf("connect the same node %s %s", node.Mode, node.Address)
+		return errors.Errorf("connect the same node listener %s", listener)
 	}
-	client, err := sender.ctx.newClient(ctx, node, guid, func() {
+	client, err := sender.ctx.newClient(ctx, listener, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, key)
 	})
 	if err != nil {
-		return errors.WithMessage(err, "failed to connect node")
+		return errors.WithMessage(err, "failed to connect node listener")
 	}
 	err = client.Synchronize()
 	if err != nil {
 		return err
 	}
 	sender.clients[key] = client
-	sender.logf(logger.Info, "connect node %s %s", node.Mode, node.Address)
+	sender.logf(logger.Info, "connect node listener: %s", listener)
 	return nil
 }
 
