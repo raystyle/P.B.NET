@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 
@@ -23,6 +24,12 @@ type Listener struct {
 	Mode    string `toml:"mode"`
 	Network string `toml:"network"`
 	Address string `toml:"address"`
+}
+
+// String is used to return listener info
+// tls (tcp 127.0.0.1:443)
+func (l *Listener) String() string {
+	return fmt.Sprintf("%s (%s %s)", l.Mode, l.Network, l.Address)
 }
 
 // Bootstrap is used to resolve bootstrap node listeners

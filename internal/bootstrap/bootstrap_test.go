@@ -11,6 +11,16 @@ import (
 	"project/internal/xnet"
 )
 
+func TestListener_String(t *testing.T) {
+	listener := Listener{
+		Mode:    xnet.ModeTLS,
+		Network: "tcp",
+		Address: "127.0.0.1:443",
+	}
+	expect := "tls (tcp 127.0.0.1:443)"
+	require.Equal(t, expect, listener.String())
+}
+
 func testGenerateListeners() []*Listener {
 	listeners := make([]*Listener, 2)
 	listeners[0] = &Listener{
