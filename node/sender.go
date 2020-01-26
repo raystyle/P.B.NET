@@ -97,7 +97,7 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
 	}
-	sender.guid = guid.New(64*cfg.QueueSize, ctx.global.Now)
+	sender.guid = guid.New(cfg.QueueSize, ctx.global.Now)
 
 	// start sender workers
 	sender.wg.Add(cfg.Worker)

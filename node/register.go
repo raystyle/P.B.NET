@@ -197,8 +197,8 @@ func (reg *register) PackRequest() []byte {
 }
 
 // register is used to register to Controller with Node
-func (reg *register) register(node *bootstrap.Node) error {
-	client, err := reg.ctx.newClient(reg.context, node, protocol.CtrlGUID, nil)
+func (reg *register) register(listener *bootstrap.Listener) error {
+	client, err := reg.ctx.newClient(reg.context, listener, protocol.CtrlGUID, nil)
 	if err != nil {
 		return err
 	}
@@ -249,13 +249,13 @@ func (reg *register) Register() error {
 		return nil
 	}
 	reg.log(logger.Debug, "start register")
-	// resolve bootstrap nodes with the first bootstrap, try 3 times
+	// resolve bootstrap node listeners with the first bootstrap, try 3 times
 	var (
-		nodes []*bootstrap.Node
-		err   error
+		listeners []*bootstrap.Listener
+		err       error
 	)
 	for i := 0; i < 3; i++ {
-		nodes, err = reg.first.Resolve()
+		listeners, err = reg.first.Resolve()
 		if err == nil {
 			break
 		}
@@ -263,13 +263,13 @@ func (reg *register) Register() error {
 		random.Sleep(reg.sleepFixed, reg.sleepRandom)
 	}
 	if err != nil {
-		return errors.WithMessage(err, "failed to resolve bootstrap nodes")
+		return errors.WithMessage(err, "failed to resolve bootstrap node listeners")
 	}
-	// try to register with all resolved bootstrap nodes,
-	// each node try 3 times
-	for _, node := range nodes {
+	// try to register with all resolved bootstrap node listeners,
+	// each listener try 3 times
+	for _, listener := range listeners {
 		for i := 0; i < 3; i++ {
-			err = reg.register(node)
+			err = reg.register(listener)
 			if err == nil {
 				reg.log(logger.Debug, "register successfully")
 				return nil
