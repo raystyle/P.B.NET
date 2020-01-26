@@ -198,7 +198,7 @@ func (reg *register) PackRequest() []byte {
 
 // register is used to register to Controller with Node
 func (reg *register) register(listener *bootstrap.Listener) error {
-	client, err := reg.ctx.newClient(reg.context, listener, protocol.CtrlGUID, nil)
+	client, err := reg.ctx.NewClient(reg.context, listener, protocol.CtrlGUID, nil)
 	if err != nil {
 		return err
 	}

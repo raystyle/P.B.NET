@@ -30,7 +30,8 @@ import (
 	"project/internal/xpanic"
 )
 
-type client struct {
+// Client is used to connect node listener
+type Client struct {
 	ctx *Node
 
 	node      *bootstrap.Listener
@@ -49,15 +50,15 @@ type client struct {
 	wg         sync.WaitGroup
 }
 
-// newClient is used to create a client that connected Node
+// NewClient is used to create a client and connect node listener
 // when guid != ctrl guid for forwarder
 // when guid == ctrl guid for register
-func (node *Node) newClient(
+func (node *Node) NewClient(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 	guid []byte,
 	closeFunc func(),
-) (*client, error) {
+) (*Client, error) {
 	// dial
 	host, port, err := net.SplitHostPort(listener.Address)
 	if err != nil {
@@ -103,7 +104,7 @@ func (node *Node) newClient(
 	}
 
 	// handshake
-	client := &client{
+	client := &Client{
 		ctx:       node,
 		node:      listener,
 		guid:      guid,
@@ -124,7 +125,7 @@ func (node *Node) newClient(
 	return client, nil
 }
 
-func (client *client) handshake(conn *xnet.Conn) error {
+func (client *Client) handshake(conn *xnet.Conn) error {
 	timeout := client.ctx.clientMgr.GetTimeout()
 	_ = conn.SetDeadline(client.ctx.global.Now().Add(timeout))
 	// about check connection
@@ -151,7 +152,7 @@ func (client *client) handshake(conn *xnet.Conn) error {
 	return err
 }
 
-func (client *client) checkConn(conn *xnet.Conn) error {
+func (client *Client) checkConn(conn *xnet.Conn) error {
 	size := byte(100 + client.rand.Int(156))
 	data := client.rand.Bytes(int(size))
 	_, err := conn.Write(append([]byte{size}, data...))
@@ -168,7 +169,7 @@ func (client *client) checkConn(conn *xnet.Conn) error {
 	return nil
 }
 
-func (client *client) verifyCertificate(cert []byte, address string, guid []byte) bool {
+func (client *Client) verifyCertificate(cert []byte, address string, guid []byte) bool {
 	if len(cert) != 2*ed25519.SignatureSize {
 		return false
 	}
@@ -184,7 +185,9 @@ func (client *client) verifyCertificate(cert []byte, address string, guid []byte
 	return client.ctx.global.CtrlVerify(buffer.Bytes(), certWithNodeGUID)
 }
 
-func (client *client) Connect() (err error) {
+// Connect is used to start protocol.HandleConn(), if you want to
+// start Synchronize(), you must call this function first
+func (client *Client) Connect() (err error) {
 	defer func() {
 		if err != nil {
 			client.Close()
@@ -219,7 +222,7 @@ func (client *client) Connect() (err error) {
 	return
 }
 
-func (client *client) authenticate() error {
+func (client *Client) authenticate() error {
 	// receive challenge
 	challenge, err := client.Conn.Receive()
 	if err != nil {
@@ -245,11 +248,11 @@ func (client *client) authenticate() error {
 	return nil
 }
 
-func (client *client) isSync() bool {
+func (client *Client) isSync() bool {
 	return atomic.LoadInt32(&client.inSync) != 0
 }
 
-func (client *client) onFrame(frame []byte) {
+func (client *Client) onFrame(frame []byte) {
 	if client.Conn.onFrame(frame) {
 		return
 	}
@@ -269,7 +272,7 @@ func (client *client) onFrame(frame []byte) {
 	client.Close()
 }
 
-func (client *client) onFrameAfterSync(frame []byte) bool {
+func (client *Client) onFrameAfterSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
 	if client.onFrameAfterSyncAboutCTRL(frame[0], id, data) {
@@ -284,7 +287,7 @@ func (client *client) onFrameAfterSync(frame []byte) bool {
 	return false
 }
 
-func (client *client) onFrameAfterSyncAboutCTRL(cmd byte, id, data []byte) bool {
+func (client *Client) onFrameAfterSyncAboutCTRL(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.CtrlSendToNodeGUID:
 		client.Conn.HandleSendToNodeGUID(id, data)
@@ -316,7 +319,7 @@ func (client *client) onFrameAfterSyncAboutCTRL(cmd byte, id, data []byte) bool 
 	return true
 }
 
-func (client *client) onFrameAfterSyncAboutNode(cmd byte, id, data []byte) bool {
+func (client *Client) onFrameAfterSyncAboutNode(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.NodeSendGUID:
 		client.Conn.HandleNodeSendGUID(id, data)
@@ -332,7 +335,7 @@ func (client *client) onFrameAfterSyncAboutNode(cmd byte, id, data []byte) bool 
 	return true
 }
 
-func (client *client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) bool {
+func (client *Client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.BeaconSendGUID:
 		client.Conn.HandleBeaconSendGUID(id, data)
@@ -352,7 +355,7 @@ func (client *client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) boo
 	return true
 }
 
-func (client *client) sendHeartbeatLoop() {
+func (client *Client) sendHeartbeatLoop() {
 	defer client.wg.Done()
 	var err error
 	buffer := bytes.NewBuffer(nil)
@@ -393,7 +396,7 @@ func (client *client) sendHeartbeatLoop() {
 }
 
 // Synchronize is used to switch to synchronize mode
-func (client *client) Synchronize() error {
+func (client *Client) Synchronize() error {
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
 	if client.isSync() {
@@ -447,12 +450,12 @@ func (client *client) Synchronize() error {
 }
 
 // Status is used to get connection status
-func (client *client) Status() *xnet.Status {
+func (client *Client) Status() *xnet.Status {
 	return client.Conn.Status()
 }
 
 // Close is used to disconnect node
-func (client *client) Close() {
+func (client *Client) Close() {
 	client.closeOnce.Do(func() {
 		_ = client.Conn.Close()
 		close(client.stopSignal)
@@ -465,7 +468,7 @@ func (client *client) Close() {
 	})
 }
 
-// clientMgr contains all clients from newClient() and client options from Config
+// clientMgr contains all clients from NewClient() and client options from Config
 // it can generate client tag, you can manage all clients here
 type clientMgr struct {
 	ctx *Node
@@ -477,7 +480,7 @@ type clientMgr struct {
 	optsRWM  sync.RWMutex
 
 	guid       *guid.Generator
-	clients    map[string]*client
+	clients    map[string]*Client
 	clientsRWM sync.RWMutex
 }
 
@@ -494,7 +497,7 @@ func newClientManager(ctx *Node, config *Config) (*clientMgr, error) {
 		timeout:  cfg.Timeout,
 		dnsOpts:  cfg.DNSOpts,
 		guid:     guid.New(4, ctx.global.Now),
-		clients:  make(map[string]*client),
+		clients:  make(map[string]*Client),
 	}, nil
 }
 
@@ -544,13 +547,13 @@ func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 	cm.dnsOpts = *opts.Clone()
 }
 
-// GenerateTag is used to generate client tag, it for newClient()
+// GenerateTag is used to generate client tag, it for NewClient()
 func (cm *clientMgr) GenerateTag() string {
 	return hex.EncodeToString(cm.guid.Get())
 }
 
-// for newClient()
-func (cm *clientMgr) Add(client *client) {
+// for NewClient()
+func (cm *clientMgr) Add(client *Client) {
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
 	if _, ok := cm.clients[client.tag]; !ok {
@@ -566,10 +569,10 @@ func (cm *clientMgr) Delete(tag string) {
 }
 
 // Clients is used to get all clients
-func (cm *clientMgr) Clients() map[string]*client {
+func (cm *clientMgr) Clients() map[string]*Client {
 	cm.clientsRWM.RLock()
 	defer cm.clientsRWM.RUnlock()
-	cs := make(map[string]*client, len(cm.clients))
+	cs := make(map[string]*Client, len(cm.clients))
 	for tag, client := range cm.clients {
 		cs[tag] = client
 	}

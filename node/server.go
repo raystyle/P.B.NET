@@ -164,14 +164,14 @@ func (s *server) addListener(l *messages.Listener) (*xnet.Listener, error) {
 	// <security>
 	tlsConfig.Rand = rand.Reader
 	tlsConfig.Time = s.ctx.global.Now
+	// fake nginx server
+	if len(tlsConfig.NextProtos) == 0 {
+		tlsConfig.NextProtos = []string{"http/1.1"}
+	}
 	opts := xnet.Options{
 		TLSConfig: tlsConfig,
 		Timeout:   l.Timeout,
 		Now:       s.ctx.global.Now,
-	}
-	// fake nginx server
-	if len(tlsConfig.NextProtos) == 0 {
-		tlsConfig.NextProtos = []string{"http/1.1"}
 	}
 	listener, err := xnet.Listen(l.Mode, l.Network, l.Address, &opts)
 	if err != nil {
@@ -200,7 +200,8 @@ func (s *server) deploy(tag string, listener *xnet.Listener) error {
 	case <-time.After(time.Second):
 		network := listener.Addr().Network()
 		address := listener.Addr().String()
-		s.logf(logger.Info, "add listener: %s (%s %s)", tag, network, address)
+		const format = "add listener: %s %s (%s %s)"
+		s.logf(logger.Info, format, tag, listener.Mode(), network, address)
 		return nil
 	}
 }
