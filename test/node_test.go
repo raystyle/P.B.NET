@@ -2,7 +2,6 @@ package test
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -11,34 +10,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/bootstrap"
 	"project/internal/messages"
-	"project/internal/xnet"
-	"project/node"
 )
 
-func testGenerateNodeAndTrust(t testing.TB) *node.Node {
-	NODE := generateNodeWithListener(t)
-	listener, err := NODE.GetListener(nodeInitListenerTag)
-	require.NoError(t, err)
-	n := bootstrap.Node{
-		Mode:    xnet.ModeTLS,
-		Network: "tcp",
-		Address: listener.Addr().String(),
-	}
-	// controller trust node
-	req, err := ctrl.TrustNode(context.Background(), &n)
-	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(context.Background(), &n, req)
-	require.NoError(t, err)
-	// controller connect node
-	err = ctrl.Connect(&n, NODE.GUID())
-	require.NoError(t, err)
-	return NODE
-}
-
 func TestNode_SendDirectly(t *testing.T) {
-	NODE := testGenerateNodeAndTrust(t)
+	NODE := generateNodeAndTrust(t)
+	defer NODE.Exit(nil)
+
 	const (
 		goroutines = 256
 		times      = 64
@@ -82,7 +60,6 @@ func TestNode_SendDirectly(t *testing.T) {
 	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
 	err := ctrl.Disconnect(guid)
 	require.NoError(t, err)
-	NODE.Exit(nil)
 
 	// testsuite.IsDestroyed(t, NODE)
 }

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"os"
 	"runtime"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/controller"
+	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/messages"
@@ -115,7 +117,7 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
-	cfg.Register.Skip = true // TODO remove
+	cfg.Register.Skip = true
 
 	cfg.Forwarder.MaxCtrlConns = 10
 	cfg.Forwarder.MaxNodeConns = 8
@@ -141,7 +143,7 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
-const nodeInitListenerTag = "init_tls"
+const InitialNodeListenerTag = "init_tcp"
 
 // generateNodeWithListener is used to create init Node
 // controller will trust it
@@ -165,8 +167,8 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 
 	// generate listener config
 	listener := messages.Listener{
-		Tag:     nodeInitListenerTag,
-		Mode:    xnet.ModeTLS,
+		Tag:     InitialNodeListenerTag,
+		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: "localhost:0",
 	}
@@ -181,5 +183,25 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 	}()
 	NODE.Wait()
 	require.NoError(t, NODE.AddListener(&listener))
+	return NODE
+}
+
+func generateNodeAndTrust(t testing.TB) *node.Node {
+	NODE := generateNodeWithListener(t)
+	listener, err := NODE.GetListener(InitialNodeListenerTag)
+	require.NoError(t, err)
+	bListener := &bootstrap.Listener{
+		Mode:    xnet.ModeTCP,
+		Network: "tcp",
+		Address: listener.Addr().String(),
+	}
+	// controller trust node
+	req, err := ctrl.TrustNode(context.Background(), bListener)
+	require.NoError(t, err)
+	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
+	require.NoError(t, err)
+	// controller connect node
+	err = ctrl.Connect(bListener, NODE.GUID())
+	require.NoError(t, err)
 	return NODE
 }
