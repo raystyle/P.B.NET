@@ -1,9 +1,9 @@
-[[nodes]]
+[[listeners]]
   mode    = "tls"
   network = "tcp"
   address = "127.0.0.1:53123"
 
-[[nodes]]
+[[listeners]]
   mode    = "tls"
   network = "tcp"
   address = "[::1]:53123"

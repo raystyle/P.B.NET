@@ -36,7 +36,7 @@ var (
 	ErrInvalidSignature     = fmt.Errorf("invalid signature")
 )
 
-// HTTP is used to resolve bootstrap nodes from HTTP response body
+// HTTP is used to resolve bootstrap node listeners from HTTP response body
 type HTTP struct {
 	Request   option.HTTPRequest   `toml:"request"`
 	Transport option.HTTPTransport `toml:"transport"`
@@ -46,11 +46,11 @@ type HTTP struct {
 
 	MaxBodySize int64 `toml:"max_body_size"` // <security>
 
-	// encrypt & decrypt generate data(nodes) ,hex encoded
+	// encrypt & decrypt generate data(node listeners) ,hex encoded
 	AESKey string `toml:"aes_key"`
 	AESIV  string `toml:"aes_iv"`
 
-	// for verify resolve nodes data, hex encoded
+	// for verify resolved node listeners data, hex encoded
 	PublicKey string `toml:"public_key"`
 
 	// for generate & marshal, controller set it
@@ -108,30 +108,30 @@ func (h *HTTP) Validate() error {
 }
 
 // Generate is used to generate bootstrap info
-func (h *HTTP) Generate(nodes []*Node) ([]byte, error) {
-	if len(nodes) == 0 {
-		return nil, errors.New("no bootstrap nodes")
+func (h *HTTP) Generate(listeners []*Listener) ([]byte, error) {
+	if len(listeners) == 0 {
+		return nil, errors.New("no bootstrap listeners")
 	}
-	data, _ := msgpack.Marshal(nodes)
+	data, _ := msgpack.Marshal(listeners)
 	// confuse
-	nodesData := bytes.Buffer{}
-	generator := random.New()
+	listenersData := bytes.Buffer{}
+	rand := random.New()
 	i := 0
 	for i = 4; i < len(data); i += 4 {
-		nodesData.Write(generator.Bytes(8))
-		nodesData.Write(data[i-4 : i])
+		listenersData.Write(rand.Bytes(8))
+		listenersData.Write(data[i-4 : i])
 	}
 	end := data[i-4:]
 	if end != nil {
-		nodesData.Write(generator.Bytes(8))
-		nodesData.Write(end)
+		listenersData.Write(rand.Bytes(8))
+		listenersData.Write(end)
 	}
 	// sign
-	signature := ed25519.Sign(h.PrivateKey, nodesData.Bytes())
+	signature := ed25519.Sign(h.PrivateKey, listenersData.Bytes())
 	buffer := bytes.Buffer{}
-	// signature + nodesData
+	// signature + listenersData
 	buffer.Write(signature)
-	buffer.Write(nodesData.Bytes())
+	buffer.Write(listenersData.Bytes())
 	// encrypt
 	key, err := hex.DecodeString(h.AESKey)
 	if err != nil {
@@ -197,8 +197,8 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	return err
 }
 
-// Resolve is used to get bootstrap nodes
-func (h *HTTP) Resolve() ([]*Node, error) {
+// Resolve is used to get bootstrap node listeners
+func (h *HTTP) Resolve() ([]*Listener, error) {
 	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
@@ -299,7 +299,7 @@ func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
 	return ioutil.ReadAll(io.LimitReader(resp.Body, length))
 }
 
-func resolve(h *HTTP, info []byte) []*Node {
+func resolve(h *HTTP, info []byte) []*Listener {
 	// decrypt data
 	cipherData := make([]byte, len(info)/2)
 	_, err := hex.Decode(cipherData, info)
@@ -323,7 +323,7 @@ func resolve(h *HTTP, info []byte) []*Node {
 		panic(ErrInvalidSignatureSize)
 	}
 	signature := data[:ed25519.SignatureSize]
-	nodesData := data[ed25519.SignatureSize:]
+	listenersData := data[ed25519.SignatureSize:]
 	pub, err := hex.DecodeString(h.PublicKey)
 	security.CoverString(&h.PublicKey)
 	if err != nil {
@@ -334,32 +334,32 @@ func resolve(h *HTTP, info []byte) []*Node {
 	if err != nil {
 		panic(err)
 	}
-	if !ed25519.Verify(publicKey, nodesData, signature) {
+	if !ed25519.Verify(publicKey, listenersData, signature) {
 		panic(ErrInvalidSignature)
 	}
 
 	// remove confuse
-	nodesBuf := bytes.Buffer{}
-	l = len(nodesData)
+	listenersBuf := bytes.Buffer{}
+	l = len(listenersData)
 	i := 0
 	for i = 0; i < l; i += 12 {
-		if len(nodesData[i:]) > 11 {
-			nodesBuf.Write(nodesData[i+8 : i+12])
+		if len(listenersData[i:]) > 11 {
+			listenersBuf.Write(listenersData[i+8 : i+12])
 		}
 	}
 	if i != l {
-		if len(nodesData[i-12:]) > 8 {
-			nodesBuf.Write(nodesData[i-4:]) // i+8-12
+		if len(listenersData[i-12:]) > 8 {
+			listenersBuf.Write(listenersData[i-4:]) // i+8-12
 		}
 	}
 
-	// resolve bootstrap nodes
-	nodesBytes := nodesBuf.Bytes()
-	var nodes []*Node
-	err = msgpack.Unmarshal(nodesBytes, &nodes)
+	// resolve bootstrap node listeners
+	listenersBytes := listenersBuf.Bytes()
+	var listeners []*Listener
+	err = msgpack.Unmarshal(listenersBytes, &listeners)
 	if err != nil {
 		panic(err)
 	}
-	security.CoverBytes(nodesBytes)
-	return nodes
+	security.CoverBytes(listenersBytes)
+	return listeners
 }

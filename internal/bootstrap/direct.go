@@ -10,9 +10,9 @@ import (
 	"project/internal/security"
 )
 
-// Direct is used to resolve bootstrap nodes from local config
+// Direct is used to resolve bootstrap node listeners from local config
 type Direct struct {
-	Nodes []*Node `toml:"nodes"`
+	Listeners []*Listener `toml:"listeners"`
 
 	// self encrypt all options
 	enc []byte
@@ -29,8 +29,8 @@ func (d *Direct) Validate() error { return nil }
 
 // Marshal is used to marshal Direct to []byte
 func (d *Direct) Marshal() ([]byte, error) {
-	if len(d.Nodes) == 0 {
-		return nil, errors.New("no bootstrap nodes")
+	if len(d.Listeners) == 0 {
+		return nil, errors.New("no bootstrap node listeners")
 	}
 	return toml.Marshal(d)
 }
@@ -51,15 +51,15 @@ func (d *Direct) Unmarshal(config []byte) error {
 	security.CoverBytes(key)
 	security.CoverBytes(iv)
 	memory.Padding()
-	b, _ := msgpack.Marshal(d.Nodes)
+	b, _ := msgpack.Marshal(d.Listeners)
 	defer security.CoverBytes(b)
 	memory.Padding()
 	d.enc, err = d.cbc.Encrypt(b)
 	return err
 }
 
-// Resolve is used to get bootstrap nodes
-func (d *Direct) Resolve() ([]*Node, error) {
+// Resolve is used to get bootstrap node listeners
+func (d *Direct) Resolve() ([]*Listener, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
 	b, err := d.cbc.Decrypt(d.enc)
@@ -68,10 +68,10 @@ func (d *Direct) Resolve() ([]*Node, error) {
 		panic(err)
 	}
 	memory.Padding()
-	var nodes []*Node
-	err = msgpack.Unmarshal(b, &nodes)
+	var listeners []*Listener
+	err = msgpack.Unmarshal(b, &listeners)
 	if err != nil {
 		panic(err)
 	}
-	return nodes, nil
+	return listeners, nil
 }

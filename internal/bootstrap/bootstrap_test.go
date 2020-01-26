@@ -11,19 +11,19 @@ import (
 	"project/internal/xnet"
 )
 
-func testGenerateNodes() []*Node {
-	nodes := make([]*Node, 2)
-	nodes[0] = &Node{
+func testGenerateListeners() []*Listener {
+	listeners := make([]*Listener, 2)
+	listeners[0] = &Listener{
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "127.0.0.1:53123",
 	}
-	nodes[1] = &Node{
+	listeners[1] = &Listener{
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "[::1]:53123",
 	}
-	return nodes
+	return listeners
 }
 
 func TestLoad(t *testing.T) {

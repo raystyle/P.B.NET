@@ -16,14 +16,16 @@ const (
 	ModeDirect = "direct"
 )
 
-// Node is the bootstrap node
-type Node struct {
-	Mode    string `toml:"mode"` // see internal/xnet
+// Listener is the bootstrap node listener
+// Node or Beacon register will use bootstrap to resolve node listeners
+// you can reference internal/xnet/net.go
+type Listener struct {
+	Mode    string `toml:"mode"`
 	Network string `toml:"network"`
 	Address string `toml:"address"`
 }
 
-// Bootstrap is used to resolve bootstrap nodes
+// Bootstrap is used to resolve bootstrap node listeners
 type Bootstrap interface {
 	// Validate is used to check bootstrap config correct
 	Validate() error
@@ -34,8 +36,8 @@ type Bootstrap interface {
 	// Unmarshal is used to unmarshal []byte to bootstrap
 	Unmarshal([]byte) error
 
-	// Resolve is used to resolve bootstrap nodes
-	Resolve() ([]*Node, error)
+	// Resolve is used to resolve bootstrap node listeners
+	Resolve() ([]*Listener, error)
 }
 
 // Load is used to create a bootstrap from config

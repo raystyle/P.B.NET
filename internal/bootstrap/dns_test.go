@@ -21,7 +21,7 @@ func TestDNS(t *testing.T) {
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	if testsuite.IPv4Enabled {
-		nodes := []*Node{{
+		listeners := []*Listener{{
 			Mode:    xnet.ModeTLS,
 			Network: "tcp",
 			Address: "127.0.0.1:443",
@@ -44,14 +44,14 @@ func TestDNS(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			resolved, err := DNS.Resolve()
 			require.NoError(t, err)
-			require.Equal(t, nodes, resolved)
+			require.Equal(t, listeners, resolved)
 		}
 
 		testsuite.IsDestroyed(t, DNS)
 	}
 
 	if testsuite.IPv6Enabled {
-		nodes := []*Node{{
+		listeners := []*Listener{{
 			Mode:    xnet.ModeTLS,
 			Network: "tcp",
 			Address: "[::1]:443",
@@ -74,7 +74,7 @@ func TestDNS(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			resolved, err := DNS.Resolve()
 			require.NoError(t, err)
-			require.Equal(t, nodes, resolved)
+			require.Equal(t, listeners, resolved)
 		}
 
 		testsuite.IsDestroyed(t, DNS)
@@ -129,21 +129,19 @@ func TestDNS_Resolve(t *testing.T) {
 	require.NoError(t, DNS.Unmarshal(config))
 
 	if testsuite.IPv4Enabled {
-		nodes, err := DNS.Resolve()
+		listeners, err := DNS.Resolve()
 		require.Error(t, err)
-		require.Nil(t, nodes)
+		require.Nil(t, listeners)
 	}
 
 	if testsuite.IPv6Enabled {
-		nodes, err := DNS.Resolve()
+		listeners, err := DNS.Resolve()
 		require.Error(t, err)
-		require.Nil(t, nodes)
+		require.Nil(t, listeners)
 	}
 }
 
 func TestDNSPanic(t *testing.T) {
-	t.Parallel()
-
 	t.Run("no CBC", func(t *testing.T) {
 		DNS := NewDNS(nil, nil)
 

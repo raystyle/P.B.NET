@@ -12,9 +12,9 @@ import (
 )
 
 func TestDirect(t *testing.T) {
-	nodes := testGenerateNodes()
+	listeners := testGenerateListeners()
 	direct := NewDirect()
-	direct.Nodes = nodes
+	direct.Listeners = listeners
 	_ = direct.Validate()
 	b, err := direct.Marshal()
 	require.NoError(t, err)
@@ -25,7 +25,7 @@ func TestDirect(t *testing.T) {
 	require.NoError(t, err)
 	for i := 0; i < 10; i++ {
 		resolved, _ := direct.Resolve()
-		require.Equal(t, nodes, resolved)
+		require.Equal(t, listeners, resolved)
 	}
 	testsuite.IsDestroyed(t, direct)
 }
@@ -40,8 +40,6 @@ func TestDirect_Unmarshal(t *testing.T) {
 }
 
 func TestDirectPanic(t *testing.T) {
-	t.Parallel()
-
 	t.Run("no CBC", func(t *testing.T) {
 		direct := NewDirect()
 
@@ -57,7 +55,7 @@ func TestDirectPanic(t *testing.T) {
 		testsuite.IsDestroyed(t, direct)
 	})
 
-	t.Run("invalid nodes data", func(t *testing.T) {
+	t.Run("invalid node listeners data", func(t *testing.T) {
 		direct := NewDirect()
 
 		func() {
@@ -86,10 +84,10 @@ func TestDirectOptions(t *testing.T) {
 	require.NoError(t, err)
 	direct := NewDirect()
 	require.NoError(t, direct.Unmarshal(config))
-	nodes := testGenerateNodes()
+	listeners := testGenerateListeners()
 	for i := 0; i < 10; i++ {
 		resolved, err := direct.Resolve()
 		require.NoError(t, err)
-		require.Equal(t, nodes, resolved)
+		require.Equal(t, listeners, resolved)
 	}
 }

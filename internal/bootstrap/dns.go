@@ -16,8 +16,7 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
-// DNS is used to resolve bootstrap nodes from DNS resolve result
-// network and port can't change
+// DNS is used to resolve bootstrap node listeners from DNS resolve result
 type DNS struct {
 	Host    string      `toml:"host"`    // domain name
 	Mode    string      `toml:"mode"`    // listener mode (see xnet)
@@ -97,8 +96,8 @@ func (d *DNS) Unmarshal(config []byte) error {
 	return err
 }
 
-// Resolve is used to get bootstrap nodes
-func (d *DNS) Resolve() ([]*Node, error) {
+// Resolve is used to get bootstrap node listeners
+func (d *DNS) Resolve() ([]*Listener, error) {
 	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
@@ -126,14 +125,14 @@ func (d *DNS) Resolve() ([]*Node, error) {
 		return nil, err
 	}
 	l := len(result)
-	nodes := make([]*Node, l)
+	listeners := make([]*Listener, l)
 	for i := 0; i < l; i++ {
-		nodes[i] = &Node{
+		listeners[i] = &Listener{
 			Mode:    tDNS.Mode,
 			Network: tDNS.Network,
 		}
-		nodes[i].Address = net.JoinHostPort(result[i], tDNS.Port)
+		listeners[i].Address = net.JoinHostPort(result[i], tDNS.Port)
 		security.CoverString(&result[i])
 	}
-	return nodes, nil
+	return listeners, nil
 }
