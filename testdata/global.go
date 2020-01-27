@@ -35,10 +35,16 @@ func Certificates(t require.TestingT) [][]byte {
 	return certs
 }
 
+// proxy client tag
+const (
+	Socks5Tag    = "test_socks5"
+	HTTPProxyTag = "test_http"
+)
+
 var (
-	initProxyClientsOnce sync.Once
 	socks5Server         *socks.Server
-	httpServer           *http.Server
+	httpProxyServer      *http.Server
+	initProxyClientsOnce sync.Once
 	wg                   sync.WaitGroup
 )
 
@@ -57,28 +63,28 @@ func ProxyClients(t require.TestingT) []*proxy.Client {
 			require.NoError(t, err)
 		}()
 		// http proxy server
-		httpServer, err = http.NewHTTPServer("test", logger.Test, nil)
+		httpProxyServer, err = http.NewHTTPServer("test", logger.Test, nil)
 		require.NoError(t, err)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err = httpServer.ListenAndServe("tcp", "localhost:0")
+			err = httpProxyServer.ListenAndServe("tcp", "localhost:0")
 			require.NoError(t, err)
 		}()
 		time.Sleep(250 * time.Millisecond)
 	})
 	return []*proxy.Client{
 		{
-			Tag:     "test_socks5",
+			Tag:     Socks5Tag,
 			Mode:    proxy.ModeSocks5,
 			Network: "tcp",
 			Address: socks5Server.Addresses()[0].String(),
 		},
 		{
-			Tag:     "test_http",
+			Tag:     HTTPProxyTag,
 			Mode:    proxy.ModeHTTP,
 			Network: "tcp",
-			Address: httpServer.Addresses()[0].String(),
+			Address: httpProxyServer.Addresses()[0].String(),
 		},
 	}
 }
@@ -167,8 +173,9 @@ timeout = "15s"
 }
 
 // Clean is used to clean test data
-func Clean(t require.TestingT) {
-	require.NoError(t, socks5Server.Close())
-	require.NoError(t, httpServer.Close())
+// close proxy servers
+func Clean() {
+	_ = socks5Server.Close()
+	_ = httpProxyServer.Close()
 	wg.Wait()
 }
