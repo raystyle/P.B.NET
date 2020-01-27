@@ -133,14 +133,15 @@ func (client *Client) handshake(conn *xnet.Conn) error {
 	if err != nil {
 		return err
 	}
-	// receive certificate
-	cert, err := conn.Receive()
+	// verify certificate
+	publicKey := client.ctx.global.CtrlPublicKey()
+	ok, err := protocol.VerifyCertificate(conn, publicKey, client.guid)
 	if err != nil {
-		return errors.Wrap(err, "failed to receive certificate")
+		client.Conn.Log(logger.Exploit, err)
+		return err
 	}
-	if !client.verifyCertificate(cert, client.node.Address, client.guid) {
-		client.Conn.Log(logger.Exploit, protocol.ErrInvalidCertificate)
-		return protocol.ErrInvalidCertificate
+	if !ok {
+		return errors.New("failed to verify certificate")
 	}
 	// send role
 	_, err = conn.Write(protocol.Node.Bytes())
@@ -458,7 +459,9 @@ func (client *Client) Status() *xnet.Status {
 func (client *Client) Close() {
 	client.closeOnce.Do(func() {
 		_ = client.Conn.Close()
-		close(client.stopSignal)
+		if client.stopSignal != nil {
+			close(client.stopSignal)
+		}
 		client.wg.Wait()
 		client.ctx.clientMgr.Delete(client.tag)
 		if client.closeFunc != nil {

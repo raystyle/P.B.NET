@@ -35,8 +35,12 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 	h.ctx.logger.Println(l, "handler", log...)
 }
 
-func (h *handler) Close() {
+func (h *handler) Cancel() {
 	h.cancel()
+}
+
+func (h *handler) Close() {
+	h.ctx = nil
 }
 
 // -------------------------------------------send---------------------------------------------------
@@ -80,7 +84,6 @@ func (h *handler) handleSendTestMessage(message []byte) {
 	select {
 	case h.ctx.Test.SendTestMsg <- testMsg:
 	case <-h.context.Done():
-		return
 	}
 }
 

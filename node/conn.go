@@ -121,7 +121,7 @@ func (c *conn) Log(lv logger.Level, log ...interface{}) {
 }
 
 func (c *conn) logExtra(lv logger.Level, buf *bytes.Buffer) {
-	if c.role != protocol.Ctrl {
+	if c.role != protocol.Ctrl && bytes.Compare(protocol.CtrlGUID, c.guid) != 0 {
 		_, _ = fmt.Fprintf(buf, c.guidLine, c.guid[:guid.Size/2], c.guid[guid.Size/2:])
 	}
 	const conn = "-----------------connection status------------------\n%s\n"

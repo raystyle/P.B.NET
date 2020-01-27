@@ -161,10 +161,11 @@ func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Close()
 		node.logger.Print(logger.Info, "exit", "server is stopped")
-		node.handler.Close()
-		node.logger.Print(logger.Info, "exit", "handler is stopped")
+		node.handler.Cancel()
 		node.worker.Close()
 		node.logger.Print(logger.Info, "exit", "worker is stopped")
+		node.handler.Close()
+		node.logger.Print(logger.Info, "exit", "handler is stopped")
 		node.syncer.Close()
 		node.logger.Print(logger.Info, "exit", "syncer is stopped")
 		node.sender.Close()

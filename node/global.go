@@ -378,12 +378,16 @@ func (global *global) Decrypt(data []byte) ([]byte, error) {
 	return cbc.Decrypt(data)
 }
 
-// CtrlVerify is used to verify controller message
-func (global *global) CtrlVerify(message, signature []byte) bool {
+// CtrlPublicKey is used to get Controller public key
+func (global *global) CtrlPublicKey() ed25519.PublicKey {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	p := global.objects[objCtrlPublicKey]
-	return ed25519.Verify(p.(ed25519.PublicKey), message, signature)
+	return global.objects[objCtrlPublicKey].(ed25519.PublicKey)
+}
+
+// CtrlVerify is used to verify controller message
+func (global *global) CtrlVerify(message, signature []byte) bool {
+	return ed25519.Verify(global.CtrlPublicKey(), message, signature)
 }
 
 // CtrlDecrypt is used to decrypt controller broadcast message
