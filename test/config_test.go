@@ -25,22 +25,30 @@ import (
 )
 
 var (
-	ctrl         *controller.CTRL
-	initCtrlOnce sync.Once
+	ctrl     *controller.CTRL
+	initOnce sync.Once
 )
 
 func TestMain(m *testing.M) {
 	m.Run()
 
-	testdata.Clean()
-
 	// wait to print log
 	time.Sleep(time.Second)
 	ctrl.Exit(nil)
 
+	testdata.Clean()
+
 	// one test main goroutine and
 	// two goroutine about pprof server in testsuite
-	if runtime.NumGoroutine() != 3 {
+	leaks := true
+	for i := 0; i < 300; i++ {
+		if runtime.NumGoroutine() == 3 {
+			leaks = false
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if leaks {
 		fmt.Println("[Warning] goroutine leaks!")
 		os.Exit(1)
 	}
@@ -104,7 +112,7 @@ func generateControllerConfig() *controller.Config {
 }
 
 func initializeController(t require.TestingT) {
-	initCtrlOnce.Do(func() {
+	initOnce.Do(func() {
 		err := os.Chdir("../app")
 		require.NoError(t, err)
 		cfg := generateControllerConfig()
