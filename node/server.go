@@ -70,7 +70,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		return nil, errors.New("listener max connection must > 0")
 	}
 	if cfg.Timeout < 15*time.Second {
-		return nil, errors.New("listener max connection must >= 15s")
+		return nil, errors.New("listener max timeout must >= 15s")
 	}
 
 	memory := security.NewMemory()
@@ -238,14 +238,15 @@ func (s *server) serve(tag string, l *xnet.Listener, errChan chan<- error) {
 				if delay > maxDelay {
 					delay = maxDelay
 				}
-				s.logf(logger.Warning, "accept error: %s; retrying in %v", e, delay)
+				s.logf(logger.Warning, "acceptEx error: %s; retrying in %v", e, delay)
 				time.Sleep(delay)
 				continue
 			}
 			errStr := e.Error()
-			if !strings.Contains(errStr, "closed") {
+			if !strings.Contains(errStr, "closed") &&
+				!strings.Contains(errStr, "context canceled") {
+				s.logf(logger.Warning, "acceptEx error: %s", errStr)
 				err = e
-				s.log(logger.Warning, errStr)
 			}
 			return
 		}
@@ -668,6 +669,7 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 	defer timer.Stop()
 	// read register response result
 	resp := <-response
+	_ = conn.SetWriteDeadline(s.ctx.global.Now().Add(s.timeout))
 	switch resp.Result {
 	case messages.RegisterResultAccept:
 		_, _ = conn.Write([]byte{messages.RegisterResultAccept})

@@ -68,7 +68,7 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 
 	// decrypt the first bootstrap
 	if !cfg.Skip {
-		err := register.loadBootstraps(cfg.FirstBoot, cfg.FirstKey)
+		err := register.loadBootstraps(cfg.FirstBoot, cfg.FirstKey, true)
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 
 	// decrypt the rest bootstraps
 	if len(cfg.RestBoots) != 0 {
-		err := register.loadBootstraps(cfg.RestBoots, cfg.RestKey)
+		err := register.loadBootstraps(cfg.RestBoots, cfg.RestKey, false)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 	return &register, nil
 }
 
-func (reg *register) loadBootstraps(boot, key []byte) error {
+func (reg *register) loadBootstraps(boot, key []byte, single bool) error {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
@@ -117,9 +117,18 @@ func (reg *register) loadBootstraps(boot, key []byte) error {
 	// load bootstraps
 	memory.Padding()
 	var bootstraps []*messages.Bootstrap
-	err = msgpack.Unmarshal(data, &bootstraps)
-	if err != nil {
-		return errors.WithStack(err)
+	if single {
+		boot := new(messages.Bootstrap)
+		err = msgpack.Unmarshal(data, boot)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		bootstraps = []*messages.Bootstrap{boot}
+	} else {
+		err = msgpack.Unmarshal(data, &bootstraps)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	if len(bootstraps) == 0 {
 		return errors.New("no bootstraps")
@@ -196,52 +205,6 @@ func (reg *register) PackRequest() []byte {
 	return b
 }
 
-// register is used to register to Controller with Node
-func (reg *register) register(listener *bootstrap.Listener) error {
-	client, err := reg.ctx.NewClient(reg.context, listener, protocol.CtrlGUID, nil)
-	if err != nil {
-		return err
-	}
-	defer client.Close()
-
-	conn := client.Conn
-	// send register operation
-	_, err = conn.Write([]byte{nodeOperationRegister})
-	if err != nil {
-		return errors.Wrap(err, "failed to send register operation")
-	}
-	// send register request
-	err = conn.SendMessage(reg.PackRequest())
-	if err != nil {
-		return errors.Wrap(err, "failed to send register request")
-	}
-	// wait Controller broadcast register result
-	_ = conn.SetDeadline(reg.ctx.global.Now().Add(time.Minute))
-	result := make([]byte, 1)
-	_, err = io.ReadFull(conn, result)
-	if err != nil {
-		return errors.Wrap(err, "failed to receive register result")
-	}
-	switch result[0] {
-	case messages.RegisterResultAccept:
-		// receive node certificate
-		cert := make([]byte, protocol.CertificateSize)
-		_, err = io.ReadFull(conn, cert)
-		if err != nil {
-			return errors.Wrap(err, "failed to receive certificate")
-		}
-		return reg.ctx.global.SetCertificate(cert)
-	case messages.RegisterResultRefused:
-		return errors.WithStack(messages.ErrRegisterRefused)
-	case messages.RegisterResultTimeout:
-		return errors.WithStack(messages.ErrRegisterTimeout)
-	default:
-		err = errors.WithMessagef(messages.ErrRegisterUnknownResult, "%d", result[0])
-		reg.log(logger.Exploit, err)
-		return err
-	}
-}
-
 // Register is used to register to Controller
 // <security> only use the first bootstrap
 func (reg *register) Register() error {
@@ -278,10 +241,59 @@ func (reg *register) Register() error {
 			if errors.Cause(err) != messages.ErrRegisterTimeout {
 				return err
 			}
-			random.Sleep(reg.sleepFixed, reg.sleepRandom)
+			if i != 2 {
+				random.Sleep(reg.sleepFixed, reg.sleepRandom)
+			}
 		}
 	}
 	return err
+}
+
+// register is used to register to Controller with Node
+func (reg *register) register(listener *bootstrap.Listener) error {
+	client, err := reg.ctx.NewClient(reg.context, listener, protocol.CtrlGUID, nil)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	conn := client.Conn
+	// send register operation
+	_, err = conn.Write([]byte{nodeOperationRegister})
+	if err != nil {
+		return errors.Wrap(err, "failed to send register operation")
+	}
+	// send register request
+	err = conn.SendMessage(reg.PackRequest())
+	if err != nil {
+		return errors.Wrap(err, "failed to send register request")
+	}
+	// wait register result
+	timeout := time.Duration(60+random.Int(30)) * time.Second
+	_ = conn.SetDeadline(reg.ctx.global.Now().Add(timeout))
+	result := make([]byte, 1)
+	_, err = io.ReadFull(conn, result)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive register result")
+	}
+	switch result[0] {
+	case messages.RegisterResultAccept:
+		// receive node certificate
+		cert := make([]byte, protocol.CertificateSize)
+		_, err = io.ReadFull(conn, cert)
+		if err != nil {
+			return errors.Wrap(err, "failed to receive certificate")
+		}
+		return reg.ctx.global.SetCertificate(cert)
+	case messages.RegisterResultRefused:
+		return errors.WithStack(messages.ErrRegisterRefused)
+	case messages.RegisterResultTimeout:
+		return errors.WithStack(messages.ErrRegisterTimeout)
+	default:
+		err = errors.WithMessagef(messages.ErrRegisterUnknownResult, "%d", result[0])
+		reg.log(logger.Exploit, err)
+		return err
+	}
 }
 
 func (reg *register) Close() {
