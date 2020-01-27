@@ -22,20 +22,20 @@ import (
 )
 
 func TestNodeListener(t *testing.T) {
-	NODE := generateNodeAndTrust(t)
-	defer NODE.Exit(nil)
+	Node := generateInitialNodeAndTrust(t)
 
-	t.Run("parallel", func(t *testing.T) {
-		t.Run("QUIC", func(t *testing.T) {
-			testNodeListenerQUIC(t, NODE)
-		})
-		t.Run("Light", func(t *testing.T) {
-			testNodeListenerLight(t, NODE)
-		})
-		t.Run("TLS", func(t *testing.T) {
-			testNodeListenerTLS(t, NODE)
-		})
+	t.Run("QUIC", func(t *testing.T) {
+		testNodeListenerQUIC(t, Node)
 	})
+	t.Run("Light", func(t *testing.T) {
+		testNodeListenerLight(t, Node)
+	})
+	t.Run("TLS", func(t *testing.T) {
+		testNodeListenerTLS(t, Node)
+	})
+
+	Node.Exit(nil)
+	// testsuite.IsDestroyed(t, Node)
 }
 
 func testNodeListenerClientSend(t *testing.T, client *controller.Client) {
@@ -61,9 +61,7 @@ func testNodeListenerClientSend(t *testing.T, client *controller.Client) {
 	testsuite.IsDestroyed(t, client)
 }
 
-func testNodeListenerQUIC(t *testing.T, NODE *node.Node) {
-	t.Parallel()
-
+func testNodeListenerQUIC(t *testing.T, Node *node.Node) {
 	// generate certificate
 	pairs := ctrl.GetSelfCerts()
 	opts := cert.Options{
@@ -87,10 +85,10 @@ func testNodeListenerQUIC(t *testing.T, NODE *node.Node) {
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(c), Key: string(k)},
 	}
-	err = NODE.AddListener(&listener)
+	err = Node.AddListener(&listener)
 	require.NoError(t, err)
 
-	l, err := NODE.GetListener(tag)
+	l, err := Node.GetListener(tag)
 	require.NoError(t, err)
 	bListener := &bootstrap.Listener{
 		Mode:    xnet.ModeQUIC,
@@ -103,9 +101,7 @@ func testNodeListenerQUIC(t *testing.T, NODE *node.Node) {
 	testNodeListenerClientSend(t, client)
 }
 
-func testNodeListenerLight(t *testing.T, NODE *node.Node) {
-	t.Parallel()
-
+func testNodeListenerLight(t *testing.T, Node *node.Node) {
 	const tag = "l_light"
 	listener := messages.Listener{
 		Tag:     tag,
@@ -113,10 +109,10 @@ func testNodeListenerLight(t *testing.T, NODE *node.Node) {
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	err := NODE.AddListener(&listener)
+	err := Node.AddListener(&listener)
 	require.NoError(t, err)
 
-	l, err := NODE.GetListener(tag)
+	l, err := Node.GetListener(tag)
 	require.NoError(t, err)
 	bListener := &bootstrap.Listener{
 		Mode:    xnet.ModeLight,
@@ -129,9 +125,7 @@ func testNodeListenerLight(t *testing.T, NODE *node.Node) {
 	testNodeListenerClientSend(t, client)
 }
 
-func testNodeListenerTLS(t *testing.T, NODE *node.Node) {
-	t.Parallel()
-
+func testNodeListenerTLS(t *testing.T, Node *node.Node) {
 	// generate certificate
 	pairs := ctrl.GetSelfCerts()
 	opts := cert.Options{
@@ -155,10 +149,10 @@ func testNodeListenerTLS(t *testing.T, NODE *node.Node) {
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(c), Key: string(k)},
 	}
-	err = NODE.AddListener(&listener)
+	err = Node.AddListener(&listener)
 	require.NoError(t, err)
 
-	l, err := NODE.GetListener(tag)
+	l, err := Node.GetListener(tag)
 	require.NoError(t, err)
 	bListener := &bootstrap.Listener{
 		Mode:    xnet.ModeTLS,

@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/option"
+	"project/internal/testsuite"
 	"project/internal/xnet"
 
 	"project/controller"
@@ -26,6 +28,31 @@ var (
 	ctrl         *controller.CTRL
 	initCtrlOnce sync.Once
 )
+
+func TestMain(m *testing.M) {
+	m.Run()
+
+	testdata.Clean()
+
+	// wait to print log
+	time.Sleep(time.Second)
+	ctrl.Exit(nil)
+
+	// one test main goroutine and
+	// two goroutine about pprof server in testsuite
+	if runtime.NumGoroutine() != 3 {
+		fmt.Println("[Warning] goroutine leaks!")
+		os.Exit(1)
+	}
+
+	// must copy
+	ctrlC := ctrl
+	ctrl = nil
+	if !testsuite.Destroyed(ctrlC) {
+		fmt.Println("[Warning] controller is not destroyed")
+		os.Exit(1)
+	}
+}
 
 func generateControllerConfig() *controller.Config {
 	cfg := controller.Config{}
@@ -48,7 +75,7 @@ func generateControllerConfig() *controller.Config {
 	cfg.Logger.File = "log/controller.log"
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
 
-	cfg.Global.DNSCacheExpire = time.Minute
+	cfg.Global.DNSCacheExpire = 10 * time.Second
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = time.Minute
@@ -104,21 +131,20 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Logger.Level = "debug"
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
 
-	cfg.Global.DNSCacheExpire = 3 * time.Minute
+	cfg.Global.DNSCacheExpire = 10 * time.Second
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
-	cfg.Global.TimeSyncInterval = 1 * time.Minute
+	cfg.Global.TimeSyncInterval = time.Minute
 	cfg.Global.Certificates = testdata.Certificates(tb)
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
 
-	cfg.Client.ProxyTag = "balance"
-	cfg.Client.Timeout = 15 * time.Second
+	cfg.Client.ProxyTag = testdata.Socks5Tag
+	cfg.Client.Timeout = 10 * time.Second
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
-	cfg.Register.Skip = true
 
 	cfg.Forwarder.MaxCtrlConns = 10
 	cfg.Forwarder.MaxNodeConns = 8
@@ -144,16 +170,15 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
+// -----------------------------------------initial Node-------------------------------------------
+
 const InitialNodeListenerTag = "init_tcp"
 
-// generateNodeWithListener is used to create init Node
-// controller will trust it
-func generateNodeWithListener(t testing.TB) *node.Node {
+func generateInitialNode(t testing.TB) *node.Node {
 	initializeController(t)
 
 	cfg := generateNodeConfig(t)
-	NODE, err := node.New(cfg)
-	require.NoError(t, err)
+	cfg.Register.Skip = true
 
 	// generate certificate
 	pairs := ctrl.GetSelfCerts()
@@ -178,33 +203,54 @@ func generateNodeWithListener(t testing.TB) *node.Node {
 		{Cert: string(c), Key: string(k)},
 	}
 
+	// add to node config
+	data, key, err := controller.GenerateNodeConfigAboutListeners(&listener)
+	require.NoError(t, err)
+	cfg.Server.Listeners = data
+	cfg.Server.ListenersKey = key
+
 	// run
+	Node, err := node.New(cfg)
+	require.NoError(t, err)
 	go func() {
-		err := NODE.Main()
+		err := Node.Main()
 		require.NoError(t, err)
 	}()
-	NODE.Wait()
-
-	require.NoError(t, NODE.AddListener(&listener))
-	return NODE
+	Node.Wait()
+	return Node
 }
 
-func generateNodeAndTrust(t testing.TB) *node.Node {
-	NODE := generateNodeWithListener(t)
-	listener, err := NODE.GetListener(InitialNodeListenerTag)
+func generateInitialNodeAndTrust(t testing.TB) *node.Node {
+	Node := generateInitialNode(t)
+	listener, err := Node.GetListener(InitialNodeListenerTag)
 	require.NoError(t, err)
 	bListener := &bootstrap.Listener{
 		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
-	// controller trust node
+	// trust node
 	req, err := ctrl.TrustNode(context.Background(), bListener)
 	require.NoError(t, err)
 	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
 	require.NoError(t, err)
-	// controller connect node
-	err = ctrl.Connect(bListener, NODE.GUID())
+	// connect node
+	err = ctrl.Connect(bListener, Node.GUID())
 	require.NoError(t, err)
-	return NODE
+	return Node
+}
+
+func generateBootstrap(t testing.TB, listeners ...*bootstrap.Listener) ([]byte, []byte) {
+	direct := bootstrap.NewDirect()
+	direct.Listeners = listeners
+	directCfg, err := direct.Marshal()
+	require.NoError(t, err)
+	boot := messages.Bootstrap{
+		Tag:    "first",
+		Mode:   bootstrap.ModeDirect,
+		Config: directCfg,
+	}
+	data, key, err := controller.GenerateRoleConfigAboutTheFirstBootstrap(&boot)
+	require.NoError(t, err)
+	return data, key
 }

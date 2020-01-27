@@ -13,9 +13,9 @@ import (
 	"project/internal/messages"
 )
 
-func TestNode_SendDirectly(t *testing.T) {
-	NODE := generateNodeAndTrust(t)
-	defer NODE.Exit(nil)
+func TestNodeSendDirectly(t *testing.T) {
+	Node := generateInitialNodeAndTrust(t)
+	defer Node.Exit(nil)
 
 	const (
 		goroutines = 256
@@ -24,7 +24,7 @@ func TestNode_SendDirectly(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := NODE.Send(messages.CMDBTest, msg)
+			err := Node.Send(messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -57,9 +57,8 @@ func TestNode_SendDirectly(t *testing.T) {
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+	guid := strings.ToUpper(hex.EncodeToString(Node.GUID()))
 	err := ctrl.Disconnect(guid)
 	require.NoError(t, err)
-
-	// testsuite.IsDestroyed(t, NODE)
+	// testsuite.IsDestroyed(t, Node)
 }
