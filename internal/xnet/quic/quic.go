@@ -13,7 +13,7 @@ import (
 
 const (
 	defaultTimeout   = 30 * time.Second // dial and accept
-	defaultNextProto = "h3-24"          // HTTP/3
+	defaultNextProto = "h3-27"          // HTTP/3
 )
 
 // ErrConnClosed is an error about closed
@@ -51,7 +51,7 @@ func (c *Conn) acceptStream() error {
 			if c.acceptErr != nil {
 				return
 			}
-			// read data for handshake, prevent block
+			// read data for prevent block
 			_ = c.stream.SetReadDeadline(time.Now().Add(c.timeout))
 			_, c.acceptErr = c.stream.Read(make([]byte, 1))
 		}
@@ -89,7 +89,7 @@ func (c *Conn) Close() error {
 	if c.stream != nil {
 		_ = c.stream.Close()
 	}
-	err := c.session.Close()
+	err := c.session.CloseWithError(0, "no error")
 	if c.rawConn != nil {
 		_ = c.rawConn.Close()
 	}
@@ -182,7 +182,7 @@ func Listen(
 	}
 	quicCfg := quic.Config{
 		HandshakeTimeout: timeout,
-		IdleTimeout:      timeout,
+		MaxIdleTimeout:   timeout,
 		KeepAlive:        true,
 	}
 	if len(config.NextProtos) == 0 {
@@ -239,7 +239,7 @@ func DialContext(
 	}
 	quicCfg := quic.Config{
 		HandshakeTimeout: timeout,
-		IdleTimeout:      5 * timeout,
+		MaxIdleTimeout:   5 * timeout,
 		KeepAlive:        true,
 	}
 	if len(config.NextProtos) == 0 {
@@ -254,7 +254,7 @@ func DialContext(
 	}
 	defer func() {
 		if !success {
-			_ = session.Close()
+			_ = session.CloseWithError(0, "no error")
 		}
 	}()
 	stream, err := session.OpenStreamSync(ctx)
@@ -266,7 +266,7 @@ func DialContext(
 			_ = stream.Close()
 		}
 	}()
-	// write data for handshake, prevent block
+	// write data for prevent block
 	_ = stream.SetWriteDeadline(time.Now().Add(timeout))
 	_, err = stream.Write([]byte{0})
 	if err != nil {
