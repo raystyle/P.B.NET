@@ -78,7 +78,9 @@ func startPPROFHTTPServer(port int) bool {
 	return true
 }
 
-func isDestroyed(object interface{}) bool {
+// Destroyed is used to check if the object has been recycled by the GC
+// it not need testing
+func Destroyed(object interface{}) bool {
 	destroyed := make(chan struct{})
 	runtime.SetFinalizer(object, func(interface{}) {
 		close(destroyed)
@@ -97,7 +99,7 @@ func isDestroyed(object interface{}) bool {
 
 // IsDestroyed is used to check if the object has been recycled by the GC
 func IsDestroyed(t testing.TB, object interface{}) {
-	require.True(t, isDestroyed(object), "object not destroyed")
+	require.True(t, Destroyed(object), "object not destroyed")
 }
 
 // RunHTTPServer is used to start a http or https server and return port

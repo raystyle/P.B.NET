@@ -15,12 +15,12 @@ func TestIsDestroyed(t *testing.T) {
 	n, err := fmt.Fprintln(ioutil.Discard, a)
 	require.Equal(t, n, 2)
 	require.NoError(t, err)
-	if !isDestroyed(&a) {
+	if !Destroyed(&a) {
 		t.Fatal("doesn't destroyed")
 	}
 
 	b := 2
-	if isDestroyed(&b) {
+	if Destroyed(&b) {
 		t.Fatal("destroyed")
 	}
 	n, err = fmt.Fprintln(ioutil.Discard, b)
