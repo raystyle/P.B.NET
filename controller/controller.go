@@ -74,7 +74,7 @@ func New(cfg *Config) (*CTRL, error) {
 	}
 	ctrl.syncer = syncer
 	// handler
-	ctrl.handler = &handler{ctx: ctrl}
+	ctrl.handler = newHandler(ctrl)
 	// worker
 	worker, err := newWorker(ctrl, cfg)
 	if err != nil {
@@ -164,11 +164,17 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.logger.Print(logger.Info, "exit", "web server is stopped")
 		ctrl.boot.Close()
 		ctrl.logger.Print(logger.Info, "exit", "boot is stopped")
-		// close worker first
+		ctrl.handler.Cancel()
+		ctrl.worker.Close()
+		ctrl.logger.Print(logger.Info, "exit", "worker is stopped")
+		ctrl.handler.Close()
+		ctrl.logger.Print(logger.Info, "exit", "handler is stopped")
 		ctrl.syncer.Close()
 		ctrl.logger.Print(logger.Info, "exit", "syncer is stopped")
 		ctrl.sender.Close()
 		ctrl.logger.Print(logger.Info, "exit", "sender is stopped")
+		ctrl.clientMgr.Close()
+		ctrl.logger.Print(logger.Info, "exit", "client manager is closed")
 		ctrl.global.Close()
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")

@@ -1,19 +1,49 @@
 package controller
 
 import (
+	"fmt"
 	"os"
+	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite"
+
+	"project/testdata"
 )
 
 var (
 	ctrl     *CTRL
 	initOnce sync.Once
 )
+
+func TestMain(m *testing.M) {
+	m.Run()
+
+	testdata.Clean()
+
+	// wait to print log
+	time.Sleep(time.Second)
+	ctrl.Exit(nil)
+
+	// one test main goroutine and
+	// two goroutine about pprof server in testsuite
+	if runtime.NumGoroutine() != 3 {
+		fmt.Println("[Warning] goroutine leaks!")
+		os.Exit(1)
+	}
+
+	// must copy
+	ctrlC := ctrl
+	ctrl = nil
+	if !testsuite.Destroyed(ctrlC) {
+		fmt.Println("[Warning] controller is not destroyed")
+		os.Exit(1)
+	}
+}
 
 func testInitializeController(t testing.TB) {
 	initOnce.Do(func() {

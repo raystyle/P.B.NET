@@ -497,6 +497,7 @@ func (sender *sender) Close() {
 		}
 	}
 	sender.guid.Close()
+	sender.ctx = nil
 }
 
 func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {

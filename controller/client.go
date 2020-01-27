@@ -197,7 +197,8 @@ func (client *Client) handshake(conn *xnet.Conn) error {
 		return err
 	}
 	// verify certificate
-	ok, err := protocol.VerifyCertificate(conn, client.ctx.global.PublicKey(), client.guid)
+	publicKey := client.ctx.global.PublicKey()
+	ok, err := protocol.VerifyCertificate(conn, publicKey, client.guid)
 	if err != nil {
 		client.log(logger.Exploit, err)
 		return err
