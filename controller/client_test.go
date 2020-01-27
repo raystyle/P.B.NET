@@ -20,6 +20,7 @@ import (
 	"project/internal/protocol"
 	"project/internal/testsuite"
 	"project/internal/xnet"
+
 	"project/node"
 	"project/testdata"
 )
