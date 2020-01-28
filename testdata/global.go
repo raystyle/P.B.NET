@@ -42,16 +42,16 @@ const (
 )
 
 var (
-	socks5Server         *socks.Server
-	httpProxyServer      *http.Server
-	initProxyClientsOnce sync.Once
-	wg                   sync.WaitGroup
+	socks5Server    *socks.Server
+	httpProxyServer *http.Server
+	initProxyOnce   sync.Once
+	wg              sync.WaitGroup
 )
 
 // ProxyClients is used to deploy a proxy server
 // and return corresponding proxy client
 func ProxyClients(t require.TestingT) []*proxy.Client {
-	initProxyClientsOnce.Do(func() {
+	initProxyOnce.Do(func() {
 		var err error
 		// socks5 server
 		socks5Server, err = socks.NewSocks5Server("test", logger.Test, nil)
@@ -59,7 +59,7 @@ func ProxyClients(t require.TestingT) []*proxy.Client {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err = socks5Server.ListenAndServe("tcp", "localhost:0")
+			err := socks5Server.ListenAndServe("tcp", "localhost:0")
 			require.NoError(t, err)
 		}()
 		// http proxy server
@@ -68,7 +68,7 @@ func ProxyClients(t require.TestingT) []*proxy.Client {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err = httpProxyServer.ListenAndServe("tcp", "localhost:0")
+			err := httpProxyServer.ListenAndServe("tcp", "localhost:0")
 			require.NoError(t, err)
 		}()
 		time.Sleep(250 * time.Millisecond)
@@ -175,7 +175,11 @@ timeout = "15s"
 // Clean is used to clean test data
 // close proxy servers
 func Clean() {
-	_ = socks5Server.Close()
-	_ = httpProxyServer.Close()
+	if socks5Server != nil {
+		_ = socks5Server.Close()
+	}
+	if httpProxyServer != nil {
+		_ = httpProxyServer.Close()
+	}
 	wg.Wait()
 }
