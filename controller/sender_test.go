@@ -2,7 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"fmt"
 	"runtime"
@@ -13,46 +12,26 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/bootstrap"
 	"project/internal/messages"
 	"project/internal/protocol"
-	"project/internal/xnet"
+	"project/internal/testsuite"
 
 	"project/node"
 )
 
-func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
-	testInitializeController(t)
-
-	NODE := testGenerateInitialNode(t)
-	listener, err := NODE.GetListener(testInitialNodeListenerTag)
-	require.NoError(t, err)
-	bListener := &bootstrap.Listener{
-		Mode:    xnet.ModeTCP,
-		Network: "tcp",
-		Address: listener.Addr().String(),
-	}
-	// trust node
-	req, err := ctrl.TrustNode(context.Background(), bListener)
-	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
-	require.NoError(t, err)
-	// connect
-	err = ctrl.Connect(bListener, NODE.GUID())
-	require.NoError(t, err)
-	return NODE
-}
-
 func TestSender_Connect(t *testing.T) {
-	NODE := testGenerateInitialNodeAndTrust(t)
-	defer NODE.Exit(nil)
-	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+	Node := testGenerateInitialNodeAndTrust(t)
+	guid := strings.ToUpper(hex.EncodeToString(Node.GUID()))
 	err := ctrl.Disconnect(guid)
 	require.NoError(t, err)
+
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }
 
 func TestSender_Broadcast(t *testing.T) {
-	NODE := testGenerateInitialNodeAndTrust(t)
+	Node := testGenerateInitialNodeAndTrust(t)
+
 	const (
 		goroutines = 256
 		times      = 64
@@ -75,7 +54,7 @@ func TestSender_Broadcast(t *testing.T) {
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-NODE.Test.BroadcastTestMsg:
+		case b := <-Node.Test.BroadcastTestMsg:
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
@@ -83,7 +62,7 @@ func TestSender_Broadcast(t *testing.T) {
 		}
 	}
 	select {
-	case <-NODE.Test.BroadcastTestMsg:
+	case <-Node.Test.BroadcastTestMsg:
 		t.Fatal("redundancy broadcast")
 	case <-time.After(time.Second):
 	}
@@ -92,18 +71,19 @@ func TestSender_Broadcast(t *testing.T) {
 		need := fmt.Sprintf("test broadcast %d", i)
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
+
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(NODE.GUID()))
+	guid := strings.ToUpper(hex.EncodeToString(Node.GUID()))
 	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
-	NODE.Exit(nil)
-
-	// testsuite.IsDestroyed(t, NODE)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }
 
 func TestSender_SendToNode(t *testing.T) {
-	NODE := testGenerateInitialNodeAndTrust(t)
-	nodeGUID := NODE.GUID()
+	Node := testGenerateInitialNodeAndTrust(t)
+	nodeGUID := Node.GUID()
+
 	const (
 		goroutines = 256
 		times      = 64
@@ -126,15 +106,15 @@ func TestSender_SendToNode(t *testing.T) {
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-NODE.Test.SendTestMsg:
+		case b := <-Node.Test.SendTestMsg:
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read NODE.Test.Send timeout i: %d", i)
+			t.Fatalf("read Node.Test.Send timeout i: %d", i)
 		}
 	}
 	select {
-	case <-NODE.Test.SendTestMsg:
+	case <-Node.Test.SendTestMsg:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
@@ -143,29 +123,28 @@ func TestSender_SendToNode(t *testing.T) {
 		need := fmt.Sprintf("test send %d", i)
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
+
 	// clean
 	guid := strings.ToUpper(hex.EncodeToString(nodeGUID))
 	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
-	NODE.Exit(nil)
-
-	// TODO check Node
-	// testsuite.IsDestroyed(t, NODE)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }
 
 func BenchmarkSender_Broadcast(b *testing.B) {
 	b.Skip()
 	number := runtime.NumCPU()
-	NODEs := make([]*node.Node, number)
+	Nodes := make([]*node.Node, number)
 	for i := 0; i < number; i++ {
-		NODEs[i] = testGenerateInitialNodeAndTrust(b)
+		Nodes[i] = testGenerateInitialNodeAndTrust(b)
 	}
 	defer func() {
 		for i := 0; i < number; i++ {
-			guid := strings.ToUpper(hex.EncodeToString(NODEs[i].GUID()))
+			guid := strings.ToUpper(hex.EncodeToString(Nodes[i].GUID()))
 			err := ctrl.sender.Disconnect(guid)
 			require.NoError(b, err)
-			NODEs[i].Exit(nil)
+			Nodes[i].Exit(nil)
 		}
 	}()
 	count := 0
@@ -181,7 +160,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 			for {
 				timer.Reset(3 * time.Second)
 				select {
-				case <-NODEs[index].Test.BroadcastTestMsg:
+				case <-Nodes[index].Test.BroadcastTestMsg:
 					countM.Lock()
 					count++
 					countM.Unlock()
@@ -196,9 +175,9 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 }
 
 func TestBenchmarkSender_SendToNode(t *testing.T) {
-	NODE := testGenerateInitialNodeAndTrust(t)
-	// send to Node
-	nodeGUID := NODE.GUID()
+	Node := testGenerateInitialNodeAndTrust(t)
+	nodeGUID := Node.GUID()
+
 	var (
 		goroutines = runtime.NumCPU()
 		times      = 600000
@@ -223,23 +202,23 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 	for i := 0; i < total; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case <-NODE.Test.SendTestMsg:
+		case <-Node.Test.SendTestMsg:
 		case <-timer.C:
-			t.Fatalf("read NODE.Test.Send timeout i: %d", i)
+			t.Fatalf("read Node.Test.Send timeout i: %d", i)
 		}
 	}
 	stop := time.Since(start).Seconds()
 	t.Logf("[benchmark] total time: %.2fs, times: %d", stop, total)
 	select {
-	case <-NODE.Test.SendTestMsg:
+	case <-Node.Test.SendTestMsg:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
+
 	// clean
 	guid := strings.ToUpper(hex.EncodeToString(nodeGUID))
 	err := ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
-	NODE.Exit(nil)
-
-	// testsuite.IsDestroyed(t, NODE)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }

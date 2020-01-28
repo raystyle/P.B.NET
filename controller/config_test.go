@@ -14,7 +14,10 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/logger"
 	"project/internal/module/info"
+	"project/internal/testsuite"
 	"project/internal/xnet"
+
+	"project/node"
 )
 
 func testGenerateConfig() *Config {
@@ -121,12 +124,9 @@ func TestConfig(t *testing.T) {
 }
 
 func TestTrustNodeAndConfirm(t *testing.T) {
-	testInitializeController(t)
+	Node := testGenerateInitialNode(t)
 
-	NODE := testGenerateInitialNode(t)
-	defer NODE.Exit(nil)
-
-	listener, err := NODE.GetListener(testInitialNodeListenerTag)
+	listener, err := Node.GetListener(testInitialNodeListenerTag)
 	require.NoError(t, err)
 	bListener := &bootstrap.Listener{
 		Mode:    xnet.ModeTCP,
@@ -140,4 +140,28 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	t.Log(req.SystemInfo)
 	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
 	require.NoError(t, err)
+
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
+}
+
+func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
+	Node := testGenerateInitialNode(t)
+
+	listener, err := Node.GetListener(testInitialNodeListenerTag)
+	require.NoError(t, err)
+	bListener := &bootstrap.Listener{
+		Mode:    xnet.ModeTCP,
+		Network: "tcp",
+		Address: listener.Addr().String(),
+	}
+	// trust node
+	req, err := ctrl.TrustNode(context.Background(), bListener)
+	require.NoError(t, err)
+	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
+	require.NoError(t, err)
+	// connect
+	err = ctrl.Connect(bListener, Node.GUID())
+	require.NoError(t, err)
+	return Node
 }

@@ -24,8 +24,10 @@ func TestMain(m *testing.M) {
 	m.Run()
 
 	// wait to print log
-	time.Sleep(time.Second)
-	ctrl.Exit(nil)
+	if ctrl != nil {
+		time.Sleep(time.Second)
+		ctrl.Exit(nil)
+	}
 
 	testdata.Clean()
 
@@ -45,11 +47,14 @@ func TestMain(m *testing.M) {
 	}
 
 	// must copy
-	ctrlC := ctrl
-	ctrl = nil
-	if !testsuite.Destroyed(ctrlC) {
-		fmt.Println("[Warning] controller is not destroyed")
-		os.Exit(1)
+	if ctrl != nil {
+		ctrlC := ctrl
+		ctrl = nil
+
+		if !testsuite.Destroyed(ctrlC) {
+			fmt.Println("[Warning] controller is not destroyed")
+			os.Exit(1)
+		}
 	}
 }
 

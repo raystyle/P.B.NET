@@ -18,9 +18,8 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 		address = "localhost:62300"
 		times   = 10
 	)
-	testInitializeController(t)
-	NODE := testGenerateInitialNode(t)
-	defer NODE.Exit(nil)
+	Node := testGenerateInitialNode(t)
+	defer Node.Exit(nil)
 	node := &bootstrap.Listener{
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
@@ -32,14 +31,14 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(context.Background(), node, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.sender.Connect(node, NODE.GUID())
+	err = ctrl.sender.Connect(node, Node.GUID())
 	require.NoError(t, err)
 	// node broadcast test message
 	msg := []byte("connected-node-send: hello controller")
 	ctrl.Test.NodeSend = make(chan []byte, times)
 	go func() {
 		for i := 0; i < times; i++ {
-			require.NoError(t, NODE.Send(messages.CMDBTest, msg))
+			require.NoError(t, Node.Send(messages.CMDBTest, msg))
 		}
 	}()
 	// read
@@ -52,7 +51,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 		}
 	}
 	// disconnect
-	guid := hex.EncodeToString(NODE.GUID())
+	guid := hex.EncodeToString(Node.GUID())
 	err = ctrl.sender.Disconnect(guid)
 	require.NoError(t, err)
 }

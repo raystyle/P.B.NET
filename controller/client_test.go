@@ -86,9 +86,11 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
-const testInitialNodeListenerTag = "test_tcp"
+const testInitialNodeListenerTag = "init_tcp"
 
 func testGenerateInitialNode(t testing.TB) *node.Node {
+	testInitializeController(t)
+
 	cfg := testGenerateNodeConfig(t)
 	cfg.Register.Skip = true
 
@@ -116,20 +118,21 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	}
 
 	// set node config
-	config, key, err := GenerateNodeConfigAboutListeners(&listener)
+	data, key, err := GenerateNodeConfigAboutListeners(&listener)
 	require.NoError(t, err)
-	cfg.Server.Listeners = config
+	cfg.Server.Listeners = data
 	cfg.Server.ListenersKey = key
 
-	NODE, err := node.New(cfg)
+	// run
+	Node, err := node.New(cfg)
 	require.NoError(t, err)
 	testsuite.IsDestroyed(t, cfg)
 	go func() {
-		err := NODE.Main()
+		err := Node.Main()
 		require.NoError(t, err)
 	}()
-	NODE.Wait()
-	return NODE
+	Node.Wait()
+	return Node
 }
 
 func testGenerateClient(tb testing.TB, node *node.Node) *Client {
@@ -146,11 +149,8 @@ func testGenerateClient(tb testing.TB, node *node.Node) *Client {
 }
 
 func TestClient_Send(t *testing.T) {
-	testInitializeController(t)
-
-	NODE := testGenerateInitialNode(t)
-	defer NODE.Exit(nil)
-	client := testGenerateClient(t, NODE)
+	Node := testGenerateInitialNode(t)
+	client := testGenerateClient(t, Node)
 
 	data := bytes.Buffer{}
 	for i := 0; i < 1024; i++ {
@@ -161,16 +161,16 @@ func TestClient_Send(t *testing.T) {
 		data.Reset()
 	}
 
+	// clean
 	client.Close()
 	testsuite.IsDestroyed(t, client)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }
 
 func TestClient_SendParallel(t *testing.T) {
-	testInitializeController(t)
-
-	NODE := testGenerateInitialNode(t)
-	defer NODE.Exit(nil)
-	client := testGenerateClient(t, NODE)
+	Node := testGenerateInitialNode(t)
+	client := testGenerateClient(t, Node)
 
 	wg := sync.WaitGroup{}
 	send := func() {
@@ -190,16 +190,17 @@ func TestClient_SendParallel(t *testing.T) {
 	}
 	wg.Wait()
 
+	// clean
 	client.Close()
 	testsuite.IsDestroyed(t, client)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }
 
 func BenchmarkClient_Send(b *testing.B) {
-	testInitializeController(b)
+	Node := testGenerateInitialNode(b)
+	client := testGenerateClient(b, Node)
 
-	NODE := testGenerateInitialNode(b)
-	defer NODE.Exit(nil)
-	client := testGenerateClient(b, NODE)
 	data := bytes.Buffer{}
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -214,16 +215,18 @@ func BenchmarkClient_Send(b *testing.B) {
 	}
 
 	b.StopTimer()
+
+	// clean
 	client.Close()
 	testsuite.IsDestroyed(b, client)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(b, Node)
 }
 
 func BenchmarkClient_SendParallel(b *testing.B) {
-	testInitializeController(b)
+	Node := testGenerateInitialNode(b)
+	client := testGenerateClient(b, Node)
 
-	NODE := testGenerateInitialNode(b)
-	defer NODE.Exit(nil)
-	client := testGenerateClient(b, NODE)
 	b.ReportAllocs()
 	b.ResetTimer()
 
@@ -242,6 +245,10 @@ func BenchmarkClient_SendParallel(b *testing.B) {
 	})
 
 	b.StopTimer()
+
+	// clean
 	client.Close()
 	testsuite.IsDestroyed(b, client)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(b, Node)
 }
