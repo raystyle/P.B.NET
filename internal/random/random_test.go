@@ -35,7 +35,7 @@ func TestRandom(t *testing.T) {
 }
 
 func TestRandomEqual(t *testing.T) {
-	const n = 256
+	const n = 64
 	result := make(chan int, n)
 	for i := 0; i < n; i++ {
 		go func() {
