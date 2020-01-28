@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
+	"project/internal/testsuite"
 
 	"project/node"
 )
@@ -33,11 +34,11 @@ func TestNodeRegister(t *testing.T) {
 	cNode, err := node.New(cNodeCfg)
 	require.NoError(t, err)
 	err = cNode.Main()
-	// require.NoError(t, err)
+	require.Error(t, err)
 
 	// clean
 	iNode.Exit(nil)
-	// testsuite.IsDestroyed(t, iNode)
+	testsuite.IsDestroyed(t, iNode)
 	cNode.Exit(nil)
-	// testsuite.IsDestroyed(t, cNode)
+	testsuite.IsDestroyed(t, cNode)
 }

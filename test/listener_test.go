@@ -35,7 +35,7 @@ func TestNodeListener(t *testing.T) {
 	})
 
 	Node.Exit(nil)
-	// testsuite.IsDestroyed(t, Node)
+	testsuite.IsDestroyed(t, Node)
 }
 
 func testNodeListenerClientSend(t *testing.T, client *controller.Client) {

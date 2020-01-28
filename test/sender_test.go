@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/messages"
+	"project/internal/testsuite"
 )
 
 func TestNodeSendDirectly(t *testing.T) {
 	Node := generateInitialNodeAndTrust(t)
-	defer Node.Exit(nil)
 
 	const (
 		goroutines = 256
@@ -56,9 +56,11 @@ func TestNodeSendDirectly(t *testing.T) {
 		need := fmt.Sprintf("test send %d", i)
 		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
+
 	// clean
 	guid := strings.ToUpper(hex.EncodeToString(Node.GUID()))
 	err := ctrl.Disconnect(guid)
 	require.NoError(t, err)
-	// testsuite.IsDestroyed(t, Node)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }

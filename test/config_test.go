@@ -111,13 +111,14 @@ func generateControllerConfig() *controller.Config {
 	return &cfg
 }
 
-func initializeController(t require.TestingT) {
+func initializeController(t testing.TB) {
 	initOnce.Do(func() {
 		err := os.Chdir("../app")
 		require.NoError(t, err)
 		cfg := generateControllerConfig()
 		ctrl, err = controller.New(cfg)
 		require.NoError(t, err)
+		testsuite.IsDestroyed(t, cfg)
 		// set controller keys
 		err = ctrl.LoadSessionKeyFromFile("key/session.key", []byte("pbnet"))
 		require.NoError(t, err)
@@ -220,6 +221,7 @@ func generateInitialNode(t testing.TB) *node.Node {
 	// run
 	Node, err := node.New(cfg)
 	require.NoError(t, err)
+	testsuite.IsDestroyed(t, cfg)
 	go func() {
 		err := Node.Main()
 		require.NoError(t, err)
