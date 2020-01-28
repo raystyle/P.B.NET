@@ -100,10 +100,10 @@ func TestExecute(t *testing.T) {
 
 	// must copy, because shellcode will be clean
 	copy(cp, shellcode)
-	require.NoError(t, Execute("vp", cp))
+	require.NoError(t, Execute(MethodVirtualProtect, cp))
 
 	copy(cp, shellcode)
-	require.NoError(t, Execute("thread", cp))
+	require.NoError(t, Execute(MethodCreateThread, cp))
 
 	err = Execute("foo method", shellcode)
 	require.EqualError(t, err, "unknown method: foo method")

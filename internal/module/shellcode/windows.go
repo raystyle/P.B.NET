@@ -12,14 +12,21 @@ import (
 	"project/internal/random"
 )
 
+// supported execute methods
+const (
+	MethodVirtualProtect = "vp"
+	MethodCreateThread   = "thread"
+)
+
 // Execute is used to execute shellcode
 // default method is VirtualProtect
-// warning: slice shellcode will be cover
+// it will block until shellcode return
+// warning: shellcode slice will be cover
 func Execute(method string, shellcode []byte) error {
 	switch method {
-	case "", "vp":
+	case "", MethodVirtualProtect:
 		return VirtualProtect(shellcode)
-	case "thread":
+	case MethodCreateThread:
 		return CreateThread(shellcode)
 	default:
 		return errors.Errorf("unknown method: %s", method)
