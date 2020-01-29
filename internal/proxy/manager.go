@@ -73,6 +73,7 @@ func (m *Manager) addSocks(server *Server) error {
 			return errors.WithStack(err)
 		}
 	}
+	opts.DialContext = server.DialContext
 	// because the tag is never empty
 	// socks.NewServer will not return error
 	switch server.Mode {
@@ -94,6 +95,7 @@ func (m *Manager) addHTTP(server *Server) error {
 			return errors.WithStack(err)
 		}
 	}
+	opts.DialContext = server.DialContext
 	var err error
 	switch server.Mode {
 	case ModeHTTP:

@@ -59,6 +59,10 @@ type Server struct {
 	Tag     string `toml:"tag"`
 	Mode    string `toml:"mode"`
 	Options string `toml:"options"`
+
+	// secondary proxy
+	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
+
 	server
 
 	now      func() time.Time
