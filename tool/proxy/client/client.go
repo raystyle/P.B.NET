@@ -5,78 +5,87 @@ import (
 
 	"project/internal/logger"
 	"project/internal/proxy"
-	"project/internal/proxy/socks"
 )
 
-// Configs contains proxy/client configurations
-type Configs struct {
+// Config contains proxy/client configurations
+type Config struct {
+	// service config
 	Service struct {
 		Name        string `toml:"name"`
 		DisplayName string `toml:"display_name"`
 		Description string `toml:"description"`
 	} `toml:"service"`
 
-	Listener struct {
-		Network  string `toml:"network"`
-		Address  string `toml:"address"`
-		Username string `toml:"username"`
-		Password string `toml:"password"`
-		MaxConns int    `toml:"max_conns"`
-	} `toml:"listener"`
+	// front proxy server config
+	Server struct {
+		Mode    string `toml:"mode"`
+		Network string `toml:"network"`
+		Address string `toml:"address"`
+		Options string `toml:"options"`
+	} `toml:"server"`
 
+	// proxy clients
+	Tag     string          `toml:"tag"`
 	Clients []*proxy.Client `toml:"clients"`
 }
 
-// Client is proxy client
+// Client is a proxy client with socks5 server
 type Client struct {
-	tag     string
-	configs *Configs
-	server  *socks.Server
-	exit    sync.Once
+	network  string
+	address  string
+	server   *proxy.Server
+	exitOnce sync.Once
 }
 
 // New is used to create a proxy client
-func New(tag string, config *Configs) *Client {
-	return &Client{tag: tag, configs: config}
-}
-
-// Main is used to run program
-func (client *Client) Main() error {
+func New(config *Config) (*Client, error) {
 	pool := proxy.NewPool()
-	for _, client := range client.configs.Clients {
+	for _, client := range config.Clients {
 		err := pool.Add(client)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	// if tag, use the last proxy client
-	if client.tag == "" {
-		client.tag = client.configs.Clients[len(client.configs.Clients)-1].Tag
+	tag := config.Tag
+	if tag == "" {
+		tag = config.Clients[len(config.Clients)-1].Tag
 	}
 	// set proxy client
-	pc, err := pool.Get(client.tag)
+	proxyClient, err := pool.Get(tag)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// start socks5 server
-	lc := client.configs.Listener
-	opts := socks.Options{
-		Username:    lc.Username,
-		Password:    lc.Password,
-		MaxConns:    lc.MaxConns,
-		DialContext: pc.DialContext,
-	}
-	client.server, err = socks.NewSocks5Server("proxy", logger.Common, &opts)
+	// start front proxy server
+	server := config.Server
+	manager := proxy.NewManager(logger.Common, nil)
+	err = manager.Add(&proxy.Server{
+		Tag:         "proxy",
+		Mode:        server.Mode,
+		Options:     server.Options,
+		DialContext: proxyClient.DialContext,
+	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return client.server.ListenAndServe(lc.Network, lc.Address)
+	proxyServer, _ := manager.Get("proxy")
+	client := Client{
+		network: server.Network,
+		address: server.Address,
+		server:  proxyServer,
+	}
+	return &client, nil
 }
 
-// Exit is used to exit program
+// Main is used to listen and server front proxy server
+func (client *Client) Main() error {
+	return client.server.ListenAndServe(client.network, client.address)
+}
+
+// Exit is used to close front proxy server
 func (client *Client) Exit() error {
 	var err error
-	client.exit.Do(func() {
+	client.exitOnce.Do(func() {
 		err = client.server.Close()
 	})
 	return err

@@ -16,13 +16,11 @@ import (
 
 func main() {
 	var (
-		tag       string
 		config    string
 		debug     bool
 		install   bool
 		uninstall bool
 	)
-	flag.StringVar(&tag, "tag", "", "proxy client tag")
 	flag.StringVar(&config, "config", "config.toml", "config file path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
@@ -42,42 +40,47 @@ func main() {
 		}
 	}
 
-	// load config
-	b, err := ioutil.ReadFile(config) // #nosec
+	// load proxy client config
+	data, err := ioutil.ReadFile(config) // #nosec
 	if err != nil {
 		log.Fatal(err)
 	}
-	var configs client.Configs
-	err = toml.Unmarshal(b, &configs)
+	cfg := new(client.Config)
+	err = toml.Unmarshal(data, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// start service
-	pg := program{client: client.New(tag, &configs)}
-	svcCfg := service.Config{
-		Name:        configs.Service.Name,
-		DisplayName: configs.Service.DisplayName,
-		Description: configs.Service.Description,
-	}
-	svc, err := service.New(&pg, &svcCfg)
+	proxyClient, err := client.New(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// initialize service
+	program := program{client: proxyClient}
+	svcConfig := service.Config{
+		Name:        cfg.Service.Name,
+		DisplayName: cfg.Service.DisplayName,
+		Description: cfg.Service.Description,
+	}
+	svc, err := service.New(&program, &svcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// switch operation
 	switch {
 	case install:
 		err = svc.Install()
 		if err != nil {
-			log.Fatalf("failed to install service: %s", err)
+			log.Fatalln("failed to install service:", err)
 		}
-		log.Print("install service successfully")
+		log.Println("install service successfully")
 	case uninstall:
 		err = svc.Uninstall()
 		if err != nil {
-			log.Fatalf("failed to uninstall service: %s", err)
+			log.Fatalln("failed to uninstall service:", err)
 		}
-		log.Print("uninstall service successfully")
+		log.Println("uninstall service successfully")
 	default:
 		lg, err := svc.Logger(nil)
 		if err != nil {

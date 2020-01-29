@@ -1,17 +1,25 @@
+# select proxy client, if empty use the last proxy client
+tag = ""
+
 [service]
   name        = "Proxy Client"
   displayName = "Proxy Client"
   description = "Proxy Client Service"
 
-[listener]
-  network   = "tcp"
-  address   = "127.0.0.1:8001"
-  username  = "admin"
-  password  = "123456"
-  max_conns = 1000
+# front proxy server
+[server]
+  mode    = "socks5"
+  network = "tcp"
+  address = "127.0.0.1:8001"
+  options = """
+    username  = "admin"
+    password  = "123456"
+    timeout   = "30s"
+    max_conns = 1000
+  """
 
 [[clients]]
-  tag     = "socks5-01"
+  tag     = "socks5-1"
   mode    = "socks5"
   network = "tcp"
   address = "127.0.0.1:9001"
@@ -22,13 +30,13 @@
   """
 
 [[clients]]
-  tag     = "socks5-02"
+  tag     = "socks5-2"
   mode    = "socks5"
   network = "tcp"
   address = "127.0.0.1:9002"
   options = """
     username = "admin"
-    password = "123456"
+    password = "123457"
     timeout  = "30s"
   """
 
@@ -36,5 +44,5 @@
   tag     = "balance"
   mode    = "balance"
   options = """
-    tags = ["socks5-01","socks5-02"]
+    tags = ["socks5-1", "socks5-2"]
   """
