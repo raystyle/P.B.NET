@@ -7,8 +7,9 @@ import (
 	"project/internal/proxy"
 )
 
-// Configs contains proxy/server configurations
-type Configs struct {
+// Config contains proxy/server configurations
+type Config struct {
+	Tag     string `toml:"-"`
 	Service struct {
 		Name        string `toml:"name"`
 		DisplayName string `toml:"display_name"`
@@ -21,44 +22,45 @@ type Configs struct {
 		Address string `toml:"address"`
 		Options string `toml:"options"`
 	} `toml:"proxy"`
-
-	Tag string // for test
 }
 
 // Server is proxy server
 type Server struct {
-	configs  *Configs
+	network  string
+	address  string
 	server   *proxy.Server
-	stopOnce sync.Once
+	exitOnce sync.Once
 }
 
 // New is used to create a proxy server
-func New(config *Configs) *Server {
-	return &Server{configs: config}
-}
-
-// Main is used to run program
-func (server *Server) Main() error {
+func New(config *Config) (*Server, error) {
 	manager := proxy.NewManager(logger.Common, nil)
-	srv := &proxy.Server{
-		Tag:     server.configs.Tag,
-		Mode:    server.configs.Proxy.Mode,
-		Options: server.configs.Proxy.Options,
-	}
-	err := manager.Add(srv)
+	err := manager.Add(&proxy.Server{
+		Tag:     config.Tag,
+		Mode:    config.Proxy.Mode,
+		Options: config.Proxy.Options,
+	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	server.server = srv
-	network := server.configs.Proxy.Network
-	address := server.configs.Proxy.Address
-	return srv.ListenAndServe(network, address)
+	proxyServer, _ := manager.Get(config.Tag)
+	server := Server{
+		network: config.Proxy.Network,
+		address: config.Proxy.Address,
+		server:  proxyServer,
+	}
+	return &server, nil
 }
 
-// Exit is used to exit program
+// Main is used to listen and server proxy server
+func (server *Server) Main() error {
+	return server.server.ListenAndServe(server.network, server.address)
+}
+
+// Exit is used to close proxy server
 func (server *Server) Exit() error {
 	var err error
-	server.stopOnce.Do(func() {
+	server.exitOnce.Do(func() {
 		err = server.server.Close()
 	})
 	return err

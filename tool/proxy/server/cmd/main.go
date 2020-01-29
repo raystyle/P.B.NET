@@ -40,43 +40,48 @@ func main() {
 		}
 	}
 
-	// load config
-	b, err := ioutil.ReadFile(config) // #nosec
+	// load proxy server config
+	data, err := ioutil.ReadFile(config) // #nosec
 	if err != nil {
 		log.Fatal(err)
 	}
-	var configs server.Configs
-	err = toml.Unmarshal(b, &configs)
+	var configs server.Config
+	err = toml.Unmarshal(data, &configs)
 	if err != nil {
 		log.Fatal(err)
 	}
 	configs.Tag = "server"
-
-	// start service
-	pg := program{server: server.New(&configs)}
-	svcCfg := service.Config{
-		Name:        configs.Service.Name,
-		DisplayName: configs.Service.DisplayName,
-		Description: configs.Service.Description,
-	}
-	svc, err := service.New(&pg, &svcCfg)
+	proxyServer, err := server.New(&configs)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// initialize service
+	program := program{server: proxyServer}
+	svcConfig := service.Config{
+		Name:        configs.Service.Name,
+		DisplayName: configs.Service.DisplayName,
+		Description: configs.Service.Description,
+	}
+	svc, err := service.New(&program, &svcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// switch operation
 	switch {
 	case install:
 		err = svc.Install()
 		if err != nil {
-			log.Fatalf("failed to install service: %s", err)
+			log.Fatalln("failed to install service:", err)
 		}
-		log.Print("install service successfully")
+		log.Println("install service successfully")
 	case uninstall:
 		err = svc.Uninstall()
 		if err != nil {
-			log.Fatalf("failed to uninstall service: %s", err)
+			log.Fatalln("failed to uninstall service:", err)
 		}
-		log.Print("uninstall service successfully")
+		log.Println("uninstall service successfully")
 	default:
 		lg, err := svc.Logger(nil)
 		if err != nil {
