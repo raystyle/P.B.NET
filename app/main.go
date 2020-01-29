@@ -10,7 +10,6 @@ import (
 
 	"github.com/kardianos/service"
 	"github.com/pelletier/go-toml"
-	"github.com/pkg/errors"
 
 	"project/controller"
 )
@@ -34,41 +33,38 @@ func main() {
 		changePath()
 	}
 
-	config := loadConfig()
-	svc, err := service.New(&program{config: config}, &service.Config{
-		Name:        "P.B.NET Controller",
-		DisplayName: "P.B.NET Controller",
-		Description: "P.B.NET Controller Service",
-	})
-	if err != nil {
-		log.Fatal(err)
+	if initDB {
+		err := controller.InitializeDatabase(loadConfig())
+		if err != nil {
+			log.Fatalln("failed to initialize database:", err)
+		}
+		log.Println("initialize database successfully")
+		return
 	}
 
-	switch {
-	case initDB:
-		err = controller.InitializeDatabase(config)
-		if err != nil {
-			log.Fatal(errors.Wrap(err, "failed to initialize database"))
-		}
-		log.Print("initialize database successfully")
-	case genKey != "":
+	if genKey != "" {
 		err := controller.GenerateSessionKey("key/session.key", []byte(genKey))
 		if err != nil {
-			log.Fatal(errors.Wrap(err, "failed to generate session key"))
+			log.Fatalln("failed to generate session key:", err)
 		}
-		log.Print("generate controller keys successfully")
+		log.Println("generate controller keys successfully")
+		return
+	}
+
+	svc := createService()
+	switch {
 	case install:
-		err = svc.Install()
+		err := svc.Install()
 		if err != nil {
-			log.Fatal(errors.Wrap(err, "failed to install service"))
+			log.Fatalln("failed to install service:", err)
 		}
-		log.Print("install service successfully")
+		log.Println("install service successfully")
 	case uninstall:
 		err := svc.Uninstall()
 		if err != nil {
-			log.Fatal(errors.Wrap(err, "failed to uninstall service"))
+			log.Fatalln("failed to uninstall service:", err)
 		}
-		log.Print("uninstall service successfully")
+		log.Println("uninstall service successfully")
 	default:
 		lg, err := svc.Logger(nil)
 		if err != nil {
@@ -106,20 +102,32 @@ func loadConfig() *controller.Config {
 	return config
 }
 
+func createService() service.Service {
+	ctrl, err := controller.New(loadConfig())
+	if err != nil {
+		log.Fatal(err)
+	}
+	svc, err := service.New(&program{ctrl: ctrl}, &service.Config{
+		Name:        "P.B.NET Controller",
+		DisplayName: "P.B.NET Controller",
+		Description: "P.B.NET Controller Service",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	return svc
+}
+
 type program struct {
-	config   *controller.Config
-	ctrl     *controller.CTRL
-	stopOnce sync.Once
+	ctrl *controller.CTRL
+	wg   sync.WaitGroup
 }
 
 func (p *program) Start(s service.Service) error {
-	var err error
-	p.ctrl, err = controller.New(p.config)
-	if err != nil {
-		return err
-	}
+	p.wg.Add(1)
 	go func() {
-		err = p.ctrl.Main()
+		defer p.wg.Done()
+		err := p.ctrl.Main()
 		if err != nil {
 			l, e := s.Logger(nil)
 			if e == nil {
@@ -127,15 +135,12 @@ func (p *program) Start(s service.Service) error {
 			}
 			os.Exit(1)
 		}
-		_ = s.Stop()
-		os.Exit(0)
 	}()
 	return nil
 }
 
 func (p *program) Stop(_ service.Service) error {
-	p.stopOnce.Do(func() {
-		p.ctrl.Exit(nil)
-	})
+	p.ctrl.Exit(nil)
+	p.wg.Wait()
 	return nil
 }
