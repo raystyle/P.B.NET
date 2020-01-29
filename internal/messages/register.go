@@ -74,7 +74,8 @@ type NodeRegisterResponse struct {
 	Certificate []byte
 
 	// key = hex(node guid)
-	// a part of all node listeners
+	// a part of all node listeners,
+	// Node will connect this listeners first
 	Listeners map[string][]*bootstrap.Listener
 }
 
@@ -138,7 +139,8 @@ type BeaconRegisterResponse struct {
 	Result uint8
 
 	// key = hex(node guid)
-	// a part of all node listeners
+	// a part of all node listeners,
+	// Beacon will connect this listeners first
 	Listeners map[string][]*bootstrap.Listener // key = hex(node guid)
 }
 
