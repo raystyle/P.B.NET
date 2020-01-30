@@ -2,54 +2,143 @@ package main
 
 import (
 	"bytes"
-	"fmt"
+	"flag"
+	"log"
 	"os"
+	"sync"
 	"time"
+
+	"github.com/kardianos/service"
+	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
+
 	"project/node"
 )
 
 func main() {
-	cfg := node.Config{}
+	var (
+		install   bool
+		uninstall bool
+	)
+	flag.BoolVar(&install, "install", false, "install service")
+	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
+	flag.Parse()
 
-	cfg.Test.SkipSynchronizeTime = true
+	config := new(node.Config)
+	err := msgpack.Unmarshal([]byte{}, config)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
-	cfg.Logger.Level = "debug"
-	cfg.Logger.Writer = os.Stdout
+	// TODO remove
+	tempSetConfig(config)
 
-	cfg.Global.DNSCacheExpire = 3 * time.Minute
-	cfg.Global.TimeSyncInterval = 1 * time.Minute
-	// cfg.Global.Certificates = testdata.Certificates(tb)
-	// cfg.Global.ProxyClients = testdata.ProxyClients(tb)
-	// cfg.Global.DNSServers = testdata.DNSServers()
-	// cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients(tb)
+	svc := createService(config)
+	switch {
+	case install:
+		err := svc.Install()
+		if err != nil {
+			log.Fatalln("failed to install service:", err)
+		}
+		log.Println("install service successfully")
+	case uninstall:
+		err := svc.Uninstall()
+		if err != nil {
+			log.Fatalln("failed to uninstall service:", err)
+		}
+		log.Println("uninstall service successfully")
+	default:
+		lg, err := svc.Logger(nil)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		err = svc.Run()
+		if err != nil {
+			_ = lg.Error(err)
+		}
+	}
+}
 
-	cfg.Client.ProxyTag = "balance"
-	cfg.Client.Timeout = 15 * time.Second
+func createService(config *node.Config) service.Service {
+	Node, err := node.New(config)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	svc, err := service.New(&program{node: Node}, &service.Config{
+		Name:        config.Service.Name,
+		DisplayName: config.Service.DisplayName,
+		Description: config.Service.Description,
+	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return svc
+}
 
-	cfg.Forwarder.MaxCtrlConns = 10
-	cfg.Forwarder.MaxNodeConns = 8
-	cfg.Forwarder.MaxBeaconConns = 128
+type program struct {
+	node *node.Node
+	wg   sync.WaitGroup
+}
 
-	cfg.Sender.Worker = 64
-	cfg.Sender.QueueSize = 512
-	cfg.Sender.MaxBufferSize = 512 << 10
-	cfg.Sender.Timeout = 15 * time.Second
+func (p *program) Start(s service.Service) error {
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		err := p.node.Main()
+		if err != nil {
+			l, e := s.Logger(nil)
+			if e == nil {
+				_ = l.Error(err)
+			}
+			os.Exit(1)
+		}
+	}()
+	return nil
+}
 
-	cfg.Syncer.ExpireTime = 30 * time.Second
+func (p *program) Stop(_ service.Service) error {
+	p.node.Exit(nil)
+	p.wg.Wait()
+	return nil
+}
 
-	cfg.Worker.Number = 16
-	cfg.Worker.QueueSize = 1024
-	cfg.Worker.MaxBufferSize = 16384
+func tempSetConfig(config *node.Config) {
+	config.Test.SkipSynchronizeTime = true
 
-	cfg.Server.MaxConns = 10
-	cfg.Server.Timeout = 15 * time.Second
+	config.Logger.Level = "debug"
+	config.Logger.Writer = os.Stdout
 
-	cfg.CTRL.ExPublicKey = bytes.Repeat([]byte{255}, 32)
-	cfg.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
-	cfg.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
+	config.Global.DNSCacheExpire = 3 * time.Minute
+	config.Global.TimeSyncInterval = 1 * time.Minute
+	// config.Global.Certificates = testdata.Certificates(tb)
+	// config.Global.ProxyClients = testdata.ProxyClients(tb)
+	// config.Global.DNSServers = testdata.DNSServers()
+	// config.Global.TimeSyncerClients = testdata.TimeSyncerClients(tb)
 
-	fmt.Println(node.New(&cfg))
+	config.Client.ProxyTag = "balance"
+	config.Client.Timeout = 15 * time.Second
+
+	config.Forwarder.MaxCtrlConns = 10
+	config.Forwarder.MaxNodeConns = 8
+	config.Forwarder.MaxBeaconConns = 128
+
+	config.Sender.Worker = 64
+	config.Sender.QueueSize = 512
+	config.Sender.MaxBufferSize = 512 << 10
+	config.Sender.Timeout = 15 * time.Second
+
+	config.Syncer.ExpireTime = 30 * time.Second
+
+	config.Worker.Number = 16
+	config.Worker.QueueSize = 1024
+	config.Worker.MaxBufferSize = 16384
+
+	config.Server.MaxConns = 10
+	config.Server.Timeout = 15 * time.Second
+
+	config.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, 32)
+	config.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
+	config.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 }
