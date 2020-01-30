@@ -33,7 +33,7 @@ var (
 // |    uint16    |     xxx      |     32     |
 // +--------------+--------------+------------+
 func (c *Conn) clientHandshake() error {
-	pri := make([]byte, 32)
+	pri := make([]byte, curve25519.ScalarSize)
 	_, _ = io.ReadFull(rand.Reader, pri)
 	pub, err := curve25519.ScalarBaseMult(pri)
 	if err != nil {
@@ -67,16 +67,16 @@ func (c *Conn) clientHandshake() error {
 		return err
 	}
 	// receive server curve25519 out
-	_, err = io.ReadFull(c.Conn, buffer[:32])
+	_, err = io.ReadFull(c.Conn, buffer[:curve25519.ScalarSize])
 	if err != nil {
 		return err
 	}
 	// calculate AES key
-	aesKey, err := curve25519.ScalarMult(pri, buffer[:32])
+	aesKey, err := curve25519.ScalarMult(pri, buffer[:curve25519.ScalarSize])
 	if err != nil {
 		return err
 	}
-	// receive encrypted password
+	// receive encrypted password, password size + AES padding
 	_, err = io.ReadFull(c.Conn, buffer[:256+16])
 	if err != nil {
 		return err
@@ -121,17 +121,17 @@ func (c *Conn) serverHandshake() error {
 		return err
 	}
 	// receive client curve25519 public key
-	_, err = io.ReadFull(c.Conn, buffer[:32])
+	_, err = io.ReadFull(c.Conn, buffer[:curve25519.ScalarSize])
 	if err != nil {
 		return err
 	}
-	pri := make([]byte, 32)
+	pri := make([]byte, curve25519.ScalarSize)
 	_, _ = io.ReadFull(rand.Reader, pri)
 	pub, err := curve25519.ScalarBaseMult(pri)
 	if err != nil {
 		return err
 	}
-	aesKey, err := curve25519.ScalarMult(pri, buffer[:32])
+	aesKey, err := curve25519.ScalarMult(pri, buffer[:curve25519.ScalarSize])
 	if err != nil {
 		return err
 	}

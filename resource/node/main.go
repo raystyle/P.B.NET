@@ -12,6 +12,7 @@ import (
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 
 	"project/node"
@@ -138,7 +139,7 @@ func tempSetConfig(config *node.Config) {
 	config.Server.MaxConns = 10
 	config.Server.Timeout = 15 * time.Second
 
-	config.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, 32)
+	config.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
 	config.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
 	config.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 }

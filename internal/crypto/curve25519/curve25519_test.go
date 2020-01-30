@@ -8,7 +8,7 @@ import (
 )
 
 func TestScalarBaseMult(t *testing.T) {
-	x := make([]byte, 32)
+	x := make([]byte, ScalarSize)
 	x[0] = 1
 	for i := 0; i < 200; i++ {
 		var err error
@@ -23,11 +23,11 @@ func TestScalarBaseMult(t *testing.T) {
 }
 
 func TestKeyExchange(t *testing.T) {
-	cPri := make([]byte, 32)
+	cPri := make([]byte, ScalarSize)
 	cPri[0] = 199
 	cPub, err := ScalarBaseMult(cPri)
 	require.NoError(t, err)
-	sPri := make([]byte, 32)
+	sPri := make([]byte, ScalarSize)
 	sPri[0] = 2
 	sPub, err := ScalarBaseMult(sPri)
 	require.NoError(t, err)

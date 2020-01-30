@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"project/internal/bootstrap"
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/module/info"
@@ -50,7 +51,7 @@ func (r *NodeRegisterRequest) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}
-	if len(r.KexPublicKey) != 32 {
+	if len(r.KexPublicKey) != curve25519.ScalarSize {
 		return errors.New("invalid key exchange public key size")
 	}
 	if r.SystemInfo == nil {
@@ -87,7 +88,7 @@ func (r *NodeRegisterResponse) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}
-	if len(r.KexPublicKey) != 32 {
+	if len(r.KexPublicKey) != curve25519.ScalarSize {
 		return errors.New("invalid key exchange public key size")
 	}
 	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {
@@ -116,7 +117,7 @@ func (r *BeaconRegisterRequest) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}
-	if len(r.KexPublicKey) != 32 {
+	if len(r.KexPublicKey) != curve25519.ScalarSize {
 		return errors.New("invalid key exchange public key size")
 	}
 	if r.SystemInfo == nil {
@@ -152,7 +153,7 @@ func (r *BeaconRegisterResponse) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}
-	if len(r.KexPublicKey) != 32 {
+	if len(r.KexPublicKey) != curve25519.ScalarSize {
 		return errors.New("invalid key exchange public key size")
 	}
 	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {

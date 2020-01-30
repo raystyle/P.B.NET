@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/logger"
 	"project/testdata"
@@ -58,7 +59,7 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Server.MaxConns = 10
 	cfg.Server.Timeout = 15 * time.Second
 
-	cfg.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, 32)
+	cfg.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
 	cfg.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
 	cfg.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 	return &cfg

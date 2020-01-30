@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/module/info"
 	"project/internal/protocol"
@@ -21,7 +22,7 @@ func TestNodeRegisterRequest_Validate(t *testing.T) {
 	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
 	require.EqualError(t, nrr.Validate(), "invalid key exchange public key size")
-	nrr.KexPublicKey = bytes.Repeat([]byte{0}, 32)
+	nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
 
 	require.EqualError(t, nrr.Validate(), "empty system info")
 	nrr.SystemInfo = new(info.System)
@@ -39,7 +40,7 @@ func TestNodeRegisterResponse_Validate(t *testing.T) {
 	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
 	require.EqualError(t, nrr.Validate(), "invalid key exchange public key size")
-	nrr.KexPublicKey = bytes.Repeat([]byte{0}, 32)
+	nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
 
 	require.EqualError(t, nrr.Validate(), "unknown node register result")
 	nrr.Result = RegisterResultAccept
@@ -60,7 +61,7 @@ func TestBeaconRegisterRequest_Validate(t *testing.T) {
 	brr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
 	require.EqualError(t, brr.Validate(), "invalid key exchange public key size")
-	brr.KexPublicKey = bytes.Repeat([]byte{0}, 32)
+	brr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
 
 	require.EqualError(t, brr.Validate(), "empty system info")
 	brr.SystemInfo = new(info.System)
@@ -78,7 +79,7 @@ func TestBeaconRegisterResponse_Validate(t *testing.T) {
 	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
 	require.EqualError(t, nrr.Validate(), "invalid key exchange public key size")
-	nrr.KexPublicKey = bytes.Repeat([]byte{0}, 32)
+	nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
 
 	require.EqualError(t, nrr.Validate(), "unknown beacon register result")
 	nrr.Result = RegisterResultAccept

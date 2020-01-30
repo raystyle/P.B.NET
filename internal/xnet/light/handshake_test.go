@@ -102,7 +102,7 @@ func TestConn_clientHandshake(t *testing.T) {
 	})
 
 	sendCurve25519Out := func(server *Conn) {
-		_, err := server.Conn.Write(bytes.Repeat([]byte{1}, 32))
+		_, err := server.Conn.Write(bytes.Repeat([]byte{1}, curve25519.ScalarSize))
 		require.NoError(t, err)
 	}
 
@@ -237,7 +237,7 @@ func TestConn_serverHandshake(t *testing.T) {
 	})
 
 	sendCurve25519Out := func(server *Conn) {
-		_, err := server.Conn.Write(bytes.Repeat([]byte{1}, 32))
+		_, err := server.Conn.Write(bytes.Repeat([]byte{1}, curve25519.ScalarSize))
 		require.NoError(t, err)
 	}
 

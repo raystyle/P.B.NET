@@ -118,17 +118,32 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 }
 
 const (
-	objCtrlPublicKey    uint32 = iota // verify controller role & message
-	objCtrlBroadcastKey               // decrypt controller broadcast message
-	objCtrlSessionKey                 // after key exchange (aes crypto)
+	// verify controller role & message
+	objCtrlPublicKey uint32 = iota
 
-	objStartupTime // global.configure() time
-	objNodeGUID    // identification
+	// decrypt controller broadcast message
+	objCtrlBroadcastKey
 
-	objCertificate // for server.handshake need protect
-	objPrivateKey  // for sign message
-	objPublicKey   // for role verify message
-	objKeyExPub    // for key exchange
+	// after key exchange (aes crypto)
+	objCtrlSessionKey
+
+	// global.configure() time
+	objStartupTime
+
+	// identification
+	objNodeGUID
+
+	// for server.handshake need protect
+	objCertificate
+
+	// for sign message
+	objPrivateKey
+
+	// for role verify message
+	objPublicKey
+
+	// for key exchange
+	objKexPublicKey
 )
 
 // <security>
@@ -184,11 +199,11 @@ func (global *global) configure(cfg *Config) error {
 	global.objects[objPublicKey] = pri.PublicKey()
 	// calculate key exchange public key
 	global.paddingMemory()
-	keyExPub, err := curve25519.ScalarBaseMult(pri[:32])
+	kexPublicKey, err := curve25519.ScalarBaseMult(pri[:curve25519.ScalarSize])
 	if err != nil {
 		panic(err)
 	}
-	global.objects[objKeyExPub] = keyExPub
+	global.objects[objKexPublicKey] = kexPublicKey
 	global.paddingMemory()
 	global.objects[objPrivateKey] = security.NewBytes(pri)
 	security.CoverBytes(pri)
@@ -219,7 +234,8 @@ func (global *global) configure(cfg *Config) error {
 	sb := global.objects[objPrivateKey].(*security.Bytes)
 	b := sb.Get()
 	defer sb.Put(b)
-	sessionKey, err := curve25519.ScalarMult(b[:32], cfg.CTRL.KexPublicKey)
+	in := b[:curve25519.ScalarSize]
+	sessionKey, err := curve25519.ScalarMult(in, cfg.CTRL.KexPublicKey)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -359,7 +375,7 @@ func (global *global) PublicKey() ed25519.PublicKey {
 func (global *global) KeyExchangePub() []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	return global.objects[objKeyExPub].([]byte)
+	return global.objects[objKexPublicKey].([]byte)
 }
 
 // Encrypt is used to encrypt session data

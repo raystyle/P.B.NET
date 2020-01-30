@@ -175,7 +175,7 @@ const (
 	objPublicKey
 
 	// for key exchange, type: []byte
-	objKeyExPub
+	objKexPublicKey
 
 	// encrypt controller broadcast message, type: *aes.CBC
 	objBroadcastKey
@@ -463,11 +463,11 @@ func (global *global) LoadSessionKey(data, password []byte) error {
 	pub, _ := ed25519.ImportPublicKey(pri[32:])
 	global.objects[objPublicKey] = pub
 	// calculate key exchange public key
-	keyExPub, err := curve25519.ScalarBaseMult(pri[:32])
+	kexPublicKey, err := curve25519.ScalarBaseMult(pri[:curve25519.ScalarSize])
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	global.objects[objKeyExPub] = keyExPub
+	global.objects[objKexPublicKey] = kexPublicKey
 	// hide private key
 	memory := security.NewMemory()
 	defer memory.Flush()
@@ -543,7 +543,7 @@ func (global *global) KeyExchange(publicKey []byte) ([]byte, error) {
 	pri := global.objects[objPrivateKey].(*security.Bytes)
 	b := pri.Get()
 	defer pri.Put(b)
-	return curve25519.ScalarMult(b[:32], publicKey)
+	return curve25519.ScalarMult(b[:curve25519.ScalarSize], publicKey)
 }
 
 // PrivateKey is used to get private key
@@ -570,7 +570,7 @@ func (global *global) PublicKey() ed25519.PublicKey {
 func (global *global) KeyExchangePub() []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	return global.objects[objKeyExPub].([]byte)
+	return global.objects[objKexPublicKey].([]byte)
 }
 
 // Encrypt is used to encrypt controller broadcast message

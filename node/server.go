@@ -20,6 +20,7 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
 	"project/internal/guid"
@@ -627,12 +628,25 @@ func (s *server) handleNode(tag string, conn *xnet.Conn) {
 }
 
 func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
-	// receive node register request
+	// receive encrypted node register request
+	//
+	// node send self key exchange public key (curve25519),
+	// use session key encrypt register request data.
+	// +----------------+----------------+
+	// | kex public key | encrypted data |
+	// +----------------+----------------+
+	// |    32 Bytes    |       var      |
+	// +----------------+----------------+
 	req, err := conn.Receive()
 	if err != nil {
 		s.logConn(conn, logger.Error, "failed to receive node register request:", err)
 		return
 	}
+	if len(req) < curve25519.ScalarSize+aes.BlockSize {
+		s.logConn(conn, logger.Exploit, "receive invalid encrypted node register request")
+		return
+	}
+
 	// TODO move to controller
 	// try to unmarshal
 	nrr := new(messages.NodeRegisterRequest)
