@@ -91,8 +91,8 @@ func TestConfig(t *testing.T) {
 		{expected: "log3", actual: cfg.Logger.File},
 
 		{expected: 2 * time.Minute, actual: cfg.Global.DNSCacheExpire},
-		{expected: 15, actual: cfg.Global.TimeSyncSleepFixed},
-		{expected: 10, actual: cfg.Global.TimeSyncSleepRandom},
+		{expected: uint(15), actual: cfg.Global.TimeSyncSleepFixed},
+		{expected: uint(10), actual: cfg.Global.TimeSyncSleepRandom},
 		{expected: time.Minute, actual: cfg.Global.TimeSyncInterval},
 
 		{expected: "test", actual: cfg.Client.ProxyTag},

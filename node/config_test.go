@@ -111,16 +111,16 @@ func TestConfig(t *testing.T) {
 		{expected: 512, actual: cfg.Logger.QueueSize},
 
 		{expected: 2 * time.Minute, actual: cfg.Global.DNSCacheExpire},
-		{expected: 15, actual: cfg.Global.TimeSyncSleepFixed},
-		{expected: 10, actual: cfg.Global.TimeSyncSleepRandom},
+		{expected: uint(15), actual: cfg.Global.TimeSyncSleepFixed},
+		{expected: uint(10), actual: cfg.Global.TimeSyncSleepRandom},
 		{expected: time.Minute, actual: cfg.Global.TimeSyncInterval},
 
 		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
 		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
 
-		{expected: 15, actual: cfg.Register.SleepFixed},
-		{expected: 30, actual: cfg.Register.SleepRandom},
+		{expected: uint(15), actual: cfg.Register.SleepFixed},
+		{expected: uint(30), actual: cfg.Register.SleepRandom},
 		{expected: true, actual: cfg.Register.Skip},
 
 		{expected: 10, actual: cfg.Forwarder.MaxCtrlConns},
@@ -138,8 +138,12 @@ func TestConfig(t *testing.T) {
 		{expected: 32, actual: cfg.Worker.QueueSize},
 		{expected: 16384, actual: cfg.Worker.MaxBufferSize},
 
-		{expected: 10, actual: cfg.Server.MaxConns},
+		{expected: 100, actual: cfg.Server.MaxConns},
 		{expected: 15 * time.Second, actual: cfg.Server.Timeout},
+
+		{expected: "name", actual: cfg.Service.Name},
+		{expected: "display name", actual: cfg.Service.DisplayName},
+		{expected: "description", actual: cfg.Service.Description},
 	}
 	for _, td := range tds {
 		require.Equal(t, td.expected, td.actual)

@@ -108,6 +108,13 @@ type Config struct {
 		PublicKey    []byte `msgpack:"y"` // verify message ed25519
 		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
 	} `toml:"-" msgpack:"jj"`
+
+	// about service
+	Service struct {
+		Name        string `toml:"name"         msgpack:"a"`
+		DisplayName string `toml:"display_name" msgpack:"b"`
+		Description string `toml:"description"  msgpack:"c"`
+	} `toml:"service" msgpack:"kk"`
 }
 
 // TestOptions include options about test
