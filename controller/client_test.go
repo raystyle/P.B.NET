@@ -80,7 +80,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Server.MaxConns = 16 * runtime.NumCPU()
 	cfg.Server.Timeout = 15 * time.Second
 
-	cfg.CTRL.ExPublicKey = ctrl.global.KeyExchangePub()
+	cfg.CTRL.KexPublicKey = ctrl.global.KeyExchangePub()
 	cfg.CTRL.PublicKey = ctrl.global.PublicKey()
 	cfg.CTRL.BroadcastKey = ctrl.global.BroadcastKey()
 	return &cfg
@@ -202,18 +202,20 @@ func BenchmarkClient_Send(b *testing.B) {
 	client := testGenerateClient(b, Node)
 
 	data := bytes.Buffer{}
+
 	b.ReportAllocs()
 	b.ResetTimer()
-
 	for i := 0; i < b.N; i++ {
 		data.Write(convert.Int32ToBytes(int32(i)))
-		// _, _ = client.Send(protocol.TestCommand, data.Bytes())
 		reply, err := client.Send(protocol.TestCommand, data.Bytes())
-		require.NoError(b, err)
-		require.Equal(b, data.Bytes(), reply)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if bytes.Compare(data.Bytes(), reply) != 0 {
+			b.Fatal("reply the different data")
+		}
 		data.Reset()
 	}
-
 	b.StopTimer()
 
 	// clean
@@ -229,21 +231,22 @@ func BenchmarkClient_SendParallel(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-
 	b.RunParallel(func(pb *testing.PB) {
 		data := bytes.Buffer{}
 		i := 0
 		for pb.Next() {
 			data.Write(convert.Int32ToBytes(int32(i)))
-			// _, _ = client.Send(protocol.TestCommand, data.Bytes())
 			reply, err := client.Send(protocol.TestCommand, data.Bytes())
-			require.NoError(b, err)
-			require.Equal(b, data.Bytes(), reply)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if bytes.Compare(data.Bytes(), reply) != 0 {
+				b.Fatal("reply the different data")
+			}
 			data.Reset()
 			i++
 		}
 	})
-
 	b.StopTimer()
 
 	// clean

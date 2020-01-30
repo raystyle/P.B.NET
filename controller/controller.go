@@ -9,6 +9,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
 	"project/internal/logger"
+	"project/internal/protocol"
 )
 
 // CTRL is controller
@@ -198,6 +199,11 @@ func (ctrl *CTRL) Connect(listener *bootstrap.Listener, guid []byte) error {
 // Disconnect is used to disconnect node, guid is hex, upper
 func (ctrl *CTRL) Disconnect(guid string) error {
 	return ctrl.sender.Disconnect(guid)
+}
+
+// Send is used to send messages to Node or Beacon
+func (ctrl *CTRL) Send(role protocol.Role, guid, cmd []byte, msg interface{}) error {
+	return ctrl.sender.Send(role, guid, cmd, msg)
 }
 
 // DeleteNode is used to delete node
