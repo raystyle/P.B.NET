@@ -170,22 +170,6 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 	return nil
 }
 
-func (client *Client) verifyCertificate(cert []byte, address string, guid []byte) bool {
-	if len(cert) != 2*ed25519.SignatureSize {
-		return false
-	}
-	// verify certificate
-	buffer := bytes.Buffer{}
-	buffer.WriteString(address)
-	buffer.Write(guid)
-	if bytes.Compare(guid, protocol.CtrlGUID) == 0 {
-		certWithCtrlGUID := cert[ed25519.SignatureSize:]
-		return client.ctx.global.CtrlVerify(buffer.Bytes(), certWithCtrlGUID)
-	}
-	certWithNodeGUID := cert[:ed25519.SignatureSize]
-	return client.ctx.global.CtrlVerify(buffer.Bytes(), certWithNodeGUID)
-}
-
 // Connect is used to start protocol.HandleConn(), if you want to
 // start Synchronize(), you must call this function first
 func (client *Client) Connect() (err error) {

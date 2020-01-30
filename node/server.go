@@ -633,6 +633,7 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 		s.logConn(conn, logger.Error, "failed to receive node register request:", err)
 		return
 	}
+	// TODO move to controller
 	// try to unmarshal
 	nrr := new(messages.NodeRegisterRequest)
 	err = msgpack.Unmarshal(req, nrr)
@@ -676,7 +677,7 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 		_, _ = conn.Write(resp.Certificate)
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
-		_, _ = conn.Write([]byte{messages.RegisterResultRefused})
+		// _, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	case messages.RegisterResultTimeout:
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	default:

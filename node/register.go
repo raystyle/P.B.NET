@@ -23,8 +23,8 @@ type register struct {
 	ctx *Node
 
 	// about random.Sleep() in Register()
-	sleepFixed  int
-	sleepRandom int
+	sleepFixed  uint
+	sleepRandom uint
 
 	// skip register for the initial node,
 	// or Controller trust node manually

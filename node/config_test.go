@@ -58,7 +58,7 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Server.MaxConns = 10
 	cfg.Server.Timeout = 15 * time.Second
 
-	cfg.CTRL.ExPublicKey = bytes.Repeat([]byte{255}, 32)
+	cfg.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, 32)
 	cfg.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
 	cfg.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 	return &cfg

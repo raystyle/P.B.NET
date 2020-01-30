@@ -219,7 +219,7 @@ func (global *global) configure(cfg *Config) error {
 	sb := global.objects[objPrivateKey].(*security.Bytes)
 	b := sb.Get()
 	defer sb.Put(b)
-	sessionKey, err := curve25519.ScalarMult(b[:32], cfg.CTRL.ExPublicKey)
+	sessionKey, err := curve25519.ScalarMult(b[:32], cfg.CTRL.KexPublicKey)
 	if err != nil {
 		return errors.WithStack(err)
 	}

@@ -41,8 +41,8 @@ type Config struct {
 
 	Global struct {
 		DNSCacheExpire      time.Duration `toml:"dns_cache_expire"      msgpack:"a"`
-		TimeSyncSleepFixed  int           `toml:"timesync_sleep_fixed"  msgpack:"b"`
-		TimeSyncSleepRandom int           `toml:"timesync_sleep_random" msgpack:"c"`
+		TimeSyncSleepFixed  uint          `toml:"timesync_sleep_fixed"  msgpack:"b"`
+		TimeSyncSleepRandom uint          `toml:"timesync_sleep_random" msgpack:"c"`
 		TimeSyncInterval    time.Duration `toml:"timesync_interval"     msgpack:"d"`
 
 		// generate from controller
@@ -59,8 +59,8 @@ type Config struct {
 	} `toml:"client" msgpack:"cc"`
 
 	Register struct {
-		SleepFixed  int  `toml:"sleep_fixed"  msgpack:"a"` // about register failed
-		SleepRandom int  `toml:"sleep_random" msgpack:"b"`
+		SleepFixed  uint `toml:"sleep_fixed"  msgpack:"a"` // about register failed
+		SleepRandom uint `toml:"sleep_random" msgpack:"b"`
 		Skip        bool `toml:"skip"         msgpack:"c"` // wait controller trust it
 
 		// generate configs from controller
@@ -104,7 +104,7 @@ type Config struct {
 
 	// generate from controller
 	CTRL struct {
-		ExPublicKey  []byte `msgpack:"x"` // key exchange curve25519
+		KexPublicKey []byte `msgpack:"x"` // key exchange curve25519
 		PublicKey    []byte `msgpack:"y"` // verify message ed25519
 		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
 	} `toml:"-" msgpack:"jj"`

