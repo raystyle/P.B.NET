@@ -68,7 +68,7 @@ func main() {
 	default:
 		lg, err := svc.Logger(nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 		err = svc.Run()
 		if err != nil {
@@ -80,24 +80,24 @@ func main() {
 func changePath() {
 	path, err := os.Executable()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	dir, _ := filepath.Split(path)
 	err = os.Chdir(dir)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 }
 
 func loadConfig() *controller.Config {
 	data, err := ioutil.ReadFile("config.toml")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	config := new(controller.Config)
 	err = toml.Unmarshal(data, config)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	return config
 }
@@ -105,7 +105,7 @@ func loadConfig() *controller.Config {
 func createService() service.Service {
 	ctrl, err := controller.New(loadConfig())
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	svc, err := service.New(&program{ctrl: ctrl}, &service.Config{
 		Name:        "P.B.NET Controller",
@@ -113,7 +113,7 @@ func createService() service.Service {
 		Description: "P.B.NET Controller Service",
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	return svc
 }

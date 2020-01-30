@@ -212,7 +212,7 @@ func load() {
 
 	// compare hash
 	if subtle.ConstantTimeCompare(PEMHash, hash.Sum(nil)) != 1 {
-		log.Fatal("warning: PEM files has been tampered")
+		log.Fatalln("warning: PEM files has been tampered")
 	}
 
 	fmt.Println()

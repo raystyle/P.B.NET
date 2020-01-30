@@ -21,14 +21,14 @@ func main() {
 
 	sc, err := hex.DecodeString(shellcode)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	hash := sha256.New()
 	hash.Write([]byte(key))
 	aesKey := hash.Sum(nil)
 	cipherData, err := aes.CBCEncrypt(sc, aesKey, aesKey[:aes.IVSize])
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	fmt.Println(hex.EncodeToString(cipherData))

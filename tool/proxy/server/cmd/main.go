@@ -31,29 +31,29 @@ func main() {
 	if !debug {
 		path, err := os.Executable()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 		dir, _ := filepath.Split(path)
 		err = os.Chdir(dir)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 	}
 
 	// load proxy server config
 	data, err := ioutil.ReadFile(config) // #nosec
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	var configs server.Config
 	err = toml.Unmarshal(data, &configs)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	configs.Tag = "server"
 	proxyServer, err := server.New(&configs)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	// initialize service
@@ -65,7 +65,7 @@ func main() {
 	}
 	svc, err := service.New(&program, &svcConfig)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	// switch operation
@@ -85,7 +85,7 @@ func main() {
 	default:
 		lg, err := svc.Logger(nil)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 		err = svc.Run()
 		if err != nil {
