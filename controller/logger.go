@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
+	"project/internal/xpanic"
 )
 
 type dbLogger struct {
@@ -130,6 +131,11 @@ func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 
 // string log don't include time level src, for database
 func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
+	defer func() {
+		if r := recover(); r != nil {
+			_, _ = xpanic.Print(r, "gLogger.writeLog").WriteTo(lg.writer)
+		}
+	}()
 	_ = lg.ctx.database.InsertCtrlLog(&mCtrlLog{
 		Level:  lv,
 		Source: src,

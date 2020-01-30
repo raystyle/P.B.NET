@@ -22,9 +22,9 @@ import (
 type handler struct {
 	ctx *CTRL
 
-	wg      sync.WaitGroup
 	context context.Context
 	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 func newHandler(ctx *CTRL) *handler {
@@ -40,6 +40,7 @@ func (h *handler) Cancel() {
 }
 
 func (h *handler) Close() {
+	h.wg.Wait()
 	h.ctx = nil
 }
 
@@ -85,15 +86,17 @@ func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
 	h.ctx.logger.Print(l, "handler", buf)
 }
 
+// logPanic must use like defer h.logPanic("title")
+func (h *handler) logPanic(title string) {
+	if r := recover(); r != nil {
+		h.log(logger.Fatal, xpanic.Print(r, title))
+	}
+}
+
 // ----------------------------------------Node Send-----------------------------------------------
 
 func (h *handler) OnNodeSend(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.OnNodeSend")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.OnNodeSend")
 	if len(send.Message) < 4 {
 		const log = "node send with invalid size"
 		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
@@ -120,12 +123,7 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 // ----------------------------------role register request-----------------------------------------
 
 func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleNodeRegisterRequest")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleNodeRegisterRequest")
 	request := h.decryptRoleRegisterRequest(protocol.Node, send)
 	if len(request) == 0 {
 		return
@@ -143,12 +141,7 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 }
 
 func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleBeaconRegisterRequest")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleBeaconRegisterRequest")
 	request := h.decryptRoleRegisterRequest(protocol.Beacon, send)
 	if len(request) == 0 {
 		return
@@ -166,12 +159,7 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 }
 
 func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.Send) []byte {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.decryptRoleRegisterRequest")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.decryptRoleRegisterRequest")
 	req := send.Message
 	if len(req) < curve25519.ScalarSize+aes.BlockSize {
 		const format = "node send %s register request with invalid size"
@@ -198,12 +186,7 @@ func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.
 // ----------------------------------------send test-----------------------------------------------
 
 func (h *handler) handleNodeSendTestMessage(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleNodeSendTestMessage")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleNodeSendTestMessage")
 	if h.ctx.Test.NodeSend == nil {
 		return
 	}
@@ -216,12 +199,7 @@ func (h *handler) handleNodeSendTestMessage(send *protocol.Send) {
 // ---------------------------------------Beacon Send----------------------------------------------
 
 func (h *handler) OnBeaconSend(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.OnBeaconSend")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.OnBeaconSend")
 	if len(send.Message) < 4 {
 		const log = "beacon send with invalid size"
 		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
@@ -244,12 +222,7 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 // -----------------------------------------send test----------------------------------------------
 
 func (h *handler) handleBeaconSendTestMessage(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleBeaconSendTestMessage")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleBeaconSendTestMessage")
 	if h.ctx.Test.BeaconSend == nil {
 		return
 	}

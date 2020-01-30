@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -19,7 +18,6 @@ import (
 	"project/internal/crypto/cert/certutil"
 	"project/internal/logger"
 	"project/internal/security"
-	"project/internal/xpanic"
 )
 
 // TODO password need use bCrypt
@@ -60,8 +58,8 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	}
 	// TODO set options
 	certOpts := cert.Options{
-		DNSNames: []string{"localhost"},
-		// IPAddresses: []string{cfg.Address},
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []string{"127.0.0.1"},
 	}
 	pair, err := cert.Generate(caCert, caPri, &certOpts)
 	if err != nil {
@@ -149,7 +147,8 @@ func (web *web) Close() {
 
 func (web *web) handlePanic(w hRW, r *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
-	_, _ = io.Copy(w, xpanic.Print(e, "web"))
+
+	// _, _ = io.Copy(w, xpanic.Print(e, "web"))
 }
 
 func (web *web) handleLogin(w hRW, r *hR, p hP) {
@@ -157,7 +156,14 @@ func (web *web) handleLogin(w hRW, r *hR, p hP) {
 }
 
 func (web *web) handleLoadSessionKey(w hRW, r *hR, p hP) {
+	web.wg.Add(1)
+	defer web.wg.Done()
+
 	// TODO size, check is load session key
+	// if isClosed{
+	//  return
+	// }
+
 	pwd, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return
