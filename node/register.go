@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"sync"
@@ -263,8 +264,22 @@ func (reg *register) register(listener *bootstrap.Listener) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to send register operation")
 	}
+	// send self key exchange public key (curve25519),
+	// use session key encrypt register request data.
+	// +----------------+----------------+
+	// | kex public key | encrypted data |
+	// +----------------+----------------+
+	// |    32 Bytes    |       var      |
+	// +----------------+----------------+
+	request := bytes.Buffer{}
+	request.Write(reg.ctx.global.KeyExchangePub())
+	cipherData, err := reg.ctx.global.Encrypt(reg.PackRequest())
+	if err != nil {
+		return errors.Wrap(err, "failed to encrypt register request")
+	}
+	request.Write(cipherData)
 	// send register request
-	err = conn.SendMessage(reg.PackRequest())
+	err = conn.SendMessage(request.Bytes())
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}

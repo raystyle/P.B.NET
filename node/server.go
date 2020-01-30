@@ -637,29 +637,16 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 	// +----------------+----------------+
 	// |    32 Bytes    |       var      |
 	// +----------------+----------------+
-	req, err := conn.Receive()
+	request, err := conn.Receive()
 	if err != nil {
 		s.logConn(conn, logger.Error, "failed to receive node register request:", err)
 		return
 	}
-	if len(req) < curve25519.ScalarSize+aes.BlockSize {
+	if len(request) < curve25519.ScalarSize+aes.BlockSize {
 		s.logConn(conn, logger.Exploit, "receive invalid encrypted node register request")
 		return
 	}
-
-	// TODO move to controller
-	// try to unmarshal
-	nrr := new(messages.NodeRegisterRequest)
-	err = msgpack.Unmarshal(req, nrr)
-	if err != nil {
-		s.logConn(conn, logger.Exploit, "invalid node register request data:", err)
-		return
-	}
-	err = nrr.Validate()
-	if err != nil {
-		s.logConn(conn, logger.Exploit, "invalid node register request:", err)
-		return
-	}
+	// TODO <firewall> rate limit
 	// create node register
 	response := s.ctx.storage.CreateNodeRegister(guid)
 	if response == nil {
@@ -668,7 +655,7 @@ func (s *server) registerNode(conn *xnet.Conn, guid []byte) {
 	}
 	// send node register request to controller
 	// <security> must don't handle error
-	_ = s.ctx.sender.Send(messages.CMDBNodeRegisterRequest, nrr)
+	_ = s.ctx.sender.Send(messages.CMDBNodeRegisterRequest, request)
 	// wait register result
 	timeout := time.Duration(15+s.rand.Int(30)) * time.Second
 	timer := time.AfterFunc(timeout, func() {
