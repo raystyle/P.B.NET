@@ -32,9 +32,11 @@ var (
 func TestMain(m *testing.M) {
 	m.Run()
 
-	// wait to print log
-	time.Sleep(time.Second)
-	ctrl.Exit(nil)
+	if ctrl != nil {
+		// wait to print log
+		time.Sleep(time.Second)
+		ctrl.Exit(nil)
+	}
 
 	testdata.Clean()
 
@@ -49,16 +51,17 @@ func TestMain(m *testing.M) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if leaks {
-		fmt.Println("[Warning] goroutine leaks!")
+		fmt.Println("[warning] goroutine leaks!")
 		os.Exit(1)
 	}
 
-	// must copy
-	ctrlC := ctrl
-	ctrl = nil
-	if !testsuite.Destroyed(ctrlC) {
-		fmt.Println("[Warning] controller is not destroyed")
-		os.Exit(1)
+	if ctrl != nil {
+		ctrlC := ctrl // must copy, global variable
+		ctrl = nil
+		if !testsuite.Destroyed(ctrlC) {
+			fmt.Println("[warning] controller is not destroyed")
+			os.Exit(1)
+		}
 	}
 }
 
