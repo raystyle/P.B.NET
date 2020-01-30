@@ -54,8 +54,8 @@ type Syncer struct {
 	logger    logger.Logger
 
 	// about random.Sleep() in Start()
-	sleepFixed  int
-	sleepRandom int
+	sleepFixed  uint
+	sleepRandom uint
 	// synchronize interval
 	interval time.Duration
 
@@ -87,7 +87,7 @@ func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 
 // SetSleep is used to set random sleep time
 // must execute before Start()
-func (syncer *Syncer) SetSleep(fixed, random int) error {
+func (syncer *Syncer) SetSleep(fixed, random uint) error {
 	if fixed < 3 {
 		return errors.New("sleep fixed must >= 3")
 	}
@@ -250,11 +250,11 @@ func (syncer *Syncer) synchronizeLoop() {
 		}
 	}()
 	rand := random.New()
-	calcInterval := func() time.Duration {
-		extra := syncer.sleepFixed + rand.Int(syncer.sleepRandom)
+	calculateInterval := func() time.Duration {
+		extra := syncer.sleepFixed + uint(rand.Int(int(syncer.sleepRandom)))
 		return syncer.GetSyncInterval() + time.Duration(extra)*time.Second
 	}
-	timer := time.NewTimer(calcInterval())
+	timer := time.NewTimer(calculateInterval())
 	defer timer.Stop()
 	for {
 		select {
@@ -266,7 +266,7 @@ func (syncer *Syncer) synchronizeLoop() {
 		case <-syncer.ctx.Done():
 			return
 		}
-		timer.Reset(calcInterval())
+		timer.Reset(calculateInterval())
 	}
 }
 

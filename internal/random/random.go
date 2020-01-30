@@ -180,9 +180,20 @@ func Uint64() uint64 {
 	return gRand.Uint64()
 }
 
+// MaxSleepTime is used to prevent sleep dead!
+const MaxSleepTime = 30 * time.Minute
+
 // Sleep is used to sleep random time
 // fixed <= time < fixed + random
 // all time is fixed time + random time
-func Sleep(fixed, random int) {
-	time.Sleep(time.Duration(fixed+Int(random)) * time.Second)
+func Sleep(fixed, random uint) {
+	if fixed+random < 1 {
+		fixed = 1
+	}
+	total := time.Duration(fixed+uint(Int(int(random)))) * time.Second
+	actual := MaxSleepTime // for test
+	if total < MaxSleepTime {
+		actual = total
+	}
+	time.Sleep(actual)
 }
