@@ -27,6 +27,7 @@ var (
 	ErrSenderClosed  = fmt.Errorf("sender closed")
 )
 
+// MessageI will be Encode by msgpack, except MessageI.(type) is []byte
 type sendTask struct {
 	Command  []byte      // for Send
 	MessageI interface{} // for Send
@@ -186,6 +187,7 @@ func (sender *sender) HandleAcknowledge(send string) {
 	}
 }
 
+// send guid hex
 func (sender *sender) createAckSlot(send string) (<-chan struct{}, func()) {
 	sender.slotsM.Lock()
 	defer sender.slotsM.Unlock()
@@ -317,9 +319,13 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	if st.MessageI != nil {
 		sw.buffer.Reset()
 		sw.buffer.Write(st.Command)
-		result.Err = sw.msgpack.Encode(st.MessageI)
-		if result.Err != nil {
-			return
+		if msg, ok := st.MessageI.([]byte); ok {
+			sw.buffer.Write(msg)
+		} else {
+			result.Err = sw.msgpack.Encode(st.MessageI)
+			if result.Err != nil {
+				return
+			}
 		}
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
