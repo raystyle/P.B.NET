@@ -154,7 +154,10 @@ func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 	}
 	defer client.CloseIdleConnections()
 
+	wg := sync.WaitGroup{}
+
 	do := func(req *http.Request) {
+		defer wg.Done()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
@@ -164,17 +167,21 @@ func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 		require.Equal(t, "hello", string(b))
 	}
 
-	// get http
+	// http
 	url := fmt.Sprintf("http://%s:%s/t", hostname, HTTPServerPort)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
-	do(req)
+	wg.Add(1)
+	go do(req)
 
-	// get https
+	// https
 	url = fmt.Sprintf("https://%s:%s/t", hostname, HTTPSServerPort)
 	req, err = http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
-	do(req)
+	wg.Add(1)
+	go do(req)
+
+	wg.Wait()
 }
 
 // NopCloser is a nop closer

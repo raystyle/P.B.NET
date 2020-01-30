@@ -1,8 +1,6 @@
 package testsuite
 
 import (
-	"fmt"
-	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -64,20 +62,7 @@ func MarkMemory(t testing.TB) *MemoryMark {
 func (m *MemoryMark) calculate() bool {
 	runtime.GC()
 	runtime.ReadMemStats(m.now)
-
-	then := reflect.ValueOf(*m.then)
-	thenType := reflect.TypeOf(*m.then)
-	now := reflect.ValueOf(*m.now)
-	for i := 0; i < then.NumField(); i++ {
-		name := thenType.Field(i).Name
-		f1 := then.Field(i)
-		f2 := now.Field(i)
-		fmt.Println(name, f2.Uint(), f1.Uint(), f2.Uint()-f1.Uint())
-		if i == 23 {
-			break
-		}
-	}
-	return m.now.HeapObjects < m.then.HeapObjects
+	return true
 }
 
 // Compare is used to compare the memory status

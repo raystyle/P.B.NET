@@ -28,22 +28,11 @@ func TestMarkGoroutine_Leak(t *testing.T) {
 }
 
 func TestMarkMemory(t *testing.T) {
-	return
 	mm := MarkMemory(t)
-
-	asd := make([]byte, 1024)
-	asd[1023] = 1
-	asd[1022] = 2
-
-	TestConn(t)
-
-	mm.Compare()
+	defer mm.Compare()
 }
 
 func TestMarkMemory_Leak(t *testing.T) {
-	return
 	mm := MarkMemory(t)
 	defer mm.Compare()
-
-	TestConn(t)
 }
