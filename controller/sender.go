@@ -34,6 +34,7 @@ var (
 	ErrSenderClosed    = fmt.Errorf("sender closed")
 )
 
+// MessageI will be Encode by msgpack, except MessageI.(type) is []byte
 type broadcastTask struct {
 	Command  []byte      // for Broadcast
 	MessageI interface{} // for Broadcast
@@ -41,6 +42,7 @@ type broadcastTask struct {
 	Result   chan<- *protocol.BroadcastResult
 }
 
+// MessageI will be Encode by msgpack, except MessageI.(type) is []byte
 type sendTask struct {
 	Role     protocol.Role // receiver role
 	GUID     []byte        // receiver role's GUID
@@ -406,6 +408,7 @@ func (sender *sender) HandleBeaconAcknowledge(role, send string) {
 	}
 }
 
+// send guid hex
 func (sender *sender) createNodeAckSlot(role, send string) (<-chan struct{}, func()) {
 	sender.nodeAckSlotsRWM.Lock()
 	defer sender.nodeAckSlotsRWM.Unlock()
@@ -424,6 +427,7 @@ func (sender *sender) createNodeAckSlot(role, send string) (<-chan struct{}, fun
 	}
 }
 
+// send guid hex
 func (sender *sender) createBeaconAckSlot(role, send string) (<-chan struct{}, func()) {
 	sender.beaconAckSlotsRWM.Lock()
 	defer sender.beaconAckSlotsRWM.Unlock()
@@ -792,9 +796,13 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	if st.MessageI != nil {
 		sw.buffer.Reset()
 		sw.buffer.Write(st.Command)
-		result.Err = sw.msgpack.Encode(st.MessageI)
-		if result.Err != nil {
-			return
+		if msg, ok := st.MessageI.([]byte); ok {
+			sw.buffer.Write(msg)
+		} else {
+			result.Err = sw.msgpack.Encode(st.MessageI)
+			if result.Err != nil {
+				return
+			}
 		}
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
@@ -910,9 +918,13 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 	if bt.MessageI != nil {
 		sw.buffer.Reset()
 		sw.buffer.Write(bt.Command)
-		result.Err = sw.msgpack.Encode(bt.MessageI)
-		if result.Err != nil {
-			return
+		if msg, ok := bt.MessageI.([]byte); ok {
+			sw.buffer.Write(msg)
+		} else {
+			result.Err = sw.msgpack.Encode(bt.MessageI)
+			if result.Err != nil {
+				return
+			}
 		}
 		// don't worry copy, because encrypt
 		bt.Message = sw.buffer.Bytes()
