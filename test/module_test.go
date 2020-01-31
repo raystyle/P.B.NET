@@ -33,7 +33,7 @@ func TestExecuteShellCode(t *testing.T) {
 	err := ctrl.Send(protocol.Node, iNode.GUID(), messages.CMDBExecuteShellCode, &es)
 	require.NoError(t, err)
 
-	time.Sleep(time.Minute)
+	time.Sleep(10 * time.Second)
 	// clean
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)

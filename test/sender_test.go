@@ -16,6 +16,10 @@ import (
 
 func TestNodeSendDirectly(t *testing.T) {
 	Node := generateInitialNodeAndTrust(t)
+	NodeGUID := Node.GUID()
+
+	ctrl.Test.EnableRoleSendTestMessage()
+	ch := ctrl.Test.CreateNodeSendTestMessageChannel(NodeGUID)
 
 	const (
 		goroutines = 256
@@ -39,15 +43,15 @@ func TestNodeSendDirectly(t *testing.T) {
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-ctrl.Test.NodeSend:
+		case b := <-ch:
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read ctrl.Test.NodeSend timeout i: %d", i)
+			t.Fatalf("read ctrl.Test.NodeSendTestMsg timeout i: %d", i)
 		}
 	}
 	select {
-	case <-ctrl.Test.NodeSend:
+	case <-ch:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
@@ -58,7 +62,7 @@ func TestNodeSendDirectly(t *testing.T) {
 	}
 
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(Node.GUID()))
+	guid := strings.ToUpper(hex.EncodeToString(NodeGUID))
 	err := ctrl.Disconnect(guid)
 	require.NoError(t, err)
 	Node.Exit(nil)
