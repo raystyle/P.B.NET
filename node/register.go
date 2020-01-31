@@ -40,6 +40,7 @@ type register struct {
 
 	context context.Context
 	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 func newRegister(ctx *Node, config *Config) (*register, error) {
@@ -91,7 +92,7 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 	return &register, nil
 }
 
-func (reg *register) loadBootstraps(boot, key []byte, single bool) error {
+func (register *register) loadBootstraps(boot, key []byte, single bool) error {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
@@ -136,7 +137,7 @@ func (reg *register) loadBootstraps(boot, key []byte, single bool) error {
 	}
 	for i := 0; i < len(bootstraps); i++ {
 		memory.Padding()
-		err = reg.AddBootstrap(bootstraps[i])
+		err = register.AddBootstrap(bootstraps[i])
 		if err != nil {
 			return err
 		}
@@ -144,46 +145,45 @@ func (reg *register) loadBootstraps(boot, key []byte, single bool) error {
 	return nil
 }
 
-func (reg *register) logf(l logger.Level, format string, log ...interface{}) {
-	reg.ctx.logger.Printf(l, "register", format, log...)
+func (register *register) logf(l logger.Level, format string, log ...interface{}) {
+	register.ctx.logger.Printf(l, "register", format, log...)
 }
 
-func (reg *register) log(l logger.Level, log ...interface{}) {
-	reg.ctx.logger.Println(l, "register", log...)
+func (register *register) log(l logger.Level, log ...interface{}) {
+	register.ctx.logger.Println(l, "register", log...)
 }
 
-func (reg *register) AddBootstrap(b *messages.Bootstrap) error {
-	reg.bootstrapsRWM.Lock()
-	defer reg.bootstrapsRWM.Unlock()
-	if _, ok := reg.bootstraps[b.Tag]; ok {
+func (register *register) AddBootstrap(b *messages.Bootstrap) error {
+	register.bootstrapsRWM.Lock()
+	defer register.bootstrapsRWM.Unlock()
+	if _, ok := register.bootstraps[b.Tag]; ok {
 		return errors.Errorf("bootstrap %s already exists", b.Tag)
 	}
-	boot, err := bootstrap.Load(
-		reg.context, b.Mode, b.Config,
-		reg.ctx.global.ProxyPool, reg.ctx.global.DNSClient,
+	boot, err := bootstrap.Load(register.context, b.Mode, b.Config,
+		register.ctx.global.ProxyPool, register.ctx.global.DNSClient,
 	)
 	if err != nil {
 		return errors.Wrapf(err, "failed to load bootstrap %s", b.Tag)
 	}
-	reg.bootstraps[b.Tag] = boot
+	register.bootstraps[b.Tag] = boot
 	return nil
 }
 
-func (reg *register) DeleteBootstrap(tag string) error {
-	reg.bootstrapsRWM.Lock()
-	defer reg.bootstrapsRWM.Unlock()
-	if _, ok := reg.bootstraps[tag]; ok {
-		delete(reg.bootstraps, tag)
+func (register *register) DeleteBootstrap(tag string) error {
+	register.bootstrapsRWM.Lock()
+	defer register.bootstrapsRWM.Unlock()
+	if _, ok := register.bootstraps[tag]; ok {
+		delete(register.bootstraps, tag)
 		return nil
 	}
 	return errors.Errorf("bootstrap %s doesn't exists", tag)
 }
 
-func (reg *register) Bootstraps() map[string]bootstrap.Bootstrap {
-	reg.bootstrapsRWM.RLock()
-	defer reg.bootstrapsRWM.RUnlock()
-	bs := make(map[string]bootstrap.Bootstrap, len(reg.bootstraps))
-	for tag, boot := range reg.bootstraps {
+func (register *register) Bootstraps() map[string]bootstrap.Bootstrap {
+	register.bootstrapsRWM.RLock()
+	defer register.bootstrapsRWM.RUnlock()
+	bs := make(map[string]bootstrap.Bootstrap, len(register.bootstraps))
+	for tag, boot := range register.bootstraps {
 		bs[tag] = boot
 	}
 	return bs
@@ -191,13 +191,13 @@ func (reg *register) Bootstraps() map[string]bootstrap.Bootstrap {
 
 // PackRequest is used to pack node register request,
 // it is used to register.Register() and ctrlConn.handleTrustNode()
-func (reg *register) PackRequest() []byte {
+func (register *register) PackRequest() []byte {
 	req := messages.NodeRegisterRequest{
-		GUID:         reg.ctx.global.GUID(),
-		PublicKey:    reg.ctx.global.PublicKey(),
-		KexPublicKey: reg.ctx.global.KeyExchangePub(),
+		GUID:         register.ctx.global.GUID(),
+		PublicKey:    register.ctx.global.PublicKey(),
+		KexPublicKey: register.ctx.global.KeyExchangePub(),
 		SystemInfo:   info.GetSystemInfo(),
-		RequestTime:  reg.ctx.global.Now(),
+		RequestTime:  register.ctx.global.Now(),
 	}
 	b, err := msgpack.Marshal(&req)
 	if err != nil {
@@ -208,23 +208,26 @@ func (reg *register) PackRequest() []byte {
 
 // Register is used to register to Controller
 // <security> only use the first bootstrap
-func (reg *register) Register() error {
-	if reg.skip {
+func (register *register) Register() error {
+	register.wg.Add(1)
+	defer register.wg.Done()
+
+	if register.skip {
 		return nil
 	}
-	reg.log(logger.Debug, "start register")
+	register.log(logger.Debug, "start register")
 	// resolve bootstrap node listeners with the first bootstrap, try 3 times
 	var (
 		listeners []*bootstrap.Listener
 		err       error
 	)
 	for i := 0; i < 3; i++ {
-		listeners, err = reg.first.Resolve()
+		listeners, err = register.first.Resolve()
 		if err == nil {
 			break
 		}
-		reg.log(logger.Error, err)
-		random.Sleep(reg.sleepFixed, reg.sleepRandom)
+		register.log(logger.Error, err)
+		random.Sleep(register.sleepFixed, register.sleepRandom)
 	}
 	if err != nil {
 		return errors.WithMessage(err, "failed to resolve bootstrap node listeners")
@@ -233,17 +236,17 @@ func (reg *register) Register() error {
 	// each listener try 3 times
 	for _, listener := range listeners {
 		for i := 0; i < 3; i++ {
-			err = reg.register(listener)
+			err = register.register(listener)
 			if err == nil {
-				reg.log(logger.Debug, "register successfully")
+				register.log(logger.Debug, "register successfully")
 				return nil
 			}
-			reg.log(logger.Error, err)
+			register.log(logger.Error, err)
 			if errors.Cause(err) != messages.ErrRegisterTimeout {
 				return err
 			}
 			if i != 2 {
-				random.Sleep(reg.sleepFixed, reg.sleepRandom)
+				random.Sleep(register.sleepFixed, register.sleepRandom)
 			}
 		}
 	}
@@ -251,15 +254,43 @@ func (reg *register) Register() error {
 }
 
 // register is used to register to Controller with Node
-func (reg *register) register(listener *bootstrap.Listener) error {
-	client, err := reg.ctx.NewClient(reg.context, listener, protocol.CtrlGUID, nil)
+func (register *register) register(listener *bootstrap.Listener) error {
+	register.wg.Add(1)
+	defer register.wg.Done()
+
+	client, err := register.ctx.NewClient(
+		register.context,
+		listener,
+		protocol.CtrlGUID,
+		nil,
+	)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
 	conn := client.Conn
-	// send register operation
+	// interrupt
+	wg := sync.WaitGroup{}
+	done := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer func() {
+			recover()
+			wg.Done()
+		}()
+		select {
+		case <-done:
+		case <-register.context.Done():
+			_ = conn.Close()
+		}
+	}()
+	defer func() {
+		close(done)
+		wg.Wait()
+	}()
+
+	// send register request
 	_, err = conn.Write([]byte{nodeOperationRegister})
 	if err != nil {
 		return errors.Wrap(err, "failed to send register operation")
@@ -272,20 +303,20 @@ func (reg *register) register(listener *bootstrap.Listener) error {
 	// |    32 Bytes    |       var      |
 	// +----------------+----------------+
 	request := bytes.Buffer{}
-	request.Write(reg.ctx.global.KeyExchangePub())
-	cipherData, err := reg.ctx.global.Encrypt(reg.PackRequest())
+	request.Write(register.ctx.global.KeyExchangePub())
+	cipherData, err := register.ctx.global.Encrypt(register.PackRequest())
 	if err != nil {
 		return errors.Wrap(err, "failed to encrypt register request")
 	}
 	request.Write(cipherData)
-	// send register request
 	err = conn.SendMessage(request.Bytes())
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}
+
 	// wait register result
 	timeout := time.Duration(60+random.Int(30)) * time.Second
-	_ = conn.SetDeadline(reg.ctx.global.Now().Add(timeout))
+	_ = conn.SetDeadline(register.ctx.global.Now().Add(timeout))
 	result := make([]byte, 1)
 	_, err = io.ReadFull(conn, result)
 	if err != nil {
@@ -299,19 +330,20 @@ func (reg *register) register(listener *bootstrap.Listener) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to receive certificate")
 		}
-		return reg.ctx.global.SetCertificate(cert)
+		return register.ctx.global.SetCertificate(cert)
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)
 	case messages.RegisterResultTimeout:
 		return errors.WithStack(messages.ErrRegisterTimeout)
 	default:
 		err = errors.WithMessagef(messages.ErrRegisterUnknownResult, "%d", result[0])
-		reg.log(logger.Exploit, err)
+		register.log(logger.Exploit, err)
 		return err
 	}
 }
 
-func (reg *register) Close() {
-	reg.cancel()
-	reg.ctx = nil
+func (register *register) Close() {
+	register.cancel()
+	register.wg.Wait()
+	register.ctx = nil
 }

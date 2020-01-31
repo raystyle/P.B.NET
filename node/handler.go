@@ -117,6 +117,7 @@ func (h *handler) handleExecuteShellCode(send *protocol.Send) {
 		return
 	}
 	go func() {
+		// add interrupt to execute wg.Done
 		err = shellcode.Execute(es.Method, es.ShellCode)
 		if err != nil {
 			// send execute error

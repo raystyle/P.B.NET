@@ -105,63 +105,63 @@ func newWorker(ctx *Node, config *Config) (*worker, error) {
 }
 
 // GetSendFromPool is used to get *protocol.Send from sendPool
-func (ws *worker) GetSendFromPool() *protocol.Send {
-	return ws.sendPool.Get().(*protocol.Send)
+func (worker *worker) GetSendFromPool() *protocol.Send {
+	return worker.sendPool.Get().(*protocol.Send)
 }
 
 // PutSendToPool is used to put *protocol.Send to sendPool
-func (ws *worker) PutSendToPool(s *protocol.Send) {
-	ws.sendPool.Put(s)
+func (worker *worker) PutSendToPool(s *protocol.Send) {
+	worker.sendPool.Put(s)
 }
 
 // GetAcknowledgeFromPool is used to get *protocol.Acknowledge from acknowledgePool
-func (ws *worker) GetAcknowledgeFromPool() *protocol.Acknowledge {
-	return ws.acknowledgePool.Get().(*protocol.Acknowledge)
+func (worker *worker) GetAcknowledgeFromPool() *protocol.Acknowledge {
+	return worker.acknowledgePool.Get().(*protocol.Acknowledge)
 }
 
 // PutAcknowledgeToPool is used to put *protocol.Acknowledge to acknowledgePool
-func (ws *worker) PutAcknowledgeToPool(a *protocol.Acknowledge) {
-	ws.acknowledgePool.Put(a)
+func (worker *worker) PutAcknowledgeToPool(a *protocol.Acknowledge) {
+	worker.acknowledgePool.Put(a)
 }
 
 // GetBroadcastFromPool is used to get *protocol.Broadcast from broadcastPool
-func (ws *worker) GetBroadcastFromPool() *protocol.Broadcast {
-	return ws.broadcastPool.Get().(*protocol.Broadcast)
+func (worker *worker) GetBroadcastFromPool() *protocol.Broadcast {
+	return worker.broadcastPool.Get().(*protocol.Broadcast)
 }
 
 // PutBroadcastToPool is used to put *protocol.Broadcast to broadcastPool
-func (ws *worker) PutBroadcastToPool(b *protocol.Broadcast) {
-	ws.broadcastPool.Put(b)
+func (worker *worker) PutBroadcastToPool(b *protocol.Broadcast) {
+	worker.broadcastPool.Put(b)
 }
 
 // AddSend is used to add send to sub workers
-func (ws *worker) AddSend(s *protocol.Send) {
+func (worker *worker) AddSend(s *protocol.Send) {
 	select {
-	case ws.sendQueue <- s:
-	case <-ws.stopSignal:
+	case worker.sendQueue <- s:
+	case <-worker.stopSignal:
 	}
 }
 
 // AddAcknowledge is used to add acknowledge to sub workers
-func (ws *worker) AddAcknowledge(a *protocol.Acknowledge) {
+func (worker *worker) AddAcknowledge(a *protocol.Acknowledge) {
 	select {
-	case ws.acknowledgeQueue <- a:
-	case <-ws.stopSignal:
+	case worker.acknowledgeQueue <- a:
+	case <-worker.stopSignal:
 	}
 }
 
 // AddBroadcast is used to add broadcast to sub workers
-func (ws *worker) AddBroadcast(b *protocol.Broadcast) {
+func (worker *worker) AddBroadcast(b *protocol.Broadcast) {
 	select {
-	case ws.broadcastQueue <- b:
-	case <-ws.stopSignal:
+	case worker.broadcastQueue <- b:
+	case <-worker.stopSignal:
 	}
 }
 
 // Close is used to close all sub workers
-func (ws *worker) Close() {
-	close(ws.stopSignal)
-	ws.wg.Wait()
+func (worker *worker) Close() {
+	close(worker.stopSignal)
+	worker.wg.Wait()
 }
 
 type subWorker struct {
