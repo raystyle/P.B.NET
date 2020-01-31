@@ -18,16 +18,6 @@ import (
 	"project/internal/xpanic"
 )
 
-// Test contains test data
-type Test struct {
-	// Node.Main()
-	SkipSynchronizeTime bool
-
-	// test messages from controller
-	BroadcastTestMsg chan []byte
-	SendTestMsg      chan []byte
-}
-
 // Config contains configuration about Node
 // use extra msgpack tag to hide raw field name
 type Config struct {

