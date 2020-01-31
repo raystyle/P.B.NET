@@ -19,17 +19,6 @@ import (
 	"project/internal/security"
 )
 
-// Test contains test data
-type Test struct {
-	// CTRL.Main()
-	SkipTestClientDNS   bool
-	SkipSynchronizeTime bool
-
-	// see handler.go
-	NodeSend   chan []byte // Node send test message
-	BeaconSend chan []byte // Beacon send test message
-}
-
 // Config include configuration about Controller
 type Config struct {
 	Test Test `toml:"-"`

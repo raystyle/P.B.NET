@@ -136,8 +136,21 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// compare key exchange public key
+	if bytes.Compare(send.Message[:curve25519.ScalarSize], nrr.KexPublicKey) != 0 {
+		const log = "different key exchange public key in node register request"
+		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
+		return
+	}
+	// notice view
 
-	spew.Dump(nrr)
+	// test
+	if h.ctx.Test.NodeRegisterRequest == nil {
+		return
+	}
+	select {
+	case h.ctx.Test.NodeRegisterRequest <- &nrr:
+	case <-h.context.Done():
+	}
 }
 
 func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
@@ -154,8 +167,21 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// compare key exchange public key
+	if bytes.Compare(send.Message[:curve25519.ScalarSize], brr.KexPublicKey) != 0 {
+		const log = "different key exchange public key in beacon register request"
+		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
+		return
+	}
+	// notice view
 
-	spew.Dump(brr)
+	// test
+	if h.ctx.Test.BeaconRegisterRequest == nil {
+		return
+	}
+	select {
+	case h.ctx.Test.BeaconRegisterRequest <- &brr:
+	case <-h.context.Done():
+	}
 }
 
 func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.Send) []byte {
@@ -187,12 +213,13 @@ func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.
 
 func (h *handler) handleNodeSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleNodeSendTestMessage")
-	if h.ctx.Test.NodeSend == nil {
+	if !h.ctx.Test.roleSendTestMsgEnabled {
 		return
 	}
-	select {
-	case h.ctx.Test.NodeSend <- send.Message:
-	case <-h.context.Done():
+	err := h.ctx.Test.AddNodeSendTestMessage(h.context, send.RoleGUID, send.Message)
+	if err != nil {
+		const log = "failed to add node send test message\n"
+		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log, err)
 	}
 }
 
@@ -223,11 +250,12 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 
 func (h *handler) handleBeaconSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleBeaconSendTestMessage")
-	if h.ctx.Test.BeaconSend == nil {
+	if !h.ctx.Test.roleSendTestMsgEnabled {
 		return
 	}
-	select {
-	case h.ctx.Test.BeaconSend <- send.Message:
-	case <-h.context.Done():
+	err := h.ctx.Test.AddBeaconSendTestMessage(h.context, send.RoleGUID, send.Message)
+	if err != nil {
+		const log = "failed to add beacon send test message\n"
+		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log, err)
 	}
 }

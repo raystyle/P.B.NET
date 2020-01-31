@@ -19,6 +19,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 		times   = 10
 	)
 	Node := testGenerateInitialNode(t)
+	NodeGUID := Node.GUID()
 	defer Node.Exit(nil)
 	node := &bootstrap.Listener{
 		Mode:    xnet.ModeTLS,
@@ -31,20 +32,20 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(context.Background(), node, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.sender.Connect(node, Node.GUID())
+	err = ctrl.sender.Connect(node, NodeGUID)
 	require.NoError(t, err)
 	// node broadcast test message
+	ch := ctrl.Test.CreateNodeSendTestMessageChannel(NodeGUID)
 	msg := []byte("connected-node-send: hello controller")
-	ctrl.Test.NodeSend = make(chan []byte, times)
 	go func() {
 		for i := 0; i < times; i++ {
 			require.NoError(t, Node.Send(messages.CMDBTest, msg))
 		}
 	}()
-	// read
+	// read message
 	for i := 0; i < times; i++ {
 		select {
-		case m := <-ctrl.Test.NodeSend:
+		case m := <-ch:
 			require.Equal(t, msg, m)
 		case <-time.After(time.Second):
 			t.Fatal("receive broadcast message timeout")
