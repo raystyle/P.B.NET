@@ -715,7 +715,7 @@ func (server *server) verifyNode(conn *xnet.Conn, guid []byte) bool {
 		// TODO try to query from controller
 		return false
 	}
-	if ed25519.Verify(sk.PublicKey, challenge, signature) {
+	if !ed25519.Verify(sk.PublicKey, challenge, signature) {
 		server.logConn(conn, logger.Exploit, "invalid node challenge signature")
 		return false
 	}
@@ -942,11 +942,11 @@ func (server *server) serveNode(tag string, nodeGUID []byte, conn *xnet.Conn) {
 			server.ctx.forwarder.LogoffNode(tag)
 		}
 		server.deleteNodeConn(tag)
-		nc.Conn.Logf(logger.Debug, "node %X disconnected", nodeGUID)
+		nc.Conn.Log(logger.Debug, "node disconnected")
 	}()
 	server.addNodeConn(tag, &nc)
 	_ = conn.SetDeadline(server.ctx.global.Now().Add(server.timeout))
-	nc.Conn.Logf(logger.Debug, "node %X connected", nodeGUID)
+	nc.Conn.Log(logger.Debug, "node connected")
 	protocol.HandleConn(conn, nc.onFrame)
 }
 

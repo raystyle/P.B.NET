@@ -96,7 +96,7 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize server")
 	}
 	node.server = server
-	node.wait = make(chan struct{}, 2)
+	node.wait = make(chan struct{})
 	node.exit = make(chan error, 1)
 	return node, nil
 }
@@ -105,12 +105,12 @@ func (node *Node) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
 	node.logger.Println(logger.Fatal, "main", err)
 	node.Exit(nil)
+	close(node.wait)
 	return err
 }
 
 // Main is used to run
 func (node *Node) Main() error {
-	defer func() { node.wait <- struct{}{} }()
 	// synchronize time
 	if node.Test.SkipSynchronizeTime {
 		node.global.StartTimeSyncerWalker()
@@ -135,7 +135,7 @@ func (node *Node) Main() error {
 	// driver
 	go node.driver()
 	node.logger.Print(logger.Info, "main", "running")
-	node.wait <- struct{}{}
+	close(node.wait)
 	return <-node.exit
 }
 
