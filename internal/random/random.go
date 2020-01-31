@@ -4,7 +4,6 @@ import (
 	cr "crypto/rand"
 	"crypto/sha256"
 	"io"
-	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -95,7 +94,7 @@ func (r *Rand) Bytes(n int) []byte {
 	defer r.m.Unlock()
 	result := make([]byte, n)
 	for i := 0; i < n; i++ {
-		ri := r.rand.Intn(math.MaxInt64)
+		ri := r.rand.Intn(256)
 		result[i] = byte(ri)
 	}
 	return result

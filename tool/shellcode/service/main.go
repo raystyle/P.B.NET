@@ -39,11 +39,13 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		log.Println("install service successfully")
 	case uninstall:
 		err = svc.Uninstall()
 		if err != nil {
 			log.Fatalln(err)
 		}
+		log.Println("uninstall service successfully")
 	default: // run
 		lg, err := svc.Logger(nil)
 		if err != nil {
