@@ -4,32 +4,44 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"project/internal/testsuite"
 )
 
 func TestGenerator(t *testing.T) {
-	g := New(16, nil)
-	for i := 0; i < 4; i++ {
-		t.Log(g.Get())
-	}
-	g.Close()
-	testsuite.IsDestroyed(t, g)
-	// with now
-	g = New(16, time.Now)
-	for i := 0; i < 4; i++ {
-		t.Log(g.Get())
-	}
-	g.Close()
-	testsuite.IsDestroyed(t, g)
-	// 0 size
-	g = New(0, time.Now)
-	for i := 0; i < 4; i++ {
-		t.Log(g.Get())
-	}
-	g.Close()
-	// twice
-	g.Close()
-	testsuite.IsDestroyed(t, g)
+	t.Run("nil", func(t *testing.T) {
+		g := New(16, nil)
+		for i := 0; i < 4; i++ {
+			guid := g.Get()
+			require.Equal(t, Size, len(guid))
+			t.Log(guid)
+		}
+		g.Close()
+		testsuite.IsDestroyed(t, g)
+	})
+
+	t.Run("with now()", func(t *testing.T) {
+		g := New(16, time.Now)
+		for i := 0; i < 4; i++ {
+			guid := g.Get()
+			require.Equal(t, Size, len(guid))
+			t.Log(guid)
+		}
+		g.Close()
+		testsuite.IsDestroyed(t, g)
+	})
+
+	t.Run("zero size", func(t *testing.T) {
+		g := New(0, time.Now)
+		for i := 0; i < 4; i++ {
+			t.Log(g.Get())
+		}
+		g.Close()
+		// twice
+		g.Close()
+		testsuite.IsDestroyed(t, g)
+	})
 }
 
 func BenchmarkGenerator_Get(b *testing.B) {

@@ -2,6 +2,7 @@ package guid
 
 import (
 	"crypto/sha256"
+	"os"
 	"sync"
 	"time"
 
@@ -43,12 +44,14 @@ func New(size int, now func() time.Time) *Generator {
 		g.now = time.Now
 	}
 	g.random = random.New()
-	// head
+	// calculate head
 	hash := sha256.New()
 	for i := 0; i < 4096; i++ {
 		hash.Write(g.random.Bytes(64))
 	}
-	g.head = hash.Sum(nil)[:28]
+	g.head = make([]byte, 0, 28)
+	g.head = append(g.head, hash.Sum(nil)[:24]...)
+	g.head = append(g.head, convert.Int32ToBytes(int32(os.Getpid()))...)
 	g.wg.Add(1)
 	go g.generate()
 	return &g
