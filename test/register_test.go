@@ -2,7 +2,9 @@ package test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
@@ -26,19 +28,31 @@ func TestNodeRegister(t *testing.T) {
 	boot, key := generateBootstrap(t, &bListener)
 
 	// create common node
-	cNodeCfg := generateNodeConfig(t)
+	cNodeCfg := generateNodeConfig(t, "Common Node")
 	cNodeCfg.Register.FirstBoot = boot
 	cNodeCfg.Register.FirstKey = key
+
+	ctrl.Test.CreateNodeRegisterRequestChannel()
 
 	// run common node
 	cNode, err := node.New(cNodeCfg)
 	require.NoError(t, err)
-	err = cNode.Main()
-	require.Error(t, err)
+	go func() {
+		err = cNode.Main()
+		require.Error(t, err)
+	}()
+
+	// read Node register request
+	select {
+	case req := <-ctrl.Test.NodeRegisterRequest:
+		spew.Dump(req)
+	case <-time.After(3 * time.Second):
+		t.Fatal("read CTRL.Test.NodeRegisterRequestChannel timeout")
+	}
 
 	// clean
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
 	cNode.Exit(nil)
 	testsuite.IsDestroyed(t, cNode)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }

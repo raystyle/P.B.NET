@@ -131,7 +131,7 @@ func initializeController(t testing.TB) {
 	})
 }
 
-func generateNodeConfig(tb testing.TB) *node.Config {
+func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg := node.Config{}
 
 	cfg.Test.SkipSynchronizeTime = true
@@ -139,7 +139,7 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Test.SendTestMsg = make(chan []byte, 4)
 
 	cfg.Logger.Level = "debug"
-	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
 
 	cfg.Global.DNSCacheExpire = 10 * time.Second
 	cfg.Global.TimeSyncSleepFixed = 15
@@ -182,12 +182,12 @@ func generateNodeConfig(tb testing.TB) *node.Config {
 
 // -----------------------------------------initial Node-------------------------------------------
 
-const InitialNodeListenerTag = "init_tcp"
+const InitialNodeListenerTag = "initial_tcp"
 
 func generateInitialNode(t testing.TB) *node.Node {
 	initializeController(t)
 
-	cfg := generateNodeConfig(t)
+	cfg := generateNodeConfig(t, "Initial Node")
 	cfg.Register.Skip = true
 
 	// generate certificate
