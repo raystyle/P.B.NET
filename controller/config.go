@@ -118,25 +118,18 @@ func (ctrl *CTRL) TrustNode(
 func (ctrl *CTRL) ConfirmTrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
-	req *messages.NodeRegisterRequest,
+	nrr *messages.NodeRegisterRequest,
 ) error {
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
-	// issue certificates
-	cert := protocol.Certificate{
-		GUID:      req.GUID,
-		PublicKey: req.PublicKey,
-	}
-	privateKey := ctrl.global.PrivateKey()
-	defer security.CoverBytes(privateKey)
-	err = protocol.IssueCertificate(&cert, privateKey)
+	// register node
+	cert, err := ctrl.registerNode(nrr, true)
 	if err != nil {
 		return err
 	}
-	security.CoverBytes(privateKey)
 	// send certificate
 	reply, err := client.Send(protocol.CtrlSetNodeCert, cert.Encode())
 	if err != nil {
@@ -145,19 +138,45 @@ func (ctrl *CTRL) ConfirmTrustNode(
 	if bytes.Compare(reply, []byte{messages.RegisterResultAccept}) != 0 {
 		return errors.Errorf("failed to trust node: %s", reply)
 	}
-	// calculate session key
-	sessionKey, err := ctrl.global.KeyExchange(req.KexPublicKey)
-	if err != nil {
-		err = errors.Wrap(err, "failed to calculate session key")
-		ctrl.logger.Print(logger.Exploit, "trust node", err)
-		return err
+	return nil
+}
+
+func (ctrl *CTRL) registerNode(
+	nrr *messages.NodeRegisterRequest,
+	bootstrap bool,
+) (*protocol.Certificate, error) {
+	failed := func(err error) error {
+		return errors.Wrap(err, "failed to register node")
 	}
-	return ctrl.database.InsertNode(&mNode{
-		GUID:        req.GUID,
-		PublicKey:   req.PublicKey,
+	// issue certificate
+	cert := protocol.Certificate{
+		GUID:      nrr.GUID,
+		PublicKey: nrr.PublicKey,
+	}
+	privateKey := ctrl.global.PrivateKey()
+	defer security.CoverBytes(privateKey)
+	err := protocol.IssueCertificate(&cert, privateKey)
+	if err != nil {
+		return nil, failed(err)
+	}
+	security.CoverBytes(privateKey)
+	// calculate session key
+	sessionKey, err := ctrl.global.KeyExchange(nrr.KexPublicKey)
+	if err != nil {
+		err = errors.WithMessage(err, "failed to calculate session key")
+		ctrl.logger.Print(logger.Exploit, "register node", err)
+		return nil, failed(err)
+	}
+	err = ctrl.database.InsertNode(&mNode{
+		GUID:        nrr.GUID,
+		PublicKey:   nrr.PublicKey,
 		SessionKey:  sessionKey,
-		IsBootstrap: true,
+		IsBootstrap: bootstrap,
 	})
+	if err != nil {
+		return nil, failed(err)
+	}
+	return &cert, nil
 }
 
 // GenerateRoleConfigAboutTheFirstBootstrap is used to generate the first bootstrap

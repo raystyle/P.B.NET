@@ -146,8 +146,6 @@ func (ctrl *CTRL) NewClient(
 		protocol.HandleConn(client.conn, client.onFrame)
 	}()
 
-	// add client to client manager
-	client.tag = ctrl.clientMgr.GenerateTag()
 	ctrl.clientMgr.Add(client)
 	return client, nil
 }
@@ -977,13 +975,9 @@ func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 	cm.dnsOpts = *opts.Clone()
 }
 
-// GenerateTag is used to generate client tag, it for NewClient()
-func (cm *clientMgr) GenerateTag() string {
-	return hex.EncodeToString(cm.guid.Get())
-}
-
 // for NewClient()
 func (cm *clientMgr) Add(client *Client) {
+	client.tag = hex.EncodeToString(cm.guid.Get())
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
 	if _, ok := cm.clients[client.tag]; !ok {
@@ -1010,14 +1004,24 @@ func (cm *clientMgr) Clients() map[string]*Client {
 }
 
 // Kill is used to close client
+// must use cm.Clients(), because client.Close() will use cm.clientsRWM
 func (cm *clientMgr) Kill(tag string) {
-	// must use cm.Clients(), because client.Close() will use cm.clientsRWM
 	if client, ok := cm.Clients()[tag]; ok {
 		client.Close()
 	}
 }
 
+// Close will close all active clients
 func (cm *clientMgr) Close() {
+	for {
+		for _, client := range cm.Clients() {
+			client.Close()
+		}
+		time.Sleep(10 * time.Millisecond)
+		if len(cm.Clients()) == 0 {
+			break
+		}
+	}
 	cm.guid.Close()
 	cm.ctx = nil
 }

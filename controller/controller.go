@@ -9,6 +9,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
 	"project/internal/logger"
+	"project/internal/messages"
 	"project/internal/protocol"
 )
 
@@ -204,6 +205,44 @@ func (ctrl *CTRL) Disconnect(guid string) error {
 // Send is used to send messages to Node or Beacon
 func (ctrl *CTRL) Send(role protocol.Role, guid, cmd []byte, msg interface{}) error {
 	return ctrl.sender.Send(role, guid, cmd, msg)
+}
+
+// AcceptRegisterNode is used to accept register node
+func (ctrl *CTRL) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstrap bool) error {
+	certificate, err := ctrl.registerNode(nrr, bootstrap)
+	if err != nil {
+		return err
+	}
+	// broadcast node register response
+	resp := messages.NodeRegisterResponse{
+		GUID:         nrr.GUID,
+		PublicKey:    nrr.PublicKey,
+		KexPublicKey: nrr.KexPublicKey,
+		RequestTime:  nrr.RequestTime,
+		ReplyTime:    ctrl.global.Now(),
+		Result:       messages.RegisterResultAccept,
+		Certificate:  certificate.Encode(),
+	}
+	// TODO select node listeners
+	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, &resp)
+	return errors.Wrap(err, "failed to accept register node")
+}
+
+// RefuseRegisterNode is used to refuse register node
+// it will call firewall
+func (ctrl *CTRL) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
+	resp := messages.NodeRegisterResponse{
+		GUID:         nrr.GUID,
+		PublicKey:    nrr.PublicKey,
+		KexPublicKey: nrr.KexPublicKey,
+		RequestTime:  nrr.RequestTime,
+		ReplyTime:    ctrl.global.Now(),
+		Result:       messages.RegisterResultRefused,
+		// padding for Validate()
+		Certificate: make([]byte, protocol.CertificateSize),
+	}
+	err := ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, &resp)
+	return errors.Wrap(err, "failed to refuse register node")
 }
 
 // DeleteNode is used to delete node
