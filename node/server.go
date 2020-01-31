@@ -738,7 +738,6 @@ func (server *server) handleBeacon(tag string, conn *xnet.Conn) {
 		server.logConn(conn, logger.Exploit, "invalid beacon guid size")
 		return
 	}
-
 	server.serveBeacon(tag, beaconGUID, conn)
 }
 
@@ -764,15 +763,19 @@ func (server *server) serveCtrl(tag string, conn *xnet.Conn) {
 		if r := recover(); r != nil {
 			cc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveCtrl"))
 		}
-		cc.Close()
+		// logoff forwarder
+		cc.syncM.Lock()
+		defer cc.syncM.Unlock()
 		if cc.isSync() {
 			server.ctx.forwarder.LogoffCtrl(tag)
 		}
-		server.deleteCtrlConn(tag)
-		cc.Conn.Log(logger.Debug, "controller disconnected")
+		cc.Close()
+		cc.Conn.Log(logger.Debug, "disconnected")
 	}()
 	server.addCtrlConn(tag, &cc)
-	cc.Conn.Log(logger.Debug, "controller connected")
+	defer server.deleteCtrlConn(tag)
+	_ = conn.SetDeadline(server.ctx.global.Now().Add(server.timeout))
+	cc.Conn.Log(logger.Debug, "connected")
 	protocol.HandleConn(conn, cc.onFrame)
 }
 
@@ -937,16 +940,19 @@ func (server *server) serveNode(tag string, nodeGUID []byte, conn *xnet.Conn) {
 		if r := recover(); r != nil {
 			nc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveNode"))
 		}
-		nc.Close()
+		// logoff forwarder
+		nc.syncM.Lock()
+		defer nc.syncM.Unlock()
 		if nc.isSync() {
 			server.ctx.forwarder.LogoffNode(tag)
 		}
-		server.deleteNodeConn(tag)
-		nc.Conn.Log(logger.Debug, "node disconnected")
+		nc.Close()
+		nc.Conn.Log(logger.Debug, "disconnected")
 	}()
 	server.addNodeConn(tag, &nc)
+	defer server.deleteNodeConn(tag)
 	_ = conn.SetDeadline(server.ctx.global.Now().Add(server.timeout))
-	nc.Conn.Log(logger.Debug, "node connected")
+	nc.Conn.Log(logger.Debug, "connected")
 	protocol.HandleConn(conn, nc.onFrame)
 }
 
@@ -1146,18 +1152,21 @@ func (server *server) serveBeacon(tag string, beaconGUID []byte, conn *xnet.Conn
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			bc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveNode"))
+			bc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveBeacon"))
 		}
-		bc.Close()
+		// logoff forwarder
+		bc.syncM.Lock()
+		defer bc.syncM.Unlock()
 		if bc.isSync() {
 			server.ctx.forwarder.LogoffBeacon(tag)
 		}
-		server.deleteBeaconConn(tag)
-		bc.Conn.Logf(logger.Debug, "beacon %X disconnected", beaconGUID)
+		bc.Close()
+		bc.Conn.Log(logger.Debug, "disconnected")
 	}()
 	server.addBeaconConn(tag, &bc)
+	defer server.deleteBeaconConn(tag)
 	_ = conn.SetDeadline(server.ctx.global.Now().Add(server.timeout))
-	bc.Conn.Logf(logger.Debug, "beacon %X connected", beaconGUID)
+	bc.Conn.Log(logger.Debug, "connected")
 	protocol.HandleConn(conn, bc.onFrame)
 }
 

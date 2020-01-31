@@ -196,10 +196,20 @@ func (client *Client) Connect() (err error) {
 			if r := recover(); r != nil {
 				client.Conn.Log(logger.Fatal, xpanic.Print(r, "client.HandleConn"))
 			}
+			// logoff forwarder
+			client.syncM.Lock()
+			defer client.syncM.Unlock()
+			if client.isSync() {
+				client.ctx.forwarder.LogoffClient(client.tag)
+			}
 			client.Close()
+			client.Conn.Log(logger.Debug, "disconnected")
 		}()
 		protocol.HandleConn(client.Conn, client.onFrame)
 	}()
+	timeout := client.ctx.clientMgr.GetTimeout()
+	_ = client.Conn.SetDeadline(client.ctx.global.Now().Add(timeout))
+	client.Conn.Log(logger.Debug, "connected")
 	return
 }
 
@@ -424,9 +434,13 @@ func (client *Client) Synchronize() error {
 			Signature:  make([]byte, ed25519.SignatureSize),
 		}
 	}
-	// TODO register
-	// client.ctx.forwarder.RegisterNode(client)
+	err = client.ctx.forwarder.RegisterClient(client.tag, client)
+	if err != nil {
+		client.Close()
+		return err
+	}
 	atomic.StoreInt32(&client.inSync, 1)
+	client.Conn.Log(logger.Debug, "synchronizing")
 	return nil
 }
 

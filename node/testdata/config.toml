@@ -21,6 +21,7 @@
   skip         = true
 
 [forwarder]
+  max_client_conns = 7
   max_ctrl_conns   = 10
   max_node_conns   = 8
   max_beacon_conns = 128

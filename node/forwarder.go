@@ -14,10 +14,13 @@ import (
 type forwarder struct {
 	ctx *Node
 
+	maxClientConns atomic.Value
 	maxCtrlConns   atomic.Value
 	maxNodeConns   atomic.Value
 	maxBeaconConns atomic.Value
 
+	clientConns    map[string]*Client
+	clientConnsRWM sync.RWMutex
 	ctrlConns      map[string]*ctrlConn
 	ctrlConnsRWM   sync.RWMutex
 	nodeConns      map[string]*nodeConn
@@ -33,7 +36,11 @@ func newForwarder(ctx *Node, config *Config) (*forwarder, error) {
 
 	f := forwarder{}
 
-	err := f.SetMaxCtrlConns(cfg.MaxCtrlConns)
+	err := f.SetMaxClientConns(cfg.MaxClientConns)
+	if err != nil {
+		return nil, err
+	}
+	err = f.SetMaxCtrlConns(cfg.MaxCtrlConns)
 	if err != nil {
 		return nil, err
 	}
@@ -47,12 +54,60 @@ func newForwarder(ctx *Node, config *Config) (*forwarder, error) {
 	}
 
 	f.ctx = ctx
+	f.clientConns = make(map[string]*Client, cfg.MaxClientConns)
 	f.ctrlConns = make(map[string]*ctrlConn, cfg.MaxCtrlConns)
 	f.nodeConns = make(map[string]*nodeConn, cfg.MaxNodeConns)
 	f.beaconConns = make(map[string]*beaconConn, cfg.MaxBeaconConns)
 	f.stopSignal = make(chan struct{})
 	return &f, nil
 }
+
+// ---------------------------------------------client---------------------------------------------
+
+func (f *forwarder) SetMaxClientConns(n int) error {
+	if n < 1 {
+		return errors.New("max client connection must > 0")
+	}
+	f.maxClientConns.Store(n)
+	return nil
+}
+
+func (f *forwarder) GetMaxClientConns() int {
+	return f.maxClientConns.Load().(int)
+}
+
+func (f *forwarder) RegisterClient(tag string, client *Client) error {
+	f.clientConnsRWM.Lock()
+	defer f.clientConnsRWM.Unlock()
+	if len(f.clientConns) >= f.GetMaxClientConns() {
+		return errors.New("max client connections")
+	}
+	if _, ok := f.clientConns[tag]; ok {
+		return errors.Errorf("client has been register\ntag: %s", tag)
+	}
+	f.clientConns[tag] = client
+	return nil
+}
+
+func (f *forwarder) LogoffClient(tag string) {
+	f.clientConnsRWM.Lock()
+	defer f.clientConnsRWM.Unlock()
+	if _, ok := f.clientConns[tag]; ok {
+		delete(f.clientConns, tag)
+	}
+}
+
+func (f *forwarder) GetClientConns() map[string]*Client {
+	f.clientConnsRWM.RLock()
+	defer f.clientConnsRWM.RUnlock()
+	clients := make(map[string]*Client, len(f.clientConns))
+	for tag, client := range f.clientConns {
+		clients[tag] = client
+	}
+	return clients
+}
+
+// ------------------------------------------controller--------------------------------------------
 
 func (f *forwarder) SetMaxCtrlConns(n int) error {
 	if n < 1 {
@@ -62,32 +117,8 @@ func (f *forwarder) SetMaxCtrlConns(n int) error {
 	return nil
 }
 
-func (f *forwarder) SetMaxNodeConns(n int) error {
-	if n < 8 {
-		return errors.New("max node connection must >= 8")
-	}
-	f.maxNodeConns.Store(n)
-	return nil
-}
-
-func (f *forwarder) SetMaxBeaconConns(n int) error {
-	if n < 64 {
-		return errors.New("max beacon connection must >= 64")
-	}
-	f.maxBeaconConns.Store(n)
-	return nil
-}
-
 func (f *forwarder) GetMaxCtrlConns() int {
 	return f.maxCtrlConns.Load().(int)
-}
-
-func (f *forwarder) GetMaxNodeConns() int {
-	return f.maxNodeConns.Load().(int)
-}
-
-func (f *forwarder) GetMaxBeaconConns() int {
-	return f.maxBeaconConns.Load().(int)
 }
 
 func (f *forwarder) RegisterCtrl(tag string, conn *ctrlConn) error {
@@ -96,33 +127,10 @@ func (f *forwarder) RegisterCtrl(tag string, conn *ctrlConn) error {
 	if len(f.ctrlConns) >= f.GetMaxCtrlConns() {
 		return errors.New("max controller connections")
 	}
-	if _, ok := f.ctrlConns[tag]; !ok {
-		f.ctrlConns[tag] = conn
+	if _, ok := f.ctrlConns[tag]; ok {
+		return errors.Errorf("controller has been register\ntag: %s", tag)
 	}
-	return nil
-}
-
-func (f *forwarder) RegisterNode(tag string, conn *nodeConn) error {
-	f.nodeConnsRWM.Lock()
-	defer f.nodeConnsRWM.Unlock()
-	if len(f.nodeConns) >= f.GetMaxCtrlConns() {
-		return errors.New("max node connections")
-	}
-	if _, ok := f.nodeConns[tag]; !ok {
-		f.nodeConns[tag] = conn
-	}
-	return nil
-}
-
-func (f *forwarder) RegisterBeacon(tag string, conn *beaconConn) error {
-	f.beaconConnsRWM.Lock()
-	defer f.beaconConnsRWM.Unlock()
-	if len(f.beaconConns) >= f.GetMaxCtrlConns() {
-		return errors.New("max beacon connections")
-	}
-	if _, ok := f.beaconConns[tag]; !ok {
-		f.beaconConns[tag] = conn
-	}
+	f.ctrlConns[tag] = conn
 	return nil
 }
 
@@ -131,22 +139,6 @@ func (f *forwarder) LogoffCtrl(tag string) {
 	defer f.ctrlConnsRWM.Unlock()
 	if _, ok := f.ctrlConns[tag]; ok {
 		delete(f.ctrlConns, tag)
-	}
-}
-
-func (f *forwarder) LogoffNode(tag string) {
-	f.nodeConnsRWM.Lock()
-	defer f.nodeConnsRWM.Unlock()
-	if _, ok := f.nodeConns[tag]; ok {
-		delete(f.nodeConns, tag)
-	}
-}
-
-func (f *forwarder) LogoffBeacon(tag string) {
-	f.beaconConnsRWM.Lock()
-	defer f.beaconConnsRWM.Unlock()
-	if _, ok := f.beaconConns[tag]; ok {
-		delete(f.beaconConns, tag)
 	}
 }
 
@@ -160,6 +152,41 @@ func (f *forwarder) GetCtrlConns() map[string]*ctrlConn {
 	return conns
 }
 
+// ---------------------------------------------node-----------------------------------------------
+
+func (f *forwarder) SetMaxNodeConns(n int) error {
+	if n < 8 {
+		return errors.New("max node connection must >= 8")
+	}
+	f.maxNodeConns.Store(n)
+	return nil
+}
+
+func (f *forwarder) GetMaxNodeConns() int {
+	return f.maxNodeConns.Load().(int)
+}
+
+func (f *forwarder) RegisterNode(tag string, conn *nodeConn) error {
+	f.nodeConnsRWM.Lock()
+	defer f.nodeConnsRWM.Unlock()
+	if len(f.nodeConns) >= f.GetMaxNodeConns() {
+		return errors.New("max node connections")
+	}
+	if _, ok := f.nodeConns[tag]; ok {
+		return errors.Errorf("node has been register\ntag: %s", tag)
+	}
+	f.nodeConns[tag] = conn
+	return nil
+}
+
+func (f *forwarder) LogoffNode(tag string) {
+	f.nodeConnsRWM.Lock()
+	defer f.nodeConnsRWM.Unlock()
+	if _, ok := f.nodeConns[tag]; ok {
+		delete(f.nodeConns, tag)
+	}
+}
+
 func (f *forwarder) GetNodeConns() map[string]*nodeConn {
 	f.nodeConnsRWM.RLock()
 	defer f.nodeConnsRWM.RUnlock()
@@ -168,6 +195,41 @@ func (f *forwarder) GetNodeConns() map[string]*nodeConn {
 		conns[tag] = conn
 	}
 	return conns
+}
+
+// --------------------------------------------beacon----------------------------------------------
+
+func (f *forwarder) SetMaxBeaconConns(n int) error {
+	if n < 64 {
+		return errors.New("max beacon connection must >= 64")
+	}
+	f.maxBeaconConns.Store(n)
+	return nil
+}
+
+func (f *forwarder) GetMaxBeaconConns() int {
+	return f.maxBeaconConns.Load().(int)
+}
+
+func (f *forwarder) RegisterBeacon(tag string, conn *beaconConn) error {
+	f.beaconConnsRWM.Lock()
+	defer f.beaconConnsRWM.Unlock()
+	if len(f.beaconConns) >= f.GetMaxBeaconConns() {
+		return errors.New("max beacon connections")
+	}
+	if _, ok := f.beaconConns[tag]; ok {
+		return errors.Errorf("beacon has been register\ntag: %s", tag)
+	}
+	f.beaconConns[tag] = conn
+	return nil
+}
+
+func (f *forwarder) LogoffBeacon(tag string) {
+	f.beaconConnsRWM.Lock()
+	defer f.beaconConnsRWM.Unlock()
+	if _, ok := f.beaconConns[tag]; ok {
+		delete(f.beaconConns, tag)
+	}
 }
 
 func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
@@ -184,31 +246,42 @@ func (f *forwarder) log(l logger.Level, log ...interface{}) {
 	f.ctx.logger.Println(l, "forwarder", log...)
 }
 
-func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
+func (f *forwarder) getAllConns() {
+	// TODO client and server conn guid
+}
+
+// Send will send controllers, nodes and clients
+func (f *forwarder) Send(guid, data []byte, except string) (
 	[]*protocol.SendResponse, int) {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
+	clientConns := f.GetClientConns()
 	var (
 		conns map[string]*conn
 		l     int
 	)
 	if except != "" {
-		l = len(ctrlConns) + len(nodeConns) - 1
+		l = len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
 	} else {
-		l = len(ctrlConns) + len(nodeConns)
+		l = len(ctrlConns) + len(nodeConns) + len(clientConns)
 	}
 	if l < 1 {
 		return nil, 0
 	}
 	conns = make(map[string]*conn, l)
-	for tag, conn := range ctrlConns {
+	for tag, ctrl := range ctrlConns {
 		if tag != except {
-			conns[tag] = conn.Conn
+			conns[tag] = ctrl.Conn
 		}
 	}
-	for tag, conn := range nodeConns {
+	for tag, node := range nodeConns {
 		if tag != except {
-			conns[tag] = conn.Conn
+			conns[tag] = node.Conn
+		}
+	}
+	for tag, client := range clientConns {
+		if tag != except {
+			conns[tag] = client.Conn
 		}
 	}
 	resp := make(chan *protocol.SendResponse, l)
@@ -216,7 +289,7 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
 		go func(c *conn) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "forwarder.SendToNodeAndCtrl")
+					b := xpanic.Print(r, "forwarder.Send")
 					f.log(logger.Fatal, b)
 				}
 			}()
@@ -235,31 +308,37 @@ func (f *forwarder) SendToNodeAndCtrl(guid, data []byte, except string) (
 	return response, success
 }
 
-func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) (
+func (f *forwarder) Acknowledge(guid, data []byte, except string) (
 	[]*protocol.AcknowledgeResponse, int) {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
+	clientConns := f.GetClientConns()
 	var (
 		conns map[string]*conn
 		l     int
 	)
 	if except != "" {
-		l = len(ctrlConns) + len(nodeConns) - 1
+		l = len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
 	} else {
-		l = len(ctrlConns) + len(nodeConns)
+		l = len(ctrlConns) + len(nodeConns) + len(clientConns)
 	}
 	if l < 1 {
 		return nil, 0
 	}
 	conns = make(map[string]*conn, l)
-	for tag, conn := range ctrlConns {
+	for tag, ctrl := range ctrlConns {
 		if tag != except {
-			conns[tag] = conn.Conn
+			conns[tag] = ctrl.Conn
 		}
 	}
-	for tag, conn := range nodeConns {
+	for tag, node := range nodeConns {
 		if tag != except {
-			conns[tag] = conn.Conn
+			conns[tag] = node.Conn
+		}
+	}
+	for tag, client := range clientConns {
+		if tag != except {
+			conns[tag] = client.Conn
 		}
 	}
 	resp := make(chan *protocol.AcknowledgeResponse, l)
@@ -267,7 +346,7 @@ func (f *forwarder) AckToNodeAndCtrl(guid, data []byte, except string) (
 		go func(c *conn) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "forwarder.AckToNodeAndCtrl")
+					b := xpanic.Print(r, "forwarder.Acknowledge")
 					f.log(logger.Fatal, b)
 				}
 			}()

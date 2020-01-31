@@ -61,9 +61,10 @@ type Config struct {
 	} `toml:"register" msgpack:"dd"`
 
 	Forwarder struct {
-		MaxCtrlConns   int `toml:"max_ctrl_conns"   msgpack:"a"`
-		MaxNodeConns   int `toml:"max_node_conns"   msgpack:"b"`
-		MaxBeaconConns int `toml:"max_beacon_conns" msgpack:"c"`
+		MaxClientConns int `toml:"max_client_conns" msgpack:"a"`
+		MaxCtrlConns   int `toml:"max_ctrl_conns"   msgpack:"b"`
+		MaxNodeConns   int `toml:"max_node_conns"   msgpack:"c"`
+		MaxBeaconConns int `toml:"max_beacon_conns" msgpack:"d"`
 	} `toml:"forwarder" msgpack:"ee"`
 
 	Sender struct {

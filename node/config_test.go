@@ -41,6 +41,7 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
 
+	cfg.Forwarder.MaxClientConns = 7
 	cfg.Forwarder.MaxCtrlConns = 10
 	cfg.Forwarder.MaxNodeConns = 8
 	cfg.Forwarder.MaxBeaconConns = 128
@@ -124,6 +125,7 @@ func TestConfig(t *testing.T) {
 		{expected: uint(30), actual: cfg.Register.SleepRandom},
 		{expected: true, actual: cfg.Register.Skip},
 
+		{expected: 7, actual: cfg.Forwarder.MaxClientConns},
 		{expected: 10, actual: cfg.Forwarder.MaxCtrlConns},
 		{expected: 8, actual: cfg.Forwarder.MaxNodeConns},
 		{expected: 128, actual: cfg.Forwarder.MaxBeaconConns},

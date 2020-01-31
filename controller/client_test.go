@@ -62,6 +62,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
 
+	cfg.Forwarder.MaxClientConns = 7
 	cfg.Forwarder.MaxCtrlConns = 10
 	cfg.Forwarder.MaxNodeConns = 8
 	cfg.Forwarder.MaxBeaconConns = 128
