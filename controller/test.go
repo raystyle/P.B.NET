@@ -16,11 +16,7 @@ type Test struct {
 	SkipTestClientDNS   bool
 	SkipSynchronizeTime bool
 
-	// about role register request
-	NodeRegisterRequest   chan *messages.NodeRegisterRequest
-	BeaconRegisterRequest chan *messages.BeaconRegisterRequest
-
-	// about sender test
+	// about sender send test message
 	roleSendTestMsgEnabled bool
 	// Node send test message, key = Node GUID hex
 	nodeSendTestMsg    map[string]chan []byte
@@ -28,6 +24,10 @@ type Test struct {
 	// Beacon send test message , key = Beacon GUID hex
 	beaconSendTestMsg    map[string]chan []byte
 	beaconSendTestMsgRWM sync.RWMutex
+
+	// about role register request
+	NodeRegisterRequest   chan *messages.NodeRegisterRequest
+	BeaconRegisterRequest chan *messages.BeaconRegisterRequest
 }
 
 // EnableRoleSendTestMessage is used to enable role send test message
@@ -72,15 +72,15 @@ func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid, message []byte)
 	key := hex.EncodeToString(guid)
 	t.nodeSendTestMsgRWM.Lock()
 	defer t.nodeSendTestMsgRWM.Unlock()
-	if ch, ok := t.nodeSendTestMsg[key]; !ok {
+	ch, ok := t.nodeSendTestMsg[key]
+	if !ok {
 		return errors.Errorf("node: %X doesn't exists", guid)
-	} else {
-		select {
-		case ch <- message:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	}
+	select {
+	case ch <- message:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -89,14 +89,28 @@ func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid, message []byt
 	key := hex.EncodeToString(guid)
 	t.beaconSendTestMsgRWM.Lock()
 	defer t.beaconSendTestMsgRWM.Unlock()
-	if ch, ok := t.beaconSendTestMsg[key]; !ok {
+	ch, ok := t.beaconSendTestMsg[key]
+	if !ok {
 		return errors.Errorf("beacon: %X doesn't exists", guid)
-	} else {
-		select {
-		case ch <- message:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	}
+	select {
+	case ch <- message:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// CreateNodeRegisterRequestChannel is used to create node register request channel
+func (t *Test) CreateNodeRegisterRequestChannel() {
+	if t.NodeRegisterRequest == nil {
+		t.NodeRegisterRequest = make(chan *messages.NodeRegisterRequest, 4)
+	}
+}
+
+// CreateBeaconRegisterRequestChannel is used to create beacon register request channel
+func (t *Test) CreateBeaconRegisterRequestChannel() {
+	if t.BeaconRegisterRequest == nil {
+		t.BeaconRegisterRequest = make(chan *messages.BeaconRegisterRequest, 4)
 	}
 }

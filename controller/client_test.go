@@ -86,7 +86,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
-const testInitialNodeListenerTag = "init_tcp"
+const testInitialNodeListenerTag = "initial_tcp"
 
 func testGenerateInitialNode(t testing.TB) *node.Node {
 	testInitializeController(t)

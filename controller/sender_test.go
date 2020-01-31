@@ -161,7 +161,7 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 		select {
 		case <-Node.Test.SendTestMsg:
 		case <-timer.C:
-			t.Fatalf("read Node.Test.Send timeout i: %d", i)
+			t.Fatalf("read Node.Test.SendTestMsg timeout i: %d", i)
 		}
 	}
 	stop := time.Since(start).Seconds()

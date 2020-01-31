@@ -51,8 +51,8 @@ type global struct {
 	waitLoadSessionKey chan struct{}
 	closeOnce          sync.Once
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	context context.Context
+	cancel  context.CancelFunc
 }
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
@@ -75,7 +75,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		objects:            make(map[uint32]interface{}),
 		waitLoadSessionKey: make(chan struct{}),
 	}
-	g.ctx, g.cancel = context.WithCancel(context.Background())
+	g.context, g.cancel = context.WithCancel(context.Background())
 	return &g, nil
 }
 
@@ -222,7 +222,7 @@ func (global *global) DNSServers() map[string]*dns.Server {
 
 // TestDNSOption is used to test client DNS option
 func (global *global) TestDNSOption(opts *dns.Options) error {
-	_, err := global.DNSClient.TestOption(global.ctx, "cloudflare.com", opts)
+	_, err := global.DNSClient.TestOption(global.context, "cloudflare.com", opts)
 	return err
 }
 
