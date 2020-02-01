@@ -246,123 +246,99 @@ func (f *forwarder) log(l logger.Level, log ...interface{}) {
 	f.ctx.logger.Println(l, "forwarder", log...)
 }
 
-func (f *forwarder) getAllConns() {
-	// TODO client and server conn guid
+// getConnsExceptBeacon will ger controller, node and client connections
+// if connection's tag = except, this connection will not add to the
+// connections map.
+func (f *forwarder) getConnsExceptBeacon(except string) map[string]*conn {
+	ctrlConns := f.GetCtrlConns()
+	nodeConns := f.GetNodeConns()
+	clientConns := f.GetClientConns()
+	var l int
+	if except != "" {
+		l = len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
+	} else {
+		l = len(ctrlConns) + len(nodeConns) + len(clientConns)
+	}
+	if l < 1 {
+		return nil
+	}
+	allConns := make(map[string]*conn, l)
+	for tag, ctrl := range ctrlConns {
+		if tag != except {
+			allConns[tag] = ctrl.Conn
+		}
+	}
+	for tag, node := range nodeConns {
+		if tag != except {
+			allConns[tag] = node.Conn
+		}
+	}
+	for tag, client := range clientConns {
+		if tag != except {
+			allConns[tag] = client.Conn
+		}
+	}
+	return allConns
 }
 
 // Send will send controllers, nodes and clients
-func (f *forwarder) Send(guid, data []byte, except string) (
-	[]*protocol.SendResponse, int) {
-	ctrlConns := f.GetCtrlConns()
-	nodeConns := f.GetNodeConns()
-	clientConns := f.GetClientConns()
-	var (
-		conns map[string]*conn
-		l     int
-	)
-	if except != "" {
-		l = len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
-	} else {
-		l = len(ctrlConns) + len(nodeConns) + len(clientConns)
-	}
-	if l < 1 {
+func (f *forwarder) Send(guid, data []byte, except string) ([]*protocol.SendResponse, int) {
+	conns := f.getConnsExceptBeacon(except)
+	l := len(conns)
+	if l == 0 {
 		return nil, 0
 	}
-	conns = make(map[string]*conn, l)
-	for tag, ctrl := range ctrlConns {
-		if tag != except {
-			conns[tag] = ctrl.Conn
-		}
-	}
-	for tag, node := range nodeConns {
-		if tag != except {
-			conns[tag] = node.Conn
-		}
-	}
-	for tag, client := range clientConns {
-		if tag != except {
-			conns[tag] = client.Conn
-		}
-	}
-	resp := make(chan *protocol.SendResponse, l)
+	response := make(chan *protocol.SendResponse, l)
 	for _, c := range conns {
 		go func(c *conn) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "forwarder.Send")
-					f.log(logger.Fatal, b)
+					f.log(logger.Fatal, xpanic.Print(r, "forwarder.Send"))
 				}
 			}()
-			resp <- c.Send(guid, data)
+			response <- c.Send(guid, data)
 		}(c)
 	}
 	var success int
-	response := make([]*protocol.SendResponse, l)
+	responses := make([]*protocol.SendResponse, l)
 	for i := 0; i < l; i++ {
-		response[i] = <-resp
-		if response[i].Err == nil {
+		responses[i] = <-response
+		if responses[i].Err == nil {
 			success++
 		}
 	}
-	close(resp)
-	return response, success
+	close(response)
+	return responses, success
 }
 
-func (f *forwarder) Acknowledge(guid, data []byte, except string) (
-	[]*protocol.AcknowledgeResponse, int) {
-	ctrlConns := f.GetCtrlConns()
-	nodeConns := f.GetNodeConns()
-	clientConns := f.GetClientConns()
-	var (
-		conns map[string]*conn
-		l     int
-	)
-	if except != "" {
-		l = len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
-	} else {
-		l = len(ctrlConns) + len(nodeConns) + len(clientConns)
-	}
-	if l < 1 {
+// Acknowledge will send controllers, nodes and clients
+func (f *forwarder) Acknowledge(guid, data []byte, except string) ([]*protocol.AcknowledgeResponse, int) {
+	conns := f.getConnsExceptBeacon(except)
+	l := len(conns)
+	if l == 0 {
 		return nil, 0
 	}
-	conns = make(map[string]*conn, l)
-	for tag, ctrl := range ctrlConns {
-		if tag != except {
-			conns[tag] = ctrl.Conn
-		}
-	}
-	for tag, node := range nodeConns {
-		if tag != except {
-			conns[tag] = node.Conn
-		}
-	}
-	for tag, client := range clientConns {
-		if tag != except {
-			conns[tag] = client.Conn
-		}
-	}
-	resp := make(chan *protocol.AcknowledgeResponse, l)
+	response := make(chan *protocol.AcknowledgeResponse, l)
 	for _, c := range conns {
 		go func(c *conn) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "forwarder.Acknowledge")
-					f.log(logger.Fatal, b)
+					f.log(logger.Fatal, xpanic.Print(r, "forwarder.Acknowledge"))
 				}
 			}()
-			resp <- c.Acknowledge(guid, data)
+			response <- c.Acknowledge(guid, data)
 		}(c)
 	}
 	var success int
-	response := make([]*protocol.AcknowledgeResponse, l)
+	responses := make([]*protocol.AcknowledgeResponse, l)
 	for i := 0; i < l; i++ {
-		response[i] = <-resp
-		if response[i].Err == nil {
+		responses[i] = <-response
+		if responses[i].Err == nil {
 			success++
 		}
 	}
-	close(resp)
-	return response, success
+	close(response)
+	return responses, success
 }
 
 func (f *forwarder) Close() {

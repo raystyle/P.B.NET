@@ -32,9 +32,13 @@ type global struct {
 
 	objects    map[uint32]interface{}
 	objectsRWM sync.RWMutex
-	rand       *random.Rand
-	spmCount   int // paddingMemory execute time
-	wg         sync.WaitGroup
+
+	// paddingMemory execute time
+	spmCount int
+	rand     *random.Rand
+	wg       sync.WaitGroup
+
+	guid *guid.Generator
 
 	// TODO client test
 }
@@ -114,6 +118,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, err
 	}
+	g.guid = guid.New(1024, g.Now)
 	return &g, nil
 }
 
@@ -322,6 +327,11 @@ func (global *global) StartupTime() time.Time {
 	return global.objects[objStartupTime].(time.Time)
 }
 
+// GetGUIDGenerator is used to get global GUID generator
+func (global *global) GetGUIDGenerator() *guid.Generator {
+	return global.guid
+}
+
 // GUID is used to get Node GUID
 func (global *global) GUID() []byte {
 	global.objectsRWM.RLock()
@@ -417,4 +427,6 @@ func (global *global) CtrlDecrypt(data []byte) ([]byte, error) {
 // Close is used to close global
 func (global *global) Close() {
 	global.TimeSyncer.Stop()
+	global.guid.Close()
+	global.guid = nil
 }

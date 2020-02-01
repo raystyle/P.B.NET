@@ -493,7 +493,7 @@ func newClientManager(ctx *Node, config *Config) (*clientMgr, error) {
 		proxyTag: cfg.ProxyTag,
 		timeout:  cfg.Timeout,
 		dnsOpts:  cfg.DNSOpts,
-		guid:     guid.New(4, ctx.global.Now),
+		guid:     ctx.global.GetGUIDGenerator(),
 		clients:  make(map[string]*Client),
 	}, nil
 }

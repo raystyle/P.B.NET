@@ -84,6 +84,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		ctx:         ctx,
 		maxConns:    cfg.MaxConns,
 		timeout:     cfg.Timeout,
+		guid:        ctx.global.GetGUIDGenerator(),
 		rand:        random.New(),
 		listeners:   make(map[string]*xnet.Listener),
 		conns:       make(map[string]*xnet.Conn),
@@ -91,7 +92,6 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		nodeConns:   make(map[string]*nodeConn),
 		beaconConns: make(map[string]*beaconConn),
 	}
-	server.guid = guid.New(1024, server.ctx.global.Now)
 	server.context, server.cancel = context.WithCancel(context.Background())
 
 	// decrypt listeners configs
