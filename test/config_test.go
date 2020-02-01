@@ -135,8 +135,6 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg := node.Config{}
 
 	cfg.Test.SkipSynchronizeTime = true
-	cfg.Test.BroadcastTestMsg = make(chan []byte, 4)
-	cfg.Test.SendTestMsg = make(chan []byte, 4)
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
@@ -247,7 +245,7 @@ func generateInitialNodeAndTrust(t testing.TB) *node.Node {
 	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
 	require.NoError(t, err)
 	// connect node
-	err = ctrl.Connect(bListener, Node.GUID())
+	err = ctrl.Synchronize(context.Background(), Node.GUID(), bListener)
 	require.NoError(t, err)
 	return Node
 }

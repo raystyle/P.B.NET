@@ -64,7 +64,7 @@ func TestNodeClient_Synchronize(t *testing.T) {
 	timer.Stop()
 
 	// try to connect initial node and start synchronize
-	client, err := cNode.NewClient(context.Background(), bListener, iNodeGUID, nil)
+	client, err := cNode.NewClient(context.Background(), bListener, iNodeGUID)
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)

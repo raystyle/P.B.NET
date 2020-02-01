@@ -27,23 +27,21 @@ func TestNodeRegister(t *testing.T) {
 		Address: iAddr.String(),
 	}
 	boot, key := generateBootstrap(t, bListener)
+	ctrl.Test.CreateNodeRegisterRequestChannel()
 
-	// create common node
+	// create and run common node
 	cNodeCfg := generateNodeConfig(t, "Common Node")
 	cNodeCfg.Register.FirstBoot = boot
 	cNodeCfg.Register.FirstKey = key
-
-	ctrl.Test.CreateNodeRegisterRequestChannel()
-
-	// run common node
 	cNode, err := node.New(cNodeCfg)
 	require.NoError(t, err)
+	testsuite.IsDestroyed(t, cNodeCfg)
 	go func() {
 		err := cNode.Main()
 		require.NoError(t, err)
 	}()
 
-	// read Node register request
+	// read node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
 		spew.Dump(nrr)
@@ -53,6 +51,7 @@ func TestNodeRegister(t *testing.T) {
 		t.Fatal("read CTRL.Test.NodeRegisterRequest timeout")
 	}
 
+	// wait common node
 	timer := time.AfterFunc(10*time.Second, func() {
 		t.Fatal("node register timeout")
 	})
@@ -60,7 +59,7 @@ func TestNodeRegister(t *testing.T) {
 	timer.Stop()
 
 	// try to connect initial node
-	client, err := cNode.NewClient(context.Background(), bListener, iNode.GUID(), nil)
+	client, err := cNode.NewClient(context.Background(), bListener, iNode.GUID())
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)
