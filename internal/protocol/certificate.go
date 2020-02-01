@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"bytes"
 	"io"
 	"net"
 
@@ -20,12 +19,12 @@ const (
 
 // Certificate is used to verify node
 type Certificate struct {
-	GUID      []byte // node GUID
+	GUID      guid.GUID // node GUID
 	PublicKey ed25519.PublicKey
 
 	// with Node GUID: common connect node,
 	// client known Node GUID.
-	// with Controller GUID: role register, Controller trust node..
+	// with Controller GUID: role register, Controller trust node...
 	// that client don't known Node GUID.
 	Signatures [2][]byte
 }
@@ -34,7 +33,7 @@ type Certificate struct {
 func (cert *Certificate) Encode() []byte {
 	b := make([]byte, CertificateSize)
 	offset := 0
-	copy(b, cert.GUID)
+	copy(b, cert.GUID[:])
 	offset += guid.Size
 	copy(b[offset:], cert.PublicKey)
 	offset += ed25519.PublicKeySize
@@ -50,14 +49,13 @@ func (cert *Certificate) Decode(b []byte) error {
 		return errors.New("invalid certificate size")
 	}
 	// initialize slice
-	cert.GUID = make([]byte, guid.Size)
 	cert.PublicKey = make([]byte, ed25519.PublicKeySize)
 	cert.Signatures[0] = make([]byte, ed25519.SignatureSize)
 	cert.Signatures[1] = make([]byte, ed25519.SignatureSize)
 	// copy
 	begin := 0
 	end := guid.Size
-	copy(cert.GUID, b[begin:end])
+	copy(cert.GUID[:], b[begin:end])
 	begin = end
 	end = begin + ed25519.PublicKeySize
 	copy(cert.PublicKey, b[begin:end])
@@ -72,7 +70,7 @@ func (cert *Certificate) Decode(b []byte) error {
 // certificate signature with Node GUID
 func (cert *Certificate) VerifySignatureWithNodeGUID(pub ed25519.PublicKey) bool {
 	msg := make([]byte, guid.Size+ed25519.PublicKeySize)
-	copy(msg, cert.GUID)
+	copy(msg, cert.GUID[:])
 	copy(msg[guid.Size:], cert.PublicKey)
 	return ed25519.Verify(pub, msg, cert.Signatures[0])
 }
@@ -81,7 +79,7 @@ func (cert *Certificate) VerifySignatureWithNodeGUID(pub ed25519.PublicKey) bool
 // certificate signature with Controller GUID
 func (cert *Certificate) VerifySignatureWithCTRLGUID(pub ed25519.PublicKey) bool {
 	msg := make([]byte, guid.Size+ed25519.PublicKeySize)
-	copy(msg, CtrlGUID)
+	copy(msg, CtrlGUID[:])
 	copy(msg[guid.Size:], cert.PublicKey)
 	return ed25519.Verify(pub, msg, cert.Signatures[1])
 }
@@ -89,26 +87,23 @@ func (cert *Certificate) VerifySignatureWithCTRLGUID(pub ed25519.PublicKey) bool
 // IssueCertificate is used to issue node certificate,
 // use controller private key to sign generated certificate
 func IssueCertificate(cert *Certificate, pri ed25519.PrivateKey) error {
-	if len(cert.GUID) != guid.Size {
-		return errors.New("invalid guid size")
-	}
 	if len(cert.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}
 	msg := make([]byte, guid.Size+ed25519.PublicKeySize)
 	// sign with Node GUID
-	copy(msg, cert.GUID)
+	copy(msg, cert.GUID[:])
 	copy(msg[guid.Size:], cert.PublicKey)
 	cert.Signatures[0] = ed25519.Sign(pri, msg)
 	// sign with Controller GUID
-	copy(msg, CtrlGUID)
+	copy(msg, CtrlGUID[:])
 	cert.Signatures[1] = ed25519.Sign(pri, msg)
 	return nil
 }
 
 // VerifyCertificate is used to verify node certificate
 // if errors != nil, role must log with level Exploit
-func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid []byte) (bool, error) {
+func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid *guid.GUID) (bool, error) {
 	// receive node certificate
 	buf := make([]byte, CertificateSize)
 	_, err := io.ReadFull(conn, buf)
@@ -121,11 +116,11 @@ func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid []byte) (bool,
 	if guid != nil {
 		// verify certificate signature
 		var ok bool
-		if bytes.Compare(CtrlGUID, guid) == 0 {
+		if *CtrlGUID == *guid {
 			ok = cert.VerifySignatureWithCTRLGUID(pub)
 		} else {
-			// verify node guid
-			if bytes.Compare(cert.GUID, guid) != 0 {
+			// verify Node GUID
+			if cert.GUID != *guid {
 				return false, errors.New("guid in certificate is different")
 			}
 			ok = cert.VerifySignatureWithNodeGUID(pub)

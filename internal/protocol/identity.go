@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
@@ -15,7 +14,7 @@ var ErrAuthenticateFailed = errors.New("failed to authenticate")
 var AuthSucceed = []byte{1}
 
 // CtrlGUID is the Controller GUID, it used to reserve
-var CtrlGUID = bytes.Repeat([]byte{0}, guid.Size)
+var CtrlGUID = new(guid.GUID)
 
 // Role is used to show identity
 type Role uint8

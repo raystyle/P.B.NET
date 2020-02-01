@@ -19,7 +19,8 @@ func TestIssueCertificate(t *testing.T) {
 	// generate Controller private key
 	privateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
-	nodeGUID := bytes.Repeat([]byte{2}, guid.Size)
+	nodeGUID := guid.GUID{}
+	copy(nodeGUID[:], bytes.Repeat([]byte{2}, guid.Size))
 
 	// issue a Node certificate
 	cert := Certificate{
@@ -34,11 +35,6 @@ func TestIssueCertificate(t *testing.T) {
 	require.Equal(t, ed25519.SignatureSize, len(cert.Signatures[1]))
 	t.Log("signature:", cert.Signatures)
 
-	t.Run("invalid guid size", func(t *testing.T) {
-		err = IssueCertificate(new(Certificate), nil)
-		require.EqualError(t, err, "invalid guid size")
-	})
-
 	t.Run("invalid public key size", func(t *testing.T) {
 		cert := Certificate{GUID: nodeGUID}
 		err = IssueCertificate(&cert, nil)
@@ -50,7 +46,8 @@ func TestCertificate_VerifySignature(t *testing.T) {
 	// generate Controller private key
 	privateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
-	nodeGUID := bytes.Repeat([]byte{2}, guid.Size)
+	nodeGUID := guid.GUID{}
+	copy(nodeGUID[:], bytes.Repeat([]byte{2}, guid.Size))
 
 	// issue a Node certificate
 	cert := Certificate{
@@ -86,11 +83,12 @@ func TestVerifyCertificate(t *testing.T) {
 	// generate Node private key
 	nodePrivateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
-	nodeGUID := bytes.Repeat([]byte{2}, guid.Size)
+	nodeGUID := new(guid.GUID)
+	copy(nodeGUID[:], bytes.Repeat([]byte{2}, guid.Size))
 
 	// issue a Node certificate
 	cert := Certificate{
-		GUID:      nodeGUID,
+		GUID:      *nodeGUID,
 		PublicKey: nodePrivateKey.PublicKey(),
 	}
 	err = IssueCertificate(&cert, ctrlPrivateKey)
@@ -193,7 +191,7 @@ func TestVerifyCertificate(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			cert := make([]byte, CertificateSize)
-			copy(cert, nodeGUID)
+			copy(cert, nodeGUID[:])
 			_, err := server.Write(cert)
 			require.NoError(t, err)
 		}()

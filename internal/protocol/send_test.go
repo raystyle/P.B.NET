@@ -15,8 +15,8 @@ import (
 
 func testGenerateSend() *Send {
 	rawS := new(Send)
-	rawS.GUID = bytes.Repeat([]byte{1}, guid.Size)
-	rawS.RoleGUID = bytes.Repeat([]byte{2}, guid.Size)
+	copy(rawS.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
+	copy(rawS.RoleGUID[:], bytes.Repeat([]byte{2}, guid.Size))
 	rawS.Hash = bytes.Repeat([]byte{3}, sha256.Size)
 	rawS.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
 	return rawS
@@ -54,7 +54,7 @@ func TestSend_Unpack(t *testing.T) {
 	})
 
 	t.Run("smLen < mLen", func(t *testing.T) {
-		// minus bmLen
+		// minus smLen
 		rawS := testGenerateSend()
 		rawS.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
 		rawData.Reset()
@@ -101,12 +101,7 @@ func TestSend_Unpack(t *testing.T) {
 
 func TestSend_Validate(t *testing.T) {
 	s := new(Send)
-	require.EqualError(t, s.Validate(), "invalid guid size")
 
-	s.GUID = CtrlGUID
-	require.EqualError(t, s.Validate(), "invalid role guid size")
-
-	s.RoleGUID = CtrlGUID
 	require.EqualError(t, s.Validate(), "invalid hash size")
 
 	s.Hash = bytes.Repeat([]byte{0}, sha256.Size)
@@ -127,9 +122,9 @@ func TestSendResult_Clean(t *testing.T) {
 
 func TestAcknowledge_Unpack(t *testing.T) {
 	rawAck := new(Acknowledge)
-	rawAck.GUID = bytes.Repeat([]byte{1}, guid.Size)
-	rawAck.RoleGUID = bytes.Repeat([]byte{2}, guid.Size)
-	rawAck.SendGUID = bytes.Repeat([]byte{3}, guid.Size)
+	copy(rawAck.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
+	copy(rawAck.RoleGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	copy(rawAck.SendGUID[:], bytes.Repeat([]byte{3}, guid.Size))
 	rawAck.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
 	rawData := new(bytes.Buffer)
 	rawAck.Pack(rawData)
@@ -144,15 +139,6 @@ func TestAcknowledge_Unpack(t *testing.T) {
 
 func TestAcknowledge_Validate(t *testing.T) {
 	ack := new(Acknowledge)
-	require.EqualError(t, ack.Validate(), "invalid guid size")
-
-	ack.GUID = CtrlGUID
-	require.EqualError(t, ack.Validate(), "invalid role guid size")
-
-	ack.RoleGUID = CtrlGUID
-	require.EqualError(t, ack.Validate(), "invalid send guid size")
-
-	ack.SendGUID = CtrlGUID
 	require.EqualError(t, ack.Validate(), "invalid signature size")
 
 	ack.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
@@ -163,14 +149,26 @@ func TestAcknowledgeResult_Clean(t *testing.T) {
 	new(AcknowledgeResult).Clean()
 }
 
+func TestQuery_Unpack(t *testing.T) {
+	rawQuery := new(Query)
+	copy(rawQuery.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
+	copy(rawQuery.BeaconGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	rawQuery.Index = 10
+	rawQuery.Signature = bytes.Repeat([]byte{3}, ed25519.SignatureSize)
+	rawData := new(bytes.Buffer)
+	rawQuery.Pack(rawData)
+
+	newQuery := NewQuery()
+	err := newQuery.Unpack(nil)
+	require.Error(t, err)
+	err = newQuery.Unpack(rawData.Bytes())
+	require.NoError(t, err)
+	require.Equal(t, rawQuery, newQuery)
+}
+
 func TestQuery_Validate(t *testing.T) {
 	q := new(Query)
-	require.EqualError(t, q.Validate(), "invalid guid size")
 
-	q.GUID = CtrlGUID
-	require.EqualError(t, q.Validate(), "invalid beacon guid size")
-
-	q.BeaconGUID = CtrlGUID
 	require.EqualError(t, q.Validate(), "invalid signature size")
 
 	q.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
@@ -181,25 +179,107 @@ func TestQueryResult_Clean(t *testing.T) {
 	new(QueryResult).Clean()
 }
 
+func testGenerateAnswer() *Answer {
+	rawA := new(Answer)
+	copy(rawA.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
+	copy(rawA.BeaconGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	rawA.Index = 10
+	rawA.Hash = bytes.Repeat([]byte{3}, sha256.Size)
+	rawA.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
+	return rawA
+}
+
+func TestAnswer_Unpack(t *testing.T) {
+	t.Run("invalid answer packet size", func(t *testing.T) {
+		err := testGenerateAnswer().Unpack(nil)
+		require.Error(t, err)
+	})
+
+	rawData := new(bytes.Buffer)
+
+	t.Run("amLen > mLen", func(t *testing.T) {
+		rawA := testGenerateAnswer()
+		rawA.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
+		rawA.Pack(rawData)
+
+		newA := NewAnswer()
+		err := newA.Unpack(rawData.Bytes())
+		require.NoError(t, err)
+		require.Equal(t, rawA, newA)
+	})
+
+	t.Run("amLen == mLen", func(t *testing.T) {
+		rawA := testGenerateAnswer()
+		rawA.Message = bytes.Repeat([]byte{4}, 2*aes.BlockSize)
+		rawData.Reset()
+		rawA.Pack(rawData)
+
+		newA := NewAnswer()
+		err := newA.Unpack(rawData.Bytes())
+		require.NoError(t, err)
+		require.Equal(t, rawA, newA)
+	})
+
+	t.Run("amLen < mLen", func(t *testing.T) {
+		// minus amLen
+		rawA := testGenerateAnswer()
+		rawA.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
+		rawData.Reset()
+		rawA.Pack(rawData)
+
+		newA := NewAnswer()
+		err := newA.Unpack(rawData.Bytes())
+		require.NoError(t, err)
+
+		rawA.Message = bytes.Repeat([]byte{4}, 2*aes.BlockSize)
+		rawData.Reset()
+		rawA.Pack(rawData)
+		err = newA.Unpack(rawData.Bytes())
+		require.NoError(t, err)
+	})
+
+	t.Run("cap(a.Message) < mLen", func(t *testing.T) {
+		rawA := testGenerateAnswer()
+		rawA.Message = bytes.Repeat([]byte{4}, 4*aes.BlockSize)
+		rawData.Reset()
+		rawA.Pack(rawData)
+
+		newA := NewAnswer()
+		err := newA.Unpack(rawData.Bytes())
+		require.NoError(t, err)
+		require.Equal(t, rawA, newA)
+	})
+
+	t.Run("fuzz", func(t *testing.T) {
+		rawA := testGenerateAnswer()
+		newA := NewAnswer()
+		for i := 0; i < 8192; i++ {
+			size := 16 + random.Int(512)
+			rawA.Message = bytes.Repeat([]byte{4}, size)
+			rawData.Reset()
+			rawA.Pack(rawData)
+
+			err := newA.Unpack(rawData.Bytes())
+			require.NoError(t, err)
+			require.Equal(t, rawA, newA)
+		}
+	})
+}
+
 func TestAnswer_Validate(t *testing.T) {
 	a := new(Answer)
-	require.EqualError(t, a.Validate(), "invalid guid size")
 
-	a.GUID = CtrlGUID
-	require.EqualError(t, a.Validate(), "invalid beacon guid size")
-
-	a.BeaconGUID = CtrlGUID
-	require.EqualError(t, a.Validate(), "invalid message size")
-	a.Message = bytes.Repeat([]byte{0}, 30)
-	require.EqualError(t, a.Validate(), "invalid message size")
-
-	a.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
 	require.EqualError(t, a.Validate(), "invalid hash size")
 
 	a.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 	require.EqualError(t, a.Validate(), "invalid signature size")
 
 	a.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+	require.EqualError(t, a.Validate(), "invalid message size")
+	a.Message = bytes.Repeat([]byte{0}, 30)
+	require.EqualError(t, a.Validate(), "invalid message size")
+
+	a.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
 	require.NoError(t, a.Validate())
 }
 

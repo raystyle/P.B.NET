@@ -15,7 +15,7 @@ import (
 
 func testGenerateBroadcast() *Broadcast {
 	rawB := new(Broadcast)
-	rawB.GUID = bytes.Repeat([]byte{1}, guid.Size)
+	copy(rawB.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
 	rawB.Hash = bytes.Repeat([]byte{2}, sha256.Size)
 	rawB.Signature = bytes.Repeat([]byte{3}, ed25519.SignatureSize)
 	return rawB
@@ -100,9 +100,7 @@ func TestBroadcast_Unpack(t *testing.T) {
 
 func TestBroadcast_Validate(t *testing.T) {
 	b := new(Broadcast)
-	require.EqualError(t, b.Validate(), "invalid guid size")
 
-	b.GUID = CtrlGUID
 	require.EqualError(t, b.Validate(), "invalid hash size")
 
 	b.Hash = bytes.Repeat([]byte{0}, sha256.Size)

@@ -11,25 +11,24 @@ import (
 )
 
 // +----------+----------+-----------+---------+
-// |   guid   |   hash   | signature | message |
+// |   GUID   |   hash   | signature | message |
 // +----------+----------+-----------+---------+
-// | 52 bytes | 32 bytes |  64 bytes |   var   |
+// | 48 bytes | 32 bytes |  64 bytes |   var   |
 // +----------+----------+-----------+---------+
 
 // Broadcast is used to broadcast messages to all Nodes,
 // Controller use broadcast key to encrypt message
 type Broadcast struct {
-	GUID      []byte // prevent duplicate handle it
-	Hash      []byte // raw message hash
-	Signature []byte // sign(GUID + Hash + Message)
-	Message   []byte // encrypted
+	GUID      guid.GUID // prevent duplicate handle it
+	Hash      []byte    // raw message hash
+	Signature []byte    // sign(GUID + Hash + Message)
+	Message   []byte    // encrypted
 }
 
 // NewBroadcast is used to create a broadcast, Unpack() need it
 // if only used to Pack(), use new(Broadcast).
 func NewBroadcast() *Broadcast {
 	return &Broadcast{
-		GUID:      make([]byte, guid.Size),
 		Hash:      make([]byte, sha256.Size),
 		Signature: make([]byte, ed25519.SignatureSize),
 		Message:   make([]byte, 2*aes.BlockSize),
@@ -38,7 +37,7 @@ func NewBroadcast() *Broadcast {
 
 // Pack is used to pack Broadcast to *bytes.Buffer
 func (b *Broadcast) Pack(buf *bytes.Buffer) {
-	buf.Write(b.GUID)
+	buf.Write(b.GUID[:])
 	buf.Write(b.Hash)
 	buf.Write(b.Signature)
 	buf.Write(b.Message)
@@ -49,7 +48,7 @@ func (b *Broadcast) Unpack(data []byte) error {
 	if len(data) < guid.Size+sha256.Size+ed25519.SignatureSize+aes.BlockSize {
 		return errors.New("invalid broadcast packet size")
 	}
-	copy(b.GUID, data[:guid.Size])
+	copy(b.GUID[:], data[:guid.Size])
 	copy(b.Hash, data[guid.Size:guid.Size+sha256.Size])
 	copy(b.Signature, data[guid.Size+sha256.Size:guid.Size+sha256.Size+ed25519.SignatureSize])
 	message := data[guid.Size+sha256.Size+ed25519.SignatureSize:]
@@ -75,9 +74,6 @@ func (b *Broadcast) Unpack(data []byte) error {
 
 // Validate is used to validate broadcast fields
 func (b *Broadcast) Validate() error {
-	if len(b.GUID) != guid.Size {
-		return errors.New("invalid guid size")
-	}
 	if len(b.Hash) != sha256.Size {
 		return errors.New("invalid hash size")
 	}
@@ -93,7 +89,7 @@ func (b *Broadcast) Validate() error {
 
 // BroadcastResponse is use to get broadcast response.
 type BroadcastResponse struct {
-	GUID []byte // Node GUID
+	GUID *guid.GUID // Node GUID
 	Err  error
 }
 
