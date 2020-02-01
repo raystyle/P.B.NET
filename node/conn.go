@@ -403,16 +403,18 @@ func (c *conn) HandleBeaconQueryGUID(id, data []byte) {
 
 func (c *conn) HandleSendToNode(id, data []byte) {
 	send := c.ctx.worker.GetSendFromPool()
-	err := msgpack.Unmarshal(data, send)
+	err := send.Unpack(data)
 	if err != nil {
-		c.Log(logger.Exploit, "invalid send to node msgpack data:", err)
+		const format = "invalid send to node data: %s\n%s"
+		c.Logf(logger.Exploit, format, err, spew.Sdump(send))
 		c.ctx.worker.PutSendToPool(send)
 		_ = c.Close()
 		return
 	}
 	err = send.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid send to node: %s\n%s", err, spew.Sdump(send))
+		const format = "invalid send to node: %s\n%s"
+		c.Logf(logger.Exploit, format, err, spew.Sdump(send))
 		c.ctx.worker.PutSendToPool(send)
 		_ = c.Close()
 		return
@@ -428,7 +430,6 @@ func (c *conn) HandleSendToNode(id, data []byte) {
 		if bytes.Compare(send.RoleGUID, c.ctx.global.GUID()) == 0 {
 			c.ctx.worker.AddSend(send)
 		} else {
-
 			// TODO c.ctx.forwarder.Send(send.GUID, data, c.tag, false)
 
 			c.ctx.worker.PutSendToPool(send)
@@ -441,10 +442,10 @@ func (c *conn) HandleSendToNode(id, data []byte) {
 
 func (c *conn) HandleAckToNode(id, data []byte) {
 	ack := c.ctx.worker.GetAcknowledgeFromPool()
-
-	err := msgpack.Unmarshal(data, ack)
+	err := ack.Unpack(data)
 	if err != nil {
-		c.Log(logger.Exploit, "invalid ack to node msgpack data:", err)
+		const format = "invalid ack to node data: %s\n%s"
+		c.Logf(logger.Exploit, format, err, spew.Sdump(ack))
 		c.ctx.worker.PutAcknowledgeToPool(ack)
 		_ = c.Close()
 		return
@@ -536,16 +537,18 @@ func (c *conn) HandleAckToBeacon(id, data []byte) {
 
 func (c *conn) HandleBroadcast(id, data []byte) {
 	broadcast := c.ctx.worker.GetBroadcastFromPool()
-	err := msgpack.Unmarshal(data, broadcast)
+	err := broadcast.Unpack(data)
 	if err != nil {
-		c.Log(logger.Exploit, "invalid broadcast msgpack data:", err)
+		const format = "invalid broadcast data: %s\n%s"
+		c.Logf(logger.Exploit, format, err, spew.Sdump(broadcast))
 		c.ctx.worker.PutBroadcastToPool(broadcast)
 		_ = c.Close()
 		return
 	}
 	err = broadcast.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid broadcast: %s\n%s", err, spew.Sdump(broadcast))
+		const format = "invalid broadcast: %s\n%s"
+		c.Logf(logger.Exploit, format, err, spew.Sdump(broadcast))
 		c.ctx.worker.PutBroadcastToPool(broadcast)
 		_ = c.Close()
 		return

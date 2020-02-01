@@ -295,12 +295,14 @@ func (sw *senderWorker) handleAcknowledgeTask(at []byte) {
 	sw.buffer.Write(sw.preA.RoleGUID)
 	sw.buffer.Write(sw.preA.SendGUID)
 	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// self validate
+	sw.err = sw.preA.Validate()
+	if sw.err != nil {
+		panic("sender internal error: " + sw.err.Error())
+	}
 	// pack
 	sw.buffer.Reset()
-	sw.err = sw.msgpack.Encode(sw.preA)
-	if sw.err != nil {
-		panic(sw.err)
-	}
+	sw.preA.Pack(sw.buffer)
 	sw.forwarder.Acknowledge(sw.preA.GUID, sw.buffer.Bytes(), "", true)
 }
 
@@ -351,15 +353,18 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preS.GUID)
 	sw.buffer.Write(sw.preS.RoleGUID)
-	sw.buffer.Write(sw.preS.Message)
 	sw.buffer.Write(sw.preS.Hash)
+	sw.buffer.Write(sw.preS.Message)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// self validate
+	sw.err = sw.preS.Validate()
+	if sw.err != nil {
+		panic("sender internal error: " + sw.err.Error())
+	}
 	// pack
 	sw.buffer.Reset()
-	result.Err = sw.msgpack.Encode(sw.preS)
-	if result.Err != nil {
-		return
-	}
+	sw.preS.Pack(sw.buffer)
+
 	// send
 	hex.Encode(sw.tHex, sw.preS.GUID) // calculate send guid
 	wait, destroy := sw.ctx.createAckSlot(string(sw.tHex))

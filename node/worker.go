@@ -12,9 +12,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/aes"
-	"project/internal/crypto/ed25519"
-	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xpanic"
@@ -55,29 +52,13 @@ func newWorker(ctx *Node, config *Config) (*worker, error) {
 	}
 
 	worker.sendPool.New = func() interface{} {
-		return &protocol.Send{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			Message:   make([]byte, aes.BlockSize),
-			Hash:      make([]byte, sha256.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewSend()
 	}
 	worker.acknowledgePool.New = func() interface{} {
-		return &protocol.Acknowledge{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			SendGUID:  make([]byte, guid.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewAcknowledge()
 	}
 	worker.broadcastPool.New = func() interface{} {
-		return &protocol.Broadcast{
-			GUID:      make([]byte, guid.Size),
-			Message:   make([]byte, aes.BlockSize),
-			Hash:      make([]byte, sha256.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewBroadcast()
 	}
 
 	// start sub workers
@@ -243,8 +224,8 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	sw.buffer.Reset()
 	sw.buffer.Write(send.GUID)
 	sw.buffer.Write(send.RoleGUID)
-	sw.buffer.Write(send.Message)
 	sw.buffer.Write(send.Hash)
+	sw.buffer.Write(send.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid send signature\nGUID: %X"
 		sw.logf(logger.Exploit, format, send.GUID)
@@ -293,8 +274,8 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 	// verify
 	sw.buffer.Reset()
 	sw.buffer.Write(broadcast.GUID)
-	sw.buffer.Write(broadcast.Message)
 	sw.buffer.Write(broadcast.Hash)
+	sw.buffer.Write(broadcast.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), broadcast.Signature) {
 		const format = "invalid broadcast signature\nGUID: %X"
 		sw.logf(logger.Exploit, format, broadcast.GUID)

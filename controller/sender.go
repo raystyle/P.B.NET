@@ -760,12 +760,14 @@ func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
 	sw.buffer.Write(sw.preA.RoleGUID)
 	sw.buffer.Write(sw.preA.SendGUID)
 	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// self validate
+	sw.err = sw.preA.Validate()
+	if sw.err != nil {
+		panic("sender internal error: " + sw.err.Error())
+	}
 	// pack
 	sw.buffer.Reset()
-	sw.err = sw.msgpack.Encode(sw.preA)
-	if sw.err != nil {
-		panic(sw.err)
-	}
+	sw.preA.Pack(sw.buffer)
 	// TODO try, if failed
 	switch at.Role {
 	case protocol.Node:
@@ -846,15 +848,18 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preS.GUID)
 	sw.buffer.Write(sw.preS.RoleGUID)
-	sw.buffer.Write(sw.preS.Message)
 	sw.buffer.Write(sw.preS.Hash)
+	sw.buffer.Write(sw.preS.Message)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// self validate
+	sw.err = sw.preS.Validate()
+	if sw.err != nil {
+		panic("sender internal error: " + sw.err.Error())
+	}
 	// pack
 	sw.buffer.Reset()
-	result.Err = sw.msgpack.Encode(sw.preS)
-	if result.Err != nil {
-		return
-	}
+	sw.preS.Pack(sw.buffer)
+
 	// TODO query
 	// check is need to write message to the database
 	if st.Role == protocol.Beacon && !sw.ctx.isInInteractiveMode(sw.roleGUID) {
@@ -948,18 +953,18 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preB.GUID)
-	sw.buffer.Write(sw.preB.Message)
 	sw.buffer.Write(sw.preB.Hash)
+	sw.buffer.Write(sw.preB.Message)
 	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
-	// pack
-	// TODO validate
-	// sw.preB.Validate()
-
-	sw.buffer.Reset()
-	result.Err = sw.msgpack.Encode(sw.preB)
-	if result.Err != nil {
-		return
+	// self validate
+	sw.err = sw.preB.Validate()
+	if sw.err != nil {
+		panic("sender internal error: " + sw.err.Error())
 	}
+	// pack
+	sw.buffer.Reset()
+	sw.preB.Pack(sw.buffer)
+	// broadcast
 	result.Responses, result.Success = sw.ctx.broadcast(sw.preB.GUID, sw.buffer.Bytes())
 	if len(result.Responses) == 0 {
 		result.Err = ErrNoConnections

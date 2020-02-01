@@ -518,64 +518,68 @@ func (client *Client) handleBeaconQueryGUID(id, data []byte) {
 }
 
 func (client *Client) handleNodeSend(id, data []byte) {
-	s := client.ctx.worker.GetSendFromPool()
-	err := msgpack.Unmarshal(data, &s)
+	send := client.ctx.worker.GetSendFromPool()
+	err := send.Unpack(data)
 	if err != nil {
-		client.log(logger.Exploit, "invalid node send msgpack data:", err)
-		client.ctx.worker.PutSendToPool(s)
+		const format = "invalid node send data: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(send))
+		client.ctx.worker.PutSendToPool(send)
 		client.Close()
 		return
 	}
-	err = s.Validate()
+	err = send.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid node send: %s\n%s", err, spew.Sdump(s))
-		client.ctx.worker.PutSendToPool(s)
+		const format = "invalid node send: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(send))
+		client.ctx.worker.PutSendToPool(send)
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(send.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
-		client.ctx.worker.PutSendToPool(s)
+		client.ctx.worker.PutSendToPool(send)
 		return
 	}
-	if client.ctx.syncer.CheckNodeSendGUID(s.GUID, true, timestamp) {
+	if client.ctx.syncer.CheckNodeSendGUID(send.GUID, true, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
-		client.ctx.worker.AddNodeSend(s)
+		client.ctx.worker.AddNodeSend(send)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
-		client.ctx.worker.PutSendToPool(s)
+		client.ctx.worker.PutSendToPool(send)
 	}
 }
 
 func (client *Client) handleNodeAck(id, data []byte) {
-	a := client.ctx.worker.GetAcknowledgeFromPool()
-	err := msgpack.Unmarshal(data, a)
+	ack := client.ctx.worker.GetAcknowledgeFromPool()
+	err := ack.Unpack(data)
 	if err != nil {
-		client.log(logger.Exploit, "invalid node ack msgpack data:", err)
-		client.ctx.worker.PutAcknowledgeToPool(a)
+		const format = "invalid node ack data: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(ack))
+		client.ctx.worker.PutAcknowledgeToPool(ack)
 		client.Close()
 		return
 	}
-	err = a.Validate()
+	err = ack.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid node ack: %s\n%s", err, spew.Sdump(a))
-		client.ctx.worker.PutAcknowledgeToPool(a)
+		const format = "invalid node ack: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(ack))
+		client.ctx.worker.PutAcknowledgeToPool(ack)
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(ack.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
-		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.ctx.worker.PutAcknowledgeToPool(ack)
 		return
 	}
-	if client.ctx.syncer.CheckNodeAckGUID(a.GUID, true, timestamp) {
+	if client.ctx.syncer.CheckNodeAckGUID(ack.GUID, true, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
-		client.ctx.worker.AddNodeAcknowledge(a)
+		client.ctx.worker.AddNodeAcknowledge(ack)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
-		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.ctx.worker.PutAcknowledgeToPool(ack)
 	}
 }
 

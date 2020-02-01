@@ -13,10 +13,10 @@ var (
 
 // replies
 var (
-	ReplyUnhandled = []byte{11}
-	ReplySucceed   = []byte{13}
-	ReplyExpired   = []byte{10}
-	ReplyHandled   = []byte{12}
+	ReplyUnhandled = []byte{10}
+	ReplySucceed   = []byte{11}
+	ReplyExpired   = []byte{20}
+	ReplyHandled   = []byte{21}
 )
 
 // GetReplyError is used to get error from reply
@@ -44,6 +44,7 @@ const (
 	ConnReplyHeartbeat
 	ConnErrRecvNullFrame
 	ConnErrRecvTooBigFrame
+	ConnGetAddress
 )
 
 // -----------------------Controller---------------------------

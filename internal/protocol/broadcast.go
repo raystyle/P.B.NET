@@ -25,8 +25,8 @@ type Broadcast struct {
 	Message   []byte // encrypted
 }
 
-// NewBroadcast is used to create a broadcast, that make slice
-// Unpack need it, if only used to Pack(), use new(Broadcast)
+// NewBroadcast is used to create a broadcast, Unpack() need it
+// if only used to Pack(), use new(Broadcast).
 func NewBroadcast() *Broadcast {
 	return &Broadcast{
 		GUID:      make([]byte, guid.Size),
@@ -36,25 +36,7 @@ func NewBroadcast() *Broadcast {
 	}
 }
 
-// Validate is used to validate broadcast fields
-func (b *Broadcast) Validate() error {
-	if len(b.GUID) != guid.Size {
-		return errors.New("invalid guid size")
-	}
-	if len(b.Hash) != sha256.Size {
-		return errors.New("invalid hash size")
-	}
-	if len(b.Signature) != ed25519.SignatureSize {
-		return errors.New("invalid signature size")
-	}
-	l := len(b.Message)
-	if l < aes.BlockSize || l%aes.BlockSize != 0 {
-		return errors.New("invalid message size")
-	}
-	return nil
-}
-
-// Pack is used to Pack Broadcast to []byte
+// Pack is used to pack Broadcast to *bytes.Buffer
 func (b *Broadcast) Pack(buf *bytes.Buffer) {
 	buf.Write(b.GUID)
 	buf.Write(b.Hash)
@@ -87,6 +69,24 @@ func (b *Broadcast) Unpack(data []byte) error {
 	} else {
 		b.Message = make([]byte, mLen)
 		copy(b.Message, message)
+	}
+	return nil
+}
+
+// Validate is used to validate broadcast fields
+func (b *Broadcast) Validate() error {
+	if len(b.GUID) != guid.Size {
+		return errors.New("invalid guid size")
+	}
+	if len(b.Hash) != sha256.Size {
+		return errors.New("invalid hash size")
+	}
+	if len(b.Signature) != ed25519.SignatureSize {
+		return errors.New("invalid signature size")
+	}
+	l := len(b.Message)
+	if l < aes.BlockSize || l%aes.BlockSize != 0 {
+		return errors.New("invalid message size")
 	}
 	return nil
 }

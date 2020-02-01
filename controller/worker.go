@@ -59,21 +59,10 @@ func newWorker(ctx *CTRL, config *Config) (*worker, error) {
 	}
 
 	worker.sendPool.New = func() interface{} {
-		return &protocol.Send{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			Message:   make([]byte, aes.BlockSize),
-			Hash:      make([]byte, sha256.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewSend()
 	}
 	worker.ackPool.New = func() interface{} {
-		return &protocol.Acknowledge{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			SendGUID:  make([]byte, guid.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewAcknowledge()
 	}
 	worker.queryPool.New = func() interface{} {
 		return &protocol.Query{
@@ -302,8 +291,8 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	sw.buffer.Reset()
 	sw.buffer.Write(send.GUID)
 	sw.buffer.Write(send.RoleGUID)
-	sw.buffer.Write(send.Message)
 	sw.buffer.Write(send.Hash)
+	sw.buffer.Write(send.Message)
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid %s send signature\nGUID: %X"
 		sw.logf(logger.Exploit, format, role, send.RoleGUID)
@@ -338,8 +327,8 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 		return
 	}
 	defer func() { send.Message = cache }()
-	sw.ctx.sender.Acknowledge(protocol.Node, send)
 	sw.ctx.handler.OnNodeSend(send)
+	sw.ctx.sender.Acknowledge(protocol.Node, send)
 }
 
 func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
@@ -352,8 +341,8 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 		return
 	}
 	defer func() { send.Message = cache }()
-	sw.ctx.sender.Acknowledge(protocol.Beacon, send)
 	sw.ctx.handler.OnBeaconSend(send)
+	sw.ctx.sender.Acknowledge(protocol.Beacon, send)
 }
 
 func (sw *subWorker) verifyAcknowledge(role protocol.Role, ack *protocol.Acknowledge) bool {
