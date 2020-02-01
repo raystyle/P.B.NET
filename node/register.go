@@ -191,11 +191,19 @@ func (register *register) Bootstraps() map[string]bootstrap.Bootstrap {
 
 // PackRequest is used to pack node register request, and encrypt it
 // it is used to register.Register() and ctrlConn.handleTrustNode()
+//
+// self key exchange public key (curve25519),
+// use session key encrypt register request data.
+// +----------------+----------------+
+// | kex public key | encrypted data |
+// +----------------+----------------+
+// |    32 Bytes    |       var      |
+// +----------------+----------------+
 func (register *register) PackRequest() []byte {
 	nrr := messages.NodeRegisterRequest{
 		GUID:         register.ctx.global.GUID(),
 		PublicKey:    register.ctx.global.PublicKey(),
-		KexPublicKey: register.ctx.global.KeyExchangePub(),
+		KexPublicKey: register.ctx.global.KeyExchangePublicKey(),
 		SystemInfo:   info.GetSystemInfo(),
 		RequestTime:  register.ctx.global.Now(),
 	}
@@ -203,19 +211,12 @@ func (register *register) PackRequest() []byte {
 	if err != nil {
 		panic("register internal error: " + err.Error())
 	}
-	// self key exchange public key (curve25519),
-	// use session key encrypt register request data.
-	// +----------------+----------------+
-	// | kex public key | encrypted data |
-	// +----------------+----------------+
-	// |    32 Bytes    |       var      |
-	// +----------------+----------------+
 	cipherData, err := register.ctx.global.Encrypt(data)
 	if err != nil {
 		panic("register internal error: " + err.Error())
 	}
 	request := make([]byte, curve25519.ScalarSize)
-	copy(request, register.ctx.global.KeyExchangePub())
+	copy(request, register.ctx.global.KeyExchangePublicKey())
 	return append(request, cipherData...)
 }
 

@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"project/internal/dns"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/protocol"
 	"project/internal/proxy"
 	"project/internal/random"
 	"project/internal/security"
@@ -339,29 +341,47 @@ func (global *global) GUID() []byte {
 	return global.objects[objNodeGUID].([]byte)
 }
 
+// SetCertificate is used to set Node certificate
+// it can be set once
+func (global *global) SetCertificate(data []byte) error {
+	// check certificate
+	cert := protocol.Certificate{}
+	err := cert.Decode(data)
+	if err != nil {
+		return err
+	}
+	if bytes.Compare(global.GUID(), cert.GUID) != 0 {
+		return errors.New("different guid")
+	}
+	if bytes.Compare(global.PublicKey(), cert.PublicKey) != 0 {
+		return errors.New("different public key")
+	}
+	if !cert.VerifySignatureWithCTRLGUID(global.CtrlPublicKey()) {
+		return errors.New("invalid certificate signature(with controller guid)")
+	}
+	if !cert.VerifySignatureWithNodeGUID(global.CtrlPublicKey()) {
+		return errors.New("invalid certificate signature(with node guid)")
+	}
+	global.objectsRWM.Lock()
+	defer global.objectsRWM.Unlock()
+	if _, ok := global.objects[objCertificate]; !ok {
+		cp := make([]byte, protocol.CertificateSize)
+		copy(cp, data)
+		global.objects[objCertificate] = cp
+		return nil
+	}
+	return errors.New("certificate has been set")
+}
+
 // Certificate is used to get Node certificate
 func (global *global) GetCertificate() []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	c := global.objects[objCertificate]
-	if c != nil {
-		return c.([]byte)
+	cert := global.objects[objCertificate]
+	if cert != nil {
+		return cert.([]byte)
 	}
 	return nil
-}
-
-// SetCertificate is used to set Node certificate
-// it can be set once
-func (global *global) SetCertificate(cert []byte) error {
-	global.objectsRWM.Lock()
-	defer global.objectsRWM.Unlock()
-	if _, ok := global.objects[objCertificate]; !ok {
-		c := make([]byte, len(cert))
-		copy(c, cert)
-		global.objects[objCertificate] = c
-		return nil
-	}
-	return errors.New("certificate has been set")
 }
 
 // Sign is used to sign node message
@@ -381,8 +401,8 @@ func (global *global) PublicKey() ed25519.PublicKey {
 	return global.objects[objPublicKey].(ed25519.PublicKey)
 }
 
-// KeyExchangePub is used to get node key exchange public key
-func (global *global) KeyExchangePub() []byte {
+// KeyExchangePublicKey is used to get node key exchange public key
+func (global *global) KeyExchangePublicKey() []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objKexPublicKey].([]byte)

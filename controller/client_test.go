@@ -81,7 +81,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Server.MaxConns = 16 * runtime.NumCPU()
 	cfg.Server.Timeout = 15 * time.Second
 
-	cfg.CTRL.KexPublicKey = ctrl.global.KeyExchangePub()
+	cfg.CTRL.KexPublicKey = ctrl.global.KeyExchangePublicKey()
 	cfg.CTRL.PublicKey = ctrl.global.PublicKey()
 	cfg.CTRL.BroadcastKey = ctrl.global.BroadcastKey()
 	return &cfg

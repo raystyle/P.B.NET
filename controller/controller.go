@@ -281,9 +281,9 @@ func (ctrl *CTRL) LoadSessionKeyFromFile(filename string, password []byte) error
 	return ctrl.global.LoadSessionKey(data, password)
 }
 
-// KeyExchangePub is used to get key exchange public key
-func (ctrl *CTRL) KeyExchangePub() []byte {
-	return ctrl.global.KeyExchangePub()
+// KeyExchangePublicKey is used to get key exchange public key
+func (ctrl *CTRL) KeyExchangePublicKey() []byte {
+	return ctrl.global.KeyExchangePublicKey()
 }
 
 // PublicKey is used to get public key

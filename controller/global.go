@@ -566,8 +566,8 @@ func (global *global) PublicKey() ed25519.PublicKey {
 	return global.objects[objPublicKey].(ed25519.PublicKey)
 }
 
-// KeyExchangePub is used to get key exchange public key
-func (global *global) KeyExchangePub() []byte {
+// KeyExchangePublicKey is used to get key exchange public key
+func (global *global) KeyExchangePublicKey() []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objKexPublicKey].([]byte)
