@@ -150,6 +150,11 @@ func (c *conn) onFrame(frame []byte) bool {
 	switch frame[0] {
 	case protocol.ConnReply:
 		c.handleReply(frame[protocol.FrameCMDSize:])
+	case protocol.ConnGetAddress:
+		id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+		s := c.Conn.Status()
+		address := fmt.Sprintf("%s (%s %s)", s.Mode, s.RemoteNetwork, s.RemoteAddress)
+		c.Reply(id, []byte(address))
 	case protocol.ConnErrRecvNullFrame:
 		c.Log(logger.Exploit, protocol.ErrRecvNullFrame)
 		_ = c.Close()

@@ -199,11 +199,12 @@ func (register *register) Bootstraps() map[string]bootstrap.Bootstrap {
 // +----------------+----------------+
 // |    32 Bytes    |       var      |
 // +----------------+----------------+
-func (register *register) PackRequest() []byte {
+func (register *register) PackRequest(address string) []byte {
 	nrr := messages.NodeRegisterRequest{
 		GUID:         register.ctx.global.GUID(),
 		PublicKey:    register.ctx.global.PublicKey(),
 		KexPublicKey: register.ctx.global.KeyExchangePublicKey(),
+		ConnAddress:  address,
 		SystemInfo:   info.GetSystemInfo(),
 		RequestTime:  register.ctx.global.Now(),
 	}
@@ -309,11 +310,16 @@ func (register *register) register(listener *bootstrap.Listener) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to send register operation")
 	}
-	err = conn.SendMessage(register.PackRequest())
+	// get external IP address
+	address, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive external ip address")
+	}
+	// send register request
+	err = conn.SendMessage(register.PackRequest(string(address)))
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}
-
 	// wait register result
 	timeout := time.Duration(60+random.Int(30)) * time.Second
 	_ = conn.SetDeadline(register.ctx.global.Now().Add(timeout))

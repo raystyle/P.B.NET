@@ -634,8 +634,16 @@ func (server *server) handleNode(tag string, conn *xnet.Conn) {
 
 // TODO <firewall> rate limit
 func (server *server) registerNode(conn *xnet.Conn, guid []byte) {
-	// receive encrypted node register request
-	//
+	// send external address
+	s := conn.Status()
+	address := fmt.Sprintf("%s (%s %s)", s.Mode, s.RemoteNetwork, s.RemoteAddress)
+	err := conn.Send([]byte(address))
+	if err != nil {
+		const log = "failed to send node external address:"
+		server.logConn(conn, logger.Error, log, err)
+		return
+	}
+
 	// node send self key exchange public key (curve25519),
 	// use session key encrypt register request data.
 	// +----------------+----------------+
@@ -643,6 +651,8 @@ func (server *server) registerNode(conn *xnet.Conn, guid []byte) {
 	// +----------------+----------------+
 	// |    32 Bytes    |       var      |
 	// +----------------+----------------+
+
+	// receive encrypted node register request
 	request, err := conn.Receive()
 	if err != nil {
 		const log = "failed to receive node register request:"
@@ -662,9 +672,6 @@ func (server *server) registerNode(conn *xnet.Conn, guid []byte) {
 		server.logfConn(conn, logger.Warning, format, guid)
 		return
 	}
-	// add IP address to the node register request and send to controller
-	// ip := make([]byte, net.IPv6len)
-	// copy(ip, net.ParseIP(conn.RemoteAddr().String()))
 	// <security> must don't handle error
 	// _ = server.ctx.sender.Send(messages.CMDBNodeRegisterRequest, append(ip, request...))
 	_ = server.ctx.sender.Send(messages.CMDBNodeRegisterRequest, request)
@@ -906,7 +913,7 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 }
 
 func (ctrl *ctrlConn) handleTrustNode(id []byte) {
-	ctrl.Conn.Reply(id, ctrl.ctx.register.PackRequest())
+	ctrl.Conn.Reply(id, ctrl.ctx.register.PackRequest("trust"))
 }
 
 func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {

@@ -39,6 +39,7 @@ type NodeRegisterRequest struct {
 	GUID         []byte // Node GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
+	ConnAddress  string // usually like "tls (tcp 1.2.3.4:5678)"
 	SystemInfo   *info.System
 	RequestTime  time.Time
 }
@@ -105,6 +106,7 @@ type BeaconRegisterRequest struct {
 	GUID         []byte // Beacon GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
+	ConnAddress  string // usually like "tls (tcp 1.2.3.4:5678)"
 	SystemInfo   *info.System
 	RequestTime  time.Time
 }
