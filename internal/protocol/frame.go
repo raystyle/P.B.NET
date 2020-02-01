@@ -14,8 +14,8 @@ import (
 // +------------+---------+------------+------+
 // |   uint32   |  uint8  |   uint16   |  var |
 // +------------+---------+------------+------+
-// frame size = command + frame id + data
 //
+// frame size = command + frame id + data
 // heartbeat don't need set frame id
 
 // about connection
@@ -55,13 +55,13 @@ type Slot struct {
 
 // NewSlot is used to create slot
 func NewSlot() *Slot {
-	s := Slot{
+	slot := Slot{
 		Available: make(chan struct{}, 1),
 		Reply:     make(chan []byte, 1),
 		Timer:     time.NewTimer(RecvTimeout),
 	}
-	s.Available <- struct{}{}
-	return &s
+	slot.Available <- struct{}{}
+	return &slot
 }
 
 var (
