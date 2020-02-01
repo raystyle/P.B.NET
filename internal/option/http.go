@@ -67,11 +67,14 @@ type HTTPTransport struct {
 }
 
 // Apply is used to create *http.Transport
+//
+// TODO when set MaxConnsPerHost, use HTTP/2 get test.com, will panic
+// wait golang fix it
 func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	tr := &http.Transport{
-		MaxIdleConns:           ht.MaxIdleConns,
-		MaxIdleConnsPerHost:    ht.MaxIdleConnsPerHost,
-		MaxConnsPerHost:        ht.MaxConnsPerHost,
+		MaxIdleConns:        ht.MaxIdleConns,
+		MaxIdleConnsPerHost: ht.MaxIdleConnsPerHost,
+		// MaxConnsPerHost:        ht.MaxConnsPerHost,
 		TLSHandshakeTimeout:    ht.TLSHandshakeTimeout,
 		IdleConnTimeout:        ht.IdleConnTimeout,
 		ResponseHeaderTimeout:  ht.ResponseHeaderTimeout,
@@ -93,9 +96,9 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	if tr.MaxIdleConnsPerHost < 1 {
 		tr.MaxIdleConnsPerHost = 1
 	}
-	if tr.MaxConnsPerHost < 1 {
-		tr.MaxConnsPerHost = 1
-	}
+	// if tr.MaxConnsPerHost < 1 {
+	// 	tr.MaxConnsPerHost = 1
+	// }
 	// timeout
 	if tr.TLSHandshakeTimeout < 1 {
 		tr.TLSHandshakeTimeout = httpDefaultTimeout

@@ -77,7 +77,7 @@ func TestHTTPTransportDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, transport.MaxIdleConns)
 	require.Equal(t, 1, transport.MaxIdleConnsPerHost)
-	require.Equal(t, 1, transport.MaxConnsPerHost)
+	// require.Equal(t, 1, transport.MaxConnsPerHost)
 	require.Equal(t, httpDefaultTimeout, transport.TLSHandshakeTimeout)
 	require.Equal(t, httpDefaultTimeout, transport.IdleConnTimeout)
 	require.Equal(t, httpDefaultTimeout, transport.ResponseHeaderTimeout)
@@ -103,7 +103,7 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 	}{
 		{expected: 2, actual: transport.MaxIdleConns},
 		{expected: 2, actual: transport.MaxIdleConnsPerHost},
-		{expected: 2, actual: transport.MaxConnsPerHost},
+		// {expected: 2, actual: transport.MaxConnsPerHost},
 		{expected: timeout, actual: transport.TLSHandshakeTimeout},
 		{expected: timeout, actual: transport.IdleConnTimeout},
 		{expected: timeout, actual: transport.ResponseHeaderTimeout},
