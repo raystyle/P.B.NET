@@ -20,6 +20,9 @@ const (
 // commands about modules
 const (
 	CMDExecuteShellCode uint32 = 0x10000000 + iota
+	CMDExecuteShellCodeError
+	CMDShell
+	CMDShellOutput
 )
 
 // CMD Bytes, role Send need it
@@ -30,4 +33,7 @@ var (
 	CMDBBeaconRegisterRequest  = convert.Uint32ToBytes(CMDBeaconRegisterRequest)
 	CMDBBeaconRegisterResponse = convert.Uint32ToBytes(CMDBeaconRegisterResponse)
 	CMDBExecuteShellCode       = convert.Uint32ToBytes(CMDExecuteShellCode)
+	CMDBExecuteShellCodeError  = convert.Uint32ToBytes(CMDExecuteShellCodeError)
+	CMDBShell                  = convert.Uint32ToBytes(CMDShell)
+	CMDBShellOutput            = convert.Uint32ToBytes(CMDShellOutput)
 )

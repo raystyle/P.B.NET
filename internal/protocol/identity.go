@@ -8,17 +8,14 @@ import (
 	"project/internal/guid"
 )
 
-// errors about identity
-var (
-	ErrInvalidCertificate = errors.New("invalid certificate")
-	ErrAuthenticateFailed = errors.New("failed to authenticate")
-)
+// ErrAuthenticateFailed is used to client handshake
+var ErrAuthenticateFailed = errors.New("failed to authenticate")
 
-// identity
-var (
-	CtrlGUID    = bytes.Repeat([]byte{0}, guid.Size)
-	AuthSucceed = []byte("success")
-)
+// AuthSucceed is used to reply client
+var AuthSucceed = []byte{1}
+
+// CtrlGUID is the Controller GUID, it used to reserve
+var CtrlGUID = bytes.Repeat([]byte{0}, guid.Size)
 
 // Role is used to show identity
 type Role uint8
