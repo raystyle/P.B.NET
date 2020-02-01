@@ -952,6 +952,9 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 	sw.buffer.Write(sw.preB.Hash)
 	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// pack
+	// TODO validate
+	// sw.preB.Validate()
+
 	sw.buffer.Reset()
 	result.Err = sw.msgpack.Encode(sw.preB)
 	if result.Err != nil {

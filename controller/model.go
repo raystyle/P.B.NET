@@ -9,6 +9,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+// set gorm.TheNamingStrategy.Table
+// gorm custom name: table name delete "m"
+// table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
+func init() {
+	n := gorm.TheNamingStrategy.Table
+	gorm.TheNamingStrategy.Table = func(name string) string {
+		return n(name)[2:]
+	}
+}
+
 // different table with the same model
 const (
 	tableCtrlLog   = "log"
@@ -146,16 +156,6 @@ type mTrustNode struct {
 	Address string `json:"address"`
 }
 
-// setGORMCustomName is used to set gorm.TheNamingStrategy.Table
-// gorm custom name: table name delete "m"
-// table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
-func setGORMCustomName() {
-	n := gorm.TheNamingStrategy.Table
-	gorm.TheNamingStrategy.Table = func(name string) string {
-		return n(name)[2:]
-	}
-}
-
 // getStructureName is used to get structure name
 func getStructureName(v interface{}) string {
 	s := reflect.TypeOf(v).String()
@@ -178,7 +178,6 @@ func InitializeDatabase(config *Config) error {
 	}
 
 	// table name will not add "s"
-	setGORMCustomName()
 	db.SingularTable(true)
 	db.LogMode(false)
 	defer func() { _ = db.Close() }()

@@ -145,8 +145,8 @@ func (ctrl *CTRL) NewClient(
 		}()
 		protocol.HandleConn(client.conn, client.onFrame)
 	}()
-
 	ctrl.clientMgr.Add(client)
+	client.log(logger.Info, "connected")
 	return client, nil
 }
 

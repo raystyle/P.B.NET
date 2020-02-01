@@ -3,7 +3,9 @@ package controller
 import (
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -17,6 +19,8 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/crypto/cert/certutil"
 	"project/internal/logger"
+	"project/internal/messages"
+	"project/internal/protocol"
 	"project/internal/security"
 )
 
@@ -105,6 +109,7 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	// API
 	router.GET("/api/boot", web.handleGetBoot)
 	router.POST("/api/node/trust", web.handleTrustNode)
+	router.GET("/api/node/shell", web.handleShell)
 
 	// HTTPS server
 	tlsConfig := &tls.Config{
@@ -223,4 +228,32 @@ func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 		return
 	}
 	_, _ = w.Write(b)
+}
+
+func (web *web) handleShell(w hRW, r *hR, p hP) {
+
+	_ = r.ParseForm()
+	guid := r.FormValue("guid")
+	fmt.Println(guid)
+
+	nodeGUID, err := hex.DecodeString(guid)
+	if err != nil {
+		fmt.Println("1", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+
+	fmt.Println(nodeGUID)
+
+	shell := messages.Shell{
+		Command: r.FormValue("cmd"),
+	}
+
+	// TODO check nodeGUID
+	err = web.ctx.sender.Send(protocol.Node, nodeGUID, messages.CMDBShell, &shell)
+	if err != nil {
+		fmt.Println("2", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
 }

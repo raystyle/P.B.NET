@@ -208,6 +208,7 @@ func (ctrl *CTRL) Send(role protocol.Role, guid, cmd []byte, msg interface{}) er
 }
 
 // AcceptRegisterNode is used to accept register node
+// TODO add Log
 func (ctrl *CTRL) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstrap bool) error {
 	certificate, err := ctrl.registerNode(nrr, bootstrap)
 	if err != nil {

@@ -45,7 +45,6 @@ func newDatabase(config *Config) (*database, error) {
 		return nil, errors.Wrapf(err, "failed to ping %s server", cfg.Dialect)
 	}
 	// table name will not add "s"
-	setGORMCustomName()
 	gormDB.SingularTable(true)
 	// connection
 	gormDB.DB().SetMaxOpenConns(cfg.MaxOpenConns)

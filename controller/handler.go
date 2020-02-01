@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"sync"
 
+	"github.com/axgle/mahonia"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/vmihailenco/msgpack/v4"
 
@@ -109,6 +111,8 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 		h.handleNodeRegisterRequest(send)
 	case messages.CMDBeaconRegisterRequest:
 		h.handleBeaconRegisterRequest(send)
+	case messages.CMDShellOutput:
+		h.handleNodeShellOutput(send)
 	case messages.CMDTest:
 		h.handleNodeSendTestMessage(send)
 	default:
@@ -187,11 +191,12 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.Send) []byte {
 	defer h.logPanic("handler.decryptRoleRegisterRequest")
 	req := send.Message
-	if len(req) < curve25519.ScalarSize+aes.BlockSize {
+	if len(req) < net.IPv6len+curve25519.ScalarSize+aes.BlockSize {
 		const format = "node send %s register request with invalid size"
 		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, role)
 		return nil
 	}
+
 	// calculate role session key
 	key, err := h.ctx.global.KeyExchange(req[:curve25519.ScalarSize])
 	if err != nil {
@@ -207,6 +212,20 @@ func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.
 		return nil
 	}
 	return request
+}
+
+func (h *handler) handleNodeShellOutput(send *protocol.Send) {
+	defer h.logPanic("handler.handleNodeShellOutput")
+	var so messages.ShellOutput
+	err := msgpack.Unmarshal(send.Message, &so)
+	if err != nil {
+		const log = "node send invalid shell output"
+		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
+		return
+	}
+	str := mahonia.NewDecoder("GBK").ConvertString(string(so.Output))
+	fmt.Println("controller receive it!")
+	fmt.Println(str)
 }
 
 // ----------------------------------------send test-----------------------------------------------

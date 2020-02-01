@@ -11,6 +11,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/messages"
@@ -83,6 +84,7 @@ type Config struct {
 
 // TrustNode is used to trust Node, receive system info for confirm it.
 // usually for the initial node or the test
+// TODO add log
 func (ctrl *CTRL) TrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
@@ -97,24 +99,38 @@ func (ctrl *CTRL) TrustNode(
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to send trust node command")
 	}
-	req := messages.NodeRegisterRequest{}
-	err = msgpack.Unmarshal(reply, &req)
-	if err != nil {
-		err = errors.Wrap(err, "invalid node register request msgpack data")
-		ctrl.logger.Print(logger.Exploit, "trust node", err)
-		return nil, err
+	if len(reply) < curve25519.ScalarSize+aes.BlockSize {
+		// TODO add exploit
+		return nil, errors.New("node send register request with invalid size")
 	}
-	err = req.Validate()
+	// calculate role session key
+	key, err := ctrl.global.KeyExchange(reply[:curve25519.ScalarSize])
 	if err != nil {
-		err = errors.Wrap(err, "invalid node register request")
-		ctrl.logger.Print(logger.Exploit, "trust node", err)
-		return nil, err
+		const format = "node send invalid register request\nerror: %s"
+		return nil, errors.Errorf(format, err)
 	}
-	return &req, nil
+	// decrypt role register request
+	request, err := aes.CBCDecrypt(reply[curve25519.ScalarSize:], key, key[:aes.IVSize])
+	if err != nil {
+		const format = "node send invalid register request\nerror: %s"
+		return nil, errors.Errorf(format, err)
+	}
+	nrr := messages.NodeRegisterRequest{}
+	err = msgpack.Unmarshal(request, &nrr)
+	if err != nil {
+		// ctrl.logger.Print(logger.Exploit, "trust node", err)
+		return nil, errors.Wrap(err, "invalid node register request")
+	}
+	err = nrr.Validate()
+	if err != nil {
+		// ctrl.logger.Print(logger.Exploit, "trust node", err)
+		return nil, errors.Wrap(err, "invalid node register request")
+	}
+	return &nrr, nil
 }
 
-// ConfirmTrustNode is used to confirm trust node,
-// issue certificates and insert to database
+// ConfirmTrustNode is used to confirm trust node, register node
+// TODO add log
 func (ctrl *CTRL) ConfirmTrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
