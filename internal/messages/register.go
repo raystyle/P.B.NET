@@ -36,7 +36,7 @@ var (
 // NodeRegisterRequest is used to Node register,
 // controller trust node also use it
 type NodeRegisterRequest struct {
-	GUID         []byte // Node GUID
+	GUID         guid.GUID // Node GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
 	ConnAddress  string // usually like "tls (tcp 1.2.3.4:5678)"
@@ -46,9 +46,6 @@ type NodeRegisterRequest struct {
 
 // Validate is used to validate request fields
 func (r *NodeRegisterRequest) Validate() error {
-	if len(r.GUID) != guid.Size {
-		return errors.New("invalid guid size")
-	}
 	if len(r.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}
@@ -63,7 +60,7 @@ func (r *NodeRegisterRequest) Validate() error {
 
 // NodeRegisterResponse is used to return Node register response
 type NodeRegisterResponse struct {
-	GUID []byte // Node GUID
+	GUID guid.GUID // Node GUID
 
 	// all node save it
 	PublicKey    []byte
@@ -83,9 +80,6 @@ type NodeRegisterResponse struct {
 
 // Validate is used to validate response fields
 func (r *NodeRegisterResponse) Validate() error {
-	if len(r.GUID) != guid.Size {
-		return errors.New("invalid guid size")
-	}
 	if len(r.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}
@@ -103,7 +97,7 @@ func (r *NodeRegisterResponse) Validate() error {
 
 // BeaconRegisterRequest is used to Beacon register
 type BeaconRegisterRequest struct {
-	GUID         []byte // Beacon GUID
+	GUID         guid.GUID // Beacon GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
 	ConnAddress  string // usually like "tls (tcp 1.2.3.4:5678)"
@@ -113,9 +107,6 @@ type BeaconRegisterRequest struct {
 
 // Validate is used to validate request fields
 func (r *BeaconRegisterRequest) Validate() error {
-	if len(r.GUID) != guid.Size {
-		return errors.New("invalid guid size")
-	}
 	if len(r.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}
@@ -130,7 +121,7 @@ func (r *BeaconRegisterRequest) Validate() error {
 
 // BeaconRegisterResponse is used to return Beacon register response
 type BeaconRegisterResponse struct {
-	GUID []byte // Beacon GUID
+	GUID guid.GUID // Beacon GUID
 
 	// all node save it
 	PublicKey    []byte
@@ -149,9 +140,6 @@ type BeaconRegisterResponse struct {
 
 // Validate is used to validate response fields
 func (r *BeaconRegisterResponse) Validate() error {
-	if len(r.GUID) != guid.Size {
-		return errors.New("invalid guid size")
-	}
 	if len(r.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
 	}

@@ -14,9 +14,6 @@ import (
 
 func TestNodeRegisterRequest_Validate(t *testing.T) {
 	nrr := new(NodeRegisterRequest)
-	require.EqualError(t, nrr.Validate(), "invalid guid size")
-
-	nrr.GUID = protocol.CtrlGUID
 
 	require.EqualError(t, nrr.Validate(), "invalid public key size")
 	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
@@ -32,9 +29,6 @@ func TestNodeRegisterRequest_Validate(t *testing.T) {
 
 func TestNodeRegisterResponse_Validate(t *testing.T) {
 	nrr := new(NodeRegisterResponse)
-	require.EqualError(t, nrr.Validate(), "invalid guid size")
-
-	nrr.GUID = protocol.CtrlGUID
 
 	require.EqualError(t, nrr.Validate(), "invalid public key size")
 	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
@@ -53,9 +47,6 @@ func TestNodeRegisterResponse_Validate(t *testing.T) {
 
 func TestBeaconRegisterRequest_Validate(t *testing.T) {
 	brr := new(BeaconRegisterRequest)
-	require.EqualError(t, brr.Validate(), "invalid guid size")
-
-	brr.GUID = protocol.CtrlGUID
 
 	require.EqualError(t, brr.Validate(), "invalid public key size")
 	brr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
@@ -71,9 +62,6 @@ func TestBeaconRegisterRequest_Validate(t *testing.T) {
 
 func TestBeaconRegisterResponse_Validate(t *testing.T) {
 	nrr := new(BeaconRegisterResponse)
-	require.EqualError(t, nrr.Validate(), "invalid guid size")
-
-	nrr.GUID = protocol.CtrlGUID
 
 	require.EqualError(t, nrr.Validate(), "invalid public key size")
 	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
