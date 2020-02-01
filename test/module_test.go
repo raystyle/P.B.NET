@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/hex"
+	"fmt"
 	"testing"
 	"time"
 
@@ -34,6 +35,24 @@ func TestExecuteShellCode(t *testing.T) {
 	require.NoError(t, err)
 
 	time.Sleep(10 * time.Second)
+	// clean
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
+}
+
+func TestShell(t *testing.T) {
+	iNode := generateInitialNodeAndTrust(t)
+
+	fmt.Println("Node GUID:", hex.EncodeToString(iNode.GUID()))
+
+	shell := messages.Shell{
+		Command: "systeminfo",
+	}
+	err := ctrl.Send(protocol.Node, iNode.GUID(), messages.CMDBShell, &shell)
+	require.NoError(t, err)
+
+	time.Sleep(10 * time.Second)
+
 	// clean
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)

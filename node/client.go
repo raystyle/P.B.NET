@@ -110,7 +110,8 @@ func (node *Node) NewClient(
 		closeFunc: closeFunc,
 		rand:      random.New(),
 	}
-	client.Conn = newConn(node, conn, guid, connUsageClient)
+	// TODO tag
+	client.Conn = newConn(node, conn, "", guid, connUsageClient)
 	err = client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
@@ -578,6 +579,7 @@ func (cm *clientMgr) Kill(tag string) {
 	if client, ok := cm.Clients()[tag]; ok {
 		client.Close()
 	}
+	// TODO add log
 }
 
 // Close will close all active clients

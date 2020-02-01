@@ -1,7 +1,6 @@
 package node
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"sync"
@@ -12,6 +11,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/module/info"
@@ -189,21 +189,34 @@ func (register *register) Bootstraps() map[string]bootstrap.Bootstrap {
 	return bs
 }
 
-// PackRequest is used to pack node register request,
+// PackRequest is used to pack node register request, and encrypt it
 // it is used to register.Register() and ctrlConn.handleTrustNode()
 func (register *register) PackRequest() []byte {
-	req := messages.NodeRegisterRequest{
+	nrr := messages.NodeRegisterRequest{
 		GUID:         register.ctx.global.GUID(),
 		PublicKey:    register.ctx.global.PublicKey(),
 		KexPublicKey: register.ctx.global.KeyExchangePub(),
 		SystemInfo:   info.GetSystemInfo(),
 		RequestTime:  register.ctx.global.Now(),
 	}
-	b, err := msgpack.Marshal(&req)
+	data, err := msgpack.Marshal(&nrr)
 	if err != nil {
-		panic(err)
+		panic("register internal error: " + err.Error())
 	}
-	return b
+	// self key exchange public key (curve25519),
+	// use session key encrypt register request data.
+	// +----------------+----------------+
+	// | kex public key | encrypted data |
+	// +----------------+----------------+
+	// |    32 Bytes    |       var      |
+	// +----------------+----------------+
+	cipherData, err := register.ctx.global.Encrypt(data)
+	if err != nil {
+		panic("register internal error: " + err.Error())
+	}
+	request := make([]byte, curve25519.ScalarSize)
+	copy(request, register.ctx.global.KeyExchangePub())
+	return append(request, cipherData...)
 }
 
 // Register is used to register to Controller
@@ -295,21 +308,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to send register operation")
 	}
-	// send self key exchange public key (curve25519),
-	// use session key encrypt register request data.
-	// +----------------+----------------+
-	// | kex public key | encrypted data |
-	// +----------------+----------------+
-	// |    32 Bytes    |       var      |
-	// +----------------+----------------+
-	request := bytes.Buffer{}
-	request.Write(register.ctx.global.KeyExchangePub())
-	cipherData, err := register.ctx.global.Encrypt(register.PackRequest())
-	if err != nil {
-		return errors.Wrap(err, "failed to encrypt register request")
-	}
-	request.Write(cipherData)
-	err = conn.SendMessage(request.Bytes())
+	err = conn.SendMessage(register.PackRequest())
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}

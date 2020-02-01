@@ -301,7 +301,7 @@ func (sw *senderWorker) handleAcknowledgeTask(at []byte) {
 	if sw.err != nil {
 		panic(sw.err)
 	}
-	sw.forwarder.Acknowledge(sw.preA.GUID, sw.buffer.Bytes(), "")
+	sw.forwarder.Acknowledge(sw.preA.GUID, sw.buffer.Bytes(), "", true)
 }
 
 func (sw *senderWorker) handleSendTask(st *sendTask) {
@@ -364,7 +364,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	hex.Encode(sw.tHex, sw.preS.GUID) // calculate send guid
 	wait, destroy := sw.ctx.createAckSlot(string(sw.tHex))
 	result.Responses, result.Success = sw.forwarder.Send(
-		sw.preS.GUID, sw.buffer.Bytes(), "")
+		sw.preS.GUID, sw.buffer.Bytes(), "", true)
 	if len(result.Responses) == 0 {
 		result.Err = ErrNoConnections
 		return

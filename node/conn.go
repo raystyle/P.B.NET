@@ -31,6 +31,7 @@ type conn struct {
 
 	*xnet.Conn
 	role protocol.Role
+	tag  string // connection tag
 	guid []byte // role guid
 
 	slots []*protocol.Slot
@@ -54,10 +55,11 @@ type conn struct {
 	stopSignal chan struct{}
 }
 
-func newConn(ctx *Node, xConn *xnet.Conn, guid []byte, usage int) *conn {
+func newConn(ctx *Node, xConn *xnet.Conn, tag string, guid []byte, usage int) *conn {
 	conn := conn{
 		ctx:        ctx,
 		Conn:       xConn,
+		tag:        tag,
 		guid:       guid,
 		stopSignal: make(chan struct{}),
 	}
@@ -400,101 +402,102 @@ func (c *conn) HandleBeaconQueryGUID(id, data []byte) {
 }
 
 func (c *conn) HandleSendToNode(id, data []byte) {
-	s := c.ctx.worker.GetSendFromPool()
-	err := msgpack.Unmarshal(data, s)
+	send := c.ctx.worker.GetSendFromPool()
+	err := msgpack.Unmarshal(data, send)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid send to node msgpack data:", err)
-		c.ctx.worker.PutSendToPool(s)
+		c.ctx.worker.PutSendToPool(send)
 		_ = c.Close()
 		return
 	}
-	err = s.Validate()
+	err = send.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid send to node: %s\n%s", err, spew.Sdump(s))
-		c.ctx.worker.PutSendToPool(s)
+		c.Logf(logger.Exploit, "invalid send to node: %s\n%s", err, spew.Sdump(send))
+		c.ctx.worker.PutSendToPool(send)
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(send.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
-		c.ctx.worker.PutSendToPool(s)
+		c.ctx.worker.PutSendToPool(send)
 		return
 	}
-	if c.ctx.syncer.CheckSendToNodeGUID(s.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckSendToNodeGUID(send.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		if bytes.Compare(s.RoleGUID, c.ctx.global.GUID()) == 0 {
-			c.ctx.worker.AddSend(s)
+		if bytes.Compare(send.RoleGUID, c.ctx.global.GUID()) == 0 {
+			c.ctx.worker.AddSend(send)
 		} else {
-			// forwarder
 
-			c.ctx.worker.PutSendToPool(s)
+			// TODO c.ctx.forwarder.Send(send.GUID, data, c.tag, false)
+
+			c.ctx.worker.PutSendToPool(send)
 		}
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
-		c.ctx.worker.PutSendToPool(s)
+		c.ctx.worker.PutSendToPool(send)
 	}
 }
 
 func (c *conn) HandleAckToNode(id, data []byte) {
-	a := c.ctx.worker.GetAcknowledgeFromPool()
+	ack := c.ctx.worker.GetAcknowledgeFromPool()
 
-	err := msgpack.Unmarshal(data, a)
+	err := msgpack.Unmarshal(data, ack)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid ack to node msgpack data:", err)
-		c.ctx.worker.PutAcknowledgeToPool(a)
+		c.ctx.worker.PutAcknowledgeToPool(ack)
 		_ = c.Close()
 		return
 	}
-	err = a.Validate()
+	err = ack.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid ack to node: %s\n%s", err, spew.Sdump(a))
-		c.ctx.worker.PutAcknowledgeToPool(a)
+		c.Logf(logger.Exploit, "invalid ack to node: %s\n%s", err, spew.Sdump(ack))
+		c.ctx.worker.PutAcknowledgeToPool(ack)
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(ack.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
-		c.ctx.worker.PutAcknowledgeToPool(a)
+		c.ctx.worker.PutAcknowledgeToPool(ack)
 		return
 	}
-	if c.ctx.syncer.CheckAckToNodeGUID(a.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckAckToNodeGUID(ack.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		if bytes.Compare(a.RoleGUID, c.ctx.global.GUID()) == 0 {
-			c.ctx.worker.AddAcknowledge(a)
+		if bytes.Compare(ack.RoleGUID, c.ctx.global.GUID()) == 0 {
+			c.ctx.worker.AddAcknowledge(ack)
 
 		} else {
 			// repeat
-			c.ctx.worker.PutAcknowledgeToPool(a)
+			c.ctx.worker.PutAcknowledgeToPool(ack)
 		}
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
-		c.ctx.worker.PutAcknowledgeToPool(a)
+		c.ctx.worker.PutAcknowledgeToPool(ack)
 	}
 }
 
 func (c *conn) HandleSendToBeacon(id, data []byte) {
-	s := c.SendPool.Get().(*protocol.Send)
-	defer c.SendPool.Put(s)
-	err := msgpack.Unmarshal(data, s)
+	send := c.SendPool.Get().(*protocol.Send)
+	defer c.SendPool.Put(send)
+	err := msgpack.Unmarshal(data, send)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid send to beacon msgpack data:", err)
 		_ = c.Close()
 		return
 	}
-	err = s.Validate()
+	err = send.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid send to beacon: %s\n%s", err, spew.Sdump(s))
+		c.Logf(logger.Exploit, "invalid send to beacon: %s\n%s", err, spew.Sdump(send))
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(send.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if c.ctx.syncer.CheckSendToBeaconGUID(s.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckSendToBeaconGUID(send.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 		// repeat
 	} else {
@@ -503,27 +506,27 @@ func (c *conn) HandleSendToBeacon(id, data []byte) {
 }
 
 func (c *conn) HandleAckToBeacon(id, data []byte) {
-	a := c.AckPool.Get().(*protocol.Acknowledge)
-	defer c.AckPool.Put(a)
+	ack := c.AckPool.Get().(*protocol.Acknowledge)
+	defer c.AckPool.Put(ack)
 
-	err := msgpack.Unmarshal(data, a)
+	err := msgpack.Unmarshal(data, ack)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid ack to beacon msgpack data:", err)
 		_ = c.Close()
 		return
 	}
-	err = a.Validate()
+	err = ack.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid ack to beacon: %s\n%s", err, spew.Sdump(a))
+		c.Logf(logger.Exploit, "invalid ack to beacon: %s\n%s", err, spew.Sdump(ack))
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(ack.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if c.ctx.syncer.CheckAckToBeaconGUID(a.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckAckToBeaconGUID(ack.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 		// repeat
 	} else {
@@ -532,58 +535,58 @@ func (c *conn) HandleAckToBeacon(id, data []byte) {
 }
 
 func (c *conn) HandleBroadcast(id, data []byte) {
-	b := c.ctx.worker.GetBroadcastFromPool()
-	err := msgpack.Unmarshal(data, b)
+	broadcast := c.ctx.worker.GetBroadcastFromPool()
+	err := msgpack.Unmarshal(data, broadcast)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid broadcast msgpack data:", err)
-		c.ctx.worker.PutBroadcastToPool(b)
+		c.ctx.worker.PutBroadcastToPool(broadcast)
 		_ = c.Close()
 		return
 	}
-	err = b.Validate()
+	err = broadcast.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid broadcast: %s\n%s", err, spew.Sdump(b))
-		c.ctx.worker.PutBroadcastToPool(b)
+		c.Logf(logger.Exploit, "invalid broadcast: %s\n%s", err, spew.Sdump(broadcast))
+		c.ctx.worker.PutBroadcastToPool(broadcast)
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(b.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(broadcast.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
-		c.ctx.worker.PutBroadcastToPool(b)
+		c.ctx.worker.PutBroadcastToPool(broadcast)
 		return
 	}
-	if c.ctx.syncer.CheckBroadcastGUID(b.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckBroadcastGUID(broadcast.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		c.ctx.worker.AddBroadcast(b)
+		c.ctx.worker.AddBroadcast(broadcast)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
-		c.ctx.worker.PutBroadcastToPool(b)
+		c.ctx.worker.PutBroadcastToPool(broadcast)
 	}
 }
 
 func (c *conn) HandleAnswer(id, data []byte) {
-	a := c.AnswerPool.Get().(*protocol.Answer)
-	defer c.AnswerPool.Put(a)
+	answer := c.AnswerPool.Get().(*protocol.Answer)
+	defer c.AnswerPool.Put(answer)
 
-	err := msgpack.Unmarshal(data, a)
+	err := msgpack.Unmarshal(data, answer)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid answer msgpack data:", err)
 		_ = c.Close()
 		return
 	}
-	err = a.Validate()
+	err = answer.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid answer: %s\n%s", err, spew.Sdump(a))
+		c.Logf(logger.Exploit, "invalid answer: %s\n%s", err, spew.Sdump(answer))
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(answer.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if c.ctx.syncer.CheckAnswerGUID(a.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckAnswerGUID(answer.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 		// repeat
 	} else {
@@ -592,27 +595,27 @@ func (c *conn) HandleAnswer(id, data []byte) {
 }
 
 func (c *conn) HandleNodeSend(id, data []byte) {
-	s := c.SendPool.Get().(*protocol.Send)
-	defer c.SendPool.Put(s)
+	send := c.SendPool.Get().(*protocol.Send)
+	defer c.SendPool.Put(send)
 
-	err := msgpack.Unmarshal(data, &s)
+	err := msgpack.Unmarshal(data, &send)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid node send msgpack data:", err)
 		_ = c.Close()
 		return
 	}
-	err = s.Validate()
+	err = send.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid node send: %s\n%s", err, spew.Sdump(s))
+		c.Logf(logger.Exploit, "invalid node send: %s\n%s", err, spew.Sdump(send))
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(send.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if c.ctx.syncer.CheckNodeSendGUID(s.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckNodeSendGUID(send.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
@@ -620,27 +623,27 @@ func (c *conn) HandleNodeSend(id, data []byte) {
 }
 
 func (c *conn) HandleNodeAck(id, data []byte) {
-	a := c.AckPool.Get().(*protocol.Acknowledge)
-	defer c.AckPool.Put(a)
+	ack := c.AckPool.Get().(*protocol.Acknowledge)
+	defer c.AckPool.Put(ack)
 
-	err := msgpack.Unmarshal(data, a)
+	err := msgpack.Unmarshal(data, ack)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid node ack msgpack data:", err)
 		_ = c.Close()
 		return
 	}
-	err = a.Validate()
+	err = ack.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid node ack: %s\n%s", err, spew.Sdump(a))
+		c.Logf(logger.Exploit, "invalid node ack: %s\n%s", err, spew.Sdump(ack))
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(ack.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if c.ctx.syncer.CheckNodeAckGUID(a.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckNodeAckGUID(ack.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
@@ -648,27 +651,27 @@ func (c *conn) HandleNodeAck(id, data []byte) {
 }
 
 func (c *conn) HandleBeaconSend(id, data []byte) {
-	s := c.SendPool.Get().(*protocol.Send)
-	defer c.SendPool.Put(s)
+	send := c.SendPool.Get().(*protocol.Send)
+	defer c.SendPool.Put(send)
 
-	err := msgpack.Unmarshal(data, s)
+	err := msgpack.Unmarshal(data, send)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid beacon send msgpack data:", err)
 		_ = c.Close()
 		return
 	}
-	err = s.Validate()
+	err = send.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid beacon send: %s\n%s", err, spew.Sdump(s))
+		c.Logf(logger.Exploit, "invalid beacon send: %s\n%s", err, spew.Sdump(send))
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(send.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if c.ctx.syncer.CheckBeaconSendGUID(s.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckBeaconSendGUID(send.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
@@ -676,27 +679,27 @@ func (c *conn) HandleBeaconSend(id, data []byte) {
 }
 
 func (c *conn) HandleBeaconAck(id, data []byte) {
-	a := c.AckPool.Get().(*protocol.Acknowledge)
-	defer c.AckPool.Put(a)
+	ack := c.AckPool.Get().(*protocol.Acknowledge)
+	defer c.AckPool.Put(ack)
 
-	err := msgpack.Unmarshal(data, a)
+	err := msgpack.Unmarshal(data, ack)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid beacon ack msgpack data:", err)
 		_ = c.Close()
 		return
 	}
-	err = a.Validate()
+	err = ack.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid beacon ack: %s\n%s", err, spew.Sdump(a))
+		c.Logf(logger.Exploit, "invalid beacon ack: %s\n%s", err, spew.Sdump(ack))
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(ack.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if c.ctx.syncer.CheckBeaconAckGUID(a.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckBeaconAckGUID(ack.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
@@ -704,27 +707,27 @@ func (c *conn) HandleBeaconAck(id, data []byte) {
 }
 
 func (c *conn) HandleBeaconQuery(id, data []byte) {
-	q := c.QueryPool.Get().(*protocol.Query)
-	defer c.QueryPool.Put(q)
+	query := c.QueryPool.Get().(*protocol.Query)
+	defer c.QueryPool.Put(query)
 
-	err := msgpack.Unmarshal(data, q)
+	err := msgpack.Unmarshal(data, query)
 	if err != nil {
 		c.Log(logger.Exploit, "invalid query msgpack data:", err)
 		_ = c.Close()
 		return
 	}
-	err = q.Validate()
+	err = query.Validate()
 	if err != nil {
-		c.Logf(logger.Exploit, "invalid query: %s\n%s", err, spew.Sdump(q))
+		c.Logf(logger.Exploit, "invalid query: %s\n%s", err, spew.Sdump(query))
 		_ = c.Close()
 		return
 	}
-	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(q.GUID)
+	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(query.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
 		return
 	}
-	if c.ctx.syncer.CheckQueryGUID(q.GUID, true, timestamp) {
+	if c.ctx.syncer.CheckQueryGUID(query.GUID, true, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)

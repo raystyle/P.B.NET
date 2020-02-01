@@ -632,6 +632,7 @@ func (server *server) handleNode(tag string, conn *xnet.Conn) {
 	}
 }
 
+// TODO <firewall> rate limit
 func (server *server) registerNode(conn *xnet.Conn, guid []byte) {
 	// receive encrypted node register request
 	//
@@ -644,22 +645,28 @@ func (server *server) registerNode(conn *xnet.Conn, guid []byte) {
 	// +----------------+----------------+
 	request, err := conn.Receive()
 	if err != nil {
-		server.logConn(conn, logger.Error, "failed to receive node register request:", err)
+		const log = "failed to receive node register request:"
+		server.logConn(conn, logger.Error, log, err)
 		return
 	}
+	// check size
 	if len(request) < curve25519.ScalarSize+aes.BlockSize {
-		server.logConn(conn, logger.Exploit, "receive invalid encrypted node register request")
+		const log = "receive invalid encrypted node register request"
+		server.logConn(conn, logger.Exploit, log)
 		return
 	}
-	// TODO <firewall> rate limit
 	// create node register
 	response := server.ctx.storage.CreateNodeRegister(guid)
 	if response == nil {
-		server.logfConn(conn, logger.Warning, "failed to create node register\nguid: %X", guid)
+		const format = "failed to create node register\nGUID: %X"
+		server.logfConn(conn, logger.Warning, format, guid)
 		return
 	}
-	// send node register request to controller
+	// add IP address to the node register request and send to controller
+	// ip := make([]byte, net.IPv6len)
+	// copy(ip, net.ParseIP(conn.RemoteAddr().String()))
 	// <security> must don't handle error
+	// _ = server.ctx.sender.Send(messages.CMDBNodeRegisterRequest, append(ip, request...))
 	_ = server.ctx.sender.Send(messages.CMDBNodeRegisterRequest, request)
 	// wait register result
 	timeout := time.Duration(15+server.rand.Int(30)) * time.Second
@@ -757,7 +764,7 @@ func (server *server) serveCtrl(tag string, conn *xnet.Conn) {
 	cc := ctrlConn{
 		ctx:  server.ctx,
 		tag:  tag,
-		Conn: newConn(server.ctx, conn, protocol.CtrlGUID, connUsageServeCtrl),
+		Conn: newConn(server.ctx, conn, tag, protocol.CtrlGUID, connUsageServeCtrl),
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -934,7 +941,7 @@ func (server *server) serveNode(tag string, nodeGUID []byte, conn *xnet.Conn) {
 		ctx:  server.ctx,
 		tag:  tag,
 		guid: nodeGUID,
-		Conn: newConn(server.ctx, conn, nodeGUID, connUsageServeNode),
+		Conn: newConn(server.ctx, conn, tag, nodeGUID, connUsageServeNode),
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -1148,7 +1155,7 @@ func (server *server) serveBeacon(tag string, beaconGUID []byte, conn *xnet.Conn
 		ctx:  server.ctx,
 		tag:  tag,
 		guid: beaconGUID,
-		Conn: newConn(server.ctx, conn, beaconGUID, connUsageServeBeacon),
+		Conn: newConn(server.ctx, conn, tag, beaconGUID, connUsageServeBeacon),
 	}
 	defer func() {
 		if r := recover(); r != nil {

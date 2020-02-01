@@ -282,13 +282,16 @@ func (f *forwarder) getConnsExceptBeacon(except string) map[string]*conn {
 }
 
 // Send will send controllers, nodes and clients
-func (f *forwarder) Send(guid, data []byte, except string) ([]*protocol.SendResponse, int) {
+func (f *forwarder) Send(guid, data []byte, except string, wait bool) ([]*protocol.SendResponse, int) {
 	conns := f.getConnsExceptBeacon(except)
 	l := len(conns)
 	if l == 0 {
 		return nil, 0
 	}
-	response := make(chan *protocol.SendResponse, l)
+	var response chan *protocol.SendResponse
+	if wait {
+		response = make(chan *protocol.SendResponse, l)
+	}
 	for _, c := range conns {
 		go func(c *conn) {
 			defer func() {
@@ -296,8 +299,14 @@ func (f *forwarder) Send(guid, data []byte, except string) ([]*protocol.SendResp
 					f.log(logger.Fatal, xpanic.Print(r, "forwarder.Send"))
 				}
 			}()
-			response <- c.Send(guid, data)
+			r := c.Send(guid, data)
+			if wait {
+				response <- r
+			}
 		}(c)
+	}
+	if !wait {
+		return nil, 0
 	}
 	var success int
 	responses := make([]*protocol.SendResponse, l)
@@ -312,13 +321,17 @@ func (f *forwarder) Send(guid, data []byte, except string) ([]*protocol.SendResp
 }
 
 // Acknowledge will send controllers, nodes and clients
-func (f *forwarder) Acknowledge(guid, data []byte, except string) ([]*protocol.AcknowledgeResponse, int) {
+func (f *forwarder) Acknowledge(guid, data []byte, except string, wait bool) (
+	[]*protocol.AcknowledgeResponse, int) {
 	conns := f.getConnsExceptBeacon(except)
 	l := len(conns)
 	if l == 0 {
 		return nil, 0
 	}
-	response := make(chan *protocol.AcknowledgeResponse, l)
+	var response chan *protocol.AcknowledgeResponse
+	if wait {
+		response = make(chan *protocol.AcknowledgeResponse, l)
+	}
 	for _, c := range conns {
 		go func(c *conn) {
 			defer func() {
@@ -326,8 +339,14 @@ func (f *forwarder) Acknowledge(guid, data []byte, except string) ([]*protocol.A
 					f.log(logger.Fatal, xpanic.Print(r, "forwarder.Acknowledge"))
 				}
 			}()
-			response <- c.Acknowledge(guid, data)
+			r := c.Acknowledge(guid, data)
+			if wait {
+				response <- r
+			}
 		}(c)
+	}
+	if !wait {
+		return nil, 0
 	}
 	var success int
 	responses := make([]*protocol.AcknowledgeResponse, l)
