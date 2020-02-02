@@ -3,10 +3,8 @@ package node
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"io"
 	"net"
 	"sync"
@@ -18,8 +16,6 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
-	"project/internal/crypto/aes"
-	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
 	"project/internal/dns"
 	"project/internal/guid"
@@ -34,10 +30,9 @@ import (
 type Client struct {
 	ctx *Node
 
-	node *bootstrap.Listener
-	GUID []byte
+	GUID *guid.GUID
 
-	tag       string
+	tag       *guid.GUID
 	Conn      *conn
 	rand      *random.Rand
 	heartbeat chan struct{}
@@ -54,11 +49,11 @@ type Client struct {
 // when guid == ctrl guid for register
 func (node *Node) NewClient(
 	ctx context.Context,
-	listener *bootstrap.Listener,
-	guid []byte,
+	bl *bootstrap.Listener,
+	guid *guid.GUID,
 ) (*Client, error) {
 	// dial
-	host, port, err := net.SplitHostPort(listener.Address)
+	host, port, err := net.SplitHostPort(bl.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -92,27 +87,27 @@ func (node *Node) NewClient(
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
 		address := net.JoinHostPort(result[i], port)
-		conn, err = xnet.DialContext(ctx, listener.Mode, listener.Network, address, &opts)
+		conn, err = xnet.DialContext(ctx, bl.Mode, bl.Network, address, &opts)
 		if err == nil {
 			break
 		}
 	}
 	if conn == nil {
-		return nil, errors.Errorf("failed to connect node listener: %s", listener)
+		return nil, errors.Errorf("failed to connect node listener: %s", bl)
 	}
 	// handshake
 	client := &Client{
 		ctx:  node,
-		node: listener,
 		GUID: guid,
+		tag:  node.clientMgr.GenerateTag(),
 		rand: random.New(),
 	}
-	client.Conn = newConn(node, conn, node.clientMgr.GenerateTag(), guid, connUsageClient)
+	client.Conn = newConn(node, conn, client.tag, guid, connUsageClient)
 	err = client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
 		const format = "failed to handshake with node listener: %s"
-		return nil, errors.WithMessagef(err, format, listener)
+		return nil, errors.WithMessagef(err, format, bl)
 	}
 	node.clientMgr.Add(client)
 	return client, nil
@@ -142,7 +137,7 @@ func (client *Client) handshake(conn *xnet.Conn) error {
 		return errors.Wrap(err, "failed to send role")
 	}
 	// send self guid
-	_, err = conn.Write(client.ctx.global.GUID())
+	_, err = conn.Write(client.ctx.global.GUID()[:])
 	return err
 }
 
@@ -155,9 +150,8 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 	}
 	n, err := io.ReadFull(conn, data)
 	if err != nil {
-		d := data[:n]
-		const format = "error in client.checkConn(): %s\nreceive unexpected check data\n%s\n\n%X"
-		client.Conn.Logf(logger.Exploit, format, err, d, d)
+		const format = "error in client.checkConn(): %s\n%s"
+		client.Conn.Logf(logger.Exploit, format, err, spew.Sdump(data[:n]))
 		return err
 	}
 	return nil
@@ -413,27 +407,16 @@ func (client *Client) Synchronize() (err error) {
 		return protocol.NewAcknowledge()
 	}
 	client.Conn.AnswerPool.New = func() interface{} {
-		return &protocol.Answer{
-			GUID:       make([]byte, guid.Size),
-			BeaconGUID: make([]byte, guid.Size),
-			Message:    make([]byte, aes.BlockSize),
-			Hash:       make([]byte, sha256.Size),
-			Signature:  make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewAnswer()
 	}
 	client.Conn.QueryPool.New = func() interface{} {
-		return &protocol.Query{
-			GUID:       make([]byte, guid.Size),
-			BeaconGUID: make([]byte, guid.Size),
-			Signature:  make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewQuery()
 	}
 	err = client.ctx.forwarder.RegisterClient(client.tag, client)
 	if err != nil {
 		return
 	}
 	atomic.StoreInt32(&client.inSync, 1)
-	client.Conn.Log(logger.Debug, "synchronizing")
 	return
 }
 
@@ -467,7 +450,7 @@ type clientMgr struct {
 	optsRWM  sync.RWMutex
 
 	guid       *guid.Generator
-	clients    map[string]*Client
+	clients    map[guid.GUID]*Client
 	clientsRWM sync.RWMutex
 }
 
@@ -484,7 +467,7 @@ func newClientManager(ctx *Node, config *Config) (*clientMgr, error) {
 		timeout:  cfg.Timeout,
 		dnsOpts:  cfg.DNSOpts,
 		guid:     ctx.global.GetGUIDGenerator(),
-		clients:  make(map[string]*Client),
+		clients:  make(map[guid.GUID]*Client),
 	}, nil
 }
 
@@ -535,47 +518,46 @@ func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 }
 
 // for NewClient()
-func (cm *clientMgr) GenerateTag() string {
-	return hex.EncodeToString(cm.guid.Get())
+func (cm *clientMgr) GenerateTag() *guid.GUID {
+	return cm.guid.Get()
 }
 
 // for NewClient()
 func (cm *clientMgr) Add(client *Client) {
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
-	if _, ok := cm.clients[client.tag]; !ok {
-		cm.clients[client.tag] = client
+	if _, ok := cm.clients[*client.tag]; !ok {
+		cm.clients[*client.tag] = client
 	}
 }
 
 // for client.Close()
-func (cm *clientMgr) Delete(tag string) {
+func (cm *clientMgr) Delete(tag *guid.GUID) {
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
-	delete(cm.clients, tag)
+	delete(cm.clients, *tag)
 }
 
-// Clients is used to get all clients
-func (cm *clientMgr) Clients() map[string]*Client {
+// Clients is used to get all clients.
+func (cm *clientMgr) Clients() map[guid.GUID]*Client {
 	cm.clientsRWM.RLock()
 	defer cm.clientsRWM.RUnlock()
-	cs := make(map[string]*Client, len(cm.clients))
+	clients := make(map[guid.GUID]*Client, len(cm.clients))
 	for tag, client := range cm.clients {
-		cs[tag] = client
+		clients[tag] = client
 	}
-	return cs
+	return clients
 }
 
-// Kill is used to close client
-// must use cm.Clients(), because client.Close() will use cm.clientsRWM
-func (cm *clientMgr) Kill(tag string) {
-	if client, ok := cm.Clients()[tag]; ok {
+// Kill is used to close client. Must use cm.Clients(),
+// because client.Close() will use cm.clientsRWM.
+func (cm *clientMgr) Kill(tag *guid.GUID) {
+	if client, ok := cm.Clients()[*tag]; ok {
 		client.Close()
 	}
-	// TODO add log
 }
 
-// Close will close all active clients
+// Close will close all active clients.
 func (cm *clientMgr) Close() {
 	for {
 		for _, client := range cm.Clients() {

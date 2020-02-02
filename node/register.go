@@ -206,7 +206,7 @@ func (register *register) Bootstraps() map[string]bootstrap.Bootstrap {
 // +----------------+----------------+
 func (register *register) PackRequest(address string) []byte {
 	nrr := messages.NodeRegisterRequest{
-		GUID:         register.ctx.global.GUID(),
+		GUID:         *register.ctx.global.GUID(),
 		PublicKey:    register.ctx.global.PublicKey(),
 		KexPublicKey: register.ctx.global.KeyExchangePublicKey(),
 		ConnAddress:  address,

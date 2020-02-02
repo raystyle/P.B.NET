@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/xnet"
@@ -21,11 +22,11 @@ type Node struct {
 	storage   *storage   // storage
 	logger    *gLogger   // global logger
 	global    *global    // proxy clients, DNS clients, time syncer
+	syncer    *syncer    // sync network guid
 	clientMgr *clientMgr // clients manager
 	register  *register  // about node register to Controller
 	forwarder *forwarder // forward messages
 	sender    *sender    // send message to controller
-	syncer    *syncer    // sync network guid
 	handler   *handler   // handle message from controller
 	worker    *worker    // do work
 	server    *server    // listen and serve Roles
@@ -54,6 +55,12 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	node.global = global
+	// syncer
+	syncer, err := newSyncer(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize syncer")
+	}
+	node.syncer = syncer
 	// client manager
 	clientMgr, err := newClientManager(node, cfg)
 	if err != nil {
@@ -78,12 +85,6 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	node.sender = sender
-	// syncer
-	syncer, err := newSyncer(node, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to initialize syncer")
-	}
-	node.syncer = syncer
 	// handler
 	node.handler = newHandler(node)
 	// worker
@@ -168,8 +169,6 @@ func (node *Node) Exit(err error) {
 		node.logger.Print(logger.Info, "exit", "worker is stopped")
 		node.handler.Close()
 		node.logger.Print(logger.Info, "exit", "handler is stopped")
-		node.syncer.Close()
-		node.logger.Print(logger.Info, "exit", "syncer is stopped")
 		node.sender.Close()
 		node.logger.Print(logger.Info, "exit", "sender is stopped")
 		node.forwarder.Close()
@@ -178,6 +177,8 @@ func (node *Node) Exit(err error) {
 		node.logger.Print(logger.Info, "exit", "register is closed")
 		node.clientMgr.Close()
 		node.logger.Print(logger.Info, "exit", "client manager is closed")
+		node.syncer.Close()
+		node.logger.Print(logger.Info, "exit", "syncer is stopped")
 		node.global.Close()
 		node.logger.Print(logger.Info, "exit", "global is closed")
 		node.logger.Print(logger.Info, "exit", "node is stopped")
@@ -188,12 +189,12 @@ func (node *Node) Exit(err error) {
 }
 
 // GUID is used to get Node GUID
-func (node *Node) GUID() []byte {
+func (node *Node) GUID() *guid.GUID {
 	return node.global.GUID()
 }
 
 // Synchronize is used to connect a node and start synchronize
-func (node *Node) Synchronize(ctx context.Context, guid []byte, bl *bootstrap.Listener) error {
+func (node *Node) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	return node.sender.Synchronize(ctx, guid, bl)
 }
 

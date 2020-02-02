@@ -53,9 +53,9 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 
 // logfWithInfo will print log with role GUID and message
 // [2020-01-30 15:13:07] [info] <handler> foo logf
-// spew output
+// spew output...
 //
-// first log interface must be *protocol.Send or protocol.Broadcast
+// first log interface must be *protocol.Send or *protocol.Broadcast
 func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(buf, format, log[1:]...)
@@ -66,9 +66,9 @@ func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}
 
 // logWithInfo will print log with role GUID and message
 // [2020-01-30 15:13:07] [info] <handler> foo log
-// spew output
+// spew output...
 //
-// first log interface must be *protocol.Send or protocol.Broadcast
+// first log interface must be *protocol.Send or *protocol.Broadcast
 func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log[1:]...)
@@ -201,12 +201,12 @@ func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
 		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
-	h.ctx.storage.AddNodeSessionKey(nrr.GUID, &nodeSessionKey{
+	h.ctx.storage.AddNodeSessionKey(&nrr.GUID, &nodeSessionKey{
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
 		AckTime:      nrr.ReplyTime,
 	})
-	h.ctx.storage.SetNodeRegister(nrr.GUID, nrr)
+	h.ctx.storage.SetNodeRegister(&nrr.GUID, nrr)
 }
 
 func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
@@ -218,12 +218,12 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
-	h.ctx.storage.AddBeaconSessionKey(brr.GUID, &beaconSessionKey{
+	h.ctx.storage.AddBeaconSessionKey(&brr.GUID, &beaconSessionKey{
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
 		AckTime:      brr.ReplyTime,
 	})
-	h.ctx.storage.SetBeaconRegister(brr.GUID, brr)
+	h.ctx.storage.SetBeaconRegister(&brr.GUID, brr)
 }
 
 func (h *handler) handleBroadcastTestMessage(broadcast *protocol.Broadcast) {

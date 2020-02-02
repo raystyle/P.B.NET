@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"hash"
-	"io"
 	"sync"
 	"time"
 
@@ -161,7 +159,6 @@ type subWorker struct {
 	// runtime
 	buffer *bytes.Buffer
 	hash   hash.Hash
-	hex    io.Writer
 	err    error
 
 	stopSignal chan struct{}
@@ -189,21 +186,20 @@ func (sw *subWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
-	sw.hex = hex.NewEncoder(sw.buffer)
 	var (
 		send        *protocol.Send
 		acknowledge *protocol.Acknowledge
 		broadcast   *protocol.Broadcast
 	)
 	for {
-		// check buffer capacity
-		if sw.buffer.Cap() > sw.maxBufferSize {
-			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
-		}
 		select {
 		case <-sw.stopSignal:
 			return
 		default:
+		}
+		// check buffer capacity
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 		}
 		select {
 		case send = <-sw.sendQueue:
@@ -222,12 +218,12 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	defer sw.sendPool.Put(send)
 	// verify
 	sw.buffer.Reset()
-	sw.buffer.Write(send.GUID)
-	sw.buffer.Write(send.RoleGUID)
+	sw.buffer.Write(send.GUID[:])
+	sw.buffer.Write(send.RoleGUID[:])
 	sw.buffer.Write(send.Hash)
 	sw.buffer.Write(send.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), send.Signature) {
-		const format = "invalid send signature\nGUID: %X"
+		const format = "invalid send signature\n%s"
 		sw.logf(logger.Exploit, format, send.GUID)
 		return
 	}
@@ -236,7 +232,7 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	defer func() { send.Message = cache }()
 	send.Message, sw.err = sw.ctx.global.Decrypt(send.Message)
 	if sw.err != nil {
-		const format = "failed to decrypt send message: %s\nGUID: %X"
+		const format = "failed to decrypt send message: %s\n%s"
 		sw.logf(logger.Exploit, format, sw.err, send.GUID)
 		return
 	}
@@ -244,7 +240,7 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	sw.hash.Reset()
 	sw.hash.Write(send.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
-		const format = "send with incorrect hash\nGUID: %X"
+		const format = "send with incorrect hash\n%s"
 		sw.logf(logger.Exploit, format, send.GUID)
 		return
 	}
@@ -256,28 +252,27 @@ func (sw *subWorker) handleAcknowledge(acknowledge *protocol.Acknowledge) {
 	defer sw.acknowledgePool.Put(acknowledge)
 	// verify
 	sw.buffer.Reset()
-	sw.buffer.Write(acknowledge.GUID)
-	sw.buffer.Write(acknowledge.RoleGUID)
-	sw.buffer.Write(acknowledge.SendGUID)
+	sw.buffer.Write(acknowledge.GUID[:])
+	sw.buffer.Write(acknowledge.RoleGUID[:])
+	sw.buffer.Write(acknowledge.SendGUID[:])
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), acknowledge.Signature) {
-		const format = "invalid acknowledge signature\nGUID: %X"
+		const format = "invalid acknowledge signature\n%s"
 		sw.logf(logger.Exploit, format, acknowledge.GUID)
 		return
 	}
 	sw.buffer.Reset()
-	_, _ = sw.hex.Write(acknowledge.SendGUID)
-	sw.ctx.sender.HandleAcknowledge(sw.buffer.String())
+	sw.ctx.sender.HandleAcknowledge(&acknowledge.SendGUID)
 }
 
 func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 	defer sw.broadcastPool.Put(broadcast)
 	// verify
 	sw.buffer.Reset()
-	sw.buffer.Write(broadcast.GUID)
+	sw.buffer.Write(broadcast.GUID[:])
 	sw.buffer.Write(broadcast.Hash)
 	sw.buffer.Write(broadcast.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), broadcast.Signature) {
-		const format = "invalid broadcast signature\nGUID: %X"
+		const format = "invalid broadcast signature\n%s"
 		sw.logf(logger.Exploit, format, broadcast.GUID)
 		return
 	}
@@ -286,7 +281,7 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 	defer func() { broadcast.Message = cache }()
 	broadcast.Message, sw.err = sw.ctx.global.CtrlDecrypt(broadcast.Message)
 	if sw.err != nil {
-		const format = "failed to decrypt broadcast message: %s\nGUID: %X"
+		const format = "failed to decrypt broadcast message: %s\n%s"
 		sw.logf(logger.Exploit, format, sw.err, broadcast.GUID)
 		return
 	}
@@ -294,7 +289,7 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 	sw.hash.Reset()
 	sw.hash.Write(broadcast.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), broadcast.Hash) != 1 {
-		const format = "broadcast with incorrect hash\nGUID: %X"
+		const format = "broadcast with incorrect hash\n%s"
 		sw.logf(logger.Exploit, format, broadcast.GUID)
 		return
 	}

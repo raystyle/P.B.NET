@@ -189,12 +189,15 @@ func (global *global) configure(cfg *Config) error {
 	global.paddingMemory()
 	g := guid.New(64, nil)
 	defer g.Close()
-	var guidPool [1024][]byte
+	var guidPool [1024]guid.GUID
 	for i := 0; i < len(guidPool); i++ {
-		guidPool[i] = g.Get()
+		copy(guidPool[i][:], g.Get()[:])
 	}
-	guidSelected := make([]byte, guid.Size)
-	copy(guidSelected, guidPool[global.rand.Int(1024)])
+	guidSelected := new(guid.GUID)
+	err := guidSelected.Write(guidPool[global.rand.Int(1024)][:])
+	if err != nil {
+		panic(err)
+	}
 	global.objects[objNodeGUID] = guidSelected
 	// generate private key and public key
 	global.paddingMemory()
@@ -335,10 +338,10 @@ func (global *global) GetGUIDGenerator() *guid.Generator {
 }
 
 // GUID is used to get Node GUID
-func (global *global) GUID() []byte {
+func (global *global) GUID() *guid.GUID {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
-	return global.objects[objNodeGUID].([]byte)
+	return global.objects[objNodeGUID].(*guid.GUID)
 }
 
 // SetCertificate is used to set Node certificate
@@ -350,8 +353,8 @@ func (global *global) SetCertificate(data []byte) error {
 	if err != nil {
 		return err
 	}
-	if bytes.Compare(global.GUID(), cert.GUID) != 0 {
-		return errors.New("different guid")
+	if *global.GUID() != cert.GUID {
+		return errors.New("different node guid")
 	}
 	if bytes.Compare(global.PublicKey(), cert.PublicKey) != 0 {
 		return errors.New("different public key")

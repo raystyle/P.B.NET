@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xpanic"
@@ -19,13 +20,13 @@ type forwarder struct {
 	maxNodeConns   atomic.Value
 	maxBeaconConns atomic.Value
 
-	clientConns    map[string]*Client
+	clientConns    map[guid.GUID]*Client
 	clientConnsRWM sync.RWMutex
-	ctrlConns      map[string]*ctrlConn
+	ctrlConns      map[guid.GUID]*ctrlConn
 	ctrlConnsRWM   sync.RWMutex
-	nodeConns      map[string]*nodeConn
+	nodeConns      map[guid.GUID]*nodeConn
 	nodeConnsRWM   sync.RWMutex
-	beaconConns    map[string]*beaconConn
+	beaconConns    map[guid.GUID]*beaconConn
 	beaconConnsRWM sync.RWMutex
 
 	stopSignal chan struct{}
@@ -54,10 +55,10 @@ func newForwarder(ctx *Node, config *Config) (*forwarder, error) {
 	}
 
 	f.ctx = ctx
-	f.clientConns = make(map[string]*Client, cfg.MaxClientConns)
-	f.ctrlConns = make(map[string]*ctrlConn, cfg.MaxCtrlConns)
-	f.nodeConns = make(map[string]*nodeConn, cfg.MaxNodeConns)
-	f.beaconConns = make(map[string]*beaconConn, cfg.MaxBeaconConns)
+	f.clientConns = make(map[guid.GUID]*Client, cfg.MaxClientConns)
+	f.ctrlConns = make(map[guid.GUID]*ctrlConn, cfg.MaxCtrlConns)
+	f.nodeConns = make(map[guid.GUID]*nodeConn, cfg.MaxNodeConns)
+	f.beaconConns = make(map[guid.GUID]*beaconConn, cfg.MaxBeaconConns)
 	f.stopSignal = make(chan struct{})
 	return &f, nil
 }
@@ -76,31 +77,31 @@ func (f *forwarder) GetMaxClientConns() int {
 	return f.maxClientConns.Load().(int)
 }
 
-func (f *forwarder) RegisterClient(tag string, client *Client) error {
+func (f *forwarder) RegisterClient(tag *guid.GUID, client *Client) error {
 	f.clientConnsRWM.Lock()
 	defer f.clientConnsRWM.Unlock()
 	if len(f.clientConns) >= f.GetMaxClientConns() {
 		return errors.New("max client connections")
 	}
-	if _, ok := f.clientConns[tag]; ok {
-		return errors.Errorf("client has been register\ntag: %s", tag)
+	if _, ok := f.clientConns[*tag]; ok {
+		return errors.Errorf("client has been register\n%s", tag)
 	}
-	f.clientConns[tag] = client
+	f.clientConns[*tag] = client
 	return nil
 }
 
-func (f *forwarder) LogoffClient(tag string) {
+func (f *forwarder) LogoffClient(tag *guid.GUID) {
 	f.clientConnsRWM.Lock()
 	defer f.clientConnsRWM.Unlock()
-	if _, ok := f.clientConns[tag]; ok {
-		delete(f.clientConns, tag)
+	if _, ok := f.clientConns[*tag]; ok {
+		delete(f.clientConns, *tag)
 	}
 }
 
-func (f *forwarder) GetClientConns() map[string]*Client {
+func (f *forwarder) GetClientConns() map[guid.GUID]*Client {
 	f.clientConnsRWM.RLock()
 	defer f.clientConnsRWM.RUnlock()
-	clients := make(map[string]*Client, len(f.clientConns))
+	clients := make(map[guid.GUID]*Client, len(f.clientConns))
 	for tag, client := range f.clientConns {
 		clients[tag] = client
 	}
@@ -121,31 +122,31 @@ func (f *forwarder) GetMaxCtrlConns() int {
 	return f.maxCtrlConns.Load().(int)
 }
 
-func (f *forwarder) RegisterCtrl(tag string, conn *ctrlConn) error {
+func (f *forwarder) RegisterCtrl(tag *guid.GUID, conn *ctrlConn) error {
 	f.ctrlConnsRWM.Lock()
 	defer f.ctrlConnsRWM.Unlock()
 	if len(f.ctrlConns) >= f.GetMaxCtrlConns() {
 		return errors.New("max controller connections")
 	}
-	if _, ok := f.ctrlConns[tag]; ok {
-		return errors.Errorf("controller has been register\ntag: %s", tag)
+	if _, ok := f.ctrlConns[*tag]; ok {
+		return errors.Errorf("controller has been register\n%s", tag)
 	}
-	f.ctrlConns[tag] = conn
+	f.ctrlConns[*tag] = conn
 	return nil
 }
 
-func (f *forwarder) LogoffCtrl(tag string) {
+func (f *forwarder) LogoffCtrl(tag *guid.GUID) {
 	f.ctrlConnsRWM.Lock()
 	defer f.ctrlConnsRWM.Unlock()
-	if _, ok := f.ctrlConns[tag]; ok {
-		delete(f.ctrlConns, tag)
+	if _, ok := f.ctrlConns[*tag]; ok {
+		delete(f.ctrlConns, *tag)
 	}
 }
 
-func (f *forwarder) GetCtrlConns() map[string]*ctrlConn {
+func (f *forwarder) GetCtrlConns() map[guid.GUID]*ctrlConn {
 	f.ctrlConnsRWM.RLock()
 	defer f.ctrlConnsRWM.RUnlock()
-	conns := make(map[string]*ctrlConn, len(f.ctrlConns))
+	conns := make(map[guid.GUID]*ctrlConn, len(f.ctrlConns))
 	for tag, conn := range f.ctrlConns {
 		conns[tag] = conn
 	}
@@ -166,31 +167,31 @@ func (f *forwarder) GetMaxNodeConns() int {
 	return f.maxNodeConns.Load().(int)
 }
 
-func (f *forwarder) RegisterNode(tag string, conn *nodeConn) error {
+func (f *forwarder) RegisterNode(tag *guid.GUID, conn *nodeConn) error {
 	f.nodeConnsRWM.Lock()
 	defer f.nodeConnsRWM.Unlock()
 	if len(f.nodeConns) >= f.GetMaxNodeConns() {
 		return errors.New("max node connections")
 	}
-	if _, ok := f.nodeConns[tag]; ok {
-		return errors.Errorf("node has been register\ntag: %s", tag)
+	if _, ok := f.nodeConns[*tag]; ok {
+		return errors.Errorf("node has been register\n%s", tag)
 	}
-	f.nodeConns[tag] = conn
+	f.nodeConns[*tag] = conn
 	return nil
 }
 
-func (f *forwarder) LogoffNode(tag string) {
+func (f *forwarder) LogoffNode(tag *guid.GUID) {
 	f.nodeConnsRWM.Lock()
 	defer f.nodeConnsRWM.Unlock()
-	if _, ok := f.nodeConns[tag]; ok {
-		delete(f.nodeConns, tag)
+	if _, ok := f.nodeConns[*tag]; ok {
+		delete(f.nodeConns, *tag)
 	}
 }
 
-func (f *forwarder) GetNodeConns() map[string]*nodeConn {
+func (f *forwarder) GetNodeConns() map[guid.GUID]*nodeConn {
 	f.nodeConnsRWM.RLock()
 	defer f.nodeConnsRWM.RUnlock()
-	conns := make(map[string]*nodeConn, len(f.nodeConns))
+	conns := make(map[guid.GUID]*nodeConn, len(f.nodeConns))
 	for tag, conn := range f.nodeConns {
 		conns[tag] = conn
 	}
@@ -211,31 +212,31 @@ func (f *forwarder) GetMaxBeaconConns() int {
 	return f.maxBeaconConns.Load().(int)
 }
 
-func (f *forwarder) RegisterBeacon(tag string, conn *beaconConn) error {
+func (f *forwarder) RegisterBeacon(tag *guid.GUID, conn *beaconConn) error {
 	f.beaconConnsRWM.Lock()
 	defer f.beaconConnsRWM.Unlock()
 	if len(f.beaconConns) >= f.GetMaxBeaconConns() {
 		return errors.New("max beacon connections")
 	}
-	if _, ok := f.beaconConns[tag]; ok {
-		return errors.Errorf("beacon has been register\ntag: %s", tag)
+	if _, ok := f.beaconConns[*tag]; ok {
+		return errors.Errorf("beacon has been register\n%s", tag)
 	}
-	f.beaconConns[tag] = conn
+	f.beaconConns[*tag] = conn
 	return nil
 }
 
-func (f *forwarder) LogoffBeacon(tag string) {
+func (f *forwarder) LogoffBeacon(tag *guid.GUID) {
 	f.beaconConnsRWM.Lock()
 	defer f.beaconConnsRWM.Unlock()
-	if _, ok := f.beaconConns[tag]; ok {
-		delete(f.beaconConns, tag)
+	if _, ok := f.beaconConns[*tag]; ok {
+		delete(f.beaconConns, *tag)
 	}
 }
 
-func (f *forwarder) GetBeaconConns() map[string]*beaconConn {
+func (f *forwarder) GetBeaconConns() map[guid.GUID]*beaconConn {
 	f.beaconConnsRWM.RLock()
 	defer f.beaconConnsRWM.RUnlock()
-	conns := make(map[string]*beaconConn, len(f.beaconConns))
+	conns := make(map[guid.GUID]*beaconConn, len(f.beaconConns))
 	for tag, conn := range f.beaconConns {
 		conns[tag] = conn
 	}
@@ -248,12 +249,12 @@ func (f *forwarder) log(l logger.Level, log ...interface{}) {
 
 // getConnsExceptBeacon will ger controller, node and client connections
 // if connection's tag = except, this connection will not add to the map
-func (f *forwarder) getConnsExceptBeacon(except string) map[string]*conn {
+func (f *forwarder) getConnsExceptBeacon(except *guid.GUID) map[guid.GUID]*conn {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	clientConns := f.GetClientConns()
 	var l int
-	if except != "" {
+	if except != nil {
 		l = len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
 	} else {
 		l = len(ctrlConns) + len(nodeConns) + len(clientConns)
@@ -261,19 +262,19 @@ func (f *forwarder) getConnsExceptBeacon(except string) map[string]*conn {
 	if l < 1 {
 		return nil
 	}
-	allConns := make(map[string]*conn, l)
+	allConns := make(map[guid.GUID]*conn, l)
 	for tag, ctrl := range ctrlConns {
-		if tag != except {
+		if except == nil || tag != *except {
 			allConns[tag] = ctrl.Conn
 		}
 	}
 	for tag, node := range nodeConns {
-		if tag != except {
+		if except == nil || tag != *except {
 			allConns[tag] = node.Conn
 		}
 	}
 	for tag, client := range clientConns {
-		if tag != except {
+		if except == nil || tag != *except {
 			allConns[tag] = client.Conn
 		}
 	}
@@ -281,7 +282,12 @@ func (f *forwarder) getConnsExceptBeacon(except string) map[string]*conn {
 }
 
 // Send will send controllers, nodes and clients
-func (f *forwarder) Send(guid, data []byte, except string, wait bool) ([]*protocol.SendResponse, int) {
+func (f *forwarder) Send(
+	g *guid.GUID,
+	data []byte,
+	except *guid.GUID,
+	wait bool,
+) ([]*protocol.SendResponse, int) {
 	conns := f.getConnsExceptBeacon(except)
 	l := len(conns)
 	if l == 0 {
@@ -289,16 +295,16 @@ func (f *forwarder) Send(guid, data []byte, except string, wait bool) ([]*protoc
 	}
 	var (
 		response chan *protocol.SendResponse
-		guidCp   []byte
+		guidCp   *guid.GUID
 		dataCp   []byte
 	)
 	if wait {
 		response = make(chan *protocol.SendResponse, l)
 	} else {
-		guidCp = make([]byte, len(guid))
-		copy(guidCp, guid)
+		guidCp = new(guid.GUID)
+		*guidCp = *g
 		dataCp = make([]byte, len(data))
-		copy(dataCp, guid)
+		copy(dataCp, data)
 	}
 	for _, c := range conns {
 		go func(c *conn) {
@@ -308,7 +314,7 @@ func (f *forwarder) Send(guid, data []byte, except string, wait bool) ([]*protoc
 				}
 			}()
 			if wait {
-				response <- c.Send(guid, data)
+				response <- c.Send(g, data)
 			} else {
 				c.Send(guidCp, dataCp)
 			}
@@ -330,7 +336,7 @@ func (f *forwarder) Send(guid, data []byte, except string, wait bool) ([]*protoc
 }
 
 // Acknowledge will send controllers, nodes and clients
-func (f *forwarder) Acknowledge(guid, data []byte, except string, wait bool) (
+func (f *forwarder) Acknowledge(g *guid.GUID, data []byte, except *guid.GUID, wait bool) (
 	[]*protocol.AcknowledgeResponse, int) {
 	conns := f.getConnsExceptBeacon(except)
 	l := len(conns)
@@ -339,16 +345,16 @@ func (f *forwarder) Acknowledge(guid, data []byte, except string, wait bool) (
 	}
 	var (
 		response chan *protocol.AcknowledgeResponse
-		guidCp   []byte
+		guidCp   *guid.GUID
 		dataCp   []byte
 	)
 	if wait {
 		response = make(chan *protocol.AcknowledgeResponse, l)
 	} else {
-		guidCp = make([]byte, len(guid))
-		copy(guidCp, guid)
+		guidCp = new(guid.GUID)
+		*guidCp = *g
 		dataCp = make([]byte, len(data))
-		copy(dataCp, guid)
+		copy(dataCp, data)
 	}
 	for _, c := range conns {
 		go func(c *conn) {
@@ -358,7 +364,7 @@ func (f *forwarder) Acknowledge(guid, data []byte, except string, wait bool) (
 				}
 			}()
 			if wait {
-				response <- c.Acknowledge(guid, data)
+				response <- c.Acknowledge(g, data)
 			} else {
 				c.Acknowledge(guidCp, dataCp)
 			}

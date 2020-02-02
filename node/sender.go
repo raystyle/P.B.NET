@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"hash"
 	"sync"
@@ -44,7 +43,7 @@ type sender struct {
 	ctx *Node
 
 	sendTaskQueue chan *sendTask
-	ackTaskQueue  chan []byte
+	ackTaskQueue  chan *guid.GUID
 
 	sendTaskPool sync.Pool
 	ackTaskPool  sync.Pool
@@ -53,8 +52,7 @@ type sender struct {
 	sendResultPool sync.Pool
 
 	// wait Controller acknowledge
-	// key = hex(send GUID) lower
-	slots  map[string]chan struct{}
+	slots  map[guid.GUID]chan struct{}
 	slotsM sync.Mutex
 
 	guid *guid.Generator
@@ -84,8 +82,8 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	sender := &sender{
 		ctx:           ctx,
 		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
-		ackTaskQueue:  make(chan []byte, cfg.QueueSize),
-		slots:         make(map[string]chan struct{}),
+		ackTaskQueue:  make(chan *guid.GUID, cfg.QueueSize),
+		slots:         make(map[guid.GUID]chan struct{}),
 		stopSignal:    make(chan struct{}),
 	}
 
@@ -93,7 +91,7 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 		return new(sendTask)
 	}
 	sender.ackTaskPool.New = func() interface{} {
-		return make([]byte, guid.Size)
+		return new(guid.GUID)
 	}
 	sender.sendDonePool.New = func() interface{} {
 		return make(chan *protocol.SendResult, 1)
@@ -122,7 +120,7 @@ func (sender *sender) isClosed() bool {
 
 // Synchronize is used to connect a node listener and start synchronize
 // can't connect if a exists client, or the target node is connected self
-func (sender *sender) Synchronize(ctx context.Context, guid []byte, bl *bootstrap.Listener) error {
+func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -134,19 +132,19 @@ func (sender *sender) Synchronize(ctx context.Context, guid []byte, bl *bootstra
 	// check connect the exist connect node(include the target node connect self)
 	// these tag is the connection tag, not the node GUID
 	for _, node := range sender.ctx.forwarder.GetNodeConns() {
-		if bytes.Compare(node.GUID, guid) == 0 {
-			const format = "target node already connected self\nGUID: %X"
+		if *node.GUID == *guid {
+			const format = "target node already connected self\n%s"
 			return errors.Errorf(format, guid)
 		}
 	}
 	for _, client := range sender.ctx.forwarder.GetClientConns() {
-		if bytes.Compare(client.GUID, guid) == 0 {
-			const format = "already connected the target node\nGUID: %X"
+		if *client.GUID == *guid {
+			const format = "already connected the target node\n%s"
 			return errors.Errorf(format, guid)
 		}
 	}
 	// connect
-	const format = "failed to connect node\n%s\nGUID: %X"
+	const format = "failed to connect node\nlistener: %s\n%s"
 	client, err := sender.ctx.NewClient(ctx, bl, guid)
 	if err != nil {
 		return errors.WithMessagef(err, format, bl, guid)
@@ -157,9 +155,11 @@ func (sender *sender) Synchronize(ctx context.Context, guid []byte, bl *bootstra
 	}
 	err = client.Synchronize()
 	if err != nil {
-		const format = "failed to start synchronize\n%s\nGUID: %X"
+		const format = "failed to start synchronize\nlistener: %s\n%s"
 		return errors.WithMessagef(err, format, bl, guid)
 	}
+	const fStart = "start synchronize\nlistener: %s\n%s"
+	sender.logf(logger.Info, fStart, bl, guid.Hex())
 	return nil
 }
 
@@ -209,39 +209,39 @@ func (sender *sender) SendFromPlugin(message []byte) error {
 	return result.Err
 }
 
-// Acknowledge is used to acknowledge controller that
-// node has received this message
+// Acknowledge is used to acknowledge Controller that Node has received this message
 func (sender *sender) Acknowledge(send *protocol.Send) {
 	if sender.isClosed() {
 		return
 	}
-	at := sender.ackTaskPool.Get().([]byte)
-	copy(at, send.GUID)
+	at := sender.ackTaskPool.Get().(*guid.GUID)
+	*at = send.GUID
 	select {
 	case sender.ackTaskQueue <- at:
 	case <-sender.stopSignal:
 	}
 }
 
-func (sender *sender) HandleAcknowledge(send string) {
+// HandleNodeAcknowledge is used to notice the Node that the Controller
+// has received the send message.
+func (sender *sender) HandleAcknowledge(send *guid.GUID) {
 	sender.slotsM.Lock()
 	defer sender.slotsM.Unlock()
-	c := sender.slots[send]
-	if c != nil {
-		close(c)
-		delete(sender.slots, send)
+	ch := sender.slots[*send]
+	if ch != nil {
+		close(ch)
+		delete(sender.slots, *send)
 	}
 }
 
-// send guid hex
-func (sender *sender) createAckSlot(send string) (<-chan struct{}, func()) {
+func (sender *sender) createAckSlot(send *guid.GUID) (<-chan struct{}, func()) {
 	sender.slotsM.Lock()
 	defer sender.slotsM.Unlock()
-	sender.slots[send] = make(chan struct{})
-	return sender.slots[send], func() {
+	sender.slots[*send] = make(chan struct{})
+	return sender.slots[*send], func() {
 		sender.slotsM.Lock()
 		defer sender.slotsM.Unlock()
-		delete(sender.slots, send)
+		delete(sender.slots, *send)
 	}
 }
 
@@ -255,6 +255,10 @@ func (sender *sender) Close() {
 
 func (sender *sender) log(l logger.Level, log ...interface{}) {
 	sender.ctx.logger.Println(l, "sender", log...)
+}
+
+func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
+	sender.ctx.logger.Printf(l, "sender", format, log...)
 }
 
 type senderWorker struct {
@@ -277,7 +281,6 @@ type senderWorker struct {
 	forwarder *forwarder
 
 	// receive acknowledge timeout
-	tHex  []byte
 	timer *time.Timer
 }
 
@@ -297,11 +300,10 @@ func (sw *senderWorker) Work() {
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.hash = sha256.New()
 	sw.forwarder = sw.ctx.ctx.forwarder
-	sw.tHex = make([]byte, 2*guid.Size)
 	sw.timer = time.NewTimer(sw.timeout)
 	var (
 		st *sendTask
-		at []byte
+		at *guid.GUID
 	)
 	for {
 		select {
@@ -314,42 +316,14 @@ func (sw *senderWorker) Work() {
 			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 		}
 		select {
-		case at = <-sw.ctx.ackTaskQueue:
-			sw.handleAcknowledgeTask(at)
 		case st = <-sw.ctx.sendTaskQueue:
 			sw.handleSendTask(st)
+		case at = <-sw.ctx.ackTaskQueue:
+			sw.handleAcknowledgeTask(at)
 		case <-sw.ctx.stopSignal:
 			return
 		}
 	}
-}
-
-func (sw *senderWorker) handleAcknowledgeTask(at []byte) {
-	defer func() {
-		if r := recover(); r != nil {
-			err := xpanic.Error(r, "senderWorker.handleAcknowledgeTask")
-			sw.ctx.log(logger.Fatal, err)
-		}
-		sw.ctx.ackTaskPool.Put(at)
-	}()
-	sw.preA.GUID = sw.ctx.guid.Get()
-	sw.preA.RoleGUID = sw.ctx.ctx.global.GUID()
-	sw.preA.SendGUID = at
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preA.GUID)
-	sw.buffer.Write(sw.preA.RoleGUID)
-	sw.buffer.Write(sw.preA.SendGUID)
-	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
-	// self validate
-	sw.err = sw.preA.Validate()
-	if sw.err != nil {
-		panic("sender internal error: " + sw.err.Error())
-	}
-	// pack
-	sw.buffer.Reset()
-	sw.preA.Pack(sw.buffer)
-	sw.forwarder.Acknowledge(sw.preA.GUID, sw.buffer.Bytes(), "", true)
 }
 
 func (sw *senderWorker) handleSendTask(st *sendTask) {
@@ -389,16 +363,16 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	// set GUID
-	sw.preS.GUID = sw.ctx.guid.Get()
-	sw.preS.RoleGUID = sw.ctx.ctx.global.GUID()
+	sw.preS.GUID = *sw.ctx.guid.Get()
+	sw.preS.RoleGUID = *sw.ctx.ctx.global.GUID()
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(st.Message)
 	sw.preS.Hash = sw.hash.Sum(nil)
 	// sign
 	sw.buffer.Reset()
-	sw.buffer.Write(sw.preS.GUID)
-	sw.buffer.Write(sw.preS.RoleGUID)
+	sw.buffer.Write(sw.preS.GUID[:])
+	sw.buffer.Write(sw.preS.RoleGUID[:])
 	sw.buffer.Write(sw.preS.Hash)
 	sw.buffer.Write(sw.preS.Message)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
@@ -412,10 +386,9 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	sw.preS.Pack(sw.buffer)
 
 	// send
-	hex.Encode(sw.tHex, sw.preS.GUID) // calculate send guid
-	wait, destroy := sw.ctx.createAckSlot(string(sw.tHex))
+	wait, destroy := sw.ctx.createAckSlot(&sw.preS.GUID)
 	result.Responses, result.Success = sw.forwarder.Send(
-		sw.preS.GUID, sw.buffer.Bytes(), "", true)
+		&sw.preS.GUID, sw.buffer.Bytes(), nil, true)
 	if len(result.Responses) == 0 {
 		result.Err = ErrNoConnections
 		return
@@ -437,4 +410,32 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	case <-sw.ctx.stopSignal:
 		result.Err = ErrSenderClosed
 	}
+}
+
+func (sw *senderWorker) handleAcknowledgeTask(at *guid.GUID) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "senderWorker.handleAcknowledgeTask")
+			sw.ctx.log(logger.Fatal, err)
+		}
+		sw.ctx.ackTaskPool.Put(at)
+	}()
+	sw.preA.GUID = *sw.ctx.guid.Get()
+	sw.preA.RoleGUID = *sw.ctx.ctx.global.GUID()
+	sw.preA.SendGUID = *at
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.preA.GUID[:])
+	sw.buffer.Write(sw.preA.RoleGUID[:])
+	sw.buffer.Write(sw.preA.SendGUID[:])
+	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// self validate
+	sw.err = sw.preA.Validate()
+	if sw.err != nil {
+		panic("sender internal error: " + sw.err.Error())
+	}
+	// pack
+	sw.buffer.Reset()
+	sw.preA.Pack(sw.buffer)
+	sw.forwarder.Acknowledge(&sw.preA.GUID, sw.buffer.Bytes(), nil, true)
 }
