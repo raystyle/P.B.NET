@@ -8,19 +8,20 @@ import (
 	"project/internal/random"
 )
 
-func doUseless(c chan []byte) {
+func doUseless(ch chan []byte) {
 	rand := random.New()
 	n := 100 + rand.Int(100)
 	for i := 0; i < n; i++ {
 		buf := bytes.Buffer{}
 		buf.Write(random.Bytes(16 + rand.Int(1024)))
-		c <- buf.Bytes()
+		ch <- buf.Bytes()
 	}
 }
 
 func schedule() {
 	rand := random.New()
-	bChan := make(chan []byte, 1024)
+	// must > n* (n in doUseless)
+	bChan := make(chan []byte, 5120)
 	n := 8 + rand.Int(8)
 	for i := 0; i < n; i++ {
 		go doUseless(bChan)
