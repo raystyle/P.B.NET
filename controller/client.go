@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
@@ -151,16 +149,16 @@ func (ctrl *CTRL) NewClient(
 }
 
 // [2019-12-26 21:44:17] [info] <client> disconnected
-// ----------------connected node guid-----------------
-// F50B876BE94437E2E678C5EB84627230C599B847BED5B00D5390
-// C38C4E155C0DD0305F7A000000005E04B92C00000000000003D5
-// -----------------connection status------------------
+// --------------connected node guid---------------
+// F50B876BE94437E2E678C5EB84627230C599B847BED5B00D
+// C38C4E155C0DD0305F7A000000005E04B92C000000000000
+// ---------------connection status----------------
 // local:  tcp 127.0.0.1:2035
 // remote: tcp 127.0.0.1:2032
 // sent:   5.656 MB received: 5.379 MB
 // mode:   tls,  default network: tcp
 // connect time: 2019-12-26 21:44:13
-// ----------------------------------------------------
+// ------------------------------------------------
 func (client *Client) logf(lv logger.Level, format string, log ...interface{}) {
 	output := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(output, format+"\n", log...)
@@ -175,12 +173,12 @@ func (client *Client) log(lv logger.Level, log ...interface{}) {
 
 func (client *Client) logExtra(lv logger.Level, buf *bytes.Buffer) {
 	if client.guid != nil {
-		const format = "----------------connected node guid-----------------\n%s\n"
+		const format = "--------------connected node guid---------------\n%s\n"
 		_, _ = fmt.Fprintf(buf, format, client.guid.Hex())
 	}
-	const conn = "-----------------connection status------------------\n%s\n"
+	const conn = "---------------connection status----------------\n%s\n"
 	_, _ = fmt.Fprintf(buf, conn, client.conn)
-	const endLine = "----------------------------------------------------"
+	const endLine = "------------------------------------------------"
 	_, _ = fmt.Fprint(buf, endLine)
 	client.ctx.logger.Print(lv, "client", buf)
 }
@@ -444,9 +442,11 @@ func (client *Client) handleNodeSendGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
+	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckNodeSendGUID(data, false, 0) {
+		return
+	}
+	if client.ctx.syncer.CheckNodeSendGUIDSlice(data) {
 		client.reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
@@ -460,9 +460,11 @@ func (client *Client) handleNodeAckGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
+	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckNodeAckGUID(data, false, 0) {
+		return
+	}
+	if client.ctx.syncer.CheckNodeAckGUIDSlice(data) {
 		client.reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
@@ -476,9 +478,11 @@ func (client *Client) handleBeaconSendGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
+	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckBeaconSendGUID(data, false, 0) {
+		return
+	}
+	if client.ctx.syncer.CheckBeaconSendGUIDSlice(data) {
 		client.reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
@@ -492,9 +496,11 @@ func (client *Client) handleBeaconAckGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
+	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckBeaconAckGUID(data, false, 0) {
+		return
+	}
+	if client.ctx.syncer.CheckBeaconAckGUIDSlice(data) {
 		client.reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
@@ -508,9 +514,11 @@ func (client *Client) handleBeaconQueryGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if expired, _ := client.ctx.syncer.CheckGUIDTimestamp(data); expired {
+	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
-	} else if client.ctx.syncer.CheckQueryGUID(data, false, 0) {
+		return
+	}
+	if client.ctx.syncer.CheckQueryGUIDSlice(data) {
 		client.reply(id, protocol.ReplyUnhandled)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
@@ -535,14 +543,13 @@ func (client *Client) handleNodeSend(id, data []byte) {
 		client.Close()
 		return
 	}
-
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(send.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&send.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutSendToPool(send)
 		return
 	}
-	if client.ctx.syncer.CheckNodeSendGUID(send.GUID, true, timestamp) {
+	if client.ctx.syncer.CheckNodeSendGUID(&send.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddNodeSend(send)
 	} else {
@@ -569,13 +576,13 @@ func (client *Client) handleNodeAck(id, data []byte) {
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(ack.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&ack.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutAcknowledgeToPool(ack)
 		return
 	}
-	if client.ctx.syncer.CheckNodeAckGUID(ack.GUID, true, timestamp) {
+	if client.ctx.syncer.CheckNodeAckGUID(&ack.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddNodeAcknowledge(ack)
 	} else {
@@ -586,27 +593,29 @@ func (client *Client) handleNodeAck(id, data []byte) {
 
 func (client *Client) handleBeaconSend(id, data []byte) {
 	s := client.ctx.worker.GetSendFromPool()
-	err := msgpack.Unmarshal(data, s)
+	err := s.Unpack(data)
 	if err != nil {
-		client.log(logger.Exploit, "invalid beacon send msgpack data:", err)
+		const format = "invalid beacon send data: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(s))
 		client.ctx.worker.PutSendToPool(s)
 		client.Close()
 		return
 	}
 	err = s.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid beacon send: %s\n%s", err, spew.Sdump(s))
+		const format = "invalid beacon send: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(s))
 		client.ctx.worker.PutSendToPool(s)
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(s.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&s.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutSendToPool(s)
 		return
 	}
-	if client.ctx.syncer.CheckBeaconSendGUID(s.GUID, true, timestamp) {
+	if client.ctx.syncer.CheckBeaconSendGUID(&s.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddBeaconSend(s)
 	} else {
@@ -617,27 +626,29 @@ func (client *Client) handleBeaconSend(id, data []byte) {
 
 func (client *Client) handleBeaconAck(id, data []byte) {
 	a := client.ctx.worker.GetAcknowledgeFromPool()
-	err := msgpack.Unmarshal(data, a)
+	err := a.Unpack(data)
 	if err != nil {
-		client.log(logger.Exploit, "invalid beacon ack msgpack data:", err)
+		const format = "invalid beacon ack data: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(a))
 		client.ctx.worker.PutAcknowledgeToPool(a)
 		client.Close()
 		return
 	}
 	err = a.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid beacon ack: %s\n%s", err, spew.Sdump(a))
+		const format = "invalid beacon ack: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(a))
 		client.ctx.worker.PutAcknowledgeToPool(a)
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(a.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&a.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutAcknowledgeToPool(a)
 		return
 	}
-	if client.ctx.syncer.CheckBeaconAckGUID(a.GUID, true, timestamp) {
+	if client.ctx.syncer.CheckBeaconAckGUID(&a.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddBeaconAcknowledge(a)
 	} else {
@@ -648,27 +659,29 @@ func (client *Client) handleBeaconAck(id, data []byte) {
 
 func (client *Client) handleBeaconQuery(id, data []byte) {
 	q := client.ctx.worker.GetQueryFromPool()
-	err := msgpack.Unmarshal(data, q)
+	err := q.Unpack(data)
 	if err != nil {
-		client.log(logger.Exploit, "invalid query msgpack data:", err)
+		const format = "invalid query data: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(q))
 		client.ctx.worker.PutQueryToPool(q)
 		client.Close()
 		return
 	}
 	err = q.Validate()
 	if err != nil {
-		client.logf(logger.Exploit, "invalid query: %s\n%s", err, spew.Sdump(q))
+		const format = "invalid query: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(q))
 		client.ctx.worker.PutQueryToPool(q)
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(q.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&q.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
 		client.ctx.worker.PutQueryToPool(q)
 		return
 	}
-	if client.ctx.syncer.CheckQueryGUID(q.GUID, true, timestamp) {
+	if client.ctx.syncer.CheckQueryGUID(&q.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
 		client.ctx.worker.AddQuery(q)
 	} else {
@@ -912,7 +925,8 @@ type clientMgr struct {
 	dnsOpts  dns.Options
 	optsRWM  sync.RWMutex
 
-	guid       *guid.Generator
+	guid *guid.Generator
+	// key = guid.GUID.Hex()
 	clients    map[string]*Client
 	clientsRWM sync.RWMutex
 }
@@ -982,7 +996,7 @@ func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 
 // for NewClient()
 func (cm *clientMgr) Add(client *Client) {
-	client.tag = hex.EncodeToString(cm.guid.Get())
+	client.tag = cm.guid.Get().Hex()
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
 	if _, ok := cm.clients[client.tag]; !ok {

@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"sync"
 
 	"github.com/go-sql-driver/mysql"
@@ -21,7 +20,7 @@ type database struct {
 }
 
 func newDatabase(config *Config) (*database, error) {
-	// set database logger
+	// create database logger
 	cfg := config.Database
 	dbLogger, err := newDatabaseLogger(cfg.Dialect, cfg.LogFile, cfg.LogWriter)
 	if err != nil {
@@ -363,19 +362,19 @@ func (db *database) DeleteBeacon(guid *guid.GUID) error {
 	return err
 }
 
-func (db *database) DeleteBeaconUnscoped(guid []byte) error {
+func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	err := db.db.Unscoped().Delete(&mBeacon{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}
-	db.cache.DeleteBeacon(base64.StdEncoding.EncodeToString(guid))
+	db.cache.DeleteBeacon(guid)
 	return nil
 }
 
 // TODO BeaconMessage
 
-func (db *database) InsertBeaconMessage(guid, message []byte) error {
-	return db.db.Create(&mBeaconMessage{GUID: guid, Message: message}).Error
+func (db *database) InsertBeaconMessage(guid *guid.GUID, message []byte) error {
+	return db.db.Create(&mBeaconMessage{GUID: *guid, Message: message}).Error
 }
 
 func (db *database) InsertBeaconListener(m *mBeaconListener) error {

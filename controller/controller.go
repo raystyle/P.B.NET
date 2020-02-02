@@ -9,6 +9,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
@@ -253,25 +254,25 @@ func (ctrl *CTRL) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
 }
 
 // DeleteNode is used to delete node
-func (ctrl *CTRL) DeleteNode(guid []byte) error {
+func (ctrl *CTRL) DeleteNode(guid *guid.GUID) error {
 	err := ctrl.database.DeleteNode(guid)
 	return errors.Wrapf(err, "failed to delete node %X", guid)
 }
 
 // DeleteBeacon is used to delete beacon
-func (ctrl *CTRL) DeleteBeacon(guid []byte) error {
+func (ctrl *CTRL) DeleteBeacon(guid *guid.GUID) error {
 	err := ctrl.database.DeleteBeacon(guid)
 	return errors.Wrapf(err, "failed to delete beacon %X", guid)
 }
 
 // DeleteNodeUnscoped is used to unscoped delete node
-func (ctrl *CTRL) DeleteNodeUnscoped(guid []byte) error {
+func (ctrl *CTRL) DeleteNodeUnscoped(guid *guid.GUID) error {
 	err := ctrl.database.DeleteNodeUnscoped(guid)
 	return errors.Wrapf(err, "failed to unscoped delete node %X", guid)
 }
 
 // DeleteBeaconUnscoped is used to unscoped delete beacon
-func (ctrl *CTRL) DeleteBeaconUnscoped(guid []byte) error {
+func (ctrl *CTRL) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	err := ctrl.database.DeleteBeaconUnscoped(guid)
 	return errors.Wrapf(err, "failed to unscoped delete beacon %X", guid)
 }
