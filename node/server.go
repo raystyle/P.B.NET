@@ -936,7 +936,7 @@ type nodeConn struct {
 	ctx *Node
 
 	tag  string
-	guid []byte
+	GUID []byte
 	Conn *conn
 
 	inSync int32
@@ -947,7 +947,7 @@ func (server *server) serveNode(tag string, nodeGUID []byte, conn *xnet.Conn) {
 	nc := nodeConn{
 		ctx:  server.ctx,
 		tag:  tag,
-		guid: nodeGUID,
+		GUID: nodeGUID,
 		Conn: newConn(server.ctx, conn, tag, nodeGUID, connUsageServeNode),
 	}
 	defer func() {

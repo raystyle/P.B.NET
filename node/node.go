@@ -1,11 +1,13 @@
 package node
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 
+	"project/internal/bootstrap"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/xnet"
@@ -190,6 +192,16 @@ func (node *Node) GUID() []byte {
 	return node.global.GUID()
 }
 
+// Synchronize is used to connect a node and start synchronize
+func (node *Node) Synchronize(ctx context.Context, guid []byte, bl *bootstrap.Listener) error {
+	return node.sender.Synchronize(ctx, guid, bl)
+}
+
+// Send is used to send message to Controller
+func (node *Node) Send(cmd, msg []byte) error {
+	return node.sender.Send(cmd, msg)
+}
+
 // AddListener is used to add listener
 func (node *Node) AddListener(listener *messages.Listener) error {
 	return node.server.AddListener(listener)
@@ -198,9 +210,4 @@ func (node *Node) AddListener(listener *messages.Listener) error {
 // GetListener is used to get listener
 func (node *Node) GetListener(tag string) (*xnet.Listener, error) {
 	return node.server.GetListener(tag)
-}
-
-// Send is used to send message to Controller
-func (node *Node) Send(cmd, msg []byte) error {
-	return node.sender.Send(cmd, msg)
 }

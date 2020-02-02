@@ -34,9 +34,8 @@ import (
 type Client struct {
 	ctx *Node
 
-	node      *bootstrap.Listener
-	guid      []byte
-	closeFunc func()
+	node *bootstrap.Listener
+	GUID []byte
 
 	tag       string
 	Conn      *conn
@@ -57,7 +56,6 @@ func (node *Node) NewClient(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 	guid []byte,
-	closeFunc func(),
 ) (*Client, error) {
 	// dial
 	host, port, err := net.SplitHostPort(listener.Address)
@@ -104,14 +102,12 @@ func (node *Node) NewClient(
 	}
 	// handshake
 	client := &Client{
-		ctx:       node,
-		node:      listener,
-		guid:      guid,
-		closeFunc: closeFunc,
-		rand:      random.New(),
+		ctx:  node,
+		node: listener,
+		GUID: guid,
+		rand: random.New(),
 	}
-	// TODO tag
-	client.Conn = newConn(node, conn, "", guid, connUsageClient)
+	client.Conn = newConn(node, conn, node.clientMgr.GenerateTag(), guid, connUsageClient)
 	err = client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
@@ -132,7 +128,7 @@ func (client *Client) handshake(conn *xnet.Conn) error {
 	}
 	// verify certificate
 	publicKey := client.ctx.global.CtrlPublicKey()
-	ok, err := protocol.VerifyCertificate(conn, publicKey, client.guid)
+	ok, err := protocol.VerifyCertificate(conn, publicKey, client.GUID)
 	if err != nil {
 		client.Conn.Log(logger.Exploit, err)
 		return err
@@ -388,36 +384,33 @@ func (client *Client) sendHeartbeatLoop() {
 }
 
 // Synchronize is used to switch to synchronize mode
-func (client *Client) Synchronize() error {
+func (client *Client) Synchronize() (err error) {
+	defer func() {
+		if err != nil {
+			client.Close()
+		}
+	}()
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
 	if client.isSync() {
-		return nil
+		err = errors.New("already synchronize")
+		return
 	}
 	resp, err := client.Conn.SendCommand(protocol.NodeSync, nil)
 	if err != nil {
-		return errors.Wrap(err, "failed to receive synchronize response")
+		err = errors.Wrap(err, "failed to receive synchronize response")
+		return
 	}
 	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
-		return errors.Errorf("failed to start synchronize: %s", resp)
+		err = errors.Errorf("failed to start synchronize: %s", resp)
+		return
 	}
 	// initialize sync pool
 	client.Conn.SendPool.New = func() interface{} {
-		return &protocol.Send{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			Message:   make([]byte, aes.BlockSize),
-			Hash:      make([]byte, sha256.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewSend()
 	}
 	client.Conn.AckPool.New = func() interface{} {
-		return &protocol.Acknowledge{
-			GUID:      make([]byte, guid.Size),
-			RoleGUID:  make([]byte, guid.Size),
-			SendGUID:  make([]byte, guid.Size),
-			Signature: make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewAcknowledge()
 	}
 	client.Conn.AnswerPool.New = func() interface{} {
 		return &protocol.Answer{
@@ -437,12 +430,11 @@ func (client *Client) Synchronize() error {
 	}
 	err = client.ctx.forwarder.RegisterClient(client.tag, client)
 	if err != nil {
-		client.Close()
-		return err
+		return
 	}
 	atomic.StoreInt32(&client.inSync, 1)
 	client.Conn.Log(logger.Debug, "synchronizing")
-	return nil
+	return
 }
 
 // Status is used to get connection status
@@ -459,9 +451,6 @@ func (client *Client) Close() {
 		}
 		client.wg.Wait()
 		client.ctx.clientMgr.Delete(client.tag)
-		if client.closeFunc != nil {
-			client.closeFunc()
-		}
 		client.Conn.Log(logger.Info, "disconnected")
 	})
 }
@@ -546,8 +535,12 @@ func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 }
 
 // for NewClient()
+func (cm *clientMgr) GenerateTag() string {
+	return hex.EncodeToString(cm.guid.Get())
+}
+
+// for NewClient()
 func (cm *clientMgr) Add(client *Client) {
-	client.tag = hex.EncodeToString(cm.guid.Get())
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
 	if _, ok := cm.clients[client.tag]; !ok {

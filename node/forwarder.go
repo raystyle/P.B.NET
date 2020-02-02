@@ -247,8 +247,7 @@ func (f *forwarder) log(l logger.Level, log ...interface{}) {
 }
 
 // getConnsExceptBeacon will ger controller, node and client connections
-// if connection's tag = except, this connection will not add to the
-// connections map.
+// if connection's tag = except, this connection will not add to the map
 func (f *forwarder) getConnsExceptBeacon(except string) map[string]*conn {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
@@ -288,9 +287,18 @@ func (f *forwarder) Send(guid, data []byte, except string, wait bool) ([]*protoc
 	if l == 0 {
 		return nil, 0
 	}
-	var response chan *protocol.SendResponse
+	var (
+		response chan *protocol.SendResponse
+		guidCp   []byte
+		dataCp   []byte
+	)
 	if wait {
 		response = make(chan *protocol.SendResponse, l)
+	} else {
+		guidCp = make([]byte, len(guid))
+		copy(guidCp, guid)
+		dataCp = make([]byte, len(data))
+		copy(dataCp, guid)
 	}
 	for _, c := range conns {
 		go func(c *conn) {
@@ -299,9 +307,10 @@ func (f *forwarder) Send(guid, data []byte, except string, wait bool) ([]*protoc
 					f.log(logger.Fatal, xpanic.Print(r, "forwarder.Send"))
 				}
 			}()
-			r := c.Send(guid, data)
 			if wait {
-				response <- r
+				response <- c.Send(guid, data)
+			} else {
+				c.Send(guidCp, dataCp)
 			}
 		}(c)
 	}
@@ -328,9 +337,18 @@ func (f *forwarder) Acknowledge(guid, data []byte, except string, wait bool) (
 	if l == 0 {
 		return nil, 0
 	}
-	var response chan *protocol.AcknowledgeResponse
+	var (
+		response chan *protocol.AcknowledgeResponse
+		guidCp   []byte
+		dataCp   []byte
+	)
 	if wait {
 		response = make(chan *protocol.AcknowledgeResponse, l)
+	} else {
+		guidCp = make([]byte, len(guid))
+		copy(guidCp, guid)
+		dataCp = make([]byte, len(data))
+		copy(dataCp, guid)
 	}
 	for _, c := range conns {
 		go func(c *conn) {
@@ -339,9 +357,10 @@ func (f *forwarder) Acknowledge(guid, data []byte, except string, wait bool) (
 					f.log(logger.Fatal, xpanic.Print(r, "forwarder.Acknowledge"))
 				}
 			}()
-			r := c.Acknowledge(guid, data)
 			if wait {
-				response <- r
+				response <- c.Acknowledge(guid, data)
+			} else {
+				c.Acknowledge(guidCp, dataCp)
 			}
 		}(c)
 	}

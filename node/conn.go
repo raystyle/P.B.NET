@@ -435,8 +435,7 @@ func (c *conn) HandleSendToNode(id, data []byte) {
 		if bytes.Compare(send.RoleGUID, c.ctx.global.GUID()) == 0 {
 			c.ctx.worker.AddSend(send)
 		} else {
-			// TODO c.ctx.forwarder.Send(send.GUID, data, c.tag, false)
-
+			c.ctx.forwarder.Send(send.GUID, data, c.tag, false)
 			c.ctx.worker.PutSendToPool(send)
 		}
 	} else {
@@ -472,9 +471,8 @@ func (c *conn) HandleAckToNode(id, data []byte) {
 		c.Reply(id, protocol.ReplySucceed)
 		if bytes.Compare(ack.RoleGUID, c.ctx.global.GUID()) == 0 {
 			c.ctx.worker.AddAcknowledge(ack)
-
 		} else {
-			// repeat
+			c.ctx.forwarder.Acknowledge(ack.GUID, data, c.tag, false)
 			c.ctx.worker.PutAcknowledgeToPool(ack)
 		}
 	} else {

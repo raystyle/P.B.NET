@@ -93,6 +93,11 @@ func newRegister(ctx *Node, config *Config) (*register, error) {
 }
 
 func (register *register) loadBootstraps(boot, key []byte, single bool) error {
+	defer func() {
+		security.CoverBytes(boot)
+		security.CoverBytes(key)
+	}()
+
 	memory := security.NewMemory()
 	defer memory.Flush()
 
@@ -277,7 +282,6 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		register.context,
 		listener,
 		protocol.CtrlGUID,
-		nil,
 	)
 	if err != nil {
 		return err

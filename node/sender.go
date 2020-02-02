@@ -2,6 +2,7 @@ package node
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack/v4"
 
+	"project/internal/bootstrap"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -21,10 +23,11 @@ import (
 
 // errors
 var (
-	ErrNoConnections = fmt.Errorf("no connections")
-	ErrSendFailed    = fmt.Errorf("failed to send")
-	ErrSendTimeout   = fmt.Errorf("send timeout")
-	ErrSenderClosed  = fmt.Errorf("sender closed")
+	ErrNoConnections  = fmt.Errorf("no connections")
+	ErrSendFailed     = fmt.Errorf("failed to send")
+	ErrSendTimeout    = fmt.Errorf("send timeout")
+	ErrSenderMaxConns = fmt.Errorf("sender with max connections")
+	ErrSenderClosed   = fmt.Errorf("sender closed")
 )
 
 // MessageI will be Encode by msgpack, except MessageI.(type) is []byte
@@ -115,6 +118,49 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 
 func (sender *sender) isClosed() bool {
 	return atomic.LoadInt32(&sender.inClose) != 0
+}
+
+// Synchronize is used to connect a node listener and start synchronize
+// can't connect if a exists client, or the target node is connected self
+func (sender *sender) Synchronize(ctx context.Context, guid []byte, bl *bootstrap.Listener) error {
+	if sender.isClosed() {
+		return ErrSenderClosed
+	}
+	// check client number
+	current := len(sender.ctx.forwarder.GetClientConns())
+	if current >= sender.ctx.forwarder.GetMaxClientConns() {
+		return ErrSenderMaxConns
+	}
+	// check connect the exist connect node(include the target node connect self)
+	// these tag is the connection tag, not the node GUID
+	for _, node := range sender.ctx.forwarder.GetNodeConns() {
+		if bytes.Compare(node.GUID, guid) == 0 {
+			const format = "target node already connected self\nGUID: %X"
+			return errors.Errorf(format, guid)
+		}
+	}
+	for _, client := range sender.ctx.forwarder.GetClientConns() {
+		if bytes.Compare(client.GUID, guid) == 0 {
+			const format = "already connected the target node\nGUID: %X"
+			return errors.Errorf(format, guid)
+		}
+	}
+	// connect
+	const format = "failed to connect node\n%s\nGUID: %X"
+	client, err := sender.ctx.NewClient(ctx, bl, guid)
+	if err != nil {
+		return errors.WithMessagef(err, format, bl, guid)
+	}
+	err = client.Connect()
+	if err != nil {
+		return errors.WithMessagef(err, format, bl, guid)
+	}
+	err = client.Synchronize()
+	if err != nil {
+		const format = "failed to start synchronize\n%s\nGUID: %X"
+		return errors.WithMessagef(err, format, bl, guid)
+	}
+	return nil
 }
 
 // Send is used to send message to Controller

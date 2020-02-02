@@ -72,7 +72,6 @@ func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}
 func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log[1:]...)
-	buf.WriteString("\n")
 	spew.Fdump(buf, log[0])
 	h.ctx.logger.Print(l, "handler", buf)
 }
@@ -159,12 +158,13 @@ func (h *handler) handleShell(send *protocol.Send) {
 
 func (h *handler) handleSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleSendTestMessage")
-	if h.ctx.Test.SendTestMsg == nil {
+	if !h.ctx.Test.testMsgEnabled {
 		return
 	}
-	select {
-	case h.ctx.Test.SendTestMsg <- send.Message:
-	case <-h.context.Done():
+	err := h.ctx.Test.AddSendTestMessage(h.context, send.Message)
+	if err != nil {
+		const log = "failed to add send test message\nerror:"
+		h.logWithInfo(logger.Fatal, send, log, err)
 	}
 }
 
@@ -228,12 +228,12 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 
 func (h *handler) handleBroadcastTestMessage(broadcast *protocol.Broadcast) {
 	defer h.logPanic("handler.handleBroadcastTestMessage")
-	if h.ctx.Test.BroadcastTestMsg == nil {
+	if !h.ctx.Test.testMsgEnabled {
 		return
 	}
-	select {
-	case h.ctx.Test.BroadcastTestMsg <- broadcast.Message:
-	case <-h.context.Done():
-		return
+	err := h.ctx.Test.AddBroadcastTestMessage(h.context, broadcast.Message)
+	if err != nil {
+		const log = "failed to add broadcast test message\nerror:"
+		h.logWithInfo(logger.Fatal, broadcast, log, err)
 	}
 }
