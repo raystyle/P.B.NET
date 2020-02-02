@@ -27,11 +27,11 @@ import (
 	"project/internal/xpanic"
 )
 
-// Client is used to connect node listener
+// Client is used to connect Node listener
 type Client struct {
 	ctx *CTRL
 
-	guid      *guid.GUID // node guid
+	guid      *guid.GUID // Node GUID
 	closeFunc func()
 
 	tag       *guid.GUID
@@ -254,6 +254,46 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 	return nil
 }
 
+func (client *Client) sendHeartbeatLoop() {
+	defer client.wg.Done()
+	var err error
+	buffer := bytes.NewBuffer(nil)
+	timer := time.NewTimer(time.Minute)
+	defer timer.Stop()
+	for {
+		timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
+		select {
+		case <-timer.C:
+			// <security> fake traffic like client
+			fakeSize := 64 + client.rand.Int(256)
+			// size(4 Bytes) + heartbeat(1 byte) + fake data
+			buffer.Reset()
+			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
+			buffer.WriteByte(protocol.ConnSendHeartbeat)
+			buffer.Write(client.rand.Bytes(fakeSize))
+			// send
+			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+			_, err = client.conn.Write(buffer.Bytes())
+			if err != nil {
+				return
+			}
+			// receive reply
+			timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
+			select {
+			case <-client.heartbeat:
+			case <-timer.C:
+				client.log(logger.Warning, "receive heartbeat timeout")
+				_ = client.conn.Close()
+				return
+			case <-client.stopSignal:
+				return
+			}
+		case <-client.stopSignal:
+			return
+		}
+	}
+}
+
 func (client *Client) isClosed() bool {
 	return atomic.LoadInt32(&client.inClose) != 0
 }
@@ -329,46 +369,6 @@ func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
 		return false
 	}
 	return true
-}
-
-func (client *Client) sendHeartbeatLoop() {
-	defer client.wg.Done()
-	var err error
-	buffer := bytes.NewBuffer(nil)
-	timer := time.NewTimer(time.Minute)
-	defer timer.Stop()
-	for {
-		timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
-		select {
-		case <-timer.C:
-			// <security> fake traffic like client
-			fakeSize := 64 + client.rand.Int(256)
-			// size(4 Bytes) + heartbeat(1 byte) + fake data
-			buffer.Reset()
-			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
-			buffer.WriteByte(protocol.ConnSendHeartbeat)
-			buffer.Write(client.rand.Bytes(fakeSize))
-			// send
-			_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-			_, err = client.conn.Write(buffer.Bytes())
-			if err != nil {
-				return
-			}
-			// receive reply
-			timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
-			select {
-			case <-client.heartbeat:
-			case <-timer.C:
-				client.log(logger.Warning, "receive heartbeat timeout")
-				_ = client.conn.Close()
-				return
-			case <-client.stopSignal:
-				return
-			}
-		case <-client.stopSignal:
-			return
-		}
-	}
 }
 
 func (client *Client) reply(id, reply []byte) {
@@ -905,7 +905,7 @@ func (client *Client) Status() *xnet.Status {
 	return client.conn.Status()
 }
 
-// Close is used to disconnect node
+// Close is used to disconnect Node
 func (client *Client) Close() {
 	client.closeOnce.Do(func() {
 		atomic.StoreInt32(&client.inClose, 1)

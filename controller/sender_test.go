@@ -50,6 +50,7 @@ func TestSender_Broadcast(t *testing.T) {
 		go broadcast(i * times)
 	}
 	recv := bytes.Buffer{}
+	recv.Grow(8 << 20)
 	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
@@ -103,6 +104,7 @@ func TestSender_SendToNode(t *testing.T) {
 		go send(i * times)
 	}
 	recv := bytes.Buffer{}
+	recv.Grow(8 << 20)
 	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
@@ -255,7 +256,7 @@ func (sw *subWorker) getNodeKey(guid *guid.GUID) bool {
 	sw.node, sw.err = sw.ctx.database.SelectNode(guid)
 	if sw.err != nil {
 		const format = "failed to select node: %s\n%s"
-		sw.logf(logger.Warning, format, sw.err, guid)
+		sw.logf(logger.Warning, format, sw.err, guid.Print())
 		return false
 	}
 	sw.publicKey = sw.node.PublicKey
@@ -268,7 +269,7 @@ func (sw *subWorker) getBeaconKey(guid *guid.GUID) bool {
 	sw.beacon, sw.err = sw.ctx.database.SelectBeacon(guid)
 	if sw.err != nil {
 		const format = "failed to select beacon: %s\n%s"
-		sw.logf(logger.Warning, format, sw.err, guid)
+		sw.logf(logger.Warning, format, sw.err, guid.Print())
 		return false
 	}
 	sw.publicKey = sw.beacon.PublicKey
@@ -287,7 +288,7 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	sw.buffer.Write(send.Message)
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid %s send signature\n%s"
-		sw.logf(logger.Exploit, format, role, send.RoleGUID)
+		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
 		return nil
 	}
 	// decrypt message
@@ -295,7 +296,7 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	send.Message, sw.err = aes.CBCDecrypt(send.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
 		const format = "failed to decrypt %s send: %s\n%s"
-		sw.logf(logger.Exploit, format, role, sw.err, send.RoleGUID)
+		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
 		return nil
 	}
 	// compare hash
@@ -303,7 +304,7 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	sw.hash.Write(send.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
 		const format = "%s send with incorrect hash\n%s"
-		sw.logf(logger.Exploit, format, role, send.RoleGUID)
+		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
 		return nil
 	}
 	return cache
@@ -344,7 +345,7 @@ func (sw *subWorker) verifyAcknowledge(role protocol.Role, ack *protocol.Acknowl
 	sw.buffer.Write(ack.SendGUID[:])
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), ack.Signature) {
 		const format = "invalid %s acknowledge signature\n%s"
-		sw.logf(logger.Exploit, format, role, ack.RoleGUID)
+		sw.logf(logger.Exploit, format, role, spew.Sdump(ack))
 		return false
 	}
 	return true
@@ -384,7 +385,7 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 	sw.buffer.Write(convert.Uint64ToBytes(query.Index))
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), query.Signature) {
 		const format = "invalid query signature\n%s"
-		sw.logf(logger.Exploit, format, query.BeaconGUID)
+		sw.logf(logger.Exploit, format, spew.Sdump(query))
 		return
 	}
 	// TODO query message and answer

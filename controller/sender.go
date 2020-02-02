@@ -504,7 +504,7 @@ func (sender *sender) Close() {
 
 func (sender *sender) broadcast(
 	guid *guid.GUID,
-	message *bytes.Buffer,
+	data *bytes.Buffer,
 ) ([]*protocol.BroadcastResponse, int) {
 	clients := sender.Clients()
 	l := len(clients)
@@ -521,7 +521,7 @@ func (sender *sender) broadcast(
 					sender.log(logger.Fatal, err)
 				}
 			}()
-			resp <- c.Broadcast(guid, message)
+			resp <- c.Broadcast(guid, data)
 		}(c)
 	}
 	var success int
@@ -538,7 +538,7 @@ func (sender *sender) broadcast(
 
 func (sender *sender) sendToNode(
 	guid *guid.GUID,
-	message *bytes.Buffer,
+	data *bytes.Buffer,
 ) ([]*protocol.SendResponse, int) {
 	clients := sender.Clients()
 	l := len(clients)
@@ -555,7 +555,7 @@ func (sender *sender) sendToNode(
 					sender.log(logger.Fatal, err)
 				}
 			}()
-			response <- c.SendToNode(guid, message)
+			response <- c.SendToNode(guid, data)
 		}(c)
 	}
 	var success int
@@ -572,7 +572,7 @@ func (sender *sender) sendToNode(
 
 func (sender *sender) sendToBeacon(
 	guid *guid.GUID,
-	message *bytes.Buffer,
+	data *bytes.Buffer,
 ) ([]*protocol.SendResponse, int) {
 	clients := sender.Clients()
 	l := len(clients)
@@ -589,7 +589,7 @@ func (sender *sender) sendToBeacon(
 					sender.log(logger.Fatal, err)
 				}
 			}()
-			response <- c.SendToBeacon(guid, message)
+			response <- c.SendToBeacon(guid, data)
 		}(c)
 	}
 	var success int
