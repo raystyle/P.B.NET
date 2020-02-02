@@ -52,6 +52,7 @@ func TestMain(m *testing.M) {
 	}
 	if leaks {
 		fmt.Println("[warning] goroutine leaks!")
+		time.Sleep(time.Minute)
 		os.Exit(1)
 	}
 
@@ -60,6 +61,7 @@ func TestMain(m *testing.M) {
 		ctrl = nil
 		if !testsuite.Destroyed(ctrlC) {
 			fmt.Println("[warning] controller is not destroyed")
+			time.Sleep(time.Minute)
 			os.Exit(1)
 		}
 	}

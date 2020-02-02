@@ -3,7 +3,6 @@ package test
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"testing"
@@ -23,6 +22,8 @@ import (
 // controller connect the initial node
 // controller broadcast
 func TestController_Broadcast(t *testing.T) {
+	t.Skip()
+
 	iNode := generateInitialNodeAndTrust(t)
 	iNodeGUID := iNode.GUID()
 
@@ -162,8 +163,7 @@ func TestNode_SendDirectly(t *testing.T) {
 	}
 
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(NodeGUID))
-	err := ctrl.Disconnect(guid)
+	err := ctrl.Disconnect(NodeGUID)
 	require.NoError(t, err)
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)

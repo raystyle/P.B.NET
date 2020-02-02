@@ -2,7 +2,6 @@ package test
 
 import (
 	"encoding/hex"
-	"fmt"
 	"testing"
 	"time"
 
@@ -42,8 +41,6 @@ func TestExecuteShellCode(t *testing.T) {
 
 func TestShell(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
-
-	fmt.Println("Node GUID:", hex.EncodeToString(iNode.GUID()))
 
 	shell := messages.Shell{
 		Command: "systeminfo",
