@@ -159,7 +159,7 @@ func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
 	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.Connect(bListener, Node.GUID())
+	err = ctrl.Synchronize(context.Background(), Node.GUID(), bListener)
 	require.NoError(t, err)
 	return Node
 }

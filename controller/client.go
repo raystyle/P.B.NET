@@ -33,7 +33,7 @@ import (
 type Client struct {
 	ctx *CTRL
 
-	guid      []byte // node guid
+	guid      *guid.GUID // node guid
 	closeFunc func()
 
 	tag       string
@@ -51,13 +51,13 @@ type Client struct {
 }
 
 // NewClient is used to create a client and connect node listener
-// when guid == nil       for trust node
-// when guid != ctrl guid for sender client
-// when guid == ctrl guid for discovery
+// when GUID == nil      for trust node
+// when GUID != CtrlGUID for sender client
+// when GUID == CtrlGUID for discovery
 func (ctrl *CTRL) NewClient(
 	ctx context.Context,
 	listener *bootstrap.Listener,
-	guid []byte,
+	guid *guid.GUID,
 	closeFunc func(),
 ) (*Client, error) {
 	// dial
@@ -175,8 +175,8 @@ func (client *Client) log(lv logger.Level, log ...interface{}) {
 
 func (client *Client) logExtra(lv logger.Level, buf *bytes.Buffer) {
 	if client.guid != nil {
-		const format = "----------------connected node guid-----------------\n%X\n%X\n"
-		_, _ = fmt.Fprintf(buf, format, client.guid[:guid.Size/2], client.guid[guid.Size/2:])
+		const format = "----------------connected node guid-----------------\n%s\n"
+		_, _ = fmt.Fprintf(buf, format, client.guid.Hex())
 	}
 	const conn = "-----------------connection status------------------\n%s\n"
 	_, _ = fmt.Fprintf(buf, conn, client.conn)
@@ -239,6 +239,7 @@ func (client *Client) handshake(conn *xnet.Conn) error {
 	return conn.SetDeadline(time.Time{})
 }
 
+// TODO improve it, server side use "white" method
 func (client *Client) checkConn(conn *xnet.Conn) error {
 	size := byte(100 + client.rand.Int(156))
 	data := client.rand.Bytes(int(size))
@@ -248,9 +249,8 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 	}
 	n, err := io.ReadFull(conn, data)
 	if err != nil {
-		d := data[:n]
-		const format = "error in client.checkConn(): %s\nreceive unexpected check data\n%s\n\n%X"
-		client.logf(logger.Exploit, format, err, d, d)
+		const format = "error in client.checkConn(): %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(data[:n]))
 		return err
 	}
 	return nil
@@ -535,6 +535,7 @@ func (client *Client) handleNodeSend(id, data []byte) {
 		client.Close()
 		return
 	}
+
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(send.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)

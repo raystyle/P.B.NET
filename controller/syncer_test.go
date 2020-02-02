@@ -32,8 +32,8 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(context.Background(), node, req)
 	require.NoError(t, err)
 	// connect
-	err = ctrl.sender.Connect(node, NodeGUID)
-	require.NoError(t, err)
+	// err = ctrl.sender.Connect(node, NodeGUID)
+	// require.NoError(t, err)
 	// node broadcast test message
 	ch := ctrl.Test.CreateNodeSendTestMessageChannel(NodeGUID)
 	msg := []byte("connected-node-send: hello controller")

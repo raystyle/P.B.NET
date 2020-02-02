@@ -195,17 +195,8 @@ func (sender *sender) isClosed() bool {
 	return atomic.LoadInt32(&sender.inClose) != 0
 }
 
-// Connect is used to connect node for sync message
-func (sender *sender) Connect(listener *bootstrap.Listener, guid []byte) error {
-	return sender.ConnectWithContext(sender.context, listener, guid)
-}
-
-// ConnectWithContext is used to connect node listener with context
-func (sender *sender) ConnectWithContext(
-	ctx context.Context,
-	listener *bootstrap.Listener,
-	guid []byte,
-) error {
+// Synchronize is used to connect a node listener and start synchronize
+func (sender *sender) Synchronize(ctx context.Context, guid []byte, bl *bootstrap.Listener) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -216,22 +207,27 @@ func (sender *sender) ConnectWithContext(
 	}
 	key := strings.ToUpper(hex.EncodeToString(guid))
 	if _, ok := sender.clients[key]; ok {
-		return errors.Errorf("connect the same node listener %s", listener)
+		const format = "already connected the target node\nGUID: %X\n%X"
+		return errors.Errorf(format, guid[:len(guid)/2], guid[len(guid)/2:])
 	}
-	client, err := sender.ctx.NewClient(ctx, listener, guid, func() {
+	// connect
+	client, err := sender.ctx.NewClient(ctx, bl, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, key)
 	})
 	if err != nil {
-		return errors.WithMessage(err, "failed to connect node listener")
+		const format = "failed to connect node\n%s\nGUID: %X\n%X"
+		return errors.WithMessagef(err, format, bl, guid[:len(guid)/2], guid[len(guid)/2:])
 	}
 	err = client.Synchronize()
 	if err != nil {
-		return err
+		const format = "failed to start synchronize\n%s\nGUID: %X\n%X"
+		return errors.WithMessagef(err, format, bl, guid[:len(guid)/2], guid[len(guid)/2:])
 	}
 	sender.clients[key] = client
-	sender.logf(logger.Info, "connect node listener: %s", listener)
+	const format = "synchronize: %s\nGUID: %X\n%X"
+	sender.logf(logger.Info, format, bl, guid[:len(guid)/2], guid[len(guid)/2:])
 	return nil
 }
 

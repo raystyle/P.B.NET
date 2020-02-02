@@ -279,9 +279,9 @@ func TestDeleteListener(t *testing.T) {
 func TestInsertNode(t *testing.T) {
 	testInitializeController(t)
 	node := &mNode{
-		GUID:       bytes.Repeat([]byte{52}, guid.Size),
-		SessionKey: bytes.Repeat([]byte{52}, aes.Key256Bit),
-		PublicKey:  bytes.Repeat([]byte{52}, ed25519.PublicKeySize),
+		GUID:       bytes.Repeat([]byte{48}, guid.Size),
+		SessionKey: bytes.Repeat([]byte{48}, aes.Key256Bit),
+		PublicKey:  bytes.Repeat([]byte{48}, ed25519.PublicKeySize),
 	}
 	err := ctrl.database.db.Unscoped().Delete(node).Error
 	require.NoError(t, err)
@@ -319,12 +319,12 @@ func TestInsertNode(t *testing.T) {
 
 func TestDeleteNode(t *testing.T) {
 	testInitializeController(t)
-	err := ctrl.database.DeleteNode(bytes.Repeat([]byte{52}, guid.Size))
+	err := ctrl.database.DeleteNode(bytes.Repeat([]byte{48}, guid.Size))
 	require.NoError(t, err)
 }
 
 func TestDeleteNodeUnscoped(t *testing.T) {
 	testInitializeController(t)
-	err := ctrl.database.DeleteNodeUnscoped(bytes.Repeat([]byte{52}, guid.Size))
+	err := ctrl.database.DeleteNodeUnscoped(bytes.Repeat([]byte{48}, guid.Size))
 	require.NoError(t, err)
 }

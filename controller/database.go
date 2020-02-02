@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
 	"sync"
 
 	"github.com/go-sql-driver/mysql"
@@ -72,77 +71,58 @@ func (db *database) Close() {
 	db.dbLogger.Close()
 }
 
-// key = hex(guid) lower
 type cache struct {
-	nodes      map[string]*mNode
+	nodes      map[guid.GUID]*mNode
 	nodesRWM   sync.RWMutex
-	beacons    map[string]*mBeacon
+	beacons    map[guid.GUID]*mBeacon
 	beaconsRWM sync.RWMutex
-
-	// calculate key
-	hexPool sync.Pool
 }
 
 func newCache() *cache {
-	c := cache{
-		nodes:   make(map[string]*mNode),
-		beacons: make(map[string]*mBeacon),
+	return &cache{
+		nodes:   make(map[guid.GUID]*mNode),
+		beacons: make(map[guid.GUID]*mBeacon),
 	}
-	c.hexPool.New = func() interface{} {
-		return make([]byte, 2*guid.Size)
-	}
-	return &c
 }
 
-func (cache *cache) calculateKey(guid []byte) string {
-	dst := cache.hexPool.Get().([]byte)
-	defer cache.hexPool.Put(dst)
-	hex.Encode(dst, guid)
-	return string(dst)
-}
-
-func (cache *cache) SelectNode(guid []byte) *mNode {
-	key := cache.calculateKey(guid)
+func (cache *cache) SelectNode(guid *guid.GUID) *mNode {
 	cache.nodesRWM.RLock()
 	defer cache.nodesRWM.RUnlock()
-	return cache.nodes[key]
+	return cache.nodes[*guid]
 }
 
 func (cache *cache) InsertNode(node *mNode) {
-	key := hex.EncodeToString(node.GUID) // not use hexPool
 	cache.nodesRWM.Lock()
 	defer cache.nodesRWM.Unlock()
-	if _, ok := cache.nodes[key]; !ok {
-		cache.nodes[key] = node
+	if _, ok := cache.nodes[node.GUID]; !ok {
+		cache.nodes[node.GUID] = node
 	}
 }
 
-func (cache *cache) DeleteNode(guid string) {
+func (cache *cache) DeleteNode(guid *guid.GUID) {
 	cache.nodesRWM.Lock()
 	defer cache.nodesRWM.Unlock()
-	delete(cache.nodes, guid)
+	delete(cache.nodes, *guid)
 }
 
-func (cache *cache) SelectBeacon(guid []byte) *mBeacon {
-	key := cache.calculateKey(guid)
+func (cache *cache) SelectBeacon(guid *guid.GUID) *mBeacon {
 	cache.beaconsRWM.RLock()
 	defer cache.beaconsRWM.RUnlock()
-	return cache.beacons[key]
+	return cache.beacons[*guid]
 }
 
 func (cache *cache) InsertBeacon(beacon *mBeacon) {
-	key := hex.EncodeToString(beacon.GUID) // not use hexPool
 	cache.beaconsRWM.Lock()
 	defer cache.beaconsRWM.Unlock()
-	if _, ok := cache.beacons[key]; !ok {
-		cache.beacons[key] = beacon
+	if _, ok := cache.beacons[beacon.GUID]; !ok {
+		cache.beacons[beacon.GUID] = beacon
 	}
 }
 
-func (cache *cache) DeleteBeacon(guid string) {
+func (cache *cache) DeleteBeacon(guid *guid.GUID) {
 	cache.beaconsRWM.Lock()
 	defer cache.beaconsRWM.Unlock()
-	delete(cache.beacons, guid)
+	delete(cache.beacons, *guid)
 }
 
 func (db *database) InsertCtrlLog(m *mCtrlLog) error {
@@ -246,7 +226,7 @@ func (db *database) DeleteListener(id uint64) error {
 
 // ------------------------------------node-------------------------------------------
 
-func (db *database) SelectNode(guid []byte) (node *mNode, err error) {
+func (db *database) SelectNode(guid *guid.GUID) (node *mNode, err error) {
 	node = db.cache.SelectNode(guid)
 	if node != nil {
 		return
@@ -269,8 +249,11 @@ func (db *database) InsertNode(m *mNode) error {
 	return nil
 }
 
-func (db *database) DeleteNode(guid []byte) error {
-	tx := db.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+func (db *database) DeleteNode(guid *guid.GUID) error {
+	tx := db.db.BeginTx(
+		context.Background(),
+		&sql.TxOptions{Isolation: sql.LevelSerializable},
+	)
 	err := tx.Error
 	if err != nil {
 		return err
@@ -279,18 +262,18 @@ func (db *database) DeleteNode(guid []byte) error {
 		if err != nil {
 			tx.Rollback()
 		} else {
-			db.cache.DeleteNode(base64.StdEncoding.EncodeToString(guid))
+			db.cache.DeleteNode(guid)
 		}
 	}()
-	err = tx.Delete(&mNode{GUID: guid}).Error
+	err = tx.Delete(&mNode{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&mNodeListener{GUID: guid}).Error
+	err = tx.Delete(&mNodeListener{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Table(tableNodeLog).Delete(&mRoleLog{GUID: guid}).Error
+	err = tx.Table(tableNodeLog).Delete(&mRoleLog{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}
@@ -298,12 +281,12 @@ func (db *database) DeleteNode(guid []byte) error {
 	return err
 }
 
-func (db *database) DeleteNodeUnscoped(guid []byte) error {
-	err := db.db.Unscoped().Delete(&mNode{GUID: guid}).Error
+func (db *database) DeleteNodeUnscoped(guid *guid.GUID) error {
+	err := db.db.Unscoped().Delete(&mNode{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}
-	db.cache.DeleteNode(base64.StdEncoding.EncodeToString(guid))
+	db.cache.DeleteNode(guid)
 	return nil
 }
 
@@ -325,7 +308,7 @@ func (db *database) DeleteNodeLog(id uint64) error {
 
 // -----------------------------------beacon------------------------------------------
 
-func (db *database) SelectBeacon(guid []byte) (beacon *mBeacon, err error) {
+func (db *database) SelectBeacon(guid *guid.GUID) (beacon *mBeacon, err error) {
 	beacon = db.cache.SelectBeacon(guid)
 	if beacon != nil {
 		return
@@ -348,8 +331,11 @@ func (db *database) InsertBeacon(m *mBeacon) error {
 	return nil
 }
 
-func (db *database) DeleteBeacon(guid []byte) error {
-	tx := db.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+func (db *database) DeleteBeacon(guid *guid.GUID) error {
+	tx := db.db.BeginTx(
+		context.Background(),
+		&sql.TxOptions{Isolation: sql.LevelSerializable},
+	)
 	err := tx.Error
 	if err != nil {
 		return err
@@ -358,18 +344,18 @@ func (db *database) DeleteBeacon(guid []byte) error {
 		if err != nil {
 			tx.Rollback()
 		} else {
-			db.cache.DeleteBeacon(base64.StdEncoding.EncodeToString(guid))
+			db.cache.DeleteBeacon(guid)
 		}
 	}()
-	err = tx.Delete(&mBeacon{GUID: guid}).Error
+	err = tx.Delete(&mBeacon{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&mBeaconListener{GUID: guid}).Error
+	err = tx.Delete(&mBeaconListener{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{GUID: guid}).Error
+	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}
@@ -378,7 +364,7 @@ func (db *database) DeleteBeacon(guid []byte) error {
 }
 
 func (db *database) DeleteBeaconUnscoped(guid []byte) error {
-	err := db.db.Unscoped().Delete(&mBeacon{GUID: guid}).Error
+	err := db.db.Unscoped().Delete(&mBeacon{GUID: *guid}).Error
 	if err != nil {
 		return err
 	}

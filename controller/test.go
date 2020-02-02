@@ -2,11 +2,11 @@ package controller
 
 import (
 	"context"
-	"encoding/hex"
 	"sync"
 
 	"github.com/pkg/errors"
 
+	"project/internal/guid"
 	"project/internal/messages"
 )
 
@@ -19,10 +19,10 @@ type Test struct {
 	// about sender send test message
 	roleSendTestMsgEnabled bool
 	// Node send test message, key = Node GUID hex
-	nodeSendTestMsg    map[string]chan []byte
+	nodeSendTestMsg    map[guid.GUID]chan []byte
 	nodeSendTestMsgRWM sync.RWMutex
 	// Beacon send test message , key = Beacon GUID hex
-	beaconSendTestMsg    map[string]chan []byte
+	beaconSendTestMsg    map[guid.GUID]chan []byte
 	beaconSendTestMsgRWM sync.RWMutex
 
 	// about role register request
@@ -32,47 +32,42 @@ type Test struct {
 
 // EnableRoleSendTestMessage is used to enable role send test message
 func (t *Test) EnableRoleSendTestMessage() {
-	t.roleSendTestMsgEnabled = true
+	if !t.roleSendTestMsgEnabled {
+		t.roleSendTestMsgEnabled = true
+		t.nodeSendTestMsg = make(map[guid.GUID]chan []byte)
+		t.beaconSendTestMsg = make(map[guid.GUID]chan []byte)
+	}
 }
 
 // CreateNodeSendTestMessageChannel is used to create node send test message channel
-func (t *Test) CreateNodeSendTestMessageChannel(guid []byte) chan []byte {
-	key := hex.EncodeToString(guid)
+func (t *Test) CreateNodeSendTestMessageChannel(guid *guid.GUID) chan []byte {
 	t.nodeSendTestMsgRWM.Lock()
 	defer t.nodeSendTestMsgRWM.Unlock()
-	if t.nodeSendTestMsg == nil {
-		t.nodeSendTestMsg = make(map[string]chan []byte)
-	}
-	if ch, ok := t.nodeSendTestMsg[key]; ok {
+	if ch, ok := t.nodeSendTestMsg[*guid]; ok {
 		return ch
 	}
 	ch := make(chan []byte, 4)
-	t.nodeSendTestMsg[key] = ch
+	t.nodeSendTestMsg[*guid] = ch
 	return ch
 }
 
 // CreateBeaconSendTestMessageChannel is used to create beacon send test message channel
-func (t *Test) CreateBeaconSendTestMessageChannel(guid []byte) chan []byte {
-	key := hex.EncodeToString(guid)
+func (t *Test) CreateBeaconSendTestMessageChannel(guid *guid.GUID) chan []byte {
 	t.beaconSendTestMsgRWM.Lock()
 	defer t.beaconSendTestMsgRWM.Unlock()
-	if t.beaconSendTestMsg == nil {
-		t.beaconSendTestMsg = make(map[string]chan []byte)
-	}
-	if ch, ok := t.beaconSendTestMsg[key]; ok {
+	if ch, ok := t.beaconSendTestMsg[*guid]; ok {
 		return ch
 	}
 	ch := make(chan []byte, 4)
-	t.beaconSendTestMsg[key] = ch
+	t.beaconSendTestMsg[*guid] = ch
 	return ch
 }
 
 // AddNodeSendTestMessage is used to add node send test message
-func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid, message []byte) error {
-	key := hex.EncodeToString(guid)
+func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
 	t.nodeSendTestMsgRWM.Lock()
 	defer t.nodeSendTestMsgRWM.Unlock()
-	ch, ok := t.nodeSendTestMsg[key]
+	ch, ok := t.nodeSendTestMsg[*guid]
 	if !ok {
 		return errors.Errorf("node: %X doesn't exists", guid)
 	}
@@ -85,11 +80,10 @@ func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid, message []byte)
 }
 
 // AddBeaconSendTestMessage is used to add beacon send test message
-func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid, message []byte) error {
-	key := hex.EncodeToString(guid)
+func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
 	t.beaconSendTestMsgRWM.Lock()
 	defer t.beaconSendTestMsgRWM.Unlock()
-	ch, ok := t.beaconSendTestMsg[key]
+	ch, ok := t.beaconSendTestMsg[*guid]
 	if !ok {
 		return errors.Errorf("beacon: %X doesn't exists", guid)
 	}

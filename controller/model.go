@@ -7,6 +7,8 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
+
+	"project/internal/guid"
 )
 
 // set gorm.TheNamingStrategy.Table
@@ -91,7 +93,7 @@ type mListener struct {
 
 type mNode struct {
 	ID          uint64     `gorm:"primary_key"`
-	GUID        []byte     `gorm:"type:binary(52);not null" sql:"index"`
+	GUID        guid.GUID  `gorm:"type:binary(48);not null" sql:"index"`
 	PublicKey   []byte     `gorm:"type:binary(32);not null"`
 	SessionKey  []byte     `gorm:"type:binary(32);not null"`
 	IsBootstrap bool       `gorm:"not null"`
@@ -101,7 +103,7 @@ type mNode struct {
 
 type mNodeListener struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
+	GUID      guid.GUID  `gorm:"type:binary(48);not null" sql:"index"`
 	Tag       string     `gorm:"size:32;not null"`
 	Mode      string     `gorm:"size:32;not null"`
 	Network   string     `gorm:"size:32;not null"`
@@ -112,7 +114,7 @@ type mNodeListener struct {
 
 type mBeacon struct {
 	ID         uint64     `gorm:"primary_key"`
-	GUID       []byte     `gorm:"type:binary(52);not null" sql:"index"`
+	GUID       guid.GUID  `gorm:"type:binary(48);not null" sql:"index"`
 	PublicKey  []byte     `gorm:"type:binary(32);not null"`
 	SessionKey []byte     `gorm:"type:binary(32);not null"`
 	CreatedAt  time.Time  `gorm:"not null"`
@@ -121,7 +123,7 @@ type mBeacon struct {
 
 type mBeaconListener struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
+	GUID      guid.GUID  `gorm:"type:binary(48);not null" sql:"index"`
 	Tag       string     `gorm:"size:32;not null"`
 	Mode      string     `gorm:"size:32;not null"`
 	Network   string     `gorm:"size:32;not null"`
@@ -132,18 +134,18 @@ type mBeaconListener struct {
 
 type mBeaconMessage struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(52)"`
+	GUID      guid.GUID  `gorm:"not null;type:binary(48)"`
 	Message   []byte     `gorm:"not null;type:MEDIUMBLOB"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
-// 52 = internal/guid/guid.go  guid.Size
+// 48 = internal/guid/guid.go  guid.Size
 // beacon & node log
 type mRoleLog struct {
 	ID        uint64     `gorm:"primary_key"`
 	CreatedAt time.Time  `gorm:"not null"`
-	GUID      []byte     `gorm:"type:binary(52);not null" sql:"index"`
+	GUID      guid.GUID  `gorm:"type:binary(48);not null" sql:"index"`
 	Level     uint8      `gorm:"not null"`
 	Source    string     `gorm:"size:32;not null"`
 	Log       string     `gorm:"size:16000;not null"`

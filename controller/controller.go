@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"io/ioutil"
 	"sync"
 
@@ -192,9 +193,9 @@ func (ctrl *CTRL) LoadSessionKey(data, password []byte) error {
 	return ctrl.global.LoadSessionKey(data, password)
 }
 
-// Connect is used to connect node listener
-func (ctrl *CTRL) Connect(listener *bootstrap.Listener, guid []byte) error {
-	return ctrl.sender.Connect(listener, guid)
+// Synchronize is used to connect a node and start synchronize
+func (ctrl *CTRL) Synchronize(ctx context.Context, guid []byte, bl *bootstrap.Listener) error {
+	return ctrl.sender.Synchronize(ctx, guid, bl)
 }
 
 // Disconnect is used to disconnect node, guid is hex, upper
@@ -205,6 +206,11 @@ func (ctrl *CTRL) Disconnect(guid string) error {
 // Send is used to send messages to Node or Beacon
 func (ctrl *CTRL) Send(role protocol.Role, guid, cmd []byte, msg interface{}) error {
 	return ctrl.sender.Send(role, guid, cmd, msg)
+}
+
+// Broadcast is used to broadcast messages to all Nodes
+func (ctrl *CTRL) Broadcast(cmd []byte, msg interface{}) error {
+	return ctrl.sender.Broadcast(cmd, msg)
 }
 
 // AcceptRegisterNode is used to accept register node

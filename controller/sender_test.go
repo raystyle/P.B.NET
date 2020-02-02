@@ -29,61 +29,11 @@ func TestSender_Connect(t *testing.T) {
 	testsuite.IsDestroyed(t, Node)
 }
 
-func TestSender_SendToNode(t *testing.T) {
-	Node := testGenerateInitialNodeAndTrust(t)
-	nodeGUID := Node.GUID()
-
-	const (
-		goroutines = 256
-		times      = 64
-	)
-	send := func(start int) {
-		for i := start; i < start+times; i++ {
-			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.Send(protocol.Node, nodeGUID, messages.CMDBTest, msg)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-		}
-	}
-	for i := 0; i < goroutines; i++ {
-		go send(i * times)
-	}
-	recv := bytes.Buffer{}
-	timer := time.NewTimer(3 * time.Second)
-	for i := 0; i < goroutines*times; i++ {
-		timer.Reset(3 * time.Second)
-		select {
-		case b := <-Node.Test.SendTestMsg:
-			recv.Write(b)
-			recv.WriteString("\n")
-		case <-timer.C:
-			t.Fatalf("read Node.Test.Send timeout i: %d", i)
-		}
-	}
-	select {
-	case <-Node.Test.SendTestMsg:
-		t.Fatal("redundancy send")
-	case <-time.After(time.Second):
-	}
-	str := recv.String()
-	for i := 0; i < goroutines*times; i++ {
-		need := fmt.Sprintf("test send %d", i)
-		require.True(t, strings.Contains(str, need), "lost: %s", need)
-	}
-
-	// clean
-	guid := strings.ToUpper(hex.EncodeToString(nodeGUID))
-	err := ctrl.sender.Disconnect(guid)
-	require.NoError(t, err)
-	Node.Exit(nil)
-	testsuite.IsDestroyed(t, Node)
-}
-
 func TestSender_Broadcast(t *testing.T) {
 	Node := testGenerateInitialNodeAndTrust(t)
+	Node.Test.EnableTestMessage()
 
+	// broadcast
 	const (
 		goroutines = 256
 		times      = 64
@@ -110,7 +60,7 @@ func TestSender_Broadcast(t *testing.T) {
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read NODE.Test.Broadcast timeout i: %d", i)
+			t.Fatalf("read NODE.Test.BroadcastTestMsg timeout i: %d", i)
 		}
 	}
 	select {
@@ -132,15 +82,16 @@ func TestSender_Broadcast(t *testing.T) {
 	testsuite.IsDestroyed(t, Node)
 }
 
-func TestBenchmarkSender_SendToNode(t *testing.T) {
+func TestSender_SendToNode(t *testing.T) {
 	Node := testGenerateInitialNodeAndTrust(t)
 	nodeGUID := Node.GUID()
+	Node.Test.EnableTestMessage()
 
-	var (
-		goroutines = runtime.NumCPU()
-		times      = 600000
+	// send
+	const (
+		goroutines = 256
+		times      = 64
 	)
-	start := time.Now()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
@@ -149,28 +100,32 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			// time.Sleep(time.Second)
 		}
 	}
 	for i := 0; i < goroutines; i++ {
 		go send(i * times)
 	}
-	total := goroutines * times
+	recv := bytes.Buffer{}
 	timer := time.NewTimer(3 * time.Second)
-	for i := 0; i < total; i++ {
+	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case <-Node.Test.SendTestMsg:
+		case b := <-Node.Test.SendTestMsg:
+			recv.Write(b)
+			recv.WriteString("\n")
 		case <-timer.C:
 			t.Fatalf("read Node.Test.SendTestMsg timeout i: %d", i)
 		}
 	}
-	stop := time.Since(start).Seconds()
-	t.Logf("[benchmark] total time: %.2fs, times: %d", stop, total)
 	select {
 	case <-Node.Test.SendTestMsg:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
+	}
+	str := recv.String()
+	for i := 0; i < goroutines*times; i++ {
+		need := fmt.Sprintf("test send %d", i)
+		require.True(t, strings.Contains(str, need), "lost: %s", need)
 	}
 
 	// clean
@@ -221,4 +176,54 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 	}
 	wg.Wait()
 	b.StopTimer()
+}
+
+func TestBenchmarkSender_SendToNode(t *testing.T) {
+	Node := testGenerateInitialNodeAndTrust(t)
+	nodeGUID := Node.GUID()
+	Node.Test.EnableTestMessage()
+
+	var (
+		goroutines = runtime.NumCPU()
+		times      = 600000
+	)
+	start := time.Now()
+	send := func(start int) {
+		for i := start; i < start+times; i++ {
+			msg := []byte(fmt.Sprintf("test send %d", i))
+			err := ctrl.sender.Send(protocol.Node, nodeGUID, messages.CMDBTest, msg)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			// time.Sleep(time.Second)
+		}
+	}
+	for i := 0; i < goroutines; i++ {
+		go send(i * times)
+	}
+	total := goroutines * times
+	timer := time.NewTimer(3 * time.Second)
+	for i := 0; i < total; i++ {
+		timer.Reset(3 * time.Second)
+		select {
+		case <-Node.Test.SendTestMsg:
+		case <-timer.C:
+			t.Fatalf("read Node.Test.SendTestMsg timeout i: %d", i)
+		}
+	}
+	stop := time.Since(start).Seconds()
+	t.Logf("[benchmark] total time: %.2fs, times: %d", stop, total)
+	select {
+	case <-Node.Test.SendTestMsg:
+		t.Fatal("redundancy send")
+	case <-time.After(time.Second):
+	}
+
+	// clean
+	guid := strings.ToUpper(hex.EncodeToString(nodeGUID))
+	err := ctrl.sender.Disconnect(guid)
+	require.NoError(t, err)
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }
