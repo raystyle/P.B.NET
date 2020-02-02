@@ -5,23 +5,30 @@ import (
 	"strings"
 )
 
-func generateCheckGUID(need []string) {
+func generateCheckGUIDSlice(need []string) {
 	const template = `
-func (syncer *syncer) Check<f>GUID(guid []byte, add bool, timestamp int64) bool {
-	key := syncer.calculateKey(guid)
-	if add {
-		syncer.<a>GUIDRWM.Lock()
-		defer syncer.<a>GUIDRWM.Unlock()
-		if _, ok := syncer.<a>GUID[key]; ok {
-			return false
-		}
-		syncer.<a>GUID[key] = timestamp
-		return true
-	}
+func (syncer *syncer) Check<f>GUIDSlice(slice []byte) bool {
+	key := syncer.mapKeyPool.Get().(guid.GUID)
+	defer syncer.mapKeyPool.Put(key)
+	copy(key[:], slice)
 	syncer.<a>GUIDRWM.RLock()
 	defer syncer.<a>GUIDRWM.RUnlock()
 	_, ok := syncer.<a>GUID[key]
 	return !ok
+}`
+	generateCodeAboutSyncer(template, need)
+}
+
+func generateCheckGUID(need []string) {
+	const template = `
+func (syncer *syncer) Check<f>GUID(guid *guid.GUID, timestamp int64) bool {
+	syncer.<a>GUIDRWM.Lock()
+	defer syncer.<a>GUIDRWM.Unlock()
+	if _, ok := syncer.<a>GUID[*guid]; ok {
+		return false
+	}
+	syncer.<a>GUID[*guid] = timestamp
+	return true
 }`
 	generateCodeAboutSyncer(template, need)
 }
@@ -60,4 +67,5 @@ func generateCodeAboutSyncer(template string, need []string) {
 		f := strings.ToUpper(need[i][:1]) + need[i][1:]
 		fmt.Println(strings.ReplaceAll(a, "<f>", f))
 	}
+	fmt.Println()
 }

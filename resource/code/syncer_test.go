@@ -14,6 +14,7 @@ var ctrlSyncerNeed = []string{
 }
 
 var nodeSyncerNeed = []string{
+	// from Controller
 	"sendToNode",
 	"sendToBeacon",
 	"ackToNode",
@@ -21,56 +22,84 @@ var nodeSyncerNeed = []string{
 	"broadcast",
 	"answer",
 
+	// from Node
 	"nodeSend",
 	"nodeAck",
 
+	// from Beacon
 	"beaconSend",
 	"beaconAck",
 	"query",
 }
 
-func TestGenerateCTRLSyncer(_ *testing.T) {
-	TestGenerateCTRLSyncerCheckGUID(nil)
-	fmt.Println()
-	TestGenerateCTRLSyncerCleanGUID(nil)
-	fmt.Println()
-	TestGenerateCTRLSyncerCleanGUIDMap(nil)
+var beaconSyncerNeed = []string{
+	"sendToBeacon",
+	"ackToBeacon",
+	"answer",
 }
 
-func TestGenerateNodeSyncer(_ *testing.T) {
-	TestGenerateNodeSyncerCheckGUID(nil)
-	fmt.Println()
-	TestGenerateNodeSyncerCleanGUID(nil)
-	fmt.Println()
-	TestGenerateNodeSyncerCleanGUIDMap(nil)
+func TestGenerateControllerSyncer(t *testing.T) {
+	t.Run("CheckGUIDSlice", func(t *testing.T) {
+		fmt.Println("-------------generate Controller syncer CheckGUIDSlice------------------")
+		generateCheckGUIDSlice(ctrlSyncerNeed)
+	})
+
+	t.Run("CheckGUID", func(t *testing.T) {
+		fmt.Println("----------------generate Controller syncer CheckGUID--------------------")
+		generateCheckGUID(ctrlSyncerNeed)
+	})
+
+	t.Run("CleanGUID", func(t *testing.T) {
+		fmt.Println("----------------generate Controller syncer CleanGUID--------------------")
+		generateCleanGUID(ctrlSyncerNeed)
+	})
+
+	t.Run("CleanGUIDMap", func(t *testing.T) {
+		fmt.Println("---------------generate Controller syncer CleanGUIDMap------------------")
+		generateCleanGUIDMap(ctrlSyncerNeed)
+	})
 }
 
-func TestGenerateCTRLSyncerCheckGUID(_ *testing.T) {
-	fmt.Println("---------------------generate CTRL CheckGUID-------------------------")
-	generateCheckGUID(ctrlSyncerNeed)
+func TestGenerateNodeSyncer(t *testing.T) {
+	t.Run("CheckGUIDSlice", func(t *testing.T) {
+		fmt.Println("-----------------generate Node syncer CheckGUIDSlice--------------------")
+		generateCheckGUIDSlice(nodeSyncerNeed)
+	})
+
+	t.Run("CheckGUID", func(t *testing.T) {
+		fmt.Println("-------------------generate Node syncer CheckGUID-----------------------")
+		generateCheckGUID(nodeSyncerNeed)
+	})
+
+	t.Run("CleanGUID", func(t *testing.T) {
+		fmt.Println("-------------------generate Node syncer CleanGUID-----------------------")
+		generateCleanGUID(nodeSyncerNeed)
+	})
+
+	t.Run("CleanGUIDMap", func(t *testing.T) {
+		fmt.Println("------------------generate Node syncer CleanGUIDMap---------------------")
+		generateCleanGUIDMap(nodeSyncerNeed)
+	})
 }
 
-func TestGenerateCTRLSyncerCleanGUID(_ *testing.T) {
-	fmt.Println("---------------------generate CTRL CleanGUID-------------------------")
-	generateCleanGUID(ctrlSyncerNeed)
-}
+func TestGenerateBeaconSyncer(t *testing.T) {
+	t.Run("CheckGUIDSlice", func(t *testing.T) {
+		fmt.Println("----------------generate Beacon syncer CheckGUIDSlice-------------------")
+		generateCheckGUIDSlice(beaconSyncerNeed)
+	})
 
-func TestGenerateCTRLSyncerCleanGUIDMap(_ *testing.T) {
-	fmt.Println("--------------------generate CTRL CleanGUIDMap-----------------------")
-	generateCleanGUIDMap(ctrlSyncerNeed)
-}
+	t.Run("CheckGUID", func(t *testing.T) {
+		fmt.Println("------------------generate Beacon syncer CheckGUID----------------------")
+		generateCheckGUID(beaconSyncerNeed)
+	})
 
-func TestGenerateNodeSyncerCheckGUID(_ *testing.T) {
-	fmt.Println("---------------------generate node CheckGUID-------------------------")
-	generateCheckGUID(nodeSyncerNeed)
-}
+	t.Run("CleanGUID", func(t *testing.T) {
+		fmt.Println("------------------generate Beacon syncer CleanGUID----------------------")
+		generateCleanGUID(beaconSyncerNeed)
+	})
 
-func TestGenerateNodeSyncerCleanGUID(_ *testing.T) {
-	fmt.Println("---------------------generate node CleanGUID-------------------------")
-	generateCleanGUID(nodeSyncerNeed)
-}
-
-func TestGenerateNodeSyncerCleanGUIDMap(_ *testing.T) {
-	fmt.Println("--------------------generate node CleanGUIDMap-----------------------")
-	generateCleanGUIDMap(nodeSyncerNeed)
+	t.Run("CleanGUIDMap", func(t *testing.T) {
+		fmt.Println("-----------------generate Beacon syncer CleanGUIDMap--------------------")
+		generateCleanGUIDMap(beaconSyncerNeed)
+	})
 }
