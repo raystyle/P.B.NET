@@ -20,7 +20,8 @@ func TestIssueCertificate(t *testing.T) {
 	privateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
 	nodeGUID := guid.GUID{}
-	copy(nodeGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	err = nodeGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
+	require.NoError(t, err)
 
 	// issue a Node certificate
 	cert := Certificate{
@@ -47,7 +48,8 @@ func TestCertificate_VerifySignature(t *testing.T) {
 	privateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
 	nodeGUID := guid.GUID{}
-	copy(nodeGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	err = nodeGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
+	require.NoError(t, err)
 
 	// issue a Node certificate
 	cert := Certificate{
@@ -84,7 +86,8 @@ func TestVerifyCertificate(t *testing.T) {
 	nodePrivateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
 	nodeGUID := new(guid.GUID)
-	copy(nodeGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	err = nodeGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
+	require.NoError(t, err)
 
 	// issue a Node certificate
 	cert := Certificate{

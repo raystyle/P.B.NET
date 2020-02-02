@@ -14,6 +14,18 @@ import (
 )
 
 func TestGUID(t *testing.T) {
+	t.Run("Write", func(t *testing.T) {
+		expect := bytes.Repeat([]byte{1}, Size)
+		guid := GUID{}
+		err := guid.Write(expect)
+		require.NoError(t, err)
+		require.Equal(t, expect, guid[:])
+
+		// invalid slice size
+		err = guid.Write(bytes.Repeat([]byte{1}, Size-1))
+		require.Error(t, err)
+	})
+
 	t.Run("String", func(t *testing.T) {
 		guid := GUID{}
 		copy(guid[Size/2:], bytes.Repeat([]byte{1}, Size/2))

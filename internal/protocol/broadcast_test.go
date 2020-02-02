@@ -13,9 +13,10 @@ import (
 	"project/internal/random"
 )
 
-func testGenerateBroadcast() *Broadcast {
+func testGenerateBroadcast(t *testing.T) *Broadcast {
 	rawB := new(Broadcast)
-	copy(rawB.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
+	err := rawB.GUID.Write(bytes.Repeat([]byte{1}, guid.Size))
+	require.NoError(t, err)
 	rawB.Hash = bytes.Repeat([]byte{2}, sha256.Size)
 	rawB.Signature = bytes.Repeat([]byte{3}, ed25519.SignatureSize)
 	return rawB
@@ -23,14 +24,14 @@ func testGenerateBroadcast() *Broadcast {
 
 func TestBroadcast_Unpack(t *testing.T) {
 	t.Run("invalid broadcast packet size", func(t *testing.T) {
-		err := testGenerateBroadcast().Unpack(nil)
+		err := testGenerateBroadcast(t).Unpack(nil)
 		require.Error(t, err)
 	})
 
 	rawData := new(bytes.Buffer)
 
 	t.Run("bmLen > mLen", func(t *testing.T) {
-		rawB := testGenerateBroadcast()
+		rawB := testGenerateBroadcast(t)
 		rawB.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
 		rawB.Pack(rawData)
 
@@ -41,7 +42,7 @@ func TestBroadcast_Unpack(t *testing.T) {
 	})
 
 	t.Run("bmLen == mLen", func(t *testing.T) {
-		rawB := testGenerateBroadcast()
+		rawB := testGenerateBroadcast(t)
 		rawB.Message = bytes.Repeat([]byte{4}, 2*aes.BlockSize)
 		rawData.Reset()
 		rawB.Pack(rawData)
@@ -54,7 +55,7 @@ func TestBroadcast_Unpack(t *testing.T) {
 
 	t.Run("bmLen < mLen", func(t *testing.T) {
 		// minus bmLen
-		rawB := testGenerateBroadcast()
+		rawB := testGenerateBroadcast(t)
 		rawB.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
 		rawData.Reset()
 		rawB.Pack(rawData)
@@ -71,7 +72,7 @@ func TestBroadcast_Unpack(t *testing.T) {
 	})
 
 	t.Run("cap(b.Message) < mLen", func(t *testing.T) {
-		rawB := testGenerateBroadcast()
+		rawB := testGenerateBroadcast(t)
 		rawB.Message = bytes.Repeat([]byte{4}, 4*aes.BlockSize)
 		rawData.Reset()
 		rawB.Pack(rawData)
@@ -83,7 +84,7 @@ func TestBroadcast_Unpack(t *testing.T) {
 	})
 
 	t.Run("fuzz", func(t *testing.T) {
-		rawB := testGenerateBroadcast()
+		rawB := testGenerateBroadcast(t)
 		newB := NewBroadcast()
 		for i := 0; i < 8192; i++ {
 			size := 16 + random.Int(512)

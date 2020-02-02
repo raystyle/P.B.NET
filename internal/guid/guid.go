@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -25,11 +26,20 @@ const Size int = 20 + 4 + 8 + 8 + 8
 // GUID is the generated GUID
 type GUID [Size]byte
 
+// Write is used to copy []byte to guid
+func (guid *GUID) Write(s []byte) error {
+	if len(s) != Size {
+		return errors.New("invalid byte slice size")
+	}
+	copy(guid[:], s)
+	return nil
+}
+
 // String is used to print GUID with prefix
 //
 // GUID: FD4960D3BE40D9CE66B02949E1E85B9082AA0016C39D3225
 //       2228B5F0502D7F3D94F0000000005E35B700000000000000
-func (guid GUID) String() string {
+func (guid *GUID) String() string {
 	// 13 = len("GUID:  ") + len("      ") + len("\n")
 	dst := make([]byte, Size*2+13)
 	copy(dst, "GUID: ")
@@ -43,7 +53,7 @@ func (guid GUID) String() string {
 //
 // FD4960D3BE40D9CE66B02949E1E85B9082AA0016C39D3225
 // 2228B5F0502D7F3D94F0000000005E35B700000000000000
-func (guid GUID) Hex() string {
+func (guid *GUID) Hex() string {
 	dst := make([]byte, Size*2+1) // add a "\n"
 	hex.Encode(dst, guid[:Size/2])
 	dst[Size] = 10 // "\n"
@@ -52,7 +62,7 @@ func (guid GUID) Hex() string {
 }
 
 // Timestamp is used to get timestamp in the GUID
-func (guid GUID) Timestamp() int64 {
+func (guid *GUID) Timestamp() int64 {
 	return int64(binary.BigEndian.Uint64(guid[32:40]))
 }
 

@@ -13,10 +13,12 @@ import (
 	"project/internal/random"
 )
 
-func testGenerateSend() *Send {
+func testGenerateSend(t *testing.T) *Send {
 	rawS := new(Send)
-	copy(rawS.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
-	copy(rawS.RoleGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	err := rawS.GUID.Write(bytes.Repeat([]byte{1}, guid.Size))
+	require.NoError(t, err)
+	err = rawS.RoleGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
+	require.NoError(t, err)
 	rawS.Hash = bytes.Repeat([]byte{3}, sha256.Size)
 	rawS.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
 	return rawS
@@ -24,14 +26,14 @@ func testGenerateSend() *Send {
 
 func TestSend_Unpack(t *testing.T) {
 	t.Run("invalid send packet size", func(t *testing.T) {
-		err := testGenerateSend().Unpack(nil)
+		err := testGenerateSend(t).Unpack(nil)
 		require.Error(t, err)
 	})
 
 	rawData := new(bytes.Buffer)
 
 	t.Run("smLen > mLen", func(t *testing.T) {
-		rawS := testGenerateSend()
+		rawS := testGenerateSend(t)
 		rawS.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
 		rawS.Pack(rawData)
 
@@ -42,7 +44,7 @@ func TestSend_Unpack(t *testing.T) {
 	})
 
 	t.Run("smLen == mLen", func(t *testing.T) {
-		rawS := testGenerateSend()
+		rawS := testGenerateSend(t)
 		rawS.Message = bytes.Repeat([]byte{4}, 2*aes.BlockSize)
 		rawData.Reset()
 		rawS.Pack(rawData)
@@ -55,7 +57,7 @@ func TestSend_Unpack(t *testing.T) {
 
 	t.Run("smLen < mLen", func(t *testing.T) {
 		// minus smLen
-		rawS := testGenerateSend()
+		rawS := testGenerateSend(t)
 		rawS.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
 		rawData.Reset()
 		rawS.Pack(rawData)
@@ -72,7 +74,7 @@ func TestSend_Unpack(t *testing.T) {
 	})
 
 	t.Run("cap(s.Message) < mLen", func(t *testing.T) {
-		rawS := testGenerateSend()
+		rawS := testGenerateSend(t)
 		rawS.Message = bytes.Repeat([]byte{4}, 4*aes.BlockSize)
 		rawData.Reset()
 		rawS.Pack(rawData)
@@ -84,7 +86,7 @@ func TestSend_Unpack(t *testing.T) {
 	})
 
 	t.Run("fuzz", func(t *testing.T) {
-		rawS := testGenerateSend()
+		rawS := testGenerateSend(t)
 		newS := NewSend()
 		for i := 0; i < 8192; i++ {
 			size := 16 + random.Int(512)
@@ -122,15 +124,19 @@ func TestSendResult_Clean(t *testing.T) {
 
 func TestAcknowledge_Unpack(t *testing.T) {
 	rawAck := new(Acknowledge)
-	copy(rawAck.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
-	copy(rawAck.RoleGUID[:], bytes.Repeat([]byte{2}, guid.Size))
-	copy(rawAck.SendGUID[:], bytes.Repeat([]byte{3}, guid.Size))
+
+	err := rawAck.GUID.Write(bytes.Repeat([]byte{1}, guid.Size))
+	require.NoError(t, err)
+	err = rawAck.RoleGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
+	require.NoError(t, err)
+	err = rawAck.SendGUID.Write(bytes.Repeat([]byte{3}, guid.Size))
+	require.NoError(t, err)
 	rawAck.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
 	rawData := new(bytes.Buffer)
 	rawAck.Pack(rawData)
 
 	newAck := NewAcknowledge()
-	err := newAck.Unpack(nil)
+	err = newAck.Unpack(nil)
 	require.Error(t, err)
 	err = newAck.Unpack(rawData.Bytes())
 	require.NoError(t, err)
@@ -151,15 +157,17 @@ func TestAcknowledgeResult_Clean(t *testing.T) {
 
 func TestQuery_Unpack(t *testing.T) {
 	rawQuery := new(Query)
-	copy(rawQuery.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
-	copy(rawQuery.BeaconGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	err := rawQuery.GUID.Write(bytes.Repeat([]byte{1}, guid.Size))
+	require.NoError(t, err)
+	err = rawQuery.BeaconGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
+	require.NoError(t, err)
 	rawQuery.Index = 10
 	rawQuery.Signature = bytes.Repeat([]byte{3}, ed25519.SignatureSize)
 	rawData := new(bytes.Buffer)
 	rawQuery.Pack(rawData)
 
 	newQuery := NewQuery()
-	err := newQuery.Unpack(nil)
+	err = newQuery.Unpack(nil)
 	require.Error(t, err)
 	err = newQuery.Unpack(rawData.Bytes())
 	require.NoError(t, err)
@@ -179,10 +187,12 @@ func TestQueryResult_Clean(t *testing.T) {
 	new(QueryResult).Clean()
 }
 
-func testGenerateAnswer() *Answer {
+func testGenerateAnswer(t *testing.T) *Answer {
 	rawA := new(Answer)
-	copy(rawA.GUID[:], bytes.Repeat([]byte{1}, guid.Size))
-	copy(rawA.BeaconGUID[:], bytes.Repeat([]byte{2}, guid.Size))
+	err := rawA.GUID.Write(bytes.Repeat([]byte{1}, guid.Size))
+	require.NoError(t, err)
+	err = rawA.BeaconGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
+	require.NoError(t, err)
 	rawA.Index = 10
 	rawA.Hash = bytes.Repeat([]byte{3}, sha256.Size)
 	rawA.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
@@ -191,14 +201,14 @@ func testGenerateAnswer() *Answer {
 
 func TestAnswer_Unpack(t *testing.T) {
 	t.Run("invalid answer packet size", func(t *testing.T) {
-		err := testGenerateAnswer().Unpack(nil)
+		err := testGenerateAnswer(t).Unpack(nil)
 		require.Error(t, err)
 	})
 
 	rawData := new(bytes.Buffer)
 
 	t.Run("amLen > mLen", func(t *testing.T) {
-		rawA := testGenerateAnswer()
+		rawA := testGenerateAnswer(t)
 		rawA.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
 		rawA.Pack(rawData)
 
@@ -209,7 +219,7 @@ func TestAnswer_Unpack(t *testing.T) {
 	})
 
 	t.Run("amLen == mLen", func(t *testing.T) {
-		rawA := testGenerateAnswer()
+		rawA := testGenerateAnswer(t)
 		rawA.Message = bytes.Repeat([]byte{4}, 2*aes.BlockSize)
 		rawData.Reset()
 		rawA.Pack(rawData)
@@ -222,7 +232,7 @@ func TestAnswer_Unpack(t *testing.T) {
 
 	t.Run("amLen < mLen", func(t *testing.T) {
 		// minus amLen
-		rawA := testGenerateAnswer()
+		rawA := testGenerateAnswer(t)
 		rawA.Message = bytes.Repeat([]byte{4}, aes.BlockSize)
 		rawData.Reset()
 		rawA.Pack(rawData)
@@ -239,7 +249,7 @@ func TestAnswer_Unpack(t *testing.T) {
 	})
 
 	t.Run("cap(a.Message) < mLen", func(t *testing.T) {
-		rawA := testGenerateAnswer()
+		rawA := testGenerateAnswer(t)
 		rawA.Message = bytes.Repeat([]byte{4}, 4*aes.BlockSize)
 		rawData.Reset()
 		rawA.Pack(rawData)
@@ -251,7 +261,7 @@ func TestAnswer_Unpack(t *testing.T) {
 	})
 
 	t.Run("fuzz", func(t *testing.T) {
-		rawA := testGenerateAnswer()
+		rawA := testGenerateAnswer(t)
 		newA := NewAnswer()
 		for i := 0; i < 8192; i++ {
 			size := 16 + random.Int(512)
