@@ -52,7 +52,7 @@ func generateCleanGUIDMap(need []string) {
 func (syncer *syncer) clean<f>GUIDMap() {
 	syncer.<a>GUIDRWM.Lock()
 	defer syncer.<a>GUIDRWM.Unlock()
-	newMap := make(map[string]int64)
+	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.<a>GUID {
 		newMap[key] = timestamp
 	}
