@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,17 +14,16 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/messages"
+	"project/internal/protocol"
 	"project/internal/testsuite"
 
 	"project/node"
 )
 
-// three common nodes connect initial node
-// controller connect the initial node
-// controller broadcast
-func TestController_Broadcast(t *testing.T) {
-	t.Skip()
-
+// Three Common Node connect the Initial Node
+// Controller connect the Initial Node
+// Controller broadcast test messages
+func TestController_Broadcast_PassInitialNode(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
 	iNodeGUID := iNode.GUID()
 
@@ -89,7 +89,7 @@ func TestController_Broadcast(t *testing.T) {
 
 	// broadcast
 	const (
-		goroutines = 256
+		goroutines = 64
 		times      = 64
 	)
 	broadcast := func(start int) {
@@ -106,11 +106,149 @@ func TestController_Broadcast(t *testing.T) {
 		go broadcast(i * times)
 	}
 
+	// read
+	wg := sync.WaitGroup{}
+	const format = "read Node[%d].Test.BroadcastTestMsg timeout i: %d"
+	for n, cNode := range cNodes {
+		wg.Add(1)
+		go func(n int, Node *node.Node) {
+			defer wg.Done()
+			recv := bytes.Buffer{}
+			recv.Grow(8 << 20)
+			timer := time.NewTimer(3 * time.Second)
+			for i := 0; i < goroutines*times; i++ {
+				timer.Reset(3 * time.Second)
+				select {
+				case b := <-Node.Test.BroadcastTestMsg:
+					recv.Write(b)
+					recv.WriteString("\n")
+				case <-timer.C:
+					t.Fatalf(format, n, i)
+				}
+			}
+			select {
+			case <-Node.Test.BroadcastTestMsg:
+				t.Fatal("redundancy broadcast")
+			case <-time.After(time.Second):
+			}
+			str := recv.String()
+			for i := 0; i < goroutines*times; i++ {
+				need := fmt.Sprintf("test broadcast %d", i)
+				require.True(t, strings.Contains(str, need), "lost: %s", need)
+			}
+
+		}(n, cNode)
+	}
+	wg.Wait()
+
 	// clean
 	for i := 0; i < 3; i++ {
 		cNodes[i].Exit(nil)
 	}
 	testsuite.IsDestroyed(t, &cNodes)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
+}
+
+// One Common Node connect the Initial Node
+// Controller connect the Initial Node
+// Controller send test messages
+func TestController_SendToNode_PassInitialNode(t *testing.T) {
+	iNode := generateInitialNodeAndTrust(t)
+
+	// create bootstrap
+	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	require.NoError(t, err)
+	iAddr := iListener.Addr()
+	bListener := &bootstrap.Listener{
+		Mode:    iListener.Mode(),
+		Network: iAddr.Network(),
+		Address: iAddr.String(),
+	}
+	boot, key := generateBootstrap(t, bListener)
+	ctrl.Test.CreateNodeRegisterRequestChannel()
+
+	// create and run common node
+	cNodeCfg := generateNodeConfig(t, "Common Node")
+	cNodeCfg.Register.FirstBoot = boot
+	cNodeCfg.Register.FirstKey = key
+	cNode, err := node.New(cNodeCfg)
+	require.NoError(t, err)
+	testsuite.IsDestroyed(t, cNodeCfg)
+	go func() {
+		err := cNode.Main()
+		require.NoError(t, err)
+	}()
+
+	// read node register request
+	select {
+	case nrr := <-ctrl.Test.NodeRegisterRequest:
+		spew.Dump(nrr)
+		err = ctrl.AcceptRegisterNode(nrr, false)
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("read CTRL.Test.NodeRegisterRequest timeout")
+	}
+
+	// wait common node
+	timer := time.AfterFunc(10*time.Second, func() {
+		t.Fatal("node register timeout")
+	})
+	cNode.Wait()
+	timer.Stop()
+
+	// try to connect initial node
+	err = cNode.Synchronize(context.Background(), iNode.GUID(), bListener)
+	require.NoError(t, err)
+
+	// controller send messages
+	cNodeGUID := cNode.GUID()
+	cNode.Test.EnableTestMessage()
+
+	const (
+		goroutines = 64
+		times      = 64
+	)
+	send := func(start int) {
+		for i := start; i < start+times; i++ {
+			msg := []byte(fmt.Sprintf("test send %d", i))
+			err := ctrl.Send(protocol.Node, cNodeGUID, messages.CMDBTest, msg)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}
+	for i := 0; i < goroutines; i++ {
+		go send(i * times)
+	}
+	recv := bytes.Buffer{}
+	recv.Grow(8 << 20)
+	timer = time.NewTimer(3 * time.Second)
+	for i := 0; i < goroutines*times; i++ {
+		timer.Reset(3 * time.Second)
+		select {
+		case b := <-cNode.Test.SendTestMsg:
+			recv.Write(b)
+			recv.WriteString("\n")
+		case <-timer.C:
+			t.Fatalf("read Node.Test.SendTestMsg timeout i: %d", i)
+		}
+	}
+	select {
+	case <-cNode.Test.SendTestMsg:
+		t.Fatal("redundancy send")
+	case <-time.After(time.Second):
+	}
+	str := recv.String()
+	for i := 0; i < goroutines*times; i++ {
+		need := fmt.Sprintf("test send %d", i)
+		require.True(t, strings.Contains(str, need), "lost: %s", need)
+	}
+
+	// clean
+	cNode.Exit(nil)
+	testsuite.IsDestroyed(t, cNode)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
 }
@@ -140,6 +278,7 @@ func TestNode_SendDirectly(t *testing.T) {
 		go send(i * times)
 	}
 	recv := bytes.Buffer{}
+	recv.Grow(8 << 20)
 	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
@@ -167,4 +306,107 @@ func TestNode_SendDirectly(t *testing.T) {
 	require.NoError(t, err)
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
+}
+
+// One Common Node connect the Initial Node
+// Controller connect the Initial Node
+// Controller send test messages
+func TestNode_Send_PassInitialNode(t *testing.T) {
+	iNode := generateInitialNodeAndTrust(t)
+
+	// create bootstrap
+	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	require.NoError(t, err)
+	iAddr := iListener.Addr()
+	bListener := &bootstrap.Listener{
+		Mode:    iListener.Mode(),
+		Network: iAddr.Network(),
+		Address: iAddr.String(),
+	}
+	boot, key := generateBootstrap(t, bListener)
+	ctrl.Test.CreateNodeRegisterRequestChannel()
+
+	// create and run common node
+	cNodeCfg := generateNodeConfig(t, "Common Node")
+	cNodeCfg.Register.FirstBoot = boot
+	cNodeCfg.Register.FirstKey = key
+	cNode, err := node.New(cNodeCfg)
+	require.NoError(t, err)
+	testsuite.IsDestroyed(t, cNodeCfg)
+	go func() {
+		err := cNode.Main()
+		require.NoError(t, err)
+	}()
+
+	// read Node register request
+	select {
+	case nrr := <-ctrl.Test.NodeRegisterRequest:
+		spew.Dump(nrr)
+		err = ctrl.AcceptRegisterNode(nrr, false)
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("read CTRL.Test.NodeRegisterRequest timeout")
+	}
+
+	// wait Common Node
+	timer := time.AfterFunc(10*time.Second, func() {
+		t.Fatal("node register timeout")
+	})
+	cNode.Wait()
+	timer.Stop()
+
+	// try to connect initial node
+	err = cNode.Synchronize(context.Background(), iNode.GUID(), bListener)
+	require.NoError(t, err)
+
+	// controller send messages
+	ctrl.Test.EnableRoleSendTestMessage()
+	ch := ctrl.Test.CreateNodeSendTestMessageChannel(cNode.GUID())
+
+	const (
+		goroutines = 256
+		times      = 64
+	)
+	send := func(start int) {
+		for i := start; i < start+times; i++ {
+			msg := []byte(fmt.Sprintf("test send %d", i))
+			err := cNode.Send(messages.CMDBTest, msg)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}
+	for i := 0; i < goroutines; i++ {
+		go send(i * times)
+	}
+	recv := bytes.Buffer{}
+	recv.Grow(8 << 20)
+	timer = time.NewTimer(3 * time.Second)
+	for i := 0; i < goroutines*times; i++ {
+		timer.Reset(3 * time.Second)
+		select {
+		case b := <-ch:
+			recv.Write(b)
+			recv.WriteString("\n")
+		case <-timer.C:
+			t.Fatalf("read Node.Test.SendTestMsg timeout i: %d", i)
+		}
+	}
+	select {
+	case <-cNode.Test.SendTestMsg:
+		t.Fatal("redundancy send")
+	case <-time.After(time.Second):
+	}
+	str := recv.String()
+	for i := 0; i < goroutines*times; i++ {
+		need := fmt.Sprintf("test send %d", i)
+		require.True(t, strings.Contains(str, need), "lost: %s", need)
+	}
+
+	// clean
+	cNode.Exit(nil)
+	testsuite.IsDestroyed(t, cNode)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }
