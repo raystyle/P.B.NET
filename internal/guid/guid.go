@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,18 +36,18 @@ func (guid *GUID) Write(s []byte) error {
 	return nil
 }
 
-// String is used to print GUID with prefix
+// Print is used to print GUID with prefix
 //
 // GUID: FD4960D3BE40D9CE66B02949E1E85B9082AA0016C39D3225
 //       2228B5F0502D7F3D94F0000000005E35B700000000000000
-func (guid *GUID) String() string {
+func (guid *GUID) Print() string {
 	// 13 = len("GUID:  ") + len("      ") + len("\n")
 	dst := make([]byte, Size*2+13)
 	copy(dst, "GUID: ")
 	hex.Encode(dst[6:], guid[:Size/2])
 	copy(dst[6+Size:], "\n      ")
 	hex.Encode(dst[Size+13:], guid[Size/2:])
-	return string(dst)
+	return strings.ToUpper(string(dst))
 }
 
 // Hex is used to encode GUID to a hex string
@@ -58,7 +59,7 @@ func (guid *GUID) Hex() string {
 	hex.Encode(dst, guid[:Size/2])
 	dst[Size] = 10 // "\n"
 	hex.Encode(dst[Size+1:], guid[Size/2:])
-	return string(dst)
+	return strings.ToUpper(string(dst))
 }
 
 // Timestamp is used to get timestamp in the GUID

@@ -28,22 +28,22 @@ func TestGUID(t *testing.T) {
 
 	t.Run("String", func(t *testing.T) {
 		guid := GUID{}
-		copy(guid[Size/2:], bytes.Repeat([]byte{1}, Size/2))
+		copy(guid[Size/2:], bytes.Repeat([]byte{10}, Size/2))
 		buf := bytes.Buffer{}
 		buf.WriteString("GUID: ")
 		buf.WriteString(strings.Repeat("00", Size/2))
 		buf.WriteString("\n      ")
-		buf.WriteString(strings.Repeat("01", Size/2))
-		require.Equal(t, buf.String(), guid.String())
+		buf.WriteString(strings.Repeat("0A", Size/2))
+		require.Equal(t, buf.String(), guid.Print())
 	})
 
 	t.Run("Hex", func(t *testing.T) {
 		guid := GUID{}
-		copy(guid[Size/2:], bytes.Repeat([]byte{1}, Size/2))
+		copy(guid[Size/2:], bytes.Repeat([]byte{10}, Size/2))
 		buf := bytes.Buffer{}
 		buf.WriteString(strings.Repeat("00", Size/2))
 		buf.WriteString("\n")
-		buf.WriteString(strings.Repeat("01", Size/2))
+		buf.WriteString(strings.Repeat("0A", Size/2))
 		require.Equal(t, buf.String(), guid.Hex())
 	})
 
