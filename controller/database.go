@@ -92,10 +92,15 @@ func (cache *cache) SelectNode(guid *guid.GUID) *mNode {
 }
 
 func (cache *cache) InsertNode(node *mNode) {
+	key := guid.GUID{}
+	err := key.Write(node.GUID)
+	if err != nil {
+		panic("cache internal error: " + err.Error())
+	}
 	cache.nodesRWM.Lock()
 	defer cache.nodesRWM.Unlock()
-	if _, ok := cache.nodes[node.GUID]; !ok {
-		cache.nodes[node.GUID] = node
+	if _, ok := cache.nodes[key]; !ok {
+		cache.nodes[key] = node
 	}
 }
 
@@ -112,10 +117,15 @@ func (cache *cache) SelectBeacon(guid *guid.GUID) *mBeacon {
 }
 
 func (cache *cache) InsertBeacon(beacon *mBeacon) {
+	key := guid.GUID{}
+	err := key.Write(beacon.GUID)
+	if err != nil {
+		panic("cache internal error: " + err.Error())
+	}
 	cache.beaconsRWM.Lock()
 	defer cache.beaconsRWM.Unlock()
-	if _, ok := cache.beacons[beacon.GUID]; !ok {
-		cache.beacons[beacon.GUID] = beacon
+	if _, ok := cache.beacons[key]; !ok {
+		cache.beacons[key] = beacon
 	}
 }
 
@@ -232,7 +242,7 @@ func (db *database) SelectNode(guid *guid.GUID) (node *mNode, err error) {
 		return
 	}
 	node = new(mNode)
-	err = db.db.Find(node, "guid = ?", guid).Error
+	err = db.db.Find(node, "guid = ?", guid[:]).Error
 	if err != nil {
 		return nil, err
 	}
@@ -265,15 +275,15 @@ func (db *database) DeleteNode(guid *guid.GUID) error {
 			db.cache.DeleteNode(guid)
 		}
 	}()
-	err = tx.Delete(&mNode{GUID: *guid}).Error
+	err = tx.Delete(&mNode{GUID: guid[:]}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&mNodeListener{GUID: *guid}).Error
+	err = tx.Delete(&mNodeListener{GUID: guid[:]}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Table(tableNodeLog).Delete(&mRoleLog{GUID: *guid}).Error
+	err = tx.Table(tableNodeLog).Delete(&mRoleLog{GUID: guid[:]}).Error
 	if err != nil {
 		return err
 	}
@@ -282,7 +292,7 @@ func (db *database) DeleteNode(guid *guid.GUID) error {
 }
 
 func (db *database) DeleteNodeUnscoped(guid *guid.GUID) error {
-	err := db.db.Unscoped().Delete(&mNode{GUID: *guid}).Error
+	err := db.db.Unscoped().Delete(&mNode{GUID: guid[:]}).Error
 	if err != nil {
 		return err
 	}
@@ -314,7 +324,7 @@ func (db *database) SelectBeacon(guid *guid.GUID) (beacon *mBeacon, err error) {
 		return
 	}
 	beacon = new(mBeacon)
-	err = db.db.Find(beacon, "guid = ?", guid).Error
+	err = db.db.Find(beacon, "guid = ?", guid[:]).Error
 	if err != nil {
 		return nil, err
 	}
@@ -347,15 +357,15 @@ func (db *database) DeleteBeacon(guid *guid.GUID) error {
 			db.cache.DeleteBeacon(guid)
 		}
 	}()
-	err = tx.Delete(&mBeacon{GUID: *guid}).Error
+	err = tx.Delete(&mBeacon{GUID: guid[:]}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Delete(&mBeaconListener{GUID: *guid}).Error
+	err = tx.Delete(&mBeaconListener{GUID: guid[:]}).Error
 	if err != nil {
 		return err
 	}
-	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{GUID: *guid}).Error
+	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{GUID: guid[:]}).Error
 	if err != nil {
 		return err
 	}
@@ -364,7 +374,7 @@ func (db *database) DeleteBeacon(guid *guid.GUID) error {
 }
 
 func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
-	err := db.db.Unscoped().Delete(&mBeacon{GUID: *guid}).Error
+	err := db.db.Unscoped().Delete(&mBeacon{GUID: guid[:]}).Error
 	if err != nil {
 		return err
 	}
@@ -375,7 +385,7 @@ func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
 // TODO BeaconMessage
 
 func (db *database) InsertBeaconMessage(guid *guid.GUID, message *bytes.Buffer) error {
-	return db.db.Create(&mBeaconMessage{GUID: *guid, Message: message.Bytes()}).Error
+	return db.db.Create(&mBeaconMessage{GUID: guid[:], Message: message.Bytes()}).Error
 }
 
 func (db *database) InsertBeaconListener(m *mBeaconListener) error {

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/hex"
 	"testing"
 	"time"
 
@@ -52,8 +51,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 		}
 	}
 	// disconnect
-	guid := hex.EncodeToString(Node.GUID())
-	err = ctrl.sender.Disconnect(guid)
+	err = ctrl.sender.Disconnect(Node.GUID())
 	require.NoError(t, err)
 }
 

@@ -23,9 +23,9 @@ type CTRL struct {
 	database  *database  // database
 	logger    *gLogger   // global logger
 	global    *global    // certificate , proxy, dns, time syncer, and ...
+	syncer    *syncer    // receive message
 	clientMgr *clientMgr // clients manager
 	sender    *sender    // broadcast and send message
-	syncer    *syncer    // receive message
 	handler   *handler   // handle message from Node or Beacon
 	worker    *worker    // do work
 	boot      *boot      // auto discover bootstrap node listeners
@@ -59,6 +59,12 @@ func New(cfg *Config) (*CTRL, error) {
 		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	ctrl.global = global
+	// syncer
+	syncer, err := newSyncer(ctrl, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize syncer")
+	}
+	ctrl.syncer = syncer
 	// client manager
 	clientMgr, err := newClientManager(ctrl, cfg)
 	if err != nil {
@@ -71,12 +77,6 @@ func New(cfg *Config) (*CTRL, error) {
 		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	ctrl.sender = sender
-	// syncer
-	syncer, err := newSyncer(ctrl, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to initialize syncer")
-	}
-	ctrl.syncer = syncer
 	// handler
 	ctrl.handler = newHandler(ctrl)
 	// worker
@@ -173,12 +173,12 @@ func (ctrl *CTRL) Exit(err error) {
 		ctrl.logger.Print(logger.Info, "exit", "worker is stopped")
 		ctrl.handler.Close()
 		ctrl.logger.Print(logger.Info, "exit", "handler is stopped")
-		ctrl.syncer.Close()
-		ctrl.logger.Print(logger.Info, "exit", "syncer is stopped")
 		ctrl.sender.Close()
 		ctrl.logger.Print(logger.Info, "exit", "sender is stopped")
 		ctrl.clientMgr.Close()
 		ctrl.logger.Print(logger.Info, "exit", "client manager is closed")
+		ctrl.syncer.Close()
+		ctrl.logger.Print(logger.Info, "exit", "syncer is stopped")
 		ctrl.global.Close()
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")

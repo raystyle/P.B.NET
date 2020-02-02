@@ -34,7 +34,7 @@ type Client struct {
 	guid      *guid.GUID // node guid
 	closeFunc func()
 
-	tag       string
+	tag       *guid.GUID
 	conn      *xnet.Conn
 	rand      *random.Rand
 	slots     []*protocol.Slot
@@ -442,7 +442,7 @@ func (client *Client) handleNodeSendGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
+	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
 		return
 	}
@@ -460,7 +460,7 @@ func (client *Client) handleNodeAckGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
+	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
 		return
 	}
@@ -478,7 +478,7 @@ func (client *Client) handleBeaconSendGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
+	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
 		return
 	}
@@ -496,7 +496,7 @@ func (client *Client) handleBeaconAckGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
+	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
 		return
 	}
@@ -514,7 +514,7 @@ func (client *Client) handleBeaconQueryGUID(id, data []byte) {
 		client.Close()
 		return
 	}
-	if !client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
+	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
 		client.reply(id, protocol.ReplyExpired)
 		return
 	}
@@ -932,8 +932,8 @@ type clientMgr struct {
 	optsRWM  sync.RWMutex
 
 	guid *guid.Generator
-	// key = guid.GUID.Hex()
-	clients    map[string]*Client
+
+	clients    map[guid.GUID]*Client
 	clientsRWM sync.RWMutex
 }
 
@@ -950,7 +950,7 @@ func newClientManager(ctx *CTRL, config *Config) (*clientMgr, error) {
 		timeout:  cfg.Timeout,
 		dnsOpts:  cfg.DNSOpts,
 		guid:     guid.New(4, ctx.global.Now),
-		clients:  make(map[string]*Client),
+		clients:  make(map[guid.GUID]*Client),
 	}, nil
 }
 
@@ -1002,36 +1002,36 @@ func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 
 // for NewClient()
 func (cm *clientMgr) Add(client *Client) {
-	client.tag = cm.guid.Get().Hex()
+	client.tag = cm.guid.Get()
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
-	if _, ok := cm.clients[client.tag]; !ok {
-		cm.clients[client.tag] = client
+	if _, ok := cm.clients[*client.tag]; !ok {
+		cm.clients[*client.tag] = client
 	}
 }
 
 // for client.Close()
-func (cm *clientMgr) Delete(tag string) {
+func (cm *clientMgr) Delete(tag *guid.GUID) {
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
-	delete(cm.clients, tag)
+	delete(cm.clients, *tag)
 }
 
 // Clients is used to get all clients
-func (cm *clientMgr) Clients() map[string]*Client {
+func (cm *clientMgr) Clients() map[guid.GUID]*Client {
 	cm.clientsRWM.RLock()
 	defer cm.clientsRWM.RUnlock()
-	cs := make(map[string]*Client, len(cm.clients))
+	clients := make(map[guid.GUID]*Client, len(cm.clients))
 	for tag, client := range cm.clients {
-		cs[tag] = client
+		clients[tag] = client
 	}
-	return cs
+	return clients
 }
 
-// Kill is used to close client
-// must use cm.Clients(), because client.Close() will use cm.clientsRWM
-func (cm *clientMgr) Kill(tag string) {
-	if client, ok := cm.Clients()[tag]; ok {
+// Kill is used to close client. Must use cm.Clients(),
+// because client.Close() will use cm.clientsRWM
+func (cm *clientMgr) Kill(tag *guid.GUID) {
+	if client, ok := cm.Clients()[*tag]; ok {
 		client.Close()
 	}
 }

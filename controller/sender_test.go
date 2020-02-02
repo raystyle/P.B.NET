@@ -2,7 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"runtime"
 	"strings"
@@ -21,8 +20,7 @@ import (
 
 func TestSender_Connect(t *testing.T) {
 	Node := testGenerateInitialNodeAndTrust(t)
-	guid := strings.ToUpper(hex.EncodeToString(Node.GUID()))
-	err := ctrl.Disconnect(guid)
+	err := ctrl.Disconnect(Node.GUID())
 	require.NoError(t, err)
 
 	Node.Exit(nil)
@@ -75,8 +73,7 @@ func TestSender_Broadcast(t *testing.T) {
 	}
 
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(Node.GUID()))
-	err := ctrl.sender.Disconnect(guid)
+	err := ctrl.sender.Disconnect(Node.GUID())
 	require.NoError(t, err)
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
@@ -129,8 +126,7 @@ func TestSender_SendToNode(t *testing.T) {
 	}
 
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(nodeGUID))
-	err := ctrl.sender.Disconnect(guid)
+	err := ctrl.sender.Disconnect(nodeGUID)
 	require.NoError(t, err)
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
@@ -145,8 +141,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 	}
 	defer func() {
 		for i := 0; i < number; i++ {
-			guid := strings.ToUpper(hex.EncodeToString(Nodes[i].GUID()))
-			err := ctrl.sender.Disconnect(guid)
+			err := ctrl.sender.Disconnect(Nodes[i].GUID())
 			require.NoError(b, err)
 			Nodes[i].Exit(nil)
 		}
@@ -221,8 +216,7 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 	}
 
 	// clean
-	guid := strings.ToUpper(hex.EncodeToString(nodeGUID))
-	err := ctrl.sender.Disconnect(guid)
+	err := ctrl.sender.Disconnect(nodeGUID)
 	require.NoError(t, err)
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)

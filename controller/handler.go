@@ -57,14 +57,15 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 // logfWithInfo will print log with role GUID and message
 // [2020-01-30 15:13:07] [info] <handler> foo logf
 // GUID: FF...
-// spew output
+//       FF...
+// spew output...
 //
 // first log interface must be role GUID
 // second log interface must be *protocol.Send
 func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(buf, format, log[2:]...)
-	_, _ = fmt.Fprintf(buf, "\n%s\n", log[0].(*guid.GUID))
+	_, _ = fmt.Fprintf(buf, "\n%s\n", log[0].(*guid.GUID).Print())
 	spew.Fdump(buf, log[1])
 	h.ctx.logger.Print(l, "handler", buf)
 }
@@ -72,14 +73,15 @@ func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}
 // logWithInfo will print log with role GUID and message
 // [2020-01-30 15:13:07] [info] <handler> foo log
 // GUID: FF...
-// spew output
+//       FF...
+// spew output...
 //
 // first log interface must be role GUID
 // second log interface must be *protocol.Send
 func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log[2:]...)
-	_, _ = fmt.Fprintf(buf, "%s\n", log[0].(*guid.GUID))
+	_, _ = fmt.Fprintf(buf, "%s\n", log[0].(*guid.GUID).Print())
 	spew.Fdump(buf, log[1])
 	h.ctx.logger.Print(l, "handler", buf)
 }

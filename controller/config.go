@@ -184,7 +184,7 @@ func (ctrl *CTRL) registerNode(
 		return nil, failed(err)
 	}
 	err = ctrl.database.InsertNode(&mNode{
-		GUID:        nrr.GUID,
+		GUID:        nrr.GUID[:],
 		PublicKey:   nrr.PublicKey,
 		SessionKey:  sessionKey,
 		IsBootstrap: bootstrap,

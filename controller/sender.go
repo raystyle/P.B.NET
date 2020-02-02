@@ -237,8 +237,8 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		return errors.WithMessagef(err, format, bl, guid)
 	}
 	sender.clients[*guid] = client
-	const format = "start synchronize: listener: %s\n%s"
-	sender.logf(logger.Info, format, bl, guid)
+	const format = "start synchronize\nlistener: %s\n%s"
+	sender.logf(logger.Info, format, bl, guid.Hex())
 	return nil
 }
 
@@ -798,8 +798,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	// set GUID
-	g := sw.ctx.guid.Get()
-	sw.preS.GUID = *g
+	sw.preS.GUID = *sw.ctx.guid.Get()
 	sw.preS.RoleGUID = *st.GUID
 	// hash
 	sw.hash.Reset()
@@ -876,8 +875,7 @@ func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
 		}
 		sw.ctx.ackTaskPool.Put(at)
 	}()
-	g := sw.ctx.guid.Get()
-	sw.preA.GUID = *g
+	sw.preA.GUID = *sw.ctx.guid.Get()
 	sw.preA.RoleGUID = at.RoleGUID
 	sw.preA.SendGUID = at.SendGUID
 	// sign
@@ -942,8 +940,7 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 		return
 	}
 	// GUID
-	g := sw.ctx.guid.Get()
-	sw.preB.GUID = *g
+	sw.preB.GUID = *sw.ctx.guid.Get()
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(bt.Message)
