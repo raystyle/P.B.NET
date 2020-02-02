@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"hash"
-	"io"
 	"sync"
 	"time"
 
@@ -65,11 +63,7 @@ func newWorker(ctx *CTRL, config *Config) (*worker, error) {
 		return protocol.NewAcknowledge()
 	}
 	worker.queryPool.New = func() interface{} {
-		return &protocol.Query{
-			GUID:       make([]byte, guid.Size),
-			BeaconGUID: make([]byte, guid.Size),
-			Signature:  make([]byte, ed25519.SignatureSize),
-		}
+		return protocol.NewQuery()
 	}
 
 	// start sub workers
@@ -193,7 +187,6 @@ type subWorker struct {
 	// runtime
 	buffer    *bytes.Buffer
 	hash      hash.Hash
-	hex       io.Writer
 	node      *mNode
 	beacon    *mBeacon
 	publicKey ed25519.PublicKey
@@ -226,7 +219,6 @@ func (sw *subWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
-	sw.hex = hex.NewEncoder(sw.buffer)
 	var (
 		send  *protocol.Send
 		ack   *protocol.Acknowledge
@@ -259,10 +251,10 @@ func (sw *subWorker) Work() {
 	}
 }
 
-func (sw *subWorker) getNodeKey(guid []byte) bool {
+func (sw *subWorker) getNodeKey(guid *guid.GUID) bool {
 	sw.node, sw.err = sw.ctx.database.SelectNode(guid)
 	if sw.err != nil {
-		const format = "failed to select node: %s\nGUID: %X"
+		const format = "failed to select node: %s\n%s"
 		sw.logf(logger.Warning, format, sw.err, guid)
 		return false
 	}
@@ -272,10 +264,10 @@ func (sw *subWorker) getNodeKey(guid []byte) bool {
 	return true
 }
 
-func (sw *subWorker) getBeaconKey(guid []byte) bool {
+func (sw *subWorker) getBeaconKey(guid *guid.GUID) bool {
 	sw.beacon, sw.err = sw.ctx.database.SelectBeacon(guid)
 	if sw.err != nil {
-		const format = "failed to select beacon: %s\nGUID: %X"
+		const format = "failed to select beacon: %s\n%s"
 		sw.logf(logger.Warning, format, sw.err, guid)
 		return false
 	}
@@ -289,12 +281,12 @@ func (sw *subWorker) getBeaconKey(guid []byte) bool {
 func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []byte {
 	// verify
 	sw.buffer.Reset()
-	sw.buffer.Write(send.GUID)
-	sw.buffer.Write(send.RoleGUID)
+	sw.buffer.Write(send.GUID[:])
+	sw.buffer.Write(send.RoleGUID[:])
 	sw.buffer.Write(send.Hash)
 	sw.buffer.Write(send.Message)
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), send.Signature) {
-		const format = "invalid %s send signature\nGUID: %X"
+		const format = "invalid %s send signature\n%s"
 		sw.logf(logger.Exploit, format, role, send.RoleGUID)
 		return nil
 	}
@@ -302,7 +294,7 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	cache := send.Message
 	send.Message, sw.err = aes.CBCDecrypt(send.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
-		const format = "failed to decrypt %s send: %s\nGUID: %X"
+		const format = "failed to decrypt %s send: %s\n%s"
 		sw.logf(logger.Exploit, format, role, sw.err, send.RoleGUID)
 		return nil
 	}
@@ -310,7 +302,7 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	sw.hash.Reset()
 	sw.hash.Write(send.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
-		const format = "%s send with incorrect hash\nGUID: %X"
+		const format = "%s send with incorrect hash\n%s"
 		sw.logf(logger.Exploit, format, role, send.RoleGUID)
 		return nil
 	}
@@ -319,7 +311,7 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 
 func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 	defer sw.sendPool.Put(send)
-	if !sw.getNodeKey(send.RoleGUID) {
+	if !sw.getNodeKey(&send.RoleGUID) {
 		return
 	}
 	cache := sw.handleRoleSend(protocol.Node, send)
@@ -333,7 +325,7 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 
 func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 	defer sw.sendPool.Put(send)
-	if !sw.getBeaconKey(send.RoleGUID) {
+	if !sw.getBeaconKey(&send.RoleGUID) {
 		return
 	}
 	cache := sw.handleRoleSend(protocol.Beacon, send)
@@ -347,70 +339,54 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 
 func (sw *subWorker) verifyAcknowledge(role protocol.Role, ack *protocol.Acknowledge) bool {
 	sw.buffer.Reset()
-	sw.buffer.Write(ack.GUID)
-	sw.buffer.Write(ack.RoleGUID)
-	sw.buffer.Write(ack.SendGUID)
+	sw.buffer.Write(ack.GUID[:])
+	sw.buffer.Write(ack.RoleGUID[:])
+	sw.buffer.Write(ack.SendGUID[:])
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), ack.Signature) {
-		const format = "invalid %s acknowledge signature\nGUID: %X"
+		const format = "invalid %s acknowledge signature\n%s"
 		sw.logf(logger.Exploit, format, role, ack.RoleGUID)
 		return false
 	}
 	return true
 }
 
-func (sw *subWorker) handleAcknowledge(role protocol.Role, ack *protocol.Acknowledge) {
-	sw.buffer.Reset()
-	_, _ = sw.hex.Write(ack.RoleGUID)
-	roleGUID := sw.buffer.String()
-	sw.buffer.Reset()
-	_, _ = sw.hex.Write(ack.SendGUID)
-	switch role {
-	case protocol.Node:
-		sw.ctx.sender.HandleNodeAcknowledge(roleGUID, sw.buffer.String())
-	case protocol.Beacon:
-		sw.ctx.sender.HandleBeaconAcknowledge(roleGUID, sw.buffer.String())
-	}
-}
-
 func (sw *subWorker) handleNodeAcknowledge(ack *protocol.Acknowledge) {
 	defer sw.ackPool.Put(ack)
-	if !sw.getNodeKey(ack.RoleGUID) {
+	if !sw.getNodeKey(&ack.RoleGUID) {
 		return
 	}
 	if !sw.verifyAcknowledge(protocol.Node, ack) {
 		return
 	}
-	sw.handleAcknowledge(protocol.Node, ack)
+	sw.ctx.sender.HandleNodeAcknowledge(&ack.RoleGUID, &ack.SendGUID)
 }
 
 func (sw *subWorker) handleBeaconAcknowledge(ack *protocol.Acknowledge) {
 	defer sw.ackPool.Put(ack)
-	if !sw.getBeaconKey(ack.RoleGUID) {
+	if !sw.getBeaconKey(&ack.RoleGUID) {
 		return
 	}
 	if !sw.verifyAcknowledge(protocol.Beacon, ack) {
 		return
 	}
-	sw.handleAcknowledge(protocol.Beacon, ack)
+	sw.ctx.sender.HandleBeaconAcknowledge(&ack.RoleGUID, &ack.SendGUID)
 }
 
 func (sw *subWorker) handleQuery(query *protocol.Query) {
 	defer sw.queryPool.Put(query)
-	if !sw.getBeaconKey(query.BeaconGUID) {
+	if !sw.getBeaconKey(&query.BeaconGUID) {
 		return
 	}
 	// verify
 	sw.buffer.Reset()
-	sw.buffer.Write(query.GUID)
-	sw.buffer.Write(query.BeaconGUID)
+	sw.buffer.Write(query.GUID[:])
+	sw.buffer.Write(query.BeaconGUID[:])
 	sw.buffer.Write(convert.Uint64ToBytes(query.Index))
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), query.Signature) {
-		const format = "invalid query signature\nGUID: %X"
+		const format = "invalid query signature\n%s"
 		sw.logf(logger.Exploit, format, query.BeaconGUID)
 		return
 	}
-	// query message
-
 	// TODO query message and answer
 	// may be copy send
 }

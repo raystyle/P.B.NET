@@ -64,9 +64,7 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(buf, format, log[2:]...)
-	g := log[0].([]byte)
-	_, _ = fmt.Fprintf(buf, "\nGUID: %X\n", g[:guid.Size/2])
-	_, _ = fmt.Fprintf(buf, "      %X\n", g[guid.Size/2:])
+	_, _ = fmt.Fprintf(buf, "\n%s\n", log[0].(*guid.GUID))
 	spew.Fdump(buf, log[1])
 	h.ctx.logger.Print(l, "handler", buf)
 }
@@ -81,9 +79,7 @@ func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}
 func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log[2:]...)
-	g := log[0].([]byte)
-	_, _ = fmt.Fprintf(buf, "GUID: %X\n", g[:guid.Size/2])
-	_, _ = fmt.Fprintf(buf, "      %X\n", g[guid.Size/2:])
+	_, _ = fmt.Fprintf(buf, "%s\n", log[0].(*guid.GUID))
 	spew.Fdump(buf, log[1])
 	h.ctx.logger.Print(l, "handler", buf)
 }
@@ -116,11 +112,8 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 	case messages.CMDTest:
 		h.handleNodeSendTestMessage(send)
 	default:
-		buf := new(bytes.Buffer)
-		_, _ = fmt.Fprintf(buf, "GUID: %X\n", send.RoleGUID[:guid.Size/2])
-		_, _ = fmt.Fprintf(buf, "      %X", send.RoleGUID[guid.Size/2:])
 		const format = "node send unknown message\n%s\ntype: 0x%08X\n%s"
-		h.logf(logger.Exploit, format, buf, msgType, spew.Sdump(send))
+		h.logf(logger.Exploit, format, send.RoleGUID, msgType, spew.Sdump(send))
 	}
 }
 
@@ -257,11 +250,8 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 	case messages.CMDTest:
 		h.handleBeaconSendTestMessage(send)
 	default:
-		buf := new(bytes.Buffer)
-		_, _ = fmt.Fprintf(buf, "GUID: %X\n", send.RoleGUID[:guid.Size/2])
-		_, _ = fmt.Fprintf(buf, "      %X", send.RoleGUID[guid.Size/2:])
 		const format = "beacon send unknown message\n%s\ntype: 0x%08X\n%s"
-		h.logf(logger.Exploit, format, buf, msgType, spew.Sdump(send))
+		h.logf(logger.Exploit, format, send.RoleGUID, msgType, spew.Sdump(send))
 	}
 }
 

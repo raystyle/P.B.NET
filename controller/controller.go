@@ -195,17 +195,17 @@ func (ctrl *CTRL) LoadSessionKey(data, password []byte) error {
 }
 
 // Synchronize is used to connect a node and start synchronize
-func (ctrl *CTRL) Synchronize(ctx context.Context, guid []byte, bl *bootstrap.Listener) error {
+func (ctrl *CTRL) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	return ctrl.sender.Synchronize(ctx, guid, bl)
 }
 
 // Disconnect is used to disconnect node, guid is hex, upper
-func (ctrl *CTRL) Disconnect(guid string) error {
+func (ctrl *CTRL) Disconnect(guid *guid.GUID) error {
 	return ctrl.sender.Disconnect(guid)
 }
 
 // Send is used to send messages to Node or Beacon
-func (ctrl *CTRL) Send(role protocol.Role, guid, cmd []byte, msg interface{}) error {
+func (ctrl *CTRL) Send(role protocol.Role, guid *guid.GUID, cmd []byte, msg interface{}) error {
 	return ctrl.sender.Send(role, guid, cmd, msg)
 }
 

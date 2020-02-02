@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"sync"
@@ -373,8 +374,8 @@ func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
 
 // TODO BeaconMessage
 
-func (db *database) InsertBeaconMessage(guid *guid.GUID, message []byte) error {
-	return db.db.Create(&mBeaconMessage{GUID: *guid, Message: message}).Error
+func (db *database) InsertBeaconMessage(guid *guid.GUID, message *bytes.Buffer) error {
+	return db.db.Create(&mBeaconMessage{GUID: *guid, Message: message.Bytes()}).Error
 }
 
 func (db *database) InsertBeaconListener(m *mBeaconListener) error {

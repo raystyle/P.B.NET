@@ -18,6 +18,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
 	"project/internal/crypto/cert/certutil"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
@@ -231,26 +232,30 @@ func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 }
 
 func (web *web) handleShell(w hRW, r *hR, p hP) {
-
 	_ = r.ParseForm()
-	guid := r.FormValue("guid")
-	fmt.Println(guid)
+	nodeGUID := guid.GUID{}
 
-	nodeGUID, err := hex.DecodeString(guid)
+	nodeGUIDSlice, err := hex.DecodeString(r.FormValue("guid"))
 	if err != nil {
 		fmt.Println("1", err)
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
-	fmt.Println(nodeGUID)
+	fmt.Println(nodeGUIDSlice)
+	err = nodeGUID.Write(nodeGUIDSlice)
+	if err != nil {
+		fmt.Println("2", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
 
 	shell := messages.Shell{
 		Command: r.FormValue("cmd"),
 	}
 
 	// TODO check nodeGUID
-	err = web.ctx.sender.Send(protocol.Node, nodeGUID, messages.CMDBShell, &shell)
+	err = web.ctx.sender.Send(protocol.Node, &nodeGUID, messages.CMDBShell, &shell)
 	if err != nil {
 		fmt.Println("2", err)
 		_, _ = w.Write([]byte(err.Error()))
