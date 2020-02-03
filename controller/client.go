@@ -200,7 +200,7 @@ func (client *Client) handshake(conn *xnet.Conn) error {
 		return err
 	}
 	if !ok {
-		return errors.New("failed to verify certificate")
+		return errors.New("failed to verify node certificate")
 	}
 	// send role
 	_, err = conn.Write(protocol.Ctrl.Bytes())
@@ -343,40 +343,12 @@ func (client *Client) onFrame(frame []byte) {
 	}
 }
 
-func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
-	switch cmd {
-	case protocol.NodeSendGUID:
-		client.handleNodeSendGUID(id, data)
-	case protocol.NodeSend:
-		client.handleNodeSend(id, data)
-	case protocol.NodeAckGUID:
-		client.handleNodeAckGUID(id, data)
-	case protocol.NodeAck:
-		client.handleNodeAck(id, data)
-	case protocol.BeaconSendGUID:
-		client.handleBeaconSendGUID(id, data)
-	case protocol.BeaconSend:
-		client.handleBeaconSend(id, data)
-	case protocol.BeaconAckGUID:
-		client.handleBeaconAckGUID(id, data)
-	case protocol.BeaconAck:
-		client.handleBeaconAck(id, data)
-	case protocol.BeaconQueryGUID:
-		client.handleBeaconQueryGUID(id, data)
-	case protocol.BeaconQuery:
-		client.handleBeaconQuery(id, data)
-	default:
-		return false
-	}
-	return true
-}
-
 func (client *Client) reply(id, reply []byte) {
 	if client.isClosed() {
 		return
 	}
 	l := len(reply)
-	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
+	// 7 = size(4 Bytes) + ConnReply(1 byte) + msg id(2 bytes)
 	b := make([]byte, protocol.FrameHeaderSize+l)
 	// write size
 	msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
@@ -424,7 +396,7 @@ func (client *Client) Synchronize() error {
 	if client.isSync() {
 		return nil
 	}
-	resp, err := client.Send(protocol.CtrlSync, nil)
+	resp, err := client.send(protocol.CtrlSync, nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to receive synchronize response")
 	}
@@ -433,6 +405,34 @@ func (client *Client) Synchronize() error {
 	}
 	atomic.StoreInt32(&client.inSync, 1)
 	return nil
+}
+
+func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
+	switch cmd {
+	case protocol.NodeSendGUID:
+		client.handleNodeSendGUID(id, data)
+	case protocol.NodeSend:
+		client.handleNodeSend(id, data)
+	case protocol.NodeAckGUID:
+		client.handleNodeAckGUID(id, data)
+	case protocol.NodeAck:
+		client.handleNodeAck(id, data)
+	case protocol.BeaconSendGUID:
+		client.handleBeaconSendGUID(id, data)
+	case protocol.BeaconSend:
+		client.handleBeaconSend(id, data)
+	case protocol.BeaconAckGUID:
+		client.handleBeaconAckGUID(id, data)
+	case protocol.BeaconAck:
+		client.handleBeaconAck(id, data)
+	case protocol.BeaconQueryGUID:
+		client.handleBeaconQueryGUID(id, data)
+	case protocol.BeaconQuery:
+		client.handleBeaconQuery(id, data)
+	default:
+		return false
+	}
+	return true
 }
 
 func (client *Client) handleNodeSendGUID(id, data []byte) {
@@ -690,8 +690,8 @@ func (client *Client) handleBeaconQuery(id, data []byte) {
 	}
 }
 
-// Send is used to send command and receive reply
-func (client *Client) Send(cmd uint8, data []byte) ([]byte, error) {
+// send is used to send command and receive reply
+func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
 	if client.isClosed() {
 		return nil, protocol.ErrConnClosed
 	}
@@ -746,6 +746,11 @@ func (client *Client) Send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
+// SendCommand is used to send command and receive reply
+func (client *Client) SendCommand(cmd uint8, data []byte) ([]byte, error) {
+	return client.send(cmd, data)
+}
+
 // SendToNode is used to send message to node
 func (client *Client) SendToNode(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
@@ -753,7 +758,7 @@ func (client *Client) SendToNode(guid *guid.GUID, data *bytes.Buffer) (sr *proto
 		GUID: client.guid,
 	}
 	var reply []byte
-	reply, sr.Err = client.Send(protocol.CtrlSendToNodeGUID, guid[:])
+	reply, sr.Err = client.send(protocol.CtrlSendToNodeGUID, guid[:])
 	if sr.Err != nil {
 		return
 	}
@@ -761,7 +766,7 @@ func (client *Client) SendToNode(guid *guid.GUID, data *bytes.Buffer) (sr *proto
 		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
-	reply, sr.Err = client.Send(protocol.CtrlSendToNode, data.Bytes())
+	reply, sr.Err = client.send(protocol.CtrlSendToNode, data.Bytes())
 	if sr.Err != nil {
 		return
 	}
@@ -771,14 +776,14 @@ func (client *Client) SendToNode(guid *guid.GUID, data *bytes.Buffer) (sr *proto
 	return
 }
 
-// SendToBeacon is used to send message to beacon
+// SendToBeacon is used to send message to beacon.
 func (client *Client) SendToBeacon(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
 	}
 	var reply []byte
-	reply, sr.Err = client.Send(protocol.CtrlSendToBeaconGUID, guid[:])
+	reply, sr.Err = client.send(protocol.CtrlSendToBeaconGUID, guid[:])
 	if sr.Err != nil {
 		return
 	}
@@ -786,7 +791,7 @@ func (client *Client) SendToBeacon(guid *guid.GUID, data *bytes.Buffer) (sr *pro
 		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
-	reply, sr.Err = client.Send(protocol.CtrlSendToBeacon, data.Bytes())
+	reply, sr.Err = client.send(protocol.CtrlSendToBeacon, data.Bytes())
 	if sr.Err != nil {
 		return
 	}
@@ -796,8 +801,7 @@ func (client *Client) SendToBeacon(guid *guid.GUID, data *bytes.Buffer) (sr *pro
 	return
 }
 
-// AcknowledgeToNode is used to notice Node that
-// Controller has received this message
+// AcknowledgeToNode is used to notice Node that Controller has received this message.
 func (client *Client) AcknowledgeToNode(
 	guid *guid.GUID,
 	data *bytes.Buffer,
@@ -807,14 +811,14 @@ func (client *Client) AcknowledgeToNode(
 		GUID: client.guid,
 	}
 	var reply []byte
-	reply, ar.Err = client.Send(protocol.CtrlAckToNodeGUID, guid[:])
+	reply, ar.Err = client.send(protocol.CtrlAckToNodeGUID, guid[:])
 	if ar.Err != nil {
 		return
 	}
 	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
 		return
 	}
-	reply, ar.Err = client.Send(protocol.CtrlAckToNode, data.Bytes())
+	reply, ar.Err = client.send(protocol.CtrlAckToNode, data.Bytes())
 	if ar.Err != nil {
 		return
 	}
@@ -824,8 +828,7 @@ func (client *Client) AcknowledgeToNode(
 	return
 }
 
-// AcknowledgeToBeacon is used to notice Beacon that
-// Controller has received this message
+// AcknowledgeToBeacon is used to notice Beacon that Controller has received this message.
 func (client *Client) AcknowledgeToBeacon(
 	guid *guid.GUID,
 	data *bytes.Buffer,
@@ -835,14 +838,14 @@ func (client *Client) AcknowledgeToBeacon(
 		GUID: client.guid,
 	}
 	var reply []byte
-	reply, ar.Err = client.Send(protocol.CtrlAckToBeaconGUID, guid[:])
+	reply, ar.Err = client.send(protocol.CtrlAckToBeaconGUID, guid[:])
 	if ar.Err != nil {
 		return
 	}
 	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
 		return
 	}
-	reply, ar.Err = client.Send(protocol.CtrlAckToBeacon, data.Bytes())
+	reply, ar.Err = client.send(protocol.CtrlAckToBeacon, data.Bytes())
 	if ar.Err != nil {
 		return
 	}
@@ -852,13 +855,13 @@ func (client *Client) AcknowledgeToBeacon(
 	return
 }
 
-// Broadcast is used to broadcast message to nodes
+// Broadcast is used to broadcast message to all Nodes.
 func (client *Client) Broadcast(guid *guid.GUID, data *bytes.Buffer) (br *protocol.BroadcastResponse) {
 	br = &protocol.BroadcastResponse{
 		GUID: client.guid,
 	}
 	var reply []byte
-	reply, br.Err = client.Send(protocol.CtrlBroadcastGUID, guid[:])
+	reply, br.Err = client.send(protocol.CtrlBroadcastGUID, guid[:])
 	if br.Err != nil {
 		return
 	}
@@ -867,7 +870,7 @@ func (client *Client) Broadcast(guid *guid.GUID, data *bytes.Buffer) (br *protoc
 		return
 	}
 	// broadcast
-	reply, br.Err = client.Send(protocol.CtrlBroadcast, data.Bytes())
+	reply, br.Err = client.send(protocol.CtrlBroadcast, data.Bytes())
 	if br.Err != nil {
 		return
 	}
@@ -877,20 +880,20 @@ func (client *Client) Broadcast(guid *guid.GUID, data *bytes.Buffer) (br *protoc
 	return
 }
 
-// Answer is used to return the result of the beacon query
+// Answer is used to return the result of the Beacon query.
 func (client *Client) Answer(guid *guid.GUID, data *bytes.Buffer) (ar *protocol.AnswerResponse) {
 	ar = &protocol.AnswerResponse{
 		GUID: client.guid,
 	}
 	var reply []byte
-	reply, ar.Err = client.Send(protocol.CtrlAnswerGUID, guid[:])
+	reply, ar.Err = client.send(protocol.CtrlAnswerGUID, guid[:])
 	if ar.Err != nil {
 		return
 	}
 	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
 		return
 	}
-	reply, ar.Err = client.Send(protocol.CtrlAnswer, data.Bytes())
+	reply, ar.Err = client.send(protocol.CtrlAnswer, data.Bytes())
 	if ar.Err != nil {
 		return
 	}

@@ -22,7 +22,7 @@ type CTRL struct {
 
 	database  *database  // database
 	logger    *gLogger   // global logger
-	global    *global    // certificate , proxy, dns, time syncer, and ...
+	global    *global    // certificate, proxy, dns, time syncer, and ...
 	syncer    *syncer    // receive message
 	clientMgr *clientMgr // clients manager
 	sender    *sender    // broadcast and send message
