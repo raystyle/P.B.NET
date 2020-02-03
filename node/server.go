@@ -464,11 +464,11 @@ func (server *server) handshake(conn *xnet.Conn) {
 	role := protocol.Role(r[0])
 	switch role {
 	case protocol.Ctrl:
-		server.handleCtrl(tag, conn)
+		server.handshakeWithCtrl(tag, conn)
 	case protocol.Node:
-		server.handleNode(tag, conn)
+		server.handshakeWithNode(tag, conn)
 	case protocol.Beacon:
-		server.handleBeacon(tag, conn)
+		server.handshakeWithBeacon(tag, conn)
 	default:
 		server.logConn(conn, logger.Exploit, role)
 	}
@@ -564,7 +564,7 @@ func (server *server) sendCertificate(conn *xnet.Conn) bool {
 	return true
 }
 
-func (server *server) handleCtrl(tag *guid.GUID, conn *xnet.Conn) {
+func (server *server) handshakeWithCtrl(tag *guid.GUID, conn *xnet.Conn) {
 	// <danger>
 	// maybe fake node will send some special data
 	// and controller sign it
@@ -594,12 +594,7 @@ func (server *server) handleCtrl(tag *guid.GUID, conn *xnet.Conn) {
 	server.serveCtrl(tag, conn)
 }
 
-const (
-	nodeOperationRegister byte = iota + 1
-	nodeOperationConnect
-)
-
-func (server *server) handleNode(tag *guid.GUID, conn *xnet.Conn) {
+func (server *server) handshakeWithNode(tag *guid.GUID, conn *xnet.Conn) {
 	nodeGUID := guid.GUID{}
 	_, err := io.ReadFull(conn, nodeGUID[:])
 	if err != nil {
@@ -619,9 +614,9 @@ func (server *server) handleNode(tag *guid.GUID, conn *xnet.Conn) {
 		return
 	}
 	switch operation[0] {
-	case nodeOperationRegister: // register
+	case protocol.NodeOperationRegister: // register
 		server.registerNode(conn, &nodeGUID)
-	case nodeOperationConnect: // connect
+	case protocol.NodeOperationConnect: // connect
 		if !server.verifyNode(conn, &nodeGUID) {
 			return
 		}
@@ -739,12 +734,7 @@ func (server *server) verifyNode(conn *xnet.Conn, guid *guid.GUID) bool {
 	return true
 }
 
-const (
-	beaconOperationRegister byte = iota + 1
-	beaconOperationConnect
-)
-
-func (server *server) handleBeacon(tag *guid.GUID, conn *xnet.Conn) {
+func (server *server) handshakeWithBeacon(tag *guid.GUID, conn *xnet.Conn) {
 	beaconGUID := guid.GUID{}
 	_, err := io.ReadFull(conn, beaconGUID[:])
 	if err != nil {
@@ -834,6 +824,32 @@ func (ctrl *ctrlConn) onFrameBeforeSync(frame []byte) bool {
 	return true
 }
 
+func (ctrl *ctrlConn) handleSyncStart(id []byte) {
+	ctrl.syncM.Lock()
+	defer ctrl.syncM.Unlock()
+	if ctrl.isSync() {
+		return
+	}
+	ctrl.Conn.SendPool.New = func() interface{} {
+		return protocol.NewSend()
+	}
+	ctrl.Conn.AckPool.New = func() interface{} {
+		return protocol.NewAcknowledge()
+	}
+	ctrl.Conn.AnswerPool.New = func() interface{} {
+		return protocol.NewAnswer()
+	}
+	err := ctrl.ctx.forwarder.RegisterCtrl(ctrl.tag, ctrl)
+	if err != nil {
+		ctrl.Conn.Reply(id, []byte(err.Error()))
+		ctrl.Close()
+	} else {
+		atomic.StoreInt32(&ctrl.inSync, 1)
+		ctrl.Conn.Reply(id, []byte{protocol.NodeSync})
+		ctrl.Conn.Log(logger.Debug, "synchronizing")
+	}
+}
+
 func (ctrl *ctrlConn) onFrameAfterSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
@@ -866,32 +882,6 @@ func (ctrl *ctrlConn) onFrameAfterSync(frame []byte) bool {
 		return false
 	}
 	return true
-}
-
-func (ctrl *ctrlConn) handleSyncStart(id []byte) {
-	ctrl.syncM.Lock()
-	defer ctrl.syncM.Unlock()
-	if ctrl.isSync() {
-		return
-	}
-	ctrl.Conn.SendPool.New = func() interface{} {
-		return protocol.NewSend()
-	}
-	ctrl.Conn.AckPool.New = func() interface{} {
-		return protocol.NewAcknowledge()
-	}
-	ctrl.Conn.AnswerPool.New = func() interface{} {
-		return protocol.NewAnswer()
-	}
-	err := ctrl.ctx.forwarder.RegisterCtrl(ctrl.tag, ctrl)
-	if err != nil {
-		ctrl.Conn.Reply(id, []byte(err.Error()))
-		ctrl.Close()
-	} else {
-		atomic.StoreInt32(&ctrl.inSync, 1)
-		ctrl.Conn.Reply(id, []byte{protocol.NodeSync})
-		ctrl.Conn.Log(logger.Debug, "synchronizing")
-	}
 }
 
 func (ctrl *ctrlConn) handleTrustNode(id []byte) {
@@ -989,6 +979,35 @@ func (node *nodeConn) onFrameBeforeSync(frame []byte) bool {
 	return true
 }
 
+func (node *nodeConn) handleSyncStart(id []byte) {
+	node.syncM.Lock()
+	defer node.syncM.Unlock()
+	if node.isSync() {
+		return
+	}
+	node.Conn.SendPool.New = func() interface{} {
+		return protocol.NewSend()
+	}
+	node.Conn.AckPool.New = func() interface{} {
+		return protocol.NewAcknowledge()
+	}
+	node.Conn.AnswerPool.New = func() interface{} {
+		return protocol.NewAnswer()
+	}
+	node.Conn.QueryPool.New = func() interface{} {
+		return protocol.NewQuery()
+	}
+	err := node.ctx.forwarder.RegisterNode(node.tag, node)
+	if err != nil {
+		node.Conn.Reply(id, []byte(err.Error()))
+		node.Close()
+	} else {
+		atomic.StoreInt32(&node.inSync, 1)
+		node.Conn.Reply(id, []byte{protocol.NodeSync})
+		node.Conn.Log(logger.Debug, "synchronizing")
+	}
+}
+
 func (node *nodeConn) onFrameAfterSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
@@ -1072,35 +1091,6 @@ func (node *nodeConn) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) boo
 	return true
 }
 
-func (node *nodeConn) handleSyncStart(id []byte) {
-	node.syncM.Lock()
-	defer node.syncM.Unlock()
-	if node.isSync() {
-		return
-	}
-	node.Conn.SendPool.New = func() interface{} {
-		return protocol.NewSend()
-	}
-	node.Conn.AckPool.New = func() interface{} {
-		return protocol.NewAcknowledge()
-	}
-	node.Conn.AnswerPool.New = func() interface{} {
-		return protocol.NewAnswer()
-	}
-	node.Conn.QueryPool.New = func() interface{} {
-		return protocol.NewQuery()
-	}
-	err := node.ctx.forwarder.RegisterNode(node.tag, node)
-	if err != nil {
-		node.Conn.Reply(id, []byte(err.Error()))
-		node.Close()
-	} else {
-		atomic.StoreInt32(&node.inSync, 1)
-		node.Conn.Reply(id, []byte{protocol.NodeSync})
-		node.Conn.Log(logger.Debug, "synchronizing")
-	}
-}
-
 func (node *nodeConn) Close() {
 	_ = node.Conn.Close()
 }
@@ -1182,28 +1172,6 @@ func (beacon *beaconConn) onFrameBeforeSync(frame []byte) bool {
 	return true
 }
 
-func (beacon *beaconConn) onFrameAfterSync(frame []byte) bool {
-	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
-	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
-	switch frame[0] {
-	case protocol.BeaconSendGUID:
-		beacon.Conn.HandleBeaconSendGUID(id, data)
-	case protocol.BeaconSend:
-		beacon.Conn.HandleBeaconSend(id, data)
-	case protocol.BeaconAckGUID:
-		beacon.Conn.HandleBeaconAckGUID(id, data)
-	case protocol.BeaconAck:
-		beacon.Conn.HandleBeaconAck(id, data)
-	case protocol.BeaconQueryGUID:
-		beacon.Conn.HandleBeaconQueryGUID(id, data)
-	case protocol.BeaconQuery:
-		beacon.Conn.HandleBeaconQuery(id, data)
-	default:
-		return false
-	}
-	return true
-}
-
 func (beacon *beaconConn) handleSyncStart(id []byte) {
 	beacon.syncM.Lock()
 	defer beacon.syncM.Unlock()
@@ -1228,6 +1196,28 @@ func (beacon *beaconConn) handleSyncStart(id []byte) {
 		beacon.Conn.Reply(id, []byte{protocol.NodeSync})
 		beacon.Conn.Log(logger.Debug, "synchronizing")
 	}
+}
+
+func (beacon *beaconConn) onFrameAfterSync(frame []byte) bool {
+	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
+	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
+	switch frame[0] {
+	case protocol.BeaconSendGUID:
+		beacon.Conn.HandleBeaconSendGUID(id, data)
+	case protocol.BeaconSend:
+		beacon.Conn.HandleBeaconSend(id, data)
+	case protocol.BeaconAckGUID:
+		beacon.Conn.HandleBeaconAckGUID(id, data)
+	case protocol.BeaconAck:
+		beacon.Conn.HandleBeaconAck(id, data)
+	case protocol.BeaconQueryGUID:
+		beacon.Conn.HandleBeaconQueryGUID(id, data)
+	case protocol.BeaconQuery:
+		beacon.Conn.HandleBeaconQuery(id, data)
+	default:
+		return false
+	}
+	return true
 }
 
 func (beacon *beaconConn) Close() {

@@ -21,7 +21,7 @@ type Node struct {
 
 	storage   *storage   // storage
 	logger    *gLogger   // global logger
-	global    *global    // proxy clients, DNS clients, time syncer
+	global    *global    // certificate, proxy, dns, time syncer, and ...
 	syncer    *syncer    // sync network guid
 	clientMgr *clientMgr // clients manager
 	register  *register  // about register to Controller

@@ -110,7 +110,7 @@ func (node *Node) NewClient(
 		return nil, errors.WithMessagef(err, format, bl)
 	}
 	node.clientMgr.Add(client)
-	client.Conn.Log(logger.Info, "connected")
+	client.Conn.Log(logger.Info, "create client")
 	return client, nil
 }
 
@@ -130,7 +130,7 @@ func (client *Client) handshake(conn *xnet.Conn) error {
 		return err
 	}
 	if !ok {
-		return errors.New("failed to verify certificate")
+		return errors.New("failed to verify node certificate")
 	}
 	// send role
 	_, err = conn.Write(protocol.Node.Bytes())
@@ -167,7 +167,7 @@ func (client *Client) Connect() (err error) {
 		}
 	}()
 	// send connect operation
-	_, err = client.Conn.Write([]byte{nodeOperationConnect})
+	_, err = client.Conn.Write([]byte{protocol.NodeOperationConnect})
 	if err != nil {
 		err = errors.Wrap(err, "failed to send connect operation")
 		return
@@ -195,7 +195,6 @@ func (client *Client) Connect() (err error) {
 				client.ctx.forwarder.LogoffClient(client.tag)
 			}
 			client.Close()
-			client.Conn.Log(logger.Debug, "disconnected")
 		}()
 		protocol.HandleConn(client.Conn, client.onFrame)
 	}()
@@ -295,6 +294,49 @@ func (client *Client) onFrame(frame []byte) {
 	client.Close()
 }
 
+// Synchronize is used to switch to synchronize mode
+func (client *Client) Synchronize() (err error) {
+	defer func() {
+		if err != nil {
+			client.Close()
+		}
+	}()
+	client.syncM.Lock()
+	defer client.syncM.Unlock()
+	if client.isSync() {
+		err = errors.New("already synchronize")
+		return
+	}
+	resp, err := client.Conn.SendCommand(protocol.NodeSync, nil)
+	if err != nil {
+		err = errors.Wrap(err, "failed to receive synchronize response")
+		return
+	}
+	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
+		err = errors.Errorf("failed to start synchronize: %s", resp)
+		return
+	}
+	// initialize sync pool
+	client.Conn.SendPool.New = func() interface{} {
+		return protocol.NewSend()
+	}
+	client.Conn.AckPool.New = func() interface{} {
+		return protocol.NewAcknowledge()
+	}
+	client.Conn.AnswerPool.New = func() interface{} {
+		return protocol.NewAnswer()
+	}
+	client.Conn.QueryPool.New = func() interface{} {
+		return protocol.NewQuery()
+	}
+	err = client.ctx.forwarder.RegisterClient(client.tag, client)
+	if err != nil {
+		return
+	}
+	atomic.StoreInt32(&client.inSync, 1)
+	return
+}
+
 func (client *Client) onFrameAfterSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
@@ -376,49 +418,6 @@ func (client *Client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) boo
 		return false
 	}
 	return true
-}
-
-// Synchronize is used to switch to synchronize mode
-func (client *Client) Synchronize() (err error) {
-	defer func() {
-		if err != nil {
-			client.Close()
-		}
-	}()
-	client.syncM.Lock()
-	defer client.syncM.Unlock()
-	if client.isSync() {
-		err = errors.New("already synchronize")
-		return
-	}
-	resp, err := client.Conn.SendCommand(protocol.NodeSync, nil)
-	if err != nil {
-		err = errors.Wrap(err, "failed to receive synchronize response")
-		return
-	}
-	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
-		err = errors.Errorf("failed to start synchronize: %s", resp)
-		return
-	}
-	// initialize sync pool
-	client.Conn.SendPool.New = func() interface{} {
-		return protocol.NewSend()
-	}
-	client.Conn.AckPool.New = func() interface{} {
-		return protocol.NewAcknowledge()
-	}
-	client.Conn.AnswerPool.New = func() interface{} {
-		return protocol.NewAnswer()
-	}
-	client.Conn.QueryPool.New = func() interface{} {
-		return protocol.NewQuery()
-	}
-	err = client.ctx.forwarder.RegisterClient(client.tag, client)
-	if err != nil {
-		return
-	}
-	atomic.StoreInt32(&client.inSync, 1)
-	return
 }
 
 // Status is used to get connection status

@@ -261,7 +261,6 @@ func (sw *subWorker) handleAcknowledge(acknowledge *protocol.Acknowledge) {
 		sw.logf(logger.Exploit, format, spew.Sdump(acknowledge))
 		return
 	}
-	sw.buffer.Reset()
 	sw.ctx.sender.HandleAcknowledge(&acknowledge.SendGUID)
 }
 

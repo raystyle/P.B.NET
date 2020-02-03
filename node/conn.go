@@ -201,7 +201,7 @@ func (c *conn) Reply(id, reply []byte) {
 		return
 	}
 	l := len(reply)
-	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
+	// 7 = size(4 Bytes) + ConnReply(1 byte) + msg id(2 bytes)
 	b := make([]byte, protocol.FrameHeaderSize+l)
 	// write size
 	msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
@@ -830,10 +830,12 @@ func (c *conn) send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
+// SendMessage is a wrapper of xnet.Conn.Send()
 func (c *conn) SendMessage(msg []byte) error {
 	return c.Conn.Send(msg)
 }
 
+// SendCommand is used to send command and receive reply
 func (c *conn) SendCommand(cmd uint8, data []byte) ([]byte, error) {
 	return c.send(cmd, data)
 }
