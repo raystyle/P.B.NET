@@ -30,7 +30,8 @@ import (
 type Client struct {
 	ctx *Node
 
-	GUID *guid.GUID // Node GUID
+	listener *bootstrap.Listener
+	GUID     *guid.GUID // Node GUID
 
 	tag       *guid.GUID
 	Conn      *conn
@@ -97,10 +98,11 @@ func (node *Node) NewClient(
 	}
 	// handshake
 	client := &Client{
-		ctx:  node,
-		GUID: guid,
-		tag:  node.clientMgr.GenerateTag(),
-		rand: random.New(),
+		ctx:      node,
+		listener: bl,
+		GUID:     guid,
+		tag:      node.clientMgr.GenerateTag(),
+		rand:     random.New(),
 	}
 	client.Conn = newConn(node, conn, client.tag, guid, connUsageClient)
 	err = client.handshake(conn)
@@ -334,6 +336,8 @@ func (client *Client) Synchronize() (err error) {
 		return
 	}
 	atomic.StoreInt32(&client.inSync, 1)
+	const format = "start synchronize\nlistener: %s"
+	client.Conn.Logf(logger.Info, format, client.listener)
 	return
 }
 

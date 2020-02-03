@@ -118,6 +118,14 @@ func (sender *sender) isClosed() bool {
 	return atomic.LoadInt32(&sender.inClose) != 0
 }
 
+func (sender *sender) log(l logger.Level, log ...interface{}) {
+	sender.ctx.logger.Println(l, "sender", log...)
+}
+
+func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
+	sender.ctx.logger.Printf(l, "sender", format, log...)
+}
+
 // Synchronize is used to connect a node listener and start synchronize
 // can't connect if a exists client, or the target node is connected self
 func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
@@ -158,12 +166,10 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		const format = "failed to start synchronize\nlistener: %s\n%s"
 		return errors.WithMessagef(err, format, bl, guid)
 	}
-	const fStart = "start synchronize\nlistener: %s\n%s"
-	sender.logf(logger.Info, fStart, bl, guid.Hex())
 	return nil
 }
 
-// Send is used to send message to Controller
+// Send is used to send message to Controller.
 func (sender *sender) Send(cmd []byte, msg interface{}) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -186,8 +192,7 @@ func (sender *sender) Send(cmd []byte, msg interface{}) error {
 	return result.Err
 }
 
-// SendFromPlugin is used to provide a interface
-// for plugins to send message to Controller
+// SendFromPlugin is used to provide a interface for plugins to send message to Controller.
 func (sender *sender) SendFromPlugin(message []byte) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -234,6 +239,14 @@ func (sender *sender) HandleAcknowledge(send *guid.GUID) {
 	}
 }
 
+func (sender *sender) Close() {
+	atomic.StoreInt32(&sender.inClose, 1)
+	close(sender.stopSignal)
+	sender.wg.Wait()
+	sender.guid.Close()
+	sender.ctx = nil
+}
+
 func (sender *sender) createAckSlot(send *guid.GUID) (<-chan struct{}, func()) {
 	sender.slotsM.Lock()
 	defer sender.slotsM.Unlock()
@@ -243,22 +256,6 @@ func (sender *sender) createAckSlot(send *guid.GUID) (<-chan struct{}, func()) {
 		defer sender.slotsM.Unlock()
 		delete(sender.slots, *send)
 	}
-}
-
-func (sender *sender) Close() {
-	atomic.StoreInt32(&sender.inClose, 1)
-	close(sender.stopSignal)
-	sender.wg.Wait()
-	sender.guid.Close()
-	sender.ctx = nil
-}
-
-func (sender *sender) log(l logger.Level, log ...interface{}) {
-	sender.ctx.logger.Println(l, "sender", log...)
-}
-
-func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
-	sender.ctx.logger.Printf(l, "sender", format, log...)
 }
 
 type senderWorker struct {

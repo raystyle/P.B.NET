@@ -12,8 +12,6 @@ import (
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/messages"
-	"project/internal/module/shell"
-	"project/internal/module/shellcode"
 	"project/internal/protocol"
 	"project/internal/xpanic"
 )
@@ -96,64 +94,12 @@ func (h *handler) OnSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[:4])
 	send.Message = send.Message[4:]
 	switch msgType {
-	case messages.CMDExecuteShellCode:
-		h.handleExecuteShellCode(send)
-	case messages.CMDShell:
-		h.handleShell(send)
 	case messages.CMDTest:
 		h.handleSendTestMessage(send)
 	default:
 		const format = "controller send unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(send))
 	}
-}
-
-// TODO <security> must remove to Beacon
-func (h *handler) handleExecuteShellCode(send *protocol.Send) {
-	defer h.logPanic("handler.handleExecuteShellCode")
-	var es messages.ExecuteShellCode
-	err := msgpack.Unmarshal(send.Message, &es)
-	if err != nil {
-		const log = "controller send invalid shellcode"
-		h.logWithInfo(logger.Exploit, send, log)
-		return
-	}
-	go func() {
-		// add interrupt to execute wg.Done
-		err = shellcode.Execute(es.Method, es.ShellCode)
-		if err != nil {
-			// send execute error
-			fmt.Println("--------------", err)
-		}
-	}()
-}
-
-// TODO <security> must remove to Beacon
-func (h *handler) handleShell(send *protocol.Send) {
-	defer h.logPanic("handler.handleShell")
-	var s messages.Shell
-	err := msgpack.Unmarshal(send.Message, &s)
-	if err != nil {
-		const log = "controller send invalid shell"
-		h.logWithInfo(logger.Exploit, send, log)
-		return
-	}
-	go func() {
-		// add interrupt to execute wg.Done
-		output, err := shell.Shell(s.Command)
-		if err != nil {
-			// send execute error
-			return
-		}
-
-		so := messages.ShellOutput{
-			Output: output,
-		}
-		err = h.ctx.sender.Send(messages.CMDBShellOutput, &so)
-		if err != nil {
-			fmt.Println("failed to send:", err)
-		}
-	}()
 }
 
 func (h *handler) handleSendTestMessage(send *protocol.Send) {
