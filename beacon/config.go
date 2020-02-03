@@ -1,61 +1,83 @@
 package beacon
 
 import (
+	"io"
 	"time"
 
 	"project/internal/dns"
-	"project/internal/messages"
 	"project/internal/proxy"
 	"project/internal/timesync"
 )
 
 // Config contains configuration about Beacon
+// use extra msgpack tag to hide raw field name
 type Config struct {
-	// TODO skip encode
-	Debug Debug `toml:"-"`
+	Test Test `toml:"-" msgpack:"-"`
 
-	// CheckMode is used to check whether
-	// the configuration is correct
-	CheckMode bool `toml:"-"`
+	Logger struct {
+		Level     string    `toml:"level"      msgpack:"a"`
+		QueueSize int       `toml:"queue_size" msgpack:"b"`
+		Writer    io.Writer `toml:"-"          msgpack:"-"`
+	} `toml:"logger" msgpack:"aa"`
 
-	// logger
-	LogLevel string `toml:"log_level"`
+	Global struct {
+		DNSCacheExpire      time.Duration `toml:"dns_cache_expire"      msgpack:"a"`
+		TimeSyncSleepFixed  uint          `toml:"timesync_sleep_fixed"  msgpack:"b"`
+		TimeSyncSleepRandom uint          `toml:"timesync_sleep_random" msgpack:"c"`
+		TimeSyncInterval    time.Duration `toml:"timesync_interval"     msgpack:"d"`
 
-	// global
-	ProxyClients       map[string]*proxy.Chain     `toml:"proxy_clients"`
-	DNSServers         map[string]*dns.Server      `toml:"dns_servers"`
-	DNSCacheDeadline   time.Duration               `toml:"dns_cache_deadline"`
-	TimeSyncerClients  map[string]*timesync.Client `toml:"time_syncer_clients"`
-	TimeSyncerInterval time.Duration               `toml:"time_syncer_interval"`
+		// generate from controller
+		Certificates      [][]byte                    `toml:"-" msgpack:"w"`
+		ProxyClients      []*proxy.Client             `toml:"-" msgpack:"x"`
+		DNSServers        map[string]*dns.Server      `toml:"-" msgpack:"y"`
+		TimeSyncerClients map[string]*timesync.Client `toml:"-" msgpack:"z"`
+	} `toml:"global" msgpack:"bb"`
 
-	// sender
-	MaxBufferSize   int `toml:"max_buffer_size"` // syncer also use it
-	SenderWorker    int `toml:"sender_worker"`
-	SenderQueueSize int `toml:"sender_queue_size"`
+	Client struct {
+		ProxyTag string        `toml:"proxy_tag" msgpack:"a"`
+		Timeout  time.Duration `toml:"timeout"   msgpack:"b"`
+		DNSOpts  dns.Options   `toml:"dns"       msgpack:"c"`
+	} `toml:"client" msgpack:"cc"`
 
-	// syncer
-	MaxSyncerClient  int           `toml:"max_syncer_client"`
-	SyncerWorker     int           `toml:"syncer_worker"`
-	SyncerQueueSize  int           `toml:"syncer_queue_size"`
-	ReserveWorker    int           `toml:"reserve_worker"`
-	RetryTimes       int           `toml:"retry_times"`
-	RetryInterval    time.Duration `toml:"retry_interval"`
-	BroadcastTimeout time.Duration `toml:"broadcast_timeout"`
+	Register struct {
+		SleepFixed  uint `toml:"sleep_fixed"  msgpack:"a"` // about register failed
+		SleepRandom uint `toml:"sleep_random" msgpack:"b"`
 
-	// controller configs
-	CtrlPublicKey   []byte `toml:"-"`
-	CtrlExPublicKey []byte `toml:"-"`
+		// generate configs from controller
+		FirstBoot []byte `toml:"-" msgpack:"w"` // type: *messages.Bootstrap
+		FirstKey  []byte `toml:"-" msgpack:"x"` // decrypt the first bootstrap data, AES CBC
+		RestBoots []byte `toml:"-" msgpack:"y"` // type: []*messages.Bootstrap
+		RestKey   []byte `toml:"-" msgpack:"z"` // decrypt rest bootstraps data, AES CBC
+	} `toml:"register" msgpack:"dd"`
 
-	// register
-	RegisterAESKey     []byte                `toml:"-"` // key + iv Config is encrypted
-	RegisterBootstraps []*messages.Bootstrap `toml:"-"`
-}
+	Sender struct {
+		Worker        int           `toml:"worker"          msgpack:"a"`
+		Timeout       time.Duration `toml:"timeout"         msgpack:"b"`
+		QueueSize     int           `toml:"queue_size"      msgpack:"c"`
+		MaxBufferSize int           `toml:"max_buffer_size" msgpack:"d"`
+	} `toml:"sender" msgpack:"ff"`
 
-// Debug is used to test
-type Debug struct {
-	SkipSynchronizeTime bool
+	Syncer struct {
+		ExpireTime time.Duration `toml:"expire_time" msgpack:"a"`
+	} `toml:"syncer" msgpack:"gg"`
 
-	// from controller
-	Broadcast chan []byte
-	Send      chan []byte
+	Worker struct {
+		Number        int `toml:"number"          msgpack:"a"`
+		QueueSize     int `toml:"queue_size"      msgpack:"b"`
+		MaxBufferSize int `toml:"max_buffer_size" msgpack:"c"`
+	} `toml:"worker" msgpack:"hh"`
+
+	// generate from controller
+	CTRL struct {
+		KexPublicKey []byte `msgpack:"x"` // key exchange curve25519
+		PublicKey    []byte `msgpack:"y"` // verify message ed25519
+		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
+	} `toml:"-" msgpack:"jj"`
+
+	// about service
+	Service struct {
+		Name        string `toml:"name"         msgpack:"a"`
+		DisplayName string `toml:"display_name" msgpack:"b"`
+		Description string `toml:"description"  msgpack:"c"`
+	} `toml:"service" msgpack:"kk"`
 }
