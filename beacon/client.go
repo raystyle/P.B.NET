@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -24,11 +25,6 @@ import (
 	"project/internal/random"
 	"project/internal/xnet"
 	"project/internal/xpanic"
-)
-
-const (
-	beaconOperationRegister byte = iota + 1
-	beaconOperationConnect
 )
 
 // Client is used to connect Node listener
@@ -119,30 +115,8 @@ func (beacon *Beacon) NewClient(
 		const format = "failed to handshake with node listener: %s"
 		return nil, errors.WithMessagef(err, format, bl)
 	}
-
-	// initialize message slots
-	client.slots = make([]*protocol.Slot, protocol.SlotSize)
-	for i := 0; i < protocol.SlotSize; i++ {
-		client.slots[i] = protocol.NewSlot()
-	}
-	client.stopSignal = make(chan struct{})
-	// heartbeat
-	client.heartbeat = make(chan struct{}, 1)
-	client.wg.Add(1)
-	go client.sendHeartbeatLoop()
-	// handle connection
-	// <warning> don't add wg
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				client.log(logger.Fatal, xpanic.Print(r, "client.HandleConn"))
-			}
-			client.Close()
-		}()
-		protocol.HandleConn(client.Conn, client.onFrame)
-	}()
 	beacon.clientMgr.Add(client)
-	client.log(logger.Info, "connected")
+	client.log(logger.Info, "create client")
 	return client, nil
 }
 
@@ -182,6 +156,112 @@ func (client *Client) logExtra(lv logger.Level, buf *bytes.Buffer) {
 }
 
 func (client *Client) handshake(conn *xnet.Conn) error {
+	timeout := client.ctx.clientMgr.GetTimeout()
+	_ = conn.SetDeadline(client.ctx.global.Now().Add(timeout))
+	// about check connection
+	err := client.checkConn(conn)
+	if err != nil {
+		return err
+	}
+	// verify certificate
+	publicKey := client.ctx.global.CtrlPublicKey()
+	ok, err := protocol.VerifyCertificate(conn, publicKey, client.guid)
+	if err != nil {
+		client.log(logger.Exploit, err)
+		return err
+	}
+	if !ok {
+		return errors.New("failed to verify node certificate")
+	}
+	// send role
+	_, err = conn.Write(protocol.Beacon.Bytes())
+	if err != nil {
+		return errors.Wrap(err, "failed to send role")
+	}
+	// send self guid
+	_, err = conn.Write(client.ctx.global.GUID()[:])
+	return err
+}
+
+func (client *Client) checkConn(conn *xnet.Conn) error {
+	size := byte(100 + client.rand.Int(156))
+	data := client.rand.Bytes(int(size))
+	_, err := conn.Write(append([]byte{size}, data...))
+	if err != nil {
+		return errors.WithMessage(err, "failed to send check connection data")
+	}
+	n, err := io.ReadFull(conn, data)
+	if err != nil {
+		const format = "error in client.checkConn(): %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(data[:n]))
+		return err
+	}
+	return nil
+}
+
+// Connect is used to start protocol.HandleConn(), if you want to
+// start Synchronize(), you must call this function first.
+func (client *Client) Connect() (err error) {
+	defer func() {
+		if err != nil {
+			client.Close()
+		}
+	}()
+	// send connect operation
+	_, err = client.Conn.Write([]byte{protocol.BeaconOperationConnect})
+	if err != nil {
+		err = errors.Wrap(err, "failed to send connect operation")
+		return
+	}
+	err = client.authenticate()
+	if err != nil {
+		return
+	}
+	client.stopSignal = make(chan struct{})
+	// heartbeat
+	client.heartbeat = make(chan struct{}, 1)
+	client.wg.Add(1)
+	go client.sendHeartbeatLoop()
+	// handle connection
+	// <warning> don't add wg
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				client.log(logger.Fatal, xpanic.Print(r, "client.handleConn"))
+			}
+			client.Close()
+		}()
+		protocol.HandleConn(client.Conn, client.onFrame)
+	}()
+	timeout := client.ctx.clientMgr.GetTimeout()
+	_ = client.Conn.SetDeadline(client.ctx.global.Now().Add(timeout))
+	client.log(logger.Debug, "connected")
+	return
+}
+
+func (client *Client) authenticate() error {
+	// receive challenge
+	challenge, err := client.Conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive challenge")
+	}
+	if len(challenge) != protocol.ChallengeSize {
+		err = errors.New("invalid challenge size")
+		client.log(logger.Exploit, err)
+		return err
+	}
+	// send signature
+	err = client.Conn.Send(client.ctx.global.Sign(challenge))
+	if err != nil {
+		return errors.Wrap(err, "failed to send challenge signature")
+	}
+	resp, err := client.Conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive authentication response")
+	}
+	if bytes.Compare(resp, protocol.AuthSucceed) != 0 {
+		return errors.WithStack(protocol.ErrAuthenticateFailed)
+	}
 	return nil
 }
 
@@ -274,16 +354,12 @@ func (client *Client) onFrame(frame []byte) {
 	}
 }
 
-func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
-	return false
-}
-
 func (client *Client) reply(id, reply []byte) {
 	if client.isClosed() {
 		return
 	}
 	l := len(reply)
-	// 7 = size(4 Bytes) + NodeReply(1 byte) + msg id(2 bytes)
+	// 7 = size(4 Bytes) + ConnReply(1 byte) + msg id(2 bytes)
 	b := make([]byte, protocol.FrameHeaderSize+l)
 	// write size
 	msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
@@ -322,6 +398,339 @@ func (client *Client) handleReply(reply []byte) {
 		client.log(logger.Exploit, protocol.ErrRecvInvalidReplyID)
 		client.Close()
 	}
+}
+
+// Synchronize is used to switch to synchronize mode
+func (client *Client) Synchronize() error {
+	client.syncM.Lock()
+	defer client.syncM.Unlock()
+	if client.isSync() {
+		return nil
+	}
+	resp, err := client.send(protocol.BeaconSync, nil)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive synchronize response")
+	}
+	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
+		return errors.Errorf("failed to start synchronize: %s", resp)
+	}
+	atomic.StoreInt32(&client.inSync, 1)
+	return nil
+}
+
+func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
+	switch cmd {
+	case protocol.CtrlSendToBeaconGUID:
+		client.handleSendToBeaconGUID(id, data)
+	case protocol.CtrlSendToBeacon:
+		client.handleSendToBeacon(id, data)
+	case protocol.CtrlAckToBeaconGUID:
+		client.handleAckToBeaconGUID(id, data)
+	case protocol.CtrlAckToBeacon:
+		client.handleAckToBeacon(id, data)
+	case protocol.CtrlAnswerGUID:
+		client.handleAnswerGUID(id, data)
+	case protocol.CtrlAnswer:
+		client.handleAnswer(id, data)
+	}
+	return false
+}
+
+func (client *Client) handleSendToBeaconGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		client.log(logger.Exploit, "invalid send to beacon guid size")
+		client.reply(id, protocol.ReplyHandled)
+		client.Close()
+		return
+	}
+	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
+		client.reply(id, protocol.ReplyExpired)
+		return
+	}
+	if client.ctx.syncer.CheckSendToBeaconGUIDSlice(data) {
+		client.reply(id, protocol.ReplyUnhandled)
+	} else {
+		client.reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (client *Client) handleAckToBeaconGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		client.log(logger.Exploit, "invalid ack to beacon guid size")
+		client.reply(id, protocol.ReplyHandled)
+		client.Close()
+		return
+	}
+	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
+		client.reply(id, protocol.ReplyExpired)
+		return
+	}
+	if client.ctx.syncer.CheckAckToBeaconGUIDSlice(data) {
+		client.reply(id, protocol.ReplyUnhandled)
+	} else {
+		client.reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (client *Client) handleAnswerGUID(id, data []byte) {
+	if len(data) != guid.Size {
+		client.log(logger.Exploit, "invalid answer guid size")
+		client.reply(id, protocol.ReplyHandled)
+		client.Close()
+		return
+	}
+	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
+		client.reply(id, protocol.ReplyExpired)
+		return
+	}
+	if client.ctx.syncer.CheckAnswerGUIDSlice(data) {
+		client.reply(id, protocol.ReplyUnhandled)
+	} else {
+		client.reply(id, protocol.ReplyHandled)
+	}
+}
+
+func (client *Client) handleSendToBeacon(id, data []byte) {
+	send := client.ctx.worker.GetSendFromPool()
+	err := send.Unpack(data)
+	if err != nil {
+		const format = "invalid send to beacon data: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(send))
+		client.ctx.worker.PutSendToPool(send)
+		client.Close()
+		return
+	}
+	err = send.Validate()
+	if err != nil {
+		const format = "invalid send to beacon: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(send))
+		client.ctx.worker.PutSendToPool(send)
+		client.Close()
+		return
+	}
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&send.GUID)
+	if expired {
+		client.reply(id, protocol.ReplyExpired)
+		client.ctx.worker.PutSendToPool(send)
+		return
+	}
+	if client.ctx.syncer.CheckSendToBeaconGUID(&send.GUID, timestamp) {
+		client.reply(id, protocol.ReplySucceed)
+		client.ctx.worker.AddSend(send)
+	} else {
+		client.reply(id, protocol.ReplyHandled)
+		client.ctx.worker.PutSendToPool(send)
+	}
+}
+
+func (client *Client) handleAckToBeacon(id, data []byte) {
+	ack := client.ctx.worker.GetAcknowledgeFromPool()
+	err := ack.Unpack(data)
+	if err != nil {
+		const format = "invalid ack to beacon data: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(ack))
+		client.ctx.worker.PutAcknowledgeToPool(ack)
+		client.Close()
+		return
+	}
+	err = ack.Validate()
+	if err != nil {
+		const format = "invalid ack to beacon: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(ack))
+		client.ctx.worker.PutAcknowledgeToPool(ack)
+		client.Close()
+		return
+	}
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&ack.GUID)
+	if expired {
+		client.reply(id, protocol.ReplyExpired)
+		client.ctx.worker.PutAcknowledgeToPool(ack)
+		return
+	}
+	if client.ctx.syncer.CheckAckToBeaconGUID(&ack.GUID, timestamp) {
+		client.reply(id, protocol.ReplySucceed)
+		client.ctx.worker.AddAcknowledge(ack)
+	} else {
+		client.reply(id, protocol.ReplyHandled)
+		client.ctx.worker.PutAcknowledgeToPool(ack)
+	}
+}
+
+func (client *Client) handleAnswer(id, data []byte) {
+	a := client.ctx.worker.GetAnswerFromPool()
+	err := a.Unpack(data)
+	if err != nil {
+		const format = "invalid answer data: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(a))
+		client.ctx.worker.PutAnswerToPool(a)
+		client.Close()
+		return
+	}
+	err = a.Validate()
+	if err != nil {
+		const format = "invalid answer: %s\n%s"
+		client.logf(logger.Exploit, format, err, spew.Sdump(a))
+		client.ctx.worker.PutAnswerToPool(a)
+		client.Close()
+		return
+	}
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&a.GUID)
+	if expired {
+		client.reply(id, protocol.ReplyExpired)
+		client.ctx.worker.PutAnswerToPool(a)
+		return
+	}
+	if client.ctx.syncer.CheckAnswerGUID(&a.GUID, timestamp) {
+		client.reply(id, protocol.ReplySucceed)
+		client.ctx.worker.AddAnswer(a)
+	} else {
+		client.reply(id, protocol.ReplyHandled)
+		client.ctx.worker.PutAnswerToPool(a)
+	}
+}
+
+// send is used to send command and receive reply
+func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
+	if client.isClosed() {
+		return nil, protocol.ErrConnClosed
+	}
+	for {
+		for id := 0; id < protocol.SlotSize; id++ {
+			select {
+			case <-client.slots[id].Available:
+				l := len(data)
+				b := make([]byte, protocol.FrameHeaderSize+l)
+				// write MsgLen
+				msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
+				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+				// write cmd
+				b[protocol.FrameLenSize] = cmd
+				// write msg id
+				copy(b[protocol.FrameLenSize+1:protocol.FrameLenSize+1+protocol.FrameIDSize],
+					convert.Uint16ToBytes(uint16(id)))
+				// write data
+				copy(b[protocol.FrameHeaderSize:], data)
+				// send
+				_ = client.Conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+				_, err := client.Conn.Write(b)
+				if err != nil {
+					return nil, err
+				}
+				// wait for reply
+				if !client.slots[id].Timer.Stop() {
+					<-client.slots[id].Timer.C
+				}
+				client.slots[id].Timer.Reset(protocol.RecvTimeout)
+				select {
+				case r := <-client.slots[id].Reply:
+					client.slots[id].Available <- struct{}{}
+					return r, nil
+				case <-client.slots[id].Timer.C:
+					client.Close()
+					return nil, protocol.ErrRecvReplyTimeout
+				case <-client.stopSignal:
+					return nil, protocol.ErrConnClosed
+				}
+			case <-client.stopSignal:
+				return nil, protocol.ErrConnClosed
+			default:
+			}
+		}
+		// if full wait 1 second
+		select {
+		case <-time.After(time.Second):
+		case <-client.stopSignal:
+			return nil, protocol.ErrConnClosed
+		}
+	}
+}
+
+// SendCommand is used to send command and receive reply
+func (client *Client) SendCommand(cmd uint8, data []byte) ([]byte, error) {
+	return client.send(cmd, data)
+}
+
+// Send is used to send message to Controller.
+func (client *Client) Send(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendResponse) {
+	sr = &protocol.SendResponse{
+		Role: protocol.Node,
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, sr.Err = client.send(protocol.BeaconSendGUID, guid[:])
+	if sr.Err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		sr.Err = protocol.GetReplyError(reply)
+		return
+	}
+	reply, sr.Err = client.send(protocol.BeaconSend, data.Bytes())
+	if sr.Err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+		sr.Err = errors.New(string(reply))
+	}
+	return
+}
+
+// Acknowledge is used to notice Controller that Beacon has received this message.
+func (client *Client) Acknowledge(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (ar *protocol.AcknowledgeResponse) {
+	ar = &protocol.AcknowledgeResponse{
+		Role: protocol.Node,
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, ar.Err = client.send(protocol.BeaconAckGUID, guid[:])
+	if ar.Err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		ar.Err = protocol.GetReplyError(reply)
+		return
+	}
+	reply, ar.Err = client.send(protocol.BeaconAck, data.Bytes())
+	if ar.Err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+		ar.Err = errors.New(string(reply))
+	}
+	return
+}
+
+// Query is used to query message from Controller.
+func (client *Client) Query(guid *guid.GUID, data *bytes.Buffer) (q *protocol.QueryResponse) {
+	q = &protocol.QueryResponse{
+		Role: protocol.Node,
+		GUID: client.guid,
+	}
+	var reply []byte
+	reply, q.Err = client.send(protocol.BeaconQueryGUID, guid[:])
+	if q.Err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		q.Err = protocol.GetReplyError(reply)
+		return
+	}
+	reply, q.Err = client.send(protocol.BeaconQuery, data.Bytes())
+	if q.Err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+		q.Err = errors.New(string(reply))
+	}
+	return
+}
+
+// Status is used to get connection status
+func (client *Client) Status() *xnet.Status {
+	return client.Conn.Status()
 }
 
 // Close is used to disconnect Node

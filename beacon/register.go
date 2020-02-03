@@ -269,7 +269,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 	}()
 
 	// send register request
-	_, err = conn.Write([]byte{beaconOperationRegister})
+	_, err = conn.Write([]byte{protocol.BeaconOperationRegister})
 	if err != nil {
 		return errors.Wrap(err, "failed to send register operation")
 	}
