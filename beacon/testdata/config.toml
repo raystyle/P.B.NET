@@ -1,0 +1,40 @@
+[logger]
+  level      = "debug"
+  queue_size = 512
+
+[global]
+  dns_cache_expire      = "2m"
+  timesync_sleep_fixed  = 15
+  timesync_sleep_random = 10
+  timesync_interval     = "1m"
+
+[client]
+  proxy_tag = "test"
+  timeout   = "15s"
+
+  [client.dns]
+    mode = "custom"
+
+[register]
+  sleep_fixed  = 15
+  sleep_random = 30
+
+[sender]
+  max_conns       = 7
+  worker          = 16
+  queue_size      = 512
+  max_buffer_size = 16384
+  timeout         = "15s"
+
+[syncer]
+  expire_time = "30s"
+
+[worker]
+  number          = 16
+  queue_size      = 32
+  max_buffer_size = 16384
+
+[service]
+  name         = "name"
+  display_name = "display name"
+  description  = "description"

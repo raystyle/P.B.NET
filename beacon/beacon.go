@@ -1,9 +1,16 @@
 package beacon
 
 import (
+	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
+
+	"project/internal/bootstrap"
+	"project/internal/guid"
+	"project/internal/logger"
+	"project/internal/xpanic"
 )
 
 // Beacon send messages to Controller
@@ -16,8 +23,8 @@ type Beacon struct {
 	clientMgr *clientMgr // clients manager
 	register  *register  // about register to Controller
 	sender    *sender    // send message to controller
-	// handler   *handler   // handle message from controller
-	worker *worker // do work
+	handler   *handler   // handle message from controller
+	worker    *worker    // do work
 
 	once sync.Once
 	wait chan struct{}
@@ -65,13 +72,105 @@ func New(cfg *Config) (*Beacon, error) {
 		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	beacon.sender = sender
-
+	// handler
+	beacon.handler = newHandler(beacon)
 	// worker
 	worker, err := newWorker(beacon, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize worker")
 	}
 	beacon.worker = worker
-
+	beacon.wait = make(chan struct{})
+	beacon.exit = make(chan error, 1)
 	return beacon, nil
+}
+
+func (beacon *Beacon) fatal(err error, msg string) error {
+	err = errors.WithMessage(err, msg)
+	beacon.logger.Println(logger.Fatal, "main", err)
+	beacon.Exit(nil)
+	close(beacon.wait)
+	return err
+}
+
+// Main is used to run
+func (beacon *Beacon) Main() error {
+	// synchronize time
+	if beacon.Test.SkipSynchronizeTime {
+		beacon.global.StartTimeSyncerWalker()
+	} else {
+		err := beacon.global.StartTimeSyncer()
+		if err != nil {
+			return beacon.fatal(err, "failed to synchronize time")
+		}
+	}
+	now := beacon.global.Now().Format(logger.TimeLayout)
+	beacon.logger.Println(logger.Info, "main", "time:", now)
+	// start register
+	err := beacon.register.Register()
+	if err != nil {
+		return beacon.fatal(err, "failed to register")
+	}
+	// driver
+	go beacon.driver()
+	beacon.logger.Print(logger.Info, "main", "running")
+	close(beacon.wait)
+	return <-beacon.exit
+}
+
+func (beacon *Beacon) driver() {
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "beacon.driver")
+			beacon.logger.Print(logger.Fatal, "driver", err)
+			// restart driver
+			time.Sleep(time.Second)
+			go beacon.driver()
+		}
+	}()
+}
+
+// Wait is used to wait for Main()
+func (beacon *Beacon) Wait() {
+	<-beacon.wait
+}
+
+// Exit is used to exit with a error
+func (beacon *Beacon) Exit(err error) {
+	beacon.once.Do(func() {
+		beacon.handler.Cancel()
+		beacon.worker.Close()
+		beacon.logger.Print(logger.Info, "exit", "worker is stopped")
+		beacon.handler.Close()
+		beacon.logger.Print(logger.Info, "exit", "handler is stopped")
+		beacon.sender.Close()
+		beacon.logger.Print(logger.Info, "exit", "sender is stopped")
+		beacon.register.Close()
+		beacon.logger.Print(logger.Info, "exit", "register is closed")
+		beacon.clientMgr.Close()
+		beacon.logger.Print(logger.Info, "exit", "client manager is closed")
+		beacon.syncer.Close()
+		beacon.logger.Print(logger.Info, "exit", "syncer is stopped")
+		beacon.global.Close()
+		beacon.logger.Print(logger.Info, "exit", "global is closed")
+		beacon.logger.Print(logger.Info, "exit", "beacon is stopped")
+		beacon.logger.Close()
+		beacon.exit <- err
+		close(beacon.exit)
+	})
+}
+
+// GUID is used to get Node GUID
+func (beacon *Beacon) GUID() *guid.GUID {
+	return beacon.global.GUID()
+}
+
+// Synchronize is used to connect a node and start synchronize
+func (beacon *Beacon) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
+	return beacon.sender.Synchronize(ctx, guid, bl)
+}
+
+// Send is used to send message to Controller
+func (beacon *Beacon) Send(cmd, msg []byte) error {
+	return beacon.sender.Send(cmd, msg)
 }

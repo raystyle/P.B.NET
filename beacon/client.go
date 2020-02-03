@@ -31,6 +31,7 @@ import (
 type Client struct {
 	ctx *Beacon
 
+	listener  *bootstrap.Listener
 	guid      *guid.GUID // Node GUID
 	closeFunc func()
 
@@ -104,6 +105,7 @@ func (beacon *Beacon) NewClient(
 	// handshake
 	client := &Client{
 		ctx:       beacon,
+		listener:  bl,
 		guid:      guid,
 		Conn:      conn,
 		closeFunc: closeFunc,
@@ -415,6 +417,8 @@ func (client *Client) Synchronize() error {
 		return errors.Errorf("failed to start synchronize: %s", resp)
 	}
 	atomic.StoreInt32(&client.inSync, 1)
+	const format = "start synchronize\nlistener: %s"
+	client.logf(logger.Info, format, client.listener)
 	return nil
 }
 

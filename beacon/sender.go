@@ -187,8 +187,6 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		return errors.WithMessagef(err, format, bl, guid)
 	}
 	sender.clients[*guid] = client
-	const format = "start synchronize\nlistener: %s\n%s"
-	sender.logf(logger.Info, format, bl, guid.Hex())
 	return nil
 }
 
