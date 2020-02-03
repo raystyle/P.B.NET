@@ -1,6 +1,8 @@
 package beacon
 
 import (
+	"sync"
+
 	"github.com/pkg/errors"
 )
 
@@ -13,7 +15,13 @@ type Beacon struct {
 	syncer    *syncer    // sync network guid
 	clientMgr *clientMgr // clients manager
 	register  *register  // about register to Controller
-	worker    *worker    // do work
+	sender    *sender    // send message to controller
+	// handler   *handler   // handle message from controller
+	worker *worker // do work
+
+	once sync.Once
+	wait chan struct{}
+	exit chan error
 }
 
 // New is used to create a Beacon from configuration
@@ -51,6 +59,12 @@ func New(cfg *Config) (*Beacon, error) {
 		return nil, errors.WithMessage(err, "failed to initialize register")
 	}
 	beacon.register = register
+	// sender
+	sender, err := newSender(beacon, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize sender")
+	}
+	beacon.sender = sender
 
 	// worker
 	worker, err := newWorker(beacon, cfg)

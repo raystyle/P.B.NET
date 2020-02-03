@@ -51,10 +51,11 @@ type Config struct {
 	} `toml:"register" msgpack:"dd"`
 
 	Sender struct {
-		Worker        int           `toml:"worker"          msgpack:"a"`
-		Timeout       time.Duration `toml:"timeout"         msgpack:"b"`
-		QueueSize     int           `toml:"queue_size"      msgpack:"c"`
-		MaxBufferSize int           `toml:"max_buffer_size" msgpack:"d"`
+		MaxConns      int           `toml:"max_conns"       msgpack:"a"`
+		Worker        int           `toml:"worker"          msgpack:"b"`
+		Timeout       time.Duration `toml:"timeout"         msgpack:"c"`
+		QueueSize     int           `toml:"queue_size"      msgpack:"d"`
+		MaxBufferSize int           `toml:"max_buffer_size" msgpack:"e"`
 	} `toml:"sender" msgpack:"ff"`
 
 	Syncer struct {
