@@ -387,8 +387,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 
 	// send
 	wait, destroy := sw.ctx.createAckSlot(&sw.preS.GUID)
-	result.Responses, result.Success = sw.forwarder.Send(
-		&sw.preS.GUID, sw.buffer.Bytes(), nil, true)
+	result.Responses, result.Success = sw.forwarder.Send(&sw.preS.GUID, sw.buffer)
 	if len(result.Responses) == 0 {
 		result.Err = ErrNoConnections
 		return
@@ -437,5 +436,5 @@ func (sw *senderWorker) handleAcknowledgeTask(at *guid.GUID) {
 	// pack
 	sw.buffer.Reset()
 	sw.preA.Pack(sw.buffer)
-	sw.forwarder.Acknowledge(&sw.preA.GUID, sw.buffer.Bytes(), nil, true)
+	sw.forwarder.Acknowledge(&sw.preA.GUID, sw.buffer)
 }

@@ -30,7 +30,7 @@ import (
 type Client struct {
 	ctx *Node
 
-	GUID *guid.GUID
+	GUID *guid.GUID // Node GUID
 
 	tag       *guid.GUID
 	Conn      *conn
@@ -110,6 +110,7 @@ func (node *Node) NewClient(
 		return nil, errors.WithMessagef(err, format, bl)
 	}
 	node.clientMgr.Add(client)
+	client.Conn.Log(logger.Info, "connected")
 	return client, nil
 }
 
@@ -210,7 +211,7 @@ func (client *Client) authenticate() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive challenge")
 	}
-	if len(challenge) < 2048 || len(challenge) > 4096 {
+	if len(challenge) != protocol.ChallengeSize {
 		err = errors.New("invalid challenge size")
 		client.Conn.Log(logger.Exploit, err)
 		return err
@@ -228,6 +229,46 @@ func (client *Client) authenticate() error {
 		return errors.WithStack(protocol.ErrAuthenticateFailed)
 	}
 	return nil
+}
+
+func (client *Client) sendHeartbeatLoop() {
+	defer client.wg.Done()
+	var err error
+	buffer := bytes.NewBuffer(nil)
+	timer := time.NewTimer(time.Minute)
+	defer timer.Stop()
+	for {
+		timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
+		select {
+		case <-timer.C:
+			// <security> fake traffic like client
+			fakeSize := 64 + client.rand.Int(256)
+			// size(4 Bytes) + heartbeat(1 byte) + fake data
+			buffer.Reset()
+			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
+			buffer.WriteByte(protocol.ConnSendHeartbeat)
+			buffer.Write(client.rand.Bytes(fakeSize))
+			// send
+			_ = client.Conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+			_, err = client.Conn.Write(buffer.Bytes())
+			if err != nil {
+				return
+			}
+			// receive reply
+			timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
+			select {
+			case <-client.heartbeat:
+			case <-timer.C:
+				client.Conn.Log(logger.Warning, "receive heartbeat timeout")
+				_ = client.Conn.Close()
+				return
+			case <-client.stopSignal:
+				return
+			}
+		case <-client.stopSignal:
+			return
+		}
+	}
 }
 
 func (client *Client) isSync() bool {
@@ -335,46 +376,6 @@ func (client *Client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) boo
 		return false
 	}
 	return true
-}
-
-func (client *Client) sendHeartbeatLoop() {
-	defer client.wg.Done()
-	var err error
-	buffer := bytes.NewBuffer(nil)
-	timer := time.NewTimer(time.Minute)
-	defer timer.Stop()
-	for {
-		timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
-		select {
-		case <-timer.C:
-			// <security> fake traffic like client
-			fakeSize := 64 + client.rand.Int(256)
-			// size(4 Bytes) + heartbeat(1 byte) + fake data
-			buffer.Reset()
-			buffer.Write(convert.Uint32ToBytes(uint32(1 + fakeSize)))
-			buffer.WriteByte(protocol.ConnSendHeartbeat)
-			buffer.Write(client.rand.Bytes(fakeSize))
-			// send
-			_ = client.Conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-			_, err = client.Conn.Write(buffer.Bytes())
-			if err != nil {
-				return
-			}
-			// receive reply
-			timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
-			select {
-			case <-client.heartbeat:
-			case <-timer.C:
-				client.Conn.Log(logger.Warning, "receive heartbeat timeout")
-				_ = client.Conn.Close()
-				return
-			case <-client.stopSignal:
-				return
-			}
-		case <-client.stopSignal:
-			return
-		}
-	}
 }
 
 // Synchronize is used to switch to synchronize mode

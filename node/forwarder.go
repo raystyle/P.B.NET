@@ -1,6 +1,8 @@
 package node
 
 import (
+	"bytes"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -29,7 +31,10 @@ type forwarder struct {
 	beaconConns    map[guid.GUID]*beaconConn
 	beaconConnsRWM sync.RWMutex
 
+	bufferPool sync.Pool
+
 	stopSignal chan struct{}
+	wg         sync.WaitGroup
 }
 
 func newForwarder(ctx *Node, config *Config) (*forwarder, error) {
@@ -59,6 +64,9 @@ func newForwarder(ctx *Node, config *Config) (*forwarder, error) {
 	f.ctrlConns = make(map[guid.GUID]*ctrlConn, cfg.MaxCtrlConns)
 	f.nodeConns = make(map[guid.GUID]*nodeConn, cfg.MaxNodeConns)
 	f.beaconConns = make(map[guid.GUID]*beaconConn, cfg.MaxBeaconConns)
+	f.bufferPool.New = func() interface{} {
+		return new(bytes.Buffer)
+	}
 	f.stopSignal = make(chan struct{})
 	return &f, nil
 }
@@ -247,65 +255,218 @@ func (f *forwarder) log(l logger.Level, log ...interface{}) {
 	f.ctx.logger.Println(l, "forwarder", log...)
 }
 
-// getConnsExceptBeacon will ger controller, node and client connections
-// if connection's tag = except, this connection will not add to the map
-func (f *forwarder) getConnsExceptBeacon(except *guid.GUID) map[guid.GUID]*conn {
-	ctrlConns := f.GetCtrlConns()
+func (f *forwarder) forward(
+	conns map[guid.GUID]*conn,
+	number int,
+	operation uint8,
+	guid *guid.GUID,
+	data []byte,
+) {
+	// get cache
+	guidBuf := f.bufferPool.Get().(*bytes.Buffer)
+	guidBuf.Reset()
+	guidBuf.Write(guid[:])
+	guidBytes := guidBuf.Bytes()
+
+	dataBuf := f.bufferPool.Get().(*bytes.Buffer)
+	dataBuf.Reset()
+	dataBuf.Write(data)
+	dataBytes := dataBuf.Bytes()
+
+	done := make(chan struct{}, number)
+	f.wg.Add(number + 1)
+	for _, c := range conns {
+		go func(c *conn) {
+			defer func() {
+				if r := recover(); r != nil {
+					f.log(logger.Fatal, xpanic.Print(r, "forwarder.forward"))
+				}
+				f.wg.Done()
+			}()
+			f.operate(c, operation, guidBytes, dataBytes)
+			select {
+			case done <- struct{}{}:
+			case <-f.stopSignal:
+			}
+		}(c)
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				f.log(logger.Fatal, xpanic.Print(r, "forwarder.forward"))
+			}
+			f.wg.Done()
+		}()
+		// wait forward
+		for i := 0; i < number; i++ {
+			select {
+			case <-done:
+			case <-f.stopSignal:
+				return
+			}
+		}
+		close(done)
+		f.bufferPool.Put(guidBuf)
+		f.bufferPool.Put(dataBuf)
+	}()
+}
+
+func (f *forwarder) operate(conn *conn, operation uint8, guid, data []byte) {
+	switch operation {
+	case protocol.CtrlBroadcast:
+		conn.Broadcast(guid, data)
+	case protocol.CtrlSendToNode:
+		conn.SendToNode(guid, data)
+	case protocol.CtrlAckToNode:
+		conn.AckToNode(guid, data)
+	case protocol.NodeSend:
+		conn.NodeSend(guid, data)
+	case protocol.NodeAck:
+		conn.NodeAck(guid, data)
+	default:
+		panic(fmt.Sprintf("unknown operation: %d", operation))
+	}
+}
+
+// getConnsExceptCtrlBeaconAndIncome will get Node and Client connections
+// if income connection's tag = except, this connection will not add to the map
+func (f *forwarder) getConnsExceptCtrlBeaconAndIncome(except *guid.GUID) map[guid.GUID]*conn {
 	nodeConns := f.GetNodeConns()
 	clientConns := f.GetClientConns()
-	var l int
-	if except != nil {
-		l = len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
-	} else {
-		l = len(ctrlConns) + len(nodeConns) + len(clientConns)
-	}
-	if l < 1 {
+	l := len(nodeConns) + len(clientConns) // not -1, because except maybe Controller
+	if l == 0 {
 		return nil
 	}
 	allConns := make(map[guid.GUID]*conn, l)
-	for tag, ctrl := range ctrlConns {
-		if except == nil || tag != *except {
-			allConns[tag] = ctrl.Conn
-		}
-	}
 	for tag, node := range nodeConns {
-		if except == nil || tag != *except {
+		if tag != *except {
 			allConns[tag] = node.Conn
 		}
 	}
 	for tag, client := range clientConns {
-		if except == nil || tag != *except {
+		if tag != *except {
 			allConns[tag] = client.Conn
 		}
 	}
 	return allConns
 }
 
-// Send will send controllers, nodes and clients
+// Broadcast is used to forward Controller Broadcast message to Node and Client
+// it will not block
+func (f *forwarder) Broadcast(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptCtrlBeaconAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.CtrlBroadcast, guid, data)
+}
+
+// SendToNode is used to forward Controller SendToNode message to Node and Client
+// it will not block
+func (f *forwarder) SendToNode(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptCtrlBeaconAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.CtrlSendToNode, guid, data)
+}
+
+// AckToNode is used to forward Controller AckToNode message to Node and Client
+// it will not block
+func (f *forwarder) AckToNode(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptCtrlBeaconAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.CtrlAckToNode, guid, data)
+}
+
+// getConnsExceptBeaconAndIncome will get Controller, Node and Client connections
+// if income connection's tag = except, this connection will not add to the map
+func (f *forwarder) getConnsExceptBeaconAndIncome(except *guid.GUID) map[guid.GUID]*conn {
+	ctrlConns := f.GetCtrlConns()
+	nodeConns := f.GetNodeConns()
+	clientConns := f.GetClientConns()
+	l := len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
+	if l == 0 {
+		return nil
+	}
+	allConns := make(map[guid.GUID]*conn, l)
+	for tag, ctrl := range ctrlConns {
+		allConns[tag] = ctrl.Conn
+	}
+	for tag, node := range nodeConns {
+		if tag != *except {
+			allConns[tag] = node.Conn
+		}
+	}
+	for tag, client := range clientConns {
+		if tag != *except {
+			allConns[tag] = client.Conn
+		}
+	}
+	return allConns
+}
+
+// NodeSend is used to forward Node send to Controller
+// it will not block
+func (f *forwarder) NodeSend(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptBeaconAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.NodeSend, guid, data)
+}
+
+// NodeAck is used to forward Node acknowledge to Controller
+// it will not block
+func (f *forwarder) NodeAck(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptBeaconAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.NodeAck, guid, data)
+}
+
+// getConnsExceptBeacon will get Controller, Node and Client connections
+func (f *forwarder) getConnsExceptBeacon() map[guid.GUID]*conn {
+	ctrlConns := f.GetCtrlConns()
+	nodeConns := f.GetNodeConns()
+	clientConns := f.GetClientConns()
+	l := len(ctrlConns) + len(nodeConns) + len(clientConns)
+	if l == 0 {
+		return nil
+	}
+	allConns := make(map[guid.GUID]*conn, l)
+	for tag, ctrl := range ctrlConns {
+		allConns[tag] = ctrl.Conn
+	}
+	for tag, node := range nodeConns {
+		allConns[tag] = node.Conn
+	}
+	for tag, client := range clientConns {
+		allConns[tag] = client.Conn
+	}
+	return allConns
+}
+
+// Send will send Controllers, Nodes and Clients, sender need it.
+// it will block until get all response.
 func (f *forwarder) Send(
-	g *guid.GUID,
-	data []byte,
-	except *guid.GUID,
-	wait bool,
+	guid *guid.GUID,
+	data *bytes.Buffer,
 ) ([]*protocol.SendResponse, int) {
-	conns := f.getConnsExceptBeacon(except)
+	conns := f.getConnsExceptBeacon()
 	l := len(conns)
 	if l == 0 {
 		return nil, 0
 	}
-	var (
-		response chan *protocol.SendResponse
-		guidCp   *guid.GUID
-		dataCp   []byte
-	)
-	if wait {
-		response = make(chan *protocol.SendResponse, l)
-	} else {
-		guidCp = new(guid.GUID)
-		*guidCp = *g
-		dataCp = make([]byte, len(data))
-		copy(dataCp, data)
-	}
+	response := make(chan *protocol.SendResponse, l)
 	for _, c := range conns {
 		go func(c *conn) {
 			defer func() {
@@ -313,15 +474,8 @@ func (f *forwarder) Send(
 					f.log(logger.Fatal, xpanic.Print(r, "forwarder.Send"))
 				}
 			}()
-			if wait {
-				response <- c.Send(g, data)
-			} else {
-				c.Send(guidCp, dataCp)
-			}
+			response <- c.Send(guid, data)
 		}(c)
-	}
-	if !wait {
-		return nil, 0
 	}
 	var success int
 	responses := make([]*protocol.SendResponse, l)
@@ -335,27 +489,18 @@ func (f *forwarder) Send(
 	return responses, success
 }
 
-// Acknowledge will send controllers, nodes and clients
-func (f *forwarder) Acknowledge(g *guid.GUID, data []byte, except *guid.GUID, wait bool) (
-	[]*protocol.AcknowledgeResponse, int) {
-	conns := f.getConnsExceptBeacon(except)
+// Acknowledge will acknowledge Controllers, Nodes and Clients, sender need it.
+// it will block until get all response.
+func (f *forwarder) Acknowledge(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) ([]*protocol.AcknowledgeResponse, int) {
+	conns := f.getConnsExceptBeacon()
 	l := len(conns)
 	if l == 0 {
 		return nil, 0
 	}
-	var (
-		response chan *protocol.AcknowledgeResponse
-		guidCp   *guid.GUID
-		dataCp   []byte
-	)
-	if wait {
-		response = make(chan *protocol.AcknowledgeResponse, l)
-	} else {
-		guidCp = new(guid.GUID)
-		*guidCp = *g
-		dataCp = make([]byte, len(data))
-		copy(dataCp, data)
-	}
+	response := make(chan *protocol.AcknowledgeResponse, l)
 	for _, c := range conns {
 		go func(c *conn) {
 			defer func() {
@@ -363,15 +508,8 @@ func (f *forwarder) Acknowledge(g *guid.GUID, data []byte, except *guid.GUID, wa
 					f.log(logger.Fatal, xpanic.Print(r, "forwarder.Acknowledge"))
 				}
 			}()
-			if wait {
-				response <- c.Acknowledge(g, data)
-			} else {
-				c.Acknowledge(guidCp, dataCp)
-			}
+			response <- c.Acknowledge(guid, data)
 		}(c)
-	}
-	if !wait {
-		return nil, 0
 	}
 	var success int
 	responses := make([]*protocol.AcknowledgeResponse, l)
@@ -387,5 +525,6 @@ func (f *forwarder) Acknowledge(g *guid.GUID, data []byte, except *guid.GUID, wa
 
 func (f *forwarder) Close() {
 	close(f.stopSignal)
+	f.wg.Wait()
 	f.ctx = nil
 }

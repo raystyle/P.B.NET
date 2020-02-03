@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
@@ -224,7 +225,7 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	sw.buffer.Write(send.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid send signature\n%s"
-		sw.logf(logger.Exploit, format, send.GUID)
+		sw.logf(logger.Exploit, format, spew.Sdump(send))
 		return
 	}
 	// decrypt message
@@ -233,7 +234,7 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	send.Message, sw.err = sw.ctx.global.Decrypt(send.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt send message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, send.GUID)
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
 		return
 	}
 	// compare hash
@@ -241,7 +242,7 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	sw.hash.Write(send.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
 		const format = "send with incorrect hash\n%s"
-		sw.logf(logger.Exploit, format, send.GUID)
+		sw.logf(logger.Exploit, format, spew.Sdump(send))
 		return
 	}
 	sw.ctx.sender.Acknowledge(send)
@@ -257,7 +258,7 @@ func (sw *subWorker) handleAcknowledge(acknowledge *protocol.Acknowledge) {
 	sw.buffer.Write(acknowledge.SendGUID[:])
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), acknowledge.Signature) {
 		const format = "invalid acknowledge signature\n%s"
-		sw.logf(logger.Exploit, format, acknowledge.GUID)
+		sw.logf(logger.Exploit, format, spew.Sdump(acknowledge))
 		return
 	}
 	sw.buffer.Reset()
@@ -273,7 +274,7 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 	sw.buffer.Write(broadcast.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), broadcast.Signature) {
 		const format = "invalid broadcast signature\n%s"
-		sw.logf(logger.Exploit, format, broadcast.GUID)
+		sw.logf(logger.Exploit, format, spew.Sdump(broadcast))
 		return
 	}
 	// decrypt message
@@ -282,7 +283,7 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 	broadcast.Message, sw.err = sw.ctx.global.CtrlDecrypt(broadcast.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt broadcast message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, broadcast.GUID)
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(broadcast))
 		return
 	}
 	// compare hash
@@ -290,7 +291,7 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 	sw.hash.Write(broadcast.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), broadcast.Hash) != 1 {
 		const format = "broadcast with incorrect hash\n%s"
-		sw.logf(logger.Exploit, format, broadcast.GUID)
+		sw.logf(logger.Exploit, format, spew.Sdump(broadcast))
 		return
 	}
 	sw.ctx.handler.OnBroadcast(broadcast)

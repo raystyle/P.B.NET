@@ -3,7 +3,6 @@ package node
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
+	"project/internal/xnet/xnetutil"
 )
 
 const (
@@ -152,13 +152,8 @@ func (c *conn) onFrame(frame []byte) bool {
 		c.handleReply(frame[protocol.FrameCMDSize:])
 	case protocol.ConnGetAddress:
 		id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
-		ras := c.Conn.RemoteAddr().String()
-		ip := net.ParseIP(ras)
-		if ip != nil {
-			c.Reply(id, ip)
-		} else {
-			c.Reply(id, []byte(ras)) // for special remote address
-		}
+		address := xnetutil.EncodeExternalAddress(c.Conn.RemoteAddr().String())
+		c.Reply(id, address)
 	case protocol.ConnErrRecvNullFrame:
 		c.Log(logger.Exploit, protocol.ErrRecvNullFrame)
 		_ = c.Close()
@@ -461,7 +456,7 @@ func (c *conn) HandleSendToNode(id, data []byte) {
 		if send.RoleGUID == *c.ctx.global.GUID() {
 			c.ctx.worker.AddSend(send)
 		} else {
-			c.ctx.forwarder.Send(&send.GUID, data, c.tag, false)
+			c.ctx.forwarder.SendToNode(&send.GUID, data, c.tag)
 			c.ctx.worker.PutSendToPool(send)
 		}
 	} else {
@@ -499,7 +494,7 @@ func (c *conn) HandleAckToNode(id, data []byte) {
 		if ack.RoleGUID == *c.ctx.global.GUID() {
 			c.ctx.worker.AddAcknowledge(ack)
 		} else {
-			c.ctx.forwarder.Acknowledge(&ack.GUID, data, c.tag, false)
+			c.ctx.forwarder.AckToNode(&ack.GUID, data, c.tag)
 			c.ctx.worker.PutAcknowledgeToPool(ack)
 		}
 	} else {
@@ -595,6 +590,7 @@ func (c *conn) HandleBroadcast(id, data []byte) {
 	if c.ctx.syncer.CheckBroadcastGUID(&broadcast.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 		c.ctx.worker.AddBroadcast(broadcast)
+		c.ctx.forwarder.Broadcast(&broadcast.GUID, data, c.tag)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 		c.ctx.worker.PutBroadcastToPool(broadcast)
@@ -655,6 +651,7 @@ func (c *conn) HandleNodeSend(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckNodeSendGUID(&send.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
+		c.ctx.forwarder.NodeSend(&send.GUID, data, c.tag)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -684,6 +681,7 @@ func (c *conn) HandleNodeAck(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckNodeAckGUID(&ack.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
+		c.ctx.forwarder.NodeAck(&ack.GUID, data, c.tag)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -841,7 +839,7 @@ func (c *conn) SendCommand(cmd uint8, data []byte) ([]byte, error) {
 }
 
 // Send is used to send message to Controller
-func (c *conn) Send(guid *guid.GUID, data []byte) (sr *protocol.SendResponse) {
+func (c *conn) Send(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: c.role,
 		GUID: c.guid,
@@ -855,7 +853,7 @@ func (c *conn) Send(guid *guid.GUID, data []byte) (sr *protocol.SendResponse) {
 		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
-	reply, sr.Err = c.send(protocol.NodeSend, data)
+	reply, sr.Err = c.send(protocol.NodeSend, data.Bytes())
 	if sr.Err != nil {
 		return
 	}
@@ -866,7 +864,7 @@ func (c *conn) Send(guid *guid.GUID, data []byte) (sr *protocol.SendResponse) {
 }
 
 // Acknowledge is used to notice Controller that Node has received this message
-func (c *conn) Acknowledge(guid *guid.GUID, data []byte) (ar *protocol.AcknowledgeResponse) {
+func (c *conn) Acknowledge(guid *guid.GUID, data *bytes.Buffer) (ar *protocol.AcknowledgeResponse) {
 	ar = &protocol.AcknowledgeResponse{
 		Role: c.role,
 		GUID: c.guid,
@@ -880,7 +878,7 @@ func (c *conn) Acknowledge(guid *guid.GUID, data []byte) (ar *protocol.Acknowled
 		ar.Err = protocol.GetReplyError(reply)
 		return
 	}
-	reply, ar.Err = c.send(protocol.NodeAck, data)
+	reply, ar.Err = c.send(protocol.NodeAck, data.Bytes())
 	if ar.Err != nil {
 		return
 	}
@@ -888,6 +886,68 @@ func (c *conn) Acknowledge(guid *guid.GUID, data []byte) (ar *protocol.Acknowled
 		ar.Err = errors.New(string(reply))
 	}
 	return
+}
+
+// -------------------------------------------forwarder----------------------------------------------
+
+// Broadcast is used to forward Controller broadcast message to Nodes
+func (c *conn) Broadcast(guid, data []byte) {
+	reply, err := c.send(protocol.CtrlBroadcastGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.CtrlBroadcast, data)
+}
+
+// SendToNode is used to forward Controller send message to Node
+func (c *conn) SendToNode(guid, data []byte) {
+	reply, err := c.send(protocol.CtrlSendToNodeGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.CtrlSendToNode, data)
+}
+
+// AckToNode is used to forward Controller acknowledge to Node
+func (c *conn) AckToNode(guid, data []byte) {
+	reply, err := c.send(protocol.CtrlAckToNodeGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.CtrlAckToNode, data)
+}
+
+// NodeSend is used to forward Node send
+func (c *conn) NodeSend(guid, data []byte) {
+	reply, err := c.send(protocol.NodeSendGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.NodeSend, data)
+}
+
+// NodeAck is used to forward Node acknowledge
+func (c *conn) NodeAck(guid, data []byte) {
+	reply, err := c.send(protocol.NodeAckGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.NodeAck, data)
 }
 
 func (c *conn) Close() error {

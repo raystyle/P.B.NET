@@ -29,6 +29,7 @@ import (
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/xnet"
+	"project/internal/xnet/xnetutil"
 	"project/internal/xpanic"
 )
 
@@ -633,15 +634,7 @@ func (server *server) handleNode(tag *guid.GUID, conn *xnet.Conn) {
 // TODO <firewall> rate limit
 func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	// send external address
-	ras := conn.RemoteAddr().String()
-	var external []byte
-	ip := net.ParseIP(ras)
-	if ip != nil {
-		external = ip
-	} else {
-		external = []byte(ras) // for special remote address
-	}
-	err := conn.Send(external)
+	err := conn.Send(xnetutil.EncodeExternalAddress(conn.RemoteAddr().String()))
 	if err != nil {
 		const log = "failed to send node external address:"
 		server.logConn(conn, logger.Error, log, err)
@@ -715,7 +708,7 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 }
 
 func (server *server) verifyNode(conn *xnet.Conn, guid *guid.GUID) bool {
-	challenge := server.rand.Bytes(2048 + server.rand.Int(2048))
+	challenge := server.rand.Bytes(protocol.ChallengeSize)
 	err := conn.Send(challenge)
 	if err != nil {
 		server.logConn(conn, logger.Error, "failed to send challenge to node:", err)
@@ -745,6 +738,11 @@ func (server *server) verifyNode(conn *xnet.Conn, guid *guid.GUID) bool {
 	}
 	return true
 }
+
+const (
+	beaconOperationRegister byte = iota + 1
+	beaconOperationConnect
+)
 
 func (server *server) handleBeacon(tag *guid.GUID, conn *xnet.Conn) {
 	beaconGUID := guid.GUID{}

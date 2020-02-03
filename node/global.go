@@ -325,7 +325,7 @@ func (global *global) Now() time.Time {
 	return global.TimeSyncer.Now().Local()
 }
 
-// StartupTime is used to get Node startup time
+// StartupTime is used to get startup time
 func (global *global) StartupTime() time.Time {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
@@ -387,7 +387,7 @@ func (global *global) GetCertificate() []byte {
 	return nil
 }
 
-// Sign is used to sign node message
+// Sign is used to sign message
 func (global *global) Sign(message []byte) []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
@@ -397,14 +397,14 @@ func (global *global) Sign(message []byte) []byte {
 	return ed25519.Sign(b, message)
 }
 
-// PublicKey is used to get node public key
+// PublicKey is used to get public key
 func (global *global) PublicKey() ed25519.PublicKey {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objPublicKey].(ed25519.PublicKey)
 }
 
-// KeyExchangePublicKey is used to get node key exchange public key
+// KeyExchangePublicKey is used to get key exchange public key
 func (global *global) KeyExchangePublicKey() []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()

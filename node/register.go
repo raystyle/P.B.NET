@@ -18,6 +18,7 @@ import (
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
+	"project/internal/xnet/xnetutil"
 )
 
 type register struct {
@@ -194,8 +195,8 @@ func (register *register) Bootstraps() map[string]bootstrap.Bootstrap {
 	return bs
 }
 
-// PackRequest is used to pack node register request, and encrypt it
-// it is used to register.Register() and ctrlConn.handleTrustNode()
+// PackRequest is used to pack node register request and encrypt it.
+// it is used to register.Register() and ctrlConn.handleTrustNode().
 //
 // self key exchange public key (curve25519),
 // use session key encrypt register request data.
@@ -320,7 +321,8 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		return errors.Wrap(err, "failed to receive external ip address")
 	}
 	// send register request
-	err = conn.SendMessage(register.PackRequest(string(address)))
+	request := register.PackRequest(xnetutil.DecodeExternalAddress(address))
+	err = conn.SendMessage(request)
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}

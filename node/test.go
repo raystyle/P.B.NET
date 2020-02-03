@@ -16,7 +16,7 @@ type Test struct {
 	SendTestMsg      chan []byte
 }
 
-// EnableTestMessage is used to enable role send test message
+// EnableTestMessage is used to enable controller send test message
 func (t *Test) EnableTestMessage() {
 	t.testMsgEnabled = true
 	t.BroadcastTestMsg = make(chan []byte, 4)

@@ -24,7 +24,7 @@ type Node struct {
 	global    *global    // proxy clients, DNS clients, time syncer
 	syncer    *syncer    // sync network guid
 	clientMgr *clientMgr // clients manager
-	register  *register  // about node register to Controller
+	register  *register  // about register to Controller
 	forwarder *forwarder // forward messages
 	sender    *sender    // send message to controller
 	handler   *handler   // handle message from controller
