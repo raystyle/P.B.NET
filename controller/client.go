@@ -31,6 +31,7 @@ import (
 type Client struct {
 	ctx *CTRL
 
+	listener  *bootstrap.Listener
 	guid      *guid.GUID // Node GUID
 	closeFunc func()
 
@@ -110,6 +111,7 @@ func (ctrl *CTRL) NewClient(
 	// handshake
 	client := &Client{
 		ctx:       ctrl,
+		listener:  bl,
 		guid:      guid,
 		conn:      conn,
 		closeFunc: closeFunc,
@@ -404,6 +406,8 @@ func (client *Client) Synchronize() error {
 		return errors.Errorf("failed to start synchronize: %s", resp)
 	}
 	atomic.StoreInt32(&client.inSync, 1)
+	const format = "start synchronize\nlistener: %s"
+	client.logf(logger.Info, format, client.listener)
 	return nil
 }
 

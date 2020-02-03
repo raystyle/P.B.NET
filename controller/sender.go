@@ -184,6 +184,17 @@ func (sender *sender) SetMaxConns(n int) {
 	sender.maxConns.Store(n)
 }
 
+// Clients is used to get all clients that start Synchronize
+func (sender *sender) Clients() map[guid.GUID]*Client {
+	sender.clientsRWM.RLock()
+	defer sender.clientsRWM.RUnlock()
+	clients := make(map[guid.GUID]*Client, len(sender.clients))
+	for key, client := range sender.clients {
+		clients[key] = client
+	}
+	return clients
+}
+
 func (sender *sender) isClosed() bool {
 	return atomic.LoadInt32(&sender.inClose) != 0
 }
@@ -196,18 +207,7 @@ func (sender *sender) log(l logger.Level, log ...interface{}) {
 	sender.ctx.logger.Println(l, "sender", log...)
 }
 
-// Clients is used to get all clients that start Synchronize
-func (sender *sender) Clients() map[guid.GUID]*Client {
-	sender.clientsRWM.RLock()
-	defer sender.clientsRWM.RUnlock()
-	clients := make(map[guid.GUID]*Client, len(sender.clients))
-	for key, client := range sender.clients {
-		clients[key] = client
-	}
-	return clients
-}
-
-// Synchronize is used to connect a node listener and start synchronize
+// Synchronize is used to connect a node listener and start synchronize.
 func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -237,8 +237,6 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		return errors.WithMessagef(err, format, bl, guid)
 	}
 	sender.clients[*guid] = client
-	const format = "start synchronize\nlistener: %s\n%s"
-	sender.logf(logger.Info, format, bl, guid.Hex())
 	return nil
 }
 
@@ -416,44 +414,6 @@ func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
 	}
 }
 
-// send guid hex
-func (sender *sender) createNodeAckSlot(role, send *guid.GUID) (<-chan struct{}, func()) {
-	sender.nodeAckSlotsRWM.Lock()
-	defer sender.nodeAckSlotsRWM.Unlock()
-	nas, ok := sender.nodeAckSlots[*role]
-	if !ok {
-		sender.nodeAckSlots[*role] = &roleAckSlot{
-			slots: make(map[guid.GUID]chan struct{}),
-		}
-		nas = sender.nodeAckSlots[*role]
-	}
-	nas.slots[*send] = make(chan struct{})
-	return nas.slots[*send], func() {
-		nas.m.Lock()
-		defer nas.m.Unlock()
-		delete(nas.slots, *send)
-	}
-}
-
-// send guid hex
-func (sender *sender) createBeaconAckSlot(role, send *guid.GUID) (<-chan struct{}, func()) {
-	sender.beaconAckSlotsRWM.Lock()
-	defer sender.beaconAckSlotsRWM.Unlock()
-	bas, ok := sender.beaconAckSlots[*role]
-	if !ok {
-		sender.beaconAckSlots[*role] = &roleAckSlot{
-			slots: make(map[guid.GUID]chan struct{}),
-		}
-		bas = sender.beaconAckSlots[*role]
-	}
-	bas.slots[*send] = make(chan struct{})
-	return bas.slots[*send], func() {
-		bas.m.Lock()
-		defer bas.m.Unlock()
-		delete(bas.slots, *send)
-	}
-}
-
 func (sender *sender) Answer() {
 
 }
@@ -534,6 +494,44 @@ func (sender *sender) broadcast(
 	}
 	close(resp)
 	return response, success
+}
+
+// send guid hex
+func (sender *sender) createNodeAckSlot(role, send *guid.GUID) (<-chan struct{}, func()) {
+	sender.nodeAckSlotsRWM.Lock()
+	defer sender.nodeAckSlotsRWM.Unlock()
+	nas, ok := sender.nodeAckSlots[*role]
+	if !ok {
+		sender.nodeAckSlots[*role] = &roleAckSlot{
+			slots: make(map[guid.GUID]chan struct{}),
+		}
+		nas = sender.nodeAckSlots[*role]
+	}
+	nas.slots[*send] = make(chan struct{})
+	return nas.slots[*send], func() {
+		nas.m.Lock()
+		defer nas.m.Unlock()
+		delete(nas.slots, *send)
+	}
+}
+
+// send guid hex
+func (sender *sender) createBeaconAckSlot(role, send *guid.GUID) (<-chan struct{}, func()) {
+	sender.beaconAckSlotsRWM.Lock()
+	defer sender.beaconAckSlotsRWM.Unlock()
+	bas, ok := sender.beaconAckSlots[*role]
+	if !ok {
+		sender.beaconAckSlots[*role] = &roleAckSlot{
+			slots: make(map[guid.GUID]chan struct{}),
+		}
+		bas = sender.beaconAckSlots[*role]
+	}
+	bas.slots[*send] = make(chan struct{})
+	return bas.slots[*send], func() {
+		bas.m.Lock()
+		defer bas.m.Unlock()
+		delete(bas.slots, *send)
+	}
 }
 
 func (sender *sender) sendToNode(
