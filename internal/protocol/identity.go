@@ -7,17 +7,8 @@ import (
 	"project/internal/guid"
 )
 
-// ErrAuthenticateFailed is used to client handshake
-var ErrAuthenticateFailed = errors.New("failed to authenticate")
-
-// AuthSucceed is used to reply client
-var AuthSucceed = []byte{1}
-
-// CtrlGUID is the Controller GUID, it used to reserve
-var CtrlGUID = new(guid.GUID)
-
 // Role is used to show identity
-type Role uint8
+type Role byte
 
 // roles
 const (
@@ -43,42 +34,37 @@ func (role Role) Error() string {
 	return role.String()
 }
 
-var (
-	bytesCtrl   = []byte{0}
-	bytesNode   = []byte{1}
-	bytesBeacon = []byte{2}
-)
-
 // Bytes is used to return bytes
 func (role Role) Bytes() []byte {
 	switch role {
 	case Ctrl:
-		return bytesCtrl
+		return []byte{byte(Ctrl)}
 	case Node:
-		return bytesNode
+		return []byte{byte(Node)}
 	case Beacon:
-		return bytesBeacon
+		return []byte{byte(Beacon)}
 	default:
 		return []byte{255}
 	}
 }
 
+// CtrlGUID is the Controller GUID, it used to reserve
+var CtrlGUID = new(guid.GUID)
+
+// ErrAuthenticateFailed is used to client handshake
+var ErrAuthenticateFailed = errors.New("failed to authenticate")
+
+// AuthSucceed is used to reply client
+var AuthSucceed = []byte{1}
+
+// about Node operations
 const (
-	byteCtrl = iota
-	byteNode
-	byteBeacon
+	NodeOperationRegister byte = iota + 1
+	NodeOperationConnect
 )
 
-// Byte is used to return byte
-func (role Role) Byte() byte {
-	switch role {
-	case Ctrl:
-		return byteCtrl
-	case Node:
-		return byteNode
-	case Beacon:
-		return byteBeacon
-	default:
-		return 255
-	}
-}
+// about Beacon operations
+const (
+	BeaconOperationRegister byte = iota + 1
+	BeaconOperationConnect
+)

@@ -36,18 +36,3 @@ func TestRole_Bytes(t *testing.T) {
 		require.Equal(t, testdata[i].expect, Role(testdata[i].actual).Bytes())
 	}
 }
-
-func TestRole_Byte(t *testing.T) {
-	testdata := [...]*struct {
-		expect byte
-		actual uint8
-	}{
-		{0, 0},
-		{1, 1},
-		{2, 2},
-		{255, 3},
-	}
-	for i := 0; i < len(testdata); i++ {
-		require.Equal(t, testdata[i].expect, Role(testdata[i].actual).Byte())
-	}
-}
