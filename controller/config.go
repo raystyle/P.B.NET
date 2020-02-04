@@ -195,6 +195,101 @@ func (ctrl *CTRL) registerNode(
 	return &cert, nil
 }
 
+// AcceptRegisterNode is used to accept register Node
+// TODO add Log
+func (ctrl *CTRL) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstrap bool) error {
+	certificate, err := ctrl.registerNode(nrr, bootstrap)
+	if err != nil {
+		return err
+	}
+	// broadcast Node register response
+	resp := messages.NodeRegisterResponse{
+		GUID:         nrr.GUID,
+		PublicKey:    nrr.PublicKey,
+		KexPublicKey: nrr.KexPublicKey,
+		RequestTime:  nrr.RequestTime,
+		ReplyTime:    ctrl.global.Now(),
+		Result:       messages.RegisterResultAccept,
+		Certificate:  certificate.Encode(),
+	}
+	// TODO select node listeners
+	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, resp)
+	return errors.Wrap(err, "failed to accept register node")
+}
+
+// RefuseRegisterNode is used to refuse register Node, it will call firewall
+func (ctrl *CTRL) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
+	resp := messages.NodeRegisterResponse{
+		GUID:         nrr.GUID,
+		PublicKey:    nrr.PublicKey,
+		KexPublicKey: nrr.KexPublicKey,
+		RequestTime:  nrr.RequestTime,
+		ReplyTime:    ctrl.global.Now(),
+		Result:       messages.RegisterResultRefused,
+		// padding for Validate()
+		Certificate: make([]byte, protocol.CertificateSize),
+	}
+	err := ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, resp)
+	return errors.Wrap(err, "failed to refuse register node")
+}
+
+func (ctrl *CTRL) registerBeacon(brr *messages.BeaconRegisterRequest) error {
+	failed := func(err error) error {
+		return errors.Wrap(err, "failed to register beacon")
+	}
+	// calculate session key
+	sessionKey, err := ctrl.global.KeyExchange(brr.KexPublicKey)
+	if err != nil {
+		err = errors.WithMessage(err, "failed to calculate session key")
+		ctrl.logger.Print(logger.Exploit, "register beacon", err)
+		return failed(err)
+	}
+	err = ctrl.database.InsertBeacon(&mBeacon{
+		GUID:       brr.GUID[:],
+		PublicKey:  brr.PublicKey,
+		SessionKey: sessionKey,
+	})
+	if err != nil {
+		return failed(err)
+	}
+	return nil
+}
+
+// AcceptRegisterBeacon is used to accept register Beacon.
+// TODO add Log
+func (ctrl *CTRL) AcceptRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
+	err := ctrl.registerBeacon(brr)
+	if err != nil {
+		return err
+	}
+	// broadcast Beacon register response
+	resp := messages.BeaconRegisterResponse{
+		GUID:         brr.GUID,
+		PublicKey:    brr.PublicKey,
+		KexPublicKey: brr.KexPublicKey,
+		RequestTime:  brr.RequestTime,
+		ReplyTime:    ctrl.global.Now(),
+		Result:       messages.RegisterResultAccept,
+	}
+	// TODO select node listeners
+	err = ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, resp)
+	return errors.Wrap(err, "failed to accept register beacon")
+}
+
+// RefuseRegisterBeacon is used to refuse register Beacon, it will call firewall.
+func (ctrl *CTRL) RefuseRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
+	resp := messages.BeaconRegisterResponse{
+		GUID:         brr.GUID,
+		PublicKey:    brr.PublicKey,
+		KexPublicKey: brr.KexPublicKey,
+		RequestTime:  brr.RequestTime,
+		ReplyTime:    ctrl.global.Now(),
+		Result:       messages.RegisterResultRefused,
+	}
+	err := ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, &resp)
+	return errors.Wrap(err, "failed to refuse register beacon")
+}
+
 // GenerateRoleConfigAboutTheFirstBootstrap is used to generate the first bootstrap
 func GenerateRoleConfigAboutTheFirstBootstrap(b *messages.Bootstrap) ([]byte, []byte, error) {
 	return generateRoleConfigAboutBootstraps(b)

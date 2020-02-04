@@ -11,7 +11,6 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/guid"
 	"project/internal/logger"
-	"project/internal/messages"
 	"project/internal/protocol"
 )
 
@@ -209,48 +208,14 @@ func (ctrl *CTRL) Send(role protocol.Role, guid *guid.GUID, cmd []byte, msg inte
 	return ctrl.sender.Send(role, guid, cmd, msg)
 }
 
+// EnableInteractiveMode is used to enable Beacon interactive mode.
+func (ctrl *CTRL) EnableInteractiveMode(guid *guid.GUID) {
+	ctrl.sender.EnableInteractiveMode(guid)
+}
+
 // Broadcast is used to broadcast messages to all Nodes
 func (ctrl *CTRL) Broadcast(cmd []byte, msg interface{}) error {
 	return ctrl.sender.Broadcast(cmd, msg)
-}
-
-// AcceptRegisterNode is used to accept register node
-// TODO add Log
-func (ctrl *CTRL) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstrap bool) error {
-	certificate, err := ctrl.registerNode(nrr, bootstrap)
-	if err != nil {
-		return err
-	}
-	// broadcast node register response
-	resp := messages.NodeRegisterResponse{
-		GUID:         nrr.GUID,
-		PublicKey:    nrr.PublicKey,
-		KexPublicKey: nrr.KexPublicKey,
-		RequestTime:  nrr.RequestTime,
-		ReplyTime:    ctrl.global.Now(),
-		Result:       messages.RegisterResultAccept,
-		Certificate:  certificate.Encode(),
-	}
-	// TODO select node listeners
-	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, &resp)
-	return errors.Wrap(err, "failed to accept register node")
-}
-
-// RefuseRegisterNode is used to refuse register node
-// it will call firewall
-func (ctrl *CTRL) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
-	resp := messages.NodeRegisterResponse{
-		GUID:         nrr.GUID,
-		PublicKey:    nrr.PublicKey,
-		KexPublicKey: nrr.KexPublicKey,
-		RequestTime:  nrr.RequestTime,
-		ReplyTime:    ctrl.global.Now(),
-		Result:       messages.RegisterResultRefused,
-		// padding for Validate()
-		Certificate: make([]byte, protocol.CertificateSize),
-	}
-	err := ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, &resp)
-	return errors.Wrap(err, "failed to refuse register node")
 }
 
 // DeleteNode is used to delete node
@@ -259,16 +224,16 @@ func (ctrl *CTRL) DeleteNode(guid *guid.GUID) error {
 	return errors.Wrapf(err, "failed to delete node %X", guid)
 }
 
-// DeleteBeacon is used to delete beacon
-func (ctrl *CTRL) DeleteBeacon(guid *guid.GUID) error {
-	err := ctrl.database.DeleteBeacon(guid)
-	return errors.Wrapf(err, "failed to delete beacon %X", guid)
-}
-
 // DeleteNodeUnscoped is used to unscoped delete node
 func (ctrl *CTRL) DeleteNodeUnscoped(guid *guid.GUID) error {
 	err := ctrl.database.DeleteNodeUnscoped(guid)
 	return errors.Wrapf(err, "failed to unscoped delete node %X", guid)
+}
+
+// DeleteBeacon is used to delete beacon
+func (ctrl *CTRL) DeleteBeacon(guid *guid.GUID) error {
+	err := ctrl.database.DeleteBeacon(guid)
+	return errors.Wrapf(err, "failed to delete beacon %X", guid)
 }
 
 // DeleteBeaconUnscoped is used to unscoped delete beacon

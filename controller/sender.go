@@ -219,7 +219,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	}
 	if _, ok := sender.clients[*guid]; ok {
 		const format = "already connected the target node\n%s"
-		return errors.Errorf(format, guid)
+		return errors.Errorf(format, guid.Hex())
 	}
 	// connect
 	client, err := sender.ctx.NewClient(ctx, bl, guid, func() {
@@ -229,12 +229,12 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	})
 	if err != nil {
 		const format = "failed to connect node\nlistener: %s\n%s"
-		return errors.WithMessagef(err, format, bl, guid)
+		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	err = client.Synchronize()
 	if err != nil {
 		const format = "failed to start synchronize\nlistener: %s\n%s"
-		return errors.WithMessagef(err, format, bl, guid)
+		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	sender.clients[*guid] = client
 	return nil
@@ -418,13 +418,13 @@ func (sender *sender) Answer() {
 
 }
 
-func (sender *sender) SetInteractiveMode(guid *guid.GUID) {
+func (sender *sender) EnableInteractiveMode(guid *guid.GUID) {
 	sender.interactiveRWM.Lock()
 	defer sender.interactiveRWM.Unlock()
 	sender.interactive[*guid] = true
 }
 
-func (sender *sender) DeleteInteractiveStatus(guid *guid.GUID) {
+func (sender *sender) DisableInteractiveStatus(guid *guid.GUID) {
 	sender.interactiveRWM.Lock()
 	defer sender.interactiveRWM.Unlock()
 	delete(sender.interactive, *guid)
