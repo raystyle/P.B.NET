@@ -19,6 +19,7 @@ import (
 	"project/internal/testsuite"
 	"project/internal/xnet"
 
+	"project/beacon"
 	"project/controller"
 	"project/node"
 	"project/testdata"
@@ -114,25 +115,6 @@ func generateControllerConfig() *controller.Config {
 	return &cfg
 }
 
-func initializeController(t testing.TB) {
-	initOnce.Do(func() {
-		err := os.Chdir("../app")
-		require.NoError(t, err)
-		cfg := generateControllerConfig()
-		ctrl, err = controller.New(cfg)
-		require.NoError(t, err)
-		testsuite.IsDestroyed(t, cfg)
-		// set controller keys
-		err = ctrl.LoadSessionKeyFromFile("key/session.key", []byte("pbnet"))
-		require.NoError(t, err)
-		go func() {
-			err := ctrl.Main()
-			require.NoError(t, err)
-		}()
-		ctrl.Wait()
-	})
-}
-
 func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg := node.Config{}
 
@@ -179,6 +161,66 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg.CTRL.PublicKey = ctrl.PublicKey()
 	cfg.CTRL.BroadcastKey = ctrl.BroadcastKey()
 	return &cfg
+}
+
+func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
+	cfg := beacon.Config{}
+
+	cfg.Test.SkipSynchronizeTime = true
+
+	cfg.Logger.Level = "debug"
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
+
+	cfg.Global.DNSCacheExpire = 10 * time.Second
+	cfg.Global.TimeSyncSleepFixed = 15
+	cfg.Global.TimeSyncSleepRandom = 10
+	cfg.Global.TimeSyncInterval = time.Minute
+	cfg.Global.Certificates = testdata.Certificates(tb)
+	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
+	cfg.Global.DNSServers = testdata.DNSServers()
+	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
+
+	cfg.Client.ProxyTag = testdata.Socks5Tag
+	cfg.Client.Timeout = 10 * time.Second
+
+	cfg.Register.SleepFixed = 10
+	cfg.Register.SleepRandom = 20
+
+	cfg.Sender.MaxConns = 7
+	cfg.Sender.Worker = 64
+	cfg.Sender.QueueSize = 512
+	cfg.Sender.MaxBufferSize = 16 << 10
+	cfg.Sender.Timeout = 15 * time.Second
+
+	cfg.Syncer.ExpireTime = 3 * time.Second
+
+	cfg.Worker.Number = 16
+	cfg.Worker.QueueSize = 1024
+	cfg.Worker.MaxBufferSize = 16 << 10
+
+	cfg.CTRL.KexPublicKey = ctrl.KeyExchangePublicKey()
+	cfg.CTRL.PublicKey = ctrl.PublicKey()
+	cfg.CTRL.BroadcastKey = ctrl.BroadcastKey()
+	return &cfg
+}
+
+func initializeController(t testing.TB) {
+	initOnce.Do(func() {
+		err := os.Chdir("../app")
+		require.NoError(t, err)
+		cfg := generateControllerConfig()
+		ctrl, err = controller.New(cfg)
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, cfg)
+		// set controller keys
+		err = ctrl.LoadSessionKeyFromFile("key/session.key", []byte("pbnet"))
+		require.NoError(t, err)
+		go func() {
+			err := ctrl.Main()
+			require.NoError(t, err)
+		}()
+		ctrl.Wait()
+	})
 }
 
 // -----------------------------------------initial Node-------------------------------------------
