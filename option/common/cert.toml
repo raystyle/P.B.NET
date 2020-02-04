@@ -1,0 +1,16 @@
+algorithm    = "rsa|2048"    # "rsa|2048", "ecdsa|p256", "ed25519"
+dns_names    = ["localhost"]
+ip_addresses = ["127.0.0.1","::1"]
+# not_before = 2018-11-27
+# not_after  = 2028-11-27
+
+[subject]
+  common_name         = "P.B.NET"
+  serial_number       = ""
+  country             = []
+  organization        = []
+  organizational_unit = []
+  locality            = []
+  province            = []
+  street_address      = []
+  postal_code         = []
