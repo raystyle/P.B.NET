@@ -7,6 +7,9 @@ require (
 	github.com/bouk/monkey v1.0.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-sql-driver/mysql v1.5.0
+    github.com/gorilla/csrf v1.6.2
+    github.com/gorilla/sessions v1.2.0
+    github.com/gorilla/websocket v1.4.2
 	github.com/jinzhu/gorm v1.9.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kardianos/service v1.0.1-0.20191211031725-3c356ae54c8a
