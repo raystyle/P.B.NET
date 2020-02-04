@@ -76,6 +76,7 @@ type Config struct {
 		Dir      string `toml:"dir"`
 		CertFile string `toml:"cert_file"`
 		KeyFile  string `toml:"key_file"`
+
 		Address  string `toml:"address"`
 		Username string `toml:"username"` // super user
 		Password string `toml:"password"`

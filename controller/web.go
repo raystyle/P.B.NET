@@ -12,8 +12,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/csrf"
+	"github.com/gorilla/sessions"
+	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
@@ -24,8 +28,6 @@ import (
 	"project/internal/protocol"
 	"project/internal/security"
 )
-
-// TODO password need use bCrypt
 
 type hRW = http.ResponseWriter
 type hR = http.Request
@@ -62,6 +64,14 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 		return nil, errors.WithStack(err)
 	}
 	// TODO set options
+
+	csrf.Protect(nil, nil)
+	sessions.NewCookieStore()
+	fmt.Println(websocket.BinaryMessage)
+
+	hash, err := bcrypt.GenerateFromPassword([]byte{1, 2, 3}, 15)
+	fmt.Println(string(hash), err)
+
 	certOpts := cert.Options{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1"},
@@ -74,11 +84,11 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
 	listener, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
 	// router
 	web := web{
 		ctx:      ctx,
@@ -95,24 +105,17 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	router.ServeFiles("/css/*filepath", http.Dir(cfg.Dir+"/css"))
 	router.ServeFiles("/js/*filepath", http.Dir(cfg.Dir+"/js"))
 	router.ServeFiles("/img/*filepath", http.Dir(cfg.Dir+"/img"))
-	web.indexFS = http.FileServer(http.Dir(cfg.Dir))
-	handleFavicon := func(w hRW, r *hR, _ hP) {
-		web.indexFS.ServeHTTP(w, r)
-	}
-	router.GET("/favicon.ico", handleFavicon)
-	router.GET("/", web.handleIndex)
-	router.GET("/login", web.handleLogin)
-	router.POST("/load_keys", web.handleLoadSessionKey)
-
-	// debug api
-	router.GET("/api/debug/shutdown", web.handleShutdown)
+	router.ServeFiles("/favicon.ico", http.Dir(cfg.Dir+"/favicon.ico"))
+	router.ServeFiles("/", http.Dir(cfg.Dir+"/index.html"))
 
 	// API
-	router.GET("/api/boot", web.handleGetBoot)
+	router.GET("/api/login", web.handleLogin)
+	router.POST("/api/load_keys", web.handleLoadSessionKey)
+
 	router.POST("/api/node/trust", web.handleTrustNode)
 	router.GET("/api/node/shell", web.handleShell)
 
-	// HTTPS server
+	// configure HTTPS server
 	tlsConfig := &tls.Config{
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{tlsCert},
@@ -153,9 +156,16 @@ func (web *web) Close() {
 
 func (web *web) handlePanic(w hRW, r *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
-
 	// _, _ = io.Copy(w, xpanic.Print(e, "web"))
+
 }
+
+// handleIndex is used to return front end resource
+func (web *web) handleIndex(w hRW, r *hR, _ hP) {
+	web.indexFS.ServeHTTP(w, r)
+}
+
+// ---------------------------------API-------------------------------------
 
 func (web *web) handleLogin(w hRW, r *hR, p hP) {
 	_, _ = w.Write([]byte("hello"))
@@ -181,29 +191,6 @@ func (web *web) handleLoadSessionKey(w hRW, r *hR, p hP) {
 		return
 	}
 	_, _ = w.Write([]byte("ok"))
-}
-
-func (web *web) handleIndex(w hRW, r *hR, p hP) {
-	web.indexFS.ServeHTTP(w, r)
-}
-
-// ------------------------------debug API----------------------------------
-
-func (web *web) handleShutdown(w hRW, r *hR, p hP) {
-	_ = r.ParseForm()
-	errStr := r.FormValue("err")
-	_, _ = w.Write([]byte("ok"))
-	if errStr != "" {
-		web.ctx.Exit(errors.New(errStr))
-	} else {
-		web.ctx.Exit(nil)
-	}
-}
-
-// ---------------------------------API-------------------------------------
-
-func (web *web) handleGetBoot(w hRW, r *hR, p hP) {
-	_, _ = w.Write([]byte("hello"))
 }
 
 func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
