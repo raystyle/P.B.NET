@@ -22,10 +22,15 @@ type forwarder struct {
 	maxNodeConns   atomic.Value
 	maxBeaconConns atomic.Value
 
+	// key = Node GUID
 	clientConns    map[guid.GUID]*Client
 	clientConnsRWM sync.RWMutex
-	ctrlConns      map[guid.GUID]*ctrlConn
-	ctrlConnsRWM   sync.RWMutex
+
+	// key = connection tag
+	ctrlConns    map[guid.GUID]*ctrlConn
+	ctrlConnsRWM sync.RWMutex
+
+	// key = role GUID
 	nodeConns      map[guid.GUID]*nodeConn
 	nodeConnsRWM   sync.RWMutex
 	beaconConns    map[guid.GUID]*beaconConn
@@ -85,16 +90,16 @@ func (f *forwarder) GetMaxClientConns() int {
 	return f.maxClientConns.Load().(int)
 }
 
-func (f *forwarder) RegisterClient(tag *guid.GUID, client *Client) error {
+func (f *forwarder) RegisterClient(guid *guid.GUID, client *Client) error {
 	f.clientConnsRWM.Lock()
 	defer f.clientConnsRWM.Unlock()
 	if len(f.clientConns) >= f.GetMaxClientConns() {
 		return errors.New("max client connections")
 	}
-	if _, ok := f.clientConns[*tag]; ok {
-		return errors.Errorf("client has been register\n%s", tag)
+	if _, ok := f.clientConns[*guid]; ok {
+		return errors.Errorf("client has been register\n%s", guid.Hex())
 	}
-	f.clientConns[*tag] = client
+	f.clientConns[*guid] = client
 	return nil
 }
 
@@ -137,7 +142,7 @@ func (f *forwarder) RegisterCtrl(tag *guid.GUID, conn *ctrlConn) error {
 		return errors.New("max controller connections")
 	}
 	if _, ok := f.ctrlConns[*tag]; ok {
-		return errors.Errorf("controller has been register\n%s", tag)
+		return errors.Errorf("controller has been register\n%s", tag.Hex())
 	}
 	f.ctrlConns[*tag] = conn
 	return nil
@@ -175,16 +180,16 @@ func (f *forwarder) GetMaxNodeConns() int {
 	return f.maxNodeConns.Load().(int)
 }
 
-func (f *forwarder) RegisterNode(tag *guid.GUID, conn *nodeConn) error {
+func (f *forwarder) RegisterNode(guid *guid.GUID, conn *nodeConn) error {
 	f.nodeConnsRWM.Lock()
 	defer f.nodeConnsRWM.Unlock()
 	if len(f.nodeConns) >= f.GetMaxNodeConns() {
 		return errors.New("max node connections")
 	}
-	if _, ok := f.nodeConns[*tag]; ok {
-		return errors.Errorf("node has been register\n%s", tag)
+	if _, ok := f.nodeConns[*guid]; ok {
+		return errors.Errorf("node has been register\n%s", guid.Hex())
 	}
-	f.nodeConns[*tag] = conn
+	f.nodeConns[*guid] = conn
 	return nil
 }
 
@@ -220,24 +225,24 @@ func (f *forwarder) GetMaxBeaconConns() int {
 	return f.maxBeaconConns.Load().(int)
 }
 
-func (f *forwarder) RegisterBeacon(tag *guid.GUID, conn *beaconConn) error {
+func (f *forwarder) RegisterBeacon(guid *guid.GUID, conn *beaconConn) error {
 	f.beaconConnsRWM.Lock()
 	defer f.beaconConnsRWM.Unlock()
 	if len(f.beaconConns) >= f.GetMaxBeaconConns() {
 		return errors.New("max beacon connections")
 	}
-	if _, ok := f.beaconConns[*tag]; ok {
-		return errors.Errorf("beacon has been register\n%s", tag)
+	if _, ok := f.beaconConns[*guid]; ok {
+		return errors.Errorf("beacon has been register\n%s", guid.Hex())
 	}
-	f.beaconConns[*tag] = conn
+	f.beaconConns[*guid] = conn
 	return nil
 }
 
-func (f *forwarder) LogoffBeacon(tag *guid.GUID) {
+func (f *forwarder) LogoffBeacon(guid *guid.GUID) {
 	f.beaconConnsRWM.Lock()
 	defer f.beaconConnsRWM.Unlock()
-	if _, ok := f.beaconConns[*tag]; ok {
-		delete(f.beaconConns, *tag)
+	if _, ok := f.beaconConns[*guid]; ok {
+		delete(f.beaconConns, *guid)
 	}
 }
 
@@ -255,6 +260,7 @@ func (f *forwarder) log(l logger.Level, log ...interface{}) {
 	f.ctx.logger.Println(l, "forwarder", log...)
 }
 
+// forward is used to forward data to connections, it will not block.
 func (f *forwarder) forward(
 	conns map[guid.GUID]*conn,
 	number int,
@@ -297,7 +303,7 @@ func (f *forwarder) forward(
 			}
 			f.wg.Done()
 		}()
-		// wait forward
+		// wait operate
 		for i := 0; i < number; i++ {
 			select {
 			case <-done:
@@ -311,29 +317,101 @@ func (f *forwarder) forward(
 	}()
 }
 
+// sendToBeacon will check the target Beacon is connected current Node,
+// if connected it, send it directly and return true, or return false.
+func (f *forwarder) sendToBeacon(
+	role *guid.GUID,
+	operation uint8,
+	guid *guid.GUID,
+	data []byte,
+) bool {
+	f.beaconConnsRWM.RLock()
+	defer f.beaconConnsRWM.RUnlock()
+	beacon, ok := f.beaconConns[*role]
+	if !ok {
+		return false
+	}
+	// get cache
+	guidBuf := f.bufferPool.Get().(*bytes.Buffer)
+	guidBuf.Reset()
+	guidBuf.Write(guid[:])
+	guidBytes := guidBuf.Bytes()
+
+	dataBuf := f.bufferPool.Get().(*bytes.Buffer)
+	dataBuf.Reset()
+	dataBuf.Write(data)
+	dataBytes := dataBuf.Bytes()
+
+	done := make(chan struct{}, 1)
+	f.wg.Add(2)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				f.log(logger.Fatal, xpanic.Print(r, "forwarder.sendToBeacon"))
+			}
+			f.wg.Done()
+		}()
+		f.operate(beacon.Conn, operation, guidBytes, dataBytes)
+		select {
+		case done <- struct{}{}:
+		case <-f.stopSignal:
+		}
+	}()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				f.log(logger.Fatal, xpanic.Print(r, "forwarder.sendToBeacon"))
+			}
+			f.wg.Done()
+		}()
+		// wait operate
+		select {
+		case <-done:
+		case <-f.stopSignal:
+			return
+		}
+		close(done)
+		f.bufferPool.Put(guidBuf)
+		f.bufferPool.Put(dataBuf)
+	}()
+	return true
+}
+
 func (f *forwarder) operate(conn *conn, operation uint8, guid, data []byte) {
 	switch operation {
-	case protocol.CtrlBroadcast:
-		conn.Broadcast(guid, data)
 	case protocol.CtrlSendToNode:
 		conn.SendToNode(guid, data)
 	case protocol.CtrlAckToNode:
 		conn.AckToNode(guid, data)
+	case protocol.CtrlSendToBeacon:
+		conn.SendToBeacon(guid, data)
+	case protocol.CtrlAckToBeacon:
+		conn.AckToBeacon(guid, data)
+	case protocol.CtrlBroadcast:
+		conn.Broadcast(guid, data)
+	case protocol.CtrlAnswer:
+		conn.Answer(guid, data)
 	case protocol.NodeSend:
 		conn.NodeSend(guid, data)
 	case protocol.NodeAck:
 		conn.NodeAck(guid, data)
+	case protocol.BeaconSend:
+		conn.BeaconSend(guid, data)
+	case protocol.BeaconAck:
+		conn.BeaconAck(guid, data)
+	case protocol.BeaconQuery:
+		conn.Query(guid, data)
 	default:
 		panic(fmt.Sprintf("unknown operation: %d", operation))
 	}
 }
 
-// getConnsExceptCtrlBeaconAndIncome will get Node and Client connections
+// getConnsExceptCtrlAndIncome will get Node and Client connections
 // if income connection's tag = except, this connection will not add to the map
-func (f *forwarder) getConnsExceptCtrlBeaconAndIncome(except *guid.GUID) map[guid.GUID]*conn {
+func (f *forwarder) getConnsExceptCtrlAndIncome(except *guid.GUID) map[guid.GUID]*conn {
 	nodeConns := f.GetNodeConns()
 	clientConns := f.GetClientConns()
-	l := len(nodeConns) + len(clientConns) // not -1, because except maybe Controller
+	l := len(nodeConns) + len(clientConns)
 	if l == 0 {
 		return nil
 	}
@@ -351,21 +429,9 @@ func (f *forwarder) getConnsExceptCtrlBeaconAndIncome(except *guid.GUID) map[gui
 	return allConns
 }
 
-// Broadcast is used to forward Controller Broadcast message to Node and Client
-// it will not block
-func (f *forwarder) Broadcast(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptCtrlBeaconAndIncome(except)
-	l := len(conns)
-	if l == 0 {
-		return
-	}
-	f.forward(conns, l, protocol.CtrlBroadcast, guid, data)
-}
-
-// SendToNode is used to forward Controller SendToNode message to Node and Client
-// it will not block
+// SendToNode is used to forward Controller SendToNode message to Nodes and Clients.
 func (f *forwarder) SendToNode(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptCtrlBeaconAndIncome(except)
+	conns := f.getConnsExceptCtrlAndIncome(except)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -373,10 +439,9 @@ func (f *forwarder) SendToNode(guid *guid.GUID, data []byte, except *guid.GUID) 
 	f.forward(conns, l, protocol.CtrlSendToNode, guid, data)
 }
 
-// AckToNode is used to forward Controller AckToNode message to Node and Client
-// it will not block
+// AckToNode is used to forward Controller AckToNode message to Nodes and Clients.
 func (f *forwarder) AckToNode(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptCtrlBeaconAndIncome(except)
+	conns := f.getConnsExceptCtrlAndIncome(except)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -384,13 +449,68 @@ func (f *forwarder) AckToNode(guid *guid.GUID, data []byte, except *guid.GUID) {
 	f.forward(conns, l, protocol.CtrlAckToNode, guid, data)
 }
 
-// getConnsExceptBeaconAndIncome will get Controller, Node and Client connections
+// SendToBeacon is used to forward Controller SendToBeacon message to Nodes and Clients.
+// it will check the target Beacon is connected current Node, if connected it will send
+// to Beacon directly and not forward, or it will forward to Nodes and Clients.
+func (f *forwarder) SendToBeacon(role, guid *guid.GUID, data []byte, except *guid.GUID) {
+	if f.sendToBeacon(role, protocol.CtrlSendToBeacon, guid, data) {
+		return
+	}
+	conns := f.getConnsExceptCtrlAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.CtrlSendToBeacon, guid, data)
+}
+
+// AckToNode is used to forward Controller AckToBeacon message to Nodes and Clients.
+// it will check the target Beacon is connected current Node, if connected it will send
+// to Beacon directly and not forward, or it will forward to Nodes and Clients.
+func (f *forwarder) AckToBeacon(role, guid *guid.GUID, data []byte, except *guid.GUID) {
+	if f.sendToBeacon(role, protocol.CtrlAckToBeacon, guid, data) {
+		return
+	}
+	conns := f.getConnsExceptCtrlAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.CtrlAckToBeacon, guid, data)
+}
+
+// Broadcast is used to forward Controller Broadcast message to Nodes and Clients.
+func (f *forwarder) Broadcast(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptCtrlAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.CtrlBroadcast, guid, data)
+}
+
+// Answer is used to forward Controller Answer to Nodes and Clients.
+// it will check the target Beacon is connected current Node, if connected it will send
+// to Beacon directly and not forward, or it will forward to Nodes and Clients.
+func (f *forwarder) Answer(role, guid *guid.GUID, data []byte, except *guid.GUID) {
+	if f.sendToBeacon(role, protocol.CtrlAnswer, guid, data) {
+		return
+	}
+	conns := f.getConnsExceptCtrlAndIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.CtrlAnswer, guid, data)
+}
+
+// getConnsExceptIncome will get Controller, Node and Client connections
 // if income connection's tag = except, this connection will not add to the map
-func (f *forwarder) getConnsExceptBeaconAndIncome(except *guid.GUID) map[guid.GUID]*conn {
+func (f *forwarder) getConnsExceptIncome(except *guid.GUID) map[guid.GUID]*conn {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	clientConns := f.GetClientConns()
-	l := len(ctrlConns) + len(nodeConns) + len(clientConns) - 1
+	l := len(ctrlConns) + len(nodeConns) + len(clientConns)
 	if l == 0 {
 		return nil
 	}
@@ -411,10 +531,9 @@ func (f *forwarder) getConnsExceptBeaconAndIncome(except *guid.GUID) map[guid.GU
 	return allConns
 }
 
-// NodeSend is used to forward Node send to Controller
-// it will not block
+// NodeSend is used to forward Node send to Controller, Nodes and Clients.
 func (f *forwarder) NodeSend(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptBeaconAndIncome(except)
+	conns := f.getConnsExceptIncome(except)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -422,10 +541,9 @@ func (f *forwarder) NodeSend(guid *guid.GUID, data []byte, except *guid.GUID) {
 	f.forward(conns, l, protocol.NodeSend, guid, data)
 }
 
-// NodeAck is used to forward Node acknowledge to Controller
-// it will not block
+// NodeAck is used to forward Node acknowledge to Controller, Nodes and Clients.
 func (f *forwarder) NodeAck(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptBeaconAndIncome(except)
+	conns := f.getConnsExceptIncome(except)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -433,8 +551,38 @@ func (f *forwarder) NodeAck(guid *guid.GUID, data []byte, except *guid.GUID) {
 	f.forward(conns, l, protocol.NodeAck, guid, data)
 }
 
-// getConnsExceptBeacon will get Controller, Node and Client connections
-func (f *forwarder) getConnsExceptBeacon() map[guid.GUID]*conn {
+// BeaconSend is used to forward Beacon send to Controller, Nodes and Clients.
+func (f *forwarder) BeaconSend(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.BeaconSend, guid, data)
+}
+
+// BeaconAck is used to forward Beacon acknowledge to Controller, Nodes and Clients.
+func (f *forwarder) BeaconAck(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.BeaconAck, guid, data)
+}
+
+// Query is used to forward Beacon query to Controller, Nodes and Clients.
+func (f *forwarder) Query(guid *guid.GUID, data []byte, except *guid.GUID) {
+	conns := f.getConnsExceptIncome(except)
+	l := len(conns)
+	if l == 0 {
+		return
+	}
+	f.forward(conns, l, protocol.BeaconQuery, guid, data)
+}
+
+// getAllConns will get Controller, Node and Client connections
+func (f *forwarder) getAllConns() map[guid.GUID]*conn {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	clientConns := f.GetClientConns()
@@ -461,7 +609,7 @@ func (f *forwarder) Send(
 	guid *guid.GUID,
 	data *bytes.Buffer,
 ) ([]*protocol.SendResponse, int) {
-	conns := f.getConnsExceptBeacon()
+	conns := f.getAllConns()
 	l := len(conns)
 	if l == 0 {
 		return nil, 0
@@ -495,7 +643,7 @@ func (f *forwarder) Acknowledge(
 	guid *guid.GUID,
 	data *bytes.Buffer,
 ) ([]*protocol.AcknowledgeResponse, int) {
-	conns := f.getConnsExceptBeacon()
+	conns := f.getAllConns()
 	l := len(conns)
 	if l == 0 {
 		return nil, 0
