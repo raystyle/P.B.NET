@@ -31,12 +31,13 @@ type conn struct {
 
 	*xnet.Conn
 	role protocol.Role
-	tag  *guid.GUID // connection tag
-	guid *guid.GUID // role guid
+	// usually is role GUID, when role = Ctrl
+	// guid is CtrlConn connection GUID
+	guid *guid.GUID
 
 	slots []*protocol.Slot
 
-	// for log about role guid
+	// for log about role GUID
 	guidLine string
 	logSrc   string
 
@@ -55,11 +56,10 @@ type conn struct {
 	stopSignal chan struct{}
 }
 
-func newConn(ctx *Node, xConn *xnet.Conn, tag, guid *guid.GUID, usage int) *conn {
+func newConn(ctx *Node, xConn *xnet.Conn, guid *guid.GUID, usage int) *conn {
 	conn := conn{
 		ctx:        ctx,
 		Conn:       xConn,
-		tag:        tag,
 		guid:       guid,
 		stopSignal: make(chan struct{}),
 	}
@@ -123,7 +123,7 @@ func (c *conn) Log(lv logger.Level, log ...interface{}) {
 }
 
 func (c *conn) logExtra(lv logger.Level, buf *bytes.Buffer) {
-	if c.role != protocol.Ctrl && *protocol.CtrlGUID != *c.guid {
+	if c.role != protocol.Ctrl && *c.guid != *protocol.CtrlGUID {
 		_, _ = fmt.Fprintf(buf, c.guidLine, c.guid.Hex())
 	}
 	const conn = "---------------connection status----------------\n%s\n"
@@ -456,7 +456,7 @@ func (c *conn) HandleSendToNode(id, data []byte) {
 		if send.RoleGUID == *c.ctx.global.GUID() {
 			c.ctx.worker.AddSend(send)
 		} else {
-			c.ctx.forwarder.SendToNode(&send.GUID, data, c.tag)
+			c.ctx.forwarder.SendToNode(&send.GUID, data, c.guid)
 			c.ctx.worker.PutSendToPool(send)
 		}
 	} else {
@@ -494,7 +494,7 @@ func (c *conn) HandleAckToNode(id, data []byte) {
 		if ack.RoleGUID == *c.ctx.global.GUID() {
 			c.ctx.worker.AddAcknowledge(ack)
 		} else {
-			c.ctx.forwarder.AckToNode(&ack.GUID, data, c.tag)
+			c.ctx.forwarder.AckToNode(&ack.GUID, data, c.guid)
 			c.ctx.worker.PutAcknowledgeToPool(ack)
 		}
 	} else {
@@ -527,7 +527,7 @@ func (c *conn) HandleSendToBeacon(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckSendToBeaconGUID(&send.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		// repeat
+		c.ctx.forwarder.SendToBeacon(&send.RoleGUID, &send.GUID, data, c.guid)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -557,6 +557,7 @@ func (c *conn) HandleAckToBeacon(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckAckToBeaconGUID(&ack.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
+		c.ctx.forwarder.AckToBeacon(&ack.RoleGUID, &ack.GUID, data, c.guid)
 		// repeat
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
@@ -590,7 +591,7 @@ func (c *conn) HandleBroadcast(id, data []byte) {
 	if c.ctx.syncer.CheckBroadcastGUID(&broadcast.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
 		c.ctx.worker.AddBroadcast(broadcast)
-		c.ctx.forwarder.Broadcast(&broadcast.GUID, data, c.tag)
+		c.ctx.forwarder.Broadcast(&broadcast.GUID, data, c.guid)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 		c.ctx.worker.PutBroadcastToPool(broadcast)
@@ -621,7 +622,7 @@ func (c *conn) HandleAnswer(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckAnswerGUID(&answer.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		// repeat
+		c.ctx.forwarder.Answer(&answer.BeaconGUID, &answer.GUID, data, c.guid)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -651,7 +652,7 @@ func (c *conn) HandleNodeSend(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckNodeSendGUID(&send.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		c.ctx.forwarder.NodeSend(&send.GUID, data, c.tag)
+		c.ctx.forwarder.NodeSend(&send.GUID, data, c.guid)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -681,7 +682,7 @@ func (c *conn) HandleNodeAck(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckNodeAckGUID(&ack.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		c.ctx.forwarder.NodeAck(&ack.GUID, data, c.tag)
+		c.ctx.forwarder.NodeAck(&ack.GUID, data, c.guid)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -711,6 +712,7 @@ func (c *conn) HandleBeaconSend(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckBeaconSendGUID(&send.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
+		c.ctx.forwarder.BeaconSend(&send.GUID, data, c.guid)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -740,6 +742,7 @@ func (c *conn) HandleBeaconAck(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckBeaconAckGUID(&ack.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
+		c.ctx.forwarder.BeaconAck(&ack.GUID, data, c.guid)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -769,6 +772,7 @@ func (c *conn) HandleBeaconQuery(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckQueryGUID(&query.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
+		c.ctx.forwarder.Query(&query.GUID, data, c.guid)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 	}
@@ -892,18 +896,6 @@ func (c *conn) Acknowledge(guid *guid.GUID, data *bytes.Buffer) (ar *protocol.Ac
 
 // -------------------------------------------forwarder----------------------------------------------
 
-// Broadcast is used to forward Controller broadcast message to Nodes
-func (c *conn) Broadcast(guid, data []byte) {
-	reply, err := c.send(protocol.CtrlBroadcastGUID, guid)
-	if err != nil {
-		return
-	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
-		return
-	}
-	_, _ = c.send(protocol.CtrlBroadcast, data)
-}
-
 // SendToNode is used to forward Controller send message to Node
 func (c *conn) SendToNode(guid, data []byte) {
 	reply, err := c.send(protocol.CtrlSendToNodeGUID, guid)
@@ -928,6 +920,54 @@ func (c *conn) AckToNode(guid, data []byte) {
 	_, _ = c.send(protocol.CtrlAckToNode, data)
 }
 
+// SendToBeacon is used to forward Controller send message to Beacon
+func (c *conn) SendToBeacon(guid, data []byte) {
+	reply, err := c.send(protocol.CtrlSendToBeaconGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.CtrlSendToBeacon, data)
+}
+
+// AckToBeacon is used to forward Controller acknowledge to Beacon
+func (c *conn) AckToBeacon(guid, data []byte) {
+	reply, err := c.send(protocol.CtrlAckToBeaconGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.CtrlAckToBeacon, data)
+}
+
+// Broadcast is used to forward Controller broadcast message to Nodes
+func (c *conn) Broadcast(guid, data []byte) {
+	reply, err := c.send(protocol.CtrlBroadcastGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.CtrlBroadcast, data)
+}
+
+// Answer is used to forward Controller answer to Beacon
+func (c *conn) Answer(guid, data []byte) {
+	reply, err := c.send(protocol.CtrlAnswerGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.CtrlAnswer, data)
+}
+
 // NodeSend is used to forward Node send
 func (c *conn) NodeSend(guid, data []byte) {
 	reply, err := c.send(protocol.NodeSendGUID, guid)
@@ -950,6 +990,42 @@ func (c *conn) NodeAck(guid, data []byte) {
 		return
 	}
 	_, _ = c.send(protocol.NodeAck, data)
+}
+
+// BeaconSend is used to forward Beacon send
+func (c *conn) BeaconSend(guid, data []byte) {
+	reply, err := c.send(protocol.BeaconSendGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.BeaconSend, data)
+}
+
+// BeaconAck is used to forward Beacon acknowledge
+func (c *conn) BeaconAck(guid, data []byte) {
+	reply, err := c.send(protocol.BeaconAckGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.BeaconAck, data)
+}
+
+// Query is used to forward Beacon query
+func (c *conn) Query(guid, data []byte) {
+	reply, err := c.send(protocol.BeaconQueryGUID, guid)
+	if err != nil {
+		return
+	}
+	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+		return
+	}
+	_, _ = c.send(protocol.BeaconQuery, data)
 }
 
 func (c *conn) Close() error {

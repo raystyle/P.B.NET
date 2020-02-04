@@ -104,7 +104,7 @@ func (node *Node) NewClient(
 		tag:      node.clientMgr.GenerateTag(),
 		rand:     random.New(),
 	}
-	client.Conn = newConn(node, conn, client.tag, guid, connUsageClient)
+	client.Conn = newConn(node, conn, guid, connUsageClient)
 	err = client.handshake(conn)
 	if err != nil {
 		_ = conn.Close()
@@ -194,7 +194,7 @@ func (client *Client) Connect() (err error) {
 			client.syncM.Lock()
 			defer client.syncM.Unlock()
 			if client.isSync() {
-				client.ctx.forwarder.LogoffClient(client.tag)
+				client.ctx.forwarder.LogoffClient(client.GUID)
 			}
 			client.Close()
 		}()
@@ -331,7 +331,7 @@ func (client *Client) Synchronize() (err error) {
 	client.Conn.QueryPool.New = func() interface{} {
 		return protocol.NewQuery()
 	}
-	err = client.ctx.forwarder.RegisterClient(client.tag, client)
+	err = client.ctx.forwarder.RegisterClient(client.GUID, client)
 	if err != nil {
 		return
 	}
