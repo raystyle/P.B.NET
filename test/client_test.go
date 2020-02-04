@@ -14,10 +14,11 @@ import (
 	"project/internal/protocol"
 	"project/internal/testsuite"
 
+	"project/beacon"
 	"project/node"
 )
 
-func TestNodeClient_Synchronize(t *testing.T) {
+func TestNode_Client_Synchronize(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
 	iNodeGUID := iNode.GUID()
 
@@ -81,12 +82,79 @@ func TestNodeClient_Synchronize(t *testing.T) {
 		data.Reset()
 	}
 
-	// controller send test messages to the common node,
-	// test messages will pass the initial node
-
 	// clean
 	cNode.Exit(nil)
 	testsuite.IsDestroyed(t, cNode)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
+}
+
+func TestBeacon_Client_Synchronize(t *testing.T) {
+	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
+
+	// create bootstrap
+	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	require.NoError(t, err)
+	iAddr := iListener.Addr()
+	bListener := &bootstrap.Listener{
+		Mode:    iListener.Mode(),
+		Network: iAddr.Network(),
+		Address: iAddr.String(),
+	}
+	boot, key := generateBootstrap(t, bListener)
+	ctrl.Test.CreateBeaconRegisterRequestChannel()
+
+	// create Beacon
+	beaconCfg := generateBeaconConfig(t, "Beacon")
+	beaconCfg.Register.FirstBoot = boot
+	beaconCfg.Register.FirstKey = key
+
+	// run Beacon
+	Beacon, err := beacon.New(beaconCfg)
+	require.NoError(t, err)
+	go func() {
+		err := Beacon.Main()
+		require.NoError(t, err)
+	}()
+
+	// read Beacon register request
+	select {
+	case brr := <-ctrl.Test.BeaconRegisterRequest:
+		spew.Dump(brr)
+		err = ctrl.AcceptRegisterBeacon(brr)
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("read CTRL.Test.BeaconRegisterRequest timeout")
+	}
+
+	timer := time.AfterFunc(10*time.Second, func() {
+		t.Fatal("beacon register timeout")
+	})
+	Beacon.Wait()
+	timer.Stop()
+
+	// try to connect initial node and start synchronize
+	client, err := Beacon.NewClient(context.Background(), bListener, iNodeGUID, nil)
+	require.NoError(t, err)
+	err = client.Connect()
+	require.NoError(t, err)
+	err = client.Synchronize()
+	require.NoError(t, err)
+
+	// Beacon send test command
+	data := bytes.Buffer{}
+	for i := 0; i < 1024; i++ {
+		data.Write(convert.Int32ToBytes(int32(i)))
+		reply, err := client.SendCommand(protocol.TestCommand, data.Bytes())
+		require.NoError(t, err)
+		require.Equal(t, data.Bytes(), reply)
+		data.Reset()
+	}
+
+	// clean
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
 }
