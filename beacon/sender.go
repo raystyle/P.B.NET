@@ -91,6 +91,7 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 		ctx:           ctx,
 		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
 		ackTaskQueue:  make(chan *guid.GUID, cfg.QueueSize),
+		clients:       make(map[guid.GUID]*Client),
 		slots:         make(map[guid.GUID]chan struct{}),
 		stopSignal:    make(chan struct{}),
 	}
@@ -169,22 +170,26 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	}
 	if _, ok := sender.clients[*guid]; ok {
 		const format = "already connected the target node\n%s"
-		return errors.Errorf(format, guid)
+		return errors.Errorf(format, guid.Hex())
 	}
-	// connect
+	// connect Node
 	client, err := sender.ctx.NewClient(ctx, bl, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, *guid)
 	})
 	if err != nil {
+		return err
+	}
+	err = client.Connect()
+	if err != nil {
 		const format = "failed to connect node\nlistener: %s\n%s"
-		return errors.WithMessagef(err, format, bl, guid)
+		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	err = client.Synchronize()
 	if err != nil {
 		const format = "failed to start synchronize\nlistener: %s\n%s"
-		return errors.WithMessagef(err, format, bl, guid)
+		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	sender.clients[*guid] = client
 	return nil

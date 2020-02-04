@@ -146,7 +146,7 @@ func (client *Client) log(lv logger.Level, log ...interface{}) {
 }
 
 func (client *Client) logExtra(lv logger.Level, buf *bytes.Buffer) {
-	if client.guid != nil {
+	if *client.guid != *protocol.CtrlGUID {
 		const format = "--------------connected node guid---------------\n%s\n"
 		_, _ = fmt.Fprintf(buf, format, client.guid.Hex())
 	}
@@ -218,6 +218,12 @@ func (client *Client) Connect() (err error) {
 	err = client.authenticate()
 	if err != nil {
 		return
+	}
+
+	// initialize message slots
+	client.slots = make([]*protocol.Slot, protocol.SlotSize)
+	for i := 0; i < protocol.SlotSize; i++ {
+		client.slots[i] = protocol.NewSlot()
 	}
 	client.stopSignal = make(chan struct{})
 	// heartbeat
@@ -436,8 +442,10 @@ func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
 		client.handleAnswerGUID(id, data)
 	case protocol.CtrlAnswer:
 		client.handleAnswer(id, data)
+	default:
+		return false
 	}
-	return false
+	return true
 }
 
 func (client *Client) handleSendToBeaconGUID(id, data []byte) {
@@ -742,7 +750,9 @@ func (client *Client) Close() {
 	client.closeOnce.Do(func() {
 		atomic.StoreInt32(&client.inClose, 1)
 		_ = client.Conn.Close()
-		close(client.stopSignal)
+		if client.stopSignal != nil {
+			close(client.stopSignal)
+		}
 		client.wg.Wait()
 		client.ctx.clientMgr.Delete(client.tag)
 		if client.closeFunc != nil {

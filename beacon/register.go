@@ -18,6 +18,7 @@ import (
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
+	"project/internal/xnet/xnetutil"
 )
 
 type register struct {
@@ -231,6 +232,38 @@ func (register *register) Register() error {
 	return err
 }
 
+// packRequest is used to pack beacon register request and encrypt it.
+// it is used to register.Register().
+//
+// self key exchange public key (curve25519),
+// use session key encrypt register request data.
+// +----------------+----------------+
+// | kex public key | encrypted data |
+// +----------------+----------------+
+// |    32 Bytes    |       var      |
+// +----------------+----------------+
+func (register *register) packRequest(address string) []byte {
+	nrr := messages.NodeRegisterRequest{
+		GUID:         *register.ctx.global.GUID(),
+		PublicKey:    register.ctx.global.PublicKey(),
+		KexPublicKey: register.ctx.global.KeyExchangePublicKey(),
+		ConnAddress:  address,
+		SystemInfo:   info.GetSystemInfo(),
+		RequestTime:  register.ctx.global.Now(),
+	}
+	data, err := msgpack.Marshal(&nrr)
+	if err != nil {
+		panic("register internal error: " + err.Error())
+	}
+	cipherData, err := register.ctx.global.Encrypt(data)
+	if err != nil {
+		panic("register internal error: " + err.Error())
+	}
+	request := make([]byte, curve25519.ScalarSize)
+	copy(request, register.ctx.global.KeyExchangePublicKey())
+	return append(request, cipherData...)
+}
+
 // register is used to register to Controller with Node
 func (register *register) register(listener *bootstrap.Listener) error {
 	register.wg.Add(1)
@@ -279,7 +312,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		return errors.Wrap(err, "failed to receive external ip address")
 	}
 	// send register request
-	err = conn.Send(register.packRequest(string(address)))
+	err = conn.Send(register.packRequest(xnetutil.DecodeExternalAddress(address)))
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}
@@ -293,7 +326,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 	}
 	switch result[0] {
 	case messages.RegisterResultAccept:
-
+		// TODO read listeners
 		return nil
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)
@@ -304,38 +337,6 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		register.log(logger.Exploit, err)
 		return err
 	}
-}
-
-// packRequest is used to pack beacon register request and encrypt it.
-// it is used to register.Register().
-//
-// self key exchange public key (curve25519),
-// use session key encrypt register request data.
-// +----------------+----------------+
-// | kex public key | encrypted data |
-// +----------------+----------------+
-// |    32 Bytes    |       var      |
-// +----------------+----------------+
-func (register *register) packRequest(address string) []byte {
-	nrr := messages.NodeRegisterRequest{
-		GUID:         *register.ctx.global.GUID(),
-		PublicKey:    register.ctx.global.PublicKey(),
-		KexPublicKey: register.ctx.global.KeyExchangePublicKey(),
-		ConnAddress:  address,
-		SystemInfo:   info.GetSystemInfo(),
-		RequestTime:  register.ctx.global.Now(),
-	}
-	data, err := msgpack.Marshal(&nrr)
-	if err != nil {
-		panic("register internal error: " + err.Error())
-	}
-	cipherData, err := register.ctx.global.Encrypt(data)
-	if err != nil {
-		panic("register internal error: " + err.Error())
-	}
-	request := make([]byte, curve25519.ScalarSize)
-	copy(request, register.ctx.global.KeyExchangePublicKey())
-	return append(request, cipherData...)
 }
 
 func (register *register) Close() {
