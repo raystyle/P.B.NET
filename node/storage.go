@@ -72,16 +72,16 @@ func (storage *storage) GetNodeSessionKey(guid *guid.GUID) *nodeSessionKey {
 }
 
 func (storage *storage) AddNodeSessionKey(guid *guid.GUID, sk *nodeSessionKey) {
-	storage.nodeSessionKeysRWM.RLock()
-	defer storage.nodeSessionKeysRWM.RUnlock()
+	storage.nodeSessionKeysRWM.Lock()
+	defer storage.nodeSessionKeysRWM.Unlock()
 	if _, ok := storage.nodeSessionKeys[*guid]; !ok {
 		storage.nodeSessionKeys[*guid] = sk
 	}
 }
 
 func (storage *storage) DeleteNodeSessionKey(guid *guid.GUID) {
-	storage.nodeSessionKeysRWM.RLock()
-	defer storage.nodeSessionKeysRWM.RUnlock()
+	storage.nodeSessionKeysRWM.Lock()
+	defer storage.nodeSessionKeysRWM.Unlock()
 	delete(storage.nodeSessionKeys, *guid)
 }
 
@@ -113,15 +113,15 @@ func (storage *storage) GetBeaconSessionKey(guid *guid.GUID) *beaconSessionKey {
 }
 
 func (storage *storage) AddBeaconSessionKey(guid *guid.GUID, sk *beaconSessionKey) {
-	storage.beaconSessionKeysRWM.RLock()
-	defer storage.beaconSessionKeysRWM.RUnlock()
+	storage.beaconSessionKeysRWM.Lock()
+	defer storage.beaconSessionKeysRWM.Unlock()
 	if _, ok := storage.beaconSessionKeys[*guid]; !ok {
 		storage.beaconSessionKeys[*guid] = sk
 	}
 }
 
 func (storage *storage) DeleteBeaconSessionKey(guid *guid.GUID) {
-	storage.beaconSessionKeysRWM.RLock()
-	defer storage.beaconSessionKeysRWM.RUnlock()
+	storage.beaconSessionKeysRWM.Lock()
+	defer storage.beaconSessionKeysRWM.Unlock()
 	delete(storage.beaconSessionKeys, *guid)
 }

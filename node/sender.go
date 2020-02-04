@@ -142,24 +142,24 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	for _, node := range sender.ctx.forwarder.GetNodeConns() {
 		if *node.GUID == *guid {
 			const format = "target node already connected self\n%s"
-			return errors.Errorf(format, guid)
+			return errors.Errorf(format, guid.Hex())
 		}
 	}
 	for _, client := range sender.ctx.forwarder.GetClientConns() {
 		if *client.GUID == *guid {
 			const format = "already connected the target node\n%s"
-			return errors.Errorf(format, guid)
+			return errors.Errorf(format, guid.Hex())
 		}
 	}
 	// connect
-	const format = "failed to connect node\nlistener: %s\n%s"
 	client, err := sender.ctx.NewClient(ctx, bl, guid)
 	if err != nil {
-		return errors.WithMessagef(err, format, bl, guid)
+		return err
 	}
 	err = client.Connect()
 	if err != nil {
-		return errors.WithMessagef(err, format, bl, guid)
+		const format = "failed to connect node\nlistener: %s\n%s"
+		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	err = client.Synchronize()
 	if err != nil {

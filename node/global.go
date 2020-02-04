@@ -344,8 +344,7 @@ func (global *global) GUID() *guid.GUID {
 	return global.objects[objNodeGUID].(*guid.GUID)
 }
 
-// SetCertificate is used to set Node certificate
-// it can be set once
+// SetCertificate is used to set Node certificate, it only can be set once.
 func (global *global) SetCertificate(data []byte) error {
 	// check certificate
 	cert := protocol.Certificate{}
