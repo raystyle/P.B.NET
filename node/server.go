@@ -53,6 +53,7 @@ type server struct {
 	inShutdown int32
 	rwm        sync.RWMutex
 
+	// key = connection tag
 	ctrlConns      map[guid.GUID]*ctrlConn
 	ctrlConnsRWM   sync.RWMutex
 	nodeConns      map[guid.GUID]*nodeConn
@@ -635,7 +636,7 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 		server.logConn(conn, logger.Error, log, err)
 		return
 	}
-	// node send self key exchange public key (curve25519),
+	// Node send self key exchange public key (curve25519),
 	// use session key encrypt register request data.
 	//
 	// +----------------+----------------+
@@ -644,7 +645,7 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	// |    32 Bytes    |       var      |
 	// +----------------+----------------+
 	//
-	// receive encrypted node register request
+	// receive encrypted Node register request
 	request, err := conn.Receive()
 	if err != nil {
 		const log = "failed to receive node register request:"
@@ -665,7 +666,6 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 		return
 	}
 	// <security> must don't handle error
-	// _ = server.ctx.sender.Send(messages.CMDBNodeRegisterRequest, append(ip, request...))
 	_ = server.ctx.sender.Send(messages.CMDBNodeRegisterRequest, request)
 	// wait register result
 	timeout := time.Duration(15+server.rand.Int(30)) * time.Second
@@ -692,13 +692,16 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	case messages.RegisterResultAccept:
 		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
 		_, _ = conn.Write(resp.Certificate)
+		// listeners
+
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
 		// _, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	case messages.RegisterResultTimeout:
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	default:
-		server.logfConn(conn, logger.Exploit, "unknown register result: %d", resp.Result)
+		const format = "unknown node register result: %d"
+		server.logfConn(conn, logger.Exploit, format, resp.Result)
 	}
 }
 
@@ -741,7 +744,132 @@ func (server *server) handshakeWithBeacon(tag *guid.GUID, conn *xnet.Conn) {
 		server.logConn(conn, logger.Error, "failed to receive beacon guid:", err)
 		return
 	}
-	server.serveBeacon(tag, &beaconGUID, conn)
+	// read operation
+	operation := make([]byte, 1)
+	_, err = io.ReadFull(conn, operation)
+	if err != nil {
+		server.logConn(conn, logger.Exploit, "failed to receive beacon operation", err)
+		return
+	}
+	switch operation[0] {
+	case protocol.BeaconOperationRegister: // register
+		server.registerBeacon(conn, &beaconGUID)
+	case protocol.BeaconOperationConnect: // connect
+		if !server.verifyBeacon(conn, &beaconGUID) {
+			return
+		}
+		server.serveBeacon(tag, &beaconGUID, conn)
+	default:
+		server.logfConn(conn, logger.Exploit, "unknown beacon operation %d", operation[0])
+	}
+}
+
+func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
+	// send external address
+	err := conn.Send(xnetutil.EncodeExternalAddress(conn.RemoteAddr().String()))
+	if err != nil {
+		const log = "failed to send beacon external address:"
+		server.logConn(conn, logger.Error, log, err)
+		return
+	}
+	// Beacon send self key exchange public key (curve25519),
+	// use session key encrypt register request data.
+	//
+	// +----------------+----------------+
+	// | kex public key | encrypted data |
+	// +----------------+----------------+
+	// |    32 Bytes    |       var      |
+	// +----------------+----------------+
+	//
+	// receive encrypted Beacon register request
+	request, err := conn.Receive()
+	if err != nil {
+		const log = "failed to receive beacon register request:"
+		server.logConn(conn, logger.Error, log, err)
+		return
+	}
+	// check size
+	if len(request) < curve25519.ScalarSize+aes.BlockSize {
+		const log = "receive invalid encrypted beacon register request"
+		server.logConn(conn, logger.Exploit, log)
+		return
+	}
+	// create Beacon register
+	response := server.ctx.storage.CreateBeaconRegister(guid)
+	if response == nil {
+		const format = "failed to create beacon register\nGUID: %X"
+		server.logfConn(conn, logger.Warning, format, guid)
+		return
+	}
+	// <security> must don't handle error
+	_ = server.ctx.sender.Send(messages.CMDBBeaconRegisterRequest, request)
+	// wait register result
+	timeout := time.Duration(15+server.rand.Int(30)) * time.Second
+	timer := time.AfterFunc(timeout, func() {
+		defer func() {
+			if r := recover(); r != nil {
+				server.log(logger.Fatal, xpanic.Print(r, "server.registerNode"))
+			}
+		}()
+		server.ctx.storage.SetBeaconRegister(guid, &messages.BeaconRegisterResponse{
+			Result: messages.RegisterResultTimeout,
+		})
+	})
+	defer timer.Stop()
+	// read register response result
+	var resp *messages.BeaconRegisterResponse
+	select {
+	case resp = <-response:
+	case <-server.context.Done():
+		return
+	}
+	_ = conn.SetWriteDeadline(server.ctx.global.Now().Add(server.timeout))
+	switch resp.Result {
+	case messages.RegisterResultAccept:
+		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
+		// listeners
+
+	case messages.RegisterResultRefused:
+		// TODO add IP black list only register(other role still pass)
+		// _, _ = conn.Write([]byte{messages.RegisterResultTimeout})
+	case messages.RegisterResultTimeout:
+		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
+	default:
+		const format = "unknown beacon register result: %d"
+		server.logfConn(conn, logger.Exploit, format, resp.Result)
+	}
+}
+
+func (server *server) verifyBeacon(conn *xnet.Conn, guid *guid.GUID) bool {
+	challenge := server.rand.Bytes(protocol.ChallengeSize)
+	err := conn.Send(challenge)
+	if err != nil {
+		server.logConn(conn, logger.Error, "failed to send challenge to beacon:", err)
+		return false
+	}
+	// receive signature
+	signature, err := conn.Receive()
+	if err != nil {
+		server.logConn(conn, logger.Error, "failed to receive beacon signature:", err)
+		return false
+	}
+	// verify signature
+	sk := server.ctx.storage.GetBeaconSessionKey(guid)
+	if sk == nil {
+		// TODO try to query from controller
+		return false
+	}
+	if !ed25519.Verify(sk.PublicKey, challenge, signature) {
+		server.logConn(conn, logger.Exploit, "invalid beacon challenge signature")
+		return false
+	}
+	// send succeed response
+	err = conn.Send(protocol.AuthSucceed)
+	if err != nil {
+		server.logConn(conn, logger.Error, "failed to send response to beacon:", err)
+		return false
+	}
+	return true
 }
 
 // ---------------------------------------serve controller-----------------------------------------
@@ -760,7 +888,7 @@ func (server *server) serveCtrl(tag *guid.GUID, conn *xnet.Conn) {
 	cc := ctrlConn{
 		ctx:  server.ctx,
 		tag:  tag,
-		Conn: newConn(server.ctx, conn, tag, protocol.CtrlGUID, connUsageServeCtrl),
+		Conn: newConn(server.ctx, conn, tag, connUsageServeCtrl),
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -907,7 +1035,6 @@ func (ctrl *ctrlConn) Close() {
 type nodeConn struct {
 	ctx *Node
 
-	tag  *guid.GUID
 	GUID *guid.GUID
 	Conn *conn
 
@@ -918,9 +1045,8 @@ type nodeConn struct {
 func (server *server) serveNode(tag, nodeGUID *guid.GUID, conn *xnet.Conn) {
 	nc := nodeConn{
 		ctx:  server.ctx,
-		tag:  tag,
 		GUID: nodeGUID,
-		Conn: newConn(server.ctx, conn, tag, nodeGUID, connUsageServeNode),
+		Conn: newConn(server.ctx, conn, nodeGUID, connUsageServeNode),
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -930,7 +1056,7 @@ func (server *server) serveNode(tag, nodeGUID *guid.GUID, conn *xnet.Conn) {
 		nc.syncM.Lock()
 		defer nc.syncM.Unlock()
 		if nc.isSync() {
-			server.ctx.forwarder.LogoffNode(tag)
+			server.ctx.forwarder.LogoffNode(nodeGUID)
 		}
 		nc.Close()
 		nc.Conn.Log(logger.Debug, "disconnected")
@@ -997,7 +1123,7 @@ func (node *nodeConn) handleSyncStart(id []byte) {
 	node.Conn.QueryPool.New = func() interface{} {
 		return protocol.NewQuery()
 	}
-	err := node.ctx.forwarder.RegisterNode(node.tag, node)
+	err := node.ctx.forwarder.RegisterNode(node.GUID, node)
 	if err != nil {
 		node.Conn.Reply(id, []byte(err.Error()))
 		node.Close()
@@ -1100,7 +1226,6 @@ func (node *nodeConn) Close() {
 type beaconConn struct {
 	ctx *Node
 
-	tag  *guid.GUID
 	guid *guid.GUID // beacon guid
 	Conn *conn
 
@@ -1111,9 +1236,8 @@ type beaconConn struct {
 func (server *server) serveBeacon(tag, beaconGUID *guid.GUID, conn *xnet.Conn) {
 	bc := beaconConn{
 		ctx:  server.ctx,
-		tag:  tag,
 		guid: beaconGUID,
-		Conn: newConn(server.ctx, conn, tag, beaconGUID, connUsageServeBeacon),
+		Conn: newConn(server.ctx, conn, beaconGUID, connUsageServeBeacon),
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -1123,7 +1247,7 @@ func (server *server) serveBeacon(tag, beaconGUID *guid.GUID, conn *xnet.Conn) {
 		bc.syncM.Lock()
 		defer bc.syncM.Unlock()
 		if bc.isSync() {
-			server.ctx.forwarder.LogoffBeacon(tag)
+			server.ctx.forwarder.LogoffBeacon(beaconGUID)
 		}
 		bc.Close()
 		bc.Conn.Log(logger.Debug, "disconnected")
@@ -1164,7 +1288,7 @@ func (beacon *beaconConn) onFrame(frame []byte) {
 func (beacon *beaconConn) onFrameBeforeSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	switch frame[0] {
-	case protocol.NodeSync:
+	case protocol.BeaconSync:
 		beacon.handleSyncStart(id)
 	default:
 		return false
@@ -1187,7 +1311,7 @@ func (beacon *beaconConn) handleSyncStart(id []byte) {
 	beacon.Conn.QueryPool.New = func() interface{} {
 		return protocol.NewQuery()
 	}
-	err := beacon.ctx.forwarder.RegisterBeacon(beacon.tag, beacon)
+	err := beacon.ctx.forwarder.RegisterBeacon(beacon.guid, beacon)
 	if err != nil {
 		beacon.Conn.Reply(id, []byte(err.Error()))
 		beacon.Close()
