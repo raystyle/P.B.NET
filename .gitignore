@@ -14,4 +14,7 @@
 # Goland
 .idea
 
+# Temporary file
+temp
+
 vendor
