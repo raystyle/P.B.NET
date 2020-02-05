@@ -221,10 +221,7 @@ func (client *Client) Connect() (err error) {
 	}
 
 	// initialize message slots
-	client.slots = make([]*protocol.Slot, protocol.SlotSize)
-	for i := 0; i < protocol.SlotSize; i++ {
-		client.slots[i] = protocol.NewSlot()
-	}
+	client.slots = protocol.NewSlots()
 	client.stopSignal = make(chan struct{})
 	// heartbeat
 	client.heartbeat = make(chan struct{}, 1)
@@ -752,6 +749,7 @@ func (client *Client) Close() {
 		_ = client.Conn.Close()
 		if client.stopSignal != nil {
 			close(client.stopSignal)
+			protocol.DestroySlots(client.slots)
 		}
 		client.wg.Wait()
 		client.ctx.clientMgr.Delete(client.tag)
