@@ -803,12 +803,10 @@ func (c *conn) send(cmd uint8, data []byte) ([]byte, error) {
 					return nil, err
 				}
 				// wait for reply
-				if !c.slots[id].Timer.Stop() {
-					<-c.slots[id].Timer.C
-				}
 				c.slots[id].Timer.Reset(protocol.RecvTimeout)
 				select {
 				case r := <-c.slots[id].Reply:
+					c.slots[id].Timer.Stop()
 					c.slots[id].Available <- struct{}{}
 					return r, nil
 				case <-c.slots[id].Timer.C:
@@ -1029,9 +1027,9 @@ func (c *conn) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
 		atomic.StoreInt32(&c.inClose, 1)
+		err = c.Conn.Close()
 		close(c.stopSignal)
 		protocol.DestroySlots(c.slots)
-		err = c.Conn.Close()
 	})
 	return err
 }
