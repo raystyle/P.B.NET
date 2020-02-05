@@ -152,7 +152,7 @@ func TestClient_Send(t *testing.T) {
 	client := testGenerateClient(t, Node)
 
 	data := bytes.Buffer{}
-	for i := 0; i < 1024; i++ {
+	for i := 0; i < 16384; i++ {
 		data.Write(convert.Int32ToBytes(int32(i)))
 		reply, err := client.send(protocol.TestCommand, data.Bytes())
 		require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestClient_SendParallel(t *testing.T) {
 	send := func() {
 		defer wg.Done()
 		data := bytes.Buffer{}
-		for i := 0; i < 1024; i++ {
+		for i := 0; i < 512; i++ {
 			data.Write(convert.Int32ToBytes(int32(i)))
 			reply, err := client.send(protocol.TestCommand, data.Bytes())
 			require.NoError(t, err)
@@ -183,7 +183,7 @@ func TestClient_SendParallel(t *testing.T) {
 			data.Reset()
 		}
 	}
-	for i := 0; i < 16; i++ {
+	for i := 0; i < 2*protocol.SlotSize; i++ {
 		wg.Add(1)
 		go send()
 	}

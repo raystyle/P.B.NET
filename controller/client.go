@@ -719,12 +719,10 @@ func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
 					return nil, err
 				}
 				// wait for reply
-				if !client.slots[id].Timer.Stop() {
-					<-client.slots[id].Timer.C
-				}
 				client.slots[id].Timer.Reset(protocol.RecvTimeout)
 				select {
 				case r := <-client.slots[id].Reply:
+					client.slots[id].Timer.Stop()
 					client.slots[id].Available <- struct{}{}
 					return r, nil
 				case <-client.slots[id].Timer.C:
