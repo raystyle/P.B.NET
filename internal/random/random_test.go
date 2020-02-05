@@ -1,7 +1,6 @@
 package random
 
 import (
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -60,7 +59,7 @@ func TestRandomEqual(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			r := New()
-			result <- r.Int(math.MaxInt64)
+			result <- r.Int(1048576)
 		}()
 	}
 	results := make(map[int]*struct{})
