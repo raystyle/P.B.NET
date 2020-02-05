@@ -43,6 +43,10 @@
   dir       = "web"
   cert_file = "ca/cert.pem"
   key_file  = "ca/key.pem"
+  network   = "tcp4"
   address   = "localhost:1657"
   username  = "pbnet"
-  password  = "sha256"
+  password  = "bcrypt"
+
+  [web.cert]
+    dns_names = ["localhost"]

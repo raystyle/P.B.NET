@@ -125,10 +125,7 @@ func (ctrl *CTRL) NewClient(
 	}
 
 	// initialize message slots
-	client.slots = make([]*protocol.Slot, protocol.SlotSize)
-	for i := 0; i < protocol.SlotSize; i++ {
-		client.slots[i] = protocol.NewSlot()
-	}
+	client.slots = protocol.NewSlots()
 	client.stopSignal = make(chan struct{})
 	// heartbeat
 	client.heartbeat = make(chan struct{}, 1)
@@ -918,6 +915,7 @@ func (client *Client) Close() {
 		atomic.StoreInt32(&client.inClose, 1)
 		_ = client.conn.Close()
 		close(client.stopSignal)
+		protocol.DestroySlots(client.slots)
 		client.wg.Wait()
 		client.ctx.clientMgr.Delete(client.tag)
 		if client.closeFunc != nil {

@@ -11,6 +11,7 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
+	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
 	"project/internal/dns"
 	"project/internal/logger"
@@ -73,13 +74,14 @@ type Config struct {
 	} `toml:"worker"`
 
 	Web struct {
-		Dir      string `toml:"dir"`
-		CertFile string `toml:"cert_file"`
-		KeyFile  string `toml:"key_file"`
-
-		Address  string `toml:"address"`
-		Username string `toml:"username"` // super user
-		Password string `toml:"password"`
+		Dir      string       `toml:"dir"`
+		CertFile string       `toml:"cert_file"`
+		KeyFile  string       `toml:"key_file"`
+		CertOpts cert.Options `toml:"cert"`
+		Network  string       `toml:"network"`
+		Address  string       `toml:"address"`
+		Username string       `toml:"username"` // super user
+		Password string       `toml:"password"`
 	} `toml:"web"`
 }
 

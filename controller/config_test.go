@@ -61,6 +61,9 @@ func testGenerateConfig() *Config {
 	cfg.Web.Dir = "web"
 	cfg.Web.CertFile = "ca/cert.pem"
 	cfg.Web.KeyFile = "ca/key.pem"
+	cfg.Web.CertOpts.DNSNames = []string{"localhost"}
+	cfg.Web.CertOpts.IPAddresses = []string{"127.0.0.1", "::1"}
+	cfg.Web.Network = "tcp"
 	cfg.Web.Address = "localhost:1657"
 	cfg.Web.Username = "pbnet" // # super user, password = "pbnet"
 	cfg.Web.Password = "$2a$12$zWgjYi0aAq.958UtUyDi5.QDmq4LOWsvv7I9ulvf1rHzd9/dWWmTi"
@@ -112,9 +115,11 @@ func TestConfig(t *testing.T) {
 		{expected: "web", actual: cfg.Web.Dir},
 		{expected: "ca/cert.pem", actual: cfg.Web.CertFile},
 		{expected: "ca/key.pem", actual: cfg.Web.KeyFile},
+		{expected: []string{"localhost"}, actual: cfg.Web.CertOpts.DNSNames},
+		{expected: "tcp4", actual: cfg.Web.Network},
 		{expected: "localhost:1657", actual: cfg.Web.Address},
 		{expected: "pbnet", actual: cfg.Web.Username},
-		{expected: "sha256", actual: cfg.Web.Password},
+		{expected: "bcrypt", actual: cfg.Web.Password},
 	}
 	for _, td := range tds {
 		require.Equal(t, td.expected, td.actual)
