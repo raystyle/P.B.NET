@@ -7,11 +7,17 @@ import (
 	"io/ioutil"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/xnet"
 )
+
+func TestRunWebServer(t *testing.T) {
+	testInitializeController(t)
+	time.Sleep(5 * time.Minute)
+}
 
 func testRestfulAPI(method, path string, model interface{}) ([]byte, error) {
 	// json

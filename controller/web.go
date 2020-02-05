@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -22,11 +23,13 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
 	"project/internal/crypto/cert/certutil"
+	"project/internal/crypto/rand"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
 	"project/internal/security"
+	"project/internal/xpanic"
 )
 
 type hRW = http.ResponseWriter
@@ -36,9 +39,9 @@ type hP = httprouter.Params
 type web struct {
 	ctx *CTRL
 
+	handler  *webHandler
 	listener net.Listener
 	server   *http.Server
-	indexFS  http.Handler // index file system
 
 	wg sync.WaitGroup
 }
@@ -46,7 +49,7 @@ type web struct {
 func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	cfg := config.Web
 
-	// generate certificate
+	// load CA certificate
 	certFile, err := ioutil.ReadFile(cfg.CertFile)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -63,20 +66,9 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// TODO set options
 
-	csrf.Protect(nil, nil)
-	sessions.NewCookieStore()
-	fmt.Println(websocket.BinaryMessage)
-
-	hash, err := bcrypt.GenerateFromPassword([]byte{1, 2, 3}, 15)
-	fmt.Println(string(hash), err)
-
-	certOpts := cert.Options{
-		DNSNames:    []string{"localhost"},
-		IPAddresses: []string{"127.0.0.1"},
-	}
-	pair, err := cert.Generate(caCert, caPri, &certOpts)
+	// generate temporary certificate
+	pair, err := cert.Generate(caCert, caPri, &cfg.CertOpts)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -84,45 +76,68 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	listener, err := net.Listen("tcp", cfg.Address)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 
-	// router
-	web := web{
-		ctx:      ctx,
-		listener: listener,
+	wh := webHandler{ctx: ctx}
+	wh.upgrader = &websocket.Upgrader{
+		HandshakeTimeout: time.Minute,
+		ReadBufferSize:   4096,
+		WriteBufferSize:  4096,
 	}
+	// configure router
 	router := &httprouter.Router{
 		RedirectTrailingSlash:  true,
 		RedirectFixedPath:      true,
 		HandleMethodNotAllowed: true,
 		HandleOPTIONS:          true,
-		PanicHandler:           web.handlePanic,
+		PanicHandler:           wh.handlePanic,
 	}
 	// resource
 	router.ServeFiles("/css/*filepath", http.Dir(cfg.Dir+"/css"))
 	router.ServeFiles("/js/*filepath", http.Dir(cfg.Dir+"/js"))
 	router.ServeFiles("/img/*filepath", http.Dir(cfg.Dir+"/img"))
-	router.ServeFiles("/favicon.ico", http.Dir(cfg.Dir+"/favicon.ico"))
-	router.ServeFiles("/", http.Dir(cfg.Dir+"/index.html"))
-
-	// API
-	router.GET("/api/login", web.handleLogin)
-	router.POST("/api/load_keys", web.handleLoadSessionKey)
-
-	router.POST("/api/node/trust", web.handleTrustNode)
-	router.GET("/api/node/shell", web.handleShell)
+	// favicon.ico
+	favicon, err := ioutil.ReadFile(cfg.Dir + "/favicon.ico")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	router.GET("/favicon.ico", func(w hRW, _ *hR, _ hP) {
+		_, _ = w.Write(favicon)
+	})
+	// index.html
+	index, err := ioutil.ReadFile(cfg.Dir + "/index.html")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	router.GET("/", func(w hRW, _ *hR, _ hP) {
+		_, _ = w.Write(index)
+	})
+	// register router about API
+	router.GET("/api/login", wh.handleLogin)
+	router.POST("/api/load_session_key", wh.handleLoadSessionKey)
+	router.POST("/api/node/trust", wh.handleTrustNode)
+	router.GET("/api/node/shell", wh.handleShell)
 
 	// configure HTTPS server
+	listener, err := net.Listen(cfg.Network, cfg.Address)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	web := web{
+		ctx:      ctx,
+		handler:  &wh,
+		listener: listener,
+	}
 	tlsConfig := &tls.Config{
+		Rand:         rand.Reader,
+		Time:         ctx.global.Now,
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{tlsCert},
 	}
 	web.server = &http.Server{
 		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: time.Minute,
+		IdleTimeout:       time.Minute,
+		MaxHeaderBytes:    32 << 10,
 		Handler:           router,
 		ErrorLog:          logger.Wrap(logger.Warning, "web", ctx.logger),
 	}
@@ -131,12 +146,17 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 
 func (web *web) Deploy() error {
 	errChan := make(chan error, 1)
-	serve := func() {
-		errChan <- web.server.ServeTLS(web.listener, "", "")
-		web.wg.Done()
-	}
 	web.wg.Add(1)
-	go serve()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				b := xpanic.Print(r, "web.server.ServeTLS")
+				web.ctx.logger.Print(logger.Fatal, "web", b)
+			}
+			web.wg.Done()
+		}()
+		errChan <- web.server.ServeTLS(web.listener, "", "")
+	}()
 	select {
 	case err := <-errChan:
 		return errors.WithStack(err)
@@ -151,40 +171,61 @@ func (web *web) Address() string {
 
 func (web *web) Close() {
 	_ = web.server.Close()
+	web.wg.Wait()
 	web.ctx = nil
+	web.handler.Close()
 }
 
-func (web *web) handlePanic(w hRW, r *hR, e interface{}) {
+type webHandler struct {
+	ctx *CTRL
+
+	upgrader *websocket.Upgrader
+}
+
+func (wh *webHandler) Close() {
+	wh.ctx = nil
+}
+
+func (wh *webHandler) logf(l logger.Level, format string, log ...interface{}) {
+	wh.ctx.logger.Printf(l, "web", format, log...)
+}
+
+func (wh *webHandler) log(l logger.Level, log ...interface{}) {
+	wh.ctx.logger.Println(l, "web", log...)
+}
+
+func (wh *webHandler) handlePanic(w hRW, r *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
-	// _, _ = io.Copy(w, xpanic.Print(e, "web"))
 
+	// if is super user return the panic
+	_, _ = io.Copy(w, xpanic.Print(e, "web"))
+
+	csrf.Protect(nil, nil)
+	sessions.NewCookieStore()
+	hash, err := bcrypt.GenerateFromPassword([]byte{1, 2, 3}, 15)
+	fmt.Println(string(hash), err)
 }
 
-// handleIndex is used to return front end resource
-func (web *web) handleIndex(w hRW, r *hR, _ hP) {
-	web.indexFS.ServeHTTP(w, r)
+func (wh *webHandler) handleLogin(w hRW, r *hR, p hP) {
+	// upgrade to websocket connection, server can push message to client
+	conn, err := wh.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		wh.log(logger.Error, "failed to upgrade", err)
+		return
+	}
+	_ = conn.Close()
 }
 
-// ---------------------------------API-------------------------------------
-
-func (web *web) handleLogin(w hRW, r *hR, p hP) {
-	_, _ = w.Write([]byte("hello"))
-}
-
-func (web *web) handleLoadSessionKey(w hRW, r *hR, p hP) {
-	web.wg.Add(1)
-	defer web.wg.Done()
-
+func (wh *webHandler) handleLoadSessionKey(w hRW, r *hR, p hP) {
 	// TODO size, check is load session key
 	// if isClosed{
 	//  return
 	// }
-
 	pwd, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return
 	}
-	err = web.ctx.LoadSessionKey(pwd, pwd)
+	err = wh.ctx.LoadSessionKey(pwd, pwd)
 	security.CoverBytes(pwd)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
@@ -193,7 +234,7 @@ func (web *web) handleLoadSessionKey(w hRW, r *hR, p hP) {
 	_, _ = w.Write([]byte("ok"))
 }
 
-func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
+func (wh *webHandler) handleTrustNode(w hRW, r *hR, p hP) {
 	m := &mTrustNode{}
 	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {
@@ -205,7 +246,7 @@ func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 		Network: m.Network,
 		Address: m.Address,
 	}
-	req, err := web.ctx.TrustNode(context.TODO(), &listener)
+	req, err := wh.ctx.TrustNode(context.TODO(), &listener)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
@@ -218,7 +259,7 @@ func (web *web) handleTrustNode(w hRW, r *hR, p hP) {
 	_, _ = w.Write(b)
 }
 
-func (web *web) handleShell(w hRW, r *hR, p hP) {
+func (wh *webHandler) handleShell(w hRW, r *hR, p hP) {
 	_ = r.ParseForm()
 	nodeGUID := guid.GUID{}
 
@@ -242,7 +283,7 @@ func (web *web) handleShell(w hRW, r *hR, p hP) {
 	}
 
 	// TODO check nodeGUID
-	err = web.ctx.sender.Send(protocol.Node, &nodeGUID, messages.CMDBShell, &shell)
+	err = wh.ctx.sender.Send(protocol.Node, &nodeGUID, messages.CMDBShell, &shell)
 	if err != nil {
 		fmt.Println("2", err)
 		_, _ = w.Write([]byte(err.Error()))
