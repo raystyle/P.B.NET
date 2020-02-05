@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +23,23 @@ import (
 	"project/beacon"
 	"project/node"
 )
+
+func TestMemory(t *testing.T) {
+	t.Skip("long time")
+	for {
+		TestCtrl_SendToBeacon_PassICNodes(t)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(3 * time.Second)
+
+		TestBeacon_Send_PassCommonNode(t)
+		for i := 0; i < 3; i++ {
+			runtime.GC()
+			debug.FreeOSMemory()
+			time.Sleep(3 * time.Second)
+		}
+	}
+}
 
 // Three Common Node connect the Initial Node
 // Controller connect the Initial Node

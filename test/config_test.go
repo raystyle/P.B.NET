@@ -109,9 +109,12 @@ func generateControllerConfig() *controller.Config {
 	cfg.Web.Dir = "web"
 	cfg.Web.CertFile = "ca/cert.pem"
 	cfg.Web.KeyFile = "ca/key.pem"
+	cfg.Web.CertOpts.DNSNames = []string{"localhost"}
+	cfg.Web.CertOpts.IPAddresses = []string{"127.0.0.1", "::1"}
+	cfg.Web.Network = "tcp"
 	cfg.Web.Address = "localhost:1657"
-	cfg.Web.Username = "pbnet" // # super user, password = sha256(sha256("pbnet"))
-	cfg.Web.Password = "d6b3ced503b70f7894bd30f36001de4af84a8c2af898f06e29bca95f2dcf5100"
+	cfg.Web.Username = "pbnet" // # super user, password = "pbnet"
+	cfg.Web.Password = "$2a$12$zWgjYi0aAq.958UtUyDi5.QDmq4LOWsvv7I9ulvf1rHzd9/dWWmTi"
 	return &cfg
 }
 
