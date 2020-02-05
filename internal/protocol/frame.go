@@ -53,7 +53,7 @@ type Slot struct {
 	Timer     *time.Timer // receive reply timeout
 }
 
-// NewSlot is used to create slot.
+// NewSlots is used to create slot.
 func NewSlots() []*Slot {
 	slots := make([]*Slot, SlotSize)
 	for i := 0; i < SlotSize; i++ {
