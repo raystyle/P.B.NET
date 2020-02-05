@@ -65,10 +65,7 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid *guid.GUID, usage int) *conn {
 	}
 	_ = xConn.SetDeadline(time.Time{})
 	// initialize message slots
-	conn.slots = make([]*protocol.Slot, protocol.SlotSize)
-	for i := 0; i < protocol.SlotSize; i++ {
-		conn.slots[i] = protocol.NewSlot()
-	}
+	conn.slots = protocol.NewSlots()
 	switch usage {
 	case connUsageServeCtrl:
 		conn.role = protocol.Ctrl
@@ -1033,6 +1030,7 @@ func (c *conn) Close() error {
 	c.closeOnce.Do(func() {
 		atomic.StoreInt32(&c.inClose, 1)
 		close(c.stopSignal)
+		protocol.DestroySlots(c.slots)
 		err = c.Conn.Close()
 	})
 	return err

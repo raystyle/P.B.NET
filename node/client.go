@@ -285,6 +285,7 @@ func (client *Client) onFrame(frame []byte) {
 		case client.heartbeat <- struct{}{}:
 		case <-client.stopSignal:
 		}
+		return
 	}
 	if client.isSync() {
 		if client.onFrameAfterSync(frame) {
