@@ -20,7 +20,7 @@ import (
 
 // about connection
 const (
-	MaxFrameSize = 2 * 1048576 // 2MB
+	MaxFrameSize = 2 << 20 // 2 MB
 	SendTimeout  = time.Minute
 	RecvTimeout  = 2 * SendTimeout // wait heartbeat send time
 	SlotSize     = 1024
@@ -53,15 +53,25 @@ type Slot struct {
 	Timer     *time.Timer // receive reply timeout
 }
 
-// NewSlot is used to create slot
-func NewSlot() *Slot {
-	slot := Slot{
-		Available: make(chan struct{}, 1),
-		Reply:     make(chan []byte, 1),
-		Timer:     time.NewTimer(RecvTimeout),
+// NewSlot is used to create slot.
+func NewSlots() []*Slot {
+	slots := make([]*Slot, SlotSize)
+	for i := 0; i < SlotSize; i++ {
+		slots[i] = &Slot{
+			Available: make(chan struct{}, 1),
+			Reply:     make(chan []byte, 1),
+			Timer:     time.NewTimer(RecvTimeout),
+		}
+		slots[i].Available <- struct{}{}
 	}
-	slot.Available <- struct{}{}
-	return &slot
+	return slots
+}
+
+// DestroySlots is used to stop all timers in slots.
+func DestroySlots(slots []*Slot) {
+	for i := 0; i < SlotSize; i++ {
+		slots[i].Timer.Stop()
+	}
 }
 
 var (
@@ -76,8 +86,8 @@ func HandleConn(conn net.Conn, handler func([]byte)) {
 		bufSize    = 4096
 		maxBufSize = 4 * bufSize
 
-		// 2048 for cmd frameID GUID Hash...
-		maxFrameSize = MaxFrameSize + 2048
+		// for cmd frameID GUID Hash...
+		maxFrameSize = MaxFrameSize + 256
 
 		// client send heartbeat
 		heartbeatTimeout = 120 * time.Second

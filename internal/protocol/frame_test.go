@@ -11,9 +11,8 @@ import (
 	"project/internal/convert"
 )
 
-func TestNewSlot(t *testing.T) {
-	slot := NewSlot()
-	<-slot.Available
+func TestNewSlots(t *testing.T) {
+	DestroySlots(NewSlots())
 }
 
 func TestHandleConn(t *testing.T) {
