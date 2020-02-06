@@ -24,20 +24,43 @@ import (
 	"project/node"
 )
 
-func TestMemory(t *testing.T) {
-	t.Skip("long time")
-	for {
+func TestAll(t *testing.T) {
+	wg := sync.WaitGroup{}
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		TestCtrl_SendToNode_PassInitialNode(t)
+		fmt.Println("aaaa")
+	}()
+	go func() {
+		defer wg.Done()
+		TestNode_Send_PassInitialNode(t)
+		fmt.Println("bbbb")
+	}()
+	go func() {
+		defer wg.Done()
 		TestCtrl_SendToBeacon_PassICNodes(t)
+		fmt.Println("cccc")
+	}()
+	go func() {
+		defer wg.Done()
+		TestBeacon_Send_PassCommonNode(t)
+		fmt.Println("dddd")
+	}()
+	wg.Wait()
+}
+
+func TestLoop(t *testing.T) {
+	// t.Skip("must run it manually")
+	for {
+		TestAll(t)
+		time.Sleep(2 * time.Second)
 		runtime.GC()
 		debug.FreeOSMemory()
-		time.Sleep(3 * time.Second)
-
-		TestBeacon_Send_PassCommonNode(t)
-		for i := 0; i < 3; i++ {
-			runtime.GC()
-			debug.FreeOSMemory()
-			time.Sleep(3 * time.Second)
-		}
+		time.Sleep(10 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(5 * time.Second)
 	}
 }
 
@@ -227,7 +250,7 @@ func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 	cNode.Test.EnableTestMessage()
 
 	const (
-		goroutines = 64
+		goroutines = 256
 		times      = 64
 	)
 	send := func(start int) {
