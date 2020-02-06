@@ -95,6 +95,7 @@ type sender struct {
 	nodeAckSlotsRWM   sync.RWMutex
 	beaconAckSlots    map[guid.GUID]*roleAckSlot
 	beaconAckSlotsRWM sync.RWMutex
+	ackSlotPool       sync.Pool
 
 	guid *guid.Generator
 
@@ -132,7 +133,7 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 		interactive:        make(map[guid.GUID]bool),
 		nodeAckSlots:       make(map[guid.GUID]*roleAckSlot),
 		beaconAckSlots:     make(map[guid.GUID]*roleAckSlot),
-		stopSignal:         make(chan struct{}),
+		stopSignal:         make(chan struct{}, 1),
 	}
 
 	sender.maxConns.Store(cfg.MaxConns)
@@ -158,6 +159,9 @@ func newSender(ctx *CTRL, config *Config) (*sender, error) {
 	}
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
+	}
+	sender.ackSlotPool.New = func() interface{} {
+		return make(chan struct{}, 1)
 	}
 	sender.guid = guid.New(cfg.QueueSize, ctx.global.Now)
 
@@ -378,38 +382,54 @@ func (sender *sender) Acknowledge(role protocol.Role, send *protocol.Send) {
 	}
 }
 
+func (sender *sender) getNodeAckSlot(role *guid.GUID) *roleAckSlot {
+	sender.nodeAckSlotsRWM.RLock()
+	defer sender.nodeAckSlotsRWM.RUnlock()
+	return sender.nodeAckSlots[*role]
+}
+
 // HandleNodeAcknowledge is used to notice the Controller that the
 // target Node has received the send message.
 func (sender *sender) HandleNodeAcknowledge(role, send *guid.GUID) {
-	sender.nodeAckSlotsRWM.RLock()
-	defer sender.nodeAckSlotsRWM.RUnlock()
-	nas, ok := sender.nodeAckSlots[*role]
-	if !ok {
+	nas := sender.getNodeAckSlot(role)
+	if nas == nil {
 		return
 	}
 	nas.m.Lock()
 	defer nas.m.Unlock()
 	ch := nas.slots[*send]
 	if ch != nil {
-		close(ch)
+		select {
+		case ch <- struct{}{}:
+		case <-sender.stopSignal:
+			return
+		}
 		delete(nas.slots, *send)
 	}
+}
+
+func (sender *sender) getBeaconAckSlot(role *guid.GUID) *roleAckSlot {
+	sender.beaconAckSlotsRWM.RLock()
+	defer sender.beaconAckSlotsRWM.RUnlock()
+	return sender.beaconAckSlots[*role]
 }
 
 // HandleNodeAcknowledge is used to notice the Controller that the
 // target Beacon has received the send message.
 func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
-	sender.beaconAckSlotsRWM.RLock()
-	defer sender.beaconAckSlotsRWM.RUnlock()
-	bas, ok := sender.beaconAckSlots[*role]
-	if !ok {
+	bas := sender.getBeaconAckSlot(role)
+	if bas == nil {
 		return
 	}
 	bas.m.Lock()
 	defer bas.m.Unlock()
 	ch := bas.slots[*send]
 	if ch != nil {
-		close(ch)
+		select {
+		case ch <- struct{}{}:
+		case <-sender.stopSignal:
+			return
+		}
 		delete(bas.slots, *send)
 	}
 }
@@ -473,7 +493,7 @@ func (sender *sender) broadcast(
 	}
 	// broadcast parallel
 	resp := make(chan *protocol.BroadcastResponse)
-	for _, c := range clients {
+	for _, client := range clients {
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -482,7 +502,7 @@ func (sender *sender) broadcast(
 				}
 			}()
 			resp <- c.Broadcast(guid, data)
-		}(c)
+		}(client)
 	}
 	var success int
 	response := make([]*protocol.BroadcastResponse, l)
@@ -496,40 +516,70 @@ func (sender *sender) broadcast(
 	return response, success
 }
 
-// send guid hex
-func (sender *sender) createNodeAckSlot(role, send *guid.GUID) (<-chan struct{}, func()) {
+func (sender *sender) mustGetNodeAckSlot(role *guid.GUID) *roleAckSlot {
 	sender.nodeAckSlotsRWM.Lock()
 	defer sender.nodeAckSlotsRWM.Unlock()
-	nas, ok := sender.nodeAckSlots[*role]
-	if !ok {
-		sender.nodeAckSlots[*role] = &roleAckSlot{
-			slots: make(map[guid.GUID]chan struct{}),
-		}
-		nas = sender.nodeAckSlots[*role]
+	nas := sender.nodeAckSlots[*role]
+	if nas != nil {
+		return nas
 	}
-	nas.slots[*send] = make(chan struct{})
-	return nas.slots[*send], func() {
+	ras := &roleAckSlot{
+		slots: make(map[guid.GUID]chan struct{}),
+	}
+	sender.nodeAckSlots[*role] = ras
+	return ras
+}
+
+func (sender *sender) createNodeAckSlot(role, send *guid.GUID) (chan struct{}, func()) {
+	ch := sender.ackSlotPool.Get().(chan struct{})
+	nas := sender.mustGetNodeAckSlot(role)
+	nas.m.Lock()
+	defer nas.m.Unlock()
+	nas.slots[*send] = ch
+	return ch, func() {
 		nas.m.Lock()
 		defer nas.m.Unlock()
+		// when read channel timeout, worker call destroy(),
+		// the channel maybe has sign, try to clean it.
+		select {
+		case <-ch:
+		default:
+		}
+		sender.ackSlotPool.Put(ch)
 		delete(nas.slots, *send)
 	}
 }
 
-// send guid hex
-func (sender *sender) createBeaconAckSlot(role, send *guid.GUID) (<-chan struct{}, func()) {
+func (sender *sender) mustGetBeaconAckSlot(role *guid.GUID) *roleAckSlot {
 	sender.beaconAckSlotsRWM.Lock()
 	defer sender.beaconAckSlotsRWM.Unlock()
-	bas, ok := sender.beaconAckSlots[*role]
-	if !ok {
-		sender.beaconAckSlots[*role] = &roleAckSlot{
-			slots: make(map[guid.GUID]chan struct{}),
-		}
-		bas = sender.beaconAckSlots[*role]
+	bas := sender.beaconAckSlots[*role]
+	if bas != nil {
+		return bas
 	}
-	bas.slots[*send] = make(chan struct{})
-	return bas.slots[*send], func() {
+	ras := &roleAckSlot{
+		slots: make(map[guid.GUID]chan struct{}),
+	}
+	sender.beaconAckSlots[*role] = ras
+	return ras
+}
+
+func (sender *sender) createBeaconAckSlot(role, send *guid.GUID) (chan struct{}, func()) {
+	ch := sender.ackSlotPool.Get().(chan struct{})
+	bas := sender.mustGetBeaconAckSlot(role)
+	bas.m.Lock()
+	defer bas.m.Unlock()
+	bas.slots[*send] = ch
+	return ch, func() {
 		bas.m.Lock()
 		defer bas.m.Unlock()
+		// when read channel timeout, worker call destroy(),
+		// the channel maybe has sign, try to clean it.
+		select {
+		case <-ch:
+		default:
+		}
+		sender.ackSlotPool.Put(ch)
 		delete(bas.slots, *send)
 	}
 }
@@ -545,7 +595,7 @@ func (sender *sender) sendToNode(
 	}
 	// send parallel
 	response := make(chan *protocol.SendResponse)
-	for _, c := range clients {
+	for _, client := range clients {
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -554,7 +604,7 @@ func (sender *sender) sendToNode(
 				}
 			}()
 			response <- c.SendToNode(guid, data)
-		}(c)
+		}(client)
 	}
 	var success int
 	responses := make([]*protocol.SendResponse, l)
@@ -579,7 +629,7 @@ func (sender *sender) sendToBeacon(
 	}
 	// send parallel
 	response := make(chan *protocol.SendResponse)
-	for _, c := range clients {
+	for _, client := range clients {
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -588,7 +638,7 @@ func (sender *sender) sendToBeacon(
 				}
 			}()
 			response <- c.SendToBeacon(guid, data)
-		}(c)
+		}(client)
 	}
 	var success int
 	responses := make([]*protocol.SendResponse, l)
@@ -613,7 +663,7 @@ func (sender *sender) acknowledgeToNode(
 	}
 	// acknowledge parallel
 	response := make(chan *protocol.AcknowledgeResponse, l)
-	for _, c := range clients {
+	for _, client := range clients {
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -622,7 +672,7 @@ func (sender *sender) acknowledgeToNode(
 				}
 			}()
 			response <- c.AcknowledgeToNode(guid, data)
-		}(c)
+		}(client)
 	}
 	var success int
 	responses := make([]*protocol.AcknowledgeResponse, l)
@@ -647,7 +697,7 @@ func (sender *sender) acknowledgeToBeacon(
 	}
 	// acknowledge parallel
 	response := make(chan *protocol.AcknowledgeResponse, l)
-	for _, c := range clients {
+	for _, client := range clients {
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -656,7 +706,7 @@ func (sender *sender) acknowledgeToBeacon(
 				}
 			}()
 			response <- c.AcknowledgeToBeacon(guid, data)
-		}(c)
+		}(client)
 	}
 	var success int
 	responses := make([]*protocol.AcknowledgeResponse, l)
@@ -706,6 +756,7 @@ func (sw *senderWorker) Work() {
 			time.Sleep(time.Second)
 			go sw.Work()
 		} else {
+			sw.timer.Stop()
 			sw.ctx.wg.Done()
 		}
 	}()
@@ -827,9 +878,11 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		}
 		return
 	}
-	// send
+	// start send
 	var (
-		wait    <-chan struct{}
+		// only read, but in sync.Pool, not use <- chan struct{}
+		wait chan struct{}
+		// if send time out, need call it
 		destroy func()
 	)
 	switch st.Role {
@@ -851,12 +904,13 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	// wait role acknowledge
-	if !sw.timer.Stop() {
-		<-sw.timer.C
-	}
 	sw.timer.Reset(sw.timeout)
 	select {
 	case <-wait:
+		if !sw.timer.Stop() {
+			<-sw.timer.C
+		}
+		sw.ctx.ackSlotPool.Put(wait)
 	case <-sw.timer.C:
 		destroy()
 		result.Err = ErrSendTimeout
