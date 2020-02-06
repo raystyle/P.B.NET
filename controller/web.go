@@ -112,10 +112,10 @@ func newWeb(ctx *CTRL, config *Config) (*web, error) {
 		_, _ = w.Write(index)
 	})
 	// register router about API
-	router.GET("/api/login", wh.handleLogin)
+	router.POST("/api/login", wh.handleLogin)
 	router.POST("/api/load_session_key", wh.handleLoadSessionKey)
 	router.POST("/api/node/trust", wh.handleTrustNode)
-	router.GET("/api/node/shell", wh.handleShell)
+	router.POST("/api/node/shell", wh.handleShell)
 
 	// configure HTTPS server
 	listener, err := net.Listen(cfg.Network, cfg.Address)
@@ -199,9 +199,8 @@ func (wh *webHandler) handlePanic(w hRW, r *hR, e interface{}) {
 
 	// if is super user return the panic
 	_, _ = io.Copy(w, xpanic.Print(e, "web"))
-
 	csrf.Protect(nil, nil)
-	sessions.NewCookieStore()
+	sessions.NewSession(nil, "")
 	hash, err := bcrypt.GenerateFromPassword([]byte{1, 2, 3}, 15)
 	fmt.Println(string(hash), err)
 }

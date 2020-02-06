@@ -31,8 +31,8 @@ func TestMain(m *testing.M) {
 
 	testdata.Clean()
 
-	// one test main goroutine and
-	// two goroutine about pprof server in testsuite
+	// one test main goroutine and two goroutine about
+	// pprof server in internal/testsuite.go
 	leaks := true
 	for i := 0; i < 300; i++ {
 		if runtime.NumGoroutine() == 3 {
@@ -48,7 +48,8 @@ func TestMain(m *testing.M) {
 	}
 
 	if ctrl != nil {
-		ctrlC := ctrl // must copy, global variable
+		// must copy, because global variable
+		ctrlC := ctrl
 		ctrl = nil
 
 		if !testsuite.Destroyed(ctrlC) {

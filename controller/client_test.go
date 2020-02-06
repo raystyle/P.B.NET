@@ -175,7 +175,7 @@ func TestClient_SendParallel(t *testing.T) {
 	send := func() {
 		defer wg.Done()
 		data := bytes.Buffer{}
-		for i := 0; i < 512; i++ {
+		for i := 0; i < 32; i++ {
 			data.Write(convert.Int32ToBytes(int32(i)))
 			reply, err := client.send(protocol.TestCommand, data.Bytes())
 			require.NoError(t, err)
