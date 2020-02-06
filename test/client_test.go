@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 	"project/node"
 )
 
-func TestNode_Client_Synchronize(t *testing.T) {
+func TestNode_Client_Send(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
 	iNodeGUID := iNode.GUID()
 
@@ -72,15 +73,36 @@ func TestNode_Client_Synchronize(t *testing.T) {
 	err = client.Synchronize()
 	require.NoError(t, err)
 
-	// common node send test command
-	data := bytes.Buffer{}
-	for i := 0; i < 1024; i++ {
-		data.Write(convert.Int32ToBytes(int32(i)))
-		reply, err := client.Conn.SendCommand(protocol.TestCommand, data.Bytes())
-		require.NoError(t, err)
-		require.Equal(t, data.Bytes(), reply)
-		data.Reset()
-	}
+	t.Run("single", func(t *testing.T) {
+		data := bytes.Buffer{}
+		for i := 0; i < 16384; i++ {
+			data.Write(convert.Int32ToBytes(int32(i)))
+			reply, err := client.Conn.SendCommand(protocol.TestCommand, data.Bytes())
+			require.NoError(t, err)
+			require.Equal(t, data.Bytes(), reply)
+			data.Reset()
+		}
+	})
+
+	t.Run("parallel", func(t *testing.T) {
+		wg := sync.WaitGroup{}
+		send := func() {
+			defer wg.Done()
+			data := bytes.Buffer{}
+			for i := 0; i < 32; i++ {
+				data.Write(convert.Int32ToBytes(int32(i)))
+				reply, err := client.Conn.SendCommand(protocol.TestCommand, data.Bytes())
+				require.NoError(t, err)
+				require.Equal(t, data.Bytes(), reply)
+				data.Reset()
+			}
+		}
+		for i := 0; i < 2*protocol.SlotSize; i++ {
+			wg.Add(1)
+			go send()
+		}
+		wg.Wait()
+	})
 
 	// clean
 	cNode.Exit(nil)
@@ -89,7 +111,7 @@ func TestNode_Client_Synchronize(t *testing.T) {
 	testsuite.IsDestroyed(t, iNode)
 }
 
-func TestBeacon_Client_Synchronize(t *testing.T) {
+func TestBeacon_Client_Send(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
 	iNodeGUID := iNode.GUID()
 
@@ -142,15 +164,36 @@ func TestBeacon_Client_Synchronize(t *testing.T) {
 	err = client.Synchronize()
 	require.NoError(t, err)
 
-	// Beacon send test command
-	data := bytes.Buffer{}
-	for i := 0; i < 1024; i++ {
-		data.Write(convert.Int32ToBytes(int32(i)))
-		reply, err := client.SendCommand(protocol.TestCommand, data.Bytes())
-		require.NoError(t, err)
-		require.Equal(t, data.Bytes(), reply)
-		data.Reset()
-	}
+	t.Run("single", func(t *testing.T) {
+		data := bytes.Buffer{}
+		for i := 0; i < 16384; i++ {
+			data.Write(convert.Int32ToBytes(int32(i)))
+			reply, err := client.SendCommand(protocol.TestCommand, data.Bytes())
+			require.NoError(t, err)
+			require.Equal(t, data.Bytes(), reply)
+			data.Reset()
+		}
+	})
+
+	t.Run("parallel", func(t *testing.T) {
+		wg := sync.WaitGroup{}
+		send := func() {
+			defer wg.Done()
+			data := bytes.Buffer{}
+			for i := 0; i < 32; i++ {
+				data.Write(convert.Int32ToBytes(int32(i)))
+				reply, err := client.SendCommand(protocol.TestCommand, data.Bytes())
+				require.NoError(t, err)
+				require.Equal(t, data.Bytes(), reply)
+				data.Reset()
+			}
+		}
+		for i := 0; i < 2*protocol.SlotSize; i++ {
+			wg.Add(1)
+			go send()
+		}
+		wg.Wait()
+	})
 
 	// clean
 	Beacon.Exit(nil)
