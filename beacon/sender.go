@@ -57,8 +57,9 @@ type sender struct {
 	clientsRWM sync.RWMutex
 
 	// wait Controller acknowledge
-	slots  map[guid.GUID]chan struct{}
-	slotsM sync.Mutex
+	slots       map[guid.GUID]chan struct{}
+	slotsM      sync.Mutex
+	ackSlotPool sync.Pool
 
 	guid *guid.Generator
 
@@ -109,6 +110,9 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	}
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
+	}
+	sender.ackSlotPool.New = func() interface{} {
+		return make(chan struct{}, 1)
 	}
 	sender.guid = guid.New(cfg.QueueSize, ctx.global.Now)
 
@@ -269,7 +273,11 @@ func (sender *sender) HandleAcknowledge(send *guid.GUID) {
 	defer sender.slotsM.Unlock()
 	ch := sender.slots[*send]
 	if ch != nil {
-		close(ch)
+		select {
+		case ch <- struct{}{}:
+		case <-sender.stopSignal:
+			return
+		}
 		delete(sender.slots, *send)
 	}
 }
@@ -282,21 +290,26 @@ func (sender *sender) Close() {
 	sender.ctx = nil
 }
 
-func (sender *sender) createAckSlot(send *guid.GUID) (<-chan struct{}, func()) {
+func (sender *sender) createAckSlot(send *guid.GUID) (chan struct{}, func()) {
+	ch := sender.ackSlotPool.Get().(chan struct{})
 	sender.slotsM.Lock()
 	defer sender.slotsM.Unlock()
-	sender.slots[*send] = make(chan struct{})
-	return sender.slots[*send], func() {
+	sender.slots[*send] = ch
+	return ch, func() {
 		sender.slotsM.Lock()
 		defer sender.slotsM.Unlock()
+		// when read channel timeout, worker call destroy(),
+		// the channel maybe has sign, try to clean it.
+		select {
+		case <-ch:
+		default:
+		}
+		sender.ackSlotPool.Put(ch)
 		delete(sender.slots, *send)
 	}
 }
 
-func (sender *sender) send(
-	guid *guid.GUID,
-	data *bytes.Buffer,
-) ([]*protocol.SendResponse, int) {
+func (sender *sender) send(guid *guid.GUID, data *bytes.Buffer) ([]*protocol.SendResponse, int) {
 	clients := sender.Clients()
 	l := len(clients)
 	if l == 0 {
@@ -304,7 +317,7 @@ func (sender *sender) send(
 	}
 	// send parallel
 	response := make(chan *protocol.SendResponse)
-	for _, c := range clients {
+	for _, client := range clients {
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -313,7 +326,7 @@ func (sender *sender) send(
 				}
 			}()
 			response <- c.Send(guid, data)
-		}(c)
+		}(client)
 	}
 	var success int
 	responses := make([]*protocol.SendResponse, l)
@@ -338,7 +351,7 @@ func (sender *sender) acknowledge(
 	}
 	// acknowledge parallel
 	response := make(chan *protocol.AcknowledgeResponse, l)
-	for _, c := range clients {
+	for _, client := range clients {
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -347,7 +360,7 @@ func (sender *sender) acknowledge(
 				}
 			}()
 			response <- c.Acknowledge(guid, data)
-		}(c)
+		}(client)
 	}
 	var success int
 	responses := make([]*protocol.AcknowledgeResponse, l)
@@ -390,6 +403,7 @@ func (sw *senderWorker) Work() {
 			time.Sleep(time.Second)
 			go sw.Work()
 		} else {
+			sw.timer.Stop()
 			sw.ctx.wg.Done()
 		}
 	}()
@@ -493,12 +507,13 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	// wait role acknowledge
-	if !sw.timer.Stop() {
-		<-sw.timer.C
-	}
 	sw.timer.Reset(sw.timeout)
 	select {
 	case <-wait:
+		if !sw.timer.Stop() {
+			<-sw.timer.C
+		}
+		sw.ctx.ackSlotPool.Put(wait)
 	case <-sw.timer.C:
 		destroy()
 		result.Err = ErrSendTimeout
