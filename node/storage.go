@@ -16,30 +16,18 @@ type storage struct {
 	beaconRegistersM sync.Mutex
 
 	// key = role GUID
-	nodeSessionKeys      map[guid.GUID]*nodeSessionKey
-	nodeSessionKeysRWM   sync.RWMutex
-	beaconSessionKeys    map[guid.GUID]*beaconSessionKey
-	beaconSessionKeysRWM sync.RWMutex
-}
-
-type nodeSessionKey struct {
-	PublicKey    []byte
-	KexPublicKey []byte
-	AckTime      time.Time
-}
-
-type beaconSessionKey struct {
-	PublicKey    []byte
-	KexPublicKey []byte
-	AckTime      time.Time
+	nodeKeys      map[guid.GUID]*nodeKey
+	nodeKeysRWM   sync.RWMutex
+	beaconKeys    map[guid.GUID]*beaconKey
+	beaconKeysRWM sync.RWMutex
 }
 
 func newStorage() *storage {
 	storage := storage{
-		nodeRegisters:     make(map[guid.GUID]chan *messages.NodeRegisterResponse),
-		beaconRegisters:   make(map[guid.GUID]chan *messages.BeaconRegisterResponse),
-		nodeSessionKeys:   make(map[guid.GUID]*nodeSessionKey),
-		beaconSessionKeys: make(map[guid.GUID]*beaconSessionKey),
+		nodeRegisters:   make(map[guid.GUID]chan *messages.NodeRegisterResponse),
+		beaconRegisters: make(map[guid.GUID]chan *messages.BeaconRegisterResponse),
+		nodeKeys:        make(map[guid.GUID]*nodeKey),
+		beaconKeys:      make(map[guid.GUID]*beaconKey),
 	}
 	return &storage
 }
@@ -65,26 +53,6 @@ func (storage *storage) SetNodeRegister(guid *guid.GUID, response *messages.Node
 	}
 }
 
-func (storage *storage) GetNodeSessionKey(guid *guid.GUID) *nodeSessionKey {
-	storage.nodeSessionKeysRWM.RLock()
-	defer storage.nodeSessionKeysRWM.RUnlock()
-	return storage.nodeSessionKeys[*guid]
-}
-
-func (storage *storage) AddNodeSessionKey(guid *guid.GUID, sk *nodeSessionKey) {
-	storage.nodeSessionKeysRWM.Lock()
-	defer storage.nodeSessionKeysRWM.Unlock()
-	if _, ok := storage.nodeSessionKeys[*guid]; !ok {
-		storage.nodeSessionKeys[*guid] = sk
-	}
-}
-
-func (storage *storage) DeleteNodeSessionKey(guid *guid.GUID) {
-	storage.nodeSessionKeysRWM.Lock()
-	defer storage.nodeSessionKeysRWM.Unlock()
-	delete(storage.nodeSessionKeys, *guid)
-}
-
 func (storage *storage) CreateBeaconRegister(guid *guid.GUID) <-chan *messages.BeaconRegisterResponse {
 	storage.beaconRegistersM.Lock()
 	defer storage.beaconRegistersM.Unlock()
@@ -106,22 +74,54 @@ func (storage *storage) SetBeaconRegister(guid *guid.GUID, response *messages.Be
 	}
 }
 
-func (storage *storage) GetBeaconSessionKey(guid *guid.GUID) *beaconSessionKey {
-	storage.beaconSessionKeysRWM.RLock()
-	defer storage.beaconSessionKeysRWM.RUnlock()
-	return storage.beaconSessionKeys[*guid]
+type nodeKey struct {
+	PublicKey    []byte
+	KexPublicKey []byte
+	ReplyTime    time.Time
 }
 
-func (storage *storage) AddBeaconSessionKey(guid *guid.GUID, sk *beaconSessionKey) {
-	storage.beaconSessionKeysRWM.Lock()
-	defer storage.beaconSessionKeysRWM.Unlock()
-	if _, ok := storage.beaconSessionKeys[*guid]; !ok {
-		storage.beaconSessionKeys[*guid] = sk
+type beaconKey struct {
+	PublicKey    []byte
+	KexPublicKey []byte
+	ReplyTime    time.Time
+}
+
+func (storage *storage) GetNodeKey(guid *guid.GUID) *nodeKey {
+	storage.nodeKeysRWM.RLock()
+	defer storage.nodeKeysRWM.RUnlock()
+	return storage.nodeKeys[*guid]
+}
+
+func (storage *storage) AddNodeKey(guid *guid.GUID, sk *nodeKey) {
+	storage.nodeKeysRWM.Lock()
+	defer storage.nodeKeysRWM.Unlock()
+	if _, ok := storage.nodeKeys[*guid]; !ok {
+		storage.nodeKeys[*guid] = sk
 	}
 }
 
-func (storage *storage) DeleteBeaconSessionKey(guid *guid.GUID) {
-	storage.beaconSessionKeysRWM.Lock()
-	defer storage.beaconSessionKeysRWM.Unlock()
-	delete(storage.beaconSessionKeys, *guid)
+func (storage *storage) DeleteNodeKey(guid *guid.GUID) {
+	storage.nodeKeysRWM.Lock()
+	defer storage.nodeKeysRWM.Unlock()
+	delete(storage.nodeKeys, *guid)
+}
+
+func (storage *storage) GetBeaconKey(guid *guid.GUID) *beaconKey {
+	storage.beaconKeysRWM.RLock()
+	defer storage.beaconKeysRWM.RUnlock()
+	return storage.beaconKeys[*guid]
+}
+
+func (storage *storage) AddBeaconKey(guid *guid.GUID, sk *beaconKey) {
+	storage.beaconKeysRWM.Lock()
+	defer storage.beaconKeysRWM.Unlock()
+	if _, ok := storage.beaconKeys[*guid]; !ok {
+		storage.beaconKeys[*guid] = sk
+	}
+}
+
+func (storage *storage) DeleteBeaconKey(guid *guid.GUID) {
+	storage.beaconKeysRWM.Lock()
+	defer storage.beaconKeysRWM.Unlock()
+	delete(storage.beaconKeys, *guid)
 }
