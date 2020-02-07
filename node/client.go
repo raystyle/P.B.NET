@@ -253,6 +253,7 @@ func (client *Client) sendHeartbeatLoop() {
 			_ = client.Conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 			_, err = client.Conn.Write(buffer.Bytes())
 			if err != nil {
+				_ = client.Conn.Close()
 				return
 			}
 			// receive reply
@@ -298,26 +299,11 @@ func (client *Client) onFrame(frame []byte) {
 }
 
 // Synchronize is used to switch to synchronize mode
-func (client *Client) Synchronize() (err error) {
-	defer func() {
-		if err != nil {
-			client.Close()
-		}
-	}()
+func (client *Client) Synchronize() error {
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
 	if client.isSync() {
-		err = errors.New("already synchronize")
-		return
-	}
-	resp, err := client.Conn.SendCommand(protocol.NodeSync, nil)
-	if err != nil {
-		err = errors.Wrap(err, "failed to receive synchronize response")
-		return
-	}
-	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
-		err = errors.Errorf("failed to start synchronize: %s", resp)
-		return
+		return errors.New("already synchronize")
 	}
 	// initialize sync pool
 	client.Conn.SendPool.New = func() interface{} {
@@ -332,14 +318,28 @@ func (client *Client) Synchronize() (err error) {
 	client.Conn.QueryPool.New = func() interface{} {
 		return protocol.NewQuery()
 	}
+	// must presume, or may be lost message.
+	var err error
+	atomic.StoreInt32(&client.inSync, 1)
+	defer func() {
+		if err != nil {
+			atomic.StoreInt32(&client.inSync, 0)
+		}
+	}()
+	resp, err := client.Conn.SendCommand(protocol.NodeSync, nil)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive synchronize response")
+	}
+	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
+		err = errors.Errorf("failed to start synchronize: %s", resp)
+		return err // can't return directly
+	}
 	err = client.ctx.forwarder.RegisterClient(client.GUID, client)
 	if err != nil {
-		return
+		return err
 	}
-	atomic.StoreInt32(&client.inSync, 1)
-	const format = "start synchronize\nlistener: %s"
-	client.Conn.Logf(logger.Info, format, client.listener)
-	return
+	client.Conn.Logf(logger.Info, "start synchronize\nlistener: %s", client.listener)
+	return nil
 }
 
 func (client *Client) onFrameAfterSync(frame []byte) bool {

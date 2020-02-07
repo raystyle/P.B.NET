@@ -958,6 +958,7 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 	if ctrl.isSync() {
 		return
 	}
+	// initialize sync pool
 	ctrl.Conn.SendPool.New = func() interface{} {
 		return protocol.NewSend()
 	}
@@ -967,15 +968,17 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 	ctrl.Conn.AnswerPool.New = func() interface{} {
 		return protocol.NewAnswer()
 	}
+	// must presume, or may be lost message.
+	atomic.StoreInt32(&ctrl.inSync, 1)
 	err := ctrl.ctx.forwarder.RegisterCtrl(ctrl.tag, ctrl)
 	if err != nil {
+		atomic.StoreInt32(&ctrl.inSync, 0)
 		ctrl.Conn.Reply(id, []byte(err.Error()))
 		ctrl.Close()
-	} else {
-		atomic.StoreInt32(&ctrl.inSync, 1)
-		ctrl.Conn.Reply(id, []byte{protocol.NodeSync})
-		ctrl.Conn.Log(logger.Debug, "synchronizing")
+		return
 	}
+	ctrl.Conn.Reply(id, []byte{protocol.NodeSync})
+	ctrl.Conn.Log(logger.Debug, "synchronizing")
 }
 
 func (ctrl *ctrlConn) onFrameAfterSync(frame []byte) bool {
@@ -1111,6 +1114,7 @@ func (node *nodeConn) handleSyncStart(id []byte) {
 	if node.isSync() {
 		return
 	}
+	// initialize sync pool
 	node.Conn.SendPool.New = func() interface{} {
 		return protocol.NewSend()
 	}
@@ -1123,15 +1127,17 @@ func (node *nodeConn) handleSyncStart(id []byte) {
 	node.Conn.QueryPool.New = func() interface{} {
 		return protocol.NewQuery()
 	}
+	// must presume, or may be lost message.
+	atomic.StoreInt32(&node.inSync, 1)
 	err := node.ctx.forwarder.RegisterNode(node.GUID, node)
 	if err != nil {
+		atomic.StoreInt32(&node.inSync, 0)
 		node.Conn.Reply(id, []byte(err.Error()))
 		node.Close()
-	} else {
-		atomic.StoreInt32(&node.inSync, 1)
-		node.Conn.Reply(id, []byte{protocol.NodeSync})
-		node.Conn.Log(logger.Debug, "synchronizing")
+		return
 	}
+	node.Conn.Reply(id, []byte{protocol.NodeSync})
+	node.Conn.Log(logger.Debug, "synchronizing")
 }
 
 func (node *nodeConn) onFrameAfterSync(frame []byte) bool {
@@ -1302,6 +1308,7 @@ func (beacon *beaconConn) handleSyncStart(id []byte) {
 	if beacon.isSync() {
 		return
 	}
+	// initialize sync pool
 	beacon.Conn.SendPool.New = func() interface{} {
 		return protocol.NewSend()
 	}
@@ -1311,15 +1318,17 @@ func (beacon *beaconConn) handleSyncStart(id []byte) {
 	beacon.Conn.QueryPool.New = func() interface{} {
 		return protocol.NewQuery()
 	}
+	// must presume, or may be lost message.
+	atomic.StoreInt32(&beacon.inSync, 1)
 	err := beacon.ctx.forwarder.RegisterBeacon(beacon.guid, beacon)
 	if err != nil {
+		atomic.StoreInt32(&beacon.inSync, 0)
 		beacon.Conn.Reply(id, []byte(err.Error()))
 		beacon.Close()
-	} else {
-		atomic.StoreInt32(&beacon.inSync, 1)
-		beacon.Conn.Reply(id, []byte{protocol.NodeSync})
-		beacon.Conn.Log(logger.Debug, "synchronizing")
+		return
 	}
+	beacon.Conn.Reply(id, []byte{protocol.NodeSync})
+	beacon.Conn.Log(logger.Debug, "synchronizing")
 }
 
 func (beacon *beaconConn) onFrameAfterSync(frame []byte) bool {

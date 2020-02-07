@@ -121,7 +121,7 @@ func (f *forwarder) GetClientConns() map[guid.GUID]*Client {
 	return clients
 }
 
-// ------------------------------------------controller--------------------------------------------
+// ------------------------------------------Controller--------------------------------------------
 
 func (f *forwarder) SetMaxCtrlConns(n int) error {
 	if n < 1 {
@@ -166,7 +166,7 @@ func (f *forwarder) GetCtrlConns() map[guid.GUID]*ctrlConn {
 	return conns
 }
 
-// ---------------------------------------------node-----------------------------------------------
+// ---------------------------------------------Node-----------------------------------------------
 
 func (f *forwarder) SetMaxNodeConns(n int) error {
 	if n < 8 {
@@ -211,7 +211,7 @@ func (f *forwarder) GetNodeConns() map[guid.GUID]*nodeConn {
 	return conns
 }
 
-// --------------------------------------------beacon----------------------------------------------
+// --------------------------------------------Beacon----------------------------------------------
 
 func (f *forwarder) SetMaxBeaconConns(n int) error {
 	if n < 64 {
