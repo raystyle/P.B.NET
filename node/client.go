@@ -163,11 +163,6 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 // Connect is used to start protocol.HandleConn(), if you want to
 // start Synchronize(), you must call this function first
 func (client *Client) Connect() (err error) {
-	defer func() {
-		if err != nil {
-			client.Close()
-		}
-	}()
 	// send connect operation
 	_, err = client.Conn.Write([]byte{protocol.NodeOperationConnect})
 	if err != nil {
@@ -334,7 +329,7 @@ func (client *Client) Synchronize() error {
 		err = errors.Errorf("failed to start synchronize: %s", resp)
 		return err // can't return directly
 	}
-	err = client.ctx.forwarder.RegisterClient(client.GUID, client)
+	err = client.ctx.forwarder.RegisterClient(client)
 	if err != nil {
 		return err
 	}

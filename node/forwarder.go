@@ -90,16 +90,23 @@ func (f *forwarder) GetMaxClientConns() int {
 	return f.maxClientConns.Load().(int)
 }
 
-func (f *forwarder) RegisterClient(guid *guid.GUID, client *Client) error {
+func (f *forwarder) RegisterClient(client *Client) error {
+	// first check connected Nodes
+	f.nodeConnsRWM.Lock()
+	defer f.nodeConnsRWM.Unlock()
+	if _, ok := f.nodeConns[*client.GUID]; ok {
+		return errors.Errorf("node has been register\n%s", client.GUID.Hex())
+	}
+	// then check connected clients
 	f.clientConnsRWM.Lock()
 	defer f.clientConnsRWM.Unlock()
 	if len(f.clientConns) >= f.GetMaxClientConns() {
 		return errors.New("max client connections")
 	}
-	if _, ok := f.clientConns[*guid]; ok {
-		return errors.Errorf("client has been register\n%s", guid.Hex())
+	if _, ok := f.clientConns[*client.GUID]; ok {
+		return errors.Errorf("client has been register\n%s", client.GUID.Hex())
 	}
-	f.clientConns[*guid] = client
+	f.clientConns[*client.GUID] = client
 	return nil
 }
 
@@ -135,16 +142,16 @@ func (f *forwarder) GetMaxCtrlConns() int {
 	return f.maxCtrlConns.Load().(int)
 }
 
-func (f *forwarder) RegisterCtrl(tag *guid.GUID, conn *ctrlConn) error {
+func (f *forwarder) RegisterCtrl(conn *ctrlConn) error {
 	f.ctrlConnsRWM.Lock()
 	defer f.ctrlConnsRWM.Unlock()
 	if len(f.ctrlConns) >= f.GetMaxCtrlConns() {
 		return errors.New("max controller connections")
 	}
-	if _, ok := f.ctrlConns[*tag]; ok {
-		return errors.Errorf("controller has been register\n%s", tag.Hex())
+	if _, ok := f.ctrlConns[*conn.Tag]; ok {
+		return errors.Errorf("controller has been register\n%s", conn.Tag.Hex())
 	}
-	f.ctrlConns[*tag] = conn
+	f.ctrlConns[*conn.Tag] = conn
 	return nil
 }
 
@@ -180,16 +187,16 @@ func (f *forwarder) GetMaxNodeConns() int {
 	return f.maxNodeConns.Load().(int)
 }
 
-func (f *forwarder) RegisterNode(guid *guid.GUID, conn *nodeConn) error {
+func (f *forwarder) RegisterNode(conn *nodeConn) error {
 	f.nodeConnsRWM.Lock()
 	defer f.nodeConnsRWM.Unlock()
 	if len(f.nodeConns) >= f.GetMaxNodeConns() {
 		return errors.New("max node connections")
 	}
-	if _, ok := f.nodeConns[*guid]; ok {
-		return errors.Errorf("node has been register\n%s", guid.Hex())
+	if _, ok := f.nodeConns[*conn.GUID]; ok {
+		return errors.Errorf("node has been register\n%s", conn.GUID.Hex())
 	}
-	f.nodeConns[*guid] = conn
+	f.nodeConns[*conn.GUID] = conn
 	return nil
 }
 
@@ -225,16 +232,16 @@ func (f *forwarder) GetMaxBeaconConns() int {
 	return f.maxBeaconConns.Load().(int)
 }
 
-func (f *forwarder) RegisterBeacon(guid *guid.GUID, conn *beaconConn) error {
+func (f *forwarder) RegisterBeacon(conn *beaconConn) error {
 	f.beaconConnsRWM.Lock()
 	defer f.beaconConnsRWM.Unlock()
 	if len(f.beaconConns) >= f.GetMaxBeaconConns() {
 		return errors.New("max beacon connections")
 	}
-	if _, ok := f.beaconConns[*guid]; ok {
-		return errors.Errorf("beacon has been register\n%s", guid.Hex())
+	if _, ok := f.beaconConns[*conn.GUID]; ok {
+		return errors.Errorf("beacon has been register\n%s", conn.GUID.Hex())
 	}
-	f.beaconConns[*guid] = conn
+	f.beaconConns[*conn.GUID] = conn
 	return nil
 }
 
