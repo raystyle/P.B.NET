@@ -203,23 +203,16 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 
 // Connect is used to start protocol.HandleConn(), if you want to
 // start Synchronize(), you must call this function first.
-func (client *Client) Connect() (err error) {
-	defer func() {
-		if err != nil {
-			client.Close()
-		}
-	}()
+func (client *Client) Connect() error {
 	// send connect operation
-	_, err = client.Conn.Write([]byte{protocol.BeaconOperationConnect})
+	_, err := client.Conn.Write([]byte{protocol.BeaconOperationConnect})
 	if err != nil {
-		err = errors.Wrap(err, "failed to send connect operation")
-		return
+		return errors.Wrap(err, "failed to send connect operation")
 	}
 	err = client.authenticate()
 	if err != nil {
-		return
+		return err
 	}
-
 	// initialize message slots
 	client.slots = protocol.NewSlots()
 	client.stopSignal = make(chan struct{})
@@ -241,7 +234,7 @@ func (client *Client) Connect() (err error) {
 	timeout := client.ctx.clientMgr.GetTimeout()
 	_ = client.Conn.SetDeadline(client.ctx.global.Now().Add(timeout))
 	client.log(logger.Debug, "connected")
-	return
+	return nil
 }
 
 func (client *Client) authenticate() error {
@@ -410,18 +403,25 @@ func (client *Client) Synchronize() error {
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
 	if client.isSync() {
-		return nil
+		return errors.New("already synchronize")
 	}
+	// must presume, or may be lost message.
+	var err error
+	atomic.StoreInt32(&client.inSync, 1)
+	defer func() {
+		if err != nil {
+			atomic.StoreInt32(&client.inSync, 0)
+		}
+	}()
 	resp, err := client.send(protocol.BeaconSync, nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to receive synchronize response")
 	}
 	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
-		return errors.Errorf("failed to start synchronize: %s", resp)
+		err = errors.Errorf("failed to start synchronize: %s", resp)
+		return err // can't return directly
 	}
-	atomic.StoreInt32(&client.inSync, 1)
-	const format = "start synchronize\nlistener: %s"
-	client.logf(logger.Info, format, client.listener)
+	client.logf(logger.Info, "start synchronize\nlistener: %s", client.listener)
 	return nil
 }
 
@@ -623,6 +623,7 @@ func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
 				_ = client.Conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 				_, err := client.Conn.Write(b)
 				if err != nil {
+					_ = client.Conn.Close()
 					return nil, err
 				}
 				// wait for reply

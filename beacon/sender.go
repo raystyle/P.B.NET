@@ -167,16 +167,6 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
-	sender.clientsRWM.Lock()
-	defer sender.clientsRWM.Unlock()
-	if len(sender.clients) >= sender.GetMaxConns() {
-		return ErrSenderMaxConns
-	}
-	if _, ok := sender.clients[*guid]; ok {
-		const format = "already connected the target node\n%s"
-		return errors.Errorf(format, guid.Hex())
-	}
-	// connect Node
 	client, err := sender.ctx.NewClient(ctx, bl, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
@@ -185,15 +175,29 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			client.Close()
+		}
+	}()
 	err = client.Connect()
 	if err != nil {
-		const format = "failed to connect node\nlistener: %s\n%s"
+		const format = "failed to connect node\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	err = client.Synchronize()
 	if err != nil {
-		const format = "failed to start synchronize\nlistener: %s\n%s"
+		const format = "failed to start synchronize\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, bl, guid.Hex())
+	}
+	sender.clientsRWM.Lock()
+	defer sender.clientsRWM.Unlock()
+	if len(sender.clients) >= sender.GetMaxConns() {
+		return ErrSenderMaxConns
+	}
+	if _, ok := sender.clients[*guid]; ok {
+		const format = "already connected the target node\n%s"
+		return errors.Errorf(format, guid.Hex())
 	}
 	sender.clients[*guid] = client
 	return nil
