@@ -285,7 +285,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		protocol.CtrlGUID,
 	)
 	if err != nil {
-		return err
+		return errors.WithMessage(err, "failed to create client")
 	}
 	defer client.Close()
 

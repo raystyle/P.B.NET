@@ -136,40 +136,66 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
-	// check client number
+	// check the number of clients
 	current := len(sender.ctx.forwarder.GetClientConns())
 	if current >= sender.ctx.forwarder.GetMaxClientConns() {
 		return ErrSenderMaxConns
 	}
-	// check connect the exist connect node(include the target node connect self)
-	// these tag is the connection tag, not the node GUID
-	for _, node := range sender.ctx.forwarder.GetNodeConns() {
-		if *node.GUID == *guid {
-			const format = "target node already connected self\n%s"
+	// check connect the exist connect node, include Node connected self
+	for g := range sender.ctx.forwarder.GetNodeConns() {
+		if g == *guid {
+			const format = "this node already connected self\n%s"
 			return errors.Errorf(format, guid.Hex())
 		}
 	}
-	for _, client := range sender.ctx.forwarder.GetClientConns() {
-		if *client.GUID == *guid {
-			const format = "already connected the target node\n%s"
+	for g := range sender.ctx.forwarder.GetClientConns() {
+		if g == *guid {
+			const format = "already connected this node\n%s"
 			return errors.Errorf(format, guid.Hex())
 		}
 	}
-	// connect
+	// create client
 	client, err := sender.ctx.NewClient(ctx, bl, guid)
 	if err != nil {
-		return err
+		return errors.WithMessage(err, "failed to create client")
 	}
+	// interrupt
+	wg := sync.WaitGroup{}
+	done := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer func() {
+			recover()
+			wg.Done()
+		}()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			client.Close()
+		}
+	}()
+	defer func() {
+		close(done)
+		wg.Wait()
+	}()
+	// connect and start synchronize
+	var success bool
+	defer func() {
+		if !success {
+			client.Close()
+		}
+	}()
 	err = client.Connect()
 	if err != nil {
-		const format = "failed to connect node\nlistener: %s\n%s"
+		const format = "failed to connect node\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	err = client.Synchronize()
 	if err != nil {
-		const format = "failed to start synchronize\nlistener: %s\n%s"
+		const format = "failed to start synchronize\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, bl, guid)
 	}
+	success = true
 	return nil
 }
 

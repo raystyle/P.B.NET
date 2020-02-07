@@ -877,7 +877,7 @@ func (server *server) verifyBeacon(conn *xnet.Conn, guid *guid.GUID) bool {
 type ctrlConn struct {
 	ctx *Node
 
-	tag  *guid.GUID
+	Tag  *guid.GUID
 	Conn *conn
 
 	inSync int32
@@ -887,7 +887,7 @@ type ctrlConn struct {
 func (server *server) serveCtrl(tag *guid.GUID, conn *xnet.Conn) {
 	cc := ctrlConn{
 		ctx:  server.ctx,
-		tag:  tag,
+		Tag:  tag,
 		Conn: newConn(server.ctx, conn, tag, connUsageServeCtrl),
 	}
 	defer func() {
@@ -970,7 +970,7 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 	}
 	// must presume, or may be lost message.
 	atomic.StoreInt32(&ctrl.inSync, 1)
-	err := ctrl.ctx.forwarder.RegisterCtrl(ctrl.tag, ctrl)
+	err := ctrl.ctx.forwarder.RegisterCtrl(ctrl)
 	if err != nil {
 		atomic.StoreInt32(&ctrl.inSync, 0)
 		ctrl.Conn.Reply(id, []byte(err.Error()))
@@ -1129,7 +1129,7 @@ func (node *nodeConn) handleSyncStart(id []byte) {
 	}
 	// must presume, or may be lost message.
 	atomic.StoreInt32(&node.inSync, 1)
-	err := node.ctx.forwarder.RegisterNode(node.GUID, node)
+	err := node.ctx.forwarder.RegisterNode(node)
 	if err != nil {
 		atomic.StoreInt32(&node.inSync, 0)
 		node.Conn.Reply(id, []byte(err.Error()))
@@ -1232,7 +1232,7 @@ func (node *nodeConn) Close() {
 type beaconConn struct {
 	ctx *Node
 
-	guid *guid.GUID // beacon guid
+	GUID *guid.GUID // beacon guid
 	Conn *conn
 
 	inSync int32
@@ -1242,7 +1242,7 @@ type beaconConn struct {
 func (server *server) serveBeacon(tag, beaconGUID *guid.GUID, conn *xnet.Conn) {
 	bc := beaconConn{
 		ctx:  server.ctx,
-		guid: beaconGUID,
+		GUID: beaconGUID,
 		Conn: newConn(server.ctx, conn, beaconGUID, connUsageServeBeacon),
 	}
 	defer func() {
@@ -1320,7 +1320,7 @@ func (beacon *beaconConn) handleSyncStart(id []byte) {
 	}
 	// must presume, or may be lost message.
 	atomic.StoreInt32(&beacon.inSync, 1)
-	err := beacon.ctx.forwarder.RegisterBeacon(beacon.guid, beacon)
+	err := beacon.ctx.forwarder.RegisterBeacon(beacon)
 	if err != nil {
 		atomic.StoreInt32(&beacon.inSync, 0)
 		beacon.Conn.Reply(id, []byte(err.Error()))
