@@ -162,21 +162,60 @@ func (sender *sender) log(l logger.Level, log ...interface{}) {
 	sender.ctx.logger.Println(l, "sender", log...)
 }
 
+func (sender *sender) checkNode(guid *guid.GUID) error {
+	sender.clientsRWM.RLock()
+	defer sender.clientsRWM.RUnlock()
+	if len(sender.clients) >= sender.GetMaxConns() {
+		return ErrSenderMaxConns
+	}
+	if _, ok := sender.clients[*guid]; ok {
+		return errors.Errorf("already connected this node\n%s", guid.Hex())
+	}
+	return nil
+}
+
 // Synchronize is used to connect a node listener and start synchronize.
 func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
+	// must simple check firstly
+	err := sender.checkNode(guid)
+	if err != nil {
+		return err
+	}
+	// create client
 	client, err := sender.ctx.NewClient(ctx, bl, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, *guid)
 	})
 	if err != nil {
-		return err
+		return errors.WithMessage(err, "failed to create client")
 	}
+	// interrupt
+	wg := sync.WaitGroup{}
+	done := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer func() {
+			recover()
+			wg.Done()
+		}()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			client.Close()
+		}
+	}()
 	defer func() {
-		if err != nil {
+		close(done)
+		wg.Wait()
+	}()
+	// connect and start synchronize
+	var success bool
+	defer func() {
+		if !success {
 			client.Close()
 		}
 	}()
@@ -190,16 +229,17 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		const format = "failed to start synchronize\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
+	// must check twice
 	sender.clientsRWM.Lock()
 	defer sender.clientsRWM.Unlock()
 	if len(sender.clients) >= sender.GetMaxConns() {
 		return ErrSenderMaxConns
 	}
 	if _, ok := sender.clients[*guid]; ok {
-		const format = "already connected the target node\n%s"
-		return errors.Errorf(format, guid.Hex())
+		return errors.Errorf("already connected this node\n%s", guid.Hex())
 	}
 	sender.clients[*guid] = client
+	success = true
 	return nil
 }
 

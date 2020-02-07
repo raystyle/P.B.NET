@@ -276,7 +276,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		nil,
 	)
 	if err != nil {
-		return err
+		return errors.WithMessage(err, "failed to create client")
 	}
 	defer client.Close()
 

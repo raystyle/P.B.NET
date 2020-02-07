@@ -755,6 +755,7 @@ func (client *Client) Close() {
 		if client.closeFunc != nil {
 			client.closeFunc()
 		}
+		// TODO check is connected
 		client.log(logger.Info, "disconnected")
 	})
 }
