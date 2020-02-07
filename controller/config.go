@@ -94,7 +94,7 @@ func (ctrl *CTRL) TrustNode(
 ) (*messages.NodeRegisterRequest, error) {
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessage(err, "failed to create client")
 	}
 	defer client.Close()
 	// send trust node command
@@ -141,16 +141,16 @@ func (ctrl *CTRL) ConfirmTrustNode(
 ) error {
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
-		return err
+		return errors.WithMessage(err, "failed to create client")
 	}
 	defer client.Close()
 	// register node
-	cert, err := ctrl.registerNode(nrr, true)
+	certificate, err := ctrl.registerNode(nrr, true)
 	if err != nil {
 		return err
 	}
 	// send certificate
-	reply, err := client.send(protocol.CtrlSetNodeCert, cert.Encode())
+	reply, err := client.send(protocol.CtrlSetNodeCert, certificate.Encode())
 	if err != nil {
 		return errors.WithMessage(err, "failed to set node certificate")
 	}
@@ -168,13 +168,13 @@ func (ctrl *CTRL) registerNode(
 		return errors.Wrap(err, "failed to register node")
 	}
 	// issue certificate
-	cert := protocol.Certificate{
+	certificate := protocol.Certificate{
 		GUID:      nrr.GUID,
 		PublicKey: nrr.PublicKey,
 	}
 	privateKey := ctrl.global.PrivateKey()
 	defer security.CoverBytes(privateKey)
-	err := protocol.IssueCertificate(&cert, privateKey)
+	err := protocol.IssueCertificate(&certificate, privateKey)
 	if err != nil {
 		return nil, failed(err)
 	}
@@ -195,7 +195,7 @@ func (ctrl *CTRL) registerNode(
 	if err != nil {
 		return nil, failed(err)
 	}
-	return &cert, nil
+	return &certificate, nil
 }
 
 // AcceptRegisterNode is used to accept register Node
