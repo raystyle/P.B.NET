@@ -665,7 +665,7 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 		server.logfConn(conn, logger.Warning, format, guid)
 		return
 	}
-	// <security> must don't handle error
+	// <security> must don't handle error.
 	_ = server.ctx.sender.Send(messages.CMDBNodeRegisterRequest, request)
 	// wait register result
 	timeout := time.Duration(15+server.rand.Int(30)) * time.Second
@@ -705,6 +705,49 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	}
 }
 
+func (server *server) getNodeKey(guid *guid.GUID) *nodeKey {
+	// First try to query from self storage.
+	nk := server.ctx.storage.GetNodeKey(guid)
+	if nk != nil {
+		return nk
+	}
+	// If doesn't exists in self storage, try to wait 3-5 seconds
+	// to wait Controller broadcast, maybe this Node has register
+	// in other Node, but the Node register response not broadcast
+	// to this Node, so we try to wait Controller's broadcast.
+	r := random.New()
+	for i := 0; i < 60+r.Int(40); i++ {
+		nk = server.ctx.storage.GetNodeKey(guid)
+		if nk != nil {
+			return nk
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	// If still doesn't exist, it means this Node register just now,
+	// so this Node can't receive the last broadcast.
+	// This Node will try to query Node key from controller, but
+	// Controller maybe not connect the Node Network, so it does't
+	// guarantee that the Node key can be queried.
+	now := server.ctx.global.Now()
+	query := messages.QueryNodeKey{
+		GUID: *guid,
+		Time: now,
+	}
+	// <security> must don't handle error.
+	_ = server.ctx.sender.Send(messages.CMDBNodeQueryNodeKey, query)
+	// calculate network latency between Node and Controller.
+	latency := server.ctx.global.Now().Sub(now)
+	// wait Controller send Node key to this Node.
+	for i := 0; i < int(latency/(50*time.Millisecond))+r.Int(40); i++ {
+		nk = server.ctx.storage.GetNodeKey(guid)
+		if nk != nil {
+			return nk
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return nil
+}
+
 func (server *server) verifyNode(conn *xnet.Conn, guid *guid.GUID) bool {
 	challenge := server.rand.Bytes(protocol.ChallengeSize)
 	err := conn.Send(challenge)
@@ -718,17 +761,17 @@ func (server *server) verifyNode(conn *xnet.Conn, guid *guid.GUID) bool {
 		server.logConn(conn, logger.Error, "failed to receive node signature:", err)
 		return false
 	}
-	// verify signature
-	sk := server.ctx.storage.GetNodeSessionKey(guid)
-	if sk == nil {
-		// TODO try to query from controller
+	nk := server.getNodeKey(guid)
+	if nk == nil {
 		return false
 	}
-	if !ed25519.Verify(sk.PublicKey, challenge, signature) {
+	// verify signature
+	if !ed25519.Verify(nk.PublicKey, challenge, signature) {
 		server.logConn(conn, logger.Exploit, "invalid node challenge signature")
 		return false
 	}
 	// send succeed response
+	_ = conn.SetWriteDeadline(server.ctx.global.Now().Add(server.timeout))
 	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
 		server.logConn(conn, logger.Error, "failed to send response to node:", err)
@@ -840,6 +883,49 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 	}
 }
 
+func (server *server) getBeaconKey(guid *guid.GUID) *beaconKey {
+	// First try to query from self storage.
+	bk := server.ctx.storage.GetBeaconKey(guid)
+	if bk != nil {
+		return bk
+	}
+	// If doesn't exists in self storage, try to wait 3-5 seconds
+	// to wait Controller broadcast, maybe this Beacon has register
+	// in other Node, but the Beacon register response not broadcast
+	// to this Node, so we try to wait Controller's broadcast.
+	r := random.New()
+	for i := 0; i < 60+r.Int(40); i++ {
+		bk = server.ctx.storage.GetBeaconKey(guid)
+		if bk != nil {
+			return bk
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	// If still doesn't exist, it means this Node register just now,
+	// so this Node can't receive the last broadcast.
+	// This Node will try to query Beacon key from controller, but
+	// Controller maybe not connect the Node Network, so it does't
+	// guarantee that Beacon key can be queried.
+	now := server.ctx.global.Now()
+	query := messages.QueryBeaconKey{
+		GUID: *guid,
+		Time: now,
+	}
+	// <security> must don't handle error
+	_ = server.ctx.sender.Send(messages.CMDBNodeQueryBeaconKey, query)
+	// calculate network latency between Node and Controller
+	latency := server.ctx.global.Now().Sub(now)
+	// wait Controller send Beacon key to this Node
+	for i := 0; i < int(latency/(50*time.Millisecond))+r.Int(40); i++ {
+		bk = server.ctx.storage.GetBeaconKey(guid)
+		if bk != nil {
+			return bk
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return nil
+}
+
 func (server *server) verifyBeacon(conn *xnet.Conn, guid *guid.GUID) bool {
 	challenge := server.rand.Bytes(protocol.ChallengeSize)
 	err := conn.Send(challenge)
@@ -853,17 +939,17 @@ func (server *server) verifyBeacon(conn *xnet.Conn, guid *guid.GUID) bool {
 		server.logConn(conn, logger.Error, "failed to receive beacon signature:", err)
 		return false
 	}
-	// verify signature
-	sk := server.ctx.storage.GetBeaconSessionKey(guid)
-	if sk == nil {
-		// TODO try to query from controller
+	bk := server.getBeaconKey(guid)
+	if bk == nil {
 		return false
 	}
-	if !ed25519.Verify(sk.PublicKey, challenge, signature) {
+	// verify signature
+	if !ed25519.Verify(bk.PublicKey, challenge, signature) {
 		server.logConn(conn, logger.Exploit, "invalid beacon challenge signature")
 		return false
 	}
 	// send succeed response
+	_ = conn.SetWriteDeadline(server.ctx.global.Now().Add(server.timeout))
 	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
 		server.logConn(conn, logger.Error, "failed to send response to beacon:", err)
@@ -905,7 +991,7 @@ func (server *server) serveCtrl(tag *guid.GUID, conn *xnet.Conn) {
 	}()
 	server.addCtrlConn(tag, &cc)
 	defer server.deleteCtrlConn(tag)
-	_ = conn.SetDeadline(server.ctx.global.Now().Add(server.timeout))
+	_ = conn.SetDeadline(time.Time{})
 	cc.Conn.Log(logger.Debug, "connected")
 	protocol.HandleConn(conn, cc.onFrame)
 }
@@ -1066,7 +1152,7 @@ func (server *server) serveNode(tag, nodeGUID *guid.GUID, conn *xnet.Conn) {
 	}()
 	server.addNodeConn(tag, &nc)
 	defer server.deleteNodeConn(tag)
-	_ = conn.SetDeadline(server.ctx.global.Now().Add(server.timeout))
+	_ = conn.SetDeadline(time.Time{})
 	nc.Conn.Log(logger.Debug, "connected")
 	protocol.HandleConn(conn, nc.onFrame)
 }
@@ -1260,7 +1346,7 @@ func (server *server) serveBeacon(tag, beaconGUID *guid.GUID, conn *xnet.Conn) {
 	}()
 	server.addBeaconConn(tag, &bc)
 	defer server.deleteBeaconConn(tag)
-	_ = conn.SetDeadline(server.ctx.global.Now().Add(server.timeout))
+	_ = conn.SetDeadline(time.Time{})
 	bc.Conn.Log(logger.Debug, "connected")
 	protocol.HandleConn(conn, bc.onFrame)
 }
