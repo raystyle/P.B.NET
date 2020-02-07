@@ -147,10 +147,10 @@ func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
 		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
-	h.ctx.storage.AddNodeSessionKey(&nrr.GUID, &nodeSessionKey{
+	h.ctx.storage.AddNodeKey(&nrr.GUID, &nodeKey{
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
-		AckTime:      nrr.ReplyTime,
+		ReplyTime:    nrr.ReplyTime,
 	})
 	h.ctx.storage.SetNodeRegister(&nrr.GUID, nrr)
 }
@@ -164,10 +164,10 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
-	h.ctx.storage.AddBeaconSessionKey(&brr.GUID, &beaconSessionKey{
+	h.ctx.storage.AddBeaconKey(&brr.GUID, &beaconKey{
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
-		AckTime:      brr.ReplyTime,
+		ReplyTime:    brr.ReplyTime,
 	})
 	h.ctx.storage.SetBeaconRegister(&brr.GUID, brr)
 }
