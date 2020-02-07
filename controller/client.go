@@ -393,18 +393,25 @@ func (client *Client) Synchronize() error {
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
 	if client.isSync() {
-		return nil
+		return errors.New("already synchronize")
 	}
+	// must presume, or may be lost message.
+	var err error
+	atomic.StoreInt32(&client.inSync, 1)
+	defer func() {
+		if err != nil {
+			atomic.StoreInt32(&client.inSync, 0)
+		}
+	}()
 	resp, err := client.send(protocol.CtrlSync, nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to receive synchronize response")
 	}
 	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
-		return errors.Errorf("failed to start synchronize: %s", resp)
+		err = errors.Errorf("failed to start synchronize: %s", resp)
+		return err // can't return directly
 	}
-	atomic.StoreInt32(&client.inSync, 1)
-	const format = "start synchronize\nlistener: %s"
-	client.logf(logger.Info, format, client.listener)
+	client.logf(logger.Info, "start synchronize\nlistener: %s", client.listener)
 	return nil
 }
 
@@ -593,101 +600,101 @@ func (client *Client) handleNodeAck(id, data []byte) {
 }
 
 func (client *Client) handleBeaconSend(id, data []byte) {
-	s := client.ctx.worker.GetSendFromPool()
-	err := s.Unpack(data)
+	send := client.ctx.worker.GetSendFromPool()
+	err := send.Unpack(data)
 	if err != nil {
 		const format = "invalid beacon send data: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(s))
-		client.ctx.worker.PutSendToPool(s)
+		client.logf(logger.Exploit, format, err, spew.Sdump(send))
+		client.ctx.worker.PutSendToPool(send)
 		client.Close()
 		return
 	}
-	err = s.Validate()
+	err = send.Validate()
 	if err != nil {
 		const format = "invalid beacon send: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(s))
-		client.ctx.worker.PutSendToPool(s)
+		client.logf(logger.Exploit, format, err, spew.Sdump(send))
+		client.ctx.worker.PutSendToPool(send)
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&s.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&send.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
-		client.ctx.worker.PutSendToPool(s)
+		client.ctx.worker.PutSendToPool(send)
 		return
 	}
-	if client.ctx.syncer.CheckBeaconSendGUID(&s.GUID, timestamp) {
+	if client.ctx.syncer.CheckBeaconSendGUID(&send.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
-		client.ctx.worker.AddBeaconSend(s)
+		client.ctx.worker.AddBeaconSend(send)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
-		client.ctx.worker.PutSendToPool(s)
+		client.ctx.worker.PutSendToPool(send)
 	}
 }
 
 func (client *Client) handleBeaconAck(id, data []byte) {
-	a := client.ctx.worker.GetAcknowledgeFromPool()
-	err := a.Unpack(data)
+	ack := client.ctx.worker.GetAcknowledgeFromPool()
+	err := ack.Unpack(data)
 	if err != nil {
 		const format = "invalid beacon ack data: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(a))
-		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.logf(logger.Exploit, format, err, spew.Sdump(ack))
+		client.ctx.worker.PutAcknowledgeToPool(ack)
 		client.Close()
 		return
 	}
-	err = a.Validate()
+	err = ack.Validate()
 	if err != nil {
 		const format = "invalid beacon ack: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(a))
-		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.logf(logger.Exploit, format, err, spew.Sdump(ack))
+		client.ctx.worker.PutAcknowledgeToPool(ack)
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&a.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&ack.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
-		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.ctx.worker.PutAcknowledgeToPool(ack)
 		return
 	}
-	if client.ctx.syncer.CheckBeaconAckGUID(&a.GUID, timestamp) {
+	if client.ctx.syncer.CheckBeaconAckGUID(&ack.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
-		client.ctx.worker.AddBeaconAcknowledge(a)
+		client.ctx.worker.AddBeaconAcknowledge(ack)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
-		client.ctx.worker.PutAcknowledgeToPool(a)
+		client.ctx.worker.PutAcknowledgeToPool(ack)
 	}
 }
 
 func (client *Client) handleBeaconQuery(id, data []byte) {
-	q := client.ctx.worker.GetQueryFromPool()
-	err := q.Unpack(data)
+	query := client.ctx.worker.GetQueryFromPool()
+	err := query.Unpack(data)
 	if err != nil {
 		const format = "invalid query data: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(q))
-		client.ctx.worker.PutQueryToPool(q)
+		client.logf(logger.Exploit, format, err, spew.Sdump(query))
+		client.ctx.worker.PutQueryToPool(query)
 		client.Close()
 		return
 	}
-	err = q.Validate()
+	err = query.Validate()
 	if err != nil {
 		const format = "invalid query: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(q))
-		client.ctx.worker.PutQueryToPool(q)
+		client.logf(logger.Exploit, format, err, spew.Sdump(query))
+		client.ctx.worker.PutQueryToPool(query)
 		client.Close()
 		return
 	}
-	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&q.GUID)
+	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&query.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
-		client.ctx.worker.PutQueryToPool(q)
+		client.ctx.worker.PutQueryToPool(query)
 		return
 	}
-	if client.ctx.syncer.CheckQueryGUID(&q.GUID, timestamp) {
+	if client.ctx.syncer.CheckQueryGUID(&query.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
-		client.ctx.worker.AddQuery(q)
+		client.ctx.worker.AddQuery(query)
 	} else {
 		client.reply(id, protocol.ReplyHandled)
-		client.ctx.worker.PutQueryToPool(q)
+		client.ctx.worker.PutQueryToPool(query)
 	}
 }
 
@@ -716,6 +723,7 @@ func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
 				_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
 				_, err := client.conn.Write(b)
 				if err != nil {
+					_ = client.conn.Close()
 					return nil, err
 				}
 				// wait for reply
