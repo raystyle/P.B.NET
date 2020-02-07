@@ -19,7 +19,7 @@ type Bootstrap struct {
 	Config []byte
 }
 
-// about register result
+// about role register result
 const (
 	RegisterResultAccept uint8 = iota + 1
 	RegisterResultRefused
@@ -33,8 +33,7 @@ var (
 	ErrRegisterUnknownResult = errors.New("unknown register result")
 )
 
-// NodeRegisterRequest is used to Node register,
-// controller trust node also use it
+// NodeRegisterRequest is used to Node register, controller trust node also use it.
 type NodeRegisterRequest struct {
 	GUID         guid.GUID // Node GUID
 	PublicKey    []byte
@@ -47,22 +46,22 @@ type NodeRegisterRequest struct {
 // Validate is used to validate request fields
 func (r *NodeRegisterRequest) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid public key size")
+		return errors.New("invalid node public key size")
 	}
 	if len(r.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid key exchange public key size")
+		return errors.New("invalid node key exchange public key size")
 	}
 	if r.SystemInfo == nil {
-		return errors.New("empty system info")
+		return errors.New("empty node system info")
 	}
 	return nil
 }
 
-// NodeRegisterResponse is used to return Node register response
+// NodeRegisterResponse is used to return Node register response.
 type NodeRegisterResponse struct {
 	GUID guid.GUID // Node GUID
 
-	// all node save it
+	// all Nodes will save it to storage
 	PublicKey    []byte
 	KexPublicKey []byte
 
@@ -72,19 +71,19 @@ type NodeRegisterResponse struct {
 	Result      uint8
 	Certificate []byte
 
-	// key = hex(node guid)
-	// a part of all node listeners,
-	// Node will connect this listeners first
+	// key = hex(Node GUID)
+	// a part of all Node listeners,
+	// Node will connect these listeners first
 	Listeners map[string][]*bootstrap.Listener
 }
 
-// Validate is used to validate response fields
+// Validate is used to validate response fields.
 func (r *NodeRegisterResponse) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid public key size")
+		return errors.New("invalid node public key size")
 	}
 	if len(r.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid key exchange public key size")
+		return errors.New("invalid node key exchange public key size")
 	}
 	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {
 		return errors.New("unknown node register result")
@@ -95,7 +94,7 @@ func (r *NodeRegisterResponse) Validate() error {
 	return nil
 }
 
-// BeaconRegisterRequest is used to Beacon register
+// BeaconRegisterRequest is used to Beacon register.
 type BeaconRegisterRequest struct {
 	GUID         guid.GUID // Beacon GUID
 	PublicKey    []byte
@@ -105,25 +104,25 @@ type BeaconRegisterRequest struct {
 	RequestTime  time.Time
 }
 
-// Validate is used to validate request fields
+// Validate is used to validate request fields.
 func (r *BeaconRegisterRequest) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid public key size")
+		return errors.New("invalid beacon public key size")
 	}
 	if len(r.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid key exchange public key size")
+		return errors.New("invalid beacon key exchange public key size")
 	}
 	if r.SystemInfo == nil {
-		return errors.New("empty system info")
+		return errors.New("empty beacon system info")
 	}
 	return nil
 }
 
-// BeaconRegisterResponse is used to return Beacon register response
+// BeaconRegisterResponse is used to return Beacon register response.
 type BeaconRegisterResponse struct {
 	GUID guid.GUID // Beacon GUID
 
-	// all node save it
+	// all Nodes will save it to storage
 	PublicKey    []byte
 	KexPublicKey []byte
 
@@ -132,19 +131,19 @@ type BeaconRegisterResponse struct {
 
 	Result uint8
 
-	// key = hex(node guid)
-	// a part of all node listeners,
-	// Beacon will connect this listeners first
-	Listeners map[string][]*bootstrap.Listener // key = hex(node guid)
+	// key = hex(Node GUID)
+	// a part of all Node listeners,
+	// Beacon will connect these listeners first.
+	Listeners map[string][]*bootstrap.Listener
 }
 
-// Validate is used to validate response fields
+// Validate is used to validate response fields.
 func (r *BeaconRegisterResponse) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid public key size")
+		return errors.New("invalid beacon public key size")
 	}
 	if len(r.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid key exchange public key size")
+		return errors.New("invalid beacon key exchange public key size")
 	}
 	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {
 		return errors.New("unknown beacon register result")
