@@ -225,7 +225,7 @@ func (client *Client) Connect() error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				client.log(logger.Fatal, xpanic.Print(r, "client.handleConn"))
+				client.log(logger.Fatal, xpanic.Print(r, "client.HandleConn"))
 			}
 			client.Close()
 		}()
@@ -755,8 +755,9 @@ func (client *Client) Close() {
 		if client.closeFunc != nil {
 			client.closeFunc()
 		}
-		// TODO check is connected
-		client.log(logger.Info, "disconnected")
+		if client.stopSignal != nil {
+			client.log(logger.Info, "disconnected")
+		}
 	})
 }
 
