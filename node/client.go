@@ -434,12 +434,14 @@ func (client *Client) Close() {
 		}
 		client.wg.Wait()
 		client.ctx.clientMgr.Delete(client.tag)
-		client.Conn.Log(logger.Info, "disconnected")
+		if client.stopSignal != nil {
+			client.Conn.Log(logger.Info, "disconnected")
+		}
 	})
 }
 
 // clientMgr contains all clients from NewClient() and client options from Config
-// it can generate client tag, you can manage all clients here
+// it can generate client tag, you can manage all clients here.
 type clientMgr struct {
 	ctx *Node
 
