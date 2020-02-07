@@ -25,35 +25,56 @@ import (
 )
 
 func TestAll(t *testing.T) {
-	wg := sync.WaitGroup{}
-	wg.Add(4)
-	go func() {
-		defer wg.Done()
-		TestCtrl_SendToNode_PassInitialNode(t)
-		fmt.Println("aaaa")
-	}()
-	go func() {
-		defer wg.Done()
-		TestNode_Send_PassInitialNode(t)
-		fmt.Println("bbbb")
-	}()
-	go func() {
-		defer wg.Done()
-		TestCtrl_SendToBeacon_PassICNodes(t)
-		fmt.Println("cccc")
-	}()
-	go func() {
-		defer wg.Done()
-		TestBeacon_Send_PassCommonNode(t)
-		fmt.Println("dddd")
-	}()
-	wg.Wait()
+	TestCtrl_SendToNode_PassInitialNode(t)
+	TestNode_Send_PassInitialNode(t)
+	TestCtrl_SendToBeacon_PassICNodes(t)
+	TestBeacon_Send_PassCommonNode(t)
 }
 
 func TestLoop(t *testing.T) {
 	// t.Skip("must run it manually")
 	for {
 		TestAll(t)
+		time.Sleep(2 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(10 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func TestAll_Parallel(t *testing.T) {
+	wg := sync.WaitGroup{}
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		TestCtrl_SendToNode_PassInitialNode(t)
+		fmt.Println("test-a")
+	}()
+	go func() {
+		defer wg.Done()
+		TestNode_Send_PassInitialNode(t)
+		fmt.Println("test-b")
+	}()
+	go func() {
+		defer wg.Done()
+		TestCtrl_SendToBeacon_PassICNodes(t)
+		fmt.Println("test-c")
+	}()
+	go func() {
+		defer wg.Done()
+		TestBeacon_Send_PassCommonNode(t)
+		fmt.Println("test-d")
+	}()
+	wg.Wait()
+}
+
+func TestLoop_Parallel(t *testing.T) {
+	// t.Skip("must run it manually")
+	for i := 0; i < 100; i++ {
+		TestAll_Parallel(t)
 		time.Sleep(2 * time.Second)
 		runtime.GC()
 		debug.FreeOSMemory()
@@ -199,6 +220,7 @@ func TestCtrl_Broadcast_PassInitialNode(t *testing.T) {
 // Controller send test messages
 func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
@@ -295,12 +317,18 @@ func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 	testsuite.IsDestroyed(t, cNode)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
 
 // One Beacon connect the Initial Node, Controller connect the Initial Node,
 // Controller send test messages to Beacon in interactive mode.
 func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
@@ -344,7 +372,7 @@ func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 	timer.Stop()
 
 	// try to connect initial node
-	err = Beacon.Synchronize(context.Background(), iNode.GUID(), bListener)
+	err = Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
 	require.NoError(t, err)
 
 	// controller send messages
@@ -398,6 +426,11 @@ func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 	testsuite.IsDestroyed(t, Beacon)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteBeaconUnscoped(BeaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
 
 func TestNode_SendDirectly(t *testing.T) {
@@ -453,12 +486,16 @@ func TestNode_SendDirectly(t *testing.T) {
 	require.NoError(t, err)
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
+
+	err = ctrl.DeleteNodeUnscoped(NodeGUID)
+	require.NoError(t, err)
 }
 
 // One Common Node connect the Initial Node, Controller connect the Initial Node,
 // Node send test messages to Controller
 func TestNode_Send_PassInitialNode(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
@@ -501,13 +538,14 @@ func TestNode_Send_PassInitialNode(t *testing.T) {
 	cNode.Wait()
 	timer.Stop()
 
-	// try to connect initial node
-	err = cNode.Synchronize(context.Background(), iNode.GUID(), bListener)
+	// try to connect Initial Node
+	err = cNode.Synchronize(context.Background(), iNodeGUID, bListener)
 	require.NoError(t, err)
 
 	// controller send messages
+	cNodeGUID := cNode.GUID()
 	ctrl.Test.EnableRoleSendTestMessage()
-	ch := ctrl.Test.CreateNodeSendTestMessageChannel(cNode.GUID())
+	ch := ctrl.Test.CreateNodeSendTestMessageChannel(cNodeGUID)
 
 	const (
 		goroutines = 256
@@ -555,12 +593,18 @@ func TestNode_Send_PassInitialNode(t *testing.T) {
 	testsuite.IsDestroyed(t, cNode)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
 
 // One Beacon connect the Initial Node, Controller connect the Initial Node,
 // Beacon send test messages to Controller in interactive mode.
 func TestBeacon_Send_PassInitialNode(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
@@ -604,12 +648,13 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 	timer.Stop()
 
 	// try to connect initial node
-	err = Beacon.Synchronize(context.Background(), iNode.GUID(), bListener)
+	err = Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
 	require.NoError(t, err)
 
 	// controller send messages
+	BeaconGUID := Beacon.GUID()
 	ctrl.Test.EnableRoleSendTestMessage()
-	ch := ctrl.Test.CreateBeaconSendTestMessageChannel(Beacon.GUID())
+	ch := ctrl.Test.CreateBeaconSendTestMessageChannel(BeaconGUID)
 
 	const (
 		goroutines = 256
@@ -657,6 +702,11 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 	testsuite.IsDestroyed(t, Beacon)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteNodeUnscoped(BeaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
 
 // One Beacon connect the Common Node, Common Node Connect the Initial Node,
@@ -666,6 +716,7 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 // Beacon -> Common Node -> Initial Node -> Controller
 func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
@@ -708,7 +759,7 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	timer.Stop()
 
 	// Common Node synchronize with Initial Node
-	err = cNode.Synchronize(context.Background(), iNode.GUID(), bListener)
+	err = cNode.Synchronize(context.Background(), iNodeGUID, bListener)
 	require.NoError(t, err)
 
 	// Common Node add Listener
@@ -721,6 +772,7 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	require.NoError(t, err)
 	cListener, err := cNode.GetListener("test")
 	require.NoError(t, err)
+	cNodeGUID := cNode.GUID()
 
 	// create and run Beacon
 	beaconCfg := generateBeaconConfig(t, "Beacon")
@@ -756,12 +808,13 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 		Network: cListener.Addr().Network(),
 		Address: cListener.Addr().String(),
 	}
-	err = Beacon.Synchronize(context.Background(), cNode.GUID(), &targetListener)
+	err = Beacon.Synchronize(context.Background(), cNodeGUID, &targetListener)
 	require.NoError(t, err)
 
 	// Beacon send messages
+	BeaconGUID := Beacon.GUID()
 	ctrl.Test.EnableRoleSendTestMessage()
-	ch := ctrl.Test.CreateBeaconSendTestMessageChannel(Beacon.GUID())
+	ch := ctrl.Test.CreateBeaconSendTestMessageChannel(BeaconGUID)
 
 	const (
 		goroutines = 256
@@ -811,6 +864,13 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	testsuite.IsDestroyed(t, cNode)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteBeaconUnscoped(BeaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
 
 // One Beacon connect the Common Node, Common Node Connect the Initial Node,
@@ -820,6 +880,7 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 // Controller -> Initial Node -> Common Node -> Beacon
 func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
@@ -862,9 +923,8 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	timer.Stop()
 
 	// Common Node synchronize with Initial Node
-	err = cNode.Synchronize(context.Background(), iNode.GUID(), bListener)
+	err = cNode.Synchronize(context.Background(), iNodeGUID, bListener)
 	require.NoError(t, err)
-
 	// Common Node add Listener
 	err = cNode.AddListener(&messages.Listener{
 		Tag:     "test",
@@ -875,6 +935,7 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	require.NoError(t, err)
 	cListener, err := cNode.GetListener("test")
 	require.NoError(t, err)
+	cNodeGUID := cNode.GUID()
 
 	// create and run Beacon
 	beaconCfg := generateBeaconConfig(t, "Beacon")
@@ -910,12 +971,12 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 		Network: cListener.Addr().Network(),
 		Address: cListener.Addr().String(),
 	}
-	err = Beacon.Synchronize(context.Background(), cNode.GUID(), &targetListener)
+	err = Beacon.Synchronize(context.Background(), cNodeGUID, &targetListener)
 	require.NoError(t, err)
 
 	// Beacon send messages
-	Beacon.Test.EnableTestMessage()
 	BeaconGUID := Beacon.GUID()
+	Beacon.Test.EnableTestMessage()
 	ctrl.EnableInteractiveMode(BeaconGUID)
 
 	const (
@@ -966,4 +1027,11 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	testsuite.IsDestroyed(t, cNode)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteBeaconUnscoped(BeaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
