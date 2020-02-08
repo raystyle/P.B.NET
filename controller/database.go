@@ -236,18 +236,18 @@ func (db *database) DeleteListener(id uint64) error {
 
 // ------------------------------------node-------------------------------------------
 
-func (db *database) SelectNode(guid *guid.GUID) (node *mNode, err error) {
-	node = db.cache.SelectNode(guid)
+func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
+	node := db.cache.SelectNode(guid)
 	if node != nil {
-		return
+		return node, nil
 	}
 	node = new(mNode)
-	err = db.db.Find(node, "guid = ?", guid[:]).Error
+	err := db.db.Find(node, "guid = ?", guid[:]).Error
 	if err != nil {
 		return nil, err
 	}
 	db.cache.InsertNode(node)
-	return
+	return node, nil
 }
 
 func (db *database) InsertNode(m *mNode) error {
@@ -318,18 +318,18 @@ func (db *database) DeleteNodeLog(id uint64) error {
 
 // -----------------------------------beacon------------------------------------------
 
-func (db *database) SelectBeacon(guid *guid.GUID) (beacon *mBeacon, err error) {
-	beacon = db.cache.SelectBeacon(guid)
+func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
+	beacon := db.cache.SelectBeacon(guid)
 	if beacon != nil {
-		return
+		return beacon, nil
 	}
 	beacon = new(mBeacon)
-	err = db.db.Find(beacon, "guid = ?", guid[:]).Error
+	err := db.db.Find(beacon, "guid = ?", guid[:]).Error
 	if err != nil {
 		return nil, err
 	}
 	db.cache.InsertBeacon(beacon)
-	return
+	return beacon, nil
 }
 
 func (db *database) InsertBeacon(m *mBeacon) error {
