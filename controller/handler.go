@@ -7,7 +7,6 @@ import (
 	"net"
 	"sync"
 
-	"github.com/axgle/mahonia"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/vmihailenco/msgpack/v4"
 
@@ -105,18 +104,86 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[:4])
 	send.Message = send.Message[4:]
 	switch msgType {
+	case messages.CMDQueryNodeKey:
+		h.handleQueryNodeKey(send)
+	case messages.CMDQueryBeaconKey:
+		h.handleQueryBeaconKey(send)
 	case messages.CMDNodeRegisterRequest:
 		h.handleNodeRegisterRequest(send)
 	case messages.CMDBeaconRegisterRequest:
 		h.handleBeaconRegisterRequest(send)
-	case messages.CMDShellOutput:
-		h.handleNodeShellOutput(send)
 	case messages.CMDTest:
 		h.handleNodeSendTestMessage(send)
 	default:
 		const format = "node send unknown message\n%s\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, send.RoleGUID, msgType, spew.Sdump(send))
 	}
+}
+
+// -------------------------------------query role key---------------------------------------------
+
+func (h *handler) handleQueryNodeKey(send *protocol.Send) {
+	defer h.logPanic("handler.handleQueryNodeKey")
+	qnk := new(messages.QueryNodeKey)
+	err := msgpack.Unmarshal(send.Message, qnk)
+	if err != nil {
+		const format = "node send invalid query node key data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, err)
+		return
+	}
+	node, err := h.ctx.database.SelectNode(&qnk.GUID)
+	if err != nil {
+		const format = "failed to query node key\nerror: %s"
+		h.logfWithInfo(logger.Warning, format, send.RoleGUID, qnk, err)
+		return
+	}
+	// send to Node
+	ank := messages.AnswerNodeKey{
+		GUID:         qnk.GUID,
+		PublicKey:    node.PublicKey,
+		KexPublicKey: node.KexPublicKey,
+		ReplyTime:    node.CreatedAt,
+	}
+	err = h.ctx.sender.Send(protocol.Node, &send.RoleGUID, messages.CMDBAnswerNodeKey, ank)
+	if err != nil {
+		const format = "failed to answer node key\nerror: %s"
+		h.logfWithInfo(logger.Error, format, send.RoleGUID, ank, err)
+		return
+	}
+	const format = "node query node key\n%s"
+	h.logfWithInfo(logger.Info, format, send.RoleGUID, nil, qnk.GUID.Print())
+}
+
+func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
+	defer h.logPanic("handler.handleQueryBeaconKey")
+	qbk := new(messages.QueryBeaconKey)
+	err := msgpack.Unmarshal(send.Message, qbk)
+	if err != nil {
+		const format = "node send invalid query beacon key data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, err)
+		return
+	}
+	beacon, err := h.ctx.database.SelectBeacon(&qbk.GUID)
+	if err != nil {
+		const format = "failed to query beacon key\nerror: %s"
+		h.logfWithInfo(logger.Warning, format, send.RoleGUID, qbk, err)
+		return
+	}
+	// send to Node
+	abk := messages.AnswerBeaconKey{
+		GUID:         qbk.GUID,
+		PublicKey:    beacon.PublicKey,
+		KexPublicKey: beacon.KexPublicKey,
+		ReplyTime:    beacon.CreatedAt,
+	}
+	err = h.ctx.sender.Send(protocol.Node, &send.RoleGUID, messages.CMDBAnswerBeaconKey, abk)
+	if err != nil {
+		const format = "failed to answer beacon key\nerror: %s"
+		h.logfWithInfo(logger.Error, format, send.RoleGUID, abk, err)
+		return
+	}
+	const format = "node query beacon key\n%s"
+	h.logfWithInfo(logger.Info, format, send.RoleGUID, nil, qbk.GUID.Print())
 }
 
 // ----------------------------------role register request-----------------------------------------
@@ -127,11 +194,17 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 	if len(request) == 0 {
 		return
 	}
-	var nrr messages.NodeRegisterRequest
-	err := msgpack.Unmarshal(request, &nrr)
+	nrr := new(messages.NodeRegisterRequest)
+	err := msgpack.Unmarshal(request, nrr)
 	if err != nil {
-		const format = "node send invalid node register request\nerror: %s"
+		const format = "node send invalid node register request data\nerror: %s"
 		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, request, err)
+		return
+	}
+	err = nrr.Validate()
+	if err != nil {
+		const log = "node send invalid node register request"
+		h.logWithInfo(logger.Exploit, send.RoleGUID, request, log)
 		return
 	}
 	// compare key exchange public key
@@ -147,7 +220,7 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		return
 	}
 	select {
-	case h.ctx.Test.NodeRegisterRequest <- &nrr:
+	case h.ctx.Test.NodeRegisterRequest <- nrr:
 	case <-h.context.Done():
 	}
 }
@@ -158,8 +231,14 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 	if len(request) == 0 {
 		return
 	}
-	var brr messages.BeaconRegisterRequest
-	err := msgpack.Unmarshal(request, &brr)
+	brr := new(messages.BeaconRegisterRequest)
+	err := msgpack.Unmarshal(request, brr)
+	if err != nil {
+		const log = "node send invalid beacon register request data"
+		h.logWithInfo(logger.Exploit, send.RoleGUID, request, log)
+		return
+	}
+	err = brr.Validate()
 	if err != nil {
 		const log = "node send invalid beacon register request"
 		h.logWithInfo(logger.Exploit, send.RoleGUID, request, log)
@@ -178,7 +257,7 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 		return
 	}
 	select {
-	case h.ctx.Test.BeaconRegisterRequest <- &brr:
+	case h.ctx.Test.BeaconRegisterRequest <- brr:
 	case <-h.context.Done():
 	}
 }
@@ -191,7 +270,6 @@ func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.
 		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, role)
 		return nil
 	}
-
 	// calculate role session key
 	key, err := h.ctx.global.KeyExchange(req[:curve25519.ScalarSize])
 	if err != nil {
@@ -207,20 +285,6 @@ func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.
 		return nil
 	}
 	return request
-}
-
-func (h *handler) handleNodeShellOutput(send *protocol.Send) {
-	defer h.logPanic("handler.handleNodeShellOutput")
-	var so messages.ShellOutput
-	err := msgpack.Unmarshal(send.Message, &so)
-	if err != nil {
-		const log = "node send invalid shell output"
-		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
-		return
-	}
-	str := mahonia.NewDecoder("GBK").ConvertString(string(so.Output))
-	fmt.Println("controller receive it!")
-	fmt.Println(str)
 }
 
 // ----------------------------------------send test-----------------------------------------------
