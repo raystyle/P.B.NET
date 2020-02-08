@@ -716,12 +716,18 @@ func (server *server) getNodeKey(guid *guid.GUID) *nodeKey {
 	// in other Node, but the Node register response not broadcast
 	// to this Node, so we try to wait Controller's broadcast.
 	r := random.New()
+	timer := time.NewTicker(50 * time.Millisecond)
+	defer timer.Stop()
 	for i := 0; i < 60+r.Int(40); i++ {
 		nk = server.ctx.storage.GetNodeKey(guid)
 		if nk != nil {
 			return nk
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-server.context.Done():
+			return nil
+		case <-timer.C:
+		}
 	}
 	// If still doesn't exist, it means this Node register just now,
 	// so this Node can't receive the last broadcast.
@@ -734,7 +740,7 @@ func (server *server) getNodeKey(guid *guid.GUID) *nodeKey {
 		Time: now,
 	}
 	// <security> must don't handle error.
-	_ = server.ctx.sender.Send(messages.CMDBNodeQueryNodeKey, query)
+	_ = server.ctx.sender.Send(messages.CMDBQueryNodeKey, query)
 	// calculate network latency between Node and Controller.
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Node key to this Node.
@@ -743,7 +749,11 @@ func (server *server) getNodeKey(guid *guid.GUID) *nodeKey {
 		if nk != nil {
 			return nk
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-server.context.Done():
+			return nil
+		case <-timer.C:
+		}
 	}
 	return nil
 }
@@ -894,12 +904,18 @@ func (server *server) getBeaconKey(guid *guid.GUID) *beaconKey {
 	// in other Node, but the Beacon register response not broadcast
 	// to this Node, so we try to wait Controller's broadcast.
 	r := random.New()
+	timer := time.NewTicker(50 * time.Millisecond)
+	defer timer.Stop()
 	for i := 0; i < 60+r.Int(40); i++ {
 		bk = server.ctx.storage.GetBeaconKey(guid)
 		if bk != nil {
 			return bk
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-server.context.Done():
+			return nil
+		case <-timer.C:
+		}
 	}
 	// If still doesn't exist, it means this Node register just now,
 	// so this Node can't receive the last broadcast.
@@ -912,7 +928,7 @@ func (server *server) getBeaconKey(guid *guid.GUID) *beaconKey {
 		Time: now,
 	}
 	// <security> must don't handle error
-	_ = server.ctx.sender.Send(messages.CMDBNodeQueryBeaconKey, query)
+	_ = server.ctx.sender.Send(messages.CMDBQueryBeaconKey, query)
 	// calculate network latency between Node and Controller
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Beacon key to this Node
@@ -921,7 +937,11 @@ func (server *server) getBeaconKey(guid *guid.GUID) *beaconKey {
 		if bk != nil {
 			return bk
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-server.context.Done():
+			return nil
+		case <-timer.C:
+		}
 	}
 	return nil
 }
