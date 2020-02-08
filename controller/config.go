@@ -187,10 +187,11 @@ func (ctrl *CTRL) registerNode(
 		return nil, failed(err)
 	}
 	err = ctrl.database.InsertNode(&mNode{
-		GUID:        nrr.GUID[:],
-		PublicKey:   nrr.PublicKey,
-		SessionKey:  sessionKey,
-		IsBootstrap: bootstrap,
+		GUID:         nrr.GUID[:],
+		PublicKey:    nrr.PublicKey,
+		KexPublicKey: nrr.KexPublicKey,
+		SessionKey:   sessionKey,
+		IsBootstrap:  bootstrap,
 	})
 	if err != nil {
 		return nil, failed(err)
@@ -248,9 +249,10 @@ func (ctrl *CTRL) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 		return failed(err)
 	}
 	err = ctrl.database.InsertBeacon(&mBeacon{
-		GUID:       brr.GUID[:],
-		PublicKey:  brr.PublicKey,
-		SessionKey: sessionKey,
+		GUID:         brr.GUID[:],
+		PublicKey:    brr.PublicKey,
+		KexPublicKey: brr.KexPublicKey,
+		SessionKey:   sessionKey,
 	})
 	if err != nil {
 		return failed(err)

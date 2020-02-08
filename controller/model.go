@@ -90,13 +90,14 @@ type mListener struct {
 }
 
 type mNode struct {
-	ID          uint64     `gorm:"primary_key"`
-	GUID        []byte     `gorm:"type:binary(48);not null" sql:"index"`
-	PublicKey   []byte     `gorm:"type:binary(32);not null"`
-	SessionKey  []byte     `gorm:"type:binary(32);not null"`
-	IsBootstrap bool       `gorm:"not null"`
-	CreatedAt   time.Time  `gorm:"not null"`
-	DeletedAt   *time.Time `sql:"index"`
+	ID           uint64     `gorm:"primary_key"`
+	GUID         []byte     `gorm:"type:binary(48);not null" sql:"index"`
+	PublicKey    []byte     `gorm:"type:binary(32);not null"`
+	KexPublicKey []byte     `gorm:"type:binary(32);not null"`
+	SessionKey   []byte     `gorm:"type:binary(32);not null"`
+	IsBootstrap  bool       `gorm:"not null"`
+	CreatedAt    time.Time  `gorm:"not null"`
+	DeletedAt    *time.Time `sql:"index"`
 }
 
 type mNodeListener struct {
@@ -111,12 +112,13 @@ type mNodeListener struct {
 }
 
 type mBeacon struct {
-	ID         uint64     `gorm:"primary_key"`
-	GUID       []byte     `gorm:"type:binary(48);not null" sql:"index"`
-	PublicKey  []byte     `gorm:"type:binary(32);not null"`
-	SessionKey []byte     `gorm:"type:binary(32);not null"`
-	CreatedAt  time.Time  `gorm:"not null"`
-	DeletedAt  *time.Time `sql:"index"`
+	ID           uint64     `gorm:"primary_key"`
+	GUID         []byte     `gorm:"type:binary(48);not null" sql:"index"`
+	PublicKey    []byte     `gorm:"type:binary(32);not null"`
+	KexPublicKey []byte     `gorm:"type:binary(32);not null"`
+	SessionKey   []byte     `gorm:"type:binary(32);not null"`
+	CreatedAt    time.Time  `gorm:"not null"`
+	DeletedAt    *time.Time `sql:"index"`
 }
 
 type mBeaconListener struct {
