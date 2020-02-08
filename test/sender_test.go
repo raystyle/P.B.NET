@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
@@ -32,6 +31,7 @@ func TestAll(t *testing.T) {
 }
 
 func TestLoop(t *testing.T) {
+	logLevel = "warning"
 	// t.Skip("must run it manually")
 	for {
 		TestAll(t)
@@ -72,6 +72,7 @@ func TestAll_Parallel(t *testing.T) {
 }
 
 func TestLoop_Parallel(t *testing.T) {
+	logLevel = "warning"
 	// t.Skip("must run it manually")
 	for i := 0; i < 100; i++ {
 		TestAll_Parallel(t)
@@ -130,7 +131,6 @@ func TestCtrl_Broadcast_PassInitialNode(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		select {
 		case nrr := <-ctrl.Test.NodeRegisterRequest:
-			spew.Dump(nrr)
 			err = ctrl.AcceptRegisterNode(nrr, false)
 			require.NoError(t, err)
 		case <-time.After(3 * time.Second):
@@ -249,7 +249,6 @@ func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		spew.Dump(nrr)
 		err = ctrl.AcceptRegisterNode(nrr, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
@@ -358,7 +357,6 @@ func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		spew.Dump(brr)
 		err = ctrl.AcceptRegisterBeacon(brr)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
@@ -524,7 +522,6 @@ func TestNode_Send_PassInitialNode(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		spew.Dump(nrr)
 		err = ctrl.AcceptRegisterNode(nrr, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
@@ -634,7 +631,6 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		spew.Dump(brr)
 		err = ctrl.AcceptRegisterBeacon(brr)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
@@ -746,7 +742,6 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		spew.Dump(nrr)
 		err = ctrl.AcceptRegisterNode(nrr, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
@@ -790,7 +785,6 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		spew.Dump(brr)
 		err = ctrl.AcceptRegisterBeacon(brr)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
@@ -910,7 +904,6 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		spew.Dump(nrr)
 		err = ctrl.AcceptRegisterNode(nrr, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
@@ -953,7 +946,6 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		spew.Dump(brr)
 		err = ctrl.AcceptRegisterBeacon(brr)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):

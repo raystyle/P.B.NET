@@ -70,6 +70,9 @@ func TestMain(m *testing.M) {
 	}
 }
 
+// in some test, log level will be changed.
+var logLevel = "debug"
+
 func generateControllerConfig() *controller.Config {
 	cfg := controller.Config{}
 
@@ -85,7 +88,7 @@ func generateControllerConfig() *controller.Config {
 	cfg.Database.GORMDetailedLog = false
 	cfg.Database.LogWriter = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
 
-	cfg.Logger.Level = "debug"
+	cfg.Logger.Level = logLevel
 	cfg.Logger.File = "log/controller.log"
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
 
@@ -125,7 +128,7 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 
 	cfg.Test.SkipSynchronizeTime = true
 
-	cfg.Logger.Level = "debug"
+	cfg.Logger.Level = logLevel
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
 
 	cfg.Global.DNSCacheExpire = 10 * time.Second
@@ -173,7 +176,7 @@ func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
 
 	cfg.Test.SkipSynchronizeTime = true
 
-	cfg.Logger.Level = "debug"
+	cfg.Logger.Level = logLevel
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
 
 	cfg.Global.DNSCacheExpire = 10 * time.Second
