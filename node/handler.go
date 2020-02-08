@@ -94,12 +94,60 @@ func (h *handler) OnSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[:4])
 	send.Message = send.Message[4:]
 	switch msgType {
+	case messages.CMDAnswerNodeKey:
+		h.handleAnswerNodeKey(send)
+	case messages.CMDAnswerBeaconKey:
+		h.handleAnswerBeaconKey(send)
 	case messages.CMDTest:
 		h.handleSendTestMessage(send)
 	default:
 		const format = "controller send unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(send))
 	}
+}
+
+func (h *handler) handleAnswerNodeKey(send *protocol.Send) {
+	defer h.logPanic("handler.handleAnswerNodeKey")
+	ank := new(messages.AnswerNodeKey)
+	err := msgpack.Unmarshal(send.Message, ank)
+	if err != nil {
+		const log = "controller send invalid answer node key data"
+		h.logWithInfo(logger.Exploit, send, log)
+		return
+	}
+	err = ank.Validate()
+	if err != nil {
+		const log = "controller send invalid answer node key"
+		h.logWithInfo(logger.Exploit, ank, log)
+		return
+	}
+	h.ctx.storage.AddNodeKey(&ank.GUID, &nodeKey{
+		PublicKey:    ank.PublicKey,
+		KexPublicKey: ank.KexPublicKey,
+		ReplyTime:    ank.ReplyTime,
+	})
+}
+
+func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
+	defer h.logPanic("handler.handleAnswerBeaconKey")
+	abk := new(messages.AnswerBeaconKey)
+	err := msgpack.Unmarshal(send.Message, abk)
+	if err != nil {
+		const log = "controller send invalid answer beacon key data\nerror:"
+		h.logWithInfo(logger.Exploit, send, log, err)
+		return
+	}
+	err = abk.Validate()
+	if err != nil {
+		const log = "controller send invalid answer beacon key\nerror:"
+		h.logWithInfo(logger.Exploit, send, log, err)
+		return
+	}
+	h.ctx.storage.AddBeaconKey(&abk.GUID, &beaconKey{
+		PublicKey:    abk.PublicKey,
+		KexPublicKey: abk.KexPublicKey,
+		ReplyTime:    abk.ReplyTime,
+	})
 }
 
 func (h *handler) handleSendTestMessage(send *protocol.Send) {
@@ -143,8 +191,14 @@ func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
 	nrr := new(messages.NodeRegisterResponse)
 	err := msgpack.Unmarshal(broadcast.Message, nrr)
 	if err != nil {
-		const log = "controller broadcast invalid node register response"
-		h.logWithInfo(logger.Exploit, broadcast, log)
+		const log = "controller broadcast invalid node register response data\nerror:"
+		h.logWithInfo(logger.Exploit, broadcast, log, err)
+		return
+	}
+	err = nrr.Validate()
+	if err != nil {
+		const log = "controller broadcast invalid node register response\nerror:"
+		h.logWithInfo(logger.Exploit, nrr, log, err)
 		return
 	}
 	h.ctx.storage.AddNodeKey(&nrr.GUID, &nodeKey{
@@ -160,8 +214,14 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 	brr := new(messages.BeaconRegisterResponse)
 	err := msgpack.Unmarshal(broadcast.Message, brr)
 	if err != nil {
-		const log = "controller broadcast invalid beacon register response"
+		const log = "controller broadcast invalid beacon register response data"
 		h.logWithInfo(logger.Exploit, broadcast, log)
+		return
+	}
+	err = brr.Validate()
+	if err != nil {
+		const log = "controller broadcast invalid beacon register response"
+		h.logWithInfo(logger.Exploit, brr, log)
 		return
 	}
 	h.ctx.storage.AddBeaconKey(&brr.GUID, &beaconKey{
