@@ -17,10 +17,10 @@ const (
 
 // if current Node doesn't exists role key, it will query Controller.
 const (
-	CMDNodeQueryNodeKey uint32 = 0x10010000 + iota
-	CMDCtrlAnswerNodeKey
-	CMDNodeQueryBeaconKey
-	CMDCtrlAnswerBeaconKey
+	CMDQueryNodeKey uint32 = 0x10010000 + iota
+	CMDQueryBeaconKey
+	CMDAnswerNodeKey
+	CMDAnswerBeaconKey
 )
 
 // about modules
@@ -40,10 +40,10 @@ var (
 	CMDBBeaconRegisterRequest  = convert.Uint32ToBytes(CMDBeaconRegisterRequest)
 	CMDBBeaconRegisterResponse = convert.Uint32ToBytes(CMDBeaconRegisterResponse)
 
-	CMDBNodeQueryNodeKey    = convert.Uint32ToBytes(CMDNodeQueryNodeKey)
-	CMDBCtrlAnswerNodeKey   = convert.Uint32ToBytes(CMDCtrlAnswerNodeKey)
-	CMDBNodeQueryBeaconKey  = convert.Uint32ToBytes(CMDNodeQueryBeaconKey)
-	CMDBCtrlAnswerBeaconKey = convert.Uint32ToBytes(CMDCtrlAnswerBeaconKey)
+	CMDBQueryNodeKey    = convert.Uint32ToBytes(CMDQueryNodeKey)
+	CMDBQueryBeaconKey  = convert.Uint32ToBytes(CMDQueryBeaconKey)
+	CMDBAnswerNodeKey   = convert.Uint32ToBytes(CMDAnswerNodeKey)
+	CMDBAnswerBeaconKey = convert.Uint32ToBytes(CMDAnswerBeaconKey)
 
 	CMDBExecuteShellCode      = convert.Uint32ToBytes(CMDExecuteShellCode)
 	CMDBExecuteShellCodeError = convert.Uint32ToBytes(CMDExecuteShellCodeError)
