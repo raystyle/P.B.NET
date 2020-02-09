@@ -62,8 +62,7 @@ func (b *Broadcast) Unpack(data []byte) error {
 		case bmLen == mLen:
 			copy(b.Message, message)
 		case bmLen < mLen:
-			b.Message = b.Message[:0]
-			b.Message = append(b.Message, message...)
+			b.Message = append(b.Message[:0], message...)
 		}
 	} else {
 		b.Message = make([]byte, mLen)

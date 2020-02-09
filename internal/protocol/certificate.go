@@ -75,9 +75,9 @@ func (cert *Certificate) VerifySignatureWithNodeGUID(pub ed25519.PublicKey) bool
 	return ed25519.Verify(pub, msg, cert.Signatures[0])
 }
 
-// VerifySignatureWithCTRLGUID is used to verify node
+// VerifySignatureWithCtrlGUID is used to verify node
 // certificate signature with Controller GUID
-func (cert *Certificate) VerifySignatureWithCTRLGUID(pub ed25519.PublicKey) bool {
+func (cert *Certificate) VerifySignatureWithCtrlGUID(pub ed25519.PublicKey) bool {
 	msg := make([]byte, guid.Size+ed25519.PublicKeySize)
 	copy(msg, CtrlGUID[:])
 	copy(msg[guid.Size:], cert.PublicKey)
@@ -117,7 +117,7 @@ func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid *guid.GUID) (b
 		// verify certificate signature
 		var ok bool
 		if *CtrlGUID == *guid {
-			ok = cert.VerifySignatureWithCTRLGUID(pub)
+			ok = cert.VerifySignatureWithCtrlGUID(pub)
 		} else {
 			// verify Node GUID
 			if cert.GUID != *guid {

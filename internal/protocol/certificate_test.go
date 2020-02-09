@@ -74,7 +74,7 @@ func TestCertificate_VerifySignature(t *testing.T) {
 	})
 
 	t.Run("with controller guid", func(t *testing.T) {
-		require.True(t, recvCert.VerifySignatureWithCTRLGUID(privateKey.PublicKey()))
+		require.True(t, recvCert.VerifySignatureWithCtrlGUID(privateKey.PublicKey()))
 	})
 }
 
