@@ -109,6 +109,7 @@ func tempSetConfig(config *node.Config) {
 	config.Test.SkipSynchronizeTime = true
 
 	config.Logger.Level = "debug"
+	config.Logger.QueueSize = 512
 	config.Logger.Writer = os.Stdout
 
 	config.Global.DNSCacheExpire = 3 * time.Minute
@@ -139,7 +140,7 @@ func tempSetConfig(config *node.Config) {
 	config.Server.MaxConns = 10
 	config.Server.Timeout = 15 * time.Second
 
-	config.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
-	config.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
-	config.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
+	config.Ctrl.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
+	config.Ctrl.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
+	config.Ctrl.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 }
