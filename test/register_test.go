@@ -48,7 +48,7 @@ func TestNodeRegister(t *testing.T) {
 		err = ctrl.AcceptRegisterNode(nrr, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
-		t.Fatal("read CTRL.Test.NodeRegisterRequest timeout")
+		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
 	}
 
 	// wait common node

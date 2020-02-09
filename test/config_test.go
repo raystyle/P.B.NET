@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	ctrl     *controller.CTRL
+	ctrl     *controller.Ctrl
 	initOnce sync.Once
 )
 
@@ -86,11 +86,11 @@ func generateControllerConfig() *controller.Config {
 	cfg.Database.LogFile = "log/database.log"
 	cfg.Database.GORMLogFile = "log/gorm.log"
 	cfg.Database.GORMDetailedLog = false
-	cfg.Database.LogWriter = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
+	cfg.Database.LogWriter = logger.NewWriterWithPrefix(os.Stdout, "Ctrl")
 
 	cfg.Logger.Level = logLevel
 	cfg.Logger.File = "log/controller.log"
-	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Ctrl")
 
 	cfg.Global.DNSCacheExpire = 10 * time.Second
 	cfg.Global.TimeSyncSleepFixed = 15
@@ -129,6 +129,7 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg.Test.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = logLevel
+	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
 
 	cfg.Global.DNSCacheExpire = 10 * time.Second
@@ -165,9 +166,9 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg.Server.MaxConns = 16 * runtime.NumCPU()
 	cfg.Server.Timeout = 15 * time.Second
 
-	cfg.CTRL.KexPublicKey = ctrl.KeyExchangePublicKey()
-	cfg.CTRL.PublicKey = ctrl.PublicKey()
-	cfg.CTRL.BroadcastKey = ctrl.BroadcastKey()
+	cfg.Ctrl.KexPublicKey = ctrl.KeyExchangePublicKey()
+	cfg.Ctrl.PublicKey = ctrl.PublicKey()
+	cfg.Ctrl.BroadcastKey = ctrl.BroadcastKey()
 	return &cfg
 }
 
@@ -177,6 +178,7 @@ func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
 	cfg.Test.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = logLevel
+	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
 
 	cfg.Global.DNSCacheExpire = 10 * time.Second
@@ -206,9 +208,9 @@ func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
 	cfg.Worker.QueueSize = 1024
 	cfg.Worker.MaxBufferSize = 16 << 10
 
-	cfg.CTRL.KexPublicKey = ctrl.KeyExchangePublicKey()
-	cfg.CTRL.PublicKey = ctrl.PublicKey()
-	cfg.CTRL.BroadcastKey = ctrl.BroadcastKey()
+	cfg.Ctrl.KexPublicKey = ctrl.KeyExchangePublicKey()
+	cfg.Ctrl.PublicKey = ctrl.PublicKey()
+	cfg.Ctrl.BroadcastKey = ctrl.BroadcastKey()
 	return &cfg
 }
 

@@ -56,7 +56,7 @@ func TestNode_Client_Send(t *testing.T) {
 		err = ctrl.AcceptRegisterNode(nrr, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
-		t.Fatal("read CTRL.Test.NodeRegisterRequest timeout")
+		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
 	}
 
 	timer := time.AfterFunc(10*time.Second, func() {
@@ -65,7 +65,7 @@ func TestNode_Client_Send(t *testing.T) {
 	cNode.Wait()
 	timer.Stop()
 
-	// try to connect initial node and start synchronize
+	// try to connect initial node and start to synchronize
 	client, err := cNode.NewClient(context.Background(), bListener, iNodeGUID)
 	require.NoError(t, err)
 	err = client.Connect()
@@ -147,7 +147,7 @@ func TestBeacon_Client_Send(t *testing.T) {
 		err = ctrl.AcceptRegisterBeacon(brr)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
-		t.Fatal("read CTRL.Test.BeaconRegisterRequest timeout")
+		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
 	}
 
 	timer := time.AfterFunc(10*time.Second, func() {
@@ -156,7 +156,7 @@ func TestBeacon_Client_Send(t *testing.T) {
 	Beacon.Wait()
 	timer.Stop()
 
-	// try to connect initial node and start synchronize
+	// try to connect initial node and start to synchronize
 	client, err := Beacon.NewClient(context.Background(), bListener, iNodeGUID, nil)
 	require.NoError(t, err)
 	err = client.Connect()
