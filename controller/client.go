@@ -29,7 +29,7 @@ import (
 
 // Client is used to connect Node listener
 type Client struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	listener  *bootstrap.Listener
 	guid      *guid.GUID // Node GUID
@@ -53,7 +53,7 @@ type Client struct {
 // when GUID == nil      for trust node
 // when GUID != CtrlGUID for sender client
 // when GUID == CtrlGUID for discovery
-func (ctrl *CTRL) NewClient(
+func (ctrl *Ctrl) NewClient(
 	ctx context.Context,
 	bl *bootstrap.Listener,
 	guid *guid.GUID,
@@ -408,10 +408,10 @@ func (client *Client) Synchronize() error {
 		return errors.Wrap(err, "failed to receive synchronize response")
 	}
 	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
-		err = errors.Errorf("failed to start synchronize: %s", resp)
+		err = errors.Errorf("failed to start to synchronize: %s", resp)
 		return err // can't return directly
 	}
-	client.logf(logger.Info, "start synchronize\nlistener: %s", client.listener)
+	client.logf(logger.Info, "start to synchronize\nlistener: %s", client.listener)
 	return nil
 }
 
@@ -934,7 +934,7 @@ func (client *Client) Close() {
 // clientMgr contains all clients from NewClient() and client options from Config
 // it can generate client tag, you can manage all clients here
 type clientMgr struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	// options from Config
 	proxyTag string
@@ -948,7 +948,7 @@ type clientMgr struct {
 	clientsRWM sync.RWMutex
 }
 
-func newClientManager(ctx *CTRL, config *Config) (*clientMgr, error) {
+func newClientManager(ctx *Ctrl, config *Config) (*clientMgr, error) {
 	cfg := config.Client
 
 	if cfg.Timeout < 10*time.Second {

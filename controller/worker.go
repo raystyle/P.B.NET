@@ -35,7 +35,7 @@ type worker struct {
 	wg         sync.WaitGroup
 }
 
-func newWorker(ctx *CTRL, config *Config) (*worker, error) {
+func newWorker(ctx *Ctrl, config *Config) (*worker, error) {
 	cfg := config.Worker
 
 	if cfg.Number < 4 {
@@ -170,7 +170,7 @@ func (ws *worker) Close() {
 }
 
 type subWorker struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	maxBufferSize int
 

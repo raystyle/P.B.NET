@@ -38,7 +38,7 @@ type mCtrlLog struct {
 	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null" sql:"index"`
 	Source    string     `gorm:"size:32;not null" sql:"index"`
-	Log       string     `gorm:"size:16000;not null"`
+	Log       []byte     `gorm:"type:blob;not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
@@ -144,11 +144,11 @@ type mBeaconMessage struct {
 // beacon & node log
 type mRoleLog struct {
 	ID        uint64     `gorm:"primary_key"`
-	CreatedAt time.Time  `gorm:"not null"`
 	GUID      []byte     `gorm:"type:binary(48);not null" sql:"index"`
+	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null"`
 	Source    string     `gorm:"size:32;not null"`
-	Log       string     `gorm:"size:16000;not null"`
+	Log       []byte     `gorm:"type:blob;not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 

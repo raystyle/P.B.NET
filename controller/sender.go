@@ -64,7 +64,7 @@ type roleAckSlot struct {
 }
 
 type sender struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	maxConns atomic.Value
 
@@ -104,7 +104,7 @@ type sender struct {
 	wg         sync.WaitGroup
 }
 
-func newSender(ctx *CTRL, config *Config) (*sender, error) {
+func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 	cfg := config.Sender
 
 	// check config
@@ -223,7 +223,7 @@ func (sender *sender) checkNode(guid *guid.GUID) error {
 	return nil
 }
 
-// Synchronize is used to connect a node listener and start synchronize.
+// Synchronize is used to connect a node listener and start to synchronize.
 func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -261,7 +261,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		close(done)
 		wg.Wait()
 	}()
-	// connect and start synchronize
+	// connect and start to synchronize
 	var success bool
 	defer func() {
 		if !success {
@@ -270,7 +270,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	}()
 	err = client.Synchronize()
 	if err != nil {
-		const format = "failed to start synchronize\nlistener: %s\n%s\nerror"
+		const format = "failed to start to synchronize\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	// must check twice

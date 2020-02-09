@@ -37,7 +37,7 @@ type hR = http.Request
 type hP = httprouter.Params
 
 type web struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	handler  *webHandler
 	listener net.Listener
@@ -46,7 +46,7 @@ type web struct {
 	wg sync.WaitGroup
 }
 
-func newWeb(ctx *CTRL, config *Config) (*web, error) {
+func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	cfg := config.Web
 
 	// load CA certificate
@@ -177,7 +177,7 @@ func (web *web) Close() {
 }
 
 type webHandler struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	upgrader *websocket.Upgrader
 }

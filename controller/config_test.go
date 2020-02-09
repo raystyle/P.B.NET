@@ -33,11 +33,11 @@ func testGenerateConfig() *Config {
 	cfg.Database.LogFile = "log/database.log"
 	cfg.Database.GORMLogFile = "log/gorm.log"
 	cfg.Database.GORMDetailedLog = false
-	cfg.Database.LogWriter = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
+	cfg.Database.LogWriter = logger.NewWriterWithPrefix(os.Stdout, "Ctrl")
 
 	cfg.Logger.Level = "debug"
 	cfg.Logger.File = "log/controller.log"
-	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "CTRL")
+	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Ctrl")
 
 	cfg.Global.DNSCacheExpire = time.Minute
 	cfg.Global.TimeSyncSleepFixed = 15

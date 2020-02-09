@@ -88,7 +88,7 @@ type Config struct {
 // TrustNode is used to trust Node, receive system info for confirm it.
 // usually for the initial node or the test
 // TODO add log
-func (ctrl *CTRL) TrustNode(
+func (ctrl *Ctrl) TrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 ) (*messages.NodeRegisterRequest, error) {
@@ -134,7 +134,7 @@ func (ctrl *CTRL) TrustNode(
 
 // ConfirmTrustNode is used to confirm trust node, register node
 // TODO add log
-func (ctrl *CTRL) ConfirmTrustNode(
+func (ctrl *Ctrl) ConfirmTrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 	nrr *messages.NodeRegisterRequest,
@@ -160,7 +160,7 @@ func (ctrl *CTRL) ConfirmTrustNode(
 	return nil
 }
 
-func (ctrl *CTRL) registerNode(
+func (ctrl *Ctrl) registerNode(
 	nrr *messages.NodeRegisterRequest,
 	bootstrap bool,
 ) (*protocol.Certificate, error) {
@@ -201,7 +201,7 @@ func (ctrl *CTRL) registerNode(
 
 // AcceptRegisterNode is used to accept register Node
 // TODO add Log
-func (ctrl *CTRL) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstrap bool) error {
+func (ctrl *Ctrl) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstrap bool) error {
 	certificate, err := ctrl.registerNode(nrr, bootstrap)
 	if err != nil {
 		return err
@@ -222,7 +222,7 @@ func (ctrl *CTRL) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstra
 }
 
 // RefuseRegisterNode is used to refuse register Node, it will call firewall
-func (ctrl *CTRL) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
+func (ctrl *Ctrl) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
 	resp := messages.NodeRegisterResponse{
 		GUID:         nrr.GUID,
 		PublicKey:    nrr.PublicKey,
@@ -237,7 +237,7 @@ func (ctrl *CTRL) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
 	return errors.Wrap(err, "failed to refuse register node")
 }
 
-func (ctrl *CTRL) registerBeacon(brr *messages.BeaconRegisterRequest) error {
+func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 	failed := func(err error) error {
 		return errors.Wrap(err, "failed to register beacon")
 	}
@@ -262,7 +262,7 @@ func (ctrl *CTRL) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 
 // AcceptRegisterBeacon is used to accept register Beacon.
 // TODO add Log
-func (ctrl *CTRL) AcceptRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
+func (ctrl *Ctrl) AcceptRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
 	err := ctrl.registerBeacon(brr)
 	if err != nil {
 		return err
@@ -282,7 +282,7 @@ func (ctrl *CTRL) AcceptRegisterBeacon(brr *messages.BeaconRegisterRequest) erro
 }
 
 // RefuseRegisterBeacon is used to refuse register Beacon, it will call firewall.
-func (ctrl *CTRL) RefuseRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
+func (ctrl *Ctrl) RefuseRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
 	resp := messages.BeaconRegisterResponse{
 		GUID:         brr.GUID,
 		PublicKey:    brr.PublicKey,

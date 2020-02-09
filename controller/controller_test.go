@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	ctrl     *CTRL
+	ctrl     *Ctrl
 	initOnce sync.Once
 )
 

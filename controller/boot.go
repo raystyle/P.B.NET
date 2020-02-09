@@ -14,7 +14,7 @@ import (
 )
 
 type boot struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	// key = mBoot.Tag
 	clients    map[string]*bootClient
@@ -23,7 +23,7 @@ type boot struct {
 	closing int32
 }
 
-func newBoot(ctx *CTRL) *boot {
+func newBoot(ctx *Ctrl) *boot {
 	return &boot{
 		ctx:     ctx,
 		clients: make(map[string]*bootClient),

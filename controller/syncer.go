@@ -14,7 +14,7 @@ import (
 )
 
 type syncer struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	expireTime float64
 
@@ -37,7 +37,7 @@ type syncer struct {
 	wg         sync.WaitGroup
 }
 
-func newSyncer(ctx *CTRL, config *Config) (*syncer, error) {
+func newSyncer(ctx *Ctrl, config *Config) (*syncer, error) {
 	cfg := config.Syncer
 
 	if cfg.ExpireTime < 3*time.Second || cfg.ExpireTime > 30*time.Second {

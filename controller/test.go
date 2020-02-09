@@ -12,7 +12,7 @@ import (
 
 // Test contains all test data
 type Test struct {
-	// about CTRL.Main()
+	// about Ctrl.Main()
 	SkipTestClientDNS   bool
 	SkipSynchronizeTime bool
 

@@ -31,6 +31,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Test.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = "debug"
+	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
@@ -79,9 +80,9 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Server.MaxConns = 16 * runtime.NumCPU()
 	cfg.Server.Timeout = 15 * time.Second
 
-	cfg.CTRL.KexPublicKey = ctrl.global.KeyExchangePublicKey()
-	cfg.CTRL.PublicKey = ctrl.global.PublicKey()
-	cfg.CTRL.BroadcastKey = ctrl.global.BroadcastKey()
+	cfg.Ctrl.KexPublicKey = ctrl.global.KeyExchangePublicKey()
+	cfg.Ctrl.PublicKey = ctrl.global.PublicKey()
+	cfg.Ctrl.BroadcastKey = ctrl.global.BroadcastKey()
 	return &cfg
 }
 

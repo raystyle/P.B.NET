@@ -14,9 +14,9 @@ import (
 	"project/internal/protocol"
 )
 
-// CTRL is controller
-// broadcast messages to Nodes, send messages to Nodes or Beacons
-type CTRL struct {
+// Ctrl is controller
+// broadcast messages to Nodes, send messages to Nodes or Beacons.
+type Ctrl struct {
 	Test *Test
 
 	database  *database  // database
@@ -35,11 +35,11 @@ type CTRL struct {
 	exit chan error
 }
 
-// New is used to create controller from config
-func New(cfg *Config) (*CTRL, error) {
+// New is used to create controller from configuration.
+func New(cfg *Config) (*Ctrl, error) {
 	// copy test
 	test := cfg.Test
-	ctrl := &CTRL{Test: &test}
+	ctrl := &Ctrl{Test: &test}
 	// database
 	database, err := newDatabase(cfg)
 	if err != nil {
@@ -98,15 +98,15 @@ func New(cfg *Config) (*CTRL, error) {
 	return ctrl, nil
 }
 
-func (ctrl *CTRL) fatal(err error, msg string) error {
+func (ctrl *Ctrl) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
 	ctrl.logger.Println(logger.Fatal, "main", err)
 	ctrl.Exit(nil)
 	return err
 }
 
-// Main is used to tun Controller, it will block until exit or return error
-func (ctrl *CTRL) Main() error {
+// Main is used to run Controller, it will block until exit or return error.
+func (ctrl *Ctrl) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// test client DNS option
 	if !ctrl.Test.SkipTestClientDNS {
@@ -155,13 +155,13 @@ func (ctrl *CTRL) Main() error {
 	return <-ctrl.exit
 }
 
-// Wait is used to wait for Main()
-func (ctrl *CTRL) Wait() {
+// Wait is used to wait for Main().
+func (ctrl *Ctrl) Wait() {
 	<-ctrl.wait
 }
 
-// Exit is used to exit with a error
-func (ctrl *CTRL) Exit(err error) {
+// Exit is used to exit with a error.
+func (ctrl *Ctrl) Exit(err error) {
 	ctrl.once.Do(func() {
 		ctrl.web.Close()
 		ctrl.logger.Print(logger.Info, "exit", "web server is stopped")
@@ -188,64 +188,59 @@ func (ctrl *CTRL) Exit(err error) {
 	})
 }
 
-// LoadSessionKey is used to load session key
-func (ctrl *CTRL) LoadSessionKey(data, password []byte) error {
+// LoadSessionKey is used to load session key.
+func (ctrl *Ctrl) LoadSessionKey(data, password []byte) error {
 	return ctrl.global.LoadSessionKey(data, password)
 }
 
-// Synchronize is used to connect a node and start synchronize
-func (ctrl *CTRL) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
+// Synchronize is used to connect a node and start to synchronize.
+func (ctrl *Ctrl) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	return ctrl.sender.Synchronize(ctx, guid, bl)
 }
 
-// Disconnect is used to disconnect node, guid is hex, upper
-func (ctrl *CTRL) Disconnect(guid *guid.GUID) error {
+// Disconnect is used to disconnect Node.
+func (ctrl *Ctrl) Disconnect(guid *guid.GUID) error {
 	return ctrl.sender.Disconnect(guid)
 }
 
-// Send is used to send messages to Node or Beacon
-func (ctrl *CTRL) Send(role protocol.Role, guid *guid.GUID, cmd []byte, msg interface{}) error {
+// Send is used to send messages to Node or Beacon.
+func (ctrl *Ctrl) Send(role protocol.Role, guid *guid.GUID, cmd []byte, msg interface{}) error {
 	return ctrl.sender.Send(role, guid, cmd, msg)
 }
 
-// EnableInteractiveMode is used to enable Beacon interactive mode.
-func (ctrl *CTRL) EnableInteractiveMode(guid *guid.GUID) {
-	ctrl.sender.EnableInteractiveMode(guid)
-}
-
-// Broadcast is used to broadcast messages to all Nodes
-func (ctrl *CTRL) Broadcast(cmd []byte, msg interface{}) error {
+// Broadcast is used to broadcast messages to all Nodes.
+func (ctrl *Ctrl) Broadcast(cmd []byte, msg interface{}) error {
 	return ctrl.sender.Broadcast(cmd, msg)
 }
 
-// DeleteNode is used to delete node
-func (ctrl *CTRL) DeleteNode(guid *guid.GUID) error {
+// DeleteNode is used to delete Node.
+func (ctrl *Ctrl) DeleteNode(guid *guid.GUID) error {
 	err := ctrl.database.DeleteNode(guid)
 	return errors.Wrapf(err, "failed to delete node %X", guid)
 }
 
-// DeleteNodeUnscoped is used to unscoped delete node
-func (ctrl *CTRL) DeleteNodeUnscoped(guid *guid.GUID) error {
+// DeleteNodeUnscoped is used to unscoped delete Node.
+func (ctrl *Ctrl) DeleteNodeUnscoped(guid *guid.GUID) error {
 	err := ctrl.database.DeleteNodeUnscoped(guid)
 	return errors.Wrapf(err, "failed to unscoped delete node %X", guid)
 }
 
-// DeleteBeacon is used to delete beacon
-func (ctrl *CTRL) DeleteBeacon(guid *guid.GUID) error {
+// DeleteBeacon is used to delete Beacon.
+func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
 	err := ctrl.database.DeleteBeacon(guid)
 	return errors.Wrapf(err, "failed to delete beacon %X", guid)
 }
 
-// DeleteBeaconUnscoped is used to unscoped delete beacon
-func (ctrl *CTRL) DeleteBeaconUnscoped(guid *guid.GUID) error {
+// DeleteBeaconUnscoped is used to unscoped delete Beacon.
+func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	err := ctrl.database.DeleteBeaconUnscoped(guid)
 	return errors.Wrapf(err, "failed to unscoped delete beacon %X", guid)
 }
 
 // ------------------------------------test-------------------------------------
 
-// LoadSessionKeyFromFile is used to load session key from file
-func (ctrl *CTRL) LoadSessionKeyFromFile(filename string, password []byte) error {
+// LoadSessionKeyFromFile is used to load session key from file.
+func (ctrl *Ctrl) LoadSessionKeyFromFile(filename string, password []byte) error {
 	data, err := ioutil.ReadFile(filename) // #nosec
 	if err != nil {
 		return err
@@ -253,27 +248,32 @@ func (ctrl *CTRL) LoadSessionKeyFromFile(filename string, password []byte) error
 	return ctrl.global.LoadSessionKey(data, password)
 }
 
-// KeyExchangePublicKey is used to get key exchange public key
-func (ctrl *CTRL) KeyExchangePublicKey() []byte {
+// KeyExchangePublicKey is used to get key exchange public key.
+func (ctrl *Ctrl) KeyExchangePublicKey() []byte {
 	return ctrl.global.KeyExchangePublicKey()
 }
 
-// PublicKey is used to get public key
-func (ctrl *CTRL) PublicKey() []byte {
+// PublicKey is used to get public key.
+func (ctrl *Ctrl) PublicKey() []byte {
 	return ctrl.global.PublicKey()
 }
 
-// BroadcastKey is used to get broadcast key
-func (ctrl *CTRL) BroadcastKey() []byte {
+// BroadcastKey is used to get broadcast key.
+func (ctrl *Ctrl) BroadcastKey() []byte {
 	return ctrl.global.BroadcastKey()
 }
 
-// GetSelfCerts is used to get self certificates to generate CA-sign certificate
-func (ctrl *CTRL) GetSelfCerts() []*cert.Pair {
+// GetSelfCerts is used to get self certificates to generate CA-sign certificate.
+func (ctrl *Ctrl) GetSelfCerts() []*cert.Pair {
 	return ctrl.global.GetSelfCerts()
 }
 
-// GetSystemCerts is used to get system certificates
-func (ctrl *CTRL) GetSystemCerts() []*cert.Pair {
+// GetSystemCerts is used to get system certificates.
+func (ctrl *Ctrl) GetSystemCerts() []*cert.Pair {
 	return ctrl.global.GetSystemCerts()
+}
+
+// EnableInteractiveMode is used to enable Beacon interactive mode.
+func (ctrl *Ctrl) EnableInteractiveMode(guid *guid.GUID) {
+	ctrl.sender.EnableInteractiveMode(guid)
 }
