@@ -28,138 +28,47 @@ const (
 // TimeLayout is used to provide a parameter to time.Time.Format()
 const TimeLayout = "2006-01-02 15:04:05"
 
-// Logger is a common logger
+// Logger is a common logger.
 type Logger interface {
-	Printf(l Level, src, format string, log ...interface{})
-	Print(l Level, src string, log ...interface{})
-	Println(l Level, src string, log ...interface{})
+	Printf(lv Level, src, format string, log ...interface{})
+	Print(lv Level, src string, log ...interface{})
+	Println(lv Level, src string, log ...interface{})
 }
 
-var (
-	// Common is a common logger, some tools need it
-	Common = new(common)
-
-	// Test is used to go test
-	Test = new(test)
-
-	// Discard is used to discard log in object test
-	Discard = new(discard)
-)
-
-// [2020-01-21 12:36:41] [debug] <test src> test-format test log
-
-type common struct{}
-
-func (common) Printf(l Level, src, format string, log ...interface{}) {
-	output := Prefix(l, src)
-	_, _ = fmt.Fprintf(output, format, log...)
-	fmt.Println(output)
-}
-
-func (common) Print(l Level, src string, log ...interface{}) {
-	output := Prefix(l, src)
-	_, _ = fmt.Fprint(output, log...)
-	fmt.Println(output)
-}
-
-func (common) Println(l Level, src string, log ...interface{}) {
-	output := Prefix(l, src)
-	_, _ = fmt.Fprintln(output, log...)
-	fmt.Print(output)
-}
-
-// [Test] [2020-01-21 12:36:41] [debug] <test src> test-format test log
-
-type test struct{}
-
-var testPrefix = []byte("[Test] ")
-
-func writePrefix(l Level, src string) *bytes.Buffer {
-	output := new(bytes.Buffer)
-	output.Write(testPrefix)
-	_, _ = io.Copy(output, Prefix(l, src))
-	return output
-}
-
-func (test) Printf(l Level, src, format string, log ...interface{}) {
-	output := writePrefix(l, src)
-	_, _ = fmt.Fprintf(output, format, log...)
-	fmt.Println(output)
-}
-
-func (test) Print(l Level, src string, log ...interface{}) {
-	output := writePrefix(l, src)
-	_, _ = fmt.Fprint(output, log...)
-	fmt.Println(output)
-}
-
-func (test) Println(l Level, src string, log ...interface{}) {
-	output := writePrefix(l, src)
-	_, _ = fmt.Fprintln(output, log...)
-	fmt.Print(output)
-}
-
-type discard struct{}
-
-func (discard) Printf(_ Level, _, _ string, _ ...interface{}) {}
-
-func (discard) Print(_ Level, _ string, _ ...interface{}) {}
-
-func (discard) Println(_ Level, _ string, _ ...interface{}) {}
-
-type pWriter struct {
-	w      io.Writer
-	prefix []byte
-}
-
-func (p pWriter) Write(b []byte) (n int, err error) {
-	n = len(b)
-	_, err = p.w.Write(append(p.prefix, b...))
-	return
-}
-
-// NewWriterWithPrefix is used to print prefix before each log
-// it used for role test
-func NewWriterWithPrefix(w io.Writer, prefix string) io.Writer {
-	return pWriter{
-		w:      w,
-		prefix: []byte(fmt.Sprintf("[%s] ", prefix)),
-	}
-}
-
-// Parse is used to parse logger level from string
+// Parse is used to parse logger level from string.
 func Parse(level string) (Level, error) {
-	l := Level(0)
+	lv := Level(0)
 	switch level {
 	case "debug":
-		l = Debug
+		lv = Debug
 	case "info":
-		l = Info
+		lv = Info
 	case "warning":
-		l = Warning
+		lv = Warning
 	case "error":
-		l = Error
+		lv = Error
 	case "exploit":
-		l = Exploit
+		lv = Exploit
 	case "fatal":
-		l = Fatal
+		lv = Fatal
 	case "off":
-		l = Off
+		lv = Off
 	default:
-		return l, fmt.Errorf("unknown logger level: %s", level)
+		return lv, fmt.Errorf("unknown logger level: %s", level)
 	}
-	return l, nil
+	return lv, nil
 }
 
-// Prefix is used to print logger level and source
+// Prefix is used to print time, level and source to a buffer.
 //
 // time + level + source + log
-// source usually like class name + "-" + instance tag
+// source usually like: class name + "-" + instance tag
 //
 // [2018-11-27 00:00:00] [info] <main> controller is running
-func Prefix(l Level, src string) *bytes.Buffer {
-	lv := ""
-	switch l {
+// [2018-11-27 00:00:00] [info] <socks5-test> start listener
+func Prefix(time time.Time, level Level, src string) *bytes.Buffer {
+	var lv string
+	switch level {
 	case Debug:
 		lv = "debug"
 	case Info:
@@ -175,15 +84,106 @@ func Prefix(l Level, src string) *bytes.Buffer {
 	default:
 		lv = "unknown"
 	}
-	buffer := bytes.Buffer{}
-	buffer.WriteString("[")
-	buffer.WriteString(time.Now().Local().Format(TimeLayout))
-	buffer.WriteString("] [")
-	buffer.WriteString(lv)
-	buffer.WriteString("] <")
-	buffer.WriteString(src)
-	buffer.WriteString("> ")
-	return &buffer
+	buf := bytes.Buffer{}
+	buf.WriteString("[")
+	buf.WriteString(time.Local().Format(TimeLayout))
+	buf.WriteString("] [")
+	buf.WriteString(lv)
+	buf.WriteString("] <")
+	buf.WriteString(src)
+	buf.WriteString("> ")
+	return &buf
+}
+
+var (
+	// Common is a common logger, some tools need it
+	Common = new(common)
+
+	// Test is used to go test
+	Test = new(test)
+
+	// Discard is used to discard log in object test
+	Discard = new(discard)
+)
+
+// [2020-01-21 12:36:41] [debug] <test src> test-format test log
+type common struct{}
+
+func (common) Printf(lv Level, src, format string, log ...interface{}) {
+	output := Prefix(time.Now(), lv, src)
+	_, _ = fmt.Fprintf(output, format, log...)
+	fmt.Println(output)
+}
+
+func (common) Print(lv Level, src string, log ...interface{}) {
+	output := Prefix(time.Now(), lv, src)
+	_, _ = fmt.Fprint(output, log...)
+	fmt.Println(output)
+}
+
+func (common) Println(lv Level, src string, log ...interface{}) {
+	output := Prefix(time.Now(), lv, src)
+	_, _ = fmt.Fprintln(output, log...)
+	fmt.Print(output)
+}
+
+// [Test] [2020-01-21 12:36:41] [debug] <test src> test-format test log
+type test struct{}
+
+var testPrefix = []byte("[Test] ")
+
+func writePrefix(lv Level, src string) *bytes.Buffer {
+	output := new(bytes.Buffer)
+	output.Write(testPrefix)
+	_, _ = io.Copy(output, Prefix(time.Now(), lv, src))
+	return output
+}
+
+func (test) Printf(lv Level, src, format string, log ...interface{}) {
+	output := writePrefix(lv, src)
+	_, _ = fmt.Fprintf(output, format, log...)
+	fmt.Println(output)
+}
+
+func (test) Print(lv Level, src string, log ...interface{}) {
+	output := writePrefix(lv, src)
+	_, _ = fmt.Fprint(output, log...)
+	fmt.Println(output)
+}
+
+func (test) Println(lv Level, src string, log ...interface{}) {
+	output := writePrefix(lv, src)
+	_, _ = fmt.Fprintln(output, log...)
+	fmt.Print(output)
+}
+
+type discard struct{}
+
+func (discard) Printf(_ Level, _, _ string, _ ...interface{}) {}
+
+func (discard) Print(_ Level, _ string, _ ...interface{}) {}
+
+func (discard) Println(_ Level, _ string, _ ...interface{}) {}
+
+// pWriter is used to print with a prefix
+type pWriter struct {
+	w      io.Writer
+	prefix []byte
+}
+
+func (p pWriter) Write(b []byte) (n int, err error) {
+	n = len(b)
+	_, err = p.w.Write(append(p.prefix, b...))
+	return
+}
+
+// NewWriterWithPrefix is used to print prefix before each log.
+// it used for role test
+func NewWriterWithPrefix(w io.Writer, prefix string) io.Writer {
+	return pWriter{
+		w:      w,
+		prefix: []byte(fmt.Sprintf("[%s] ", prefix)),
+	}
 }
 
 type writer struct {
@@ -197,17 +197,17 @@ func (w *writer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// Wrap is for go internal logger like http.Server.ErrorLog
-func Wrap(l Level, src string, logger Logger) *log.Logger {
+// Wrap is for go internal logger like http.Server.ErrorLog.
+func Wrap(lv Level, src string, logger Logger) *log.Logger {
 	w := &writer{
-		level:  l,
+		level:  lv,
 		src:    src,
 		logger: logger,
 	}
 	return log.New(w, "", 0)
 }
 
-// Conn is used to print connection info
+// Conn is used to print connection info.
 // local:  tcp 127.0.0.1:123
 // remote: tcp 127.0.0.1:124
 func Conn(conn net.Conn) *bytes.Buffer {
@@ -226,7 +226,7 @@ const (
 	maxBodyLength = 1024
 )
 
-// HTTPRequest is used to print http.Request
+// HTTPRequest is used to print http.Request.
 //
 // client: 127.0.0.1:1234
 // POST /index HTTP/1.1

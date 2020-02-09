@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -68,11 +69,11 @@ func TestParse(t *testing.T) {
 }
 
 func TestPrefix(t *testing.T) {
-	for l := Level(0); l < Off; l++ {
-		fmt.Println(Prefix(l, testSrc).String())
+	for lv := Level(0); lv < Off; lv++ {
+		fmt.Println(Prefix(time.Now(), lv, testSrc).String())
 	}
 	// unknown level
-	fmt.Println(Prefix(Level(153), testSrc).String())
+	fmt.Println(Prefix(time.Now(), Level(153), testSrc).String())
 }
 
 func TestWrap(t *testing.T) {
