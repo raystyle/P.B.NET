@@ -2,6 +2,7 @@ package beacon
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"io/ioutil"
 	"os"
@@ -52,9 +53,9 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Worker.QueueSize = 1024
 	cfg.Worker.MaxBufferSize = 16384
 
-	cfg.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
-	cfg.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
-	cfg.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
+	cfg.Ctrl.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
+	cfg.Ctrl.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
+	cfg.Ctrl.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 	return &cfg
 }
 
@@ -102,4 +103,39 @@ func TestConfig(t *testing.T) {
 	for _, td := range tds {
 		require.Equal(t, td.expected, td.actual)
 	}
+}
+
+func TestConfig_Run(t *testing.T) {
+	config := testGenerateConfig(t)
+	err := config.Run(
+		context.Background(),
+		os.Stdout,
+		&TestOptions{
+			Domain: "cloudflare.com",
+		})
+	require.NoError(t, err)
+}
+
+func TestConfig_Build_Load(t *testing.T) {
+	// compare configuration
+	config := testGenerateConfig(t)
+	config.Test.SkipSynchronizeTime = false
+	config.Logger.Writer = nil
+
+	cfg := testGenerateConfig(t)
+	cfg.Test.SkipSynchronizeTime = false
+	cfg.Logger.Writer = nil
+
+	require.Equal(t, config, cfg)
+
+	cfg.Logger.Level = "info"
+	require.NotEqual(t, config, cfg)
+
+	// build and load configuration
+	built, err := config.Build()
+	require.NoError(t, err)
+	newConfig := new(Config)
+	err = newConfig.Load(built)
+	require.NoError(t, err)
+	require.Equal(t, config, newConfig)
 }
