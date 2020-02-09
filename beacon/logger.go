@@ -41,6 +41,7 @@ type gLogger struct {
 	writer io.Writer
 	queue  chan *encLog
 	rand   *random.Rand
+	timer  *time.Timer
 
 	// about encrypt log
 	cbc *aes.CBC
@@ -76,6 +77,7 @@ func newLogger(ctx *Beacon, config *Config) (*gLogger, error) {
 		writer: cfg.Writer,
 		queue:  make(chan *encLog, cfg.QueueSize),
 		rand:   random.New(),
+		timer:  time.NewTimer(time.Second),
 		cbc:    cbc,
 	}
 	lg.context, lg.cancel = context.WithCancel(context.Background())
@@ -145,6 +147,7 @@ func (lg *gLogger) StartSender() {
 func (lg *gLogger) Close() {
 	lg.cancel()
 	lg.wg.Wait()
+	lg.timer.Stop()
 	lg.m.Lock()
 	defer lg.m.Unlock()
 	lg.ctx = nil
@@ -193,43 +196,44 @@ func (lg *gLogger) sender() {
 	for {
 		select {
 		case encLog = <-lg.queue:
-			lg.sendLog(encLog)
+			lg.send(encLog)
 		case <-lg.context.Done():
 			return
 		}
 	}
 }
 
-// sendLog will try to send log until Beacon is exit.
-func (lg *gLogger) sendLog(encLog *encLog) {
+// send will try to send log until Beacon is exit.
+func (lg *gLogger) send(log *encLog) {
 	for {
-		plainData, err := lg.cbc.Decrypt(encLog.log)
+		plainData, err := lg.cbc.Decrypt(log.log)
 		if err != nil {
 			panic("logger internal error: " + err.Error())
 		}
 		// decrypt encrypted log
-		log := messages.Log{
-			Time:   encLog.time,
-			Level:  encLog.level,
-			Source: encLog.source,
+		m := messages.Log{
+			Time:   log.time,
+			Level:  log.level,
+			Source: log.source,
 			Log:    plainData,
 		}
-		err = lg.ctx.sender.Send(messages.CMDBBeaconLog, log)
+		err = lg.ctx.sender.Send(messages.CMDBBeaconLog, m)
 		if err == nil {
 			security.CoverBytes(plainData)
 			break
 		}
 		// encrypt log again
-		encLog.log, err = lg.cbc.Encrypt(plainData)
+		log.log, err = lg.cbc.Encrypt(plainData)
 		if err != nil {
 			panic("logger internal error: " + err.Error())
 		}
 		security.CoverBytes(plainData)
+		// wait some time and retry
+		lg.timer.Reset(time.Duration(1+lg.rand.Int(3)) * time.Second)
 		select {
 		case <-lg.context.Done():
 			return
-		default:
+		case <-lg.timer.C:
 		}
-		time.Sleep(time.Duration(3+lg.rand.Int(7)) * time.Second)
 	}
 }

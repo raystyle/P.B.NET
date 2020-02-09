@@ -95,6 +95,8 @@ func (beacon *Beacon) fatal(err error, msg string) error {
 
 // Main is used to run Beacon, it will block until exit or return error.
 func (beacon *Beacon) Main() error {
+	// start log sender
+	beacon.logger.StartSender()
 	// synchronize time
 	if beacon.Test.SkipSynchronizeTime {
 		beacon.global.StartTimeSyncerWalker()
