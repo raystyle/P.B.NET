@@ -119,7 +119,7 @@ func createService() service.Service {
 }
 
 type program struct {
-	ctrl *controller.CTRL
+	ctrl *controller.Ctrl
 	wg   sync.WaitGroup
 }
 
