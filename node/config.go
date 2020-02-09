@@ -24,9 +24,13 @@ type Config struct {
 	Test Test `toml:"-" msgpack:"-"`
 
 	Logger struct {
-		Level     string    `toml:"level"      msgpack:"a"`
-		QueueSize int       `toml:"queue_size" msgpack:"b"`
-		Writer    io.Writer `toml:"-"          msgpack:"-"`
+		Level     string `toml:"level"      msgpack:"a"`
+		QueueSize int    `toml:"queue_size" msgpack:"b"`
+
+		// if false, use ioutil.Discard, if true, use os.Stdout,
+		// usually enable it for debug.
+		Stdout bool      `toml:"stdout"     msgpack:"c"`
+		Writer io.Writer `toml:"-"          msgpack:"-"`
 	} `toml:"logger" msgpack:"aa"`
 
 	Global struct {
@@ -94,7 +98,7 @@ type Config struct {
 	} `toml:"server" msgpack:"ii"`
 
 	// generate from controller
-	CTRL struct {
+	Ctrl struct {
 		KexPublicKey []byte `msgpack:"x"` // key exchange curve25519
 		PublicKey    []byte `msgpack:"y"` // verify message ed25519
 		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
@@ -108,14 +112,14 @@ type Config struct {
 	} `toml:"service" msgpack:"kk"`
 }
 
-// TestOptions include options about test
+// TestOptions include test options
 type TestOptions struct {
-	Domain     string        `toml:"domain"` // about node.global.DNSClient.TestServers()
+	Domain     string        `toml:"domain"` // about Node.global.DNSClient.TestServers()
 	DNSOptions dns.Options   `toml:"dns"`
-	Timeout    time.Duration `toml:"timeout"` // node run timeout
+	Timeout    time.Duration `toml:"timeout"` // Node running timeout
 }
 
-// Run is used to create a node with current configuration and run it to check error
+// Run is used to create a Node with current configuration and run it to check error
 func (cfg *Config) Run(ctx context.Context, output io.Writer, opts *TestOptions) (err error) {
 	defer func() {
 		if err != nil {

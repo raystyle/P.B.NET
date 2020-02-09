@@ -627,7 +627,6 @@ func (server *server) handshakeWithNode(tag *guid.GUID, conn *xnet.Conn) {
 	}
 }
 
-// TODO <firewall> rate limit
 func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	// send external address
 	err := conn.Send(xnetutil.EncodeExternalAddress(conn.RemoteAddr().String()))
@@ -696,6 +695,7 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
+		// and <firewall> rate limit
 		// _, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	case messages.RegisterResultTimeout:
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
@@ -884,6 +884,8 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
+		// and <firewall> rate limit
+
 		// _, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	case messages.RegisterResultTimeout:
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
@@ -903,10 +905,10 @@ func (server *server) getBeaconKey(guid *guid.GUID) *beaconKey {
 	// to wait Controller broadcast, maybe this Beacon has register
 	// in other Node, but the Beacon register response not broadcast
 	// to this Node, so we try to wait Controller's broadcast.
-	r := random.New()
 	timer := time.NewTicker(50 * time.Millisecond)
 	defer timer.Stop()
-	for i := 0; i < 60+r.Int(40); i++ {
+	count := 60 + server.rand.Int(40)
+	for i := 0; i < count; i++ {
 		bk = server.ctx.storage.GetBeaconKey(guid)
 		if bk != nil {
 			return bk
@@ -932,7 +934,8 @@ func (server *server) getBeaconKey(guid *guid.GUID) *beaconKey {
 	// calculate network latency between Node and Controller
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Beacon key to this Node
-	for i := 0; i < int(latency/(50*time.Millisecond))+r.Int(40); i++ {
+	count = int(latency/(50*time.Millisecond)) + 60 + server.rand.Int(40)
+	for i := 0; i < count; i++ {
 		bk = server.ctx.storage.GetBeaconKey(guid)
 		if bk != nil {
 			return bk
@@ -1084,7 +1087,7 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 		return
 	}
 	ctrl.Conn.Reply(id, []byte{protocol.NodeSync})
-	ctrl.Conn.Log(logger.Debug, "synchronizing")
+	ctrl.Conn.Log(logger.Debug, "start to synchronize")
 }
 
 func (ctrl *ctrlConn) onFrameAfterSync(frame []byte) bool {
@@ -1243,13 +1246,13 @@ func (node *nodeConn) handleSyncStart(id []byte) {
 		return
 	}
 	node.Conn.Reply(id, []byte{protocol.NodeSync})
-	node.Conn.Log(logger.Debug, "synchronizing")
+	node.Conn.Log(logger.Info, "start to synchronize")
 }
 
 func (node *nodeConn) onFrameAfterSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
-	if node.onFrameAfterSyncAboutCTRL(frame[0], id, data) {
+	if node.onFrameAfterSyncAboutCtrl(frame[0], id, data) {
 		return true
 	}
 	if node.onFrameAfterSyncAboutNode(frame[0], id, data) {
@@ -1261,7 +1264,7 @@ func (node *nodeConn) onFrameAfterSync(frame []byte) bool {
 	return false
 }
 
-func (node *nodeConn) onFrameAfterSyncAboutCTRL(cmd byte, id, data []byte) bool {
+func (node *nodeConn) onFrameAfterSyncAboutCtrl(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.CtrlSendToNodeGUID:
 		node.Conn.HandleSendToNodeGUID(id, data)
@@ -1434,7 +1437,7 @@ func (beacon *beaconConn) handleSyncStart(id []byte) {
 		return
 	}
 	beacon.Conn.Reply(id, []byte{protocol.NodeSync})
-	beacon.Conn.Log(logger.Debug, "synchronizing")
+	beacon.Conn.Log(logger.Info, "start to synchronize")
 }
 
 func (beacon *beaconConn) onFrameAfterSync(frame []byte) bool {

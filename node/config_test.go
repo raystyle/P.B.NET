@@ -61,43 +61,10 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Server.MaxConns = 10
 	cfg.Server.Timeout = 15 * time.Second
 
-	cfg.CTRL.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
-	cfg.CTRL.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
-	cfg.CTRL.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
+	cfg.Ctrl.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
+	cfg.Ctrl.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
+	cfg.Ctrl.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 	return &cfg
-}
-
-func TestConfig_Run(t *testing.T) {
-	config := testGenerateConfig(t)
-	err := config.Run(
-		context.Background(),
-		os.Stdout,
-		&TestOptions{
-			Domain: "cloudflare.com",
-		})
-	require.NoError(t, err)
-}
-
-func TestConfig_Build_Load(t *testing.T) {
-	config := testGenerateConfig(t)
-	config.Test.SkipSynchronizeTime = false
-	config.Logger.Writer = nil
-
-	cfg := testGenerateConfig(t)
-	cfg.Test.SkipSynchronizeTime = false
-	cfg.Logger.Writer = nil
-
-	require.Equal(t, config, cfg)
-
-	cfg.Logger.Level = "info"
-	require.NotEqual(t, config, cfg)
-
-	built, err := config.Build()
-	require.NoError(t, err)
-	newConfig := new(Config)
-	err = newConfig.Load(built)
-	require.NoError(t, err)
-	require.Equal(t, config, newConfig)
 }
 
 func TestConfig(t *testing.T) {
@@ -112,6 +79,7 @@ func TestConfig(t *testing.T) {
 	}{
 		{expected: "debug", actual: cfg.Logger.Level},
 		{expected: 512, actual: cfg.Logger.QueueSize},
+		{expected: true, actual: cfg.Logger.Stdout},
 
 		{expected: 2 * time.Minute, actual: cfg.Global.DNSCacheExpire},
 		{expected: uint(15), actual: cfg.Global.TimeSyncSleepFixed},
@@ -152,4 +120,39 @@ func TestConfig(t *testing.T) {
 	for _, td := range tds {
 		require.Equal(t, td.expected, td.actual)
 	}
+}
+
+func TestConfig_Run(t *testing.T) {
+	config := testGenerateConfig(t)
+	err := config.Run(
+		context.Background(),
+		os.Stdout,
+		&TestOptions{
+			Domain: "cloudflare.com",
+		})
+	require.NoError(t, err)
+}
+
+func TestConfig_Build_Load(t *testing.T) {
+	// compare configuration
+	config := testGenerateConfig(t)
+	config.Test.SkipSynchronizeTime = false
+	config.Logger.Writer = nil
+
+	cfg := testGenerateConfig(t)
+	cfg.Test.SkipSynchronizeTime = false
+	cfg.Logger.Writer = nil
+
+	require.Equal(t, config, cfg)
+
+	cfg.Logger.Level = "info"
+	require.NotEqual(t, config, cfg)
+
+	// build and load configuration
+	built, err := config.Build()
+	require.NoError(t, err)
+	newConfig := new(Config)
+	err = newConfig.Load(built)
+	require.NoError(t, err)
+	require.Equal(t, config, newConfig)
 }

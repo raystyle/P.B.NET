@@ -220,18 +220,18 @@ func (global *global) configure(cfg *Config) error {
 	// -----------------load controller configs-----------------
 	// controller public key
 	global.paddingMemory()
-	publicKey, err := ed25519.ImportPublicKey(cfg.CTRL.PublicKey)
+	publicKey, err := ed25519.ImportPublicKey(cfg.Ctrl.PublicKey)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	global.objects[objCtrlPublicKey] = publicKey
 	// controller broadcast key
 	global.paddingMemory()
-	if len(cfg.CTRL.BroadcastKey) != aes.Key256Bit+aes.IVSize {
+	if len(cfg.Ctrl.BroadcastKey) != aes.Key256Bit+aes.IVSize {
 		return errors.New("invalid controller aes key size")
 	}
-	aesKey := cfg.CTRL.BroadcastKey[:aes.Key256Bit]
-	aesIV := cfg.CTRL.BroadcastKey[aes.Key256Bit:]
+	aesKey := cfg.Ctrl.BroadcastKey[:aes.Key256Bit]
+	aesIV := cfg.Ctrl.BroadcastKey[aes.Key256Bit:]
 	cbc, err := aes.NewCBC(aesKey, aesIV)
 	if err != nil {
 		return errors.WithStack(err)
@@ -245,7 +245,7 @@ func (global *global) configure(cfg *Config) error {
 	b := sb.Get()
 	defer sb.Put(b)
 	in := b[:curve25519.ScalarSize]
-	sessionKey, err := curve25519.ScalarMult(in, cfg.CTRL.KexPublicKey)
+	sessionKey, err := curve25519.ScalarMult(in, cfg.Ctrl.KexPublicKey)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -358,7 +358,7 @@ func (global *global) SetCertificate(data []byte) error {
 	if bytes.Compare(global.PublicKey(), cert.PublicKey) != 0 {
 		return errors.New("different public key")
 	}
-	if !cert.VerifySignatureWithCTRLGUID(global.CtrlPublicKey()) {
+	if !cert.VerifySignatureWithCtrlGUID(global.CtrlPublicKey()) {
 		return errors.New("invalid certificate signature(with controller guid)")
 	}
 	if !cert.VerifySignatureWithNodeGUID(global.CtrlPublicKey()) {

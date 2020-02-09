@@ -1,6 +1,7 @@
 [logger]
   level      = "debug"
   queue_size = 512
+  stdout     = true
 
 [global]
   dns_cache_expire      = "2m"

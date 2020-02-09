@@ -15,7 +15,7 @@ import (
 	"project/internal/xpanic"
 )
 
-// Node send messages to controller
+// Node send messages to controller.
 type Node struct {
 	Test *Test
 
@@ -36,7 +36,7 @@ type Node struct {
 	exit chan error
 }
 
-// New is used to create a Node from configuration
+// New is used to create a Node from configuration.
 func New(cfg *Config) (*Node, error) {
 	// copy test
 	test := cfg.Test
@@ -112,8 +112,10 @@ func (node *Node) fatal(err error, msg string) error {
 	return err
 }
 
-// Main is used to run
+// Main is used to run Node, it will block until exit or return error.
 func (node *Node) Main() error {
+	// start log sender
+	node.logger.StartSender()
 	// synchronize time
 	if node.Test.SkipSynchronizeTime {
 		node.global.StartTimeSyncerWalker()
@@ -154,12 +156,12 @@ func (node *Node) driver() {
 	}()
 }
 
-// Wait is used to wait for Main()
+// Wait is used to wait for Main().
 func (node *Node) Wait() {
 	<-node.wait
 }
 
-// Exit is used to exit with a error
+// Exit is used to exit with a error.
 func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.server.Close()
@@ -188,27 +190,27 @@ func (node *Node) Exit(err error) {
 	})
 }
 
-// GUID is used to get Node GUID
+// GUID is used to get Node GUID.
 func (node *Node) GUID() *guid.GUID {
 	return node.global.GUID()
 }
 
-// Synchronize is used to connect a node and start synchronize
+// Synchronize is used to connect a Node and start to synchronize.
 func (node *Node) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	return node.sender.Synchronize(ctx, guid, bl)
 }
 
-// Send is used to send message to Controller
+// Send is used to send message to Controller.
 func (node *Node) Send(cmd, msg []byte) error {
 	return node.sender.Send(cmd, msg)
 }
 
-// AddListener is used to add listener
+// AddListener is used to add listener.
 func (node *Node) AddListener(listener *messages.Listener) error {
 	return node.server.AddListener(listener)
 }
 
-// GetListener is used to get listener
+// GetListener is used to get listener.
 func (node *Node) GetListener(tag string) (*xnet.Listener, error) {
 	return node.server.GetListener(tag)
 }

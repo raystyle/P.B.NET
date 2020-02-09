@@ -27,7 +27,7 @@ type Config struct {
 		Level     string `toml:"level"      msgpack:"a"`
 		QueueSize int    `toml:"queue_size" msgpack:"b"`
 
-		// if false, use ioutil.discard, if true, use os.Stdout,
+		// if false, use ioutil.Discard, if true, use os.Stdout,
 		// usually enable it for debug.
 		Stdout bool      `toml:"stdout"     msgpack:"c"`
 		Writer io.Writer `toml:"-"          msgpack:"-"`

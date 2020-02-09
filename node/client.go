@@ -326,21 +326,21 @@ func (client *Client) Synchronize() error {
 		return errors.Wrap(err, "failed to receive synchronize response")
 	}
 	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
-		err = errors.Errorf("failed to start synchronize: %s", resp)
+		err = errors.Errorf("failed to start to synchronize: %s", resp)
 		return err // can't return directly
 	}
 	err = client.ctx.forwarder.RegisterClient(client)
 	if err != nil {
 		return err
 	}
-	client.Conn.Logf(logger.Info, "start synchronize\nlistener: %s", client.listener)
+	client.Conn.Logf(logger.Info, "start to synchronize\nlistener: %s", client.listener)
 	return nil
 }
 
 func (client *Client) onFrameAfterSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
-	if client.onFrameAfterSyncAboutCTRL(frame[0], id, data) {
+	if client.onFrameAfterSyncAboutCtrl(frame[0], id, data) {
 		return true
 	}
 	if client.onFrameAfterSyncAboutNode(frame[0], id, data) {
@@ -352,7 +352,7 @@ func (client *Client) onFrameAfterSync(frame []byte) bool {
 	return false
 }
 
-func (client *Client) onFrameAfterSyncAboutCTRL(cmd byte, id, data []byte) bool {
+func (client *Client) onFrameAfterSyncAboutCtrl(cmd byte, id, data []byte) bool {
 	switch cmd {
 	case protocol.CtrlSendToNodeGUID:
 		client.Conn.HandleSendToNodeGUID(id, data)

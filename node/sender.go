@@ -130,7 +130,7 @@ func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
 	sender.ctx.logger.Printf(l, "sender", format, log...)
 }
 
-// Synchronize is used to connect a node listener and start synchronize
+// Synchronize is used to connect a node listener and start to synchronize
 // can't connect if a exists client, or the target node is connected self
 func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	if sender.isClosed() {
@@ -178,7 +178,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		close(done)
 		wg.Wait()
 	}()
-	// connect and start synchronize
+	// connect and start to synchronize
 	var success bool
 	defer func() {
 		if !success {
@@ -192,7 +192,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	}
 	err = client.Synchronize()
 	if err != nil {
-		const format = "failed to start synchronize\nlistener: %s\n%s\nerror"
+		const format = "failed to start to synchronize\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, bl, guid)
 	}
 	success = true
