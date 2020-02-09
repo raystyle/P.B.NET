@@ -71,6 +71,7 @@ func TestConfig(t *testing.T) {
 	}{
 		{expected: "debug", actual: cfg.Logger.Level},
 		{expected: 512, actual: cfg.Logger.QueueSize},
+		{expected: true, actual: cfg.Logger.Stdout},
 
 		{expected: 2 * time.Minute, actual: cfg.Global.DNSCacheExpire},
 		{expected: uint(15), actual: cfg.Global.TimeSyncSleepFixed},

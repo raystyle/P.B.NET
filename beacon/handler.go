@@ -108,8 +108,8 @@ func (h *handler) OnMessage(send *protocol.Send) {
 
 func (h *handler) handleExecuteShellCode(send *protocol.Send) {
 	defer h.logPanic("handler.handleExecuteShellCode")
-	var es messages.ExecuteShellCode
-	err := msgpack.Unmarshal(send.Message, &es)
+	es := new(messages.ExecuteShellCode)
+	err := msgpack.Unmarshal(send.Message, es)
 	if err != nil {
 		const log = "controller send invalid shellcode"
 		h.logWithInfo(logger.Exploit, send, log)
@@ -127,8 +127,8 @@ func (h *handler) handleExecuteShellCode(send *protocol.Send) {
 
 func (h *handler) handleShell(send *protocol.Send) {
 	defer h.logPanic("handler.handleShell")
-	var s messages.Shell
-	err := msgpack.Unmarshal(send.Message, &s)
+	s := new(messages.Shell)
+	err := msgpack.Unmarshal(send.Message, s)
 	if err != nil {
 		const log = "controller send invalid shell"
 		h.logWithInfo(logger.Exploit, send, log)

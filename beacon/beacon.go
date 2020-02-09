@@ -13,7 +13,7 @@ import (
 	"project/internal/xpanic"
 )
 
-// Beacon send messages to Controller
+// Beacon send messages to Controller.
 type Beacon struct {
 	Test *Test
 
@@ -31,7 +31,7 @@ type Beacon struct {
 	exit chan error
 }
 
-// New is used to create a Beacon from configuration
+// New is used to create a Beacon from configuration.
 func New(cfg *Config) (*Beacon, error) {
 	// copy test
 	test := cfg.Test
@@ -93,7 +93,7 @@ func (beacon *Beacon) fatal(err error, msg string) error {
 	return err
 }
 
-// Main is used to run
+// Main is used to run Beacon, it will block until exit or return error.
 func (beacon *Beacon) Main() error {
 	// synchronize time
 	if beacon.Test.SkipSynchronizeTime {
@@ -130,12 +130,12 @@ func (beacon *Beacon) driver() {
 	}()
 }
 
-// Wait is used to wait for Main()
+// Wait is used to wait for Main().
 func (beacon *Beacon) Wait() {
 	<-beacon.wait
 }
 
-// Exit is used to exit with a error
+// Exit is used to exit with a error.
 func (beacon *Beacon) Exit(err error) {
 	beacon.once.Do(func() {
 		beacon.handler.Cancel()
@@ -160,17 +160,17 @@ func (beacon *Beacon) Exit(err error) {
 	})
 }
 
-// GUID is used to get Node GUID
+// GUID is used to get Beacon GUID.
 func (beacon *Beacon) GUID() *guid.GUID {
 	return beacon.global.GUID()
 }
 
-// Synchronize is used to connect a node and start synchronize
+// Synchronize is used to connect a Node and start to synchronize.
 func (beacon *Beacon) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	return beacon.sender.Synchronize(ctx, guid, bl)
 }
 
-// Send is used to send message to Controller
+// Send is used to send message to Controller.
 func (beacon *Beacon) Send(cmd, msg []byte) error {
 	return beacon.sender.Send(cmd, msg)
 }

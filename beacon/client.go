@@ -418,10 +418,10 @@ func (client *Client) Synchronize() error {
 		return errors.Wrap(err, "failed to receive synchronize response")
 	}
 	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
-		err = errors.Errorf("failed to start synchronize: %s", resp)
+		err = errors.Errorf("failed to start to synchronize: %s", resp)
 		return err // can't return directly
 	}
-	client.logf(logger.Info, "start synchronize\nlistener: %s", client.listener)
+	client.logf(logger.Info, "start to synchronize\nlistener: %s", client.listener)
 	return nil
 }
 

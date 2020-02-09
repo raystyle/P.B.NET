@@ -174,7 +174,7 @@ func (sender *sender) checkNode(guid *guid.GUID) error {
 	return nil
 }
 
-// Synchronize is used to connect a node listener and start synchronize.
+// Synchronize is used to connect a node listener and start to synchronize.
 func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -212,7 +212,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		close(done)
 		wg.Wait()
 	}()
-	// connect and start synchronize
+	// connect and start to synchronize
 	var success bool
 	defer func() {
 		if !success {
@@ -226,7 +226,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	}
 	err = client.Synchronize()
 	if err != nil {
-		const format = "failed to start synchronize\nlistener: %s\n%s\nerror"
+		const format = "failed to start to synchronize\nlistener: %s\n%s\nerror"
 		return errors.WithMessagef(err, format, bl, guid.Hex())
 	}
 	// must check twice
