@@ -21,14 +21,14 @@ import (
 )
 
 type handler struct {
-	ctx *CTRL
+	ctx *Ctrl
 
 	context context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 }
 
-func newHandler(ctx *CTRL) *handler {
+func newHandler(ctx *Ctrl) *handler {
 	h := handler{
 		ctx: ctx,
 	}
@@ -104,6 +104,8 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[:4])
 	send.Message = send.Message[4:]
 	switch msgType {
+	case messages.CMDNodeLog:
+		h.handleNodeLog(send)
 	case messages.CMDQueryNodeKey:
 		h.handleQueryNodeKey(send)
 	case messages.CMDQueryBeaconKey:
@@ -116,7 +118,29 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 		h.handleNodeSendTestMessage(send)
 	default:
 		const format = "node send unknown message\n%s\ntype: 0x%08X\n%s"
-		h.logf(logger.Exploit, format, send.RoleGUID, msgType, spew.Sdump(send))
+		h.logf(logger.Exploit, format, send.RoleGUID.Print(), msgType, spew.Sdump(send))
+	}
+}
+
+func (h *handler) handleNodeLog(send *protocol.Send) {
+	defer h.logPanic("handler.handleNodeLog")
+	log := new(messages.Log)
+	err := msgpack.Unmarshal(send.Message, log)
+	if err != nil {
+		const format = "node send invalid log data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	err = h.ctx.database.InsertNodeLog(&mRoleLog{
+		GUID:      send.RoleGUID[:],
+		CreatedAt: log.Time,
+		Level:     log.Level,
+		Source:    log.Source,
+		Log:       log.Log,
+	})
+	if err != nil {
+		const format = "failed to insert node log\nerror: %s"
+		h.logfWithInfo(logger.Error, format, &send.RoleGUID, send, err)
 	}
 }
 
@@ -128,13 +152,13 @@ func (h *handler) handleQueryNodeKey(send *protocol.Send) {
 	err := msgpack.Unmarshal(send.Message, qnk)
 	if err != nil {
 		const format = "node send invalid query node key data\nerror: %s"
-		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, err)
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
 	node, err := h.ctx.database.SelectNode(&qnk.GUID)
 	if err != nil {
 		const format = "failed to query node key\nerror: %s"
-		h.logfWithInfo(logger.Warning, format, send.RoleGUID, qnk, err)
+		h.logfWithInfo(logger.Warning, format, &send.RoleGUID, qnk, err)
 		return
 	}
 	// send to Node
@@ -147,11 +171,11 @@ func (h *handler) handleQueryNodeKey(send *protocol.Send) {
 	err = h.ctx.sender.Send(protocol.Node, &send.RoleGUID, messages.CMDBAnswerNodeKey, ank)
 	if err != nil {
 		const format = "failed to answer node key\nerror: %s"
-		h.logfWithInfo(logger.Error, format, send.RoleGUID, ank, err)
+		h.logfWithInfo(logger.Error, format, &send.RoleGUID, ank, err)
 		return
 	}
 	const format = "node query node key\n%s"
-	h.logfWithInfo(logger.Info, format, send.RoleGUID, nil, qnk.GUID.Print())
+	h.logfWithInfo(logger.Info, format, &send.RoleGUID, nil, qnk.GUID.Print())
 }
 
 func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
@@ -160,13 +184,13 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 	err := msgpack.Unmarshal(send.Message, qbk)
 	if err != nil {
 		const format = "node send invalid query beacon key data\nerror: %s"
-		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, err)
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
 	beacon, err := h.ctx.database.SelectBeacon(&qbk.GUID)
 	if err != nil {
 		const format = "failed to query beacon key\nerror: %s"
-		h.logfWithInfo(logger.Warning, format, send.RoleGUID, qbk, err)
+		h.logfWithInfo(logger.Warning, format, &send.RoleGUID, qbk, err)
 		return
 	}
 	// send to Node
@@ -179,11 +203,11 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 	err = h.ctx.sender.Send(protocol.Node, &send.RoleGUID, messages.CMDBAnswerBeaconKey, abk)
 	if err != nil {
 		const format = "failed to answer beacon key\nerror: %s"
-		h.logfWithInfo(logger.Error, format, send.RoleGUID, abk, err)
+		h.logfWithInfo(logger.Error, format, &send.RoleGUID, abk, err)
 		return
 	}
 	const format = "node query beacon key\n%s"
-	h.logfWithInfo(logger.Info, format, send.RoleGUID, nil, qbk.GUID.Print())
+	h.logfWithInfo(logger.Info, format, &send.RoleGUID, nil, qbk.GUID.Print())
 }
 
 // ----------------------------------role register request-----------------------------------------
@@ -198,19 +222,19 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 	err := msgpack.Unmarshal(request, nrr)
 	if err != nil {
 		const format = "node send invalid node register request data\nerror: %s"
-		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, request, err)
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, request, err)
 		return
 	}
 	err = nrr.Validate()
 	if err != nil {
 		const log = "node send invalid node register request"
-		h.logWithInfo(logger.Exploit, send.RoleGUID, request, log)
+		h.logWithInfo(logger.Exploit, &send.RoleGUID, request, log)
 		return
 	}
 	// compare key exchange public key
 	if bytes.Compare(send.Message[:curve25519.ScalarSize], nrr.KexPublicKey) != 0 {
 		const log = "different key exchange public key in node register request"
-		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
+		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
 	// notice view
@@ -235,19 +259,19 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 	err := msgpack.Unmarshal(request, brr)
 	if err != nil {
 		const log = "node send invalid beacon register request data"
-		h.logWithInfo(logger.Exploit, send.RoleGUID, request, log)
+		h.logWithInfo(logger.Exploit, &send.RoleGUID, request, log)
 		return
 	}
 	err = brr.Validate()
 	if err != nil {
 		const log = "node send invalid beacon register request"
-		h.logWithInfo(logger.Exploit, send.RoleGUID, request, log)
+		h.logWithInfo(logger.Exploit, &send.RoleGUID, request, log)
 		return
 	}
 	// compare key exchange public key
 	if bytes.Compare(send.Message[:curve25519.ScalarSize], brr.KexPublicKey) != 0 {
 		const log = "different key exchange public key in beacon register request"
-		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
+		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
 	// notice view
@@ -267,21 +291,21 @@ func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.
 	req := send.Message
 	if len(req) < net.IPv6len+curve25519.ScalarSize+aes.BlockSize {
 		const format = "node send %s register request with invalid size"
-		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, role)
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role)
 		return nil
 	}
 	// calculate role session key
 	key, err := h.ctx.global.KeyExchange(req[:curve25519.ScalarSize])
 	if err != nil {
 		const format = "node send invalid %s register request\nerror: %s"
-		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, role, err)
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
 		return nil
 	}
 	// decrypt role register request
 	request, err := aes.CBCDecrypt(req[curve25519.ScalarSize:], key, key[:aes.IVSize])
 	if err != nil {
 		const format = "node send invalid %s register request\nerror: %s"
-		h.logfWithInfo(logger.Exploit, format, send.RoleGUID, send, role, err)
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
 		return nil
 	}
 	return request
@@ -297,7 +321,7 @@ func (h *handler) handleNodeSendTestMessage(send *protocol.Send) {
 	err := h.ctx.Test.AddNodeSendTestMessage(h.context, &send.RoleGUID, send.Message)
 	if err != nil {
 		const log = "failed to add node send test message\nerror:"
-		h.logWithInfo(logger.Fatal, send.RoleGUID, send, log, err)
+		h.logWithInfo(logger.Fatal, &send.RoleGUID, send, log, err)
 	}
 }
 
@@ -313,11 +337,35 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[:4])
 	send.Message = send.Message[4:]
 	switch msgType {
+	case messages.CMDBeaconLog:
+		h.handleBeaconLog(send)
 	case messages.CMDTest:
 		h.handleBeaconSendTestMessage(send)
 	default:
 		const format = "beacon send unknown message\n%s\ntype: 0x%08X\n%s"
-		h.logf(logger.Exploit, format, send.RoleGUID, msgType, spew.Sdump(send))
+		h.logf(logger.Exploit, format, send.RoleGUID.Print(), msgType, spew.Sdump(send))
+	}
+}
+
+func (h *handler) handleBeaconLog(send *protocol.Send) {
+	defer h.logPanic("handler.handleBeaconLog")
+	log := new(messages.Log)
+	err := msgpack.Unmarshal(send.Message, log)
+	if err != nil {
+		const format = "beacon send invalid log data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	err = h.ctx.database.InsertBeaconLog(&mRoleLog{
+		GUID:      send.RoleGUID[:],
+		CreatedAt: log.Time,
+		Level:     log.Level,
+		Source:    log.Source,
+		Log:       log.Log,
+	})
+	if err != nil {
+		const format = "failed to insert node log\nerror: %s"
+		h.logfWithInfo(logger.Error, format, &send.RoleGUID, send, err)
 	}
 }
 
@@ -331,6 +379,6 @@ func (h *handler) handleBeaconSendTestMessage(send *protocol.Send) {
 	err := h.ctx.Test.AddBeaconSendTestMessage(h.context, &send.RoleGUID, send.Message)
 	if err != nil {
 		const log = "failed to add beacon send test message\nerror:"
-		h.logWithInfo(logger.Fatal, send.RoleGUID, send, log, err)
+		h.logWithInfo(logger.Fatal, &send.RoleGUID, send, log, err)
 	}
 }
