@@ -27,10 +27,10 @@ type AnswerNodeKey struct {
 // Validate is used to validate answer fields.
 func (ank *AnswerNodeKey) Validate() error {
 	if len(ank.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid node public key size")
+		return errors.New("invalid public key size")
 	}
 	if len(ank.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid node key exchange public key size")
+		return errors.New("invalid key exchange public key size")
 	}
 	return nil
 }
@@ -52,10 +52,10 @@ type AnswerBeaconKey struct {
 // Validate is used to validate answer fields.
 func (abk *AnswerBeaconKey) Validate() error {
 	if len(abk.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid beacon public key size")
+		return errors.New("invalid public key size")
 	}
 	if len(abk.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid beacon key exchange public key size")
+		return errors.New("invalid key exchange public key size")
 	}
 	return nil
 }

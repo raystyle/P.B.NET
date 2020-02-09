@@ -46,13 +46,13 @@ type NodeRegisterRequest struct {
 // Validate is used to validate request fields
 func (r *NodeRegisterRequest) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid node public key size")
+		return errors.New("invalid public key size")
 	}
 	if len(r.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid node key exchange public key size")
+		return errors.New("invalid key exchange public key size")
 	}
 	if r.SystemInfo == nil {
-		return errors.New("empty node system info")
+		return errors.New("empty system info")
 	}
 	return nil
 }
@@ -80,13 +80,13 @@ type NodeRegisterResponse struct {
 // Validate is used to validate response fields.
 func (r *NodeRegisterResponse) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid node public key size")
+		return errors.New("invalid public key size")
 	}
 	if len(r.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid node key exchange public key size")
+		return errors.New("invalid key exchange public key size")
 	}
 	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {
-		return errors.New("unknown node register result")
+		return errors.New("unknown register result")
 	}
 	if len(r.Certificate) != protocol.CertificateSize {
 		return errors.New("invalid certificate size")
@@ -107,13 +107,13 @@ type BeaconRegisterRequest struct {
 // Validate is used to validate request fields.
 func (r *BeaconRegisterRequest) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid beacon public key size")
+		return errors.New("invalid public key size")
 	}
 	if len(r.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid beacon key exchange public key size")
+		return errors.New("invalid key exchange public key size")
 	}
 	if r.SystemInfo == nil {
-		return errors.New("empty beacon system info")
+		return errors.New("empty system info")
 	}
 	return nil
 }
@@ -140,13 +140,13 @@ type BeaconRegisterResponse struct {
 // Validate is used to validate response fields.
 func (r *BeaconRegisterResponse) Validate() error {
 	if len(r.PublicKey) != ed25519.PublicKeySize {
-		return errors.New("invalid beacon public key size")
+		return errors.New("invalid public key size")
 	}
 	if len(r.KexPublicKey) != curve25519.ScalarSize {
-		return errors.New("invalid beacon key exchange public key size")
+		return errors.New("invalid key exchange public key size")
 	}
 	if r.Result < RegisterResultAccept || r.Result > RegisterResultTimeout {
-		return errors.New("unknown beacon register result")
+		return errors.New("unknown register result")
 	}
 	return nil
 }
