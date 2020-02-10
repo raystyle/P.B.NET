@@ -123,8 +123,8 @@ func (beacon *Beacon) Main() error {
 func (beacon *Beacon) driver() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "beacon.driver")
-			beacon.logger.Print(logger.Fatal, "driver", err)
+			b := xpanic.Print(r, "beacon.driver")
+			beacon.logger.Print(logger.Fatal, "driver", b)
 			// restart driver
 			time.Sleep(time.Second)
 			go beacon.driver()
@@ -173,6 +173,6 @@ func (beacon *Beacon) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 }
 
 // Send is used to send message to Controller.
-func (beacon *Beacon) Send(cmd, msg []byte) error {
-	return beacon.sender.Send(cmd, msg)
+func (beacon *Beacon) Send(ctx context.Context, cmd, msg []byte) error {
+	return beacon.sender.Send(ctx, cmd, msg)
 }

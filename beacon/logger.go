@@ -225,7 +225,7 @@ func (lg *gLogger) send(el *encLog) {
 			Source: el.source,
 			Log:    plainData,
 		}
-		err = lg.ctx.sender.Send(messages.CMDBBeaconLog, log)
+		err = lg.ctx.sender.Send(lg.context, messages.CMDBBeaconLog, log)
 		if err == nil {
 			security.CoverBytes(plainData)
 			break

@@ -79,7 +79,7 @@ func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
 // logPanic must use like defer h.logPanic("title")
 func (h *handler) logPanic(title string) {
 	if r := recover(); r != nil {
-		h.log(logger.Fatal, xpanic.Error(r, title))
+		h.log(logger.Fatal, xpanic.Print(r, title))
 	}
 }
 
@@ -144,7 +144,7 @@ func (h *handler) handleShell(send *protocol.Send) {
 		so := messages.ShellOutput{
 			Output: output,
 		}
-		err = h.ctx.sender.Send(messages.CMDBShellOutput, &so)
+		err = h.ctx.sender.Send(h.context, messages.CMDBShellOutput, &so)
 		if err != nil {
 			fmt.Println("failed to send:", err)
 		}
