@@ -140,6 +140,7 @@ func (beacon *Beacon) Wait() {
 // Exit is used to exit with a error.
 func (beacon *Beacon) Exit(err error) {
 	beacon.once.Do(func() {
+		beacon.logger.CloseSender()
 		beacon.handler.Cancel()
 		beacon.worker.Close()
 		beacon.logger.Print(logger.Info, "exit", "worker is stopped")

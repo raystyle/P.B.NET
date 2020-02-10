@@ -32,9 +32,9 @@ var (
 // MessageI will be Encode by msgpack, except MessageI.(type) is []byte.
 type sendTask struct {
 	Ctx      context.Context
-	Command  []byte
-	MessageI interface{}
-	Message  []byte
+	Command  []byte      // for Send
+	MessageI interface{} // for Send
+	Message  []byte      // for SendFromPlugin
 	Result   chan<- *protocol.SendResult
 }
 

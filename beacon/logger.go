@@ -128,12 +128,6 @@ func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 	lg.writeLog(now, lv, src, logStr[:len(logStr)-1], buf) // delete "\n"
 }
 
-// StartSender is used to start log sender.
-func (lg *gLogger) StartSender() {
-	lg.wg.Add(1)
-	go lg.sender()
-}
-
 // SetLevel is used to set log level that need print.
 func (lg *gLogger) SetLevel(lv logger.Level) error {
 	if lv > logger.Off {
@@ -145,11 +139,20 @@ func (lg *gLogger) SetLevel(lv logger.Level) error {
 	return nil
 }
 
-// Close is used to close log sender and set logger.ctx = nil.
-func (lg *gLogger) Close() {
+// StartSender is used to start log sender.
+func (lg *gLogger) StartSender() {
+	lg.wg.Add(1)
+	go lg.sender()
+}
+
+// CloseSender is used to close log sender.
+func (lg *gLogger) CloseSender() {
 	lg.cancel()
 	lg.wg.Wait()
-	lg.timer.Stop()
+}
+
+// Close is used to close log sender and set logger.ctx = nil.
+func (lg *gLogger) Close() {
 	lg.rwm.Lock()
 	defer lg.rwm.Unlock()
 	lg.ctx = nil
@@ -200,6 +203,7 @@ func (lg *gLogger) sender() {
 			lg.wg.Done()
 		}
 	}()
+	defer lg.timer.Stop()
 	var encLog *encLog
 	for {
 		select {
