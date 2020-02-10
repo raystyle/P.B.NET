@@ -211,7 +211,7 @@ func (sender *sender) Disconnect(guid *guid.GUID) error {
 }
 
 // Send is used to send message to Controller.
-func (sender *sender) Send(ctx context.Context, cmd []byte, msg interface{}) error {
+func (sender *sender) Send(ctx context.Context, command []byte, message interface{}) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -220,8 +220,8 @@ func (sender *sender) Send(ctx context.Context, cmd []byte, msg interface{}) err
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
 	st.Ctx = ctx
-	st.Command = cmd
-	st.MessageI = msg
+	st.Command = command
+	st.MessageI = message
 	st.Result = done
 	// send to task queue
 	select {
