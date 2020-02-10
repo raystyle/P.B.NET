@@ -1,60 +1,62 @@
 <template>
   <el-container>
+    <c-header></c-header>
     <el-header>
       <p>test-000</p>
       <p>test-111</p>
-
     </el-header>
     <el-main>
-      Main
+      <p>Main</p>
       <p>test-bottom</p>
-      <p>test {{hello}}</p>
+      <p>test {{ hello }}</p>
     </el-main>
   </el-container>
 </template>
 
 <script>
-    export default {
-      data(){
-          return{
-              hello: 'now',
-              timer:null,
-          }
-      },
+export default {
+  data() {
+    return {
+      hello: "now",
+      value: 1,
+      timer: null
+    };
+  },
 
-        mounted() {
-          this.timer = setInterval( ()=> {
-              this.hello = 'asd'
-          },1000);
-       },
-
-        beforeDestroy() {
-          clearInterval(this.timer)
-        }
-
-    }
-
+  mounted() {
+    this.timer = setInterval(() => {
+      this.value += 1;
+      this.hello = this.value;
+    }, 1000);
+  },
+  beforeDestroy() {
+    clearInterval(this.timer);
+  }
+};
 </script>
 
 <style scoped>
-  .el-container{
-    height: 100%;
-  }
+.el-container {
+  padding: 0;
+  margin: 0;
+  height: 100%;
+}
 
-  .el-header{
-    background-color: #B3C0D1;
-    color: #333;
-    text-align: left;
-    height: 300px;
-    line-height: 10px;
-  }
+.el-header {
+  padding: 0;
+  margin: 0;
+  background-color: #b3c0d1;
+  color: #333;
+  text-align: left;
+  height: 300px;
+  line-height: 10px;
+}
 
-  .el-main {
-    padding: 0px;
-    margin: 0px;
-    background-color: #E9EEF3;
-    color: #333;
-    text-align: center;
-
-  }
+.el-main {
+  padding: 0;
+  margin: 0;
+  background-color: #e9eef3;
+  color: #333;
+  text-align: center;
+}
 </style>

@@ -13,22 +13,18 @@
         </el-row>
       </el-main>
     </el-container>
-
   </div>
-
 </template>
 
 <script>
-  // <c-header></c-header>
-  // import Vue from 'vue';
-  // import ch from '../common/header/header'
-  // Vue.component("c-header", ch);
+// <c-header></c-header>
+// import Vue from 'vue';
+// import ch from '../common/header/header'
+// Vue.component("c-header", ch);
 //  <el-header><c-header></c-header></el-header>
-    export default {
-      name: "node"
-    }
+export default {
+  name: "node"
+};
 </script>
 
-<style>
-
-</style>
+<style></style>
