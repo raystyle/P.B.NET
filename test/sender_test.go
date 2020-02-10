@@ -15,7 +15,6 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/messages"
-	"project/internal/protocol"
 	"project/internal/testsuite"
 	"project/internal/xnet"
 
@@ -28,6 +27,7 @@ func TestAll(t *testing.T) {
 	TestNode_Send_PassInitialNode(t)
 	TestCtrl_SendToBeacon_PassICNodes(t)
 	TestBeacon_Send_PassCommonNode(t)
+	TestNodeQueryRoleKey(t)
 }
 
 func TestLoop(t *testing.T) {
@@ -47,7 +47,7 @@ func TestLoop(t *testing.T) {
 
 func TestAll_Parallel(t *testing.T) {
 	wg := sync.WaitGroup{}
-	wg.Add(4)
+	wg.Add(5)
 	go func() {
 		defer wg.Done()
 		TestCtrl_SendToNode_PassInitialNode(t)
@@ -67,6 +67,11 @@ func TestAll_Parallel(t *testing.T) {
 		defer wg.Done()
 		TestBeacon_Send_PassCommonNode(t)
 		fmt.Println("test-d")
+	}()
+	go func() {
+		defer wg.Done()
+		TestNodeQueryRoleKey(t)
+		fmt.Println("test-e")
 	}()
 	wg.Wait()
 }
@@ -275,10 +280,11 @@ func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 		goroutines = 256
 		times      = 64
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.Send(protocol.Node, cNodeGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToNode(ctx, cNodeGUID, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -383,10 +389,11 @@ func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 		goroutines = 256
 		times      = 64
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.Send(protocol.Beacon, beaconGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -443,10 +450,11 @@ func TestNode_SendDirectly(t *testing.T) {
 		goroutines = 256
 		times      = 64
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := Node.Send(messages.CMDBTest, msg)
+			err := Node.Send(ctx, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -549,10 +557,11 @@ func TestNode_Send_PassInitialNode(t *testing.T) {
 		goroutines = 256
 		times      = 64
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := cNode.Send(messages.CMDBTest, msg)
+			err := cNode.Send(ctx, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -657,10 +666,11 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 		goroutines = 256
 		times      = 64
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := Beacon.Send(messages.CMDBTest, msg)
+			err := Beacon.Send(ctx, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -815,10 +825,11 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 		goroutines = 256
 		times      = 64
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := Beacon.Send(messages.CMDBTest, msg)
+			err := Beacon.Send(ctx, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -976,10 +987,11 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 		goroutines = 256
 		times      = 64
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.Send(protocol.Beacon, beaconGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -1133,10 +1145,11 @@ func TestNodeQueryRoleKey(t *testing.T) {
 		goroutines = 256
 		times      = 128
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.Send(protocol.Beacon, beaconGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return

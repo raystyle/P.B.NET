@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"encoding/hex"
 	"testing"
 	"time"
@@ -8,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/messages"
-	"project/internal/protocol"
 	"project/internal/testsuite"
 )
 
@@ -30,7 +30,7 @@ func TestExecuteShellCode(t *testing.T) {
 		Method:    "vp",
 		ShellCode: scBytes,
 	}
-	err := ctrl.Send(protocol.Node, iNode.GUID(), messages.CMDBExecuteShellCode, &es)
+	err := ctrl.SendToNode(context.Background(), iNode.GUID(), messages.CMDBExecuteShellCode, &es)
 	require.NoError(t, err)
 
 	time.Sleep(10 * time.Second)
@@ -45,7 +45,7 @@ func TestShell(t *testing.T) {
 	shell := messages.Shell{
 		Command: "systeminfo",
 	}
-	err := ctrl.Send(protocol.Node, iNode.GUID(), messages.CMDBShell, &shell)
+	err := ctrl.SendToNode(context.Background(), iNode.GUID(), messages.CMDBShell, &shell)
 	require.NoError(t, err)
 
 	time.Sleep(10 * time.Second)
