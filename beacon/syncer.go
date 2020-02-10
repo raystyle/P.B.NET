@@ -14,7 +14,7 @@ import (
 )
 
 // syncer is used to make sure every one message will
-// be handle once, and start a cleaner to release memory
+// be handle once, and start a cleaner to release memory.
 type syncer struct {
 	ctx *Beacon
 
@@ -218,9 +218,9 @@ func (syncer *syncer) cleanGUIDMap() {
 }
 
 func (syncer *syncer) cleanSendToBeaconGUIDMap() {
+	newMap := make(map[guid.GUID]int64)
 	syncer.sendToBeaconGUIDRWM.Lock()
 	defer syncer.sendToBeaconGUIDRWM.Unlock()
-	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.sendToBeaconGUID {
 		newMap[key] = timestamp
 	}
@@ -228,9 +228,9 @@ func (syncer *syncer) cleanSendToBeaconGUIDMap() {
 }
 
 func (syncer *syncer) cleanAckToBeaconGUIDMap() {
+	newMap := make(map[guid.GUID]int64)
 	syncer.ackToBeaconGUIDRWM.Lock()
 	defer syncer.ackToBeaconGUIDRWM.Unlock()
-	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.ackToBeaconGUID {
 		newMap[key] = timestamp
 	}
@@ -238,9 +238,9 @@ func (syncer *syncer) cleanAckToBeaconGUIDMap() {
 }
 
 func (syncer *syncer) cleanAnswerGUIDMap() {
+	newMap := make(map[guid.GUID]int64)
 	syncer.answerGUIDRWM.Lock()
 	defer syncer.answerGUIDRWM.Unlock()
-	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.answerGUID {
 		newMap[key] = timestamp
 	}

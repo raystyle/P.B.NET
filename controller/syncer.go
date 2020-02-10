@@ -13,6 +13,8 @@ import (
 	"project/internal/xpanic"
 )
 
+// syncer is used to make sure every one message will
+// be handle once, and start a cleaner to release memory.
 type syncer struct {
 	ctx *Ctrl
 
@@ -189,8 +191,8 @@ func (syncer *syncer) Close() {
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "syncer.guidCleaner")
-			syncer.ctx.logger.Print(logger.Fatal, "syncer", err)
+			b := xpanic.Print(r, "syncer.guidCleaner")
+			syncer.ctx.logger.Print(logger.Fatal, "syncer", b)
 			// restart GUID cleaner
 			time.Sleep(time.Second)
 			go syncer.guidCleaner()
@@ -285,9 +287,9 @@ func (syncer *syncer) cleanGUIDMap() {
 }
 
 func (syncer *syncer) cleanNodeSendGUIDMap() {
+	newMap := make(map[guid.GUID]int64)
 	syncer.nodeSendGUIDRWM.Lock()
 	defer syncer.nodeSendGUIDRWM.Unlock()
-	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.nodeSendGUID {
 		newMap[key] = timestamp
 	}
@@ -295,9 +297,9 @@ func (syncer *syncer) cleanNodeSendGUIDMap() {
 }
 
 func (syncer *syncer) cleanNodeAckGUIDMap() {
+	newMap := make(map[guid.GUID]int64)
 	syncer.nodeAckGUIDRWM.Lock()
 	defer syncer.nodeAckGUIDRWM.Unlock()
-	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.nodeAckGUID {
 		newMap[key] = timestamp
 	}
@@ -305,9 +307,9 @@ func (syncer *syncer) cleanNodeAckGUIDMap() {
 }
 
 func (syncer *syncer) cleanBeaconSendGUIDMap() {
+	newMap := make(map[guid.GUID]int64)
 	syncer.beaconSendGUIDRWM.Lock()
 	defer syncer.beaconSendGUIDRWM.Unlock()
-	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.beaconSendGUID {
 		newMap[key] = timestamp
 	}
@@ -315,9 +317,9 @@ func (syncer *syncer) cleanBeaconSendGUIDMap() {
 }
 
 func (syncer *syncer) cleanBeaconAckGUIDMap() {
+	newMap := make(map[guid.GUID]int64)
 	syncer.beaconAckGUIDRWM.Lock()
 	defer syncer.beaconAckGUIDRWM.Unlock()
-	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.beaconAckGUID {
 		newMap[key] = timestamp
 	}
@@ -325,9 +327,9 @@ func (syncer *syncer) cleanBeaconAckGUIDMap() {
 }
 
 func (syncer *syncer) cleanQueryGUIDMap() {
+	newMap := make(map[guid.GUID]int64)
 	syncer.queryGUIDRWM.Lock()
 	defer syncer.queryGUIDRWM.Unlock()
-	newMap := make(map[guid.GUID]int64)
 	for key, timestamp := range syncer.queryGUID {
 		newMap[key] = timestamp
 	}
