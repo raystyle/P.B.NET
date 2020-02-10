@@ -278,6 +278,34 @@ func (sw *subWorker) getBeaconKey(guid *guid.GUID) bool {
 	return true
 }
 
+func (sw *subWorker) handleNodeSend(send *protocol.Send) {
+	defer sw.sendPool.Put(send)
+	if !sw.getNodeKey(&send.RoleGUID) {
+		return
+	}
+	cache := sw.handleRoleSend(protocol.Node, send)
+	if cache == nil {
+		return
+	}
+	defer func() { send.Message = cache }()
+	sw.ctx.handler.OnNodeSend(send)
+	sw.ctx.sender.AcknowledgeToNode(send)
+}
+
+func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
+	defer sw.sendPool.Put(send)
+	if !sw.getBeaconKey(&send.RoleGUID) {
+		return
+	}
+	cache := sw.handleRoleSend(protocol.Beacon, send)
+	if cache == nil {
+		return
+	}
+	defer func() { send.Message = cache }()
+	sw.ctx.handler.OnBeaconSend(send)
+	sw.ctx.sender.AcknowledgeToBeacon(send)
+}
+
 // return cache
 func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []byte {
 	// verify
@@ -310,47 +338,6 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	return cache
 }
 
-func (sw *subWorker) handleNodeSend(send *protocol.Send) {
-	defer sw.sendPool.Put(send)
-	if !sw.getNodeKey(&send.RoleGUID) {
-		return
-	}
-	cache := sw.handleRoleSend(protocol.Node, send)
-	if cache == nil {
-		return
-	}
-	defer func() { send.Message = cache }()
-	sw.ctx.handler.OnNodeSend(send)
-	sw.ctx.sender.Acknowledge(protocol.Node, send)
-}
-
-func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
-	defer sw.sendPool.Put(send)
-	if !sw.getBeaconKey(&send.RoleGUID) {
-		return
-	}
-	cache := sw.handleRoleSend(protocol.Beacon, send)
-	if cache == nil {
-		return
-	}
-	defer func() { send.Message = cache }()
-	sw.ctx.handler.OnBeaconSend(send)
-	sw.ctx.sender.Acknowledge(protocol.Beacon, send)
-}
-
-func (sw *subWorker) verifyAcknowledge(role protocol.Role, ack *protocol.Acknowledge) bool {
-	sw.buffer.Reset()
-	sw.buffer.Write(ack.GUID[:])
-	sw.buffer.Write(ack.RoleGUID[:])
-	sw.buffer.Write(ack.SendGUID[:])
-	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), ack.Signature) {
-		const format = "invalid %s acknowledge signature\n%s"
-		sw.logf(logger.Exploit, format, role, spew.Sdump(ack))
-		return false
-	}
-	return true
-}
-
 func (sw *subWorker) handleNodeAcknowledge(ack *protocol.Acknowledge) {
 	defer sw.ackPool.Put(ack)
 	if !sw.getNodeKey(&ack.RoleGUID) {
@@ -371,6 +358,19 @@ func (sw *subWorker) handleBeaconAcknowledge(ack *protocol.Acknowledge) {
 		return
 	}
 	sw.ctx.sender.HandleBeaconAcknowledge(&ack.RoleGUID, &ack.SendGUID)
+}
+
+func (sw *subWorker) verifyAcknowledge(role protocol.Role, ack *protocol.Acknowledge) bool {
+	sw.buffer.Reset()
+	sw.buffer.Write(ack.GUID[:])
+	sw.buffer.Write(ack.RoleGUID[:])
+	sw.buffer.Write(ack.SendGUID[:])
+	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), ack.Signature) {
+		const format = "invalid %s acknowledge signature\n%s"
+		sw.logf(logger.Exploit, format, role, spew.Sdump(ack))
+		return false
+	}
+	return true
 }
 
 func (sw *subWorker) handleQuery(query *protocol.Query) {

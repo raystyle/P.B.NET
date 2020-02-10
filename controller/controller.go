@@ -11,7 +11,6 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/guid"
 	"project/internal/logger"
-	"project/internal/protocol"
 )
 
 // Ctrl is controller
@@ -203,14 +202,29 @@ func (ctrl *Ctrl) Disconnect(guid *guid.GUID) error {
 	return ctrl.sender.Disconnect(guid)
 }
 
-// Send is used to send messages to Node or Beacon.
-func (ctrl *Ctrl) Send(role protocol.Role, guid *guid.GUID, cmd []byte, msg interface{}) error {
-	return ctrl.sender.Send(role, guid, cmd, msg)
+// SendToNode is used to send messages to Node.
+func (ctrl *Ctrl) SendToNode(
+	ctx context.Context,
+	guid *guid.GUID,
+	command []byte,
+	message interface{},
+) error {
+	return ctrl.sender.SendToNode(ctx, guid, command, message)
+}
+
+// SendToBeacon is used to send messages to Beacon.
+func (ctrl *Ctrl) SendToBeacon(
+	ctx context.Context,
+	guid *guid.GUID,
+	command []byte,
+	message interface{},
+) error {
+	return ctrl.sender.SendToBeacon(ctx, guid, command, message)
 }
 
 // Broadcast is used to broadcast messages to all Nodes.
-func (ctrl *Ctrl) Broadcast(cmd []byte, msg interface{}) error {
-	return ctrl.sender.Broadcast(cmd, msg)
+func (ctrl *Ctrl) Broadcast(command []byte, message interface{}) error {
+	return ctrl.sender.Broadcast(command, message)
 }
 
 // DeleteNode is used to delete Node.

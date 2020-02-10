@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"runtime"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/messages"
-	"project/internal/protocol"
 	"project/internal/testsuite"
 
 	"project/node"
@@ -90,10 +90,11 @@ func TestSender_SendToNode(t *testing.T) {
 		goroutines = 256
 		times      = 64
 	)
+	ctx := context.Background()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.Send(protocol.Node, nodeGUID, messages.CMDBTest, msg)
+			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return
@@ -184,11 +185,12 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 		goroutines = runtime.NumCPU()
 		times      = 600000
 	)
+	ctx := context.Background()
 	start := time.Now()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.Send(protocol.Node, nodeGUID, messages.CMDBTest, msg)
+			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg)
 			if err != nil {
 				t.Error(err)
 				return

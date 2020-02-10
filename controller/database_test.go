@@ -311,7 +311,7 @@ func TestInsertNode(t *testing.T) {
 		GUID:   node.GUID,
 		Level:  logger.Debug,
 		Source: "test",
-		Log:    "test log",
+		Log:    []byte("test log"),
 	}
 	err = ctrl.database.InsertNodeLog(lg)
 	require.NoError(t, err)

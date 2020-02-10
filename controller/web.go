@@ -27,7 +27,6 @@ import (
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
-	"project/internal/protocol"
 	"project/internal/security"
 	"project/internal/xpanic"
 )
@@ -282,7 +281,7 @@ func (wh *webHandler) handleShell(w hRW, r *hR, p hP) {
 	}
 
 	// TODO check nodeGUID
-	err = wh.ctx.sender.Send(protocol.Node, &nodeGUID, messages.CMDBShell, &shell)
+	err = wh.ctx.sender.SendToNode(context.Background(), &nodeGUID, messages.CMDBShell, &shell)
 	if err != nil {
 		fmt.Println("2", err)
 		_, _ = w.Write([]byte(err.Error()))

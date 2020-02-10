@@ -130,19 +130,20 @@ func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 	lg.writeLog(lv, src, logStr[:len(logStr)-1], buf) // delete "\n"
 }
 
-// string log don't include time level src, for database
+// string log don't include time, level and source,
+// it will also save to the database.
 func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 	defer func() {
 		if r := recover(); r != nil {
 			_, _ = xpanic.Print(r, "gLogger.writeLog").WriteTo(lg.writer)
 		}
 	}()
+	_, _ = b.WriteTo(lg.writer)
 	_ = lg.ctx.database.InsertCtrlLog(&mCtrlLog{
 		Level:  lv,
 		Source: src,
 		Log:    []byte(log),
 	})
-	_, _ = b.WriteTo(lg.writer)
 }
 
 func (lg *gLogger) Close() {
