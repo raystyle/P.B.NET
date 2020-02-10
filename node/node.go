@@ -147,8 +147,8 @@ func (node *Node) Main() error {
 func (node *Node) driver() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "node.driver")
-			node.logger.Print(logger.Fatal, "driver", err)
+			b := xpanic.Print(r, "node.driver")
+			node.logger.Print(logger.Fatal, "driver", b)
 			// restart driver
 			time.Sleep(time.Second)
 			go node.driver()
@@ -164,9 +164,10 @@ func (node *Node) Wait() {
 // Exit is used to exit with a error.
 func (node *Node) Exit(err error) {
 	node.once.Do(func() {
+		node.logger.CloseSender()
+		node.handler.Cancel()
 		node.server.Close()
 		node.logger.Print(logger.Info, "exit", "server is stopped")
-		node.handler.Cancel()
 		node.worker.Close()
 		node.logger.Print(logger.Info, "exit", "worker is stopped")
 		node.handler.Close()
@@ -201,8 +202,8 @@ func (node *Node) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstra
 }
 
 // Send is used to send message to Controller.
-func (node *Node) Send(cmd, msg []byte) error {
-	return node.sender.Send(cmd, msg)
+func (node *Node) Send(ctx context.Context, cmd, msg []byte) error {
+	return node.sender.Send(ctx, cmd, msg)
 }
 
 // AddListener is used to add listener.

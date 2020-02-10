@@ -29,16 +29,16 @@ var (
 	ErrSenderClosed   = fmt.Errorf("sender closed")
 )
 
-// MessageI will be Encode by msgpack, except MessageI.(type) is []byte
+// MessageI will be Encode by msgpack, except MessageI.(type) is []byte.
 type sendTask struct {
+	Ctx      context.Context
 	Command  []byte      // for Send
 	MessageI interface{} // for Send
 	Message  []byte      // for SendFromPlugin
 	Result   chan<- *protocol.SendResult
 }
 
-// sender is used to send message to Controller
-// it can connect other Node
+// sender is used to send message to Controller, it can connect other Node.
 type sender struct {
 	ctx *Node
 
@@ -115,6 +115,8 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 		}
 		go worker.Work()
 	}
+	sender.wg.Add(1)
+	go sender.slotCleaner()
 	return sender, nil
 }
 
@@ -131,7 +133,7 @@ func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
 }
 
 // Synchronize is used to connect a node listener and start to synchronize
-// can't connect if a exists client, or the target node is connected self
+// can't connect if a exists client, or the target node is connected self.
 func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -199,8 +201,17 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	return nil
 }
 
+// Disconnect is used to disconnect Node.
+func (sender *sender) Disconnect(guid *guid.GUID) error {
+	if client, ok := sender.ctx.forwarder.GetClientConns()[*guid]; ok {
+		client.Close()
+		return nil
+	}
+	return errors.Errorf("client doesn't exist\n%s", guid)
+}
+
 // Send is used to send message to Controller.
-func (sender *sender) Send(cmd []byte, msg interface{}) error {
+func (sender *sender) Send(ctx context.Context, cmd []byte, msg interface{}) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -208,6 +219,7 @@ func (sender *sender) Send(cmd []byte, msg interface{}) error {
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
+	st.Ctx = ctx
 	st.Command = cmd
 	st.MessageI = msg
 	st.Result = done
@@ -231,6 +243,7 @@ func (sender *sender) SendFromPlugin(message []byte) error {
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
+	st.Ctx = context.Background()
 	st.Message = message
 	st.Result = done
 	// send to task queue
@@ -300,6 +313,40 @@ func (sender *sender) createAckSlot(send *guid.GUID) (chan struct{}, func()) {
 	}
 }
 
+func (sender *sender) slotCleaner() {
+	defer func() {
+		if r := recover(); r != nil {
+			b := xpanic.Print(r, "sender.slotCleaner")
+			sender.log(logger.Fatal, "sender", b)
+			// restart slot cleaner
+			time.Sleep(time.Second)
+			go sender.slotCleaner()
+		} else {
+			sender.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			sender.cleanSlotMap()
+		case <-sender.stopSignal:
+			return
+		}
+	}
+}
+
+func (sender *sender) cleanSlotMap() {
+	newMap := make(map[guid.GUID]chan struct{})
+	sender.slotsM.Lock()
+	defer sender.slotsM.Unlock()
+	for key, value := range sender.slots {
+		newMap[key] = value
+	}
+	sender.slots = newMap
+}
+
 type senderWorker struct {
 	ctx *sender
 
@@ -326,13 +373,12 @@ type senderWorker struct {
 func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "senderWorker.Work")
-			sw.ctx.log(logger.Fatal, err)
+			b := xpanic.Print(r, "senderWorker.Work")
+			sw.ctx.log(logger.Fatal, b)
 			// restart worker
 			time.Sleep(time.Second)
 			go sw.Work()
 		} else {
-			sw.timer.Stop()
 			sw.ctx.wg.Done()
 		}
 	}()
@@ -341,6 +387,7 @@ func (sw *senderWorker) Work() {
 	sw.hash = sha256.New()
 	sw.forwarder = sw.ctx.ctx.forwarder
 	sw.timer = time.NewTimer(sw.timeout)
+	defer sw.timer.Stop()
 	var (
 		st *sendTask
 		at *guid.GUID
@@ -424,7 +471,6 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	// pack
 	sw.buffer.Reset()
 	sw.preS.Pack(sw.buffer)
-
 	// send
 	wait, destroy := sw.ctx.createAckSlot(&sw.preS.GUID)
 	result.Responses, result.Success = sw.forwarder.Send(&sw.preS.GUID, sw.buffer)
@@ -447,6 +493,9 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	case <-sw.timer.C:
 		destroy()
 		result.Err = ErrSendTimeout
+	case <-st.Ctx.Done():
+		destroy()
+		result.Err = st.Ctx.Err()
 	case <-sw.ctx.stopSignal:
 		result.Err = ErrSenderClosed
 	}
@@ -455,8 +504,8 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 func (sw *senderWorker) handleAcknowledgeTask(at *guid.GUID) {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "senderWorker.handleAcknowledgeTask")
-			sw.ctx.log(logger.Fatal, err)
+			b := xpanic.Print(r, "senderWorker.handleAcknowledgeTask")
+			sw.ctx.log(logger.Fatal, b)
 		}
 		sw.ctx.ackTaskPool.Put(at)
 	}()
