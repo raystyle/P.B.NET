@@ -15,13 +15,13 @@ type Test struct {
 	SendTestMsg chan []byte
 }
 
-// EnableTestMessage is used to enable controller send test message
+// EnableTestMessage is used to enable Controller send test message.
 func (t *Test) EnableTestMessage() {
 	t.testMsgEnabled = true
 	t.SendTestMsg = make(chan []byte, 4)
 }
 
-// AddSendTestMessage is used to add controller send test message
+// AddSendTestMessage is used to add Controller send test message.
 func (t *Test) AddSendTestMessage(ctx context.Context, message []byte) error {
 	select {
 	case t.SendTestMsg <- message:

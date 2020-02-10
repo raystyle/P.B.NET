@@ -20,7 +20,7 @@ type syncer struct {
 
 	expireTime float64
 
-	// key = hex(GUID) value = timestamp
+	// value = timestamp
 	sendToBeaconGUID    map[guid.GUID]int64
 	sendToBeaconGUIDRWM sync.RWMutex
 	ackToBeaconGUID     map[guid.GUID]int64
@@ -145,8 +145,8 @@ func (syncer *syncer) Close() {
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			err := xpanic.Error(r, "syncer.guidCleaner")
-			syncer.ctx.logger.Print(logger.Fatal, "syncer", err)
+			b := xpanic.Print(r, "syncer.guidCleaner")
+			syncer.ctx.logger.Print(logger.Fatal, "syncer", b)
 			// restart GUID cleaner
 			time.Sleep(time.Second)
 			go syncer.guidCleaner()

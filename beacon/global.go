@@ -37,8 +37,6 @@ type global struct {
 	spmCount int
 	rand     *random.Rand
 	wg       sync.WaitGroup
-
-	// TODO client test
 }
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
