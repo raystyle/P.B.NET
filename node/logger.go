@@ -24,7 +24,7 @@ import (
 // need save it to memory and send to Controller, if
 // Controller not connect the Node network, these logs
 // will save as plain text, it maybe leak some important
-// messages, so we need encrypt these log
+// messages, so we need encrypt these log.
 type encLog struct {
 	time   time.Time
 	level  logger.Level
@@ -46,7 +46,7 @@ type gLogger struct {
 	// about encrypt log
 	cbc *aes.CBC
 
-	m       sync.Mutex
+	rwm     sync.RWMutex
 	context context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -85,12 +85,9 @@ func newLogger(ctx *Node, config *Config) (*gLogger, error) {
 }
 
 func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
-	if lv < lg.level {
-		return
-	}
-	lg.m.Lock()
-	defer lg.m.Unlock()
-	if lg.ctx == nil {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level || lg.ctx == nil {
 		return
 	}
 	now := lg.ctx.global.Now()
@@ -103,12 +100,9 @@ func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{
 }
 
 func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
-	if lv < lg.level {
-		return
-	}
-	lg.m.Lock()
-	defer lg.m.Unlock()
-	if lg.ctx == nil {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level || lg.ctx == nil {
 		return
 	}
 	now := lg.ctx.global.Now()
@@ -121,12 +115,9 @@ func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
 }
 
 func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
-	if lv < lg.level {
-		return
-	}
-	lg.m.Lock()
-	defer lg.m.Unlock()
-	if lg.ctx == nil {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level || lg.ctx == nil {
 		return
 	}
 	now := lg.ctx.global.Now()
@@ -143,28 +134,45 @@ func (lg *gLogger) StartSender() {
 	go lg.sender()
 }
 
-// Close is used to close log sender and set logger.ctx = nil
+// SetLevel is used to set log level that need print.
+func (lg *gLogger) SetLevel(lv logger.Level) error {
+	if lv > logger.Off {
+		return errors.Errorf("invalid logger level %d", lv)
+	}
+	lg.rwm.Lock()
+	defer lg.rwm.Unlock()
+	lg.level = lv
+	return nil
+}
+
+// Close is used to close log sender and set logger.ctx = nil.
 func (lg *gLogger) Close() {
 	lg.cancel()
 	lg.wg.Wait()
 	lg.timer.Stop()
-	lg.m.Lock()
-	defer lg.m.Unlock()
+	lg.rwm.Lock()
+	defer lg.rwm.Unlock()
 	lg.ctx = nil
 }
 
-// string log not include time level src
+// string log not include time, level, and source.
 func (lg *gLogger) writeLog(time time.Time, lv logger.Level, src, log string, b *bytes.Buffer) {
 	defer func() {
 		if r := recover(); r != nil {
 			_, _ = xpanic.Print(r, "gLogger.writeLog").WriteTo(lg.writer)
 		}
 	}()
-	// write to the self writer
+	// write to the self writer.
+	buf := b.Bytes()
 	_, _ = b.WriteTo(lg.writer)
+	security.CoverBytes(buf)
+	// <security> cover log at once.
+	logB := []byte(log)
+	security.CoverString(&log)
+	defer security.CoverBytes(logB)
 	// encrypt log and send to the log queue, then wait sender
 	// to send it to the Controller, finally you can receive it.
-	cipherData, err := lg.cbc.Encrypt([]byte(log))
+	cipherData, err := lg.cbc.Encrypt(logB)
 	if err != nil {
 		panic("logger internal error: " + err.Error())
 	}
@@ -204,26 +212,26 @@ func (lg *gLogger) sender() {
 }
 
 // send will try to send log until Node is exit.
-func (lg *gLogger) send(log *encLog) {
+func (lg *gLogger) send(el *encLog) {
 	for {
-		plainData, err := lg.cbc.Decrypt(log.log)
+		plainData, err := lg.cbc.Decrypt(el.log)
 		if err != nil {
 			panic("logger internal error: " + err.Error())
 		}
 		// decrypt encrypted log
-		m := messages.Log{
-			Time:   log.time,
-			Level:  log.level,
-			Source: log.source,
+		log := messages.Log{
+			Time:   el.time,
+			Level:  el.level,
+			Source: el.source,
 			Log:    plainData,
 		}
-		err = lg.ctx.sender.Send(messages.CMDBNodeLog, m)
+		err = lg.ctx.sender.Send(messages.CMDBNodeLog, log)
 		if err == nil {
 			security.CoverBytes(plainData)
 			break
 		}
 		// encrypt log again
-		log.log, err = lg.cbc.Encrypt(plainData)
+		el.log, err = lg.cbc.Encrypt(plainData)
 		if err != nil {
 			panic("logger internal error: " + err.Error())
 		}

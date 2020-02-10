@@ -26,7 +26,7 @@ import (
 	"project/internal/xpanic"
 )
 
-// Client is used to connect node listener
+// Client is used to connect Node's listener.
 type Client struct {
 	ctx *Node
 

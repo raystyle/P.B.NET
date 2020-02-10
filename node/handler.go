@@ -77,8 +77,7 @@ func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
 // logPanic must use like defer h.logPanic("title")
 func (h *handler) logPanic(title string) {
 	if r := recover(); r != nil {
-		err := xpanic.Error(r, title)
-		h.log(logger.Fatal, err)
+		h.log(logger.Fatal, xpanic.Error(r, title))
 	}
 }
 
