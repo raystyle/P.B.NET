@@ -11,16 +11,19 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/guid"
+	"project/internal/security"
 )
 
 type database struct {
+	ctx *Ctrl
+
 	dbLogger   *dbLogger
 	gormLogger *gormLogger
 	db         *gorm.DB
 	cache      *cache
 }
 
-func newDatabase(config *Config) (*database, error) {
+func newDatabase(ctx *Ctrl, config *Config) (*database, error) {
 	// create database logger
 	cfg := config.Database
 	dbLogger, err := newDatabaseLogger(cfg.Dialect, cfg.LogFile, cfg.LogWriter)
@@ -58,6 +61,7 @@ func newDatabase(config *Config) (*database, error) {
 		gormDB.LogMode(true)
 	}
 	return &database{
+		ctx:        ctx,
 		dbLogger:   dbLogger,
 		gormLogger: gormLogger,
 		db:         gormDB,
@@ -69,6 +73,7 @@ func (db *database) Close() {
 	_ = db.db.Close()
 	db.gormLogger.Close()
 	db.dbLogger.Close()
+	db.ctx = nil
 }
 
 type cache struct {
@@ -158,7 +163,7 @@ func (db *database) DeleteProxyClient(id uint64) error {
 	return db.db.Delete(&mProxyClient{ID: id}).Error
 }
 
-// ---------------------------------dns client----------------------------------------
+// ---------------------------------DNS client----------------------------------------
 
 func (db *database) InsertDNSServer(m *mDNSServer) error {
 	return db.db.Create(m).Error
@@ -234,7 +239,7 @@ func (db *database) DeleteListener(id uint64) error {
 	return db.db.Delete(&mListener{ID: id}).Error
 }
 
-// ------------------------------------node-------------------------------------------
+// ------------------------------------Node-------------------------------------------
 
 func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 	node := db.cache.SelectNode(guid)
@@ -246,6 +251,13 @@ func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 	if err != nil {
 		return nil, err
 	}
+	// calculate session key
+	sessionKey, err := db.ctx.global.KeyExchange(node.KexPublicKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to calculate node session key")
+	}
+	defer security.CoverBytes(sessionKey)
+	node.SessionKey = security.NewBytes(sessionKey)
 	db.cache.InsertNode(node)
 	return node, nil
 }
@@ -316,7 +328,7 @@ func (db *database) DeleteNodeLog(id uint64) error {
 	return db.db.Table(tableNodeLog).Delete(&mRoleLog{ID: id}).Error
 }
 
-// -----------------------------------beacon------------------------------------------
+// -----------------------------------Beacon------------------------------------------
 
 func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 	beacon := db.cache.SelectBeacon(guid)
@@ -328,6 +340,13 @@ func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 	if err != nil {
 		return nil, err
 	}
+	// calculate session key
+	sessionKey, err := db.ctx.global.KeyExchange(beacon.KexPublicKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to calculate beacon session key")
+	}
+	defer security.CoverBytes(sessionKey)
+	beacon.SessionKey = security.NewBytes(sessionKey)
 	db.cache.InsertBeacon(beacon)
 	return beacon, nil
 }
@@ -361,6 +380,14 @@ func (db *database) DeleteBeacon(guid *guid.GUID) error {
 	if err != nil {
 		return err
 	}
+	err = tx.Delete(&mBeaconMessage{GUID: guid[:]}).Error
+	if err != nil {
+		return err
+	}
+	err = tx.Delete(&mBeaconMessageIndex{GUID: guid[:]}).Error
+	if err != nil {
+		return err
+	}
 	err = tx.Delete(&mBeaconListener{GUID: guid[:]}).Error
 	if err != nil {
 		return err
@@ -383,7 +410,6 @@ func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
 }
 
 // TODO BeaconMessage
-
 func (db *database) InsertBeaconMessage(guid *guid.GUID, message *bytes.Buffer) error {
 	return db.db.Create(&mBeaconMessage{GUID: guid[:], Message: message.Bytes()}).Error
 }

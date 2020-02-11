@@ -40,7 +40,7 @@ func New(cfg *Config) (*Ctrl, error) {
 	test := cfg.Test
 	ctrl := &Ctrl{Test: &test}
 	// database
-	database, err := newDatabase(cfg)
+	database, err := newDatabase(ctrl, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize database")
 	}

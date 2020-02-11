@@ -7,9 +7,11 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
+
+	"project/internal/security"
 )
 
-// set gorm.TheNamingStrategy.Table
+// set gorm.TheNamingStrategy.Table.
 // gorm custom name: table name delete "m"
 // table "mProxyClient" -> "m_proxy_client" -> "proxy_client"
 func init() {
@@ -19,12 +21,14 @@ func init() {
 	}
 }
 
-// different table with the same model
+// different table with the same model.
 const (
 	tableCtrlLog   = "log"
 	tableNodeLog   = "node_log"
 	tableBeaconLog = "beacon_log"
 )
+
+// 48 = internal/guid/guid.go, guid.Size.
 
 // Model include time, most model need it
 type Model struct {
@@ -38,7 +42,7 @@ type mCtrlLog struct {
 	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null" sql:"index"`
 	Source    string     `gorm:"size:32;not null" sql:"index"`
-	Log       []byte     `gorm:"type:blob;not null"`
+	Log       []byte     `gorm:"type:mediumblob;not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
@@ -90,14 +94,14 @@ type mListener struct {
 }
 
 type mNode struct {
-	ID           uint64     `gorm:"primary_key"`
-	GUID         []byte     `gorm:"type:binary(48);not null" sql:"index"`
-	PublicKey    []byte     `gorm:"type:binary(32);not null"`
-	KexPublicKey []byte     `gorm:"type:binary(32);not null"`
-	SessionKey   []byte     `gorm:"type:binary(32);not null"`
-	IsBootstrap  bool       `gorm:"not null"`
-	CreatedAt    time.Time  `gorm:"not null"`
-	DeletedAt    *time.Time `sql:"index"`
+	ID           uint64          `gorm:"primary_key"`
+	GUID         []byte          `gorm:"type:binary(48);not null" sql:"index"`
+	PublicKey    []byte          `gorm:"type:binary(32);not null"`
+	KexPublicKey []byte          `gorm:"type:binary(32);not null"`
+	SessionKey   *security.Bytes `gorm:"-"` // when first query, it will be calculated
+	IsBootstrap  bool            `gorm:"not null"`
+	CreatedAt    time.Time       `gorm:"not null"`
+	DeletedAt    *time.Time      `sql:"index"`
 }
 
 type mNodeListener struct {
@@ -112,13 +116,13 @@ type mNodeListener struct {
 }
 
 type mBeacon struct {
-	ID           uint64     `gorm:"primary_key"`
-	GUID         []byte     `gorm:"type:binary(48);not null" sql:"index"`
-	PublicKey    []byte     `gorm:"type:binary(32);not null"`
-	KexPublicKey []byte     `gorm:"type:binary(32);not null"`
-	SessionKey   []byte     `gorm:"type:binary(32);not null"`
-	CreatedAt    time.Time  `gorm:"not null"`
-	DeletedAt    *time.Time `sql:"index"`
+	ID           uint64          `gorm:"primary_key"`
+	GUID         []byte          `gorm:"type:binary(48);not null" sql:"index"`
+	PublicKey    []byte          `gorm:"type:binary(32);not null"`
+	KexPublicKey []byte          `gorm:"type:binary(32);not null"`
+	SessionKey   *security.Bytes `gorm:"-"` // when first query, it will be calculated
+	CreatedAt    time.Time       `gorm:"not null"`
+	DeletedAt    *time.Time      `sql:"index"`
 }
 
 type mBeaconListener struct {
@@ -134,13 +138,22 @@ type mBeaconListener struct {
 
 type mBeaconMessage struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(48)"`
-	Message   []byte     `gorm:"not null;type:MEDIUMBLOB"`
+	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
+	Hash      []byte     `gorm:"not null;type:binary(32)"`
+	Message   []byte     `gorm:"not null;type:mediumblob"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
-// 48 = internal/guid/guid.go  guid.Size
+// <security> must use new table to set message index to each Beacon,
+// because use mBeaconMessage.ID maybe expose scale.
+type mBeaconMessageIndex struct {
+	ID    uint64 `gorm:"primary_key"`
+	GUID  []byte `gorm:"not null;type:binary(48)" sql:"index"`
+	Index uint64 `gorm:"not null"`
+	Model
+}
+
 // beacon & node log
 type mRoleLog struct {
 	ID        uint64     `gorm:"primary_key"`
@@ -148,7 +161,7 @@ type mRoleLog struct {
 	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null"`
 	Source    string     `gorm:"size:32;not null"`
-	Log       []byte     `gorm:"type:blob;not null"`
+	Log       []byte     `gorm:"type:mediumblob;not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
@@ -203,6 +216,7 @@ func InitializeDatabase(config *Config) error {
 		// about beacon
 		{model: &mBeacon{}},
 		{model: &mBeaconMessage{}},
+		{model: &mBeaconMessageIndex{}},
 		{model: &mBeaconListener{}},
 		{name: tableBeaconLog, model: &mRoleLog{}},
 	}
@@ -270,6 +284,7 @@ func initializeDatabaseForeignKey(db *gorm.DB) error {
 	dest = table + "(guid)"
 	for _, model := range []*gorm.DB{
 		db.Model(&mBeaconMessage{}),
+		db.Model(&mBeaconMessageIndex{}),
 		db.Model(&mBeaconListener{}),
 		db.Table(tableBeaconLog).Model(&mRoleLog{}),
 	} {

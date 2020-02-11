@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
-	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -279,8 +278,7 @@ func TestDeleteListener(t *testing.T) {
 func TestInsertNode(t *testing.T) {
 	testInitializeController(t)
 	node := &mNode{
-		SessionKey: bytes.Repeat([]byte{48}, aes.Key256Bit),
-		PublicKey:  bytes.Repeat([]byte{48}, ed25519.PublicKeySize),
+		PublicKey: bytes.Repeat([]byte{48}, ed25519.PublicKeySize),
 	}
 	copy(node.GUID[:], bytes.Repeat([]byte{48}, guid.Size))
 	err := ctrl.database.db.Unscoped().Delete(node).Error

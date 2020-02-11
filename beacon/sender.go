@@ -570,9 +570,9 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	sw.buffer.Write(sw.preS.Message)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
-	sw.err = sw.preS.Validate()
-	if sw.err != nil {
-		panic("sender internal error: " + sw.err.Error())
+	result.Err = sw.preS.Validate()
+	if result.Err != nil {
+		panic("sender internal error: " + result.Err.Error())
 	}
 	// pack
 	sw.buffer.Reset()

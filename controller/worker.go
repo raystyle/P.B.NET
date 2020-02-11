@@ -252,37 +252,47 @@ func (sw *subWorker) Work() {
 	}
 }
 
-func (sw *subWorker) getNodeKey(guid *guid.GUID) bool {
+func (sw *subWorker) getNodeKey(guid *guid.GUID, session bool) ([]byte, bool) {
 	sw.node, sw.err = sw.ctx.database.SelectNode(guid)
 	if sw.err != nil {
 		const format = "failed to select node: %s\n%s"
 		sw.logf(logger.Warning, format, sw.err, guid.Print())
-		return false
+		return nil, false
 	}
 	sw.publicKey = sw.node.PublicKey
-	sw.aesKey = sw.node.SessionKey
-	sw.aesIV = sw.node.SessionKey[:aes.IVSize]
-	return true
+	if session {
+		sessionKey := sw.node.SessionKey.Get()
+		sw.aesKey = sessionKey
+		sw.aesIV = sessionKey[:aes.IVSize]
+		return sessionKey, true
+	}
+	return nil, true
 }
 
-func (sw *subWorker) getBeaconKey(guid *guid.GUID) bool {
+func (sw *subWorker) getBeaconKey(guid *guid.GUID, session bool) ([]byte, bool) {
 	sw.beacon, sw.err = sw.ctx.database.SelectBeacon(guid)
 	if sw.err != nil {
 		const format = "failed to select beacon: %s\n%s"
 		sw.logf(logger.Warning, format, sw.err, guid.Print())
-		return false
+		return nil, false
 	}
 	sw.publicKey = sw.beacon.PublicKey
-	sw.aesKey = sw.beacon.SessionKey
-	sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
-	return true
+	if session {
+		sessionKey := sw.beacon.SessionKey.Get()
+		sw.aesKey = sessionKey
+		sw.aesIV = sessionKey[:aes.IVSize]
+		return sessionKey, true
+	}
+	return nil, true
 }
 
 func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 	defer sw.sendPool.Put(send)
-	if !sw.getNodeKey(&send.RoleGUID) {
+	sessionKey, ok := sw.getNodeKey(&send.RoleGUID, true)
+	if !ok {
 		return
 	}
+	defer sw.node.SessionKey.Put(sessionKey)
 	cache := sw.handleRoleSend(protocol.Node, send)
 	if cache == nil {
 		return
@@ -294,9 +304,11 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 
 func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 	defer sw.sendPool.Put(send)
-	if !sw.getBeaconKey(&send.RoleGUID) {
+	sessionKey, ok := sw.getBeaconKey(&send.RoleGUID, true)
+	if !ok {
 		return
 	}
+	defer sw.beacon.SessionKey.Put(sessionKey)
 	cache := sw.handleRoleSend(protocol.Beacon, send)
 	if cache == nil {
 		return
@@ -340,7 +352,8 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 
 func (sw *subWorker) handleNodeAcknowledge(ack *protocol.Acknowledge) {
 	defer sw.ackPool.Put(ack)
-	if !sw.getNodeKey(&ack.RoleGUID) {
+	_, ok := sw.getNodeKey(&ack.RoleGUID, false)
+	if !ok {
 		return
 	}
 	if !sw.verifyAcknowledge(protocol.Node, ack) {
@@ -351,7 +364,8 @@ func (sw *subWorker) handleNodeAcknowledge(ack *protocol.Acknowledge) {
 
 func (sw *subWorker) handleBeaconAcknowledge(ack *protocol.Acknowledge) {
 	defer sw.ackPool.Put(ack)
-	if !sw.getBeaconKey(&ack.RoleGUID) {
+	_, ok := sw.getBeaconKey(&ack.RoleGUID, false)
+	if !ok {
 		return
 	}
 	if !sw.verifyAcknowledge(protocol.Beacon, ack) {
@@ -375,7 +389,8 @@ func (sw *subWorker) verifyAcknowledge(role protocol.Role, ack *protocol.Acknowl
 
 func (sw *subWorker) handleQuery(query *protocol.Query) {
 	defer sw.queryPool.Put(query)
-	if !sw.getBeaconKey(&query.BeaconGUID) {
+	_, ok := sw.getBeaconKey(&query.BeaconGUID, false)
+	if !ok {
 		return
 	}
 	// verify

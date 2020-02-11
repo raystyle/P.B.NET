@@ -1003,10 +1003,13 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 	if result.Err != nil {
 		return
 	}
-	sw.aesKey = sw.node.SessionKey
-	sw.aesIV = sw.node.SessionKey[:aes.IVSize]
+	sessionKey := sw.node.SessionKey.Get()
+	defer sw.node.SessionKey.Put(sessionKey)
+	sw.aesKey = sessionKey
+	sw.aesIV = sessionKey[:aes.IVSize]
 	// pack
-	if !sw.packSendData(st, result) {
+	result.Err = sw.packSendData(st)
+	if result.Err != nil {
 		return
 	}
 	// send
@@ -1039,7 +1042,6 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 	}
 }
 
-// TODO finish query mode
 func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 	result := sw.ctx.sendResultPool.Get().(*protocol.SendResult)
 	result.Clean()
@@ -1056,18 +1058,21 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 	if result.Err != nil {
 		return
 	}
-	sw.aesKey = sw.beacon.SessionKey
-	sw.aesIV = sw.beacon.SessionKey[:aes.IVSize]
-	// pack
-	if !sw.packSendData(st, result) {
-		return
-	}
+	sessionKey := sw.beacon.SessionKey.Get()
+	defer sw.beacon.SessionKey.Put(sessionKey)
+	sw.aesKey = sessionKey
+	sw.aesIV = sessionKey[:aes.IVSize]
 	// check is need to write message to the database
 	if !sw.ctx.isInInteractiveMode(st.GUID) {
-		result.Err = sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, sw.buffer)
+		result.Err = sw.insertBeaconMessage(st)
 		if result.Err == nil {
 			result.Success = 1
 		}
+		return
+	}
+	// pack
+	result.Err = sw.packSendData(st)
+	if result.Err != nil {
 		return
 	}
 	// send
@@ -1100,7 +1105,7 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 	}
 }
 
-func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) bool {
+func (sw *senderWorker) packSendData(st *sendTask) error {
 	// pack message(interface)
 	if st.MessageI != nil {
 		sw.buffer.Reset()
@@ -1108,9 +1113,9 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 		if msg, ok := st.MessageI.([]byte); ok {
 			sw.buffer.Write(msg)
 		} else {
-			result.Err = sw.msgpack.Encode(st.MessageI)
-			if result.Err != nil {
-				return false
+			sw.err = sw.msgpack.Encode(st.MessageI)
+			if sw.err != nil {
+				return sw.err
 			}
 		}
 		// don't worry copy, because encrypt
@@ -1118,13 +1123,12 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 	}
 	// check message size
 	if len(st.Message) > protocol.MaxFrameSize {
-		result.Err = protocol.ErrTooBigFrame
-		return false
+		return protocol.ErrTooBigFrame
 	}
 	// encrypt
-	sw.preS.Message, result.Err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
-	if result.Err != nil {
-		return false
+	sw.preS.Message, sw.err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
+	if sw.err != nil {
+		return sw.err
 	}
 	// set GUID
 	sw.preS.GUID = *sw.ctx.guid.Get()
@@ -1148,7 +1152,37 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 	// pack
 	sw.buffer.Reset()
 	sw.preS.Pack(sw.buffer)
-	return true
+	return nil
+}
+
+// insertBeaconMessage is used to insert send to Beacon message to
+// database, and wait the target Beacon to query it.
+func (sw *senderWorker) insertBeaconMessage(st *sendTask) error {
+	// pack message(interface)
+	if st.MessageI != nil {
+		sw.buffer.Reset()
+		sw.buffer.Write(st.Command)
+		if msg, ok := st.MessageI.([]byte); ok {
+			sw.buffer.Write(msg)
+		} else {
+			sw.err = sw.msgpack.Encode(st.MessageI)
+			if sw.err != nil {
+				return sw.err
+			}
+		}
+		// don't worry copy, because encrypt
+		st.Message = sw.buffer.Bytes()
+	}
+	// check message size
+	if len(st.Message) > protocol.MaxFrameSize {
+		return protocol.ErrTooBigFrame
+	}
+	// encrypt
+	sw.preS.Message, sw.err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
+	if sw.err != nil {
+		return sw.err
+	}
+	return nil
 }
 
 func (sw *senderWorker) handleAcknowledgeToNodeTask(at *ackTask) {
@@ -1244,9 +1278,9 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 	sw.buffer.Write(sw.preB.Message)
 	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
-	sw.err = sw.preB.Validate()
-	if sw.err != nil {
-		panic("sender internal error: " + sw.err.Error())
+	result.Err = sw.preB.Validate()
+	if result.Err != nil {
+		panic("sender internal error: " + result.Err.Error())
 	}
 	// pack
 	sw.buffer.Reset()

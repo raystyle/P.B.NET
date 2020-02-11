@@ -117,11 +117,12 @@ func (ctrl *Ctrl) registerNode(
 		ctrl.logger.Print(logger.Exploit, "register node", err)
 		return nil, failed(err)
 	}
+	defer security.CoverBytes(sessionKey)
 	err = ctrl.database.InsertNode(&mNode{
 		GUID:         nrr.GUID[:],
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
-		SessionKey:   sessionKey,
+		SessionKey:   security.NewBytes(sessionKey),
 		IsBootstrap:  bootstrap,
 	})
 	if err != nil {
@@ -179,11 +180,12 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 		ctrl.logger.Print(logger.Exploit, "register beacon", err)
 		return failed(err)
 	}
+	defer security.CoverBytes(sessionKey)
 	err = ctrl.database.InsertBeacon(&mBeacon{
 		GUID:         brr.GUID[:],
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
-		SessionKey:   sessionKey,
+		SessionKey:   security.NewBytes(sessionKey),
 	})
 	if err != nil {
 		return failed(err)
