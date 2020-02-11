@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// errors
+// errors about reply
 var (
 	ErrReplyExpired = errors.New("expired")
 	ErrReplyHandled = errors.New("operation has been handled")
@@ -64,10 +64,14 @@ const (
 	CtrlAnswer
 )
 
-// about trust node
+// before sync
 const (
+	// about trust Node
 	CtrlTrustNode uint8 = 0x20 + iota
 	CtrlSetNodeCert
+
+	// for recovery role session key
+	CtrlQueryKeyStorage
 )
 
 // --------------------------Node------------------------------

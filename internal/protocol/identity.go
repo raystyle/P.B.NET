@@ -3,6 +3,7 @@ package protocol
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"project/internal/guid"
 )
@@ -46,6 +47,26 @@ func (role Role) Bytes() []byte {
 	default:
 		return []byte{255}
 	}
+}
+
+// NodeKey contains public key, key exchange public key
+type NodeKey struct {
+	PublicKey    []byte
+	KexPublicKey []byte
+	ReplyTime    time.Time
+}
+
+// BeaconKey contains public key, key exchange public key
+type BeaconKey struct {
+	PublicKey    []byte
+	KexPublicKey []byte
+	ReplyTime    time.Time
+}
+
+// KeyStorage contains all role key.
+type KeyStorage struct {
+	NodeKeys   map[guid.GUID]*NodeKey
+	BeaconKeys map[guid.GUID]*BeaconKey
 }
 
 // CtrlGUID is the Controller GUID, it used to reserve
