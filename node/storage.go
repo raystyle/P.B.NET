@@ -2,10 +2,10 @@ package node
 
 import (
 	"sync"
-	"time"
 
 	"project/internal/guid"
 	"project/internal/messages"
+	"project/internal/protocol"
 )
 
 type storage struct {
@@ -16,9 +16,9 @@ type storage struct {
 	beaconRegistersM sync.Mutex
 
 	// key = role GUID
-	nodeKeys      map[guid.GUID]*nodeKey
+	nodeKeys      map[guid.GUID]*protocol.NodeKey
 	nodeKeysRWM   sync.RWMutex
-	beaconKeys    map[guid.GUID]*beaconKey
+	beaconKeys    map[guid.GUID]*protocol.BeaconKey
 	beaconKeysRWM sync.RWMutex
 }
 
@@ -26,8 +26,8 @@ func newStorage() *storage {
 	storage := storage{
 		nodeRegisters:   make(map[guid.GUID]chan *messages.NodeRegisterResponse),
 		beaconRegisters: make(map[guid.GUID]chan *messages.BeaconRegisterResponse),
-		nodeKeys:        make(map[guid.GUID]*nodeKey),
-		beaconKeys:      make(map[guid.GUID]*beaconKey),
+		nodeKeys:        make(map[guid.GUID]*protocol.NodeKey),
+		beaconKeys:      make(map[guid.GUID]*protocol.BeaconKey),
 	}
 	return &storage
 }
@@ -74,25 +74,13 @@ func (storage *storage) SetBeaconRegister(guid *guid.GUID, response *messages.Be
 	}
 }
 
-type nodeKey struct {
-	PublicKey    []byte
-	KexPublicKey []byte
-	ReplyTime    time.Time
-}
-
-type beaconKey struct {
-	PublicKey    []byte
-	KexPublicKey []byte
-	ReplyTime    time.Time
-}
-
-func (storage *storage) GetNodeKey(guid *guid.GUID) *nodeKey {
+func (storage *storage) GetNodeKey(guid *guid.GUID) *protocol.NodeKey {
 	storage.nodeKeysRWM.RLock()
 	defer storage.nodeKeysRWM.RUnlock()
 	return storage.nodeKeys[*guid]
 }
 
-func (storage *storage) AddNodeKey(guid *guid.GUID, sk *nodeKey) {
+func (storage *storage) AddNodeKey(guid *guid.GUID, sk *protocol.NodeKey) {
 	storage.nodeKeysRWM.Lock()
 	defer storage.nodeKeysRWM.Unlock()
 	if _, ok := storage.nodeKeys[*guid]; !ok {
@@ -106,13 +94,23 @@ func (storage *storage) DeleteNodeKey(guid *guid.GUID) {
 	delete(storage.nodeKeys, *guid)
 }
 
-func (storage *storage) GetBeaconKey(guid *guid.GUID) *beaconKey {
+func (storage *storage) GetAllNodeKeys() map[guid.GUID]*protocol.NodeKey {
+	nodeKeys := make(map[guid.GUID]*protocol.NodeKey)
+	storage.nodeKeysRWM.RLock()
+	defer storage.nodeKeysRWM.RUnlock()
+	for key, value := range storage.nodeKeys {
+		nodeKeys[key] = value
+	}
+	return nodeKeys
+}
+
+func (storage *storage) GetBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 	storage.beaconKeysRWM.RLock()
 	defer storage.beaconKeysRWM.RUnlock()
 	return storage.beaconKeys[*guid]
 }
 
-func (storage *storage) AddBeaconKey(guid *guid.GUID, sk *beaconKey) {
+func (storage *storage) AddBeaconKey(guid *guid.GUID, sk *protocol.BeaconKey) {
 	storage.beaconKeysRWM.Lock()
 	defer storage.beaconKeysRWM.Unlock()
 	if _, ok := storage.beaconKeys[*guid]; !ok {
@@ -124,4 +122,14 @@ func (storage *storage) DeleteBeaconKey(guid *guid.GUID) {
 	storage.beaconKeysRWM.Lock()
 	defer storage.beaconKeysRWM.Unlock()
 	delete(storage.beaconKeys, *guid)
+}
+
+func (storage *storage) GetAllBeaconKeys() map[guid.GUID]*protocol.BeaconKey {
+	beaconKeys := make(map[guid.GUID]*protocol.BeaconKey)
+	storage.beaconKeysRWM.RLock()
+	defer storage.beaconKeysRWM.RUnlock()
+	for key, value := range storage.beaconKeys {
+		beaconKeys[key] = value
+	}
+	return beaconKeys
 }

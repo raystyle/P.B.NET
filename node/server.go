@@ -705,7 +705,7 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	}
 }
 
-func (server *server) getNodeKey(guid *guid.GUID) *nodeKey {
+func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 	// First try to query from self storage.
 	nk := server.ctx.storage.GetNodeKey(guid)
 	if nk != nil {
@@ -895,7 +895,7 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 	}
 }
 
-func (server *server) getBeaconKey(guid *guid.GUID) *beaconKey {
+func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 	// First try to query from self storage.
 	bk := server.ctx.storage.GetBeaconKey(guid)
 	if bk != nil {
@@ -1055,6 +1055,8 @@ func (ctrl *ctrlConn) onFrameBeforeSync(frame []byte) bool {
 		ctrl.handleTrustNode(id)
 	case protocol.CtrlSetNodeCert:
 		ctrl.handleSetCertificate(id, data)
+	case protocol.CtrlQueryKeyStorage:
+		ctrl.handleQueryKeyStorage(id)
 	default:
 		return false
 	}
@@ -1135,6 +1137,19 @@ func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
 		ctrl.Conn.Log(logger.Debug, "trust node")
 	} else {
 		ctrl.Conn.Reply(id, []byte(err.Error()))
+	}
+}
+
+func (ctrl *ctrlConn) handleQueryKeyStorage(id []byte) {
+	ks := protocol.KeyStorage{
+		NodeKeys:   ctrl.ctx.storage.GetAllNodeKeys(),
+		BeaconKeys: ctrl.ctx.storage.GetAllBeaconKeys(),
+	}
+	data, err := msgpack.Marshal(ks)
+	if err != nil {
+		ctrl.Conn.Reply(id, []byte(err.Error()))
+	} else {
+		ctrl.Conn.Reply(id, data)
 	}
 }
 

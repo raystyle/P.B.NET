@@ -120,7 +120,7 @@ func (h *handler) handleAnswerNodeKey(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, ank, log)
 		return
 	}
-	h.ctx.storage.AddNodeKey(&ank.GUID, &nodeKey{
+	h.ctx.storage.AddNodeKey(&ank.GUID, &protocol.NodeKey{
 		PublicKey:    ank.PublicKey,
 		KexPublicKey: ank.KexPublicKey,
 		ReplyTime:    ank.ReplyTime,
@@ -142,7 +142,7 @@ func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, send, log, err)
 		return
 	}
-	h.ctx.storage.AddBeaconKey(&abk.GUID, &beaconKey{
+	h.ctx.storage.AddBeaconKey(&abk.GUID, &protocol.BeaconKey{
 		PublicKey:    abk.PublicKey,
 		KexPublicKey: abk.KexPublicKey,
 		ReplyTime:    abk.ReplyTime,
@@ -200,7 +200,7 @@ func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
 		h.logWithInfo(logger.Exploit, nrr, log, err)
 		return
 	}
-	h.ctx.storage.AddNodeKey(&nrr.GUID, &nodeKey{
+	h.ctx.storage.AddNodeKey(&nrr.GUID, &protocol.NodeKey{
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
 		ReplyTime:    nrr.ReplyTime,
@@ -223,7 +223,7 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 		h.logWithInfo(logger.Exploit, brr, log)
 		return
 	}
-	h.ctx.storage.AddBeaconKey(&brr.GUID, &beaconKey{
+	h.ctx.storage.AddBeaconKey(&brr.GUID, &protocol.BeaconKey{
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
 		ReplyTime:    brr.ReplyTime,
