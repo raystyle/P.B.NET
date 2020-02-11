@@ -41,44 +41,44 @@ type mCtrlLog struct {
 	ID        uint64     `gorm:"primary_key"`
 	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null" sql:"index"`
-	Source    string     `gorm:"size:32;not null" sql:"index"`
-	Log       []byte     `gorm:"type:mediumblob;not null"`
+	Source    string     `gorm:"not null;size:32" sql:"index"`
+	Log       []byte     `gorm:"not null;type:mediumblob"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
 type mProxyClient struct {
 	ID      uint64 `gorm:"primary_key"`
-	Tag     string `gorm:"size:32;not null;unique"`
-	Mode    string `gorm:"size:32;not null"`
-	Network string `gorm:"size:32;not null"`
-	Address string `gorm:"size:1024;not null"`
-	Options string `gorm:"size:1048576;not null"`
+	Tag     string `gorm:"not null;size:32;unique"`
+	Mode    string `gorm:"not null;size:32"`
+	Network string `gorm:"not null;size:32"`
+	Address string `gorm:"not null;size:1024"`
+	Options string `gorm:"not null;size:1048576"`
 	Model
 }
 
 type mDNSServer struct {
 	ID       uint64 `gorm:"primary_key"`
-	Tag      string `gorm:"size:32;not null;unique"`
-	Method   string `gorm:"size:32;not null"`
-	Address  string `gorm:"size:2048;not null"`
+	Tag      string `gorm:"not null;size:32;unique"`
+	Method   string `gorm:"not null;size:32"`
+	Address  string `gorm:"not null;size:2048"`
 	SkipTest bool   `gorm:"not null"`
 	Model
 }
 
 type mTimeSyncer struct {
 	ID       uint64 `gorm:"primary_key"`
-	Tag      string `gorm:"size:32;not null;unique"`
-	Mode     string `gorm:"size:32;not null"`
-	Config   string `gorm:"size:16000;not null"`
+	Tag      string `gorm:"not null;size:32;unique"`
+	Mode     string `gorm:"not null;size:32"`
+	Config   string `gorm:"not null;size:16000"`
 	SkipTest bool   `gorm:"not null"`
 	Model
 }
 
 type mBoot struct {
 	ID       uint64 `gorm:"primary_key"`
-	Tag      string `gorm:"size:32;not null;unique"`
-	Mode     string `gorm:"size:32;not null"`
-	Config   string `gorm:"size:16000;not null"`
+	Tag      string `gorm:"not null;size:32;unique"`
+	Mode     string `gorm:"not null;size:32"`
+	Config   string `gorm:"not null;size:16000"`
 	Interval uint32 `gorm:"not null"`
 	Enable   bool   `gorm:"not null"`
 	Model
@@ -86,18 +86,18 @@ type mBoot struct {
 
 type mListener struct {
 	ID      uint64 `gorm:"primary_key"`
-	Tag     string `gorm:"size:32;not null;unique"`
-	Mode    string `gorm:"size:32;not null"`
+	Tag     string `gorm:"not null;size:32;unique"`
+	Mode    string `gorm:"not null;size:32"`
 	Timeout uint32 `gorm:"not null"`
-	Config  string `gorm:"size:16000;not null"`
+	Config  string `gorm:"not null;size:16000"`
 	Model
 }
 
 type mNode struct {
 	ID           uint64          `gorm:"primary_key"`
-	GUID         []byte          `gorm:"type:binary(48);not null" sql:"index"`
-	PublicKey    []byte          `gorm:"type:binary(32);not null"`
-	KexPublicKey []byte          `gorm:"type:binary(32);not null"`
+	GUID         []byte          `gorm:"not null;type:binary(48);unique" sql:"index"`
+	PublicKey    []byte          `gorm:"not null;type:binary(32)"`
+	KexPublicKey []byte          `gorm:"not null;type:binary(32)"`
 	SessionKey   *security.Bytes `gorm:"-"` // when first query, it will be calculated
 	IsBootstrap  bool            `gorm:"not null"`
 	CreatedAt    time.Time       `gorm:"not null"`
@@ -106,20 +106,20 @@ type mNode struct {
 
 type mNodeListener struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"type:binary(48);not null" sql:"index"`
-	Tag       string     `gorm:"size:32;not null"`
-	Mode      string     `gorm:"size:32;not null"`
-	Network   string     `gorm:"size:32;not null"`
-	Address   string     `gorm:"size:2048;not null"`
+	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
+	Tag       string     `gorm:"not null;size:32;unique"`
+	Mode      string     `gorm:"not null;size:32"`
+	Network   string     `gorm:"not null;size:32"`
+	Address   string     `gorm:"not null;size:2048"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
 type mBeacon struct {
 	ID           uint64          `gorm:"primary_key"`
-	GUID         []byte          `gorm:"type:binary(48);not null" sql:"index"`
-	PublicKey    []byte          `gorm:"type:binary(32);not null"`
-	KexPublicKey []byte          `gorm:"type:binary(32);not null"`
+	GUID         []byte          `gorm:"not null;type:binary(48);unique" sql:"index"`
+	PublicKey    []byte          `gorm:"not null;type:binary(32)"`
+	KexPublicKey []byte          `gorm:"not null;type:binary(32)"`
 	SessionKey   *security.Bytes `gorm:"-"` // when first query, it will be calculated
 	CreatedAt    time.Time       `gorm:"not null"`
 	DeletedAt    *time.Time      `sql:"index"`
@@ -127,11 +127,11 @@ type mBeacon struct {
 
 type mBeaconListener struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"type:binary(48);not null" sql:"index"`
-	Tag       string     `gorm:"size:32;not null"`
-	Mode      string     `gorm:"size:32;not null"`
-	Network   string     `gorm:"size:32;not null"`
-	Address   string     `gorm:"size:2048;not null"`
+	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
+	Tag       string     `gorm:"not null;size:32;unique"`
+	Mode      string     `gorm:"not null;size:32"`
+	Network   string     `gorm:"not null;size:32"`
+	Address   string     `gorm:"not null;size:2048"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
@@ -139,6 +139,7 @@ type mBeaconListener struct {
 type mBeaconMessage struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
+	Index     uint64     `gorm:"not null" sql:"index"`
 	Hash      []byte     `gorm:"not null;type:binary(32)"`
 	Message   []byte     `gorm:"not null;type:mediumblob"`
 	CreatedAt time.Time  `gorm:"not null"`
@@ -149,7 +150,7 @@ type mBeaconMessage struct {
 // because use mBeaconMessage.ID maybe expose scale.
 type mBeaconMessageIndex struct {
 	ID    uint64 `gorm:"primary_key"`
-	GUID  []byte `gorm:"not null;type:binary(48)" sql:"index"`
+	GUID  []byte `gorm:"not null;type:binary(48);unique" sql:"index"`
 	Index uint64 `gorm:"not null"`
 	Model
 }
@@ -157,11 +158,11 @@ type mBeaconMessageIndex struct {
 // beacon & node log
 type mRoleLog struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"type:binary(48);not null" sql:"index"`
+	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
 	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null"`
-	Source    string     `gorm:"size:32;not null"`
-	Log       []byte     `gorm:"type:mediumblob;not null"`
+	Source    string     `gorm:"not null;size:128"`
+	Log       []byte     `gorm:"not null;type:mediumblob"`
 	DeletedAt *time.Time `sql:"index"`
 }
 

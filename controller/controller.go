@@ -18,9 +18,9 @@ import (
 type Ctrl struct {
 	Test *Test
 
-	database  *database  // database
 	logger    *gLogger   // global logger
 	global    *global    // certificate, proxy, dns, time syncer, and ...
+	database  *database  // database
 	syncer    *syncer    // receive message
 	clientMgr *clientMgr // clients manager
 	sender    *sender    // broadcast and send message
@@ -39,12 +39,6 @@ func New(cfg *Config) (*Ctrl, error) {
 	// copy test
 	test := cfg.Test
 	ctrl := &Ctrl{Test: &test}
-	// database
-	database, err := newDatabase(ctrl, cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to initialize database")
-	}
-	ctrl.database = database
 	// logger
 	lg, err := newLogger(ctrl, cfg)
 	if err != nil {
@@ -57,6 +51,12 @@ func New(cfg *Config) (*Ctrl, error) {
 		return nil, errors.WithMessage(err, "failed to initialize global")
 	}
 	ctrl.global = global
+	// database
+	database, err := newDatabase(ctrl, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize database")
+	}
+	ctrl.database = database
 	// syncer
 	syncer, err := newSyncer(ctrl, cfg)
 	if err != nil {
@@ -112,13 +112,6 @@ func (ctrl *Ctrl) fatal(err error, msg string) error {
 // Main is used to run Controller, it will block until exit or return error.
 func (ctrl *Ctrl) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
-	// test client DNS option
-	if !ctrl.Test.SkipTestClientDNS {
-		err := ctrl.global.TestDNSOption(ctrl.clientMgr.GetDNSOptions())
-		if err != nil {
-			return errors.WithMessage(err, "failed to test client DNS option")
-		}
-	}
 	// synchronize time
 	if ctrl.Test.SkipSynchronizeTime {
 		ctrl.global.StartTimeSyncerAddLoop()
@@ -126,6 +119,13 @@ func (ctrl *Ctrl) Main() error {
 		err := ctrl.global.StartTimeSyncer()
 		if err != nil {
 			return ctrl.fatal(err, "failed to synchronize time")
+		}
+	}
+	// test client DNS option
+	if !ctrl.Test.SkipTestClientDNS {
+		err := ctrl.global.TestDNSOption(ctrl.clientMgr.GetDNSOptions())
+		if err != nil {
+			return errors.WithMessage(err, "failed to test client DNS option")
 		}
 	}
 	now := ctrl.global.Now().Format(logger.TimeLayout)
@@ -185,8 +185,8 @@ func (ctrl *Ctrl) Exit(err error) {
 		ctrl.global.Close()
 		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
 		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
-		ctrl.logger.Close()
 		ctrl.database.Close()
+		ctrl.logger.Close()
 		ctrl.exit <- err
 		close(ctrl.exit)
 	})

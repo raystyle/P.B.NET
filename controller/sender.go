@@ -553,7 +553,7 @@ func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
 	}
 }
 
-// Answer is used to
+// Answer is used to answer Beacon query message
 func (sender *sender) Answer() {
 
 }
@@ -1182,7 +1182,11 @@ func (sw *senderWorker) insertBeaconMessage(st *sendTask) error {
 	if sw.err != nil {
 		return sw.err
 	}
-	return nil
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(st.Message)
+	sw.preS.Hash = sw.hash.Sum(nil)
+	return sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, sw.preS.Hash, sw.preS.Message)
 }
 
 func (sw *senderWorker) handleAcknowledgeToNodeTask(at *ackTask) {

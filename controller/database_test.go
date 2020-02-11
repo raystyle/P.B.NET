@@ -2,12 +2,17 @@ package controller
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"sync"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
+	"project/internal/crypto/aes"
+	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -278,7 +283,8 @@ func TestDeleteListener(t *testing.T) {
 func TestInsertNode(t *testing.T) {
 	testInitializeController(t)
 	node := &mNode{
-		PublicKey: bytes.Repeat([]byte{48}, ed25519.PublicKeySize),
+		PublicKey:    bytes.Repeat([]byte{48}, ed25519.PublicKeySize),
+		KexPublicKey: bytes.Repeat([]byte{48}, curve25519.ScalarSize),
 	}
 	copy(node.GUID[:], bytes.Repeat([]byte{48}, guid.Size))
 	err := ctrl.database.db.Unscoped().Delete(node).Error
@@ -328,5 +334,84 @@ func TestDeleteNodeUnscoped(t *testing.T) {
 	g := guid.GUID{}
 	copy(g[:], bytes.Repeat([]byte{48}, guid.Size))
 	err := ctrl.database.DeleteNodeUnscoped(&g)
+	require.NoError(t, err)
+}
+
+func testGenerateBeacon(t *testing.T) (*guid.GUID, *mBeacon) {
+	beaconGUID := new(guid.GUID)
+	err := beaconGUID.Write(bytes.Repeat([]byte{48}, guid.Size))
+	require.NoError(t, err)
+	beacon := &mBeacon{
+		GUID:         beaconGUID[:],
+		PublicKey:    bytes.Repeat([]byte{48}, ed25519.PublicKeySize),
+		KexPublicKey: bytes.Repeat([]byte{48}, curve25519.ScalarSize),
+	}
+	return beaconGUID, beacon
+}
+
+func TestDatabase_InsertBeacon(t *testing.T) {
+	testInitializeController(t)
+
+	beaconGUID, beacon := testGenerateBeacon(t)
+	err := ctrl.database.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.database.InsertBeacon(beacon)
+	require.NoError(t, err)
+}
+
+func TestDatabase_InsertBeaconMessage(t *testing.T) {
+	testInitializeController(t)
+
+	beaconGUID, beacon := testGenerateBeacon(t)
+	err := ctrl.database.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.database.InsertBeacon(beacon)
+	require.NoError(t, err)
+
+	// insert
+	wg := sync.WaitGroup{}
+	wg.Add(256)
+	for i := 0; i < 256; i++ {
+		go func(index byte) {
+			defer wg.Done()
+			hash := bytes.Repeat([]byte{index}, sha256.Size)
+			message := bytes.Repeat([]byte{index}, aes.BlockSize)
+			err = ctrl.database.InsertBeaconMessage(beaconGUID, hash, message)
+			require.NoError(t, err)
+		}(byte(i))
+	}
+	wg.Wait()
+
+	// query and compare
+	var messages []*mBeaconMessage
+	err = ctrl.database.db.Find(&messages, "guid = ?", beaconGUID[:]).Error
+	require.NoError(t, err)
+	indexMap := make(map[uint64]struct{})
+	hashMap := make(map[string]struct{})
+	messageMap := make(map[string]struct{})
+	for i := 0; i < len(messages); i++ {
+		indexMap[messages[i].Index] = struct{}{}
+		hashMap[hex.EncodeToString(messages[i].Hash)] = struct{}{}
+		messageMap[hex.EncodeToString(messages[i].Message)] = struct{}{}
+	}
+	for i := uint64(0); i < 256; i++ {
+		if _, ok := indexMap[i]; !ok {
+			t.Fatalf("lost index: %d", i)
+		}
+	}
+	for i := 0; i < 256; i++ {
+		key := hex.EncodeToString(bytes.Repeat([]byte{byte(i)}, sha256.Size))
+		if _, ok := hashMap[key]; !ok {
+			t.Fatalf("lost hash: %d", i)
+		}
+	}
+	for i := 0; i < 256; i++ {
+		key := hex.EncodeToString(bytes.Repeat([]byte{byte(i)}, aes.BlockSize))
+		if _, ok := messageMap[key]; !ok {
+			t.Fatalf("lost message: %d", i)
+		}
+	}
+
+	err = ctrl.database.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
 }

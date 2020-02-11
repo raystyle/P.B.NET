@@ -1,10 +1,10 @@
 package controller
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"sync"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
@@ -46,11 +46,6 @@ func newDatabase(ctx *Ctrl, config *Config) (*database, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to ping %s server", cfg.Dialect)
 	}
-	// table name will not add "s"
-	gormDB.SingularTable(true)
-	// connection
-	gormDB.DB().SetMaxOpenConns(cfg.MaxOpenConns)
-	gormDB.DB().SetMaxIdleConns(cfg.MaxIdleConns)
 	// gorm logger
 	gormLogger, err := newGormLogger(cfg.GORMLogFile, cfg.LogWriter)
 	if err != nil {
@@ -60,6 +55,13 @@ func newDatabase(ctx *Ctrl, config *Config) (*database, error) {
 	if cfg.GORMDetailedLog {
 		gormDB.LogMode(true)
 	}
+	// table name will not add "s"
+	gormDB.SingularTable(true)
+	// set time
+	gormDB.SetNowFuncOverride(ctx.global.Now)
+	// connection
+	gormDB.DB().SetMaxOpenConns(cfg.MaxOpenConns)
+	gormDB.DB().SetMaxIdleConns(cfg.MaxIdleConns)
 	return &database{
 		ctx:        ctx,
 		dbLogger:   dbLogger,
@@ -74,6 +76,7 @@ func (db *database) Close() {
 	db.gormLogger.Close()
 	db.dbLogger.Close()
 	db.ctx = nil
+	db.db.SetNowFuncOverride(time.Now)
 }
 
 type cache struct {
@@ -271,16 +274,20 @@ func (db *database) InsertNode(m *mNode) error {
 	return nil
 }
 
-func (db *database) DeleteNode(guid *guid.GUID) error {
+func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 	tx := db.db.BeginTx(
 		context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable},
 	)
-	err := tx.Error
+	err = tx.Error
 	if err != nil {
-		return err
+		return
 	}
 	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			return
+		}
 		if err != nil {
 			tx.Rollback()
 		} else {
@@ -289,18 +296,18 @@ func (db *database) DeleteNode(guid *guid.GUID) error {
 	}()
 	err = tx.Delete(&mNode{GUID: guid[:]}).Error
 	if err != nil {
-		return err
+		return
 	}
 	err = tx.Delete(&mNodeListener{GUID: guid[:]}).Error
 	if err != nil {
-		return err
+		return
 	}
 	err = tx.Table(tableNodeLog).Delete(&mRoleLog{GUID: guid[:]}).Error
 	if err != nil {
-		return err
+		return
 	}
 	err = tx.Commit().Error
-	return err
+	return
 }
 
 func (db *database) DeleteNodeUnscoped(guid *guid.GUID) error {
@@ -351,25 +358,52 @@ func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 	return beacon, nil
 }
 
-func (db *database) InsertBeacon(m *mBeacon) error {
-	err := db.db.Create(m).Error
-	if err != nil {
-		return err
-	}
-	db.cache.InsertBeacon(m)
-	return nil
-}
-
-func (db *database) DeleteBeacon(guid *guid.GUID) error {
+func (db *database) InsertBeacon(m *mBeacon) (err error) {
 	tx := db.db.BeginTx(
 		context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable},
 	)
-	err := tx.Error
+	err = tx.Error
 	if err != nil {
-		return err
+		return
 	}
 	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			return
+		}
+		if err != nil {
+			tx.Rollback()
+		} else {
+			db.cache.InsertBeacon(m)
+		}
+	}()
+	err = tx.Create(m).Error
+	if err != nil {
+		return
+	}
+	err = tx.Create(&mBeaconMessageIndex{GUID: m.GUID}).Error
+	if err != nil {
+		return
+	}
+	err = tx.Commit().Error
+	return
+}
+
+func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
+	tx := db.db.BeginTx(
+		context.Background(),
+		&sql.TxOptions{Isolation: sql.LevelSerializable},
+	)
+	err = tx.Error
+	if err != nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			return
+		}
 		if err != nil {
 			tx.Rollback()
 		} else {
@@ -378,26 +412,26 @@ func (db *database) DeleteBeacon(guid *guid.GUID) error {
 	}()
 	err = tx.Delete(&mBeacon{GUID: guid[:]}).Error
 	if err != nil {
-		return err
+		return
 	}
 	err = tx.Delete(&mBeaconMessage{GUID: guid[:]}).Error
 	if err != nil {
-		return err
+		return
 	}
 	err = tx.Delete(&mBeaconMessageIndex{GUID: guid[:]}).Error
 	if err != nil {
-		return err
+		return
 	}
 	err = tx.Delete(&mBeaconListener{GUID: guid[:]}).Error
 	if err != nil {
-		return err
+		return
 	}
 	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{GUID: guid[:]}).Error
 	if err != nil {
-		return err
+		return
 	}
 	err = tx.Commit().Error
-	return err
+	return
 }
 
 func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
@@ -409,9 +443,50 @@ func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	return nil
 }
 
-// TODO BeaconMessage
-func (db *database) InsertBeaconMessage(guid *guid.GUID, message *bytes.Buffer) error {
-	return db.db.Create(&mBeaconMessage{GUID: guid[:], Message: message.Bytes()}).Error
+func (db *database) InsertBeaconMessage(guid *guid.GUID, hash, message []byte) (err error) {
+	// select message index
+	tx := db.db.BeginTx(
+		context.Background(),
+		&sql.TxOptions{Isolation: sql.LevelSerializable},
+	)
+	err = tx.Error
+	if err != nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			return
+		}
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+	index := &mBeaconMessageIndex{}
+	err = tx.Set("gorm:query_option", "FOR UPDATE").
+		Find(index, "guid = ?", guid[:]).Error
+	if err != nil {
+		err = errors.WithStack(err)
+		return
+	}
+	err = tx.Create(&mBeaconMessage{
+		GUID:    guid[:],
+		Index:   index.Index,
+		Hash:    hash,
+		Message: message,
+	}).Error
+	if err != nil {
+		err = errors.WithStack(err)
+		return
+	}
+	// self add one
+	err = tx.Model(index).UpdateColumn("index", index.Index+1).Error
+	if err != nil {
+		err = errors.WithStack(err)
+		return
+	}
+	err = errors.WithStack(tx.Commit().Error)
+	return
 }
 
 func (db *database) InsertBeaconListener(m *mBeaconListener) error {
