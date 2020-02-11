@@ -482,8 +482,7 @@ type senderWorker struct {
 func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "senderWorker.Work")
-			sw.ctx.log(logger.Fatal, b)
+			sw.ctx.log(logger.Fatal, xpanic.Print(r, "senderWorker.Work"))
 			// restart worker
 			time.Sleep(time.Second)
 			go sw.Work()

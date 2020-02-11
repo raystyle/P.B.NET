@@ -230,25 +230,41 @@ func (ctrl *Ctrl) Broadcast(command []byte, message interface{}) error {
 // DeleteNode is used to delete Node.
 func (ctrl *Ctrl) DeleteNode(guid *guid.GUID) error {
 	err := ctrl.database.DeleteNode(guid)
-	return errors.Wrapf(err, "failed to delete node %X", guid)
+	if err != nil {
+		return errors.Wrapf(err, "failed to delete node\n%s", guid.Print())
+	}
+	ctrl.sender.DeleteNode(guid)
+	return nil
 }
 
 // DeleteNodeUnscoped is used to unscoped delete Node.
 func (ctrl *Ctrl) DeleteNodeUnscoped(guid *guid.GUID) error {
 	err := ctrl.database.DeleteNodeUnscoped(guid)
-	return errors.Wrapf(err, "failed to unscoped delete node %X", guid)
+	if err != nil {
+		return errors.Wrapf(err, "failed to unscoped delete node\n%s", guid.Print())
+	}
+	ctrl.sender.DeleteNode(guid)
+	return nil
 }
 
 // DeleteBeacon is used to delete Beacon.
 func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
 	err := ctrl.database.DeleteBeacon(guid)
-	return errors.Wrapf(err, "failed to delete beacon %X", guid)
+	if err != nil {
+		return errors.Wrapf(err, "failed to delete beacon\n%s", guid.Print())
+	}
+	ctrl.sender.DeleteBeacon(guid)
+	return nil
 }
 
 // DeleteBeaconUnscoped is used to unscoped delete Beacon.
 func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	err := ctrl.database.DeleteBeaconUnscoped(guid)
-	return errors.Wrapf(err, "failed to unscoped delete beacon %X", guid)
+	if err != nil {
+		return errors.Wrapf(err, "failed to unscoped delete beacon\n%s", guid.Print())
+	}
+	ctrl.sender.DeleteBeacon(guid)
+	return nil
 }
 
 // ------------------------------------test-------------------------------------

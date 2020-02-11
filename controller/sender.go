@@ -551,6 +551,7 @@ func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
 	}
 }
 
+// Answer is used to
 func (sender *sender) Answer() {
 
 }
@@ -561,7 +562,7 @@ func (sender *sender) EnableInteractiveMode(guid *guid.GUID) {
 	sender.interactive[*guid] = true
 }
 
-func (sender *sender) DisableInteractiveStatus(guid *guid.GUID) {
+func (sender *sender) DisableInteractiveMode(guid *guid.GUID) {
 	sender.interactiveRWM.Lock()
 	defer sender.interactiveRWM.Unlock()
 	delete(sender.interactive, *guid)
@@ -573,8 +574,18 @@ func (sender *sender) isInInteractiveMode(guid *guid.GUID) bool {
 	return sender.interactive[*guid]
 }
 
-// TODO delete role when delete database
-// ack
+func (sender *sender) DeleteNode(guid *guid.GUID) {
+	sender.nodeAckSlotsRWM.Lock()
+	defer sender.nodeAckSlotsRWM.Unlock()
+	delete(sender.nodeAckSlots, *guid)
+}
+
+func (sender *sender) DeleteBeacon(guid *guid.GUID) {
+	sender.DisableInteractiveMode(guid)
+	sender.beaconAckSlotsRWM.Lock()
+	defer sender.beaconAckSlotsRWM.Unlock()
+	delete(sender.beaconAckSlots, *guid)
+}
 
 func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.inClose, 1)
@@ -870,8 +881,7 @@ type senderWorker struct {
 func (sw *senderWorker) Work() {
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "senderWorker.Work")
-			sw.ctx.log(logger.Fatal, b)
+			sw.ctx.log(logger.Fatal, xpanic.Print(r, "senderWorker.Work"))
 			// restart worker
 			time.Sleep(time.Second)
 			go sw.Work()
