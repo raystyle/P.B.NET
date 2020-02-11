@@ -207,6 +207,17 @@ func Wrap(lv Level, src string, logger Logger) *log.Logger {
 	return log.New(w, "", 0)
 }
 
+// HijackLogWriter is used to hijack all packages that use log.Print().
+func HijackLogWriter(logger Logger) {
+	log.SetFlags(0)
+	w := &writer{
+		level:  Error,
+		src:    "pkg-log",
+		logger: logger,
+	}
+	log.SetOutput(w)
+}
+
 // Conn is used to print connection info.
 // local:  tcp 127.0.0.1:123
 // remote: tcp 127.0.0.1:124

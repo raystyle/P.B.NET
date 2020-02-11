@@ -85,6 +85,11 @@ func New(cfg *Config) (*Beacon, error) {
 	return beacon, nil
 }
 
+// HijackLogWriter is used to hijack all packages that use log.Print().
+func (beacon *Beacon) HijackLogWriter() {
+	logger.HijackLogWriter(beacon.logger)
+}
+
 func (beacon *Beacon) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
 	beacon.logger.Println(logger.Fatal, "main", err)

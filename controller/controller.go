@@ -97,6 +97,11 @@ func New(cfg *Config) (*Ctrl, error) {
 	return ctrl, nil
 }
 
+// HijackLogWriter is used to hijack all packages that use log.Print().
+func (ctrl *Ctrl) HijackLogWriter() {
+	logger.HijackLogWriter(ctrl.logger)
+}
+
 func (ctrl *Ctrl) fatal(err error, msg string) error {
 	err = errors.WithMessage(err, msg)
 	ctrl.logger.Println(logger.Fatal, "main", err)
