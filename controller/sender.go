@@ -181,6 +181,8 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 		}
 		go worker.Work()
 	}
+	sender.wg.Add(1)
+	go sender.ackSlotCleaner()
 	return sender, nil
 }
 
@@ -849,6 +851,65 @@ func (sender *sender) broadcast(
 	}
 	close(response)
 	return responses, success
+}
+
+func (sender *sender) ackSlotCleaner() {
+	defer func() {
+		if r := recover(); r != nil {
+			sender.log(logger.Fatal, xpanic.Print(r, "sender.ackSlotCleaner"))
+			// restart slot cleaner
+			time.Sleep(time.Second)
+			go sender.ackSlotCleaner()
+		} else {
+			sender.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			sender.cleanNodeAckSlotMap()
+			sender.cleanBeaconAckSlotMap()
+		case <-sender.stopSignal:
+			return
+		}
+	}
+}
+
+func (sender *sender) cleanNodeAckSlotMap() {
+	sender.nodeAckSlotsRWM.Lock()
+	defer sender.nodeAckSlotsRWM.Unlock()
+	for key, ras := range sender.nodeAckSlots {
+		if sender.cleanRoleAckSlotMap(ras) {
+			delete(sender.nodeAckSlots, key)
+		}
+	}
+}
+
+func (sender *sender) cleanBeaconAckSlotMap() {
+	sender.beaconAckSlotsRWM.Lock()
+	defer sender.beaconAckSlotsRWM.Unlock()
+	for key, ras := range sender.beaconAckSlots {
+		if sender.cleanRoleAckSlotMap(ras) {
+			delete(sender.nodeAckSlots, key)
+		}
+	}
+}
+
+// delete zero length map or allocate a new slots map
+func (sender *sender) cleanRoleAckSlotMap(ras *roleAckSlot) bool {
+	ras.m.Lock()
+	defer ras.m.Unlock()
+	if len(ras.slots) == 0 {
+		return true
+	}
+	newMap := make(map[guid.GUID]chan struct{})
+	for key, value := range ras.slots {
+		newMap[key] = value
+	}
+	ras.slots = newMap
+	return false
 }
 
 type senderWorker struct {

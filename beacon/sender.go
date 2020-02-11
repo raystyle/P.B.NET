@@ -58,8 +58,8 @@ type sender struct {
 	clientsRWM sync.RWMutex
 
 	// wait Controller acknowledge
-	slots       map[guid.GUID]chan struct{}
-	slotsM      sync.Mutex
+	ackSlots    map[guid.GUID]chan struct{}
+	ackSlotsM   sync.Mutex
 	ackSlotPool sync.Pool
 
 	guid *guid.Generator
@@ -94,7 +94,7 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
 		ackTaskQueue:  make(chan *guid.GUID, cfg.QueueSize),
 		clients:       make(map[guid.GUID]*Client),
-		slots:         make(map[guid.GUID]chan struct{}),
+		ackSlots:      make(map[guid.GUID]chan struct{}),
 		stopSignal:    make(chan struct{}),
 	}
 
@@ -128,7 +128,7 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 		go worker.Work()
 	}
 	sender.wg.Add(1)
-	go sender.slotCleaner()
+	go sender.ackSlotCleaner()
 	return sender, nil
 }
 
@@ -320,16 +320,16 @@ func (sender *sender) Acknowledge(send *protocol.Send) {
 // HandleAcknowledge is used to notice the Beacon that the Controller
 // has received the send message.
 func (sender *sender) HandleAcknowledge(send *guid.GUID) {
-	sender.slotsM.Lock()
-	defer sender.slotsM.Unlock()
-	ch := sender.slots[*send]
+	sender.ackSlotsM.Lock()
+	defer sender.ackSlotsM.Unlock()
+	ch := sender.ackSlots[*send]
 	if ch != nil {
 		select {
 		case ch <- struct{}{}:
 		case <-sender.stopSignal:
 			return
 		}
-		delete(sender.slots, *send)
+		delete(sender.ackSlots, *send)
 	}
 }
 
@@ -343,12 +343,12 @@ func (sender *sender) Close() {
 
 func (sender *sender) createAckSlot(send *guid.GUID) (chan struct{}, func()) {
 	ch := sender.ackSlotPool.Get().(chan struct{})
-	sender.slotsM.Lock()
-	defer sender.slotsM.Unlock()
-	sender.slots[*send] = ch
+	sender.ackSlotsM.Lock()
+	defer sender.ackSlotsM.Unlock()
+	sender.ackSlots[*send] = ch
 	return ch, func() {
-		sender.slotsM.Lock()
-		defer sender.slotsM.Unlock()
+		sender.ackSlotsM.Lock()
+		defer sender.ackSlotsM.Unlock()
 		// when read channel timeout, worker call destroy(),
 		// the channel maybe has sign, try to clean it.
 		select {
@@ -356,7 +356,7 @@ func (sender *sender) createAckSlot(send *guid.GUID) (chan struct{}, func()) {
 		default:
 		}
 		sender.ackSlotPool.Put(ch)
-		delete(sender.slots, *send)
+		delete(sender.ackSlots, *send)
 	}
 }
 
@@ -425,14 +425,13 @@ func (sender *sender) acknowledge(
 	return responses, success
 }
 
-func (sender *sender) slotCleaner() {
+func (sender *sender) ackSlotCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "sender.slotCleaner")
-			sender.log(logger.Fatal, "sender", b)
+			sender.log(logger.Fatal, xpanic.Print(r, "sender.ackSlotCleaner"))
 			// restart slot cleaner
 			time.Sleep(time.Second)
-			go sender.slotCleaner()
+			go sender.ackSlotCleaner()
 		} else {
 			sender.wg.Done()
 		}
@@ -442,21 +441,21 @@ func (sender *sender) slotCleaner() {
 	for {
 		select {
 		case <-ticker.C:
-			sender.cleanSlotMap()
+			sender.cleanAckSlotMap()
 		case <-sender.stopSignal:
 			return
 		}
 	}
 }
 
-func (sender *sender) cleanSlotMap() {
+func (sender *sender) cleanAckSlotMap() {
 	newMap := make(map[guid.GUID]chan struct{})
-	sender.slotsM.Lock()
-	defer sender.slotsM.Unlock()
-	for key, value := range sender.slots {
+	sender.ackSlotsM.Lock()
+	defer sender.ackSlotsM.Unlock()
+	for key, value := range sender.ackSlots {
 		newMap[key] = value
 	}
-	sender.slots = newMap
+	sender.ackSlots = newMap
 }
 
 type senderWorker struct {
