@@ -227,11 +227,17 @@ func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			db.log(logger.Fatal, xpanic.Print(r, "database.DeleteNode"))
-			tx.Rollback()
+			err := tx.Rollback().Error
+			if err != nil {
+				db.log(logger.Fatal, "failed to rollback in DeleteNode:", err)
+			}
 			return
 		}
 		if err != nil {
-			tx.Rollback()
+			err := tx.Rollback().Error
+			if err != nil {
+				db.log(logger.Error, "failed to rollback in DeleteNode:", err)
+			}
 		} else {
 			db.cache.DeleteNode(guid)
 		}
@@ -312,11 +318,17 @@ func (db *database) InsertBeacon(m *mBeacon) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			db.log(logger.Fatal, xpanic.Print(r, "database.InsertBeacon"))
-			tx.Rollback()
+			err := tx.Rollback().Error
+			if err != nil {
+				db.log(logger.Fatal, "failed to rollback in InsertBeacon:", err)
+			}
 			return
 		}
 		if err != nil {
-			tx.Rollback()
+			err := tx.Rollback().Error
+			if err != nil {
+				db.log(logger.Error, "failed to rollback in InsertBeacon:", err)
+			}
 		} else {
 			db.cache.InsertBeacon(m)
 		}
@@ -345,11 +357,17 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			db.log(logger.Fatal, xpanic.Print(r, "database.DeleteBeacon"))
-			tx.Rollback()
+			err := tx.Rollback().Error
+			if err != nil {
+				db.log(logger.Fatal, "failed to rollback in DeleteBeacon:", err)
+			}
 			return
 		}
 		if err != nil {
-			tx.Rollback()
+			err := tx.Rollback().Error
+			if err != nil {
+				db.log(logger.Error, "failed to rollback in DeleteBeacon:", err)
+			}
 		} else {
 			db.cache.DeleteBeacon(guid)
 		}
@@ -400,11 +418,17 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, hash, message []byte) (
 	defer func() {
 		if r := recover(); r != nil {
 			db.log(logger.Fatal, xpanic.Print(r, "database.InsertBeaconMessage"))
-			tx.Rollback()
+			err := tx.Rollback().Error
+			if err != nil {
+				db.log(logger.Fatal, "failed to rollback in InsertBeaconMessage:", err)
+			}
 			return
 		}
 		if err != nil {
-			tx.Rollback()
+			err := tx.Rollback().Error
+			if err != nil {
+				db.log(logger.Error, "failed to rollback in InsertBeaconMessage:", err)
+			}
 		}
 	}()
 	index := &mBeaconMessageIndex{}
@@ -433,6 +457,14 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, hash, message []byte) (
 	err = errors.WithStack(tx.Commit().Error)
 	return
 }
+
+func (db *database) DeleteBeaconMessagesWithIndex(guid *guid.GUID, index uint64) error {
+	return db.db.Delete(&mBeaconMessage{GUID: guid[:]}, "`index` < ?", index).Error
+}
+
+// func (db *database) SelectBeaconEarliestMessage(guid *guid.GUID) (*mBeaconMessage, error) {
+//
+// }
 
 func (db *database) InsertBeaconListener(m *mBeaconListener) error {
 	return db.db.Create(m).Error

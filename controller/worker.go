@@ -405,4 +405,13 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 	}
 	// TODO query message and answer
 	// may be copy send
+
+	// first delete old message
+	sw.err = sw.ctx.database.DeleteBeaconMessagesWithIndex(&query.BeaconGUID, query.Index)
+	if sw.err != nil {
+		const format = "failed to clean old beacon message in database\nerror: %s\n%s"
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(query))
+		return
+	}
+
 }

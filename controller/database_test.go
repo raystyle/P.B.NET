@@ -357,6 +357,9 @@ func TestDatabase_InsertBeacon(t *testing.T) {
 	require.NoError(t, err)
 	err = ctrl.database.InsertBeacon(beacon)
 	require.NoError(t, err)
+
+	err = ctrl.database.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
 }
 
 func TestDatabase_InsertBeaconMessage(t *testing.T) {
@@ -409,6 +412,60 @@ func TestDatabase_InsertBeaconMessage(t *testing.T) {
 		key := hex.EncodeToString(bytes.Repeat([]byte{byte(i)}, aes.BlockSize))
 		if _, ok := messageMap[key]; !ok {
 			t.Fatalf("lost message: %d", i)
+		}
+	}
+
+	err = ctrl.database.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+}
+
+func TestDatabase_DeleteBeaconMessagesWithIndex(t *testing.T) {
+	testInitializeController(t)
+
+	beaconGUID, beacon := testGenerateBeacon(t)
+	err := ctrl.database.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.database.InsertBeacon(beacon)
+	require.NoError(t, err)
+
+	// insert
+	wg := sync.WaitGroup{}
+	wg.Add(256)
+	for i := 0; i < 256; i++ {
+		go func(index byte) {
+			defer wg.Done()
+			hash := bytes.Repeat([]byte{index}, sha256.Size)
+			message := bytes.Repeat([]byte{index}, aes.BlockSize)
+			err = ctrl.database.InsertBeaconMessage(beaconGUID, hash, message)
+			require.NoError(t, err)
+		}(byte(i))
+	}
+	wg.Wait()
+
+	err = ctrl.database.DeleteBeaconMessagesWithIndex(beaconGUID, 128)
+	require.NoError(t, err)
+
+	// query and compare
+	var messages []*mBeaconMessage
+	err = ctrl.database.db.Find(&messages, "guid = ?", beaconGUID[:]).Error
+	require.NoError(t, err)
+	indexMap := make(map[uint64]struct{})
+	hashMap := make(map[string]struct{})
+	messageMap := make(map[string]struct{})
+	for i := 0; i < len(messages); i++ {
+		indexMap[messages[i].Index] = struct{}{}
+		hashMap[hex.EncodeToString(messages[i].Hash)] = struct{}{}
+		messageMap[hex.EncodeToString(messages[i].Message)] = struct{}{}
+	}
+	// only can compare index
+	for i := uint64(0); i < 128; i++ {
+		if _, ok := indexMap[i]; ok {
+			t.Fatalf("appear index: %d", i)
+		}
+	}
+	for i := uint64(128); i < 256; i++ {
+		if _, ok := indexMap[i]; !ok {
+			t.Fatalf("lost index: %d", i)
 		}
 	}
 
