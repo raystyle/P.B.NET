@@ -759,7 +759,10 @@ func (client *Client) SendCommand(cmd uint8, data []byte) ([]byte, error) {
 }
 
 // SendToNode is used to send message to node
-func (client *Client) SendToNode(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendResponse) {
+func (client *Client) SendToNode(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
@@ -784,7 +787,10 @@ func (client *Client) SendToNode(guid *guid.GUID, data *bytes.Buffer) (sr *proto
 }
 
 // SendToBeacon is used to send message to beacon.
-func (client *Client) SendToBeacon(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendResponse) {
+func (client *Client) SendToBeacon(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
@@ -808,8 +814,8 @@ func (client *Client) SendToBeacon(guid *guid.GUID, data *bytes.Buffer) (sr *pro
 	return
 }
 
-// AcknowledgeToNode is used to notice Node that Controller has received this message.
-func (client *Client) AcknowledgeToNode(
+// AckToNode is used to notice Node that Controller has received this message.
+func (client *Client) AckToNode(
 	guid *guid.GUID,
 	data *bytes.Buffer,
 ) (ar *protocol.AcknowledgeResponse) {
@@ -835,8 +841,8 @@ func (client *Client) AcknowledgeToNode(
 	return
 }
 
-// AcknowledgeToBeacon is used to notice Beacon that Controller has received this message.
-func (client *Client) AcknowledgeToBeacon(
+// AckToBeacon is used to notice Beacon that Controller has received this message.
+func (client *Client) AckToBeacon(
 	guid *guid.GUID,
 	data *bytes.Buffer,
 ) (ar *protocol.AcknowledgeResponse) {
@@ -863,7 +869,10 @@ func (client *Client) AcknowledgeToBeacon(
 }
 
 // Broadcast is used to broadcast message to all Nodes.
-func (client *Client) Broadcast(guid *guid.GUID, data *bytes.Buffer) (br *protocol.BroadcastResponse) {
+func (client *Client) Broadcast(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (br *protocol.BroadcastResponse) {
 	br = &protocol.BroadcastResponse{
 		GUID: client.guid,
 	}
@@ -888,7 +897,10 @@ func (client *Client) Broadcast(guid *guid.GUID, data *bytes.Buffer) (br *protoc
 }
 
 // Answer is used to return the result of the Beacon query.
-func (client *Client) Answer(guid *guid.GUID, data *bytes.Buffer) (ar *protocol.AnswerResponse) {
+func (client *Client) Answer(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (ar *protocol.AnswerResponse) {
 	ar = &protocol.AnswerResponse{
 		GUID: client.guid,
 	}
@@ -931,7 +943,7 @@ func (client *Client) Close() {
 	})
 }
 
-// clientMgr contains all clients from NewClient() and client options from Config
+// clientMgr contains all clients from NewClient() and client options from Config.
 // it can generate client tag, you can manage all clients here
 type clientMgr struct {
 	ctx *Ctrl

@@ -300,7 +300,18 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 	}
 	defer func() { send.Message = cache }()
 	sw.ctx.handler.OnNodeSend(send)
-	sw.ctx.sender.AcknowledgeToNode(send)
+	sw.ctx.sender.AckToNode(send)
+	// for {
+	// 	sw.err = sw.ctx.sender.AckToNode(send)
+	// 	if sw.err == nil {
+	// 		return
+	// 	}
+	// 	if sw.err == ErrNoConnections {
+	// log
+	// 	} else {
+	// 		return
+	// 	}
+	// }
 }
 
 func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
@@ -316,7 +327,7 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 	}
 	defer func() { send.Message = cache }()
 	sw.ctx.handler.OnBeaconSend(send)
-	sw.ctx.sender.AcknowledgeToBeacon(send)
+	sw.ctx.sender.AckToBeacon(send)
 }
 
 // return cache

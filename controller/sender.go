@@ -24,12 +24,16 @@ import (
 
 // errors
 var (
-	ErrNoConnections   = fmt.Errorf("no connections")
-	ErrBroadcastFailed = fmt.Errorf("failed to broadcast")
-	ErrSendFailed      = fmt.Errorf("failed to send")
-	ErrSendTimeout     = fmt.Errorf("send timeout")
-	ErrSenderMaxConns  = fmt.Errorf("sender with max connections")
-	ErrSenderClosed    = fmt.Errorf("sender closed")
+	ErrNoConnections        = fmt.Errorf("no connections")
+	ErrFailedToSendToNode   = fmt.Errorf("failed to send to node")
+	ErrFailedToSendToBeacon = fmt.Errorf("failed to send to beacon")
+	ErrFailedToAckToNode    = fmt.Errorf("failed to acknowledge to node")
+	ErrFailedToAckToBeacon  = fmt.Errorf("failed to acknowledge to beacon")
+	ErrFailedToBroadcast    = fmt.Errorf("failed to broadcast")
+	ErrFailedToAnswer       = fmt.Errorf("failed to answer")
+	ErrSendTimeout          = fmt.Errorf("send timeout")
+	ErrSenderMaxConns       = fmt.Errorf("sender with max connections")
+	ErrSenderClosed         = fmt.Errorf("sender closed")
 )
 
 // broadcastTask is used to broadcast message to all Nodes
@@ -53,10 +57,19 @@ type sendTask struct {
 }
 
 // ackTask is used to acknowledge to the Node or Beacon.
-// must not use *guid.GUID, because sender.Acknowledge() will not block.
 type ackTask struct {
-	RoleGUID guid.GUID
-	SendGUID guid.GUID
+	RoleGUID *guid.GUID
+	SendGUID *guid.GUID
+	Result   chan<- *protocol.AcknowledgeResult
+}
+
+// answerTask is used to answer the Beacon queried message
+type answerTask struct {
+	BeaconGUID *guid.GUID
+	Index      uint64
+	Hash       []byte
+	Message    []byte
+	Result     chan<- *protocol.AnswerResult
 }
 
 // wait role acknowledge
@@ -76,17 +89,22 @@ type sender struct {
 	ackToNodeTaskQueue    chan *ackTask
 	ackToBeaconTaskQueue  chan *ackTask
 	broadcastTaskQueue    chan *broadcastTask
-	answerTaskQueue       chan *mBeaconMessage
+	answerTaskQueue       chan *answerTask
 
 	sendTaskPool      sync.Pool
 	ackTaskPool       sync.Pool
 	broadcastTaskPool sync.Pool
+	answerTaskPool    sync.Pool
 
 	sendDonePool      sync.Pool
+	ackDonePool       sync.Pool
 	broadcastDonePool sync.Pool
+	answerDonePool    sync.Pool
 
 	sendResultPool      sync.Pool
+	ackResultPool       sync.Pool
 	broadcastResultPool sync.Pool
+	answerResultPool    sync.Pool
 
 	// key = Node GUID
 	clients    map[guid.GUID]*Client
@@ -137,7 +155,7 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 		ackToNodeTaskQueue:    make(chan *ackTask, cfg.QueueSize),
 		ackToBeaconTaskQueue:  make(chan *ackTask, cfg.QueueSize),
 		broadcastTaskQueue:    make(chan *broadcastTask, cfg.QueueSize),
-		answerTaskQueue:       make(chan *mBeaconMessage, cfg.QueueSize),
+		answerTaskQueue:       make(chan *answerTask, cfg.QueueSize),
 		clients:               make(map[guid.GUID]*Client, cfg.MaxConns),
 		interactive:           make(map[guid.GUID]bool),
 		nodeAckSlots:          make(map[guid.GUID]*roleAckSlot),
@@ -157,18 +175,36 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 	sender.broadcastTaskPool.New = func() interface{} {
 		return new(broadcastTask)
 	}
+	sender.answerTaskPool.New = func() interface{} {
+		return new(answerTask)
+	}
+
 	sender.sendDonePool.New = func() interface{} {
 		return make(chan *protocol.SendResult, 1)
+	}
+	sender.ackDonePool.New = func() interface{} {
+		return make(chan *protocol.AcknowledgeResult, 1)
 	}
 	sender.broadcastDonePool.New = func() interface{} {
 		return make(chan *protocol.BroadcastResult, 1)
 	}
+	sender.answerDonePool.New = func() interface{} {
+		return make(chan *protocol.AnswerResult, 1)
+	}
+
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
+	}
+	sender.ackResultPool.New = func() interface{} {
+		return new(protocol.AcknowledgeResult)
 	}
 	sender.broadcastResultPool.New = func() interface{} {
 		return new(protocol.BroadcastResult)
 	}
+	sender.answerResultPool.New = func() interface{} {
+		return new(protocol.AnswerResult)
+	}
+
 	sender.ackSlotPool.New = func() interface{} {
 		return make(chan struct{}, 1)
 	}
@@ -431,32 +467,50 @@ func (sender *sender) SendToBeaconFromPlugin(GUID, message []byte) error {
 	return result.Err
 }
 
-// AcknowledgeToNode is used to acknowledge Node that Controller has received this message.
-func (sender *sender) AcknowledgeToNode(send *protocol.Send) {
+// AckToNode is used to acknowledge Node that Controller has received this message.
+func (sender *sender) AckToNode(send *protocol.Send) error {
 	if sender.isClosed() {
-		return
+		return ErrSenderClosed
 	}
+	done := sender.ackDonePool.Get().(chan *protocol.AcknowledgeResult)
+	defer sender.ackDonePool.Put(done)
 	at := sender.ackTaskPool.Get().(*ackTask)
-	at.RoleGUID = send.RoleGUID
-	at.SendGUID = send.GUID
+	defer sender.ackTaskPool.Put(at)
+	at.RoleGUID = &send.RoleGUID
+	at.SendGUID = &send.GUID
+	at.Result = done
+	// send to task queue
 	select {
 	case sender.ackToNodeTaskQueue <- at:
 	case <-sender.stopSignal:
+		return ErrSenderClosed
 	}
+	result := <-done
+	defer sender.ackResultPool.Put(result)
+	return result.Err
 }
 
-// AcknowledgeToBeacon is used to acknowledge Beacon that Controller has received this message.
-func (sender *sender) AcknowledgeToBeacon(send *protocol.Send) {
+// AckToBeacon is used to acknowledge Beacon that Controller has received this message.
+func (sender *sender) AckToBeacon(send *protocol.Send) error {
 	if sender.isClosed() {
-		return
+		return ErrSenderClosed
 	}
+	done := sender.ackDonePool.Get().(chan *protocol.AcknowledgeResult)
+	defer sender.ackDonePool.Put(done)
 	at := sender.ackTaskPool.Get().(*ackTask)
-	at.RoleGUID = send.RoleGUID
-	at.SendGUID = send.GUID
+	defer sender.ackTaskPool.Put(at)
+	at.RoleGUID = &send.RoleGUID
+	at.SendGUID = &send.GUID
+	at.Result = done
+	// send to task queue
 	select {
 	case sender.ackToBeaconTaskQueue <- at:
 	case <-sender.stopSignal:
+		return ErrSenderClosed
 	}
+	result := <-done
+	defer sender.ackResultPool.Put(result)
+	return result.Err
 }
 
 // Broadcast is used to broadcast message to all Nodes.
@@ -557,14 +611,31 @@ func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
 }
 
 // Answer is used to answer Beacon query message.
-func (sender *sender) Answer(msg *mBeaconMessage) {
+func (sender *sender) Answer(msg *mBeaconMessage) error {
 	if sender.isClosed() {
-		return
+		return ErrSenderClosed
 	}
+	done := sender.answerDonePool.Get().(chan *protocol.AnswerResult)
+	defer sender.answerDonePool.Put(done)
+	rt := sender.answerTaskPool.Get().(*answerTask)
+	defer sender.answerTaskPool.Put(rt)
+	err := rt.BeaconGUID.Write(msg.GUID)
+	if err != nil {
+		panic("sender Answer error: " + err.Error())
+	}
+	rt.Index = msg.Index
+	rt.Hash = msg.Hash
+	rt.Message = msg.Message
+	rt.Result = done
+	// send to task queue
 	select {
-	case sender.answerTaskQueue <- msg:
+	case sender.answerTaskQueue <- rt:
 	case <-sender.stopSignal:
+		return ErrSenderClosed
 	}
+	result := <-done
+	defer sender.answerResultPool.Put(result)
+	return result.Err
 }
 
 func (sender *sender) EnableInteractiveMode(guid *guid.GUID) {
@@ -760,7 +831,7 @@ func (sender *sender) sendToBeacon(
 	return responses, success
 }
 
-func (sender *sender) acknowledgeToNode(
+func (sender *sender) ackToNode(
 	guid *guid.GUID,
 	data *bytes.Buffer,
 ) ([]*protocol.AcknowledgeResponse, int) {
@@ -775,11 +846,11 @@ func (sender *sender) acknowledgeToNode(
 		go func(client *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.acknowledgeToNode")
+					b := xpanic.Print(r, "sender.ackToNode")
 					sender.log(logger.Fatal, b)
 				}
 			}()
-			response <- client.AcknowledgeToNode(guid, data)
+			response <- client.AckToNode(guid, data)
 		}(client)
 	}
 	var success int
@@ -794,7 +865,7 @@ func (sender *sender) acknowledgeToNode(
 	return responses, success
 }
 
-func (sender *sender) acknowledgeToBeacon(
+func (sender *sender) ackToBeacon(
 	guid *guid.GUID,
 	data *bytes.Buffer,
 ) ([]*protocol.AcknowledgeResponse, int) {
@@ -809,11 +880,11 @@ func (sender *sender) acknowledgeToBeacon(
 		go func(client *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.acknowledgeToBeacon")
+					b := xpanic.Print(r, "sender.ackToBeacon")
 					sender.log(logger.Fatal, b)
 				}
 			}()
-			response <- client.AcknowledgeToBeacon(guid, data)
+			response <- client.AckToBeacon(guid, data)
 		}(client)
 	}
 	var success int
@@ -1003,7 +1074,7 @@ func (sw *senderWorker) Work() {
 		st *sendTask
 		at *ackTask
 		bt *broadcastTask
-		rt *mBeaconMessage
+		rt *answerTask
 	)
 	for {
 		select {
@@ -1021,9 +1092,9 @@ func (sw *senderWorker) Work() {
 		case st = <-sw.ctx.sendToBeaconTaskQueue:
 			sw.handleSendToBeaconTask(st)
 		case at = <-sw.ctx.ackToNodeTaskQueue:
-			sw.handleAcknowledgeToNodeTask(at)
+			sw.handleAckToNodeTask(at)
 		case at = <-sw.ctx.ackToBeaconTaskQueue:
-			sw.handleAcknowledgeToBeaconTask(at)
+			sw.handleAckToBeaconTask(at)
 		case bt = <-sw.ctx.broadcastTaskQueue:
 			sw.handleBroadcastTask(bt)
 		case rt = <-sw.ctx.answerTaskQueue:
@@ -1067,7 +1138,7 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 		return
 	}
 	if result.Success == 0 {
-		result.Err = ErrSendFailed
+		result.Err = ErrFailedToSendToNode
 		return
 	}
 	// wait role acknowledge
@@ -1130,7 +1201,7 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 		return
 	}
 	if result.Success == 0 {
-		result.Err = ErrSendFailed
+		result.Err = ErrFailedToSendToBeacon
 		return
 	}
 	// wait role acknowledge
@@ -1236,34 +1307,54 @@ func (sw *senderWorker) insertBeaconMessage(st *sendTask) error {
 	return sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, sw.preS.Hash, sw.preS.Message)
 }
 
-func (sw *senderWorker) handleAcknowledgeToNodeTask(at *ackTask) {
+func (sw *senderWorker) handleAckToNodeTask(at *ackTask) {
+	result := sw.ctx.ackResultPool.Get().(*protocol.AcknowledgeResult)
+	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "senderWorker.handleAcknowledgeToNodeTask")
+			b := xpanic.Print(r, "senderWorker.handleAckToNodeTask")
 			sw.ctx.log(logger.Fatal, b)
 		}
-		sw.ctx.ackTaskPool.Put(at)
+		at.Result <- result
 	}()
 	sw.packAcknowledgeData(at)
-	sw.ctx.acknowledgeToNode(&sw.preA.GUID, sw.buffer)
+	// acknowledge
+	result.Responses, result.Success = sw.ctx.ackToNode(&sw.preA.GUID, sw.buffer)
+	if len(result.Responses) == 0 {
+		result.Err = ErrNoConnections
+		return
+	}
+	if result.Success == 0 {
+		result.Err = ErrFailedToAckToNode
+	}
 }
 
-func (sw *senderWorker) handleAcknowledgeToBeaconTask(at *ackTask) {
+func (sw *senderWorker) handleAckToBeaconTask(at *ackTask) {
+	result := sw.ctx.ackResultPool.Get().(*protocol.AcknowledgeResult)
+	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "senderWorker.handleAcknowledgeToBeaconTask")
+			b := xpanic.Print(r, "senderWorker.handleAckToBeaconTask")
 			sw.ctx.log(logger.Fatal, b)
 		}
-		sw.ctx.ackTaskPool.Put(at)
+		at.Result <- result
 	}()
 	sw.packAcknowledgeData(at)
-	sw.ctx.acknowledgeToBeacon(&sw.preA.GUID, sw.buffer)
+	// acknowledge
+	result.Responses, result.Success = sw.ctx.ackToBeacon(&sw.preA.GUID, sw.buffer)
+	if len(result.Responses) == 0 {
+		result.Err = ErrNoConnections
+		return
+	}
+	if result.Success == 0 {
+		result.Err = ErrFailedToAckToBeacon
+	}
 }
 
 func (sw *senderWorker) packAcknowledgeData(at *ackTask) {
 	sw.preA.GUID = *sw.ctx.guid.Get()
-	sw.preA.RoleGUID = at.RoleGUID
-	sw.preA.SendGUID = at.SendGUID
+	sw.preA.RoleGUID = *at.RoleGUID
+	sw.preA.SendGUID = *at.SendGUID
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preA.GUID[:])
@@ -1343,16 +1434,22 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 		return
 	}
 	if result.Success == 0 {
-		result.Err = ErrBroadcastFailed
+		result.Err = ErrFailedToBroadcast
 	}
 }
 
-func (sw *senderWorker) handleAnswerTask(rt *mBeaconMessage) {
+func (sw *senderWorker) handleAnswerTask(rt *answerTask) {
+	result := sw.ctx.answerResultPool.Get().(*protocol.AnswerResult)
+	result.Clean()
+	defer func() {
+		if r := recover(); r != nil {
+			b := xpanic.Print(r, "senderWorker.handleAnswerTask")
+			sw.ctx.log(logger.Fatal, b)
+		}
+		rt.Result <- result
+	}()
 	sw.preR.GUID = *sw.ctx.guid.Get()
-	sw.err = sw.preR.BeaconGUID.Write(rt.GUID)
-	if sw.err != nil {
-		panic("sender handleAnswerTask error: " + sw.err.Error())
-	}
+	sw.preR.BeaconGUID = *rt.BeaconGUID
 	sw.preR.Index = rt.Index
 	sw.preR.Hash = rt.Hash
 	sw.preR.Message = rt.Message
@@ -1371,5 +1468,13 @@ func (sw *senderWorker) handleAnswerTask(rt *mBeaconMessage) {
 	// pack
 	sw.buffer.Reset()
 	sw.preR.Pack(sw.buffer)
-	sw.ctx.answer(&sw.preR.GUID, sw.buffer)
+	// answer
+	result.Responses, result.Success = sw.ctx.answer(&sw.preR.GUID, sw.buffer)
+	if len(result.Responses) == 0 {
+		result.Err = ErrNoConnections
+		return
+	}
+	if result.Success == 0 {
+		result.Err = ErrFailedToAnswer
+	}
 }
