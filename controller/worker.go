@@ -72,7 +72,7 @@ func newWorker(ctx *Ctrl, config *Config) (*worker, error) {
 	ackPoolP := &worker.ackPool
 	queryPoolP := &worker.queryPool
 	wgP := &worker.wg
-	worker.wg.Add(cfg.Number)
+	worker.wg.Add(2 * cfg.Number)
 	for i := 0; i < cfg.Number; i++ {
 		sw := subWorker{
 			ctx:             ctx,
@@ -88,7 +88,19 @@ func newWorker(ctx *Ctrl, config *Config) (*worker, error) {
 			stopSignal:      worker.stopSignal,
 			wg:              wgP,
 		}
-		go sw.Work()
+		go sw.WorkWithBlock()
+	}
+	for i := 0; i < cfg.Number; i++ {
+		sw := subWorker{
+			ctx:            ctx,
+			maxBufferSize:  cfg.MaxBufferSize,
+			nodeAckQueue:   worker.nodeAckQueue,
+			beaconAckQueue: worker.beaconAckQueue,
+			ackPool:        ackPoolP,
+			stopSignal:     worker.stopSignal,
+			wg:             wgP,
+		}
+		go sw.WorkWithNonBlock()
 	}
 	return &worker, nil
 }
@@ -194,37 +206,40 @@ type subWorker struct {
 	aesKey    []byte
 	aesIV     []byte
 	beaconMsg *mBeaconMessage
+	timer     *time.Timer
 	err       error
 
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
 }
 
-func (sw *subWorker) logf(l logger.Level, format string, log ...interface{}) {
-	sw.ctx.logger.Printf(l, "worker", format, log...)
+func (sw *subWorker) logf(lv logger.Level, format string, log ...interface{}) {
+	sw.ctx.logger.Printf(lv, "worker", format, log...)
 }
 
-func (sw *subWorker) log(l logger.Level, log ...interface{}) {
-	sw.ctx.logger.Println(l, "worker", log...)
+func (sw *subWorker) log(lv logger.Level, log ...interface{}) {
+	sw.ctx.logger.Println(lv, "worker", log...)
 }
 
-func (sw *subWorker) Work() {
+func (sw *subWorker) WorkWithBlock() {
 	defer func() {
 		if r := recover(); r != nil {
-			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.Work()"))
+			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.WorkWithBlock"))
 			// restart worker
 			time.Sleep(time.Second)
-			go sw.Work()
+			go sw.WorkWithBlock()
 		} else {
 			sw.wg.Done()
 		}
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
+	sw.timer = time.NewTimer(time.Second)
+	defer sw.timer.Stop()
 	var (
-		send  *protocol.Send
-		ack   *protocol.Acknowledge
-		query *protocol.Query
+		send        *protocol.Send
+		acknowledge *protocol.Acknowledge
+		query       *protocol.Query
 	)
 	for {
 		select {
@@ -241,12 +256,48 @@ func (sw *subWorker) Work() {
 			sw.handleNodeSend(send)
 		case send = <-sw.beaconSendQueue:
 			sw.handleBeaconSend(send)
-		case ack = <-sw.nodeAckQueue:
-			sw.handleNodeAcknowledge(ack)
-		case ack = <-sw.beaconAckQueue:
-			sw.handleBeaconAcknowledge(ack)
+		case acknowledge = <-sw.nodeAckQueue:
+			sw.handleNodeAcknowledge(acknowledge)
+		case acknowledge = <-sw.beaconAckQueue:
+			sw.handleBeaconAcknowledge(acknowledge)
 		case query = <-sw.queryQueue:
 			sw.handleQuery(query)
+		case <-sw.stopSignal:
+			return
+		}
+	}
+}
+
+func (sw *subWorker) WorkWithNonBlock() {
+	defer func() {
+		if r := recover(); r != nil {
+			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.WorkWithNonBlock"))
+			// restart worker
+			time.Sleep(time.Second)
+			go sw.WorkWithNonBlock()
+		} else {
+			sw.wg.Done()
+		}
+	}()
+	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	sw.timer = time.NewTimer(time.Second)
+	defer sw.timer.Stop()
+	var acknowledge *protocol.Acknowledge
+	for {
+		select {
+		case <-sw.stopSignal:
+			return
+		default:
+		}
+		// check buffer capacity
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+		}
+		select {
+		case acknowledge = <-sw.nodeAckQueue:
+			sw.handleNodeAcknowledge(acknowledge)
+		case acknowledge = <-sw.beaconAckQueue:
+			sw.handleBeaconAcknowledge(acknowledge)
 		case <-sw.stopSignal:
 			return
 		}
@@ -300,18 +351,24 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 	}
 	defer func() { send.Message = cache }()
 	sw.ctx.handler.OnNodeSend(send)
-	sw.ctx.sender.AckToNode(send)
-	// for {
-	// 	sw.err = sw.ctx.sender.AckToNode(send)
-	// 	if sw.err == nil {
-	// 		return
-	// 	}
-	// 	if sw.err == ErrNoConnections {
-	// log
-	// 	} else {
-	// 		return
-	// 	}
-	// }
+	for {
+		sw.err = sw.ctx.sender.AckToNode(send)
+		if sw.err == nil {
+			return
+		}
+		if sw.err == ErrNoConnections {
+			sw.log(logger.Warning, "failed to ack to node:", sw.err)
+		} else {
+			sw.log(logger.Error, "failed to ack to node:", sw.err)
+		}
+		// wait one second
+		sw.timer.Reset(time.Second)
+		select {
+		case <-sw.timer.C:
+		case <-sw.stopSignal:
+			return
+		}
+	}
 }
 
 func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
@@ -327,7 +384,24 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 	}
 	defer func() { send.Message = cache }()
 	sw.ctx.handler.OnBeaconSend(send)
-	sw.ctx.sender.AckToBeacon(send)
+	for {
+		sw.err = sw.ctx.sender.AckToBeacon(send)
+		if sw.err == nil {
+			return
+		}
+		if sw.err == ErrNoConnections {
+			sw.log(logger.Warning, "failed to ack to beacon:", sw.err)
+		} else {
+			sw.log(logger.Error, "failed to ack to beacon:", sw.err)
+		}
+		// wait one second
+		sw.timer.Reset(time.Second)
+		select {
+		case <-sw.timer.C:
+		case <-sw.stopSignal:
+			return
+		}
+	}
 }
 
 // return cache
@@ -433,6 +507,22 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 		sw.logf(logger.Error, format, sw.err, spew.Sdump(query))
 		return
 	}
-	// answer queried message
-	sw.ctx.sender.Answer(sw.beaconMsg)
+	for {
+		sw.err = sw.ctx.sender.Answer(sw.beaconMsg)
+		if sw.err == nil {
+			return
+		}
+		if sw.err == ErrNoConnections {
+			sw.log(logger.Warning, "failed to answer:", sw.err)
+		} else {
+			sw.log(logger.Error, "failed to answer:", sw.err)
+		}
+		// wait one second
+		sw.timer.Reset(time.Second)
+		select {
+		case <-sw.timer.C:
+		case <-sw.stopSignal:
+			return
+		}
+	}
 }

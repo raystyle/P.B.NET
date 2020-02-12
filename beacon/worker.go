@@ -64,7 +64,7 @@ func newWorker(ctx *Beacon, config *Config) (*worker, error) {
 	ackPoolP := &worker.ackPool
 	answerPoolP := &worker.answerPool
 	wgP := &worker.wg
-	worker.wg.Add(cfg.Number)
+	worker.wg.Add(2 * cfg.Number)
 	for i := 0; i < cfg.Number; i++ {
 		sw := subWorker{
 			ctx:           ctx,
@@ -78,7 +78,18 @@ func newWorker(ctx *Beacon, config *Config) (*worker, error) {
 			stopSignal:    worker.stopSignal,
 			wg:            wgP,
 		}
-		go sw.Work()
+		go sw.WorkWithBlock()
+	}
+	for i := 0; i < cfg.Number; i++ {
+		sw := subWorker{
+			ctx:           ctx,
+			maxBufferSize: cfg.MaxBufferSize,
+			ackQueue:      worker.ackQueue,
+			ackPool:       ackPoolP,
+			stopSignal:    worker.stopSignal,
+			wg:            wgP,
+		}
+		go sw.WorkWithNonBlock()
 	}
 	return &worker, nil
 }
@@ -159,37 +170,40 @@ type subWorker struct {
 	// runtime
 	buffer *bytes.Buffer
 	hash   hash.Hash
+	timer  *time.Timer
 	err    error
 
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
 }
 
-func (sw *subWorker) logf(l logger.Level, format string, log ...interface{}) {
-	sw.ctx.logger.Printf(l, "worker", format, log...)
+func (sw *subWorker) logf(lv logger.Level, format string, log ...interface{}) {
+	sw.ctx.logger.Printf(lv, "worker", format, log...)
 }
 
-func (sw *subWorker) log(l logger.Level, log ...interface{}) {
-	sw.ctx.logger.Println(l, "worker", log...)
+func (sw *subWorker) log(lv logger.Level, log ...interface{}) {
+	sw.ctx.logger.Println(lv, "worker", log...)
 }
 
-func (sw *subWorker) Work() {
+func (sw *subWorker) WorkWithBlock() {
 	defer func() {
 		if r := recover(); r != nil {
-			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.Work()"))
+			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.WorkWithBlock"))
 			// restart worker
 			time.Sleep(time.Second)
-			go sw.Work()
+			go sw.WorkWithBlock()
 		} else {
 			sw.wg.Done()
 		}
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
+	sw.timer = time.NewTimer(time.Second)
+	defer sw.timer.Stop()
 	var (
-		send   *protocol.Send
-		ack    *protocol.Acknowledge
-		answer *protocol.Answer
+		send        *protocol.Send
+		acknowledge *protocol.Acknowledge
+		answer      *protocol.Answer
 	)
 	for {
 		select {
@@ -204,10 +218,44 @@ func (sw *subWorker) Work() {
 		select {
 		case send = <-sw.sendQueue:
 			sw.handleSend(send)
-		case ack = <-sw.ackQueue:
-			sw.handleAcknowledge(ack)
+		case acknowledge = <-sw.ackQueue:
+			sw.handleAcknowledge(acknowledge)
 		case answer = <-sw.answerQueue:
 			sw.handleAnswer(answer)
+		case <-sw.stopSignal:
+			return
+		}
+	}
+}
+
+func (sw *subWorker) WorkWithNonBlock() {
+	defer func() {
+		if r := recover(); r != nil {
+			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.WorkWithNonBlock"))
+			// restart worker
+			time.Sleep(time.Second)
+			go sw.WorkWithNonBlock()
+		} else {
+			sw.wg.Done()
+		}
+	}()
+	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	sw.timer = time.NewTimer(time.Second)
+	defer sw.timer.Stop()
+	var acknowledge *protocol.Acknowledge
+	for {
+		select {
+		case <-sw.stopSignal:
+			return
+		default:
+		}
+		// check buffer capacity
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+		}
+		select {
+		case acknowledge = <-sw.ackQueue:
+			sw.handleAcknowledge(acknowledge)
 		case <-sw.stopSignal:
 			return
 		}
@@ -245,7 +293,24 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		return
 	}
 	sw.ctx.handler.OnMessage(send)
-	sw.ctx.sender.Acknowledge(send)
+	for {
+		sw.err = sw.ctx.sender.Acknowledge(send)
+		if sw.err == nil {
+			return
+		}
+		if sw.err == ErrNoConnections {
+			sw.log(logger.Warning, "failed to acknowledge:", sw.err)
+		} else {
+			sw.log(logger.Error, "failed to acknowledge:", sw.err)
+		}
+		// wait one second
+		sw.timer.Reset(time.Second)
+		select {
+		case <-sw.timer.C:
+		case <-sw.stopSignal:
+			return
+		}
+	}
 }
 
 func (sw *subWorker) handleAcknowledge(acknowledge *protocol.Acknowledge) {
