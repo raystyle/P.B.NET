@@ -25,8 +25,10 @@ func (t *Test) EnableTestMessage() {
 
 // AddBroadcastTestMessage is used to add controller broadcast test message
 func (t *Test) AddBroadcastTestMessage(ctx context.Context, message []byte) error {
+	msg := make([]byte, len(message))
+	copy(msg, message)
 	select {
-	case t.BroadcastTestMsg <- message:
+	case t.BroadcastTestMsg <- msg:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -35,8 +37,10 @@ func (t *Test) AddBroadcastTestMessage(ctx context.Context, message []byte) erro
 
 // AddSendTestMessage is used to add controller send test message
 func (t *Test) AddSendTestMessage(ctx context.Context, message []byte) error {
+	msg := make([]byte, len(message))
+	copy(msg, message)
 	select {
-	case t.SendTestMsg <- message:
+	case t.SendTestMsg <- msg:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

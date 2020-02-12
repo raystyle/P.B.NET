@@ -277,8 +277,6 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		return
 	}
 	// decrypt message
-	cache := send.Message
-	defer func() { send.Message = cache }()
 	send.Message, sw.err = sw.ctx.global.Decrypt(send.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt send message: %s\n%s"
@@ -342,8 +340,6 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 		return
 	}
 	// decrypt message
-	cache := broadcast.Message
-	defer func() { broadcast.Message = cache }()
 	broadcast.Message, sw.err = sw.ctx.global.CtrlDecrypt(broadcast.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt broadcast message: %s\n%s"

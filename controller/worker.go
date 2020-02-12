@@ -345,11 +345,9 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 		return
 	}
 	defer sw.node.SessionKey.Put(sessionKey)
-	cache := sw.handleRoleSend(protocol.Node, send)
-	if cache == nil {
+	if !sw.handleRoleSend(protocol.Node, send) {
 		return
 	}
-	defer func() { send.Message = cache }()
 	sw.ctx.handler.OnNodeSend(send)
 	for {
 		sw.err = sw.ctx.sender.AckToNode(send)
@@ -378,11 +376,9 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 		return
 	}
 	defer sw.beacon.SessionKey.Put(sessionKey)
-	cache := sw.handleRoleSend(protocol.Beacon, send)
-	if cache == nil {
+	if !sw.handleRoleSend(protocol.Beacon, send) {
 		return
 	}
-	defer func() { send.Message = cache }()
 	sw.ctx.handler.OnBeaconSend(send)
 	for {
 		sw.err = sw.ctx.sender.AckToBeacon(send)
@@ -405,7 +401,7 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 }
 
 // return cache
-func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []byte {
+func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) bool {
 	// verify
 	sw.buffer.Reset()
 	sw.buffer.Write(send.GUID[:])
@@ -415,15 +411,14 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid %s send signature\n%s"
 		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
-		return nil
+		return false
 	}
 	// decrypt message
-	cache := send.Message
 	send.Message, sw.err = aes.CBCDecrypt(send.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
 		const format = "failed to decrypt %s send: %s\n%s"
 		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
-		return nil
+		return false
 	}
 	// compare hash
 	sw.hash.Reset()
@@ -431,9 +426,9 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
 		const format = "%s send with incorrect hash\n%s"
 		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
-		return nil
+		return false
 	}
-	return cache
+	return true
 }
 
 func (sw *subWorker) handleNodeAcknowledge(ack *protocol.Acknowledge) {

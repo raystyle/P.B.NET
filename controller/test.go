@@ -71,8 +71,10 @@ func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid *guid.GUID, mess
 	if !ok {
 		return errors.Errorf("node: %X doesn't exists", guid)
 	}
+	msg := make([]byte, len(message))
+	copy(msg, message)
 	select {
-	case ch <- message:
+	case ch <- msg:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -87,8 +89,10 @@ func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid *guid.GUID, me
 	if !ok {
 		return errors.Errorf("beacon: %X doesn't exists", guid)
 	}
+	msg := make([]byte, len(message))
+	copy(msg, message)
 	select {
-	case ch <- message:
+	case ch <- msg:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
