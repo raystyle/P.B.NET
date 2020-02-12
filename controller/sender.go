@@ -1312,8 +1312,9 @@ func (sw *senderWorker) handleAckToNodeTask(at *ackTask) {
 	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "senderWorker.handleAckToNodeTask")
-			sw.ctx.log(logger.Fatal, b)
+			err := xpanic.Error(r, "senderWorker.handleAckToNodeTask")
+			sw.ctx.log(logger.Fatal, err)
+			result.Err = err
 		}
 		at.Result <- result
 	}()
@@ -1334,8 +1335,9 @@ func (sw *senderWorker) handleAckToBeaconTask(at *ackTask) {
 	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "senderWorker.handleAckToBeaconTask")
-			sw.ctx.log(logger.Fatal, b)
+			err := xpanic.Error(r, "senderWorker.handleAckToBeaconTask")
+			sw.ctx.log(logger.Fatal, err)
+			result.Err = err
 		}
 		at.Result <- result
 	}()
@@ -1443,8 +1445,9 @@ func (sw *senderWorker) handleAnswerTask(rt *answerTask) {
 	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "senderWorker.handleAnswerTask")
-			sw.ctx.log(logger.Fatal, b)
+			err := xpanic.Error(r, "senderWorker.handleAnswerTask")
+			sw.ctx.log(logger.Fatal, err)
+			result.Err = err
 		}
 		rt.Result <- result
 	}()
