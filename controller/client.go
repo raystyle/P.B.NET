@@ -434,9 +434,9 @@ func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
 	case protocol.BeaconAck:
 		client.handleBeaconAck(id, data)
 	case protocol.BeaconQueryGUID:
-		client.handleBeaconQueryGUID(id, data)
+		client.handleQueryGUID(id, data)
 	case protocol.BeaconQuery:
-		client.handleBeaconQuery(id, data)
+		client.handleQuery(id, data)
 	default:
 		return false
 	}
@@ -515,7 +515,7 @@ func (client *Client) handleBeaconAckGUID(id, data []byte) {
 	}
 }
 
-func (client *Client) handleBeaconQueryGUID(id, data []byte) {
+func (client *Client) handleQueryGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		client.log(logger.Exploit, "invalid query guid size")
 		client.reply(id, protocol.ReplyHandled)
@@ -665,7 +665,7 @@ func (client *Client) handleBeaconAck(id, data []byte) {
 	}
 }
 
-func (client *Client) handleBeaconQuery(id, data []byte) {
+func (client *Client) handleQuery(id, data []byte) {
 	query := client.ctx.worker.GetQueryFromPool()
 	err := query.Unpack(data)
 	if err != nil {

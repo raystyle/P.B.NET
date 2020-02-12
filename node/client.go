@@ -411,9 +411,9 @@ func (client *Client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) boo
 	case protocol.BeaconAck:
 		client.Conn.HandleBeaconAck(id, data)
 	case protocol.BeaconQueryGUID:
-		client.Conn.HandleBeaconQueryGUID(id, data)
+		client.Conn.HandleQueryGUID(id, data)
 	case protocol.BeaconQuery:
-		client.Conn.HandleBeaconQuery(id, data)
+		client.Conn.HandleQuery(id, data)
 	default:
 		return false
 	}

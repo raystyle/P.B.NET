@@ -406,7 +406,7 @@ func (c *conn) HandleBeaconAckGUID(id, data []byte) {
 	}
 }
 
-func (c *conn) HandleBeaconQueryGUID(id, data []byte) {
+func (c *conn) HandleQueryGUID(id, data []byte) {
 	if len(data) != guid.Size {
 		c.Log(logger.Exploit, "invalid query guid size")
 		c.Reply(id, protocol.ReplyHandled)
@@ -745,7 +745,7 @@ func (c *conn) HandleBeaconAck(id, data []byte) {
 	}
 }
 
-func (c *conn) HandleBeaconQuery(id, data []byte) {
+func (c *conn) HandleQuery(id, data []byte) {
 	query := c.QueryPool.Get().(*protocol.Query)
 	defer c.QueryPool.Put(query)
 	err := query.Unpack(data)

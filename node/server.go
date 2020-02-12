@@ -1338,9 +1338,9 @@ func (node *nodeConn) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) boo
 	case protocol.BeaconAck:
 		node.Conn.HandleBeaconAck(id, data)
 	case protocol.BeaconQueryGUID:
-		node.Conn.HandleBeaconQueryGUID(id, data)
+		node.Conn.HandleQueryGUID(id, data)
 	case protocol.BeaconQuery:
-		node.Conn.HandleBeaconQuery(id, data)
+		node.Conn.HandleQuery(id, data)
 	default:
 		return false
 	}
@@ -1468,9 +1468,9 @@ func (beacon *beaconConn) onFrameAfterSync(frame []byte) bool {
 	case protocol.BeaconAck:
 		beacon.Conn.HandleBeaconAck(id, data)
 	case protocol.BeaconQueryGUID:
-		beacon.Conn.HandleBeaconQueryGUID(id, data)
+		beacon.Conn.HandleQueryGUID(id, data)
 	case protocol.BeaconQuery:
-		beacon.Conn.HandleBeaconQuery(id, data)
+		beacon.Conn.HandleQuery(id, data)
 	default:
 		return false
 	}
