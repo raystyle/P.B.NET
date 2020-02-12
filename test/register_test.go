@@ -11,11 +11,13 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/testsuite"
 
+	"project/beacon"
 	"project/node"
 )
 
 func TestNodeRegister(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
@@ -57,9 +59,10 @@ func TestNodeRegister(t *testing.T) {
 	})
 	cNode.Wait()
 	timer.Stop()
+	cNodeGUID := cNode.GUID()
 
 	// try to connect initial node
-	client, err := cNode.NewClient(context.Background(), bListener, iNode.GUID())
+	client, err := cNode.NewClient(context.Background(), bListener, iNodeGUID)
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)
@@ -69,4 +72,68 @@ func TestNodeRegister(t *testing.T) {
 	testsuite.IsDestroyed(t, cNode)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
+}
+
+func TestBeaconRegister(t *testing.T) {
+	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
+
+	// create bootstrap
+	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	require.NoError(t, err)
+	iAddr := iListener.Addr()
+	bListener := &bootstrap.Listener{
+		Mode:    iListener.Mode(),
+		Network: iAddr.Network(),
+		Address: iAddr.String(),
+	}
+	boot, key := generateBootstrap(t, bListener)
+	ctrl.Test.CreateBeaconRegisterRequestChannel()
+
+	beaconCfg := generateBeaconConfig(t, "Beacon")
+	beaconCfg.Register.FirstBoot = boot
+	beaconCfg.Register.FirstKey = key
+	Beacon, err := beacon.New(beaconCfg)
+	require.NoError(t, err)
+	go func() {
+		err := Beacon.Main()
+		require.NoError(t, err)
+	}()
+
+	// read Beacon register request
+	select {
+	case brr := <-ctrl.Test.BeaconRegisterRequest:
+		err = ctrl.AcceptRegisterBeacon(brr)
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
+	}
+	timer := time.AfterFunc(10*time.Second, func() {
+		t.Fatal("beacon register timeout")
+	})
+	Beacon.Wait()
+	timer.Stop()
+	beaconGUID := Beacon.GUID()
+
+	// try to connect initial node
+	client, err := Beacon.NewClient(context.Background(), bListener, iNodeGUID, nil)
+	require.NoError(t, err)
+	err = client.Connect()
+	require.NoError(t, err)
+
+	// clean
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }

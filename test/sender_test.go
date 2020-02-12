@@ -33,7 +33,8 @@ func TestAll(t *testing.T) {
 func TestLoop(t *testing.T) {
 	logLevel = "warning"
 	// t.Skip("must run it manually")
-	for {
+	for i := 0; i < 100; i++ {
+		fmt.Println("round:", i+1)
 		TestAll(t)
 		time.Sleep(2 * time.Second)
 		runtime.GC()
@@ -80,7 +81,7 @@ func TestLoop_Parallel(t *testing.T) {
 	logLevel = "warning"
 	// t.Skip("must run it manually")
 	for i := 0; i < 100; i++ {
-		fmt.Println("round:", i)
+		fmt.Println("round:", i+1)
 		TestAll_Parallel(t)
 		time.Sleep(2 * time.Second)
 		runtime.GC()
