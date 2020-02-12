@@ -344,8 +344,7 @@ func (a *Answer) Unpack(data []byte) error {
 		case amLen == mLen:
 			copy(a.Message, message)
 		case amLen < mLen:
-			a.Message = a.Message[:0]
-			a.Message = append(a.Message, message...)
+			a.Message = append(a.Message[:0], message...)
 		}
 	} else {
 		a.Message = make([]byte, mLen)
