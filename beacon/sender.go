@@ -177,12 +177,12 @@ func (sender *sender) isClosed() bool {
 	return atomic.LoadInt32(&sender.inClose) != 0
 }
 
-func (sender *sender) logf(l logger.Level, format string, log ...interface{}) {
-	sender.ctx.logger.Printf(l, "sender", format, log...)
+func (sender *sender) logf(lv logger.Level, format string, log ...interface{}) {
+	sender.ctx.logger.Printf(lv, "sender", format, log...)
 }
 
-func (sender *sender) log(l logger.Level, log ...interface{}) {
-	sender.ctx.logger.Println(l, "sender", log...)
+func (sender *sender) log(lv logger.Level, log ...interface{}) {
+	sender.ctx.logger.Println(lv, "sender", log...)
 }
 
 func (sender *sender) checkNode(guid *guid.GUID) error {

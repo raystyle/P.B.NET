@@ -185,12 +185,12 @@ func (wh *webHandler) Close() {
 	wh.ctx = nil
 }
 
-func (wh *webHandler) logf(l logger.Level, format string, log ...interface{}) {
-	wh.ctx.logger.Printf(l, "web", format, log...)
+func (wh *webHandler) logf(lv logger.Level, format string, log ...interface{}) {
+	wh.ctx.logger.Printf(lv, "web", format, log...)
 }
 
-func (wh *webHandler) log(l logger.Level, log ...interface{}) {
-	wh.ctx.logger.Println(l, "web", log...)
+func (wh *webHandler) log(lv logger.Level, log ...interface{}) {
+	wh.ctx.logger.Println(lv, "web", log...)
 }
 
 func (wh *webHandler) handlePanic(w hRW, r *hR, e interface{}) {

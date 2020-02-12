@@ -151,12 +151,12 @@ func (register *register) loadBootstraps(boot, key []byte, single bool) error {
 	return nil
 }
 
-func (register *register) logf(l logger.Level, format string, log ...interface{}) {
-	register.ctx.logger.Printf(l, "register", format, log...)
+func (register *register) logf(lv logger.Level, format string, log ...interface{}) {
+	register.ctx.logger.Printf(lv, "register", format, log...)
 }
 
-func (register *register) log(l logger.Level, log ...interface{}) {
-	register.ctx.logger.Println(l, "register", log...)
+func (register *register) log(lv logger.Level, log ...interface{}) {
+	register.ctx.logger.Println(lv, "register", log...)
 }
 
 func (register *register) AddBootstrap(b *messages.Bootstrap) error {

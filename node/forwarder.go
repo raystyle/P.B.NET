@@ -263,8 +263,8 @@ func (f *forwarder) GetBeaconConns() map[guid.GUID]*beaconConn {
 	return conns
 }
 
-func (f *forwarder) log(l logger.Level, log ...interface{}) {
-	f.ctx.logger.Println(l, "forwarder", log...)
+func (f *forwarder) log(lv logger.Level, log ...interface{}) {
+	f.ctx.logger.Println(lv, "forwarder", log...)
 }
 
 // forward is used to forward data to connections, it will not block.

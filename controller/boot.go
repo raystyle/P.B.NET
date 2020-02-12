@@ -121,12 +121,12 @@ func (bc *bootClient) Stop() {
 	})
 }
 
-func (bc *bootClient) logf(l logger.Level, format string, log ...interface{}) {
-	bc.ctx.ctx.logger.Printf(l, bc.logSrc, format, log...)
+func (bc *bootClient) logf(lv logger.Level, format string, log ...interface{}) {
+	bc.ctx.ctx.logger.Printf(lv, bc.logSrc, format, log...)
 }
 
-func (bc *bootClient) log(l logger.Level, log ...interface{}) {
-	bc.ctx.ctx.logger.Println(l, bc.logSrc, log...)
+func (bc *bootClient) log(lv logger.Level, log ...interface{}) {
+	bc.ctx.ctx.logger.Println(lv, bc.logSrc, log...)
 }
 
 func (bc *bootClient) bootLoop() {

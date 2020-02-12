@@ -43,12 +43,12 @@ func (h *handler) Close() {
 	h.ctx = nil
 }
 
-func (h *handler) logf(l logger.Level, format string, log ...interface{}) {
-	h.ctx.logger.Printf(l, "handler", format, log...)
+func (h *handler) logf(lv logger.Level, format string, log ...interface{}) {
+	h.ctx.logger.Printf(lv, "handler", format, log...)
 }
 
-func (h *handler) log(l logger.Level, log ...interface{}) {
-	h.ctx.logger.Println(l, "handler", log...)
+func (h *handler) log(lv logger.Level, log ...interface{}) {
+	h.ctx.logger.Println(lv, "handler", log...)
 }
 
 // logfWithInfo will print log with role GUID and message
@@ -56,12 +56,12 @@ func (h *handler) log(l logger.Level, log ...interface{}) {
 // spew output...
 //
 // first log interface must be *protocol.Send
-func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}) {
+func (h *handler) logfWithInfo(lv logger.Level, format string, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(buf, format, log[1:]...)
 	buf.WriteString("\n")
 	spew.Fdump(buf, log[0])
-	h.ctx.logger.Print(l, "handler", buf)
+	h.ctx.logger.Print(lv, "handler", buf)
 }
 
 // logWithInfo will print log with role GUID and message
@@ -69,11 +69,11 @@ func (h *handler) logfWithInfo(l logger.Level, format string, log ...interface{}
 // spew output...
 //
 // first log interface must be *protocol.Send
-func (h *handler) logWithInfo(l logger.Level, log ...interface{}) {
+func (h *handler) logWithInfo(lv logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log[1:]...)
 	spew.Fdump(buf, log[0])
-	h.ctx.logger.Print(l, "handler", buf)
+	h.ctx.logger.Print(lv, "handler", buf)
 }
 
 // logPanic must use like defer h.logPanic("title")
