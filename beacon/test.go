@@ -23,8 +23,10 @@ func (t *Test) EnableTestMessage() {
 
 // AddSendTestMessage is used to add Controller send test message.
 func (t *Test) AddSendTestMessage(ctx context.Context, message []byte) error {
+	msg := make([]byte, len(message))
+	copy(msg, message)
 	select {
-	case t.SendTestMsg <- message:
+	case t.SendTestMsg <- msg:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

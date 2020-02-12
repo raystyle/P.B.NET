@@ -415,6 +415,17 @@ func (sender *sender) Query() error {
 	return result.Err
 }
 
+// CheckQueryIndex is used to check query index
+func (sender *sender) CheckQueryIndex(index uint64) bool {
+	sender.indexRWM.Lock()
+	defer sender.indexRWM.Unlock()
+	if index != sender.index {
+		return false
+	}
+	sender.index++
+	return true
+}
+
 func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.inClose, 1)
 	close(sender.stopSignal)

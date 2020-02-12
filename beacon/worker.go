@@ -277,8 +277,6 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		return
 	}
 	// decrypt message
-	cache := send.Message
-	defer func() { send.Message = cache }()
 	send.Message, sw.err = sw.ctx.global.Decrypt(send.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt send message: %s\n%s"
@@ -293,7 +291,32 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		sw.logf(logger.Exploit, format, spew.Sdump(send))
 		return
 	}
-	sw.ctx.handler.OnMessage(send)
+	// create answer for OnMessage
+	answer := sw.answerPool.Get().(*protocol.Answer)
+	defer sw.answerPool.Put(answer)
+	answer.GUID = send.GUID
+	answer.BeaconGUID = send.RoleGUID
+	// must use copy, because use two sync.Pool
+	copy(answer.Hash, send.Hash)
+	copy(answer.Signature, send.Signature)
+	// copy send.Message to answer.Message
+	smLen := len(send.Message)
+	amLen := len(answer.Message)
+	if cap(answer.Message) >= smLen {
+		switch {
+		case amLen > smLen:
+			copy(answer.Message, send.Message)
+			answer.Message = answer.Message[:smLen]
+		case amLen == smLen:
+			copy(answer.Message, send.Message)
+		case amLen < smLen:
+			answer.Message = append(answer.Message[:0], send.Message...)
+		}
+	} else {
+		answer.Message = make([]byte, smLen)
+		copy(answer.Message, send.Message)
+	}
+	sw.ctx.handler.OnMessage(answer)
 	for {
 		sw.err = sw.ctx.sender.Acknowledge(send)
 		if sw.err == nil {
@@ -344,8 +367,6 @@ func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 		return
 	}
 	// decrypt message
-	cache := answer.Message
-	defer func() { answer.Message = cache }()
 	answer.Message, sw.err = sw.ctx.global.Decrypt(answer.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt answer message: %s\n%s"
@@ -360,4 +381,9 @@ func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 		sw.logf(logger.Exploit, format, spew.Sdump(answer))
 		return
 	}
+	// prevent duplicate handle
+	if !sw.ctx.sender.CheckQueryIndex(answer.Index) {
+		return
+	}
+	sw.ctx.handler.OnMessage(answer)
 }
