@@ -659,7 +659,10 @@ func (client *Client) SendCommand(cmd uint8, data []byte) ([]byte, error) {
 }
 
 // Send is used to send message to Controller.
-func (client *Client) Send(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendResponse) {
+func (client *Client) Send(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
@@ -712,7 +715,10 @@ func (client *Client) Acknowledge(
 }
 
 // Query is used to query message from Controller.
-func (client *Client) Query(guid *guid.GUID, data *bytes.Buffer) (q *protocol.QueryResponse) {
+func (client *Client) Query(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (q *protocol.QueryResponse) {
 	q = &protocol.QueryResponse{
 		Role: protocol.Node,
 		GUID: client.guid,
