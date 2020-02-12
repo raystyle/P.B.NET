@@ -245,8 +245,8 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		sw.logf(logger.Exploit, format, spew.Sdump(send))
 		return
 	}
-	sw.ctx.sender.Acknowledge(send)
 	sw.ctx.handler.OnSend(send)
+	sw.ctx.sender.Acknowledge(send)
 }
 
 func (sw *subWorker) handleAcknowledge(acknowledge *protocol.Acknowledge) {

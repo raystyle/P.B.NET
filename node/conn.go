@@ -840,7 +840,10 @@ func (c *conn) SendCommand(cmd uint8, data []byte) ([]byte, error) {
 }
 
 // Send is used to send message to Controller
-func (c *conn) Send(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendResponse) {
+func (c *conn) Send(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (sr *protocol.SendResponse) {
 	sr = &protocol.SendResponse{
 		Role: c.role,
 		GUID: c.guid,
@@ -865,7 +868,10 @@ func (c *conn) Send(guid *guid.GUID, data *bytes.Buffer) (sr *protocol.SendRespo
 }
 
 // Acknowledge is used to notice Controller that Node has received this message
-func (c *conn) Acknowledge(guid *guid.GUID, data *bytes.Buffer) (ar *protocol.AcknowledgeResponse) {
+func (c *conn) Acknowledge(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) (ar *protocol.AcknowledgeResponse) {
 	ar = &protocol.AcknowledgeResponse{
 		Role: c.role,
 		GUID: c.guid,

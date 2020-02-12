@@ -23,12 +23,14 @@ import (
 // errors
 var (
 	ErrNoConnections  = fmt.Errorf("no connections")
-	ErrSendFailed     = fmt.Errorf("failed to send")
+	ErrFailedToSend   = fmt.Errorf("failed to send")
+	ErrFailedToAck    = fmt.Errorf("failed to acknowledge")
 	ErrSendTimeout    = fmt.Errorf("send timeout")
 	ErrSenderMaxConns = fmt.Errorf("sender with max connections")
 	ErrSenderClosed   = fmt.Errorf("sender closed")
 )
 
+// sendTask is used to send message to the Controller.
 // MessageI will be Encode by msgpack, except MessageI.(type) is []byte.
 type sendTask struct {
 	Ctx      context.Context
@@ -38,18 +40,27 @@ type sendTask struct {
 	Result   chan<- *protocol.SendResult
 }
 
+// ackTask is used to acknowledge to the Controller.
+type ackTask struct {
+	SendGUID *guid.GUID
+	Result   chan<- *protocol.AcknowledgeResult
+}
+
 // sender is used to send message to Controller, it can connect other Node.
 type sender struct {
 	ctx *Node
 
 	sendTaskQueue chan *sendTask
-	ackTaskQueue  chan *guid.GUID
+	ackTaskQueue  chan *ackTask
 
 	sendTaskPool sync.Pool
 	ackTaskPool  sync.Pool
 
-	sendDonePool   sync.Pool
+	sendDonePool sync.Pool
+	ackDonePool  sync.Pool
+
 	sendResultPool sync.Pool
+	ackResultPool  sync.Pool
 
 	// wait Controller acknowledge
 	ackSlots    map[guid.GUID]chan struct{}
@@ -83,7 +94,7 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 	sender := &sender{
 		ctx:           ctx,
 		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
-		ackTaskQueue:  make(chan *guid.GUID, cfg.QueueSize),
+		ackTaskQueue:  make(chan *ackTask, cfg.QueueSize),
 		ackSlots:      make(map[guid.GUID]chan struct{}),
 		stopSignal:    make(chan struct{}),
 	}
@@ -92,14 +103,23 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 		return new(sendTask)
 	}
 	sender.ackTaskPool.New = func() interface{} {
-		return new(guid.GUID)
+		return new(ackTask)
 	}
+
 	sender.sendDonePool.New = func() interface{} {
 		return make(chan *protocol.SendResult, 1)
 	}
+	sender.ackDonePool.New = func() interface{} {
+		return make(chan *protocol.AcknowledgeResult, 1)
+	}
+
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
 	}
+	sender.ackResultPool.New = func() interface{} {
+		return new(protocol.AcknowledgeResult)
+	}
+
 	sender.ackSlotPool.New = func() interface{} {
 		return make(chan struct{}, 1)
 	}
@@ -257,17 +277,26 @@ func (sender *sender) SendFromPlugin(message []byte) error {
 	return result.Err
 }
 
-// Acknowledge is used to acknowledge Controller that Node has received this message
-func (sender *sender) Acknowledge(send *protocol.Send) {
+// Acknowledge is used to acknowledge Controller that Node has received this message.
+func (sender *sender) Acknowledge(send *protocol.Send) error {
 	if sender.isClosed() {
-		return
+		return ErrSenderClosed
 	}
-	at := sender.ackTaskPool.Get().(*guid.GUID)
-	*at = send.GUID
+	done := sender.ackDonePool.Get().(chan *protocol.AcknowledgeResult)
+	defer sender.ackDonePool.Put(done)
+	at := sender.ackTaskPool.Get().(*ackTask)
+	defer sender.ackTaskPool.Put(at)
+	at.SendGUID = &send.GUID
+	at.Result = done
+	// send to task queue
 	select {
 	case sender.ackTaskQueue <- at:
 	case <-sender.stopSignal:
+		return ErrSenderClosed
 	}
+	result := <-done
+	defer sender.ackResultPool.Put(result)
+	return result.Err
 }
 
 // HandleNodeAcknowledge is used to notice the Node that the Controller
@@ -388,7 +417,7 @@ func (sw *senderWorker) Work() {
 	defer sw.timer.Stop()
 	var (
 		st *sendTask
-		at *guid.GUID
+		at *ackTask
 	)
 	for {
 		select {
@@ -464,7 +493,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	// self validate
 	result.Err = sw.preS.Validate()
 	if result.Err != nil {
-		panic("sender internal error: " + result.Err.Error())
+		panic("sender handleSendTask error: " + result.Err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
@@ -477,7 +506,7 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	if result.Success == 0 {
-		result.Err = ErrSendFailed
+		result.Err = ErrFailedToSend
 		return
 	}
 	// wait role acknowledge
@@ -499,17 +528,20 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	}
 }
 
-func (sw *senderWorker) handleAcknowledgeTask(at *guid.GUID) {
+func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
+	result := sw.ctx.ackResultPool.Get().(*protocol.AcknowledgeResult)
+	result.Clean()
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "senderWorker.handleAcknowledgeTask")
-			sw.ctx.log(logger.Fatal, b)
+			err := xpanic.Error(r, "senderWorker.handleAcknowledgeTask")
+			sw.ctx.log(logger.Fatal, err)
+			result.Err = err
 		}
-		sw.ctx.ackTaskPool.Put(at)
+		at.Result <- result
 	}()
 	sw.preA.GUID = *sw.ctx.guid.Get()
 	sw.preA.RoleGUID = *sw.ctx.ctx.global.GUID()
-	sw.preA.SendGUID = *at
+	sw.preA.SendGUID = *at.SendGUID
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preA.GUID[:])
@@ -519,10 +551,18 @@ func (sw *senderWorker) handleAcknowledgeTask(at *guid.GUID) {
 	// self validate
 	sw.err = sw.preA.Validate()
 	if sw.err != nil {
-		panic("sender internal error: " + sw.err.Error())
+		panic("sender handleAcknowledgeTask error: " + sw.err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
 	sw.preA.Pack(sw.buffer)
-	sw.forwarder.Acknowledge(&sw.preA.GUID, sw.buffer)
+	// acknowledge
+	result.Responses, result.Success = sw.forwarder.Acknowledge(&sw.preA.GUID, sw.buffer)
+	if len(result.Responses) == 0 {
+		result.Err = ErrNoConnections
+		return
+	}
+	if result.Success == 0 {
+		result.Err = ErrFailedToAck
+	}
 }
