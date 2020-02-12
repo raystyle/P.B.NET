@@ -14,6 +14,7 @@ import (
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
+	"project/internal/convert"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -25,6 +26,7 @@ var (
 	ErrNoConnections  = fmt.Errorf("no connections")
 	ErrFailedToSend   = fmt.Errorf("failed to send")
 	ErrFailedToAck    = fmt.Errorf("failed to acknowledge")
+	ErrFailedToQuery  = fmt.Errorf("failed to query")
 	ErrSendTimeout    = fmt.Errorf("send timeout")
 	ErrSenderMaxConns = fmt.Errorf("sender with max connections")
 	ErrSenderClosed   = fmt.Errorf("sender closed")
@@ -46,23 +48,33 @@ type ackTask struct {
 	Result   chan<- *protocol.AcknowledgeResult
 }
 
+// queryTask is used to query message from the Controller.
+type queryTask struct {
+	Index  uint64
+	Result chan<- *protocol.QueryResult
+}
+
 // sender is used to send message to Controller, it can connect other Nodes.
 type sender struct {
 	ctx *Beacon
 
 	maxConns atomic.Value
 
-	sendTaskQueue chan *sendTask
-	ackTaskQueue  chan *ackTask
+	sendTaskQueue  chan *sendTask
+	ackTaskQueue   chan *ackTask
+	queryTaskQueue chan *queryTask
 
-	sendTaskPool sync.Pool
-	ackTaskPool  sync.Pool
+	sendTaskPool  sync.Pool
+	ackTaskPool   sync.Pool
+	queryTaskPool sync.Pool
 
-	sendDonePool sync.Pool
-	ackDonePool  sync.Pool
+	sendDonePool  sync.Pool
+	ackDonePool   sync.Pool
+	queryDonePool sync.Pool
 
-	sendResultPool sync.Pool
-	ackResultPool  sync.Pool
+	sendResultPool  sync.Pool
+	ackResultPool   sync.Pool
+	queryResultPool sync.Pool
 
 	// key = Node GUID
 	clients    map[guid.GUID]*Client
@@ -72,6 +84,10 @@ type sender struct {
 	ackSlots    map[guid.GUID]chan struct{}
 	ackSlotsM   sync.Mutex
 	ackSlotPool sync.Pool
+
+	// query mode
+	index    uint64
+	indexRWM sync.RWMutex
 
 	guid *guid.Generator
 
@@ -117,6 +133,9 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	sender.ackTaskPool.New = func() interface{} {
 		return new(ackTask)
 	}
+	sender.queryTaskPool.New = func() interface{} {
+		return new(queryTask)
+	}
 
 	sender.sendDonePool.New = func() interface{} {
 		return make(chan *protocol.SendResult, 1)
@@ -124,12 +143,18 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	sender.ackDonePool.New = func() interface{} {
 		return make(chan *protocol.AcknowledgeResult, 1)
 	}
+	sender.queryDonePool.New = func() interface{} {
+		return make(chan *protocol.QueryResult, 1)
+	}
 
 	sender.sendResultPool.New = func() interface{} {
 		return new(protocol.SendResult)
 	}
 	sender.ackResultPool.New = func() interface{} {
 		return new(protocol.AcknowledgeResult)
+	}
+	sender.queryResultPool.New = func() interface{} {
+		return new(protocol.QueryResult)
 	}
 
 	sender.ackSlotPool.New = func() interface{} {
@@ -362,6 +387,34 @@ func (sender *sender) HandleAcknowledge(send *guid.GUID) {
 	}
 }
 
+func (sender *sender) getQueryIndex() uint64 {
+	sender.indexRWM.RLock()
+	defer sender.indexRWM.RUnlock()
+	return sender.index
+}
+
+// Query is used to query message from the Controller.
+func (sender *sender) Query() error {
+	if sender.isClosed() {
+		return ErrSenderClosed
+	}
+	done := sender.queryDonePool.Get().(chan *protocol.QueryResult)
+	defer sender.queryDonePool.Put(done)
+	qt := sender.queryTaskPool.Get().(*queryTask)
+	defer sender.queryTaskPool.Put(qt)
+	qt.Index = sender.getQueryIndex()
+	qt.Result = done
+	// send to task queue
+	select {
+	case sender.queryTaskQueue <- qt:
+	case <-sender.stopSignal:
+		return ErrSenderClosed
+	}
+	result := <-done
+	defer sender.queryResultPool.Put(result)
+	return result.Err
+}
+
 func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.inClose, 1)
 	close(sender.stopSignal)
@@ -454,6 +507,40 @@ func (sender *sender) acknowledge(
 	return responses, success
 }
 
+func (sender *sender) query(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) ([]*protocol.QueryResponse, int) {
+	clients := sender.Clients()
+	l := len(clients)
+	if l == 0 {
+		return nil, 0
+	}
+	// acknowledge parallel
+	response := make(chan *protocol.QueryResponse, l)
+	for _, client := range clients {
+		go func(c *Client) {
+			defer func() {
+				if r := recover(); r != nil {
+					b := xpanic.Print(r, "sender.query")
+					sender.log(logger.Fatal, b)
+				}
+			}()
+			response <- c.Query(guid, data)
+		}(client)
+	}
+	var success int
+	responses := make([]*protocol.QueryResponse, l)
+	for i := 0; i < l; i++ {
+		responses[i] = <-response
+		if responses[i].Err == nil {
+			success++
+		}
+	}
+	close(response)
+	return responses, success
+}
+
 func (sender *sender) ackSlotCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -502,6 +589,7 @@ type senderWorker struct {
 	// prepare task objects
 	preS protocol.Send
 	preA protocol.Acknowledge
+	preQ protocol.Query
 
 	// receive acknowledge timeout
 	timer *time.Timer
@@ -526,6 +614,7 @@ func (sw *senderWorker) Work() {
 	var (
 		st *sendTask
 		at *ackTask
+		qt *queryTask
 	)
 	for {
 		select {
@@ -542,6 +631,8 @@ func (sw *senderWorker) Work() {
 			sw.handleSendTask(st)
 		case at = <-sw.ctx.ackTaskQueue:
 			sw.handleAcknowledgeTask(at)
+		case qt = <-sw.ctx.queryTaskQueue:
+			sw.handleQueryTask(qt)
 		case <-sw.ctx.stopSignal:
 			return
 		}
@@ -672,5 +763,44 @@ func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
 	}
 	if result.Success == 0 {
 		result.Err = ErrFailedToAck
+	}
+}
+
+func (sw *senderWorker) handleQueryTask(qt *queryTask) {
+	result := sw.ctx.queryResultPool.Get().(*protocol.QueryResult)
+	result.Clean()
+	defer func() {
+		if r := recover(); r != nil {
+			err := xpanic.Error(r, "senderWorker.handleQueryTask")
+			sw.ctx.log(logger.Fatal, err)
+			result.Err = err
+		}
+		qt.Result <- result
+	}()
+	sw.preQ.GUID = *sw.ctx.guid.Get()
+	sw.preQ.BeaconGUID = *sw.ctx.ctx.global.GUID()
+	sw.preQ.Index = qt.Index
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.preQ.GUID[:])
+	sw.buffer.Write(sw.preQ.BeaconGUID[:])
+	sw.buffer.Write(convert.Uint64ToBytes(sw.preQ.Index))
+	sw.preQ.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// self validate
+	sw.err = sw.preQ.Validate()
+	if sw.err != nil {
+		panic("sender handleQueryTask error: " + sw.err.Error())
+	}
+	// pack
+	sw.buffer.Reset()
+	sw.preQ.Pack(sw.buffer)
+	// query
+	result.Responses, result.Success = sw.ctx.query(&sw.preQ.GUID, sw.buffer)
+	if len(result.Responses) == 0 {
+		result.Err = ErrNoConnections
+		return
+	}
+	if result.Success == 0 {
+		result.Err = ErrFailedToQuery
 	}
 }
