@@ -362,6 +362,21 @@ func TestDatabase_InsertBeacon(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func testInsertBeaconMessage(t *testing.T, guid *guid.GUID) {
+	wg := sync.WaitGroup{}
+	wg.Add(256)
+	for i := 0; i < 256; i++ {
+		go func(index byte) {
+			defer wg.Done()
+			hash := bytes.Repeat([]byte{index}, sha256.Size)
+			message := bytes.Repeat([]byte{index}, aes.BlockSize)
+			err := ctrl.database.InsertBeaconMessage(guid, hash, message)
+			require.NoError(t, err)
+		}(byte(i))
+	}
+	wg.Wait()
+}
+
 func TestDatabase_InsertBeaconMessage(t *testing.T) {
 	testInitializeController(t)
 
@@ -370,20 +385,7 @@ func TestDatabase_InsertBeaconMessage(t *testing.T) {
 	require.NoError(t, err)
 	err = ctrl.database.InsertBeacon(beacon)
 	require.NoError(t, err)
-
-	// insert
-	wg := sync.WaitGroup{}
-	wg.Add(256)
-	for i := 0; i < 256; i++ {
-		go func(index byte) {
-			defer wg.Done()
-			hash := bytes.Repeat([]byte{index}, sha256.Size)
-			message := bytes.Repeat([]byte{index}, aes.BlockSize)
-			err = ctrl.database.InsertBeaconMessage(beaconGUID, hash, message)
-			require.NoError(t, err)
-		}(byte(i))
-	}
-	wg.Wait()
+	testInsertBeaconMessage(t, beaconGUID)
 
 	// query and compare
 	var messages []*mBeaconMessage
@@ -427,20 +429,7 @@ func TestDatabase_DeleteBeaconMessagesWithIndex(t *testing.T) {
 	require.NoError(t, err)
 	err = ctrl.database.InsertBeacon(beacon)
 	require.NoError(t, err)
-
-	// insert
-	wg := sync.WaitGroup{}
-	wg.Add(256)
-	for i := 0; i < 256; i++ {
-		go func(index byte) {
-			defer wg.Done()
-			hash := bytes.Repeat([]byte{index}, sha256.Size)
-			message := bytes.Repeat([]byte{index}, aes.BlockSize)
-			err = ctrl.database.InsertBeaconMessage(beaconGUID, hash, message)
-			require.NoError(t, err)
-		}(byte(i))
-	}
-	wg.Wait()
+	testInsertBeaconMessage(t, beaconGUID)
 
 	err = ctrl.database.DeleteBeaconMessagesWithIndex(beaconGUID, 128)
 	require.NoError(t, err)
@@ -468,6 +457,31 @@ func TestDatabase_DeleteBeaconMessagesWithIndex(t *testing.T) {
 			t.Fatalf("lost index: %d", i)
 		}
 	}
+
+	err = ctrl.database.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+}
+
+func TestDatabase_SelectBeaconMessage(t *testing.T) {
+	testInitializeController(t)
+
+	beaconGUID, beacon := testGenerateBeacon(t)
+	err := ctrl.database.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.database.InsertBeacon(beacon)
+	require.NoError(t, err)
+	testInsertBeaconMessage(t, beaconGUID)
+
+	for i := uint64(0); i < 256; i++ {
+		msg, err := ctrl.database.SelectBeaconMessage(beaconGUID, i)
+		require.NoError(t, err)
+		require.Equal(t, i, msg.Index)
+	}
+
+	// doesn't exist
+	msg, err := ctrl.database.SelectBeaconMessage(beaconGUID, 256)
+	require.NoError(t, err)
+	require.Nil(t, msg)
 
 	err = ctrl.database.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)

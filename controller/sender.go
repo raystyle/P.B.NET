@@ -14,6 +14,7 @@ import (
 	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
+	"project/internal/convert"
 	"project/internal/crypto/aes"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -75,6 +76,7 @@ type sender struct {
 	ackToNodeTaskQueue    chan *ackTask
 	ackToBeaconTaskQueue  chan *ackTask
 	broadcastTaskQueue    chan *broadcastTask
+	answerTaskQueue       chan *mBeaconMessage
 
 	sendTaskPool      sync.Pool
 	ackTaskPool       sync.Pool
@@ -135,6 +137,7 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 		ackToNodeTaskQueue:    make(chan *ackTask, cfg.QueueSize),
 		ackToBeaconTaskQueue:  make(chan *ackTask, cfg.QueueSize),
 		broadcastTaskQueue:    make(chan *broadcastTask, cfg.QueueSize),
+		answerTaskQueue:       make(chan *mBeaconMessage, cfg.QueueSize),
 		clients:               make(map[guid.GUID]*Client, cfg.MaxConns),
 		interactive:           make(map[guid.GUID]bool),
 		nodeAckSlots:          make(map[guid.GUID]*roleAckSlot),
@@ -553,9 +556,15 @@ func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
 	}
 }
 
-// Answer is used to answer Beacon query message
-func (sender *sender) Answer() {
-
+// Answer is used to answer Beacon query message.
+func (sender *sender) Answer(msg *mBeaconMessage) {
+	if sender.isClosed() {
+		return
+	}
+	select {
+	case sender.answerTaskQueue <- msg:
+	case <-sender.stopSignal:
+	}
 }
 
 func (sender *sender) EnableInteractiveMode(guid *guid.GUID) {
@@ -853,6 +862,40 @@ func (sender *sender) broadcast(
 	return responses, success
 }
 
+func (sender *sender) answer(
+	guid *guid.GUID,
+	data *bytes.Buffer,
+) ([]*protocol.AnswerResponse, int) {
+	clients := sender.Clients()
+	l := len(clients)
+	if l == 0 {
+		return nil, 0
+	}
+	// answer parallel
+	response := make(chan *protocol.AnswerResponse, l)
+	for _, client := range clients {
+		go func(client *Client) {
+			defer func() {
+				if r := recover(); r != nil {
+					b := xpanic.Print(r, "sender.answer")
+					sender.log(logger.Fatal, b)
+				}
+			}()
+			response <- client.Answer(guid, data)
+		}(client)
+	}
+	var success int
+	responses := make([]*protocol.AnswerResponse, l)
+	for i := 0; i < l; i++ {
+		responses[i] = <-response
+		if responses[i].Err == nil {
+			success++
+		}
+	}
+	close(response)
+	return responses, success
+}
+
 func (sender *sender) ackSlotCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -928,6 +971,7 @@ type senderWorker struct {
 	preS protocol.Send
 	preA protocol.Acknowledge
 	preB protocol.Broadcast
+	preR protocol.Answer
 
 	// key
 	node   *mNode
@@ -959,6 +1003,7 @@ func (sw *senderWorker) Work() {
 		st *sendTask
 		at *ackTask
 		bt *broadcastTask
+		rt *mBeaconMessage
 	)
 	for {
 		select {
@@ -981,6 +1026,8 @@ func (sw *senderWorker) Work() {
 			sw.handleAcknowledgeToBeaconTask(at)
 		case bt = <-sw.ctx.broadcastTaskQueue:
 			sw.handleBroadcastTask(bt)
+		case rt = <-sw.ctx.answerTaskQueue:
+			sw.handleAnswerTask(rt)
 		case <-sw.ctx.stopSignal:
 			return
 		}
@@ -1147,7 +1194,7 @@ func (sw *senderWorker) packSendData(st *sendTask) error {
 	// self validate
 	sw.err = sw.preS.Validate()
 	if sw.err != nil {
-		panic("sender internal error: " + sw.err.Error())
+		panic("sender packSendData error: " + sw.err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
@@ -1226,7 +1273,7 @@ func (sw *senderWorker) packAcknowledgeData(at *ackTask) {
 	// self validate
 	sw.err = sw.preA.Validate()
 	if sw.err != nil {
-		panic("sender internal error: " + sw.err.Error())
+		panic("sender packAcknowledgeData error: " + sw.err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
@@ -1284,7 +1331,7 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 	// self validate
 	result.Err = sw.preB.Validate()
 	if result.Err != nil {
-		panic("sender internal error: " + result.Err.Error())
+		panic("sender handleBroadcastTask error: " + result.Err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
@@ -1298,4 +1345,31 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 	if result.Success == 0 {
 		result.Err = ErrBroadcastFailed
 	}
+}
+
+func (sw *senderWorker) handleAnswerTask(rt *mBeaconMessage) {
+	sw.preR.GUID = *sw.ctx.guid.Get()
+	sw.err = sw.preR.BeaconGUID.Write(rt.GUID)
+	if sw.err != nil {
+		panic("sender handleAnswerTask error: " + sw.err.Error())
+	}
+	sw.preR.Index = rt.Index
+	sw.preR.Hash = rt.Hash
+	sw.preR.Message = rt.Message
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.preR.GUID[:])
+	sw.buffer.Write(sw.preR.BeaconGUID[:])
+	sw.buffer.Write(convert.Uint64ToBytes(sw.preR.Index))
+	sw.buffer.Write(sw.preR.Hash)
+	sw.preR.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// self validate
+	sw.err = sw.preR.Validate()
+	if sw.err != nil {
+		panic("sender handleAnswerTask error: " + sw.err.Error())
+	}
+	// pack
+	sw.buffer.Reset()
+	sw.preR.Pack(sw.buffer)
+	sw.ctx.answer(&sw.preR.GUID, sw.buffer)
 }

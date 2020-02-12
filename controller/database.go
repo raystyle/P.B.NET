@@ -462,9 +462,17 @@ func (db *database) DeleteBeaconMessagesWithIndex(guid *guid.GUID, index uint64)
 	return db.db.Delete(&mBeaconMessage{GUID: guid[:]}, "`index` < ?", index).Error
 }
 
-// func (db *database) SelectBeaconEarliestMessage(guid *guid.GUID) (*mBeaconMessage, error) {
-//
-// }
+func (db *database) SelectBeaconMessage(guid *guid.GUID, index uint64) (*mBeaconMessage, error) {
+	msg := new(mBeaconMessage)
+	err := db.db.Find(msg, "guid = ? and `index` = ?", guid[:], index).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return msg, nil
+}
 
 func (db *database) InsertBeaconListener(m *mBeaconListener) error {
 	return db.db.Create(m).Error

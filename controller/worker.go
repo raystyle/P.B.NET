@@ -193,6 +193,7 @@ type subWorker struct {
 	publicKey ed25519.PublicKey
 	aesKey    []byte
 	aesIV     []byte
+	beaconMsg *mBeaconMessage
 	err       error
 
 	stopSignal chan struct{}
@@ -403,15 +404,24 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 		sw.logf(logger.Exploit, format, spew.Sdump(query))
 		return
 	}
-	// TODO query message and answer
-	// may be copy send
-
-	// first delete old message
-	sw.err = sw.ctx.database.DeleteBeaconMessagesWithIndex(&query.BeaconGUID, query.Index)
+	// first try to select beacon message
+	sw.beaconMsg, sw.err = sw.ctx.database.SelectBeaconMessage(&query.BeaconGUID, query.Index)
 	if sw.err != nil {
-		const format = "failed to clean old beacon message in database\nerror: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(query))
+		const format = "failed to select beacon message\nerror:%s\n%s"
+		sw.logf(logger.Error, format, sw.err, spew.Sdump(query))
 		return
 	}
-
+	// maybe no message
+	if sw.beaconMsg == nil {
+		return
+	}
+	// then delete old message
+	sw.err = sw.ctx.database.DeleteBeaconMessagesWithIndex(&query.BeaconGUID, query.Index)
+	if sw.err != nil {
+		const format = "failed to clean old beacon message\nerror: %s\n%s"
+		sw.logf(logger.Error, format, sw.err, spew.Sdump(query))
+		return
+	}
+	// answer queried message
+	sw.ctx.sender.Answer(sw.beaconMsg)
 }
