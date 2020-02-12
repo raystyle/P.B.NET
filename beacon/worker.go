@@ -11,6 +11,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
+	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/protocol"
 	"project/internal/xpanic"
@@ -331,31 +332,32 @@ func (sw *subWorker) handleAcknowledge(acknowledge *protocol.Acknowledge) {
 func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 	defer sw.answerPool.Put(answer)
 	// verify
-	// sw.buffer.Reset()
-	// sw.buffer.Write(broadcast.GUID[:])
-	// sw.buffer.Write(broadcast.Hash)
-	// sw.buffer.Write(broadcast.Message)
-	// if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), broadcast.Signature) {
-	// 	const format = "invalid broadcast signature\n%s"
-	// 	sw.logf(logger.Exploit, format, spew.Sdump(broadcast))
-	// 	return
-	// }
-	// // decrypt message
-	// cache := broadcast.Message
-	// defer func() { broadcast.Message = cache }()
-	// broadcast.Message, sw.err = sw.ctx.global.CtrlDecrypt(broadcast.Message)
-	// if sw.err != nil {
-	// 	const format = "failed to decrypt broadcast message: %s\n%s"
-	// 	sw.logf(logger.Exploit, format, sw.err, spew.Sdump(broadcast))
-	// 	return
-	// }
-	// // compare hash
-	// sw.hash.Reset()
-	// sw.hash.Write(broadcast.Message)
-	// if subtle.ConstantTimeCompare(sw.hash.Sum(nil), broadcast.Hash) != 1 {
-	// 	const format = "broadcast with incorrect hash\n%s"
-	// 	sw.logf(logger.Exploit, format, spew.Sdump(broadcast))
-	// 	return
-	// }
-	// sw.ctx.handler.OnBroadcast(broadcast)
+	sw.buffer.Reset()
+	sw.buffer.Write(answer.GUID[:])
+	sw.buffer.Write(answer.BeaconGUID[:])
+	sw.buffer.Write(convert.Uint64ToBytes(answer.Index))
+	sw.buffer.Write(answer.Hash)
+	sw.buffer.Write(answer.Message)
+	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), answer.Signature) {
+		const format = "invalid answer signature\n%s"
+		sw.logf(logger.Exploit, format, spew.Sdump(answer))
+		return
+	}
+	// decrypt message
+	cache := answer.Message
+	defer func() { answer.Message = cache }()
+	answer.Message, sw.err = sw.ctx.global.Decrypt(answer.Message)
+	if sw.err != nil {
+		const format = "failed to decrypt answer message: %s\n%s"
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
+		return
+	}
+	// compare hash
+	sw.hash.Reset()
+	sw.hash.Write(answer.Message)
+	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), answer.Hash) != 1 {
+		const format = "answer with incorrect hash\n%s"
+		sw.logf(logger.Exploit, format, spew.Sdump(answer))
+		return
+	}
 }
