@@ -104,7 +104,7 @@ func (db *database) UpdateProxyClient(m *mProxyClient) error {
 }
 
 func (db *database) DeleteProxyClient(id uint64) error {
-	return db.db.Delete(&mProxyClient{ID: id}).Error
+	return db.db.Delete(mProxyClient{ID: id}).Error
 }
 
 // ---------------------------------DNS client----------------------------------------
@@ -123,7 +123,7 @@ func (db *database) UpdateDNSServer(m *mDNSServer) error {
 }
 
 func (db *database) DeleteDNSServer(id uint64) error {
-	return db.db.Delete(&mDNSServer{ID: id}).Error
+	return db.db.Delete(mDNSServer{ID: id}).Error
 }
 
 // -----------------------------time syncer client------------------------------------
@@ -142,7 +142,7 @@ func (db *database) UpdateTimeSyncerClient(m *mTimeSyncer) error {
 }
 
 func (db *database) DeleteTimeSyncerClient(id uint64) error {
-	return db.db.Delete(&mTimeSyncer{ID: id}).Error
+	return db.db.Delete(mTimeSyncer{ID: id}).Error
 }
 
 // -------------------------------------boot------------------------------------------
@@ -161,7 +161,7 @@ func (db *database) UpdateBoot(m *mBoot) error {
 }
 
 func (db *database) DeleteBoot(id uint64) error {
-	return db.db.Delete(&mBoot{ID: id}).Error
+	return db.db.Delete(mBoot{ID: id}).Error
 }
 
 // ----------------------------------listener-----------------------------------------
@@ -180,7 +180,7 @@ func (db *database) UpdateListener(m *mListener) error {
 }
 
 func (db *database) DeleteListener(id uint64) error {
-	return db.db.Delete(&mListener{ID: id}).Error
+	return db.db.Delete(mListener{ID: id}).Error
 }
 
 // ------------------------------------Node-------------------------------------------
@@ -242,15 +242,16 @@ func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 			db.cache.DeleteNode(guid)
 		}
 	}()
-	err = tx.Delete(&mNode{GUID: guid[:]}).Error
+	const where = "guid = ?"
+	err = tx.Delete(mNode{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(&mNodeListener{GUID: guid[:]}).Error
+	err = tx.Delete(mNodeListener{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Table(tableNodeLog).Delete(&mRoleLog{GUID: guid[:]}).Error
+	err = tx.Table(tableNodeLog).Delete(mRoleLog{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
@@ -259,7 +260,7 @@ func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 }
 
 func (db *database) DeleteNodeUnscoped(guid *guid.GUID) error {
-	err := db.db.Unscoped().Delete(&mNode{GUID: guid[:]}).Error
+	err := db.db.Unscoped().Delete(mNode{}, "guid = ?", guid[:]).Error
 	if err != nil {
 		return err
 	}
@@ -272,7 +273,7 @@ func (db *database) InsertNodeListener(m *mNodeListener) error {
 }
 
 func (db *database) DeleteNodeListener(id uint64) error {
-	return db.db.Delete(&mNodeListener{ID: id}).Error
+	return db.db.Delete(mNodeListener{ID: id}).Error
 }
 
 func (db *database) InsertNodeLog(m *mRoleLog) error {
@@ -280,7 +281,7 @@ func (db *database) InsertNodeLog(m *mRoleLog) error {
 }
 
 func (db *database) DeleteNodeLog(id uint64) error {
-	return db.db.Table(tableNodeLog).Delete(&mRoleLog{ID: id}).Error
+	return db.db.Table(tableNodeLog).Delete(mRoleLog{ID: id}).Error
 }
 
 // -----------------------------------Beacon------------------------------------------
@@ -372,23 +373,24 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 			db.cache.DeleteBeacon(guid)
 		}
 	}()
-	err = tx.Delete(&mBeacon{GUID: guid[:]}).Error
+	const where = "guid = ?"
+	err = tx.Delete(mBeacon{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(&mBeaconMessage{GUID: guid[:]}).Error
+	err = tx.Delete(mBeaconMessage{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(&mBeaconMessageIndex{GUID: guid[:]}).Error
+	err = tx.Delete(mBeaconMessageIndex{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(&mBeaconListener{GUID: guid[:]}).Error
+	err = tx.Delete(mBeaconListener{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{GUID: guid[:]}).Error
+	err = tx.Table(tableBeaconLog).Delete(mRoleLog{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
@@ -397,7 +399,7 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 }
 
 func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
-	err := db.db.Unscoped().Delete(&mBeacon{GUID: guid[:]}).Error
+	err := db.db.Unscoped().Delete(mBeacon{}, "guid = ?", guid[:]).Error
 	if err != nil {
 		return err
 	}
@@ -431,9 +433,9 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, hash, message []byte) (
 			}
 		}
 	}()
-	index := &mBeaconMessageIndex{}
+	index := mBeaconMessageIndex{}
 	err = tx.Set("gorm:query_option", "FOR UPDATE").
-		Find(index, "guid = ?", guid[:]).Error
+		Find(&index, "guid = ?", guid[:]).Error
 	if err != nil {
 		err = errors.WithStack(err)
 		return
@@ -459,7 +461,7 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, hash, message []byte) (
 }
 
 func (db *database) DeleteBeaconMessagesWithIndex(guid *guid.GUID, index uint64) error {
-	return db.db.Delete(&mBeaconMessage{GUID: guid[:]}, "`index` < ?", index).Error
+	return db.db.Delete(mBeaconMessage{}, "guid = ? and `index` < ?", guid[:], index).Error
 }
 
 func (db *database) SelectBeaconMessage(guid *guid.GUID, index uint64) (*mBeaconMessage, error) {
@@ -479,7 +481,7 @@ func (db *database) InsertBeaconListener(m *mBeaconListener) error {
 }
 
 func (db *database) DeleteBeaconListener(id uint64) error {
-	return db.db.Delete(&mBeaconListener{ID: id}).Error
+	return db.db.Delete(mBeaconListener{ID: id}).Error
 }
 
 func (db *database) InsertBeaconLog(m *mRoleLog) error {
@@ -487,5 +489,5 @@ func (db *database) InsertBeaconLog(m *mRoleLog) error {
 }
 
 func (db *database) DeleteBeaconLog(id uint64) error {
-	return db.db.Table(tableBeaconLog).Delete(&mRoleLog{ID: id}).Error
+	return db.db.Table(tableBeaconLog).Delete(mRoleLog{ID: id}).Error
 }

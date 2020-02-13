@@ -176,7 +176,7 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 		return new(broadcastTask)
 	}
 	sender.answerTaskPool.New = func() interface{} {
-		return new(answerTask)
+		return &answerTask{BeaconGUID: new(guid.GUID)}
 	}
 
 	sender.sendDonePool.New = func() interface{} {
@@ -994,8 +994,8 @@ func (sender *sender) ackSlotCleaner() {
 func (sender *sender) cleanNodeAckSlotMap() {
 	sender.nodeAckSlotsRWM.Lock()
 	defer sender.nodeAckSlotsRWM.Unlock()
-	for key, ras := range sender.nodeAckSlots {
-		if sender.cleanRoleAckSlotMap(ras) {
+	for key, nas := range sender.nodeAckSlots {
+		if sender.cleanRoleAckSlotMap(nas) {
 			delete(sender.nodeAckSlots, key)
 		}
 	}
@@ -1004,9 +1004,9 @@ func (sender *sender) cleanNodeAckSlotMap() {
 func (sender *sender) cleanBeaconAckSlotMap() {
 	sender.beaconAckSlotsRWM.Lock()
 	defer sender.beaconAckSlotsRWM.Unlock()
-	for key, ras := range sender.beaconAckSlots {
-		if sender.cleanRoleAckSlotMap(ras) {
-			delete(sender.nodeAckSlots, key)
+	for key, bas := range sender.beaconAckSlots {
+		if sender.cleanRoleAckSlotMap(bas) {
+			delete(sender.beaconAckSlots, key)
 		}
 	}
 }
@@ -1462,6 +1462,7 @@ func (sw *senderWorker) handleAnswerTask(rt *answerTask) {
 	sw.buffer.Write(sw.preR.BeaconGUID[:])
 	sw.buffer.Write(convert.Uint64ToBytes(sw.preR.Index))
 	sw.buffer.Write(sw.preR.Hash)
+	sw.buffer.Write(sw.preR.Message)
 	sw.preR.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
 	sw.err = sw.preR.Validate()
