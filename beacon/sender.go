@@ -117,12 +117,13 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	}
 
 	sender := &sender{
-		ctx:           ctx,
-		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
-		ackTaskQueue:  make(chan *ackTask, cfg.QueueSize),
-		clients:       make(map[guid.GUID]*Client),
-		ackSlots:      make(map[guid.GUID]chan struct{}),
-		stopSignal:    make(chan struct{}),
+		ctx:            ctx,
+		sendTaskQueue:  make(chan *sendTask, cfg.QueueSize),
+		ackTaskQueue:   make(chan *ackTask, cfg.QueueSize),
+		queryTaskQueue: make(chan *queryTask, cfg.QueueSize),
+		clients:        make(map[guid.GUID]*Client),
+		ackSlots:       make(map[guid.GUID]chan struct{}),
+		stopSignal:     make(chan struct{}),
 	}
 
 	sender.maxConns.Store(cfg.MaxConns)
