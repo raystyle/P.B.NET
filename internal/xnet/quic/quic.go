@@ -249,7 +249,6 @@ func DialContext(
 	defer cancel()
 	session, err := quic.DialContext(ctx, conn, rAddr, address, config, &quicCfg)
 	if err != nil {
-		_ = conn.Close()
 		return nil, err
 	}
 	defer func() {
