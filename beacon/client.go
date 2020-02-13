@@ -86,7 +86,7 @@ func (beacon *Beacon) NewClient(
 	opts.Dialer = proxy.DialContext
 	// resolve domain name
 	dnsOpts := beacon.clientMgr.GetDNSOptions()
-	result, err := beacon.global.ResolveWithContext(ctx, host, dnsOpts)
+	result, err := beacon.global.ResolveContext(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}

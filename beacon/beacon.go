@@ -3,14 +3,12 @@ package beacon
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
 	"project/internal/guid"
 	"project/internal/logger"
-	"project/internal/xpanic"
 )
 
 // Beacon send messages to Controller.
@@ -25,6 +23,7 @@ type Beacon struct {
 	sender    *sender    // send message to controller
 	handler   *handler   // handle message from controller
 	worker    *worker    // do work
+	driver    *driver    // control all modules
 
 	once sync.Once
 	wait chan struct{}
@@ -80,6 +79,12 @@ func New(cfg *Config) (*Beacon, error) {
 		return nil, errors.WithMessage(err, "failed to initialize worker")
 	}
 	beacon.worker = worker
+	// driver
+	driver, err := newDriver(beacon, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize worker")
+	}
+	beacon.driver = driver
 	beacon.wait = make(chan struct{})
 	beacon.exit = make(chan error, 1)
 	return beacon, nil
@@ -118,23 +123,11 @@ func (beacon *Beacon) Main() error {
 	if err != nil {
 		return beacon.fatal(err, "failed to register")
 	}
-	// driver
-	go beacon.driver()
+	// drive
+	beacon.driver.Drive()
 	beacon.logger.Print(logger.Info, "main", "running")
 	close(beacon.wait)
 	return <-beacon.exit
-}
-
-func (beacon *Beacon) driver() {
-	defer func() {
-		if r := recover(); r != nil {
-			b := xpanic.Print(r, "beacon.driver")
-			beacon.logger.Print(logger.Fatal, "driver", b)
-			// restart driver
-			time.Sleep(time.Second)
-			go beacon.driver()
-		}
-	}()
 }
 
 // Wait is used to wait for Main().
@@ -146,6 +139,8 @@ func (beacon *Beacon) Wait() {
 func (beacon *Beacon) Exit(err error) {
 	beacon.once.Do(func() {
 		beacon.logger.CloseSender()
+		beacon.driver.Close()
+		beacon.logger.Print(logger.Info, "exit", "driver is stopped")
 		beacon.handler.Cancel()
 		beacon.worker.Close()
 		beacon.logger.Print(logger.Info, "exit", "worker is stopped")
