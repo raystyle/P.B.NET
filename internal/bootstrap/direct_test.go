@@ -25,6 +25,7 @@ func TestDirect(t *testing.T) {
 	require.NoError(t, err)
 	for i := 0; i < 10; i++ {
 		resolved, _ := direct.Resolve()
+		resolved = testDecryptListeners(resolved)
 		require.Equal(t, listeners, resolved)
 	}
 	testsuite.IsDestroyed(t, direct)
@@ -88,6 +89,7 @@ func TestDirectOptions(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		resolved, err := direct.Resolve()
 		require.NoError(t, err)
+		resolved = testDecryptListeners(resolved)
 		require.Equal(t, listeners, resolved)
 	}
 }

@@ -62,8 +62,8 @@ type HTTP struct {
 	dnsClient *dns.Client
 
 	// self encrypt all options
-	enc []byte
 	cbc *aes.CBC
+	enc []byte
 }
 
 // NewHTTP is used to create a HTTP mode bootstrap
@@ -202,17 +202,17 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
-	b, err := h.cbc.Decrypt(h.enc)
+	dec, err := h.cbc.Decrypt(h.enc)
 	if err != nil {
 		panic(err)
 	}
 	tHTTP := &HTTP{}
-	err = msgpack.Unmarshal(b, tHTTP)
+	err = msgpack.Unmarshal(dec, tHTTP)
 	if err != nil {
 		panic(err)
 	}
 	defer flushRequestOption(&tHTTP.Request)
-	security.CoverBytes(b)
+	security.CoverBytes(dec)
 	memory.Padding()
 
 	// apply options
@@ -355,11 +355,11 @@ func resolve(h *HTTP, info []byte) []*Listener {
 
 	// resolve bootstrap node listeners
 	listenersBytes := listenersBuf.Bytes()
+	defer security.CoverBytes(listenersBytes)
 	var listeners []*Listener
 	err = msgpack.Unmarshal(listenersBytes, &listeners)
 	if err != nil {
 		panic(err)
 	}
-	security.CoverBytes(listenersBytes)
-	return listeners
+	return encryptListeners(listeners)
 }

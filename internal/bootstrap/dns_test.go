@@ -44,6 +44,7 @@ func TestDNS(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			resolved, err := DNS.Resolve()
 			require.NoError(t, err)
+			resolved = testDecryptListeners(resolved)
 			require.Equal(t, listeners, resolved)
 		}
 
@@ -74,6 +75,7 @@ func TestDNS(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			resolved, err := DNS.Resolve()
 			require.NoError(t, err)
+			resolved = testDecryptListeners(resolved)
 			require.Equal(t, listeners, resolved)
 		}
 

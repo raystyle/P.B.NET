@@ -34,8 +34,6 @@ func testGenerateHTTP(t *testing.T) *HTTP {
 func TestHTTP(t *testing.T) {
 	dnsClient, proxyPool, manager := testdns.DNSClient(t)
 	defer func() { _ = manager.Close() }()
-	// generate bootstrap node listeners info
-	listeners := testGenerateListeners()
 
 	t.Run("http", func(t *testing.T) {
 		// set test http server mux
@@ -47,6 +45,7 @@ func TestHTTP(t *testing.T) {
 		})
 
 		if testsuite.IPv4Enabled {
+			listeners := testGenerateListeners()
 			HTTP := testGenerateHTTP(t)
 			listenersInfo, err := HTTP.Generate(listeners)
 			require.NoError(t, err)
@@ -76,6 +75,7 @@ func TestHTTP(t *testing.T) {
 			for i := 0; i < 10; i++ {
 				resolved, err := HTTP.Resolve()
 				require.NoError(t, err)
+				resolved = testDecryptListeners(resolved)
 				require.Equal(t, listeners, resolved)
 			}
 
@@ -83,6 +83,7 @@ func TestHTTP(t *testing.T) {
 		}
 
 		if testsuite.IPv6Enabled {
+			listeners := testGenerateListeners()
 			HTTP := testGenerateHTTP(t)
 			listenersInfo, err := HTTP.Generate(listeners)
 			require.NoError(t, err)
@@ -108,13 +109,11 @@ func TestHTTP(t *testing.T) {
 			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
-			resolved, err := HTTP.Resolve()
-			require.NoError(t, err)
-			require.Equal(t, listeners, resolved)
 
 			for i := 0; i < 10; i++ {
 				resolved, err := HTTP.Resolve()
 				require.NoError(t, err)
+				resolved = testDecryptListeners(resolved)
 				require.Equal(t, listeners, resolved)
 			}
 
@@ -133,6 +132,7 @@ func TestHTTP(t *testing.T) {
 		serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 
 		if testsuite.IPv4Enabled {
+			listeners := testGenerateListeners()
 			HTTP := testGenerateHTTP(t)
 			listenersInfo, err := HTTP.Generate(listeners)
 			require.NoError(t, err)
@@ -162,13 +162,11 @@ func TestHTTP(t *testing.T) {
 			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
-			resolved, err := HTTP.Resolve()
-			require.NoError(t, err)
-			require.Equal(t, listeners, resolved)
 
 			for i := 0; i < 10; i++ {
 				resolved, err := HTTP.Resolve()
 				require.NoError(t, err)
+				resolved = testDecryptListeners(resolved)
 				require.Equal(t, listeners, resolved)
 			}
 
@@ -176,6 +174,7 @@ func TestHTTP(t *testing.T) {
 		}
 
 		if testsuite.IPv6Enabled {
+			listeners := testGenerateListeners()
 			HTTP := testGenerateHTTP(t)
 			listenersInfo, err := HTTP.Generate(listeners)
 			require.NoError(t, err)
@@ -205,13 +204,11 @@ func TestHTTP(t *testing.T) {
 			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
-			resolved, err := HTTP.Resolve()
-			require.NoError(t, err)
-			require.Equal(t, listeners, resolved)
 
 			for i := 0; i < 10; i++ {
 				resolved, err := HTTP.Resolve()
 				require.NoError(t, err)
+				resolved = testDecryptListeners(resolved)
 				require.Equal(t, listeners, resolved)
 			}
 

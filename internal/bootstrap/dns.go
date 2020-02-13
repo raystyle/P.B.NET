@@ -29,8 +29,8 @@ type DNS struct {
 	dnsClient *dns.Client
 
 	// self encrypt all options
-	enc []byte
 	cbc *aes.CBC
+	enc []byte
 }
 
 // NewDNS is used to create a DNS mode bootstrap
@@ -88,11 +88,11 @@ func (d *DNS) Unmarshal(config []byte) error {
 	security.CoverBytes(key)
 	security.CoverBytes(iv)
 	memory.Padding()
-	b, _ := msgpack.Marshal(tempDNS)
-	defer security.CoverBytes(b)
+	listenerData, _ := msgpack.Marshal(tempDNS)
+	defer security.CoverBytes(listenerData)
 	security.CoverString(&tempDNS.Host)
 	memory.Padding()
-	d.enc, err = d.cbc.Encrypt(b)
+	d.enc, err = d.cbc.Encrypt(listenerData)
 	return err
 }
 
@@ -101,17 +101,17 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
-	b, err := d.cbc.Decrypt(d.enc)
-	defer security.CoverBytes(b)
+	dec, err := d.cbc.Decrypt(d.enc)
+	defer security.CoverBytes(dec)
 	if err != nil {
 		panic(err)
 	}
 	tDNS := &DNS{}
-	err = msgpack.Unmarshal(b, tDNS)
+	err = msgpack.Unmarshal(dec, tDNS)
 	if err != nil {
 		panic(err)
 	}
-	security.CoverBytes(b)
+	security.CoverBytes(dec)
 	memory.Padding()
 	// resolve dns
 	dn := tDNS.Host
@@ -134,5 +134,5 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 		listeners[i].Address = net.JoinHostPort(result[i], tDNS.Port)
 		security.CoverString(&result[i])
 	}
-	return listeners, nil
+	return encryptListeners(listeners), nil
 }

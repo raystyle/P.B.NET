@@ -15,8 +15,8 @@ type Direct struct {
 	Listeners []*Listener `toml:"listeners"`
 
 	// self encrypt all options
-	enc []byte
 	cbc *aes.CBC
+	enc []byte
 }
 
 // NewDirect is used to create a direct mode bootstrap
@@ -51,10 +51,10 @@ func (d *Direct) Unmarshal(config []byte) error {
 	security.CoverBytes(key)
 	security.CoverBytes(iv)
 	memory.Padding()
-	b, _ := msgpack.Marshal(d.Listeners)
-	defer security.CoverBytes(b)
+	listenerData, _ := msgpack.Marshal(d.Listeners)
+	defer security.CoverBytes(listenerData)
 	memory.Padding()
-	d.enc, err = d.cbc.Encrypt(b)
+	d.enc, err = d.cbc.Encrypt(listenerData)
 	return err
 }
 
@@ -62,16 +62,16 @@ func (d *Direct) Unmarshal(config []byte) error {
 func (d *Direct) Resolve() ([]*Listener, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
-	b, err := d.cbc.Decrypt(d.enc)
-	defer security.CoverBytes(b)
+	dec, err := d.cbc.Decrypt(d.enc)
+	defer security.CoverBytes(dec)
 	if err != nil {
 		panic(err)
 	}
 	memory.Padding()
 	var listeners []*Listener
-	err = msgpack.Unmarshal(b, &listeners)
+	err = msgpack.Unmarshal(dec, &listeners)
 	if err != nil {
 		panic(err)
 	}
-	return listeners, nil
+	return encryptListeners(listeners), nil
 }
