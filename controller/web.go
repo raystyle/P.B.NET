@@ -114,7 +114,8 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	router.POST("/api/login", wh.handleLogin)
 	router.POST("/api/load_session_key", wh.handleLoadSessionKey)
 	router.POST("/api/node/trust", wh.handleTrustNode)
-	router.POST("/api/node/shell", wh.handleShell)
+	router.POST("/api/node/connect", wh.handleConnectNodeListener)
+	router.POST("/api/beacon/shell", wh.handleShell)
 
 	// configure HTTPS server
 	listener, err := net.Listen(cfg.Network, cfg.Address)
@@ -249,27 +250,58 @@ func (wh *webHandler) handleTrustNode(w hRW, r *hR, p hP) {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	b, err := json.Marshal(req)
+	fmt.Println("node guid:\n", req.GUID.Hex())
+	err = wh.ctx.ConfirmTrustNode(context.Background(), &listener, req)
+	if err != nil {
+		_, _ = w.Write([]byte(err.Error()))
+	} else {
+		_, _ = w.Write([]byte("trust node successfully"))
+	}
+}
+
+func (wh *webHandler) handleConnectNodeListener(w hRW, r *hR, p hP) {
+	m := &mConnectNodeListener{}
+	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	_, _ = w.Write(b)
+	nodeGUIDData, err := hex.DecodeString(m.GUID)
+	if err != nil {
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	nodeGUID := new(guid.GUID)
+	err = nodeGUID.Write(nodeGUIDData)
+	if err != nil {
+		panic(err.Error())
+	}
+	listener := bootstrap.Listener{
+		Mode:    m.Mode,
+		Network: m.Network,
+		Address: m.Address,
+	}
+	err = wh.ctx.sender.Synchronize(context.Background(), nodeGUID, &listener)
+	if err != nil {
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	_, _ = w.Write([]byte("connect node listener successfully"))
 }
 
 func (wh *webHandler) handleShell(w hRW, r *hR, p hP) {
 	_ = r.ParseForm()
-	nodeGUID := guid.GUID{}
+	beaconGUID := guid.GUID{}
 
-	nodeGUIDSlice, err := hex.DecodeString(r.FormValue("guid"))
+	beaconGUIDSlice, err := hex.DecodeString(r.FormValue("guid"))
 	if err != nil {
 		fmt.Println("1", err)
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
-	fmt.Println(nodeGUIDSlice)
-	err = nodeGUID.Write(nodeGUIDSlice)
+	fmt.Println(beaconGUIDSlice)
+	err = beaconGUID.Write(beaconGUIDSlice)
 	if err != nil {
 		fmt.Println("2", err)
 		_, _ = w.Write([]byte(err.Error()))
@@ -281,7 +313,7 @@ func (wh *webHandler) handleShell(w hRW, r *hR, p hP) {
 	}
 
 	// TODO check nodeGUID
-	err = wh.ctx.sender.SendToNode(context.Background(), &nodeGUID, messages.CMDBShell, &shell)
+	err = wh.ctx.sender.SendToBeacon(context.Background(), &beaconGUID, messages.CMDBShell, &shell)
 	if err != nil {
 		fmt.Println("2", err)
 		_, _ = w.Write([]byte(err.Error()))

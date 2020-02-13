@@ -206,13 +206,13 @@ func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
 	return global.ProxyPool.Get(tag)
 }
 
-// ResolveWithContext is used to resolve domain name with context and options
-func (global *global) ResolveWithContext(
+// ResolveContext is used to resolve domain name with context and options
+func (global *global) ResolveContext(
 	ctx context.Context,
 	domain string,
 	opts *dns.Options,
 ) ([]string, error) {
-	return global.DNSClient.ResolveWithContext(ctx, domain, opts)
+	return global.DNSClient.ResolveContext(ctx, domain, opts)
 }
 
 // DNSServers is used to get all DNS servers in DNS client

@@ -107,7 +107,7 @@ type mNode struct {
 type mNodeListener struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
-	Tag       string     `gorm:"not null;size:32;unique"`
+	Tag       string     `gorm:"not null;size:32"`
 	Mode      string     `gorm:"not null;size:32"`
 	Network   string     `gorm:"not null;size:32"`
 	Address   string     `gorm:"not null;size:2048"`
@@ -128,7 +128,7 @@ type mBeacon struct {
 type mBeaconListener struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
-	Tag       string     `gorm:"not null;size:32;unique"`
+	Tag       string     `gorm:"not null;size:32"`
 	Mode      string     `gorm:"not null;size:32"`
 	Network   string     `gorm:"not null;size:32"`
 	Address   string     `gorm:"not null;size:2048"`
@@ -167,6 +167,13 @@ type mRoleLog struct {
 }
 
 type mTrustNode struct {
+	Mode    string `json:"mode"`
+	Network string `json:"network"`
+	Address string `json:"address"`
+}
+
+type mConnectNodeListener struct {
+	GUID    string `json:"guid"` // hex
 	Mode    string `json:"mode"`
 	Network string `json:"network"`
 	Address string `json:"address"`

