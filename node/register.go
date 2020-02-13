@@ -274,14 +274,14 @@ func (register *register) Register() error {
 	return err
 }
 
-// register is used to register to Controller with Node
+// register is used to register to Controller with Node.
 func (register *register) register(listener *bootstrap.Listener) error {
-	register.wg.Add(1)
-	defer register.wg.Done()
+	tempListener := listener.Decrypt()
+	defer tempListener.Destroy()
 
 	client, err := register.ctx.NewClient(
 		register.context,
-		listener,
+		tempListener,
 		protocol.CtrlGUID,
 	)
 	if err != nil {

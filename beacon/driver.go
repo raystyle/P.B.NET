@@ -33,6 +33,7 @@ func (driver *driver) Drive() {
 func (driver *driver) Close() {
 	driver.cancel()
 	driver.wg.Wait()
+	driver.ctx = nil
 }
 
 func (driver *driver) logf(lv logger.Level, format string, log ...interface{}) {
@@ -46,7 +47,7 @@ func (driver *driver) log(lv logger.Level, log ...interface{}) {
 func (driver *driver) drive() {
 	defer func() {
 		if r := recover(); r != nil {
-			driver.log(logger.Fatal, xpanic.Print(r, "driver.Drive"))
+			driver.log(logger.Fatal, xpanic.Print(r, "driver.drive"))
 			// restart driver
 			time.Sleep(time.Second)
 			go driver.Drive()
