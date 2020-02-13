@@ -238,7 +238,7 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	defer security.CoverString(&hostname)
 
 	// resolve domain name
-	result, err := h.dnsClient.ResolveWithContext(h.ctx, hostname, &tHTTP.DNSOpts)
+	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &tHTTP.DNSOpts)
 	if err != nil {
 		return nil, err
 	}

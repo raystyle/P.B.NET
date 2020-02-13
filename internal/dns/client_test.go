@@ -201,7 +201,7 @@ func TestClient_Cancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 	defer cancel()
 	opts := &Options{Method: MethodTCP}
-	result, err := client.ResolveWithContext(ctx, testDomain, opts)
+	result, err := client.ResolveContext(ctx, testDomain, opts)
 	require.Error(t, err)
 	require.Equal(t, 0, len(result))
 

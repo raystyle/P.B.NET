@@ -120,7 +120,7 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 		security.CoverString(&tDNS.Host)
 		security.CoverString(&dn)
 	}()
-	result, err := d.dnsClient.ResolveWithContext(d.ctx, dn, &dnsOpts)
+	result, err := d.dnsClient.ResolveContext(d.ctx, dn, &dnsOpts)
 	if err != nil {
 		return nil, err
 	}

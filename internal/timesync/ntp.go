@@ -79,7 +79,7 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 
 	// resolve domain name
 	dnsOptsCopy := n.DNSOpts
-	result, err := n.dnsClient.ResolveWithContext(n.ctx, host, &dnsOptsCopy)
+	result, err := n.dnsClient.ResolveContext(n.ctx, host, &dnsOptsCopy)
 	if err != nil {
 		optsErr = true
 		err = errors.WithMessage(err, "failed to resolve domain name")

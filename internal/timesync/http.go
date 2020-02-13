@@ -72,7 +72,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	p.HTTP(tr)
 
 	// resolve domain name
-	result, err := h.dnsClient.ResolveWithContext(h.ctx, hostname, &h.DNSOpts)
+	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &h.DNSOpts)
 	if err != nil {
 		optsErr = true
 		err = errors.WithMessage(err, "failed to resolve domain name")

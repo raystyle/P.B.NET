@@ -189,15 +189,14 @@ func (c *Client) Servers() map[string]*Server {
 	return servers
 }
 
-// Resolve is used to resolve domain name
-// select custom or system to resolve dns
-// set domain & options
+// Resolve is used to resolve domain name to IP address.
+// select custom or system to resolve dns and set domain & options.
 func (c *Client) Resolve(domain string, opts *Options) ([]string, error) {
-	return c.ResolveWithContext(context.Background(), domain, opts)
+	return c.ResolveContext(context.Background(), domain, opts)
 }
 
-// ResolveWithContext is used to resolve domain name with context
-func (c *Client) ResolveWithContext(ctx context.Context, domain string, opts *Options) ([]string, error) {
+// ResolveContext is used to resolve domain name with context.
+func (c *Client) ResolveContext(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
@@ -443,7 +442,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 			// set server tag to use DNS server that selected
 			o := opts.Clone()
 			o.ServerTag = tag
-			result, err := c.ResolveWithContext(ctx, domain, o)
+			result, err := c.ResolveContext(ctx, domain, o)
 			if err != nil {
 				err = errors.WithMessagef(err, "failed to test server %s", tag)
 				return
@@ -485,7 +484,7 @@ func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) (
 	if o.SkipProxy {
 		o.ProxyTag = ""
 	}
-	result, err := c.ResolveWithContext(ctx, domain, o)
+	result, err := c.ResolveContext(ctx, domain, o)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to test option")
 	}
