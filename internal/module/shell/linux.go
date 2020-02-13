@@ -8,6 +8,6 @@ import (
 
 // Shell ...
 func Shell(command string) ([]byte, error) {
-	cmd := exec.Command("bash", "/b", command)
+	cmd := exec.Command("bash", "-c", command)
 	return cmd.CombinedOutput()
 }
