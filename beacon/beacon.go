@@ -123,7 +123,6 @@ func (beacon *Beacon) Main() error {
 	if err != nil {
 		return beacon.fatal(err, "failed to register")
 	}
-	// drive
 	beacon.driver.Drive()
 	beacon.logger.Print(logger.Info, "main", "running")
 	close(beacon.wait)

@@ -12,6 +12,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/module/info"
@@ -349,12 +350,18 @@ func (register *register) loadNodeListeners(conn *xnet.Conn) error {
 		return errors.Wrap(err, "failed to decrypt node listeners data")
 	}
 	defer security.CoverBytes(listenersData)
-	listeners := make(map[string][]*bootstrap.Listener)
-	err = msgpack.Unmarshal(listenersData, &listeners)
+	rawListeners := make(map[guid.GUID][]*bootstrap.Listener)
+	err = msgpack.Unmarshal(listenersData, &rawListeners)
 	if err != nil {
 		return errors.Wrap(err, "failed to unmarshal node listeners data")
 	}
-	// TODO set node listeners
+	for nodeGUID, listeners := range rawListeners {
+		encListeners := bootstrap.EncryptListeners(listeners)
+		err = register.ctx.driver.AddNodeListeners(&nodeGUID, encListeners...)
+		if err != nil {
+			return errors.Wrap(err, "failed to add node listeners")
+		}
+	}
 	return nil
 }
 

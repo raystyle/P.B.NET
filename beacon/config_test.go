@@ -53,6 +53,9 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Worker.QueueSize = 1024
 	cfg.Worker.MaxBufferSize = 16384
 
+	cfg.Driver.SleepFixed = 5
+	cfg.Driver.SleepRandom = 10
+
 	cfg.Ctrl.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
 	cfg.Ctrl.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
 	cfg.Ctrl.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
@@ -96,6 +99,9 @@ func TestConfig(t *testing.T) {
 		{expected: 16, actual: cfg.Worker.Number},
 		{expected: 32, actual: cfg.Worker.QueueSize},
 		{expected: 16384, actual: cfg.Worker.MaxBufferSize},
+
+		{expected: uint(10), actual: cfg.Driver.SleepFixed},
+		{expected: uint(20), actual: cfg.Driver.SleepRandom},
 
 		{expected: "name", actual: cfg.Service.Name},
 		{expected: "display name", actual: cfg.Service.DisplayName},

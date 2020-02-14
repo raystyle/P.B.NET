@@ -126,7 +126,8 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 		stopSignal:     make(chan struct{}),
 	}
 
-	sender.maxConns.Store(cfg.MaxConns)
+	maxConns := cfg.MaxConns
+	sender.maxConns.Store(maxConns)
 
 	sender.sendTaskPool.New = func() interface{} {
 		return new(sendTask)

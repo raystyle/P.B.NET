@@ -208,6 +208,9 @@ func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
 	cfg.Worker.QueueSize = 1024
 	cfg.Worker.MaxBufferSize = 16 << 10
 
+	cfg.Driver.SleepFixed = 5
+	cfg.Driver.SleepRandom = 10
+
 	cfg.Ctrl.KexPublicKey = ctrl.KeyExchangePublicKey()
 	cfg.Ctrl.PublicKey = ctrl.PublicKey()
 	cfg.Ctrl.BroadcastKey = ctrl.BroadcastKey()

@@ -163,7 +163,8 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 		stopSignal:            make(chan struct{}, 1),
 	}
 
-	sender.maxConns.Store(cfg.MaxConns)
+	maxConns := cfg.MaxConns
+	sender.maxConns.Store(maxConns)
 
 	// initialize sync pool
 	sender.sendTaskPool.New = func() interface{} {

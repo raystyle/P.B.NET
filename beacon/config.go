@@ -82,19 +82,25 @@ type Config struct {
 		MaxBufferSize int `toml:"max_buffer_size" msgpack:"c"`
 	} `toml:"worker" msgpack:"hh"`
 
+	Driver struct {
+		// about query message from Controller
+		SleepFixed  uint `toml:"sleep_fixed"  msgpack:"a"`
+		SleepRandom uint `toml:"sleep_random" msgpack:"b"`
+	} `toml:"driver" msgpack:"jj"`
+
 	// generate from Controller
 	Ctrl struct {
 		KexPublicKey []byte `msgpack:"x"` // key exchange curve25519
 		PublicKey    []byte `msgpack:"y"` // verify message ed25519
 		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
-	} `toml:"-" msgpack:"jj"`
+	} `toml:"-" msgpack:"kk"`
 
 	// about service
 	Service struct {
 		Name        string `toml:"name"         msgpack:"a"`
 		DisplayName string `toml:"display_name" msgpack:"b"`
 		Description string `toml:"description"  msgpack:"c"`
-	} `toml:"service" msgpack:"kk"`
+	} `toml:"service" msgpack:"ll"`
 }
 
 // TestOptions include test options.

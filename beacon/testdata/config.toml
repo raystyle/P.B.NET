@@ -35,6 +35,10 @@
   queue_size      = 32
   max_buffer_size = 16384
 
+[driver]
+  sleep_fixed  = 10
+  sleep_random = 20
+
 [service]
   name         = "name"
   display_name = "display name"
