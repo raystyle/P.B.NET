@@ -179,6 +179,7 @@ func (syncer *Syncer) Start() error {
 		return ErrNoClients
 	}
 	// first time sync must success
+	sleeper := random.NewSleeper()
 	for {
 		err := syncer.synchronize()
 		switch err {
@@ -190,7 +191,11 @@ func (syncer *Syncer) Start() error {
 		case ErrAllClientsFailed:
 			syncer.dnsClient.FlushCache()
 			syncer.log(logger.Warning, ErrAllClientsFailed)
-			random.Sleep(syncer.sleepFixed, syncer.sleepFixed)
+			select {
+			case <-sleeper.Sleep(syncer.sleepFixed, syncer.sleepFixed):
+			case <-syncer.ctx.Done():
+				return syncer.ctx.Err()
+			}
 		default:
 			return err
 		}
