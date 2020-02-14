@@ -87,6 +87,17 @@ func TestListener(t *testing.T) {
 	})
 }
 
+func TestListener_Equal(t *testing.T) {
+	listeners := testGenerateListeners()
+	l1 := NewListener(listeners[0].Mode, listeners[0].Network, listeners[0].Address)
+	l2 := NewListener(listeners[1].Mode, listeners[1].Network, listeners[1].Address)
+	require.False(t, l1.Equal(l2))
+
+	listeners = testGenerateListeners()
+	l2 = NewListener(listeners[0].Mode, listeners[0].Network, listeners[0].Address)
+	require.True(t, l1.Equal(l2))
+}
+
 func TestListener_String(t *testing.T) {
 	listener := Listener{
 		Mode:    xnet.ModeTLS,

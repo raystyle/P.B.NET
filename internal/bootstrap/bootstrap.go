@@ -21,9 +21,9 @@ const (
 	ModeDirect = "direct"
 )
 
-// Listener is the bootstrap node listener
-// Node or Beacon register will use bootstrap to resolve node listeners
-// you can reference internal/xnet/net.go
+// Listener is the bootstrap Node listener.
+// Node or Beacon register will use bootstrap to resolve Node listeners,
+// you can reference internal/xnet/net.go.
 type Listener struct {
 	Mode    string `toml:"mode"    msgpack:"a"`
 	Network string `toml:"network" msgpack:"b"`
@@ -96,13 +96,24 @@ func (l *Listener) Destroy() {
 	security.CoverString(&l.Address)
 }
 
+// Equal is used to compare two listeners, must be encrypted.
+func (l *Listener) Equal(listener *Listener) bool {
+	tl1 := l.Decrypt()
+	defer tl1.Destroy()
+	tl2 := listener.Decrypt()
+	defer tl2.Destroy()
+	return tl1.Mode == tl2.Mode &&
+		tl1.Network == tl2.Network &&
+		tl1.Address == tl2.Address
+}
+
 // String is used to return information about listener.
 // tls (tcp 127.0.0.1:443)
 func (l *Listener) String() string {
 	return fmt.Sprintf("%s (%s %s)", l.Mode, l.Network, l.Address)
 }
 
-// encryptListeners is used to encrypt listeners after Bootstrap.Resolve()
+// encryptListeners is used to encrypt listeners after Bootstrap.Resolve().
 func encryptListeners(listeners []*Listener) []*Listener {
 	l := len(listeners)
 	newListeners := make([]*Listener, l)
@@ -117,9 +128,9 @@ func encryptListeners(listeners []*Listener) []*Listener {
 	return newListeners
 }
 
-// Bootstrap is used to resolve bootstrap node listeners
+// Bootstrap is used to resolve bootstrap Node listeners.
 type Bootstrap interface {
-	// Validate is used to check bootstrap config correct
+	// Validate is used to check bootstrap configuration is correct
 	Validate() error
 
 	// Marshal is used to marshal bootstrap to []byte
@@ -128,11 +139,11 @@ type Bootstrap interface {
 	// Unmarshal is used to unmarshal []byte to bootstrap
 	Unmarshal([]byte) error
 
-	// Resolve is used to resolve bootstrap node listeners
+	// Resolve is used to resolve bootstrap Node listeners
 	Resolve() ([]*Listener, error)
 }
 
-// Load is used to create a bootstrap from configuration.
+// Load is used to load a bootstrap from configuration.
 func Load(
 	ctx context.Context,
 	mode string,
