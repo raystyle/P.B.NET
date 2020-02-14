@@ -47,7 +47,7 @@ func TestNodeRegister(t *testing.T) {
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
 		spew.Dump(nrr)
-		err = ctrl.AcceptRegisterNode(nrr, false)
+		err = ctrl.AcceptRegisterNode(nrr, nil, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
@@ -108,7 +108,7 @@ func TestBeaconRegister(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")

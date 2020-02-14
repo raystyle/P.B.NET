@@ -18,6 +18,7 @@ import (
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
+	"project/internal/xnet"
 	"project/internal/xnet/xnetutil"
 )
 
@@ -321,8 +322,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		return errors.Wrap(err, "failed to receive external ip address")
 	}
 	// send register request
-	request := register.PackRequest(xnetutil.DecodeExternalAddress(address))
-	err = conn.SendMessage(request)
+	err = conn.SendMessage(register.PackRequest(xnetutil.DecodeExternalAddress(address)))
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}
@@ -342,7 +342,11 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to receive certificate")
 		}
-		return register.ctx.global.SetCertificate(cert)
+		err = register.ctx.global.SetCertificate(cert)
+		if err != nil {
+			return err
+		}
+		return register.loadNodeListeners(conn.Conn)
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)
 	case messages.RegisterResultTimeout:
@@ -352,6 +356,25 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		register.log(logger.Exploit, err)
 		return err
 	}
+}
+
+func (register *register) loadNodeListeners(conn *xnet.Conn) error {
+	listenersData, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive node listeners data")
+	}
+	listenersData, err = register.ctx.global.Decrypt(listenersData)
+	if err != nil {
+		return errors.Wrap(err, "failed to decrypt node listeners data")
+	}
+	defer security.CoverBytes(listenersData)
+	listeners := make(map[string][]*bootstrap.Listener)
+	err = msgpack.Unmarshal(listenersData, &listeners)
+	if err != nil {
+		return errors.Wrap(err, "failed to unmarshal node listeners data")
+	}
+	// TODO set node listeners
+	return nil
 }
 
 func (register *register) Close() {

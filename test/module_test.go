@@ -45,7 +45,7 @@ func TestExecuteShellCode(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
@@ -125,7 +125,7 @@ func TestShell(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")

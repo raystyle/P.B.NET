@@ -18,6 +18,7 @@ import (
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
+	"project/internal/xnet"
 	"project/internal/xnet/xnetutil"
 )
 
@@ -326,8 +327,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 	}
 	switch result[0] {
 	case messages.RegisterResultAccept:
-		// TODO read listeners
-		return nil
+		return register.loadNodeListeners(conn)
 	case messages.RegisterResultRefused:
 		return errors.WithStack(messages.ErrRegisterRefused)
 	case messages.RegisterResultTimeout:
@@ -337,6 +337,25 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		register.log(logger.Exploit, err)
 		return err
 	}
+}
+
+func (register *register) loadNodeListeners(conn *xnet.Conn) error {
+	listenersData, err := conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive node listeners data")
+	}
+	listenersData, err = register.ctx.global.Decrypt(listenersData)
+	if err != nil {
+		return errors.Wrap(err, "failed to decrypt node listeners data")
+	}
+	defer security.CoverBytes(listenersData)
+	listeners := make(map[string][]*bootstrap.Listener)
+	err = msgpack.Unmarshal(listenersData, &listeners)
+	if err != nil {
+		return errors.Wrap(err, "failed to unmarshal node listeners data")
+	}
+	// TODO set node listeners
+	return nil
 }
 
 func (register *register) Close() {

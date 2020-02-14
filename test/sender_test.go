@@ -139,7 +139,7 @@ func TestCtrl_Broadcast_PassInitialNode(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		select {
 		case nrr := <-ctrl.Test.NodeRegisterRequest:
-			err = ctrl.AcceptRegisterNode(nrr, false)
+			err = ctrl.AcceptRegisterNode(nrr, nil, false)
 			require.NoError(t, err)
 		case <-time.After(3 * time.Second):
 			t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
@@ -257,7 +257,7 @@ func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		err = ctrl.AcceptRegisterNode(nrr, false)
+		err = ctrl.AcceptRegisterNode(nrr, nil, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
@@ -366,7 +366,7 @@ func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
@@ -533,7 +533,7 @@ func TestNode_Send_PassInitialNode(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		err = ctrl.AcceptRegisterNode(nrr, false)
+		err = ctrl.AcceptRegisterNode(nrr, nil, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
@@ -643,7 +643,7 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
@@ -755,7 +755,7 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		err = ctrl.AcceptRegisterNode(nrr, false)
+		err = ctrl.AcceptRegisterNode(nrr, nil, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
@@ -798,7 +798,7 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
@@ -918,7 +918,7 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		err = ctrl.AcceptRegisterNode(nrr, false)
+		err = ctrl.AcceptRegisterNode(nrr, nil, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
@@ -960,7 +960,7 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
@@ -1076,7 +1076,7 @@ func TestNodeQueryRoleKey(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
@@ -1103,7 +1103,7 @@ func TestNodeQueryRoleKey(t *testing.T) {
 	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		err = ctrl.AcceptRegisterNode(nrr, false)
+		err = ctrl.AcceptRegisterNode(nrr, nil, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
@@ -1231,7 +1231,7 @@ func TestBeacon_Query(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr)
+		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
