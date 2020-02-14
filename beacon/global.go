@@ -311,7 +311,7 @@ func (global *global) StartTimeSyncerWalker() {
 
 // Now is used to get current time
 func (global *global) Now() time.Time {
-	return global.TimeSyncer.Now().Local()
+	return global.TimeSyncer.Now()
 }
 
 // StartupTime is used to get startup time

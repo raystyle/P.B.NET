@@ -118,7 +118,7 @@ func (node *Node) NewClient(
 
 func (client *Client) handshake(conn *xnet.Conn) error {
 	timeout := client.ctx.clientMgr.GetTimeout()
-	_ = conn.SetDeadline(client.ctx.global.Now().Add(timeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	// about check connection
 	err := client.checkConn(conn)
 	if err != nil {
@@ -196,7 +196,7 @@ func (client *Client) Connect() (err error) {
 		protocol.HandleConn(client.Conn, client.onFrame)
 	}()
 	timeout := client.ctx.clientMgr.GetTimeout()
-	_ = client.Conn.SetDeadline(client.ctx.global.Now().Add(timeout))
+	_ = client.Conn.SetDeadline(time.Now().Add(timeout))
 	client.Conn.Log(logger.Debug, "connected")
 	return
 }

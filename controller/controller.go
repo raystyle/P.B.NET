@@ -128,7 +128,7 @@ func (ctrl *Ctrl) Main() error {
 			return errors.WithMessage(err, "failed to test client DNS option")
 		}
 	}
-	now := ctrl.global.Now().Format(logger.TimeLayout)
+	now := ctrl.global.Now().Local().Format(logger.TimeLayout)
 	ctrl.logger.Println(logger.Info, "main", "time:", now)
 	// start web server
 	err := ctrl.web.Deploy()

@@ -354,17 +354,23 @@ func (server *server) Close() {
 }
 
 func (server *server) logfConn(c *xnet.Conn, lv logger.Level, format string, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(b, format, log...)
-	_, _ = fmt.Fprintf(b, "\n%s", c)
-	server.ctx.logger.Print(lv, "server", b)
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintf(buf, format+"\n", log...)
+	const conn = "---------------connection status----------------\n%s\n"
+	_, _ = fmt.Fprintf(buf, conn, c)
+	const endLine = "------------------------------------------------"
+	_, _ = fmt.Fprint(buf, endLine)
+	server.ctx.logger.Print(lv, "server", buf)
 }
 
 func (server *server) logConn(c *xnet.Conn, lv logger.Level, log ...interface{}) {
-	b := new(bytes.Buffer)
-	_, _ = fmt.Fprintln(b, log...)
-	_, _ = fmt.Fprintf(b, "%s", c)
-	server.ctx.logger.Print(lv, "server", b)
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(buf, log...)
+	const conn = "---------------connection status----------------\n%s\n"
+	_, _ = fmt.Fprintf(buf, conn, c)
+	const endLine = "------------------------------------------------"
+	_, _ = fmt.Fprint(buf, endLine)
+	server.ctx.logger.Print(lv, "server", buf)
 }
 
 func (server *server) addConn(tag *guid.GUID, conn *xnet.Conn) {
@@ -435,7 +441,7 @@ func (server *server) handshake(conn *xnet.Conn) {
 	server.addConn(tag, conn)
 	defer server.deleteConn(tag)
 
-	_ = conn.SetDeadline(server.ctx.global.Now().Add(server.timeout))
+	_ = conn.SetDeadline(time.Now().Add(server.timeout))
 	if !server.checkConn(conn) {
 		return
 	}
@@ -533,7 +539,7 @@ func (server *server) isHTTPRequest(data []byte, conn *xnet.Conn) bool {
 	// fake nginx server
 	buf.WriteString("Server: nginx\r\n")
 	// write date
-	date := server.ctx.global.Now().Format(http.TimeFormat)
+	date := server.ctx.global.Now().Local().Format(http.TimeFormat)
 	_, _ = fmt.Fprintf(buf, "Date: %s\r\n", date)
 	// other
 	buf.WriteString("Content-Type: text/html\r\n")
@@ -686,7 +692,7 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	case <-server.context.Done():
 		return
 	}
-	_ = conn.SetWriteDeadline(server.ctx.global.Now().Add(server.timeout))
+	_ = conn.SetWriteDeadline(time.Now().Add(server.timeout))
 	switch resp.Result {
 	case messages.RegisterResultAccept:
 		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
@@ -781,7 +787,7 @@ func (server *server) verifyNode(conn *xnet.Conn, guid *guid.GUID) bool {
 		return false
 	}
 	// send succeed response
-	_ = conn.SetWriteDeadline(server.ctx.global.Now().Add(server.timeout))
+	_ = conn.SetWriteDeadline(time.Now().Add(server.timeout))
 	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
 		server.logConn(conn, logger.Error, "failed to send response to node:", err)
@@ -876,7 +882,7 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 	case <-server.context.Done():
 		return
 	}
-	_ = conn.SetWriteDeadline(server.ctx.global.Now().Add(server.timeout))
+	_ = conn.SetWriteDeadline(time.Now().Add(server.timeout))
 	switch resp.Result {
 	case messages.RegisterResultAccept:
 		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
@@ -971,7 +977,7 @@ func (server *server) verifyBeacon(conn *xnet.Conn, guid *guid.GUID) bool {
 		return false
 	}
 	// send succeed response
-	_ = conn.SetWriteDeadline(server.ctx.global.Now().Add(server.timeout))
+	_ = conn.SetWriteDeadline(time.Now().Add(server.timeout))
 	err = conn.Send(protocol.AuthSucceed)
 	if err != nil {
 		server.logConn(conn, logger.Error, "failed to send response to beacon:", err)

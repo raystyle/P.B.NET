@@ -116,7 +116,7 @@ func (beacon *Beacon) Main() error {
 			return beacon.fatal(err, "failed to synchronize time")
 		}
 	}
-	now := beacon.global.Now().Format(logger.TimeLayout)
+	now := beacon.global.Now().Local().Format(logger.TimeLayout)
 	beacon.logger.Println(logger.Info, "main", "time:", now)
 	// start register
 	err := beacon.register.Register()

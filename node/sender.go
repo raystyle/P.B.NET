@@ -414,6 +414,7 @@ func (sw *senderWorker) Work() {
 	sw.hash = sha256.New()
 	sw.forwarder = sw.ctx.ctx.forwarder
 	sw.timer = time.NewTimer(sw.timeout)
+	sw.timer.Stop()
 	defer sw.timer.Stop()
 	var (
 		st *sendTask

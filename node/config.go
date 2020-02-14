@@ -279,7 +279,7 @@ func (cfg *Config) TimeSyncerClients(
 	if err != nil {
 		return buf.String(), err
 	}
-	now := node.global.Now().Format(logger.TimeLayout)
+	now := node.global.Now().Local().Format(logger.TimeLayout)
 	_, _ = fmt.Fprintf(output, "\ncurrent time: %s\n", now)
 	return buf.String(), nil
 }

@@ -80,6 +80,7 @@ func newLogger(ctx *Node, config *Config) (*gLogger, error) {
 		timer:  time.NewTimer(time.Second),
 		cbc:    cbc,
 	}
+	lg.timer.Stop()
 	lg.context, lg.cancel = context.WithCancel(context.Background())
 	return lg, nil
 }
@@ -90,7 +91,7 @@ func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{
 	if lv < lg.level || lg.ctx == nil {
 		return
 	}
-	now := lg.ctx.global.Now()
+	now := lg.ctx.global.Now().Local()
 	buf := logger.Prefix(now, lv, src)
 	// log with level and src
 	logStr := fmt.Sprintf(format, log...)
@@ -105,7 +106,7 @@ func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level || lg.ctx == nil {
 		return
 	}
-	now := lg.ctx.global.Now()
+	now := lg.ctx.global.Now().Local()
 	buf := logger.Prefix(now, lv, src)
 	// log with level and src
 	logStr := fmt.Sprint(log...)
@@ -120,7 +121,7 @@ func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 	if lv < lg.level || lg.ctx == nil {
 		return
 	}
-	now := lg.ctx.global.Now()
+	now := lg.ctx.global.Now().Local()
 	buf := logger.Prefix(now, lv, src)
 	// log with level and src
 	logStr := fmt.Sprintln(log...)

@@ -1070,6 +1070,7 @@ func (sw *senderWorker) Work() {
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.hash = sha256.New()
 	sw.timer = time.NewTimer(sw.timeout)
+	sw.timer.Stop()
 	defer sw.timer.Stop()
 	var (
 		st *sendTask

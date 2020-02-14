@@ -261,7 +261,7 @@ func (register *register) packRequest(address string) []byte {
 		KexPublicKey: register.ctx.global.KeyExchangePublicKey(),
 		ConnAddress:  address,
 		SystemInfo:   info.GetSystemInfo(),
-		RequestTime:  register.ctx.global.Now(),
+		RequestTime:  register.ctx.global.Now().Local(),
 	}
 	data, err := msgpack.Marshal(&nrr)
 	if err != nil {
@@ -330,7 +330,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 	}
 	// wait register result
 	timeout := time.Duration(60+random.Int(30)) * time.Second
-	_ = conn.SetDeadline(register.ctx.global.Now().Add(timeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	result := make([]byte, 1)
 	_, err = io.ReadFull(conn, result)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -250,7 +251,7 @@ func (wh *webHandler) handleTrustNode(w hRW, r *hR, p hP) {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	fmt.Println("node guid:\n", req.GUID.Hex())
+	fmt.Println("node guid:\n", strings.ReplaceAll(req.GUID.Hex(), "\n", ""))
 	err = wh.ctx.ConfirmTrustNode(context.Background(), &listener, req)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))

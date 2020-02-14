@@ -185,7 +185,7 @@ func (client *Client) logExtra(lv logger.Level, buf *bytes.Buffer) {
 // Zero—Knowledge Proof
 func (client *Client) handshake(conn *xnet.Conn) error {
 	timeout := client.ctx.clientMgr.GetTimeout()
-	_ = conn.SetDeadline(client.ctx.global.Now().Add(timeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	// check connection
 	err := client.checkConn(conn)
 	if err != nil {

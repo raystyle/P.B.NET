@@ -200,6 +200,7 @@ func (sw *subWorker) WorkWithBlock() {
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
 	sw.timer = time.NewTimer(time.Second)
+	sw.timer.Stop()
 	defer sw.timer.Stop()
 	var (
 		send        *protocol.Send

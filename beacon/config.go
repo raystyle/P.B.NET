@@ -82,6 +82,7 @@ type Config struct {
 		MaxBufferSize int `toml:"max_buffer_size" msgpack:"c"`
 	} `toml:"worker" msgpack:"hh"`
 
+	// TODO rename
 	Driver struct {
 		// about query message from Controller
 		SleepFixed  uint `toml:"sleep_fixed"  msgpack:"a"`
@@ -270,7 +271,7 @@ func (cfg *Config) TimeSyncerClients(
 	if err != nil {
 		return buf.String(), err
 	}
-	now := beacon.global.Now().Format(logger.TimeLayout)
+	now := beacon.global.Now().Local().Format(logger.TimeLayout)
 	_, _ = fmt.Fprintf(output, "\ncurrent time: %s\n", now)
 	return buf.String(), nil
 }

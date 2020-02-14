@@ -243,7 +243,7 @@ func (global *global) StartTimeSyncerAddLoop() {
 
 // Now is used to get current time
 func (global *global) Now() time.Time {
-	return global.TimeSyncer.Now().Local()
+	return global.TimeSyncer.Now()
 }
 
 // GenerateSessionKey is used to generate session key and save to file
