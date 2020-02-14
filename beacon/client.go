@@ -267,12 +267,11 @@ func (client *Client) sendHeartbeatLoop() {
 	defer client.wg.Done()
 	var err error
 	buffer := bytes.NewBuffer(nil)
-	timer := time.NewTimer(time.Minute)
-	defer timer.Stop()
+	sleeper := random.NewSleeper()
+	defer sleeper.Stop()
 	for {
-		timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
 		select {
-		case <-timer.C:
+		case <-sleeper.Sleep(30, 60):
 			// <security> fake traffic like client
 			fakeSize := 64 + client.rand.Int(256)
 			// size(4 Bytes) + heartbeat(1 byte) + fake data
@@ -287,11 +286,10 @@ func (client *Client) sendHeartbeatLoop() {
 				return
 			}
 			// receive reply
-			timer.Reset(time.Duration(30+client.rand.Int(60)) * time.Second)
 			select {
 			case <-client.heartbeat:
-			case <-timer.C:
-				client.log(logger.Warning, "receive heartbeat timeout")
+			case <-sleeper.Sleep(30, 60):
+				client.log(logger.Error, "receive heartbeat timeout")
 				_ = client.Conn.Close()
 				return
 			case <-client.stopSignal:

@@ -180,6 +180,7 @@ func (syncer *Syncer) Start() error {
 	}
 	// first time sync must success
 	sleeper := random.NewSleeper()
+	defer sleeper.Stop()
 	for {
 		err := syncer.synchronize()
 		switch err {

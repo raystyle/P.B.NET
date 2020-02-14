@@ -202,13 +202,19 @@ func (register *register) Register() error {
 		listeners []*bootstrap.Listener
 		err       error
 	)
+	sleeper := random.NewSleeper()
+	defer sleeper.Stop()
 	for i := 0; i < 3; i++ {
 		listeners, err = register.first.Resolve()
 		if err == nil {
 			break
 		}
 		register.log(logger.Error, err)
-		random.Sleep(register.sleepFixed, register.sleepRandom)
+		select {
+		case <-sleeper.Sleep(register.sleepFixed, register.sleepRandom):
+		case <-register.context.Done():
+			return register.context.Err()
+		}
 	}
 	if err != nil {
 		return errors.WithMessage(err, "failed to resolve bootstrap node listeners")
@@ -227,7 +233,11 @@ func (register *register) Register() error {
 				return err
 			}
 			if i != 2 {
-				random.Sleep(register.sleepFixed, register.sleepRandom)
+				select {
+				case <-sleeper.Sleep(register.sleepFixed, register.sleepRandom):
+				case <-register.context.Done():
+					return register.context.Err()
+				}
 			}
 		}
 	}
@@ -357,9 +367,11 @@ func (register *register) loadNodeListeners(conn *xnet.Conn) error {
 	}
 	for nodeGUID, listeners := range rawListeners {
 		encListeners := bootstrap.EncryptListeners(listeners)
-		err = register.ctx.driver.AddNodeListeners(&nodeGUID, encListeners...)
-		if err != nil {
-			return errors.Wrap(err, "failed to add node listeners")
+		for i := 0; i < len(encListeners); i++ {
+			err = register.ctx.driver.AddNodeListener(&nodeGUID, encListeners[i])
+			if err != nil {
+				return errors.Wrap(err, "failed to add node listener")
+			}
 		}
 	}
 	return nil

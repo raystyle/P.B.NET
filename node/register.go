@@ -243,13 +243,19 @@ func (register *register) Register() error {
 		listeners []*bootstrap.Listener
 		err       error
 	)
+	sleeper := random.NewSleeper()
+	defer sleeper.Stop()
 	for i := 0; i < 3; i++ {
 		listeners, err = register.first.Resolve()
 		if err == nil {
 			break
 		}
 		register.log(logger.Error, err)
-		random.Sleep(register.sleepFixed, register.sleepRandom)
+		select {
+		case <-sleeper.Sleep(register.sleepFixed, register.sleepRandom):
+		case <-register.context.Done():
+			return register.context.Err()
+		}
 	}
 	if err != nil {
 		return errors.WithMessage(err, "failed to resolve bootstrap node listeners")
@@ -268,7 +274,11 @@ func (register *register) Register() error {
 				return err
 			}
 			if i != 2 {
-				random.Sleep(register.sleepFixed, register.sleepRandom)
+				select {
+				case <-sleeper.Sleep(register.sleepFixed, register.sleepRandom):
+				case <-register.context.Done():
+					return register.context.Err()
+				}
 			}
 		}
 	}
