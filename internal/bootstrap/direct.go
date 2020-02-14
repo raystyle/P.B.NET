@@ -73,5 +73,5 @@ func (d *Direct) Resolve() ([]*Listener, error) {
 	if err != nil {
 		panic(err)
 	}
-	return encryptListeners(listeners), nil
+	return EncryptListeners(listeners), nil
 }

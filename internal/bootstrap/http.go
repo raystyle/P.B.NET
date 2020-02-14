@@ -361,5 +361,5 @@ func resolve(h *HTTP, info []byte) []*Listener {
 	if err != nil {
 		panic(err)
 	}
-	return encryptListeners(listeners)
+	return EncryptListeners(listeners)
 }

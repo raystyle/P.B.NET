@@ -113,8 +113,8 @@ func (l *Listener) String() string {
 	return fmt.Sprintf("%s (%s %s)", l.Mode, l.Network, l.Address)
 }
 
-// encryptListeners is used to encrypt listeners after Bootstrap.Resolve().
-func encryptListeners(listeners []*Listener) []*Listener {
+// EncryptListeners is used to encrypt raw listeners.
+func EncryptListeners(listeners []*Listener) []*Listener {
 	l := len(listeners)
 	newListeners := make([]*Listener, l)
 	for i := 0; i < l; i++ {

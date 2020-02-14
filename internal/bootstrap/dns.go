@@ -134,5 +134,5 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 		listeners[i].Address = net.JoinHostPort(result[i], tDNS.Port)
 		security.CoverString(&result[i])
 	}
-	return encryptListeners(listeners), nil
+	return EncryptListeners(listeners), nil
 }
