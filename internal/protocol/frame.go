@@ -62,6 +62,7 @@ func NewSlots() []*Slot {
 			Reply:     make(chan []byte, 1),
 			Timer:     time.NewTimer(RecvTimeout),
 		}
+		slots[i].Timer.Stop()
 		slots[i].Available <- struct{}{}
 	}
 	return slots
