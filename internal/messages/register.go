@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"project/internal/bootstrap"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
@@ -71,10 +70,12 @@ type NodeRegisterResponse struct {
 	Result      uint8
 	Certificate []byte
 
+	// type = map[string][]*bootstrap.Listener
 	// key = hex(Node GUID)
-	// a part of all Node listeners,
-	// Node will connect these listeners first
-	Listeners map[string][]*bootstrap.Listener
+	// It encrypted by session key.
+	// It contains a part of all Node listeners,
+	// Node will connect these listeners first.
+	NodeListeners []byte
 }
 
 // Validate is used to validate response fields.
@@ -131,10 +132,12 @@ type BeaconRegisterResponse struct {
 
 	Result uint8
 
+	// type = map[string][]*bootstrap.Listener
 	// key = hex(Node GUID)
-	// a part of all Node listeners,
-	// Beacon will connect these listeners first.
-	Listeners map[string][]*bootstrap.Listener
+	// It encrypted by session key.
+	// It contains a part of all Node listeners,
+	// Node will connect these listeners first.
+	NodeListeners []byte
 }
 
 // Validate is used to validate response fields.

@@ -691,12 +691,12 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	case messages.RegisterResultAccept:
 		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
 		_, _ = conn.Write(resp.Certificate)
-		// listeners
-
+		_ = conn.Send(resp.NodeListeners)
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
 		// and <firewall> rate limit
-		// _, _ = conn.Write([]byte{messages.RegisterResultTimeout})
+
+		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	case messages.RegisterResultTimeout:
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	default:
@@ -880,13 +880,12 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 	switch resp.Result {
 	case messages.RegisterResultAccept:
 		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
-		// listeners
-
+		_ = conn.Send(resp.NodeListeners)
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
 		// and <firewall> rate limit
 
-		// _, _ = conn.Write([]byte{messages.RegisterResultTimeout})
+		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	case messages.RegisterResultTimeout:
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	default:

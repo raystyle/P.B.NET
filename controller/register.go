@@ -17,12 +17,12 @@ import (
 )
 
 // TrustNode is used to trust Node, receive system info for confirm it.
-// usually for the initial node or the test
-// TODO add log
+// usually for the Initial Node or the test.
 func (ctrl *Ctrl) TrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 ) (*messages.NodeRegisterRequest, error) {
+	// TODO add log
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create client")
@@ -63,13 +63,13 @@ func (ctrl *Ctrl) TrustNode(
 	return &nrr, nil
 }
 
-// ConfirmTrustNode is used to confirm trust node, register node
-// TODO add log
+// ConfirmTrustNode is used to confirm trust and register Node.
 func (ctrl *Ctrl) ConfirmTrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 	nrr *messages.NodeRegisterRequest,
 ) error {
+	// TODO add log
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
 		return errors.WithMessage(err, "failed to create client")
@@ -131,15 +131,19 @@ func (ctrl *Ctrl) registerNode(
 	return &certificate, nil
 }
 
-// AcceptRegisterNode is used to accept register Node
-// TODO add Log
-func (ctrl *Ctrl) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstrap bool) error {
+// AcceptRegisterNode is used to accept register Node.
+func (ctrl *Ctrl) AcceptRegisterNode(
+	nrr *messages.NodeRegisterRequest,
+	listeners map[string]*bootstrap.Listener,
+	bootstrap bool,
+) error {
+	// TODO add Log
 	certificate, err := ctrl.registerNode(nrr, bootstrap)
 	if err != nil {
 		return err
 	}
 	// broadcast Node register response
-	resp := messages.NodeRegisterResponse{
+	response := messages.NodeRegisterResponse{
 		GUID:         nrr.GUID,
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
@@ -148,14 +152,32 @@ func (ctrl *Ctrl) AcceptRegisterNode(nrr *messages.NodeRegisterRequest, bootstra
 		Result:       messages.RegisterResultAccept,
 		Certificate:  certificate.Encode(),
 	}
-	// TODO select node listeners
-	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, resp)
-	return errors.Wrap(err, "failed to accept register node")
+	node, err := ctrl.database.SelectNode(&nrr.GUID)
+	if err != nil {
+		return err
+	}
+	sessionKey := node.SessionKey.Get()
+	defer node.SessionKey.Put(sessionKey)
+	listenersData, err := msgpack.Marshal(listeners)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal listeners data")
+	}
+	aesKey := sessionKey
+	aesIV := sessionKey[:aes.IVSize]
+	response.NodeListeners, err = aes.CBCEncrypt(listenersData, aesKey, aesIV)
+	if err != nil {
+		return errors.Wrap(err, "failed to encrypt listeners data")
+	}
+	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, response)
+	if err != nil {
+		return errors.Wrap(err, "failed to accept register node")
+	}
+	return nil
 }
 
-// RefuseRegisterNode is used to refuse register Node, it will call firewall
+// RefuseRegisterNode is used to refuse register Node, it will call firewall.
 func (ctrl *Ctrl) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
-	resp := messages.NodeRegisterResponse{
+	response := messages.NodeRegisterResponse{
 		GUID:         nrr.GUID,
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
@@ -165,8 +187,11 @@ func (ctrl *Ctrl) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
 		// padding for Validate()
 		Certificate: make([]byte, protocol.CertificateSize),
 	}
-	err := ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, resp)
-	return errors.Wrap(err, "failed to refuse register node")
+	err := ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, response)
+	if err != nil {
+		return errors.Wrap(err, "failed to refuse register node")
+	}
+	return nil
 }
 
 func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
@@ -194,14 +219,16 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 }
 
 // AcceptRegisterBeacon is used to accept register Beacon.
-// TODO add Log
-func (ctrl *Ctrl) AcceptRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
+func (ctrl *Ctrl) AcceptRegisterBeacon(
+	brr *messages.BeaconRegisterRequest,
+	listeners map[string]*bootstrap.Listener,
+) error {
 	err := ctrl.registerBeacon(brr)
 	if err != nil {
 		return err
 	}
 	// broadcast Beacon register response
-	resp := messages.BeaconRegisterResponse{
+	response := messages.BeaconRegisterResponse{
 		GUID:         brr.GUID,
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
@@ -209,14 +236,32 @@ func (ctrl *Ctrl) AcceptRegisterBeacon(brr *messages.BeaconRegisterRequest) erro
 		ReplyTime:    ctrl.global.Now(),
 		Result:       messages.RegisterResultAccept,
 	}
-	// TODO select node listeners
-	err = ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, resp)
-	return errors.Wrap(err, "failed to accept register beacon")
+	beacon, err := ctrl.database.SelectBeacon(&brr.GUID)
+	if err != nil {
+		return err
+	}
+	sessionKey := beacon.SessionKey.Get()
+	defer beacon.SessionKey.Put(sessionKey)
+	listenersData, err := msgpack.Marshal(listeners)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal listeners data")
+	}
+	aesKey := sessionKey
+	aesIV := sessionKey[:aes.IVSize]
+	response.NodeListeners, err = aes.CBCEncrypt(listenersData, aesKey, aesIV)
+	if err != nil {
+		return errors.Wrap(err, "failed to encrypt listeners data")
+	}
+	err = ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, response)
+	if err != nil {
+		return errors.Wrap(err, "failed to accept register beacon")
+	}
+	return nil
 }
 
 // RefuseRegisterBeacon is used to refuse register Beacon, it will call firewall.
 func (ctrl *Ctrl) RefuseRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
-	resp := messages.BeaconRegisterResponse{
+	response := messages.BeaconRegisterResponse{
 		GUID:         brr.GUID,
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
@@ -224,6 +269,9 @@ func (ctrl *Ctrl) RefuseRegisterBeacon(brr *messages.BeaconRegisterRequest) erro
 		ReplyTime:    ctrl.global.Now(),
 		Result:       messages.RegisterResultRefused,
 	}
-	err := ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, &resp)
-	return errors.Wrap(err, "failed to refuse register beacon")
+	err := ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, &response)
+	if err != nil {
+		return errors.Wrap(err, "failed to refuse register beacon")
+	}
+	return nil
 }
