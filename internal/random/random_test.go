@@ -2,6 +2,7 @@ package random
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,11 +47,6 @@ func TestRandom(t *testing.T) {
 
 		require.True(t, Int(-1) == 0)
 	})
-
-	t.Run("Sleep", func(t *testing.T) {
-		Sleep(1, 2)
-		Sleep(0, 0)
-	})
 }
 
 func TestRandomEqual(t *testing.T) {
@@ -85,4 +81,11 @@ func BenchmarkRand_Bytes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		rand.Bytes(16)
 	}
+}
+
+func TestSleeper(t *testing.T) {
+	time.Sleep(100 * time.Millisecond)
+	<-Sleep(1, 2)
+	<-Sleep(0, 0)
+	gSleeper.Stop()
 }

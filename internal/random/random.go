@@ -12,11 +12,13 @@ import (
 )
 
 var (
-	gRand *Rand
+	gRand    *Rand
+	gSleeper *Sleeper
 )
 
 func init() {
 	gRand = New()
+	gSleeper = NewSleeper()
 }
 
 // Rand is used to generate random data
@@ -179,20 +181,54 @@ func Uint64() uint64 {
 	return gRand.Uint64()
 }
 
-// MaxSleepTime is used to prevent sleep dead!
-const MaxSleepTime = 30 * time.Minute
+// maxSleepTime is used to prevent sleep dead!
+const maxSleepTime = 30 * time.Minute
 
-// Sleep is used to sleep random time
+// Sleeper contain a timer and rand for reuse.
+type Sleeper struct {
+	timer *time.Timer
+	rand  *Rand
+}
+
+// NewSleeper is used to create a sleeper.
+func NewSleeper() *Sleeper {
+	return &Sleeper{
+		timer: time.NewTimer(time.Millisecond),
+		rand:  New(),
+	}
+}
+
+// Sleep is used to sleep with fixed + random time.
+func (s *Sleeper) Sleep(fixed, random uint) <-chan time.Time {
+	select {
+	case <-s.timer.C:
+	default:
+	}
+	s.timer.Reset(s.calculateDuration(fixed, random))
+	return s.timer.C
+}
+
+// calculateDuration is used to calculate actual duration.
 // fixed <= time < fixed + random
 // all time is fixed time + random time
-func Sleep(fixed, random uint) {
+func (s *Sleeper) calculateDuration(fixed, random uint) time.Duration {
 	if fixed+random < 1 {
 		fixed = 1
 	}
-	total := time.Duration(fixed+uint(Int(int(random)))) * time.Second
-	actual := MaxSleepTime // for test
-	if total < MaxSleepTime {
+	total := time.Duration(fixed+uint(s.rand.Int(int(random)))) * time.Second
+	actual := maxSleepTime // for test
+	if total < maxSleepTime {
 		actual = total
 	}
-	time.Sleep(actual)
+	return actual
+}
+
+// Stop is used to stop timer.
+func (s *Sleeper) Stop() {
+	s.timer.Stop()
+}
+
+// Sleep is used to sleep a random time.
+func Sleep(fixed, random uint) <-chan time.Time {
+	return gSleeper.Sleep(fixed, random)
 }
