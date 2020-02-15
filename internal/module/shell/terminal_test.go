@@ -59,7 +59,7 @@ func TestTerminal(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	terminal, err := NewTerminal()
+	terminal, err := NewTerminal(true)
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
@@ -114,7 +114,7 @@ func TestTerminal(t *testing.T) {
 		"dir shell\n",
 		"ls shell\n",
 
-		"cd C:\\Windows\\System32\n",
+		"cd C:\\windows\\system32\n",
 		"cd /\n",
 
 		"exit\n",

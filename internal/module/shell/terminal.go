@@ -6,9 +6,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -47,7 +50,8 @@ type Terminal struct {
 }
 
 // NewTerminal is used to create a platform-independent system shell.
-func NewTerminal() (*Terminal, error) {
+// copy is used to control input.
+func NewTerminal(copy bool) (*Terminal, error) {
 	cd, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -68,8 +72,11 @@ func NewTerminal() (*Terminal, error) {
 	}
 	terminal.oPr = oPr
 	terminal.oPw = oPw
-	// must copy
-	terminal.input = io.MultiWriter(terminal.iPw, terminal.oPw)
+	if copy {
+		terminal.input = io.MultiWriter(terminal.iPw, terminal.oPw)
+	} else {
+		terminal.input = terminal.iPw
+	}
 	terminal.ctx, terminal.cancel = context.WithCancel(context.Background())
 	terminal.wg.Add(1)
 	go terminal.readInputLoop()
@@ -207,19 +214,18 @@ func (t *Terminal) changeDirectory(args string) {
 	}
 	path := cd[0]
 	var dstPath string
-	// check is abs
 	if filepath.IsAbs(path) {
 		dstPath = path
 	} else {
 		dstPath = t.cd + "/" + path
 	}
-	f, err := filepath.Abs(dstPath)
+	absPath, err := filepath.Abs(dstPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
 		return
 	}
 	// check is exist
-	_, err = os.Stat(f)
+	_, err = os.Stat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			_, _ = fmt.Fprintf(t.oPw, "directory \"%s\" is not exist\n\n", path)
@@ -228,7 +234,7 @@ func (t *Terminal) changeDirectory(args string) {
 		}
 		return
 	}
-	t.cd = f
+	t.cd = absPath
 	// print empty line
 	_, _ = fmt.Fprintln(t.oPw)
 }
@@ -313,47 +319,90 @@ func (t *Terminal) setEnvironmentVariable(args string) {
 
 func (t *Terminal) dir(args string) {
 	dir := CommandLineToArgv(args)
-
-	buf := new(bytes.Buffer)
-	walk := func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		_, _ = fmt.Fprintf(buf, "%30s  ", path)
-
-		// time
-		_, _ = fmt.Fprintf(buf, "%s  ", info.ModTime().Format(logger.TimeLayout))
-		// mode
-		_, _ = fmt.Fprintf(buf, "%s  ", info.Mode().Perm())
-		// is directory
-		if info.IsDir() {
-			_, _ = fmt.Fprint(buf, "<dir>  ")
-			// about size
-			_, _ = fmt.Fprint(buf, "        ") // len(convert.ByteToString()) = 8
-			_, _ = fmt.Fprint(buf, "  ")
-			_, _ = fmt.Fprint(buf, "         ")
-		} else {
-			_, _ = fmt.Fprint(buf, "       ")
-			size := info.Size()
-			_, _ = fmt.Fprintf(buf, "%s", convert.ByteToString(uint64(size)))
-			_, _ = fmt.Fprint(buf, "  ")
-			_, _ = fmt.Fprintf(buf, "%9d", size)
-		}
-		// name
-		_, _ = fmt.Fprintf(buf, "  %s\n", info.Name())
-		return nil
-	}
-	var err error
+	var (
+		list []os.FileInfo
+		err  error
+	)
 	if len(dir) == 0 {
-		err = filepath.Walk(".", walk)
+		list, err = ioutil.ReadDir(t.cd)
 	} else {
-		err = filepath.Walk(dir[0], walk)
+		path := dir[0]
+		var dstPath string
+		if filepath.IsAbs(path) {
+			dstPath = path
+		} else {
+			dstPath = t.cd + "/" + path
+		}
+		list, err = ioutil.ReadDir(dstPath)
 	}
 	if err != nil {
-		_, _ = fmt.Fprintln(t.oPw, err)
-	} else {
-		_, _ = buf.WriteTo(t.oPw)
+		_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
+		return
 	}
+	sort.Slice(list, func(i, j int) bool {
+		return strings.ToLower(list[i].Name()) < strings.ToLower(list[j].Name())
+	})
+	buf := new(bytes.Buffer)
+	var (
+		dirList  []os.FileInfo
+		fileList []os.FileInfo
+		// about format
+		maxSizeStrLen int
+		maxSizeLen    int
+	)
+	for i := 0; i < len(list); i++ {
+		if list[i].IsDir() {
+			dirList = append(dirList, list[i])
+		} else {
+			size := list[i].Size()
+			sizeStrLen := len(convert.ByteToString(uint64(size)))
+			sizeLen := len(strconv.FormatInt(size, 10))
+			if sizeStrLen > maxSizeStrLen {
+				maxSizeStrLen = sizeStrLen
+			}
+			if sizeLen > maxSizeLen {
+				maxSizeLen = sizeLen
+			}
+			fileList = append(fileList, list[i])
+		}
+	}
+	const (
+		splitSpaceSize = 1
+		fixedSize      = 5 // " Byte"
+	)
+	paddingSize := maxSizeStrLen + splitSpaceSize + maxSizeLen
+	if maxSizeStrLen > 0 {
+		paddingSize += fixedSize
+	}
+	for i := 0; i < len(dirList); i++ {
+		info := dirList[i]
+		// time
+		_, _ = fmt.Fprintf(buf, "%s ", info.ModTime().Format(logger.TimeLayout))
+		// mode
+		_, _ = fmt.Fprintf(buf, "%s ", info.Mode().Perm())
+		// dir
+		_, _ = fmt.Fprint(buf, "<dir> ")
+		// size
+		_, _ = fmt.Fprint(buf, strings.Repeat(" ", paddingSize))
+		_, _ = fmt.Fprintf(buf, " %s\n", info.Name())
+	}
+	for i := 0; i < len(fileList); i++ {
+		info := fileList[i]
+		// time
+		_, _ = fmt.Fprintf(buf, "%s ", info.ModTime().Format(logger.TimeLayout))
+		// mode
+		_, _ = fmt.Fprintf(buf, "%s ", info.Mode().Perm())
+		// not dir
+		_, _ = fmt.Fprint(buf, "      ")
+		size := info.Size()
+		format := "%" + strconv.Itoa(maxSizeStrLen) + "s"
+		_, _ = fmt.Fprintf(buf, format, convert.ByteToString(uint64(size)))
+		_, _ = fmt.Fprint(buf, strings.Repeat(" ", splitSpaceSize))
+		format = "%" + strconv.Itoa(maxSizeLen) + "d Byte"
+		_, _ = fmt.Fprintf(buf, format, size)
+		_, _ = fmt.Fprintf(buf, " %s\n", info.Name())
+	}
+	_, _ = buf.WriteTo(t.oPw)
 	// print empty line
 	_, _ = fmt.Fprintln(t.oPw)
 }
