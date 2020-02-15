@@ -230,7 +230,7 @@ func (client *Client) authenticate() error {
 func (client *Client) sendHeartbeatLoop() {
 	defer client.wg.Done()
 	var err error
-	buffer := bytes.NewBuffer(nil)
+	buffer := new(bytes.Buffer)
 	sleeper := random.NewSleeper()
 	defer sleeper.Stop()
 	for {

@@ -164,7 +164,7 @@ func (cfg *Config) Run(ctx context.Context, output io.Writer, opts *TestOptions)
 func (cfg *Config) Certificates(writer io.Writer, node *Node) string {
 	// set output
 	var output io.Writer
-	buf := bytes.NewBuffer(nil)
+	buf := new(bytes.Buffer)
 	if writer != nil {
 		output = io.MultiWriter(writer, buf)
 	} else {
@@ -182,7 +182,7 @@ func (cfg *Config) Certificates(writer io.Writer, node *Node) string {
 func (cfg *Config) ProxyClients(writer io.Writer, node *Node) string {
 	// set output
 	var output io.Writer
-	buf := bytes.NewBuffer(nil)
+	buf := new(bytes.Buffer)
 	if writer != nil {
 		output = io.MultiWriter(writer, buf)
 	} else {
@@ -210,7 +210,7 @@ func (cfg *Config) DNSServers(
 ) (string, error) {
 	// set output
 	var output io.Writer
-	buf := bytes.NewBuffer(nil)
+	buf := new(bytes.Buffer)
 	if writer != nil {
 		output = io.MultiWriter(writer, buf)
 	} else {
@@ -261,7 +261,7 @@ func (cfg *Config) TimeSyncerClients(
 ) (string, error) {
 	// set output
 	var output io.Writer
-	buf := bytes.NewBuffer(nil)
+	buf := new(bytes.Buffer)
 	if writer != nil {
 		output = io.MultiWriter(writer, buf)
 	} else {

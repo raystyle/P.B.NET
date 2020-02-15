@@ -90,7 +90,7 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid *guid.GUID, usage int) *conn {
 	}
 	// only serve role handle heartbeat
 	if usage != connUsageClient {
-		conn.heartbeat = bytes.NewBuffer(nil)
+		conn.heartbeat = new(bytes.Buffer)
 		conn.rand = random.New()
 	}
 	return &conn

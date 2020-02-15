@@ -171,12 +171,16 @@ func (lg *gLogger) writeLog(time time.Time, lv logger.Level, src, log string, b 
 	_, _ = b.WriteTo(lg.writer)
 	security.CoverBytes(buf)
 	// <security> cover log at once.
+	if len(log) > 512<<10 {
+		security.CoverString(&log)
+		return
+	}
 	logB := []byte(log)
 	security.CoverString(&log)
-	defer security.CoverBytes(logB)
 	// encrypt log and send to the log queue, then wait sender
 	// to send it to the Controller, finally you can receive it.
 	cipherData, err := lg.cbc.Encrypt(logB)
+	security.CoverBytes(logB)
 	if err != nil {
 		panic("logger internal error: " + err.Error())
 	}
