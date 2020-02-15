@@ -10,9 +10,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testsuite"
 )
 
 func TestVirtualProtect(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	var (
 		file *os.File
 		err  error
@@ -45,6 +50,9 @@ func TestVirtualProtect(t *testing.T) {
 }
 
 func TestCreateThread(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	var (
 		file *os.File
 		err  error
@@ -77,6 +85,9 @@ func TestCreateThread(t *testing.T) {
 }
 
 func TestExecute(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	var (
 		file *os.File
 		err  error
