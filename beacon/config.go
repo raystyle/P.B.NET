@@ -70,38 +70,38 @@ type Config struct {
 		Timeout       time.Duration `toml:"timeout"         msgpack:"c"`
 		QueueSize     int           `toml:"queue_size"      msgpack:"d"`
 		MaxBufferSize int           `toml:"max_buffer_size" msgpack:"e"`
-	} `toml:"sender" msgpack:"ff"`
+		Interactive   bool          `toml:"interactive"     msgpack:"f"`
+	} `toml:"sender" msgpack:"ee"`
 
 	Syncer struct {
 		ExpireTime time.Duration `toml:"expire_time" msgpack:"a"`
-	} `toml:"syncer" msgpack:"gg"`
+	} `toml:"syncer" msgpack:"ff"`
 
 	Worker struct {
 		Number        int `toml:"number"          msgpack:"a"`
 		QueueSize     int `toml:"queue_size"      msgpack:"b"`
 		MaxBufferSize int `toml:"max_buffer_size" msgpack:"c"`
-	} `toml:"worker" msgpack:"hh"`
+	} `toml:"worker" msgpack:"gg"`
 
-	// TODO rename
 	Driver struct {
 		// about query message from Controller
 		SleepFixed  uint `toml:"sleep_fixed"  msgpack:"a"`
 		SleepRandom uint `toml:"sleep_random" msgpack:"b"`
-	} `toml:"driver" msgpack:"jj"`
+	} `toml:"driver" msgpack:"hh"`
 
 	// generate from Controller
 	Ctrl struct {
 		KexPublicKey []byte `msgpack:"x"` // key exchange curve25519
 		PublicKey    []byte `msgpack:"y"` // verify message ed25519
 		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
-	} `toml:"-" msgpack:"kk"`
+	} `toml:"-" msgpack:"ii"`
 
 	// about service
 	Service struct {
 		Name        string `toml:"name"         msgpack:"a"`
 		DisplayName string `toml:"display_name" msgpack:"b"`
 		Description string `toml:"description"  msgpack:"c"`
-	} `toml:"service" msgpack:"ll"`
+	} `toml:"service" msgpack:"jj"`
 }
 
 // TestOptions include test options.

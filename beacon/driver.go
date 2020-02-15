@@ -26,7 +26,6 @@ type driver struct {
 	// about random.Sleep() in query
 	sleepFixed  atomic.Value
 	sleepRandom atomic.Value
-	sleeper     *random.Sleeper
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -46,7 +45,6 @@ func newDriver(ctx *Beacon, config *Config) (*driver, error) {
 	driver := driver{
 		ctx:           ctx,
 		nodeListeners: make(map[guid.GUID]map[uint64]*bootstrap.Listener),
-		sleeper:       random.NewSleeper(),
 	}
 	sleepFixed := cfg.SleepFixed
 	sleepRandom := cfg.SleepRandom
@@ -57,7 +55,8 @@ func newDriver(ctx *Beacon, config *Config) (*driver, error) {
 }
 
 func (driver *driver) Drive() {
-	driver.wg.Add(1)
+	driver.wg.Add(2)
+	go driver.clientWatcher()
 	go driver.queryLoop()
 }
 
@@ -65,6 +64,19 @@ func (driver *driver) Close() {
 	driver.cancel()
 	driver.wg.Wait()
 	driver.ctx = nil
+}
+
+func (driver *driver) getNodeListeners() map[guid.GUID]map[uint64]*bootstrap.Listener {
+	nodeListeners := make(map[guid.GUID]map[uint64]*bootstrap.Listener)
+	driver.nodeListenersRWM.RLock()
+	defer driver.nodeListenersRWM.RUnlock()
+	for nodeGUID, listeners := range driver.nodeListeners {
+		nodeListeners[nodeGUID] = make(map[uint64]*bootstrap.Listener)
+		for index, listener := range listeners {
+			nodeListeners[nodeGUID][index] = listener
+		}
+	}
+	return nodeListeners
 }
 
 // AddNodeListeners is used to add Node listeners(must be encrypted).
@@ -113,6 +125,56 @@ func (driver *driver) log(lv logger.Level, log ...interface{}) {
 	driver.ctx.logger.Println(lv, "driver", log...)
 }
 
+// clientWatcher is used to check Beacon is connected enough Nodes.
+func (driver *driver) clientWatcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			driver.log(logger.Fatal, xpanic.Print(r, "driver.clientWatcher"))
+			// restart queryLoop
+			time.Sleep(time.Second)
+			go driver.clientWatcher()
+		} else {
+			driver.wg.Done()
+		}
+	}()
+	sleeper := random.NewSleeper()
+	defer sleeper.Stop()
+	for {
+		select {
+		case <-sleeper.Sleep(5, 10):
+			driver.watchClient()
+		case <-driver.context.Done():
+			return
+		}
+	}
+}
+
+func (driver *driver) watchClient() {
+	if !driver.ctx.sender.IsInInteractiveMode() {
+		return
+	}
+	// check is enough
+	if len(driver.ctx.sender.Clients()) >= driver.ctx.sender.GetMaxConns() {
+		return
+	}
+	// connect node
+	for nodeGUID, listeners := range driver.getNodeListeners() {
+		var listener *bootstrap.Listener
+		for _, listener = range listeners {
+			break
+		}
+		if listener == nil {
+			continue
+		}
+		tempListener := listener.Decrypt()
+		_ = driver.ctx.sender.Synchronize(driver.context, &nodeGUID, tempListener)
+		tempListener.Destroy()
+		if len(driver.ctx.sender.Clients()) >= driver.ctx.sender.GetMaxConns() {
+			return
+		}
+	}
+}
+
 // queryLoop is used to query message from Controller.
 func (driver *driver) queryLoop() {
 	defer func() {
@@ -125,9 +187,13 @@ func (driver *driver) queryLoop() {
 			driver.wg.Done()
 		}
 	}()
+	sleeper := random.NewSleeper()
+	defer sleeper.Stop()
 	for {
+		sleepFixed := driver.sleepFixed.Load().(uint)
+		sleepRandom := driver.sleepRandom.Load().(uint)
 		select {
-		case <-driver.querySleep():
+		case <-sleeper.Sleep(sleepFixed, sleepRandom):
 			driver.query()
 		case <-driver.context.Done():
 			return
@@ -135,12 +201,13 @@ func (driver *driver) queryLoop() {
 	}
 }
 
-func (driver *driver) querySleep() <-chan time.Time {
-	sleepFixed := driver.sleepFixed.Load().(uint)
-	sleepRandom := driver.sleepRandom.Load().(uint)
-	return driver.sleeper.Sleep(sleepFixed, sleepRandom)
-}
-
 func (driver *driver) query() {
-
+	// check if connect some Nodes(maybe in interactive mode)
+	if len(driver.ctx.sender.Clients()) > 0 {
+		err := driver.ctx.sender.Query()
+		if err != nil {
+			driver.log(logger.Warning, "failed to query:", err)
+		}
+		return
+	}
 }

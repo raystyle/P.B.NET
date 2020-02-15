@@ -99,7 +99,8 @@ func (beacon *Beacon) NewClient(
 		}
 	}
 	if conn == nil {
-		return nil, errors.Errorf("failed to connect node listener: %s", bl)
+		const format = "failed to connect node listener: %s because: %s"
+		return nil, errors.Errorf(format, bl, err)
 	}
 
 	// handshake

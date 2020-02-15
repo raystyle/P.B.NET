@@ -89,6 +89,9 @@ type sender struct {
 	index    uint64
 	indexRWM sync.RWMutex
 
+	// interactive mode
+	interactive atomic.Value
+
 	guid *guid.Generator
 
 	inClose    int32
@@ -162,6 +165,10 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	sender.ackSlotPool.New = func() interface{} {
 		return make(chan struct{}, 1)
 	}
+
+	interactive := cfg.Interactive
+	sender.interactive.Store(interactive)
+
 	sender.guid = guid.New(cfg.QueueSize, ctx.global.Now)
 
 	// start sender workers
@@ -389,12 +396,6 @@ func (sender *sender) HandleAcknowledge(send *guid.GUID) {
 	}
 }
 
-func (sender *sender) getQueryIndex() uint64 {
-	sender.indexRWM.RLock()
-	defer sender.indexRWM.RUnlock()
-	return sender.index
-}
-
 // Query is used to query message from the Controller.
 func (sender *sender) Query() error {
 	if sender.isClosed() {
@@ -417,6 +418,12 @@ func (sender *sender) Query() error {
 	return result.Err
 }
 
+func (sender *sender) getQueryIndex() uint64 {
+	sender.indexRWM.RLock()
+	defer sender.indexRWM.RUnlock()
+	return sender.index
+}
+
 // CheckQueryIndex is used to check query index
 func (sender *sender) CheckQueryIndex(index uint64) bool {
 	sender.indexRWM.Lock()
@@ -426,6 +433,11 @@ func (sender *sender) CheckQueryIndex(index uint64) bool {
 	}
 	sender.index++
 	return true
+}
+
+// IsInInteractiveMode is used to check is in interactive mode.
+func (sender *sender) IsInInteractiveMode() bool {
+	return sender.interactive.Load().(bool)
 }
 
 func (sender *sender) Close() {

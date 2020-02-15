@@ -93,6 +93,7 @@ func TestConfig(t *testing.T) {
 		{expected: 512, actual: cfg.Sender.QueueSize},
 		{expected: 16384, actual: cfg.Sender.MaxBufferSize},
 		{expected: 15 * time.Second, actual: cfg.Sender.Timeout},
+		{expected: true, actual: cfg.Sender.Interactive},
 
 		{expected: 30 * time.Second, actual: cfg.Syncer.ExpireTime},
 
