@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-// Terminal is a interactive platform-independent shell.
+// Terminal is a interactive platform-independent system shell.
 type Terminal struct {
 	// input pipe
 	iPr *io.PipeReader
@@ -30,7 +30,7 @@ type Terminal struct {
 	wg        sync.WaitGroup
 }
 
-// NewTerminal is used to create a platform-independent shell.
+// NewTerminal is used to create a platform-independent system shell.
 func NewTerminal() *Terminal {
 	cd, _ := os.Getwd()
 	session := Terminal{
@@ -46,69 +46,69 @@ func NewTerminal() *Terminal {
 }
 
 // Read is used to read session output data.
-func (session *Terminal) Read(data []byte) (int, error) {
-	return session.oPr.Read(data)
+func (t *Terminal) Read(data []byte) (int, error) {
+	return t.oPr.Read(data)
 }
 
 // Write is used to write user input data.
-func (session *Terminal) Write(data []byte) (int, error) {
-	return session.iPw.Write(data)
+func (t *Terminal) Write(data []byte) (int, error) {
+	return t.iPw.Write(data)
 }
 
 // Close is used to close session, if this session is running a program,
 // it will be kill at the same time.
-func (session *Terminal) Close() error {
-	session.close()
-	session.wg.Wait()
+func (t *Terminal) Close() error {
+	t.close()
+	t.wg.Wait()
 	return nil
 }
 
-func (session *Terminal) close() {
-	session.closeOnce.Do(func() {
-		session.cancel()
-		_ = session.iPr.Close()
-		_ = session.iPw.Close()
-		_ = session.oPr.Close()
-		_ = session.oPw.Close()
+func (t *Terminal) close() {
+	t.closeOnce.Do(func() {
+		t.cancel()
+		_ = t.iPr.Close()
+		_ = t.iPw.Close()
+		_ = t.oPr.Close()
+		_ = t.oPw.Close()
 	})
 }
 
 // readInputLoop is used to read user input command and run.
-func (session *Terminal) readInputLoop() {
+func (t *Terminal) readInputLoop() {
 	// print hello
-	hello := []byte("welcome to interactive shell session [version 1.0.0]\n\n")
-	_, _ = session.oPw.Write(hello)
-	session.printInputLine()
+	hello := []byte("welcome to terminal [version 1.0.0]\n\n")
+	_, _ = t.oPw.Write(hello)
+	t.printInputLine()
 	var (
 		run bool
 		cmd *exec.Cmd
 	)
-	scanner := bufio.NewScanner(session.iPr)
+	scanner := bufio.NewScanner(t.iPr)
 	for scanner.Scan() {
 		if !run {
 			input := scanner.Text()
 			// simple split
 			args := strings.Split(input, " ")
 			if len(args) == 0 {
-				session.printInputLine()
+				t.printInputLine()
 				continue
 			}
 
 			// args := CommandLineToArgv(input)
 			// empty line
 
-			if session.executeInternalCommand(args[0], args[1:]) {
+			if t.executeInternalCommand(args[0], args[1:]) {
 				continue
 			}
 
-			cmd = exec.CommandContext(session.ctx, "")
+			cmd = exec.CommandContext(t.ctx, "")
 			// program output
-			cmd.Stderr = session.oPw
-			cmd.Stdout = session.oPw
-			cmd.Dir = session.cd
+			cmd.Stderr = t.oPw
+			cmd.Stdout = t.oPw
+			cmd.Dir = t.cd
 			// copy environment variable
-			env := make([]string, len(session.env))
-			copy(env, session.env)
+			env := make([]string, len(t.env))
+			copy(env, t.env)
 			cmd.Env = env
 
 			run = true
@@ -118,19 +118,21 @@ func (session *Terminal) readInputLoop() {
 	}
 }
 
-func (session *Terminal) printInputLine() {
-	line := []byte(session.cd + ">")
-	_, _ = session.oPw.Write(line)
+func (t *Terminal) printInputLine() {
+	line := []byte(t.cd + ">")
+	_, _ = t.oPw.Write(line)
 }
 
-func (session *Terminal) executeInternalCommand(cmd string, args []string) bool {
+func (t *Terminal) executeInternalCommand(cmd string, args []string) bool {
 	switch cmd {
 	case "cd": // change current path
-		session.cd = args[0]
+		t.cd = args[0]
 	case "set": // set environment variable
 
+	case "dir":
+
 	case "exit":
-		session.close()
+		t.close()
 	default:
 		return false
 	}

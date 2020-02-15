@@ -18,10 +18,10 @@ const (
 	MethodCreateThread   = "thread"
 )
 
-// Execute is used to execute shellcode
-// default method is VirtualProtect
-// it will block until shellcode return
-// warning: shellcode slice will be cover
+// Execute is used to execute shellcode.
+// default method is VirtualProtect,
+// it will block until shellcode return.
+// warning: shellcode slice will be cover.
 func Execute(method string, shellcode []byte) error {
 	switch method {
 	case "", MethodVirtualProtect:
@@ -77,7 +77,7 @@ func initFindProcVirtualProtect() {
 
 // VirtualProtect is used to use virtual protect to execute
 // shellcode, it will block until shellcode exit, so usually
-// need create a goroutine to execute VirtualProtect
+// need create a goroutine to execute VirtualProtect.
 func VirtualProtect(shellcode []byte) error {
 	l := len(shellcode)
 	if l == 0 {
@@ -204,7 +204,7 @@ func initFindProcThread() {
 
 // CreateThread is used to create thread to execute shellcode
 // it will block until shellcode exit, so usually need create
-// a goroutine to execute CreateThread
+// a goroutine to execute CreateThread.
 func CreateThread(shellcode []byte) error {
 	l := len(shellcode)
 	if l == 0 {

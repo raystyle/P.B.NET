@@ -2,31 +2,39 @@ package shellcode
 
 import (
 	"bytes"
+	"context"
 	"runtime"
 	"time"
 
 	"project/internal/random"
 )
 
-func doUseless(ch chan []byte) {
+func doUseless(ctx context.Context, ch chan []byte) {
+	defer func() { recover() }()
 	rand := random.New()
 	n := 100 + rand.Int(100)
 	for i := 0; i < n; i++ {
 		buf := bytes.Buffer{}
 		buf.Write(random.Bytes(16 + rand.Int(1024)))
-		ch <- buf.Bytes()
+		select {
+		case ch <- buf.Bytes():
+		case <-ctx.Done():
+			return
+		}
+		runtime.Gosched()
 	}
 }
 
 func schedule() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	rand := random.New()
 	// must > n* (n in doUseless)
 	bChan := make(chan []byte, 5120)
 	n := 8 + rand.Int(8)
 	for i := 0; i < n; i++ {
-		go doUseless(bChan)
+		go doUseless(ctx, bChan)
 	}
-	runtime.Gosched()
 	timer := time.NewTimer(25 * time.Millisecond)
 	defer timer.Stop()
 read:

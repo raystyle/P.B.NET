@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -13,8 +14,6 @@ import (
 )
 
 func TestSystem(t *testing.T) {
-	mahonia.NewDecoder("GBK")
-
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -25,28 +24,73 @@ func TestSystem(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		buf := make([]byte, 16)
+		reader := mahonia.NewDecoder("GBK").NewReader(system)
+		buf := make([]byte, 512)
 		for {
-			n, err := system.Read(buf)
+			n, err := reader.Read(buf)
 			if err != nil {
 				return
 			}
-			fmt.Print(string(buf[:n]))
+			_, err = os.Stdout.Write(buf[:n])
+			require.NoError(t, err)
 		}
 	}()
 
-	time.Sleep(time.Second)
+	// wait print welcome information
+	time.Sleep(1 * time.Second)
 
-	_, err = system.Write([]byte("cmd\n"))
-	require.NoError(t, err)
-	_, err = system.Write([]byte("whoami\n"))
-	require.NoError(t, err)
-	_, err = system.Write([]byte("exit\n"))
-	require.NoError(t, err)
-	_, err = system.Write([]byte("whoami\n\n"))
-	require.NoError(t, err)
+	command := []string{
+		"abc\n",
+		"wmic\n",
+		"asd\n",
+		"quit\n",
+		"whoami\n",
 
-	time.Sleep(time.Second)
+		"print.exe\n",
+		"abc\n",
+		"def\n",
+		"interrupt",
+
+		"print.exe\n",
+		"abc\n",
+		"def\n",
+		"interrupt",
+
+		"cmd\n",
+		"print.exe\n",
+		"abc\n",
+		"def\n",
+		"interrupt",
+		"whoami\n",
+		"exit\n",
+
+		"print.exe\n",
+		"abc\n",
+		"def\n",
+		"interrupt",
+
+		"ping",
+		"interrupt",
+		"interrupt",
+
+		"whoami\n",
+	}
+	for _, cmd := range command {
+		switch cmd {
+		case "interrupt":
+			err = system.Interrupt()
+			require.NoError(t, err)
+			time.Sleep(1 * time.Second)
+		case "ping":
+			_, err = system.Write([]byte("ping 8.8.8.8 -t\n"))
+			require.NoError(t, err)
+			time.Sleep(4 * time.Second)
+		default:
+			_, err = system.Write([]byte(cmd))
+			require.NoError(t, err)
+			time.Sleep(250 * time.Millisecond)
+		}
+	}
 
 	err = system.Close()
 	require.NoError(t, err)
