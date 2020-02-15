@@ -81,6 +81,7 @@ func TestTerminal(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	command := []string{
+		// about empty command
 		"\n",
 		"  \n",
 
@@ -89,7 +90,36 @@ func TestTerminal(t *testing.T) {
 		"  cd ..\n",
 		"cd shell\n",
 		`cd "doesn't exist"` + "\n",
+
+		// about environment variable
+		"  set\n",
+		"  set   \n",
+		"set  p\n",
+		"set  pt\n",
+		"set  =  \n",
+		"set  test=value 1\n",
+		"set test\n",
+		"set test=value 2\n",
+		"set test\n",
+		"set test=\n",
+		"set test\n",
+		"set\n",
+
+		// about dir
+		"dir\n",
+		"ls\n",
+		"cd ..\n",
+		"dir\n",
+		"ls\n",
+		"dir shell\n",
+		"ls shell\n",
+
+		"cd C:\\Windows\\System32\n",
+		"cd /\n",
+
+		"exit\n",
 	}
+
 	for _, cmd := range command {
 		switch cmd {
 		case "interrupt":

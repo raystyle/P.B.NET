@@ -2,16 +2,20 @@ package shell
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
 
+	"project/internal/convert"
+	"project/internal/logger"
 	"project/internal/xpanic"
 )
 
@@ -133,9 +137,9 @@ func (t *Terminal) readInputLoop() {
 			// check is internal command
 			commandLine := strings.SplitN(trimPrefixSpace(input), " ", 2)
 			command := commandLine[0]
-			var args []string
+			var args string
 			if len(commandLine) == 2 {
-				args = CommandLineToArgv(commandLine[1])
+				args = commandLine[1]
 			}
 			if t.executeInternalCommand(command, args) {
 				t.printCurrentDirectory()
@@ -178,16 +182,16 @@ func (t *Terminal) printCurrentDirectory() {
 	_, _ = t.oPw.Write(line)
 }
 
-func (t *Terminal) executeInternalCommand(cmd string, args []string) bool {
+func (t *Terminal) executeInternalCommand(cmd, args string) bool {
 	switch cmd {
 	case "":
 		// no input
 	case "cd": // change current path
 		t.changeDirectory(args)
 	case "set": // set environment variable
-
-	case "dir":
-
+		t.environmentVariable(args)
+	case "dir", "ls":
+		t.dir(args)
 	case "exit":
 		t.close()
 	default:
@@ -196,21 +200,160 @@ func (t *Terminal) executeInternalCommand(cmd string, args []string) bool {
 	return true
 }
 
-func (t *Terminal) changeDirectory(args []string) {
-	if len(args) == 0 {
+func (t *Terminal) changeDirectory(args string) {
+	cd := CommandLineToArgv(args)
+	if len(cd) == 0 {
 		return
 	}
-	err := os.Chdir(args[0])
+	path := cd[0]
+	var dstPath string
+	// check is abs
+	if filepath.IsAbs(path) {
+		dstPath = path
+	} else {
+		dstPath = t.cd + "/" + path
+	}
+	f, err := filepath.Abs(dstPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
 		return
 	}
-	path, err := os.Getwd()
+	// check is exist
+	_, err = os.Stat(f)
 	if err != nil {
-		_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
+		if os.IsNotExist(err) {
+			_, _ = fmt.Fprintf(t.oPw, "directory \"%s\" is not exist\n\n", path)
+		} else {
+			_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
+		}
 		return
 	}
-	t.cd = path
+	t.cd = f
+	// print empty line
+	_, _ = fmt.Fprintln(t.oPw)
+}
+
+func (t *Terminal) environmentVariable(args string) {
+	args = trimPrefixSpace(args)
+	if args == "" {
+		t.printEnvironmentVariable()
+		return
+	}
+	// has "="
+	if !strings.Contains(args, "=") {
+		t.findEnvironmentVariable(args)
+		return
+	}
+	t.setEnvironmentVariable(args)
+}
+
+func (t *Terminal) printEnvironmentVariable() {
+	buf := new(bytes.Buffer)
+	for i := 0; i < len(t.env); i++ {
+		_, _ = fmt.Fprintln(buf, t.env[i])
+	}
+	// print empty line
+	_, _ = fmt.Fprintln(buf)
+	_, _ = buf.WriteTo(t.oPw)
+}
+
+func (t *Terminal) findEnvironmentVariable(name string) {
+	buf := new(bytes.Buffer)
+	var find bool
+	for i := 0; i < len(t.env); i++ {
+		if strings.HasPrefix(strings.ToLower(t.env[i]), strings.ToLower(name)) {
+			_, _ = fmt.Fprintln(buf, t.env[i])
+			find = true
+		}
+	}
+	if !find {
+		const format = "environment variable %s is not defined\n"
+		_, _ = fmt.Fprintf(buf, format, name)
+	}
+	// print empty line
+	_, _ = fmt.Fprintln(buf)
+	_, _ = buf.WriteTo(t.oPw)
+}
+
+func (t *Terminal) setEnvironmentVariable(args string) {
+	nv := strings.SplitN(args, "=", 2)
+	name := nv[0]
+	value := nv[1]
+	if name == "" {
+		_, _ = fmt.Fprintf(t.oPw, "no variable name\n\n")
+		return
+	}
+	if value == "" { // delete
+		for i := 0; i < len(t.env); i++ {
+			tNV := strings.SplitN(t.env[i], "=", 2)
+			tName := tNV[0]
+			if tName == name {
+				t.env = append(t.env[:i], t.env[i+1:]...)
+				break
+			}
+		}
+	} else { // set or add
+		var added bool
+		for i := 0; i < len(t.env); i++ {
+			tNV := strings.SplitN(t.env[i], "=", 2)
+			tName := tNV[0]
+			if tName == name {
+				t.env[i] = args
+				added = true
+				break
+			}
+		}
+		if !added {
+			t.env = append(t.env, args)
+		}
+	}
+	// print empty line
+	_, _ = fmt.Fprintln(t.oPw)
+}
+
+func (t *Terminal) dir(args string) {
+	dir := CommandLineToArgv(args)
+
+	buf := new(bytes.Buffer)
+	walk := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(buf, "%30s  ", path)
+
+		// time
+		_, _ = fmt.Fprintf(buf, "%s  ", info.ModTime().Format(logger.TimeLayout))
+		// mode
+		_, _ = fmt.Fprintf(buf, "%s  ", info.Mode().Perm())
+		// is directory
+		if info.IsDir() {
+			_, _ = fmt.Fprint(buf, "<dir>  ")
+			// about size
+			_, _ = fmt.Fprint(buf, "        ") // len(convert.ByteToString()) = 8
+			_, _ = fmt.Fprint(buf, "  ")
+			_, _ = fmt.Fprint(buf, "         ")
+		} else {
+			_, _ = fmt.Fprint(buf, "       ")
+			size := info.Size()
+			_, _ = fmt.Fprintf(buf, "%s", convert.ByteToString(uint64(size)))
+			_, _ = fmt.Fprint(buf, "  ")
+			_, _ = fmt.Fprintf(buf, "%9d", size)
+		}
+		// name
+		_, _ = fmt.Fprintf(buf, "  %s\n", info.Name())
+		return nil
+	}
+	var err error
+	if len(dir) == 0 {
+		err = filepath.Walk(".", walk)
+	} else {
+		err = filepath.Walk(dir[0], walk)
+	}
+	if err != nil {
+		_, _ = fmt.Fprintln(t.oPw, err)
+	} else {
+		_, _ = buf.WriteTo(t.oPw)
+	}
 	// print empty line
 	_, _ = fmt.Fprintln(t.oPw)
 }
