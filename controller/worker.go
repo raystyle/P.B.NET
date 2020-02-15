@@ -509,9 +509,9 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 			return
 		}
 		if sw.err == ErrNoConnections {
-			sw.log(logger.Warning, "failed to answer:", sw.err)
+			sw.log(logger.Warning, "failed answer in handle query:", sw.err)
 		} else {
-			sw.log(logger.Error, "failed to answer:", sw.err)
+			sw.log(logger.Error, "failed answer in handle query:", sw.err)
 		}
 		// wait one second
 		sw.timer.Reset(time.Second)

@@ -10,6 +10,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/protocol"
@@ -134,7 +135,7 @@ func (ctrl *Ctrl) registerNode(
 // AcceptRegisterNode is used to accept register Node.
 func (ctrl *Ctrl) AcceptRegisterNode(
 	nrr *messages.NodeRegisterRequest,
-	listeners map[string]*bootstrap.Listener,
+	listeners map[guid.GUID][]*bootstrap.Listener,
 	bootstrap bool,
 ) error {
 	// TODO add Log
@@ -221,7 +222,7 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 // AcceptRegisterBeacon is used to accept register Beacon.
 func (ctrl *Ctrl) AcceptRegisterBeacon(
 	brr *messages.BeaconRegisterRequest,
-	listeners map[string]*bootstrap.Listener,
+	listeners map[guid.GUID][]*bootstrap.Listener,
 ) error {
 	err := ctrl.registerBeacon(brr)
 	if err != nil {
