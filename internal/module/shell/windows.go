@@ -25,7 +25,8 @@ func createCommand(path string, args []string) *exec.Cmd {
 	}
 	cmd := exec.Command(path, args...) // #nosec
 	attr := syscall.SysProcAttr{
-		HideWindow: true,
+		HideWindow:    true,
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 	cmd.SysProcAttr = &attr
 	return cmd
@@ -53,7 +54,7 @@ func setConsoleCtrlHandler(_ uintptr) uintptr {
 	return uintptr(1)
 }
 
-func sendInterruptSignal(_ *exec.Cmd) error {
+func sendInterruptSignal(cmd *exec.Cmd) error {
 	dll, err := syscall.LoadDLL("kernel32.dll")
 	if err != nil {
 		return err
@@ -76,7 +77,8 @@ func sendInterruptSignal(_ *exec.Cmd) error {
 	if err != nil {
 		return err
 	}
-	r1, _, err = proc.Call(syscall.CTRL_C_EVENT, uintptr(0))
+	pid := cmd.Process.Pid
+	r1, _, err = proc.Call(syscall.CTRL_BREAK_EVENT, uintptr(pid))
 	if r1 == 0 {
 		return errors.Errorf("failed to call CTRL_C_EVENT: %s", err)
 	}

@@ -7,11 +7,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axgle/mahonia"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite"
 )
+
+func TestTrimPrefixSpace(t *testing.T) {
+	testdata := []struct {
+		input  string
+		except string
+	}{
+		{input: "a  ", except: "a  "},
+		{input: "  a", except: "a"},
+		{input: "   ", except: ""},
+		{input: "  a ", except: "a "},
+	}
+	for i := 0; i < len(testdata); i++ {
+		require.Equal(t, testdata[i].except, trimPrefixSpace(testdata[i].input))
+	}
+}
 
 func TestCommandLineToArgv(t *testing.T) {
 	exe1 := "test"
@@ -45,17 +59,16 @@ func TestTerminal(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	system, err := NewSystem("", nil, "")
+	terminal, err := NewTerminal()
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		reader := mahonia.NewDecoder("GBK").NewReader(system)
 		buf := make([]byte, 512)
 		for {
-			n, err := reader.Read(buf)
+			n, err := terminal.Read(buf)
 			if err != nil {
 				return
 			}
@@ -68,54 +81,33 @@ func TestTerminal(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	command := []string{
-		"abc\n",
-		"wmic\n",
-		"asd\n",
-		"quit\n",
-		"whoami\n",
+		"\n",
+		"  \n",
 
-		"print.exe\n",
-		"abc\n",
-		"def\n",
-		"interrupt",
-
-		"print.exe\n",
-		"abc\n",
-		"def\n",
-		"interrupt",
-
-		"cmd\n",
-		"print.exe\n",
-		"abc\n",
-		"def\n",
-		"interrupt",
-		"whoami\n",
-		"exit\n",
-
-		"print.exe\n",
-		"abc\n",
-		"def\n",
-		"interrupt",
-
-		"ping 8.8.8.8\n",
-		"interrupt",
-		"interrupt",
-
-		"whoami\n",
+		// about change directory
+		"  cd\n",
+		"  cd ..\n",
+		"cd shell\n",
+		`cd "doesn't exist"` + "\n",
 	}
 	for _, cmd := range command {
 		switch cmd {
 		case "interrupt":
-			err = system.Interrupt()
+			err = terminal.Interrupt()
 			require.NoError(t, err)
+			time.Sleep(1 * time.Second)
+		case "ping":
+			_, err = terminal.Write([]byte("ping 8.8.8.8 -t\n"))
+			require.NoError(t, err)
+			time.Sleep(4 * time.Second)
 		default:
-			_, err = system.Write([]byte(cmd))
+			_, err = terminal.Write([]byte(cmd))
 			require.NoError(t, err)
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(250 * time.Millisecond)
 		}
 	}
 
-	err = system.Close()
+	err = terminal.Close()
 	require.NoError(t, err)
 
 	wg.Wait()

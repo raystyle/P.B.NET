@@ -3,22 +3,34 @@ package shell
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
+	"unicode/utf8"
+
+	"project/internal/xpanic"
 )
+
+// Welcome to terminal [version 1.0.0]
+//
+// C:\Windows\System32>
 
 // Terminal is a interactive platform-independent system shell.
 type Terminal struct {
 	// input pipe
-	iPr *io.PipeReader
-	iPw *io.PipeWriter
+	iPr *os.File
+	iPw *os.File
 
 	// output pipe
-	oPr *io.PipeReader
-	oPw *io.PipeWriter
+	oPr *os.File
+	oPw *os.File
+
+	// multi writer, record user input
+	input io.Writer
 
 	// status
 	cd  string
@@ -31,35 +43,55 @@ type Terminal struct {
 }
 
 // NewTerminal is used to create a platform-independent system shell.
-func NewTerminal() *Terminal {
-	cd, _ := os.Getwd()
-	session := Terminal{
+func NewTerminal() (*Terminal, error) {
+	cd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	terminal := Terminal{
 		cd:  cd,
 		env: os.Environ(),
 	}
-	session.iPr, session.iPw = io.Pipe()
-	session.oPr, session.oPw = io.Pipe()
-	session.ctx, session.cancel = context.WithCancel(context.Background())
-	session.wg.Add(1)
-	go session.readInputLoop()
-	return &session
+	iPr, iPw, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	terminal.iPr = iPr
+	terminal.iPw = iPw
+	oPr, oPw, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	terminal.oPr = oPr
+	terminal.oPw = oPw
+	// must copy
+	terminal.input = io.MultiWriter(terminal.iPw, terminal.oPw)
+	terminal.ctx, terminal.cancel = context.WithCancel(context.Background())
+	terminal.wg.Add(1)
+	go terminal.readInputLoop()
+	return &terminal, nil
 }
 
-// Read is used to read session output data.
+// Read is used to read terminal output data.
 func (t *Terminal) Read(data []byte) (int, error) {
 	return t.oPr.Read(data)
 }
 
 // Write is used to write user input data.
 func (t *Terminal) Write(data []byte) (int, error) {
-	return t.iPw.Write(data)
+	return t.input.Write(data)
 }
 
-// Close is used to close session, if this session is running a program,
+// Close is used to close terminal, if this terminal is running a program,
 // it will be kill at the same time.
 func (t *Terminal) Close() error {
 	t.close()
 	t.wg.Wait()
+	return nil
+}
+
+// Interrupt is used to send interrupt signal to opened process.
+func (t *Terminal) Interrupt() error {
 	return nil
 }
 
@@ -75,10 +107,21 @@ func (t *Terminal) close() {
 
 // readInputLoop is used to read user input command and run.
 func (t *Terminal) readInputLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			_, _ = xpanic.Print(r, "Terminal.readInputLoop").WriteTo(t.oPw)
+			// restart
+			time.Sleep(time.Second)
+			go t.readInputLoop()
+		} else {
+			t.wg.Done()
+		}
+	}()
+
 	// print hello
-	hello := []byte("welcome to terminal [version 1.0.0]\n\n")
+	hello := []byte("Welcome to terminal [version 1.0.0]\n\n")
 	_, _ = t.oPw.Write(hello)
-	t.printInputLine()
+	t.printCurrentDirectory()
 	var (
 		run bool
 		cmd *exec.Cmd
@@ -87,17 +130,15 @@ func (t *Terminal) readInputLoop() {
 	for scanner.Scan() {
 		if !run {
 			input := scanner.Text()
-			// simple split
-			args := strings.Split(input, " ")
-			if len(args) == 0 {
-				t.printInputLine()
-				continue
+			// check is internal command
+			commandLine := strings.SplitN(trimPrefixSpace(input), " ", 2)
+			command := commandLine[0]
+			var args []string
+			if len(commandLine) == 2 {
+				args = CommandLineToArgv(commandLine[1])
 			}
-
-			// args := CommandLineToArgv(input)
-			// empty line
-
-			if t.executeInternalCommand(args[0], args[1:]) {
+			if t.executeInternalCommand(command, args) {
+				t.printCurrentDirectory()
 				continue
 			}
 
@@ -118,15 +159,31 @@ func (t *Terminal) readInputLoop() {
 	}
 }
 
-func (t *Terminal) printInputLine() {
+// trimPrefixSpace is used to remove space in prefix
+// "  a" -> "a"
+func trimPrefixSpace(s string) string {
+	r := []rune(s)
+	l := len(r)
+	space, _ := utf8.DecodeRuneInString(" ")
+	for i := 0; i < l; i++ {
+		if r[i] != space {
+			return string(r[i:])
+		}
+	}
+	return ""
+}
+
+func (t *Terminal) printCurrentDirectory() {
 	line := []byte(t.cd + ">")
 	_, _ = t.oPw.Write(line)
 }
 
 func (t *Terminal) executeInternalCommand(cmd string, args []string) bool {
 	switch cmd {
+	case "":
+		// no input
 	case "cd": // change current path
-		t.cd = args[0]
+		t.changeDirectory(args)
 	case "set": // set environment variable
 
 	case "dir":
@@ -137,6 +194,25 @@ func (t *Terminal) executeInternalCommand(cmd string, args []string) bool {
 		return false
 	}
 	return true
+}
+
+func (t *Terminal) changeDirectory(args []string) {
+	if len(args) == 0 {
+		return
+	}
+	err := os.Chdir(args[0])
+	if err != nil {
+		_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
+		return
+	}
+	path, err := os.Getwd()
+	if err != nil {
+		_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
+		return
+	}
+	t.cd = path
+	// print empty line
+	_, _ = fmt.Fprintln(t.oPw)
 }
 
 // CommandLineToArgv splits a command line into individual argument
