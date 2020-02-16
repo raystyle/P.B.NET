@@ -3,7 +3,6 @@ package shell
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -40,11 +39,11 @@ type Terminal struct {
 	input io.Writer
 
 	// status
-	cd  string
-	env []string
+	cd   string
+	env  []string
+	cmd  *exec.Cmd
+	cmdM sync.Mutex
 
-	ctx       context.Context
-	cancel    context.CancelFunc
 	closeOnce sync.Once
 	wg        sync.WaitGroup
 }
@@ -77,7 +76,6 @@ func NewTerminal(copy bool) (*Terminal, error) {
 	} else {
 		terminal.input = terminal.iPw
 	}
-	terminal.ctx, terminal.cancel = context.WithCancel(context.Background())
 	terminal.wg.Add(1)
 	go terminal.readInputLoop()
 	return &terminal, nil
@@ -96,6 +94,11 @@ func (t *Terminal) Write(data []byte) (int, error) {
 // Close is used to close terminal, if this terminal is running a program,
 // it will be kill at the same time.
 func (t *Terminal) Close() error {
+	cmd := t.getProcess()
+	if cmd != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Process.Release()
+	}
 	t.close()
 	t.wg.Wait()
 	return nil
@@ -103,12 +106,15 @@ func (t *Terminal) Close() error {
 
 // Interrupt is used to send interrupt signal to opened process.
 func (t *Terminal) Interrupt() error {
+	cmd := t.getProcess()
+	if cmd != nil {
+		return sendInterruptSignal(t.cmd)
+	}
 	return nil
 }
 
 func (t *Terminal) close() {
 	t.closeOnce.Do(func() {
-		t.cancel()
 		_ = t.iPr.Close()
 		_ = t.iPw.Close()
 		_ = t.oPr.Close()
@@ -128,46 +134,63 @@ func (t *Terminal) readInputLoop() {
 			t.wg.Done()
 		}
 	}()
-
 	// print hello
 	hello := []byte("Welcome to terminal [version 1.0.0]\n\n")
 	_, _ = t.oPw.Write(hello)
 	t.printCurrentDirectory()
-	var (
-		run bool
-		cmd *exec.Cmd
-	)
 	scanner := bufio.NewScanner(t.iPr)
 	for scanner.Scan() {
-		if !run {
-			input := scanner.Text()
-			// check is internal command
-			commandLine := strings.SplitN(trimPrefixSpace(input), " ", 2)
-			command := commandLine[0]
-			var args string
-			if len(commandLine) == 2 {
-				args = commandLine[1]
-			}
-			if t.executeInternalCommand(command, args) {
-				t.printCurrentDirectory()
-				continue
-			}
-
-			cmd = exec.CommandContext(t.ctx, "")
-			// program output
-			cmd.Stderr = t.oPw
-			cmd.Stdout = t.oPw
-			cmd.Dir = t.cd
-			// copy environment variable
-			env := make([]string, len(t.env))
-			copy(env, t.env)
-			cmd.Env = env
-
-			run = true
-		} else {
-
+		input := scanner.Text()
+		// check is internal command
+		commandLine := strings.SplitN(trimPrefixSpace(input), " ", 2)
+		command := commandLine[0]
+		var args string
+		if len(commandLine) == 2 {
+			args = commandLine[1]
 		}
+		if t.executeInternalCommand(command, args) {
+			t.printCurrentDirectory()
+			continue
+		}
+		t.startProcess(input)
+		t.printCurrentDirectory()
 	}
+}
+
+func (t *Terminal) setProcess(cmd *exec.Cmd) {
+	t.cmdM.Lock()
+	defer t.cmdM.Unlock()
+	t.cmd = cmd
+}
+
+func (t *Terminal) getProcess() *exec.Cmd {
+	t.cmdM.Lock()
+	defer t.cmdM.Unlock()
+	return t.cmd
+}
+
+func (t *Terminal) startProcess(command string) bool {
+	argv := CommandLineToArgv(command)
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.SysProcAttr = setSysProcAttr()
+	// program output
+	cmd.Stdin = t.iPr
+	cmd.Stderr = t.oPw
+	cmd.Stdout = t.oPw
+	cmd.Dir = t.cd
+	// copy environment variable
+	env := make([]string, len(t.env))
+	copy(env, t.env)
+	cmd.Env = env
+	err := cmd.Start()
+	if err != nil {
+		_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
+		return false
+	}
+	t.setProcess(cmd)
+	_ = cmd.Wait()
+	_, _ = fmt.Fprintln(t.oPw)
+	return true
 }
 
 // trimPrefixSpace is used to remove space in prefix
@@ -318,31 +341,34 @@ func (t *Terminal) setEnvironmentVariable(args string) {
 }
 
 func (t *Terminal) dir(args string) {
+	// calculate path
 	dir := CommandLineToArgv(args)
 	var (
-		list []os.FileInfo
-		err  error
+		rawPath string
+		path    string
+		list    []os.FileInfo
+		err     error
 	)
 	if len(dir) == 0 {
-		list, err = ioutil.ReadDir(t.cd)
+		rawPath = t.cd
+		path = t.cd
 	} else {
-		path := dir[0]
-		var dstPath string
-		if filepath.IsAbs(path) {
-			dstPath = path
+		rawPath = dir[0]
+		if filepath.IsAbs(rawPath) {
+			path = rawPath
 		} else {
-			dstPath = t.cd + "/" + path
+			path = t.cd + "/" + rawPath
 		}
-		list, err = ioutil.ReadDir(dstPath)
 	}
+	list, err = ioutil.ReadDir(path)
 	if err != nil {
-		_, _ = fmt.Fprintf(t.oPw, "%s\n\n", err)
+		_, _ = fmt.Fprintf(t.oPw, "directory \"%s\" is not exist\n\n", rawPath)
 		return
 	}
+	// sort, directory first, then file.
 	sort.Slice(list, func(i, j int) bool {
 		return strings.ToLower(list[i].Name()) < strings.ToLower(list[j].Name())
 	})
-	buf := new(bytes.Buffer)
 	var (
 		dirList  []os.FileInfo
 		fileList []os.FileInfo
@@ -356,7 +382,7 @@ func (t *Terminal) dir(args string) {
 		} else {
 			size := list[i].Size()
 			sizeStrLen := len(convert.ByteToString(uint64(size)))
-			sizeLen := len(strconv.FormatInt(size, 10))
+			sizeLen := len(convert.FormatNumber(strconv.FormatInt(size, 10)))
 			if sizeStrLen > maxSizeStrLen {
 				maxSizeStrLen = sizeStrLen
 			}
@@ -366,6 +392,7 @@ func (t *Terminal) dir(args string) {
 			fileList = append(fileList, list[i])
 		}
 	}
+	// print
 	const (
 		splitSpaceSize = 1
 		fixedSize      = 5 // " Byte"
@@ -374,6 +401,7 @@ func (t *Terminal) dir(args string) {
 	if maxSizeStrLen > 0 {
 		paddingSize += fixedSize
 	}
+	buf := new(bytes.Buffer)
 	for i := 0; i < len(dirList); i++ {
 		info := dirList[i]
 		// time
@@ -398,8 +426,8 @@ func (t *Terminal) dir(args string) {
 		format := "%" + strconv.Itoa(maxSizeStrLen) + "s"
 		_, _ = fmt.Fprintf(buf, format, convert.ByteToString(uint64(size)))
 		_, _ = fmt.Fprint(buf, strings.Repeat(" ", splitSpaceSize))
-		format = "%" + strconv.Itoa(maxSizeLen) + "d Byte"
-		_, _ = fmt.Fprintf(buf, format, size)
+		format = "%" + strconv.Itoa(maxSizeLen) + "s Byte"
+		_, _ = fmt.Fprintf(buf, format, convert.FormatNumber(strconv.FormatInt(size, 10)))
 		_, _ = fmt.Fprintf(buf, " %s\n", info.Name())
 	}
 	_, _ = buf.WriteTo(t.oPw)

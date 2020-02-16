@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/axgle/mahonia"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite"
@@ -66,13 +67,16 @@ func TestTerminal(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		reader := mahonia.NewDecoder("GBK").NewReader(terminal)
 		buf := make([]byte, 512)
 		for {
-			n, err := terminal.Read(buf)
+			n, err := reader.Read(buf)
 			if err != nil {
 				return
 			}
-			_, err = os.Stdout.Write(buf[:n])
+			data := make([]byte, n)
+			copy(data, buf[:n])
+			_, err = os.Stdout.Write(data)
 			require.NoError(t, err)
 		}
 	}()
@@ -113,8 +117,20 @@ func TestTerminal(t *testing.T) {
 		"ls\n",
 		"dir shell\n",
 		"ls shell\n",
+		"cd ../..\n",
+		"dir\n",
+		"ls\n",
+		`dir "doesn't exist"` + "\n",
 
-		"cd C:\\windows\\system32\n",
+		// about execute
+		"ping",
+		"interrupt",
+		"\"does not exist\"\n",
+
+		// last
+		"dir C:\\windows\n",
+		"dir /\n",
+		"cd C:\\windows\n",
 		"cd /\n",
 
 		"exit\n",
