@@ -47,7 +47,7 @@ type Send struct {
 	RoleGUID  guid.GUID // receiver GUID
 	Hash      []byte    // raw message hash
 	Signature []byte    // sign(GUID + RoleGUID + Hash + Message)
-	Message   []byte    // encrypted
+	Message   []byte    // use gzip and AES to compress and encrypt
 }
 
 // NewSend is used to create a send, Unpack() need it,
@@ -300,7 +300,7 @@ type Answer struct {
 	Index      uint64 // compare Query.Index
 	Hash       []byte // raw message hash
 	Signature  []byte
-	Message    []byte // encrypted
+	Message    []byte // use gzip and AES to compress and encrypt
 }
 
 // NewAnswer is used to create a answer, Unpack() need it,

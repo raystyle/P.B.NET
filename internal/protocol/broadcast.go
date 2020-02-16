@@ -22,7 +22,7 @@ type Broadcast struct {
 	GUID      guid.GUID // prevent duplicate handle it
 	Hash      []byte    // raw message hash
 	Signature []byte    // sign(GUID + Hash + Message)
-	Message   []byte    // encrypted
+	Message   []byte    // use gzip and AES to compress and encrypt
 }
 
 // NewBroadcast is used to create a broadcast, Unpack() need it
