@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
@@ -198,8 +199,11 @@ type subWorker struct {
 	queryPool *sync.Pool
 
 	// runtime
-	buffer    *bytes.Buffer
-	hash      hash.Hash
+	buffer     *bytes.Buffer
+	reader     *bytes.Reader
+	gzipReader *gzip.Reader
+	hash       hash.Hash
+
 	node      *mNode
 	beacon    *mBeacon
 	publicKey ed25519.PublicKey
@@ -233,8 +237,11 @@ func (sw *subWorker) WorkWithBlock() {
 		}
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	sw.reader = bytes.NewReader(nil)
+	sw.gzipReader = new(gzip.Reader)
 	sw.hash = sha256.New()
-	sw.timer = time.NewTimer(time.Second)
+	// must stop at once, or maybe timeout at the first time.
+	sw.timer = time.NewTimer(time.Minute)
 	sw.timer.Stop()
 	defer sw.timer.Stop()
 	var (
@@ -346,9 +353,11 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 		return
 	}
 	defer sw.node.SessionKey.Put(sessionKey)
-	if !sw.handleRoleSend(protocol.Node, send) {
+	aesBuffer := sw.handleRoleSend(protocol.Node, send)
+	if aesBuffer == nil {
 		return
 	}
+	defer func() { send.Message = aesBuffer }()
 	sw.ctx.handler.OnNodeSend(send)
 	for {
 		sw.err = sw.ctx.sender.AckToNode(send)
@@ -377,9 +386,11 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 		return
 	}
 	defer sw.beacon.SessionKey.Put(sessionKey)
-	if !sw.handleRoleSend(protocol.Beacon, send) {
+	aesBuffer := sw.handleRoleSend(protocol.Beacon, send)
+	if aesBuffer == nil {
 		return
 	}
+	defer func() { send.Message = aesBuffer }()
 	sw.ctx.handler.OnBeaconSend(send)
 	for {
 		sw.err = sw.ctx.sender.AckToBeacon(send)
@@ -401,8 +412,8 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 	}
 }
 
-// return cache
-func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) bool {
+// return aesBuffer
+func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []byte {
 	// verify
 	sw.buffer.Reset()
 	sw.buffer.Write(send.GUID[:])
@@ -412,24 +423,48 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) boo
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid %s send signature\n%s"
 		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
-		return false
+		return nil
 	}
-	// decrypt message
+	// decrypt compressed message
 	send.Message, sw.err = aes.CBCDecrypt(send.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
 		const format = "failed to decrypt %s send: %s\n%s"
 		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
-		return false
+		return nil
+	}
+	// decompress message
+	sw.reader.Reset(send.Message)
+	sw.err = sw.gzipReader.Reset(sw.reader)
+	if sw.err != nil {
+		const format = "failed to load gzip header from %s send: %s\n%s"
+		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
+		return nil
+	}
+	sw.buffer.Reset()
+	_, sw.err = sw.buffer.ReadFrom(sw.gzipReader)
+	if sw.err != nil {
+		const format = "failed to decompress %s send: %s\n%s"
+		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
+		return nil
+	}
+	sw.err = sw.gzipReader.Close()
+	if sw.err != nil {
+		const format = "failed to close gzip reader about %s send: %s\n%s"
+		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
+		return nil
 	}
 	// compare hash
 	sw.hash.Reset()
-	sw.hash.Write(send.Message)
+	sw.hash.Write(sw.buffer.Bytes())
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
 		const format = "%s send with incorrect hash\n%s"
 		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
-		return false
+		return nil
 	}
-	return true
+	// must recover it, otherwise will appear data race
+	aesBuffer := send.Message
+	send.Message = sw.buffer.Bytes()
+	return aesBuffer
 }
 
 func (sw *subWorker) handleNodeAcknowledge(ack *protocol.Acknowledge) {

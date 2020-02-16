@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 
 // errors
 var (
+	ErrTooBigMessage        = fmt.Errorf("too big message")
 	ErrNoConnections        = fmt.Errorf("no connections")
 	ErrFailedToSendToNode   = fmt.Errorf("failed to send to node")
 	ErrFailedToSendToBeacon = fmt.Errorf("failed to send to beacon")
@@ -1038,10 +1040,11 @@ type senderWorker struct {
 	maxBufferSize int
 
 	// runtime
-	buffer  *bytes.Buffer
-	msgpack *msgpack.Encoder
-	hash    hash.Hash
-	err     error
+	buffer     *bytes.Buffer
+	msgpack    *msgpack.Encoder
+	gzipBuffer *bytes.Buffer
+	gzipWriter *gzip.Writer
+	hash       hash.Hash
 
 	// prepare task objects
 	preS protocol.Send
@@ -1072,8 +1075,11 @@ func (sw *senderWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
+	sw.gzipBuffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	sw.gzipWriter = gzip.NewWriter(sw.gzipBuffer)
 	sw.hash = sha256.New()
-	sw.timer = time.NewTimer(sw.timeout)
+	// must stop at once, or maybe timeout at the first time.
+	sw.timer = time.NewTimer(time.Minute)
 	sw.timer.Stop()
 	defer sw.timer.Stop()
 	var (
@@ -1132,7 +1138,7 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 	sw.aesKey = sessionKey
 	sw.aesIV = sessionKey[:aes.IVSize]
 	// pack
-	result.Err = sw.packSendData(st)
+	sw.packSendData(st, result)
 	if result.Err != nil {
 		return
 	}
@@ -1188,14 +1194,14 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 	sw.aesIV = sessionKey[:aes.IVSize]
 	// check is need to write message to the database
 	if !sw.ctx.isInInteractiveMode(st.GUID) {
-		result.Err = sw.insertBeaconMessage(st)
+		sw.insertBeaconMessage(st, result)
 		if result.Err == nil {
 			result.Success = 1
 		}
 		return
 	}
 	// pack
-	result.Err = sw.packSendData(st)
+	sw.packSendData(st, result)
 	if result.Err != nil {
 		return
 	}
@@ -1229,7 +1235,7 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 	}
 }
 
-func (sw *senderWorker) packSendData(st *sendTask) error {
+func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) {
 	// pack message(interface)
 	if st.MessageI != nil {
 		sw.buffer.Reset()
@@ -1237,22 +1243,33 @@ func (sw *senderWorker) packSendData(st *sendTask) error {
 		if msg, ok := st.MessageI.([]byte); ok {
 			sw.buffer.Write(msg)
 		} else {
-			sw.err = sw.msgpack.Encode(st.MessageI)
-			if sw.err != nil {
-				return sw.err
+			result.Err = sw.msgpack.Encode(st.MessageI)
+			if result.Err != nil {
+				return
 			}
 		}
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
 	}
-	// check message size
-	if len(st.Message) > protocol.MaxFrameSize {
-		return protocol.ErrTooBigFrame
+	sw.gzipBuffer.Reset()
+	sw.gzipWriter.Reset(sw.gzipBuffer)
+	_, result.Err = sw.gzipWriter.Write(st.Message)
+	if result.Err != nil {
+		return
 	}
-	// encrypt
-	sw.preS.Message, sw.err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
-	if sw.err != nil {
-		return sw.err
+	result.Err = sw.gzipWriter.Close()
+	if result.Err != nil {
+		return
+	}
+	// check compressed message size
+	if sw.gzipBuffer.Len() > protocol.MaxFrameSize {
+		result.Err = ErrTooBigMessage
+		return
+	}
+	// encrypt compressed message
+	sw.preS.Message, result.Err = aes.CBCEncrypt(sw.gzipBuffer.Bytes(), sw.aesKey, sw.aesIV)
+	if result.Err != nil {
+		return
 	}
 	// set GUID
 	sw.preS.GUID = *sw.ctx.guid.Get()
@@ -1269,19 +1286,19 @@ func (sw *senderWorker) packSendData(st *sendTask) error {
 	sw.buffer.Write(sw.preS.Message)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
-	sw.err = sw.preS.Validate()
-	if sw.err != nil {
-		panic("sender packSendData error: " + sw.err.Error())
+	result.Err = sw.preS.Validate()
+	if result.Err != nil {
+		panic("sender packSendData error: " + result.Err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
 	sw.preS.Pack(sw.buffer)
-	return nil
+	return
 }
 
 // insertBeaconMessage is used to insert send to Beacon message to
 // database, and wait the target Beacon to query it.
-func (sw *senderWorker) insertBeaconMessage(st *sendTask) error {
+func (sw *senderWorker) insertBeaconMessage(st *sendTask, result *protocol.SendResult) {
 	// pack message(interface)
 	if st.MessageI != nil {
 		sw.buffer.Reset()
@@ -1289,28 +1306,39 @@ func (sw *senderWorker) insertBeaconMessage(st *sendTask) error {
 		if msg, ok := st.MessageI.([]byte); ok {
 			sw.buffer.Write(msg)
 		} else {
-			sw.err = sw.msgpack.Encode(st.MessageI)
-			if sw.err != nil {
-				return sw.err
+			result.Err = sw.msgpack.Encode(st.MessageI)
+			if result.Err != nil {
+				return
 			}
 		}
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
 	}
-	// check message size
-	if len(st.Message) > protocol.MaxFrameSize {
-		return protocol.ErrTooBigFrame
+	sw.gzipBuffer.Reset()
+	sw.gzipWriter.Reset(sw.gzipBuffer)
+	_, result.Err = sw.gzipWriter.Write(st.Message)
+	if result.Err != nil {
+		return
 	}
-	// encrypt
-	sw.preS.Message, sw.err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
-	if sw.err != nil {
-		return sw.err
+	result.Err = sw.gzipWriter.Close()
+	if result.Err != nil {
+		return
+	}
+	// check compressed message size
+	if sw.gzipBuffer.Len() > protocol.MaxFrameSize {
+		result.Err = ErrTooBigMessage
+		return
+	}
+	// encrypt compressed message
+	sw.preS.Message, result.Err = aes.CBCEncrypt(sw.gzipBuffer.Bytes(), sw.aesKey, sw.aesIV)
+	if result.Err != nil {
+		return
 	}
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(st.Message)
 	sw.preS.Hash = sw.hash.Sum(nil)
-	return sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, sw.preS.Hash, sw.preS.Message)
+	result.Err = sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, sw.preS.Hash, sw.preS.Message)
 }
 
 func (sw *senderWorker) handleAckToNodeTask(at *ackTask) {
@@ -1324,7 +1352,10 @@ func (sw *senderWorker) handleAckToNodeTask(at *ackTask) {
 		}
 		at.Result <- result
 	}()
-	sw.packAcknowledgeData(at)
+	sw.packAcknowledgeData(at, result)
+	if result.Err != nil {
+		return
+	}
 	// acknowledge
 	result.Responses, result.Success = sw.ctx.ackToNode(&sw.preA.GUID, sw.buffer)
 	if len(result.Responses) == 0 {
@@ -1347,7 +1378,10 @@ func (sw *senderWorker) handleAckToBeaconTask(at *ackTask) {
 		}
 		at.Result <- result
 	}()
-	sw.packAcknowledgeData(at)
+	sw.packAcknowledgeData(at, result)
+	if result.Err != nil {
+		return
+	}
 	// acknowledge
 	result.Responses, result.Success = sw.ctx.ackToBeacon(&sw.preA.GUID, sw.buffer)
 	if len(result.Responses) == 0 {
@@ -1359,7 +1393,7 @@ func (sw *senderWorker) handleAckToBeaconTask(at *ackTask) {
 	}
 }
 
-func (sw *senderWorker) packAcknowledgeData(at *ackTask) {
+func (sw *senderWorker) packAcknowledgeData(at *ackTask, result *protocol.AcknowledgeResult) {
 	sw.preA.GUID = *sw.ctx.guid.Get()
 	sw.preA.RoleGUID = *at.RoleGUID
 	sw.preA.SendGUID = *at.SendGUID
@@ -1370,9 +1404,9 @@ func (sw *senderWorker) packAcknowledgeData(at *ackTask) {
 	sw.buffer.Write(sw.preA.SendGUID[:])
 	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
-	sw.err = sw.preA.Validate()
-	if sw.err != nil {
-		panic("sender packAcknowledgeData error: " + sw.err.Error())
+	result.Err = sw.preA.Validate()
+	if result.Err != nil {
+		panic("sender packAcknowledgeData error: " + result.Err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
@@ -1405,13 +1439,24 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 		// don't worry copy, because encrypt
 		bt.Message = sw.buffer.Bytes()
 	}
-	// check message size
-	if len(bt.Message) > protocol.MaxFrameSize {
-		result.Err = protocol.ErrTooBigFrame
+	// compress message
+	sw.gzipBuffer.Reset()
+	sw.gzipWriter.Reset(sw.gzipBuffer)
+	_, result.Err = sw.gzipWriter.Write(bt.Message)
+	if result.Err != nil {
 		return
 	}
-	// encrypt
-	sw.preB.Message, result.Err = sw.ctx.ctx.global.Encrypt(bt.Message)
+	result.Err = sw.gzipWriter.Close()
+	if result.Err != nil {
+		return
+	}
+	// check compressed message size
+	if sw.gzipBuffer.Len() > protocol.MaxFrameSize {
+		result.Err = ErrTooBigMessage
+		return
+	}
+	// encrypt compressed message
+	sw.preB.Message, result.Err = sw.ctx.ctx.global.Encrypt(sw.gzipBuffer.Bytes())
 	if result.Err != nil {
 		return
 	}
@@ -1471,9 +1516,9 @@ func (sw *senderWorker) handleAnswerTask(rt *answerTask) {
 	sw.buffer.Write(sw.preR.Message)
 	sw.preR.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
-	sw.err = sw.preR.Validate()
-	if sw.err != nil {
-		panic("sender handleAnswerTask error: " + sw.err.Error())
+	result.Err = sw.preR.Validate()
+	if result.Err != nil {
+		panic("sender handleAnswerTask error: " + result.Err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
