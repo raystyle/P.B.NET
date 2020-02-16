@@ -171,7 +171,7 @@ func (t *Terminal) getProcess() *exec.Cmd {
 
 func (t *Terminal) startProcess(command string) bool {
 	argv := CommandLineToArgv(command)
-	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd := exec.Command(argv[0], argv[1:]...) // #nosec
 	cmd.SysProcAttr = setSysProcAttr()
 	// program output
 	cmd.Stdin = t.iPr
