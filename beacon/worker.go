@@ -2,6 +2,7 @@ package beacon
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
@@ -169,10 +170,12 @@ type subWorker struct {
 	answerPool *sync.Pool
 
 	// runtime
-	buffer *bytes.Buffer
-	hash   hash.Hash
-	timer  *time.Timer
-	err    error
+	buffer     *bytes.Buffer
+	reader     *bytes.Reader
+	gzipReader *gzip.Reader
+	hash       hash.Hash
+	timer      *time.Timer
+	err        error
 
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
@@ -198,8 +201,11 @@ func (sw *subWorker) WorkWithBlock() {
 		}
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	sw.reader = bytes.NewReader(nil)
+	sw.gzipReader = new(gzip.Reader)
 	sw.hash = sha256.New()
-	sw.timer = time.NewTimer(time.Second)
+	// must stop at once, or maybe timeout at the first time.
+	sw.timer = time.NewTimer(time.Minute)
 	sw.timer.Stop()
 	defer sw.timer.Stop()
 	var (
@@ -277,13 +283,38 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		sw.logf(logger.Exploit, format, spew.Sdump(send))
 		return
 	}
-	// decrypt message
+	// decrypt compressed message
 	send.Message, sw.err = sw.ctx.global.Decrypt(send.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt send message: %s\n%s"
 		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
 		return
 	}
+	// decompress message
+	sw.reader.Reset(send.Message)
+	sw.err = sw.gzipReader.Reset(sw.reader)
+	if sw.err != nil {
+		const format = "failed to load gzip header from send message: %s\n%s"
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+		return
+	}
+	sw.buffer.Reset()
+	_, sw.err = sw.buffer.ReadFrom(sw.gzipReader)
+	if sw.err != nil {
+		const format = "failed to decompress send message: %s\n%s"
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+		return
+	}
+	sw.err = sw.gzipReader.Close()
+	if sw.err != nil {
+		const format = "failed to close gzip reader about send message: %s\n%s"
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+		return
+	}
+	// must recover it, otherwise will appear data race
+	aesBuffer := send.Message
+	defer func() { send.Message = aesBuffer }()
+	send.Message = sw.buffer.Bytes()
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(send.Message)
@@ -295,6 +326,29 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	// create answer for OnMessage
 	answer := sw.answerPool.Get().(*protocol.Answer)
 	defer sw.answerPool.Put(answer)
+	sw.copySendToAnswer(answer, send)
+	sw.ctx.handler.OnMessage(answer)
+	for {
+		sw.err = sw.ctx.sender.Acknowledge(send)
+		if sw.err == nil {
+			return
+		}
+		if sw.err == ErrNoConnections {
+			sw.log(logger.Warning, "failed to acknowledge:", sw.err)
+		} else {
+			sw.log(logger.Error, "failed to acknowledge:", sw.err)
+		}
+		// wait one second
+		sw.timer.Reset(time.Second)
+		select {
+		case <-sw.timer.C:
+		case <-sw.stopSignal:
+			return
+		}
+	}
+}
+
+func (sw *subWorker) copySendToAnswer(answer *protocol.Answer, send *protocol.Send) {
 	answer.GUID = send.GUID
 	answer.BeaconGUID = send.RoleGUID
 	// must use copy, because use two sync.Pool
@@ -316,25 +370,6 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	} else {
 		answer.Message = make([]byte, smLen)
 		copy(answer.Message, send.Message)
-	}
-	sw.ctx.handler.OnMessage(answer)
-	for {
-		sw.err = sw.ctx.sender.Acknowledge(send)
-		if sw.err == nil {
-			return
-		}
-		if sw.err == ErrNoConnections {
-			sw.log(logger.Warning, "failed to acknowledge:", sw.err)
-		} else {
-			sw.log(logger.Error, "failed to acknowledge:", sw.err)
-		}
-		// wait one second
-		sw.timer.Reset(time.Second)
-		select {
-		case <-sw.timer.C:
-		case <-sw.stopSignal:
-			return
-		}
 	}
 }
 
@@ -367,13 +402,38 @@ func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 		sw.logf(logger.Exploit, format, spew.Sdump(answer))
 		return
 	}
-	// decrypt message
+	// decrypt compressed message
 	answer.Message, sw.err = sw.ctx.global.Decrypt(answer.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt answer message: %s\n%s"
 		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
 		return
 	}
+	// decompress message
+	sw.reader.Reset(answer.Message)
+	sw.err = sw.gzipReader.Reset(sw.reader)
+	if sw.err != nil {
+		const format = "failed to load gzip header from answer message: %s\n%s"
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
+		return
+	}
+	sw.buffer.Reset()
+	_, sw.err = sw.buffer.ReadFrom(sw.gzipReader)
+	if sw.err != nil {
+		const format = "failed to decompress answer message: %s\n%s"
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
+		return
+	}
+	sw.err = sw.gzipReader.Close()
+	if sw.err != nil {
+		const format = "failed to close gzip reader about answer message: %s\n%s"
+		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
+		return
+	}
+	// must recover it, otherwise will appear data race
+	aesBuffer := answer.Message
+	defer func() { answer.Message = aesBuffer }()
+	answer.Message = sw.buffer.Bytes()
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(answer.Message)
