@@ -76,25 +76,25 @@ func TestSystem(t *testing.T) {
 		"quit\n",
 		"whoami\n",
 
-		"print.exe\n",
+		"print",
 		"abc\n",
 		"def\n",
 		"interrupt",
 
-		"print.exe\n",
+		"print",
 		"abc\n",
 		"def\n",
 		"interrupt",
 
 		"cmd\n",
-		"print.exe\n",
+		"print",
 		"abc\n",
 		"def\n",
 		"interrupt",
 		"whoami\n",
 		"exit\n",
 
-		"print.exe\n",
+		"print",
 		"abc\n",
 		"def\n",
 		"interrupt",
@@ -108,6 +108,9 @@ func TestSystem(t *testing.T) {
 
 	for _, cmd := range command {
 		switch cmd {
+		case "print":
+			_, err = system.Write([]byte("\"../../../temp/print.exe\"\n"))
+			require.NoError(t, err)
 		case "interrupt":
 			err = system.Interrupt()
 			require.NoError(t, err)

@@ -5,6 +5,7 @@ package shell
 import (
 	"os"
 	"os/exec"
+	"syscall"
 )
 
 // Shell ...
@@ -17,7 +18,13 @@ func createCommand(path string, args []string) *exec.Cmd {
 	if path == "" {
 		path = "sh"
 	}
-	return exec.Command(path, args...) // #nosec
+	cmd := exec.Command(path, args...) // #nosec
+	cmd.SysProcAttr = setSysProcAttr()
+	return cmd
+}
+
+func setSysProcAttr() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{}
 }
 
 func sendInterruptSignal(cmd *exec.Cmd) error {

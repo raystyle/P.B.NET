@@ -30,12 +30,15 @@ func createCommand(path string, args []string) *exec.Cmd {
 		path = "cmd.exe"
 	}
 	cmd := exec.Command(path, args...) // #nosec
-	attr := syscall.SysProcAttr{
+	cmd.SysProcAttr = setSysProcAttr()
+	return cmd
+}
+
+func setSysProcAttr() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{
 		HideWindow:    true,
 		CreationFlags: createNewConsole,
 	}
-	cmd.SysProcAttr = &attr
-	return cmd
 }
 
 var (
@@ -72,7 +75,7 @@ func sendInterruptSignal(cmd *exec.Cmd) error {
 	if err != nil {
 		return err
 	}
-	r1, _, err := freeConsole.Call()
+	r1, _, _ := freeConsole.Call()
 	if r1 != 0 {
 		needAttach = true
 	}
@@ -118,8 +121,7 @@ func sendInterruptSignal(cmd *exec.Cmd) error {
 	case <-timer.C:
 		return errors.New("failed to receive the interrupt signal")
 	}
-	// TODO think it
-	time.Sleep(3 * time.Second)
+	time.Sleep(3 * time.Second) // TODO think it
 	// free attached console
 	r1, _, err = freeConsole.Call()
 	if r1 == 0 {
