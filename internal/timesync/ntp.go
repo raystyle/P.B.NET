@@ -91,11 +91,14 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	for i := 0; i < len(result); i++ {
 		resp, err = ntp.Query(net.JoinHostPort(result[i], port), &ntpOpts)
 		if err == nil {
-			now = resp.Time
-			return
+			break
 		}
 	}
-	err = errors.New("failed to query ntp server")
+	if err == nil {
+		now = resp.Time
+		return
+	}
+	err = errors.Errorf("failed to query ntp server: %s", err)
 	return
 }
 

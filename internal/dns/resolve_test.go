@@ -247,7 +247,7 @@ func TestDialDoT(t *testing.T) {
 
 	// error ip(domain mode)
 	_, err = dialDoT(ctx, "dns.google:853|127.0.0.1", nil, opts)
-	require.EqualError(t, err, ErrNoConnection.Error())
+	require.Error(t, err)
 
 	// no port(domain mode)
 	_, err = dialDoT(ctx, "dns.google|1.2.3.235", nil, opts)

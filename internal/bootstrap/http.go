@@ -262,10 +262,11 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 		Timeout:   timeout,
 	}
 
+	var info []byte
 	for i := 0; i < len(result); i++ {
 		req := req.Clone(h.ctx)
 
-		// replace to ip
+		// replace host to IP address
 		if port != "" {
 			req.URL.Host = net.JoinHostPort(result[i], port)
 		} else {
@@ -280,12 +281,15 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 			req.Host = req.URL.Host
 		}
 
-		info, err := do(req, hc, maxBodySize)
+		info, err = do(req, hc, maxBodySize)
 		if err == nil {
-			return resolve(tHTTP, info), nil
+			break
 		}
 	}
-	return nil, ErrNoResponse
+	if err == nil {
+		return resolve(tHTTP, info), nil
+	}
+	return nil, errors.Wrap(ErrNoResponse, err.Error())
 }
 
 func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {

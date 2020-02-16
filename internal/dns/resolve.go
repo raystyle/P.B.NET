@@ -175,27 +175,28 @@ func dialDoT(ctx context.Context, config string, message []byte, opts *Options) 
 		// [2606:4700:4700::1001]:853
 		ctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
-		c, err := opts.dialContext(ctx, network, config)
+		rawConn, err := opts.dialContext(ctx, network, config)
 		if err != nil {
 			return nil, err
 		}
-		conn = tls.Client(c, tlsConfig)
+		conn = tls.Client(rawConn, tlsConfig)
 	case 2: // domain mode
 		// dns.google:853|8.8.8.8,8.8.4.4
 		// cloudflare-dns.com:853|2606:4700:4700::1001,2606:4700:4700::1111
 		ips := strings.Split(strings.TrimSpace(configs[1]), ",")
+		var rawConn net.Conn
 		for i := 0; i < len(ips); i++ {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
-			c, err := opts.dialContext(ctx, network, net.JoinHostPort(ips[i], port))
+			rawConn, err = opts.dialContext(ctx, network, net.JoinHostPort(ips[i], port))
 			if err == nil {
-				conn = tls.Client(c, tlsConfig)
+				conn = tls.Client(rawConn, tlsConfig)
 				cancel()
 				break
 			}
 			cancel()
 		}
-		if conn == nil {
-			return nil, errors.WithStack(ErrNoConnection)
+		if err != nil {
+			return nil, errors.Wrap(ErrNoConnection, err.Error())
 		}
 	default:
 		return nil, errors.Errorf("invalid config: %s", config)

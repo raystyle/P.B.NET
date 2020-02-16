@@ -105,10 +105,13 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 
 		now, err = getHeaderDate(req, hc)
 		if err == nil {
-			return
+			break
 		}
 	}
-	err = errors.New("failed to query http server")
+	if err == nil {
+		return
+	}
+	err = errors.Errorf("failed to query http server: %s", err)
 	return
 }
 
