@@ -13,12 +13,12 @@ require (
 	github.com/jinzhu/gorm v1.9.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/kardianos/service v1.0.1-0.20191211031725-3c356ae54c8a
-	github.com/lucas-clemente/quic-go v0.15.2
+	github.com/lucas-clemente/quic-go v0.15.3
 	github.com/pelletier/go-toml v1.7.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.5.1
 	github.com/vmihailenco/msgpack/v4 v4.3.11
 
-	golang.org/x/crypto v0.0.0-20200403201458-baeed622b8d8
+	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
 )
