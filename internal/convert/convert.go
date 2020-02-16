@@ -3,6 +3,7 @@ package convert
 import (
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"unsafe"
 )
 
@@ -150,4 +151,35 @@ func ByteToString(n uint64) string {
 	default:
 		return fmt.Sprintf("%.3f TB", float64(n)/tb)
 	}
+}
+
+// FormatNumber is used to convert 123456.789 to 123,456.789
+func FormatNumber(str string) string {
+	length := len(str)
+	if length < 4 {
+		return str
+	}
+	all := strings.SplitN(str, ".", 2)
+	allLen := len(all)
+	integer := len(all[0])
+	if integer < 4 {
+		return str
+	}
+	count := (integer - 1) / 3  // 1234 -> 1,[234]
+	offset := integer - 3*count // 1234 > [1],234
+	builder := strings.Builder{}
+	// write first number
+	if offset != 0 {
+		builder.WriteString(str[:offset])
+	}
+	for i := 0; i < count; i++ {
+		builder.WriteString(",")
+		builder.WriteString(str[offset+i*3 : offset+i*3+3])
+	}
+	// write float
+	if allLen == 2 {
+		builder.WriteString(".")
+		builder.WriteString(all[1])
+	}
+	return builder.String()
 }
