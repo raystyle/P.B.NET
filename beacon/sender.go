@@ -186,14 +186,18 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	return sender, nil
 }
 
-// GetMaxConns is used to get sender max connection
+// GetMaxConns is used to get sender max connection.
 func (sender *sender) GetMaxConns() int {
 	return sender.maxConns.Load().(int)
 }
 
-// SetMaxConns is used to set sender max connection
-func (sender *sender) SetMaxConns(n int) {
+// SetMaxConns is used to set sender max connection.
+func (sender *sender) SetMaxConns(n int) error {
+	if n < 1 {
+		return errors.New("max conns must >= 1")
+	}
 	sender.maxConns.Store(n)
+	return nil
 }
 
 // Clients is used to get all clients that start Synchronize
