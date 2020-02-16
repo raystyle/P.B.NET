@@ -2,6 +2,7 @@ package node
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 
 // errors
 var (
+	ErrTooBigMessage  = fmt.Errorf("too big message")
 	ErrNoConnections  = fmt.Errorf("no connections")
 	ErrFailedToSend   = fmt.Errorf("failed to send")
 	ErrFailedToAck    = fmt.Errorf("failed to acknowledge")
@@ -382,10 +384,11 @@ type senderWorker struct {
 	maxBufferSize int
 
 	// runtime
-	buffer  *bytes.Buffer
-	msgpack *msgpack.Encoder
-	hash    hash.Hash
-	err     error
+	buffer     *bytes.Buffer
+	msgpack    *msgpack.Encoder
+	gzipBuffer *bytes.Buffer
+	gzipWriter *gzip.Writer
+	hash       hash.Hash
 
 	// prepare task objects
 	preS protocol.Send
@@ -411,9 +414,13 @@ func (sw *senderWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
+	sw.gzipBuffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	sw.gzipWriter = gzip.NewWriter(sw.gzipBuffer)
 	sw.hash = sha256.New()
 	sw.forwarder = sw.ctx.ctx.forwarder
-	sw.timer = time.NewTimer(sw.timeout)
+	defer func() { sw.forwarder = nil }()
+	// must stop at once, or maybe timeout at the first time.
+	sw.timer = time.NewTimer(time.Minute)
 	sw.timer.Stop()
 	defer sw.timer.Stop()
 	var (
@@ -452,53 +459,11 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		}
 		st.Result <- result
 	}()
-	// pack message(interface)
-	if st.MessageI != nil {
-		sw.buffer.Reset()
-		sw.buffer.Write(st.Command)
-		if msg, ok := st.MessageI.([]byte); ok {
-			sw.buffer.Write(msg)
-		} else {
-			result.Err = sw.msgpack.Encode(st.MessageI)
-			if result.Err != nil {
-				return
-			}
-		}
-		// don't worry copy, because encrypt
-		st.Message = sw.buffer.Bytes()
-	}
-	// check message size
-	if len(st.Message) > protocol.MaxFrameSize {
-		result.Err = protocol.ErrTooBigFrame
-		return
-	}
-	// encrypt
-	sw.preS.Message, result.Err = sw.ctx.ctx.global.Encrypt(st.Message)
-	if result.Err != nil {
-		return
-	}
-	// set GUID
-	sw.preS.GUID = *sw.ctx.guid.Get()
-	sw.preS.RoleGUID = *sw.ctx.ctx.global.GUID()
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(st.Message)
-	sw.preS.Hash = sw.hash.Sum(nil)
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preS.GUID[:])
-	sw.buffer.Write(sw.preS.RoleGUID[:])
-	sw.buffer.Write(sw.preS.Hash)
-	sw.buffer.Write(sw.preS.Message)
-	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
-	// self validate
-	result.Err = sw.preS.Validate()
-	if result.Err != nil {
-		panic("sender handleSendTask error: " + result.Err.Error())
-	}
 	// pack
-	sw.buffer.Reset()
-	sw.preS.Pack(sw.buffer)
+	sw.packSendData(st, result)
+	if result.Err != nil {
+		return
+	}
 	// send
 	wait, destroy := sw.ctx.createAckSlot(&sw.preS.GUID)
 	result.Responses, result.Success = sw.forwarder.Send(&sw.preS.GUID, sw.buffer)
@@ -529,6 +494,67 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 	}
 }
 
+func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) {
+	// pack message(interface)
+	if st.MessageI != nil {
+		sw.buffer.Reset()
+		sw.buffer.Write(st.Command)
+		if msg, ok := st.MessageI.([]byte); ok {
+			sw.buffer.Write(msg)
+		} else {
+			result.Err = sw.msgpack.Encode(st.MessageI)
+			if result.Err != nil {
+				return
+			}
+		}
+		// don't worry copy, because encrypt
+		st.Message = sw.buffer.Bytes()
+	}
+	// compress message
+	sw.gzipBuffer.Reset()
+	sw.gzipWriter.Reset(sw.gzipBuffer)
+	_, result.Err = sw.gzipWriter.Write(st.Message)
+	if result.Err != nil {
+		return
+	}
+	result.Err = sw.gzipWriter.Close()
+	if result.Err != nil {
+		return
+	}
+	// check compressed message size
+	if sw.gzipBuffer.Len() > protocol.MaxFrameSize {
+		result.Err = ErrTooBigMessage
+		return
+	}
+	// encrypt compressed message
+	sw.preS.Message, result.Err = sw.ctx.ctx.global.Encrypt(sw.gzipBuffer.Bytes())
+	if result.Err != nil {
+		return
+	}
+	// set GUID
+	sw.preS.GUID = *sw.ctx.guid.Get()
+	sw.preS.RoleGUID = *sw.ctx.ctx.global.GUID()
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(st.Message)
+	sw.preS.Hash = sw.hash.Sum(nil)
+	// sign
+	sw.buffer.Reset()
+	sw.buffer.Write(sw.preS.GUID[:])
+	sw.buffer.Write(sw.preS.RoleGUID[:])
+	sw.buffer.Write(sw.preS.Hash)
+	sw.buffer.Write(sw.preS.Message)
+	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// self validate
+	result.Err = sw.preS.Validate()
+	if result.Err != nil {
+		panic("sender handleSendTask error: " + result.Err.Error())
+	}
+	// pack
+	sw.buffer.Reset()
+	sw.preS.Pack(sw.buffer)
+}
+
 func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
 	result := sw.ctx.ackResultPool.Get().(*protocol.AcknowledgeResult)
 	result.Clean()
@@ -550,9 +576,9 @@ func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
 	sw.buffer.Write(sw.preA.SendGUID[:])
 	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
-	sw.err = sw.preA.Validate()
-	if sw.err != nil {
-		panic("sender handleAcknowledgeTask error: " + sw.err.Error())
+	result.Err = sw.preA.Validate()
+	if result.Err != nil {
+		panic("sender handleAcknowledgeTask error: " + result.Err.Error())
 	}
 	// pack
 	sw.buffer.Reset()
