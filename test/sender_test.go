@@ -94,19 +94,95 @@ func TestLoop_Parallel(t *testing.T) {
 	}
 }
 
+func generateCommonNode(t *testing.T, iNode *node.Node, id int) *node.Node {
+	ctrl.Test.CreateNodeRegisterRequestChannel()
+
+	// generate bootstrap
+	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	require.NoError(t, err)
+	iAddr := iListener.Addr()
+	bListener := &bootstrap.Listener{
+		Mode:    iListener.Mode(),
+		Network: iAddr.Network(),
+		Address: iAddr.String(),
+	}
+	boot, key := generateBootstrap(t, bListener)
+
+	// create Common Node and run
+	cNodeCfg := generateNodeConfig(t, fmt.Sprintf("Common Node %d", id))
+	cNodeCfg.Register.FirstBoot = boot
+	cNodeCfg.Register.FirstKey = key
+	cNode, err := node.New(cNodeCfg)
+	require.NoError(t, err)
+	testsuite.IsDestroyed(t, cNodeCfg)
+	go func() {
+		err := cNode.Main()
+		require.NoError(t, err)
+	}()
+
+	// read Node register request
+	select {
+	case nrr := <-ctrl.Test.NodeRegisterRequest:
+		// spew.Dump(nrr)
+		err = ctrl.AcceptRegisterNode(nrr, nil, false)
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
+	}
+
+	// wait Common Node
+	timer := time.AfterFunc(10*time.Second, func() {
+		t.Fatal("node register timeout")
+	})
+	cNode.Wait()
+	timer.Stop()
+
+	return cNode
+}
+
+const listenerTag = "test_tcp"
+
+func addNodeListener(t *testing.T, node *node.Node) *bootstrap.Listener {
+	mListener := &messages.Listener{
+		Tag:     listenerTag,
+		Mode:    xnet.ModeTCP,
+		Network: "tcp",
+		Address: "localhost:0",
+	}
+	err := node.AddListener(mListener)
+	require.NoError(t, err)
+	listener, err := node.GetListener(listenerTag)
+	require.NoError(t, err)
+	return &bootstrap.Listener{
+		Mode:    xnet.ModeTCP,
+		Network: "tcp",
+		Address: listener.Addr().String(),
+	}
+}
+
+func getNodeListener(t *testing.T, node *node.Node, tag string) *bootstrap.Listener {
+	listener, err := node.GetListener(tag)
+	require.NoError(t, err)
+	return &bootstrap.Listener{
+		Mode:    xnet.ModeTCP,
+		Network: "tcp",
+		Address: listener.Addr().String(),
+	}
+}
+
 // 3 * (A Common Node Connect the Initial Node)
 //
-//  +------------+     +----------------+     +---------------+
-//  |            | --> | Initial Node 0 | <-- | Common Node 0 |
-//  |            |     +----------------+     +---------------+
+//  +------------+    +----------------+    +---------------+
+//  |            | -> | Initial Node 0 | <- | Common Node 0 |
+//  |            |    +----------------+    +---------------+
 //  |            |
-//  |            |     +----------------+     +---------------+
-//  | Controller | --> | Initial Node 1 | <-- | Common Node 1 |
-//  |            |     +----------------+     +---------------+
+//  |            |    +----------------+    +---------------+
+//  | Controller | -> | Initial Node 1 | <- | Common Node 1 |
+//  |            |    +----------------+    +---------------+
 //  |            |
-//  |            |     +----------------+     +---------------+
-//  |            | --> | Initial Node 2 | <-- | Common Node 2 |
-//  +------------+     +----------------+     +---------------+
+//  |            |    +----------------+    +---------------+
+//  |            | -> | Initial Node 2 | <- | Common Node 2 |
+//  +------------+    +----------------+    +---------------+
 //
 func TestCtrl_Broadcast_CI(t *testing.T) {
 	const num = 3
@@ -133,29 +209,29 @@ func TestCtrl_Broadcast_CI(t *testing.T) {
 
 // 3 * (Initial Node connect the Common Node Connect)
 //
-//  +------------+     +----------------+
-//  |            | --> | Initial Node 0 |
-//  |            |     +----------------+
-//  |            |             ↓
-//  |            |     +---------------+
-//  |            | --> | Common Node 0 |
-//  |            |     +---------------+
+//  +------------+    +----------------+
+//  |            | -> | Initial Node 0 |
+//  |            |    +----------------+
+//  |            |            ↓
+//  |            |    +---------------+
+//  |            | -> | Common Node 0 |
+//  |            |    +---------------+
 //  |            |
-//  |            |     +----------------+
-//  |            | --> | Initial Node 1 |
-//  |            |     +----------------+
-//  | Controller |             ↓
-//  |            |     +---------------+
-//  |            | --> | Common Node 1 |
-//  |            |     +---------------+
+//  |            |    +----------------+
+//  |            | -> | Initial Node 1 |
+//  |            |    +----------------+
+//  | Controller |            ↓
+//  |            |    +---------------+
+//  |            | -> | Common Node 1 |
+//  |            |    +---------------+
 //  |            |
-//  |            |     +----------------+
-//  |            | --> | Initial Node 2 |
-//  |            |     +----------------+
-//  |            |             ↓
-//  |            |     +---------------+
-//  |            | --> | Common Node 2 |
-//  +------------+     +---------------+
+//  |            |    +----------------+
+//  |            | -> | Initial Node 2 |
+//  |            |    +----------------+
+//  |            |            ↓
+//  |            |    +---------------+
+//  |            | -> | Common Node 2 |
+//  +------------+    +---------------+
 //
 func TestCtrl_Broadcast_IC(t *testing.T) {
 	const num = 3
@@ -170,31 +246,17 @@ func TestCtrl_Broadcast_IC(t *testing.T) {
 		iNode.Test.EnableTestMessage()
 		cNode.Test.EnableTestMessage()
 
-		// add listener to Common Node
-		const listenerTag = "test"
-		listener := &messages.Listener{
-			Tag:     listenerTag,
-			Mode:    xnet.ModeTCP,
-			Network: "tcp",
-			Address: "localhost:0",
-		}
-		err := cNode.AddListener(listener)
-		require.NoError(t, err)
-		dListener, err := cNode.GetListener(listenerTag)
-		require.NoError(t, err)
-		bListener := &bootstrap.Listener{
-			Mode:    xnet.ModeTCP,
-			Network: "tcp",
-			Address: dListener.Addr().String(),
-		}
+		bListener := addNodeListener(t, cNode)
+
+		ctx := context.Background()
 
 		// Controller must connect the Common Node, otherwise the Common Node
 		// can't query Node key from Controller
-		err = ctrl.Synchronize(context.Background(), cNode.GUID(), bListener)
+		err := ctrl.Synchronize(ctx, cNode.GUID(), bListener)
 		require.NoError(t, err)
 
 		// Initial Node connect the Common Node and start to synchronize
-		err = iNode.Synchronize(context.Background(), cNode.GUID(), bListener)
+		err = iNode.Synchronize(ctx, cNode.GUID(), bListener)
 		require.NoError(t, err)
 
 		iNodes[i] = iNode
@@ -203,9 +265,64 @@ func TestCtrl_Broadcast_IC(t *testing.T) {
 	testCtrlBroadcast(t, iNodes[:], cNodes[:])
 }
 
+// mix network environment
+//
+//  +------------+    +---------------+    +---------------+
+//  |            | -> | Initial Node  | <- | Common Node 1 |
+//  |            |    +---------------+    +---------------+
+//  | Controller |            ↓         ↖         ↑
+//  |            |    +---------------+    +---------------+
+//  |            | -> | Common Node 0 | -> | Common Node 2 |
+//  +------------+    +---------------+    +---------------+
+//
+func TestCtrl_Broadcast_Mix(t *testing.T) {
+	iNode := generateInitialNodeAndTrust(t, 0)
+	iNode.Test.EnableTestMessage()
+	iNodeGUID := iNode.GUID()
+
+	// create Common Nodes
+	const num = 3
+	cNodes := make([]*node.Node, num)
+	for i := 0; i < num; i++ {
+		cNodes[i] = generateCommonNode(t, iNode, i)
+		cNodes[i].Test.EnableTestMessage()
+	}
+
+	ctx := context.Background()
+
+	// Controller and Initial Node connect Common Node 0
+	cn0Listener := addNodeListener(t, cNodes[0])
+	cn0GUID := cNodes[0].GUID()
+	err := ctrl.Synchronize(ctx, cn0GUID, cn0Listener)
+	require.NoError(t, err)
+	err = iNode.Synchronize(ctx, cn0GUID, cn0Listener)
+	require.NoError(t, err)
+
+	// Common Node 1 connect the Initial Node
+	inListener := getNodeListener(t, iNode, InitialNodeListenerTag)
+	err = cNodes[1].Synchronize(ctx, iNodeGUID, inListener)
+	require.NoError(t, err)
+
+	// Common Node 2 Connect the Common Node 1 and the Initial Node
+	cn1Listener := addNodeListener(t, cNodes[1])
+	cn1GUID := cNodes[1].GUID()
+	err = cNodes[2].Synchronize(ctx, cn1GUID, cn1Listener)
+	require.NoError(t, err)
+	err = cNodes[2].Synchronize(ctx, iNodeGUID, inListener)
+	require.NoError(t, err)
+
+	// Common Node 0 connect the Common Node 2
+	cn2Listener := addNodeListener(t, cNodes[2])
+	cn2GUID := cNodes[2].GUID()
+	err = cNodes[0].Synchronize(ctx, cn2GUID, cn2Listener)
+	require.NoError(t, err)
+
+	testCtrlBroadcast(t, []*node.Node{iNode}, cNodes)
+}
+
 func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 	const (
-		goroutines = 32
+		goroutines = 64
 		times      = 64
 	)
 	broadcast := func(start int) {

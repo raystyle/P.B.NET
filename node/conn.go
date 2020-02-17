@@ -587,8 +587,8 @@ func (c *conn) HandleBroadcast(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckBroadcastGUID(&broadcast.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		c.ctx.worker.AddBroadcast(broadcast)
 		c.ctx.forwarder.Broadcast(&broadcast.GUID, data, c.guid)
+		c.ctx.worker.AddBroadcast(broadcast)
 	} else {
 		c.Reply(id, protocol.ReplyHandled)
 		c.ctx.worker.PutBroadcastToPool(broadcast)
