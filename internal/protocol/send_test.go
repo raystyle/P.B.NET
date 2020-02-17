@@ -20,6 +20,7 @@ func testGenerateSend(t *testing.T) *Send {
 	err = rawS.RoleGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
 	require.NoError(t, err)
 	rawS.Hash = bytes.Repeat([]byte{3}, sha256.Size)
+	rawS.Deflate = 1
 	rawS.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
 	return rawS
 }
@@ -27,7 +28,7 @@ func testGenerateSend(t *testing.T) *Send {
 func TestSend_Unpack(t *testing.T) {
 	t.Run("invalid send packet size", func(t *testing.T) {
 		err := testGenerateSend(t).Unpack(nil)
-		require.Error(t, err)
+		require.EqualError(t, err, "invalid send packet size")
 	})
 
 	rawData := new(bytes.Buffer)
@@ -110,6 +111,10 @@ func TestSend_Validate(t *testing.T) {
 	require.EqualError(t, s.Validate(), "invalid signature size")
 
 	s.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+	s.Deflate = 3
+	require.EqualError(t, s.Validate(), "invalid deflate flag")
+
+	s.Deflate = 1
 	require.EqualError(t, s.Validate(), "invalid message size")
 	s.Message = bytes.Repeat([]byte{0}, 30)
 	require.EqualError(t, s.Validate(), "invalid message size")
@@ -195,6 +200,7 @@ func testGenerateAnswer(t *testing.T) *Answer {
 	require.NoError(t, err)
 	rawA.Index = 10
 	rawA.Hash = bytes.Repeat([]byte{3}, sha256.Size)
+	rawA.Deflate = 1
 	rawA.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
 	return rawA
 }
@@ -202,7 +208,7 @@ func testGenerateAnswer(t *testing.T) *Answer {
 func TestAnswer_Unpack(t *testing.T) {
 	t.Run("invalid answer packet size", func(t *testing.T) {
 		err := testGenerateAnswer(t).Unpack(nil)
-		require.Error(t, err)
+		require.EqualError(t, err, "invalid answer packet size")
 	})
 
 	rawData := new(bytes.Buffer)
@@ -285,6 +291,10 @@ func TestAnswer_Validate(t *testing.T) {
 	require.EqualError(t, a.Validate(), "invalid signature size")
 
 	a.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+	a.Deflate = 3
+	require.EqualError(t, a.Validate(), "invalid deflate flag")
+
+	a.Deflate = 1
 	require.EqualError(t, a.Validate(), "invalid message size")
 	a.Message = bytes.Repeat([]byte{0}, 30)
 	require.EqualError(t, a.Validate(), "invalid message size")

@@ -18,8 +18,11 @@ const (
 	// AcknowledgeSize is the acknowledge packet size
 	AcknowledgeSize = 3*guid.Size + ed25519.SignatureSize
 
-	// QuerySize is the query packet size, 8 = len(uint64)
-	QuerySize = 2*guid.Size + 8 + ed25519.SignatureSize
+	// IndexSize is len(uint64)
+	IndexSize = 8
+
+	// QuerySize is the query packet size
+	QuerySize = 2*guid.Size + IndexSize + ed25519.SignatureSize
 )
 
 // ---------------------------interactive mode---------------------------------
@@ -28,11 +31,11 @@ const (
 // Node is always in interactive mode.
 // In default, Beacon use query mode, you can switch interactive mode manually.
 
-// +----------+-----------+----------+-----------+---------+
-// |   GUID   | role GUID |   hash   | signature | message |
-// +----------+-----------+----------+-----------+---------+
-// | 48 bytes |  48 bytes | 32 bytes |  64 bytes |   var   |
-// +----------+-----------+----------+-----------+---------+
+// +----------+-----------+----------+---------+-----------+---------+
+// |   GUID   | role GUID |   hash   | deflate | signature | message |
+// +----------+-----------+----------+---------+-----------+---------+
+// | 48 bytes |  48 bytes | 32 bytes |  byte   |  64 bytes |   var   |
+// +----------+-----------+----------+---------+-----------+---------+
 
 // Send is used to send messages in interactive mode.
 //
@@ -46,8 +49,9 @@ type Send struct {
 	GUID      guid.GUID // prevent duplicate handle it
 	RoleGUID  guid.GUID // receiver GUID
 	Hash      []byte    // raw message hash
-	Signature []byte    // sign(GUID + RoleGUID + Hash + Message)
-	Message   []byte    // use gzip and AES to compress and encrypt
+	Deflate   byte      // use deflate to compress it(0=disable, 1=enable)
+	Signature []byte    // sign(GUID + RoleGUID + Hash + Deflate + Message)
+	Message   []byte    // use AES to encrypt it(maybe compressed first)
 }
 
 // NewSend is used to create a send, Unpack() need it,
@@ -65,20 +69,23 @@ func (s *Send) Pack(buf *bytes.Buffer) {
 	buf.Write(s.GUID[:])
 	buf.Write(s.RoleGUID[:])
 	buf.Write(s.Hash)
+	buf.WriteByte(s.Deflate)
 	buf.Write(s.Signature)
 	buf.Write(s.Message)
 }
 
 // Unpack is used to unpack []byte to Send.
 func (s *Send) Unpack(data []byte) error {
-	if len(data) < 2*guid.Size+sha256.Size+ed25519.SignatureSize+aes.BlockSize {
+	if len(data) < 2*guid.Size+sha256.Size+flagSize+ed25519.SignatureSize+aes.BlockSize {
 		return errors.New("invalid send packet size")
 	}
 	copy(s.GUID[:], data[:guid.Size])
 	copy(s.RoleGUID[:], data[guid.Size:2*guid.Size])
 	copy(s.Hash, data[2*guid.Size:2*guid.Size+sha256.Size])
-	copy(s.Signature, data[2*guid.Size+sha256.Size:2*guid.Size+sha256.Size+ed25519.SignatureSize])
-	message := data[2*guid.Size+sha256.Size+ed25519.SignatureSize:]
+	s.Deflate = data[2*guid.Size+sha256.Size]
+	copy(s.Signature, data[2*guid.Size+sha256.Size+flagSize:2*guid.Size+
+		sha256.Size+flagSize+ed25519.SignatureSize])
+	message := data[2*guid.Size+sha256.Size+flagSize+ed25519.SignatureSize:]
 	mLen := len(message)
 	smLen := len(s.Message)
 	if cap(s.Message) >= mLen {
@@ -102,6 +109,9 @@ func (s *Send) Unpack(data []byte) error {
 func (s *Send) Validate() error {
 	if len(s.Hash) != sha256.Size {
 		return errors.New("invalid hash size")
+	}
+	if s.Deflate > 1 {
+		return errors.New("invalid deflate flag")
 	}
 	if len(s.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")
@@ -147,7 +157,7 @@ func (sr *SendResult) Clean() {
 // When Beacon use it, RoleGUID = it's GUID.
 type Acknowledge struct {
 	GUID      guid.GUID // prevent duplicate handle it
-	RoleGUID  guid.GUID //
+	RoleGUID  guid.GUID // sender GUID
 	SendGUID  guid.GUID // structure Send.GUID
 	Signature []byte    // sign(GUID + RoleGUID + SendGUID)
 }
@@ -225,9 +235,9 @@ func (ar *AcknowledgeResult) Clean() {
 // Query is used to query message from controller.
 type Query struct {
 	GUID       guid.GUID // prevent duplicate handle it
-	BeaconGUID guid.GUID
-	Index      uint64 // controller delete message < this Index
-	Signature  []byte
+	BeaconGUID guid.GUID // beacon GUID
+	Index      uint64    // controller will delete message < this index
+	Signature  []byte    // sign(GUID + BeaconGUID + Index)
 }
 
 // NewQuery is used to create a query, Unpack() need it,
@@ -253,8 +263,8 @@ func (q *Query) Unpack(data []byte) error {
 	}
 	copy(q.GUID[:], data[:guid.Size])
 	copy(q.BeaconGUID[:], data[guid.Size:2*guid.Size])
-	q.Index = convert.BytesToUint64(data[2*guid.Size : 2*guid.Size+8])
-	copy(q.Signature, data[2*guid.Size+8:2*guid.Size+8+ed25519.SignatureSize])
+	q.Index = convert.BytesToUint64(data[2*guid.Size : 2*guid.Size+IndexSize])
+	copy(q.Signature, data[2*guid.Size+IndexSize:2*guid.Size+IndexSize+ed25519.SignatureSize])
 	return nil
 }
 
@@ -287,20 +297,21 @@ func (qr *QueryResult) Clean() {
 	qr.Err = nil
 }
 
-// +----------+-------------+---------+----------+-----------+---------+
-// |   GUID   | Beacon GUID |  index  |   hash   | signature | message |
-// +----------+-------------+---------+----------+-----------+---------+
-// | 48 bytes |   48 bytes  | 8 bytes | 32 bytes |  64 bytes |   var   |
-// +----------+-------------+---------+----------+-----------+---------+
+// +----------+-------------+---------+----------+---------+-----------+---------+
+// |   GUID   | Beacon GUID |  index  |   hash   | deflate | signature | message |
+// +----------+-------------+---------+----------+---------+-----------+---------+
+// | 48 bytes |   48 bytes  | 8 bytes | 32 bytes |  byte   |  64 bytes |   var   |
+// +----------+-------------+---------+----------+---------+-----------+---------+
 
 // Answer is used to return queried message.
 type Answer struct {
 	GUID       guid.GUID // prevent duplicate handle it
-	BeaconGUID guid.GUID
-	Index      uint64 // compare Query.Index
-	Hash       []byte // raw message hash
-	Signature  []byte
-	Message    []byte // use gzip and AES to compress and encrypt
+	BeaconGUID guid.GUID // beacon GUID
+	Index      uint64    // compare Query.Index
+	Hash       []byte    // raw message hash
+	Deflate    byte      // use deflate to compress it(0=disable, 1=enable)
+	Signature  []byte    // sign(GUID + RoleGUID + Index + Hash + Deflate + Message)
+	Message    []byte    // use AES to encrypt it(maybe compressed first)
 }
 
 // NewAnswer is used to create a answer, Unpack() need it,
@@ -319,21 +330,24 @@ func (a *Answer) Pack(buf *bytes.Buffer) {
 	buf.Write(a.BeaconGUID[:])
 	buf.Write(convert.Uint64ToBytes(a.Index))
 	buf.Write(a.Hash)
+	buf.WriteByte(a.Deflate)
 	buf.Write(a.Signature)
 	buf.Write(a.Message)
 }
 
 // Unpack is used to unpack []byte to Answer.
 func (a *Answer) Unpack(data []byte) error {
-	if len(data) < 2*guid.Size+8+sha256.Size+ed25519.SignatureSize+aes.BlockSize {
-		return errors.New("invalid send packet size")
+	if len(data) < 2*guid.Size+IndexSize+sha256.Size+flagSize+ed25519.SignatureSize+aes.BlockSize {
+		return errors.New("invalid answer packet size")
 	}
 	copy(a.GUID[:], data[:guid.Size])
 	copy(a.BeaconGUID[:], data[guid.Size:2*guid.Size])
-	a.Index = convert.BytesToUint64(data[2*guid.Size : 2*guid.Size+8])
-	copy(a.Hash, data[2*guid.Size+8:2*guid.Size+8+sha256.Size])
-	copy(a.Signature, data[2*guid.Size+8+sha256.Size:2*guid.Size+8+sha256.Size+ed25519.SignatureSize])
-	message := data[2*guid.Size+8+sha256.Size+ed25519.SignatureSize:]
+	a.Index = convert.BytesToUint64(data[2*guid.Size : 2*guid.Size+IndexSize])
+	copy(a.Hash, data[2*guid.Size+IndexSize:2*guid.Size+IndexSize+sha256.Size])
+	a.Deflate = data[2*guid.Size+IndexSize+sha256.Size]
+	copy(a.Signature, data[2*guid.Size+IndexSize+sha256.Size+flagSize:2*guid.Size+
+		IndexSize+sha256.Size+flagSize+ed25519.SignatureSize])
+	message := data[2*guid.Size+IndexSize+sha256.Size+flagSize+ed25519.SignatureSize:]
 	mLen := len(message)
 	amLen := len(a.Message)
 	if cap(a.Message) >= mLen {
@@ -357,6 +371,9 @@ func (a *Answer) Unpack(data []byte) error {
 func (a *Answer) Validate() error {
 	if len(a.Hash) != sha256.Size {
 		return errors.New("invalid hash size")
+	}
+	if a.Deflate > 1 {
+		return errors.New("invalid deflate flag")
 	}
 	if len(a.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")

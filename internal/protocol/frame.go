@@ -35,7 +35,6 @@ const (
 
 // errors
 var (
-	ErrTooBigFrame            = errors.New("too big frame")
 	ErrInvalidFrameSize       = errors.New("invalid frame size")
 	ErrRecvNullFrame          = errors.New("receive null frame")
 	ErrRecvTooBigFrame        = errors.New("receive too big frame")

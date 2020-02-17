@@ -18,6 +18,7 @@ func testGenerateBroadcast(t *testing.T) *Broadcast {
 	err := rawB.GUID.Write(bytes.Repeat([]byte{1}, guid.Size))
 	require.NoError(t, err)
 	rawB.Hash = bytes.Repeat([]byte{2}, sha256.Size)
+	rawB.Deflate = 1
 	rawB.Signature = bytes.Repeat([]byte{3}, ed25519.SignatureSize)
 	return rawB
 }
@@ -25,7 +26,7 @@ func testGenerateBroadcast(t *testing.T) *Broadcast {
 func TestBroadcast_Unpack(t *testing.T) {
 	t.Run("invalid broadcast packet size", func(t *testing.T) {
 		err := testGenerateBroadcast(t).Unpack(nil)
-		require.Error(t, err)
+		require.EqualError(t, err, "invalid broadcast packet size")
 	})
 
 	rawData := new(bytes.Buffer)
@@ -108,6 +109,10 @@ func TestBroadcast_Validate(t *testing.T) {
 	require.EqualError(t, b.Validate(), "invalid signature size")
 
 	b.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+	b.Deflate = 3
+	require.EqualError(t, b.Validate(), "invalid deflate flag")
+
+	b.Deflate = 1
 	require.EqualError(t, b.Validate(), "invalid message size")
 	b.Message = bytes.Repeat([]byte{0}, 30)
 	require.EqualError(t, b.Validate(), "invalid message size")

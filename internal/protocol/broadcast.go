@@ -10,19 +10,23 @@ import (
 	"project/internal/guid"
 )
 
-// +----------+----------+-----------+---------+
-// |   GUID   |   hash   | signature | message |
-// +----------+----------+-----------+---------+
-// | 48 bytes | 32 bytes |  64 bytes |   var   |
-// +----------+----------+-----------+---------+
+// about deflate
+const flagSize = 1
+
+// +----------+----------+---------+-----------+---------+
+// |   GUID   |   hash   | deflate | signature | message |
+// +----------+----------+---------+-----------+---------+
+// | 48 bytes | 32 bytes |  byte   |  64 bytes |   var   |
+// +----------+----------+---------+-----------+---------+
 
 // Broadcast is used to broadcast messages to all Nodes,
 // Controller use broadcast key to encrypt message
 type Broadcast struct {
 	GUID      guid.GUID // prevent duplicate handle it
 	Hash      []byte    // raw message hash
-	Signature []byte    // sign(GUID + Hash + Message)
-	Message   []byte    // use gzip and AES to compress and encrypt
+	Deflate   byte      // use deflate to compress it(0=disable, 1=enable)
+	Signature []byte    // sign(GUID + Hash + Deflate + Message)
+	Message   []byte    // use AES to encrypt it(maybe compressed first)
 }
 
 // NewBroadcast is used to create a broadcast, Unpack() need it
@@ -39,19 +43,22 @@ func NewBroadcast() *Broadcast {
 func (b *Broadcast) Pack(buf *bytes.Buffer) {
 	buf.Write(b.GUID[:])
 	buf.Write(b.Hash)
+	buf.WriteByte(b.Deflate)
 	buf.Write(b.Signature)
 	buf.Write(b.Message)
 }
 
 // Unpack is used to unpack []byte to Broadcast
 func (b *Broadcast) Unpack(data []byte) error {
-	if len(data) < guid.Size+sha256.Size+ed25519.SignatureSize+aes.BlockSize {
+	if len(data) < guid.Size+sha256.Size+flagSize+ed25519.SignatureSize+aes.BlockSize {
 		return errors.New("invalid broadcast packet size")
 	}
 	copy(b.GUID[:], data[:guid.Size])
 	copy(b.Hash, data[guid.Size:guid.Size+sha256.Size])
-	copy(b.Signature, data[guid.Size+sha256.Size:guid.Size+sha256.Size+ed25519.SignatureSize])
-	message := data[guid.Size+sha256.Size+ed25519.SignatureSize:]
+	b.Deflate = data[guid.Size+sha256.Size]
+	copy(b.Signature, data[guid.Size+sha256.Size+flagSize:guid.Size+
+		sha256.Size+flagSize+ed25519.SignatureSize])
+	message := data[guid.Size+sha256.Size+flagSize+ed25519.SignatureSize:]
 	mLen := len(message)
 	bmLen := len(b.Message)
 	if cap(b.Message) >= mLen {
@@ -75,6 +82,9 @@ func (b *Broadcast) Unpack(data []byte) error {
 func (b *Broadcast) Validate() error {
 	if len(b.Hash) != sha256.Size {
 		return errors.New("invalid hash size")
+	}
+	if b.Deflate > 1 {
+		return errors.New("invalid deflate flag")
 	}
 	if len(b.Signature) != ed25519.SignatureSize {
 		return errors.New("invalid signature size")
