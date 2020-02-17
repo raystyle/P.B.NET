@@ -31,22 +31,6 @@ func TestAll(t *testing.T) {
 	TestNodeQueryRoleKey(t)
 }
 
-func TestLoop(t *testing.T) {
-	logLevel = "warning"
-	// t.Skip("must run it manually")
-	for i := 0; i < 100; i++ {
-		fmt.Println("round:", i+1)
-		TestAll(t)
-		time.Sleep(2 * time.Second)
-		runtime.GC()
-		debug.FreeOSMemory()
-		time.Sleep(10 * time.Second)
-		runtime.GC()
-		debug.FreeOSMemory()
-		time.Sleep(5 * time.Second)
-	}
-}
-
 func TestAll_Parallel(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(5)
@@ -78,9 +62,25 @@ func TestAll_Parallel(t *testing.T) {
 	wg.Wait()
 }
 
-func TestLoop_Parallel(t *testing.T) {
-	logLevel = "warning"
+func TestLoop(t *testing.T) {
 	// t.Skip("must run it manually")
+	logLevel = "warning"
+	for i := 0; i < 100; i++ {
+		fmt.Println("round:", i+1)
+		TestAll(t)
+		time.Sleep(2 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(10 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func TestLoop_Parallel(t *testing.T) {
+	// t.Skip("must run it manually")
+	logLevel = "warning"
 	for i := 0; i < 100; i++ {
 		fmt.Println("round:", i+1)
 		TestAll_Parallel(t)
@@ -94,133 +94,118 @@ func TestLoop_Parallel(t *testing.T) {
 	}
 }
 
-// Three Common Node connect the Initial Node
-// Controller connect the Initial Node
-// Controller broadcast test messages
-func TestCtrl_Broadcast_PassInitialNode(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
-	iNodeGUID := iNode.GUID()
+// 3 * (A Common Node Connect the Initial Node)
+// Controller broadcast test messages.
+func TestCtrl_Broadcast(t *testing.T) {
+	const num = 3
+	var (
+		iNodes [num]*node.Node
+		cNodes [num]*node.Node
+	)
+	// connect
+	for i := 0; i < num; i++ {
+		iNode, bListener, cNode := generateInitialNodeAndCommonNode(t)
 
-	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
-	require.NoError(t, err)
-	iAddr := iListener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
-		Network: iAddr.Network(),
-		Address: iAddr.String(),
-	}
-	boot, key := generateBootstrap(t, bListener)
-	ctrl.Test.CreateNodeRegisterRequestChannel()
-
-	// create and run common nodes
-	cNodes := make([]*node.Node, 3)
-	for i := 0; i < 3; i++ {
-		cNodeCfg := generateNodeConfig(t, fmt.Sprintf("Common Node %d", i))
-		// must copy, because Node register will cover bytes
-		cNodeCfg.Register.FirstBoot = make([]byte, len(boot))
-		copy(cNodeCfg.Register.FirstBoot, boot)
-		cNodeCfg.Register.FirstKey = make([]byte, len(key))
-		copy(cNodeCfg.Register.FirstKey, key)
-
-		cNode, err := node.New(cNodeCfg)
-		require.NoError(t, err)
-		testsuite.IsDestroyed(t, cNodeCfg)
-
+		iNode.Test.EnableTestMessage()
 		cNode.Test.EnableTestMessage()
-		cNodes[i] = cNode
-		go func() {
-			err := cNode.Main()
-			require.NoError(t, err)
-		}()
-	}
 
-	// read node register requests
-	for i := 0; i < 3; i++ {
-		select {
-		case nrr := <-ctrl.Test.NodeRegisterRequest:
-			err = ctrl.AcceptRegisterNode(nrr, nil, false)
-			require.NoError(t, err)
-		case <-time.After(3 * time.Second):
-			t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
-		}
-	}
-
-	// wait common nodes
-	ctx := context.Background()
-	for i := 0; i < 3; i++ {
-		timer := time.AfterFunc(10*time.Second, func() {
-			t.Fatalf("node %d register timeout", i)
-		})
-		cNodes[i].Wait()
-		timer.Stop()
-
-		// connect initial node
-		err := cNodes[i].Synchronize(ctx, iNodeGUID, bListener)
+		// try to connect Initial Node and start to synchronize
+		client, err := cNode.NewClient(context.Background(), bListener, iNode.GUID())
 		require.NoError(t, err)
+		err = client.Connect()
+		require.NoError(t, err)
+		err = client.Synchronize()
+		require.NoError(t, err)
+
+		iNodes[i] = iNode
+		cNodes[i] = cNode
 	}
 
 	// broadcast
 	const (
-		goroutines = 64
+		goroutines = 32
 		times      = 64
 	)
 	broadcast := func(start int) {
 		for i := start; i < start+times; i++ {
-			msg := []byte(fmt.Sprintf("test broadcast %d", i))
+			msg := []byte(fmt.Sprintf("test broadcast with deflate %d", i))
 			err := ctrl.Broadcast(messages.CMDBTest, msg, true)
-			if err != nil {
-				t.Error(err)
-				return
-			}
+			require.NoError(t, err)
+			msg = []byte(fmt.Sprintf("test broadcast without deflate %d", i))
+			err = ctrl.Broadcast(messages.CMDBTest, msg, false)
+			require.NoError(t, err)
 		}
 	}
 	for i := 0; i < goroutines; i++ {
 		go broadcast(i * times)
 	}
 
-	// read
-	wg := sync.WaitGroup{}
-	const format = "read Node[%d].Test.BroadcastTestMsg timeout i: %d"
-	for n, cNode := range cNodes {
-		wg.Add(1)
-		go func(n int, Node *node.Node) {
-			defer wg.Done()
-			recv := bytes.Buffer{}
-			recv.Grow(8 << 20)
-			timer := time.NewTimer(3 * time.Second)
-			for i := 0; i < goroutines*times; i++ {
-				timer.Reset(3 * time.Second)
-				select {
-				case b := <-Node.Test.BroadcastTestMsg:
-					recv.Write(b)
-					recv.WriteString("\n")
-				case <-timer.C:
-					t.Fatalf(format, n, i)
-				}
-			}
+	read := func(n int, wg *sync.WaitGroup, Node *node.Node, initial bool) {
+		defer wg.Done()
+		var prefix string
+		if initial {
+			prefix = "Initial Node[%d]"
+		} else {
+			prefix = "Common Node[%d]"
+		}
+		recv := bytes.Buffer{}
+		recv.Grow(1 << 20)
+		timer := time.NewTimer(3 * time.Second)
+		for i := 0; i < 2*goroutines*times; i++ {
+			timer.Reset(3 * time.Second)
 			select {
-			case <-Node.Test.BroadcastTestMsg:
-				t.Fatal("redundancy broadcast")
-			case <-time.After(time.Second):
+			case b := <-Node.Test.BroadcastTestMsg:
+				recv.Write(b)
+				recv.WriteString("\n")
+			case <-timer.C:
+				format := "read " + prefix + ".Test.BroadcastTestMsg timeout i: %d"
+				t.Fatalf(format, n, i)
 			}
-			str := recv.String()
-			for i := 0; i < goroutines*times; i++ {
-				need := fmt.Sprintf("test broadcast %d", i)
-				require.True(t, strings.Contains(str, need), "lost: %s", need)
-			}
+		}
+		select {
+		case <-Node.Test.BroadcastTestMsg:
+			t.Fatal("redundancy broadcast")
+		case <-time.After(time.Second):
+		}
+		str := recv.String()
+		for i := 0; i < goroutines*times; i++ {
+			format := prefix + "lost: %s"
+			withDeflate := fmt.Sprintf("test broadcast with deflate %d", i)
+			require.Truef(t, strings.Contains(str, withDeflate), format, n, withDeflate)
+			withoutDeflate := fmt.Sprintf("test broadcast without deflate %d", i)
+			require.Truef(t, strings.Contains(str, withoutDeflate), format, n, withoutDeflate)
+		}
+	}
 
-		}(n, cNode)
+	// read message
+	wg := new(sync.WaitGroup)
+	for i := 0; i < num; i++ {
+		wg.Add(2)
+		go read(i, wg, iNodes[i], true)
+		go read(i, wg, cNodes[i], false)
 	}
 	wg.Wait()
 
 	// clean
-	for i := 0; i < 3; i++ {
-		cNodes[i].Exit(nil)
+	for i := 0; i < num; i++ {
+		iNode := iNodes[i]
+		cNode := cNodes[i]
+		iNodes[i] = nil
+		cNodes[i] = nil
+		iNodeGUID := iNode.GUID()
+		cNodeGUID := cNode.GUID()
+
+		// clean
+		cNode.Exit(nil)
+		testsuite.IsDestroyed(t, cNode)
+		iNode.Exit(nil)
+		testsuite.IsDestroyed(t, iNode)
+
+		err := ctrl.DeleteNodeUnscoped(iNodeGUID)
+		require.NoError(t, err)
+		err = ctrl.DeleteNodeUnscoped(cNodeGUID)
+		require.NoError(t, err)
 	}
-	testsuite.IsDestroyed(t, &cNodes)
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
 }
 
 // One Common Node connect the Initial Node
