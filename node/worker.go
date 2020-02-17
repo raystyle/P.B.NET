@@ -2,10 +2,11 @@ package node
 
 import (
 	"bytes"
-	"compress/gzip"
+	"compress/flate"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
+	"io"
 	"sync"
 	"time"
 
@@ -170,12 +171,12 @@ type subWorker struct {
 	broadcastPool   *sync.Pool
 
 	// runtime
-	buffer     *bytes.Buffer
-	reader     *bytes.Reader
-	gzipReader *gzip.Reader
-	hash       hash.Hash
-	timer      *time.Timer
-	err        error
+	buffer  *bytes.Buffer
+	reader  *bytes.Reader
+	deflate io.ReadCloser
+	hash    hash.Hash
+	timer   *time.Timer
+	err     error
 
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
@@ -202,7 +203,7 @@ func (sw *subWorker) WorkWithBlock() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.reader = bytes.NewReader(nil)
-	sw.gzipReader = new(gzip.Reader)
+	sw.deflate = flate.NewReader(nil)
 	sw.hash = sha256.New()
 	// must stop at once, or maybe timeout at the first time.
 	sw.timer = time.NewTimer(time.Minute)
@@ -277,13 +278,14 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	sw.buffer.Write(send.GUID[:])
 	sw.buffer.Write(send.RoleGUID[:])
 	sw.buffer.Write(send.Hash)
+	sw.buffer.WriteByte(send.Deflate)
 	sw.buffer.Write(send.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid send signature\n%s"
 		sw.logf(logger.Exploit, format, spew.Sdump(send))
 		return
 	}
-	// decrypt compressed message
+	// decrypt message
 	send.Message, sw.err = sw.ctx.global.Decrypt(send.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt send message: %s\n%s"
@@ -291,30 +293,32 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		return
 	}
 	// decompress message
-	sw.reader.Reset(send.Message)
-	sw.err = sw.gzipReader.Reset(sw.reader)
-	if sw.err != nil {
-		const format = "failed to load gzip header from send message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
-		return
+	if send.Deflate == 1 {
+		sw.reader.Reset(send.Message)
+		sw.err = sw.deflate.(flate.Resetter).Reset(sw.reader, nil)
+		if sw.err != nil {
+			const format = "failed to reset deflate reader about send message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+			return
+		}
+		sw.buffer.Reset()
+		_, sw.err = sw.buffer.ReadFrom(sw.deflate)
+		if sw.err != nil {
+			const format = "failed to decompress send message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+			return
+		}
+		sw.err = sw.deflate.Close()
+		if sw.err != nil {
+			const format = "failed to close deflate reader about send message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+			return
+		}
+		// must recover it, otherwise will appear data race
+		aesBuffer := send.Message
+		defer func() { send.Message = aesBuffer }()
+		send.Message = sw.buffer.Bytes()
 	}
-	sw.buffer.Reset()
-	_, sw.err = sw.buffer.ReadFrom(sw.gzipReader)
-	if sw.err != nil {
-		const format = "failed to decompress send message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
-		return
-	}
-	sw.err = sw.gzipReader.Close()
-	if sw.err != nil {
-		const format = "failed to close gzip reader about send message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
-		return
-	}
-	// must recover it, otherwise will appear data race
-	aesBuffer := send.Message
-	defer func() { send.Message = aesBuffer }()
-	send.Message = sw.buffer.Bytes()
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(send.Message)
@@ -365,13 +369,14 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 	sw.buffer.Reset()
 	sw.buffer.Write(broadcast.GUID[:])
 	sw.buffer.Write(broadcast.Hash)
+	sw.buffer.WriteByte(broadcast.Deflate)
 	sw.buffer.Write(broadcast.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), broadcast.Signature) {
 		const format = "invalid broadcast signature\n%s"
 		sw.logf(logger.Exploit, format, spew.Sdump(broadcast))
 		return
 	}
-	// decrypt compressed message
+	// decrypt message
 	broadcast.Message, sw.err = sw.ctx.global.CtrlDecrypt(broadcast.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt broadcast message: %s\n%s"
@@ -379,30 +384,32 @@ func (sw *subWorker) handleBroadcast(broadcast *protocol.Broadcast) {
 		return
 	}
 	// decompress message
-	sw.reader.Reset(broadcast.Message)
-	sw.err = sw.gzipReader.Reset(sw.reader)
-	if sw.err != nil {
-		const format = "failed to load gzip header from broadcast message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(broadcast))
-		return
+	if broadcast.Deflate == 1 {
+		sw.reader.Reset(broadcast.Message)
+		sw.err = sw.deflate.(flate.Resetter).Reset(sw.reader, nil)
+		if sw.err != nil {
+			const format = "failed to reset deflate reader from broadcast message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(broadcast))
+			return
+		}
+		sw.buffer.Reset()
+		_, sw.err = sw.buffer.ReadFrom(sw.deflate)
+		if sw.err != nil {
+			const format = "failed to decompress broadcast message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(broadcast))
+			return
+		}
+		sw.err = sw.deflate.Close()
+		if sw.err != nil {
+			const format = "failed to close deflate reader about broadcast message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(broadcast))
+			return
+		}
+		// must recover it, otherwise will appear data race
+		aesBuffer := broadcast.Message
+		defer func() { broadcast.Message = aesBuffer }()
+		broadcast.Message = sw.buffer.Bytes()
 	}
-	sw.buffer.Reset()
-	_, sw.err = sw.buffer.ReadFrom(sw.gzipReader)
-	if sw.err != nil {
-		const format = "failed to decompress broadcast message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(broadcast))
-		return
-	}
-	sw.err = sw.gzipReader.Close()
-	if sw.err != nil {
-		const format = "failed to close gzip reader about broadcast message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(broadcast))
-		return
-	}
-	// must recover it, otherwise will appear data race
-	aesBuffer := broadcast.Message
-	defer func() { broadcast.Message = aesBuffer }()
-	broadcast.Message = sw.buffer.Bytes()
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(broadcast.Message)

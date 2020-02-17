@@ -671,7 +671,8 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 		return
 	}
 	// <security> must don't handle error.
-	_ = server.ctx.sender.Send(server.context, messages.CMDBNodeRegisterRequest, request)
+	_ = server.ctx.sender.Send(server.context,
+		messages.CMDBNodeRegisterRequest, request, true)
 	// wait register result
 	timeout := time.Duration(15+server.rand.Int(30)) * time.Second
 	timer := time.AfterFunc(timeout, func() {
@@ -746,7 +747,8 @@ func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 		Time: now,
 	}
 	// <security> must don't handle error.
-	_ = server.ctx.sender.Send(server.context, messages.CMDBQueryNodeKey, query)
+	_ = server.ctx.sender.Send(server.context,
+		messages.CMDBQueryNodeKey, query, true)
 	// calculate network latency between Node and Controller.
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Node key to this Node.
@@ -861,7 +863,8 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 		return
 	}
 	// <security> must don't handle error
-	_ = server.ctx.sender.Send(server.context, messages.CMDBBeaconRegisterRequest, request)
+	_ = server.ctx.sender.Send(server.context,
+		messages.CMDBBeaconRegisterRequest, request, true)
 	// wait register result
 	timeout := time.Duration(15+server.rand.Int(30)) * time.Second
 	timer := time.AfterFunc(timeout, func() {
@@ -935,7 +938,8 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 		Time: now,
 	}
 	// <security> must don't handle error
-	_ = server.ctx.sender.Send(server.context, messages.CMDBQueryBeaconKey, query)
+	_ = server.ctx.sender.Send(server.context,
+		messages.CMDBQueryBeaconKey, query, true)
 	// calculate network latency between Node and Controller
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Beacon key to this Node

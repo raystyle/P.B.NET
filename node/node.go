@@ -207,8 +207,8 @@ func (node *Node) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstra
 }
 
 // Send is used to send message to Controller.
-func (node *Node) Send(ctx context.Context, command, message []byte) error {
-	return node.sender.Send(ctx, command, message)
+func (node *Node) Send(ctx context.Context, command, message []byte, deflate bool) error {
+	return node.sender.Send(ctx, command, message, deflate)
 }
 
 // AddListener is used to add listener.
