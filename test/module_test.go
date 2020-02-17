@@ -15,7 +15,7 @@ import (
 )
 
 func TestModule(t *testing.T) {
-	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
+	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	beaconGUID := Beacon.GUID()
 

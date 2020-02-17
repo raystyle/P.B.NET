@@ -95,8 +95,20 @@ func TestLoop_Parallel(t *testing.T) {
 }
 
 // 3 * (A Common Node Connect the Initial Node)
-// Controller broadcast test messages.
-func TestCtrl_Broadcast(t *testing.T) {
+//
+//  +------------+     +----------------+     +---------------+
+//  |            | --> | Initial Node 0 | <-- | Common Node 0 |
+//  |            |     +----------------+     +---------------+
+//  |            |
+//  |            |     +----------------+     +---------------+
+//  | Controller | --> | Initial Node 1 | <-- | Common Node 1 |
+//  |            |     +----------------+     +---------------+
+//  |            |
+//  |            |     +----------------+     +---------------+
+//  |            | --> | Initial Node 2 | <-- | Common Node 2 |
+//  +------------+     +----------------+     +---------------+
+//
+func TestCtrl_Broadcast_CI(t *testing.T) {
 	const num = 3
 	var (
 		iNodes [num]*node.Node
@@ -104,24 +116,94 @@ func TestCtrl_Broadcast(t *testing.T) {
 	)
 	// connect
 	for i := 0; i < num; i++ {
-		iNode, bListener, cNode := generateInitialNodeAndCommonNode(t)
+		iNode, bListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
 
 		iNode.Test.EnableTestMessage()
 		cNode.Test.EnableTestMessage()
 
 		// try to connect Initial Node and start to synchronize
-		client, err := cNode.NewClient(context.Background(), bListener, iNode.GUID())
-		require.NoError(t, err)
-		err = client.Connect()
-		require.NoError(t, err)
-		err = client.Synchronize()
+		err := cNode.Synchronize(context.Background(), iNode.GUID(), bListener)
 		require.NoError(t, err)
 
 		iNodes[i] = iNode
 		cNodes[i] = cNode
 	}
+	testCtrlBroadcast(t, iNodes[:], cNodes[:])
+}
 
-	// broadcast
+// 3 * (Initial Node connect the Common Node Connect)
+//
+//  +------------+     +----------------+
+//  |            | --> | Initial Node 0 |
+//  |            |     +----------------+
+//  |            |             ↓
+//  |            |     +---------------+
+//  |            | --> | Common Node 0 |
+//  |            |     +---------------+
+//  |            |
+//  |            |     +----------------+
+//  |            | --> | Initial Node 1 |
+//  |            |     +----------------+
+//  | Controller |             ↓
+//  |            |     +---------------+
+//  |            | --> | Common Node 1 |
+//  |            |     +---------------+
+//  |            |
+//  |            |     +----------------+
+//  |            | --> | Initial Node 2 |
+//  |            |     +----------------+
+//  |            |             ↓
+//  |            |     +---------------+
+//  |            | --> | Common Node 2 |
+//  +------------+     +---------------+
+//
+func TestCtrl_Broadcast_IC(t *testing.T) {
+	const num = 3
+	var (
+		iNodes [num]*node.Node
+		cNodes [num]*node.Node
+	)
+	// connect
+	for i := 0; i < num; i++ {
+		iNode, _, cNode := generateInitialNodeAndCommonNode(t, i, i)
+
+		iNode.Test.EnableTestMessage()
+		cNode.Test.EnableTestMessage()
+
+		// add listener to Common Node
+		const listenerTag = "test"
+		listener := &messages.Listener{
+			Tag:     listenerTag,
+			Mode:    xnet.ModeTCP,
+			Network: "tcp",
+			Address: "localhost:0",
+		}
+		err := cNode.AddListener(listener)
+		require.NoError(t, err)
+		dListener, err := cNode.GetListener(listenerTag)
+		require.NoError(t, err)
+		bListener := &bootstrap.Listener{
+			Mode:    xnet.ModeTCP,
+			Network: "tcp",
+			Address: dListener.Addr().String(),
+		}
+
+		// Controller must connect the Common Node, otherwise the Common Node
+		// can't query Node key from Controller
+		err = ctrl.Synchronize(context.Background(), cNode.GUID(), bListener)
+		require.NoError(t, err)
+
+		// Initial Node connect the Common Node and start to synchronize
+		err = iNode.Synchronize(context.Background(), cNode.GUID(), bListener)
+		require.NoError(t, err)
+
+		iNodes[i] = iNode
+		cNodes[i] = cNode
+	}
+	testCtrlBroadcast(t, iNodes[:], cNodes[:])
+}
+
+func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 	const (
 		goroutines = 32
 		times      = 64
@@ -179,31 +261,38 @@ func TestCtrl_Broadcast(t *testing.T) {
 
 	// read message
 	wg := new(sync.WaitGroup)
-	for i := 0; i < num; i++ {
-		wg.Add(2)
+	for i := 0; i < len(iNodes); i++ {
+		wg.Add(1)
 		go read(i, wg, iNodes[i], true)
+
+	}
+	for i := 0; i < len(cNodes); i++ {
+		wg.Add(1)
 		go read(i, wg, cNodes[i], false)
 	}
 	wg.Wait()
 
 	// clean
-	for i := 0; i < num; i++ {
-		iNode := iNodes[i]
+	for i := 0; i < len(cNodes); i++ {
 		cNode := cNodes[i]
-		iNodes[i] = nil
 		cNodes[i] = nil
-		iNodeGUID := iNode.GUID()
 		cNodeGUID := cNode.GUID()
 
-		// clean
 		cNode.Exit(nil)
 		testsuite.IsDestroyed(t, cNode)
+
+		err := ctrl.DeleteNodeUnscoped(cNodeGUID)
+		require.NoError(t, err)
+	}
+	for i := 0; i < len(iNodes); i++ {
+		iNode := iNodes[i]
+		iNodes[i] = nil
+		iNodeGUID := iNode.GUID()
+
 		iNode.Exit(nil)
 		testsuite.IsDestroyed(t, iNode)
 
 		err := ctrl.DeleteNodeUnscoped(iNodeGUID)
-		require.NoError(t, err)
-		err = ctrl.DeleteNodeUnscoped(cNodeGUID)
 		require.NoError(t, err)
 	}
 }
@@ -212,7 +301,7 @@ func TestCtrl_Broadcast(t *testing.T) {
 // Controller connect the Initial Node
 // Controller send test messages
 func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
@@ -320,7 +409,7 @@ func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 // One Beacon connect the Initial Node, Controller connect the Initial Node,
 // Controller send test messages to Beacon in interactive mode.
 func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
@@ -427,7 +516,7 @@ func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 }
 
 func TestNode_SendDirectly(t *testing.T) {
-	Node := generateInitialNodeAndTrust(t)
+	Node := generateInitialNodeAndTrust(t, 0)
 	NodeGUID := Node.GUID()
 
 	ctrl.Test.EnableRoleSendTestMessage()
@@ -488,7 +577,7 @@ func TestNode_SendDirectly(t *testing.T) {
 // One Common Node connect the Initial Node, Controller connect the Initial Node,
 // Node send test messages to Controller
 func TestNode_Send_PassInitialNode(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
@@ -597,7 +686,7 @@ func TestNode_Send_PassInitialNode(t *testing.T) {
 // One Beacon connect the Initial Node, Controller connect the Initial Node,
 // Beacon send test messages to Controller in interactive mode.
 func TestBeacon_Send_PassInitialNode(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
@@ -709,7 +798,7 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 //
 // Beacon -> Common Node -> Initial Node -> Controller
 func TestBeacon_Send_PassCommonNode(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
@@ -872,7 +961,7 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 //
 // Controller -> Initial Node -> Common Node -> Beacon
 func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
@@ -1029,7 +1118,7 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 }
 
 func TestNodeQueryRoleKey(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
@@ -1187,7 +1276,7 @@ func TestNodeQueryRoleKey(t *testing.T) {
 }
 
 func TestBeacon_Query(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap

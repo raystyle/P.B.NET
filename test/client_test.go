@@ -48,7 +48,7 @@ func testClientSendCommand(t *testing.T, send func(cmd uint8, data []byte) ([]by
 }
 
 func TestCtrl_Client_Send(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
@@ -77,7 +77,7 @@ func TestCtrl_Client_Send(t *testing.T) {
 }
 
 func TestNode_Client_Send(t *testing.T) {
-	iNode, bListener, cNode := generateInitialNodeAndCommonNode(t)
+	iNode, bListener, cNode := generateInitialNodeAndCommonNode(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	cNodeGUID := cNode.GUID()
 
@@ -104,7 +104,7 @@ func TestNode_Client_Send(t *testing.T) {
 }
 
 func TestBeacon_Client_Send(t *testing.T) {
-	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
+	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	beaconGUID := Beacon.GUID()
 

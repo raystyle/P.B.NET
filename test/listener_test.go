@@ -22,7 +22,7 @@ import (
 )
 
 func TestNodeListener(t *testing.T) {
-	Node := generateInitialNodeAndTrust(t)
+	Node := generateInitialNodeAndTrust(t, 0)
 
 	t.Run("QUIC", func(t *testing.T) {
 		testNodeListenerQUIC(t, Node)

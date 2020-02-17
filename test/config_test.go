@@ -240,10 +240,10 @@ func initializeController(t testing.TB) {
 
 const InitialNodeListenerTag = "initial_tcp"
 
-func generateInitialNode(t testing.TB) *node.Node {
+func generateInitialNode(t testing.TB, id int) *node.Node {
 	initializeController(t)
 
-	cfg := generateNodeConfig(t, "Initial Node")
+	cfg := generateNodeConfig(t, fmt.Sprintf("Initial Node %d", id))
 	cfg.Register.Skip = true
 
 	// generate certificate
@@ -287,8 +287,8 @@ func generateInitialNode(t testing.TB) *node.Node {
 	return Node
 }
 
-func generateInitialNodeAndTrust(t testing.TB) *node.Node {
-	Node := generateInitialNode(t)
+func generateInitialNodeAndTrust(t testing.TB, id int) *node.Node {
+	Node := generateInitialNode(t, id)
 	listener, err := Node.GetListener(InitialNodeListenerTag)
 	require.NoError(t, err)
 	bListener := &bootstrap.Listener{

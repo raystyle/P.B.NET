@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,9 +17,9 @@ import (
 
 // generateInitialNodeAndCommonNode is used to generate an Initial Node
 // and trust it, then generate a Common Node and register it.
-func generateInitialNodeAndCommonNode(t testing.TB) (
+func generateInitialNodeAndCommonNode(t testing.TB, iID, cID int) (
 	*node.Node, *bootstrap.Listener, *node.Node) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, iID)
 
 	ctrl.Test.CreateNodeRegisterRequestChannel()
 
@@ -34,7 +35,7 @@ func generateInitialNodeAndCommonNode(t testing.TB) (
 	boot, key := generateBootstrap(t, bListener)
 
 	// create Common Node and run
-	cNodeCfg := generateNodeConfig(t, "Common Node")
+	cNodeCfg := generateNodeConfig(t, fmt.Sprintf("Common Node %d", cID))
 	cNodeCfg.Register.FirstBoot = boot
 	cNodeCfg.Register.FirstKey = key
 	cNode, err := node.New(cNodeCfg)
@@ -66,7 +67,7 @@ func generateInitialNodeAndCommonNode(t testing.TB) (
 }
 
 func TestNodeRegister(t *testing.T) {
-	iNode, bListener, cNode := generateInitialNodeAndCommonNode(t)
+	iNode, bListener, cNode := generateInitialNodeAndCommonNode(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	cNodeGUID := cNode.GUID()
 
@@ -89,9 +90,9 @@ func TestNodeRegister(t *testing.T) {
 
 // generateInitialNodeAndBeacon is used to generate an Initial Node
 // and trust it, then generate a Beacon and register it.
-func generateInitialNodeAndBeacon(t testing.TB) (
+func generateInitialNodeAndBeacon(t testing.TB, iID, bID int) (
 	*node.Node, *bootstrap.Listener, *beacon.Beacon) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode := generateInitialNodeAndTrust(t, iID)
 	ctrl.Test.CreateBeaconRegisterRequestChannel()
 
 	// generate bootstrap
@@ -106,7 +107,7 @@ func generateInitialNodeAndBeacon(t testing.TB) (
 	boot, key := generateBootstrap(t, bListener)
 
 	// create Beacon and run
-	beaconCfg := generateBeaconConfig(t, "Beacon")
+	beaconCfg := generateBeaconConfig(t, fmt.Sprintf("Beacon %d", bID))
 	beaconCfg.Register.FirstBoot = boot
 	beaconCfg.Register.FirstKey = key
 	Beacon, err := beacon.New(beaconCfg)
@@ -135,7 +136,7 @@ func generateInitialNodeAndBeacon(t testing.TB) (
 }
 
 func TestBeaconRegister(t *testing.T) {
-	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
+	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	beaconGUID := Beacon.GUID()
 
