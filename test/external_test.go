@@ -21,75 +21,57 @@ func TestToml_Negative(t *testing.T) {
 
 // fast
 func BenchmarkBytes_Compare_GUID(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, guid.Size)
-	bb := bytes.Repeat([]byte{0}, guid.Size)
-	benchmarkBytesCompare(b, aa, bb)
+	benchmarkBytesCompare(b, guid.Size)
 }
 
 // slow
 func BenchmarkBytes_Equal_GUID(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, guid.Size)
-	bb := bytes.Repeat([]byte{0}, guid.Size)
-	benchmarkBytesEqual(b, aa, bb)
+	benchmarkBytesEqual(b, guid.Size)
 }
 
 // slow
 func BenchmarkBytes_Compare_1Bytes(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, 1)
-	bb := bytes.Repeat([]byte{0}, 1)
-	benchmarkBytesCompare(b, aa, bb)
+	benchmarkBytesCompare(b, 1)
 }
 
 // fast
 func BenchmarkBytes_Equal_1Bytes(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, 1)
-	bb := bytes.Repeat([]byte{0}, 1)
-	benchmarkBytesEqual(b, aa, bb)
+	benchmarkBytesEqual(b, 1)
 }
 
 // slow
 func BenchmarkBytes_Compare_4Bytes(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, 4)
-	bb := bytes.Repeat([]byte{0}, 4)
-	benchmarkBytesCompare(b, aa, bb)
+	benchmarkBytesCompare(b, 4)
 }
 
 // fast
 func BenchmarkBytes_Equal_4Bytes(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, 4)
-	bb := bytes.Repeat([]byte{0}, 4)
-	benchmarkBytesEqual(b, aa, bb)
+	benchmarkBytesEqual(b, 4)
 }
 
 // slow
 func BenchmarkBytes_Compare_8Bytes(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, 8)
-	bb := bytes.Repeat([]byte{0}, 8)
-	benchmarkBytesCompare(b, aa, bb)
+	benchmarkBytesCompare(b, 8)
 }
 
 // fast
 func BenchmarkBytes_Equal_8Bytes(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, 8)
-	bb := bytes.Repeat([]byte{0}, 8)
-	benchmarkBytesEqual(b, aa, bb)
+	benchmarkBytesEqual(b, 8)
 }
 
 // slow
 func BenchmarkBytes_Compare_10xGUID(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, 10*guid.Size)
-	bb := bytes.Repeat([]byte{0}, 10*guid.Size)
-	benchmarkBytesCompare(b, aa, bb)
+	benchmarkBytesCompare(b, 10*guid.Size)
 }
 
 // fast
 func BenchmarkBytes_Equal_10xGUID(b *testing.B) {
-	aa := bytes.Repeat([]byte{0}, 10*guid.Size)
-	bb := bytes.Repeat([]byte{0}, 10*guid.Size)
-	benchmarkBytesEqual(b, aa, bb)
+	benchmarkBytesEqual(b, 10*guid.Size)
 }
 
-func benchmarkBytesCompare(b *testing.B, aa, bb []byte) {
+func benchmarkBytesCompare(b *testing.B, size int) {
+	aa := bytes.Repeat([]byte{0}, size)
+	bb := bytes.Repeat([]byte{0}, size)
 	b.ReportAllocs()
 	b.ResetTimer()
 	b.StartTimer()
@@ -99,7 +81,9 @@ func benchmarkBytesCompare(b *testing.B, aa, bb []byte) {
 	b.StopTimer()
 }
 
-func benchmarkBytesEqual(b *testing.B, aa, bb []byte) {
+func benchmarkBytesEqual(b *testing.B, size int) {
+	aa := bytes.Repeat([]byte{0}, size)
+	bb := bytes.Repeat([]byte{0}, size)
 	b.ReportAllocs()
 	b.ResetTimer()
 	b.StartTimer()
