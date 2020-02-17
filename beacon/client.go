@@ -258,7 +258,7 @@ func (client *Client) authenticate() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive authentication response")
 	}
-	if bytes.Compare(resp, protocol.AuthSucceed) != 0 {
+	if !bytes.Equal(resp, protocol.AuthSucceed) {
 		return errors.WithStack(protocol.ErrAuthenticateFailed)
 	}
 	return nil
@@ -416,7 +416,7 @@ func (client *Client) Synchronize() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive synchronize response")
 	}
-	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
+	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
 		err = errors.Errorf("failed to start to synchronize: %s", resp)
 		return err // can't return directly
 	}
@@ -689,7 +689,7 @@ func (client *Client) Send(
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -697,7 +697,7 @@ func (client *Client) Send(
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		sr.Err = errors.New(string(reply))
 	}
 	return
@@ -717,7 +717,7 @@ func (client *Client) Acknowledge(
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		ar.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -725,7 +725,7 @@ func (client *Client) Acknowledge(
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		ar.Err = errors.New(string(reply))
 	}
 	return
@@ -745,7 +745,7 @@ func (client *Client) Query(
 	if q.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		q.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -753,7 +753,7 @@ func (client *Client) Query(
 	if q.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		q.Err = errors.New(string(reply))
 	}
 	return

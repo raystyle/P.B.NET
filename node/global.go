@@ -355,7 +355,7 @@ func (global *global) SetCertificate(data []byte) error {
 	if *global.GUID() != cert.GUID {
 		return errors.New("different node guid")
 	}
-	if bytes.Compare(global.PublicKey(), cert.PublicKey) != 0 {
+	if !bytes.Equal(global.PublicKey(), cert.PublicKey) {
 		return errors.New("different public key")
 	}
 	if !cert.VerifySignatureWithCtrlGUID(global.CtrlPublicKey()) {

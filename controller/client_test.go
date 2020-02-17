@@ -211,7 +211,7 @@ func BenchmarkClient_Send(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if bytes.Compare(data.Bytes(), reply) != 0 {
+		if !bytes.Equal(data.Bytes(), reply) {
 			b.Fatal("reply the different data")
 		}
 		data.Reset()
@@ -240,7 +240,7 @@ func BenchmarkClient_SendParallel(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			if bytes.Compare(data.Bytes(), reply) != 0 {
+			if !bytes.Equal(data.Bytes(), reply) {
 				b.Fatal("reply the different data")
 			}
 			data.Reset()

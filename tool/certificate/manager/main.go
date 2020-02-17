@@ -44,7 +44,7 @@ func initManager() {
 		fmt.Print("\nretype: ")
 		retype, err := terminal.ReadPassword(int(syscall.Stdin))
 		checkError(err, true)
-		if bytes.Compare(pwd, retype) != 0 {
+		if !bytes.Equal(pwd, retype) {
 			fmt.Print("\ndifferent password")
 		} else {
 			fmt.Println()
@@ -237,7 +237,7 @@ func listSystem() {
 // check if added repeatedly
 func checkRepeat(a map[int][]byte, b []byte) bool {
 	for _, v := range a {
-		if bytes.Compare(v, b) == 0 {
+		if bytes.Equal(v, b) {
 			return true
 		}
 	}

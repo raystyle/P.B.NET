@@ -86,7 +86,7 @@ func (ctrl *Ctrl) ConfirmTrustNode(
 	if err != nil {
 		return errors.WithMessage(err, "failed to set node certificate")
 	}
-	if bytes.Compare(reply, []byte{messages.RegisterResultAccept}) != 0 {
+	if !bytes.Equal(reply, []byte{messages.RegisterResultAccept}) {
 		return errors.Errorf("failed to trust node: %s", reply)
 	}
 	return nil

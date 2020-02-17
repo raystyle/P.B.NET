@@ -240,7 +240,7 @@ func ProxyConn(t testing.TB, conn net.Conn) {
 		require.NoError(t, err)
 		buf.Write(buffer[:n])
 		if buf.Len() > 4 {
-			if bytes.Compare(buf.Bytes()[buf.Len()-4:], []byte("\r\n\r\n")) == 0 {
+			if bytes.Equal(buf.Bytes()[buf.Len()-4:], []byte("\r\n\r\n")) {
 				break
 			}
 		}

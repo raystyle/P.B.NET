@@ -853,7 +853,7 @@ func (c *conn) Send(
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -861,7 +861,7 @@ func (c *conn) Send(
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		sr.Err = errors.New(string(reply))
 	}
 	return
@@ -881,7 +881,7 @@ func (c *conn) Acknowledge(
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		ar.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -889,7 +889,7 @@ func (c *conn) Acknowledge(
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		ar.Err = errors.New(string(reply))
 	}
 	return
@@ -903,7 +903,7 @@ func (c *conn) SendToNode(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.CtrlSendToNode, data)
@@ -915,7 +915,7 @@ func (c *conn) AckToNode(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.CtrlAckToNode, data)
@@ -927,7 +927,7 @@ func (c *conn) SendToBeacon(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.CtrlSendToBeacon, data)
@@ -939,7 +939,7 @@ func (c *conn) AckToBeacon(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.CtrlAckToBeacon, data)
@@ -951,7 +951,7 @@ func (c *conn) Broadcast(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.CtrlBroadcast, data)
@@ -963,7 +963,7 @@ func (c *conn) Answer(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.CtrlAnswer, data)
@@ -975,7 +975,7 @@ func (c *conn) NodeSend(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.NodeSend, data)
@@ -987,7 +987,7 @@ func (c *conn) NodeAck(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.NodeAck, data)
@@ -999,7 +999,7 @@ func (c *conn) BeaconSend(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.BeaconSend, data)
@@ -1011,7 +1011,7 @@ func (c *conn) BeaconAck(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.BeaconAck, data)
@@ -1023,7 +1023,7 @@ func (c *conn) Query(guid, data []byte) {
 	if err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	_, _ = c.send(protocol.BeaconQuery, data)

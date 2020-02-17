@@ -228,7 +228,7 @@ func (client *Client) handshake(conn *xnet.Conn) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive authentication response")
 	}
-	if bytes.Compare(resp, protocol.AuthSucceed) != 0 {
+	if !bytes.Equal(resp, protocol.AuthSucceed) {
 		err = errors.WithStack(protocol.ErrAuthenticateFailed)
 		client.log(logger.Exploit, err)
 		return err
@@ -405,7 +405,7 @@ func (client *Client) Synchronize() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to receive synchronize response")
 	}
-	if bytes.Compare(resp, []byte{protocol.NodeSync}) != 0 {
+	if !bytes.Equal(resp, []byte{protocol.NodeSync}) {
 		err = errors.Errorf("failed to start to synchronize: %s", resp)
 		return err // can't return directly
 	}
@@ -770,7 +770,7 @@ func (client *Client) SendToNode(
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -778,7 +778,7 @@ func (client *Client) SendToNode(
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		sr.Err = protocol.GetReplyError(reply)
 	}
 	return
@@ -798,7 +798,7 @@ func (client *Client) SendToBeacon(
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		sr.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -806,7 +806,7 @@ func (client *Client) SendToBeacon(
 	if sr.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		sr.Err = protocol.GetReplyError(reply)
 	}
 	return
@@ -826,14 +826,14 @@ func (client *Client) AckToNode(
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	reply, ar.Err = client.send(protocol.CtrlAckToNode, data.Bytes())
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		ar.Err = errors.New(string(reply))
 	}
 	return
@@ -853,14 +853,14 @@ func (client *Client) AckToBeacon(
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	reply, ar.Err = client.send(protocol.CtrlAckToBeacon, data.Bytes())
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		ar.Err = errors.New(string(reply))
 	}
 	return
@@ -879,7 +879,7 @@ func (client *Client) Broadcast(
 	if br.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		br.Err = protocol.GetReplyError(reply)
 		return
 	}
@@ -888,7 +888,7 @@ func (client *Client) Broadcast(
 	if br.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		br.Err = protocol.GetReplyError(reply)
 	}
 	return
@@ -907,14 +907,14 @@ func (client *Client) Answer(
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplyUnhandled) != 0 {
+	if !bytes.Equal(reply, protocol.ReplyUnhandled) {
 		return
 	}
 	reply, ar.Err = client.send(protocol.CtrlAnswer, data.Bytes())
 	if ar.Err != nil {
 		return
 	}
-	if bytes.Compare(reply, protocol.ReplySucceed) != 0 {
+	if !bytes.Equal(reply, protocol.ReplySucceed) {
 		ar.Err = errors.New(string(reply))
 	}
 	return

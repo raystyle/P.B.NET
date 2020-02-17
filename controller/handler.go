@@ -234,7 +234,7 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// compare key exchange public key
-	if bytes.Compare(send.Message[:curve25519.ScalarSize], nrr.KexPublicKey) != 0 {
+	if !bytes.Equal(send.Message[:curve25519.ScalarSize], nrr.KexPublicKey) {
 		const log = "different key exchange public key in node register request"
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
@@ -271,7 +271,7 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// compare key exchange public key
-	if bytes.Compare(send.Message[:curve25519.ScalarSize], brr.KexPublicKey) != 0 {
+	if !bytes.Equal(send.Message[:curve25519.ScalarSize], brr.KexPublicKey) {
 		const log = "different key exchange public key in beacon register request"
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return

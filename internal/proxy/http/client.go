@@ -277,7 +277,7 @@ func (c *Client) HTTP(t *http.Transport) {
 			contain := false
 			cc := cert.Certificate[0]
 			for _, tCert := range t.TLSClientConfig.Certificates {
-				if bytes.Compare(cc, tCert.Certificate[0]) == 0 {
+				if bytes.Equal(cc, tCert.Certificate[0]) {
 					contain = true
 					break
 				}
