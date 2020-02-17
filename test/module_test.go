@@ -78,7 +78,8 @@ func TestExecuteShellCode(t *testing.T) {
 		Method:    "vp",
 		ShellCode: scBytes,
 	}
-	err = ctrl.SendToBeacon(context.Background(), beaconGUID, messages.CMDBExecuteShellCode, &es)
+	err = ctrl.SendToBeacon(context.Background(), beaconGUID,
+		messages.CMDBExecuteShellCode, &es, true)
 	require.NoError(t, err)
 
 	time.Sleep(5 * time.Second)
@@ -146,7 +147,8 @@ func TestShell(t *testing.T) {
 	shell := messages.Shell{
 		Command: "systeminfo",
 	}
-	err = ctrl.SendToBeacon(context.Background(), beaconGUID, messages.CMDBShell, &shell)
+	err = ctrl.SendToBeacon(context.Background(), beaconGUID,
+		messages.CMDBShell, &shell, true)
 	require.NoError(t, err)
 
 	time.Sleep(5 * time.Second)

@@ -168,7 +168,7 @@ func TestCtrl_Broadcast_PassInitialNode(t *testing.T) {
 	broadcast := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test broadcast %d", i))
-			err := ctrl.Broadcast(messages.CMDBTest, msg)
+			err := ctrl.Broadcast(messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -286,7 +286,7 @@ func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.SendToNode(ctx, cNodeGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToNode(ctx, cNodeGUID, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -395,7 +395,7 @@ func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -456,7 +456,7 @@ func TestNode_SendDirectly(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := Node.Send(ctx, messages.CMDBTest, msg)
+			err := Node.Send(ctx, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -563,7 +563,7 @@ func TestNode_Send_PassInitialNode(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := cNode.Send(ctx, messages.CMDBTest, msg)
+			err := cNode.Send(ctx, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -672,7 +672,7 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := Beacon.Send(ctx, messages.CMDBTest, msg)
+			err := Beacon.Send(ctx, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -831,7 +831,7 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := Beacon.Send(ctx, messages.CMDBTest, msg)
+			err := Beacon.Send(ctx, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -993,7 +993,7 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -1151,7 +1151,7 @@ func TestNodeQueryRoleKey(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -1258,7 +1258,7 @@ func TestBeacon_Query(t *testing.T) {
 	send := func(prefix string) {
 		for i := 0; i < times; i++ {
 			msg := []byte(fmt.Sprintf("test send %s%d", prefix, i))
-			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg)
+			err := ctrl.SendToBeacon(ctx, beaconGUID, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
