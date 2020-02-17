@@ -8,59 +8,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/bootstrap"
 	"project/internal/messages"
 	"project/internal/testsuite"
-
-	"project/beacon"
 )
 
 func TestExecuteShellCode(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
 	iNodeGUID := iNode.GUID()
-
-	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
-	require.NoError(t, err)
-	iAddr := iListener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
-		Network: iAddr.Network(),
-		Address: iAddr.String(),
-	}
-	boot, key := generateBootstrap(t, bListener)
-	ctrl.Test.CreateBeaconRegisterRequestChannel()
-
-	// create and run Beacon
-	beaconCfg := generateBeaconConfig(t, "Beacon")
-	beaconCfg.Register.FirstBoot = boot
-	beaconCfg.Register.FirstKey = key
-	Beacon, err := beacon.New(beaconCfg)
-	require.NoError(t, err)
-	go func() {
-		err := Beacon.Main()
-		require.NoError(t, err)
-	}()
-
-	// read Beacon register request
-	select {
-	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr, nil)
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
-	}
-	timer := time.AfterFunc(10*time.Second, func() {
-		t.Fatal("beacon register timeout")
-	})
-	Beacon.Wait()
-	timer.Stop()
+	beaconGUID := Beacon.GUID()
 
 	// connect Initial Node
-	err = Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
+	err := Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
 	require.NoError(t, err)
 
-	beaconGUID := Beacon.GUID()
 	ctrl.EnableInteractiveMode(beaconGUID)
 
 	scHex := "fc4883e4f0e8c0000000415141505251564831d265488b5260488b52184" +
@@ -97,51 +57,14 @@ func TestExecuteShellCode(t *testing.T) {
 }
 
 func TestShell(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
 	iNodeGUID := iNode.GUID()
-
-	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
-	require.NoError(t, err)
-	iAddr := iListener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
-		Network: iAddr.Network(),
-		Address: iAddr.String(),
-	}
-	boot, key := generateBootstrap(t, bListener)
-	ctrl.Test.CreateBeaconRegisterRequestChannel()
-
-	// create and run Beacon
-	beaconCfg := generateBeaconConfig(t, "Beacon")
-	beaconCfg.Register.FirstBoot = boot
-	beaconCfg.Register.FirstKey = key
-	Beacon, err := beacon.New(beaconCfg)
-	require.NoError(t, err)
-	go func() {
-		err := Beacon.Main()
-		require.NoError(t, err)
-	}()
-
-	// read Beacon register request
-	select {
-	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		err = ctrl.AcceptRegisterBeacon(brr, nil)
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
-	}
-	timer := time.AfterFunc(10*time.Second, func() {
-		t.Fatal("beacon register timeout")
-	})
-	Beacon.Wait()
-	timer.Stop()
+	beaconGUID := Beacon.GUID()
 
 	// connect Initial Node
-	err = Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
+	err := Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
 	require.NoError(t, err)
 
-	beaconGUID := Beacon.GUID()
 	ctrl.EnableInteractiveMode(beaconGUID)
 
 	shell := messages.Shell{

@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
@@ -15,11 +14,15 @@ import (
 	"project/node"
 )
 
-func TestNodeRegister(t *testing.T) {
+// generateInitialNodeAndCommonNode is used to generate an Initial Node
+// and trust it, then generate a Common Node and register it.
+func generateInitialNodeAndCommonNode(t testing.TB) (
+	*node.Node, *bootstrap.Listener, *node.Node) {
 	iNode := generateInitialNodeAndTrust(t)
-	iNodeGUID := iNode.GUID()
 
-	// create bootstrap
+	ctrl.Test.CreateNodeRegisterRequestChannel()
+
+	// generate bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
@@ -29,9 +32,8 @@ func TestNodeRegister(t *testing.T) {
 		Address: iAddr.String(),
 	}
 	boot, key := generateBootstrap(t, bListener)
-	ctrl.Test.CreateNodeRegisterRequestChannel()
 
-	// create and run common node
+	// create Common Node and run
 	cNodeCfg := generateNodeConfig(t, "Common Node")
 	cNodeCfg.Register.FirstBoot = boot
 	cNodeCfg.Register.FirstKey = key
@@ -43,25 +45,31 @@ func TestNodeRegister(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	// read node register request
+	// read Node register request
 	select {
 	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		spew.Dump(nrr)
+		// spew.Dump(nrr)
 		err = ctrl.AcceptRegisterNode(nrr, nil, false)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
 	}
 
-	// wait common node
+	// wait Common Node
 	timer := time.AfterFunc(10*time.Second, func() {
 		t.Fatal("node register timeout")
 	})
 	cNode.Wait()
 	timer.Stop()
+
+	return iNode, bListener, cNode
+}
+
+func TestNodeRegister(t *testing.T) {
+	iNode, bListener, cNode := generateInitialNodeAndCommonNode(t)
+	iNodeGUID := iNode.GUID()
 	cNodeGUID := cNode.GUID()
 
-	// try to connect initial node
 	client, err := cNode.NewClient(context.Background(), bListener, iNodeGUID)
 	require.NoError(t, err)
 	err = client.Connect()
@@ -79,11 +87,14 @@ func TestNodeRegister(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestBeaconRegister(t *testing.T) {
+// generateInitialNodeAndBeacon is used to generate an Initial Node
+// and trust it, then generate a Beacon and register it.
+func generateInitialNodeAndBeacon(t testing.TB) (
+	*node.Node, *bootstrap.Listener, *beacon.Beacon) {
 	iNode := generateInitialNodeAndTrust(t)
-	iNodeGUID := iNode.GUID()
+	ctrl.Test.CreateBeaconRegisterRequestChannel()
 
-	// create bootstrap
+	// generate bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
@@ -93,8 +104,8 @@ func TestBeaconRegister(t *testing.T) {
 		Address: iAddr.String(),
 	}
 	boot, key := generateBootstrap(t, bListener)
-	ctrl.Test.CreateBeaconRegisterRequestChannel()
 
+	// create Beacon and run
 	beaconCfg := generateBeaconConfig(t, "Beacon")
 	beaconCfg.Register.FirstBoot = boot
 	beaconCfg.Register.FirstKey = key
@@ -108,6 +119,7 @@ func TestBeaconRegister(t *testing.T) {
 	// read Beacon register request
 	select {
 	case brr := <-ctrl.Test.BeaconRegisterRequest:
+		// spew.Dump(brr)
 		err = ctrl.AcceptRegisterBeacon(brr, nil)
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
@@ -118,9 +130,16 @@ func TestBeaconRegister(t *testing.T) {
 	})
 	Beacon.Wait()
 	timer.Stop()
+
+	return iNode, bListener, Beacon
+}
+
+func TestBeaconRegister(t *testing.T) {
+	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
+	iNodeGUID := iNode.GUID()
 	beaconGUID := Beacon.GUID()
 
-	// try to connect initial node
+	// try to connect Initial Node
 	client, err := Beacon.NewClient(context.Background(), bListener, iNodeGUID, nil)
 	require.NoError(t, err)
 	err = client.Connect()

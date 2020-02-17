@@ -5,25 +5,52 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
 	"project/internal/protocol"
 	"project/internal/testsuite"
-
-	"project/beacon"
-	"project/node"
 )
 
-func TestNode_Client_Send(t *testing.T) {
+func testClientSendCommand(t *testing.T, send func(cmd uint8, data []byte) ([]byte, error)) {
+	t.Run("single", func(t *testing.T) {
+		data := bytes.Buffer{}
+		for i := 0; i < 16384; i++ {
+			data.Write(convert.Int32ToBytes(int32(i)))
+			reply, err := send(protocol.TestCommand, data.Bytes())
+			require.NoError(t, err)
+			require.Equal(t, data.Bytes(), reply)
+			data.Reset()
+		}
+	})
+
+	t.Run("parallel", func(t *testing.T) {
+		wg := sync.WaitGroup{}
+		send := func() {
+			defer wg.Done()
+			data := bytes.Buffer{}
+			for i := 0; i < 32; i++ {
+				data.Write(convert.Int32ToBytes(int32(i)))
+				reply, err := send(protocol.TestCommand, data.Bytes())
+				require.NoError(t, err)
+				require.Equal(t, data.Bytes(), reply)
+				data.Reset()
+			}
+		}
+		for i := 0; i < 2*protocol.SlotSize; i++ {
+			wg.Add(1)
+			go send()
+		}
+		wg.Wait()
+	})
+}
+
+func TestCtrl_Client_Send(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t)
 	iNodeGUID := iNode.GUID()
 
-	// create bootstrap
 	iListener, err := iNode.GetListener(InitialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
@@ -32,40 +59,29 @@ func TestNode_Client_Send(t *testing.T) {
 		Network: iAddr.Network(),
 		Address: iAddr.String(),
 	}
-	boot, key := generateBootstrap(t, bListener)
 
-	// create common node
-	cNodeCfg := generateNodeConfig(t, "Common Node")
-	cNodeCfg.Register.FirstBoot = boot
-	cNodeCfg.Register.FirstKey = key
-
-	ctrl.Test.CreateNodeRegisterRequestChannel()
-
-	// run common node
-	cNode, err := node.New(cNodeCfg)
+	// try to connect Initial Node and start to synchronize
+	client, err := ctrl.NewClient(context.Background(), bListener, iNodeGUID, nil)
 	require.NoError(t, err)
-	go func() {
-		err := cNode.Main()
-		require.NoError(t, err)
-	}()
+	err = client.Synchronize()
+	require.NoError(t, err)
 
-	// read Node register request
-	select {
-	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		spew.Dump(nrr)
-		err = ctrl.AcceptRegisterNode(nrr, nil, false)
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
-	}
+	testClientSendCommand(t, client.SendCommand)
 
-	timer := time.AfterFunc(10*time.Second, func() {
-		t.Fatal("node register timeout")
-	})
-	cNode.Wait()
-	timer.Stop()
+	// clean
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 
-	// try to connect initial node and start to synchronize
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
+}
+
+func TestNode_Client_Send(t *testing.T) {
+	iNode, bListener, cNode := generateInitialNodeAndCommonNode(t)
+	iNodeGUID := iNode.GUID()
+	cNodeGUID := cNode.GUID()
+
+	// try to connect Initial Node and start to synchronize
 	client, err := cNode.NewClient(context.Background(), bListener, iNodeGUID)
 	require.NoError(t, err)
 	err = client.Connect()
@@ -73,90 +89,26 @@ func TestNode_Client_Send(t *testing.T) {
 	err = client.Synchronize()
 	require.NoError(t, err)
 
-	t.Run("single", func(t *testing.T) {
-		data := bytes.Buffer{}
-		for i := 0; i < 16384; i++ {
-			data.Write(convert.Int32ToBytes(int32(i)))
-			reply, err := client.Conn.SendCommand(protocol.TestCommand, data.Bytes())
-			require.NoError(t, err)
-			require.Equal(t, data.Bytes(), reply)
-			data.Reset()
-		}
-	})
-
-	t.Run("parallel", func(t *testing.T) {
-		wg := sync.WaitGroup{}
-		send := func() {
-			defer wg.Done()
-			data := bytes.Buffer{}
-			for i := 0; i < 32; i++ {
-				data.Write(convert.Int32ToBytes(int32(i)))
-				reply, err := client.Conn.SendCommand(protocol.TestCommand, data.Bytes())
-				require.NoError(t, err)
-				require.Equal(t, data.Bytes(), reply)
-				data.Reset()
-			}
-		}
-		for i := 0; i < 2*protocol.SlotSize; i++ {
-			wg.Add(1)
-			go send()
-		}
-		wg.Wait()
-	})
+	testClientSendCommand(t, client.Conn.SendCommand)
 
 	// clean
 	cNode.Exit(nil)
 	testsuite.IsDestroyed(t, cNode)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }
 
 func TestBeacon_Client_Send(t *testing.T) {
-	iNode := generateInitialNodeAndTrust(t)
+	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
 	iNodeGUID := iNode.GUID()
+	beaconGUID := Beacon.GUID()
 
-	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
-	require.NoError(t, err)
-	iAddr := iListener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
-		Network: iAddr.Network(),
-		Address: iAddr.String(),
-	}
-	boot, key := generateBootstrap(t, bListener)
-	ctrl.Test.CreateBeaconRegisterRequestChannel()
-
-	// create Beacon
-	beaconCfg := generateBeaconConfig(t, "Beacon")
-	beaconCfg.Register.FirstBoot = boot
-	beaconCfg.Register.FirstKey = key
-
-	// run Beacon
-	Beacon, err := beacon.New(beaconCfg)
-	require.NoError(t, err)
-	go func() {
-		err := Beacon.Main()
-		require.NoError(t, err)
-	}()
-
-	// read Beacon register request
-	select {
-	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		spew.Dump(brr)
-		err = ctrl.AcceptRegisterBeacon(brr, nil)
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
-	}
-
-	timer := time.AfterFunc(10*time.Second, func() {
-		t.Fatal("beacon register timeout")
-	})
-	Beacon.Wait()
-	timer.Stop()
-
-	// try to connect initial node and start to synchronize
+	// try to connect Initial Node and start to synchronize
 	client, err := Beacon.NewClient(context.Background(), bListener, iNodeGUID, nil)
 	require.NoError(t, err)
 	err = client.Connect()
@@ -164,40 +116,16 @@ func TestBeacon_Client_Send(t *testing.T) {
 	err = client.Synchronize()
 	require.NoError(t, err)
 
-	t.Run("single", func(t *testing.T) {
-		data := bytes.Buffer{}
-		for i := 0; i < 16384; i++ {
-			data.Write(convert.Int32ToBytes(int32(i)))
-			reply, err := client.SendCommand(protocol.TestCommand, data.Bytes())
-			require.NoError(t, err)
-			require.Equal(t, data.Bytes(), reply)
-			data.Reset()
-		}
-	})
-
-	t.Run("parallel", func(t *testing.T) {
-		wg := sync.WaitGroup{}
-		send := func() {
-			defer wg.Done()
-			data := bytes.Buffer{}
-			for i := 0; i < 32; i++ {
-				data.Write(convert.Int32ToBytes(int32(i)))
-				reply, err := client.SendCommand(protocol.TestCommand, data.Bytes())
-				require.NoError(t, err)
-				require.Equal(t, data.Bytes(), reply)
-				data.Reset()
-			}
-		}
-		for i := 0; i < 2*protocol.SlotSize; i++ {
-			wg.Add(1)
-			go send()
-		}
-		wg.Wait()
-	})
+	testClientSendCommand(t, client.SendCommand)
 
 	// clean
 	Beacon.Exit(nil)
 	testsuite.IsDestroyed(t, Beacon)
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
+
+	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
 }

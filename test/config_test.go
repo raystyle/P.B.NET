@@ -236,7 +236,7 @@ func initializeController(t testing.TB) {
 	})
 }
 
-// -----------------------------------------initial Node-------------------------------------------
+// -----------------------------------------Initial Node-------------------------------------------
 
 const InitialNodeListenerTag = "initial_tcp"
 
