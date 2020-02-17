@@ -213,8 +213,9 @@ func (ctrl *Ctrl) SendToNode(
 	guid *guid.GUID,
 	command []byte,
 	message interface{},
+	deflate bool,
 ) error {
-	return ctrl.sender.SendToNode(ctx, guid, command, message)
+	return ctrl.sender.SendToNode(ctx, guid, command, message, deflate)
 }
 
 // SendToBeacon is used to send messages to Beacon.
@@ -223,13 +224,14 @@ func (ctrl *Ctrl) SendToBeacon(
 	guid *guid.GUID,
 	command []byte,
 	message interface{},
+	deflate bool,
 ) error {
-	return ctrl.sender.SendToBeacon(ctx, guid, command, message)
+	return ctrl.sender.SendToBeacon(ctx, guid, command, message, deflate)
 }
 
 // Broadcast is used to broadcast messages to all Nodes.
-func (ctrl *Ctrl) Broadcast(command []byte, message interface{}) error {
-	return ctrl.sender.Broadcast(command, message)
+func (ctrl *Ctrl) Broadcast(command []byte, message interface{}, deflate bool) error {
+	return ctrl.sender.Broadcast(command, message, deflate)
 }
 
 // DeleteNode is used to delete Node.

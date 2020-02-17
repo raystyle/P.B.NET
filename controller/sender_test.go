@@ -39,7 +39,7 @@ func TestSender_Broadcast(t *testing.T) {
 	broadcast := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test broadcast %d", i))
-			err := ctrl.sender.Broadcast(messages.CMDBTest, msg)
+			err := ctrl.sender.Broadcast(messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -94,7 +94,7 @@ func TestSender_SendToNode(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg)
+			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return
@@ -190,7 +190,7 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg)
+			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg, true)
 			if err != nil {
 				t.Error(err)
 				return

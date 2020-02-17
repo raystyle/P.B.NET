@@ -169,7 +169,7 @@ func (ctrl *Ctrl) AcceptRegisterNode(
 	if err != nil {
 		return errors.Wrap(err, "failed to encrypt listeners data")
 	}
-	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, response)
+	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, response, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to accept register node")
 	}
@@ -188,7 +188,7 @@ func (ctrl *Ctrl) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
 		// padding for Validate()
 		Certificate: make([]byte, protocol.CertificateSize),
 	}
-	err := ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, response)
+	err := ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, response, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to refuse register node")
 	}
@@ -253,7 +253,7 @@ func (ctrl *Ctrl) AcceptRegisterBeacon(
 	if err != nil {
 		return errors.Wrap(err, "failed to encrypt listeners data")
 	}
-	err = ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, response)
+	err = ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, response, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to accept register beacon")
 	}
@@ -270,7 +270,7 @@ func (ctrl *Ctrl) RefuseRegisterBeacon(brr *messages.BeaconRegisterRequest) erro
 		ReplyTime:    ctrl.global.Now(),
 		Result:       messages.RegisterResultRefused,
 	}
-	err := ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, &response)
+	err := ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, &response, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to refuse register beacon")
 	}

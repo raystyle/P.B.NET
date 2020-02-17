@@ -38,7 +38,7 @@ func TestHandleNodeSendFromConnectedNode(t *testing.T) {
 	msg := []byte("connected-node-send: hello controller")
 	go func() {
 		for i := 0; i < times; i++ {
-			require.NoError(t, Node.Send(context.Background(), messages.CMDBTest, msg))
+			require.NoError(t, Node.Send(context.Background(), messages.CMDBTest, msg, true))
 		}
 	}()
 	// read message

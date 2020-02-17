@@ -2,7 +2,7 @@ package controller
 
 import (
 	"bytes"
-	"compress/gzip"
+	"compress/flate"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -44,6 +44,7 @@ type broadcastTask struct {
 	Command  []byte      // for Broadcast
 	MessageI interface{} // for Broadcast
 	Message  []byte      // for BroadcastFromPlugin
+	Deflate  bool
 	Result   chan<- *protocol.BroadcastResult
 }
 
@@ -55,6 +56,7 @@ type sendTask struct {
 	Command  []byte      // for Send
 	MessageI interface{} // for Send
 	Message  []byte      // for SendFromPlugin
+	Deflate  bool
 	Result   chan<- *protocol.SendResult
 }
 
@@ -65,12 +67,13 @@ type ackTask struct {
 	Result   chan<- *protocol.AcknowledgeResult
 }
 
-// answerTask is used to answer the Beacon queried message
+// answerTask is used to answer the Beacon queried message.
 type answerTask struct {
 	BeaconGUID *guid.GUID
 	Index      uint64
 	Hash       []byte
 	Message    []byte
+	Deflate    byte
 	Result     chan<- *protocol.AnswerResult
 }
 
@@ -107,6 +110,8 @@ type sender struct {
 	ackResultPool       sync.Pool
 	broadcastResultPool sync.Pool
 	answerResultPool    sync.Pool
+
+	deflateWriterPool sync.Pool
 
 	// key = Node GUID
 	clients    map[guid.GUID]*Client
@@ -206,6 +211,11 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 	}
 	sender.answerResultPool.New = func() interface{} {
 		return new(protocol.AnswerResult)
+	}
+
+	sender.deflateWriterPool.New = func() interface{} {
+		writer, _ := flate.NewWriter(nil, flate.BestCompression)
+		return writer
 	}
 
 	sender.ackSlotPool.New = func() interface{} {
@@ -359,6 +369,7 @@ func (sender *sender) SendToNode(
 	guid *guid.GUID,
 	command []byte,
 	message interface{},
+	deflate bool,
 ) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -371,6 +382,7 @@ func (sender *sender) SendToNode(
 	st.GUID = guid
 	st.Command = command
 	st.MessageI = message
+	st.Deflate = deflate
 	st.Result = done
 	// send to task queue
 	select {
@@ -392,6 +404,7 @@ func (sender *sender) SendToBeacon(
 	guid *guid.GUID,
 	command []byte,
 	message interface{},
+	deflate bool,
 ) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -404,6 +417,7 @@ func (sender *sender) SendToBeacon(
 	st.GUID = guid
 	st.Command = command
 	st.MessageI = message
+	st.Deflate = deflate
 	st.Result = done
 	// send to task queue
 	select {
@@ -417,7 +431,7 @@ func (sender *sender) SendToBeacon(
 }
 
 // SendToNodeFromPlugin is used to send message to the target Node from plugin.
-func (sender *sender) SendToNodeFromPlugin(GUID, message []byte) error {
+func (sender *sender) SendToNodeFromPlugin(GUID, message []byte, deflate bool) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -433,6 +447,7 @@ func (sender *sender) SendToNodeFromPlugin(GUID, message []byte) error {
 	st.Ctx = context.Background()
 	st.GUID = g
 	st.Message = message
+	st.Deflate = deflate
 	st.Result = done
 	// send to task queue
 	select {
@@ -446,7 +461,7 @@ func (sender *sender) SendToNodeFromPlugin(GUID, message []byte) error {
 }
 
 // SendToBeaconFromPlugin is used to send message to the target Beacon from plugin.
-func (sender *sender) SendToBeaconFromPlugin(GUID, message []byte) error {
+func (sender *sender) SendToBeaconFromPlugin(GUID, message []byte, deflate bool) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -462,6 +477,7 @@ func (sender *sender) SendToBeaconFromPlugin(GUID, message []byte) error {
 	st.Ctx = context.Background()
 	st.GUID = g
 	st.Message = message
+	st.Deflate = deflate
 	st.Result = done
 	// send to task queue
 	select {
@@ -521,7 +537,7 @@ func (sender *sender) AckToBeacon(send *protocol.Send) error {
 }
 
 // Broadcast is used to broadcast message to all Nodes.
-func (sender *sender) Broadcast(command []byte, message interface{}) error {
+func (sender *sender) Broadcast(command []byte, message interface{}, deflate bool) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -531,6 +547,7 @@ func (sender *sender) Broadcast(command []byte, message interface{}) error {
 	defer sender.broadcastTaskPool.Put(bt)
 	bt.Command = command
 	bt.MessageI = message
+	bt.Deflate = deflate
 	bt.Result = done
 	// send to task queue
 	select {
@@ -544,7 +561,7 @@ func (sender *sender) Broadcast(command []byte, message interface{}) error {
 }
 
 // BroadcastFromPlugin is used to broadcast message to all Nodes from plugin
-func (sender *sender) BroadcastFromPlugin(message []byte) error {
+func (sender *sender) BroadcastFromPlugin(message []byte, deflate bool) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -553,6 +570,7 @@ func (sender *sender) BroadcastFromPlugin(message []byte) error {
 	bt := sender.broadcastTaskPool.Get().(*broadcastTask)
 	defer sender.broadcastTaskPool.Put(bt)
 	bt.Message = message
+	bt.Deflate = deflate
 	bt.Result = done
 	// send to task queue
 	select {
@@ -633,6 +651,7 @@ func (sender *sender) Answer(msg *mBeaconMessage) error {
 	rt.Index = msg.Index
 	rt.Hash = msg.Hash
 	rt.Message = msg.Message
+	rt.Deflate = msg.Deflate
 	rt.Result = done
 	// send to task queue
 	select {
@@ -1042,8 +1061,7 @@ type senderWorker struct {
 	// runtime
 	buffer     *bytes.Buffer
 	msgpack    *msgpack.Encoder
-	gzipBuffer *bytes.Buffer
-	gzipWriter *gzip.Writer
+	deflateBuf *bytes.Buffer
 	hash       hash.Hash
 
 	// prepare task objects
@@ -1075,8 +1093,7 @@ func (sw *senderWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
-	sw.gzipBuffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
-	sw.gzipWriter = gzip.NewWriter(sw.gzipBuffer)
+	sw.deflateBuf = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
 	// must stop at once, or maybe timeout at the first time.
 	sw.timer = time.NewTimer(time.Minute)
@@ -1251,38 +1268,48 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
 	}
-	sw.gzipBuffer.Reset()
-	sw.gzipWriter.Reset(sw.gzipBuffer)
-	_, result.Err = sw.gzipWriter.Write(st.Message)
-	if result.Err != nil {
-		return
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(st.Message)
+	sw.preS.Hash = sw.hash.Sum(nil)
+	// compress message
+	if st.Deflate {
+		sw.preS.Deflate = 1
+		writer := sw.ctx.deflateWriterPool.Get().(*flate.Writer)
+		defer sw.ctx.deflateWriterPool.Put(writer)
+		sw.deflateBuf.Reset()
+		writer.Reset(sw.deflateBuf)
+		_, result.Err = writer.Write(st.Message)
+		if result.Err != nil {
+			return
+		}
+		result.Err = writer.Close()
+		if result.Err != nil {
+			return
+		}
+		// check compressed message size
+		if sw.deflateBuf.Len() > protocol.MaxFrameSize {
+			result.Err = ErrTooBigMessage
+			return
+		}
+		st.Message = sw.deflateBuf.Bytes()
+	} else {
+		sw.preS.Deflate = 0
 	}
-	result.Err = sw.gzipWriter.Close()
-	if result.Err != nil {
-		return
-	}
-	// check compressed message size
-	if sw.gzipBuffer.Len() > protocol.MaxFrameSize {
-		result.Err = ErrTooBigMessage
-		return
-	}
-	// encrypt compressed message
-	sw.preS.Message, result.Err = aes.CBCEncrypt(sw.gzipBuffer.Bytes(), sw.aesKey, sw.aesIV)
+	// encrypt message
+	sw.preS.Message, result.Err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
 	if result.Err != nil {
 		return
 	}
 	// set GUID
 	sw.preS.GUID = *sw.ctx.guid.Get()
 	sw.preS.RoleGUID = *st.GUID
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(st.Message)
-	sw.preS.Hash = sw.hash.Sum(nil)
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preS.GUID[:])
 	sw.buffer.Write(sw.preS.RoleGUID[:])
 	sw.buffer.Write(sw.preS.Hash)
+	sw.buffer.WriteByte(sw.preS.Deflate)
 	sw.buffer.Write(sw.preS.Message)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
@@ -1293,7 +1320,6 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 	// pack
 	sw.buffer.Reset()
 	sw.preS.Pack(sw.buffer)
-	return
 }
 
 // insertBeaconMessage is used to insert send to Beacon message to
@@ -1314,31 +1340,40 @@ func (sw *senderWorker) insertBeaconMessage(st *sendTask, result *protocol.SendR
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
 	}
-	sw.gzipBuffer.Reset()
-	sw.gzipWriter.Reset(sw.gzipBuffer)
-	_, result.Err = sw.gzipWriter.Write(st.Message)
-	if result.Err != nil {
-		return
-	}
-	result.Err = sw.gzipWriter.Close()
-	if result.Err != nil {
-		return
-	}
-	// check compressed message size
-	if sw.gzipBuffer.Len() > protocol.MaxFrameSize {
-		result.Err = ErrTooBigMessage
-		return
-	}
-	// encrypt compressed message
-	sw.preS.Message, result.Err = aes.CBCEncrypt(sw.gzipBuffer.Bytes(), sw.aesKey, sw.aesIV)
-	if result.Err != nil {
-		return
-	}
 	// hash
 	sw.hash.Reset()
 	sw.hash.Write(st.Message)
 	sw.preS.Hash = sw.hash.Sum(nil)
-	result.Err = sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, sw.preS.Hash, sw.preS.Message)
+	// compress message
+	if st.Deflate {
+		sw.preS.Deflate = 1
+		writer := sw.ctx.deflateWriterPool.Get().(*flate.Writer)
+		defer sw.ctx.deflateWriterPool.Put(writer)
+		sw.deflateBuf.Reset()
+		writer.Reset(sw.deflateBuf)
+		_, result.Err = writer.Write(st.Message)
+		if result.Err != nil {
+			return
+		}
+		result.Err = writer.Close()
+		if result.Err != nil {
+			return
+		}
+		// check compressed message size
+		if sw.deflateBuf.Len() > protocol.MaxFrameSize {
+			result.Err = ErrTooBigMessage
+			return
+		}
+		st.Message = sw.deflateBuf.Bytes()
+	} else {
+		sw.preS.Deflate = 0
+	}
+	// encrypt message
+	sw.preS.Message, result.Err = aes.CBCEncrypt(st.Message, sw.aesKey, sw.aesIV)
+	if result.Err != nil {
+		return
+	}
+	result.Err = sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, &sw.preS)
 }
 
 func (sw *senderWorker) handleAckToNodeTask(at *ackTask) {
@@ -1439,37 +1474,46 @@ func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
 		// don't worry copy, because encrypt
 		bt.Message = sw.buffer.Bytes()
 	}
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(bt.Message)
+	sw.preB.Hash = sw.hash.Sum(nil)
 	// compress message
-	sw.gzipBuffer.Reset()
-	sw.gzipWriter.Reset(sw.gzipBuffer)
-	_, result.Err = sw.gzipWriter.Write(bt.Message)
-	if result.Err != nil {
-		return
-	}
-	result.Err = sw.gzipWriter.Close()
-	if result.Err != nil {
-		return
-	}
-	// check compressed message size
-	if sw.gzipBuffer.Len() > protocol.MaxFrameSize {
-		result.Err = ErrTooBigMessage
-		return
+	if bt.Deflate {
+		sw.preB.Deflate = 1
+		writer := sw.ctx.deflateWriterPool.Get().(*flate.Writer)
+		defer sw.ctx.deflateWriterPool.Put(writer)
+		sw.deflateBuf.Reset()
+		writer.Reset(sw.deflateBuf)
+		_, result.Err = writer.Write(bt.Message)
+		if result.Err != nil {
+			return
+		}
+		result.Err = writer.Close()
+		if result.Err != nil {
+			return
+		}
+		// check compressed message size
+		if sw.deflateBuf.Len() > protocol.MaxFrameSize {
+			result.Err = ErrTooBigMessage
+			return
+		}
+		bt.Message = sw.deflateBuf.Bytes()
+	} else {
+		sw.preB.Deflate = 0
 	}
 	// encrypt compressed message
-	sw.preB.Message, result.Err = sw.ctx.ctx.global.Encrypt(sw.gzipBuffer.Bytes())
+	sw.preB.Message, result.Err = sw.ctx.ctx.global.Encrypt(bt.Message)
 	if result.Err != nil {
 		return
 	}
 	// GUID
 	sw.preB.GUID = *sw.ctx.guid.Get()
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(bt.Message)
-	sw.preB.Hash = sw.hash.Sum(nil)
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preB.GUID[:])
 	sw.buffer.Write(sw.preB.Hash)
+	sw.buffer.WriteByte(sw.preB.Deflate)
 	sw.buffer.Write(sw.preB.Message)
 	sw.preB.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
@@ -1506,6 +1550,7 @@ func (sw *senderWorker) handleAnswerTask(rt *answerTask) {
 	sw.preR.BeaconGUID = *rt.BeaconGUID
 	sw.preR.Index = rt.Index
 	sw.preR.Hash = rt.Hash
+	sw.preR.Deflate = rt.Deflate
 	sw.preR.Message = rt.Message
 	// sign
 	sw.buffer.Reset()
@@ -1513,6 +1558,7 @@ func (sw *senderWorker) handleAnswerTask(rt *answerTask) {
 	sw.buffer.Write(sw.preR.BeaconGUID[:])
 	sw.buffer.Write(convert.Uint64ToBytes(sw.preR.Index))
 	sw.buffer.Write(sw.preR.Hash)
+	sw.buffer.WriteByte(sw.preR.Deflate)
 	sw.buffer.Write(sw.preR.Message)
 	sw.preR.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate

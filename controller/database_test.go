@@ -16,6 +16,7 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/protocol"
 	"project/internal/xnet"
 
 	"project/testdata"
@@ -368,9 +369,12 @@ func testInsertBeaconMessage(t *testing.T, guid *guid.GUID) {
 	for i := 0; i < 256; i++ {
 		go func(index byte) {
 			defer wg.Done()
-			hash := bytes.Repeat([]byte{index}, sha256.Size)
-			message := bytes.Repeat([]byte{index}, aes.BlockSize)
-			err := ctrl.database.InsertBeaconMessage(guid, hash, message)
+			send := protocol.Send{
+				Hash:    bytes.Repeat([]byte{index}, sha256.Size),
+				Deflate: 1,
+				Message: bytes.Repeat([]byte{index}, aes.BlockSize),
+			}
+			err := ctrl.database.InsertBeaconMessage(guid, &send)
 			require.NoError(t, err)
 		}(byte(i))
 	}

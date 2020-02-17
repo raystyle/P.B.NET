@@ -2,10 +2,11 @@ package controller
 
 import (
 	"bytes"
-	"compress/gzip"
+	"compress/flate"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
+	"io"
 	"sync"
 	"time"
 
@@ -199,10 +200,10 @@ type subWorker struct {
 	queryPool *sync.Pool
 
 	// runtime
-	buffer     *bytes.Buffer
-	reader     *bytes.Reader
-	gzipReader *gzip.Reader
-	hash       hash.Hash
+	buffer  *bytes.Buffer
+	reader  *bytes.Reader
+	deflate io.ReadCloser
+	hash    hash.Hash
 
 	node      *mNode
 	beacon    *mBeacon
@@ -238,7 +239,7 @@ func (sw *subWorker) WorkWithBlock() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.reader = bytes.NewReader(nil)
-	sw.gzipReader = new(gzip.Reader)
+	sw.deflate = flate.NewReader(nil)
 	sw.hash = sha256.New()
 	// must stop at once, or maybe timeout at the first time.
 	sw.timer = time.NewTimer(time.Minute)
@@ -357,7 +358,11 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 	if aesBuffer == nil {
 		return
 	}
-	defer func() { send.Message = aesBuffer }()
+	defer func() {
+		if send.Deflate == 1 {
+			send.Message = aesBuffer
+		}
+	}()
 	sw.ctx.handler.OnNodeSend(send)
 	for {
 		sw.err = sw.ctx.sender.AckToNode(send)
@@ -390,7 +395,11 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 	if aesBuffer == nil {
 		return
 	}
-	defer func() { send.Message = aesBuffer }()
+	defer func() {
+		if send.Deflate == 1 {
+			send.Message = aesBuffer
+		}
+	}()
 	sw.ctx.handler.OnBeaconSend(send)
 	for {
 		sw.err = sw.ctx.sender.AckToBeacon(send)
@@ -419,51 +428,54 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 	sw.buffer.Write(send.GUID[:])
 	sw.buffer.Write(send.RoleGUID[:])
 	sw.buffer.Write(send.Hash)
+	sw.buffer.WriteByte(send.Deflate)
 	sw.buffer.Write(send.Message)
 	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid %s send signature\n%s"
 		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
 		return nil
 	}
-	// decrypt compressed message
+	// decrypt message
 	send.Message, sw.err = aes.CBCDecrypt(send.Message, sw.aesKey, sw.aesIV)
 	if sw.err != nil {
 		const format = "failed to decrypt %s send: %s\n%s"
 		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
 		return nil
 	}
+	// must recover it, otherwise will appear data race
+	aesBuffer := send.Message
 	// decompress message
-	sw.reader.Reset(send.Message)
-	sw.err = sw.gzipReader.Reset(sw.reader)
-	if sw.err != nil {
-		const format = "failed to load gzip header from %s send: %s\n%s"
-		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
-		return nil
-	}
-	sw.buffer.Reset()
-	_, sw.err = sw.buffer.ReadFrom(sw.gzipReader)
-	if sw.err != nil {
-		const format = "failed to decompress %s send: %s\n%s"
-		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
-		return nil
-	}
-	sw.err = sw.gzipReader.Close()
-	if sw.err != nil {
-		const format = "failed to close gzip reader about %s send: %s\n%s"
-		sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
-		return nil
+	if send.Deflate == 1 {
+		sw.reader.Reset(send.Message)
+		sw.err = sw.deflate.(flate.Resetter).Reset(sw.reader, nil)
+		if sw.err != nil {
+			const format = "failed to reset deflate reader about %s send: %s\n%s"
+			sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
+			return nil
+		}
+		sw.buffer.Reset()
+		_, sw.err = sw.buffer.ReadFrom(sw.deflate)
+		if sw.err != nil {
+			const format = "failed to decompress %s send: %s\n%s"
+			sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
+			return nil
+		}
+		sw.err = sw.deflate.Close()
+		if sw.err != nil {
+			const format = "failed to close deflate reader about %s send: %s\n%s"
+			sw.logf(logger.Exploit, format, role, sw.err, spew.Sdump(send))
+			return nil
+		}
+		send.Message = sw.buffer.Bytes()
 	}
 	// compare hash
 	sw.hash.Reset()
-	sw.hash.Write(sw.buffer.Bytes())
+	sw.hash.Write(send.Message)
 	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
 		const format = "%s send with incorrect hash\n%s"
 		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
 		return nil
 	}
-	// must recover it, otherwise will appear data race
-	aesBuffer := send.Message
-	send.Message = sw.buffer.Bytes()
 	return aesBuffer
 }
 

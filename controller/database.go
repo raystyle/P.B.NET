@@ -11,6 +11,7 @@ import (
 
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/protocol"
 	"project/internal/security"
 	"project/internal/xpanic"
 )
@@ -407,7 +408,7 @@ func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	return nil
 }
 
-func (db *database) InsertBeaconMessage(guid *guid.GUID, hash, message []byte) (err error) {
+func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (err error) {
 	// select message index
 	tx := db.db.BeginTx(
 		context.Background(),
@@ -443,8 +444,9 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, hash, message []byte) (
 	err = tx.Create(&mBeaconMessage{
 		GUID:    guid[:],
 		Index:   index.Index,
-		Hash:    hash,
-		Message: message,
+		Hash:    send.Hash,
+		Deflate: send.Deflate,
+		Message: send.Message,
 	}).Error
 	if err != nil {
 		err = errors.WithStack(err)

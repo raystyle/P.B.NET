@@ -313,8 +313,8 @@ func (wh *webHandler) handleShell(w hRW, r *hR, p hP) {
 		Command: r.FormValue("cmd"),
 	}
 
-	// TODO check nodeGUID
-	err = wh.ctx.sender.SendToBeacon(context.Background(), &beaconGUID, messages.CMDBShell, &shell)
+	err = wh.ctx.sender.SendToBeacon(context.Background(),
+		&beaconGUID, messages.CMDBShell, &shell, true)
 	if err != nil {
 		fmt.Println("2", err)
 		_, _ = w.Write([]byte(err.Error()))

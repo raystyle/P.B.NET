@@ -141,6 +141,7 @@ type mBeaconMessage struct {
 	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
 	Index     uint64     `gorm:"not null" sql:"index"`
 	Hash      []byte     `gorm:"not null;type:binary(32)"`
+	Deflate   byte       `gorm:"not null;type:tinyint unsigned"`
 	Message   []byte     `gorm:"not null;type:mediumblob"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`

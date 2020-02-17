@@ -168,7 +168,8 @@ func (h *handler) handleQueryNodeKey(send *protocol.Send) {
 		KexPublicKey: node.KexPublicKey,
 		ReplyTime:    node.CreatedAt,
 	}
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBAnswerNodeKey, ank)
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID,
+		messages.CMDBAnswerNodeKey, ank, true)
 	if err != nil {
 		const format = "failed to answer node key\nerror: %s"
 		h.logfWithInfo(logger.Error, format, &send.RoleGUID, ank, err)
@@ -200,7 +201,8 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 		KexPublicKey: beacon.KexPublicKey,
 		ReplyTime:    beacon.CreatedAt,
 	}
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBAnswerBeaconKey, abk)
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID,
+		messages.CMDBAnswerBeaconKey, abk, true)
 	if err != nil {
 		const format = "failed to answer beacon key\nerror: %s"
 		h.logfWithInfo(logger.Error, format, &send.RoleGUID, abk, err)
