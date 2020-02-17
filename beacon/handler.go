@@ -148,7 +148,7 @@ func (h *handler) handleShell(answer *protocol.Answer) {
 		so := messages.ShellOutput{
 			Output: output,
 		}
-		err = h.ctx.sender.Send(h.context, messages.CMDBShellOutput, &so)
+		err = h.ctx.sender.Send(h.context, messages.CMDBShellOutput, &so, true)
 		if err != nil {
 			fmt.Println("failed to send:", err)
 		}

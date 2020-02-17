@@ -2,10 +2,11 @@ package beacon
 
 import (
 	"bytes"
-	"compress/gzip"
+	"compress/flate"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
+	"io"
 	"sync"
 	"time"
 
@@ -170,12 +171,12 @@ type subWorker struct {
 	answerPool *sync.Pool
 
 	// runtime
-	buffer     *bytes.Buffer
-	reader     *bytes.Reader
-	gzipReader *gzip.Reader
-	hash       hash.Hash
-	timer      *time.Timer
-	err        error
+	buffer  *bytes.Buffer
+	reader  *bytes.Reader
+	deflate io.ReadCloser
+	hash    hash.Hash
+	timer   *time.Timer
+	err     error
 
 	stopSignal chan struct{}
 	wg         *sync.WaitGroup
@@ -202,7 +203,7 @@ func (sw *subWorker) WorkWithBlock() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.reader = bytes.NewReader(nil)
-	sw.gzipReader = new(gzip.Reader)
+	sw.deflate = flate.NewReader(nil)
 	sw.hash = sha256.New()
 	// must stop at once, or maybe timeout at the first time.
 	sw.timer = time.NewTimer(time.Minute)
@@ -277,6 +278,7 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	sw.buffer.Write(send.GUID[:])
 	sw.buffer.Write(send.RoleGUID[:])
 	sw.buffer.Write(send.Hash)
+	sw.buffer.WriteByte(send.Deflate)
 	sw.buffer.Write(send.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), send.Signature) {
 		const format = "invalid send signature\n%s"
@@ -291,30 +293,32 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		return
 	}
 	// decompress message
-	sw.reader.Reset(send.Message)
-	sw.err = sw.gzipReader.Reset(sw.reader)
-	if sw.err != nil {
-		const format = "failed to load gzip header from send message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
-		return
+	if send.Deflate == 1 {
+		sw.reader.Reset(send.Message)
+		sw.err = sw.deflate.(flate.Resetter).Reset(sw.reader, nil)
+		if sw.err != nil {
+			const format = "failed to reset deflate reader about send message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+			return
+		}
+		sw.buffer.Reset()
+		_, sw.err = sw.buffer.ReadFrom(sw.deflate)
+		if sw.err != nil {
+			const format = "failed to decompress send message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+			return
+		}
+		sw.err = sw.deflate.Close()
+		if sw.err != nil {
+			const format = "failed to close deflate reader about send message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
+			return
+		}
+		// must recover it, otherwise will appear data race
+		aesBuffer := send.Message
+		defer func() { send.Message = aesBuffer }()
+		send.Message = sw.buffer.Bytes()
 	}
-	sw.buffer.Reset()
-	_, sw.err = sw.buffer.ReadFrom(sw.gzipReader)
-	if sw.err != nil {
-		const format = "failed to decompress send message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
-		return
-	}
-	sw.err = sw.gzipReader.Close()
-	if sw.err != nil {
-		const format = "failed to close gzip reader about send message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(send))
-		return
-	}
-	// must recover it, otherwise will appear data race
-	aesBuffer := send.Message
-	defer func() { send.Message = aesBuffer }()
-	send.Message = sw.buffer.Bytes()
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(send.Message)
@@ -396,13 +400,14 @@ func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 	sw.buffer.Write(answer.BeaconGUID[:])
 	sw.buffer.Write(convert.Uint64ToBytes(answer.Index))
 	sw.buffer.Write(answer.Hash)
+	sw.buffer.WriteByte(answer.Deflate)
 	sw.buffer.Write(answer.Message)
 	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), answer.Signature) {
 		const format = "invalid answer signature\n%s"
 		sw.logf(logger.Exploit, format, spew.Sdump(answer))
 		return
 	}
-	// decrypt compressed message
+	// decrypt message
 	answer.Message, sw.err = sw.ctx.global.Decrypt(answer.Message)
 	if sw.err != nil {
 		const format = "failed to decrypt answer message: %s\n%s"
@@ -410,30 +415,32 @@ func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 		return
 	}
 	// decompress message
-	sw.reader.Reset(answer.Message)
-	sw.err = sw.gzipReader.Reset(sw.reader)
-	if sw.err != nil {
-		const format = "failed to load gzip header from answer message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
-		return
+	if answer.Deflate == 1 {
+		sw.reader.Reset(answer.Message)
+		sw.err = sw.deflate.(flate.Resetter).Reset(sw.reader, nil)
+		if sw.err != nil {
+			const format = "failed to reset deflate reader about answer message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
+			return
+		}
+		sw.buffer.Reset()
+		_, sw.err = sw.buffer.ReadFrom(sw.deflate)
+		if sw.err != nil {
+			const format = "failed to decompress answer message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
+			return
+		}
+		sw.err = sw.deflate.Close()
+		if sw.err != nil {
+			const format = "failed to close deflate reader about answer message: %s\n%s"
+			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
+			return
+		}
+		// must recover it, otherwise will appear data race
+		aesBuffer := answer.Message
+		defer func() { answer.Message = aesBuffer }()
+		answer.Message = sw.buffer.Bytes()
 	}
-	sw.buffer.Reset()
-	_, sw.err = sw.buffer.ReadFrom(sw.gzipReader)
-	if sw.err != nil {
-		const format = "failed to decompress answer message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
-		return
-	}
-	sw.err = sw.gzipReader.Close()
-	if sw.err != nil {
-		const format = "failed to close gzip reader about answer message: %s\n%s"
-		sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
-		return
-	}
-	// must recover it, otherwise will appear data race
-	aesBuffer := answer.Message
-	defer func() { answer.Message = aesBuffer }()
-	answer.Message = sw.buffer.Bytes()
 	// compare hash
 	sw.hash.Reset()
 	sw.hash.Write(answer.Message)
@@ -443,7 +450,7 @@ func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 		return
 	}
 	// prevent duplicate handle
-	if !sw.ctx.sender.CheckQueryIndex(answer.Index) {
+	if !sw.ctx.sender.AddQueryIndex(answer.Index) {
 		return
 	}
 	sw.ctx.handler.OnMessage(answer)

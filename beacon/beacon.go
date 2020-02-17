@@ -173,8 +173,8 @@ func (beacon *Beacon) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 }
 
 // Send is used to send message to Controller.
-func (beacon *Beacon) Send(ctx context.Context, command, message []byte) error {
-	return beacon.sender.Send(ctx, command, message)
+func (beacon *Beacon) Send(ctx context.Context, command, message []byte, deflate bool) error {
+	return beacon.sender.Send(ctx, command, message, deflate)
 }
 
 // Query is used to query message from Controller.

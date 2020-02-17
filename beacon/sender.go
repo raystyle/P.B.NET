@@ -2,7 +2,7 @@ package beacon
 
 import (
 	"bytes"
-	"compress/gzip"
+	"compress/flate"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -41,6 +41,7 @@ type sendTask struct {
 	Command  []byte      // for Send
 	MessageI interface{} // for Send
 	Message  []byte      // for SendFromPlugin
+	Deflate  bool
 	Result   chan<- *protocol.SendResult
 }
 
@@ -77,6 +78,8 @@ type sender struct {
 	sendResultPool  sync.Pool
 	ackResultPool   sync.Pool
 	queryResultPool sync.Pool
+
+	deflateWriterPool sync.Pool
 
 	// key = Node GUID
 	clients    map[guid.GUID]*Client
@@ -162,6 +165,11 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	}
 	sender.queryResultPool.New = func() interface{} {
 		return new(protocol.QueryResult)
+	}
+
+	sender.deflateWriterPool.New = func() interface{} {
+		writer, _ := flate.NewWriter(nil, flate.BestCompression)
+		return writer
 	}
 
 	sender.ackSlotPool.New = func() interface{} {
@@ -316,7 +324,12 @@ func (sender *sender) Disconnect(guid *guid.GUID) error {
 }
 
 // Send is used to send message to Controller.
-func (sender *sender) Send(ctx context.Context, command []byte, message interface{}) error {
+func (sender *sender) Send(
+	ctx context.Context,
+	command []byte,
+	message interface{},
+	deflate bool,
+) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -327,6 +340,7 @@ func (sender *sender) Send(ctx context.Context, command []byte, message interfac
 	st.Ctx = ctx
 	st.Command = command
 	st.MessageI = message
+	st.Deflate = deflate
 	st.Result = done
 	// send to task queue
 	select {
@@ -342,7 +356,7 @@ func (sender *sender) Send(ctx context.Context, command []byte, message interfac
 }
 
 // SendFromPlugin is used to provide a interface for plugins to send message to Controller.
-func (sender *sender) SendFromPlugin(message []byte) error {
+func (sender *sender) SendFromPlugin(message []byte, deflate bool) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -352,6 +366,7 @@ func (sender *sender) SendFromPlugin(message []byte) error {
 	defer sender.sendTaskPool.Put(st)
 	st.Ctx = context.Background()
 	st.Message = message
+	st.Deflate = deflate
 	st.Result = done
 	// send to task queue
 	select {
@@ -430,8 +445,8 @@ func (sender *sender) getQueryIndex() uint64 {
 	return sender.index
 }
 
-// CheckQueryIndex is used to check query index
-func (sender *sender) CheckQueryIndex(index uint64) bool {
+// AddQueryIndex is used to add query index.
+func (sender *sender) AddQueryIndex(index uint64) bool {
 	sender.indexRWM.Lock()
 	defer sender.indexRWM.Unlock()
 	if index != sender.index {
@@ -614,8 +629,7 @@ type senderWorker struct {
 	// runtime
 	buffer     *bytes.Buffer
 	msgpack    *msgpack.Encoder
-	gzipBuffer *bytes.Buffer
-	gzipWriter *gzip.Writer
+	deflateBuf *bytes.Buffer
 	hash       hash.Hash
 
 	// prepare task objects
@@ -640,8 +654,7 @@ func (sw *senderWorker) Work() {
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
-	sw.gzipBuffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
-	sw.gzipWriter = gzip.NewWriter(sw.gzipBuffer)
+	sw.deflateBuf = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.hash = sha256.New()
 	// must stop at once, or maybe timeout at the first time.
 	sw.timer = time.NewTimer(time.Minute)
@@ -737,39 +750,48 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
 	}
+	// hash
+	sw.hash.Reset()
+	sw.hash.Write(st.Message)
+	sw.preS.Hash = sw.hash.Sum(nil)
 	// compress message
-	sw.gzipBuffer.Reset()
-	sw.gzipWriter.Reset(sw.gzipBuffer)
-	_, result.Err = sw.gzipWriter.Write(st.Message)
-	if result.Err != nil {
-		return
+	if st.Deflate {
+		sw.preS.Deflate = 1
+		writer := sw.ctx.deflateWriterPool.Get().(*flate.Writer)
+		defer sw.ctx.deflateWriterPool.Put(writer)
+		sw.deflateBuf.Reset()
+		writer.Reset(sw.deflateBuf)
+		_, result.Err = writer.Write(st.Message)
+		if result.Err != nil {
+			return
+		}
+		result.Err = writer.Close()
+		if result.Err != nil {
+			return
+		}
+		// check compressed message size
+		if sw.deflateBuf.Len() > protocol.MaxFrameSize {
+			result.Err = ErrTooBigMessage
+			return
+		}
+		st.Message = sw.deflateBuf.Bytes()
+	} else {
+		sw.preS.Deflate = 0
 	}
-	result.Err = sw.gzipWriter.Close()
-	if result.Err != nil {
-		return
-	}
-	// check compressed message size
-	if sw.gzipBuffer.Len() > protocol.MaxFrameSize {
-		result.Err = ErrTooBigMessage
-		return
-	}
-	// encrypt compressed message
-	sw.preS.Message, result.Err = sw.ctx.ctx.global.Encrypt(sw.gzipBuffer.Bytes())
+	// encrypt message
+	sw.preS.Message, result.Err = sw.ctx.ctx.global.Encrypt(st.Message)
 	if result.Err != nil {
 		return
 	}
 	// set GUID
 	sw.preS.GUID = *sw.ctx.guid.Get()
 	sw.preS.RoleGUID = *sw.ctx.ctx.global.GUID()
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(st.Message)
-	sw.preS.Hash = sw.hash.Sum(nil)
 	// sign
 	sw.buffer.Reset()
 	sw.buffer.Write(sw.preS.GUID[:])
 	sw.buffer.Write(sw.preS.RoleGUID[:])
 	sw.buffer.Write(sw.preS.Hash)
+	sw.buffer.WriteByte(sw.preS.Deflate)
 	sw.buffer.Write(sw.preS.Message)
 	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
 	// self validate
