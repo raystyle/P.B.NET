@@ -293,6 +293,7 @@ func TestCtrl_Broadcast_Mix(t *testing.T) {
 	testCtrlBroadcast(t, []*node.Node{iNode}, cNodes)
 }
 
+// Each Node will receive the message that Controller broadcast.
 func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 	const (
 		goroutines = 64
@@ -537,7 +538,7 @@ func TestCtrl_SendToNode_Mix(t *testing.T) {
 	testCtrlSendToNode(t, []*node.Node{iNode}, cNodes[:])
 }
 
-// It will try to send message to each Node.
+// Controller will send message to each Node.
 func testCtrlSendToNode(t *testing.T, iNodes, cNodes []*node.Node) {
 	const (
 		goroutines = 128
@@ -591,7 +592,7 @@ func testCtrlSendToNode(t *testing.T, iNodes, cNodes []*node.Node) {
 		}
 		str := recv.String()
 		for i := 0; i < goroutines*times; i++ {
-			format := prefix + "lost: %s"
+			format := prefix + "lost %s"
 			withDeflate := fmt.Sprintf("test send with deflate %d", i)
 			require.Truef(t, strings.Contains(str, withDeflate), format, n, withDeflate)
 			withoutDeflate := fmt.Sprintf("test send without deflate %d", i)
@@ -837,7 +838,7 @@ func TestCtrl_SendToBeacon_Mix(t *testing.T) {
 	testCtrlSendToBeacon(t, append([]*node.Node{iNode}, cNodes[:]...), beacons)
 }
 
-// It will try to send message to each Beacon.
+// Controller will send message to each Beacon.
 func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) {
 	const (
 		goroutines = 128
@@ -885,7 +886,7 @@ func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Be
 		}
 		str := recv.String()
 		for i := 0; i < goroutines*times; i++ {
-			format := "beacon[%d] lost: %s"
+			format := "beacon[%d] lost %s"
 			withDeflate := fmt.Sprintf("test send with deflate %d", i)
 			require.Truef(t, strings.Contains(str, withDeflate), format, n, withDeflate)
 			withoutDeflate := fmt.Sprintf("test send without deflate %d", i)
@@ -922,6 +923,274 @@ func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Be
 		err := ctrl.DeleteNodeUnscoped(nodeGUID)
 		require.NoError(t, err)
 	}
+}
+
+// 3 * (A Common Node Connect the Initial Node)
+//
+//  +------------+    +----------------+    +---------------+
+//  |            | -> | Initial Node 0 | <- | Common Node 0 |
+//  |            |    +----------------+    +---------------+
+//  |            |
+//  |            |    +----------------+    +---------------+
+//  | Controller | -> | Initial Node 1 | <- | Common Node 1 |
+//  |            |    +----------------+    +---------------+
+//  |            |
+//  |            |    +----------------+    +---------------+
+//  |            | -> | Initial Node 2 | <- | Common Node 2 |
+//  +------------+    +----------------+    +---------------+
+//
+func TestNode_Send_CI(t *testing.T) {
+	const num = 3
+	var (
+		iNodes [num]*node.Node
+		cNodes [num]*node.Node
+	)
+	// connect
+	for i := 0; i < num; i++ {
+		iNode, iListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
+
+		// try to connect Initial Node and start to synchronize
+		err := cNode.Synchronize(context.Background(), iNode.GUID(), iListener)
+		require.NoError(t, err)
+
+		iNodes[i] = iNode
+		cNodes[i] = cNode
+	}
+
+	testNodeSend(t, iNodes[:], cNodes[:])
+}
+
+// 3 * (Initial Node connect the Common Node Connect)
+//
+//  +------------+    +----------------+
+//  |            | -> | Initial Node 0 |
+//  |            |    +----------------+
+//  |            |            ↓
+//  |            |    +---------------+
+//  |            | -> | Common Node 0 |
+//  |            |    +---------------+
+//  |            |
+//  |            |    +----------------+
+//  |            | -> | Initial Node 1 |
+//  |            |    +----------------+
+//  | Controller |            ↓
+//  |            |    +---------------+
+//  |            | -> | Common Node 1 |
+//  |            |    +---------------+
+//  |            |
+//  |            |    +----------------+
+//  |            | -> | Initial Node 2 |
+//  |            |    +----------------+
+//  |            |            ↓
+//  |            |    +---------------+
+//  |            | -> | Common Node 2 |
+//  +------------+    +---------------+
+//
+func TestNode_Send_IC(t *testing.T) {
+	const num = 3
+	var (
+		iNodes [num]*node.Node
+		cNodes [num]*node.Node
+	)
+	// connect
+	for i := 0; i < num; i++ {
+		iNode, _, cNode := generateInitialNodeAndCommonNode(t, i, i)
+
+		cListener := addNodeListener(t, cNode)
+		ctx := context.Background()
+
+		// Controller must connect the Common Node, otherwise the Common Node
+		// can't query Node key from Controller
+		err := ctrl.Synchronize(ctx, cNode.GUID(), cListener)
+		require.NoError(t, err)
+
+		// Initial Node connect the Common Node and start to synchronize
+		err = iNode.Synchronize(ctx, cNode.GUID(), cListener)
+		require.NoError(t, err)
+
+		iNodes[i] = iNode
+		cNodes[i] = cNode
+	}
+
+	testNodeSend(t, iNodes[:], cNodes[:])
+}
+
+// mix network environment
+//
+//  +------------+    +---------------+    +---------------+
+//  |            | -> | Initial Node  | <- | Common Node 1 |
+//  |            |    +---------------+    +---------------+
+//  | Controller |            ↓         ↖         ↑
+//  |            |    +---------------+    +---------------+
+//  |            | -> | Common Node 0 | -> | Common Node 2 |
+//  +------------+    +---------------+    +---------------+
+//
+func TestNode_Send_Mix(t *testing.T) {
+	iNode := generateInitialNodeAndTrust(t, 0)
+	iNodeGUID := iNode.GUID()
+
+	// create Common Nodes
+	const num = 3
+	cNodes := make([]*node.Node, num)
+	for i := 0; i < num; i++ {
+		cNodes[i] = generateCommonNode(t, iNode, i)
+	}
+
+	ctx := context.Background()
+
+	// Controller and Initial Node connect Common Node 0
+	c0Listener := addNodeListener(t, cNodes[0])
+	c0GUID := cNodes[0].GUID()
+	err := ctrl.Synchronize(ctx, c0GUID, c0Listener)
+	require.NoError(t, err)
+	err = iNode.Synchronize(ctx, c0GUID, c0Listener)
+	require.NoError(t, err)
+
+	// Common Node 1 connect the Initial Node
+	iListener := getNodeListener(t, iNode, initialNodeListenerTag)
+	err = cNodes[1].Synchronize(ctx, iNodeGUID, iListener)
+	require.NoError(t, err)
+
+	// Common Node 2 Connect the Common Node 1 and the Initial Node
+	c1Listener := addNodeListener(t, cNodes[1])
+	c1GUID := cNodes[1].GUID()
+	err = cNodes[2].Synchronize(ctx, c1GUID, c1Listener)
+	require.NoError(t, err)
+	err = cNodes[2].Synchronize(ctx, iNodeGUID, iListener)
+	require.NoError(t, err)
+
+	// Common Node 0 connect the Common Node 2
+	c2Listener := addNodeListener(t, cNodes[2])
+	c2GUID := cNodes[2].GUID()
+	err = cNodes[0].Synchronize(ctx, c2GUID, c2Listener)
+	require.NoError(t, err)
+
+	testNodeSend(t, []*node.Node{iNode}, cNodes[:])
+}
+
+// Each Node will send message to the Controller.
+func testNodeSend(t *testing.T, iNodes, cNodes []*node.Node) {
+	ctrl.Test.EnableRoleSendTestMessage()
+
+	const (
+		goroutines = 128
+		times      = 64
+	)
+	ctx := context.Background()
+	send := func(start int, node *node.Node) {
+		for i := start; i < start+times; i++ {
+			msg := []byte(fmt.Sprintf("test send with deflate %d", i))
+			err := node.Send(ctx, messages.CMDBTest, msg, true)
+			require.NoError(t, err)
+			msg = []byte(fmt.Sprintf("test send without deflate %d", i))
+			err = node.Send(ctx, messages.CMDBTest, msg, false)
+			require.NoError(t, err)
+		}
+	}
+
+	wg := sync.WaitGroup{}
+	sendAndRead := func(n int, node *node.Node, initial bool) {
+		defer wg.Done()
+		ch := ctrl.Test.CreateNodeSendTestMessageChannel(node.GUID())
+
+		var prefix string
+		if initial {
+			prefix = "Initial Node[%d]"
+		} else {
+			prefix = "Common Node[%d]"
+		}
+		// send
+		for i := 0; i < goroutines; i++ {
+			go send(i*times, node)
+		}
+		// read
+		recv := bytes.Buffer{}
+		recv.Grow(1 << 20)
+		timer := time.NewTimer(3 * time.Second)
+		defer timer.Stop()
+		for i := 0; i < 2*goroutines*times; i++ {
+			timer.Reset(3 * time.Second)
+			select {
+			case b := <-ch:
+				recv.Write(b)
+				recv.WriteString("\n")
+			case <-timer.C:
+				format := "read " + prefix + " channel timeout i: %d"
+				t.Fatalf(format, n, i)
+			}
+		}
+		select {
+		case <-ch:
+			t.Fatalf(prefix+" read redundancy send", n)
+		case <-time.After(time.Second):
+		}
+		str := recv.String()
+		for i := 0; i < goroutines*times; i++ {
+			format := "lost " + prefix + " %s"
+			withDeflate := fmt.Sprintf("test send with deflate %d", i)
+			require.Truef(t, strings.Contains(str, withDeflate), format, n, withDeflate)
+			withoutDeflate := fmt.Sprintf("test send without deflate %d", i)
+			require.Truef(t, strings.Contains(str, withoutDeflate), format, n, withoutDeflate)
+		}
+	}
+	// send and read
+	for i := 0; i < len(iNodes); i++ {
+		wg.Add(1)
+		go sendAndRead(i, iNodes[i], true)
+	}
+	for i := 0; i < len(cNodes); i++ {
+		wg.Add(1)
+		go sendAndRead(i, cNodes[i], false)
+	}
+	wg.Wait()
+
+	// clean
+	for i := 0; i < len(cNodes); i++ {
+		cNode := cNodes[i]
+		cNodes[i] = nil
+		cNodeGUID := cNode.GUID()
+
+		cNode.Exit(nil)
+		testsuite.IsDestroyed(t, cNode)
+
+		err := ctrl.DeleteNodeUnscoped(cNodeGUID)
+		require.NoError(t, err)
+	}
+	for i := 0; i < len(iNodes); i++ {
+		iNode := iNodes[i]
+		iNodes[i] = nil
+		iNodeGUID := iNode.GUID()
+
+		iNode.Exit(nil)
+		testsuite.IsDestroyed(t, iNode)
+
+		err := ctrl.DeleteNodeUnscoped(iNodeGUID)
+		require.NoError(t, err)
+	}
+}
+
+func TestBeacon_Send_CI(t *testing.T) {
+
+}
+
+func TestBeacon_Send_IC(t *testing.T) {
+
+}
+
+func TestBeacon_Send_Mix(t *testing.T) {
+
+}
+
+func TestBeacon_Query_CI(t *testing.T) {
+
+}
+
+func TestBeacon_Query_IC(t *testing.T) {
+
+}
+
+func TestBeacon_Query_Mix(t *testing.T) {
+
 }
 
 // One Common Node connect the Initial Node

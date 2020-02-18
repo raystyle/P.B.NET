@@ -179,6 +179,17 @@ func TestAll(t *testing.T) {
 	TestCtrl_SendToBeacon_CI(t)
 	TestCtrl_SendToBeacon_IC(t)
 	TestCtrl_SendToBeacon_Mix(t)
+
+	TestNode_Send_CI(t)
+	TestNode_Send_IC(t)
+	TestNode_Send_Mix(t)
+
+	TestBeacon_Send_CI(t)
+	TestBeacon_Send_IC(t)
+	TestBeacon_Send_Mix(t)
+	TestBeacon_Query_CI(t)
+	TestBeacon_Query_IC(t)
+	TestBeacon_Query_Mix(t)
 }
 
 func TestAll_Loop(t *testing.T) {
