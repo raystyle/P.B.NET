@@ -2,7 +2,12 @@ package test
 
 import (
 	"bytes"
+	"fmt"
+	"runtime"
+	"runtime/debug"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
@@ -91,4 +96,99 @@ func benchmarkBytesEqual(b *testing.B, size int) {
 		bytes.Equal(aa, bb)
 	}
 	b.StopTimer()
+}
+
+func TestAll_Old(t *testing.T) {
+	TestCtrl_SendToNode_PassInitialNode(t)
+	TestNode_Send_PassInitialNode(t)
+	TestCtrl_SendToBeacon_PassICNodes(t)
+	TestBeacon_Send_PassCommonNode(t)
+	TestNodeQueryRoleKey(t)
+}
+
+func TestAll_Parallel_Old(t *testing.T) {
+	wg := sync.WaitGroup{}
+	wg.Add(5)
+	go func() {
+		defer wg.Done()
+		TestCtrl_SendToNode_PassInitialNode(t)
+		fmt.Println("test-a")
+	}()
+	go func() {
+		defer wg.Done()
+		TestNode_Send_PassInitialNode(t)
+		fmt.Println("test-b")
+	}()
+	go func() {
+		defer wg.Done()
+		TestCtrl_SendToBeacon_PassICNodes(t)
+		fmt.Println("test-c")
+	}()
+	go func() {
+		defer wg.Done()
+		TestBeacon_Send_PassCommonNode(t)
+		fmt.Println("test-d")
+	}()
+	go func() {
+		defer wg.Done()
+		TestNodeQueryRoleKey(t)
+		fmt.Println("test-e")
+	}()
+	wg.Wait()
+}
+
+func TestLoop_Old(t *testing.T) {
+	// t.Skip("must run it manually")
+	logLevel = "warning"
+	for i := 0; i < 100; i++ {
+		fmt.Println("round:", i+1)
+		TestAll_Old(t)
+		time.Sleep(2 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(10 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func TestLoop_Parallel_Old(t *testing.T) {
+	// t.Skip("must run it manually")
+	logLevel = "warning"
+	for i := 0; i < 100; i++ {
+		fmt.Println("round:", i+1)
+		TestAll_Parallel_Old(t)
+		time.Sleep(2 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(10 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func TestAll(t *testing.T) {
+	TestCtrl_Broadcast_CI(t)
+	TestCtrl_Broadcast_IC(t)
+	TestCtrl_Broadcast_Mix(t)
+	TestCtrl_SendToNode_CI(t)
+	TestCtrl_SendToNode_IC(t)
+	TestCtrl_SendToNode_Mix(t)
+}
+
+func TestAll_Loop(t *testing.T) {
+	logLevel = "warning"
+	for i := 0; i < 5; i++ {
+		fmt.Println("round:", i+1)
+		TestAll(t)
+		time.Sleep(2 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(10 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(5 * time.Second)
+	}
 }

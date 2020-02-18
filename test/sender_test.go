@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"runtime"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,77 +21,6 @@ import (
 	"project/beacon"
 	"project/node"
 )
-
-func TestAll(t *testing.T) {
-	TestCtrl_SendToNode_PassInitialNode(t)
-	TestNode_Send_PassInitialNode(t)
-	TestCtrl_SendToBeacon_PassICNodes(t)
-	TestBeacon_Send_PassCommonNode(t)
-	TestNodeQueryRoleKey(t)
-}
-
-func TestAll_Parallel(t *testing.T) {
-	wg := sync.WaitGroup{}
-	wg.Add(5)
-	go func() {
-		defer wg.Done()
-		TestCtrl_SendToNode_PassInitialNode(t)
-		fmt.Println("test-a")
-	}()
-	go func() {
-		defer wg.Done()
-		TestNode_Send_PassInitialNode(t)
-		fmt.Println("test-b")
-	}()
-	go func() {
-		defer wg.Done()
-		TestCtrl_SendToBeacon_PassICNodes(t)
-		fmt.Println("test-c")
-	}()
-	go func() {
-		defer wg.Done()
-		TestBeacon_Send_PassCommonNode(t)
-		fmt.Println("test-d")
-	}()
-	go func() {
-		defer wg.Done()
-		TestNodeQueryRoleKey(t)
-		fmt.Println("test-e")
-	}()
-	wg.Wait()
-}
-
-func TestLoop(t *testing.T) {
-	// t.Skip("must run it manually")
-	logLevel = "warning"
-	for i := 0; i < 100; i++ {
-		fmt.Println("round:", i+1)
-		TestAll(t)
-		time.Sleep(2 * time.Second)
-		runtime.GC()
-		debug.FreeOSMemory()
-		time.Sleep(10 * time.Second)
-		runtime.GC()
-		debug.FreeOSMemory()
-		time.Sleep(5 * time.Second)
-	}
-}
-
-func TestLoop_Parallel(t *testing.T) {
-	// t.Skip("must run it manually")
-	logLevel = "warning"
-	for i := 0; i < 100; i++ {
-		fmt.Println("round:", i+1)
-		TestAll_Parallel(t)
-		time.Sleep(2 * time.Second)
-		runtime.GC()
-		debug.FreeOSMemory()
-		time.Sleep(10 * time.Second)
-		runtime.GC()
-		debug.FreeOSMemory()
-		time.Sleep(5 * time.Second)
-	}
-}
 
 func generateCommonNode(t *testing.T, iNode *node.Node, id int) *node.Node {
 	ctrl.Test.CreateNodeRegisterRequestChannel()
