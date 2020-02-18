@@ -26,15 +26,15 @@ func generateCommonNode(t *testing.T, iNode *node.Node, id int) *node.Node {
 	ctrl.Test.CreateNodeRegisterRequestChannel()
 
 	// generate bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	listener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
-	iAddr := iListener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
+	iAddr := listener.Addr()
+	iListener := &bootstrap.Listener{
+		Mode:    listener.Mode(),
 		Network: iAddr.Network(),
 		Address: iAddr.String(),
 	}
-	boot, key := generateBootstrap(t, bListener)
+	boot, key := generateBootstrap(t, iListener)
 
 	// create Common Node and run
 	cNodeCfg := generateNodeConfig(t, fmt.Sprintf("Common Node %d", id))
@@ -72,11 +72,11 @@ func generateBeacon(t *testing.T, node *node.Node, tag string, id int) *beacon.B
 	ctrl.Test.CreateBeaconRegisterRequestChannel()
 
 	// generate bootstrap
-	iListener, err := node.GetListener(tag)
+	listener, err := node.GetListener(tag)
 	require.NoError(t, err)
-	iAddr := iListener.Addr()
+	iAddr := listener.Addr()
 	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
+		Mode:    listener.Mode(),
 		Network: iAddr.Network(),
 		Address: iAddr.String(),
 	}
@@ -163,13 +163,13 @@ func TestCtrl_Broadcast_CI(t *testing.T) {
 	)
 	// connect
 	for i := 0; i < num; i++ {
-		iNode, bListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
+		iNode, iListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
 
 		iNode.Test.EnableTestMessage()
 		cNode.Test.EnableTestMessage()
 
 		// try to connect Initial Node and start to synchronize
-		err := cNode.Synchronize(context.Background(), iNode.GUID(), bListener)
+		err := cNode.Synchronize(context.Background(), iNode.GUID(), iListener)
 		require.NoError(t, err)
 
 		iNodes[i] = iNode
@@ -218,17 +218,17 @@ func TestCtrl_Broadcast_IC(t *testing.T) {
 		iNode.Test.EnableTestMessage()
 		cNode.Test.EnableTestMessage()
 
-		bListener := addNodeListener(t, cNode)
+		cListener := addNodeListener(t, cNode)
 
 		ctx := context.Background()
 
 		// Controller must connect the Common Node, otherwise the Common Node
 		// can't query Node key from Controller
-		err := ctrl.Synchronize(ctx, cNode.GUID(), bListener)
+		err := ctrl.Synchronize(ctx, cNode.GUID(), cListener)
 		require.NoError(t, err)
 
 		// Initial Node connect the Common Node and start to synchronize
-		err = iNode.Synchronize(ctx, cNode.GUID(), bListener)
+		err = iNode.Synchronize(ctx, cNode.GUID(), cListener)
 		require.NoError(t, err)
 
 		iNodes[i] = iNode
@@ -264,30 +264,30 @@ func TestCtrl_Broadcast_Mix(t *testing.T) {
 	ctx := context.Background()
 
 	// Controller and Initial Node connect Common Node 0
-	cn0Listener := addNodeListener(t, cNodes[0])
-	cn0GUID := cNodes[0].GUID()
-	err := ctrl.Synchronize(ctx, cn0GUID, cn0Listener)
+	c0Listener := addNodeListener(t, cNodes[0])
+	c0GUID := cNodes[0].GUID()
+	err := ctrl.Synchronize(ctx, c0GUID, c0Listener)
 	require.NoError(t, err)
-	err = iNode.Synchronize(ctx, cn0GUID, cn0Listener)
+	err = iNode.Synchronize(ctx, c0GUID, c0Listener)
 	require.NoError(t, err)
 
 	// Common Node 1 connect the Initial Node
-	inListener := getNodeListener(t, iNode, InitialNodeListenerTag)
-	err = cNodes[1].Synchronize(ctx, iNodeGUID, inListener)
+	iListener := getNodeListener(t, iNode, initialNodeListenerTag)
+	err = cNodes[1].Synchronize(ctx, iNodeGUID, iListener)
 	require.NoError(t, err)
 
 	// Common Node 2 Connect the Common Node 1 and the Initial Node
-	cn1Listener := addNodeListener(t, cNodes[1])
-	cn1GUID := cNodes[1].GUID()
-	err = cNodes[2].Synchronize(ctx, cn1GUID, cn1Listener)
+	c1Listener := addNodeListener(t, cNodes[1])
+	c1GUID := cNodes[1].GUID()
+	err = cNodes[2].Synchronize(ctx, c1GUID, c1Listener)
 	require.NoError(t, err)
-	err = cNodes[2].Synchronize(ctx, iNodeGUID, inListener)
+	err = cNodes[2].Synchronize(ctx, iNodeGUID, iListener)
 	require.NoError(t, err)
 
 	// Common Node 0 connect the Common Node 2
-	cn2Listener := addNodeListener(t, cNodes[2])
-	cn2GUID := cNodes[2].GUID()
-	err = cNodes[0].Synchronize(ctx, cn2GUID, cn2Listener)
+	c2Listener := addNodeListener(t, cNodes[2])
+	c2GUID := cNodes[2].GUID()
+	err = cNodes[0].Synchronize(ctx, c2GUID, c2Listener)
 	require.NoError(t, err)
 
 	testCtrlBroadcast(t, []*node.Node{iNode}, cNodes)
@@ -408,13 +408,13 @@ func TestCtrl_SendToNode_CI(t *testing.T) {
 	)
 	// connect
 	for i := 0; i < num; i++ {
-		iNode, bListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
+		iNode, iListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
 
 		iNode.Test.EnableTestMessage()
 		cNode.Test.EnableTestMessage()
 
 		// try to connect Initial Node and start to synchronize
-		err := cNode.Synchronize(context.Background(), iNode.GUID(), bListener)
+		err := cNode.Synchronize(context.Background(), iNode.GUID(), iListener)
 		require.NoError(t, err)
 
 		iNodes[i] = iNode
@@ -463,17 +463,16 @@ func TestCtrl_SendToNode_IC(t *testing.T) {
 		iNode.Test.EnableTestMessage()
 		cNode.Test.EnableTestMessage()
 
-		bListener := addNodeListener(t, cNode)
-
+		cListener := addNodeListener(t, cNode)
 		ctx := context.Background()
 
 		// Controller must connect the Common Node, otherwise the Common Node
 		// can't query Node key from Controller
-		err := ctrl.Synchronize(ctx, cNode.GUID(), bListener)
+		err := ctrl.Synchronize(ctx, cNode.GUID(), cListener)
 		require.NoError(t, err)
 
 		// Initial Node connect the Common Node and start to synchronize
-		err = iNode.Synchronize(ctx, cNode.GUID(), bListener)
+		err = iNode.Synchronize(ctx, cNode.GUID(), cListener)
 		require.NoError(t, err)
 
 		iNodes[i] = iNode
@@ -509,30 +508,30 @@ func TestCtrl_SendToNode_Mix(t *testing.T) {
 	ctx := context.Background()
 
 	// Controller and Initial Node connect Common Node 0
-	cn0Listener := addNodeListener(t, cNodes[0])
-	cn0GUID := cNodes[0].GUID()
-	err := ctrl.Synchronize(ctx, cn0GUID, cn0Listener)
+	c0Listener := addNodeListener(t, cNodes[0])
+	c0GUID := cNodes[0].GUID()
+	err := ctrl.Synchronize(ctx, c0GUID, c0Listener)
 	require.NoError(t, err)
-	err = iNode.Synchronize(ctx, cn0GUID, cn0Listener)
+	err = iNode.Synchronize(ctx, c0GUID, c0Listener)
 	require.NoError(t, err)
 
 	// Common Node 1 connect the Initial Node
-	inListener := getNodeListener(t, iNode, InitialNodeListenerTag)
-	err = cNodes[1].Synchronize(ctx, iNodeGUID, inListener)
+	iListener := getNodeListener(t, iNode, initialNodeListenerTag)
+	err = cNodes[1].Synchronize(ctx, iNodeGUID, iListener)
 	require.NoError(t, err)
 
 	// Common Node 2 Connect the Common Node 1 and the Initial Node
-	cn1Listener := addNodeListener(t, cNodes[1])
-	cn1GUID := cNodes[1].GUID()
-	err = cNodes[2].Synchronize(ctx, cn1GUID, cn1Listener)
+	c1Listener := addNodeListener(t, cNodes[1])
+	c1GUID := cNodes[1].GUID()
+	err = cNodes[2].Synchronize(ctx, c1GUID, c1Listener)
 	require.NoError(t, err)
-	err = cNodes[2].Synchronize(ctx, iNodeGUID, inListener)
+	err = cNodes[2].Synchronize(ctx, iNodeGUID, iListener)
 	require.NoError(t, err)
 
 	// Common Node 0 connect the Common Node 2
-	cn2Listener := addNodeListener(t, cNodes[2])
-	cn2GUID := cNodes[2].GUID()
-	err = cNodes[0].Synchronize(ctx, cn2GUID, cn2Listener)
+	c2Listener := addNodeListener(t, cNodes[2])
+	c2GUID := cNodes[2].GUID()
+	err = cNodes[0].Synchronize(ctx, c2GUID, c2Listener)
 	require.NoError(t, err)
 
 	testCtrlSendToNode(t, []*node.Node{iNode}, cNodes[:])
@@ -656,12 +655,12 @@ func TestCtrl_SendToBeacon_CI(t *testing.T) {
 		beacons [num]*beacon.Beacon
 	)
 	for i := 0; i < num; i++ {
-		iNode, bListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
+		iNode, iListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
 
 		ctx := context.Background()
 
 		// try to connect Initial Node and start to synchronize
-		err := cNode.Synchronize(ctx, iNode.GUID(), bListener)
+		err := cNode.Synchronize(ctx, iNode.GUID(), iListener)
 		require.NoError(t, err)
 
 		// add listener to Common Node
@@ -672,7 +671,6 @@ func TestCtrl_SendToBeacon_CI(t *testing.T) {
 		err = Beacon.Synchronize(ctx, cNode.GUID(), listener)
 		require.NoError(t, err)
 		Beacon.Test.EnableTestMessage()
-
 		ctrl.EnableInteractiveMode(Beacon.GUID())
 
 		nodes[2*i] = iNode
@@ -711,7 +709,41 @@ func TestCtrl_SendToBeacon_CI(t *testing.T) {
 //  +------------+    +---------------+     +----------+
 //
 func TestCtrl_SendToBeacon_IC(t *testing.T) {
+	const num = 3
+	var (
+		nodes   [2 * num]*node.Node
+		beacons [num]*beacon.Beacon
+	)
+	for i := 0; i < num; i++ {
+		iNode, iListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
 
+		cListener := addNodeListener(t, cNode)
+		ctx := context.Background()
+
+		// Controller must connect the Common Node, otherwise the Common Node
+		// can't query Node key from Controller
+		err := ctrl.Synchronize(ctx, cNode.GUID(), cListener)
+		require.NoError(t, err)
+
+		// Initial Node connect the Common Node and start to synchronize
+		err = iNode.Synchronize(ctx, cNode.GUID(), cListener)
+		require.NoError(t, err)
+
+		// create Beacon
+		Beacon := generateBeacon(t, cNode, commonNodeListenerTag, i)
+		err = Beacon.Synchronize(ctx, cNode.GUID(), cListener)
+		require.NoError(t, err)
+		err = Beacon.Synchronize(ctx, iNode.GUID(), iListener)
+		require.NoError(t, err)
+		Beacon.Test.EnableTestMessage()
+		ctrl.EnableInteractiveMode(Beacon.GUID())
+
+		nodes[2*i] = iNode
+		nodes[2*i+1] = cNode
+		beacons[i] = Beacon
+	}
+
+	testCtrlSendToBeacon(t, nodes[:], beacons[:])
 }
 
 // mix network environment
@@ -729,11 +761,80 @@ func TestCtrl_SendToBeacon_IC(t *testing.T) {
 //  +------------+    +---------------+    +---------------+    +----------+
 //                                 ↑          ↑
 //                               +--------------+
-//                               |   Beacon 0   |
+//                               |   Beacon 1   |
 //                               +--------------+
 //
 func TestCtrl_SendToBeacon_Mix(t *testing.T) {
+	iNode := generateInitialNodeAndTrust(t, 0)
+	iNodeGUID := iNode.GUID()
 
+	// create Common Nodes
+	const num = 3
+	cNodes := make([]*node.Node, num)
+	for i := 0; i < num; i++ {
+		cNodes[i] = generateCommonNode(t, iNode, i)
+	}
+
+	ctx := context.Background()
+
+	// Controller and Initial Node connect Common Node 0
+	c0Listener := addNodeListener(t, cNodes[0])
+	c0GUID := cNodes[0].GUID()
+	err := ctrl.Synchronize(ctx, c0GUID, c0Listener)
+	require.NoError(t, err)
+	err = iNode.Synchronize(ctx, c0GUID, c0Listener)
+	require.NoError(t, err)
+
+	// Common Node 1 connect the Initial Node
+	iListener := getNodeListener(t, iNode, initialNodeListenerTag)
+	err = cNodes[1].Synchronize(ctx, iNodeGUID, iListener)
+	require.NoError(t, err)
+
+	// Common Node 2 Connect the Common Node 1 and the Initial Node
+	c1Listener := addNodeListener(t, cNodes[1])
+	c1GUID := cNodes[1].GUID()
+	err = cNodes[2].Synchronize(ctx, c1GUID, c1Listener)
+	require.NoError(t, err)
+	err = cNodes[2].Synchronize(ctx, iNodeGUID, iListener)
+	require.NoError(t, err)
+
+	// Common Node 0 connect the Common Node 2
+	c2Listener := addNodeListener(t, cNodes[2])
+	c2GUID := cNodes[2].GUID()
+	err = cNodes[0].Synchronize(ctx, c2GUID, c2Listener)
+	require.NoError(t, err)
+
+	// create Beacons
+	beacons := make([]*beacon.Beacon, num)
+
+	// Beacon 0 connect the Initial Node and the Common Node 1
+	beacons[0] = generateBeacon(t, iNode, initialNodeListenerTag, 0)
+	err = beacons[0].Synchronize(ctx, iNode.GUID(), iListener)
+	require.NoError(t, err)
+	err = beacons[0].Synchronize(ctx, c1GUID, c1Listener)
+	require.NoError(t, err)
+	beacons[0].Test.EnableTestMessage()
+	ctrl.EnableInteractiveMode(beacons[0].GUID())
+
+	// Beacon 1 connect the Common Node 0 and the Common Node 2
+	beacons[1] = generateBeacon(t, cNodes[0], commonNodeListenerTag, 1)
+	err = beacons[1].Synchronize(ctx, c0GUID, c0Listener)
+	require.NoError(t, err)
+	err = beacons[1].Synchronize(ctx, c2GUID, c2Listener)
+	require.NoError(t, err)
+	beacons[1].Test.EnableTestMessage()
+	ctrl.EnableInteractiveMode(beacons[1].GUID())
+
+	// Beacon 2 connect the Common Node 1 and the Common Node 2
+	beacons[2] = generateBeacon(t, cNodes[1], commonNodeListenerTag, 2)
+	err = beacons[2].Synchronize(ctx, c1GUID, c1Listener)
+	require.NoError(t, err)
+	err = beacons[2].Synchronize(ctx, c2GUID, c2Listener)
+	require.NoError(t, err)
+	beacons[2].Test.EnableTestMessage()
+	ctrl.EnableInteractiveMode(beacons[2].GUID())
+
+	testCtrlSendToBeacon(t, append([]*node.Node{iNode}, cNodes[:]...), beacons)
 }
 
 // It will try to send message to each Beacon.
@@ -831,7 +932,7 @@ func TestCtrl_SendToNode_PassInitialNode(t *testing.T) {
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	iListener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
 	bListener := &bootstrap.Listener{
@@ -939,7 +1040,7 @@ func TestCtrl_SendToBeacon_PassInitialNode(t *testing.T) {
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	iListener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
 	bListener := &bootstrap.Listener{
@@ -1107,7 +1208,7 @@ func TestNode_Send_PassInitialNode(t *testing.T) {
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	iListener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
 	bListener := &bootstrap.Listener{
@@ -1216,7 +1317,7 @@ func TestBeacon_Send_PassInitialNode(t *testing.T) {
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	iListener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
 	bListener := &bootstrap.Listener{
@@ -1328,7 +1429,7 @@ func TestBeacon_Send_PassCommonNode(t *testing.T) {
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	iListener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
 	bListener := &bootstrap.Listener{
@@ -1491,7 +1592,7 @@ func TestCtrl_SendToBeacon_PassICNodes(t *testing.T) {
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	iListener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
 	bListener := &bootstrap.Listener{
@@ -1648,7 +1749,7 @@ func TestNodeQueryRoleKey(t *testing.T) {
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	iListener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
 	bListener := &bootstrap.Listener{
@@ -1806,7 +1907,7 @@ func TestBeacon_Query(t *testing.T) {
 	iNodeGUID := iNode.GUID()
 
 	// create bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	iListener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
 	iAddr := iListener.Addr()
 	bListener := &bootstrap.Listener{
