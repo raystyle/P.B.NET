@@ -161,17 +161,16 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 }
 
 // Connect is used to start protocol.HandleConn(), if you want to
-// start Synchronize(), you must call this function first
-func (client *Client) Connect() (err error) {
+// start Synchronize(), you must call this function first.
+func (client *Client) Connect() error {
 	// send connect operation
-	_, err = client.Conn.Write([]byte{protocol.NodeOperationConnect})
+	_, err := client.Conn.Write([]byte{protocol.NodeOperationConnect})
 	if err != nil {
-		err = errors.Wrap(err, "failed to send connect operation")
-		return
+		return errors.Wrap(err, "failed to send connect operation")
 	}
 	err = client.authenticate()
 	if err != nil {
-		return
+		return err
 	}
 	client.stopSignal = make(chan struct{})
 	// heartbeat
@@ -198,7 +197,7 @@ func (client *Client) Connect() (err error) {
 	timeout := client.ctx.clientMgr.GetTimeout()
 	_ = client.Conn.SetDeadline(time.Now().Add(timeout))
 	client.Conn.Log(logger.Debug, "connected")
-	return
+	return nil
 }
 
 func (client *Client) authenticate() error {

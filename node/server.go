@@ -435,12 +435,11 @@ func (server *server) handshake(conn *xnet.Conn) {
 		_ = conn.Close()
 		server.wg.Done()
 	}()
-
 	// add to server.conns for management
 	tag := server.guid.Get()
 	server.addConn(tag, conn)
 	defer server.deleteConn(tag)
-
+	// check connection and send certificate
 	_ = conn.SetDeadline(time.Now().Add(server.timeout))
 	if !server.checkConn(conn) {
 		return
@@ -460,7 +459,6 @@ func (server *server) handshake(conn *xnet.Conn) {
 		server.logConn(conn, logger.Error, "failed to send challenge signature")
 		return
 	}
-
 	// receive role
 	r := make([]byte, 1)
 	_, err = io.ReadFull(conn, r)
@@ -722,10 +720,10 @@ func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 	// to wait Controller broadcast, maybe this Node has register
 	// in other Node, but the Node register response not broadcast
 	// to this Node, so we try to wait Controller's broadcast.
-	r := random.New()
 	timer := time.NewTicker(50 * time.Millisecond)
 	defer timer.Stop()
-	for i := 0; i < 60+r.Int(40); i++ {
+	times := 60 + server.rand.Int(40)
+	for i := 0; i < times; i++ {
 		nk = server.ctx.storage.GetNodeKey(guid)
 		if nk != nil {
 			return nk
@@ -752,7 +750,8 @@ func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 	// calculate network latency between Node and Controller.
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Node key to this Node.
-	for i := 0; i < int(latency/(50*time.Millisecond))+r.Int(40); i++ {
+	times = int(latency/(50*time.Millisecond)) + 60 + server.rand.Int(40)
+	for i := 0; i < times; i++ {
 		nk = server.ctx.storage.GetNodeKey(guid)
 		if nk != nil {
 			return nk
@@ -915,8 +914,8 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 	// to this Node, so we try to wait Controller's broadcast.
 	timer := time.NewTicker(50 * time.Millisecond)
 	defer timer.Stop()
-	count := 60 + server.rand.Int(40)
-	for i := 0; i < count; i++ {
+	times := 60 + server.rand.Int(40)
+	for i := 0; i < times; i++ {
 		bk = server.ctx.storage.GetBeaconKey(guid)
 		if bk != nil {
 			return bk
@@ -943,8 +942,8 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 	// calculate network latency between Node and Controller
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Beacon key to this Node
-	count = int(latency/(50*time.Millisecond)) + 60 + server.rand.Int(40)
-	for i := 0; i < count; i++ {
+	times = int(latency/(50*time.Millisecond)) + 60 + server.rand.Int(40)
+	for i := 0; i < times; i++ {
 		bk = server.ctx.storage.GetBeaconKey(guid)
 		if bk != nil {
 			return bk
