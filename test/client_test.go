@@ -51,17 +51,17 @@ func TestCtrl_Client_Send(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
 
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	listener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
-	iAddr := iListener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
+	iAddr := listener.Addr()
+	iListener := &bootstrap.Listener{
+		Mode:    listener.Mode(),
 		Network: iAddr.Network(),
 		Address: iAddr.String(),
 	}
 
 	// try to connect Initial Node and start to synchronize
-	client, err := ctrl.NewClient(context.Background(), bListener, iNodeGUID, nil)
+	client, err := ctrl.NewClient(context.Background(), iListener, iNodeGUID, nil)
 	require.NoError(t, err)
 	err = client.Synchronize()
 	require.NoError(t, err)
@@ -77,12 +77,12 @@ func TestCtrl_Client_Send(t *testing.T) {
 }
 
 func TestNode_Client_Send(t *testing.T) {
-	iNode, bListener, cNode := generateInitialNodeAndCommonNode(t, 0, 0)
+	iNode, iListener, cNode := generateInitialNodeAndCommonNode(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	cNodeGUID := cNode.GUID()
 
 	// try to connect Initial Node and start to synchronize
-	client, err := cNode.NewClient(context.Background(), bListener, iNodeGUID)
+	client, err := cNode.NewClient(context.Background(), iListener, iNodeGUID)
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)
@@ -104,12 +104,12 @@ func TestNode_Client_Send(t *testing.T) {
 }
 
 func TestBeacon_Client_Send(t *testing.T) {
-	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
+	iNode, iListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	beaconGUID := Beacon.GUID()
 
 	// try to connect Initial Node and start to synchronize
-	client, err := Beacon.NewClient(context.Background(), bListener, iNodeGUID, nil)
+	client, err := Beacon.NewClient(context.Background(), iListener, iNodeGUID, nil)
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)

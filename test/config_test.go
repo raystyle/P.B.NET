@@ -238,7 +238,7 @@ func initializeController(t testing.TB) {
 
 // -----------------------------------------Initial Node-------------------------------------------
 
-const InitialNodeListenerTag = "initial_tcp"
+const initialNodeListenerTag = "initial_tcp"
 
 func generateInitialNode(t testing.TB, id int) *node.Node {
 	initializeController(t)
@@ -259,7 +259,7 @@ func generateInitialNode(t testing.TB, id int) *node.Node {
 
 	// generate listener config
 	listener := messages.Listener{
-		Tag:     InitialNodeListenerTag,
+		Tag:     initialNodeListenerTag,
 		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: "localhost:0",
@@ -289,20 +289,20 @@ func generateInitialNode(t testing.TB, id int) *node.Node {
 
 func generateInitialNodeAndTrust(t testing.TB, id int) *node.Node {
 	Node := generateInitialNode(t, id)
-	listener, err := Node.GetListener(InitialNodeListenerTag)
+	listener, err := Node.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
-	bListener := &bootstrap.Listener{
+	iListener := &bootstrap.Listener{
 		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: listener.Addr().String(),
 	}
 	// trust node
-	req, err := ctrl.TrustNode(context.Background(), bListener)
+	req, err := ctrl.TrustNode(context.Background(), iListener)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(context.Background(), bListener, req)
+	err = ctrl.ConfirmTrustNode(context.Background(), iListener, req)
 	require.NoError(t, err)
 	// connect node
-	err = ctrl.Synchronize(context.Background(), Node.GUID(), bListener)
+	err = ctrl.Synchronize(context.Background(), Node.GUID(), iListener)
 	require.NoError(t, err)
 	return Node
 }

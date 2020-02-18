@@ -15,12 +15,12 @@ import (
 )
 
 func TestModule(t *testing.T) {
-	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
+	iNode, iListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	beaconGUID := Beacon.GUID()
 
 	// connect Initial Node
-	err := Beacon.Synchronize(context.Background(), iNodeGUID, bListener)
+	err := Beacon.Synchronize(context.Background(), iNodeGUID, iListener)
 	require.NoError(t, err)
 
 	ctrl.EnableInteractiveMode(beaconGUID)

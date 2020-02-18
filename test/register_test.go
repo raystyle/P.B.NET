@@ -24,15 +24,15 @@ func generateInitialNodeAndCommonNode(t testing.TB, iID, cID int) (
 	ctrl.Test.CreateNodeRegisterRequestChannel()
 
 	// generate bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	listener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
-	iAddr := iListener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
+	iAddr := listener.Addr()
+	iListener := &bootstrap.Listener{
+		Mode:    listener.Mode(),
 		Network: iAddr.Network(),
 		Address: iAddr.String(),
 	}
-	boot, key := generateBootstrap(t, bListener)
+	boot, key := generateBootstrap(t, iListener)
 
 	// create Common Node and run
 	cNodeCfg := generateNodeConfig(t, fmt.Sprintf("Common Node %d", cID))
@@ -63,15 +63,15 @@ func generateInitialNodeAndCommonNode(t testing.TB, iID, cID int) (
 	cNode.Wait()
 	timer.Stop()
 
-	return iNode, bListener, cNode
+	return iNode, iListener, cNode
 }
 
 func TestNodeRegister(t *testing.T) {
-	iNode, bListener, cNode := generateInitialNodeAndCommonNode(t, 0, 0)
+	iNode, iListener, cNode := generateInitialNodeAndCommonNode(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	cNodeGUID := cNode.GUID()
 
-	client, err := cNode.NewClient(context.Background(), bListener, iNodeGUID)
+	client, err := cNode.NewClient(context.Background(), iListener, iNodeGUID)
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)
@@ -96,15 +96,15 @@ func generateInitialNodeAndBeacon(t testing.TB, iID, bID int) (
 	ctrl.Test.CreateBeaconRegisterRequestChannel()
 
 	// generate bootstrap
-	iListener, err := iNode.GetListener(InitialNodeListenerTag)
+	listener, err := iNode.GetListener(initialNodeListenerTag)
 	require.NoError(t, err)
-	iAddr := iListener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    iListener.Mode(),
+	iAddr := listener.Addr()
+	iListener := &bootstrap.Listener{
+		Mode:    listener.Mode(),
 		Network: iAddr.Network(),
 		Address: iAddr.String(),
 	}
-	boot, key := generateBootstrap(t, bListener)
+	boot, key := generateBootstrap(t, iListener)
 
 	// create Beacon and run
 	beaconCfg := generateBeaconConfig(t, fmt.Sprintf("Beacon %d", bID))
@@ -132,16 +132,16 @@ func generateInitialNodeAndBeacon(t testing.TB, iID, bID int) (
 	Beacon.Wait()
 	timer.Stop()
 
-	return iNode, bListener, Beacon
+	return iNode, iListener, Beacon
 }
 
 func TestBeaconRegister(t *testing.T) {
-	iNode, bListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
+	iNode, iListener, Beacon := generateInitialNodeAndBeacon(t, 0, 0)
 	iNodeGUID := iNode.GUID()
 	beaconGUID := Beacon.GUID()
 
 	// try to connect Initial Node
-	client, err := Beacon.NewClient(context.Background(), bListener, iNodeGUID, nil)
+	client, err := Beacon.NewClient(context.Background(), iListener, iNodeGUID, nil)
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)
