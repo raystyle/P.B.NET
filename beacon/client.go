@@ -444,11 +444,15 @@ func (client *Client) onFrameAfterSync(cmd byte, id, data []byte) bool {
 	return true
 }
 
+func (client *Client) logExploitGUID(log string, id []byte) {
+	client.log(logger.Exploit, log)
+	client.reply(id, protocol.ReplyHandled)
+	client.Close()
+}
+
 func (client *Client) handleSendToBeaconGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid send to beacon guid size")
-		client.reply(id, protocol.ReplyHandled)
-		client.Close()
+		client.logExploitGUID("invalid send to beacon guid size", id)
 		return
 	}
 	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
@@ -464,9 +468,7 @@ func (client *Client) handleSendToBeaconGUID(id, data []byte) {
 
 func (client *Client) handleAckToBeaconGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid ack to beacon guid size")
-		client.reply(id, protocol.ReplyHandled)
-		client.Close()
+		client.logExploitGUID("invalid ack to beacon guid size", id)
 		return
 	}
 	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
@@ -482,9 +484,7 @@ func (client *Client) handleAckToBeaconGUID(id, data []byte) {
 
 func (client *Client) handleAnswerGUID(id, data []byte) {
 	if len(data) != guid.Size {
-		client.log(logger.Exploit, "invalid answer guid size")
-		client.reply(id, protocol.ReplyHandled)
-		client.Close()
+		client.logExploitGUID("invalid answer guid size", id)
 		return
 	}
 	if client.ctx.syncer.CheckGUIDSliceTimestamp(data) {
@@ -498,120 +498,122 @@ func (client *Client) handleAnswerGUID(id, data []byte) {
 	}
 }
 
+func (client *Client) logExploit(log string, err error, obj interface{}) {
+	client.logf(logger.Exploit, log+": %s\n%s", err, spew.Sdump(obj))
+	client.Close()
+}
+
 func (client *Client) handleSendToBeacon(id, data []byte) {
 	send := client.ctx.worker.GetSendFromPool()
+	put := true
+	defer func() {
+		if put {
+			client.ctx.worker.PutSendToPool(send)
+		}
+	}()
 	err := send.Unpack(data)
 	if err != nil {
-		const format = "invalid send to beacon data: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(send))
-		client.ctx.worker.PutSendToPool(send)
-		client.Close()
+		client.logExploit("invalid send to beacon data", err, send)
 		return
 	}
 	err = send.Validate()
 	if err != nil {
-		const format = "invalid send to beacon: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(send))
-		client.ctx.worker.PutSendToPool(send)
-		client.Close()
+		client.logExploit("invalid send to beacon", err, send)
 		return
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&send.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
-		client.ctx.worker.PutSendToPool(send)
 		return
 	}
 	if client.ctx.syncer.CheckSendToBeaconGUID(&send.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
 		if send.RoleGUID == *client.ctx.global.GUID() {
 			client.ctx.worker.AddSend(send)
+			put = false
 		} else {
 			const format = "invalid beacon guid in send to beacon\n%s"
 			client.logf(logger.Exploit, format, send)
-			client.ctx.worker.PutSendToPool(send)
+			client.Close()
 		}
 	} else {
 		client.reply(id, protocol.ReplyHandled)
-		client.ctx.worker.PutSendToPool(send)
 	}
 }
 
 func (client *Client) handleAckToBeacon(id, data []byte) {
 	ack := client.ctx.worker.GetAcknowledgeFromPool()
+	put := true
+	defer func() {
+		if put {
+			client.ctx.worker.PutAcknowledgeToPool(ack)
+		}
+	}()
 	err := ack.Unpack(data)
 	if err != nil {
-		const format = "invalid ack to beacon data: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(ack))
-		client.ctx.worker.PutAcknowledgeToPool(ack)
-		client.Close()
+		client.logExploit("invalid ack to beacon data", err, ack)
 		return
 	}
 	err = ack.Validate()
 	if err != nil {
-		const format = "invalid ack to beacon: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(ack))
-		client.ctx.worker.PutAcknowledgeToPool(ack)
-		client.Close()
+		client.logExploit("invalid ack to beacon", err, ack)
 		return
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&ack.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
-		client.ctx.worker.PutAcknowledgeToPool(ack)
 		return
 	}
 	if client.ctx.syncer.CheckAckToBeaconGUID(&ack.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
 		if ack.RoleGUID == *client.ctx.global.GUID() {
 			client.ctx.worker.AddAcknowledge(ack)
+			put = false
 		} else {
 			const format = "invalid beacon guid in ack to beacon\n%s"
 			client.logf(logger.Exploit, format, ack)
-			client.ctx.worker.PutAcknowledgeToPool(ack)
+			client.Close()
 		}
 	} else {
 		client.reply(id, protocol.ReplyHandled)
-		client.ctx.worker.PutAcknowledgeToPool(ack)
 	}
 }
 
 func (client *Client) handleAnswer(id, data []byte) {
 	answer := client.ctx.worker.GetAnswerFromPool()
+	put := true
+	defer func() {
+		if put {
+			client.ctx.worker.PutAnswerToPool(answer)
+		}
+	}()
 	err := answer.Unpack(data)
 	if err != nil {
-		const format = "invalid answer data: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(answer))
-		client.ctx.worker.PutAnswerToPool(answer)
-		client.Close()
+		client.logExploit("invalid answer data", err, answer)
 		return
 	}
 	err = answer.Validate()
 	if err != nil {
-		const format = "invalid answer: %s\n%s"
-		client.logf(logger.Exploit, format, err, spew.Sdump(answer))
-		client.ctx.worker.PutAnswerToPool(answer)
-		client.Close()
+		client.logExploit("invalid answer", err, answer)
 		return
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&answer.GUID)
 	if expired {
 		client.reply(id, protocol.ReplyExpired)
-		client.ctx.worker.PutAnswerToPool(answer)
 		return
 	}
 	if client.ctx.syncer.CheckAnswerGUID(&answer.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
 		if answer.BeaconGUID == *client.ctx.global.GUID() {
 			client.ctx.worker.AddAnswer(answer)
+			put = false
 		} else {
 			const format = "invalid beacon guid in answer\n%s"
 			client.logf(logger.Exploit, format, answer)
-			client.ctx.worker.PutAnswerToPool(answer)
+			client.Close()
 		}
 	} else {
 		client.reply(id, protocol.ReplyHandled)
-		client.ctx.worker.PutAnswerToPool(answer)
 	}
 }
 
