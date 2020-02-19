@@ -317,9 +317,6 @@ func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.
 
 func (h *handler) handleNodeSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleNodeSendTestMessage")
-	if !h.ctx.Test.roleSendTestMsgEnabled {
-		return
-	}
 	err := h.ctx.Test.AddNodeSendTestMessage(h.context, &send.RoleGUID, send.Message)
 	if err != nil {
 		const log = "failed to add node send test message\nerror:"
@@ -389,9 +386,6 @@ func (h *handler) handleBeaconLog(send *protocol.Send) {
 
 func (h *handler) handleBeaconSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleBeaconSendTestMessage")
-	if !h.ctx.Test.roleSendTestMsgEnabled {
-		return
-	}
 	err := h.ctx.Test.AddBeaconSendTestMessage(h.context, &send.RoleGUID, send.Message)
 	if err != nil {
 		const log = "failed to add beacon send test message\nerror:"

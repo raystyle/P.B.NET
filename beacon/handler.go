@@ -157,9 +157,6 @@ func (h *handler) handleShell(answer *protocol.Answer) {
 
 func (h *handler) handleSendTestMessage(answer *protocol.Answer) {
 	defer h.logPanic("handler.handleSendTestMessage")
-	if !h.ctx.Test.testMsgEnabled {
-		return
-	}
 	err := h.ctx.Test.AddSendTestMessage(h.context, answer.Message)
 	if err != nil {
 		const log = "failed to add send test message\nerror:"

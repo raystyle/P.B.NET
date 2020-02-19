@@ -151,9 +151,6 @@ func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
 
 func (h *handler) handleSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleSendTestMessage")
-	if !h.ctx.Test.testMsgEnabled {
-		return
-	}
 	err := h.ctx.Test.AddSendTestMessage(h.context, send.Message)
 	if err != nil {
 		const log = "failed to add send test message\nerror:"
@@ -233,9 +230,6 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 
 func (h *handler) handleBroadcastTestMessage(broadcast *protocol.Broadcast) {
 	defer h.logPanic("handler.handleBroadcastTestMessage")
-	if !h.ctx.Test.testMsgEnabled {
-		return
-	}
 	err := h.ctx.Test.AddBroadcastTestMessage(h.context, broadcast.Message)
 	if err != nil {
 		const log = "failed to add broadcast test message\nerror:"
