@@ -70,8 +70,12 @@ func TestMain(m *testing.M) {
 	}
 }
 
-// in some test, log level will be changed.
-var logLevel = "debug"
+// in some tests, these value will be changed
+var (
+	loggerLevel      = "debug"
+	senderTimeout    = 15 * time.Second
+	syncerExpireTime = 3 * time.Second
+)
 
 func generateControllerConfig() *controller.Config {
 	cfg := controller.Config{}
@@ -88,7 +92,7 @@ func generateControllerConfig() *controller.Config {
 	cfg.Database.GORMDetailedLog = false
 	cfg.Database.LogWriter = logger.NewWriterWithPrefix(os.Stdout, "Ctrl")
 
-	cfg.Logger.Level = logLevel
+	cfg.Logger.Level = loggerLevel
 	cfg.Logger.File = "log/controller.log"
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Ctrl")
 
@@ -101,11 +105,11 @@ func generateControllerConfig() *controller.Config {
 
 	cfg.Sender.MaxConns = 16 * runtime.NumCPU()
 	cfg.Sender.Worker = 64
-	cfg.Sender.Timeout = 15 * time.Second
+	cfg.Sender.Timeout = senderTimeout
 	cfg.Sender.QueueSize = 512
 	cfg.Sender.MaxBufferSize = 16 << 10
 
-	cfg.Syncer.ExpireTime = 3 * time.Second
+	cfg.Syncer.ExpireTime = syncerExpireTime
 
 	cfg.Worker.Number = 64
 	cfg.Worker.QueueSize = 512
@@ -128,7 +132,7 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 
 	cfg.Test.SkipSynchronizeTime = true
 
-	cfg.Logger.Level = logLevel
+	cfg.Logger.Level = loggerLevel
 	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
 
@@ -153,11 +157,11 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg.Forwarder.MaxBeaconConns = 128
 
 	cfg.Sender.Worker = 64
+	cfg.Sender.Timeout = senderTimeout
 	cfg.Sender.QueueSize = 512
 	cfg.Sender.MaxBufferSize = 16 << 10
-	cfg.Sender.Timeout = 15 * time.Second
 
-	cfg.Syncer.ExpireTime = 3 * time.Second
+	cfg.Syncer.ExpireTime = syncerExpireTime
 
 	cfg.Worker.Number = 16
 	cfg.Worker.QueueSize = 1024
@@ -177,7 +181,7 @@ func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
 
 	cfg.Test.SkipSynchronizeTime = true
 
-	cfg.Logger.Level = logLevel
+	cfg.Logger.Level = loggerLevel
 	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, name)
 
@@ -198,11 +202,11 @@ func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
 
 	cfg.Sender.MaxConns = 7
 	cfg.Sender.Worker = 64
+	cfg.Sender.Timeout = senderTimeout
 	cfg.Sender.QueueSize = 512
 	cfg.Sender.MaxBufferSize = 16 << 10
-	cfg.Sender.Timeout = 15 * time.Second
 
-	cfg.Syncer.ExpireTime = 3 * time.Second
+	cfg.Syncer.ExpireTime = syncerExpireTime
 
 	cfg.Worker.Number = 16
 	cfg.Worker.QueueSize = 1024

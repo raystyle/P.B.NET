@@ -122,7 +122,7 @@ func TestAll(t *testing.T) {
 }
 
 func TestAll_Loop(t *testing.T) {
-	logLevel = "warning"
+	loggerLevel = "warning"
 	for i := 0; i < 5; i++ {
 		fmt.Println("round:", i+1)
 		TestAll(t)
@@ -137,8 +137,11 @@ func TestAll_Loop(t *testing.T) {
 }
 
 func TestAll_Parallel(t *testing.T) {
+	loggerLevel = "warning"
+	senderTimeout = 15 * time.Second
+	syncerExpireTime = 10 * time.Second
+
 	testdataCI := []func(*testing.T){
-		TestCtrl_Broadcast_CI,
 		TestCtrl_SendToNode_CI,
 		TestCtrl_SendToBeacon_CI,
 		TestNode_Send_CI,
@@ -147,7 +150,6 @@ func TestAll_Parallel(t *testing.T) {
 	}
 
 	testdataIC := []func(*testing.T){
-		TestCtrl_Broadcast_IC,
 		TestCtrl_SendToNode_IC,
 		TestCtrl_SendToBeacon_IC,
 		TestNode_Send_IC,
@@ -156,7 +158,6 @@ func TestAll_Parallel(t *testing.T) {
 	}
 
 	testdataMix := []func(*testing.T){
-		TestCtrl_Broadcast_Mix,
 		TestCtrl_SendToNode_Mix,
 		TestCtrl_SendToBeacon_Mix,
 		TestNode_Send_Mix,
@@ -173,22 +174,39 @@ func TestAll_Parallel(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+	fmt.Println("Finish CI")
 
 	for i := 0; i < len(testdataIC); i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			testdataCI[i](t)
+			testdataIC[i](t)
 		}(i)
 	}
 	wg.Wait()
+	fmt.Println("Finish IC")
 
 	for i := 0; i < len(testdataMix); i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			testdataCI[i](t)
+			testdataMix[i](t)
 		}(i)
 	}
 	wg.Wait()
+	fmt.Println("Finish Mix")
+}
+
+func TestAll_Parallel_Loop(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		fmt.Println("round:", i+1)
+		TestAll_Parallel(t)
+		time.Sleep(2 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(20 * time.Second)
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(40 * time.Second)
+	}
 }

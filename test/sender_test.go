@@ -460,10 +460,10 @@ func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 			prefix = "Common Node[%d]"
 		}
 		recv := make(map[string]struct{}, 2*goroutines*times)
-		timer := time.NewTimer(3 * time.Second)
+		timer := time.NewTimer(senderTimeout)
 		defer timer.Stop()
 		for i := 0; i < 2*goroutines*times; i++ {
-			timer.Reset(3 * time.Second)
+			timer.Reset(senderTimeout)
 			select {
 			case msg := <-node.Test.BroadcastTestMsg:
 				recv[string(msg)] = struct{}{}
@@ -575,10 +575,10 @@ func testCtrlSendToNode(t *testing.T, iNodes, cNodes []*node.Node) {
 		}
 		// read
 		recv := make(map[string]struct{}, 2*goroutines*times)
-		timer := time.NewTimer(3 * time.Second)
+		timer := time.NewTimer(senderTimeout)
 		defer timer.Stop()
 		for i := 0; i < 2*goroutines*times; i++ {
-			timer.Reset(3 * time.Second)
+			timer.Reset(senderTimeout)
 			select {
 			case msg := <-node.Test.SendTestMsg:
 				recv[string(msg)] = struct{}{}
@@ -680,10 +680,10 @@ func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Be
 		}
 		// read
 		recv := make(map[string]struct{}, 2*goroutines*times)
-		timer := time.NewTimer(3 * time.Second)
+		timer := time.NewTimer(senderTimeout)
 		defer timer.Stop()
 		for i := 0; i < 2*goroutines*times; i++ {
-			timer.Reset(3 * time.Second)
+			timer.Reset(senderTimeout)
 			select {
 			case msg := <-beacon.Test.SendTestMsg:
 				recv[string(msg)] = struct{}{}
@@ -791,10 +791,10 @@ func testNodeSend(t *testing.T, iNodes, cNodes []*node.Node) {
 		}
 		// read
 		recv := make(map[string]struct{}, 2*goroutines*times)
-		timer := time.NewTimer(3 * time.Second)
+		timer := time.NewTimer(senderTimeout)
 		defer timer.Stop()
 		for i := 0; i < 2*goroutines*times; i++ {
-			timer.Reset(3 * time.Second)
+			timer.Reset(senderTimeout)
 			select {
 			case msg := <-ch:
 				recv[string(msg)] = struct{}{}
@@ -899,10 +899,10 @@ func testBeaconSend(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) 
 		}
 		// read
 		recv := make(map[string]struct{}, 2*goroutines*times)
-		timer := time.NewTimer(3 * time.Second)
+		timer := time.NewTimer(senderTimeout)
 		defer timer.Stop()
 		for i := 0; i < 2*goroutines*times; i++ {
-			timer.Reset(3 * time.Second)
+			timer.Reset(senderTimeout)
 			select {
 			case msg := <-ch:
 				recv[string(msg)] = struct{}{}
@@ -983,7 +983,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 		defer wg.Done()
 		beaconGUID := beacon.GUID()
 
-		timer := time.NewTimer(3 * time.Second)
+		timer := time.NewTimer(senderTimeout)
 		defer timer.Stop()
 
 		for i := 0; i < times; i++ {
@@ -1000,7 +1000,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 			// with deflate
 			err = beacon.Query()
 			require.NoError(t, err)
-			timer.Reset(3 * time.Second)
+			timer.Reset(senderTimeout)
 			select {
 			case msg := <-beacon.Test.SendTestMsg:
 				withDeflate := fmt.Sprintf("test send with deflate %d", i)
@@ -1012,7 +1012,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 			// without deflate
 			err = beacon.Query()
 			require.NoError(t, err)
-			timer.Reset(3 * time.Second)
+			timer.Reset(senderTimeout)
 			select {
 			case msg := <-beacon.Test.SendTestMsg:
 				withoutDeflate := fmt.Sprintf("test send without deflate %d", i)
