@@ -39,7 +39,7 @@ func (syncer *syncer) clean<f>GUID(now int64) {
 	syncer.<a>GUIDRWM.Lock()
 	defer syncer.<a>GUIDRWM.Unlock()
     for key, timestamp := range syncer.<a>GUID {
-		if math.Abs(float64(now-timestamp)) > syncer.expireTime {
+		if convert.AbsInt64(now-timestamp) > syncer.expireTime {
 			delete(syncer.<a>GUID, key)
 		}
 	}
