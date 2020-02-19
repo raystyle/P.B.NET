@@ -93,30 +93,46 @@ func TestBytesToNumberWithInvalidBytes(t *testing.T) {
 	}
 }
 
-func TestByteToString(t *testing.T) {
+func TestAbsInt64(t *testing.T) {
 	testdata := []*struct {
-		except string
-		actual int
+		input  int64
+		output int64
 	}{
-		{"1023 Byte", 1023},
-		{"1.000 KB", 1024},
-		{"1.500 KB", 1536},
-		{"1.000 MB", 1024 * 1 << 10},
-		{"1.500 MB", 1536 * 1 << 10},
-		{"1.000 GB", 1024 * 1 << 20},
-		{"1.500 GB", 1536 * 1 << 20},
-		{"1.000 TB", 1024 * 1 << 30},
-		{"1.500 TB", 1536 * 1 << 30},
+		{-1, 1},
+		{0, 0},
+		{1, 1},
+		{-10, 10},
+		{10, 10},
 	}
 	for i := 0; i < len(testdata); i++ {
-		require.Equal(t, testdata[i].except, ByteToString(uint64(testdata[i].actual)))
+		require.Equal(t, testdata[i].output, AbsInt64(testdata[i].input))
+	}
+}
+
+func TestByteToString(t *testing.T) {
+	testdata := []*struct {
+		input  int
+		output string
+	}{
+		{1023, "1023 Byte"},
+		{1024, "1.000 KB"},
+		{1536, "1.500 KB"},
+		{1024 << 10, "1.000 MB"},
+		{1536 << 10, "1.500 MB"},
+		{1024 << 20, "1.000 GB"},
+		{1536 << 20, "1.500 GB"},
+		{1024 << 30, "1.000 TB"},
+		{1536 << 30, "1.500 TB"},
+	}
+	for i := 0; i < len(testdata); i++ {
+		require.Equal(t, testdata[i].output, ByteToString(uint64(testdata[i].input)))
 	}
 }
 
 func TestFormatNumber(t *testing.T) {
 	testdata := []*struct {
 		input  string
-		expect string
+		output string
 	}{
 		{"1", "1"},
 		{"12", "12"},
@@ -139,6 +155,6 @@ func TestFormatNumber(t *testing.T) {
 		{"123456.789", "123,456.789"},
 	}
 	for i := 0; i < len(testdata); i++ {
-		require.Equal(t, testdata[i].expect, FormatNumber(testdata[i].input))
+		require.Equal(t, testdata[i].output, FormatNumber(testdata[i].input))
 	}
 }
