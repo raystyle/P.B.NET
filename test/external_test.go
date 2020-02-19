@@ -98,7 +98,7 @@ func benchmarkBytesEqual(b *testing.B, size int) {
 	b.StopTimer()
 }
 
-func TestAll(t *testing.T) {
+func TestAll_Ctrl(t *testing.T) {
 	TestCtrl_Broadcast_CI(t)
 	TestCtrl_Broadcast_IC(t)
 	TestCtrl_Broadcast_Mix(t)
@@ -108,11 +108,15 @@ func TestAll(t *testing.T) {
 	TestCtrl_SendToBeacon_CI(t)
 	TestCtrl_SendToBeacon_IC(t)
 	TestCtrl_SendToBeacon_Mix(t)
+}
 
+func TestAll_Node(t *testing.T) {
 	TestNode_Send_CI(t)
 	TestNode_Send_IC(t)
 	TestNode_Send_Mix(t)
+}
 
+func TestAll_Beacon(t *testing.T) {
 	TestBeacon_Send_CI(t)
 	TestBeacon_Send_IC(t)
 	TestBeacon_Send_Mix(t)
@@ -121,12 +125,18 @@ func TestAll(t *testing.T) {
 	TestBeacon_Query_Mix(t)
 }
 
+func TestAll(t *testing.T) {
+	TestAll_Ctrl(t)
+	TestAll_Node(t)
+	TestAll_Beacon(t)
+}
+
 func TestAll_Loop(t *testing.T) {
 	loggerLevel = "warning"
 	for i := 0; i < 5; i++ {
 		fmt.Println("round:", i+1)
 		TestAll(t)
-		time.Sleep(2 * time.Second)
+		time.Sleep(3 * time.Second)
 		runtime.GC()
 		debug.FreeOSMemory()
 		time.Sleep(10 * time.Second)
@@ -137,7 +147,6 @@ func TestAll_Loop(t *testing.T) {
 }
 
 func TestAll_Parallel(t *testing.T) {
-	loggerLevel = "warning"
 	senderTimeout = 15 * time.Second
 	syncerExpireTime = 10 * time.Second
 
@@ -198,10 +207,11 @@ func TestAll_Parallel(t *testing.T) {
 }
 
 func TestAll_Parallel_Loop(t *testing.T) {
+	loggerLevel = "warning"
 	for i := 0; i < 10; i++ {
 		fmt.Println("round:", i+1)
 		TestAll_Parallel(t)
-		time.Sleep(2 * time.Second)
+		time.Sleep(3 * time.Second)
 		runtime.GC()
 		debug.FreeOSMemory()
 		time.Sleep(20 * time.Second)
