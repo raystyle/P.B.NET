@@ -92,7 +92,7 @@ func newWorker(ctx *Beacon, config *Config) (*worker, error) {
 			stopSignal:    worker.stopSignal,
 			wg:            wgP,
 		}
-		go sw.WorkWithNonBlock()
+		go sw.WorkWithoutBlock()
 	}
 	return &worker, nil
 }
@@ -237,21 +237,25 @@ func (sw *subWorker) WorkWithBlock() {
 	}
 }
 
-func (sw *subWorker) WorkWithNonBlock() {
+func (sw *subWorker) WorkWithoutBlock() {
 	defer func() {
 		if r := recover(); r != nil {
-			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.WorkWithNonBlock"))
+			sw.log(logger.Fatal, xpanic.Print(r, "subWorker.WorkWithoutBlock"))
 			// restart worker
 			time.Sleep(time.Second)
-			go sw.WorkWithNonBlock()
+			go sw.WorkWithoutBlock()
 		} else {
 			sw.wg.Done()
 		}
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
-	sw.timer = time.NewTimer(time.Second)
-	defer sw.timer.Stop()
-	var acknowledge *protocol.Acknowledge
+	sw.reader = bytes.NewReader(nil)
+	sw.deflate = flate.NewReader(nil)
+	sw.hash = sha256.New()
+	var (
+		acknowledge *protocol.Acknowledge
+		answer      *protocol.Answer
+	)
 	for {
 		select {
 		case <-sw.stopSignal:
@@ -265,6 +269,8 @@ func (sw *subWorker) WorkWithNonBlock() {
 		select {
 		case acknowledge = <-sw.ackQueue:
 			sw.handleAcknowledge(acknowledge)
+		case answer = <-sw.answerQueue:
+			sw.handleAnswer(answer)
 		case <-sw.stopSignal:
 			return
 		}

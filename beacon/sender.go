@@ -182,14 +182,21 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	sender.guid = guid.New(cfg.QueueSize, ctx.global.Now)
 
 	// start sender workers
-	sender.wg.Add(cfg.Worker)
+	sender.wg.Add(2 * cfg.Worker)
 	for i := 0; i < cfg.Worker; i++ {
 		worker := senderWorker{
 			ctx:           sender,
 			timeout:       cfg.Timeout,
 			maxBufferSize: cfg.MaxBufferSize,
 		}
-		go worker.Work()
+		go worker.WorkWithBlock()
+	}
+	for i := 0; i < cfg.Worker; i++ {
+		worker := senderWorker{
+			ctx:           sender,
+			maxBufferSize: cfg.MaxBufferSize,
+		}
+		go worker.WorkWithoutBlock()
 	}
 	sender.wg.Add(1)
 	go sender.ackSlotCleaner()
@@ -641,13 +648,13 @@ type senderWorker struct {
 	timer *time.Timer
 }
 
-func (sw *senderWorker) Work() {
+func (sw *senderWorker) WorkWithBlock() {
 	defer func() {
 		if r := recover(); r != nil {
-			sw.ctx.log(logger.Fatal, xpanic.Print(r, "senderWorker.Work"))
+			sw.ctx.log(logger.Fatal, xpanic.Print(r, "senderWorker.WorkWithBlock"))
 			// restart worker
 			time.Sleep(time.Second)
-			go sw.Work()
+			go sw.WorkWithBlock()
 		} else {
 			sw.ctx.wg.Done()
 		}
@@ -678,6 +685,43 @@ func (sw *senderWorker) Work() {
 		select {
 		case st = <-sw.ctx.sendTaskQueue:
 			sw.handleSendTask(st)
+		case at = <-sw.ctx.ackTaskQueue:
+			sw.handleAcknowledgeTask(at)
+		case qt = <-sw.ctx.queryTaskQueue:
+			sw.handleQueryTask(qt)
+		case <-sw.ctx.stopSignal:
+			return
+		}
+	}
+}
+
+func (sw *senderWorker) WorkWithoutBlock() {
+	defer func() {
+		if r := recover(); r != nil {
+			sw.ctx.log(logger.Fatal, xpanic.Print(r, "senderWorker.WorkWithoutBlock"))
+			// restart worker
+			time.Sleep(time.Second)
+			go sw.WorkWithoutBlock()
+		} else {
+			sw.ctx.wg.Done()
+		}
+	}()
+	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	var (
+		at *ackTask
+		qt *queryTask
+	)
+	for {
+		select {
+		case <-sw.ctx.stopSignal:
+			return
+		default:
+		}
+		// check buffer capacity
+		if sw.buffer.Cap() > sw.maxBufferSize {
+			sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+		}
+		select {
 		case at = <-sw.ctx.ackTaskQueue:
 			sw.handleAcknowledgeTask(at)
 		case qt = <-sw.ctx.queryTaskQueue:
