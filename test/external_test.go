@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,4 +134,61 @@ func TestAll_Loop(t *testing.T) {
 		debug.FreeOSMemory()
 		time.Sleep(5 * time.Second)
 	}
+}
+
+func TestAll_Parallel(t *testing.T) {
+	testdataCI := []func(*testing.T){
+		TestCtrl_Broadcast_CI,
+		TestCtrl_SendToNode_CI,
+		TestCtrl_SendToBeacon_CI,
+		TestNode_Send_CI,
+		TestBeacon_Send_CI,
+		TestBeacon_Query_CI,
+	}
+
+	testdataIC := []func(*testing.T){
+		TestCtrl_Broadcast_IC,
+		TestCtrl_SendToNode_IC,
+		TestCtrl_SendToBeacon_IC,
+		TestNode_Send_IC,
+		TestBeacon_Send_IC,
+		TestBeacon_Query_IC,
+	}
+
+	testdataMix := []func(*testing.T){
+		TestCtrl_Broadcast_Mix,
+		TestCtrl_SendToNode_Mix,
+		TestCtrl_SendToBeacon_Mix,
+		TestNode_Send_Mix,
+		TestBeacon_Send_Mix,
+		TestBeacon_Query_Mix,
+	}
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < len(testdataCI); i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			testdataCI[i](t)
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < len(testdataIC); i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			testdataCI[i](t)
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < len(testdataMix); i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			testdataCI[i](t)
+		}(i)
+	}
+	wg.Wait()
 }

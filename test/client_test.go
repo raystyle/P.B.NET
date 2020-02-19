@@ -68,6 +68,9 @@ func TestCtrl_Client_Send(t *testing.T) {
 
 	testClientSendCommand(t, client.SendCommand)
 
+	client.Close()
+	testsuite.IsDestroyed(t, client)
+
 	// clean
 	iNode.Exit(nil)
 	testsuite.IsDestroyed(t, iNode)
@@ -90,6 +93,9 @@ func TestNode_Client_Send(t *testing.T) {
 	require.NoError(t, err)
 
 	testClientSendCommand(t, client.Conn.SendCommand)
+
+	client.Close()
+	testsuite.IsDestroyed(t, client)
 
 	// clean
 	cNode.Exit(nil)
@@ -117,6 +123,9 @@ func TestBeacon_Client_Send(t *testing.T) {
 	require.NoError(t, err)
 
 	testClientSendCommand(t, client.SendCommand)
+
+	client.Close()
+	testsuite.IsDestroyed(t, client)
 
 	// clean
 	Beacon.Exit(nil)
