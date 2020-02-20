@@ -1,6 +1,12 @@
 package certutil
 
 import (
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"io/ioutil"
 	"sync"
 	"testing"
@@ -84,6 +90,75 @@ func TestParsePrivateKey(t *testing.T) {
 `)
 	_, err = ParsePrivateKey(keyPEMBlock)
 	require.Error(t, err)
+}
+
+func TestMatch(t *testing.T) {
+	cert := new(x509.Certificate)
+
+	t.Run("rsa", func(t *testing.T) {
+		t.Run("matched", func(t *testing.T) {
+			pri, err := rsa.GenerateKey(rand.Reader, 2048)
+			require.NoError(t, err)
+			cert.PublicKey = &pri.PublicKey
+			require.True(t, Match(cert, pri))
+		})
+
+		t.Run("mismatch", func(t *testing.T) {
+			pri, err := rsa.GenerateKey(rand.Reader, 2048)
+			require.NoError(t, err)
+			cert.PublicKey = &pri.PublicKey
+			require.False(t, Match(cert, nil))
+
+			pri2, err := rsa.GenerateKey(rand.Reader, 2048)
+			require.NoError(t, err)
+			require.False(t, Match(cert, pri2))
+		})
+	})
+
+	t.Run("ecdsa", func(t *testing.T) {
+		t.Run("matched", func(t *testing.T) {
+			pri, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			require.NoError(t, err)
+			cert.PublicKey = &pri.PublicKey
+			require.True(t, Match(cert, pri))
+		})
+
+		t.Run("mismatch", func(t *testing.T) {
+			pri, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			require.NoError(t, err)
+			cert.PublicKey = &pri.PublicKey
+			require.False(t, Match(cert, nil))
+
+			pri2, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			require.NoError(t, err)
+			require.False(t, Match(cert, pri2))
+		})
+	})
+
+	t.Run("ed25519", func(t *testing.T) {
+		t.Run("matched", func(t *testing.T) {
+			pub, pri, err := ed25519.GenerateKey(rand.Reader)
+			require.NoError(t, err)
+			cert.PublicKey = pub
+			require.True(t, Match(cert, pri))
+		})
+
+		t.Run("mismatched", func(t *testing.T) {
+			pub, _, err := ed25519.GenerateKey(rand.Reader)
+			require.NoError(t, err)
+			cert.PublicKey = pub
+			require.False(t, Match(cert, nil))
+
+			_, pri, err := ed25519.GenerateKey(rand.Reader)
+			require.NoError(t, err)
+			require.False(t, Match(cert, pri))
+		})
+	})
+
+	t.Run("unknown", func(t *testing.T) {
+		cert.PublicKey = []byte{}
+		require.False(t, Match(cert, nil))
+	})
 }
 
 func TestSystemCertPool(t *testing.T) {

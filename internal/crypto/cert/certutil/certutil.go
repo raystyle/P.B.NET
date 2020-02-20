@@ -1,16 +1,18 @@
 package certutil
 
 import (
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 )
 
-// error
-var (
-	ErrInvalidPEMBlock = errors.New("invalid PEM block")
-)
+// ErrInvalidPEMBlock is the error about the PEM block.
+var ErrInvalidPEMBlock = errors.New("invalid PEM block")
 
 // ParseCertificate is used to parse certificate from PEM
 func ParseCertificate(pemBlock []byte) (*x509.Certificate, error) {
@@ -73,4 +75,37 @@ func ParsePrivateKey(pemBlock []byte) (interface{}, error) {
 		return nil, ErrInvalidPEMBlock
 	}
 	return ParsePrivateKeyBytes(block.Bytes)
+}
+
+// Match is used to check the private key is match the public key in the certificate.
+func Match(cert *x509.Certificate, pri interface{}) bool {
+	switch pub := cert.PublicKey.(type) {
+	case *rsa.PublicKey:
+		pri, ok := pri.(*rsa.PrivateKey)
+		if !ok {
+			return false
+		}
+		if pub.N.Cmp(pri.N) != 0 {
+			return false
+		}
+	case *ecdsa.PublicKey:
+		pri, ok := pri.(*ecdsa.PrivateKey)
+		if !ok {
+			return false
+		}
+		if pub.X.Cmp(pri.X) != 0 || pub.Y.Cmp(pri.Y) != 0 {
+			return false
+		}
+	case ed25519.PublicKey:
+		pri, ok := pri.(ed25519.PrivateKey)
+		if !ok {
+			return false
+		}
+		if !bytes.Equal(pri.Public().(ed25519.PublicKey), pub) {
+			return false
+		}
+	default:
+		return false
+	}
+	return true
 }
