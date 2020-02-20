@@ -386,7 +386,6 @@ func loadSelfCertificates(hash *bytes.Buffer, password []byte) ([]*cert.Pair, er
 
 		self = append(self, &cert.Pair{
 			Certificate: certificate,
-			ASN1Data:    asn1Data,
 			PrivateKey:  key,
 		})
 	}
@@ -423,7 +422,6 @@ func loadSystemCertificates(hash *bytes.Buffer, password []byte) ([]*cert.Pair, 
 
 		system = append(system, &cert.Pair{
 			Certificate: certificate,
-			ASN1Data:    asn1Data,
 		})
 	}
 	return system, nil

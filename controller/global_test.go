@@ -12,6 +12,6 @@ func TestGenerateAndLoadSessionKey(t *testing.T) {
 	require.NoError(t, err)
 	keys, err := loadSessionKey(data, password)
 	require.NoError(t, err)
-	const format = "private key: %X\nAES Key: %X\nAES IV: %X"
+	const format = "\nprivate key: %X\nAES Key: %X\nAES IV: %X"
 	t.Logf(format, keys[0], keys[1], keys[2])
 }

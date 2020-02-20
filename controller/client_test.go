@@ -41,14 +41,10 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 
 	var certificates [][]byte
 	for _, pair := range ctrl.GetSelfCerts() {
-		c := make([]byte, len(pair.ASN1Data))
-		copy(c, pair.ASN1Data)
-		certificates = append(certificates, c)
+		certificates = append(certificates, pair.ASN1())
 	}
 	for _, pair := range ctrl.GetSystemCerts() {
-		c := make([]byte, len(pair.ASN1Data))
-		copy(c, pair.ASN1Data)
-		certificates = append(certificates, c)
+		certificates = append(certificates, pair.ASN1())
 	}
 	cfg.Global.Certificates = certificates
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
