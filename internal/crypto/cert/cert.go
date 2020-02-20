@@ -21,7 +21,7 @@ import (
 	"project/internal/random"
 )
 
-// Options contains options about generate certificate
+// Options contains options about generate certificate.
 type Options struct {
 	Algorithm   string    `toml:"algorithm"` // "rsa|2048", "ecdsa|p256", "ed25519"
 	DNSNames    []string  `toml:"dns_names"`
@@ -31,7 +31,7 @@ type Options struct {
 	NotAfter    time.Time `toml:"not_after"`
 }
 
-// Subject contains certificate subject info
+// Subject contains certificate subject info.
 type Subject struct {
 	CommonName         string   `toml:"common_name"`
 	SerialNumber       string   `toml:"serial_number"`
@@ -210,22 +210,29 @@ func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
 	return nil, nil, fmt.Errorf("unknown algorithm: %s", algorithm)
 }
 
-// Pair contains certificate, certificate ASN1 data and private key
+// Pair contains certificate and private key.
 type Pair struct {
 	Certificate *x509.Certificate
-	ASN1Data    []byte
 	PrivateKey  interface{}
 }
 
-// Encode is used to get certificate ASN1 data and encode private key to PKCS8
+// ASN1 is used to get certificate ASN1 data.
+func (p *Pair) ASN1() []byte {
+	raw := p.Certificate.Raw
+	asn1 := make([]byte, len(raw))
+	copy(asn1, raw)
+	return asn1
+}
+
+// Encode is used to get certificate ASN1 data and encode private key to PKCS8.
 func (p *Pair) Encode() ([]byte, []byte) {
-	cert := make([]byte, len(p.ASN1Data))
-	copy(cert, p.ASN1Data)
+	cert := make([]byte, len(p.Certificate.Raw))
+	copy(cert, p.Certificate.Raw)
 	key, _ := x509.MarshalPKCS8PrivateKey(p.PrivateKey)
 	return cert, key
 }
 
-// EncodeToPEM is used to encode certificate and private key to PEM data
+// EncodeToPEM is used to encode certificate and private key to PEM data.
 func (p *Pair) EncodeToPEM() ([]byte, []byte) {
 	cert, key := p.Encode()
 	certBlock := &pem.Block{
@@ -239,25 +246,23 @@ func (p *Pair) EncodeToPEM() ([]byte, []byte) {
 	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
 }
 
-// TLSCertificate is used to generate tls certificate
+// TLSCertificate is used to generate tls certificate.
 func (p *Pair) TLSCertificate() (tls.Certificate, error) {
 	return tls.X509KeyPair(p.EncodeToPEM())
 }
 
-// GenerateCA is used to generate a CA certificate from Options
+// GenerateCA is used to generate a CA certificate from Options.
 func GenerateCA(opts *Options) (*Pair, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
-
 	ca, err := generateCertificate(opts)
 	if err != nil {
 		return nil, err
 	}
-	ca.KeyUsage = x509.KeyUsageCertSign
+	ca.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 	ca.BasicConstraintsValid = true
 	ca.IsCA = true
-
 	privateKey, publicKey, err := generatePrivateKey(opts.Algorithm)
 	if err != nil {
 		return nil, err
@@ -266,24 +271,21 @@ func GenerateCA(opts *Options) (*Pair, error) {
 	ca, _ = x509.ParseCertificate(asn1Data)
 	return &Pair{
 		Certificate: ca,
-		ASN1Data:    asn1Data,
 		PrivateKey:  privateKey,
 	}, nil
 }
 
 // Generate is used to generate a signed certificate by CA or
-// self-sign certificate from options
+// self-sign certificate from options.
 func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*Pair, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
-
 	cert, err := generateCertificate(opts)
 	if err != nil {
 		return nil, err
 	}
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
-
 	// generate certificate
 	privateKey, publicKey, err := generatePrivateKey(opts.Algorithm)
 	if err != nil {
@@ -301,7 +303,6 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*Pair, 
 	cert, _ = x509.ParseCertificate(asn1Data)
 	return &Pair{
 		Certificate: cert,
-		ASN1Data:    asn1Data,
 		PrivateKey:  privateKey,
 	}, nil
 }
@@ -318,7 +319,7 @@ func printStringSlice(s []string) string {
 	return ss
 }
 
-// Print is used to print certificate information
+// Print is used to print certificate information.
 func Print(cert *x509.Certificate) *bytes.Buffer {
 	output := new(bytes.Buffer)
 	const certFormat = `subject

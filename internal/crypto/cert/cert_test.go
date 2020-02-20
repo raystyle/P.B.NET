@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -45,7 +44,6 @@ func TestIsDomainName(t *testing.T) {
 }
 
 func TestGenerateCA(t *testing.T) {
-	t.Parallel()
 	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
 	_, err = tls.X509KeyPair(ca.EncodeToPEM())
@@ -72,50 +70,43 @@ func TestGenerateCA(t *testing.T) {
 	actual = ca.Certificate.NotAfter.Local().Format(logger.TimeLayout)
 	require.Equal(t, excepted, actual)
 
-	// invalid domain name
-	opts.DNSNames = []string{"foo-"}
-	_, err = GenerateCA(opts)
-	require.Error(t, err)
+	t.Run("invalid domain name", func(t *testing.T) {
+		opts.DNSNames = []string{"foo-"}
+		_, err = GenerateCA(opts)
+		require.Error(t, err)
+		opts.DNSNames = nil
+	})
 
-	opts.DNSNames = nil
-	// invalid IP address
-	opts.IPAddresses = []string{"foo ip"}
-	_, err = GenerateCA(opts)
-	require.Error(t, err)
+	t.Run("invalid IP address", func(t *testing.T) {
+		opts.IPAddresses = []string{"foo ip"}
+		_, err = GenerateCA(opts)
+		require.Error(t, err)
+	})
 }
 
 func TestGenerate(t *testing.T) {
-	t.Parallel()
 	for _, alg := range []string{"", "rsa|1024", "ecdsa|p224", "ed25519"} {
 		t.Run(alg, func(t *testing.T) {
 			opts := Options{Algorithm: alg}
-			t.Parallel() // must here
 			ca, err := GenerateCA(&opts)
 			require.NoError(t, err)
-			wg := sync.WaitGroup{}
-			wg.Add(2)
-			go func() {
-				defer wg.Done()
-				testGenerate(t, ca) // CA sign
-			}()
-			go func() {
-				defer wg.Done()
-				testGenerate(t, nil) // self sign
-			}()
-			wg.Wait()
+			testGenerate(t, ca)  // CA sign
+			testGenerate(t, nil) // self sign
 		})
 	}
 
-	// invalid domain name
-	opts := new(Options)
-	opts.DNSNames = []string{"foo-"}
-	_, err := Generate(nil, nil, opts)
-	require.Error(t, err)
+	t.Run("invalid domain name", func(t *testing.T) {
+		opts := Options{
+			DNSNames: []string{"foo-"},
+		}
+		_, err := Generate(nil, nil, &opts)
+		require.Error(t, err)
+	})
 
-	opts.DNSNames = nil
-	// create failed
-	_, err = Generate(new(x509.Certificate), "foo", opts)
-	require.Error(t, err)
+	t.Run("invalid private key", func(t *testing.T) {
+		_, err := Generate(new(x509.Certificate), "foo", nil)
+		require.Error(t, err)
+	})
 }
 
 func testGenerate(t *testing.T, ca *Pair) {
@@ -135,12 +126,15 @@ func testGenerate(t *testing.T, ca *Pair) {
 		pair, err = Generate(nil, nil, opts)
 		require.NoError(t, err)
 	}
+	require.Equal(t, pair.Certificate.Raw, pair.ASN1())
+
 	// handler
 	respData := []byte("hello")
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(respData)
 	})
+
 	// certificate
 	tlsCert, err := pair.TLSCertificate()
 	require.NoError(t, err)
@@ -205,7 +199,6 @@ func testGenerate(t *testing.T, ca *Pair) {
 }
 
 func TestGeneratePrivateKey(t *testing.T) {
-	t.Parallel()
 	// rsa with invalid bits
 	_, _, err := generatePrivateKey("rsa|foo")
 	require.Error(t, err)
@@ -221,7 +214,6 @@ func TestGeneratePrivateKey(t *testing.T) {
 }
 
 func TestUnknownAlgorithm(t *testing.T) {
-	t.Parallel()
 	pri, pub, err := generatePrivateKey("foo|alg")
 	require.EqualError(t, err, "unknown algorithm: foo|alg")
 	require.Nil(t, pri)
@@ -245,7 +237,6 @@ func TestUnknownAlgorithm(t *testing.T) {
 }
 
 func TestPrint(t *testing.T) {
-	t.Parallel()
 	ca, err := GenerateCA(nil)
 	require.NoError(t, err)
 	org := []string{"org a", "org b"}
