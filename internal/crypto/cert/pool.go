@@ -124,36 +124,6 @@ func (p *Pool) AddPublicClientCert(cert *x509.Certificate, pri interface{}) erro
 	return nil
 }
 
-// GetPublicRootCACerts is used to get all public root CA certificates.
-func (p *Pool) GetPublicRootCACerts() []*x509.Certificate {
-	p.m.RLock()
-	defer p.m.RUnlock()
-	certs := make([]*x509.Certificate, len(p.publicRootCACerts))
-	copy(certs, p.publicRootCACerts)
-	return certs
-}
-
-// GetPublicClientCACerts is used to get all public client CA certificates.
-func (p *Pool) GetPublicClientCACerts() []*x509.Certificate {
-	p.m.RLock()
-	defer p.m.RUnlock()
-	certs := make([]*x509.Certificate, len(p.publicClientCACerts))
-	copy(certs, p.publicClientCACerts)
-	return certs
-}
-
-// GetPublicClientCerts is used to get all public client certificates.
-func (p *Pool) GetPublicClientCerts() []*Pair {
-	p.m.RLock()
-	defer p.m.RUnlock()
-	l := len(p.publicClientCerts)
-	pairs := make([]*Pair, l)
-	for i := 0; i < l; i++ {
-		pairs[i] = p.publicClientCerts[i].ToPair()
-	}
-	return pairs
-}
-
 // AddPrivateRootCACert is used to add private root CA certificate.
 func (p *Pool) AddPrivateRootCACert(cert *x509.Certificate, pri interface{}) error {
 	if pri != nil {
@@ -227,19 +197,17 @@ func (p *Pool) AddPrivateClientCert(cert *x509.Certificate, pri interface{}) err
 	return nil
 }
 
-// TODO think get
-
-// GetPrivateRootCACerts is used to get all private root CA certificates.
-func (p *Pool) GetPrivateRootCACerts() []*Pair {
+// GetPublicRootCACerts is used to get all public root CA certificates.
+func (p *Pool) GetPublicRootCACerts() []*x509.Certificate {
 	p.m.RLock()
 	defer p.m.RUnlock()
 	certs := make([]*x509.Certificate, len(p.publicRootCACerts))
 	copy(certs, p.publicRootCACerts)
-	return nil
+	return certs
 }
 
-// GetPrivateClientCACerts is used to get all private client CA certificates.
-func (p *Pool) GetPrivateClientCACerts() []*x509.Certificate {
+// GetPublicClientCACerts is used to get all public client CA certificates.
+func (p *Pool) GetPublicClientCACerts() []*x509.Certificate {
 	p.m.RLock()
 	defer p.m.RUnlock()
 	certs := make([]*x509.Certificate, len(p.publicClientCACerts))
@@ -247,14 +215,74 @@ func (p *Pool) GetPrivateClientCACerts() []*x509.Certificate {
 	return certs
 }
 
-// GetPrivateClientCerts is used to get all private client certificates.
-func (p *Pool) GetPrivateClientCerts() []*Pair {
+// GetPublicClientPairs is used to get all public client certificates.
+func (p *Pool) GetPublicClientPairs() []*Pair {
 	p.m.RLock()
 	defer p.m.RUnlock()
 	l := len(p.publicClientCerts)
 	pairs := make([]*Pair, l)
 	for i := 0; i < l; i++ {
 		pairs[i] = p.publicClientCerts[i].ToPair()
+	}
+	return pairs
+}
+
+// GetPrivateRootCACerts is used to get all private root CA certificates.
+func (p *Pool) GetPrivateRootCACerts() []*x509.Certificate {
+	p.m.RLock()
+	defer p.m.RUnlock()
+	l := len(p.privateRootCACerts)
+	certs := make([]*x509.Certificate, l)
+	for i := 0; i < l; i++ {
+		certs[i] = p.privateRootCACerts[i].Certificate
+	}
+	return certs
+}
+
+// GetPrivateClientCACerts is used to get all private client CA certificates.
+func (p *Pool) GetPrivateClientCACerts() []*x509.Certificate {
+	p.m.RLock()
+	defer p.m.RUnlock()
+	l := len(p.privateClientCACerts)
+	certs := make([]*x509.Certificate, l)
+	for i := 0; i < l; i++ {
+		certs[i] = p.privateClientCACerts[i].Certificate
+	}
+	return certs
+}
+
+// GetPrivateRootCAPairs is used to get all private root CA certificates.
+func (p *Pool) GetPrivateRootCAPairs() []*Pair {
+	p.m.RLock()
+	defer p.m.RUnlock()
+	l := len(p.privateRootCACerts)
+	pairs := make([]*Pair, l)
+	for i := 0; i < l; i++ {
+		pairs[i] = p.privateRootCACerts[i].ToPair()
+	}
+	return pairs
+}
+
+// GetPrivateClientCAPairs is used to get all private client CA certificates.
+func (p *Pool) GetPrivateClientCAPairs() []*Pair {
+	p.m.RLock()
+	defer p.m.RUnlock()
+	l := len(p.privateClientCACerts)
+	pairs := make([]*Pair, l)
+	for i := 0; i < l; i++ {
+		pairs[i] = p.privateClientCACerts[i].ToPair()
+	}
+	return pairs
+}
+
+// GetPrivateClientPairs is used to get all private client certificates.
+func (p *Pool) GetPrivateClientPairs() []*Pair {
+	p.m.RLock()
+	defer p.m.RUnlock()
+	l := len(p.privateClientCerts)
+	pairs := make([]*Pair, l)
+	for i := 0; i < l; i++ {
+		pairs[i] = p.privateClientCerts[i].ToPair()
 	}
 	return pairs
 }
