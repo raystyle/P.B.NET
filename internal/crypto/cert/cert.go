@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"project/internal/crypto/rand"
-	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/random"
 )
@@ -99,7 +98,7 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	// check domain name
 	dn := opts.DNSNames
 	for i := 0; i < len(dn); i++ {
-		if !dns.IsDomainName(dn[i]) {
+		if !isDomainName(dn[i]) {
 			return nil, fmt.Errorf("%s is not a domain name", dn[i])
 		}
 		cert.DNSNames = append(cert.DNSNames, dn[i])
@@ -115,6 +114,60 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 		cert.IPAddresses = append(cert.IPAddresses, ip)
 	}
 	return &cert, nil
+}
+
+func isDomainName(s string) bool {
+	l := len(s)
+	if l == 0 || l > 254 || l == 254 && s[l-1] != '.' {
+		return false
+	}
+	last := byte('.')
+	nonNumeric := false // true once we've seen a letter or hyphen
+	partLen := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		ok := false
+		checkChar(c, last, &nonNumeric, &partLen, &ok)
+		if !ok {
+			return false
+		}
+		last = c
+	}
+	if last == '-' || partLen > 63 {
+		return false
+	}
+	return nonNumeric
+}
+
+func checkChar(c byte, last byte, nonNumeric *bool, partLen *int, ok *bool) {
+	switch {
+	case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_':
+		*nonNumeric = true
+		*partLen++
+		*ok = true
+	case '0' <= c && c <= '9':
+		// fine
+		*partLen++
+		*ok = true
+	case c == '-':
+		// Byte before dash cannot be dot.
+		if last == '.' {
+			return
+		}
+		*partLen++
+		*nonNumeric = true
+		*ok = true
+	case c == '.':
+		// Byte before dot cannot be dot, dash.
+		if last == '.' || last == '-' {
+			return
+		}
+		if *partLen > 63 || *partLen == 0 {
+			return
+		}
+		*partLen = 0
+		*ok = true
+	}
 }
 
 func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {

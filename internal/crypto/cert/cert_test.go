@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,33 @@ import (
 	"project/internal/logger"
 	"project/internal/testsuite"
 )
+
+func TestIsDomainName(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		testdata := []string{
+			"test.com",
+			"Test-sub.com",
+			"test-sub2.com",
+		}
+		for i := 0; i < len(testdata); i++ {
+			require.True(t, isDomainName(testdata[i]))
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		testdata := []string{
+			"",
+			string([]byte{255, 254, 12, 35}),
+			"test-",
+			"Test.-",
+			"test..",
+			strings.Repeat("a", 64) + ".com",
+		}
+		for i := 0; i < len(testdata); i++ {
+			require.False(t, isDomainName(testdata[i]))
+		}
+	})
+}
 
 func TestGenerateCA(t *testing.T) {
 	t.Parallel()
