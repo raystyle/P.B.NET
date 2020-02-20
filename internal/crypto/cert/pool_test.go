@@ -13,13 +13,19 @@ func testGenerateCert(t *testing.T) *Pair {
 	return pair
 }
 
-func testRunParallel(f func()) {
+func testRunParallel(f ...func()) {
+	l := len(f)
+	if l == 0 {
+		return
+	}
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		f()
-	}()
+	for i := 0; i < l; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			f[i]()
+		}(i)
+	}
 	wg.Wait()
 }
 
@@ -30,6 +36,7 @@ func TestPool(t *testing.T) {
 		require.Equal(t, 0, len(pool.GetPublicRootCACerts()))
 
 		pair := testGenerateCert(t)
+
 		t.Run("add", func(t *testing.T) {
 			err := pool.AddPublicRootCACert(pair.Certificate)
 			require.NoError(t, err)
@@ -38,10 +45,20 @@ func TestPool(t *testing.T) {
 		})
 
 		t.Run("get", func(t *testing.T) {
-			testRunParallel(func() {
-				certs := pool.GetPublicRootCACerts()
-				require.True(t, certs[0].Equal(pair.Certificate))
-			})
+			certs := pool.GetPublicRootCACerts()
+			require.True(t, certs[0].Equal(pair.Certificate))
+		})
+
+		t.Run("parallel", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			add := func() {
+				err := pool.AddPublicRootCACert(pair.Certificate)
+				require.NoError(t, err)
+			}
+			get := func() {
+				pool.GetPublicRootCACerts()
+			}
+			testRunParallel(add, get)
 		})
 	})
 
@@ -57,10 +74,20 @@ func TestPool(t *testing.T) {
 		})
 
 		t.Run("get", func(t *testing.T) {
-			testRunParallel(func() {
-				certs := pool.GetPublicClientCACerts()
-				require.True(t, certs[0].Equal(pair.Certificate))
-			})
+			certs := pool.GetPublicClientCACerts()
+			require.True(t, certs[0].Equal(pair.Certificate))
+		})
+
+		t.Run("parallel", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			add := func() {
+				err := pool.AddPublicClientCACert(pair.Certificate)
+				require.NoError(t, err)
+			}
+			get := func() {
+				pool.GetPublicClientCACerts()
+			}
+			testRunParallel(add, get)
 		})
 	})
 
@@ -78,10 +105,20 @@ func TestPool(t *testing.T) {
 		})
 
 		t.Run("get", func(t *testing.T) {
-			testRunParallel(func() {
-				pairs := pool.GetPublicClientPairs()
-				require.Equal(t, pair, pairs[0])
-			})
+			pairs := pool.GetPublicClientPairs()
+			require.Equal(t, pair, pairs[0])
+		})
+
+		t.Run("parallel", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			add := func() {
+				err := pool.AddPublicClientCert(pair.Certificate, pair.PrivateKey)
+				require.NoError(t, err)
+			}
+			get := func() {
+				pool.GetPublicClientPairs()
+			}
+			testRunParallel(add, get)
 		})
 	})
 
@@ -99,17 +136,28 @@ func TestPool(t *testing.T) {
 		})
 
 		t.Run("get certs", func(t *testing.T) {
-			testRunParallel(func() {
-				certs := pool.GetPrivateRootCACerts()
-				require.True(t, certs[0].Equal(pair.Certificate))
-			})
+			certs := pool.GetPrivateRootCACerts()
+			require.True(t, certs[0].Equal(pair.Certificate))
 		})
 
 		t.Run("get pairs", func(t *testing.T) {
-			testRunParallel(func() {
-				pairs := pool.GetPrivateRootCAPairs()
-				require.Equal(t, pair, pairs[0])
-			})
+			pairs := pool.GetPrivateRootCAPairs()
+			require.Equal(t, pair, pairs[0])
+		})
+
+		t.Run("parallel", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			add := func() {
+				err := pool.AddPrivateRootCACert(pair.Certificate, pair.PrivateKey)
+				require.NoError(t, err)
+			}
+			getCerts := func() {
+				pool.GetPrivateRootCACerts()
+			}
+			getPairs := func() {
+				pool.GetPrivateRootCAPairs()
+			}
+			testRunParallel(add, getCerts, getPairs)
 		})
 	})
 
@@ -127,17 +175,28 @@ func TestPool(t *testing.T) {
 		})
 
 		t.Run("get certs", func(t *testing.T) {
-			testRunParallel(func() {
-				certs := pool.GetPrivateClientCACerts()
-				require.True(t, certs[0].Equal(pair.Certificate))
-			})
+			certs := pool.GetPrivateClientCACerts()
+			require.True(t, certs[0].Equal(pair.Certificate))
 		})
 
 		t.Run("get pairs", func(t *testing.T) {
-			testRunParallel(func() {
-				pairs := pool.GetPrivateClientCAPairs()
-				require.Equal(t, pair, pairs[0])
-			})
+			pairs := pool.GetPrivateClientCAPairs()
+			require.Equal(t, pair, pairs[0])
+		})
+
+		t.Run("parallel", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			add := func() {
+				err := pool.AddPrivateClientCACert(pair.Certificate, pair.PrivateKey)
+				require.NoError(t, err)
+			}
+			getCerts := func() {
+				pool.GetPrivateClientCACerts()
+			}
+			getPairs := func() {
+				pool.GetPrivateClientCAPairs()
+			}
+			testRunParallel(add, getCerts, getPairs)
 		})
 	})
 
@@ -155,10 +214,20 @@ func TestPool(t *testing.T) {
 		})
 
 		t.Run("get", func(t *testing.T) {
-			testRunParallel(func() {
-				pairs := pool.GetPrivateClientPairs()
-				require.Equal(t, pair, pairs[0])
-			})
+			pairs := pool.GetPrivateClientPairs()
+			require.Equal(t, pair, pairs[0])
+		})
+
+		t.Run("parallel", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			add := func() {
+				err := pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
+				require.NoError(t, err)
+			}
+			get := func() {
+				pool.GetPrivateClientPairs()
+			}
+			testRunParallel(add, get)
 		})
 	})
 }
