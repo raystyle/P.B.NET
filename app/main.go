@@ -107,6 +107,7 @@ func createService() service.Service {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	ctrl.HijackLogWriter()
 	svc, err := service.New(&program{ctrl: ctrl}, &service.Config{
 		Name:        "P.B.NET Controller",
 		DisplayName: "P.B.NET Controller",

@@ -67,6 +67,7 @@ func createService(config *beacon.Config) service.Service {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	Beacon.HijackLogWriter()
 	svc, err := service.New(&program{beacon: Beacon}, &service.Config{
 		Name:        config.Service.Name,
 		DisplayName: config.Service.DisplayName,

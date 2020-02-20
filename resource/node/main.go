@@ -67,6 +67,7 @@ func createService(config *node.Config) service.Service {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	Node.HijackLogWriter()
 	svc, err := service.New(&program{node: Node}, &service.Config{
 		Name:        config.Service.Name,
 		DisplayName: config.Service.DisplayName,
