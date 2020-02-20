@@ -50,31 +50,10 @@ func IsDomainName(s string) bool {
 	partLen := 0
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		switch {
-		default:
+		ok := false
+		checkChar(c, last, &nonNumeric, &partLen, &ok)
+		if !ok {
 			return false
-		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_':
-			nonNumeric = true
-			partLen++
-		case '0' <= c && c <= '9':
-			// fine
-			partLen++
-		case c == '-':
-			// Byte before dash cannot be dot.
-			if last == '.' {
-				return false
-			}
-			partLen++
-			nonNumeric = true
-		case c == '.':
-			// Byte before dot cannot be dot, dash.
-			if last == '.' || last == '-' {
-				return false
-			}
-			if partLen > 63 || partLen == 0 {
-				return false
-			}
-			partLen = 0
 		}
 		last = c
 	}
@@ -82,6 +61,37 @@ func IsDomainName(s string) bool {
 		return false
 	}
 	return nonNumeric
+}
+
+func checkChar(c byte, last byte, nonNumeric *bool, partLen *int, ok *bool) {
+	switch {
+	case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_':
+		*nonNumeric = true
+		*partLen++
+		*ok = true
+	case '0' <= c && c <= '9':
+		// fine
+		*partLen++
+		*ok = true
+	case c == '-':
+		// Byte before dash cannot be dot.
+		if last == '.' {
+			return
+		}
+		*partLen++
+		*nonNumeric = true
+		*ok = true
+	case c == '.':
+		// Byte before dot cannot be dot, dash.
+		if last == '.' || last == '-' {
+			return
+		}
+		if *partLen > 63 || *partLen == 0 {
+			return
+		}
+		*partLen = 0
+		*ok = true
+	}
 }
 
 func packMessage(typ dnsmessage.Type, domain string) []byte {
