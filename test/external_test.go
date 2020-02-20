@@ -2,7 +2,9 @@ package test
 
 import (
 	"bytes"
+	"crypto/x509"
 	"fmt"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -12,7 +14,9 @@ import (
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/cert"
 	"project/internal/guid"
+	"project/internal/security"
 )
 
 func TestToml_Negative(t *testing.T) {
@@ -22,6 +26,23 @@ func TestToml_Negative(t *testing.T) {
 	err := toml.Unmarshal([]byte(`Num = -1`), &cfg)
 	require.Error(t, err)
 	require.Equal(t, uint(0), cfg.Num)
+}
+
+func TestASN1(t *testing.T) {
+	pair, err := cert.GenerateCA(nil)
+	require.NoError(t, err)
+
+	_, priData := pair.Encode()
+	pri, err := x509.ParsePKCS8PrivateKey(priData)
+	require.NoError(t, err)
+
+	security.CoverBytes(priData)
+
+	pd, err := x509.MarshalPKCS8PrivateKey(pri)
+	require.NoError(t, err)
+
+	_, err = x509.ParsePKCS8PrivateKey(pd)
+	require.NoError(t, err)
 }
 
 // fast
@@ -98,7 +119,18 @@ func benchmarkBytesEqual(b *testing.B, size int) {
 	b.StopTimer()
 }
 
+func testAll() bool {
+	// change flag in IDE for test all
+	if false {
+		return true
+	}
+	return os.Getenv("test-all") == "true"
+}
+
 func TestAll_Ctrl(t *testing.T) {
+	if !testAll() {
+		return
+	}
 	TestCtrl_Broadcast_CI(t)
 	TestCtrl_Broadcast_IC(t)
 	TestCtrl_Broadcast_Mix(t)
@@ -111,12 +143,18 @@ func TestAll_Ctrl(t *testing.T) {
 }
 
 func TestAll_Node(t *testing.T) {
+	if !testAll() {
+		return
+	}
 	TestNode_Send_CI(t)
 	TestNode_Send_IC(t)
 	TestNode_Send_Mix(t)
 }
 
 func TestAll_Beacon(t *testing.T) {
+	if !testAll() {
+		return
+	}
 	TestBeacon_Send_CI(t)
 	TestBeacon_Send_IC(t)
 	TestBeacon_Send_Mix(t)
@@ -126,13 +164,20 @@ func TestAll_Beacon(t *testing.T) {
 }
 
 func TestAll(t *testing.T) {
+	if !testAll() {
+		return
+	}
 	TestAll_Ctrl(t)
 	TestAll_Node(t)
 	TestAll_Beacon(t)
 }
 
 func TestAll_Loop(t *testing.T) {
+	if !testAll() {
+		return
+	}
 	loggerLevel = "warning"
+
 	for i := 0; i < 5; i++ {
 		fmt.Println("round:", i+1)
 		TestAll(t)
@@ -147,6 +192,9 @@ func TestAll_Loop(t *testing.T) {
 }
 
 func TestAll_Parallel(t *testing.T) {
+	if !testAll() {
+		return
+	}
 	senderTimeout = 15 * time.Second
 	syncerExpireTime = 10 * time.Second
 
@@ -207,7 +255,11 @@ func TestAll_Parallel(t *testing.T) {
 }
 
 func TestAll_Parallel_Loop(t *testing.T) {
+	if !testAll() {
+		return
+	}
 	loggerLevel = "warning"
+
 	for i := 0; i < 10; i++ {
 		fmt.Println("round:", i+1)
 		TestAll_Parallel(t)
