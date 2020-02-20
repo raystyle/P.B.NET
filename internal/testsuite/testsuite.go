@@ -7,6 +7,7 @@ import (
 	"net/http/pprof"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
-// network
+// about network
 var (
 	IPv4Enabled bool
 	IPv6Enabled bool
@@ -78,6 +79,15 @@ func startPPROFHTTPServer(port int) bool {
 	return true
 }
 
+// Bytes is used to generate test data: []byte{0, 1, .... 254, 255}
+func Bytes() []byte {
+	testdata := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		testdata[i] = byte(i)
+	}
+	return testdata
+}
+
 // Destroyed is used to check if the object has been recycled by the GC
 // it not need testing
 func Destroyed(object interface{}) bool {
@@ -102,6 +112,24 @@ func IsDestroyed(t testing.TB, object interface{}) {
 	require.True(t, Destroyed(object), "object not destroyed")
 }
 
+// RunParallel is used to call functions with go func().
+// object with Add(), Get() ... need it for test with race.
+func RunParallel(f ...func()) {
+	l := len(f)
+	if l == 0 {
+		return
+	}
+	wg := sync.WaitGroup{}
+	for i := 0; i < l; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			f[i]()
+		}(i)
+	}
+	wg.Wait()
+}
+
 // RunHTTPServer is used to start a http or https server and return port
 func RunHTTPServer(t testing.TB, network string, server *http.Server) string {
 	listener, err := net.Listen(network, server.Addr)
@@ -118,13 +146,4 @@ func RunHTTPServer(t testing.TB, network string, server *http.Server) string {
 	_, port, err := net.SplitHostPort(listener.Addr().String())
 	require.NoError(t, err)
 	return port
-}
-
-// Bytes is used to generate test data: []byte{0, 1, .... 254, 255}
-func Bytes() []byte {
-	testdata := make([]byte, 256)
-	for i := 0; i < 256; i++ {
-		testdata[i] = byte(i)
-	}
-	return testdata
 }

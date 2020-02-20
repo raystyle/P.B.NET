@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,31 @@ func TestIsDestroyed(t *testing.T) {
 	require.Equal(t, n, 2)
 	require.NoError(t, err)
 	IsDestroyed(t, &c)
+}
+
+func TestRunParallel(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	test := 0
+	m := sync.Mutex{}
+
+	f1 := func() {
+		m.Lock()
+		defer m.Unlock()
+
+		test++
+		fmt.Println(test)
+	}
+	f2 := func() {
+		m.Lock()
+		defer m.Unlock()
+
+		test++
+		fmt.Println(test)
+	}
+
+	RunParallel(f1, f2)
 }
 
 func TestHTTPServer(t *testing.T) {
