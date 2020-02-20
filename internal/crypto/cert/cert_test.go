@@ -5,15 +5,13 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/logger"
-	"project/internal/testsuite"
 )
 
 func TestIsDomainName(t *testing.T) {
@@ -63,11 +61,11 @@ func TestGenerateCA(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "test common name", ca.Certificate.Subject.CommonName)
 	require.Equal(t, []string{"test organization"}, ca.Certificate.Subject.Organization)
-	excepted := now.Format(logger.TimeLayout)
-	actual := ca.Certificate.NotBefore.Local().Format(logger.TimeLayout)
+	excepted := now.Format(timeLayout)
+	actual := ca.Certificate.NotBefore.Local().Format(timeLayout)
 	require.Equal(t, excepted, actual)
-	excepted = notAfter.Format(logger.TimeLayout)
-	actual = ca.Certificate.NotAfter.Local().Format(logger.TimeLayout)
+	excepted = notAfter.Format(timeLayout)
+	actual = ca.Certificate.NotAfter.Local().Format(timeLayout)
 	require.Equal(t, excepted, actual)
 
 	t.Run("invalid domain name", func(t *testing.T) {
@@ -109,6 +107,23 @@ func TestGenerate(t *testing.T) {
 	})
 }
 
+func testRunHTTPServer(t testing.TB, network string, server *http.Server) string {
+	listener, err := net.Listen(network, server.Addr)
+	require.NoError(t, err)
+	// run
+	go func() {
+		if server.TLSConfig != nil {
+			_ = server.ServeTLS(listener, "", "")
+		} else {
+			_ = server.Serve(listener)
+		}
+	}()
+	// get port
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+	return port
+}
+
 func testGenerate(t *testing.T, ca *Pair) {
 	opts := &Options{
 		Algorithm:   "rsa|1024",
@@ -138,38 +153,31 @@ func testGenerate(t *testing.T, ca *Pair) {
 	// certificate
 	tlsCert, err := pair.TLSCertificate()
 	require.NoError(t, err)
+
 	// run https servers
 	server1 := http.Server{
 		Addr:      "localhost:0",
 		Handler:   serveMux,
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 	}
-	port1 := testsuite.RunHTTPServer(t, "tcp", &server1)
+	port1 := testRunHTTPServer(t, "tcp", &server1)
 	defer func() { _ = server1.Close() }()
-
-	// only IPv4
-	var port2 string
-	if testsuite.IPv4Enabled {
-		server2 := http.Server{
-			Addr:      "127.0.0.1:0",
-			Handler:   serveMux,
-			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
-		}
-		port2 = testsuite.RunHTTPServer(t, "tcp", &server2)
-		defer func() { _ = server2.Close() }()
+	// IPv4-only
+	server2 := http.Server{
+		Addr:      "127.0.0.1:0",
+		Handler:   serveMux,
+		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 	}
-
-	// only IPv6
-	var port3 string
-	if testsuite.IPv6Enabled {
-		server3 := http.Server{
-			Addr:      "[::1]:0",
-			Handler:   serveMux,
-			TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
-		}
-		port3 = testsuite.RunHTTPServer(t, "tcp", &server3)
-		defer func() { _ = server3.Close() }()
+	port2 := testRunHTTPServer(t, "tcp", &server2)
+	defer func() { _ = server2.Close() }()
+	// IPv6-only
+	server3 := http.Server{
+		Addr:      "[::1]:0",
+		Handler:   serveMux,
+		TLSConfig: &tls.Config{Certificates: []tls.Certificate{tlsCert}},
 	}
+	port3 := testRunHTTPServer(t, "tcp", &server3)
+	defer func() { _ = server3.Close() }()
 
 	// client
 	tlsConfig := tls.Config{RootCAs: x509.NewCertPool()}
@@ -190,12 +198,8 @@ func testGenerate(t *testing.T, ca *Pair) {
 
 	// test
 	get("localhost", port1)
-	if testsuite.IPv4Enabled {
-		get("127.0.0.1", port2)
-	}
-	if testsuite.IPv6Enabled {
-		get("[::1]", port3)
-	}
+	get("127.0.0.1", port2)
+	get("[::1]", port3)
 }
 
 func TestGeneratePrivateKey(t *testing.T) {

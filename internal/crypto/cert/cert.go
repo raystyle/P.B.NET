@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"project/internal/crypto/rand"
-	"project/internal/logger"
 	"project/internal/random"
+	"project/internal/security"
 )
 
 // Options contains options about generate certificate.
@@ -218,16 +218,14 @@ type Pair struct {
 
 // ASN1 is used to get certificate ASN1 data.
 func (p *Pair) ASN1() []byte {
-	raw := p.Certificate.Raw
-	asn1 := make([]byte, len(raw))
-	copy(asn1, raw)
+	asn1 := make([]byte, len(p.Certificate.Raw))
+	copy(asn1, p.Certificate.Raw)
 	return asn1
 }
 
 // Encode is used to get certificate ASN1 data and encode private key to PKCS8.
 func (p *Pair) Encode() ([]byte, []byte) {
-	cert := make([]byte, len(p.Certificate.Raw))
-	copy(cert, p.Certificate.Raw)
+	cert := p.ASN1()
 	key, _ := x509.MarshalPKCS8PrivateKey(p.PrivateKey)
 	return cert, key
 }
@@ -235,6 +233,10 @@ func (p *Pair) Encode() ([]byte, []byte) {
 // EncodeToPEM is used to encode certificate and private key to PEM data.
 func (p *Pair) EncodeToPEM() ([]byte, []byte) {
 	cert, key := p.Encode()
+	defer func() {
+		security.CoverBytes(cert)
+		security.CoverBytes(key)
+	}()
 	certBlock := &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: cert,
@@ -248,7 +250,12 @@ func (p *Pair) EncodeToPEM() ([]byte, []byte) {
 
 // TLSCertificate is used to generate tls certificate.
 func (p *Pair) TLSCertificate() (tls.Certificate, error) {
-	return tls.X509KeyPair(p.EncodeToPEM())
+	cert, key := p.EncodeToPEM()
+	defer func() {
+		security.CoverBytes(cert)
+		security.CoverBytes(key)
+	}()
+	return tls.X509KeyPair(cert, key)
 }
 
 // GenerateCA is used to generate a CA certificate from Options.
@@ -307,6 +314,8 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*Pair, 
 	}, nil
 }
 
+const timeLayout = "2006-01-02 15:04:05"
+
 func printStringSlice(s []string) string {
 	var ss string
 	for i, s := range s {
@@ -336,8 +345,8 @@ not after:  %s`
 		cert.Subject.CommonName, printStringSlice(cert.Subject.Organization),
 		cert.Issuer.CommonName, printStringSlice(cert.Issuer.Organization),
 		cert.PublicKeyAlgorithm, cert.SignatureAlgorithm,
-		cert.NotBefore.Local().Format(logger.TimeLayout),
-		cert.NotAfter.Local().Format(logger.TimeLayout),
+		cert.NotBefore.Local().Format(timeLayout),
+		cert.NotAfter.Local().Format(timeLayout),
 	)
 	return output
 }
