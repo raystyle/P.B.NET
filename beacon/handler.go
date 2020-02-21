@@ -7,13 +7,13 @@ import (
 	"sync"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/module/shell"
 	"project/internal/module/shellcode"
+	"project/internal/patch/msgpack"
 	"project/internal/protocol"
 	"project/internal/xpanic"
 )

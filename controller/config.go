@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/messages"
+	"project/internal/patch/msgpack"
 	"project/internal/random"
 )
 

@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
 	"project/internal/logger"
+	"project/internal/patch/toml"
 
 	"project/testdata"
 )

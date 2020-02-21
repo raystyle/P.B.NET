@@ -1,14 +1,13 @@
 package controller
 
 import (
-	"reflect"
-	"strings"
 	"time"
 
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
 	"project/internal/security"
+	"project/internal/xreflect"
 )
 
 // set gorm.TheNamingStrategy.Table.
@@ -180,13 +179,6 @@ type mConnectNodeListener struct {
 	Address string `json:"address"`
 }
 
-// getStructureName is used to get structure name
-func getStructureName(v interface{}) string {
-	s := reflect.TypeOf(v).String()
-	ss := strings.Split(s, ".")
-	return ss[len(ss)-1]
-}
-
 // InitializeDatabase is used to initialize database
 func InitializeDatabase(config *Config) error {
 	cfg := config.Database
@@ -238,13 +230,13 @@ func InitializeDatabase(config *Config) error {
 		if name == "" {
 			err = db.DropTableIfExists(model).Error
 			if err != nil {
-				table := gorm.ToTableName(getStructureName(model))
+				table := gorm.ToTableName(xreflect.GetStructureName(model))
 				return errors.Wrapf(err, format, table)
 			}
 		} else {
 			err = db.Table(name).DropTableIfExists(model).Error
 			if err != nil {
-				table := gorm.ToTableName(getStructureName(model))
+				table := gorm.ToTableName(xreflect.GetStructureName(model))
 				return errors.Wrapf(err, format, table)
 			}
 		}
@@ -257,7 +249,7 @@ func InitializeDatabase(config *Config) error {
 		if name == "" {
 			err = db.CreateTable(model).Error
 			if err != nil {
-				table := gorm.ToTableName(getStructureName(model))
+				table := gorm.ToTableName(xreflect.GetStructureName(model))
 				return errors.Wrapf(err, format, table)
 			}
 		} else {
@@ -277,27 +269,23 @@ func initializeDatabaseForeignKey(db *gorm.DB) error {
 		onUpdate = "CASCADE"
 	)
 	// add node foreign key
-	table := gorm.ToTableName(getStructureName(&mNode{}))
-	dest := table + "(guid)"
 	for _, model := range []*gorm.DB{
 		db.Model(&mNodeListener{}),
 		db.Table(tableNodeLog).Model(&mRoleLog{}),
 	} {
-		err := model.AddForeignKey(field, dest, onDelete, onUpdate).Error
+		err := model.AddForeignKey(field, "node(guid)", onDelete, onUpdate).Error
 		if err != nil {
 			return errors.Wrap(err, "failed to add node foreign key")
 		}
 	}
 	// add beacon foreign key
-	table = gorm.ToTableName(getStructureName(&mBeacon{}))
-	dest = table + "(guid)"
 	for _, model := range []*gorm.DB{
 		db.Model(&mBeaconMessage{}),
 		db.Model(&mBeaconMessageIndex{}),
 		db.Model(&mBeaconListener{}),
 		db.Table(tableBeaconLog).Model(&mRoleLog{}),
 	} {
-		err := model.AddForeignKey(field, dest, onDelete, onUpdate).Error
+		err := model.AddForeignKey(field, "beacon(guid)", onDelete, onUpdate).Error
 		if err != nil {
 			return errors.Wrap(err, "failed to add beacon foreign key")
 		}

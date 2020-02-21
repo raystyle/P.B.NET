@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/toml"
 )
 
 func TestHTTPRequestDefault(t *testing.T) {

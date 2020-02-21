@@ -9,7 +9,8 @@ import (
 	"sync"
 
 	"github.com/kardianos/service"
-	"github.com/pelletier/go-toml"
+
+	"project/internal/patch/toml"
 
 	"project/tool/proxy/client"
 )

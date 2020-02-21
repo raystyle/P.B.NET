@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
@@ -23,6 +22,7 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/patch/toml"
 	"project/internal/proxy"
 	"project/internal/random"
 	"project/internal/security"

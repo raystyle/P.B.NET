@@ -6,11 +6,11 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/aes"
 	"project/internal/dns"
+	"project/internal/patch/toml"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 	"project/internal/xnet"

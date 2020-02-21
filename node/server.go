@@ -15,7 +15,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 	"golang.org/x/net/netutil"
 
 	"project/internal/crypto/aes"
@@ -25,6 +24,7 @@ import (
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
+	"project/internal/patch/msgpack"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
@@ -161,7 +161,10 @@ func (server *server) addListener(l *messages.Listener) (*xnet.Listener, error) 
 	failed := func(err error) error {
 		return errors.WithMessagef(err, "failed to add listener %s", l.Tag)
 	}
-
+	// disable client certificates
+	l.TLSConfig.LoadFromCertPool.SkipPublicClientCerts = true
+	l.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = false
+	// apply tls config
 	tlsConfig, err := l.TLSConfig.Apply()
 	if err != nil {
 		return nil, failed(err)

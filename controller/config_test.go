@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/toml"
 )
 
 func testGenerateConfig() *Config {

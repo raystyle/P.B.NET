@@ -8,11 +8,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/vmihailenco/msgpack/v4"
-
 	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/patch/msgpack"
 	"project/internal/proxy"
 	"project/internal/timesync"
 	"project/internal/xpanic"

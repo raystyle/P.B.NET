@@ -4,12 +4,12 @@ import (
 	"context"
 	"net"
 
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
 	"project/internal/dns"
+	"project/internal/patch/msgpack"
+	"project/internal/patch/toml"
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/xnet"

@@ -25,13 +25,13 @@ import (
 type Options struct {
 	Algorithm   string    `toml:"algorithm"` // "rsa|2048", "ecdsa|p256", "ed25519"
 	DNSNames    []string  `toml:"dns_names"`
-	IPAddresses []string  `toml:"ip_addresses"` // IP SANS
+	IPAddresses []string  `toml:"ip_addresses"` // IP SANs
 	Subject     Subject   `toml:"subject"`
 	NotBefore   time.Time `toml:"not_before"`
 	NotAfter    time.Time `toml:"not_after"`
 }
 
-// Subject contains certificate subject info.
+// Subject contains certificate subject information.
 type Subject struct {
 	CommonName         string   `toml:"common_name"`
 	SerialNumber       string   `toml:"serial_number"`

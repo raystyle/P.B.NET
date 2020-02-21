@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
 	"project/internal/convert"
 	"project/internal/crypto/aes"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/patch/msgpack"
 	"project/internal/protocol"
 	"project/internal/xpanic"
 )

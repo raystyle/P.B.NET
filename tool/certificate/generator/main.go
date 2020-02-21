@@ -5,10 +5,9 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/pelletier/go-toml"
-
 	"project/internal/crypto/cert"
 	"project/internal/crypto/cert/certutil"
+	"project/internal/patch/toml"
 )
 
 func main() {

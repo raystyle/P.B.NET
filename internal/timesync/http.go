@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
 	"project/internal/dns"
 	"project/internal/option"
+	"project/internal/patch/toml"
 	"project/internal/proxy"
 	"project/internal/random"
 )

@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
@@ -16,6 +15,7 @@ import (
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
+	"project/internal/patch/msgpack"
 	"project/internal/protocol"
 	"project/internal/xpanic"
 )

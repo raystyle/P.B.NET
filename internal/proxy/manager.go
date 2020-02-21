@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
+	"project/internal/patch/toml"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
 )

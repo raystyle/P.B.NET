@@ -415,7 +415,7 @@ func (f *forwarder) operate(conn *conn, operation uint8, guid, data []byte) {
 
 // getConnsExceptCtrlAndIncome will get Node and Client connections
 // if income connection's tag = except, this connection will not add to the map
-func (f *forwarder) getConnsExceptCtrlAndIncome(except *guid.GUID) map[guid.GUID]*conn {
+func (f *forwarder) getConnsExceptCtrlAndIncome(exclusion *guid.GUID) map[guid.GUID]*conn {
 	nodeConns := f.GetNodeConns()
 	clientConns := f.GetClientConns()
 	l := len(nodeConns) + len(clientConns)
@@ -424,12 +424,12 @@ func (f *forwarder) getConnsExceptCtrlAndIncome(except *guid.GUID) map[guid.GUID
 	}
 	allConns := make(map[guid.GUID]*conn, l)
 	for tag, node := range nodeConns {
-		if tag != *except {
+		if tag != *exclusion {
 			allConns[tag] = node.Conn
 		}
 	}
 	for tag, client := range clientConns {
-		if tag != *except {
+		if tag != *exclusion {
 			allConns[tag] = client.Conn
 		}
 	}
@@ -437,8 +437,8 @@ func (f *forwarder) getConnsExceptCtrlAndIncome(except *guid.GUID) map[guid.GUID
 }
 
 // SendToNode is used to forward Controller SendToNode message to Nodes and Clients.
-func (f *forwarder) SendToNode(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptCtrlAndIncome(except)
+func (f *forwarder) SendToNode(guid *guid.GUID, data []byte, exclusion *guid.GUID) {
+	conns := f.getConnsExceptCtrlAndIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -447,8 +447,8 @@ func (f *forwarder) SendToNode(guid *guid.GUID, data []byte, except *guid.GUID) 
 }
 
 // AckToNode is used to forward Controller AckToNode message to Nodes and Clients.
-func (f *forwarder) AckToNode(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptCtrlAndIncome(except)
+func (f *forwarder) AckToNode(guid *guid.GUID, data []byte, exclusion *guid.GUID) {
+	conns := f.getConnsExceptCtrlAndIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -459,11 +459,11 @@ func (f *forwarder) AckToNode(guid *guid.GUID, data []byte, except *guid.GUID) {
 // SendToBeacon is used to forward Controller SendToBeacon message to Nodes and Clients.
 // it will check the target Beacon is connected current Node, if connected it will send
 // to Beacon directly and not forward, or it will forward to Nodes and Clients.
-func (f *forwarder) SendToBeacon(role, guid *guid.GUID, data []byte, except *guid.GUID) {
+func (f *forwarder) SendToBeacon(role, guid *guid.GUID, data []byte, exclusion *guid.GUID) {
 	if f.sendToBeacon(role, protocol.CtrlSendToBeacon, guid, data) {
 		return
 	}
-	conns := f.getConnsExceptCtrlAndIncome(except)
+	conns := f.getConnsExceptCtrlAndIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -474,11 +474,11 @@ func (f *forwarder) SendToBeacon(role, guid *guid.GUID, data []byte, except *gui
 // AckToNode is used to forward Controller AckToBeacon message to Nodes and Clients.
 // it will check the target Beacon is connected current Node, if connected it will send
 // to Beacon directly and not forward, or it will forward to Nodes and Clients.
-func (f *forwarder) AckToBeacon(role, guid *guid.GUID, data []byte, except *guid.GUID) {
+func (f *forwarder) AckToBeacon(role, guid *guid.GUID, data []byte, exclusion *guid.GUID) {
 	if f.sendToBeacon(role, protocol.CtrlAckToBeacon, guid, data) {
 		return
 	}
-	conns := f.getConnsExceptCtrlAndIncome(except)
+	conns := f.getConnsExceptCtrlAndIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -487,8 +487,8 @@ func (f *forwarder) AckToBeacon(role, guid *guid.GUID, data []byte, except *guid
 }
 
 // Broadcast is used to forward Controller Broadcast message to Nodes and Clients.
-func (f *forwarder) Broadcast(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptCtrlAndIncome(except)
+func (f *forwarder) Broadcast(guid *guid.GUID, data []byte, exclusion *guid.GUID) {
+	conns := f.getConnsExceptCtrlAndIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -499,11 +499,11 @@ func (f *forwarder) Broadcast(guid *guid.GUID, data []byte, except *guid.GUID) {
 // Answer is used to forward Controller Answer to Nodes and Clients.
 // it will check the target Beacon is connected current Node, if connected it will send
 // to Beacon directly and not forward, or it will forward to Nodes and Clients.
-func (f *forwarder) Answer(role, guid *guid.GUID, data []byte, except *guid.GUID) {
+func (f *forwarder) Answer(role, guid *guid.GUID, data []byte, exclusion *guid.GUID) {
 	if f.sendToBeacon(role, protocol.CtrlAnswer, guid, data) {
 		return
 	}
-	conns := f.getConnsExceptCtrlAndIncome(except)
+	conns := f.getConnsExceptCtrlAndIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -513,7 +513,7 @@ func (f *forwarder) Answer(role, guid *guid.GUID, data []byte, except *guid.GUID
 
 // getConnsExceptIncome will get Controller, Node and Client connections
 // if income connection's tag = except, this connection will not add to the map
-func (f *forwarder) getConnsExceptIncome(except *guid.GUID) map[guid.GUID]*conn {
+func (f *forwarder) getConnsExceptIncome(exclusion *guid.GUID) map[guid.GUID]*conn {
 	ctrlConns := f.GetCtrlConns()
 	nodeConns := f.GetNodeConns()
 	clientConns := f.GetClientConns()
@@ -526,12 +526,12 @@ func (f *forwarder) getConnsExceptIncome(except *guid.GUID) map[guid.GUID]*conn 
 		allConns[tag] = ctrl.Conn
 	}
 	for tag, node := range nodeConns {
-		if tag != *except {
+		if tag != *exclusion {
 			allConns[tag] = node.Conn
 		}
 	}
 	for tag, client := range clientConns {
-		if tag != *except {
+		if tag != *exclusion {
 			allConns[tag] = client.Conn
 		}
 	}
@@ -539,8 +539,8 @@ func (f *forwarder) getConnsExceptIncome(except *guid.GUID) map[guid.GUID]*conn 
 }
 
 // NodeSend is used to forward Node send to Controller, Nodes and Clients.
-func (f *forwarder) NodeSend(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptIncome(except)
+func (f *forwarder) NodeSend(guid *guid.GUID, data []byte, exclusion *guid.GUID) {
+	conns := f.getConnsExceptIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -549,8 +549,8 @@ func (f *forwarder) NodeSend(guid *guid.GUID, data []byte, except *guid.GUID) {
 }
 
 // NodeAck is used to forward Node acknowledge to Controller, Nodes and Clients.
-func (f *forwarder) NodeAck(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptIncome(except)
+func (f *forwarder) NodeAck(guid *guid.GUID, data []byte, exclusion *guid.GUID) {
+	conns := f.getConnsExceptIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -559,8 +559,8 @@ func (f *forwarder) NodeAck(guid *guid.GUID, data []byte, except *guid.GUID) {
 }
 
 // BeaconSend is used to forward Beacon send to Controller, Nodes and Clients.
-func (f *forwarder) BeaconSend(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptIncome(except)
+func (f *forwarder) BeaconSend(guid *guid.GUID, data []byte, exclusion *guid.GUID) {
+	conns := f.getConnsExceptIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -569,8 +569,8 @@ func (f *forwarder) BeaconSend(guid *guid.GUID, data []byte, except *guid.GUID) 
 }
 
 // BeaconAck is used to forward Beacon acknowledge to Controller, Nodes and Clients.
-func (f *forwarder) BeaconAck(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptIncome(except)
+func (f *forwarder) BeaconAck(guid *guid.GUID, data []byte, exclusion *guid.GUID) {
+	conns := f.getConnsExceptIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return
@@ -579,8 +579,8 @@ func (f *forwarder) BeaconAck(guid *guid.GUID, data []byte, except *guid.GUID) {
 }
 
 // Query is used to forward Beacon query to Controller, Nodes and Clients.
-func (f *forwarder) Query(guid *guid.GUID, data []byte, except *guid.GUID) {
-	conns := f.getConnsExceptIncome(except)
+func (f *forwarder) Query(guid *guid.GUID, data []byte, exclusion *guid.GUID) {
+	conns := f.getConnsExceptIncome(exclusion)
 	l := len(conns)
 	if l == 0 {
 		return

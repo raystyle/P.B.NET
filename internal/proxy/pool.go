@@ -3,9 +3,9 @@ package proxy
 import (
 	"sync"
 
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
+	"project/internal/patch/toml"
 	"project/internal/proxy/direct"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"

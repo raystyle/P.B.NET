@@ -6,10 +6,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 
 	"project/internal/dns"
+	"project/internal/patch/toml"
 	"project/internal/proxy"
 	"project/internal/timesync/ntp"
 )

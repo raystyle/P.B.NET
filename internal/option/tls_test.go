@@ -7,11 +7,11 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/cert/certutil"
 	"project/internal/patch/monkey"
+	"project/internal/patch/toml"
 )
 
 func TestTLSDefault(t *testing.T) {

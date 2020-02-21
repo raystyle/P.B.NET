@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/cert"
 	"project/internal/guid"
+	"project/internal/patch/toml"
 	"project/internal/security"
 )
 
@@ -28,6 +28,7 @@ func TestToml_Negative(t *testing.T) {
 	require.Equal(t, uint(0), cfg.Num)
 }
 
+// can not cover parameter in x509.ParseCertificate(asn1Data)
 func TestASN1(t *testing.T) {
 	pair, err := cert.GenerateCA(nil)
 	require.NoError(t, err)
@@ -121,7 +122,7 @@ func benchmarkBytesEqual(b *testing.B, size int) {
 
 func testAll() bool {
 	// change flag in IDE for test all
-	if false {
+	if true {
 		return true
 	}
 	return os.Getenv("test-all") == "true"

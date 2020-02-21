@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/toml"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testproxy"
 )

@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/kardianos/service"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
+	"project/internal/patch/msgpack"
 
 	"project/beacon"
 )

@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
+	"project/internal/patch/msgpack"
+	"project/internal/patch/toml"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 )

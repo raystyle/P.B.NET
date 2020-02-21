@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/vmihailenco/msgpack/v4"
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
@@ -16,6 +15,7 @@ import (
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/module/info"
+	"project/internal/patch/msgpack"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
