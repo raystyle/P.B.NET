@@ -1,34 +1,50 @@
 package msgpack
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v4"
 )
 
 type testStructRoot struct {
 	Foo   int
-	Leaf  *TestStructLeaf
-	Slice []*TestStructLeaf
+	Leaf  *testStructLeaf
+	Slice []*testStructLeaf
 }
 
-type TestStructLeaf struct {
+type testStructLeaf struct {
 	Bar int
 }
 
 func TestMsgpack(t *testing.T) {
+	a := &testStructRoot{
+		Foo: 1,
+	}
+	a.Leaf = new(testStructLeaf)
+	a.Leaf.Bar = 2
+	data, err := Marshal(a)
+	require.NoError(t, err)
+
+	b := new(testStructRoot)
+	err = Unmarshal(data, b)
+	require.NoError(t, err)
+	require.Equal(t, a, b)
+
+	_, err = Marshal(func() {})
+	require.Error(t, err)
+}
+
+func TestMsgpackWithUnknownField(t *testing.T) {
 	a := testStructRoot{
 		Foo: 1,
 	}
-	b, err := msgpack.Marshal(&a)
+	a.Leaf = new(testStructLeaf)
+	a.Leaf.Bar = 2
+	data, err := Marshal(&a)
 	require.NoError(t, err)
 
-	bb := new(TestStructLeaf)
-	decoder := msgpack.NewDecoder(bytes.NewReader(b))
-	decoder.DisallowUnknownFields()
-
-	err = decoder.Decode(bb)
-	require.NoError(t, err)
+	b := new(testStructLeaf)
+	err = Unmarshal(data, b)
+	errStr := "msgpack: unknown field \"Foo\" in *msgpack.testStructLeaf"
+	require.EqualError(t, err, errStr)
 }
