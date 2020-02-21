@@ -1,12 +1,10 @@
 package toml
 
 import (
-	"fmt"
-
 	"github.com/pelletier/go-toml"
 )
 
-// Marshal returns the TOML encoding of v
+// Marshal returns the TOML encoding of v.
 func Marshal(v interface{}) ([]byte, error) {
 	return toml.Marshal(v)
 }
@@ -19,15 +17,15 @@ func Unmarshal(data []byte, v interface{}) error {
 	if err != nil {
 		return err
 	}
-	srcKeys := srcTree.Keys()
-	fmt.Println(srcKeys)
+	// srcKeys := srcTree.Keys()
+	// fmt.Println(srcKeys)
 	// check tag is exist
-	dstData, err := toml.Marshal(v)
-	if err != nil {
-		return err
-	}
-	dstTree, _ := toml.LoadBytes(dstData)
-	fmt.Println(dstTree.Keys())
+	// dstData, err := toml.Marshal(v)
+	// if err != nil {
+	// 	return err
+	// }
+	// dstTree, _ := toml.LoadBytes(dstData)
+	// fmt.Println(dstTree.Keys())
 	// for i := 0; i < len(srcKeys); i++ {
 	// 	srcKey := srcKeys[i]
 	// 	if !dstTree.Has(srcKey) {
