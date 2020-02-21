@@ -36,4 +36,7 @@ func TestUnmarshal(t *testing.T) {
 
 	require.Equal(t, 1, test.Foo)
 	require.Equal(t, 2, test.Leaf.Bar)
+
+	err = Unmarshal([]byte{0x00}, &test)
+	require.Error(t, err)
 }

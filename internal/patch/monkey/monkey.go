@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// PatchGuard is a type alias.
+type PatchGuard = monkey.PatchGuard
+
 // ErrMonkey is used to return an error in patch function.
 var ErrMonkey = errors.New("monkey error")
 
@@ -19,23 +22,23 @@ func IsMonkeyError(t testing.TB, err error) {
 }
 
 // Patch is a wrapper about monkey.Patch.
-func Patch(target, patch interface{}) *monkey.PatchGuard {
-	return monkey.Patch(target, patch)
+func Patch(target, replacement interface{}) *PatchGuard {
+	return monkey.Patch(target, replacement)
 }
 
 // PatchInstanceMethod will add reflect.TypeOf(target).
-func PatchInstanceMethod(target interface{}, method string, patch interface{}) *monkey.PatchGuard {
-	return PatchInstanceMethodType(reflect.TypeOf(target), method, patch)
+func PatchInstanceMethod(target interface{}, method string, replacement interface{}) *PatchGuard {
+	return PatchInstanceMethodType(reflect.TypeOf(target), method, replacement)
 }
 
 // PatchInstanceMethodType is used to PatchInstanceMethod if target is private structure.
-func PatchInstanceMethodType(target reflect.Type, method string, patch interface{}) *monkey.PatchGuard {
+func PatchInstanceMethodType(target reflect.Type, method string, replacement interface{}) *PatchGuard {
 	m, ok := target.MethodByName(method)
 	if !ok {
 		panic(fmt.Sprintf("unknown method %s", method))
 	}
 
-	replacementInputLen := reflect.TypeOf(patch).NumIn()
+	replacementInputLen := reflect.TypeOf(replacement).NumIn()
 	if replacementInputLen > m.Type.NumIn() {
 		const format = "replacement function has too many input parameters: %d, replaced function: %d"
 		panic(fmt.Sprintf(format, replacementInputLen, m.Type.NumIn()))
@@ -44,10 +47,10 @@ func PatchInstanceMethodType(target reflect.Type, method string, patch interface
 	replacementWrapper := reflect.MakeFunc(m.Type, func(args []reflect.Value) []reflect.Value {
 		inputsForReplacement := make([]reflect.Value, 0, replacementInputLen)
 		for i := 0; i < cap(inputsForReplacement); i++ {
-			elem := args[i].Convert(reflect.TypeOf(patch).In(i))
+			elem := args[i].Convert(reflect.TypeOf(replacement).In(i))
 			inputsForReplacement = append(inputsForReplacement, elem)
 		}
-		return reflect.ValueOf(patch).Call(inputsForReplacement)
+		return reflect.ValueOf(replacement).Call(inputsForReplacement)
 	}).Interface()
 
 	return monkey.PatchInstanceMethod(target, method, replacementWrapper)

@@ -10,8 +10,16 @@ import (
 	"github.com/vmihailenco/msgpack/v4"
 )
 
+type (
+	// Encoder is a type alias.
+	Encoder = msgpack.Encoder
+
+	// Decoder is a type alias.
+	Decoder = msgpack.Decoder
+)
+
 // NewEncoder returns a new encoder that writes to w.
-func NewEncoder(w io.Writer) *msgpack.Encoder {
+func NewEncoder(w io.Writer) *Encoder {
 	encoder := msgpack.NewEncoder(w)
 	encoder.UseCompactEncoding(true)
 	encoder.UseCompactFloats(true)
@@ -19,7 +27,7 @@ func NewEncoder(w io.Writer) *msgpack.Encoder {
 }
 
 // NewDecoder returns a new decoder that reads from r.
-func NewDecoder(r io.Reader) *msgpack.Decoder {
+func NewDecoder(r io.Reader) *Decoder {
 	decoder := msgpack.NewDecoder(r)
 	decoder.DisallowUnknownFields()
 	return decoder
