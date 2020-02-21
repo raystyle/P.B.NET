@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -67,13 +68,13 @@ func TestListener(t *testing.T) {
 		// patch
 		var tcpListener *net.TCPListener
 		patchFunc := func(*net.TCPListener) (net.Conn, error) {
-			return nil, testsuite.ErrMonkey
+			return nil, monkey.ErrMonkey
 		}
-		pg := testsuite.PatchInstanceMethod(tcpListener, "Accept", patchFunc)
+		pg := monkey.PatchInstanceMethod(tcpListener, "Accept", patchFunc)
 		defer pg.Unpatch()
 
 		_, err = listener.AcceptEx()
-		testsuite.IsMonkeyError(t, err)
+		monkey.IsMonkeyError(t, err)
 	})
 
 	require.NoError(t, listener.Close())

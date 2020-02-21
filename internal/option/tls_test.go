@@ -7,11 +7,11 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/bouk/monkey"
 	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/cert/certutil"
+	"project/internal/patch/monkey"
 )
 
 func TestTLSDefault(t *testing.T) {
@@ -24,7 +24,6 @@ func TestTLSDefault(t *testing.T) {
 	require.Equal(t, tls.ClientAuthType(0), config.ClientAuth)
 	require.Equal(t, "", config.ServerName)
 	require.Nil(t, config.NextProtos)
-	require.Equal(t, uint16(tls.VersionTLS12), config.MinVersion)
 	require.Equal(t, uint16(0), config.MaxVersion)
 	require.Nil(t, config.CipherSuites)
 	require.Equal(t, false, config.InsecureSkipVerify)

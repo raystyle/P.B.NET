@@ -4,11 +4,13 @@ import (
 	cr "crypto/rand"
 	"crypto/sha256"
 	"io"
+	"log"
 	"math/rand"
 	"sync"
 	"time"
 
 	"project/internal/convert"
+	"project/internal/xpanic"
 )
 
 var (
@@ -21,13 +23,13 @@ func init() {
 	gSleeper = NewSleeper()
 }
 
-// Rand is used to generate random data
+// Rand is used to generate random data.
 type Rand struct {
 	rand *rand.Rand
 	m    sync.Mutex
 }
 
-// New is used to create a Rand
+// New is used to create a Rand.
 func New() *Rand {
 	const (
 		goroutines = 16
@@ -39,7 +41,9 @@ func New() *Rand {
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer func() {
-				recover()
+				if r := recover(); r != nil {
+					log.Println(xpanic.Print(r, "random.New"))
+				}
 				wg.Done()
 			}()
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -49,7 +53,11 @@ func New() *Rand {
 		}()
 	}
 	go func() {
-		defer func() { recover() }()
+		defer func() {
+			if r := recover(); r != nil {
+				log.Println(xpanic.Print(r, "random.New"))
+			}
+		}()
 		wg.Wait()
 		close(data)
 	}()

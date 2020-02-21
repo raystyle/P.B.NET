@@ -12,7 +12,7 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
 	"project/internal/guid"
-	"project/internal/testsuite"
+	"project/internal/patch/monkey"
 )
 
 func TestIssueCertificate(t *testing.T) {
@@ -218,9 +218,9 @@ func TestVerifyCertificate(t *testing.T) {
 
 		// patch
 		patchFunc := func(_ interface{}, _ []byte) (int, error) {
-			return 0, testsuite.ErrMonkey
+			return 0, monkey.ErrMonkey
 		}
-		pg := testsuite.PatchInstanceMethod(rand.Reader, "Read", patchFunc)
+		pg := monkey.PatchInstanceMethod(rand.Reader, "Read", patchFunc)
 		defer pg.Unpatch()
 
 		ok, err := VerifyCertificate(client, ctrlPrivateKey.PublicKey(), nodeGUID)

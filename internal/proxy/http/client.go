@@ -72,6 +72,9 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 		// copy certificates
 		client.rootCAs, _ = opts.TLSConfig.GetRootCAs()
 		client.rootCAsLen = len(client.rootCAs)
+
+		// get client
+
 		// set server name
 		if client.tlsConfig.ServerName == "" {
 			colonPos := strings.LastIndex(address, ":")

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bouk/monkey"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -191,9 +191,9 @@ func TestManager_Close(t *testing.T) {
 	patchFunc := func(l *net.TCPListener) error {
 		pg.Unpatch()
 		require.NoError(t, l.Close())
-		return testsuite.ErrMonkey
+		return monkey.ErrMonkey
 	}
-	pg = testsuite.PatchInstanceMethod(tcpListener, "Close", patchFunc)
+	pg = monkey.PatchInstanceMethod(tcpListener, "Close", patchFunc)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -216,7 +216,7 @@ func TestManager_Close(t *testing.T) {
 	t.Log("serve at:", server.ServeAt())
 
 	err = manager.Close()
-	testsuite.IsMonkeyError(t, err)
+	monkey.IsMonkeyError(t, err)
 	wg.Wait()
 
 	testsuite.IsDestroyed(t, manager)

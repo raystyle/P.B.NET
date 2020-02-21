@@ -1,4 +1,4 @@
-package testsuite
+package monkey
 
 import (
 	"errors"

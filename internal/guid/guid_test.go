@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/convert"
+	"project/internal/patch/monkey"
 	"project/internal/random"
 	"project/internal/testsuite"
 )
@@ -92,9 +93,9 @@ func TestGenerator(t *testing.T) {
 
 	t.Run("panic in generate()", func(t *testing.T) {
 		patchFunc := func(uint64) []byte {
-			panic(testsuite.ErrMonkey)
+			panic(monkey.ErrMonkey)
 		}
-		pg := testsuite.Patch(convert.Uint64ToBytes, patchFunc)
+		pg := monkey.Patch(convert.Uint64ToBytes, patchFunc)
 		go func() {
 			time.Sleep(time.Second)
 			pg.Unpatch()

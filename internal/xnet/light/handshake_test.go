@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bouk/monkey"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -59,12 +59,12 @@ func TestConn_clientHandshake(t *testing.T) {
 
 	t.Run("curve25519.ScalarBaseMult", func(t *testing.T) {
 		patchFunc := func([]byte) ([]byte, error) {
-			return nil, testsuite.ErrMonkey
+			return nil, monkey.ErrMonkey
 		}
-		pg := testsuite.Patch(curve25519.ScalarBaseMult, patchFunc)
+		pg := monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
 		defer pg.Unpatch()
 		err := new(Conn).clientHandshake()
-		testsuite.IsMonkeyError(t, err)
+		monkey.IsMonkeyError(t, err)
 	})
 
 	t.Run("invalid padding size", func(t *testing.T) {
@@ -112,16 +112,16 @@ func TestConn_clientHandshake(t *testing.T) {
 
 			// must here, curve25519.ScalarBaseMult call curve25519.ScalarMult
 			patchFunc := func([]byte, []byte) ([]byte, error) {
-				return nil, testsuite.ErrMonkey
+				return nil, monkey.ErrMonkey
 			}
-			pg := testsuite.Patch(curve25519.ScalarMult, patchFunc)
+			pg := monkey.Patch(curve25519.ScalarMult, patchFunc)
 			defer pg.Unpatch()
 
 			sendCurve25519Out(server)
 
 			// must sleep for wait client Read
 			time.Sleep(100 * time.Millisecond)
-		}, testsuite.ErrMonkey)
+		}, monkey.ErrMonkey)
 	})
 
 	t.Run("failed to receive encrypted password", func(t *testing.T) {
@@ -150,16 +150,16 @@ func TestConn_clientHandshake(t *testing.T) {
 			sendCurve25519Out(server)
 
 			patchFunc := func([]byte, []byte, []byte) ([]byte, error) {
-				return nil, testsuite.ErrMonkey
+				return nil, monkey.ErrMonkey
 			}
-			pg := testsuite.Patch(aes.CBCDecrypt, patchFunc)
+			pg := monkey.Patch(aes.CBCDecrypt, patchFunc)
 			defer pg.Unpatch()
 
 			sendInvalidEncryptedPassword(server)
 
 			// must sleep for wait client Read
 			time.Sleep(100 * time.Millisecond)
-		}, testsuite.ErrMonkey)
+		}, monkey.ErrMonkey)
 	})
 
 	t.Run("invalid password size", func(t *testing.T) {
@@ -246,16 +246,16 @@ func TestConn_serverHandshake(t *testing.T) {
 			sendPaddingData(client)
 
 			patchFunc := func([]byte) ([]byte, error) {
-				return nil, testsuite.ErrMonkey
+				return nil, monkey.ErrMonkey
 			}
-			pg := testsuite.Patch(curve25519.ScalarBaseMult, patchFunc)
+			pg := monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
 			defer pg.Unpatch()
 
 			sendCurve25519Out(client)
 
 			// must sleep for wait server Read
 			time.Sleep(100 * time.Millisecond)
-		}, testsuite.ErrMonkey)
+		}, monkey.ErrMonkey)
 	})
 
 	t.Run("curve25519.ScalarMult", func(t *testing.T) {
@@ -276,15 +276,15 @@ func TestConn_serverHandshake(t *testing.T) {
 
 				// patch after curve25519.ScalarBaseMult
 				patchFunc := func([]byte, []byte) ([]byte, error) {
-					return nil, testsuite.ErrMonkey
+					return nil, monkey.ErrMonkey
 				}
 				mutex.Lock()
 				defer mutex.Unlock()
-				ipg = testsuite.Patch(curve25519.ScalarMult, patchFunc)
+				ipg = monkey.Patch(curve25519.ScalarMult, patchFunc)
 
 				return out, err
 			}
-			pg = testsuite.Patch(curve25519.ScalarBaseMult, patchFunc)
+			pg = monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
 			defer func() {
 				mutex.Lock()
 				defer mutex.Unlock()
@@ -297,7 +297,7 @@ func TestConn_serverHandshake(t *testing.T) {
 
 			// must sleep for wait server Read
 			time.Sleep(100 * time.Millisecond)
-		}, testsuite.ErrMonkey)
+		}, monkey.ErrMonkey)
 	})
 
 	t.Run("failed to encrypt password", func(t *testing.T) {
@@ -305,15 +305,15 @@ func TestConn_serverHandshake(t *testing.T) {
 			sendPaddingData(client)
 
 			patchFunc := func([]byte, []byte, []byte) ([]byte, error) {
-				return nil, testsuite.ErrMonkey
+				return nil, monkey.ErrMonkey
 			}
-			pg := testsuite.Patch(aes.CBCEncrypt, patchFunc)
+			pg := monkey.Patch(aes.CBCEncrypt, patchFunc)
 			defer pg.Unpatch()
 
 			sendCurve25519Out(client)
 
 			// must sleep for wait server Read
 			time.Sleep(100 * time.Millisecond)
-		}, testsuite.ErrMonkey)
+		}, monkey.ErrMonkey)
 	})
 }

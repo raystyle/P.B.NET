@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/bouk/monkey"
+	"project/internal/patch/monkey"
 )
 
 func testPanic() {

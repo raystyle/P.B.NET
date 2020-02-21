@@ -11,6 +11,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -76,13 +77,13 @@ func TestFailedToListen(t *testing.T) {
 
 	t.Run("quic.Listen", func(t *testing.T) {
 		patchFunc := func(net.PacketConn, *tls.Config, *quic.Config) (quic.Listener, error) {
-			return nil, testsuite.ErrMonkey
+			return nil, monkey.ErrMonkey
 		}
-		pg := testsuite.Patch(quic.Listen, patchFunc)
+		pg := monkey.Patch(quic.Listen, patchFunc)
 		defer pg.Unpatch()
 
 		_, err := Listen("udp", "localhost:0", new(tls.Config), 0)
-		testsuite.IsMonkeyError(t, err)
+		monkey.IsMonkeyError(t, err)
 	})
 }
 
@@ -100,15 +101,15 @@ func TestFailedToAccept(t *testing.T) {
 
 	// patch
 	patchFunc := func(interface{}, context.Context) (quic.Session, error) {
-		return nil, testsuite.ErrMonkey
+		return nil, monkey.ErrMonkey
 	}
-	pg := testsuite.PatchInstanceMethod(quicListener, "Accept", patchFunc)
+	pg := monkey.PatchInstanceMethod(quicListener, "Accept", patchFunc)
 	defer pg.Unpatch()
 
 	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
 	require.NoError(t, err)
 	_, err = listener.Accept()
-	testsuite.IsMonkeyError(t, err)
+	monkey.IsMonkeyError(t, err)
 
 	require.NoError(t, listener.Close())
 	testsuite.IsDestroyed(t, listener)
@@ -131,13 +132,13 @@ func TestFailedToDialContext(t *testing.T) {
 
 	t.Run("net.ListenUDP", func(t *testing.T) {
 		patchFunc := func(string, *net.UDPAddr) (*net.UDPConn, error) {
-			return nil, testsuite.ErrMonkey
+			return nil, monkey.ErrMonkey
 		}
-		pg := testsuite.Patch(net.ListenUDP, patchFunc)
+		pg := monkey.Patch(net.ListenUDP, patchFunc)
 		defer pg.Unpatch()
 
 		_, err := Dial("udp", "localhost:0", nil, 0)
-		testsuite.IsMonkeyError(t, err)
+		monkey.IsMonkeyError(t, err)
 	})
 
 	t.Run("quic.DialContext", func(t *testing.T) {
@@ -157,13 +158,13 @@ func TestFailedToDialContext(t *testing.T) {
 		require.NoError(t, err)
 		// patch
 		patchFunc := func(interface{}, context.Context) (quic.Stream, error) {
-			return nil, testsuite.ErrMonkey
+			return nil, monkey.ErrMonkey
 		}
-		pg := testsuite.PatchInstanceMethod(session, "OpenStreamSync", patchFunc)
+		pg := monkey.PatchInstanceMethod(session, "OpenStreamSync", patchFunc)
 		defer pg.Unpatch()
 
 		_, err = Dial("udp", address, clientCfg, time.Second)
-		testsuite.IsMonkeyError(t, err)
+		monkey.IsMonkeyError(t, err)
 
 		require.NoError(t, listener.Close())
 		testsuite.IsDestroyed(t, listener)
@@ -183,13 +184,13 @@ func TestFailedToDialContext(t *testing.T) {
 		require.NoError(t, err)
 		// patch
 		patchFunc := func(interface{}, []byte) (int, error) {
-			return 0, testsuite.ErrMonkey
+			return 0, monkey.ErrMonkey
 		}
-		pg := testsuite.PatchInstanceMethod(stream, "Write", patchFunc)
+		pg := monkey.PatchInstanceMethod(stream, "Write", patchFunc)
 		defer pg.Unpatch()
 
 		_, err = Dial("udp", address, clientCfg, time.Second)
-		testsuite.IsMonkeyError(t, err)
+		monkey.IsMonkeyError(t, err)
 
 		require.NoError(t, listener.Close())
 		testsuite.IsDestroyed(t, listener)
