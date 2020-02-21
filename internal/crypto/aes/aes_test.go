@@ -24,45 +24,65 @@ func TestAES(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, testdata, plainData)
 	}
-	f(key128)
-	f(key256)
-	// no data
-	_, err := CBCEncrypt(nil, key128, iv)
-	require.Equal(t, ErrEmptyData, err)
-	_, err = CBCDecrypt(nil, key128, iv)
-	require.Equal(t, ErrEmptyData, err)
+
+	t.Run("key 128bit", func(t *testing.T) {
+		f(key128)
+	})
+
+	t.Run("key 256bit", func(t *testing.T) {
+		f(key256)
+	})
+
+	t.Run("no data", func(t *testing.T) {
+		_, err := CBCEncrypt(nil, key128, iv)
+		require.Equal(t, ErrEmptyData, err)
+		_, err = CBCDecrypt(nil, key128, iv)
+		require.Equal(t, ErrEmptyData, err)
+	})
+
 	data := bytes.Repeat([]byte{255}, 32)
-	// invalid iv
-	_, err = CBCEncrypt(data, key128, nil)
-	require.Equal(t, ErrInvalidIVSize, err)
-	_, err = CBCDecrypt(data, key128, nil)
-	require.Equal(t, ErrInvalidIVSize, err)
-	// invalid key
-	_, err = CBCEncrypt(data, nil, iv)
-	require.Error(t, err)
-	_, err = CBCDecrypt(data, nil, iv)
-	require.Error(t, err)
-	// invalid data ErrInvalidCipherData
-	_, err = CBCDecrypt(bytes.Repeat([]byte{0}, 13), key128, iv)
-	require.Equal(t, ErrInvalidCipherData, err)
-	_, err = CBCDecrypt(bytes.Repeat([]byte{0}, 63), key128, iv)
-	require.Equal(t, ErrInvalidCipherData, err)
-	// invalid data ErrInvalidPaddingSize
-	_, err = CBCDecrypt(bytes.Repeat([]byte{0}, 64), key128, iv)
-	require.Equal(t, ErrInvalidPaddingSize, err)
+
+	t.Run("invalid key", func(t *testing.T) {
+		_, err := CBCEncrypt(data, nil, iv)
+		require.Error(t, err)
+		_, err = CBCDecrypt(data, nil, iv)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid iv", func(t *testing.T) {
+		_, err := CBCEncrypt(data, key128, nil)
+		require.Equal(t, ErrInvalidIVSize, err)
+		_, err = CBCDecrypt(data, key128, nil)
+		require.Equal(t, ErrInvalidIVSize, err)
+	})
+
+	t.Run("ErrInvalidCipherData", func(t *testing.T) {
+		_, err := CBCDecrypt(bytes.Repeat([]byte{0}, 13), key128, iv)
+		require.Equal(t, ErrInvalidCipherData, err)
+		_, err = CBCDecrypt(bytes.Repeat([]byte{0}, 63), key128, iv)
+		require.Equal(t, ErrInvalidCipherData, err)
+	})
+
+	t.Run("ErrInvalidPaddingSize", func(t *testing.T) {
+		_, err := CBCDecrypt(bytes.Repeat([]byte{0}, 64), key128, iv)
+		require.Equal(t, ErrInvalidPaddingSize, err)
+	})
 }
 
 func TestCBC(t *testing.T) {
 	key128 := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 11, 12, 13, 14, 15, 16}
 	key256 := bytes.Repeat(key128, 2)
 	iv := []byte{11, 12, 13, 14, 15, 16, 17, 18, 19, 10, 111, 112, 113, 114, 115, 116}
-	// test key
-	_, err := NewCBC(bytes.Repeat([]byte{0}, Key128Bit), iv)
-	require.NoError(t, err)
-	_, err = NewCBC(bytes.Repeat([]byte{0}, Key192Bit), iv)
-	require.NoError(t, err)
-	_, err = NewCBC(bytes.Repeat([]byte{0}, Key256Bit), iv)
-	require.NoError(t, err)
+
+	t.Run("test key", func(t *testing.T) {
+		_, err := NewCBC(bytes.Repeat([]byte{0}, Key128Bit), iv)
+		require.NoError(t, err)
+		_, err = NewCBC(bytes.Repeat([]byte{0}, Key192Bit), iv)
+		require.NoError(t, err)
+		_, err = NewCBC(bytes.Repeat([]byte{0}, Key256Bit), iv)
+		require.NoError(t, err)
+	})
+
 	// encrypt & decrypt
 	f := func(key []byte) {
 		cbc, err := NewCBC(key, iv)
@@ -84,32 +104,52 @@ func TestCBC(t *testing.T) {
 			require.Equal(t, testdata, plainData)
 		}
 	}
-	f(key128)
-	f(key256)
-	// invalid key
-	cbc, err := NewCBC(nil, iv)
-	require.Error(t, err)
-	// invalid iv
-	cbc, err = NewCBC(key128, nil)
-	require.Error(t, err)
-	// no data
-	cbc, err = NewCBC(key128, iv)
-	require.NoError(t, err)
-	_, err = cbc.Encrypt(nil)
-	require.Equal(t, ErrEmptyData, err)
-	_, err = cbc.Decrypt(nil)
-	require.Equal(t, ErrEmptyData, err)
-	// invalid data
-	_, err = cbc.Decrypt(bytes.Repeat([]byte{0}, 13))
-	require.Equal(t, ErrInvalidCipherData, err)
-	_, err = cbc.Decrypt(bytes.Repeat([]byte{0}, 63))
-	require.Equal(t, ErrInvalidCipherData, err)
-	_, err = cbc.Decrypt(bytes.Repeat([]byte{0}, 64))
-	require.Equal(t, ErrInvalidPaddingSize, err)
-	// key iv
-	k, v := cbc.KeyIV()
-	require.Equal(t, key128, k)
-	require.Equal(t, iv, v)
+
+	t.Run("key 128bit", func(t *testing.T) {
+		f(key128)
+	})
+
+	t.Run("key 256bit", func(t *testing.T) {
+		f(key256)
+	})
+
+	t.Run("invalid key", func(t *testing.T) {
+		_, err := NewCBC(nil, iv)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid iv", func(t *testing.T) {
+		_, err := NewCBC(key128, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("no data", func(t *testing.T) {
+		cbc, err := NewCBC(key128, iv)
+		require.NoError(t, err)
+		_, err = cbc.Encrypt(nil)
+		require.Equal(t, ErrEmptyData, err)
+		_, err = cbc.Decrypt(nil)
+		require.Equal(t, ErrEmptyData, err)
+	})
+
+	t.Run("invalid data", func(t *testing.T) {
+		cbc, err := NewCBC(key128, iv)
+		require.NoError(t, err)
+		_, err = cbc.Decrypt(bytes.Repeat([]byte{0}, 13))
+		require.Equal(t, ErrInvalidCipherData, err)
+		_, err = cbc.Decrypt(bytes.Repeat([]byte{0}, 63))
+		require.Equal(t, ErrInvalidCipherData, err)
+		_, err = cbc.Decrypt(bytes.Repeat([]byte{0}, 64))
+		require.Equal(t, ErrInvalidPaddingSize, err)
+	})
+
+	t.Run("key iv", func(t *testing.T) {
+		cbc, err := NewCBC(key128, iv)
+		require.NoError(t, err)
+		k, v := cbc.KeyIV()
+		require.Equal(t, key128, k)
+		require.Equal(t, iv, v)
+	})
 }
 
 func BenchmarkCBC_Encrypt_128(b *testing.B) {
