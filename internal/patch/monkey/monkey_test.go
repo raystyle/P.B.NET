@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsMonkeyError(t *testing.T) {
@@ -60,13 +62,13 @@ func ExamplePatchInstanceMethod() {
 
 func TestPatchInstanceMethodType(t *testing.T) {
 	t.Run("unknown method", func(t *testing.T) {
-		defer func() { recover() }()
+		defer func() { require.NotNil(t, recover()) }()
 		pri := &private{str: "pri"}
 		PatchInstanceMethod(pri, "foo", nil)
 	})
 
 	t.Run("invalid parameter", func(t *testing.T) {
-		defer func() { recover() }()
+		defer func() { require.NotNil(t, recover()) }()
 		pri := &private{str: "pri"}
 		patchFunc := func(interface{}, string, string) string {
 			return "monkey"
