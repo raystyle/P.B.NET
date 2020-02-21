@@ -15,7 +15,7 @@ const (
 	httpDefaultMaxResponseHeaderBytes int64 = 512 * 1024 // 512KB
 )
 
-// HTTPRequest include options about http.Request
+// HTTPRequest include options about http.Request.
 type HTTPRequest struct {
 	Method string      `toml:"method"`
 	URL    string      `toml:"url"`
@@ -29,7 +29,7 @@ func (hr *HTTPRequest) error(err error) error {
 	return fmt.Errorf("failed to apply http request options: %s", err)
 }
 
-// Apply is used to create *http.Request
+// Apply is used to create *http.Request.
 func (hr *HTTPRequest) Apply() (*http.Request, error) {
 	if hr.URL == "" {
 		return nil, hr.error(errors.New("empty url"))
@@ -51,7 +51,7 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 	return r, nil
 }
 
-// HTTPTransport include options about http.Transport
+// HTTPTransport include options about http.Transport.
 type HTTPTransport struct {
 	TLSClientConfig        TLSConfig     `toml:"tls_config"`
 	MaxIdleConns           int           `toml:"max_idle_conns"`
@@ -66,10 +66,9 @@ type HTTPTransport struct {
 	DisableCompression     bool          `toml:"disable_compression"`
 }
 
-// Apply is used to create *http.Transport
+// Apply is used to create *http.Transport.
 //
-// TODO when set MaxConnsPerHost, use HTTP/2 get test.com, will panic
-// wait golang fix it
+// when set MaxConnsPerHost, use HTTP/2 get test.com will panic, wait golang fix it.
 func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	tr := &http.Transport{
 		MaxIdleConns:        ht.MaxIdleConns,
@@ -119,7 +118,7 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	return tr, nil
 }
 
-// HTTPServer include options about http.Server
+// HTTPServer include options about http.Server.
 type HTTPServer struct {
 	TLSConfig         TLSConfig     `toml:"tls_config"`
 	ReadTimeout       time.Duration `toml:"read_timeout"`  // warning
@@ -130,7 +129,7 @@ type HTTPServer struct {
 	DisableKeepAlive  bool          `toml:"disable_keep_alive"`
 }
 
-// Apply is used to create *http.Server
+// Apply is used to create *http.Server.
 func (hs *HTTPServer) Apply() (*http.Server, error) {
 	s := &http.Server{
 		ReadTimeout:       hs.ReadTimeout,
