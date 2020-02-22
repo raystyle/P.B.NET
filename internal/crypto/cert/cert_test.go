@@ -1,9 +1,14 @@
 package cert
 
 import (
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -12,6 +17,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
 )
 
 func TestIsDomainName(t *testing.T) {
@@ -39,6 +46,91 @@ func TestIsDomainName(t *testing.T) {
 			require.False(t, isDomainName(testdata[i]))
 		}
 	})
+}
+
+func TestGeneratePrivateKey(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		_, _, err := generatePrivateKey("")
+		require.NoError(t, err)
+
+		patchFunc := func(_ io.Reader, _ int) (*rsa.PrivateKey, error) {
+			return nil, monkey.ErrMonkey
+		}
+		pg := monkey.Patch(rsa.GenerateKey, patchFunc)
+		defer pg.Unpatch()
+		_, _, err = generatePrivateKey("")
+		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("rsa", func(t *testing.T) {
+		_, _, err := generatePrivateKey("rsa|1024")
+		require.NoError(t, err)
+		_, _, err = generatePrivateKey("rsa|foo")
+		require.Error(t, err)
+
+		patchFunc := func(_ io.Reader, _ int) (*rsa.PrivateKey, error) {
+			return nil, monkey.ErrMonkey
+		}
+		pg := monkey.Patch(rsa.GenerateKey, patchFunc)
+		defer pg.Unpatch()
+		_, _, err = generatePrivateKey("rsa|1024")
+		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("ecdsa", func(t *testing.T) {
+		_, _, err := generatePrivateKey("ecdsa|p256")
+		require.NoError(t, err)
+		_, _, err = generatePrivateKey("ecdsa|p384")
+		require.NoError(t, err)
+		_, _, err = generatePrivateKey("ecdsa|p521")
+		require.NoError(t, err)
+		_, _, err = generatePrivateKey("ecdsa|foo")
+		require.Error(t, err)
+
+		patchFunc := func(_ elliptic.Curve, _ io.Reader) (*ecdsa.PrivateKey, error) {
+			return nil, monkey.ErrMonkey
+		}
+		pg := monkey.Patch(ecdsa.GenerateKey, patchFunc)
+		defer pg.Unpatch()
+		_, _, err = generatePrivateKey("ecdsa|p256")
+		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("ed25519", func(t *testing.T) {
+		_, _, err := generatePrivateKey("ed25519")
+		require.NoError(t, err)
+
+		patchFunc := func(_ io.Reader) (ed25519.PublicKey, ed25519.PrivateKey, error) {
+			return nil, nil, monkey.ErrMonkey
+		}
+		pg := monkey.Patch(ed25519.GenerateKey, patchFunc)
+		defer pg.Unpatch()
+		_, _, err = generatePrivateKey("ed25519")
+		monkey.IsMonkeyError(t, err)
+	})
+}
+
+func TestUnknownAlgorithm(t *testing.T) {
+	pri, pub, err := generatePrivateKey("foo|alg")
+	require.EqualError(t, err, "unknown algorithm: foo|alg")
+	require.Nil(t, pri)
+	require.Nil(t, pub)
+	opts := &Options{Algorithm: "foo alg"}
+	pair, err := GenerateCA(opts)
+	require.Error(t, err)
+	require.Nil(t, pair)
+
+	opts.Algorithm = "rsa|1024"
+	pair, err = GenerateCA(opts)
+	require.NoError(t, err)
+
+	_, err = Generate(pair.Certificate, pair.PrivateKey, nil)
+	require.NoError(t, err)
+
+	opts.Algorithm = "foo|alg"
+	pair, err = Generate(pair.Certificate, pair.PrivateKey, opts)
+	require.Error(t, err)
+	require.Nil(t, pair)
 }
 
 func TestGenerateCA(t *testing.T) {
@@ -79,6 +171,16 @@ func TestGenerateCA(t *testing.T) {
 		opts.IPAddresses = []string{"foo ip"}
 		_, err = GenerateCA(opts)
 		require.Error(t, err)
+	})
+
+	t.Run("failed to create certificate", func(t *testing.T) {
+		patchFunc := func(_ io.Reader, _, _ *x509.Certificate, _, _ interface{}) ([]byte, error) {
+			return nil, monkey.ErrMonkey
+		}
+		pg := monkey.Patch(x509.CreateCertificate, patchFunc)
+		defer pg.Unpatch()
+		_, err := GenerateCA(nil)
+		monkey.IsMonkeyError(t, err)
 	})
 }
 
@@ -197,44 +299,6 @@ func testGenerate(t *testing.T, ca *Pair) {
 	get("localhost", port1)
 	get("127.0.0.1", port2)
 	get("[::1]", port3)
-}
-
-func TestGeneratePrivateKey(t *testing.T) {
-	// rsa with invalid bits
-	_, _, err := generatePrivateKey("rsa|foo")
-	require.Error(t, err)
-	// ecdsa
-	_, _, err = generatePrivateKey("ecdsa|p256")
-	require.NoError(t, err)
-	_, _, err = generatePrivateKey("ecdsa|p384")
-	require.NoError(t, err)
-	_, _, err = generatePrivateKey("ecdsa|p521")
-	require.NoError(t, err)
-	_, _, err = generatePrivateKey("ecdsa|foo")
-	require.Error(t, err)
-}
-
-func TestUnknownAlgorithm(t *testing.T) {
-	pri, pub, err := generatePrivateKey("foo|alg")
-	require.EqualError(t, err, "unknown algorithm: foo|alg")
-	require.Nil(t, pri)
-	require.Nil(t, pub)
-	opts := &Options{Algorithm: "foo alg"}
-	pair, err := GenerateCA(opts)
-	require.Error(t, err)
-	require.Nil(t, pair)
-
-	opts.Algorithm = "rsa|1024"
-	pair, err = GenerateCA(opts)
-	require.NoError(t, err)
-
-	_, err = Generate(pair.Certificate, pair.PrivateKey, nil)
-	require.NoError(t, err)
-
-	opts.Algorithm = "foo|alg"
-	pair, err = Generate(pair.Certificate, pair.PrivateKey, opts)
-	require.Error(t, err)
-	require.Nil(t, pair)
 }
 
 func TestPrint(t *testing.T) {

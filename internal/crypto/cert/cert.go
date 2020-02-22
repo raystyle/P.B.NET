@@ -172,11 +172,18 @@ func checkChar(c byte, last byte, nonNumeric *bool, partLen *int, ok *bool) {
 
 func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
 	if algorithm == "" {
-		privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			return nil, nil, err
+		}
 		return privateKey, &privateKey.PublicKey, nil
 	}
 	if algorithm == "ed25519" {
-		return ed25519.GenerateKey(rand.Reader)
+		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return nil, nil, err
+		}
+		return privateKey, publicKey, nil
 	}
 	configs := strings.Split(algorithm, "|")
 	if len(configs) != 2 {
@@ -188,21 +195,30 @@ func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid RSA bits: %s %s", algorithm, err)
 		}
-		privateKey, _ := rsa.GenerateKey(rand.Reader, bits)
+		privateKey, err := rsa.GenerateKey(rand.Reader, bits)
+		if err != nil {
+			return nil, nil, err
+		}
 		return privateKey, &privateKey.PublicKey, nil
 	case "ecdsa":
-		var privateKey *ecdsa.PrivateKey
+		var (
+			privateKey *ecdsa.PrivateKey
+			err        error
+		)
 		switch configs[1] {
 		case "p224":
-			privateKey, _ = ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+			privateKey, err = ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 		case "p256":
-			privateKey, _ = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		case "p384":
-			privateKey, _ = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+			privateKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 		case "p521":
-			privateKey, _ = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+			privateKey, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 		default:
 			return nil, nil, fmt.Errorf("unsupported elliptic curve: %s", configs[1])
+		}
+		if err != nil {
+			return nil, nil, err
 		}
 		return privateKey, &privateKey.PublicKey, nil
 	}
@@ -273,7 +289,10 @@ func GenerateCA(opts *Options) (*Pair, error) {
 	if err != nil {
 		return nil, err
 	}
-	asn1Data, _ := x509.CreateCertificate(rand.Reader, ca, ca, publicKey, privateKey)
+	asn1Data, err := x509.CreateCertificate(rand.Reader, ca, ca, publicKey, privateKey)
+	if err != nil {
+		return nil, err
+	}
 	ca, _ = x509.ParseCertificate(asn1Data)
 	return &Pair{
 		Certificate: ca,
