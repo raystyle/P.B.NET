@@ -150,10 +150,7 @@ func testGenerate(t *testing.T, ca *Pair) {
 		_, _ = w.Write(respData)
 	})
 
-	// certificate
-	tlsCert, err := pair.TLSCertificate()
-	require.NoError(t, err)
-
+	tlsCert := pair.TLSCertificate()
 	// run https servers
 	server1 := http.Server{
 		Addr:      "localhost:0",

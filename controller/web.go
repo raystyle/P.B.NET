@@ -72,10 +72,6 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	tlsCert, err := pair.TLSCertificate()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 
 	wh := webHandler{ctx: ctx}
 	wh.upgrader = &websocket.Upgrader{
@@ -132,7 +128,7 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 		Rand:         rand.Reader,
 		Time:         ctx.global.Now,
 		MinVersion:   tls.VersionTLS12,
-		Certificates: []tls.Certificate{tlsCert},
+		Certificates: []tls.Certificate{pair.TLSCertificate()},
 	}
 	web.server = &http.Server{
 		TLSConfig:         tlsConfig,

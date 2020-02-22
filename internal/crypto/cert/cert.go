@@ -249,13 +249,13 @@ func (p *Pair) EncodeToPEM() ([]byte, []byte) {
 }
 
 // TLSCertificate is used to generate tls certificate.
-func (p *Pair) TLSCertificate() (tls.Certificate, error) {
-	cert, key := p.EncodeToPEM()
-	defer func() {
-		security.CoverBytes(cert)
-		security.CoverBytes(key)
-	}()
-	return tls.X509KeyPair(cert, key)
+func (p *Pair) TLSCertificate() tls.Certificate {
+	var cert tls.Certificate
+	cert.Certificate = make([][]byte, 1)
+	cert.Certificate[0] = make([]byte, len(p.Certificate.Raw))
+	copy(cert.Certificate[0], p.Certificate.Raw)
+	cert.PrivateKey = p.PrivateKey
+	return cert
 }
 
 // GenerateCA is used to generate a CA certificate from Options.
