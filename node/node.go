@@ -39,8 +39,9 @@ type Node struct {
 // New is used to create a Node from configuration.
 func New(cfg *Config) (*Node, error) {
 	// copy test
-	test := cfg.Test
-	node := &Node{Test: &test}
+	test := new(Test)
+	test.options = cfg.Test
+	node := &Node{Test: test}
 	// storage
 	node.storage = newStorage()
 	// logger
@@ -122,7 +123,7 @@ func (node *Node) Main() error {
 	// start log sender
 	node.logger.StartSender()
 	// synchronize time
-	if node.Test.SkipSynchronizeTime {
+	if node.Test.options.SkipSynchronizeTime {
 		node.global.StartTimeSyncerWalker()
 	} else {
 		err := node.global.StartTimeSyncer()

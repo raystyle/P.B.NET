@@ -530,7 +530,12 @@ func (server *server) isHTTPRequest(data []byte, conn *xnet.Conn) bool {
 	}
 	// read rest data
 	go func() {
-		defer func() { recover() }()
+		defer func() {
+			if r := recover(); r != nil {
+				b := xpanic.Print(r, "server.isHTTPRequest")
+				server.logConn(conn, logger.Error, b)
+			}
+		}()
 		_, _ = io.Copy(ioutil.Discard, conn)
 	}()
 	// write 403 response

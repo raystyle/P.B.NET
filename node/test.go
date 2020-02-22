@@ -5,10 +5,11 @@ import (
 	"sync"
 )
 
-// Test contains all test data
+// Test contains all test data.
 type Test struct {
-	// Node.Main()
-	SkipSynchronizeTime bool
+	options struct {
+		SkipSynchronizeTime bool
+	}
 
 	// about sender send test message
 	testMsgEnabled    bool

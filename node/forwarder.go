@@ -113,9 +113,7 @@ func (f *forwarder) RegisterClient(client *Client) error {
 func (f *forwarder) LogoffClient(tag *guid.GUID) {
 	f.clientConnsRWM.Lock()
 	defer f.clientConnsRWM.Unlock()
-	if _, ok := f.clientConns[*tag]; ok {
-		delete(f.clientConns, *tag)
-	}
+	delete(f.clientConns, *tag)
 }
 
 func (f *forwarder) GetClientConns() map[guid.GUID]*Client {
@@ -158,9 +156,7 @@ func (f *forwarder) RegisterCtrl(conn *ctrlConn) error {
 func (f *forwarder) LogoffCtrl(tag *guid.GUID) {
 	f.ctrlConnsRWM.Lock()
 	defer f.ctrlConnsRWM.Unlock()
-	if _, ok := f.ctrlConns[*tag]; ok {
-		delete(f.ctrlConns, *tag)
-	}
+	delete(f.ctrlConns, *tag)
 }
 
 func (f *forwarder) GetCtrlConns() map[guid.GUID]*ctrlConn {
@@ -203,9 +199,7 @@ func (f *forwarder) RegisterNode(conn *nodeConn) error {
 func (f *forwarder) LogoffNode(tag *guid.GUID) {
 	f.nodeConnsRWM.Lock()
 	defer f.nodeConnsRWM.Unlock()
-	if _, ok := f.nodeConns[*tag]; ok {
-		delete(f.nodeConns, *tag)
-	}
+	delete(f.nodeConns, *tag)
 }
 
 func (f *forwarder) GetNodeConns() map[guid.GUID]*nodeConn {
@@ -248,9 +242,7 @@ func (f *forwarder) RegisterBeacon(conn *beaconConn) error {
 func (f *forwarder) LogoffBeacon(guid *guid.GUID) {
 	f.beaconConnsRWM.Lock()
 	defer f.beaconConnsRWM.Unlock()
-	if _, ok := f.beaconConns[*guid]; ok {
-		delete(f.beaconConns, *guid)
-	}
+	delete(f.beaconConns, *guid)
 }
 
 func (f *forwarder) GetBeaconConns() map[guid.GUID]*beaconConn {
