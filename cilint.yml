@@ -2,9 +2,16 @@ run:
   skip-dirs:
     - temp
 
-  linters-settings:
-    golint:
-      min-confidence: 0.3
+linters-settings:
+  golint:
+    min-confidence: 0.3
 
-    gocyclo:
-      min-complexity: 15
+  gocyclo:
+    max-complexity: 15
+
+  errcheck:
+    exclude: cilint.txt
+
+linters:
+  disable:
+    - errcheck
