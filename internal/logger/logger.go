@@ -209,7 +209,7 @@ func Wrap(lv Level, src string, logger Logger) *log.Logger {
 
 // HijackLogWriter is used to hijack all packages that use log.Print().
 func HijackLogWriter(logger Logger) {
-	log.SetFlags(0)
+	log.SetFlags(log.Llongfile)
 	w := &writer{
 		level:  Error,
 		src:    "pkg-log",
