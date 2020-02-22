@@ -26,7 +26,7 @@ func TestDNS(t *testing.T) {
 			Network: "tcp",
 			Address: "127.0.0.1:443",
 		}}
-		DNS := NewDNS(nil, nil)
+		DNS := NewDNS(context.Background(), nil)
 		DNS.Host = "localhost"
 		DNS.Mode = xnet.ModeTLS
 		DNS.Network = "tcp"
@@ -57,7 +57,7 @@ func TestDNS(t *testing.T) {
 			Network: "tcp",
 			Address: "[::1]:443",
 		}}
-		DNS := NewDNS(nil, nil)
+		DNS := NewDNS(context.Background(), nil)
 		DNS.Host = "localhost"
 		DNS.Mode = xnet.ModeTLS
 		DNS.Network = "tcp"
@@ -84,7 +84,7 @@ func TestDNS(t *testing.T) {
 }
 
 func TestDNS_Validate(t *testing.T) {
-	DNS := NewDNS(nil, nil)
+	DNS := NewDNS(context.Background(), nil)
 	require.EqualError(t, DNS.Validate(), "empty host")
 
 	// invalid domain name
@@ -106,7 +106,7 @@ func TestDNS_Validate(t *testing.T) {
 }
 
 func TestDNS_Unmarshal(t *testing.T) {
-	DNS := NewDNS(nil, nil)
+	DNS := NewDNS(context.Background(), nil)
 
 	// unmarshal invalid config
 	require.Error(t, DNS.Unmarshal([]byte{0x00}))
@@ -145,7 +145,7 @@ func TestDNS_Resolve(t *testing.T) {
 
 func TestDNSPanic(t *testing.T) {
 	t.Run("no CBC", func(t *testing.T) {
-		DNS := NewDNS(nil, nil)
+		DNS := NewDNS(context.Background(), nil)
 
 		func() {
 			defer func() {
@@ -160,7 +160,7 @@ func TestDNSPanic(t *testing.T) {
 	})
 
 	t.Run("invalid options", func(t *testing.T) {
-		DNS := NewDNS(nil, nil)
+		DNS := NewDNS(context.Background(), nil)
 
 		func() {
 			var err error
@@ -186,7 +186,7 @@ func TestDNSPanic(t *testing.T) {
 func TestDNSOptions(t *testing.T) {
 	config, err := ioutil.ReadFile("testdata/dns.toml")
 	require.NoError(t, err)
-	DNS := NewDNS(nil, nil)
+	DNS := NewDNS(context.Background(), nil)
 	require.NoError(t, toml.Unmarshal(config, DNS))
 	require.NoError(t, DNS.Validate())
 

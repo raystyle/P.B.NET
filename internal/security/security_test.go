@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +52,6 @@ func TestBytes(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		go func() {
 			defer wg.Done()
-			time.Sleep(10 * time.Millisecond)
 			for i := 0; i < 10; i++ {
 				b := sb.Get()
 				require.True(t, bytes.Equal(testdata, b))

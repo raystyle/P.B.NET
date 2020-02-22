@@ -3,17 +3,18 @@ package xtls
 import (
 	"context"
 	"crypto/tls"
+	"log"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+
+	"project/internal/xpanic"
 )
 
-const (
-	defaultDialTimeout = 30 * time.Second
-)
+const defaultDialTimeout = 30 * time.Second
 
 // Server is a link
 func Server(conn net.Conn, cfg *tls.Config) *tls.Conn {
@@ -82,7 +83,9 @@ func DialContext(
 	wg.Add(1)
 	go func() {
 		defer func() {
-			recover()
+			if r := recover(); r != nil {
+				log.Println(xpanic.Print(r, "DialContext"))
+			}
 			wg.Done()
 		}()
 		select {

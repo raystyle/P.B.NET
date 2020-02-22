@@ -42,7 +42,7 @@ func New() *Rand {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Println(xpanic.Print(r, "random.New"))
+					log.Println(xpanic.Print(r, "New"))
 				}
 				wg.Done()
 			}()
@@ -55,7 +55,7 @@ func New() *Rand {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Println(xpanic.Print(r, "random.New"))
+				log.Println(xpanic.Print(r, "New"))
 			}
 		}()
 		wg.Wait()

@@ -3,14 +3,20 @@ package shellcode
 import (
 	"bytes"
 	"context"
+	"log"
 	"runtime"
 	"time"
 
 	"project/internal/random"
+	"project/internal/xpanic"
 )
 
 func doUseless(ctx context.Context, ch chan []byte) {
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println(xpanic.Print(r, "doUseless"))
+		}
+	}()
 	rand := random.New()
 	n := 100 + rand.Int(100)
 	for i := 0; i < n; i++ {

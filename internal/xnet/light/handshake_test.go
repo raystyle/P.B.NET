@@ -138,7 +138,7 @@ func TestConn_clientHandshake(t *testing.T) {
 	})
 
 	sendInvalidEncryptedPassword := func(server *Conn) {
-		password := append(bytes.Repeat([]byte{1}, 256))
+		password := bytes.Repeat([]byte{1}, 256)
 		password = append(password, bytes.Repeat([]byte{0}, aes.BlockSize)...)
 		_, err := server.Conn.Write(password)
 		require.NoError(t, err)

@@ -1,6 +1,7 @@
 package socks
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -219,6 +220,6 @@ func TestClient_Connect(t *testing.T) {
 
 	client, err := NewSocks5Client("tcp", "localhost:0", nil)
 	require.NoError(t, err)
-	_, err = client.Connect(nil, nil, "tcp", "foo address")
+	_, err = client.Connect(context.Background(), nil, "tcp", "foo address")
 	require.Error(t, err)
 }

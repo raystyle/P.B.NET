@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func TestChainSelect(t *testing.T) {
 	chain, err := NewChain("chain-select", clients...)
 	require.NoError(t, err)
 
-	_, _ = chain.Connect(nil, nil, "", "")
+	_, _ = chain.Connect(context.Background(), nil, "", "")
 
 	testsuite.ProxyClient(t, &groups, chain)
 }

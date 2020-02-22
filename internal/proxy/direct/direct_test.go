@@ -51,7 +51,7 @@ func TestDirect(t *testing.T) {
 	}
 
 	// padding
-	_, _ = d.Connect(nil, nil, "", "")
+	_, _ = d.Connect(context.Background(), nil, "", "")
 	d.HTTP(nil)
 	t.Log(d.Timeout())
 	t.Log(d.Server())

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -63,7 +64,7 @@ func TestBalance(t *testing.T) {
 	balance, err := NewBalance("balance", groups.Clients()...)
 	require.NoError(t, err)
 
-	_, _ = balance.Connect(nil, nil, "", "")
+	_, _ = balance.Connect(context.Background(), nil, "", "")
 
 	testsuite.ProxyClient(t, &groups, balance)
 }

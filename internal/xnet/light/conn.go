@@ -2,11 +2,14 @@ package light
 
 import (
 	"context"
+	"log"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+
+	"project/internal/xpanic"
 )
 
 const defaultHandshakeTimeout = 30 * time.Second
@@ -36,7 +39,9 @@ func (c *Conn) Handshake() error {
 		wg.Add(1)
 		go func() {
 			defer func() {
-				recover()
+				if r := recover(); r != nil {
+					log.Println(xpanic.Print(r, "Conn.Handshake"))
+				}
 				close(errChan)
 				wg.Done()
 			}()

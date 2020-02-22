@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/xnet/xnetutil"
+	"project/internal/xpanic"
 )
 
 const defaultDialTimeout = 30 * time.Second
@@ -179,7 +181,9 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 	wg.Add(1)
 	go func() {
 		defer func() {
-			recover()
+			if r := recover(); r != nil {
+				log.Println(xpanic.Print(r, "Client.Connect"))
+			}
 			wg.Done()
 		}()
 		select {

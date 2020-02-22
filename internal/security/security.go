@@ -105,14 +105,15 @@ func NewBytes(b []byte) *Bytes {
 		bytes.data[i] = b[i]
 	}
 	bytes.cache.New = func() interface{} {
-		return make([]byte, bytes.len)
+		b := make([]byte, bytes.len)
+		return &b
 	}
 	return &bytes
 }
 
 // Get is used to get stored byte slice
 func (b *Bytes) Get() []byte {
-	bytes := b.cache.Get().([]byte)
+	bytes := *b.cache.Get().(*[]byte)
 	for i := 0; i < b.len; i++ {
 		bytes[i] = b.data[i]
 	}
@@ -124,5 +125,5 @@ func (b *Bytes) Put(s []byte) {
 	for i := 0; i < b.len; i++ {
 		s[i] = 0
 	}
-	b.cache.Put(s)
+	b.cache.Put(&s)
 }

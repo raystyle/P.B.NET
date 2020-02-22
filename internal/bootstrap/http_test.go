@@ -218,7 +218,7 @@ func TestHTTP(t *testing.T) {
 }
 
 func TestHTTP_Validate(t *testing.T) {
-	HTTP := NewHTTP(nil, nil, nil)
+	HTTP := NewHTTP(context.Background(), nil, nil)
 	// invalid request
 	require.Error(t, HTTP.Validate())
 
@@ -257,7 +257,7 @@ func TestHTTP_Validate(t *testing.T) {
 }
 
 func TestHTTP_Generate(t *testing.T) {
-	HTTP := NewHTTP(nil, nil, nil)
+	HTTP := NewHTTP(context.Background(), nil, nil)
 
 	// no bootstrap node listeners
 	_, err := HTTP.Generate(nil)
@@ -285,7 +285,7 @@ func TestHTTP_Generate(t *testing.T) {
 }
 
 func TestHTTP_Unmarshal(t *testing.T) {
-	HTTP := NewHTTP(nil, nil, nil)
+	HTTP := NewHTTP(context.Background(), nil, nil)
 
 	// unmarshal invalid config
 	require.Error(t, HTTP.Unmarshal([]byte{0x00}))
@@ -341,7 +341,7 @@ func TestHTTP_Resolve(t *testing.T) {
 
 func TestHTTPPanic(t *testing.T) {
 	t.Run("no CBC", func(t *testing.T) {
-		HTTP := NewHTTP(nil, nil, nil)
+		HTTP := NewHTTP(context.Background(), nil, nil)
 
 		func() {
 			defer func() {
@@ -356,7 +356,7 @@ func TestHTTPPanic(t *testing.T) {
 	})
 
 	t.Run("invalid encrypted data", func(t *testing.T) {
-		HTTP := NewHTTP(nil, nil, nil)
+		HTTP := NewHTTP(context.Background(), nil, nil)
 
 		func() {
 			var err error
@@ -380,7 +380,7 @@ func TestHTTPPanic(t *testing.T) {
 	})
 
 	t.Run("invalid http request", func(t *testing.T) {
-		dHTTP := NewHTTP(nil, nil, nil)
+		dHTTP := NewHTTP(context.Background(), nil, nil)
 
 		func() {
 			var err error
@@ -406,7 +406,7 @@ func TestHTTPPanic(t *testing.T) {
 	})
 
 	t.Run("invalid http transport", func(t *testing.T) {
-		dHTTP := NewHTTP(nil, nil, nil)
+		dHTTP := NewHTTP(context.Background(), nil, nil)
 
 		func() {
 			var err error
@@ -574,7 +574,7 @@ func TestHTTPPanic(t *testing.T) {
 func TestHTTPOptions(t *testing.T) {
 	config, err := ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
-	HTTP := NewHTTP(nil, nil, nil)
+	HTTP := NewHTTP(context.Background(), nil, nil)
 	require.NoError(t, toml.Unmarshal(config, HTTP))
 	require.NoError(t, HTTP.Validate())
 
