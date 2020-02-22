@@ -11,8 +11,8 @@ import (
 
 const (
 	httpDefaultTimeout                      = time.Minute
-	httpDefaultMaxHeaderBytes               = 512 * 1024 // 512KB
-	httpDefaultMaxResponseHeaderBytes int64 = 512 * 1024 // 512KB
+	httpDefaultMaxHeaderBytes               = 512 << 10 // 512 KB
+	httpDefaultMaxResponseHeaderBytes int64 = 512 << 10 // 512 KB
 )
 
 // HTTPRequest include options about http.Request.

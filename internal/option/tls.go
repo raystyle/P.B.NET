@@ -26,7 +26,10 @@ type TLSConfig struct {
 
 	InsecureLoadFromSystem bool `toml:"insecure_load_from_system"`
 
-	// add certs manually from certificate pool
+	// listener need set true
+	ServerSide bool `toml:"-"`
+
+	// add certs from certificate pool manually
 	CertPool         *cert.Pool `toml:"-"`
 	LoadFromCertPool struct {
 		// public will be load automatically
@@ -63,8 +66,48 @@ func (t *TLSConfig) parseCertificates(cert []string) ([]*x509.Certificate, error
 	return certs, nil
 }
 
+// GetCertificates is used to make tls certificates.
+func (t *TLSConfig) GetCertificates() ([]tls.Certificate, error) {
+	var certs []tls.Certificate
+	for i := 0; i < len(t.Certificates); i++ {
+		c := []byte(t.Certificates[i].Cert)
+		k := []byte(t.Certificates[i].Key)
+		tlsCert, err := tls.X509KeyPair(c, k)
+		if err != nil {
+			return nil, err
+		}
+		security.CoverBytes(c)
+		security.CoverBytes(k)
+		certs = append(certs, tlsCert)
+	}
+	if t.CertPool == nil {
+		return certs, nil
+	}
+	if !t.LoadFromCertPool.SkipPublicClientCerts && !t.ServerSide {
+		pairs := t.CertPool.GetPublicClientPairs()
+		certs = append(certs, makeTLSCertificates(pairs)...)
+	}
+	if t.LoadFromCertPool.LoadPrivateClientCerts && !t.ServerSide {
+		pairs := t.CertPool.GetPrivateClientPairs()
+		certs = append(certs, makeTLSCertificates(pairs)...)
+	}
+	return certs, nil
+}
+
+func makeTLSCertificates(pairs []*cert.Pair) []tls.Certificate {
+	l := len(pairs)
+	clientCerts := make([]tls.Certificate, l)
+	for i := 0; i < l; i++ {
+		clientCerts[i] = pairs[i].TLSCertificate()
+	}
+	return clientCerts
+}
+
 // GetRootCAs is used to parse TLSConfig.RootCAs.
 func (t *TLSConfig) GetRootCAs() ([]*x509.Certificate, error) {
+	if t.ServerSide {
+		return nil, nil
+	}
 	rootCAs, err := t.parseCertificates(t.RootCAs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse root ca: %s", err)
@@ -83,6 +126,9 @@ func (t *TLSConfig) GetRootCAs() ([]*x509.Certificate, error) {
 
 // GetClientCAs is used to parse TLSConfig.ClientCAs.
 func (t *TLSConfig) GetClientCAs() ([]*x509.Certificate, error) {
+	if !t.ServerSide {
+		return nil, nil
+	}
 	clientCAs, err := t.parseCertificates(t.ClientCAs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse client ca: %s", err)
@@ -93,7 +139,7 @@ func (t *TLSConfig) GetClientCAs() ([]*x509.Certificate, error) {
 	if !t.LoadFromCertPool.SkipPublicClientCACerts {
 		clientCAs = append(clientCAs, t.CertPool.GetPublicClientCACerts()...)
 	}
-	if t.LoadFromCertPool.LoadPrivateRootCACerts {
+	if t.LoadFromCertPool.LoadPrivateClientCACerts {
 		clientCAs = append(clientCAs, t.CertPool.GetPrivateClientCACerts()...)
 	}
 	return clientCAs, nil
@@ -103,21 +149,11 @@ func (t *TLSConfig) GetClientCAs() ([]*x509.Certificate, error) {
 func (t *TLSConfig) Apply() (*tls.Config, error) {
 	config := new(tls.Config)
 	// set certificates
-	l := len(t.Certificates)
-	if l != 0 {
-		config.Certificates = make([]tls.Certificate, l)
-		for i := 0; i < l; i++ {
-			c := []byte(t.Certificates[i].Cert)
-			k := []byte(t.Certificates[i].Key)
-			tlsCert, err := tls.X509KeyPair(c, k)
-			if err != nil {
-				return nil, t.error(err)
-			}
-			security.CoverBytes(c)
-			security.CoverBytes(k)
-			config.Certificates[i] = tlsCert
-		}
+	certs, err := t.GetCertificates()
+	if err != nil {
+		return nil, t.error(err)
 	}
+	config.Certificates = certs
 	// set Root CAs
 	if t.InsecureLoadFromSystem {
 		var err error
@@ -143,15 +179,12 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 	if err != nil {
 		return nil, t.error(err)
 	}
-	l = len(clientCAs)
-	if l > 0 {
-		config.ClientCAs = x509.NewCertPool()
-		for i := 0; i < l; i++ {
-			config.ClientCAs.AddCert(clientCAs[i])
-		}
+	config.ClientCAs = x509.NewCertPool()
+	for i := 0; i < len(clientCAs); i++ {
+		config.ClientCAs.AddCert(clientCAs[i])
 	}
 	// set next protocols
-	l = len(t.NextProtos)
+	l := len(t.NextProtos)
 	if l > 0 {
 		config.NextProtos = make([]string, len(t.NextProtos))
 		copy(config.NextProtos, t.NextProtos)

@@ -162,8 +162,7 @@ func (server *server) addListener(l *messages.Listener) (*xnet.Listener, error) 
 		return errors.WithMessagef(err, "failed to add listener %s", l.Tag)
 	}
 	// disable client certificates
-	l.TLSConfig.LoadFromCertPool.SkipPublicClientCerts = true
-	l.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = false
+	l.TLSConfig.ServerSide = true
 	// apply tls config
 	tlsConfig, err := l.TLSConfig.Apply()
 	if err != nil {

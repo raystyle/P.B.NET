@@ -122,7 +122,7 @@ func benchmarkBytesEqual(b *testing.B, size int) {
 
 func testAll() bool {
 	// change flag in IDE for test all
-	if true {
+	if false {
 		return true
 	}
 	return os.Getenv("test-all") == "true"

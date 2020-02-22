@@ -20,7 +20,7 @@ func TestTLSDefault(t *testing.T) {
 
 	require.Nil(t, config.Certificates)
 	require.Equal(t, 0, len(config.RootCAs.Subjects()))
-	require.Nil(t, config.ClientCAs)
+	require.NotNil(t, config.ClientCAs)
 	require.Equal(t, tls.ClientAuthType(0), config.ClientAuth)
 	require.Equal(t, "", config.ServerName)
 	require.Nil(t, config.NextProtos)
