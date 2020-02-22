@@ -1,0 +1,13 @@
+package x509
+
+// Certs is used to get all certificates in the pool.
+func (s *CertPool) Certs() []*Certificate {
+	l := len(s.certs)
+	certs := make([]*Certificate, l)
+	for i := 0; i < l; i++ {
+		raw := make([]byte, len(s.certs[i].Raw))
+		copy(raw, s.certs[i].Raw)
+		certs[i], _ = ParseCertificate(raw)
+	}
+	return certs
+}
