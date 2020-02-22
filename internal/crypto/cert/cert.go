@@ -171,20 +171,24 @@ func checkChar(c byte, last byte, nonNumeric *bool, partLen *int, ok *bool) {
 }
 
 func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
-	if algorithm == "" {
+	switch algorithm {
+	case "":
 		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
 			return nil, nil, err
 		}
 		return privateKey, &privateKey.PublicKey, nil
-	}
-	if algorithm == "ed25519" {
+	case "ed25519":
 		publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
 			return nil, nil, err
 		}
 		return privateKey, publicKey, nil
 	}
+	return generatePrivateKeyAboutRSAAndECDSA(algorithm)
+}
+
+func generatePrivateKeyAboutRSAAndECDSA(algorithm string) (interface{}, interface{}, error) {
 	configs := strings.Split(algorithm, "|")
 	if len(configs) != 2 {
 		return nil, nil, fmt.Errorf("invalid algorithm configs: %s", algorithm)

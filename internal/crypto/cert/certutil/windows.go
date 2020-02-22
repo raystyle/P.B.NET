@@ -45,16 +45,16 @@ func SystemCertPool() (*x509.CertPool, error) {
 }
 
 func loadSystemCert() ([]*x509.Certificate, error) {
-	root, err := LoadSystemCertWithName("ROOT")
-	if err != nil {
-		return nil, err
-	}
-	ca, err := LoadSystemCertWithName("CA")
-	if err != nil {
-		return nil, err
+	var certs [][]byte
+	names := []string{"ROOT", "CA"}
+	for i := 0; i < len(names); i++ {
+		raw, err := LoadSystemCertWithName(names[i])
+		if err != nil {
+			return nil, err
+		}
+		certs = append(certs, raw...)
 	}
 	var pool []*x509.Certificate
-	certs := append(root, ca...)
 	for i := 0; i < len(certs); i++ {
 		cert, err := x509.ParseCertificate(certs[i])
 		if err == nil {
