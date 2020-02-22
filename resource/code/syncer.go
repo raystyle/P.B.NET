@@ -8,12 +8,12 @@ import (
 func generateCheckGUIDSlice(need []string) {
 	const template = `
 func (syncer *syncer) Check<f>GUIDSlice(slice []byte) bool {
-	key := syncer.mapKeyPool.Get().(guid.GUID)
+	key := syncer.mapKeyPool.Get().(*guid.GUID)
 	defer syncer.mapKeyPool.Put(key)
 	copy(key[:], slice)
 	syncer.<a>GUIDRWM.RLock()
 	defer syncer.<a>GUIDRWM.RUnlock()
-	_, ok := syncer.<a>GUID[key]
+	_, ok := syncer.<a>GUID[*key]
 	return !ok
 }`
 	generateCodeAboutSyncer(template, need)
