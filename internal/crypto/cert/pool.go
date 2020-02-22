@@ -21,7 +21,10 @@ type pair struct {
 func (p *pair) ToPair() *Pair {
 	pkcs8 := p.PrivateKey.Get()
 	defer p.PrivateKey.Put(pkcs8)
-	pri, _ := x509.ParsePKCS8PrivateKey(pkcs8)
+	pri, err := x509.ParsePKCS8PrivateKey(pkcs8)
+	if err != nil {
+		panic(err)
+	}
 	return &Pair{
 		Certificate: p.Certificate,
 		PrivateKey:  pri,
@@ -81,7 +84,10 @@ func (p *Pool) AddPublicRootCACert(cert *x509.Certificate) error {
 	// must copy
 	raw := make([]byte, len(cert.Raw))
 	copy(raw, cert.Raw)
-	certCopy, _ := x509.ParseCertificate(raw)
+	certCopy, err := x509.ParseCertificate(raw)
+	if err != nil {
+		return err
+	}
 	p.publicRootCACerts = append(p.publicRootCACerts, certCopy)
 	return nil
 }
@@ -96,7 +102,10 @@ func (p *Pool) AddPublicClientCACert(cert *x509.Certificate) error {
 	// must copy
 	raw := make([]byte, len(cert.Raw))
 	copy(raw, cert.Raw)
-	certCopy, _ := x509.ParseCertificate(raw)
+	certCopy, err := x509.ParseCertificate(raw)
+	if err != nil {
+		return err
+	}
 	p.publicClientCACerts = append(p.publicClientCACerts, certCopy)
 	return nil
 }
@@ -114,8 +123,14 @@ func (p *Pool) AddPublicClientCert(cert *x509.Certificate, pri interface{}) erro
 	// must copy
 	raw := make([]byte, len(cert.Raw))
 	copy(raw, cert.Raw)
-	certCopy, _ := x509.ParseCertificate(raw)
-	priBytes, _ := x509.MarshalPKCS8PrivateKey(pri)
+	certCopy, err := x509.ParseCertificate(raw)
+	if err != nil {
+		return err
+	}
+	priBytes, err := x509.MarshalPKCS8PrivateKey(pri)
+	if err != nil {
+		return err
+	}
 	pair := pair{
 		Certificate: certCopy,
 		PrivateKey:  security.NewBytes(priBytes),
@@ -139,10 +154,16 @@ func (p *Pool) AddPrivateRootCACert(cert *x509.Certificate, pri interface{}) err
 	// must copy
 	raw := make([]byte, len(cert.Raw))
 	copy(raw, cert.Raw)
-	certCopy, _ := x509.ParseCertificate(raw)
+	certCopy, err := x509.ParseCertificate(raw)
+	if err != nil {
+		return err
+	}
 	pair := pair{Certificate: certCopy}
 	if pri != nil {
-		priBytes, _ := x509.MarshalPKCS8PrivateKey(pri)
+		priBytes, err := x509.MarshalPKCS8PrivateKey(pri)
+		if err != nil {
+			return err
+		}
 		pair.PrivateKey = security.NewBytes(priBytes)
 	}
 	p.privateRootCACerts = append(p.privateRootCACerts, &pair)
@@ -164,10 +185,16 @@ func (p *Pool) AddPrivateClientCACert(cert *x509.Certificate, pri interface{}) e
 	// must copy
 	raw := make([]byte, len(cert.Raw))
 	copy(raw, cert.Raw)
-	certCopy, _ := x509.ParseCertificate(raw)
+	certCopy, err := x509.ParseCertificate(raw)
+	if err != nil {
+		return err
+	}
 	pair := pair{Certificate: certCopy}
 	if pri != nil {
-		priBytes, _ := x509.MarshalPKCS8PrivateKey(pri)
+		priBytes, err := x509.MarshalPKCS8PrivateKey(pri)
+		if err != nil {
+			return err
+		}
 		pair.PrivateKey = security.NewBytes(priBytes)
 	}
 	p.privateClientCACerts = append(p.privateClientCACerts, &pair)
@@ -187,8 +214,14 @@ func (p *Pool) AddPrivateClientCert(cert *x509.Certificate, pri interface{}) err
 	// must copy
 	raw := make([]byte, len(cert.Raw))
 	copy(raw, cert.Raw)
-	certCopy, _ := x509.ParseCertificate(raw)
-	priBytes, _ := x509.MarshalPKCS8PrivateKey(pri)
+	certCopy, err := x509.ParseCertificate(raw)
+	if err != nil {
+		return err
+	}
+	priBytes, err := x509.MarshalPKCS8PrivateKey(pri)
+	if err != nil {
+		return err
+	}
 	pair := pair{
 		Certificate: certCopy,
 		PrivateKey:  security.NewBytes(priBytes),

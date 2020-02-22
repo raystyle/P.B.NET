@@ -1,11 +1,25 @@
 package cert
 
 import (
+	"crypto/x509"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
+	"project/internal/security"
 )
+
+func TestPair_ToPair(t *testing.T) {
+	defer func() {
+		require.NotNil(t, recover())
+	}()
+	pair := pair{
+		PrivateKey: security.NewBytes(make([]byte, 1024)),
+	}
+	pair.ToPair()
+}
 
 func testGenerateCert(t *testing.T) *Pair {
 	pair, err := GenerateCA(nil)
@@ -60,6 +74,13 @@ func TestPool(t *testing.T) {
 			}
 			testRunParallel(add, get)
 		})
+
+		t.Run("invalid certificate", func(t *testing.T) {
+			cert := new(x509.Certificate)
+			cert.Raw = make([]byte, 1024)
+			err := pool.AddPublicRootCACert(cert)
+			require.Error(t, err)
+		})
 	})
 
 	t.Run("PublicClientCACert", func(t *testing.T) {
@@ -88,6 +109,13 @@ func TestPool(t *testing.T) {
 				pool.GetPublicClientCACerts()
 			}
 			testRunParallel(add, get)
+		})
+
+		t.Run("invalid certificate", func(t *testing.T) {
+			cert := new(x509.Certificate)
+			cert.Raw = make([]byte, 1024)
+			err := pool.AddPublicClientCACert(cert)
+			require.Error(t, err)
 		})
 	})
 
@@ -119,6 +147,24 @@ func TestPool(t *testing.T) {
 				pool.GetPublicClientPairs()
 			}
 			testRunParallel(add, get)
+		})
+
+		t.Run("invalid certificate", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			pair.Certificate.Raw = make([]byte, 1024)
+			err := pool.AddPublicClientCert(pair.Certificate, pair.PrivateKey)
+			require.Error(t, err)
+		})
+
+		t.Run("invalid private key", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			patchFunc := func(_ interface{}) ([]byte, error) {
+				return nil, monkey.ErrMonkey
+			}
+			pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
+			defer pg.Unpatch()
+			err := pool.AddPublicClientCert(pair.Certificate, pair.PrivateKey)
+			monkey.IsMonkeyError(t, err)
 		})
 	})
 
@@ -159,6 +205,24 @@ func TestPool(t *testing.T) {
 			}
 			testRunParallel(add, getCerts, getPairs)
 		})
+
+		t.Run("invalid certificate", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			pair.Certificate.Raw = make([]byte, 1024)
+			err := pool.AddPrivateRootCACert(pair.Certificate, pair.PrivateKey)
+			require.Error(t, err)
+		})
+
+		t.Run("invalid private key", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			patchFunc := func(_ interface{}) ([]byte, error) {
+				return nil, monkey.ErrMonkey
+			}
+			pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
+			defer pg.Unpatch()
+			err := pool.AddPrivateRootCACert(pair.Certificate, pair.PrivateKey)
+			monkey.IsMonkeyError(t, err)
+		})
 	})
 
 	t.Run("PrivateClientCACert", func(t *testing.T) {
@@ -198,6 +262,24 @@ func TestPool(t *testing.T) {
 			}
 			testRunParallel(add, getCerts, getPairs)
 		})
+
+		t.Run("invalid certificate", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			pair.Certificate.Raw = make([]byte, 1024)
+			err := pool.AddPrivateClientCACert(pair.Certificate, pair.PrivateKey)
+			require.Error(t, err)
+		})
+
+		t.Run("invalid private key", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			patchFunc := func(_ interface{}) ([]byte, error) {
+				return nil, monkey.ErrMonkey
+			}
+			pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
+			defer pg.Unpatch()
+			err := pool.AddPrivateClientCACert(pair.Certificate, pair.PrivateKey)
+			monkey.IsMonkeyError(t, err)
+		})
 	})
 
 	t.Run("PrivateClientCert", func(t *testing.T) {
@@ -228,6 +310,24 @@ func TestPool(t *testing.T) {
 				pool.GetPrivateClientPairs()
 			}
 			testRunParallel(add, get)
+		})
+
+		t.Run("invalid certificate", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			pair.Certificate.Raw = make([]byte, 1024)
+			err := pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
+			require.Error(t, err)
+		})
+
+		t.Run("invalid private key", func(t *testing.T) {
+			pair := testGenerateCert(t)
+			patchFunc := func(_ interface{}) ([]byte, error) {
+				return nil, monkey.ErrMonkey
+			}
+			pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
+			defer pg.Unpatch()
+			err := pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
+			monkey.IsMonkeyError(t, err)
 		})
 	})
 }

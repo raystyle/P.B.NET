@@ -176,8 +176,7 @@ func generatePrivateKey(algorithm string) (interface{}, interface{}, error) {
 		return privateKey, &privateKey.PublicKey, nil
 	}
 	if algorithm == "ed25519" {
-		publicKey, privateKey, _ := ed25519.GenerateKey(rand.Reader)
-		return privateKey, publicKey, nil
+		return ed25519.GenerateKey(rand.Reader)
 	}
 	configs := strings.Split(algorithm, "|")
 	if len(configs) != 2 {
