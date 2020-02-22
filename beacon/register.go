@@ -3,6 +3,7 @@ package beacon
 import (
 	"context"
 	"io"
+	"log"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"project/internal/security"
 	"project/internal/xnet"
 	"project/internal/xnet/xnetutil"
+	"project/internal/xpanic"
 )
 
 type register struct {
@@ -146,9 +148,9 @@ func (register *register) loadBootstraps(boot, key []byte, single bool) error {
 	return nil
 }
 
-func (register *register) logf(lv logger.Level, format string, log ...interface{}) {
-	register.ctx.logger.Printf(lv, "register", format, log...)
-}
+// func (register *register) logf(lv logger.Level, format string, log ...interface{}) {
+// 	register.ctx.logger.Printf(lv, "register", format, log...)
+// }
 
 func (register *register) log(lv logger.Level, log ...interface{}) {
 	register.ctx.logger.Println(lv, "register", log...)
@@ -299,7 +301,9 @@ func (register *register) register(listener *bootstrap.Listener) error {
 	wg.Add(1)
 	go func() {
 		defer func() {
-			recover()
+			if r := recover(); r != nil {
+				log.Println(xpanic.Print(r, "register.register"))
+			}
 			wg.Done()
 		}()
 		select {

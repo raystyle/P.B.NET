@@ -20,7 +20,9 @@ import (
 // Config contains configuration about Beacon,
 // use extra msgpack tag to hide raw field name.
 type Config struct {
-	Test Test `toml:"-" msgpack:"-"`
+	Test struct {
+		SkipSynchronizeTime bool
+	} `toml:"-" msgpack:"-"`
 
 	Logger struct {
 		Level     string `toml:"level"      msgpack:"a"`

@@ -56,13 +56,14 @@ func (h *handler) log(lv logger.Level, log ...interface{}) {
 // spew output...
 //
 // first log interface must be *protocol.Answer
-func (h *handler) logfWithInfo(lv logger.Level, format string, log ...interface{}) {
-	buf := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(buf, format, log[1:]...)
-	buf.WriteString("\n")
-	spew.Fdump(buf, log[0])
-	h.ctx.logger.Print(lv, "handler", buf)
-}
+
+// func (h *handler) logfWithInfo(lv logger.Level, format string, log ...interface{}) {
+// 	buf := new(bytes.Buffer)
+// 	_, _ = fmt.Fprintf(buf, format, log[1:]...)
+// 	buf.WriteString("\n")
+// 	spew.Fdump(buf, log[0])
+// 	h.ctx.logger.Print(lv, "handler", buf)
+// }
 
 // logWithInfo will print log with role GUID and message
 // [2020-01-30 15:13:07] [info] <handler> foo log

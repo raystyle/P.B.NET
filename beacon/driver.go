@@ -117,9 +117,9 @@ func (driver *driver) DeleteNodeListener(guid *guid.GUID, index uint64) error {
 	return errors.New("node listener doesn't exist")
 }
 
-func (driver *driver) logf(lv logger.Level, format string, log ...interface{}) {
-	driver.ctx.logger.Printf(lv, "driver", format, log...)
-}
+// func (driver *driver) logf(lv logger.Level, format string, log ...interface{}) {
+// 	driver.ctx.logger.Printf(lv, "driver", format, log...)
+// }
 
 func (driver *driver) log(lv logger.Level, log ...interface{}) {
 	driver.ctx.logger.Println(lv, "driver", log...)

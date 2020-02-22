@@ -33,8 +33,9 @@ type Beacon struct {
 // New is used to create a Beacon from configuration.
 func New(cfg *Config) (*Beacon, error) {
 	// copy test
-	test := cfg.Test
-	beacon := &Beacon{Test: &test}
+	test := new(Test)
+	test.options = cfg.Test
+	beacon := &Beacon{Test: test}
 	// logger
 	lg, err := newLogger(beacon, cfg)
 	if err != nil {
@@ -108,7 +109,7 @@ func (beacon *Beacon) Main() error {
 	// start log sender
 	beacon.logger.StartSender()
 	// synchronize time
-	if beacon.Test.SkipSynchronizeTime {
+	if beacon.Test.options.SkipSynchronizeTime {
 		beacon.global.StartTimeSyncerWalker()
 	} else {
 		err := beacon.global.StartTimeSyncer()
