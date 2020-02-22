@@ -37,8 +37,9 @@ type Ctrl struct {
 // New is used to create controller from configuration.
 func New(cfg *Config) (*Ctrl, error) {
 	// copy test
-	test := cfg.Test
-	ctrl := &Ctrl{Test: &test}
+	test := new(Test)
+	test.options = cfg.Test
+	ctrl := &Ctrl{Test: test}
 	// logger
 	lg, err := newLogger(ctrl, cfg)
 	if err != nil {
@@ -113,7 +114,7 @@ func (ctrl *Ctrl) fatal(err error, msg string) error {
 func (ctrl *Ctrl) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// synchronize time
-	if ctrl.Test.SkipSynchronizeTime {
+	if ctrl.Test.options.SkipSynchronizeTime {
 		ctrl.global.StartTimeSyncerAddLoop()
 	} else {
 		err := ctrl.global.StartTimeSyncer()
@@ -122,7 +123,7 @@ func (ctrl *Ctrl) Main() error {
 		}
 	}
 	// test client DNS option
-	if !ctrl.Test.SkipTestClientDNS {
+	if !ctrl.Test.options.SkipTestClientDNS {
 		err := ctrl.global.TestDNSOption(ctrl.clientMgr.GetDNSOptions())
 		if err != nil {
 			return errors.WithMessage(err, "failed to test client DNS option")

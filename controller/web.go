@@ -187,9 +187,9 @@ func (wh *webHandler) Close() {
 	wh.ctx = nil
 }
 
-func (wh *webHandler) logf(lv logger.Level, format string, log ...interface{}) {
-	wh.ctx.logger.Printf(lv, "web", format, log...)
-}
+// func (wh *webHandler) logf(lv logger.Level, format string, log ...interface{}) {
+// 	wh.ctx.logger.Printf(lv, "web", format, log...)
+// }
 
 func (wh *webHandler) log(lv logger.Level, log ...interface{}) {
 	wh.ctx.logger.Println(lv, "web", log...)

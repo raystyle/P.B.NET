@@ -10,11 +10,12 @@ import (
 	"project/internal/messages"
 )
 
-// Test contains all test data
+// Test contains all test data.
 type Test struct {
-	// about Ctrl.Main()
-	SkipTestClientDNS   bool
-	SkipSynchronizeTime bool
+	options struct {
+		SkipTestClientDNS   bool
+		SkipSynchronizeTime bool
+	}
 
 	// about sender send test message
 	roleSendTestMsgEnabled    bool

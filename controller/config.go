@@ -16,7 +16,10 @@ import (
 
 // Config include configuration about Controller
 type Config struct {
-	Test Test `toml:"-"`
+	Test struct {
+		SkipTestClientDNS   bool
+		SkipSynchronizeTime bool
+	} `toml:"-"`
 
 	Database struct {
 		Dialect         string    `toml:"dialect"` // "mysql"

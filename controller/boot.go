@@ -41,21 +41,19 @@ func (boot *boot) Add(m *mBoot) error {
 		return errors.Errorf("boot %s is running", m.Tag)
 	}
 	// load bootstrap
-	g := boot.ctx.global
-	ctx, cancel := context.WithCancel(context.Background())
-	b, err := bootstrap.Load(ctx, m.Mode, []byte(m.Config), g.ProxyPool, g.DNSClient)
-	if err != nil {
-		return errors.Wrapf(err, "failed to load bootstrap %s", m.Tag)
-	}
 	bc := bootClient{
 		ctx:      boot,
 		tag:      m.Tag,
 		interval: time.Duration(m.Interval) * time.Second,
 		logSrc:   "boot-" + m.Tag,
-		boot:     b,
-		context:  ctx,
-		cancel:   cancel,
 	}
+	bc.context, bc.cancel = context.WithCancel(context.Background())
+	g := boot.ctx.global
+	b, err := bootstrap.Load(bc.context, m.Mode, []byte(m.Config), g.ProxyPool, g.DNSClient)
+	if err != nil {
+		return errors.Wrapf(err, "failed to load bootstrap %s", m.Tag)
+	}
+	bc.boot = b
 	boot.clients[m.Tag] = &bc
 	bc.Boot()
 	return nil
@@ -118,6 +116,7 @@ func (bc *bootClient) Stop() {
 	bc.closeOnce.Do(func() {
 		bc.cancel()
 		bc.wg.Wait()
+		bc.boot = nil
 	})
 }
 

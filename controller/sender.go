@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"hash"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -274,9 +275,9 @@ func (sender *sender) isClosed() bool {
 	return atomic.LoadInt32(&sender.inClose) != 0
 }
 
-func (sender *sender) logf(lv logger.Level, format string, log ...interface{}) {
-	sender.ctx.logger.Printf(lv, "sender", format, log...)
-}
+// func (sender *sender) logf(lv logger.Level, format string, log ...interface{}) {
+// 	sender.ctx.logger.Printf(lv, "sender", format, log...)
+// }
 
 func (sender *sender) log(lv logger.Level, log ...interface{}) {
 	sender.ctx.logger.Println(lv, "sender", log...)
@@ -319,7 +320,9 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	wg.Add(1)
 	go func() {
 		defer func() {
-			recover()
+			if r := recover(); r != nil {
+				log.Println(xpanic.Print(r, "sender.Synchronize"))
+			}
 			wg.Done()
 		}()
 		select {
