@@ -52,6 +52,8 @@ func Unmarshal(data []byte, v interface{}) error {
 		if strings.Contains(errStr, "unknown field") {
 			name := reflect.TypeOf(v).String()
 			return fmt.Errorf("%s in %s", errStr, name)
+		} else {
+			return err
 		}
 	}
 	return nil

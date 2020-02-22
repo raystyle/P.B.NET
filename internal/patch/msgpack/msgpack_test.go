@@ -30,6 +30,9 @@ func TestMsgpack(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, a, b)
 
+	err = Unmarshal(nil, b)
+	require.Error(t, err)
+
 	_, err = Marshal(func() {})
 	require.Error(t, err)
 }

@@ -109,6 +109,7 @@ func TLSConfigOptionPair(t testing.TB) (server, client option.TLSConfig) {
 		},
 	}
 	server.ClientAuth = tls.RequireAndVerifyClientCert
+	server.ServerSide = true
 	client.RootCAs = []string{caPEMBlock}
 
 	// certificates about client
