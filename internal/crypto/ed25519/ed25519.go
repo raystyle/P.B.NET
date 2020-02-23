@@ -23,20 +23,20 @@ var (
 	ErrInvalidPublicKey  = errors.New("invalid public key size")
 )
 
-// PublicKey is the ed25519 public key
+// PublicKey is the ed25519 public key.
 type PublicKey []byte
 
-// PrivateKey is the ed25519 private key
+// PrivateKey is the ed25519 private key.
 type PrivateKey []byte
 
-// PublicKey is used to get the public key of the private key
+// PublicKey is used to get the public key of the private key.
 func (p PrivateKey) PublicKey() PublicKey {
 	publicKey := make([]byte, PublicKeySize)
 	copy(publicKey, p[32:])
 	return publicKey
 }
 
-// GenerateKey is used to generate private key
+// GenerateKey is used to generate private key.
 func GenerateKey() (PrivateKey, error) {
 	seed := make([]byte, SeedSize)
 	_, err := io.ReadFull(rand.Reader, seed)
@@ -48,7 +48,7 @@ func GenerateKey() (PrivateKey, error) {
 
 // NewKeyFromSeed calculates a private key from a seed. It will panic if
 // len(seed) is not SeedSize. This function is provided for interoperability
-// with RFC 8032. RFC 8032's private keys correspond to seeds in this package
+// with RFC 8032. RFC 8032's private keys correspond to seeds in this package.
 func NewKeyFromSeed(seed []byte) PrivateKey {
 	privateKey := ed25519.NewKeyFromSeed(seed)
 	p := make([]byte, PrivateKeySize)
@@ -56,7 +56,7 @@ func NewKeyFromSeed(seed []byte) PrivateKey {
 	return p
 }
 
-// ImportPrivateKey is used to import private key from bytes
+// ImportPrivateKey is used to import private key from bytes.
 func ImportPrivateKey(key []byte) (PrivateKey, error) {
 	if len(key) != PrivateKeySize {
 		return nil, ErrInvalidPrivateKey
@@ -66,7 +66,7 @@ func ImportPrivateKey(key []byte) (PrivateKey, error) {
 	return pri, nil
 }
 
-// ImportPublicKey is used to import public key from bytes
+// ImportPublicKey is used to import public key from bytes.
 func ImportPublicKey(key []byte) (PublicKey, error) {
 	if len(key) != PublicKeySize {
 		return nil, ErrInvalidPublicKey
@@ -77,7 +77,7 @@ func ImportPublicKey(key []byte) (PublicKey, error) {
 }
 
 // Sign signs the message with privateKey and returns a signature
-// It will panic if len(privateKey) is not PrivateKeySize
+// It will panic if len(privateKey) is not PrivateKeySize.
 func Sign(p PrivateKey, message []byte) []byte {
 	return ed25519.Sign(ed25519.PrivateKey(p), message)
 }
