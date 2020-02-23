@@ -5,6 +5,7 @@ go 1.14
 require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
 	github.com/bouk/monkey v1.0.1
+	github.com/BurntSushi/toml v0.3.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gorilla/csrf v1.6.2

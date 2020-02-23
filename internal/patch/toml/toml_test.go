@@ -3,16 +3,19 @@ package toml
 import (
 	"testing"
 
+	"github.com/pelletier/go-toml"
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
 )
 
 type testStructRoot struct {
-	Foo  int
-	Leaf *TestStructLeaf
-	Asd  []*TestStructLeaf
+	Foo   int
+	Leaf  *testStructLeaf
+	Slice []*testStructLeaf
 }
 
-type TestStructLeaf struct {
+type testStructLeaf struct {
 	Bar int
 }
 
@@ -28,6 +31,7 @@ func TestUnmarshal(t *testing.T) {
 	test := testStructRoot{}
 	data := []byte(`
       Foo = 1
+      
       [Leaf]
         Bar = 2
 `)
@@ -39,4 +43,28 @@ func TestUnmarshal(t *testing.T) {
 
 	err = Unmarshal([]byte{0x00}, &test)
 	require.Error(t, err)
+
+	patchFunc := func(_ []byte) (*toml.Tree, error) {
+		return nil, monkey.ErrMonkey
+	}
+	pg := monkey.Patch(toml.LoadBytes, patchFunc)
+	defer pg.Unpatch()
+	err = Unmarshal(data, &test)
+	errStr := monkey.ErrMonkey.Error() + " in *toml.testStructRoot"
+	require.EqualError(t, err, errStr)
+}
+
+func TestUnmarshalWithUnknownField(t *testing.T) {
+	a := testStructRoot{
+		Foo: 1,
+	}
+	a.Leaf = new(testStructLeaf)
+	a.Leaf.Bar = 2
+	data, err := Marshal(&a)
+	require.NoError(t, err)
+
+	b := new(testStructLeaf)
+	err = Unmarshal(data, b)
+	errStr := "toml: Foo not apply to *toml.testStructLeaf"
+	require.EqualError(t, err, errStr)
 }
