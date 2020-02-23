@@ -1,6 +1,7 @@
 package testcert
 
 import (
+	"crypto/x509"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,14 +10,26 @@ import (
 	"project/internal/crypto/cert/certutil"
 )
 
+// certificates from system.
+var (
+	systemCerts     []*x509.Certificate
+	PublicRootCANum int
+)
+
 // the number of the generated certificates.
 const (
 	PublicClientCANum    = 2
 	PublicClientCertNum  = 4
-	PrivateRootCANum     = 2
-	PrivateClientCANum   = 2
-	PrivateClientCertNum = 4
+	PrivateRootCANum     = 3
+	PrivateClientCANum   = 6
+	PrivateClientCertNum = 5
 )
+
+func init() {
+	systemCertPool, _ := certutil.SystemCertPool()
+	systemCerts = systemCertPool.Certs()
+	PublicRootCANum = len(systemCerts)
+}
 
 // CertPool is used to create a certificate pool for test.
 func CertPool(t *testing.T) *cert.Pool {
@@ -29,18 +42,16 @@ func CertPool(t *testing.T) *cert.Pool {
 }
 
 func addPublicRootCACerts(t *testing.T, pool *cert.Pool) {
-	systemCertPool, err := certutil.SystemCertPool()
-	require.NoError(t, err)
-	certs := systemCertPool.Certs()
-	for i := 0; i < len(certs); i++ {
-		err = pool.AddPublicRootCACert(certs[i])
+	for i := 0; i < PublicRootCANum; i++ {
+		err := pool.AddPublicRootCACert(systemCerts[i])
 		require.NoError(t, err)
 	}
 }
 
+var opts = &cert.Options{Algorithm: "rsa|1024"}
+
 func addPublicClientCACerts(t *testing.T, pool *cert.Pool) {
-	add := func() {
-		opts := &cert.Options{Algorithm: "rsa|1024"}
+	for i := 0; i < PublicClientCANum; i++ {
 		caPair, err := cert.GenerateCA(opts)
 		require.NoError(t, err)
 		cPair1, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
@@ -55,39 +66,32 @@ func addPublicClientCACerts(t *testing.T, pool *cert.Pool) {
 		err = pool.AddPublicClientCert(cPair2.Certificate, cPair2.PrivateKey)
 		require.NoError(t, err)
 	}
-	add()
-	add()
 }
 
 func addPrivateRootCACerts(t *testing.T, pool *cert.Pool) {
-	add := func() {
-		opts := &cert.Options{Algorithm: "rsa|1024"}
+	for i := 0; i < PrivateRootCANum; i++ {
 		caPair, err := cert.GenerateCA(opts)
 		require.NoError(t, err)
 		err = pool.AddPrivateRootCACert(caPair.Certificate, caPair.PrivateKey)
 		require.NoError(t, err)
 	}
-	add()
-	add()
 }
 
 func addPrivateClientCACerts(t *testing.T, pool *cert.Pool) {
-	add := func() {
-		opts := &cert.Options{Algorithm: "rsa|1024"}
+	caPair, err := cert.GenerateCA(opts)
+	require.NoError(t, err)
+	err = pool.AddPrivateClientCACert(caPair.Certificate, caPair.PrivateKey)
+	require.NoError(t, err)
+
+	for i := 0; i < PrivateClientCertNum; i++ {
 		caPair, err := cert.GenerateCA(opts)
 		require.NoError(t, err)
-		cPair1, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
-		require.NoError(t, err)
-		cPair2, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
+		cPair, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
 		require.NoError(t, err)
 
 		err = pool.AddPrivateClientCACert(caPair.Certificate, caPair.PrivateKey)
 		require.NoError(t, err)
-		err = pool.AddPrivateClientCert(cPair1.Certificate, cPair1.PrivateKey)
-		require.NoError(t, err)
-		err = pool.AddPrivateClientCert(cPair2.Certificate, cPair2.PrivateKey)
+		err = pool.AddPrivateClientCert(cPair.Certificate, cPair.PrivateKey)
 		require.NoError(t, err)
 	}
-	add()
-	add()
 }
