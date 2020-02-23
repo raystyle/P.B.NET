@@ -3,15 +3,14 @@ package security
 import (
 	"net/http"
 	"reflect"
+	"runtime"
 	"sync"
 	"unsafe"
 
 	"project/internal/random"
 )
 
-var (
-	memory *Memory
-)
+var memory *Memory
 
 func init() {
 	memory = NewMemory()
@@ -77,6 +76,7 @@ func CoverString(s *string) {
 		b := (*byte)(unsafe.Pointer(sh.Data + uintptr(i))) // #nosec
 		*b = 0
 	}
+	runtime.KeepAlive(s)
 }
 
 // CoverHTTPRequest is used to cover http.Request string field if has secret
