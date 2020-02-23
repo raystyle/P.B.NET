@@ -67,66 +67,42 @@ func Float64ToBytes(Float64 float64) []byte {
 
 // BytesToInt16 is used to convert bytes to int16.
 func BytesToInt16(Bytes []byte) int16 {
-	if len(Bytes) != 2 {
-		return 0
-	}
 	return int16(binary.BigEndian.Uint16(Bytes))
 }
 
 // BytesToInt32 is used to convert bytes to int32.
 func BytesToInt32(Bytes []byte) int32 {
-	if len(Bytes) != 4 {
-		return 0
-	}
 	return int32(binary.BigEndian.Uint32(Bytes))
 }
 
 // BytesToInt64 is used to convert bytes to int64.
 func BytesToInt64(Bytes []byte) int64 {
-	if len(Bytes) != 8 {
-		return 0
-	}
 	return int64(binary.BigEndian.Uint64(Bytes))
 }
 
 // BytesToUint16 is used to convert bytes to uint16.
 func BytesToUint16(Bytes []byte) uint16 {
-	if len(Bytes) != 2 {
-		return 0
-	}
 	return binary.BigEndian.Uint16(Bytes)
 }
 
 // BytesToUint32 is used to convert bytes to uint32.
 func BytesToUint32(Bytes []byte) uint32 {
-	if len(Bytes) != 4 {
-		return 0
-	}
 	return binary.BigEndian.Uint32(Bytes)
 }
 
 // BytesToUint64 is used to convert bytes to uint64.
 func BytesToUint64(Bytes []byte) uint64 {
-	if len(Bytes) != 8 {
-		return 0
-	}
 	return binary.BigEndian.Uint64(Bytes)
 }
 
 // BytesToFloat32 is used to convert bytes to float32.
 func BytesToFloat32(Bytes []byte) float32 {
-	if len(Bytes) != 4 {
-		return 0
-	}
 	b := binary.BigEndian.Uint32(Bytes)
 	return *(*float32)(unsafe.Pointer(&b)) // #nosec
 }
 
 // BytesToFloat64 is used to convert bytes to float64.
 func BytesToFloat64(Bytes []byte) float64 {
-	if len(Bytes) != 8 {
-		return 0
-	}
 	b := binary.BigEndian.Uint64(Bytes)
 	return *(*float64)(unsafe.Pointer(&b)) // #nosec
 }
