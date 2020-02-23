@@ -1,6 +1,7 @@
 package toml
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/pelletier/go-toml"
@@ -50,7 +51,7 @@ func TestUnmarshal(t *testing.T) {
 	pg := monkey.Patch(toml.LoadBytes, patchFunc)
 	defer pg.Unpatch()
 	err = Unmarshal(data, &test)
-	errStr := monkey.ErrMonkey.Error() + " in *toml.testStructRoot"
+	errStr := fmt.Sprintf("toml: %s in *toml.testStructRoot", monkey.ErrMonkey)
 	require.EqualError(t, err, errStr)
 }
 

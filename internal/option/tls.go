@@ -12,7 +12,7 @@ import (
 
 // TLSConfig contains options about tls.Config.
 type TLSConfig struct {
-	// add certs manually for this config
+	// add certificates manually for this TLSConfig
 	Certificates []X509KeyPair `toml:"certificates"`
 	RootCAs      []string      `toml:"root_ca"`   // PEM
 	ClientCAs    []string      `toml:"client_ca"` // PEM
@@ -24,12 +24,7 @@ type TLSConfig struct {
 	MaxVersion   uint16             `toml:"max_version"`
 	CipherSuites []uint16           `toml:"cipher_suites"`
 
-	InsecureLoadFromSystem bool `toml:"insecure_load_from_system"`
-
-	// listener need set true
-	ServerSide bool `toml:"-"`
-
-	// add certs from certificate pool manually
+	// add certificates from certificate pool manually
 	CertPool         *cert.Pool `toml:"-"`
 	LoadFromCertPool struct {
 		// public will be load automatically
@@ -42,6 +37,9 @@ type TLSConfig struct {
 		LoadPrivateClientCACerts bool `toml:"load_private_client_ca_certs"`
 		LoadPrivateClientCerts   bool `toml:"load_private_client_certs"`
 	} `toml:"cert_pool"`
+
+	// listener need set true
+	ServerSide bool `toml:"-"`
 }
 
 // X509KeyPair include certificate and private key.
@@ -155,22 +153,11 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 	}
 	config.Certificates = certs
 	// set Root CAs
-	if t.InsecureLoadFromSystem {
-		var err error
-		config.RootCAs, err = certutil.SystemCertPool()
-		if err != nil {
-			return nil, t.error(err)
-		}
-	}
-	// <security> force create new certificate pool
-	// that not use system certificates
-	if config.RootCAs == nil {
-		config.RootCAs = x509.NewCertPool()
-	}
 	rootCAs, err := t.GetRootCAs()
 	if err != nil {
 		return nil, t.error(err)
 	}
+	config.RootCAs = x509.NewCertPool()
 	for i := 0; i < len(rootCAs); i++ {
 		config.RootCAs.AddCert(rootCAs[i])
 	}
