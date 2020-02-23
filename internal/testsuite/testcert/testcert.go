@@ -9,6 +9,15 @@ import (
 	"project/internal/crypto/cert/certutil"
 )
 
+// the number of the generated certificates.
+const (
+	PublicClientCANum    = 2
+	PublicClientCertNum  = 4
+	PrivateRootCANum     = 2
+	PrivateClientCANum   = 2
+	PrivateClientCertNum = 4
+)
+
 // CertPool is used to create a certificate pool for test.
 func CertPool(t *testing.T) *cert.Pool {
 	pool := cert.NewPool()
@@ -31,11 +40,12 @@ func addPublicRootCACerts(t *testing.T, pool *cert.Pool) {
 
 func addPublicClientCACerts(t *testing.T, pool *cert.Pool) {
 	add := func() {
-		caPair, err := cert.GenerateCA(nil)
+		opts := &cert.Options{Algorithm: "rsa|1024"}
+		caPair, err := cert.GenerateCA(opts)
 		require.NoError(t, err)
-		cPair1, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, nil)
+		cPair1, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
 		require.NoError(t, err)
-		cPair2, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, nil)
+		cPair2, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
 		require.NoError(t, err)
 
 		err = pool.AddPublicClientCACert(caPair.Certificate)
@@ -51,7 +61,8 @@ func addPublicClientCACerts(t *testing.T, pool *cert.Pool) {
 
 func addPrivateRootCACerts(t *testing.T, pool *cert.Pool) {
 	add := func() {
-		caPair, err := cert.GenerateCA(nil)
+		opts := &cert.Options{Algorithm: "rsa|1024"}
+		caPair, err := cert.GenerateCA(opts)
 		require.NoError(t, err)
 		err = pool.AddPrivateRootCACert(caPair.Certificate, caPair.PrivateKey)
 		require.NoError(t, err)
@@ -62,11 +73,12 @@ func addPrivateRootCACerts(t *testing.T, pool *cert.Pool) {
 
 func addPrivateClientCACerts(t *testing.T, pool *cert.Pool) {
 	add := func() {
-		caPair, err := cert.GenerateCA(nil)
+		opts := &cert.Options{Algorithm: "rsa|1024"}
+		caPair, err := cert.GenerateCA(opts)
 		require.NoError(t, err)
-		cPair1, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, nil)
+		cPair1, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
 		require.NoError(t, err)
-		cPair2, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, nil)
+		cPair2, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
 		require.NoError(t, err)
 
 		err = pool.AddPrivateClientCACert(caPair.Certificate, caPair.PrivateKey)

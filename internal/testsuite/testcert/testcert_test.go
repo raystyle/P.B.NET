@@ -16,10 +16,10 @@ func TestCertPool(t *testing.T) {
 	certs := systemCertPool.Certs()
 	require.Equal(t, len(certs), len(pool.GetPublicRootCACerts()))
 
-	require.Equal(t, 2, len(pool.GetPublicClientCACerts()))
-	require.Equal(t, 4, len(pool.GetPublicClientPairs()))
+	require.Equal(t, PublicClientCANum, len(pool.GetPublicClientCACerts()))
+	require.Equal(t, PublicClientCertNum, len(pool.GetPublicClientPairs()))
 
-	require.Equal(t, 2, len(pool.GetPrivateRootCAPairs()))
-	require.Equal(t, 2, len(pool.GetPrivateClientCAPairs()))
-	require.Equal(t, 4, len(pool.GetPrivateClientPairs()))
+	require.Equal(t, PrivateRootCANum, len(pool.GetPrivateRootCAPairs()))
+	require.Equal(t, PrivateClientCANum, len(pool.GetPrivateClientCAPairs()))
+	require.Equal(t, PrivateClientCertNum, len(pool.GetPrivateClientPairs()))
 }
