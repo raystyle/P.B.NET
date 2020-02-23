@@ -38,25 +38,29 @@ func TestCustomResolve(t *testing.T) {
 		)
 
 		t.Run("IPv4 UDP", func(t *testing.T) {
-			result, err := resolve(ctx, MethodUDP, udpServer, testDomain, opts)
+			opts.Method = MethodUDP
+			result, err := resolve(ctx, udpServer, testDomain, opts)
 			require.NoError(t, err)
 			t.Log("UDP IPv4:", result)
 		})
 
 		t.Run("IPv4 TCP", func(t *testing.T) {
-			result, err := resolve(ctx, MethodTCP, tcpServer, testDomain, opts)
+			opts.Method = MethodTCP
+			result, err := resolve(ctx, tcpServer, testDomain, opts)
 			require.NoError(t, err)
 			t.Log("TCP IPv4:", result)
 		})
 
 		t.Run("IPv4 DoT IP mode", func(t *testing.T) {
-			result, err := resolve(ctx, MethodDoT, tlsIP, testDomain, opts)
+			opts.Method = MethodDoT
+			result, err := resolve(ctx, tlsIP, testDomain, opts)
 			require.NoError(t, err)
 			t.Log("DOT-IP IPv4:", result)
 		})
 
 		t.Run("IPv4 DoT domain mode", func(t *testing.T) {
-			result, err := resolve(ctx, MethodDoT, tlsDomain, testDomain, opts)
+			opts.Method = MethodDoT
+			result, err := resolve(ctx, tlsDomain, testDomain, opts)
 			require.NoError(t, err)
 			t.Log("DOT-Domain IPv4:", result)
 		})
@@ -71,25 +75,29 @@ func TestCustomResolve(t *testing.T) {
 		)
 
 		t.Run("IPv6 UDP", func(t *testing.T) {
-			result, err := resolve(ctx, MethodUDP, udpServer, testDomain, opts)
+			opts.Method = MethodUDP
+			result, err := resolve(ctx, udpServer, testDomain, opts)
 			require.NoError(t, err)
 			t.Log("UDP IPv6:", result)
 		})
 
 		t.Run("IPv6 TCP", func(t *testing.T) {
-			result, err := resolve(ctx, MethodTCP, tcpServer, testDomain, opts)
+			opts.Method = MethodTCP
+			result, err := resolve(ctx, tcpServer, testDomain, opts)
 			require.NoError(t, err)
 			t.Log("TCP IPv6:", result)
 		})
 
 		t.Run("IPv6 DoT IP mode", func(t *testing.T) {
-			result, err := resolve(ctx, MethodDoT, TLSip, testDomain, opts)
+			opts.Method = MethodDoT
+			result, err := resolve(ctx, TLSip, testDomain, opts)
 			require.NoError(t, err)
 			t.Log("DOT-IP IPv6:", result)
 		})
 
 		t.Run("IPv6 DoT domain mode", func(t *testing.T) {
-			result, err := resolve(ctx, MethodDoT, TLSDomain, testDomain, opts)
+			opts.Method = MethodDoT
+			result, err := resolve(ctx, TLSDomain, testDomain, opts)
 			require.NoError(t, err)
 			t.Log("DOT-Domain IPv6:", result)
 		})
@@ -97,14 +105,16 @@ func TestCustomResolve(t *testing.T) {
 
 	t.Run("DoH", func(t *testing.T) {
 		const dnsDOH = "https://cloudflare-dns.com/dns-query"
-		result, err := resolve(ctx, MethodDoH, dnsDOH, testDomain, opts)
+		opts.Method = MethodDoH
+		result, err := resolve(ctx, dnsDOH, testDomain, opts)
 		require.NoError(t, err)
 		t.Log("DOH:", result)
 	})
 
 	t.Run("failed to resolve", func(t *testing.T) {
 		opts.Timeout = time.Second
-		result, err := resolve(ctx, MethodUDP, "0.0.0.0:1", testDomain, opts)
+		opts.Method = MethodUDP
+		result, err := resolve(ctx, "0.0.0.0:1", testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 	})

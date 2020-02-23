@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/idna"
 
+	"project/internal/crypto/cert"
 	"project/internal/option"
 	"project/internal/proxy"
 	"project/internal/xnet/xnetutil"
@@ -88,7 +89,8 @@ type Options struct {
 	// network is useless for DoH
 	Network string `toml:"network"`
 
-	// about DoT
+	// about DoT <warning> only DoT, if you want to set about DoH
+	// must use Transport.TLSClientConfig.
 	TLSConfig option.TLSConfig `toml:"tls_config"`
 
 	// about DoH, set http.Request Header
@@ -122,28 +124,29 @@ func (opts *Options) Clone() *Options {
 
 // Client is a DNS client that support various DNS server.
 type Client struct {
+	certPool  *cert.Pool
 	proxyPool *proxy.Pool
 
-	expire time.Duration // cache expire time, default is 5 minute
-
-	servers    map[string]*Server // key = tag
-	serversRWM sync.RWMutex
-
+	expire      time.Duration     // cache expire time, default is 5 minute
 	enableCache atomic.Value      // usually for TestServers
 	caches      map[string]*cache // key = domain name
 	cachesRWM   sync.RWMutex
+
+	servers    map[string]*Server // key = tag
+	serversRWM sync.RWMutex
 }
 
 // NewClient is used to create a DNS client.
-func NewClient(pool *proxy.Pool) *Client {
-	c := Client{
-		proxyPool: pool,
+func NewClient(certPool *cert.Pool, proxyPool *proxy.Pool) *Client {
+	client := Client{
+		certPool:  certPool,
+		proxyPool: proxyPool,
 		expire:    defaultCacheExpireTime,
-		servers:   make(map[string]*Server),
 		caches:    make(map[string]*cache),
+		servers:   make(map[string]*Server),
 	}
-	c.EnableCache()
-	return &c
+	client.EnableCache()
+	return &client
 }
 
 // Add is used to add a DNS server.
@@ -219,6 +222,7 @@ func (c *Client) ResolveContext(ctx context.Context, domain string, opts *Option
 		case "":
 			return c.selectType(ctx, domain, opts)
 		case TypeIPv4, TypeIPv6:
+			opts := opts.Clone()
 			return c.customResolve(ctx, domain, opts)
 		default:
 			return nil, UnknownTypeError(opts.Type)
@@ -264,12 +268,20 @@ func (c *Client) selectType(ctx context.Context, domain string, opts *Options) (
 	return nil, errors.New("network unavailable")
 }
 
-func (c *Client) setProxy(method string, opts *Options) error {
+func (c *Client) setCertPoolAndProxy(opts *Options) error {
+	// set certificate pool
+	if opts.TLSConfig.CertPool == nil {
+		opts.TLSConfig.CertPool = c.certPool
+	}
+	if opts.Transport.TLSClientConfig.CertPool == nil {
+		opts.Transport.TLSClientConfig.CertPool = c.certPool
+	}
+	// set proxy client
 	p, err := c.proxyPool.Get(opts.ProxyTag)
 	if err != nil {
 		return err
 	}
-	switch method {
+	switch opts.Method {
 	case MethodUDP, MethodTCP, MethodDoT:
 		opts.dialContext = p.DialContext
 	case MethodDoH:
@@ -281,7 +293,7 @@ func (c *Client) setProxy(method string, opts *Options) error {
 		}
 		p.HTTP(opts.transport)
 	default:
-		return UnknownMethodError(method)
+		return UnknownMethodError(opts.Method)
 	}
 	return nil
 }
@@ -298,11 +310,12 @@ func (c *Client) customResolve(ctx context.Context, domain string, opts *Options
 	var result []string
 	if opts.ServerTag != "" { // use selected DNS server
 		if server, ok := c.Servers()[opts.ServerTag]; ok {
-			err := c.setProxy(server.Method, opts)
+			opts.Method = server.Method
+			err := c.setCertPoolAndProxy(opts)
 			if err != nil {
 				return nil, err
 			}
-			result, err = resolve(ctx, server.Method, server.Address, domain, opts)
+			result, err = resolve(ctx, server.Address, domain, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -310,17 +323,16 @@ func (c *Client) customResolve(ctx context.Context, domain string, opts *Options
 			return nil, errors.Errorf("dns server: %s doesn't exist", opts.ServerTag)
 		}
 	} else { // query domain name from random DNS server
-		method := opts.Method
-		if method == "" {
-			method = defaultMethod
+		if opts.Method == "" {
+			opts.Method = defaultMethod
 		}
-		err := c.setProxy(method, opts)
+		err := c.setCertPoolAndProxy(opts)
 		if err != nil {
 			return nil, err
 		}
 		for _, server := range c.Servers() {
-			if server.Method == method {
-				result, err = resolve(ctx, method, server.Address, domain, opts)
+			if server.Method == opts.Method {
+				result, err = resolve(ctx, server.Address, domain, opts)
 				if err == nil {
 					break
 				}

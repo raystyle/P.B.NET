@@ -21,7 +21,7 @@ func testUpdateCache(client *Client, domain string) {
 
 func TestClientCache(t *testing.T) {
 	// make DNS client
-	client := NewClient(nil)
+	client := NewClient(nil, nil)
 
 	// get cache expire time
 	require.Equal(t, defaultCacheExpireTime, client.GetCacheExpireTime())
@@ -58,7 +58,7 @@ func TestClientCache(t *testing.T) {
 
 func TestClientCacheAboutExpire(t *testing.T) {
 	// make DNS client
-	client := NewClient(nil)
+	client := NewClient(nil, nil)
 	client.expire = 10 * time.Millisecond
 	// query empty cache, then create it
 	result := client.queryCache(testCacheDomain, TypeIPv4)
@@ -74,7 +74,7 @@ func TestClientCacheAboutExpire(t *testing.T) {
 
 func TestClientCacheAboutType(t *testing.T) {
 	// make DNS client
-	client := NewClient(nil)
+	client := NewClient(nil, nil)
 	// query empty cache, then create it
 	result := client.queryCache(testCacheDomain, TypeIPv4)
 	require.Equal(t, 0, len(result))

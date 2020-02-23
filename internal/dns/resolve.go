@@ -28,16 +28,10 @@ const (
 // ErrNoConnection is an error of the dial
 var ErrNoConnection = fmt.Errorf("no connection")
 
-func resolve(
-	ctx context.Context,
-	method string,
-	address string,
-	domain string,
-	opts *Options,
-) ([]string, error) {
+func resolve(ctx context.Context, address, domain string, opts *Options) ([]string, error) {
 	message := packMessage(types[opts.Type], domain)
 	var err error
-	switch method {
+	switch opts.Method {
 	case MethodUDP:
 		message, err = dialUDP(ctx, address, message, opts)
 	case MethodTCP:

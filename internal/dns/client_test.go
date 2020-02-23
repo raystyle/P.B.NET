@@ -44,10 +44,11 @@ func TestClient_Resolve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pool, manager := testproxy.PoolAndManager(t)
+	certPool := testcert.CertPool(t)
+	proxyPool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	client := NewClient(pool)
+	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
 	t.Run("print DNS servers", func(t *testing.T) {
@@ -67,7 +68,6 @@ func TestClient_Resolve(t *testing.T) {
 		client.FlushCache()
 
 		opts := &Options{Method: MethodDoH}
-		opts.Transport.TLSClientConfig.CertPool = testcert.CertPool(t)
 		result, err := client.Resolve(testDomain, opts)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
@@ -162,10 +162,11 @@ func TestClient_Cache(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pool, manager := testproxy.PoolAndManager(t)
+	certPool := testcert.CertPool(t)
+	proxyPool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	client := NewClient(pool)
+	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
 	result, err := client.Resolve(testDomain, nil)
@@ -185,10 +186,11 @@ func TestClient_Cancel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pool, manager := testproxy.PoolAndManager(t)
+	certPool := testcert.CertPool(t)
+	proxyPool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	client := NewClient(pool)
+	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
@@ -205,10 +207,11 @@ func TestClient_NoResult(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pool, manager := testproxy.PoolAndManager(t)
+	certPool := testcert.CertPool(t)
+	proxyPool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	client := NewClient(pool)
+	client := NewClient(certPool, proxyPool)
 
 	if testsuite.IPv4Enabled {
 		err := client.Add("reachable-ipv4", &Server{
@@ -235,7 +238,7 @@ func TestClient_NoResult(t *testing.T) {
 }
 
 func TestClient_Add_Delete(t *testing.T) {
-	client := NewClient(nil)
+	client := NewClient(nil, nil)
 
 	// add DNS server with unknown method
 	err := client.Add("foo tag", &Server{Method: "foo method"})
@@ -264,11 +267,13 @@ func TestClient_TestServers(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pool, manager := testproxy.PoolAndManager(t)
+	certPool := testcert.CertPool(t)
+	proxyPool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
 	t.Run("reachable and skip test", func(t *testing.T) {
-		client := NewClient(pool)
+		client := NewClient(certPool, proxyPool)
+
 		opts := new(Options)
 
 		// no DNS server
@@ -314,7 +319,7 @@ func TestClient_TestServers(t *testing.T) {
 	})
 
 	t.Run("unreachable DNS server", func(t *testing.T) {
-		client := NewClient(pool)
+		client := NewClient(certPool, proxyPool)
 
 		err := client.Add("unreachable", &Server{
 			Method:  MethodUDP,
@@ -329,7 +334,7 @@ func TestClient_TestServers(t *testing.T) {
 	})
 
 	t.Run("cancel", func(t *testing.T) {
-		client := NewClient(pool)
+		client := NewClient(certPool, proxyPool)
 		testAddAllDNSServers(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
@@ -346,10 +351,11 @@ func TestClient_TestOptions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pool, manager := testproxy.PoolAndManager(t)
+	certPool := testcert.CertPool(t)
+	proxyPool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	client := NewClient(pool)
+	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
 	t.Run("skip test", func(t *testing.T) {
