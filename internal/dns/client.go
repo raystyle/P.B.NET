@@ -24,14 +24,14 @@ const (
 	ModeSystem = "system"
 )
 
-// UnknownTypeError is an error of the type
+// UnknownTypeError is an error of the type.
 type UnknownTypeError string
 
 func (t UnknownTypeError) Error() string {
 	return fmt.Sprintf("unknown type: %s", string(t))
 }
 
-// supported custom resolve methods
+// supported custom resolve methods.
 const (
 	MethodUDP = "udp"
 	MethodTCP = "tcp"
@@ -39,7 +39,7 @@ const (
 	MethodDoH = "doh" // DNS-Over-HTTPS
 )
 
-// UnknownMethodError is an error of the method
+// UnknownMethodError is an error of the method.
 type UnknownMethodError string
 
 func (m UnknownMethodError) Error() string {
@@ -56,17 +56,17 @@ const (
 // errors
 var (
 	ErrInvalidExpireTime = fmt.Errorf("expire time < 10 seconds or > 10 minutes")
-	ErrNoDNSServers      = fmt.Errorf("no DNS servers")
+	ErrNoDNSServers      = fmt.Errorf("no dns servers")
 )
 
-// Server include DNS server info
+// Server include DNS server information.
 type Server struct {
 	Method   string `toml:"method"`
 	Address  string `toml:"address"`
 	SkipTest bool   `toml:"skip_test"`
 }
 
-// Options contains resolve options
+// Options contains resolve options.
 type Options struct {
 	Mode string `toml:"mode"`
 
@@ -113,14 +113,14 @@ type Options struct {
 	transport   *http.Transport // about DoH
 }
 
-// Clone is used to clone dns.Options
+// Clone is used to clone dns.Options.
 func (opts *Options) Clone() *Options {
 	optsC := *opts
 	optsC.Header = opts.Header.Clone()
 	return &optsC
 }
 
-// Client is a DNS client that support various DNS server
+// Client is a DNS client that support various DNS server.
 type Client struct {
 	proxyPool *proxy.Pool
 
@@ -134,7 +134,7 @@ type Client struct {
 	cachesRWM   sync.RWMutex
 }
 
-// NewClient is used to create a DNS client
+// NewClient is used to create a DNS client.
 func NewClient(pool *proxy.Pool) *Client {
 	c := Client{
 		proxyPool: pool,
@@ -146,7 +146,7 @@ func NewClient(pool *proxy.Pool) *Client {
 	return &c
 }
 
-// Add is used to add a DNS server
+// Add is used to add a DNS server.
 func (c *Client) Add(tag string, server *Server) error {
 	const format = "failed to add DNS server %s"
 	return errors.WithMessagef(c.add(tag, server), format, tag)
@@ -167,7 +167,7 @@ func (c *Client) add(tag string, server *Server) error {
 	return errors.New("already exists")
 }
 
-// Delete is used to delete a DNS server
+// Delete is used to delete a DNS server.
 func (c *Client) Delete(tag string) error {
 	c.serversRWM.Lock()
 	defer c.serversRWM.Unlock()
@@ -178,7 +178,7 @@ func (c *Client) Delete(tag string) error {
 	return errors.Errorf("DNS server %s doesn't exist", tag)
 }
 
-// Servers is used to get all DNS Servers
+// Servers is used to get all DNS Servers.
 func (c *Client) Servers() map[string]*Server {
 	c.serversRWM.RLock()
 	defer c.serversRWM.RUnlock()
@@ -234,14 +234,14 @@ func (c *Client) selectType(ctx context.Context, domain string, opts *Options) (
 	ipv4Enabled, ipv6Enabled := xnetutil.IPEnabled()
 	// double stack
 	if ipv4Enabled && ipv6Enabled {
-		o := opts.Clone()
-		o.Type = TypeIPv6
-		ipv6, err := c.customResolve(ctx, domain, o)
+		opts := opts.Clone()
+		opts.Type = TypeIPv6
+		ipv6, err := c.customResolve(ctx, domain, opts)
 		if err != nil && errors.Cause(err) != ErrNoResolveResult { // check options errors
 			return nil, err
 		}
-		o.Type = TypeIPv4
-		ipv4, _ := c.customResolve(ctx, domain, o) // don't need check again
+		opts.Type = TypeIPv4
+		ipv4, _ := c.customResolve(ctx, domain, opts) // don't need check again
 
 		result := append(ipv6, ipv4...) // prefer IPv6
 		if len(result) != 0 {
@@ -251,15 +251,15 @@ func (c *Client) selectType(ctx context.Context, domain string, opts *Options) (
 	}
 	// IPv4 only
 	if ipv4Enabled {
-		o := opts.Clone()
-		o.Type = TypeIPv4
-		return c.customResolve(ctx, domain, o)
+		opts := opts.Clone()
+		opts.Type = TypeIPv4
+		return c.customResolve(ctx, domain, opts)
 	}
 	// IPv6 only
 	if ipv6Enabled {
-		o := opts.Clone()
-		o.Type = TypeIPv6
-		return c.customResolve(ctx, domain, o)
+		opts := opts.Clone()
+		opts.Type = TypeIPv6
+		return c.customResolve(ctx, domain, opts)
 	}
 	return nil, errors.New("network unavailable")
 }
@@ -379,17 +379,17 @@ func (c *Client) isEnableCache() bool {
 	return c.enableCache.Load().(bool)
 }
 
-// EnableCache is used to enable cache
+// EnableCache is used to enable cache.
 func (c *Client) EnableCache() {
 	c.enableCache.Store(true)
 }
 
-// DisableCache is used to disable cache
+// DisableCache is used to disable cache.
 func (c *Client) DisableCache() {
 	c.enableCache.Store(false)
 }
 
-// GetCacheExpireTime is used to get cache expire time
+// GetCacheExpireTime is used to get cache expire time.
 func (c *Client) GetCacheExpireTime() time.Duration {
 	c.cachesRWM.RLock()
 	defer c.cachesRWM.RUnlock()
@@ -397,7 +397,7 @@ func (c *Client) GetCacheExpireTime() time.Duration {
 	return expire
 }
 
-// SetCacheExpireTime is used to set cache expire time
+// SetCacheExpireTime is used to set cache expire time.
 func (c *Client) SetCacheExpireTime(expire time.Duration) error {
 	if expire < 10*time.Second || expire > 10*time.Minute {
 		return ErrInvalidExpireTime
@@ -408,14 +408,14 @@ func (c *Client) SetCacheExpireTime(expire time.Duration) error {
 	return nil
 }
 
-// FlushCache is used to flush all cache
+// FlushCache is used to flush all cache.
 func (c *Client) FlushCache() {
 	c.cachesRWM.Lock()
 	defer c.cachesRWM.Unlock()
 	c.caches = make(map[string]*cache)
 }
 
-// TestServers is used to test all DNS servers
+// TestServers is used to test all DNS servers.
 func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	l := len(c.servers)
 	if l == 0 {
@@ -440,9 +440,9 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 				errChan <- err
 			}()
 			// set server tag to use DNS server that selected
-			o := opts.Clone()
-			o.ServerTag = tag
-			result, err := c.ResolveContext(ctx, domain, o)
+			opts := opts.Clone()
+			opts.ServerTag = tag
+			result, err := c.ResolveContext(ctx, domain, opts)
 			if err != nil {
 				err = errors.WithMessagef(err, "failed to test server %s", tag)
 				return
@@ -473,18 +473,18 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 	return result, nil
 }
 
-// TestOption is used to test Options
+// TestOption is used to test Options.
 func (c *Client) TestOption(ctx context.Context, domain string, opts *Options) ([]string, error) {
 	if opts.SkipTest {
 		return nil, nil
 	}
 	c.DisableCache()
 	defer c.EnableCache()
-	o := opts.Clone()
-	if o.SkipProxy {
-		o.ProxyTag = ""
+	opts = opts.Clone()
+	if opts.SkipProxy {
+		opts.ProxyTag = ""
 	}
-	result, err := c.ResolveContext(ctx, domain, o)
+	result, err := c.ResolveContext(ctx, domain, opts)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to test option")
 	}

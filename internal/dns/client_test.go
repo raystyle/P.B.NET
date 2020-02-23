@@ -10,6 +10,7 @@ import (
 
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
+	"project/internal/testsuite/testcert"
 	"project/internal/testsuite/testproxy"
 )
 
@@ -40,114 +41,102 @@ func testAddAllDNSServers(t *testing.T, client *Client) {
 }
 
 func TestClient_Resolve(t *testing.T) {
-	t.Parallel()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
 	pool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
-	newClient := func(t *testing.T) *Client {
-		client := NewClient(pool)
-		testAddAllDNSServers(t, client)
-		return client
-	}
+	client := NewClient(pool)
+	testAddAllDNSServers(t, client)
 
 	t.Run("print DNS servers", func(t *testing.T) {
-		client := newClient(t)
-
 		for tag, server := range client.Servers() {
 			t.Log(tag, server.Address)
 		}
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("use default options", func(t *testing.T) {
-		client := newClient(t)
-
 		result, err := client.Resolve(testDomain, nil)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
 		t.Log("use default options", result)
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("use method DoH", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{Method: MethodDoH}
-		opts.Transport.TLSClientConfig.InsecureLoadFromSystem = true
+		opts.Transport.TLSClientConfig.CertPool = testcert.CertPool(t)
 		result, err := client.Resolve(testDomain, opts)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
 		t.Log("use DoH:", result)
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("resolve type IPv6", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		result, err := client.Resolve(testDomain, &Options{Type: TypeIPv6})
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
 		t.Log("resolve IPv6:", result)
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("resolve punycode", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		result, err := client.Resolve("错的是.世界", nil)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
 		t.Log("resolve punycode:", result)
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("use system mode", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{Mode: ModeSystem}
 
 		if testsuite.IPv4Enabled {
-			opts.Type = TypeIPv4
-			result, err := client.Resolve(testDomain, opts)
-			require.NoError(t, err)
-			require.NotEqual(t, 0, len(result))
-			t.Log("IPv4:", result)
+			t.Run("IPv4", func(t *testing.T) {
+				opts.Type = TypeIPv4
+				result, err := client.Resolve(testDomain, opts)
+				require.NoError(t, err)
+				require.NotEqual(t, 0, len(result))
+				t.Log("IPv4:", result)
+			})
 		}
 
 		if testsuite.IPv6Enabled {
-			opts.Type = TypeIPv6
-			result, err := client.Resolve(testDomain, opts)
-			require.NoError(t, err)
-			require.NotEqual(t, 0, len(result))
-			t.Log("IPv6:", result)
+			t.Run("IPv6", func(t *testing.T) {
+				opts.Type = TypeIPv6
+				result, err := client.Resolve(testDomain, opts)
+				require.NoError(t, err)
+				require.NotEqual(t, 0, len(result))
+				t.Log("IPv6:", result)
+			})
 		}
 
-		// IPv4 and IPv6
 		if testsuite.IPv4Enabled || testsuite.IPv6Enabled {
-			opts.Type = ""
-			result, err := client.Resolve(testDomain, opts)
-			require.NoError(t, err)
-			require.NotEqual(t, 0, len(result))
-			t.Log("IPv4 & IPv6:", result)
+			t.Run("default", func(t *testing.T) {
+				opts.Type = ""
+				result, err := client.Resolve(testDomain, opts)
+				require.NoError(t, err)
+				require.NotEqual(t, 0, len(result))
+				t.Log("IPv4 & IPv6:", result)
+			})
 		}
 
-		// invalid type
-		opts.Type = "foo type"
-		result, err := client.Resolve(testDomain, opts)
-		require.Error(t, err)
-		require.Equal(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
+		t.Run("invalid type", func(t *testing.T) {
+			opts.Type = "foo type"
+			result, err := client.Resolve(testDomain, opts)
+			require.Error(t, err)
+			require.Equal(t, 0, len(result))
+		})
 	})
 
-	t.Run("resolve IP", func(t *testing.T) {
-		client := newClient(t)
+	t.Run("resolve IP address", func(t *testing.T) {
+		client.FlushCache()
 
 		result, err := client.Resolve("1.1.1.1", nil)
 		require.NoError(t, err)
@@ -156,22 +145,23 @@ func TestClient_Resolve(t *testing.T) {
 		result, err = client.Resolve("::1", nil)
 		require.NoError(t, err)
 		require.Equal(t, []string{"::1"}, result)
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("empty domain", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		result, err := client.Resolve("", nil)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
+
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestClient_Cache(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	pool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
@@ -192,6 +182,9 @@ func TestClient_Cache(t *testing.T) {
 }
 
 func TestClient_Cancel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	pool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
@@ -209,6 +202,9 @@ func TestClient_Cancel(t *testing.T) {
 }
 
 func TestClient_NoResult(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	pool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
 
@@ -265,7 +261,8 @@ func TestClient_Add_Delete(t *testing.T) {
 }
 
 func TestClient_TestServers(t *testing.T) {
-	t.Parallel()
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
 	pool, manager := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, manager.Close()) }()
@@ -330,33 +327,40 @@ func TestClient_TestServers(t *testing.T) {
 
 		testsuite.IsDestroyed(t, client)
 	})
-}
 
-func TestClient_TestOptions(t *testing.T) {
-	t.Parallel()
-
-	pool, manager := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, manager.Close()) }()
-
-	newClient := func(t *testing.T) *Client {
+	t.Run("cancel", func(t *testing.T) {
 		client := NewClient(pool)
 		testAddAllDNSServers(t, client)
-		return client
-	}
 
-	t.Run("skip test", func(t *testing.T) {
-		client := newClient(t)
-
-		opts := &Options{SkipTest: true}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
-		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		defer cancel()
+		result, err := client.TestServers(ctx, testDomain, new(Options))
+		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
 		testsuite.IsDestroyed(t, client)
 	})
+}
+
+func TestClient_TestOptions(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	pool, manager := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, manager.Close()) }()
+
+	client := NewClient(pool)
+	testAddAllDNSServers(t, client)
+
+	t.Run("skip test", func(t *testing.T) {
+		opts := &Options{SkipTest: true}
+		result, err := client.TestOption(context.Background(), testDomain, opts)
+		require.NoError(t, err)
+		require.Equal(t, 0, len(result))
+	})
 
 	t.Run("skip proxy", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{
 			ProxyTag:  "tag",
@@ -365,23 +369,19 @@ func TestClient_TestOptions(t *testing.T) {
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("invalid domain name", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{Mode: ModeSystem}
 		result, err := client.TestOption(context.Background(), "test", opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("with proxy tag", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{
 			Method:   MethodTCP, // must don't use udp
@@ -390,46 +390,38 @@ func TestClient_TestOptions(t *testing.T) {
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.NoError(t, err)
 		require.NotEqual(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("unknown type", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{Type: "foo type"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 		t.Log(err)
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("unknown mode", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{Mode: "foo mode"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("unknown method", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{Method: "foo method"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("invalid http transport options", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{Method: MethodDoH}
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
@@ -442,31 +434,27 @@ func TestClient_TestOptions(t *testing.T) {
 		result, err = client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("doesn't exist proxy", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{ProxyTag: "foo proxy"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
 
 	t.Run("doesn't exist server tag", func(t *testing.T) {
-		client := newClient(t)
+		client.FlushCache()
 
 		opts := &Options{ServerTag: "foo server"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
-
-		testsuite.IsDestroyed(t, client)
 	})
+
+	testsuite.IsDestroyed(t, client)
 }
 
 func TestOptions(t *testing.T) {
