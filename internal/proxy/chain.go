@@ -12,14 +12,14 @@ import (
 
 const defaultDialTimeout = 30 * time.Second
 
-// Chain implemented client
+// Chain implemented client.
 type Chain struct {
 	tag     string
 	clients []*Client // not nil
 	count   int       // len(clients)
 }
 
-// NewChain is used to create a proxy chain
+// NewChain is used to create a proxy chain.
 func NewChain(tag string, clients ...*Client) (*Chain, error) {
 	if tag == "" {
 		return nil, errors.New("empty chain tag")
@@ -35,7 +35,7 @@ func NewChain(tag string, clients ...*Client) (*Chain, error) {
 	}, nil
 }
 
-// []*Client will not include ModeBalance or ModeChain
+// []*Client will not include ModeBalance or ModeChain.
 func (c *Chain) getClients() []*Client {
 	// if chain in clients, len(clients) will bigger than c.count
 	clients := make([]*Client, 0, c.count)
@@ -79,7 +79,7 @@ func connect(
 	return clients[l-1].Connect(ctx, conn, network, address)
 }
 
-// Dial is used to connect to address through proxy chain
+// Dial is used to connect to address through proxy chain.
 func (c *Chain) Dial(network, address string) (net.Conn, error) {
 	clients := c.getClients()
 	fTimeout := clients[0].Timeout()
@@ -98,7 +98,7 @@ func (c *Chain) Dial(network, address string) (net.Conn, error) {
 	return pConn, nil
 }
 
-// DialContext is used to connect to address through proxy chain with context
+// DialContext is used to connect to address through proxy chain with context.
 func (c *Chain) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	clients := c.getClients()
 	fTimeout := clients[0].Timeout()
@@ -117,7 +117,7 @@ func (c *Chain) DialContext(ctx context.Context, network, address string) (net.C
 	return pConn, nil
 }
 
-// DialTimeout is used to connect to address through proxy chain with timeout
+// DialTimeout is used to connect to address through proxy chain with timeout.
 func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	if timeout < 1 {
 		timeout = defaultDialTimeout
@@ -138,27 +138,28 @@ func (c *Chain) DialTimeout(network, address string, timeout time.Duration) (net
 	return pConn, nil
 }
 
-// Connect is is a padding function
+// Connect is is a padding function.
 func (c *Chain) Connect(context.Context, net.Conn, string, string) (net.Conn, error) {
 	return nil, errors.New("chain doesn't support connect")
 }
 
-// HTTP is used to set *http.Transport about proxy
+// HTTP is used to set *http.Transport about proxy.
 func (c *Chain) HTTP(t *http.Transport) {
 	t.DialContext = c.DialContext
 }
 
-// Timeout is a padding function
+// Timeout is a padding function.
 func (c *Chain) Timeout() time.Duration {
 	return 0
 }
 
-// Server is a padding function
+// Server is a padding function.
 func (c *Chain) Server() (string, string) {
 	return "", ""
 }
 
-// Info is used to get the proxy chain info, it will print all proxy client info
+// Info is used to get the proxy chain information,
+// it will print all proxy client information.
 func (c *Chain) Info() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString("chain: ")

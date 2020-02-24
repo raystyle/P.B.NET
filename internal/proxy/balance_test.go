@@ -69,6 +69,29 @@ func TestBalance(t *testing.T) {
 	testsuite.ProxyClient(t, &groups, balance)
 }
 
+func TestBalanceWithHTTPSTarget(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	groups := testGenerateProxyGroup(t)
+	// use select
+	clients := make([]*Client, 4)
+	clients[0] = groups["socks4a"].client
+	clients[1] = groups["https"].client
+	clients[2] = groups["http"].client
+	clients[3] = groups["socks5"].client
+	balance, err := NewBalance("balance-no-socks4", clients...)
+	require.NoError(t, err)
+
+	testsuite.ProxyClientWithHTTPSTarget(t, balance)
+
+	testsuite.IsDestroyed(t, balance)
+	require.NoError(t, groups.Close())
+	testsuite.IsDestroyed(t, &groups)
+}
+
 func TestBalanceFailure(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

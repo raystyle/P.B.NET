@@ -66,18 +66,15 @@ func newClient(network, address string, opts *Options, https bool) (*Client, err
 		timeout: opts.Timeout,
 		header:  opts.Header.Clone(),
 	}
-	if client.https {
+	if https {
 		var err error
 		client.tlsConfig, err = opts.TLSConfig.Apply()
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		// copy certificates
+		// copy root CA certificates
 		client.rootCAs, _ = opts.TLSConfig.GetRootCAs()
 		client.rootCAsLen = len(client.rootCAs)
-
-		// get client
-
 		// set server name
 		if client.tlsConfig.ServerName == "" {
 			colonPos := strings.LastIndex(address, ":")
@@ -266,49 +263,49 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 	return nil, errors.Errorf(format, c.scheme, c.address, address)
 }
 
-// HTTP is used to set *http.Transport about proxy
+// HTTP is used to set *http.Transport about proxy.
 func (c *Client) HTTP(t *http.Transport) {
 	t.Proxy = c.proxy
 	// add certificates if connect https proxy server
-	if c.https {
-		if t.TLSClientConfig == nil {
-			t.TLSClientConfig = new(tls.Config)
-		}
-		if t.TLSClientConfig.RootCAs == nil {
-			t.TLSClientConfig.RootCAs = x509.NewCertPool()
-		}
-		for i := 0; i < c.rootCAsLen; i++ {
-			t.TLSClientConfig.RootCAs.AddCert(c.rootCAs[i])
-		}
-		// add client certificates, if certificate exists, will not add again
-		for _, cert := range c.tlsConfig.Certificates {
-			contain := false
-			cc := cert.Certificate[0]
-			for _, tCert := range t.TLSClientConfig.Certificates {
-				if bytes.Equal(cc, tCert.Certificate[0]) {
-					contain = true
-					break
-				}
+	if !c.https {
+		return
+	}
+	if t.TLSClientConfig == nil {
+		t.TLSClientConfig = new(tls.Config)
+	}
+	if t.TLSClientConfig.RootCAs == nil {
+		t.TLSClientConfig.RootCAs = x509.NewCertPool()
+	}
+	for i := 0; i < c.rootCAsLen; i++ {
+		t.TLSClientConfig.RootCAs.AddCert(c.rootCAs[i])
+	}
+	// add client certificates, if certificate exists, don't add it again.
+	for _, cert := range c.tlsConfig.Certificates {
+		contain := false
+		for _, tCert := range t.TLSClientConfig.Certificates {
+			if bytes.Equal(cert.Certificate[0], tCert.Certificate[0]) {
+				contain = true
+				break
 			}
-			if !contain {
-				certs := t.TLSClientConfig.Certificates
-				t.TLSClientConfig.Certificates = append(certs, cert)
-			}
+		}
+		if !contain {
+			certs := t.TLSClientConfig.Certificates
+			t.TLSClientConfig.Certificates = append(certs, cert)
 		}
 	}
 }
 
-// Timeout is used to get the proxy client timeout
+// Timeout is used to get the proxy client timeout.
 func (c *Client) Timeout() time.Duration {
 	return c.timeout
 }
 
-// Server is used to get the proxy server address
+// Server is used to get the proxy server address.
 func (c *Client) Server() (string, string) {
 	return c.network, c.address
 }
 
-// Info is used to get the proxy client info
+// Info is used to get the proxy client info.
 //
 // http://admin:123456@127.0.0.1:8080
 // https://admin:123456@[::1]:8081

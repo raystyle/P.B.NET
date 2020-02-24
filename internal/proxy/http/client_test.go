@@ -31,6 +31,8 @@ func TestHTTPProxyClient(t *testing.T) {
 	client, err := NewHTTPClient("tcp", address, &opts)
 	require.NoError(t, err)
 
+	testsuite.ProxyClientWithHTTPSTarget(t, client)
+
 	testsuite.ProxyClient(t, server, client)
 }
 
@@ -48,6 +50,8 @@ func TestHTTPSProxyClient(t *testing.T) {
 	}
 	client, err := NewHTTPSClient("tcp", address, &opts)
 	require.NoError(t, err)
+
+	testsuite.ProxyClientWithHTTPSTarget(t, client)
 
 	testsuite.ProxyClient(t, server, client)
 }
@@ -90,7 +94,7 @@ func TestHTTPProxyClientWithoutPassword(t *testing.T) {
 	testsuite.ProxyClient(t, server, client)
 }
 
-func TestNewHTTPProxyClientWithIncorrectUserInfo(t *testing.T) {
+func TestNewHTTPProxyClientWithUserInfo(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -109,6 +113,33 @@ func TestNewHTTPProxyClientWithIncorrectUserInfo(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 	require.NoError(t, server.Close())
 	testsuite.IsDestroyed(t, server)
+}
+
+func TestHTTPSClientWithCertificate(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
+	opts := Options{}
+	opts.Server.TLSConfig = serverCfg
+	server, err := NewHTTPSServer("test", logger.Test, &opts)
+	require.NoError(t, err)
+	go func() {
+		err := server.ListenAndServe("tcp", "localhost:0")
+		require.NoError(t, err)
+	}()
+	time.Sleep(250 * time.Millisecond)
+
+	address := server.Addresses()[0].String()
+	opts = Options{TLSConfig: clientCfg}
+	client, err := NewHTTPSClient("tcp", address, &opts)
+	require.NoError(t, err)
+
+	testsuite.ProxyClientWithHTTPSTarget(t, client)
+
+	testsuite.ProxyClient(t, server, client)
 }
 
 func TestHTTPProxyClientFailure(t *testing.T) {
@@ -194,31 +225,6 @@ func TestFailedToNewClient(t *testing.T) {
 	})
 }
 
-func TestHTTPSClientWithCertificate(t *testing.T) {
-	testsuite.InitHTTPServers(t)
-
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
-	opts := Options{}
-	opts.Server.TLSConfig = serverCfg
-	server, err := NewHTTPSServer("test", logger.Test, &opts)
-	require.NoError(t, err)
-	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
-		require.NoError(t, err)
-	}()
-	time.Sleep(250 * time.Millisecond)
-
-	address := server.Addresses()[0].String()
-	opts = Options{TLSConfig: clientCfg}
-	client, err := NewHTTPSClient("tcp", address, &opts)
-	require.NoError(t, err)
-
-	testsuite.ProxyClient(t, server, client)
-}
-
 func TestClient_Connect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -256,5 +262,9 @@ func TestClient_Connect(t *testing.T) {
 		require.Error(t, err)
 		require.NoError(t, cli.Close())
 		wg.Wait()
+	})
+
+	t.Run("panic from context", func(t *testing.T) {
+
 	})
 }

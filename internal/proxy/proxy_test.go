@@ -11,6 +11,7 @@ import (
 	"project/internal/proxy/socks"
 	"project/internal/random"
 	"project/internal/testsuite"
+	"project/internal/testsuite/testcert"
 )
 
 type groups map[string]*group
@@ -106,12 +107,15 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	}()
 
 	// add https proxy server
+	certPool := testcert.CertPool(t)
 	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
 	httpsOpts := &http.Options{
 		Username: "admin5",
 		Password: "1234565",
 	}
 	httpsOpts.Server.TLSConfig = serverCfg
+	httpsOpts.Server.TLSConfig.CertPool = certPool
+	httpsOpts.Transport.TLSClientConfig.CertPool = certPool
 	httpsServer, err := http.NewHTTPSServer(tag, logger.Test, httpsOpts)
 	require.NoError(t, err)
 	go func() {

@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Balance implemented client
+// Balance implemented client.
 type Balance struct {
 	tag     string
 	clients []*Client // not nil
@@ -24,7 +24,7 @@ type Balance struct {
 	mutex sync.Mutex
 }
 
-// NewBalance is used to create a proxy client that with load balance
+// NewBalance is used to create a proxy client that with load balance.
 func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 	if tag == "" {
 		return nil, errors.New("empty balance tag")
@@ -62,7 +62,7 @@ func (b *Balance) selectNextProxyClient() *Client {
 	}
 }
 
-// GetAndSelectNext is used to provide chain
+// GetAndSelectNext is used to provide chain.
 // next.client will not be *Balance
 func (b *Balance) GetAndSelectNext() *Client {
 	next := b.selectNextProxyClient()
@@ -72,45 +72,46 @@ func (b *Balance) GetAndSelectNext() *Client {
 	return next
 }
 
-// Dial is used to connect to address through selected proxy client
+// Dial is used to connect to address through selected proxy client.
 func (b *Balance) Dial(network, address string) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().Dial(network, address)
 	return conn, errors.WithMessagef(err, "balance %s", b.tag)
 }
 
-// DialContext is used to connect to address through selected proxy client with context
+// DialContext is used to connect to address through selected proxy client with context.
 func (b *Balance) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().DialContext(ctx, network, address)
 	return conn, errors.WithMessagef(err, "balance %s", b.tag)
 }
 
-// DialTimeout is used to connect to address through selected proxy client with timeout
+// DialTimeout is used to connect to address through selected proxy client with timeout.
 func (b *Balance) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
 	conn, err := b.GetAndSelectNext().DialTimeout(network, address, timeout)
 	return conn, errors.WithMessagef(err, "balance %s", b.tag)
 }
 
-// Connect is a padding function
+// Connect is a padding function.
 func (b *Balance) Connect(context.Context, net.Conn, string, string) (net.Conn, error) {
 	return nil, errors.New("balance doesn't support connect")
 }
 
-// HTTP is used to set *http.Transport about proxy
+// HTTP is used to set *http.Transport about proxy.
 func (b *Balance) HTTP(t *http.Transport) {
 	t.DialContext = b.DialContext
 }
 
-// Timeout is a padding function
+// Timeout is a padding function.
 func (b *Balance) Timeout() time.Duration {
 	return 0
 }
 
-// Server is a padding function
+// Server is a padding function.
 func (b *Balance) Server() (string, string) {
 	return "", ""
 }
 
-// Info is used to get the balance info, it will print all proxy client info
+// Info is used to get the balance information,
+// it will print all proxy client information
 func (b *Balance) Info() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString("balance: ")

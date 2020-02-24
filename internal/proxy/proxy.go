@@ -44,7 +44,7 @@ type server interface {
 	Close() error
 }
 
-// Client is proxy client
+// Client is the proxy client.
 type Client struct {
 	Tag     string `toml:"tag"`
 	Mode    string `toml:"mode"`
@@ -54,7 +54,7 @@ type Client struct {
 	client
 }
 
-// Server is proxy server
+// Server is the proxy server.
 type Server struct {
 	Tag     string `toml:"tag"`
 	Mode    string `toml:"mode"`
@@ -77,24 +77,24 @@ func (s *Server) addServeAt() {
 	s.serveAt = append(s.serveAt, s.now())
 }
 
-// ListenAndServe is used to listen a listener and serve
+// ListenAndServe is used to listen a listener and serve.
 func (s *Server) ListenAndServe(network, address string) error {
 	s.addServeAt()
 	return s.server.ListenAndServe(network, address)
 }
 
-// Serve accepts incoming connections on the listener
+// Serve accept incoming connections on the listener.
 func (s *Server) Serve(listener net.Listener) error {
 	s.addServeAt()
 	return s.server.Serve(listener)
 }
 
-// CreateAt is used get proxy server create time
+// CreateAt is used get proxy server create time.
 func (s *Server) CreateAt() time.Time {
 	return s.createAt
 }
 
-// ServeAt is used get proxy server serve time
+// ServeAt is used get proxy server serve time.
 func (s *Server) ServeAt() []time.Time {
 	s.rwm.RLock()
 	defer s.rwm.RUnlock()
