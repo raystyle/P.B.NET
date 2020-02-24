@@ -58,6 +58,9 @@ func TestRunParallel(t *testing.T) {
 	}
 
 	RunParallel(f1, f2)
+
+	// no functions
+	RunParallel()
 }
 
 func TestHTTPServer(t *testing.T) {

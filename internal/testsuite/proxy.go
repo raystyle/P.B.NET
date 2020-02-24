@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/crypto/cert/certutil"
 )
 
 // HTTPServerPort is the test HTTP server port,
@@ -265,7 +267,7 @@ type proxyClient interface {
 	Info() string
 }
 
-// ProxyClient is used to test proxy client
+// ProxyClient is used to test proxy client.
 func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	InitHTTPServers(t)
 
@@ -292,6 +294,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 			ProxyConn(t, conn)
 
 			// except socks4
+			// must use "socks4 " to except socks4
 			if !strings.Contains(client.Info(), "socks4 ") {
 				address = "localhost:" + HTTPServerPort
 				conn, err = client.DialTimeout(network, address, 0)
@@ -312,6 +315,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	}
 
 	// except socks4a, socks4
+	// must use "socks4" to except socks4 and socks4a
 	if IPv6Enabled && !strings.Contains(client.Info(), "socks4") {
 		wg.Add(1)
 		go func() {
@@ -349,6 +353,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	}
 
 	// HTTP
+	// must use "socks4 " to except socks4
 	if !strings.Contains(client.Info(), "socks4 ") {
 		wg.Add(1)
 		go func() {
@@ -373,7 +378,7 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	IsDestroyed(t, server)
 }
 
-// ProxyClientCancelConnect is used to cancel proxy client Connect()
+// ProxyClientCancelConnect is used to cancel proxy client Connect().
 func ProxyClientCancelConnect(t testing.TB, server io.Closer, client proxyClient) {
 	InitHTTPServers(t)
 
@@ -402,8 +407,27 @@ func ProxyClientCancelConnect(t testing.TB, server io.Closer, client proxyClient
 	IsDestroyed(t, server)
 }
 
+// ProxyClientWithHTTPSTarget is used to test proxy client with https target.
+func ProxyClientWithHTTPSTarget(t testing.TB, client proxyClient) {
+	transport := new(http.Transport)
+	certPool, err := certutil.SystemCertPool()
+	require.NoError(t, err)
+	transport.TLSClientConfig = &tls.Config{RootCAs: certPool}
+	client.HTTP(transport)
+
+	httpClient := http.Client{
+		Transport: transport,
+	}
+	defer httpClient.CloseIdleConnections()
+	resp, err := httpClient.Get("https://www.cloudflare.com/")
+	require.NoError(t, err)
+	defer func() { require.NoError(t, resp.Body.Close()) }()
+	_, err = io.Copy(ioutil.Discard, resp.Body)
+	require.NoError(t, err)
+}
+
 // ProxyClientWithUnreachableProxyServer is used to test proxy client that
-// can't connect proxy server
+// can't connect proxy server.
 func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
 	// unknown network
 	_, err := client.Dial("foo", "")
@@ -434,7 +458,7 @@ func ProxyClientWithUnreachableProxyServer(t testing.TB, client proxyClient) {
 }
 
 // ProxyClientWithUnreachableTarget is used to test proxy client that
-// connect unreachable target
+// connect unreachable target.
 func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client proxyClient) {
 	const unreachableTarget = "0.0.0.0:1"
 	_, err := client.Dial("tcp", unreachableTarget)
