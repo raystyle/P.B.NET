@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/cert/certutil"
+	"project/internal/testsuite"
 )
 
 func TestCertPool(t *testing.T) {
@@ -22,4 +23,6 @@ func TestCertPool(t *testing.T) {
 	require.Equal(t, PrivateRootCANum, len(pool.GetPrivateRootCAPairs()))
 	require.Equal(t, PrivateClientCANum, len(pool.GetPrivateClientCAPairs()))
 	require.Equal(t, PrivateClientCertNum, len(pool.GetPrivateClientPairs()))
+
+	testsuite.IsDestroyed(t, pool)
 }
