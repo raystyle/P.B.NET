@@ -6,8 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/proxy"
+	"project/internal/testsuite/testcert"
 )
 
 // server tags
@@ -17,10 +19,12 @@ const (
 	TagBalance = "balance"
 )
 
-// PoolAndManager is used to create a proxy pool
-// with balance and proxy manager
-func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
-	manager := proxy.NewManager(logger.Test, nil)
+// PoolAndManager is used to create a proxy pool with balance and proxy manager.
+func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager, *cert.Pool) {
+	certPool := testcert.CertPool(t)
+
+	// create proxy manager
+	manager := proxy.NewManager(certPool, logger.Test, nil)
 	// add socks5 server
 	err := manager.Add(&proxy.Server{
 		Tag:  TagSocks5,
@@ -42,11 +46,12 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
 	}
 	time.Sleep(250 * time.Millisecond)
 
-	pool := proxy.NewPool()
+	// create proxy pool
+	proxyPool := proxy.NewPool(certPool)
 	// add socks5 client
 	server, err := manager.Get(TagSocks5)
 	require.NoError(t, err)
-	err = pool.Add(&proxy.Client{
+	err = proxyPool.Add(&proxy.Client{
 		Tag:     TagSocks5,
 		Mode:    proxy.ModeSocks5,
 		Network: "tcp",
@@ -56,7 +61,7 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
 	// add http proxy client
 	server, err = manager.Get(TagHTTP)
 	require.NoError(t, err)
-	err = pool.Add(&proxy.Client{
+	err = proxyPool.Add(&proxy.Client{
 		Tag:     TagHTTP,
 		Mode:    proxy.ModeHTTP,
 		Network: "tcp",
@@ -64,11 +69,11 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager) {
 	})
 	require.NoError(t, err)
 	// add balance
-	err = pool.Add(&proxy.Client{
+	err = proxyPool.Add(&proxy.Client{
 		Tag:     TagBalance,
 		Mode:    proxy.ModeBalance,
 		Options: `tags = ["p1", "p2"]`,
 	})
 	require.NoError(t, err)
-	return pool, manager
+	return proxyPool, manager, certPool
 }

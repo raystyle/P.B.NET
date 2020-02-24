@@ -15,10 +15,10 @@ func TestPoolAndManager(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	pool, manager := PoolAndManager(t)
+	proxyPool, proxyMgr, certPool := PoolAndManager(t)
 
 	// test balance
-	balance, err := pool.Get(TagBalance)
+	balance, err := proxyPool.Get(TagBalance)
 	require.NoError(t, err)
 
 	// test http client
@@ -26,7 +26,8 @@ func TestPoolAndManager(t *testing.T) {
 	balance.HTTP(transport)
 	testsuite.HTTPClient(t, transport, "localhost")
 
-	testsuite.IsDestroyed(t, pool)
-	require.NoError(t, manager.Close())
-	testsuite.IsDestroyed(t, manager)
+	testsuite.IsDestroyed(t, proxyPool)
+	require.NoError(t, proxyMgr.Close())
+	testsuite.IsDestroyed(t, proxyMgr)
+	testsuite.IsDestroyed(t, certPool)
 }

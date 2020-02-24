@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/proxy"
 	"project/internal/testsuite/testproxy"
@@ -18,10 +19,11 @@ const (
 	TagCloudflareIPv6DoT = "cloudflare_ipv6_dot"
 )
 
-// DNSClient is used to create a DNS client for test
-func DNSClient(t *testing.T) (*dns.Client, *proxy.Pool, *proxy.Manager) {
-	pool, manager := testproxy.PoolAndManager(t)
-	client := dns.NewClient(pool)
+// DNSClient is used to create a DNS client for test.
+func DNSClient(t *testing.T) (*dns.Client, *proxy.Pool, *proxy.Manager, *cert.Pool) {
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+
+	client := dns.NewClient(certPool, proxyPool)
 	err := client.Add(TagGoogleIPv4UDP, &dns.Server{
 		Method:  dns.MethodUDP,
 		Address: "8.8.8.8:53",
@@ -42,5 +44,5 @@ func DNSClient(t *testing.T) (*dns.Client, *proxy.Pool, *proxy.Manager) {
 		Address: "[2606:4700:4700::1111]:853",
 	})
 	require.NoError(t, err)
-	return client, pool, manager
+	return client, proxyPool, proxyMgr, certPool
 }

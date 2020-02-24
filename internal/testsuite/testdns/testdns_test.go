@@ -14,7 +14,7 @@ func TestDNSClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	client, _, manager := DNSClient(t)
+	client, proxyPool, proxyMgr, certPool := DNSClient(t)
 
 	const domain = "cloudflare-dns.com"
 
@@ -52,6 +52,8 @@ func TestDNSClient(t *testing.T) {
 	}
 
 	testsuite.IsDestroyed(t, client)
-	require.NoError(t, manager.Close())
-	testsuite.IsDestroyed(t, manager)
+	testsuite.IsDestroyed(t, proxyPool)
+	require.NoError(t, proxyMgr.Close())
+	testsuite.IsDestroyed(t, proxyMgr)
+	testsuite.IsDestroyed(t, certPool)
 }
