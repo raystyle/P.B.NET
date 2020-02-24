@@ -10,7 +10,6 @@ import (
 
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
-	"project/internal/testsuite/testcert"
 	"project/internal/testsuite/testproxy"
 )
 
@@ -44,9 +43,8 @@ func TestClient_Resolve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	certPool := testcert.CertPool(t)
-	proxyPool, manager := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
@@ -162,9 +160,8 @@ func TestClient_Cache(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	certPool := testcert.CertPool(t)
-	proxyPool, manager := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
@@ -186,9 +183,8 @@ func TestClient_Cancel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	certPool := testcert.CertPool(t)
-	proxyPool, manager := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
@@ -207,9 +203,8 @@ func TestClient_NoResult(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	certPool := testcert.CertPool(t)
-	proxyPool, manager := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	client := NewClient(certPool, proxyPool)
 
@@ -267,9 +262,8 @@ func TestClient_TestServers(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	certPool := testcert.CertPool(t)
-	proxyPool, manager := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	t.Run("reachable and skip test", func(t *testing.T) {
 		client := NewClient(certPool, proxyPool)
@@ -351,9 +345,8 @@ func TestClient_TestOptions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	certPool := testcert.CertPool(t)
-	proxyPool, manager := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
