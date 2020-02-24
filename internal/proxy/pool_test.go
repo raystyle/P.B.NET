@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/testsuite"
+	"project/internal/testsuite/testcert"
 )
 
 var testClientTags = []string{
@@ -19,8 +20,12 @@ var testClientTags = []string{
 	"balance",
 }
 
+const reserveClientNum = 2
+
+var testClientNum = reserveClientNum + len(testClientTags)
+
 func testGeneratePool(t *testing.T) *Pool {
-	pool := NewPool()
+	pool := NewPool(testcert.CertPool(t))
 	for i, filename := range []string{
 		"socks/testdata/socks5_client.toml",
 		"socks/testdata/socks4a_client.toml",
@@ -170,6 +175,8 @@ func TestPool_Add(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	require.Equal(t, testClientNum, len(pool.Clients()))
+
 	testsuite.IsDestroyed(t, pool)
 }
 
@@ -206,6 +213,8 @@ func TestPool_Get(t *testing.T) {
 		}
 	})
 
+	require.Equal(t, testClientNum, len(pool.Clients()))
+
 	testsuite.IsDestroyed(t, pool)
 }
 
@@ -217,6 +226,7 @@ func TestPool_Delete(t *testing.T) {
 			err := pool.Delete(tag)
 			require.NoError(t, err)
 		}
+		require.Equal(t, reserveClientNum, len(pool.Clients()))
 	})
 
 	t.Run("doesn't exist", func(t *testing.T) {
@@ -233,6 +243,62 @@ func TestPool_Delete(t *testing.T) {
 		err := pool.Delete("direct")
 		require.EqualError(t, err, "direct is the reserve proxy client")
 	})
+
+	require.Equal(t, reserveClientNum, len(pool.Clients()))
+
+	testsuite.IsDestroyed(t, pool)
+}
+
+func TestPool_Parallel(t *testing.T) {
+	pool := testGeneratePool(t)
+	const (
+		tag1 = "test-01"
+		tag2 = "test-02"
+	)
+
+	add1 := func() {
+		err := pool.Add(&Client{
+			Tag:     tag1,
+			Mode:    ModeSocks5,
+			Network: "tcp",
+			Address: "127.0.0.1:1080",
+		})
+		require.NoError(t, err)
+	}
+	add2 := func() {
+		err := pool.Add(&Client{
+			Tag:     tag2,
+			Mode:    ModeHTTP,
+			Network: "tcp",
+			Address: "127.0.0.1:8080",
+		})
+		require.NoError(t, err)
+	}
+	testsuite.RunParallel(add1, add2)
+
+	get1 := func() {
+		server, err := pool.Get(tag1)
+		require.NoError(t, err)
+		require.NotNil(t, server)
+	}
+	get2 := func() {
+		server, err := pool.Get(tag2)
+		require.NoError(t, err)
+		require.NotNil(t, server)
+	}
+	testsuite.RunParallel(get1, get2)
+
+	delete1 := func() {
+		err := pool.Delete(tag1)
+		require.NoError(t, err)
+	}
+	delete2 := func() {
+		err := pool.Delete(tag2)
+		require.NoError(t, err)
+	}
+	testsuite.RunParallel(delete1, delete2)
+
+	require.Equal(t, testClientNum, len(pool.Clients()))
 
 	testsuite.IsDestroyed(t, pool)
 }

@@ -6,29 +6,37 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/patch/toml"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
 )
 
-// Manager is a proxy server manager
+// Manager is a proxy server manager.
 type Manager struct {
-	logger  logger.Logger
-	now     func() time.Time
-	servers map[string]*Server // key = tag
-	rwm     sync.RWMutex
+	certPool *cert.Pool
+	logger   logger.Logger
+	now      func() time.Time
+
+	servers    map[string]*Server // key = tag
+	serversRWM sync.RWMutex
 }
 
-// NewManager is used to create a proxy server manager
-func NewManager(lg logger.Logger, now func() time.Time) *Manager {
+// NewManager is used to create a proxy server manager.
+func NewManager(pool *cert.Pool, logger logger.Logger, now func() time.Time) *Manager {
 	if now == nil {
 		now = time.Now
 	}
-	return &Manager{logger: lg, now: now, servers: make(map[string]*Server)}
+	return &Manager{
+		certPool: pool,
+		logger:   logger,
+		now:      now,
+		servers:  make(map[string]*Server),
+	}
 }
 
-// Add is used to add proxy server, but not listen or serve
+// Add is used to add proxy server, but not listen or serve.
 func (m *Manager) Add(server *Server) error {
 	err := m.add(server)
 	if err != nil {
@@ -56,8 +64,8 @@ func (m *Manager) add(server *Server) error {
 	}
 	server.now = m.now
 	server.createAt = m.now()
-	m.rwm.Lock()
-	defer m.rwm.Unlock()
+	m.serversRWM.Lock()
+	defer m.serversRWM.Unlock()
 	if _, ok := m.servers[server.Tag]; !ok {
 		m.servers[server.Tag] = server
 		return nil
@@ -101,40 +109,44 @@ func (m *Manager) addHTTP(server *Server) error {
 	case ModeHTTP:
 		server.server, err = http.NewHTTPServer(server.Tag, m.logger, opts)
 	case ModeHTTPS:
+		opts.Server.TLSConfig.CertPool = m.certPool
+		opts.Transport.TLSClientConfig.CertPool = m.certPool
 		server.server, err = http.NewHTTPSServer(server.Tag, m.logger, opts)
 	}
 	return err
 }
 
-// Delete is used to delete proxy server
-// it will self delete it
+// Delete is used to delete proxy server.
 func (m *Manager) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty proxy server tag")
 	}
-	if server, ok := m.Servers()[tag]; ok {
-		return server.Close() // Close use m.rwm, must use m.Servers()
+	m.serversRWM.Lock()
+	defer m.serversRWM.Unlock()
+	if server, ok := m.servers[tag]; ok {
+		delete(m.servers, tag)
+		return server.Close()
 	}
 	return errors.Errorf("proxy server %s doesn't exist", tag)
 }
 
-// Get is used to get proxy server
+// Get is used to get proxy server.
 func (m *Manager) Get(tag string) (*Server, error) {
 	if tag == "" {
 		return nil, errors.New("empty proxy server tag")
 	}
-	m.rwm.RLock()
-	defer m.rwm.RUnlock()
+	m.serversRWM.RLock()
+	defer m.serversRWM.RUnlock()
 	if server, ok := m.servers[tag]; ok {
 		return server, nil
 	}
 	return nil, errors.Errorf("proxy server %s doesn't exist", tag)
 }
 
-// Servers is used to get all proxy servers
+// Servers is used to get all proxy servers.
 func (m *Manager) Servers() map[string]*Server {
-	m.rwm.RLock()
-	defer m.rwm.RUnlock()
+	m.serversRWM.RLock()
+	defer m.serversRWM.RUnlock()
 	servers := make(map[string]*Server, len(m.servers))
 	for tag, server := range m.servers {
 		servers[tag] = server
@@ -142,10 +154,10 @@ func (m *Manager) Servers() map[string]*Server {
 	return servers
 }
 
-// Close is used to close all proxy servers
+// Close is used to close all proxy servers.
 func (m *Manager) Close() error {
-	m.rwm.Lock()
-	defer m.rwm.Unlock()
+	m.serversRWM.Lock()
+	defer m.serversRWM.Unlock()
 	var err error
 	for tag, server := range m.servers {
 		e := server.Close()

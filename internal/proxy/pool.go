@@ -5,21 +5,28 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/cert"
 	"project/internal/patch/toml"
 	"project/internal/proxy/direct"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
 )
 
-// Pool is a proxy client pool
+// Pool is the proxy client pool.
 type Pool struct {
-	clients map[string]*Client // key = tag
-	rwm     sync.RWMutex
+	certPool *cert.Pool
+
+	// key = tag
+	clients    map[string]*Client
+	clientsRWM sync.RWMutex
 }
 
-// NewPool is used to create a proxy client pool
-func NewPool() *Pool {
-	pool := Pool{clients: make(map[string]*Client)}
+// NewPool is used to create a proxy client pool.
+func NewPool(certPool *cert.Pool) *Pool {
+	pool := Pool{
+		certPool: certPool,
+		clients:  make(map[string]*Client),
+	}
 	// add direct
 	dc := &Client{
 		Tag:    ModeDirect,
@@ -31,7 +38,7 @@ func NewPool() *Pool {
 	return &pool
 }
 
-// Add is used to add a proxy client
+// Add is used to add a proxy client.
 func (p *Pool) Add(client *Client) error {
 	err := p.add(client)
 	if err != nil {
@@ -64,8 +71,8 @@ func (p *Pool) add(client *Client) error {
 	if err != nil {
 		return err
 	}
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
+	p.clientsRWM.Lock()
+	defer p.clientsRWM.Unlock()
 	if _, ok := p.clients[client.Tag]; !ok {
 		p.clients[client.Tag] = client
 		return nil
@@ -106,6 +113,8 @@ func (p *Pool) addHTTP(client *Client) error {
 	case ModeHTTP:
 		client.client, err = http.NewHTTPClient(client.Network, client.Address, opts)
 	case ModeHTTPS:
+		opts.Server.TLSConfig.CertPool = p.certPool
+		opts.Transport.TLSClientConfig.CertPool = p.certPool
 		client.client, err = http.NewHTTPSClient(client.Network, client.Address, opts)
 	}
 	return err
@@ -151,7 +160,7 @@ func (p *Pool) addBalance(client *Client) error {
 	return err
 }
 
-// Delete is used to delete proxy client
+// Delete is used to delete proxy client.
 func (p *Pool) Delete(tag string) error {
 	if tag == "" {
 		return errors.New("empty proxy client tag")
@@ -159,8 +168,8 @@ func (p *Pool) Delete(tag string) error {
 	if tag == ModeDirect {
 		return errors.New("direct is the reserve proxy client")
 	}
-	p.rwm.Lock()
-	defer p.rwm.Unlock()
+	p.clientsRWM.Lock()
+	defer p.clientsRWM.Unlock()
 	if _, ok := p.clients[tag]; ok {
 		delete(p.clients, tag)
 		return nil
@@ -168,21 +177,21 @@ func (p *Pool) Delete(tag string) error {
 	return errors.Errorf("proxy client %s doesn't exist", tag)
 }
 
-// Get is used to get proxy client
+// Get is used to get a proxy client.
 // return Direct if tag is "" or "direct"
 func (p *Pool) Get(tag string) (*Client, error) {
-	p.rwm.RLock()
-	defer p.rwm.RUnlock()
+	p.clientsRWM.RLock()
+	defer p.clientsRWM.RUnlock()
 	if client, ok := p.clients[tag]; ok {
 		return client, nil
 	}
 	return nil, errors.Errorf("proxy client %s doesn't exist", tag)
 }
 
-// Clients is used to get all proxy clients
+// Clients is used to get all proxy clients.
 func (p *Pool) Clients() map[string]*Client {
-	p.rwm.RLock()
-	defer p.rwm.RUnlock()
+	p.clientsRWM.RLock()
+	defer p.clientsRWM.RUnlock()
 	clients := make(map[string]*Client, len(p.clients))
 	for tag, client := range p.clients {
 		clients[tag] = client

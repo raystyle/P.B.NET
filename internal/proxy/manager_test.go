@@ -12,6 +12,7 @@ import (
 	"project/internal/logger"
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
+	"project/internal/testsuite/testcert"
 )
 
 var testServerTags = []string{
@@ -22,8 +23,11 @@ var testServerTags = []string{
 	"https",
 }
 
+var testServerNum = len(testServerTags)
+
 func testGenerateManager(t *testing.T) *Manager {
-	manager := NewManager(logger.Test, nil)
+	pool := testcert.CertPool(t)
+	manager := NewManager(pool, logger.Test, nil)
 	for i, filename := range []string{
 		"socks/testdata/socks5_client.toml",
 		"socks/testdata/socks4a_client.toml",
@@ -106,7 +110,10 @@ func TestManager_Add(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	require.Equal(t, testServerNum, len(manager.Servers()))
 	require.NoError(t, manager.Close())
+	require.Equal(t, 0, len(manager.Servers()))
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -142,7 +149,10 @@ func TestManager_Get(t *testing.T) {
 		}
 	})
 
+	require.Equal(t, testServerNum, len(manager.Servers()))
 	require.NoError(t, manager.Close())
+	require.Equal(t, 0, len(manager.Servers()))
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -157,6 +167,7 @@ func TestManager_Delete(t *testing.T) {
 			err := manager.Delete(tag)
 			require.NoError(t, err)
 		}
+		require.Equal(t, 0, len(manager.Servers()))
 	})
 
 	t.Run("empty tag", func(t *testing.T) {
@@ -170,6 +181,63 @@ func TestManager_Delete(t *testing.T) {
 	})
 
 	require.NoError(t, manager.Close())
+	require.Equal(t, 0, len(manager.Servers()))
+
+	testsuite.IsDestroyed(t, manager)
+}
+
+func TestManager_Parallel(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	manager := testGenerateManager(t)
+	const (
+		tag1 = "test-01"
+		tag2 = "test-02"
+	)
+
+	add1 := func() {
+		err := manager.Add(&Server{
+			Tag:  tag1,
+			Mode: ModeSocks5,
+		})
+		require.NoError(t, err)
+	}
+	add2 := func() {
+		err := manager.Add(&Server{
+			Tag:  tag2,
+			Mode: ModeHTTP,
+		})
+		require.NoError(t, err)
+	}
+	testsuite.RunParallel(add1, add2)
+
+	get1 := func() {
+		server, err := manager.Get(tag1)
+		require.NoError(t, err)
+		require.NotNil(t, server)
+	}
+	get2 := func() {
+		server, err := manager.Get(tag2)
+		require.NoError(t, err)
+		require.NotNil(t, server)
+	}
+	testsuite.RunParallel(get1, get2)
+
+	delete1 := func() {
+		err := manager.Delete(tag1)
+		require.NoError(t, err)
+	}
+	delete2 := func() {
+		err := manager.Delete(tag2)
+		require.NoError(t, err)
+	}
+	testsuite.RunParallel(delete1, delete2)
+
+	require.Equal(t, testServerNum, len(manager.Servers()))
+	require.NoError(t, manager.Close())
+	require.Equal(t, 0, len(manager.Servers()))
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -177,7 +245,8 @@ func TestManager_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	manager := NewManager(logger.Test, nil)
+	pool := testcert.CertPool(t)
+	manager := NewManager(pool, logger.Test, nil)
 	server := Server{
 		Tag:  "test",
 		Mode: ModeSocks5,
@@ -218,6 +287,8 @@ func TestManager_Close(t *testing.T) {
 	err = manager.Close()
 	monkey.IsMonkeyError(t, err)
 	wg.Wait()
+
+	require.Equal(t, 0, len(manager.Servers()))
 
 	testsuite.IsDestroyed(t, manager)
 }
