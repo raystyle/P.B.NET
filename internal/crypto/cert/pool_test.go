@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/cert/certutil"
 	"project/internal/patch/monkey"
 	"project/internal/security"
 )
@@ -329,5 +330,33 @@ func TestPool(t *testing.T) {
 			err := pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
 			monkey.IsMonkeyError(t, err)
 		})
+	})
+}
+
+func TestNewPoolWithSystemCerts(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		_, err := NewPoolWithSystemCerts()
+		require.NoError(t, err)
+	})
+
+	t.Run("failed to call SystemCertPool", func(t *testing.T) {
+		patchFunc := func() (*x509.CertPool, error) {
+			return nil, monkey.ErrMonkey
+		}
+		pg := monkey.Patch(certutil.SystemCertPool, patchFunc)
+		defer pg.Unpatch()
+		_, err := NewPoolWithSystemCerts()
+		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("failed to AddPublicRootCACert", func(t *testing.T) {
+		pool := NewPool()
+		patchFunc := func(_ *Pool, _ *x509.Certificate) error {
+			return monkey.ErrMonkey
+		}
+		pg := monkey.PatchInstanceMethod(pool, "AddPublicRootCACert", patchFunc)
+		defer pg.Unpatch()
+		_, err := NewPoolWithSystemCerts()
+		monkey.IsMonkeyError(t, err)
 	})
 }

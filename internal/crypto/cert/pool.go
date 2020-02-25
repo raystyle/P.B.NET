@@ -319,3 +319,20 @@ func (p *Pool) GetPrivateClientPairs() []*Pair {
 	}
 	return pairs
 }
+
+// NewPoolWithSystemCerts is used to create a certificate pool with system certificate.
+func NewPoolWithSystemCerts() (*Pool, error) {
+	systemCertPool, err := certutil.SystemCertPool()
+	if err != nil {
+		return nil, err
+	}
+	certPool := NewPool()
+	certs := systemCertPool.Certs()
+	for i := 0; i < len(certs); i++ {
+		err = certPool.AddPublicRootCACert(certs[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return certPool, nil
+}
