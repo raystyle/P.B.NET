@@ -10,9 +10,43 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/aes"
+	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 	"project/internal/xnet"
 )
+
+func TestLoad(t *testing.T) {
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
+
+	ctx := context.Background()
+
+	testdata := [...]*struct {
+		mode   string
+		config string
+	}{
+		{mode: ModeHTTP, config: "testdata/http.toml"},
+		{mode: ModeDNS, config: "testdata/dns.toml"},
+		{mode: ModeDirect, config: "testdata/direct.toml"},
+	}
+	for _, td := range testdata {
+		config, err := ioutil.ReadFile(td.config)
+		require.NoError(t, err)
+		boot, err := Load(ctx, td.mode, config, certPool, proxyPool, dnsClient)
+		require.NoError(t, err)
+		require.NotNil(t, boot)
+
+		testsuite.IsDestroyed(t, boot)
+	}
+
+	// unknown mode
+	_, err := Load(ctx, "foo mode", nil, certPool, proxyPool, dnsClient)
+	require.EqualError(t, err, "unknown mode: foo mode")
+
+	// invalid config
+	_, err = Load(ctx, ModeHTTP, nil, certPool, proxyPool, dnsClient)
+	require.Error(t, err)
+}
 
 // cannot use const string, because call security.CoverString().
 func testGenerateListener() *Listener {
@@ -106,34 +140,4 @@ func TestListener_String(t *testing.T) {
 	}
 	expect := "tls (tcp 127.0.0.1:443)"
 	require.Equal(t, expect, listener.String())
-}
-
-func TestLoad(t *testing.T) {
-	dnsClient, proxyPool, manager := testdns.DNSClient(t)
-	defer func() { require.NoError(t, manager.Close()) }()
-
-	ctx := context.Background()
-
-	testdata := [...]*struct {
-		mode   string
-		config string
-	}{
-		{mode: ModeHTTP, config: "testdata/http.toml"},
-		{mode: ModeDNS, config: "testdata/dns.toml"},
-		{mode: ModeDirect, config: "testdata/direct.toml"},
-	}
-	for _, td := range testdata {
-		config, err := ioutil.ReadFile(td.config)
-		require.NoError(t, err)
-		_, err = Load(ctx, td.mode, config, proxyPool, dnsClient)
-		require.NoError(t, err)
-	}
-
-	// unknown mode
-	_, err := Load(ctx, "foo mode", nil, proxyPool, dnsClient)
-	require.EqualError(t, err, "unknown mode: foo mode")
-
-	// invalid config
-	_, err = Load(ctx, ModeHTTP, nil, proxyPool, dnsClient)
-	require.Error(t, err)
 }

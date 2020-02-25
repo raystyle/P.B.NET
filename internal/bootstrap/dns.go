@@ -16,32 +16,31 @@ import (
 	"project/internal/xnet/xnetutil"
 )
 
-// DNS is used to resolve bootstrap node listeners from DNS resolve result
+// DNS is used to resolve bootstrap node listeners from DNS resolve result.
 type DNS struct {
+	ctx       context.Context
+	dnsClient *dns.Client
+
 	Host    string      `toml:"host"`    // domain name
 	Mode    string      `toml:"mode"`    // listener mode (see xnet)
 	Network string      `toml:"network"` // listener network
 	Port    string      `toml:"port"`    // listener port
 	Options dns.Options `toml:"options"` // dns options
 
-	// runtime
-	ctx       context.Context
-	dnsClient *dns.Client
-
 	// self encrypt all options
 	cbc *aes.CBC
 	enc []byte
 }
 
-// NewDNS is used to create a DNS mode bootstrap
-func NewDNS(ctx context.Context, client *dns.Client) *DNS {
+// NewDNS is used to create a DNS mode bootstrap.
+func NewDNS(ctx context.Context, dnsClient *dns.Client) *DNS {
 	return &DNS{
 		ctx:       ctx,
-		dnsClient: client,
+		dnsClient: dnsClient,
 	}
 }
 
-// Validate is used to check DNS config correct
+// Validate is used to check DNS config correct.
 func (d *DNS) Validate() error {
 	if d.Host == "" {
 		return errors.New("empty host")
@@ -57,7 +56,7 @@ func (d *DNS) Validate() error {
 	return errors.WithStack(err)
 }
 
-// Marshal is used to marshal DNS to []byte
+// Marshal is used to marshal DNS to []byte.
 func (d *DNS) Marshal() ([]byte, error) {
 	err := d.Validate()
 	if err != nil {
@@ -66,7 +65,7 @@ func (d *DNS) Marshal() ([]byte, error) {
 	return toml.Marshal(d)
 }
 
-// Unmarshal is used to unmarshal []byte to DNS
+// Unmarshal is used to unmarshal []byte to DNS.
 // store encrypted data to d.enc
 func (d *DNS) Unmarshal(config []byte) error {
 	tempDNS := &DNS{}
@@ -96,7 +95,7 @@ func (d *DNS) Unmarshal(config []byte) error {
 	return err
 }
 
-// Resolve is used to get bootstrap node listeners
+// Resolve is used to get bootstrap node listeners.
 func (d *DNS) Resolve() ([]*Listener, error) {
 	// decrypt all options
 	memory := security.NewMemory()
@@ -114,13 +113,12 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 	security.CoverBytes(dec)
 	memory.Padding()
 	// resolve dns
-	dn := tDNS.Host
-	dnsOpts := tDNS.Options
+	domain := tDNS.Host
 	defer func() {
 		security.CoverString(&tDNS.Host)
-		security.CoverString(&dn)
+		security.CoverString(&domain)
 	}()
-	result, err := d.dnsClient.ResolveContext(d.ctx, dn, &dnsOpts)
+	result, err := d.dnsClient.ResolveContext(d.ctx, domain, &tDNS.Options)
 	if err != nil {
 		return nil, err
 	}

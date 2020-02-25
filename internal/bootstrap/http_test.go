@@ -22,18 +22,19 @@ import (
 )
 
 func testGenerateHTTP(t *testing.T) *HTTP {
-	HTTP := NewHTTP(context.Background(), nil, nil)
-	HTTP.AESKey = strings.Repeat("FF", aes.Key256Bit)
-	HTTP.AESIV = strings.Repeat("FF", aes.IVSize)
+	HTTP := HTTP{
+		AESKey: strings.Repeat("FF", aes.Key256Bit),
+		AESIV:  strings.Repeat("FF", aes.IVSize),
+	}
 	privateKey, err := ed25519.GenerateKey()
 	require.NoError(t, err)
 	HTTP.PrivateKey = privateKey
-	return HTTP
+	return &HTTP
 }
 
 func TestHTTP(t *testing.T) {
-	dnsClient, proxyPool, manager := testdns.DNSClient(t)
-	defer func() { _ = manager.Close() }()
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	t.Run("http", func(t *testing.T) {
 		// set test http server mux
@@ -68,7 +69,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
+			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 
@@ -106,7 +107,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
+			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 
@@ -159,7 +160,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
+			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 
@@ -201,7 +202,7 @@ func TestHTTP(t *testing.T) {
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
 			// unmarshal
-			HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
+			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
 			require.NoError(t, err)
 
@@ -218,7 +219,7 @@ func TestHTTP(t *testing.T) {
 }
 
 func TestHTTP_Validate(t *testing.T) {
-	HTTP := NewHTTP(context.Background(), nil, nil)
+	HTTP := HTTP{}
 	// invalid request
 	require.Error(t, HTTP.Validate())
 
@@ -257,7 +258,7 @@ func TestHTTP_Validate(t *testing.T) {
 }
 
 func TestHTTP_Generate(t *testing.T) {
-	HTTP := NewHTTP(context.Background(), nil, nil)
+	HTTP := NewHTTP(context.Background(), nil, nil, nil)
 
 	// no bootstrap node listeners
 	_, err := HTTP.Generate(nil)
@@ -285,7 +286,7 @@ func TestHTTP_Generate(t *testing.T) {
 }
 
 func TestHTTP_Unmarshal(t *testing.T) {
-	HTTP := NewHTTP(context.Background(), nil, nil)
+	HTTP := HTTP{}
 
 	// unmarshal invalid config
 	require.Error(t, HTTP.Unmarshal([]byte{0x00}))
@@ -295,8 +296,8 @@ func TestHTTP_Unmarshal(t *testing.T) {
 }
 
 func TestHTTP_Resolve(t *testing.T) {
-	dnsClient, proxyPool, manager := testdns.DNSClient(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	t.Run("doesn't exist proxy server", func(t *testing.T) {
 		HTTP := testGenerateHTTP(t)
@@ -305,7 +306,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.ProxyTag = "doesn't exist"
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
+		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		listeners, err := HTTP.Resolve()
 		require.Error(t, err)
@@ -318,7 +319,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.DNSOpts.Mode = "foo mode"
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
+		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		listeners, err := HTTP.Resolve()
 		require.Error(t, err)
@@ -331,7 +332,7 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.DNSOpts.Mode = dns.ModeSystem
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
-		HTTP = NewHTTP(context.Background(), proxyPool, dnsClient)
+		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 		require.NoError(t, HTTP.Unmarshal(b))
 		listeners, err := HTTP.Resolve()
 		require.Error(t, err)
@@ -341,7 +342,7 @@ func TestHTTP_Resolve(t *testing.T) {
 
 func TestHTTPPanic(t *testing.T) {
 	t.Run("no CBC", func(t *testing.T) {
-		HTTP := NewHTTP(context.Background(), nil, nil)
+		HTTP := HTTP{}
 
 		func() {
 			defer func() {
@@ -352,11 +353,11 @@ func TestHTTPPanic(t *testing.T) {
 			_, _ = HTTP.Resolve()
 		}()
 
-		testsuite.IsDestroyed(t, HTTP)
+		testsuite.IsDestroyed(t, &HTTP)
 	})
 
 	t.Run("invalid encrypted data", func(t *testing.T) {
-		HTTP := NewHTTP(context.Background(), nil, nil)
+		HTTP := HTTP{}
 
 		func() {
 			var err error
@@ -376,11 +377,11 @@ func TestHTTPPanic(t *testing.T) {
 			_, _ = HTTP.Resolve()
 		}()
 
-		testsuite.IsDestroyed(t, HTTP)
+		testsuite.IsDestroyed(t, &HTTP)
 	})
 
 	t.Run("invalid http request", func(t *testing.T) {
-		dHTTP := NewHTTP(context.Background(), nil, nil)
+		dHTTP := HTTP{}
 
 		func() {
 			var err error
@@ -402,11 +403,11 @@ func TestHTTPPanic(t *testing.T) {
 			_, _ = dHTTP.Resolve()
 		}()
 
-		testsuite.IsDestroyed(t, dHTTP)
+		testsuite.IsDestroyed(t, &dHTTP)
 	})
 
 	t.Run("invalid http transport", func(t *testing.T) {
-		dHTTP := NewHTTP(context.Background(), nil, nil)
+		dHTTP := HTTP{}
 
 		func() {
 			var err error
@@ -431,7 +432,7 @@ func TestHTTPPanic(t *testing.T) {
 			_, _ = dHTTP.Resolve()
 		}()
 
-		testsuite.IsDestroyed(t, dHTTP)
+		testsuite.IsDestroyed(t, &dHTTP)
 	})
 
 	// resolve
@@ -574,8 +575,8 @@ func TestHTTPPanic(t *testing.T) {
 func TestHTTPOptions(t *testing.T) {
 	config, err := ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
-	HTTP := NewHTTP(context.Background(), nil, nil)
-	require.NoError(t, toml.Unmarshal(config, HTTP))
+	HTTP := HTTP{}
+	require.NoError(t, toml.Unmarshal(config, &HTTP))
 	require.NoError(t, HTTP.Validate())
 
 	testdata := [...]*struct {

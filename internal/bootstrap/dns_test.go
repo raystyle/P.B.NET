@@ -17,8 +17,8 @@ import (
 )
 
 func TestDNS(t *testing.T) {
-	dnsClient, _, manager := testdns.DNSClient(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	dnsClient, _, proxyMgr, _ := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	if testsuite.IPv4Enabled {
 		listeners := []*Listener{{
@@ -116,8 +116,8 @@ func TestDNS_Unmarshal(t *testing.T) {
 }
 
 func TestDNS_Resolve(t *testing.T) {
-	dnsClient, _, manager := testdns.DNSClient(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	dnsClient, _, proxyMgr, _ := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	DNS := NewDNS(context.Background(), dnsClient)
 	config := []byte(`

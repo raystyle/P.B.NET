@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/cert"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
 	"project/internal/option"
@@ -36,8 +37,13 @@ var (
 	ErrInvalidSignature     = fmt.Errorf("invalid signature")
 )
 
-// HTTP is used to resolve bootstrap node listeners from HTTP response body
+// HTTP is used to resolve bootstrap node listeners from HTTP response body.
 type HTTP struct {
+	ctx       context.Context
+	certPool  *cert.Pool
+	proxyPool *proxy.Pool
+	dnsClient *dns.Client
+
 	Request   option.HTTPRequest   `toml:"request"`
 	Transport option.HTTPTransport `toml:"transport"`
 	Timeout   time.Duration        `toml:"timeout"`
@@ -56,26 +62,27 @@ type HTTP struct {
 	// for generate & marshal, controller set it
 	PrivateKey ed25519.PrivateKey `toml:"-"`
 
-	// runtime
-	ctx       context.Context
-	proxyPool *proxy.Pool
-	dnsClient *dns.Client
-
 	// self encrypt all options
 	cbc *aes.CBC
 	enc []byte
 }
 
-// NewHTTP is used to create a HTTP mode bootstrap
-func NewHTTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *HTTP {
+// NewHTTP is used to create a HTTP mode bootstrap.
+func NewHTTP(
+	ctx context.Context,
+	certPool *cert.Pool,
+	proxyPool *proxy.Pool,
+	dnsClient *dns.Client,
+) *HTTP {
 	return &HTTP{
 		ctx:       ctx,
-		dnsClient: client,
-		proxyPool: pool,
+		certPool:  certPool,
+		dnsClient: dnsClient,
+		proxyPool: proxyPool,
 	}
 }
 
-// Validate is used to check HTTP config correct
+// Validate is used to check HTTP config correct.
 func (h *HTTP) Validate() error {
 	_, err := h.Request.Apply()
 	if err != nil {
@@ -107,7 +114,7 @@ func (h *HTTP) Validate() error {
 	return errors.WithStack(err)
 }
 
-// Generate is used to generate bootstrap info
+// Generate is used to generate bootstrap information.
 func (h *HTTP) Generate(listeners []*Listener) ([]byte, error) {
 	if len(listeners) == 0 {
 		return nil, errors.New("no bootstrap listeners")
@@ -150,7 +157,7 @@ func (h *HTTP) Generate(listeners []*Listener) ([]byte, error) {
 	return dst, nil
 }
 
-// Marshal is used to marshal HTTP to []byte
+// Marshal is used to marshal HTTP to []byte.
 func (h *HTTP) Marshal() ([]byte, error) {
 	publicKey := h.PrivateKey.PublicKey()
 	h.PublicKey = hex.EncodeToString(publicKey)
@@ -161,14 +168,14 @@ func (h *HTTP) Marshal() ([]byte, error) {
 	return toml.Marshal(h)
 }
 
-// flushRequestOption is used to cover string field if has secret
+// flushRequestOption is used to cover string field if has secret.
 func flushRequestOption(r *option.HTTPRequest) {
 	security.CoverString(&r.URL)
 	security.CoverString(&r.Post)
 	security.CoverString(&r.Host)
 }
 
-// Unmarshal is used to unmarshal []byte to HTTP
+// Unmarshal is used to unmarshal []byte to HTTP.
 func (h *HTTP) Unmarshal(data []byte) error {
 	tempHTTP := &HTTP{}
 	err := toml.Unmarshal(data, tempHTTP)
@@ -197,7 +204,7 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	return err
 }
 
-// Resolve is used to get bootstrap node listeners
+// Resolve is used to get bootstrap node listeners.
 func (h *HTTP) Resolve() ([]*Listener, error) {
 	// decrypt all options
 	memory := security.NewMemory()
@@ -221,18 +228,19 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 		panic(err)
 	}
 	defer security.CoverHTTPRequest(req)
-	tr, err := tHTTP.Transport.Apply()
+	tHTTP.Transport.TLSClientConfig.CertPool = h.certPool
+	transport, err := tHTTP.Transport.Apply()
 	if err != nil {
 		panic(err)
 	}
-	tr.TLSClientConfig.ServerName = req.URL.Hostname()
+	transport.TLSClientConfig.ServerName = req.URL.Hostname()
 
 	// set proxy
-	p, err := h.proxyPool.Get(tHTTP.ProxyTag)
+	proxyClient, err := h.proxyPool.Get(tHTTP.ProxyTag)
 	if err != nil {
 		return nil, err
 	}
-	p.HTTP(tr)
+	proxyClient.HTTP(transport)
 
 	hostname := req.URL.Hostname()
 	defer security.CoverString(&hostname)
@@ -257,22 +265,20 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	}
 
 	// make http client
-	hc := &http.Client{
-		Transport: tr,
+	httpClient := &http.Client{
+		Transport: transport,
 		Timeout:   timeout,
 	}
 
 	var info []byte
 	for i := 0; i < len(result); i++ {
 		req := req.Clone(h.ctx)
-
 		// replace host to IP address
 		if port != "" {
 			req.URL.Host = net.JoinHostPort(result[i], port)
 		} else {
 			req.URL.Host = result[i]
 		}
-
 		// set Host header
 		// http://www.msfconnecttest.com/ -> http://96.126.123.244/
 		// http will set host that not show domain name
@@ -280,8 +286,7 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 		if req.Host == "" && req.URL.Scheme == "http" {
 			req.Host = req.URL.Host
 		}
-
-		info, err = do(req, hc, maxBodySize)
+		info, err = do(req, httpClient, maxBodySize)
 		if err == nil {
 			break
 		}

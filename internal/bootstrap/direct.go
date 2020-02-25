@@ -10,7 +10,7 @@ import (
 	"project/internal/security"
 )
 
-// Direct is used to resolve bootstrap node listeners from local config
+// Direct is used to resolve bootstrap node listeners from local config.
 type Direct struct {
 	Listeners []*Listener `toml:"listeners"`
 
@@ -19,15 +19,15 @@ type Direct struct {
 	enc []byte
 }
 
-// NewDirect is used to create a direct mode bootstrap
+// NewDirect is used to create a direct mode bootstrap.
 func NewDirect() *Direct {
 	return new(Direct)
 }
 
-// Validate is a padding function
+// Validate is a padding function.
 func (d *Direct) Validate() error { return nil }
 
-// Marshal is used to marshal Direct to []byte
+// Marshal is used to marshal Direct to []byte.
 func (d *Direct) Marshal() ([]byte, error) {
 	if len(d.Listeners) == 0 {
 		return nil, errors.New("no bootstrap node listeners")
@@ -35,7 +35,7 @@ func (d *Direct) Marshal() ([]byte, error) {
 	return toml.Marshal(d)
 }
 
-// Unmarshal is used to unmarshal []byte to Direct
+// Unmarshal is used to unmarshal []byte to Direct.
 func (d *Direct) Unmarshal(config []byte) error {
 	memory := security.NewMemory()
 	defer memory.Flush()
@@ -58,7 +58,7 @@ func (d *Direct) Unmarshal(config []byte) error {
 	return err
 }
 
-// Resolve is used to get bootstrap node listeners
+// Resolve is used to get bootstrap node listeners.
 func (d *Direct) Resolve() ([]*Listener, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()

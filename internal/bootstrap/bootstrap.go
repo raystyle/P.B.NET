@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/patch/msgpack"
 	"project/internal/proxy"
@@ -20,6 +21,48 @@ const (
 	ModeDNS    = "dns"
 	ModeDirect = "direct"
 )
+
+// Bootstrap is used to resolve bootstrap Node listeners.
+type Bootstrap interface {
+	// Validate is used to check bootstrap configuration is correct
+	Validate() error
+
+	// Marshal is used to marshal bootstrap to []byte
+	Marshal() ([]byte, error)
+
+	// Unmarshal is used to unmarshal []byte to bootstrap
+	Unmarshal([]byte) error
+
+	// Resolve is used to resolve bootstrap Node listeners
+	Resolve() ([]*Listener, error)
+}
+
+// Load is used to load a bootstrap from configuration.
+func Load(
+	ctx context.Context,
+	mode string,
+	config []byte,
+	certPool *cert.Pool,
+	proxyPool *proxy.Pool,
+	dnsClient *dns.Client,
+) (Bootstrap, error) {
+	var bootstrap Bootstrap
+	switch mode {
+	case ModeHTTP:
+		bootstrap = NewHTTP(ctx, certPool, proxyPool, dnsClient)
+	case ModeDNS:
+		bootstrap = NewDNS(ctx, dnsClient)
+	case ModeDirect:
+		bootstrap = NewDirect()
+	default:
+		return nil, errors.Errorf("unknown mode: %s", mode)
+	}
+	err := bootstrap.Unmarshal(config)
+	if err != nil {
+		return nil, err
+	}
+	return bootstrap, nil
+}
 
 // Listener is the bootstrap Node listener.
 // Node or Beacon register will use bootstrap to resolve Node listeners,
@@ -126,45 +169,4 @@ func EncryptListeners(listeners []*Listener) []*Listener {
 		listeners[i].Destroy()
 	}
 	return newListeners
-}
-
-// Bootstrap is used to resolve bootstrap Node listeners.
-type Bootstrap interface {
-	// Validate is used to check bootstrap configuration is correct
-	Validate() error
-
-	// Marshal is used to marshal bootstrap to []byte
-	Marshal() ([]byte, error)
-
-	// Unmarshal is used to unmarshal []byte to bootstrap
-	Unmarshal([]byte) error
-
-	// Resolve is used to resolve bootstrap Node listeners
-	Resolve() ([]*Listener, error)
-}
-
-// Load is used to load a bootstrap from configuration.
-func Load(
-	ctx context.Context,
-	mode string,
-	config []byte,
-	pool *proxy.Pool,
-	client *dns.Client,
-) (Bootstrap, error) {
-	var bootstrap Bootstrap
-	switch mode {
-	case ModeHTTP:
-		bootstrap = NewHTTP(ctx, pool, client)
-	case ModeDNS:
-		bootstrap = NewDNS(ctx, client)
-	case ModeDirect:
-		bootstrap = NewDirect()
-	default:
-		return nil, errors.Errorf("unknown mode: %s", mode)
-	}
-	err := bootstrap.Unmarshal(config)
-	if err != nil {
-		return nil, err
-	}
-	return bootstrap, nil
 }
