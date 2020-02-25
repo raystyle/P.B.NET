@@ -14,7 +14,7 @@ import (
 // Level is the log level
 type Level = uint8
 
-// valid level
+// about level
 const (
 	Debug Level = iota
 	Info
@@ -25,7 +25,7 @@ const (
 	Off
 )
 
-// TimeLayout is used to provide a parameter to time.Time.Format()
+// TimeLayout is used to provide a parameter to time.Time.Format().
 const TimeLayout = "2006-01-02 15:04:05"
 
 // Logger is a common logger.
@@ -96,14 +96,14 @@ func Prefix(time time.Time, level Level, src string) *bytes.Buffer {
 }
 
 var (
-	// Common is a common logger, some tools need it
-	Common = new(common)
+	// Common is a common logger, some tools need it.
+	Common Logger = new(common)
 
-	// Test is used to go test
-	Test = new(test)
+	// Test is used to go test.
+	Test Logger = new(test)
 
-	// Discard is used to discard log in object test
-	Discard = new(discard)
+	// Discard is used to discard log in object test.
+	Discard Logger = new(discard)
 )
 
 // [2020-01-21 12:36:41] [debug] <test src> test-format test log
@@ -218,7 +218,7 @@ func HijackLogWriter(logger Logger) {
 	log.SetOutput(w)
 }
 
-// Conn is used to print connection info.
+// Conn is used to print connection information.
 // local:  tcp 127.0.0.1:123
 // remote: tcp 127.0.0.1:124
 func Conn(conn net.Conn) *bytes.Buffer {
