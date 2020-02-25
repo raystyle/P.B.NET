@@ -1,10 +1,7 @@
-// +build windows
-
 package main
 
 import (
 	"bytes"
-	"crypto/x509"
 	"encoding/pem"
 	"io/ioutil"
 	"log"
@@ -14,28 +11,22 @@ import (
 )
 
 func main() {
-	root, err := certutil.LoadSystemCertWithName("ROOT")
+	// load certificates
+	pool, err := certutil.SystemCertPool()
 	checkError(err)
-	ca, err := certutil.LoadSystemCertWithName("CA")
-	checkError(err)
-	certs := append(root, ca...)
+	certs := pool.Certs()
 	l := len(certs)
 	buf := new(bytes.Buffer)
-	count := 0
 	for i := 0; i < l; i++ {
-		cert, err := x509.ParseCertificate(certs[i])
-		if err != nil {
-			log.Println("warning", err)
-			continue
-		}
 		block := pem.Block{
 			Type:  "CERTIFICATE",
-			Bytes: certs[i],
+			Bytes: certs[i].Raw,
 		}
 		err = pem.Encode(buf, &block)
 		checkError(err)
-		count++
-		// print CA info
+
+		// print certificate information
+		cert := certs[i]
 		const format = "V%d %s\n"
 		switch {
 		case cert.Subject.CommonName != "":
@@ -46,28 +37,23 @@ func main() {
 			log.Printf(format, cert.Version, cert.Subject)
 		}
 	}
-
 	log.Println("------------------------------------------------")
-	log.Println("the raw number of the system CA certificates:", l)
-	log.Println("the actual number of the system CA certificates:", count)
+	log.Println("the number of the system CA certificates:", l)
 
 	// write pem
 	err = ioutil.WriteFile("system.pem", buf.Bytes(), 0600)
 	checkError(err)
-
-	// test generated PEM
+	// test certificates
 	pemData, err := ioutil.ReadFile("system.pem")
 	checkError(err)
-	tlsConfig, _ := (&option.TLSConfig{RootCAs: []string{string(pemData)}}).Apply()
-	loadNum := len(tlsConfig.RootCAs.Subjects())
-	tlsConfig, _ = (&option.TLSConfig{InsecureLoadFromSystem: true}).Apply()
-	sysNum := len(tlsConfig.RootCAs.Subjects())
-
+	certs, err = (&option.TLSConfig{RootCAs: []string{string(pemData)}}).GetRootCAs()
+	checkError(err)
 	// compare
-	if sysNum != loadNum {
-		log.Printf("warning: system: %d, test load: %d", sysNum, loadNum)
+	loadNum := len(certs)
+	if loadNum == l {
+		log.Println("export System CA certificates successfully")
 	} else {
-		log.Println("export Windows System CA certificates successfully")
+		log.Printf("warning: system: %d, test load: %d\n", l, loadNum)
 	}
 }
 
