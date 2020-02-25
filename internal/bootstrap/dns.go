@@ -105,20 +105,20 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 	if err != nil {
 		panic(err)
 	}
-	tDNS := &DNS{}
-	err = msgpack.Unmarshal(dec, tDNS)
+	tempDNS := &DNS{}
+	err = msgpack.Unmarshal(dec, tempDNS)
 	if err != nil {
 		panic(err)
 	}
 	security.CoverBytes(dec)
 	memory.Padding()
 	// resolve dns
-	domain := tDNS.Host
+	domain := tempDNS.Host
 	defer func() {
-		security.CoverString(&tDNS.Host)
+		security.CoverString(&tempDNS.Host)
 		security.CoverString(&domain)
 	}()
-	result, err := d.dnsClient.ResolveContext(d.ctx, domain, &tDNS.Options)
+	result, err := d.dnsClient.ResolveContext(d.ctx, domain, &tempDNS.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -126,10 +126,10 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 	listeners := make([]*Listener, l)
 	for i := 0; i < l; i++ {
 		listeners[i] = &Listener{
-			Mode:    tDNS.Mode,
-			Network: tDNS.Network,
+			Mode:    tempDNS.Mode,
+			Network: tempDNS.Network,
 		}
-		listeners[i].Address = net.JoinHostPort(result[i], tDNS.Port)
+		listeners[i].Address = net.JoinHostPort(result[i], tempDNS.Port)
 		security.CoverString(&result[i])
 	}
 	return EncryptListeners(listeners), nil

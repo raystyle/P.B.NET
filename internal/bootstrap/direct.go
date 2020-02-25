@@ -25,7 +25,9 @@ func NewDirect() *Direct {
 }
 
 // Validate is a padding function.
-func (d *Direct) Validate() error { return nil }
+func (d *Direct) Validate() error {
+	return nil
+}
 
 // Marshal is used to marshal Direct to []byte.
 func (d *Direct) Marshal() ([]byte, error) {

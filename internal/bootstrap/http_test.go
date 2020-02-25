@@ -21,6 +21,16 @@ import (
 	"project/internal/testsuite/testdns"
 )
 
+func TestCoverHTTPRequest(t *testing.T) {
+	url := strings.Repeat("http://test.com/", 1)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+	f1 := req.URL.String()
+	coverHTTPRequest(req)
+	f2 := req.URL.String()
+	require.NotEqual(t, f1, f2, "failed to cover string fields")
+}
+
 func testGenerateHTTP(t *testing.T) *HTTP {
 	HTTP := HTTP{
 		AESKey: strings.Repeat("FF", aes.Key256Bit),

@@ -1,7 +1,6 @@
 package security
 
 import (
-	"net/http"
 	"reflect"
 	"runtime"
 	"sync"
@@ -77,14 +76,6 @@ func CoverString(s *string) {
 		*b = 0
 	}
 	runtime.KeepAlive(s)
-}
-
-// CoverHTTPRequest is used to cover http.Request string field if has secret
-func CoverHTTPRequest(r *http.Request) {
-	CoverString(&r.Host)
-	CoverString(&r.URL.Host)
-	CoverString(&r.URL.Path)
-	CoverString(&r.URL.RawPath)
 }
 
 // Bytes make byte slice discontinuous, it safe for use by multiple goroutines

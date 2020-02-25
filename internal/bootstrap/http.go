@@ -175,6 +175,14 @@ func flushRequestOption(r *option.HTTPRequest) {
 	security.CoverString(&r.Host)
 }
 
+// coverHTTPRequest is used to cover http.Request string field if has secret
+func coverHTTPRequest(r *http.Request) {
+	security.CoverString(&r.Host)
+	security.CoverString(&r.URL.Host)
+	security.CoverString(&r.URL.Path)
+	security.CoverString(&r.URL.RawPath)
+}
+
 // Unmarshal is used to unmarshal []byte to HTTP.
 func (h *HTTP) Unmarshal(data []byte) error {
 	tempHTTP := &HTTP{}
@@ -213,30 +221,30 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	if err != nil {
 		panic(err)
 	}
-	tHTTP := &HTTP{}
-	err = msgpack.Unmarshal(dec, tHTTP)
+	tempHTTP := &HTTP{}
+	err = msgpack.Unmarshal(dec, tempHTTP)
 	if err != nil {
 		panic(err)
 	}
-	defer flushRequestOption(&tHTTP.Request)
+	defer flushRequestOption(&tempHTTP.Request)
 	security.CoverBytes(dec)
 	memory.Padding()
 
 	// apply options
-	req, err := tHTTP.Request.Apply()
+	req, err := tempHTTP.Request.Apply()
 	if err != nil {
 		panic(err)
 	}
-	defer security.CoverHTTPRequest(req)
-	tHTTP.Transport.TLSClientConfig.CertPool = h.certPool
-	transport, err := tHTTP.Transport.Apply()
+	defer coverHTTPRequest(req)
+	tempHTTP.Transport.TLSClientConfig.CertPool = h.certPool
+	transport, err := tempHTTP.Transport.Apply()
 	if err != nil {
 		panic(err)
 	}
 	transport.TLSClientConfig.ServerName = req.URL.Hostname()
 
 	// set proxy
-	proxyClient, err := h.proxyPool.Get(tHTTP.ProxyTag)
+	proxyClient, err := h.proxyPool.Get(tempHTTP.ProxyTag)
 	if err != nil {
 		return nil, err
 	}
@@ -246,20 +254,20 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	defer security.CoverString(&hostname)
 
 	// resolve domain name
-	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &tHTTP.DNSOpts)
+	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &tempHTTP.DNSOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	port := req.URL.Port()
 
-	maxBodySize := tHTTP.MaxBodySize
+	maxBodySize := tempHTTP.MaxBodySize
 	if maxBodySize < 1 {
 		maxBodySize = defaultMaxBodySize
 	}
 
 	// timeout
-	timeout := tHTTP.Timeout
+	timeout := tempHTTP.Timeout
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
@@ -292,13 +300,13 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 		}
 	}
 	if err == nil {
-		return resolve(tHTTP, info), nil
+		return resolve(tempHTTP, info), nil
 	}
 	return nil, errors.Wrap(ErrNoResponse, err.Error())
 }
 
 func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
-	defer security.CoverHTTPRequest(req)
+	defer coverHTTPRequest(req)
 	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {

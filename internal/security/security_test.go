@@ -2,7 +2,6 @@ package security
 
 import (
 	"bytes"
-	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -27,16 +26,6 @@ func TestCoverString(t *testing.T) {
 	s2 := strings.Repeat("a", 10)
 	CoverString(&s2)
 	require.NotEqual(t, s1, s2, "failed to cover string")
-}
-
-func TestCoverHTTPRequest(t *testing.T) {
-	url := strings.Repeat("http://test.com/", 1)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-	f1 := req.URL.String()
-	CoverHTTPRequest(req)
-	f2 := req.URL.String()
-	require.NotEqual(t, f1, f2, "failed to cover string fields")
 }
 
 func TestBytes(t *testing.T) {
