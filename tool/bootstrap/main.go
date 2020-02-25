@@ -11,38 +11,38 @@ import (
 
 func main() {
 	var (
-		file string
-		web  string
-		addr string
-		cert string
-		key  string
+		address string
+		handler string
+		file    string
+		cert    string
+		key     string
 	)
+	flag.StringVar(&address, "address", ":8989", "http server port")
+	flag.StringVar(&handler, "handler", "/", "web handler")
 	flag.StringVar(&file, "file", "bootstrap.txt", "bootstrap file path")
-	flag.StringVar(&web, "web", "/", "serve mux")
-	flag.StringVar(&addr, "addr", ":8989", "http server port")
 	flag.StringVar(&cert, "cert", "", "tls certificate (pem)")
 	flag.StringVar(&key, "key", "", "private key (pem)")
 	flag.Parse()
 
-	server := http.Server{Addr: addr}
-	mux := http.NewServeMux()
-	mux.HandleFunc(web, func(w http.ResponseWriter, r *http.Request) {
+	server := http.Server{
+		Addr: address,
+	}
+	serveMux := http.NewServeMux()
+	serveMux.HandleFunc(handler, func(w http.ResponseWriter, r *http.Request) {
 		log.Print(logger.HTTPRequest(r), "\n\n")
 		w.WriteHeader(http.StatusOK)
 		bootstrap, _ := ioutil.ReadFile(file) // #nosec
 		_, _ = w.Write(bootstrap)
 	})
-	server.Handler = mux
+	server.Handler = serveMux
 
+	var err error
 	if cert != "" && key != "" {
-		err := server.ListenAndServeTLS(cert, key)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		err = server.ListenAndServeTLS(cert, key)
 	} else {
-		err := server.ListenAndServe()
-		if err != nil {
-			log.Fatalln(err)
-		}
+		err = server.ListenAndServe()
+	}
+	if err != nil {
+		log.Fatalln(err)
 	}
 }
