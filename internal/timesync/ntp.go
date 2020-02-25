@@ -14,12 +14,11 @@ import (
 	"project/internal/timesync/ntp"
 )
 
-// NTP is used to create a NTP client to synchronize time
+// NTP is used to create a NTP client to synchronize time.
 type NTP struct {
-	// copy from Syncer
-	ctx       context.Context
-	proxyPool *proxy.Pool
-	dnsClient *dns.Client
+	ctx       context.Context `toml:"-"`
+	proxyPool *proxy.Pool     `toml:"-"`
+	dnsClient *dns.Client     `toml:"-"`
 
 	Network string        `toml:"network"`
 	Address string        `toml:"address"`
@@ -28,7 +27,7 @@ type NTP struct {
 	DNSOpts dns.Options   `toml:"dns"`
 }
 
-// NewNTP is used to create NTP client
+// NewNTP is used to create a NTP client.
 func NewNTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *NTP {
 	return &NTP{
 		ctx:       ctx,
@@ -37,7 +36,7 @@ func NewNTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *NTP {
 	}
 }
 
-// Query is used to query time
+// Query is used to query time from NTP server.
 func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	// check network
 	switch n.Network {
@@ -67,7 +66,7 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	}
 
 	// set proxy
-	p, _ := n.proxyPool.Get("")
+	proxyClient, _ := n.proxyPool.Get("")
 	// support udp proxy in the future
 	/*
 		if err != nil {
@@ -75,11 +74,10 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 			return
 		}
 	*/
-	ntpOpts.Dial = p.Dial
+	ntpOpts.Dial = proxyClient.Dial
 
 	// resolve domain name
-	dnsOptsCopy := n.DNSOpts
-	result, err := n.dnsClient.ResolveContext(n.ctx, host, &dnsOptsCopy)
+	result, err := n.dnsClient.ResolveContext(n.ctx, host, &n.DNSOpts)
 	if err != nil {
 		optsErr = true
 		err = errors.WithMessage(err, "failed to resolve domain name")
@@ -102,18 +100,18 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	return
 }
 
-// Import is for time syncer
+// Import is for time syncer.
 func (n *NTP) Import(b []byte) error {
 	return toml.Unmarshal(b, n)
 }
 
-// Export is for time syncer
+// Export is for time syncer.
 func (n *NTP) Export() []byte {
 	b, _ := toml.Marshal(n)
 	return b
 }
 
-// TestNTP is used to create a NTP client to test toml config
+// TestNTP is used to create a NTP client to test toml config.
 func TestNTP(config []byte) error {
 	return new(NTP).Import(config)
 }

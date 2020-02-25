@@ -11,18 +11,17 @@ import (
 
 	"project/internal/dns"
 	"project/internal/testsuite"
+	"project/internal/testsuite/testcert"
 	"project/internal/testsuite/testdns"
 	"project/internal/testsuite/testproxy"
 )
 
 func TestHTTPClient_Query(t *testing.T) {
-	t.Parallel()
-
-	dnsClient, proxyPool, manager := testdns.DNSClient(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	t.Run("https", func(t *testing.T) {
-		HTTP := NewHTTP(context.Background(), proxyPool, dnsClient)
+		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 
 		b, err := ioutil.ReadFile("testdata/http.toml")
 		require.NoError(t, err)
@@ -37,7 +36,7 @@ func TestHTTPClient_Query(t *testing.T) {
 	})
 
 	t.Run("http with proxy", func(t *testing.T) {
-		HTTP := NewHTTP(context.Background(), proxyPool, dnsClient)
+		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 
 		HTTP.ProxyTag = testproxy.TagBalance
 		HTTP.Request.URL = "http://ds.vm2.test-ipv6.com:80/"
@@ -52,15 +51,13 @@ func TestHTTPClient_Query(t *testing.T) {
 }
 
 func TestHTTPClient_Query_Failed(t *testing.T) {
-	t.Parallel()
-
-	dnsClient, proxyPool, manager := testdns.DNSClient(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	newHTTP := func(t *testing.T) *HTTP {
-		HTTP := NewHTTP(context.Background(), proxyPool, dnsClient)
+		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 		HTTP.Request.URL = "test.com"
-		HTTP.Transport.TLSClientConfig.InsecureLoadFromSystem = true
+		HTTP.Transport.TLSClientConfig.CertPool = testcert.CertPool(t)
 		return HTTP
 	}
 
@@ -127,8 +124,6 @@ func TestHTTPClient_Query_Failed(t *testing.T) {
 }
 
 func TestGetHeaderDate(t *testing.T) {
-	t.Parallel()
-
 	client := &http.Client{
 		Transport: new(http.Transport),
 		Timeout:   10 * time.Second,

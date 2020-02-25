@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/option"
 	"project/internal/patch/toml"
@@ -20,12 +21,12 @@ import (
 const defaultDialTimeout = 30 * time.Second
 
 // HTTP is used to create a HTTP client to do request
-// that get date in response header
+// that get date in response header.
 type HTTP struct {
-	// copy from Syncer
-	ctx       context.Context
-	proxyPool *proxy.Pool
-	dnsClient *dns.Client
+	ctx       context.Context `toml:"-"`
+	certPool  *cert.Pool      `toml:"-"`
+	proxyPool *proxy.Pool     `toml:"-"`
+	dnsClient *dns.Client     `toml:"-"`
 
 	Request   option.HTTPRequest   `toml:"request"`
 	Transport option.HTTPTransport `toml:"transport"`
@@ -34,16 +35,22 @@ type HTTP struct {
 	DNSOpts   dns.Options          `toml:"dns"`
 }
 
-// NewHTTP is used to create HTTP
-func NewHTTP(ctx context.Context, pool *proxy.Pool, client *dns.Client) *HTTP {
+// NewHTTP is used to create a HTTP client.
+func NewHTTP(
+	ctx context.Context,
+	certPool *cert.Pool,
+	proxyPool *proxy.Pool,
+	dnsClient *dns.Client,
+) *HTTP {
 	return &HTTP{
 		ctx:       ctx,
-		proxyPool: pool,
-		dnsClient: client,
+		certPool:  certPool,
+		proxyPool: proxyPool,
+		dnsClient: dnsClient,
 	}
 }
 
-// Query is used to query time
+// Query is used to query time from response header.
 func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	// http request
 	req, err := h.Request.Apply()
@@ -54,6 +61,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	hostname := req.URL.Hostname()
 
 	// http transport
+	h.Transport.TLSClientConfig.CertPool = h.certPool
 	tr, err := h.Transport.Apply()
 	if err != nil {
 		optsErr = true
@@ -64,12 +72,12 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	}
 
 	// set proxy
-	p, err := h.proxyPool.Get(h.ProxyTag)
+	proxyClient, err := h.proxyPool.Get(h.ProxyTag)
 	if err != nil {
 		optsErr = true
 		return
 	}
-	p.HTTP(tr)
+	proxyClient.HTTP(tr)
 
 	// resolve domain name
 	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &h.DNSOpts)
@@ -81,7 +89,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 
 	// do http request
 	port := req.URL.Port()
-	hc := &http.Client{
+	httpClient := &http.Client{
 		Transport: tr,
 		Timeout:   h.Timeout,
 	}
@@ -94,16 +102,14 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 		} else {
 			req.URL.Host = result[i]
 		}
-
 		// set Host header
 		// http://www.msfconnecttest.com/ -> http://96.126.123.244/
 		// http will set host that not show domain name
-		// but https useless, because TLS
+		// but https useless, because of TLS.
 		if req.Host == "" && req.URL.Scheme == "http" {
 			req.Host = req.URL.Host
 		}
-
-		now, err = getHeaderDate(req, hc)
+		now, err = getHeaderDate(req, httpClient)
 		if err == nil {
 			break
 		}
@@ -115,7 +121,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	return
 }
 
-// getHeaderDate is used to get date from http response header
+// getHeaderDate is used to get date from http response header.
 func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
 	defer client.CloseIdleConnections()
 	if client.Timeout < 1 {
@@ -134,18 +140,18 @@ func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
 	return http.ParseTime(resp.Header.Get("Date"))
 }
 
-// Import is for time syncer
+// Import is for time syncer.
 func (h *HTTP) Import(b []byte) error {
 	return toml.Unmarshal(b, h)
 }
 
-// Export is for time syncer
+// Export is for time syncer.
 func (h *HTTP) Export() []byte {
 	b, _ := toml.Marshal(h)
 	return b
 }
 
-// TestHTTP is used to create a HTTP client to test toml config
+// TestHTTP is used to create a HTTP client to test toml config.
 func TestHTTP(config []byte) error {
 	return new(HTTP).Import(config)
 }

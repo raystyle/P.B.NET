@@ -14,8 +14,8 @@ import (
 )
 
 func TestNTPClient_Query(t *testing.T) {
-	dnsClient, proxyPool, manager := testdns.DNSClient(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	NTP := NewNTP(context.Background(), proxyPool, dnsClient)
 	b, err := ioutil.ReadFile("testdata/ntp.toml")
@@ -32,10 +32,8 @@ func TestNTPClient_Query(t *testing.T) {
 }
 
 func TestNTPClient_Query_Failed(t *testing.T) {
-	t.Parallel()
-
-	dnsClient, proxyPool, manager := testdns.DNSClient(t)
-	defer func() { require.NoError(t, manager.Close()) }()
+	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
 	t.Run("invalid network", func(t *testing.T) {
 		NTP := NewNTP(context.Background(), proxyPool, dnsClient)

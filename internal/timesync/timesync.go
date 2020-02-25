@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
@@ -33,7 +34,7 @@ var (
 	ErrAllClientsFailed = fmt.Errorf("all time syncer clients failed to query")
 )
 
-// Client contains mode and config
+// Client contains mode and config.
 type Client struct {
 	Mode     string `toml:"mode"`
 	Config   string `toml:"config"`
@@ -47,8 +48,9 @@ type client interface {
 	Export() []byte
 }
 
-// Syncer is used to synchronize time
+// Syncer is used to synchronize time.
 type Syncer struct {
+	certPool  *cert.Pool
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 	logger    logger.Logger
@@ -59,20 +61,28 @@ type Syncer struct {
 	// synchronize interval
 	interval time.Duration
 
-	clients    map[string]*Client // key = tag
+	// key = tag
+	clients    map[string]*Client
 	clientsRWM sync.RWMutex
-	now        time.Time
-	nowRWM     sync.RWMutex
+
+	now    time.Time
+	nowRWM sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-// New is used to create time syncer
-func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
+// New is used to create a time syncer.
+func New(
+	certPool *cert.Pool,
+	proxyPool *proxy.Pool,
+	client *dns.Client,
+	logger logger.Logger,
+) *Syncer {
 	syncer := Syncer{
-		proxyPool:   pool,
+		certPool:    certPool,
+		proxyPool:   proxyPool,
 		dnsClient:   client,
 		logger:      logger,
 		clients:     make(map[string]*Client),
@@ -85,7 +95,7 @@ func New(pool *proxy.Pool, client *dns.Client, logger logger.Logger) *Syncer {
 	return &syncer
 }
 
-// SetSleep is used to set random sleep time
+// SetSleep is used to set random sleep time.
 // must execute before Start()
 func (syncer *Syncer) SetSleep(fixed, random uint) error {
 	if fixed < 3 {
@@ -99,11 +109,11 @@ func (syncer *Syncer) SetSleep(fixed, random uint) error {
 	return nil
 }
 
-// Add is used to add time syncer client
+// Add is used to add time syncer client.
 func (syncer *Syncer) Add(tag string, client *Client) error {
 	switch client.Mode {
 	case ModeHTTP:
-		client.client = NewHTTP(syncer.ctx, syncer.proxyPool, syncer.dnsClient)
+		client.client = NewHTTP(syncer.ctx, syncer.certPool, syncer.proxyPool, syncer.dnsClient)
 	case ModeNTP:
 		client.client = NewNTP(syncer.ctx, syncer.proxyPool, syncer.dnsClient)
 	default:
@@ -122,7 +132,7 @@ func (syncer *Syncer) Add(tag string, client *Client) error {
 	return fmt.Errorf("time syncer client: %s already exists", tag)
 }
 
-// Delete is used to delete syncer client
+// Delete is used to delete syncer client.
 func (syncer *Syncer) Delete(tag string) error {
 	syncer.clientsRWM.Lock()
 	defer syncer.clientsRWM.Unlock()
@@ -133,7 +143,7 @@ func (syncer *Syncer) Delete(tag string) error {
 	return fmt.Errorf("time syncer client: %s doesn't exist", tag)
 }
 
-// Clients is used to get all time syncer clients
+// Clients is used to get all time syncer clients.
 func (syncer *Syncer) Clients() map[string]*Client {
 	syncer.clientsRWM.RLock()
 	defer syncer.clientsRWM.RUnlock()
@@ -144,21 +154,21 @@ func (syncer *Syncer) Clients() map[string]*Client {
 	return clients
 }
 
-// Now is used to get current time
+// Now is used to get current time.
 func (syncer *Syncer) Now() time.Time {
 	syncer.nowRWM.RLock()
 	defer syncer.nowRWM.RUnlock()
 	return syncer.now
 }
 
-// GetSyncInterval is used to get synchronize time interval
+// GetSyncInterval is used to get synchronize time interval.
 func (syncer *Syncer) GetSyncInterval() time.Duration {
 	syncer.clientsRWM.RLock()
 	defer syncer.clientsRWM.RUnlock()
 	return syncer.interval
 }
 
-// SetSyncInterval is used to set synchronize time interval
+// SetSyncInterval is used to set synchronize time interval.
 func (syncer *Syncer) SetSyncInterval(interval time.Duration) error {
 	if interval < time.Minute || interval > 15*time.Minute {
 		return errors.New("synchronize interval must < 1 minute or > 15 minutes")
@@ -173,7 +183,7 @@ func (syncer *Syncer) log(lv logger.Level, log ...interface{}) {
 	syncer.logger.Println(lv, "time syncer", log...)
 }
 
-// Start is used to time syncer
+// Start is used to start time syncer.
 func (syncer *Syncer) Start() error {
 	if len(syncer.Clients()) == 0 {
 		return ErrNoClients
@@ -203,7 +213,7 @@ func (syncer *Syncer) Start() error {
 	}
 }
 
-// StartWalker is used to start walker if role skip synchronize time
+// StartWalker is used to start walker if role skip synchronize time.
 func (syncer *Syncer) StartWalker() {
 	syncer.nowRWM.Lock()
 	defer syncer.nowRWM.Unlock()
@@ -305,7 +315,7 @@ func (syncer *Syncer) updateTime(now time.Time) {
 	syncer.now = now
 }
 
-// Test is used to test all clients
+// Test is used to test all time syncer clients.
 func (syncer *Syncer) Test(ctx context.Context) error {
 	l := len(syncer.clients)
 	if l == 0 {
@@ -345,7 +355,7 @@ func (syncer *Syncer) Test(ctx context.Context) error {
 	return nil
 }
 
-// Stop is used to stop time syncer
+// Stop is used to stop time syncer.
 func (syncer *Syncer) Stop() {
 	syncer.cancel()
 	syncer.wg.Wait()
