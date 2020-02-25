@@ -16,9 +16,9 @@ import (
 
 // NTP is used to create a NTP client to synchronize time.
 type NTP struct {
-	ctx       context.Context `toml:"-"`
-	proxyPool *proxy.Pool     `toml:"-"`
-	dnsClient *dns.Client     `toml:"-"`
+	ctx       context.Context
+	proxyPool *proxy.Pool
+	dnsClient *dns.Client
 
 	Network string        `toml:"network"`
 	Address string        `toml:"address"`

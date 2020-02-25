@@ -23,10 +23,10 @@ const defaultDialTimeout = 30 * time.Second
 // HTTP is used to create a HTTP client to do request
 // that get date in response header.
 type HTTP struct {
-	ctx       context.Context `toml:"-"`
-	certPool  *cert.Pool      `toml:"-"`
-	proxyPool *proxy.Pool     `toml:"-"`
-	dnsClient *dns.Client     `toml:"-"`
+	ctx       context.Context
+	certPool  *cert.Pool
+	proxyPool *proxy.Pool
+	dnsClient *dns.Client
 
 	Request   option.HTTPRequest   `toml:"request"`
 	Transport option.HTTPTransport `toml:"transport"`
