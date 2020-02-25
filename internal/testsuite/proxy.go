@@ -48,17 +48,17 @@ func InitHTTPServers(t testing.TB) {
 func initHTTPServers(t testing.TB) {
 	// set handler
 	var data = []byte("hello")
-	serverMux := http.NewServeMux()
-	serverMux.HandleFunc("/t", func(w http.ResponseWriter, r *http.Request) {
+	serveMux := http.NewServeMux()
+	serveMux.HandleFunc("/t", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		_, _ = w.Write(data)
 	})
 
 	// initialize HTTP server
-	httpServer.Handler = serverMux
+	httpServer.Handler = serveMux
 
 	// initialize HTTPS server
-	httpsServer.Handler = serverMux
+	httpsServer.Handler = serveMux
 
 	// server side certificate
 	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t)
