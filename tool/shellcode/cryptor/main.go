@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	"project/internal/crypto/aes"
@@ -12,21 +13,31 @@ import (
 
 func main() {
 	var (
-		shellcode string
-		key       string
+		hexStr string
+		file   string
+		key    string
 	)
-	flag.StringVar(&shellcode, "sc", "", "shellcode")
+	flag.StringVar(&hexStr, "hex", "", "hex encoded payload")
+	flag.StringVar(&file, "file", "payload", "payload file")
 	flag.StringVar(&key, "k", "test", "aes key")
 	flag.Parse()
 
-	sc, err := hex.DecodeString(shellcode)
+	var (
+		data []byte
+		err  error
+	)
+	if hexStr != "" {
+		data, err = hex.DecodeString(hexStr)
+	} else {
+		data, err = ioutil.ReadFile(file)
+	}
 	if err != nil {
 		log.Fatalln(err)
 	}
 	hash := sha256.New()
 	hash.Write([]byte(key))
 	aesKey := hash.Sum(nil)
-	cipherData, err := aes.CBCEncrypt(sc, aesKey, aesKey[:aes.IVSize])
+	cipherData, err := aes.CBCEncrypt(data, aesKey, aesKey[:aes.IVSize])
 	if err != nil {
 		log.Fatalln(err)
 	}

