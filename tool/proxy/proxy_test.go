@@ -2,6 +2,8 @@ package test
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -107,9 +109,18 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	// make client
 	u, err := url.Parse("socks5://" + proxyClient.Address())
 	require.NoError(t, err)
-	transport := http.Transport{Proxy: http.ProxyURL(u)}
+	transport := &http.Transport{Proxy: http.ProxyURL(u)}
 
-	testsuite.ProxyServer(t, testsuite.NewNopCloser(), &transport)
+	// test client
+	httpClient := http.Client{Transport: transport}
+	defer httpClient.CloseIdleConnections()
+	resp, err := httpClient.Get("https://cloudflare-dns.com/")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	_, err = io.Copy(ioutil.Discard, resp.Body)
+	require.NoError(t, err)
+
+	testsuite.ProxyServer(t, testsuite.NewNopCloser(), transport)
 
 	// clean
 	for i := 0; i < 9; i++ {

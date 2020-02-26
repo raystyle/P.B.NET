@@ -3,11 +3,12 @@ package server
 import (
 	"sync"
 
+	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/proxy"
 )
 
-// Config contains proxy/server configurations
+// Config contains proxy/server configurations.
 type Config struct {
 	Tag     string `toml:"-"`
 	Service struct {
@@ -24,7 +25,7 @@ type Config struct {
 	} `toml:"proxy"`
 }
 
-// Server is proxy server
+// Server is proxy server.
 type Server struct {
 	network  string
 	address  string
@@ -32,10 +33,14 @@ type Server struct {
 	exitOnce sync.Once
 }
 
-// New is used to create a proxy server
+// New is used to create a proxy server.
 func New(config *Config) (*Server, error) {
-	manager := proxy.NewManager(logger.Common, nil)
-	err := manager.Add(&proxy.Server{
+	certPool, err := cert.NewPoolWithSystemCerts()
+	if err != nil {
+		return nil, err
+	}
+	manager := proxy.NewManager(certPool, logger.Common, nil)
+	err = manager.Add(&proxy.Server{
 		Tag:     config.Tag,
 		Mode:    config.Proxy.Mode,
 		Options: config.Proxy.Options,
@@ -52,12 +57,12 @@ func New(config *Config) (*Server, error) {
 	return &server, nil
 }
 
-// Main is used to listen and server proxy server
+// Main is used to listen and server proxy server.
 func (server *Server) Main() error {
 	return server.server.ListenAndServe(server.network, server.address)
 }
 
-// Exit is used to close proxy server
+// Exit is used to close proxy server.
 func (server *Server) Exit() error {
 	var err error
 	server.exitOnce.Do(func() {
@@ -66,7 +71,7 @@ func (server *Server) Exit() error {
 	return err
 }
 
-// Address is used to get proxy server address
+// Address is used to get proxy server address.
 func (server *Server) Address() string {
 	return server.server.Addresses()[0].String()
 }

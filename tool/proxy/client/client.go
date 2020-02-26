@@ -3,11 +3,12 @@ package client
 import (
 	"sync"
 
+	"project/internal/crypto/cert"
 	"project/internal/logger"
 	"project/internal/proxy"
 )
 
-// Config contains proxy/client configurations
+// Config contains proxy/client configurations.
 type Config struct {
 	// service config
 	Service struct {
@@ -29,7 +30,7 @@ type Config struct {
 	Clients []*proxy.Client `toml:"clients"`
 }
 
-// Client is a proxy client with socks5 server
+// Client is a proxy client with a proxy server.
 type Client struct {
 	network  string
 	address  string
@@ -37,9 +38,13 @@ type Client struct {
 	exitOnce sync.Once
 }
 
-// New is used to create a proxy client
+// New is used to create a proxy client.
 func New(config *Config) (*Client, error) {
-	pool := proxy.NewPool()
+	certPool, err := cert.NewPoolWithSystemCerts()
+	if err != nil {
+		return nil, err
+	}
+	pool := proxy.NewPool(certPool)
 	for _, client := range config.Clients {
 		err := pool.Add(client)
 		if err != nil {
@@ -58,7 +63,7 @@ func New(config *Config) (*Client, error) {
 	}
 	// start front proxy server
 	server := config.Server
-	manager := proxy.NewManager(logger.Common, nil)
+	manager := proxy.NewManager(certPool, logger.Common, nil)
 	err = manager.Add(&proxy.Server{
 		Tag:         "proxy",
 		Mode:        server.Mode,
@@ -77,12 +82,12 @@ func New(config *Config) (*Client, error) {
 	return &client, nil
 }
 
-// Main is used to listen and server front proxy server
+// Main is used to listen and server front proxy server.
 func (client *Client) Main() error {
 	return client.server.ListenAndServe(client.network, client.address)
 }
 
-// Exit is used to close front proxy server
+// Exit is used to close front proxy server.
 func (client *Client) Exit() error {
 	var err error
 	client.exitOnce.Do(func() {
@@ -91,7 +96,7 @@ func (client *Client) Exit() error {
 	return err
 }
 
-// Address is used to get socks5 server address
+// Address is used to get proxy server address.
 func (client *Client) Address() string {
 	return client.server.Addresses()[0].String()
 }
