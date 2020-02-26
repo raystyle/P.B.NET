@@ -40,7 +40,7 @@ var (
 	initHTTPServerOnce sync.Once
 )
 
-// InitHTTPServers is used to create  http test server
+// InitHTTPServers is used to create  http test server.
 func InitHTTPServers(t testing.TB) {
 	initHTTPServerOnce.Do(func() { initHTTPServers(t) })
 }
@@ -134,7 +134,7 @@ func initHTTPServers(t testing.TB) {
 	fmt.Printf("[debug] HTTPS Server Port: %s\n", HTTPSServerPort)
 }
 
-// HTTPClient is used to get target and compare result
+// HTTPClient is used to get target and compare result.
 func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 	InitHTTPServers(t)
 
@@ -186,29 +186,28 @@ func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 	wg.Wait()
 }
 
-// NopCloser is a nop closer
+// NopCloser is a nop closer.
 type NopCloser struct {
 	padding string
 }
 
-// Get is a padding method
+// Get is a padding method.
 func (nc *NopCloser) Get() string {
 	return nc.padding
 }
 
-// Close is a padding method
+// Close is a padding method.
 func (nc *NopCloser) Close() error {
 	nc.padding = "padding"
 	return nil
 }
 
-// NewNopCloser is used to create a nop closer for ProxyServer
-// but only has transport
+// NewNopCloser is used to create a nop closer for ProxyServer.
 func NewNopCloser() *NopCloser {
 	return new(NopCloser)
 }
 
-// ProxyServer is used to test proxy server
+// ProxyServer is used to test proxy server.
 func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
 	if IPv4Enabled {
 		HTTPClient(t, transport, "127.0.0.1")
@@ -223,7 +222,7 @@ func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
 	IsDestroyed(t, server)
 }
 
-// ProxyConn is used to check proxy client Dial
+// ProxyConn is used to check proxy client Dial.
 func ProxyConn(t testing.TB, conn net.Conn) {
 	defer func() { _ = conn.Close() }()
 
@@ -422,6 +421,7 @@ func ProxyClientWithHTTPSTarget(t testing.TB, client proxyClient) {
 	resp, err := httpClient.Get("https://www.cloudflare.com/")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, resp.Body.Close()) }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 	_, err = io.Copy(ioutil.Discard, resp.Body)
 	require.NoError(t, err)
 }
