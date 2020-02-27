@@ -57,8 +57,6 @@ max_version = 0x0304   # TLS 1.3
 # if nil use the go default cipher suite
 cipher_suites = [0x009c]
 
-insecure_load_from_system = false # load Root certificate from system
-
 root_ca = [
   """\
   -----BEGIN CERTIFICATE-----\n\
@@ -249,3 +247,11 @@ client_ca = [
   z4RrZ85clQSQO3Wjb/ectaHAIPt7obkyFMW7dyhxiJrMYKtGwSQK15lk\n\
   -----END RSA PRIVATE KEY-----\
   """
+
+[cert_pool]
+  skip_public_root_ca_certs    = false
+  skip_public_client_ca_certs  = false
+  skip_public_client_certs     = false
+  load_private_root_ca_certs   = false
+  load_private_client_ca_certs = false
+  load_private_client_certs    = false

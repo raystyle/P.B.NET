@@ -53,10 +53,10 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 
 // HTTPTransport include options about http.Transport.
 type HTTPTransport struct {
-	TLSClientConfig        TLSConfig     `toml:"tls_config"`
-	MaxIdleConns           int           `toml:"max_idle_conns"`
-	MaxIdleConnsPerHost    int           `toml:"max_idle_conns_per_host"`
-	MaxConnsPerHost        int           `toml:"max_conns_per_host"`
+	TLSClientConfig     TLSConfig `toml:"tls_config"`
+	MaxIdleConns        int       `toml:"max_idle_conns"`
+	MaxIdleConnsPerHost int       `toml:"max_idle_conns_per_host"`
+	// MaxConnsPerHost        int           `toml:"max_conns_per_host"`
 	TLSHandshakeTimeout    time.Duration `toml:"tls_handshake_timeout"`
 	IdleConnTimeout        time.Duration `toml:"idle_conn_timeout"`
 	ResponseHeaderTimeout  time.Duration `toml:"response_header_timeout"`
