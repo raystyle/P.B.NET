@@ -66,7 +66,6 @@ func TestUnmarshalWithUnknownField(t *testing.T) {
 
 	b := new(testStructLeaf)
 	err = Unmarshal(data, b)
-	// errStr := "toml: Foo not apply to *toml.testStructLeaf"
-	// require.EqualError(t, err, errStr)
-	require.NoError(t, err)
+	errStr := `toml: undecoded keys: ["Foo" "Leaf.Bar"] in *toml.testStructLeaf`
+	require.EqualError(t, err, errStr)
 }

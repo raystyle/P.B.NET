@@ -16,7 +16,7 @@ type testStructLeaf struct {
 	Bar int
 }
 
-func TestMsgpack(t *testing.T) {
+func TestMarshal(t *testing.T) {
 	a := &testStructRoot{
 		Foo: 1,
 	}
@@ -37,7 +37,7 @@ func TestMsgpack(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestMsgpackWithUnknownField(t *testing.T) {
+func TestUnmarshalWithUnknownField(t *testing.T) {
 	a := testStructRoot{
 		Foo: 1,
 	}
@@ -48,6 +48,6 @@ func TestMsgpackWithUnknownField(t *testing.T) {
 
 	b := new(testStructLeaf)
 	err = Unmarshal(data, b)
-	errStr := "msgpack: unknown field \"Foo\" in *msgpack.testStructLeaf"
+	errStr := `msgpack: unknown field "Foo" in *msgpack.testStructLeaf`
 	require.EqualError(t, err, errStr)
 }
