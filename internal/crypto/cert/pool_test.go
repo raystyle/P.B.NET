@@ -22,6 +22,41 @@ func TestPair_ToPair(t *testing.T) {
 	pair.ToPair()
 }
 
+func TestLoadCertWithPrivateKey(t *testing.T) {
+	t.Run("invalid certificate", func(t *testing.T) {
+		_, err := loadCertWithPrivateKey(make([]byte, 1024), nil)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid private key", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		cert, _ := pair.Encode()
+		_, err := loadCertWithPrivateKey(cert, make([]byte, 1024))
+		require.Error(t, err)
+	})
+
+	t.Run("mismatched private key", func(t *testing.T) {
+		pair1 := testGenerateCert(t)
+		cert := pair1.ASN1()
+		pair2 := testGenerateCert(t)
+		_, key := pair2.Encode()
+		_, err := loadCertWithPrivateKey(cert, key)
+		require.Error(t, err)
+	})
+
+	t.Run("MarshalPKCS8PrivateKey", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		cert, key := pair.Encode() // must before patch
+		patchFunc := func(_ interface{}) ([]byte, error) {
+			return nil, monkey.ErrMonkey
+		}
+		pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
+		defer pg.Unpatch()
+		_, err := loadCertWithPrivateKey(cert, key)
+		monkey.IsMonkeyError(t, err)
+	})
+}
+
 func testGenerateCert(t *testing.T) *Pair {
 	pair, err := GenerateCA(nil)
 	require.NoError(t, err)
@@ -53,9 +88,9 @@ func TestPool(t *testing.T) {
 		pair := testGenerateCert(t)
 
 		t.Run("add", func(t *testing.T) {
-			err := pool.AddPublicRootCACert(pair.Certificate)
+			err := pool.AddPublicRootCACert(pair.Certificate.Raw)
 			require.NoError(t, err)
-			err = pool.AddPublicRootCACert(pair.Certificate)
+			err = pool.AddPublicRootCACert(pair.Certificate.Raw)
 			require.Error(t, err)
 		})
 
@@ -67,7 +102,7 @@ func TestPool(t *testing.T) {
 		t.Run("parallel", func(t *testing.T) {
 			pair := testGenerateCert(t)
 			add := func() {
-				err := pool.AddPublicRootCACert(pair.Certificate)
+				err := pool.AddPublicRootCACert(pair.Certificate.Raw)
 				require.NoError(t, err)
 			}
 			get := func() {
@@ -77,9 +112,7 @@ func TestPool(t *testing.T) {
 		})
 
 		t.Run("invalid certificate", func(t *testing.T) {
-			cert := new(x509.Certificate)
-			cert.Raw = make([]byte, 1024)
-			err := pool.AddPublicRootCACert(cert)
+			err := pool.AddPublicRootCACert(make([]byte, 1024))
 			require.Error(t, err)
 		})
 	})
@@ -88,10 +121,11 @@ func TestPool(t *testing.T) {
 		require.Equal(t, 0, len(pool.GetPublicClientCACerts()))
 
 		pair := testGenerateCert(t)
+
 		t.Run("add", func(t *testing.T) {
-			err := pool.AddPublicClientCACert(pair.Certificate)
+			err := pool.AddPublicClientCACert(pair.Certificate.Raw)
 			require.NoError(t, err)
-			err = pool.AddPublicClientCACert(pair.Certificate)
+			err = pool.AddPublicClientCACert(pair.Certificate.Raw)
 			require.Error(t, err)
 		})
 
@@ -103,7 +137,7 @@ func TestPool(t *testing.T) {
 		t.Run("parallel", func(t *testing.T) {
 			pair := testGenerateCert(t)
 			add := func() {
-				err := pool.AddPublicClientCACert(pair.Certificate)
+				err := pool.AddPublicClientCACert(pair.Certificate.Raw)
 				require.NoError(t, err)
 			}
 			get := func() {
@@ -113,9 +147,7 @@ func TestPool(t *testing.T) {
 		})
 
 		t.Run("invalid certificate", func(t *testing.T) {
-			cert := new(x509.Certificate)
-			cert.Raw = make([]byte, 1024)
-			err := pool.AddPublicClientCACert(cert)
+			err := pool.AddPublicClientCACert(make([]byte, 1024))
 			require.Error(t, err)
 		})
 	})
@@ -124,12 +156,14 @@ func TestPool(t *testing.T) {
 		require.Equal(t, 0, len(pool.GetPublicClientPairs()))
 
 		pair := testGenerateCert(t)
+
 		t.Run("add", func(t *testing.T) {
-			err := pool.AddPublicClientCert(pair.Certificate, pair.PrivateKey)
+			cert, key := pair.Encode()
+			err := pool.AddPublicClientCert(cert, key)
 			require.NoError(t, err)
-			err = pool.AddPublicClientCert(pair.Certificate, pair.PrivateKey)
+			err = pool.AddPublicClientCert(cert, key)
 			require.Error(t, err)
-			err = pool.AddPublicClientCert(pair.Certificate, nil)
+			err = pool.AddPublicClientCert(cert, nil)
 			require.Error(t, err)
 		})
 
@@ -141,7 +175,7 @@ func TestPool(t *testing.T) {
 		t.Run("parallel", func(t *testing.T) {
 			pair := testGenerateCert(t)
 			add := func() {
-				err := pool.AddPublicClientCert(pair.Certificate, pair.PrivateKey)
+				err := pool.AddPublicClientCert(pair.Encode())
 				require.NoError(t, err)
 			}
 			get := func() {
@@ -150,22 +184,9 @@ func TestPool(t *testing.T) {
 			testRunParallel(add, get)
 		})
 
-		t.Run("invalid certificate", func(t *testing.T) {
-			pair := testGenerateCert(t)
-			pair.Certificate.Raw = make([]byte, 1024)
-			err := pool.AddPublicClientCert(pair.Certificate, pair.PrivateKey)
+		t.Run("loadCertWithPrivateKey", func(t *testing.T) {
+			err := pool.AddPublicClientCert(nil, nil)
 			require.Error(t, err)
-		})
-
-		t.Run("invalid private key", func(t *testing.T) {
-			pair := testGenerateCert(t)
-			patchFunc := func(_ interface{}) ([]byte, error) {
-				return nil, monkey.ErrMonkey
-			}
-			pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
-			defer pg.Unpatch()
-			err := pool.AddPublicClientCert(pair.Certificate, pair.PrivateKey)
-			monkey.IsMonkeyError(t, err)
 		})
 	})
 
@@ -173,12 +194,14 @@ func TestPool(t *testing.T) {
 		require.Equal(t, 0, len(pool.GetPrivateRootCACerts()))
 
 		pair := testGenerateCert(t)
+
 		t.Run("add", func(t *testing.T) {
-			err := pool.AddPrivateRootCACert(pair.Certificate, pair.PrivateKey)
+			cert, key := pair.Encode()
+			err := pool.AddPrivateRootCACert(cert, key)
 			require.NoError(t, err)
-			err = pool.AddPrivateRootCACert(pair.Certificate, pair.PrivateKey)
+			err = pool.AddPrivateRootCACert(cert, key)
 			require.Error(t, err)
-			err = pool.AddPrivateRootCACert(pair.Certificate, []byte{})
+			err = pool.AddPrivateRootCACert(cert, []byte{})
 			require.Error(t, err)
 		})
 
@@ -195,7 +218,7 @@ func TestPool(t *testing.T) {
 		t.Run("parallel", func(t *testing.T) {
 			pair := testGenerateCert(t)
 			add := func() {
-				err := pool.AddPrivateRootCACert(pair.Certificate, pair.PrivateKey)
+				err := pool.AddPrivateRootCACert(pair.Encode())
 				require.NoError(t, err)
 			}
 			getCerts := func() {
@@ -207,22 +230,9 @@ func TestPool(t *testing.T) {
 			testRunParallel(add, getCerts, getPairs)
 		})
 
-		t.Run("invalid certificate", func(t *testing.T) {
-			pair := testGenerateCert(t)
-			pair.Certificate.Raw = make([]byte, 1024)
-			err := pool.AddPrivateRootCACert(pair.Certificate, pair.PrivateKey)
+		t.Run("loadCertWithPrivateKey", func(t *testing.T) {
+			err := pool.AddPrivateRootCACert(nil, nil)
 			require.Error(t, err)
-		})
-
-		t.Run("invalid private key", func(t *testing.T) {
-			pair := testGenerateCert(t)
-			patchFunc := func(_ interface{}) ([]byte, error) {
-				return nil, monkey.ErrMonkey
-			}
-			pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
-			defer pg.Unpatch()
-			err := pool.AddPrivateRootCACert(pair.Certificate, pair.PrivateKey)
-			monkey.IsMonkeyError(t, err)
 		})
 	})
 
@@ -230,12 +240,14 @@ func TestPool(t *testing.T) {
 		require.Equal(t, 0, len(pool.GetPrivateClientCACerts()))
 
 		pair := testGenerateCert(t)
+
 		t.Run("add", func(t *testing.T) {
-			err := pool.AddPrivateClientCACert(pair.Certificate, pair.PrivateKey)
+			cert, key := pair.Encode()
+			err := pool.AddPrivateClientCACert(cert, key)
 			require.NoError(t, err)
-			err = pool.AddPrivateClientCACert(pair.Certificate, pair.PrivateKey)
+			err = pool.AddPrivateClientCACert(cert, key)
 			require.Error(t, err)
-			err = pool.AddPrivateClientCACert(pair.Certificate, []byte{})
+			err = pool.AddPrivateClientCACert(cert, []byte{})
 			require.Error(t, err)
 		})
 
@@ -252,7 +264,7 @@ func TestPool(t *testing.T) {
 		t.Run("parallel", func(t *testing.T) {
 			pair := testGenerateCert(t)
 			add := func() {
-				err := pool.AddPrivateClientCACert(pair.Certificate, pair.PrivateKey)
+				err := pool.AddPrivateClientCACert(pair.Encode())
 				require.NoError(t, err)
 			}
 			getCerts := func() {
@@ -264,22 +276,9 @@ func TestPool(t *testing.T) {
 			testRunParallel(add, getCerts, getPairs)
 		})
 
-		t.Run("invalid certificate", func(t *testing.T) {
-			pair := testGenerateCert(t)
-			pair.Certificate.Raw = make([]byte, 1024)
-			err := pool.AddPrivateClientCACert(pair.Certificate, pair.PrivateKey)
+		t.Run("loadCertWithPrivateKey", func(t *testing.T) {
+			err := pool.AddPrivateClientCACert(nil, nil)
 			require.Error(t, err)
-		})
-
-		t.Run("invalid private key", func(t *testing.T) {
-			pair := testGenerateCert(t)
-			patchFunc := func(_ interface{}) ([]byte, error) {
-				return nil, monkey.ErrMonkey
-			}
-			pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
-			defer pg.Unpatch()
-			err := pool.AddPrivateClientCACert(pair.Certificate, pair.PrivateKey)
-			monkey.IsMonkeyError(t, err)
 		})
 	})
 
@@ -287,12 +286,14 @@ func TestPool(t *testing.T) {
 		require.Equal(t, 0, len(pool.GetPrivateClientPairs()))
 
 		pair := testGenerateCert(t)
+
 		t.Run("add", func(t *testing.T) {
-			err := pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
+			cert, key := pair.Encode()
+			err := pool.AddPrivateClientCert(cert, key)
 			require.NoError(t, err)
-			err = pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
+			err = pool.AddPrivateClientCert(cert, key)
 			require.Error(t, err)
-			err = pool.AddPrivateClientCert(pair.Certificate, []byte{})
+			err = pool.AddPrivateClientCert(cert, []byte{})
 			require.Error(t, err)
 		})
 
@@ -304,7 +305,7 @@ func TestPool(t *testing.T) {
 		t.Run("parallel", func(t *testing.T) {
 			pair := testGenerateCert(t)
 			add := func() {
-				err := pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
+				err := pool.AddPrivateClientCert(pair.Encode())
 				require.NoError(t, err)
 			}
 			get := func() {
@@ -313,22 +314,9 @@ func TestPool(t *testing.T) {
 			testRunParallel(add, get)
 		})
 
-		t.Run("invalid certificate", func(t *testing.T) {
-			pair := testGenerateCert(t)
-			pair.Certificate.Raw = make([]byte, 1024)
-			err := pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
+		t.Run("loadCertWithPrivateKey", func(t *testing.T) {
+			err := pool.AddPrivateClientCert(nil, nil)
 			require.Error(t, err)
-		})
-
-		t.Run("invalid private key", func(t *testing.T) {
-			pair := testGenerateCert(t)
-			patchFunc := func(_ interface{}) ([]byte, error) {
-				return nil, monkey.ErrMonkey
-			}
-			pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
-			defer pg.Unpatch()
-			err := pool.AddPrivateClientCert(pair.Certificate, pair.PrivateKey)
-			monkey.IsMonkeyError(t, err)
 		})
 	})
 }
@@ -351,7 +339,7 @@ func TestNewPoolWithSystemCerts(t *testing.T) {
 
 	t.Run("failed to AddPublicRootCACert", func(t *testing.T) {
 		pool := NewPool()
-		patchFunc := func(_ *Pool, _ *x509.Certificate) error {
+		patchFunc := func(_ *Pool, _ []byte) error {
 			return monkey.ErrMonkey
 		}
 		pg := monkey.PatchInstanceMethod(pool, "AddPublicRootCACert", patchFunc)

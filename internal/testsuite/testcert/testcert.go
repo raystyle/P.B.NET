@@ -43,7 +43,7 @@ func CertPool(t *testing.T) *cert.Pool {
 
 func addPublicRootCACerts(t *testing.T, pool *cert.Pool) {
 	for i := 0; i < PublicRootCANum; i++ {
-		err := pool.AddPublicRootCACert(systemCerts[i])
+		err := pool.AddPublicRootCACert(systemCerts[i].Raw)
 		require.NoError(t, err)
 	}
 }
@@ -59,11 +59,11 @@ func addPublicClientCACerts(t *testing.T, pool *cert.Pool) {
 		cPair2, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
 		require.NoError(t, err)
 
-		err = pool.AddPublicClientCACert(caPair.Certificate)
+		err = pool.AddPublicClientCACert(caPair.Certificate.Raw)
 		require.NoError(t, err)
-		err = pool.AddPublicClientCert(cPair1.Certificate, cPair1.PrivateKey)
+		err = pool.AddPublicClientCert(cPair1.Encode())
 		require.NoError(t, err)
-		err = pool.AddPublicClientCert(cPair2.Certificate, cPair2.PrivateKey)
+		err = pool.AddPublicClientCert(cPair2.Encode())
 		require.NoError(t, err)
 	}
 }
@@ -72,7 +72,7 @@ func addPrivateRootCACerts(t *testing.T, pool *cert.Pool) {
 	for i := 0; i < PrivateRootCANum; i++ {
 		caPair, err := cert.GenerateCA(opts)
 		require.NoError(t, err)
-		err = pool.AddPrivateRootCACert(caPair.Certificate, caPair.PrivateKey)
+		err = pool.AddPrivateRootCACert(caPair.Encode())
 		require.NoError(t, err)
 	}
 }
@@ -80,7 +80,7 @@ func addPrivateRootCACerts(t *testing.T, pool *cert.Pool) {
 func addPrivateClientCACerts(t *testing.T, pool *cert.Pool) {
 	caPair, err := cert.GenerateCA(opts)
 	require.NoError(t, err)
-	err = pool.AddPrivateClientCACert(caPair.Certificate, caPair.PrivateKey)
+	err = pool.AddPrivateClientCACert(caPair.Encode())
 	require.NoError(t, err)
 
 	for i := 0; i < PrivateClientCertNum; i++ {
@@ -89,9 +89,9 @@ func addPrivateClientCACerts(t *testing.T, pool *cert.Pool) {
 		cPair, err := cert.Generate(caPair.Certificate, caPair.PrivateKey, opts)
 		require.NoError(t, err)
 
-		err = pool.AddPrivateClientCACert(caPair.Certificate, caPair.PrivateKey)
+		err = pool.AddPrivateClientCACert(caPair.Encode())
 		require.NoError(t, err)
-		err = pool.AddPrivateClientCert(cPair.Certificate, cPair.PrivateKey)
+		err = pool.AddPrivateClientCert(cPair.Encode())
 		require.NoError(t, err)
 	}
 }

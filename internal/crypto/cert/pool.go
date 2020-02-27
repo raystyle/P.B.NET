@@ -1,16 +1,19 @@
 package cert
 
 import (
+	"bytes"
 	"crypto/x509"
-	"errors"
+	"fmt"
 	"sync"
+
+	"github.com/pkg/errors"
 
 	"project/internal/crypto/cert/certutil"
 	"project/internal/security"
 )
 
-// ErrMismatchedKey is the error about the key
-var ErrMismatchedKey = errors.New("private key does not match public key in certificate")
+// ErrMismatchedKey is the error about the key.
+var ErrMismatchedKey = fmt.Errorf("private key does not match public key in certificate")
 
 type pair struct {
 	Certificate *x509.Certificate
@@ -44,7 +47,7 @@ type Pool struct {
 	privateClientCACerts []*pair // only Controller contain the Private Key
 	privateClientCerts   []*pair
 
-	m sync.RWMutex
+	rwm sync.RWMutex
 }
 
 // NewPool is used to create a new certificate pool.
@@ -56,184 +59,156 @@ func NewPool() *Pool {
 	return new(Pool)
 }
 
-func certIsExist(certs []*x509.Certificate, cert *x509.Certificate) bool {
+func certIsExist(certs []*x509.Certificate, cert []byte) bool {
 	for i := 0; i < len(certs); i++ {
-		if certs[i].Equal(cert) {
+		if bytes.Equal(certs[i].Raw, cert) {
 			return true
 		}
 	}
 	return false
 }
 
-func pairIsExist(pairs []*pair, cert *x509.Certificate) bool {
+func pairIsExist(pairs []*pair, cert []byte) bool {
 	for i := 0; i < len(pairs); i++ {
-		if pairs[i].Certificate.Equal(cert) {
+		if bytes.Equal(pairs[i].Certificate.Raw, cert) {
 			return true
 		}
 	}
 	return false
+}
+
+func loadCertAndPrivateKey(cert, pri []byte) (*pair, error) {
+	if pri == nil {
+		return nil, errors.New("need private key")
+	}
+	return loadCertWithPrivateKey(cert, pri)
+}
+
+func loadCertWithPrivateKey(cert, pri []byte) (*pair, error) {
+	raw := make([]byte, len(cert))
+	copy(raw, cert)
+	certCopy, err := x509.ParseCertificate(raw)
+	if err != nil {
+		return nil, err
+	}
+	pair := pair{Certificate: certCopy}
+	if pri != nil {
+		privateKey, err := certutil.ParsePrivateKeyBytes(pri)
+		if err != nil {
+			return nil, err
+		}
+		if !certutil.Match(certCopy, privateKey) {
+			return nil, ErrMismatchedKey
+		}
+		priBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+		if err != nil {
+			return nil, err
+		}
+		pair.PrivateKey = security.NewBytes(priBytes)
+	}
+	return &pair, nil
 }
 
 // AddPublicRootCACert is used to add public root CA certificate.
-func (p *Pool) AddPublicRootCACert(cert *x509.Certificate) error {
-	p.m.Lock()
-	defer p.m.Unlock()
+func (p *Pool) AddPublicRootCACert(cert []byte) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
 	if certIsExist(p.publicRootCACerts, cert) {
 		return errors.New("this public root ca certificate already exists")
 	}
 	// must copy
-	raw := make([]byte, len(cert.Raw))
-	copy(raw, cert.Raw)
+	raw := make([]byte, len(cert))
+	copy(raw, cert)
 	certCopy, err := x509.ParseCertificate(raw)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to add public root ca certificate")
 	}
 	p.publicRootCACerts = append(p.publicRootCACerts, certCopy)
 	return nil
 }
 
 // AddPublicClientCACert is used to add public client CA certificate.
-func (p *Pool) AddPublicClientCACert(cert *x509.Certificate) error {
-	p.m.Lock()
-	defer p.m.Unlock()
+func (p *Pool) AddPublicClientCACert(cert []byte) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
 	if certIsExist(p.publicClientCACerts, cert) {
 		return errors.New("this public client ca certificate already exists")
 	}
 	// must copy
-	raw := make([]byte, len(cert.Raw))
-	copy(raw, cert.Raw)
+	raw := make([]byte, len(cert))
+	copy(raw, cert)
 	certCopy, err := x509.ParseCertificate(raw)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to add public client ca certificate")
 	}
 	p.publicClientCACerts = append(p.publicClientCACerts, certCopy)
 	return nil
 }
 
 // AddPublicClientCert is used to add public client certificate.
-func (p *Pool) AddPublicClientCert(cert *x509.Certificate, pri interface{}) error {
-	if !certutil.Match(cert, pri) {
-		return ErrMismatchedKey
-	}
-	p.m.Lock()
-	defer p.m.Unlock()
+func (p *Pool) AddPublicClientCert(cert, pri []byte) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
 	if pairIsExist(p.publicClientCerts, cert) {
 		return errors.New("this public client certificate already exists")
 	}
-	// must copy
-	raw := make([]byte, len(cert.Raw))
-	copy(raw, cert.Raw)
-	certCopy, err := x509.ParseCertificate(raw)
+	pair, err := loadCertAndPrivateKey(cert, pri)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to add public client certificate")
 	}
-	priBytes, err := x509.MarshalPKCS8PrivateKey(pri)
-	if err != nil {
-		return err
-	}
-	pair := pair{
-		Certificate: certCopy,
-		PrivateKey:  security.NewBytes(priBytes),
-	}
-	p.publicClientCerts = append(p.publicClientCerts, &pair)
+	p.publicClientCerts = append(p.publicClientCerts, pair)
 	return nil
 }
 
 // AddPrivateRootCACert is used to add private root CA certificate.
-func (p *Pool) AddPrivateRootCACert(cert *x509.Certificate, pri interface{}) error {
-	if pri != nil {
-		if !certutil.Match(cert, pri) {
-			return ErrMismatchedKey
-		}
-	}
-	p.m.Lock()
-	defer p.m.Unlock()
+func (p *Pool) AddPrivateRootCACert(cert, pri []byte) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
 	if pairIsExist(p.privateRootCACerts, cert) {
 		return errors.New("this private root ca certificate already exists")
 	}
-	// must copy
-	raw := make([]byte, len(cert.Raw))
-	copy(raw, cert.Raw)
-	certCopy, err := x509.ParseCertificate(raw)
+	pair, err := loadCertWithPrivateKey(cert, pri)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to add private root ca certificate")
 	}
-	pair := pair{Certificate: certCopy}
-	if pri != nil {
-		priBytes, err := x509.MarshalPKCS8PrivateKey(pri)
-		if err != nil {
-			return err
-		}
-		pair.PrivateKey = security.NewBytes(priBytes)
-	}
-	p.privateRootCACerts = append(p.privateRootCACerts, &pair)
+	p.privateRootCACerts = append(p.privateRootCACerts, pair)
 	return nil
 }
 
 // AddPrivateClientCACert is used to add private client CA certificate.
-func (p *Pool) AddPrivateClientCACert(cert *x509.Certificate, pri interface{}) error {
-	if pri != nil {
-		if !certutil.Match(cert, pri) {
-			return ErrMismatchedKey
-		}
-	}
-	p.m.Lock()
-	defer p.m.Unlock()
+func (p *Pool) AddPrivateClientCACert(cert, pri []byte) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
 	if pairIsExist(p.privateClientCACerts, cert) {
 		return errors.New("this private client ca certificate already exists")
 	}
-	// must copy
-	raw := make([]byte, len(cert.Raw))
-	copy(raw, cert.Raw)
-	certCopy, err := x509.ParseCertificate(raw)
+	pair, err := loadCertWithPrivateKey(cert, pri)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to add private client ca certificate")
 	}
-	pair := pair{Certificate: certCopy}
-	if pri != nil {
-		priBytes, err := x509.MarshalPKCS8PrivateKey(pri)
-		if err != nil {
-			return err
-		}
-		pair.PrivateKey = security.NewBytes(priBytes)
-	}
-	p.privateClientCACerts = append(p.privateClientCACerts, &pair)
+	p.privateClientCACerts = append(p.privateClientCACerts, pair)
 	return nil
 }
 
 // AddPrivateClientCert is used to add private client certificate.
-func (p *Pool) AddPrivateClientCert(cert *x509.Certificate, pri interface{}) error {
-	if !certutil.Match(cert, pri) {
-		return ErrMismatchedKey
-	}
-	p.m.Lock()
-	defer p.m.Unlock()
+func (p *Pool) AddPrivateClientCert(cert, pri []byte) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
 	if pairIsExist(p.privateClientCerts, cert) {
 		return errors.New("this private client certificate already exists")
 	}
-	// must copy
-	raw := make([]byte, len(cert.Raw))
-	copy(raw, cert.Raw)
-	certCopy, err := x509.ParseCertificate(raw)
+	pair, err := loadCertAndPrivateKey(cert, pri)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to add private client certificate")
 	}
-	priBytes, err := x509.MarshalPKCS8PrivateKey(pri)
-	if err != nil {
-		return err
-	}
-	pair := pair{
-		Certificate: certCopy,
-		PrivateKey:  security.NewBytes(priBytes),
-	}
-	p.privateClientCerts = append(p.privateClientCerts, &pair)
+	p.privateClientCerts = append(p.privateClientCerts, pair)
 	return nil
 }
 
 // GetPublicRootCACerts is used to get all public root CA certificates.
 func (p *Pool) GetPublicRootCACerts() []*x509.Certificate {
-	p.m.RLock()
-	defer p.m.RUnlock()
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	certs := make([]*x509.Certificate, len(p.publicRootCACerts))
 	copy(certs, p.publicRootCACerts)
 	return certs
@@ -241,8 +216,8 @@ func (p *Pool) GetPublicRootCACerts() []*x509.Certificate {
 
 // GetPublicClientCACerts is used to get all public client CA certificates.
 func (p *Pool) GetPublicClientCACerts() []*x509.Certificate {
-	p.m.RLock()
-	defer p.m.RUnlock()
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	certs := make([]*x509.Certificate, len(p.publicClientCACerts))
 	copy(certs, p.publicClientCACerts)
 	return certs
@@ -250,8 +225,8 @@ func (p *Pool) GetPublicClientCACerts() []*x509.Certificate {
 
 // GetPublicClientPairs is used to get all public client certificates.
 func (p *Pool) GetPublicClientPairs() []*Pair {
-	p.m.RLock()
-	defer p.m.RUnlock()
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	l := len(p.publicClientCerts)
 	pairs := make([]*Pair, l)
 	for i := 0; i < l; i++ {
@@ -262,8 +237,8 @@ func (p *Pool) GetPublicClientPairs() []*Pair {
 
 // GetPrivateRootCACerts is used to get all private root CA certificates.
 func (p *Pool) GetPrivateRootCACerts() []*x509.Certificate {
-	p.m.RLock()
-	defer p.m.RUnlock()
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	l := len(p.privateRootCACerts)
 	certs := make([]*x509.Certificate, l)
 	for i := 0; i < l; i++ {
@@ -274,8 +249,8 @@ func (p *Pool) GetPrivateRootCACerts() []*x509.Certificate {
 
 // GetPrivateClientCACerts is used to get all private client CA certificates.
 func (p *Pool) GetPrivateClientCACerts() []*x509.Certificate {
-	p.m.RLock()
-	defer p.m.RUnlock()
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	l := len(p.privateClientCACerts)
 	certs := make([]*x509.Certificate, l)
 	for i := 0; i < l; i++ {
@@ -286,8 +261,8 @@ func (p *Pool) GetPrivateClientCACerts() []*x509.Certificate {
 
 // GetPrivateRootCAPairs is used to get all private root CA certificates.
 func (p *Pool) GetPrivateRootCAPairs() []*Pair {
-	p.m.RLock()
-	defer p.m.RUnlock()
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	l := len(p.privateRootCACerts)
 	pairs := make([]*Pair, l)
 	for i := 0; i < l; i++ {
@@ -298,8 +273,8 @@ func (p *Pool) GetPrivateRootCAPairs() []*Pair {
 
 // GetPrivateClientCAPairs is used to get all private client CA certificates.
 func (p *Pool) GetPrivateClientCAPairs() []*Pair {
-	p.m.RLock()
-	defer p.m.RUnlock()
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	l := len(p.privateClientCACerts)
 	pairs := make([]*Pair, l)
 	for i := 0; i < l; i++ {
@@ -310,8 +285,8 @@ func (p *Pool) GetPrivateClientCAPairs() []*Pair {
 
 // GetPrivateClientPairs is used to get all private client certificates.
 func (p *Pool) GetPrivateClientPairs() []*Pair {
-	p.m.RLock()
-	defer p.m.RUnlock()
+	p.rwm.RLock()
+	defer p.rwm.RUnlock()
 	l := len(p.privateClientCerts)
 	pairs := make([]*Pair, l)
 	for i := 0; i < l; i++ {
@@ -329,7 +304,7 @@ func NewPoolWithSystemCerts() (*Pool, error) {
 	certPool := NewPool()
 	certs := systemCertPool.Certs()
 	for i := 0; i < len(certs); i++ {
-		err = certPool.AddPublicRootCACert(certs[i])
+		err = certPool.AddPublicRootCACert(certs[i].Raw)
 		if err != nil {
 			return nil, err
 		}
