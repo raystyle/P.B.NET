@@ -1,18 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"log"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/kardianos/service"
 
-	"project/internal/crypto/aes"
-	"project/internal/crypto/curve25519"
-	"project/internal/crypto/ed25519"
 	"project/internal/patch/msgpack"
 
 	"project/beacon"
@@ -32,9 +27,6 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-
-	// TODO remove
-	tempSetConfig(config)
 
 	svc := createService(config)
 	switch {
@@ -104,37 +96,4 @@ func (p *program) Stop(_ service.Service) error {
 	p.beacon.Exit(nil)
 	p.wg.Wait()
 	return nil
-}
-
-func tempSetConfig(config *beacon.Config) {
-	config.Test.SkipSynchronizeTime = true
-
-	config.Logger.Level = "debug"
-	config.Logger.QueueSize = 512
-	config.Logger.Writer = os.Stdout
-
-	config.Global.DNSCacheExpire = 3 * time.Minute
-	config.Global.TimeSyncInterval = 1 * time.Minute
-	// config.Global.Certificates = testdata.Certificates(tb)
-	// config.Global.ProxyClients = testdata.ProxyClients(tb)
-	// config.Global.DNSServers = testdata.DNSServers()
-	// config.Global.TimeSyncerClients = testdata.TimeSyncerClients(tb)
-
-	config.Client.ProxyTag = "balance"
-	config.Client.Timeout = 15 * time.Second
-
-	config.Sender.Worker = 64
-	config.Sender.QueueSize = 512
-	config.Sender.MaxBufferSize = 512 << 10
-	config.Sender.Timeout = 15 * time.Second
-
-	config.Syncer.ExpireTime = 30 * time.Second
-
-	config.Worker.Number = 16
-	config.Worker.QueueSize = 1024
-	config.Worker.MaxBufferSize = 16384
-
-	config.Ctrl.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
-	config.Ctrl.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
-	config.Ctrl.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 }
