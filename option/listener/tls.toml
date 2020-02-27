@@ -5,7 +5,6 @@ timeout = "15s"
 [tls_config]
   root_ca              = [] # pem
   client_ca            = [] # pem
-  insecure_skip_verify = false
 
   [[tls_config.certificates]]
     cert = """\

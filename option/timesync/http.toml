@@ -11,7 +11,3 @@ timeout = "15s"
     DNT             = ["1"]
     Pragma          = ["no-cache"]
     Cache-Control   = ["no-cache"]
-
-[transport]
-  [transport.tls_config]
-    insecure_load_from_system = true
