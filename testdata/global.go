@@ -1,13 +1,13 @@
 package testdata
 
 import (
-	"encoding/pem"
-	"io/ioutil"
 	"sync"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certutil"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
@@ -17,22 +17,16 @@ import (
 	"project/internal/timesync"
 )
 
-// Certificates is used to provide CA certificates for test,
-// certificates are from Windows
-func Certificates(t require.TestingT) [][]byte {
-	pemBlock, err := ioutil.ReadFile("../testdata/system.pem")
+// RawCertPool is used to provide a raw certificate pool for test.
+func RawCertPool(t require.TestingT) cert.RawCertPool {
+	rcp := cert.RawCertPool{}
+	systemCertPool, err := certutil.SystemCertPool()
 	require.NoError(t, err)
-	var certs [][]byte // ASN1 data
-	var block *pem.Block
-	for {
-		block, pemBlock = pem.Decode(pemBlock)
-		require.NotNil(t, block)
-		certs = append(certs, block.Bytes)
-		if len(pemBlock) == 0 {
-			break
-		}
+	certs := systemCertPool.Certs()
+	for i := 0; i < len(certs); i++ {
+		rcp.PublicRootCACerts = append(rcp.PublicRootCACerts, certs[i].Raw)
 	}
-	return certs
+	return rcp
 }
 
 // proxy client tag
@@ -48,8 +42,7 @@ var (
 	wg              sync.WaitGroup
 )
 
-// ProxyClients is used to deploy a proxy server
-// and return corresponding proxy client
+// ProxyClients is used to deploy proxy server and return corresponding proxy client.
 func ProxyClients(t require.TestingT) []*proxy.Client {
 	initProxyOnce.Do(func() {
 		var err error
@@ -89,7 +82,7 @@ func ProxyClients(t require.TestingT) []*proxy.Client {
 	}
 }
 
-// DNSServers is used to provide DNS servers for test
+// DNSServers is used to provide DNS servers for test.
 func DNSServers() map[string]*dns.Server {
 	servers := make(map[string]*dns.Server)
 	if testsuite.IPv4Enabled {
@@ -137,7 +130,7 @@ func DNSServers() map[string]*dns.Server {
 	return servers
 }
 
-// TimeSyncerClients is used to provide time syncer clients for test
+// TimeSyncerClients is used to provide time syncer clients for test.
 func TimeSyncerClients() map[string]*timesync.Client {
 	clients := make(map[string]*timesync.Client)
 	config := `
@@ -154,11 +147,6 @@ timeout = "15s"
     DNT             = ["1"]
     Pragma          = ["no-cache"]
     Cache-Control   = ["no-cache"]
-
-[transport]
-
-  [transport.tls_config]
-    insecure_load_from_system = true
 `
 	clients["test_http"] = &timesync.Client{
 		Mode:   timesync.ModeHTTP,
@@ -172,8 +160,7 @@ timeout = "15s"
 	return clients
 }
 
-// Clean is used to clean test data
-// close proxy servers
+// Clean is used to clean test data.
 func Clean() {
 	if socks5Server != nil {
 		_ = socks5Server.Close()
