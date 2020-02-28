@@ -295,6 +295,22 @@ func (p *Pool) GetPrivateClientPairs() []*Pair {
 	return pairs
 }
 
+// RawCertPool contains raw certificates, it used for Node and Beacon Config.
+type RawCertPool struct {
+	PublicRootCACerts   [][]byte `msgpack:"a"`
+	PublicClientCACerts [][]byte `msgpack:"b"`
+	PublicClientCerts   []struct {
+		Cert []byte `msgpack:"a"`
+		Key  []byte `msgpack:"b"`
+	}
+	PrivateRootCACerts   [][]byte `msgpack:"c"`
+	PrivateClientCACerts [][]byte `msgpack:"d"`
+	PrivateClientCerts   []struct {
+		Cert []byte `msgpack:"a"`
+		Key  []byte `msgpack:"b"`
+	}
+}
+
 // NewPoolWithSystemCerts is used to create a certificate pool with system certificate.
 func NewPoolWithSystemCerts() (*Pool, error) {
 	systemCertPool, err := certutil.SystemCertPool()
