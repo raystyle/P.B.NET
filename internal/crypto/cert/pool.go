@@ -78,7 +78,7 @@ func pairIsExist(pairs []*pair, cert []byte) bool {
 }
 
 func loadCertAndPrivateKey(cert, pri []byte) (*pair, error) {
-	if pri == nil {
+	if len(pri) == 0 {
 		return nil, errors.New("need private key")
 	}
 	return loadCertWithPrivateKey(cert, pri)
@@ -92,7 +92,7 @@ func loadCertWithPrivateKey(cert, pri []byte) (*pair, error) {
 		return nil, err
 	}
 	pair := pair{Certificate: certCopy}
-	if pri != nil {
+	if len(pri) != 0 {
 		privateKey, err := certutil.ParsePrivateKeyBytes(pri)
 		if err != nil {
 			return nil, err
@@ -302,13 +302,62 @@ type RawCertPool struct {
 	PublicClientCerts   []struct {
 		Cert []byte `msgpack:"a"`
 		Key  []byte `msgpack:"b"`
-	}
-	PrivateRootCACerts   [][]byte `msgpack:"c"`
-	PrivateClientCACerts [][]byte `msgpack:"d"`
+	} `msgpack:"c"`
+	PrivateRootCACerts   [][]byte `msgpack:"d"`
+	PrivateClientCACerts [][]byte `msgpack:"e"`
 	PrivateClientCerts   []struct {
 		Cert []byte `msgpack:"a"`
 		Key  []byte `msgpack:"b"`
+	} `msgpack:"f"`
+}
+
+// NewPoolFromRawCertPool is used to create a certificate pool from raw certificate pool.
+func NewPoolFromRawCertPool(pool *RawCertPool) (*Pool, error) {
+	memory := security.NewMemory()
+	defer memory.Flush()
+
+	certPool := NewPool()
+	for i := 0; i < len(pool.PublicRootCACerts); i++ {
+		err := certPool.AddPublicRootCACert(pool.PublicRootCACerts[i])
+		if err != nil {
+			return nil, err
+		}
 	}
+	for i := 0; i < len(pool.PublicClientCACerts); i++ {
+		err := certPool.AddPublicClientCACert(pool.PublicClientCACerts[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(pool.PublicClientCerts); i++ {
+		memory.Padding()
+		pair := pool.PublicClientCerts[i]
+		err := certPool.AddPublicClientCert(pair.Cert, pair.Key)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(pool.PrivateRootCACerts); i++ {
+		err := certPool.AddPrivateRootCACert(pool.PrivateRootCACerts[i], nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(pool.PrivateClientCACerts); i++ {
+		err := certPool.AddPrivateClientCACert(pool.PrivateClientCACerts[i], nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(pool.PrivateClientCerts); i++ {
+		memory.Padding()
+		pair := pool.PrivateClientCerts[i]
+		err := certPool.AddPrivateClientCert(pair.Cert, pair.Key)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return certPool, nil
 }
 
 // NewPoolWithSystemCerts is used to create a certificate pool with system certificate.

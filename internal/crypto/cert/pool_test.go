@@ -321,6 +321,144 @@ func TestPool(t *testing.T) {
 	})
 }
 
+func TestNewPoolFromRawCertPool(t *testing.T) {
+	rcp := new(RawCertPool)
+
+	t.Run("public root ca cert", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		rcp.PublicRootCACerts = [][]byte{pair.ASN1()}
+		pool, err := NewPoolFromRawCertPool(rcp)
+		require.NoError(t, err)
+		certs := pool.GetPublicRootCACerts()
+		require.Equal(t, 1, len(certs))
+		require.Equal(t, pair.ASN1(), certs[0].Raw)
+
+		rcp.PublicRootCACerts = append(rcp.PublicRootCACerts, pair.ASN1())
+		pool, err = NewPoolFromRawCertPool(rcp)
+		require.Error(t, err)
+
+		rcp.PublicRootCACerts = [][]byte{pair.ASN1()}
+	})
+
+	t.Run("public client ca cert", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		rcp.PublicClientCACerts = [][]byte{pair.ASN1()}
+		pool, err := NewPoolFromRawCertPool(rcp)
+		require.NoError(t, err)
+		certs := pool.GetPublicClientCACerts()
+		require.Equal(t, 1, len(certs))
+		require.Equal(t, pair.ASN1(), certs[0].Raw)
+
+		rcp.PublicClientCACerts = append(rcp.PublicClientCACerts, pair.ASN1())
+		pool, err = NewPoolFromRawCertPool(rcp)
+		require.Error(t, err)
+
+		rcp.PublicClientCACerts = [][]byte{pair.ASN1()}
+	})
+
+	t.Run("public client cert", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		cert, key := pair.Encode()
+		rcp.PublicClientCerts = []struct {
+			Cert []byte `msgpack:"a"`
+			Key  []byte `msgpack:"b"`
+		}{
+			{Cert: cert, Key: key},
+		}
+
+		pool, err := NewPoolFromRawCertPool(rcp)
+		require.NoError(t, err)
+		certs := pool.GetPublicClientPairs()
+		require.Equal(t, 1, len(certs))
+		dCert, dKey := certs[0].Encode()
+		require.Equal(t, cert, dCert)
+		require.Equal(t, key, dKey)
+
+		rcp.PublicClientCerts = append(rcp.PublicClientCerts, struct {
+			Cert []byte `msgpack:"a"`
+			Key  []byte `msgpack:"b"`
+		}{
+			Cert: cert, Key: key,
+		})
+		pool, err = NewPoolFromRawCertPool(rcp)
+		require.Error(t, err)
+
+		rcp.PublicClientCerts = []struct {
+			Cert []byte `msgpack:"a"`
+			Key  []byte `msgpack:"b"`
+		}{
+			{Cert: cert, Key: key},
+		}
+	})
+
+	t.Run("private root ca cert", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		rcp.PrivateRootCACerts = [][]byte{pair.ASN1()}
+		pool, err := NewPoolFromRawCertPool(rcp)
+		require.NoError(t, err)
+		certs := pool.GetPrivateRootCACerts()
+		require.Equal(t, 1, len(certs))
+		require.Equal(t, pair.ASN1(), certs[0].Raw)
+
+		rcp.PrivateRootCACerts = append(rcp.PrivateRootCACerts, pair.ASN1())
+		pool, err = NewPoolFromRawCertPool(rcp)
+		require.Error(t, err)
+
+		rcp.PrivateRootCACerts = [][]byte{pair.ASN1()}
+	})
+
+	t.Run("private client ca cert", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		rcp.PrivateClientCACerts = [][]byte{pair.ASN1()}
+		pool, err := NewPoolFromRawCertPool(rcp)
+		require.NoError(t, err)
+		certs := pool.GetPrivateClientCACerts()
+		require.Equal(t, 1, len(certs))
+		require.Equal(t, pair.ASN1(), certs[0].Raw)
+
+		rcp.PrivateClientCACerts = append(rcp.PrivateClientCACerts, pair.ASN1())
+		pool, err = NewPoolFromRawCertPool(rcp)
+		require.Error(t, err)
+
+		rcp.PrivateClientCACerts = [][]byte{pair.ASN1()}
+	})
+
+	t.Run("private client cert", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		cert, key := pair.Encode()
+		rcp.PrivateClientCerts = []struct {
+			Cert []byte `msgpack:"a"`
+			Key  []byte `msgpack:"b"`
+		}{
+			{Cert: cert, Key: key},
+		}
+
+		pool, err := NewPoolFromRawCertPool(rcp)
+		require.NoError(t, err)
+		certs := pool.GetPrivateClientPairs()
+		require.Equal(t, 1, len(certs))
+		dCert, dKey := certs[0].Encode()
+		require.Equal(t, cert, dCert)
+		require.Equal(t, key, dKey)
+
+		rcp.PrivateClientCerts = append(rcp.PrivateClientCerts, struct {
+			Cert []byte `msgpack:"a"`
+			Key  []byte `msgpack:"b"`
+		}{
+			Cert: cert, Key: key,
+		})
+		pool, err = NewPoolFromRawCertPool(rcp)
+		require.Error(t, err)
+
+		rcp.PrivateClientCerts = []struct {
+			Cert []byte `msgpack:"a"`
+			Key  []byte `msgpack:"b"`
+		}{
+			{Cert: cert, Key: key},
+		}
+	})
+}
+
 func TestNewPoolWithSystemCerts(t *testing.T) {
 	t.Run("common", func(t *testing.T) {
 		_, err := NewPoolWithSystemCerts()
