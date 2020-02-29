@@ -46,7 +46,7 @@ func TestLoadSystemCertWithName(t *testing.T) {
 }
 
 func TestLoadSystemCertWithNameFailed(t *testing.T) {
-	t.Run("syscall.UTF16PtrFromString", func(t *testing.T) {
+	t.Run("UTF16PtrFromString", func(t *testing.T) {
 		patchFunc := func(_ string) (*uint16, error) {
 			return nil, monkey.ErrMonkey
 		}
@@ -56,7 +56,7 @@ func TestLoadSystemCertWithNameFailed(t *testing.T) {
 		monkey.IsMonkeyError(t, err)
 	})
 
-	t.Run("syscall.CertOpenSystemStore", func(t *testing.T) {
+	t.Run("CertOpenSystemStore", func(t *testing.T) {
 		patchFunc := func(_ syscall.Handle, _ *uint16) (syscall.Handle, error) {
 			return 0, monkey.ErrMonkey
 		}
@@ -66,7 +66,7 @@ func TestLoadSystemCertWithNameFailed(t *testing.T) {
 		monkey.IsMonkeyError(t, err)
 	})
 
-	t.Run("syscall.CertEnumCertificatesInStore error", func(t *testing.T) {
+	t.Run("CertEnumCertificatesInStore error", func(t *testing.T) {
 		patchFunc := func(_ syscall.Handle, _ *syscall.CertContext) (*syscall.CertContext, error) {
 			return nil, monkey.ErrMonkey
 		}
@@ -76,7 +76,7 @@ func TestLoadSystemCertWithNameFailed(t *testing.T) {
 		monkey.IsMonkeyError(t, err)
 	})
 
-	t.Run("syscall.CertEnumCertificatesInStore nil", func(t *testing.T) {
+	t.Run("CertEnumCertificatesInStore nil", func(t *testing.T) {
 		patchFunc := func(_ syscall.Handle, _ *syscall.CertContext) (*syscall.CertContext, error) {
 			return nil, nil
 		}
