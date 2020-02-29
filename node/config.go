@@ -11,14 +11,15 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/option"
 	"project/internal/patch/msgpack"
 	"project/internal/proxy"
 	"project/internal/timesync"
 	"project/internal/xpanic"
 )
 
-// Config contains configuration about Node
-// use extra msgpack tag to hide raw field name
+// Config contains configuration about Node.
+// use extra msgpack tag to hide raw field name.
 type Config struct {
 	Test struct {
 		SkipSynchronizeTime bool
@@ -41,16 +42,17 @@ type Config struct {
 		TimeSyncInterval    time.Duration `toml:"timesync_interval"     msgpack:"d"`
 
 		// generate from controller
-		Certificates      [][]byte                    `toml:"-" msgpack:"w"`
+		RawCertPool       cert.RawCertPool            `toml:"-" msgpack:"w"`
 		ProxyClients      []*proxy.Client             `toml:"-" msgpack:"x"`
 		DNSServers        map[string]*dns.Server      `toml:"-" msgpack:"y"`
 		TimeSyncerClients map[string]*timesync.Client `toml:"-" msgpack:"z"`
 	} `toml:"global" msgpack:"bb"`
 
 	Client struct {
-		ProxyTag string        `toml:"proxy_tag" msgpack:"a"`
-		Timeout  time.Duration `toml:"timeout"   msgpack:"b"`
-		DNSOpts  dns.Options   `toml:"dns"       msgpack:"c"`
+		ProxyTag  string           `toml:"proxy_tag"  msgpack:"a"`
+		Timeout   time.Duration    `toml:"timeout"    msgpack:"b"`
+		DNSOpts   dns.Options      `toml:"dns"        msgpack:"c"`
+		TLSConfig option.TLSConfig `toml:"tls_config" msgpack:"d"`
 	} `toml:"client" msgpack:"cc"`
 
 	Register struct {
@@ -98,29 +100,32 @@ type Config struct {
 		ListenersKey []byte `toml:"-" msgpack:"z"` // decrypt Listeners data, AES CBC
 	} `toml:"server" msgpack:"ii"`
 
+	Driver struct {
+	} `toml:"driver" msgpack:"jj"`
+
 	// generate from controller
 	Ctrl struct {
 		KexPublicKey []byte `msgpack:"x"` // key exchange curve25519
 		PublicKey    []byte `msgpack:"y"` // verify message ed25519
 		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
-	} `toml:"-" msgpack:"jj"`
+	} `toml:"-" msgpack:"kk"`
 
 	// about service
 	Service struct {
 		Name        string `toml:"name"         msgpack:"a"`
 		DisplayName string `toml:"display_name" msgpack:"b"`
 		Description string `toml:"description"  msgpack:"c"`
-	} `toml:"service" msgpack:"kk"`
+	} `toml:"service" msgpack:"ll"`
 }
 
-// TestOptions include test options
+// TestOptions include test options.
 type TestOptions struct {
 	Domain     string        `toml:"domain"` // about Node.global.DNSClient.TestServers()
 	DNSOptions dns.Options   `toml:"dns"`
 	Timeout    time.Duration `toml:"timeout"` // Node running timeout
 }
 
-// Run is used to create a Node with current configuration and run it to check error
+// Run is used to create a Node with current configuration and run it to check error.
 func (cfg *Config) Run(ctx context.Context, output io.Writer, opts *TestOptions) (err error) {
 	defer func() {
 		if err != nil {
@@ -161,7 +166,7 @@ func (cfg *Config) Run(ctx context.Context, output io.Writer, opts *TestOptions)
 	return
 }
 
-// Certificates is used to print certificates
+// Certificates is used to print certificates.
 func (cfg *Config) Certificates(writer io.Writer, node *Node) string {
 	// set output
 	var output io.Writer
@@ -173,13 +178,34 @@ func (cfg *Config) Certificates(writer io.Writer, node *Node) string {
 	}
 
 	// print certificates
-	for i, c := range node.global.Certificates() {
+	_, _ = output.Write([]byte("----------------public root ca----------------\n"))
+	for i, c := range node.global.CertPool.GetPublicRootCACerts() {
 		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	_, _ = output.Write([]byte("---------------public client ca---------------\n"))
+	for i, c := range node.global.CertPool.GetPublicClientCACerts() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	_, _ = output.Write([]byte("--------------public client cert--------------\n"))
+	for i, pair := range node.global.CertPool.GetPublicClientPairs() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(pair.Certificate))
+	}
+	_, _ = output.Write([]byte("----------------private root ca---------------\n"))
+	for i, c := range node.global.CertPool.GetPrivateRootCACerts() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	_, _ = output.Write([]byte("---------------private client ca--------------\n"))
+	for i, c := range node.global.CertPool.GetPrivateClientCACerts() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	_, _ = output.Write([]byte("--------------private client cert-------------\n"))
+	for i, pair := range node.global.CertPool.GetPrivateClientPairs() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(pair.Certificate))
 	}
 	return buf.String()
 }
 
-// ProxyClients is used to print proxy clients
+// ProxyClients is used to print proxy clients.
 func (cfg *Config) ProxyClients(writer io.Writer, node *Node) string {
 	// set output
 	var output io.Writer
@@ -191,7 +217,7 @@ func (cfg *Config) ProxyClients(writer io.Writer, node *Node) string {
 	}
 
 	// print proxy clients
-	for tag, client := range node.global.ProxyClients() {
+	for tag, client := range node.global.ProxyPool.Clients() {
 		if tag == "" || tag == "direct" { // skip builtin proxy client
 			continue
 		}
@@ -201,8 +227,8 @@ func (cfg *Config) ProxyClients(writer io.Writer, node *Node) string {
 	return buf.String()
 }
 
-// DNSServers is used to print and test DNS servers
-// if tests passed, show resolved ip
+// DNSServers is used to print and test DNS servers.
+// if tests passed, show resolved IP address.
 func (cfg *Config) DNSServers(
 	ctx context.Context,
 	writer io.Writer,
@@ -217,24 +243,11 @@ func (cfg *Config) DNSServers(
 	} else {
 		output = buf
 	}
-
 	// print DNS servers
-	for tag, server := range node.global.DNSServers() {
+	for tag, server := range node.global.DNSClient.Servers() {
 		const format = "tag: %-14s skip: %-5t method: %-3s address: %s\n"
 		_, _ = fmt.Fprintf(output, format, tag, server.SkipTest, server.Method, server.Address)
 	}
-
-	// add certificates to opts.DNSOptions about TLS
-	certs := node.global.CertificatePEMs()
-	// about TLS
-	tCerts := opts.DNSOptions.TLSConfig.RootCAs
-	tCerts = append(tCerts, certs...)
-	opts.DNSOptions.TLSConfig.RootCAs = tCerts
-	// about http.Transport TLS
-	ttCerts := opts.DNSOptions.Transport.TLSClientConfig.RootCAs
-	ttCerts = append(ttCerts, certs...)
-	opts.DNSOptions.Transport.TLSClientConfig.RootCAs = ttCerts
-
 	// resolve domain name
 	result, err := node.global.DNSClient.TestServers(ctx, opts.Domain, &opts.DNSOptions)
 	if err != nil {
@@ -253,8 +266,8 @@ func (cfg *Config) DNSServers(
 	return buf.String(), nil
 }
 
-// TimeSyncerClients is used to print and test time syncer clients
-// if tests passed, show the current time
+// TimeSyncerClients is used to print and test time syncer clients.
+// if tests passed, show the current time.
 func (cfg *Config) TimeSyncerClients(
 	ctx context.Context,
 	writer io.Writer,
@@ -270,7 +283,7 @@ func (cfg *Config) TimeSyncerClients(
 	}
 
 	// print time syncer clients
-	for tag, client := range node.global.TimeSyncerClients() {
+	for tag, client := range node.global.TimeSyncer.Clients() {
 		const format = "tag: %-10s skip: %-5t mode: %-4s\n"
 		_, _ = fmt.Fprintf(output, format, tag, client.SkipTest, client.Mode)
 	}
@@ -315,12 +328,12 @@ func (cfg *Config) wait(ctx context.Context, node *Node, timeout time.Duration) 
 	}
 }
 
-// Build is used to build configuration
+// Build is used to build configuration.
 func (cfg *Config) Build() ([]byte, error) {
 	return msgpack.Marshal(cfg)
 }
 
-// Load is used to load built configuration
+// Load is used to load built configuration.
 func (cfg *Config) Load(built []byte) error {
 	return msgpack.Unmarshal(built, &cfg)
 }

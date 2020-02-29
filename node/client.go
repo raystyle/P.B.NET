@@ -69,8 +69,9 @@ func (node *Node) NewClient(
 		Timeout: node.clientMgr.GetTimeout(),
 		Now:     node.global.Now,
 	}
+	// TODO finish
 	// add CA certificates
-	for _, cert := range node.global.Certificates() {
+	for _, cert := range node.global.CertPool.GetPublicRootCACerts() {
 		opts.TLSConfig.RootCAs.AddCert(cert)
 	}
 	// set proxy
@@ -81,7 +82,7 @@ func (node *Node) NewClient(
 	opts.Dialer = proxy.DialContext
 	// resolve domain name
 	dnsOpts := node.clientMgr.GetDNSOptions()
-	result, err := node.global.ResolveContext(ctx, host, dnsOpts)
+	result, err := node.global.ResolveDomain(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +113,7 @@ func (node *Node) NewClient(
 		return nil, errors.WithMessagef(err, format, bl)
 	}
 	node.clientMgr.Add(client)
-	client.Conn.Log(logger.Info, "create client")
+	client.Conn.Log(logger.Debug, "create client")
 	return client, nil
 }
 

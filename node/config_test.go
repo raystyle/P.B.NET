@@ -25,13 +25,14 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Test.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = "debug"
+	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
-	cfg.Global.Certificates = testdata.Certificates(tb)
+	cfg.Global.RawCertPool = testdata.RawCertPool(tb)
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
@@ -41,6 +42,7 @@ func testGenerateConfig(tb testing.TB) *Config {
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
+	cfg.Register.Skip = true
 
 	cfg.Forwarder.MaxClientConns = 7
 	cfg.Forwarder.MaxCtrlConns = 10
@@ -89,6 +91,7 @@ func TestConfig(t *testing.T) {
 		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
 		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
+		{expected: "test.com", actual: cfg.Client.TLSConfig.ServerName},
 
 		{expected: uint(15), actual: cfg.Register.SleepFixed},
 		{expected: uint(30), actual: cfg.Register.SleepRandom},
