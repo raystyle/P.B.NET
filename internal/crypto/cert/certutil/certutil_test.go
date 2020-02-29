@@ -14,6 +14,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseCertificate(t *testing.T) {
+	certPEMBlock, err := ioutil.ReadFile("testdata/certs.pem")
+	require.NoError(t, err)
+	cert, err := ParseCertificate(certPEMBlock)
+	require.NoError(t, err)
+	t.Log(cert.Issuer)
+
+	// parse invalid PEM data
+	_, err = ParseCertificate([]byte{0, 1, 2, 3})
+	require.Equal(t, ErrInvalidPEMBlock, err)
+
+	// invalid Type
+	certPEMBlock = []byte(`
+-----BEGIN INVALID TYPE-----
+-----END INVALID TYPE-----
+`)
+	_, err = ParseCertificate(certPEMBlock)
+	require.EqualError(t, err, "invalid PEM block type: INVALID TYPE")
+
+	// invalid certificate data
+	certPEMBlock = []byte(`
+-----BEGIN CERTIFICATE-----
+-----END CERTIFICATE-----
+`)
+	_, err = ParseCertificate(certPEMBlock)
+	require.Error(t, err)
+}
+
 func TestParseCertificates(t *testing.T) {
 	certPEMBlock, err := ioutil.ReadFile("testdata/certs.pem")
 	require.NoError(t, err)
@@ -43,34 +71,6 @@ func TestParseCertificates(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestParseCertificate(t *testing.T) {
-	certPEMBlock, err := ioutil.ReadFile("testdata/certs.pem")
-	require.NoError(t, err)
-	cert, err := ParseCertificate(certPEMBlock)
-	require.NoError(t, err)
-	t.Log(cert.Issuer)
-
-	// parse invalid PEM data
-	_, err = ParseCertificate([]byte{0, 1, 2, 3})
-	require.Equal(t, ErrInvalidPEMBlock, err)
-
-	// invalid Type
-	certPEMBlock = []byte(`
------BEGIN INVALID TYPE-----
------END INVALID TYPE-----
-`)
-	_, err = ParseCertificate(certPEMBlock)
-	require.EqualError(t, err, "invalid PEM block type: INVALID TYPE")
-
-	// invalid certificate data
-	certPEMBlock = []byte(`
------BEGIN CERTIFICATE-----
------END CERTIFICATE-----
-`)
-	_, err = ParseCertificate(certPEMBlock)
-	require.Error(t, err)
-}
-
 func TestParsePrivateKey(t *testing.T) {
 	for _, file := range []string{"pkcs1.key", "pkcs8.key", "ecp.key"} {
 		keyPEMBlock, err := ioutil.ReadFile("testdata/" + file)
@@ -89,6 +89,26 @@ func TestParsePrivateKey(t *testing.T) {
 -----END PRIVATE KEY-----
 `)
 	_, err = ParsePrivateKey(keyPEMBlock)
+	require.Error(t, err)
+}
+
+func TestParsePrivateKeys(t *testing.T) {
+	keyPEMBlock, err := ioutil.ReadFile("testdata/keys.pem")
+	require.NoError(t, err)
+	keys, err := ParsePrivateKeys(keyPEMBlock)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(keys))
+
+	// parse invalid PEM data
+	_, err = ParsePrivateKeys([]byte{0, 1, 2, 3})
+	require.Equal(t, ErrInvalidPEMBlock, err)
+
+	// invalid certificate data
+	keyPEMBlock = []byte(`
+-----BEGIN CERTIFICATE-----
+-----END CERTIFICATE-----
+`)
+	_, err = ParsePrivateKeys(keyPEMBlock)
 	require.Error(t, err)
 }
 
