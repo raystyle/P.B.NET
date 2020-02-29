@@ -577,9 +577,17 @@ func (m *manager) publicRootCA() {
 	case "list":
 		m.publicRootCAList()
 	case "add":
+		if len(args) < 2 {
+			fmt.Println("no certificate file")
+			return
+		}
 		m.publicRootCAAdd(args[1])
 	case "delete":
-		m.publicRootCADel(args[1])
+		if len(args) < 2 {
+			fmt.Println("no certificate ID")
+			return
+		}
+		m.publicRootCADelete(args[1])
 	case "help":
 		m.publicRootCAHelp()
 	case "save":
@@ -603,8 +611,8 @@ func (m *manager) publicRootCAList() {
 	}
 }
 
-func (m *manager) publicRootCAAdd(file string) {
-	pemData, err := ioutil.ReadFile(file)
+func (m *manager) publicRootCAAdd(certFile string) {
+	pemData, err := ioutil.ReadFile(certFile)
 	if checkError(err, false) {
 		return
 	}
@@ -619,7 +627,7 @@ func (m *manager) publicRootCAAdd(file string) {
 	}
 }
 
-func (m *manager) publicRootCADel(id string) {
+func (m *manager) publicRootCADelete(id string) {
 	i, err := strconv.Atoi(id)
 	if checkError(err, false) {
 		return
@@ -661,9 +669,17 @@ func (m *manager) publicClientCA() {
 	case "list":
 		m.publicClientCAList()
 	case "add":
+		if len(args) < 2 {
+			fmt.Println("no certificate file")
+			return
+		}
 		m.publicClientCAAdd(args[1])
 	case "delete":
-		m.publicClientCADel(args[1])
+		if len(args) < 2 {
+			fmt.Println("no certificate ID")
+			return
+		}
+		m.publicClientCADelete(args[1])
 	case "help":
 		m.publicClientCAHelp()
 	case "save":
@@ -687,8 +703,8 @@ func (m *manager) publicClientCAList() {
 	}
 }
 
-func (m *manager) publicClientCAAdd(file string) {
-	pemData, err := ioutil.ReadFile(file)
+func (m *manager) publicClientCAAdd(certFile string) {
+	pemData, err := ioutil.ReadFile(certFile)
 	if checkError(err, false) {
 		return
 	}
@@ -703,7 +719,7 @@ func (m *manager) publicClientCAAdd(file string) {
 	}
 }
 
-func (m *manager) publicClientCADel(id string) {
+func (m *manager) publicClientCADelete(id string) {
 	i, err := strconv.Atoi(id)
 	if checkError(err, false) {
 		return
@@ -737,26 +753,104 @@ func (m *manager) publicClient() {
 	if len(args) == 0 {
 		return
 	}
-	if len(args) > 1 {
+	if len(args) > 3 {
 		fmt.Printf("unknown command: \"%s\"\n", cmd)
 		return
 	}
 	switch args[0] {
-	case "root-ca":
-		m.prefix = prefixPublicRootCA
-	case "client-ca":
-		m.prefix = prefixPublicClientCA
-	case "client":
-		m.prefix = prefixPublicClient
+	case "list":
+		m.publicClientList()
+	case "add":
+		if len(args) < 3 {
+			fmt.Println("no certificate file or private key file")
+			return
+		}
+		m.publicClientAdd(args[1], args[2])
+	case "delete":
+		if len(args) < 2 {
+			fmt.Println("no certificate ID")
+			return
+		}
+		m.publicClientDelete(args[1])
 	case "help":
-		m.publicHelp()
+		m.publicClientHelp()
 	case "save":
 		m.save()
-	case "exit":
+	case "reload":
+		m.reload()
+	case "return":
 		m.prefix = prefixPublic
+	case "exit":
+		m.exit()
 	default:
 		fmt.Printf("unknown command: \"%s\"\n", cmd)
 	}
+}
+
+func (m *manager) publicClientList() {
+	fmt.Println()
+	certs := m.pool.GetPublicClientPairs()
+	for i := 0; i < len(certs); i++ {
+		printCertificate(i, certs[i].Certificate)
+	}
+}
+
+func (m *manager) publicClientAdd(certFile, keyFile string) {
+	certPEM, err := ioutil.ReadFile(certFile)
+	if checkError(err, false) {
+		return
+	}
+	keyPEM, err := ioutil.ReadFile(keyFile)
+	if checkError(err, false) {
+		return
+	}
+	certs, err := certutil.ParseCertificates(certPEM)
+	if checkError(err, false) {
+		return
+	}
+	keys, err := certutil.ParsePrivateKeys(keyPEM)
+	if checkError(err, false) {
+		return
+	}
+	certsNum := len(certs)
+	keysNum := len(keys)
+	if certsNum != keysNum {
+		const format = "%d certificates in %s and %d private keys in %s\n"
+		fmt.Printf(format, certsNum, certFile, keysNum, keyFile)
+		return
+	}
+	for i := 0; i < certsNum; i++ {
+		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
+		err = m.pool.AddPublicClientCert(certs[i].Raw, keyData)
+		checkError(err, false)
+		fmt.Printf("\n%s\n\n", cert.Print(certs[i]))
+	}
+}
+
+func (m *manager) publicClientDelete(id string) {
+	i, err := strconv.Atoi(id)
+	if checkError(err, false) {
+		return
+	}
+	err = m.pool.DeletePublicClientCert(i)
+	checkError(err, false)
+}
+
+func (m *manager) publicClientHelp() {
+	const help = `
+help about manager/public/client:
+  
+  list         list all Client certificates
+  add          add a certificate
+  delete       delete a certificate with ID
+  help         print help
+  save         save certificate pool
+  reload       reload certificate pool
+  return       return to the public mode
+  exit         close certificate manager
+  
+`
+	fmt.Print(help)
 }
 
 // ----------------------------------------Private Root CA-----------------------------------------
