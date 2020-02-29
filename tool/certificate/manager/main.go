@@ -21,6 +21,7 @@ import (
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
 	"project/internal/crypto/cert/certutil"
+	"project/internal/module/shell"
 	"project/internal/patch/msgpack"
 	"project/internal/security"
 )
@@ -284,6 +285,41 @@ func LoadCertPool(data, pwd []byte) *cert.Pool {
 	return certPool
 }
 
+func printCertificate(id int, c *x509.Certificate) {
+	fmt.Printf("ID: %d\n%s\n\n", id, cert.Print(c))
+}
+
+func writeFile(filename string, data []byte) error {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = file.Write(data)
+	if err1 := file.Sync(); err == nil {
+		err = err1
+	}
+	if err1 := file.Close(); err == nil {
+		err = err1
+	}
+	return err
+}
+
+func checkError(err error, exit bool) bool {
+	if err != nil {
+		if strings.Contains(err.Error(), "unexpected newline") {
+			return true
+		}
+		if err != io.EOF {
+			fmt.Printf("%s\n", err)
+		}
+		if exit {
+			os.Exit(1)
+		}
+		return true
+	}
+	return false
+}
+
 const (
 	prefixManager         = "manager"
 	prefixPublic          = "manager/public"
@@ -349,25 +385,6 @@ func (m *manager) Manage() {
 	}
 }
 
-func (m *manager) manager() {
-	cmd := m.scanner.Text()
-	switch cmd {
-	case "":
-	case "public":
-		m.prefix = prefixPublic
-	case "private":
-		m.prefix = prefixPrivate
-	case "help":
-		m.managerHelp()
-	case "save":
-		m.save()
-	case "exit":
-		m.exit()
-	default:
-		fmt.Printf("unknown command: %s\n", cmd)
-	}
-}
-
 func (m *manager) backup() {
 	// certificate
 	data, err := ioutil.ReadFile(certFile)
@@ -381,6 +398,34 @@ func (m *manager) backup() {
 	checkError(err, true)
 }
 
+func (m *manager) manager() {
+	cmd := m.scanner.Text()
+	args := shell.CommandLineToArgv(cmd)
+	if len(args) == 0 {
+		return
+	}
+	if len(args) > 1 {
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+		return
+	}
+	switch args[0] {
+	case "public":
+		m.prefix = prefixPublic
+	case "private":
+		m.prefix = prefixPrivate
+	case "help":
+		m.managerHelp()
+	case "save":
+		m.save()
+	case "reload":
+		m.reload()
+	case "exit":
+		m.exit()
+	default:
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+	}
+}
+
 func (m *manager) managerHelp() {
 	const help = `
 help about manager:
@@ -389,10 +434,19 @@ help about manager:
   private      switch to private mode
   help         print help
   save         save certificate pool
-  exit         return to the manager
+  reload       reload certificate pool
+  exit         close certificate manager
   
 `
 	fmt.Print(help)
+}
+
+func (m *manager) reload() {
+	pwd := m.pwd.Get()
+	defer m.pwd.Put(pwd)
+	data, err := ioutil.ReadFile(certFile)
+	checkError(err, true)
+	m.pool = LoadCertPool(data, pwd)
 }
 
 func (m *manager) save() {
@@ -411,8 +465,15 @@ func (m *manager) exit() {
 
 func (m *manager) public() {
 	cmd := m.scanner.Text()
-	switch cmd {
-	case "":
+	args := shell.CommandLineToArgv(cmd)
+	if len(args) == 0 {
+		return
+	}
+	if len(args) > 1 {
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+		return
+	}
+	switch args[0] {
 	case "root-ca":
 		m.prefix = prefixPublicRootCA
 	case "client-ca":
@@ -423,10 +484,14 @@ func (m *manager) public() {
 		m.publicHelp()
 	case "save":
 		m.save()
-	case "exit":
+	case "reload":
+		m.reload()
+	case "return":
 		m.prefix = prefixManager
+	case "exit":
+		m.exit()
 	default:
-		fmt.Printf("unknown command: %s\n", cmd)
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
 	}
 }
 
@@ -439,53 +504,95 @@ help about manager/public:
   client       switch to public/client mode
   help         print help
   save         save certificate pool
-  exit         return to the manager
+  reload       reload certificate pool
+  return       return to the manager
+  exit         close certificate manager
   
 `
 	fmt.Print(help)
 }
 
+func (m *manager) private() {
+	cmd := m.scanner.Text()
+	args := shell.CommandLineToArgv(cmd)
+	if len(args) == 0 {
+		return
+	}
+	if len(args) > 1 {
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+		return
+	}
+	switch args[0] {
+	case "root-ca":
+		m.prefix = prefixPrivateRootCA
+	case "client-ca":
+		m.prefix = prefixPrivateClientCA
+	case "client":
+		m.prefix = prefixPrivateClient
+	case "help":
+		m.privateHelp()
+	case "save":
+		m.save()
+	case "reload":
+		m.reload()
+	case "return":
+		m.prefix = prefixManager
+	case "exit":
+		m.exit()
+	default:
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+	}
+}
+
+func (m *manager) privateHelp() {
+	const help = `
+help about manager/private:
+  
+  root-ca      switch to private/root-ca mode
+  client-ca    switch to private/client-ca mode
+  client       switch to private/client mode
+  help         print help
+  save         save certificate pool
+  reload       reload certificate pool
+  return       return to the manager
+  exit         close certificate manager
+  
+`
+	fmt.Print(help)
+}
+
+// -----------------------------------------Public Root CA-----------------------------------------
+
 func (m *manager) publicRootCA() {
 	cmd := m.scanner.Text()
-	// cmd[:3] == "add"
-	switch cmd {
-	case "":
+	args := shell.CommandLineToArgv(cmd)
+	if len(args) == 0 {
+		return
+	}
+	if len(args) > 2 {
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+		return
+	}
+	switch args[0] {
 	case "list":
 		m.publicRootCAList()
+	case "add":
+		m.publicRootCAAdd(args[1])
+	case "delete":
+		m.publicRootCADel(args[1])
 	case "help":
 		m.publicRootCAHelp()
 	case "save":
 		m.save()
-	case "exit":
+	case "reload":
+		m.reload()
+	case "return":
 		m.prefix = prefixPublic
+	case "exit":
+		m.exit()
 	default:
-		if len(cmd) > 4 {
-			switch cmd[:4] {
-			case "add ":
-				m.publicRootCAAdd(cmd[4:])
-				return
-			case "del ":
-				m.publicRootCADel(cmd[4:])
-				return
-			}
-		}
-		fmt.Printf("unknown command: %s\n", cmd)
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
 	}
-}
-
-func (m *manager) publicRootCAHelp() {
-	const help = `
-help about manager/public/root-ca:
-  
-  add          add a certificate
-  del          delete a certificate with ID
-  list         list all Root CA certificates
-  help         print help
-  save         save certificate pool
-  exit         return to the public
-  
-`
-	fmt.Print(help)
 }
 
 func (m *manager) publicRootCAList() {
@@ -507,9 +614,8 @@ func (m *manager) publicRootCAAdd(file string) {
 	}
 	for i := 0; i < len(certs); i++ {
 		err = m.pool.AddPublicRootCACert(certs[i].Raw)
-		if checkError(err, false) {
-			fmt.Printf("\n%s\n\n", cert.Print(certs[i]))
-		}
+		checkError(err, false)
+		fmt.Printf("\n%s\n\n", cert.Print(certs[i]))
 	}
 }
 
@@ -518,88 +624,142 @@ func (m *manager) publicRootCADel(id string) {
 	if checkError(err, false) {
 		return
 	}
-	fmt.Println(i)
-	// err := m.pool.AddPublicRootCACert()
-	// checkError(err, false)
+	err = m.pool.DeletePublicRootCACert(i)
+	checkError(err, false)
 }
 
-func (m *manager) publicClientCA() {
-	cmd := m.scanner.Text()
-	switch cmd {
-	case "":
-	case "root-ca":
-		m.prefix = prefixPublicRootCA
-	case "client-ca":
-		m.prefix = prefixPublicClientCA
-	case "client":
-		m.prefix = prefixPublicClient
-	case "help":
-		m.publicHelp()
-	case "save":
-		m.save()
-	case "exit":
-		m.prefix = prefixPublic
-	default:
-		fmt.Printf("unknown command: %s\n", cmd)
-	}
-}
-
-func (m *manager) publicClient() {
-	cmd := m.scanner.Text()
-	switch cmd {
-	case "":
-	case "root-ca":
-		m.prefix = prefixPublicRootCA
-	case "client-ca":
-		m.prefix = prefixPublicClientCA
-	case "client":
-		m.prefix = prefixPublicClient
-	case "help":
-		m.publicHelp()
-	case "save":
-		m.save()
-	case "exit":
-		m.prefix = prefixPublic
-	default:
-		fmt.Printf("unknown command: %s\n", cmd)
-	}
-}
-
-func (m *manager) private() {
-	cmd := m.scanner.Text()
-	switch cmd {
-	case "":
-	case "root-ca":
-		m.prefix = prefixPrivateRootCA
-	case "client-ca":
-		m.prefix = prefixPrivateClientCA
-	case "client":
-		m.prefix = prefixPrivateClient
-	case "help":
-		m.privateHelp()
-	case "save":
-		m.save()
-	case "exit":
-		m.prefix = prefixManager
-	default:
-		fmt.Printf("unknown command: %s\n", cmd)
-	}
-}
-
-func (m *manager) privateHelp() {
+func (m *manager) publicRootCAHelp() {
 	const help = `
-help about manager/private:
+help about manager/public/root-ca:
   
-  root-ca      switch to private/root-ca mode
-  client-ca    switch to private/client-ca mode
-  client       switch to private/client mode
+  list         list all Root CA certificates
+  add          add a certificate
+  delete       delete a certificate with ID
   help         print help
   save         save certificate pool
-  exit         return to the manager
+  reload       reload certificate pool
+  return       return to the public mode
+  exit         close certificate manager
   
 `
 	fmt.Print(help)
 }
+
+// ----------------------------------------Public Client CA----------------------------------------
+
+func (m *manager) publicClientCA() {
+	cmd := m.scanner.Text()
+	args := shell.CommandLineToArgv(cmd)
+	if len(args) == 0 {
+		return
+	}
+	if len(args) > 2 {
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+		return
+	}
+	switch args[0] {
+	case "list":
+		m.publicClientCAList()
+	case "add":
+		m.publicClientCAAdd(args[1])
+	case "delete":
+		m.publicClientCADel(args[1])
+	case "help":
+		m.publicClientCAHelp()
+	case "save":
+		m.save()
+	case "reload":
+		m.reload()
+	case "return":
+		m.prefix = prefixPublic
+	case "exit":
+		m.exit()
+	default:
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+	}
+}
+
+func (m *manager) publicClientCAList() {
+	fmt.Println()
+	certs := m.pool.GetPublicClientCACerts()
+	for i := 0; i < len(certs); i++ {
+		printCertificate(i, certs[i])
+	}
+}
+
+func (m *manager) publicClientCAAdd(file string) {
+	pemData, err := ioutil.ReadFile(file)
+	if checkError(err, false) {
+		return
+	}
+	certs, err := certutil.ParseCertificates(pemData)
+	if checkError(err, false) {
+		return
+	}
+	for i := 0; i < len(certs); i++ {
+		err = m.pool.AddPublicClientCACert(certs[i].Raw)
+		checkError(err, false)
+		fmt.Printf("\n%s\n\n", cert.Print(certs[i]))
+	}
+}
+
+func (m *manager) publicClientCADel(id string) {
+	i, err := strconv.Atoi(id)
+	if checkError(err, false) {
+		return
+	}
+	err = m.pool.DeletePublicClientCACert(i)
+	checkError(err, false)
+}
+
+func (m *manager) publicClientCAHelp() {
+	const help = `
+help about manager/public/client-ca:
+  
+  list         list all Client CA certificates
+  add          add a certificate
+  delete       delete a certificate with ID
+  help         print help
+  save         save certificate pool
+  reload       reload certificate pool
+  return       return to the public mode
+  exit         close certificate manager
+  
+`
+	fmt.Print(help)
+}
+
+// -----------------------------------------Public Client------------------------------------------
+
+func (m *manager) publicClient() {
+	cmd := m.scanner.Text()
+	args := shell.CommandLineToArgv(cmd)
+	if len(args) == 0 {
+		return
+	}
+	if len(args) > 1 {
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+		return
+	}
+	switch args[0] {
+	case "root-ca":
+		m.prefix = prefixPublicRootCA
+	case "client-ca":
+		m.prefix = prefixPublicClientCA
+	case "client":
+		m.prefix = prefixPublicClient
+	case "help":
+		m.publicHelp()
+	case "save":
+		m.save()
+	case "exit":
+		m.prefix = prefixPublic
+	default:
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
+	}
+}
+
+// ----------------------------------------Private Root CA-----------------------------------------
 
 func (m *manager) privateRootCA() {
 	cmd := m.scanner.Text()
@@ -618,9 +778,11 @@ func (m *manager) privateRootCA() {
 	case "exit":
 		m.prefix = prefixPrivate
 	default:
-		fmt.Printf("unknown command: %s\n", cmd)
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
 	}
 }
+
+// ---------------------------------------Private Client CA----------------------------------------
 
 func (m *manager) privateClientCA() {
 	cmd := m.scanner.Text()
@@ -639,9 +801,11 @@ func (m *manager) privateClientCA() {
 	case "exit":
 		m.prefix = prefixPrivate
 	default:
-		fmt.Printf("unknown command: %s\n", cmd)
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
 	}
 }
+
+// ----------------------------------------Private Client------------------------------------------
 
 func (m *manager) privateClient() {
 	cmd := m.scanner.Text()
@@ -660,41 +824,6 @@ func (m *manager) privateClient() {
 	case "exit":
 		m.prefix = prefixPrivate
 	default:
-		fmt.Printf("unknown command: %s\n", cmd)
+		fmt.Printf("unknown command: \"%s\"\n", cmd)
 	}
-}
-
-func printCertificate(id int, c *x509.Certificate) {
-	fmt.Printf("ID: %d\n%s\n\n", id, cert.Print(c))
-}
-
-func writeFile(filename string, data []byte) error {
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	_, err = file.Write(data)
-	if err1 := file.Sync(); err == nil {
-		err = err1
-	}
-	if err1 := file.Close(); err == nil {
-		err = err1
-	}
-	return err
-}
-
-func checkError(err error, exit bool) bool {
-	if err != nil {
-		if strings.Contains(err.Error(), "unexpected newline") {
-			return true
-		}
-		if err != io.EOF {
-			fmt.Printf("%s\n", err)
-		}
-		if exit {
-			os.Exit(1)
-		}
-		return true
-	}
-	return false
 }
