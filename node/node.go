@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -12,7 +11,6 @@ import (
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/xnet"
-	"project/internal/xpanic"
 )
 
 // Node send messages to controller.
@@ -30,6 +28,7 @@ type Node struct {
 	handler   *handler   // handle message from controller
 	worker    *worker    // do work
 	server    *server    // listen and serve Roles
+	driver    *driver    // control all modules
 
 	once sync.Once
 	wait chan struct{}
@@ -100,6 +99,12 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize server")
 	}
 	node.server = server
+	// driver
+	driver, err := newDriver(node, cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to initialize worker")
+	}
+	node.driver = driver
 	node.wait = make(chan struct{})
 	node.exit = make(chan error, 1)
 	return node, nil
@@ -144,22 +149,10 @@ func (node *Node) Main() error {
 		return node.fatal(err, "failed to register")
 	}
 	// driver
-	go node.driver()
+	node.driver.Drive()
 	node.logger.Print(logger.Info, "main", "running")
 	close(node.wait)
 	return <-node.exit
-}
-
-func (node *Node) driver() {
-	defer func() {
-		if r := recover(); r != nil {
-			b := xpanic.Print(r, "node.driver")
-			node.logger.Print(logger.Fatal, "driver", b)
-			// restart driver
-			time.Sleep(time.Second)
-			go node.driver()
-		}
-	}()
 }
 
 // Wait is used to wait for Main().

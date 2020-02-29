@@ -169,7 +169,9 @@ func (register *register) AddBootstrap(b *messages.Bootstrap) error {
 		return errors.Errorf("bootstrap %s already exists", b.Tag)
 	}
 	boot, err := bootstrap.Load(register.context, b.Mode, b.Config,
-		register.ctx.global.ProxyPool, register.ctx.global.DNSClient,
+		register.ctx.global.CertPool,
+		register.ctx.global.ProxyPool,
+		register.ctx.global.DNSClient,
 	)
 	if err != nil {
 		return errors.Wrapf(err, "failed to load bootstrap %s", b.Tag)
