@@ -205,6 +205,72 @@ func (p *Pool) AddPrivateClientCert(cert, pri []byte) error {
 	return nil
 }
 
+// DeletePublicRootCACert is used to delete public root CA certificate.
+func (p *Pool) DeletePublicRootCACert(i int) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.publicRootCACerts)-1 {
+		return errors.Errorf("invalid id: %d", i)
+	}
+	p.publicRootCACerts = append(p.publicRootCACerts[:i], p.publicRootCACerts[i+1:]...)
+	return nil
+}
+
+// DeletePublicClientCACert is used to delete public client CA certificate.
+func (p *Pool) DeletePublicClientCACert(i int) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.publicClientCACerts)-1 {
+		return errors.Errorf("invalid id: %d", i)
+	}
+	p.publicClientCACerts = append(p.publicClientCACerts[:i], p.publicClientCACerts[i+1:]...)
+	return nil
+}
+
+// DeletePublicClientCert is used to delete public client certificate.
+func (p *Pool) DeletePublicClientCert(i int) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.publicClientCerts)-1 {
+		return errors.Errorf("invalid id: %d", i)
+	}
+	p.publicClientCerts = append(p.publicClientCerts[:i], p.publicClientCerts[i+1:]...)
+	return nil
+}
+
+// DeletePrivateRootCACert is used to delete private root CA certificate.
+func (p *Pool) DeletePrivateRootCACert(i int) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.privateRootCACerts)-1 {
+		return errors.Errorf("invalid id: %d", i)
+	}
+	p.privateRootCACerts = append(p.privateRootCACerts[:i], p.privateRootCACerts[i+1:]...)
+	return nil
+}
+
+// DeletePrivateClientCACert is used to delete private client CA certificate.
+func (p *Pool) DeletePrivateClientCACert(i int) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.privateClientCACerts)-1 {
+		return errors.Errorf("invalid id: %d", i)
+	}
+	p.privateClientCACerts = append(p.privateClientCACerts[:i], p.privateClientCACerts[i+1:]...)
+	return nil
+}
+
+// DeletePrivateClientCert is used to delete private client certificate.
+func (p *Pool) DeletePrivateClientCert(i int) error {
+	p.rwm.Lock()
+	defer p.rwm.Unlock()
+	if i < 0 || i > len(p.privateClientCerts)-1 {
+		return errors.Errorf("invalid id: %d", i)
+	}
+	p.privateClientCerts = append(p.privateClientCerts[:i], p.privateClientCerts[i+1:]...)
+	return nil
+}
+
 // GetPublicRootCACerts is used to get all public root CA certificates.
 func (p *Pool) GetPublicRootCACerts() []*x509.Certificate {
 	p.rwm.RLock()
