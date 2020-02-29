@@ -11,13 +11,14 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/logger"
+	"project/internal/option"
 	"project/internal/patch/msgpack"
 	"project/internal/proxy"
 	"project/internal/timesync"
 	"project/internal/xpanic"
 )
 
-// Config contains configuration about Beacon,
+// Config contains configuration about Beacon.
 // use extra msgpack tag to hide raw field name.
 type Config struct {
 	Test struct {
@@ -41,16 +42,17 @@ type Config struct {
 		TimeSyncInterval    time.Duration `toml:"timesync_interval"     msgpack:"d"`
 
 		// generate from Controller
-		Certificates      [][]byte                    `toml:"-" msgpack:"w"`
+		RawCertPool       cert.RawCertPool            `toml:"-" msgpack:"w"`
 		ProxyClients      []*proxy.Client             `toml:"-" msgpack:"x"`
 		DNSServers        map[string]*dns.Server      `toml:"-" msgpack:"y"`
 		TimeSyncerClients map[string]*timesync.Client `toml:"-" msgpack:"z"`
 	} `toml:"global" msgpack:"bb"`
 
 	Client struct {
-		ProxyTag string        `toml:"proxy_tag" msgpack:"a"`
-		Timeout  time.Duration `toml:"timeout"   msgpack:"b"`
-		DNSOpts  dns.Options   `toml:"dns"       msgpack:"c"`
+		ProxyTag  string           `toml:"proxy_tag" msgpack:"a"`
+		Timeout   time.Duration    `toml:"timeout"   msgpack:"b"`
+		DNSOpts   dns.Options      `toml:"dns"       msgpack:"c"`
+		TLSConfig option.TLSConfig `toml:"tls_config" msgpack:"d"`
 	} `toml:"client" msgpack:"cc"`
 
 	Register struct {
@@ -94,7 +96,6 @@ type Config struct {
 	Ctrl struct {
 		KexPublicKey []byte `msgpack:"x"` // key exchange curve25519
 		PublicKey    []byte `msgpack:"y"` // verify message ed25519
-		BroadcastKey []byte `msgpack:"z"` // decrypt broadcast, key + iv
 	} `toml:"-" msgpack:"ii"`
 
 	// about service
@@ -165,8 +166,29 @@ func (cfg *Config) Certificates(writer io.Writer, beacon *Beacon) string {
 	}
 
 	// print certificates
-	for i, c := range beacon.global.Certificates() {
+	_, _ = output.Write([]byte("----------------public root ca----------------\n"))
+	for i, c := range beacon.global.CertPool.GetPublicRootCACerts() {
 		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	_, _ = output.Write([]byte("---------------public client ca---------------\n"))
+	for i, c := range beacon.global.CertPool.GetPublicClientCACerts() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	_, _ = output.Write([]byte("--------------public client cert--------------\n"))
+	for i, pair := range beacon.global.CertPool.GetPublicClientPairs() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(pair.Certificate))
+	}
+	_, _ = output.Write([]byte("----------------private root ca---------------\n"))
+	for i, c := range beacon.global.CertPool.GetPrivateRootCACerts() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	_, _ = output.Write([]byte("---------------private client ca--------------\n"))
+	for i, c := range beacon.global.CertPool.GetPrivateClientCACerts() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(c))
+	}
+	_, _ = output.Write([]byte("--------------private client cert-------------\n"))
+	for i, pair := range beacon.global.CertPool.GetPrivateClientPairs() {
+		_, _ = fmt.Fprintf(output, "ID: %d\n%s\n\n", i+1, cert.Print(pair.Certificate))
 	}
 	return buf.String()
 }
@@ -183,7 +205,7 @@ func (cfg *Config) ProxyClients(writer io.Writer, beacon *Beacon) string {
 	}
 
 	// print proxy clients
-	for tag, client := range beacon.global.ProxyClients() {
+	for tag, client := range beacon.global.ProxyPool.Clients() {
 		if tag == "" || tag == "direct" { // skip builtin proxy client
 			continue
 		}
@@ -209,24 +231,11 @@ func (cfg *Config) DNSServers(
 	} else {
 		output = buf
 	}
-
 	// print DNS servers
-	for tag, server := range beacon.global.DNSServers() {
+	for tag, server := range beacon.global.DNSClient.Servers() {
 		const format = "tag: %-14s skip: %-5t method: %-3s address: %s\n"
 		_, _ = fmt.Fprintf(output, format, tag, server.SkipTest, server.Method, server.Address)
 	}
-
-	// add certificates to opts.DNSOptions about TLS
-	certs := beacon.global.CertificatePEMs()
-	// about TLS
-	tCerts := opts.DNSOptions.TLSConfig.RootCAs
-	tCerts = append(tCerts, certs...)
-	opts.DNSOptions.TLSConfig.RootCAs = tCerts
-	// about http.Transport TLS
-	ttCerts := opts.DNSOptions.Transport.TLSClientConfig.RootCAs
-	ttCerts = append(ttCerts, certs...)
-	opts.DNSOptions.Transport.TLSClientConfig.RootCAs = ttCerts
-
 	// resolve domain name
 	result, err := beacon.global.DNSClient.TestServers(ctx, opts.Domain, &opts.DNSOptions)
 	if err != nil {
@@ -260,13 +269,11 @@ func (cfg *Config) TimeSyncerClients(
 	} else {
 		output = buf
 	}
-
 	// print time syncer clients
-	for tag, client := range beacon.global.TimeSyncerClients() {
+	for tag, client := range beacon.global.TimeSyncer.Clients() {
 		const format = "tag: %-10s skip: %-5t mode: %-4s\n"
 		_, _ = fmt.Fprintf(output, format, tag, client.SkipTest, client.Mode)
 	}
-
 	// test syncer clients
 	err := beacon.global.TimeSyncer.Test(ctx)
 	if err != nil {

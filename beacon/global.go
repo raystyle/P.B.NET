@@ -2,14 +2,13 @@ package beacon
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 
 	"project/internal/crypto/aes"
+	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
@@ -22,10 +21,7 @@ import (
 )
 
 type global struct {
-	// about certificate
-	certs     []*x509.Certificate
-	certASN1s [][]byte
-
+	CertPool   *cert.Pool
 	ProxyPool  *proxy.Pool
 	DNSClient  *dns.Client
 	TimeSyncer *timesync.Syncer
@@ -45,23 +41,13 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
-	// load certificates
-	var (
-		certs     []*x509.Certificate
-		certASN1s [][]byte
-	)
-	for i := 0; i < len(cfg.Certificates); i++ {
-		memory.Padding()
-		cert, err := x509.ParseCertificate(cfg.Certificates[i])
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		certs = append(certs, cert)
-		certASN1s = append(certASN1s, cfg.Certificates[i])
+	// certificate pool
+	certPool, err := cert.NewPoolFromRawCertPool(&cfg.RawCertPool)
+	if err != nil {
+		return nil, err
 	}
-
 	// proxy client
-	proxyPool := proxy.NewPool()
+	proxyPool := proxy.NewPool(certPool)
 	for i := 0; i < len(cfg.ProxyClients); i++ {
 		memory.Padding()
 		err := proxyPool.Add(cfg.ProxyClients[i])
@@ -69,9 +55,8 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 			return nil, err
 		}
 	}
-
 	// DNS client
-	dnsClient := dns.NewClient(proxyPool)
+	dnsClient := dns.NewClient(certPool, proxyPool)
 	for tag, server := range cfg.DNSServers {
 		memory.Padding()
 		err := dnsClient.Add(tag, server)
@@ -79,13 +64,12 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 			return nil, err
 		}
 	}
-	err := dnsClient.SetCacheExpireTime(cfg.DNSCacheExpire)
+	err = dnsClient.SetCacheExpireTime(cfg.DNSCacheExpire)
 	if err != nil {
 		return nil, err
 	}
-
 	// time syncer
-	timeSyncer := timesync.New(proxyPool, dnsClient, logger)
+	timeSyncer := timesync.New(certPool, proxyPool, dnsClient, logger)
 	for tag, client := range cfg.TimeSyncerClients {
 		memory.Padding()
 		err = timeSyncer.Add(tag, client)
@@ -102,27 +86,23 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		return nil, err
 	}
 
-	g := global{
-		certs:      certs,
-		certASN1s:  certASN1s,
+	global := global{
+		CertPool:   certPool,
 		ProxyPool:  proxyPool,
 		DNSClient:  dnsClient,
 		TimeSyncer: timeSyncer,
 		rand:       random.New(),
 	}
-	err = g.configure(config)
+	err = global.configure(config)
 	if err != nil {
 		return nil, err
 	}
-	return &g, nil
+	return &global, nil
 }
 
 const (
 	// verify controller role & message
 	objCtrlPublicKey uint32 = iota
-
-	// decrypt controller broadcast message
-	objCtrlBroadcastKey
 
 	// after key exchange (aes crypto)
 	objCtrlSessionKey
@@ -214,20 +194,6 @@ func (global *global) configure(cfg *Config) error {
 		return errors.WithStack(err)
 	}
 	global.objects[objCtrlPublicKey] = publicKey
-	// controller broadcast key
-	global.paddingMemory()
-	if len(cfg.Ctrl.BroadcastKey) != aes.Key256Bit+aes.IVSize {
-		return errors.New("invalid controller aes key size")
-	}
-	aesKey := cfg.Ctrl.BroadcastKey[:aes.Key256Bit]
-	aesIV := cfg.Ctrl.BroadcastKey[aes.Key256Bit:]
-	cbc, err := aes.NewCBC(aesKey, aesIV)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	security.CoverBytes(aesKey)
-	security.CoverBytes(aesIV)
-	global.objects[objCtrlBroadcastKey] = cbc
 	// calculate session key and set aes crypto
 	global.paddingMemory()
 	sb := global.objects[objPrivateKey].(*security.Bytes)
@@ -238,7 +204,7 @@ func (global *global) configure(cfg *Config) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	cbc, err = aes.NewCBC(sessionKey, sessionKey[:aes.IVSize])
+	cbc, err := aes.NewCBC(sessionKey, sessionKey[:aes.IVSize])
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -248,40 +214,18 @@ func (global *global) configure(cfg *Config) error {
 
 const spmCount = 9 // global.paddingMemory() execute count
 
-// OK is used to check debug
+// OK is used to check debug.
 func (global *global) OK() bool {
 	return global.spmCount == spmCount
 }
 
-// Certificates is used to get all certificates
-func (global *global) Certificates() []*x509.Certificate {
-	return global.certs
-}
-
-// CertificatePEMs is used to get all certificates that encode to PEM
-func (global *global) CertificatePEMs() []string {
-	var certPEMs []string
-	block := new(pem.Block)
-	block.Type = "CERTIFICATE"
-	for i := 0; i < len(global.certASN1s); i++ {
-		block.Bytes = global.certASN1s[i]
-		certPEMs = append(certPEMs, string(pem.EncodeToMemory(block)))
-	}
-	return certPEMs
-}
-
-// GetProxyClient is used to get proxy client from proxy pool
+// GetProxyClient is used to get proxy client from proxy pool.
 func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
 	return global.ProxyPool.Get(tag)
 }
 
-// ProxyClients is used to get all proxy client in proxy pool
-func (global *global) ProxyClients() map[string]*proxy.Client {
-	return global.ProxyPool.Clients()
-}
-
-// ResolveContext is used to resolve domain name with context and options
-func (global *global) ResolveContext(
+// ResolveDomain is used to resolve domain name with context and options.
+func (global *global) ResolveDomain(
 	ctx context.Context,
 	domain string,
 	opts *dns.Options,
@@ -289,46 +233,36 @@ func (global *global) ResolveContext(
 	return global.DNSClient.ResolveContext(ctx, domain, opts)
 }
 
-// DNSServers is used to get all DNS servers in DNS client
-func (global *global) DNSServers() map[string]*dns.Server {
-	return global.DNSClient.Servers()
-}
-
-// TimeSyncerClients is used to get all time syncer clients in time syncer
-func (global *global) TimeSyncerClients() map[string]*timesync.Client {
-	return global.TimeSyncer.Clients()
-}
-
-// StartTimeSyncer is used to start time syncer
+// StartTimeSyncer is used to start time syncer.
 func (global *global) StartTimeSyncer() error {
 	return global.TimeSyncer.Start()
 }
 
-// StartTimeSyncerWalker is used to start time syncer add loop
+// StartTimeSyncerWalker is used to start time syncer add loop.
 func (global *global) StartTimeSyncerWalker() {
 	global.TimeSyncer.StartWalker()
 }
 
-// Now is used to get current time
+// Now is used to get current time.
 func (global *global) Now() time.Time {
 	return global.TimeSyncer.Now()
 }
 
-// StartupTime is used to get startup time
+// StartupTime is used to get startup time.
 func (global *global) StartupTime() time.Time {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objStartupTime].(time.Time)
 }
 
-// GUID is used to get Beacon GUID
+// GUID is used to get Beacon GUID.
 func (global *global) GUID() *guid.GUID {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objBeaconGUID].(*guid.GUID)
 }
 
-// Sign is used to sign message
+// Sign is used to sign message.
 func (global *global) Sign(message []byte) []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
@@ -338,21 +272,21 @@ func (global *global) Sign(message []byte) []byte {
 	return ed25519.Sign(b, message)
 }
 
-// PublicKey is used to get public key
+// PublicKey is used to get public key.
 func (global *global) PublicKey() ed25519.PublicKey {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objPublicKey].(ed25519.PublicKey)
 }
 
-// KeyExchangePublicKey is used to get key exchange public key
+// KeyExchangePublicKey is used to get key exchange public key.
 func (global *global) KeyExchangePublicKey() []byte {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objKexPublicKey].([]byte)
 }
 
-// Encrypt is used to encrypt session data
+// Encrypt is used to encrypt session data.
 func (global *global) Encrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
@@ -360,7 +294,7 @@ func (global *global) Encrypt(data []byte) ([]byte, error) {
 	return cbc.Encrypt(data)
 }
 
-// Decrypt is used to decrypt session data
+// Decrypt is used to decrypt session data.
 func (global *global) Decrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
@@ -368,27 +302,19 @@ func (global *global) Decrypt(data []byte) ([]byte, error) {
 	return cbc.Decrypt(data)
 }
 
-// CtrlPublicKey is used to get Controller public key
+// CtrlPublicKey is used to get Controller public key.
 func (global *global) CtrlPublicKey() ed25519.PublicKey {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objCtrlPublicKey].(ed25519.PublicKey)
 }
 
-// CtrlVerify is used to verify controller message
+// CtrlVerify is used to verify controller message.
 func (global *global) CtrlVerify(message, signature []byte) bool {
 	return ed25519.Verify(global.CtrlPublicKey(), message, signature)
 }
 
-// CtrlDecrypt is used to decrypt controller broadcast message
-func (global *global) CtrlDecrypt(data []byte) ([]byte, error) {
-	global.objectsRWM.RLock()
-	defer global.objectsRWM.RUnlock()
-	cbc := global.objects[objCtrlBroadcastKey].(*aes.CBC)
-	return cbc.Decrypt(data)
-}
-
-// Close is used to close global
+// Close is used to close global.
 func (global *global) Close() {
 	global.TimeSyncer.Stop()
 }

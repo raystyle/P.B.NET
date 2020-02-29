@@ -3,7 +3,6 @@ package beacon
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -11,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
+	"project/internal/crypto/ed25519"
 	"project/internal/logger"
 	"project/internal/patch/toml"
 
@@ -25,13 +24,14 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Test.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = "debug"
+	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Beacon")
 
 	cfg.Global.DNSCacheExpire = 3 * time.Minute
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
-	cfg.Global.Certificates = testdata.Certificates(tb)
+	cfg.Global.RawCertPool = testdata.RawCertPool(tb)
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
@@ -58,7 +58,6 @@ func testGenerateConfig(tb testing.TB) *Config {
 
 	cfg.Ctrl.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
 	cfg.Ctrl.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
-	cfg.Ctrl.BroadcastKey = bytes.Repeat([]byte{255}, aes.Key256Bit+aes.IVSize)
 	return &cfg
 }
 
@@ -84,6 +83,7 @@ func TestConfig(t *testing.T) {
 		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
 		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
+		{expected: "test.com", actual: cfg.Client.TLSConfig.ServerName},
 
 		{expected: uint(15), actual: cfg.Register.SleepFixed},
 		{expected: uint(30), actual: cfg.Register.SleepRandom},

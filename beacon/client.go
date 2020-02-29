@@ -75,9 +75,10 @@ func (beacon *Beacon) NewClient(
 		Now:     beacon.global.Now,
 	}
 	// add CA certificates
-	for _, cert := range beacon.global.Certificates() {
-		opts.TLSConfig.RootCAs.AddCert(cert)
-	}
+	// TODO add
+	// for _, cert := range beacon.global.Certificates() {
+	// 	opts.TLSConfig.RootCAs.AddCert(cert)
+	// }
 	// set proxy
 	proxy, err := beacon.global.GetProxyClient(beacon.clientMgr.GetProxyTag())
 	if err != nil {
@@ -86,7 +87,7 @@ func (beacon *Beacon) NewClient(
 	opts.Dialer = proxy.DialContext
 	// resolve domain name
 	dnsOpts := beacon.clientMgr.GetDNSOptions()
-	result, err := beacon.global.ResolveContext(ctx, host, dnsOpts)
+	result, err := beacon.global.ResolveDomain(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func (beacon *Beacon) NewClient(
 		return nil, errors.WithMessagef(err, format, bl)
 	}
 	beacon.clientMgr.Add(client)
-	client.log(logger.Info, "create client")
+	client.log(logger.Debug, "create client")
 	return client, nil
 }
 

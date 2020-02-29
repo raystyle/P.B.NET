@@ -16,6 +16,9 @@
   [client.dns]
     mode = "custom"
 
+  [client.tls_config]
+    server_name = "test.com"
+
 [register]
   sleep_fixed  = 15
   sleep_random = 30
