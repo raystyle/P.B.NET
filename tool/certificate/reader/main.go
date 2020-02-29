@@ -7,7 +7,6 @@ import (
 	"log"
 
 	"project/internal/crypto/cert/certutil"
-	"project/internal/option"
 )
 
 func main() {
@@ -24,7 +23,6 @@ func main() {
 		}
 		err = pem.Encode(buf, &block)
 		checkError(err)
-
 		// print certificate information
 		cert := certs[i]
 		const format = "V%d %s\n"
@@ -39,14 +37,13 @@ func main() {
 	}
 	log.Println("------------------------------------------------")
 	log.Println("the number of the system CA certificates:", l)
-
 	// write pem
 	err = ioutil.WriteFile("system.pem", buf.Bytes(), 0600)
 	checkError(err)
 	// test certificates
 	pemData, err := ioutil.ReadFile("system.pem")
 	checkError(err)
-	certs, err = (&option.TLSConfig{RootCAs: []string{string(pemData)}}).GetRootCAs()
+	certs, err = certutil.ParseCertificates(pemData)
 	checkError(err)
 	// compare
 	loadNum := len(certs)
