@@ -8,13 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// GoroutineMark contains testing.TB and then goroutine number
+// GoroutineMark contains testing.TB and then goroutine number.
 type GoroutineMark struct {
 	t    testing.TB
 	then int
 }
 
-// MarkGoroutines is used to mark the number of the goroutines
+// MarkGoroutines is used to mark the number of the goroutines.
 func MarkGoroutines(t testing.TB) *GoroutineMark {
 	return &GoroutineMark{
 		t:    t,
@@ -35,19 +35,21 @@ func (m *GoroutineMark) calculate() int {
 	return runtime.NumGoroutine() - m.then
 }
 
-// Compare is used to compare the number of the goroutines
+// Compare is used to compare the number of the goroutines.
 func (m *GoroutineMark) Compare() {
-	require.Equal(m.t, 0, m.calculate(), "goroutine leaks")
+	const format = "goroutine leaks! then: %d now: %d"
+	now := runtime.NumGoroutine()
+	require.Equalf(m.t, 0, m.calculate(), format, m.then, now)
 }
 
-// MemoryMark contains testing.TB, then and now memory status
+// MemoryMark contains testing.TB, then and now memory status.
 type MemoryMark struct {
 	t    testing.TB
 	then *runtime.MemStats
 	now  *runtime.MemStats
 }
 
-// MarkMemory is used to mark the memory status
+// MarkMemory is used to mark the memory status.
 func MarkMemory(t testing.TB) *MemoryMark {
 	m := &MemoryMark{
 		t:    t,
@@ -65,7 +67,7 @@ func (m *MemoryMark) calculate() bool {
 	return true
 }
 
-// Compare is used to compare the memory status
+// Compare is used to compare the memory status.
 func (m *MemoryMark) Compare() {
 	require.True(m.t, m.calculate(), "memory leaks")
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certutil"
 )
 
 // certificates from system.
@@ -26,7 +25,7 @@ const (
 )
 
 func init() {
-	systemCertPool, _ := certutil.SystemCertPool()
+	systemCertPool, _ := cert.SystemCertPool()
 	systemCerts = systemCertPool.Certs()
 	PublicRootCANum = len(systemCerts)
 }

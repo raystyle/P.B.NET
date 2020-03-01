@@ -5,14 +5,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert/certutil"
+	"project/internal/crypto/cert"
 	"project/internal/testsuite"
 )
 
 func TestCertPool(t *testing.T) {
 	pool := CertPool(t)
 
-	systemCertPool, err := certutil.SystemCertPool()
+	systemCertPool, err := cert.SystemCertPool()
 	require.NoError(t, err)
 	certs := systemCertPool.Certs()
 	require.Equal(t, len(certs), len(pool.GetPublicRootCACerts()))

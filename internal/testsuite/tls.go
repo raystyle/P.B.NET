@@ -17,7 +17,7 @@ import (
 	"project/internal/random"
 )
 
-// TLSCertificate is used to generate CA ASN1 data, signed certificate
+// TLSCertificate is used to generate CA ASN1 data, signed certificate.
 func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte) {
 	// generate CA certificate
 	caCert := &x509.Certificate{
@@ -65,7 +65,7 @@ func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte
 	return
 }
 
-// TLSConfigPair is used to build server and client *tls.Config
+// TLSConfigPair is used to build server and client *tls.Config.
 func TLSConfigPair(t testing.TB) (server, client *tls.Config) {
 	// certificates about server
 	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t)
@@ -94,7 +94,7 @@ func TLSConfigPair(t testing.TB) (server, client *tls.Config) {
 	return
 }
 
-// TLSConfigOptionPair is used to build server and client *options.TLSConfig
+// TLSConfigOptionPair is used to build server and client *options.TLSConfig.
 func TLSConfigOptionPair(t testing.TB) (server, client option.TLSConfig) {
 	// certificates about server
 	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t)

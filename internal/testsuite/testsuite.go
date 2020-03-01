@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/xnet/xnetutil"
+	"project/internal/nettool"
 )
 
 // about network
@@ -24,7 +24,7 @@ var (
 
 func init() {
 	// print network information
-	IPv4Enabled, IPv6Enabled = xnetutil.IPEnabled()
+	IPv4Enabled, IPv6Enabled = nettool.IPEnabled()
 	if !IPv4Enabled && !IPv6Enabled {
 		fmt.Println("[debug] network unavailable")
 	} else {
@@ -79,7 +79,7 @@ func startPPROFHTTPServer(port int) bool {
 	return true
 }
 
-// Bytes is used to generate test data: []byte{0, 1, .... 254, 255}
+// Bytes is used to generate test data: []byte{0, 1, .... 254, 255}.
 func Bytes() []byte {
 	testdata := make([]byte, 256)
 	for i := 0; i < 256; i++ {
@@ -88,8 +88,8 @@ func Bytes() []byte {
 	return testdata
 }
 
-// Destroyed is used to check if the object has been recycled by the GC
-// it not need testing
+// Destroyed is used to check if the object has been recycled by the GC.
+// It not need testing.TB.
 func Destroyed(object interface{}) bool {
 	destroyed := make(chan struct{})
 	runtime.SetFinalizer(object, func(interface{}) {
@@ -107,7 +107,7 @@ func Destroyed(object interface{}) bool {
 	return false
 }
 
-// IsDestroyed is used to check if the object has been recycled by the GC
+// IsDestroyed is used to check if the object has been recycled by the GC.
 func IsDestroyed(t testing.TB, object interface{}) {
 	require.True(t, Destroyed(object), "object not destroyed")
 }
@@ -130,7 +130,7 @@ func RunParallel(f ...func()) {
 	wg.Wait()
 }
 
-// RunHTTPServer is used to start a http or https server and return port
+// RunHTTPServer is used to start a http or https server and return port.
 func RunHTTPServer(t testing.TB, network string, server *http.Server) string {
 	listener, err := net.Listen(network, server.Addr)
 	require.NoError(t, err)

@@ -13,14 +13,14 @@ import (
 
 type dialer func() (net.Conn, error)
 
-// Handshake is used to call connection Handshake()
-// some server side connection must Handshake(),
-// otherwise Dial() will block
+// Handshake is used to call connection Handshake().
+// Some server side connection must Handshake(),
+// otherwise Dial() will block.
 type Handshake interface {
 	Handshake() error
 }
 
-// ListenerAndDial is used to test net.Listener and Dial
+// ListenerAndDial is used to test net.Listener and Dial.
 func ListenerAndDial(t testing.TB, listener net.Listener, dial dialer, close bool) {
 	t.Log("ConnSC")
 	for i := 0; i < 3; i++ {
@@ -38,7 +38,7 @@ func ListenerAndDial(t testing.TB, listener net.Listener, dial dialer, close boo
 	IsDestroyed(t, listener)
 }
 
-// AcceptAndDial is used to accept and dial a connection
+// AcceptAndDial is used to accept and dial a connection.
 func AcceptAndDial(t testing.TB, listener net.Listener, dial dialer) (net.Conn, net.Conn) {
 	wg := sync.WaitGroup{}
 	var server net.Conn
@@ -58,7 +58,7 @@ func AcceptAndDial(t testing.TB, listener net.Listener, dial dialer) (net.Conn, 
 	return server, client
 }
 
-// if close == true, IsDestroyed will be run after Conn.Close()
+// if close == true, IsDestroyed will be run after Conn.Close().
 // if connection about TLS and use net.Pipe(), set close = false
 //
 // server, client := net.Pipe()
@@ -67,14 +67,14 @@ func AcceptAndDial(t testing.TB, listener net.Listener, dial dialer) (net.Conn, 
 // ConnSC(t, tlsServer, tlsClient, false) must set false
 
 // ConnSC is used to test server & client connection,
-// server connection will send data firstly
+// server connection will send data firstly.
 func ConnSC(t testing.TB, server, client net.Conn, close bool) {
 	connAddr(t, server, client)
 	conn(t, server, client, close)
 }
 
 // ConnCS is used to test client & server connection,
-// client connection will send data firstly
+// client connection will send data firstly.
 func ConnCS(t testing.TB, client, server net.Conn, close bool) {
 	connAddr(t, server, client)
 	conn(t, client, server, close)

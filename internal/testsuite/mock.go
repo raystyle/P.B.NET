@@ -52,23 +52,23 @@ func (l mockListener) Addr() net.Addr {
 }
 
 // NewMockListenerWithError is used to create a mock listener
-// that return a custom error call Accept()
+// that return a custom error call Accept().
 func NewMockListenerWithError() net.Listener {
 	return &mockListener{error: true}
 }
 
-// IsMockListenerError is used to confirm err is ErrMockListener
+// IsMockListenerError is used to confirm err is ErrMockListener.
 func IsMockListenerError(t testing.TB, err error) {
 	require.Equal(t, ErrMockListener, err)
 }
 
-// NewMockListenerWithPanic is used to create a mock listener
+// NewMockListenerWithPanic is used to create a mock listener.
 // that panic when call Accept()
 func NewMockListenerWithPanic() net.Listener {
 	return &mockListener{panic: true}
 }
 
-// IsMockListenerPanic is used to confirm err.Error() is MockListenerPanic
+// IsMockListenerPanic is used to confirm err.Error() is MockListenerPanic.
 func IsMockListenerPanic(t testing.TB, err error) {
 	require.Contains(t, err.Error(), MockListenerPanic)
 }
@@ -114,14 +114,14 @@ func (c mockConn) Close() error {
 
 // NewMockResponseWriterWithFailedToHijack is used to create a mock
 // http.ResponseWriter that implemented http.Hijacker, if call Hijack()
-// it will return an error
+// it will return an error.
 func NewMockResponseWriterWithFailedToHijack() http.ResponseWriter {
 	return &mockResponseWriter{hijack: true}
 }
 
 // NewMockResponseWriterWithFailedToWrite is used to create a mock
 // http.ResponseWriter that implemented http.Hijacker, if use hijacked
-// connection, it will return an error
+// connection, it will return an error.
 func NewMockResponseWriterWithFailedToWrite() http.ResponseWriter {
 	server, client := net.Pipe()
 	_ = client.Close()
@@ -131,7 +131,7 @@ func NewMockResponseWriterWithFailedToWrite() http.ResponseWriter {
 
 // NewMockResponseWriterWithMockConn is used to create a mock
 // http.ResponseWriter that implemented http.Hijacker, if use hijacked
-// connection, call Read() or Close(), it will panic
+// connection, call Read() or Close(), it will panic.
 func NewMockResponseWriterWithMockConn() http.ResponseWriter {
 	server, client := net.Pipe()
 	go func() { _, _ = io.Copy(ioutil.Discard, server) }()

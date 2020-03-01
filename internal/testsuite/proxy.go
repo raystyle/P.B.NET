@@ -17,11 +17,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert/certutil"
+	"project/internal/crypto/cert"
 )
 
 // HTTPServerPort is the test HTTP server port,
-// some test in internal/proxy need it
+// some tests in internal/proxy need it.
 var (
 	HTTPServerPort  string
 	HTTPSServerPort string
@@ -409,7 +409,7 @@ func ProxyClientCancelConnect(t testing.TB, server io.Closer, client proxyClient
 // ProxyClientWithHTTPSTarget is used to test proxy client with https target.
 func ProxyClientWithHTTPSTarget(t testing.TB, client proxyClient) {
 	transport := new(http.Transport)
-	certPool, err := certutil.SystemCertPool()
+	certPool, err := cert.SystemCertPool()
 	require.NoError(t, err)
 	transport.TLSClientConfig = &tls.Config{RootCAs: certPool}
 	client.HTTP(transport)
