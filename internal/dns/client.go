@@ -13,9 +13,9 @@ import (
 	"golang.org/x/net/idna"
 
 	"project/internal/crypto/cert"
+	"project/internal/nettool"
 	"project/internal/option"
 	"project/internal/proxy"
-	"project/internal/xnet/xnetutil"
 	"project/internal/xpanic"
 )
 
@@ -235,7 +235,7 @@ func (c *Client) ResolveContext(ctx context.Context, domain string, opts *Option
 }
 
 func (c *Client) selectType(ctx context.Context, domain string, opts *Options) ([]string, error) {
-	ipv4Enabled, ipv6Enabled := xnetutil.IPEnabled()
+	ipv4Enabled, ipv6Enabled := nettool.IPEnabled()
 	// double stack
 	if ipv4Enabled && ipv6Enabled {
 		opts := opts.Clone()

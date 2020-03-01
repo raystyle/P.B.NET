@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certutil"
 	"project/internal/security"
 )
 
@@ -52,10 +51,10 @@ func (t *TLSConfig) error(err error) error {
 	return fmt.Errorf("failed to apply tls config: %s", err)
 }
 
-func (t *TLSConfig) parseCertificates(cert []string) ([]*x509.Certificate, error) {
+func (t *TLSConfig) parseCertificates(pem []string) ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate
-	for _, c := range cert {
-		c, err := certutil.ParseCertificates([]byte(c))
+	for _, p := range pem {
+		c, err := cert.ParseCertificates([]byte(p))
 		if err != nil {
 			return nil, err
 		}

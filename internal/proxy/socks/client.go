@@ -12,7 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/xnet/xnetutil"
+	"project/internal/nettool"
 	"project/internal/xpanic"
 )
 
@@ -171,7 +171,7 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 	if err != nil {
 		return nil, err
 	}
-	host, port, err := xnetutil.SplitHostPort(address)
+	host, port, err := nettool.SplitHostPort(address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

@@ -8,12 +8,12 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/dns"
+	"project/internal/nettool"
 	"project/internal/patch/msgpack"
 	"project/internal/patch/toml"
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/xnet"
-	"project/internal/xnet/xnetutil"
 )
 
 // DNS is used to resolve bootstrap node listeners from DNS resolve result.
@@ -52,7 +52,7 @@ func (d *DNS) Validate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = xnetutil.CheckPortString(d.Port)
+	err = nettool.CheckPortString(d.Port)
 	return errors.WithStack(err)
 }
 

@@ -16,7 +16,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/convert"
-	"project/internal/xnet/xnetutil"
+	"project/internal/nettool"
 )
 
 const (
@@ -70,7 +70,7 @@ func dialUDP(ctx context.Context, address string, message []byte, opts *Options)
 			cancel()
 			return nil, errors.WithStack(err) // not continue
 		}
-		dConn := xnetutil.DeadlineConn(conn, timeout)
+		dConn := nettool.DeadlineConn(conn, timeout)
 		_, _ = dConn.Write(message)
 		buffer := make([]byte, 512)
 		n, err := dConn.Read(buffer)
@@ -86,7 +86,7 @@ func dialUDP(ctx context.Context, address string, message []byte, opts *Options)
 }
 
 func sendMessage(conn net.Conn, message []byte, timeout time.Duration) ([]byte, error) {
-	dConn := xnetutil.DeadlineConn(conn, timeout)
+	dConn := nettool.DeadlineConn(conn, timeout)
 	defer func() { _ = dConn.Close() }()
 	// add size header
 	header := new(bytes.Buffer)
