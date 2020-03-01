@@ -5,9 +5,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"project/internal/testsuite"
 )
+
+func generateBytes() []byte {
+	testdata := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		testdata[i] = byte(i)
+	}
+	return testdata
+}
 
 func TestAES(t *testing.T) {
 	key128 := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 11, 12, 13, 14, 15, 16}
@@ -15,10 +21,10 @@ func TestAES(t *testing.T) {
 	iv := []byte{11, 12, 13, 14, 15, 16, 17, 18, 19, 10, 111, 112, 113, 114, 115, 116}
 	// encrypt & decrypt
 	f := func(key []byte) {
-		testdata := testsuite.Bytes()
+		testdata := generateBytes()
 		cipherData, err := CBCEncrypt(testdata, key, iv)
 		require.NoError(t, err)
-		require.Equal(t, testsuite.Bytes(), testdata)
+		require.Equal(t, generateBytes(), testdata)
 		require.NotEqual(t, testdata, cipherData)
 		plainData, err := CBCDecrypt(cipherData, key, iv)
 		require.NoError(t, err)
@@ -87,12 +93,12 @@ func TestCBC(t *testing.T) {
 	f := func(key []byte) {
 		cbc, err := NewCBC(key, iv)
 		require.NoError(t, err)
-		testdata := testsuite.Bytes()
+		testdata := generateBytes()
 
 		for i := 0; i < 10; i++ {
 			cipherData, err := cbc.Encrypt(testdata)
 			require.NoError(t, err)
-			require.Equal(t, testsuite.Bytes(), testdata)
+			require.Equal(t, generateBytes(), testdata)
 			require.NotEqual(t, testdata, cipherData)
 		}
 
