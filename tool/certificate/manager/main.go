@@ -58,13 +58,13 @@ func initialize() {
 
 	// input password
 	fmt.Print("password: ")
-	pwd, err := terminal.ReadPassword(int(syscall.Stdin))
+	password, err := terminal.ReadPassword(int(syscall.Stdin))
 	checkError(err, true)
 	for {
 		fmt.Print("\nretype: ")
 		retype, err := terminal.ReadPassword(int(syscall.Stdin))
 		checkError(err, true)
-		if !bytes.Equal(pwd, retype) {
+		if !bytes.Equal(password, retype) {
 			fmt.Print("\ndifferent password")
 		} else {
 			fmt.Println()
@@ -95,26 +95,26 @@ func initialize() {
 	err = pool.AddPrivateClientCert(clientCert.Encode())
 	checkError(err, true)
 
-	saveCertPool(pool, pwd)
+	saveCertPool(pool, password)
 	fmt.Println("initialize certificate manager successfully")
 }
 
 func manage() {
 	// input password
 	fmt.Print("password: ")
-	pwd, err := terminal.ReadPassword(int(syscall.Stdin))
+	password, err := terminal.ReadPassword(int(syscall.Stdin))
 	checkError(err, true)
 	fmt.Println()
 	// load certificate
 	data, err := ioutil.ReadFile(certFile)
 	checkError(err, true)
-	pool := loadCertPool(data, pwd)
+	pool := loadCertPool(data, password)
 	// start manage
 	manager := manager{
-		pwd:  security.NewBytes(pwd),
-		pool: pool,
+		password: security.NewBytes(password),
+		pool:     pool,
 	}
-	security.CoverBytes(pwd)
+	security.CoverBytes(password)
 	manager.Manage()
 }
 
@@ -139,7 +139,19 @@ type rawCertPool struct {
 	} `msgpack:"f"`
 }
 
-func saveCertPool(pool *cert.Pool, pwd []byte) {
+func generateAESKeyIVFromPassword(password []byte) ([]byte, []byte) {
+	hash := sha256.New()
+	hash.Write(password)
+	hashed := hash.Sum(nil)
+	for i := 0; i < 10000; i++ {
+		hash.Write(hashed)
+		hashed = hash.Sum(nil)
+	}
+	keyIV := hash.Sum(nil)
+	return keyIV, keyIV[:aes.IVSize]
+}
+
+func saveCertPool(pool *cert.Pool, password []byte) {
 	rcp := rawCertPool{}
 	pubRootCACerts := pool.GetPublicRootCACerts()
 	for i := 0; i < len(pubRootCACerts); i++ {
@@ -202,51 +214,51 @@ func saveCertPool(pool *cert.Pool, pwd []byte) {
 	checkError(err, true)
 	defer security.CoverBytes(data)
 
-	keyIV := sha256.Sum256(pwd)
-	defer security.CoverBytes(keyIV[:])
-	cipherData, err := aes.CBCEncrypt(data, keyIV[:], keyIV[:aes.IVSize])
+	// encrypt certificates
+	key, iv := generateAESKeyIVFromPassword(password)
+	defer func() {
+		security.CoverBytes(key)
+		security.CoverBytes(iv)
+	}()
+	cipherData, err := aes.CBCEncrypt(data, key, iv)
 	checkError(err, true)
-
 	// save encrypted certificates
 	err = writeFile(certFile, cipherData)
 	checkError(err, true)
-
 	// calculate hash
 	hash := sha256.New()
-	hash.Write(pwd)
+	hash.Write(password)
 	hash.Write(data)
 	err = writeFile(certHash, hash.Sum(nil))
 	checkError(err, true)
 }
 
-func loadCertPool(data, pwd []byte) *cert.Pool {
-	// decrypt
-	keyIV := sha256.Sum256(pwd)
-	defer security.CoverBytes(keyIV[:])
-	plainData, err := aes.CBCDecrypt(data, keyIV[:], keyIV[:aes.IVSize])
+func loadCertPool(data, password []byte) *cert.Pool {
+	// decrypt certificates
+	key, iv := generateAESKeyIVFromPassword(password)
+	defer func() {
+		security.CoverBytes(key)
+		security.CoverBytes(iv)
+	}()
+	plainData, err := aes.CBCDecrypt(data, key, iv)
 	checkError(err, true)
 	defer security.CoverBytes(plainData)
-
 	// compare hash
 	rawHash, err := ioutil.ReadFile(certHash)
 	checkError(err, true)
-
 	hash := sha256.New()
-	hash.Write(pwd)
+	hash.Write(password)
 	hash.Write(plainData)
 	if subtle.ConstantTimeCompare(rawHash, hash.Sum(nil)) != 1 {
 		fmt.Printf("exploit: %s has been tampered or incorrect password\n", certFile)
 		os.Exit(0)
 	}
-
-	// load
+	// load certificates
 	pool := rawCertPool{}
 	err = msgpack.Unmarshal(plainData, &pool)
 	checkError(err, true)
-
 	memory := security.NewMemory()
 	defer memory.Flush()
-
 	certPool := cert.NewPool()
 	for i := 0; i < len(pool.PublicRootCACerts); i++ {
 		err := certPool.AddPublicRootCACert(pool.PublicRootCACerts[i])
@@ -358,10 +370,10 @@ const (
 )
 
 type manager struct {
-	pwd     *security.Bytes
-	pool    *cert.Pool
-	prefix  string
-	scanner *bufio.Scanner
+	password *security.Bytes
+	pool     *cert.Pool
+	prefix   string
+	scanner  *bufio.Scanner
 }
 
 func (m *manager) Manage() {
@@ -467,17 +479,17 @@ help about manager:
 }
 
 func (m *manager) reload() {
-	pwd := m.pwd.Get()
-	defer m.pwd.Put(pwd)
+	password := m.password.Get()
+	defer m.password.Put(password)
 	data, err := ioutil.ReadFile(certFile)
 	checkError(err, true)
-	m.pool = loadCertPool(data, pwd)
+	m.pool = loadCertPool(data, password)
 }
 
 func (m *manager) save() {
-	pwd := m.pwd.Get()
-	defer m.pwd.Put(pwd)
-	saveCertPool(m.pool, pwd)
+	password := m.password.Get()
+	defer m.password.Put(password)
+	saveCertPool(m.pool, password)
 }
 
 func (m *manager) exit() {
