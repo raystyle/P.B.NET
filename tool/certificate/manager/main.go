@@ -108,7 +108,7 @@ func manage() {
 	// load certificate
 	data, err := ioutil.ReadFile(certFile)
 	checkError(err, true)
-	pool := LoadCertPool(data, pwd)
+	pool := loadCertPool(data, pwd)
 	// start manage
 	manager := manager{
 		pwd:  security.NewBytes(pwd),
@@ -219,8 +219,7 @@ func saveCertPool(pool *cert.Pool, pwd []byte) {
 	checkError(err, true)
 }
 
-// LoadCertPool is used to load certificate pool.
-func LoadCertPool(data, pwd []byte) *cert.Pool {
+func loadCertPool(data, pwd []byte) *cert.Pool {
 	// decrypt
 	keyIV := sha256.Sum256(pwd)
 	defer security.CoverBytes(keyIV[:])
@@ -472,7 +471,7 @@ func (m *manager) reload() {
 	defer m.pwd.Put(pwd)
 	data, err := ioutil.ReadFile(certFile)
 	checkError(err, true)
-	m.pool = LoadCertPool(data, pwd)
+	m.pool = loadCertPool(data, pwd)
 }
 
 func (m *manager) save() {
