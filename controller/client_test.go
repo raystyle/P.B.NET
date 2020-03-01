@@ -46,7 +46,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	for _, pair := range ctrl.GetSystemCerts() {
 		certificates = append(certificates, pair.ASN1())
 	}
-	cfg.Global.Certificates = certificates
+	cfg.Global.RawCertPool = certificates
 	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()

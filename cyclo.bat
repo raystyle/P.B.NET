@@ -1,1 +1,0 @@
-gocyclo -avg -over 15 .

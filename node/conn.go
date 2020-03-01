@@ -13,10 +13,10 @@ import (
 	"project/internal/convert"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
-	"project/internal/xnet/xnetutil"
 )
 
 const (
@@ -149,7 +149,7 @@ func (c *conn) onFrame(frame []byte) bool {
 		c.handleReply(frame[protocol.FrameCMDSize:])
 	case protocol.ConnGetAddress:
 		id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
-		address := xnetutil.EncodeExternalAddress(c.Conn.RemoteAddr().String())
+		address := nettool.EncodeExternalAddress(c.Conn.RemoteAddr().String())
 		c.Reply(id, address)
 	case protocol.ConnErrRecvNullFrame:
 		c.Log(logger.Exploit, protocol.ErrRecvNullFrame)

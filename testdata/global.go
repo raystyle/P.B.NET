@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certutil"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
@@ -20,7 +19,7 @@ import (
 // RawCertPool is used to provide a raw certificate pool for test.
 func RawCertPool(t require.TestingT) cert.RawCertPool {
 	rcp := cert.RawCertPool{}
-	systemCertPool, err := certutil.SystemCertPool()
+	systemCertPool, err := cert.SystemCertPool()
 	require.NoError(t, err)
 	certs := systemCertPool.Certs()
 	for i := 0; i < len(certs); i++ {

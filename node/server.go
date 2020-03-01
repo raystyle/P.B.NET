@@ -24,12 +24,12 @@ import (
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
+	"project/internal/nettool"
 	"project/internal/patch/msgpack"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/xnet"
-	"project/internal/xnet/xnetutil"
 	"project/internal/xpanic"
 )
 
@@ -640,7 +640,7 @@ func (server *server) handshakeWithNode(tag *guid.GUID, conn *xnet.Conn) {
 
 func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	// send external address
-	err := conn.Send(xnetutil.EncodeExternalAddress(conn.RemoteAddr().String()))
+	err := conn.Send(nettool.EncodeExternalAddress(conn.RemoteAddr().String()))
 	if err != nil {
 		const log = "failed to send node external address:"
 		server.logConn(conn, logger.Error, log, err)
@@ -833,7 +833,7 @@ func (server *server) handshakeWithBeacon(tag *guid.GUID, conn *xnet.Conn) {
 
 func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 	// send external address
-	err := conn.Send(xnetutil.EncodeExternalAddress(conn.RemoteAddr().String()))
+	err := conn.Send(nettool.EncodeExternalAddress(conn.RemoteAddr().String()))
 	if err != nil {
 		const log = "failed to send beacon external address:"
 		server.logConn(conn, logger.Error, log, err)

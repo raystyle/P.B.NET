@@ -17,7 +17,6 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certutil"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
@@ -30,6 +29,8 @@ import (
 )
 
 type global struct {
+	CertPool *cert.Pool
+
 	// when configure Node or Beacon, these proxies will not appear
 	ProxyPool *proxy.Pool
 

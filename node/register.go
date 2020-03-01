@@ -15,12 +15,12 @@ import (
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/module/info"
+	"project/internal/nettool"
 	"project/internal/patch/msgpack"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
 	"project/internal/xnet"
-	"project/internal/xnet/xnetutil"
 	"project/internal/xpanic"
 )
 
@@ -338,7 +338,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		return errors.Wrap(err, "failed to receive external ip address")
 	}
 	// send register request
-	err = conn.SendMessage(register.PackRequest(xnetutil.DecodeExternalAddress(address)))
+	err = conn.SendMessage(register.PackRequest(nettool.DecodeExternalAddress(address)))
 	if err != nil {
 		return errors.Wrap(err, "failed to send register request")
 	}

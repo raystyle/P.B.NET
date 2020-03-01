@@ -23,7 +23,6 @@ import (
 
 	"project/internal/bootstrap"
 	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certutil"
 	"project/internal/crypto/rand"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -58,11 +57,11 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	caCert, err := certutil.ParseCertificate(certFile)
+	caCert, err := cert.ParseCertificate(certFile)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	caPri, err := certutil.ParsePrivateKey(keyFile)
+	caPri, err := cert.ParsePrivateKey(keyFile)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

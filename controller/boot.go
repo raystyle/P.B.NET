@@ -48,8 +48,11 @@ func (boot *boot) Add(m *mBoot) error {
 		logSrc:   "boot-" + m.Tag,
 	}
 	bc.context, bc.cancel = context.WithCancel(context.Background())
-	g := boot.ctx.global
-	b, err := bootstrap.Load(bc.context, m.Mode, []byte(m.Config), g.ProxyPool, g.DNSClient)
+	b, err := bootstrap.Load(bc.context, m.Mode, []byte(m.Config),
+		boot.ctx.global.CertPool,
+		boot.ctx.global.ProxyPool,
+		boot.ctx.global.DNSClient,
+	)
 	if err != nil {
 		return errors.Wrapf(err, "failed to load bootstrap %s", m.Tag)
 	}
