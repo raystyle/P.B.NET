@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certutil"
 	"project/internal/patch/toml"
 )
 
@@ -50,7 +49,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		caCert, err := certutil.ParseCertificate(pemData)
+		caCert, err := cert.ParseCertificate(pemData)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -59,7 +58,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		caKey, err := certutil.ParsePrivateKey(pemData)
+		caKey, err := cert.ParsePrivateKey(pemData)
 		if err != nil {
 			log.Fatalln(err)
 		}

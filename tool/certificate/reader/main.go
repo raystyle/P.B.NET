@@ -6,12 +6,12 @@ import (
 	"io/ioutil"
 	"log"
 
-	"project/internal/crypto/cert/certutil"
+	"project/internal/crypto/cert"
 )
 
 func main() {
 	// load certificates
-	pool, err := certutil.SystemCertPool()
+	pool, err := cert.SystemCertPool()
 	checkError(err)
 	certs := pool.Certs()
 	l := len(certs)
@@ -24,15 +24,15 @@ func main() {
 		err = pem.Encode(buf, &block)
 		checkError(err)
 		// print certificate information
-		cert := certs[i]
+		c := certs[i]
 		const format = "V%d %s\n"
 		switch {
-		case cert.Subject.CommonName != "":
-			log.Printf(format, cert.Version, cert.Subject.CommonName)
-		case len(cert.Subject.Organization) != 0:
-			log.Printf(format, cert.Version, cert.Subject.Organization[0])
+		case c.Subject.CommonName != "":
+			log.Printf(format, c.Version, c.Subject.CommonName)
+		case len(c.Subject.Organization) != 0:
+			log.Printf(format, c.Version, c.Subject.Organization[0])
 		default:
-			log.Printf(format, cert.Version, cert.Subject)
+			log.Printf(format, c.Version, c.Subject)
 		}
 	}
 	log.Println("------------------------------------------------")
@@ -43,7 +43,7 @@ func main() {
 	// test certificates
 	pemData, err := ioutil.ReadFile("system.pem")
 	checkError(err)
-	certs, err = certutil.ParseCertificates(pemData)
+	certs, err = cert.ParseCertificates(pemData)
 	checkError(err)
 	// compare
 	loadNum := len(certs)

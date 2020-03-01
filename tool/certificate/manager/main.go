@@ -20,7 +20,6 @@ import (
 
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
-	"project/internal/crypto/cert/certutil"
 	"project/internal/module/shell"
 	"project/internal/patch/msgpack"
 	"project/internal/security"
@@ -298,11 +297,11 @@ func loadPairs(certFile, keyFile string) ([]*x509.Certificate, []interface{}) {
 	if checkError(err, false) {
 		return nil, nil
 	}
-	certs, err := certutil.ParseCertificates(certPEM)
+	certs, err := cert.ParseCertificates(certPEM)
 	if checkError(err, false) {
 		return nil, nil
 	}
-	keys, err := certutil.ParsePrivateKeys(keyPEM)
+	keys, err := cert.ParsePrivateKeys(keyPEM)
 	if checkError(err, false) {
 		return nil, nil
 	}
@@ -645,7 +644,7 @@ func (m *manager) publicRootCAAdd(certFile string) {
 	if checkError(err, false) {
 		return
 	}
-	certs, err := certutil.ParseCertificates(pemData)
+	certs, err := cert.ParseCertificates(pemData)
 	if checkError(err, false) {
 		return
 	}
@@ -720,7 +719,7 @@ func (m *manager) publicClientCAAdd(certFile string) {
 	if checkError(err, false) {
 		return
 	}
-	certs, err := certutil.ParseCertificates(pemData)
+	certs, err := cert.ParseCertificates(pemData)
 	if checkError(err, false) {
 		return
 	}
