@@ -1,6 +1,6 @@
 // +build windows
 
-package certutil
+package cert
 
 import (
 	"crypto/x509"
@@ -16,9 +16,9 @@ var (
 	systemCertMutex sync.Mutex
 )
 
-// SystemCertPool is used to return system certificate pool
-// on windows, the number of the CA and ROOT Certificate is
-// incorrect because the CA "Root Agency" is for test
+// SystemCertPool is used to return system certificate pool.
+// On windows, the number of the CA and ROOT Certificate is
+// incorrect, because the CA "Root Agency" is for test.
 func SystemCertPool() (*x509.CertPool, error) {
 	var certs []*x509.Certificate
 	systemCertMutex.Lock()
@@ -64,7 +64,7 @@ func loadSystemCert() ([]*x509.Certificate, error) {
 	return pool, nil
 }
 
-// LoadSystemCertWithName is used to load system certificate pool
+// LoadSystemCertWithName is used to load system certificate pool.
 // usually name is "ROOT" and "CA"
 func LoadSystemCertWithName(name string) ([][]byte, error) {
 	n, err := syscall.UTF16PtrFromString(name)

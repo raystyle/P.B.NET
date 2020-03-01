@@ -8,7 +8,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"project/internal/crypto/cert/certutil"
 	"project/internal/security"
 )
 
@@ -93,11 +92,11 @@ func loadCertWithPrivateKey(cert, pri []byte) (*pair, error) {
 	}
 	pair := pair{Certificate: certCopy}
 	if len(pri) != 0 {
-		privateKey, err := certutil.ParsePrivateKeyBytes(pri)
+		privateKey, err := ParsePrivateKeyBytes(pri)
 		if err != nil {
 			return nil, err
 		}
-		if !certutil.Match(certCopy, privateKey) {
+		if !Match(certCopy, privateKey) {
 			return nil, ErrMismatchedKey
 		}
 		priBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
@@ -428,7 +427,7 @@ func NewPoolFromRawCertPool(pool *RawCertPool) (*Pool, error) {
 
 // NewPoolWithSystemCerts is used to create a certificate pool with system certificate.
 func NewPoolWithSystemCerts() (*Pool, error) {
-	systemCertPool, err := certutil.SystemCertPool()
+	systemCertPool, err := SystemCertPool()
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert/certutil"
 	"project/internal/patch/monkey"
 	"project/internal/security"
 )
@@ -527,7 +526,7 @@ func TestNewPoolWithSystemCerts(t *testing.T) {
 		patchFunc := func() (*x509.CertPool, error) {
 			return nil, monkey.ErrMonkey
 		}
-		pg := monkey.Patch(certutil.SystemCertPool, patchFunc)
+		pg := monkey.Patch(SystemCertPool, patchFunc)
 		defer pg.Unpatch()
 		_, err := NewPoolWithSystemCerts()
 		monkey.IsMonkeyError(t, err)

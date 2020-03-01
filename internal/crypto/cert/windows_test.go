@@ -1,6 +1,6 @@
 // +build windows
 
-package certutil
+package cert
 
 import (
 	"crypto/x509"
