@@ -10,11 +10,12 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/messages"
+	"project/internal/option"
 	"project/internal/patch/msgpack"
 	"project/internal/random"
 )
 
-// Config include configuration about Controller
+// Config include configuration about Controller.
 type Config struct {
 	Test struct {
 		SkipTestClientDNS   bool
@@ -46,9 +47,10 @@ type Config struct {
 	} `toml:"global"`
 
 	Client struct {
-		ProxyTag string        `toml:"proxy_tag"`
-		Timeout  time.Duration `toml:"timeout"`
-		DNSOpts  dns.Options   `toml:"dns"`
+		ProxyTag  string           `toml:"proxy_tag"`
+		Timeout   time.Duration    `toml:"timeout"`
+		DNSOpts   dns.Options      `toml:"dns"`
+		TLSConfig option.TLSConfig `toml:"tls_config"`
 	} `toml:"client"`
 
 	Sender struct {
@@ -81,12 +83,12 @@ type Config struct {
 	} `toml:"web"`
 }
 
-// GenerateRoleConfigAboutTheFirstBootstrap is used to generate the first bootstrap
+// GenerateRoleConfigAboutTheFirstBootstrap is used to generate the first bootstrap.
 func GenerateRoleConfigAboutTheFirstBootstrap(b *messages.Bootstrap) ([]byte, []byte, error) {
 	return generateRoleConfigAboutBootstraps(b)
 }
 
-// GenerateRoleConfigAboutRestBootstraps is used to generate role rest bootstraps
+// GenerateRoleConfigAboutRestBootstraps is used to generate role rest bootstraps.
 func GenerateRoleConfigAboutRestBootstraps(b ...*messages.Bootstrap) ([]byte, []byte, error) {
 	if len(b) == 0 {
 		return nil, nil, nil
@@ -106,7 +108,7 @@ func generateRoleConfigAboutBootstraps(b interface{}) ([]byte, []byte, error) {
 	return enc, append(aesKey, aesIV...), nil
 }
 
-// GenerateNodeConfigAboutListeners is used to generate node listener and encrypt it
+// GenerateNodeConfigAboutListeners is used to generate node listener and encrypt it.
 func GenerateNodeConfigAboutListeners(l ...*messages.Listener) ([]byte, []byte, error) {
 	if len(l) == 0 {
 		return nil, nil, errors.New("no listeners")

@@ -91,7 +91,7 @@ func (ctrl *Ctrl) NewClient(
 	opts.Dialer = proxy.DialContext
 	// resolve domain name
 	dnsOpts := ctrl.clientMgr.GetDNSOptions()
-	result, err := ctrl.global.ResolveContext(ctx, host, dnsOpts)
+	result, err := ctrl.global.ResolveDomain(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}

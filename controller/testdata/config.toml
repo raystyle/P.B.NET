@@ -24,6 +24,9 @@
   [client.dns]
     mode = "custom"
 
+  [client.tls_config]
+    server_name = "test.com"
+
 [sender]
   max_conns       = 7
   worker          = 64
@@ -32,7 +35,7 @@
   max_buffer_size = 16384
 
 [syncer]
-  expire_time = "3m"
+  expire_time = "30s"
 
 [worker]
   number          = 64

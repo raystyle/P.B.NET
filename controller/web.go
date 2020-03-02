@@ -27,7 +27,6 @@ import (
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
-	"project/internal/security"
 	"project/internal/xpanic"
 )
 
@@ -108,7 +107,7 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	})
 	// register router about API
 	router.POST("/api/login", wh.handleLogin)
-	router.POST("/api/load_session_key", wh.handleLoadSessionKey)
+	router.POST("/api/load_key", wh.handleLoadKey)
 	router.POST("/api/node/trust", wh.handleTrustNode)
 	router.POST("/api/node/connect", wh.handleConnectNodeListener)
 	router.POST("/api/beacon/shell", wh.handleShell)
@@ -211,22 +210,11 @@ func (wh *webHandler) handleLogin(w hRW, r *hR, p hP) {
 	_ = conn.Close()
 }
 
-func (wh *webHandler) handleLoadSessionKey(w hRW, r *hR, p hP) {
+func (wh *webHandler) handleLoadKey(w hRW, r *hR, p hP) {
 	// TODO size, check is load session key
 	// if isClosed{
 	//  return
 	// }
-	pwd, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return
-	}
-	err = wh.ctx.LoadSessionKey(pwd, pwd)
-	security.CoverBytes(pwd)
-	if err != nil {
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	_, _ = w.Write([]byte("ok"))
 }
 
 func (wh *webHandler) handleTrustNode(w hRW, r *hR, p hP) {

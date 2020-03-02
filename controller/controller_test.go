@@ -22,15 +22,12 @@ var (
 
 func TestMain(m *testing.M) {
 	m.Run()
-
 	if ctrl != nil {
 		// wait to print log
 		time.Sleep(time.Second)
 		ctrl.Exit(nil)
 	}
-
 	testdata.Clean()
-
 	// one test main goroutine and two goroutine about
 	// pprof server in internal/testsuite.go
 	leaks := true
@@ -46,12 +43,10 @@ func TestMain(m *testing.M) {
 		time.Sleep(time.Minute)
 		os.Exit(1)
 	}
-
 	if ctrl != nil {
-		// must copy, because global variable
+		// must copy, because it is a global variable
 		ctrlC := ctrl
 		ctrl = nil
-
 		if !testsuite.Destroyed(ctrlC) {
 			fmt.Println("[warning] controller is not destroyed")
 			time.Sleep(time.Minute)
@@ -80,7 +75,7 @@ func testInitializeController(t testing.TB) {
 		}
 		testsuite.IsDestroyed(t, cfg)
 		// set controller keys
-		err = ctrl.LoadSessionKeyFromFile("key/session.key", []byte("pbnet"))
+		err = ctrl.LoadKeyFromFile([]byte("pbnet"), []byte("pbnet"))
 		require.NoError(t, err)
 		go func() {
 			err := ctrl.Main()

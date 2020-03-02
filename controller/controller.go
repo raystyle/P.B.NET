@@ -13,7 +13,7 @@ import (
 	"project/internal/logger"
 )
 
-// Ctrl is controller
+// Ctrl is controller.
 // broadcast messages to Nodes, send messages to Nodes or Beacons.
 type Ctrl struct {
 	Test *Test
@@ -193,9 +193,49 @@ func (ctrl *Ctrl) Exit(err error) {
 	})
 }
 
-// LoadSessionKey is used to load session key.
-func (ctrl *Ctrl) LoadSessionKey(data, password []byte) error {
-	return ctrl.global.LoadSessionKey(data, password)
+// LoadKeyFromFile is used to load session key and certificate pool from file.
+func (ctrl *Ctrl) LoadKeyFromFile(sessionKeyPassword, certPassword []byte) error {
+	sessionKey, err := ioutil.ReadFile(SessionKeyFile)
+	if err != nil {
+		return err
+	}
+	certData, err := ioutil.ReadFile(CertFile)
+	if err != nil {
+		return err
+	}
+	rawHash, err := ioutil.ReadFile(CertHash)
+	if err != nil {
+		return err
+	}
+	return ctrl.global.LoadKey(
+		sessionKey, sessionKeyPassword,
+		certData, rawHash, certPassword,
+	)
+}
+
+// GetCertPool is used to get certificate pool.
+func (ctrl *Ctrl) GetCertPool() *cert.Pool {
+	return ctrl.global.CertPool
+}
+
+// KeyExchangePublicKey is used to get key exchange public key.
+func (ctrl *Ctrl) KeyExchangePublicKey() []byte {
+	return ctrl.global.KeyExchangePublicKey()
+}
+
+// PublicKey is used to get public key.
+func (ctrl *Ctrl) PublicKey() []byte {
+	return ctrl.global.PublicKey()
+}
+
+// BroadcastKey is used to get broadcast key.
+func (ctrl *Ctrl) BroadcastKey() []byte {
+	return ctrl.global.BroadcastKey()
+}
+
+// EnableInteractiveMode is used to enable Beacon interactive mode.
+func (ctrl *Ctrl) EnableInteractiveMode(guid *guid.GUID) {
+	ctrl.sender.EnableInteractiveMode(guid)
 }
 
 // Synchronize is used to connect a node and start to synchronize.
@@ -273,45 +313,4 @@ func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	}
 	ctrl.sender.DeleteBeacon(guid)
 	return nil
-}
-
-// ------------------------------------test-------------------------------------
-
-// LoadSessionKeyFromFile is used to load session key from file.
-func (ctrl *Ctrl) LoadSessionKeyFromFile(filename string, password []byte) error {
-	data, err := ioutil.ReadFile(filename) // #nosec
-	if err != nil {
-		return err
-	}
-	return ctrl.global.LoadSessionKey(data, password)
-}
-
-// KeyExchangePublicKey is used to get key exchange public key.
-func (ctrl *Ctrl) KeyExchangePublicKey() []byte {
-	return ctrl.global.KeyExchangePublicKey()
-}
-
-// PublicKey is used to get public key.
-func (ctrl *Ctrl) PublicKey() []byte {
-	return ctrl.global.PublicKey()
-}
-
-// BroadcastKey is used to get broadcast key.
-func (ctrl *Ctrl) BroadcastKey() []byte {
-	return ctrl.global.BroadcastKey()
-}
-
-// GetSelfCerts is used to get self certificates to generate CA-sign certificate.
-func (ctrl *Ctrl) GetSelfCerts() []*cert.Pair {
-	return ctrl.global.GetSelfCerts()
-}
-
-// GetSystemCerts is used to get system certificates.
-func (ctrl *Ctrl) GetSystemCerts() []*cert.Pair {
-	return ctrl.global.GetSystemCerts()
-}
-
-// EnableInteractiveMode is used to enable Beacon interactive mode.
-func (ctrl *Ctrl) EnableInteractiveMode(guid *guid.GUID) {
-	ctrl.sender.EnableInteractiveMode(guid)
 }

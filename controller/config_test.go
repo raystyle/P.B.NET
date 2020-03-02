@@ -92,6 +92,7 @@ func TestConfig(t *testing.T) {
 		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
 		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
+		{expected: "test.com", actual: cfg.Client.TLSConfig.ServerName},
 
 		{expected: 7, actual: cfg.Sender.MaxConns},
 		{expected: 64, actual: cfg.Sender.Worker},
@@ -99,7 +100,7 @@ func TestConfig(t *testing.T) {
 		{expected: 512, actual: cfg.Sender.QueueSize},
 		{expected: 16384, actual: cfg.Sender.MaxBufferSize},
 
-		{expected: 3 * time.Minute, actual: cfg.Syncer.ExpireTime},
+		{expected: 30 * time.Second, actual: cfg.Syncer.ExpireTime},
 
 		{expected: 64, actual: cfg.Worker.Number},
 		{expected: 512, actual: cfg.Worker.QueueSize},
