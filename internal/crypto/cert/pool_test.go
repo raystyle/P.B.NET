@@ -376,6 +376,33 @@ func TestPool(t *testing.T) {
 			testRunParallel(del, get)
 		})
 	})
+
+	t.Run("AddToRawCertPool", func(t *testing.T) {
+		pair := testGenerateCert(t)
+		cert, key := pair.Encode()
+		rcp := new(RawCertPool)
+		pool := NewPool()
+		err := pool.AddPublicRootCACert(cert)
+		require.NoError(t, err)
+		err = pool.AddPublicClientCACert(cert)
+		require.NoError(t, err)
+		err = pool.AddPublicClientCert(cert, key)
+		require.NoError(t, err)
+		err = pool.AddPrivateRootCACert(cert, key)
+		require.NoError(t, err)
+		err = pool.AddPrivateClientCACert(cert, key)
+		require.NoError(t, err)
+		err = pool.AddPrivateClientCert(cert, key)
+		require.NoError(t, err)
+		pool.AddToRawCertPool(rcp)
+
+		require.Equal(t, 1, len(rcp.PublicRootCACerts))
+		require.Equal(t, 1, len(rcp.PublicClientCACerts))
+		require.Equal(t, 1, len(rcp.PublicClientPairs))
+		require.Equal(t, 1, len(rcp.PrivateRootCACerts))
+		require.Equal(t, 1, len(rcp.PrivateClientCACerts))
+		require.Equal(t, 1, len(rcp.PrivateClientPairs))
+	})
 }
 
 func TestNewPoolFromRawCertPool(t *testing.T) {
@@ -416,7 +443,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 	t.Run("public client cert", func(t *testing.T) {
 		pair := testGenerateCert(t)
 		cert, key := pair.Encode()
-		rcp.PublicClientCerts = []struct {
+		rcp.PublicClientPairs = []struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{
@@ -431,7 +458,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		require.Equal(t, cert, dCert)
 		require.Equal(t, key, dKey)
 
-		rcp.PublicClientCerts = append(rcp.PublicClientCerts, struct {
+		rcp.PublicClientPairs = append(rcp.PublicClientPairs, struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{
@@ -440,7 +467,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		pool, err = NewPoolFromRawCertPool(rcp)
 		require.Error(t, err)
 
-		rcp.PublicClientCerts = []struct {
+		rcp.PublicClientPairs = []struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{
@@ -483,7 +510,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 	t.Run("private client cert", func(t *testing.T) {
 		pair := testGenerateCert(t)
 		cert, key := pair.Encode()
-		rcp.PrivateClientCerts = []struct {
+		rcp.PrivateClientPairs = []struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{
@@ -498,7 +525,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		require.Equal(t, cert, dCert)
 		require.Equal(t, key, dKey)
 
-		rcp.PrivateClientCerts = append(rcp.PrivateClientCerts, struct {
+		rcp.PrivateClientPairs = append(rcp.PrivateClientPairs, struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{
@@ -507,7 +534,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		pool, err = NewPoolFromRawCertPool(rcp)
 		require.Error(t, err)
 
-		rcp.PrivateClientCerts = []struct {
+		rcp.PrivateClientPairs = []struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{
