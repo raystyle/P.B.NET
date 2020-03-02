@@ -44,7 +44,7 @@ func main() {
 	}
 
 	if genKey != "" {
-		err := controller.GenerateSessionKey("key/session.key", []byte(genKey))
+		err := controller.GenerateSessionKey([]byte(genKey))
 		if err != nil {
 			log.Fatalln("failed to generate session key:", err)
 		}
