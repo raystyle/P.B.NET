@@ -47,10 +47,10 @@ type Config struct {
 	} `toml:"global"`
 
 	Client struct {
-		ProxyTag  string           `toml:"proxy_tag"`
 		Timeout   time.Duration    `toml:"timeout"`
+		ProxyTag  string           `toml:"proxy_tag"`
 		DNSOpts   dns.Options      `toml:"dns"`
-		TLSConfig option.TLSConfig `toml:"tls_config"`
+		TLSConfig option.TLSConfig `toml:"tls"`
 	} `toml:"client"`
 
 	Sender struct {

@@ -18,6 +18,21 @@ import (
 	"project/node"
 )
 
+func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
+	Node := testGenerateInitialNode(t)
+
+	listener := testGetNodeListener(t, Node, testInitialNodeListenerTag)
+	// trust node
+	req, err := ctrl.TrustNode(context.Background(), listener)
+	require.NoError(t, err)
+	err = ctrl.ConfirmTrustNode(context.Background(), listener, req)
+	require.NoError(t, err)
+	// connect
+	err = ctrl.Synchronize(context.Background(), Node.GUID(), listener)
+	require.NoError(t, err)
+	return Node
+}
+
 func TestSender_Connect(t *testing.T) {
 	Node := testGenerateInitialNodeAndTrust(t)
 	err := ctrl.Disconnect(Node.GUID())

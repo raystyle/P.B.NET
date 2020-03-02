@@ -3,8 +3,6 @@ package controller
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +19,7 @@ import (
 	"project/internal/dns"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/option"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
@@ -49,7 +48,7 @@ type Client struct {
 	wg         sync.WaitGroup
 }
 
-// NewClient is used to create a client and connect node listener
+// NewClient is used to create a client and connect Node listener.
 // when GUID == nil      for trust node
 // when GUID != CtrlGUID for sender client
 // when GUID == CtrlGUID for discovery
@@ -59,29 +58,26 @@ func (ctrl *Ctrl) NewClient(
 	guid *guid.GUID,
 	closeFunc func(),
 ) (*Client, error) {
-	// dial
 	host, port, err := net.SplitHostPort(bl.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	// set tls config
+	tlsConfig, err := ctrl.clientMgr.GetTLSConfig().Apply()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	tlsConfig.Rand = rand.Reader
+	tlsConfig.Time = ctrl.global.Now
+	tlsConfig.ServerName = host
+	if len(tlsConfig.NextProtos) == 0 {
+		tlsConfig.NextProtos = []string{"http/1.1"}
+	}
+	// set xnet options
 	opts := xnet.Options{
-		TLSConfig: &tls.Config{
-			Rand:       rand.Reader,
-			Time:       ctrl.global.Now,
-			ServerName: host,
-			RootCAs:    x509.NewCertPool(),
-			MinVersion: tls.VersionTLS12,
-			NextProtos: []string{"http/1.1"}, // TODO add config
-		},
-		Timeout: ctrl.clientMgr.GetTimeout(),
-		Now:     ctrl.global.Now,
-	}
-	// add certificates
-	for _, pair := range ctrl.global.GetSystemCerts() {
-		opts.TLSConfig.RootCAs.AddCert(pair.Certificate)
-	}
-	for _, pair := range ctrl.global.GetSelfCerts() {
-		opts.TLSConfig.RootCAs.AddCert(pair.Certificate)
+		TLSConfig: tlsConfig,
+		Timeout:   ctrl.clientMgr.GetTimeout(),
+		Now:       ctrl.global.Now,
 	}
 	// set proxy
 	proxy, err := ctrl.global.GetProxyClient(ctrl.clientMgr.GetProxyTag())
@@ -95,6 +91,7 @@ func (ctrl *Ctrl) NewClient(
 	if err != nil {
 		return nil, err
 	}
+	// dial
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
 		address := net.JoinHostPort(result[i], port)
@@ -107,7 +104,6 @@ func (ctrl *Ctrl) NewClient(
 		const format = "failed to connect node listener %s, because %s"
 		return nil, errors.Errorf(format, bl, err)
 	}
-
 	// handshake
 	client := &Client{
 		ctx:       ctrl,
@@ -123,7 +119,6 @@ func (ctrl *Ctrl) NewClient(
 		const format = "failed to handshake with node listener: %s"
 		return nil, errors.WithMessagef(err, format, bl)
 	}
-
 	// initialize message slots
 	client.slots = protocol.NewSlots()
 	client.stopSignal = make(chan struct{})
@@ -246,7 +241,7 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 	}
 	n, err := io.ReadFull(conn, data)
 	if err != nil {
-		const format = "error in client.checkConn(): %s\n%s"
+		const format = "error in client.checkConn():\n%s\n%s"
 		client.logf(logger.Exploit, format, err, spew.Sdump(data[:n]))
 		return err
 	}
@@ -386,7 +381,7 @@ func (client *Client) handleReply(reply []byte) {
 	}
 }
 
-// Synchronize is used to switch to synchronize mode
+// Synchronize is used to switch to synchronize mode.
 func (client *Client) Synchronize() error {
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
@@ -692,7 +687,7 @@ func (client *Client) handleQuery(id, data []byte) {
 	}
 }
 
-// send is used to send command and receive reply
+// send is used to send command and receive reply.
 func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
 	if client.isClosed() {
 		return nil, protocol.ErrConnClosed
@@ -747,12 +742,12 @@ func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
 	}
 }
 
-// SendCommand is used to send command and receive reply
+// SendCommand is used to send command and receive reply.
 func (client *Client) SendCommand(cmd uint8, data []byte) ([]byte, error) {
 	return client.send(cmd, data)
 }
 
-// SendToNode is used to send message to node
+// SendToNode is used to send message to node.
 func (client *Client) SendToNode(
 	guid *guid.GUID,
 	data *bytes.Buffer,
@@ -916,12 +911,12 @@ func (client *Client) Answer(
 	return
 }
 
-// Status is used to get connection status
+// Status is used to get connection status.
 func (client *Client) Status() *xnet.Status {
 	return client.conn.Status()
 }
 
-// Close is used to disconnect Node
+// Close is used to disconnect Node.
 func (client *Client) Close() {
 	client.closeOnce.Do(func() {
 		atomic.StoreInt32(&client.inClose, 1)
@@ -943,10 +938,11 @@ type clientMgr struct {
 	ctx *Ctrl
 
 	// options from Config
-	proxyTag string
-	timeout  time.Duration
-	dnsOpts  dns.Options
-	optsRWM  sync.RWMutex
+	timeout   time.Duration
+	proxyTag  string
+	dnsOpts   dns.Options
+	tlsConfig option.TLSConfig
+	optsRWM   sync.RWMutex
 
 	guid *guid.Generator
 
@@ -961,20 +957,17 @@ func newClientManager(ctx *Ctrl, config *Config) (*clientMgr, error) {
 		return nil, errors.New("client timeout must >= 10 seconds")
 	}
 
-	return &clientMgr{
-		ctx:      ctx,
-		proxyTag: cfg.ProxyTag,
-		timeout:  cfg.Timeout,
-		dnsOpts:  cfg.DNSOpts,
-		guid:     guid.New(4, ctx.global.Now),
-		clients:  make(map[guid.GUID]*Client),
-	}, nil
-}
-
-func (cm *clientMgr) GetProxyTag() string {
-	cm.optsRWM.RLock()
-	defer cm.optsRWM.RUnlock()
-	return cm.proxyTag
+	mgr := &clientMgr{
+		ctx:       ctx,
+		timeout:   cfg.Timeout,
+		proxyTag:  cfg.ProxyTag,
+		dnsOpts:   cfg.DNSOpts,
+		tlsConfig: cfg.TLSConfig,
+		guid:      guid.New(4, ctx.global.Now),
+		clients:   make(map[guid.GUID]*Client),
+	}
+	mgr.tlsConfig.CertPool = ctx.global.CertPool
+	return mgr, nil
 }
 
 func (cm *clientMgr) GetTimeout() time.Duration {
@@ -983,10 +976,32 @@ func (cm *clientMgr) GetTimeout() time.Duration {
 	return cm.timeout
 }
 
+func (cm *clientMgr) GetProxyTag() string {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return cm.proxyTag
+}
+
 func (cm *clientMgr) GetDNSOptions() *dns.Options {
 	cm.optsRWM.RLock()
 	defer cm.optsRWM.RUnlock()
 	return cm.dnsOpts.Clone()
+}
+
+func (cm *clientMgr) GetTLSConfig() *option.TLSConfig {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return &cm.tlsConfig
+}
+
+func (cm *clientMgr) SetTimeout(timeout time.Duration) error {
+	if timeout < 10*time.Second {
+		return errors.New("timeout must >= 10 seconds")
+	}
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.timeout = timeout
+	return nil
 }
 
 func (cm *clientMgr) SetProxyTag(tag string) error {
@@ -1001,20 +1016,22 @@ func (cm *clientMgr) SetProxyTag(tag string) error {
 	return nil
 }
 
-func (cm *clientMgr) SetTimeout(timeout time.Duration) error {
-	if timeout < 10*time.Second {
-		return errors.New("timeout must >= 10 seconds")
-	}
-	cm.optsRWM.Lock()
-	defer cm.optsRWM.Unlock()
-	cm.timeout = timeout
-	return nil
-}
-
 func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 	cm.optsRWM.Lock()
 	defer cm.optsRWM.Unlock()
 	cm.dnsOpts = *opts.Clone()
+}
+
+func (cm *clientMgr) SetTLSConfig(cfg *option.TLSConfig) error {
+	_, err := cfg.Apply()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.tlsConfig = *cfg
+	cm.tlsConfig.CertPool = cm.ctx.global.CertPool
+	return nil
 }
 
 // for NewClient()
@@ -1027,7 +1044,7 @@ func (cm *clientMgr) Add(client *Client) {
 	}
 }
 
-// for client.Close()
+// for client.Close().
 func (cm *clientMgr) Delete(tag *guid.GUID) {
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
@@ -1046,14 +1063,14 @@ func (cm *clientMgr) Clients() map[guid.GUID]*Client {
 }
 
 // Kill is used to close client. Must use cm.Clients(),
-// because client.Close() will use cm.clientsRWM
+// because client.Close() will use cm.clientsRWM.
 func (cm *clientMgr) Kill(tag *guid.GUID) {
 	if client, ok := cm.Clients()[*tag]; ok {
 		client.Close()
 	}
 }
 
-// Close will close all active clients
+// Close will close all active clients.
 func (cm *clientMgr) Close() {
 	for {
 		for _, client := range cm.Clients() {

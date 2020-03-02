@@ -17,24 +17,24 @@ import (
 	"project/internal/security"
 )
 
-// about key file path
+// about key file path.
 const (
-	SessionKeyFile = "key/session.key"
+	sessionKeyFile = "key/session.key"
 	CertFile       = "key/certs.dat"
 	CertHash       = "key/certs.hash"
 )
 
 // GenerateSessionKey is used to generate session key and save to file.
-func GenerateSessionKey(path string, password []byte) error {
-	_, err := os.Stat(path)
+func GenerateSessionKey(password []byte) error {
+	_, err := os.Stat(sessionKeyFile)
 	if !os.IsNotExist(err) {
-		return errors.Errorf("file: %s already exist", path)
+		return errors.Errorf("file: %s already exist", sessionKeyFile)
 	}
 	key, err := generateSessionKey(password)
 	if err != nil {
 		return nil
 	}
-	return ioutil.WriteFile(path, key, 0600)
+	return ioutil.WriteFile(sessionKeyFile, key, 0600)
 }
 
 func generateAESKeyIVFromPassword(password []byte) ([]byte, []byte) {
@@ -179,9 +179,12 @@ func loadCertPool(pool *cert.Pool, cipherData, rawHash, password []byte) error {
 		const msg = "exploit: certificate pool has been tampered or incorrect password"
 		return errors.New(msg)
 	}
-	// load certificates
+	return addCertificatesToPool(pool, plainData)
+}
+
+func addCertificatesToPool(pool *cert.Pool, plainData []byte) error {
 	rcp := RawCertPool{}
-	err = msgpack.Unmarshal(plainData, &rcp)
+	err := msgpack.Unmarshal(plainData, &rcp)
 	if err != nil {
 		return err
 	}

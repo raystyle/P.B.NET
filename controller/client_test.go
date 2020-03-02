@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"os"
 	"runtime"
 	"sync"
@@ -25,7 +26,7 @@ import (
 	"project/testdata"
 )
 
-func testGenerateNodeConfig(tb testing.TB) *node.Config {
+func testGenerateNodeConfig(t testing.TB) *node.Config {
 	cfg := node.Config{}
 
 	cfg.Test.SkipSynchronizeTime = true
@@ -39,19 +40,11 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
 
-	var certificates [][]byte
-	for _, pair := range ctrl.GetSelfCerts() {
-		certificates = append(certificates, pair.ASN1())
-	}
-	for _, pair := range ctrl.GetSystemCerts() {
-		certificates = append(certificates, pair.ASN1())
-	}
-	cfg.Global.RawCertPool = certificates
-	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
+	ctrl.global.CertPool.AddToRawCertPool(&cfg.Global.RawCertPool)
+	cfg.Global.ProxyClients = testdata.ProxyClients(t)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
 
-	cfg.Client.ProxyTag = "balance"
 	cfg.Client.Timeout = 15 * time.Second
 
 	cfg.Register.SleepFixed = 10
@@ -82,7 +75,7 @@ func testGenerateNodeConfig(tb testing.TB) *node.Config {
 	return &cfg
 }
 
-const testInitialNodeListenerTag = "initial_tcp"
+const testInitialNodeListenerTag = "initial_tls"
 
 func testGenerateInitialNode(t testing.TB) *node.Node {
 	testInitializeController(t)
@@ -91,7 +84,7 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	cfg.Register.Skip = true
 
 	// generate certificate
-	certs := ctrl.global.GetSelfCerts()
+	certs := ctrl.global.CertPool.GetPrivateRootCAPairs()
 	opts := cert.Options{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
@@ -104,14 +97,16 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	// generate listener config
 	listener := messages.Listener{
 		Tag:     testInitialNodeListenerTag,
-		Mode:    xnet.ModeTCP,
+		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	c, k := pair.EncodeToPEM()
+	certPEM, keyPEM := pair.EncodeToPEM()
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
-		{Cert: string(c), Key: string(k)},
+		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
+	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCACerts = true
+	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	// set node config
 	data, key, err := GenerateNodeConfigAboutListeners(&listener)
@@ -131,16 +126,21 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	return Node
 }
 
-func testGenerateClient(tb testing.TB, node *node.Node) *Client {
-	listener, err := node.GetListener(testInitialNodeListenerTag)
-	require.NoError(tb, err)
-	bListener := &bootstrap.Listener{
-		Mode:    xnet.ModeTCP,
-		Network: "tcp",
-		Address: listener.Addr().String(),
+func testGetNodeListener(t testing.TB, node *node.Node, tag string) *bootstrap.Listener {
+	listener, err := node.GetListener(tag)
+	require.NoError(t, err)
+	addr := listener.Addr()
+	return &bootstrap.Listener{
+		Mode:    xnet.ModeTLS,
+		Network: addr.Network(),
+		Address: addr.String(),
 	}
-	client, err := ctrl.NewClient(context.Background(), bListener, nil, nil)
-	require.NoError(tb, err)
+}
+
+func testGenerateClient(t testing.TB, node *node.Node) *Client {
+	listener := testGetNodeListener(t, node, testInitialNodeListenerTag)
+	client, err := ctrl.NewClient(context.Background(), listener, nil, nil)
+	require.NoError(t, err)
 	return client
 }
 

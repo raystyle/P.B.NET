@@ -38,6 +38,8 @@ func testGenerateConfig() *Config {
 	cfg.Global.TimeSyncInterval = time.Minute
 
 	cfg.Client.Timeout = 10 * time.Second
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
 
 	cfg.Sender.MaxConns = 16 * runtime.NumCPU()
 	cfg.Sender.Worker = 64
@@ -89,8 +91,8 @@ func TestConfig(t *testing.T) {
 		{expected: uint(10), actual: cfg.Global.TimeSyncSleepRandom},
 		{expected: time.Minute, actual: cfg.Global.TimeSyncInterval},
 
-		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
+		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
 		{expected: "test.com", actual: cfg.Client.TLSConfig.ServerName},
 
