@@ -3,7 +3,6 @@ package controller
 import (
 	"io/ioutil"
 	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -41,7 +40,7 @@ func testGenerateConfig() *Config {
 	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
 	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
 
-	cfg.Sender.MaxConns = 16 * runtime.NumCPU()
+	cfg.Sender.MaxConns = 16
 	cfg.Sender.Worker = 64
 	cfg.Sender.Timeout = 15 * time.Second
 	cfg.Sender.QueueSize = 512

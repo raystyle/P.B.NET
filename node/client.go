@@ -52,7 +52,6 @@ func (node *Node) NewClient(
 	bl *bootstrap.Listener,
 	guid *guid.GUID,
 ) (*Client, error) {
-	// dial
 	host, port, err := net.SplitHostPort(bl.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -86,6 +85,7 @@ func (node *Node) NewClient(
 	if err != nil {
 		return nil, err
 	}
+	// dial
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
 		address := net.JoinHostPort(result[i], port)

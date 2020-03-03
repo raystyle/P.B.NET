@@ -18,7 +18,7 @@ import (
 	"project/testdata"
 )
 
-func testGenerateConfig(tb testing.TB) *Config {
+func testGenerateConfig(t testing.TB) *Config {
 	cfg := Config{}
 
 	cfg.Test.SkipSynchronizeTime = true
@@ -31,17 +31,19 @@ func testGenerateConfig(tb testing.TB) *Config {
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
-	cfg.Global.RawCertPool = testdata.RawCertPool(tb)
-	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
+	cfg.Global.RawCertPool = testdata.RawCertPool(t)
+	cfg.Global.ProxyClients = testdata.ProxyClients(t)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
 
-	cfg.Client.ProxyTag = "balance"
 	cfg.Client.Timeout = 15 * time.Second
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
 
+	cfg.Sender.MaxConns = 16
 	cfg.Sender.Worker = 64
 	cfg.Sender.QueueSize = 512
 	cfg.Sender.MaxBufferSize = 512 << 10
@@ -80,8 +82,8 @@ func TestConfig(t *testing.T) {
 		{expected: uint(10), actual: cfg.Global.TimeSyncSleepRandom},
 		{expected: time.Minute, actual: cfg.Global.TimeSyncInterval},
 
-		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: 15 * time.Second, actual: cfg.Client.Timeout},
+		{expected: "test", actual: cfg.Client.ProxyTag},
 		{expected: "custom", actual: cfg.Client.DNSOpts.Mode},
 		{expected: "test.com", actual: cfg.Client.TLSConfig.ServerName},
 

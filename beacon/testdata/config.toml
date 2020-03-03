@@ -10,13 +10,13 @@
   timesync_interval     = "1m"
 
 [client]
-  proxy_tag = "test"
   timeout   = "15s"
+  proxy_tag = "test"
 
   [client.dns]
     mode = "custom"
 
-  [client.tls_config]
+  [client.tls]
     server_name = "test.com"
 
 [register]

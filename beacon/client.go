@@ -3,8 +3,6 @@ package beacon
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +19,7 @@ import (
 	"project/internal/dns"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/option"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
@@ -58,27 +57,27 @@ func (beacon *Beacon) NewClient(
 	guid *guid.GUID,
 	closeFunc func(),
 ) (*Client, error) {
-	// dial
 	host, port, err := net.SplitHostPort(bl.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	opts := xnet.Options{
-		TLSConfig: &tls.Config{
-			Rand:       rand.Reader,
-			Time:       beacon.global.Now,
-			ServerName: host,
-			RootCAs:    x509.NewCertPool(),
-			MinVersion: tls.VersionTLS12,
-		},
-		Timeout: beacon.clientMgr.GetTimeout(),
-		Now:     beacon.global.Now,
+	// set tls config
+	tlsConfig, err := beacon.clientMgr.GetTLSConfig().Apply()
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
-	// add CA certificates
-	// TODO add
-	// for _, cert := range beacon.global.Certificates() {
-	// 	opts.TLSConfig.RootCAs.AddCert(cert)
-	// }
+	tlsConfig.Rand = rand.Reader
+	tlsConfig.Time = beacon.global.Now
+	tlsConfig.ServerName = host
+	if len(tlsConfig.NextProtos) == 0 {
+		tlsConfig.NextProtos = []string{"http/1.1"}
+	}
+	// set xnet options
+	opts := xnet.Options{
+		TLSConfig: tlsConfig,
+		Timeout:   beacon.clientMgr.GetTimeout(),
+		Now:       beacon.global.Now,
+	}
 	// set proxy
 	proxy, err := beacon.global.GetProxyClient(beacon.clientMgr.GetProxyTag())
 	if err != nil {
@@ -91,6 +90,7 @@ func (beacon *Beacon) NewClient(
 	if err != nil {
 		return nil, err
 	}
+	// dial
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
 		address := net.JoinHostPort(result[i], port)
@@ -103,7 +103,6 @@ func (beacon *Beacon) NewClient(
 		const format = "failed to connect node listener: %s because: %s"
 		return nil, errors.Errorf(format, bl, err)
 	}
-
 	// handshake
 	client := &Client{
 		ctx:       beacon,
@@ -793,10 +792,11 @@ type clientMgr struct {
 	ctx *Beacon
 
 	// options from Config
-	proxyTag string
-	timeout  time.Duration
-	dnsOpts  dns.Options
-	optsRWM  sync.RWMutex
+	timeout   time.Duration
+	proxyTag  string
+	dnsOpts   dns.Options
+	tlsConfig option.TLSConfig
+	optsRWM   sync.RWMutex
 
 	guid       *guid.Generator
 	clients    map[guid.GUID]*Client
@@ -810,20 +810,17 @@ func newClientManager(ctx *Beacon, config *Config) (*clientMgr, error) {
 		return nil, errors.New("client timeout must >= 10 seconds")
 	}
 
-	return &clientMgr{
-		ctx:      ctx,
-		proxyTag: cfg.ProxyTag,
-		timeout:  cfg.Timeout,
-		dnsOpts:  cfg.DNSOpts,
-		guid:     guid.New(4, ctx.global.Now),
-		clients:  make(map[guid.GUID]*Client),
-	}, nil
-}
-
-func (cm *clientMgr) GetProxyTag() string {
-	cm.optsRWM.RLock()
-	defer cm.optsRWM.RUnlock()
-	return cm.proxyTag
+	mgr := &clientMgr{
+		ctx:       ctx,
+		timeout:   cfg.Timeout,
+		proxyTag:  cfg.ProxyTag,
+		dnsOpts:   cfg.DNSOpts,
+		tlsConfig: cfg.TLSConfig,
+		guid:      guid.New(4, ctx.global.Now),
+		clients:   make(map[guid.GUID]*Client),
+	}
+	mgr.tlsConfig.CertPool = ctx.global.CertPool
+	return mgr, nil
 }
 
 func (cm *clientMgr) GetTimeout() time.Duration {
@@ -832,10 +829,32 @@ func (cm *clientMgr) GetTimeout() time.Duration {
 	return cm.timeout
 }
 
+func (cm *clientMgr) GetProxyTag() string {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return cm.proxyTag
+}
+
 func (cm *clientMgr) GetDNSOptions() *dns.Options {
 	cm.optsRWM.RLock()
 	defer cm.optsRWM.RUnlock()
 	return cm.dnsOpts.Clone()
+}
+
+func (cm *clientMgr) GetTLSConfig() *option.TLSConfig {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return &cm.tlsConfig
+}
+
+func (cm *clientMgr) SetTimeout(timeout time.Duration) error {
+	if timeout < 10*time.Second {
+		return errors.New("timeout must >= 10 seconds")
+	}
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.timeout = timeout
+	return nil
 }
 
 func (cm *clientMgr) SetProxyTag(tag string) error {
@@ -850,20 +869,22 @@ func (cm *clientMgr) SetProxyTag(tag string) error {
 	return nil
 }
 
-func (cm *clientMgr) SetTimeout(timeout time.Duration) error {
-	if timeout < 10*time.Second {
-		return errors.New("timeout must >= 10 seconds")
-	}
-	cm.optsRWM.Lock()
-	defer cm.optsRWM.Unlock()
-	cm.timeout = timeout
-	return nil
-}
-
 func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 	cm.optsRWM.Lock()
 	defer cm.optsRWM.Unlock()
 	cm.dnsOpts = *opts.Clone()
+}
+
+func (cm *clientMgr) SetTLSConfig(cfg *option.TLSConfig) error {
+	_, err := cfg.Apply()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.tlsConfig = *cfg
+	cm.tlsConfig.CertPool = cm.ctx.global.CertPool
+	return nil
 }
 
 // for NewClient()

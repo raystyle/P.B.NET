@@ -55,6 +55,11 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 			return nil, err
 		}
 	}
+	// check client config
+	_, err = proxyPool.Get(config.Client.ProxyTag)
+	if err != nil {
+		return nil, err
+	}
 	// DNS client
 	dnsClient := dns.NewClient(certPool, proxyPool)
 	for tag, server := range cfg.DNSServers {

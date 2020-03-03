@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"os"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -66,7 +65,7 @@ func testGenerateNodeConfig(t testing.TB) *node.Config {
 	cfg.Worker.QueueSize = 1024
 	cfg.Worker.MaxBufferSize = 16 << 10
 
-	cfg.Server.MaxConns = 16 * runtime.NumCPU()
+	cfg.Server.MaxConns = 64
 	cfg.Server.Timeout = 15 * time.Second
 
 	cfg.Ctrl.KexPublicKey = ctrl.global.KeyExchangePublicKey()
