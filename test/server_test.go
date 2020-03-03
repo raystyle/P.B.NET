@@ -21,15 +21,8 @@ func generateCommonNode(t *testing.T, iNode *node.Node, id int) *node.Node {
 	ctrl.Test.CreateNodeRegisterRequestChannel()
 
 	// generate bootstrap
-	listener, err := iNode.GetListener(initialNodeListenerTag)
-	require.NoError(t, err)
-	iAddr := listener.Addr()
-	iListener := &bootstrap.Listener{
-		Mode:    listener.Mode(),
-		Network: iAddr.Network(),
-		Address: iAddr.String(),
-	}
-	boot, key := generateBootstrap(t, iListener)
+	listener := getNodeListener(t, iNode, initialNodeListenerTag)
+	boot, key := generateBootstrap(t, listener)
 
 	// create Common Node and run
 	cNodeCfg := generateNodeConfig(t, fmt.Sprintf("Common Node %d", id))
@@ -67,15 +60,8 @@ func generateBeacon(t *testing.T, node *node.Node, tag string, id int) *beacon.B
 	ctrl.Test.CreateBeaconRegisterRequestChannel()
 
 	// generate bootstrap
-	listener, err := node.GetListener(tag)
-	require.NoError(t, err)
-	iAddr := listener.Addr()
-	bListener := &bootstrap.Listener{
-		Mode:    listener.Mode(),
-		Network: iAddr.Network(),
-		Address: iAddr.String(),
-	}
-	boot, key := generateBootstrap(t, bListener)
+	listener := getNodeListener(t, node, tag)
+	boot, key := generateBootstrap(t, listener)
 
 	// create Beacon and run
 	beaconCfg := generateBeaconConfig(t, fmt.Sprintf("Beacon %d", id))
@@ -109,21 +95,15 @@ func generateBeacon(t *testing.T, node *node.Node, tag string, id int) *beacon.B
 const commonNodeListenerTag = "test_tcp"
 
 func addNodeListener(t *testing.T, node *node.Node) *bootstrap.Listener {
-	mListener := &messages.Listener{
+	listener := &messages.Listener{
 		Tag:     commonNodeListenerTag,
 		Mode:    xnet.ModeTCP,
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	err := node.AddListener(mListener)
+	err := node.AddListener(listener)
 	require.NoError(t, err)
-	listener, err := node.GetListener(commonNodeListenerTag)
-	require.NoError(t, err)
-	return &bootstrap.Listener{
-		Mode:    xnet.ModeTCP,
-		Network: "tcp",
-		Address: listener.Addr().String(),
-	}
+	return getNodeListener(t, node, commonNodeListenerTag)
 }
 
 // Common Node 0 will connect the Initial Node after Common Node 1 register
@@ -140,13 +120,14 @@ func TestNodeQueryNodeKey(t *testing.T) {
 	c1Node := generateCommonNode(t, iNode, 1)
 	c1NodeGUID := c1Node.GUID()
 
+	ctx := context.Background()
 	// Common Node 0 connect the Initial Node
-	err := c0Node.Synchronize(context.Background(), iNodeGUID, iListener)
+	err := c0Node.Synchronize(ctx, iNodeGUID, iListener)
 	require.NoError(t, err)
 	c0Listener := addNodeListener(t, c0Node)
 
 	// Common Node 1 connect the Common Node 0
-	client, err := c1Node.NewClient(context.Background(), c0Listener, c0NodeGUID)
+	client, err := c1Node.NewClient(ctx, c0Listener, c0NodeGUID)
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)
@@ -184,13 +165,14 @@ func TestNodeQueryBeaconKey(t *testing.T) {
 	Beacon := generateBeacon(t, iNode, initialNodeListenerTag, 0)
 	beaconGUID := Beacon.GUID()
 
+	ctx := context.Background()
 	// Common Node 0 connect the Initial Node
-	err := cNode.Synchronize(context.Background(), iNodeGUID, iListener)
+	err := cNode.Synchronize(ctx, iNodeGUID, iListener)
 	require.NoError(t, err)
 	cListener := addNodeListener(t, cNode)
 
 	// Beacon connect the Common Node
-	client, err := Beacon.NewClient(context.Background(), cListener, cNodeGUID, nil)
+	client, err := Beacon.NewClient(ctx, cListener, cNodeGUID, nil)
 	require.NoError(t, err)
 	err = client.Connect()
 	require.NoError(t, err)

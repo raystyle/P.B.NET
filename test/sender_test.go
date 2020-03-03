@@ -9,25 +9,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/bootstrap"
 	"project/internal/guid"
 	"project/internal/messages"
 	"project/internal/testsuite"
-	"project/internal/xnet"
 
 	"project/beacon"
 	"project/node"
 )
-
-func getNodeListener(t *testing.T, node *node.Node, tag string) *bootstrap.Listener {
-	listener, err := node.GetListener(tag)
-	require.NoError(t, err)
-	return &bootstrap.Listener{
-		Mode:    xnet.ModeTCP,
-		Network: "tcp",
-		Address: listener.Addr().String(),
-	}
-}
 
 // 3 * (A Common Node Connect the Initial Node)
 //

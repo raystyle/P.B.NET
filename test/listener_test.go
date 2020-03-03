@@ -3,14 +3,13 @@ package test
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/bootstrap"
 	"project/internal/convert"
-	"project/internal/crypto/cert"
 	"project/internal/messages"
 	"project/internal/option"
 	"project/internal/protocol"
@@ -61,19 +60,7 @@ func testNodeListenerClientSend(t *testing.T, client *controller.Client) {
 	testsuite.IsDestroyed(t, client)
 }
 
-func testNodeListenerQUIC(t *testing.T, Node *node.Node) {
-	// generate certificate
-	pairs := ctrl.GetSelfCerts()
-	opts := cert.Options{
-		DNSNames:    []string{"localhost"},
-		IPAddresses: []string{"127.0.0.1", "::1"},
-	}
-	caCert := pairs[0].Certificate
-	caKey := pairs[0].PrivateKey
-	pair, err := cert.Generate(caCert, caKey, &opts)
-	require.NoError(t, err)
-
-	// generate listener config
+func testNodeListenerQUIC(t *testing.T, node *node.Node) {
 	const tag = "l_quic"
 	listener := messages.Listener{
 		Tag:     tag,
@@ -81,27 +68,23 @@ func testNodeListenerQUIC(t *testing.T, Node *node.Node) {
 		Network: "udp",
 		Address: "localhost:0",
 	}
-	c, k := pair.EncodeToPEM()
+	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
-		{Cert: string(c), Key: string(k)},
+		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
-	err = Node.AddListener(&listener)
-	require.NoError(t, err)
+	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCACerts = true
+	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
-	l, err := Node.GetListener(tag)
+	err := node.AddListener(&listener)
 	require.NoError(t, err)
-	bListener := &bootstrap.Listener{
-		Mode:    xnet.ModeQUIC,
-		Network: "udp",
-		Address: l.Addr().String(),
-	}
-	client, err := ctrl.NewClient(context.Background(), bListener, nil, nil)
+	l := getNodeListener(t, node, tag)
+	client, err := ctrl.NewClient(context.Background(), l, nil, nil)
 	require.NoError(t, err)
 
 	testNodeListenerClientSend(t, client)
 }
 
-func testNodeListenerLight(t *testing.T, Node *node.Node) {
+func testNodeListenerLight(t *testing.T, node *node.Node) {
 	const tag = "l_light"
 	listener := messages.Listener{
 		Tag:     tag,
@@ -109,35 +92,17 @@ func testNodeListenerLight(t *testing.T, Node *node.Node) {
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	err := Node.AddListener(&listener)
+	err := node.AddListener(&listener)
 	require.NoError(t, err)
 
-	l, err := Node.GetListener(tag)
-	require.NoError(t, err)
-	bListener := &bootstrap.Listener{
-		Mode:    xnet.ModeLight,
-		Network: "tcp",
-		Address: l.Addr().String(),
-	}
-	client, err := ctrl.NewClient(context.Background(), bListener, nil, nil)
+	l := getNodeListener(t, node, tag)
+	client, err := ctrl.NewClient(context.Background(), l, nil, nil)
 	require.NoError(t, err)
 
 	testNodeListenerClientSend(t, client)
 }
 
-func testNodeListenerTLS(t *testing.T, Node *node.Node) {
-	// generate certificate
-	pairs := ctrl.GetSelfCerts()
-	opts := cert.Options{
-		DNSNames:    []string{"localhost"},
-		IPAddresses: []string{"127.0.0.1", "::1"},
-	}
-	caCert := pairs[0].Certificate
-	caKey := pairs[0].PrivateKey
-	pair, err := cert.Generate(caCert, caKey, &opts)
-	require.NoError(t, err)
-
-	// generate listener config
+func testNodeListenerTLS(t *testing.T, node *node.Node) {
 	const tag = "l_tls"
 	listener := messages.Listener{
 		Tag:     tag,
@@ -145,21 +110,17 @@ func testNodeListenerTLS(t *testing.T, Node *node.Node) {
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	c, k := pair.EncodeToPEM()
+	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
-		{Cert: string(c), Key: string(k)},
+		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
-	err = Node.AddListener(&listener)
-	require.NoError(t, err)
+	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCACerts = true
+	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
-	l, err := Node.GetListener(tag)
+	err := node.AddListener(&listener)
 	require.NoError(t, err)
-	bListener := &bootstrap.Listener{
-		Mode:    xnet.ModeTLS,
-		Network: "tcp",
-		Address: l.Addr().String(),
-	}
-	client, err := ctrl.NewClient(context.Background(), bListener, nil, nil)
+	l := getNodeListener(t, node, tag)
+	client, err := ctrl.NewClient(context.Background(), l, nil, nil)
 	require.NoError(t, err)
 
 	testNodeListenerClientSend(t, client)

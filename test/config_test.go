@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"runtime"
@@ -32,15 +33,12 @@ var (
 
 func TestMain(m *testing.M) {
 	m.Run()
-
 	if ctrl != nil {
 		// wait to print log
 		time.Sleep(time.Second)
 		ctrl.Exit(nil)
 	}
-
 	testdata.Clean()
-
 	// one test main goroutine and two goroutine about
 	// pprof server in internal/testsuite.go
 	leaks := true
@@ -56,12 +54,10 @@ func TestMain(m *testing.M) {
 		time.Sleep(time.Minute)
 		os.Exit(1)
 	}
-
 	if ctrl != nil {
-		// must copy, because global variable
+		// must copy, because it is a global variable
 		ctrlC := ctrl
 		ctrl = nil
-
 		if !testsuite.Destroyed(ctrlC) {
 			fmt.Println("[warning] controller is not destroyed")
 			time.Sleep(time.Minute)
@@ -70,7 +66,7 @@ func TestMain(m *testing.M) {
 	}
 }
 
-// in some tests, these value will be changed
+// in some tests, these value will be changed.
 var (
 	loggerLevel      = "debug"
 	senderTimeout    = 15 * time.Second
@@ -102,8 +98,10 @@ func generateControllerConfig() *controller.Config {
 	cfg.Global.TimeSyncInterval = time.Minute
 
 	cfg.Client.Timeout = 10 * time.Second
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
 
-	cfg.Sender.MaxConns = 16 * runtime.NumCPU()
+	cfg.Sender.MaxConns = 16
 	cfg.Sender.Worker = 64
 	cfg.Sender.Timeout = senderTimeout
 	cfg.Sender.QueueSize = 512
@@ -127,7 +125,7 @@ func generateControllerConfig() *controller.Config {
 	return &cfg
 }
 
-func generateNodeConfig(tb testing.TB, name string) *node.Config {
+func generateNodeConfig(t testing.TB, name string) *node.Config {
 	cfg := node.Config{}
 
 	cfg.Test.SkipSynchronizeTime = true
@@ -140,13 +138,16 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = time.Minute
-	cfg.Global.Certificates = testdata.Certificates(tb)
-	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
+
+	ctrl.GetCertPool().AddToRawCertPool(&cfg.Global.RawCertPool)
+	cfg.Global.ProxyClients = testdata.ProxyClients(t)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
 
-	cfg.Client.ProxyTag = testdata.Socks5Tag
 	cfg.Client.Timeout = 10 * time.Second
+	cfg.Client.ProxyTag = testdata.Socks5Tag
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
@@ -167,7 +168,7 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	cfg.Worker.QueueSize = 1024
 	cfg.Worker.MaxBufferSize = 16 << 10
 
-	cfg.Server.MaxConns = 16 * runtime.NumCPU()
+	cfg.Server.MaxConns = 64
 	cfg.Server.Timeout = 15 * time.Second
 
 	cfg.Ctrl.KexPublicKey = ctrl.KeyExchangePublicKey()
@@ -176,7 +177,7 @@ func generateNodeConfig(tb testing.TB, name string) *node.Config {
 	return &cfg
 }
 
-func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
+func generateBeaconConfig(t testing.TB, name string) *beacon.Config {
 	cfg := beacon.Config{}
 
 	cfg.Test.SkipSynchronizeTime = true
@@ -189,13 +190,16 @@ func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = time.Minute
-	cfg.Global.Certificates = testdata.Certificates(tb)
-	cfg.Global.ProxyClients = testdata.ProxyClients(tb)
+
+	ctrl.GetCertPool().AddToRawCertPool(&cfg.Global.RawCertPool)
+	cfg.Global.ProxyClients = testdata.ProxyClients(t)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
 
-	cfg.Client.ProxyTag = testdata.Socks5Tag
 	cfg.Client.Timeout = 10 * time.Second
+	cfg.Client.ProxyTag = testdata.Socks5Tag
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
@@ -217,7 +221,6 @@ func generateBeaconConfig(tb testing.TB, name string) *beacon.Config {
 
 	cfg.Ctrl.KexPublicKey = ctrl.KeyExchangePublicKey()
 	cfg.Ctrl.PublicKey = ctrl.PublicKey()
-	cfg.Ctrl.BroadcastKey = ctrl.BroadcastKey()
 	return &cfg
 }
 
@@ -230,7 +233,7 @@ func initializeController(t testing.TB) {
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, cfg)
 		// set controller keys
-		err = ctrl.LoadSessionKeyFromFile("key/session.key", []byte("pbnet"))
+		err = ctrl.LoadKeyFromFile([]byte("pbnet"), []byte("pbnet"))
 		require.NoError(t, err)
 		go func() {
 			err := ctrl.Main()
@@ -240,9 +243,33 @@ func initializeController(t testing.TB) {
 	})
 }
 
+func generateCert(t testing.TB) *cert.Pair {
+	certs := ctrl.GetCertPool().GetPrivateRootCAPairs()
+	opts := cert.Options{
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []string{"127.0.0.1", "::1"},
+	}
+	caCert := certs[0].Certificate
+	caKey := certs[0].PrivateKey
+	pair, err := cert.Generate(caCert, caKey, &opts)
+	require.NoError(t, err)
+	return pair
+}
+
+func getNodeListener(t testing.TB, node *node.Node, tag string) *bootstrap.Listener {
+	listener, err := node.GetListener(tag)
+	require.NoError(t, err)
+	addr := listener.Addr()
+	return &bootstrap.Listener{
+		Mode:    listener.Mode(),
+		Network: addr.Network(),
+		Address: addr.String(),
+	}
+}
+
 // -----------------------------------------Initial Node-------------------------------------------
 
-const initialNodeListenerTag = "initial_tcp"
+const initialNodeListenerTag = "initial_tls"
 
 func generateInitialNode(t testing.TB, id int) *node.Node {
 	initializeController(t)
@@ -250,30 +277,21 @@ func generateInitialNode(t testing.TB, id int) *node.Node {
 	cfg := generateNodeConfig(t, fmt.Sprintf("Initial Node %d", id))
 	cfg.Register.Skip = true
 
-	// generate certificate
-	pairs := ctrl.GetSelfCerts()
-	opts := cert.Options{
-		DNSNames:    []string{"localhost"},
-		IPAddresses: []string{"127.0.0.1", "::1"},
-	}
-	caCert := pairs[0].Certificate
-	caKey := pairs[0].PrivateKey
-	pair, err := cert.Generate(caCert, caKey, &opts)
-	require.NoError(t, err)
-
 	// generate listener config
 	listener := messages.Listener{
 		Tag:     initialNodeListenerTag,
-		Mode:    xnet.ModeTCP,
+		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	c, k := pair.EncodeToPEM()
+	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
-		{Cert: string(c), Key: string(k)},
+		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
+	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCACerts = true
+	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
-	// add to node config
+	// set to node config
 	data, key, err := controller.GenerateNodeConfigAboutListeners(&listener)
 	require.NoError(t, err)
 	cfg.Server.Listeners = data
@@ -293,20 +311,15 @@ func generateInitialNode(t testing.TB, id int) *node.Node {
 
 func generateInitialNodeAndTrust(t testing.TB, id int) *node.Node {
 	Node := generateInitialNode(t, id)
-	listener, err := Node.GetListener(initialNodeListenerTag)
-	require.NoError(t, err)
-	iListener := &bootstrap.Listener{
-		Mode:    xnet.ModeTCP,
-		Network: "tcp",
-		Address: listener.Addr().String(),
-	}
+	listener := getNodeListener(t, Node, initialNodeListenerTag)
+	ctx := context.Background()
 	// trust node
-	req, err := ctrl.TrustNode(context.Background(), iListener)
+	req, err := ctrl.TrustNode(ctx, listener)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(context.Background(), iListener, req)
+	err = ctrl.ConfirmTrustNode(ctx, listener, req)
 	require.NoError(t, err)
 	// connect node
-	err = ctrl.Synchronize(context.Background(), Node.GUID(), iListener)
+	err = ctrl.Synchronize(ctx, Node.GUID(), listener)
 	require.NoError(t, err)
 	return Node
 }

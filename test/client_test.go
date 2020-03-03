@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/bootstrap"
 	"project/internal/convert"
 	"project/internal/protocol"
 	"project/internal/testsuite"
@@ -50,15 +49,7 @@ func testClientSendCommand(t *testing.T, send func(cmd uint8, data []byte) ([]by
 func TestCtrl_Client_Send(t *testing.T) {
 	iNode := generateInitialNodeAndTrust(t, 0)
 	iNodeGUID := iNode.GUID()
-
-	listener, err := iNode.GetListener(initialNodeListenerTag)
-	require.NoError(t, err)
-	iAddr := listener.Addr()
-	iListener := &bootstrap.Listener{
-		Mode:    listener.Mode(),
-		Network: iAddr.Network(),
-		Address: iAddr.String(),
-	}
+	iListener := getNodeListener(t, iNode, initialNodeListenerTag)
 
 	// try to connect Initial Node and start to synchronize
 	client, err := ctrl.NewClient(context.Background(), iListener, iNodeGUID, nil)

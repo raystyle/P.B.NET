@@ -55,9 +55,9 @@ func testGenerateNodeConfig(t testing.TB) *node.Config {
 	cfg.Forwarder.MaxBeaconConns = 128
 
 	cfg.Sender.Worker = 64
+	cfg.Sender.Timeout = 15 * time.Second
 	cfg.Sender.QueueSize = 512
 	cfg.Sender.MaxBufferSize = 16 << 10
-	cfg.Sender.Timeout = 15 * time.Second
 
 	cfg.Syncer.ExpireTime = 3 * time.Second
 
