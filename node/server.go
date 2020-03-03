@@ -84,7 +84,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		ctx:         ctx,
 		maxConns:    cfg.MaxConns,
 		timeout:     cfg.Timeout,
-		guid:        ctx.global.GetGUIDGenerator(),
+		guid:        guid.New(4, ctx.global.Now),
 		rand:        random.New(),
 		listeners:   make(map[string]*xnet.Listener),
 		conns:       make(map[guid.GUID]*xnet.Conn),
@@ -162,6 +162,7 @@ func (server *server) addListener(l *messages.Listener) (*xnet.Listener, error) 
 		return errors.WithMessagef(err, "failed to add listener %s", l.Tag)
 	}
 	// disable client certificates
+	l.TLSConfig.CertPool = server.ctx.global.CertPool
 	l.TLSConfig.ServerSide = true
 	// apply tls config
 	tlsConfig, err := l.TLSConfig.Apply()
@@ -481,13 +482,15 @@ func (server *server) handshake(conn *xnet.Conn) {
 	}
 }
 
-// checkConn is used to check connection is from client
-// if read http request, return a fake http response
+// checkConn is used to check connection is from client.
+// If read http request, return a fake http response.
 func (server *server) checkConn(conn *xnet.Conn) bool {
 	// read generated random data size
 	size := make([]byte, 1)
 	_, err := io.ReadFull(conn, size)
 	if err != nil {
+		const format = "failed to check connection\n%s"
+		server.logfConn(conn, logger.Error, format, err)
 		return false
 	}
 	// read random data

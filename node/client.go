@@ -3,8 +3,6 @@ package node
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"io"
 	"net"
 	"sync"
@@ -20,6 +18,7 @@ import (
 	"project/internal/dns"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/option"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xnet"
@@ -45,9 +44,9 @@ type Client struct {
 	wg         sync.WaitGroup
 }
 
-// NewClient is used to create a client and connect node listener
-// when guid != ctrl guid for forwarder
-// when guid == ctrl guid for register
+// NewClient is used to create a client and connect node listener.
+// when guid != ctrl guid for forwarder.
+// when guid == ctrl guid for register.
 func (node *Node) NewClient(
 	ctx context.Context,
 	bl *bootstrap.Listener,
@@ -58,21 +57,22 @@ func (node *Node) NewClient(
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	opts := xnet.Options{
-		TLSConfig: &tls.Config{
-			Rand:       rand.Reader,
-			Time:       node.global.Now,
-			ServerName: host,
-			RootCAs:    x509.NewCertPool(),
-			MinVersion: tls.VersionTLS12,
-		},
-		Timeout: node.clientMgr.GetTimeout(),
-		Now:     node.global.Now,
+	// set tls config
+	tlsConfig, err := node.clientMgr.GetTLSConfig().Apply()
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
-	// TODO finish
-	// add CA certificates
-	for _, cert := range node.global.CertPool.GetPublicRootCACerts() {
-		opts.TLSConfig.RootCAs.AddCert(cert)
+	tlsConfig.Rand = rand.Reader
+	tlsConfig.Time = node.global.Now
+	tlsConfig.ServerName = host
+	if len(tlsConfig.NextProtos) == 0 {
+		tlsConfig.NextProtos = []string{"http/1.1"}
+	}
+	// set xnet options
+	opts := xnet.Options{
+		TLSConfig: tlsConfig,
+		Timeout:   node.clientMgr.GetTimeout(),
+		Now:       node.global.Now,
 	}
 	// set proxy
 	proxy, err := node.global.GetProxyClient(node.clientMgr.GetProxyTag())
@@ -95,14 +95,14 @@ func (node *Node) NewClient(
 		}
 	}
 	if conn == nil {
-		return nil, errors.Errorf("failed to connect node listener: %s", bl)
+		const format = "failed to connect node listener %s, because %s"
+		return nil, errors.Errorf(format, bl, err)
 	}
 	// handshake
 	client := &Client{
 		ctx:      node,
 		listener: bl,
 		GUID:     guid,
-		tag:      node.clientMgr.GenerateTag(),
 		rand:     random.New(),
 	}
 	client.Conn = newConn(node, conn, guid, connUsageClient)
@@ -291,7 +291,7 @@ func (client *Client) onFrame(frame []byte) {
 	client.Close()
 }
 
-// Synchronize is used to switch to synchronize mode
+// Synchronize is used to switch to synchronize mode.
 func (client *Client) Synchronize() error {
 	client.syncM.Lock()
 	defer client.syncM.Unlock()
@@ -418,12 +418,12 @@ func (client *Client) onFrameAfterSyncAboutBeacon(cmd byte, id, data []byte) boo
 	return true
 }
 
-// Status is used to get connection status
+// Status is used to get connection status.
 func (client *Client) Status() *xnet.Status {
 	return client.Conn.Status()
 }
 
-// Close is used to disconnect node
+// Close is used to disconnect node.
 func (client *Client) Close() {
 	client.closeOnce.Do(func() {
 		_ = client.Conn.Close()
@@ -438,16 +438,17 @@ func (client *Client) Close() {
 	})
 }
 
-// clientMgr contains all clients from NewClient() and client options from Config
+// clientMgr contains all clients from NewClient() and client options from Config.
 // it can generate client tag, you can manage all clients here.
 type clientMgr struct {
 	ctx *Node
 
 	// options from Config
-	proxyTag string
-	timeout  time.Duration
-	dnsOpts  dns.Options
-	optsRWM  sync.RWMutex
+	timeout   time.Duration
+	proxyTag  string
+	dnsOpts   dns.Options
+	tlsConfig option.TLSConfig
+	optsRWM   sync.RWMutex
 
 	guid       *guid.Generator
 	clients    map[guid.GUID]*Client
@@ -461,20 +462,17 @@ func newClientManager(ctx *Node, config *Config) (*clientMgr, error) {
 		return nil, errors.New("client timeout must >= 10 seconds")
 	}
 
-	return &clientMgr{
-		ctx:      ctx,
-		proxyTag: cfg.ProxyTag,
-		timeout:  cfg.Timeout,
-		dnsOpts:  cfg.DNSOpts,
-		guid:     ctx.global.GetGUIDGenerator(),
-		clients:  make(map[guid.GUID]*Client),
-	}, nil
-}
-
-func (cm *clientMgr) GetProxyTag() string {
-	cm.optsRWM.RLock()
-	defer cm.optsRWM.RUnlock()
-	return cm.proxyTag
+	mgr := &clientMgr{
+		ctx:       ctx,
+		timeout:   cfg.Timeout,
+		proxyTag:  cfg.ProxyTag,
+		dnsOpts:   cfg.DNSOpts,
+		tlsConfig: cfg.TLSConfig,
+		guid:      guid.New(4, ctx.global.Now),
+		clients:   make(map[guid.GUID]*Client),
+	}
+	mgr.tlsConfig.CertPool = ctx.global.CertPool
+	return mgr, nil
 }
 
 func (cm *clientMgr) GetTimeout() time.Duration {
@@ -483,10 +481,32 @@ func (cm *clientMgr) GetTimeout() time.Duration {
 	return cm.timeout
 }
 
+func (cm *clientMgr) GetProxyTag() string {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return cm.proxyTag
+}
+
 func (cm *clientMgr) GetDNSOptions() *dns.Options {
 	cm.optsRWM.RLock()
 	defer cm.optsRWM.RUnlock()
 	return cm.dnsOpts.Clone()
+}
+
+func (cm *clientMgr) GetTLSConfig() *option.TLSConfig {
+	cm.optsRWM.RLock()
+	defer cm.optsRWM.RUnlock()
+	return &cm.tlsConfig
+}
+
+func (cm *clientMgr) SetTimeout(timeout time.Duration) error {
+	if timeout < 10*time.Second {
+		return errors.New("timeout must >= 10 seconds")
+	}
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.timeout = timeout
+	return nil
 }
 
 func (cm *clientMgr) SetProxyTag(tag string) error {
@@ -501,29 +521,27 @@ func (cm *clientMgr) SetProxyTag(tag string) error {
 	return nil
 }
 
-func (cm *clientMgr) SetTimeout(timeout time.Duration) error {
-	if timeout < 10*time.Second {
-		return errors.New("timeout must >= 10 seconds")
-	}
-	cm.optsRWM.Lock()
-	defer cm.optsRWM.Unlock()
-	cm.timeout = timeout
-	return nil
-}
-
 func (cm *clientMgr) SetDNSOptions(opts *dns.Options) {
 	cm.optsRWM.Lock()
 	defer cm.optsRWM.Unlock()
 	cm.dnsOpts = *opts.Clone()
 }
 
-// for NewClient()
-func (cm *clientMgr) GenerateTag() *guid.GUID {
-	return cm.guid.Get()
+func (cm *clientMgr) SetTLSConfig(cfg *option.TLSConfig) error {
+	_, err := cfg.Apply()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	cm.optsRWM.Lock()
+	defer cm.optsRWM.Unlock()
+	cm.tlsConfig = *cfg
+	cm.tlsConfig.CertPool = cm.ctx.global.CertPool
+	return nil
 }
 
 // for NewClient()
 func (cm *clientMgr) Add(client *Client) {
+	client.tag = cm.guid.Get()
 	cm.clientsRWM.Lock()
 	defer cm.clientsRWM.Unlock()
 	if _, ok := cm.clients[*client.tag]; !ok {

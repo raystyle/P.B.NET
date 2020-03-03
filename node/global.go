@@ -35,8 +35,6 @@ type global struct {
 	spmCount int
 	rand     *random.Rand
 	wg       sync.WaitGroup
-
-	guid *guid.Generator
 }
 
 func newGlobal(logger logger.Logger, config *Config) (*global, error) {
@@ -58,6 +56,11 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	// check client config
+	_, err = proxyPool.Get(config.Client.ProxyTag)
+	if err != nil {
+		return nil, err
 	}
 	// DNS client
 	dnsClient := dns.NewClient(certPool, proxyPool)
@@ -101,7 +104,6 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	if err != nil {
 		return nil, err
 	}
-	global.guid = guid.New(1024, global.Now)
 	return &global, nil
 }
 
@@ -281,11 +283,6 @@ func (global *global) StartupTime() time.Time {
 	return global.objects[objStartupTime].(time.Time)
 }
 
-// GetGUIDGenerator is used to get global GUID generator.
-func (global *global) GetGUIDGenerator() *guid.Generator {
-	return global.guid
-}
-
 // GUID is used to get Node GUID.
 func (global *global) GUID() *guid.GUID {
 	global.objectsRWM.RLock()
@@ -398,6 +395,4 @@ func (global *global) CtrlDecrypt(data []byte) ([]byte, error) {
 // Close is used to close global.
 func (global *global) Close() {
 	global.TimeSyncer.Stop()
-	global.guid.Close()
-	global.guid = nil
 }

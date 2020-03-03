@@ -164,6 +164,8 @@ func (node *Node) Wait() {
 func (node *Node) Exit(err error) {
 	node.once.Do(func() {
 		node.logger.CloseSender()
+		node.driver.Close()
+		node.logger.Print(logger.Info, "exit", "driver is stopped")
 		node.handler.Cancel()
 		node.server.Close()
 		node.logger.Print(logger.Info, "exit", "server is stopped")

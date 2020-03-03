@@ -49,10 +49,10 @@ type Config struct {
 	} `toml:"global" msgpack:"bb"`
 
 	Client struct {
-		ProxyTag  string           `toml:"proxy_tag"  msgpack:"a"`
-		Timeout   time.Duration    `toml:"timeout"    msgpack:"b"`
-		DNSOpts   dns.Options      `toml:"dns"        msgpack:"c"`
-		TLSConfig option.TLSConfig `toml:"tls_config" msgpack:"d"`
+		Timeout   time.Duration    `toml:"timeout"   msgpack:"a"`
+		ProxyTag  string           `toml:"proxy_tag" msgpack:"b"`
+		DNSOpts   dns.Options      `toml:"dns"       msgpack:"c"`
+		TLSConfig option.TLSConfig `toml:"tls"       msgpack:"d"`
 	} `toml:"client" msgpack:"cc"`
 
 	Register struct {
