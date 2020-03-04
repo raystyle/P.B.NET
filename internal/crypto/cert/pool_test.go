@@ -417,8 +417,9 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		require.Equal(t, 1, len(certs))
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
 
+		// already exists
 		rcp.PublicRootCACerts = append(rcp.PublicRootCACerts, pair.ASN1())
-		pool, err = NewPoolFromRawCertPool(rcp)
+		_, err = NewPoolFromRawCertPool(rcp)
 		require.Error(t, err)
 
 		rcp.PublicRootCACerts = [][]byte{pair.ASN1()}
@@ -433,8 +434,9 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		require.Equal(t, 1, len(certs))
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
 
+		// already exists
 		rcp.PublicClientCACerts = append(rcp.PublicClientCACerts, pair.ASN1())
-		pool, err = NewPoolFromRawCertPool(rcp)
+		_, err = NewPoolFromRawCertPool(rcp)
 		require.Error(t, err)
 
 		rcp.PublicClientCACerts = [][]byte{pair.ASN1()}
@@ -458,13 +460,14 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		require.Equal(t, cert, dCert)
 		require.Equal(t, key, dKey)
 
+		// already exists
 		rcp.PublicClientPairs = append(rcp.PublicClientPairs, struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{
 			Cert: cert, Key: key,
 		})
-		pool, err = NewPoolFromRawCertPool(rcp)
+		_, err = NewPoolFromRawCertPool(rcp)
 		require.Error(t, err)
 
 		rcp.PublicClientPairs = []struct {
@@ -484,8 +487,9 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		require.Equal(t, 1, len(certs))
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
 
+		// already exists
 		rcp.PrivateRootCACerts = append(rcp.PrivateRootCACerts, pair.ASN1())
-		pool, err = NewPoolFromRawCertPool(rcp)
+		_, err = NewPoolFromRawCertPool(rcp)
 		require.Error(t, err)
 
 		rcp.PrivateRootCACerts = [][]byte{pair.ASN1()}
@@ -500,8 +504,9 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		require.Equal(t, 1, len(certs))
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
 
+		// already exists
 		rcp.PrivateClientCACerts = append(rcp.PrivateClientCACerts, pair.ASN1())
-		pool, err = NewPoolFromRawCertPool(rcp)
+		_, err = NewPoolFromRawCertPool(rcp)
 		require.Error(t, err)
 
 		rcp.PrivateClientCACerts = [][]byte{pair.ASN1()}
@@ -525,13 +530,14 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		require.Equal(t, cert, dCert)
 		require.Equal(t, key, dKey)
 
+		// already exists
 		rcp.PrivateClientPairs = append(rcp.PrivateClientPairs, struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{
 			Cert: cert, Key: key,
 		})
-		pool, err = NewPoolFromRawCertPool(rcp)
+		_, err = NewPoolFromRawCertPool(rcp)
 		require.Error(t, err)
 
 		rcp.PrivateClientPairs = []struct {
