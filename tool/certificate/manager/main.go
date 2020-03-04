@@ -198,11 +198,11 @@ func printCertificate(id int, c *x509.Certificate) {
 }
 
 func loadPairs(certFile, keyFile string) ([]*x509.Certificate, []interface{}) {
-	certPEM, err := ioutil.ReadFile(certFile)
+	certPEM, err := ioutil.ReadFile(certFile) // #nosec
 	if checkError(err, false) {
 		return nil, nil
 	}
-	keyPEM, err := ioutil.ReadFile(keyFile)
+	keyPEM, err := ioutil.ReadFile(keyFile) // #nosec
 	if checkError(err, false) {
 		return nil, nil
 	}
@@ -553,7 +553,7 @@ func (m *manager) publicRootCAList() {
 }
 
 func (m *manager) publicRootCAAdd(certFile string) {
-	pemData, err := ioutil.ReadFile(certFile)
+	pemData, err := ioutil.ReadFile(certFile) // #nosec
 	if checkError(err, false) {
 		return
 	}
@@ -628,7 +628,7 @@ func (m *manager) publicClientCAList() {
 }
 
 func (m *manager) publicClientCAAdd(certFile string) {
-	pemData, err := ioutil.ReadFile(certFile)
+	pemData, err := ioutil.ReadFile(certFile) // #nosec
 	if checkError(err, false) {
 		return
 	}

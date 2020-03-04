@@ -29,7 +29,7 @@ func main() {
 	if hexStr != "" {
 		data, err = hex.DecodeString(hexStr)
 	} else {
-		data, err = ioutil.ReadFile(file)
+		data, err = ioutil.ReadFile(file) // #nosec
 	}
 	if err != nil {
 		log.Fatalln(err)
