@@ -12,7 +12,7 @@ import (
 	"project/internal/logger"
 )
 
-// Conn is used to count network traffic and save connect time
+// Conn is used to count network traffic and save connect time.
 type Conn struct {
 	net.Conn
 
@@ -26,7 +26,7 @@ type Conn struct {
 	connect time.Time
 }
 
-// NewConn is used to wrap a net.Conn to *Conn
+// NewConn is used to wrap a net.Conn to *Conn.
 func NewConn(conn net.Conn, mode string, connect time.Time) *Conn {
 	return &Conn{
 		Conn:    conn,
@@ -36,8 +36,8 @@ func NewConn(conn net.Conn, mode string, connect time.Time) *Conn {
 	}
 }
 
-// Read reads data from the connection
-// it will count network traffic
+// Read reads data from the connection.
+// It will record network traffic.
 func (c *Conn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	c.rwm.Lock()
@@ -46,8 +46,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 	return n, err
 }
 
-// Write writes data to the connection
-// it will count network traffic
+// Write writes data to the connection.
+// It will record network traffic.
 func (c *Conn) Write(b []byte) (int, error) {
 	n, err := c.Conn.Write(b)
 	c.rwm.Lock()
@@ -72,7 +72,7 @@ var (
 	ErrReceiveTooBigMessage = errors.New("receive too big message")
 )
 
-// Send is used to send one message
+// Send is used to send one message.
 func (c *Conn) Send(msg []byte) error {
 	size := len(msg)
 	if size > MaxMsgLength {
@@ -83,7 +83,7 @@ func (c *Conn) Send(msg []byte) error {
 	return err
 }
 
-// Receive is used to receive one message
+// Receive is used to receive one message.
 func (c *Conn) Receive() ([]byte, error) {
 	header := make([]byte, headerSize)
 	_, err := io.ReadFull(c, header)
@@ -102,7 +102,7 @@ func (c *Conn) Receive() ([]byte, error) {
 	return msg, nil
 }
 
-// Status contains connection status
+// Status contains connection status.
 type Status struct {
 	LocalNetwork   string
 	LocalAddress   string
@@ -115,8 +115,8 @@ type Status struct {
 	Connect        time.Time
 }
 
-// Status is used to get connection status
-// address maybe changed, such as QUIC
+// Status is used to get connection status.
+// address maybe changed, such as QUIC.
 func (c *Conn) Status() *Status {
 	c.rwm.RLock()
 	defer c.rwm.RUnlock()
@@ -133,7 +133,7 @@ func (c *Conn) Status() *Status {
 	}
 }
 
-// String is used to get connection info
+// String is used to get connection information.
 //
 // local:  tcp 127.0.0.1:123
 // remote: tcp 127.0.0.1:124

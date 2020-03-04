@@ -2,6 +2,7 @@ package xnet
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -75,6 +76,10 @@ func TestListener(t *testing.T) {
 
 		_, err = listener.AcceptEx()
 		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("String", func(t *testing.T) {
+		fmt.Println(listener)
 	})
 
 	require.NoError(t, listener.Close())

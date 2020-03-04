@@ -35,7 +35,7 @@ var (
 	ErrEmptyNetwork = fmt.Errorf("empty network")
 )
 
-// CheckModeNetwork is used to check if the mode and network matched
+// CheckModeNetwork is used to check if the mode and network matched.
 func CheckModeNetwork(mode string, network string) error {
 	if mode == "" {
 		return ErrEmptyMode
@@ -70,14 +70,14 @@ func CheckModeNetwork(mode string, network string) error {
 	return fmt.Errorf("mismatched mode and network: %s %s", mode, network)
 }
 
-// Listener contains a net.Listener and listener's mode
+// Listener contains a net.Listener and listener's mode.
 type Listener struct {
 	net.Listener
 	mode string
 	now  func() time.Time
 }
 
-// AcceptEx is used to accept *Conn, role will use it
+// AcceptEx is used to accept *Conn, role will use it.
 func (l *Listener) AcceptEx() (*Conn, error) {
 	conn, err := l.Listener.Accept()
 	if err != nil {
@@ -86,15 +86,23 @@ func (l *Listener) AcceptEx() (*Conn, error) {
 	return NewConn(conn, l.mode, l.now()), nil
 }
 
-// Mode is used to get the listener mode
+// Mode is used to get the listener mode.
 func (l *Listener) Mode() string {
 	return l.mode
 }
 
-// Dialer is a shortcut
+// String is used to return listener information.
+// tls (tcp 127.0.0.1:443)
+// quic (udp 127.0.0.1:443)
+func (l *Listener) String() string {
+	addr := l.Listener.Addr()
+	return fmt.Sprintf("%s (%s %s)", l.mode, addr.Network(), addr)
+}
+
+// Dialer is a shortcut.
 type Dialer func(ctx context.Context, network, address string) (net.Conn, error)
 
-// Options contains options about all modes
+// Options contains options about all modes.
 type Options struct {
 	TLSConfig *tls.Config      // tls, quic need it
 	Timeout   time.Duration    // handshake timeout
@@ -102,7 +110,7 @@ type Options struct {
 	Now       func() time.Time // get connect time
 }
 
-// Listen is used to listen a listener
+// Listen is used to listen a listener.
 func Listen(mode, network, address string, opts *Options) (*Listener, error) {
 	err := CheckModeNetwork(mode, network)
 	if err != nil {
@@ -136,12 +144,12 @@ func Listen(mode, network, address string, opts *Options) (*Listener, error) {
 	}, nil
 }
 
-// Dial is used to dial context with context.Background()
+// Dial is used to dial context with context.Background().
 func Dial(mode, network, address string, opts *Options) (*Conn, error) {
 	return DialContext(context.Background(), mode, network, address, opts)
 }
 
-// DialContext is used to dial with context
+// DialContext is used to dial with context.
 func DialContext(ctx context.Context, mode, network, address string, opts *Options) (*Conn, error) {
 	err := CheckModeNetwork(mode, network)
 	if err != nil {
