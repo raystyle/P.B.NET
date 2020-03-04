@@ -190,3 +190,18 @@ func TestFormatNumber(t *testing.T) {
 		require.Equal(t, testdata[i].output, FormatNumber(testdata[i].input))
 	}
 }
+
+func TestByteSliceToString(t *testing.T) {
+	testdata := []*struct {
+		input  []byte
+		output string
+	}{
+		{[]byte{}, "[]byte{}"},
+		{[]byte{1}, "[]byte{1}"},
+		{[]byte{1, 2}, "[]byte{1, 2}"},
+		{[]byte{1, 2, 3}, "[]byte{1, 2, 3}"},
+	}
+	for i := 0; i < len(testdata); i++ {
+		require.Equal(t, testdata[i].output, ByteSliceToString(testdata[i].input))
+	}
+}

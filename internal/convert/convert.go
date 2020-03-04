@@ -3,6 +3,7 @@ package convert
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -163,5 +164,23 @@ func FormatNumber(str string) string {
 		builder.WriteString(".")
 		builder.WriteString(all[1])
 	}
+	return builder.String()
+}
+
+// ByteSliceToString is used to print byte slice.
+// output is "[]byte{1, 2, 3}"
+func ByteSliceToString(b []byte) string {
+	l := len(b)
+	end := l - 1
+	builder := strings.Builder{}
+	builder.Grow(8 + 2*l)
+	builder.WriteString("[]byte{")
+	for i := 0; i < l; i++ {
+		builder.WriteString(strconv.Itoa(int(b[i])))
+		if i != end {
+			builder.WriteString(", ")
+		}
+	}
+	builder.WriteString("}")
 	return builder.String()
 }
