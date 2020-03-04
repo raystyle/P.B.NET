@@ -137,7 +137,7 @@ func TestConfig_Run(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestConfig_Build_Load(t *testing.T) {
+func TestConfig_BuildAndLoad(t *testing.T) {
 	// compare configuration
 	config := testGenerateConfig(t)
 	config.Test.SkipSynchronizeTime = false
@@ -153,10 +153,10 @@ func TestConfig_Build_Load(t *testing.T) {
 	require.NotEqual(t, config, cfg)
 
 	// build and load configuration
-	built, err := config.Build()
+	data, key, err := config.Build()
 	require.NoError(t, err)
 	newConfig := new(Config)
-	err = newConfig.Load(built)
+	err = newConfig.Load(data, key)
 	require.NoError(t, err)
 	require.Equal(t, config, newConfig)
 }

@@ -2,18 +2,22 @@ package beacon
 
 import (
 	"bytes"
+	"compress/flate"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
+	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/msgpack"
 	"project/internal/proxy"
+	"project/internal/random"
+	"project/internal/security"
 	"project/internal/timesync"
 	"project/internal/xpanic"
 )
@@ -315,11 +319,50 @@ func (cfg *Config) wait(ctx context.Context, beacon *Beacon, timeout time.Durati
 }
 
 // Build is used to build configuration.
-func (cfg *Config) Build() ([]byte, error) {
-	return msgpack.Marshal(cfg)
+func (cfg *Config) Build() ([]byte, []byte, error) {
+	data, err := msgpack.Marshal(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { security.CoverBytes(data) }()
+	// use gzip to compress it
+	buf := bytes.NewBuffer(make([]byte, 0, len(data)/2))
+	defer func() { security.CoverBytes(buf.Bytes()) }()
+	writer, _ := flate.NewWriter(buf, flate.BestCompression)
+	_, err = writer.Write(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, nil, err
+	}
+	// use aes to encrypt it
+	rand := random.New()
+	aesKey := rand.Bytes(aes.Key256Bit)
+	aesIV := rand.Bytes(aes.IVSize)
+	cipherData, err := aes.CBCEncrypt(buf.Bytes(), aesKey, aesIV)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cipherData, append(aesKey, aesIV...), nil
 }
 
 // Load is used to load built configuration.
-func (cfg *Config) Load(built []byte) error {
-	return msgpack.Unmarshal(built, &cfg)
+func (cfg *Config) Load(data, key []byte) error {
+	if len(key) != aes.Key256Bit+aes.IVSize {
+		return errors.New("invalid key size")
+	}
+	// decrypt
+	aesKey := key[:aes.Key256Bit]
+	aesIV := key[aes.Key256Bit:]
+	plainData, err := aes.CBCDecrypt(data, aesKey, aesIV)
+	if err != nil {
+		return err
+	}
+	defer func() { security.CoverBytes(plainData) }()
+	// decompress
+	reader := flate.NewReader(bytes.NewReader(plainData))
+	defer func() { _ = reader.Close() }()
+	return msgpack.NewDecoder(reader).Decode(cfg)
 }
