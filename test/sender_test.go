@@ -457,12 +457,12 @@ func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
 				format := "read " + prefix + ".Test.BroadcastTestMsg timeout i: %d"
-				t.Fatalf(format, n, i)
+				t.Errorf(format, n, i)
 			}
 		}
 		select {
 		case <-node.Test.BroadcastTestMsg:
-			t.Fatalf(prefix+" read redundancy broadcast", n)
+			t.Errorf(prefix+" read redundancy broadcast", n)
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -572,12 +572,12 @@ func testCtrlSendToNode(t *testing.T, iNodes, cNodes []*node.Node) {
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
 				format := "read " + prefix + ".Test.SendTestMsg timeout i: %d"
-				t.Fatalf(format, n, i)
+				t.Errorf(format, n, i)
 			}
 		}
 		select {
 		case <-node.Test.SendTestMsg:
-			t.Fatalf(prefix+" read redundancy send", n)
+			t.Errorf(prefix+" read redundancy send", n)
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -677,12 +677,12 @@ func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Be
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
 				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
-				t.Fatalf(format, n, i)
+				t.Errorf(format, n, i)
 			}
 		}
 		select {
 		case <-beacon.Test.SendTestMsg:
-			t.Fatalf(" read beacon[%d] redundancy send", n)
+			t.Errorf(" read beacon[%d] redundancy send", n)
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -788,12 +788,12 @@ func testNodeSend(t *testing.T, iNodes, cNodes []*node.Node) {
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
 				format := "read " + prefix + " channel timeout i: %d"
-				t.Fatalf(format, n, i)
+				t.Errorf(format, n, i)
 			}
 		}
 		select {
 		case <-ch:
-			t.Fatalf("read "+prefix+" redundancy send", n)
+			t.Errorf("read "+prefix+" redundancy send", n)
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -896,12 +896,12 @@ func testBeaconSend(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) 
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
 				format := "read beacon[%d] channel timeout i: %d"
-				t.Fatalf(format, n, i)
+				t.Errorf(format, n, i)
 			}
 		}
 		select {
 		case <-ch:
-			t.Fatalf(" read beacon[%d] redundancy send", n)
+			t.Errorf(" read beacon[%d] redundancy send", n)
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -995,7 +995,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 				require.Equalf(t, withDeflate, string(msg), format, n, withDeflate)
 			case <-timer.C:
 				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
-				t.Fatalf(format, n, i)
+				t.Errorf(format, n, i)
 			}
 			// without deflate
 			err = beacon.Query()
@@ -1007,7 +1007,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 				require.Equalf(t, withoutDeflate, string(msg), format, n, withoutDeflate)
 			case <-timer.C:
 				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
-				t.Fatalf(format, n, i)
+				t.Errorf(format, n, i)
 			}
 		}
 	}
