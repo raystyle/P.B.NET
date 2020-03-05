@@ -420,7 +420,7 @@ func (client *Client) Synchronize() error {
 		err = errors.Errorf("failed to start to synchronize: %s", resp)
 		return err // can't return directly
 	}
-	client.logf(logger.Info, "start to synchronize\nlistener: %s", client.listener)
+	client.logf(logger.Debug, "start to synchronize\nlistener: %s", client.listener)
 	return nil
 }
 

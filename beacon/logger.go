@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"sync"
 	"time"
 
@@ -61,6 +63,14 @@ func newLogger(ctx *Beacon, config *Config) (*gLogger, error) {
 	if cfg.QueueSize < 512 {
 		return nil, errors.New("logger queue size must >= 512")
 	}
+	writer := cfg.Writer
+	if writer == nil {
+		if cfg.Stdout {
+			writer = os.Stdout
+		} else {
+			writer = ioutil.Discard
+		}
+	}
 	// generate self-encrypt key
 	aesKeyIV := make([]byte, aes.Key256Bit+aes.IVSize)
 	_, err = io.ReadFull(rand.Reader, aesKeyIV)
@@ -74,7 +84,7 @@ func newLogger(ctx *Beacon, config *Config) (*gLogger, error) {
 	lg := &gLogger{
 		ctx:    ctx,
 		level:  lv,
-		writer: cfg.Writer,
+		writer: writer,
 		queue:  make(chan *encLog, cfg.QueueSize),
 		rand:   random.New(),
 		timer:  time.NewTimer(time.Second),
