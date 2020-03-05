@@ -84,12 +84,12 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 
 	// generate certificate
 	certs := ctrl.global.CertPool.GetPrivateRootCAPairs()
+	caCert := certs[0].Certificate
+	caKey := certs[0].PrivateKey
 	opts := cert.Options{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
-	caCert := certs[0].Certificate
-	caKey := certs[0].PrivateKey
 	pair, err := cert.Generate(caCert, caKey, &opts)
 	require.NoError(t, err)
 

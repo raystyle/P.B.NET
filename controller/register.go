@@ -23,7 +23,7 @@ func (ctrl *Ctrl) TrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 ) (*messages.NodeRegisterRequest, error) {
-	// TODO add log
+	// TODO add log, check exists
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create client")

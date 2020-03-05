@@ -62,13 +62,13 @@ func testNodeListenerClientSend(t *testing.T, client *controller.Client) {
 
 func testNodeListenerQUIC(t *testing.T, node *node.Node) {
 	const tag = "l_quic"
+	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener := messages.Listener{
 		Tag:     tag,
 		Mode:    xnet.ModeQUIC,
 		Network: "udp",
 		Address: "localhost:0",
 	}
-	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
@@ -104,13 +104,13 @@ func testNodeListenerLight(t *testing.T, node *node.Node) {
 
 func testNodeListenerTLS(t *testing.T, node *node.Node) {
 	const tag = "l_tls"
+	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener := messages.Listener{
 		Tag:     tag,
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(certPEM), Key: string(keyPEM)},
 	}

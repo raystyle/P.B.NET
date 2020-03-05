@@ -245,12 +245,12 @@ func initializeController(t testing.TB) {
 
 func generateCert(t testing.TB) *cert.Pair {
 	certs := ctrl.GetCertPool().GetPrivateRootCAPairs()
+	caCert := certs[0].Certificate
+	caKey := certs[0].PrivateKey
 	opts := cert.Options{
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []string{"127.0.0.1", "::1"},
 	}
-	caCert := certs[0].Certificate
-	caKey := certs[0].PrivateKey
 	pair, err := cert.Generate(caCert, caKey, &opts)
 	require.NoError(t, err)
 	return pair
@@ -278,13 +278,13 @@ func generateInitialNode(t testing.TB, id int) *node.Node {
 	cfg.Register.Skip = true
 
 	// generate listener config
+	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener := messages.Listener{
 		Tag:     initialNodeListenerTag,
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:0",
 	}
-	certPEM, keyPEM := generateCert(t).EncodeToPEM()
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
