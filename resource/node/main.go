@@ -8,8 +8,6 @@ import (
 
 	"github.com/kardianos/service"
 
-	"project/internal/patch/msgpack"
-
 	"project/node"
 )
 
@@ -22,8 +20,11 @@ func main() {
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
 	flag.Parse()
 
+	// generator will replace it
+	data := []byte("flag-01: config")
+	key := []byte("flag-02: key")
 	config := new(node.Config)
-	err := msgpack.Unmarshal([]byte{}, config)
+	err := config.Load(data, key)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -43,13 +44,9 @@ func main() {
 		}
 		log.Println("uninstall service successfully")
 	default:
-		lg, err := svc.Logger(nil)
-		if err != nil {
-			log.Fatalln(err)
-		}
 		err = svc.Run()
 		if err != nil {
-			_ = lg.Error(err)
+			log.Println(err)
 		}
 	}
 }
@@ -59,7 +56,6 @@ func createService(config *node.Config) service.Service {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	Node.HijackLogWriter()
 	svc, err := service.New(&program{node: Node}, &service.Config{
 		Name:        config.Service.Name,
 		DisplayName: config.Service.DisplayName,
@@ -68,6 +64,7 @@ func createService(config *node.Config) service.Service {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	Node.HijackLogWriter()
 	return svc
 }
 
@@ -76,16 +73,12 @@ type program struct {
 	wg   sync.WaitGroup
 }
 
-func (p *program) Start(s service.Service) error {
+func (p *program) Start(_ service.Service) error {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 		err := p.node.Main()
 		if err != nil {
-			l, e := s.Logger(nil)
-			if e == nil {
-				_ = l.Error(err)
-			}
 			os.Exit(1)
 		}
 	}()
