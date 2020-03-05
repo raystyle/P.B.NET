@@ -203,18 +203,14 @@ func (server *server) deploy(tag string, listener *xnet.Listener) error {
 	go server.serve(tag, listener, errChan)
 	select {
 	case err := <-errChan:
-		const format = "failed to add listener %s(%s): %s"
-		return errors.Errorf(format, tag, listener.Addr(), err)
+		return errors.Errorf("failed to deploy listener %s: %s", tag, err)
 	case <-time.After(time.Second):
-		network := listener.Addr().Network()
-		address := listener.Addr().String()
-		const format = "add listener: %s %s (%s %s)"
-		server.logf(logger.Info, format, tag, listener.Mode(), network, address)
+		server.logf(logger.Info, "deploy listener %s %s", tag, listener)
 		return nil
 	}
 }
 
-func (server *server) serve(tag string, l *xnet.Listener, errChan chan<- error) {
+func (server *server) serve(tag string, listener *xnet.Listener, errChan chan<- error) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
@@ -227,15 +223,13 @@ func (server *server) serve(tag string, l *xnet.Listener, errChan chan<- error) 
 		server.rwm.Lock()
 		defer server.rwm.Unlock()
 		delete(server.listeners, tag)
-		addr := l.Addr()
-		network := addr.Network()
-		server.logf(logger.Info, "listener: %s (%s %s) is closed", tag, network, addr)
+		server.logf(logger.Info, "listener %s %s is closed", tag, listener)
 		server.wg.Done()
 	}()
 	var delay time.Duration // how long to sleep on accept failure
 	maxDelay := 2 * time.Second
 	for {
-		conn, e := l.AcceptEx()
+		conn, e := listener.AcceptEx()
 		if e != nil {
 			if ne, ok := e.(net.Error); ok && ne.Temporary() {
 				if delay == 0 {

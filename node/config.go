@@ -339,7 +339,7 @@ func (cfg *Config) Build() ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 	defer func() { security.CoverBytes(data) }()
-	// use gzip to compress it
+	// compress
 	buf := bytes.NewBuffer(make([]byte, 0, len(data)/2))
 	defer func() { security.CoverBytes(buf.Bytes()) }()
 	writer, _ := flate.NewWriter(buf, flate.BestCompression)
@@ -351,7 +351,7 @@ func (cfg *Config) Build() ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	// use aes to encrypt it
+	// encrypt
 	rand := random.New()
 	aesKey := rand.Bytes(aes.Key256Bit)
 	aesIV := rand.Bytes(aes.IVSize)

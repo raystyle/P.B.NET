@@ -331,7 +331,7 @@ func (client *Client) Synchronize() error {
 	if err != nil {
 		return err
 	}
-	client.Conn.Logf(logger.Info, "start to synchronize\nlistener: %s", client.listener)
+	client.Conn.Logf(logger.Debug, "start to synchronize\nlistener: %s", client.listener)
 	return nil
 }
 
