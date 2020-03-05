@@ -47,6 +47,15 @@ func TestRandom(t *testing.T) {
 
 		require.True(t, Int(-1) == 0)
 	})
+
+	t.Run("panic about rand.New", func(t *testing.T) {
+		// patchFunc := func(_ rand.Source) *rand.Rand {
+		// 	panic("panic about monkey")
+		// }
+		// pg := monkey.Patch(rand.New, patchFunc)
+		// defer pg.Unpatch()
+		// require.NotNil(t, New())
+	})
 }
 
 func TestRandomEqual(t *testing.T) {

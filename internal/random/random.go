@@ -35,7 +35,7 @@ func New() *Rand {
 		goroutines = 16
 		times      = 128
 	)
-	data := make(chan []byte, goroutines*times)
+	data := make(chan []byte, 16)
 	wg := sync.WaitGroup{}
 	wg.Add(goroutines)
 	for i := 0; i < goroutines; i++ {
@@ -46,9 +46,15 @@ func New() *Rand {
 				}
 				wg.Done()
 			}()
+			timer := time.NewTimer(time.Second)
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			for i := 0; i < times; i++ {
-				data <- []byte{byte(r.Intn(256) + i)}
+				timer.Reset(time.Second)
+				select {
+				case data <- []byte{byte(r.Intn(256) + i)}:
+				case <-timer.C:
+					return
+				}
 			}
 		}()
 	}
@@ -61,11 +67,18 @@ func New() *Rand {
 		wg.Wait()
 		close(data)
 	}()
+	timer := time.NewTimer(time.Second)
 	hash := sha256.New()
+read:
 	for i := 0; i < goroutines*times; i++ {
-		d := <-data
-		if d != nil {
-			hash.Write(<-data)
+		timer.Reset(time.Second)
+		select {
+		case d := <-data:
+			if d != nil {
+				hash.Write(<-data)
+			}
+		case <-timer.C:
+			break read
 		}
 	}
 	n, _ := io.CopyN(hash, cr.Reader, 512)
@@ -80,7 +93,7 @@ func New() *Rand {
 	return &Rand{rand: rand.New(rand.NewSource(seed))}
 }
 
-// String return a string that not include "|"
+// String return a string that not include "|".
 func (r *Rand) String(n int) string {
 	if n < 1 {
 		return ""
@@ -95,7 +108,7 @@ func (r *Rand) String(n int) string {
 	return string(result)
 }
 
-// Bytes is used to generate random []byte that size = n
+// Bytes is used to generate random []byte that size = n.
 func (r *Rand) Bytes(n int) []byte {
 	if n < 1 {
 		return nil
@@ -110,7 +123,7 @@ func (r *Rand) Bytes(n int) []byte {
 	return result
 }
 
-// Cookie return a string that only include number and A-Z a-z
+// Cookie return a string that only include number and A-Z a-z.
 func (r *Rand) Cookie(n int) string {
 	if n < 1 {
 		return ""
@@ -158,17 +171,17 @@ func (r *Rand) Uint64() uint64 {
 	return r.rand.Uint64()
 }
 
-// String return a string that not include "|"
+// String return a string that not include "|".
 func String(n int) string {
 	return gRand.String(n)
 }
 
-// Bytes is used to generate random []byte that size = n
+// Bytes is used to generate random []byte that size = n.
 func Bytes(n int) []byte {
 	return gRand.Bytes(n)
 }
 
-// Cookie return a string that only include number and A-Z a-z
+// Cookie return a string that only include number and A-Z a-z.
 func Cookie(n int) string {
 	return gRand.Cookie(n)
 }
