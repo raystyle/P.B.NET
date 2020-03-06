@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/dns"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testcert"
 	"project/internal/testsuite/testdns"
@@ -153,6 +154,19 @@ func TestGetHeaderDate(t *testing.T) {
 		require.NoError(t, err)
 		_, err = getHeaderDate(r, client)
 		require.Error(t, err)
+	})
+
+	t.Run("failed to parse date", func(t *testing.T) {
+		const url = "http://ds.vm0.test-ipv6.com/"
+		r, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		patchFunc := func(_ string) (time.Time, error) {
+			return time.Time{}, monkey.ErrMonkey
+		}
+		pg := monkey.Patch(http.ParseTime, patchFunc)
+		defer pg.Unpatch()
+		_, err = getHeaderDate(r, client)
+		monkey.IsMonkeyError(t, err)
 	})
 }
 

@@ -96,7 +96,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 
 	for i := 0; i < len(result); i++ {
 		req := req.Clone(h.ctx)
-		// replace to ip
+		// replace to IP address
 		if port != "" {
 			req.URL.Host = net.JoinHostPort(result[i], port)
 		} else {
@@ -127,17 +127,28 @@ func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
 	if client.Timeout < 1 {
 		client.Timeout = defaultDialTimeout
 	}
+	t1 := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
 		return time.Time{}, err
 	}
+	// TCP: 3 RTT, TLS 4 RTT(most), Request 1 RTT, Response(this) 1 RTT
+	rtt := time.Duration(5)
+	if req.URL.Scheme == "https" {
+		rtt += 4
+	}
+	delta := time.Since(t1) / rtt
 	defer func() {
 		// <security> read limit
 		n := int64(4<<20 + random.Int(4<<20)) // 4-8 MB
 		_, _ = io.CopyN(ioutil.Discard, resp.Body, n)
 		_ = resp.Body.Close()
 	}()
-	return http.ParseTime(resp.Header.Get("Date"))
+	remoteTime, err := http.ParseTime(resp.Header.Get("Date"))
+	if err != nil {
+		return time.Time{}, err
+	}
+	return remoteTime.Add(delta), nil
 }
 
 // Import is for time syncer.
