@@ -1,10 +1,15 @@
 package random
 
 import (
+	"crypto/sha256"
+	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
 )
 
 func TestRandom(t *testing.T) {
@@ -48,13 +53,38 @@ func TestRandom(t *testing.T) {
 		require.True(t, Int(-1) == 0)
 	})
 
-	t.Run("panic about rand.New", func(t *testing.T) {
-		// patchFunc := func(_ rand.Source) *rand.Rand {
-		// 	panic("panic about monkey")
-		// }
-		// pg := monkey.Patch(rand.New, patchFunc)
-		// defer pg.Unpatch()
-		// require.NotNil(t, New())
+	t.Run("panic about rand.New 1", func(t *testing.T) {
+		defer func() { require.NotNil(t, recover()) }()
+		patchFunc := func(_ rand.Source) *rand.Rand {
+			panic("panic about monkey")
+		}
+		pg := monkey.Patch(rand.New, patchFunc)
+		defer pg.Unpatch()
+		New()
+	})
+
+	t.Run("panic about rand.New 2", func(t *testing.T) {
+		defer func() {
+			require.NotNil(t, recover())
+			time.Sleep(2 * time.Second)
+		}()
+		hash := sha256.New()
+		patchFunc := func(_ interface{}, _ []byte) (int, error) {
+			panic("panic about monkey")
+		}
+		pg := monkey.PatchInstanceMethod(hash, "Write", patchFunc)
+		defer pg.Unpatch()
+		New()
+	})
+
+	t.Run("panic about rand.New 3", func(t *testing.T) {
+		wg := new(sync.WaitGroup)
+		patchFunc := func(_ interface{}) {
+			panic("panic about monkey")
+		}
+		pg := monkey.PatchInstanceMethod(wg, "Wait", patchFunc)
+		defer pg.Unpatch()
+		require.NotNil(t, New())
 	})
 }
 
@@ -84,11 +114,11 @@ func BenchmarkNew(b *testing.B) {
 }
 
 func BenchmarkRand_Bytes(b *testing.B) {
-	rand := New()
+	r := New()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rand.Bytes(16)
+		r.Bytes(16)
 	}
 }
 
