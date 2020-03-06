@@ -22,6 +22,7 @@ import (
 
 func TestNodeListener(t *testing.T) {
 	Node := generateInitialNodeAndTrust(t, 0)
+	nodeGUID := Node.GUID()
 
 	t.Run("QUIC", func(t *testing.T) {
 		testNodeListenerQUIC(t, Node)
@@ -35,6 +36,9 @@ func TestNodeListener(t *testing.T) {
 
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
+
+	err := ctrl.DeleteNodeUnscoped(nodeGUID)
+	require.NoError(t, err)
 }
 
 func testNodeListenerClientSend(t *testing.T, client *controller.Client) {
