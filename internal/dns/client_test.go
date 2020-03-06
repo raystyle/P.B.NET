@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testproxy"
@@ -334,6 +335,24 @@ func TestClient_TestServers(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 		defer cancel()
 		result, err := client.TestServers(ctx, testDomain, new(Options))
+		require.Error(t, err)
+		require.Equal(t, 0, len(result))
+
+		testsuite.IsDestroyed(t, client)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		client := NewClient(certPool, proxyPool)
+		testAddAllDNSServers(t, client)
+
+		opts := new(Options)
+		patchFunc := func(_ interface{}) *Options {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(opts, "Clone", patchFunc)
+		defer pg.Unpatch()
+
+		result, err := client.TestServers(context.Background(), testDomain, new(Options))
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
 
