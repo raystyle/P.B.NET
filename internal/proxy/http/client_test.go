@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -265,6 +266,23 @@ func TestClient_Connect(t *testing.T) {
 	})
 
 	t.Run("panic from context", func(t *testing.T) {
+		srv, cli := net.Pipe()
+		defer func() {
+			require.NoError(t, srv.Close())
+			require.NoError(t, cli.Close())
+		}()
 
+		ctx := context.Background()
+		patchFunc := func(_ interface{}) {
+			_ = cli.Close()
+			panic("panic about monkey")
+		}
+		pg := monkey.PatchInstanceMethod(ctx, "Done", patchFunc)
+		defer pg.Unpatch()
+
+		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+		require.Error(t, err)
 	})
+
+	testsuite.IsDestroyed(t, client)
 }
