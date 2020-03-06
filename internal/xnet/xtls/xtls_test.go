@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -130,6 +131,51 @@ func TestDialContext_Cancel(t *testing.T) {
 
 	require.NoError(t, listener.Close())
 	testsuite.IsDestroyed(t, listener)
+}
+
+func TestDialContext_Panic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	const network = "tcp"
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	clientCfg.ServerName = "localhost"
+
+	listener, err := Listen(network, "localhost:0", serverCfg)
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := listener.Accept()
+		require.NoError(t, err)
+	}()
+
+	server, client := net.Pipe()
+	client = Client(client, clientCfg)
+	var pg *monkey.PatchGuard
+	patchFunc := func(conn *tls.Conn) error {
+		pg.Unpatch()
+		_ = conn.Close()
+		panic(monkey.Panic)
+	}
+	pg = monkey.PatchInstanceMethod(client, "Close", patchFunc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	conn, err := DialContext(ctx, network, address, clientCfg, 0, nil)
+	require.Error(t, err)
+	require.Nil(t, conn)
+
+	require.NoError(t, client.Close())
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
+
+	require.NoError(t, listener.Close())
+	testsuite.IsDestroyed(t, listener)
+	wg.Wait()
 }
 
 func TestFailedToListenAndDial(t *testing.T) {

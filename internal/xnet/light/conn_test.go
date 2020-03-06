@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -94,6 +95,44 @@ func TestConn_Handshake_Cancel(t *testing.T) {
 	require.Error(t, err)
 	_, err = server.Write(make([]byte, 1))
 	require.Error(t, err)
+
+	wg.Wait()
+
+	require.NoError(t, client.Close())
+	require.NoError(t, server.Close())
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, server)
+}
+
+func TestConn_Handshake_Panic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, client := net.Pipe()
+	sCtx, sCancel := context.WithCancel(context.Background())
+	defer sCancel()
+	server = Server(sCtx, server, 0)
+	cCtx, cCancel := context.WithCancel(context.Background())
+	defer cCancel()
+	client = Client(cCtx, client, 0)
+
+	patchFunc := func(_ interface{}) {
+		panic(monkey.Panic)
+	}
+	pg := monkey.PatchInstanceMethod(sCtx, "Done", patchFunc)
+	defer pg.Unpatch()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := server.(*Conn).Handshake()
+		require.NoError(t, err)
+	}()
+
+	time.Sleep(time.Second)
+	err := client.(*Conn).Handshake()
+	require.NoError(t, err)
 
 	wg.Wait()
 
