@@ -14,6 +14,9 @@ import (
 )
 
 func TestNTPClient_Query(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
@@ -32,6 +35,9 @@ func TestNTPClient_Query(t *testing.T) {
 }
 
 func TestNTPClient_Query_Failed(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
 

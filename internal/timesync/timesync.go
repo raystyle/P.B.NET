@@ -58,6 +58,7 @@ type Syncer struct {
 	// about random.Sleep() in Start()
 	sleepFixed  uint
 	sleepRandom uint
+
 	// synchronize interval
 	interval time.Duration
 

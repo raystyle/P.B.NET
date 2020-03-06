@@ -18,6 +18,9 @@ import (
 )
 
 func TestHTTPClient_Query(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
@@ -52,6 +55,9 @@ func TestHTTPClient_Query(t *testing.T) {
 }
 
 func TestHTTPClient_Query_Failed(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
 
@@ -125,6 +131,9 @@ func TestHTTPClient_Query_Failed(t *testing.T) {
 }
 
 func TestGetHeaderDate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	client := &http.Client{
 		Transport: new(http.Transport),
 		Timeout:   10 * time.Second,

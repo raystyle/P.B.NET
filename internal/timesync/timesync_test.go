@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/monkey"
+	"project/internal/random"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 )
@@ -39,9 +41,11 @@ func testAddClients(t *testing.T, syncer *Syncer) {
 }
 
 func TestSyncer(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
-
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
 
@@ -76,9 +80,11 @@ func testUnreachableClient() *Client {
 }
 
 func TestSyncer_Start(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
-
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// set random sleep
@@ -89,49 +95,83 @@ func TestSyncer_Start(t *testing.T) {
 	// no clients
 	require.Equal(t, ErrNoClients, syncer.Start())
 
-	// invalid config
-	err := syncer.Add("invalid config", &Client{
-		Mode:   ModeNTP,
-		Config: `network = "foo network"`,
+	t.Run("invalid config", func(t *testing.T) {
+		err := syncer.Add("invalid config", &Client{
+			Mode:   ModeNTP,
+			Config: `network = "foo network"`,
+		})
+		require.NoError(t, err)
+		require.Error(t, syncer.Start())
+
+		require.NoError(t, syncer.Delete("invalid config"))
 	})
-	require.NoError(t, err)
-	require.Error(t, syncer.Start())
 
-	require.NoError(t, syncer.Delete("invalid config"))
+	t.Run("all failed", func(t *testing.T) {
+		go func() {
+			// delete unreachable
+			time.Sleep(time.Second)
+			require.NoError(t, syncer.Delete("unreachable"))
 
-	// test all failed
+			// add reachable
+			testAddHTTP(t, syncer)
+		}()
+
+		// add unreachable server
+		require.NoError(t, syncer.Add("unreachable", testUnreachableClient()))
+		require.NoError(t, syncer.Start())
+	})
+
+	syncer.Stop()
+	testsuite.IsDestroyed(t, syncer)
+}
+
+func TestSyncer_Start_Stop(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+
+	// set random sleep
+	require.Error(t, syncer.SetSleep(0, 0))
+	require.Error(t, syncer.SetSleep(10, 0))
+	require.NoError(t, syncer.SetSleep(3, 5))
+
 	go func() {
-		// delete unreachable
-		time.Sleep(time.Second)
-		require.NoError(t, syncer.Delete("unreachable"))
-
-		// add reachable
-		testAddHTTP(t, syncer)
+		time.Sleep(3 * time.Second)
+		syncer.Stop()
 	}()
 
-	// add unreachable server
 	require.NoError(t, syncer.Add("unreachable", testUnreachableClient()))
-	require.NoError(t, syncer.Start())
-	syncer.Stop()
+	require.Error(t, syncer.Start())
 
 	testsuite.IsDestroyed(t, syncer)
 }
 
 func TestSyncer_StartWalker(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
-
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+
 	syncer.StartWalker()
 	now := syncer.Now()
 	time.Sleep(2 * time.Second)
 	require.False(t, syncer.Now().Equal(now))
+
+	syncer.Stop()
+	testsuite.IsDestroyed(t, syncer)
 }
 
 func TestSyncer_Add_Delete(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
-
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
 
@@ -160,9 +200,11 @@ func TestSyncer_Add_Delete(t *testing.T) {
 }
 
 func TestSyncer_Test(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
-
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// no clients
@@ -181,19 +223,41 @@ func TestSyncer_Test(t *testing.T) {
 	// test
 	require.NoError(t, syncer.Test(context.Background()))
 
-	// test failed
-	require.NoError(t, syncer.Delete("http"))
-	err = syncer.Add("unreachable", testUnreachableClient())
-	require.NoError(t, err)
-	require.Error(t, syncer.Test(context.Background()))
+	t.Run("failed", func(t *testing.T) {
+		require.NoError(t, syncer.Delete("http"))
+		err = syncer.Add("unreachable", testUnreachableClient())
+		require.NoError(t, err)
+		require.Error(t, syncer.Test(context.Background()))
+
+		testAddHTTP(t, syncer)
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		require.Error(t, syncer.Test(ctx))
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		client := new(HTTP)
+		patchFunc := func(_ interface{}) (time.Time, bool, error) {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(client, "Query", patchFunc)
+		defer pg.Unpatch()
+
+		require.Error(t, syncer.Test(context.Background()))
+	})
 
 	testsuite.IsDestroyed(t, syncer)
 }
 
 func TestSyncer_synchronizeLoop(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
-
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// force set synchronize interval
@@ -208,23 +272,70 @@ func TestSyncer_synchronizeLoop(t *testing.T) {
 	// wait failed to synchronize
 	require.NoError(t, syncer.Delete("http"))
 	time.Sleep(3 * time.Second)
-	syncer.Stop()
 
+	syncer.Stop()
+	testsuite.IsDestroyed(t, syncer)
+}
+
+func TestSyncer_workerPanic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+
+	patchFunc := func(_ time.Duration) *time.Ticker {
+		panic(monkey.Panic)
+	}
+	pg := monkey.Patch(time.NewTicker, patchFunc)
+	defer pg.Unpatch()
+
+	syncer.wg.Add(1)
+	syncer.walker()
+	pg.Unpatch()
+
+	syncer.Stop()
+	testsuite.IsDestroyed(t, syncer)
+}
+
+func TestSyncer_synchronizeLoopPanic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+
+	patchFunc := func() *random.Rand {
+		panic(monkey.Panic)
+	}
+	pg := monkey.Patch(random.New, patchFunc)
+	defer pg.Unpatch()
+
+	syncer.wg.Add(1)
+	syncer.synchronizeLoop()
+	pg.Unpatch()
+
+	syncer.Stop()
 	testsuite.IsDestroyed(t, syncer)
 }
 
 func TestSyncer_synchronizePanic(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
-
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
+
 	// add reachable
 	testAddHTTP(t, syncer)
 
 	// remove context
 	syncer.Clients()["http"].client.(*HTTP).ctx = nil
 	require.Error(t, syncer.Start())
-	syncer.Stop()
 
+	syncer.Stop()
 	testsuite.IsDestroyed(t, syncer)
 }
