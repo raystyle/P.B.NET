@@ -275,7 +275,7 @@ func TestClient_Connect(t *testing.T) {
 		ctx := context.Background()
 		patchFunc := func(_ interface{}) {
 			_ = cli.Close()
-			panic("panic about monkey")
+			panic(monkey.Panic)
 		}
 		pg := monkey.PatchInstanceMethod(ctx, "Done", patchFunc)
 		defer pg.Unpatch()

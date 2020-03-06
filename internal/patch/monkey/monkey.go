@@ -13,8 +13,10 @@ import (
 // PatchGuard is a type alias.
 type PatchGuard = monkey.PatchGuard
 
-// ErrMonkey is used to return an error in patch function.
-var ErrMonkey = errors.New("monkey error")
+var (
+	ErrMonkey = errors.New("monkey error")
+	Panic     = "panic about monkey"
+)
 
 // IsMonkeyError is used to confirm err is ErrMonkey.
 func IsMonkeyError(t testing.TB, err error) {

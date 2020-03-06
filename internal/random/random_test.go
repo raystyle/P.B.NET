@@ -56,7 +56,7 @@ func TestRandom(t *testing.T) {
 	t.Run("panic about rand.New 1", func(t *testing.T) {
 		defer func() { require.NotNil(t, recover()) }()
 		patchFunc := func(_ rand.Source) *rand.Rand {
-			panic("panic about monkey")
+			panic(monkey.Panic)
 		}
 		pg := monkey.Patch(rand.New, patchFunc)
 		defer pg.Unpatch()
@@ -70,7 +70,7 @@ func TestRandom(t *testing.T) {
 		}()
 		hash := sha256.New()
 		patchFunc := func(_ interface{}, _ []byte) (int, error) {
-			panic("panic about monkey")
+			panic(monkey.Panic)
 		}
 		pg := monkey.PatchInstanceMethod(hash, "Write", patchFunc)
 		defer pg.Unpatch()
@@ -80,7 +80,7 @@ func TestRandom(t *testing.T) {
 	t.Run("panic about rand.New 3", func(t *testing.T) {
 		wg := new(sync.WaitGroup)
 		patchFunc := func(_ interface{}) {
-			panic("panic about monkey")
+			panic(monkey.Panic)
 		}
 		pg := monkey.PatchInstanceMethod(wg, "Wait", patchFunc)
 		defer pg.Unpatch()

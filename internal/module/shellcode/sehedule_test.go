@@ -12,7 +12,7 @@ import (
 func TestDoUseless(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		patchFunc := func() *random.Rand {
-			panic("panic about monkey")
+			panic(monkey.Panic)
 		}
 		pg := monkey.Patch(random.New, patchFunc)
 		defer pg.Unpatch()
