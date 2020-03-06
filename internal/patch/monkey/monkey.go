@@ -14,8 +14,11 @@ import (
 type PatchGuard = monkey.PatchGuard
 
 var (
+	// ErrMonkey is used to return an error in patch function.
 	ErrMonkey = errors.New("monkey error")
-	Panic     = "panic about monkey"
+
+	// Panic is a string for panic() in patch function.
+	Panic = "panic about monkey"
 )
 
 // IsMonkeyError is used to confirm err is ErrMonkey.
