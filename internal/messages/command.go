@@ -4,6 +4,13 @@ import (
 	"project/internal/convert"
 )
 
+// about size
+const (
+	RandomDataSize  = 4 // make sure the hash of the same message different
+	MessageTypeSize = 4 // uint32
+	HeaderSize      = RandomDataSize + MessageTypeSize
+)
+
 // CMDTest is used to test
 const CMDTest uint32 = 0xF0000001
 

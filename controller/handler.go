@@ -96,13 +96,13 @@ func (h *handler) logPanic(title string) {
 
 func (h *handler) OnNodeSend(send *protocol.Send) {
 	defer h.logPanic("handler.OnNodeSend")
-	if len(send.Message) < 4 {
+	if len(send.Message) < messages.HeaderSize {
 		const log = "node send with invalid size"
 		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
 		return
 	}
-	msgType := convert.BytesToUint32(send.Message[:4])
-	send.Message = send.Message[4:]
+	msgType := convert.BytesToUint32(send.Message[messages.RandomDataSize:messages.HeaderSize])
+	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDNodeLog:
 		h.handleNodeLog(send)
@@ -328,13 +328,13 @@ func (h *handler) handleNodeSendTestMessage(send *protocol.Send) {
 
 func (h *handler) OnBeaconSend(send *protocol.Send) {
 	defer h.logPanic("handler.OnBeaconSend")
-	if len(send.Message) < 4 {
+	if len(send.Message) < messages.HeaderSize {
 		const log = "beacon send with invalid size"
 		h.logWithInfo(logger.Exploit, send.RoleGUID, send, log)
 		return
 	}
-	msgType := convert.BytesToUint32(send.Message[:4])
-	send.Message = send.Message[4:]
+	msgType := convert.BytesToUint32(send.Message[messages.RandomDataSize:messages.HeaderSize])
+	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDShellOutput:
 		h.handleShellOutput(send)
