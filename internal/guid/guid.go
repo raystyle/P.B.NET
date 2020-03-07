@@ -21,13 +21,13 @@ import (
 // +------------+-------------+----------+------------------+------------+
 // head = hash + PID
 
-// Size is the generated GUID size
+// Size is the generated GUID size.
 const Size int = 20 + 4 + 8 + 8 + 8
 
 // GUID is the generated GUID
 type GUID [Size]byte
 
-// Write is used to copy []byte to guid
+// Write is used to copy []byte to guid.
 func (guid *GUID) Write(s []byte) error {
 	if len(s) != Size {
 		return errors.New("invalid byte slice size")
@@ -36,7 +36,7 @@ func (guid *GUID) Write(s []byte) error {
 	return nil
 }
 
-// Print is used to print GUID with prefix
+// Print is used to print GUID with prefix.
 //
 // GUID: FD4960D3BE40D9CE66B02949E1E85B9082AA0016C39D3225
 //       2228B5F0502D7F3D94F0000000005E35B700000000000000
@@ -50,7 +50,7 @@ func (guid *GUID) Print() string {
 	return strings.ToUpper(string(dst))
 }
 
-// Hex is used to encode GUID to a hex string
+// Hex is used to encode GUID to a hex string.
 //
 // FD4960D3BE40D9CE66B02949E1E85B9082AA0016C39D3225
 // 2228B5F0502D7F3D94F0000000005E35B700000000000000
@@ -62,12 +62,12 @@ func (guid *GUID) Hex() string {
 	return strings.ToUpper(string(dst))
 }
 
-// Timestamp is used to get timestamp in the GUID
+// Timestamp is used to get timestamp in the GUID.
 func (guid *GUID) Timestamp() int64 {
 	return int64(binary.BigEndian.Uint64(guid[32:40]))
 }
 
-// Generator is a custom GUID generator
+// Generator is a custom GUID generator.
 type Generator struct {
 	now        func() time.Time
 	random     *random.Rand
@@ -79,8 +79,8 @@ type Generator struct {
 	wg         sync.WaitGroup
 }
 
-// New is used to create a GUID generator
-// if now is nil, use time.Now
+// New is used to create a GUID generator.
+// if now is nil, use time.Now.
 func New(size int, now func() time.Time) *Generator {
 	g := Generator{
 		stopSignal: make(chan struct{}),
@@ -105,19 +105,23 @@ func New(size int, now func() time.Time) *Generator {
 	g.head = append(g.head, hash.Sum(nil)[:20]...)
 	hash.Write(convert.Int64ToBytes(int64(os.Getpid())))
 	g.head = append(g.head, hash.Sum(nil)[:4]...)
+	// random ID
+	for i := 0; i < 5; i++ {
+		g.id += uint64(g.random.Int(1048576))
+	}
 	g.wg.Add(1)
 	go g.generate()
 	return &g
 }
 
-// Get is used to get a GUID, if generator closed, Get will return nil
+// Get is used to get a GUID, if generator closed, Get will return nil.
 func (g *Generator) Get() *GUID {
 	guid := <-g.guidQueue
 	copy(guid[32:40], convert.Int64ToBytes(g.now().Unix()))
 	return guid
 }
 
-// Close is used to close generator
+// Close is used to close generator.
 func (g *Generator) Close() {
 	g.closeOnce.Do(func() {
 		close(g.stopSignal)
