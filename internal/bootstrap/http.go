@@ -32,7 +32,6 @@ const (
 
 // errors
 var (
-	ErrNoResponse           = fmt.Errorf("no response")
 	ErrInvalidSignatureSize = fmt.Errorf("invalid signature size")
 	ErrInvalidSignature     = fmt.Errorf("invalid signature")
 )
@@ -302,7 +301,7 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	if err == nil {
 		return resolve(tempHTTP, info), nil
 	}
-	return nil, errors.Wrap(ErrNoResponse, err.Error())
+	return nil, err
 }
 
 func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
