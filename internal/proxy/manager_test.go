@@ -196,47 +196,79 @@ func TestManager_Parallel(t *testing.T) {
 		tag2 = "test-02"
 	)
 
-	add1 := func() {
-		err := manager.Add(&Server{
-			Tag:  tag1,
-			Mode: ModeSocks5,
-		})
-		require.NoError(t, err)
-	}
-	add2 := func() {
-		err := manager.Add(&Server{
-			Tag:  tag2,
-			Mode: ModeHTTP,
-		})
-		require.NoError(t, err)
-	}
-	testsuite.RunParallel(add1, add2)
+	t.Run("simple", func(t *testing.T) {
+		add1 := func() {
+			err := manager.Add(&Server{
+				Tag:  tag1,
+				Mode: ModeSocks5,
+			})
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := manager.Add(&Server{
+				Tag:  tag2,
+				Mode: ModeHTTP,
+			})
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(add1, add2)
 
-	get1 := func() {
-		server, err := manager.Get(tag1)
-		require.NoError(t, err)
-		require.NotNil(t, server)
-	}
-	get2 := func() {
-		server, err := manager.Get(tag2)
-		require.NoError(t, err)
-		require.NotNil(t, server)
-	}
-	testsuite.RunParallel(get1, get2)
+		get1 := func() {
+			server, err := manager.Get(tag1)
+			require.NoError(t, err)
+			require.NotNil(t, server)
+		}
+		get2 := func() {
+			server, err := manager.Get(tag2)
+			require.NoError(t, err)
+			require.NotNil(t, server)
+		}
+		testsuite.RunParallel(get1, get2)
 
-	delete1 := func() {
-		err := manager.Delete(tag1)
-		require.NoError(t, err)
-	}
-	delete2 := func() {
-		err := manager.Delete(tag2)
-		require.NoError(t, err)
-	}
-	testsuite.RunParallel(delete1, delete2)
+		getAll1 := func() {
+			servers := manager.Servers()
+			require.Equal(t, 2+testServerNum, len(servers))
+		}
+		getAll2 := func() {
+			servers := manager.Servers()
+			require.Equal(t, 2+testServerNum, len(servers))
+		}
+		testsuite.RunParallel(getAll1, getAll2)
 
-	require.Equal(t, testServerNum, len(manager.Servers()))
-	require.NoError(t, manager.Close())
-	require.Equal(t, 0, len(manager.Servers()))
+		delete1 := func() {
+			err := manager.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := manager.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(delete1, delete2)
+
+		require.Equal(t, testServerNum, len(manager.Servers()))
+		require.NoError(t, manager.Close())
+		require.Equal(t, 0, len(manager.Servers()))
+	})
+
+	t.Run("mixed", func(t *testing.T) {
+		add := func() {
+			err := manager.Add(&Server{
+				Tag:  tag1,
+				Mode: ModeSocks5,
+			})
+			require.NoError(t, err)
+		}
+		get := func() {
+			_, _ = manager.Get(tag1)
+		}
+		getAll := func() {
+			_ = manager.Servers()
+		}
+		del := func() {
+			_ = manager.Delete(tag1)
+		}
+		testsuite.RunParallel(add, get, getAll, del)
+	})
 
 	testsuite.IsDestroyed(t, manager)
 }

@@ -366,7 +366,6 @@ func TestClient_TestOptions(t *testing.T) {
 
 	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
-
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
@@ -470,6 +469,87 @@ func TestClient_TestOptions(t *testing.T) {
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
 		require.Equal(t, 0, len(result))
+	})
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestClient_Parallel(t *testing.T) {
+	client := NewClient(nil, nil)
+	const (
+		tag1 = "test-01"
+		tag2 = "test-02"
+	)
+
+	t.Run("simple", func(t *testing.T) {
+		add1 := func() {
+			err := client.Add(tag1, &Server{
+				Method:  MethodUDP,
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := client.Add(tag2, &Server{
+				Method:  MethodUDP,
+				Address: "127.0.0.1:1081",
+			})
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(add1, add2)
+
+		get1 := func() {
+			servers := client.Servers()
+			require.Equal(t, 2, len(servers))
+		}
+		get2 := func() {
+			servers := client.Servers()
+			require.Equal(t, 2, len(servers))
+		}
+		testsuite.RunParallel(get1, get2)
+
+		delete1 := func() {
+			err := client.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := client.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(delete1, delete2)
+
+		require.Equal(t, 0, len(client.Servers()))
+	})
+
+	t.Run("mixed", func(t *testing.T) {
+		add := func() {
+			err := client.Add(tag1, &Server{
+				Method:  MethodUDP,
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+		}
+		get := func() {
+			_ = client.Servers()
+		}
+		del := func() {
+			_ = client.Delete(tag1)
+		}
+		testsuite.RunParallel(add, get, del)
+	})
+
+	t.Run("cache", func(t *testing.T) {
+		f1 := func() {
+			client.GetCacheExpireTime()
+		}
+		f2 := func() {
+			err := client.SetCacheExpireTime(time.Minute)
+			require.NoError(t, err)
+		}
+		f3 := func() {
+			client.FlushCache()
+		}
+		testsuite.RunParallel(f1, f2, f3)
 	})
 
 	testsuite.IsDestroyed(t, client)

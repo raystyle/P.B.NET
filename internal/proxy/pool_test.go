@@ -256,49 +256,83 @@ func TestPool_Parallel(t *testing.T) {
 		tag2 = "test-02"
 	)
 
-	add1 := func() {
-		err := pool.Add(&Client{
-			Tag:     tag1,
-			Mode:    ModeSocks5,
-			Network: "tcp",
-			Address: "127.0.0.1:1080",
-		})
-		require.NoError(t, err)
-	}
-	add2 := func() {
-		err := pool.Add(&Client{
-			Tag:     tag2,
-			Mode:    ModeHTTP,
-			Network: "tcp",
-			Address: "127.0.0.1:8080",
-		})
-		require.NoError(t, err)
-	}
-	testsuite.RunParallel(add1, add2)
+	t.Run("simple", func(t *testing.T) {
+		add1 := func() {
+			err := pool.Add(&Client{
+				Tag:     tag1,
+				Mode:    ModeSocks5,
+				Network: "tcp",
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := pool.Add(&Client{
+				Tag:     tag2,
+				Mode:    ModeHTTP,
+				Network: "tcp",
+				Address: "127.0.0.1:8080",
+			})
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(add1, add2)
 
-	get1 := func() {
-		server, err := pool.Get(tag1)
-		require.NoError(t, err)
-		require.NotNil(t, server)
-	}
-	get2 := func() {
-		server, err := pool.Get(tag2)
-		require.NoError(t, err)
-		require.NotNil(t, server)
-	}
-	testsuite.RunParallel(get1, get2)
+		get1 := func() {
+			server, err := pool.Get(tag1)
+			require.NoError(t, err)
+			require.NotNil(t, server)
+		}
+		get2 := func() {
+			server, err := pool.Get(tag2)
+			require.NoError(t, err)
+			require.NotNil(t, server)
+		}
+		testsuite.RunParallel(get1, get2)
 
-	delete1 := func() {
-		err := pool.Delete(tag1)
-		require.NoError(t, err)
-	}
-	delete2 := func() {
-		err := pool.Delete(tag2)
-		require.NoError(t, err)
-	}
-	testsuite.RunParallel(delete1, delete2)
+		getAll1 := func() {
+			clients := pool.Clients()
+			require.Equal(t, 2+testClientNum, len(clients))
+		}
+		getAll2 := func() {
+			clients := pool.Clients()
+			require.Equal(t, 2+testClientNum, len(clients))
+		}
+		testsuite.RunParallel(getAll1, getAll2)
 
-	require.Equal(t, testClientNum, len(pool.Clients()))
+		delete1 := func() {
+			err := pool.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := pool.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(delete1, delete2)
+
+		require.Equal(t, testClientNum, len(pool.Clients()))
+	})
+
+	t.Run("mixed", func(t *testing.T) {
+		add := func() {
+			err := pool.Add(&Client{
+				Tag:     tag1,
+				Mode:    ModeSocks5,
+				Network: "tcp",
+				Address: "127.0.0.1:1080",
+			})
+			require.NoError(t, err)
+		}
+		get := func() {
+			_, _ = pool.Get(tag1)
+		}
+		getAll := func() {
+			_ = pool.Clients()
+		}
+		del := func() {
+			_ = pool.Delete(tag1)
+		}
+		testsuite.RunParallel(add, get, getAll, del)
+	})
 
 	testsuite.IsDestroyed(t, pool)
 }

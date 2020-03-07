@@ -339,3 +339,80 @@ func TestSyncer_synchronizePanic(t *testing.T) {
 	syncer.Stop()
 	testsuite.IsDestroyed(t, syncer)
 }
+
+func TestSyncer_Parallel(t *testing.T) {
+	syncer := New(nil, nil, nil, logger.Test)
+	const (
+		tag1 = "test-01"
+		tag2 = "test-02"
+	)
+
+	t.Run("simple", func(t *testing.T) {
+		add1 := func() {
+			err := syncer.Add(tag1, &Client{
+				Mode:     ModeNTP,
+				SkipTest: true,
+			})
+			require.NoError(t, err)
+		}
+		add2 := func() {
+			err := syncer.Add(tag2, &Client{
+				Mode:     ModeNTP,
+				SkipTest: true,
+			})
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(add1, add2)
+
+		get1 := func() {
+			clients := syncer.Clients()
+			require.Equal(t, 2, len(clients))
+		}
+		get2 := func() {
+			clients := syncer.Clients()
+			require.Equal(t, 2, len(clients))
+		}
+		testsuite.RunParallel(get1, get2)
+
+		delete1 := func() {
+			err := syncer.Delete(tag1)
+			require.NoError(t, err)
+		}
+		delete2 := func() {
+			err := syncer.Delete(tag2)
+			require.NoError(t, err)
+		}
+		testsuite.RunParallel(delete1, delete2)
+	})
+
+	t.Run("mixed", func(t *testing.T) {
+		add := func() {
+			err := syncer.Add(tag1, &Client{
+				Mode:     ModeNTP,
+				SkipTest: true,
+			})
+			require.NoError(t, err)
+		}
+		get := func() {
+			_ = syncer.Clients()
+		}
+		del := func() {
+			_ = syncer.Delete(tag1)
+		}
+		testsuite.RunParallel(add, get, del)
+	})
+
+	t.Run("interval", func(t *testing.T) {
+		set := func() {
+			err := syncer.SetSyncInterval(time.Minute)
+			require.NoError(t, err)
+		}
+		get := func() {
+			_ = syncer.GetSyncInterval()
+		}
+		testsuite.RunParallel(set, get)
+	})
+
+	syncer.Stop()
+	testsuite.IsDestroyed(t, syncer)
+}
