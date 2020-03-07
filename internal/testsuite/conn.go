@@ -110,6 +110,7 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 		require.NoError(t, err)
 		require.Equal(t, Bytes(), data)
 	}
+
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -149,9 +150,51 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	}()
 	wg.Wait()
 
+	// recover about net.Pipe()
+	require.NoError(t, conn1.SetDeadline(time.Time{}))
+	require.NoError(t, conn2.SetDeadline(time.Time{}))
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		read(conn2)
+		write(conn2)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			write(conn2)
+		}()
+		go func() {
+			defer wg.Done()
+			write(conn2)
+		}()
+		read(conn2)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			write(conn1)
+		}()
+		read(conn1)
+		read(conn1)
+		read(conn1)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			write(conn1)
+		}()
+	}()
+	wg.Wait()
+
 	// about Deadline()
-	require.NoError(t, conn1.SetDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, conn2.SetDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn2.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
 	time.Sleep(30 * time.Millisecond)
 	buf := Bytes()
 	_, err := conn1.Write(buf)
@@ -159,8 +202,10 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	_, err = conn2.Read(buf)
 	require.Error(t, err)
 
-	require.NoError(t, conn1.SetDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, conn2.SetDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn2.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
+	require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
 	time.Sleep(30 * time.Millisecond)
 	buf = Bytes()
 	_, err = conn1.Write(buf)
