@@ -307,11 +307,14 @@ func (c *Client) customResolve(ctx context.Context, domain string, opts *Options
 		}
 	}
 	// resolve
-	var result []string
+	var (
+		result []string
+		err    error
+	)
 	if opts.ServerTag != "" { // use selected DNS server
 		if server, ok := c.Servers()[opts.ServerTag]; ok {
 			opts.Method = server.Method
-			err := c.setCertPoolAndProxy(opts)
+			err = c.setCertPoolAndProxy(opts)
 			if err != nil {
 				return nil, err
 			}
@@ -326,7 +329,7 @@ func (c *Client) customResolve(ctx context.Context, domain string, opts *Options
 		if opts.Method == "" {
 			opts.Method = defaultMethod
 		}
-		err := c.setCertPoolAndProxy(opts)
+		err = c.setCertPoolAndProxy(opts)
 		if err != nil {
 			return nil, err
 		}
@@ -340,7 +343,7 @@ func (c *Client) customResolve(ctx context.Context, domain string, opts *Options
 		}
 	}
 	if len(result) == 0 {
-		return nil, errors.WithStack(ErrNoResolveResult)
+		return nil, err
 	}
 	// update cache
 	if c.isEnableCache() {

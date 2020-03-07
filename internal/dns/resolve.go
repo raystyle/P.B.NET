@@ -63,24 +63,31 @@ func dialUDP(ctx context.Context, address string, message []byte, opts *Options)
 		timeout = 5 * time.Second
 	}
 	// dial
-	for i := 0; i < 3; i++ {
+	dial := func() ([]byte, bool, error) {
 		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
 		conn, err := opts.dialContext(ctx, network, address)
 		if err != nil {
-			cancel()
-			return nil, errors.WithStack(err) // not continue
+			return nil, true, errors.WithStack(err)
 		}
 		dConn := nettool.DeadlineConn(conn, timeout)
+		defer func() { _ = dConn.Close() }()
 		_, _ = dConn.Write(message)
 		buffer := make([]byte, 512)
 		n, err := dConn.Read(buffer)
-		if err == nil {
-			_ = dConn.Close()
-			cancel()
-			return buffer[:n], nil
+		if err != nil {
+			return nil, false, err
 		}
-		_ = dConn.Close()
-		cancel()
+		return buffer[:n], false, nil
+	}
+	for i := 0; i < 3; i++ {
+		resp, isOptErr, err := dial()
+		if err == nil {
+			return resp, nil
+		}
+		if isOptErr {
+			return nil, err
+		}
 	}
 	return nil, errors.WithStack(ErrNoConnection)
 }
@@ -162,40 +169,34 @@ func dialDoT(ctx context.Context, config string, message []byte, opts *Options) 
 	if timeout < 1 {
 		timeout = 2 * defaultTimeout
 	}
-	var conn *tls.Conn
+	var conn net.Conn
+	dial := func(address string) (net.Conn, error) {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return opts.dialContext(ctx, network, address)
+	}
 	switch len(configs) {
 	case 1: // ip mode
 		// 8.8.8.8:853
 		// [2606:4700:4700::1001]:853
-		ctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		rawConn, err := opts.dialContext(ctx, network, config)
-		if err != nil {
-			return nil, err
-		}
-		conn = tls.Client(rawConn, tlsConfig)
+		conn, err = dial(config)
 	case 2: // domain mode
 		// dns.google:853|8.8.8.8,8.8.4.4
 		// cloudflare-dns.com:853|2606:4700:4700::1001,2606:4700:4700::1111
 		ips := strings.Split(strings.TrimSpace(configs[1]), ",")
-		var rawConn net.Conn
 		for i := 0; i < len(ips); i++ {
-			ctx, cancel := context.WithTimeout(ctx, timeout)
-			rawConn, err = opts.dialContext(ctx, network, net.JoinHostPort(ips[i], port))
+			conn, err = dial(net.JoinHostPort(ips[i], port))
 			if err == nil {
-				conn = tls.Client(rawConn, tlsConfig)
-				cancel()
 				break
 			}
-			cancel()
-		}
-		if err != nil {
-			return nil, errors.Wrap(ErrNoConnection, err.Error())
 		}
 	default:
 		return nil, errors.Errorf("invalid config: %s", config)
 	}
-	return sendMessage(conn, message, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return sendMessage(tls.Client(conn, tlsConfig), message, timeout)
 }
 
 // support RFC 8484
