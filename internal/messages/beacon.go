@@ -7,7 +7,13 @@ import (
 // ChangeMode is used to change interactive mode.
 // Controller will send it.
 type ChangeMode struct {
+	ID          uint64
 	Interactive bool
+}
+
+// SetID is used to set message id.
+func (cm *ChangeMode) SetID(id uint64) {
+	cm.ID = id
 }
 
 // QueryModeStatus is used to check Controller is

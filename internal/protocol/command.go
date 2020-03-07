@@ -11,7 +11,7 @@ var (
 	ErrReplyHandled = errors.New("operation has been handled")
 )
 
-// replies
+// about reply
 var (
 	ReplyUnhandled = []byte{10}
 	ReplySucceed   = []byte{11}
@@ -19,7 +19,7 @@ var (
 	ReplyHandled   = []byte{21}
 )
 
-// GetReplyError is used to get error from reply
+// GetReplyError is used to get error from reply.
 func GetReplyError(reply []byte) error {
 	if len(reply) == 0 {
 		return errors.New("empty reply")
@@ -34,7 +34,7 @@ func GetReplyError(reply []byte) error {
 	}
 }
 
-// TestCommand is used to test role/client.go
+// TestCommand is used to test role/client.go.
 const TestCommand uint8 = 0xFF
 
 // -----------------------Connection---------------------------
@@ -48,9 +48,23 @@ const (
 )
 
 // -----------------------Controller---------------------------
+
+// before synchronize
 const (
+	// start synchronize
 	CtrlSync uint8 = 0x10 + iota
-	CtrlSendToNodeGUID
+
+	// about trust Node
+	CtrlTrustNode
+	CtrlSetNodeCert
+
+	// for recovery role session key
+	CtrlQueryKeyStorage
+)
+
+// after synchronize
+const (
+	CtrlSendToNodeGUID uint8 = 0x30 + iota
 	CtrlSendToNode
 	CtrlAckToNodeGUID
 	CtrlAckToNode
@@ -64,29 +78,38 @@ const (
 	CtrlAnswer
 )
 
-// before sync
-const (
-	// about trust Node
-	CtrlTrustNode uint8 = 0x20 + iota
-	CtrlSetNodeCert
+// --------------------------Node------------------------------
 
-	// for recovery role session key
-	CtrlQueryKeyStorage
+// before synchronize
+const (
+	// start synchronize
+	NodeSync uint8 = 0x50 + iota
+
+	// If current Node doesn't has role key,
+	// it will query connected node first.
+	NodeQueryNodeKey
+	NodeQueryBeaconKey
 )
 
-// --------------------------Node------------------------------
+// after synchronize
 const (
-	NodeSync uint8 = 0x60 + iota
-	NodeSendGUID
+	NodeSendGUID uint8 = 0x70 + iota
 	NodeSend
 	NodeAckGUID
 	NodeAck
 )
 
 // -------------------------Beacon-----------------------------
+
+// before synchronize
 const (
+	// start synchronize
 	BeaconSync uint8 = 0xA0 + iota
-	BeaconSendGUID
+)
+
+// after synchronize
+const (
+	BeaconSendGUID uint8 = 0xC0 + iota
 	BeaconSend
 	BeaconAckGUID
 	BeaconAck
