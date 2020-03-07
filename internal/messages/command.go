@@ -11,35 +11,41 @@ const (
 	HeaderSize      = RandomDataSize + MessageTypeSize
 )
 
-// CMDTest is used to test
+// CMDTest is used to test role sender.
 const CMDTest uint32 = 0xF0000001
 
-// -----------------------------------------role modules-------------------------------------------
-// range 0x10000000 - 0x1FFFFFFF
-
-// role's log
-const (
-	CMDNodeLog uint32 = 0x10000000 + iota
-	CMDBeaconLog
-)
-
 // -------------------------------------------protocol---------------------------------------------
-// range 0x20000000 - 0x2FFFFFFF
+// range 0x10000000 - 0x1FFFFFFF
 
 // role's register request and Controller's response
 const (
-	CMDNodeRegisterRequest uint32 = 0x20000000 + iota
+	CMDNodeRegisterRequest uint32 = 0x10000000 + iota
 	CMDNodeRegisterResponse
 	CMDBeaconRegisterRequest
 	CMDBeaconRegisterResponse
 )
 
-// if current Node doesn't exists role key, it will query Controller.
+// about Node
 const (
-	CMDQueryNodeKey uint32 = 0x20010000 + iota
+	// if current Node doesn't exists role key, it will query Controller.
+	CMDQueryNodeKey uint32 = 0x10010000 + iota
 	CMDQueryBeaconKey
 	CMDAnswerNodeKey
 	CMDAnswerBeaconKey
+)
+
+// about Beacon
+const (
+	CMDChangeMode uint32 = 0x10020000 + iota
+)
+
+// -------------------------------------role internal modules--------------------------------------
+// range 0x20000000 - 0x2FFFFFFF
+
+// role's log
+const (
+	CMDNodeLog uint32 = 0x20000000 + iota
+	CMDBeaconLog
 )
 
 // -----------------------------------------other modules------------------------------------------
@@ -57,11 +63,7 @@ const (
 var (
 	CMDBTest = convert.Uint32ToBytes(CMDTest)
 
-	// role program log
-	CMDBNodeLog   = convert.Uint32ToBytes(CMDNodeLog)
-	CMDBBeaconLog = convert.Uint32ToBytes(CMDBeaconLog)
-
-	// about role register
+	// about protocol
 	CMDBNodeRegisterRequest    = convert.Uint32ToBytes(CMDNodeRegisterRequest)
 	CMDBNodeRegisterResponse   = convert.Uint32ToBytes(CMDNodeRegisterResponse)
 	CMDBBeaconRegisterRequest  = convert.Uint32ToBytes(CMDBeaconRegisterRequest)
@@ -71,7 +73,13 @@ var (
 	CMDBAnswerNodeKey          = convert.Uint32ToBytes(CMDAnswerNodeKey)
 	CMDBAnswerBeaconKey        = convert.Uint32ToBytes(CMDAnswerBeaconKey)
 
-	// about other modules
+	CMDBChangeMode = convert.Uint32ToBytes(CMDChangeMode)
+
+	// role internal modules
+	CMDBNodeLog   = convert.Uint32ToBytes(CMDNodeLog)
+	CMDBBeaconLog = convert.Uint32ToBytes(CMDBeaconLog)
+
+	// other modules
 	CMDBExecuteShellCode      = convert.Uint32ToBytes(CMDExecuteShellCode)
 	CMDBExecuteShellCodeError = convert.Uint32ToBytes(CMDExecuteShellCodeError)
 	CMDBShell                 = convert.Uint32ToBytes(CMDShell)
