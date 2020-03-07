@@ -100,7 +100,7 @@ func (ctrl *Ctrl) NewClient(
 			break
 		}
 	}
-	if conn == nil {
+	if err != nil {
 		const format = "failed to connect node listener %s, because %s"
 		return nil, errors.Errorf(format, bl, err)
 	}
