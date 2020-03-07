@@ -227,7 +227,7 @@ func TestConn_serverHandshake(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	t.Run("failed to receive client curve25519 public key", func(t *testing.T) {
+	t.Run("failed to receive client public key", func(t *testing.T) {
 		testConnServerHandshake(t, func(t *testing.T, client *Conn) {
 			sendPaddingData(client)
 			_, err := client.Conn.Write([]byte{1})

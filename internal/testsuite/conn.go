@@ -230,12 +230,16 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 				_, _ = conn2.Write(buf)
 			}()
 		}
-
-		// tls.Conn.Close still send data
+		// tls.Conn.Close still send data,
 		// so conn2 Close first
 		require.NoError(t, conn2.Close())
 		require.NoError(t, conn1.Close())
 		wg.Wait()
+
+		_, err := conn1.Read(make([]byte, 1024))
+		require.Error(t, err)
+		_, err = conn2.Read(make([]byte, 1024))
+		require.Error(t, err)
 
 		IsDestroyed(t, conn1)
 		IsDestroyed(t, conn2)
