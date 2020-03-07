@@ -779,6 +779,9 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		destroy()
 		result.Err = ErrSendTimeout
 	case <-st.Ctx.Done():
+		if !sw.timer.Stop() {
+			<-sw.timer.C
+		}
 		destroy()
 		result.Err = st.Ctx.Err()
 	case <-sw.ctx.stopSignal:

@@ -720,11 +720,12 @@ func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 	if nk != nil {
 		return nk
 	}
+	const interval = 50 * time.Millisecond
 	// If doesn't exists in self storage, try to wait 3-5 seconds
 	// to wait Controller broadcast, maybe this Node has register
 	// in other Node, but the Node register response not broadcast
 	// to this Node, so we try to wait Controller's broadcast.
-	timer := time.NewTicker(50 * time.Millisecond)
+	timer := time.NewTicker(interval)
 	defer timer.Stop()
 	times := 60 + server.rand.Int(40)
 	for i := 0; i < times; i++ {
@@ -749,12 +750,11 @@ func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 		Time: now,
 	}
 	// <security> must don't handle error.
-	_ = server.ctx.sender.Send(server.context,
-		messages.CMDBQueryNodeKey, query, true)
+	_ = server.ctx.sender.Send(server.context, messages.CMDBQueryNodeKey, query, true)
 	// calculate network latency between Node and Controller.
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Node key to this Node.
-	times = int(latency/(50*time.Millisecond)) + 60 + server.rand.Int(40)
+	times = 3*int(latency/interval+1) + 60 + server.rand.Int(40)
 	for i := 0; i < times; i++ {
 		nk = server.ctx.storage.GetNodeKey(guid)
 		if nk != nil {
@@ -912,11 +912,12 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 	if bk != nil {
 		return bk
 	}
+	const interval = 50 * time.Millisecond
 	// If doesn't exists in self storage, try to wait 3-5 seconds
 	// to wait Controller broadcast, maybe this Beacon has register
 	// in other Node, but the Beacon register response not broadcast
 	// to this Node, so we try to wait Controller's broadcast.
-	timer := time.NewTicker(50 * time.Millisecond)
+	timer := time.NewTicker(interval)
 	defer timer.Stop()
 	times := 60 + server.rand.Int(40)
 	for i := 0; i < times; i++ {
@@ -941,12 +942,11 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 		Time: now,
 	}
 	// <security> must don't handle error
-	_ = server.ctx.sender.Send(server.context,
-		messages.CMDBQueryBeaconKey, query, true)
+	_ = server.ctx.sender.Send(server.context, messages.CMDBQueryBeaconKey, query, true)
 	// calculate network latency between Node and Controller
 	latency := server.ctx.global.Now().Sub(now)
 	// wait Controller send Beacon key to this Node
-	times = int(latency/(50*time.Millisecond)) + 60 + server.rand.Int(40)
+	times = 3*int(latency/interval+1) + 60 + server.rand.Int(40)
 	for i := 0; i < times; i++ {
 		bk = server.ctx.storage.GetBeaconKey(guid)
 		if bk != nil {
