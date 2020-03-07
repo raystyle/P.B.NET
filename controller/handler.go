@@ -162,7 +162,7 @@ func (h *handler) handleQueryNodeKey(send *protocol.Send) {
 		return
 	}
 	// send to Node
-	ank := messages.AnswerNodeKey{
+	ank := &messages.AnswerNodeKey{
 		GUID:         qnk.GUID,
 		PublicKey:    node.PublicKey,
 		KexPublicKey: node.KexPublicKey,
@@ -195,7 +195,7 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 		return
 	}
 	// send to Node
-	abk := messages.AnswerBeaconKey{
+	abk := &messages.AnswerBeaconKey{
 		GUID:         qbk.GUID,
 		PublicKey:    beacon.PublicKey,
 		KexPublicKey: beacon.KexPublicKey,

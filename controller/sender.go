@@ -690,7 +690,7 @@ func (sender *sender) DisableInteractiveMode(guid *guid.GUID) {
 	delete(sender.interactive, *guid)
 }
 
-func (sender *sender) isInInteractiveMode(guid *guid.GUID) bool {
+func (sender *sender) IsInInteractiveMode(guid *guid.GUID) bool {
 	sender.interactiveRWM.RLock()
 	defer sender.interactiveRWM.RUnlock()
 	return sender.interactive[*guid]
@@ -759,7 +759,7 @@ func (sender *sender) createNodeAckSlot(role, send *guid.GUID) (chan struct{}, f
 		nas.m.Lock()
 		defer nas.m.Unlock()
 		// when read channel timeout, worker call destroy(),
-		// the channel maybe has sign, try to clean it.
+		// the channel maybe has signal, try to clean it.
 		select {
 		case <-ch:
 		default:
@@ -793,7 +793,7 @@ func (sender *sender) createBeaconAckSlot(role, send *guid.GUID) (chan struct{},
 		bas.m.Lock()
 		defer bas.m.Unlock()
 		// when read channel timeout, worker call destroy(),
-		// the channel maybe has sign, try to clean it.
+		// the channel maybe has signal, try to clean it.
 		select {
 		case <-ch:
 		default:
@@ -1242,6 +1242,9 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 		destroy()
 		result.Err = ErrSendTimeout
 	case <-st.Ctx.Done():
+		if !sw.timer.Stop() {
+			<-sw.timer.C
+		}
 		destroy()
 		result.Err = st.Ctx.Err()
 	case <-sw.ctx.stopSignal:
@@ -1270,7 +1273,7 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 	sw.aesKey = sessionKey
 	sw.aesIV = sessionKey[:aes.IVSize]
 	// check is need to write message to the database
-	if !sw.ctx.isInInteractiveMode(st.GUID) {
+	if !sw.ctx.IsInInteractiveMode(st.GUID) {
 		sw.insertBeaconMessage(st, result)
 		if result.Err == nil {
 			result.Success = 1
@@ -1305,6 +1308,9 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 		destroy()
 		result.Err = ErrSendTimeout
 	case <-st.Ctx.Done():
+		if !sw.timer.Stop() {
+			<-sw.timer.C
+		}
 		destroy()
 		result.Err = st.Ctx.Err()
 	case <-sw.ctx.stopSignal:

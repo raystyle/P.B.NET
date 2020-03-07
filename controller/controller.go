@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/ioutil"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -11,6 +12,7 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/messages"
 )
 
 // Ctrl is controller.
@@ -18,16 +20,17 @@ import (
 type Ctrl struct {
 	Test *Test
 
-	logger    *gLogger   // global logger
-	global    *global    // certificate, proxy, dns, time syncer, and ...
-	database  *database  // database
-	syncer    *syncer    // receive message
-	clientMgr *clientMgr // clients manager
-	sender    *sender    // broadcast and send message
-	handler   *handler   // handle message from Node or Beacon
-	worker    *worker    // do work
-	boot      *boot      // auto discover bootstrap node listeners
-	web       *web       // web server
+	logger     *gLogger    // global logger
+	global     *global     // certificate, proxy, dns, time syncer, and ...
+	database   *database   // database
+	syncer     *syncer     // receive message
+	clientMgr  *clientMgr  // client manager
+	sender     *sender     // broadcast and send message
+	messageMgr *messageMgr // message manager
+	handler    *handler    // handle message from Node or Beacon
+	worker     *worker     // do work
+	boot       *boot       // auto discover bootstrap node listeners
+	web        *web        // web server
 
 	once sync.Once
 	wait chan struct{}
@@ -76,6 +79,8 @@ func New(cfg *Config) (*Ctrl, error) {
 		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	ctrl.sender = sender
+	// message manager
+	ctrl.messageMgr = newMessageMgr(ctrl, cfg)
 	// handler
 	ctrl.handler = newHandler(ctrl)
 	// worker
@@ -233,11 +238,6 @@ func (ctrl *Ctrl) BroadcastKey() []byte {
 	return ctrl.global.BroadcastKey()
 }
 
-// EnableInteractiveMode is used to enable Beacon interactive mode.
-func (ctrl *Ctrl) EnableInteractiveMode(guid *guid.GUID) {
-	ctrl.sender.EnableInteractiveMode(guid)
-}
-
 // Synchronize is used to connect a node and start to synchronize.
 func (ctrl *Ctrl) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
 	return ctrl.sender.Synchronize(ctx, guid, bl)
@@ -273,6 +273,75 @@ func (ctrl *Ctrl) SendToBeacon(
 // Broadcast is used to broadcast messages to all Nodes.
 func (ctrl *Ctrl) Broadcast(command []byte, message interface{}, deflate bool) error {
 	return ctrl.sender.Broadcast(command, message, deflate)
+}
+
+// EnableInteractiveMode is used to enable Beacon interactive mode.
+func (ctrl *Ctrl) EnableInteractiveMode(guid *guid.GUID) {
+	ctrl.sender.EnableInteractiveMode(guid)
+}
+
+// EnableInteractiveModeNew is used to enable Beacon interactive mode.
+func (ctrl *Ctrl) EnableInteractiveModeNew(ctx context.Context, guid *guid.GUID) error {
+	// check already enable interactive mode
+	if ctrl.sender.IsInInteractiveMode(guid) {
+		return nil
+	}
+	cm := messages.ChangeMode{Interactive: true}
+	now := ctrl.global.Now()
+	err := ctrl.sender.SendToBeacon(ctx, guid, messages.CMDBChangeMode, &cm, false)
+	if err != nil {
+		return err
+	}
+	latency := ctrl.global.Now().Sub(now)
+	// acknowledge and the response will reach together mostly
+	const interval = 50 * time.Millisecond
+	timer := time.NewTicker(interval)
+	defer timer.Stop()
+	times := 3*int(latency/interval+1) + 60
+	for i := 0; i < times; i++ {
+		if ctrl.sender.IsInInteractiveMode(guid) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	const msg = "failed to enable interactive mode: receive response timeout"
+	return errors.New(msg)
+}
+
+// DisableInteractiveModeNew is used to disable Beacon interactive mode.
+func (ctrl *Ctrl) DisableInteractiveModeNew(ctx context.Context, guid *guid.GUID) error {
+	// check already disable interactive mode
+	if !ctrl.sender.IsInInteractiveMode(guid) {
+		return nil
+	}
+	cm := messages.ChangeMode{Interactive: false}
+	now := ctrl.global.Now()
+	err := ctrl.sender.SendToBeacon(ctx, guid, messages.CMDBChangeMode, &cm, false)
+	if err != nil {
+		return err
+	}
+	latency := ctrl.global.Now().Sub(now)
+	// acknowledge and the response will reach together mostly
+	const interval = 50 * time.Millisecond
+	timer := time.NewTicker(interval)
+	defer timer.Stop()
+	times := 3*int(latency/interval+1) + 60
+	for i := 0; i < times; i++ {
+		if !ctrl.sender.IsInInteractiveMode(guid) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	const msg = "failed to disable interactive mode: receive response timeout"
+	return errors.New(msg)
 }
 
 // DeleteNode is used to delete Node.
