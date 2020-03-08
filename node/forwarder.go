@@ -70,7 +70,7 @@ func newForwarder(ctx *Node, config *Config) (*forwarder, error) {
 	f.nodeConns = make(map[guid.GUID]*nodeConn, cfg.MaxNodeConns)
 	f.beaconConns = make(map[guid.GUID]*beaconConn, cfg.MaxBeaconConns)
 	f.bufferPool.New = func() interface{} {
-		return new(bytes.Buffer)
+		return bytes.NewBuffer(make([]byte, 0, 128))
 	}
 	f.stopSignal = make(chan struct{})
 	return &f, nil

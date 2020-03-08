@@ -42,9 +42,7 @@ func testCtrlSendToNodeRT(t *testing.T, iNodes, cNodes []*node.Node) {
 		defer wg.Done()
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
-			req := &messages.TestRequest{
-				Request: msg,
-			}
+			req := &messages.TestRequest{Request: msg}
 			resp, err := ctrl.SendToNodeRT(ctx, guid,
 				messages.CMDBRTTestRequest, req, true)
 			require.NoError(t, err, info)
@@ -132,9 +130,7 @@ func testCtrlSendToBeaconRT(t *testing.T, nodes []*node.Node, beacons []*beacon.
 		defer wg.Done()
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
-			req := &messages.TestRequest{
-				Request: msg,
-			}
+			req := &messages.TestRequest{Request: msg}
 			resp, err := ctrl.SendToBeaconRT(ctx, guid,
 				messages.CMDBRTTestRequest, req, true)
 			require.NoError(t, err, info)
@@ -212,9 +208,7 @@ func testNodeSendRT(t *testing.T, iNodes, cNodes []*node.Node) {
 		defer wg.Done()
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
-			req := &messages.TestRequest{
-				Request: msg,
-			}
+			req := &messages.TestRequest{Request: msg}
 			resp, err := node.SendRT(ctx, messages.CMDBRTTestRequest, req, true)
 			require.NoError(t, err, info)
 			response := resp.(*messages.TestResponse).Response
@@ -300,9 +294,7 @@ func testBeaconSendRT(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon
 		defer wg.Done()
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
-			req := &messages.TestRequest{
-				Request: msg,
-			}
+			req := &messages.TestRequest{Request: msg}
 			resp, err := beacon.SendRT(ctx, messages.CMDBRTTestRequest, req, true)
 			require.NoError(t, err, info)
 			response := resp.(*messages.TestResponse).Response

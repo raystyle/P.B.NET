@@ -72,14 +72,15 @@ type sender struct {
 
 	// wait Controller acknowledge
 	ackSlots    map[guid.GUID]chan struct{}
-	ackSlotsM   sync.Mutex
+	ackSlotsRWM sync.RWMutex
 	ackSlotPool sync.Pool
 
 	guid *guid.Generator
 
-	inClose    int32
-	stopSignal chan struct{}
-	wg         sync.WaitGroup
+	inClose int32
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 func newSender(ctx *Node, config *Config) (*sender, error) {
@@ -104,8 +105,8 @@ func newSender(ctx *Node, config *Config) (*sender, error) {
 		sendTaskQueue: make(chan *sendTask, cfg.QueueSize),
 		ackTaskQueue:  make(chan *ackTask, cfg.QueueSize),
 		ackSlots:      make(map[guid.GUID]chan struct{}),
-		stopSignal:    make(chan struct{}),
 	}
+	sender.context, sender.cancel = context.WithCancel(context.Background())
 
 	sender.sendTaskPool.New = func() interface{} {
 		return new(sendTask)
@@ -176,7 +177,11 @@ func (sender *sender) log(lv logger.Level, log ...interface{}) {
 
 // Synchronize is used to connect a node listener and start to synchronize
 // can't connect if a exists client, or the target node is connected self.
-func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
+func (sender *sender) Synchronize(
+	ctx context.Context,
+	guid *guid.GUID,
+	bl *bootstrap.Listener,
+) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -276,7 +281,7 @@ func (sender *sender) Send(
 	// send to task queue
 	select {
 	case sender.sendTaskQueue <- st:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -293,14 +298,14 @@ func (sender *sender) SendFromPlugin(message []byte, deflate bool) error {
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
-	st.Ctx = context.Background()
+	st.Ctx = sender.context
 	st.Message = message
 	st.Deflate = deflate
 	st.Result = done
 	// send to task queue
 	select {
 	case sender.sendTaskQueue <- st:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -322,7 +327,7 @@ func (sender *sender) Acknowledge(send *protocol.Send) error {
 	// send to task queue
 	select {
 	case sender.ackTaskQueue <- at:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -333,44 +338,45 @@ func (sender *sender) Acknowledge(send *protocol.Send) error {
 // HandleNodeAcknowledge is used to notice the Node that the Controller
 // has received the send message.
 func (sender *sender) HandleAcknowledge(send *guid.GUID) {
-	sender.ackSlotsM.Lock()
-	defer sender.ackSlotsM.Unlock()
+	sender.ackSlotsRWM.RLock()
+	defer sender.ackSlotsRWM.RUnlock()
 	ch := sender.ackSlots[*send]
-	if ch != nil {
-		select {
-		case ch <- struct{}{}:
-		case <-sender.stopSignal:
-			return
-		}
-		delete(sender.ackSlots, *send)
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	case <-sender.context.Done():
 	}
 }
 
 func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.inClose, 1)
-	close(sender.stopSignal)
+	sender.cancel()
 	sender.wg.Wait()
 	sender.guid.Close()
 	sender.ctx = nil
 }
 
-func (sender *sender) createAckSlot(send *guid.GUID) (chan struct{}, func()) {
+func (sender *sender) createAckSlot(send *guid.GUID) chan struct{} {
 	ch := sender.ackSlotPool.Get().(chan struct{})
-	sender.ackSlotsM.Lock()
-	defer sender.ackSlotsM.Unlock()
+	sender.ackSlotsRWM.Lock()
+	defer sender.ackSlotsRWM.Unlock()
 	sender.ackSlots[*send] = ch
-	return ch, func() {
-		sender.ackSlotsM.Lock()
-		defer sender.ackSlotsM.Unlock()
-		// when read channel timeout, worker call destroy(),
-		// the channel maybe has sign, try to clean it.
-		select {
-		case <-ch:
-		default:
-		}
-		sender.ackSlotPool.Put(ch)
-		delete(sender.ackSlots, *send)
+	return ch
+}
+
+func (sender *sender) destroyAckSlot(send *guid.GUID, ch chan struct{}) {
+	sender.ackSlotsRWM.Lock()
+	defer sender.ackSlotsRWM.Unlock()
+	// when read channel timeout, worker call destroy(),
+	// the channel maybe has signal, try to clean it.
+	select {
+	case <-ch:
+	default:
 	}
+	sender.ackSlotPool.Put(ch)
+	delete(sender.ackSlots, *send)
 }
 
 func (sender *sender) ackSlotCleaner() {
@@ -390,7 +396,7 @@ func (sender *sender) ackSlotCleaner() {
 		select {
 		case <-ticker.C:
 			sender.cleanAckSlotMap()
-		case <-sender.stopSignal:
+		case <-sender.context.Done():
 			return
 		}
 	}
@@ -398,8 +404,8 @@ func (sender *sender) ackSlotCleaner() {
 
 func (sender *sender) cleanAckSlotMap() {
 	newMap := make(map[guid.GUID]chan struct{})
-	sender.ackSlotsM.Lock()
-	defer sender.ackSlotsM.Unlock()
+	sender.ackSlotsRWM.Lock()
+	defer sender.ackSlotsRWM.Unlock()
 	for key, value := range sender.ackSlots {
 		newMap[key] = value
 	}
@@ -457,7 +463,7 @@ func (sw *senderWorker) WorkWithBlock() {
 	)
 	for {
 		select {
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		default:
 		}
@@ -470,7 +476,7 @@ func (sw *senderWorker) WorkWithBlock() {
 			sw.handleSendTask(st)
 		case at = <-sw.ctx.ackTaskQueue:
 			sw.handleAcknowledgeTask(at)
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		}
 	}
@@ -493,7 +499,7 @@ func (sw *senderWorker) WorkWithoutBlock() {
 	var at *ackTask
 	for {
 		select {
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		default:
 		}
@@ -504,7 +510,7 @@ func (sw *senderWorker) WorkWithoutBlock() {
 		select {
 		case at = <-sw.ctx.ackTaskQueue:
 			sw.handleAcknowledgeTask(at)
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		}
 	}
@@ -527,7 +533,8 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		return
 	}
 	// send
-	wait, destroy := sw.ctx.createAckSlot(&sw.preS.GUID)
+	wait := sw.ctx.createAckSlot(&sw.preS.GUID)
+	defer sw.ctx.destroyAckSlot(&sw.preS.GUID, wait)
 	result.Responses, result.Success = sw.forwarder.Send(&sw.preS.GUID, sw.buffer)
 	if len(result.Responses) == 0 {
 		result.Err = ErrNoConnections
@@ -544,17 +551,14 @@ func (sw *senderWorker) handleSendTask(st *sendTask) {
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-		sw.ctx.ackSlotPool.Put(wait)
-	case <-sw.timer.C:
-		destroy()
-		result.Err = ErrSendTimeout
 	case <-st.Ctx.Done():
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-		destroy()
 		result.Err = st.Ctx.Err()
-	case <-sw.ctx.stopSignal:
+	case <-sw.timer.C:
+		result.Err = ErrSendTimeout
+	case <-sw.ctx.context.Done():
 		result.Err = ErrSenderClosed
 	}
 }
