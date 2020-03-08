@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ func TestModule(t *testing.T) {
 	})
 
 	t.Run("shell", func(t *testing.T) {
-		test(testShell)
+		test(testSingleShell)
 	})
 
 	// clean
@@ -81,13 +82,12 @@ func testExecuteShellCode(t *testing.T, guid *guid.GUID) {
 	time.Sleep(5 * time.Second)
 }
 
-func testShell(t *testing.T, guid *guid.GUID) {
-	shell := messages.Shell{
-		Command: "whoami",
-	}
-	err := ctrl.SendToBeacon(context.Background(), guid,
-		messages.CMDBShell, &shell, true)
+func testSingleShell(t *testing.T, guid *guid.GUID) {
+	ss := &messages.SingleShell{Command: "whoami"}
+	reply, err := ctrl.SendToBeaconRT(context.Background(), guid,
+		messages.CMDBSingleShell, ss, true)
 	require.NoError(t, err)
-
-	time.Sleep(5 * time.Second)
+	output := reply.(*messages.SingleShellOutput)
+	require.Zero(t, output.Err)
+	fmt.Println(string(output.Output))
 }
