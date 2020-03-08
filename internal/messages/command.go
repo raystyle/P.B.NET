@@ -70,9 +70,8 @@ const (
 // simple modules
 const (
 	CMDExecuteShellCode uint32 = 0x30000000 + iota
-	CMDExecuteShellCodeError
-	CMDShell
-	CMDShellOutput
+	CMDSingleShell
+	CMDSingleShellOutput
 )
 
 // ---------------------------------------command to bytes-----------------------------------------
@@ -99,7 +98,7 @@ var (
 	CMDBBeaconLog = convert.Uint32ToBytes(CMDBeaconLog)
 
 	// other modules
-	CMDBExecuteShellCode = convert.Uint32ToBytes(CMDExecuteShellCode)
-	CMDBShell            = convert.Uint32ToBytes(CMDShell)
-	CMDBShellOutput      = convert.Uint32ToBytes(CMDShellOutput)
+	CMDBExecuteShellCode  = convert.Uint32ToBytes(CMDExecuteShellCode)
+	CMDBSingleShell       = convert.Uint32ToBytes(CMDSingleShell)
+	CMDBSingleShellOutput = convert.Uint32ToBytes(CMDSingleShellOutput)
 )
