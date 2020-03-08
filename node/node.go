@@ -17,18 +17,19 @@ import (
 type Node struct {
 	Test *Test
 
-	storage   *storage   // storage
-	logger    *gLogger   // global logger
-	global    *global    // certificate, proxy, dns, time syncer, and ...
-	syncer    *syncer    // sync network guid
-	clientMgr *clientMgr // clients manager
-	register  *register  // about register to Controller
-	forwarder *forwarder // forward messages
-	sender    *sender    // send message to controller
-	handler   *handler   // handle message from controller
-	worker    *worker    // do work
-	server    *server    // listen and serve Roles
-	driver    *driver    // control all modules
+	storage    *storage    // storage
+	logger     *gLogger    // global logger
+	global     *global     // certificate, proxy, dns, time syncer, and ...
+	syncer     *syncer     // sync network guid
+	clientMgr  *clientMgr  // clients manager
+	register   *register   // about register to Controller
+	forwarder  *forwarder  // forward messages
+	sender     *sender     // send message to controller
+	messageMgr *messageMgr // message manager
+	handler    *handler    // handle message from controller
+	worker     *worker     // do work
+	server     *server     // listen and serve Roles
+	driver     *driver     // control all modules
 
 	once sync.Once
 	wait chan struct{}
@@ -85,6 +86,8 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	node.sender = sender
+	// message manager
+	node.messageMgr = newMessageMgr(node, cfg)
 	// handler
 	node.handler = newHandler(node)
 	// worker
@@ -175,6 +178,8 @@ func (node *Node) Exit(err error) {
 		node.logger.Print(logger.Info, src, "worker is stopped")
 		node.handler.Close()
 		node.logger.Print(logger.Info, src, "handler is stopped")
+		node.messageMgr.Close()
+		node.logger.Print(logger.Info, src, "message manager is stopped")
 		node.sender.Close()
 		node.logger.Print(logger.Info, src, "sender is stopped")
 		node.forwarder.Close()
@@ -200,13 +205,37 @@ func (node *Node) GUID() *guid.GUID {
 }
 
 // Synchronize is used to connect a Node and start to synchronize.
-func (node *Node) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
+func (node *Node) Synchronize(
+	ctx context.Context,
+	guid *guid.GUID,
+	bl *bootstrap.Listener,
+) error {
 	return node.sender.Synchronize(ctx, guid, bl)
 }
 
+// Disconnect is used to disconnect Node.
+func (node *Node) Disconnect(guid *guid.GUID) error {
+	return node.sender.Disconnect(guid)
+}
+
 // Send is used to send message to Controller.
-func (node *Node) Send(ctx context.Context, command, message []byte, deflate bool) error {
+func (node *Node) Send(
+	ctx context.Context,
+	command []byte,
+	message []byte,
+	deflate bool,
+) error {
 	return node.sender.Send(ctx, command, message, deflate)
+}
+
+// SendRT is used to send message to Controller and get response.
+func (node *Node) SendRT(
+	ctx context.Context,
+	command []byte,
+	message messages.RoundTripper,
+	deflate bool,
+) (interface{}, error) {
+	return node.messageMgr.Send(ctx, command, message, deflate)
 }
 
 // AddListener is used to add listener.

@@ -243,7 +243,11 @@ func (ctrl *Ctrl) BroadcastKey() []byte {
 }
 
 // Synchronize is used to connect a node and start to synchronize.
-func (ctrl *Ctrl) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
+func (ctrl *Ctrl) Synchronize(
+	ctx context.Context,
+	guid *guid.GUID,
+	bl *bootstrap.Listener,
+) error {
 	return ctrl.sender.Synchronize(ctx, guid, bl)
 }
 

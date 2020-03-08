@@ -342,7 +342,7 @@ func (h *handler) handleNodeSendTestRequest(send *protocol.Send) {
 		ID:       request.ID,
 		Response: request.Request,
 	}
-	err = h.ctx.sender.SendToNode(h.context, &send.GUID,
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID,
 		messages.CMDBRTTestResponse, response, true)
 	if err != nil {
 		const format = "failed to send node test response to node\nerror: %s"

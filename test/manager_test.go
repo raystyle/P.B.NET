@@ -185,3 +185,92 @@ func testCtrlSendToBeaconRT(t *testing.T, nodes []*node.Node, beacons []*beacon.
 		require.NoError(t, err)
 	}
 }
+
+func TestNode_SendRT_CI(t *testing.T) {
+	iNodes, cNodes := buildNodeNetworkWithCI(t, false)
+	testNodeSendRT(t, iNodes, cNodes)
+}
+
+func TestNode_SendRT_IC(t *testing.T) {
+	iNodes, cNodes := buildNodeNetworkWithIC(t, false)
+	testNodeSendRT(t, iNodes, cNodes)
+}
+
+func TestNode_SendRT_Mix(t *testing.T) {
+	iNodes, cNodes := buildNodeNetworkWithMix(t, false)
+	testNodeSendRT(t, iNodes, cNodes)
+}
+
+// Each Node will send message to Controller.
+func testNodeSendRT(t *testing.T, iNodes, cNodes []*node.Node) {
+	const (
+		goroutines = 128
+		times      = 32
+	)
+	ctx := context.Background()
+	send := func(wg *sync.WaitGroup, info string, start int, node *node.Node) {
+		defer wg.Done()
+		for i := start; i < start+times; i++ {
+			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
+			req := &messages.TestRequest{
+				Request: msg,
+			}
+			resp, err := node.SendRT(ctx, messages.CMDBRTTestRequest, req, true)
+			require.NoError(t, err, info)
+			response := resp.(*messages.TestResponse).Response
+			require.Equal(t, msg, response)
+		}
+	}
+
+	wg := sync.WaitGroup{}
+	sendAndWait := func(n int, node *node.Node, initial bool) {
+		defer wg.Done()
+		var info string
+		if initial {
+			info = fmt.Sprintf("Initial Node[%d]", n)
+		} else {
+			info = fmt.Sprintf("Common Node[%d]", n)
+		}
+		// send
+		sub := new(sync.WaitGroup)
+		for i := 0; i < goroutines; i++ {
+			sub.Add(1)
+			go send(sub, info, i*times, node)
+		}
+		sub.Wait()
+	}
+	// send and read
+	for i := 0; i < len(iNodes); i++ {
+		wg.Add(1)
+		go sendAndWait(i, iNodes[i], true)
+	}
+	for i := 0; i < len(cNodes); i++ {
+		wg.Add(1)
+		go sendAndWait(i, cNodes[i], false)
+	}
+	wg.Wait()
+
+	// clean
+	for i := 0; i < len(cNodes); i++ {
+		cNode := cNodes[i]
+		cNodes[i] = nil
+		cNodeGUID := cNode.GUID()
+
+		cNode.Exit(nil)
+		testsuite.IsDestroyed(t, cNode)
+
+		err := ctrl.DeleteNodeUnscoped(cNodeGUID)
+		require.NoError(t, err)
+	}
+	for i := 0; i < len(iNodes); i++ {
+		iNode := iNodes[i]
+		iNodes[i] = nil
+		iNodeGUID := iNode.GUID()
+
+		iNode.Exit(nil)
+		testsuite.IsDestroyed(t, iNode)
+
+		err := ctrl.DeleteNodeUnscoped(iNodeGUID)
+		require.NoError(t, err)
+	}
+}

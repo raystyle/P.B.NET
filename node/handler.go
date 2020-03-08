@@ -87,7 +87,7 @@ func (h *handler) logWithInfo(lv logger.Level, log ...interface{}) {
 func (h *handler) OnSend(send *protocol.Send) {
 	defer h.logPanic("handler.OnSend")
 	if len(send.Message) < messages.HeaderSize {
-		const log = "controller send with invalid size"
+		const log = "send with invalid size"
 		h.logWithInfo(logger.Exploit, send, log)
 		return
 	}
@@ -102,8 +102,10 @@ func (h *handler) OnSend(send *protocol.Send) {
 		h.handleSendTestMessage(send)
 	case messages.CMDRTTestRequest:
 		h.handleSendTestRequest(send)
+	case messages.CMDRTTestResponse:
+		h.handleSendTestResponse(send)
 	default:
-		const format = "controller send unknown message\ntype: 0x%08X\n%s"
+		const format = "send unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(send))
 	}
 }
@@ -113,13 +115,13 @@ func (h *handler) handleAnswerNodeKey(send *protocol.Send) {
 	ank := new(messages.AnswerNodeKey)
 	err := msgpack.Unmarshal(send.Message, ank)
 	if err != nil {
-		const log = "controller send invalid answer node key data"
+		const log = "send invalid answer node key data"
 		h.logWithInfo(logger.Exploit, send, log)
 		return
 	}
 	err = ank.Validate()
 	if err != nil {
-		const log = "controller send invalid answer node key"
+		const log = "send invalid answer node key"
 		h.logWithInfo(logger.Exploit, ank, log)
 		return
 	}
@@ -135,13 +137,13 @@ func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
 	abk := new(messages.AnswerBeaconKey)
 	err := msgpack.Unmarshal(send.Message, abk)
 	if err != nil {
-		const log = "controller send invalid answer beacon key data\nerror:"
+		const log = "send invalid answer beacon key data\nerror:"
 		h.logWithInfo(logger.Exploit, send, log, err)
 		return
 	}
 	err = abk.Validate()
 	if err != nil {
-		const log = "controller send invalid answer beacon key\nerror:"
+		const log = "send invalid answer beacon key\nerror:"
 		h.logWithInfo(logger.Exploit, send, log, err)
 		return
 	}
@@ -184,12 +186,24 @@ func (h *handler) handleSendTestRequest(send *protocol.Send) {
 	}
 }
 
+func (h *handler) handleSendTestResponse(send *protocol.Send) {
+	defer h.logPanic("handler.handleSendTestResponse")
+	response := new(messages.TestResponse)
+	err := msgpack.Unmarshal(send.Message, response)
+	if err != nil {
+		const log = "invalid test response data\nerror:"
+		h.logWithInfo(logger.Exploit, send, log, err)
+		return
+	}
+	h.ctx.messageMgr.HandleReply(response.ID, response)
+}
+
 // ----------------------------------------broadcast-------------------------------------------------
 
 func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	defer h.logPanic("handler.OnBroadcast")
 	if len(broadcast.Message) < messages.HeaderSize {
-		const log = "controller broadcast with invalid size"
+		const log = "broadcast with invalid size"
 		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
@@ -203,7 +217,7 @@ func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	case messages.CMDTest:
 		h.handleBroadcastTestMessage(broadcast)
 	default:
-		const format = "controller broadcast unknown message\ntype: 0x%08X\n%s"
+		const format = "broadcast unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(broadcast))
 	}
 }
@@ -213,13 +227,13 @@ func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
 	nrr := new(messages.NodeRegisterResponse)
 	err := msgpack.Unmarshal(broadcast.Message, nrr)
 	if err != nil {
-		const log = "controller broadcast invalid node register response data\nerror:"
+		const log = "broadcast invalid node register response data\nerror:"
 		h.logWithInfo(logger.Exploit, broadcast, log, err)
 		return
 	}
 	err = nrr.Validate()
 	if err != nil {
-		const log = "controller broadcast invalid node register response\nerror:"
+		const log = "broadcast invalid node register response\nerror:"
 		h.logWithInfo(logger.Exploit, nrr, log, err)
 		return
 	}
@@ -236,13 +250,13 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 	brr := new(messages.BeaconRegisterResponse)
 	err := msgpack.Unmarshal(broadcast.Message, brr)
 	if err != nil {
-		const log = "controller broadcast invalid beacon register response data"
+		const log = "broadcast invalid beacon register response data"
 		h.logWithInfo(logger.Exploit, broadcast, log)
 		return
 	}
 	err = brr.Validate()
 	if err != nil {
-		const log = "controller broadcast invalid beacon register response"
+		const log = "broadcast invalid beacon register response"
 		h.logWithInfo(logger.Exploit, brr, log)
 		return
 	}
