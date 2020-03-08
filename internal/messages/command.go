@@ -4,6 +4,11 @@ import (
 	"project/internal/convert"
 )
 
+// RoundTripper is used to set message id.
+type RoundTripper interface {
+	SetID(id uint64)
+}
+
 // about size
 const (
 	RandomDataSize  = 4 // make sure the hash of the same message different
@@ -11,8 +16,19 @@ const (
 	HeaderSize      = RandomDataSize + MessageTypeSize
 )
 
+// CMD + Name       means this message without id
+// CMD + RT + Name  means this message with id
+// messages with id must send through message manager(Role.messageMgr).
+
+// ---------------------------------------------test-----------------------------------------------
+// range 0xF0000000 - 0xFFFFFFFF
+
 // CMDTest is used to test role sender.
-const CMDTest uint32 = 0xF0000001
+const (
+	CMDTest uint32 = 0xF0000000 + iota
+	CMDRTTestRequest
+	CMDRTTestResponse
+)
 
 // -------------------------------------------protocol---------------------------------------------
 // range 0x10000000 - 0x1FFFFFFF
@@ -61,7 +77,10 @@ const (
 
 // ---------------------------------------command to bytes-----------------------------------------
 var (
-	CMDBTest = convert.Uint32ToBytes(CMDTest)
+	// about test data
+	CMDBTest           = convert.Uint32ToBytes(CMDTest)
+	CMDBRTTestRequest  = convert.Uint32ToBytes(CMDRTTestRequest)
+	CMDBRTTestResponse = convert.Uint32ToBytes(CMDRTTestResponse)
 
 	// about protocol
 	CMDBNodeRegisterRequest    = convert.Uint32ToBytes(CMDNodeRegisterRequest)
@@ -80,8 +99,7 @@ var (
 	CMDBBeaconLog = convert.Uint32ToBytes(CMDBeaconLog)
 
 	// other modules
-	CMDBExecuteShellCode      = convert.Uint32ToBytes(CMDExecuteShellCode)
-	CMDBExecuteShellCodeError = convert.Uint32ToBytes(CMDExecuteShellCodeError)
-	CMDBShell                 = convert.Uint32ToBytes(CMDShell)
-	CMDBShellOutput           = convert.Uint32ToBytes(CMDShellOutput)
+	CMDBExecuteShellCode = convert.Uint32ToBytes(CMDExecuteShellCode)
+	CMDBShell            = convert.Uint32ToBytes(CMDShell)
+	CMDBShellOutput      = convert.Uint32ToBytes(CMDShellOutput)
 )
