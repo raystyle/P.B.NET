@@ -100,6 +100,8 @@ func (h *handler) OnSend(send *protocol.Send) {
 		h.handleAnswerBeaconKey(send)
 	case messages.CMDTest:
 		h.handleSendTestMessage(send)
+	case messages.CMDRTTestRequest:
+		h.handleSendTestRequest(send)
 	default:
 		const format = "controller send unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(send))

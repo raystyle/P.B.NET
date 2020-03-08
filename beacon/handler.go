@@ -51,6 +51,13 @@ func (h *handler) log(lv logger.Level, log ...interface{}) {
 	h.ctx.logger.Println(lv, "handler", log...)
 }
 
+// logPanic must use like defer h.logPanic("title")
+func (h *handler) logPanic(title string) {
+	if r := recover(); r != nil {
+		h.log(logger.Fatal, xpanic.Print(r, title))
+	}
+}
+
 // logfWithInfo will print log with role GUID and message
 // [2020-01-30 15:13:07] [info] <handler> foo logf
 // spew output...
@@ -77,13 +84,6 @@ func (h *handler) logWithInfo(lv logger.Level, log ...interface{}) {
 	h.ctx.logger.Print(lv, "handler", buf)
 }
 
-// logPanic must use like defer h.logPanic("title")
-func (h *handler) logPanic(title string) {
-	if r := recover(); r != nil {
-		h.log(logger.Fatal, xpanic.Print(r, title))
-	}
-}
-
 // OnMessage is used to handle message from Controller.
 // <warning> the function must be block, you can't not use
 // answer *protocol.Answer in go func(), if you want to use it,
@@ -104,6 +104,8 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 		h.handleShell(answer)
 	case messages.CMDTest:
 		h.handleSendTestMessage(answer)
+	case messages.CMDRTTestRequest:
+		h.handleSendTestRequest(answer)
 	default:
 		const format = "controller send unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(answer))
@@ -156,11 +158,34 @@ func (h *handler) handleShell(answer *protocol.Answer) {
 	}()
 }
 
+// -----------------------------------------send test----------------------------------------------
+
 func (h *handler) handleSendTestMessage(answer *protocol.Answer) {
 	defer h.logPanic("handler.handleSendTestMessage")
 	err := h.ctx.Test.AddSendTestMessage(h.context, answer.Message)
 	if err != nil {
 		const log = "failed to add send test message\nerror:"
 		h.logWithInfo(logger.Fatal, answer, log, err)
+	}
+}
+
+func (h *handler) handleSendTestRequest(answer *protocol.Answer) {
+	defer h.logPanic("handler.handleSendTestRequest")
+	request := new(messages.TestRequest)
+	err := msgpack.Unmarshal(answer.Message, request)
+	if err != nil {
+		const log = "invalid test request data\nerror:"
+		h.logWithInfo(logger.Exploit, answer, log, err)
+		return
+	}
+	// send response
+	response := &messages.TestResponse{
+		ID:       request.ID,
+		Response: request.Request,
+	}
+	err = h.ctx.sender.Send(h.context, messages.CMDBRTTestResponse, response, true)
+	if err != nil {
+		const log = "failed to send test response\nerror:"
+		h.logWithInfo(logger.Exploit, answer, log, err)
 	}
 }
