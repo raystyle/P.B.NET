@@ -3,6 +3,7 @@
 package shell
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"sync"
@@ -12,9 +13,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Shell ...
-func Shell(command string) ([]byte, error) {
-	cmd := exec.Command("cmd.exe", "/c", command) // #nosec
+// Shell is used to run one command with system shell.
+func Shell(ctx context.Context, command string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "cmd.exe", "/c", command) // #nosec
 	attr := syscall.SysProcAttr{
 		HideWindow: true,
 	}

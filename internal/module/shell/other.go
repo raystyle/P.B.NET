@@ -3,8 +3,8 @@
 
 package shell
 
-// Shell ...
-func Shell(command string) ([]byte, error) {
+// Shell is used to run one command with system shell.
+func Shell(ctx context.Context, command string) ([]byte, error) {
 	return nil, nil
 }
 
