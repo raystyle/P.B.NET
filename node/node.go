@@ -125,6 +125,7 @@ func (node *Node) fatal(err error, msg string) error {
 
 // Main is used to run Node, it will block until exit or return error.
 func (node *Node) Main() error {
+	const src = "main"
 	// start log sender
 	node.logger.StartSender()
 	// synchronize time
@@ -137,7 +138,7 @@ func (node *Node) Main() error {
 		}
 	}
 	now := node.global.Now().Local().Format(logger.TimeLayout)
-	node.logger.Println(logger.Info, "main", "time:", now)
+	node.logger.Println(logger.Info, src, "time:", now)
 	// deploy server
 	err := node.server.Deploy()
 	if err != nil {
@@ -150,7 +151,7 @@ func (node *Node) Main() error {
 	}
 	// driver
 	node.driver.Drive()
-	node.logger.Print(logger.Info, "main", "running")
+	node.logger.Print(logger.Info, src, "running")
 	close(node.wait)
 	return <-node.exit
 }
@@ -162,30 +163,31 @@ func (node *Node) Wait() {
 
 // Exit is used to exit with a error.
 func (node *Node) Exit(err error) {
+	const src = "exit"
 	node.once.Do(func() {
 		node.logger.CloseSender()
 		node.driver.Close()
-		node.logger.Print(logger.Info, "exit", "driver is stopped")
+		node.logger.Print(logger.Info, src, "driver is stopped")
 		node.handler.Cancel()
 		node.server.Close()
-		node.logger.Print(logger.Info, "exit", "server is stopped")
+		node.logger.Print(logger.Info, src, "server is stopped")
 		node.worker.Close()
-		node.logger.Print(logger.Info, "exit", "worker is stopped")
+		node.logger.Print(logger.Info, src, "worker is stopped")
 		node.handler.Close()
-		node.logger.Print(logger.Info, "exit", "handler is stopped")
+		node.logger.Print(logger.Info, src, "handler is stopped")
 		node.sender.Close()
-		node.logger.Print(logger.Info, "exit", "sender is stopped")
+		node.logger.Print(logger.Info, src, "sender is stopped")
 		node.forwarder.Close()
-		node.logger.Print(logger.Info, "exit", "forwarder is stopped")
+		node.logger.Print(logger.Info, src, "forwarder is stopped")
 		node.register.Close()
-		node.logger.Print(logger.Info, "exit", "register is closed")
+		node.logger.Print(logger.Info, src, "register is closed")
 		node.clientMgr.Close()
-		node.logger.Print(logger.Info, "exit", "client manager is closed")
+		node.logger.Print(logger.Info, src, "client manager is closed")
 		node.syncer.Close()
-		node.logger.Print(logger.Info, "exit", "syncer is stopped")
+		node.logger.Print(logger.Info, src, "syncer is stopped")
 		node.global.Close()
-		node.logger.Print(logger.Info, "exit", "global is closed")
-		node.logger.Print(logger.Info, "exit", "node is stopped")
+		node.logger.Print(logger.Info, src, "global is closed")
+		node.logger.Print(logger.Info, src, "node is stopped")
 		node.logger.Close()
 		node.exit <- err
 		close(node.exit)

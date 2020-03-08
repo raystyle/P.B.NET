@@ -106,6 +106,7 @@ func (beacon *Beacon) fatal(err error, msg string) error {
 
 // Main is used to run Beacon, it will block until exit or return error.
 func (beacon *Beacon) Main() error {
+	const src = "main"
 	// start log sender
 	beacon.logger.StartSender()
 	// synchronize time
@@ -118,14 +119,14 @@ func (beacon *Beacon) Main() error {
 		}
 	}
 	now := beacon.global.Now().Local().Format(logger.TimeLayout)
-	beacon.logger.Println(logger.Info, "main", "time:", now)
+	beacon.logger.Println(logger.Info, src, "time:", now)
 	// start register
 	err := beacon.register.Register()
 	if err != nil {
 		return beacon.fatal(err, "failed to register")
 	}
 	beacon.driver.Drive()
-	beacon.logger.Print(logger.Info, "main", "running")
+	beacon.logger.Print(logger.Info, src, "running")
 	close(beacon.wait)
 	return <-beacon.exit
 }
@@ -137,26 +138,27 @@ func (beacon *Beacon) Wait() {
 
 // Exit is used to exit with a error.
 func (beacon *Beacon) Exit(err error) {
+	const src = "exit"
 	beacon.once.Do(func() {
 		beacon.logger.CloseSender()
 		beacon.driver.Close()
-		beacon.logger.Print(logger.Info, "exit", "driver is stopped")
+		beacon.logger.Print(logger.Info, src, "driver is stopped")
 		beacon.handler.Cancel()
 		beacon.worker.Close()
-		beacon.logger.Print(logger.Info, "exit", "worker is stopped")
+		beacon.logger.Print(logger.Info, src, "worker is stopped")
 		beacon.handler.Close()
-		beacon.logger.Print(logger.Info, "exit", "handler is stopped")
+		beacon.logger.Print(logger.Info, src, "handler is stopped")
 		beacon.sender.Close()
-		beacon.logger.Print(logger.Info, "exit", "sender is stopped")
+		beacon.logger.Print(logger.Info, src, "sender is stopped")
 		beacon.register.Close()
-		beacon.logger.Print(logger.Info, "exit", "register is closed")
+		beacon.logger.Print(logger.Info, src, "register is closed")
 		beacon.clientMgr.Close()
-		beacon.logger.Print(logger.Info, "exit", "client manager is closed")
+		beacon.logger.Print(logger.Info, src, "client manager is closed")
 		beacon.syncer.Close()
-		beacon.logger.Print(logger.Info, "exit", "syncer is stopped")
+		beacon.logger.Print(logger.Info, src, "syncer is stopped")
 		beacon.global.Close()
-		beacon.logger.Print(logger.Info, "exit", "global is closed")
-		beacon.logger.Print(logger.Info, "exit", "beacon is stopped")
+		beacon.logger.Print(logger.Info, src, "global is closed")
+		beacon.logger.Print(logger.Info, src, "beacon is stopped")
 		beacon.logger.Close()
 		beacon.exit <- err
 		close(beacon.exit)

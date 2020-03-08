@@ -117,6 +117,7 @@ func (ctrl *Ctrl) fatal(err error, msg string) error {
 
 // Main is used to run Controller, it will block until exit or return error.
 func (ctrl *Ctrl) Main() error {
+	const src = "main"
 	defer func() { ctrl.wait <- struct{}{} }()
 	// synchronize time
 	if ctrl.Test.options.SkipSynchronizeTime {
@@ -135,30 +136,30 @@ func (ctrl *Ctrl) Main() error {
 		}
 	}
 	now := ctrl.global.Now().Local().Format(logger.TimeLayout)
-	ctrl.logger.Println(logger.Info, "main", "time:", now)
+	ctrl.logger.Println(logger.Info, src, "time:", now)
 	// start web server
 	err := ctrl.web.Deploy()
 	if err != nil {
 		return ctrl.fatal(err, "failed to deploy web server")
 	}
-	ctrl.logger.Printf(logger.Info, "main", "web server: https://%s/", ctrl.web.Address())
-	ctrl.logger.Print(logger.Info, "main", "controller is running")
+	ctrl.logger.Printf(logger.Info, src, "web server: https://%s/", ctrl.web.Address())
+	ctrl.logger.Print(logger.Info, src, "controller is running")
 	// wait to load controller keys
 	if !ctrl.global.WaitLoadSessionKey() {
 		return nil
 	}
-	ctrl.logger.Print(logger.Info, "main", "load session key successfully")
+	ctrl.logger.Print(logger.Info, src, "load session key successfully")
 	// load boots
-	ctrl.logger.Print(logger.Info, "main", "start discover bootstrap node listeners")
+	ctrl.logger.Print(logger.Info, src, "start discover bootstrap node listeners")
 	boots, err := ctrl.database.SelectBoot()
 	if err != nil {
-		ctrl.logger.Println(logger.Error, "main", "failed to select boot:", err)
+		ctrl.logger.Println(logger.Error, src, "failed to select boot:", err)
 		return nil
 	}
 	for i := 0; i < len(boots); i++ {
 		err = ctrl.boot.Add(boots[i])
 		if err != nil {
-			ctrl.logger.Println(logger.Error, "main", "failed to add boot:", err)
+			ctrl.logger.Println(logger.Error, src, "failed to add boot:", err)
 		}
 	}
 	ctrl.wait <- struct{}{}
@@ -172,25 +173,28 @@ func (ctrl *Ctrl) Wait() {
 
 // Exit is used to exit with a error.
 func (ctrl *Ctrl) Exit(err error) {
+	const src = "exit"
 	ctrl.once.Do(func() {
 		ctrl.web.Close()
-		ctrl.logger.Print(logger.Info, "exit", "web server is stopped")
+		ctrl.logger.Print(logger.Info, src, "web server is stopped")
 		ctrl.boot.Close()
-		ctrl.logger.Print(logger.Info, "exit", "boot is stopped")
+		ctrl.logger.Print(logger.Info, src, "boot is stopped")
 		ctrl.handler.Cancel()
 		ctrl.worker.Close()
-		ctrl.logger.Print(logger.Info, "exit", "worker is stopped")
+		ctrl.logger.Print(logger.Info, src, "worker is stopped")
 		ctrl.handler.Close()
-		ctrl.logger.Print(logger.Info, "exit", "handler is stopped")
+		ctrl.logger.Print(logger.Info, src, "handler is stopped")
+		ctrl.messageMgr.Close()
+		ctrl.logger.Print(logger.Info, src, "message manager is stopped")
 		ctrl.sender.Close()
-		ctrl.logger.Print(logger.Info, "exit", "sender is stopped")
+		ctrl.logger.Print(logger.Info, src, "sender is stopped")
 		ctrl.clientMgr.Close()
-		ctrl.logger.Print(logger.Info, "exit", "client manager is closed")
+		ctrl.logger.Print(logger.Info, src, "client manager is closed")
 		ctrl.syncer.Close()
-		ctrl.logger.Print(logger.Info, "exit", "syncer is stopped")
+		ctrl.logger.Print(logger.Info, src, "syncer is stopped")
 		ctrl.global.Close()
-		ctrl.logger.Print(logger.Info, "exit", "global is stopped")
-		ctrl.logger.Print(logger.Info, "exit", "controller is stopped")
+		ctrl.logger.Print(logger.Info, src, "global is stopped")
+		ctrl.logger.Print(logger.Info, src, "controller is stopped")
 		ctrl.database.Close()
 		ctrl.logger.Close()
 		ctrl.exit <- err
@@ -268,6 +272,28 @@ func (ctrl *Ctrl) SendToBeacon(
 	deflate bool,
 ) error {
 	return ctrl.sender.SendToBeacon(ctx, guid, command, message, deflate)
+}
+
+// SendToNodeRT is used to send messages to Node and get response.
+func (ctrl *Ctrl) SendToNodeRT(
+	ctx context.Context,
+	guid *guid.GUID,
+	command []byte,
+	message messages.RoundTripper,
+	deflate bool,
+) (interface{}, error) {
+	return ctrl.messageMgr.SendToNode(ctx, guid, command, message, deflate)
+}
+
+// SendToBeaconRT is used to send messages to Beacon and get response.
+func (ctrl *Ctrl) SendToBeaconRT(
+	ctx context.Context,
+	guid *guid.GUID,
+	command []byte,
+	message messages.RoundTripper,
+	deflate bool,
+) (interface{}, error) {
+	return ctrl.messageMgr.SendToBeacon(ctx, guid, command, message, deflate)
 }
 
 // Broadcast is used to broadcast messages to all Nodes.
