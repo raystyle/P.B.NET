@@ -449,7 +449,7 @@ func (h *handler) handleBeaconSendTestRequest(send *protocol.Send) {
 		ID:       request.ID,
 		Response: request.Request,
 	}
-	err = h.ctx.sender.SendToBeacon(h.context, &send.GUID,
+	err = h.ctx.sender.SendToBeacon(h.context, &send.RoleGUID,
 		messages.CMDBRTTestResponse, response, true)
 	if err != nil {
 		const format = "failed to send beacon test response to node\nerror: %s"

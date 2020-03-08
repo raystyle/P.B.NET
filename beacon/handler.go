@@ -106,6 +106,8 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 		h.handleSendTestMessage(answer)
 	case messages.CMDRTTestRequest:
 		h.handleSendTestRequest(answer)
+	case messages.CMDRTTestResponse:
+		h.handleSendTestResponse(answer)
 	default:
 		const format = "controller send unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(answer))
@@ -188,4 +190,16 @@ func (h *handler) handleSendTestRequest(answer *protocol.Answer) {
 		const log = "failed to send test response\nerror:"
 		h.logWithInfo(logger.Exploit, answer, log, err)
 	}
+}
+
+func (h *handler) handleSendTestResponse(answer *protocol.Answer) {
+	defer h.logPanic("handler.handleSendTestResponse")
+	response := new(messages.TestResponse)
+	err := msgpack.Unmarshal(answer.Message, response)
+	if err != nil {
+		const log = "invalid test response data\nerror:"
+		h.logWithInfo(logger.Exploit, answer, log, err)
+		return
+	}
+	h.ctx.messageMgr.HandleReply(response.ID, response)
 }

@@ -274,3 +274,81 @@ func testNodeSendRT(t *testing.T, iNodes, cNodes []*node.Node) {
 		require.NoError(t, err)
 	}
 }
+
+func TestBeacon_SendRT_CI(t *testing.T) {
+	nodes, beacons := buildBeaconNetworkWithCI(t, false, true)
+	testBeaconSendRT(t, nodes, beacons)
+}
+
+func TestBeacon_SendRT_IC(t *testing.T) {
+	nodes, beacons := buildBeaconNetworkWithIC(t, false, true)
+	testBeaconSendRT(t, nodes, beacons)
+}
+
+func TestBeacon_SendRT_Mix(t *testing.T) {
+	nodes, beacons := buildBeaconNetworkWithMix(t, false, true)
+	testBeaconSendRT(t, nodes, beacons)
+}
+
+func testBeaconSendRT(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) {
+	const (
+		goroutines = 128
+		times      = 32
+	)
+	ctx := context.Background()
+	send := func(wg *sync.WaitGroup, info string, start int, beacon *beacon.Beacon) {
+		defer wg.Done()
+		for i := start; i < start+times; i++ {
+			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
+			req := &messages.TestRequest{
+				Request: msg,
+			}
+			resp, err := beacon.SendRT(ctx, messages.CMDBRTTestRequest, req, true)
+			require.NoError(t, err, info)
+			response := resp.(*messages.TestResponse).Response
+			require.Equal(t, msg, response)
+		}
+	}
+
+	wg := sync.WaitGroup{}
+	sendAndRead := func(n int, beacon *beacon.Beacon) {
+		defer wg.Done()
+		sub := new(sync.WaitGroup)
+		for i := 0; i < goroutines; i++ {
+			info := fmt.Sprintf("Beacon[%d]", n)
+			sub.Add(1)
+			go send(sub, info, i*times, beacon)
+		}
+		sub.Wait()
+	}
+	// send and read
+	for i := 0; i < len(beacons); i++ {
+		wg.Add(1)
+		go sendAndRead(i, beacons[i])
+	}
+	wg.Wait()
+
+	// clean
+	for i := 0; i < len(beacons); i++ {
+		Beacon := beacons[i]
+		beacons[i] = nil
+		beaconGUID := Beacon.GUID()
+
+		Beacon.Exit(nil)
+		testsuite.IsDestroyed(t, Beacon)
+
+		err := ctrl.DeleteBeaconUnscoped(beaconGUID)
+		require.NoError(t, err)
+	}
+	for i := 0; i < len(nodes); i++ {
+		Node := nodes[i]
+		nodes[i] = nil
+		nodeGUID := Node.GUID()
+
+		Node.Exit(nil)
+		testsuite.IsDestroyed(t, Node)
+
+		err := ctrl.DeleteNodeUnscoped(nodeGUID)
+		require.NoError(t, err)
+	}
+}

@@ -9,21 +9,23 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/messages"
 )
 
 // Beacon send messages to Controller.
 type Beacon struct {
 	Test *Test
 
-	logger    *gLogger   // global logger
-	global    *global    // certificate, proxy, dns, time syncer, and ...
-	syncer    *syncer    // sync network guid
-	clientMgr *clientMgr // clients manager
-	register  *register  // about register to Controller
-	sender    *sender    // send message to controller
-	handler   *handler   // handle message from controller
-	worker    *worker    // do work
-	driver    *driver    // control all modules
+	logger     *gLogger    // global logger
+	global     *global     // certificate, proxy, dns, time syncer, and ...
+	syncer     *syncer     // sync network guid
+	clientMgr  *clientMgr  // clients manager
+	register   *register   // about register to Controller
+	sender     *sender     // send message to controller
+	messageMgr *messageMgr // message manager
+	handler    *handler    // handle message from controller
+	worker     *worker     // do work
+	driver     *driver     // control all modules
 
 	once sync.Once
 	wait chan struct{}
@@ -72,6 +74,8 @@ func New(cfg *Config) (*Beacon, error) {
 		return nil, errors.WithMessage(err, "failed to initialize sender")
 	}
 	beacon.sender = sender
+	// message manager
+	beacon.messageMgr = newMessageMgr(beacon, cfg)
 	// handler
 	beacon.handler = newHandler(beacon)
 	// worker
@@ -148,6 +152,8 @@ func (beacon *Beacon) Exit(err error) {
 		beacon.logger.Print(logger.Info, src, "worker is stopped")
 		beacon.handler.Close()
 		beacon.logger.Print(logger.Info, src, "handler is stopped")
+		beacon.messageMgr.Close()
+		beacon.logger.Print(logger.Info, src, "message manager is stopped")
 		beacon.sender.Close()
 		beacon.logger.Print(logger.Info, src, "sender is stopped")
 		beacon.register.Close()
@@ -171,13 +177,37 @@ func (beacon *Beacon) GUID() *guid.GUID {
 }
 
 // Synchronize is used to connect a Node and start to synchronize.
-func (beacon *Beacon) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
+func (beacon *Beacon) Synchronize(
+	ctx context.Context,
+	guid *guid.GUID,
+	bl *bootstrap.Listener,
+) error {
 	return beacon.sender.Synchronize(ctx, guid, bl)
 }
 
+// Disconnect is used to disconnect Node.
+func (beacon *Beacon) Disconnect(guid *guid.GUID) error {
+	return beacon.sender.Disconnect(guid)
+}
+
 // Send is used to send message to Controller.
-func (beacon *Beacon) Send(ctx context.Context, command, message []byte, deflate bool) error {
+func (beacon *Beacon) Send(
+	ctx context.Context,
+	command []byte,
+	message []byte,
+	deflate bool,
+) error {
 	return beacon.sender.Send(ctx, command, message, deflate)
+}
+
+// SendRT is used to send message to Controller and get response.
+func (beacon *Beacon) SendRT(
+	ctx context.Context,
+	command []byte,
+	message messages.RoundTripper,
+	deflate bool,
+) (interface{}, error) {
+	return beacon.messageMgr.Send(ctx, command, message, deflate)
 }
 
 // Query is used to query message from Controller.
