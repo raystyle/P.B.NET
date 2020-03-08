@@ -246,13 +246,7 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 	// notice view
 
 	// test
-	if h.ctx.Test.NodeRegisterRequest == nil {
-		return
-	}
-	select {
-	case h.ctx.Test.NodeRegisterRequest <- nrr:
-	case <-h.context.Done():
-	}
+	h.ctx.Test.AddNodeRegisterRequest(h.context, nrr)
 }
 
 func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
@@ -283,13 +277,7 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 	// notice view
 
 	// test
-	if h.ctx.Test.BeaconRegisterRequest == nil {
-		return
-	}
-	select {
-	case h.ctx.Test.BeaconRegisterRequest <- brr:
-	case <-h.context.Done():
-	}
+	h.ctx.Test.AddBeaconRegisterRequest(h.context, brr)
 }
 
 func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.Send) []byte {
@@ -374,8 +362,8 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[messages.RandomDataSize:messages.HeaderSize])
 	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
-	case messages.CMDShellOutput:
-		h.handleShellOutput(send)
+	case messages.CMDSingleShellOutput:
+		h.handleSingleShellOutput(send)
 	case messages.CMDBeaconLog:
 		h.handleBeaconLog(send)
 	case messages.CMDTest:
@@ -390,16 +378,16 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 	}
 }
 
-func (h *handler) handleShellOutput(send *protocol.Send) {
-	defer h.logPanic("handler.handleShellOutput")
-	output := new(messages.ShellOutput)
+func (h *handler) handleSingleShellOutput(send *protocol.Send) {
+	defer h.logPanic("handler.handleSingleShellOutput")
+	output := new(messages.SingleShellOutput)
 	err := msgpack.Unmarshal(send.Message, output)
 	if err != nil {
-		const format = "invalid shell output data\nerror: %s"
+		const format = "invalid single shell output data\nerror: %s"
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
-	fmt.Println(string(output.Output))
+	h.ctx.messageMgr.HandleReply(output.ID, output)
 }
 
 func (h *handler) handleBeaconLog(send *protocol.Send) {

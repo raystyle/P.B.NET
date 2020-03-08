@@ -45,7 +45,7 @@ func (t *Test) EnableRoleSendTestMessage() {
 	}
 }
 
-// CreateNodeSendTestMessageChannel is used to create node send test message channel
+// CreateNodeSendTestMessageChannel is used to create Node send test message channel
 func (t *Test) CreateNodeSendTestMessageChannel(guid *guid.GUID) chan []byte {
 	t.nodeSendTestMsgRWM.Lock()
 	defer t.nodeSendTestMsgRWM.Unlock()
@@ -57,7 +57,7 @@ func (t *Test) CreateNodeSendTestMessageChannel(guid *guid.GUID) chan []byte {
 	return ch
 }
 
-// CreateBeaconSendTestMessageChannel is used to create beacon send test message channel
+// CreateBeaconSendTestMessageChannel is used to create Beacon send test message channel
 func (t *Test) CreateBeaconSendTestMessageChannel(guid *guid.GUID) chan []byte {
 	t.beaconSendTestMsgRWM.Lock()
 	defer t.beaconSendTestMsgRWM.Unlock()
@@ -69,7 +69,7 @@ func (t *Test) CreateBeaconSendTestMessageChannel(guid *guid.GUID) chan []byte {
 	return ch
 }
 
-// AddNodeSendTestMessage is used to add node send test message
+// AddNodeSendTestMessage is used to add Node send test message
 func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
 	t.roleSendTestMsgEnabledRWM.RLock()
 	defer t.roleSendTestMsgEnabledRWM.RUnlock()
@@ -92,7 +92,7 @@ func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid *guid.GUID, mess
 	}
 }
 
-// AddBeaconSendTestMessage is used to add beacon send test message
+// AddBeaconSendTestMessage is used to add Beacon send test message
 func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
 	t.roleSendTestMsgEnabledRWM.RLock()
 	defer t.roleSendTestMsgEnabledRWM.RUnlock()
@@ -115,7 +115,7 @@ func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid *guid.GUID, me
 	}
 }
 
-// CreateNodeRegisterRequestChannel is used to create node register request channel
+// CreateNodeRegisterRequestChannel is used to create Node register request channel
 func (t *Test) CreateNodeRegisterRequestChannel() {
 	t.roleRegisterRequestM.Lock()
 	defer t.roleRegisterRequestM.Unlock()
@@ -124,11 +124,37 @@ func (t *Test) CreateNodeRegisterRequestChannel() {
 	}
 }
 
-// CreateBeaconRegisterRequestChannel is used to create beacon register request channel
+// CreateBeaconRegisterRequestChannel is used to create Beacon register request channel
 func (t *Test) CreateBeaconRegisterRequestChannel() {
 	t.roleRegisterRequestM.Lock()
 	defer t.roleRegisterRequestM.Unlock()
 	if t.BeaconRegisterRequest == nil {
 		t.BeaconRegisterRequest = make(chan *messages.BeaconRegisterRequest, 4)
+	}
+}
+
+// AddNodeRegisterRequest is used to add Node register request.
+func (t *Test) AddNodeRegisterRequest(ctx context.Context, nrr *messages.NodeRegisterRequest) {
+	t.roleRegisterRequestM.Lock()
+	defer t.roleRegisterRequestM.Unlock()
+	if t.NodeRegisterRequest == nil {
+		return
+	}
+	select {
+	case t.NodeRegisterRequest <- nrr:
+	case <-ctx.Done():
+	}
+}
+
+// AddBeaconRegisterRequest is used to add Beacon register request.
+func (t *Test) AddBeaconRegisterRequest(ctx context.Context, brr *messages.BeaconRegisterRequest) {
+	t.roleRegisterRequestM.Lock()
+	defer t.roleRegisterRequestM.Unlock()
+	if t.BeaconRegisterRequest == nil {
+		return
+	}
+	select {
+	case t.BeaconRegisterRequest <- brr:
+	case <-ctx.Done():
 	}
 }

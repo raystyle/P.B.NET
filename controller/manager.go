@@ -271,7 +271,7 @@ func (mgr *messageMgr) SendToNode(
 		}
 		return nil, ctx.Err()
 	case <-timer.C:
-		return nil, errors.New("get response timeout about send to node")
+		return nil, errors.New("get reply timeout about send to node")
 	}
 }
 
@@ -308,7 +308,7 @@ func (mgr *messageMgr) SendToBeacon(
 		}
 		return nil, ctx.Err()
 	case <-timer.C:
-		return nil, errors.New("get response timeout about send to beacon")
+		return nil, errors.New("get reply timeout about send to beacon")
 	}
 }
 
