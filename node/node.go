@@ -208,9 +208,9 @@ func (node *Node) GUID() *guid.GUID {
 func (node *Node) Synchronize(
 	ctx context.Context,
 	guid *guid.GUID,
-	bl *bootstrap.Listener,
+	listener *bootstrap.Listener,
 ) error {
-	return node.sender.Synchronize(ctx, guid, bl)
+	return node.sender.Synchronize(ctx, guid, listener)
 }
 
 // Disconnect is used to disconnect Node.

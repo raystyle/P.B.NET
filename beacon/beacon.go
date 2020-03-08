@@ -180,9 +180,9 @@ func (beacon *Beacon) GUID() *guid.GUID {
 func (beacon *Beacon) Synchronize(
 	ctx context.Context,
 	guid *guid.GUID,
-	bl *bootstrap.Listener,
+	listener *bootstrap.Listener,
 ) error {
-	return beacon.sender.Synchronize(ctx, guid, bl)
+	return beacon.sender.Synchronize(ctx, guid, listener)
 }
 
 // Disconnect is used to disconnect Node.

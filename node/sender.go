@@ -180,7 +180,7 @@ func (sender *sender) log(lv logger.Level, log ...interface{}) {
 func (sender *sender) Synchronize(
 	ctx context.Context,
 	guid *guid.GUID,
-	bl *bootstrap.Listener,
+	listener *bootstrap.Listener,
 ) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
@@ -204,7 +204,7 @@ func (sender *sender) Synchronize(
 		}
 	}
 	// create client
-	client, err := sender.ctx.NewClient(ctx, bl, guid)
+	client, err := sender.ctx.NewClient(ctx, listener, guid)
 	if err != nil {
 		return errors.WithMessage(err, "failed to create client")
 	}
@@ -239,12 +239,12 @@ func (sender *sender) Synchronize(
 	err = client.Connect()
 	if err != nil {
 		const format = "failed to connect node\nlistener: %s\n%s\nerror"
-		return errors.WithMessagef(err, format, bl, guid.Hex())
+		return errors.WithMessagef(err, format, listener, guid.Hex())
 	}
 	err = client.Synchronize()
 	if err != nil {
 		const format = "failed to start to synchronize\nlistener: %s\n%s\nerror"
-		return errors.WithMessagef(err, format, bl, guid)
+		return errors.WithMessagef(err, format, listener, guid)
 	}
 	success = true
 	return nil

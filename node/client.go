@@ -47,10 +47,10 @@ type Client struct {
 // when guid == ctrl guid for register.
 func (node *Node) NewClient(
 	ctx context.Context,
-	bl *bootstrap.Listener,
+	listener *bootstrap.Listener,
 	guid *guid.GUID,
 ) (*Client, error) {
-	host, port, err := net.SplitHostPort(bl.Address)
+	host, port, err := net.SplitHostPort(listener.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -87,19 +87,19 @@ func (node *Node) NewClient(
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
 		address := net.JoinHostPort(result[i], port)
-		conn, err = xnet.DialContext(ctx, bl.Mode, bl.Network, address, &opts)
+		conn, err = xnet.DialContext(ctx, listener.Mode, listener.Network, address, &opts)
 		if err == nil {
 			break
 		}
 	}
 	if err != nil {
 		const format = "failed to connect node listener %s, because %s"
-		return nil, errors.Errorf(format, bl, err)
+		return nil, errors.Errorf(format, listener, err)
 	}
 	// handshake
 	client := &Client{
 		ctx:      node,
-		listener: bl,
+		listener: listener,
 		GUID:     guid,
 		rand:     random.New(),
 	}
@@ -108,7 +108,7 @@ func (node *Node) NewClient(
 	if err != nil {
 		_ = conn.Close()
 		const format = "failed to handshake with node listener: %s"
-		return nil, errors.WithMessagef(err, format, bl)
+		return nil, errors.WithMessagef(err, format, listener)
 	}
 	node.clientMgr.Add(client)
 	client.Conn.Log(logger.Debug, "create client")
