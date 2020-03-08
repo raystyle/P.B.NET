@@ -53,6 +53,13 @@ func (h *handler) log(lv logger.Level, log ...interface{}) {
 	h.ctx.logger.Println(lv, "handler", log...)
 }
 
+// logPanic must use like defer h.logPanic("title")
+func (h *handler) logPanic(title string) {
+	if r := recover(); r != nil {
+		h.log(logger.Fatal, xpanic.Print(r, title))
+	}
+}
+
 // logfWithInfo will print log with role GUID and message
 // [2020-01-30 15:13:07] [info] <handler> foo logf
 // GUID: FF...
@@ -85,13 +92,6 @@ func (h *handler) logWithInfo(lv logger.Level, log ...interface{}) {
 	h.ctx.logger.Print(lv, "handler", buf)
 }
 
-// logPanic must use like defer h.logPanic("title")
-func (h *handler) logPanic(title string) {
-	if r := recover(); r != nil {
-		h.log(logger.Fatal, xpanic.Print(r, title))
-	}
-}
-
 // ----------------------------------------Node Send-----------------------------------------------
 
 func (h *handler) OnNodeSend(send *protocol.Send) {
@@ -116,6 +116,10 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 		h.handleBeaconRegisterRequest(send)
 	case messages.CMDTest:
 		h.handleNodeSendTestMessage(send)
+	case messages.CMDRTTestRequest:
+		h.handleNodeSendTestRequest(send)
+	case messages.CMDRTTestResponse:
+		h.handleNodeSendTestResponse(send)
 	default:
 		const format = "node send unknown message\n%s\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, send.RoleGUID.Print(), msgType, spew.Sdump(send))
@@ -324,6 +328,40 @@ func (h *handler) handleNodeSendTestMessage(send *protocol.Send) {
 	}
 }
 
+func (h *handler) handleNodeSendTestRequest(send *protocol.Send) {
+	defer h.logPanic("handler.handleNodeSendTestRequest")
+	request := new(messages.TestRequest)
+	err := msgpack.Unmarshal(send.Message, request)
+	if err != nil {
+		const format = "invalid node test request data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	// send response
+	response := &messages.TestResponse{
+		ID:       request.ID,
+		Response: request.Request,
+	}
+	err = h.ctx.sender.SendToNode(h.context, &send.GUID,
+		messages.CMDBRTTestResponse, response, true)
+	if err != nil {
+		const format = "failed to send node test response to node\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+	}
+}
+
+func (h *handler) handleNodeSendTestResponse(send *protocol.Send) {
+	defer h.logPanic("handler.handleNodeSendTestResponse")
+	response := new(messages.TestResponse)
+	err := msgpack.Unmarshal(send.Message, response)
+	if err != nil {
+		const format = "invalid node test response data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	h.ctx.messageMgr.HandleReply(response.ID, response)
+}
+
 // ---------------------------------------Beacon Send----------------------------------------------
 
 func (h *handler) OnBeaconSend(send *protocol.Send) {
@@ -342,6 +380,10 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 		h.handleBeaconLog(send)
 	case messages.CMDTest:
 		h.handleBeaconSendTestMessage(send)
+	case messages.CMDRTTestRequest:
+		h.handleBeaconSendTestRequest(send)
+	case messages.CMDRTTestResponse:
+		h.handleBeaconSendTestResponse(send)
 	default:
 		const format = "beacon send unknown message\n%s\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, send.RoleGUID.Print(), msgType, spew.Sdump(send))
@@ -391,4 +433,38 @@ func (h *handler) handleBeaconSendTestMessage(send *protocol.Send) {
 		const log = "failed to add beacon send test message\nerror:"
 		h.logWithInfo(logger.Fatal, &send.RoleGUID, send, log, err)
 	}
+}
+
+func (h *handler) handleBeaconSendTestRequest(send *protocol.Send) {
+	defer h.logPanic("handler.handleBeaconSendTestRequest")
+	request := new(messages.TestRequest)
+	err := msgpack.Unmarshal(send.Message, request)
+	if err != nil {
+		const format = "invalid beacon test request data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	// send response
+	response := &messages.TestResponse{
+		ID:       request.ID,
+		Response: request.Request,
+	}
+	err = h.ctx.sender.SendToBeacon(h.context, &send.GUID,
+		messages.CMDBRTTestResponse, response, true)
+	if err != nil {
+		const format = "failed to send beacon test response to node\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+	}
+}
+
+func (h *handler) handleBeaconSendTestResponse(send *protocol.Send) {
+	defer h.logPanic("handler.handleBeaconSendTestResponse")
+	response := new(messages.TestResponse)
+	err := msgpack.Unmarshal(send.Message, response)
+	if err != nil {
+		const format = "invalid beacon test response data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	h.ctx.messageMgr.HandleReply(response.ID, response)
 }

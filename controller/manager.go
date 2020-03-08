@@ -177,8 +177,8 @@ type messageMgr struct {
 	// 2 * sender.Timeout
 	timeout time.Duration
 
-	id       uint64
-	slots    map[uint64]chan messages.RoundTripper
+	slotID   uint64
+	slots    map[uint64]chan interface{}
 	slotsRWM sync.RWMutex
 
 	slotPool  sync.Pool
@@ -195,14 +195,14 @@ func newMessageMgr(ctx *Ctrl, config *Config) *messageMgr {
 	mgr := messageMgr{
 		ctx:     ctx,
 		timeout: 2 * cfg.Timeout,
-		slots:   make(map[uint64]chan messages.RoundTripper),
+		slots:   make(map[uint64]chan interface{}),
 	}
 	// set random ID
 	for i := 0; i < 5; i++ {
-		mgr.id += uint64(random.Int(1048576))
+		mgr.slotID += uint64(random.Int(1048576))
 	}
 	mgr.slotPool.New = func() interface{} {
-		return make(chan messages.RoundTripper, 1)
+		return make(chan interface{}, 1)
 	}
 	mgr.timerPool.New = func() interface{} {
 		timer := time.NewTimer(time.Minute)
@@ -215,21 +215,27 @@ func newMessageMgr(ctx *Ctrl, config *Config) *messageMgr {
 	return &mgr
 }
 
-func (mgr *messageMgr) createSlot() (uint64, chan messages.RoundTripper) {
+func (mgr *messageMgr) createSlot() (uint64, chan interface{}) {
+	ch := mgr.slotPool.Get().(chan interface{})
 	mgr.slotsRWM.Lock()
 	defer mgr.slotsRWM.Unlock()
-	id := mgr.id + 1
-	ch := mgr.slotPool.Get().(chan messages.RoundTripper)
+	id := mgr.slotID
 	mgr.slots[id] = ch
-	mgr.id++
+	mgr.slotID++
 	return id, ch
 }
 
-func (mgr *messageMgr) destroySlot(id uint64, ch chan messages.RoundTripper) {
-	mgr.slotPool.Put(ch)
+func (mgr *messageMgr) destroySlot(id uint64, ch chan interface{}) {
 	mgr.slotsRWM.Lock()
 	defer mgr.slotsRWM.Unlock()
 	delete(mgr.slots, id)
+	// when read channel timeout, defer call destroySlot(),
+	// the channel maybe has response, try to clean it.
+	select {
+	case <-ch:
+	default:
+	}
+	mgr.slotPool.Put(ch)
 }
 
 // SendToNode is used to send message to Node and get the response.
@@ -239,14 +245,17 @@ func (mgr *messageMgr) SendToNode(
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
-) (messages.RoundTripper, error) {
+) (interface{}, error) {
+	// set message id
 	id, response := mgr.createSlot()
 	defer mgr.destroySlot(id, response)
 	message.SetID(id)
+	// send
 	err := mgr.ctx.sender.SendToNode(ctx, guid, command, message, deflate)
 	if err != nil {
 		return nil, err
 	}
+	// get response
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
 	timer.Reset(mgr.timeout)
@@ -256,47 +265,89 @@ func (mgr *messageMgr) SendToNode(
 			<-timer.C
 		}
 		return resp, nil
-	case <-timer.C:
-		return nil, errors.New("get response timeout about send to node")
 	case <-ctx.Done():
 		if !timer.Stop() {
 			<-timer.C
 		}
 		return nil, ctx.Err()
+	case <-timer.C:
+		return nil, errors.New("get response timeout about send to node")
 	}
 }
 
-// SendToNode is used to send message to Node and get the response.
+// SendToNode is used to send message to Beacon and get the response.
 func (mgr *messageMgr) SendToBeacon(
 	ctx context.Context,
 	guid *guid.GUID,
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
-) (messages.RoundTripper, error) {
+) (interface{}, error) {
+	// set message id
 	id, response := mgr.createSlot()
 	defer mgr.destroySlot(id, response)
 	message.SetID(id)
+	// send
 	err := mgr.ctx.sender.SendToBeacon(ctx, guid, command, message, deflate)
 	if err != nil {
 		return nil, err
 	}
+	// get response
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
 	timer.Reset(mgr.timeout)
-	defer timer.Stop()
 	select {
 	case resp := <-response:
+		if !timer.Stop() {
+			<-timer.C
+		}
 		return resp, nil
+	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return nil, ctx.Err()
 	case <-timer.C:
 		return nil, errors.New("get response timeout about send to beacon")
-	case <-ctx.Done():
-		return nil, ctx.Err()
 	}
 }
 
-// PushMessage is used to set response, handler will Call it.
-func (mgr *messageMgr) PushMessage(id uint64, message messages.RoundTripper) {
+// SendToNodeFromPlugin is used to send message to Node and get the response.
+func (mgr *messageMgr) SendToNodeFromPlugin(
+	guid *guid.GUID,
+	command []byte,
+	message []byte,
+	deflate bool,
+) ([]byte, error) {
+	request := &messages.PluginRequest{
+		Request: message,
+	}
+	response, err := mgr.SendToNode(mgr.context, guid, command, request, deflate)
+	if err != nil {
+		return nil, err
+	}
+	return response.([]byte), nil
+}
+
+// SendToBeaconFromPlugin is used to send message to Beacon and get the response.
+func (mgr *messageMgr) SendToBeaconFromPlugin(
+	guid *guid.GUID,
+	command []byte,
+	message []byte,
+	deflate bool,
+) ([]byte, error) {
+	request := &messages.PluginRequest{
+		Request: message,
+	}
+	response, err := mgr.SendToBeacon(mgr.context, guid, command, request, deflate)
+	if err != nil {
+		return nil, err
+	}
+	return response.([]byte), nil
+}
+
+// HandleReply is used to set response, handler.Handle functions will call it.
+func (mgr *messageMgr) HandleReply(id uint64, response interface{}) {
 	mgr.slotsRWM.RLock()
 	defer mgr.slotsRWM.RUnlock()
 	ch := mgr.slots[id]
@@ -304,8 +355,8 @@ func (mgr *messageMgr) PushMessage(id uint64, message messages.RoundTripper) {
 		return
 	}
 	select {
-	case ch <- message:
-	default:
+	case ch <- response:
+	case <-mgr.context.Done():
 	}
 }
 
@@ -336,7 +387,7 @@ func (mgr *messageMgr) cleaner() {
 func (mgr *messageMgr) clean() {
 	mgr.slotsRWM.Lock()
 	defer mgr.slotsRWM.Unlock()
-	newMap := make(map[uint64]chan messages.RoundTripper)
+	newMap := make(map[uint64]chan interface{})
 	for id, message := range mgr.slots {
 		newMap[id] = message
 	}
@@ -346,4 +397,5 @@ func (mgr *messageMgr) clean() {
 func (mgr *messageMgr) Close() {
 	mgr.cancel()
 	mgr.wg.Wait()
+	mgr.ctx = nil
 }

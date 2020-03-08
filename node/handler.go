@@ -49,6 +49,13 @@ func (h *handler) log(lv logger.Level, log ...interface{}) {
 	h.ctx.logger.Println(lv, "handler", log...)
 }
 
+// logPanic must use like defer h.logPanic("title")
+func (h *handler) logPanic(title string) {
+	if r := recover(); r != nil {
+		h.log(logger.Fatal, xpanic.Print(r, title))
+	}
+}
+
 // logfWithInfo will print log with role GUID and message
 // [2020-01-30 15:13:07] [info] <handler> foo logf
 // spew output...
@@ -75,14 +82,7 @@ func (h *handler) logWithInfo(lv logger.Level, log ...interface{}) {
 	h.ctx.logger.Print(lv, "handler", buf)
 }
 
-// logPanic must use like defer h.logPanic("title")
-func (h *handler) logPanic(title string) {
-	if r := recover(); r != nil {
-		h.log(logger.Fatal, xpanic.Print(r, title))
-	}
-}
-
-// -------------------------------------------send---------------------------------------------------
+// ------------------------------------------send--------------------------------------------------
 
 func (h *handler) OnSend(send *protocol.Send) {
 	defer h.logPanic("handler.OnSend")
@@ -150,12 +150,35 @@ func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
 	})
 }
 
+// -----------------------------------------send test----------------------------------------------
+
 func (h *handler) handleSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleSendTestMessage")
 	err := h.ctx.Test.AddSendTestMessage(h.context, send.Message)
 	if err != nil {
 		const log = "failed to add send test message\nerror:"
 		h.logWithInfo(logger.Fatal, send, log, err)
+	}
+}
+
+func (h *handler) handleSendTestRequest(send *protocol.Send) {
+	defer h.logPanic("handler.handleSendTestRequest")
+	request := new(messages.TestRequest)
+	err := msgpack.Unmarshal(send.Message, request)
+	if err != nil {
+		const log = "invalid test request data\nerror:"
+		h.logWithInfo(logger.Exploit, send, log, err)
+		return
+	}
+	// send response
+	response := &messages.TestResponse{
+		ID:       request.ID,
+		Response: request.Request,
+	}
+	err = h.ctx.sender.Send(h.context, messages.CMDBRTTestResponse, response, true)
+	if err != nil {
+		const log = "failed to send test response\nerror:"
+		h.logWithInfo(logger.Exploit, send, log, err)
 	}
 }
 
@@ -228,6 +251,8 @@ func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
 	})
 	h.ctx.storage.SetBeaconRegister(&brr.GUID, brr)
 }
+
+// ---------------------------------------broadcast test-------------------------------------------
 
 func (h *handler) handleBroadcastTestMessage(broadcast *protocol.Broadcast) {
 	defer h.logPanic("handler.handleBroadcastTestMessage")
