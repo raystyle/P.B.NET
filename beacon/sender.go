@@ -383,7 +383,7 @@ func (sender *sender) SendFromPlugin(message []byte, deflate bool) error {
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
-	st.Ctx = context.Background()
+	st.Ctx = sender.context
 	st.Message = message
 	st.Deflate = deflate
 	st.Result = done
@@ -481,8 +481,25 @@ func (sender *sender) IsInInteractiveMode() bool {
 
 func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.inClose, 1)
+	for {
+		if len(sender.ackTaskQueue) == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	sender.cancel()
 	sender.wg.Wait()
+	for {
+		// disconnect all sender client
+		for _, client := range sender.Clients() {
+			client.Close()
+		}
+		// wait close
+		time.Sleep(10 * time.Millisecond)
+		if len(sender.Clients()) == 0 {
+			break
+		}
+	}
 	sender.guid.Close()
 	sender.ctx = nil
 }

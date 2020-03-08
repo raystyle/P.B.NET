@@ -352,6 +352,12 @@ func (sender *sender) HandleAcknowledge(send *guid.GUID) {
 
 func (sender *sender) Close() {
 	atomic.StoreInt32(&sender.inClose, 1)
+	for {
+		if len(sender.ackTaskQueue) == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	sender.cancel()
 	sender.wg.Wait()
 	sender.guid.Close()
