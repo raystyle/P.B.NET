@@ -228,7 +228,6 @@ func (mgr *messageMgr) createSlot() (uint64, chan interface{}) {
 func (mgr *messageMgr) destroySlot(id uint64, ch chan interface{}) {
 	mgr.slotsRWM.Lock()
 	defer mgr.slotsRWM.Unlock()
-	delete(mgr.slots, id)
 	// when read channel timeout, defer call destroySlot(),
 	// the channel maybe has response, try to clean it.
 	select {
@@ -236,6 +235,7 @@ func (mgr *messageMgr) destroySlot(id uint64, ch chan interface{}) {
 	default:
 	}
 	mgr.slotPool.Put(ch)
+	delete(mgr.slots, id)
 }
 
 // SendToNode is used to send message to Node and get the response.

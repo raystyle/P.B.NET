@@ -246,9 +246,9 @@ func (ctrl *Ctrl) BroadcastKey() []byte {
 func (ctrl *Ctrl) Synchronize(
 	ctx context.Context,
 	guid *guid.GUID,
-	bl *bootstrap.Listener,
+	listener *bootstrap.Listener,
 ) error {
-	return ctrl.sender.Synchronize(ctx, guid, bl)
+	return ctrl.sender.Synchronize(ctx, guid, listener)
 }
 
 // Disconnect is used to disconnect Node.

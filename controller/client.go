@@ -52,11 +52,11 @@ type Client struct {
 // when GUID == CtrlGUID for discovery
 func (ctrl *Ctrl) NewClient(
 	ctx context.Context,
-	bl *bootstrap.Listener,
+	listener *bootstrap.Listener,
 	guid *guid.GUID,
 	closeFunc func(),
 ) (*Client, error) {
-	host, port, err := net.SplitHostPort(bl.Address)
+	host, port, err := net.SplitHostPort(listener.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -93,19 +93,19 @@ func (ctrl *Ctrl) NewClient(
 	var conn *xnet.Conn
 	for i := 0; i < len(result); i++ {
 		address := net.JoinHostPort(result[i], port)
-		conn, err = xnet.DialContext(ctx, bl.Mode, bl.Network, address, &opts)
+		conn, err = xnet.DialContext(ctx, listener.Mode, listener.Network, address, &opts)
 		if err == nil {
 			break
 		}
 	}
 	if err != nil {
 		const format = "failed to connect node listener %s, because %s"
-		return nil, errors.Errorf(format, bl, err)
+		return nil, errors.Errorf(format, listener, err)
 	}
 	// handshake
 	client := &Client{
 		ctx:       ctrl,
-		listener:  bl,
+		listener:  listener,
 		guid:      guid,
 		conn:      conn,
 		closeFunc: closeFunc,
@@ -115,7 +115,7 @@ func (ctrl *Ctrl) NewClient(
 	if err != nil {
 		_ = conn.Close()
 		const format = "failed to handshake with node listener: %s"
-		return nil, errors.WithMessagef(err, format, bl)
+		return nil, errors.WithMessagef(err, format, listener)
 	}
 	// initialize message slots
 	client.slots = protocol.NewSlots()
@@ -636,7 +636,7 @@ func (client *Client) handleBeaconAck(id, data []byte) {
 	}
 	err = ack.Validate()
 	if err != nil {
-		client.logExploit("invalid beacon ack data", err, ack)
+		client.logExploit("invalid beacon ack", err, ack)
 		return
 	}
 	expired, timestamp := client.ctx.syncer.CheckGUIDTimestamp(&ack.GUID)

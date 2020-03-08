@@ -84,7 +84,7 @@ type answerTask struct {
 type roleAckSlot struct {
 	// key = Send.GUID
 	slots map[guid.GUID]chan struct{}
-	m     sync.Mutex
+	rwm   sync.RWMutex
 }
 
 type sender struct {
@@ -133,9 +133,10 @@ type sender struct {
 
 	guid *guid.Generator
 
-	inClose    int32
-	stopSignal chan struct{}
-	wg         sync.WaitGroup
+	inClose int32
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 func newSender(ctx *Ctrl, config *Config) (*sender, error) {
@@ -170,8 +171,8 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 		interactive:           make(map[guid.GUID]bool),
 		nodeAckSlots:          make(map[guid.GUID]*roleAckSlot),
 		beaconAckSlots:        make(map[guid.GUID]*roleAckSlot),
-		stopSignal:            make(chan struct{}, 1),
 	}
+	sender.context, sender.cancel = context.WithCancel(context.Background())
 
 	maxConns := cfg.MaxConns
 	sender.maxConns.Store(maxConns)
@@ -300,7 +301,11 @@ func (sender *sender) checkNode(guid *guid.GUID) error {
 }
 
 // Synchronize is used to connect a node listener and start to synchronize.
-func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *bootstrap.Listener) error {
+func (sender *sender) Synchronize(
+	ctx context.Context,
+	guid *guid.GUID,
+	listener *bootstrap.Listener,
+) error {
 	if sender.isClosed() {
 		return ErrSenderClosed
 	}
@@ -310,7 +315,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 		return err
 	}
 	// create client
-	client, err := sender.ctx.NewClient(ctx, bl, guid, func() {
+	client, err := sender.ctx.NewClient(ctx, listener, guid, func() {
 		sender.clientsRWM.Lock()
 		defer sender.clientsRWM.Unlock()
 		delete(sender.clients, *guid)
@@ -349,7 +354,7 @@ func (sender *sender) Synchronize(ctx context.Context, guid *guid.GUID, bl *boot
 	err = client.Synchronize()
 	if err != nil {
 		const format = "failed to start to synchronize\nlistener: %s\n%s\nerror"
-		return errors.WithMessagef(err, format, bl, guid.Hex())
+		return errors.WithMessagef(err, format, listener, guid.Hex())
 	}
 	// must check twice
 	sender.clientsRWM.Lock()
@@ -401,7 +406,7 @@ func (sender *sender) SendToNode(
 	// send to task queue
 	select {
 	case sender.sendToNodeTaskQueue <- st:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -436,7 +441,7 @@ func (sender *sender) SendToBeacon(
 	// send to task queue
 	select {
 	case sender.sendToBeaconTaskQueue <- st:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -458,7 +463,7 @@ func (sender *sender) SendToNodeFromPlugin(GUID, message []byte, deflate bool) e
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
-	st.Ctx = context.Background()
+	st.Ctx = sender.context
 	st.GUID = g
 	st.Message = message
 	st.Deflate = deflate
@@ -466,7 +471,7 @@ func (sender *sender) SendToNodeFromPlugin(GUID, message []byte, deflate bool) e
 	// send to task queue
 	select {
 	case sender.sendToNodeTaskQueue <- st:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -488,7 +493,7 @@ func (sender *sender) SendToBeaconFromPlugin(GUID, message []byte, deflate bool)
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
-	st.Ctx = context.Background()
+	st.Ctx = sender.context
 	st.GUID = g
 	st.Message = message
 	st.Deflate = deflate
@@ -496,7 +501,7 @@ func (sender *sender) SendToBeaconFromPlugin(GUID, message []byte, deflate bool)
 	// send to task queue
 	select {
 	case sender.sendToBeaconTaskQueue <- st:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -519,7 +524,7 @@ func (sender *sender) AckToNode(send *protocol.Send) error {
 	// send to task queue
 	select {
 	case sender.ackToNodeTaskQueue <- at:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -542,7 +547,7 @@ func (sender *sender) AckToBeacon(send *protocol.Send) error {
 	// send to task queue
 	select {
 	case sender.ackToBeaconTaskQueue <- at:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -566,7 +571,7 @@ func (sender *sender) Broadcast(command []byte, message interface{}, deflate boo
 	// send to task queue
 	select {
 	case sender.broadcastTaskQueue <- bt:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -589,7 +594,7 @@ func (sender *sender) BroadcastFromPlugin(message []byte, deflate bool) error {
 	// send to task queue
 	select {
 	case sender.broadcastTaskQueue <- bt:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -610,16 +615,15 @@ func (sender *sender) HandleNodeAcknowledge(role, send *guid.GUID) {
 	if nas == nil {
 		return
 	}
-	nas.m.Lock()
-	defer nas.m.Unlock()
+	nas.rwm.RLock()
+	defer nas.rwm.RUnlock()
 	ch := nas.slots[*send]
-	if ch != nil {
-		select {
-		case ch <- struct{}{}:
-		case <-sender.stopSignal:
-			return
-		}
-		delete(nas.slots, *send)
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	case <-sender.context.Done():
 	}
 }
 
@@ -636,16 +640,15 @@ func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
 	if bas == nil {
 		return
 	}
-	bas.m.Lock()
-	defer bas.m.Unlock()
+	bas.rwm.RLock()
+	defer bas.rwm.RUnlock()
 	ch := bas.slots[*send]
-	if ch != nil {
-		select {
-		case ch <- struct{}{}:
-		case <-sender.stopSignal:
-			return
-		}
-		delete(bas.slots, *send)
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	case <-sender.context.Done():
 	}
 }
 
@@ -670,7 +673,7 @@ func (sender *sender) Answer(msg *mBeaconMessage) error {
 	// send to task queue
 	select {
 	case sender.answerTaskQueue <- rt:
-	case <-sender.stopSignal:
+	case <-sender.context.Done():
 		return ErrSenderClosed
 	}
 	result := <-done
@@ -718,7 +721,7 @@ func (sender *sender) Close() {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	close(sender.stopSignal)
+	sender.cancel()
 	sender.wg.Wait() // wait all acknowledge task finish
 	for {
 		// disconnect all sender client
@@ -726,7 +729,7 @@ func (sender *sender) Close() {
 			client.Close()
 		}
 		// wait close
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		if len(sender.Clients()) == 0 {
 			break
 		}
@@ -749,24 +752,27 @@ func (sender *sender) mustGetNodeAckSlot(role *guid.GUID) *roleAckSlot {
 	return ras
 }
 
-func (sender *sender) createNodeAckSlot(role, send *guid.GUID) (chan struct{}, func()) {
+func (sender *sender) createNodeAckSlot(role, send *guid.GUID) chan struct{} {
 	ch := sender.ackSlotPool.Get().(chan struct{})
 	nas := sender.mustGetNodeAckSlot(role)
-	nas.m.Lock()
-	defer nas.m.Unlock()
+	nas.rwm.Lock()
+	defer nas.rwm.Unlock()
 	nas.slots[*send] = ch
-	return ch, func() {
-		nas.m.Lock()
-		defer nas.m.Unlock()
-		// when read channel timeout, worker call destroy(),
-		// the channel maybe has signal, try to clean it.
-		select {
-		case <-ch:
-		default:
-		}
-		sender.ackSlotPool.Put(ch)
-		delete(nas.slots, *send)
+	return ch
+}
+
+func (sender *sender) destroyNodeAckSlot(role, send *guid.GUID, ch chan struct{}) {
+	nas := sender.mustGetNodeAckSlot(role)
+	nas.rwm.Lock()
+	defer nas.rwm.Unlock()
+	// when read channel timeout, worker call destroy(),
+	// the channel maybe has signal, try to clean it.
+	select {
+	case <-ch:
+	default:
 	}
+	sender.ackSlotPool.Put(ch)
+	delete(nas.slots, *send)
 }
 
 func (sender *sender) mustGetBeaconAckSlot(role *guid.GUID) *roleAckSlot {
@@ -783,24 +789,27 @@ func (sender *sender) mustGetBeaconAckSlot(role *guid.GUID) *roleAckSlot {
 	return ras
 }
 
-func (sender *sender) createBeaconAckSlot(role, send *guid.GUID) (chan struct{}, func()) {
+func (sender *sender) createBeaconAckSlot(role, send *guid.GUID) chan struct{} {
 	ch := sender.ackSlotPool.Get().(chan struct{})
 	bas := sender.mustGetBeaconAckSlot(role)
-	bas.m.Lock()
-	defer bas.m.Unlock()
+	bas.rwm.Lock()
+	defer bas.rwm.Unlock()
 	bas.slots[*send] = ch
-	return ch, func() {
-		bas.m.Lock()
-		defer bas.m.Unlock()
-		// when read channel timeout, worker call destroy(),
-		// the channel maybe has signal, try to clean it.
-		select {
-		case <-ch:
-		default:
-		}
-		sender.ackSlotPool.Put(ch)
-		delete(bas.slots, *send)
+	return ch
+}
+
+func (sender *sender) destroyBeaconAckSlot(role, send *guid.GUID, ch chan struct{}) {
+	bas := sender.mustGetBeaconAckSlot(role)
+	bas.rwm.Lock()
+	defer bas.rwm.Unlock()
+	// when read channel timeout, worker call destroy(),
+	// the channel maybe has signal, try to clean it.
+	select {
+	case <-ch:
+	default:
 	}
+	sender.ackSlotPool.Put(ch)
+	delete(bas.slots, *send)
 }
 
 func (sender *sender) sendToNode(
@@ -1025,7 +1034,7 @@ func (sender *sender) ackSlotCleaner() {
 		case <-ticker.C:
 			sender.cleanNodeAckSlotMap()
 			sender.cleanBeaconAckSlotMap()
-		case <-sender.stopSignal:
+		case <-sender.context.Done():
 			return
 		}
 	}
@@ -1053,8 +1062,8 @@ func (sender *sender) cleanBeaconAckSlotMap() {
 
 // delete zero length map or allocate a new slots map
 func (sender *sender) cleanRoleAckSlotMap(ras *roleAckSlot) bool {
-	ras.m.Lock()
-	defer ras.m.Unlock()
+	ras.rwm.Lock()
+	defer ras.rwm.Unlock()
 	if len(ras.slots) == 0 {
 		return true
 	}
@@ -1122,7 +1131,7 @@ func (sw *senderWorker) WorkWithBlock() {
 	)
 	for {
 		select {
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		default:
 		}
@@ -1143,7 +1152,7 @@ func (sw *senderWorker) WorkWithBlock() {
 			sw.handleBroadcastTask(bt)
 		case rt = <-sw.ctx.answerTaskQueue:
 			sw.handleAnswerTask(rt)
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		}
 	}
@@ -1171,7 +1180,7 @@ func (sw *senderWorker) WorkWithoutBlock() {
 	)
 	for {
 		select {
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		default:
 		}
@@ -1188,7 +1197,7 @@ func (sw *senderWorker) WorkWithoutBlock() {
 			sw.handleBroadcastTask(bt)
 		case rt = <-sw.ctx.answerTaskQueue:
 			sw.handleAnswerTask(rt)
-		case <-sw.ctx.stopSignal:
+		case <-sw.ctx.context.Done():
 			return
 		}
 	}
@@ -1220,7 +1229,8 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 		return
 	}
 	// send
-	wait, destroy := sw.ctx.createNodeAckSlot(st.GUID, &sw.preS.GUID)
+	wait := sw.ctx.createNodeAckSlot(st.GUID, &sw.preS.GUID)
+	defer sw.ctx.destroyNodeAckSlot(st.GUID, &sw.preS.GUID, wait)
 	result.Responses, result.Success = sw.ctx.sendToNode(&sw.preS.GUID, sw.buffer)
 	if len(result.Responses) == 0 {
 		result.Err = ErrNoConnections
@@ -1237,17 +1247,14 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-		sw.ctx.ackSlotPool.Put(wait)
-	case <-sw.timer.C:
-		destroy()
-		result.Err = ErrSendTimeout
 	case <-st.Ctx.Done():
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-		destroy()
 		result.Err = st.Ctx.Err()
-	case <-sw.ctx.stopSignal:
+	case <-sw.timer.C:
+		result.Err = ErrSendTimeout
+	case <-sw.ctx.context.Done():
 		result.Err = ErrSenderClosed
 	}
 }
@@ -1286,7 +1293,8 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 		return
 	}
 	// send
-	wait, destroy := sw.ctx.createBeaconAckSlot(st.GUID, &sw.preS.GUID)
+	wait := sw.ctx.createBeaconAckSlot(st.GUID, &sw.preS.GUID)
+	defer sw.ctx.destroyBeaconAckSlot(st.GUID, &sw.preS.GUID, wait)
 	result.Responses, result.Success = sw.ctx.sendToBeacon(&sw.preS.GUID, sw.buffer)
 	if len(result.Responses) == 0 {
 		result.Err = ErrNoConnections
@@ -1303,17 +1311,14 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-		sw.ctx.ackSlotPool.Put(wait)
-	case <-sw.timer.C:
-		destroy()
-		result.Err = ErrSendTimeout
 	case <-st.Ctx.Done():
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-		destroy()
 		result.Err = st.Ctx.Err()
-	case <-sw.ctx.stopSignal:
+	case <-sw.timer.C:
+		result.Err = ErrSendTimeout
+	case <-sw.ctx.context.Done():
 		result.Err = ErrSenderClosed
 	}
 }
