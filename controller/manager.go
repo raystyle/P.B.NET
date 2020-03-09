@@ -168,6 +168,12 @@ func (mgr *clientMgr) Close() {
 	mgr.ctx = nil
 }
 
+// about messageMgr
+type roleMessageSlot struct {
+	slots map[guid.GUID]chan interface{}
+	rwm   sync.RWMutex
+}
+
 // messageMgr is used to manage messages that send to Node and Beacon.
 // It will return the response about the message.
 type messageMgr struct {
@@ -176,8 +182,10 @@ type messageMgr struct {
 	// 2 * sender.Timeout
 	timeout time.Duration
 
-	slots    map[guid.GUID]chan interface{}
-	slotsRWM sync.RWMutex
+	nodeSlots      map[guid.GUID]*roleMessageSlot
+	nodeSlotsRWM   sync.RWMutex
+	beaconSlots    map[guid.GUID]*roleMessageSlot
+	beaconSlotsRWM sync.RWMutex
 
 	slotPool  sync.Pool
 	timerPool sync.Pool
@@ -193,10 +201,11 @@ func newMessageMgr(ctx *Ctrl, config *Config) *messageMgr {
 	cfg := config.Sender
 
 	mgr := messageMgr{
-		ctx:     ctx,
-		timeout: 2 * cfg.Timeout,
-		guid:    guid.New(1024, ctx.global.Now),
-		slots:   make(map[guid.GUID]chan interface{}),
+		ctx:         ctx,
+		timeout:     2 * cfg.Timeout,
+		guid:        guid.New(1024, ctx.global.Now),
+		nodeSlots:   make(map[guid.GUID]*roleMessageSlot),
+		beaconSlots: make(map[guid.GUID]*roleMessageSlot),
 	}
 	mgr.slotPool.New = func() interface{} {
 		return make(chan interface{}, 1)
@@ -212,18 +221,35 @@ func newMessageMgr(ctx *Ctrl, config *Config) *messageMgr {
 	return &mgr
 }
 
-func (mgr *messageMgr) createSlot() (*guid.GUID, chan interface{}) {
+func (mgr *messageMgr) mustGetNodeSlot(role *guid.GUID) *roleMessageSlot {
+	mgr.nodeSlotsRWM.Lock()
+	defer mgr.nodeSlotsRWM.Unlock()
+	ns := mgr.nodeSlots[*role]
+	if ns != nil {
+		return ns
+	}
+	rms := &roleMessageSlot{
+		slots: make(map[guid.GUID]chan interface{}),
+		rwm:   sync.RWMutex{},
+	}
+	mgr.nodeSlots[*role] = rms
+	return rms
+}
+
+func (mgr *messageMgr) createNodeSlot(role *guid.GUID) (*guid.GUID, chan interface{}) {
 	id := mgr.guid.Get()
 	ch := mgr.slotPool.Get().(chan interface{})
-	mgr.slotsRWM.Lock()
-	defer mgr.slotsRWM.Unlock()
-	mgr.slots[*id] = ch
+	ns := mgr.mustGetNodeSlot(role)
+	ns.rwm.Lock()
+	defer ns.rwm.Unlock()
+	ns.slots[*id] = ch
 	return id, ch
 }
 
-func (mgr *messageMgr) destroySlot(id *guid.GUID, ch chan interface{}) {
-	mgr.slotsRWM.Lock()
-	defer mgr.slotsRWM.Unlock()
+func (mgr *messageMgr) destroyNodeSlot(role, id *guid.GUID, ch chan interface{}) {
+	ns := mgr.mustGetNodeSlot(role)
+	ns.rwm.Lock()
+	defer ns.rwm.Unlock()
 	// when read channel timeout, defer call destroySlot(),
 	// the channel maybe has reply, try to clean it.
 	select {
@@ -231,7 +257,46 @@ func (mgr *messageMgr) destroySlot(id *guid.GUID, ch chan interface{}) {
 	default:
 	}
 	mgr.slotPool.Put(ch)
-	delete(mgr.slots, *id)
+	delete(ns.slots, *id)
+}
+
+func (mgr *messageMgr) mustGetBeaconSlot(role *guid.GUID) *roleMessageSlot {
+	mgr.beaconSlotsRWM.Lock()
+	defer mgr.beaconSlotsRWM.Unlock()
+	ns := mgr.beaconSlots[*role]
+	if ns != nil {
+		return ns
+	}
+	rms := &roleMessageSlot{
+		slots: make(map[guid.GUID]chan interface{}),
+		rwm:   sync.RWMutex{},
+	}
+	mgr.beaconSlots[*role] = rms
+	return rms
+}
+
+func (mgr *messageMgr) createBeaconSlot(role *guid.GUID) (*guid.GUID, chan interface{}) {
+	id := mgr.guid.Get()
+	ch := mgr.slotPool.Get().(chan interface{})
+	bs := mgr.mustGetBeaconSlot(role)
+	bs.rwm.Lock()
+	defer bs.rwm.Unlock()
+	bs.slots[*id] = ch
+	return id, ch
+}
+
+func (mgr *messageMgr) destroyBeaconSlot(role, id *guid.GUID, ch chan interface{}) {
+	bs := mgr.mustGetBeaconSlot(role)
+	bs.rwm.Lock()
+	defer bs.rwm.Unlock()
+	// when read channel timeout, defer call destroySlot(),
+	// the channel maybe has reply, try to clean it.
+	select {
+	case <-ch:
+	default:
+	}
+	mgr.slotPool.Put(ch)
+	delete(bs.slots, *id)
 }
 
 // SendToNode is used to send message to Node and get the response.
@@ -243,8 +308,8 @@ func (mgr *messageMgr) SendToNode(
 	deflate bool,
 ) (interface{}, error) {
 	// set message id
-	id, response := mgr.createSlot()
-	defer mgr.destroySlot(id, response)
+	id, response := mgr.createNodeSlot(guid)
+	defer mgr.destroyNodeSlot(guid, id, response)
 	message.SetID(id)
 	// send
 	err := mgr.ctx.sender.SendToNode(ctx, guid, command, message, deflate)
@@ -280,8 +345,8 @@ func (mgr *messageMgr) SendToBeacon(
 	deflate bool,
 ) (interface{}, error) {
 	// set message id
-	id, response := mgr.createSlot()
-	defer mgr.destroySlot(id, response)
+	id, response := mgr.createBeaconSlot(guid)
+	defer mgr.destroyBeaconSlot(guid, id, response)
 	message.SetID(id)
 	// send
 	err := mgr.ctx.sender.SendToBeacon(ctx, guid, command, message, deflate)
@@ -342,11 +407,45 @@ func (mgr *messageMgr) SendToBeaconFromPlugin(
 	return response.([]byte), nil
 }
 
-// HandleReply is used to set response, handler.Handle functions will call it.
-func (mgr *messageMgr) HandleReply(id *guid.GUID, response interface{}) {
-	mgr.slotsRWM.RLock()
-	defer mgr.slotsRWM.RUnlock()
-	ch := mgr.slots[*id]
+func (mgr *messageMgr) getNodeSlot(role *guid.GUID) *roleMessageSlot {
+	mgr.nodeSlotsRWM.RLock()
+	defer mgr.nodeSlotsRWM.RUnlock()
+	return mgr.nodeSlots[*role]
+}
+
+// HandleNodeReply is used to set Node reply, handler.Handle functions will call it.
+func (mgr *messageMgr) HandleNodeReply(role, id *guid.GUID, response interface{}) {
+	ns := mgr.getNodeSlot(role)
+	if ns == nil {
+		return
+	}
+	ns.rwm.RLock()
+	defer ns.rwm.RUnlock()
+	ch := ns.slots[*id]
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- response:
+	case <-mgr.context.Done():
+	}
+}
+
+func (mgr *messageMgr) getBeaconSlot(role *guid.GUID) *roleMessageSlot {
+	mgr.beaconSlotsRWM.RLock()
+	defer mgr.beaconSlotsRWM.RUnlock()
+	return mgr.beaconSlots[*role]
+}
+
+// HandleBeaconReply is used to set Beacon reply, handler.Handle functions will call it.
+func (mgr *messageMgr) HandleBeaconReply(role, id *guid.GUID, response interface{}) {
+	bs := mgr.getBeaconSlot(role)
+	if bs == nil {
+		return
+	}
+	bs.rwm.RLock()
+	defer bs.rwm.RUnlock()
+	ch := bs.slots[*id]
 	if ch == nil {
 		return
 	}
@@ -373,21 +472,47 @@ func (mgr *messageMgr) cleaner() {
 	for {
 		select {
 		case <-ticker.C:
-			mgr.clean()
+			mgr.cleanNodeSlotMap()
+			mgr.cleanBeaconSlotMap()
 		case <-mgr.context.Done():
 			return
 		}
 	}
 }
 
-func (mgr *messageMgr) clean() {
-	mgr.slotsRWM.Lock()
-	defer mgr.slotsRWM.Unlock()
+func (mgr *messageMgr) cleanNodeSlotMap() {
+	mgr.nodeSlotsRWM.Lock()
+	defer mgr.nodeSlotsRWM.Unlock()
+	for key, ns := range mgr.nodeSlots {
+		if mgr.cleanRoleSlotMap(ns) {
+			delete(mgr.nodeSlots, key)
+		}
+	}
+}
+
+func (mgr *messageMgr) cleanBeaconSlotMap() {
+	mgr.beaconSlotsRWM.Lock()
+	defer mgr.beaconSlotsRWM.Unlock()
+	for key, bs := range mgr.beaconSlots {
+		if mgr.cleanRoleSlotMap(bs) {
+			delete(mgr.beaconSlots, key)
+		}
+	}
+}
+
+// delete zero length map or allocate a new slots map
+func (mgr *messageMgr) cleanRoleSlotMap(rms *roleMessageSlot) bool {
+	rms.rwm.Lock()
+	defer rms.rwm.Unlock()
+	if len(rms.slots) == 0 {
+		return true
+	}
 	newMap := make(map[guid.GUID]chan interface{})
-	for id, message := range mgr.slots {
+	for id, message := range rms.slots {
 		newMap[id] = message
 	}
-	mgr.slots = newMap
+	rms.slots = newMap
+	return false
 }
 
 func (mgr *messageMgr) Close() {

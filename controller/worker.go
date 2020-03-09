@@ -544,7 +544,7 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 	// then delete old message
 	sw.err = sw.ctx.database.DeleteBeaconMessagesWithIndex(&query.BeaconGUID, query.Index)
 	if sw.err != nil {
-		const format = "failed to clean old beacon message\nerror: %s\n%s"
+		const format = "failed to delete old beacon message\nerror: %s\n%s"
 		sw.logf(logger.Error, format, sw.err, spew.Sdump(query))
 		return
 	}
