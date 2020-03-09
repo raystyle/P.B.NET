@@ -70,7 +70,7 @@ func (guid *GUID) Timestamp() int64 {
 // Generator is a custom GUID generator.
 type Generator struct {
 	now        func() time.Time
-	random     *random.Rand
+	rand       *random.Rand
 	head       []byte // hash + PID
 	id         uint64 // self add
 	guidQueue  chan *GUID
@@ -95,11 +95,11 @@ func New(size int, now func() time.Time) *Generator {
 	} else {
 		g.now = time.Now
 	}
-	g.random = random.New()
+	g.rand = random.New()
 	// calculate head
 	hash := sha256.New()
 	for i := 0; i < 4096; i++ {
-		hash.Write(g.random.Bytes(64))
+		hash.Write(g.rand.Bytes(64))
 	}
 	g.head = make([]byte, 0, 24)
 	g.head = append(g.head, hash.Sum(nil)[:20]...)
@@ -107,7 +107,7 @@ func New(size int, now func() time.Time) *Generator {
 	g.head = append(g.head, hash.Sum(nil)[:4]...)
 	// random ID
 	for i := 0; i < 5; i++ {
-		g.id += uint64(g.random.Int(1048576))
+		g.id += uint64(g.rand.Int(1048576))
 	}
 	g.wg.Add(1)
 	go g.generate()
@@ -126,6 +126,7 @@ func (g *Generator) Close() {
 	g.closeOnce.Do(func() {
 		close(g.stopSignal)
 		g.wg.Wait()
+		g.now = nil
 	})
 }
 
@@ -143,14 +144,14 @@ func (g *Generator) generate() {
 	for {
 		guid := GUID{}
 		copy(guid[:], g.head)
-		copy(guid[24:32], g.random.Bytes(8))
+		copy(guid[24:32], g.rand.Bytes(8))
 		// reserve timestamp
 		copy(guid[40:48], convert.Uint64ToBytes(g.id))
 		select {
 		case <-g.stopSignal:
 			return
 		case g.guidQueue <- &guid:
-			g.id++
+			g.id += uint64(g.rand.Int(1024))
 		}
 	}
 }
