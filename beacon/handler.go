@@ -202,5 +202,5 @@ func (h *handler) handleSendTestResponse(answer *protocol.Answer) {
 		h.logWithInfo(logger.Exploit, answer, log, err)
 		return
 	}
-	h.ctx.messageMgr.HandleReply(response.ID, response)
+	h.ctx.messageMgr.HandleReply(&response.ID, response)
 }

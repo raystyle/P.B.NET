@@ -347,7 +347,7 @@ func (h *handler) handleNodeSendTestResponse(send *protocol.Send) {
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
-	h.ctx.messageMgr.HandleReply(response.ID, response)
+	h.ctx.messageMgr.HandleReply(&response.ID, response)
 }
 
 // ---------------------------------------Beacon Send----------------------------------------------
@@ -387,7 +387,7 @@ func (h *handler) handleSingleShellOutput(send *protocol.Send) {
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
-	h.ctx.messageMgr.HandleReply(output.ID, output)
+	h.ctx.messageMgr.HandleReply(&output.ID, output)
 }
 
 func (h *handler) handleBeaconLog(send *protocol.Send) {
@@ -454,5 +454,5 @@ func (h *handler) handleBeaconSendTestResponse(send *protocol.Send) {
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
-	h.ctx.messageMgr.HandleReply(response.ID, response)
+	h.ctx.messageMgr.HandleReply(&response.ID, response)
 }

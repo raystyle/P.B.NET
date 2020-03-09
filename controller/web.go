@@ -349,6 +349,6 @@ func (wh *webHandler) handleSingleShell(w hRW, r *hR, p hP) {
 	output := reply.(*messages.SingleShellOutput)
 	_, _ = w.Write([]byte(decoder.ConvertString(string(output.Output))))
 	if output.Err != "" {
-		_, _ = w.Write([]byte(decoder.ConvertString(string(output.Err))))
+		_, _ = w.Write([]byte(output.Err))
 	}
 }

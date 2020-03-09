@@ -12,7 +12,6 @@ import (
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/option"
-	"project/internal/random"
 	"project/internal/xpanic"
 )
 
@@ -177,12 +176,13 @@ type messageMgr struct {
 	// 2 * sender.Timeout
 	timeout time.Duration
 
-	slotID   uint64
-	slots    map[uint64]chan interface{}
+	slots    map[guid.GUID]chan interface{}
 	slotsRWM sync.RWMutex
 
 	slotPool  sync.Pool
 	timerPool sync.Pool
+
+	guid *guid.Generator
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -195,11 +195,8 @@ func newMessageMgr(ctx *Ctrl, config *Config) *messageMgr {
 	mgr := messageMgr{
 		ctx:     ctx,
 		timeout: 2 * cfg.Timeout,
-		slots:   make(map[uint64]chan interface{}),
-	}
-	// set random ID
-	for i := 0; i < 5; i++ {
-		mgr.slotID += uint64(random.Int(1048576))
+		guid:    guid.New(1024, ctx.global.Now),
+		slots:   make(map[guid.GUID]chan interface{}),
 	}
 	mgr.slotPool.New = func() interface{} {
 		return make(chan interface{}, 1)
@@ -215,27 +212,26 @@ func newMessageMgr(ctx *Ctrl, config *Config) *messageMgr {
 	return &mgr
 }
 
-func (mgr *messageMgr) createSlot() (uint64, chan interface{}) {
+func (mgr *messageMgr) createSlot() (*guid.GUID, chan interface{}) {
+	id := mgr.guid.Get()
 	ch := mgr.slotPool.Get().(chan interface{})
 	mgr.slotsRWM.Lock()
 	defer mgr.slotsRWM.Unlock()
-	id := mgr.slotID
-	mgr.slots[id] = ch
-	mgr.slotID++
+	mgr.slots[*id] = ch
 	return id, ch
 }
 
-func (mgr *messageMgr) destroySlot(id uint64, ch chan interface{}) {
+func (mgr *messageMgr) destroySlot(id *guid.GUID, ch chan interface{}) {
 	mgr.slotsRWM.Lock()
 	defer mgr.slotsRWM.Unlock()
 	// when read channel timeout, defer call destroySlot(),
-	// the channel maybe has response, try to clean it.
+	// the channel maybe has reply, try to clean it.
 	select {
 	case <-ch:
 	default:
 	}
 	mgr.slotPool.Put(ch)
-	delete(mgr.slots, id)
+	delete(mgr.slots, *id)
 }
 
 // SendToNode is used to send message to Node and get the response.
@@ -347,10 +343,10 @@ func (mgr *messageMgr) SendToBeaconFromPlugin(
 }
 
 // HandleReply is used to set response, handler.Handle functions will call it.
-func (mgr *messageMgr) HandleReply(id uint64, response interface{}) {
+func (mgr *messageMgr) HandleReply(id *guid.GUID, response interface{}) {
 	mgr.slotsRWM.RLock()
 	defer mgr.slotsRWM.RUnlock()
-	ch := mgr.slots[id]
+	ch := mgr.slots[*id]
 	if ch == nil {
 		return
 	}
@@ -387,7 +383,7 @@ func (mgr *messageMgr) cleaner() {
 func (mgr *messageMgr) clean() {
 	mgr.slotsRWM.Lock()
 	defer mgr.slotsRWM.Unlock()
-	newMap := make(map[uint64]chan interface{})
+	newMap := make(map[guid.GUID]chan interface{})
 	for id, message := range mgr.slots {
 		newMap[id] = message
 	}
@@ -397,5 +393,6 @@ func (mgr *messageMgr) clean() {
 func (mgr *messageMgr) Close() {
 	mgr.cancel()
 	mgr.wg.Wait()
+	mgr.guid.Close()
 	mgr.ctx = nil
 }

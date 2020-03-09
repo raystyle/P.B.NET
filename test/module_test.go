@@ -43,7 +43,7 @@ func TestModule(t *testing.T) {
 		test(testExecuteShellCode)
 	})
 
-	t.Run("shell", func(t *testing.T) {
+	t.Run("single shell", func(t *testing.T) {
 		test(testSingleShell)
 	})
 
