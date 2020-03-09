@@ -8,6 +8,7 @@ import (
 
 func TestSingleShell_SetID(t *testing.T) {
 	ss := new(SingleShell)
-	ss.SetID(1)
-	require.Equal(t, uint64(1), ss.ID)
+	g := testGenerateGUID()
+	ss.SetID(g)
+	require.Equal(t, *g, ss.ID)
 }

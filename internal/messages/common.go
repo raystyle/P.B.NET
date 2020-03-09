@@ -3,40 +3,41 @@ package messages
 import (
 	"time"
 
+	"project/internal/guid"
 	"project/internal/logger"
 )
 
 // TestRequest is the test request with id.
 type TestRequest struct {
-	ID      uint64
+	ID      guid.GUID
 	Request []byte
 }
 
 // SetID is used to set message id.
-func (t *TestRequest) SetID(id uint64) {
-	t.ID = id
+func (t *TestRequest) SetID(id *guid.GUID) {
+	t.ID = *id
 }
 
 // TestResponse is the test response with id.
 type TestResponse struct {
-	ID       uint64
+	ID       guid.GUID
 	Response []byte
 }
 
 // PluginRequest is used to wrap plugin.
 type PluginRequest struct {
-	ID      uint64
+	ID      guid.GUID
 	Request []byte // plugin marshal self.
 }
 
 // SetID is used to set message id.
-func (p *PluginRequest) SetID(id uint64) {
-	p.ID = id
+func (p *PluginRequest) SetID(id *guid.GUID) {
+	p.ID = *id
 }
 
 // PluginResponse is used to wrap plugin.
 type PluginResponse struct {
-	ID       uint64
+	ID       guid.GUID
 	Response []byte // plugin unmarshal self.
 }
 

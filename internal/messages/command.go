@@ -2,12 +2,8 @@ package messages
 
 import (
 	"project/internal/convert"
+	"project/internal/guid"
 )
-
-// RoundTripper is used to set message id.
-type RoundTripper interface {
-	SetID(id uint64)
-}
 
 // about size
 const (
@@ -16,8 +12,15 @@ const (
 	HeaderSize      = RandomDataSize + MessageTypeSize
 )
 
+// RoundTripper is used to set message id.
+type RoundTripper interface {
+	SetID(id *guid.GUID)
+}
+
 // CMD + Name       means this message without id
 // CMD + RT + Name  means this message with id
+//
+// RT is RoundTripper
 // messages with id must send through message manager(Role.messageMgr).
 
 // ---------------------------------------------test-----------------------------------------------
@@ -67,7 +70,7 @@ const (
 // -----------------------------------------other modules------------------------------------------
 // range 0x30000000 - 0x3FFFFFFF
 
-// simple modules
+// simple module
 const (
 	CMDExecuteShellCode uint32 = 0x30000000 + iota
 	CMDSingleShell

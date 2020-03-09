@@ -8,6 +8,7 @@ import (
 
 func TestChangeMode_SetID(t *testing.T) {
 	cm := new(ChangeMode)
-	cm.SetID(1)
-	require.Equal(t, uint64(1), cm.ID)
+	g := testGenerateGUID()
+	cm.SetID(g)
+	require.Equal(t, *g, cm.ID)
 }

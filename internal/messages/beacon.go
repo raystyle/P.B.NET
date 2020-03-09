@@ -2,18 +2,20 @@ package messages
 
 import (
 	"time"
+
+	"project/internal/guid"
 )
 
 // ChangeMode is used to change interactive mode.
 // Controller will send it.
 type ChangeMode struct {
-	ID          uint64
+	ID          guid.GUID
 	Interactive bool
 }
 
 // SetID is used to set message id.
-func (cm *ChangeMode) SetID(id uint64) {
-	cm.ID = id
+func (cm *ChangeMode) SetID(id *guid.GUID) {
+	cm.ID = *id
 }
 
 // QueryModeStatus is used to check Controller is
