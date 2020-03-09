@@ -50,9 +50,9 @@ func (syncer *syncer) clean<f>GUID(now int64) {
 func generateCleanGUIDMap(need []string) {
 	const template = `
 func (syncer *syncer) clean<f>GUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.<a>GUIDRWM.Lock()
 	defer syncer.<a>GUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.<a>GUID))
 	for key, timestamp := range syncer.<a>GUID {
 		newMap[key] = timestamp
 	}
