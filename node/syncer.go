@@ -506,9 +506,9 @@ func (syncer *syncer) cleanGUIDMap() {
 }
 
 func (syncer *syncer) cleanSendToNodeGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.sendToNodeGUIDRWM.Lock()
 	defer syncer.sendToNodeGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.sendToNodeGUID))
 	for key, timestamp := range syncer.sendToNodeGUID {
 		newMap[key] = timestamp
 	}
@@ -516,9 +516,9 @@ func (syncer *syncer) cleanSendToNodeGUIDMap() {
 }
 
 func (syncer *syncer) cleanSendToBeaconGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.sendToBeaconGUIDRWM.Lock()
 	defer syncer.sendToBeaconGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.sendToBeaconGUID))
 	for key, timestamp := range syncer.sendToBeaconGUID {
 		newMap[key] = timestamp
 	}
@@ -526,9 +526,9 @@ func (syncer *syncer) cleanSendToBeaconGUIDMap() {
 }
 
 func (syncer *syncer) cleanAckToNodeGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.ackToNodeGUIDRWM.Lock()
 	defer syncer.ackToNodeGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.ackToNodeGUID))
 	for key, timestamp := range syncer.ackToNodeGUID {
 		newMap[key] = timestamp
 	}
@@ -536,9 +536,9 @@ func (syncer *syncer) cleanAckToNodeGUIDMap() {
 }
 
 func (syncer *syncer) cleanAckToBeaconGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.ackToBeaconGUIDRWM.Lock()
 	defer syncer.ackToBeaconGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.ackToBeaconGUID))
 	for key, timestamp := range syncer.ackToBeaconGUID {
 		newMap[key] = timestamp
 	}
@@ -546,9 +546,9 @@ func (syncer *syncer) cleanAckToBeaconGUIDMap() {
 }
 
 func (syncer *syncer) cleanBroadcastGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.broadcastGUIDRWM.Lock()
 	defer syncer.broadcastGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.broadcastGUID))
 	for key, timestamp := range syncer.broadcastGUID {
 		newMap[key] = timestamp
 	}
@@ -556,9 +556,9 @@ func (syncer *syncer) cleanBroadcastGUIDMap() {
 }
 
 func (syncer *syncer) cleanAnswerGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.answerGUIDRWM.Lock()
 	defer syncer.answerGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.answerGUID))
 	for key, timestamp := range syncer.answerGUID {
 		newMap[key] = timestamp
 	}
@@ -566,9 +566,9 @@ func (syncer *syncer) cleanAnswerGUIDMap() {
 }
 
 func (syncer *syncer) cleanNodeSendGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.nodeSendGUIDRWM.Lock()
 	defer syncer.nodeSendGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.nodeSendGUID))
 	for key, timestamp := range syncer.nodeSendGUID {
 		newMap[key] = timestamp
 	}
@@ -576,9 +576,9 @@ func (syncer *syncer) cleanNodeSendGUIDMap() {
 }
 
 func (syncer *syncer) cleanNodeAckGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.nodeAckGUIDRWM.Lock()
 	defer syncer.nodeAckGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.nodeAckGUID))
 	for key, timestamp := range syncer.nodeAckGUID {
 		newMap[key] = timestamp
 	}
@@ -586,9 +586,9 @@ func (syncer *syncer) cleanNodeAckGUIDMap() {
 }
 
 func (syncer *syncer) cleanBeaconSendGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.beaconSendGUIDRWM.Lock()
 	defer syncer.beaconSendGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.beaconSendGUID))
 	for key, timestamp := range syncer.beaconSendGUID {
 		newMap[key] = timestamp
 	}
@@ -596,9 +596,9 @@ func (syncer *syncer) cleanBeaconSendGUIDMap() {
 }
 
 func (syncer *syncer) cleanBeaconAckGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.beaconAckGUIDRWM.Lock()
 	defer syncer.beaconAckGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.beaconAckGUID))
 	for key, timestamp := range syncer.beaconAckGUID {
 		newMap[key] = timestamp
 	}
@@ -606,9 +606,9 @@ func (syncer *syncer) cleanBeaconAckGUIDMap() {
 }
 
 func (syncer *syncer) cleanQueryGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.queryGUIDRWM.Lock()
 	defer syncer.queryGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.queryGUID))
 	for key, timestamp := range syncer.queryGUID {
 		newMap[key] = timestamp
 	}

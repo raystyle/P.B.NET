@@ -217,9 +217,9 @@ func (syncer *syncer) cleanGUIDMap() {
 }
 
 func (syncer *syncer) cleanSendToBeaconGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.sendToBeaconGUIDRWM.Lock()
 	defer syncer.sendToBeaconGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.sendToBeaconGUID))
 	for key, timestamp := range syncer.sendToBeaconGUID {
 		newMap[key] = timestamp
 	}
@@ -227,9 +227,9 @@ func (syncer *syncer) cleanSendToBeaconGUIDMap() {
 }
 
 func (syncer *syncer) cleanAckToBeaconGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.ackToBeaconGUIDRWM.Lock()
 	defer syncer.ackToBeaconGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.ackToBeaconGUID))
 	for key, timestamp := range syncer.ackToBeaconGUID {
 		newMap[key] = timestamp
 	}
@@ -237,9 +237,9 @@ func (syncer *syncer) cleanAckToBeaconGUIDMap() {
 }
 
 func (syncer *syncer) cleanAnswerGUIDMap() {
-	newMap := make(map[guid.GUID]int64)
 	syncer.answerGUIDRWM.Lock()
 	defer syncer.answerGUIDRWM.Unlock()
+	newMap := make(map[guid.GUID]int64, len(syncer.answerGUID))
 	for key, timestamp := range syncer.answerGUID {
 		newMap[key] = timestamp
 	}
