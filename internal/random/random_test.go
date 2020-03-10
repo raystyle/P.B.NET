@@ -3,7 +3,6 @@ package random
 import (
 	"crypto/sha256"
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
 
@@ -75,16 +74,6 @@ func TestRandom(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(hash, "Write", patchFunc)
 		defer pg.Unpatch()
 		New()
-	})
-
-	t.Run("panic about rand.New 3", func(t *testing.T) {
-		wg := new(sync.WaitGroup)
-		patchFunc := func(_ interface{}) {
-			panic(monkey.Panic)
-		}
-		pg := monkey.PatchInstanceMethod(wg, "Wait", patchFunc)
-		defer pg.Unpatch()
-		require.NotNil(t, New())
 	})
 }
 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"runtime"
 	"sync"
 	"time"
 
@@ -30,22 +31,21 @@ type Rand struct {
 }
 
 // New is used to create a Rand.
+// performance: BenchmarkNew-6    4297    304283 ns/op    35445 B/op
 func New() *Rand {
 	const (
-		goroutines = 16
+		goroutines = 4
 		times      = 128
 	)
 	data := make(chan []byte, 16)
-	wg := sync.WaitGroup{}
-	wg.Add(goroutines)
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Println(xpanic.Print(r, "New"))
 				}
-				wg.Done()
 			}()
+			count := 0
 			timer := time.NewTimer(time.Second)
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			for i := 0; i < times; i++ {
@@ -55,18 +55,16 @@ func New() *Rand {
 				case <-timer.C:
 					return
 				}
+				// schedule manually
+				if count > 16 {
+					runtime.Gosched()
+					count = 0
+				} else {
+					count++
+				}
 			}
 		}()
 	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Println(xpanic.Print(r, "New"))
-			}
-		}()
-		wg.Wait()
-		close(data)
-	}()
 	timer := time.NewTimer(time.Second)
 	hash := sha256.New()
 read:
@@ -75,7 +73,7 @@ read:
 		select {
 		case d := <-data:
 			if d != nil {
-				hash.Write(<-data)
+				hash.Write(d)
 			}
 		case <-timer.C:
 			break read
