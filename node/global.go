@@ -276,8 +276,15 @@ func (global *global) Now() time.Time {
 	return global.TimeSyncer.Now()
 }
 
-// StartupTime is used to get startup time.
-func (global *global) StartupTime() time.Time {
+// SetStartupTime is used to set startup time.
+func (global *global) SetStartupTime(t time.Time) {
+	global.objectsRWM.Lock()
+	defer global.objectsRWM.Unlock()
+	global.objects[objStartupTime] = t
+}
+
+// GetStartupTime is used to get startup time.
+func (global *global) GetStartupTime() time.Time {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	return global.objects[objStartupTime].(time.Time)

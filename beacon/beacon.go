@@ -122,13 +122,16 @@ func (beacon *Beacon) Main() error {
 			return beacon.fatal(err, "failed to synchronize time")
 		}
 	}
-	now := beacon.global.Now().Local().Format(logger.TimeLayout)
-	beacon.logger.Println(logger.Info, src, "time:", now)
+	now := beacon.global.Now().Local()
+	beacon.global.SetStartupTime(now)
+	nowStr := now.Format(logger.TimeLayout)
+	beacon.logger.Println(logger.Info, src, "time:", nowStr)
 	// start register
 	err := beacon.register.Register()
 	if err != nil {
 		return beacon.fatal(err, "failed to register")
 	}
+	// driver
 	beacon.driver.Drive()
 	beacon.logger.Print(logger.Info, src, "running")
 	close(beacon.wait)

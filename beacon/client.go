@@ -779,7 +779,7 @@ func (client *Client) Close() {
 			client.closeFunc()
 		}
 		if client.stopSignal != nil {
-			client.log(logger.Info, "disconnected")
+			client.log(logger.Debug, "disconnected")
 		}
 	})
 }

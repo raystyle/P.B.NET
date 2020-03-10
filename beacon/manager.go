@@ -265,7 +265,7 @@ func (mgr *messageMgr) Send(
 		}
 		return nil, ctx.Err()
 	case <-timer.C:
-		return nil, errors.New("get response timeout")
+		return nil, errors.New("get reply timeout")
 	}
 }
 

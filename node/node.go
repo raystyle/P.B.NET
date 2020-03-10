@@ -140,8 +140,10 @@ func (node *Node) Main() error {
 			return node.fatal(err, "failed to synchronize time")
 		}
 	}
-	now := node.global.Now().Local().Format(logger.TimeLayout)
-	node.logger.Println(logger.Info, src, "time:", now)
+	now := node.global.Now().Local()
+	node.global.SetStartupTime(now)
+	nowStr := now.Format(logger.TimeLayout)
+	node.logger.Println(logger.Info, src, "time:", nowStr)
 	// deploy server
 	err := node.server.Deploy()
 	if err != nil {
