@@ -17,7 +17,9 @@ func (c *Client) queryCache(domain, typ string) []string {
 	c.cachesRWM.Lock()
 	defer c.cachesRWM.Unlock()
 	for domain, cache := range c.caches {
-		if time.Since(cache.updateTime) > c.expire {
+		d := time.Since(cache.updateTime)
+		// <security> prevent system time changed
+		if d > c.expire || d < 0 {
 			delete(c.caches, domain)
 		}
 	}
