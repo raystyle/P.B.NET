@@ -134,10 +134,7 @@ func TestGetHeaderDate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	client := &http.Client{
-		Transport: new(http.Transport),
-		Timeout:   10 * time.Second,
-	}
+	client := &http.Client{Transport: new(http.Transport)}
 
 	t.Run("http", func(t *testing.T) {
 		const url = "http://ds.vm2.test-ipv6.com/"
@@ -176,6 +173,19 @@ func TestGetHeaderDate(t *testing.T) {
 		defer pg.Unpatch()
 		_, err = getHeaderDate(r, client)
 		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("system time changed", func(t *testing.T) {
+		const url = "http://ds.vm1.test-ipv6.com/"
+		r, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		patchFunc := func(_ time.Time) time.Duration {
+			return time.Minute
+		}
+		pg := monkey.Patch(time.Since, patchFunc)
+		defer pg.Unpatch()
+		_, err = getHeaderDate(r, client)
+		require.NoError(t, err)
 	})
 }
 

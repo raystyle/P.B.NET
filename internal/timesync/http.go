@@ -138,6 +138,10 @@ func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
 		rtt += 4
 	}
 	delta := time.Since(t1) / rtt
+	// <security> prevent system time changed
+	if delta > 10*time.Second || delta < 0 {
+		delta = 10 * time.Second
+	}
 	defer func() {
 		// <security> read limit
 		n := int64(4<<20 + random.Int(4<<20)) // 4-8 MB
