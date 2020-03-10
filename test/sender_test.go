@@ -458,11 +458,13 @@ func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 			case <-timer.C:
 				format := "read " + prefix + ".Test.BroadcastTestMsg timeout i: %d"
 				t.Errorf(format, n, i)
+				return
 			}
 		}
 		select {
 		case <-node.Test.BroadcastTestMsg:
 			t.Errorf(prefix+" read redundancy broadcast", n)
+			return
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -573,11 +575,13 @@ func testCtrlSendToNode(t *testing.T, iNodes, cNodes []*node.Node) {
 			case <-timer.C:
 				format := "read " + prefix + ".Test.SendTestMsg timeout i: %d"
 				t.Errorf(format, n, i)
+				return
 			}
 		}
 		select {
 		case <-node.Test.SendTestMsg:
 			t.Errorf(prefix+" read redundancy send", n)
+			return
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -678,11 +682,13 @@ func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Be
 			case <-timer.C:
 				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
 				t.Errorf(format, n, i)
+				return
 			}
 		}
 		select {
 		case <-beacon.Test.SendTestMsg:
 			t.Errorf(" read beacon[%d] redundancy send", n)
+			return
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -789,11 +795,13 @@ func testNodeSend(t *testing.T, iNodes, cNodes []*node.Node) {
 			case <-timer.C:
 				format := "read " + prefix + " channel timeout i: %d"
 				t.Errorf(format, n, i)
+				return
 			}
 		}
 		select {
 		case <-ch:
 			t.Errorf("read "+prefix+" redundancy send", n)
+			return
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -897,11 +905,13 @@ func testBeaconSend(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) 
 			case <-timer.C:
 				format := "read beacon[%d] channel timeout i: %d"
 				t.Errorf(format, n, i)
+				return
 			}
 		}
 		select {
 		case <-ch:
 			t.Errorf(" read beacon[%d] redundancy send", n)
+			return
 		case <-time.After(time.Second):
 		}
 		for i := 0; i < goroutines*times; i++ {
@@ -996,6 +1006,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 			case <-timer.C:
 				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
 				t.Errorf(format, n, i)
+				return
 			}
 			// without deflate
 			err = beacon.Query()
@@ -1008,6 +1019,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 			case <-timer.C:
 				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
 				t.Errorf(format, n, i)
+				return
 			}
 		}
 	}
