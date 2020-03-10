@@ -1043,36 +1043,41 @@ func (sender *sender) ackSlotCleaner() {
 func (sender *sender) cleanNodeAckSlotMap() {
 	sender.nodeAckSlotsRWM.Lock()
 	defer sender.nodeAckSlotsRWM.Unlock()
+	newMap := make(map[guid.GUID]*roleAckSlot, len(sender.nodeAckSlots))
 	for key, nas := range sender.nodeAckSlots {
 		if sender.cleanRoleAckSlotMap(nas) {
-			delete(sender.nodeAckSlots, key)
+			newMap[key] = nas
 		}
 	}
+	sender.nodeAckSlots = newMap
 }
 
 func (sender *sender) cleanBeaconAckSlotMap() {
 	sender.beaconAckSlotsRWM.Lock()
 	defer sender.beaconAckSlotsRWM.Unlock()
+	newMap := make(map[guid.GUID]*roleAckSlot, len(sender.beaconAckSlots))
 	for key, bas := range sender.beaconAckSlots {
 		if sender.cleanRoleAckSlotMap(bas) {
-			delete(sender.beaconAckSlots, key)
+			newMap[key] = bas
 		}
 	}
+	sender.beaconAckSlots = newMap
 }
 
 // delete zero length map or allocate a new slots map
 func (sender *sender) cleanRoleAckSlotMap(ras *roleAckSlot) bool {
 	ras.rwm.Lock()
 	defer ras.rwm.Unlock()
-	if len(ras.slots) == 0 {
-		return true
+	l := len(ras.slots)
+	if l == 0 {
+		return false
 	}
-	newMap := make(map[guid.GUID]chan struct{})
-	for key, value := range ras.slots {
-		newMap[key] = value
+	newMap := make(map[guid.GUID]chan struct{}, l)
+	for key, ch := range ras.slots {
+		newMap[key] = ch
 	}
 	ras.slots = newMap
-	return false
+	return true
 }
 
 type senderWorker struct {

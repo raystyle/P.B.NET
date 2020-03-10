@@ -483,36 +483,41 @@ func (mgr *messageMgr) cleaner() {
 func (mgr *messageMgr) cleanNodeSlotMap() {
 	mgr.nodeSlotsRWM.Lock()
 	defer mgr.nodeSlotsRWM.Unlock()
+	newMap := make(map[guid.GUID]*roleMessageSlot)
 	for key, ns := range mgr.nodeSlots {
 		if mgr.cleanRoleSlotMap(ns) {
-			delete(mgr.nodeSlots, key)
+			newMap[key] = ns
 		}
 	}
+	mgr.nodeSlots = newMap
 }
 
 func (mgr *messageMgr) cleanBeaconSlotMap() {
 	mgr.beaconSlotsRWM.Lock()
 	defer mgr.beaconSlotsRWM.Unlock()
+	newMap := make(map[guid.GUID]*roleMessageSlot)
 	for key, bs := range mgr.beaconSlots {
 		if mgr.cleanRoleSlotMap(bs) {
-			delete(mgr.beaconSlots, key)
+			newMap[key] = bs
 		}
 	}
+	mgr.beaconSlots = newMap
 }
 
 // delete zero length map or allocate a new slots map
 func (mgr *messageMgr) cleanRoleSlotMap(rms *roleMessageSlot) bool {
 	rms.rwm.Lock()
 	defer rms.rwm.Unlock()
-	if len(rms.slots) == 0 {
-		return true
+	l := len(rms.slots)
+	if l == 0 {
+		return false
 	}
-	newMap := make(map[guid.GUID]chan interface{})
+	newMap := make(map[guid.GUID]chan interface{}, l)
 	for id, message := range rms.slots {
 		newMap[id] = message
 	}
 	rms.slots = newMap
-	return false
+	return true
 }
 
 func (mgr *messageMgr) Close() {

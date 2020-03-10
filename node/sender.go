@@ -409,11 +409,11 @@ func (sender *sender) ackSlotCleaner() {
 }
 
 func (sender *sender) cleanAckSlotMap() {
-	newMap := make(map[guid.GUID]chan struct{})
 	sender.ackSlotsRWM.Lock()
 	defer sender.ackSlotsRWM.Unlock()
-	for key, value := range sender.ackSlots {
-		newMap[key] = value
+	newMap := make(map[guid.GUID]chan struct{}, len(sender.ackSlots))
+	for key, ch := range sender.ackSlots {
+		newMap[key] = ch
 	}
 	sender.ackSlots = newMap
 }

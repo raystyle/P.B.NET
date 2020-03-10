@@ -326,7 +326,7 @@ func (mgr *messageMgr) cleaner() {
 func (mgr *messageMgr) clean() {
 	mgr.slotsRWM.Lock()
 	defer mgr.slotsRWM.Unlock()
-	newMap := make(map[guid.GUID]chan interface{})
+	newMap := make(map[guid.GUID]chan interface{}, len(mgr.slots))
 	for id, message := range mgr.slots {
 		newMap[id] = message
 	}

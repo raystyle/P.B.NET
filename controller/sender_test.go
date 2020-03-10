@@ -61,10 +61,7 @@ func TestSender_Broadcast(t *testing.T) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test broadcast %d", i))
 			err := ctrl.sender.Broadcast(messages.CMDBTest, msg, true)
-			if err != nil {
-				t.Error(err)
-				return
-			}
+			require.NoError(t, err)
 		}
 	}
 	for i := 0; i < goroutines; i++ {
@@ -120,10 +117,7 @@ func TestSender_SendToNode(t *testing.T) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
 			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg, true)
-			if err != nil {
-				t.Error(err)
-				return
-			}
+			require.NoError(t, err)
 		}
 	}
 	for i := 0; i < goroutines; i++ {
@@ -220,11 +214,7 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
 			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg, true)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			// time.Sleep(time.Second)
+			require.NoError(t, err)
 		}
 	}
 	for i := 0; i < goroutines; i++ {
