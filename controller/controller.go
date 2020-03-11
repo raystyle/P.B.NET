@@ -27,6 +27,7 @@ type Ctrl struct {
 	clientMgr  *clientMgr  // client manager
 	sender     *sender     // broadcast and send message
 	messageMgr *messageMgr // message manager
+	actionMgr  *actionMgr  // action manager
 	handler    *handler    // handle message from Node or Beacon
 	worker     *worker     // do work
 	boot       *boot       // auto discover bootstrap node listeners
@@ -80,7 +81,9 @@ func New(cfg *Config) (*Ctrl, error) {
 	}
 	ctrl.sender = sender
 	// message manager
-	ctrl.messageMgr = newMessageMgr(ctrl, cfg)
+	ctrl.messageMgr = newMessageManager(ctrl, cfg)
+	// action manager
+	ctrl.actionMgr = newActionManager(ctrl, cfg)
 	// handler
 	ctrl.handler = newHandler(ctrl)
 	// worker
@@ -184,6 +187,8 @@ func (ctrl *Ctrl) Exit(err error) {
 		ctrl.logger.Print(logger.Info, src, "worker is stopped")
 		ctrl.handler.Close()
 		ctrl.logger.Print(logger.Info, src, "handler is stopped")
+		ctrl.actionMgr.Close()
+		ctrl.logger.Print(logger.Info, src, "action manager is stopped")
 		ctrl.messageMgr.Close()
 		ctrl.logger.Print(logger.Info, src, "message manager is stopped")
 		ctrl.sender.Close()

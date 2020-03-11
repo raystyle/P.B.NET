@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/convert"
 	"project/internal/dns"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -175,7 +176,7 @@ type roleMessageSlot struct {
 }
 
 // messageMgr is used to manage messages that send to Node and Beacon.
-// It will return the response about the message.
+// It will return the reply about the message.
 type messageMgr struct {
 	ctx *Ctrl
 
@@ -197,15 +198,15 @@ type messageMgr struct {
 	wg      sync.WaitGroup
 }
 
-func newMessageMgr(ctx *Ctrl, config *Config) *messageMgr {
+func newMessageManager(ctx *Ctrl, config *Config) *messageMgr {
 	cfg := config.Sender
 
 	mgr := messageMgr{
 		ctx:         ctx,
 		timeout:     2 * cfg.Timeout,
-		guid:        guid.New(1024, ctx.global.Now),
 		nodeSlots:   make(map[guid.GUID]*roleMessageSlot),
 		beaconSlots: make(map[guid.GUID]*roleMessageSlot),
+		guid:        guid.New(1024, ctx.global.Now),
 	}
 	mgr.slotPool.New = func() interface{} {
 		return make(chan interface{}, 1)
@@ -299,7 +300,7 @@ func (mgr *messageMgr) destroyBeaconSlot(role, id *guid.GUID, ch chan interface{
 	delete(bs.slots, *id)
 }
 
-// SendToNode is used to send message to Node and get the response.
+// SendToNode is used to send message to Node and get the reply.
 func (mgr *messageMgr) SendToNode(
 	ctx context.Context,
 	guid *guid.GUID,
@@ -308,20 +309,20 @@ func (mgr *messageMgr) SendToNode(
 	deflate bool,
 ) (interface{}, error) {
 	// set message id
-	id, response := mgr.createNodeSlot(guid)
-	defer mgr.destroyNodeSlot(guid, id, response)
+	id, reply := mgr.createNodeSlot(guid)
+	defer mgr.destroyNodeSlot(guid, id, reply)
 	message.SetID(id)
 	// send
 	err := mgr.ctx.sender.SendToNode(ctx, guid, command, message, deflate)
 	if err != nil {
 		return nil, err
 	}
-	// get response
+	// get reply
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
 	timer.Reset(mgr.timeout)
 	select {
-	case resp := <-response:
+	case resp := <-reply:
 		if !timer.Stop() {
 			<-timer.C
 		}
@@ -336,7 +337,7 @@ func (mgr *messageMgr) SendToNode(
 	}
 }
 
-// SendToNode is used to send message to Beacon and get the response.
+// SendToNode is used to send message to Beacon and get the reply.
 func (mgr *messageMgr) SendToBeacon(
 	ctx context.Context,
 	guid *guid.GUID,
@@ -345,20 +346,21 @@ func (mgr *messageMgr) SendToBeacon(
 	deflate bool,
 ) (interface{}, error) {
 	// set message id
-	id, response := mgr.createBeaconSlot(guid)
-	defer mgr.destroyBeaconSlot(guid, id, response)
+	id, reply := mgr.createBeaconSlot(guid)
+	defer mgr.destroyBeaconSlot(guid, id, reply)
 	message.SetID(id)
 	// send
 	err := mgr.ctx.sender.SendToBeacon(ctx, guid, command, message, deflate)
 	if err != nil {
 		return nil, err
 	}
-	// get response
+	// get reply
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
+	// TODO set special timeout if Beacon not in interactive mode
 	timer.Reset(mgr.timeout)
 	select {
-	case resp := <-response:
+	case resp := <-reply:
 		if !timer.Stop() {
 			<-timer.C
 		}
@@ -373,7 +375,7 @@ func (mgr *messageMgr) SendToBeacon(
 	}
 }
 
-// SendToNodeFromPlugin is used to send message to Node and get the response.
+// SendToNodeFromPlugin is used to send message to Node and get the reply.
 func (mgr *messageMgr) SendToNodeFromPlugin(
 	guid *guid.GUID,
 	command []byte,
@@ -383,14 +385,14 @@ func (mgr *messageMgr) SendToNodeFromPlugin(
 	request := &messages.PluginRequest{
 		Request: message,
 	}
-	response, err := mgr.SendToNode(mgr.context, guid, command, request, deflate)
+	reply, err := mgr.SendToNode(mgr.context, guid, command, request, deflate)
 	if err != nil {
 		return nil, err
 	}
-	return response.([]byte), nil
+	return reply.([]byte), nil
 }
 
-// SendToBeaconFromPlugin is used to send message to Beacon and get the response.
+// SendToBeaconFromPlugin is used to send message to Beacon and get the reply.
 func (mgr *messageMgr) SendToBeaconFromPlugin(
 	guid *guid.GUID,
 	command []byte,
@@ -400,11 +402,11 @@ func (mgr *messageMgr) SendToBeaconFromPlugin(
 	request := &messages.PluginRequest{
 		Request: message,
 	}
-	response, err := mgr.SendToBeacon(mgr.context, guid, command, request, deflate)
+	reply, err := mgr.SendToBeacon(mgr.context, guid, command, request, deflate)
 	if err != nil {
 		return nil, err
 	}
-	return response.([]byte), nil
+	return reply.([]byte), nil
 }
 
 func (mgr *messageMgr) getNodeSlot(role *guid.GUID) *roleMessageSlot {
@@ -414,20 +416,18 @@ func (mgr *messageMgr) getNodeSlot(role *guid.GUID) *roleMessageSlot {
 }
 
 // HandleNodeReply is used to set Node reply, handler.Handle functions will call it.
-func (mgr *messageMgr) HandleNodeReply(role, id *guid.GUID, response interface{}) {
+func (mgr *messageMgr) HandleNodeReply(role, id *guid.GUID, reply interface{}) {
 	ns := mgr.getNodeSlot(role)
 	if ns == nil {
 		return
 	}
 	ns.rwm.RLock()
 	defer ns.rwm.RUnlock()
-	ch := ns.slots[*id]
-	if ch == nil {
-		return
-	}
-	select {
-	case ch <- response:
-	case <-mgr.context.Done():
+	if ch, ok := ns.slots[*id]; ok {
+		select {
+		case ch <- reply:
+		case <-mgr.context.Done():
+		}
 	}
 }
 
@@ -438,20 +438,18 @@ func (mgr *messageMgr) getBeaconSlot(role *guid.GUID) *roleMessageSlot {
 }
 
 // HandleBeaconReply is used to set Beacon reply, handler.Handle functions will call it.
-func (mgr *messageMgr) HandleBeaconReply(role, id *guid.GUID, response interface{}) {
+func (mgr *messageMgr) HandleBeaconReply(role, id *guid.GUID, reply interface{}) {
 	bs := mgr.getBeaconSlot(role)
 	if bs == nil {
 		return
 	}
 	bs.rwm.RLock()
 	defer bs.rwm.RUnlock()
-	ch := bs.slots[*id]
-	if ch == nil {
-		return
-	}
-	select {
-	case ch <- response:
-	case <-mgr.context.Done():
+	if ch, ok := bs.slots[*id]; ok {
+		select {
+		case ch <- reply:
+		case <-mgr.context.Done():
+		}
 	}
 }
 
@@ -525,4 +523,101 @@ func (mgr *messageMgr) Close() {
 	mgr.wg.Wait()
 	mgr.guid.Close()
 	mgr.ctx = nil
+}
+
+// actionMgr is used to manage event from Node and Beacon,
+// and need Controller to interactive it, action manager
+// will save the context data with generated GUID.
+type actionMgr struct {
+	ctx *Ctrl
+
+	expireTime int64
+
+	actions  map[guid.GUID]interface{}
+	actionsM sync.Mutex
+
+	guid *guid.Generator
+
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
+}
+
+func newActionManager(ctx *Ctrl, config *Config) *actionMgr {
+	cfg := config.Sender
+
+	mgr := actionMgr{
+		ctx:        ctx,
+		expireTime: int64((2 * cfg.Timeout).Seconds()),
+		actions:    make(map[guid.GUID]interface{}),
+		guid:       guid.New(1024, ctx.global.Now),
+	}
+	mgr.context, mgr.cancel = context.WithCancel(context.Background())
+	mgr.wg.Add(1)
+	go mgr.cleaner()
+	return &mgr
+}
+
+// Store is used to store action.
+func (mgr *actionMgr) Store(action interface{}) *guid.GUID {
+	id := mgr.guid.Get()
+	mgr.actionsM.Lock()
+	defer mgr.actionsM.Unlock()
+	mgr.actions[*id] = action
+	return id
+}
+
+// Load is used to load action, it will delete action if it exists.
+func (mgr *actionMgr) Load(id *guid.GUID) (interface{}, error) {
+	mgr.actionsM.Lock()
+	defer mgr.actionsM.Unlock()
+	if action, ok := mgr.actions[*id]; ok {
+		delete(mgr.actions, *id)
+		return action, nil
+	}
+	return nil, errors.New("this action doesn't exist")
+}
+
+func (mgr *actionMgr) Close() {
+	mgr.cancel()
+	mgr.wg.Wait()
+	mgr.guid.Close()
+	mgr.ctx = nil
+}
+
+func (mgr *actionMgr) cleaner() {
+	defer func() {
+		if r := recover(); r != nil {
+			b := xpanic.Print(r, "actionMgr.cleaner")
+			mgr.ctx.logger.Print(logger.Fatal, "action-manager", b)
+			// restart message cleaner
+			time.Sleep(time.Second)
+			go mgr.cleaner()
+		} else {
+			mgr.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			mgr.clean()
+		case <-mgr.context.Done():
+			return
+		}
+	}
+}
+
+func (mgr *actionMgr) clean() {
+	now := mgr.ctx.global.Now().Unix()
+	mgr.actionsM.Lock()
+	defer mgr.actionsM.Unlock()
+	newMap := make(map[guid.GUID]interface{}, len(mgr.actions))
+	for id, action := range mgr.actions {
+		if convert.AbsInt64(now-id.Timestamp()) < mgr.expireTime {
+			newMap[id] = action
+		}
+	}
+	mgr.actions = newMap
 }

@@ -617,13 +617,11 @@ func (sender *sender) HandleNodeAcknowledge(role, send *guid.GUID) {
 	}
 	nas.rwm.RLock()
 	defer nas.rwm.RUnlock()
-	ch := nas.slots[*send]
-	if ch == nil {
-		return
-	}
-	select {
-	case ch <- struct{}{}:
-	case <-sender.context.Done():
+	if ch, ok := nas.slots[*send]; ok {
+		select {
+		case ch <- struct{}{}:
+		case <-sender.context.Done():
+		}
 	}
 }
 
@@ -642,13 +640,11 @@ func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
 	}
 	bas.rwm.RLock()
 	defer bas.rwm.RUnlock()
-	ch := bas.slots[*send]
-	if ch == nil {
-		return
-	}
-	select {
-	case ch <- struct{}{}:
-	case <-sender.context.Done():
+	if ch, ok := bas.slots[*send]; ok {
+		select {
+		case ch <- struct{}{}:
+		case <-sender.context.Done():
+		}
 	}
 }
 
