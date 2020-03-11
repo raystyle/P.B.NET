@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
+	"sync"
 
 	"github.com/pkg/errors"
 
@@ -14,17 +14,22 @@ import (
 )
 
 type dbLogger struct {
+	ctx *Ctrl
+
 	dialect string // "mysql"
 	file    *os.File
 	writer  io.Writer
+
+	rwm sync.RWMutex
 }
 
-func newDatabaseLogger(dialect, path string, writer io.Writer) (*dbLogger, error) {
+func newDatabaseLogger(ctx *Ctrl, dialect, path string, writer io.Writer) (*dbLogger, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create %s logger", dialect)
 	}
 	return &dbLogger{
+		ctx:     ctx,
 		dialect: dialect,
 		file:    file,
 		writer:  io.MultiWriter(file, writer),
@@ -33,26 +38,39 @@ func newDatabaseLogger(dialect, path string, writer io.Writer) (*dbLogger, error
 
 // [2018-11-27 00:00:00] [info] <mysql> test log
 func (lg *dbLogger) Print(log ...interface{}) {
-	buf := logger.Prefix(time.Now(), logger.Info, lg.dialect)
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lg.ctx == nil {
+		return
+	}
+	buf := logger.Prefix(lg.ctx.global.Now(), logger.Info, lg.dialect)
 	_, _ = fmt.Fprintln(buf, log...)
 	_, _ = buf.WriteTo(lg.writer)
 }
 
 func (lg *dbLogger) Close() {
 	_ = lg.file.Close()
+	lg.rwm.Lock()
+	defer lg.rwm.Unlock()
+	lg.ctx = nil
 }
 
 type gormLogger struct {
+	ctx *Ctrl
+
 	file   *os.File
 	writer io.Writer
+
+	rwm sync.RWMutex
 }
 
-func newGormLogger(path string, writer io.Writer) (*gormLogger, error) {
+func newGormLogger(ctx *Ctrl, path string, writer io.Writer) (*gormLogger, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create gorm logger")
 	}
 	return &gormLogger{
+		ctx:    ctx,
 		file:   file,
 		writer: io.MultiWriter(file, writer),
 	}, nil
@@ -60,13 +78,21 @@ func newGormLogger(path string, writer io.Writer) (*gormLogger, error) {
 
 // [2018-11-27 00:00:00] [info] <gorm> test log
 func (lg *gormLogger) Print(log ...interface{}) {
-	buf := logger.Prefix(time.Now(), logger.Info, "gorm")
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lg.ctx == nil {
+		return
+	}
+	buf := logger.Prefix(lg.ctx.global.Now(), logger.Info, "gorm")
 	_, _ = fmt.Fprintln(buf, log...)
 	_, _ = buf.WriteTo(lg.writer)
 }
 
 func (lg *gormLogger) Close() {
 	_ = lg.file.Close()
+	lg.rwm.Lock()
+	defer lg.rwm.Unlock()
+	lg.ctx = nil
 }
 
 type gLogger struct {
@@ -75,6 +101,8 @@ type gLogger struct {
 	level  logger.Level
 	file   *os.File
 	writer io.Writer
+
+	rwm sync.RWMutex
 }
 
 func newLogger(ctx *Ctrl, config *Config) (*gLogger, error) {
@@ -96,10 +124,12 @@ func newLogger(ctx *Ctrl, config *Config) (*gLogger, error) {
 }
 
 func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{}) {
-	if lv < lg.level {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level || lg.ctx == nil {
 		return
 	}
-	buf := logger.Prefix(time.Now(), lv, src)
+	buf := logger.Prefix(lg.ctx.global.Now().Local(), lv, src)
 	// log with level and src
 	logStr := fmt.Sprintf(format, log...)
 	buf.WriteString(logStr)
@@ -108,10 +138,12 @@ func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{
 }
 
 func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
-	if lv < lg.level {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level || lg.ctx == nil {
 		return
 	}
-	buf := logger.Prefix(time.Now(), lv, src)
+	buf := logger.Prefix(lg.ctx.global.Now().Local(), lv, src)
 	// log with level and src
 	logStr := fmt.Sprint(log...)
 	buf.WriteString(logStr)
@@ -120,14 +152,34 @@ func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
 }
 
 func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
-	if lv < lg.level {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level || lg.ctx == nil {
 		return
 	}
-	buf := logger.Prefix(time.Now(), lv, src)
+	buf := logger.Prefix(lg.ctx.global.Now().Local(), lv, src)
 	// log with level and src
 	logStr := fmt.Sprintln(log...)
 	buf.WriteString(logStr)
 	lg.writeLog(lv, src, logStr[:len(logStr)-1], buf) // delete "\n"
+}
+
+// SetLevel is used to set log level that need print.
+func (lg *gLogger) SetLevel(lv logger.Level) error {
+	if lv > logger.Off {
+		return errors.Errorf("invalid logger level %d", lv)
+	}
+	lg.rwm.Lock()
+	defer lg.rwm.Unlock()
+	lg.level = lv
+	return nil
+}
+
+func (lg *gLogger) Close() {
+	_ = lg.file.Close()
+	lg.rwm.Lock()
+	defer lg.rwm.Unlock()
+	lg.ctx = nil
 }
 
 // string log don't include time, level and source,
@@ -139,14 +191,14 @@ func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 		}
 	}()
 	_, _ = b.WriteTo(lg.writer)
-	_ = lg.ctx.database.InsertCtrlLog(&mCtrlLog{
+	err := lg.ctx.database.InsertCtrlLog(&mCtrlLog{
 		Level:  lv,
 		Source: src,
 		Log:    []byte(log),
 	})
-}
-
-func (lg *gLogger) Close() {
-	_ = lg.file.Close()
-	lg.ctx = nil
+	if err != nil {
+		buf := logger.Prefix(lg.ctx.global.Now().Local(), logger.Error, "logger")
+		_, _ = buf.WriteTo(lg.writer)
+		_, _ = fmt.Fprintln(lg.writer, err)
+	}
 }

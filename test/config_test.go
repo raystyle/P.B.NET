@@ -76,8 +76,8 @@ var (
 func generateControllerConfig() *controller.Config {
 	cfg := controller.Config{}
 
-	cfg.Test.SkipTestClientDNS = true
 	cfg.Test.SkipSynchronizeTime = true
+	cfg.Test.SkipTestClientDNS = true
 
 	cfg.Database.Dialect = "mysql"
 	cfg.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_test?loc=Local&parseTime=true"

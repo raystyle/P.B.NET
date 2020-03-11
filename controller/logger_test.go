@@ -10,8 +10,9 @@ import (
 )
 
 func TestDatabaseLogger(t *testing.T) {
+	testInitializeController(t)
 	path := os.TempDir() + "/database.log"
-	l, err := newDatabaseLogger("mysql", path, os.Stdout)
+	l, err := newDatabaseLogger(ctrl, "mysql", path, os.Stdout)
 	require.NoError(t, err)
 	l.Print("test", "database", "log")
 	l.Close()
@@ -20,8 +21,9 @@ func TestDatabaseLogger(t *testing.T) {
 }
 
 func TestGormLogger(t *testing.T) {
+	testInitializeController(t)
 	path := os.TempDir() + "/gorm.log"
-	l, err := newGormLogger(path, os.Stdout)
+	l, err := newGormLogger(ctrl, path, os.Stdout)
 	require.NoError(t, err)
 	l.Print("test", "gorm", "log")
 	l.Close()

@@ -28,7 +28,7 @@ type database struct {
 func newDatabase(ctx *Ctrl, config *Config) (*database, error) {
 	// create database logger
 	cfg := config.Database
-	dbLogger, err := newDatabaseLogger(cfg.Dialect, cfg.LogFile, cfg.LogWriter)
+	dbLogger, err := newDatabaseLogger(ctx, cfg.Dialect, cfg.LogFile, cfg.LogWriter)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func newDatabase(ctx *Ctrl, config *Config) (*database, error) {
 		return nil, errors.Wrapf(err, "failed to ping %s server", cfg.Dialect)
 	}
 	// gorm logger
-	gormLogger, err := newGormLogger(cfg.GORMLogFile, cfg.LogWriter)
+	gormLogger, err := newGormLogger(ctx, cfg.GORMLogFile, cfg.LogWriter)
 	if err != nil {
 		return nil, err
 	}
