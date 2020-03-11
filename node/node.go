@@ -87,7 +87,7 @@ func New(cfg *Config) (*Node, error) {
 	}
 	node.sender = sender
 	// message manager
-	node.messageMgr = newMessageMgr(node, cfg)
+	node.messageMgr = newMessageManager(node, cfg)
 	// handler
 	node.handler = newHandler(node)
 	// worker

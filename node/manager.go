@@ -168,7 +168,7 @@ func (mgr *clientMgr) Close() {
 }
 
 // messageMgr is used to manage messages that send to Controller.
-// It will return the response about the message.
+// It will return the reply about the message.
 type messageMgr struct {
 	ctx *Node
 
@@ -188,14 +188,14 @@ type messageMgr struct {
 	wg      sync.WaitGroup
 }
 
-func newMessageMgr(ctx *Node, config *Config) *messageMgr {
+func newMessageManager(ctx *Node, config *Config) *messageMgr {
 	cfg := config.Sender
 
 	mgr := messageMgr{
 		ctx:     ctx,
 		timeout: 2 * cfg.Timeout,
-		guid:    guid.New(64, ctx.global.Now),
 		slots:   make(map[guid.GUID]chan interface{}),
+		guid:    guid.New(64, ctx.global.Now),
 	}
 	mgr.slotPool.New = func() interface{} {
 		return make(chan interface{}, 1)
@@ -233,7 +233,7 @@ func (mgr *messageMgr) destroySlot(id *guid.GUID, ch chan interface{}) {
 	delete(mgr.slots, *id)
 }
 
-// SendToNode is used to send message to Node and get the response.
+// SendToNode is used to send message to Node and get the reply.
 func (mgr *messageMgr) Send(
 	ctx context.Context,
 	command []byte,
@@ -241,20 +241,20 @@ func (mgr *messageMgr) Send(
 	deflate bool,
 ) (interface{}, error) {
 	// set message id
-	id, response := mgr.createSlot()
-	defer mgr.destroySlot(id, response)
+	id, reply := mgr.createSlot()
+	defer mgr.destroySlot(id, reply)
 	message.SetID(id)
 	// send
 	err := mgr.ctx.sender.Send(ctx, command, message, deflate)
 	if err != nil {
 		return nil, err
 	}
-	// get response
+	// get reply
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
 	timer.Reset(mgr.timeout)
 	select {
-	case resp := <-response:
+	case resp := <-reply:
 		if !timer.Stop() {
 			<-timer.C
 		}
@@ -269,7 +269,7 @@ func (mgr *messageMgr) Send(
 	}
 }
 
-// SendToNodeFromPlugin is used to send message to Node and get the response.
+// SendToNodeFromPlugin is used to send message to Node and get the reply.
 func (mgr *messageMgr) SendFromPlugin(
 	command []byte,
 	message []byte,
@@ -278,24 +278,22 @@ func (mgr *messageMgr) SendFromPlugin(
 	request := &messages.PluginRequest{
 		Request: message,
 	}
-	response, err := mgr.Send(mgr.context, command, request, deflate)
+	reply, err := mgr.Send(mgr.context, command, request, deflate)
 	if err != nil {
 		return nil, err
 	}
-	return response.([]byte), nil
+	return reply.([]byte), nil
 }
 
-// HandleReply is used to set response, handler.Handle functions will call it.
-func (mgr *messageMgr) HandleReply(id *guid.GUID, response interface{}) {
+// HandleReply is used to set reply, handler.Handle functions will call it.
+func (mgr *messageMgr) HandleReply(id *guid.GUID, reply interface{}) {
 	mgr.slotsRWM.RLock()
 	defer mgr.slotsRWM.RUnlock()
-	ch := mgr.slots[*id]
-	if ch == nil {
-		return
-	}
-	select {
-	case ch <- response:
-	case <-mgr.context.Done():
+	if ch, ok := mgr.slots[*id]; ok {
+		select {
+		case ch <- reply:
+		case <-mgr.context.Done():
+		}
 	}
 }
 

@@ -425,13 +425,11 @@ func (sender *sender) Acknowledge(send *protocol.Send) error {
 func (sender *sender) HandleAcknowledge(send *guid.GUID) {
 	sender.ackSlotsRWM.RLock()
 	defer sender.ackSlotsRWM.RUnlock()
-	ch := sender.ackSlots[*send]
-	if ch == nil {
-		return
-	}
-	select {
-	case ch <- struct{}{}:
-	case <-sender.context.Done():
+	if ch, ok := sender.ackSlots[*send]; ok {
+		select {
+		case ch <- struct{}{}:
+		case <-sender.context.Done():
+		}
 	}
 }
 

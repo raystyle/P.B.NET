@@ -75,7 +75,7 @@ func New(cfg *Config) (*Beacon, error) {
 	}
 	beacon.sender = sender
 	// message manager
-	beacon.messageMgr = newMessageMgr(beacon, cfg)
+	beacon.messageMgr = newMessageManager(beacon, cfg)
 	// handler
 	beacon.handler = newHandler(beacon)
 	// worker
