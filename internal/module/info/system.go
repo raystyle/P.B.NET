@@ -8,19 +8,19 @@ import (
 	"strings"
 )
 
-// System contains the current system info
+// System contains the current system information.
 type System struct {
-	IP        []string // 192.168.1.11/24, fe80::5456:5f8:1690:5792/64
-	OS        string   // windows, linux
-	Arch      string   // amd64, 386
-	GoVersion string   // go1.13.5 -> 1.13.5
-	PID       int      // 2000
-	PPID      int      // 1999
-	Hostname  string   // WIN-F0F2A61229S
-	Username  string   // WIN-F0F2A61229S\Admin
+	IP        []string `json:"ip"`         // 192.168.1.11/24, fe80::5456:5f8:1690:5792/64
+	OS        string   `json:"os"`         // windows, linux
+	Arch      string   `json:"arch"`       // amd64, 386
+	GoVersion string   `json:"go_version"` // go1.13.5 -> 1.13.5
+	PID       int      `json:"pid"`        // 2000
+	PPID      int      `json:"ppid"`       // 1999
+	Hostname  string   `json:"hostname"`   // WIN-F0F2A61229S
+	Username  string   `json:"username"`   // WIN-F0F2A61229S\Admin
 }
 
-// GetSystemInfo is used to get current system info
+// GetSystemInfo is used to get current system information.
 func GetSystemInfo() *System {
 	system := System{}
 	ifaces, _ := net.Interfaces()
