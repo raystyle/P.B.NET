@@ -620,7 +620,7 @@ func (sender *sender) HandleNodeAcknowledge(role, send *guid.GUID) {
 	if ch, ok := nas.slots[*send]; ok {
 		select {
 		case ch <- struct{}{}:
-		case <-sender.context.Done():
+		default:
 		}
 	}
 }
@@ -643,7 +643,7 @@ func (sender *sender) HandleBeaconAcknowledge(role, send *guid.GUID) {
 	if ch, ok := bas.slots[*send]; ok {
 		select {
 		case ch <- struct{}{}:
-		case <-sender.context.Done():
+		default:
 		}
 	}
 }

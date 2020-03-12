@@ -343,7 +343,7 @@ func (sender *sender) HandleAcknowledge(send *guid.GUID) {
 	if ch, ok := sender.ackSlots[*send]; ok {
 		select {
 		case ch <- struct{}{}:
-		case <-sender.context.Done():
+		default:
 		}
 	}
 }

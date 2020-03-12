@@ -297,7 +297,7 @@ func (mgr *messageMgr) HandleReply(id *guid.GUID, reply interface{}) {
 	if ch, ok := mgr.slots[*id]; ok {
 		select {
 		case ch <- reply:
-		case <-mgr.context.Done():
+		default:
 		}
 	}
 }

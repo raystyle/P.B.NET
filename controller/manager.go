@@ -436,7 +436,7 @@ func (mgr *messageMgr) HandleNodeReply(role, id *guid.GUID, reply interface{}) {
 	if ch, ok := ns.slots[*id]; ok {
 		select {
 		case ch <- reply:
-		case <-mgr.context.Done():
+		default:
 		}
 	}
 }
@@ -458,7 +458,7 @@ func (mgr *messageMgr) HandleBeaconReply(role, id *guid.GUID, reply interface{})
 	if ch, ok := bs.slots[*id]; ok {
 		select {
 		case ch <- reply:
-		case <-mgr.context.Done():
+		default:
 		}
 	}
 }
