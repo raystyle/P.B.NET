@@ -85,7 +85,7 @@ func testExecuteShellCode(t *testing.T, guid *guid.GUID) {
 func testSingleShell(t *testing.T, guid *guid.GUID) {
 	ss := &messages.SingleShell{Command: "whoami"}
 	reply, err := ctrl.SendToBeaconRT(context.Background(), guid,
-		messages.CMDBSingleShell, ss, true)
+		messages.CMDBSingleShell, ss, true, senderTimeout)
 	require.NoError(t, err)
 	output := reply.(*messages.SingleShellOutput)
 	require.Zero(t, output.Err)

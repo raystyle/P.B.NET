@@ -3,6 +3,7 @@ package beacon
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -209,8 +210,9 @@ func (beacon *Beacon) SendRT(
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
+	timeout time.Duration,
 ) (interface{}, error) {
-	return beacon.messageMgr.Send(ctx, command, message, deflate)
+	return beacon.messageMgr.Send(ctx, command, message, deflate, timeout)
 }
 
 // Query is used to query message from Controller.

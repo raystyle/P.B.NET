@@ -43,8 +43,8 @@ func testCtrlSendToNodeRT(t *testing.T, iNodes, cNodes []*node.Node) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
 			req := &messages.TestRequest{Request: msg}
-			resp, err := ctrl.SendToNodeRT(ctx, guid,
-				messages.CMDBRTTestRequest, req, true)
+			resp, err := ctrl.SendToNodeRT(ctx, guid, messages.CMDBRTTestRequest,
+				req, true, senderTimeout)
 			require.NoError(t, err, info)
 			response := resp.(*messages.TestResponse).Response
 			require.Equal(t, msg, response)
@@ -131,8 +131,8 @@ func testCtrlSendToBeaconRT(t *testing.T, nodes []*node.Node, beacons []*beacon.
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
 			req := &messages.TestRequest{Request: msg}
-			resp, err := ctrl.SendToBeaconRT(ctx, guid,
-				messages.CMDBRTTestRequest, req, true)
+			resp, err := ctrl.SendToBeaconRT(ctx, guid, messages.CMDBRTTestRequest,
+				req, true, senderTimeout)
 			require.NoError(t, err, info)
 			response := resp.(*messages.TestResponse).Response
 			require.Equal(t, msg, response)
@@ -209,7 +209,8 @@ func testNodeSendRT(t *testing.T, iNodes, cNodes []*node.Node) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
 			req := &messages.TestRequest{Request: msg}
-			resp, err := node.SendRT(ctx, messages.CMDBRTTestRequest, req, true)
+			resp, err := node.SendRT(ctx, messages.CMDBRTTestRequest,
+				req, true, senderTimeout)
 			require.NoError(t, err, info)
 			response := resp.(*messages.TestResponse).Response
 			require.Equal(t, msg, response)
@@ -295,7 +296,8 @@ func testBeaconSendRT(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test request with deflate %d", i))
 			req := &messages.TestRequest{Request: msg}
-			resp, err := beacon.SendRT(ctx, messages.CMDBRTTestRequest, req, true)
+			resp, err := beacon.SendRT(ctx, messages.CMDBRTTestRequest,
+				req, true, senderTimeout)
 			require.NoError(t, err, info)
 			response := resp.(*messages.TestResponse).Response
 			require.Equal(t, msg, response)

@@ -307,6 +307,7 @@ func (mgr *messageMgr) SendToNode(
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
+	timeout time.Duration,
 ) (interface{}, error) {
 	// set message id
 	id, reply := mgr.createNodeSlot(guid)
@@ -320,7 +321,10 @@ func (mgr *messageMgr) SendToNode(
 	// get reply
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
-	timer.Reset(mgr.timeout)
+	if timeout < 1 {
+		timeout = mgr.timeout
+	}
+	timer.Reset(timeout)
 	select {
 	case resp := <-reply:
 		if !timer.Stop() {
@@ -344,6 +348,7 @@ func (mgr *messageMgr) SendToBeacon(
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
+	timeout time.Duration,
 ) (interface{}, error) {
 	// set message id
 	id, reply := mgr.createBeaconSlot(guid)
@@ -358,7 +363,10 @@ func (mgr *messageMgr) SendToBeacon(
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
 	// TODO set special timeout if Beacon not in interactive mode
-	timer.Reset(mgr.timeout)
+	if timeout < 1 {
+		timeout = mgr.timeout
+	}
+	timer.Reset(timeout)
 	select {
 	case resp := <-reply:
 		if !timer.Stop() {
@@ -381,11 +389,12 @@ func (mgr *messageMgr) SendToNodeFromPlugin(
 	command []byte,
 	message []byte,
 	deflate bool,
+	timeout time.Duration,
 ) ([]byte, error) {
 	request := &messages.PluginRequest{
 		Request: message,
 	}
-	reply, err := mgr.SendToNode(mgr.context, guid, command, request, deflate)
+	reply, err := mgr.SendToNode(mgr.context, guid, command, request, deflate, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -398,11 +407,12 @@ func (mgr *messageMgr) SendToBeaconFromPlugin(
 	command []byte,
 	message []byte,
 	deflate bool,
+	timeout time.Duration,
 ) ([]byte, error) {
 	request := &messages.PluginRequest{
 		Request: message,
 	}
-	reply, err := mgr.SendToBeacon(mgr.context, guid, command, request, deflate)
+	reply, err := mgr.SendToBeacon(mgr.context, guid, command, request, deflate, timeout)
 	if err != nil {
 		return nil, err
 	}

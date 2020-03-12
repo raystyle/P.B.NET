@@ -239,6 +239,7 @@ func (mgr *messageMgr) Send(
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
+	timeout time.Duration,
 ) (interface{}, error) {
 	// set message id
 	id, reply := mgr.createSlot()
@@ -252,7 +253,10 @@ func (mgr *messageMgr) Send(
 	// get reply
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
-	timer.Reset(mgr.timeout)
+	if timeout < 1 {
+		timeout = mgr.timeout
+	}
+	timer.Reset(timeout)
 	select {
 	case resp := <-reply:
 		if !timer.Stop() {
@@ -274,11 +278,12 @@ func (mgr *messageMgr) SendFromPlugin(
 	command []byte,
 	message []byte,
 	deflate bool,
+	timeout time.Duration,
 ) ([]byte, error) {
 	request := &messages.PluginRequest{
 		Request: message,
 	}
-	reply, err := mgr.Send(mgr.context, command, request, deflate)
+	reply, err := mgr.Send(mgr.context, command, request, deflate, timeout)
 	if err != nil {
 		return nil, err
 	}

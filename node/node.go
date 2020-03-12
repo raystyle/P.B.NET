@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -236,8 +237,9 @@ func (node *Node) SendRT(
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
+	timeout time.Duration,
 ) (interface{}, error) {
-	return node.messageMgr.Send(ctx, command, message, deflate)
+	return node.messageMgr.Send(ctx, command, message, deflate, timeout)
 }
 
 // AddListener is used to add listener.

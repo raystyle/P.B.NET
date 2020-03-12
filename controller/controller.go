@@ -290,8 +290,9 @@ func (ctrl *Ctrl) SendToNodeRT(
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
+	timeout time.Duration,
 ) (interface{}, error) {
-	return ctrl.messageMgr.SendToNode(ctx, guid, command, message, deflate)
+	return ctrl.messageMgr.SendToNode(ctx, guid, command, message, deflate, timeout)
 }
 
 // SendToBeaconRT is used to send messages to Beacon and get response.
@@ -301,8 +302,9 @@ func (ctrl *Ctrl) SendToBeaconRT(
 	command []byte,
 	message messages.RoundTripper,
 	deflate bool,
+	timeout time.Duration,
 ) (interface{}, error) {
-	return ctrl.messageMgr.SendToBeacon(ctx, guid, command, message, deflate)
+	return ctrl.messageMgr.SendToBeacon(ctx, guid, command, message, deflate, timeout)
 }
 
 // Broadcast is used to broadcast messages to all Nodes.
