@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -525,6 +526,11 @@ func (mgr *messageMgr) Close() {
 	mgr.ctx = nil
 }
 
+type action struct {
+	object    interface{}
+	timestamp int64
+}
+
 // actionMgr is used to manage event from Node and Beacon,
 // and need Controller to interactive it, action manager
 // will save the context data with generated GUID.
@@ -536,7 +542,8 @@ type actionMgr struct {
 	actions  map[guid.GUID]interface{}
 	actionsM sync.Mutex
 
-	guid *guid.Generator
+	guid     *guid.Generator
+	guidPool sync.Pool
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -552,6 +559,9 @@ func newActionManager(ctx *Ctrl, config *Config) *actionMgr {
 		actions:    make(map[guid.GUID]interface{}),
 		guid:       guid.New(1024, ctx.global.Now),
 	}
+	mgr.guidPool.New = func() interface{} {
+		return new(guid.GUID)
+	}
 	mgr.context, mgr.cancel = context.WithCancel(context.Background())
 	mgr.wg.Add(1)
 	go mgr.cleaner()
@@ -559,20 +569,30 @@ func newActionManager(ctx *Ctrl, config *Config) *actionMgr {
 }
 
 // Store is used to store action.
-func (mgr *actionMgr) Store(action interface{}) *guid.GUID {
+func (mgr *actionMgr) Store(action interface{}) string {
 	id := mgr.guid.Get()
 	mgr.actionsM.Lock()
 	defer mgr.actionsM.Unlock()
 	mgr.actions[*id] = action
-	return id
+	return id.Line()
 }
 
 // Load is used to load action, it will delete action if it exists.
-func (mgr *actionMgr) Load(id *guid.GUID) (interface{}, error) {
+func (mgr *actionMgr) Load(id string) (interface{}, error) {
+	data, err := hex.DecodeString(id)
+	if err != nil {
+		return nil, err
+	}
+	g := mgr.guidPool.Get().(*guid.GUID)
+	defer mgr.guidPool.Put(g)
+	err = g.Write(data)
+	if err != nil {
+		return nil, err
+	}
 	mgr.actionsM.Lock()
 	defer mgr.actionsM.Unlock()
-	if action, ok := mgr.actions[*id]; ok {
-		delete(mgr.actions, *id)
+	if action, ok := mgr.actions[*g]; ok {
+		delete(mgr.actions, *g)
 		return action, nil
 	}
 	return nil, errors.New("this action doesn't exist")

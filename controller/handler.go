@@ -243,6 +243,8 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
+	// store request
+	h.ctx.actionMgr.Store(nrr)
 	// notice view
 
 	// test
