@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/hex"
 	"sync"
 	"time"
 
@@ -528,6 +527,7 @@ func (mgr *messageMgr) Close() {
 
 type action struct {
 	object    interface{}
+	timeout   int64
 	timestamp int64
 }
 
@@ -537,13 +537,14 @@ type action struct {
 type actionMgr struct {
 	ctx *Ctrl
 
-	expireTime int64
+	// default timeout
+	timeout time.Duration
 
-	actions  map[guid.GUID]interface{}
+	// key = guid.Line()
+	actions  map[string]*action
 	actionsM sync.Mutex
 
-	guid     *guid.Generator
-	guidPool sync.Pool
+	guid *guid.Generator
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -554,13 +555,10 @@ func newActionManager(ctx *Ctrl, config *Config) *actionMgr {
 	cfg := config.Sender
 
 	mgr := actionMgr{
-		ctx:        ctx,
-		expireTime: int64((2 * cfg.Timeout).Seconds()),
-		actions:    make(map[guid.GUID]interface{}),
-		guid:       guid.New(1024, ctx.global.Now),
-	}
-	mgr.guidPool.New = func() interface{} {
-		return new(guid.GUID)
+		ctx:     ctx,
+		timeout: 2 * cfg.Timeout,
+		actions: make(map[string]*action),
+		guid:    guid.New(1024, ctx.global.Now),
 	}
 	mgr.context, mgr.cancel = context.WithCancel(context.Background())
 	mgr.wg.Add(1)
@@ -569,31 +567,29 @@ func newActionManager(ctx *Ctrl, config *Config) *actionMgr {
 }
 
 // Store is used to store action.
-func (mgr *actionMgr) Store(action interface{}) string {
-	id := mgr.guid.Get()
+func (mgr *actionMgr) Store(object interface{}, timeout time.Duration) string {
+	if timeout < 1 {
+		timeout = mgr.timeout
+	}
+	id := mgr.guid.Get().Line()
+	timestamp := mgr.ctx.global.Now().Unix()
 	mgr.actionsM.Lock()
 	defer mgr.actionsM.Unlock()
-	mgr.actions[*id] = action
-	return id.Line()
+	mgr.actions[id] = &action{
+		object:    object,
+		timeout:   int64(timeout.Seconds()),
+		timestamp: timestamp,
+	}
+	return id
 }
 
 // Load is used to load action, it will delete action if it exists.
 func (mgr *actionMgr) Load(id string) (interface{}, error) {
-	data, err := hex.DecodeString(id)
-	if err != nil {
-		return nil, err
-	}
-	g := mgr.guidPool.Get().(*guid.GUID)
-	defer mgr.guidPool.Put(g)
-	err = g.Write(data)
-	if err != nil {
-		return nil, err
-	}
 	mgr.actionsM.Lock()
 	defer mgr.actionsM.Unlock()
-	if action, ok := mgr.actions[*g]; ok {
-		delete(mgr.actions, *g)
-		return action, nil
+	if action, ok := mgr.actions[id]; ok {
+		delete(mgr.actions, id)
+		return action.object, nil
 	}
 	return nil, errors.New("this action doesn't exist")
 }
@@ -633,9 +629,9 @@ func (mgr *actionMgr) clean() {
 	now := mgr.ctx.global.Now().Unix()
 	mgr.actionsM.Lock()
 	defer mgr.actionsM.Unlock()
-	newMap := make(map[guid.GUID]interface{}, len(mgr.actions))
+	newMap := make(map[string]*action, len(mgr.actions))
 	for id, action := range mgr.actions {
-		if convert.AbsInt64(now-id.Timestamp()) < mgr.expireTime {
+		if convert.AbsInt64(now-action.timestamp) < action.timeout {
 			newMap[id] = action
 		}
 	}

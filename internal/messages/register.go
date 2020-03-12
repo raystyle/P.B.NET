@@ -11,12 +11,16 @@ import (
 	"project/internal/protocol"
 )
 
-// Bootstrap contains tag, mode and configuration
+// Bootstrap contains tag, mode and configuration.
 type Bootstrap struct {
 	Tag    string
 	Mode   string
 	Config []byte
 }
+
+// MaxRegisterWaitTime is the role max wait time, include Controller action timeout,
+// Node wait role register response, Beacon read result timeout.
+const MaxRegisterWaitTime = 30 * time.Second
 
 // about role register result
 const (

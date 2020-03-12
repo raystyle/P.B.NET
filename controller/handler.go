@@ -244,7 +244,7 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// store request
-	h.ctx.actionMgr.Store(nrr)
+	h.ctx.actionMgr.Store(nrr, messages.MaxRegisterWaitTime)
 	// notice view
 
 	// test

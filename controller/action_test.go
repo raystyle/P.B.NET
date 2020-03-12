@@ -59,4 +59,20 @@ func TestPrintActions(t *testing.T) {
 		require.NoError(t, err)
 		fmt.Println(buf)
 	})
+
+	buf.Reset()
+	t.Run("NoticeBeaconRegister", func(t *testing.T) {
+		nnr := NoticeBeaconRegister{
+			ID:           "id-02",
+			GUID:         hexByteSlice(bytes.Repeat([]byte{4}, guid.Size)),
+			PublicKey:    hexByteSlice(bytes.Repeat([]byte{5}, guid.Size)),
+			KexPublicKey: hexByteSlice(bytes.Repeat([]byte{6}, guid.Size)),
+			ConnAddress:  "127.0.0.1:9092",
+			SystemInfo:   info.GetSystemInfo(),
+			RequestTime:  time.Now(),
+		}
+		err := encoder.Encode(nnr)
+		require.NoError(t, err)
+		fmt.Println(buf)
+	})
 }
