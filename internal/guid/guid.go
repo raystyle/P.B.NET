@@ -62,6 +62,13 @@ func (guid *GUID) Hex() string {
 	return strings.ToUpper(string(dst))
 }
 
+// Line is used to encode GUID to a hex string in one line.
+func (guid *GUID) Line() string {
+	dst := make([]byte, Size*2)
+	hex.Encode(dst, guid[:])
+	return strings.ToUpper(string(dst))
+}
+
 // Timestamp is used to get timestamp in the GUID.
 func (guid *GUID) Timestamp() int64 {
 	return int64(binary.BigEndian.Uint64(guid[32:40]))

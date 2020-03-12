@@ -48,6 +48,14 @@ func TestGUID(t *testing.T) {
 		require.Equal(t, buf.String(), guid.Hex())
 	})
 
+	t.Run("Line", func(t *testing.T) {
+		guid := GUID{}
+		data := bytes.Repeat([]byte{1}, Size)
+		copy(guid[:], data)
+		expect := strings.Repeat("01", Size)
+		require.Equal(t, expect, guid.Line())
+	})
+
 	t.Run("Timestamp", func(t *testing.T) {
 		now := time.Now().Unix()
 		guid := GUID{}
