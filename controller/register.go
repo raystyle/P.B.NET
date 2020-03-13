@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
@@ -22,11 +23,13 @@ import (
 func (ctrl *Ctrl) TrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
-) (*messages.NodeRegisterRequest, error) {
-	// TODO add log, check exists
+) (*NoticeNodeRegister, error) {
+	// check exists
+	const src = "trust-node"
+	ctrl.logger.Printf(logger.Info, src, "listener: %s", listener)
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to create client")
+		return nil, err
 	}
 	defer client.Close()
 	// send trust node command
@@ -34,46 +37,54 @@ func (ctrl *Ctrl) TrustNode(
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to send trust node command")
 	}
-	if len(reply) < curve25519.ScalarSize+aes.BlockSize {
-		// TODO add exploit
-		return nil, errors.New("node send register request with invalid size")
-	}
-	// calculate role session key
-	key, err := ctrl.global.KeyExchange(reply[:curve25519.ScalarSize])
+	// resolve node register request
+	nrr, err := ctrl.resolveNodeRegisterRequest(reply)
 	if err != nil {
-		const format = "node send invalid register request\nerror: %s"
-		return nil, errors.Errorf(format, err)
+		ctrl.logger.Printf(logger.Exploit, src, "%s\nlistener: %s", err, listener)
+		return nil, err
 	}
-	// decrypt role register request
-	request, err := aes.CBCDecrypt(reply[curve25519.ScalarSize:], key, key[:aes.IVSize])
+	// check this node exist
+	err = ctrl.checkNodeExists(&nrr.GUID)
 	if err != nil {
-		const format = "node send invalid register request\nerror: %s"
-		return nil, errors.Errorf(format, err)
+		return nil, err
 	}
-	nrr := messages.NodeRegisterRequest{}
-	err = msgpack.Unmarshal(request, &nrr)
-	if err != nil {
-		// ctrl.logger.Print(logger.Exploit, "trust node", err)
-		return nil, errors.Wrap(err, "invalid node register request")
+	// set action
+	objects := make(map[string]interface{})
+	objects["listener"] = listener
+	objects["request"] = nrr
+	id := ctrl.actionMgr.Store(objects, messages.MaxRegisterWaitTime)
+	nnr := NoticeNodeRegister{
+		ID:           id,
+		GUID:         hexByteSlice(nrr.GUID[:]),
+		PublicKey:    hexByteSlice(nrr.PublicKey),
+		KexPublicKey: hexByteSlice(nrr.KexPublicKey),
+		ConnAddress:  nrr.ConnAddress,
+		SystemInfo:   nrr.SystemInfo,
+		RequestTime:  nrr.RequestTime,
 	}
-	err = nrr.Validate()
-	if err != nil {
-		// ctrl.logger.Print(logger.Exploit, "trust node", err)
-		return nil, errors.Wrap(err, "invalid node register request")
-	}
-	return &nrr, nil
+	return &nnr, nil
 }
 
 // ConfirmTrustNode is used to confirm trust and register Node.
-func (ctrl *Ctrl) ConfirmTrustNode(
-	ctx context.Context,
-	listener *bootstrap.Listener,
-	nrr *messages.NodeRegisterRequest,
-) error {
-	// TODO add log
+func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, id string) error {
+	// get objects about action, see Ctrl.TrustNode()
+	object, err := ctrl.actionMgr.Load(id)
+	if err != nil {
+		return err
+	}
+	objects := object.(map[string]interface{})
+	listener := objects["listener"].(*bootstrap.Listener)
+	nrr := objects["request"].(*messages.NodeRegisterRequest)
+	// check this node exist
+	err = ctrl.checkNodeExists(&nrr.GUID)
+	if err != nil {
+		return err
+	}
+	ctrl.logger.Printf(logger.Info, "trust-node", "confirm listener: %s", listener)
+	// connect node
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {
-		return errors.WithMessage(err, "failed to create client")
+		return err
 	}
 	defer client.Close()
 	// register node
@@ -92,6 +103,50 @@ func (ctrl *Ctrl) ConfirmTrustNode(
 	return nil
 }
 
+// node key exchange public key (curve25519),
+// use session key encrypt register request data.
+// +----------------+----------------+
+// | kex public key | encrypted data |
+// +----------------+----------------+
+// |    32 Bytes    |       var      |
+// +----------------+----------------+
+func (ctrl *Ctrl) resolveNodeRegisterRequest(reply []byte) (*messages.NodeRegisterRequest, error) {
+	if len(reply) < curve25519.ScalarSize+aes.BlockSize {
+		return nil, errors.New("node send register request with invalid size")
+	}
+	// calculate node session key
+	key, err := ctrl.global.KeyExchange(reply[:curve25519.ScalarSize])
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to calculate node session key")
+	}
+	// decrypt node register request
+	request, err := aes.CBCDecrypt(reply[curve25519.ScalarSize:], key, key[:aes.IVSize])
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decrypt node register request")
+	}
+	// check node register request
+	nrr := messages.NodeRegisterRequest{}
+	err = msgpack.Unmarshal(request, &nrr)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid node register request data")
+	}
+	err = nrr.Validate()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid node register request")
+	}
+	return &nrr, nil
+}
+
+func (ctrl *Ctrl) checkNodeExists(guid *guid.GUID) error {
+	_, err := ctrl.database.SelectNode(guid)
+	if err == nil {
+		return errors.Errorf("node already exists\n%s", guid.Print())
+	}
+	if err == gorm.ErrRecordNotFound {
+		return nil
+	}
+	return err
+}
 func (ctrl *Ctrl) registerNode(
 	nrr *messages.NodeRegisterRequest,
 	bootstrap bool,
@@ -115,7 +170,7 @@ func (ctrl *Ctrl) registerNode(
 	sessionKey, err := ctrl.global.KeyExchange(nrr.KexPublicKey)
 	if err != nil {
 		err = errors.WithMessage(err, "failed to calculate session key")
-		ctrl.logger.Print(logger.Exploit, "register node", err)
+		ctrl.logger.Print(logger.Exploit, "register-node", err)
 		return nil, failed(err)
 	}
 	defer security.CoverBytes(sessionKey)
@@ -203,7 +258,7 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 	sessionKey, err := ctrl.global.KeyExchange(brr.KexPublicKey)
 	if err != nil {
 		err = errors.WithMessage(err, "failed to calculate session key")
-		ctrl.logger.Print(logger.Exploit, "register beacon", err)
+		ctrl.logger.Print(logger.Exploit, "register-beacon", err)
 		return failed(err)
 	}
 	defer security.CoverBytes(sessionKey)

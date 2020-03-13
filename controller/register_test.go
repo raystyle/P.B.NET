@@ -16,11 +16,12 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	nodeGUID := Node.GUID()
 
 	listener := testGetNodeListener(t, Node, testInitialNodeListenerTag)
-	req, err := ctrl.TrustNode(context.Background(), listener)
+	nnr, err := ctrl.TrustNode(context.Background(), listener)
 	require.NoError(t, err)
-	require.Equal(t, info.GetSystemInfo(), req.SystemInfo)
-	spew.Dump(req)
-	err = ctrl.ConfirmTrustNode(context.Background(), listener, req)
+	require.Equal(t, info.GetSystemInfo(), nnr.SystemInfo)
+	spew.Dump(nnr)
+
+	err = ctrl.ConfirmTrustNode(context.Background(), nnr.ID)
 	require.NoError(t, err)
 
 	// clean
