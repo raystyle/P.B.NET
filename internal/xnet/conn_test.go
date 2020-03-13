@@ -27,6 +27,7 @@ func TestConn(t *testing.T) {
 	}()
 	require.NoError(t, clientC.Send(msg))
 	wg.Wait()
+	t.Logf("mode:%s\n", serverC.Mode())
 	t.Log("status:\n", serverC.Status())
 	t.Logf("string:\n%s", serverC)
 	testsuite.ConnSC(t, serverC, clientC, true)

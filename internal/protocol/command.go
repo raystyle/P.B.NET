@@ -57,6 +57,7 @@ const (
 	// about trust Node
 	CtrlTrustNode
 	CtrlSetNodeCert
+	CtrlGetListenerTag
 
 	// for recovery role session key
 	CtrlQueryKeyStorage
@@ -84,11 +85,6 @@ const (
 const (
 	// start synchronize
 	NodeSync uint8 = 0x50 + iota
-
-	// If current Node doesn't has role key,
-	// it will query connected node first.
-	NodeQueryNodeKey
-	NodeQueryBeaconKey
 )
 
 // after synchronize

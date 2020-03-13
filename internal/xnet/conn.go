@@ -102,6 +102,11 @@ func (c *Conn) Receive() ([]byte, error) {
 	return msg, nil
 }
 
+// Mode is used to get the connection mode.
+func (c *Conn) Mode() string {
+	return c.mode
+}
+
 // Status contains connection status.
 type Status struct {
 	LocalNetwork   string
