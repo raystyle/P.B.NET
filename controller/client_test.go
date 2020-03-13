@@ -129,11 +129,7 @@ func testGetNodeListener(t testing.TB, node *node.Node, tag string) *bootstrap.L
 	listener, err := node.GetListener(tag)
 	require.NoError(t, err)
 	addr := listener.Addr()
-	return &bootstrap.Listener{
-		Mode:    xnet.ModeTLS,
-		Network: addr.Network(),
-		Address: addr.String(),
-	}
+	return bootstrap.NewListener(listener.Mode(), addr.Network(), addr.String())
 }
 
 func testGenerateClient(t testing.TB, node *node.Node) *Client {

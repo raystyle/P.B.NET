@@ -321,7 +321,7 @@ func (sender *sender) Synchronize(
 		delete(sender.clients, *guid)
 	})
 	if err != nil {
-		return errors.WithMessage(err, "failed to create client")
+		return err
 	}
 	// interrupt
 	wg := sync.WaitGroup{}

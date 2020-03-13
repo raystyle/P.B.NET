@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -226,18 +225,14 @@ func (wh *webHandler) handleTrustNode(w hRW, r *hR, p hP) {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	listener := bootstrap.Listener{
-		Mode:    m.Mode,
-		Network: m.Network,
-		Address: m.Address,
-	}
-	req, err := wh.ctx.TrustNode(context.TODO(), &listener)
+	listener := bootstrap.NewListener(m.Mode, m.Network, m.Address)
+	nnr, err := wh.ctx.TrustNode(context.TODO(), listener)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	fmt.Println("node guid:\n", strings.ReplaceAll(req.GUID.Hex(), "\n", ""))
-	err = wh.ctx.ConfirmTrustNode(context.Background(), &listener, req)
+	fmt.Printf("node guid: %X\n", nnr.GUID)
+	err = wh.ctx.ConfirmTrustNode(context.TODO(), nnr.ID)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 	} else {
@@ -262,12 +257,8 @@ func (wh *webHandler) handleConnectNodeListener(w hRW, r *hR, p hP) {
 	if err != nil {
 		panic(err.Error())
 	}
-	listener := bootstrap.Listener{
-		Mode:    m.Mode,
-		Network: m.Network,
-		Address: m.Address,
-	}
-	err = wh.ctx.sender.Synchronize(context.Background(), nodeGUID, &listener)
+	listener := bootstrap.NewListener(m.Mode, m.Network, m.Address)
+	err = wh.ctx.sender.Synchronize(context.Background(), nodeGUID, listener)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return

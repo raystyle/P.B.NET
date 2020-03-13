@@ -576,7 +576,7 @@ func newActionManager(ctx *Ctrl, config *Config) *actionMgr {
 	return &mgr
 }
 
-// Store is used to store action.
+// Store is used to store action, it will return action id.
 func (mgr *actionMgr) Store(object interface{}, timeout time.Duration) string {
 	if timeout < 1 {
 		timeout = mgr.timeout

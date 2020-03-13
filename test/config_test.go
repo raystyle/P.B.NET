@@ -260,11 +260,7 @@ func getNodeListener(t testing.TB, node *node.Node, tag string) *bootstrap.Liste
 	listener, err := node.GetListener(tag)
 	require.NoError(t, err)
 	addr := listener.Addr()
-	return &bootstrap.Listener{
-		Mode:    listener.Mode(),
-		Network: addr.Network(),
-		Address: addr.String(),
-	}
+	return bootstrap.NewListener(listener.Mode(), addr.Network(), addr.String())
 }
 
 // -----------------------------------------Initial Node-------------------------------------------
@@ -314,9 +310,9 @@ func generateInitialNodeAndTrust(t testing.TB, id int) *node.Node {
 	listener := getNodeListener(t, Node, initialNodeListenerTag)
 	ctx := context.Background()
 	// trust node
-	req, err := ctrl.TrustNode(ctx, listener)
+	nnr, err := ctrl.TrustNode(ctx, listener)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(ctx, listener, req)
+	err = ctrl.ConfirmTrustNode(ctx, nnr.ID)
 	require.NoError(t, err)
 	// connect node
 	err = ctrl.Synchronize(ctx, Node.GUID(), listener)

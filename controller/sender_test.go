@@ -23,9 +23,9 @@ func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
 
 	listener := testGetNodeListener(t, Node, testInitialNodeListenerTag)
 	// trust node
-	req, err := ctrl.TrustNode(context.Background(), listener)
+	nnr, err := ctrl.TrustNode(context.Background(), listener)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(context.Background(), listener, req)
+	err = ctrl.ConfirmTrustNode(context.Background(), nnr.ID)
 	require.NoError(t, err)
 	// connect
 	err = ctrl.Synchronize(context.Background(), Node.GUID(), listener)
