@@ -116,8 +116,8 @@ func NewListener(mode, network, address string) *Listener {
 	return &listener
 }
 
-// Decrypt is used to decrypt self encrypt data, it will create a new Listener
-// must call Encrypt to encrypt data after use the created new Listener.
+// Decrypt is used to decrypt self encrypt data, it will create a new Listener,
+// must call Destroy to cover data after use the created new Listener.
 func (l *Listener) Decrypt() *Listener {
 	dec, err := l.cbc.Decrypt(l.enc)
 	if err != nil {
@@ -153,7 +153,9 @@ func (l *Listener) Equal(listener *Listener) bool {
 // String is used to return information about listener.
 // tls (tcp 127.0.0.1:443)
 func (l *Listener) String() string {
-	return fmt.Sprintf("%s (%s %s)", l.Mode, l.Network, l.Address)
+	tl := l.Decrypt()
+	defer tl.Destroy()
+	return fmt.Sprintf("%s (%s %s)", tl.Mode, tl.Network, tl.Address)
 }
 
 // EncryptListeners is used to encrypt raw listeners.

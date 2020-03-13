@@ -133,11 +133,10 @@ func TestListener_Equal(t *testing.T) {
 }
 
 func TestListener_String(t *testing.T) {
-	listener := Listener{
-		Mode:    xnet.ModeTLS,
-		Network: "tcp",
-		Address: "127.0.0.1:443",
-	}
-	expect := "tls (tcp 127.0.0.1:443)"
+	mode := strings.Repeat(xnet.ModeTLS, 1)
+	network := strings.Repeat("tcp", 1)
+	address := strings.Repeat("127.0.0.1:53123", 1)
+	listener := NewListener(mode, network, address)
+	expect := "tls (tcp 127.0.0.1:53123)"
 	require.Equal(t, expect, listener.String())
 }
