@@ -39,8 +39,8 @@ func TestModule(t *testing.T) {
 		wg.Wait()
 	}
 
-	t.Run("execute shellcode", func(t *testing.T) {
-		test(testExecuteShellCode)
+	t.Run("shellcode", func(t *testing.T) {
+		test(testShellCode)
 	})
 
 	t.Run("single shell", func(t *testing.T) {
@@ -59,7 +59,7 @@ func TestModule(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func testExecuteShellCode(t *testing.T, guid *guid.GUID) {
+func testShellCode(t *testing.T, guid *guid.GUID) {
 	scHex := "fc4883e4f0e8c0000000415141505251564831d265488b5260488b52184" +
 		"88b5220488b7250480fb74a4a4d31c94831c0ac3c617c022c2041c1c90d4101c" +
 		"1e2ed524151488b52208b423c4801d08b80880000004885c074674801d0508b4" +
@@ -71,12 +71,12 @@ func testExecuteShellCode(t *testing.T, guid *guid.GUID) {
 		"5bb4713726f6a00594189daffd563616c632e65786500"
 	scBytes, _ := hex.DecodeString(scHex)
 
-	es := messages.ExecuteShellCode{
+	es := messages.ShellCode{
 		Method:    "vp",
 		ShellCode: scBytes,
 	}
 	err := ctrl.SendToBeacon(context.Background(), guid,
-		messages.CMDBExecuteShellCode, &es, true)
+		messages.CMDBShellCode, &es, true)
 	require.NoError(t, err)
 
 	time.Sleep(5 * time.Second)

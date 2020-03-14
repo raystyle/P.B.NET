@@ -233,8 +233,8 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 	}
 	err = nrr.Validate()
 	if err != nil {
-		const log = "node send invalid node register request"
-		h.logWithInfo(logger.Exploit, &send.RoleGUID, request, log)
+		const format = "node send invalid node register request\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, request, err)
 		return
 	}
 	// compare key exchange public key
@@ -243,12 +243,10 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
-	// store request
-	h.ctx.actionMgr.Store(nrr, messages.MaxRegisterWaitTime)
-	// notice view
-
+	id := h.ctx.NoticeNodeRegister(nrr)
 	// test
 	h.ctx.Test.AddNodeRegisterRequest(h.context, nrr)
+	fmt.Println(id)
 }
 
 func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
@@ -260,14 +258,14 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 	brr := new(messages.BeaconRegisterRequest)
 	err := msgpack.Unmarshal(request, brr)
 	if err != nil {
-		const log = "node send invalid beacon register request data"
-		h.logWithInfo(logger.Exploit, &send.RoleGUID, request, log)
+		const format = "node send invalid beacon register request data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, request, err)
 		return
 	}
 	err = brr.Validate()
 	if err != nil {
-		const log = "node send invalid beacon register request"
-		h.logWithInfo(logger.Exploit, &send.RoleGUID, request, log)
+		const format = "node send invalid beacon register request\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, request, err)
 		return
 	}
 	// compare key exchange public key
@@ -364,6 +362,8 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[messages.RandomDataSize:messages.HeaderSize])
 	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
+	case messages.CMDShellCodeResult:
+		h.handleShellCodeResult(send)
 	case messages.CMDSingleShellOutput:
 		h.handleSingleShellOutput(send)
 	case messages.CMDBeaconLog:
@@ -378,6 +378,18 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 		const format = "beacon send unknown message\n%s\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, send.RoleGUID.Print(), msgType, spew.Sdump(send))
 	}
+}
+
+func (h *handler) handleShellCodeResult(send *protocol.Send) {
+	defer h.logPanic("handler.handleShellCodeResult")
+	result := new(messages.ShellCodeResult)
+	err := msgpack.Unmarshal(send.Message, result)
+	if err != nil {
+		const format = "invalid shellcode result data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	h.ctx.messageMgr.HandleBeaconReply(&send.RoleGUID, &result.ID, result)
 }
 
 func (h *handler) handleSingleShellOutput(send *protocol.Send) {

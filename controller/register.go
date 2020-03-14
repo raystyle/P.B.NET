@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
@@ -55,7 +56,7 @@ func (ctrl *Ctrl) TrustNode(
 	id := ctrl.actionMgr.Store(objects, messages.MaxRegisterWaitTime)
 	nnr := NoticeNodeRegister{
 		ID:           id,
-		GUID:         hexByteSlice(nrr.GUID[:]),
+		GUID:         nrr.GUID,
 		PublicKey:    hexByteSlice(nrr.PublicKey),
 		KexPublicKey: hexByteSlice(nrr.KexPublicKey),
 		ConnAddress:  nrr.ConnAddress,
@@ -100,7 +101,23 @@ func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, id string) error {
 	if !bytes.Equal(reply, []byte{messages.RegisterResultAccept}) {
 		return errors.Errorf("failed to trust node: %s", reply)
 	}
-	return nil
+	// get listeners
+	reply, err = client.send(protocol.CtrlQueryListeners, nil)
+	if err != nil {
+		return errors.WithMessage(err, "failed to set node certificate")
+	}
+	if len(reply) == 0 {
+		return errors.New("no listener tag")
+	}
+	// add node listener
+	tag := string(reply)
+	return ctrl.database.InsertNodeListener(&mNodeListener{
+		GUID:    nil,
+		Tag:     tag,
+		Mode:    listener.Mode,
+		Network: listener.Network,
+		Address: listener.Address,
+	})
 }
 
 // node key exchange public key (curve25519),
@@ -147,6 +164,7 @@ func (ctrl *Ctrl) checkNodeExists(guid *guid.GUID) error {
 	}
 	return err
 }
+
 func (ctrl *Ctrl) registerNode(
 	nrr *messages.NodeRegisterRequest,
 	bootstrap bool,
@@ -187,13 +205,104 @@ func (ctrl *Ctrl) registerNode(
 	return &certificate, nil
 }
 
+func (ctrl *Ctrl) selectNodeListeners(
+	snl *SelectedNodeListeners,
+) (map[guid.GUID][]*bootstrap.Listener, error) {
+
+	return nil, nil
+}
+
+// NoticeNodeRegister is used to notice user to reply node register request.
+func (ctrl *Ctrl) NoticeNodeRegister(nrr *messages.NodeRegisterRequest) string {
+	// store request
+	id := ctrl.actionMgr.Store(nrr, messages.MaxRegisterWaitTime)
+	nnr := NoticeNodeRegister{
+		ID:           id,
+		GUID:         nrr.GUID,
+		PublicKey:    hexByteSlice(nrr.PublicKey),
+		KexPublicKey: hexByteSlice(nrr.KexPublicKey),
+		ConnAddress:  nrr.ConnAddress,
+		SystemInfo:   nrr.SystemInfo,
+		RequestTime:  nrr.RequestTime,
+	}
+	// notice view
+	fmt.Println(nnr.ID)
+	return id
+}
+
+// ReplyNodeRegister is used to reply node register request.
+func (ctrl *Ctrl) ReplyNodeRegister(reply *ReplyNodeRegister) error {
+	// get objects about action, see Ctrl.NoticeNodeRegister()
+	object, err := ctrl.actionMgr.Load(reply.ID)
+	if err != nil {
+		return err
+	}
+	nrr := object.(*messages.NodeRegisterRequest)
+	switch reply.Result {
+	case messages.RegisterResultAccept:
+		return ctrl.acceptRegisterNode(nrr, reply)
+	case messages.RegisterResultRefused:
+		return ctrl.refuseRegisterNode(nrr, reply)
+	}
+	return fmt.Errorf("%s: %d", messages.ErrRegisterUnknownResult, reply.Result)
+}
+
+func (ctrl *Ctrl) acceptRegisterNode(nrr *messages.NodeRegisterRequest, r *ReplyNodeRegister) error {
+	certificate, err := ctrl.registerNode(nrr, r.Bootstrap)
+	if err != nil {
+		return err
+	}
+	// send Node register response to the Node that forwarder this request
+	response := messages.NodeRegisterResponse{
+		ID:           nrr.ID,
+		GUID:         nrr.GUID,
+		PublicKey:    nrr.PublicKey,
+		KexPublicKey: nrr.KexPublicKey,
+		RequestTime:  nrr.RequestTime,
+		ReplyTime:    ctrl.global.Now(),
+		Result:       messages.RegisterResultAccept,
+		Certificate:  certificate.Encode(),
+	}
+	// select Node listeners
+	listeners, err := ctrl.selectNodeListeners(&r.Listeners)
+	if err != nil {
+		return err
+	}
+	listenersData, err := msgpack.Marshal(listeners)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal listeners data")
+	}
+	defer security.CoverBytes(listenersData)
+	node, err := ctrl.database.SelectNode(&nrr.GUID)
+	if err != nil {
+		return err
+	}
+	sessionKey := node.SessionKey.Get()
+	defer node.SessionKey.Put(sessionKey)
+	aesKey := sessionKey
+	aesIV := sessionKey[:aes.IVSize]
+	response.NodeListeners, err = aes.CBCEncrypt(listenersData, aesKey, aesIV)
+	if err != nil {
+		return errors.Wrap(err, "failed to encrypt listeners data")
+	}
+
+	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, &response, true)
+	if err != nil {
+		return errors.Wrap(err, "failed to accept register node")
+	}
+	return nil
+}
+
+func (ctrl *Ctrl) refuseRegisterNode(nrr *messages.NodeRegisterRequest, r *ReplyNodeRegister) error {
+	return nil
+}
+
 // AcceptRegisterNode is used to accept register Node.
 func (ctrl *Ctrl) AcceptRegisterNode(
 	nrr *messages.NodeRegisterRequest,
 	listeners map[guid.GUID][]*bootstrap.Listener,
 	bootstrap bool,
 ) error {
-	// TODO add Log
 	certificate, err := ctrl.registerNode(nrr, bootstrap)
 	if err != nil {
 		return err

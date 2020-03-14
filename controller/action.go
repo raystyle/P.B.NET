@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/guid"
 	"project/internal/module/info"
 )
 
@@ -40,7 +41,7 @@ func (hs *hexByteSlice) UnmarshalJSON(data []byte) error {
 // NoticeNodeRegister is used to notice Node register to view.
 type NoticeNodeRegister struct {
 	ID           string       `json:"id"` // action id
-	GUID         hexByteSlice `json:"guid"`
+	GUID         guid.GUID    `json:"guid"`
 	PublicKey    hexByteSlice `json:"public_key"`
 	KexPublicKey hexByteSlice `json:"kex_public_key"`
 	ConnAddress  string       `json:"conn_address"`
@@ -53,6 +54,7 @@ type ReplyNodeRegister struct {
 	ID        string                `json:"id"` // action id
 	Result    uint8                 `json:"result"`
 	Listeners SelectedNodeListeners `json:"listeners"`
+	Bootstrap bool                  `json:"bootstrap"`
 }
 
 // -----------------------------------------Beacon register----------------------------------------
@@ -60,7 +62,7 @@ type ReplyNodeRegister struct {
 // NoticeBeaconRegister is used to notice Node register to view.
 type NoticeBeaconRegister struct {
 	ID           string       `json:"id"` // action id
-	GUID         hexByteSlice `json:"guid"`
+	GUID         guid.GUID    `json:"guid"`
 	PublicKey    hexByteSlice `json:"public_key"`
 	KexPublicKey hexByteSlice `json:"kex_public_key"`
 	ConnAddress  string       `json:"conn_address"`

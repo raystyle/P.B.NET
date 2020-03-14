@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -65,8 +66,8 @@ func newSyncer(ctx *Ctrl, config *Config) (*syncer, error) {
 
 // CheckGUIDSliceTimestamp is used to check GUID is expire, parameter is []byte
 func (syncer *syncer) CheckGUIDSliceTimestamp(guid []byte) bool {
-	// look internal/guid/guid.go to understand guid[32:40]
-	timestamp := convert.BytesToInt64(guid[32:40])
+	// look internal/guid/guid.go to understand guid[20:28]
+	timestamp := int64(binary.BigEndian.Uint64(guid[20:28]))
 	now := syncer.ctx.global.Now().Unix()
 	return convert.AbsInt64(now-timestamp) > syncer.expireTime
 }

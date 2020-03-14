@@ -43,7 +43,7 @@ func testRestfulAPI(method, path string, model interface{}) ([]byte, error) {
 func TestHandleTrustNode(t *testing.T) {
 	Node := testGenerateInitialNode(t)
 	defer Node.Exit(nil)
-	m := &mTrustNode{
+	m := &webTrustNode{
 		Mode:    xnet.ModeTLS,
 		Network: "tcp",
 		Address: "localhost:9950",

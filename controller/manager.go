@@ -550,7 +550,7 @@ type actionMgr struct {
 	// default timeout
 	timeout time.Duration
 
-	// key = guid.Line()
+	// key = guid.Hex()
 	actions  map[string]*action
 	actionsM sync.Mutex
 
@@ -581,7 +581,7 @@ func (mgr *actionMgr) Store(object interface{}, timeout time.Duration) string {
 	if timeout < 1 {
 		timeout = mgr.timeout
 	}
-	id := mgr.guid.Get().Line()
+	id := mgr.guid.Get().Hex()
 	timestamp := mgr.ctx.global.Now().Unix()
 	mgr.actionsM.Lock()
 	defer mgr.actionsM.Unlock()

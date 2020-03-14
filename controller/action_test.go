@@ -39,6 +39,12 @@ func TestHexByteSlice(t *testing.T) {
 	})
 }
 
+func testGenerateGUID() *guid.GUID {
+	g := guid.GUID{}
+	copy(g[:], bytes.Repeat([]byte{1}, guid.Size))
+	return &g
+}
+
 func TestPrintActions(t *testing.T) {
 	buf := new(bytes.Buffer)
 	encoder := json.NewEncoder(buf)
@@ -48,7 +54,7 @@ func TestPrintActions(t *testing.T) {
 	t.Run("NoticeNodeRegister", func(t *testing.T) {
 		nnr := NoticeNodeRegister{
 			ID:           "id-01",
-			GUID:         hexByteSlice(bytes.Repeat([]byte{1}, guid.Size)),
+			GUID:         *testGenerateGUID(),
 			PublicKey:    hexByteSlice(bytes.Repeat([]byte{2}, guid.Size)),
 			KexPublicKey: hexByteSlice(bytes.Repeat([]byte{3}, guid.Size)),
 			ConnAddress:  "127.0.0.1:9091",
@@ -64,7 +70,7 @@ func TestPrintActions(t *testing.T) {
 	t.Run("NoticeBeaconRegister", func(t *testing.T) {
 		nnr := NoticeBeaconRegister{
 			ID:           "id-02",
-			GUID:         hexByteSlice(bytes.Repeat([]byte{4}, guid.Size)),
+			GUID:         *testGenerateGUID(),
 			PublicKey:    hexByteSlice(bytes.Repeat([]byte{5}, guid.Size)),
 			KexPublicKey: hexByteSlice(bytes.Repeat([]byte{6}, guid.Size)),
 			ConnAddress:  "127.0.0.1:9092",

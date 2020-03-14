@@ -27,7 +27,7 @@ const (
 	tableBeaconLog = "beacon_log"
 )
 
-// 48 = internal/guid/guid.go, guid.Size.
+// 32 = guid.Size in internal/guid/guid.go
 
 // Model include time, most model need it
 type Model struct {
@@ -40,44 +40,44 @@ type mCtrlLog struct {
 	ID        uint64     `gorm:"primary_key"`
 	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null" sql:"index"`
-	Source    string     `gorm:"not null;size:32" sql:"index"`
+	Source    string     `gorm:"not null;size:128" sql:"index"`
 	Log       []byte     `gorm:"not null;type:mediumblob"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
 type mProxyClient struct {
 	ID      uint64 `gorm:"primary_key"`
-	Tag     string `gorm:"not null;size:32;unique"`
+	Tag     string `gorm:"not null;size:128;unique"`
 	Mode    string `gorm:"not null;size:32"`
-	Network string `gorm:"not null;size:32"`
-	Address string `gorm:"not null;size:1024"`
+	Network string `gorm:"not null;size:128"`
+	Address string `gorm:"not null;size:4096"`
 	Options string `gorm:"not null;size:1048576"`
 	Model
 }
 
 type mDNSServer struct {
 	ID       uint64 `gorm:"primary_key"`
-	Tag      string `gorm:"not null;size:32;unique"`
+	Tag      string `gorm:"not null;size:128;unique"`
 	Method   string `gorm:"not null;size:32"`
-	Address  string `gorm:"not null;size:2048"`
+	Address  string `gorm:"not null;size:4096"`
 	SkipTest bool   `gorm:"not null"`
 	Model
 }
 
 type mTimeSyncer struct {
 	ID       uint64 `gorm:"primary_key"`
-	Tag      string `gorm:"not null;size:32;unique"`
+	Tag      string `gorm:"not null;size:128;unique"`
 	Mode     string `gorm:"not null;size:32"`
-	Config   string `gorm:"not null;size:16000"`
+	Config   string `gorm:"not null;size:1048576"`
 	SkipTest bool   `gorm:"not null"`
 	Model
 }
 
 type mBoot struct {
 	ID       uint64 `gorm:"primary_key"`
-	Tag      string `gorm:"not null;size:32;unique"`
+	Tag      string `gorm:"not null;size:128;unique"`
 	Mode     string `gorm:"not null;size:32"`
-	Config   string `gorm:"not null;size:16000"`
+	Config   string `gorm:"not null;size:1048576"`
 	Interval uint32 `gorm:"not null"`
 	Enable   bool   `gorm:"not null"`
 	Model
@@ -85,16 +85,16 @@ type mBoot struct {
 
 type mListener struct {
 	ID      uint64 `gorm:"primary_key"`
-	Tag     string `gorm:"not null;size:32;unique"`
+	Tag     string `gorm:"not null;size:128;unique"`
 	Mode    string `gorm:"not null;size:32"`
 	Timeout uint32 `gorm:"not null"`
-	Config  string `gorm:"not null;size:16000"`
+	Config  string `gorm:"not null;size:1048576"`
 	Model
 }
 
 type mNode struct {
 	ID           uint64          `gorm:"primary_key"`
-	GUID         []byte          `gorm:"not null;type:binary(48);unique" sql:"index"`
+	GUID         []byte          `gorm:"not null;type:binary(32);unique" sql:"index"`
 	PublicKey    []byte          `gorm:"not null;type:binary(32)"`
 	KexPublicKey []byte          `gorm:"not null;type:binary(32)"`
 	SessionKey   *security.Bytes `gorm:"-"` // when first query, it will be calculated
@@ -105,18 +105,18 @@ type mNode struct {
 
 type mNodeListener struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
+	GUID      []byte     `gorm:"not null;type:binary(32)" sql:"index"`
 	Tag       string     `gorm:"not null;size:32"`
 	Mode      string     `gorm:"not null;size:32"`
 	Network   string     `gorm:"not null;size:32"`
-	Address   string     `gorm:"not null;size:2048"`
+	Address   string     `gorm:"not null;size:4096"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
 type mBeacon struct {
 	ID           uint64          `gorm:"primary_key"`
-	GUID         []byte          `gorm:"not null;type:binary(48);unique" sql:"index"`
+	GUID         []byte          `gorm:"not null;type:binary(32);unique" sql:"index"`
 	PublicKey    []byte          `gorm:"not null;type:binary(32)"`
 	KexPublicKey []byte          `gorm:"not null;type:binary(32)"`
 	SessionKey   *security.Bytes `gorm:"-"` // when first query, it will be calculated
@@ -126,18 +126,18 @@ type mBeacon struct {
 
 type mBeaconListener struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
+	GUID      []byte     `gorm:"not null;type:binary(32)" sql:"index"`
 	Tag       string     `gorm:"not null;size:32"`
 	Mode      string     `gorm:"not null;size:32"`
 	Network   string     `gorm:"not null;size:32"`
-	Address   string     `gorm:"not null;size:2048"`
+	Address   string     `gorm:"not null;size:4096"`
 	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
 type mBeaconMessage struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
+	GUID      []byte     `gorm:"not null;type:binary(32)" sql:"index"`
 	Index     uint64     `gorm:"not null" sql:"index"`
 	Hash      []byte     `gorm:"not null;type:binary(32)"`
 	Deflate   byte       `gorm:"not null;type:tinyint unsigned"`
@@ -150,7 +150,7 @@ type mBeaconMessage struct {
 // because use mBeaconMessage.ID maybe expose scale.
 type mBeaconMessageIndex struct {
 	ID    uint64 `gorm:"primary_key"`
-	GUID  []byte `gorm:"not null;type:binary(48);unique" sql:"index"`
+	GUID  []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
 	Index uint64 `gorm:"not null"`
 	Model
 }
@@ -158,25 +158,12 @@ type mBeaconMessageIndex struct {
 // beacon & node log
 type mRoleLog struct {
 	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(48)" sql:"index"`
+	GUID      []byte     `gorm:"not null;type:binary(32)" sql:"index"`
 	CreatedAt time.Time  `gorm:"not null"`
 	Level     uint8      `gorm:"not null"`
 	Source    string     `gorm:"not null;size:128"`
 	Log       []byte     `gorm:"not null;type:mediumblob"`
 	DeletedAt *time.Time `sql:"index"`
-}
-
-type mTrustNode struct {
-	Mode    string `json:"mode"`
-	Network string `json:"network"`
-	Address string `json:"address"`
-}
-
-type mConnectNodeListener struct {
-	GUID    string `json:"guid"` // hex
-	Mode    string `json:"mode"`
-	Network string `json:"network"`
-	Address string `json:"address"`
 }
 
 // InitializeDatabase is used to initialize database
