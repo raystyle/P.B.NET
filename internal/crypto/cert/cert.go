@@ -339,18 +339,6 @@ func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*Pair, 
 
 const timeLayout = "2006-01-02 15:04:05"
 
-func printStringSlice(s []string) string {
-	var ss string
-	for i, s := range s {
-		if i == 0 {
-			ss = s
-		} else {
-			ss += ", " + s
-		}
-	}
-	return ss
-}
-
 // Print is used to print certificate information.
 func Print(cert *x509.Certificate) *bytes.Buffer {
 	output := new(bytes.Buffer)
@@ -365,8 +353,8 @@ signature algorithm:  %s
 not before: %s
 not after:  %s`
 	_, _ = fmt.Fprintf(output, certFormat,
-		cert.Subject.CommonName, printStringSlice(cert.Subject.Organization),
-		cert.Issuer.CommonName, printStringSlice(cert.Issuer.Organization),
+		cert.Subject.CommonName, strings.Join(cert.Subject.Organization, ", "),
+		cert.Issuer.CommonName, strings.Join(cert.Issuer.Organization, ", "),
 		cert.PublicKeyAlgorithm, cert.SignatureAlgorithm,
 		cert.NotBefore.Local().Format(timeLayout),
 		cert.NotAfter.Local().Format(timeLayout),

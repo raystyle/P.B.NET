@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"project/internal/crypto/aes"
@@ -245,16 +246,8 @@ func (cfg *Config) DNSServers(
 	if err != nil {
 		return buf.String(), err
 	}
-	// print string slice
-	var r string
-	for i, s := range result {
-		if i == 0 {
-			r = s
-		} else {
-			r += ", " + s
-		}
-	}
-	_, _ = fmt.Fprintf(output, "\ntest domain: %s\nresolved ip: %s\n", opts.Domain, r)
+	const format = "\ntest domain: %s\nresolved ip: %s\n"
+	_, _ = fmt.Fprintf(output, format, opts.Domain, strings.Join(result, ", "))
 	return buf.String(), nil
 }
 
