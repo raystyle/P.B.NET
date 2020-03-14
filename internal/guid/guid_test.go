@@ -2,6 +2,8 @@ package guid
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -61,6 +63,42 @@ func TestGUID(t *testing.T) {
 		guid := GUID{}
 		copy(guid[32:40], convert.Int64ToBytes(now))
 		require.Equal(t, now, guid.Timestamp())
+	})
+
+	t.Run("MarshalJSON", func(t *testing.T) {
+		guid := GUID{}
+		data := bytes.Repeat([]byte{1}, Size)
+		copy(guid[:], data)
+		data, err := guid.MarshalJSON()
+		require.NoError(t, err)
+		// "0101...0101"
+		expected := fmt.Sprintf("\"%s\"", strings.Repeat("01", Size))
+		require.Equal(t, expected, string(data))
+	})
+
+	t.Run("UnmarshalJSON", func(t *testing.T) {
+		data := []byte(fmt.Sprintf("\"%s\"", strings.Repeat("01", Size)))
+		guid := GUID{}
+		err := guid.UnmarshalJSON(data)
+		require.NoError(t, err)
+		expected := bytes.Repeat([]byte{1}, Size)
+		require.Equal(t, expected, guid[:])
+
+		// invalid size
+		err = guid.UnmarshalJSON(nil)
+		require.Error(t, err)
+	})
+
+	t.Run("json.Unmarshal", func(t *testing.T) {
+		testdata := struct {
+			Data GUID `json:"data"`
+		}{}
+		const format = `{"data": "%s"}`
+		jsonData := []byte(fmt.Sprintf(format, strings.Repeat("01", Size)))
+		err := json.Unmarshal(jsonData, &testdata)
+		require.NoError(t, err)
+		expected := bytes.Repeat([]byte{1}, Size)
+		require.Equal(t, expected, testdata.Data[:])
 	})
 }
 

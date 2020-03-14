@@ -74,6 +74,25 @@ func (guid *GUID) Timestamp() int64 {
 	return int64(binary.BigEndian.Uint64(guid[32:40]))
 }
 
+// MarshalJSON is used to implement JSON Marshaler interface.
+func (guid *GUID) MarshalJSON() ([]byte, error) {
+	const quotation = 34 // ASCII
+	dst := make([]byte, 2*Size+2)
+	dst[0] = quotation
+	hex.Encode(dst[1:], guid[:])
+	dst[2*Size+1] = quotation
+	return dst, nil
+}
+
+// UnmarshalJSON is used to implement JSON Unmarshaler interface.
+func (guid *GUID) UnmarshalJSON(data []byte) error {
+	if len(data) != 2*Size+2 {
+		return errors.New("invalid size about guid")
+	}
+	_, err := hex.Decode(guid[:], data[1:2*Size+1])
+	return err
+}
+
 // Generator is a custom GUID generator.
 type Generator struct {
 	now        func() time.Time
