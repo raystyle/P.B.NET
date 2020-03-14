@@ -57,7 +57,9 @@ const (
 	// about trust Node
 	CtrlTrustNode
 	CtrlSetNodeCert
-	CtrlGetListenerTag
+
+	// query deployed listeners
+	CtrlQueryListeners
 
 	// for recovery role session key
 	CtrlQueryKeyStorage

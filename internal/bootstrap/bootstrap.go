@@ -77,13 +77,9 @@ type Listener struct {
 	enc []byte
 }
 
-// NewListener is used to create a self encrypted listener, all parameter will be covered.
+// NewListener is used to create a self encrypted listener.
+// Raw string will not be covered.
 func NewListener(mode, network, address string) *Listener {
-	defer func() {
-		security.CoverString(&mode)
-		security.CoverString(&network)
-		security.CoverString(&address)
-	}()
 	memory := security.NewMemory()
 	defer memory.Flush()
 	rand := random.New()
@@ -99,20 +95,16 @@ func NewListener(mode, network, address string) *Listener {
 		Network: network,
 		Address: address,
 	}
-	defer func() {
-		security.CoverString(&listener.Mode)
-		security.CoverString(&listener.Network)
-		security.CoverString(&listener.Address)
-	}()
 	listenerData, _ := msgpack.Marshal(listener)
-	security.CoverString(&listener.Mode)
-	security.CoverString(&listener.Network)
-	security.CoverString(&listener.Address)
 	defer security.CoverBytes(listenerData)
 	memory.Padding()
 	enc, _ := cbc.Encrypt(listenerData)
 	listener.enc = enc
 	listener.cbc = cbc
+	// clean string
+	listener.Mode = ""
+	listener.Network = ""
+	listener.Address = ""
 	return &listener
 }
 
@@ -159,6 +151,7 @@ func (l *Listener) String() string {
 }
 
 // EncryptListeners is used to encrypt raw listeners.
+// All listeners will be covered.
 func EncryptListeners(listeners []*Listener) []*Listener {
 	l := len(listeners)
 	newListeners := make([]*Listener, l)

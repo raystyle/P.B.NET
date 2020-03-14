@@ -5,17 +5,17 @@ import (
 	"project/internal/guid"
 )
 
+// RoundTripper is used to set message id.
+type RoundTripper interface {
+	SetID(id *guid.GUID)
+}
+
 // about size
 const (
 	RandomDataSize  = 4 // make sure the hash of the same message different
 	MessageTypeSize = 4 // uint32
 	HeaderSize      = RandomDataSize + MessageTypeSize
 )
-
-// RoundTripper is used to set message id.
-type RoundTripper interface {
-	SetID(id *guid.GUID)
-}
 
 // CMD + Name       means this message without id
 // CMD + RT + Name  means this message with id

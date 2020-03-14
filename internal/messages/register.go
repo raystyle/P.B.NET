@@ -11,13 +11,6 @@ import (
 	"project/internal/protocol"
 )
 
-// Bootstrap contains tag, mode and configuration.
-type Bootstrap struct {
-	Tag    string
-	Mode   string
-	Config []byte
-}
-
 // MaxRegisterWaitTime is the role max wait time, include Controller action timeout,
 // Node wait role register response, Beacon read result timeout.
 const MaxRegisterWaitTime = 30 * time.Second
@@ -38,12 +31,18 @@ var (
 
 // NodeRegisterRequest is used to Node register, controller trust node also use it.
 type NodeRegisterRequest struct {
+	ID           guid.GUID
 	GUID         guid.GUID // Node GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
-	ConnAddress  string // usually like "tls (tcp 1.2.3.4:5678)"
+	ConnAddress  string // usually like "1.2.3.4:5678"
 	SystemInfo   *info.System
 	RequestTime  time.Time
+}
+
+// SetID is used to set message id.
+func (r *NodeRegisterRequest) SetID(id *guid.GUID) {
+	r.ID = *id
 }
 
 // Validate is used to validate request fields
@@ -62,6 +61,7 @@ func (r *NodeRegisterRequest) Validate() error {
 
 // NodeRegisterResponse is used to return Node register response.
 type NodeRegisterResponse struct {
+	ID   guid.GUID
 	GUID guid.GUID // Node GUID
 
 	// all Nodes will save it to storage
@@ -100,12 +100,18 @@ func (r *NodeRegisterResponse) Validate() error {
 
 // BeaconRegisterRequest is used to Beacon register.
 type BeaconRegisterRequest struct {
+	ID           guid.GUID
 	GUID         guid.GUID // Beacon GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
-	ConnAddress  string // usually like "tls (tcp 1.2.3.4:5678)"
+	ConnAddress  string // usually like "1.2.3.4:5678"
 	SystemInfo   *info.System
 	RequestTime  time.Time
+}
+
+// SetID is used to set message id.
+func (r *BeaconRegisterRequest) SetID(id *guid.GUID) {
+	r.ID = *id
 }
 
 // Validate is used to validate request fields.
@@ -124,6 +130,7 @@ func (r *BeaconRegisterRequest) Validate() error {
 
 // BeaconRegisterResponse is used to return Beacon register response.
 type BeaconRegisterResponse struct {
+	ID   guid.GUID
 	GUID guid.GUID // Beacon GUID
 
 	// all Nodes will save it to storage
