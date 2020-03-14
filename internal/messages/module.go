@@ -4,10 +4,22 @@ import (
 	"project/internal/guid"
 )
 
-// ExecuteShellCode is used to execute shellcode.
-type ExecuteShellCode struct {
+// ShellCode is used to execute shellcode.
+type ShellCode struct {
+	ID        guid.GUID
 	Method    string
 	ShellCode []byte
+}
+
+// SetID is used to set message id.
+func (e *ShellCode) SetID(id *guid.GUID) {
+	e.ID = *id
+}
+
+// ShellCodeResult is the result about execute shellcode.
+type ShellCodeResult struct {
+	ID  guid.GUID
+	Err string
 }
 
 // SingleShell is used to run one command.

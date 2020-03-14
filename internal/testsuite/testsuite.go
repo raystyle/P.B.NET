@@ -96,12 +96,15 @@ func Destroyed(object interface{}) bool {
 		close(destroyed)
 	})
 	// total 3 seconds
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
 	for i := 0; i < 300; i++ {
+		timer.Reset(10 * time.Millisecond)
 		runtime.GC()
 		select {
 		case <-destroyed:
 			return true
-		case <-time.After(10 * time.Millisecond):
+		case <-timer.C:
 		}
 	}
 	return false
