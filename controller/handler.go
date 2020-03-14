@@ -172,8 +172,8 @@ func (h *handler) handleQueryNodeKey(send *protocol.Send) {
 		KexPublicKey: node.KexPublicKey,
 		ReplyTime:    node.CreatedAt,
 	}
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID,
-		messages.CMDBAnswerNodeKey, ank, true)
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBAnswerNodeKey,
+		ank, true)
 	if err != nil {
 		const format = "failed to answer node key\nerror: %s"
 		h.logfWithInfo(logger.Error, format, &send.RoleGUID, ank, err)
@@ -205,8 +205,8 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 		KexPublicKey: beacon.KexPublicKey,
 		ReplyTime:    beacon.CreatedAt,
 	}
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID,
-		messages.CMDBAnswerBeaconKey, abk, true)
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBAnswerBeaconKey,
+		abk, true)
 	if err != nil {
 		const format = "failed to answer beacon key\nerror: %s"
 		h.logfWithInfo(logger.Error, format, &send.RoleGUID, abk, err)
@@ -243,10 +243,10 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
-	id := h.ctx.NoticeNodeRegister(nrr)
+	nnr := h.ctx.NoticeNodeRegister(nrr, &send.RoleGUID)
 	// test
 	h.ctx.Test.AddNodeRegisterRequest(h.context, nrr)
-	fmt.Println(id)
+	fmt.Println(nnr)
 }
 
 func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
@@ -330,8 +330,8 @@ func (h *handler) handleNodeSendTestRequest(send *protocol.Send) {
 		ID:       request.ID,
 		Response: request.Request,
 	}
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID,
-		messages.CMDBRTTestResponse, response, true)
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBRTTestResponse,
+		response, true)
 	if err != nil {
 		const format = "failed to send node test response to node\nerror: %s"
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)

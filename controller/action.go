@@ -51,11 +51,11 @@ type NoticeNodeRegister struct {
 
 // ReplyNodeRegister is used to reply Node register.
 type ReplyNodeRegister struct {
-	ID        string                `json:"id"` // action id
-	Result    uint8                 `json:"result"`
-	Listeners SelectedNodeListeners `json:"listeners"`
-	Bootstrap bool                  `json:"bootstrap"`
-	Zone      string                `json:"zone"`
+	ID        string                 `json:"id"` // action id
+	Result    uint8                  `json:"result"`
+	Bootstrap bool                   `json:"bootstrap"`
+	Zone      string                 `json:"zone"`
+	Listeners map[guid.GUID][]string `json:"listeners"` // Node listener tags
 }
 
 // -----------------------------------------Beacon register----------------------------------------
@@ -73,27 +73,27 @@ type NoticeBeaconRegister struct {
 
 // ReplyBeaconRegister is used to reply Node register.
 type ReplyBeaconRegister struct {
-	ID        string                `json:"id"` // action id
-	Result    uint8                 `json:"result"`
-	Listeners SelectedNodeListeners `json:"listeners"`
+	ID        string                 `json:"id"` // action id
+	Result    uint8                  `json:"result"`
+	Listeners map[guid.GUID][]string `json:"listeners"` // Beacon listener tags
 }
 
 // SelectedNodeListeners is used to control role connect Nodes.
 // The fields above will overwrite the fields below except Listeners
-type SelectedNodeListeners struct {
-	// the number of the selected Node listeners, default is 8.
-	Number int `json:"number"`
-
-	// if enable it, Controller will select random Nodes in random zones.
-	AllRandomZone bool `json:"all_random"`
-
-	// if enable it, Controller will select random Nodes in one selected random zone.
-	OneRandomZone bool `json:"one_random_zone"`
-
-	// if RandomNodes is not "", Controller will select random Nodes in selected zone.
-	RandomNodes string `json:"random_nodes"`
-
-	// select Nodes and Node listener tags manually.
-	// key = hex(Node GUID), value = node listener tags
-	Manually map[string][]string `json:"manually"`
-}
+// type SelectedNodeListeners struct {
+// 	// the number of the selected Node listeners, default is 8.
+// 	Number int `json:"number"`
+//
+// 	// if enable it, Controller will select random Nodes in random zones.
+// 	AllRandomZone bool `json:"all_random"`
+//
+// 	// if enable it, Controller will select random Nodes in one selected random zone.
+// 	OneRandomZone bool `json:"one_random_zone"`
+//
+// 	// if RandomNodes is not "", Controller will select random Nodes in selected zone.
+// 	RandomNodes string `json:"random_nodes"`
+//
+// 	// select Nodes and Node listener tags manually.
+// 	// key = hex(Node GUID), value = node listener tags
+// 	Manually map[guid.GUID][]string `json:"manually"`
+// }

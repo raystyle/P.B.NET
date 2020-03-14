@@ -19,25 +19,6 @@ import (
 	"project/internal/security"
 )
 
-// TODO add node listener
-// get listeners
-// response, err = client.send(protocol.CtrlQueryListeners, nil)
-// if err != nil {
-// 	return errors.WithMessage(err, "failed to set node certificate")
-// }
-// if len(response) == 0 {
-// 	return errors.New("no listener tag")
-// }
-// // add node listener
-// tag := string(response)
-// return ctrl.database.InsertNodeListener(&mNodeListener{
-// 	GUID:    nil,
-// 	Tag:     tag,
-// 	Mode:    listener.Mode,
-// 	Network: listener.Network,
-// 	Address: listener.Address,
-// })
-
 // TrustNode is used to trust Node, receive system info for confirm it.
 // usually for the Initial Node or the test.
 func (ctrl *Ctrl) TrustNode(
@@ -67,11 +48,11 @@ func (ctrl *Ctrl) TrustNode(
 	if err != nil {
 		return nil, err
 	}
-	// set action
-	objects := make(map[string]interface{})
-	objects["listener"] = listener
-	objects["request"] = nrr
-	id := ctrl.actionMgr.Store(objects, messages.MaxRegisterWaitTime)
+	// store objects about action
+	action := make(map[string]interface{})
+	action["listener"] = listener
+	action["request"] = nrr
+	id := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
 	nnr := NoticeNodeRegister{
 		ID:           id,
 		GUID:         nrr.GUID,
@@ -82,17 +63,6 @@ func (ctrl *Ctrl) TrustNode(
 		RequestTime:  nrr.RequestTime,
 	}
 	return &nnr, nil
-}
-
-func (ctrl *Ctrl) checkNodeExists(guid *guid.GUID) error {
-	_, err := ctrl.database.SelectNode(guid)
-	if err == nil {
-		return errors.Errorf("node already exists\n%s", guid.Print())
-	}
-	if err.Error() == fmt.Sprintf("node %X doesn't exist", guid[:]) {
-		return nil
-	}
-	return err
 }
 
 // node key exchange public key (curve25519),
@@ -131,12 +101,12 @@ func (ctrl *Ctrl) resolveNodeRegisterRequest(reply []byte) (*messages.NodeRegist
 
 // ConfirmTrustNode is used to confirm trust and register Node.
 func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, reply *ReplyNodeRegister) error {
-	// get objects about action, see Ctrl.TrustNode()
-	object, err := ctrl.actionMgr.Load(reply.ID)
+	// load objects about action, see Ctrl.TrustNode()
+	action, err := ctrl.actionMgr.Load(reply.ID)
 	if err != nil {
 		return err
 	}
-	objects := object.(map[string]interface{})
+	objects := action.(map[string]interface{})
 	listener := objects["listener"].(*bootstrap.Listener)
 	nrr := objects["request"].(*messages.NodeRegisterRequest)
 	// check this node exist
@@ -164,7 +134,38 @@ func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, reply *ReplyNodeRegister
 	if !bytes.Equal(response, []byte{messages.RegisterResultAccept}) {
 		return errors.Errorf("failed to trust node: %s", response)
 	}
+	// TODO add node listener
+	// get listeners
+	// response, err = client.send(protocol.CtrlQueryListeners, nil)
+	// if err != nil {
+	// 	return errors.WithMessage(err, "failed to set node certificate")
+	// }
+	// if len(response) == 0 {
+	// 	return errors.New("no listener tag")
+	// }
+	// // add node listener
+	// tag := string(response)
+	// return ctrl.database.InsertNodeListener(&mNodeListener{
+	// 	GUID:    nil,
+	// 	Tag:     tag,
+	// 	Mode:    listener.Mode,
+	// 	Network: listener.Network,
+	// 	Address: listener.Address,
+	// })
 	return nil
+}
+
+// -----------------------------------------Node register------------------------------------------
+
+func (ctrl *Ctrl) checkNodeExists(guid *guid.GUID) error {
+	_, err := ctrl.database.SelectNode(guid)
+	if err == nil {
+		return errors.Errorf("node already exists\n%s", guid.Print())
+	}
+	if err.Error() == fmt.Sprintf("node %s doesn't exist", guid.Hex()) {
+		return nil
+	}
+	return err
 }
 
 func (ctrl *Ctrl) registerNode(
@@ -195,6 +196,7 @@ func (ctrl *Ctrl) registerNode(
 		return nil, failed(err)
 	}
 	defer security.CoverBytes(sessionKey)
+	// insert to database
 	err = ctrl.database.InsertNode(&mNode{
 		GUID:         nrr.GUID[:],
 		PublicKey:    nrr.PublicKey,
@@ -219,17 +221,18 @@ func (ctrl *Ctrl) registerNode(
 	return &certificate, nil
 }
 
-func (ctrl *Ctrl) selectNodeListeners(
-	snl *SelectedNodeListeners,
-) (map[guid.GUID][]*bootstrap.Listener, error) {
-
-	return nil, nil
-}
-
-// NoticeNodeRegister is used to notice user to reply node register request.
-func (ctrl *Ctrl) NoticeNodeRegister(nrr *messages.NodeRegisterRequest) string {
-	// store request
-	id := ctrl.actionMgr.Store(nrr, messages.MaxRegisterWaitTime)
+// NoticeNodeRegister is used to notice user to reply Node register request.
+func (ctrl *Ctrl) NoticeNodeRegister(
+	nrr *messages.NodeRegisterRequest,
+	node *guid.GUID,
+) *NoticeNodeRegister {
+	// store objects about action
+	action := make(map[string]interface{})
+	action["request"] = nrr
+	nodeGUID := *node
+	action["guid"] = &nodeGUID
+	id := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
+	// notice view
 	nnr := NoticeNodeRegister{
 		ID:           id,
 		GUID:         nrr.GUID,
@@ -239,30 +242,39 @@ func (ctrl *Ctrl) NoticeNodeRegister(nrr *messages.NodeRegisterRequest) string {
 		SystemInfo:   nrr.SystemInfo,
 		RequestTime:  nrr.RequestTime,
 	}
-	// notice view
-	fmt.Println(nnr.ID)
-	return id
+	return &nnr
 }
 
-// ReplyNodeRegister is used to reply node register request.
-func (ctrl *Ctrl) ReplyNodeRegister(reply *ReplyNodeRegister) error {
-	// get objects about action, see Ctrl.NoticeNodeRegister()
-	object, err := ctrl.actionMgr.Load(reply.ID)
+// ReplyNodeRegister is used to reply Node register request.
+func (ctrl *Ctrl) ReplyNodeRegister(ctx context.Context, reply *ReplyNodeRegister) error {
+	// load objects about action, see Ctrl.NoticeNodeRegister()
+	action, err := ctrl.actionMgr.Load(reply.ID)
 	if err != nil {
 		return err
 	}
-	nrr := object.(*messages.NodeRegisterRequest)
+	objects := action.(map[string]interface{})
+	nrr := objects["request"].(*messages.NodeRegisterRequest)
+	nodeGUID := objects["guid"].(*guid.GUID)
 	switch reply.Result {
 	case messages.RegisterResultAccept:
-		return ctrl.acceptRegisterNode(nrr, reply)
+		return ctrl.acceptRegisterNode(ctx, nrr, reply, nodeGUID)
 	case messages.RegisterResultRefused:
-		return ctrl.refuseRegisterNode(nrr, reply)
+		return ctrl.refuseRegisterNode(ctx, nrr, nodeGUID)
 	}
 	return fmt.Errorf("%s: %d", messages.ErrRegisterUnknownResult, reply.Result)
 }
 
-func (ctrl *Ctrl) acceptRegisterNode(nrr *messages.NodeRegisterRequest, r *ReplyNodeRegister) error {
-	certificate, err := ctrl.registerNode(nrr, r)
+func (ctrl *Ctrl) acceptRegisterNode(
+	ctx context.Context,
+	nrr *messages.NodeRegisterRequest,
+	reply *ReplyNodeRegister,
+	guid *guid.GUID,
+) error {
+	err := ctrl.checkNodeExists(&nrr.GUID)
+	if err != nil {
+		return err
+	}
+	certificate, err := ctrl.registerNode(nrr, reply)
 	if err != nil {
 		return err
 	}
@@ -277,16 +289,17 @@ func (ctrl *Ctrl) acceptRegisterNode(nrr *messages.NodeRegisterRequest, r *Reply
 		Result:       messages.RegisterResultAccept,
 		Certificate:  certificate.Encode(),
 	}
-	// select Node listeners
-	listeners, err := ctrl.selectNodeListeners(&r.Listeners)
+	// query Node listener and encode it.
+	listeners, err := ctrl.queryNodeListener(reply.Listeners)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to query node listener")
 	}
 	listenersData, err := msgpack.Marshal(listeners)
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal listeners data")
+		return errors.Wrap(err, "failed to marshal node listeners data")
 	}
 	defer security.CoverBytes(listenersData)
+	// encrypt listener data
 	node, err := ctrl.database.SelectNode(&nrr.GUID)
 	if err != nil {
 		return err
@@ -299,15 +312,70 @@ func (ctrl *Ctrl) acceptRegisterNode(nrr *messages.NodeRegisterRequest, r *Reply
 	if err != nil {
 		return errors.Wrap(err, "failed to encrypt listeners data")
 	}
-
-	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, &response, true)
+	// send response
+	err = ctrl.sender.SendToNode(ctx, guid, messages.CMDBNodeRegisterResponse,
+		&response, true)
 	if err != nil {
-		return errors.Wrap(err, "failed to accept register node")
+		return errors.Wrap(err, "failed to send response to node")
 	}
 	return nil
 }
 
-func (ctrl *Ctrl) refuseRegisterNode(nrr *messages.NodeRegisterRequest, r *ReplyNodeRegister) error {
+func (ctrl *Ctrl) queryNodeListener(
+	listeners map[guid.GUID][]string,
+) (map[guid.GUID][]*bootstrap.Listener, error) {
+	result := make(map[guid.GUID][]*bootstrap.Listener, len(listeners))
+	for nodeGUID, tags := range listeners {
+		listeners, err := ctrl.database.SelectNodeListener(&nodeGUID)
+		if err != nil {
+			return nil, err
+		}
+		result[nodeGUID] = selectNodeListener(listeners, tags)
+	}
+	return result, nil
+}
+
+func selectNodeListener(listeners []*mNodeListener, tags []string) []*bootstrap.Listener {
+	var selected []*bootstrap.Listener
+	for _, tag := range tags {
+		for _, listener := range listeners {
+			if listener.Tag == tag {
+				selected = append(selected, &bootstrap.Listener{
+					Mode:    listener.Mode,
+					Network: listener.Network,
+					Address: listener.Address,
+				})
+				// not break, different node listener maybe has the same tag,
+				// dont't worry, Node and Beacon will not add the same listener.
+			}
+		}
+	}
+	return selected
+}
+
+func (ctrl *Ctrl) refuseRegisterNode(
+	ctx context.Context,
+	nrr *messages.NodeRegisterRequest,
+	guid *guid.GUID,
+) error {
+	// first reply the Node.
+	response := messages.NodeRegisterResponse{
+		GUID:         nrr.GUID,
+		PublicKey:    nrr.PublicKey,
+		KexPublicKey: nrr.KexPublicKey,
+		RequestTime:  nrr.RequestTime,
+		ReplyTime:    ctrl.global.Now(),
+		Result:       messages.RegisterResultRefused,
+		// padding for Validate()
+		Certificate: make([]byte, protocol.CertificateSize),
+	}
+	// send response
+	err := ctrl.sender.SendToNode(ctx, guid, messages.CMDBNodeRegisterResponse,
+		&response, true)
+	if err != nil {
+		return errors.Wrap(err, "failed to send response to node")
+	}
+	// then call firewall.
 	return nil
 }
 
@@ -373,28 +441,74 @@ func (ctrl *Ctrl) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
 	return nil
 }
 
-func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
-	failed := func(err error) error {
-		return errors.Wrap(err, "failed to register beacon")
+// ----------------------------------------Beacon register-----------------------------------------
+
+func (ctrl *Ctrl) checkBeaconExists(guid *guid.GUID) error {
+	_, err := ctrl.database.SelectBeacon(guid)
+	if err == nil {
+		return errors.Errorf("beacon already exists\n%s", guid.Print())
 	}
+	if err.Error() == fmt.Sprintf("beacon %s doesn't exist", guid.Hex()) {
+		return nil
+	}
+	return err
+}
+
+func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
+	const errMsg = "failed to register beacon"
 	// calculate session key
 	sessionKey, err := ctrl.global.KeyExchange(brr.KexPublicKey)
 	if err != nil {
 		err = errors.WithMessage(err, "failed to calculate beacon session key")
 		ctrl.logger.Print(logger.Exploit, "register-beacon", err)
-		return failed(err)
+		return errors.Wrap(err, errMsg)
 	}
 	defer security.CoverBytes(sessionKey)
+	// insert to database
 	err = ctrl.database.InsertBeacon(&mBeacon{
 		GUID:         brr.GUID[:],
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
 		SessionKey:   security.NewBytes(sessionKey),
-	}, nil)
+	}, &mBeaconInfo{
+		GUID:      brr.GUID[:],
+		IP:        strings.Join(brr.SystemInfo.IP, ","),
+		OS:        brr.SystemInfo.OS,
+		Arch:      brr.SystemInfo.Arch,
+		GoVersion: brr.SystemInfo.GoVersion,
+		PID:       brr.SystemInfo.PID,
+		PPID:      brr.SystemInfo.PPID,
+		Hostname:  brr.SystemInfo.Hostname,
+		Username:  brr.SystemInfo.Username,
+	})
 	if err != nil {
-		return failed(err)
+		return errors.WithMessage(err, errMsg)
 	}
 	return nil
+}
+
+// NoticeBeaconRegister is used to notice user to reply Beacon register request.
+func (ctrl *Ctrl) NoticeBeaconRegister(
+	brr *messages.BeaconRegisterRequest,
+	node *guid.GUID,
+) *NoticeBeaconRegister {
+	// store objects about action
+	action := make(map[string]interface{})
+	action["request"] = brr
+	nodeGUID := *node
+	action["guid"] = &nodeGUID
+	id := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
+	// notice view
+	nbr := NoticeBeaconRegister{
+		ID:           id,
+		GUID:         brr.GUID,
+		PublicKey:    hexByteSlice(brr.PublicKey),
+		KexPublicKey: hexByteSlice(brr.KexPublicKey),
+		ConnAddress:  brr.ConnAddress,
+		SystemInfo:   brr.SystemInfo,
+		RequestTime:  brr.RequestTime,
+	}
+	return &nbr
 }
 
 // AcceptRegisterBeacon is used to accept register Beacon.

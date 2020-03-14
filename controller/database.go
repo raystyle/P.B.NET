@@ -90,24 +90,27 @@ func (db *database) log(lv logger.Level, log ...interface{}) {
 	db.ctx.logger.Println(lv, "database", log...)
 }
 
-func (db *database) rollback(name string, tx *gorm.DB, err error) bool {
-	const format = "failed to rollback in %s: %s"
+// rollback is used to rollback if err != nil,
+// if return true, it means commit is success fully.
+func (db *database) commit(name string, tx *gorm.DB, err error) error {
+	const rollback = "failed to rollback in %s: %s"
 	if r := recover(); r != nil {
 		db.log(logger.Fatal, xpanic.Print(r, fmt.Sprintf("database.%s", name)))
-		err := tx.Rollback().Error
-		if err != nil {
-			db.logf(logger.Fatal, format, name, err)
+		// when panic occurred, err maybe nil
+		e := tx.Rollback().Error
+		if e != nil {
+			db.logf(logger.Fatal, rollback, name, e)
 		}
-		return false
+		return errors.WithStack(err)
 	}
 	if err != nil {
-		err := tx.Rollback().Error
-		if err != nil {
-			db.log(logger.Error, format, name, err)
+		e := tx.Rollback().Error
+		if e != nil {
+			db.log(logger.Error, rollback, name, e)
 		}
-		return false
+		return errors.WithStack(err)
 	}
-	return true
+	return tx.Commit().Error
 }
 
 func (db *database) InsertLog(m *mLog) error {
@@ -227,23 +230,22 @@ func (db *database) UpdateZone(m *mZone) error {
 	return db.db.Save(m).Error
 }
 
-func (db *database) DeleteZone(id uint64) (err error) {
+func (db *database) DeleteZone(m *mZone) (err error) {
 	tx := db.db.BeginTx(
 		context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable},
 	)
 	err = tx.Error
 	if err != nil {
-		err = errors.WithStack(err)
-		return
+		return errors.WithStack(err)
 	}
-	defer db.rollback("DeleteZone", tx, err)
-	err = db.db.Delete(&mZone{ID: id}).Error
+	defer func() {
+		err = db.commit("DeleteZone", tx, err)
+	}()
+	err = db.db.Delete(&mZone{ID: m.ID}).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			err = errors.New("zone %s doesn't exist")
-		} else {
-			err = errors.WithStack(err)
+			err = fmt.Errorf("zone %s doesn't exist", m.Name)
 		}
 		return
 	}
@@ -258,10 +260,11 @@ func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 		return node, nil
 	}
 	node = new(mNode)
-	err := db.db.Find(node, "guid = ?", guid[:]).Error
+	g := guid[:]
+	err := db.db.Find(node, "guid = ?", g).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			err = errors.Errorf("node %X doesn't exist", guid[:])
+			err = errors.Errorf("node %s doesn't exist", guid.Hex())
 		}
 		return nil, err
 	}
@@ -269,7 +272,7 @@ func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 	sessionKey, err := db.ctx.global.KeyExchange(node.KexPublicKey)
 	if err != nil {
 		const format = "failed to calculate node %X session key: %s"
-		return nil, errors.Errorf(format, guid[:], err)
+		return nil, errors.Errorf(format, g, err)
 	}
 	defer security.CoverBytes(sessionKey)
 	node.SessionKey = security.NewBytes(sessionKey)
@@ -284,11 +287,11 @@ func (db *database) InsertNode(node *mNode, info *mNodeInfo) (err error) {
 	)
 	err = tx.Error
 	if err != nil {
-		err = errors.WithStack(err)
-		return
+		return errors.WithStack(err)
 	}
 	defer func() {
-		if db.rollback("InsertNode", tx, err) {
+		err = db.commit("InsertNode", tx, err)
+		if err == nil {
 			db.cache.InsertNode(node)
 		}
 	}()
@@ -299,28 +302,16 @@ func (db *database) InsertNode(node *mNode, info *mNodeInfo) (err error) {
 			Find(&zone, "name = ?", info.Zone).Error
 		if err != nil {
 			if gorm.IsRecordNotFoundError(err) {
-				err = errors.Errorf("zone %s doesn't exist", info.Zone)
-			} else {
-				err = errors.WithStack(err)
+				err = fmt.Errorf("zone %s doesn't exist", info.Zone)
 			}
 			return
 		}
 	}
 	err = tx.Create(node).Error
 	if err != nil {
-		err = errors.WithStack(err)
 		return
 	}
-	err = tx.Create(info).Error
-	if err != nil {
-		err = errors.WithStack(err)
-		return
-	}
-	err = tx.Commit().Error
-	if err != nil {
-		err = errors.WithStack(err)
-	}
-	return
+	return tx.Create(info).Error
 }
 
 func (db *database) DeleteNode(guid *guid.GUID) (err error) {
@@ -330,35 +321,29 @@ func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 	)
 	err = tx.Error
 	if err != nil {
-		err = errors.WithStack(err)
-		return
+		return errors.WithStack(err)
 	}
 	defer func() {
-		if db.rollback("DeleteNode", tx, err) {
+		err = db.commit("DeleteNode", tx, err)
+		if err == nil {
 			db.cache.DeleteNode(guid)
 		}
 	}()
 	const where = "guid = ?"
-	err = tx.Delete(&mNode{}, where, guid[:]).Error
+	g := guid[:]
+	err = tx.Delete(&mNode{}, where, g).Error
 	if err != nil {
-		err = errors.WithStack(err)
 		return
 	}
-	err = tx.Delete(&mNodeListener{}, where, guid[:]).Error
+	err = tx.Delete(&mNodeInfo{}, where, g).Error
 	if err != nil {
-		err = errors.WithStack(err)
 		return
 	}
-	err = tx.Table(tableNodeLog).Delete(&mRoleLog{}, where, guid[:]).Error
+	err = tx.Delete(&mNodeListener{}, where, g).Error
 	if err != nil {
-		err = errors.WithStack(err)
 		return
 	}
-	err = tx.Commit().Error
-	if err != nil {
-		err = errors.WithStack(err)
-	}
-	return
+	return tx.Table(tableNodeLog).Delete(&mRoleLog{}, where, g).Error
 }
 
 func (db *database) DeleteNodeUnscoped(guid *guid.GUID) error {
@@ -368,6 +353,19 @@ func (db *database) DeleteNodeUnscoped(guid *guid.GUID) error {
 	}
 	db.cache.DeleteNode(guid)
 	return nil
+}
+
+func (db *database) SelectNodeListener(guid *guid.GUID) ([]*mNodeListener, error) {
+	var listeners []*mNodeListener
+	g := guid[:]
+	err := db.db.Find(&listeners, "guid = ?", g).Error
+	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			err = fmt.Errorf("node %s doesn't exist", guid.Hex())
+		}
+		return nil, err
+	}
+	return listeners, nil
 }
 
 func (db *database) InsertNodeListener(m *mNodeListener) error {
@@ -396,6 +394,9 @@ func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 	beacon = new(mBeacon)
 	err := db.db.Find(beacon, "guid = ?", guid[:]).Error
 	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			err = errors.Errorf("beacon %s doesn't exist", guid.Hex())
+		}
 		return nil, err
 	}
 	// calculate session key
@@ -416,10 +417,11 @@ func (db *database) InsertBeacon(beacon *mBeacon, info *mBeaconInfo) (err error)
 	)
 	err = tx.Error
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	defer func() {
-		if db.rollback("InsertBeacon", tx, err) {
+		err = db.commit("InsertBeacon", tx, err)
+		if err == nil {
 			db.cache.InsertBeacon(beacon)
 		}
 	}()
@@ -431,12 +433,7 @@ func (db *database) InsertBeacon(beacon *mBeacon, info *mBeaconInfo) (err error)
 	if err != nil {
 		return
 	}
-	err = tx.Create(&mBeaconMessageIndex{GUID: beacon.GUID}).Error
-	if err != nil {
-		return
-	}
-	err = tx.Commit().Error
-	return
+	return tx.Create(&mBeaconMessageIndex{GUID: beacon.GUID}).Error
 }
 
 func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
@@ -446,36 +443,37 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 	)
 	err = tx.Error
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
 	defer func() {
-		if db.rollback("DeleteBeacon", tx, err) {
+		err = db.commit("DeleteBeacon", tx, err)
+		if err == nil {
 			db.cache.DeleteBeacon(guid)
 		}
 	}()
 	const where = "guid = ?"
-	err = tx.Delete(&mBeacon{}, where, guid[:]).Error
+	g := guid[:]
+	err = tx.Delete(&mBeacon{}, where, g).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(&mBeaconMessage{}, where, guid[:]).Error
+	err = tx.Delete(&mBeaconInfo{}, where, g).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(&mBeaconMessageIndex{}, where, guid[:]).Error
+	err = tx.Delete(&mBeaconMessage{}, where, g).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(&mBeaconListener{}, where, guid[:]).Error
+	err = tx.Delete(&mBeaconMessageIndex{}, where, g).Error
 	if err != nil {
 		return
 	}
-	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{}, where, guid[:]).Error
+	err = tx.Delete(&mBeaconListener{}, where, g).Error
 	if err != nil {
 		return
 	}
-	err = tx.Commit().Error
-	return
+	return tx.Table(tableBeaconLog).Delete(&mRoleLog{}, where, g).Error
 }
 
 func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
@@ -495,9 +493,11 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (e
 	)
 	err = tx.Error
 	if err != nil {
-		return
+		return errors.WithStack(err)
 	}
-	defer db.rollback("InsertBeaconMessage", tx, err)
+	defer func() {
+		err = db.commit("InsertBeaconMessage", tx, err)
+	}()
 	index := mBeaconMessageIndex{}
 	err = tx.Set("gorm:query_option", "FOR UPDATE").
 		Find(&index, "guid = ?", guid[:]).Error
@@ -515,12 +515,7 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (e
 		return
 	}
 	// self add one
-	err = tx.Model(index).UpdateColumn("index", index.Index+1).Error
-	if err != nil {
-		return
-	}
-	err = tx.Commit().Error
-	return
+	return tx.Model(index).UpdateColumn("index", index.Index+1).Error
 }
 
 func (db *database) DeleteBeaconMessagesWithIndex(guid *guid.GUID, index uint64) error {

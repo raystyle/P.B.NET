@@ -80,7 +80,7 @@ func (driver *driver) getNodeListeners() map[guid.GUID]map[uint64]*bootstrap.Lis
 }
 
 // AddNodeListeners is used to add Node listeners(must be encrypted).
-func (driver *driver) AddNodeListener(guid *guid.GUID, listener *bootstrap.Listener) error {
+func (driver *driver) AddNodeListener(guid *guid.GUID, listener *bootstrap.Listener) {
 	driver.nodeListenersRWM.Lock()
 	defer driver.nodeListenersRWM.Unlock()
 	// check Node GUID is exist
@@ -92,13 +92,12 @@ func (driver *driver) AddNodeListener(guid *guid.GUID, listener *bootstrap.Liste
 	// compare listeners
 	for _, nodeListener := range nodeListeners {
 		if listener.Equal(nodeListener) {
-			return errors.New("node listener already exists")
+			return
 		}
 	}
 	index := driver.nodeListenersIndex
 	nodeListeners[index] = listener
 	driver.nodeListenersIndex++
-	return nil
 }
 
 // DeleteNodeListener is used to delete Node listener.

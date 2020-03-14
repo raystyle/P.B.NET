@@ -374,10 +374,7 @@ func (register *register) loadNodeListeners(conn *xnet.Conn) error {
 	for nodeGUID, listeners := range rawListeners {
 		encListeners := bootstrap.EncryptListeners(listeners)
 		for i := 0; i < len(encListeners); i++ {
-			err = register.ctx.driver.AddNodeListener(&nodeGUID, encListeners[i])
-			if err != nil {
-				return errors.Wrap(err, "failed to add node listener")
-			}
+			register.ctx.driver.AddNodeListener(&nodeGUID, encListeners[i])
 		}
 	}
 	return nil
