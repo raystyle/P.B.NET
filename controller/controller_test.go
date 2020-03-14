@@ -72,6 +72,7 @@ func testInitializeController(t testing.TB) {
 			testInsertTimeSyncerClient(t)
 			testInsertBoot(t)
 			testInsertListener(t)
+			testInsertZone(t)
 		}
 		testsuite.IsDestroyed(t, cfg)
 		// set controller keys

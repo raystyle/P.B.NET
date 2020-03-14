@@ -187,7 +187,7 @@ func (register *register) DeleteBootstrap(tag string) error {
 		delete(register.bootstraps, tag)
 		return nil
 	}
-	return errors.Errorf("bootstrap %s doesn't exists", tag)
+	return errors.Errorf("bootstrap %s doesn't exist", tag)
 }
 
 func (register *register) Bootstraps() map[string]bootstrap.Bootstrap {

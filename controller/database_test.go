@@ -281,6 +281,20 @@ func TestDeleteListener(t *testing.T) {
 	TestInsertListener(t)
 }
 
+func testInsertZone(t testing.TB) {
+	// clean table
+	err := ctrl.database.db.Unscoped().Delete(&mZone{}).Error
+	require.NoError(t, err)
+	// insert
+	err = ctrl.database.InsertZone("test")
+	require.NoError(t, err)
+}
+
+func TestInsertZone(t *testing.T) {
+	testInitializeController(t)
+	testInsertZone(t)
+}
+
 func TestInsertNode(t *testing.T) {
 	testInitializeController(t)
 	node := &mNode{

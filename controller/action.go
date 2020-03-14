@@ -55,6 +55,7 @@ type ReplyNodeRegister struct {
 	Result    uint8                 `json:"result"`
 	Listeners SelectedNodeListeners `json:"listeners"`
 	Bootstrap bool                  `json:"bootstrap"`
+	Zone      string                `json:"zone"`
 }
 
 // -----------------------------------------Beacon register----------------------------------------

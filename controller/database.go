@@ -130,7 +130,7 @@ func (db *database) UpdateProxyClient(m *mProxyClient) error {
 }
 
 func (db *database) DeleteProxyClient(id uint64) error {
-	return db.db.Delete(mProxyClient{ID: id}).Error
+	return db.db.Delete(&mProxyClient{ID: id}).Error
 }
 
 // -------------------------------------------DNS client-------------------------------------------
@@ -149,7 +149,7 @@ func (db *database) UpdateDNSServer(m *mDNSServer) error {
 }
 
 func (db *database) DeleteDNSServer(id uint64) error {
-	return db.db.Delete(mDNSServer{ID: id}).Error
+	return db.db.Delete(&mDNSServer{ID: id}).Error
 }
 
 // ---------------------------------------time syncer client---------------------------------------
@@ -168,7 +168,7 @@ func (db *database) UpdateTimeSyncerClient(m *mTimeSyncer) error {
 }
 
 func (db *database) DeleteTimeSyncerClient(id uint64) error {
-	return db.db.Delete(mTimeSyncer{ID: id}).Error
+	return db.db.Delete(&mTimeSyncer{ID: id}).Error
 }
 
 // ----------------------------------------------boot----------------------------------------------
@@ -187,7 +187,7 @@ func (db *database) UpdateBoot(m *mBoot) error {
 }
 
 func (db *database) DeleteBoot(id uint64) error {
-	return db.db.Delete(mBoot{ID: id}).Error
+	return db.db.Delete(&mBoot{ID: id}).Error
 }
 
 // --------------------------------------------listener--------------------------------------------
@@ -206,13 +206,16 @@ func (db *database) UpdateListener(m *mListener) error {
 }
 
 func (db *database) DeleteListener(id uint64) error {
-	return db.db.Delete(mListener{ID: id}).Error
+	return db.db.Delete(&mListener{ID: id}).Error
 }
 
 // ----------------------------------------------zone----------------------------------------------
 
-func (db *database) InsertZone(m *mZone) error {
-	return db.db.Create(m).Error
+func (db *database) InsertZone(name string) error {
+	if name == "" {
+		return errors.New("empty zone name")
+	}
+	return db.db.Create(&mZone{Name: name}).Error
 }
 
 func (db *database) SelectZone() ([]*mZone, error) {
@@ -224,8 +227,27 @@ func (db *database) UpdateZone(m *mZone) error {
 	return db.db.Save(m).Error
 }
 
-func (db *database) DeleteZone(id uint64) error {
-	return db.db.Delete(mZone{ID: id}).Error
+func (db *database) DeleteZone(id uint64) (err error) {
+	tx := db.db.BeginTx(
+		context.Background(),
+		&sql.TxOptions{Isolation: sql.LevelSerializable},
+	)
+	err = tx.Error
+	if err != nil {
+		err = errors.WithStack(err)
+		return
+	}
+	defer db.rollback("DeleteZone", tx, err)
+	err = db.db.Delete(&mZone{ID: id}).Error
+	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			err = errors.New("zone %s doesn't exist")
+		} else {
+			err = errors.WithStack(err)
+		}
+		return
+	}
+	return
 }
 
 // -------------------------------------------about Node-------------------------------------------
@@ -238,12 +260,16 @@ func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 	node = new(mNode)
 	err := db.db.Find(node, "guid = ?", guid[:]).Error
 	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			err = errors.Errorf("node %X doesn't exist", guid[:])
+		}
 		return nil, err
 	}
 	// calculate session key
 	sessionKey, err := db.ctx.global.KeyExchange(node.KexPublicKey)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to calculate node session key")
+		const format = "failed to calculate node %X session key: %s"
+		return nil, errors.Errorf(format, guid[:], err)
 	}
 	defer security.CoverBytes(sessionKey)
 	node.SessionKey = security.NewBytes(sessionKey)
@@ -258,6 +284,7 @@ func (db *database) InsertNode(node *mNode, info *mNodeInfo) (err error) {
 	)
 	err = tx.Error
 	if err != nil {
+		err = errors.WithStack(err)
 		return
 	}
 	defer func() {
@@ -265,15 +292,34 @@ func (db *database) InsertNode(node *mNode, info *mNodeInfo) (err error) {
 			db.cache.InsertNode(node)
 		}
 	}()
+	// check zone is exists
+	if info.Zone != "" {
+		zone := mZone{}
+		err = tx.Set("gorm:query_option", "FOR UPDATE").
+			Find(&zone, "name = ?", info.Zone).Error
+		if err != nil {
+			if gorm.IsRecordNotFoundError(err) {
+				err = errors.Errorf("zone %s doesn't exist", info.Zone)
+			} else {
+				err = errors.WithStack(err)
+			}
+			return
+		}
+	}
 	err = tx.Create(node).Error
 	if err != nil {
+		err = errors.WithStack(err)
 		return
 	}
 	err = tx.Create(info).Error
 	if err != nil {
+		err = errors.WithStack(err)
 		return
 	}
 	err = tx.Commit().Error
+	if err != nil {
+		err = errors.WithStack(err)
+	}
 	return
 }
 
@@ -284,6 +330,7 @@ func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 	)
 	err = tx.Error
 	if err != nil {
+		err = errors.WithStack(err)
 		return
 	}
 	defer func() {
@@ -292,24 +339,30 @@ func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 		}
 	}()
 	const where = "guid = ?"
-	err = tx.Delete(mNode{}, where, guid[:]).Error
+	err = tx.Delete(&mNode{}, where, guid[:]).Error
 	if err != nil {
+		err = errors.WithStack(err)
 		return
 	}
-	err = tx.Delete(mNodeListener{}, where, guid[:]).Error
+	err = tx.Delete(&mNodeListener{}, where, guid[:]).Error
 	if err != nil {
+		err = errors.WithStack(err)
 		return
 	}
-	err = tx.Table(tableNodeLog).Delete(mRoleLog{}, where, guid[:]).Error
+	err = tx.Table(tableNodeLog).Delete(&mRoleLog{}, where, guid[:]).Error
 	if err != nil {
+		err = errors.WithStack(err)
 		return
 	}
 	err = tx.Commit().Error
+	if err != nil {
+		err = errors.WithStack(err)
+	}
 	return
 }
 
 func (db *database) DeleteNodeUnscoped(guid *guid.GUID) error {
-	err := db.db.Unscoped().Delete(mNode{}, "guid = ?", guid[:]).Error
+	err := db.db.Unscoped().Delete(&mNode{}, "guid = ?", guid[:]).Error
 	if err != nil {
 		return err
 	}
@@ -322,7 +375,7 @@ func (db *database) InsertNodeListener(m *mNodeListener) error {
 }
 
 func (db *database) DeleteNodeListener(id uint64) error {
-	return db.db.Delete(mNodeListener{ID: id}).Error
+	return db.db.Delete(&mNodeListener{ID: id}).Error
 }
 
 func (db *database) InsertNodeLog(m *mRoleLog) error {
@@ -330,7 +383,7 @@ func (db *database) InsertNodeLog(m *mRoleLog) error {
 }
 
 func (db *database) DeleteNodeLog(id uint64) error {
-	return db.db.Table(tableNodeLog).Delete(mRoleLog{ID: id}).Error
+	return db.db.Table(tableNodeLog).Delete(&mRoleLog{ID: id}).Error
 }
 
 // ------------------------------------------about Beacon------------------------------------------
@@ -401,23 +454,23 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 		}
 	}()
 	const where = "guid = ?"
-	err = tx.Delete(mBeacon{}, where, guid[:]).Error
+	err = tx.Delete(&mBeacon{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(mBeaconMessage{}, where, guid[:]).Error
+	err = tx.Delete(&mBeaconMessage{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(mBeaconMessageIndex{}, where, guid[:]).Error
+	err = tx.Delete(&mBeaconMessageIndex{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Delete(mBeaconListener{}, where, guid[:]).Error
+	err = tx.Delete(&mBeaconListener{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Table(tableBeaconLog).Delete(mRoleLog{}, where, guid[:]).Error
+	err = tx.Table(tableBeaconLog).Delete(&mRoleLog{}, where, guid[:]).Error
 	if err != nil {
 		return
 	}
@@ -426,7 +479,7 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 }
 
 func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
-	err := db.db.Unscoped().Delete(mBeacon{}, "guid = ?", guid[:]).Error
+	err := db.db.Unscoped().Delete(&mBeacon{}, "guid = ?", guid[:]).Error
 	if err != nil {
 		return err
 	}
@@ -471,14 +524,15 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (e
 }
 
 func (db *database) DeleteBeaconMessagesWithIndex(guid *guid.GUID, index uint64) error {
-	return db.db.Delete(mBeaconMessage{}, "guid = ? and `index` < ?", guid[:], index).Error
+	const where = "guid = ? and `index` < ?"
+	return db.db.Delete(&mBeaconMessage{}, where, guid[:], index).Error
 }
 
 func (db *database) SelectBeaconMessage(guid *guid.GUID, index uint64) (*mBeaconMessage, error) {
 	msg := new(mBeaconMessage)
 	err := db.db.Find(msg, "guid = ? and `index` = ?", guid[:], index).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if gorm.IsRecordNotFoundError(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -491,7 +545,7 @@ func (db *database) InsertBeaconListener(m *mBeaconListener) error {
 }
 
 func (db *database) DeleteBeaconListener(id uint64) error {
-	return db.db.Delete(mBeaconListener{ID: id}).Error
+	return db.db.Delete(&mBeaconListener{ID: id}).Error
 }
 
 func (db *database) InsertBeaconLog(m *mRoleLog) error {
@@ -499,5 +553,5 @@ func (db *database) InsertBeaconLog(m *mRoleLog) error {
 }
 
 func (db *database) DeleteBeaconLog(id uint64) error {
-	return db.db.Table(tableBeaconLog).Delete(mRoleLog{ID: id}).Error
+	return db.db.Table(tableBeaconLog).Delete(&mRoleLog{ID: id}).Error
 }

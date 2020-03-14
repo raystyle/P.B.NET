@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
@@ -18,6 +18,25 @@ import (
 	"project/internal/protocol"
 	"project/internal/security"
 )
+
+// TODO add node listener
+// get listeners
+// response, err = client.send(protocol.CtrlQueryListeners, nil)
+// if err != nil {
+// 	return errors.WithMessage(err, "failed to set node certificate")
+// }
+// if len(response) == 0 {
+// 	return errors.New("no listener tag")
+// }
+// // add node listener
+// tag := string(response)
+// return ctrl.database.InsertNodeListener(&mNodeListener{
+// 	GUID:    nil,
+// 	Tag:     tag,
+// 	Mode:    listener.Mode,
+// 	Network: listener.Network,
+// 	Address: listener.Address,
+// })
 
 // TrustNode is used to trust Node, receive system info for confirm it.
 // usually for the Initial Node or the test.
@@ -65,6 +84,17 @@ func (ctrl *Ctrl) TrustNode(
 	return &nnr, nil
 }
 
+func (ctrl *Ctrl) checkNodeExists(guid *guid.GUID) error {
+	_, err := ctrl.database.SelectNode(guid)
+	if err == nil {
+		return errors.Errorf("node already exists\n%s", guid.Print())
+	}
+	if err.Error() == fmt.Sprintf("node %X doesn't exist", guid[:]) {
+		return nil
+	}
+	return err
+}
+
 // node key exchange public key (curve25519),
 // use session key encrypt register request data.
 // +----------------+----------------+
@@ -100,9 +130,9 @@ func (ctrl *Ctrl) resolveNodeRegisterRequest(reply []byte) (*messages.NodeRegist
 }
 
 // ConfirmTrustNode is used to confirm trust and register Node.
-func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, id string) error {
+func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, reply *ReplyNodeRegister) error {
 	// get objects about action, see Ctrl.TrustNode()
-	object, err := ctrl.actionMgr.Load(id)
+	object, err := ctrl.actionMgr.Load(reply.ID)
 	if err != nil {
 		return err
 	}
@@ -122,54 +152,28 @@ func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, id string) error {
 	}
 	defer client.Close()
 	// register node
-	certificate, err := ctrl.registerNode(nrr, true)
+	certificate, err := ctrl.registerNode(nrr, reply)
 	if err != nil {
 		return err
 	}
 	// send certificate
-	reply, err := client.send(protocol.CtrlSetNodeCert, certificate.Encode())
+	response, err := client.send(protocol.CtrlSetNodeCert, certificate.Encode())
 	if err != nil {
 		return errors.WithMessage(err, "failed to set node certificate")
 	}
-	if !bytes.Equal(reply, []byte{messages.RegisterResultAccept}) {
-		return errors.Errorf("failed to trust node: %s", reply)
+	if !bytes.Equal(response, []byte{messages.RegisterResultAccept}) {
+		return errors.Errorf("failed to trust node: %s", response)
 	}
-	// get listeners
-	reply, err = client.send(protocol.CtrlQueryListeners, nil)
-	if err != nil {
-		return errors.WithMessage(err, "failed to set node certificate")
-	}
-	if len(reply) == 0 {
-		return errors.New("no listener tag")
-	}
-	// add node listener
-	tag := string(reply)
-	return ctrl.database.InsertNodeListener(&mNodeListener{
-		GUID:    nil,
-		Tag:     tag,
-		Mode:    listener.Mode,
-		Network: listener.Network,
-		Address: listener.Address,
-	})
-}
-
-func (ctrl *Ctrl) checkNodeExists(guid *guid.GUID) error {
-	_, err := ctrl.database.SelectNode(guid)
-	if err == nil {
-		return errors.Errorf("node already exists\n%s", guid.Print())
-	}
-	if err == gorm.ErrRecordNotFound {
-		return nil
-	}
-	return err
+	return nil
 }
 
 func (ctrl *Ctrl) registerNode(
 	nrr *messages.NodeRegisterRequest,
-	bootstrap bool,
+	reply *ReplyNodeRegister,
 ) (*protocol.Certificate, error) {
+	const errMsg = "failed to register node"
 	failed := func(err error) error {
-		return errors.Wrap(err, "failed to register node")
+		return errors.Wrap(err, errMsg)
 	}
 	// issue certificate
 	certificate := protocol.Certificate{
@@ -186,7 +190,7 @@ func (ctrl *Ctrl) registerNode(
 	// calculate session key
 	sessionKey, err := ctrl.global.KeyExchange(nrr.KexPublicKey)
 	if err != nil {
-		err = errors.WithMessage(err, "failed to calculate session key")
+		err = errors.WithMessage(err, "failed to calculate node session key")
 		ctrl.logger.Print(logger.Exploit, "register-node", err)
 		return nil, failed(err)
 	}
@@ -196,10 +200,21 @@ func (ctrl *Ctrl) registerNode(
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
 		SessionKey:   security.NewBytes(sessionKey),
-		// IsBootstrap:  bootstrap,
-	}, nil)
+	}, &mNodeInfo{
+		GUID:        nrr.GUID[:],
+		IP:          strings.Join(nrr.SystemInfo.IP, ","),
+		OS:          nrr.SystemInfo.OS,
+		Arch:        nrr.SystemInfo.Arch,
+		GoVersion:   nrr.SystemInfo.GoVersion,
+		PID:         nrr.SystemInfo.PID,
+		PPID:        nrr.SystemInfo.PPID,
+		Hostname:    nrr.SystemInfo.Hostname,
+		Username:    nrr.SystemInfo.Username,
+		IsBootstrap: reply.Bootstrap,
+		Zone:        reply.Zone,
+	})
 	if err != nil {
-		return nil, failed(err)
+		return nil, errors.WithMessage(err, errMsg)
 	}
 	return &certificate, nil
 }
@@ -247,7 +262,7 @@ func (ctrl *Ctrl) ReplyNodeRegister(reply *ReplyNodeRegister) error {
 }
 
 func (ctrl *Ctrl) acceptRegisterNode(nrr *messages.NodeRegisterRequest, r *ReplyNodeRegister) error {
-	certificate, err := ctrl.registerNode(nrr, r.Bootstrap)
+	certificate, err := ctrl.registerNode(nrr, r)
 	if err != nil {
 		return err
 	}
@@ -302,7 +317,7 @@ func (ctrl *Ctrl) AcceptRegisterNode(
 	listeners map[guid.GUID][]*bootstrap.Listener,
 	bootstrap bool,
 ) error {
-	certificate, err := ctrl.registerNode(nrr, bootstrap)
+	certificate, err := ctrl.registerNode(nrr, nil)
 	if err != nil {
 		return err
 	}
@@ -365,7 +380,7 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 	// calculate session key
 	sessionKey, err := ctrl.global.KeyExchange(brr.KexPublicKey)
 	if err != nil {
-		err = errors.WithMessage(err, "failed to calculate session key")
+		err = errors.WithMessage(err, "failed to calculate beacon session key")
 		ctrl.logger.Print(logger.Exploit, "register-beacon", err)
 		return failed(err)
 	}

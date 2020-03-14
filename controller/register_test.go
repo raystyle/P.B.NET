@@ -20,8 +20,12 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, info.GetSystemInfo(), nnr.SystemInfo)
 	spew.Dump(nnr)
-
-	err = ctrl.ConfirmTrustNode(context.Background(), nnr.ID)
+	reply := ReplyNodeRegister{
+		ID:        nnr.ID,
+		Bootstrap: true,
+		Zone:      "test",
+	}
+	err = ctrl.ConfirmTrustNode(context.Background(), &reply)
 	require.NoError(t, err)
 
 	// clean

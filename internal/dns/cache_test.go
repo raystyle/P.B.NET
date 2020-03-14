@@ -41,7 +41,7 @@ func TestClientCache(t *testing.T) {
 	// update cache
 	testUpdateCache(client, testCacheDomain)
 
-	// <security> update doesn't exists domain
+	// <security> update doesn't exist domain
 	testUpdateCache(client, "a")
 
 	// query exist cache

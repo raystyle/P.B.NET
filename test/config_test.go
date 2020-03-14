@@ -317,7 +317,13 @@ func generateInitialNodeAndTrust(t testing.TB, id int) *node.Node {
 	// trust node
 	nnr, err := ctrl.TrustNode(ctx, listener)
 	require.NoError(t, err)
-	err = ctrl.ConfirmTrustNode(ctx, nnr.ID)
+	// confirm
+	reply := controller.ReplyNodeRegister{
+		ID:        nnr.ID,
+		Bootstrap: true,
+		Zone:      "test",
+	}
+	err = ctrl.ConfirmTrustNode(ctx, &reply)
 	require.NoError(t, err)
 	// connect node
 	err = ctrl.Synchronize(ctx, Node.GUID(), listener)

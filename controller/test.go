@@ -80,7 +80,7 @@ func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid *guid.GUID, mess
 	defer t.nodeSendTestMsgRWM.Unlock()
 	ch, ok := t.nodeSendTestMsg[*guid]
 	if !ok {
-		return errors.Errorf("node: %X doesn't exists", guid)
+		return errors.Errorf("node: %X doesn't exist", guid)
 	}
 	msg := make([]byte, len(message))
 	copy(msg, message)
@@ -103,7 +103,7 @@ func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid *guid.GUID, me
 	defer t.beaconSendTestMsgRWM.Unlock()
 	ch, ok := t.beaconSendTestMsg[*guid]
 	if !ok {
-		return errors.Errorf("beacon: %X doesn't exists", guid)
+		return errors.Errorf("beacon: %X doesn't exist", guid)
 	}
 	msg := make([]byte, len(message))
 	copy(msg, message)

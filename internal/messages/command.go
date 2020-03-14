@@ -46,7 +46,7 @@ const (
 
 // about Node
 const (
-	// if current Node doesn't exists role key, it will query Controller.
+	// if current Node doesn't exist role key, it will query Controller.
 	CMDQueryNodeKey uint32 = 0x10010000 + iota
 	CMDQueryBeaconKey
 	CMDAnswerNodeKey

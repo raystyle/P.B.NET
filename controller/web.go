@@ -278,18 +278,14 @@ func (wh *webHandler) handleTrustNode(w hRW, r *hR, _ hP) {
 
 // ---------------------------------------confirm trust node---------------------------------------
 
-type webConfirmTrustNode struct {
-	ID string `json:"id"`
-}
-
 func (wh *webHandler) handleConfirmTrustNode(w hRW, r *hR, _ hP) {
-	ctn := webConfirmTrustNode{}
-	err := json.NewDecoder(r.Body).Decode(&ctn)
+	ctn := new(ReplyNodeRegister)
+	err := json.NewDecoder(r.Body).Decode(ctn)
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	err = wh.ctx.ConfirmTrustNode(r.Context(), ctn.ID)
+	err = wh.ctx.ConfirmTrustNode(r.Context(), ctn)
 	wh.writeError(w, err)
 }
 

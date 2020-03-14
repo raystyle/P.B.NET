@@ -128,8 +128,8 @@ type mNodeInfo struct {
 	OS          string `gorm:"not null;size:1024"`
 	Arch        string `gorm:"not null;size:1024"`
 	GoVersion   string `gorm:"not null;size:1024"`
-	PID         int    `gorm:"not null"`
-	PPID        int    `gorm:"not null"`
+	PID         int    `gorm:"column:pid;not null"`
+	PPID        int    `gorm:"column:ppid;not null"`
 	Hostname    string `gorm:"not null;size:1024"`
 	Username    string `gorm:"not null;size:1024"`
 	IsBootstrap bool   `gorm:"not null"`

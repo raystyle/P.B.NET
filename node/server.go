@@ -296,7 +296,7 @@ func (server *server) GetListener(tag string) (*xnet.Listener, error) {
 	if listener, ok := server.listeners[tag]; ok {
 		return listener, nil
 	}
-	return nil, errors.Errorf("listener %s doesn't exists", tag)
+	return nil, errors.Errorf("listener %s doesn't exist", tag)
 }
 
 func (server *server) CloseListener(tag string) error {
@@ -305,7 +305,7 @@ func (server *server) CloseListener(tag string) error {
 	if listener, ok := server.listeners[tag]; ok {
 		return listener.Close()
 	}
-	return errors.Errorf("listener %s doesn't exists", tag)
+	return errors.Errorf("listener %s doesn't exist", tag)
 }
 
 func (server *server) Conns() map[guid.GUID]*xnet.Conn {
@@ -324,7 +324,7 @@ func (server *server) GetConn(tag *guid.GUID) (*xnet.Conn, error) {
 	if conn, ok := server.conns[*tag]; ok {
 		return conn, nil
 	}
-	return nil, errors.Errorf("conn doesn't exists\n%s", tag)
+	return nil, errors.Errorf("conn doesn't exist\n%s", tag)
 }
 
 func (server *server) CloseConn(tag *guid.GUID) error {
@@ -333,7 +333,7 @@ func (server *server) CloseConn(tag *guid.GUID) error {
 	if conn, ok := server.conns[*tag]; ok {
 		return conn.Close()
 	}
-	return errors.Errorf("conn doesn't exists\n%s", tag)
+	return errors.Errorf("conn doesn't exist\n%s", tag)
 }
 
 // Close is used to close all listeners and connections
@@ -728,7 +728,7 @@ func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 		return nk
 	}
 	const interval = 50 * time.Millisecond
-	// If doesn't exists in self storage, try to wait 3-5 seconds
+	// If doesn't exist in self storage, try to wait 3-5 seconds
 	// to wait Controller broadcast, maybe this Node has register
 	// in other Node, but the Node register response not broadcast
 	// to this Node, so we try to wait Controller's broadcast.
@@ -920,7 +920,7 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 		return bk
 	}
 	const interval = 50 * time.Millisecond
-	// If doesn't exists in self storage, try to wait 3-5 seconds
+	// If doesn't exist in self storage, try to wait 3-5 seconds
 	// to wait Controller broadcast, maybe this Beacon has register
 	// in other Node, but the Beacon register response not broadcast
 	// to this Node, so we try to wait Controller's broadcast.
