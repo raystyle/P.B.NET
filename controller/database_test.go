@@ -290,7 +290,7 @@ func TestInsertNode(t *testing.T) {
 	copy(node.GUID[:], bytes.Repeat([]byte{48}, guid.Size))
 	err := ctrl.database.db.Unscoped().Delete(node).Error
 	require.NoError(t, err)
-	err = ctrl.database.InsertNode(node)
+	err = ctrl.database.InsertNode(node, nil)
 	require.NoError(t, err)
 	// insert listener
 	nl := &mNodeListener{
@@ -356,7 +356,7 @@ func TestDatabase_InsertBeacon(t *testing.T) {
 	beaconGUID, beacon := testGenerateBeacon(t)
 	err := ctrl.database.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
-	err = ctrl.database.InsertBeacon(beacon)
+	err = ctrl.database.InsertBeacon(beacon, nil)
 	require.NoError(t, err)
 
 	err = ctrl.database.DeleteBeaconUnscoped(beaconGUID)
@@ -387,7 +387,7 @@ func TestDatabase_InsertBeaconMessage(t *testing.T) {
 	beaconGUID, beacon := testGenerateBeacon(t)
 	err := ctrl.database.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
-	err = ctrl.database.InsertBeacon(beacon)
+	err = ctrl.database.InsertBeacon(beacon, nil)
 	require.NoError(t, err)
 	testInsertBeaconMessage(t, beaconGUID)
 
@@ -431,7 +431,7 @@ func TestDatabase_DeleteBeaconMessagesWithIndex(t *testing.T) {
 	beaconGUID, beacon := testGenerateBeacon(t)
 	err := ctrl.database.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
-	err = ctrl.database.InsertBeacon(beacon)
+	err = ctrl.database.InsertBeacon(beacon, nil)
 	require.NoError(t, err)
 	testInsertBeaconMessage(t, beaconGUID)
 
@@ -472,7 +472,7 @@ func TestDatabase_SelectBeaconMessage(t *testing.T) {
 	beaconGUID, beacon := testGenerateBeacon(t)
 	err := ctrl.database.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
-	err = ctrl.database.InsertBeacon(beacon)
+	err = ctrl.database.InsertBeacon(beacon, nil)
 	require.NoError(t, err)
 	testInsertBeaconMessage(t, beaconGUID)
 

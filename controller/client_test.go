@@ -125,7 +125,6 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	return Node
 }
 
-// return bootstrap.NewListener(listener.Mode(), addr.Network(), addr.String())
 func testGetNodeListener(t testing.TB, node *node.Node, tag string) *bootstrap.Listener {
 	listener, err := node.GetListener(tag)
 	require.NoError(t, err)

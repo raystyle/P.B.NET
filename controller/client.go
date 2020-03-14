@@ -56,11 +56,12 @@ func (ctrl *Ctrl) NewClient(
 	guid *guid.GUID,
 	closeFunc func(),
 ) (*Client, error) {
+	listener = listener.Decrypt()
+	// set tls config
 	host, port, err := net.SplitHostPort(listener.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// set tls config
 	tlsConfig, err := ctrl.clientMgr.GetTLSConfig().Apply()
 	if err != nil {
 		return nil, errors.WithStack(err)

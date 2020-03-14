@@ -25,7 +25,6 @@ func (ctrl *Ctrl) TrustNode(
 	ctx context.Context,
 	listener *bootstrap.Listener,
 ) (*NoticeNodeRegister, error) {
-	// check exists
 	const src = "trust-node"
 	ctrl.logger.Printf(logger.Info, src, "listener: %s", listener)
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
@@ -64,6 +63,40 @@ func (ctrl *Ctrl) TrustNode(
 		RequestTime:  nrr.RequestTime,
 	}
 	return &nnr, nil
+}
+
+// node key exchange public key (curve25519),
+// use session key encrypt register request data.
+// +----------------+----------------+
+// | kex public key | encrypted data |
+// +----------------+----------------+
+// |    32 Bytes    |       var      |
+// +----------------+----------------+
+func (ctrl *Ctrl) resolveNodeRegisterRequest(reply []byte) (*messages.NodeRegisterRequest, error) {
+	if len(reply) < curve25519.ScalarSize+aes.BlockSize {
+		return nil, errors.New("node send register request with invalid size")
+	}
+	// calculate node session key
+	key, err := ctrl.global.KeyExchange(reply[:curve25519.ScalarSize])
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to calculate node session key")
+	}
+	// decrypt node register request
+	request, err := aes.CBCDecrypt(reply[curve25519.ScalarSize:], key, key[:aes.IVSize])
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decrypt node register request")
+	}
+	// check node register request
+	nrr := messages.NodeRegisterRequest{}
+	err = msgpack.Unmarshal(request, &nrr)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid node register request data")
+	}
+	err = nrr.Validate()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid node register request")
+	}
+	return &nrr, nil
 }
 
 // ConfirmTrustNode is used to confirm trust and register Node.
@@ -120,40 +153,6 @@ func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, id string) error {
 	})
 }
 
-// node key exchange public key (curve25519),
-// use session key encrypt register request data.
-// +----------------+----------------+
-// | kex public key | encrypted data |
-// +----------------+----------------+
-// |    32 Bytes    |       var      |
-// +----------------+----------------+
-func (ctrl *Ctrl) resolveNodeRegisterRequest(reply []byte) (*messages.NodeRegisterRequest, error) {
-	if len(reply) < curve25519.ScalarSize+aes.BlockSize {
-		return nil, errors.New("node send register request with invalid size")
-	}
-	// calculate node session key
-	key, err := ctrl.global.KeyExchange(reply[:curve25519.ScalarSize])
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to calculate node session key")
-	}
-	// decrypt node register request
-	request, err := aes.CBCDecrypt(reply[curve25519.ScalarSize:], key, key[:aes.IVSize])
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to decrypt node register request")
-	}
-	// check node register request
-	nrr := messages.NodeRegisterRequest{}
-	err = msgpack.Unmarshal(request, &nrr)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid node register request data")
-	}
-	err = nrr.Validate()
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid node register request")
-	}
-	return &nrr, nil
-}
-
 func (ctrl *Ctrl) checkNodeExists(guid *guid.GUID) error {
 	_, err := ctrl.database.SelectNode(guid)
 	if err == nil {
@@ -197,8 +196,8 @@ func (ctrl *Ctrl) registerNode(
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
 		SessionKey:   security.NewBytes(sessionKey),
-		IsBootstrap:  bootstrap,
-	})
+		// IsBootstrap:  bootstrap,
+	}, nil)
 	if err != nil {
 		return nil, failed(err)
 	}
@@ -376,7 +375,7 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
 		SessionKey:   security.NewBytes(sessionKey),
-	})
+	}, nil)
 	if err != nil {
 		return failed(err)
 	}

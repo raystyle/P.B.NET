@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -81,15 +82,39 @@ func (db *database) Close() {
 	db.db.SetNowFuncOverride(time.Now)
 }
 
+func (db *database) logf(lv logger.Level, format string, log ...interface{}) {
+	db.ctx.logger.Printf(lv, "database", format, log...)
+}
+
 func (db *database) log(lv logger.Level, log ...interface{}) {
 	db.ctx.logger.Println(lv, "database", log...)
 }
 
-func (db *database) InsertCtrlLog(m *mCtrlLog) error {
-	return db.db.Table(tableCtrlLog).Create(m).Error
+func (db *database) rollback(name string, tx *gorm.DB, err error) bool {
+	const format = "failed to rollback in %s: %s"
+	if r := recover(); r != nil {
+		db.log(logger.Fatal, xpanic.Print(r, fmt.Sprintf("database.%s", name)))
+		err := tx.Rollback().Error
+		if err != nil {
+			db.logf(logger.Fatal, format, name, err)
+		}
+		return false
+	}
+	if err != nil {
+		err := tx.Rollback().Error
+		if err != nil {
+			db.log(logger.Error, format, name, err)
+		}
+		return false
+	}
+	return true
 }
 
-// -------------------------------proxy client----------------------------------------
+func (db *database) InsertLog(m *mLog) error {
+	return db.db.Create(m).Error
+}
+
+// ------------------------------------------proxy client------------------------------------------
 
 func (db *database) InsertProxyClient(m *mProxyClient) error {
 	return db.db.Create(m).Error
@@ -108,7 +133,7 @@ func (db *database) DeleteProxyClient(id uint64) error {
 	return db.db.Delete(mProxyClient{ID: id}).Error
 }
 
-// ---------------------------------DNS client----------------------------------------
+// -------------------------------------------DNS client-------------------------------------------
 
 func (db *database) InsertDNSServer(m *mDNSServer) error {
 	return db.db.Create(m).Error
@@ -127,7 +152,7 @@ func (db *database) DeleteDNSServer(id uint64) error {
 	return db.db.Delete(mDNSServer{ID: id}).Error
 }
 
-// -----------------------------time syncer client------------------------------------
+// ---------------------------------------time syncer client---------------------------------------
 
 func (db *database) InsertTimeSyncerClient(m *mTimeSyncer) error {
 	return db.db.Create(m).Error
@@ -146,7 +171,7 @@ func (db *database) DeleteTimeSyncerClient(id uint64) error {
 	return db.db.Delete(mTimeSyncer{ID: id}).Error
 }
 
-// -------------------------------------boot------------------------------------------
+// ----------------------------------------------boot----------------------------------------------
 
 func (db *database) InsertBoot(m *mBoot) error {
 	return db.db.Create(m).Error
@@ -165,15 +190,15 @@ func (db *database) DeleteBoot(id uint64) error {
 	return db.db.Delete(mBoot{ID: id}).Error
 }
 
-// ----------------------------------listener-----------------------------------------
+// --------------------------------------------listener--------------------------------------------
 
 func (db *database) InsertListener(m *mListener) error {
 	return db.db.Create(m).Error
 }
 
 func (db *database) SelectListener() ([]*mListener, error) {
-	var listener []*mListener
-	return listener, db.db.Find(&listener).Error
+	var listeners []*mListener
+	return listeners, db.db.Find(&listeners).Error
 }
 
 func (db *database) UpdateListener(m *mListener) error {
@@ -184,7 +209,26 @@ func (db *database) DeleteListener(id uint64) error {
 	return db.db.Delete(mListener{ID: id}).Error
 }
 
-// ------------------------------------Node-------------------------------------------
+// ----------------------------------------------zone----------------------------------------------
+
+func (db *database) InsertZone(m *mZone) error {
+	return db.db.Create(m).Error
+}
+
+func (db *database) SelectZone() ([]*mZone, error) {
+	var zones []*mZone
+	return zones, db.db.Find(&zones).Error
+}
+
+func (db *database) UpdateZone(m *mZone) error {
+	return db.db.Save(m).Error
+}
+
+func (db *database) DeleteZone(id uint64) error {
+	return db.db.Delete(mZone{ID: id}).Error
+}
+
+// -------------------------------------------about Node-------------------------------------------
 
 func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 	node := db.cache.SelectNode(guid)
@@ -199,7 +243,7 @@ func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 	// calculate session key
 	sessionKey, err := db.ctx.global.KeyExchange(node.KexPublicKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to calculate node session key")
+		return nil, errors.WithMessage(err, "failed to calculate node session key")
 	}
 	defer security.CoverBytes(sessionKey)
 	node.SessionKey = security.NewBytes(sessionKey)
@@ -207,13 +251,30 @@ func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 	return node, nil
 }
 
-func (db *database) InsertNode(m *mNode) error {
-	err := db.db.Create(m).Error
+func (db *database) InsertNode(node *mNode, info *mNodeInfo) (err error) {
+	tx := db.db.BeginTx(
+		context.Background(),
+		&sql.TxOptions{Isolation: sql.LevelSerializable},
+	)
+	err = tx.Error
 	if err != nil {
-		return err
+		return
 	}
-	db.cache.InsertNode(m)
-	return nil
+	defer func() {
+		if db.rollback("InsertNode", tx, err) {
+			db.cache.InsertNode(node)
+		}
+	}()
+	err = tx.Create(node).Error
+	if err != nil {
+		return
+	}
+	err = tx.Create(info).Error
+	if err != nil {
+		return
+	}
+	err = tx.Commit().Error
+	return
 }
 
 func (db *database) DeleteNode(guid *guid.GUID) (err error) {
@@ -226,20 +287,7 @@ func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 		return
 	}
 	defer func() {
-		if r := recover(); r != nil {
-			db.log(logger.Fatal, xpanic.Print(r, "database.DeleteNode"))
-			err := tx.Rollback().Error
-			if err != nil {
-				db.log(logger.Fatal, "failed to rollback in DeleteNode:", err)
-			}
-			return
-		}
-		if err != nil {
-			err := tx.Rollback().Error
-			if err != nil {
-				db.log(logger.Error, "failed to rollback in DeleteNode:", err)
-			}
-		} else {
+		if db.rollback("DeleteNode", tx, err) {
 			db.cache.DeleteNode(guid)
 		}
 	}()
@@ -285,7 +333,7 @@ func (db *database) DeleteNodeLog(id uint64) error {
 	return db.db.Table(tableNodeLog).Delete(mRoleLog{ID: id}).Error
 }
 
-// -----------------------------------Beacon------------------------------------------
+// ------------------------------------------about Beacon------------------------------------------
 
 func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 	beacon := db.cache.SelectBeacon(guid)
@@ -300,7 +348,7 @@ func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 	// calculate session key
 	sessionKey, err := db.ctx.global.KeyExchange(beacon.KexPublicKey)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to calculate beacon session key")
+		return nil, errors.WithMessage(err, "failed to calculate beacon session key")
 	}
 	defer security.CoverBytes(sessionKey)
 	beacon.SessionKey = security.NewBytes(sessionKey)
@@ -308,7 +356,7 @@ func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 	return beacon, nil
 }
 
-func (db *database) InsertBeacon(m *mBeacon) (err error) {
+func (db *database) InsertBeacon(beacon *mBeacon, info *mBeaconInfo) (err error) {
 	tx := db.db.BeginTx(
 		context.Background(),
 		&sql.TxOptions{Isolation: sql.LevelSerializable},
@@ -318,28 +366,19 @@ func (db *database) InsertBeacon(m *mBeacon) (err error) {
 		return
 	}
 	defer func() {
-		if r := recover(); r != nil {
-			db.log(logger.Fatal, xpanic.Print(r, "database.InsertBeacon"))
-			err := tx.Rollback().Error
-			if err != nil {
-				db.log(logger.Fatal, "failed to rollback in InsertBeacon:", err)
-			}
-			return
-		}
-		if err != nil {
-			err := tx.Rollback().Error
-			if err != nil {
-				db.log(logger.Error, "failed to rollback in InsertBeacon:", err)
-			}
-		} else {
-			db.cache.InsertBeacon(m)
+		if db.rollback("InsertBeacon", tx, err) {
+			db.cache.InsertBeacon(beacon)
 		}
 	}()
-	err = tx.Create(m).Error
+	err = tx.Create(beacon).Error
 	if err != nil {
 		return
 	}
-	err = tx.Create(&mBeaconMessageIndex{GUID: m.GUID}).Error
+	err = tx.Create(info).Error
+	if err != nil {
+		return
+	}
+	err = tx.Create(&mBeaconMessageIndex{GUID: beacon.GUID}).Error
 	if err != nil {
 		return
 	}
@@ -357,20 +396,7 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 		return
 	}
 	defer func() {
-		if r := recover(); r != nil {
-			db.log(logger.Fatal, xpanic.Print(r, "database.DeleteBeacon"))
-			err := tx.Rollback().Error
-			if err != nil {
-				db.log(logger.Fatal, "failed to rollback in DeleteBeacon:", err)
-			}
-			return
-		}
-		if err != nil {
-			err := tx.Rollback().Error
-			if err != nil {
-				db.log(logger.Error, "failed to rollback in DeleteBeacon:", err)
-			}
-		} else {
+		if db.rollback("DeleteBeacon", tx, err) {
 			db.cache.DeleteBeacon(guid)
 		}
 	}()
@@ -418,27 +444,11 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (e
 	if err != nil {
 		return
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			db.log(logger.Fatal, xpanic.Print(r, "database.InsertBeaconMessage"))
-			err := tx.Rollback().Error
-			if err != nil {
-				db.log(logger.Fatal, "failed to rollback in InsertBeaconMessage:", err)
-			}
-			return
-		}
-		if err != nil {
-			err := tx.Rollback().Error
-			if err != nil {
-				db.log(logger.Error, "failed to rollback in InsertBeaconMessage:", err)
-			}
-		}
-	}()
+	defer db.rollback("InsertBeaconMessage", tx, err)
 	index := mBeaconMessageIndex{}
 	err = tx.Set("gorm:query_option", "FOR UPDATE").
 		Find(&index, "guid = ?", guid[:]).Error
 	if err != nil {
-		err = errors.WithStack(err)
 		return
 	}
 	err = tx.Create(&mBeaconMessage{
@@ -449,16 +459,14 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (e
 		Message: send.Message,
 	}).Error
 	if err != nil {
-		err = errors.WithStack(err)
 		return
 	}
 	// self add one
 	err = tx.Model(index).UpdateColumn("index", index.Index+1).Error
 	if err != nil {
-		err = errors.WithStack(err)
 		return
 	}
-	err = errors.WithStack(tx.Commit().Error)
+	err = tx.Commit().Error
 	return
 }
 

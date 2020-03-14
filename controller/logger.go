@@ -191,7 +191,7 @@ func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 		}
 	}()
 	_, _ = b.WriteTo(lg.writer)
-	err := lg.ctx.database.InsertCtrlLog(&mCtrlLog{
+	err := lg.ctx.database.InsertLog(&mLog{
 		Level:  lv,
 		Source: src,
 		Log:    []byte(log),

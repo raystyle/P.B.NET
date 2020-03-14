@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -290,7 +289,7 @@ func (wh *webHandler) handleConfirmTrustNode(w hRW, r *hR, _ hP) {
 		wh.writeError(w, err)
 		return
 	}
-	err = wh.ctx.ConfirmTrustNode(context.TODO(), ctn.ID)
+	err = wh.ctx.ConfirmTrustNode(r.Context(), ctn.ID)
 	wh.writeError(w, err)
 }
 
