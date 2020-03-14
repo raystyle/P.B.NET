@@ -80,7 +80,7 @@ func generateControllerConfig() *controller.Config {
 	cfg.Test.SkipTestClientDNS = true
 
 	cfg.Database.Dialect = "mysql"
-	cfg.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_test?loc=Local&parseTime=true"
+	cfg.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_dev?loc=Local&parseTime=true"
 	cfg.Database.MaxOpenConns = 16
 	cfg.Database.MaxIdleConns = 16
 	cfg.Database.LogFile = "log/database.log"
@@ -256,11 +256,20 @@ func generateCert(t testing.TB) *cert.Pair {
 	return pair
 }
 
+// // must copy because of cover string
+//	mode := []byte(listener.Mode())
+//	network := []byte(addr.Network())
+//	address := []byte(addr.String())
+//	return bootstrap.NewListener(string(mode), string(network), string(address))
 func getNodeListener(t testing.TB, node *node.Node, tag string) *bootstrap.Listener {
 	listener, err := node.GetListener(tag)
 	require.NoError(t, err)
 	addr := listener.Addr()
-	return bootstrap.NewListener(listener.Mode(), addr.Network(), addr.String())
+	return &bootstrap.Listener{
+		Mode:    listener.Mode(),
+		Network: addr.Network(),
+		Address: addr.String(),
+	}
 }
 
 // -----------------------------------------Initial Node-------------------------------------------

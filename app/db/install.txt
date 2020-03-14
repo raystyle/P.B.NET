@@ -13,5 +13,5 @@ GRANT ALL ON `pbnet`.* TO `pbnet`@`localhost`;
 
 # create test database if you want to change or test source code
 # the table will be created automatically
-CREATE DATABASE `pbnet_test` CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_general_ci';
-GRANT ALL ON `pbnet_test`.* TO `pbnet`@`localhost`;
+CREATE DATABASE `pbnet_dev` CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_general_ci';
+GRANT ALL ON `pbnet_dev`.* TO `pbnet`@`localhost`;
