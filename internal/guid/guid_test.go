@@ -2,6 +2,7 @@ package guid
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -29,13 +30,12 @@ func TestGUID(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("String", func(t *testing.T) {
+	t.Run("Print", func(t *testing.T) {
 		guid := GUID{}
 		copy(guid[Size/2:], bytes.Repeat([]byte{10}, Size/2))
 		buf := bytes.Buffer{}
 		buf.WriteString("GUID: ")
 		buf.WriteString(strings.Repeat("00", Size/2))
-		buf.WriteString("\n      ")
 		buf.WriteString(strings.Repeat("0A", Size/2))
 		require.Equal(t, buf.String(), guid.Print())
 	})
@@ -45,23 +45,14 @@ func TestGUID(t *testing.T) {
 		copy(guid[Size/2:], bytes.Repeat([]byte{10}, Size/2))
 		buf := bytes.Buffer{}
 		buf.WriteString(strings.Repeat("00", Size/2))
-		buf.WriteString("\n")
 		buf.WriteString(strings.Repeat("0A", Size/2))
 		require.Equal(t, buf.String(), guid.Hex())
-	})
-
-	t.Run("Line", func(t *testing.T) {
-		guid := GUID{}
-		data := bytes.Repeat([]byte{1}, Size)
-		copy(guid[:], data)
-		expect := strings.Repeat("01", Size)
-		require.Equal(t, expect, guid.Line())
 	})
 
 	t.Run("Timestamp", func(t *testing.T) {
 		now := time.Now().Unix()
 		guid := GUID{}
-		copy(guid[32:40], convert.Int64ToBytes(now))
+		copy(guid[20:28], convert.Int64ToBytes(now))
 		require.Equal(t, now, guid.Timestamp())
 	})
 
@@ -99,7 +90,18 @@ func TestGUID(t *testing.T) {
 		require.NoError(t, err)
 		expected := bytes.Repeat([]byte{1}, Size)
 		require.Equal(t, expected, testdata.Data[:])
+
+		jsonData, err = json.Marshal(testdata)
+		require.NoError(t, err)
+		fmt.Println(string(jsonData))
 	})
+}
+
+func testPrintGUID(t testing.TB, guid *GUID) {
+	t.Log(guid[:])
+	t.Log(guid.Print())
+	t.Log(guid.Hex())
+	t.Log()
 }
 
 func TestGenerator(t *testing.T) {
@@ -109,8 +111,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("with no now function", func(t *testing.T) {
 		g := New(16, nil)
 		for i := 0; i < 4; i++ {
-			guid := g.Get()[:]
-			t.Log(guid)
+			testPrintGUID(t, g.Get())
 		}
 		g.Close()
 		testsuite.IsDestroyed(t, g)
@@ -119,8 +120,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("with now()", func(t *testing.T) {
 		g := New(16, time.Now)
 		for i := 0; i < 4; i++ {
-			guid := g.Get()[:]
-			t.Log(guid)
+			testPrintGUID(t, g.Get())
 		}
 		g.Close()
 		testsuite.IsDestroyed(t, g)
@@ -129,7 +129,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("zero size", func(t *testing.T) {
 		g := New(0, time.Now)
 		for i := 0; i < 4; i++ {
-			t.Log(g.Get()[:])
+			testPrintGUID(t, g.Get())
 		}
 		g.Close()
 		// twice
@@ -137,18 +137,18 @@ func TestGenerator(t *testing.T) {
 		testsuite.IsDestroyed(t, g)
 	})
 
-	t.Run("panic in generate()", func(t *testing.T) {
-		patchFunc := func(uint64) []byte {
-			panic(monkey.ErrMonkey)
+	t.Run("panic in generator()", func(t *testing.T) {
+		patchFunc := func(_ interface{}, _ []byte, _ uint32) {
+			panic(monkey.Panic)
 		}
-		pg := monkey.Patch(convert.Uint64ToBytes, patchFunc)
+		pg := monkey.PatchInstanceMethod(binary.BigEndian, "PutUint32", patchFunc)
 		go func() {
 			time.Sleep(time.Second)
 			pg.Unpatch()
 		}()
 		g := New(0, time.Now)
 		for i := 0; i < 4; i++ {
-			t.Log(g.Get()[:])
+			testPrintGUID(t, g.Get())
 		}
 		g.Close()
 		testsuite.IsDestroyed(t, g)

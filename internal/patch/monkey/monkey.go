@@ -18,7 +18,7 @@ var (
 	ErrMonkey = errors.New("monkey error")
 
 	// Panic is a string for panic() in patch function.
-	Panic = "panic about monkey"
+	Panic = "monkey panic"
 )
 
 // IsMonkeyError is used to confirm err is ErrMonkey.
