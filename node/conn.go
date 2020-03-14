@@ -72,15 +72,15 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid *guid.GUID, usage int) *conn {
 		conn.logSrc = "serve-ctrl"
 	case connUsageServeNode:
 		conn.role = protocol.Node
-		conn.guidLine = "--------------connected node guid---------------"
+		conn.guidLine = "----------------------connected node guid-----------------------"
 		conn.logSrc = "serve-node"
 	case connUsageServeBeacon:
 		conn.role = protocol.Beacon
-		conn.guidLine = "-------------connected beacon guid--------------"
+		conn.guidLine = "---------------------connected beacon guid----------------------"
 		conn.logSrc = "serve-beacon"
 	case connUsageClient:
 		conn.role = protocol.Node
-		conn.guidLine = "--------------connected node guid---------------"
+		conn.guidLine = "----------------------connected node guid-----------------------"
 		conn.logSrc = "client"
 	default:
 		panic(fmt.Sprintf("invalid conn usage: %d", usage))
@@ -97,16 +97,15 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid *guid.GUID, usage int) *conn {
 }
 
 // [2019-12-26 21:44:17] [info] <client> disconnected
-// --------------connected node guid---------------
-// F50B876BE94437E2E678C5EB84627230C599B847BED5B00D
-// C38C4E155C0DD0305F7A000000005E04B92C000000000000
-// ---------------connection status----------------
+// ----------------------connected node guid-----------------------
+// 4DAC6511AA1B6FA002C1741774ADB65A00953EA8000000005E6C6A2F001B3BC7
+// -----------------------connection status------------------------
 // local:  tcp 127.0.0.1:2035
 // remote: tcp 127.0.0.1:2032
-// sent:   5.656 MB, received: 5.379 MB
+// sent:   5.656 MB received: 5.379 MB
 // mode:   tls,  default network: tcp
 // connect time: 2019-12-26 21:44:13
-// ------------------------------------------------
+// ----------------------------------------------------------------
 func (c *conn) Logf(lv logger.Level, format string, log ...interface{}) {
 	output := new(bytes.Buffer)
 	_, _ = fmt.Fprintf(output, format+"\n", log...)
@@ -123,9 +122,9 @@ func (c *conn) logExtra(lv logger.Level, buf *bytes.Buffer) {
 	if c.role != protocol.Ctrl && *c.guid != *protocol.CtrlGUID {
 		_, _ = fmt.Fprintf(buf, c.guidLine, c.guid.Hex())
 	}
-	const conn = "---------------connection status----------------\n%s\n"
+	const conn = "-----------------------connection status------------------------\n%s\n"
 	_, _ = fmt.Fprintf(buf, conn, c)
-	const endLine = "------------------------------------------------"
+	const endLine = "----------------------------------------------------------------"
 	_, _ = fmt.Fprint(buf, endLine)
 	c.ctx.logger.Print(lv, c.logSrc, buf)
 }

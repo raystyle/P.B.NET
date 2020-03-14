@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
 
+	"project/internal/bootstrap"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
@@ -46,6 +47,9 @@ type server struct {
 
 	guid *guid.Generator
 	rand *random.Rand
+
+	// key = listener tag, for handleQueryListeners
+	rawListeners map[string]*bootstrap.Listener
 
 	// key = listener tag
 	listeners  map[string]*xnet.Listener
@@ -81,16 +85,17 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 	defer memory.Flush()
 
 	server := server{
-		ctx:         ctx,
-		maxConns:    cfg.MaxConns,
-		timeout:     cfg.Timeout,
-		guid:        guid.New(4, ctx.global.Now),
-		rand:        random.New(),
-		listeners:   make(map[string]*xnet.Listener),
-		conns:       make(map[guid.GUID]*xnet.Conn),
-		ctrlConns:   make(map[guid.GUID]*ctrlConn),
-		nodeConns:   make(map[guid.GUID]*nodeConn),
-		beaconConns: make(map[guid.GUID]*beaconConn),
+		ctx:          ctx,
+		maxConns:     cfg.MaxConns,
+		timeout:      cfg.Timeout,
+		guid:         guid.New(4, ctx.global.Now),
+		rand:         random.New(),
+		rawListeners: make(map[string]*bootstrap.Listener),
+		listeners:    make(map[string]*xnet.Listener),
+		conns:        make(map[guid.GUID]*xnet.Conn),
+		ctrlConns:    make(map[guid.GUID]*ctrlConn),
+		nodeConns:    make(map[guid.GUID]*nodeConn),
+		beaconConns:  make(map[guid.GUID]*beaconConn),
 	}
 	server.context, server.cancel = context.WithCancel(context.Background())
 
@@ -158,6 +163,11 @@ func (server *server) log(lv logger.Level, log ...interface{}) {
 }
 
 func (server *server) addListener(l *messages.Listener) (*xnet.Listener, error) {
+	server.rwm.Lock()
+	defer server.rwm.Unlock()
+	if _, ok := server.listeners[l.Tag]; ok {
+		return nil, errors.Errorf("listener %s already exists", l.Tag)
+	}
 	failed := func(err error) error {
 		return errors.WithMessagef(err, "failed to add listener %s", l.Tag)
 	}
@@ -185,26 +195,23 @@ func (server *server) addListener(l *messages.Listener) (*xnet.Listener, error) 
 	if err != nil {
 		return nil, failed(err)
 	}
-	// add limit connections
+	// add limit
 	listener.Listener = netutil.LimitListener(listener.Listener, server.maxConns)
-
-	server.rwm.Lock()
-	defer server.rwm.Unlock()
-	if _, ok := server.listeners[l.Tag]; !ok {
-		server.listeners[l.Tag] = listener
-		return listener, nil
-	}
-	return nil, errors.Errorf("listener %s already exists", l.Tag)
+	server.listeners[l.Tag] = listener
+	server.rawListeners[l.Tag] = bootstrap.NewListener(l.Mode, l.Network, l.Address)
+	return listener, nil
 }
 
 func (server *server) deploy(tag string, listener *xnet.Listener) error {
 	errChan := make(chan error, 1)
 	server.wg.Add(1)
 	go server.serve(tag, listener, errChan)
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
 	select {
 	case err := <-errChan:
 		return errors.Errorf("failed to deploy listener %s: %s", tag, err)
-	case <-time.After(time.Second):
+	case <-timer.C:
 		server.logf(logger.Info, "deploy listener %s %s", tag, listener)
 		return nil
 	}
@@ -1067,6 +1074,8 @@ func (ctrl *ctrlConn) onFrameBeforeSync(frame []byte) bool {
 		ctrl.handleTrustNode(id)
 	case protocol.CtrlSetNodeCert:
 		ctrl.handleSetCertificate(id, data)
+	case protocol.CtrlQueryListeners:
+		ctrl.handleQueryListeners(id)
 	case protocol.CtrlQueryKeyStorage:
 		ctrl.handleQueryKeyStorage(id)
 	default:
@@ -1104,6 +1113,51 @@ func (ctrl *ctrlConn) handleSyncStart(id []byte) {
 	ctrl.Conn.Log(logger.Debug, "start to synchronize")
 }
 
+func (ctrl *ctrlConn) handleTrustNode(id []byte) {
+	ctrl.Conn.Reply(id, ctrl.ctx.register.PackRequest("trust"))
+}
+
+func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
+	err := ctrl.ctx.global.SetCertificate(data)
+	if err == nil {
+		ctrl.Conn.Reply(id, []byte{messages.RegisterResultAccept})
+		ctrl.Conn.Log(logger.Debug, "trust node")
+	} else {
+		ctrl.Conn.Reply(id, []byte(err.Error()))
+	}
+}
+
+func (ctrl *ctrlConn) handleQueryListeners(id []byte) {
+	listeners := make(map[string]*bootstrap.Listener)
+	for tag, listener := range ctrl.ctx.server.Listeners() {
+		// lAddr := listener.Addr()
+		listeners[tag] = &bootstrap.Listener{
+			Mode:    listener.Mode(),
+			Network: "",
+			Address: "",
+		}
+	}
+	data, err := msgpack.Marshal(listeners)
+	if err != nil {
+		ctrl.Conn.Reply(id, append([]byte{1}, []byte(err.Error())...))
+	} else {
+		ctrl.Conn.Reply(id, append([]byte{2}, data...))
+	}
+}
+
+func (ctrl *ctrlConn) handleQueryKeyStorage(id []byte) {
+	storage := protocol.KeyStorage{
+		NodeKeys:   ctrl.ctx.storage.GetAllNodeKeys(),
+		BeaconKeys: ctrl.ctx.storage.GetAllBeaconKeys(),
+	}
+	data, err := msgpack.Marshal(storage)
+	if err != nil {
+		ctrl.Conn.Reply(id, append([]byte{1}, []byte(err.Error())...))
+	} else {
+		ctrl.Conn.Reply(id, append([]byte{2}, data...))
+	}
+}
+
 func (ctrl *ctrlConn) onFrameAfterSync(frame []byte) bool {
 	id := frame[protocol.FrameCMDSize : protocol.FrameCMDSize+protocol.FrameIDSize]
 	data := frame[protocol.FrameCMDSize+protocol.FrameIDSize:]
@@ -1136,33 +1190,6 @@ func (ctrl *ctrlConn) onFrameAfterSync(frame []byte) bool {
 		return false
 	}
 	return true
-}
-
-func (ctrl *ctrlConn) handleTrustNode(id []byte) {
-	ctrl.Conn.Reply(id, ctrl.ctx.register.PackRequest("trust"))
-}
-
-func (ctrl *ctrlConn) handleSetCertificate(id []byte, data []byte) {
-	err := ctrl.ctx.global.SetCertificate(data)
-	if err == nil {
-		ctrl.Conn.Reply(id, []byte{messages.RegisterResultAccept})
-		ctrl.Conn.Log(logger.Debug, "trust node")
-	} else {
-		ctrl.Conn.Reply(id, []byte(err.Error()))
-	}
-}
-
-func (ctrl *ctrlConn) handleQueryKeyStorage(id []byte) {
-	ks := protocol.KeyStorage{
-		NodeKeys:   ctrl.ctx.storage.GetAllNodeKeys(),
-		BeaconKeys: ctrl.ctx.storage.GetAllBeaconKeys(),
-	}
-	data, err := msgpack.Marshal(ks)
-	if err != nil {
-		ctrl.Conn.Reply(id, []byte(err.Error()))
-	} else {
-		ctrl.Conn.Reply(id, data)
-	}
 }
 
 func (ctrl *ctrlConn) Close() {
