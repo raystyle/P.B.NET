@@ -501,6 +501,11 @@ func (client *Client) logExploit(log string, err error, obj interface{}) {
 	client.Close()
 }
 
+func (client *Client) logfExploit(format string, obj interface{}) {
+	client.logf(logger.Exploit, format+"\n%s", spew.Sdump(obj))
+	client.Close()
+}
+
 func (client *Client) handleSendToBeacon(id, data []byte) {
 	send := client.ctx.worker.GetSendFromPool()
 	put := true
@@ -526,14 +531,12 @@ func (client *Client) handleSendToBeacon(id, data []byte) {
 	}
 	if client.ctx.syncer.CheckSendToBeaconGUID(&send.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
-		if send.RoleGUID == *client.ctx.global.GUID() {
-			client.ctx.worker.AddSend(send)
-			put = false
-		} else {
-			const format = "invalid beacon guid in send to beacon\n%s"
-			client.logf(logger.Exploit, format, send)
-			client.Close()
+		if send.RoleGUID != *client.ctx.global.GUID() {
+			client.logfExploit("different beacon guid in send to beacon", send)
+			return
 		}
+		client.ctx.worker.AddSend(send)
+		put = false
 	} else {
 		client.reply(id, protocol.ReplyHandled)
 	}
@@ -564,14 +567,12 @@ func (client *Client) handleAckToBeacon(id, data []byte) {
 	}
 	if client.ctx.syncer.CheckAckToBeaconGUID(&ack.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
-		if ack.RoleGUID == *client.ctx.global.GUID() {
-			client.ctx.worker.AddAcknowledge(ack)
-			put = false
-		} else {
-			const format = "invalid beacon guid in ack to beacon\n%s"
-			client.logf(logger.Exploit, format, ack)
-			client.Close()
+		if ack.RoleGUID != *client.ctx.global.GUID() {
+			client.logfExploit("different beacon guid in ack to beacon", ack)
+			return
 		}
+		client.ctx.worker.AddAcknowledge(ack)
+		put = false
 	} else {
 		client.reply(id, protocol.ReplyHandled)
 	}
@@ -602,14 +603,12 @@ func (client *Client) handleAnswer(id, data []byte) {
 	}
 	if client.ctx.syncer.CheckAnswerGUID(&answer.GUID, timestamp) {
 		client.reply(id, protocol.ReplySucceed)
-		if answer.BeaconGUID == *client.ctx.global.GUID() {
-			client.ctx.worker.AddAnswer(answer)
-			put = false
-		} else {
-			const format = "invalid beacon guid in answer\n%s"
-			client.logf(logger.Exploit, format, answer)
-			client.Close()
+		if answer.BeaconGUID != *client.ctx.global.GUID() {
+			client.logfExploit("different beacon guid in answer", answer)
+			return
 		}
+		client.ctx.worker.AddAnswer(answer)
+		put = false
 	} else {
 		client.reply(id, protocol.ReplyHandled)
 	}

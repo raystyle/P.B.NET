@@ -413,6 +413,11 @@ func (c *conn) logExploit(log string, err error, obj interface{}) {
 	_ = c.Close()
 }
 
+func (c *conn) logfExploit(format string, obj interface{}) {
+	c.Logf(logger.Exploit, format+"\n%s", spew.Sdump(obj))
+	_ = c.Close()
+}
+
 func (c *conn) HandleSendToNode(id, data []byte) {
 	send := c.ctx.worker.GetSendFromPool()
 	put := true
@@ -661,6 +666,12 @@ func (c *conn) HandleBeaconSend(id, data []byte) {
 		c.logExploit("invalid beacon send", err, send)
 		return
 	}
+	if c.usage == connUsageServeBeacon {
+		if send.RoleGUID != *c.guid {
+			c.logfExploit("different beacon guid in beacon send", send)
+			return
+		}
+	}
 	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(&send.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
@@ -687,6 +698,12 @@ func (c *conn) HandleBeaconAck(id, data []byte) {
 		c.logExploit("invalid beacon ack", err, ack)
 		return
 	}
+	if c.usage == connUsageServeBeacon {
+		if ack.RoleGUID != *c.guid {
+			c.logfExploit("different beacon guid in beacon ack", ack)
+			return
+		}
+	}
 	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(&ack.GUID)
 	if expired {
 		c.Reply(id, protocol.ReplyExpired)
@@ -712,6 +729,12 @@ func (c *conn) HandleQuery(id, data []byte) {
 	if err != nil {
 		c.logExploit("invalid query", err, query)
 		return
+	}
+	if c.usage == connUsageServeBeacon {
+		if query.BeaconGUID != *c.guid {
+			c.logfExploit("different beacon guid in query", query)
+			return
+		}
 	}
 	expired, timestamp := c.ctx.syncer.CheckGUIDTimestamp(&query.GUID)
 	if expired {
