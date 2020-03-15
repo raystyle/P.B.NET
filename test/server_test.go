@@ -18,7 +18,7 @@ import (
 )
 
 func generateCommonNode(t *testing.T, iNode *node.Node, id int) *node.Node {
-	ctrl.Test.CreateNodeRegisterRequestChannel()
+	ctrl.Test.EnableAutoRegisterNode()
 
 	// generate bootstrap
 	listener := getNodeListener(t, iNode, initialNodeListenerTag)
@@ -35,18 +35,7 @@ func generateCommonNode(t *testing.T, iNode *node.Node, id int) *node.Node {
 		err := cNode.Main()
 		require.NoError(t, err)
 	}()
-
-	// read Node register request
-	select {
-	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		// spew.Dump(nrr)
-		err = ctrl.AcceptRegisterNode(nrr, nil, false)
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
-	}
-
-	// wait Common Node
+	// wait Common Node register
 	timer := time.AfterFunc(10*time.Second, func() {
 		t.Fatal("node register timeout")
 	})
@@ -57,7 +46,7 @@ func generateCommonNode(t *testing.T, iNode *node.Node, id int) *node.Node {
 }
 
 func generateBeacon(t *testing.T, node *node.Node, tag string, id int) *beacon.Beacon {
-	ctrl.Test.CreateBeaconRegisterRequestChannel()
+	ctrl.Test.EnableAutoRegisterBeacon()
 
 	// generate bootstrap
 	listener := getNodeListener(t, node, tag)
@@ -73,16 +62,7 @@ func generateBeacon(t *testing.T, node *node.Node, tag string, id int) *beacon.B
 		err := Beacon.Main()
 		require.NoError(t, err)
 	}()
-
-	// read Beacon register request
-	select {
-	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		// spew.Dump(brr)
-		err = ctrl.AcceptRegisterBeacon(brr, nil)
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
-	}
+	// wait Beacon register
 	timer := time.AfterFunc(10*time.Second, func() {
 		t.Fatal("beacon register timeout")
 	})

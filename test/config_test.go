@@ -333,7 +333,9 @@ func generateInitialNodeAndTrust(t testing.TB, id int) *node.Node {
 
 func generateBootstrap(t testing.TB, listeners ...*bootstrap.Listener) ([]byte, []byte) {
 	direct := bootstrap.NewDirect()
-	direct.Listeners = listeners
+	for _, listener := range listeners {
+		direct.Listeners = append(direct.Listeners, listener.Decrypt())
+	}
 	directCfg, err := direct.Marshal()
 	require.NoError(t, err)
 	boot := messages.Bootstrap{

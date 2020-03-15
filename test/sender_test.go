@@ -41,8 +41,8 @@ func buildNodeNetworkWithCI(t *testing.T, recvMsg bool) ([]*node.Node, []*node.N
 		iNode, iListener, cNode := generateInitialNodeAndCommonNode(t, i, i)
 
 		if recvMsg {
-			iNode.Test.EnableTestMessage()
-			cNode.Test.EnableTestMessage()
+			iNode.Test.EnableMessage()
+			cNode.Test.EnableMessage()
 		}
 
 		// try to connect Initial Node and start to synchronize
@@ -91,8 +91,8 @@ func buildNodeNetworkWithIC(t *testing.T, recvMsg bool) ([]*node.Node, []*node.N
 		iNode, _, cNode := generateInitialNodeAndCommonNode(t, i, i)
 
 		if recvMsg {
-			iNode.Test.EnableTestMessage()
-			cNode.Test.EnableTestMessage()
+			iNode.Test.EnableMessage()
+			cNode.Test.EnableMessage()
 		}
 
 		cListener := addNodeListener(t, cNode)
@@ -127,7 +127,7 @@ func buildNodeNetworkWithIC(t *testing.T, recvMsg bool) ([]*node.Node, []*node.N
 func buildNodeNetworkWithMix(t *testing.T, recvMsg bool) ([]*node.Node, []*node.Node) {
 	iNode := generateInitialNodeAndTrust(t, 0)
 	if recvMsg {
-		iNode.Test.EnableTestMessage()
+		iNode.Test.EnableMessage()
 	}
 	iNodeGUID := iNode.GUID()
 
@@ -137,7 +137,7 @@ func buildNodeNetworkWithMix(t *testing.T, recvMsg bool) ([]*node.Node, []*node.
 	for i := 0; i < num; i++ {
 		cNodes[i] = generateCommonNode(t, iNode, i)
 		if recvMsg {
-			cNodes[i].Test.EnableTestMessage()
+			cNodes[i].Test.EnableMessage()
 		}
 	}
 
@@ -214,7 +214,7 @@ func buildBeaconNetworkWithCI(
 		err = Beacon.Synchronize(ctx, cNode.GUID(), listener)
 		require.NoError(t, err)
 		if recvMsg {
-			Beacon.Test.EnableTestMessage()
+			Beacon.Test.EnableMessage()
 		}
 		if interactive {
 			ctrl.EnableInteractiveMode(Beacon.GUID())
@@ -286,7 +286,7 @@ func buildBeaconNetworkWithIC(
 		err = Beacon.Synchronize(ctx, iNode.GUID(), iListener)
 		require.NoError(t, err)
 		if recvMsg {
-			Beacon.Test.EnableTestMessage()
+			Beacon.Test.EnableMessage()
 		}
 		if interactive {
 			ctrl.EnableInteractiveMode(Beacon.GUID())
@@ -371,7 +371,7 @@ func buildBeaconNetworkWithMix(
 	err = beacons[0].Synchronize(ctx, c1GUID, c1Listener)
 	require.NoError(t, err)
 	if recvMsg {
-		beacons[0].Test.EnableTestMessage()
+		beacons[0].Test.EnableMessage()
 	}
 	if interactive {
 		ctrl.EnableInteractiveMode(beacons[0].GUID())
@@ -384,7 +384,7 @@ func buildBeaconNetworkWithMix(
 	err = beacons[1].Synchronize(ctx, c2GUID, c2Listener)
 	require.NoError(t, err)
 	if recvMsg {
-		beacons[1].Test.EnableTestMessage()
+		beacons[1].Test.EnableMessage()
 	}
 	if interactive {
 		ctrl.EnableInteractiveMode(beacons[1].GUID())
@@ -397,7 +397,7 @@ func buildBeaconNetworkWithMix(
 	err = beacons[2].Synchronize(ctx, c2GUID, c2Listener)
 	require.NoError(t, err)
 	if recvMsg {
-		beacons[2].Test.EnableTestMessage()
+		beacons[2].Test.EnableMessage()
 	}
 	if interactive {
 		ctrl.EnableInteractiveMode(beacons[2].GUID())
@@ -453,16 +453,16 @@ func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 		for i := 0; i < 2*goroutines*times; i++ {
 			timer.Reset(senderTimeout)
 			select {
-			case msg := <-node.Test.BroadcastTestMsg:
+			case msg := <-node.Test.BroadcastMsg:
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
-				format := "read " + prefix + ".Test.BroadcastTestMsg timeout i: %d"
+				format := "read " + prefix + ".Test.BroadcastMsg timeout i: %d"
 				t.Errorf(format, n, i)
 				return
 			}
 		}
 		select {
-		case <-node.Test.BroadcastTestMsg:
+		case <-node.Test.BroadcastMsg:
 			t.Errorf(prefix+" read redundancy broadcast", n)
 			return
 		case <-time.After(time.Second):
@@ -570,16 +570,16 @@ func testCtrlSendToNode(t *testing.T, iNodes, cNodes []*node.Node) {
 		for i := 0; i < 2*goroutines*times; i++ {
 			timer.Reset(senderTimeout)
 			select {
-			case msg := <-node.Test.SendTestMsg:
+			case msg := <-node.Test.SendMsg:
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
-				format := "read " + prefix + ".Test.SendTestMsg timeout i: %d"
+				format := "read " + prefix + ".Test.SendMsg timeout i: %d"
 				t.Errorf(format, n, i)
 				return
 			}
 		}
 		select {
-		case <-node.Test.SendTestMsg:
+		case <-node.Test.SendMsg:
 			t.Errorf(prefix+" read redundancy send", n)
 			return
 		case <-time.After(time.Second):
@@ -677,16 +677,16 @@ func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Be
 		for i := 0; i < 2*goroutines*times; i++ {
 			timer.Reset(senderTimeout)
 			select {
-			case msg := <-beacon.Test.SendTestMsg:
+			case msg := <-beacon.Test.SendMsg:
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
-				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
+				format := "read beacon[%d].Test.SendMsg timeout i: %d"
 				t.Errorf(format, n, i)
 				return
 			}
 		}
 		select {
-		case <-beacon.Test.SendTestMsg:
+		case <-beacon.Test.SendMsg:
 			t.Errorf(" read beacon[%d] redundancy send", n)
 			return
 		case <-time.After(time.Second):
@@ -750,7 +750,7 @@ func TestNode_Send_Mix(t *testing.T) {
 
 // Each Node will send message to the Controller.
 func testNodeSend(t *testing.T, iNodes, cNodes []*node.Node) {
-	ctrl.Test.EnableRoleSendTestMessage()
+	ctrl.Test.EnableRoleSendMessage()
 
 	const (
 		goroutines = 128
@@ -771,7 +771,7 @@ func testNodeSend(t *testing.T, iNodes, cNodes []*node.Node) {
 	wg := sync.WaitGroup{}
 	sendAndRead := func(n int, node *node.Node, initial bool) {
 		defer wg.Done()
-		ch := ctrl.Test.CreateNodeSendTestMessageChannel(node.GUID())
+		ch := ctrl.Test.CreateNodeSendMessageChannel(node.GUID())
 
 		var prefix string
 		if initial {
@@ -866,7 +866,7 @@ func TestBeacon_Send_Mix(t *testing.T) {
 }
 
 func testBeaconSend(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) {
-	ctrl.Test.EnableRoleSendTestMessage()
+	ctrl.Test.EnableRoleSendMessage()
 
 	const (
 		goroutines = 128
@@ -887,7 +887,7 @@ func testBeaconSend(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) 
 	wg := sync.WaitGroup{}
 	sendAndRead := func(n int, beacon *beacon.Beacon) {
 		defer wg.Done()
-		ch := ctrl.Test.CreateBeaconSendTestMessageChannel(beacon.GUID())
+		ch := ctrl.Test.CreateBeaconSendMessageChannel(beacon.GUID())
 
 		// send
 		for i := 0; i < goroutines; i++ {
@@ -1000,11 +1000,11 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 			require.NoError(t, err)
 			timer.Reset(senderTimeout)
 			select {
-			case msg := <-beacon.Test.SendTestMsg:
+			case msg := <-beacon.Test.SendMsg:
 				withDeflate := fmt.Sprintf("test send with deflate %d", i)
 				require.Equalf(t, withDeflate, string(msg), format, n, withDeflate)
 			case <-timer.C:
-				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
+				format := "read beacon[%d].Test.SendMsg timeout i: %d"
 				t.Errorf(format, n, i)
 				return
 			}
@@ -1013,11 +1013,11 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 			require.NoError(t, err)
 			timer.Reset(senderTimeout)
 			select {
-			case msg := <-beacon.Test.SendTestMsg:
+			case msg := <-beacon.Test.SendMsg:
 				withoutDeflate := fmt.Sprintf("test send without deflate %d", i)
 				require.Equalf(t, withoutDeflate, string(msg), format, n, withoutDeflate)
 			case <-timer.C:
-				format := "read beacon[%d].Test.SendTestMsg timeout i: %d"
+				format := "read beacon[%d].Test.SendMsg timeout i: %d"
 				t.Errorf(format, n, i)
 				return
 			}

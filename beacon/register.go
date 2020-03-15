@@ -282,12 +282,9 @@ func (register *register) packRequest(address string) []byte {
 
 // register is used to register to Controller with Node.
 func (register *register) register(listener *bootstrap.Listener) error {
-	tempListener := listener.Decrypt()
-	defer tempListener.Destroy()
-
 	client, err := register.ctx.NewClient(
 		register.context,
-		tempListener,
+		listener,
 		protocol.CtrlGUID,
 		nil,
 	)

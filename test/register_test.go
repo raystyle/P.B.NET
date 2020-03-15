@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ func generateInitialNodeAndCommonNode(t testing.TB, iID, cID int) (
 	*node.Node, *bootstrap.Listener, *node.Node) {
 	iNode := generateInitialNodeAndTrust(t, iID)
 
-	ctrl.Test.CreateNodeRegisterRequestChannel()
+	ctrl.Test.EnableAutoRegisterNode()
 
 	// generate bootstrap
 	listener := getNodeListener(t, iNode, initialNodeListenerTag)
@@ -38,20 +39,11 @@ func generateInitialNodeAndCommonNode(t testing.TB, iID, cID int) (
 		err := cNode.Main()
 		require.NoError(t, err)
 	}()
-
-	// read Node register request
-	select {
-	case nrr := <-ctrl.Test.NodeRegisterRequest:
-		// spew.Dump(nrr)
-		err = ctrl.AcceptRegisterNode(nrr, nil, false)
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("read Ctrl.Test.NodeRegisterRequest timeout")
-	}
-
-	// wait Common Node
+	// wait Common Node register
 	timer := time.AfterFunc(10*time.Second, func() {
-		t.Fatal("node register timeout")
+		err := errors.New("wait timeout")
+		cNode.Exit(err)
+		t.Fatal(err)
 	})
 	cNode.Wait()
 	timer.Stop()
@@ -85,7 +77,7 @@ func TestNodeRegister(t *testing.T) {
 func generateInitialNodeAndBeacon(t testing.TB, iID, bID int) (
 	*node.Node, *bootstrap.Listener, *beacon.Beacon) {
 	iNode := generateInitialNodeAndTrust(t, iID)
-	ctrl.Test.CreateBeaconRegisterRequestChannel()
+	ctrl.Test.EnableAutoRegisterBeacon()
 
 	// generate bootstrap
 	listener := getNodeListener(t, iNode, initialNodeListenerTag)
@@ -101,16 +93,7 @@ func generateInitialNodeAndBeacon(t testing.TB, iID, bID int) (
 		err := Beacon.Main()
 		require.NoError(t, err)
 	}()
-
-	// read Beacon register request
-	select {
-	case brr := <-ctrl.Test.BeaconRegisterRequest:
-		// spew.Dump(brr)
-		err = ctrl.AcceptRegisterBeacon(brr, nil)
-		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("read Ctrl.Test.BeaconRegisterRequest timeout")
-	}
+	// wait Beacon register
 	timer := time.AfterFunc(10*time.Second, func() {
 		t.Fatal("beacon register timeout")
 	})

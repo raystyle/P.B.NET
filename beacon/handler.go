@@ -178,7 +178,7 @@ func (h *handler) handleSingleShell(answer *protocol.Answer) {
 
 func (h *handler) handleSendTestMessage(answer *protocol.Answer) {
 	defer h.logPanic("handler.handleSendTestMessage")
-	err := h.ctx.Test.AddSendTestMessage(h.context, answer.Message)
+	err := h.ctx.Test.AddSendMessage(h.context, answer.Message)
 	if err != nil {
 		const log = "failed to add send test message\nerror:"
 		h.logWithInfo(logger.Fatal, answer, log, err)

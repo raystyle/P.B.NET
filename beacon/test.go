@@ -12,34 +12,34 @@ type Test struct {
 	}
 
 	// about sender send test message
-	testMsgEnabled    bool
-	testMsgEnabledRWM sync.RWMutex
+	msgEnabled    bool
+	msgEnabledRWM sync.RWMutex
 
 	// test messages from controller
-	SendTestMsg chan []byte
+	SendMsg chan []byte
 }
 
-// EnableTestMessage is used to enable Controller send test message.
-func (t *Test) EnableTestMessage() {
-	t.testMsgEnabledRWM.Lock()
-	defer t.testMsgEnabledRWM.Unlock()
-	if !t.testMsgEnabled {
-		t.SendTestMsg = make(chan []byte, 4)
-		t.testMsgEnabled = true
+// EnableMessage is used to enable Controller send test message.
+func (t *Test) EnableMessage() {
+	t.msgEnabledRWM.Lock()
+	defer t.msgEnabledRWM.Unlock()
+	if !t.msgEnabled {
+		t.SendMsg = make(chan []byte, 4)
+		t.msgEnabled = true
 	}
 }
 
-// AddSendTestMessage is used to add Controller send test message.
-func (t *Test) AddSendTestMessage(ctx context.Context, message []byte) error {
-	t.testMsgEnabledRWM.RLock()
-	defer t.testMsgEnabledRWM.RUnlock()
-	if !t.testMsgEnabled {
+// AddSendMessage is used to add Controller send test message.
+func (t *Test) AddSendMessage(ctx context.Context, message []byte) error {
+	t.msgEnabledRWM.RLock()
+	defer t.msgEnabledRWM.RUnlock()
+	if !t.msgEnabled {
 		return nil
 	}
 	msg := make([]byte, len(message))
 	copy(msg, message)
 	select {
-	case t.SendTestMsg <- msg:
+	case t.SendMsg <- msg:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
