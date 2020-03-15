@@ -10,6 +10,13 @@ import (
 	"project/internal/crypto/ed25519"
 )
 
+func TestQueryNodeKey_SetID(t *testing.T) {
+	qnk := new(QueryNodeKey)
+	g := testGenerateGUID()
+	qnk.SetID(g)
+	require.Equal(t, *g, qnk.ID)
+}
+
 func TestAnswerNodeKey_Validate(t *testing.T) {
 	ank := new(AnswerNodeKey)
 
@@ -20,6 +27,13 @@ func TestAnswerNodeKey_Validate(t *testing.T) {
 	ank.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
 
 	require.NoError(t, ank.Validate())
+}
+
+func TestQueryBeaconKey_SetID(t *testing.T) {
+	qbk := new(QueryBeaconKey)
+	g := testGenerateGUID()
+	qbk.SetID(g)
+	require.Equal(t, *g, qbk.ID)
 }
 
 func TestAnswerBeaconKey_Validate(t *testing.T) {

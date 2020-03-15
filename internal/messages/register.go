@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
@@ -55,7 +56,7 @@ func (r *NodeRegisterRequest) Validate() error {
 
 // NodeRegisterResponse is used to return Node register response.
 type NodeRegisterResponse struct {
-	ID   guid.GUID
+	ID   guid.GUID // EncryptedRegisterRequest.ID
 	GUID guid.GUID // Node GUID
 
 	// all Nodes will save it to storage
@@ -118,7 +119,7 @@ func (r *BeaconRegisterRequest) Validate() error {
 
 // BeaconRegisterResponse is used to return Beacon register response.
 type BeaconRegisterResponse struct {
-	ID   guid.GUID
+	ID   guid.GUID // EncryptedRegisterRequest.ID
 	GUID guid.GUID // Beacon GUID
 
 	// all Nodes will save it to storage
@@ -154,11 +155,23 @@ func (r *BeaconRegisterResponse) Validate() error {
 // EncryptedRegisterRequest contains encrypted role register request.
 // Node will send to Controller.
 type EncryptedRegisterRequest struct {
-	ID   guid.GUID // set to Role register response
-	Data []byte    // encrypted Role.register.PackRequest()
+	ID           guid.GUID // it will be set to Role register response
+	KexPublicKey []byte    // role register request.KexPublicKey
+	EncRequest   []byte    // encrypted Role.register.PackRequest()
 }
 
 // SetID is used to set message id.
-func (e *EncryptedRegisterRequest) SetID(id *guid.GUID) {
-	e.ID = *id
+func (r *EncryptedRegisterRequest) SetID(id *guid.GUID) {
+	r.ID = *id
+}
+
+// Validate is used to validate request filed.
+func (r *EncryptedRegisterRequest) Validate() error {
+	if len(r.KexPublicKey) != curve25519.ScalarSize {
+		return errors.New("invalid key exchange public key size")
+	}
+	if len(r.EncRequest) < aes.BlockSize {
+		return errors.New("invalid encrypted request data size")
+	}
+	return nil
 }

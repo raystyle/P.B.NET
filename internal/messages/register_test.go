@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/aes"
 	"project/internal/crypto/curve25519"
 	"project/internal/crypto/ed25519"
 	"project/internal/module/info"
@@ -75,9 +76,23 @@ func TestBeaconRegisterResponse_Validate(t *testing.T) {
 	require.NoError(t, nrr.Validate())
 }
 
-func TestEncryptedRegisterRequest_SetID(t *testing.T) {
-	err := new(EncryptedRegisterRequest)
-	g := testGenerateGUID()
-	err.SetID(g)
-	require.Equal(t, *g, err.ID)
+func TestEncryptedRegisterRequest(t *testing.T) {
+	t.Run("SetID", func(t *testing.T) {
+		ERR := new(EncryptedRegisterRequest)
+		g := testGenerateGUID()
+		ERR.SetID(g)
+		require.Equal(t, *g, ERR.ID)
+	})
+
+	t.Run("Validate", func(t *testing.T) {
+		ERR := new(EncryptedRegisterRequest)
+
+		require.EqualError(t, ERR.Validate(), "invalid key exchange public key size")
+		ERR.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+
+		require.EqualError(t, ERR.Validate(), "invalid encrypted request data size")
+		ERR.EncRequest = bytes.Repeat([]byte{0}, aes.BlockSize)
+
+		require.NoError(t, ERR.Validate())
+	})
 }
