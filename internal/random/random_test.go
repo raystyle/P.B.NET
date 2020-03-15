@@ -113,7 +113,19 @@ func BenchmarkRand_Bytes(b *testing.B) {
 
 func TestSleeper(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
-	<-Sleep(1, 2)
-	<-Sleep(0, 0)
+	t.Run("common", func(t *testing.T) {
+		<-Sleep(1, 2)
+	})
+
+	t.Run("zero", func(t *testing.T) {
+		<-Sleep(0, 0)
+	})
+
+	t.Run("not read", func(t *testing.T) {
+		Sleep(0, 0)
+		time.Sleep(time.Second + 100*time.Millisecond)
+		Sleep(0, 0)
+	})
+
 	gSleeper.Stop()
 }

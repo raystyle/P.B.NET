@@ -31,7 +31,7 @@ type Rand struct {
 }
 
 // New is used to create a Rand.
-// performance: BenchmarkNew-6    4297    304283 ns/op    35445 B/op
+// performance: BenchmarkNew-6    4148    304633 ns/op    35511 B/op
 func New() *Rand {
 	const (
 		goroutines = 4
@@ -211,19 +211,21 @@ type Sleeper struct {
 
 // NewSleeper is used to create a sleeper.
 func NewSleeper() *Sleeper {
+	timer := time.NewTimer(time.Minute)
+	timer.Stop()
 	return &Sleeper{
-		timer: time.NewTimer(time.Millisecond),
+		timer: timer,
 		rand:  New(),
 	}
 }
 
 // Sleep is used to sleep with fixed + random time.
 func (s *Sleeper) Sleep(fixed, random uint) <-chan time.Time {
+	s.timer.Reset(s.calculateDuration(fixed, random))
 	select {
 	case <-s.timer.C:
 	default:
 	}
-	s.timer.Reset(s.calculateDuration(fixed, random))
 	return s.timer.C
 }
 
@@ -234,7 +236,8 @@ func (s *Sleeper) calculateDuration(fixed, random uint) time.Duration {
 	if fixed+random < 1 {
 		fixed = 1
 	}
-	total := time.Duration(fixed+uint(s.rand.Int(int(random)))) * time.Second
+	random = uint(s.rand.Int(int(random)))
+	total := time.Duration(fixed+random) * time.Second
 	actual := maxSleepTime // for test
 	if total < maxSleepTime {
 		actual = total
