@@ -165,9 +165,9 @@ func (driver *driver) watchClient() {
 		if listener == nil {
 			continue
 		}
-		tempListener := listener.Decrypt()
-		_ = driver.ctx.sender.Synchronize(driver.context, &nodeGUID, tempListener)
-		tempListener.Destroy()
+		// tempListener := listener.Decrypt()
+		_ = driver.ctx.sender.Synchronize(driver.context, &nodeGUID, listener)
+		// tempListener.Destroy()
 		if len(driver.ctx.sender.Clients()) >= driver.ctx.sender.GetMaxConns() {
 			return
 		}

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -11,6 +10,7 @@ import (
 
 	"project/internal/guid"
 	"project/internal/module/info"
+	"project/internal/patch/json"
 )
 
 func TestHexByteSlice(t *testing.T) {
@@ -46,10 +46,7 @@ func testGenerateGUID() *guid.GUID {
 }
 
 func TestPrintActions(t *testing.T) {
-	buf := new(bytes.Buffer)
-	encoder := json.NewEncoder(buf)
-	encoder.SetIndent("", "  ")
-	encoder.SetEscapeHTML(true)
+	encoder := json.NewEncoder(64)
 
 	t.Run("NoticeNodeRegister", func(t *testing.T) {
 		nnr := NoticeNodeRegister{
@@ -61,14 +58,13 @@ func TestPrintActions(t *testing.T) {
 			SystemInfo:   info.GetSystemInfo(),
 			RequestTime:  time.Now(),
 		}
-		err := encoder.Encode(nnr)
+		data, err := encoder.Encode(nnr)
 		require.NoError(t, err)
-		fmt.Println(buf)
+		fmt.Println(string(data))
 	})
 
-	buf.Reset()
 	t.Run("NoticeBeaconRegister", func(t *testing.T) {
-		nnr := NoticeBeaconRegister{
+		nbr := NoticeBeaconRegister{
 			ID:           "id-02",
 			GUID:         *testGenerateGUID(),
 			PublicKey:    hexByteSlice(bytes.Repeat([]byte{5}, guid.Size)),
@@ -77,8 +73,8 @@ func TestPrintActions(t *testing.T) {
 			SystemInfo:   info.GetSystemInfo(),
 			RequestTime:  time.Now(),
 		}
-		err := encoder.Encode(nnr)
+		data, err := encoder.Encode(nbr)
 		require.NoError(t, err)
-		fmt.Println(buf)
+		fmt.Println(string(data))
 	})
 }

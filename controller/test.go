@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
 	"project/internal/guid"
@@ -121,6 +122,7 @@ func (t *Test) registerNode() {
 	for {
 		select {
 		case nnr = <-t.NoticeNodeRegister:
+			spew.Dump(nnr)
 			reply := ReplyNodeRegister{
 				ID:        nnr.ID,
 				Result:    messages.RegisterResultAccept,
@@ -165,6 +167,7 @@ func (t *Test) registerBeacon() {
 	for {
 		select {
 		case nbr = <-t.NoticeBeaconRegister:
+			spew.Dump(nbr)
 			reply := ReplyBeaconRegister{
 				ID:        nbr.ID,
 				Result:    messages.RegisterResultAccept,

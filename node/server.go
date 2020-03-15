@@ -642,6 +642,27 @@ func (server *server) handshakeWithNode(tag *guid.GUID, conn *xnet.Conn) {
 	}
 }
 
+// prevent block when close the Node.
+func (server *server) sleep(t time.Duration) bool {
+	timer := time.NewTimer(t)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-server.context.Done():
+		return false
+	}
+}
+
+// <security> client can't known Controller is online.
+func (server *server) fakeTimeout(begin time.Time, conn *xnet.Conn) {
+	RTT := server.ctx.global.Now().Sub(begin)
+	if !server.sleep(messages.MaxRegisterWaitTime - RTT) {
+		return
+	}
+	_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
+}
+
 func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	// send external address
 	err := conn.Send(nettool.EncodeExternalAddress(conn.RemoteAddr().String()))
@@ -674,85 +695,36 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	}
 	// send to Controller
 	encRR := messages.EncryptedRegisterRequest{
-		Data: request,
+		KexPublicKey: request[:curve25519.ScalarSize],
+		EncRequest:   request[curve25519.ScalarSize:],
 	}
-	response, err := server.ctx.messageMgr.Send(server.context, messages.CMDBNodeRegisterRequest,
+	begin := server.ctx.global.Now()
+	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBNodeRegisterRequest,
 		&encRR, true, messages.MaxRegisterWaitTime)
 	if err != nil {
+		server.fakeTimeout(begin, conn)
 		return
 	}
-	resp := response.(*messages.NodeRegisterResponse)
+	response := reply.(*messages.NodeRegisterResponse)
+	// check GUID
+	if *guid != response.GUID {
+		server.logConn(conn, logger.Exploit, "different guid in node register response")
+		return
+	}
 	_ = conn.SetWriteDeadline(time.Now().Add(server.timeout))
-	switch resp.Result {
+	switch response.Result {
 	case messages.RegisterResultAccept:
 		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
-		_, _ = conn.Write(resp.Certificate)
-		_ = conn.Send(resp.NodeListeners)
+		_, _ = conn.Write(response.Certificate)
+		_ = conn.Send(response.NodeListeners)
 	case messages.RegisterResultRefused:
+		server.fakeTimeout(begin, conn)
 		// TODO add IP black list only register(other role still pass)
 		// and <firewall> rate limit
-		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
-	case messages.RegisterResultTimeout:
-		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	default:
 		const format = "unknown node register result: %d"
-		server.logfConn(conn, logger.Exploit, format, resp.Result)
+		server.logfConn(conn, logger.Exploit, format, response.Result)
 	}
-}
-
-func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
-	// First try to query from self storage.
-	nk := server.ctx.storage.GetNodeKey(guid)
-	if nk != nil {
-		return nk
-	}
-	const interval = 50 * time.Millisecond
-	// If doesn't exist in self storage, try to wait 3-5 seconds
-	// to wait Controller broadcast, maybe this Node has register
-	// in other Node, but the Node register response not broadcast
-	// to this Node, so we try to wait Controller's broadcast.
-	timer := time.NewTicker(interval)
-	defer timer.Stop()
-	times := 60 + server.rand.Int(40)
-	for i := 0; i < times; i++ {
-		nk = server.ctx.storage.GetNodeKey(guid)
-		if nk != nil {
-			return nk
-		}
-		select {
-		case <-server.context.Done():
-			return nil
-		case <-timer.C:
-		}
-	}
-	// If still doesn't exist, it means this Node register just now,
-	// so this Node can't receive the last broadcast.
-	// This Node will try to query Node key from controller, but
-	// Controller maybe not connect the Node Network, so it does't
-	// guarantee that the Node key can be queried.
-	now := server.ctx.global.Now()
-	query := messages.QueryNodeKey{
-		GUID: *guid,
-		Time: now,
-	}
-	// <security> must don't handle error.
-	_ = server.ctx.sender.Send(server.context, messages.CMDBQueryNodeKey, query, true)
-	// calculate network latency between Node and Controller.
-	latency := server.ctx.global.Now().Sub(now)
-	// wait Controller send Node key to this Node.
-	times = 3*int(latency/interval+1) + 60 + server.rand.Int(40)
-	for i := 0; i < times; i++ {
-		nk = server.ctx.storage.GetNodeKey(guid)
-		if nk != nil {
-			return nk
-		}
-		select {
-		case <-server.context.Done():
-			return nil
-		case <-timer.C:
-		}
-	}
-	return nil
 }
 
 func (server *server) verifyNode(conn *xnet.Conn, guid *guid.GUID) bool {
@@ -785,6 +757,48 @@ func (server *server) verifyNode(conn *xnet.Conn, guid *guid.GUID) bool {
 		return false
 	}
 	return true
+}
+
+func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
+	// first try to query from self storage.
+	nk := server.ctx.storage.GetNodeKey(guid)
+	if nk != nil {
+		return nk
+	}
+	// if it doesn't exist in self storage, try to query from Controller.
+	qnk := messages.QueryNodeKey{
+		GUID: *guid,
+		Time: server.ctx.global.Now(),
+	}
+	begin := server.ctx.global.Now()
+	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBQueryNodeKey,
+		&qnk, true, messages.MaxQueryWaitTime)
+	RTT := server.ctx.global.Now().Sub(begin)
+	duration := messages.MaxQueryWaitTime - RTT
+	if err != nil {
+		// <security> client can't known Controller is online.
+		server.sleep(duration)
+		return nil
+	}
+	ank := reply.(*messages.AnswerNodeKey)
+	// check whether queried
+	if ank.GUID == messages.ZeroGUID {
+		server.sleep(duration)
+		return nil
+	}
+	// check is wanted Node key
+	if ank.GUID != *guid {
+		server.sleep(duration)
+		return nil
+	}
+	// save to local storage
+	nk = &protocol.NodeKey{
+		PublicKey:    ank.PublicKey,
+		KexPublicKey: ank.KexPublicKey,
+		ReplyTime:    ank.ReplyTime,
+	}
+	server.ctx.storage.AddNodeKey(guid, nk)
+	return nk
 }
 
 func (server *server) handshakeWithBeacon(tag *guid.GUID, conn *xnet.Conn) {
@@ -846,84 +860,35 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 	}
 	// send to Controller
 	encRR := messages.EncryptedRegisterRequest{
-		Data: request,
+		KexPublicKey: request[:curve25519.ScalarSize],
+		EncRequest:   request[curve25519.ScalarSize:],
 	}
-	response, err := server.ctx.messageMgr.Send(server.context, messages.CMDBBeaconRegisterRequest,
+	begin := server.ctx.global.Now()
+	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBBeaconRegisterRequest,
 		&encRR, true, messages.MaxRegisterWaitTime)
 	if err != nil {
+		server.fakeTimeout(begin, conn)
 		return
 	}
-	resp := response.(*messages.BeaconRegisterResponse)
+	response := reply.(*messages.BeaconRegisterResponse)
+	// check GUID
+	if *guid != response.GUID {
+		server.logConn(conn, logger.Exploit, "different guid in beacon register response")
+		return
+	}
 	_ = conn.SetWriteDeadline(time.Now().Add(server.timeout))
-	switch resp.Result {
+	switch response.Result {
 	case messages.RegisterResultAccept:
 		_, _ = conn.Write([]byte{messages.RegisterResultAccept})
-		_ = conn.Send(resp.NodeListeners)
+		_ = conn.Send(response.NodeListeners)
 	case messages.RegisterResultRefused:
+		server.fakeTimeout(begin, conn)
 		// TODO add IP black list only register(other role still pass)
 		// and <firewall> rate limit
-		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
-	case messages.RegisterResultTimeout:
-		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	default:
 		const format = "unknown beacon register result: %d"
-		server.logfConn(conn, logger.Exploit, format, resp.Result)
+		server.logfConn(conn, logger.Exploit, format, response.Result)
 	}
-}
-
-func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
-	// First try to query from self storage.
-	bk := server.ctx.storage.GetBeaconKey(guid)
-	if bk != nil {
-		return bk
-	}
-	const interval = 50 * time.Millisecond
-	// If doesn't exist in self storage, try to wait 3-5 seconds
-	// to wait Controller broadcast, maybe this Beacon has register
-	// in other Node, but the Beacon register response not broadcast
-	// to this Node, so we try to wait Controller's broadcast.
-	timer := time.NewTicker(interval)
-	defer timer.Stop()
-	times := 60 + server.rand.Int(40)
-	for i := 0; i < times; i++ {
-		bk = server.ctx.storage.GetBeaconKey(guid)
-		if bk != nil {
-			return bk
-		}
-		select {
-		case <-server.context.Done():
-			return nil
-		case <-timer.C:
-		}
-	}
-	// If still doesn't exist, it means this Node register just now,
-	// so this Node can't receive the last broadcast.
-	// This Node will try to query Beacon key from controller, but
-	// Controller maybe not connect the Node Network, so it does't
-	// guarantee that Beacon key can be queried.
-	now := server.ctx.global.Now()
-	query := messages.QueryBeaconKey{
-		GUID: *guid,
-		Time: now,
-	}
-	// <security> must don't handle error
-	_ = server.ctx.sender.Send(server.context, messages.CMDBQueryBeaconKey, query, true)
-	// calculate network latency between Node and Controller
-	latency := server.ctx.global.Now().Sub(now)
-	// wait Controller send Beacon key to this Node
-	times = 3*int(latency/interval+1) + 60 + server.rand.Int(40)
-	for i := 0; i < times; i++ {
-		bk = server.ctx.storage.GetBeaconKey(guid)
-		if bk != nil {
-			return bk
-		}
-		select {
-		case <-server.context.Done():
-			return nil
-		case <-timer.C:
-		}
-	}
-	return nil
 }
 
 func (server *server) verifyBeacon(conn *xnet.Conn, guid *guid.GUID) bool {
@@ -956,6 +921,48 @@ func (server *server) verifyBeacon(conn *xnet.Conn, guid *guid.GUID) bool {
 		return false
 	}
 	return true
+}
+
+func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
+	// First try to query from self storage.
+	bk := server.ctx.storage.GetBeaconKey(guid)
+	if bk != nil {
+		return bk
+	}
+	// if it doesn't exist in self storage, try to query from Controller.
+	qbk := messages.QueryBeaconKey{
+		GUID: *guid,
+		Time: server.ctx.global.Now(),
+	}
+	begin := server.ctx.global.Now()
+	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBQueryBeaconKey,
+		&qbk, true, messages.MaxQueryWaitTime)
+	RTT := server.ctx.global.Now().Sub(begin)
+	duration := messages.MaxQueryWaitTime - RTT
+	if err != nil {
+		// <security> client can't known Controller is online.
+		server.sleep(duration)
+		return nil
+	}
+	abk := reply.(*messages.AnswerBeaconKey)
+	// check whether queried
+	if abk.GUID == messages.ZeroGUID {
+		server.sleep(duration)
+		return nil
+	}
+	// check is wanted Beacon key
+	if abk.GUID != *guid {
+		server.sleep(duration)
+		return nil
+	}
+	// save to local storage
+	bk = &protocol.BeaconKey{
+		PublicKey:    abk.PublicKey,
+		KexPublicKey: abk.KexPublicKey,
+		ReplyTime:    abk.ReplyTime,
+	}
+	server.ctx.storage.AddBeaconKey(guid, bk)
+	return bk
 }
 
 // ---------------------------------------serve controller-----------------------------------------

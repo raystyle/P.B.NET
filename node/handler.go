@@ -129,11 +129,7 @@ func (h *handler) handleAnswerNodeKey(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, ank, log)
 		return
 	}
-	h.ctx.storage.AddNodeKey(&ank.GUID, &protocol.NodeKey{
-		PublicKey:    ank.PublicKey,
-		KexPublicKey: ank.KexPublicKey,
-		ReplyTime:    ank.ReplyTime,
-	})
+	h.ctx.messageMgr.HandleReply(&ank.ID, ank)
 }
 
 func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
@@ -151,11 +147,7 @@ func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, send, log, err)
 		return
 	}
-	h.ctx.storage.AddBeaconKey(&abk.GUID, &protocol.BeaconKey{
-		PublicKey:    abk.PublicKey,
-		KexPublicKey: abk.KexPublicKey,
-		ReplyTime:    abk.ReplyTime,
-	})
+	h.ctx.messageMgr.HandleReply(&abk.ID, abk)
 }
 
 func (h *handler) handleNodeRegisterResponse(send *protocol.Send) {

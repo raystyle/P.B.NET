@@ -114,7 +114,7 @@ func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, reply *ReplyNodeRegister
 	if err != nil {
 		return err
 	}
-	ctrl.logger.Printf(logger.Info, "trust-node", "confirm listener: %s", listener)
+	ctrl.logger.Printf(logger.Info, "trust-node", "confirm\nlistener: %s", listener)
 	// connect node
 	client, err := ctrl.NewClient(ctx, listener, nil, nil)
 	if err != nil {

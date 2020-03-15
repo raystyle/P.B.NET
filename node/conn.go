@@ -33,7 +33,8 @@ type conn struct {
 	role protocol.Role
 	// usually is role GUID, when role = Ctrl
 	// guid is CtrlConn connection GUID
-	guid *guid.GUID
+	guid  *guid.GUID
+	usage int
 
 	slots []*protocol.Slot
 
@@ -61,6 +62,7 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid *guid.GUID, usage int) *conn {
 		ctx:        ctx,
 		Conn:       xConn,
 		guid:       guid,
+		usage:      usage,
 		stopSignal: make(chan struct{}),
 	}
 	_ = xConn.SetDeadline(time.Time{})

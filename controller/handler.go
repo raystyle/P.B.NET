@@ -10,7 +10,6 @@ import (
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
-	"project/internal/crypto/curve25519"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
@@ -158,19 +157,23 @@ func (h *handler) handleQueryNodeKey(send *protocol.Send) {
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
+	ank := &messages.AnswerNodeKey{
+		ID: qnk.ID,
+	}
 	node, err := h.ctx.database.SelectNode(&qnk.GUID)
 	if err != nil {
 		const format = "failed to query node key\nerror: %s"
 		h.logfWithInfo(logger.Warning, format, &send.RoleGUID, qnk, err)
-		return
+		// padding
+		ank.PublicKey = messages.ZeroPublicKey
+		ank.KexPublicKey = messages.ZeroKexPublicKey
+	} else {
+		ank.GUID = qnk.GUID
+		ank.PublicKey = node.PublicKey
+		ank.KexPublicKey = node.KexPublicKey
+		ank.ReplyTime = node.CreatedAt
 	}
 	// send to Node
-	ank := &messages.AnswerNodeKey{
-		GUID:         qnk.GUID,
-		PublicKey:    node.PublicKey,
-		KexPublicKey: node.KexPublicKey,
-		ReplyTime:    node.CreatedAt,
-	}
 	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBAnswerNodeKey,
 		ank, true)
 	if err != nil {
@@ -191,19 +194,23 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
+	abk := &messages.AnswerBeaconKey{
+		ID: qbk.ID,
+	}
 	beacon, err := h.ctx.database.SelectBeacon(&qbk.GUID)
 	if err != nil {
 		const format = "failed to query beacon key\nerror: %s"
 		h.logfWithInfo(logger.Warning, format, &send.RoleGUID, qbk, err)
-		return
+		// padding
+		abk.PublicKey = messages.ZeroPublicKey
+		abk.KexPublicKey = messages.ZeroKexPublicKey
+	} else {
+		abk.GUID = qbk.GUID
+		abk.PublicKey = beacon.PublicKey
+		abk.KexPublicKey = beacon.KexPublicKey
+		abk.ReplyTime = beacon.CreatedAt
 	}
 	// send to Node
-	abk := &messages.AnswerBeaconKey{
-		GUID:         qbk.GUID,
-		PublicKey:    beacon.PublicKey,
-		KexPublicKey: beacon.KexPublicKey,
-		ReplyTime:    beacon.CreatedAt,
-	}
 	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBAnswerBeaconKey,
 		abk, true)
 	if err != nil {
@@ -237,7 +244,7 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// compare key exchange public key
-	if !bytes.Equal(encRR.Data[:curve25519.ScalarSize], nrr.KexPublicKey) {
+	if !bytes.Equal(encRR.KexPublicKey, nrr.KexPublicKey) {
 		const log = "different key exchange public key in node register request"
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
@@ -266,7 +273,7 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// compare key exchange public key
-	if !bytes.Equal(encRR.Data[:curve25519.ScalarSize], brr.KexPublicKey) {
+	if !bytes.Equal(encRR.KexPublicKey, brr.KexPublicKey) {
 		const log = "different key exchange public key in beacon register request"
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
@@ -283,25 +290,25 @@ func (h *handler) decryptRegisterRequest(
 	encRR := messages.EncryptedRegisterRequest{}
 	err := msgpack.Unmarshal(send.Message, &encRR)
 	if err != nil {
-		const log = "node send invalid encrypted register request data\nerror:"
-		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log, err)
+		const format = "node send invalid encrypted %s register request data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
 		return nil, nil
 	}
-	req := encRR.Data
-	if len(req) < curve25519.ScalarSize+aes.BlockSize {
-		const format = "node send %s register request with invalid size"
-		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role)
+	err = encRR.Validate()
+	if err != nil {
+		const format = "node send invalid encrypted %s register request\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
 		return nil, nil
 	}
 	// calculate role session key
-	key, err := h.ctx.global.KeyExchange(req[:curve25519.ScalarSize])
+	key, err := h.ctx.global.KeyExchange(encRR.KexPublicKey)
 	if err != nil {
 		const format = "node send invalid %s register request\nerror: %s"
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
 		return nil, nil
 	}
 	// decrypt role register request
-	request, err := aes.CBCDecrypt(req[curve25519.ScalarSize:], key, key[:aes.IVSize])
+	request, err := aes.CBCDecrypt(encRR.EncRequest, key, key[:aes.IVSize])
 	if err != nil {
 		const format = "node send invalid %s register request\nerror: %s"
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
