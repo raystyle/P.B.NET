@@ -98,6 +98,10 @@ func (h *handler) OnSend(send *protocol.Send) {
 		h.handleAnswerNodeKey(send)
 	case messages.CMDAnswerBeaconKey:
 		h.handleAnswerBeaconKey(send)
+	case messages.CMDNodeRegisterResponse:
+		h.handleNodeRegisterResponse(send)
+	case messages.CMDBeaconRegisterResponse:
+		h.handleBeaconRegisterResponse(send)
 	case messages.CMDTest:
 		h.handleSendTestMessage(send)
 	case messages.CMDRTTestRequest:
@@ -154,11 +158,57 @@ func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
 	})
 }
 
+func (h *handler) handleNodeRegisterResponse(send *protocol.Send) {
+	defer h.logPanic("handler.handleNodeRegisterResponse")
+	nrr := new(messages.NodeRegisterResponse)
+	err := msgpack.Unmarshal(send.Message, nrr)
+	if err != nil {
+		const log = "send invalid node register response data\nerror:"
+		h.logWithInfo(logger.Exploit, send, log, err)
+		return
+	}
+	err = nrr.Validate()
+	if err != nil {
+		const log = "send invalid node register response\nerror:"
+		h.logWithInfo(logger.Exploit, nrr, log, err)
+		return
+	}
+	h.ctx.storage.AddNodeKey(&nrr.GUID, &protocol.NodeKey{
+		PublicKey:    nrr.PublicKey,
+		KexPublicKey: nrr.KexPublicKey,
+		ReplyTime:    nrr.ReplyTime,
+	})
+	h.ctx.messageMgr.HandleReply(&nrr.ID, nrr)
+}
+
+func (h *handler) handleBeaconRegisterResponse(send *protocol.Send) {
+	defer h.logPanic("handler.handleBeaconRegisterResponse")
+	brr := new(messages.BeaconRegisterResponse)
+	err := msgpack.Unmarshal(send.Message, brr)
+	if err != nil {
+		const log = "send invalid beacon register response data"
+		h.logWithInfo(logger.Exploit, send, log)
+		return
+	}
+	err = brr.Validate()
+	if err != nil {
+		const log = "send invalid beacon register response"
+		h.logWithInfo(logger.Exploit, brr, log)
+		return
+	}
+	h.ctx.storage.AddBeaconKey(&brr.GUID, &protocol.BeaconKey{
+		PublicKey:    brr.PublicKey,
+		KexPublicKey: brr.KexPublicKey,
+		ReplyTime:    brr.ReplyTime,
+	})
+	h.ctx.messageMgr.HandleReply(&brr.ID, brr)
+}
+
 // -----------------------------------------send test----------------------------------------------
 
 func (h *handler) handleSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleSendTestMessage")
-	err := h.ctx.Test.AddSendTestMessage(h.context, send.Message)
+	err := h.ctx.Test.AddSendMessage(h.context, send.Message)
 	if err != nil {
 		const log = "failed to add send test message\nerror:"
 		h.logWithInfo(logger.Fatal, send, log, err)
@@ -210,10 +260,6 @@ func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	msgType := convert.BytesToUint32(broadcast.Message[messages.RandomDataSize:messages.HeaderSize])
 	broadcast.Message = broadcast.Message[messages.HeaderSize:]
 	switch msgType {
-	case messages.CMDNodeRegisterResponse:
-		h.handleNodeRegisterResponse(broadcast)
-	case messages.CMDBeaconRegisterResponse:
-		h.handleBeaconRegisterResponse(broadcast)
 	case messages.CMDTest:
 		h.handleBroadcastTestMessage(broadcast)
 	default:
@@ -222,57 +268,11 @@ func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	}
 }
 
-func (h *handler) handleNodeRegisterResponse(broadcast *protocol.Broadcast) {
-	defer h.logPanic("handler.handleNodeRegisterResponse")
-	nrr := new(messages.NodeRegisterResponse)
-	err := msgpack.Unmarshal(broadcast.Message, nrr)
-	if err != nil {
-		const log = "broadcast invalid node register response data\nerror:"
-		h.logWithInfo(logger.Exploit, broadcast, log, err)
-		return
-	}
-	err = nrr.Validate()
-	if err != nil {
-		const log = "broadcast invalid node register response\nerror:"
-		h.logWithInfo(logger.Exploit, nrr, log, err)
-		return
-	}
-	h.ctx.storage.AddNodeKey(&nrr.GUID, &protocol.NodeKey{
-		PublicKey:    nrr.PublicKey,
-		KexPublicKey: nrr.KexPublicKey,
-		ReplyTime:    nrr.ReplyTime,
-	})
-	h.ctx.storage.SetNodeRegister(&nrr.GUID, nrr)
-}
-
-func (h *handler) handleBeaconRegisterResponse(broadcast *protocol.Broadcast) {
-	defer h.logPanic("handler.handleBeaconRegisterResponse")
-	brr := new(messages.BeaconRegisterResponse)
-	err := msgpack.Unmarshal(broadcast.Message, brr)
-	if err != nil {
-		const log = "broadcast invalid beacon register response data"
-		h.logWithInfo(logger.Exploit, broadcast, log)
-		return
-	}
-	err = brr.Validate()
-	if err != nil {
-		const log = "broadcast invalid beacon register response"
-		h.logWithInfo(logger.Exploit, brr, log)
-		return
-	}
-	h.ctx.storage.AddBeaconKey(&brr.GUID, &protocol.BeaconKey{
-		PublicKey:    brr.PublicKey,
-		KexPublicKey: brr.KexPublicKey,
-		ReplyTime:    brr.ReplyTime,
-	})
-	h.ctx.storage.SetBeaconRegister(&brr.GUID, brr)
-}
-
 // ---------------------------------------broadcast test-------------------------------------------
 
 func (h *handler) handleBroadcastTestMessage(broadcast *protocol.Broadcast) {
 	defer h.logPanic("handler.handleBroadcastTestMessage")
-	err := h.ctx.Test.AddBroadcastTestMessage(h.context, broadcast.Message)
+	err := h.ctx.Test.AddBroadcastMessage(h.context, broadcast.Message)
 	if err != nil {
 		const log = "failed to add broadcast test message\nerror:"
 		h.logWithInfo(logger.Fatal, broadcast, log, err)

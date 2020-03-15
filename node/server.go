@@ -672,36 +672,16 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 		server.logConn(conn, logger.Exploit, log)
 		return
 	}
-	// create node register
-	response := server.ctx.storage.CreateNodeRegister(guid)
-	if response == nil {
-		const format = "failed to create node register\nGUID: %X"
-		server.logfConn(conn, logger.Warning, format, guid)
+	// send to Controller
+	encRR := messages.EncryptedRegisterRequest{
+		Data: request,
+	}
+	response, err := server.ctx.messageMgr.Send(server.context, messages.CMDBNodeRegisterRequest,
+		&encRR, true, messages.MaxRegisterWaitTime)
+	if err != nil {
 		return
 	}
-	// <security> must don't handle error.
-	_ = server.ctx.sender.Send(server.context,
-		messages.CMDBNodeRegisterRequest, request, true)
-	// wait register result
-	timeout := time.Duration(15+server.rand.Int(30)) * time.Second
-	timer := time.AfterFunc(timeout, func() {
-		defer func() {
-			if r := recover(); r != nil {
-				server.log(logger.Fatal, xpanic.Print(r, "server.registerNode"))
-			}
-		}()
-		server.ctx.storage.SetNodeRegister(guid, &messages.NodeRegisterResponse{
-			Result: messages.RegisterResultTimeout,
-		})
-	})
-	defer timer.Stop()
-	// read register response result
-	var resp *messages.NodeRegisterResponse
-	select {
-	case resp = <-response:
-	case <-server.context.Done():
-		return
-	}
+	resp := response.(*messages.NodeRegisterResponse)
 	_ = conn.SetWriteDeadline(time.Now().Add(server.timeout))
 	switch resp.Result {
 	case messages.RegisterResultAccept:
@@ -711,7 +691,6 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
 		// and <firewall> rate limit
-
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	case messages.RegisterResultTimeout:
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
@@ -865,36 +844,16 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 		server.logConn(conn, logger.Exploit, log)
 		return
 	}
-	// create Beacon register
-	response := server.ctx.storage.CreateBeaconRegister(guid)
-	if response == nil {
-		const format = "failed to create beacon register\nGUID: %X"
-		server.logfConn(conn, logger.Warning, format, guid)
+	// send to Controller
+	encRR := messages.EncryptedRegisterRequest{
+		Data: request,
+	}
+	response, err := server.ctx.messageMgr.Send(server.context, messages.CMDBBeaconRegisterRequest,
+		&encRR, true, messages.MaxRegisterWaitTime)
+	if err != nil {
 		return
 	}
-	// <security> must don't handle error
-	_ = server.ctx.sender.Send(server.context,
-		messages.CMDBBeaconRegisterRequest, request, true)
-	// wait register result
-	timeout := time.Duration(15+server.rand.Int(30)) * time.Second
-	timer := time.AfterFunc(timeout, func() {
-		defer func() {
-			if r := recover(); r != nil {
-				server.log(logger.Fatal, xpanic.Print(r, "server.registerNode"))
-			}
-		}()
-		server.ctx.storage.SetBeaconRegister(guid, &messages.BeaconRegisterResponse{
-			Result: messages.RegisterResultTimeout,
-		})
-	})
-	defer timer.Stop()
-	// read register response result
-	var resp *messages.BeaconRegisterResponse
-	select {
-	case resp = <-response:
-	case <-server.context.Done():
-		return
-	}
+	resp := response.(*messages.BeaconRegisterResponse)
 	_ = conn.SetWriteDeadline(time.Now().Add(server.timeout))
 	switch resp.Result {
 	case messages.RegisterResultAccept:
@@ -903,7 +862,6 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 	case messages.RegisterResultRefused:
 		// TODO add IP black list only register(other role still pass)
 		// and <firewall> rate limit
-
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})
 	case messages.RegisterResultTimeout:
 		_, _ = conn.Write([]byte{messages.RegisterResultTimeout})

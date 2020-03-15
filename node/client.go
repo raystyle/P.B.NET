@@ -50,6 +50,7 @@ func (node *Node) NewClient(
 	listener *bootstrap.Listener,
 	guid *guid.GUID,
 ) (*Client, error) {
+	listener = listener.Decrypt()
 	host, port, err := net.SplitHostPort(listener.Address)
 	if err != nil {
 		return nil, errors.WithStack(err)

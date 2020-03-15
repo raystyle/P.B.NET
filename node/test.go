@@ -12,53 +12,53 @@ type Test struct {
 	}
 
 	// about sender send test message
-	testMsgEnabled    bool
-	testMsgEnabledRWM sync.RWMutex
+	sendMsgEnabled    bool
+	sendMsgEnabledRWM sync.RWMutex
 
 	// test messages from controller
-	BroadcastTestMsg chan []byte
-	SendTestMsg      chan []byte
+	BroadcastMsg chan []byte
+	SendMsg      chan []byte
 }
 
-// EnableTestMessage is used to enable controller send test message
-func (t *Test) EnableTestMessage() {
-	t.testMsgEnabledRWM.Lock()
-	defer t.testMsgEnabledRWM.Unlock()
-	if !t.testMsgEnabled {
-		t.BroadcastTestMsg = make(chan []byte, 4)
-		t.SendTestMsg = make(chan []byte, 4)
-		t.testMsgEnabled = true
+// EnableMessage is used to enable controller send test message.
+func (t *Test) EnableMessage() {
+	t.sendMsgEnabledRWM.Lock()
+	defer t.sendMsgEnabledRWM.Unlock()
+	if !t.sendMsgEnabled {
+		t.BroadcastMsg = make(chan []byte, 4)
+		t.SendMsg = make(chan []byte, 4)
+		t.sendMsgEnabled = true
 	}
 }
 
-// AddBroadcastTestMessage is used to add controller broadcast test message
-func (t *Test) AddBroadcastTestMessage(ctx context.Context, message []byte) error {
-	t.testMsgEnabledRWM.RLock()
-	defer t.testMsgEnabledRWM.RUnlock()
-	if !t.testMsgEnabled {
+// AddBroadcastMessage is used to add controller broadcast test message.
+func (t *Test) AddBroadcastMessage(ctx context.Context, message []byte) error {
+	t.sendMsgEnabledRWM.RLock()
+	defer t.sendMsgEnabledRWM.RUnlock()
+	if !t.sendMsgEnabled {
 		return nil
 	}
 	msg := make([]byte, len(message))
 	copy(msg, message)
 	select {
-	case t.BroadcastTestMsg <- msg:
+	case t.BroadcastMsg <- msg:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
-// AddSendTestMessage is used to add controller send test message
-func (t *Test) AddSendTestMessage(ctx context.Context, message []byte) error {
-	t.testMsgEnabledRWM.RLock()
-	defer t.testMsgEnabledRWM.RUnlock()
-	if !t.testMsgEnabled {
+// AddSendMessage is used to add controller send test message.
+func (t *Test) AddSendMessage(ctx context.Context, message []byte) error {
+	t.sendMsgEnabledRWM.RLock()
+	defer t.sendMsgEnabledRWM.RUnlock()
+	if !t.sendMsgEnabled {
 		return nil
 	}
 	msg := make([]byte, len(message))
 	copy(msg, message)
 	select {
-	case t.SendTestMsg <- msg:
+	case t.SendMsg <- msg:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
