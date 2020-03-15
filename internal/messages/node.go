@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"bytes"
 	"errors"
 	"time"
 
@@ -8,6 +9,20 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/option"
+)
+
+// MaxQueryWaitTime is the time that Node will wait Controller.
+const MaxQueryWaitTime = 15 * time.Second
+
+var (
+	// ZeroGUID means Controller can't query the target Node or Beacon key.
+	ZeroGUID = guid.GUID{}
+
+	// ZeroPublicKey is used to padding.
+	ZeroPublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+
+	// ZeroKexPublicKey is used to padding.
+	ZeroKexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
 )
 
 // QueryNodeKey is used to query Node key from Controller.
@@ -25,7 +40,7 @@ func (qnk *QueryNodeKey) SetID(id *guid.GUID) {
 // AnswerNodeKey is used to answer to Node about queried Node key.
 type AnswerNodeKey struct {
 	ID           guid.GUID // QueryNodeKey.ID
-	GUID         guid.GUID // Node GUID
+	GUID         guid.GUID // Node GUID, if not exists guid will be ZeroGUID.
 	PublicKey    []byte
 	KexPublicKey []byte
 	ReplyTime    time.Time // Controller reply time
@@ -57,7 +72,7 @@ func (qbk *QueryBeaconKey) SetID(id *guid.GUID) {
 // AnswerBeaconKey is used to answer to Node about queried Beacon key.
 type AnswerBeaconKey struct {
 	ID           guid.GUID // QueryBeaconKey.ID
-	GUID         guid.GUID // Beacon GUID
+	GUID         guid.GUID // Beacon GUID, if not exists guid will be ZeroGUID.
 	PublicKey    []byte
 	KexPublicKey []byte
 	ReplyTime    time.Time // Controller reply time
