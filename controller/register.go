@@ -223,14 +223,14 @@ func (ctrl *Ctrl) registerNode(
 
 // NoticeNodeRegister is used to notice user to reply Node register request.
 func (ctrl *Ctrl) NoticeNodeRegister(
-	nrr *messages.NodeRegisterRequest,
 	node *guid.GUID,
+	nrr *messages.NodeRegisterRequest,
 ) *NoticeNodeRegister {
 	// store objects about action
 	action := make(map[string]interface{})
-	action["request"] = nrr
 	nodeGUID := *node
 	action["guid"] = &nodeGUID
+	action["request"] = nrr
 	id := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
 	// notice view
 	nnr := NoticeNodeRegister{
@@ -253,22 +253,22 @@ func (ctrl *Ctrl) ReplyNodeRegister(ctx context.Context, reply *ReplyNodeRegiste
 		return err
 	}
 	objects := action.(map[string]interface{})
-	nrr := objects["request"].(*messages.NodeRegisterRequest)
 	nodeGUID := objects["guid"].(*guid.GUID)
+	nrr := objects["request"].(*messages.NodeRegisterRequest)
 	switch reply.Result {
 	case messages.RegisterResultAccept:
-		return ctrl.acceptRegisterNode(ctx, nrr, reply, nodeGUID)
+		return ctrl.acceptRegisterNode(ctx, nodeGUID, nrr, reply)
 	case messages.RegisterResultRefused:
-		return ctrl.refuseRegisterNode(ctx, nrr, nodeGUID)
+		return ctrl.refuseRegisterNode(ctx, nodeGUID, nrr)
 	}
 	return fmt.Errorf("%s: %d", messages.ErrRegisterUnknownResult, reply.Result)
 }
 
 func (ctrl *Ctrl) acceptRegisterNode(
 	ctx context.Context,
+	guid *guid.GUID,
 	nrr *messages.NodeRegisterRequest,
 	reply *ReplyNodeRegister,
-	guid *guid.GUID,
 ) error {
 	err := ctrl.checkNodeExists(&nrr.GUID)
 	if err != nil {
@@ -355,8 +355,8 @@ func selectNodeListener(listeners []*mNodeListener, tags []string) []*bootstrap.
 
 func (ctrl *Ctrl) refuseRegisterNode(
 	ctx context.Context,
-	nrr *messages.NodeRegisterRequest,
 	guid *guid.GUID,
+	nrr *messages.NodeRegisterRequest,
 ) error {
 	// first reply the Node.
 	response := messages.NodeRegisterResponse{
@@ -376,68 +376,6 @@ func (ctrl *Ctrl) refuseRegisterNode(
 		return errors.Wrap(err, "failed to send response to node")
 	}
 	// then call firewall.
-	return nil
-}
-
-// AcceptRegisterNode is used to accept register Node.
-func (ctrl *Ctrl) AcceptRegisterNode(
-	nrr *messages.NodeRegisterRequest,
-	listeners map[guid.GUID][]*bootstrap.Listener,
-	bootstrap bool,
-) error {
-	certificate, err := ctrl.registerNode(nrr, nil)
-	if err != nil {
-		return err
-	}
-	// broadcast Node register response
-	response := messages.NodeRegisterResponse{
-		GUID:         nrr.GUID,
-		PublicKey:    nrr.PublicKey,
-		KexPublicKey: nrr.KexPublicKey,
-		RequestTime:  nrr.RequestTime,
-		ReplyTime:    ctrl.global.Now(),
-		Result:       messages.RegisterResultAccept,
-		Certificate:  certificate.Encode(),
-	}
-	node, err := ctrl.database.SelectNode(&nrr.GUID)
-	if err != nil {
-		return err
-	}
-	sessionKey := node.SessionKey.Get()
-	defer node.SessionKey.Put(sessionKey)
-	listenersData, err := msgpack.Marshal(listeners)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal listeners data")
-	}
-	aesKey := sessionKey
-	aesIV := sessionKey[:aes.IVSize]
-	response.NodeListeners, err = aes.CBCEncrypt(listenersData, aesKey, aesIV)
-	if err != nil {
-		return errors.Wrap(err, "failed to encrypt listeners data")
-	}
-	err = ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, &response, true)
-	if err != nil {
-		return errors.Wrap(err, "failed to accept register node")
-	}
-	return nil
-}
-
-// RefuseRegisterNode is used to refuse register Node, it will call firewall.
-func (ctrl *Ctrl) RefuseRegisterNode(nrr *messages.NodeRegisterRequest) error {
-	response := messages.NodeRegisterResponse{
-		GUID:         nrr.GUID,
-		PublicKey:    nrr.PublicKey,
-		KexPublicKey: nrr.KexPublicKey,
-		RequestTime:  nrr.RequestTime,
-		ReplyTime:    ctrl.global.Now(),
-		Result:       messages.RegisterResultRefused,
-		// padding for Validate()
-		Certificate: make([]byte, protocol.CertificateSize),
-	}
-	err := ctrl.sender.Broadcast(messages.CMDBNodeRegisterResponse, &response, true)
-	if err != nil {
-		return errors.Wrap(err, "failed to refuse register node")
-	}
 	return nil
 }
 
@@ -489,14 +427,14 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 
 // NoticeBeaconRegister is used to notice user to reply Beacon register request.
 func (ctrl *Ctrl) NoticeBeaconRegister(
-	brr *messages.BeaconRegisterRequest,
 	node *guid.GUID,
+	brr *messages.BeaconRegisterRequest,
 ) *NoticeBeaconRegister {
 	// store objects about action
 	action := make(map[string]interface{})
-	action["request"] = brr
 	nodeGUID := *node
 	action["guid"] = &nodeGUID
+	action["request"] = brr
 	id := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
 	// notice view
 	nbr := NoticeBeaconRegister{
@@ -511,17 +449,42 @@ func (ctrl *Ctrl) NoticeBeaconRegister(
 	return &nbr
 }
 
-// AcceptRegisterBeacon is used to accept register Beacon.
-func (ctrl *Ctrl) AcceptRegisterBeacon(
-	brr *messages.BeaconRegisterRequest,
-	listeners map[guid.GUID][]*bootstrap.Listener,
-) error {
-	err := ctrl.registerBeacon(brr)
+// ReplyBeaconRegister is used to reply Beacon register request.
+func (ctrl *Ctrl) ReplyBeaconRegister(ctx context.Context, reply *ReplyBeaconRegister) error {
+	// load objects about action, see Ctrl.NoticeBeaconRegister()
+	action, err := ctrl.actionMgr.Load(reply.ID)
 	if err != nil {
 		return err
 	}
-	// broadcast Beacon register response
+	objects := action.(map[string]interface{})
+	nodeGUID := objects["guid"].(*guid.GUID)
+	brr := objects["request"].(*messages.BeaconRegisterRequest)
+	switch reply.Result {
+	case messages.RegisterResultAccept:
+		return ctrl.acceptRegisterBeacon(ctx, nodeGUID, brr, reply)
+	case messages.RegisterResultRefused:
+		return ctrl.refuseRegisterBeacon(ctx, nodeGUID, brr)
+	}
+	return fmt.Errorf("%s: %d", messages.ErrRegisterUnknownResult, reply.Result)
+}
+
+func (ctrl *Ctrl) acceptRegisterBeacon(
+	ctx context.Context,
+	guid *guid.GUID,
+	brr *messages.BeaconRegisterRequest,
+	reply *ReplyBeaconRegister,
+) error {
+	err := ctrl.checkBeaconExists(&brr.GUID)
+	if err != nil {
+		return err
+	}
+	err = ctrl.registerBeacon(brr)
+	if err != nil {
+		return err
+	}
+	// send Node register response to the Node that forwarder this request
 	response := messages.BeaconRegisterResponse{
+		ID:           brr.ID,
 		GUID:         brr.GUID,
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
@@ -529,31 +492,44 @@ func (ctrl *Ctrl) AcceptRegisterBeacon(
 		ReplyTime:    ctrl.global.Now(),
 		Result:       messages.RegisterResultAccept,
 	}
+	// query Node listener and encode it.
+	listeners, err := ctrl.queryNodeListener(reply.Listeners)
+	if err != nil {
+		return errors.Wrap(err, "failed to query node listener")
+	}
+	listenersData, err := msgpack.Marshal(listeners)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal node listeners data")
+	}
+	defer security.CoverBytes(listenersData)
+	// encrypt listener data
 	beacon, err := ctrl.database.SelectBeacon(&brr.GUID)
 	if err != nil {
 		return err
 	}
 	sessionKey := beacon.SessionKey.Get()
 	defer beacon.SessionKey.Put(sessionKey)
-	listenersData, err := msgpack.Marshal(listeners)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal listeners data")
-	}
 	aesKey := sessionKey
 	aesIV := sessionKey[:aes.IVSize]
 	response.NodeListeners, err = aes.CBCEncrypt(listenersData, aesKey, aesIV)
 	if err != nil {
 		return errors.Wrap(err, "failed to encrypt listeners data")
 	}
-	err = ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, &response, true)
+	// send response
+	err = ctrl.sender.SendToNode(ctx, guid, messages.CMDBBeaconRegisterResponse,
+		&response, true)
 	if err != nil {
-		return errors.Wrap(err, "failed to accept register beacon")
+		return errors.Wrap(err, "failed to send response to node")
 	}
 	return nil
 }
 
-// RefuseRegisterBeacon is used to refuse register Beacon, it will call firewall.
-func (ctrl *Ctrl) RefuseRegisterBeacon(brr *messages.BeaconRegisterRequest) error {
+func (ctrl *Ctrl) refuseRegisterBeacon(
+	ctx context.Context,
+	guid *guid.GUID,
+	brr *messages.BeaconRegisterRequest,
+) error {
+	// first reply the Node.
 	response := messages.BeaconRegisterResponse{
 		GUID:         brr.GUID,
 		PublicKey:    brr.PublicKey,
@@ -562,9 +538,12 @@ func (ctrl *Ctrl) RefuseRegisterBeacon(brr *messages.BeaconRegisterRequest) erro
 		ReplyTime:    ctrl.global.Now(),
 		Result:       messages.RegisterResultRefused,
 	}
-	err := ctrl.sender.Broadcast(messages.CMDBBeaconRegisterResponse, &response, true)
+	// send response
+	err := ctrl.sender.SendToNode(ctx, guid, messages.CMDBBeaconRegisterResponse,
+		&response, true)
 	if err != nil {
-		return errors.Wrap(err, "failed to refuse register beacon")
+		return errors.Wrap(err, "failed to send response to node")
 	}
+	// then call firewall.
 	return nil
 }

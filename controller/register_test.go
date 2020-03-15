@@ -15,11 +15,14 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	Node := testGenerateInitialNode(t)
 	nodeGUID := Node.GUID()
 
+	// get node information
 	listener := testGetNodeListener(t, Node, testInitialNodeListenerTag)
 	nnr, err := ctrl.TrustNode(context.Background(), listener)
 	require.NoError(t, err)
 	require.Equal(t, info.GetSystemInfo(), nnr.SystemInfo)
 	spew.Dump(nnr)
+
+	// confirm
 	reply := ReplyNodeRegister{
 		ID:        nnr.ID,
 		Bootstrap: true,

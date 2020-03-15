@@ -3,11 +3,14 @@ package controller
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
 	"project/internal/guid"
+	"project/internal/logger"
 	"project/internal/messages"
+	"project/internal/xpanic"
 )
 
 // Test contains all test data.
@@ -17,70 +20,92 @@ type Test struct {
 		SkipSynchronizeTime bool
 	}
 
-	// about sender send test message
-	roleSendTestMsgEnabled    bool
-	roleSendTestMsgEnabledRWM sync.RWMutex
+	ctx *Ctrl
 
-	// Node send test message, key = Node GUID hex
-	nodeSendTestMsg    map[guid.GUID]chan []byte
-	nodeSendTestMsgRWM sync.RWMutex
-	// Beacon send test message , key = Beacon GUID hex
-	beaconSendTestMsg    map[guid.GUID]chan []byte
-	beaconSendTestMsgRWM sync.RWMutex
+	// about sender send test message
+	roleSendMsgEnabled    bool
+	roleSendMsgEnabledRWM sync.RWMutex
+
+	// Node and Beacon send test message
+	nodeSendMsg      map[guid.GUID]chan []byte
+	nodeSendMsgRWM   sync.RWMutex
+	beaconSendMsg    map[guid.GUID]chan []byte
+	beaconSendMsgRWM sync.RWMutex
 
 	// about role register request
-	NodeRegisterRequest   chan *messages.NodeRegisterRequest
-	BeaconRegisterRequest chan *messages.BeaconRegisterRequest
-	roleRegisterRequestM  sync.Mutex
+	nodeListeners         map[guid.GUID][]string
+	nodeListenersRWM      sync.RWMutex
+	NoticeNodeRegister    chan *NoticeNodeRegister
+	noticeNodeRegisterM   sync.Mutex
+	NoticeBeaconRegister  chan *NoticeBeaconRegister
+	noticeBeaconRegisterM sync.Mutex
+
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
-// EnableRoleSendTestMessage is used to enable role send test message
-func (t *Test) EnableRoleSendTestMessage() {
-	t.roleSendTestMsgEnabledRWM.Lock()
-	defer t.roleSendTestMsgEnabledRWM.Unlock()
-	if !t.roleSendTestMsgEnabled {
-		t.nodeSendTestMsg = make(map[guid.GUID]chan []byte)
-		t.beaconSendTestMsg = make(map[guid.GUID]chan []byte)
-		t.roleSendTestMsgEnabled = true
+func newTest(ctx *Ctrl, config *Config) *Test {
+	test := Test{
+		ctx:           ctx,
+		nodeListeners: make(map[guid.GUID][]string),
+	}
+	test.options = config.Test
+	test.context, test.cancel = context.WithCancel(context.Background())
+	return &test
+}
+
+func (t *Test) log(lv logger.Level, log ...interface{}) {
+	t.ctx.logger.Println(lv, "test", log...)
+}
+
+// EnableRoleSendMessage is used to enable role send test message.
+func (t *Test) EnableRoleSendMessage() {
+	t.roleSendMsgEnabledRWM.Lock()
+	defer t.roleSendMsgEnabledRWM.Unlock()
+	if !t.roleSendMsgEnabled {
+		t.nodeSendMsg = make(map[guid.GUID]chan []byte)
+		t.beaconSendMsg = make(map[guid.GUID]chan []byte)
+		t.roleSendMsgEnabled = true
 	}
 }
 
-// CreateNodeSendTestMessageChannel is used to create Node send test message channel
-func (t *Test) CreateNodeSendTestMessageChannel(guid *guid.GUID) chan []byte {
-	t.nodeSendTestMsgRWM.Lock()
-	defer t.nodeSendTestMsgRWM.Unlock()
-	if ch, ok := t.nodeSendTestMsg[*guid]; ok {
+// CreateNodeSendMessageChannel is used to create Node send test message channel.
+func (t *Test) CreateNodeSendMessageChannel(guid *guid.GUID) chan []byte {
+	t.nodeSendMsgRWM.Lock()
+	defer t.nodeSendMsgRWM.Unlock()
+	if ch, ok := t.nodeSendMsg[*guid]; ok {
 		return ch
 	}
 	ch := make(chan []byte, 4)
-	t.nodeSendTestMsg[*guid] = ch
+	t.nodeSendMsg[*guid] = ch
 	return ch
 }
 
-// CreateBeaconSendTestMessageChannel is used to create Beacon send test message channel
-func (t *Test) CreateBeaconSendTestMessageChannel(guid *guid.GUID) chan []byte {
-	t.beaconSendTestMsgRWM.Lock()
-	defer t.beaconSendTestMsgRWM.Unlock()
-	if ch, ok := t.beaconSendTestMsg[*guid]; ok {
+// CreateBeaconSendMessageChannel is used to create Beacon send test message channel.
+func (t *Test) CreateBeaconSendMessageChannel(guid *guid.GUID) chan []byte {
+	t.beaconSendMsgRWM.Lock()
+	defer t.beaconSendMsgRWM.Unlock()
+	if ch, ok := t.beaconSendMsg[*guid]; ok {
 		return ch
 	}
 	ch := make(chan []byte, 4)
-	t.beaconSendTestMsg[*guid] = ch
+	t.beaconSendMsg[*guid] = ch
 	return ch
 }
 
-// AddNodeSendTestMessage is used to add Node send test message
-func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
-	t.roleSendTestMsgEnabledRWM.RLock()
-	defer t.roleSendTestMsgEnabledRWM.RUnlock()
-	if !t.roleSendTestMsgEnabled {
+// AddNodeSendMessage is used to add Node send test message.
+func (t *Test) AddNodeSendMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
+	t.roleSendMsgEnabledRWM.RLock()
+	defer t.roleSendMsgEnabledRWM.RUnlock()
+	if !t.roleSendMsgEnabled {
 		return nil
 	}
-	t.nodeSendTestMsgRWM.Lock()
-	defer t.nodeSendTestMsgRWM.Unlock()
-	ch, ok := t.nodeSendTestMsg[*guid]
+	t.nodeSendMsgRWM.Lock()
+	defer t.nodeSendMsgRWM.Unlock()
+	ch, ok := t.nodeSendMsg[*guid]
 	if !ok {
-		return errors.Errorf("node: %X doesn't exist", guid)
+		return errors.Errorf("node: %s doesn't exist", guid.Hex())
 	}
 	msg := make([]byte, len(message))
 	copy(msg, message)
@@ -89,21 +114,23 @@ func (t *Test) AddNodeSendTestMessage(ctx context.Context, guid *guid.GUID, mess
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-t.context.Done():
+		return t.context.Err()
 	}
 }
 
-// AddBeaconSendTestMessage is used to add Beacon send test message
-func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
-	t.roleSendTestMsgEnabledRWM.RLock()
-	defer t.roleSendTestMsgEnabledRWM.RUnlock()
-	if !t.roleSendTestMsgEnabled {
+// AddBeaconSendMessage is used to add Beacon send test message.
+func (t *Test) AddBeaconSendMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
+	t.roleSendMsgEnabledRWM.RLock()
+	defer t.roleSendMsgEnabledRWM.RUnlock()
+	if !t.roleSendMsgEnabled {
 		return nil
 	}
-	t.beaconSendTestMsgRWM.Lock()
-	defer t.beaconSendTestMsgRWM.Unlock()
-	ch, ok := t.beaconSendTestMsg[*guid]
+	t.beaconSendMsgRWM.Lock()
+	defer t.beaconSendMsgRWM.Unlock()
+	ch, ok := t.beaconSendMsg[*guid]
 	if !ok {
-		return errors.Errorf("beacon: %X doesn't exist", guid)
+		return errors.Errorf("beacon: %s doesn't exist", guid.Hex())
 	}
 	msg := make([]byte, len(message))
 	copy(msg, message)
@@ -112,49 +139,163 @@ func (t *Test) AddBeaconSendTestMessage(ctx context.Context, guid *guid.GUID, me
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-t.context.Done():
+		return t.context.Err()
 	}
 }
 
-// CreateNodeRegisterRequestChannel is used to create Node register request channel
-func (t *Test) CreateNodeRegisterRequestChannel() {
-	t.roleRegisterRequestM.Lock()
-	defer t.roleRegisterRequestM.Unlock()
-	if t.NodeRegisterRequest == nil {
-		t.NodeRegisterRequest = make(chan *messages.NodeRegisterRequest, 4)
+// EnableRegisterNode is used to create notice Node register channel.
+func (t *Test) EnableRegisterNode() bool {
+	t.noticeNodeRegisterM.Lock()
+	defer t.noticeNodeRegisterM.Unlock()
+	if t.NoticeNodeRegister != nil {
+		return false
+	}
+	t.NoticeNodeRegister = make(chan *NoticeNodeRegister, 4)
+	return true
+}
+
+// EnableRegisterBeacon is used to create notice Beacon register channel.
+func (t *Test) EnableRegisterBeacon() bool {
+	t.noticeBeaconRegisterM.Lock()
+	defer t.noticeBeaconRegisterM.Unlock()
+	if t.NoticeBeaconRegister != nil {
+		return false
+	}
+	t.NoticeBeaconRegister = make(chan *NoticeBeaconRegister, 4)
+	return true
+}
+
+// SetNodeListener is used to set Node listener that will configure to ReplyRoleRegister.
+func (t *Test) SetNodeListener(listeners map[guid.GUID][]string) {
+	t.nodeListenersRWM.Lock()
+	defer t.nodeListenersRWM.Unlock()
+	t.nodeListeners = listeners
+}
+
+func (t *Test) getNodeListener() map[guid.GUID][]string {
+	t.nodeListenersRWM.RLock()
+	defer t.nodeListenersRWM.RUnlock()
+	return t.nodeListeners
+}
+
+// EnableAutoRegisterNode is used to accept Node register request automatically.
+func (t *Test) EnableAutoRegisterNode() {
+	if !t.EnableRegisterNode() {
+		return
+	}
+	t.wg.Add(1)
+	go t.registerNode()
+}
+
+func (t *Test) registerNode() {
+	defer func() {
+		if r := recover(); r != nil {
+			t.log(logger.Fatal, xpanic.Print(r, "Test.registerNode"))
+			// restart
+			time.Sleep(time.Second)
+			go t.registerNode()
+		} else {
+			t.wg.Done()
+		}
+	}()
+	var (
+		nnr *NoticeNodeRegister
+		err error
+	)
+	for {
+		select {
+		case nnr = <-t.NoticeNodeRegister:
+			reply := ReplyNodeRegister{
+				ID:        nnr.ID,
+				Result:    messages.RegisterResultAccept,
+				Bootstrap: false,
+				Zone:      "test",
+				Listeners: t.getNodeListener(),
+			}
+			err = t.ctx.ReplyNodeRegister(t.context, &reply)
+			if err != nil {
+				t.log(logger.Error, "failed to register node:", err)
+			}
+		case <-t.context.Done():
+			return
+		}
 	}
 }
 
-// CreateBeaconRegisterRequestChannel is used to create Beacon register request channel
-func (t *Test) CreateBeaconRegisterRequestChannel() {
-	t.roleRegisterRequestM.Lock()
-	defer t.roleRegisterRequestM.Unlock()
-	if t.BeaconRegisterRequest == nil {
-		t.BeaconRegisterRequest = make(chan *messages.BeaconRegisterRequest, 4)
+// EnableAutoRegisterBeacon is used to accept Beacon register request automatically.
+func (t *Test) EnableAutoRegisterBeacon() {
+	if !t.EnableRegisterBeacon() {
+		return
+	}
+	t.wg.Add(1)
+	go t.registerBeacon()
+}
+
+func (t *Test) registerBeacon() {
+	defer func() {
+		if r := recover(); r != nil {
+			t.log(logger.Fatal, xpanic.Print(r, "Test.registerBeacon"))
+			// restart
+			time.Sleep(time.Second)
+			go t.registerBeacon()
+		} else {
+			t.wg.Done()
+		}
+	}()
+	var (
+		nbr *NoticeBeaconRegister
+		err error
+	)
+	for {
+		select {
+		case nbr = <-t.NoticeBeaconRegister:
+			reply := ReplyBeaconRegister{
+				ID:        nbr.ID,
+				Result:    messages.RegisterResultAccept,
+				Listeners: t.getNodeListener(),
+			}
+			err = t.ctx.ReplyBeaconRegister(t.context, &reply)
+			if err != nil {
+				t.log(logger.Error, "failed to register beacon:", err)
+			}
+		case <-t.context.Done():
+			return
+		}
 	}
 }
 
-// AddNodeRegisterRequest is used to add Node register request.
-func (t *Test) AddNodeRegisterRequest(ctx context.Context, nrr *messages.NodeRegisterRequest) {
-	t.roleRegisterRequestM.Lock()
-	defer t.roleRegisterRequestM.Unlock()
-	if t.NodeRegisterRequest == nil {
+// AddNoticeNodeRegister is used to add notice Node register.
+func (t *Test) AddNoticeNodeRegister(ctx context.Context, nnr *NoticeNodeRegister) {
+	t.noticeNodeRegisterM.Lock()
+	defer t.noticeNodeRegisterM.Unlock()
+	if t.NoticeNodeRegister == nil {
 		return
 	}
 	select {
-	case t.NodeRegisterRequest <- nrr:
+	case t.NoticeNodeRegister <- nnr:
 	case <-ctx.Done():
+	case <-t.context.Done():
 	}
 }
 
-// AddBeaconRegisterRequest is used to add Beacon register request.
-func (t *Test) AddBeaconRegisterRequest(ctx context.Context, brr *messages.BeaconRegisterRequest) {
-	t.roleRegisterRequestM.Lock()
-	defer t.roleRegisterRequestM.Unlock()
-	if t.BeaconRegisterRequest == nil {
+// AddNoticeBeaconRegister is used to add notice Beacon register.
+func (t *Test) AddNoticeBeaconRegister(ctx context.Context, nbr *NoticeBeaconRegister) {
+	t.noticeBeaconRegisterM.Lock()
+	defer t.noticeBeaconRegisterM.Unlock()
+	if t.NoticeBeaconRegister == nil {
 		return
 	}
 	select {
-	case t.BeaconRegisterRequest <- brr:
+	case t.NoticeBeaconRegister <- nbr:
 	case <-ctx.Done():
+	case <-t.context.Done():
 	}
+}
+
+// Close is used to close test module.
+func (t *Test) Close() {
+	t.cancel()
+	t.wg.Wait()
+	t.ctx = nil
 }

@@ -56,7 +56,7 @@ func TestSender_Connect(t *testing.T) {
 func TestSender_Broadcast(t *testing.T) {
 	Node := testGenerateInitialNodeAndTrust(t)
 	nodeGUID := Node.GUID()
-	Node.Test.EnableTestMessage()
+	Node.Test.EnableMessage()
 
 	// broadcast
 	const (
@@ -79,15 +79,15 @@ func TestSender_Broadcast(t *testing.T) {
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-Node.Test.BroadcastTestMsg:
+		case b := <-Node.Test.BroadcastMsg:
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read NODE.Test.BroadcastTestMsg timeout i: %d", i)
+			t.Fatalf("read NODE.Test.BroadcastMsg timeout i: %d", i)
 		}
 	}
 	select {
-	case <-Node.Test.BroadcastTestMsg:
+	case <-Node.Test.BroadcastMsg:
 		t.Fatal("redundancy broadcast")
 	case <-time.After(time.Second):
 	}
@@ -111,7 +111,7 @@ func TestSender_Broadcast(t *testing.T) {
 func TestSender_SendToNode(t *testing.T) {
 	Node := testGenerateInitialNodeAndTrust(t)
 	nodeGUID := Node.GUID()
-	Node.Test.EnableTestMessage()
+	Node.Test.EnableMessage()
 
 	// send
 	const (
@@ -135,15 +135,15 @@ func TestSender_SendToNode(t *testing.T) {
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-Node.Test.SendTestMsg:
+		case b := <-Node.Test.SendMsg:
 			recv.Write(b)
 			recv.WriteString("\n")
 		case <-timer.C:
-			t.Fatalf("read Node.Test.SendTestMsg timeout i: %d", i)
+			t.Fatalf("read Node.Test.SendMsg timeout i: %d", i)
 		}
 	}
 	select {
-	case <-Node.Test.SendTestMsg:
+	case <-Node.Test.SendMsg:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
@@ -191,7 +191,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 			for {
 				timer.Reset(3 * time.Second)
 				select {
-				case <-Nodes[index].Test.BroadcastTestMsg:
+				case <-Nodes[index].Test.BroadcastMsg:
 					countM.Lock()
 					count++
 					countM.Unlock()
@@ -208,7 +208,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 func TestBenchmarkSender_SendToNode(t *testing.T) {
 	Node := testGenerateInitialNodeAndTrust(t)
 	nodeGUID := Node.GUID()
-	Node.Test.EnableTestMessage()
+	Node.Test.EnableMessage()
 
 	var (
 		goroutines = runtime.NumCPU()
@@ -231,15 +231,15 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 	for i := 0; i < total; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case <-Node.Test.SendTestMsg:
+		case <-Node.Test.SendMsg:
 		case <-timer.C:
-			t.Fatalf("read Node.Test.SendTestMsg timeout i: %d", i)
+			t.Fatalf("read Node.Test.SendMsg timeout i: %d", i)
 		}
 	}
 	stop := time.Since(start).Seconds()
 	t.Logf("[benchmark] total time: %.2fs, times: %d", stop, total)
 	select {
-	case <-Node.Test.SendTestMsg:
+	case <-Node.Test.SendMsg:
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}

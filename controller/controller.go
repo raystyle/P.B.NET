@@ -20,8 +20,6 @@ import (
 // Ctrl is controller.
 // broadcast messages to Nodes, send messages to Nodes or Beacons.
 type Ctrl struct {
-	Test *Test
-
 	logger     *gLogger    // global logger
 	global     *global     // certificate, proxy, dns, time syncer, and ...
 	database   *database   // database
@@ -34,6 +32,7 @@ type Ctrl struct {
 	worker     *worker     // do work
 	boot       *boot       // auto discover bootstrap node listeners
 	web        *web        // web server
+	Test       *Test       // test module
 
 	once sync.Once
 	wait chan struct{}
@@ -42,10 +41,7 @@ type Ctrl struct {
 
 // New is used to create controller from configuration.
 func New(cfg *Config) (*Ctrl, error) {
-	// copy test
-	test := new(Test)
-	test.options = cfg.Test
-	ctrl := &Ctrl{Test: test}
+	ctrl := new(Ctrl)
 	// logger
 	lg, err := newLogger(ctrl, cfg)
 	if err != nil {
@@ -102,6 +98,8 @@ func New(cfg *Config) (*Ctrl, error) {
 		return nil, errors.WithMessage(err, "failed to initialize web server")
 	}
 	ctrl.web = web
+	// test
+	ctrl.Test = newTest(ctrl, cfg)
 	// wait and exit
 	ctrl.wait = make(chan struct{}, 2)
 	ctrl.exit = make(chan error, 1)
@@ -180,6 +178,8 @@ func (ctrl *Ctrl) Wait() {
 func (ctrl *Ctrl) Exit(err error) {
 	const src = "exit"
 	ctrl.once.Do(func() {
+		ctrl.Test.Close()
+		ctrl.logger.Print(logger.Debug, src, "test module is stopped")
 		ctrl.web.Close()
 		ctrl.logger.Print(logger.Info, src, "web server is stopped")
 		ctrl.boot.Close()

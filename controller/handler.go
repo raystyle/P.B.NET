@@ -243,10 +243,8 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
-	nnr := h.ctx.NoticeNodeRegister(nrr, &send.RoleGUID)
-	// test
-	h.ctx.Test.AddNodeRegisterRequest(h.context, nrr)
-	fmt.Println(nnr)
+	nnr := h.ctx.NoticeNodeRegister(&send.RoleGUID, nrr)
+	h.ctx.Test.AddNoticeNodeRegister(h.context, nnr)
 }
 
 func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
@@ -274,10 +272,8 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
-	// notice view
-
-	// test
-	h.ctx.Test.AddBeaconRegisterRequest(h.context, brr)
+	nbr := h.ctx.NoticeBeaconRegister(&send.RoleGUID, brr)
+	h.ctx.Test.AddNoticeBeaconRegister(h.context, nbr)
 }
 
 func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.Send) []byte {
@@ -309,7 +305,7 @@ func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.
 
 func (h *handler) handleNodeSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleNodeSendTestMessage")
-	err := h.ctx.Test.AddNodeSendTestMessage(h.context, &send.RoleGUID, send.Message)
+	err := h.ctx.Test.AddNodeSendMessage(h.context, &send.RoleGUID, send.Message)
 	if err != nil {
 		const log = "failed to add node send test message\nerror:"
 		h.logWithInfo(logger.Fatal, &send.RoleGUID, send, log, err)
@@ -430,7 +426,7 @@ func (h *handler) handleBeaconLog(send *protocol.Send) {
 
 func (h *handler) handleBeaconSendTestMessage(send *protocol.Send) {
 	defer h.logPanic("handler.handleBeaconSendTestMessage")
-	err := h.ctx.Test.AddBeaconSendTestMessage(h.context, &send.RoleGUID, send.Message)
+	err := h.ctx.Test.AddBeaconSendMessage(h.context, &send.RoleGUID, send.Message)
 	if err != nil {
 		const log = "failed to add beacon send test message\nerror:"
 		h.logWithInfo(logger.Fatal, &send.RoleGUID, send, log, err)
