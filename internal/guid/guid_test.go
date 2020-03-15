@@ -137,6 +137,16 @@ func TestGenerator(t *testing.T) {
 		testsuite.IsDestroyed(t, g)
 	})
 
+	t.Run("Get() after call Close()", func(t *testing.T) {
+		g := New(2, time.Now)
+		time.Sleep(time.Second)
+		g.Close()
+		for i := 0; i < 3; i++ {
+			testPrintGUID(t, g.Get())
+		}
+		testsuite.IsDestroyed(t, g)
+	})
+
 	t.Run("panic in generator()", func(t *testing.T) {
 		patchFunc := func(_ interface{}, _ []byte, _ uint32) {
 			panic(monkey.Panic)

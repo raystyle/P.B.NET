@@ -84,11 +84,13 @@ func (guid *GUID) UnmarshalJSON(data []byte) error {
 
 // Generator is a custom GUID generator.
 type Generator struct {
-	now        func() time.Time
-	rand       *random.Rand
-	head       []byte // hash + PID
-	id         uint32 // self add
-	guidQueue  chan *GUID
+	now       func() time.Time
+	rand      *random.Rand
+	head      []byte // hash + PID
+	id        uint32 // self add
+	guidQueue chan *GUID
+	rwm       sync.RWMutex
+
 	closeOnce  sync.Once
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -129,9 +131,17 @@ func New(size int, now func() time.Time) *Generator {
 	return &g
 }
 
-// Get is used to get a GUID, if generator closed, Get will return nil.
+// Get is used to get a GUID, if generator closed, Get will return zero.
 func (g *Generator) Get() *GUID {
 	guid := <-g.guidQueue
+	if guid == nil {
+		return new(GUID)
+	}
+	g.rwm.RLock()
+	defer g.rwm.RUnlock()
+	if g.now == nil {
+		return new(GUID)
+	}
 	binary.BigEndian.PutUint64(guid[20:28], uint64(g.now().Unix()))
 	return guid
 }
@@ -141,6 +151,8 @@ func (g *Generator) Close() {
 	g.closeOnce.Do(func() {
 		close(g.stopSignal)
 		g.wg.Wait()
+		g.rwm.Lock()
+		defer g.rwm.Unlock()
 		g.now = nil
 	})
 }
@@ -164,10 +176,10 @@ func (g *Generator) generate() {
 		// reserve timestamp guid[20:28]
 		binary.BigEndian.PutUint32(guid[28:32], g.id)
 		select {
-		case <-g.stopSignal:
-			return
 		case g.guidQueue <- &guid:
 			g.id += uint32(g.rand.Int(1024))
+		case <-g.stopSignal:
+			return
 		}
 	}
 }
