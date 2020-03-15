@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
 	"sync"
 
 	"github.com/davecgh/go-spew/spew"
@@ -220,7 +219,7 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 
 func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 	defer h.logPanic("handler.handleNodeRegisterRequest")
-	request := h.decryptRoleRegisterRequest(protocol.Node, send)
+	encRR, request := h.decryptRegisterRequest(protocol.Node, send)
 	if len(request) == 0 {
 		return
 	}
@@ -238,18 +237,18 @@ func (h *handler) handleNodeRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// compare key exchange public key
-	if !bytes.Equal(send.Message[:curve25519.ScalarSize], nrr.KexPublicKey) {
+	if !bytes.Equal(encRR.Data[:curve25519.ScalarSize], nrr.KexPublicKey) {
 		const log = "different key exchange public key in node register request"
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
-	nnr := h.ctx.NoticeNodeRegister(&send.RoleGUID, nrr)
+	nnr := h.ctx.NoticeNodeRegister(&send.RoleGUID, &encRR.ID, nrr)
 	h.ctx.Test.AddNoticeNodeRegister(h.context, nnr)
 }
 
 func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 	defer h.logPanic("handler.handleBeaconRegisterRequest")
-	request := h.decryptRoleRegisterRequest(protocol.Beacon, send)
+	encRR, request := h.decryptRegisterRequest(protocol.Beacon, send)
 	if len(request) == 0 {
 		return
 	}
@@ -267,38 +266,48 @@ func (h *handler) handleBeaconRegisterRequest(send *protocol.Send) {
 		return
 	}
 	// compare key exchange public key
-	if !bytes.Equal(send.Message[:curve25519.ScalarSize], brr.KexPublicKey) {
+	if !bytes.Equal(encRR.Data[:curve25519.ScalarSize], brr.KexPublicKey) {
 		const log = "different key exchange public key in beacon register request"
 		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log)
 		return
 	}
-	nbr := h.ctx.NoticeBeaconRegister(&send.RoleGUID, brr)
+	nbr := h.ctx.NoticeBeaconRegister(&send.RoleGUID, &encRR.ID, brr)
 	h.ctx.Test.AddNoticeBeaconRegister(h.context, nbr)
 }
 
-func (h *handler) decryptRoleRegisterRequest(role protocol.Role, send *protocol.Send) []byte {
-	defer h.logPanic("handler.decryptRoleRegisterRequest")
-	req := send.Message
-	if len(req) < net.IPv6len+curve25519.ScalarSize+aes.BlockSize {
+func (h *handler) decryptRegisterRequest(
+	role protocol.Role,
+	send *protocol.Send,
+) (*messages.EncryptedRegisterRequest, []byte) {
+	defer h.logPanic("handler.decryptRegisterRequest")
+	encRR := messages.EncryptedRegisterRequest{}
+	err := msgpack.Unmarshal(send.Message, &encRR)
+	if err != nil {
+		const log = "node send invalid encrypted register request data\nerror:"
+		h.logWithInfo(logger.Exploit, &send.RoleGUID, send, log, err)
+		return nil, nil
+	}
+	req := encRR.Data
+	if len(req) < curve25519.ScalarSize+aes.BlockSize {
 		const format = "node send %s register request with invalid size"
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role)
-		return nil
+		return nil, nil
 	}
 	// calculate role session key
 	key, err := h.ctx.global.KeyExchange(req[:curve25519.ScalarSize])
 	if err != nil {
 		const format = "node send invalid %s register request\nerror: %s"
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
-		return nil
+		return nil, nil
 	}
 	// decrypt role register request
 	request, err := aes.CBCDecrypt(req[curve25519.ScalarSize:], key, key[:aes.IVSize])
 	if err != nil {
 		const format = "node send invalid %s register request\nerror: %s"
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
-		return nil
+		return nil, nil
 	}
-	return request
+	return &encRR, request
 }
 
 // ----------------------------------------send test-----------------------------------------------

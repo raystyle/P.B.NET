@@ -224,17 +224,19 @@ func (ctrl *Ctrl) registerNode(
 // NoticeNodeRegister is used to notice user to reply Node register request.
 func (ctrl *Ctrl) NoticeNodeRegister(
 	node *guid.GUID,
+	id *guid.GUID,
 	nrr *messages.NodeRegisterRequest,
 ) *NoticeNodeRegister {
 	// store objects about action
 	action := make(map[string]interface{})
 	nodeGUID := *node
 	action["guid"] = &nodeGUID
+	action["id"] = id
 	action["request"] = nrr
-	id := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
+	actionID := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
 	// notice view
 	nnr := NoticeNodeRegister{
-		ID:           id,
+		ID:           actionID,
 		GUID:         nrr.GUID,
 		PublicKey:    hexByteSlice(nrr.PublicKey),
 		KexPublicKey: hexByteSlice(nrr.KexPublicKey),
@@ -257,7 +259,8 @@ func (ctrl *Ctrl) ReplyNodeRegister(ctx context.Context, reply *ReplyNodeRegiste
 	nrr := objects["request"].(*messages.NodeRegisterRequest)
 	switch reply.Result {
 	case messages.RegisterResultAccept:
-		return ctrl.acceptRegisterNode(ctx, nodeGUID, nrr, reply)
+		id := objects["id"].(*guid.GUID)
+		return ctrl.acceptRegisterNode(ctx, nodeGUID, id, nrr, reply)
 	case messages.RegisterResultRefused:
 		return ctrl.refuseRegisterNode(ctx, nodeGUID, nrr)
 	}
@@ -267,6 +270,7 @@ func (ctrl *Ctrl) ReplyNodeRegister(ctx context.Context, reply *ReplyNodeRegiste
 func (ctrl *Ctrl) acceptRegisterNode(
 	ctx context.Context,
 	guid *guid.GUID,
+	id *guid.GUID,
 	nrr *messages.NodeRegisterRequest,
 	reply *ReplyNodeRegister,
 ) error {
@@ -280,7 +284,7 @@ func (ctrl *Ctrl) acceptRegisterNode(
 	}
 	// send Node register response to the Node that forwarder this request
 	response := messages.NodeRegisterResponse{
-		ID:           nrr.ID,
+		ID:           *id,
 		GUID:         nrr.GUID,
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
@@ -428,17 +432,19 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 // NoticeBeaconRegister is used to notice user to reply Beacon register request.
 func (ctrl *Ctrl) NoticeBeaconRegister(
 	node *guid.GUID,
+	id *guid.GUID,
 	brr *messages.BeaconRegisterRequest,
 ) *NoticeBeaconRegister {
 	// store objects about action
 	action := make(map[string]interface{})
 	nodeGUID := *node
 	action["guid"] = &nodeGUID
+	action["id"] = id
 	action["request"] = brr
-	id := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
+	actionID := ctrl.actionMgr.Store(action, messages.MaxRegisterWaitTime)
 	// notice view
 	nbr := NoticeBeaconRegister{
-		ID:           id,
+		ID:           actionID,
 		GUID:         brr.GUID,
 		PublicKey:    hexByteSlice(brr.PublicKey),
 		KexPublicKey: hexByteSlice(brr.KexPublicKey),
@@ -461,7 +467,8 @@ func (ctrl *Ctrl) ReplyBeaconRegister(ctx context.Context, reply *ReplyBeaconReg
 	brr := objects["request"].(*messages.BeaconRegisterRequest)
 	switch reply.Result {
 	case messages.RegisterResultAccept:
-		return ctrl.acceptRegisterBeacon(ctx, nodeGUID, brr, reply)
+		id := objects["id"].(*guid.GUID)
+		return ctrl.acceptRegisterBeacon(ctx, nodeGUID, id, brr, reply)
 	case messages.RegisterResultRefused:
 		return ctrl.refuseRegisterBeacon(ctx, nodeGUID, brr)
 	}
@@ -471,6 +478,7 @@ func (ctrl *Ctrl) ReplyBeaconRegister(ctx context.Context, reply *ReplyBeaconReg
 func (ctrl *Ctrl) acceptRegisterBeacon(
 	ctx context.Context,
 	guid *guid.GUID,
+	id *guid.GUID,
 	brr *messages.BeaconRegisterRequest,
 	reply *ReplyBeaconRegister,
 ) error {
@@ -484,7 +492,7 @@ func (ctrl *Ctrl) acceptRegisterBeacon(
 	}
 	// send Node register response to the Node that forwarder this request
 	response := messages.BeaconRegisterResponse{
-		ID:           brr.ID,
+		ID:           *id,
 		GUID:         brr.GUID,
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,

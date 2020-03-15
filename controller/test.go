@@ -22,6 +22,14 @@ type Test struct {
 
 	ctx *Ctrl
 
+	// about role register request
+	nodeListeners         map[guid.GUID][]string
+	nodeListenersRWM      sync.RWMutex
+	NoticeNodeRegister    chan *NoticeNodeRegister
+	noticeNodeRegisterM   sync.Mutex
+	NoticeBeaconRegister  chan *NoticeBeaconRegister
+	noticeBeaconRegisterM sync.Mutex
+
 	// about sender send test message
 	roleSendMsgEnabled    bool
 	roleSendMsgEnabledRWM sync.RWMutex
@@ -31,14 +39,6 @@ type Test struct {
 	nodeSendMsgRWM   sync.RWMutex
 	beaconSendMsg    map[guid.GUID]chan []byte
 	beaconSendMsgRWM sync.RWMutex
-
-	// about role register request
-	nodeListeners         map[guid.GUID][]string
-	nodeListenersRWM      sync.RWMutex
-	NoticeNodeRegister    chan *NoticeNodeRegister
-	noticeNodeRegisterM   sync.Mutex
-	NoticeBeaconRegister  chan *NoticeBeaconRegister
-	noticeBeaconRegisterM sync.Mutex
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -57,91 +57,6 @@ func newTest(ctx *Ctrl, config *Config) *Test {
 
 func (t *Test) log(lv logger.Level, log ...interface{}) {
 	t.ctx.logger.Println(lv, "test", log...)
-}
-
-// EnableRoleSendMessage is used to enable role send test message.
-func (t *Test) EnableRoleSendMessage() {
-	t.roleSendMsgEnabledRWM.Lock()
-	defer t.roleSendMsgEnabledRWM.Unlock()
-	if !t.roleSendMsgEnabled {
-		t.nodeSendMsg = make(map[guid.GUID]chan []byte)
-		t.beaconSendMsg = make(map[guid.GUID]chan []byte)
-		t.roleSendMsgEnabled = true
-	}
-}
-
-// CreateNodeSendMessageChannel is used to create Node send test message channel.
-func (t *Test) CreateNodeSendMessageChannel(guid *guid.GUID) chan []byte {
-	t.nodeSendMsgRWM.Lock()
-	defer t.nodeSendMsgRWM.Unlock()
-	if ch, ok := t.nodeSendMsg[*guid]; ok {
-		return ch
-	}
-	ch := make(chan []byte, 4)
-	t.nodeSendMsg[*guid] = ch
-	return ch
-}
-
-// CreateBeaconSendMessageChannel is used to create Beacon send test message channel.
-func (t *Test) CreateBeaconSendMessageChannel(guid *guid.GUID) chan []byte {
-	t.beaconSendMsgRWM.Lock()
-	defer t.beaconSendMsgRWM.Unlock()
-	if ch, ok := t.beaconSendMsg[*guid]; ok {
-		return ch
-	}
-	ch := make(chan []byte, 4)
-	t.beaconSendMsg[*guid] = ch
-	return ch
-}
-
-// AddNodeSendMessage is used to add Node send test message.
-func (t *Test) AddNodeSendMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
-	t.roleSendMsgEnabledRWM.RLock()
-	defer t.roleSendMsgEnabledRWM.RUnlock()
-	if !t.roleSendMsgEnabled {
-		return nil
-	}
-	t.nodeSendMsgRWM.Lock()
-	defer t.nodeSendMsgRWM.Unlock()
-	ch, ok := t.nodeSendMsg[*guid]
-	if !ok {
-		return errors.Errorf("node: %s doesn't exist", guid.Hex())
-	}
-	msg := make([]byte, len(message))
-	copy(msg, message)
-	select {
-	case ch <- msg:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.context.Done():
-		return t.context.Err()
-	}
-}
-
-// AddBeaconSendMessage is used to add Beacon send test message.
-func (t *Test) AddBeaconSendMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
-	t.roleSendMsgEnabledRWM.RLock()
-	defer t.roleSendMsgEnabledRWM.RUnlock()
-	if !t.roleSendMsgEnabled {
-		return nil
-	}
-	t.beaconSendMsgRWM.Lock()
-	defer t.beaconSendMsgRWM.Unlock()
-	ch, ok := t.beaconSendMsg[*guid]
-	if !ok {
-		return errors.Errorf("beacon: %s doesn't exist", guid.Hex())
-	}
-	msg := make([]byte, len(message))
-	copy(msg, message)
-	select {
-	case ch <- msg:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.context.Done():
-		return t.context.Err()
-	}
 }
 
 // EnableRegisterNode is used to create notice Node register channel.
@@ -290,6 +205,91 @@ func (t *Test) AddNoticeBeaconRegister(ctx context.Context, nbr *NoticeBeaconReg
 	case t.NoticeBeaconRegister <- nbr:
 	case <-ctx.Done():
 	case <-t.context.Done():
+	}
+}
+
+// EnableRoleSendMessage is used to enable role send test message.
+func (t *Test) EnableRoleSendMessage() {
+	t.roleSendMsgEnabledRWM.Lock()
+	defer t.roleSendMsgEnabledRWM.Unlock()
+	if !t.roleSendMsgEnabled {
+		t.nodeSendMsg = make(map[guid.GUID]chan []byte)
+		t.beaconSendMsg = make(map[guid.GUID]chan []byte)
+		t.roleSendMsgEnabled = true
+	}
+}
+
+// CreateNodeSendMessageChannel is used to create Node send test message channel.
+func (t *Test) CreateNodeSendMessageChannel(guid *guid.GUID) chan []byte {
+	t.nodeSendMsgRWM.Lock()
+	defer t.nodeSendMsgRWM.Unlock()
+	if ch, ok := t.nodeSendMsg[*guid]; ok {
+		return ch
+	}
+	ch := make(chan []byte, 4)
+	t.nodeSendMsg[*guid] = ch
+	return ch
+}
+
+// CreateBeaconSendMessageChannel is used to create Beacon send test message channel.
+func (t *Test) CreateBeaconSendMessageChannel(guid *guid.GUID) chan []byte {
+	t.beaconSendMsgRWM.Lock()
+	defer t.beaconSendMsgRWM.Unlock()
+	if ch, ok := t.beaconSendMsg[*guid]; ok {
+		return ch
+	}
+	ch := make(chan []byte, 4)
+	t.beaconSendMsg[*guid] = ch
+	return ch
+}
+
+// AddNodeSendMessage is used to add Node send test message.
+func (t *Test) AddNodeSendMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
+	t.roleSendMsgEnabledRWM.RLock()
+	defer t.roleSendMsgEnabledRWM.RUnlock()
+	if !t.roleSendMsgEnabled {
+		return nil
+	}
+	t.nodeSendMsgRWM.Lock()
+	defer t.nodeSendMsgRWM.Unlock()
+	ch, ok := t.nodeSendMsg[*guid]
+	if !ok {
+		return errors.Errorf("node: %s doesn't exist", guid.Hex())
+	}
+	msg := make([]byte, len(message))
+	copy(msg, message)
+	select {
+	case ch <- msg:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.context.Done():
+		return t.context.Err()
+	}
+}
+
+// AddBeaconSendMessage is used to add Beacon send test message.
+func (t *Test) AddBeaconSendMessage(ctx context.Context, guid *guid.GUID, message []byte) error {
+	t.roleSendMsgEnabledRWM.RLock()
+	defer t.roleSendMsgEnabledRWM.RUnlock()
+	if !t.roleSendMsgEnabled {
+		return nil
+	}
+	t.beaconSendMsgRWM.Lock()
+	defer t.beaconSendMsgRWM.Unlock()
+	ch, ok := t.beaconSendMsg[*guid]
+	if !ok {
+		return errors.Errorf("beacon: %s doesn't exist", guid.Hex())
+	}
+	msg := make([]byte, len(message))
+	copy(msg, message)
+	select {
+	case ch <- msg:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.context.Done():
+		return t.context.Err()
 	}
 }
 

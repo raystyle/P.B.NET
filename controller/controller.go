@@ -249,6 +249,18 @@ func (ctrl *Ctrl) BroadcastKey() []byte {
 	return ctrl.global.BroadcastKey()
 }
 
+// AddNodeListener is used to add Node listener.
+func (ctrl *Ctrl) AddNodeListener(guid *guid.GUID, tag, mode, network, address string) error {
+	nl := &mNodeListener{
+		GUID:    guid[:],
+		Tag:     tag,
+		Mode:    mode,
+		Network: network,
+		Address: address,
+	}
+	return ctrl.database.InsertNodeListener(nl)
+}
+
 // Synchronize is used to connect a node and start to synchronize.
 func (ctrl *Ctrl) Synchronize(
 	ctx context.Context,

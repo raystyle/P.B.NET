@@ -138,14 +138,13 @@ type mNodeInfo struct {
 }
 
 type mNodeListener struct {
-	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(32)" sql:"index"`
-	Tag       string     `gorm:"not null;size:32"`
-	Mode      string     `gorm:"not null;size:32"`
-	Network   string     `gorm:"not null;size:32"`
-	Address   string     `gorm:"not null;size:4096"`
-	CreatedAt time.Time  `gorm:"not null"`
-	DeletedAt *time.Time `sql:"index"`
+	ID      uint64 `gorm:"primary_key"`
+	GUID    []byte `gorm:"not null;type:binary(32)" sql:"index"`
+	Tag     string `gorm:"not null;size:32"`
+	Mode    string `gorm:"not null;size:32"`
+	Network string `gorm:"not null;size:32"`
+	Address string `gorm:"not null;size:4096"`
+	Model
 }
 
 type mBeacon struct {
@@ -176,14 +175,13 @@ type mBeaconInfo struct {
 }
 
 type mBeaconListener struct {
-	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(32)" sql:"index"`
-	Tag       string     `gorm:"not null;size:32"`
-	Mode      string     `gorm:"not null;size:32"`
-	Network   string     `gorm:"not null;size:32"`
-	Address   string     `gorm:"not null;size:4096"`
-	CreatedAt time.Time  `gorm:"not null"`
-	DeletedAt *time.Time `sql:"index"`
+	ID      uint64 `gorm:"primary_key"`
+	GUID    []byte `gorm:"not null;type:binary(32)" sql:"index"`
+	Tag     string `gorm:"not null;size:32"`
+	Mode    string `gorm:"not null;size:32"`
+	Network string `gorm:"not null;size:32"`
+	Address string `gorm:"not null;size:4096"`
+	Model
 }
 
 type mBeaconMessage struct {
