@@ -31,18 +31,12 @@ var (
 
 // NodeRegisterRequest is used to Node register, controller trust node also use it.
 type NodeRegisterRequest struct {
-	ID           guid.GUID
 	GUID         guid.GUID // Node GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
 	ConnAddress  string // usually like "1.2.3.4:5678"
 	SystemInfo   *info.System
 	RequestTime  time.Time
-}
-
-// SetID is used to set message id.
-func (r *NodeRegisterRequest) SetID(id *guid.GUID) {
-	r.ID = *id
 }
 
 // Validate is used to validate request fields
@@ -100,18 +94,12 @@ func (r *NodeRegisterResponse) Validate() error {
 
 // BeaconRegisterRequest is used to Beacon register.
 type BeaconRegisterRequest struct {
-	ID           guid.GUID
 	GUID         guid.GUID // Beacon GUID
 	PublicKey    []byte
 	KexPublicKey []byte // key exchange
 	ConnAddress  string // usually like "1.2.3.4:5678"
 	SystemInfo   *info.System
 	RequestTime  time.Time
-}
-
-// SetID is used to set message id.
-func (r *BeaconRegisterRequest) SetID(id *guid.GUID) {
-	r.ID = *id
 }
 
 // Validate is used to validate request fields.
@@ -161,4 +149,16 @@ func (r *BeaconRegisterResponse) Validate() error {
 		return errors.New("unknown register result")
 	}
 	return nil
+}
+
+// EncryptedRegisterRequest contains encrypted role register request.
+// Node will send to Controller.
+type EncryptedRegisterRequest struct {
+	ID   guid.GUID // set to Role register response
+	Data []byte    // encrypted Role.register.PackRequest()
+}
+
+// SetID is used to set message id.
+func (e *EncryptedRegisterRequest) SetID(id *guid.GUID) {
+	e.ID = *id
 }
