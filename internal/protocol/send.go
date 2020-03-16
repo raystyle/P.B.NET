@@ -7,22 +7,21 @@ import (
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
-	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 )
 
 const (
-	// SendMinBufferSize is the sender and worker minimum buffer size
-	SendMinBufferSize = 2*guid.Size + aes.BlockSize + sha256.Size + ed25519.SignatureSize
+	// SendMinBufferSize is the sender and worker minimum buffer size.
+	SendMinBufferSize = 2*guid.Size + flagSize + sha256.Size + aes.BlockSize
 
-	// AcknowledgeSize is the acknowledge packet size
-	AcknowledgeSize = 3*guid.Size + ed25519.SignatureSize
+	// AcknowledgeSize is the acknowledge packet size.
+	AcknowledgeSize = 3*guid.Size + sha256.Size
 
-	// IndexSize is len(uint64)
+	// IndexSize is len(uint64).
 	IndexSize = 8
 
-	// QuerySize is the query packet size
-	QuerySize = 2*guid.Size + IndexSize + ed25519.SignatureSize
+	// QuerySize is the query packet size.
+	QuerySize = 2*guid.Size + IndexSize + sha256.Size
 )
 
 // ---------------------------interactive mode---------------------------------
@@ -31,11 +30,11 @@ const (
 // Node is always in interactive mode.
 // In default, Beacon use query mode, you can switch interactive mode manually.
 
-// +----------+-----------+----------+---------+-----------+---------+
-// |   GUID   | role GUID |   hash   | deflate | signature | message |
-// +----------+-----------+----------+---------+-----------+---------+
-// | 48 bytes |  48 bytes | 32 bytes |  byte   |  64 bytes |   var   |
-// +----------+-----------+----------+---------+-----------+---------+
+// +----------+-----------+---------+-------------+---------+
+// |   GUID   | role GUID | deflate | HMAC-SHA256 | message |
+// +----------+-----------+---------+-------------+---------+
+// | 32 bytes | 32 bytes  |  byte   |  32 bytes   |   var   |
+// +----------+-----------+---------+-------------+---------+
 
 // Send is used to send messages in interactive mode.
 //
@@ -46,21 +45,19 @@ const (
 // When Beacon use it, RoleGUID = its GUID.
 // Beacon encrypt Message with it's session key.
 type Send struct {
-	GUID      guid.GUID // prevent duplicate handle it
-	RoleGUID  guid.GUID // receiver GUID
-	Hash      []byte    // raw message hash
-	Deflate   byte      // use deflate to compress it(0=disable, 1=enable)
-	Signature []byte    // sign(GUID + RoleGUID + Hash + Deflate + Message)
-	Message   []byte    // use AES to encrypt it(maybe compressed first)
+	GUID     guid.GUID // prevent duplicate handle it
+	RoleGUID guid.GUID // receiver GUID
+	Deflate  byte      // use deflate to compress it(0=disable, 1=enable)
+	Hash     []byte    // hash(GUID + RoleGUID + Deflate + Message)
+	Message  []byte    // use AES to encrypt it(maybe compressed first)
 }
 
 // NewSend is used to create a send, Unpack() need it,
 // if only used to Pack(), use new(Send).
 func NewSend() *Send {
 	return &Send{
-		Hash:      make([]byte, sha256.Size),
-		Signature: make([]byte, ed25519.SignatureSize),
-		Message:   make([]byte, 2*aes.BlockSize),
+		Hash:    make([]byte, sha256.Size),
+		Message: make([]byte, 2*aes.BlockSize),
 	}
 }
 
@@ -68,24 +65,21 @@ func NewSend() *Send {
 func (s *Send) Pack(buf *bytes.Buffer) {
 	buf.Write(s.GUID[:])
 	buf.Write(s.RoleGUID[:])
-	buf.Write(s.Hash)
 	buf.WriteByte(s.Deflate)
-	buf.Write(s.Signature)
+	buf.Write(s.Hash)
 	buf.Write(s.Message)
 }
 
 // Unpack is used to unpack []byte to Send.
 func (s *Send) Unpack(data []byte) error {
-	if len(data) < 2*guid.Size+sha256.Size+flagSize+ed25519.SignatureSize+aes.BlockSize {
+	if len(data) < 2*guid.Size+flagSize+sha256.Size+aes.BlockSize {
 		return errors.New("invalid send packet size")
 	}
 	copy(s.GUID[:], data[:guid.Size])
 	copy(s.RoleGUID[:], data[guid.Size:2*guid.Size])
-	copy(s.Hash, data[2*guid.Size:2*guid.Size+sha256.Size])
-	s.Deflate = data[2*guid.Size+sha256.Size]
-	copy(s.Signature, data[2*guid.Size+sha256.Size+flagSize:2*guid.Size+
-		sha256.Size+flagSize+ed25519.SignatureSize])
-	message := data[2*guid.Size+sha256.Size+flagSize+ed25519.SignatureSize:]
+	s.Deflate = data[2*guid.Size]
+	copy(s.Hash, data[2*guid.Size+flagSize:2*guid.Size+flagSize+sha256.Size])
+	message := data[2*guid.Size+flagSize+sha256.Size:]
 	mLen := len(message)
 	smLen := len(s.Message)
 	if cap(s.Message) >= mLen {
@@ -107,14 +101,11 @@ func (s *Send) Unpack(data []byte) error {
 
 // Validate is used to validate send fields.
 func (s *Send) Validate() error {
-	if len(s.Hash) != sha256.Size {
-		return errors.New("invalid hash size")
-	}
 	if s.Deflate > 1 {
 		return errors.New("invalid deflate flag")
 	}
-	if len(s.Signature) != ed25519.SignatureSize {
-		return errors.New("invalid signature size")
+	if len(s.Hash) != sha256.Size {
+		return errors.New("invalid hmac hash size")
 	}
 	l := len(s.Message)
 	if l < aes.BlockSize || l%aes.BlockSize != 0 {
@@ -144,11 +135,11 @@ func (sr *SendResult) Clean() {
 	sr.Err = nil
 }
 
-// +----------+-----------+-----------+-----------+
-// |   GUID   | role GUID | send GUID | signature |
-// +----------+-----------+-----------+-----------+
-// | 48 bytes |  48 bytes |  48 bytes |  64 bytes |
-// +----------+-----------+-----------+-----------+
+// +----------+-----------+-----------+-------------+
+// |   GUID   | role GUID | send GUID | HMAC-SHA256 |
+// +----------+-----------+-----------+-------------+
+// | 32 bytes | 32 bytes  | 32 bytes  |  32 bytes   |
+// +----------+-----------+-----------+-------------+
 
 // Acknowledge is used to acknowledge sender that receiver has receive this message.
 //
@@ -156,17 +147,17 @@ func (sr *SendResult) Clean() {
 // When Node use it, RoleGUID = it's GUID.
 // When Beacon use it, RoleGUID = it's GUID.
 type Acknowledge struct {
-	GUID      guid.GUID // prevent duplicate handle it
-	RoleGUID  guid.GUID // sender GUID
-	SendGUID  guid.GUID // structure Send.GUID
-	Signature []byte    // sign(GUID + RoleGUID + SendGUID)
+	GUID     guid.GUID // prevent duplicate handle it
+	RoleGUID guid.GUID // sender GUID
+	SendGUID guid.GUID // structure Send.GUID
+	Hash     []byte    // hash(GUID + RoleGUID + SendGUID)
 }
 
 // NewAcknowledge is used to create a acknowledge, Unpack() need it,
 // if only used to Pack(), use new(Acknowledge).
 func NewAcknowledge() *Acknowledge {
 	return &Acknowledge{
-		Signature: make([]byte, ed25519.SignatureSize),
+		Hash: make([]byte, sha256.Size),
 	}
 }
 
@@ -175,7 +166,7 @@ func (ack *Acknowledge) Pack(buf *bytes.Buffer) {
 	buf.Write(ack.GUID[:])
 	buf.Write(ack.RoleGUID[:])
 	buf.Write(ack.SendGUID[:])
-	buf.Write(ack.Signature)
+	buf.Write(ack.Hash)
 }
 
 // Unpack is used to unpack []byte to Acknowledge.
@@ -186,14 +177,14 @@ func (ack *Acknowledge) Unpack(data []byte) error {
 	copy(ack.GUID[:], data[:guid.Size])
 	copy(ack.RoleGUID[:], data[guid.Size:2*guid.Size])
 	copy(ack.SendGUID[:], data[2*guid.Size:3*guid.Size])
-	copy(ack.Signature, data[3*guid.Size:3*guid.Size+ed25519.SignatureSize])
+	copy(ack.Hash, data[3*guid.Size:3*guid.Size+sha256.Size])
 	return nil
 }
 
 // Validate is used to validate acknowledge fields.
 func (ack *Acknowledge) Validate() error {
-	if len(ack.Signature) != ed25519.SignatureSize {
-		return errors.New("invalid signature size")
+	if len(ack.Hash) != sha256.Size {
+		return errors.New("invalid hmac hash size")
 	}
 	return nil
 }
@@ -226,25 +217,25 @@ func (ar *AcknowledgeResult) Clean() {
 // In default, Beacon use query mode, you can switch interactive mode manually.
 // Only Beacon will use it, because Node always in interactive mode.
 
-// +----------+-------------+---------+-----------+
-// |   GUID   | Beacon GUID |  index  | signature |
-// +----------+-------------+---------+-----------+
-// | 48 bytes |   48 bytes  | 8 bytes |  64 bytes |
-// +----------+-------------+---------+-----------+
+// +----------+-------------+---------+-------------+
+// |   GUID   | Beacon GUID |  index  | HMAC-SHA256 |
+// +----------+-------------+---------+-------------+
+// | 32 bytes |  32 bytes   | 8 bytes |  32 bytes   |
+// +----------+-------------+---------+-------------+
 
 // Query is used to query message from controller.
 type Query struct {
 	GUID       guid.GUID // prevent duplicate handle it
 	BeaconGUID guid.GUID // beacon GUID
 	Index      uint64    // controller will delete message < this index
-	Signature  []byte    // sign(GUID + BeaconGUID + Index)
+	Hash       []byte    // sign(GUID + BeaconGUID + Index)
 }
 
 // NewQuery is used to create a query, Unpack() need it,
 // if only used to Pack(), use new(Query).
 func NewQuery() *Query {
 	return &Query{
-		Signature: make([]byte, ed25519.SignatureSize),
+		Hash: make([]byte, sha256.Size),
 	}
 }
 
@@ -253,7 +244,7 @@ func (q *Query) Pack(buf *bytes.Buffer) {
 	buf.Write(q.GUID[:])
 	buf.Write(q.BeaconGUID[:])
 	buf.Write(convert.Uint64ToBytes(q.Index))
-	buf.Write(q.Signature)
+	buf.Write(q.Hash)
 }
 
 // Unpack is used to unpack []byte to Query.
@@ -264,14 +255,14 @@ func (q *Query) Unpack(data []byte) error {
 	copy(q.GUID[:], data[:guid.Size])
 	copy(q.BeaconGUID[:], data[guid.Size:2*guid.Size])
 	q.Index = convert.BytesToUint64(data[2*guid.Size : 2*guid.Size+IndexSize])
-	copy(q.Signature, data[2*guid.Size+IndexSize:2*guid.Size+IndexSize+ed25519.SignatureSize])
+	copy(q.Hash, data[2*guid.Size+IndexSize:2*guid.Size+IndexSize+sha256.Size])
 	return nil
 }
 
 // Validate is used to validate query fields.
 func (q *Query) Validate() error {
-	if len(q.Signature) != ed25519.SignatureSize {
-		return errors.New("invalid signature size")
+	if len(q.Hash) != sha256.Size {
+		return errors.New("invalid hmac hash size")
 	}
 	return nil
 }
@@ -297,20 +288,19 @@ func (qr *QueryResult) Clean() {
 	qr.Err = nil
 }
 
-// +----------+-------------+---------+----------+---------+-----------+---------+
-// |   GUID   | Beacon GUID |  index  |   hash   | deflate | signature | message |
-// +----------+-------------+---------+----------+---------+-----------+---------+
-// | 48 bytes |   48 bytes  | 8 bytes | 32 bytes |  byte   |  64 bytes |   var   |
-// +----------+-------------+---------+----------+---------+-----------+---------+
+// +----------+-------------+---------+---------+-------------+---------+
+// |   GUID   | Beacon GUID |  index  | deflate | HMAC-SHA256 | message |
+// +----------+-------------+---------+---------+-------------+---------+
+// | 32 bytes |  32 bytes   | 8 bytes |  byte   |  32 bytes   |   var   |
+// +----------+-------------+---------+---------+-------------+---------+
 
 // Answer is used to return queried message.
 type Answer struct {
 	GUID       guid.GUID // prevent duplicate handle it
 	BeaconGUID guid.GUID // beacon GUID
 	Index      uint64    // compare Query.Index
-	Hash       []byte    // raw message hash
 	Deflate    byte      // use deflate to compress it(0=disable, 1=enable)
-	Signature  []byte    // sign(GUID + RoleGUID + Index + Hash + Deflate + Message)
+	Hash       []byte    // sign(GUID + RoleGUID + Index + Deflate + Message)
 	Message    []byte    // use AES to encrypt it(maybe compressed first)
 }
 
@@ -318,9 +308,8 @@ type Answer struct {
 // if only used to Pack(), use new(Answer).
 func NewAnswer() *Answer {
 	return &Answer{
-		Hash:      make([]byte, sha256.Size),
-		Signature: make([]byte, ed25519.SignatureSize),
-		Message:   make([]byte, 2*aes.BlockSize),
+		Hash:    make([]byte, sha256.Size),
+		Message: make([]byte, 2*aes.BlockSize),
 	}
 }
 
@@ -329,25 +318,22 @@ func (a *Answer) Pack(buf *bytes.Buffer) {
 	buf.Write(a.GUID[:])
 	buf.Write(a.BeaconGUID[:])
 	buf.Write(convert.Uint64ToBytes(a.Index))
-	buf.Write(a.Hash)
 	buf.WriteByte(a.Deflate)
-	buf.Write(a.Signature)
+	buf.Write(a.Hash)
 	buf.Write(a.Message)
 }
 
 // Unpack is used to unpack []byte to Answer.
 func (a *Answer) Unpack(data []byte) error {
-	if len(data) < 2*guid.Size+IndexSize+sha256.Size+flagSize+ed25519.SignatureSize+aes.BlockSize {
+	if len(data) < 2*guid.Size+IndexSize+flagSize+sha256.Size+aes.BlockSize {
 		return errors.New("invalid answer packet size")
 	}
 	copy(a.GUID[:], data[:guid.Size])
 	copy(a.BeaconGUID[:], data[guid.Size:2*guid.Size])
 	a.Index = convert.BytesToUint64(data[2*guid.Size : 2*guid.Size+IndexSize])
-	copy(a.Hash, data[2*guid.Size+IndexSize:2*guid.Size+IndexSize+sha256.Size])
-	a.Deflate = data[2*guid.Size+IndexSize+sha256.Size]
-	copy(a.Signature, data[2*guid.Size+IndexSize+sha256.Size+flagSize:2*guid.Size+
-		IndexSize+sha256.Size+flagSize+ed25519.SignatureSize])
-	message := data[2*guid.Size+IndexSize+sha256.Size+flagSize+ed25519.SignatureSize:]
+	a.Deflate = data[2*guid.Size+IndexSize]
+	copy(a.Hash, data[2*guid.Size+IndexSize+flagSize:2*guid.Size+IndexSize+flagSize+sha256.Size])
+	message := data[2*guid.Size+IndexSize+flagSize+sha256.Size:]
 	mLen := len(message)
 	amLen := len(a.Message)
 	if cap(a.Message) >= mLen {
@@ -369,14 +355,11 @@ func (a *Answer) Unpack(data []byte) error {
 
 // Validate is used to validate Answer fields.
 func (a *Answer) Validate() error {
-	if len(a.Hash) != sha256.Size {
-		return errors.New("invalid hash size")
-	}
 	if a.Deflate > 1 {
 		return errors.New("invalid deflate flag")
 	}
-	if len(a.Signature) != ed25519.SignatureSize {
-		return errors.New("invalid signature size")
+	if len(a.Hash) != sha256.Size {
+		return errors.New("invalid hmac hash size")
 	}
 	l := len(a.Message)
 	if l < aes.BlockSize || l%aes.BlockSize != 0 {

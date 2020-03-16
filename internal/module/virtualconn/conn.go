@@ -27,7 +27,7 @@ func (addr *vcAddr) String() string {
 }
 
 func newVCAddr(guid *guid.GUID, port uint32) *vcAddr {
-	return &vcAddr{addr: fmt.Sprintf("%X:%d", *guid, port)}
+	return &vcAddr{addr: fmt.Sprintf("%s:%d", guid.Hex(), port)}
 }
 
 // Sender is from Role sender.

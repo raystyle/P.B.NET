@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/aes"
-	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/random"
 )
@@ -19,9 +18,8 @@ func testGenerateSend(t *testing.T) *Send {
 	require.NoError(t, err)
 	err = rawS.RoleGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
 	require.NoError(t, err)
-	rawS.Hash = bytes.Repeat([]byte{3}, sha256.Size)
 	rawS.Deflate = 1
-	rawS.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
+	rawS.Hash = bytes.Repeat([]byte{3}, sha256.Size)
 	return rawS
 }
 
@@ -105,16 +103,13 @@ func TestSend_Unpack(t *testing.T) {
 func TestSend_Validate(t *testing.T) {
 	s := new(Send)
 
-	require.EqualError(t, s.Validate(), "invalid hash size")
-
-	s.Hash = bytes.Repeat([]byte{0}, sha256.Size)
-	require.EqualError(t, s.Validate(), "invalid signature size")
-
-	s.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
 	s.Deflate = 3
 	require.EqualError(t, s.Validate(), "invalid deflate flag")
 
-	s.Deflate = 1
+	s.Deflate = 0
+	require.EqualError(t, s.Validate(), "invalid hmac hash size")
+
+	s.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 	require.EqualError(t, s.Validate(), "invalid message size")
 	s.Message = bytes.Repeat([]byte{0}, 30)
 	require.EqualError(t, s.Validate(), "invalid message size")
@@ -136,7 +131,7 @@ func TestAcknowledge_Unpack(t *testing.T) {
 	require.NoError(t, err)
 	err = rawAck.SendGUID.Write(bytes.Repeat([]byte{3}, guid.Size))
 	require.NoError(t, err)
-	rawAck.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
+	rawAck.Hash = bytes.Repeat([]byte{4}, sha256.Size)
 	rawData := new(bytes.Buffer)
 	rawAck.Pack(rawData)
 
@@ -150,9 +145,9 @@ func TestAcknowledge_Unpack(t *testing.T) {
 
 func TestAcknowledge_Validate(t *testing.T) {
 	ack := new(Acknowledge)
-	require.EqualError(t, ack.Validate(), "invalid signature size")
+	require.EqualError(t, ack.Validate(), "invalid hmac hash size")
 
-	ack.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+	ack.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 	require.NoError(t, ack.Validate())
 }
 
@@ -167,7 +162,7 @@ func TestQuery_Unpack(t *testing.T) {
 	err = rawQuery.BeaconGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
 	require.NoError(t, err)
 	rawQuery.Index = 10
-	rawQuery.Signature = bytes.Repeat([]byte{3}, ed25519.SignatureSize)
+	rawQuery.Hash = bytes.Repeat([]byte{3}, sha256.Size)
 	rawData := new(bytes.Buffer)
 	rawQuery.Pack(rawData)
 
@@ -182,9 +177,9 @@ func TestQuery_Unpack(t *testing.T) {
 func TestQuery_Validate(t *testing.T) {
 	q := new(Query)
 
-	require.EqualError(t, q.Validate(), "invalid signature size")
+	require.EqualError(t, q.Validate(), "invalid hmac hash size")
 
-	q.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+	q.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 	require.NoError(t, q.Validate())
 }
 
@@ -199,9 +194,8 @@ func testGenerateAnswer(t *testing.T) *Answer {
 	err = rawA.BeaconGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
 	require.NoError(t, err)
 	rawA.Index = 10
-	rawA.Hash = bytes.Repeat([]byte{3}, sha256.Size)
 	rawA.Deflate = 1
-	rawA.Signature = bytes.Repeat([]byte{4}, ed25519.SignatureSize)
+	rawA.Hash = bytes.Repeat([]byte{3}, sha256.Size)
 	return rawA
 }
 
@@ -285,16 +279,13 @@ func TestAnswer_Unpack(t *testing.T) {
 func TestAnswer_Validate(t *testing.T) {
 	a := new(Answer)
 
-	require.EqualError(t, a.Validate(), "invalid hash size")
-
-	a.Hash = bytes.Repeat([]byte{0}, sha256.Size)
-	require.EqualError(t, a.Validate(), "invalid signature size")
-
-	a.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
 	a.Deflate = 3
 	require.EqualError(t, a.Validate(), "invalid deflate flag")
 
 	a.Deflate = 1
+	require.EqualError(t, a.Validate(), "invalid hmac hash size")
+
+	a.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 	require.EqualError(t, a.Validate(), "invalid message size")
 	a.Message = bytes.Repeat([]byte{0}, 30)
 	require.EqualError(t, a.Validate(), "invalid message size")

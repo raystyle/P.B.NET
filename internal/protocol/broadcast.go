@@ -16,7 +16,7 @@ const flagSize = 1
 // +----------+----------+---------+-----------+---------+
 // |   GUID   |   hash   | deflate | signature | message |
 // +----------+----------+---------+-----------+---------+
-// | 48 bytes | 32 bytes |  byte   |  64 bytes |   var   |
+// | 32 bytes | 32 bytes |  byte   | 64 bytes  |   var   |
 // +----------+----------+---------+-----------+---------+
 
 // Broadcast is used to broadcast messages to all Nodes,
