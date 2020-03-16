@@ -200,8 +200,8 @@ func Uint64() uint64 {
 	return gRand.Uint64()
 }
 
-// maxSleepTime is used to prevent sleep dead!
-const maxSleepTime = 30 * time.Minute
+// MaxSleepTime is used to prevent sleep dead!
+const MaxSleepTime = 30 * time.Minute
 
 // Sleeper contain a timer and rand for reuse.
 type Sleeper struct {
@@ -238,8 +238,8 @@ func (s *Sleeper) calculateDuration(fixed, random uint) time.Duration {
 	}
 	random = uint(s.rand.Int(int(random)))
 	total := time.Duration(fixed+random) * time.Second
-	actual := maxSleepTime // for test
-	if total < maxSleepTime {
+	actual := MaxSleepTime // for test
+	if total < MaxSleepTime {
 		actual = total
 	}
 	return actual
