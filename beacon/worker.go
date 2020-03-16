@@ -3,6 +3,7 @@ package beacon
 import (
 	"bytes"
 	"compress/flate"
+	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
@@ -27,6 +28,7 @@ type worker struct {
 	sendPool   sync.Pool
 	ackPool    sync.Pool
 	answerPool sync.Pool
+	hmacPool   sync.Pool
 
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
@@ -61,11 +63,18 @@ func newWorker(ctx *Beacon, config *Config) (*worker, error) {
 	worker.answerPool.New = func() interface{} {
 		return protocol.NewAnswer()
 	}
+	sessionKey := ctx.global.SessionKey()
+	worker.hmacPool.New = func() interface{} {
+		key := sessionKey.Get()
+		defer sessionKey.Put(key)
+		return hmac.New(sha256.New, key)
+	}
 
 	// start sub workers
 	sendPoolP := &worker.sendPool
 	ackPoolP := &worker.ackPool
 	answerPoolP := &worker.answerPool
+	hmacPoolP := &worker.hmacPool
 	wgP := &worker.wg
 	worker.wg.Add(2 * cfg.Number)
 	for i := 0; i < cfg.Number; i++ {
@@ -78,6 +87,7 @@ func newWorker(ctx *Beacon, config *Config) (*worker, error) {
 			sendPool:      sendPoolP,
 			ackPool:       ackPoolP,
 			answerPool:    answerPoolP,
+			hmacPool:      hmacPoolP,
 			stopSignal:    worker.stopSignal,
 			wg:            wgP,
 		}
@@ -89,6 +99,7 @@ func newWorker(ctx *Beacon, config *Config) (*worker, error) {
 			maxBufferSize: cfg.MaxBufferSize,
 			ackQueue:      worker.ackQueue,
 			ackPool:       ackPoolP,
+			hmacPool:      hmacPoolP,
 			stopSignal:    worker.stopSignal,
 			wg:            wgP,
 		}
@@ -169,6 +180,7 @@ type subWorker struct {
 	sendPool   *sync.Pool
 	ackPool    *sync.Pool
 	answerPool *sync.Pool
+	hmacPool   *sync.Pool
 
 	// runtime
 	buffer  *bytes.Buffer
@@ -280,14 +292,8 @@ func (sw *subWorker) WorkWithoutBlock() {
 func (sw *subWorker) handleSend(send *protocol.Send) {
 	defer sw.sendPool.Put(send)
 	// verify
-	sw.buffer.Reset()
-	sw.buffer.Write(send.GUID[:])
-	sw.buffer.Write(send.RoleGUID[:])
-	sw.buffer.Write(send.Hash)
-	sw.buffer.WriteByte(send.Deflate)
-	sw.buffer.Write(send.Message)
-	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), send.Signature) {
-		const format = "invalid send signature\n%s"
+	if subtle.ConstantTimeCompare(sw.calculateSendHMAC(send), send.Hash) != 1 {
+		const format = "send with incorrect hmac hash\n%s"
 		sw.logf(logger.Exploit, format, spew.Sdump(send))
 		return
 	}
@@ -325,14 +331,6 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		defer func() { send.Message = aesBuffer }()
 		send.Message = sw.buffer.Bytes()
 	}
-	// compare hash
-	sw.hash.Reset()
-	sw.hash.Write(send.Message)
-	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
-		const format = "send with incorrect hash\n%s"
-		sw.logf(logger.Exploit, format, spew.Sdump(send))
-		return
-	}
 	// create answer for OnMessage
 	answer := sw.answerPool.Get().(*protocol.Answer)
 	defer sw.answerPool.Put(answer)
@@ -343,10 +341,11 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 		if sw.err == nil {
 			return
 		}
-		if sw.err == ErrNoConnections {
+		if sw.err == ErrNoConnections || sw.err == ErrFailedToAck {
 			sw.log(logger.Warning, "failed to acknowledge:", sw.err)
 		} else {
 			sw.log(logger.Error, "failed to acknowledge:", sw.err)
+			return
 		}
 		// wait one second
 		sw.timer.Reset(time.Second)
@@ -358,12 +357,23 @@ func (sw *subWorker) handleSend(send *protocol.Send) {
 	}
 }
 
+func (sw *subWorker) calculateSendHMAC(send *protocol.Send) []byte {
+	h := sw.hmacPool.Get().(hash.Hash)
+	defer sw.hmacPool.Put(h)
+	h.Reset()
+	h.Write(send.GUID[:])
+	h.Write(send.RoleGUID[:])
+	h.Write([]byte{send.Deflate})
+	h.Write(send.Message)
+	return h.Sum(nil)
+}
+
 func (sw *subWorker) copySendToAnswer(answer *protocol.Answer, send *protocol.Send) {
 	answer.GUID = send.GUID
 	answer.BeaconGUID = send.RoleGUID
+	answer.Deflate = send.Deflate
 	// must use copy, because use two sync.Pool
 	copy(answer.Hash, send.Hash)
-	copy(answer.Signature, send.Signature)
 	// copy send.Message to answer.Message
 	smLen := len(send.Message)
 	amLen := len(answer.Message)
@@ -383,33 +393,32 @@ func (sw *subWorker) copySendToAnswer(answer *protocol.Answer, send *protocol.Se
 	}
 }
 
-func (sw *subWorker) handleAcknowledge(acknowledge *protocol.Acknowledge) {
-	defer sw.ackPool.Put(acknowledge)
+func (sw *subWorker) handleAcknowledge(ack *protocol.Acknowledge) {
+	defer sw.ackPool.Put(ack)
 	// verify
-	sw.buffer.Reset()
-	sw.buffer.Write(acknowledge.GUID[:])
-	sw.buffer.Write(acknowledge.RoleGUID[:])
-	sw.buffer.Write(acknowledge.SendGUID[:])
-	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), acknowledge.Signature) {
-		const format = "invalid acknowledge signature\n%s"
-		sw.logf(logger.Exploit, format, spew.Sdump(acknowledge))
+	if subtle.ConstantTimeCompare(sw.calculateAcknowledgeHMAC(ack), ack.Hash) != 1 {
+		const format = "acknowledge with incorrect hmac hash\n%s"
+		sw.logf(logger.Exploit, format, spew.Sdump(ack))
 		return
 	}
-	sw.ctx.sender.HandleAcknowledge(&acknowledge.SendGUID)
+	sw.ctx.sender.HandleAcknowledge(&ack.SendGUID)
+}
+
+func (sw *subWorker) calculateAcknowledgeHMAC(ack *protocol.Acknowledge) []byte {
+	h := sw.hmacPool.Get().(hash.Hash)
+	defer sw.hmacPool.Put(h)
+	h.Reset()
+	h.Write(ack.GUID[:])
+	h.Write(ack.RoleGUID[:])
+	h.Write(ack.SendGUID[:])
+	return h.Sum(nil)
 }
 
 func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 	defer sw.answerPool.Put(answer)
 	// verify
-	sw.buffer.Reset()
-	sw.buffer.Write(answer.GUID[:])
-	sw.buffer.Write(answer.BeaconGUID[:])
-	sw.buffer.Write(convert.Uint64ToBytes(answer.Index))
-	sw.buffer.Write(answer.Hash)
-	sw.buffer.WriteByte(answer.Deflate)
-	sw.buffer.Write(answer.Message)
-	if !sw.ctx.global.CtrlVerify(sw.buffer.Bytes(), answer.Signature) {
-		const format = "invalid answer signature\n%s"
+	if subtle.ConstantTimeCompare(sw.calculateAnswerHMAC(answer), answer.Hash) != 1 {
+		const format = "answer with incorrect hmac hash\n%s"
 		sw.logf(logger.Exploit, format, spew.Sdump(answer))
 		return
 	}
@@ -442,22 +451,26 @@ func (sw *subWorker) handleAnswer(answer *protocol.Answer) {
 			sw.logf(logger.Exploit, format, sw.err, spew.Sdump(answer))
 			return
 		}
-		// must recover it, otherwise will appear data race
+		// must recover it, otherwise will appear data race.
 		aesBuffer := answer.Message
 		defer func() { answer.Message = aesBuffer }()
 		answer.Message = sw.buffer.Bytes()
-	}
-	// compare hash
-	sw.hash.Reset()
-	sw.hash.Write(answer.Message)
-	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), answer.Hash) != 1 {
-		const format = "answer with incorrect hash\n%s"
-		sw.logf(logger.Exploit, format, spew.Sdump(answer))
-		return
 	}
 	// prevent duplicate handle
 	if !sw.ctx.sender.AddQueryIndex(answer.Index) {
 		return
 	}
 	sw.ctx.handler.OnMessage(answer)
+}
+
+func (sw *subWorker) calculateAnswerHMAC(answer *protocol.Answer) []byte {
+	h := sw.hmacPool.Get().(hash.Hash)
+	defer sw.hmacPool.Put(h)
+	h.Reset()
+	h.Write(answer.GUID[:])
+	h.Write(answer.BeaconGUID[:])
+	h.Write(convert.Uint64ToBytes(answer.Index))
+	h.Write([]byte{answer.Deflate})
+	h.Write(answer.Message)
+	return h.Sum(nil)
 }

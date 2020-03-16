@@ -112,6 +112,9 @@ const (
 	// after key exchange (aes crypto)
 	objCtrlSessionKey
 
+	// after key exchange, key is session key
+	objSessionKey
+
 	// global.configure() time
 	objStartupTime
 
@@ -209,11 +212,14 @@ func (global *global) configure(cfg *Config) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer security.CoverBytes(sessionKey)
 	cbc, err := aes.NewCBC(sessionKey, sessionKey[:aes.IVSize])
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	global.objects[objCtrlSessionKey] = cbc
+	// for HMAC-SHA256
+	global.objects[objSessionKey] = security.NewBytes(sessionKey)
 	return nil
 }
 
@@ -312,6 +318,13 @@ func (global *global) Decrypt(data []byte) ([]byte, error) {
 	defer global.objectsRWM.RUnlock()
 	cbc := global.objects[objCtrlSessionKey].(*aes.CBC)
 	return cbc.Decrypt(data)
+}
+
+// SessionKey is used to get session key.
+func (global *global) SessionKey() *security.Bytes {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	return global.objects[objSessionKey].(*security.Bytes)
 }
 
 // CtrlPublicKey is used to get Controller public key.

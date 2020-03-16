@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
 	"hash"
@@ -83,6 +84,7 @@ type sender struct {
 	queryResultPool sync.Pool
 
 	deflateWriterPool sync.Pool
+	hmacPool          sync.Pool
 
 	// key = Node GUID
 	clients    map[guid.GUID]*Client
@@ -174,6 +176,12 @@ func newSender(ctx *Beacon, config *Config) (*sender, error) {
 	sender.deflateWriterPool.New = func() interface{} {
 		writer, _ := flate.NewWriter(nil, flate.BestCompression)
 		return writer
+	}
+	sessionKey := ctx.global.SessionKey()
+	sender.hmacPool.New = func() interface{} {
+		key := sessionKey.Get()
+		defer sessionKey.Put(key)
+		return hmac.New(sha256.New, key)
 	}
 
 	sender.ackSlotPool.New = func() interface{} {
@@ -666,7 +674,6 @@ type senderWorker struct {
 	buffer     *bytes.Buffer
 	msgpack    *msgpack.Encoder
 	deflateBuf *bytes.Buffer
-	hash       hash.Hash
 
 	// prepare task objects
 	preS protocol.Send
@@ -691,7 +698,10 @@ func (sw *senderWorker) WorkWithBlock() {
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.msgpack = msgpack.NewEncoder(sw.buffer)
 	sw.deflateBuf = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
-	sw.hash = sha256.New()
+	beaconGUID := *sw.ctx.ctx.global.GUID()
+	sw.preS.RoleGUID = beaconGUID
+	sw.preA.RoleGUID = beaconGUID
+	sw.preQ.BeaconGUID = beaconGUID
 	// must stop at once, or maybe timeout at the first time.
 	sw.timer = time.NewTimer(time.Minute)
 	sw.timer.Stop()
@@ -736,6 +746,9 @@ func (sw *senderWorker) WorkWithoutBlock() {
 		}
 	}()
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
+	beaconGUID := *sw.ctx.ctx.global.GUID()
+	sw.preA.RoleGUID = beaconGUID
+	sw.preQ.BeaconGUID = beaconGUID
 	var (
 		at *ackTask
 		qt *queryTask
@@ -825,10 +838,6 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
 	}
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(st.Message)
-	sw.preS.Hash = sw.hash.Sum(nil)
 	// compress message
 	if st.Deflate {
 		sw.preS.Deflate = 1
@@ -860,15 +869,8 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 	}
 	// set GUID
 	sw.preS.GUID = *sw.ctx.guid.Get()
-	sw.preS.RoleGUID = *sw.ctx.ctx.global.GUID()
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preS.GUID[:])
-	sw.buffer.Write(sw.preS.RoleGUID[:])
-	sw.buffer.Write(sw.preS.Hash)
-	sw.buffer.WriteByte(sw.preS.Deflate)
-	sw.buffer.Write(sw.preS.Message)
-	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// HMAC
+	sw.calculateSendHMAC()
 	// self validate
 	result.Err = sw.preS.Validate()
 	if result.Err != nil {
@@ -877,6 +879,17 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 	// pack
 	sw.buffer.Reset()
 	sw.preS.Pack(sw.buffer)
+}
+
+func (sw *senderWorker) calculateSendHMAC() {
+	h := sw.ctx.hmacPool.Get().(hash.Hash)
+	defer sw.ctx.hmacPool.Put(h)
+	h.Reset()
+	h.Write(sw.preS.GUID[:])
+	h.Write(sw.preS.RoleGUID[:])
+	h.Write([]byte{sw.preS.Deflate})
+	h.Write(sw.preS.Message)
+	sw.preS.Hash = h.Sum(nil)
 }
 
 func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
@@ -890,15 +903,11 @@ func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
 		}
 		at.Result <- result
 	}()
+	// set GUID
 	sw.preA.GUID = *sw.ctx.guid.Get()
-	sw.preA.RoleGUID = *sw.ctx.ctx.global.GUID()
 	sw.preA.SendGUID = *at.SendGUID
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preA.GUID[:])
-	sw.buffer.Write(sw.preA.RoleGUID[:])
-	sw.buffer.Write(sw.preA.SendGUID[:])
-	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// HMAC
+	sw.calculateAcknowledgeHMAC()
 	// self validate
 	result.Err = sw.preA.Validate()
 	if result.Err != nil {
@@ -918,6 +927,16 @@ func (sw *senderWorker) handleAcknowledgeTask(at *ackTask) {
 	}
 }
 
+func (sw *senderWorker) calculateAcknowledgeHMAC() {
+	h := sw.ctx.hmacPool.Get().(hash.Hash)
+	defer sw.ctx.hmacPool.Put(h)
+	h.Reset()
+	h.Write(sw.preA.GUID[:])
+	h.Write(sw.preA.RoleGUID[:])
+	h.Write(sw.preA.SendGUID[:])
+	sw.preA.Hash = h.Sum(nil)
+}
+
 func (sw *senderWorker) handleQueryTask(qt *queryTask) {
 	result := sw.ctx.queryResultPool.Get().(*protocol.QueryResult)
 	result.Clean()
@@ -930,14 +949,9 @@ func (sw *senderWorker) handleQueryTask(qt *queryTask) {
 		qt.Result <- result
 	}()
 	sw.preQ.GUID = *sw.ctx.guid.Get()
-	sw.preQ.BeaconGUID = *sw.ctx.ctx.global.GUID()
 	sw.preQ.Index = qt.Index
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preQ.GUID[:])
-	sw.buffer.Write(sw.preQ.BeaconGUID[:])
-	sw.buffer.Write(convert.Uint64ToBytes(sw.preQ.Index))
-	sw.preQ.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// HMAC
+	sw.calculateQueryHMAC()
 	// self validate
 	result.Err = sw.preQ.Validate()
 	if result.Err != nil {
@@ -955,4 +969,14 @@ func (sw *senderWorker) handleQueryTask(qt *queryTask) {
 	if result.Success == 0 {
 		result.Err = ErrFailedToQuery
 	}
+}
+
+func (sw *senderWorker) calculateQueryHMAC() {
+	h := sw.ctx.hmacPool.Get().(hash.Hash)
+	defer sw.ctx.hmacPool.Put(h)
+	h.Reset()
+	h.Write(sw.preQ.GUID[:])
+	h.Write(sw.preQ.BeaconGUID[:])
+	h.Write(convert.Uint64ToBytes(sw.preQ.Index))
+	sw.preQ.Hash = h.Sum(nil)
 }

@@ -456,8 +456,7 @@ func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 			case msg := <-node.Test.BroadcastMsg:
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
-				format := "read " + prefix + ".Test.BroadcastMsg timeout i: %d"
-				t.Errorf(format, n, i)
+				t.Errorf("read "+prefix+".Test.BroadcastMsg timeout i: %d", n, i)
 				return
 			}
 		}
@@ -573,8 +572,7 @@ func testCtrlSendToNode(t *testing.T, iNodes, cNodes []*node.Node) {
 			case msg := <-node.Test.SendMsg:
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
-				format := "read " + prefix + ".Test.SendMsg timeout i: %d"
-				t.Errorf(format, n, i)
+				t.Errorf("read "+prefix+".Test.SendMsg timeout i: %d", n, i)
 				return
 			}
 		}
@@ -680,8 +678,7 @@ func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Be
 			case msg := <-beacon.Test.SendMsg:
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
-				format := "read beacon[%d].Test.SendMsg timeout i: %d"
-				t.Errorf(format, n, i)
+				t.Errorf("read beacon[%d].Test.SendMsg timeout i: %d", n, i)
 				return
 			}
 		}
@@ -793,8 +790,7 @@ func testNodeSend(t *testing.T, iNodes, cNodes []*node.Node) {
 			case msg := <-ch:
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
-				format := "read " + prefix + " channel timeout i: %d"
-				t.Errorf(format, n, i)
+				t.Errorf("read "+prefix+" channel timeout i: %d", n, i)
 				return
 			}
 		}
@@ -903,8 +899,7 @@ func testBeaconSend(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) 
 			case msg := <-ch:
 				recv[string(msg)] = struct{}{}
 			case <-timer.C:
-				format := "read beacon[%d] channel timeout i: %d"
-				t.Errorf(format, n, i)
+				t.Errorf("read beacon[%d] channel timeout i: %d", n, i)
 				return
 			}
 		}
@@ -1004,8 +999,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 				withDeflate := fmt.Sprintf("test send with deflate %d", i)
 				require.Equalf(t, withDeflate, string(msg), format, n, withDeflate)
 			case <-timer.C:
-				format := "read beacon[%d].Test.SendMsg timeout i: %d"
-				t.Errorf(format, n, i)
+				t.Errorf("read beacon[%d].Test.SendMsg timeout i: %d", n, i)
 				return
 			}
 			// without deflate
@@ -1017,8 +1011,7 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 				withoutDeflate := fmt.Sprintf("test send without deflate %d", i)
 				require.Equalf(t, withoutDeflate, string(msg), format, n, withoutDeflate)
 			case <-timer.C:
-				format := "read beacon[%d].Test.SendMsg timeout i: %d"
-				t.Errorf(format, n, i)
+				t.Errorf("read beacon[%d].Test.SendMsg timeout i: %d", n, i)
 				return
 			}
 		}
