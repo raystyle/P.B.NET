@@ -74,9 +74,8 @@ type ackTask struct {
 type answerTask struct {
 	BeaconGUID *guid.GUID
 	Index      uint64
-	Hash       []byte
-	Message    []byte
 	Deflate    byte
+	Message    []byte
 	Result     chan<- *protocol.AnswerResult
 }
 
@@ -662,9 +661,8 @@ func (sender *sender) Answer(msg *mBeaconMessage) error {
 		panic("sender Answer error: " + err.Error())
 	}
 	rt.Index = msg.Index
-	rt.Hash = msg.Hash
-	rt.Message = msg.Message
 	rt.Deflate = msg.Deflate
+	rt.Message = msg.Message
 	rt.Result = done
 	// send to task queue
 	select {
@@ -1100,6 +1098,7 @@ type senderWorker struct {
 	beacon *mBeacon
 	aesKey []byte
 	aesIV  []byte
+	hmac   hash.Hash
 
 	// receive acknowledge timeout
 	timer *time.Timer
@@ -1224,6 +1223,10 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 	defer sw.node.SessionKey.Put(sessionKey)
 	sw.aesKey = sessionKey
 	sw.aesIV = sessionKey[:aes.IVSize]
+	// set HMAC-SHA256
+	hmac := sw.node.HMACPool.Get().(hash.Hash)
+	defer sw.node.HMACPool.Put(hmac)
+	sw.hmac = hmac
 	// pack
 	sw.packSendData(st, result)
 	if result.Err != nil {
@@ -1280,6 +1283,10 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 	defer sw.beacon.SessionKey.Put(sessionKey)
 	sw.aesKey = sessionKey
 	sw.aesIV = sessionKey[:aes.IVSize]
+	// set HMAC-SHA256
+	hmac := sw.beacon.HMACPool.Get().(hash.Hash)
+	defer sw.beacon.HMACPool.Put(hmac)
+	sw.hmac = hmac
 	// check is need to write message to the database
 	if !sw.ctx.IsInInteractiveMode(st.GUID) {
 		sw.insertBeaconMessage(st, result)
@@ -1341,10 +1348,6 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
 	}
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(st.Message)
-	sw.preS.Hash = sw.hash.Sum(nil)
 	// compress message
 	if st.Deflate {
 		sw.preS.Deflate = 1
@@ -1377,14 +1380,8 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 	// set GUID
 	sw.preS.GUID = *sw.ctx.guid.Get()
 	sw.preS.RoleGUID = *st.GUID
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preS.GUID[:])
-	sw.buffer.Write(sw.preS.RoleGUID[:])
-	sw.buffer.Write(sw.preS.Hash)
-	sw.buffer.WriteByte(sw.preS.Deflate)
-	sw.buffer.Write(sw.preS.Message)
-	sw.preS.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// HMAC
+	sw.calculateSendHMAC()
 	// self validate
 	result.Err = sw.preS.Validate()
 	if result.Err != nil {
@@ -1393,6 +1390,15 @@ func (sw *senderWorker) packSendData(st *sendTask, result *protocol.SendResult) 
 	// pack
 	sw.buffer.Reset()
 	sw.preS.Pack(sw.buffer)
+}
+
+func (sw *senderWorker) calculateSendHMAC() {
+	sw.hmac.Reset()
+	sw.hmac.Write(sw.preS.GUID[:])
+	sw.hmac.Write(sw.preS.RoleGUID[:])
+	sw.hmac.Write([]byte{sw.preS.Deflate})
+	sw.hmac.Write(sw.preS.Message)
+	sw.preS.Hash = sw.hmac.Sum(nil)
 }
 
 // insertBeaconMessage is used to insert send to Beacon message to
@@ -1414,10 +1420,6 @@ func (sw *senderWorker) insertBeaconMessage(st *sendTask, result *protocol.SendR
 		// don't worry copy, because encrypt
 		st.Message = sw.buffer.Bytes()
 	}
-	// hash
-	sw.hash.Reset()
-	sw.hash.Write(st.Message)
-	sw.preS.Hash = sw.hash.Sum(nil)
 	// compress message
 	if st.Deflate {
 		sw.preS.Deflate = 1
@@ -1447,7 +1449,8 @@ func (sw *senderWorker) insertBeaconMessage(st *sendTask, result *protocol.SendR
 	if result.Err != nil {
 		return
 	}
-	result.Err = sw.ctx.ctx.database.InsertBeaconMessage(st.GUID, &sw.preS)
+	sw.preS.RoleGUID = *st.GUID
+	result.Err = sw.ctx.ctx.database.InsertBeaconMessage(&sw.preS)
 }
 
 func (sw *senderWorker) handleAckToNodeTask(at *ackTask) {
@@ -1461,6 +1464,15 @@ func (sw *senderWorker) handleAckToNodeTask(at *ackTask) {
 		}
 		at.Result <- result
 	}()
+	// set HMAC-SHA256
+	sw.node, result.Err = sw.ctx.ctx.database.SelectNode(at.RoleGUID)
+	if result.Err != nil {
+		return
+	}
+	hmac := sw.node.HMACPool.Get().(hash.Hash)
+	defer sw.node.HMACPool.Put(hmac)
+	sw.hmac = hmac
+	// pack
 	sw.packAcknowledgeData(at, result)
 	if result.Err != nil {
 		return
@@ -1487,6 +1499,15 @@ func (sw *senderWorker) handleAckToBeaconTask(at *ackTask) {
 		}
 		at.Result <- result
 	}()
+	// set HMAC-SHA256
+	sw.beacon, result.Err = sw.ctx.ctx.database.SelectBeacon(at.RoleGUID)
+	if result.Err != nil {
+		return
+	}
+	hmac := sw.beacon.HMACPool.Get().(hash.Hash)
+	defer sw.beacon.HMACPool.Put(hmac)
+	sw.hmac = hmac
+	// pack
 	sw.packAcknowledgeData(at, result)
 	if result.Err != nil {
 		return
@@ -1506,12 +1527,8 @@ func (sw *senderWorker) packAcknowledgeData(at *ackTask, result *protocol.Acknow
 	sw.preA.GUID = *sw.ctx.guid.Get()
 	sw.preA.RoleGUID = *at.RoleGUID
 	sw.preA.SendGUID = *at.SendGUID
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preA.GUID[:])
-	sw.buffer.Write(sw.preA.RoleGUID[:])
-	sw.buffer.Write(sw.preA.SendGUID[:])
-	sw.preA.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// HMAC
+	sw.calculateAcknowledgeHMAC()
 	// self validate
 	result.Err = sw.preA.Validate()
 	if result.Err != nil {
@@ -1520,6 +1537,14 @@ func (sw *senderWorker) packAcknowledgeData(at *ackTask, result *protocol.Acknow
 	// pack
 	sw.buffer.Reset()
 	sw.preA.Pack(sw.buffer)
+}
+
+func (sw *senderWorker) calculateAcknowledgeHMAC() {
+	sw.hmac.Reset()
+	sw.hmac.Write(sw.preA.GUID[:])
+	sw.hmac.Write(sw.preA.RoleGUID[:])
+	sw.hmac.Write(sw.preA.SendGUID[:])
+	sw.preA.Hash = sw.hmac.Sum(nil)
 }
 
 func (sw *senderWorker) handleBroadcastTask(bt *broadcastTask) {
@@ -1621,21 +1646,19 @@ func (sw *senderWorker) handleAnswerTask(rt *answerTask) {
 		}
 		rt.Result <- result
 	}()
+	// for set HMAC
+	sw.beacon, result.Err = sw.ctx.ctx.database.SelectBeacon(rt.BeaconGUID)
+	if result.Err != nil {
+		return
+	}
+	// set answer
 	sw.preR.GUID = *sw.ctx.guid.Get()
 	sw.preR.BeaconGUID = *rt.BeaconGUID
 	sw.preR.Index = rt.Index
-	sw.preR.Hash = rt.Hash
 	sw.preR.Deflate = rt.Deflate
 	sw.preR.Message = rt.Message
-	// sign
-	sw.buffer.Reset()
-	sw.buffer.Write(sw.preR.GUID[:])
-	sw.buffer.Write(sw.preR.BeaconGUID[:])
-	sw.buffer.Write(convert.Uint64ToBytes(sw.preR.Index))
-	sw.buffer.Write(sw.preR.Hash)
-	sw.buffer.WriteByte(sw.preR.Deflate)
-	sw.buffer.Write(sw.preR.Message)
-	sw.preR.Signature = sw.ctx.ctx.global.Sign(sw.buffer.Bytes())
+	// HMAC
+	sw.calculateAnswerHMAC()
 	// self validate
 	result.Err = sw.preR.Validate()
 	if result.Err != nil {
@@ -1653,4 +1676,16 @@ func (sw *senderWorker) handleAnswerTask(rt *answerTask) {
 	if result.Success == 0 {
 		result.Err = ErrFailedToAnswer
 	}
+}
+
+func (sw *senderWorker) calculateAnswerHMAC() {
+	h := sw.beacon.HMACPool.Get().(hash.Hash)
+	defer sw.beacon.HMACPool.Put(h)
+	h.Reset()
+	h.Write(sw.preR.GUID[:])
+	h.Write(sw.preR.BeaconGUID[:])
+	h.Write(convert.Uint64ToBytes(sw.preR.Index))
+	h.Write([]byte{sw.preR.Deflate})
+	h.Write(sw.preR.Message)
+	sw.preR.Hash = h.Sum(nil)
 }

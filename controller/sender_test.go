@@ -1,11 +1,9 @@
 package controller
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"runtime"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -73,15 +71,13 @@ func TestSender_Broadcast(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go broadcast(i * times)
 	}
-	recv := bytes.Buffer{}
-	recv.Grow(8 << 20)
+	recv := make(map[string]struct{}, goroutines*times)
 	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-Node.Test.BroadcastMsg:
-			recv.Write(b)
-			recv.WriteString("\n")
+		case msg := <-Node.Test.BroadcastMsg:
+			recv[string(msg)] = struct{}{}
 		case <-timer.C:
 			t.Fatalf("read NODE.Test.BroadcastMsg timeout i: %d", i)
 		}
@@ -91,10 +87,10 @@ func TestSender_Broadcast(t *testing.T) {
 		t.Fatal("redundancy broadcast")
 	case <-time.After(time.Second):
 	}
-	str := recv.String()
 	for i := 0; i < goroutines*times; i++ {
 		need := fmt.Sprintf("test broadcast %d", i)
-		require.True(t, strings.Contains(str, need), "lost: %s", need)
+		_, ok := recv[need]
+		require.True(t, ok, "lost: %s", need)
 	}
 
 	// clean
@@ -129,15 +125,14 @@ func TestSender_SendToNode(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go send(i * times)
 	}
-	recv := bytes.Buffer{}
-	recv.Grow(8 << 20)
+	// read
+	recv := make(map[string]struct{}, goroutines*times)
 	timer := time.NewTimer(3 * time.Second)
 	for i := 0; i < goroutines*times; i++ {
 		timer.Reset(3 * time.Second)
 		select {
-		case b := <-Node.Test.SendMsg:
-			recv.Write(b)
-			recv.WriteString("\n")
+		case msg := <-Node.Test.SendMsg:
+			recv[string(msg)] = struct{}{}
 		case <-timer.C:
 			t.Fatalf("read Node.Test.SendMsg timeout i: %d", i)
 		}
@@ -147,10 +142,10 @@ func TestSender_SendToNode(t *testing.T) {
 		t.Fatal("redundancy send")
 	case <-time.After(time.Second):
 	}
-	str := recv.String()
 	for i := 0; i < goroutines*times; i++ {
 		need := fmt.Sprintf("test send %d", i)
-		require.True(t, strings.Contains(str, need), "lost: %s", need)
+		_, ok := recv[need]
+		require.True(t, ok, "lost: %s", need)
 	}
 
 	// clean
@@ -212,14 +207,14 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 
 	var (
 		goroutines = runtime.NumCPU()
-		times      = 600000
+		times      = 60000
 	)
 	ctx := context.Background()
 	start := time.Now()
 	send := func(start int) {
 		for i := start; i < start+times; i++ {
 			msg := []byte(fmt.Sprintf("test send %d", i))
-			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg, true)
+			err := ctrl.sender.SendToNode(ctx, nodeGUID, messages.CMDBTest, msg, false)
 			require.NoError(t, err)
 		}
 	}
@@ -247,6 +242,10 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 	// clean
 	err := ctrl.sender.Disconnect(nodeGUID)
 	require.NoError(t, err)
+
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
+
+	err = ctrl.DeleteNodeUnscoped(nodeGUID)
+	require.NoError(t, err)
 }

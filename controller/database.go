@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"time"
@@ -275,7 +277,13 @@ func (db *database) SelectNode(guid *guid.GUID) (*mNode, error) {
 		return nil, errors.Errorf(format, g, err)
 	}
 	defer security.CoverBytes(sessionKey)
-	node.SessionKey = security.NewBytes(sessionKey)
+	secSessionKey := security.NewBytes(sessionKey)
+	node.SessionKey = secSessionKey
+	node.HMACPool.New = func() interface{} {
+		key := secSessionKey.Get()
+		defer secSessionKey.Put(key)
+		return hmac.New(sha256.New, key)
+	}
 	db.cache.InsertNode(node)
 	return node, nil
 }
@@ -307,11 +315,16 @@ func (db *database) InsertNode(node *mNode, info *mNodeInfo) (err error) {
 			return
 		}
 	}
-	err = tx.Create(node).Error
-	if err != nil {
-		return
+	for _, model := range [...]interface{}{
+		node,
+		info,
+	} {
+		err = tx.Create(model).Error
+		if err != nil {
+			return
+		}
 	}
-	return tx.Create(info).Error
+	return
 }
 
 func (db *database) DeleteNode(guid *guid.GUID) (err error) {
@@ -331,17 +344,15 @@ func (db *database) DeleteNode(guid *guid.GUID) (err error) {
 	}()
 	const where = "guid = ?"
 	g := guid[:]
-	err = tx.Delete(&mNode{}, where, g).Error
-	if err != nil {
-		return
-	}
-	err = tx.Delete(&mNodeInfo{}, where, g).Error
-	if err != nil {
-		return
-	}
-	err = tx.Delete(&mNodeListener{}, where, g).Error
-	if err != nil {
-		return
+	for _, model := range [...]interface{}{
+		&mNode{},
+		&mNodeInfo{},
+		&mNodeListener{},
+	} {
+		err = tx.Delete(model, where, g).Error
+		if err != nil {
+			return
+		}
 	}
 	return tx.Table(tableNodeLog).Delete(&mRoleLog{}, where, g).Error
 }
@@ -405,7 +416,13 @@ func (db *database) SelectBeacon(guid *guid.GUID) (*mBeacon, error) {
 		return nil, errors.WithMessage(err, "failed to calculate beacon session key")
 	}
 	defer security.CoverBytes(sessionKey)
-	beacon.SessionKey = security.NewBytes(sessionKey)
+	secSessionKey := security.NewBytes(sessionKey)
+	beacon.SessionKey = secSessionKey
+	beacon.HMACPool.New = func() interface{} {
+		key := secSessionKey.Get()
+		defer secSessionKey.Put(key)
+		return hmac.New(sha256.New, key)
+	}
 	db.cache.InsertBeacon(beacon)
 	return beacon, nil
 }
@@ -425,15 +442,17 @@ func (db *database) InsertBeacon(beacon *mBeacon, info *mBeaconInfo) (err error)
 			db.cache.InsertBeacon(beacon)
 		}
 	}()
-	err = tx.Create(beacon).Error
-	if err != nil {
-		return
+	for _, model := range [...]interface{}{
+		beacon,
+		info,
+		&mBeaconMessageIndex{GUID: beacon.GUID},
+	} {
+		err = tx.Create(model).Error
+		if err != nil {
+			return
+		}
 	}
-	err = tx.Create(info).Error
-	if err != nil {
-		return
-	}
-	return tx.Create(&mBeaconMessageIndex{GUID: beacon.GUID}).Error
+	return
 }
 
 func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
@@ -453,25 +472,17 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 	}()
 	const where = "guid = ?"
 	g := guid[:]
-	err = tx.Delete(&mBeacon{}, where, g).Error
-	if err != nil {
-		return
-	}
-	err = tx.Delete(&mBeaconInfo{}, where, g).Error
-	if err != nil {
-		return
-	}
-	err = tx.Delete(&mBeaconMessage{}, where, g).Error
-	if err != nil {
-		return
-	}
-	err = tx.Delete(&mBeaconMessageIndex{}, where, g).Error
-	if err != nil {
-		return
-	}
-	err = tx.Delete(&mBeaconListener{}, where, g).Error
-	if err != nil {
-		return
+	for _, model := range [...]interface{}{
+		&mBeacon{},
+		&mBeaconInfo{},
+		&mBeaconMessage{},
+		&mBeaconMessageIndex{},
+		&mBeaconListener{},
+	} {
+		err = tx.Delete(model, where, g).Error
+		if err != nil {
+			return
+		}
 	}
 	return tx.Table(tableBeaconLog).Delete(&mRoleLog{}, where, g).Error
 }
@@ -485,7 +496,7 @@ func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	return nil
 }
 
-func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (err error) {
+func (db *database) InsertBeaconMessage(send *protocol.Send) (err error) {
 	// select message index
 	tx := db.db.BeginTx(
 		context.Background(),
@@ -500,17 +511,17 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (e
 	}()
 	index := mBeaconMessageIndex{}
 	err = tx.Set("gorm:query_option", "FOR UPDATE").
-		Find(&index, "guid = ?", guid[:]).Error
+		Find(&index, "guid = ?", send.RoleGUID[:]).Error
 	if err != nil {
 		return
 	}
-	err = tx.Create(&mBeaconMessage{
-		GUID:    guid[:],
+	message := mBeaconMessage{
+		GUID:    send.RoleGUID[:],
 		Index:   index.Index,
-		Hash:    send.Hash,
 		Deflate: send.Deflate,
 		Message: send.Message,
-	}).Error
+	}
+	err = tx.Create(&message).Error
 	if err != nil {
 		return
 	}
@@ -518,14 +529,15 @@ func (db *database) InsertBeaconMessage(guid *guid.GUID, send *protocol.Send) (e
 	return tx.Model(index).UpdateColumn("index", index.Index+1).Error
 }
 
-func (db *database) DeleteBeaconMessagesWithIndex(guid *guid.GUID, index uint64) error {
+func (db *database) DeleteBeaconMessage(query *protocol.Query) error {
 	const where = "guid = ? and `index` < ?"
-	return db.db.Delete(&mBeaconMessage{}, where, guid[:], index).Error
+	return db.db.Delete(&mBeaconMessage{}, where, query.BeaconGUID[:], query.Index).Error
 }
 
-func (db *database) SelectBeaconMessage(guid *guid.GUID, index uint64) (*mBeaconMessage, error) {
+func (db *database) SelectBeaconMessage(query *protocol.Query) (*mBeaconMessage, error) {
+	const where = "guid = ? and `index` = ?"
 	msg := new(mBeaconMessage)
-	err := db.db.Find(msg, "guid = ? and `index` = ?", guid[:], index).Error
+	err := db.db.Find(msg, where, query.BeaconGUID[:], query.Index).Error
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return nil, nil

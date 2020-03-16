@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"sync"
 	"time"
 
 	"github.com/jinzhu/gorm"
@@ -116,8 +117,13 @@ type mNode struct {
 	CreatedAt    time.Time  `gorm:"not null"`
 	DeletedAt    *time.Time `sql:"index"`
 
-	// when first query, it will be calculated.
+	// when first query or insert, these will be calculated.
+
+	// SessionKey is used to encrypt message and set the key for HMAC.
 	SessionKey *security.Bytes `gorm:"-"`
+
+	// for protocol.Send, Acknowledge, Query and Answer.
+	HMACPool sync.Pool `gorm:"-"`
 }
 
 // see internal/module/info/system.go
@@ -155,8 +161,13 @@ type mBeacon struct {
 	CreatedAt    time.Time  `gorm:"not null"`
 	DeletedAt    *time.Time `sql:"index"`
 
-	// when first query, it will be calculated.
+	// when first query or insert, these will be calculated.
+
+	// SessionKey is used to encrypt message and set the key for HMAC.
 	SessionKey *security.Bytes `gorm:"-"`
+
+	// for protocol.Send, Acknowledge, Query and Answer.
+	HMACPool sync.Pool `gorm:"-"`
 }
 
 // see internal/module/info/system.go
@@ -188,7 +199,6 @@ type mBeaconMessage struct {
 	ID        uint64     `gorm:"primary_key"`
 	GUID      []byte     `gorm:"not null;type:binary(32)" sql:"index"`
 	Index     uint64     `gorm:"not null" sql:"index"`
-	Hash      []byte     `gorm:"not null;type:binary(32)"`
 	Deflate   byte       `gorm:"not null;type:tinyint unsigned"`
 	Message   []byte     `gorm:"not null;type:mediumblob"`
 	CreatedAt time.Time  `gorm:"not null"`

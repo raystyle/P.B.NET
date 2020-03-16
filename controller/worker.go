@@ -3,7 +3,6 @@ package controller
 import (
 	"bytes"
 	"compress/flate"
-	"crypto/sha256"
 	"crypto/subtle"
 	"hash"
 	"io"
@@ -15,7 +14,6 @@ import (
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
-	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -203,13 +201,13 @@ type subWorker struct {
 	buffer  *bytes.Buffer
 	reader  *bytes.Reader
 	deflate io.ReadCloser
-	hash    hash.Hash
 
+	// key
 	node      *mNode
 	beacon    *mBeacon
-	publicKey ed25519.PublicKey
 	aesKey    []byte
 	aesIV     []byte
+	hmac      hash.Hash
 	beaconMsg *mBeaconMessage
 	timer     *time.Timer
 	err       error
@@ -240,7 +238,6 @@ func (sw *subWorker) WorkWithBlock() {
 	sw.buffer = bytes.NewBuffer(make([]byte, protocol.SendMinBufferSize))
 	sw.reader = bytes.NewReader(nil)
 	sw.deflate = flate.NewReader(nil)
-	sw.hash = sha256.New()
 	// must stop at once, or maybe timeout at the first time.
 	sw.timer = time.NewTimer(time.Minute)
 	sw.timer.Stop()
@@ -311,48 +308,42 @@ func (sw *subWorker) WorkWithoutBlock() {
 	}
 }
 
-func (sw *subWorker) getNodeKey(guid *guid.GUID, session bool) ([]byte, bool) {
+func (sw *subWorker) getNodeKey(guid *guid.GUID, session bool) bool {
 	sw.node, sw.err = sw.ctx.database.SelectNode(guid)
 	if sw.err != nil {
 		const format = "failed to select node: %s\n%s"
 		sw.logf(logger.Warning, format, sw.err, guid.Print())
-		return nil, false
+		return false
 	}
-	sw.publicKey = sw.node.PublicKey
+	sw.hmac = sw.node.HMACPool.Get().(hash.Hash)
 	if session {
-		sessionKey := sw.node.SessionKey.Get()
-		sw.aesKey = sessionKey
-		sw.aesIV = sessionKey[:aes.IVSize]
-		return sessionKey, true
+		sw.aesKey = sw.node.SessionKey.Get()
+		sw.aesIV = sw.aesKey[:aes.IVSize]
 	}
-	return nil, true
+	return true
 }
 
-func (sw *subWorker) getBeaconKey(guid *guid.GUID, session bool) ([]byte, bool) {
+func (sw *subWorker) getBeaconKey(guid *guid.GUID, session bool) bool {
 	sw.beacon, sw.err = sw.ctx.database.SelectBeacon(guid)
 	if sw.err != nil {
 		const format = "failed to select beacon: %s\n%s"
 		sw.logf(logger.Warning, format, sw.err, guid.Print())
-		return nil, false
+		return false
 	}
-	sw.publicKey = sw.beacon.PublicKey
+	sw.hmac = sw.beacon.HMACPool.Get().(hash.Hash)
 	if session {
-		sessionKey := sw.beacon.SessionKey.Get()
-		sw.aesKey = sessionKey
-		sw.aesIV = sessionKey[:aes.IVSize]
-		return sessionKey, true
+		sw.aesKey = sw.beacon.SessionKey.Get()
+		sw.aesIV = sw.aesKey[:aes.IVSize]
 	}
-	return nil, true
+	return true
 }
 
 func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 	defer sw.sendPool.Put(send)
-	sessionKey, ok := sw.getNodeKey(&send.RoleGUID, true)
-	if !ok {
+	if !sw.getNodeKey(&send.RoleGUID, true) {
 		return
 	}
-	defer sw.node.SessionKey.Put(sessionKey)
-	aesBuffer := sw.handleRoleSend(protocol.Node, send)
+	aesBuffer := sw.handleNodeSendDefer(send)
 	if aesBuffer == nil {
 		return
 	}
@@ -367,10 +358,11 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 		if sw.err == nil {
 			return
 		}
-		if sw.err == ErrNoConnections {
+		if sw.err == ErrNoConnections || sw.err == ErrFailedToAckToNode {
 			sw.log(logger.Warning, "failed to ack to node:", sw.err)
 		} else {
 			sw.log(logger.Error, "failed to ack to node:", sw.err)
+			return
 		}
 		// wait one second
 		sw.timer.Reset(time.Second)
@@ -382,14 +374,20 @@ func (sw *subWorker) handleNodeSend(send *protocol.Send) {
 	}
 }
 
+func (sw *subWorker) handleNodeSendDefer(send *protocol.Send) []byte {
+	defer func() {
+		sw.node.SessionKey.Put(sw.aesKey)
+		sw.node.HMACPool.Put(sw.hmac)
+	}()
+	return sw.handleRoleSend(protocol.Node, send)
+}
+
 func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 	defer sw.sendPool.Put(send)
-	sessionKey, ok := sw.getBeaconKey(&send.RoleGUID, true)
-	if !ok {
+	if !sw.getBeaconKey(&send.RoleGUID, true) {
 		return
 	}
-	defer sw.beacon.SessionKey.Put(sessionKey)
-	aesBuffer := sw.handleRoleSend(protocol.Beacon, send)
+	aesBuffer := sw.handleBeaconSendDefer(send)
 	if aesBuffer == nil {
 		return
 	}
@@ -404,10 +402,11 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 		if sw.err == nil {
 			return
 		}
-		if sw.err == ErrNoConnections {
+		if sw.err == ErrNoConnections || sw.err == ErrFailedToAckToBeacon {
 			sw.log(logger.Warning, "failed to ack to beacon:", sw.err)
 		} else {
 			sw.log(logger.Error, "failed to ack to beacon:", sw.err)
+			return
 		}
 		// wait one second
 		sw.timer.Reset(time.Second)
@@ -419,17 +418,19 @@ func (sw *subWorker) handleBeaconSend(send *protocol.Send) {
 	}
 }
 
+func (sw *subWorker) handleBeaconSendDefer(send *protocol.Send) []byte {
+	defer func() {
+		sw.beacon.SessionKey.Put(sw.aesKey)
+		sw.beacon.HMACPool.Put(sw.hmac)
+	}()
+	return sw.handleRoleSend(protocol.Beacon, send)
+}
+
 // return aesBuffer
 func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []byte {
 	// verify
-	sw.buffer.Reset()
-	sw.buffer.Write(send.GUID[:])
-	sw.buffer.Write(send.RoleGUID[:])
-	sw.buffer.Write(send.Hash)
-	sw.buffer.WriteByte(send.Deflate)
-	sw.buffer.Write(send.Message)
-	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), send.Signature) {
-		const format = "invalid %s send signature\n%s"
+	if subtle.ConstantTimeCompare(sw.calculateRoleSendHMAC(send), send.Hash) != 1 {
+		const format = "%s send with incorrect hmac hash\n%s"
 		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
 		return nil
 	}
@@ -466,24 +467,28 @@ func (sw *subWorker) handleRoleSend(role protocol.Role, send *protocol.Send) []b
 		}
 		send.Message = sw.buffer.Bytes()
 	}
-	// compare hash
-	sw.hash.Reset()
-	sw.hash.Write(send.Message)
-	if subtle.ConstantTimeCompare(sw.hash.Sum(nil), send.Hash) != 1 {
-		const format = "%s send with incorrect hash\n%s"
-		sw.logf(logger.Exploit, format, role, spew.Sdump(send))
-		return nil
-	}
 	return aesBuffer
+}
+
+func (sw *subWorker) calculateRoleSendHMAC(send *protocol.Send) []byte {
+	sw.hmac.Reset()
+	sw.hmac.Write(send.GUID[:])
+	sw.hmac.Write(send.RoleGUID[:])
+	sw.hmac.Write([]byte{send.Deflate})
+	sw.hmac.Write(send.Message)
+	return sw.hmac.Sum(nil)
 }
 
 func (sw *subWorker) handleNodeAcknowledge(ack *protocol.Acknowledge) {
 	defer sw.ackPool.Put(ack)
-	_, ok := sw.getNodeKey(&ack.RoleGUID, false)
-	if !ok {
+	if !sw.getNodeKey(&ack.RoleGUID, false) {
 		return
 	}
-	if !sw.verifyAcknowledge(protocol.Node, ack) {
+	defer sw.node.HMACPool.Put(sw.hmac)
+	// verify
+	if subtle.ConstantTimeCompare(sw.calculateRoleAcknowledgeHMAC(ack), ack.Hash) != 1 {
+		const format = "node acknowledge with incorrect hmac hash\n%s"
+		sw.logf(logger.Exploit, format, spew.Sdump(ack))
 		return
 	}
 	sw.ctx.sender.HandleNodeAcknowledge(&ack.RoleGUID, &ack.SendGUID)
@@ -491,47 +496,40 @@ func (sw *subWorker) handleNodeAcknowledge(ack *protocol.Acknowledge) {
 
 func (sw *subWorker) handleBeaconAcknowledge(ack *protocol.Acknowledge) {
 	defer sw.ackPool.Put(ack)
-	_, ok := sw.getBeaconKey(&ack.RoleGUID, false)
-	if !ok {
+	if !sw.getBeaconKey(&ack.RoleGUID, false) {
 		return
 	}
-	if !sw.verifyAcknowledge(protocol.Beacon, ack) {
+	defer sw.beacon.HMACPool.Put(sw.hmac)
+	// verify
+	if subtle.ConstantTimeCompare(sw.calculateRoleAcknowledgeHMAC(ack), ack.Hash) != 1 {
+		const format = "beacon acknowledge with incorrect hmac hash\n%s"
+		sw.logf(logger.Exploit, format, spew.Sdump(ack))
 		return
 	}
 	sw.ctx.sender.HandleBeaconAcknowledge(&ack.RoleGUID, &ack.SendGUID)
 }
 
-func (sw *subWorker) verifyAcknowledge(role protocol.Role, ack *protocol.Acknowledge) bool {
-	sw.buffer.Reset()
-	sw.buffer.Write(ack.GUID[:])
-	sw.buffer.Write(ack.RoleGUID[:])
-	sw.buffer.Write(ack.SendGUID[:])
-	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), ack.Signature) {
-		const format = "invalid %s acknowledge signature\n%s"
-		sw.logf(logger.Exploit, format, role, spew.Sdump(ack))
-		return false
-	}
-	return true
+func (sw *subWorker) calculateRoleAcknowledgeHMAC(ack *protocol.Acknowledge) []byte {
+	sw.hmac.Reset()
+	sw.hmac.Write(ack.GUID[:])
+	sw.hmac.Write(ack.RoleGUID[:])
+	sw.hmac.Write(ack.SendGUID[:])
+	return sw.hmac.Sum(nil)
 }
 
 func (sw *subWorker) handleQuery(query *protocol.Query) {
 	defer sw.queryPool.Put(query)
-	_, ok := sw.getBeaconKey(&query.BeaconGUID, false)
-	if !ok {
+	if !sw.getBeaconKey(&query.BeaconGUID, false) {
 		return
 	}
 	// verify
-	sw.buffer.Reset()
-	sw.buffer.Write(query.GUID[:])
-	sw.buffer.Write(query.BeaconGUID[:])
-	sw.buffer.Write(convert.Uint64ToBytes(query.Index))
-	if !ed25519.Verify(sw.publicKey, sw.buffer.Bytes(), query.Signature) {
-		const format = "invalid query signature\n%s"
+	if subtle.ConstantTimeCompare(sw.calculateQueryHMAC(query), query.Hash) != 1 {
+		const format = "invalid query hmac hash\n%s"
 		sw.logf(logger.Exploit, format, spew.Sdump(query))
 		return
 	}
 	// first try to select beacon message
-	sw.beaconMsg, sw.err = sw.ctx.database.SelectBeaconMessage(&query.BeaconGUID, query.Index)
+	sw.beaconMsg, sw.err = sw.ctx.database.SelectBeaconMessage(query)
 	if sw.err != nil {
 		const format = "failed to select beacon message\nerror:%s\n%s"
 		sw.logf(logger.Error, format, sw.err, spew.Sdump(query))
@@ -542,7 +540,7 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 		return
 	}
 	// then delete old message
-	sw.err = sw.ctx.database.DeleteBeaconMessagesWithIndex(&query.BeaconGUID, query.Index)
+	sw.err = sw.ctx.database.DeleteBeaconMessage(query)
 	if sw.err != nil {
 		const format = "failed to delete old beacon message\nerror: %s\n%s"
 		sw.logf(logger.Error, format, sw.err, spew.Sdump(query))
@@ -553,10 +551,11 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 		if sw.err == nil {
 			return
 		}
-		if sw.err == ErrNoConnections {
+		if sw.err == ErrNoConnections || sw.err == ErrFailedToAnswer {
 			sw.log(logger.Warning, "failed answer in handle query:", sw.err)
 		} else {
 			sw.log(logger.Error, "failed answer in handle query:", sw.err)
+			return
 		}
 		// wait one second
 		sw.timer.Reset(time.Second)
@@ -566,4 +565,13 @@ func (sw *subWorker) handleQuery(query *protocol.Query) {
 			return
 		}
 	}
+}
+
+func (sw *subWorker) calculateQueryHMAC(query *protocol.Query) []byte {
+	defer sw.beacon.HMACPool.Put(sw.hmac)
+	sw.hmac.Reset()
+	sw.hmac.Write(query.GUID[:])
+	sw.hmac.Write(query.BeaconGUID[:])
+	sw.hmac.Write(convert.Uint64ToBytes(query.Index))
+	return sw.hmac.Sum(nil)
 }

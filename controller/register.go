@@ -3,6 +3,8 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"fmt"
 	"strings"
 
@@ -197,12 +199,19 @@ func (ctrl *Ctrl) registerNode(
 	}
 	defer security.CoverBytes(sessionKey)
 	// insert to database
-	err = ctrl.database.InsertNode(&mNode{
+	secSessionKey := security.NewBytes(sessionKey)
+	node := mNode{
 		GUID:         nrr.GUID[:],
 		PublicKey:    nrr.PublicKey,
 		KexPublicKey: nrr.KexPublicKey,
-		SessionKey:   security.NewBytes(sessionKey),
-	}, &mNodeInfo{
+		SessionKey:   secSessionKey,
+	}
+	node.HMACPool.New = func() interface{} {
+		key := secSessionKey.Get()
+		defer secSessionKey.Put(key)
+		return hmac.New(sha256.New, key)
+	}
+	nodeInfo := mNodeInfo{
 		GUID:        nrr.GUID[:],
 		IP:          strings.Join(nrr.SystemInfo.IP, ","),
 		OS:          nrr.SystemInfo.OS,
@@ -214,7 +223,8 @@ func (ctrl *Ctrl) registerNode(
 		Username:    nrr.SystemInfo.Username,
 		IsBootstrap: reply.Bootstrap,
 		Zone:        reply.Zone,
-	})
+	}
+	err = ctrl.database.InsertNode(&node, &nodeInfo)
 	if err != nil {
 		return nil, errors.WithMessage(err, errMsg)
 	}
@@ -407,12 +417,19 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 	}
 	defer security.CoverBytes(sessionKey)
 	// insert to database
-	err = ctrl.database.InsertBeacon(&mBeacon{
+	secSessionKey := security.NewBytes(sessionKey)
+	beacon := mBeacon{
 		GUID:         brr.GUID[:],
 		PublicKey:    brr.PublicKey,
 		KexPublicKey: brr.KexPublicKey,
-		SessionKey:   security.NewBytes(sessionKey),
-	}, &mBeaconInfo{
+		SessionKey:   secSessionKey,
+	}
+	beacon.HMACPool.New = func() interface{} {
+		key := secSessionKey.Get()
+		defer secSessionKey.Put(key)
+		return hmac.New(sha256.New, key)
+	}
+	beaconInfo := mBeaconInfo{
 		GUID:      brr.GUID[:],
 		IP:        strings.Join(brr.SystemInfo.IP, ","),
 		OS:        brr.SystemInfo.OS,
@@ -422,7 +439,8 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 		PPID:      brr.SystemInfo.PPID,
 		Hostname:  brr.SystemInfo.Hostname,
 		Username:  brr.SystemInfo.Username,
-	})
+	}
+	err = ctrl.database.InsertBeacon(&beacon, &beaconInfo)
 	if err != nil {
 		return errors.WithMessage(err, errMsg)
 	}
