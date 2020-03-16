@@ -354,6 +354,18 @@ func (mgr *messageMgr) SendToBeacon(
 	id, reply := mgr.createBeaconSlot(guid)
 	defer mgr.destroyBeaconSlot(guid, id, reply)
 	message.SetID(id)
+	// set timeout
+	if timeout < 1 {
+		timeout = mgr.timeout
+	}
+	// set special timeout if Beacon not in interactive mode
+	if !mgr.ctx.sender.IsInInteractiveMode(guid) {
+		fixed, random, err := mgr.ctx.database.SelectBeaconSleepTime(guid)
+		if err != nil {
+			return nil, err
+		}
+		timeout += time.Duration(fixed+random) * time.Second
+	}
 	// send
 	err := mgr.ctx.sender.SendToBeacon(ctx, guid, command, message, deflate)
 	if err != nil {
@@ -362,10 +374,6 @@ func (mgr *messageMgr) SendToBeacon(
 	// get reply
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
-	// TODO set special timeout if Beacon not in interactive mode
-	if timeout < 1 {
-		timeout = mgr.timeout
-	}
 	timer.Reset(timeout)
 	select {
 	case resp := <-reply:

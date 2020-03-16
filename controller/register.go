@@ -430,15 +430,17 @@ func (ctrl *Ctrl) registerBeacon(brr *messages.BeaconRegisterRequest) error {
 		return hmac.New(sha256.New, key)
 	}
 	beaconInfo := mBeaconInfo{
-		GUID:      brr.GUID[:],
-		IP:        strings.Join(brr.SystemInfo.IP, ","),
-		OS:        brr.SystemInfo.OS,
-		Arch:      brr.SystemInfo.Arch,
-		GoVersion: brr.SystemInfo.GoVersion,
-		PID:       brr.SystemInfo.PID,
-		PPID:      brr.SystemInfo.PPID,
-		Hostname:  brr.SystemInfo.Hostname,
-		Username:  brr.SystemInfo.Username,
+		GUID:        brr.GUID[:],
+		IP:          strings.Join(brr.SystemInfo.IP, ","),
+		OS:          brr.SystemInfo.OS,
+		Arch:        brr.SystemInfo.Arch,
+		GoVersion:   brr.SystemInfo.GoVersion,
+		PID:         brr.SystemInfo.PID,
+		PPID:        brr.SystemInfo.PPID,
+		Hostname:    brr.SystemInfo.Hostname,
+		Username:    brr.SystemInfo.Username,
+		SleepFixed:  brr.SleepFixed,
+		SleepRandom: brr.SleepRandom,
 	}
 	err = ctrl.database.InsertBeacon(&beacon, &beaconInfo)
 	if err != nil {

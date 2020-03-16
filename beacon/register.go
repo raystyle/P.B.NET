@@ -259,12 +259,15 @@ func (register *register) Register() error {
 // |    32 Bytes    |       var      |
 // +----------------+----------------+
 func (register *register) packRequest(address string) []byte {
-	nrr := messages.NodeRegisterRequest{
+	sleepFixed, sleepRandom := register.ctx.driver.GetSleepTime()
+	nrr := messages.BeaconRegisterRequest{
 		GUID:         *register.ctx.global.GUID(),
 		PublicKey:    register.ctx.global.PublicKey(),
 		KexPublicKey: register.ctx.global.KeyExchangePublicKey(),
 		ConnAddress:  address,
 		SystemInfo:   info.GetSystemInfo(),
+		SleepFixed:   sleepFixed,
+		SleepRandom:  sleepRandom,
 		RequestTime:  register.ctx.global.Now().Local(),
 	}
 	data, err := msgpack.Marshal(&nrr)

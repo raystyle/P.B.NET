@@ -46,10 +46,7 @@ func newDriver(ctx *Beacon, config *Config) (*driver, error) {
 		ctx:           ctx,
 		nodeListeners: make(map[guid.GUID]map[uint64]*bootstrap.Listener),
 	}
-	sleepFixed := cfg.SleepFixed
-	sleepRandom := cfg.SleepRandom
-	driver.sleepFixed.Store(sleepFixed)
-	driver.sleepRandom.Store(sleepRandom)
+	driver.SetSleepTime(cfg.SleepFixed, cfg.SleepRandom)
 	driver.context, driver.cancel = context.WithCancel(context.Background())
 	return &driver, nil
 }
@@ -114,6 +111,17 @@ func (driver *driver) DeleteNodeListener(guid *guid.GUID, index uint64) error {
 		return nil
 	}
 	return errors.New("node listener doesn't exist")
+}
+
+func (driver *driver) SetSleepTime(fixed, random uint) {
+	driver.sleepFixed.Store(fixed)
+	driver.sleepRandom.Store(random)
+}
+
+func (driver *driver) GetSleepTime() (uint, uint) {
+	fixed := driver.sleepFixed.Load().(uint)
+	rand := driver.sleepRandom.Load().(uint)
+	return fixed, rand
 }
 
 // func (driver *driver) logf(lv logger.Level, format string, log ...interface{}) {

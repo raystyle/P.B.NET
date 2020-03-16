@@ -100,6 +100,8 @@ type BeaconRegisterRequest struct {
 	KexPublicKey []byte // key exchange
 	ConnAddress  string // usually like "1.2.3.4:5678"
 	SystemInfo   *info.System
+	SleepFixed   uint // second, query sleep
+	SleepRandom  uint // second, query sleep
 	RequestTime  time.Time
 }
 

