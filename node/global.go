@@ -117,6 +117,9 @@ const (
 	// after key exchange (aes crypto)
 	objCtrlSessionKey
 
+	// after key exchange, key is session key
+	objSessionKey
+
 	// global.configure() time
 	objStartupTime
 
@@ -232,11 +235,14 @@ func (global *global) configure(cfg *Config) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	defer security.CoverBytes(sessionKey)
 	cbc, err = aes.NewCBC(sessionKey, sessionKey[:aes.IVSize])
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	global.objects[objCtrlSessionKey] = cbc
+	// for HMAC-SHA256
+	global.objects[objSessionKey] = security.NewBytes(sessionKey)
 	return nil
 }
 
@@ -305,7 +311,7 @@ func (global *global) SetCertificate(data []byte) error {
 	if err != nil {
 		return err
 	}
-	if *global.GUID() != c.GUID {
+	if c.GUID != *global.GUID() {
 		return errors.New("different node guid")
 	}
 	if !bytes.Equal(global.PublicKey(), c.PublicKey) {
@@ -363,7 +369,7 @@ func (global *global) KeyExchangePublicKey() []byte {
 	return global.objects[objKexPublicKey].([]byte)
 }
 
-// Encrypt is used to encrypt session data.
+// Encrypt is used to encrypt send message.
 func (global *global) Encrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
@@ -371,12 +377,19 @@ func (global *global) Encrypt(data []byte) ([]byte, error) {
 	return cbc.Encrypt(data)
 }
 
-// Decrypt is used to decrypt session data.
+// Decrypt is used to decrypt controller send message.
 func (global *global) Decrypt(data []byte) ([]byte, error) {
 	global.objectsRWM.RLock()
 	defer global.objectsRWM.RUnlock()
 	cbc := global.objects[objCtrlSessionKey].(*aes.CBC)
 	return cbc.Decrypt(data)
+}
+
+// SessionKey is used to get session key.
+func (global *global) SessionKey() *security.Bytes {
+	global.objectsRWM.RLock()
+	defer global.objectsRWM.RUnlock()
+	return global.objects[objSessionKey].(*security.Bytes)
 }
 
 // CtrlPublicKey is used to get Controller public key.

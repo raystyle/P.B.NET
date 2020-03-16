@@ -46,6 +46,9 @@ type conn struct {
 	heartbeat *bytes.Buffer
 	rand      *random.Rand
 
+	// cache
+	nodeGUID guid.GUID
+
 	// user will initialize it in role.Sync()
 	SendPool   sync.Pool
 	AckPool    sync.Pool
@@ -94,6 +97,10 @@ func newConn(ctx *Node, xConn *xnet.Conn, guid *guid.GUID, usage int) *conn {
 	if usage != connUsageClient {
 		conn.heartbeat = new(bytes.Buffer)
 		conn.rand = random.New()
+	}
+	// cache
+	if usage != connUsageServeBeacon {
+		conn.nodeGUID = *ctx.global.GUID()
 	}
 	return &conn
 }
@@ -443,7 +450,7 @@ func (c *conn) HandleSendToNode(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckSendToNodeGUID(&send.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		if send.RoleGUID == *c.ctx.global.GUID() {
+		if send.RoleGUID == c.nodeGUID {
 			c.ctx.worker.AddSend(send)
 			put = false
 		} else {
@@ -479,7 +486,7 @@ func (c *conn) HandleAckToNode(id, data []byte) {
 	}
 	if c.ctx.syncer.CheckAckToNodeGUID(&ack.GUID, timestamp) {
 		c.Reply(id, protocol.ReplySucceed)
-		if ack.RoleGUID == *c.ctx.global.GUID() {
+		if ack.RoleGUID == c.nodeGUID {
 			c.ctx.worker.AddAcknowledge(ack)
 			put = false
 		} else {
