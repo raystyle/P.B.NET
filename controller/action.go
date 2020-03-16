@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"encoding/hex"
 	"time"
 
@@ -20,7 +21,7 @@ func (hs hexByteSlice) MarshalJSON() ([]byte, error) {
 	dst[0] = quotation
 	hex.Encode(dst[1:], hs)
 	dst[2*len(hs)+1] = quotation
-	return dst, nil
+	return bytes.ToUpper(dst), nil
 }
 
 // UnmarshalJSON is used to implement JSON Unmarshaler interface.

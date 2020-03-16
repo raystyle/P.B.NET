@@ -52,8 +52,8 @@ func TestPrintActions(t *testing.T) {
 		nnr := NoticeNodeRegister{
 			ID:           "id-01",
 			GUID:         *testGenerateGUID(),
-			PublicKey:    hexByteSlice(bytes.Repeat([]byte{2}, guid.Size)),
-			KexPublicKey: hexByteSlice(bytes.Repeat([]byte{3}, guid.Size)),
+			PublicKey:    hexByteSlice(bytes.Repeat([]byte{10}, guid.Size)),
+			KexPublicKey: hexByteSlice(bytes.Repeat([]byte{11}, guid.Size)),
 			ConnAddress:  "127.0.0.1:9091",
 			SystemInfo:   info.GetSystemInfo(),
 			RequestTime:  time.Now(),
@@ -67,8 +67,8 @@ func TestPrintActions(t *testing.T) {
 		nbr := NoticeBeaconRegister{
 			ID:           "id-02",
 			GUID:         *testGenerateGUID(),
-			PublicKey:    hexByteSlice(bytes.Repeat([]byte{5}, guid.Size)),
-			KexPublicKey: hexByteSlice(bytes.Repeat([]byte{6}, guid.Size)),
+			PublicKey:    hexByteSlice(bytes.Repeat([]byte{12}, guid.Size)),
+			KexPublicKey: hexByteSlice(bytes.Repeat([]byte{13}, guid.Size)),
 			ConnAddress:  "127.0.0.1:9092",
 			SystemInfo:   info.GetSystemInfo(),
 			RequestTime:  time.Now(),

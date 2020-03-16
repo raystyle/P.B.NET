@@ -58,21 +58,21 @@ func TestGUID(t *testing.T) {
 
 	t.Run("MarshalJSON", func(t *testing.T) {
 		guid := GUID{}
-		data := bytes.Repeat([]byte{1}, Size)
+		data := bytes.Repeat([]byte{10}, Size)
 		copy(guid[:], data)
 		data, err := guid.MarshalJSON()
 		require.NoError(t, err)
 		// "0101...0101"
-		expected := fmt.Sprintf("\"%s\"", strings.Repeat("01", Size))
+		expected := fmt.Sprintf("\"%s\"", strings.Repeat("0A", Size))
 		require.Equal(t, expected, string(data))
 	})
 
 	t.Run("UnmarshalJSON", func(t *testing.T) {
-		data := []byte(fmt.Sprintf("\"%s\"", strings.Repeat("01", Size)))
+		data := []byte(fmt.Sprintf("\"%s\"", strings.Repeat("0A", Size)))
 		guid := GUID{}
 		err := guid.UnmarshalJSON(data)
 		require.NoError(t, err)
-		expected := bytes.Repeat([]byte{1}, Size)
+		expected := bytes.Repeat([]byte{10}, Size)
 		require.Equal(t, expected, guid[:])
 
 		// invalid size

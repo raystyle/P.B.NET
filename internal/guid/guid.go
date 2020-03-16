@@ -1,13 +1,13 @@
 package guid
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -46,7 +46,7 @@ func (guid *GUID) Print() string {
 	dst := make([]byte, Size*2+6)
 	copy(dst, "GUID: ")
 	hex.Encode(dst[6:], guid[:])
-	return strings.ToUpper(string(dst))
+	return string(bytes.ToUpper(dst))
 }
 
 // Hex is used to encode GUID to a hex string.
@@ -55,7 +55,7 @@ func (guid *GUID) Print() string {
 func (guid *GUID) Hex() string {
 	dst := make([]byte, Size*2) // add a "\n"
 	hex.Encode(dst, guid[:])
-	return strings.ToUpper(string(dst))
+	return string(bytes.ToUpper(dst))
 }
 
 // Timestamp is used to get timestamp in the GUID.
@@ -70,7 +70,7 @@ func (guid GUID) MarshalJSON() ([]byte, error) {
 	dst[0] = quotation
 	hex.Encode(dst[1:], guid[:])
 	dst[2*Size+1] = quotation
-	return dst, nil
+	return bytes.ToUpper(dst), nil
 }
 
 // UnmarshalJSON is used to implement JSON Unmarshaler interface.
