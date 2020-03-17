@@ -771,7 +771,7 @@ func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 		Time: server.ctx.global.Now(),
 	}
 	begin := server.ctx.global.Now()
-	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBQueryNodeKey,
+	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBNodeQueryNodeKey,
 		&qnk, true, messages.MaxQueryWaitTime)
 	RTT := server.ctx.global.Now().Sub(begin)
 	duration := messages.MaxQueryWaitTime - RTT
@@ -935,7 +935,7 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 		Time: server.ctx.global.Now(),
 	}
 	begin := server.ctx.global.Now()
-	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBQueryBeaconKey,
+	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBNodeQueryBeaconKey,
 		&qbk, true, messages.MaxQueryWaitTime)
 	RTT := server.ctx.global.Now().Sub(begin)
 	duration := messages.MaxQueryWaitTime - RTT

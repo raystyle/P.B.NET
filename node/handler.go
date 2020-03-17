@@ -94,9 +94,9 @@ func (h *handler) OnSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(send.Message[messages.RandomDataSize:messages.HeaderSize])
 	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
-	case messages.CMDAnswerNodeKey:
+	case messages.CMDNodeAnswerNodeKey:
 		h.handleAnswerNodeKey(send)
-	case messages.CMDAnswerBeaconKey:
+	case messages.CMDNodeAnswerBeaconKey:
 		h.handleAnswerBeaconKey(send)
 	case messages.CMDNodeRegisterResponse:
 		h.handleNodeRegisterResponse(send)

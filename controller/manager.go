@@ -341,7 +341,9 @@ func (mgr *messageMgr) SendToNode(
 	}
 }
 
-// SendToNode is used to send message to Beacon and get the reply.
+// SendToBeacon is used to send message to Beacon and get the reply.
+// If Beacon not in interactive mode, these message will insert to
+// database and wait Beacon to query it.
 func (mgr *messageMgr) SendToBeacon(
 	ctx context.Context,
 	guid *guid.GUID,
@@ -350,22 +352,13 @@ func (mgr *messageMgr) SendToBeacon(
 	deflate bool,
 	timeout time.Duration,
 ) (interface{}, error) {
+	if !mgr.ctx.sender.IsInInteractiveMode(guid) {
+		return nil, mgr.ctx.sender.SendToBeacon(ctx, guid, command, message, deflate)
+	}
 	// set message id
 	id, reply := mgr.createBeaconSlot(guid)
 	defer mgr.destroyBeaconSlot(guid, id, reply)
 	message.SetID(id)
-	// set timeout
-	if timeout < 1 {
-		timeout = mgr.timeout
-	}
-	// set special timeout if Beacon not in interactive mode
-	if !mgr.ctx.sender.IsInInteractiveMode(guid) {
-		fixed, random, err := mgr.ctx.database.SelectBeaconSleepTime(guid)
-		if err != nil {
-			return nil, err
-		}
-		timeout += time.Duration(fixed+random) * time.Second
-	}
 	// send
 	err := mgr.ctx.sender.SendToBeacon(ctx, guid, command, message, deflate)
 	if err != nil {
@@ -374,6 +367,9 @@ func (mgr *messageMgr) SendToBeacon(
 	// get reply
 	timer := mgr.timerPool.Get().(*time.Timer)
 	defer mgr.timerPool.Put(timer)
+	if timeout < 1 {
+		timeout = mgr.timeout
+	}
 	timer.Reset(timeout)
 	select {
 	case resp := <-reply:
@@ -457,6 +453,9 @@ func (mgr *messageMgr) getBeaconSlot(role *guid.GUID) *roleMessageSlot {
 
 // HandleBeaconReply is used to set Beacon reply, handler.Handle functions will call it.
 func (mgr *messageMgr) HandleBeaconReply(role, id *guid.GUID, reply interface{}) {
+	if id.IsZero() {
+		return
+	}
 	bs := mgr.getBeaconSlot(role)
 	if bs == nil {
 		return

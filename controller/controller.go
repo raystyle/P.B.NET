@@ -342,7 +342,7 @@ func (ctrl *Ctrl) EnableInteractiveModeNew(
 		return nil
 	}
 	cm := messages.ChangeMode{Interactive: true}
-	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBChangeMode,
+	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBBeaconChangeMode,
 		&cm, false, timeout)
 	if err != nil {
 		return err
@@ -366,7 +366,7 @@ func (ctrl *Ctrl) DisableInteractiveModeNew(
 		return nil
 	}
 	cm := messages.ChangeMode{Interactive: false}
-	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBChangeMode,
+	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBBeaconChangeMode,
 		&cm, false, timeout)
 	if err != nil {
 		return err
@@ -443,6 +443,9 @@ func (ctrl *Ctrl) ShellCode(
 	if err != nil {
 		return err
 	}
+	if reply == nil {
+		return nil
+	}
 	result := reply.(*messages.ShellCodeResult)
 	if result.Err != "" {
 		return errors.New(result.Err)
@@ -475,6 +478,9 @@ func (ctrl *Ctrl) SingleShell(
 		messages.CMDBSingleShell, &shell, true, timeout)
 	if err != nil {
 		return nil, err
+	}
+	if reply == nil {
+		return nil, nil
 	}
 	output := reply.(*messages.SingleShellOutput)
 	buf := bytes.Buffer{}

@@ -104,9 +104,9 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 	switch msgType {
 	case messages.CMDNodeLog:
 		h.handleNodeLog(send)
-	case messages.CMDQueryNodeKey:
+	case messages.CMDNodeQueryNodeKey:
 		h.handleQueryNodeKey(send)
-	case messages.CMDQueryBeaconKey:
+	case messages.CMDNodeQueryBeaconKey:
 		h.handleQueryBeaconKey(send)
 	case messages.CMDNodeRegisterRequest:
 		h.handleNodeRegisterRequest(send)
@@ -174,7 +174,7 @@ func (h *handler) handleQueryNodeKey(send *protocol.Send) {
 		ank.ReplyTime = node.CreatedAt
 	}
 	// send to Node
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBAnswerNodeKey,
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBNodeAnswerNodeKey,
 		ank, true)
 	if err != nil {
 		const format = "failed to answer node key\nerror: %s"
@@ -211,7 +211,7 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 		abk.ReplyTime = beacon.CreatedAt
 	}
 	// send to Node
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBAnswerBeaconKey,
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBNodeAnswerBeaconKey,
 		abk, true)
 	if err != nil {
 		const format = "failed to answer beacon key\nerror: %s"
@@ -402,6 +402,7 @@ func (h *handler) handleShellCodeResult(send *protocol.Send) {
 		return
 	}
 	h.ctx.messageMgr.HandleBeaconReply(&send.RoleGUID, &result.ID, result)
+	// notice
 }
 
 func (h *handler) handleSingleShellOutput(send *protocol.Send) {

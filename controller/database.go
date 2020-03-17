@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -12,8 +14,10 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/aes"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/messages"
 	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/security"
@@ -25,8 +29,12 @@ type database struct {
 
 	dbLogger   *dbLogger
 	gormLogger *gormLogger
-	db         *gorm.DB
-	cache      *cache
+
+	db    *gorm.DB
+	cache *cache
+
+	// for replace beacon message
+	rand *random.Rand
 }
 
 func newDatabase(ctx *Ctrl, config *Config) (*database, error) {
@@ -74,6 +82,7 @@ func newDatabase(ctx *Ctrl, config *Config) (*database, error) {
 		gormLogger: gormLogger,
 		db:         gormDB,
 		cache:      newCache(),
+		rand:       random.New(),
 	}, nil
 }
 
@@ -581,6 +590,96 @@ func (db *database) UpdateBeaconSleepTime(guid *guid.GUID, fixed, rand uint) err
 		SleepRandom: rand,
 	}
 	return db.db.Model(info).Where("guid = ?", guid[:]).Updates(info).Error
+}
+
+// ListBeaconMessage will select all Beacon message and decrypt it.
+// User can query Beacon's current message that will be queried,
+// then they can cancel some message.
+func (db *database) ListBeaconMessage(guid *guid.GUID) ([]*mBeaconMessage, error) {
+	// get session key
+	beacon, err := db.SelectBeacon(guid)
+	if err != nil {
+		return nil, err
+	}
+	const (
+		columns = "index, deflate, message, created_at"
+		where   = "guid = ?"
+	)
+	var bms []*mBeaconMessage
+	err = db.db.Select(columns).Find(&bms, where, guid[:]).Error
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	// decrypt message
+	sessionKey := beacon.SessionKey.Get()
+	defer beacon.SessionKey.Put(sessionKey)
+	aesKey := sessionKey
+	aesIV := sessionKey[:aes.IVSize]
+	buffer := bytes.Buffer{}
+	bytesReader := bytes.NewReader(nil)
+	deflateReader := flate.NewReader(bytesReader)
+	for i := 0; i < len(bms); i++ {
+		bms[i].Message, err = aes.CBCDecrypt(bms[i].Message, aesKey, aesIV)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		// may be need decompress
+		if bms[i].Deflate != 1 {
+			continue
+		}
+		bytesReader.Reset(bms[i].Message)
+		err = deflateReader.(flate.Resetter).Reset(bytesReader, nil)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		buffer.Reset()
+		_, err = buffer.ReadFrom(deflateReader)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		err = deflateReader.Close()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		// copy
+		b := make([]byte, buffer.Len())
+		copy(b, buffer.Bytes())
+		bms[i].Message = b
+	}
+	return bms, nil
+}
+
+// CancelBeaconMessage is used to replace raw message to Nop command.
+// prevent incorrect message index.
+func (db *database) CancelBeaconMessage(guid *guid.GUID, index uint64) (err error) {
+	// get session key
+	beacon, err := db.SelectBeacon(guid)
+	if err != nil {
+		return
+	}
+	// make nop command
+	sessionKey := beacon.SessionKey.Get()
+	defer beacon.SessionKey.Put(sessionKey)
+	aesKey := sessionKey
+	aesIV := sessionKey[:aes.IVSize]
+	msg := make([]byte, messages.RandomDataSize+messages.MessageTypeSize)
+	copy(msg, db.rand.Bytes(messages.RandomDataSize))
+	copy(msg[messages.RandomDataSize:], messages.CMDBBeaconNop)
+	msg, err = aes.CBCEncrypt(msg, aesKey, aesIV)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// replace ole message to nop
+	bm := &mBeaconMessage{
+		Deflate: 0, // deflate = false
+		Message: msg,
+	}
+	const where = "guid = ? and `index` = ?"
+	err = db.db.Model(bm).Where(where, guid[:], index).Updates(bm).Error
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return
 }
 
 func (db *database) InsertBeaconListener(m *mBeaconListener) error {
