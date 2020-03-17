@@ -128,18 +128,17 @@ type mNode struct {
 
 // see internal/module/info/system.go
 type mNodeInfo struct {
-	ID          uint64 `gorm:"primary_key"`
-	GUID        []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
-	IP          string `gorm:"not null;size:1024"` // "1.1.1.1,[::1]"
-	OS          string `gorm:"not null;size:1024"`
-	Arch        string `gorm:"not null;size:1024"`
-	GoVersion   string `gorm:"not null;size:1024"`
-	PID         int    `gorm:"column:pid;not null"`
-	PPID        int    `gorm:"column:ppid;not null"`
-	Hostname    string `gorm:"not null;size:1024"`
-	Username    string `gorm:"not null;size:1024"`
-	IsBootstrap bool   `gorm:"not null"`
-	Zone        string `gorm:"not null;size:1024"`
+	ID        uint64 `gorm:"primary_key"`
+	GUID      []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
+	IP        string `gorm:"not null;size:1024"` // "1.1.1.1,[::1]"
+	OS        string `gorm:"not null;size:1024"`
+	Arch      string `gorm:"not null;size:1024"`
+	GoVersion string `gorm:"not null;size:1024"`
+	PID       int    `gorm:"column:pid;not null"`
+	PPID      int    `gorm:"column:ppid;not null"`
+	Hostname  string `gorm:"not null;size:1024"`
+	Username  string `gorm:"not null;size:1024"`
+	Zone      string `gorm:"not null;size:1024"`
 	Model
 }
 

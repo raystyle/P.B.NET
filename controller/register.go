@@ -212,17 +212,16 @@ func (ctrl *Ctrl) registerNode(
 		return hmac.New(sha256.New, key)
 	}
 	nodeInfo := mNodeInfo{
-		GUID:        nrr.GUID[:],
-		IP:          strings.Join(nrr.SystemInfo.IP, ","),
-		OS:          nrr.SystemInfo.OS,
-		Arch:        nrr.SystemInfo.Arch,
-		GoVersion:   nrr.SystemInfo.GoVersion,
-		PID:         nrr.SystemInfo.PID,
-		PPID:        nrr.SystemInfo.PPID,
-		Hostname:    nrr.SystemInfo.Hostname,
-		Username:    nrr.SystemInfo.Username,
-		IsBootstrap: reply.Bootstrap,
-		Zone:        reply.Zone,
+		GUID:      nrr.GUID[:],
+		IP:        strings.Join(nrr.SystemInfo.IP, ","),
+		OS:        nrr.SystemInfo.OS,
+		Arch:      nrr.SystemInfo.Arch,
+		GoVersion: nrr.SystemInfo.GoVersion,
+		PID:       nrr.SystemInfo.PID,
+		PPID:      nrr.SystemInfo.PPID,
+		Hostname:  nrr.SystemInfo.Hostname,
+		Username:  nrr.SystemInfo.Username,
+		Zone:      reply.Zone,
 	}
 	err = ctrl.database.InsertNode(&node, &nodeInfo)
 	if err != nil {

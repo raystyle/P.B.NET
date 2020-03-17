@@ -24,9 +24,8 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 
 	// confirm
 	reply := ReplyNodeRegister{
-		ID:        nnr.ID,
-		Bootstrap: true,
-		Zone:      "test",
+		ID:   nnr.ID,
+		Zone: "test",
 	}
 	err = ctrl.ConfirmTrustNode(context.Background(), &reply)
 	require.NoError(t, err)

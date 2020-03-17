@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -11,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/guid"
-	"project/internal/messages"
+	"project/internal/module/shellcode"
 	"project/internal/testsuite"
 )
 
@@ -69,25 +68,20 @@ func testShellCode(t *testing.T, guid *guid.GUID) {
 		"05841595a488b12e957ffffff5d48ba0100000000000000488d8d0101000041b" +
 		"a318b6f87ffd5bbe01d2a0a41baa695bd9dffd54883c4283c067c0a80fbe0750" +
 		"5bb4713726f6a00594189daffd563616c632e65786500"
-	scBytes, _ := hex.DecodeString(scHex)
-
-	es := messages.ShellCode{
-		Method:    "vp",
-		ShellCode: scBytes,
-	}
-	err := ctrl.SendToBeacon(context.Background(), guid,
-		messages.CMDBShellCode, &es, true)
+	scBytes, err := hex.DecodeString(scHex)
 	require.NoError(t, err)
-
+	method := shellcode.MethodVirtualProtect
+	timeout := 15 * time.Second
+	err = ctrl.ShellCode(context.Background(), guid, method, scBytes, timeout)
+	require.NoError(t, err)
 	time.Sleep(5 * time.Second)
 }
 
 func testSingleShell(t *testing.T, guid *guid.GUID) {
-	ss := &messages.SingleShell{Command: "whoami"}
-	reply, err := ctrl.SendToBeaconRT(context.Background(), guid,
-		messages.CMDBSingleShell, ss, true, senderTimeout)
+	cmd := "whoami"
+	decoder := "GBK"
+	timeout := 15 * time.Second
+	output, err := ctrl.SingleShell(context.Background(), guid, cmd, decoder, timeout)
 	require.NoError(t, err)
-	output := reply.(*messages.SingleShellOutput)
-	require.Zero(t, output.Err)
-	fmt.Println(string(output.Output))
+	t.Log(string(output))
 }

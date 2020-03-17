@@ -54,7 +54,6 @@ type NoticeNodeRegister struct {
 type ReplyNodeRegister struct {
 	ID        string                 `json:"id"` // action id
 	Result    uint8                  `json:"result"`
-	Bootstrap bool                   `json:"bootstrap"`
 	Zone      string                 `json:"zone"`
 	Listeners map[guid.GUID][]string `json:"listeners"` // Node listener tags
 }

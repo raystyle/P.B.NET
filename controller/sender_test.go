@@ -25,9 +25,8 @@ func testGenerateInitialNodeAndTrust(t testing.TB) *node.Node {
 	require.NoError(t, err)
 	// confirm
 	reply := ReplyNodeRegister{
-		ID:        nnr.ID,
-		Bootstrap: true,
-		Zone:      "test",
+		ID:   nnr.ID,
+		Zone: "test",
 	}
 	err = ctrl.ConfirmTrustNode(context.Background(), &reply)
 	require.NoError(t, err)

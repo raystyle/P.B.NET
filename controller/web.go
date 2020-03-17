@@ -210,6 +210,7 @@ type webError struct {
 }
 
 func (wh *webHandler) writeError(w hRW, err error) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	e := webError{}
 	if err != nil {
@@ -225,6 +226,7 @@ func (wh *webHandler) writeError(w hRW, err error) {
 }
 
 func (wh *webHandler) writeResponse(w hRW, response interface{}) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	encoder := wh.encoderPool.Get().(*json.Encoder)
 	defer wh.encoderPool.Put(encoder)

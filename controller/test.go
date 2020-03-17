@@ -126,7 +126,6 @@ func (t *Test) registerNode() {
 			reply := ReplyNodeRegister{
 				ID:        nnr.ID,
 				Result:    messages.RegisterResultAccept,
-				Bootstrap: false,
 				Zone:      "test",
 				Listeners: t.getNodeListener(),
 			}
