@@ -63,6 +63,13 @@ func (guid *GUID) Timestamp() int64 {
 	return int64(binary.BigEndian.Uint64(guid[20:28]))
 }
 
+var zeroGUID = new(GUID)[:]
+
+// IsZero is used to check this guid is [0, 0, ...., 0].
+func (guid *GUID) IsZero() bool {
+	return bytes.Equal(zeroGUID, guid[:])
+}
+
 // MarshalJSON is used to implement JSON Marshaler interface.
 func (guid GUID) MarshalJSON() ([]byte, error) {
 	const quotation = 34 // ASCII

@@ -56,6 +56,13 @@ func TestGUID(t *testing.T) {
 		require.Equal(t, now, guid.Timestamp())
 	})
 
+	t.Run("IsZero", func(t *testing.T) {
+		guid := GUID{}
+		require.True(t, guid.IsZero())
+		guid[0] = 1
+		require.False(t, guid.IsZero())
+	})
+
 	t.Run("MarshalJSON", func(t *testing.T) {
 		guid := GUID{}
 		data := bytes.Repeat([]byte{10}, Size)
