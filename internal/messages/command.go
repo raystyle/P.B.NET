@@ -33,29 +33,40 @@ const (
 	CMDRTTestResponse
 )
 
-// -------------------------------------------protocol---------------------------------------------
+// ---------------------------------------------core-----------------------------------------------
 // range 0x10000000 - 0x1FFFFFFF
 
-// role's register request and Controller's response
+// nop will not do anything, it used for cancel Beacon message that insert to
+// table: beacon_message, controller will replace old message to nop command.
 const (
-	CMDNodeRegisterRequest uint32 = 0x10000000 + iota
+	CMDNodeNop uint32 = 0x10000000 + iota
+	CMDBeaconNop
+)
+
+// role's register request and Controller's response.
+const (
+	CMDNodeRegisterRequest uint32 = 0x10010000 + iota
 	CMDNodeRegisterResponse
 	CMDBeaconRegisterRequest
 	CMDBeaconRegisterResponse
 )
 
 // about Node
+
+// If current Node doesn't exist role key, it will query Controller.
+// then Controller will answer Node.
 const (
-	// if current Node doesn't exist role key, it will query Controller.
-	CMDQueryNodeKey uint32 = 0x10010000 + iota
-	CMDQueryBeaconKey
-	CMDAnswerNodeKey
-	CMDAnswerBeaconKey
+	CMDNodeQueryNodeKey uint32 = 0x10020000 + iota
+	CMDNodeQueryBeaconKey
+	CMDNodeAnswerNodeKey
+	CMDNodeAnswerBeaconKey
 )
 
 // about Beacon
+
+// driver
 const (
-	CMDChangeMode uint32 = 0x10020000 + iota
+	CMDBeaconChangeMode uint32 = 0x10030000 + iota
 )
 
 // -------------------------------------role internal modules--------------------------------------
@@ -67,7 +78,7 @@ const (
 	CMDBeaconLog
 )
 
-// -----------------------------------------other modules------------------------------------------
+// --------------------------------------role other modules----------------------------------------
 // range 0x30000000 - 0x3FFFFFFF
 
 // simple module
@@ -85,23 +96,27 @@ var (
 	CMDBRTTestRequest  = convert.Uint32ToBytes(CMDRTTestRequest)
 	CMDBRTTestResponse = convert.Uint32ToBytes(CMDRTTestResponse)
 
-	// about protocol
+	// about core
+	CMDBNodeNop   = convert.Uint32ToBytes(CMDNodeNop)
+	CMDBBeaconNop = convert.Uint32ToBytes(CMDBeaconNop)
+
 	CMDBNodeRegisterRequest    = convert.Uint32ToBytes(CMDNodeRegisterRequest)
 	CMDBNodeRegisterResponse   = convert.Uint32ToBytes(CMDNodeRegisterResponse)
 	CMDBBeaconRegisterRequest  = convert.Uint32ToBytes(CMDBeaconRegisterRequest)
 	CMDBBeaconRegisterResponse = convert.Uint32ToBytes(CMDBeaconRegisterResponse)
-	CMDBQueryNodeKey           = convert.Uint32ToBytes(CMDQueryNodeKey)
-	CMDBQueryBeaconKey         = convert.Uint32ToBytes(CMDQueryBeaconKey)
-	CMDBAnswerNodeKey          = convert.Uint32ToBytes(CMDAnswerNodeKey)
-	CMDBAnswerBeaconKey        = convert.Uint32ToBytes(CMDAnswerBeaconKey)
 
-	CMDBChangeMode = convert.Uint32ToBytes(CMDChangeMode)
+	CMDBNodeQueryNodeKey    = convert.Uint32ToBytes(CMDNodeQueryNodeKey)
+	CMDBNodeQueryBeaconKey  = convert.Uint32ToBytes(CMDNodeQueryBeaconKey)
+	CMDBNodeAnswerNodeKey   = convert.Uint32ToBytes(CMDNodeAnswerNodeKey)
+	CMDBNodeAnswerBeaconKey = convert.Uint32ToBytes(CMDNodeAnswerBeaconKey)
+
+	CMDBBeaconChangeMode = convert.Uint32ToBytes(CMDBeaconChangeMode)
 
 	// role internal modules
 	CMDBNodeLog   = convert.Uint32ToBytes(CMDNodeLog)
 	CMDBBeaconLog = convert.Uint32ToBytes(CMDBeaconLog)
 
-	// other modules
+	// role other modules
 	CMDBShellCode         = convert.Uint32ToBytes(CMDShellCode)
 	CMDBShellCodeResult   = convert.Uint32ToBytes(CMDShellCodeResult)
 	CMDBSingleShell       = convert.Uint32ToBytes(CMDSingleShell)
