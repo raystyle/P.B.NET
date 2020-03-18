@@ -275,6 +275,50 @@ func (ctrl *Ctrl) Disconnect(guid *guid.GUID) error {
 	return ctrl.sender.Disconnect(guid)
 }
 
+// DeleteNode is used to delete Node.
+func (ctrl *Ctrl) DeleteNode(guid *guid.GUID) error {
+	err := ctrl.database.DeleteNode(guid)
+	if err != nil {
+		const format = "failed to delete node\n%s"
+		return errors.Wrapf(err, format, guid.Print())
+	}
+	ctrl.sender.DeleteNodeAckSlots(guid)
+	return nil
+}
+
+// DeleteNodeUnscoped is used to unscoped delete Node.
+func (ctrl *Ctrl) DeleteNodeUnscoped(guid *guid.GUID) error {
+	err := ctrl.database.DeleteNodeUnscoped(guid)
+	if err != nil {
+		const format = "failed to unscoped delete node\n%s"
+		return errors.Wrapf(err, format, guid.Print())
+	}
+	ctrl.sender.DeleteNodeAckSlots(guid)
+	return nil
+}
+
+// DeleteBeacon is used to delete Beacon.
+func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
+	err := ctrl.database.DeleteBeacon(guid)
+	if err != nil {
+		const format = "failed to delete beacon\n%s"
+		return errors.Wrapf(err, format, guid.Print())
+	}
+	ctrl.sender.DeleteBeaconAckSlots(guid)
+	return nil
+}
+
+// DeleteBeaconUnscoped is used to unscoped delete Beacon.
+func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
+	err := ctrl.database.DeleteBeaconUnscoped(guid)
+	if err != nil {
+		const format = "failed to unscoped delete beacon\n%s"
+		return errors.Wrapf(err, format, guid.Print())
+	}
+	ctrl.sender.DeleteBeaconAckSlots(guid)
+	return nil
+}
+
 // SendToNode is used to send messages to Node.
 func (ctrl *Ctrl) SendToNode(
 	ctx context.Context,
@@ -365,57 +409,30 @@ func (ctrl *Ctrl) DisableInteractiveMode(
 
 // ForceEnableInteractiveMode is used to enable interactive mode force.
 // Usually for test, if appear some bug, you can call it for debug.
-func (ctrl *Ctrl) ForceEnableInteractiveMode(guid *guid.GUID) {
+func (ctrl *Ctrl) ForceEnableInteractiveMode(guid *guid.GUID) error {
+	err := ctrl.database.InsertBeaconModeChanged(guid, &messages.ModeChanged{
+		Interactive: true,
+		Reason:      "force",
+	})
+	if err != nil {
+		return errors.Errorf("failed to enable interactive mode: %s", err)
+	}
 	ctrl.sender.EnableInteractiveMode(guid)
+	return nil
 }
 
 // ForceDisableInteractiveMode is used to disable interactive mode force.
 // Usually for test, if appear some bug, you can call it for debug.
-func (ctrl *Ctrl) ForceDisableInteractiveMode(guid *guid.GUID) {
+func (ctrl *Ctrl) ForceDisableInteractiveMode(guid *guid.GUID) error {
+	// check virtual connection manager
+	err := ctrl.database.InsertBeaconModeChanged(guid, &messages.ModeChanged{
+		Interactive: false,
+		Reason:      "force",
+	})
+	if err != nil {
+		return errors.Errorf("failed to disable interactive mode: %s", err)
+	}
 	ctrl.sender.DisableInteractiveMode(guid)
-}
-
-// DeleteNode is used to delete Node.
-func (ctrl *Ctrl) DeleteNode(guid *guid.GUID) error {
-	err := ctrl.database.DeleteNode(guid)
-	if err != nil {
-		const format = "failed to delete node\n%s"
-		return errors.Wrapf(err, format, guid.Print())
-	}
-	ctrl.sender.DeleteNode(guid)
-	return nil
-}
-
-// DeleteNodeUnscoped is used to unscoped delete Node.
-func (ctrl *Ctrl) DeleteNodeUnscoped(guid *guid.GUID) error {
-	err := ctrl.database.DeleteNodeUnscoped(guid)
-	if err != nil {
-		const format = "failed to unscoped delete node\n%s"
-		return errors.Wrapf(err, format, guid.Print())
-	}
-	ctrl.sender.DeleteNode(guid)
-	return nil
-}
-
-// DeleteBeacon is used to delete Beacon.
-func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
-	err := ctrl.database.DeleteBeacon(guid)
-	if err != nil {
-		const format = "failed to delete beacon\n%s"
-		return errors.Wrapf(err, format, guid.Print())
-	}
-	ctrl.sender.DeleteBeacon(guid)
-	return nil
-}
-
-// DeleteBeaconUnscoped is used to unscoped delete Beacon.
-func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
-	err := ctrl.database.DeleteBeaconUnscoped(guid)
-	if err != nil {
-		const format = "failed to unscoped delete beacon\n%s"
-		return errors.Wrapf(err, format, guid.Print())
-	}
-	ctrl.sender.DeleteBeacon(guid)
 	return nil
 }
 
@@ -478,6 +495,7 @@ func (ctrl *Ctrl) SingleShell(
 	if reply == nil {
 		return nil, nil
 	}
+	// decode
 	output := reply.(*messages.SingleShellOutput)
 	buf := bytes.Buffer{}
 	buf.Write(output.Output)

@@ -29,10 +29,17 @@ const (
 
 // 32 = guid.Size in internal/guid/guid.go
 
-// Model include time, most model need it.
+// Model include CreatedAt, UpdatedAt, DeletedAt.
+// Most model need it.
 type Model struct {
 	CreatedAt time.Time  `gorm:"not null"`
 	UpdatedAt time.Time  `gorm:"not null"`
+	DeletedAt *time.Time `sql:"index"`
+}
+
+// ModelWithoutUpdateAt include CreatedAt and DeletedAt.
+type ModelWithoutUpdateAt struct {
+	CreatedAt time.Time  `gorm:"not null"`
 	DeletedAt *time.Time `sql:"index"`
 }
 
@@ -110,12 +117,11 @@ type mRoleLog struct {
 }
 
 type mNode struct {
-	ID           uint64     `gorm:"primary_key"`
-	GUID         []byte     `gorm:"not null;type:binary(32);unique" sql:"index"`
-	PublicKey    []byte     `gorm:"not null;type:binary(32)"`
-	KexPublicKey []byte     `gorm:"not null;type:binary(32)"`
-	CreatedAt    time.Time  `gorm:"not null"`
-	DeletedAt    *time.Time `sql:"index"`
+	ID           uint64 `gorm:"primary_key"`
+	GUID         []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
+	PublicKey    []byte `gorm:"not null;type:binary(32)"`
+	KexPublicKey []byte `gorm:"not null;type:binary(32)"`
+	ModelWithoutUpdateAt
 
 	// when first query or insert, these will be calculated.
 
@@ -153,12 +159,11 @@ type mNodeListener struct {
 }
 
 type mBeacon struct {
-	ID           uint64     `gorm:"primary_key"`
-	GUID         []byte     `gorm:"not null;type:binary(32);unique" sql:"index"`
-	PublicKey    []byte     `gorm:"not null;type:binary(32)"`
-	KexPublicKey []byte     `gorm:"not null;type:binary(32)"`
-	CreatedAt    time.Time  `gorm:"not null"`
-	DeletedAt    *time.Time `sql:"index"`
+	ID           uint64 `gorm:"primary_key"`
+	GUID         []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
+	PublicKey    []byte `gorm:"not null;type:binary(32)"`
+	KexPublicKey []byte `gorm:"not null;type:binary(32)"`
+	ModelWithoutUpdateAt
 
 	// when first query or insert, these will be calculated.
 
@@ -215,12 +220,26 @@ type mBeaconMessageIndex struct {
 }
 
 type mBeaconModeChanged struct {
-	ID          uint64     `gorm:"primary_key"`
-	GUID        []byte     `gorm:"not null;type:binary(32);unique" sql:"index"`
-	Interactive bool       `gorm:"not null"`
-	Reason      string     `gorm:"not null;size:4096"`
-	CreatedAt   time.Time  `gorm:"not null"`
-	DeletedAt   *time.Time `sql:"index"`
+	ID          uint64 `gorm:"primary_key"`
+	GUID        []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
+	Interactive bool   `gorm:"not null"`
+	Reason      string `gorm:"not null;size:4096"`
+	ModelWithoutUpdateAt
+}
+
+type mModuleShellCode struct {
+	ID    uint64 `gorm:"primary_key"`
+	GUID  []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
+	Error string `gorm:"not null;size:4096"`
+	ModelWithoutUpdateAt
+}
+
+type mModuleSingleShell struct {
+	ID     uint64 `gorm:"primary_key"`
+	GUID   []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
+	Output []byte `gorm:"not null;type:mediumblob"`
+	Error  string `gorm:"not null;size:4096"`
+	ModelWithoutUpdateAt
 }
 
 // InitializeDatabase is used to initialize database
@@ -268,6 +287,8 @@ func InitializeDatabase(config *Config) error {
 		{model: &mBeaconMessage{}},
 		{model: &mBeaconMessageIndex{}},
 		{model: &mBeaconModeChanged{}},
+		{model: &mModuleShellCode{}},
+		{model: &mModuleSingleShell{}},
 	}
 	l := len(tables)
 	// because of foreign key, drop tables by inverted order
@@ -335,6 +356,8 @@ func initializeDatabaseForeignKey(db *gorm.DB) error {
 		db.Model(&mBeaconMessage{}),
 		db.Model(&mBeaconMessageIndex{}),
 		db.Model(&mBeaconModeChanged{}),
+		db.Model(&mModuleShellCode{}),
+		db.Model(&mModuleSingleShell{}),
 	} {
 		err := model.AddForeignKey(field, "beacon(guid)", onDelete, onUpdate).Error
 		if err != nil {

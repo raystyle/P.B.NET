@@ -403,6 +403,12 @@ func (h *handler) handleShellCodeResult(send *protocol.Send) {
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
 		return
 	}
+	err = h.ctx.database.InsertShellCodeResult(&send.RoleGUID, result.Err)
+	if err != nil {
+		const log = "failed to insert execute shellcode result\nerror:"
+		h.logWithInfo(logger.Error, &send.RoleGUID, send, log, err)
+		return
+	}
 	h.ctx.messageMgr.HandleBeaconReply(&send.RoleGUID, &result.ID, &result)
 	// notice
 }
@@ -414,6 +420,12 @@ func (h *handler) handleSingleShellOutput(send *protocol.Send) {
 	if err != nil {
 		const format = "invalid single shell output data\nerror: %s"
 		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	err = h.ctx.database.InsertSingleShellOutput(&send.RoleGUID, &output)
+	if err != nil {
+		const log = "failed to insert single shell output\nerror:"
+		h.logWithInfo(logger.Error, &send.RoleGUID, send, log, err)
 		return
 	}
 	h.ctx.messageMgr.HandleBeaconReply(&send.RoleGUID, &output.ID, &output)

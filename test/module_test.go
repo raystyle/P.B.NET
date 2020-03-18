@@ -23,7 +23,8 @@ func TestModule(t *testing.T) {
 	err := Beacon.Synchronize(context.Background(), iNodeGUID, iListener)
 	require.NoError(t, err)
 
-	ctrl.ForceEnableInteractiveMode(beaconGUID)
+	err = ctrl.ForceEnableInteractiveMode(beaconGUID)
+	require.NoError(t, err)
 
 	// test 3 times
 	test := func(f func(t *testing.T, guid *guid.GUID)) {

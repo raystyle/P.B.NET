@@ -675,6 +675,19 @@ func (sender *sender) Answer(msg *mBeaconMessage) error {
 	return result.Err
 }
 
+func (sender *sender) DeleteNodeAckSlots(guid *guid.GUID) {
+	sender.nodeAckSlotsRWM.Lock()
+	defer sender.nodeAckSlotsRWM.Unlock()
+	delete(sender.nodeAckSlots, *guid)
+}
+
+func (sender *sender) DeleteBeaconAckSlots(guid *guid.GUID) {
+	sender.DisableInteractiveMode(guid)
+	sender.beaconAckSlotsRWM.Lock()
+	defer sender.beaconAckSlotsRWM.Unlock()
+	delete(sender.beaconAckSlots, *guid)
+}
+
 func (sender *sender) EnableInteractiveMode(guid *guid.GUID) {
 	sender.interactiveRWM.Lock()
 	defer sender.interactiveRWM.Unlock()
@@ -691,19 +704,6 @@ func (sender *sender) IsInInteractiveMode(guid *guid.GUID) bool {
 	sender.interactiveRWM.RLock()
 	defer sender.interactiveRWM.RUnlock()
 	return sender.interactive[*guid]
-}
-
-func (sender *sender) DeleteNode(guid *guid.GUID) {
-	sender.nodeAckSlotsRWM.Lock()
-	defer sender.nodeAckSlotsRWM.Unlock()
-	delete(sender.nodeAckSlots, *guid)
-}
-
-func (sender *sender) DeleteBeacon(guid *guid.GUID) {
-	sender.DisableInteractiveMode(guid)
-	sender.beaconAckSlotsRWM.Lock()
-	defer sender.beaconAckSlotsRWM.Unlock()
-	delete(sender.beaconAckSlots, *guid)
 }
 
 func (sender *sender) Close() {

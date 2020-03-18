@@ -707,3 +707,22 @@ func (db *database) InsertBeaconModeChanged(guid *guid.GUID, mc *messages.ModeCh
 	}
 	return db.db.Create(&bmc).Error
 }
+
+// ------------------------------------------about Module------------------------------------------
+
+func (db *database) InsertShellCodeResult(guid *guid.GUID, error string) error {
+	sc := mModuleShellCode{
+		GUID:  guid[:],
+		Error: error,
+	}
+	return db.db.Create(&sc).Error
+}
+
+func (db *database) InsertSingleShellOutput(guid *guid.GUID, sso *messages.SingleShellOutput) error {
+	ss := mModuleSingleShell{
+		GUID:   guid[:],
+		Output: sso.Output,
+		Error:  sso.Err,
+	}
+	return db.db.Create(&ss).Error
+}

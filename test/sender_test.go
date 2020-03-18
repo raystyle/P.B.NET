@@ -217,7 +217,8 @@ func buildBeaconNetworkWithCI(
 			Beacon.Test.EnableMessage()
 		}
 		if interactive {
-			ctrl.ForceEnableInteractiveMode(Beacon.GUID())
+			err = ctrl.ForceEnableInteractiveMode(Beacon.GUID())
+			require.NoError(t, err)
 		}
 
 		nodes[2*i] = iNode
@@ -289,7 +290,8 @@ func buildBeaconNetworkWithIC(
 			Beacon.Test.EnableMessage()
 		}
 		if interactive {
-			ctrl.ForceEnableInteractiveMode(Beacon.GUID())
+			err = ctrl.ForceEnableInteractiveMode(Beacon.GUID())
+			require.NoError(t, err)
 		}
 
 		nodes[2*i] = iNode
@@ -374,7 +376,8 @@ func buildBeaconNetworkWithMix(
 		beacons[0].Test.EnableMessage()
 	}
 	if interactive {
-		ctrl.ForceEnableInteractiveMode(beacons[0].GUID())
+		err = ctrl.ForceEnableInteractiveMode(beacons[0].GUID())
+		require.NoError(t, err)
 	}
 
 	// Beacon 1 connect the Common Node 0 and the Common Node 2
@@ -387,7 +390,8 @@ func buildBeaconNetworkWithMix(
 		beacons[1].Test.EnableMessage()
 	}
 	if interactive {
-		ctrl.ForceEnableInteractiveMode(beacons[1].GUID())
+		err = ctrl.ForceEnableInteractiveMode(beacons[1].GUID())
+		require.NoError(t, err)
 	}
 
 	// Beacon 2 connect the Common Node 1 and the Common Node 2
@@ -400,7 +404,8 @@ func buildBeaconNetworkWithMix(
 		beacons[2].Test.EnableMessage()
 	}
 	if interactive {
-		ctrl.ForceEnableInteractiveMode(beacons[2].GUID())
+		err = ctrl.ForceEnableInteractiveMode(beacons[2].GUID())
+		require.NoError(t, err)
 	}
 
 	return append([]*node.Node{iNode}, cNodes[:]...), beacons[:]
