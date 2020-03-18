@@ -781,8 +781,8 @@ func (server *server) getNodeKey(guid *guid.GUID) *protocol.NodeKey {
 		return nil
 	}
 	ank := reply.(*messages.AnswerNodeKey)
-	// check whether queried
-	if ank.GUID == messages.ZeroGUID {
+	// check it is exists
+	if ank.GUID.IsZero() {
 		server.sleep(duration)
 		return nil
 	}
@@ -945,8 +945,8 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 		return nil
 	}
 	abk := reply.(*messages.AnswerBeaconKey)
-	// check whether queried
-	if abk.GUID == messages.ZeroGUID {
+	// check it is exists
+	if abk.GUID.IsZero() {
 		server.sleep(duration)
 		return nil
 	}

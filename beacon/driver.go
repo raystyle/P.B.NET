@@ -124,6 +124,14 @@ func (driver *driver) GetSleepTime() (uint, uint) {
 	return fixed, rand
 }
 
+func (driver *driver) EnableInteractiveMode() error {
+	return nil
+}
+
+func (driver *driver) DisableInteractiveMode() error {
+	return nil
+}
+
 // func (driver *driver) logf(lv logger.Level, format string, log ...interface{}) {
 // 	driver.ctx.logger.Printf(lv, "driver", format, log...)
 // }

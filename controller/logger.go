@@ -182,8 +182,7 @@ func (lg *gLogger) Close() {
 	lg.ctx = nil
 }
 
-// string log don't include time, level and source,
-// it will also save to the database.
+// string log don't include time, level and source, it will also save to the database.
 func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 	defer func() {
 		if r := recover(); r != nil {

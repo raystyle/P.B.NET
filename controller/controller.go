@@ -327,36 +327,17 @@ func (ctrl *Ctrl) Broadcast(command []byte, message interface{}, deflate bool) e
 }
 
 // EnableInteractiveMode is used to enable Beacon interactive mode.
-func (ctrl *Ctrl) EnableInteractiveMode(guid *guid.GUID) {
-	ctrl.sender.EnableInteractiveMode(guid)
-}
-
-// EnableInteractiveModeNew is used to enable Beacon interactive mode.
-func (ctrl *Ctrl) EnableInteractiveModeNew(
-	ctx context.Context,
-	guid *guid.GUID,
-	timeout time.Duration,
-) error {
+func (ctrl *Ctrl) EnableInteractiveMode(ctx context.Context, guid *guid.GUID) error {
 	// check is already enable interactive mode
 	if ctrl.sender.IsInInteractiveMode(guid) {
 		return nil
 	}
 	cm := messages.ChangeMode{Interactive: true}
-	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBBeaconChangeMode,
-		&cm, false, timeout)
-	if err != nil {
-		return err
-	}
-	result := reply.(*messages.ChangeModeResult)
-	if result.Err != "" {
-		return errors.New(result.Err)
-	}
-	ctrl.sender.EnableInteractiveMode(guid)
-	return nil
+	return ctrl.sender.SendToBeacon(ctx, guid, messages.CMDBBeaconChangeMode, &cm, false)
 }
 
-// DisableInteractiveModeNew is used to disable Beacon interactive mode.
-func (ctrl *Ctrl) DisableInteractiveModeNew(
+// DisableInteractiveMode is used to disable Beacon interactive mode.
+func (ctrl *Ctrl) DisableInteractiveMode(
 	ctx context.Context,
 	guid *guid.GUID,
 	timeout time.Duration,
@@ -371,12 +352,27 @@ func (ctrl *Ctrl) DisableInteractiveModeNew(
 	if err != nil {
 		return err
 	}
+	if reply == nil {
+		return errors.New("already disable interactive mode")
+	}
 	result := reply.(*messages.ChangeModeResult)
 	if result.Err != "" {
 		return errors.New(result.Err)
 	}
 	ctrl.sender.DisableInteractiveMode(guid)
 	return nil
+}
+
+// ForceEnableInteractiveMode is used to enable interactive mode force.
+// Usually for test, if appear some bug, you can call it for debug.
+func (ctrl *Ctrl) ForceEnableInteractiveMode(guid *guid.GUID) {
+	ctrl.sender.EnableInteractiveMode(guid)
+}
+
+// ForceDisableInteractiveMode is used to disable interactive mode force.
+// Usually for test, if appear some bug, you can call it for debug.
+func (ctrl *Ctrl) ForceDisableInteractiveMode(guid *guid.GUID) {
+	ctrl.sender.DisableInteractiveMode(guid)
 }
 
 // DeleteNode is used to delete Node.
