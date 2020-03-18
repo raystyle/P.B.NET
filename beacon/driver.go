@@ -27,6 +27,10 @@ type driver struct {
 	sleepFixed  atomic.Value
 	sleepRandom atomic.Value
 
+	// interactive mode
+	interactive  atomic.Value
+	interactiveM sync.Mutex
+
 	context context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -47,14 +51,17 @@ func newDriver(ctx *Beacon, config *Config) (*driver, error) {
 		nodeListeners: make(map[guid.GUID]map[uint64]*bootstrap.Listener),
 	}
 	driver.SetSleepTime(cfg.SleepFixed, cfg.SleepRandom)
+	interactive := cfg.Interactive
+	driver.interactive.Store(interactive)
 	driver.context, driver.cancel = context.WithCancel(context.Background())
 	return &driver, nil
 }
 
 func (driver *driver) Drive() {
-	driver.wg.Add(2)
+	driver.wg.Add(3)
 	go driver.clientWatcher()
 	go driver.queryLoop()
+	go driver.modeWatcher()
 }
 
 func (driver *driver) Close() {
@@ -124,12 +131,27 @@ func (driver *driver) GetSleepTime() (uint, uint) {
 	return fixed, rand
 }
 
-func (driver *driver) EnableInteractiveMode() error {
-	return nil
+func (driver *driver) EnableInteractiveMode() {
+	driver.interactiveM.Lock()
+	defer driver.interactiveM.Unlock()
+	driver.interactive.Store(true)
 }
 
 func (driver *driver) DisableInteractiveMode() error {
+	driver.interactiveM.Lock()
+	defer driver.interactiveM.Unlock()
+	if !driver.IsInInteractiveMode() {
+		return errors.New("already disable interactive mode")
+	}
+	// check virtual connections manager
+
+	driver.interactive.Store(false)
 	return nil
+}
+
+// IsInInteractiveMode is used to check is in interactive mode.
+func (driver *driver) IsInInteractiveMode() bool {
+	return driver.interactive.Load().(bool)
 }
 
 // func (driver *driver) logf(lv logger.Level, format string, log ...interface{}) {
@@ -165,7 +187,7 @@ func (driver *driver) clientWatcher() {
 }
 
 func (driver *driver) watchClient() {
-	if !driver.ctx.sender.IsInInteractiveMode() {
+	if !driver.IsInInteractiveMode() {
 		return
 	}
 	// check is enough
@@ -225,4 +247,21 @@ func (driver *driver) query() {
 		}
 		return
 	}
+}
+
+func (driver *driver) modeWatcher() {
+	defer func() {
+		if r := recover(); r != nil {
+			driver.log(logger.Fatal, xpanic.Print(r, "driver.modeWatcher"))
+			// restart queryLoop
+			time.Sleep(time.Second)
+			go driver.modeWatcher()
+		} else {
+			driver.wg.Done()
+		}
+	}()
+}
+
+func (driver *driver) watchMode() {
+
 }

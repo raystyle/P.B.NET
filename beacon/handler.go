@@ -185,7 +185,7 @@ func (h *handler) handleChangeMode(answer *protocol.Answer) {
 		return
 	}
 	if cm.Interactive { // enable
-		err = h.ctx.driver.EnableInteractiveMode()
+		h.ctx.driver.EnableInteractiveMode()
 	} else { // disable
 		err = h.ctx.driver.DisableInteractiveMode()
 	}

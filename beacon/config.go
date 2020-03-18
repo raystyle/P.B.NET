@@ -78,7 +78,6 @@ type Config struct {
 		Timeout       time.Duration `toml:"timeout"         msgpack:"c"`
 		QueueSize     int           `toml:"queue_size"      msgpack:"d"`
 		MaxBufferSize int           `toml:"max_buffer_size" msgpack:"e"`
-		Interactive   bool          `toml:"interactive"     msgpack:"f"`
 	} `toml:"sender" msgpack:"ee"`
 
 	Syncer struct {
@@ -95,6 +94,7 @@ type Config struct {
 		// about query message from Controller
 		SleepFixed  uint `toml:"sleep_fixed"  msgpack:"a"`
 		SleepRandom uint `toml:"sleep_random" msgpack:"b"`
+		Interactive bool `toml:"interactive"  msgpack:"c"`
 	} `toml:"driver" msgpack:"hh"`
 
 	// generate from Controller

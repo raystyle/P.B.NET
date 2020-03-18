@@ -95,7 +95,6 @@ func TestConfig(t *testing.T) {
 		{expected: 512, actual: cfg.Sender.QueueSize},
 		{expected: 16384, actual: cfg.Sender.MaxBufferSize},
 		{expected: 15 * time.Second, actual: cfg.Sender.Timeout},
-		{expected: true, actual: cfg.Sender.Interactive},
 
 		{expected: 30 * time.Second, actual: cfg.Syncer.ExpireTime},
 
@@ -105,6 +104,7 @@ func TestConfig(t *testing.T) {
 
 		{expected: uint(10), actual: cfg.Driver.SleepFixed},
 		{expected: uint(20), actual: cfg.Driver.SleepRandom},
+		{expected: true, actual: cfg.Driver.Interactive},
 
 		{expected: "name", actual: cfg.Service.Name},
 		{expected: "display name", actual: cfg.Service.DisplayName},
