@@ -67,6 +67,8 @@ const (
 // driver
 const (
 	CMDBeaconChangeMode uint32 = 0x10030000 + iota
+	CMDBeaconChangeModeResult
+	CMDBeaconModeChanged
 )
 
 // -------------------------------------role internal modules--------------------------------------
@@ -110,7 +112,9 @@ var (
 	CMDBNodeAnswerNodeKey   = convert.Uint32ToBytes(CMDNodeAnswerNodeKey)
 	CMDBNodeAnswerBeaconKey = convert.Uint32ToBytes(CMDNodeAnswerBeaconKey)
 
-	CMDBBeaconChangeMode = convert.Uint32ToBytes(CMDBeaconChangeMode)
+	CMDBBeaconChangeMode       = convert.Uint32ToBytes(CMDBeaconChangeMode)
+	CMDBBeaconChangeModeResult = convert.Uint32ToBytes(CMDBeaconChangeModeResult)
+	CMDBBeaconModeChanged      = convert.Uint32ToBytes(CMDBeaconModeChanged)
 
 	// role internal modules
 	CMDBNodeLog   = convert.Uint32ToBytes(CMDNodeLog)

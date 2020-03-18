@@ -15,9 +15,6 @@ import (
 const MaxQueryWaitTime = 15 * time.Second
 
 var (
-	// ZeroGUID means Controller can't query the target Node or Beacon key.
-	ZeroGUID = guid.GUID{}
-
 	// ZeroPublicKey is used to padding.
 	ZeroPublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 

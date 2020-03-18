@@ -26,6 +26,32 @@ type ChangeModeResult struct {
 	Err string
 }
 
+// InteractiveMaxTimeout is used to disable interactive mode
+// actively, Beacon will check deadline.
+const InteractiveMaxTimeout = 5 * time.Minute
+
+// reason about Beacon change mode.
+const (
+	// controller change mode actively.
+	ModeChangeReasonCtrlCommand = iota + 1
+
+	// controller don't do anything more than 5 minute.
+	ModeChangedReasonNoNewCommand
+
+	// Beacon can't query interactive status.
+	ModeChangedReasonFailedToQuery
+
+	// Beacon query mode and return disable interactive mode.
+	ModeChangedReasonDisabled
+)
+
+// ModeChanged is used to notice Controller that Beacon's
+// mode has been changed. Beacon will send it.
+type ModeChanged struct {
+	Interactive bool
+	Reason      string
+}
+
 // QueryModeStatus is used to check Controller is
 // still set the Beacon in interactive mode.
 // Node will send it.
