@@ -490,9 +490,10 @@ func (db *database) DeleteBeacon(guid *guid.GUID) (err error) {
 	for _, model := range [...]interface{}{
 		&mBeacon{},
 		&mBeaconInfo{},
+		&mBeaconListener{},
 		&mBeaconMessage{},
 		&mBeaconMessageIndex{},
-		&mBeaconListener{},
+		&mBeaconModeChanged{},
 	} {
 		err = tx.Delete(model, where, g).Error
 		if err != nil {
@@ -509,6 +510,22 @@ func (db *database) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	}
 	db.cache.DeleteBeacon(guid)
 	return nil
+}
+
+func (db *database) InsertBeaconListener(m *mBeaconListener) error {
+	return db.db.Create(m).Error
+}
+
+func (db *database) DeleteBeaconListener(id uint64) error {
+	return db.db.Delete(&mBeaconListener{ID: id}).Error
+}
+
+func (db *database) InsertBeaconLog(m *mRoleLog) error {
+	return db.db.Table(tableBeaconLog).Create(m).Error
+}
+
+func (db *database) DeleteBeaconLog(id uint64) error {
+	return db.db.Table(tableBeaconLog).Delete(&mRoleLog{ID: id}).Error
 }
 
 func (db *database) InsertBeaconMessage(send *protocol.Send) (err error) {
@@ -561,35 +578,6 @@ func (db *database) SelectBeaconMessage(query *protocol.Query) (*mBeaconMessage,
 		return nil, err
 	}
 	return msg, nil
-}
-
-func (db *database) SelectBeaconSleepTime(guid *guid.GUID) (uint, uint, error) {
-	const (
-		columns = "sleep_fixed, sleep_random"
-		where   = "guid = ?"
-	)
-	info := mBeaconInfo{}
-	err := db.db.Select(columns).Find(&info, where, guid[:]).Error
-	if err != nil {
-		return 0, 0, err
-	}
-	// check range
-	if time.Duration(info.SleepFixed+info.SleepRandom)*time.Second >= random.MaxSleepTime {
-		return 0, 0, errors.Errorf("fixed + random >= %s", random.MaxSleepTime)
-	}
-	return info.SleepFixed, info.SleepRandom, nil
-}
-
-func (db *database) UpdateBeaconSleepTime(guid *guid.GUID, fixed, rand uint) error {
-	// check range
-	if time.Duration(fixed+rand)*time.Second >= random.MaxSleepTime {
-		return errors.Errorf("fixed + random >= %s", random.MaxSleepTime)
-	}
-	info := &mBeaconInfo{
-		SleepFixed:  fixed,
-		SleepRandom: rand,
-	}
-	return db.db.Model(info).Where("guid = ?", guid[:]).Updates(info).Error
 }
 
 // ListBeaconMessage will select all Beacon message and decrypt it.
@@ -682,18 +670,40 @@ func (db *database) CancelBeaconMessage(guid *guid.GUID, index uint64) (err erro
 	return
 }
 
-func (db *database) InsertBeaconListener(m *mBeaconListener) error {
-	return db.db.Create(m).Error
+func (db *database) SelectBeaconSleepTime(guid *guid.GUID) (uint, uint, error) {
+	const (
+		columns = "sleep_fixed, sleep_random"
+		where   = "guid = ?"
+	)
+	info := mBeaconInfo{}
+	err := db.db.Select(columns).Find(&info, where, guid[:]).Error
+	if err != nil {
+		return 0, 0, err
+	}
+	// check range
+	if time.Duration(info.SleepFixed+info.SleepRandom)*time.Second >= random.MaxSleepTime {
+		return 0, 0, errors.Errorf("fixed + random >= %s", random.MaxSleepTime)
+	}
+	return info.SleepFixed, info.SleepRandom, nil
 }
 
-func (db *database) DeleteBeaconListener(id uint64) error {
-	return db.db.Delete(&mBeaconListener{ID: id}).Error
+func (db *database) UpdateBeaconSleepTime(guid *guid.GUID, fixed, rand uint) error {
+	// check range
+	if time.Duration(fixed+rand)*time.Second >= random.MaxSleepTime {
+		return errors.Errorf("fixed + random >= %s", random.MaxSleepTime)
+	}
+	info := &mBeaconInfo{
+		SleepFixed:  fixed,
+		SleepRandom: rand,
+	}
+	return db.db.Model(info).Where("guid = ?", guid[:]).Updates(info).Error
 }
 
-func (db *database) InsertBeaconLog(m *mRoleLog) error {
-	return db.db.Table(tableBeaconLog).Create(m).Error
-}
-
-func (db *database) DeleteBeaconLog(id uint64) error {
-	return db.db.Table(tableBeaconLog).Delete(&mRoleLog{ID: id}).Error
+func (db *database) InsertBeaconModeChanged(guid *guid.GUID, mc *messages.ModeChanged) error {
+	bmc := mBeaconModeChanged{
+		GUID:        guid[:],
+		Interactive: mc.Interactive,
+		Reason:      mc.Reason,
+	}
+	return db.db.Create(&bmc).Error
 }

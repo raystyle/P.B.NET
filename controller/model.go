@@ -197,13 +197,12 @@ type mBeaconListener struct {
 }
 
 type mBeaconMessage struct {
-	ID        uint64     `gorm:"primary_key"`
-	GUID      []byte     `gorm:"not null;type:binary(32)" sql:"index"`
-	Index     uint64     `gorm:"not null" sql:"index"`
-	Deflate   byte       `gorm:"not null;type:tinyint unsigned"`
-	Message   []byte     `gorm:"not null;type:mediumblob"`
-	CreatedAt time.Time  `gorm:"not null"`
-	DeletedAt *time.Time `sql:"index"`
+	ID      uint64 `gorm:"primary_key"`
+	GUID    []byte `gorm:"not null;type:binary(32)" sql:"index"`
+	Index   uint64 `gorm:"not null" sql:"index"`
+	Deflate byte   `gorm:"not null;type:tinyint unsigned"`
+	Message []byte `gorm:"not null;type:mediumblob"`
+	Model
 }
 
 // <security> must use new table to set message index to each Beacon,
@@ -213,6 +212,15 @@ type mBeaconMessageIndex struct {
 	GUID  []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
 	Index uint64 `gorm:"not null"`
 	Model
+}
+
+type mBeaconModeChanged struct {
+	ID          uint64     `gorm:"primary_key"`
+	GUID        []byte     `gorm:"not null;type:binary(32);unique" sql:"index"`
+	Interactive bool       `gorm:"not null"`
+	Reason      string     `gorm:"not null;size:4096"`
+	CreatedAt   time.Time  `gorm:"not null"`
+	DeletedAt   *time.Time `sql:"index"`
 }
 
 // InitializeDatabase is used to initialize database
@@ -255,10 +263,11 @@ func InitializeDatabase(config *Config) error {
 		// about beacon
 		{model: &mBeacon{}},
 		{model: &mBeaconInfo{}},
-		{model: &mBeaconMessage{}},
-		{model: &mBeaconMessageIndex{}},
 		{model: &mBeaconListener{}},
 		{name: tableBeaconLog, model: &mRoleLog{}},
+		{model: &mBeaconMessage{}},
+		{model: &mBeaconMessageIndex{}},
+		{model: &mBeaconModeChanged{}},
 	}
 	l := len(tables)
 	// because of foreign key, drop tables by inverted order
@@ -321,10 +330,11 @@ func initializeDatabaseForeignKey(db *gorm.DB) error {
 	// add Beacon foreign key
 	for _, model := range []*gorm.DB{
 		db.Model(&mBeaconInfo{}),
-		db.Model(&mBeaconMessage{}),
-		db.Model(&mBeaconMessageIndex{}),
 		db.Model(&mBeaconListener{}),
 		db.Table(tableBeaconLog).Model(&mRoleLog{}),
+		db.Model(&mBeaconMessage{}),
+		db.Model(&mBeaconMessageIndex{}),
+		db.Model(&mBeaconModeChanged{}),
 	} {
 		err := model.AddForeignKey(field, "beacon(guid)", onDelete, onUpdate).Error
 		if err != nil {

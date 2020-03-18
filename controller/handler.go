@@ -378,6 +378,8 @@ func (h *handler) OnBeaconSend(send *protocol.Send) {
 		h.handleShellCodeResult(send)
 	case messages.CMDSingleShellOutput:
 		h.handleSingleShellOutput(send)
+	case messages.CMDBeaconModeChanged:
+		h.handleBeaconModeChanged(send)
 	case messages.CMDBeaconLog:
 		h.handleBeaconLog(send)
 	case messages.CMDTest:
@@ -417,6 +419,30 @@ func (h *handler) handleSingleShellOutput(send *protocol.Send) {
 	h.ctx.messageMgr.HandleBeaconReply(&send.RoleGUID, &output.ID, &output)
 	// notice
 	fmt.Println(string(output.Output))
+}
+
+func (h *handler) handleBeaconModeChanged(send *protocol.Send) {
+	defer h.logPanic("handler.handleBeaconModeChanged")
+	mc := messages.ModeChanged{}
+	err := msgpack.Unmarshal(send.Message, &mc)
+	if err != nil {
+		const format = "invalid beacon mode changed data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	err = h.ctx.database.InsertBeaconModeChanged(&send.RoleGUID, &mc)
+	if err != nil {
+		const log = "failed to insert beacon mode changed log\nerror:"
+		h.logWithInfo(logger.Error, &send.RoleGUID, send, log, err)
+		return
+	}
+	if mc.Interactive {
+		h.ctx.sender.EnableInteractiveMode(&send.RoleGUID)
+	} else {
+		h.ctx.sender.DisableInteractiveMode(&send.RoleGUID)
+	}
+	// notice
+	fmt.Println(mc.Interactive, mc.Reason)
 }
 
 func (h *handler) handleBeaconLog(send *protocol.Send) {
