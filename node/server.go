@@ -333,10 +333,76 @@ func (server *server) CloseConn(tag *guid.GUID) error {
 	if conn, ok := server.conns[*tag]; ok {
 		return conn.Close()
 	}
-	return errors.Errorf("conn doesn't exist\n%s", tag)
+	return errors.Errorf("connection doesn't exist\n%s", tag)
 }
 
-// Close is used to close all listeners and connections
+// CtrlConns is used to get all connections that Controller connected.
+func (server *server) CtrlConns() map[guid.GUID]*ctrlConn {
+	server.ctrlConnsRWM.RLock()
+	defer server.ctrlConnsRWM.RUnlock()
+	conns := make(map[guid.GUID]*ctrlConn, len(server.ctrlConns))
+	for tag, conn := range server.ctrlConns {
+		conns[tag] = conn
+	}
+	return conns
+}
+
+// CloseCtrlConn is used to close Controller connection by tag.
+func (server *server) CloseCtrlConn(tag *guid.GUID) error {
+	server.ctrlConnsRWM.RLock()
+	defer server.ctrlConnsRWM.RUnlock()
+	if conn, ok := server.ctrlConns[*tag]; ok {
+		conn.Close()
+		return nil
+	}
+	return errors.Errorf("controller connection doesn't exist\n%s", tag)
+}
+
+// NodeConns is used to get all connections that Node connected.
+func (server *server) NodeConns() map[guid.GUID]*nodeConn {
+	server.nodeConnsRWM.RLock()
+	defer server.nodeConnsRWM.RUnlock()
+	conns := make(map[guid.GUID]*nodeConn, len(server.nodeConns))
+	for tag, conn := range server.nodeConns {
+		conns[tag] = conn
+	}
+	return conns
+}
+
+// CloseNodeConn is used to close Node connection by tag.
+func (server *server) CloseNodeConn(tag *guid.GUID) error {
+	server.nodeConnsRWM.RLock()
+	defer server.nodeConnsRWM.RUnlock()
+	if conn, ok := server.nodeConns[*tag]; ok {
+		conn.Close()
+		return nil
+	}
+	return errors.Errorf("node connection doesn't exist\n%s", tag)
+}
+
+// BeaconConns is used to get all connections that Beacon connected.
+func (server *server) BeaconConns() map[guid.GUID]*beaconConn {
+	server.beaconConnsRWM.RLock()
+	defer server.beaconConnsRWM.RUnlock()
+	conns := make(map[guid.GUID]*beaconConn, len(server.beaconConns))
+	for tag, conn := range server.beaconConns {
+		conns[tag] = conn
+	}
+	return conns
+}
+
+// CloseBeaconConn is used to close Beacon connection by tag.
+func (server *server) CloseBeaconConn(tag *guid.GUID) error {
+	server.beaconConnsRWM.RLock()
+	defer server.beaconConnsRWM.RUnlock()
+	if conn, ok := server.beaconConns[*tag]; ok {
+		conn.Close()
+		return nil
+	}
+	return errors.Errorf("beacon connection doesn't exist\n%s", tag)
+}
+
+// Close is used to close all listeners and connections.
 func (server *server) Close() {
 	server.closeOnce.Do(func() {
 		server.cancel()

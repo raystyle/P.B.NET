@@ -9,6 +9,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	"project/internal/convert"
+	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/messages"
 	"project/internal/patch/msgpack"
@@ -259,12 +260,44 @@ func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	msgType := convert.BytesToUint32(typ)
 	broadcast.Message = broadcast.Message[messages.HeaderSize:]
 	switch msgType {
+	case messages.CMDNodeDeleteNode:
+		h.handleDeleteNode(broadcast)
+	case messages.CMDNodeDeleteBeacon:
+		h.handleDeleteBeacon(broadcast)
 	case messages.CMDTest:
 		h.handleBroadcastTestMessage(broadcast)
 	default:
 		const format = "broadcast unknown message\ntype: 0x%08X\n%s"
 		h.logf(logger.Exploit, format, msgType, spew.Sdump(broadcast))
 	}
+}
+
+func (h *handler) handleDeleteNode(broadcast *protocol.Broadcast) {
+	defer h.logPanic("handler.handleDeleteNode")
+	if len(broadcast.Message) != guid.Size {
+		h.logWithInfo(logger.Exploit, broadcast, "invalid guid size about delete node key")
+		return
+	}
+	// delete Node's key
+	nodeGUID := guid.GUID{}
+	_ = nodeGUID.Write(broadcast.Message)
+	h.ctx.storage.DeleteNodeKey(&nodeGUID)
+	// close connection
+	_ = h.ctx.CloseNodeConnByGUID(&nodeGUID)
+}
+
+func (h *handler) handleDeleteBeacon(broadcast *protocol.Broadcast) {
+	defer h.logPanic("handler.handleDeleteBeacon")
+	if len(broadcast.Message) != guid.Size {
+		h.logWithInfo(logger.Exploit, broadcast, "invalid guid size about delete beacon key")
+		return
+	}
+	// delete Beacon's key
+	beaconGUID := guid.GUID{}
+	_ = beaconGUID.Write(broadcast.Message)
+	h.ctx.storage.DeleteBeaconKey(&beaconGUID)
+	// close connection
+	_ = h.ctx.CloseBeaconConnByGUID(&beaconGUID)
 }
 
 // ---------------------------------------broadcast test-------------------------------------------

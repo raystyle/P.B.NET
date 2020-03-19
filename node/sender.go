@@ -27,7 +27,7 @@ import (
 // errors
 var (
 	ErrTooBigMessage  = fmt.Errorf("too big message")
-	ErrNoConnections  = fmt.Errorf("no connections")
+	ErrNoConnections  = fmt.Errorf("no connection in forwarder")
 	ErrFailedToSend   = fmt.Errorf("failed to send")
 	ErrFailedToAck    = fmt.Errorf("failed to acknowledge")
 	ErrSendTimeout    = fmt.Errorf("send timeout")

@@ -251,3 +251,42 @@ func (node *Node) AddListener(listener *messages.Listener) error {
 func (node *Node) GetListener(tag string) (*xnet.Listener, error) {
 	return node.server.GetListener(tag)
 }
+
+// CloseCtrlConn is used to close Controller connection.
+func (node *Node) CloseCtrlConn(tag *guid.GUID) error {
+	return node.server.CloseCtrlConn(tag)
+}
+
+// CloseNodeConnByGUID is used ot close Node connection by GUID.
+func (node *Node) CloseNodeConnByGUID(guid *guid.GUID) error {
+	nodeGUID := *guid
+	for _, conn := range node.server.NodeConns() {
+		if *conn.GUID == nodeGUID {
+			conn.Close()
+			return nil
+		}
+	}
+	return errors.Errorf("node not connect this node\n%s", guid.Print())
+}
+
+// CloseNodeConnByTag is used to close Node connection by tag.
+func (node *Node) CloseNodeConnByTag(tag *guid.GUID) error {
+	return node.server.CloseNodeConn(tag)
+}
+
+// CloseBeaconConnByGUID is used ot close Beacon connection by GUID.
+func (node *Node) CloseBeaconConnByGUID(guid *guid.GUID) error {
+	beaconGUID := *guid
+	for _, conn := range node.server.BeaconConns() {
+		if *conn.GUID == beaconGUID {
+			conn.Close()
+			return nil
+		}
+	}
+	return errors.Errorf("beacon not connect this node\n%s", guid.Print())
+}
+
+// CloseBeaconConnByTag is used to close Beacon connection by tag.
+func (node *Node) CloseBeaconConnByTag(tag *guid.GUID) error {
+	return node.server.CloseBeaconConn(tag)
+}

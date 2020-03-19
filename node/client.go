@@ -146,7 +146,7 @@ func (client *Client) handshake(ctx context.Context, conn *xnet.Conn) error {
 	}
 	// verify certificate
 	publicKey := client.ctx.global.CtrlPublicKey()
-	ok, err := protocol.VerifyCertificate(conn, publicKey, client.GUID)
+	_, ok, err := protocol.VerifyCertificate(conn, publicKey, client.GUID)
 	if err != nil {
 		client.Conn.Log(logger.Exploit, err)
 		return err
