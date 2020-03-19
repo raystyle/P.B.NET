@@ -30,7 +30,7 @@ type hRW = http.ResponseWriter
 type hR = http.Request
 type hP = httprouter.Params
 
-type web struct {
+type webServer struct {
 	ctx *Ctrl
 
 	handler  *webHandler
@@ -40,8 +40,8 @@ type web struct {
 	wg sync.WaitGroup
 }
 
-func newWeb(ctx *Ctrl, config *Config) (*web, error) {
-	cfg := config.Web
+func newWebServer(ctx *Ctrl, config *Config) (*webServer, error) {
+	cfg := config.WebServer
 
 	// load CA certificate and generate temporary certificate
 	certFile, err := ioutil.ReadFile(cfg.CertFile)
@@ -120,7 +120,7 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	web := web{
+	web := webServer{
 		ctx:      ctx,
 		handler:  &wh,
 		listener: listener,
@@ -141,7 +141,7 @@ func newWeb(ctx *Ctrl, config *Config) (*web, error) {
 	return &web, nil
 }
 
-func (web *web) Deploy() error {
+func (web *webServer) Deploy() error {
 	errChan := make(chan error, 1)
 	web.wg.Add(1)
 	go func() {
@@ -164,11 +164,11 @@ func (web *web) Deploy() error {
 	}
 }
 
-func (web *web) Address() string {
+func (web *webServer) Address() string {
 	return web.listener.Addr().String()
 }
 
-func (web *web) Close() {
+func (web *webServer) Close() {
 	_ = web.server.Close()
 	web.wg.Wait()
 	web.ctx = nil

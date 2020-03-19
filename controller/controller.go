@@ -31,7 +31,7 @@ type Ctrl struct {
 	handler    *handler    // handle message from Node or Beacon
 	worker     *worker     // do work
 	boot       *boot       // auto discover bootstrap node listeners
-	web        *web        // web server
+	webServer  *webServer  // web server
 	Test       *Test       // test module
 
 	once sync.Once
@@ -93,11 +93,11 @@ func New(cfg *Config) (*Ctrl, error) {
 	// boot
 	ctrl.boot = newBoot(ctrl)
 	// http server
-	web, err := newWeb(ctrl, cfg)
+	webServer, err := newWebServer(ctrl, cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize web server")
 	}
-	ctrl.web = web
+	ctrl.webServer = webServer
 	// test
 	ctrl.Test = newTest(ctrl, cfg)
 	// wait and exit
@@ -141,11 +141,12 @@ func (ctrl *Ctrl) Main() error {
 	now := ctrl.global.Now().Local().Format(logger.TimeLayout)
 	ctrl.logger.Println(logger.Info, src, "time:", now)
 	// start web server
-	err := ctrl.web.Deploy()
+	err := ctrl.webServer.Deploy()
 	if err != nil {
 		return ctrl.fatal(err, "failed to deploy web server")
 	}
-	ctrl.logger.Printf(logger.Info, src, "web server: https://%s/", ctrl.web.Address())
+	address := ctrl.webServer.Address()
+	ctrl.logger.Printf(logger.Info, src, "web server: https://%s/", address)
 	ctrl.logger.Print(logger.Info, src, "controller is running")
 	// wait to load controller keys
 	if !ctrl.global.WaitLoadSessionKey() {
@@ -180,7 +181,7 @@ func (ctrl *Ctrl) Exit(err error) {
 	ctrl.once.Do(func() {
 		ctrl.Test.Close()
 		ctrl.logger.Print(logger.Debug, src, "test module is stopped")
-		ctrl.web.Close()
+		ctrl.webServer.Close()
 		ctrl.logger.Print(logger.Info, src, "web server is stopped")
 		ctrl.boot.Close()
 		ctrl.logger.Print(logger.Info, src, "boot is stopped")
@@ -251,14 +252,14 @@ func (ctrl *Ctrl) BroadcastKey() []byte {
 
 // AddNodeListener is used to add Node listener.
 func (ctrl *Ctrl) AddNodeListener(guid *guid.GUID, tag, mode, network, address string) error {
-	nl := &mNodeListener{
+	nl := mNodeListener{
 		GUID:    guid[:],
 		Tag:     tag,
 		Mode:    mode,
 		Network: network,
 		Address: address,
 	}
-	return ctrl.database.InsertNodeListener(nl)
+	return ctrl.database.InsertNodeListener(&nl)
 }
 
 // Synchronize is used to connect a node and start to synchronize.
@@ -277,32 +278,46 @@ func (ctrl *Ctrl) Disconnect(guid *guid.GUID) error {
 
 // DeleteNode is used to delete Node.
 func (ctrl *Ctrl) DeleteNode(guid *guid.GUID) error {
-	err := ctrl.database.DeleteNode(guid)
+	// delete Node's key
+	err := ctrl.sender.Broadcast(messages.CMDBNodeDeleteNode, guid[:], false)
 	if err != nil {
-		const format = "failed to delete node\n%s"
-		return errors.Wrapf(err, format, guid.Print())
+		return err
+	}
+	err = ctrl.database.DeleteNode(guid)
+	if err != nil {
+		return errors.Wrapf(err, "failed to delete node\n%s", guid.Print())
 	}
 	ctrl.sender.DeleteNodeAckSlots(guid)
+	_ = ctrl.sender.Disconnect(guid)
 	return nil
 }
 
 // DeleteNodeUnscoped is used to unscoped delete Node.
 func (ctrl *Ctrl) DeleteNodeUnscoped(guid *guid.GUID) error {
-	err := ctrl.database.DeleteNodeUnscoped(guid)
+	// delete Node's key
+	err := ctrl.sender.Broadcast(messages.CMDBNodeDeleteNode, guid[:], false)
 	if err != nil {
-		const format = "failed to unscoped delete node\n%s"
-		return errors.Wrapf(err, format, guid.Print())
+		return err
+	}
+	err = ctrl.database.DeleteNodeUnscoped(guid)
+	if err != nil {
+		return errors.Wrapf(err, "failed to unscoped delete node\n%s", guid.Print())
 	}
 	ctrl.sender.DeleteNodeAckSlots(guid)
+	_ = ctrl.sender.Disconnect(guid)
 	return nil
 }
 
 // DeleteBeacon is used to delete Beacon.
 func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
-	err := ctrl.database.DeleteBeacon(guid)
+	// delete Node's key
+	err := ctrl.sender.Broadcast(messages.CMDBNodeDeleteBeacon, guid[:], false)
 	if err != nil {
-		const format = "failed to delete beacon\n%s"
-		return errors.Wrapf(err, format, guid.Print())
+		return err
+	}
+	err = ctrl.database.DeleteBeacon(guid)
+	if err != nil {
+		return errors.Wrapf(err, "failed to delete beacon\n%s", guid.Print())
 	}
 	ctrl.sender.DeleteBeaconAckSlots(guid)
 	ctrl.sender.DisableInteractiveMode(guid)
@@ -311,10 +326,14 @@ func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
 
 // DeleteBeaconUnscoped is used to unscoped delete Beacon.
 func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
-	err := ctrl.database.DeleteBeaconUnscoped(guid)
+	// delete Node's key
+	err := ctrl.sender.Broadcast(messages.CMDBNodeDeleteBeacon, guid[:], false)
 	if err != nil {
-		const format = "failed to unscoped delete beacon\n%s"
-		return errors.Wrapf(err, format, guid.Print())
+		return err
+	}
+	err = ctrl.database.DeleteBeaconUnscoped(guid)
+	if err != nil {
+		return errors.Wrapf(err, "failed to unscoped delete beacon\n%s", guid.Print())
 	}
 	ctrl.sender.DeleteBeaconAckSlots(guid)
 	ctrl.sender.DisableInteractiveMode(guid)

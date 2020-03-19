@@ -40,14 +40,11 @@ func TestSender_Connect(t *testing.T) {
 	Node := testGenerateInitialNodeAndTrust(t)
 	nodeGUID := Node.GUID()
 
-	err := ctrl.Disconnect(nodeGUID)
+	err := ctrl.DeleteNodeUnscoped(nodeGUID)
 	require.NoError(t, err)
 
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
-
-	err = ctrl.DeleteNodeUnscoped(nodeGUID)
-	require.NoError(t, err)
 }
 
 func TestSender_Broadcast(t *testing.T) {
@@ -93,14 +90,11 @@ func TestSender_Broadcast(t *testing.T) {
 	}
 
 	// clean
-	err := ctrl.sender.Disconnect(nodeGUID)
+	err := ctrl.DeleteNodeUnscoped(nodeGUID)
 	require.NoError(t, err)
 
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
-
-	err = ctrl.DeleteNodeUnscoped(nodeGUID)
-	require.NoError(t, err)
 }
 
 func TestSender_SendToNode(t *testing.T) {
@@ -148,14 +142,11 @@ func TestSender_SendToNode(t *testing.T) {
 	}
 
 	// clean
-	err := ctrl.sender.Disconnect(nodeGUID)
+	err := ctrl.DeleteNodeUnscoped(nodeGUID)
 	require.NoError(t, err)
 
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
-
-	err = ctrl.DeleteNodeUnscoped(nodeGUID)
-	require.NoError(t, err)
 }
 
 func BenchmarkSender_Broadcast(b *testing.B) {
@@ -239,12 +230,9 @@ func TestBenchmarkSender_SendToNode(t *testing.T) {
 	}
 
 	// clean
-	err := ctrl.sender.Disconnect(nodeGUID)
+	err := ctrl.DeleteNodeUnscoped(nodeGUID)
 	require.NoError(t, err)
 
 	Node.Exit(nil)
 	testsuite.IsDestroyed(t, Node)
-
-	err = ctrl.DeleteNodeUnscoped(nodeGUID)
-	require.NoError(t, err)
 }

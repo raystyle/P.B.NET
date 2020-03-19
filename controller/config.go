@@ -71,7 +71,7 @@ type Config struct {
 		MaxBufferSize int `toml:"max_buffer_size"`
 	} `toml:"worker"`
 
-	Web struct {
+	WebServer struct {
 		Dir      string       `toml:"dir"`
 		CertFile string       `toml:"cert_file"`
 		KeyFile  string       `toml:"key_file"`
@@ -80,7 +80,7 @@ type Config struct {
 		Address  string       `toml:"address"`
 		Username string       `toml:"username"` // super user
 		Password string       `toml:"password"`
-	} `toml:"web"`
+	} `toml:"webserver"`
 }
 
 // GenerateRoleConfigAboutTheFirstBootstrap is used to generate the first bootstrap.

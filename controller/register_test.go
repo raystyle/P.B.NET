@@ -31,9 +31,9 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	require.NoError(t, err)
 
 	// clean
-	Node.Exit(nil)
-	testsuite.IsDestroyed(t, Node)
-
 	err = ctrl.DeleteNodeUnscoped(nodeGUID)
 	require.NoError(t, err)
+
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }

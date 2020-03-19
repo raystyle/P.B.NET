@@ -28,7 +28,7 @@ import (
 // errors
 var (
 	ErrTooBigMessage        = fmt.Errorf("too big message")
-	ErrNoConnections        = fmt.Errorf("no connections")
+	ErrNoConnections        = fmt.Errorf("sender is not connected to any nodes")
 	ErrFailedToSendToNode   = fmt.Errorf("failed to send to node")
 	ErrFailedToSendToBeacon = fmt.Errorf("failed to send to beacon")
 	ErrFailedToAckToNode    = fmt.Errorf("failed to acknowledge to node")

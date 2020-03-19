@@ -229,14 +229,14 @@ type mBeaconModeChanged struct {
 
 type mModuleShellCode struct {
 	ID    uint64 `gorm:"primary_key"`
-	GUID  []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
+	GUID  []byte `gorm:"not null;type:binary(32)" sql:"index"`
 	Error string `gorm:"not null;size:4096"`
 	ModelWithoutUpdateAt
 }
 
 type mModuleSingleShell struct {
 	ID     uint64 `gorm:"primary_key"`
-	GUID   []byte `gorm:"not null;type:binary(32);unique" sql:"index"`
+	GUID   []byte `gorm:"not null;type:binary(32)" sql:"index"`
 	Output []byte `gorm:"not null;type:mediumblob"`
 	Error  string `gorm:"not null;size:4096"`
 	ModelWithoutUpdateAt
