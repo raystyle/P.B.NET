@@ -110,12 +110,16 @@ func IssueCertificate(cert *Certificate, pri ed25519.PrivateKey) error {
 
 // VerifyCertificate is used to verify Node certificate.
 // if errors != nil, role must log with level Exploit.
-func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid *guid.GUID) (bool, error) {
-	// receive node certificate
+func VerifyCertificate(
+	conn net.Conn,
+	pub ed25519.PublicKey,
+	guid *guid.GUID,
+) (*Certificate, bool, error) {
+	// receive node's certificate
 	buf := make([]byte, CertificateSize)
 	_, err := io.ReadFull(conn, buf)
 	if err != nil {
-		return false, nil
+		return nil, false, nil
 	}
 	cert := Certificate{}
 	_ = cert.Decode(buf) // no error
@@ -128,40 +132,41 @@ func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid *guid.GUID) (b
 		} else {
 			// compare Node GUID
 			if cert.GUID != *guid {
-				return false, errors.WithStack(ErrDifferentNodeGUID)
+				return &cert, false, errors.WithStack(ErrDifferentNodeGUID)
 			}
 			ok = cert.VerifySignatureWithNodeGUID(pub)
 		}
 		if !ok {
-			return false, errors.New("invalid certificate signature")
+			return &cert, false, errors.New("invalid certificate signature")
 		}
 	}
 	// send challenge to verify public key
 	challenge := buf[ed25519.SignatureSize : ed25519.SignatureSize+ChallengeSize]
 	_, err = io.ReadFull(rand.Reader, challenge)
 	if err != nil {
-		return false, nil
+		return &cert, false, nil
 	}
 	_, err = conn.Write(challenge)
 	if err != nil {
-		return false, nil
+		return &cert, false, nil
 	}
 	// receive challenge signature
 	signature := buf[:ed25519.SignatureSize]
 	_, err = io.ReadFull(conn, signature)
 	if err != nil {
-		return false, nil
+		return &cert, false, nil
 	}
 	if !ed25519.Verify(cert.PublicKey, challenge, signature) {
-		return false, errors.New("invalid challenge signature")
+		return &cert, false, errors.New("invalid challenge signature")
 	}
-	return true, nil
+	return &cert, true, nil
 }
 
 // UpdateNodeRequest Beacon will use it to query from Controller that
 // this Node is updated(like restart a Node, Listener is same, but Node
 // GUID is changed, Beacon will update).
 type UpdateNodeRequest struct {
+	GUID    guid.GUID
 	Hash    []byte // HMAC-SHA256
 	EncData []byte // use AES to encrypt it, NodeGUID + PublicKey
 }
