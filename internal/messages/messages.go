@@ -60,6 +60,8 @@ const (
 	CMDNodeQueryBeaconKey
 	CMDNodeAnswerNodeKey
 	CMDNodeAnswerBeaconKey
+	CMDNodeDeleteNode
+	CMDNodeDeleteBeacon
 )
 
 // about Beacon
@@ -111,6 +113,8 @@ var (
 	CMDBNodeQueryBeaconKey  = convert.Uint32ToBytes(CMDNodeQueryBeaconKey)
 	CMDBNodeAnswerNodeKey   = convert.Uint32ToBytes(CMDNodeAnswerNodeKey)
 	CMDBNodeAnswerBeaconKey = convert.Uint32ToBytes(CMDNodeAnswerBeaconKey)
+	CMDBNodeDeleteNode      = convert.Uint32ToBytes(CMDNodeDeleteNode)
+	CMDBNodeDeleteBeacon    = convert.Uint32ToBytes(CMDNodeDeleteBeacon)
 
 	CMDBBeaconChangeMode       = convert.Uint32ToBytes(CMDBeaconChangeMode)
 	CMDBBeaconChangeModeResult = convert.Uint32ToBytes(CMDBeaconChangeModeResult)

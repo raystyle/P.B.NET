@@ -26,9 +26,9 @@ type ChangeModeResult struct {
 	Err string
 }
 
-// InteractiveMaxTimeout is used to disable interactive mode
+// InteractiveIdleTimeout is used to disable interactive mode
 // actively, Beacon will check deadline.
-const InteractiveMaxTimeout = 5 * time.Minute
+const InteractiveIdleTimeout = time.Minute
 
 // reason about Beacon change mode.
 const (
