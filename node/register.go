@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"io"
-	"log"
 	"sync"
 	"time"
 
@@ -223,6 +222,7 @@ func (register *register) PackRequest(address string) []byte {
 	if err != nil {
 		panic("register internal error: " + err.Error())
 	}
+	defer security.CoverBytes(data)
 	cipherData, err := register.ctx.global.Encrypt(data)
 	if err != nil {
 		panic("register internal error: " + err.Error())
@@ -300,7 +300,6 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		return errors.WithMessage(err, "failed to create client")
 	}
 	defer client.Close()
-
 	conn := client.Conn
 	// interrupt
 	wg := sync.WaitGroup{}
@@ -309,7 +308,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Println(xpanic.Print(r, "register.register"))
+				register.log(logger.Fatal, xpanic.Print(r, "register.register"))
 			}
 			wg.Done()
 		}()
@@ -323,7 +322,6 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		close(done)
 		wg.Wait()
 	}()
-
 	// send register request
 	_, err = conn.Write([]byte{protocol.NodeOperationRegister})
 	if err != nil {

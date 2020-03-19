@@ -305,6 +305,7 @@ func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
 		return errors.Wrapf(err, format, guid.Print())
 	}
 	ctrl.sender.DeleteBeaconAckSlots(guid)
+	ctrl.sender.DisableInteractiveMode(guid)
 	return nil
 }
 
@@ -316,6 +317,7 @@ func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
 		return errors.Wrapf(err, format, guid.Print())
 	}
 	ctrl.sender.DeleteBeaconAckSlots(guid)
+	ctrl.sender.DisableInteractiveMode(guid)
 	return nil
 }
 
@@ -397,7 +399,7 @@ func (ctrl *Ctrl) DisableInteractiveMode(
 		return err
 	}
 	if reply == nil {
-		return errors.New("already disable interactive mode")
+		return nil
 	}
 	result := reply.(*messages.ChangeModeResult)
 	if result.Err != "" {

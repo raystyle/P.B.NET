@@ -105,7 +105,7 @@ func (node *Node) NewClient(
 		rand:     random.New(),
 	}
 	client.Conn = newConn(node, conn, guid, connUsageClient)
-	err = client.handshake(conn)
+	err = client.handshake(ctx, conn)
 	if err != nil {
 		_ = conn.Close()
 		const format = "failed to handshake with node listener: %s"
@@ -116,9 +116,29 @@ func (node *Node) NewClient(
 	return client, nil
 }
 
-func (client *Client) handshake(conn *xnet.Conn) error {
-	timeout := client.ctx.clientMgr.GetTimeout()
-	_ = conn.SetDeadline(time.Now().Add(timeout))
+func (client *Client) handshake(ctx context.Context, conn *xnet.Conn) error {
+	// interrupt
+	wg := sync.WaitGroup{}
+	done := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				client.Conn.Log(logger.Fatal, xpanic.Print(r, "Client.handshake"))
+			}
+			wg.Done()
+		}()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			client.Close()
+		}
+	}()
+	defer func() {
+		close(done)
+		wg.Wait()
+	}()
+	_ = conn.SetDeadline(time.Now().Add(client.ctx.clientMgr.GetTimeout()))
 	// about check connection
 	err := client.checkConn(conn)
 	if err != nil {

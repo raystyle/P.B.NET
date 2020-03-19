@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"hash"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -329,7 +328,7 @@ func (sender *sender) Synchronize(
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Println(xpanic.Print(r, "sender.Synchronize"))
+				sender.log(logger.Fatal, xpanic.Print(r, "sender.Synchronize"))
 			}
 			wg.Done()
 		}()
@@ -682,7 +681,6 @@ func (sender *sender) DeleteNodeAckSlots(guid *guid.GUID) {
 }
 
 func (sender *sender) DeleteBeaconAckSlots(guid *guid.GUID) {
-	sender.DisableInteractiveMode(guid)
 	sender.beaconAckSlotsRWM.Lock()
 	defer sender.beaconAckSlotsRWM.Unlock()
 	delete(sender.beaconAckSlots, *guid)

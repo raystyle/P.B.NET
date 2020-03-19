@@ -260,6 +260,7 @@ func (driver *driver) modeWatcher() {
 			driver.wg.Done()
 		}
 	}()
+	driver.watchMode()
 }
 
 func (driver *driver) watchMode() {

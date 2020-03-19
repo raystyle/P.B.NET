@@ -264,7 +264,7 @@ type webTrustNode struct {
 
 func (wh *webHandler) handleTrustNode(w hRW, r *hR, _ hP) {
 	tn := webTrustNode{}
-	err := json.NewDecoder(r.Body).Decode(&tn)
+	err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&tn)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -282,7 +282,7 @@ func (wh *webHandler) handleTrustNode(w hRW, r *hR, _ hP) {
 
 func (wh *webHandler) handleConfirmTrustNode(w hRW, r *hR, _ hP) {
 	ctn := new(ReplyNodeRegister)
-	err := json.NewDecoder(r.Body).Decode(ctn)
+	err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(ctn)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -302,7 +302,7 @@ type webConnectNode struct {
 
 func (wh *webHandler) handleConnectNode(w hRW, r *hR, _ hP) {
 	cn := webConnectNode{}
-	err := json.NewDecoder(r.Body).Decode(&cn)
+	err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&cn)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -327,7 +327,7 @@ type webShellCode struct {
 
 func (wh *webHandler) handleShellCode(w hRW, r *hR, _ hP) {
 	sc := webShellCode{}
-	err := json.NewDecoder(r.Body).Decode(&sc)
+	err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&sc)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -351,7 +351,7 @@ type webSingleShellResponse struct {
 
 func (wh *webHandler) handleSingleShell(w hRW, r *hR, _ hP) {
 	sr := webSingleShellRequest{}
-	err := json.NewDecoder(r.Body).Decode(&sr)
+	err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&sr)
 	if err != nil {
 		wh.writeError(w, err)
 		return
