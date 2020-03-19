@@ -11,6 +11,7 @@ import (
 	"project/internal/bootstrap"
 	"project/internal/guid"
 	"project/internal/logger"
+	"project/internal/protocol"
 	"project/internal/random"
 	"project/internal/xpanic"
 )
@@ -70,7 +71,8 @@ func (driver *driver) Close() {
 	driver.ctx = nil
 }
 
-func (driver *driver) getNodeListeners() map[guid.GUID]map[uint64]*bootstrap.Listener {
+// NodeListener is used to get all Node listeners.
+func (driver *driver) NodeListeners() map[guid.GUID]map[uint64]*bootstrap.Listener {
 	nodeListeners := make(map[guid.GUID]map[uint64]*bootstrap.Listener)
 	driver.nodeListenersRWM.RLock()
 	defer driver.nodeListenersRWM.RUnlock()
@@ -88,19 +90,19 @@ func (driver *driver) AddNodeListener(guid *guid.GUID, listener *bootstrap.Liste
 	driver.nodeListenersRWM.Lock()
 	defer driver.nodeListenersRWM.Unlock()
 	// check Node GUID is exist
-	nodeListeners, ok := driver.nodeListeners[*guid]
+	listeners, ok := driver.nodeListeners[*guid]
 	if !ok {
-		nodeListeners = make(map[uint64]*bootstrap.Listener)
-		driver.nodeListeners[*guid] = nodeListeners
+		listeners = make(map[uint64]*bootstrap.Listener)
+		driver.nodeListeners[*guid] = listeners
 	}
 	// compare listeners
-	for _, nodeListener := range nodeListeners {
-		if listener.Equal(nodeListener) {
+	for _, nListener := range listeners {
+		if listener.Equal(nListener) {
 			return
 		}
 	}
 	index := driver.nodeListenersIndex
-	nodeListeners[index] = listener
+	listeners[index] = listener
 	driver.nodeListenersIndex++
 }
 
@@ -109,15 +111,22 @@ func (driver *driver) DeleteNodeListener(guid *guid.GUID, index uint64) error {
 	driver.nodeListenersRWM.Lock()
 	defer driver.nodeListenersRWM.Unlock()
 	// check Node GUID is exist
-	nodeListeners, ok := driver.nodeListeners[*guid]
+	listeners, ok := driver.nodeListeners[*guid]
 	if !ok {
 		return errors.New("node doesn't exist")
 	}
-	if _, ok := nodeListeners[index]; ok {
-		delete(nodeListeners, index)
+	if _, ok := listeners[index]; ok {
+		delete(listeners, index)
 		return nil
 	}
 	return errors.New("node listener doesn't exist")
+}
+
+// DeleteAllNodeListener is used to delete Node's all listeners.
+func (driver *driver) DeleteAllNodeListener(guid *guid.GUID) {
+	driver.nodeListenersRWM.Lock()
+	defer driver.nodeListenersRWM.Unlock()
+	delete(driver.nodeListeners, *guid)
 }
 
 func (driver *driver) SetSleepTime(fixed, random uint) {
@@ -152,6 +161,33 @@ func (driver *driver) DisableInteractiveMode() error {
 // IsInInteractiveMode is used to check is in interactive mode.
 func (driver *driver) IsInInteractiveMode() bool {
 	return driver.interactive.Load().(bool)
+}
+
+// UpdateNode is used to update Node if client find different GUID in certificate.
+func (driver *driver) UpdateNode(ctx context.Context, cert *protocol.Certificate) (bool, error) {
+	// select a Node's listener
+	var listener *bootstrap.Listener
+	for _, listeners := range driver.NodeListeners() {
+		for _, l := range listeners {
+			listener = l
+			break
+		}
+		break
+	}
+	// use protocol.CtrlGUID to skip check node guid in certificate
+	client, err := driver.ctx.NewClient(ctx, listener, protocol.CtrlGUID, nil)
+	if err != nil {
+		return false, err
+	}
+	defer client.Close()
+	// send connect operation
+	_, err = client.Conn.Write([]byte{protocol.BeaconOperationUpdate})
+	if err != nil {
+		return false, errors.Wrap(err, "failed to send update operation")
+	}
+	// send request
+
+	return true, nil
 }
 
 // func (driver *driver) logf(lv logger.Level, format string, log ...interface{}) {
@@ -195,7 +231,7 @@ func (driver *driver) watchClient() {
 		return
 	}
 	// connect node
-	for nodeGUID, listeners := range driver.getNodeListeners() {
+	for nodeGUID, listeners := range driver.NodeListeners() {
 		var listener *bootstrap.Listener
 		for _, listener = range listeners {
 			break

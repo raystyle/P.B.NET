@@ -46,7 +46,7 @@ type Client struct {
 	wg         sync.WaitGroup
 }
 
-// NewClient is used to create a client and connect node listener
+// NewClient is used to create a client and connect Node's listener.
 // when guid != ctrl guid for forwarder
 // when guid == ctrl guid for register
 func (beacon *Beacon) NewClient(
@@ -186,9 +186,19 @@ func (client *Client) handshake(ctx context.Context, conn *xnet.Conn) error {
 	}
 	// verify certificate
 	publicKey := client.ctx.global.CtrlPublicKey()
-	ok, err := protocol.VerifyCertificate(conn, publicKey, client.guid)
+	cert, ok, err := protocol.VerifyCertificate(conn, publicKey, client.guid)
 	if err != nil {
-		client.log(logger.Exploit, err)
+		if errors.Cause(err) == protocol.ErrDifferentNodeGUID {
+			ok, err := client.ctx.driver.UpdateNode(ctx, cert)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return err
+			}
+		} else {
+			client.log(logger.Exploit, err)
+		}
 		return err
 	}
 	if !ok {
