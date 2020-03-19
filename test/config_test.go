@@ -113,15 +113,15 @@ func generateControllerConfig() *controller.Config {
 	cfg.Worker.QueueSize = 512
 	cfg.Worker.MaxBufferSize = 16 << 10
 
-	cfg.Web.Dir = "web"
-	cfg.Web.CertFile = "ca/cert.pem"
-	cfg.Web.KeyFile = "ca/key.pem"
-	cfg.Web.CertOpts.DNSNames = []string{"localhost"}
-	cfg.Web.CertOpts.IPAddresses = []string{"127.0.0.1", "::1"}
-	cfg.Web.Network = "tcp"
-	cfg.Web.Address = "localhost:1657"
-	cfg.Web.Username = "pbnet" // # super user, password = "pbnet"
-	cfg.Web.Password = "$2a$12$zWgjYi0aAq.958UtUyDi5.QDmq4LOWsvv7I9ulvf1rHzd9/dWWmTi"
+	cfg.WebServer.Dir = "web"
+	cfg.WebServer.CertFile = "ca/cert.pem"
+	cfg.WebServer.KeyFile = "ca/key.pem"
+	cfg.WebServer.CertOpts.DNSNames = []string{"localhost"}
+	cfg.WebServer.CertOpts.IPAddresses = []string{"127.0.0.1", "::1"}
+	cfg.WebServer.Network = "tcp"
+	cfg.WebServer.Address = "localhost:1657"
+	cfg.WebServer.Username = "pbnet" // # super user, password = "pbnet"
+	cfg.WebServer.Password = "$2a$12$zWgjYi0aAq.958UtUyDi5.QDmq4LOWsvv7I9ulvf1rHzd9/dWWmTi"
 	return &cfg
 }
 

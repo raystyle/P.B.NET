@@ -61,15 +61,15 @@ func TestNodeRegister(t *testing.T) {
 	require.NoError(t, err)
 
 	// clean
-	cNode.Exit(nil)
-	testsuite.IsDestroyed(t, cNode)
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-
 	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
 	require.NoError(t, err)
+
+	cNode.Exit(nil)
+	testsuite.IsDestroyed(t, cNode)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }
 
 // generateInitialNodeAndBeacon is used to generate an Initial Node
@@ -114,13 +114,13 @@ func TestBeaconRegister(t *testing.T) {
 	require.NoError(t, err)
 
 	// clean
-	Beacon.Exit(nil)
-	testsuite.IsDestroyed(t, Beacon)
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-
 	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
 	require.NoError(t, err)
+
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }

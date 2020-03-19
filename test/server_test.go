@@ -41,7 +41,6 @@ func generateCommonNode(t *testing.T, iNode *node.Node, id int) *node.Node {
 	})
 	cNode.Wait()
 	timer.Stop()
-
 	return cNode
 }
 
@@ -68,7 +67,6 @@ func generateBeacon(t *testing.T, node *node.Node, tag string, id int) *beacon.B
 	})
 	Beacon.Wait()
 	timer.Stop()
-
 	return Beacon
 }
 
@@ -116,19 +114,19 @@ func TestNodeQueryNodeKey(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 
 	// clean
-	c1Node.Exit(nil)
-	testsuite.IsDestroyed(t, c1Node)
-	c0Node.Exit(nil)
-	testsuite.IsDestroyed(t, c0Node)
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-
 	err = ctrl.DeleteNodeUnscoped(c1NodeGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(c0NodeGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
 	require.NoError(t, err)
+
+	c1Node.Exit(nil)
+	testsuite.IsDestroyed(t, c1Node)
+	c0Node.Exit(nil)
+	testsuite.IsDestroyed(t, c0Node)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }
 
 // Common Node 0 will connect the Initial Node after Beacon 0 register
@@ -161,17 +159,17 @@ func TestNodeQueryBeaconKey(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 
 	// clean
-	Beacon.Exit(nil)
-	testsuite.IsDestroyed(t, Beacon)
-	cNode.Exit(nil)
-	testsuite.IsDestroyed(t, cNode)
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-
 	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
 	require.NoError(t, err)
+
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
+	cNode.Exit(nil)
+	testsuite.IsDestroyed(t, cNode)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }

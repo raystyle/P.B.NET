@@ -221,8 +221,9 @@ func buildBeaconNetworkWithCI(
 			require.NoError(t, err)
 		}
 
-		nodes[2*i] = iNode
-		nodes[2*i+1] = cNode
+		// for exit
+		nodes[i+3] = iNode
+		nodes[i] = cNode
 		beacons[i] = Beacon
 	}
 	return nodes[:], beacons[:]
@@ -294,8 +295,9 @@ func buildBeaconNetworkWithIC(
 			require.NoError(t, err)
 		}
 
-		nodes[2*i] = iNode
-		nodes[2*i+1] = cNode
+		// for exit
+		nodes[i+3] = iNode
+		nodes[i] = cNode
 		beacons[i] = Beacon
 	}
 	return nodes[:], beacons[:]
@@ -408,7 +410,7 @@ func buildBeaconNetworkWithMix(
 		require.NoError(t, err)
 	}
 
-	return append([]*node.Node{iNode}, cNodes[:]...), beacons[:]
+	return append(cNodes, iNode), beacons[:]
 }
 
 func TestCtrl_Broadcast_CI(t *testing.T) {
@@ -502,22 +504,22 @@ func testCtrlBroadcast(t *testing.T, iNodes, cNodes []*node.Node) {
 		cNodes[i] = nil
 		cNodeGUID := cNode.GUID()
 
-		cNode.Exit(nil)
-		testsuite.IsDestroyed(t, cNode)
-
 		err := ctrl.DeleteNodeUnscoped(cNodeGUID)
 		require.NoError(t, err)
+
+		cNode.Exit(nil)
+		testsuite.IsDestroyed(t, cNode)
 	}
 	for i := 0; i < len(iNodes); i++ {
 		iNode := iNodes[i]
 		iNodes[i] = nil
 		iNodeGUID := iNode.GUID()
 
-		iNode.Exit(nil)
-		testsuite.IsDestroyed(t, iNode)
-
 		err := ctrl.DeleteNodeUnscoped(iNodeGUID)
 		require.NoError(t, err)
+
+		iNode.Exit(nil)
+		testsuite.IsDestroyed(t, iNode)
 	}
 }
 
@@ -614,22 +616,22 @@ func testCtrlSendToNode(t *testing.T, iNodes, cNodes []*node.Node) {
 		cNodes[i] = nil
 		cNodeGUID := cNode.GUID()
 
-		cNode.Exit(nil)
-		testsuite.IsDestroyed(t, cNode)
-
 		err := ctrl.DeleteNodeUnscoped(cNodeGUID)
 		require.NoError(t, err)
+
+		cNode.Exit(nil)
+		testsuite.IsDestroyed(t, cNode)
 	}
 	for i := 0; i < len(iNodes); i++ {
 		iNode := iNodes[i]
 		iNodes[i] = nil
 		iNodeGUID := iNode.GUID()
 
-		iNode.Exit(nil)
-		testsuite.IsDestroyed(t, iNode)
-
 		err := ctrl.DeleteNodeUnscoped(iNodeGUID)
 		require.NoError(t, err)
+
+		iNode.Exit(nil)
+		testsuite.IsDestroyed(t, iNode)
 	}
 }
 
@@ -716,22 +718,22 @@ func testCtrlSendToBeacon(t *testing.T, nodes []*node.Node, beacons []*beacon.Be
 		beacons[i] = nil
 		beaconGUID := Beacon.GUID()
 
-		Beacon.Exit(nil)
-		testsuite.IsDestroyed(t, Beacon)
-
 		err := ctrl.DeleteBeaconUnscoped(beaconGUID)
 		require.NoError(t, err)
+
+		Beacon.Exit(nil)
+		testsuite.IsDestroyed(t, Beacon)
 	}
 	for i := 0; i < len(nodes); i++ {
 		Node := nodes[i]
 		nodes[i] = nil
 		nodeGUID := Node.GUID()
 
-		Node.Exit(nil)
-		testsuite.IsDestroyed(t, Node)
-
 		err := ctrl.DeleteNodeUnscoped(nodeGUID)
 		require.NoError(t, err)
+
+		Node.Exit(nil)
+		testsuite.IsDestroyed(t, Node)
 	}
 }
 
@@ -832,22 +834,22 @@ func testNodeSend(t *testing.T, iNodes, cNodes []*node.Node) {
 		cNodes[i] = nil
 		cNodeGUID := cNode.GUID()
 
-		cNode.Exit(nil)
-		testsuite.IsDestroyed(t, cNode)
-
 		err := ctrl.DeleteNodeUnscoped(cNodeGUID)
 		require.NoError(t, err)
+
+		cNode.Exit(nil)
+		testsuite.IsDestroyed(t, cNode)
 	}
 	for i := 0; i < len(iNodes); i++ {
 		iNode := iNodes[i]
 		iNodes[i] = nil
 		iNodeGUID := iNode.GUID()
 
-		iNode.Exit(nil)
-		testsuite.IsDestroyed(t, iNode)
-
 		err := ctrl.DeleteNodeUnscoped(iNodeGUID)
 		require.NoError(t, err)
+
+		iNode.Exit(nil)
+		testsuite.IsDestroyed(t, iNode)
 	}
 }
 
@@ -937,22 +939,22 @@ func testBeaconSend(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon) 
 		beacons[i] = nil
 		beaconGUID := Beacon.GUID()
 
-		Beacon.Exit(nil)
-		testsuite.IsDestroyed(t, Beacon)
-
 		err := ctrl.DeleteBeaconUnscoped(beaconGUID)
 		require.NoError(t, err)
+
+		Beacon.Exit(nil)
+		testsuite.IsDestroyed(t, Beacon)
 	}
 	for i := 0; i < len(nodes); i++ {
 		Node := nodes[i]
 		nodes[i] = nil
 		nodeGUID := Node.GUID()
 
-		Node.Exit(nil)
-		testsuite.IsDestroyed(t, Node)
-
 		err := ctrl.DeleteNodeUnscoped(nodeGUID)
 		require.NoError(t, err)
+
+		Node.Exit(nil)
+		testsuite.IsDestroyed(t, Node)
 	}
 }
 
@@ -1034,21 +1036,21 @@ func testBeaconQuery(t *testing.T, nodes []*node.Node, beacons []*beacon.Beacon)
 		beacons[i] = nil
 		beaconGUID := Beacon.GUID()
 
-		Beacon.Exit(nil)
-		testsuite.IsDestroyed(t, Beacon)
-
 		err := ctrl.DeleteBeaconUnscoped(beaconGUID)
 		require.NoError(t, err)
+
+		Beacon.Exit(nil)
+		testsuite.IsDestroyed(t, Beacon)
 	}
 	for i := 0; i < len(nodes); i++ {
 		Node := nodes[i]
 		nodes[i] = nil
 		nodeGUID := Node.GUID()
 
-		Node.Exit(nil)
-		testsuite.IsDestroyed(t, Node)
-
 		err := ctrl.DeleteNodeUnscoped(nodeGUID)
 		require.NoError(t, err)
+
+		Node.Exit(nil)
+		testsuite.IsDestroyed(t, Node)
 	}
 }

@@ -63,11 +63,11 @@ func TestCtrl_Client_Send(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 
 	// clean
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-
 	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
 	require.NoError(t, err)
+
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }
 
 func TestNode_Client_Send(t *testing.T) {
@@ -89,15 +89,15 @@ func TestNode_Client_Send(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 
 	// clean
-	cNode.Exit(nil)
-	testsuite.IsDestroyed(t, cNode)
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-
 	err = ctrl.DeleteNodeUnscoped(cNodeGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
 	require.NoError(t, err)
+
+	cNode.Exit(nil)
+	testsuite.IsDestroyed(t, cNode)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }
 
 func TestBeacon_Client_Send(t *testing.T) {
@@ -119,13 +119,13 @@ func TestBeacon_Client_Send(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 
 	// clean
-	Beacon.Exit(nil)
-	testsuite.IsDestroyed(t, Beacon)
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-
 	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
 	require.NoError(t, err)
+
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }

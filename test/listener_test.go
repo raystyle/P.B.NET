@@ -34,11 +34,12 @@ func TestNodeListener(t *testing.T) {
 		testNodeListenerTLS(t, Node)
 	})
 
-	Node.Exit(nil)
-	testsuite.IsDestroyed(t, Node)
-
+	// clean
 	err := ctrl.DeleteNodeUnscoped(nodeGUID)
 	require.NoError(t, err)
+
+	Node.Exit(nil)
+	testsuite.IsDestroyed(t, Node)
 }
 
 func testNodeListenerClientSend(t *testing.T, client *controller.Client) {

@@ -48,15 +48,15 @@ func TestModule(t *testing.T) {
 	})
 
 	// clean
-	iNode.Exit(nil)
-	testsuite.IsDestroyed(t, iNode)
-	Beacon.Exit(nil)
-	testsuite.IsDestroyed(t, Beacon)
-
 	err = ctrl.DeleteBeaconUnscoped(beaconGUID)
 	require.NoError(t, err)
 	err = ctrl.DeleteNodeUnscoped(iNodeGUID)
 	require.NoError(t, err)
+
+	Beacon.Exit(nil)
+	testsuite.IsDestroyed(t, Beacon)
+	iNode.Exit(nil)
+	testsuite.IsDestroyed(t, iNode)
 }
 
 func testShellCode(t *testing.T, guid *guid.GUID) {
