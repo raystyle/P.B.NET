@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"io"
 	"net"
 	"sync"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
 	"project/internal/guid"
@@ -180,7 +182,7 @@ func TestVerifyCertificate(t *testing.T) {
 			require.NoError(t, err)
 		}()
 		ok, err := VerifyCertificate(client, nil, nodeGUID)
-		require.EqualError(t, err, "guid in certificate is different")
+		require.EqualError(t, err, "different guid in certificate")
 		require.False(t, ok)
 	})
 
@@ -291,4 +293,66 @@ func TestVerifyCertificate(t *testing.T) {
 	})
 
 	wg.Wait()
+}
+
+func TestUpdateNodeRequest(t *testing.T) {
+	rawR := new(UpdateNodeRequest)
+	rawR.Hash = bytes.Repeat([]byte{1}, sha256.Size)
+	rawR.EncData = bytes.Repeat([]byte{2}, guid.Size+ed25519.PublicKeySize+aes.BlockSize)
+	err := rawR.Validate()
+	require.NoError(t, err)
+
+	newR := NewUpdateNodeRequest()
+	buf := new(bytes.Buffer)
+	rawR.Pack(buf)
+
+	err = newR.Unpack(buf.Bytes())
+	require.NoError(t, err)
+
+	t.Run("Unpack", func(t *testing.T) {
+		err = newR.Unpack(nil)
+		require.Error(t, err)
+	})
+
+	t.Run("Validate", func(t *testing.T) {
+		rawR.Hash = nil
+		err := rawR.Validate()
+		require.Error(t, err)
+
+		rawR.Hash = bytes.Repeat([]byte{1}, sha256.Size)
+		rawR.EncData = nil
+		err = rawR.Validate()
+		require.Error(t, err)
+	})
+}
+
+func TestUpdateNodeResponse(t *testing.T) {
+	rawR := new(UpdateNodeResponse)
+	rawR.Hash = bytes.Repeat([]byte{1}, sha256.Size)
+	rawR.EncData = bytes.Repeat([]byte{2}, aes.BlockSize)
+	err := rawR.Validate()
+	require.NoError(t, err)
+
+	newR := NewUpdateNodeResponse()
+	buf := new(bytes.Buffer)
+	rawR.Pack(buf)
+
+	err = newR.Unpack(buf.Bytes())
+	require.NoError(t, err)
+
+	t.Run("Unpack", func(t *testing.T) {
+		err = newR.Unpack(nil)
+		require.Error(t, err)
+	})
+
+	t.Run("Validate", func(t *testing.T) {
+		rawR.Hash = nil
+		err := rawR.Validate()
+		require.Error(t, err)
+
+		rawR.Hash = bytes.Repeat([]byte{1}, sha256.Size)
+		rawR.EncData = nil
+		err = rawR.Validate()
+		require.Error(t, err)
+	})
 }

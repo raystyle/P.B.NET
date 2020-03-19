@@ -49,35 +49,6 @@ func (role Role) Bytes() []byte {
 	}
 }
 
-// NodeKey contains public key, key exchange public key
-type NodeKey struct {
-	PublicKey    []byte
-	KexPublicKey []byte
-	ReplyTime    time.Time
-}
-
-// BeaconKey contains public key, key exchange public key
-type BeaconKey struct {
-	PublicKey    []byte
-	KexPublicKey []byte
-	ReplyTime    time.Time
-}
-
-// KeyStorage contains all role key.
-type KeyStorage struct {
-	NodeKeys   map[guid.GUID]*NodeKey
-	BeaconKeys map[guid.GUID]*BeaconKey
-}
-
-// CtrlGUID is the Controller GUID, it used to reserve
-var CtrlGUID = new(guid.GUID)
-
-// ErrAuthenticateFailed is used to client handshake
-var ErrAuthenticateFailed = errors.New("failed to authenticate")
-
-// AuthSucceed is used to reply client
-var AuthSucceed = []byte{1}
-
 // about Node operations
 const (
 	NodeOperationRegister byte = iota + 1
@@ -88,4 +59,36 @@ const (
 const (
 	BeaconOperationRegister byte = iota + 1
 	BeaconOperationConnect
+	BeaconOperationUpdate
 )
+
+var (
+	// CtrlGUID is the Controller GUID, it used to reserve
+	CtrlGUID = new(guid.GUID)
+
+	// AuthSucceed is used to reply client
+	AuthSucceed = []byte{1}
+
+	// ErrAuthenticateFailed is used to client handshake
+	ErrAuthenticateFailed = errors.New("failed to authenticate")
+)
+
+// NodeKey contains public key, key exchange public key.
+type NodeKey struct {
+	PublicKey    []byte
+	KexPublicKey []byte
+	ReplyTime    time.Time
+}
+
+// BeaconKey contains public key, key exchange public key.
+type BeaconKey struct {
+	PublicKey    []byte
+	KexPublicKey []byte
+	ReplyTime    time.Time
+}
+
+// KeyStorage contains all role's key.
+type KeyStorage struct {
+	NodeKeys   map[guid.GUID]*NodeKey
+	BeaconKeys map[guid.GUID]*BeaconKey
+}

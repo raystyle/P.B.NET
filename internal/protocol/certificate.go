@@ -1,25 +1,32 @@
 package protocol
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"fmt"
 	"io"
 	"net"
 
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/aes"
 	"project/internal/crypto/ed25519"
 	"project/internal/crypto/rand"
 	"project/internal/guid"
 )
 
-// certificate and challenge size
+// size about certificate and challenge.
 const (
 	CertificateSize = guid.Size + ed25519.PublicKeySize + 2*ed25519.SignatureSize
 	ChallengeSize   = 32
 )
 
-// Certificate is used to verify node
+// ErrDifferentNodeGUID is an error about certificate.
+var ErrDifferentNodeGUID = fmt.Errorf("different guid in certificate")
+
+// Certificate is used to verify Node.
 type Certificate struct {
-	GUID      guid.GUID // node GUID
+	GUID      guid.GUID // Node GUID
 	PublicKey ed25519.PublicKey
 
 	// with Node GUID: common connect node,
@@ -29,7 +36,7 @@ type Certificate struct {
 	Signatures [2][]byte
 }
 
-// Encode is used to encode certificate to bytes
+// Encode is used to encode certificate to bytes.
 func (cert *Certificate) Encode() []byte {
 	b := make([]byte, CertificateSize)
 	offset := 0
@@ -43,7 +50,7 @@ func (cert *Certificate) Encode() []byte {
 	return b
 }
 
-// Decode is used to decode bytes to certificate
+// Decode is used to decode bytes to certificate.
 func (cert *Certificate) Decode(b []byte) error {
 	if len(b) != CertificateSize {
 		return errors.New("invalid certificate size")
@@ -66,8 +73,8 @@ func (cert *Certificate) Decode(b []byte) error {
 	return nil
 }
 
-// VerifySignatureWithNodeGUID is used to verify node
-// certificate signature with Node GUID
+// VerifySignatureWithNodeGUID is used to verify Node's
+// certificate signature with Node GUID.
 func (cert *Certificate) VerifySignatureWithNodeGUID(pub ed25519.PublicKey) bool {
 	msg := make([]byte, guid.Size+ed25519.PublicKeySize)
 	copy(msg, cert.GUID[:])
@@ -75,8 +82,8 @@ func (cert *Certificate) VerifySignatureWithNodeGUID(pub ed25519.PublicKey) bool
 	return ed25519.Verify(pub, msg, cert.Signatures[0])
 }
 
-// VerifySignatureWithCtrlGUID is used to verify node
-// certificate signature with Controller GUID
+// VerifySignatureWithCtrlGUID is used to verify Node's
+// certificate signature with Controller GUID.
 func (cert *Certificate) VerifySignatureWithCtrlGUID(pub ed25519.PublicKey) bool {
 	msg := make([]byte, guid.Size+ed25519.PublicKeySize)
 	copy(msg, CtrlGUID[:])
@@ -84,8 +91,8 @@ func (cert *Certificate) VerifySignatureWithCtrlGUID(pub ed25519.PublicKey) bool
 	return ed25519.Verify(pub, msg, cert.Signatures[1])
 }
 
-// IssueCertificate is used to issue node certificate,
-// use controller private key to sign generated certificate
+// IssueCertificate is used to issue Node certificate,
+// use Controller's private key to sign generated certificate.
 func IssueCertificate(cert *Certificate, pri ed25519.PrivateKey) error {
 	if len(cert.PublicKey) != ed25519.PublicKeySize {
 		return errors.New("invalid public key size")
@@ -101,8 +108,8 @@ func IssueCertificate(cert *Certificate, pri ed25519.PrivateKey) error {
 	return nil
 }
 
-// VerifyCertificate is used to verify node certificate
-// if errors != nil, role must log with level Exploit
+// VerifyCertificate is used to verify Node certificate.
+// if errors != nil, role must log with level Exploit.
 func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid *guid.GUID) (bool, error) {
 	// receive node certificate
 	buf := make([]byte, CertificateSize)
@@ -110,7 +117,7 @@ func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid *guid.GUID) (b
 	if err != nil {
 		return false, nil
 	}
-	var cert Certificate
+	cert := Certificate{}
 	_ = cert.Decode(buf) // no error
 	// if guid == nil, skip verify
 	if guid != nil {
@@ -119,9 +126,9 @@ func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid *guid.GUID) (b
 		if *CtrlGUID == *guid {
 			ok = cert.VerifySignatureWithCtrlGUID(pub)
 		} else {
-			// verify Node GUID
+			// compare Node GUID
 			if cert.GUID != *guid {
-				return false, errors.New("guid in certificate is different")
+				return false, errors.WithStack(ErrDifferentNodeGUID)
 			}
 			ok = cert.VerifySignatureWithNodeGUID(pub)
 		}
@@ -149,4 +156,89 @@ func VerifyCertificate(conn net.Conn, pub ed25519.PublicKey, guid *guid.GUID) (b
 		return false, errors.New("invalid challenge signature")
 	}
 	return true, nil
+}
+
+// UpdateNodeRequest Beacon will use it to query from Controller that
+// this Node is updated(like restart a Node, Listener is same, but Node
+// GUID is changed, Beacon will update).
+type UpdateNodeRequest struct {
+	Hash    []byte // HMAC-SHA256
+	EncData []byte // use AES to encrypt it, NodeGUID + PublicKey
+}
+
+// NewUpdateNodeRequest is used to create UpdateNodeRequest, Unpack() need it.
+func NewUpdateNodeRequest() *UpdateNodeRequest {
+	return &UpdateNodeRequest{
+		Hash:    make([]byte, sha256.Size),
+		EncData: make([]byte, guid.Size+ed25519.PublicKeySize+aes.BlockSize),
+	}
+}
+
+// Pack is used to pack UpdateNodeRequest to *bytes.Buffer.
+func (unr *UpdateNodeRequest) Pack(buf *bytes.Buffer) {
+	buf.Write(unr.Hash)
+	buf.Write(unr.EncData)
+}
+
+// Unpack is used to unpack []byte to UpdateNodeRequest.
+func (unr *UpdateNodeRequest) Unpack(data []byte) error {
+	if len(data) != sha256.Size+guid.Size+ed25519.PublicKeySize+aes.BlockSize {
+		return errors.New("invalid UpdateNodeRequest packet size")
+	}
+	copy(unr.Hash, data[:sha256.Size])
+	copy(unr.EncData, data[sha256.Size:])
+	return nil
+}
+
+// Validate is used to check size about fields.
+func (unr *UpdateNodeRequest) Validate() error {
+	if len(unr.Hash) != sha256.Size {
+		return errors.New("invalid hmac hash size")
+	}
+	if len(unr.EncData) != guid.Size+ed25519.PublicKeySize+aes.BlockSize {
+		return errors.New("invalid encrypted data size")
+	}
+	return nil
+}
+
+// UpdateNodeResponse Controller will send the response to the Node that
+// send UpdateNodeRequest, then Node will send the response to Beacon.
+type UpdateNodeResponse struct {
+	Hash    []byte // HMAC-SHA256
+	EncData []byte // use AES to encrypt it, bool
+}
+
+// NewUpdateNodeResponse is used to create UpdateNodeResponse, Unpack() need it.
+func NewUpdateNodeResponse() *UpdateNodeResponse {
+	return &UpdateNodeResponse{
+		Hash:    make([]byte, sha256.Size),
+		EncData: make([]byte, aes.BlockSize),
+	}
+}
+
+// Pack is used to pack UpdateNodeResponse to *bytes.Buffer.
+func (unr *UpdateNodeResponse) Pack(buf *bytes.Buffer) {
+	buf.Write(unr.Hash)
+	buf.Write(unr.EncData)
+}
+
+// Unpack is used to unpack []byte to UpdateNodeResponse.
+func (unr *UpdateNodeResponse) Unpack(data []byte) error {
+	if len(data) != sha256.Size+aes.BlockSize {
+		return errors.New("invalid UpdateNodeResponse packet size")
+	}
+	copy(unr.Hash, data[:sha256.Size])
+	copy(unr.EncData, data[sha256.Size:])
+	return nil
+}
+
+// Validate is used to check size about fields.
+func (unr *UpdateNodeResponse) Validate() error {
+	if len(unr.Hash) != sha256.Size {
+		return errors.New("invalid hmac hash size")
+	}
+	if len(unr.EncData) != aes.BlockSize {
+		return errors.New("invalid encrypted data size")
+	}
+	return nil
 }
