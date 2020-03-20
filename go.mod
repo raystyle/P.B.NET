@@ -12,13 +12,13 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/jinzhu/gorm v1.9.12
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/kardianos/service v1.0.1-0.20191211031725-3c356ae54c8a
-	github.com/lucas-clemente/quic-go v0.15.7
+	github.com/kardianos/service v1.1.0
+	github.com/lucas-clemente/quic-go v0.16.1
 	github.com/pelletier/go-toml v1.8.0
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.1
 	github.com/vmihailenco/msgpack/v4 v4.3.11
 
-	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
-	golang.org/x/net v0.0.0-20200506145744-7e3656a0809f
+	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
+	golang.org/x/net v0.0.0-20200602114024-627f9648deb9
 )
