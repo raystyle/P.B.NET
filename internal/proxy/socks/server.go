@@ -339,23 +339,24 @@ func (c *conn) serve() {
 	} else {
 		c.serveSocks5()
 	}
-	// start copy
-	if c.remote != nil {
-		defer func() { _ = c.remote.Close() }()
-		_ = c.remote.SetDeadline(time.Time{})
-		_ = c.local.SetDeadline(time.Time{})
-		c.server.wg.Add(1)
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					c.log(logger.Fatal, xpanic.Print(r, title))
-				}
-				c.server.wg.Done()
-			}()
-			_, _ = io.Copy(c.local, c.remote)
-		}()
-		_, _ = io.Copy(c.remote, c.local)
+	if c.remote == nil {
+		return
 	}
+	// start copy
+	defer func() { _ = c.remote.Close() }()
+	_ = c.remote.SetDeadline(time.Time{})
+	_ = c.local.SetDeadline(time.Time{})
+	c.server.wg.Add(1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				c.log(logger.Fatal, xpanic.Print(r, title))
+			}
+			c.server.wg.Done()
+		}()
+		_, _ = io.Copy(c.local, c.remote)
+	}()
+	_, _ = io.Copy(c.remote, c.local)
 }
 
 func (c *conn) Close() error {
