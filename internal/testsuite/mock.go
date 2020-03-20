@@ -2,6 +2,7 @@ package testsuite
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -95,21 +96,11 @@ func (rw mockResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return rw.conn, nil, nil
 }
 
-type mockConn struct {
-	net.Conn
-	server net.Conn
-}
-
-func (c mockConn) Read([]byte) (int, error) {
-	defer func() { panic("Read() panic") }()
-	return 0, nil
-}
-
-func (c mockConn) Close() error {
-	defer func() { panic("Close() panic") }()
-	_ = c.Conn.Close()
-	_ = c.server.Close()
-	return nil
+// NewMockResponseWriter is used to create simple mock response writer.
+func NewMockResponseWriter() http.ResponseWriter {
+	server, client := net.Pipe()
+	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
+	return &mockResponseWriter{conn: client}
 }
 
 // NewMockResponseWriterWithFailedToHijack is used to create a mock
@@ -129,13 +120,46 @@ func NewMockResponseWriterWithFailedToWrite() http.ResponseWriter {
 	return &mockResponseWriter{conn: client}
 }
 
-// NewMockResponseWriterWithMockConn is used to create a mock
-// http.ResponseWriter that implemented http.Hijacker, if use hijacked
-// connection, call Read() or Close(), it will panic.
-func NewMockResponseWriterWithMockConn() http.ResponseWriter {
+type mockConnReadPanic struct {
+	net.Conn
+	server net.Conn
+}
+
+func (c *mockConnReadPanic) Read([]byte) (int, error) {
+	defer func() { panic("Read() panic") }()
+	return 0, nil
+}
+
+// DialMockConnWithReadPanic is used to create a mock connection
+// and when call Read() it will panic.
+func DialMockConnWithReadPanic(_ context.Context, _, _ string) (net.Conn, error) {
 	server, client := net.Pipe()
 	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
-	mc := mockConn{
+	return &mockConnReadPanic{
+		Conn:   client,
+		server: server,
+	}, nil
+}
+
+type mockConnClosePanic struct {
+	net.Conn
+	server net.Conn
+}
+
+func (c *mockConnClosePanic) Close() error {
+	defer func() { panic("Close() panic") }()
+	_ = c.Conn.Close()
+	_ = c.server.Close()
+	return nil
+}
+
+// NewMockResponseWriterWithClosePanic is used to create a mock
+// http.ResponseWriter that implemented http.Hijacker, if use hijacked
+// connection and when call Close() it will panic.
+func NewMockResponseWriterWithClosePanic() http.ResponseWriter {
+	server, client := net.Pipe()
+	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
+	mc := mockConnClosePanic{
 		Conn:   client,
 		server: server,
 	}
