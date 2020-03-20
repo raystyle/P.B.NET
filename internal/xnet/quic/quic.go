@@ -13,7 +13,7 @@ import (
 
 const (
 	defaultTimeout   = 30 * time.Second // dial and accept
-	defaultNextProto = "h3-27"          // HTTP/3
+	defaultNextProto = "h3-28"          // HTTP/3
 )
 
 // ErrConnClosed is an error about closed
