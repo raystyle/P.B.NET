@@ -21,8 +21,6 @@ import (
 	"project/internal/xpanic"
 )
 
-const defaultDialTimeout = 30 * time.Second
-
 // Client implemented internal/proxy.client.
 type Client struct {
 	network   string
@@ -305,7 +303,7 @@ func (c *Client) Server() (string, string) {
 	return c.network, c.address
 }
 
-// Info is used to get the proxy client info.
+// Info is used to get the proxy client information.
 //
 // http://admin:123456@127.0.0.1:8080
 // https://admin:123456@[::1]:8081

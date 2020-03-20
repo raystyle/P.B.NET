@@ -248,6 +248,8 @@ func TestServer_Close(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -258,7 +260,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
-	u := fmt.Sprintf("http://%s/", server.Addresses()[0])
+
+	u := fmt.Sprintf("http://localhost:%s/", testsuite.HTTPServerPort)
 	r, err := http.NewRequest(http.MethodConnect, u, nil)
 	require.NoError(t, err)
 
@@ -278,12 +281,31 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("copy with panic", func(t *testing.T) {
+		opts := Options{DialContext: testsuite.DialMockConnWithReadPanic}
+		server, err := NewHTTPServer("test", logger.Test, &opts)
+		require.NoError(t, err)
 		go func() {
-			w := testsuite.NewMockResponseWriterWithMockConn()
-			server.handler.ServeHTTP(w, r)
+			err := server.ListenAndServe("tcp", "localhost:0")
+			require.NoError(t, err)
 		}()
 		time.Sleep(250 * time.Millisecond)
-		// close proxy server
+		go func() {
+			w := testsuite.NewMockResponseWriter()
+			server.handler.ServeHTTP(w, r)
+		}()
+		time.Sleep(500 * time.Millisecond)
+
+		require.NoError(t, server.Close())
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("close with panic", func(t *testing.T) {
+		go func() {
+			w := testsuite.NewMockResponseWriterWithClosePanic()
+			server.handler.ServeHTTP(w, r)
+		}()
+		time.Sleep(500 * time.Millisecond)
+		require.NoError(t, server.Close())
 	})
 
 	require.NoError(t, server.Close())

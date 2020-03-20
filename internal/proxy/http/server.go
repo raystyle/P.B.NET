@@ -20,12 +20,7 @@ import (
 	"project/internal/xpanic"
 )
 
-const (
-	defaultConnectTimeout = 30 * time.Second
-	defaultMaxConnections = 1000
-)
-
-// Server implemented internal/proxy.server
+// Server implemented internal/proxy.server.
 type Server struct {
 	tag      string
 	logger   logger.Logger
@@ -43,12 +38,12 @@ type Server struct {
 	closeOnce sync.Once
 }
 
-// NewHTTPServer is used to create a HTTPS proxy server
+// NewHTTPServer is used to create a HTTPS proxy server.
 func NewHTTPServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return newServer(tag, lg, opts, false)
 }
 
-// NewHTTPSServer is used to create a HTTPS proxy server
+// NewHTTPSServer is used to create a HTTPS proxy server.
 func NewHTTPSServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return newServer(tag, lg, opts, true)
 }
@@ -140,7 +135,7 @@ func (s *Server) deleteAddress(addr *net.Addr) {
 	delete(s.addrs, addr)
 }
 
-// ListenAndServe is used to listen a listener and serve
+// ListenAndServe is used to listen a listener and serve.
 func (s *Server) ListenAndServe(network, address string) error {
 	err := CheckNetwork(network)
 	if err != nil {
@@ -153,7 +148,7 @@ func (s *Server) ListenAndServe(network, address string) error {
 	return s.Serve(listener)
 }
 
-// Serve accepts incoming connections on the listener
+// Serve accepts incoming connections on the listener.
 func (s *Server) Serve(listener net.Listener) (err error) {
 	listener = netutil.LimitListener(listener, s.maxConns)
 	address := listener.Addr()
@@ -179,7 +174,7 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 	return err
 }
 
-// Addresses is used to get listener addresses
+// Addresses is used to get listener addresses.
 func (s *Server) Addresses() []net.Addr {
 	s.addrsRWM.RLock()
 	defer s.addrsRWM.RUnlock()
@@ -190,7 +185,7 @@ func (s *Server) Addresses() []net.Addr {
 	return addrs
 }
 
-// Close is used to close HTTP proxy server
+// Close is used to close HTTP proxy server.
 func (s *Server) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
@@ -200,7 +195,7 @@ func (s *Server) Close() error {
 	return err
 }
 
-// Info is used to get http proxy server info
+// Info is used to get http proxy server information.
 //
 // "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
 // "address: tcp 127.0.0.1:1999 auth: admin:123456"
@@ -254,8 +249,7 @@ type handler struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	wg sync.WaitGroup
+	wg     sync.WaitGroup
 }
 
 // [2018-11-27 00:00:00] [info] <http proxy-tag> test log
@@ -272,10 +266,10 @@ func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)
 	_, _ = logger.HTTPRequest(r).WriteTo(buf)
-	h.logger.Print(lv, h.tag, buf)
+	h.logger.Println(lv, h.tag, buf)
 }
 
-// ServeHTTP implement http.Handler
+// ServeHTTP implement http.Handler.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	const title = "server.ServeHTTP()"
 	h.wg.Add(1)
@@ -343,9 +337,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				h.wg.Done()
 			}()
-			_, _ = io.Copy(conn, wc)
+			_, _ = io.Copy(wc, conn)
 		}()
-		_, _ = io.Copy(wc, conn)
+		_, _ = io.Copy(conn, wc)
 		close(closeChan)
 	} else { // handle http request
 		ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
@@ -386,7 +380,7 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 	case "Basic":
 		auth, err := base64.StdEncoding.DecodeString(authBase64)
 		if err != nil {
-			h.log(logger.Exploit, r, "invalid basic base64 data")
+			h.log(logger.Exploit, r, "invalid basic base64 data:", err)
 			failedToAuth()
 			return false
 		}

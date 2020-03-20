@@ -11,7 +11,13 @@ import (
 	"project/internal/option"
 )
 
-// Options contains client and server options
+const (
+	defaultDialTimeout    = 30 * time.Second
+	defaultConnectTimeout = 15 * time.Second
+	defaultMaxConnections = 1000
+)
+
+// Options contains client and server options.
 type Options struct {
 	Username string        `toml:"username"`
 	Password string        `toml:"password"`
@@ -31,7 +37,7 @@ type Options struct {
 	DialContext func(ctx context.Context, network, address string) (net.Conn, error) `toml:"-"`
 }
 
-// CheckNetwork is used to check network is supported
+// CheckNetwork is used to check network is supported.
 func CheckNetwork(network string) error {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
