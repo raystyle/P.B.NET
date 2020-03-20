@@ -19,15 +19,10 @@ import (
 )
 
 // ErrServerClosed is returned by the Server's Serve, ListenAndServe,
-// methods after a call Close
+// methods after a call Close.
 var ErrServerClosed = errors.New("socks server closed")
 
-const (
-	defaultConnectTimeout = 30 * time.Second
-	defaultMaxConnections = 1000
-)
-
-// Server implemented internal/proxy.server
+// Server implemented internal/proxy.server.
 type Server struct {
 	tag        string
 	logger     logger.Logger
@@ -49,24 +44,23 @@ type Server struct {
 	inShutdown int32
 	rwm        sync.RWMutex
 
-	ctx    context.Context
-	cancel context.CancelFunc
-
+	ctx       context.Context
+	cancel    context.CancelFunc
 	closeOnce sync.Once
 	wg        sync.WaitGroup
 }
 
-// NewSocks5Server is used to create a socks5 server
+// NewSocks5Server is used to create a socks5 server.
 func NewSocks5Server(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return newServer(tag, lg, opts, false, false)
 }
 
-// NewSocks4aServer is used to create a socks4a server
+// NewSocks4aServer is used to create a socks4a server.
 func NewSocks4aServer(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return newServer(tag, lg, opts, true, false)
 }
 
-// NewSocks4Server is used to create a socks4 server
+// NewSocks4Server is used to create a socks4 server.
 func NewSocks4Server(tag string, lg logger.Logger, opts *Options) (*Server, error) {
 	return newServer(tag, lg, opts, true, true)
 }
@@ -145,8 +139,11 @@ func (s *Server) trackListener(listener *net.Listener, add bool) bool {
 	return true
 }
 
-// ListenAndServe is used to listen a listener and serve
+// ListenAndServe is used to listen a listener and serve.
 func (s *Server) ListenAndServe(network, address string) error {
+	if s.shuttingDown() {
+		return ErrServerClosed
+	}
 	err := CheckNetwork(network)
 	if err != nil {
 		return err
@@ -158,9 +155,11 @@ func (s *Server) ListenAndServe(network, address string) error {
 	return s.Serve(listener)
 }
 
-// Serve accepts incoming connections on the listener
+// Serve accepts incoming connections on the listener.
 func (s *Server) Serve(listener net.Listener) (err error) {
 	listener = netutil.LimitListener(listener, s.maxConns)
+	defer func() { _ = listener.Close() }()
+
 	if !s.trackListener(&listener, true) {
 		return ErrServerClosed
 	}
@@ -199,7 +198,7 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 			}
 			errStr := err.Error()
 			if !strings.Contains(errStr, "closed") {
-				s.log(logger.Warning, errStr)
+				s.log(logger.Error, errStr)
 				return err
 			}
 			return nil
@@ -234,7 +233,7 @@ func (s *Server) trackConn(conn *conn, add bool) bool {
 	return true
 }
 
-// Addresses is used to get listener addresses
+// Addresses is used to get listener addresses.
 func (s *Server) Addresses() []net.Addr {
 	s.rwm.RLock()
 	defer s.rwm.RUnlock()
@@ -245,7 +244,7 @@ func (s *Server) Addresses() []net.Addr {
 	return addrs
 }
 
-// Close is used to close socks server
+// Close is used to close socks server.
 func (s *Server) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
@@ -272,7 +271,7 @@ func (s *Server) Close() error {
 	return err
 }
 
-// Info is used to get socks server info
+// Info is used to get socks server information.
 // "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
 // "address: tcp 127.0.0.1:1999 user id: test"
 // "address: tcp 127.0.0.1:1999 auth: admin:123456"
