@@ -138,6 +138,7 @@ func (t *Tranner) Status() string {
 	return buf.String()
 }
 
+// testAddress is used to get listener address, it only for test.
 func (t *Tranner) testAddress() string {
 	t.rwm.RLock()
 	defer t.rwm.RUnlock()
