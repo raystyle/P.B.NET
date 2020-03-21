@@ -251,7 +251,7 @@ func (c *conn) serveSocks5() {
 		return
 	}
 	// connect target
-	c.log(logger.Debug, "connect: "+target)
+	c.log(logger.Info, "connect: "+target)
 	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
 	defer cancel()
 	remote, err := c.server.dialContext(ctx, "tcp", target)

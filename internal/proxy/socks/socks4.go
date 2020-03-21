@@ -167,7 +167,7 @@ func (c *conn) serveSocks4() {
 	}
 	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
 	// connect target
-	c.log(logger.Debug, "connect:", address)
+	c.log(logger.Info, "connect:", address)
 	ctx, cancel := context.WithTimeout(c.server.ctx, c.server.timeout)
 	defer cancel()
 	remote, err := c.server.dialContext(ctx, "tcp", address)

@@ -282,7 +282,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !h.authenticate(w, r) {
 		return
 	}
-	h.log(logger.Debug, r, "handle request")
+	h.log(logger.Info, r, "handle request")
 	// remove Proxy-Authorization
 	r.Header.Del("Proxy-Authorization")
 	if r.Method == http.MethodConnect { // handle https
