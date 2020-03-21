@@ -16,10 +16,10 @@ import (
 )
 
 func testGenerateTranner(t *testing.T) *Tranner {
-	destNetwork := "tcp"
-	destAddress := "127.0.0.1:" + testsuite.HTTPServerPort
+	dstNetwork := "tcp"
+	dstAddress := "127.0.0.1:" + testsuite.HTTPServerPort
 	opts := Options{LocalAddress: "127.0.0.1:0"}
-	tranner, err := NewTranner("test", destNetwork, destAddress, logger.Test, &opts)
+	tranner, err := NewTranner("test", dstNetwork, dstAddress, logger.Test, &opts)
 	require.NoError(t, err)
 	return tranner
 }
@@ -102,10 +102,10 @@ func TestTranner_Start(t *testing.T) {
 	})
 
 	t.Run("failed to listen", func(t *testing.T) {
-		destNetwork := "tcp"
-		destAddress := "127.0.0.1:" + testsuite.HTTPServerPort
+		dstNetwork := "tcp"
+		dstAddress := "127.0.0.1:" + testsuite.HTTPServerPort
 		opts := Options{LocalAddress: "0.0.0.1:0"}
-		tranner, err := NewTranner("test", destNetwork, destAddress, logger.Test, &opts)
+		tranner, err := NewTranner("test", dstNetwork, dstAddress, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = tranner.Start()
@@ -134,6 +134,7 @@ func TestTranner_Stop(t *testing.T) {
 
 	t.Log(tranner.Status())
 
+	tranner.Stop()
 	tranner.Stop()
 	testsuite.IsDestroyed(t, tranner)
 }
@@ -187,17 +188,17 @@ func TestTranner_trackConn(t *testing.T) {
 	testsuite.IsDestroyed(t, tranner)
 }
 
-func TestConn_tran(t *testing.T) {
+func TestTConn_copy(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	t.Run("failed to connect target", func(t *testing.T) {
-		destNetwork := "tcp"
-		destAddress := "0.0.0.0:1"
+		dstNetwork := "tcp"
+		dstAddress := "0.0.0.0:1"
 		opts := Options{LocalAddress: "127.0.0.1:0"}
-		tranner, err := NewTranner("test", destNetwork, destAddress, logger.Test, &opts)
+		tranner, err := NewTranner("test", dstNetwork, dstAddress, logger.Test, &opts)
 		require.NoError(t, err)
 
 		err = tranner.Start()

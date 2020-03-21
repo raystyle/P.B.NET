@@ -6,21 +6,24 @@ import (
 
 const (
 	defaultConnectTimeout = 10 * time.Second
-	defaultMaxConnections = 1000
 	defaultDialTimeout    = 15 * time.Second
+	defaultMaxConnections = 1000
 )
 
 // Options contains all options about Tranner, Slaver and Listener.
 type Options struct {
+	// tran and listener
 	LocalNetwork string
 	LocalAddress string
 
-	// tran and slave
+	// tran and slave, connect target timeout
 	ConnectTimeout time.Duration
-	MaxConns       int
 
-	// only slaver
+	// only slave, connect listener timeout
 	DialTimeout time.Duration
+
+	// tran, slave and listener
+	MaxConns int
 }
 
 func (opts *Options) apply() *Options {
@@ -31,14 +34,14 @@ func (opts *Options) apply() *Options {
 	if nOpts.LocalAddress == "" {
 		nOpts.LocalAddress = ":0"
 	}
-	if nOpts.MaxConns < 1 {
-		nOpts.MaxConns = defaultMaxConnections
-	}
 	if nOpts.ConnectTimeout < 1 {
 		nOpts.ConnectTimeout = defaultConnectTimeout
 	}
 	if nOpts.DialTimeout < 1 {
 		nOpts.DialTimeout = defaultDialTimeout
+	}
+	if nOpts.MaxConns < 1 {
+		nOpts.MaxConns = defaultMaxConnections
 	}
 	return &nOpts
 }
