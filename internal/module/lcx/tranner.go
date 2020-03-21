@@ -1,13 +1,16 @@
 package lcx
 
 import (
-	"errors"
+	"bytes"
+	"context"
+	"fmt"
 	"io"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
 
 	"project/internal/logger"
@@ -16,18 +19,19 @@ import (
 
 // Tranner is used to map port.
 type Tranner struct {
-	tag          string
-	destNetwork  string
-	destAddress  *net.TCPAddr
-	localNetwork string
-	localAddress *net.TCPAddr
-	logger       logger.Logger
-	opts         *Options
+	network string // destination
+	address string // destination
+	logger  logger.Logger
+	opts    *Options
 
+	logSrc   string
 	listener net.Listener
-	mutex    sync.Mutex
+	conns    map[*conn]struct{}
+	rwm      sync.RWMutex
 
-	wg sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewTranner is used to create a tranner.
@@ -35,7 +39,7 @@ func NewTranner(tag, dNetwork, dAddress string, lg logger.Logger, opts *Options)
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
-	destAddr, err := net.ResolveTCPAddr(dNetwork, dAddress)
+	_, err := net.ResolveTCPAddr(dNetwork, dAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -43,64 +47,132 @@ func NewTranner(tag, dNetwork, dAddress string, lg logger.Logger, opts *Options)
 		opts = new(Options)
 	}
 	opts = opts.apply()
-	localAddr, err := net.ResolveTCPAddr(opts.LocalNetwork, opts.LocalAddress)
+	_, err = net.ResolveTCPAddr(opts.LocalNetwork, opts.LocalAddress)
 	if err != nil {
 		return nil, err
 	}
 	return &Tranner{
-		tag:          "tranner-" + tag,
-		destNetwork:  dNetwork,
-		destAddress:  destAddr,
-		localNetwork: opts.LocalNetwork,
-		localAddress: localAddr,
-		logger:       lg,
+		logSrc:  "lcx tran-" + tag,
+		network: dNetwork,
+		address: dAddress,
+		logger:  lg,
+		opts:    opts,
+		conns:   make(map[*conn]struct{}),
 	}, nil
 }
 
 // Start is used to start tranner.
 func (t *Tranner) Start() error {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	t.rwm.Lock()
+	defer t.rwm.Unlock()
 	if t.listener != nil {
 		return errors.New("already start tranner")
 	}
-	listener, err := net.ListenTCP(t.localNetwork, t.localAddress)
+	listener, err := net.Listen(t.opts.LocalNetwork, t.opts.LocalAddress)
 	if err != nil {
 		return err
 	}
-	t.listener = netutil.LimitListener(listener, t.opts.MaxConns)
+	listener = netutil.LimitListener(listener, t.opts.MaxConns)
+	t.listener = listener
 	t.wg.Add(1)
-	go t.serve()
+	go t.serve(listener)
+	t.ctx, t.cancel = context.WithCancel(context.Background())
 	return nil
 }
 
+// Stop is used to stop tranner.
+func (t *Tranner) Stop() {
+	t.stop()
+	t.wg.Wait()
+}
+
+func (t *Tranner) stop() {
+	t.rwm.Lock()
+	defer t.rwm.Unlock()
+	if t.listener == nil {
+		return
+	}
+	t.cancel()
+	// close listener
+	_ = t.listener.Close()
+	t.listener = nil
+	// close all connections
+	for conn := range t.conns {
+		_ = conn.Close()
+	}
+}
+
+// Restart is used to restart tranner.
+func (t *Tranner) Restart() error {
+	t.Stop()
+	return t.Start()
+}
+
+// Name is used to get the module name.
+func (t *Tranner) Name() string {
+	return "lcx tran"
+}
+
+// Info is used to get the tranner information.
+// "listen: tcp 0.0.0.0:1999, target: tcp 192.168.1.2:3389"
+func (t *Tranner) Info() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 128))
+	t.rwm.RLock()
+	defer t.rwm.RUnlock()
+	address := t.listener.Addr()
+	network := address.Network()
+	const format = "listen: %s %s, target: %s %s"
+	_, _ = fmt.Fprintf(buf, format, network, address, t.network, t.address)
+	return buf.String()
+}
+
+// Status is used to return the tranner status.
+// connections: 12/1000 (used/limit)
+func (t *Tranner) Status() string {
+	buf := bytes.NewBuffer(make([]byte, 0, 32))
+	t.rwm.RLock()
+	defer t.rwm.RUnlock()
+	used := len(t.conns)
+	const format = "connections: %d/%d (used/limit)"
+	_, _ = fmt.Fprintf(buf, format, used, t.opts.MaxConns)
+	return buf.String()
+}
+
+func (t *Tranner) testAddress() string {
+	t.rwm.RLock()
+	defer t.rwm.RUnlock()
+	if t.listener == nil {
+		return ""
+	}
+	return t.listener.Addr().String()
+}
+
 func (t *Tranner) logf(lv logger.Level, format string, log ...interface{}) {
-	t.logger.Printf(lv, t.tag, format, log...)
+	t.logger.Printf(lv, t.logSrc, format, log...)
 }
 
 func (t *Tranner) log(lv logger.Level, log ...interface{}) {
-	t.logger.Println(lv, t.tag, log...)
+	t.logger.Println(lv, t.logSrc, log...)
 }
 
-func (t *Tranner) serve() {
+func (t *Tranner) serve(listener net.Listener) {
+	defer func() { _ = listener.Close() }()
+	address := listener.Addr()
+	network := address.Network()
 	defer func() {
 		if r := recover(); r != nil {
 			t.log(logger.Fatal, xpanic.Print(r, "Tranner.serve"))
-			// restart tran
-			time.Sleep(time.Second)
-			go t.serve()
-		} else {
-			t.wg.Done()
 		}
-		t.logf(logger.Info, "listener closed (%s %s)", t.localNetwork, t.localAddress)
+		t.logf(logger.Info, "listener closed (%s %s)", network, address)
+		t.wg.Done()
 	}()
-	t.logf(logger.Info, "start listener (%s %s)", t.localNetwork, t.localAddress)
+	t.logf(logger.Info, "start listener (%s %s)", network, address)
 
 	// start accept
 	var delay time.Duration // how long to sleep on accept failure
 	maxDelay := time.Second
 	for {
-		conn, err := t.listener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			// check error
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
@@ -123,56 +195,82 @@ func (t *Tranner) serve() {
 			return
 		}
 		delay = 0
-		t.wg.Add(1)
-		go t.tran(conn)
+		c := t.newConn(conn)
+		if t.trackConn(c, true) {
+			t.wg.Add(1)
+			go c.tran()
+		}
 	}
 }
 
-func (t *Tranner) tran(local net.Conn) {
-	const title = "Tranner.tran"
+func (t *Tranner) newConn(c net.Conn) *conn {
+	return &conn{
+		tranner: t,
+		local:   c,
+	}
+}
+
+func (t *Tranner) trackConn(conn *conn, add bool) bool {
+	t.rwm.Lock()
+	defer t.rwm.Unlock()
+	if add {
+		if t.listener == nil { // stopped
+			return false
+		}
+		t.conns[conn] = struct{}{}
+	} else {
+		delete(t.conns, conn)
+	}
+	return true
+}
+
+type conn struct {
+	tranner *Tranner
+	local   net.Conn
+}
+
+func (c *conn) log(lv logger.Level, log ...interface{}) {
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(buf, log...)
+	_, _ = logger.Conn(c.local).WriteTo(buf)
+	c.tranner.log(lv, buf)
+}
+
+func (c *conn) tran() {
+	const title = "conn.tran"
 	defer func() {
 		if r := recover(); r != nil {
-			t.log(logger.Fatal, xpanic.Print(r, title))
+			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
-		t.wg.Done()
+		_ = c.local.Close()
+		c.tranner.wg.Done()
 	}()
+	defer c.tranner.trackConn(c, false)
 	// connect the target
-
-	remote, err := net.DialTCP(t.destNetwork, nil, t.destAddress)
+	ctx, cancel := context.WithTimeout(c.tranner.ctx, c.tranner.opts.ConnectTimeout)
+	defer cancel()
+	remote, err := new(net.Dialer).DialContext(ctx, c.tranner.network, c.tranner.address)
 	if err != nil {
-		t.log(logger.Error, "failed to connect target:", err)
+		c.log(logger.Error, "failed to connect target:", err)
 		return
 	}
+	c.log(logger.Info, "income connection")
 	defer func() { _ = remote.Close() }()
 	_ = remote.SetDeadline(time.Time{})
-	_ = local.SetDeadline(time.Time{})
-	t.wg.Add(1)
+	_ = c.local.SetDeadline(time.Time{})
+	c.tranner.wg.Add(1)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				t.log(logger.Fatal, xpanic.Print(r, title))
+				c.log(logger.Fatal, xpanic.Print(r, title))
 			}
-			t.wg.Done()
+			c.tranner.wg.Done()
 		}()
-		_, _ = io.Copy(local, remote)
+		_, _ = io.Copy(c.local, remote)
 	}()
-	_, _ = io.Copy(remote, local)
+	_, _ = io.Copy(remote, c.local)
 }
 
-// Stop is used to stop tranner.
-func (t *Tranner) Stop() {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	if t.listener == nil {
-		return
-	}
-	_ = t.listener.Close()
-	t.listener = nil
-	t.wg.Wait()
-}
-
-// Restart is used to restart tranner.
-func (t *Tranner) Restart() error {
-	t.Stop()
-	return t.Start()
+func (c *conn) Close() error {
+	return c.local.Close()
 }
