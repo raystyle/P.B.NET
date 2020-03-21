@@ -204,11 +204,7 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 			return nil
 		}
 		delay = 0
-		c := s.newConn(conn)
-		if s.trackConn(c, true) {
-			s.wg.Add(1)
-			go c.serve()
-		}
+		s.newConn(conn).Serve()
 	}
 }
 
@@ -242,33 +238,6 @@ func (s *Server) Addresses() []net.Addr {
 		addrs = append(addrs, (*listener).Addr())
 	}
 	return addrs
-}
-
-// Close is used to close socks server.
-func (s *Server) Close() error {
-	var err error
-	s.closeOnce.Do(func() {
-		atomic.StoreInt32(&s.inShutdown, 1)
-		s.cancel()
-		s.rwm.Lock()
-		defer s.rwm.Unlock()
-		// close all listeners
-		for listener := range s.listeners {
-			e := (*listener).Close()
-			if e != nil && err == nil {
-				err = e
-			}
-		}
-		// close all connections
-		for conn := range s.conns {
-			e := conn.Close()
-			if e != nil && err == nil {
-				err = e
-			}
-		}
-	})
-	s.wg.Wait()
-	return err
 }
 
 // Info is used to get socks server information.
@@ -310,6 +279,33 @@ func (s *Server) Info() string {
 	return buf.String()
 }
 
+// Close is used to close socks server.
+func (s *Server) Close() error {
+	var err error
+	s.closeOnce.Do(func() {
+		atomic.StoreInt32(&s.inShutdown, 1)
+		s.cancel()
+		s.rwm.Lock()
+		defer s.rwm.Unlock()
+		// close all listeners
+		for listener := range s.listeners {
+			e := (*listener).Close()
+			if e != nil && err == nil {
+				err = e
+			}
+		}
+		// close all connections
+		for conn := range s.conns {
+			e := conn.Close()
+			if e != nil && err == nil {
+				err = e
+			}
+		}
+	})
+	s.wg.Wait()
+	return err
+}
+
 type conn struct {
 	server *Server
 	local  net.Conn // listener accepted conn
@@ -323,6 +319,11 @@ func (c *conn) log(lv logger.Level, log ...interface{}) {
 	c.server.log(lv, buf)
 }
 
+func (c *conn) Serve() {
+	c.server.wg.Add(1)
+	go c.serve()
+}
+
 func (c *conn) serve() {
 	const title = "conn.serve()"
 	defer func() {
@@ -332,7 +333,12 @@ func (c *conn) serve() {
 		_ = c.local.Close()
 		c.server.wg.Done()
 	}()
+
+	if !c.server.trackConn(c, true) {
+		return
+	}
 	defer c.server.trackConn(c, false)
+
 	_ = c.local.SetDeadline(time.Now().Add(c.server.timeout))
 	if c.server.socks4 {
 		c.serveSocks4()
@@ -342,6 +348,7 @@ func (c *conn) serve() {
 	if c.remote == nil {
 		return
 	}
+
 	// start copy
 	defer func() { _ = c.remote.Close() }()
 	_ = c.remote.SetDeadline(time.Time{})
