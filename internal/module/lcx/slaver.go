@@ -167,13 +167,9 @@ func (s *Slaver) serve() {
 		if err != nil {
 			s.log(logger.Error, err)
 			time.Sleep(time.Second)
-		} else {
-			c := s.newConn(conn)
-			if s.trackConn(c, true) {
-				s.wg.Add(1)
-				go c.copy()
-			}
+			continue
 		}
+		s.newConn(conn).Serve()
 	}
 }
 
@@ -210,7 +206,7 @@ func (s *Slaver) trackConn(conn *sConn, add bool) bool {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
 	if add {
-		if !s.start { // stopped
+		if !s.start {
 			return false
 		}
 		s.conns[conn] = struct{}{}
@@ -232,8 +228,13 @@ func (c *sConn) log(lv logger.Level, log ...interface{}) {
 	c.slaver.log(lv, buf)
 }
 
-func (c *sConn) copy() {
-	const title = "sConn.copy"
+func (c *sConn) Serve() {
+	c.slaver.wg.Add(1)
+	go c.serve()
+}
+
+func (c *sConn) serve() {
+	const title = "sConn.serve"
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
@@ -241,7 +242,12 @@ func (c *sConn) copy() {
 		_ = c.local.Close()
 		c.slaver.wg.Done()
 	}()
+
+	if !c.slaver.trackConn(c, true) {
+		return
+	}
 	defer c.slaver.trackConn(c, false)
+
 	// connect the target
 	ctx, cancel := context.WithTimeout(c.slaver.ctx, c.slaver.opts.ConnectTimeout)
 	defer cancel()
@@ -250,8 +256,9 @@ func (c *sConn) copy() {
 		c.log(logger.Error, "failed to connect target:", err)
 		return
 	}
-	c.log(logger.Info, "income connection")
 	defer func() { _ = remote.Close() }()
+
+	c.log(logger.Info, "income connection")
 	_ = remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 	c.slaver.wg.Add(1)

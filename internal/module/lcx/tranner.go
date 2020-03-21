@@ -205,11 +205,7 @@ func (t *Tranner) serve(listener net.Listener) {
 			return
 		}
 		delay = 0
-		c := t.newConn(conn)
-		if t.trackConn(c, true) {
-			t.wg.Add(1)
-			go c.copy()
-		}
+		t.newConn(conn).Serve()
 	}
 }
 
@@ -246,8 +242,13 @@ func (c *tConn) log(lv logger.Level, log ...interface{}) {
 	c.tranner.log(lv, buf)
 }
 
-func (c *tConn) copy() {
-	const title = "tConn.copy"
+func (c *tConn) Serve() {
+	c.tranner.wg.Add(1)
+	go c.serve()
+}
+
+func (c *tConn) serve() {
+	const title = "tConn.serve"
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
@@ -255,7 +256,12 @@ func (c *tConn) copy() {
 		_ = c.local.Close()
 		c.tranner.wg.Done()
 	}()
+
+	if !c.tranner.trackConn(c, true) {
+		return
+	}
 	defer c.tranner.trackConn(c, false)
+
 	// connect the target
 	ctx, cancel := context.WithTimeout(c.tranner.ctx, c.tranner.opts.ConnectTimeout)
 	defer cancel()
@@ -264,8 +270,9 @@ func (c *tConn) copy() {
 		c.log(logger.Error, "failed to connect target:", err)
 		return
 	}
-	c.log(logger.Info, "income connection")
 	defer func() { _ = remote.Close() }()
+
+	c.log(logger.Info, "income connection")
 	_ = remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 	c.tranner.wg.Add(1)

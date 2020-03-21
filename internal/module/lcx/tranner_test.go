@@ -184,15 +184,27 @@ func TestTranner_trackConn(t *testing.T) {
 	defer gm.Compare()
 
 	tranner := testGenerateTranner(t)
+
 	require.False(t, tranner.trackConn(nil, true))
+
 	testsuite.IsDestroyed(t, tranner)
 }
 
-func TestTConn_copy(t *testing.T) {
+func TestTConn_Serve(t *testing.T) {
 	testsuite.InitHTTPServers(t)
 
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
+
+	t.Run("closed", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
+
+		_, server := net.Pipe()
+		conn := tranner.newConn(server)
+		conn.Serve()
+
+		testsuite.IsDestroyed(t, tranner)
+	})
 
 	t.Run("failed to connect target", func(t *testing.T) {
 		dstNetwork := "tcp"

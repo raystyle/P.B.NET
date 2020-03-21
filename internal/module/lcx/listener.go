@@ -196,11 +196,7 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 			_ = remote.Close()
 			return
 		}
-		c := l.newConn(remote, local)
-		if l.trackConn(c, true) {
-			l.wg.Add(1)
-			go c.copy()
-		}
+		l.newConn(remote, local).Serve()
 	}
 }
 
@@ -269,8 +265,13 @@ func (c *lConn) log(lv logger.Level, log ...interface{}) {
 	c.listener.log(lv, buf)
 }
 
-func (c *lConn) copy() {
-	const title = "lConn.copy"
+func (c *lConn) Serve() {
+	c.listener.wg.Add(1)
+	go c.serve()
+}
+
+func (c *lConn) serve() {
+	const title = "lConn.serve"
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
@@ -279,7 +280,12 @@ func (c *lConn) copy() {
 		_ = c.local.Close()
 		c.listener.wg.Done()
 	}()
+
+	if !c.listener.trackConn(c, true) {
+		return
+	}
 	defer c.listener.trackConn(c, false)
+
 	c.log(logger.Info, "income connection")
 	_ = c.remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
