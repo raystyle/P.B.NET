@@ -185,16 +185,6 @@ func (s *Server) Addresses() []net.Addr {
 	return addrs
 }
 
-// Close is used to close HTTP proxy server.
-func (s *Server) Close() error {
-	var err error
-	s.closeOnce.Do(func() {
-		err = s.server.Close()
-		s.handler.Close()
-	})
-	return err
-}
-
 // Info is used to get http proxy server information.
 //
 // "address: tcp 127.0.0.1:1999, tcp4 127.0.0.1:2001"
@@ -224,6 +214,16 @@ func (s *Server) Info() string {
 		_, _ = fmt.Fprintf(buf, format, username, password)
 	}
 	return buf.String()
+}
+
+// Close is used to close HTTP proxy server.
+func (s *Server) Close() error {
+	var err error
+	s.closeOnce.Do(func() {
+		err = s.server.Close()
+		s.handler.Close()
+	})
+	return err
 }
 
 var (
