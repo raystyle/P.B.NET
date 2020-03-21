@@ -1,6 +1,8 @@
 package lcx
 
 import (
+	"context"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -115,8 +117,6 @@ func TestTranner_Start(t *testing.T) {
 }
 
 func TestTranner_Stop(t *testing.T) {
-	testsuite.InitHTTPServers(t)
-
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -143,8 +143,6 @@ func TestTranner_serve(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("panic", func(t *testing.T) {
-		tranner := testGenerateTranner(t)
-
 		// patch
 		listener := netutil.LimitListener(nil, 1)
 		patchFunc := func(interface{}) (net.Conn, error) {
@@ -153,6 +151,7 @@ func TestTranner_serve(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(listener, "Accept", patchFunc)
 		defer pg.Unpatch()
 
+		tranner := testGenerateTranner(t)
 		err := tranner.Start()
 		require.NoError(t, err)
 
@@ -161,8 +160,6 @@ func TestTranner_serve(t *testing.T) {
 	})
 
 	t.Run("failed to accept", func(t *testing.T) {
-		tranner := testGenerateTranner(t)
-
 		// patch
 		patchFunc := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithError()
@@ -170,11 +167,11 @@ func TestTranner_serve(t *testing.T) {
 		pg := monkey.Patch(netutil.LimitListener, patchFunc)
 		defer pg.Unpatch()
 
+		tranner := testGenerateTranner(t)
 		err := tranner.Start()
 		require.NoError(t, err)
 
-		// wait accept error
-		time.Sleep(5 * time.Second)
+		tranner.wg.Wait()
 
 		tranner.Stop()
 		testsuite.IsDestroyed(t, tranner)
@@ -188,4 +185,79 @@ func TestTranner_trackConn(t *testing.T) {
 	tranner := testGenerateTranner(t)
 	require.False(t, tranner.trackConn(nil, true))
 	testsuite.IsDestroyed(t, tranner)
+}
+
+func TestConn_tran(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("failed to connect target", func(t *testing.T) {
+		destNetwork := "tcp"
+		destAddress := "0.0.0.0:1"
+		opts := Options{LocalAddress: "127.0.0.1:0"}
+		tranner, err := NewTranner("test", destNetwork, destAddress, logger.Test, &opts)
+		require.NoError(t, err)
+
+		err = tranner.Start()
+		require.NoError(t, err)
+
+		conn, err := net.Dial("tcp", tranner.testAddress())
+		require.NoError(t, err)
+		defer func() { _ = conn.Close() }()
+
+		// wait tran
+		time.Sleep(time.Second)
+
+		tranner.Stop()
+		testsuite.IsDestroyed(t, tranner)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
+		err := tranner.Start()
+		require.NoError(t, err)
+
+		// patch
+		patchFunc := func(context.Context, time.Duration) (context.Context, context.CancelFunc) {
+			panic(monkey.Panic)
+		}
+		pg := monkey.Patch(context.WithTimeout, patchFunc)
+		defer pg.Unpatch()
+
+		conn, err := net.Dial("tcp", tranner.testAddress())
+		require.NoError(t, err)
+		defer func() { _ = conn.Close() }()
+
+		// wait tran
+		time.Sleep(time.Second)
+
+		tranner.Stop()
+		testsuite.IsDestroyed(t, tranner)
+	})
+
+	t.Run("panic from copy", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
+
+		err := tranner.Start()
+		require.NoError(t, err)
+
+		// patch
+		patchFunc := func(io.Writer, io.Reader) (int64, error) {
+			panic(monkey.Panic)
+		}
+		pg := monkey.Patch(io.Copy, patchFunc)
+		defer pg.Unpatch()
+
+		conn, err := net.Dial("tcp", tranner.testAddress())
+		require.NoError(t, err)
+		defer func() { _ = conn.Close() }()
+
+		// wait tran
+		time.Sleep(time.Second)
+
+		tranner.Stop()
+		testsuite.IsDestroyed(t, tranner)
+	})
 }
