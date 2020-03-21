@@ -6,6 +6,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMockNetError(t *testing.T) {
+	err := new(mockNetError)
+	require.False(t, err.Timeout())
+}
+
 func TestMockListener_Accept(t *testing.T) {
 	listener := new(mockListener)
 	conn, err := listener.Accept()

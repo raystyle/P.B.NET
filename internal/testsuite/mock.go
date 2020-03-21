@@ -15,9 +15,28 @@ import (
 
 // about mock listener Accept()
 var (
-	ErrMockListener   = errors.New("mock listener accept error")
-	MockListenerPanic = "mock listener accept panic"
+	ErrMockListenerAccept = &mockNetError{temporary: true}
+	ErrMockListener       = errors.New("accept more than 10 times")
+	MockListenerPanic     = "mock listener accept panic"
 )
+
+// mockNetError implement net.Error
+type mockNetError struct {
+	timeout   bool
+	temporary bool
+}
+
+func (mockNetError) Error() string {
+	return "mock net error"
+}
+
+func (e *mockNetError) Timeout() bool {
+	return e.timeout
+}
+
+func (e *mockNetError) Temporary() bool {
+	return e.temporary
+}
 
 type mockListenerAddr struct{}
 
@@ -32,11 +51,16 @@ func (mockListenerAddr) String() string {
 type mockListener struct {
 	error bool
 	panic bool
+	n     int
 }
 
-func (l mockListener) Accept() (net.Conn, error) {
-	if l.error {
+func (l *mockListener) Accept() (net.Conn, error) {
+	if l.n > 10 {
 		return nil, ErrMockListener
+	}
+	l.n++
+	if l.error {
+		return nil, ErrMockListenerAccept
 	}
 	if l.panic {
 		panic(MockListenerPanic)
@@ -58,7 +82,7 @@ func NewMockListenerWithError() net.Listener {
 	return &mockListener{error: true}
 }
 
-// IsMockListenerError is used to confirm err is ErrMockListener.
+// IsMockListenerError is used to confirm err is ErrMockListenerAccept.
 func IsMockListenerError(t testing.TB, err error) {
 	require.Equal(t, ErrMockListener, err)
 }
