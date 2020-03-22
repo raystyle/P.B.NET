@@ -196,3 +196,178 @@ func TestSlaver_serve(t *testing.T) {
 		testsuite.IsDestroyed(t, listener)
 	})
 }
+
+func TestSlaver_trackConn(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	listener, slaver := testGenerateListenerAndSlaver(t)
+
+	require.False(t, slaver.trackConn(nil, true))
+
+	slaver.Stop()
+	testsuite.IsDestroyed(t, slaver)
+	listener.Stop()
+	testsuite.IsDestroyed(t, listener)
+}
+
+func TestSConn_Serve(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("track conn", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+
+		slaver.ctx = context.Background()
+		_, server := net.Pipe()
+		conn := slaver.newConn(server)
+		conn.Serve()
+
+		slaver.Stop()
+		testsuite.IsDestroyed(t, slaver)
+		listener.Stop()
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("failed to connect target", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+		slaver.dstAddress = "0.0.0.0:1"
+
+		err := slaver.Start()
+		require.NoError(t, err)
+
+		// wait serve()
+		time.Sleep(time.Second)
+
+		slaver.Stop()
+		testsuite.IsDestroyed(t, slaver)
+		listener.Stop()
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("local failed read", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+
+		// patch
+		dialer := new(net.Dialer)
+		patchFunc := func(interface{}, context.Context, string, string) (net.Conn, error) {
+			return testsuite.DialMockConnWithWriteError(context.Background(), "", "")
+		}
+		pg := monkey.PatchInstanceMethod(dialer, "DialContext", patchFunc)
+		defer pg.Unpatch()
+
+		err := slaver.Start()
+		require.NoError(t, err)
+
+		// wait serve()
+		time.Sleep(10 * time.Millisecond)
+
+		slaver.Stop()
+		testsuite.IsDestroyed(t, slaver)
+		listener.Stop()
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("done block local to remote", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+
+		// patch
+		conn := new(sConn)
+		patchFunc := func(c *sConn) {
+			done := make(chan struct{}, 2)
+			// block
+			done <- struct{}{}
+			done <- struct{}{}
+			c.slaver.wg.Add(1)
+			go c.serve(done)
+
+			time.Sleep(time.Second)
+			go slaver.Stop()
+			go listener.Stop()
+
+			<-c.slaver.ctx.Done()
+		}
+		pg := monkey.PatchInstanceMethod(conn, "Serve", patchFunc)
+		defer pg.Unpatch()
+
+		err := slaver.Start()
+		require.NoError(t, err)
+
+		lConn, err := net.Dial("tcp", listener.testLocalAddress())
+		require.NoError(t, err)
+		_, _ = lConn.Write(make([]byte, 1))
+
+		// wait serve
+		time.Sleep(time.Second)
+
+		slaver.Stop()
+		listener.Stop()
+
+		// because of monkey
+		// testsuite.IsDestroyed(t, slaver)
+		// testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("done block remote to local", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+
+		// patch
+		conn := new(sConn)
+		patchFunc := func(c *sConn) {
+			done := make(chan struct{}, 2)
+			// block
+			done <- struct{}{}
+			c.slaver.wg.Add(1)
+			go c.serve(done)
+
+			time.Sleep(time.Second)
+			go slaver.Stop()
+			go listener.Stop()
+
+			<-c.slaver.ctx.Done()
+		}
+		pg := monkey.PatchInstanceMethod(conn, "Serve", patchFunc)
+		defer pg.Unpatch()
+
+		err := slaver.Start()
+		require.NoError(t, err)
+
+		lConn, err := net.Dial("tcp", listener.testLocalAddress())
+		require.NoError(t, err)
+		testsuite.SendHTTPRequest(t, lConn)
+
+		// wait serve
+		time.Sleep(time.Second)
+
+		slaver.Stop()
+		listener.Stop()
+
+		// because of monkey
+		// testsuite.IsDestroyed(t, slaver)
+		// testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("panic from copy", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+		err := slaver.Start()
+		require.NoError(t, err)
+
+		// patch
+		conn := new(net.TCPConn)
+		patchFunc := func(interface{}, time.Time) error {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(conn, "SetReadDeadline", patchFunc)
+		defer pg.Unpatch()
+
+		// wait serve()
+		time.Sleep(time.Second)
+
+		slaver.Stop()
+		testsuite.IsDestroyed(t, slaver)
+		listener.Stop()
+		testsuite.IsDestroyed(t, listener)
+	})
+}

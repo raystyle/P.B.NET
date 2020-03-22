@@ -240,7 +240,7 @@ func TestLConn_Serve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("closed", func(t *testing.T) {
+	t.Run("track conn", func(t *testing.T) {
 		listener := testGenerateListener(t)
 
 		client, server := net.Pipe()

@@ -244,6 +244,7 @@ func (c *sConn) serve(done chan struct{}) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
+			time.Sleep(time.Second)
 		}
 		close(done)
 		_ = c.local.Close()
@@ -271,6 +272,7 @@ func (c *sConn) serve(done chan struct{}) {
 		defer func() {
 			if r := recover(); r != nil {
 				c.log(logger.Fatal, xpanic.Print(r, title))
+				time.Sleep(time.Second)
 			}
 			c.slaver.wg.Done()
 		}()
