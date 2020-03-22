@@ -284,9 +284,9 @@ func (c *sConn) serve(done chan struct{}) {
 		}()
 		// read one byte for block it, prevent slaver burst connect listener.
 		oneByte := make([]byte, 1)
+		_ = remote.SetReadDeadline(time.Now().Add(10 * time.Minute))
 		_, err := remote.Read(oneByte)
 		if err != nil {
-			c.log(logger.Error, "failed to read remote connection:", err)
 			return
 		}
 		_ = c.local.SetWriteDeadline(time.Now().Add(c.slaver.opts.ConnectTimeout))
@@ -301,15 +301,16 @@ func (c *sConn) serve(done chan struct{}) {
 		case <-c.slaver.ctx.Done():
 		}
 		// continue copy
+		_ = remote.SetReadDeadline(time.Time{})
 		_ = c.local.SetWriteDeadline(time.Time{})
 		_, _ = io.Copy(c.local, remote)
 	}()
 
 	// read one byte for block it, prevent slaver burst connect listener.
 	oneByte := make([]byte, 1)
+	_ = c.local.SetReadDeadline(time.Now().Add(10 * time.Minute))
 	_, err = c.local.Read(oneByte)
 	if err != nil {
-		c.log(logger.Error, "failed to read connection from listener:", err)
 		return
 	}
 	_ = remote.SetWriteDeadline(time.Now().Add(c.slaver.opts.ConnectTimeout))
@@ -324,6 +325,7 @@ func (c *sConn) serve(done chan struct{}) {
 	case <-c.slaver.ctx.Done():
 	}
 	// continue copy
+	_ = c.local.SetReadDeadline(time.Time{})
 	_ = remote.SetWriteDeadline(time.Time{})
 	_, _ = io.Copy(remote, c.local)
 }
