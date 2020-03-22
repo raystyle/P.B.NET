@@ -26,7 +26,7 @@ type mockNetError struct {
 	temporary bool
 }
 
-func (mockNetError) Error() string {
+func (*mockNetError) Error() string {
 	return "mock net error"
 }
 
@@ -68,11 +68,11 @@ func (l *mockListener) Accept() (net.Conn, error) {
 	return nil, nil
 }
 
-func (l mockListener) Close() error {
+func (l *mockListener) Close() error {
 	return nil
 }
 
-func (l mockListener) Addr() net.Addr {
+func (l *mockListener) Addr() net.Addr {
 	return new(mockListenerAddr)
 }
 
