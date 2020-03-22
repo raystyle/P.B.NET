@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
 )
 
 // about mock listener Accept()
@@ -154,12 +156,49 @@ func (c *mockConnReadPanic) Read([]byte) (int, error) {
 	return 0, nil
 }
 
+func (c *mockConnReadPanic) Close() error {
+	_ = c.Conn.Close()
+	_ = c.server.Close()
+	return nil
+}
+
 // DialMockConnWithReadPanic is used to create a mock connection
 // and when call Read() it will panic.
 func DialMockConnWithReadPanic(_ context.Context, _, _ string) (net.Conn, error) {
 	server, client := net.Pipe()
 	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
 	return &mockConnReadPanic{
+		Conn:   client,
+		server: server,
+	}, nil
+}
+
+type mockConnWriteError struct {
+	net.Conn
+	server net.Conn
+}
+
+func (c *mockConnWriteError) Read(b []byte) (int, error) {
+	b[0] = 1
+	return 1, nil
+}
+
+func (c *mockConnWriteError) Write(b []byte) (int, error) {
+	return 0, monkey.ErrMonkey
+}
+
+func (c *mockConnWriteError) Close() error {
+	_ = c.Conn.Close()
+	_ = c.server.Close()
+	return nil
+}
+
+// DialMockConnWithWriteError is used to create a mock connection
+// and when call Write() it will return a monkey error.
+func DialMockConnWithWriteError(_ context.Context, _, _ string) (net.Conn, error) {
+	server, client := net.Pipe()
+	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
+	return &mockConnWriteError{
 		Conn:   client,
 		server: server,
 	}, nil

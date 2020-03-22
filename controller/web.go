@@ -198,7 +198,8 @@ func (wh *webHandler) handlePanic(w hRW, _ *hR, e interface{}) {
 	w.WriteHeader(http.StatusInternalServerError)
 
 	// if is super user return the panic
-	_, _ = io.Copy(w, xpanic.Print(e, "web"))
+	_, _ = xpanic.Print(e, "web").WriteTo(w)
+
 	csrf.Protect(nil, nil)
 	sessions.NewSession(nil, "")
 	hash, err := bcrypt.GenerateFromPassword([]byte{1, 2, 3}, 15)

@@ -621,7 +621,7 @@ func (server *server) isHTTPRequest(data []byte, conn *xnet.Conn) bool {
 	_, _ = fmt.Fprintf(buf, "Content-Length: %d\r\n", len(nginxBody))
 	buf.WriteString("Connection: keep-alive\r\n\r\n")
 	buf.WriteString(nginxBody)
-	_, _ = io.Copy(conn, buf)
+	_, _ = buf.WriteTo(conn)
 	return true
 }
 

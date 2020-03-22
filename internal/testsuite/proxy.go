@@ -222,19 +222,24 @@ func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
 	IsDestroyed(t, server)
 }
 
-// ProxyConn is used to check proxy client Dial.
-func ProxyConn(t testing.TB, conn net.Conn) {
-	defer func() { _ = conn.Close() }()
-
+// SendHTTPRequest is used to send GET to a connection.
+func SendHTTPRequest(t testing.TB, conn net.Conn) {
 	// send http request
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprint(buf, "GET /t HTTP/1.1\r\n")
 	_, _ = fmt.Fprint(buf, "Host: localhost\r\n\r\n")
-	_, err := io.Copy(conn, buf)
+	_, err := buf.WriteTo(conn)
 	require.NoError(t, err)
+}
+
+// ProxyConn is used to check proxy client Dial.
+func ProxyConn(t testing.TB, conn net.Conn) {
+	defer func() { _ = conn.Close() }()
+
+	SendHTTPRequest(t, conn)
 
 	// get response
-	buf.Reset()
+	buf := bytes.Buffer{}
 	buffer := make([]byte, 1)
 	for {
 		n, err := conn.Read(buffer)
@@ -249,7 +254,7 @@ func ProxyConn(t testing.TB, conn net.Conn) {
 
 	// read body
 	hello := make([]byte, 5)
-	_, err = io.ReadFull(conn, hello)
+	_, err := io.ReadFull(conn, hello)
 	require.NoError(t, err)
 	require.Equal(t, "hello", string(hello))
 }
