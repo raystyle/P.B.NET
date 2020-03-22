@@ -30,8 +30,14 @@ func TestListener(t *testing.T) {
 	defer gm.Compare()
 
 	listener := testGenerateListener(t)
+
+	t.Log(listener.Name())
+	t.Log(listener.Info())
+	t.Log(listener.Status())
+
 	require.Equal(t, "", listener.testIncomeAddress())
 	require.Equal(t, "", listener.testLocalAddress())
+
 	err := listener.Start()
 	require.NoError(t, err)
 

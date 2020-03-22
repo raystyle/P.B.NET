@@ -31,7 +31,13 @@ func TestTranner(t *testing.T) {
 	defer gm.Compare()
 
 	tranner := testGenerateTranner(t)
+
+	t.Log(tranner.Name())
+	t.Log(tranner.Info())
+	t.Log(tranner.Status())
+
 	require.Equal(t, "", tranner.testAddress())
+
 	err := tranner.Start()
 	require.NoError(t, err)
 

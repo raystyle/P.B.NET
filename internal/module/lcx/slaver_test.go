@@ -35,6 +35,11 @@ func TestSlaver(t *testing.T) {
 	defer gm.Compare()
 
 	listener, slaver := testGenerateListenerAndSlaver(t)
+
+	t.Log(slaver.Name())
+	t.Log(slaver.Info())
+	t.Log(slaver.Status())
+
 	err := slaver.Start()
 	require.NoError(t, err)
 
