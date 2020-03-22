@@ -272,7 +272,14 @@ func (c *tConn) serve() {
 	}
 	defer func() { _ = remote.Close() }()
 
-	c.log(logger.Info, "income connection")
+	// log
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(buf, "income connection")
+	_, _ = logger.Conn(c.local).WriteTo(buf)
+	_, _ = fmt.Fprint(buf, "\n", c.tranner.Status())
+	c.tranner.log(logger.Info, buf)
+
+	// start copy
 	_ = remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 	c.tranner.wg.Add(1)

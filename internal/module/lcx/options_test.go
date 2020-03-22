@@ -15,9 +15,9 @@ func TestOptions_Apply(t *testing.T) {
 	}{
 		{"tcp", opts.LocalNetwork},
 		{":0", opts.LocalAddress},
-		{defaultConnectTimeout, opts.ConnectTimeout},
-		{defaultDialTimeout, opts.DialTimeout},
-		{defaultMaxConnections, opts.MaxConns},
+		{DefaultConnectTimeout, opts.ConnectTimeout},
+		{DefaultDialTimeout, opts.DialTimeout},
+		{DefaultMaxConnections, opts.MaxConns},
 	} {
 		require.Equal(t, testdata.except, testdata.actual)
 	}

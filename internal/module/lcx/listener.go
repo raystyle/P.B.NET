@@ -211,6 +211,14 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 		if remote == nil {
 			return
 		}
+
+		// log
+		buf := new(bytes.Buffer)
+		_, _ = fmt.Fprintln(buf, "income slave connection")
+		_, _ = logger.Conn(remote).WriteTo(buf)
+		_, _ = fmt.Fprint(buf, "\n", l.Status())
+		l.log(logger.Info, buf)
+
 		local := l.accept(lListener)
 		if local == nil {
 			_ = remote.Close()
@@ -306,7 +314,14 @@ func (c *lConn) serve() {
 	}
 	defer c.listener.trackConn(c, false)
 
-	c.log(logger.Info, "income connection")
+	// log
+	buf := new(bytes.Buffer)
+	_, _ = fmt.Fprintln(buf, "income user connection")
+	_, _ = logger.Conn(c.local).WriteTo(buf)
+	_, _ = fmt.Fprint(buf, "\n", c.listener.Status())
+	c.listener.log(logger.Info, buf)
+
+	// start copy
 	_ = c.remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 	c.listener.wg.Add(1)

@@ -4,10 +4,11 @@ import (
 	"time"
 )
 
+// about default options
 const (
-	defaultConnectTimeout = 10 * time.Second
-	defaultDialTimeout    = 15 * time.Second
-	defaultMaxConnections = 1000
+	DefaultConnectTimeout = 10 * time.Second
+	DefaultDialTimeout    = 15 * time.Second
+	DefaultMaxConnections = 1000
 )
 
 // Options contains all options about Tranner, Slaver and Listener.
@@ -35,13 +36,13 @@ func (opts *Options) apply() *Options {
 		nOpts.LocalAddress = ":0"
 	}
 	if nOpts.ConnectTimeout < 1 {
-		nOpts.ConnectTimeout = defaultConnectTimeout
+		nOpts.ConnectTimeout = DefaultConnectTimeout
 	}
 	if nOpts.DialTimeout < 1 {
-		nOpts.DialTimeout = defaultDialTimeout
+		nOpts.DialTimeout = DefaultDialTimeout
 	}
 	if nOpts.MaxConns < 1 {
-		nOpts.MaxConns = defaultMaxConnections
+		nOpts.MaxConns = DefaultMaxConnections
 	}
 	return &nOpts
 }
