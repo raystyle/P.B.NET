@@ -55,9 +55,9 @@ func TestTranner(t *testing.T) {
 
 func TestNewTranner(t *testing.T) {
 	const (
-		tag      = "test"
-		dNetwork = "tcp"
-		dAddress = "127.0.0.1:80"
+		tag        = "test"
+		dstNetwork = "tcp"
+		dstAddress = "127.0.0.1:80"
 	)
 
 	t.Run("empty tag", func(t *testing.T) {
@@ -71,7 +71,7 @@ func TestNewTranner(t *testing.T) {
 	})
 
 	t.Run("empty options", func(t *testing.T) {
-		_, err := NewTranner(tag, dNetwork, dAddress, logger.Test, nil)
+		_, err := NewTranner(tag, dstNetwork, dstAddress, logger.Test, nil)
 		require.NoError(t, err)
 	})
 
@@ -80,7 +80,7 @@ func TestNewTranner(t *testing.T) {
 			LocalNetwork: "foo",
 			LocalAddress: "foo",
 		}
-		_, err := NewTranner(tag, dNetwork, dAddress, logger.Test, &opts)
+		_, err := NewTranner(tag, dstNetwork, dstAddress, logger.Test, &opts)
 		require.Error(t, err)
 	})
 }

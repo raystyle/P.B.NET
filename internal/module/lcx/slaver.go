@@ -157,6 +157,7 @@ func (s *Slaver) serve() {
 	s.logf(logger.Info, "start connect listener (%s %s)", s.lNetwork, s.lAddress)
 	for {
 		if s.full() {
+			s.log(logger.Warning, "full connection")
 			time.Sleep(time.Second)
 			continue
 		}

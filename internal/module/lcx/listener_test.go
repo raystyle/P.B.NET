@@ -68,8 +68,8 @@ func TestListener(t *testing.T) {
 func TestNewListener(t *testing.T) {
 	const (
 		tag      = "test"
-		dNetwork = "tcp"
-		dAddress = "127.0.0.1:80"
+		iNetwork = "tcp"
+		iAddress = "127.0.0.1:80"
 	)
 
 	t.Run("empty tag", func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestNewListener(t *testing.T) {
 	})
 
 	t.Run("empty options", func(t *testing.T) {
-		_, err := NewListener(tag, dNetwork, dAddress, logger.Test, nil)
+		_, err := NewListener(tag, iNetwork, iAddress, logger.Test, nil)
 		require.NoError(t, err)
 	})
 
@@ -92,7 +92,7 @@ func TestNewListener(t *testing.T) {
 			LocalNetwork: "foo",
 			LocalAddress: "foo",
 		}
-		_, err := NewListener(tag, dNetwork, dAddress, logger.Test, &opts)
+		_, err := NewListener(tag, iNetwork, iAddress, logger.Test, &opts)
 		require.Error(t, err)
 	})
 }
