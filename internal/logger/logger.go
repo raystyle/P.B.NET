@@ -135,7 +135,7 @@ var testPrefix = []byte("[Test] ")
 func writePrefix(lv Level, src string) *bytes.Buffer {
 	output := new(bytes.Buffer)
 	output.Write(testPrefix)
-	_, _ = io.Copy(output, Prefix(time.Now(), lv, src))
+	_, _ = Prefix(time.Now(), lv, src).WriteTo(output)
 	return output
 }
 
