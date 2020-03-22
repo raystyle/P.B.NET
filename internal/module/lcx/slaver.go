@@ -17,10 +17,10 @@ import (
 
 // Slaver is used to connect the target and connect the Listener.
 type Slaver struct {
-	dstNetwork string // destination
-	dstAddress string // destination
 	lNetwork   string // Listener
 	lAddress   string // Listener
+	dstNetwork string // destination
+	dstAddress string // destination
 	logger     logger.Logger
 	opts       *Options
 
@@ -38,21 +38,21 @@ type Slaver struct {
 // NewSlaver is used to create a slaver.
 func NewSlaver(
 	tag string,
-	dstNetwork string,
-	dstAddress string,
 	lNetwork string,
 	lAddress string,
+	dstNetwork string,
+	dstAddress string,
 	logger logger.Logger,
 	opts *Options,
 ) (*Slaver, error) {
 	if tag == "" {
 		return nil, errors.New("empty tag")
 	}
-	_, err := net.ResolveTCPAddr(dstNetwork, dstAddress)
+	_, err := net.ResolveTCPAddr(lNetwork, lAddress)
 	if err != nil {
 		return nil, err
 	}
-	_, err = net.ResolveTCPAddr(lNetwork, lAddress)
+	_, err = net.ResolveTCPAddr(dstNetwork, dstAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +61,10 @@ func NewSlaver(
 	}
 	opts = opts.apply()
 	return &Slaver{
-		dstNetwork: dstNetwork,
-		dstAddress: dstAddress,
 		lNetwork:   lNetwork,
 		lAddress:   lAddress,
+		dstNetwork: dstNetwork,
+		dstAddress: dstAddress,
 		logger:     logger,
 		opts:       opts,
 		logSrc:     "lcx slave-" + tag,
@@ -229,16 +229,22 @@ func (c *sConn) log(lv logger.Level, log ...interface{}) {
 }
 
 func (c *sConn) Serve() {
+	done := make(chan struct{}, 2)
 	c.slaver.wg.Add(1)
-	go c.serve()
+	go c.serve(done)
+	select {
+	case <-done:
+	case <-c.slaver.ctx.Done():
+	}
 }
 
-func (c *sConn) serve() {
+func (c *sConn) serve(done chan struct{}) {
 	const title = "sConn.serve"
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
+		close(done)
 		_ = c.local.Close()
 		c.slaver.wg.Done()
 	}()
@@ -259,8 +265,6 @@ func (c *sConn) serve() {
 	defer func() { _ = remote.Close() }()
 
 	c.log(logger.Info, "income connection")
-	_ = remote.SetDeadline(time.Time{})
-	_ = c.local.SetDeadline(time.Time{})
 	c.slaver.wg.Add(1)
 	go func() {
 		defer func() {
@@ -269,8 +273,53 @@ func (c *sConn) serve() {
 			}
 			c.slaver.wg.Done()
 		}()
+		// read one byte for block it, prevent slaver burst connect listener.
+		oneByte := make([]byte, 1)
+		_ = remote.SetReadDeadline(time.Now().Add(c.slaver.opts.ConnectTimeout))
+		_, err := remote.Read(oneByte)
+		if err != nil {
+			c.log(logger.Error, "failed to read remote connection:", err)
+			return
+		}
+		_ = c.local.SetWriteDeadline(time.Now().Add(c.slaver.opts.ConnectTimeout))
+		_, err = c.local.Write(oneByte)
+		if err != nil {
+			c.log(logger.Error, "failed to write to listener connection:", err)
+			return
+		}
+		// send signal
+		select {
+		case done <- struct{}{}:
+		case <-c.slaver.ctx.Done():
+		}
+		// continue copy
+		_ = remote.SetReadDeadline(time.Time{})
+		_ = c.local.SetWriteDeadline(time.Time{})
 		_, _ = io.Copy(c.local, remote)
 	}()
+
+	// read one byte for block it, prevent slaver burst connect listener.
+	oneByte := make([]byte, 1)
+	_ = c.local.SetReadDeadline(time.Now().Add(c.slaver.opts.ConnectTimeout))
+	_, err = c.local.Read(oneByte)
+	if err != nil {
+		c.log(logger.Error, "failed to read connection from listener:", err)
+		return
+	}
+	_ = remote.SetWriteDeadline(time.Now().Add(c.slaver.opts.ConnectTimeout))
+	_, err = remote.Write(oneByte)
+	if err != nil {
+		c.log(logger.Error, "failed to write to remote connection:", err)
+		return
+	}
+	// send signal
+	select {
+	case done <- struct{}{}:
+	case <-c.slaver.ctx.Done():
+	}
+	// continue copy
+	_ = c.local.SetReadDeadline(time.Time{})
+	_ = remote.SetWriteDeadline(time.Time{})
 	_, _ = io.Copy(remote, c.local)
 }
 
