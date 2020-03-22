@@ -39,6 +39,7 @@ func (m *Manager) Add(tag string, module Module) error {
 	defer m.modulesRWM.Unlock()
 	if _, ok := m.modules[tag]; !ok {
 		m.modules[tag] = module
+		return nil
 	}
 	return errors.Errorf("module %s already exists", tag)
 }
@@ -53,6 +54,7 @@ func (m *Manager) Delete(tag string) error {
 	if module, ok := m.modules[tag]; ok {
 		module.Stop()
 		delete(m.modules, tag)
+		return nil
 	}
 	return errors.Errorf("module %s doesn't exist", tag)
 }
