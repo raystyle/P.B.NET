@@ -156,6 +156,26 @@ func (l *Listener) Status() string {
 	return buf.String()
 }
 
+// testIncomeAddress is used to get income listener address, it only for test.
+func (l *Listener) testIncomeAddress() string {
+	l.rwm.RLock()
+	defer l.rwm.RUnlock()
+	if l.iListener == nil {
+		return ""
+	}
+	return l.iListener.Addr().String()
+}
+
+// testLocalAddress is used to get local listener address, it only for test.
+func (l *Listener) testLocalAddress() string {
+	l.rwm.RLock()
+	defer l.rwm.RUnlock()
+	if l.lListener == nil {
+		return ""
+	}
+	return l.lListener.Addr().String()
+}
+
 func (l *Listener) logf(lv logger.Level, format string, log ...interface{}) {
 	l.logger.Printf(lv, l.logSrc, format, log...)
 }
@@ -179,11 +199,11 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 		if r := recover(); r != nil {
 			l.log(logger.Fatal, xpanic.Print(r, "Listener.serve"))
 		}
-		const format = "income listener closed (%s %s), local listener closed (%s %s)"
+		const format = "income and local listener closed (%s %s), (%s %s)"
 		l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
 		l.wg.Done()
 	}()
-	const format = "start income listener (%s %s), start local listener (%s %s)"
+	const format = "start income and local listener (%s %s), (%s %s)"
 	l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
 	// start accept
 	for {
