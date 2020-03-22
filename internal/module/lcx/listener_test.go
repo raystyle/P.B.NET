@@ -4,6 +4,7 @@ import (
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/netutil"
@@ -152,6 +153,13 @@ func TestListener_Stop(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = iConn.Close() }()
 
+	lConn, err := net.Dial("tcp", listener.testLocalAddress())
+	require.NoError(t, err)
+	defer func() { _ = lConn.Close() }()
+
+	// wait serve
+	time.Sleep(time.Second)
+
 	t.Log(listener.Status())
 
 	listener.Stop()
@@ -163,19 +171,37 @@ func TestListener_serve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	// patch
-	patchFunc := func(net.Listener, int) net.Listener {
-		return testsuite.NewMockListenerWithPanic()
-	}
-	pg := monkey.Patch(netutil.LimitListener, patchFunc)
-	defer pg.Unpatch()
+	t.Run("accept income", func(t *testing.T) {
+		listener := testGenerateListener(t)
+		err := listener.Start()
+		require.NoError(t, err)
 
-	listener := testGenerateListener(t)
-	err := listener.Start()
-	require.NoError(t, err)
+		iConn, err := net.Dial("tcp", listener.testIncomeAddress())
+		require.NoError(t, err)
+		defer func() { _ = iConn.Close() }()
 
-	listener.Stop()
-	testsuite.IsDestroyed(t, listener)
+		// wait accept
+		time.Sleep(time.Second)
+
+		listener.Stop()
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		// patch
+		patchFunc := func(net.Listener, int) net.Listener {
+			return testsuite.NewMockListenerWithPanic()
+		}
+		pg := monkey.Patch(netutil.LimitListener, patchFunc)
+		defer pg.Unpatch()
+
+		listener := testGenerateListener(t)
+		err := listener.Start()
+		require.NoError(t, err)
+
+		listener.Stop()
+		testsuite.IsDestroyed(t, listener)
+	})
 }
 
 func TestListener_accept(t *testing.T) {
@@ -195,4 +221,60 @@ func TestListener_accept(t *testing.T) {
 
 	listener.Stop()
 	testsuite.IsDestroyed(t, listener)
+}
+
+func TestListener_trackConn(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	listener := testGenerateListener(t)
+
+	require.False(t, listener.trackConn(nil, true))
+
+	testsuite.IsDestroyed(t, listener)
+}
+
+func TestLConn_Serve(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	t.Run("closed", func(t *testing.T) {
+		listener := testGenerateListener(t)
+
+		client, server := net.Pipe()
+		conn := listener.newConn(client, server)
+		conn.Serve()
+
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("panic from copy", func(t *testing.T) {
+		listener := testGenerateListener(t)
+
+		err := listener.Start()
+		require.NoError(t, err)
+
+		// patch
+		patchFunc := func(io.Writer, io.Reader) (int64, error) {
+			panic(monkey.Panic)
+		}
+		pg := monkey.Patch(io.Copy, patchFunc)
+		defer pg.Unpatch()
+
+		iConn, err := net.Dial("tcp", listener.testIncomeAddress())
+		require.NoError(t, err)
+		defer func() { _ = iConn.Close() }()
+
+		lConn, err := net.Dial("tcp", listener.testLocalAddress())
+		require.NoError(t, err)
+		defer func() { _ = lConn.Close() }()
+
+		// wait serve
+		time.Sleep(time.Second)
+
+		listener.Stop()
+		testsuite.IsDestroyed(t, listener)
+	})
 }
