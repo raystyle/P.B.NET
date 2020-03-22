@@ -233,7 +233,7 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 
 	// write to connection
 	rAddr := conn.RemoteAddr().String()
-	_, err = io.Copy(conn, buf)
+	_, err = buf.WriteTo(conn)
 	if err != nil {
 		return nil, errors.Errorf("failed to write request to %s because %s", rAddr, err)
 	}
