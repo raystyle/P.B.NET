@@ -35,7 +35,7 @@ func (ctrl *Ctrl) TrustNode(
 	}
 	defer client.Close()
 	// send trust node command
-	reply, err := client.send(protocol.CtrlTrustNode, nil)
+	reply, err := client.SendCommand(protocol.CtrlTrustNode, nil)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to send trust node command")
 	}
@@ -129,7 +129,7 @@ func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, reply *ReplyNodeRegister
 		return err
 	}
 	// send certificate
-	response, err := client.send(protocol.CtrlSetNodeCert, certificate.Encode())
+	response, err := client.SendCommand(protocol.CtrlSetNodeCert, certificate.Encode())
 	if err != nil {
 		return errors.WithMessage(err, "failed to set node certificate")
 	}

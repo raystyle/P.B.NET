@@ -711,41 +711,11 @@ func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
 		return nil, protocol.ErrConnClosed
 	}
 	for {
+		// select available slot
 		for id := 0; id < protocol.SlotSize; id++ {
 			select {
 			case <-client.slots[id].Available:
-				l := len(data)
-				b := make([]byte, protocol.FrameHeaderSize+l)
-				// write MsgLen
-				msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
-				copy(b, convert.Uint32ToBytes(uint32(msgSize)))
-				// write cmd
-				b[protocol.FrameLenSize] = cmd
-				// write msg id
-				copy(b[protocol.FrameLenSize+1:protocol.FrameLenSize+1+protocol.FrameIDSize],
-					convert.Uint16ToBytes(uint16(id)))
-				// write data
-				copy(b[protocol.FrameHeaderSize:], data)
-				// send
-				_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
-				_, err := client.conn.Write(b)
-				if err != nil {
-					_ = client.conn.Close()
-					return nil, err
-				}
-				// wait for reply
-				client.slots[id].Timer.Reset(protocol.RecvTimeout)
-				select {
-				case r := <-client.slots[id].Reply:
-					client.slots[id].Timer.Stop()
-					client.slots[id].Available <- struct{}{}
-					return r, nil
-				case <-client.slots[id].Timer.C:
-					client.Close()
-					return nil, protocol.ErrRecvReplyTimeout
-				case <-client.stopSignal:
-					return nil, protocol.ErrConnClosed
-				}
+				return client.sendAndWaitReply(cmd, data, id)
 			case <-client.stopSignal:
 				return nil, protocol.ErrConnClosed
 			default:
@@ -757,6 +727,41 @@ func (client *Client) send(cmd uint8, data []byte) ([]byte, error) {
 		case <-client.stopSignal:
 			return nil, protocol.ErrConnClosed
 		}
+	}
+}
+
+func (client *Client) sendAndWaitReply(cmd uint8, data []byte, id int) ([]byte, error) {
+	l := len(data)
+	b := make([]byte, protocol.FrameHeaderSize+l)
+	// write MsgLen
+	msgSize := protocol.FrameCMDSize + protocol.FrameIDSize + l
+	copy(b, convert.Uint32ToBytes(uint32(msgSize)))
+	// write cmd
+	b[protocol.FrameLenSize] = cmd
+	// write msg id
+	copy(b[protocol.FrameLenSize+1:protocol.FrameLenSize+1+protocol.FrameIDSize],
+		convert.Uint16ToBytes(uint16(id)))
+	// write data
+	copy(b[protocol.FrameHeaderSize:], data)
+	// send
+	_ = client.conn.SetWriteDeadline(time.Now().Add(protocol.SendTimeout))
+	_, err := client.conn.Write(b)
+	if err != nil {
+		_ = client.conn.Close()
+		return nil, err
+	}
+	// wait for reply
+	client.slots[id].Timer.Reset(protocol.RecvTimeout)
+	select {
+	case r := <-client.slots[id].Reply:
+		client.slots[id].Timer.Stop()
+		client.slots[id].Available <- struct{}{}
+		return r, nil
+	case <-client.slots[id].Timer.C:
+		client.Close()
+		return nil, protocol.ErrRecvReplyTimeout
+	case <-client.stopSignal:
+		return nil, protocol.ErrConnClosed
 	}
 }
 
