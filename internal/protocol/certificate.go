@@ -15,10 +15,11 @@ import (
 	"project/internal/guid"
 )
 
-// size about certificate and challenge.
+// size about certificate, challenge and update node request.
 const (
-	CertificateSize = guid.Size + ed25519.PublicKeySize + 2*ed25519.SignatureSize
-	ChallengeSize   = 32
+	CertificateSize       = guid.Size + ed25519.PublicKeySize + 2*ed25519.SignatureSize
+	ChallengeSize         = 32
+	UpdateNodeRequestSize = 2*guid.Size + sha256.Size + ed25519.PublicKeySize + aes.BlockSize
 )
 
 // ErrDifferentNodeGUID is an error about certificate.
@@ -181,17 +182,19 @@ func NewUpdateNodeRequest() *UpdateNodeRequest {
 
 // Pack is used to pack UpdateNodeRequest to *bytes.Buffer.
 func (unr *UpdateNodeRequest) Pack(buf *bytes.Buffer) {
+	buf.Write(unr.GUID[:])
 	buf.Write(unr.Hash)
 	buf.Write(unr.EncData)
 }
 
 // Unpack is used to unpack []byte to UpdateNodeRequest.
 func (unr *UpdateNodeRequest) Unpack(data []byte) error {
-	if len(data) != sha256.Size+guid.Size+ed25519.PublicKeySize+aes.BlockSize {
+	if len(data) != UpdateNodeRequestSize {
 		return errors.New("invalid UpdateNodeRequest packet size")
 	}
-	copy(unr.Hash, data[:sha256.Size])
-	copy(unr.EncData, data[sha256.Size:])
+	copy(unr.GUID[:], data[:guid.Size])
+	copy(unr.Hash, data[guid.Size:guid.Size+sha256.Size])
+	copy(unr.EncData, data[guid.Size+sha256.Size:])
 	return nil
 }
 

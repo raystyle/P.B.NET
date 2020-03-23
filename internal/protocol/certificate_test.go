@@ -306,18 +306,25 @@ func TestVerifyCertificate(t *testing.T) {
 }
 
 func TestUpdateNodeRequest(t *testing.T) {
-	rawR := new(UpdateNodeRequest)
-	rawR.Hash = bytes.Repeat([]byte{1}, sha256.Size)
-	rawR.EncData = bytes.Repeat([]byte{2}, guid.Size+ed25519.PublicKeySize+aes.BlockSize)
-	err := rawR.Validate()
+	nodeGUID := guid.GUID{}
+	err := nodeGUID.Write(bytes.Repeat([]byte{1}, guid.Size))
 	require.NoError(t, err)
 
-	newR := NewUpdateNodeRequest()
+	rawR := new(UpdateNodeRequest)
+	rawR.GUID = nodeGUID
+	rawR.Hash = bytes.Repeat([]byte{2}, sha256.Size)
+	rawR.EncData = bytes.Repeat([]byte{3}, guid.Size+ed25519.PublicKeySize+aes.BlockSize)
+	err = rawR.Validate()
+	require.NoError(t, err)
+
 	buf := new(bytes.Buffer)
 	rawR.Pack(buf)
 
+	newR := NewUpdateNodeRequest()
 	err = newR.Unpack(buf.Bytes())
 	require.NoError(t, err)
+
+	require.Equal(t, rawR, newR)
 
 	t.Run("Unpack", func(t *testing.T) {
 		err = newR.Unpack(nil)
@@ -343,12 +350,14 @@ func TestUpdateNodeResponse(t *testing.T) {
 	err := rawR.Validate()
 	require.NoError(t, err)
 
-	newR := NewUpdateNodeResponse()
 	buf := new(bytes.Buffer)
 	rawR.Pack(buf)
 
+	newR := NewUpdateNodeResponse()
 	err = newR.Unpack(buf.Bytes())
 	require.NoError(t, err)
+
+	require.Equal(t, rawR, newR)
 
 	t.Run("Unpack", func(t *testing.T) {
 		err = newR.Unpack(nil)
