@@ -23,6 +23,13 @@ const (
 	RegisterResultTimeout
 )
 
+// Bootstrap contains tag, mode and configuration.
+type Bootstrap struct {
+	Tag    string
+	Mode   string
+	Config []byte
+}
+
 // about register error
 var (
 	ErrRegisterRefused       = errors.New("register refused")

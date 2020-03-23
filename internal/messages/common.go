@@ -7,13 +7,6 @@ import (
 	"project/internal/logger"
 )
 
-// Bootstrap contains tag, mode and configuration.
-type Bootstrap struct {
-	Tag    string
-	Mode   string
-	Config []byte
-}
-
 // TestRequest is the test request with id.
 type TestRequest struct {
 	ID      guid.GUID
