@@ -15,11 +15,10 @@ import (
 	"project/internal/guid"
 )
 
-// size about certificate, challenge and update node request.
+// size about certificate and challenge.
 const (
-	CertificateSize       = guid.Size + ed25519.PublicKeySize + 2*ed25519.SignatureSize
-	ChallengeSize         = 32
-	UpdateNodeRequestSize = 2*guid.Size + sha256.Size + ed25519.PublicKeySize + aes.BlockSize
+	CertificateSize = guid.Size + ed25519.PublicKeySize + 2*ed25519.SignatureSize
+	ChallengeSize   = 32
 )
 
 // ErrDifferentNodeGUID is an error about certificate.
@@ -163,13 +162,19 @@ func VerifyCertificate(
 	return &cert, true, nil
 }
 
+// size about update node request and response.
+const (
+	UpdateNodeRequestSize  = 2*guid.Size + sha256.Size + ed25519.PublicKeySize + aes.BlockSize
+	UpdateNodeResponseSize = sha256.Size + aes.BlockSize
+)
+
 // UpdateNodeRequest Beacon will use it to query from Controller that
 // this Node is updated(like restart a Node, Listener is same, but Node
 // GUID is changed, Beacon will update).
 type UpdateNodeRequest struct {
-	GUID    guid.GUID
-	Hash    []byte // HMAC-SHA256
-	EncData []byte // use AES to encrypt it, NodeGUID + PublicKey
+	GUID    guid.GUID // Beacon or Node GUID
+	Hash    []byte    // HMAC-SHA256 GUID + raw data
+	EncData []byte    // use AES to encrypt it, NodeGUID + PublicKey
 }
 
 // NewUpdateNodeRequest is used to create UpdateNodeRequest, Unpack() need it.
@@ -232,7 +237,7 @@ func (unr *UpdateNodeResponse) Pack(buf *bytes.Buffer) {
 
 // Unpack is used to unpack []byte to UpdateNodeResponse.
 func (unr *UpdateNodeResponse) Unpack(data []byte) error {
-	if len(data) != sha256.Size+aes.BlockSize {
+	if len(data) != UpdateNodeResponseSize {
 		return errors.New("invalid UpdateNodeResponse packet size")
 	}
 	copy(unr.Hash, data[:sha256.Size])

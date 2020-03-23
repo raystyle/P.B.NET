@@ -53,11 +53,12 @@ func (role Role) Bytes() []byte {
 const (
 	NodeOperationRegister byte = iota + 1
 	NodeOperationConnect
+	NodeOperationUpdate
 )
 
 // about Beacon operations
 const (
-	BeaconOperationRegister byte = iota + 1
+	BeaconOperationRegister byte = iota + 10
 	BeaconOperationConnect
 	BeaconOperationUpdate
 )
