@@ -86,6 +86,24 @@ func (abk *AnswerBeaconKey) Validate() error {
 	return nil
 }
 
+// UpdateNodeRequest include protocol.UpdateNodeRequest.
+// Node will send to Controller, data is from Node or Beacon.
+type UpdateNodeRequest struct {
+	ID   guid.GUID
+	Data []byte
+}
+
+// SetID is used to set message id.
+func (unr *UpdateNodeRequest) SetID(id *guid.GUID) {
+	unr.ID = *id
+}
+
+// UpdateNodeResponse include protocol.UpdateNodeResponse.
+type UpdateNodeResponse struct {
+	ID   guid.GUID // UpdateNodeRequest.ID
+	Data []byte
+}
+
 // Listener is used to listen a listener to a Node.
 type Listener struct {
 	Tag       string

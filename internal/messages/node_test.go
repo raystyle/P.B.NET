@@ -47,3 +47,10 @@ func TestAnswerBeaconKey_Validate(t *testing.T) {
 
 	require.NoError(t, abk.Validate())
 }
+
+func TestUpdateNodeRequest_SetID(t *testing.T) {
+	unr := new(UpdateNodeRequest)
+	g := testGenerateGUID()
+	unr.SetID(g)
+	require.Equal(t, *g, unr.ID)
+}
