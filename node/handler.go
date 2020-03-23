@@ -95,15 +95,15 @@ func (h *handler) OnSend(send *protocol.Send) {
 	msgType := convert.BytesToUint32(typ)
 	send.Message = send.Message[messages.HeaderSize:]
 	switch msgType {
-	case messages.CMDNodeAnswerNodeKey:
+	case messages.CMDCtrlAnswerNodeKey:
 		h.handleAnswerNodeKey(send)
-	case messages.CMDNodeAnswerBeaconKey:
+	case messages.CMDCtrlAnswerBeaconKey:
 		h.handleAnswerBeaconKey(send)
-	case messages.CMDNodeRegisterResponse:
+	case messages.CMDCtrlNodeRegisterResponse:
 		h.handleNodeRegisterResponse(send)
-	case messages.CMDBeaconRegisterResponse:
+	case messages.CMDCtrlBeaconRegisterResponse:
 		h.handleBeaconRegisterResponse(send)
-	case messages.CMDNodeNop:
+	case messages.CMDCtrlNodeNop:
 		h.handleNopCommand()
 	case messages.CMDTest:
 		h.handleSendTestMessage(send)
@@ -260,9 +260,9 @@ func (h *handler) OnBroadcast(broadcast *protocol.Broadcast) {
 	msgType := convert.BytesToUint32(typ)
 	broadcast.Message = broadcast.Message[messages.HeaderSize:]
 	switch msgType {
-	case messages.CMDNodeDeleteNode:
+	case messages.CMDCtrlDeleteNode:
 		h.handleDeleteNode(broadcast)
-	case messages.CMDNodeDeleteBeacon:
+	case messages.CMDCtrlDeleteBeacon:
 		h.handleDeleteBeacon(broadcast)
 	case messages.CMDTest:
 		h.handleBroadcastTestMessage(broadcast)

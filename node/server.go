@@ -696,13 +696,18 @@ func (server *server) handshakeWithNode(tag *guid.GUID, conn *xnet.Conn) {
 		return
 	}
 	switch operation[0] {
-	case protocol.NodeOperationRegister: // register
+	case protocol.NodeOperationRegister:
 		server.registerNode(conn, &nodeGUID)
-	case protocol.NodeOperationConnect: // connect
+	case protocol.NodeOperationConnect:
 		if !server.verifyNode(conn, &nodeGUID) {
 			return
 		}
-		server.serveNode(tag, &nodeGUID, conn)
+		server.serveNode(tag, conn, &nodeGUID)
+	case protocol.NodeOperationUpdate:
+		if !server.verifyNode(conn, &nodeGUID) {
+			return
+		}
+		server.serveRoleUpdate(conn, protocol.Node, &nodeGUID)
 	default:
 		server.logfConn(conn, logger.Exploit, "unknown node operation %d", operation[0])
 	}
@@ -765,7 +770,7 @@ func (server *server) registerNode(conn *xnet.Conn, guid *guid.GUID) {
 		EncRequest:   request[curve25519.ScalarSize:],
 	}
 	begin := server.ctx.global.Now()
-	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBNodeRegisterRequest,
+	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBNodeRegisterRequestFromNode,
 		&encRR, true, messages.MaxRegisterWaitTime)
 	if err != nil {
 		server.fakeTimeout(begin, conn)
@@ -882,13 +887,18 @@ func (server *server) handshakeWithBeacon(tag *guid.GUID, conn *xnet.Conn) {
 		return
 	}
 	switch operation[0] {
-	case protocol.BeaconOperationRegister: // register
+	case protocol.BeaconOperationRegister:
 		server.registerBeacon(conn, &beaconGUID)
-	case protocol.BeaconOperationConnect: // connect
+	case protocol.BeaconOperationConnect:
 		if !server.verifyBeacon(conn, &beaconGUID) {
 			return
 		}
-		server.serveBeacon(tag, &beaconGUID, conn)
+		server.serveBeacon(tag, conn, &beaconGUID)
+	case protocol.BeaconOperationUpdate:
+		if !server.verifyBeacon(conn, &beaconGUID) {
+			return
+		}
+		server.serveRoleUpdate(conn, protocol.Beacon, &beaconGUID)
 	default:
 		server.logfConn(conn, logger.Exploit, "unknown beacon operation %d", operation[0])
 	}
@@ -930,7 +940,7 @@ func (server *server) registerBeacon(conn *xnet.Conn, guid *guid.GUID) {
 		EncRequest:   request[curve25519.ScalarSize:],
 	}
 	begin := server.ctx.global.Now()
-	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBBeaconRegisterRequest,
+	reply, err := server.ctx.messageMgr.Send(server.context, messages.CMDBNodeRegisterRequestFromBeacon,
 		&encRR, true, messages.MaxRegisterWaitTime)
 	if err != nil {
 		server.fakeTimeout(begin, conn)
@@ -1031,7 +1041,37 @@ func (server *server) getBeaconKey(guid *guid.GUID) *protocol.BeaconKey {
 	return bk
 }
 
-// ---------------------------------------serve controller-----------------------------------------
+func (server *server) serveRoleUpdate(conn *xnet.Conn, role protocol.Role, guid *guid.GUID) {
+	// read request
+	request := make([]byte, protocol.UpdateNodeRequestSize)
+	_, err := io.ReadFull(conn, request)
+	if err != nil {
+		const format = "failed to receive %s update node request: %s\n%s"
+		server.logfConn(conn, logger.Error, format, role, err, guid.Print())
+		return
+	}
+	// send to Controller
+	unr := messages.UpdateNodeRequest{Data: request}
+	var cmd []byte
+	switch role {
+	case protocol.Node:
+		cmd = messages.CMDBNodeUpdateNodeRequestFromNode
+	case protocol.Beacon:
+		cmd = messages.CMDBNodeUpdateNodeRequestFromBeacon
+	default:
+		panic(fmt.Sprintf("invalid role: %s", role))
+	}
+	reply, err := server.ctx.messageMgr.Send(server.context, cmd, &unr, false, 15*time.Second)
+	if err != nil {
+		const format = "failed to send %s update node request to controller: %s\n%s"
+		server.logfConn(conn, logger.Error, format, role, err, guid.Print())
+		return
+	}
+	// write response to Node or Beacon
+	_, _ = conn.Write(reply.(*messages.UpdateNodeResponse).Data)
+}
+
+// ---------------------------------------serve Controller-----------------------------------------
 
 type ctrlConn struct {
 	ctx *Node
@@ -1168,7 +1208,7 @@ func (ctrl *ctrlConn) handleQueryListeners(id []byte) {
 			Address: "",
 		}
 	}
-	data, err := msgpack.Marshal(listeners)
+	data, err := msgpack.Marshal(&listeners)
 	if err != nil {
 		ctrl.Conn.Reply(id, append([]byte{1}, []byte(err.Error())...))
 	} else {
@@ -1181,7 +1221,7 @@ func (ctrl *ctrlConn) handleQueryKeyStorage(id []byte) {
 		NodeKeys:   ctrl.ctx.storage.GetAllNodeKeys(),
 		BeaconKeys: ctrl.ctx.storage.GetAllBeaconKeys(),
 	}
-	data, err := msgpack.Marshal(storage)
+	data, err := msgpack.Marshal(&storage)
 	if err != nil {
 		ctrl.Conn.Reply(id, append([]byte{1}, []byte(err.Error())...))
 	} else {
@@ -1227,7 +1267,7 @@ func (ctrl *ctrlConn) Close() {
 	_ = ctrl.Conn.Close()
 }
 
-// ------------------------------------------serve node--------------------------------------------
+// ------------------------------------------serve Node--------------------------------------------
 
 type nodeConn struct {
 	ctx *Node
@@ -1239,7 +1279,7 @@ type nodeConn struct {
 	syncM  sync.Mutex
 }
 
-func (server *server) serveNode(tag, nodeGUID *guid.GUID, conn *xnet.Conn) {
+func (server *server) serveNode(tag *guid.GUID, conn *xnet.Conn, nodeGUID *guid.GUID) {
 	nc := nodeConn{
 		ctx:  server.ctx,
 		GUID: nodeGUID,
@@ -1421,7 +1461,7 @@ func (node *nodeConn) Close() {
 	_ = node.Conn.Close()
 }
 
-// -----------------------------------------serve beacon-------------------------------------------
+// -----------------------------------------serve Beacon-------------------------------------------
 
 type beaconConn struct {
 	ctx *Node
@@ -1433,7 +1473,7 @@ type beaconConn struct {
 	syncM  sync.Mutex
 }
 
-func (server *server) serveBeacon(tag, beaconGUID *guid.GUID, conn *xnet.Conn) {
+func (server *server) serveBeacon(tag *guid.GUID, conn *xnet.Conn, beaconGUID *guid.GUID) {
 	bc := beaconConn{
 		ctx:  server.ctx,
 		GUID: beaconGUID,
