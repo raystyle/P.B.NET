@@ -3,10 +3,13 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"fmt"
+	"hash"
 	"sync"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
 
 	"project/internal/convert"
 	"project/internal/crypto/aes"
@@ -15,11 +18,15 @@ import (
 	"project/internal/messages"
 	"project/internal/patch/msgpack"
 	"project/internal/protocol"
+	"project/internal/random"
+	"project/internal/security"
 	"project/internal/xpanic"
 )
 
 type handler struct {
 	ctx *Ctrl
+
+	rand *random.Rand
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -28,7 +35,8 @@ type handler struct {
 
 func newHandler(ctx *Ctrl) *handler {
 	h := handler{
-		ctx: ctx,
+		ctx:  ctx,
+		rand: random.New(),
 	}
 	h.context, h.cancel = context.WithCancel(context.Background())
 	return &h
@@ -109,9 +117,9 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 	case messages.CMDNodeQueryBeaconKey:
 		h.handleQueryBeaconKey(send)
 	case messages.CMDNodeUpdateNodeRequestFromNode:
-
+		h.handleNodeUpdateNodeRequest(send)
 	case messages.CMDNodeUpdateNodeRequestFromBeacon:
-
+		h.handleBeaconUpdateNodeRequest(send)
 	case messages.CMDNodeRegisterRequestFromNode:
 		h.handleNodeRegisterRequest(send)
 	case messages.CMDNodeRegisterRequestFromBeacon:
@@ -226,43 +234,185 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 	h.logfWithInfo(logger.Info, format, &send.RoleGUID, nil, qbk.GUID.Print())
 }
 
-func (h *handler) handleNodeUpdateNode(send *protocol.Send) {
-	defer h.logPanic("handler.handleNodeUpdateNode")
-	unr := messages.UpdateNodeRequest{}
-	err := msgpack.Unmarshal(send.Message, &unr)
-	if err != nil {
-		const format = "node send invalid update node request data\nerror: %s"
-		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+// ---------------------------------role update node request---------------------------------------
+
+func (h *handler) handleNodeUpdateNodeRequest(send *protocol.Send) {
+	defer h.logPanic("handler.handleNodeUpdateNodeRequest")
+	unr := h.resolveUpdateNodeRequest(protocol.Node, send)
+	if unr == nil {
 		return
 	}
-	// decrypt
+	// send to Node
+	err := h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBCtrlUpdateNodeResponse,
+		unr, true)
+	if err != nil {
+		const log = "failed to send update node response from node\nerror:"
+		h.logWithInfo(logger.Error, log, &send.RoleGUID, &unr, err)
+	}
+}
 
-	// response := messages.UpdateNodeResponse{
-	// 	ID: unr.ID,
-	// }
-	// beacon, err := h.ctx.database.SelectBeacon(&qbk.GUID)
-	// if err != nil {
-	// 	const format = "failed to query beacon key\nerror: %s"
-	// 	h.logfWithInfo(logger.Warning, format, &send.RoleGUID, &qbk, err)
-	// 	// padding
-	// 	abk.PublicKey = messages.ZeroPublicKey
-	// 	abk.KexPublicKey = messages.ZeroKexPublicKey
-	// } else {
-	// 	abk.GUID = qbk.GUID
-	// 	abk.PublicKey = beacon.PublicKey
-	// 	abk.KexPublicKey = beacon.KexPublicKey
-	// 	abk.ReplyTime = beacon.CreatedAt
-	// }
-	// // send to Node
-	// err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBCtrlAnswerBeaconKey,
-	// 	&abk, true)
-	// if err != nil {
-	// 	const format = "failed to answer beacon key\nerror: %s"
-	// 	h.logfWithInfo(logger.Error, format, &send.RoleGUID, &abk, err)
-	// 	return
-	// }
-	// const format = "node query beacon key\n%s"
-	// h.logfWithInfo(logger.Info, format, &send.RoleGUID, nil, qbk.GUID.Print())
+func (h *handler) handleBeaconUpdateNodeRequest(send *protocol.Send) {
+	defer h.logPanic("handler.handleBeaconUpdateNodeRequest")
+	unr := h.resolveUpdateNodeRequest(protocol.Beacon, send)
+	if unr == nil {
+		return
+	}
+	// send to Node
+	err := h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBCtrlUpdateNodeResponse,
+		unr, true)
+	if err != nil {
+		const log = "failed to send update node response from beacon\nerror:"
+		h.logWithInfo(logger.Error, log, &send.RoleGUID, &unr, err)
+	}
+}
+
+func (h *handler) resolveUpdateNodeRequest(
+	role protocol.Role,
+	send *protocol.Send,
+) *messages.UpdateNodeResponse {
+	defer h.logPanic("handler.decryptUpdateNodeRequest")
+	mUNR := messages.UpdateNodeRequest{}
+	err := msgpack.Unmarshal(send.Message, &mUNR)
+	if err != nil {
+		const format = "invalid %s update node request data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
+		return nil
+	}
+	response := messages.UpdateNodeResponse{
+		ID: mUNR.ID,
+	}
+	pUNReq := protocol.NewUpdateNodeRequest()
+	err = pUNReq.Unpack(mUNR.Data)
+	if err != nil {
+		const format = "invalid %s update node request\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
+		return nil
+	}
+	err = h.checkUpdateNodeRequest(role, pUNReq)
+	if err != nil {
+		const format = "failed to check %s update node request\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
+		return nil
+	}
+	// check node is exist
+	nodeGUID := guid.GUID{}
+	copy(nodeGUID[:], pUNReq.EncData[:guid.Size])
+	publicKey := pUNReq.EncData[guid.Size:]
+	// random data, only the first bytes is useful
+	resp := h.rand.Bytes(8)
+	node, err := h.ctx.database.SelectNode(&nodeGUID)
+	if err != nil {
+		resp[0] = protocol.UpdateNodeResponseNotExist
+	} else {
+		if bytes.Equal(node.PublicKey, publicKey) {
+			resp[0] = protocol.UpdateNodeResponseOK
+		} else {
+			// <security> role connect a fake Node(with incorrect public key)
+			resp[0] = protocol.UpdateNodeResponseIncorrectPublicKey
+			const format = "%s %s connect fake node %s"
+			h.logf(logger.Exploit, format, role, pUNReq.GUID.Hex(), nodeGUID.Hex())
+		}
+	}
+	// pack response
+	encResp, err := h.encryptUpdateNodeResponse(role, pUNReq, resp)
+	if err != nil {
+		const format = "failed to encrypt %s update node response\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, role, err)
+		return nil
+	}
+	buf := bytes.NewBuffer(make([]byte, 0, aes.BlockSize))
+	encResp.Pack(buf)
+	response.Data = buf.Bytes()
+	return &response
+}
+
+func (h *handler) checkUpdateNodeRequest(role protocol.Role, r *protocol.UpdateNodeRequest) error {
+	var (
+		sessionKey *security.Bytes
+		hmacPool   *sync.Pool
+	)
+	switch role {
+	case protocol.Node:
+		node, err := h.ctx.database.SelectNode(&r.GUID)
+		if err != nil {
+			return err
+		}
+		sessionKey = node.SessionKey
+		hmacPool = &node.HMACPool
+	case protocol.Beacon:
+		beacon, err := h.ctx.database.SelectBeacon(&r.GUID)
+		if err != nil {
+			return err
+		}
+		sessionKey = beacon.SessionKey
+		hmacPool = &beacon.HMACPool
+	default:
+		panic(fmt.Sprintf("invalid role: %s", role))
+	}
+	sk := sessionKey.Get()
+	defer sessionKey.Put(sk)
+	hmac := hmacPool.Get().(hash.Hash)
+	defer hmacPool.Put(hmac)
+	// decrypt
+	var err error
+	r.EncData, err = aes.CBCDecrypt(r.EncData, sk, sk[:aes.IVSize])
+	if err != nil {
+		return err
+	}
+	// check hash
+	hmac.Reset()
+	hmac.Write(r.GUID[:])
+	hmac.Write(r.EncData)
+	if subtle.ConstantTimeCompare(hmac.Sum(nil), r.Hash) != 1 {
+		return errors.New("incorrect hash")
+	}
+	return nil
+}
+
+func (h *handler) encryptUpdateNodeResponse(
+	role protocol.Role,
+	unr *protocol.UpdateNodeRequest,
+	response []byte,
+) (*protocol.UpdateNodeResponse, error) {
+	var (
+		sessionKey *security.Bytes
+		hmacPool   *sync.Pool
+	)
+	switch role {
+	case protocol.Node:
+		node, err := h.ctx.database.SelectNode(&unr.GUID)
+		if err != nil {
+			return nil, err
+		}
+		sessionKey = node.SessionKey
+		hmacPool = &node.HMACPool
+	case protocol.Beacon:
+		beacon, err := h.ctx.database.SelectBeacon(&unr.GUID)
+		if err != nil {
+			return nil, err
+		}
+		sessionKey = beacon.SessionKey
+		hmacPool = &beacon.HMACPool
+	default:
+		panic(fmt.Sprintf("invalid role: %s", role))
+	}
+	sk := sessionKey.Get()
+	defer sessionKey.Put(sk)
+	hmac := hmacPool.Get().(hash.Hash)
+	defer hmacPool.Put(hmac)
+	pUNResp := protocol.UpdateNodeResponse{}
+	// encrypt
+	var err error
+	pUNResp.EncData, err = aes.CBCEncrypt(response, sk, sk[:aes.IVSize])
+	if err != nil {
+		panic(err)
+	}
+	// calculate hash
+	hmac.Reset()
+	hmac.Write(unr.GUID[:])
+	hmac.Write(pUNResp.EncData)
+	pUNResp.Hash = hmac.Sum(nil)
+	return &pUNResp, nil
 }
 
 // ----------------------------------role register request-----------------------------------------
