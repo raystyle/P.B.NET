@@ -168,6 +168,13 @@ const (
 	UpdateNodeResponseSize = sha256.Size + aes.BlockSize
 )
 
+// role update node response
+const (
+	UpdateNodeResponseOK byte = 1 + iota
+	UpdateNodeResponseNotExist
+	UpdateNodeResponseIncorrectPublicKey
+)
+
 // UpdateNodeRequest Beacon will use it to query from Controller that
 // this Node is updated(like restart a Node, Listener is same, but Node
 // GUID is changed, Beacon will update).
@@ -218,7 +225,7 @@ func (unr *UpdateNodeRequest) Validate() error {
 // send UpdateNodeRequest, then Node will send the response to Beacon.
 type UpdateNodeResponse struct {
 	Hash    []byte // HMAC-SHA256
-	EncData []byte // use AES to encrypt it, bool
+	EncData []byte // use AES to encrypt it, 1 useful byte + 7 useless bytes
 }
 
 // NewUpdateNodeResponse is used to create UpdateNodeResponse, Unpack() need it.

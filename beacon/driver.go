@@ -259,11 +259,12 @@ func (driver *driver) UpdateNode(ctx context.Context, cert *protocol.Certificate
 		}
 	}()
 	h.Reset()
+	h.Write(beaconGUID[:])
 	h.Write(ok)
 	if subtle.ConstantTimeCompare(h.Sum(nil), response.Hash) != 1 {
 		return false, errors.New("incorrect hash in update node response")
 	}
-	if ok[0] != 1 {
+	if ok[0] != protocol.UpdateNodeResponseOK {
 		return false, nil
 	}
 	return true, nil
