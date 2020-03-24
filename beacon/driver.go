@@ -1,7 +1,13 @@
 package beacon
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"hash"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,6 +15,8 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
+	"project/internal/crypto/aes"
+	"project/internal/crypto/ed25519"
 	"project/internal/guid"
 	"project/internal/logger"
 	"project/internal/protocol"
@@ -174,19 +182,90 @@ func (driver *driver) UpdateNode(ctx context.Context, cert *protocol.Certificate
 		}
 		break
 	}
+	if listener == nil {
+		// TODO get more nodes
+		return false, errors.New("no node listener")
+	}
 	// use protocol.CtrlGUID to skip check node guid in certificate
 	client, err := driver.ctx.NewClient(ctx, listener, protocol.CtrlGUID, nil)
 	if err != nil {
 		return false, err
 	}
 	defer client.Close()
-	// send connect operation
-	_, err = client.Conn.Write([]byte{protocol.BeaconOperationUpdate})
+	// send connect operation and authenticate
+	conn := client.Conn
+	_, err = conn.Write([]byte{protocol.BeaconOperationUpdate})
 	if err != nil {
 		return false, errors.Wrap(err, "failed to send update operation")
 	}
+	err = client.Authenticate()
+	if err != nil {
+		return false, err
+	}
+	// pack request
+	buf := bytes.NewBuffer(make([]byte, 0, guid.Size+ed25519.PublicKeySize))
+	buf.Write(cert.GUID[:])
+	buf.Write(cert.PublicKey)
+	requestData := buf.Bytes()
+	beaconGUID := driver.ctx.global.GUID()
+	unr := protocol.UpdateNodeRequest{GUID: *beaconGUID}
+	var h hash.Hash
+	func() { // for clean session key
+		sessionKey := driver.ctx.global.SessionKey()
+		key := sessionKey.Get()
+		defer sessionKey.Put(key)
+		// encrypt
+		unr.EncData, err = aes.CBCEncrypt(requestData, key, key[:aes.IVSize])
+		if err != nil {
+			panic("driver UpdateNode internal error: " + err.Error())
+		}
+		// HMAC
+		h = hmac.New(sha256.New, key)
+	}()
+	h.Write(beaconGUID[:])
+	h.Write(requestData)
+	unr.Hash = h.Sum(nil)
 	// send request
-
+	err = unr.Validate()
+	if err != nil {
+		panic("driver UpdateNode internal error: " + err.Error())
+	}
+	buf.Reset()
+	unr.Pack(buf)
+	_, err = buf.WriteTo(conn)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to send update node request")
+	}
+	// read response
+	client.SetRandomDeadline(15, 30)
+	_, err = buf.ReadFrom(io.LimitReader(conn, protocol.UpdateNodeResponseSize))
+	if err != nil {
+		return false, errors.Wrap(err, "failed to receive update node response")
+	}
+	response := protocol.NewUpdateNodeResponse()
+	err = response.Unpack(buf.Bytes())
+	if err != nil {
+		return false, errors.WithStack(err)
+	}
+	var ok []byte // only the first byte is useful
+	func() {      // for clean session key
+		sessionKey := driver.ctx.global.SessionKey()
+		key := sessionKey.Get()
+		defer sessionKey.Put(key)
+		// encrypt
+		ok, err = aes.CBCDecrypt(response.EncData, key, key[:aes.IVSize])
+		if err != nil {
+			panic("driver UpdateNode internal error: " + err.Error())
+		}
+	}()
+	h.Reset()
+	h.Write(ok)
+	if subtle.ConstantTimeCompare(h.Sum(nil), response.Hash) != 1 {
+		return false, errors.New("incorrect hash in update node response")
+	}
+	if ok[0] != 1 {
+		return false, nil
+	}
 	return true, nil
 }
 

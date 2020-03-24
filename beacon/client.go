@@ -189,6 +189,7 @@ func (client *Client) handshake(ctx context.Context, conn *xnet.Conn) error {
 	cert, ok, err := protocol.VerifyCertificate(conn, publicKey, client.guid)
 	if err != nil {
 		if errors.Cause(err) == protocol.ErrDifferentNodeGUID {
+			// TODO update node
 			ok, err := client.ctx.driver.UpdateNode(ctx, cert)
 			if err != nil {
 				return err
@@ -230,6 +231,40 @@ func (client *Client) checkConn(conn *xnet.Conn) error {
 	return nil
 }
 
+// SetRandomDeadline is used to random set connection deadline.
+func (client *Client) SetRandomDeadline(fixed, random int) {
+	timeout := time.Duration(fixed+client.rand.Int(random)) * time.Second
+	_ = client.Conn.SetDeadline(time.Now().Add(timeout))
+}
+
+// Authenticate is used to authenticate to Node.
+// Connect and UpdateNode() need it.
+func (client *Client) Authenticate() error {
+	// receive challenge
+	challenge, err := client.Conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive challenge")
+	}
+	if len(challenge) != protocol.ChallengeSize {
+		err = errors.New("invalid challenge size")
+		client.log(logger.Exploit, err)
+		return err
+	}
+	// send signature
+	err = client.Conn.Send(client.ctx.global.Sign(challenge))
+	if err != nil {
+		return errors.Wrap(err, "failed to send challenge signature")
+	}
+	resp, err := client.Conn.Receive()
+	if err != nil {
+		return errors.Wrap(err, "failed to receive authentication response")
+	}
+	if !bytes.Equal(resp, protocol.AuthSucceed) {
+		return errors.WithStack(protocol.ErrAuthenticateFailed)
+	}
+	return nil
+}
+
 // Connect is used to start protocol.HandleConn(), if you want to
 // start Synchronize(), you must call this function first.
 func (client *Client) Connect() error {
@@ -238,7 +273,7 @@ func (client *Client) Connect() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to send connect operation")
 	}
-	err = client.authenticate()
+	err = client.Authenticate()
 	if err != nil {
 		return err
 	}
@@ -263,32 +298,6 @@ func (client *Client) Connect() error {
 	timeout := client.ctx.clientMgr.GetTimeout()
 	_ = client.Conn.SetDeadline(time.Now().Add(timeout))
 	client.log(logger.Debug, "connected")
-	return nil
-}
-
-func (client *Client) authenticate() error {
-	// receive challenge
-	challenge, err := client.Conn.Receive()
-	if err != nil {
-		return errors.Wrap(err, "failed to receive challenge")
-	}
-	if len(challenge) != protocol.ChallengeSize {
-		err = errors.New("invalid challenge size")
-		client.log(logger.Exploit, err)
-		return err
-	}
-	// send signature
-	err = client.Conn.Send(client.ctx.global.Sign(challenge))
-	if err != nil {
-		return errors.Wrap(err, "failed to send challenge signature")
-	}
-	resp, err := client.Conn.Receive()
-	if err != nil {
-		return errors.Wrap(err, "failed to receive authentication response")
-	}
-	if !bytes.Equal(resp, protocol.AuthSucceed) {
-		return errors.WithStack(protocol.ErrAuthenticateFailed)
-	}
 	return nil
 }
 

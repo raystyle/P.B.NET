@@ -103,9 +103,9 @@ func (h *handler) OnMessage(answer *protocol.Answer) {
 		h.handleShellCode(answer)
 	case messages.CMDSingleShell:
 		h.handleSingleShell(answer)
-	case messages.CMDBeaconChangeMode:
+	case messages.CMDCtrlChangeMode:
 		h.handleChangeMode(answer)
-	case messages.CMDBeaconNop:
+	case messages.CMDCtrlBeaconNop:
 		h.handleNopCommand()
 	case messages.CMDTest:
 		h.handleSendTestMessage(answer)

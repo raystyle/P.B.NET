@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -333,8 +332,7 @@ func (register *register) register(listener *bootstrap.Listener) error {
 		return errors.Wrap(err, "failed to send register request")
 	}
 	// wait register result
-	timeout := time.Duration(60+random.Int(30)) * time.Second
-	_ = conn.SetDeadline(time.Now().Add(timeout))
+	client.SetRandomDeadline(60, 30)
 	result := make([]byte, 1)
 	_, err = io.ReadFull(conn, result)
 	if err != nil {
