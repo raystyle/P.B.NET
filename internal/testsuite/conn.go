@@ -100,14 +100,16 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	// Read(), Write() and SetDeadline()
 	write := func(conn net.Conn) {
 		data := Bytes()
-		_, err := conn.Write(data)
+		n, err := conn.Write(data)
 		require.NoError(t, err)
+		require.Equal(t, TestDataSize, n)
 		require.Equal(t, Bytes(), data)
 	}
 	read := func(conn net.Conn) {
 		data := make([]byte, 256)
-		_, err := io.ReadFull(conn, data)
+		n, err := io.ReadFull(conn, data)
 		require.NoError(t, err)
+		require.Equal(t, TestDataSize, n)
 		require.Equal(t, Bytes(), data)
 	}
 
@@ -197,10 +199,12 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
 	time.Sleep(30 * time.Millisecond)
 	buf := Bytes()
-	_, err := conn1.Write(buf)
+	n, err := conn1.Write(buf)
 	require.Error(t, err)
-	_, err = conn2.Read(buf)
+	require.Equal(t, 0, n)
+	n, err = conn2.Read(buf)
 	require.Error(t, err)
+	require.Equal(t, 0, n)
 
 	require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
 	require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
@@ -208,10 +212,12 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
 	time.Sleep(30 * time.Millisecond)
 	buf = Bytes()
-	_, err = conn1.Write(buf)
+	n, err = conn1.Write(buf)
 	require.Error(t, err)
-	_, err = conn2.Read(buf)
+	require.Equal(t, 0, n)
+	n, err = conn2.Read(buf)
 	require.Error(t, err)
+	require.Equal(t, 0, n)
 
 	// recover about net.Pipe()
 	require.NoError(t, conn1.SetDeadline(time.Time{}))
@@ -236,10 +242,12 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 		require.NoError(t, conn1.Close())
 		wg.Wait()
 
-		_, err := conn1.Read(make([]byte, 1024))
+		n, err := conn1.Read(make([]byte, 1024))
 		require.Error(t, err)
-		_, err = conn2.Read(make([]byte, 1024))
+		require.Equal(t, 0, n)
+		n, err = conn2.Read(make([]byte, 1024))
 		require.Error(t, err)
+		require.Equal(t, 0, n)
 
 		IsDestroyed(t, conn1)
 		IsDestroyed(t, conn2)

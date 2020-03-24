@@ -79,10 +79,13 @@ func startPPROFHTTPServer(port int) bool {
 	return true
 }
 
+// TestDataSize is the size of Bytes().
+const TestDataSize = 256
+
 // Bytes is used to generate test data: []byte{0, 1, .... 254, 255}.
 func Bytes() []byte {
-	testdata := make([]byte, 256)
-	for i := 0; i < 256; i++ {
+	testdata := make([]byte, TestDataSize)
+	for i := 0; i < TestDataSize; i++ {
 		testdata[i] = byte(i)
 	}
 	return testdata
