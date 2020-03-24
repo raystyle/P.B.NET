@@ -220,7 +220,7 @@ func (beacon *Beacon) Query() error {
 	return beacon.sender.Query()
 }
 
-// NodeListener is used to get all Node listeners.
+// NodeListeners is used to get all Node listeners.
 func (beacon *Beacon) NodeListeners() map[guid.GUID]map[uint64]*bootstrap.Listener {
 	return beacon.driver.NodeListeners()
 }

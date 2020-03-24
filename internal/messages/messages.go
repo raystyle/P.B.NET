@@ -26,7 +26,7 @@ const (
 // ---------------------------------------------test-----------------------------------------------
 // range 0xF0000000 - 0xFFFFFFFF
 
-// CMDTest is used to test role sender.
+// about test role sender.
 const (
 	CMDTest uint32 = 0xF0000000 + iota
 	CMDRTTestRequest
@@ -119,14 +119,13 @@ const (
 )
 
 // ---------------------------------------command to bytes-----------------------------------------
-
 var (
-	// --------------------------------about test data-------------------------------
+	// -----------------------------------test data----------------------------------
 	CMDBTest           = convert.Uint32ToBytes(CMDTest)
 	CMDBRTTestRequest  = convert.Uint32ToBytes(CMDRTTestRequest)
 	CMDBRTTestResponse = convert.Uint32ToBytes(CMDRTTestResponse)
 
-	// ----------------------------------about core----------------------------------
+	// -------------------------------------core-------------------------------------
 	// about Controller
 	CMDBCtrlNodeNop   = convert.Uint32ToBytes(CMDCtrlNodeNop)
 	CMDBCtrlBeaconNop = convert.Uint32ToBytes(CMDCtrlBeaconNop)
