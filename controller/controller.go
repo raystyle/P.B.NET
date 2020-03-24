@@ -279,7 +279,7 @@ func (ctrl *Ctrl) Disconnect(guid *guid.GUID) error {
 // DeleteNode is used to delete Node.
 func (ctrl *Ctrl) DeleteNode(guid *guid.GUID) error {
 	// delete Node's key
-	err := ctrl.sender.Broadcast(messages.CMDBNodeDeleteNode, guid[:], false)
+	err := ctrl.sender.Broadcast(messages.CMDBCtrlDeleteNode, guid[:], false)
 	if err != nil {
 		return err
 	}
@@ -295,7 +295,7 @@ func (ctrl *Ctrl) DeleteNode(guid *guid.GUID) error {
 // DeleteNodeUnscoped is used to unscoped delete Node.
 func (ctrl *Ctrl) DeleteNodeUnscoped(guid *guid.GUID) error {
 	// delete Node's key
-	err := ctrl.sender.Broadcast(messages.CMDBNodeDeleteNode, guid[:], false)
+	err := ctrl.sender.Broadcast(messages.CMDBCtrlDeleteNode, guid[:], false)
 	if err != nil {
 		return err
 	}
@@ -311,7 +311,7 @@ func (ctrl *Ctrl) DeleteNodeUnscoped(guid *guid.GUID) error {
 // DeleteBeacon is used to delete Beacon.
 func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
 	// delete Node's key
-	err := ctrl.sender.Broadcast(messages.CMDBNodeDeleteBeacon, guid[:], false)
+	err := ctrl.sender.Broadcast(messages.CMDBCtrlDeleteBeacon, guid[:], false)
 	if err != nil {
 		return err
 	}
@@ -327,7 +327,7 @@ func (ctrl *Ctrl) DeleteBeacon(guid *guid.GUID) error {
 // DeleteBeaconUnscoped is used to unscoped delete Beacon.
 func (ctrl *Ctrl) DeleteBeaconUnscoped(guid *guid.GUID) error {
 	// delete Node's key
-	err := ctrl.sender.Broadcast(messages.CMDBNodeDeleteBeacon, guid[:], false)
+	err := ctrl.sender.Broadcast(messages.CMDBCtrlDeleteBeacon, guid[:], false)
 	if err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func (ctrl *Ctrl) EnableInteractiveMode(ctx context.Context, guid *guid.GUID) er
 		return nil
 	}
 	cm := messages.ChangeMode{Interactive: true}
-	return ctrl.sender.SendToBeacon(ctx, guid, messages.CMDBBeaconChangeMode, &cm, false)
+	return ctrl.sender.SendToBeacon(ctx, guid, messages.CMDBCtrlChangeMode, &cm, false)
 }
 
 // DisableInteractiveMode is used to disable Beacon interactive mode.
@@ -412,7 +412,7 @@ func (ctrl *Ctrl) DisableInteractiveMode(
 		return nil
 	}
 	cm := messages.ChangeMode{Interactive: false}
-	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBBeaconChangeMode,
+	reply, err := ctrl.messageMgr.SendToBeacon(ctx, guid, messages.CMDBCtrlChangeMode,
 		&cm, false, timeout)
 	if err != nil {
 		return err

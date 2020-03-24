@@ -652,7 +652,7 @@ func (db *database) CancelBeaconMessage(guid *guid.GUID, index uint64) (err erro
 	aesIV := sessionKey[:aes.IVSize]
 	msg := make([]byte, messages.RandomDataSize+messages.MessageTypeSize)
 	copy(msg, db.rand.Bytes(messages.RandomDataSize))
-	copy(msg[messages.RandomDataSize:], messages.CMDBBeaconNop)
+	copy(msg[messages.RandomDataSize:], messages.CMDBCtrlBeaconNop)
 	msg, err = aes.CBCEncrypt(msg, aesKey, aesIV)
 	if err != nil {
 		return errors.WithStack(err)

@@ -326,7 +326,7 @@ func (ctrl *Ctrl) acceptRegisterNode(
 		return errors.Wrap(err, "failed to encrypt listeners data")
 	}
 	// send response
-	err = ctrl.sender.SendToNode(ctx, guid, messages.CMDBNodeRegisterResponse,
+	err = ctrl.sender.SendToNode(ctx, guid, messages.CMDBCtrlNodeRegisterResponse,
 		&response, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to send response to node")
@@ -383,7 +383,7 @@ func (ctrl *Ctrl) refuseRegisterNode(
 		Certificate: make([]byte, protocol.CertificateSize),
 	}
 	// send response
-	err := ctrl.sender.SendToNode(ctx, guid, messages.CMDBNodeRegisterResponse,
+	err := ctrl.sender.SendToNode(ctx, guid, messages.CMDBCtrlNodeRegisterResponse,
 		&response, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to send response to node")
@@ -543,7 +543,7 @@ func (ctrl *Ctrl) acceptRegisterBeacon(
 		return errors.Wrap(err, "failed to encrypt listeners data")
 	}
 	// send response
-	err = ctrl.sender.SendToNode(ctx, guid, messages.CMDBBeaconRegisterResponse,
+	err = ctrl.sender.SendToNode(ctx, guid, messages.CMDBCtrlBeaconRegisterResponse,
 		&response, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to send response to node")
@@ -566,7 +566,7 @@ func (ctrl *Ctrl) refuseRegisterBeacon(
 		Result:       messages.RegisterResultRefused,
 	}
 	// send response
-	err := ctrl.sender.SendToNode(ctx, guid, messages.CMDBBeaconRegisterResponse,
+	err := ctrl.sender.SendToNode(ctx, guid, messages.CMDBCtrlBeaconRegisterResponse,
 		&response, true)
 	if err != nil {
 		return errors.Wrap(err, "failed to send response to node")

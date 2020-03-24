@@ -108,9 +108,13 @@ func (h *handler) OnNodeSend(send *protocol.Send) {
 		h.handleQueryNodeKey(send)
 	case messages.CMDNodeQueryBeaconKey:
 		h.handleQueryBeaconKey(send)
-	case messages.CMDNodeRegisterRequest:
+	case messages.CMDNodeUpdateNodeRequestFromNode:
+
+	case messages.CMDNodeUpdateNodeRequestFromBeacon:
+
+	case messages.CMDNodeRegisterRequestFromNode:
 		h.handleNodeRegisterRequest(send)
-	case messages.CMDBeaconRegisterRequest:
+	case messages.CMDNodeRegisterRequestFromBeacon:
 		h.handleBeaconRegisterRequest(send)
 	case messages.CMDTest:
 		h.handleNodeSendTestMessage(send)
@@ -174,7 +178,7 @@ func (h *handler) handleQueryNodeKey(send *protocol.Send) {
 		ank.ReplyTime = node.CreatedAt
 	}
 	// send to Node
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBNodeAnswerNodeKey,
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBCtrlAnswerNodeKey,
 		&ank, true)
 	if err != nil {
 		const format = "failed to answer node key\nerror: %s"
@@ -211,7 +215,7 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 		abk.ReplyTime = beacon.CreatedAt
 	}
 	// send to Node
-	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBNodeAnswerBeaconKey,
+	err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBCtrlAnswerBeaconKey,
 		&abk, true)
 	if err != nil {
 		const format = "failed to answer beacon key\nerror: %s"
@@ -220,6 +224,45 @@ func (h *handler) handleQueryBeaconKey(send *protocol.Send) {
 	}
 	const format = "node query beacon key\n%s"
 	h.logfWithInfo(logger.Info, format, &send.RoleGUID, nil, qbk.GUID.Print())
+}
+
+func (h *handler) handleNodeUpdateNode(send *protocol.Send) {
+	defer h.logPanic("handler.handleNodeUpdateNode")
+	unr := messages.UpdateNodeRequest{}
+	err := msgpack.Unmarshal(send.Message, &unr)
+	if err != nil {
+		const format = "node send invalid update node request data\nerror: %s"
+		h.logfWithInfo(logger.Exploit, format, &send.RoleGUID, send, err)
+		return
+	}
+	// decrypt
+
+	// response := messages.UpdateNodeResponse{
+	// 	ID: unr.ID,
+	// }
+	// beacon, err := h.ctx.database.SelectBeacon(&qbk.GUID)
+	// if err != nil {
+	// 	const format = "failed to query beacon key\nerror: %s"
+	// 	h.logfWithInfo(logger.Warning, format, &send.RoleGUID, &qbk, err)
+	// 	// padding
+	// 	abk.PublicKey = messages.ZeroPublicKey
+	// 	abk.KexPublicKey = messages.ZeroKexPublicKey
+	// } else {
+	// 	abk.GUID = qbk.GUID
+	// 	abk.PublicKey = beacon.PublicKey
+	// 	abk.KexPublicKey = beacon.KexPublicKey
+	// 	abk.ReplyTime = beacon.CreatedAt
+	// }
+	// // send to Node
+	// err = h.ctx.sender.SendToNode(h.context, &send.RoleGUID, messages.CMDBCtrlAnswerBeaconKey,
+	// 	&abk, true)
+	// if err != nil {
+	// 	const format = "failed to answer beacon key\nerror: %s"
+	// 	h.logfWithInfo(logger.Error, format, &send.RoleGUID, &abk, err)
+	// 	return
+	// }
+	// const format = "node query beacon key\n%s"
+	// h.logfWithInfo(logger.Info, format, &send.RoleGUID, nil, qbk.GUID.Print())
 }
 
 // ----------------------------------role register request-----------------------------------------
