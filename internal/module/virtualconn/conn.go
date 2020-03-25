@@ -19,7 +19,7 @@ type vcAddr struct {
 }
 
 func (addr *vcAddr) Network() string {
-	return "vcm" // virtual connection message mode
+	return "vc" // virtual connection
 }
 
 func (addr *vcAddr) String() string {
@@ -59,8 +59,8 @@ type Conn struct {
 	cancel context.CancelFunc
 }
 
-// New is used to create a virtual connection with message mode.
-func New(
+// NewConn is used to create a virtual connection.
+func NewConn(
 	sender Sender,
 	receiver Receiver,
 	localGUID *guid.GUID,

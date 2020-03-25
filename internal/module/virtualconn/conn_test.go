@@ -92,8 +92,8 @@ func testGenerateConnPair(t *testing.T) (*Conn, *Conn) {
 	require.NoError(t, err)
 
 	pipe1, pipe2 := newPipe()
-	client := New(pipe1, pipe1, cGUID, cPort, sGUID, sPort)
-	server := New(pipe2, pipe2, sGUID, sPort, cGUID, cPort)
+	client := NewConn(pipe1, pipe1, cGUID, cPort, sGUID, sPort)
+	server := NewConn(pipe2, pipe2, sGUID, sPort, cGUID, cPort)
 	return server, client
 }
 
@@ -219,7 +219,7 @@ func TestConn_FailedToSend(t *testing.T) {
 	require.NoError(t, err)
 	err = sGUID.Write(bytes.Repeat([]byte{2}, guid.Size))
 	require.NoError(t, err)
-	client := New(fakeSender{}, nil, cGUID, cPort, sGUID, sPort)
+	client := NewConn(fakeSender{}, nil, cGUID, cPort, sGUID, sPort)
 
 	n, err := client.Write(make([]byte, 128*1024))
 	require.EqualError(t, err, "error")
