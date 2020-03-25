@@ -152,12 +152,14 @@ func TestConn_WithBigData(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := io.CopyBuffer(server, reader, make([]byte, 128*1024))
+		n, err := io.CopyBuffer(server, reader, make([]byte, 128*1024))
 		require.NoError(t, err)
+		require.Equal(t, size, n)
 	}()
 	buffer := new(bytes.Buffer)
-	_, err := io.CopyN(buffer, client, size)
+	n, err := io.CopyN(buffer, client, size)
 	require.NoError(t, err)
+	require.Equal(t, size, n)
 	wg.Wait()
 	require.True(t, bytes.Equal(testdata, buffer.Bytes()))
 
@@ -167,9 +169,41 @@ func TestConn_WithBigData(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
+func TestConn_ReadZeroData(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, client := testGenerateConnPair(t)
+
+	n, err := client.Read(nil)
+	require.NoError(t, err)
+	require.Equal(t, 0, n)
+
+	require.NoError(t, server.Close())
+	require.NoError(t, client.Close())
+	testsuite.IsDestroyed(t, server)
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestConn_WriteZeroData(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	server, client := testGenerateConnPair(t)
+
+	n, err := client.Write(nil)
+	require.NoError(t, err)
+	require.Equal(t, 0, n)
+
+	require.NoError(t, server.Close())
+	require.NoError(t, client.Close())
+	testsuite.IsDestroyed(t, server)
+	testsuite.IsDestroyed(t, client)
+}
+
 type fakeSender struct{}
 
-func (fs fakeSender) Send(_ context.Context, _ []byte) error {
+func (fs fakeSender) Send(context.Context, []byte) error {
 	return errors.New("error")
 }
 
@@ -187,8 +221,9 @@ func TestConn_FailedToSend(t *testing.T) {
 	require.NoError(t, err)
 	client := New(fakeSender{}, nil, cGUID, cPort, sGUID, sPort)
 
-	_, err = client.Write(make([]byte, 128*1024))
+	n, err := client.Write(make([]byte, 128*1024))
 	require.EqualError(t, err, "error")
+	require.Equal(t, 0, n)
 
 	require.NoError(t, client.Close())
 	testsuite.IsDestroyed(t, client)

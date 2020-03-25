@@ -47,7 +47,7 @@ type Conn struct {
 	localAddr  *vcAddr
 	remoteAddr *vcAddr
 
-	// received message but not read finish
+	// received message but not Read()
 	recv bytes.Buffer
 	rand *random.Rand
 
@@ -98,6 +98,9 @@ func (conn *Conn) Read(b []byte) (int, error) {
 		return 0, io.EOF
 	default:
 	}
+	if len(b) == 0 {
+		return 0, nil
+	}
 	// try to read from buffer, if empty, read receive channel.
 	n, err := conn.recv.Read(b)
 	if err == nil {
@@ -116,7 +119,7 @@ func (conn *Conn) Read(b []byte) (int, error) {
 	} else {
 		ctx = conn.ctx
 	}
-	// read
+	// read new data from receiver
 	data, err := conn.receiver.Receive(ctx)
 	if err != nil {
 		return 0, err
@@ -156,6 +159,9 @@ func (conn *Conn) Write(b []byte) (int, error) {
 		written += segmentSize
 		b = b[segmentSize:]
 	}
+	if len(b) == 0 {
+		return written, nil
+	}
 	err = conn.write(ctx, b)
 	if err != nil {
 		return written, err
@@ -173,6 +179,7 @@ func (conn *Conn) write(ctx context.Context, data []byte) error {
 		if err == nil {
 			return nil
 		}
+		// sleep one second
 		if timer == nil {
 			timer = time.NewTimer(time.Second)
 		} else {
@@ -181,7 +188,7 @@ func (conn *Conn) write(ctx context.Context, data []byte) error {
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
-			return err
+			return ctx.Err()
 		}
 	}
 	return err
