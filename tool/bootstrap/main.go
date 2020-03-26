@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"project/internal/logger"
+	"project/internal/httptool"
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 	}
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc(handler, func(w http.ResponseWriter, r *http.Request) {
-		log.Print(logger.HTTPRequest(r), "\n\n")
+		log.Print(httptool.PrintRequest(r), "\n\n")
 		w.WriteHeader(http.StatusOK)
 		bootstrap, _ := ioutil.ReadFile(file) // #nosec
 		_, _ = w.Write(bootstrap)

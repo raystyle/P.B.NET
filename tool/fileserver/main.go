@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"project/internal/logger"
+	"project/internal/httptool"
 )
 
 func main() {
@@ -53,7 +53,7 @@ func main() {
 	}
 
 	serveMux.HandleFunc(handler, func(w http.ResponseWriter, r *http.Request) {
-		log.Print(logger.HTTPRequest(r), "\n\n")
+		log.Print(httptool.PrintRequest(r), "\n\n")
 		r.URL.Path = strings.ReplaceAll(r.URL.Path, handler, "/")
 		fileServer.ServeHTTP(w, r)
 	})

@@ -45,21 +45,22 @@ func main() {
 	flag.IntVar(&opts.MaxConns, "max-conn", lcx.DefaultMaxConnections, usage)
 	flag.Parse()
 
+	const tag = "s"
 	switch method {
 	case "tran":
-		tranner, err := lcx.NewTranner("s", dstNetwork, dstAddress, logger.Common, &opts)
+		tranner, err := lcx.NewTranner(tag, dstNetwork, dstAddress, logger.Common, &opts)
 		if err != nil {
 			log.Fatalln(err)
 		}
 		start(tranner)
 	case "listen":
-		listener, err := lcx.NewListener("s", iNetwork, iAddress, logger.Common, &opts)
+		listener, err := lcx.NewListener(tag, iNetwork, iAddress, logger.Common, &opts)
 		if err != nil {
 			log.Fatalln(err)
 		}
 		start(listener)
 	case "slave":
-		slaver, err := lcx.NewSlaver("s", iNetwork, iAddress, dstNetwork, dstAddress,
+		slaver, err := lcx.NewSlaver(tag, iNetwork, iAddress, dstNetwork, dstAddress,
 			logger.Common, &opts)
 		if err != nil {
 			log.Fatalln(err)
@@ -81,6 +82,7 @@ func printHelp() {
 
 `
 	fmt.Print(help)
+	flag.CommandLine.SetOutput(os.Stdout)
 	flag.PrintDefaults()
 }
 
