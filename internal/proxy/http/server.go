@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/netutil"
 
+	"project/internal/httptool"
 	"project/internal/logger"
 	"project/internal/xpanic"
 )
@@ -265,7 +266,7 @@ type handler struct {
 func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)
-	_, _ = logger.HTTPRequest(r).WriteTo(buf)
+	_, _ = httptool.PrintRequest(r).WriteTo(buf)
 	h.logger.Println(lv, h.tag, buf)
 }
 
