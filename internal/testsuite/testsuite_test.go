@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIsInGoland(t *testing.T) {
+	t.Log("in Goland:", InGoland)
+}
+
 func TestIsDestroyed(t *testing.T) {
 	a := 1
 	n, err := fmt.Fprintln(ioutil.Discard, a)

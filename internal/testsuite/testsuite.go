@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -77,6 +78,18 @@ func startPPROFHTTPServer(port int) bool {
 	go func() { _ = server.Serve(ipv4) }()
 	go func() { _ = server.Serve(ipv6) }()
 	return true
+}
+
+// InGoland is used to tell tests in run by Goland.
+var InGoland bool
+
+func init() {
+	for _, value := range os.Environ() {
+		if strings.Contains(value, "IDEA") {
+			InGoland = true
+			break
+		}
+	}
 }
 
 // TestDataSize is the size of Bytes().
