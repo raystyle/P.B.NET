@@ -32,7 +32,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	m.Run()
+	exitCode := m.Run()
 	if ctrl != nil {
 		// wait to print log
 		time.Sleep(time.Second)
@@ -64,6 +64,7 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
+	os.Exit(exitCode)
 }
 
 // in some tests, these value will be changed.
