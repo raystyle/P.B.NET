@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -25,6 +26,10 @@ type MSFRPC struct {
 	bufPool sync.Pool
 	token   string
 	rwm     sync.RWMutex
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // Options contains options about NewMSFRPC().
@@ -77,10 +82,11 @@ func NewMSFRPC(host string, port uint16, username, password string, opts *Option
 		buf := bytes.NewBuffer(make([]byte, 0, 64))
 		return buf
 	}
+	msfrpc.ctx, msfrpc.cancel = context.WithCancel(context.Background())
 	return &msfrpc, nil
 }
 
-func (msf *MSFRPC) send(request, response interface{}) error {
+func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) error {
 	buf := msf.bufPool.Get().(*bytes.Buffer)
 	defer msf.bufPool.Put(buf)
 	buf.Reset()
@@ -99,7 +105,7 @@ func (msf *MSFRPC) send(request, response interface{}) error {
 			return errors.WithStack(err)
 		}
 	}
-	req, err := http.NewRequest(http.MethodPost, msf.url, buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, msf.url, buf)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -158,7 +164,7 @@ func (msf *MSFRPC) Login() error {
 		Password: msf.password,
 	}
 	var result AuthLoginResult
-	err := msf.send(&request, &result)
+	err := msf.send(msf.ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -169,12 +175,46 @@ func (msf *MSFRPC) Login() error {
 	return nil
 }
 
-// Logout is used to logout metasploit RPC and delete token.
-func (msf *MSFRPC) Logout() error {
+// Logout is used to delete token.
+func (msf *MSFRPC) Logout(token string) error {
+	request := AuthLogoutRequest{
+		Method:      MethodAuthLogout,
+		Token:       msf.getToken(),
+		LogoutToken: token,
+	}
+	var result AuthLogoutResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	if result.Result != success {
+		return errors.New(result.Result)
+	}
+	msf.setToken("")
 	return nil
 }
 
-// Kill is used to logout metasploit RPC when can't connect target.
-func (msf *MSFRPC) Kill() {
+// Close is used to logout metasploit RPC.
+func (msf *MSFRPC) Close() error {
+	err := msf.Logout(msf.getToken())
+	if err != nil {
+		return err
+	}
+	msf.close()
+	return nil
+}
 
+// Kill is ued to logout metasploit RPC when can't connect target.
+func (msf *MSFRPC) Kill() {
+	_ = msf.Logout(msf.getToken())
+	msf.close()
+}
+
+func (msf *MSFRPC) close() {
+	msf.cancel()
+	msf.client.CloseIdleConnections()
+	msf.wg.Wait()
 }

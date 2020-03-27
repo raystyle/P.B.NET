@@ -19,6 +19,8 @@ type asArray interface {
 	asArray()
 }
 
+const success = "success"
+
 // ------------------------------------------about methods-----------------------------------------
 const (
 	MethodAuthLogin  = "auth.login"
@@ -40,5 +42,20 @@ func (alr *AuthLoginRequest) asArray() {}
 type AuthLoginResult struct {
 	Result string `msgpack:"result"`
 	Token  string `msgpack:"token"`
+	MSFError
+}
+
+// AuthLogoutRequest is used to delete token.
+type AuthLogoutRequest struct {
+	Method      string
+	Token       string
+	LogoutToken string // will be deleted
+}
+
+func (alr *AuthLogoutRequest) asArray() {}
+
+// AuthLogoutResult is the result about logout.
+type AuthLogoutResult struct {
+	Result string `msgpack:"result"`
 	MSFError
 }
