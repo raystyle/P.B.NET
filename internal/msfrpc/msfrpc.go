@@ -17,27 +17,35 @@ import (
 
 // MSFRPC is used to connect metasploit RPC service.
 type MSFRPC struct {
-	url    string
-	client *http.Client
+	username string
+	password string
+	url      string
+	client   *http.Client
 
 	bufPool sync.Pool
 	token   string
+	rwm     sync.RWMutex
 }
 
 // Options contains options about NewMSFRPC().
 type Options struct {
-	TLS       bool
-	Transport option.HTTPTransport
-	Timeout   time.Duration
+	DisableTLS bool
+	Handler    string // URI
+	Transport  option.HTTPTransport
+	Timeout    time.Duration
 }
 
 // NewMSFRPC is used to create a new metasploit RPC connection.
-func NewMSFRPC(host string, port uint16, opts *Options) (*MSFRPC, error) {
+func NewMSFRPC(host string, port uint16, username, password string, opts *Options) (*MSFRPC, error) {
+	if opts == nil {
+		opts = new(Options)
+	}
 	// make http client
 	tr, err := opts.Transport.Apply()
 	if err != nil {
 		return nil, err
 	}
+	tr.TLSClientConfig.InsecureSkipVerify = true
 	client := http.Client{
 		Transport: tr,
 		Timeout:   opts.Timeout,
@@ -47,15 +55,23 @@ func NewMSFRPC(host string, port uint16, opts *Options) (*MSFRPC, error) {
 	}
 	// url
 	msfrpc := MSFRPC{
-		client: &client,
+		username: username,
+		password: password,
+		client:   &client,
 	}
 	var scheme string
-	if opts.TLS {
-		scheme = "https"
-	} else {
+	if opts.DisableTLS {
 		scheme = "http"
+	} else {
+		scheme = "https"
 	}
-	msfrpc.url = fmt.Sprintf("%s://%s:%d/api", scheme, host, port)
+	var handler string
+	if opts.Handler == "" {
+		handler = "api"
+	} else {
+		handler = opts.Handler
+	}
+	msfrpc.url = fmt.Sprintf("%s://%s:%d/%s", scheme, host, port, handler)
 	// buffer pool
 	msfrpc.bufPool.New = func() interface{} {
 		buf := bytes.NewBuffer(make([]byte, 0, 64))
@@ -70,9 +86,18 @@ func (msf *MSFRPC) send(request, response interface{}) error {
 	buf.Reset()
 
 	// pack request
-	err := msgpack.NewEncoder(buf).Encode(request)
-	if err != nil {
-		return errors.WithStack(err)
+	if _, ok := request.(asArray); ok {
+		encoder := msgpack.NewEncoder(buf)
+		encoder.StructAsArray(true)
+		err := encoder.Encode(request)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	} else {
+		err := msgpack.NewEncoder(buf).Encode(request)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	req, err := http.NewRequest(http.MethodPost, msf.url, buf)
 	if err != nil {
@@ -94,7 +119,7 @@ func (msf *MSFRPC) send(request, response interface{}) error {
 	case http.StatusOK:
 		return msgpack.NewDecoder(resp.Body).Decode(response)
 	case http.StatusInternalServerError:
-		var msfErr msfError
+		var msfErr MSFError
 		err = msgpack.NewDecoder(resp.Body).Decode(&msfErr)
 		if err != nil {
 			return errors.WithStack(err)
@@ -113,8 +138,34 @@ func (msf *MSFRPC) send(request, response interface{}) error {
 	return err
 }
 
+func (msf *MSFRPC) setToken(token string) {
+	msf.rwm.Lock()
+	defer msf.rwm.Unlock()
+	msf.token = token
+}
+
+func (msf *MSFRPC) getToken() string {
+	msf.rwm.RLock()
+	defer msf.rwm.RUnlock()
+	return msf.token
+}
+
 // Login is used to login metasploit RPC and get token.
 func (msf *MSFRPC) Login() error {
+	request := AuthLoginRequest{
+		Method:   MethodAuthLogin,
+		Username: msf.username,
+		Password: msf.password,
+	}
+	var result AuthLoginResult
+	err := msf.send(&request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	msf.setToken(result.Token)
 	return nil
 }
 
@@ -123,7 +174,7 @@ func (msf *MSFRPC) Logout() error {
 	return nil
 }
 
-// LogoutForce is used to logout metasploit RPC when can't connect target.
-func (msf *MSFRPC) LogoutForce() {
+// Kill is used to logout metasploit RPC when can't connect target.
+func (msf *MSFRPC) Kill() {
 
 }
