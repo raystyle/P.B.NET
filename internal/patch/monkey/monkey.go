@@ -23,7 +23,7 @@ var (
 
 // IsMonkeyError is used to confirm err is ErrMonkey.
 func IsMonkeyError(t testing.TB, err error) {
-	require.Equal(t, ErrMonkey, err)
+	require.EqualError(t, err, ErrMonkey.Error())
 }
 
 // Patch is a wrapper about monkey.Patch.
