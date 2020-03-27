@@ -38,6 +38,7 @@ type Options struct {
 	Handler    string // URI
 	Transport  option.HTTPTransport
 	Timeout    time.Duration
+	Token      string // permanent token
 }
 
 // NewMSFRPC is used to create a new metasploit RPC connection.
@@ -63,6 +64,7 @@ func NewMSFRPC(host string, port uint16, username, password string, opts *Option
 		username: username,
 		password: password,
 		client:   &client,
+		token:    opts.Token,
 	}
 	var scheme string
 	if opts.DisableTLS {
@@ -123,6 +125,9 @@ func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) erro
 	// read response body
 	switch resp.StatusCode {
 	case http.StatusOK:
+		// b, _ := ioutil.ReadAll(resp.Body)
+		// fmt.Println(string(b))
+
 		return msgpack.NewDecoder(resp.Body).Decode(response)
 	case http.StatusInternalServerError:
 		var msfErr MSFError
@@ -157,6 +162,8 @@ func (msf *MSFRPC) getToken() string {
 }
 
 // Login is used to login metasploit RPC and get token.
+// if use permanent token, dont need to call Login(),
+// but need Logout().
 func (msf *MSFRPC) Login() error {
 	request := AuthLoginRequest{
 		Method:   MethodAuthLogin,
@@ -193,8 +200,24 @@ func (msf *MSFRPC) Logout(token string) error {
 	if result.Result != success {
 		return errors.New(result.Result)
 	}
-	msf.setToken("")
 	return nil
+}
+
+// TokenList is used to get token list.
+func (msf *MSFRPC) TokenList() ([]string, error) {
+	request := AuthTokenListRequest{
+		Method: MethodAuthTokenList,
+		Token:  msf.getToken(),
+	}
+	var result AuthTokenListResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Tokens, nil
 }
 
 // Close is used to logout metasploit RPC.
