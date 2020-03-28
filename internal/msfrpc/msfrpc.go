@@ -198,7 +198,9 @@ func (msf *MSFRPC) Login() error {
 	return nil
 }
 
-// Logout is used to logout user but not delete permanent token.
+// Logout is used to remove the specified token from the authentication token list.
+// Note that this method can be used to disable any temporary token, not just the
+// one used by the current user. The permanent token will not be removed.
 func (msf *MSFRPC) Logout(token string) error {
 	request := AuthLogoutRequest{
 		Method:      MethodAuthLogout,
@@ -231,6 +233,62 @@ func (msf *MSFRPC) TokenList() ([]string, error) {
 		return nil, &result.MSFError
 	}
 	return result.Tokens, nil
+}
+
+// TokenGenerate is used to create a random 32-byte authentication token,
+// add this token to the authenticated list, and return this token.
+func (msf *MSFRPC) TokenGenerate() (string, error) {
+	request := AuthTokenGenerateRequest{
+		Method: MethodAuthTokenGenerate,
+		Token:  msf.GetToken(),
+	}
+	var result AuthTokenGenerateResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return "", err
+	}
+	if result.Err {
+		return "", &result.MSFError
+	}
+	return result.Token, nil
+}
+
+// TokenAdd is used to add an arbitrary string as a valid permanent authentication
+// token. This token can be used for all future authentication purposes.
+func (msf *MSFRPC) TokenAdd(token string) error {
+	request := AuthTokenAddRequest{
+		Method:   MethodAuthTokenAdd,
+		Token:    msf.GetToken(),
+		NewToken: token,
+	}
+	var result AuthTokenAddResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	return nil
+}
+
+// TokenRemove is used to delete a specified token. This will work for both temporary
+// and permanent tokens, including those stored in the database backend.
+func (msf *MSFRPC) TokenRemove(token string) error {
+	request := AuthTokenRemoveRequest{
+		Method:           MethodAuthTokenRemove,
+		Token:            msf.GetToken(),
+		TokenToBeRemoved: token,
+	}
+	var result AuthTokenRemoveResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	return nil
 }
 
 // Close is used to logout metasploit RPC.

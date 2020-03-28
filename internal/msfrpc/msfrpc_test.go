@@ -139,7 +139,7 @@ func TestMSFRPC_TokenList(t *testing.T) {
 		require.True(t, exist)
 	})
 
-	t.Run("invalid token", func(t *testing.T) {
+	t.Run("invalid authentication token", func(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 		list, err := msfrpc.TokenList()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -151,6 +151,109 @@ func TestMSFRPC_TokenList(t *testing.T) {
 			list, err := msfrpc.TokenList()
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, list)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_TokenGenerate(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		token, err := msfrpc.TokenGenerate()
+		require.NoError(t, err)
+		t.Log(token)
+
+		tokens, err := msfrpc.TokenList()
+		require.NoError(t, err)
+		require.Contains(t, tokens, token)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		token, err := msfrpc.TokenGenerate()
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Equal(t, "", token)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			token, err := msfrpc.TokenGenerate()
+			monkey.IsMonkeyError(t, err)
+			require.Equal(t, "", token)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_TokenAdd(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	const token = "TEST0123456789012345678901234567"
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.TokenAdd(token)
+		require.NoError(t, err)
+
+		tokens, err := msfrpc.TokenList()
+		require.NoError(t, err)
+		require.Contains(t, tokens, token)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		err := msfrpc.TokenAdd(token)
+		require.EqualError(t, err, testErrInvalidToken)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			err := msfrpc.TokenAdd(token)
+			monkey.IsMonkeyError(t, err)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_TokenRemove(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	const token = "TEST0123456789012345678901234567"
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.TokenRemove(token)
+		require.NoError(t, err)
+
+		tokens, err := msfrpc.TokenList()
+		require.NoError(t, err)
+		require.NotContains(t, tokens, token)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		err := msfrpc.TokenRemove(token)
+		require.EqualError(t, err, testErrInvalidToken)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			err := msfrpc.TokenRemove(token)
+			monkey.IsMonkeyError(t, err)
 		})
 	})
 
