@@ -3,6 +3,7 @@ package msfrpc
 import (
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
@@ -114,6 +115,39 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
 			status, err := msfrpc.CoreReloadModules()
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, status)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_CoreThreadList(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		list, err := msfrpc.CoreThreadList()
+		require.NoError(t, err)
+		for id, info := range list {
+			t.Logf("id: %d\ninfo: %s\n", id, spew.Sdump(info))
+		}
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		list, err := msfrpc.CoreThreadList()
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, list)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			status, err := msfrpc.CoreThreadList()
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
 		})
