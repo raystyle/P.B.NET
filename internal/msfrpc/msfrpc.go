@@ -38,6 +38,7 @@ type MSFRPC struct {
 // Options contains options about NewMSFRPC().
 type Options struct {
 	DisableTLS bool
+	TLSVerify  bool
 	Handler    string // URI
 	Transport  option.HTTPTransport
 	Timeout    time.Duration
@@ -54,7 +55,9 @@ func NewMSFRPC(host string, port uint16, username, password string, opts *Option
 	if err != nil {
 		return nil, err
 	}
-	tr.TLSClientConfig.InsecureSkipVerify = true
+	if !opts.TLSVerify {
+		tr.TLSClientConfig.InsecureSkipVerify = true
+	}
 	client := http.Client{
 		Transport: tr,
 		Timeout:   opts.Timeout,
@@ -291,7 +294,7 @@ func (msf *MSFRPC) TokenRemove(token string) error {
 	return nil
 }
 
-// Close is used to logout metasploit RPC.
+// Close is used to logout metasploit RPC and destroy all objects.
 func (msf *MSFRPC) Close() error {
 	err := msf.Logout(msf.GetToken())
 	if err != nil {

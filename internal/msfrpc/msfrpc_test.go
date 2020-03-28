@@ -1,16 +1,19 @@
 package msfrpc
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
+	"project/internal/patch/msgpack"
 	"project/internal/testsuite"
 )
 
@@ -44,11 +47,184 @@ func TestMain(m *testing.M) {
 }
 
 func TestNewMSFRPC(t *testing.T) {
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	t.Run("ok", func(t *testing.T) {
+		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	t.Run("invalid transport option", func(t *testing.T) {
+		opts := Options{}
+		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
+		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, &opts)
+		require.Error(t, err)
+		require.Nil(t, msfrpc)
+	})
+
+	t.Run("disable TLS", func(t *testing.T) {
+		opts := Options{DisableTLS: true}
+		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+		require.NotNil(t, msfrpc)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	t.Run("custom handler", func(t *testing.T) {
+		opts := Options{Handler: "hello"}
+		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+		require.NotNil(t, msfrpc)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+}
+
+func TestMSFRPC_send(t *testing.T) {
+	t.Run("invalid request", func(t *testing.T) {
+		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+		require.NoError(t, err)
+
+		buf := new(bytes.Buffer)
+		err = msfrpc.send(context.Background(), func() {}, buf)
+		require.Error(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	// start mock server(like msfrpcd)
+	const testError = "test error"
+
+	serverMux := http.NewServeMux()
+	serverMux.HandleFunc("/500_ok", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		var msfErr MSFError
+		msfErr.ErrorMessage = testError
+		msfErr.ErrorCode = 500
+		_ = msgpack.NewEncoder(w).Encode(msfErr)
+	})
+	serverMux.HandleFunc("/500_failed", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("invalid data"))
+	})
+	serverMux.HandleFunc("/401", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	serverMux.HandleFunc("/403", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	})
+	serverMux.HandleFunc("/unknown", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	server := http.Server{
+		Addr:    "127.0.0.1:0",
+		Handler: serverMux,
+	}
+	port := testsuite.RunHTTPServer(t, "tcp", &server)
+	portNum, err := strconv.Atoi(port)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
-	testsuite.IsDestroyed(t, msfrpc)
+	t.Run("internal server error_ok", func(t *testing.T) {
+		portNum := uint16(portNum)
+		opts := Options{
+			DisableTLS: true,
+			Handler:    "500_ok",
+		}
+		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+
+		err = msfrpc.send(context.Background(), nil, nil)
+		require.EqualError(t, err, testError)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	t.Run("internal server error_failed", func(t *testing.T) {
+		portNum := uint16(portNum)
+		opts := Options{
+			DisableTLS: true,
+			Handler:    "500_failed",
+		}
+		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+
+		err = msfrpc.send(context.Background(), nil, nil)
+		require.Error(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	t.Run("unauthorized", func(t *testing.T) {
+		portNum := uint16(portNum)
+		opts := Options{
+			DisableTLS: true,
+			Handler:    "401",
+		}
+		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+
+		err = msfrpc.send(context.Background(), nil, nil)
+		require.EqualError(t, err, "token is invalid")
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	t.Run("forbidden", func(t *testing.T) {
+		portNum := uint16(portNum)
+		opts := Options{
+			DisableTLS: true,
+			Handler:    "403",
+		}
+		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+
+		err = msfrpc.send(context.Background(), nil, nil)
+		require.EqualError(t, err, "token is not granted access to the resource")
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		portNum := uint16(portNum)
+		opts := Options{
+			DisableTLS: true,
+			Handler:    "not_found",
+		}
+		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+
+		err = msfrpc.send(context.Background(), nil, nil)
+		require.EqualError(t, err, "the request was sent to an invalid URL")
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+
+	})
+
+	t.Run("other status code", func(t *testing.T) {
+		portNum := uint16(portNum)
+		opts := Options{
+			DisableTLS: true,
+			Handler:    "unknown",
+		}
+		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+
+		err = msfrpc.send(context.Background(), nil, nil)
+		require.EqualError(t, err, "202 Accepted")
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
 }
 
 func testPatchSend(f func()) {
@@ -210,8 +386,19 @@ func TestMSFRPC_TokenAdd(t *testing.T) {
 		require.Contains(t, tokens, token)
 	})
 
+	t.Run("add invalid token", func(t *testing.T) {
+		err := msfrpc.TokenAdd(testInvalidToken)
+		require.NoError(t, err)
+
+		tokens, err := msfrpc.TokenList()
+		require.NoError(t, err)
+		require.Contains(t, tokens, testInvalidToken)
+	})
+
 	t.Run("invalid authentication token", func(t *testing.T) {
-		msfrpc.SetToken(testInvalidToken)
+		// due to the last sub test added testInvalidToken,
+		// so must change the token that will be set
+		msfrpc.SetToken(testInvalidToken + "foo")
 		err := msfrpc.TokenAdd(token)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
@@ -242,6 +429,22 @@ func TestMSFRPC_TokenRemove(t *testing.T) {
 		tokens, err := msfrpc.TokenList()
 		require.NoError(t, err)
 		require.NotContains(t, tokens, token)
+	})
+
+	t.Run("remove invalid token", func(t *testing.T) {
+		err := msfrpc.TokenAdd(testInvalidToken)
+		require.NoError(t, err)
+
+		err = msfrpc.TokenRemove(testInvalidToken)
+		require.NoError(t, err)
+
+		// doesn't exists
+		err = msfrpc.TokenRemove(testInvalidToken)
+		require.NoError(t, err)
+
+		tokens, err := msfrpc.TokenList()
+		require.NoError(t, err)
+		require.NotContains(t, tokens, testInvalidToken)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
