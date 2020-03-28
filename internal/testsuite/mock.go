@@ -15,11 +15,12 @@ import (
 	"project/internal/patch/monkey"
 )
 
-// about mock listener Accept()
+// about mock listener Accept() and other
 var (
 	ErrMockListenerAccept = &mockNetError{temporary: true}
 	ErrMockListener       = errors.New("accept more than 10 times")
 	MockListenerPanic     = "mock listener accept panic"
+	ErrMockReadCloser     = errors.New("mock io.ReadCloser error")
 )
 
 // mockNetError implement net.Error
@@ -183,7 +184,7 @@ func (c *mockConnWriteError) Read(b []byte) (int, error) {
 	return 1, nil
 }
 
-func (c *mockConnWriteError) Write(b []byte) (int, error) {
+func (c *mockConnWriteError) Write([]byte) (int, error) {
 	return 0, monkey.ErrMonkey
 }
 
@@ -227,4 +228,20 @@ func NewMockResponseWriterWithClosePanic() http.ResponseWriter {
 		server: server,
 	}
 	return &mockResponseWriter{conn: &mc}
+}
+
+type mockReadCloser struct{}
+
+func (mockReadCloser) Read([]byte) (int, error) {
+	return 0, ErrMockReadCloser
+}
+
+func (mockReadCloser) Close() error {
+	return nil
+}
+
+// NewMockReadCloserWithReadError is used to return a ReadCloser that
+// return a ErrMockReadCloser when call Read().
+func NewMockReadCloserWithReadError() io.ReadCloser {
+	return new(mockReadCloser)
 }
