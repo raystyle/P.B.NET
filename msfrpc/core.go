@@ -64,13 +64,13 @@ func (msf *MSFRPC) CoreReloadModules() (*CoreReloadModulesResult, error) {
 
 // CoreThreadList is used to return a list the status of all background threads along
 // with an ID number that can be used to shut down the thread.
-func (msf *MSFRPC) CoreThreadList() (map[int]*CoreThreadInfo, error) {
+func (msf *MSFRPC) CoreThreadList() (map[uint64]*CoreThreadInfo, error) {
 	request := CoreThreadListRequest{
 		Method: MethodCoreThreadList,
 		Token:  msf.GetToken(),
 	}
 	var (
-		result   map[int]*CoreThreadInfo
+		result   map[uint64]*CoreThreadInfo
 		msfError MSFError
 	)
 	err := msf.sendWithReplace(msf.ctx, &request, &result, &msfError)
@@ -81,4 +81,23 @@ func (msf *MSFRPC) CoreThreadList() (map[int]*CoreThreadInfo, error) {
 		return nil, &msfError
 	}
 	return result, nil
+}
+
+// CoreThreadKill is used to kill an errant background thread. The ThreadID should
+// match what was returned by the core.thread_list method.
+func (msf *MSFRPC) CoreThreadKill(id uint64) error {
+	request := CoreThreadKillRequest{
+		Method: MethodCoreThreadKill,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result CoreThreadKillResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	return nil
 }

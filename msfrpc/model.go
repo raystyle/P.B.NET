@@ -317,3 +317,16 @@ type CoreThreadInfo struct {
 	Name     string `msgpack:"name"`
 	Started  string `msgpack:"started"`
 }
+
+// CoreThreadKillRequest is used to kill thread by ID.
+type CoreThreadKillRequest struct {
+	Method string
+	Token  string
+	ID     uint64
+}
+
+// CoreThreadKillResult is the result about kill thread.
+type CoreThreadKillResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
