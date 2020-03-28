@@ -43,7 +43,7 @@ func TestHTTPClient_Query(t *testing.T) {
 		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 
 		HTTP.ProxyTag = testproxy.TagBalance
-		HTTP.Request.URL = "http://ds.vm2.test-ipv6.com:80/"
+		HTTP.Request.URL = "http://ds.vm3.test-ipv6.com/"
 
 		now, optsErr, err := HTTP.Query()
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestGetHeaderDate(t *testing.T) {
 	client := &http.Client{Transport: new(http.Transport)}
 
 	t.Run("http", func(t *testing.T) {
-		const url = "http://ds.vm2.test-ipv6.com/"
+		const url = "http://ds.vm3.test-ipv6.com/"
 		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		now, err := getHeaderDate(r, client)
@@ -158,12 +158,15 @@ func TestGetHeaderDate(t *testing.T) {
 		const url = "http://test/"
 		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
+
 		_, err = getHeaderDate(r, client)
 		require.Error(t, err)
 	})
 
 	t.Run("failed to parse date", func(t *testing.T) {
-		const url = "http://ds.vm0.test-ipv6.com/"
+		const url = "http://ds.vm3.test-ipv6.com/"
+
+		// patch
 		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		patchFunc := func(_ string) (time.Time, error) {
@@ -171,12 +174,15 @@ func TestGetHeaderDate(t *testing.T) {
 		}
 		pg := monkey.Patch(http.ParseTime, patchFunc)
 		defer pg.Unpatch()
+
 		_, err = getHeaderDate(r, client)
 		monkey.IsMonkeyError(t, err)
 	})
 
 	t.Run("system time changed", func(t *testing.T) {
-		const url = "http://ds.vm1.test-ipv6.com/"
+		const url = "http://ds.vm3.test-ipv6.com/"
+
+		// patch
 		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		patchFunc := func(_ time.Time) time.Duration {
@@ -184,6 +190,7 @@ func TestGetHeaderDate(t *testing.T) {
 		}
 		pg := monkey.Patch(time.Since, patchFunc)
 		defer pg.Unpatch()
+
 		_, err = getHeaderDate(r, client)
 		require.NoError(t, err)
 	})

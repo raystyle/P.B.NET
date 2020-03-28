@@ -83,7 +83,7 @@ func TestHijackLogWriter(t *testing.T) {
 }
 
 func TestConn(t *testing.T) {
-	conn, err := net.Dial("tcp", "ds.vm0.test-ipv6.com:80")
+	conn, err := net.Dial("tcp", "ds.vm3.test-ipv6.com:80")
 	require.NoError(t, err)
 	fmt.Println(Conn(conn))
 	_ = conn.Close()
