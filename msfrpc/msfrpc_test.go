@@ -1,7 +1,6 @@
 package msfrpc
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -84,13 +83,64 @@ func TestNewMSFRPC(t *testing.T) {
 	})
 }
 
+func TestMSFRPC_sendWithReplace(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("failed to read from", func(t *testing.T) {
+		// patch
+		client := new(http.Client)
+		patchFunc := func(interface{}, *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       testsuite.NewMockReadCloserWithReadError(),
+			}, nil
+		}
+		pg := monkey.PatchInstanceMethod(client, "Do", patchFunc)
+		defer pg.Unpatch()
+
+		err = msfrpc.sendWithReplace(ctx, nil, nil, nil)
+		require.EqualError(t, testsuite.ErrMockReadCloser, err.Error())
+	})
+
+	padding := func() {}
+
+	t.Run("ok", func(t *testing.T) {
+		request := AuthTokenListRequest{
+			Method: MethodAuthTokenList,
+			Token:  msfrpc.GetToken(),
+		}
+		var result AuthTokenListResult
+		err = msfrpc.sendWithReplace(ctx, request, &result, padding)
+		require.NoError(t, err)
+	})
+
+	t.Run("replace", func(t *testing.T) {
+		request := AuthTokenListRequest{
+			Method: MethodAuthTokenList,
+			Token:  msfrpc.GetToken(),
+		}
+		var result AuthTokenListResult
+		err = msfrpc.sendWithReplace(ctx, request, padding, &result)
+		require.NoError(t, err)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_send(t *testing.T) {
+	ctx := context.Background()
+
 	t.Run("invalid request", func(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 		require.NoError(t, err)
 
-		buf := new(bytes.Buffer)
-		err = msfrpc.send(context.Background(), func() {}, buf)
+		err = msfrpc.send(ctx, func() {}, nil)
 		require.Error(t, err)
 
 		msfrpc.Kill()
@@ -138,7 +188,7 @@ func TestMSFRPC_send(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(context.Background(), nil, nil)
+		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, testError)
 
 		msfrpc.Kill()
@@ -154,7 +204,7 @@ func TestMSFRPC_send(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(context.Background(), nil, nil)
+		err = msfrpc.send(ctx, nil, nil)
 		require.Error(t, err)
 
 		msfrpc.Kill()
@@ -170,7 +220,7 @@ func TestMSFRPC_send(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(context.Background(), nil, nil)
+		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "token is invalid")
 
 		msfrpc.Kill()
@@ -186,7 +236,7 @@ func TestMSFRPC_send(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(context.Background(), nil, nil)
+		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "token is not granted access to the resource")
 
 		msfrpc.Kill()
@@ -202,7 +252,7 @@ func TestMSFRPC_send(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(context.Background(), nil, nil)
+		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "the request was sent to an invalid URL")
 
 		msfrpc.Kill()
@@ -219,7 +269,7 @@ func TestMSFRPC_send(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
-		err = msfrpc.send(context.Background(), nil, nil)
+		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "202 Accepted")
 
 		msfrpc.Kill()

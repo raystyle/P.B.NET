@@ -103,6 +103,12 @@ func NewMSFRPC(host string, port uint16, username, password string, opts *Option
 }
 
 func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) error {
+	return msf.sendWithReplace(ctx, request, response, nil)
+}
+
+// sendWithReplace is used to replace response to another response like
+// CoreThreadList and MSFError if decode failed(return a MSFError).
+func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, replace interface{}) error {
 	buf := msf.bufferPool.Get().(*bytes.Buffer)
 	defer msf.bufferPool.Put(buf)
 	buf.Reset()
@@ -127,12 +133,22 @@ func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) erro
 	// read response body
 	switch resp.StatusCode {
 	case http.StatusOK:
-		// buf := bytes.NewBuffer(nil)
-		// b, _ := ioutil.ReadAll(resp.Body)
-		// fmt.Println(string(b))
-		// buf.Write(b)
-		// return msf.decodeResponse(response, buf)
-		return msf.decodeResponse(response, resp.Body)
+		_, err = buf.ReadFrom(resp.Body)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if replace == nil {
+			return msf.decodeResponse(response, buf)
+		}
+		// try decode to response
+		reader := bytes.NewReader(buf.Bytes())
+		err = msf.decodeResponse(response, reader)
+		if err == nil {
+			return nil
+		}
+		// try decode to another
+		reader.Reset(buf.Bytes())
+		return msf.decodeResponse(replace, reader)
 	case http.StatusInternalServerError:
 		var msfErr MSFError
 		err = msf.decodeResponse(&msfErr, resp.Body)

@@ -250,6 +250,8 @@ type AuthTokenRemoveResult struct {
 	MSFError
 }
 
+// -------------------------------------------about core-------------------------------------------
+
 // CoreModuleStatsRequest is used to get module status.
 type CoreModuleStatsRequest struct {
 	Method string
@@ -300,4 +302,18 @@ type CoreReloadModulesResult struct {
 	Encoder   int `msgpack:"encoders"`
 	Nop       int `msgpack:"nops"`
 	MSFError
+}
+
+// CoreThreadListRequest is used to get thread list.
+type CoreThreadListRequest struct {
+	Method string
+	Token  string
+}
+
+// CoreThreadInfo contains the thread information.
+type CoreThreadInfo struct {
+	Status   string `msgpack:"status"`
+	Critical bool   `msgpack:"critical"`
+	Name     string `msgpack:"name"`
+	Started  string `msgpack:"started"`
 }
