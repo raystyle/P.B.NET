@@ -8,6 +8,9 @@ import (
 	"github.com/vmihailenco/msgpack/v4/codes"
 )
 
+// https://metasploit.help.rapid7.com/docs/standard-api-methods-reference
+// https://rapid7.github.io/metasploit-framework/api/Msf/RPC.html
+
 // errorCode maybe uint16 or string.
 type errorCode uint64
 
@@ -64,24 +67,24 @@ const (
 	MethodAuthTokenAdd      = "auth.token_add"      // #nosec
 	MethodAuthTokenRemove   = "auth.token_remove"   // #nosec
 
-// MethodConsoleCreate  = "console.create"
-// MethodConsoleList    = "console.list"
-// MethodConsoleTabs    = "console.tabs"
-// MethodConsoleDestroy = "console.destroy"
-// MethodConsoleRead    = "console.read"
-// MethodConsoleWrite   = "console.write"
-//
-// MethodCoreVersion       = "core.version"
-// MethodCoreSetG          = "core.setg"
-// MethodCoreUnsetG        = "core.unsetg"
-// MethodCoreModuleStats   = "core.module_stats"
-// MethodCoreReloadModules = "core.reload_modules"
-// MethodCoreAddModulePath = "core.add_module_path"
-// MethodCoreThreadList    = "core.thread_list"
-// MethodCoreThreadKill    = "core.thread_kill"
-// MethodCoreSave          = "core.save"
-// MethodCoreStop          = "core.stop"
-//
+	MethodCoreModuleStats   = "core.module_stats"
+	MethodCoreAddModulePath = "core.add_module_path"
+	MethodCoreReloadModules = "core.reload_modules"
+	MethodCoreThreadList    = "core.thread_list"
+	MethodCoreThreadKill    = "core.thread_kill"
+	MethodCoreGetG          = "core.getg"
+	MethodCoreSetG          = "core.setg"
+	MethodCoreUnsetG        = "core.unsetg"
+	MethodCoreSave          = "core.save"
+	MethodCoreVersion       = "core.version"
+
+	// MethodConsoleCreate  = "console.create"
+	// MethodConsoleList    = "console.list"
+	// MethodConsoleTabs    = "console.tabs"
+	// MethodConsoleDestroy = "console.destroy"
+	// MethodConsoleRead    = "console.read"
+	// MethodConsoleWrite   = "console.write"
+
 // MethodDBConnect          = "db.connect"
 // MethodDBStatus           = "db.status"
 // MethodDBDisconnect       = "db.disconnect"
@@ -243,5 +246,40 @@ type AuthTokenRemoveRequest struct {
 // AuthTokenRemoveResult is the result about remove token.
 type AuthTokenRemoveResult struct {
 	Result string `msgpack:"result"`
+	MSFError
+}
+
+// CoreModuleStatsRequest is used to get module status.
+type CoreModuleStatsRequest struct {
+	Method string
+	Token  string
+}
+
+// CoreModuleStatsResult is the result about module status.
+type CoreModuleStatsResult struct {
+	Exploit   int `msgpack:"exploits"`
+	Auxiliary int `msgpack:"auxiliary"`
+	Post      int `msgpack:"post"`
+	Payload   int `msgpack:"payloads"`
+	Encoder   int `msgpack:"encoders"`
+	Nop       int `msgpack:"nops"`
+	MSFError
+}
+
+// CoreAddModulePathRequest is used to add module.
+type CoreAddModulePathRequest struct {
+	Method string
+	Token  string
+	Path   string
+}
+
+// CoreAddModulePathResult is the result about add module.
+type CoreAddModulePathResult struct {
+	Exploit   int `msgpack:"exploits"`
+	Auxiliary int `msgpack:"auxiliary"`
+	Post      int `msgpack:"post"`
+	Payload   int `msgpack:"payloads"`
+	Encoder   int `msgpack:"encoders"`
+	Nop       int `msgpack:"nops"`
 	MSFError
 }
