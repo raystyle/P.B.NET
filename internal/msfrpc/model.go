@@ -1,22 +1,56 @@
 package msfrpc
 
+import (
+	"strconv"
+
+	"github.com/pkg/errors"
+	"github.com/vmihailenco/msgpack/v4"
+	"github.com/vmihailenco/msgpack/v4/codes"
+)
+
+// errorCode maybe uint16 or string.
+type errorCode uint64
+
+func (e *errorCode) DecodeMsgpack(decoder *msgpack.Decoder) error {
+	code, err := decoder.PeekCode()
+	if err != nil {
+		return err
+	}
+	switch code {
+	case codes.Uint16:
+		val, err := decoder.DecodeUint16()
+		if err != nil {
+			return err
+		}
+		*e = errorCode(val)
+	case codes.Bin8:
+		str, err := decoder.DecodeString()
+		if err != nil {
+			return err
+		}
+		val, err := strconv.Atoi(str)
+		if err != nil {
+			return err
+		}
+		*e = errorCode(val)
+	default:
+		return errors.Errorf("unknown code: %x", code)
+	}
+	return nil
+}
+
 // MSFError is an error about Metasploit RPC.
 type MSFError struct {
-	Err            bool     `msgpack:"error"`
-	ErrorClass     string   `msgpack:"error_class"`
-	ErrorString    string   `msgpack:"error_string"`
-	ErrorBacktrace []string `msgpack:"error_backtrace"`
-	ErrorMessage   string   `msgpack:"error_message"`
-	ErrorCode      int64    `msgpack:"error_code"`
+	Err            bool      `msgpack:"error"`
+	ErrorClass     string    `msgpack:"error_class"`
+	ErrorString    string    `msgpack:"error_string"`
+	ErrorBacktrace []string  `msgpack:"error_backtrace"`
+	ErrorMessage   string    `msgpack:"error_message"`
+	ErrorCode      errorCode `msgpack:"error_code"`
 }
 
 func (err *MSFError) Error() string {
 	return err.ErrorMessage
-}
-
-// for msgpack marshal as array.
-type asArray interface {
-	asArray()
 }
 
 const success = "success"
@@ -141,8 +175,6 @@ type AuthLoginRequest struct {
 	Password string
 }
 
-func (alr *AuthLoginRequest) asArray() {}
-
 // AuthLoginResult is the result about login.
 type AuthLoginResult struct {
 	Result string `msgpack:"result"`
@@ -157,8 +189,6 @@ type AuthLogoutRequest struct {
 	LogoutToken string // will be deleted
 }
 
-func (alr *AuthLogoutRequest) asArray() {}
-
 // AuthLogoutResult is the result about logout.
 type AuthLogoutResult struct {
 	Result string `msgpack:"result"`
@@ -170,8 +200,6 @@ type AuthTokenListRequest struct {
 	Method string
 	Token  string
 }
-
-func (atr *AuthTokenListRequest) asArray() {}
 
 // AuthTokenListResult is the result about token list.
 type AuthTokenListResult struct {
@@ -199,8 +227,6 @@ type AuthTokenAddRequest struct {
 	NewToken string
 }
 
-func (ata *AuthTokenAddRequest) asArray() {}
-
 // AuthTokenAddResult is the result about add token.
 type AuthTokenAddResult struct {
 	Result string `msgpack:"result"`
@@ -213,8 +239,6 @@ type AuthTokenRemoveRequest struct {
 	Token            string
 	TokenToBeRemoved string
 }
-
-func (atr *AuthTokenRemoveRequest) asArray() {}
 
 // AuthTokenRemoveResult is the result about remove token.
 type AuthTokenRemoveResult struct {

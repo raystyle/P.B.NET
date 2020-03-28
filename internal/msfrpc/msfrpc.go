@@ -23,9 +23,12 @@ type MSFRPC struct {
 	url      string
 	client   *http.Client
 
-	bufPool sync.Pool
-	token   string
-	rwm     sync.RWMutex
+	bufferPool  sync.Pool
+	encoderPool sync.Pool
+	decoderPool sync.Pool
+
+	token string
+	rwm   sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -79,33 +82,31 @@ func NewMSFRPC(host string, port uint16, username, password string, opts *Option
 		handler = opts.Handler
 	}
 	msfrpc.url = fmt.Sprintf("%s://%s:%d/%s", scheme, host, port, handler)
-	// buffer pool
-	msfrpc.bufPool.New = func() interface{} {
+	// pool
+	msfrpc.bufferPool.New = func() interface{} {
 		buf := bytes.NewBuffer(make([]byte, 0, 64))
 		return buf
+	}
+	msfrpc.encoderPool.New = func() interface{} {
+		encoder := msgpack.NewEncoder(nil)
+		encoder.StructAsArray(true)
+		return encoder
+	}
+	msfrpc.decoderPool.New = func() interface{} {
+		return msgpack.NewDecoder(nil)
 	}
 	msfrpc.ctx, msfrpc.cancel = context.WithCancel(context.Background())
 	return &msfrpc, nil
 }
 
 func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) error {
-	buf := msf.bufPool.Get().(*bytes.Buffer)
-	defer msf.bufPool.Put(buf)
+	buf := msf.bufferPool.Get().(*bytes.Buffer)
+	defer msf.bufferPool.Put(buf)
 	buf.Reset()
-
 	// pack request
-	if _, ok := request.(asArray); ok {
-		encoder := msgpack.NewEncoder(buf)
-		encoder.StructAsArray(true)
-		err := encoder.Encode(request)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	} else {
-		err := msgpack.NewEncoder(buf).Encode(request)
-		if err != nil {
-			return errors.WithStack(err)
-		}
+	err := msf.encodeRequest(request, buf)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, msf.url, buf)
 	if err != nil {
@@ -114,24 +115,24 @@ func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) erro
 	req.Header.Set("Content-Type", "binary/message-pack")
 	req.Header.Set("Accept", "binary/message-pack")
 	req.Header.Set("Accept-Charset", "UTF-8")
-
 	// do
 	resp, err := msf.client.Do(req)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-
 	// read response body
 	switch resp.StatusCode {
 	case http.StatusOK:
+		// buf := bytes.NewBuffer(nil)
 		// b, _ := ioutil.ReadAll(resp.Body)
 		// fmt.Println(string(b))
-
-		return msgpack.NewDecoder(resp.Body).Decode(response)
+		// buf.Write(b)
+		// return msf.decodeResponse(response, buf)
+		return msf.decodeResponse(response, resp.Body)
 	case http.StatusInternalServerError:
 		var msfErr MSFError
-		err = msgpack.NewDecoder(resp.Body).Decode(&msfErr)
+		err = msf.decodeResponse(&msfErr, resp.Body)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -149,21 +150,36 @@ func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) erro
 	return err
 }
 
-func (msf *MSFRPC) setToken(token string) {
+func (msf *MSFRPC) encodeRequest(request interface{}, buf *bytes.Buffer) error {
+	encoder := msf.encoderPool.Get().(*msgpack.Encoder)
+	defer msf.encoderPool.Put(encoder)
+	encoder.Reset(buf)
+	return encoder.Encode(request)
+}
+
+func (msf *MSFRPC) decodeResponse(response interface{}, reader io.Reader) error {
+	decoder := msf.decoderPool.Get().(*msgpack.Decoder)
+	defer msf.decoderPool.Put(decoder)
+	decoder.Reset(reader)
+	return decoder.Decode(response)
+}
+
+// SetToken is used to set token to current client.
+func (msf *MSFRPC) SetToken(token string) {
 	msf.rwm.Lock()
 	defer msf.rwm.Unlock()
 	msf.token = token
 }
 
-func (msf *MSFRPC) getToken() string {
+// GetToken is used to get token from current client.
+func (msf *MSFRPC) GetToken() string {
 	msf.rwm.RLock()
 	defer msf.rwm.RUnlock()
 	return msf.token
 }
 
-// Login is used to login metasploit RPC and get token.
-// if use permanent token, dont need to call Login(),
-// but need Logout().
+// Login is used to login metasploit RPC and get a temporary token.
+// if use permanent token, dont need to call Login() but need Logout().
 func (msf *MSFRPC) Login() error {
 	request := AuthLoginRequest{
 		Method:   MethodAuthLogin,
@@ -178,15 +194,15 @@ func (msf *MSFRPC) Login() error {
 	if result.Err {
 		return &result.MSFError
 	}
-	msf.setToken(result.Token)
+	msf.SetToken(result.Token)
 	return nil
 }
 
-// Logout is used to delete token.
+// Logout is used to logout user but not delete permanent token.
 func (msf *MSFRPC) Logout(token string) error {
 	request := AuthLogoutRequest{
 		Method:      MethodAuthLogout,
-		Token:       msf.getToken(),
+		Token:       msf.GetToken(),
 		LogoutToken: token,
 	}
 	var result AuthLogoutResult
@@ -197,9 +213,6 @@ func (msf *MSFRPC) Logout(token string) error {
 	if result.Err {
 		return &result.MSFError
 	}
-	if result.Result != success {
-		return errors.New(result.Result)
-	}
 	return nil
 }
 
@@ -207,7 +220,7 @@ func (msf *MSFRPC) Logout(token string) error {
 func (msf *MSFRPC) TokenList() ([]string, error) {
 	request := AuthTokenListRequest{
 		Method: MethodAuthTokenList,
-		Token:  msf.getToken(),
+		Token:  msf.GetToken(),
 	}
 	var result AuthTokenListResult
 	err := msf.send(msf.ctx, &request, &result)
@@ -222,7 +235,7 @@ func (msf *MSFRPC) TokenList() ([]string, error) {
 
 // Close is used to logout metasploit RPC.
 func (msf *MSFRPC) Close() error {
-	err := msf.Logout(msf.getToken())
+	err := msf.Logout(msf.GetToken())
 	if err != nil {
 		return err
 	}
@@ -232,7 +245,7 @@ func (msf *MSFRPC) Close() error {
 
 // Kill is ued to logout metasploit RPC when can't connect target.
 func (msf *MSFRPC) Kill() {
-	_ = msf.Logout(msf.getToken())
+	_ = msf.Logout(msf.GetToken())
 	msf.close()
 }
 
