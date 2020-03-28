@@ -86,3 +86,39 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_CoreReloadModules(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		status, err := msfrpc.CoreReloadModules()
+		require.NoError(t, err)
+		t.Log("exploit:", status.Exploit)
+		t.Log("auxiliary:", status.Auxiliary)
+		t.Log("post:", status.Post)
+		t.Log("payload:", status.Payload)
+		t.Log("encoder:", status.Encoder)
+		t.Log("nop:", status.Nop)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		status, err := msfrpc.CoreReloadModules()
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, status)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			status, err := msfrpc.CoreReloadModules()
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, status)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}

@@ -8,10 +8,11 @@ import (
 	"github.com/vmihailenco/msgpack/v4/codes"
 )
 
+// reference:
 // https://metasploit.help.rapid7.com/docs/standard-api-methods-reference
 // https://rapid7.github.io/metasploit-framework/api/Msf/RPC.html
 
-// errorCode maybe uint16 or string.
+// errorCode maybe uint16 or string, so need use custom msgpack decoder.
 type errorCode uint64
 
 func (e *errorCode) DecodeMsgpack(decoder *msgpack.Decoder) error {
@@ -275,6 +276,23 @@ type CoreAddModulePathRequest struct {
 
 // CoreAddModulePathResult is the result about add module.
 type CoreAddModulePathResult struct {
+	Exploit   int `msgpack:"exploits"`
+	Auxiliary int `msgpack:"auxiliary"`
+	Post      int `msgpack:"post"`
+	Payload   int `msgpack:"payloads"`
+	Encoder   int `msgpack:"encoders"`
+	Nop       int `msgpack:"nops"`
+	MSFError
+}
+
+// CoreReloadModulesRequest is used to reload modules.
+type CoreReloadModulesRequest struct {
+	Method string
+	Token  string
+}
+
+// CoreReloadModulesResult is the result about reload modules.
+type CoreReloadModulesResult struct {
 	Exploit   int `msgpack:"exploits"`
 	Auxiliary int `msgpack:"auxiliary"`
 	Post      int `msgpack:"post"`
