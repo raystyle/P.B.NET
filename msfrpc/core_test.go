@@ -319,3 +319,36 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_CoreVersion(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		version, err := msfrpc.CoreVersion()
+		require.NoError(t, err)
+		t.Log("version:", version.Version)
+		t.Log("ruby:", version.Ruby)
+		t.Log("api:", version.API)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		version, err := msfrpc.CoreVersion()
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, version)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			version, err := msfrpc.CoreVersion()
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, version)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}

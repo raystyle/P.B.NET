@@ -352,13 +352,6 @@ type CoreGetGRequest struct {
 	Name   string
 }
 
-// CoreGetGResult is the result of get global option.
-type CoreGetGResult struct {
-	Result string `msgpack:"result"`
-	Value  string `msgpack:"value"`
-	MSFError
-}
-
 // CoreUnsetGRequest is used to unset global option.
 type CoreUnsetGRequest struct {
 	Method string
@@ -372,7 +365,7 @@ type CoreUnsetGResult struct {
 	MSFError
 }
 
-// CoreSave is used to save current global data store.
+// CoreSaveRequest is used to save current global data store.
 type CoreSaveRequest struct {
 	Method string
 	Token  string
@@ -382,4 +375,18 @@ type CoreSaveRequest struct {
 type CoreSaveResult struct {
 	Result string `msgpack:"result"`
 	MSFError
+}
+
+// CoreVersionRequest is used to get version.
+type CoreVersionRequest struct {
+	Method string
+	Token  string
+}
+
+// CoreVersion contain information the running framework instance,
+// the Ruby interpreter, and the RPC protocol version being used.
+type CoreVersion struct {
+	Version string
+	Ruby    string
+	API     string
 }
