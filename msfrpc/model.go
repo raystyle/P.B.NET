@@ -79,7 +79,7 @@ const (
 	MethodCoreSave          = "core.save"
 	MethodCoreVersion       = "core.version"
 
-	// MethodConsoleCreate  = "console.create"
+	MethodConsoleCreate = "console.create"
 	// MethodConsoleList    = "console.list"
 	// MethodConsoleTabs    = "console.tabs"
 	// MethodConsoleDestroy = "console.destroy"
@@ -383,10 +383,25 @@ type CoreVersionRequest struct {
 	Token  string
 }
 
-// CoreVersion contain information the running framework instance,
+// CoreVersionResult contain information the running framework instance,
 // the Ruby interpreter, and the RPC protocol version being used.
-type CoreVersion struct {
-	Version string
-	Ruby    string
-	API     string
+type CoreVersionResult struct {
+	Version string `msgpack:"version"`
+	Ruby    string `msgpack:"ruby"`
+	API     string `msgpack:"api"`
+	MSFError
+}
+
+// ConsoleCreateRequest is used to create a console.
+type ConsoleCreateRequest struct {
+	Method string
+	Token  string
+}
+
+// ConsoleCreateResult is the result of create console.
+type ConsoleCreateResult struct {
+	ID     string `msgpack:"id"`
+	Prompt string `msgpack:"prompt"`
+	Busy   bool   `msgpack:"busy"`
+	MSFError
 }

@@ -185,27 +185,20 @@ func (msf *MSFRPC) CoreSave() error {
 	return nil
 }
 
-// CoreVersion is used to get basic version information about the running framework
+// CoreVersionResult is used to get basic version information about the running framework
 // instance, the Ruby interpreter, and the RPC protocol version being used.
-func (msf *MSFRPC) CoreVersion() (*CoreVersion, error) {
+func (msf *MSFRPC) CoreVersion() (*CoreVersionResult, error) {
 	request := CoreVersionRequest{
 		Method: MethodCoreVersion,
 		Token:  msf.GetToken(),
 	}
-	var (
-		result   map[string]string
-		msfError MSFError
-	)
-	err := msf.sendWithReplace(msf.ctx, &request, &result, &msfError)
+	var result CoreVersionResult
+	err := msf.send(msf.ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
-	if msfError.Err {
-		return nil, &msfError
+	if result.Err {
+		return nil, &result.MSFError
 	}
-	return &CoreVersion{
-		Version: result["version"],
-		Ruby:    result["ruby"],
-		API:     result["api"],
-	}, nil
+	return &result, nil
 }
