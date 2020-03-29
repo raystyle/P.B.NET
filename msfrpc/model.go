@@ -73,9 +73,9 @@ const (
 	MethodCoreReloadModules = "core.reload_modules"
 	MethodCoreThreadList    = "core.thread_list"
 	MethodCoreThreadKill    = "core.thread_kill"
-	MethodCoreGetG          = "core.getg"
 	MethodCoreSetG          = "core.setg"
 	MethodCoreUnsetG        = "core.unsetg"
+	MethodCoreGetG          = "core.getg"
 	MethodCoreSave          = "core.save"
 	MethodCoreVersion       = "core.version"
 
@@ -328,5 +328,33 @@ type CoreThreadKillRequest struct {
 // CoreThreadKillResult is the result about kill thread.
 type CoreThreadKillResult struct {
 	Result string `msgpack:"result"`
+	MSFError
+}
+
+// CoreSetGRequest is used to set global option.
+type CoreSetGRequest struct {
+	Method string
+	Token  string
+	Name   string
+	Value  string
+}
+
+// CoreSetGResult is the result of set global option.
+type CoreSetGResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// CoreGetGRequest is used to get global option.
+type CoreGetGRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// CoreGetGResult is the result of get global option.
+type CoreGetGResult struct {
+	Result string `msgpack:"result"`
+	Value  string `msgpack:"value"`
 	MSFError
 }

@@ -164,10 +164,6 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
-
-	})
-
-	t.Run("kill doesn't exist id", func(t *testing.T) {
 		err := msfrpc.CoreThreadKill(9999)
 		require.NoError(t, err)
 	})
@@ -182,6 +178,72 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.CoreThreadKill(0)
 			monkey.IsMonkeyError(t, err)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_CoreSetG(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.CoreSetG("test", "test value")
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		err := msfrpc.CoreSetG("test", "test value")
+		require.EqualError(t, err, testErrInvalidToken)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			err := msfrpc.CoreSetG("test", "test value")
+			monkey.IsMonkeyError(t, err)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_CoreGetG(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		const (
+			name  = "test"
+			value = "test value"
+		)
+		err := msfrpc.CoreSetG(name, value)
+		require.NoError(t, err)
+
+		val, err := msfrpc.CoreGetG(name)
+		require.NoError(t, err)
+		require.Equal(t, value, val)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		value, err := msfrpc.CoreGetG("test")
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Equal(t, "", value)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			value, err := msfrpc.CoreGetG("test")
+			monkey.IsMonkeyError(t, err)
+			require.Equal(t, "", value)
 		})
 	})
 

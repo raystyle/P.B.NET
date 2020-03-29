@@ -101,3 +101,49 @@ func (msf *MSFRPC) CoreThreadKill(id uint64) error {
 	}
 	return nil
 }
+
+// CoreSetG is used to set a global data store value in the framework instance of the
+// server. Examples of things that can be set include normal globals like LogLevel,
+// but also the fallback for any modules launched from this point on. For example, the
+// Proxies global option can be set, which would indicate that all modules launched
+// from that point on should go through a specific chain of proxies, unless the Proxies
+// option is specifically overridden for that module.
+func (msf *MSFRPC) CoreSetG(name, value string) error {
+	request := CoreSetGRequest{
+		Method: MethodCoreSetG,
+		Token:  msf.GetToken(),
+		Name:   name,
+		Value:  value,
+	}
+	var result CoreSetGResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	return nil
+}
+
+// CoreGetG is used to get global setting by name, If the option is not set,
+// then the value is empty.
+func (msf *MSFRPC) CoreGetG(name string) (string, error) {
+	request := CoreGetGRequest{
+		Method: MethodCoreGetG,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var (
+		result   map[string]string
+		msfError MSFError
+	)
+	err := msf.sendWithReplace(msf.ctx, &request, &result, &msfError)
+	if err != nil {
+		return "", err
+	}
+	if msfError.Err {
+		return "", &msfError
+	}
+	return result[name], nil
+}
