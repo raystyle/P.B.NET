@@ -9,7 +9,7 @@ import (
 const (
 	testNetwork = "tcp"
 	testAddress = "127.0.0.1:8990"
-	testRC4Key  = "acg"
+	// testRC4Key  = "acg"
 )
 
 func TestReverseTCP(t *testing.T) {
@@ -17,7 +17,7 @@ func TestReverseTCP(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestReverseTCPRC4(t *testing.T) {
-	err := ReverseTCPRC4(testNetwork, testAddress, "", []byte(testRC4Key))
-	require.NoError(t, err)
-}
+// func TestReverseTCPRC4(t *testing.T) {
+// 	err := ReverseTCPRC4(testNetwork, testAddress, "", []byte(testRC4Key))
+// 	require.NoError(t, err)
+// }
