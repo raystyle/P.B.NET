@@ -467,3 +467,29 @@ type ConsoleInfo struct {
 	Prompt string `msgpack:"prompt"`
 	Busy   bool   `msgpack:"busy"`
 }
+
+// ConsoleSessionDetachRequest is used to background an interactive session.
+type ConsoleSessionDetachRequest struct {
+	Method string
+	Token  string
+	ID     string
+}
+
+// ConsoleSessionDetachResult is the result of detach session.
+type ConsoleSessionDetachResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// ConsoleSessionKillRequest is used to kill an interactive session.
+type ConsoleSessionKillRequest struct {
+	Method string
+	Token  string
+	ID     string
+}
+
+// ConsoleSessionKillResult is the result of kill session.
+type ConsoleSessionKillResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}

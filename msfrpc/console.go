@@ -119,3 +119,54 @@ func (msf *MSFRPC) ConsoleList() ([]*ConsoleInfo, error) {
 	}
 	return result.Consoles, nil
 }
+
+// ConsoleSessionDetach is used to background an interactive session in the Metasploit
+// Framework Console. This method can be used to return to the main Metasploit prompt
+// after entering an interactive session through a sessions –i console command or through
+// an exploit.
+func (msf *MSFRPC) ConsoleSessionDetach(id string) error {
+	request := ConsoleSessionDetachRequest{
+		Method: MethodConsoleSessionDetach,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result ConsoleSessionDetachResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	if result.Result != "success" {
+		const format = "failed to detach session about console %s: %s"
+		return errors.Errorf(format, id, result.Result)
+	}
+	return nil
+}
+
+// ConsoleSessionKill is used to abort an interactive session in the Metasploit Framework
+// Console. This method should only be used after a sessions –i command has been written
+// or an exploit was called through the Console API. In most cases, the session API methods
+// are a better way to session termination, while the console.session_detach method is a
+// better way to drop back to the main Metasploit console.
+func (msf *MSFRPC) ConsoleSessionKill(id string) error {
+	request := ConsoleSessionKillRequest{
+		Method: MethodConsoleSessionKill,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result ConsoleSessionKillResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	if result.Result != "success" {
+		const format = "failed to kill session about console %s: %s"
+		return errors.Errorf(format, id, result.Result)
+	}
+	return nil
+}
