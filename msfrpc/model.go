@@ -57,8 +57,6 @@ func (err *MSFError) Error() string {
 	return err.ErrorMessage
 }
 
-const success = "success"
-
 // ------------------------------------------about methods-----------------------------------------
 const (
 	MethodAuthLogin         = "auth.login"
@@ -79,12 +77,11 @@ const (
 	MethodCoreSave          = "core.save"
 	MethodCoreVersion       = "core.version"
 
-	MethodConsoleCreate = "console.create"
-	// MethodConsoleList    = "console.list"
-	// MethodConsoleTabs    = "console.tabs"
-	// MethodConsoleDestroy = "console.destroy"
+	MethodConsoleCreate  = "console.create"
+	MethodConsoleDestroy = "console.destroy"
 	// MethodConsoleRead    = "console.read"
 	// MethodConsoleWrite   = "console.write"
+	MethodConsoleList = "console.list"
 
 // MethodDBConnect          = "db.connect"
 // MethodDBStatus           = "db.status"
@@ -404,4 +401,36 @@ type ConsoleCreateResult struct {
 	Prompt string `msgpack:"prompt"`
 	Busy   bool   `msgpack:"busy"`
 	MSFError
+}
+
+// ConsoleDestroyRequest is used to destroy a console.
+type ConsoleDestroyRequest struct {
+	Method string
+	Token  string
+	ID     string
+}
+
+// ConsoleDestroyResult is the result about destroy console.
+type ConsoleDestroyResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// ConsoleListRequest is used to list console.
+type ConsoleListRequest struct {
+	Method string
+	Token  string
+}
+
+// ConsoleListResult is the result of list console.
+type ConsoleListResult struct {
+	Consoles []*ConsoleInfo `msgpack:"consoles"`
+	MSFError
+}
+
+// ConsoleInfo include console information.
+type ConsoleInfo struct {
+	ID     string `msgpack:"id"`
+	Prompt string `msgpack:"prompt"`
+	Busy   bool   `msgpack:"busy"`
 }

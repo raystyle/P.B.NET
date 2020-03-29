@@ -1,5 +1,9 @@
 package msfrpc
 
+import (
+	"github.com/pkg/errors"
+)
+
 // ConsoleCreate is used to allocate a new console instance. The server will return a
 // Console ID ("id") that is required to read, write, and otherwise interact with the
 // new console. The "prompt" element in the return value indicates the current prompt
@@ -23,4 +27,45 @@ func (msf *MSFRPC) ConsoleCreate() (*ConsoleCreateResult, error) {
 		return nil, &result.MSFError
 	}
 	return &result, nil
+}
+
+// ConsoleDestroy is used to destroy a running console instance by Console ID. Consoles
+// should always be destroyed after the caller is finished to prevent resource leaks on
+// the server side. If an invalid Console ID is specified.
+func (msf *MSFRPC) ConsoleDestroy(id string) error {
+	request := ConsoleDestroyRequest{
+		Method: MethodConsoleDestroy,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result ConsoleDestroyResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	if result.Result != "success" {
+		return errors.New("invalid console id: " + id)
+	}
+	return nil
+}
+
+// ConsoleList is used to return a hash of all existing Console IDs, their status,
+// and their prompts.
+func (msf *MSFRPC) ConsoleList() ([]*ConsoleInfo, error) {
+	request := ConsoleListRequest{
+		Method: MethodConsoleList,
+		Token:  msf.GetToken(),
+	}
+	var result ConsoleListResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Consoles, nil
 }
