@@ -11,6 +11,8 @@ import (
 	"project/internal/xpanic"
 )
 
+const scheduleCount = 16384
+
 func doUseless(ctx context.Context, ch chan []byte) {
 	defer func() {
 		if r := recover(); r != nil {

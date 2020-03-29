@@ -97,6 +97,7 @@ func VirtualProtect(shellcode []byte) error {
 		pageReadWrite = uintptr(0x04)
 		pageExecute   = uintptr(0x10)
 		memRelease    = uintptr(0x8000)
+		infinite      = uintptr(0xFFFFFFFF)
 	)
 	schedule()
 	memAddr, _, err := vpVirtualAlloc.Call(0, uintptr(l),
@@ -109,7 +110,7 @@ func VirtualProtect(shellcode []byte) error {
 	rand := random.New()
 	count := 0
 	for i := 0; i < l; i++ {
-		if count > 32 {
+		if count > scheduleCount {
 			schedule()
 			count = 0
 		} else {
@@ -139,8 +140,7 @@ func VirtualProtect(shellcode []byte) error {
 		return errors.WithStack(err)
 	}
 	schedule()
-	_, _, _ = vpWaitForSingleObject.Call(threadAddr, 0xFFFFFFFF)
-
+	_, _, _ = vpWaitForSingleObject.Call(threadAddr, infinite)
 	// set read write
 	schedule()
 	ok, _, err = vpVirtualProtect.Call(memAddr, uintptr(l),
@@ -223,6 +223,7 @@ func CreateThread(shellcode []byte) error {
 		memReserve           = uintptr(0x2000)
 		pageExecuteReadWrite = uintptr(0x40)
 		memRelease           = uintptr(0x8000)
+		infinite             = uintptr(0xFFFFFFFF)
 	)
 	schedule()
 	memAddr, _, err := tVirtualAlloc.Call(0, uintptr(l),
@@ -235,7 +236,7 @@ func CreateThread(shellcode []byte) error {
 	rand := random.New()
 	count := 0
 	for i := 0; i < l; i++ {
-		if count > 32 {
+		if count > scheduleCount {
 			schedule()
 			count = 0
 		} else {
@@ -256,7 +257,7 @@ func CreateThread(shellcode []byte) error {
 		return errors.WithStack(err)
 	}
 	schedule()
-	_, _, _ = tWaitForSingleObject.Call(threadAddr, 0xFFFFFFFF)
+	_, _, _ = tWaitForSingleObject.Call(threadAddr, infinite)
 
 	// cover shellcode and free allocated memory
 	schedule()

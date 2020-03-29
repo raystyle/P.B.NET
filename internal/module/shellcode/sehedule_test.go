@@ -7,9 +7,13 @@ import (
 
 	"project/internal/patch/monkey"
 	"project/internal/random"
+	"project/internal/testsuite"
 )
 
 func TestDoUseless(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("panic", func(t *testing.T) {
 		patchFunc := func() *random.Rand {
 			panic(monkey.Panic)
