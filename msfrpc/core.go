@@ -126,6 +126,24 @@ func (msf *MSFRPC) CoreSetG(name, value string) error {
 	return nil
 }
 
+// CoreUnsetG is used to unset (delete) a previously configured global option.
+func (msf *MSFRPC) CoreUnsetG(name string) error {
+	request := CoreUnsetGRequest{
+		Method: MethodCoreUnsetG,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result CoreUnsetGResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	return nil
+}
+
 // CoreGetG is used to get global setting by name, If the option is not set,
 // then the value is empty.
 func (msf *MSFRPC) CoreGetG(name string) (string, error) {
@@ -146,4 +164,23 @@ func (msf *MSFRPC) CoreGetG(name string) (string, error) {
 		return "", &msfError
 	}
 	return result[name], nil
+}
+
+// CoreSave is used to save current global data store of the framework instance
+// to server's disk. This configuration will be loaded by default the next time
+// Metasploit is started by that user on that server.
+func (msf *MSFRPC) CoreSave() error {
+	request := CoreSaveRequest{
+		Method: MethodCoreSave,
+		Token:  msf.GetToken(),
+	}
+	var result CoreSaveResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	return nil
 }

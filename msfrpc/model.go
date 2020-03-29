@@ -358,3 +358,28 @@ type CoreGetGResult struct {
 	Value  string `msgpack:"value"`
 	MSFError
 }
+
+// CoreUnsetGRequest is used to unset global option.
+type CoreUnsetGRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// CoreUnsetGResult is the result of unset global option.
+type CoreUnsetGResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// CoreSave is used to save current global data store.
+type CoreSaveRequest struct {
+	Method string
+	Token  string
+}
+
+// CoreSaveResult is the result of save.
+type CoreSaveResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
