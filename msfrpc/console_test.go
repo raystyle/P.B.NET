@@ -78,6 +78,98 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+func TestMSFRPC_ConsoleWrite(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		console, err := msfrpc.ConsoleCreate()
+		require.NoError(t, err)
+
+		const data = "version\r\n"
+		n, err := msfrpc.ConsoleWrite(console.ID, data)
+		require.NoError(t, err)
+		require.Equal(t, uint64(len(data)), n)
+
+		err = msfrpc.ConsoleDestroy(console.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid console id", func(t *testing.T) {
+		n, err := msfrpc.ConsoleWrite("999", "foo")
+		require.EqualError(t, err, "failed to write to console 999: failure")
+		require.Equal(t, uint64(0), n)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		n, err := msfrpc.ConsoleWrite("999", "foo")
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Equal(t, uint64(0), n)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			n, err := msfrpc.ConsoleWrite("999", "foo")
+			monkey.IsMonkeyError(t, err)
+			require.Equal(t, uint64(0), n)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ConsoleRead(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		console, err := msfrpc.ConsoleCreate()
+		require.NoError(t, err)
+
+		const data = "version\r\n"
+		n, err := msfrpc.ConsoleWrite(console.ID, data)
+		require.NoError(t, err)
+		require.Equal(t, uint64(len(data)), n)
+
+		output, err := msfrpc.ConsoleRead(console.ID)
+		require.NoError(t, err)
+		t.Log(output.Data)
+
+		err = msfrpc.ConsoleDestroy(console.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid console id", func(t *testing.T) {
+		output, err := msfrpc.ConsoleRead("999")
+		require.EqualError(t, err, "failed to read from console 999: failure")
+		require.Nil(t, output)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		output, err := msfrpc.ConsoleRead("999")
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, output)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			output, err := msfrpc.ConsoleRead("999")
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, output)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_ConsoleList(t *testing.T) {
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)

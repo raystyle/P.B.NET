@@ -77,11 +77,13 @@ const (
 	MethodCoreSave          = "core.save"
 	MethodCoreVersion       = "core.version"
 
-	MethodConsoleCreate  = "console.create"
-	MethodConsoleDestroy = "console.destroy"
-	// MethodConsoleRead    = "console.read"
-	// MethodConsoleWrite   = "console.write"
-	MethodConsoleList = "console.list"
+	MethodConsoleCreate        = "console.create"
+	MethodConsoleDestroy       = "console.destroy"
+	MethodConsoleRead          = "console.read"
+	MethodConsoleWrite         = "console.write"
+	MethodConsoleList          = "console.list"
+	MethodConsoleSessionDetach = "console.session_detach"
+	MethodConsoleSessionKill   = "console.session_kill"
 
 // MethodDBConnect          = "db.connect"
 // MethodDBStatus           = "db.status"
@@ -412,6 +414,37 @@ type ConsoleDestroyRequest struct {
 
 // ConsoleDestroyResult is the result about destroy console.
 type ConsoleDestroyResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// ConsoleWriteRequest is used to write data to a special console.
+type ConsoleWriteRequest struct {
+	Method string
+	Token  string
+	ID     string
+	Data   string
+}
+
+// ConsoleWriteResult is the result about write.
+type ConsoleWriteResult struct {
+	Wrote  uint64 `msgpack:"wrote"`
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// ConsoleReadRequest is used to read data from a special console.
+type ConsoleReadRequest struct {
+	Method string
+	Token  string
+	ID     string
+}
+
+// ConsoleReadResult is the result about read.
+type ConsoleReadResult struct {
+	Data   string `msgpack:"data"`
+	Prompt string `msgpack:"prompt"`
+	Busy   bool   `msgpack:"busy"`
 	Result string `msgpack:"result"`
 	MSFError
 }
