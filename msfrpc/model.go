@@ -507,3 +507,28 @@ type PluginLoadResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }
+
+// PluginUnloadRequest is used to unload plugin.
+type PluginUnloadRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// PluginUnloadResult is the result of unload plugin.
+type PluginUnloadResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// PluginLoadedRequest is used to enumerate all currently loaded plugins.
+type PluginLoadedRequest struct {
+	Method string
+	Token  string
+}
+
+// PluginLoadedResult is the plugin name list.
+type PluginLoadedResult struct {
+	Plugins []string `msgpack:"plugins"`
+	MSFError
+}

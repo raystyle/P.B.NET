@@ -28,3 +28,44 @@ func (msf *MSFRPC) PluginLoad(name string, opts map[string]string) error {
 	}
 	return nil
 }
+
+// PluginUnload is used to unload a previously loaded plugin by name. The name is not
+// always identical to the string used to load the plugin in the first place, so callers
+// should check the output of plugin.loaded when there is any confusion.
+func (msf *MSFRPC) PluginUnload(name string) error {
+	request := PluginUnloadRequest{
+		Method: MethodPluginUnload,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result PluginUnloadResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	if result.Result != "success" {
+		const format = "failed to unload plugin %s: %s"
+		return errors.Errorf(format, name, result.Result)
+	}
+	return nil
+}
+
+// PluginLoaded is used to enumerate all currently loaded plugins.
+func (msf *MSFRPC) PluginLoaded() ([]string, error) {
+	request := PluginLoadedRequest{
+		Method: MethodPluginLoaded,
+		Token:  msf.GetToken(),
+	}
+	var result PluginLoadedResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Plugins, nil
+}
