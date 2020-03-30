@@ -130,43 +130,43 @@ const (
 	MethodPluginUnload = "plugin.unload"
 	MethodPluginLoaded = "plugin.loaded"
 
-// MethodModuleExploits                 = "module.exploits"
-// MethodModuleAuxiliary                = "module.auxiliary"
-// MethodModulePayloads                 = "module.payloads"
-// MethodModuleEncoders                 = "module.encoders"
-// MethodModuleNops                     = "module.nops"
-// MethodModulePost                     = "module.post"
-// MethodModuleInfo                     = "module.info"
-// MethodModuleCompatiblePayloads       = "module.compatible_payloads"
-// MethodModuleCompatibleSessions       = "module.compatible_sessions"
-// MethodModuleTargetCompatiblePayloads = "module.target_compatible_payloads"
-// MethodModuleOptions                  = "module.options"
-// MethodModuleExecute                  = "module.execute"
-// MethodModuleEncodeFormats            = "module.encode_formats"
-// MethodModuleEncode                   = "module.encode"
-//
-// MethodJobList = "job.list"
-// MethodJobStop = "job.stop"
-// MethodJobInfo = "job.info"
-//
-// MethodSessionList                          = "session.list"
-// MethodSessionStop                          = "session.stop"
-// MethodSessionShellRead                     = "session.shell_read"
-// MethodSessionShellWrite                    = "session.shell_write"
-// MethodSessionShellUpgrade                  = "session.shell_upgrade"
-// MethodSessionRingRead                      = "session.ring_read"
-// MethodSessionRingPut                       = "session.ring_put"
-// MethodSessionRingLast                      = "session.ring_last"
-// MethodSessionRingClear                     = "session.ring_clear"
-// MethodSessionMeterpreterRead               = "session.meterpreter_read"
-// MethodSessionMeterpreterWrite              = "session.meterpreter_write"
-// MethodSessionMeterpreterSessionDetach      = "session.meterpreter_session_detach"
-// MethodSessionMeterpreterSessionKill        = "session.meterpreter_session_kill"
-// MethodSessionMeterpreterTabs               = "session.meterpreter_tabs"
-// MethodSessionMeterpreterRunSingle          = "session.meterpreter_run_single"
-// MethodSessionMeterpreterScript             = "session.meterpreter_script"
-// MethodSessionMeterpreterDirectorySeparator = "session.meterpreter_directory_separator"
-// MethodSessionCompatibleModules             = "session.compatible_modules"
+	// MethodModuleExploits                 = "module.exploits"
+	// MethodModuleAuxiliary                = "module.auxiliary"
+	// MethodModulePayloads                 = "module.payloads"
+	// MethodModuleEncoders                 = "module.encoders"
+	// MethodModuleNops                     = "module.nops"
+	// MethodModulePost                     = "module.post"
+	// MethodModuleInfo                     = "module.info"
+	// MethodModuleCompatiblePayloads       = "module.compatible_payloads"
+	// MethodModuleCompatibleSessions       = "module.compatible_sessions"
+	// MethodModuleTargetCompatiblePayloads = "module.target_compatible_payloads"
+	// MethodModuleOptions                  = "module.options"
+	// MethodModuleExecute                  = "module.execute"
+	// MethodModuleEncodeFormats            = "module.encode_formats"
+	// MethodModuleEncode                   = "module.encode"
+
+	MethodJobList = "job.list"
+	MethodJobInfo = "job.info"
+	MethodJobStop = "job.stop"
+
+	// MethodSessionList                          = "session.list"
+	// MethodSessionStop                          = "session.stop"
+	// MethodSessionShellRead                     = "session.shell_read"
+	// MethodSessionShellWrite                    = "session.shell_write"
+	// MethodSessionShellUpgrade                  = "session.shell_upgrade"
+	// MethodSessionRingRead                      = "session.ring_read"
+	// MethodSessionRingPut                       = "session.ring_put"
+	// MethodSessionRingLast                      = "session.ring_last"
+	// MethodSessionRingClear                     = "session.ring_clear"
+	// MethodSessionMeterpreterRead               = "session.meterpreter_read"
+	// MethodSessionMeterpreterWrite              = "session.meterpreter_write"
+	// MethodSessionMeterpreterSessionDetach      = "session.meterpreter_session_detach"
+	// MethodSessionMeterpreterSessionKill        = "session.meterpreter_session_kill"
+	// MethodSessionMeterpreterTabs               = "session.meterpreter_tabs"
+	// MethodSessionMeterpreterRunSingle          = "session.meterpreter_run_single"
+	// MethodSessionMeterpreterScript             = "session.meterpreter_script"
+	// MethodSessionMeterpreterDirectorySeparator = "session.meterpreter_directory_separator"
+	// MethodSessionCompatibleModules             = "session.compatible_modules"
 )
 
 // -------------------------------------------about auth-------------------------------------------
@@ -530,5 +530,27 @@ type PluginLoadedRequest struct {
 // PluginLoadedResult is the plugin name list.
 type PluginLoadedResult struct {
 	Plugins []string `msgpack:"plugins"`
+	MSFError
+}
+
+// JobListRequest is used to list jobs.
+type JobListRequest struct {
+	Method string
+	Token  string
+}
+
+// JobInfoRequest is used to get job information by job id.
+type JobInfoRequest struct {
+	Method string
+	Token  string
+	ID     string
+}
+
+// JobInfoResult is the result of get job information.
+type JobInfoResult struct {
+	JobID     uint64            `msgpack:"jid"`
+	Name      string            `msgpack:"name"`
+	StartTime uint64            `msgpack:"start_time"`
+	DataStore map[string]string `msgpack:"datastore"`
 	MSFError
 }
