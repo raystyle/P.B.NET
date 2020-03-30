@@ -12,6 +12,9 @@ import (
 )
 
 func TestMSFRPC_JobList(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -81,6 +84,9 @@ func TestMSFRPC_JobList(t *testing.T) {
 }
 
 func TestMSFRPC_JobInfo(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -160,6 +166,9 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 }
 
 func TestMSFRPC_JobStop(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()

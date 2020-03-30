@@ -11,6 +11,9 @@ import (
 )
 
 func TestMSFRPC_CoreModuleStats(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -47,6 +50,9 @@ func TestMSFRPC_CoreModuleStats(t *testing.T) {
 }
 
 func TestMSFRPC_CoreAddModulePath(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -89,6 +95,9 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 }
 
 func TestMSFRPC_CoreReloadModules(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -125,6 +134,9 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 }
 
 func TestMSFRPC_CoreThreadList(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -158,6 +170,9 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 }
 
 func TestMSFRPC_CoreThreadKill(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -186,6 +201,9 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 }
 
 func TestMSFRPC_CoreSetG(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -214,6 +232,9 @@ func TestMSFRPC_CoreSetG(t *testing.T) {
 }
 
 func TestMSFRPC_CoreGetG(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -252,6 +273,9 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 }
 
 func TestMSFRPC_CoreUnsetG(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -293,6 +317,9 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 }
 
 func TestMSFRPC_CoreSave(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -321,6 +348,9 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 }
 
 func TestMSFRPC_CoreVersion(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()

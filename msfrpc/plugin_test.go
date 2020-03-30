@@ -17,6 +17,9 @@ const (
 var testPluginOptions = map[string]string{"opt-a": "a", "opt-b": "b"}
 
 func TestMSFRPC_PluginLoad(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -50,6 +53,9 @@ func TestMSFRPC_PluginLoad(t *testing.T) {
 }
 
 func TestMSFRPC_PluginUnload(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -86,6 +92,9 @@ func TestMSFRPC_PluginUnload(t *testing.T) {
 }
 
 func TestMSFRPC_PluginLoaded(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()

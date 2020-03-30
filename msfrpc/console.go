@@ -52,31 +52,6 @@ func (msf *MSFRPC) ConsoleDestroy(id string) error {
 	return nil
 }
 
-// ConsoleWrite is used to send data to a specific console, just as if it had been typed
-// by a normal user. This means that most commands will need a newline included at the
-// end for the console to process them properly.
-func (msf *MSFRPC) ConsoleWrite(id, data string) (uint64, error) {
-	request := ConsoleWriteRequest{
-		Method: MethodConsoleWrite,
-		Token:  msf.GetToken(),
-		ID:     id,
-		Data:   data,
-	}
-	var result ConsoleWriteResult
-	err := msf.send(msf.ctx, &request, &result)
-	if err != nil {
-		return 0, err
-	}
-	if result.Err {
-		return 0, &result.MSFError
-	}
-	if result.Result != "" {
-		const format = "failed to write to console %s: %s"
-		return 0, errors.Errorf(format, id, result.Result)
-	}
-	return result.Wrote, nil
-}
-
 // ConsoleRead is used to return any output currently buffered by the console that has
 // not already been read. The data is returned in the raw form printed by the actual
 // console. Note that a newly allocated console will have the initial banner available
@@ -100,6 +75,31 @@ func (msf *MSFRPC) ConsoleRead(id string) (*ConsoleReadResult, error) {
 		return nil, errors.Errorf(format, id, result.Result)
 	}
 	return &result, nil
+}
+
+// ConsoleWrite is used to send data to a specific console, just as if it had been typed
+// by a normal user. This means that most commands will need a newline included at the
+// end for the console to process them properly.
+func (msf *MSFRPC) ConsoleWrite(id, data string) (uint64, error) {
+	request := ConsoleWriteRequest{
+		Method: MethodConsoleWrite,
+		Token:  msf.GetToken(),
+		ID:     id,
+		Data:   data,
+	}
+	var result ConsoleWriteResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return 0, err
+	}
+	if result.Err {
+		return 0, &result.MSFError
+	}
+	if result.Result != "" {
+		const format = "failed to write to console %s: %s"
+		return 0, errors.Errorf(format, id, result.Result)
+	}
+	return result.Wrote, nil
 }
 
 // ConsoleList is used to return a hash of all existing Console IDs, their status,

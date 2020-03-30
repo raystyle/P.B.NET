@@ -46,6 +46,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestNewMSFRPC(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("ok", func(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 		require.NoError(t, err)
@@ -84,6 +87,9 @@ func TestNewMSFRPC(t *testing.T) {
 }
 
 func TestMSFRPC_sendWithReplace(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -134,6 +140,9 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 }
 
 func TestMSFRPC_send(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	ctx := context.Background()
 
 	t.Run("invalid request", func(t *testing.T) {
@@ -178,6 +187,7 @@ func TestMSFRPC_send(t *testing.T) {
 	port := testsuite.RunHTTPServer(t, "tcp", &server)
 	portNum, err := strconv.Atoi(port)
 	require.NoError(t, err)
+	defer func() { _ = server.Close() }()
 
 	t.Run("internal server error_ok", func(t *testing.T) {
 		portNum := uint16(portNum)
@@ -287,6 +297,9 @@ func testPatchSend(f func()) {
 }
 
 func TestMSFRPC_Login(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 
@@ -315,6 +328,9 @@ func TestMSFRPC_Login(t *testing.T) {
 }
 
 func TestMSFRPC_Logout(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 
@@ -346,6 +362,9 @@ func TestMSFRPC_Logout(t *testing.T) {
 }
 
 func TestMSFRPC_TokenList(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -385,6 +404,9 @@ func TestMSFRPC_TokenList(t *testing.T) {
 }
 
 func TestMSFRPC_TokenGenerate(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -420,6 +442,9 @@ func TestMSFRPC_TokenGenerate(t *testing.T) {
 }
 
 func TestMSFRPC_TokenAdd(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -465,6 +490,9 @@ func TestMSFRPC_TokenAdd(t *testing.T) {
 }
 
 func TestMSFRPC_TokenRemove(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 	err = msfrpc.Login()
@@ -515,6 +543,9 @@ func TestMSFRPC_TokenRemove(t *testing.T) {
 }
 
 func TestMSFRPC_Close(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 
