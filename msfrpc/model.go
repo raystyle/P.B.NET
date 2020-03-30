@@ -85,51 +85,51 @@ const (
 	MethodConsoleSessionDetach = "console.session_detach"
 	MethodConsoleSessionKill   = "console.session_kill"
 
-// MethodDBConnect          = "db.connect"
-// MethodDBStatus           = "db.status"
-// MethodDBDisconnect       = "db.disconnect"
-// MethodDBHosts            = "db.hosts"
-// MethodDBServices         = "db.services"
-// MethodDBVulns            = "db.vulns"
-// MethodDBWorkspaces       = "db.workspaces"
-// MethodDBCurrentWorkspace = "db.current_workspace"
-// MethodDBGetWorkspace     = "db.get_workspace"
-// MethodDBSetWorkspace     = "db.set_workspace"
-// MethodDBDelWorkspace     = "db.del_workspace"
-// MethodDBAddWorkspace     = "db.add_workspace"
-// MethodDBGetHost          = "db.get_host"
-// MethodDBReportHost       = "db.report_host"
-// MethodDBReportService    = "db.report_service"
-// MethodDBGetService       = "db.get_service"
-// MethodDBGetNote          = "db.get_note"
-// MethodDBGetClient        = "db.get_client"
-// MethodDBReportClient     = "db.report_client"
-// MethodDBReportNote       = "db.report_note"
-// MethodDBNotes            = "db.notes"
-// MethodDBReportAuthInfo   = "db.report_auth_info"
-// MethodDBGetAuthInfo      = "db.get_auth_info"
-// MethodDBGetRef           = "db.get_ref"
-// MethodDBDelVuln          = "db.del_vuln"
-// MethodDBDelNote          = "db.del_note"
-// MethodDBDelService       = "db.del_service"
-// MethodDBDelHost          = "db.del_host"
-// MethodDBReportVuln       = "db.report_vuln"
-// MethodDBEvents           = "db.events"
-// MethodDBReportEvent      = "db.report_event"
-// MethodDBReportLoot       = "db.report_loot"
-// MethodDBLoots            = "db.loots"
-// MethodDBReportCred       = "db.report_cred"
-// MethodDBCreds            = "db.creds"
-// MethodDBImportData       = "db.import_data"
-// MethodDBGetVuln          = "db.get_vuln"
-// MethodDBClients          = "db.clients"
-// MethodDBDelClient        = "db.del_client"
-// MethodDBDriver           = "db.driver"
-//
-// MethodPluginLoad   = "plugin.load"
-// MethodPluginUnload = "plugin.unload"
-// MethodPluginLoaded = "plugin.loaded"
-//
+	// MethodDBConnect          = "db.connect"
+	// MethodDBStatus           = "db.status"
+	// MethodDBDisconnect       = "db.disconnect"
+	// MethodDBHosts            = "db.hosts"
+	// MethodDBServices         = "db.services"
+	// MethodDBVulns            = "db.vulns"
+	// MethodDBWorkspaces       = "db.workspaces"
+	// MethodDBCurrentWorkspace = "db.current_workspace"
+	// MethodDBGetWorkspace     = "db.get_workspace"
+	// MethodDBSetWorkspace     = "db.set_workspace"
+	// MethodDBDelWorkspace     = "db.del_workspace"
+	// MethodDBAddWorkspace     = "db.add_workspace"
+	// MethodDBGetHost          = "db.get_host"
+	// MethodDBReportHost       = "db.report_host"
+	// MethodDBReportService    = "db.report_service"
+	// MethodDBGetService       = "db.get_service"
+	// MethodDBGetNote          = "db.get_note"
+	// MethodDBGetClient        = "db.get_client"
+	// MethodDBReportClient     = "db.report_client"
+	// MethodDBReportNote       = "db.report_note"
+	// MethodDBNotes            = "db.notes"
+	// MethodDBReportAuthInfo   = "db.report_auth_info"
+	// MethodDBGetAuthInfo      = "db.get_auth_info"
+	// MethodDBGetRef           = "db.get_ref"
+	// MethodDBDelVuln          = "db.del_vuln"
+	// MethodDBDelNote          = "db.del_note"
+	// MethodDBDelService       = "db.del_service"
+	// MethodDBDelHost          = "db.del_host"
+	// MethodDBReportVuln       = "db.report_vuln"
+	// MethodDBEvents           = "db.events"
+	// MethodDBReportEvent      = "db.report_event"
+	// MethodDBReportLoot       = "db.report_loot"
+	// MethodDBLoots            = "db.loots"
+	// MethodDBReportCred       = "db.report_cred"
+	// MethodDBCreds            = "db.creds"
+	// MethodDBImportData       = "db.import_data"
+	// MethodDBGetVuln          = "db.get_vuln"
+	// MethodDBClients          = "db.clients"
+	// MethodDBDelClient        = "db.del_client"
+	// MethodDBDriver           = "db.driver"
+
+	MethodPluginLoad   = "plugin.load"
+	MethodPluginUnload = "plugin.unload"
+	MethodPluginLoaded = "plugin.loaded"
+
 // MethodModuleExploits                 = "module.exploits"
 // MethodModuleAuxiliary                = "module.auxiliary"
 // MethodModulePayloads                 = "module.payloads"
@@ -490,6 +490,20 @@ type ConsoleSessionKillRequest struct {
 
 // ConsoleSessionKillResult is the result of kill session.
 type ConsoleSessionKillResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// PluginLoadRequest is used to load plugin.
+type PluginLoadRequest struct {
+	Method  string
+	Token   string
+	Name    string
+	Options map[string]string
+}
+
+// PluginLoadResult is the result of load plugin.
+type PluginLoadResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }
