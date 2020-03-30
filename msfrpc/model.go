@@ -548,9 +548,9 @@ type JobInfoRequest struct {
 
 // JobInfoResult is the result of get job information.
 type JobInfoResult struct {
-	JobID     uint64            `msgpack:"jid"`
-	Name      string            `msgpack:"name"`
-	StartTime uint64            `msgpack:"start_time"`
-	DataStore map[string]string `msgpack:"datastore"`
+	JobID     uint64                 `msgpack:"jid"`
+	Name      string                 `msgpack:"name"`
+	StartTime uint64                 `msgpack:"start_time"`
+	DataStore map[string]interface{} `msgpack:"datastore"`
 	MSFError
 }
