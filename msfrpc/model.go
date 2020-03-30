@@ -554,3 +554,16 @@ type JobInfoResult struct {
 	DataStore map[string]interface{} `msgpack:"datastore"`
 	MSFError
 }
+
+// JobStopRequest is used to stop job.
+type JobStopRequest struct {
+	Method string
+	Token  string
+	ID     string
+}
+
+// JobStopResult is the result of stop job.
+type JobStopResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}

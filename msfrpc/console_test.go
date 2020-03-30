@@ -1,7 +1,6 @@
 package msfrpc
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -290,16 +289,21 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 			n, err := msfrpc.ConsoleWrite(console.ID, command)
 			require.NoError(t, err)
 			require.Equal(t, uint64(len(command)), n)
-
-			// wait use handle and set payload
-			if strings.Contains(command, "handler") {
-				time.Sleep(3 * time.Second)
+			// don't wait exploit
+			if command == "exploit\r\n" {
+				break
 			}
-
-			output, err := msfrpc.ConsoleRead(console.ID)
-			require.NoError(t, err)
-			t.Logf("%s\n%s\n", output.Prompt, output.Data)
-			time.Sleep(100 * time.Millisecond)
+			for {
+				output, err := msfrpc.ConsoleRead(console.ID)
+				require.NoError(t, err)
+				if !output.Busy {
+					t.Logf("%s\n%s\n", output.Prompt, output.Data)
+					break
+				} else if len(output.Data) != 0 {
+					t.Logf("%s", output.Data)
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
 		}
 
 		// kill

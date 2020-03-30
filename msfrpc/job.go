@@ -44,3 +44,21 @@ func (msf *MSFRPC) JobInfo(id string) (*JobInfoResult, error) {
 	}
 	return &result, nil
 }
+
+// JobStop is used to terminate the job specified by the Job ID.
+func (msf *MSFRPC) JobStop(id string) error {
+	request := JobStopRequest{
+		Method: MethodJobStop,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result JobStopResult
+	err := msf.send(msf.ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		return &result.MSFError
+	}
+	return nil
+}
