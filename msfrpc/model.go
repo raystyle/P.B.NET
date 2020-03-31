@@ -132,10 +132,10 @@ const (
 
 	MethodModuleExploits  = "module.exploits"
 	MethodModuleAuxiliary = "module.auxiliary"
+	MethodModulePost      = "module.post"
 	MethodModulePayloads  = "module.payloads"
 	MethodModuleEncoders  = "module.encoders"
 	MethodModuleNops      = "module.nops"
-	MethodModulePost      = "module.post"
 	MethodModuleEvasion   = "module.evasion"
 
 	// MethodModuleInfo                     = "module.info"
@@ -551,6 +551,30 @@ type ModuleExploitsRequest struct {
 
 // ModuleExploitsResult is the result about get exploit modules.
 type ModuleExploitsResult struct {
+	Modules []string `msgpack:"modules"`
+	MSFError
+}
+
+// ModuleAuxiliaryRequest is used to get all modules about auxiliary.
+type ModuleAuxiliaryRequest struct {
+	Method string
+	Token  string
+}
+
+// ModuleAuxiliaryResult is the result of get auxiliary modules.
+type ModuleAuxiliaryResult struct {
+	Modules []string `msgpack:"modules"`
+	MSFError
+}
+
+// ModulePostRequest is used to get all modules about post.
+type ModulePostRequest struct {
+	Method string
+	Token  string
+}
+
+// ModulePostResult is the result of get post modules.
+type ModulePostResult struct {
 	Modules []string `msgpack:"modules"`
 	MSFError
 }
