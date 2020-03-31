@@ -591,6 +591,30 @@ type ModulePayloadsResult struct {
 	MSFError
 }
 
+// ModuleEncodersRequest is used to get all modules about encoders.
+type ModuleEncodersRequest struct {
+	Method string
+	Token  string
+}
+
+// ModuleEncodersResult is the result about get encoder modules.
+type ModuleEncodersResult struct {
+	Modules []string `msgpack:"modules"`
+	MSFError
+}
+
+// ModuleNopsRequest is used to get all modules about nop.
+type ModuleNopsRequest struct {
+	Method string
+	Token  string
+}
+
+// ModuleNopsResult is the result about get nop modules.
+type ModuleNopsResult struct {
+	Modules []string `msgpack:"modules"`
+	MSFError
+}
+
 // -------------------------------------------about job--------------------------------------------
 
 // JobListRequest is used to list jobs.

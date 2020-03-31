@@ -79,3 +79,41 @@ func (msf *MSFRPC) ModulePayloads(ctx context.Context) ([]string, error) {
 	}
 	return result.Modules, nil
 }
+
+// ModuleEncoders is used to returns a list of all loaded encoder modules in the
+// framework instance. Note that the encoder/ prefix is not included in the path
+// name of the return module.
+func (msf *MSFRPC) ModuleEncoders(ctx context.Context) ([]string, error) {
+	request := ModuleEncodersRequest{
+		Method: MethodModuleEncoders,
+		Token:  msf.GetToken(),
+	}
+	var result ModuleEncodersResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Modules, nil
+}
+
+// ModuleNops is used to returns a list of all loaded nop modules in the framework
+// instance. Note that the nop/ prefix is not included in the path name of
+// the return module.
+func (msf *MSFRPC) ModuleNops(ctx context.Context) ([]string, error) {
+	request := ModuleNopsRequest{
+		Method: MethodModuleNops,
+		Token:  msf.GetToken(),
+	}
+	var result ModuleNopsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Modules, nil
+}

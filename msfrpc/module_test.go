@@ -165,3 +165,81 @@ func TestMSFRPC_ModulePayloads(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_ModuleEncoders(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		modules, err := msfrpc.ModuleEncoders(ctx)
+		require.NoError(t, err)
+
+		for i := 0; i < len(modules); i++ {
+			t.Log(modules[i])
+		}
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		modules, err := msfrpc.ModuleEncoders(ctx)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, modules)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			modules, err := msfrpc.ModuleEncoders(ctx)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, modules)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleNops(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		modules, err := msfrpc.ModuleNops(ctx)
+		require.NoError(t, err)
+
+		for i := 0; i < len(modules); i++ {
+			t.Log(modules[i])
+		}
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		modules, err := msfrpc.ModuleNops(ctx)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, modules)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			modules, err := msfrpc.ModuleNops(ctx)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, modules)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
