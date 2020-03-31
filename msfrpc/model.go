@@ -130,20 +130,22 @@ const (
 	MethodPluginUnload = "plugin.unload"
 	MethodPluginLoaded = "plugin.loaded"
 
-	// MethodModuleExploits                 = "module.exploits"
-	// MethodModuleAuxiliary                = "module.auxiliary"
-	// MethodModulePayloads                 = "module.payloads"
-	// MethodModuleEncoders                 = "module.encoders"
-	// MethodModuleNops                     = "module.nops"
-	// MethodModulePost                     = "module.post"
+	MethodModuleExploits  = "module.exploits"
+	MethodModuleAuxiliary = "module.auxiliary"
+	MethodModulePayloads  = "module.payloads"
+	MethodModuleEncoders  = "module.encoders"
+	MethodModuleNops      = "module.nops"
+	MethodModulePost      = "module.post"
+	MethodModuleEvasion   = "module.evasion"
+
 	// MethodModuleInfo                     = "module.info"
+	// MethodModuleOptions                  = "module.options"
 	// MethodModuleCompatiblePayloads       = "module.compatible_payloads"
 	// MethodModuleCompatibleSessions       = "module.compatible_sessions"
 	// MethodModuleTargetCompatiblePayloads = "module.target_compatible_payloads"
-	// MethodModuleOptions                  = "module.options"
-	// MethodModuleExecute                  = "module.execute"
 	// MethodModuleEncodeFormats            = "module.encode_formats"
 	// MethodModuleEncode                   = "module.encode"
+	// MethodModuleExecute                  = "module.execute"
 
 	MethodJobList = "job.list"
 	MethodJobInfo = "job.info"
@@ -391,6 +393,8 @@ type CoreVersionResult struct {
 	MSFError
 }
 
+// ------------------------------------------about console-----------------------------------------
+
 // ConsoleCreateRequest is used to create a console.
 type ConsoleCreateRequest struct {
 	Method string
@@ -494,6 +498,10 @@ type ConsoleSessionKillResult struct {
 	MSFError
 }
 
+// -----------------------------------------about database-----------------------------------------
+
+// ------------------------------------------about plugin------------------------------------------
+
 // PluginLoadRequest is used to load plugin.
 type PluginLoadRequest struct {
 	Method  string
@@ -533,6 +541,34 @@ type PluginLoadedResult struct {
 	MSFError
 }
 
+// ------------------------------------------about module------------------------------------------
+
+// ModuleExploitsRequest is used to get all modules about exploit.
+type ModuleExploitsRequest struct {
+	Method string
+	Token  string
+}
+
+// ModuleExploitsResult is the result about get exploit modules.
+type ModuleExploitsResult struct {
+	Modules []string `msgpack:"modules"`
+	MSFError
+}
+
+// ModulePayloadsRequest is used to get all modules about payload.
+type ModulePayloadsRequest struct {
+	Method string
+	Token  string
+}
+
+// ModulePayloadsResult is the result about get payload modules.
+type ModulePayloadsResult struct {
+	Modules []string `msgpack:"modules"`
+	MSFError
+}
+
+// -------------------------------------------about job--------------------------------------------
+
 // JobListRequest is used to list jobs.
 type JobListRequest struct {
 	Method string
@@ -567,3 +603,5 @@ type JobStopResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }
+
+// -----------------------------------------about session------------------------------------------
