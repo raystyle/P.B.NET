@@ -137,8 +137,8 @@ const (
 	MethodModuleEncoders  = "module.encoders"
 	MethodModuleNops      = "module.nops"
 	MethodModuleEvasion   = "module.evasion"
+	MethodModuleInfo      = "module.info"
 
-	// MethodModuleInfo                     = "module.info"
 	// MethodModuleOptions                  = "module.options"
 	// MethodModuleCompatiblePayloads       = "module.compatible_payloads"
 	// MethodModuleCompatibleSessions       = "module.compatible_sessions"
@@ -613,6 +613,57 @@ type ModuleNopsRequest struct {
 type ModuleNopsResult struct {
 	Modules []string `msgpack:"modules"`
 	MSFError
+}
+
+// ModuleEvasionRequest is used to get all modules about evasion.
+type ModuleEvasionRequest struct {
+	Method string
+	Token  string
+}
+
+// ModuleEvasionResult is the result about get evasion modules.
+type ModuleEvasionResult struct {
+	Modules []string `msgpack:"modules"`
+	MSFError
+}
+
+// ModuleInfoRequest is used to get module's information.
+type ModuleInfoRequest struct {
+	Method string
+	Token  string
+	Type   string
+	Name   string
+}
+
+// ModuleInfoResult is the result about get module's information.
+type ModuleInfoResult struct {
+	Type           string                   `msgpack:"type"`
+	Name           string                   `msgpack:"name"`
+	FullName       string                   `msgpack:"fullname"`
+	Rank           string                   `msgpack:"rank"`
+	DisclosureDate string                   `msgpack:"disclosuredate"`
+	Description    string                   `msgpack:"description"`
+	License        string                   `msgpack:"license"`
+	Filepath       string                   `msgpack:"filepath"`
+	Arch           []string                 `msgpack:"arch"`
+	Platform       []string                 `msgpack:"platform"`
+	Authors        []string                 `msgpack:"authors"`
+	Privileged     bool                     `msgpack:"privileged"`
+	References     []string                 `msgpack:"references"`
+	Targets        map[uint64]string        `msgpack:"targets"`
+	DefaultTarget  uint64                   `msgpack:"default_target"`
+	Stance         string                   `msgpack:"stance"`
+	Options        map[string]*ModuleOption `msgpack:"options"`
+	MSFError
+}
+
+// ModuleOption contains modules information about options.
+type ModuleOption struct {
+	Type        string      `msgpack:"type"`
+	Required    bool        `msgpack:"required"`
+	Advanced    bool        `msgpack:"advanced"`
+	Description string      `msgpack:"desc"`
+	Default     interface{} `msgpack:"default"`
 }
 
 // -------------------------------------------about job--------------------------------------------

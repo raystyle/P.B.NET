@@ -99,9 +99,9 @@ func (msf *MSFRPC) ModuleEncoders(ctx context.Context) ([]string, error) {
 	return result.Modules, nil
 }
 
-// ModuleNops is used to returns a list of all loaded nop modules in the framework
-// instance. Note that the nop/ prefix is not included in the path name of
-// the return module.
+// ModuleNops is used to returns a list of all loaded nop modules in the
+// framework instance. Note that the nop/ prefix is not included in the path
+// name of the return module.
 func (msf *MSFRPC) ModuleNops(ctx context.Context) ([]string, error) {
 	request := ModuleNopsRequest{
 		Method: MethodModuleNops,
@@ -116,4 +116,42 @@ func (msf *MSFRPC) ModuleNops(ctx context.Context) ([]string, error) {
 		return nil, &result.MSFError
 	}
 	return result.Modules, nil
+}
+
+// ModuleEvasion is used to returns a list of all loaded evasion modules in the
+// framework instance. Note that the evasion/ prefix is not included in the path
+// name of the return module.
+func (msf *MSFRPC) ModuleEvasion(ctx context.Context) ([]string, error) {
+	request := ModuleEvasionRequest{
+		Method: MethodModuleEvasion,
+		Token:  msf.GetToken(),
+	}
+	var result ModuleEvasionResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Modules, nil
+}
+
+// ModuleInfo is used to get information and options about module.
+func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInfoResult, error) {
+	request := ModuleInfoRequest{
+		Method: MethodModuleInfo,
+		Token:  msf.GetToken(),
+		Type:   typ,
+		Name:   name,
+	}
+	var result ModuleInfoResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return &result, nil
 }
