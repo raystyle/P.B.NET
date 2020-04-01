@@ -718,6 +718,19 @@ type ModuleTargetCompatiblePayloadsResult struct {
 	MSFError
 }
 
+// ModuleCompatibleSessionsRequest is used to get compatible sessions for post module.
+type ModuleCompatibleSessionsRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// ModuleCompatibleSessionsResult is the result about get compatible sessions.
+type ModuleCompatibleSessionsResult struct {
+	Sessions []string `msgpack:"sessions"`
+	MSFError
+}
+
 // -------------------------------------------about job--------------------------------------------
 
 // JobListRequest is used to list jobs.

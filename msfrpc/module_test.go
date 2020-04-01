@@ -495,3 +495,49 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	const module = "post/windows/gather/enum_proxy"
+
+	t.Run("success", func(t *testing.T) {
+		sessions, err := msfrpc.ModuleCompatibleSessions(ctx, module)
+		require.NoError(t, err)
+		// now is noting
+		for i := 0; i < len(sessions); i++ {
+			t.Log(sessions[i])
+		}
+	})
+
+	t.Run("invalid module", func(t *testing.T) {
+		sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
+		require.EqualError(t, err, "Invalid Module")
+		require.Nil(t, sessions)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, sessions)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, sessions)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}

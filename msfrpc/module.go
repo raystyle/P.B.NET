@@ -232,3 +232,22 @@ func (msf *MSFRPC) ModuleTargetCompatiblePayloads(
 	}
 	return result.Payloads, nil
 }
+
+// ModuleCompatibleSessions is used to returns a list of payloads that are compatible
+// with the post module name specified.
+func (msf *MSFRPC) ModuleCompatibleSessions(ctx context.Context, name string) ([]string, error) {
+	request := ModuleCompatibleSessionsRequest{
+		Method: MethodModuleCompatibleSessions,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result ModuleCompatibleSessionsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Sessions, nil
+}
