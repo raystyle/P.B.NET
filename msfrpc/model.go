@@ -767,6 +767,12 @@ type ModuleEncodeFormatsRequest struct {
 	Token  string
 }
 
+// ModuleExecutableFormatsRequest is used to get executable formats.
+type ModuleExecutableFormatsRequest struct {
+	Method string
+	Token  string
+}
+
 // -------------------------------------------about job--------------------------------------------
 
 // JobListRequest is used to list jobs.

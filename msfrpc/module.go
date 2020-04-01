@@ -317,3 +317,23 @@ func (msf *MSFRPC) ModuleEncodeFormats(ctx context.Context) ([]string, error) {
 	}
 	return result, nil
 }
+
+// ModuleExecutableFormats is used to returns a list of executable format names.
+func (msf *MSFRPC) ModuleExecutableFormats(ctx context.Context) ([]string, error) {
+	request := ModuleExecutableFormatsRequest{
+		Method: MethodModuleExecutableFormats,
+		Token:  msf.GetToken(),
+	}
+	var (
+		result   []string
+		msfError MSFError
+	)
+	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	if err != nil {
+		return nil, err
+	}
+	if msfError.Err {
+		return nil, &msfError
+	}
+	return result, nil
+}
