@@ -274,7 +274,7 @@ func (msf *MSFRPC) ModuleCompatibleEvasionPayloads(
 	return result.Payloads, nil
 }
 
-// ModuleTargetCompatibleEvasionPayloads is used to Returns the compatible target-specific
+// ModuleTargetCompatibleEvasionPayloads is used to returns the compatible target-specific
 // payloads for an evasion module.
 func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
 	ctx context.Context,
@@ -296,4 +296,24 @@ func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
 		return nil, &result.MSFError
 	}
 	return result.Payloads, nil
+}
+
+// ModuleEncodeFormats is used to returns a list of encoding formats.
+func (msf *MSFRPC) ModuleEncodeFormats(ctx context.Context) ([]string, error) {
+	request := ModuleEncodeFormatsRequest{
+		Method: MethodModuleEncodeFormats,
+		Token:  msf.GetToken(),
+	}
+	var (
+		result   []string
+		msfError MSFError
+	)
+	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	if err != nil {
+		return nil, err
+	}
+	if msfError.Err {
+		return nil, &msfError
+	}
+	return result, nil
 }

@@ -145,9 +145,9 @@ const (
 	MethodModuleCompatibleEvasionPayloads       = "module.compatible_evasion_payloads"
 	MethodModuleTargetCompatibleEvasionPayloads = "module.target_compatible_evasion_payloads"
 	MethodModuleEncodeFormats                   = "module.encode_formats"
-	MethodModuleEncryptionFormats               = "module.encryption_formats"
-	MethodModuleTransformFormats                = "module.transform_formats"
 	MethodModuleExecutableFormats               = "module.executable_formats"
+	MethodModuleTransformFormats                = "module.transform_formats"
+	MethodModuleEncryptionFormats               = "module.encryption_formats"
 	MethodModuleEncode                          = "module.encode"
 	MethodModuleExecute                         = "module.execute"
 	MethodModuleCheck                           = "module.check"
@@ -759,6 +759,12 @@ type ModuleTargetCompatibleEvasionPayloadsRequest struct {
 type ModuleTargetCompatibleEvasionPayloadsResult struct {
 	Payloads []string `msgpack:"payloads"`
 	MSFError
+}
+
+// ModuleEncodeFormatsRequest is used to get encode formats.
+type ModuleEncodeFormatsRequest struct {
+	Method string
+	Token  string
 }
 
 // -------------------------------------------about job--------------------------------------------

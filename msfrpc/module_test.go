@@ -636,3 +636,38 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		formats, err := msfrpc.ModuleEncodeFormats(ctx)
+		require.NoError(t, err)
+		for i := 0; i < len(formats); i++ {
+			t.Log(formats[i])
+		}
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		formats, err := msfrpc.ModuleEncodeFormats(ctx)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, formats)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			formats, err := msfrpc.ModuleEncodeFormats(ctx)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, formats)
+		})
+	})
+}
