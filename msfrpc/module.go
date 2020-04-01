@@ -186,3 +186,49 @@ func (msf *MSFRPC) ModuleOptions(
 	}
 	return result, nil
 }
+
+// ModuleCompatiblePayloads is used to returns a list of payloads that are compatible
+// with the exploit module name specified.
+func (msf *MSFRPC) ModuleCompatiblePayloads(ctx context.Context, name string) ([]string, error) {
+	request := ModuleCompatiblePayloadsRequest{
+		Method: MethodModuleCompatiblePayloads,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result ModuleCompatiblePayloadsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Payloads, nil
+}
+
+// ModuleTargetCompatiblePayloads is similar to the module.compatible_payloads method
+// in that it returns a list of matching payloads, however, it restricts those payloads
+// to those that will work for a specific exploit target. For exploit modules that can
+// attack multiple platforms and operating systems, this is the method used to obtain
+// a list of available payloads after a target has been chosen.
+func (msf *MSFRPC) ModuleTargetCompatiblePayloads(
+	ctx context.Context,
+	name string,
+	target uint64,
+) ([]string, error) {
+	request := ModuleTargetCompatiblePayloadsRequest{
+		Method: MethodModuleTargetCompatiblePayloads,
+		Token:  msf.GetToken(),
+		Name:   name,
+		Target: target,
+	}
+	var result ModuleTargetCompatiblePayloadsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Payloads, nil
+}

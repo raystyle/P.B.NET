@@ -283,7 +283,7 @@ func TestMSFRPC_ModuleEvasion(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_ModuleModuleInfo(t *testing.T) {
+func TestMSFRPC_ModuleInfo(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -397,6 +397,98 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 			options, err := msfrpc.ModuleOptions(ctx, "foo", "bar")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, options)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "exploit/multi/handler")
+		require.NoError(t, err)
+		for i := 0; i < len(payloads); i++ {
+			t.Log(payloads[i])
+		}
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
+		require.EqualError(t, err, "Invalid Module")
+		require.Nil(t, payloads)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, payloads)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, payloads)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	const (
+		module = "exploit/multi/handler"
+		target = 0
+	)
+
+	t.Run("success", func(t *testing.T) {
+		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, module, target)
+		require.NoError(t, err)
+		for i := 0; i < len(payloads); i++ {
+			t.Log(payloads[i])
+		}
+	})
+
+	t.Run("invalid module", func(t *testing.T) {
+		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, "foo", target)
+		require.EqualError(t, err, "Invalid Module")
+		require.Nil(t, payloads)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, "foo", 1)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, payloads)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, "foo", 1)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, payloads)
 		})
 	})
 

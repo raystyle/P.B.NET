@@ -140,9 +140,9 @@ const (
 	MethodModuleInfo                            = "module.info"
 	MethodModuleOptions                         = "module.options"
 	MethodModuleCompatiblePayloads              = "module.compatible_payloads"
-	MethodModuleCompatibleEvasionPayloads       = "module.compatible_evasion_payloads"
-	MethodModuleCompatibleSessions              = "module.compatible_sessions"
 	MethodModuleTargetCompatiblePayloads        = "module.target_compatible_payloads"
+	MethodModuleCompatibleSessions              = "module.compatible_sessions"
+	MethodModuleCompatibleEvasionPayloads       = "module.compatible_evasion_payloads"
 	MethodModuleTargetCompatibleEvasionPayloads = "module.target_compatible_evasion_payloads"
 	MethodModuleEncodeFormats                   = "module.encode_formats"
 	MethodModuleEncryptionFormats               = "module.encryption_formats"
@@ -689,6 +689,33 @@ type ModuleSpecialOption struct {
 	Description string        `msgpack:"desc"`
 	Default     interface{}   `msgpack:"default"`
 	Enums       []interface{} `msgpack:"enums"`
+}
+
+// ModuleCompatiblePayloadsRequest is used to get compatible payloads.
+type ModuleCompatiblePayloadsRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// ModuleCompatiblePayloadsResult is the result of get compatible payloads.
+type ModuleCompatiblePayloadsResult struct {
+	Payloads []string `msgpack:"payloads"`
+	MSFError
+}
+
+// ModuleTargetCompatiblePayloadsRequest is used to get target compatible payloads.
+type ModuleTargetCompatiblePayloadsRequest struct {
+	Method string
+	Token  string
+	Name   string
+	Target uint64
+}
+
+// ModuleTargetCompatiblePayloadsResult is the result of get target compatible payloads.
+type ModuleTargetCompatiblePayloadsResult struct {
+	Payloads []string `msgpack:"payloads"`
+	MSFError
 }
 
 // -------------------------------------------about job--------------------------------------------
