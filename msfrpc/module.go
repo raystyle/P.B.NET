@@ -137,7 +137,10 @@ func (msf *MSFRPC) ModuleEvasion(ctx context.Context) ([]string, error) {
 	return result.Modules, nil
 }
 
-// ModuleInfo is used to get information and options about module.
+// ModuleInfo is used to returns a hash of detailed information about the specified
+// module. The ModuleType should be one "exploit", "auxiliary", "post", "payload",
+// "encoder", and "nop". The ModuleName can either include module type prefix
+// (exploit/) or not.
 func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInfoResult, error) {
 	request := ModuleInfoRequest{
 		Method: MethodModuleInfo,
@@ -154,4 +157,32 @@ func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInf
 		return nil, &result.MSFError
 	}
 	return &result, nil
+}
+
+// ModuleOptions is used to returns a hash of datastore options for the specified module.
+// The ModuleType should be one "exploit", "auxiliary", "post", "payload", "encoder", and
+// "nop". The ModuleName can either include module type prefix (exploit/) or not.
+func (msf *MSFRPC) ModuleOptions(
+	ctx context.Context,
+	typ string,
+	name string,
+) (map[string]*ModuleSpecialOption, error) {
+	request := ModuleOptionsRequest{
+		Method: MethodModuleOptions,
+		Token:  msf.GetToken(),
+		Type:   typ,
+		Name:   name,
+	}
+	var (
+		result   map[string]*ModuleSpecialOption
+		msfError MSFError
+	)
+	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	if err != nil {
+		return nil, err
+	}
+	if msfError.Err {
+		return nil, &msfError
+	}
+	return result, nil
 }

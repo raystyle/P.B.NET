@@ -130,22 +130,28 @@ const (
 	MethodPluginUnload = "plugin.unload"
 	MethodPluginLoaded = "plugin.loaded"
 
-	MethodModuleExploits  = "module.exploits"
-	MethodModuleAuxiliary = "module.auxiliary"
-	MethodModulePost      = "module.post"
-	MethodModulePayloads  = "module.payloads"
-	MethodModuleEncoders  = "module.encoders"
-	MethodModuleNops      = "module.nops"
-	MethodModuleEvasion   = "module.evasion"
-	MethodModuleInfo      = "module.info"
-
-	// MethodModuleOptions                  = "module.options"
-	// MethodModuleCompatiblePayloads       = "module.compatible_payloads"
-	// MethodModuleCompatibleSessions       = "module.compatible_sessions"
-	// MethodModuleTargetCompatiblePayloads = "module.target_compatible_payloads"
-	// MethodModuleEncodeFormats            = "module.encode_formats"
-	// MethodModuleEncode                   = "module.encode"
-	// MethodModuleExecute                  = "module.execute"
+	MethodModuleExploits                        = "module.exploits"
+	MethodModuleAuxiliary                       = "module.auxiliary"
+	MethodModulePost                            = "module.post"
+	MethodModulePayloads                        = "module.payloads"
+	MethodModuleEncoders                        = "module.encoders"
+	MethodModuleNops                            = "module.nops"
+	MethodModuleEvasion                         = "module.evasion"
+	MethodModuleInfo                            = "module.info"
+	MethodModuleOptions                         = "module.options"
+	MethodModuleCompatiblePayloads              = "module.compatible_payloads"
+	MethodModuleCompatibleEvasionPayloads       = "module.compatible_evasion_payloads"
+	MethodModuleCompatibleSessions              = "module.compatible_sessions"
+	MethodModuleTargetCompatiblePayloads        = "module.target_compatible_payloads"
+	MethodModuleTargetCompatibleEvasionPayloads = "module.target_compatible_evasion_payloads"
+	MethodModuleEncodeFormats                   = "module.encode_formats"
+	MethodModuleEncryptionFormats               = "module.encryption_formats"
+	MethodModuleTransformFormats                = "module.transform_formats"
+	MethodModuleExecutableFormats               = "module.executable_formats"
+	MethodModuleEncode                          = "module.encode"
+	MethodModuleExecute                         = "module.execute"
+	MethodModuleCheck                           = "module.check"
+	MethodModuleRunningStats                    = "module.running_stats"
 
 	MethodJobList = "job.list"
 	MethodJobInfo = "job.info"
@@ -664,6 +670,25 @@ type ModuleOption struct {
 	Advanced    bool        `msgpack:"advanced"`
 	Description string      `msgpack:"desc"`
 	Default     interface{} `msgpack:"default"`
+}
+
+// ModuleOptionsRequest is used to get module options.
+type ModuleOptionsRequest struct {
+	Method string
+	Token  string
+	Type   string
+	Name   string
+}
+
+// ModuleSpecialOption contains modules options for ModuleOptionsRequest.
+type ModuleSpecialOption struct {
+	Type        string        `msgpack:"type"`
+	Required    bool          `msgpack:"required"`
+	Advanced    bool          `msgpack:"advanced"`
+	Evasion     bool          `msgpack:"evasion"`
+	Description string        `msgpack:"desc"`
+	Default     interface{}   `msgpack:"default"`
+	Enums       []interface{} `msgpack:"enums"`
 }
 
 // -------------------------------------------about job--------------------------------------------

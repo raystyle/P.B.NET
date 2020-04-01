@@ -314,14 +314,15 @@ func TestMSFRPC_ModuleModuleInfo(t *testing.T) {
 		t.Log(info.Targets)
 		t.Log(info.DefaultTarget)
 		t.Log(info.Stance)
-		t.Log("options:")
-		for key, opt := range info.Options {
-			t.Log(key)
+		t.Log("----------options----------")
+		for name, opt := range info.Options {
+			t.Log("name:", name)
 			t.Log(opt.Type)
 			t.Log(opt.Required)
 			t.Log(opt.Advanced)
 			t.Log(opt.Description)
 			t.Log(opt.Default)
+			t.Log("------------------------------")
 		}
 	})
 
@@ -343,6 +344,59 @@ func TestMSFRPC_ModuleModuleInfo(t *testing.T) {
 			info, err := msfrpc.ModuleInfo(ctx, "foo", "bar")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, info)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleOptions(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		options, err := msfrpc.ModuleOptions(ctx, "exploit", "multi/handler")
+		require.NoError(t, err)
+
+		for name, option := range options {
+			t.Log("name:", name)
+			t.Log(option.Type)
+			t.Log(option.Required)
+			t.Log(option.Advanced)
+			t.Log(option.Evasion)
+			t.Log(option.Description)
+			t.Log(option.Default)
+			t.Log(option.Enums)
+			t.Log("------------------------------")
+		}
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		options, err := msfrpc.ModuleOptions(ctx, "foo type", "bar name")
+		require.EqualError(t, err, "Invalid Module")
+		require.Nil(t, options)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		options, err := msfrpc.ModuleOptions(ctx, "foo", "bar")
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, options)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			options, err := msfrpc.ModuleOptions(ctx, "foo", "bar")
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, options)
 		})
 	})
 
