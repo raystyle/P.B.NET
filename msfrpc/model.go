@@ -731,6 +731,36 @@ type ModuleCompatibleSessionsResult struct {
 	MSFError
 }
 
+// ModuleCompatibleEvasionPayloadsRequest is used to get compatible evasion payloads.
+type ModuleCompatibleEvasionPayloadsRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// ModuleCompatibleEvasionPayloadsResult is the result about get compatible evasion
+// payloads.
+type ModuleCompatibleEvasionPayloadsResult struct {
+	Payloads []string `msgpack:"payloads"`
+	MSFError
+}
+
+// ModuleTargetCompatibleEvasionPayloadsRequest is used to get target compatible
+// evasion payloads.
+type ModuleTargetCompatibleEvasionPayloadsRequest struct {
+	Method string
+	Token  string
+	Name   string
+	Target uint64
+}
+
+// ModuleTargetCompatibleEvasionPayloadsResult is the result about get target
+// compatible evasion payloads.
+type ModuleTargetCompatibleEvasionPayloadsResult struct {
+	Payloads []string `msgpack:"payloads"`
+	MSFError
+}
+
 // -------------------------------------------about job--------------------------------------------
 
 // JobListRequest is used to list jobs.

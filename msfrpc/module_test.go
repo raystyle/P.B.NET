@@ -459,8 +459,9 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 
 	ctx := context.Background()
 	const (
-		module = "exploit/multi/handler"
-		target = 0
+		module  = "exploit/multi/handler"
+		target  = 0
+		iModule = "foo"
 	)
 
 	t.Run("success", func(t *testing.T) {
@@ -472,21 +473,21 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, "foo", target)
+		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, iModule, target)
 		require.EqualError(t, err, "Invalid Module")
 		require.Nil(t, payloads)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
-		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, "foo", 1)
+		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, iModule, target)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, payloads)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, "foo", 1)
+			payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, iModule, target)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
 		})
@@ -535,6 +536,100 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 			sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, sessions)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	const module = "windows/windows_defender_exe"
+
+	t.Run("success", func(t *testing.T) {
+		payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, module)
+		require.NoError(t, err)
+		for i := 0; i < len(payloads); i++ {
+			t.Log(payloads[i])
+		}
+	})
+
+	t.Run("invalid module", func(t *testing.T) {
+		payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
+		require.EqualError(t, err, "Invalid Module")
+		require.Nil(t, payloads)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, payloads)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, payloads)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	const (
+		module  = "windows/windows_defender_exe"
+		target  = 0
+		iModule = "foo"
+	)
+
+	t.Run("success", func(t *testing.T) {
+		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, module, target)
+		require.NoError(t, err)
+		for i := 0; i < len(payloads); i++ {
+			t.Log(payloads[i])
+		}
+	})
+
+	t.Run("invalid module", func(t *testing.T) {
+		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, iModule, target)
+		require.EqualError(t, err, "Invalid Module")
+		require.Nil(t, payloads)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, iModule, target)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, payloads)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, iModule, target)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, payloads)
 		})
 	})
 

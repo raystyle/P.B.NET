@@ -251,3 +251,49 @@ func (msf *MSFRPC) ModuleCompatibleSessions(ctx context.Context, name string) ([
 	}
 	return result.Sessions, nil
 }
+
+// ModuleCompatibleEvasionPayloads is used to returns a list of payloads that are
+// compatible with the evasion module.
+func (msf *MSFRPC) ModuleCompatibleEvasionPayloads(
+	ctx context.Context,
+	name string,
+) ([]string, error) {
+	request := ModuleCompatibleEvasionPayloadsRequest{
+		Method: MethodModuleCompatibleEvasionPayloads,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result ModuleCompatibleEvasionPayloadsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Payloads, nil
+}
+
+// ModuleTargetCompatibleEvasionPayloads is used to Returns the compatible target-specific
+// payloads for an evasion module.
+func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
+	ctx context.Context,
+	name string,
+	target uint64,
+) ([]string, error) {
+	request := ModuleTargetCompatibleEvasionPayloadsRequest{
+		Method: MethodModuleTargetCompatibleEvasionPayloads,
+		Token:  msf.GetToken(),
+		Name:   name,
+		Target: target,
+	}
+	var result ModuleTargetCompatibleEvasionPayloadsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, &result.MSFError
+	}
+	return result.Payloads, nil
+}
