@@ -30,8 +30,9 @@ func TestTrustNodeAndConfirm(t *testing.T) {
 	err = ctrl.ConfirmTrustNode(context.Background(), &reply)
 	require.NoError(t, err)
 
-	// clean
-	err = ctrl.DeleteNodeUnscoped(nodeGUID)
+	// can't call ctrl.DeleteNodeUnscoped(nodeGUID), because controller
+	// doesn't connect any Nodes.
+	err = ctrl.database.DeleteNodeUnscoped(nodeGUID)
 	require.NoError(t, err)
 
 	Node.Exit(nil)
