@@ -2,6 +2,8 @@ package msfrpc
 
 import (
 	"context"
+	"encoding/hex"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -773,6 +775,54 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 			formats, err := msfrpc.ModuleEncryptionFormats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, formats)
+		})
+	})
+}
+
+func TestMSFRPC_ModuleEncode(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	const (
+		data    = "AAA"
+		encoder = "x86/shikata_ga_nai"
+		path    = "../internal/module/shellcode/testdata/windows_32.txt"
+	)
+	// read shellcode
+	scHEX, err := ioutil.ReadFile(path)
+	require.NoError(t, err)
+	sc := make([]byte, len(scHEX)/2)
+	_, err = hex.Decode(sc, scHEX)
+	require.NoError(t, err)
+	opts := &ModuleEncodeOptions{
+		Format:       "c",
+		AddShellcode: string(sc),
+	}
+
+	t.Run("success", func(t *testing.T) {
+		encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
+		require.NoError(t, err)
+		t.Logf("\n%s\n", encoded)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		msfrpc.SetToken(testInvalidToken)
+		encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Zero(t, encoded)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
+			monkey.IsMonkeyError(t, err)
+			require.Zero(t, encoded)
 		})
 	})
 }

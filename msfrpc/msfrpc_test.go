@@ -426,14 +426,14 @@ func TestMSFRPC_TokenGenerate(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 		token, err := msfrpc.TokenGenerate()
 		require.EqualError(t, err, testErrInvalidToken)
-		require.Equal(t, "", token)
+		require.Zero(t, token)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
 			token, err := msfrpc.TokenGenerate()
 			monkey.IsMonkeyError(t, err)
-			require.Equal(t, "", token)
+			require.Zero(t, token)
 		})
 	})
 
@@ -564,3 +564,10 @@ func TestMSFRPC_Close(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+// fmt.Println(result.MSFError.ErrorClass)
+// fmt.Println(result.MSFError.ErrorString)
+//
+// for i := 0; i < len(result.MSFError.ErrorBacktrace); i++ {
+//     fmt.Println(result.MSFError.ErrorBacktrace[i])
+// }

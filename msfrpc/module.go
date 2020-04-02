@@ -2,6 +2,8 @@ package msfrpc
 
 import (
 	"context"
+
+	"github.com/pkg/errors"
 )
 
 // ModuleExploits is used to returns a list of all loaded exploit modules in the
@@ -18,7 +20,7 @@ func (msf *MSFRPC) ModuleExploits(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
 }
@@ -37,7 +39,7 @@ func (msf *MSFRPC) ModuleAuxiliary(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
 }
@@ -56,7 +58,7 @@ func (msf *MSFRPC) ModulePost(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
 }
@@ -75,7 +77,7 @@ func (msf *MSFRPC) ModulePayloads(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
 }
@@ -94,7 +96,7 @@ func (msf *MSFRPC) ModuleEncoders(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
 }
@@ -113,7 +115,7 @@ func (msf *MSFRPC) ModuleNops(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
 }
@@ -132,7 +134,7 @@ func (msf *MSFRPC) ModuleEvasion(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
 }
@@ -154,7 +156,7 @@ func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInf
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
 }
@@ -182,7 +184,7 @@ func (msf *MSFRPC) ModuleOptions(
 		return nil, err
 	}
 	if msfError.Err {
-		return nil, &msfError
+		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
 }
@@ -201,7 +203,7 @@ func (msf *MSFRPC) ModuleCompatiblePayloads(ctx context.Context, name string) ([
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Payloads, nil
 }
@@ -228,7 +230,7 @@ func (msf *MSFRPC) ModuleTargetCompatiblePayloads(
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Payloads, nil
 }
@@ -247,7 +249,7 @@ func (msf *MSFRPC) ModuleCompatibleSessions(ctx context.Context, name string) ([
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Sessions, nil
 }
@@ -269,7 +271,7 @@ func (msf *MSFRPC) ModuleCompatibleEvasionPayloads(
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Payloads, nil
 }
@@ -293,7 +295,7 @@ func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Payloads, nil
 }
@@ -313,7 +315,7 @@ func (msf *MSFRPC) ModuleEncodeFormats(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if msfError.Err {
-		return nil, &msfError
+		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
 }
@@ -333,7 +335,7 @@ func (msf *MSFRPC) ModuleExecutableFormats(ctx context.Context) ([]string, error
 		return nil, err
 	}
 	if msfError.Err {
-		return nil, &msfError
+		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
 }
@@ -353,7 +355,7 @@ func (msf *MSFRPC) ModuleTransformFormats(ctx context.Context) ([]string, error)
 		return nil, err
 	}
 	if msfError.Err {
-		return nil, &msfError
+		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
 }
@@ -373,7 +375,33 @@ func (msf *MSFRPC) ModuleEncryptionFormats(ctx context.Context) ([]string, error
 		return nil, err
 	}
 	if msfError.Err {
-		return nil, &msfError
+		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
+}
+
+// ModuleEncode is used to provide a way to encode an arbitrary payload (specified
+// as Data) with a specific encoder and set of options.
+func (msf *MSFRPC) ModuleEncode(
+	ctx context.Context,
+	data string,
+	encoder string,
+	opts *ModuleEncodeOptions,
+) (string, error) {
+	request := ModuleEncodeRequest{
+		Method:  MethodModuleEncode,
+		Token:   msf.GetToken(),
+		Data:    data,
+		Encoder: encoder,
+		Options: opts.toMap(),
+	}
+	var result ModuleEncodeResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return "", err
+	}
+	if result.Err {
+		return "", errors.WithStack(&result.MSFError)
+	}
+	return result.Encoded, nil
 }

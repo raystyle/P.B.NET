@@ -784,6 +784,62 @@ type ModuleEncryptionFormatsRequest struct {
 	Token  string
 }
 
+// ModuleEncodeRequest is used to encode data with an encoder.
+type ModuleEncodeRequest struct {
+	Method  string
+	Token   string
+	Data    string
+	Encoder string // like "x86/single_byte"
+	Options map[string]interface{}
+}
+
+// ModuleEncodeOptions contains module encode options.
+type ModuleEncodeOptions struct {
+	Format       string
+	BadChars     string
+	Platform     string
+	Arch         string
+	EncodeCount  uint64
+	Inject       bool
+	AltEXE       string
+	EXEDir       string
+	AddShellcode string
+}
+
+func (opts *ModuleEncodeOptions) toMap() map[string]interface{} {
+	m := map[string]interface{}{
+		"format":   opts.Format,
+		"badchars": opts.BadChars,
+		"platform": opts.Platform,
+		"arch":     opts.Arch,
+		"ecount":   opts.EncodeCount,
+		"inject":   opts.Inject,
+		"altexe":   opts.AltEXE,
+		"exedir":   opts.EXEDir,
+	}
+	if opts.EncodeCount < 1 {
+		m["ecount"] = 1
+	}
+	if opts.AddShellcode != "" {
+		// there is a BUG in lib\msf\core\rpc\v10\rpc_module.rb
+		//
+		//  if options['addshellcode']
+		//      buf = Msf::Util::EXE.win32_rwx_exec_thread(buf,0,'end')
+		//      file = ::File.new(options['addshellcode'])
+		//      file.binmode
+		//      buf << file.read
+		//      file.close
+		// m["addshellcode"] = opts.AddShellcode
+	}
+	return m
+}
+
+// ModuleEncodeResult is the result about encode.
+type ModuleEncodeResult struct {
+	Encoded string `msgpack:"encoded"`
+	MSFError
+}
+
 // -------------------------------------------about job--------------------------------------------
 
 // JobListRequest is used to list jobs.

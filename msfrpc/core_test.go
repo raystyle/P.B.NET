@@ -257,14 +257,14 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 		value, err := msfrpc.CoreGetG("test")
 		require.EqualError(t, err, testErrInvalidToken)
-		require.Equal(t, "", value)
+		require.Zero(t, value)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
 			value, err := msfrpc.CoreGetG("test")
 			monkey.IsMonkeyError(t, err)
-			require.Equal(t, "", value)
+			require.Zero(t, value)
 		})
 	})
 
@@ -296,7 +296,7 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 		require.NoError(t, err)
 		val, err = msfrpc.CoreGetG(name)
 		require.NoError(t, err)
-		require.Equal(t, "", val)
+		require.Zero(t, val)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
