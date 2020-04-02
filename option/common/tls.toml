@@ -1,25 +1,25 @@
-# %GOROOT%/src/crypto/tls/common.go
+# GOROOT/src/crypto/tls/common.go
 #
 # NoClientCert               = 0
 # RequestClientCert          = 1
 # RequireAnyClientCert       = 2
 # VerifyClientCertIfGiven    = 3
 # RequireAndVerifyClientCert = 4
-client_auth = 4 # RequireAndVerifyClientCert
+client_auth = 4
 
 server_name = "test.com"
 next_protos = ["http/1.1", "h2c"]
 
-# %GOROOT%/src/crypto/tls/common.go
+# GOROOT/src/crypto/tls/common.go
 #
 # VersionTLS10 = 0x0301
 # VersionTLS11 = 0x0302
 # VersionTLS12 = 0x0303
 # VersionTLS13 = 0x0304
-min_version = 0x0302   # TLS 1.1
-max_version = 0x0304   # TLS 1.3
+min_version = 0x0302
+max_version = 0x0304
 
-# %GOROOT%/src/crypto/tls/cipher_suites.go
+# GOROOT/src/crypto/tls/cipher_suites.go
 #
 # // TLS 1.0 - 1.2 cipher suites.
 # TLS_RSA_WITH_RC4_128_SHA                uint16 = 0x0005

@@ -10,3 +10,6 @@ disable_compression       = false
 
 [tls_config] # see tls.toml
   server_name = "test.com"
+
+[proxy_connect_header]
+  test = ["testdata"]
