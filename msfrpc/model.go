@@ -773,6 +773,12 @@ type ModuleExecutableFormatsRequest struct {
 	Token  string
 }
 
+// ModuleTransformFormatsRequest is used to get transform formats.
+type ModuleTransformFormatsRequest struct {
+	Method string
+	Token  string
+}
+
 // -------------------------------------------about job--------------------------------------------
 
 // JobListRequest is used to list jobs.
