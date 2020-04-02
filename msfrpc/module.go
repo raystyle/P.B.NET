@@ -357,3 +357,23 @@ func (msf *MSFRPC) ModuleTransformFormats(ctx context.Context) ([]string, error)
 	}
 	return result, nil
 }
+
+// ModuleEncryptionFormats is used to returns a list of encryption format names.
+func (msf *MSFRPC) ModuleEncryptionFormats(ctx context.Context) ([]string, error) {
+	request := ModuleEncryptionFormatsRequest{
+		Method: MethodModuleEncryptionFormats,
+		Token:  msf.GetToken(),
+	}
+	var (
+		result   []string
+		msfError MSFError
+	)
+	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	if err != nil {
+		return nil, err
+	}
+	if msfError.Err {
+		return nil, &msfError
+	}
+	return result, nil
+}

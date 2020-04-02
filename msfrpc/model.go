@@ -170,7 +170,6 @@ const (
 	// MethodSessionMeterpreterWrite              = "session.meterpreter_write"
 	// MethodSessionMeterpreterSessionDetach      = "session.meterpreter_session_detach"
 	// MethodSessionMeterpreterSessionKill        = "session.meterpreter_session_kill"
-	// MethodSessionMeterpreterTabs               = "session.meterpreter_tabs"
 	// MethodSessionMeterpreterRunSingle          = "session.meterpreter_run_single"
 	// MethodSessionMeterpreterScript             = "session.meterpreter_script"
 	// MethodSessionMeterpreterDirectorySeparator = "session.meterpreter_directory_separator"
@@ -761,20 +760,26 @@ type ModuleTargetCompatibleEvasionPayloadsResult struct {
 	MSFError
 }
 
-// ModuleEncodeFormatsRequest is used to get encode formats.
+// ModuleEncodeFormatsRequest is used to get encode format names.
 type ModuleEncodeFormatsRequest struct {
 	Method string
 	Token  string
 }
 
-// ModuleExecutableFormatsRequest is used to get executable formats.
+// ModuleExecutableFormatsRequest is used to get executable format names.
 type ModuleExecutableFormatsRequest struct {
 	Method string
 	Token  string
 }
 
-// ModuleTransformFormatsRequest is used to get transform formats.
+// ModuleTransformFormatsRequest is used to get transform format names.
 type ModuleTransformFormatsRequest struct {
+	Method string
+	Token  string
+}
+
+// ModuleEncryptionFormatsRequest is used to get encryption format names.
+type ModuleEncryptionFormatsRequest struct {
 	Method string
 	Token  string
 }
