@@ -1,8 +1,11 @@
 package option
 
 import (
+	"context"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -12,15 +15,15 @@ import (
 )
 
 func TestHTTPRequestDefault(t *testing.T) {
-	const url = "http://127.0.0.1/"
-	hr := &HTTPRequest{URL: url}
+	const URL = "http://127.0.0.1/"
+	hr := &HTTPRequest{URL: URL}
 	request, err := hr.Apply()
 	require.NoError(t, err)
 	require.Equal(t, http.MethodGet, request.Method)
-	require.Equal(t, url, request.URL.String())
+	require.Equal(t, URL, request.URL.String())
 	require.Equal(t, http.NoBody, request.Body)
 	require.NotNil(t, request.Header)
-	require.Equal(t, "", request.Host)
+	require.Zero(t, request.Host)
 	require.Equal(t, false, request.Close)
 }
 
@@ -86,12 +89,24 @@ func TestHTTPTransportDefault(t *testing.T) {
 	require.Equal(t, httpDefaultMaxResponseHeaderBytes, transport.MaxResponseHeaderBytes)
 	require.Equal(t, false, transport.DisableKeepAlives)
 	require.Equal(t, false, transport.DisableCompression)
+	require.Equal(t, 0, len(transport.ProxyConnectHeader))
+	require.Nil(t, transport.Proxy)
+	require.Nil(t, transport.DialContext)
 }
 
 func TestHTTPTransportUnmarshal(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/http_transport.toml")
 	require.NoError(t, err)
-	ht := HTTPTransport{}
+	proxy := func(*http.Request) (*url.URL, error) {
+		return nil, nil
+	}
+	dialContext := func(context.Context, string, string) (net.Conn, error) {
+		return nil, nil
+	}
+	ht := HTTPTransport{
+		Proxy:       proxy,
+		DialContext: dialContext,
+	}
 	err = toml.Unmarshal(data, &ht)
 	require.NoError(t, err)
 	transport, err := ht.Apply()
@@ -113,10 +128,13 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 		{expected: true, actual: transport.DisableKeepAlives},
 		{expected: true, actual: transport.DisableCompression},
 		{expected: "test.com", actual: transport.TLSClientConfig.ServerName},
+		{expected: []string{"testdata"}, actual: transport.ProxyConnectHeader["test"]},
 	}
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)
 	}
+	require.NotNil(t, transport.Proxy)
+	require.NotNil(t, transport.DialContext)
 }
 
 var testInvalidTLSConfig = TLSConfig{

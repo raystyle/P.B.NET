@@ -2,10 +2,13 @@ package option
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -53,10 +56,10 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 
 // HTTPTransport include options about http.Transport.
 type HTTPTransport struct {
-	TLSClientConfig     TLSConfig `toml:"tls_config"`
-	MaxIdleConns        int       `toml:"max_idle_conns"`
-	MaxIdleConnsPerHost int       `toml:"max_idle_conns_per_host"`
-	// MaxConnsPerHost        int           `toml:"max_conns_per_host"`
+	TLSClientConfig        TLSConfig     `toml:"tls_config"`
+	MaxIdleConns           int           `toml:"max_idle_conns"`
+	MaxIdleConnsPerHost    int           `toml:"max_idle_conns_per_host"`
+	MaxConnsPerHost        int           `toml:"max_conns_per_host"`
 	TLSHandshakeTimeout    time.Duration `toml:"tls_handshake_timeout"`
 	IdleConnTimeout        time.Duration `toml:"idle_conn_timeout"`
 	ResponseHeaderTimeout  time.Duration `toml:"response_header_timeout"`
@@ -64,6 +67,30 @@ type HTTPTransport struct {
 	MaxResponseHeaderBytes int64         `toml:"max_response_header_bytes"`
 	DisableKeepAlives      bool          `toml:"disable_keep_alives"`
 	DisableCompression     bool          `toml:"disable_compression"`
+	ProxyConnectHeader     http.Header   `toml:"proxy_connect_header"`
+
+	// see GOROOT/src/net/http/transport.go
+
+	// Proxy specifies a function to return a proxy for a given
+	// Request. If the function returns a non-nil error, the
+	// request is aborted with the provided error.
+	//
+	// The proxy type is determined by the URL scheme. "http",
+	// "https", and "socks5" are supported. If the scheme is empty,
+	// "http" is assumed.
+	//
+	// If Proxy is nil or returns a nil *URL, no proxy is used.
+	Proxy func(*http.Request) (*url.URL, error) `toml:"-" msgpack:"-"`
+
+	// DialContext specifies the dial function for creating unencrypted TCP connections.
+	// If DialContext is nil (and the deprecated Dial below is also nil),
+	// then the transport dials using package net.
+	//
+	// DialContext runs concurrently with calls to RoundTrip.
+	// A RoundTrip call that initiates a dial may end up using
+	// a connection dialed previously when the earlier connection
+	// becomes idle before the later DialContext completes.
+	DialContext func(context.Context, string, string) (net.Conn, error) `toml:"-" msgpack:"-"`
 }
 
 // Apply is used to create *http.Transport.
@@ -81,6 +108,9 @@ func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 		MaxResponseHeaderBytes: ht.MaxResponseHeaderBytes,
 		DisableKeepAlives:      ht.DisableKeepAlives,
 		DisableCompression:     ht.DisableCompression,
+		ProxyConnectHeader:     ht.ProxyConnectHeader.Clone(),
+		Proxy:                  ht.Proxy,
+		DialContext:            ht.DialContext,
 	}
 	// tls config
 	var err error

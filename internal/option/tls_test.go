@@ -63,7 +63,7 @@ func TestTLSDefault(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, tls.ClientAuthType(0), config.ClientAuth)
-		require.Equal(t, "", config.ServerName)
+		require.Zero(t, config.ServerName)
 		require.Nil(t, config.NextProtos)
 		require.Equal(t, uint16(0), config.MaxVersion)
 		require.Nil(t, config.CipherSuites)
