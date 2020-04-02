@@ -36,7 +36,7 @@ func TestTranner(t *testing.T) {
 	t.Log(tranner.Info())
 	t.Log(tranner.Status())
 
-	require.Equal(t, "", tranner.testAddress())
+	require.Zero(t, tranner.testAddress())
 
 	err := tranner.Start()
 	require.NoError(t, err)

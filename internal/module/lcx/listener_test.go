@@ -35,8 +35,8 @@ func TestListener(t *testing.T) {
 	t.Log(listener.Info())
 	t.Log(listener.Status())
 
-	require.Equal(t, "", listener.testIncomeAddress())
-	require.Equal(t, "", listener.testLocalAddress())
+	require.Zero(t, listener.testIncomeAddress())
+	require.Zero(t, listener.testLocalAddress())
 
 	err := listener.Start()
 	require.NoError(t, err)

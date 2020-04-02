@@ -201,7 +201,7 @@ func TestManager_Info(t *testing.T) {
 	t.Run("with empty tag", func(t *testing.T) {
 		info, err := manager.Info("")
 		require.EqualError(t, err, "empty module tag")
-		require.Equal(t, "", info)
+		require.Zero(t, info)
 	})
 
 	manager.Close()
@@ -227,7 +227,7 @@ func TestManager_Status(t *testing.T) {
 	t.Run("with empty tag", func(t *testing.T) {
 		status, err := manager.Status("")
 		require.EqualError(t, err, "empty module tag")
-		require.Equal(t, "", status)
+		require.Zero(t, status)
 	})
 
 	manager.Close()
