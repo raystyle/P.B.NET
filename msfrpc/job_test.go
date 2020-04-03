@@ -65,6 +65,8 @@ func TestMSFRPC_JobList(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		list, err := msfrpc.JobList()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -147,6 +149,8 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		info, err := msfrpc.JobInfo("foo")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -220,6 +224,8 @@ func TestMSFRPC_JobStop(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.JobStop("foo")
 		require.EqualError(t, err, testErrInvalidToken)

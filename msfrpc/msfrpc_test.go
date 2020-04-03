@@ -385,6 +385,8 @@ func TestMSFRPC_TokenList(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		list, err := msfrpc.TokenList()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -420,9 +422,14 @@ func TestMSFRPC_TokenGenerate(t *testing.T) {
 		tokens, err := msfrpc.TokenList()
 		require.NoError(t, err)
 		require.Contains(t, tokens, token)
+
+		err = msfrpc.TokenRemove(token)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		token, err := msfrpc.TokenGenerate()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -459,6 +466,9 @@ func TestMSFRPC_TokenAdd(t *testing.T) {
 		tokens, err := msfrpc.TokenList()
 		require.NoError(t, err)
 		require.Contains(t, tokens, token)
+
+		err = msfrpc.TokenRemove(token)
+		require.NoError(t, err)
 	})
 
 	t.Run("add invalid token", func(t *testing.T) {
@@ -468,11 +478,16 @@ func TestMSFRPC_TokenAdd(t *testing.T) {
 		tokens, err := msfrpc.TokenList()
 		require.NoError(t, err)
 		require.Contains(t, tokens, testInvalidToken)
+
+		err = msfrpc.TokenRemove(testInvalidToken)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
 		// due to the last sub test added testInvalidToken,
 		// so must change the token that will be set
+		former := msfrpc.GetToken()
+		defer msfrpc.SetToken(former)
 		msfrpc.SetToken(testInvalidToken + "foo")
 		err := msfrpc.TokenAdd(token)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -526,6 +541,8 @@ func TestMSFRPC_TokenRemove(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		former := msfrpc.GetToken()
+		defer msfrpc.SetToken(former)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.TokenRemove(token)
 		require.EqualError(t, err, testErrInvalidToken)

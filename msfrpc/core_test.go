@@ -31,6 +31,8 @@ func TestMSFRPC_CoreModuleStats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		status, err := msfrpc.CoreModuleStats()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -76,6 +78,8 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		status, err := msfrpc.CoreAddModulePath("")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -115,6 +119,8 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		status, err := msfrpc.CoreReloadModules()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -151,6 +157,8 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		list, err := msfrpc.CoreThreadList()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -184,6 +192,8 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.CoreThreadKill(0)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -215,6 +225,8 @@ func TestMSFRPC_CoreSetG(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.CoreSetG("test", "test value")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -254,6 +266,8 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		value, err := msfrpc.CoreGetG("test")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -300,6 +314,8 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.CoreUnsetG("test")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -331,6 +347,8 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.CoreSave()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -365,6 +383,8 @@ func TestMSFRPC_CoreVersion(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		version, err := msfrpc.CoreVersion()
 		require.EqualError(t, err, testErrInvalidToken)

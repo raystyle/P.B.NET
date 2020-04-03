@@ -31,6 +31,8 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		result, err := msfrpc.ConsoleCreate()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -72,6 +74,8 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.ConsoleDestroy("foo")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -116,6 +120,8 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		output, err := msfrpc.ConsoleRead("999")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -171,6 +177,8 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		n, err := msfrpc.ConsoleWrite("999", "foo")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -210,6 +218,8 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		consoles, err := msfrpc.ConsoleList()
 		require.EqualError(t, err, testErrInvalidToken)
@@ -263,6 +273,8 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.ConsoleSessionDetach("999")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -344,6 +356,8 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		err := msfrpc.ConsoleSessionKill("999")
 		require.EqualError(t, err, testErrInvalidToken)

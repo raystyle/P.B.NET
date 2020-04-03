@@ -34,6 +34,8 @@ func TestMSFRPC_ModuleExploits(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		modules, err := msfrpc.ModuleExploits(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -73,6 +75,8 @@ func TestMSFRPC_ModuleAuxiliary(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		modules, err := msfrpc.ModuleAuxiliary(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -112,6 +116,8 @@ func TestMSFRPC_ModulePost(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		modules, err := msfrpc.ModulePost(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -151,6 +157,8 @@ func TestMSFRPC_ModulePayloads(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		modules, err := msfrpc.ModulePayloads(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -190,6 +198,8 @@ func TestMSFRPC_ModuleEncoders(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		modules, err := msfrpc.ModuleEncoders(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -229,6 +239,8 @@ func TestMSFRPC_ModuleNops(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		modules, err := msfrpc.ModuleNops(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -268,6 +280,8 @@ func TestMSFRPC_ModuleEvasion(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		modules, err := msfrpc.ModuleEvasion(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -336,6 +350,8 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		info, err := msfrpc.ModuleInfo(ctx, "foo", "bar")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -389,6 +405,8 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		options, err := msfrpc.ModuleOptions(ctx, "foo", "bar")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -433,6 +451,8 @@ func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -482,6 +502,8 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, iModule, target)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -528,6 +550,8 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -573,6 +597,8 @@ func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
 		require.EqualError(t, err, testErrInvalidToken)
@@ -622,6 +648,8 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, iModule, target)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -660,6 +688,8 @@ func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		formats, err := msfrpc.ModuleEncodeFormats(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -698,6 +728,8 @@ func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		formats, err := msfrpc.ModuleExecutableFormats(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -736,6 +768,8 @@ func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		formats, err := msfrpc.ModuleTransformFormats(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -774,6 +808,8 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		formats, err := msfrpc.ModuleEncryptionFormats(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
@@ -825,6 +861,8 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 		encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
 		require.EqualError(t, err, testErrInvalidToken)
