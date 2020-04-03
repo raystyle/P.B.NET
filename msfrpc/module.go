@@ -405,3 +405,47 @@ func (msf *MSFRPC) ModuleEncode(
 	}
 	return result.Encoded, nil
 }
+
+// ModuleExecute is used to provide a way to launch an exploit, run an auxiliary module,
+// trigger a post module on a session, or generate a payload. The ModuleType should be
+// one "exploit", "auxiliary", "post", and "payload". The ModuleName can either include
+// module type prefix (exploit/) or not. The Datastore is the full set of datastore options
+// that should be applied to the module before executing it.
+//
+// In the case of exploits, auxiliary, or post modules, the server response will return
+// the Job ID of the running module
+//
+// In the case of payload modules, a number of additional options are parsed, including
+// the datastore for the payload itself.
+//
+// parameter opts must be map[string]string or *ModuleExecuteOptions.
+func (msf *MSFRPC) ModuleExecute(
+	ctx context.Context,
+	typ string,
+	name string,
+	opts interface{},
+) (*ModuleExecuteResult, error) {
+	request := ModuleExecuteRequest{
+		Method: MethodModuleExecute,
+		Token:  msf.GetToken(),
+		Type:   typ,
+		Name:   name,
+	}
+	switch typ {
+	case "exploit", "auxiliary", "post":
+		request.Options = opts.(map[string]interface{})
+	case "payload": // generate payload
+		request.Options = opts.(*ModuleExecuteOptions).toMap()
+	default:
+		return nil, errors.New("invalid module type: " + typ)
+	}
+	var result ModuleExecuteResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return &result, nil
+}

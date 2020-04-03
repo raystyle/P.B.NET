@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"io/ioutil"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -672,6 +673,9 @@ func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
 			require.Nil(t, formats)
 		})
 	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
 func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
@@ -707,6 +711,9 @@ func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
 			require.Nil(t, formats)
 		})
 	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
 func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
@@ -742,6 +749,9 @@ func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
 			require.Nil(t, formats)
 		})
 	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
 func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
@@ -777,6 +787,9 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 			require.Nil(t, formats)
 		})
 	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
 func TestMSFRPC_ModuleEncode(t *testing.T) {
@@ -825,4 +838,45 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 			require.Zero(t, encoded)
 		})
 	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleExecute(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("exploit", func(t *testing.T) {
+		opts := make(map[string]interface{})
+		opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
+		opts["LHOST"] = "127.0.0.1"
+		opts["LPORT"] = "0"
+		result, err := msfrpc.ModuleExecute(ctx, "exploit", "multi/handler", opts)
+		require.NoError(t, err)
+
+		jobID := strconv.FormatUint(result.JobID, 10)
+		info, err := msfrpc.JobInfo(jobID)
+		require.NoError(t, err)
+		t.Log(info.Name)
+		for key, value := range info.DataStore {
+			t.Log(key, value)
+		}
+		err = msfrpc.JobStop(jobID)
+		require.NoError(t, err)
+	})
+
+	t.Run("generate payload", func(t *testing.T) {
+
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }

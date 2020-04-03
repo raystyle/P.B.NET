@@ -817,26 +817,72 @@ func (opts *ModuleEncodeOptions) toMap() map[string]interface{} {
 		"altexe":   opts.AltEXE,
 		"exedir":   opts.EXEDir,
 	}
-	if opts.EncodeCount < 1 {
-		m["ecount"] = 1
+	if opts.EncodeCount > 0 {
+		m["ecount"] = opts.EncodeCount
 	}
-	if opts.AddShellcode != "" {
-		// there is a BUG in lib\msf\core\rpc\v10\rpc_module.rb
-		//
-		//  if options['addshellcode']
-		//      buf = Msf::Util::EXE.win32_rwx_exec_thread(buf,0,'end')
-		//      file = ::File.new(options['addshellcode'])
-		//      file.binmode
-		//      buf << file.read
-		//      file.close
-		// m["addshellcode"] = opts.AddShellcode
-	}
+	// there is a BUG in lib\msf\core\rpc\v10\rpc_module.rb
+	//
+	//  if options['addshellcode']
+	//      buf = Msf::Util::EXE.win32_rwx_exec_thread(buf,0,'end')
+	//      file = ::File.new(options['addshellcode'])
+	//      file.binmode
+	//      buf << file.read
+	//      file.close
+
+	// if opts.AddShellcode != "" {
+	//     m["addshellcode"] = opts.AddShellcode
+	// }
 	return m
 }
 
 // ModuleEncodeResult is the result about encode.
 type ModuleEncodeResult struct {
 	Encoded string `msgpack:"encoded"`
+	MSFError
+}
+
+// ModuleExecuteRequest is used to execute a module.
+type ModuleExecuteRequest struct {
+	Method  string
+	Token   string
+	Type    string
+	Name    string
+	Options map[string]interface{}
+}
+
+// ModuleExecuteOptions is used to generate payload.
+type ModuleExecuteOptions struct {
+	BadChars            string
+	Format              string
+	ForceEncoding       bool
+	Template            string
+	Platform            string
+	KeepTemplateWorking bool
+	NopSledSize         uint64
+	Iterations          uint64
+}
+
+func (opts *ModuleExecuteOptions) toMap() map[string]interface{} {
+	m := map[string]interface{}{
+		"BadChars":            opts.BadChars,
+		"Format":              opts.Format,
+		"ForceEncoding":       opts.ForceEncoding,
+		"Template":            opts.Template,
+		"Platform":            opts.Platform,
+		"KeepTemplateWorking": opts.KeepTemplateWorking,
+		"NopSledSize":         opts.NopSledSize,
+	}
+	if opts.Iterations > 0 {
+		m["Iterations"] = opts.Iterations
+	}
+	return m
+}
+
+// ModuleExecuteResult is the result of execute a module.
+type ModuleExecuteResult struct {
+	JobID   uint64 `msgpack:"job_id"`
+	UUID    string `msgpack:"uuid"`
+	Payload string `msgpack:"payload"`
 	MSFError
 }
 

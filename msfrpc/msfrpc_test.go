@@ -564,10 +564,3 @@ func TestMSFRPC_Close(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
-
-// fmt.Println(result.MSFError.ErrorClass)
-// fmt.Println(result.MSFError.ErrorString)
-//
-// for i := 0; i < len(result.MSFError.ErrorBacktrace); i++ {
-//     fmt.Println(result.MSFError.ErrorBacktrace[i])
-// }
