@@ -894,12 +894,12 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("exploit", func(t *testing.T) {
+		const exploit = "multi/handler"
 		opts := make(map[string]interface{})
 		opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
 		opts["TARGET"] = 0
 		opts["LHOST"] = "127.0.0.1"
 		opts["LPORT"] = "0"
-		const exploit = "multi/handler"
 
 		t.Run("success", func(t *testing.T) {
 			result, err := msfrpc.ModuleExecute(ctx, "exploit", exploit, opts)
@@ -930,12 +930,13 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 	})
 
 	t.Run("generate payload", func(t *testing.T) {
+		const payload = "windows/meterpreter/reverse_tcp"
 		opts := NewModuleExecuteOptions()
 		opts.Format = "c"
 		opts.Iterations = 1
 		opts.DataStore["LHOST"] = "127.0.0.1"
 		opts.DataStore["LPORT"] = "1999"
-		const payload = "windows/meterpreter/reverse_tcp"
+
 		t.Run("success", func(t *testing.T) {
 			result, err := msfrpc.ModuleExecute(ctx, "payload", payload, opts)
 			require.NoError(t, err)
@@ -976,6 +977,73 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
 			result, err := msfrpc.ModuleExecute(ctx, typ, name, opts)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, result)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleCheck(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		const exploit = "windows/smb/ms17_010_eternalblue"
+		opts := make(map[string]interface{})
+		opts["TARGET"] = 0
+		opts["RHOST"] = "127.0.0.1"
+		opts["RPORT"] = "1"
+		opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
+		opts["LHOST"] = "127.0.0.1"
+		opts["LPORT"] = "1999"
+
+		result, err := msfrpc.ModuleCheck(ctx, "exploit", exploit, opts)
+		require.NoError(t, err)
+
+		jobID := strconv.FormatUint(result.JobID, 10)
+		info, err := msfrpc.JobInfo(jobID)
+		require.NoError(t, err)
+		t.Log(info.Name)
+		for key, value := range info.DataStore {
+			t.Log(key, value)
+		}
+		err = msfrpc.JobStop(jobID)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid module type", func(t *testing.T) {
+		result, err := msfrpc.ModuleCheck(ctx, "foo", "bar", nil)
+		require.EqualError(t, err, "invalid module type: foo")
+		require.Nil(t, result)
+	})
+
+	const (
+		typ  = "exploit"
+		name = "foo"
+	)
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+		result, err := msfrpc.ModuleCheck(ctx, typ, name, nil)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, result)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			result, err := msfrpc.ModuleCheck(ctx, typ, name, nil)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})

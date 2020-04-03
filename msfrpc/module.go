@@ -457,6 +457,11 @@ func (msf *MSFRPC) ModuleCheck(
 	name string,
 	opts map[string]interface{},
 ) (*ModuleCheckResult, error) {
+	switch typ {
+	case "exploit", "auxiliary":
+	default:
+		return nil, errors.New("invalid module type: " + typ)
+	}
 	request := ModuleCheckRequest{
 		Method:  MethodModuleCheck,
 		Token:   msf.GetToken(),
