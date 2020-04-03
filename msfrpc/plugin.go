@@ -20,7 +20,7 @@ func (msf *MSFRPC) PluginLoad(name string, opts map[string]string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
 		const format = "failed to load plugin %s: %s"
@@ -44,7 +44,7 @@ func (msf *MSFRPC) PluginUnload(name string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
 		const format = "failed to unload plugin %s: %s"
@@ -65,7 +65,7 @@ func (msf *MSFRPC) PluginLoaded() ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Plugins, nil
 }

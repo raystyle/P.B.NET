@@ -860,6 +860,12 @@ type ModuleExecuteOptions struct {
 	KeepTemplateWorking bool
 	NopSledSize         uint64
 	Iterations          uint64
+	DataStore           map[string]interface{}
+}
+
+// NewModuleExecuteOptions is used to create a module execute options.
+func NewModuleExecuteOptions() *ModuleExecuteOptions {
+	return &ModuleExecuteOptions{DataStore: make(map[string]interface{})}
 }
 
 func (opts *ModuleExecuteOptions) toMap() map[string]interface{} {
@@ -874,6 +880,9 @@ func (opts *ModuleExecuteOptions) toMap() map[string]interface{} {
 	}
 	if opts.Iterations > 0 {
 		m["Iterations"] = opts.Iterations
+	}
+	for key, value := range opts.DataStore {
+		m[key] = value
 	}
 	return m
 }

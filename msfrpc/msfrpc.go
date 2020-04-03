@@ -211,7 +211,7 @@ func (msf *MSFRPC) Login() error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	msf.SetToken(result.Token)
 	return nil
@@ -232,7 +232,7 @@ func (msf *MSFRPC) Logout(token string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	return nil
 }
@@ -249,7 +249,7 @@ func (msf *MSFRPC) TokenList() ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Tokens, nil
 }
@@ -267,7 +267,7 @@ func (msf *MSFRPC) TokenGenerate() (string, error) {
 		return "", err
 	}
 	if result.Err {
-		return "", &result.MSFError
+		return "", errors.WithStack(&result.MSFError)
 	}
 	return result.Token, nil
 }
@@ -286,7 +286,7 @@ func (msf *MSFRPC) TokenAdd(token string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	return nil
 }
@@ -305,7 +305,7 @@ func (msf *MSFRPC) TokenRemove(token string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	return nil
 }

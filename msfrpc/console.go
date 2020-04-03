@@ -24,7 +24,7 @@ func (msf *MSFRPC) ConsoleCreate() (*ConsoleCreateResult, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
 }
@@ -44,7 +44,7 @@ func (msf *MSFRPC) ConsoleDestroy(id string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
 		return errors.New("invalid console id: " + id)
@@ -68,7 +68,7 @@ func (msf *MSFRPC) ConsoleRead(id string) (*ConsoleReadResult, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "" {
 		const format = "failed to read from console %s: %s"
@@ -93,7 +93,7 @@ func (msf *MSFRPC) ConsoleWrite(id, data string) (uint64, error) {
 		return 0, err
 	}
 	if result.Err {
-		return 0, &result.MSFError
+		return 0, errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "" {
 		const format = "failed to write to console %s: %s"
@@ -115,7 +115,7 @@ func (msf *MSFRPC) ConsoleList() ([]*ConsoleInfo, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Consoles, nil
 }
@@ -136,7 +136,7 @@ func (msf *MSFRPC) ConsoleSessionDetach(id string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
 		const format = "failed to detach session about console %s: %s"
@@ -162,7 +162,7 @@ func (msf *MSFRPC) ConsoleSessionKill(id string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
 		const format = "failed to kill session about console %s: %s"

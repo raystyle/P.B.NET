@@ -851,6 +851,7 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 	require.NoError(t, err)
 	opts := &ModuleEncodeOptions{
 		Format:       "c",
+		EncodeCount:  1,
 		AddShellcode: string(sc),
 	}
 
@@ -897,22 +898,57 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 		opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
 		opts["LHOST"] = "127.0.0.1"
 		opts["LPORT"] = "0"
-		result, err := msfrpc.ModuleExecute(ctx, "exploit", "multi/handler", opts)
-		require.NoError(t, err)
+		const exploit = "multi/handler"
 
-		jobID := strconv.FormatUint(result.JobID, 10)
-		info, err := msfrpc.JobInfo(jobID)
-		require.NoError(t, err)
-		t.Log(info.Name)
-		for key, value := range info.DataStore {
-			t.Log(key, value)
-		}
-		err = msfrpc.JobStop(jobID)
-		require.NoError(t, err)
+		t.Run("success", func(t *testing.T) {
+			result, err := msfrpc.ModuleExecute(ctx, "exploit", exploit, opts)
+			require.NoError(t, err)
+
+			jobID := strconv.FormatUint(result.JobID, 10)
+			info, err := msfrpc.JobInfo(jobID)
+			require.NoError(t, err)
+			t.Log(info.Name)
+			for key, value := range info.DataStore {
+				t.Log(key, value)
+			}
+			err = msfrpc.JobStop(jobID)
+			require.NoError(t, err)
+		})
+
+		t.Run("invalid port", func(t *testing.T) {
+			opts["LPORT"] = "foo"
+			defer func() { opts["LPORT"] = "0" }()
+			result, err := msfrpc.ModuleExecute(ctx, "exploit", exploit, opts)
+			require.NoError(t, err)
+
+			jobID := strconv.FormatUint(result.JobID, 10)
+			info, err := msfrpc.JobInfo(jobID)
+			require.Error(t, err)
+			require.Nil(t, info)
+		})
 	})
 
 	t.Run("generate payload", func(t *testing.T) {
+		opts := NewModuleExecuteOptions()
+		opts.Format = "c"
+		opts.Iterations = 1
+		opts.DataStore["LHOST"] = "127.0.0.1"
+		opts.DataStore["LPORT"] = "1999"
+		const payload = "windows/meterpreter/reverse_tcp"
+		t.Run("success", func(t *testing.T) {
+			result, err := msfrpc.ModuleExecute(ctx, "payload", payload, opts)
+			require.NoError(t, err)
+			t.Log(result.Payload)
+		})
 
+		t.Run("invalid port", func(t *testing.T) {
+			const errStr = "failed to generate: One or more options failed to validate: LPORT."
+			opts.DataStore["LPORT"] = "foo"
+			defer func() { opts.DataStore["LPORT"] = "1999" }()
+			result, err := msfrpc.ModuleExecute(ctx, "payload", payload, opts)
+			require.EqualError(t, err, errStr)
+			require.Nil(t, result)
+		})
 	})
 
 	msfrpc.Kill()

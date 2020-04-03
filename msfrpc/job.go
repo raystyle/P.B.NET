@@ -1,5 +1,9 @@
 package msfrpc
 
+import (
+	"github.com/pkg/errors"
+)
+
 // JobList is used to list current jobs, key = job id and  value = job name.
 func (msf *MSFRPC) JobList() (map[string]string, error) {
 	request := JobListRequest{
@@ -15,7 +19,7 @@ func (msf *MSFRPC) JobList() (map[string]string, error) {
 		return nil, err
 	}
 	if msfError.Err {
-		return nil, &msfError
+		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
 }
@@ -34,7 +38,7 @@ func (msf *MSFRPC) JobInfo(id string) (*JobInfoResult, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	// replace []byte to string
 	for key, value := range result.DataStore {
@@ -58,7 +62,7 @@ func (msf *MSFRPC) JobStop(id string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	return nil
 }

@@ -1,5 +1,9 @@
 package msfrpc
 
+import (
+	"github.com/pkg/errors"
+)
+
 // CoreModuleStats is used to return the number of modules loaded, broken down by type.
 func (msf *MSFRPC) CoreModuleStats() (*CoreModuleStatsResult, error) {
 	request := CoreModuleStatsRequest{
@@ -12,7 +16,7 @@ func (msf *MSFRPC) CoreModuleStats() (*CoreModuleStatsResult, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
 }
@@ -38,7 +42,7 @@ func (msf *MSFRPC) CoreAddModulePath(path string) (*CoreAddModulePathResult, err
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
 }
@@ -57,7 +61,7 @@ func (msf *MSFRPC) CoreReloadModules() (*CoreReloadModulesResult, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
 }
@@ -78,7 +82,7 @@ func (msf *MSFRPC) CoreThreadList() (map[uint64]*CoreThreadInfo, error) {
 		return nil, err
 	}
 	if msfError.Err {
-		return nil, &msfError
+		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
 }
@@ -97,7 +101,7 @@ func (msf *MSFRPC) CoreThreadKill(id uint64) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	return nil
 }
@@ -121,7 +125,7 @@ func (msf *MSFRPC) CoreSetG(name, value string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	return nil
 }
@@ -139,7 +143,7 @@ func (msf *MSFRPC) CoreUnsetG(name string) error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	return nil
 }
@@ -161,7 +165,7 @@ func (msf *MSFRPC) CoreGetG(name string) (string, error) {
 		return "", err
 	}
 	if msfError.Err {
-		return "", &msfError
+		return "", errors.WithStack(&msfError)
 	}
 	return result[name], nil
 }
@@ -180,7 +184,7 @@ func (msf *MSFRPC) CoreSave() error {
 		return err
 	}
 	if result.Err {
-		return &result.MSFError
+		return errors.WithStack(&result.MSFError)
 	}
 	return nil
 }
@@ -198,7 +202,7 @@ func (msf *MSFRPC) CoreVersion() (*CoreVersionResult, error) {
 		return nil, err
 	}
 	if result.Err {
-		return nil, &result.MSFError
+		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
 }
