@@ -896,6 +896,7 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 	t.Run("exploit", func(t *testing.T) {
 		opts := make(map[string]interface{})
 		opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
+		opts["TARGET"] = 0
 		opts["LHOST"] = "127.0.0.1"
 		opts["LPORT"] = "0"
 		const exploit = "multi/handler"
@@ -947,6 +948,35 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 			defer func() { opts.DataStore["LPORT"] = "1999" }()
 			result, err := msfrpc.ModuleExecute(ctx, "payload", payload, opts)
 			require.EqualError(t, err, errStr)
+			require.Nil(t, result)
+		})
+	})
+
+	t.Run("invalid module type", func(t *testing.T) {
+		result, err := msfrpc.ModuleExecute(ctx, "foo", "bar", nil)
+		require.EqualError(t, err, "invalid module type: foo")
+		require.Nil(t, result)
+	})
+
+	const (
+		typ  = "exploit"
+		name = "foo"
+	)
+	opts := make(map[string]interface{})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+		result, err := msfrpc.ModuleExecute(ctx, typ, name, opts)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, result)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			result, err := msfrpc.ModuleExecute(ctx, typ, name, opts)
+			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
 	})

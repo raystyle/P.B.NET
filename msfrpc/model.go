@@ -895,6 +895,22 @@ type ModuleExecuteResult struct {
 	MSFError
 }
 
+// ModuleCheckRequest is used to check exploit and auxiliary module.
+type ModuleCheckRequest struct {
+	Method  string
+	Token   string
+	Type    string
+	Name    string
+	Options map[string]interface{}
+}
+
+// ModuleCheckResult is the result of check module.
+type ModuleCheckResult struct {
+	JobID uint64 `msgpack:"job_id"`
+	UUID  string `msgpack:"uuid"`
+	MSFError
+}
+
 // -------------------------------------------about job--------------------------------------------
 
 // JobListRequest is used to list jobs.

@@ -449,3 +449,28 @@ func (msf *MSFRPC) ModuleExecute(
 	}
 	return &result, nil
 }
+
+// ModuleCheck is used to check exploit and auxiliary module.
+func (msf *MSFRPC) ModuleCheck(
+	ctx context.Context,
+	typ string,
+	name string,
+	opts map[string]interface{},
+) (*ModuleCheckResult, error) {
+	request := ModuleCheckRequest{
+		Method:  MethodModuleCheck,
+		Token:   msf.GetToken(),
+		Type:    typ,
+		Name:    name,
+		Options: opts,
+	}
+	var result ModuleCheckResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return &result, nil
+}
