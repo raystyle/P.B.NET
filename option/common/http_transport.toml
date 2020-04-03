@@ -12,4 +12,4 @@ disable_compression       = false
   server_name = "test.com"
 
 [proxy_connect_header]
-  test = ["testdata"]
+  Test = ["testdata"]

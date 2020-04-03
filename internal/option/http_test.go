@@ -128,7 +128,7 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 		{expected: true, actual: transport.DisableKeepAlives},
 		{expected: true, actual: transport.DisableCompression},
 		{expected: "test.com", actual: transport.TLSClientConfig.ServerName},
-		{expected: []string{"testdata"}, actual: transport.ProxyConnectHeader["test"]},
+		{expected: []string{"testdata"}, actual: transport.ProxyConnectHeader["Test"]},
 	}
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)
