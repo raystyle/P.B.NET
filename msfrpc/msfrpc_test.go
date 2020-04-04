@@ -35,13 +35,11 @@ func TestMain(m *testing.M) {
 	err := cmd.Start()
 	testsuite.CheckErrorInTestMain(err)
 	// if panic, kill it.
-	defer func() {
-		_ = cmd.Process.Kill()
-	}()
+	defer func() { _ = cmd.Process.Kill() }()
 
+	// TODO remove comment
 	// wait some time for start Metasploit RPC service
 	// stdout and stderr can't read any data, so use time.Sleep
-	// TODO remove comment
 	// time.Sleep(10 * time.Second)
 	exitCode := m.Run()
 
@@ -52,15 +50,22 @@ func TestMain(m *testing.M) {
 	testsuite.CheckErrorInTestMain(err)
 
 	ctx := context.Background()
+	leaks := true
 
 	// check thread
-	threadList, err := msfrpc.CoreThreadList(ctx)
-	testsuite.CheckErrorInTestMain(err)
-	switch len(threadList) {
-	case 4, 9:
-		// 4 = internal(do noting)
+	var threadList map[uint64]*CoreThreadInfo
+	for i := 0; i < 30; i++ {
+		threadList, err = msfrpc.CoreThreadList(ctx)
+		testsuite.CheckErrorInTestMain(err)
+		l := len(threadList)
+		// 3 = internal(do noting)
 		// 9 = start sessions scheduler(5) and session manager(1)
-	default:
+		if l == 3 || l == 9 {
+			leaks = false
+			break
+		}
+	}
+	if leaks {
 		fmt.Println("[warning] msfrpcd thread leaks!")
 		// print threads
 		const format = "id: %d\nname: %s\ncritical: %t\nstatus: %s\nstarted: %s\n\n"
@@ -70,7 +75,6 @@ func TestMain(m *testing.M) {
 		time.Sleep(time.Minute)
 		return
 	}
-
 	// check token = 1
 
 	// check console
@@ -207,6 +211,10 @@ func TestMSFRPC_send(t *testing.T) {
 	const testError = "test error"
 
 	serverMux := http.NewServeMux()
+	serverMux.HandleFunc("/200", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_ = msgpack.NewEncoder(w).Encode([]byte("ok"))
+	})
 	serverMux.HandleFunc("/500_ok", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		var msfErr MSFError
@@ -232,17 +240,17 @@ func TestMSFRPC_send(t *testing.T) {
 		Handler: serverMux,
 	}
 	port := testsuite.RunHTTPServer(t, "tcp", &server)
+	defer func() { _ = server.Close() }()
 	portNum, err := strconv.Atoi(port)
 	require.NoError(t, err)
-	defer func() { _ = server.Close() }()
+	portNumber := uint16(portNum)
 
 	t.Run("internal server error_ok", func(t *testing.T) {
-		portNum := uint16(portNum)
 		opts := Options{
 			DisableTLS: true,
 			Handler:    "500_ok",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -253,12 +261,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("internal server error_failed", func(t *testing.T) {
-		portNum := uint16(portNum)
 		opts := Options{
 			DisableTLS: true,
 			Handler:    "500_failed",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -269,12 +276,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("unauthorized", func(t *testing.T) {
-		portNum := uint16(portNum)
 		opts := Options{
 			DisableTLS: true,
 			Handler:    "401",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -285,12 +291,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
-		portNum := uint16(portNum)
 		opts := Options{
 			DisableTLS: true,
 			Handler:    "403",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -301,12 +306,11 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		portNum := uint16(portNum)
 		opts := Options{
 			DisableTLS: true,
 			Handler:    "not_found",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -318,16 +322,43 @@ func TestMSFRPC_send(t *testing.T) {
 	})
 
 	t.Run("other status code", func(t *testing.T) {
-		portNum := uint16(portNum)
 		opts := Options{
 			DisableTLS: true,
 			Handler:    "unknown",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNum, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "202 Accepted")
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
+
+	t.Run("parallel", func(t *testing.T) {
+		opts := Options{
+			DisableTLS: true,
+			Handler:    "200",
+		}
+		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
+		require.NoError(t, err)
+
+		f1 := func() {
+			testdata := []byte{0x00, 0x01}
+			var result []byte
+			err := msfrpc.send(ctx, &testdata, &result)
+			require.NoError(t, err)
+			require.Equal(t, []byte("ok"), result)
+		}
+		f2 := func() {
+			testdata := []byte{0x02, 0x03}
+			var result []byte
+			err := msfrpc.send(ctx, &testdata, &result)
+			require.NoError(t, err)
+			require.Equal(t, []byte("ok"), result)
+		}
+		testsuite.RunParallel(f1, f2)
 
 		msfrpc.Kill()
 		testsuite.IsDestroyed(t, msfrpc)
