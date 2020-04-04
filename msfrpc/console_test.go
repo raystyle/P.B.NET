@@ -43,7 +43,7 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 		require.Nil(t, result)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			result, err := msfrpc.ConsoleCreate(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -88,7 +88,7 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.ConsoleDestroy(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
@@ -138,7 +138,7 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 		require.Nil(t, output)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			output, err := msfrpc.ConsoleRead(ctx, "999")
 			monkey.IsMonkeyError(t, err)
@@ -198,7 +198,7 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 		require.Equal(t, uint64(0), n)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			n, err := msfrpc.ConsoleWrite(ctx, "999", "foo")
 			monkey.IsMonkeyError(t, err)
@@ -242,7 +242,7 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 		require.Nil(t, consoles)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			consoles, err := msfrpc.ConsoleList(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -299,7 +299,7 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.ConsoleSessionDetach(ctx, "999")
 			monkey.IsMonkeyError(t, err)
@@ -385,7 +385,7 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.ConsoleSessionKill(ctx, "999")
 			monkey.IsMonkeyError(t, err)

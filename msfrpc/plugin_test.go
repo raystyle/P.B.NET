@@ -44,7 +44,7 @@ func TestMSFRPC_PluginLoad(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.PluginLoad(testPluginFileName, testPluginOptions)
 			monkey.IsMonkeyError(t, err)
@@ -86,7 +86,7 @@ func TestMSFRPC_PluginUnload(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.PluginUnload(testPluginName)
 			monkey.IsMonkeyError(t, err)
@@ -126,7 +126,7 @@ func TestMSFRPC_PluginLoaded(t *testing.T) {
 		require.Nil(t, plugins)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			plugins, err := msfrpc.PluginLoaded()
 			monkey.IsMonkeyError(t, err)

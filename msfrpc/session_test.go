@@ -57,7 +57,7 @@ func testCreateSession(t *testing.T, msfrpc *MSFRPC, port string) {
 			return
 		}
 		jobID := strconv.FormatUint(result.JobID, 10)
-		err = msfrpc.JobStop(jobID)
+		err = msfrpc.JobStop(ctx, jobID)
 		require.NoError(t, err)
 	}()
 
@@ -120,7 +120,7 @@ func TestMSFRPC_SessionList(t *testing.T) {
 		require.Nil(t, sessions)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			sessions, err := msfrpc.SessionList(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -168,7 +168,7 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err = msfrpc.SessionStop(ctx, 999)
 			monkey.IsMonkeyError(t, err)

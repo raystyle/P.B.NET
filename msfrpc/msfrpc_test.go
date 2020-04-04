@@ -316,7 +316,7 @@ func TestMSFRPC_Login(t *testing.T) {
 		msfrpc.password = testUsername
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err = msfrpc.Login()
 			monkey.IsMonkeyError(t, err)
@@ -350,7 +350,7 @@ func TestMSFRPC_Logout(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err = msfrpc.Logout(msfrpc.GetToken())
 			monkey.IsMonkeyError(t, err)
@@ -394,7 +394,7 @@ func TestMSFRPC_TokenList(t *testing.T) {
 		require.Nil(t, list)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			list, err := msfrpc.TokenList()
 			monkey.IsMonkeyError(t, err)
@@ -438,7 +438,7 @@ func TestMSFRPC_TokenGenerate(t *testing.T) {
 		require.Zero(t, token)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			token, err := msfrpc.TokenGenerate()
 			monkey.IsMonkeyError(t, err)
@@ -495,7 +495,7 @@ func TestMSFRPC_TokenAdd(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.TokenAdd(token)
 			monkey.IsMonkeyError(t, err)
@@ -551,7 +551,7 @@ func TestMSFRPC_TokenRemove(t *testing.T) {
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.TokenRemove(token)
 			monkey.IsMonkeyError(t, err)

@@ -43,7 +43,7 @@ func TestMSFRPC_ModuleExploits(t *testing.T) {
 		require.Nil(t, modules)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			modules, err := msfrpc.ModuleExploits(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -85,7 +85,7 @@ func TestMSFRPC_ModuleAuxiliary(t *testing.T) {
 		require.Nil(t, modules)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			modules, err := msfrpc.ModuleAuxiliary(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -127,7 +127,7 @@ func TestMSFRPC_ModulePost(t *testing.T) {
 		require.Nil(t, modules)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			modules, err := msfrpc.ModulePost(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -169,7 +169,7 @@ func TestMSFRPC_ModulePayloads(t *testing.T) {
 		require.Nil(t, modules)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			modules, err := msfrpc.ModulePayloads(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -211,7 +211,7 @@ func TestMSFRPC_ModuleEncoders(t *testing.T) {
 		require.Nil(t, modules)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			modules, err := msfrpc.ModuleEncoders(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -253,7 +253,7 @@ func TestMSFRPC_ModuleNops(t *testing.T) {
 		require.Nil(t, modules)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			modules, err := msfrpc.ModuleNops(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -295,7 +295,7 @@ func TestMSFRPC_ModuleEvasion(t *testing.T) {
 		require.Nil(t, modules)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			modules, err := msfrpc.ModuleEvasion(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -366,7 +366,7 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 		require.Nil(t, info)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			info, err := msfrpc.ModuleInfo(ctx, "foo", "bar")
 			monkey.IsMonkeyError(t, err)
@@ -422,7 +422,7 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 		require.Nil(t, options)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			options, err := msfrpc.ModuleOptions(ctx, "foo", "bar")
 			monkey.IsMonkeyError(t, err)
@@ -469,7 +469,7 @@ func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
 		require.Nil(t, payloads)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
@@ -521,7 +521,7 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 		require.Nil(t, payloads)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, iModule, target)
 			monkey.IsMonkeyError(t, err)
@@ -570,7 +570,7 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 		require.Nil(t, sessions)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
@@ -618,7 +618,7 @@ func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
 		require.Nil(t, payloads)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
@@ -670,7 +670,7 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 		require.Nil(t, payloads)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, iModule, target)
 			monkey.IsMonkeyError(t, err)
@@ -711,7 +711,7 @@ func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
 		require.Nil(t, formats)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			formats, err := msfrpc.ModuleEncodeFormats(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -752,7 +752,7 @@ func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
 		require.Nil(t, formats)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			formats, err := msfrpc.ModuleExecutableFormats(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -793,7 +793,7 @@ func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
 		require.Nil(t, formats)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			formats, err := msfrpc.ModuleTransformFormats(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -834,7 +834,7 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 		require.Nil(t, formats)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			formats, err := msfrpc.ModuleEncryptionFormats(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -875,7 +875,7 @@ func TestMSFRPC_ModulePlatforms(t *testing.T) {
 		require.Nil(t, platforms)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			platforms, err := msfrpc.ModulePlatforms(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -916,7 +916,7 @@ func TestMSFRPC_ModuleArchitectures(t *testing.T) {
 		require.Nil(t, architectures)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			architectures, err := msfrpc.ModuleArchitectures(ctx)
 			monkey.IsMonkeyError(t, err)
@@ -971,7 +971,7 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 		require.Zero(t, encoded)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
 			monkey.IsMonkeyError(t, err)
@@ -1007,13 +1007,13 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 			require.NoError(t, err)
 
 			jobID := strconv.FormatUint(result.JobID, 10)
-			info, err := msfrpc.JobInfo(jobID)
+			info, err := msfrpc.JobInfo(ctx, jobID)
 			require.NoError(t, err)
 			t.Log(info.Name)
 			for key, value := range info.DataStore {
 				t.Log(key, value)
 			}
-			err = msfrpc.JobStop(jobID)
+			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
 		})
 
@@ -1024,7 +1024,7 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 			require.NoError(t, err)
 
 			jobID := strconv.FormatUint(result.JobID, 10)
-			info, err := msfrpc.JobInfo(jobID)
+			info, err := msfrpc.JobInfo(ctx, jobID)
 			require.Error(t, err)
 			require.Nil(t, info)
 		})
@@ -1076,7 +1076,7 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 		require.Nil(t, result)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			result, err := msfrpc.ModuleExecute(ctx, typ, name, opts)
 			monkey.IsMonkeyError(t, err)
@@ -1113,13 +1113,13 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 		require.NoError(t, err)
 
 		jobID := strconv.FormatUint(result.JobID, 10)
-		info, err := msfrpc.JobInfo(jobID)
+		info, err := msfrpc.JobInfo(ctx, jobID)
 		require.NoError(t, err)
 		t.Log(info.Name)
 		for key, value := range info.DataStore {
 			t.Log(key, value)
 		}
-		err = msfrpc.JobStop(jobID)
+		err = msfrpc.JobStop(ctx, jobID)
 		require.NoError(t, err)
 	})
 
@@ -1144,7 +1144,7 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 		require.Nil(t, result)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			result, err := msfrpc.ModuleCheck(ctx, typ, name, nil)
 			monkey.IsMonkeyError(t, err)
@@ -1192,7 +1192,7 @@ func TestMSFRPC_ModuleRunningStats(t *testing.T) {
 		require.Nil(t, result)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			result, err := msfrpc.ModuleRunningStats(ctx)
 			monkey.IsMonkeyError(t, err)

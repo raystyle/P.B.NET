@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -20,11 +21,13 @@ func TestMSFRPC_JobList(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate()
+		console, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 
-		output, err := msfrpc.ConsoleRead(console.ID)
+		output, err := msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Log(output.Data)
 
@@ -38,11 +41,11 @@ func TestMSFRPC_JobList(t *testing.T) {
 			"exploit -j\r\n",
 		}
 		for _, command := range commands {
-			n, err := msfrpc.ConsoleWrite(console.ID, command)
+			n, err := msfrpc.ConsoleWrite(ctx, console.ID, command)
 			require.NoError(t, err)
 			require.Equal(t, uint64(len(command)), n)
 			for {
-				output, err := msfrpc.ConsoleRead(console.ID)
+				output, err := msfrpc.ConsoleRead(ctx, console.ID)
 				require.NoError(t, err)
 				if !output.Busy {
 					t.Logf("%s\n%s\n", output.Prompt, output.Data)
@@ -54,13 +57,16 @@ func TestMSFRPC_JobList(t *testing.T) {
 			}
 		}
 
-		list, err := msfrpc.JobList()
+		list, err := msfrpc.JobList(ctx)
 		require.NoError(t, err)
 		for id, name := range list {
 			t.Log(id, name)
+
+			err = msfrpc.JobStop(ctx, id)
+			require.NoError(t, err)
 		}
 
-		err = msfrpc.ConsoleDestroy(console.ID)
+		err = msfrpc.ConsoleDestroy(ctx, console.ID)
 		require.NoError(t, err)
 	})
 
@@ -69,14 +75,14 @@ func TestMSFRPC_JobList(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		list, err := msfrpc.JobList()
+		list, err := msfrpc.JobList(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, list)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			list, err := msfrpc.JobList()
+			list, err := msfrpc.JobList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, list)
 		})
@@ -95,11 +101,13 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate()
+		console, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 
-		output, err := msfrpc.ConsoleRead(console.ID)
+		output, err := msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Log(output.Data)
 
@@ -113,11 +121,11 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 			"exploit -j\r\n",
 		}
 		for _, command := range commands {
-			n, err := msfrpc.ConsoleWrite(console.ID, command)
+			n, err := msfrpc.ConsoleWrite(ctx, console.ID, command)
 			require.NoError(t, err)
 			require.Equal(t, uint64(len(command)), n)
 			for {
-				output, err := msfrpc.ConsoleRead(console.ID)
+				output, err := msfrpc.ConsoleRead(ctx, console.ID)
 				require.NoError(t, err)
 				if !output.Busy {
 					t.Logf("%s\n%s\n", output.Prompt, output.Data)
@@ -129,10 +137,10 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 			}
 		}
 
-		list, err := msfrpc.JobList()
+		list, err := msfrpc.JobList(ctx)
 		require.NoError(t, err)
 		for id := range list {
-			info, err := msfrpc.JobInfo(id)
+			info, err := msfrpc.JobInfo(ctx, id)
 			require.NoError(t, err)
 			t.Log(info.Name)
 			for key, value := range info.DataStore {
@@ -143,10 +151,19 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 				}
 				t.Log(key, value, typeName)
 			}
+
+			err = msfrpc.JobStop(ctx, id)
+			require.NoError(t, err)
 		}
 
-		err = msfrpc.ConsoleDestroy(console.ID)
+		err = msfrpc.ConsoleDestroy(ctx, console.ID)
 		require.NoError(t, err)
+	})
+
+	t.Run("invalid job id", func(t *testing.T) {
+		info, err := msfrpc.JobInfo(ctx, "foo")
+		require.EqualError(t, err, "invalid job id: foo")
+		require.Nil(t, info)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
@@ -154,14 +171,14 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		info, err := msfrpc.JobInfo("foo")
+		info, err := msfrpc.JobInfo(ctx, "foo")
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, info)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			info, err := msfrpc.JobInfo("foo")
+			info, err := msfrpc.JobInfo(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, info)
 		})
@@ -180,11 +197,13 @@ func TestMSFRPC_JobStop(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate()
+		console, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 
-		output, err := msfrpc.ConsoleRead(console.ID)
+		output, err := msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Log(output.Data)
 
@@ -198,11 +217,11 @@ func TestMSFRPC_JobStop(t *testing.T) {
 			"exploit -j\r\n",
 		}
 		for _, command := range commands {
-			n, err := msfrpc.ConsoleWrite(console.ID, command)
+			n, err := msfrpc.ConsoleWrite(ctx, console.ID, command)
 			require.NoError(t, err)
 			require.Equal(t, uint64(len(command)), n)
 			for {
-				output, err := msfrpc.ConsoleRead(console.ID)
+				output, err := msfrpc.ConsoleRead(ctx, console.ID)
 				require.NoError(t, err)
 				if !output.Busy {
 					t.Logf("%s\n%s\n", output.Prompt, output.Data)
@@ -214,15 +233,20 @@ func TestMSFRPC_JobStop(t *testing.T) {
 			}
 		}
 
-		list, err := msfrpc.JobList()
+		list, err := msfrpc.JobList(ctx)
 		require.NoError(t, err)
 		for id := range list {
-			err = msfrpc.JobStop(id)
+			err = msfrpc.JobStop(ctx, id)
 			require.NoError(t, err)
 		}
 
-		err = msfrpc.ConsoleDestroy(console.ID)
+		err = msfrpc.ConsoleDestroy(ctx, console.ID)
 		require.NoError(t, err)
+	})
+
+	t.Run("invalid job id", func(t *testing.T) {
+		err := msfrpc.JobStop(ctx, "foo")
+		require.EqualError(t, err, "invalid job id: foo")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
@@ -230,13 +254,13 @@ func TestMSFRPC_JobStop(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.JobStop("foo")
+		err := msfrpc.JobStop(ctx, "foo")
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
-	t.Run("send failed", func(t *testing.T) {
+	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.JobStop("foo")
+			err := msfrpc.JobStop(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 		})
 	})
