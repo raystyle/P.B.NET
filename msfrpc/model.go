@@ -159,7 +159,7 @@ const (
 	MethodJobInfo = "job.info"
 	MethodJobStop = "job.stop"
 
-	// MethodSessionList                          = "session.list"
+	MethodSessionList = "session.list"
 	// MethodSessionStop                          = "session.stop"
 	// MethodSessionShellRead                     = "session.shell_read"
 	// MethodSessionShellWrite                    = "session.shell_write"
@@ -173,12 +173,11 @@ const (
 	// MethodSessionMeterpreterSessionDetach      = "session.meterpreter_session_detach"
 	// MethodSessionMeterpreterSessionKill        = "session.meterpreter_session_kill"
 	// MethodSessionMeterpreterRunSingle          = "session.meterpreter_run_single"
-	// MethodSessionMeterpreterScript             = "session.meterpreter_script"
 	// MethodSessionMeterpreterDirectorySeparator = "session.meterpreter_directory_separator"
 	// MethodSessionCompatibleModules             = "session.compatible_modules"
 )
 
-// -------------------------------------------about auth-------------------------------------------
+// --------------------------------------about authentication--------------------------------------
 
 // AuthLoginRequest is used to login and get token.
 type AuthLoginRequest struct {
@@ -978,3 +977,30 @@ type JobStopResult struct {
 }
 
 // -----------------------------------------about session------------------------------------------
+
+// SessionListRequest is used to get session list.
+type SessionListRequest struct {
+	Method string
+	Token  string
+}
+
+// SessionInfo contains the session information.
+type SessionInfo struct {
+	Type         string `msgpack:"type"`
+	ViaExploit   string `msgpack:"via_exploit"`
+	ViaPayload   string `msgpack:"via_payload"`
+	TunnelLocal  string `msgpack:"tunnel_local"`
+	TunnelPeer   string `msgpack:"tunnel_peer"`
+	SessionHost  string `msgpack:"session_host"`
+	SessionPort  uint64 `msgpack:"session_port"`
+	TargetHost   string `msgpack:"target_host"`
+	Routes       string `msgpack:"routes"`
+	Username     string `msgpack:"username"`
+	Architecture string `msgpack:"arch"`
+	Platform     string `msgpack:"platform"`
+	Description  string `msgpack:"desc"`
+	Information  string `msgpack:"info"`
+	Workspace    string `msgpack:"workspace"`
+	UUID         string `msgpack:"uuid"`
+	ExploitUUID  string `msgpack:"exploit_uuid"`
+}

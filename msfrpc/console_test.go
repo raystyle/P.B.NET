@@ -34,6 +34,7 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		result, err := msfrpc.ConsoleCreate()
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, result)
@@ -77,6 +78,7 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		err := msfrpc.ConsoleDestroy("foo")
 		require.EqualError(t, err, testErrInvalidToken)
 	})
@@ -123,6 +125,7 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		output, err := msfrpc.ConsoleRead("999")
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, output)
@@ -180,6 +183,7 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		n, err := msfrpc.ConsoleWrite("999", "foo")
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Equal(t, uint64(0), n)
@@ -221,6 +225,7 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		consoles, err := msfrpc.ConsoleList()
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, consoles)
@@ -276,6 +281,7 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		err := msfrpc.ConsoleSessionDetach("999")
 		require.EqualError(t, err, testErrInvalidToken)
 	})
@@ -359,6 +365,7 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		err := msfrpc.ConsoleSessionKill("999")
 		require.EqualError(t, err, testErrInvalidToken)
 	})

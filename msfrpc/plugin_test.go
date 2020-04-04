@@ -39,6 +39,7 @@ func TestMSFRPC_PluginLoad(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		err := msfrpc.PluginLoad(testPluginFileName, testPluginOptions)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
@@ -80,6 +81,7 @@ func TestMSFRPC_PluginUnload(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		err := msfrpc.PluginUnload(testPluginName)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
@@ -118,6 +120,7 @@ func TestMSFRPC_PluginLoaded(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		plugins, err := msfrpc.PluginLoaded()
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, plugins)

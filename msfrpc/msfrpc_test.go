@@ -388,6 +388,7 @@ func TestMSFRPC_TokenList(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		list, err := msfrpc.TokenList()
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, list)
@@ -431,6 +432,7 @@ func TestMSFRPC_TokenGenerate(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
+
 		token, err := msfrpc.TokenGenerate()
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Zero(t, token)
@@ -544,6 +546,7 @@ func TestMSFRPC_TokenRemove(t *testing.T) {
 		former := msfrpc.GetToken()
 		defer msfrpc.SetToken(former)
 		msfrpc.SetToken(testInvalidToken)
+
 		err := msfrpc.TokenRemove(token)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
