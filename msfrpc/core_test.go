@@ -17,7 +17,7 @@ func TestMSFRPC_CoreModuleStats(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -61,7 +61,7 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -111,7 +111,7 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -155,7 +155,7 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -196,7 +196,7 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -232,7 +232,7 @@ func TestMSFRPC_CoreSetG(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -268,7 +268,7 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -314,7 +314,7 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -363,7 +363,7 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -399,7 +399,7 @@ func TestMSFRPC_CoreVersion(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()

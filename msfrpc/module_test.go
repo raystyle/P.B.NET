@@ -19,7 +19,7 @@ func TestMSFRPC_ModuleExploits(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -61,7 +61,7 @@ func TestMSFRPC_ModuleAuxiliary(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -103,7 +103,7 @@ func TestMSFRPC_ModulePost(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -145,7 +145,7 @@ func TestMSFRPC_ModulePayloads(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -187,7 +187,7 @@ func TestMSFRPC_ModuleEncoders(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -229,7 +229,7 @@ func TestMSFRPC_ModuleNops(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -271,7 +271,7 @@ func TestMSFRPC_ModuleEvasion(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -313,7 +313,7 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -384,7 +384,7 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -440,7 +440,7 @@ func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -487,7 +487,7 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -539,7 +539,7 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -588,7 +588,7 @@ func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -636,7 +636,7 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -688,7 +688,7 @@ func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -729,7 +729,7 @@ func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -770,7 +770,7 @@ func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -811,7 +811,7 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -852,7 +852,7 @@ func TestMSFRPC_ModulePlatforms(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -893,7 +893,7 @@ func TestMSFRPC_ModuleArchitectures(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -934,7 +934,7 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -989,7 +989,7 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -1094,7 +1094,7 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -1162,7 +1162,7 @@ func TestMSFRPC_ModuleRunningStats(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()

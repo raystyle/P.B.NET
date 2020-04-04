@@ -46,54 +46,133 @@ func TestMain(m *testing.M) {
 	// check leaks
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	testsuite.CheckErrorInTestMain(err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	testsuite.CheckErrorInTestMain(err)
 
 	ctx := context.Background()
-	leaks := true
 
-	// check thread
-	var threadList map[uint64]*CoreThreadInfo
-	for i := 0; i < 30; i++ {
-		threadList, err = msfrpc.CoreThreadList(ctx)
-		testsuite.CheckErrorInTestMain(err)
-		l := len(threadList)
-		// 3 = internal(do noting)
-		// 9 = start sessions scheduler(5) and session manager(1)
-		if l == 3 || l == 9 {
-			leaks = false
-			break
+	for _, check := range []func(context.Context, *MSFRPC) bool{
+		testMainCheckThread,
+		testMainCheckToken,
+		testMainCheckConsole,
+		testMainCheckJob,
+		testMainCheckSession,
+	} {
+		if check(ctx, msfrpc) {
+			time.Sleep(time.Minute)
+			os.Exit(1)
 		}
 	}
-	if leaks {
-		fmt.Println("[warning] msfrpcd thread leaks!")
-		// print threads
-		const format = "id: %d\nname: %s\ncritical: %t\nstatus: %s\nstarted: %s\n\n"
-		for i, t := range threadList {
-			fmt.Printf(format, i, t.Name, t.Critical, t.Status, t.Started)
-		}
-		time.Sleep(time.Minute)
-		return
-	}
-	// check token = 1
-
-	// check console
-
-	// check job
-
-	// check session
 
 	msfrpc.Kill()
 	if !testsuite.Destroyed(msfrpc) {
 		fmt.Println("[warning] msfrpc is not destroyed!")
 		time.Sleep(time.Minute)
-		return
+		os.Exit(1)
 	}
 
 	// stop Metasploit RPC service
 	_ = cmd.Process.Kill()
 
 	os.Exit(exitCode)
+}
+
+func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
+	var (
+		list map[uint64]*CoreThreadInfo
+		err  error
+	)
+	for i := 0; i < 30; i++ {
+		list, err = msfrpc.CoreThreadList(ctx)
+		testsuite.CheckErrorInTestMain(err)
+		// 3 = internal(do noting)
+		// 9 = start sessions scheduler(5) and session manager(1)
+		l := len(list)
+		if l == 3 || l == 9 {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	fmt.Println("[warning] msfrpcd thread leaks!")
+	// print threads
+	const format = "id: %d\nname: %s\ncritical: %t\nstatus: %s\nstarted: %s\n\n"
+	for i, t := range list {
+		fmt.Printf(format, i, t.Name, t.Critical, t.Status, t.Started)
+	}
+	return true
+}
+
+func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
+	var (
+		list []string
+		err  error
+	)
+	for i := 0; i < 30; i++ {
+		list, err = msfrpc.AuthTokenList()
+		testsuite.CheckErrorInTestMain(err)
+		// include self token
+		if len(list) == 1 {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	fmt.Println("[warning] msfrpcd token leaks!")
+	// print tokens
+	for i := 0; i < len(list); i++ {
+		fmt.Println(list[i])
+	}
+	return true
+}
+
+func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
+	var (
+		list []string
+		err  error
+	)
+	for i := 0; i < 30; i++ {
+		list, err = msfrpc.AuthTokenList()
+		testsuite.CheckErrorInTestMain(err)
+		if len(list) == 1 {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return true
+}
+
+func testMainCheckJob(ctx context.Context, msfrpc *MSFRPC) bool {
+	var (
+		list []string
+		err  error
+	)
+	for i := 0; i < 30; i++ {
+		list, err = msfrpc.AuthTokenList()
+		testsuite.CheckErrorInTestMain(err)
+		if len(list) == 1 {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return true
+}
+
+func testMainCheckSession(ctx context.Context, msfrpc *MSFRPC) bool {
+	var (
+		list []string
+		err  error
+	)
+	for i := 0; i < 30; i++ {
+		list, err = msfrpc.AuthTokenList()
+		testsuite.CheckErrorInTestMain(err)
+		if len(list) == 1 {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return true
 }
 
 func TestNewMSFRPC(t *testing.T) {
@@ -143,7 +222,7 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -374,7 +453,7 @@ func testPatchSend(f func()) {
 	f()
 }
 
-func TestMSFRPC_Login(t *testing.T) {
+func TestMSFRPC_AuthLogin(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -382,13 +461,13 @@ func TestMSFRPC_Login(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("login success", func(t *testing.T) {
-		err = msfrpc.Login()
+		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
 	})
 
 	t.Run("login failed", func(t *testing.T) {
 		msfrpc.password = "foo"
-		err = msfrpc.Login()
+		err = msfrpc.AuthLogin()
 		require.EqualError(t, err, "Login Failed")
 
 		msfrpc.password = testUsername
@@ -396,7 +475,7 @@ func TestMSFRPC_Login(t *testing.T) {
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err = msfrpc.Login()
+			err = msfrpc.AuthLogin()
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -405,7 +484,7 @@ func TestMSFRPC_Login(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_Logout(t *testing.T) {
+func TestMSFRPC_AuthLogout(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -413,24 +492,24 @@ func TestMSFRPC_Logout(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("logout self", func(t *testing.T) {
-		err = msfrpc.Login()
+		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
 
-		err = msfrpc.Logout(msfrpc.GetToken())
+		err = msfrpc.AuthLogout(msfrpc.GetToken())
 		require.NoError(t, err)
 	})
 
 	t.Run("logout invalid token", func(t *testing.T) {
-		err = msfrpc.Login()
+		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
 
-		err = msfrpc.Logout(testInvalidToken)
+		err = msfrpc.AuthLogout(testInvalidToken)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err = msfrpc.Logout(msfrpc.GetToken())
+			err = msfrpc.AuthLogout(msfrpc.GetToken())
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -439,18 +518,18 @@ func TestMSFRPC_Logout(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_TokenList(t *testing.T) {
+func TestMSFRPC_AuthTokenList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		token := msfrpc.GetToken()
-		list, err := msfrpc.TokenList()
+		list, err := msfrpc.AuthTokenList()
 		require.NoError(t, err)
 		var exist bool
 		for i := 0; i < len(list); i++ {
@@ -467,14 +546,14 @@ func TestMSFRPC_TokenList(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		list, err := msfrpc.TokenList()
+		list, err := msfrpc.AuthTokenList()
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, list)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			list, err := msfrpc.TokenList()
+			list, err := msfrpc.AuthTokenList()
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, list)
 		})
@@ -484,25 +563,25 @@ func TestMSFRPC_TokenList(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_TokenGenerate(t *testing.T) {
+func TestMSFRPC_AuthTokenGenerate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
-		token, err := msfrpc.TokenGenerate()
+		token, err := msfrpc.AuthTokenGenerate()
 		require.NoError(t, err)
 		t.Log(token)
 
-		tokens, err := msfrpc.TokenList()
+		tokens, err := msfrpc.AuthTokenList()
 		require.NoError(t, err)
 		require.Contains(t, tokens, token)
 
-		err = msfrpc.TokenRemove(token)
+		err = msfrpc.AuthTokenRemove(token)
 		require.NoError(t, err)
 	})
 
@@ -511,14 +590,14 @@ func TestMSFRPC_TokenGenerate(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		token, err := msfrpc.TokenGenerate()
+		token, err := msfrpc.AuthTokenGenerate()
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Zero(t, token)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			token, err := msfrpc.TokenGenerate()
+			token, err := msfrpc.AuthTokenGenerate()
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, token)
 		})
@@ -528,38 +607,38 @@ func TestMSFRPC_TokenGenerate(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_TokenAdd(t *testing.T) {
+func TestMSFRPC_AuthTokenAdd(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	const token = "TEST0123456789012345678901234567"
 
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.TokenAdd(token)
+		err := msfrpc.AuthTokenAdd(token)
 		require.NoError(t, err)
 
-		tokens, err := msfrpc.TokenList()
+		tokens, err := msfrpc.AuthTokenList()
 		require.NoError(t, err)
 		require.Contains(t, tokens, token)
 
-		err = msfrpc.TokenRemove(token)
+		err = msfrpc.AuthTokenRemove(token)
 		require.NoError(t, err)
 	})
 
 	t.Run("add invalid token", func(t *testing.T) {
-		err := msfrpc.TokenAdd(testInvalidToken)
+		err := msfrpc.AuthTokenAdd(testInvalidToken)
 		require.NoError(t, err)
 
-		tokens, err := msfrpc.TokenList()
+		tokens, err := msfrpc.AuthTokenList()
 		require.NoError(t, err)
 		require.Contains(t, tokens, testInvalidToken)
 
-		err = msfrpc.TokenRemove(testInvalidToken)
+		err = msfrpc.AuthTokenRemove(testInvalidToken)
 		require.NoError(t, err)
 	})
 
@@ -569,13 +648,13 @@ func TestMSFRPC_TokenAdd(t *testing.T) {
 		former := msfrpc.GetToken()
 		defer msfrpc.SetToken(former)
 		msfrpc.SetToken(testInvalidToken + "foo")
-		err := msfrpc.TokenAdd(token)
+		err := msfrpc.AuthTokenAdd(token)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.TokenAdd(token)
+			err := msfrpc.AuthTokenAdd(token)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -584,38 +663,38 @@ func TestMSFRPC_TokenAdd(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_TokenRemove(t *testing.T) {
+func TestMSFRPC_AuthTokenRemove(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	const token = "TEST0123456789012345678901234567"
 
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.TokenRemove(token)
+		err := msfrpc.AuthTokenRemove(token)
 		require.NoError(t, err)
 
-		tokens, err := msfrpc.TokenList()
+		tokens, err := msfrpc.AuthTokenList()
 		require.NoError(t, err)
 		require.NotContains(t, tokens, token)
 	})
 
 	t.Run("remove invalid token", func(t *testing.T) {
-		err := msfrpc.TokenAdd(testInvalidToken)
+		err := msfrpc.AuthTokenAdd(testInvalidToken)
 		require.NoError(t, err)
 
-		err = msfrpc.TokenRemove(testInvalidToken)
+		err = msfrpc.AuthTokenRemove(testInvalidToken)
 		require.NoError(t, err)
 
 		// doesn't exists
-		err = msfrpc.TokenRemove(testInvalidToken)
+		err = msfrpc.AuthTokenRemove(testInvalidToken)
 		require.NoError(t, err)
 
-		tokens, err := msfrpc.TokenList()
+		tokens, err := msfrpc.AuthTokenList()
 		require.NoError(t, err)
 		require.NotContains(t, tokens, testInvalidToken)
 	})
@@ -625,13 +704,13 @@ func TestMSFRPC_TokenRemove(t *testing.T) {
 		defer msfrpc.SetToken(former)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.TokenRemove(token)
+		err := msfrpc.AuthTokenRemove(token)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.TokenRemove(token)
+			err := msfrpc.AuthTokenRemove(token)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -648,7 +727,7 @@ func TestMSFRPC_Close(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("ok", func(t *testing.T) {
-		err = msfrpc.Login()
+		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
 		err = msfrpc.Close()
 		require.NoError(t, err)

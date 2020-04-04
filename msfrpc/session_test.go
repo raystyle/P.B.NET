@@ -91,7 +91,7 @@ func TestMSFRPC_SessionList(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -138,7 +138,7 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
-	err = msfrpc.Login()
+	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()

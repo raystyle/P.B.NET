@@ -106,8 +106,8 @@ func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) erro
 	return msf.sendWithReplace(ctx, request, response, nil)
 }
 
-// sendWithReplace is used to replace response to another response like
-// CoreThreadList and MSFError if decode failed(return a MSFError).
+// sendWithReplace is used to replace response to another response like CoreThreadList
+// and MSFError if decode failed(return a MSFError).
 func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, replace interface{}) error {
 	buf := msf.bufferPool.Get().(*bytes.Buffer)
 	defer msf.bufferPool.Put(buf)
@@ -197,9 +197,9 @@ func (msf *MSFRPC) GetToken() string {
 	return msf.token
 }
 
-// Login is used to login metasploit RPC and get a temporary token.
-// if use permanent token, dont need to call Login() but need Logout().
-func (msf *MSFRPC) Login() error {
+// AuthLogin is used to login metasploit RPC and get a temporary token. if use
+// permanent token, dont need to call AuthLogin() but need AuthLogout().
+func (msf *MSFRPC) AuthLogin() error {
 	request := AuthLoginRequest{
 		Method:   MethodAuthLogin,
 		Username: msf.username,
@@ -217,10 +217,10 @@ func (msf *MSFRPC) Login() error {
 	return nil
 }
 
-// Logout is used to remove the specified token from the authentication token list.
-// Note that this method can be used to disable any temporary token, not just the
-// one used by the current user. The permanent token will not be removed.
-func (msf *MSFRPC) Logout(token string) error {
+// AuthLogout is used to remove the specified token from the authentication token list.
+// Note that this method can be used to disable any temporary token, not just the one
+// used by the current user. The permanent token will not be removed.
+func (msf *MSFRPC) AuthLogout(token string) error {
 	request := AuthLogoutRequest{
 		Method:      MethodAuthLogout,
 		Token:       msf.GetToken(),
@@ -237,8 +237,8 @@ func (msf *MSFRPC) Logout(token string) error {
 	return nil
 }
 
-// TokenList is used to get token list.
-func (msf *MSFRPC) TokenList() ([]string, error) {
+// AuthTokenList is used to get token list.
+func (msf *MSFRPC) AuthTokenList() ([]string, error) {
 	request := AuthTokenListRequest{
 		Method: MethodAuthTokenList,
 		Token:  msf.GetToken(),
@@ -254,9 +254,9 @@ func (msf *MSFRPC) TokenList() ([]string, error) {
 	return result.Tokens, nil
 }
 
-// TokenGenerate is used to create a random 32-byte authentication token,
+// AuthTokenGenerate is used to create a random 32-byte authentication token,
 // add this token to the authenticated list, and return this token.
-func (msf *MSFRPC) TokenGenerate() (string, error) {
+func (msf *MSFRPC) AuthTokenGenerate() (string, error) {
 	request := AuthTokenGenerateRequest{
 		Method: MethodAuthTokenGenerate,
 		Token:  msf.GetToken(),
@@ -272,9 +272,9 @@ func (msf *MSFRPC) TokenGenerate() (string, error) {
 	return result.Token, nil
 }
 
-// TokenAdd is used to add an arbitrary string as a valid permanent authentication
+// AuthTokenAdd is used to add an arbitrary string as a valid permanent authentication
 // token. This token can be used for all future authentication purposes.
-func (msf *MSFRPC) TokenAdd(token string) error {
+func (msf *MSFRPC) AuthTokenAdd(token string) error {
 	request := AuthTokenAddRequest{
 		Method:   MethodAuthTokenAdd,
 		Token:    msf.GetToken(),
@@ -291,9 +291,9 @@ func (msf *MSFRPC) TokenAdd(token string) error {
 	return nil
 }
 
-// TokenRemove is used to delete a specified token. This will work for both temporary
-// and permanent tokens, including those stored in the database backend.
-func (msf *MSFRPC) TokenRemove(token string) error {
+// AuthTokenRemove is used to delete a specified token. This will work for both
+// temporary and permanent tokens, including those stored in the database backend.
+func (msf *MSFRPC) AuthTokenRemove(token string) error {
 	request := AuthTokenRemoveRequest{
 		Method:           MethodAuthTokenRemove,
 		Token:            msf.GetToken(),
@@ -312,7 +312,7 @@ func (msf *MSFRPC) TokenRemove(token string) error {
 
 // Close is used to logout metasploit RPC and destroy all objects.
 func (msf *MSFRPC) Close() error {
-	err := msf.Logout(msf.GetToken())
+	err := msf.AuthLogout(msf.GetToken())
 	if err != nil {
 		return err
 	}
@@ -322,7 +322,7 @@ func (msf *MSFRPC) Close() error {
 
 // Kill is ued to logout metasploit RPC when can't connect target.
 func (msf *MSFRPC) Kill() {
-	_ = msf.Logout(msf.GetToken())
+	_ = msf.AuthLogout(msf.GetToken())
 	msf.close()
 }
 
