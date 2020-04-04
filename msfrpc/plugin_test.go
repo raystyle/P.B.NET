@@ -44,7 +44,7 @@ func TestMSFRPC_PluginLoad(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.PluginLoad(ctx, testPluginFileName, testPluginOptions)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestMSFRPC_PluginUnload(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.PluginUnload(ctx, testPluginName)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestMSFRPC_PluginLoaded(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		plugins, err := msfrpc.PluginLoaded(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, plugins)
 	})
 

@@ -26,6 +26,9 @@ func (msf *MSFRPC) ConsoleCreate(ctx context.Context) (*ConsoleCreateResult, err
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
@@ -46,6 +49,9 @@ func (msf *MSFRPC) ConsoleDestroy(ctx context.Context, id string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
@@ -70,6 +76,9 @@ func (msf *MSFRPC) ConsoleRead(ctx context.Context, id string) (*ConsoleReadResu
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "" {
@@ -95,6 +104,9 @@ func (msf *MSFRPC) ConsoleWrite(ctx context.Context, id, data string) (uint64, e
 		return 0, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return 0, errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "" {
@@ -117,6 +129,9 @@ func (msf *MSFRPC) ConsoleList(ctx context.Context) ([]*ConsoleInfo, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Consoles, nil
@@ -138,6 +153,9 @@ func (msf *MSFRPC) ConsoleSessionDetach(ctx context.Context, id string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
@@ -164,6 +182,9 @@ func (msf *MSFRPC) ConsoleSessionKill(ctx context.Context, id string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {

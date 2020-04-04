@@ -25,8 +25,7 @@ const (
 	testUsername = "msf"
 	testPassword = "msf"
 
-	testInvalidToken    = "invalid token"
-	testErrInvalidToken = "Invalid Authentication Token"
+	testInvalidToken = "invalid token"
 )
 
 func TestMain(m *testing.M) {
@@ -512,7 +511,7 @@ func TestMSFRPC_AuthLogout(t *testing.T) {
 		require.NoError(t, err)
 
 		err = msfrpc.AuthLogout(testInvalidToken)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -557,7 +556,7 @@ func TestMSFRPC_AuthTokenList(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		list, err := msfrpc.AuthTokenList(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, list)
 	})
 
@@ -603,7 +602,7 @@ func TestMSFRPC_AuthTokenGenerate(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		token, err := msfrpc.AuthTokenGenerate(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Zero(t, token)
 	})
 
@@ -662,7 +661,7 @@ func TestMSFRPC_AuthTokenAdd(t *testing.T) {
 		defer msfrpc.SetToken(former)
 		msfrpc.SetToken(testInvalidToken + "foo")
 		err := msfrpc.AuthTokenAdd(ctx, token)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -719,7 +718,7 @@ func TestMSFRPC_AuthTokenRemove(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.AuthTokenRemove(ctx, token)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {

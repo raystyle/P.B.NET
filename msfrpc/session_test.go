@@ -116,7 +116,7 @@ func TestMSFRPC_SessionList(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		sessions, err := msfrpc.SessionList(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, sessions)
 	})
 
@@ -165,7 +165,7 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err = msfrpc.SessionStop(ctx, 999)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {

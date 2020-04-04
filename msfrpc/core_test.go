@@ -39,7 +39,7 @@ func TestMSFRPC_CoreModuleStats(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		status, err := msfrpc.CoreModuleStats(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, status)
 	})
 
@@ -89,7 +89,7 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		status, err := msfrpc.CoreAddModulePath(ctx, "")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, status)
 	})
 
@@ -133,7 +133,7 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		status, err := msfrpc.CoreReloadModules(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, status)
 	})
 
@@ -174,7 +174,7 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		list, err := msfrpc.CoreThreadList(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, list)
 	})
 
@@ -212,7 +212,7 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.CoreThreadKill(ctx, 0)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -248,7 +248,7 @@ func TestMSFRPC_CoreSetG(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.CoreSetG(ctx, "test", "test value")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -292,7 +292,7 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		value, err := msfrpc.CoreGetG(ctx, "test")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Zero(t, value)
 	})
 
@@ -343,7 +343,7 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.CoreUnsetG(ctx, "test")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -379,7 +379,7 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.CoreSave(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -418,7 +418,7 @@ func TestMSFRPC_CoreVersion(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		version, err := msfrpc.CoreVersion(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, version)
 	})
 

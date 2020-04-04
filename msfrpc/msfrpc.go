@@ -16,6 +16,12 @@ import (
 	"project/internal/patch/msgpack"
 )
 
+// about errors
+const (
+	ErrInvalidToken         = "Invalid Authentication Token"
+	ErrInvalidTokenFriendly = "invalid authentication token"
+)
+
 // MSFRPC is used to connect metasploit RPC service.
 type MSFRPC struct {
 	username string
@@ -232,6 +238,9 @@ func (msf *MSFRPC) AuthLogout(token string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
@@ -249,6 +258,9 @@ func (msf *MSFRPC) AuthTokenList(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Tokens, nil
@@ -267,6 +279,9 @@ func (msf *MSFRPC) AuthTokenGenerate(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return "", errors.WithStack(&result.MSFError)
 	}
 	return result.Token, nil
@@ -286,6 +301,9 @@ func (msf *MSFRPC) AuthTokenAdd(ctx context.Context, token string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
@@ -305,6 +323,9 @@ func (msf *MSFRPC) AuthTokenRemove(ctx context.Context, token string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil

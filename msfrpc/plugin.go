@@ -22,6 +22,9 @@ func (msf *MSFRPC) PluginLoad(ctx context.Context, name string, opts map[string]
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
@@ -46,6 +49,9 @@ func (msf *MSFRPC) PluginUnload(ctx context.Context, name string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	if result.Result != "success" {
@@ -67,6 +73,9 @@ func (msf *MSFRPC) PluginLoaded(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Plugins, nil

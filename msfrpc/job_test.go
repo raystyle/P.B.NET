@@ -76,7 +76,7 @@ func TestMSFRPC_JobList(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		list, err := msfrpc.JobList(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, list)
 	})
 
@@ -172,7 +172,7 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		info, err := msfrpc.JobInfo(ctx, "foo")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, info)
 	})
 
@@ -255,7 +255,7 @@ func TestMSFRPC_JobStop(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.JobStop(ctx, "foo")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {

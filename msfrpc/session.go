@@ -22,6 +22,9 @@ func (msf *MSFRPC) SessionList(ctx context.Context) (map[uint64]*SessionInfo, er
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
@@ -40,7 +43,10 @@ func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
 		return err
 	}
 	if result.Err {
-		if result.ErrorMessage == "Unknown Session ID" {
+		switch result.ErrorMessage {
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		case "Unknown Session ID":
 			const format = "unknown session id: %d"
 			result.ErrorMessage = fmt.Sprintf(format, id)
 		}

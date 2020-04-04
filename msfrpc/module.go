@@ -20,6 +20,9 @@ func (msf *MSFRPC) ModuleExploits(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
@@ -39,6 +42,9 @@ func (msf *MSFRPC) ModuleAuxiliary(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
@@ -58,6 +64,9 @@ func (msf *MSFRPC) ModulePost(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
@@ -77,6 +86,9 @@ func (msf *MSFRPC) ModulePayloads(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
@@ -96,6 +108,9 @@ func (msf *MSFRPC) ModuleEncoders(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
@@ -115,6 +130,9 @@ func (msf *MSFRPC) ModuleNops(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
@@ -134,6 +152,9 @@ func (msf *MSFRPC) ModuleEvasion(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
@@ -156,7 +177,10 @@ func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInf
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == "Invalid Module" {
+		switch result.ErrorMessage {
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		case "Invalid Module":
 			result.ErrorMessage = "invalid module: " + typ + "/" + name
 		}
 		return nil, errors.WithStack(&result.MSFError)
@@ -187,7 +211,10 @@ func (msf *MSFRPC) ModuleOptions(
 		return nil, err
 	}
 	if msfError.Err {
-		if msfError.ErrorMessage == "Invalid Module" {
+		switch msfError.ErrorMessage {
+		case ErrInvalidToken:
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		case "Invalid Module":
 			msfError.ErrorMessage = "invalid module: " + typ + "/" + name
 		}
 		return nil, errors.WithStack(&msfError)
@@ -211,6 +238,9 @@ func (msf *MSFRPC) ModuleCompatiblePayloads(ctx context.Context, name string) ([
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Payloads, nil
@@ -238,6 +268,9 @@ func (msf *MSFRPC) ModuleTargetCompatiblePayloads(
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Payloads, nil
@@ -257,6 +290,9 @@ func (msf *MSFRPC) ModuleCompatibleSessions(ctx context.Context, name string) ([
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Sessions, nil
@@ -279,6 +315,9 @@ func (msf *MSFRPC) ModuleCompatibleEvasionPayloads(
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Payloads, nil
@@ -303,6 +342,9 @@ func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Payloads, nil
@@ -323,6 +365,9 @@ func (msf *MSFRPC) ModuleEncodeFormats(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
@@ -343,6 +388,9 @@ func (msf *MSFRPC) ModuleExecutableFormats(ctx context.Context) ([]string, error
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
@@ -363,6 +411,9 @@ func (msf *MSFRPC) ModuleTransformFormats(ctx context.Context) ([]string, error)
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
@@ -383,6 +434,9 @@ func (msf *MSFRPC) ModuleEncryptionFormats(ctx context.Context) ([]string, error
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
@@ -403,6 +457,9 @@ func (msf *MSFRPC) ModulePlatforms(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
@@ -423,6 +480,9 @@ func (msf *MSFRPC) ModuleArchitectures(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
@@ -449,6 +509,9 @@ func (msf *MSFRPC) ModuleEncode(
 		return "", err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return "", errors.WithStack(&result.MSFError)
 	}
 	return result.Encoded, nil
@@ -493,6 +556,9 @@ func (msf *MSFRPC) ModuleExecute(
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
@@ -523,6 +589,9 @@ func (msf *MSFRPC) ModuleCheck(
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
@@ -540,6 +609,9 @@ func (msf *MSFRPC) ModuleRunningStats(ctx context.Context) (*ModuleRunningStatsR
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil

@@ -39,7 +39,7 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		result, err := msfrpc.ConsoleCreate(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
 
@@ -85,7 +85,7 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.ConsoleDestroy(ctx, "foo")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		output, err := msfrpc.ConsoleRead(ctx, "999")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, output)
 	})
 
@@ -194,7 +194,7 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		n, err := msfrpc.ConsoleWrite(ctx, "999", "foo")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Equal(t, uint64(0), n)
 	})
 
@@ -238,7 +238,7 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		consoles, err := msfrpc.ConsoleList(ctx)
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, consoles)
 	})
 
@@ -296,7 +296,7 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.ConsoleSessionDetach(ctx, "999")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
@@ -382,7 +382,7 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 		msfrpc.SetToken(testInvalidToken)
 
 		err := msfrpc.ConsoleSessionKill(ctx, "999")
-		require.EqualError(t, err, testErrInvalidToken)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {

@@ -18,6 +18,9 @@ func (msf *MSFRPC) CoreModuleStats(ctx context.Context) (*CoreModuleStatsResult,
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
@@ -47,6 +50,9 @@ func (msf *MSFRPC) CoreAddModulePath(
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
@@ -66,6 +72,9 @@ func (msf *MSFRPC) CoreReloadModules(ctx context.Context) (*CoreReloadModulesRes
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
@@ -87,6 +96,9 @@ func (msf *MSFRPC) CoreThreadList(ctx context.Context) (map[uint64]*CoreThreadIn
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
@@ -106,6 +118,9 @@ func (msf *MSFRPC) CoreThreadKill(ctx context.Context, id uint64) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
@@ -130,6 +145,9 @@ func (msf *MSFRPC) CoreSetG(ctx context.Context, name, value string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
@@ -148,6 +166,9 @@ func (msf *MSFRPC) CoreUnsetG(ctx context.Context, name string) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
@@ -170,6 +191,9 @@ func (msf *MSFRPC) CoreGetG(ctx context.Context, name string) (string, error) {
 		return "", err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == ErrInvalidToken {
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return "", errors.WithStack(&msfError)
 	}
 	return result[name], nil
@@ -189,6 +213,9 @@ func (msf *MSFRPC) CoreSave(ctx context.Context) error {
 		return err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
@@ -207,6 +234,9 @@ func (msf *MSFRPC) CoreVersion(ctx context.Context) (*CoreVersionResult, error) 
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
