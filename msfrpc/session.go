@@ -44,11 +44,11 @@ func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case ErrInvalidToken:
-			result.ErrorMessage = ErrInvalidTokenFriendly
 		case "Unknown Session ID":
 			const format = "unknown session id: %d"
 			result.ErrorMessage = fmt.Sprintf(format, id)
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return errors.WithStack(&result.MSFError)
 	}

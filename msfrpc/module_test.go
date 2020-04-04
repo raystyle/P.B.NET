@@ -453,9 +453,9 @@ func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
 		}
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("invalid module", func(t *testing.T) {
 		payloads, err := msfrpc.ModuleCompatiblePayloads(ctx, "foo")
-		require.EqualError(t, err, "Invalid Module")
+		require.EqualError(t, err, "invalid module: exploit/foo")
 		require.Nil(t, payloads)
 	})
 
@@ -492,9 +492,9 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 
 	ctx := context.Background()
 	const (
-		module  = "exploit/multi/handler"
-		target  = 0
-		iModule = "foo"
+		module        = "exploit/multi/handler"
+		target        = 0
+		invalidModule = "foo"
 	)
 
 	t.Run("success", func(t *testing.T) {
@@ -506,8 +506,8 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, iModule, target)
-		require.EqualError(t, err, "Invalid Module")
+		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
+		require.EqualError(t, err, "invalid module: exploit/foo")
 		require.Nil(t, payloads)
 	})
 
@@ -516,14 +516,14 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, iModule, target)
+		payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, payloads)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, iModule, target)
+			payloads, err := msfrpc.ModuleTargetCompatiblePayloads(ctx, invalidModule, target)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
 		})
@@ -556,7 +556,7 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 
 	t.Run("invalid module", func(t *testing.T) {
 		sessions, err := msfrpc.ModuleCompatibleSessions(ctx, "foo")
-		require.EqualError(t, err, "Invalid Module")
+		require.EqualError(t, err, "invalid module: post/foo")
 		require.Nil(t, sessions)
 	})
 
@@ -604,7 +604,7 @@ func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
 
 	t.Run("invalid module", func(t *testing.T) {
 		payloads, err := msfrpc.ModuleCompatibleEvasionPayloads(ctx, "foo")
-		require.EqualError(t, err, "Invalid Module")
+		require.EqualError(t, err, "invalid module: evasion/foo")
 		require.Nil(t, payloads)
 	})
 
@@ -641,9 +641,9 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 
 	ctx := context.Background()
 	const (
-		module  = "windows/windows_defender_exe"
-		target  = 0
-		iModule = "foo"
+		module        = "windows/windows_defender_exe"
+		target        = 0
+		invalidModule = "foo"
 	)
 
 	t.Run("success", func(t *testing.T) {
@@ -655,8 +655,8 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
-		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, iModule, target)
-		require.EqualError(t, err, "Invalid Module")
+		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
+		require.EqualError(t, err, "invalid module: evasion/foo")
 		require.Nil(t, payloads)
 	})
 
@@ -665,14 +665,14 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, iModule, target)
+		payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, payloads)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, iModule, target)
+			payloads, err := msfrpc.ModuleTargetCompatibleEvasionPayloads(ctx, invalidModule, target)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, payloads)
 		})
@@ -961,6 +961,21 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 		t.Logf("\n%s\n", encoded)
 	})
 
+	t.Run("no data", func(t *testing.T) {
+		encoded, err := msfrpc.ModuleEncode(ctx, "", encoder, opts)
+		require.EqualError(t, err, "no data")
+		require.Zero(t, encoded)
+	})
+
+	t.Run("invalid format", func(t *testing.T) {
+		opts.Format = "foo"
+		defer func() { opts.Format = "c" }()
+
+		encoded, err := msfrpc.ModuleEncode(ctx, data, encoder, opts)
+		require.EqualError(t, err, "invalid format: foo")
+		require.Zero(t, encoded)
+	})
+
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
@@ -1066,6 +1081,12 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 	)
 	opts := make(map[string]interface{})
 
+	t.Run("invalid module", func(t *testing.T) {
+		result, err := msfrpc.ModuleExecute(ctx, typ, name, opts)
+		require.EqualError(t, err, "invalid module: exploit/foo")
+		require.Nil(t, result)
+	})
+
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
@@ -1133,6 +1154,12 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 		typ  = "exploit"
 		name = "foo"
 	)
+
+	t.Run("invalid module", func(t *testing.T) {
+		result, err := msfrpc.ModuleCheck(ctx, typ, name, nil)
+		require.EqualError(t, err, "invalid module: exploit/foo")
+		require.Nil(t, result)
+	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()

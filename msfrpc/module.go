@@ -178,10 +178,10 @@ func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInf
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case ErrInvalidToken:
-			result.ErrorMessage = ErrInvalidTokenFriendly
 		case "Invalid Module":
 			result.ErrorMessage = "invalid module: " + typ + "/" + name
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
@@ -212,17 +212,15 @@ func (msf *MSFRPC) ModuleOptions(
 	}
 	if msfError.Err {
 		switch msfError.ErrorMessage {
-		case ErrInvalidToken:
-			msfError.ErrorMessage = ErrInvalidTokenFriendly
 		case "Invalid Module":
 			msfError.ErrorMessage = "invalid module: " + typ + "/" + name
+		case ErrInvalidToken:
+			msfError.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
 }
-
-// TODO check error
 
 // ModuleCompatiblePayloads is used to returns a list of payloads that are compatible
 // with the exploit module name specified.
@@ -238,7 +236,10 @@ func (msf *MSFRPC) ModuleCompatiblePayloads(ctx context.Context, name string) ([
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "Invalid Module":
+			result.ErrorMessage = "invalid module: exploit/" + name
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
@@ -268,7 +269,10 @@ func (msf *MSFRPC) ModuleTargetCompatiblePayloads(
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "Invalid Module":
+			result.ErrorMessage = "invalid module: exploit/" + name
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
@@ -290,7 +294,10 @@ func (msf *MSFRPC) ModuleCompatibleSessions(ctx context.Context, name string) ([
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "Invalid Module":
+			result.ErrorMessage = "invalid module: post/" + name
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
@@ -315,7 +322,10 @@ func (msf *MSFRPC) ModuleCompatibleEvasionPayloads(
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "Invalid Module":
+			result.ErrorMessage = "invalid module: evasion/" + name
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
@@ -342,7 +352,10 @@ func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "Invalid Module":
+			result.ErrorMessage = "invalid module: evasion/" + name
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
@@ -496,6 +509,9 @@ func (msf *MSFRPC) ModuleEncode(
 	encoder string,
 	opts *ModuleEncodeOptions,
 ) (string, error) {
+	if len(data) == 0 {
+		return "", errors.New("no data")
+	}
 	request := ModuleEncodeRequest{
 		Method:  MethodModuleEncode,
 		Token:   msf.GetToken(),
@@ -509,7 +525,10 @@ func (msf *MSFRPC) ModuleEncode(
 		return "", err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "Invalid Format: " + opts.Format:
+			result.ErrorMessage = "invalid format: " + opts.Format
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return "", errors.WithStack(&result.MSFError)
@@ -543,7 +562,7 @@ func (msf *MSFRPC) ModuleExecute(
 		Name:   name,
 	}
 	switch typ {
-	case "exploit", "auxiliary", "post":
+	case "exploit", "auxiliary", "post", "evasion":
 		request.Options = opts.(map[string]interface{})
 	case "payload": // generate payload
 		request.Options = opts.(*ModuleExecuteOptions).toMap()
@@ -556,7 +575,10 @@ func (msf *MSFRPC) ModuleExecute(
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "Invalid Module":
+			result.ErrorMessage = "invalid module: " + typ + "/" + name
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
@@ -589,7 +611,10 @@ func (msf *MSFRPC) ModuleCheck(
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "Invalid Module":
+			result.ErrorMessage = "invalid module: " + typ + "/" + name
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)

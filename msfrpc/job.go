@@ -44,10 +44,10 @@ func (msf *MSFRPC) JobInfo(ctx context.Context, id string) (*JobInfoResult, erro
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case ErrInvalidToken:
-			result.ErrorMessage = ErrInvalidTokenFriendly
 		case "Invalid Job":
 			result.ErrorMessage = "invalid job id: " + id
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
@@ -74,10 +74,10 @@ func (msf *MSFRPC) JobStop(ctx context.Context, id string) error {
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case ErrInvalidToken:
-			result.ErrorMessage = ErrInvalidTokenFriendly
 		case "Invalid Job":
 			result.ErrorMessage = "invalid job id: " + id
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return errors.WithStack(&result.MSFError)
 	}
