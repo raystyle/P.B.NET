@@ -828,6 +828,86 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+func TestMSFRPC_ModulePlatforms(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		platforms, err := msfrpc.ModulePlatforms(ctx)
+		require.NoError(t, err)
+		for i := 0; i < len(platforms); i++ {
+			t.Log(platforms[i])
+		}
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+		platforms, err := msfrpc.ModulePlatforms(ctx)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, platforms)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			platforms, err := msfrpc.ModulePlatforms(ctx)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, platforms)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_ModuleArchitectures(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		architectures, err := msfrpc.ModuleArchitectures(ctx)
+		require.NoError(t, err)
+		for i := 0; i < len(architectures); i++ {
+			t.Log(architectures[i])
+		}
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+		architectures, err := msfrpc.ModuleArchitectures(ctx)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, architectures)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			architectures, err := msfrpc.ModuleArchitectures(ctx)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, architectures)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_ModuleEncode(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

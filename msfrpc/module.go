@@ -380,6 +380,46 @@ func (msf *MSFRPC) ModuleEncryptionFormats(ctx context.Context) ([]string, error
 	return result, nil
 }
 
+// ModulePlatforms is used to returns a list of platform names.
+func (msf *MSFRPC) ModulePlatforms(ctx context.Context) ([]string, error) {
+	request := ModulePlatformsRequest{
+		Method: MethodModulePlatforms,
+		Token:  msf.GetToken(),
+	}
+	var (
+		result   []string
+		msfError MSFError
+	)
+	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	if err != nil {
+		return nil, err
+	}
+	if msfError.Err {
+		return nil, errors.WithStack(&msfError)
+	}
+	return result, nil
+}
+
+// ModuleArchitectures is used to returns a list of architecture names..
+func (msf *MSFRPC) ModuleArchitectures(ctx context.Context) ([]string, error) {
+	request := ModuleArchitecturesRequest{
+		Method: MethodModuleArchitectures,
+		Token:  msf.GetToken(),
+	}
+	var (
+		result   []string
+		msfError MSFError
+	)
+	err := msf.sendWithReplace(ctx, &request, &result, &msfError)
+	if err != nil {
+		return nil, err
+	}
+	if msfError.Err {
+		return nil, errors.WithStack(&msfError)
+	}
+	return result, nil
+}
+
 // ModuleEncode is used to provide a way to encode an arbitrary payload (specified
 // as Data) with a specific encoder and set of options.
 func (msf *MSFRPC) ModuleEncode(

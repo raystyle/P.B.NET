@@ -148,6 +148,8 @@ const (
 	MethodModuleExecutableFormats               = "module.executable_formats"
 	MethodModuleTransformFormats                = "module.transform_formats"
 	MethodModuleEncryptionFormats               = "module.encryption_formats"
+	MethodModulePlatforms                       = "module.platforms"
+	MethodModuleArchitectures                   = "module.architectures"
 	MethodModuleEncode                          = "module.encode"
 	MethodModuleExecute                         = "module.execute"
 	MethodModuleCheck                           = "module.check"
@@ -780,6 +782,18 @@ type ModuleTransformFormatsRequest struct {
 
 // ModuleEncryptionFormatsRequest is used to get encryption format names.
 type ModuleEncryptionFormatsRequest struct {
+	Method string
+	Token  string
+}
+
+// ModulePlatformsRequest is used to get platforms.
+type ModulePlatformsRequest struct {
+	Method string
+	Token  string
+}
+
+// ModuleArchitecturesRequest is used to get architectures.
+type ModuleArchitecturesRequest struct {
 	Method string
 	Token  string
 }
