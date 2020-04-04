@@ -156,6 +156,9 @@ func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInf
 		return nil, err
 	}
 	if result.Err {
+		if result.ErrorMessage == "Invalid Module" {
+			result.ErrorMessage = "invalid module: " + typ + "/" + name
+		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return &result, nil
@@ -184,10 +187,15 @@ func (msf *MSFRPC) ModuleOptions(
 		return nil, err
 	}
 	if msfError.Err {
+		if msfError.ErrorMessage == "Invalid Module" {
+			msfError.ErrorMessage = "invalid module: " + typ + "/" + name
+		}
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
 }
+
+// TODO check error
 
 // ModuleCompatiblePayloads is used to returns a list of payloads that are compatible
 // with the exploit module name specified.

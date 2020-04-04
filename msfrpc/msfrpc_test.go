@@ -2,12 +2,14 @@ package msfrpc
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -31,18 +33,63 @@ func TestMain(m *testing.M) {
 	// start Metasploit RPC service
 	cmd := exec.Command(testCommand, "-a", testHost, "-U", testUsername, "-P", testPassword)
 	err := cmd.Start()
-	if err != nil {
-		panic(err)
-	}
+	testsuite.CheckErrorInTestMain(err)
+	// if panic, kill it.
+	defer func() {
+		_ = cmd.Process.Kill()
+	}()
+
 	// wait some time for start Metasploit RPC service
 	// stdout and stderr can't read any data, so use time.Sleep
 	// TODO remove comment
 	// time.Sleep(10 * time.Second)
+	exitCode := m.Run()
+
+	// check leaks
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	testsuite.CheckErrorInTestMain(err)
+	err = msfrpc.Login()
+	testsuite.CheckErrorInTestMain(err)
+
+	ctx := context.Background()
+
+	// check thread
+	threadList, err := msfrpc.CoreThreadList(ctx)
+	testsuite.CheckErrorInTestMain(err)
+	switch len(threadList) {
+	case 4, 9:
+		// 4 = internal(do noting)
+		// 9 = start sessions scheduler(5) and session manager(1)
+	default:
+		fmt.Println("[warning] msfrpcd thread leaks!")
+		// print threads
+		const format = "id: %d\nname: %s\ncritical: %t\nstatus: %s\nstarted: %s\n\n"
+		for i, t := range threadList {
+			fmt.Printf(format, i, t.Name, t.Critical, t.Status, t.Started)
+		}
+		time.Sleep(time.Minute)
+		return
+	}
+
+	// check token = 1
+
+	// check console
+
+	// check job
+
+	// check session
+
+	msfrpc.Kill()
+	if !testsuite.Destroyed(msfrpc) {
+		fmt.Println("[warning] msfrpc is not destroyed!")
+		time.Sleep(time.Minute)
+		return
+	}
+
 	// stop Metasploit RPC service
-	defer func() {
-		_ = cmd.Process.Kill()
-	}()
-	os.Exit(m.Run())
+	_ = cmd.Process.Kill()
+
+	os.Exit(exitCode)
 }
 
 func TestNewMSFRPC(t *testing.T) {

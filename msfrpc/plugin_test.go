@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,13 +26,15 @@ func TestMSFRPC_PluginLoad(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.PluginLoad(testPluginFileName, testPluginOptions)
+		err := msfrpc.PluginLoad(ctx, testPluginFileName, testPluginOptions)
 		require.NoError(t, err)
 	})
 
 	t.Run("failed", func(t *testing.T) {
-		err := msfrpc.PluginLoad("wmap", testPluginOptions)
+		err := msfrpc.PluginLoad(ctx, "wmap", testPluginOptions)
 		require.EqualError(t, err, "failed to load plugin wmap: failure")
 	})
 
@@ -40,13 +43,13 @@ func TestMSFRPC_PluginLoad(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.PluginLoad(testPluginFileName, testPluginOptions)
+		err := msfrpc.PluginLoad(ctx, testPluginFileName, testPluginOptions)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.PluginLoad(testPluginFileName, testPluginOptions)
+			err := msfrpc.PluginLoad(ctx, testPluginFileName, testPluginOptions)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -64,16 +67,18 @@ func TestMSFRPC_PluginUnload(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.PluginLoad(testPluginFileName, testPluginOptions)
+		err := msfrpc.PluginLoad(ctx, testPluginFileName, testPluginOptions)
 		require.NoError(t, err)
 
-		err = msfrpc.PluginUnload(testPluginName)
+		err = msfrpc.PluginUnload(ctx, testPluginName)
 		require.NoError(t, err)
 	})
 
 	t.Run("failed", func(t *testing.T) {
-		err := msfrpc.PluginUnload("wmap")
+		err := msfrpc.PluginUnload(ctx, "wmap")
 		require.EqualError(t, err, "failed to unload plugin wmap: failure")
 	})
 
@@ -82,13 +87,13 @@ func TestMSFRPC_PluginUnload(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.PluginUnload(testPluginName)
+		err := msfrpc.PluginUnload(ctx, testPluginName)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.PluginUnload(testPluginName)
+			err := msfrpc.PluginUnload(ctx, testPluginName)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -106,11 +111,13 @@ func TestMSFRPC_PluginLoaded(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.PluginLoad(testPluginFileName, testPluginOptions)
+		err := msfrpc.PluginLoad(ctx, testPluginFileName, testPluginOptions)
 		require.NoError(t, err)
 
-		plugins, err := msfrpc.PluginLoaded()
+		plugins, err := msfrpc.PluginLoaded(ctx)
 		require.NoError(t, err)
 
 		require.Contains(t, plugins, testPluginName)
@@ -121,14 +128,14 @@ func TestMSFRPC_PluginLoaded(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		plugins, err := msfrpc.PluginLoaded()
+		plugins, err := msfrpc.PluginLoaded(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, plugins)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			plugins, err := msfrpc.PluginLoaded()
+			plugins, err := msfrpc.PluginLoaded(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, plugins)
 		})

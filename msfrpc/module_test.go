@@ -350,9 +350,9 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 		}
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("invalid module", func(t *testing.T) {
 		info, err := msfrpc.ModuleInfo(ctx, "foo type", "bar name")
-		require.EqualError(t, err, "Invalid Module")
+		require.EqualError(t, err, "invalid module: foo type/bar name")
 		require.Nil(t, info)
 	})
 
@@ -406,9 +406,9 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("invalid module", func(t *testing.T) {
 		options, err := msfrpc.ModuleOptions(ctx, "foo type", "bar name")
-		require.EqualError(t, err, "Invalid Module")
+		require.EqualError(t, err, "invalid module: foo type/bar name")
 		require.Nil(t, options)
 	})
 
