@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"context"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -19,8 +20,10 @@ func TestMSFRPC_CoreModuleStats(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		status, err := msfrpc.CoreModuleStats()
+		status, err := msfrpc.CoreModuleStats(ctx)
 		require.NoError(t, err)
 		t.Log("exploit:", status.Exploit)
 		t.Log("auxiliary:", status.Auxiliary)
@@ -35,14 +38,14 @@ func TestMSFRPC_CoreModuleStats(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		status, err := msfrpc.CoreModuleStats()
+		status, err := msfrpc.CoreModuleStats(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, status)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			status, err := msfrpc.CoreModuleStats()
+			status, err := msfrpc.CoreModuleStats(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
 		})
@@ -61,8 +64,10 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		status, err := msfrpc.CoreAddModulePath("")
+		status, err := msfrpc.CoreAddModulePath(ctx, "")
 		require.NoError(t, err)
 		t.Log("exploit:", status.Exploit)
 		t.Log("auxiliary:", status.Auxiliary)
@@ -73,7 +78,7 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 	})
 
 	t.Run("failed", func(t *testing.T) {
-		status, err := msfrpc.CoreAddModulePath("foo path")
+		status, err := msfrpc.CoreAddModulePath(ctx, "foo path")
 		require.EqualError(t, err, "The path supplied is not a valid directory.")
 		require.Nil(t, status)
 	})
@@ -83,14 +88,14 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		status, err := msfrpc.CoreAddModulePath("")
+		status, err := msfrpc.CoreAddModulePath(ctx, "")
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, status)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			status, err := msfrpc.CoreAddModulePath("")
+			status, err := msfrpc.CoreAddModulePath(ctx, "")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
 		})
@@ -109,8 +114,10 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		status, err := msfrpc.CoreReloadModules()
+		status, err := msfrpc.CoreReloadModules(ctx)
 		require.NoError(t, err)
 		t.Log("exploit:", status.Exploit)
 		t.Log("auxiliary:", status.Auxiliary)
@@ -125,14 +132,14 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		status, err := msfrpc.CoreReloadModules()
+		status, err := msfrpc.CoreReloadModules(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, status)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			status, err := msfrpc.CoreReloadModules()
+			status, err := msfrpc.CoreReloadModules(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
 		})
@@ -151,8 +158,10 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		list, err := msfrpc.CoreThreadList()
+		list, err := msfrpc.CoreThreadList(ctx)
 		require.NoError(t, err)
 		for id, info := range list {
 			t.Logf("id: %d\ninfo: %s\n", id, spew.Sdump(info))
@@ -164,14 +173,14 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		list, err := msfrpc.CoreThreadList()
+		list, err := msfrpc.CoreThreadList(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, list)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			status, err := msfrpc.CoreThreadList()
+			status, err := msfrpc.CoreThreadList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, status)
 		})
@@ -190,8 +199,10 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.CoreThreadKill(9999)
+		err := msfrpc.CoreThreadKill(ctx, 9999)
 		require.NoError(t, err)
 	})
 
@@ -200,13 +211,13 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.CoreThreadKill(0)
+		err := msfrpc.CoreThreadKill(ctx, 0)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.CoreThreadKill(0)
+			err := msfrpc.CoreThreadKill(ctx, 0)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -224,8 +235,10 @@ func TestMSFRPC_CoreSetG(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.CoreSetG("test", "test value")
+		err := msfrpc.CoreSetG(ctx, "test", "test value")
 		require.NoError(t, err)
 	})
 
@@ -234,13 +247,13 @@ func TestMSFRPC_CoreSetG(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.CoreSetG("test", "test value")
+		err := msfrpc.CoreSetG(ctx, "test", "test value")
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.CoreSetG("test", "test value")
+			err := msfrpc.CoreSetG(ctx, "test", "test value")
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -258,15 +271,17 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
 		const (
 			name  = "test"
 			value = "test value"
 		)
-		err := msfrpc.CoreSetG(name, value)
+		err := msfrpc.CoreSetG(ctx, name, value)
 		require.NoError(t, err)
 
-		val, err := msfrpc.CoreGetG(name)
+		val, err := msfrpc.CoreGetG(ctx, name)
 		require.NoError(t, err)
 		require.Equal(t, value, val)
 	})
@@ -276,14 +291,14 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		value, err := msfrpc.CoreGetG("test")
+		value, err := msfrpc.CoreGetG(ctx, "test")
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Zero(t, value)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			value, err := msfrpc.CoreGetG("test")
+			value, err := msfrpc.CoreGetG(ctx, "test")
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, value)
 		})
@@ -302,20 +317,22 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
 		const (
 			name  = "test"
 			value = "test value"
 		)
-		err := msfrpc.CoreSetG(name, "test value")
+		err := msfrpc.CoreSetG(ctx, name, "test value")
 		require.NoError(t, err)
-		val, err := msfrpc.CoreGetG(name)
+		val, err := msfrpc.CoreGetG(ctx, name)
 		require.NoError(t, err)
 		require.Equal(t, value, val)
 
-		err = msfrpc.CoreUnsetG(name)
+		err = msfrpc.CoreUnsetG(ctx, name)
 		require.NoError(t, err)
-		val, err = msfrpc.CoreGetG(name)
+		val, err = msfrpc.CoreGetG(ctx, name)
 		require.NoError(t, err)
 		require.Zero(t, val)
 	})
@@ -325,13 +342,13 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.CoreUnsetG("test")
+		err := msfrpc.CoreUnsetG(ctx, "test")
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.CoreUnsetG("test")
+			err := msfrpc.CoreUnsetG(ctx, "test")
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -349,8 +366,10 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.CoreSave()
+		err := msfrpc.CoreSave(ctx)
 		require.NoError(t, err)
 	})
 
@@ -359,13 +378,13 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.CoreSave()
+		err := msfrpc.CoreSave(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.CoreSave()
+			err := msfrpc.CoreSave(ctx)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -383,8 +402,10 @@ func TestMSFRPC_CoreVersion(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		version, err := msfrpc.CoreVersion()
+		version, err := msfrpc.CoreVersion(ctx)
 		require.NoError(t, err)
 		t.Log("version:", version.Version)
 		t.Log("ruby:", version.Ruby)
@@ -396,14 +417,14 @@ func TestMSFRPC_CoreVersion(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		version, err := msfrpc.CoreVersion()
+		version, err := msfrpc.CoreVersion(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, version)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			version, err := msfrpc.CoreVersion()
+			version, err := msfrpc.CoreVersion(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, version)
 		})

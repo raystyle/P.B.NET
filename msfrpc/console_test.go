@@ -1,6 +1,7 @@
 package msfrpc
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -19,14 +20,16 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		result, err := msfrpc.ConsoleCreate()
+		result, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 		t.Log("id:", result.ID)
 		t.Log("prompt:", result.Prompt)
 		t.Log("busy:", result.Busy)
 
-		err = msfrpc.ConsoleDestroy(result.ID)
+		err = msfrpc.ConsoleDestroy(ctx, result.ID)
 		require.NoError(t, err)
 	})
 
@@ -35,14 +38,14 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		result, err := msfrpc.ConsoleCreate()
+		result, err := msfrpc.ConsoleCreate(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, result)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.ConsoleCreate()
+			result, err := msfrpc.ConsoleCreate(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
@@ -61,16 +64,18 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		result, err := msfrpc.ConsoleCreate()
+		result, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 
-		err = msfrpc.ConsoleDestroy(result.ID)
+		err = msfrpc.ConsoleDestroy(ctx, result.ID)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
-		err = msfrpc.ConsoleDestroy("999")
+		err = msfrpc.ConsoleDestroy(ctx, "999")
 		require.EqualError(t, err, "invalid console id: 999")
 	})
 
@@ -79,13 +84,13 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.ConsoleDestroy("foo")
+		err := msfrpc.ConsoleDestroy(ctx, "foo")
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.ConsoleDestroy("foo")
+			err := msfrpc.ConsoleDestroy(ctx, "foo")
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -103,20 +108,22 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate()
+		console, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 
-		output, err := msfrpc.ConsoleRead(console.ID)
+		output, err := msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Log(output.Data)
 
-		err = msfrpc.ConsoleDestroy(console.ID)
+		err = msfrpc.ConsoleDestroy(ctx, console.ID)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
-		output, err := msfrpc.ConsoleRead("999")
+		output, err := msfrpc.ConsoleRead(ctx, "999")
 		require.EqualError(t, err, "failed to read from console 999: failure")
 		require.Nil(t, output)
 	})
@@ -126,14 +133,14 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		output, err := msfrpc.ConsoleRead("999")
+		output, err := msfrpc.ConsoleRead(ctx, "999")
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, output)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			output, err := msfrpc.ConsoleRead("999")
+			output, err := msfrpc.ConsoleRead(ctx, "999")
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, output)
 		})
@@ -152,29 +159,31 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate()
+		console, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 
-		output, err := msfrpc.ConsoleRead(console.ID)
+		output, err := msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Log(output.Data)
 
 		const data = "version\r\n"
-		n, err := msfrpc.ConsoleWrite(console.ID, data)
+		n, err := msfrpc.ConsoleWrite(ctx, console.ID, data)
 		require.NoError(t, err)
 		require.Equal(t, uint64(len(data)), n)
 
-		output, err = msfrpc.ConsoleRead(console.ID)
+		output, err = msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Logf("%s\n%s\n", output.Prompt, output.Data)
 
-		err = msfrpc.ConsoleDestroy(console.ID)
+		err = msfrpc.ConsoleDestroy(ctx, console.ID)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
-		n, err := msfrpc.ConsoleWrite("999", "foo")
+		n, err := msfrpc.ConsoleWrite(ctx, "999", "foo")
 		require.EqualError(t, err, "failed to write to console 999: failure")
 		require.Equal(t, uint64(0), n)
 	})
@@ -184,14 +193,14 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		n, err := msfrpc.ConsoleWrite("999", "foo")
+		n, err := msfrpc.ConsoleWrite(ctx, "999", "foo")
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Equal(t, uint64(0), n)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			n, err := msfrpc.ConsoleWrite("999", "foo")
+			n, err := msfrpc.ConsoleWrite(ctx, "999", "foo")
 			monkey.IsMonkeyError(t, err)
 			require.Equal(t, uint64(0), n)
 		})
@@ -210,8 +219,10 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		consoles, err := msfrpc.ConsoleList()
+		consoles, err := msfrpc.ConsoleList(ctx)
 		require.NoError(t, err)
 		for _, console := range consoles {
 			t.Log("id:", console.ID)
@@ -226,14 +237,14 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		consoles, err := msfrpc.ConsoleList()
+		consoles, err := msfrpc.ConsoleList(ctx)
 		require.EqualError(t, err, testErrInvalidToken)
 		require.Nil(t, consoles)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			consoles, err := msfrpc.ConsoleList()
+			consoles, err := msfrpc.ConsoleList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, consoles)
 		})
@@ -252,28 +263,30 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate()
+		console, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 
-		output, err := msfrpc.ConsoleRead(console.ID)
+		output, err := msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Log(output.Data)
 
 		// detach
-		err = msfrpc.ConsoleSessionDetach(console.ID)
+		err = msfrpc.ConsoleSessionDetach(ctx, console.ID)
 		require.NoError(t, err)
 		time.Sleep(time.Second)
-		output, err = msfrpc.ConsoleRead(console.ID)
+		output, err = msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Logf("%s\n%s\n", output.Prompt, output.Data)
 
-		err = msfrpc.ConsoleDestroy(console.ID)
+		err = msfrpc.ConsoleDestroy(ctx, console.ID)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
-		err := msfrpc.ConsoleSessionDetach("999")
+		err := msfrpc.ConsoleSessionDetach(ctx, "999")
 		require.EqualError(t, err, "failed to detach session about console 999: failure")
 	})
 
@@ -282,13 +295,13 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.ConsoleSessionDetach("999")
+		err := msfrpc.ConsoleSessionDetach(ctx, "999")
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.ConsoleSessionDetach("999")
+			err := msfrpc.ConsoleSessionDetach(ctx, "999")
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -306,11 +319,13 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 	err = msfrpc.Login()
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate()
+		console, err := msfrpc.ConsoleCreate(ctx)
 		require.NoError(t, err)
 
-		output, err := msfrpc.ConsoleRead(console.ID)
+		output, err := msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Log(output.Data)
 
@@ -324,7 +339,7 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 			"exploit\r\n",
 		}
 		for _, command := range commands {
-			n, err := msfrpc.ConsoleWrite(console.ID, command)
+			n, err := msfrpc.ConsoleWrite(ctx, console.ID, command)
 			require.NoError(t, err)
 			require.Equal(t, uint64(len(command)), n)
 			// don't wait exploit
@@ -332,7 +347,7 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 				break
 			}
 			for {
-				output, err := msfrpc.ConsoleRead(console.ID)
+				output, err := msfrpc.ConsoleRead(ctx, console.ID)
 				require.NoError(t, err)
 				if !output.Busy {
 					t.Logf("%s\n%s\n", output.Prompt, output.Data)
@@ -345,19 +360,19 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 		}
 
 		// kill
-		err = msfrpc.ConsoleSessionKill(console.ID)
+		err = msfrpc.ConsoleSessionKill(ctx, console.ID)
 		require.NoError(t, err)
 		time.Sleep(time.Second)
-		output, err = msfrpc.ConsoleRead(console.ID)
+		output, err = msfrpc.ConsoleRead(ctx, console.ID)
 		require.NoError(t, err)
 		t.Logf("%s\n%s\n", output.Prompt, output.Data)
 
-		err = msfrpc.ConsoleDestroy(console.ID)
+		err = msfrpc.ConsoleDestroy(ctx, console.ID)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
-		err := msfrpc.ConsoleSessionKill("999")
+		err := msfrpc.ConsoleSessionKill(ctx, "999")
 		require.EqualError(t, err, "failed to kill session about console 999: failure")
 	})
 
@@ -366,13 +381,13 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.ConsoleSessionKill("999")
+		err := msfrpc.ConsoleSessionKill(ctx, "999")
 		require.EqualError(t, err, testErrInvalidToken)
 	})
 
 	t.Run("send failed", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.ConsoleSessionKill("999")
+			err := msfrpc.ConsoleSessionKill(ctx, "999")
 			monkey.IsMonkeyError(t, err)
 		})
 	})

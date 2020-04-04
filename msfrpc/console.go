@@ -1,6 +1,8 @@
 package msfrpc
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 )
 
@@ -13,13 +15,13 @@ import (
 // integers stored as strings, these may change to become alphanumeric strings in the
 // future. Callers should treat Console IDs as unique strings, not integers, wherever
 // possible.
-func (msf *MSFRPC) ConsoleCreate() (*ConsoleCreateResult, error) {
+func (msf *MSFRPC) ConsoleCreate(ctx context.Context) (*ConsoleCreateResult, error) {
 	request := ConsoleCreateRequest{
 		Method: MethodConsoleCreate,
 		Token:  msf.GetToken(),
 	}
 	var result ConsoleCreateResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -32,14 +34,14 @@ func (msf *MSFRPC) ConsoleCreate() (*ConsoleCreateResult, error) {
 // ConsoleDestroy is used to destroy a running console instance by Console ID. Consoles
 // should always be destroyed after the caller is finished to prevent resource leaks on
 // the server side. If an invalid Console ID is specified.
-func (msf *MSFRPC) ConsoleDestroy(id string) error {
+func (msf *MSFRPC) ConsoleDestroy(ctx context.Context, id string) error {
 	request := ConsoleDestroyRequest{
 		Method: MethodConsoleDestroy,
 		Token:  msf.GetToken(),
 		ID:     id,
 	}
 	var result ConsoleDestroyResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -56,14 +58,14 @@ func (msf *MSFRPC) ConsoleDestroy(id string) error {
 // not already been read. The data is returned in the raw form printed by the actual
 // console. Note that a newly allocated console will have the initial banner available
 // to read.
-func (msf *MSFRPC) ConsoleRead(id string) (*ConsoleReadResult, error) {
+func (msf *MSFRPC) ConsoleRead(ctx context.Context, id string) (*ConsoleReadResult, error) {
 	request := ConsoleReadRequest{
 		Method: MethodConsoleRead,
 		Token:  msf.GetToken(),
 		ID:     id,
 	}
 	var result ConsoleReadResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +82,7 @@ func (msf *MSFRPC) ConsoleRead(id string) (*ConsoleReadResult, error) {
 // ConsoleWrite is used to send data to a specific console, just as if it had been typed
 // by a normal user. This means that most commands will need a newline included at the
 // end for the console to process them properly.
-func (msf *MSFRPC) ConsoleWrite(id, data string) (uint64, error) {
+func (msf *MSFRPC) ConsoleWrite(ctx context.Context, id, data string) (uint64, error) {
 	request := ConsoleWriteRequest{
 		Method: MethodConsoleWrite,
 		Token:  msf.GetToken(),
@@ -88,7 +90,7 @@ func (msf *MSFRPC) ConsoleWrite(id, data string) (uint64, error) {
 		Data:   data,
 	}
 	var result ConsoleWriteResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return 0, err
 	}
@@ -104,13 +106,13 @@ func (msf *MSFRPC) ConsoleWrite(id, data string) (uint64, error) {
 
 // ConsoleList is used to return a hash of all existing Console IDs, their status,
 // and their prompts.
-func (msf *MSFRPC) ConsoleList() ([]*ConsoleInfo, error) {
+func (msf *MSFRPC) ConsoleList(ctx context.Context) ([]*ConsoleInfo, error) {
 	request := ConsoleListRequest{
 		Method: MethodConsoleList,
 		Token:  msf.GetToken(),
 	}
 	var result ConsoleListResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -124,14 +126,14 @@ func (msf *MSFRPC) ConsoleList() ([]*ConsoleInfo, error) {
 // Framework Console. This method can be used to return to the main Metasploit prompt
 // after entering an interactive session through a sessions –i console command or through
 // an exploit.
-func (msf *MSFRPC) ConsoleSessionDetach(id string) error {
+func (msf *MSFRPC) ConsoleSessionDetach(ctx context.Context, id string) error {
 	request := ConsoleSessionDetachRequest{
 		Method: MethodConsoleSessionDetach,
 		Token:  msf.GetToken(),
 		ID:     id,
 	}
 	var result ConsoleSessionDetachResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -150,14 +152,14 @@ func (msf *MSFRPC) ConsoleSessionDetach(id string) error {
 // or an exploit was called through the Console API. In most cases, the session API methods
 // are a better way to session termination, while the console.session_detach method is a
 // better way to drop back to the main Metasploit console.
-func (msf *MSFRPC) ConsoleSessionKill(id string) error {
+func (msf *MSFRPC) ConsoleSessionKill(ctx context.Context, id string) error {
 	request := ConsoleSessionKillRequest{
 		Method: MethodConsoleSessionKill,
 		Token:  msf.GetToken(),
 		ID:     id,
 	}
 	var result ConsoleSessionKillResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
