@@ -238,13 +238,13 @@ func (msf *MSFRPC) AuthLogout(token string) error {
 }
 
 // AuthTokenList is used to get token list.
-func (msf *MSFRPC) AuthTokenList() ([]string, error) {
+func (msf *MSFRPC) AuthTokenList(ctx context.Context) ([]string, error) {
 	request := AuthTokenListRequest{
 		Method: MethodAuthTokenList,
 		Token:  msf.GetToken(),
 	}
 	var result AuthTokenListResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -256,13 +256,13 @@ func (msf *MSFRPC) AuthTokenList() ([]string, error) {
 
 // AuthTokenGenerate is used to create a random 32-byte authentication token,
 // add this token to the authenticated list, and return this token.
-func (msf *MSFRPC) AuthTokenGenerate() (string, error) {
+func (msf *MSFRPC) AuthTokenGenerate(ctx context.Context) (string, error) {
 	request := AuthTokenGenerateRequest{
 		Method: MethodAuthTokenGenerate,
 		Token:  msf.GetToken(),
 	}
 	var result AuthTokenGenerateResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return "", err
 	}
@@ -274,14 +274,14 @@ func (msf *MSFRPC) AuthTokenGenerate() (string, error) {
 
 // AuthTokenAdd is used to add an arbitrary string as a valid permanent authentication
 // token. This token can be used for all future authentication purposes.
-func (msf *MSFRPC) AuthTokenAdd(token string) error {
+func (msf *MSFRPC) AuthTokenAdd(ctx context.Context, token string) error {
 	request := AuthTokenAddRequest{
 		Method:   MethodAuthTokenAdd,
 		Token:    msf.GetToken(),
 		NewToken: token,
 	}
 	var result AuthTokenAddResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
@@ -293,14 +293,14 @@ func (msf *MSFRPC) AuthTokenAdd(token string) error {
 
 // AuthTokenRemove is used to delete a specified token. This will work for both
 // temporary and permanent tokens, including those stored in the database backend.
-func (msf *MSFRPC) AuthTokenRemove(token string) error {
+func (msf *MSFRPC) AuthTokenRemove(ctx context.Context, token string) error {
 	request := AuthTokenRemoveRequest{
 		Method:           MethodAuthTokenRemove,
 		Token:            msf.GetToken(),
 		TokenToBeRemoved: token,
 	}
 	var result AuthTokenRemoveResult
-	err := msf.send(msf.ctx, &request, &result)
+	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return err
 	}
