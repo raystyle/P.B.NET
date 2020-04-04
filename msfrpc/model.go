@@ -1017,3 +1017,18 @@ type SessionStopResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }
+
+// SessionShellReadRequest is used to read shell.
+type SessionShellReadRequest struct {
+	Method  string
+	Token   string
+	ID      uint64
+	Pointer uint64
+}
+
+// SessionShellReadResult is the result of read shell.
+type SessionShellReadResult struct {
+	Seq  uint64 `msgpack:"seq"`
+	Data string `msgpack:"data"`
+	MSFError
+}

@@ -15,7 +15,15 @@ import (
 	"project/internal/testsuite"
 )
 
-func testCreateSession(t *testing.T, msfrpc *MSFRPC, port string) {
+func testCreateShellSession(t *testing.T, msfrpc *MSFRPC, port string) {
+	testCreateSession(t, msfrpc, "shell", port)
+}
+
+func testCreateMeterpreterSession(t *testing.T, msfrpc *MSFRPC, port string) {
+	testCreateSession(t, msfrpc, "meterpreter", port)
+}
+
+func testCreateSession(t *testing.T, msfrpc *MSFRPC, typ, port string) {
 	ctx := context.Background()
 
 	// select payload
@@ -25,18 +33,18 @@ func testCreateSession(t *testing.T, msfrpc *MSFRPC, port string) {
 	case "windows":
 		switch runtime.GOARCH {
 		case "386":
-			opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
+			opts["PAYLOAD"] = "windows/" + typ + "/reverse_tcp"
 		case "amd64":
-			opts["PAYLOAD"] = "windows/x64/meterpreter/reverse_tcp"
+			opts["PAYLOAD"] = "windows/x64/" + typ + "/reverse_tcp"
 		default:
 			t.Skip("only support 386 and amd64")
 		}
 	case "linux":
 		switch runtime.GOARCH {
 		case "386":
-			opts["PAYLOAD"] = "linux/meterpreter/reverse_tcp"
+			opts["PAYLOAD"] = "linux/" + typ + "/reverse_tcp"
 		case "amd64":
-			opts["PAYLOAD"] = "linux/x64/meterpreter/reverse_tcp"
+			opts["PAYLOAD"] = "linux/x64/" + typ + "/reverse_tcp"
 		default:
 			t.Skip("only support 386 and amd64")
 		}
@@ -97,7 +105,7 @@ func TestMSFRPC_SessionList(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		testCreateSession(t, msfrpc, "55001")
+		testCreateShellSession(t, msfrpc, "55001")
 
 		sessions, err := msfrpc.SessionList(ctx)
 		require.NoError(t, err)
@@ -144,7 +152,7 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		testCreateSession(t, msfrpc, "55001")
+		testCreateShellSession(t, msfrpc, "55001")
 
 		sessions, err := msfrpc.SessionList(ctx)
 		require.NoError(t, err)
@@ -172,6 +180,60 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 		testPatchSend(func() {
 			err = msfrpc.SessionStop(ctx, 999)
 			monkey.IsMonkeyError(t, err)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_SessionRead(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		testCreateShellSession(t, msfrpc, "55002")
+
+		sessions, err := msfrpc.SessionList(ctx)
+		require.NoError(t, err)
+		for id := range sessions {
+			result, err := msfrpc.SessionRead(ctx, id, 0)
+			require.NoError(t, err)
+			t.Log(result.Seq, result.Data)
+
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}
+	})
+
+	t.Run("invalid session id", func(t *testing.T) {
+		result, err := msfrpc.SessionRead(ctx, 999, 0)
+		require.EqualError(t, err, "unknown session id: 999")
+		require.Nil(t, result)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		result, err := msfrpc.SessionRead(ctx, 999, 0)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, result)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			result, err := msfrpc.SessionRead(ctx, 999, 0)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, result)
 		})
 	})
 
