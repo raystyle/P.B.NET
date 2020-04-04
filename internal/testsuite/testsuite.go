@@ -131,6 +131,14 @@ func IsDestroyed(t testing.TB, object interface{}) {
 	require.True(t, Destroyed(object), "object not destroyed")
 }
 
+// CheckErrorInTestMain is used to check error in function TestMain(),
+// because no t *testing.T, so we need check it self.
+func CheckErrorInTestMain(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 // RunParallel is used to call functions with go func().
 // object with Add(), Get() ... need it for test with race.
 func RunParallel(f ...func()) {

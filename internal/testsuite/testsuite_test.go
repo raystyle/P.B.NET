@@ -1,6 +1,7 @@
 package testsuite
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,6 +14,10 @@ import (
 
 func TestIsInGoland(t *testing.T) {
 	t.Log("in Goland:", InGoland)
+}
+
+func TestBytes(t *testing.T) {
+	Bytes()
 }
 
 func TestIsDestroyed(t *testing.T) {
@@ -37,6 +42,14 @@ func TestIsDestroyed(t *testing.T) {
 	require.Equal(t, n, 2)
 	require.NoError(t, err)
 	IsDestroyed(t, &c)
+}
+
+func TestCheckErrorInTestMain(t *testing.T) {
+	defer func() {
+		r := recover()
+		require.NotNil(t, r)
+	}()
+	CheckErrorInTestMain(errors.New("foo error"))
 }
 
 func TestRunParallel(t *testing.T) {
