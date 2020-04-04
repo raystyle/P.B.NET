@@ -92,3 +92,34 @@ func (msf *MSFRPC) SessionRead(
 	}
 	return &result, nil
 }
+
+// SessionWrite is used to provide the ability to write data into an active shell session.
+// Most sessions require a terminating newline before they will process a command.
+func (msf *MSFRPC) SessionWrite(ctx context.Context, id uint64, data string) (uint64, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
+	request := SessionShellWriteRequest{
+		Method: MethodSessionShellWrite,
+		Token:  msf.GetToken(),
+		ID:     id,
+		Data:   data,
+	}
+	var result SessionShellWriteResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return 0, err
+	}
+	if result.Err {
+		id := strconv.FormatUint(id, 10)
+		switch result.ErrorMessage {
+		case "Unknown Session ID " + id:
+			result.ErrorMessage = "unknown session id: " + id
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return 0, errors.WithStack(&result.MSFError)
+	}
+	n, _ := strconv.ParseUint(result.WriteCount, 10, 64)
+	return n, nil
+}

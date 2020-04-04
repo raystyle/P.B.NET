@@ -1018,7 +1018,7 @@ type SessionStopResult struct {
 	MSFError
 }
 
-// SessionShellReadRequest is used to read shell.
+// SessionShellReadRequest is used to read data from a shell.
 type SessionShellReadRequest struct {
 	Method  string
 	Token   string
@@ -1030,5 +1030,19 @@ type SessionShellReadRequest struct {
 type SessionShellReadResult struct {
 	Seq  uint64 `msgpack:"seq"`
 	Data string `msgpack:"data"`
+	MSFError
+}
+
+// SessionShellWriteRequest is used to write data to a shell.
+type SessionShellWriteRequest struct {
+	Method string
+	Token  string
+	ID     uint64
+	Data   string
+}
+
+// SessionShellWriteResult is the result of write shell.
+type SessionShellWriteResult struct {
+	WriteCount string `msgpack:"write_count"`
 	MSFError
 }

@@ -92,6 +92,9 @@ func (msf *MSFRPC) ConsoleRead(ctx context.Context, id string) (*ConsoleReadResu
 // by a normal user. This means that most commands will need a newline included at the
 // end for the console to process them properly.
 func (msf *MSFRPC) ConsoleWrite(ctx context.Context, id, data string) (uint64, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
 	request := ConsoleWriteRequest{
 		Method: MethodConsoleWrite,
 		Token:  msf.GetToken(),

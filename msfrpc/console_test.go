@@ -182,8 +182,19 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("no data", func(t *testing.T) {
+		n, err := msfrpc.ConsoleWrite(ctx, "999", "")
+		require.NoError(t, err)
+		require.Zero(t, n)
+	})
+
+	const (
+		id   = "999"
+		data = "foo"
+	)
+
 	t.Run("invalid console id", func(t *testing.T) {
-		n, err := msfrpc.ConsoleWrite(ctx, "999", "foo")
+		n, err := msfrpc.ConsoleWrite(ctx, id, data)
 		require.EqualError(t, err, "failed to write to console 999: failure")
 		require.Equal(t, uint64(0), n)
 	})
@@ -193,14 +204,14 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		n, err := msfrpc.ConsoleWrite(ctx, "999", "foo")
+		n, err := msfrpc.ConsoleWrite(ctx, id, data)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Equal(t, uint64(0), n)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			n, err := msfrpc.ConsoleWrite(ctx, "999", "foo")
+			n, err := msfrpc.ConsoleWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 			require.Equal(t, uint64(0), n)
 		})

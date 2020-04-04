@@ -240,3 +240,76 @@ func TestMSFRPC_SessionRead(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_SessionWrite(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		testCreateShellSession(t, msfrpc, "55002")
+
+		sessions, err := msfrpc.SessionList(ctx)
+		require.NoError(t, err)
+		for id := range sessions {
+			result, err := msfrpc.SessionRead(ctx, id, 0)
+			require.NoError(t, err)
+			t.Log(result.Seq, result.Data)
+
+			n, err := msfrpc.SessionWrite(ctx, id, "whoami\r\n")
+			require.NoError(t, err)
+			require.Equal(t, uint64(8), n)
+
+			result, err = msfrpc.SessionRead(ctx, id, 0)
+			require.NoError(t, err)
+			t.Log(result.Seq, result.Data)
+
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}
+	})
+
+	t.Run("no data", func(t *testing.T) {
+		n, err := msfrpc.SessionWrite(ctx, 0, "")
+		require.NoError(t, err)
+		require.Zero(t, n)
+	})
+
+	const (
+		id   = 999
+		data = "cmd"
+	)
+
+	t.Run("invalid session id", func(t *testing.T) {
+		n, err := msfrpc.SessionWrite(ctx, id, data)
+		require.EqualError(t, err, "unknown session id: 999")
+		require.Zero(t, n)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		n, err := msfrpc.SessionWrite(ctx, id, data)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Zero(t, n)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			n, err := msfrpc.SessionWrite(ctx, id, data)
+			monkey.IsMonkeyError(t, err)
+			require.Zero(t, n)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
