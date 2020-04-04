@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 )
@@ -24,4 +25,26 @@ func (msf *MSFRPC) SessionList(ctx context.Context) (map[uint64]*SessionInfo, er
 		return nil, errors.WithStack(&msfError)
 	}
 	return result, nil
+}
+
+// SessionStop is used to terminate the session specified in the SessionID parameter.
+func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
+	request := SessionStopRequest{
+		Method: MethodSessionStop,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result SessionStopResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		if result.ErrorMessage == "Unknown Session ID" {
+			const format = "unknown session id: %d"
+			result.ErrorMessage = fmt.Sprintf(format, id)
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
 }

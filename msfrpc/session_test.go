@@ -77,6 +77,7 @@ func testCreateSession(t *testing.T, msfrpc *MSFRPC, port string) {
 	go func() { _ = shellcode.Execute("", sc) }()
 	time.Sleep(5 * time.Second)
 
+	// check session number
 	sessions, err := msfrpc.SessionList(ctx)
 	require.NoError(t, err)
 	if len(sessions) == 1 {
@@ -101,9 +102,12 @@ func TestMSFRPC_SessionList(t *testing.T) {
 		sessions, err := msfrpc.SessionList(ctx)
 		require.NoError(t, err)
 		for id, session := range sessions {
-			t.Logf("id: %d type: %s\n", id, session.Type)
-		}
+			const format = "id: %d type: %s remote: %s\n"
+			t.Logf(format, id, session.Type, session.TunnelPeer)
 
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
@@ -121,6 +125,53 @@ func TestMSFRPC_SessionList(t *testing.T) {
 			sessions, err := msfrpc.SessionList(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, sessions)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_SessionStop(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		testCreateSession(t, msfrpc, "55001")
+
+		sessions, err := msfrpc.SessionList(ctx)
+		require.NoError(t, err)
+		for id := range sessions {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}
+	})
+
+	t.Run("invalid session id", func(t *testing.T) {
+		err = msfrpc.SessionStop(ctx, 999)
+		require.EqualError(t, err, "unknown session id: 999")
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		err = msfrpc.SessionStop(ctx, 999)
+		require.EqualError(t, err, testErrInvalidToken)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			err = msfrpc.SessionStop(ctx, 999)
+			monkey.IsMonkeyError(t, err)
 		})
 	})
 

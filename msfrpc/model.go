@@ -159,22 +159,22 @@ const (
 	MethodJobInfo = "job.info"
 	MethodJobStop = "job.stop"
 
-	MethodSessionList = "session.list"
-	// MethodSessionStop                          = "session.stop"
-	// MethodSessionShellRead                     = "session.shell_read"
-	// MethodSessionShellWrite                    = "session.shell_write"
-	// MethodSessionShellUpgrade                  = "session.shell_upgrade"
-	// MethodSessionRingRead                      = "session.ring_read"
-	// MethodSessionRingPut                       = "session.ring_put"
-	// MethodSessionRingLast                      = "session.ring_last"
-	// MethodSessionRingClear                     = "session.ring_clear"
-	// MethodSessionMeterpreterRead               = "session.meterpreter_read"
-	// MethodSessionMeterpreterWrite              = "session.meterpreter_write"
-	// MethodSessionMeterpreterSessionDetach      = "session.meterpreter_session_detach"
-	// MethodSessionMeterpreterSessionKill        = "session.meterpreter_session_kill"
-	// MethodSessionMeterpreterRunSingle          = "session.meterpreter_run_single"
-	// MethodSessionMeterpreterDirectorySeparator = "session.meterpreter_directory_separator"
-	// MethodSessionCompatibleModules             = "session.compatible_modules"
+	MethodSessionList                          = "session.list"
+	MethodSessionStop                          = "session.stop"
+	MethodSessionShellRead                     = "session.shell_read"
+	MethodSessionShellWrite                    = "session.shell_write"
+	MethodSessionShellUpgrade                  = "session.shell_upgrade"
+	MethodSessionMeterpreterRead               = "session.meterpreter_read"
+	MethodSessionMeterpreterWrite              = "session.meterpreter_write"
+	MethodSessionMeterpreterSessionDetach      = "session.meterpreter_session_detach"
+	MethodSessionMeterpreterSessionKill        = "session.meterpreter_session_kill"
+	MethodSessionMeterpreterRunSingle          = "session.meterpreter_run_single"
+	MethodSessionMeterpreterDirectorySeparator = "session.meterpreter_directory_separator"
+	MethodSessionCompatibleModules             = "session.compatible_modules"
+	MethodSessionRingRead                      = "session.ring_read"
+	MethodSessionRingPut                       = "session.ring_put"
+	MethodSessionRingLast                      = "session.ring_last"
+	MethodSessionRingClear                     = "session.ring_clear"
 )
 
 // --------------------------------------about authentication--------------------------------------
@@ -1003,4 +1003,17 @@ type SessionInfo struct {
 	Workspace    string `msgpack:"workspace"`
 	UUID         string `msgpack:"uuid"`
 	ExploitUUID  string `msgpack:"exploit_uuid"`
+}
+
+// SessionStopRequest is used to stop a session.
+type SessionStopRequest struct {
+	Method string
+	Token  string
+	ID     uint64
+}
+
+// SessionStopResult is the result of stop session.
+type SessionStopResult struct {
+	Result string `msgpack:"result"`
+	MSFError
 }
