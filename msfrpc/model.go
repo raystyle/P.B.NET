@@ -911,6 +911,21 @@ type ModuleCheckResult struct {
 	MSFError
 }
 
+// ModuleRunningStatsRequest is used to get the currently running
+// module stats in each state.
+type ModuleRunningStatsRequest struct {
+	Method string
+	Token  string
+}
+
+// ModuleRunningStatsResult is the result of get running stats.
+type ModuleRunningStatsResult struct {
+	Waiting []string `msgpack:"waiting"`
+	Running []string `msgpack:"running"`
+	Results []string `msgpack:"results"`
+	MSFError
+}
+
 // -------------------------------------------about job--------------------------------------------
 
 // JobListRequest is used to list jobs.

@@ -479,3 +479,20 @@ func (msf *MSFRPC) ModuleCheck(
 	}
 	return &result, nil
 }
+
+// ModuleRunningStats is used to returns the currently running module stats in each state.
+func (msf *MSFRPC) ModuleRunningStats(ctx context.Context) (*ModuleRunningStatsResult, error) {
+	request := ModuleRunningStatsRequest{
+		Method: MethodModuleRunningStats,
+		Token:  msf.GetToken(),
+	}
+	var result ModuleRunningStatsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return &result, nil
+}

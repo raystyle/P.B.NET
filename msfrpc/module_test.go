@@ -1052,3 +1052,47 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_ModuleRunningStats(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.Login()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		result, err := msfrpc.ModuleRunningStats(ctx)
+		require.NoError(t, err)
+
+		for i := 0; i < len(result.Waiting); i++ {
+			t.Log("waiting", result.Waiting[i])
+		}
+		for i := 0; i < len(result.Running); i++ {
+			t.Log("running", result.Running[i])
+		}
+		for i := 0; i < len(result.Results); i++ {
+			t.Log("results", result.Results[i])
+		}
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+		result, err := msfrpc.ModuleRunningStats(ctx)
+		require.EqualError(t, err, testErrInvalidToken)
+		require.Nil(t, result)
+	})
+
+	t.Run("send failed", func(t *testing.T) {
+		testPatchSend(func() {
+			result, err := msfrpc.ModuleRunningStats(ctx)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, result)
+		})
+	})
+}
