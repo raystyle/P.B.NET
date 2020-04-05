@@ -159,21 +159,20 @@ const (
 	MethodJobInfo = "job.info"
 	MethodJobStop = "job.stop"
 
-	MethodSessionList                          = "session.list"
-	MethodSessionStop                          = "session.stop"
-	MethodSessionShellRead                     = "session.shell_read"
-	MethodSessionShellWrite                    = "session.shell_write"
-	MethodSessionMeterpreterRead               = "session.meterpreter_read"
-	MethodSessionMeterpreterWrite              = "session.meterpreter_write"
-	MethodSessionMeterpreterSessionDetach      = "session.meterpreter_session_detach"
-	MethodSessionMeterpreterSessionKill        = "session.meterpreter_session_kill"
-	MethodSessionMeterpreterRunSingle          = "session.meterpreter_run_single"
-	MethodSessionMeterpreterDirectorySeparator = "session.meterpreter_directory_separator"
-	MethodSessionCompatibleModules             = "session.compatible_modules"
-	MethodSessionRingRead                      = "session.ring_read"
-	MethodSessionRingPut                       = "session.ring_put"
-	MethodSessionRingLast                      = "session.ring_last"
-	MethodSessionRingClear                     = "session.ring_clear"
+	MethodSessionList                     = "session.list"
+	MethodSessionStop                     = "session.stop"
+	MethodSessionShellRead                = "session.shell_read"
+	MethodSessionShellWrite               = "session.shell_write"
+	MethodSessionMeterpreterRead          = "session.meterpreter_read"
+	MethodSessionMeterpreterWrite         = "session.meterpreter_write"
+	MethodSessionMeterpreterSessionDetach = "session.meterpreter_session_detach"
+	MethodSessionMeterpreterSessionKill   = "session.meterpreter_session_kill"
+	MethodSessionMeterpreterRunSingle     = "session.meterpreter_run_single"
+	MethodSessionCompatibleModules        = "session.compatible_modules"
+	MethodSessionRingRead                 = "session.ring_read"
+	MethodSessionRingPut                  = "session.ring_put"
+	MethodSessionRingLast                 = "session.ring_last"
+	MethodSessionRingClear                = "session.ring_clear"
 )
 
 // --------------------------------------about authentication--------------------------------------
@@ -1095,6 +1094,20 @@ type SessionMeterpreterSessionKillRequest struct {
 
 // SessionMeterpreterSessionKillResult is the result of kill meterpreter session.
 type SessionMeterpreterSessionKillResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// SessionMeterpreterRunSingle is used to run single post module.
+type SessionMeterpreterRunSingleRequest struct {
+	Method  string
+	Token   string
+	ID      uint64
+	Command string
+}
+
+// SessionMeterpreterRunSingleResult is the result of run single post module.
+type SessionMeterpreterRunSingleResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }

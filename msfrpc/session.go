@@ -126,10 +126,9 @@ func (msf *MSFRPC) SessionWrite(ctx context.Context, id uint64, data string) (ui
 	return n, nil
 }
 
-// SessionUpgrade is used to attempt to spawn a new Meterpreter session through an
-// existing Shell session. This requires that a multi/handler be running
-// (windows/meterpreter/reverse_tcp) and that the host and port of this handler is
-// provided to this method.
+// SessionUpgrade is used to attempt to spawn a new Meterpreter session through an existing
+// shell session. This requires that a multi/handler be running (windows/meterpreter/reverse_tcp)
+// and that the host and port of this handler is provided to this method.
 //
 // API from MSFRPC will leaks, so we do it self.
 func (msf *MSFRPC) SessionUpgrade(
@@ -288,6 +287,36 @@ func (msf *MSFRPC) SessionMeterpreterKill(ctx context.Context, id uint64) error 
 		ID:     id,
 	}
 	var result SessionMeterpreterSessionKillResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		id := strconv.FormatUint(id, 10)
+		switch result.ErrorMessage {
+		case "Unknown Session ID " + id:
+			result.ErrorMessage = "unknown session id: " + id
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}
+
+// SessionMeterpreterRunSingle is used to provide the ability to run a single Meterpreter
+// console command. This method does not need be terminated by a newline. The advantage
+// to session.meterpreter_run_single over session.meterpreter_write is that this method
+// will always run the Meterpreter command, even if the console tied to this sessions is
+// interacting with a channel.
+func (msf *MSFRPC) SessionMeterpreterRunSingle(ctx context.Context, id uint64, cmd string) error {
+	request := SessionMeterpreterRunSingleRequest{
+		Method:  MethodSessionMeterpreterRunSingle,
+		Token:   msf.GetToken(),
+		ID:      id,
+		Command: cmd,
+	}
+	var result SessionMeterpreterRunSingleResult
 	err := msf.send(ctx, &request, &result)
 	if err != nil {
 		return err
