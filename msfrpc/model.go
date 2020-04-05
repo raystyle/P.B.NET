@@ -400,6 +400,25 @@ type CoreVersionResult struct {
 
 // ------------------------------------------about console-----------------------------------------
 
+// ConsoleListRequest is used to list console.
+type ConsoleListRequest struct {
+	Method string
+	Token  string
+}
+
+// ConsoleListResult is the result of list console.
+type ConsoleListResult struct {
+	Consoles []*ConsoleInfo `msgpack:"consoles"`
+	MSFError
+}
+
+// ConsoleInfo include console information.
+type ConsoleInfo struct {
+	ID     string `msgpack:"id"`
+	Prompt string `msgpack:"prompt"`
+	Busy   bool   `msgpack:"busy"`
+}
+
 // ConsoleCreateRequest is used to create a console.
 type ConsoleCreateRequest struct {
 	Method string
@@ -456,25 +475,6 @@ type ConsoleReadResult struct {
 	Busy   bool   `msgpack:"busy"`
 	Result string `msgpack:"result"`
 	MSFError
-}
-
-// ConsoleListRequest is used to list console.
-type ConsoleListRequest struct {
-	Method string
-	Token  string
-}
-
-// ConsoleListResult is the result of list console.
-type ConsoleListResult struct {
-	Consoles []*ConsoleInfo `msgpack:"consoles"`
-	MSFError
-}
-
-// ConsoleInfo include console information.
-type ConsoleInfo struct {
-	ID     string `msgpack:"id"`
-	Prompt string `msgpack:"prompt"`
-	Busy   bool   `msgpack:"busy"`
 }
 
 // ConsoleSessionDetachRequest is used to background an interactive session.
@@ -1069,6 +1069,19 @@ type SessionMeterpreterWriteRequest struct {
 
 // SessionMeterpreterWriteResult is the result of write meterpreter shell.
 type SessionMeterpreterWriteResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// SessionMeterpreterSessionDetachRequest is used to detach with a meterpreter session.
+type SessionMeterpreterSessionDetachRequest struct {
+	Method string
+	Token  string
+	ID     uint64
+}
+
+// SessionMeterpreterSessionDetachResult is the result of detach a meterpreter session.
+type SessionMeterpreterSessionDetachResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }

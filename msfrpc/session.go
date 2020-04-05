@@ -251,6 +251,33 @@ func (msf *MSFRPC) SessionMeterpreterWrite(ctx context.Context, id uint64, data 
 	return nil
 }
 
+// SessionMeterpreterDetach is used to stop any current channel or sub-shell interaction
+// taking place by the console associated with the specified Meterpreter session. This
+// simulates the console user pressing the Control+Z hotkey.
+func (msf *MSFRPC) SessionMeterpreterDetach(ctx context.Context, id uint64) error {
+	request := SessionMeterpreterSessionDetachRequest{
+		Method: MethodSessionMeterpreterSessionDetach,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result SessionMeterpreterSessionDetachResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		id := strconv.FormatUint(id, 10)
+		switch result.ErrorMessage {
+		case "Unknown Session ID " + id:
+			result.ErrorMessage = "unknown session id: " + id
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}
+
 // SessionMeterpreterKill is used to terminate the current channel or sub-shell that
 // the console associated with the specified Meterpreter session is interacting with.
 // This simulates the console user pressing the Control+C hotkey.
