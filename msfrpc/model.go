@@ -85,46 +85,49 @@ const (
 	MethodConsoleSessionDetach = "console.session_detach"
 	MethodConsoleSessionKill   = "console.session_kill"
 
-	// MethodDBConnect          = "db.connect"
-	// MethodDBStatus           = "db.status"
-	// MethodDBDisconnect       = "db.disconnect"
+	MethodDBConnect    = "db.connect"
+	MethodDBDisconnect = "db.disconnect"
+	MethodDBStatus     = "db.status"
+	MethodDBDriver     = "db.driver"
+
 	// MethodDBHosts            = "db.hosts"
-	// MethodDBServices         = "db.services"
-	// MethodDBVulns            = "db.vulns"
-	// MethodDBWorkspaces       = "db.workspaces"
-	// MethodDBCurrentWorkspace = "db.current_workspace"
-	// MethodDBGetWorkspace     = "db.get_workspace"
-	// MethodDBSetWorkspace     = "db.set_workspace"
-	// MethodDBDelWorkspace     = "db.del_workspace"
-	// MethodDBAddWorkspace     = "db.add_workspace"
 	// MethodDBGetHost          = "db.get_host"
-	// MethodDBReportHost       = "db.report_host"
-	// MethodDBReportService    = "db.report_service"
-	// MethodDBGetService       = "db.get_service"
-	// MethodDBGetNote          = "db.get_note"
-	// MethodDBGetClient        = "db.get_client"
-	// MethodDBReportClient     = "db.report_client"
-	// MethodDBReportNote       = "db.report_note"
-	// MethodDBNotes            = "db.notes"
-	// MethodDBReportAuthInfo   = "db.report_auth_info"
-	// MethodDBGetAuthInfo      = "db.get_auth_info"
-	// MethodDBGetRef           = "db.get_ref"
-	// MethodDBDelVuln          = "db.del_vuln"
-	// MethodDBDelNote          = "db.del_note"
-	// MethodDBDelService       = "db.del_service"
 	// MethodDBDelHost          = "db.del_host"
+	// MethodDBReportHost       = "db.report_host"
+	// MethodDBServices         = "db.services"
+	// MethodDBGetService       = "db.get_service"
+	// MethodDBDelService       = "db.del_service"
+	// MethodDBReportService    = "db.report_service"
+	// MethodDBNotes            = "db.notes"
+	// MethodDBGetNote          = "db.get_note"
+	// MethodDBDelNote          = "db.del_note"
+	// MethodDBReportNote       = "db.report_note"
+	// MethodDBVulns            = "db.vulns"
+	// MethodDBGetVuln          = "db.get_vuln"
+	// MethodDBDelVuln          = "db.del_vuln"
 	// MethodDBReportVuln       = "db.report_vuln"
+	// MethodDBGetRef           = "db.get_ref"
+	// MethodDBCreds            = "db.creds"
+	// MethodDBGetCreds         = "db.get_creds"
+	// MethodDBDelCreds         = "db.del_creds"
+	// MethodDBReportCred       = "db.report_cred"
+	// MethodDBLoots            = "db.loots"
+	// MethodDBReportLoot       = "db.report_loot"
+	// MethodDBClients          = "db.clients"
+	// MethodDBGetClient        = "db.get_client"
+	// MethodDBDelClient        = "db.del_client"
+	// MethodDBReportClient     = "db.report_client"
+	// MethodDBWorkspaces       = "db.workspaces"
+	// MethodDBGetWorkspace     = "db.get_workspace"
+	// MethodDBAddWorkspace     = "db.add_workspace"
+	// MethodDBDelWorkspace     = "db.del_workspace"
+	// MethodDBSetWorkspace     = "db.set_workspace"
+	// MethodDBCurrentWorkspace = "db.current_workspace"
+	// MethodDBGetAuthInfo      = "db.get_auth_info"
+	// MethodDBReportAuthInfo   = "db.report_auth_info"
 	// MethodDBEvents           = "db.events"
 	// MethodDBReportEvent      = "db.report_event"
-	// MethodDBReportLoot       = "db.report_loot"
-	// MethodDBLoots            = "db.loots"
-	// MethodDBReportCred       = "db.report_cred"
-	// MethodDBCreds            = "db.creds"
 	// MethodDBImportData       = "db.import_data"
-	// MethodDBGetVuln          = "db.get_vuln"
-	// MethodDBClients          = "db.clients"
-	// MethodDBDelClient        = "db.del_client"
-	// MethodDBDriver           = "db.driver"
 
 	MethodPluginLoad   = "plugin.load"
 	MethodPluginUnload = "plugin.unload"
@@ -827,7 +830,7 @@ func (opts *ModuleEncodeOptions) toMap() map[string]interface{} {
 	if opts.EncodeCount > 0 {
 		m["ecount"] = opts.EncodeCount
 	}
-	// TODO [external] msfrpc bug in rpc_module.rb
+	// TODO [external] msfrpcd bug in rpc_module.rb
 	// there is a BUG in lib\msf\core\rpc\v10\rpc_module.rb
 	//
 	//  if options['addshellcode']
@@ -1096,7 +1099,7 @@ type SessionMeterpreterSessionKillResult struct {
 	MSFError
 }
 
-// SessionMeterpreterRunSingle is used to run single post module.
+// SessionMeterpreterRunSingleRequest is used to run single post module.
 type SessionMeterpreterRunSingleRequest struct {
 	Method  string
 	Token   string
@@ -1120,5 +1123,57 @@ type SessionCompatibleModulesRequest struct {
 // SessionCompatibleModulesResult is the result of get compatible modules.
 type SessionCompatibleModulesResult struct {
 	Modules []string `msgpack:"modules"`
+	MSFError
+}
+
+// DBConnectRequest is used to connect database.
+type DBConnectRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBConnectOptions contains the options about connect database.
+type DBConnectOptions struct {
+	Driver   string
+	Host     string
+	Port     uint64
+	Username string
+	Password string
+	Database string
+	Other    map[string]interface{}
+}
+
+func (opts *DBConnectOptions) toMap() map[string]interface{} {
+	m := map[string]interface{}{
+		"driver":   opts.Driver,
+		"host":     opts.Host,
+		"port":     opts.Port,
+		"username": opts.Username,
+		"password": opts.Password,
+		"database": opts.Database,
+	}
+	for key, value := range opts.Other {
+		m[key] = value
+	}
+	return m
+}
+
+// DBConnectResult is the result of connect database.
+type DBConnectResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// DBStatusRequest is used to get database status.
+type DBStatusRequest struct {
+	Method string
+	Token  string
+}
+
+// DBStatusResult is the result of get database status.
+type DBStatusResult struct {
+	Driver   string `msgpack:"driver"`
+	Database string `msgpack:"db"`
 	MSFError
 }
