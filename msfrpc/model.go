@@ -1045,3 +1045,16 @@ type SessionShellWriteResult struct {
 	WriteCount string `msgpack:"write_count"`
 	MSFError
 }
+
+// SessionMeterpreterReadRequest is used to read data from a meterpreter shell.
+type SessionMeterpreterReadRequest struct {
+	Method string
+	Token  string
+	ID     uint64
+}
+
+// SessionMeterpreterReadResult is the result of read meterpreter shell.
+type SessionMeterpreterReadResult struct {
+	Data string `msgpack:"data"`
+	MSFError
+}

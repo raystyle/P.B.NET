@@ -189,3 +189,31 @@ func (msf *MSFRPC) SessionUpgrade(
 	}
 	return result, err
 }
+
+// SessionMeterpreterRead is used to provide the ability to read pending output from a
+// Meterpreter session console. As noted in the session.meterpreter_write documentation,
+// this method is problematic when it comes to concurrent access by multiple callers and
+// Post modules or Scripts should be used instead.
+func (msf *MSFRPC) SessionMeterpreterRead(ctx context.Context, id uint64) (string, error) {
+	request := SessionMeterpreterReadRequest{
+		Method: MethodSessionMeterpreterRead,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result SessionMeterpreterReadResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return "", err
+	}
+	if result.Err {
+		id := strconv.FormatUint(id, 10)
+		switch result.ErrorMessage {
+		case "Unknown Session ID " + id:
+			result.ErrorMessage = "unknown session id: " + id
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return "", errors.WithStack(&result.MSFError)
+	}
+	return result.Data, nil
+}
