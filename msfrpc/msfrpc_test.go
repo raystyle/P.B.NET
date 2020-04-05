@@ -166,6 +166,15 @@ func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
 	for i := 0; i < 30; i++ {
 		list, err = msfrpc.CoreThreadList(ctx)
 		testsuite.CheckErrorInTestMain(err)
+		// TODO [external] msfrpc thread leaks
+		// if you call SessionMeterpreterRead() or SessionMeterpreterWrite()
+		// when you exit meterpreter shell. this thread is always sleep.
+		// so deceive ourselves now.
+		for id, thread := range list {
+			if thread.Name == "StreamMonitorRemote" {
+				delete(list, id)
+			}
+		}
 		// 3 = internal(do noting)
 		// 9 = start sessions scheduler(5) and session manager(1)
 		l := len(list)

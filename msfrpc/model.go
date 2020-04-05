@@ -169,10 +169,6 @@ const (
 	MethodSessionMeterpreterSessionKill   = "session.meterpreter_session_kill"
 	MethodSessionMeterpreterRunSingle     = "session.meterpreter_run_single"
 	MethodSessionCompatibleModules        = "session.compatible_modules"
-	MethodSessionRingRead                 = "session.ring_read"
-	MethodSessionRingPut                  = "session.ring_put"
-	MethodSessionRingLast                 = "session.ring_last"
-	MethodSessionRingClear                = "session.ring_clear"
 )
 
 // --------------------------------------about authentication--------------------------------------
@@ -831,6 +827,7 @@ func (opts *ModuleEncodeOptions) toMap() map[string]interface{} {
 	if opts.EncodeCount > 0 {
 		m["ecount"] = opts.EncodeCount
 	}
+	// TODO [external] msfrpc bug in rpc_module.rb
 	// there is a BUG in lib\msf\core\rpc\v10\rpc_module.rb
 	//
 	//  if options['addshellcode']
@@ -840,6 +837,7 @@ func (opts *ModuleEncodeOptions) toMap() map[string]interface{} {
 	//      buf << file.read
 	//      file.close
 
+	// our golang code
 	// if opts.AddShellcode != "" {
 	//     m["addshellcode"] = opts.AddShellcode
 	// }

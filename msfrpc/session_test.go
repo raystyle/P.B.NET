@@ -514,8 +514,10 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55011")
 
-		err := msfrpc.SessionMeterpreterWrite(ctx, id, "sysinfo")
+		err = msfrpc.SessionMeterpreterWrite(ctx, id, "sysinfo")
 		require.NoError(t, err)
+
+		time.Sleep(time.Second)
 
 		data, err := msfrpc.SessionMeterpreterRead(ctx, id)
 		require.NoError(t, err)
@@ -667,6 +669,8 @@ func TestMSFRPC_SessionMeterpreterRunSingle(t *testing.T) {
 
 		err := msfrpc.SessionMeterpreterRunSingle(ctx, id, "sysinfo")
 		require.NoError(t, err)
+
+		time.Sleep(time.Second)
 
 		data, err := msfrpc.SessionMeterpreterRead(ctx, id)
 		require.NoError(t, err)
