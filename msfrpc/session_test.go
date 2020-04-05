@@ -468,7 +468,6 @@ func TestMSFRPC_SessionMeterpreterRead(t *testing.T) {
 		require.NoError(t, err)
 		t.Log(data)
 
-		// TODO replace
 		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 	})
@@ -522,7 +521,6 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("\n%s\n", data)
 
-		// TODO replace
 		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 	})
@@ -549,6 +547,54 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.SessionMeterpreterWrite(ctx, id, data)
+			monkey.IsMonkeyError(t, err)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_SessionMeterpreterKill(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		id := testCreateMeterpreterSession(t, msfrpc, "55011")
+
+		err = msfrpc.SessionMeterpreterKill(ctx, id)
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+	})
+
+	const id = 999
+
+	t.Run("invalid session id", func(t *testing.T) {
+		err := msfrpc.SessionMeterpreterKill(ctx, id)
+		require.EqualError(t, err, "unknown session id: 999")
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		err := msfrpc.SessionMeterpreterKill(ctx, id)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			err := msfrpc.SessionMeterpreterKill(ctx, id)
 			monkey.IsMonkeyError(t, err)
 		})
 	})

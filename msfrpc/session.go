@@ -250,3 +250,30 @@ func (msf *MSFRPC) SessionMeterpreterWrite(ctx context.Context, id uint64, data 
 	}
 	return nil
 }
+
+// SessionMeterpreterKill is used to terminate the current channel or sub-shell that
+// the console associated with the specified Meterpreter session is interacting with.
+// This simulates the console user pressing the Control+C hotkey.
+func (msf *MSFRPC) SessionMeterpreterKill(ctx context.Context, id uint64) error {
+	request := SessionMeterpreterSessionKillRequest{
+		Method: MethodSessionMeterpreterSessionKill,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result SessionMeterpreterSessionKillResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		id := strconv.FormatUint(id, 10)
+		switch result.ErrorMessage {
+		case "Unknown Session ID " + id:
+			result.ErrorMessage = "unknown session id: " + id
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}

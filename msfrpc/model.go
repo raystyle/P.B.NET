@@ -77,11 +77,11 @@ const (
 	MethodCoreSave          = "core.save"
 	MethodCoreVersion       = "core.version"
 
+	MethodConsoleList          = "console.list"
 	MethodConsoleCreate        = "console.create"
 	MethodConsoleDestroy       = "console.destroy"
 	MethodConsoleRead          = "console.read"
 	MethodConsoleWrite         = "console.write"
-	MethodConsoleList          = "console.list"
 	MethodConsoleSessionDetach = "console.session_detach"
 	MethodConsoleSessionKill   = "console.session_kill"
 
@@ -1067,8 +1067,21 @@ type SessionMeterpreterWriteRequest struct {
 	Data   string
 }
 
-// SessionMeterpreterWriteResult is the result fo write meterpreter shell.
+// SessionMeterpreterWriteResult is the result of write meterpreter shell.
 type SessionMeterpreterWriteResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// SessionMeterpreterSessionKillRequest is used to kill a meterpreter session.
+type SessionMeterpreterSessionKillRequest struct {
+	Method string
+	Token  string
+	ID     uint64
+}
+
+// SessionMeterpreterSessionKillResult is the result of kill meterpreter session.
+type SessionMeterpreterSessionKillResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }

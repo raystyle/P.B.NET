@@ -11,6 +11,50 @@ import (
 	"project/internal/testsuite"
 )
 
+func TestMSFRPC_ConsoleList(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		consoles, err := msfrpc.ConsoleList(ctx)
+		require.NoError(t, err)
+		for _, console := range consoles {
+			t.Log("id:", console.ID)
+			t.Log("prompt:", console.Prompt)
+			t.Log("prompt(byte):", []byte(console.Prompt))
+			t.Log("busy:", console.Busy)
+		}
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		consoles, err := msfrpc.ConsoleList(ctx)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, consoles)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			consoles, err := msfrpc.ConsoleList(ctx)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, consoles)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_ConsoleCreate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -214,50 +258,6 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 			n, err := msfrpc.ConsoleWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 			require.Equal(t, uint64(0), n)
-		})
-	})
-
-	msfrpc.Kill()
-	testsuite.IsDestroyed(t, msfrpc)
-}
-
-func TestMSFRPC_ConsoleList(t *testing.T) {
-	gm := testsuite.MarkGoroutines(t)
-	defer gm.Compare()
-
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
-	ctx := context.Background()
-
-	t.Run("success", func(t *testing.T) {
-		consoles, err := msfrpc.ConsoleList(ctx)
-		require.NoError(t, err)
-		for _, console := range consoles {
-			t.Log("id:", console.ID)
-			t.Log("prompt:", console.Prompt)
-			t.Log("prompt(byte):", []byte(console.Prompt))
-			t.Log("busy:", console.Busy)
-		}
-	})
-
-	t.Run("invalid authentication token", func(t *testing.T) {
-		token := msfrpc.GetToken()
-		defer msfrpc.SetToken(token)
-		msfrpc.SetToken(testInvalidToken)
-
-		consoles, err := msfrpc.ConsoleList(ctx)
-		require.EqualError(t, err, ErrInvalidTokenFriendly)
-		require.Nil(t, consoles)
-	})
-
-	t.Run("failed to send", func(t *testing.T) {
-		testPatchSend(func() {
-			consoles, err := msfrpc.ConsoleList(ctx)
-			monkey.IsMonkeyError(t, err)
-			require.Nil(t, consoles)
 		})
 	})
 

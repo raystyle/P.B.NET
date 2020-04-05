@@ -6,6 +6,27 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ConsoleList is used to return a hash of all existing Console IDs, their status,
+// and their prompts.
+func (msf *MSFRPC) ConsoleList(ctx context.Context) ([]*ConsoleInfo, error) {
+	request := ConsoleListRequest{
+		Method: MethodConsoleList,
+		Token:  msf.GetToken(),
+	}
+	var result ConsoleListResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Consoles, nil
+}
+
 // ConsoleCreate is used to allocate a new console instance. The server will return a
 // Console ID ("id") that is required to read, write, and otherwise interact with the
 // new console. The "prompt" element in the return value indicates the current prompt
@@ -117,27 +138,6 @@ func (msf *MSFRPC) ConsoleWrite(ctx context.Context, id, data string) (uint64, e
 		return 0, errors.Errorf(format, id, result.Result)
 	}
 	return result.Wrote, nil
-}
-
-// ConsoleList is used to return a hash of all existing Console IDs, their status,
-// and their prompts.
-func (msf *MSFRPC) ConsoleList(ctx context.Context) ([]*ConsoleInfo, error) {
-	request := ConsoleListRequest{
-		Method: MethodConsoleList,
-		Token:  msf.GetToken(),
-	}
-	var result ConsoleListResult
-	err := msf.send(ctx, &request, &result)
-	if err != nil {
-		return nil, err
-	}
-	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
-			result.ErrorMessage = ErrInvalidTokenFriendly
-		}
-		return nil, errors.WithStack(&result.MSFError)
-	}
-	return result.Consoles, nil
 }
 
 // ConsoleSessionDetach is used to background an interactive session in the Metasploit
