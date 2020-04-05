@@ -1111,3 +1111,16 @@ type SessionMeterpreterRunSingleResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }
+
+// SessionCompatibleModulesRequest is used to get compatible modules.
+type SessionCompatibleModulesRequest struct {
+	Method string
+	Token  string
+	ID     uint64
+}
+
+// SessionCompatibleModulesResult is the result of get compatible modules.
+type SessionCompatibleModulesResult struct {
+	Modules []string `msgpack:"modules"`
+	MSFError
+}

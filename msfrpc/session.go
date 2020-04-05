@@ -333,3 +333,26 @@ func (msf *MSFRPC) SessionMeterpreterRunSingle(ctx context.Context, id uint64, c
 	}
 	return nil
 }
+
+// SessionCompatibleModules is used to return a list of Post modules that are compatible
+// with the specified session. This includes matching Meterpreter Post modules to Meterpreter
+// sessions and enforcing platform and architecture restrictions.
+func (msf *MSFRPC) SessionCompatibleModules(ctx context.Context, id uint64) ([]string, error) {
+	request := SessionCompatibleModulesRequest{
+		Method: MethodSessionCompatibleModules,
+		Token:  msf.GetToken(),
+		ID:     id,
+	}
+	var result SessionCompatibleModulesResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Modules, nil
+}

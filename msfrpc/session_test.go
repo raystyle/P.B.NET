@@ -705,3 +705,64 @@ func TestMSFRPC_SessionMeterpreterRunSingle(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("shell", func(t *testing.T) {
+		id := testCreateShellSession(t, msfrpc, "55015")
+
+		modules, err := msfrpc.SessionCompatibleModules(ctx, id)
+		require.NoError(t, err)
+		for i := 0; i < len(modules); i++ {
+			t.Log(modules[i])
+		}
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+	})
+
+	t.Run("meterpreter", func(t *testing.T) {
+		id := testCreateMeterpreterSession(t, msfrpc, "55016")
+
+		modules, err := msfrpc.SessionCompatibleModules(ctx, id)
+		require.NoError(t, err)
+		for i := 0; i < len(modules); i++ {
+			t.Log(modules[i])
+		}
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+	})
+
+	const id = 999
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		modules, err := msfrpc.SessionCompatibleModules(ctx, id)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, modules)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			modules, err := msfrpc.SessionCompatibleModules(ctx, id)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, modules)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
