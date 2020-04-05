@@ -52,11 +52,11 @@ func TestMain(m *testing.M) {
 	// check leaks
 	ctx := context.Background()
 	for _, check := range []func(context.Context, *MSFRPC) bool{
-		testMainCheckThread,
-		testMainCheckToken,
-		testMainCheckConsole,
-		testMainCheckJob,
 		testMainCheckSession,
+		testMainCheckJob,
+		testMainCheckConsole,
+		testMainCheckToken,
+		testMainCheckThread,
 	} {
 		if check(ctx, msfrpc) {
 			time.Sleep(time.Minute)
@@ -74,68 +74,23 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
+func testMainCheckSession(ctx context.Context, msfrpc *MSFRPC) bool {
 	var (
-		list map[uint64]*CoreThreadInfo
+		list map[uint64]*SessionInfo
 		err  error
 	)
 	for i := 0; i < 30; i++ {
-		list, err = msfrpc.CoreThreadList(ctx)
-		testsuite.CheckErrorInTestMain(err)
-		// 3 = internal(do noting)
-		// 9 = start sessions scheduler(5) and session manager(1)
-		l := len(list)
-		if l == 3 || l == 9 {
-			return false
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	fmt.Println("[warning] msfrpcd thread leaks!")
-	const format = "id: %d\nname: %s\ncritical: %t\nstatus: %s\nstarted: %s\n\n"
-	for i, t := range list {
-		fmt.Printf(format, i, t.Name, t.Critical, t.Status, t.Started)
-	}
-	return true
-}
-
-func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
-	var (
-		list []string
-		err  error
-	)
-	for i := 0; i < 30; i++ {
-		list, err = msfrpc.AuthTokenList(ctx)
-		testsuite.CheckErrorInTestMain(err)
-		// include self token
-		if len(list) == 1 {
-			return false
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	fmt.Println("[warning] msfrpcd token leaks!")
-	for i := 0; i < len(list); i++ {
-		fmt.Println(list[i])
-	}
-	return true
-}
-
-func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
-	var (
-		list []*ConsoleInfo
-		err  error
-	)
-	for i := 0; i < 30; i++ {
-		list, err = msfrpc.ConsoleList(ctx)
+		list, err = msfrpc.SessionList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		if len(list) == 0 {
 			return false
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	fmt.Println("[warning] msfrpcd console leaks!")
-	const format = "id: %s prompt: %s\n"
-	for i := 0; i < len(list); i++ {
-		fmt.Printf(format, list[i].ID, list[i].Prompt)
+	fmt.Println("[warning] msfrpcd session leaks!")
+	const format = "id: %d type: %s remote: %s\n"
+	for id, session := range list {
+		fmt.Printf(format, id, session.Type, session.TunnelPeer)
 	}
 	return true
 }
@@ -161,23 +116,68 @@ func testMainCheckJob(ctx context.Context, msfrpc *MSFRPC) bool {
 	return true
 }
 
-func testMainCheckSession(ctx context.Context, msfrpc *MSFRPC) bool {
+func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
 	var (
-		list map[uint64]*SessionInfo
+		list []*ConsoleInfo
 		err  error
 	)
 	for i := 0; i < 30; i++ {
-		list, err = msfrpc.SessionList(ctx)
+		list, err = msfrpc.ConsoleList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		if len(list) == 0 {
 			return false
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	fmt.Println("[warning] msfrpcd session leaks!")
-	const format = "id: %d type: %s remote: %s\n"
-	for id, session := range list {
-		fmt.Printf(format, id, session.Type, session.TunnelPeer)
+	fmt.Println("[warning] msfrpcd console leaks!")
+	const format = "id: %s prompt: %s\n"
+	for i := 0; i < len(list); i++ {
+		fmt.Printf(format, list[i].ID, list[i].Prompt)
+	}
+	return true
+}
+
+func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
+	var (
+		list []string
+		err  error
+	)
+	for i := 0; i < 30; i++ {
+		list, err = msfrpc.AuthTokenList(ctx)
+		testsuite.CheckErrorInTestMain(err)
+		// include self token
+		if len(list) == 1 {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	fmt.Println("[warning] msfrpcd token leaks!")
+	for i := 0; i < len(list); i++ {
+		fmt.Println(list[i])
+	}
+	return true
+}
+
+func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
+	var (
+		list map[uint64]*CoreThreadInfo
+		err  error
+	)
+	for i := 0; i < 30; i++ {
+		list, err = msfrpc.CoreThreadList(ctx)
+		testsuite.CheckErrorInTestMain(err)
+		// 3 = internal(do noting)
+		// 9 = start sessions scheduler(5) and session manager(1)
+		l := len(list)
+		if l == 3 || l == 9 {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	fmt.Println("[warning] msfrpcd thread leaks!")
+	const format = "id: %d\nname: %s\ncritical: %t\nstatus: %s\nstarted: %s\n\n"
+	for i, t := range list {
+		fmt.Printf(format, i, t.Name, t.Critical, t.Status, t.Started)
 	}
 	return true
 }
