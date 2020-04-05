@@ -77,14 +77,6 @@ const (
 	MethodCoreSave          = "core.save"
 	MethodCoreVersion       = "core.version"
 
-	MethodConsoleList          = "console.list"
-	MethodConsoleCreate        = "console.create"
-	MethodConsoleDestroy       = "console.destroy"
-	MethodConsoleRead          = "console.read"
-	MethodConsoleWrite         = "console.write"
-	MethodConsoleSessionDetach = "console.session_detach"
-	MethodConsoleSessionKill   = "console.session_kill"
-
 	MethodDBConnect    = "db.connect"
 	MethodDBDisconnect = "db.disconnect"
 	MethodDBStatus     = "db.status"
@@ -128,6 +120,14 @@ const (
 	// MethodDBEvents           = "db.events"
 	// MethodDBReportEvent      = "db.report_event"
 	// MethodDBImportData       = "db.import_data"
+
+	MethodConsoleList          = "console.list"
+	MethodConsoleCreate        = "console.create"
+	MethodConsoleDestroy       = "console.destroy"
+	MethodConsoleRead          = "console.read"
+	MethodConsoleWrite         = "console.write"
+	MethodConsoleSessionDetach = "console.session_detach"
+	MethodConsoleSessionKill   = "console.session_kill"
 
 	MethodPluginLoad   = "plugin.load"
 	MethodPluginUnload = "plugin.unload"
@@ -396,6 +396,72 @@ type CoreVersionResult struct {
 	MSFError
 }
 
+// -----------------------------------------about database-----------------------------------------
+
+// DBConnectRequest is used to connect database.
+type DBConnectRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBConnectOptions contains the options about connect database.
+type DBConnectOptions struct {
+	Driver   string
+	Host     string
+	Port     uint64
+	Username string
+	Password string
+	Database string
+	Other    map[string]interface{}
+}
+
+func (opts *DBConnectOptions) toMap() map[string]interface{} {
+	m := map[string]interface{}{
+		"driver":   opts.Driver,
+		"host":     opts.Host,
+		"port":     opts.Port,
+		"username": opts.Username,
+		"password": opts.Password,
+		"database": opts.Database,
+	}
+	for key, value := range opts.Other {
+		m[key] = value
+	}
+	return m
+}
+
+// DBConnectResult is the result of connect database.
+type DBConnectResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// DBDisconnectRequest is used to disconnect database.
+type DBDisconnectRequest struct {
+	Method string
+	Token  string
+}
+
+// DBDisconnectResult is the result of disconnect database.
+type DBDisconnectResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// DBStatusRequest is used to get database status.
+type DBStatusRequest struct {
+	Method string
+	Token  string
+}
+
+// DBStatusResult is the result of get database status.
+type DBStatusResult struct {
+	Driver   string `msgpack:"driver"`
+	Database string `msgpack:"db"`
+	MSFError
+}
+
 // ------------------------------------------about console-----------------------------------------
 
 // ConsoleListRequest is used to list console.
@@ -500,8 +566,6 @@ type ConsoleSessionKillResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }
-
-// -----------------------------------------about database-----------------------------------------
 
 // ------------------------------------------about plugin------------------------------------------
 
@@ -1123,57 +1187,5 @@ type SessionCompatibleModulesRequest struct {
 // SessionCompatibleModulesResult is the result of get compatible modules.
 type SessionCompatibleModulesResult struct {
 	Modules []string `msgpack:"modules"`
-	MSFError
-}
-
-// DBConnectRequest is used to connect database.
-type DBConnectRequest struct {
-	Method  string
-	Token   string
-	Options map[string]interface{}
-}
-
-// DBConnectOptions contains the options about connect database.
-type DBConnectOptions struct {
-	Driver   string
-	Host     string
-	Port     uint64
-	Username string
-	Password string
-	Database string
-	Other    map[string]interface{}
-}
-
-func (opts *DBConnectOptions) toMap() map[string]interface{} {
-	m := map[string]interface{}{
-		"driver":   opts.Driver,
-		"host":     opts.Host,
-		"port":     opts.Port,
-		"username": opts.Username,
-		"password": opts.Password,
-		"database": opts.Database,
-	}
-	for key, value := range opts.Other {
-		m[key] = value
-	}
-	return m
-}
-
-// DBConnectResult is the result of connect database.
-type DBConnectResult struct {
-	Result string `msgpack:"result"`
-	MSFError
-}
-
-// DBStatusRequest is used to get database status.
-type DBStatusRequest struct {
-	Method string
-	Token  string
-}
-
-// DBStatusResult is the result of get database status.
-type DBStatusResult struct {
-	Driver   string `msgpack:"driver"`
-	Database string `msgpack:"db"`
 	MSFError
 }
