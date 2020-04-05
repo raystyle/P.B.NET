@@ -163,7 +163,6 @@ const (
 	MethodSessionStop                          = "session.stop"
 	MethodSessionShellRead                     = "session.shell_read"
 	MethodSessionShellWrite                    = "session.shell_write"
-	MethodSessionShellUpgrade                  = "session.shell_upgrade"
 	MethodSessionMeterpreterRead               = "session.meterpreter_read"
 	MethodSessionMeterpreterWrite              = "session.meterpreter_write"
 	MethodSessionMeterpreterSessionDetach      = "session.meterpreter_session_detach"
