@@ -240,18 +240,15 @@ func TestManager_Modules(t *testing.T) {
 
 	manager := NewManager()
 
-	l := len(manager.Modules())
-	require.Equal(t, 0, l)
+	require.Len(t, manager.Modules(), 0)
 
 	module := testGenerateModule(t)
 	err := manager.Add("tag", module)
 	require.NoError(t, err)
-	l = len(manager.Modules())
-	require.Equal(t, 1, l)
+	require.Len(t, manager.Modules(), 1)
 
 	manager.Close()
-	l = len(manager.Modules())
-	require.Equal(t, 0, l)
+	require.Len(t, manager.Modules(), 0)
 	testsuite.IsDestroyed(t, manager)
 }
 

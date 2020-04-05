@@ -366,11 +366,11 @@ func TestSyncer_Parallel(t *testing.T) {
 
 		get1 := func() {
 			clients := syncer.Clients()
-			require.Equal(t, 2, len(clients))
+			require.Len(t, clients, 2)
 		}
 		get2 := func() {
 			clients := syncer.Clients()
-			require.Equal(t, 2, len(clients))
+			require.Len(t, clients, 2)
 		}
 		testsuite.RunParallel(get1, get2)
 

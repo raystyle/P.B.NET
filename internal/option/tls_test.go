@@ -19,9 +19,9 @@ func TestTLSDefault(t *testing.T) {
 			config, err := tlsConfig.Apply()
 			require.NoError(t, err)
 
-			require.Equal(t, 0, len(config.Certificates))
-			require.Equal(t, 0, len(config.RootCAs.Certs()))
-			require.Equal(t, 0, len(config.ClientCAs.Certs()))
+			require.Len(t, config.Certificates, 0)
+			require.Len(t, config.RootCAs.Certs(), 0)
+			require.Len(t, config.ClientCAs.Certs(), 0)
 		})
 
 		t.Run("with cert pool", func(t *testing.T) {
@@ -29,9 +29,9 @@ func TestTLSDefault(t *testing.T) {
 			config, err := tlsConfig.Apply()
 			require.NoError(t, err)
 
-			require.Equal(t, testcert.PublicClientCertNum, len(config.Certificates))
-			require.Equal(t, testcert.PublicRootCANum, len(config.RootCAs.Certs()))
-			require.Equal(t, 0, len(config.ClientCAs.Certs()))
+			require.Len(t, config.Certificates, testcert.PublicClientCertNum)
+			require.Len(t, config.RootCAs.Certs(), testcert.PublicRootCANum)
+			require.Len(t, config.ClientCAs.Certs(), 0)
 		})
 	})
 
@@ -42,9 +42,9 @@ func TestTLSDefault(t *testing.T) {
 			config, err := tlsConfig.Apply()
 			require.NoError(t, err)
 
-			require.Equal(t, 0, len(config.Certificates))
-			require.Equal(t, 0, len(config.RootCAs.Certs()))
-			require.Equal(t, 0, len(config.ClientCAs.Certs()))
+			require.Len(t, config.Certificates, 0)
+			require.Len(t, config.RootCAs.Certs(), 0)
+			require.Len(t, config.ClientCAs.Certs(), 0)
 		})
 
 		t.Run("with cert pool", func(t *testing.T) {
@@ -52,9 +52,9 @@ func TestTLSDefault(t *testing.T) {
 			config, err := tlsConfig.Apply()
 			require.NoError(t, err)
 
-			require.Equal(t, 0, len(config.Certificates))
-			require.Equal(t, 0, len(config.RootCAs.Certs()))
-			require.Equal(t, testcert.PublicClientCANum, len(config.ClientCAs.Certs()))
+			require.Len(t, config.Certificates, 0)
+			require.Len(t, config.RootCAs.Certs(), 0)
+			require.Len(t, config.ClientCAs.Certs(), testcert.PublicClientCANum)
 		})
 	})
 
@@ -90,9 +90,9 @@ func TestTLSUnmarshal(t *testing.T) {
 			config, err := tlsConfig.Apply()
 			require.NoError(t, err)
 
-			require.Equal(t, testCertificateNum, len(config.Certificates))
-			require.Equal(t, testRootCANum, len(config.RootCAs.Certs()))
-			require.Equal(t, 0, len(config.ClientCAs.Certs()))
+			require.Len(t, config.Certificates, testCertificateNum)
+			require.Len(t, config.RootCAs.Certs(), testRootCANum)
+			require.Len(t, config.ClientCAs.Certs(), 0)
 		})
 
 		t.Run("with cert pool", func(t *testing.T) {
@@ -101,10 +101,10 @@ func TestTLSUnmarshal(t *testing.T) {
 			require.NoError(t, err)
 
 			clientCertNum := testCertificateNum + testcert.PrivateClientCertNum
-			require.Equal(t, clientCertNum, len(config.Certificates))
+			require.Len(t, config.Certificates, clientCertNum)
 			rootCANum := testRootCANum + testcert.PrivateRootCANum
-			require.Equal(t, rootCANum, len(config.RootCAs.Certs()))
-			require.Equal(t, 0, len(config.ClientCAs.Certs()))
+			require.Len(t, config.RootCAs.Certs(), rootCANum)
+			require.Len(t, config.ClientCAs.Certs(), 0)
 		})
 	})
 
@@ -116,9 +116,9 @@ func TestTLSUnmarshal(t *testing.T) {
 			config, err := tlsConfig.Apply()
 			require.NoError(t, err)
 
-			require.Equal(t, testCertificateNum, len(config.Certificates))
-			require.Equal(t, 0, len(config.RootCAs.Certs()))
-			require.Equal(t, testClientCANum, len(config.ClientCAs.Certs()))
+			require.Len(t, config.Certificates, testCertificateNum)
+			require.Len(t, config.RootCAs.Certs(), 0)
+			require.Len(t, config.ClientCAs.Certs(), testClientCANum)
 		})
 
 		t.Run("with cert pool", func(t *testing.T) {
@@ -126,10 +126,10 @@ func TestTLSUnmarshal(t *testing.T) {
 			config, err := tlsConfig.Apply()
 			require.NoError(t, err)
 
-			require.Equal(t, testCertificateNum, len(config.Certificates))
-			require.Equal(t, 0, len(config.RootCAs.Certs()))
+			require.Len(t, config.Certificates, testCertificateNum)
+			require.Len(t, config.RootCAs.Certs(), 0)
 			clientCANum := testClientCANum + testcert.PrivateClientCANum
-			require.Equal(t, clientCANum, len(config.ClientCAs.Certs()))
+			require.Len(t, config.ClientCAs.Certs(), clientCANum)
 		})
 	})
 

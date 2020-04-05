@@ -15,14 +15,14 @@ func TestCertPool(t *testing.T) {
 	systemCertPool, err := cert.SystemCertPool()
 	require.NoError(t, err)
 	certs := systemCertPool.Certs()
-	require.Equal(t, len(certs), len(pool.GetPublicRootCACerts()))
+	require.Len(t, pool.GetPublicRootCACerts(), len(certs))
 
-	require.Equal(t, PublicClientCANum, len(pool.GetPublicClientCACerts()))
-	require.Equal(t, PublicClientCertNum, len(pool.GetPublicClientPairs()))
+	require.Len(t, pool.GetPublicClientCACerts(), PublicClientCANum)
+	require.Len(t, pool.GetPublicClientPairs(), PublicClientCertNum)
 
-	require.Equal(t, PrivateRootCANum, len(pool.GetPrivateRootCAPairs()))
-	require.Equal(t, PrivateClientCANum, len(pool.GetPrivateClientCAPairs()))
-	require.Equal(t, PrivateClientCertNum, len(pool.GetPrivateClientPairs()))
+	require.Len(t, pool.GetPrivateRootCAPairs(), PrivateRootCANum)
+	require.Len(t, pool.GetPrivateClientCAPairs(), PrivateClientCANum)
+	require.Len(t, pool.GetPrivateClientPairs(), PrivateClientCertNum)
 
 	testsuite.IsDestroyed(t, pool)
 }

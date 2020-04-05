@@ -395,7 +395,7 @@ func TestParsePrivateKeys(t *testing.T) {
 	require.NoError(t, err)
 	keys, err := ParsePrivateKeys(keyPEMBlock)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(keys))
+	require.Len(t, keys, 2)
 
 	// parse invalid PEM data
 	_, err = ParsePrivateKeys([]byte{0, 1, 2, 3})

@@ -110,9 +110,9 @@ func TestManager_Add(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	require.Equal(t, testServerNum, len(manager.Servers()))
+	require.Len(t, manager.Servers(), testServerNum)
 	require.NoError(t, manager.Close())
-	require.Equal(t, 0, len(manager.Servers()))
+	require.Len(t, manager.Servers(), 0)
 
 	testsuite.IsDestroyed(t, manager)
 }
@@ -149,9 +149,9 @@ func TestManager_Get(t *testing.T) {
 		}
 	})
 
-	require.Equal(t, testServerNum, len(manager.Servers()))
+	require.Len(t, manager.Servers(), testServerNum)
 	require.NoError(t, manager.Close())
-	require.Equal(t, 0, len(manager.Servers()))
+	require.Len(t, manager.Servers(), 0)
 
 	testsuite.IsDestroyed(t, manager)
 }
@@ -167,7 +167,7 @@ func TestManager_Delete(t *testing.T) {
 			err := manager.Delete(tag)
 			require.NoError(t, err)
 		}
-		require.Equal(t, 0, len(manager.Servers()))
+		require.Len(t, manager.Servers(), 0)
 	})
 
 	t.Run("empty tag", func(t *testing.T) {
@@ -181,7 +181,7 @@ func TestManager_Delete(t *testing.T) {
 	})
 
 	require.NoError(t, manager.Close())
-	require.Equal(t, 0, len(manager.Servers()))
+	require.Len(t, manager.Servers(), 0)
 
 	testsuite.IsDestroyed(t, manager)
 }
@@ -227,11 +227,11 @@ func TestManager_Parallel(t *testing.T) {
 
 		getAll1 := func() {
 			servers := manager.Servers()
-			require.Equal(t, 2+testServerNum, len(servers))
+			require.Len(t, servers, 2+testServerNum)
 		}
 		getAll2 := func() {
 			servers := manager.Servers()
-			require.Equal(t, 2+testServerNum, len(servers))
+			require.Len(t, servers, 2+testServerNum)
 		}
 		testsuite.RunParallel(getAll1, getAll2)
 
@@ -245,9 +245,9 @@ func TestManager_Parallel(t *testing.T) {
 		}
 		testsuite.RunParallel(delete1, delete2)
 
-		require.Equal(t, testServerNum, len(manager.Servers()))
+		require.Len(t, manager.Servers(), testServerNum)
 		require.NoError(t, manager.Close())
-		require.Equal(t, 0, len(manager.Servers()))
+		require.Len(t, manager.Servers(), 0)
 	})
 
 	t.Run("mixed", func(t *testing.T) {
@@ -320,7 +320,7 @@ func TestManager_Close(t *testing.T) {
 	monkey.IsMonkeyError(t, err)
 	wg.Wait()
 
-	require.Equal(t, 0, len(manager.Servers()))
+	require.Len(t, manager.Servers(), 0)
 
 	testsuite.IsDestroyed(t, manager)
 }

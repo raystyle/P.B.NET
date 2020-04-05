@@ -82,7 +82,7 @@ func TestPool(t *testing.T) {
 	pool := NewPool()
 
 	t.Run("PublicRootCACert", func(t *testing.T) {
-		require.Equal(t, 0, len(pool.GetPublicRootCACerts()))
+		require.Len(t, pool.GetPublicRootCACerts(), 0)
 
 		pair := testGenerateCert(t)
 
@@ -126,7 +126,7 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("PublicClientCACert", func(t *testing.T) {
-		require.Equal(t, 0, len(pool.GetPublicClientCACerts()))
+		require.Len(t, pool.GetPublicClientCACerts(), 0)
 
 		pair := testGenerateCert(t)
 
@@ -170,7 +170,7 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("PublicClientCert", func(t *testing.T) {
-		require.Equal(t, 0, len(pool.GetPublicClientPairs()))
+		require.Len(t, pool.GetPublicClientPairs(), 0)
 
 		pair := testGenerateCert(t)
 
@@ -218,7 +218,7 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("PrivateRootCACert", func(t *testing.T) {
-		require.Equal(t, 0, len(pool.GetPrivateRootCACerts()))
+		require.Len(t, pool.GetPrivateRootCACerts(), 0)
 
 		pair := testGenerateCert(t)
 
@@ -274,7 +274,7 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("PrivateClientCACert", func(t *testing.T) {
-		require.Equal(t, 0, len(pool.GetPrivateClientCACerts()))
+		require.Len(t, pool.GetPrivateClientCACerts(), 0)
 
 		pair := testGenerateCert(t)
 
@@ -330,7 +330,7 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("PrivateClientCert", func(t *testing.T) {
-		require.Equal(t, 0, len(pool.GetPrivateClientPairs()))
+		require.Len(t, pool.GetPrivateClientPairs(), 0)
 
 		pair := testGenerateCert(t)
 
@@ -396,12 +396,12 @@ func TestPool(t *testing.T) {
 		require.NoError(t, err)
 		pool.AddToRawCertPool(rcp)
 
-		require.Equal(t, 1, len(rcp.PublicRootCACerts))
-		require.Equal(t, 1, len(rcp.PublicClientCACerts))
-		require.Equal(t, 1, len(rcp.PublicClientPairs))
-		require.Equal(t, 1, len(rcp.PrivateRootCACerts))
-		require.Equal(t, 1, len(rcp.PrivateClientCACerts))
-		require.Equal(t, 1, len(rcp.PrivateClientPairs))
+		require.Len(t, rcp.PublicRootCACerts, 1)
+		require.Len(t, rcp.PublicClientCACerts, 1)
+		require.Len(t, rcp.PublicClientPairs, 1)
+		require.Len(t, rcp.PrivateRootCACerts, 1)
+		require.Len(t, rcp.PrivateClientCACerts, 1)
+		require.Len(t, rcp.PrivateClientPairs, 1)
 	})
 }
 
@@ -414,7 +414,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		pool, err := NewPoolFromRawCertPool(rcp)
 		require.NoError(t, err)
 		certs := pool.GetPublicRootCACerts()
-		require.Equal(t, 1, len(certs))
+		require.Len(t, certs, 1)
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
 
 		// already exists
@@ -431,7 +431,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		pool, err := NewPoolFromRawCertPool(rcp)
 		require.NoError(t, err)
 		certs := pool.GetPublicClientCACerts()
-		require.Equal(t, 1, len(certs))
+		require.Len(t, certs, 1)
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
 
 		// already exists
@@ -455,7 +455,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		pool, err := NewPoolFromRawCertPool(rcp)
 		require.NoError(t, err)
 		certs := pool.GetPublicClientPairs()
-		require.Equal(t, 1, len(certs))
+		require.Len(t, certs, 1)
 		dCert, dKey := certs[0].Encode()
 		require.Equal(t, cert, dCert)
 		require.Equal(t, key, dKey)
@@ -484,7 +484,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		pool, err := NewPoolFromRawCertPool(rcp)
 		require.NoError(t, err)
 		certs := pool.GetPrivateRootCACerts()
-		require.Equal(t, 1, len(certs))
+		require.Len(t, certs, 1)
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
 
 		// already exists
@@ -501,7 +501,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		pool, err := NewPoolFromRawCertPool(rcp)
 		require.NoError(t, err)
 		certs := pool.GetPrivateClientCACerts()
-		require.Equal(t, 1, len(certs))
+		require.Len(t, certs, 1)
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
 
 		// already exists
@@ -525,7 +525,7 @@ func TestNewPoolFromRawCertPool(t *testing.T) {
 		pool, err := NewPoolFromRawCertPool(rcp)
 		require.NoError(t, err)
 		certs := pool.GetPrivateClientPairs()
-		require.Equal(t, 1, len(certs))
+		require.Len(t, certs, 1)
 		dCert, dKey := certs[0].Encode()
 		require.Equal(t, cert, dCert)
 		require.Equal(t, key, dKey)

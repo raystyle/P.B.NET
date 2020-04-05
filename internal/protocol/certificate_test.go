@@ -34,8 +34,8 @@ func TestIssueCertificate(t *testing.T) {
 	require.NoError(t, err)
 
 	// print certificate signature
-	require.Equal(t, ed25519.SignatureSize, len(cert.Signatures[0]))
-	require.Equal(t, ed25519.SignatureSize, len(cert.Signatures[1]))
+	require.Len(t, cert.Signatures[0], ed25519.SignatureSize)
+	require.Len(t, cert.Signatures[1], ed25519.SignatureSize)
 	t.Log("signature:", cert.Signatures)
 
 	t.Run("invalid public key size", func(t *testing.T) {

@@ -84,7 +84,7 @@ func TestLoadSystemCertWithNameFailed(t *testing.T) {
 		defer pg.Unpatch()
 		certs, err := LoadSystemCertWithName("ROOT")
 		require.NoError(t, err)
-		require.Equal(t, 0, len(certs))
+		require.Len(t, certs, 0)
 	})
 }
 

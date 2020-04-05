@@ -116,7 +116,7 @@ func TestCustomResolve(t *testing.T) {
 		opts.Method = MethodUDP
 		result, err := resolve(ctx, "0.0.0.0:1", testDomain, opts)
 		require.Error(t, err)
-		require.Equal(t, 0, len(result))
+		require.Len(t, result, 0)
 	})
 }
 

@@ -175,7 +175,7 @@ func TestPool_Add(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	require.Equal(t, testClientNum, len(pool.Clients()))
+	require.Len(t, pool.Clients(), testClientNum)
 
 	testsuite.IsDestroyed(t, pool)
 }
@@ -213,7 +213,7 @@ func TestPool_Get(t *testing.T) {
 		}
 	})
 
-	require.Equal(t, testClientNum, len(pool.Clients()))
+	require.Len(t, pool.Clients(), testClientNum)
 
 	testsuite.IsDestroyed(t, pool)
 }
@@ -226,7 +226,7 @@ func TestPool_Delete(t *testing.T) {
 			err := pool.Delete(tag)
 			require.NoError(t, err)
 		}
-		require.Equal(t, reserveClientNum, len(pool.Clients()))
+		require.Len(t, pool.Clients(), reserveClientNum)
 	})
 
 	t.Run("doesn't exist", func(t *testing.T) {
@@ -244,7 +244,7 @@ func TestPool_Delete(t *testing.T) {
 		require.EqualError(t, err, "direct is the reserve proxy client")
 	})
 
-	require.Equal(t, reserveClientNum, len(pool.Clients()))
+	require.Len(t, pool.Clients(), reserveClientNum)
 
 	testsuite.IsDestroyed(t, pool)
 }
@@ -291,11 +291,11 @@ func TestPool_Parallel(t *testing.T) {
 
 		getAll1 := func() {
 			clients := pool.Clients()
-			require.Equal(t, 2+testClientNum, len(clients))
+			require.Len(t, clients, 2+testClientNum)
 		}
 		getAll2 := func() {
 			clients := pool.Clients()
-			require.Equal(t, 2+testClientNum, len(clients))
+			require.Len(t, clients, 2+testClientNum)
 		}
 		testsuite.RunParallel(getAll1, getAll2)
 
@@ -309,7 +309,7 @@ func TestPool_Parallel(t *testing.T) {
 		}
 		testsuite.RunParallel(delete1, delete2)
 
-		require.Equal(t, testClientNum, len(pool.Clients()))
+		require.Len(t, pool.Clients(), testClientNum)
 	})
 
 	t.Run("mixed", func(t *testing.T) {
