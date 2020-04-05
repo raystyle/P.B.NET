@@ -217,3 +217,36 @@ func (msf *MSFRPC) SessionMeterpreterRead(ctx context.Context, id uint64) (strin
 	}
 	return result.Data, nil
 }
+
+// SessionMeterpreterWrite is used to provide the ability write commands into the
+// Meterpreter Console. This emulates how a user would interact with a Meterpreter
+// session from the Metasploit Framework Console. Note that multiple concurrent
+// callers writing and reading to the same Meterpreter session through this method
+// can lead to a conflict, where one caller gets the others output and vice versa.
+// Concurrent access to a Meterpreter session is best handled by running Post modules
+// or Scripts. A newline does not need to be specified unless the console is currently
+// tied to an interactive channel, such as a sub-shell.
+func (msf *MSFRPC) SessionMeterpreterWrite(ctx context.Context, id uint64, data string) error {
+	request := SessionMeterpreterWriteRequest{
+		Method: MethodSessionMeterpreterWrite,
+		Token:  msf.GetToken(),
+		ID:     id,
+		Data:   data,
+	}
+	var result SessionMeterpreterWriteResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		id := strconv.FormatUint(id, 10)
+		switch result.ErrorMessage {
+		case "Unknown Session ID " + id:
+			result.ErrorMessage = "unknown session id: " + id
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}
