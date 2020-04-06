@@ -49,3 +49,23 @@ func (msf *MSFRPC) DBDisconnect(ctx context.Context) error {
 	}
 	return nil
 }
+
+// DBStatus is used to get the database status.
+func (msf *MSFRPC) DBStatus(ctx context.Context) (*DBStatusResult, error) {
+	request := DBStatusRequest{
+		Method: MethodDBStatus,
+		Token:  msf.GetToken(),
+	}
+	var result DBStatusResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return &result, nil
+}

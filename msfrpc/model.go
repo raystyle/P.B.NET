@@ -80,7 +80,6 @@ const (
 	MethodDBConnect    = "db.connect"
 	MethodDBDisconnect = "db.disconnect"
 	MethodDBStatus     = "db.status"
-	MethodDBDriver     = "db.driver"
 
 	// MethodDBHosts            = "db.hosts"
 	// MethodDBGetHost          = "db.get_host"
