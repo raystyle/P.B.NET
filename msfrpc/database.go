@@ -98,3 +98,36 @@ func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, er
 	}
 	return result.Hosts, nil
 }
+
+// DBGetHost is used to get host with workspace or address.
+func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) ([]*DBHost, error) {
+	if workspace == "" {
+		workspace = "default"
+	}
+	opts := map[string]interface{}{
+		"workspace": workspace,
+	}
+	if address != "" {
+		opts["address"] = address
+	}
+	request := DBGetHostRequest{
+		Method:  MethodDBGetHost,
+		Token:   msf.GetToken(),
+		Options: opts,
+	}
+	var result DBGetHostResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Invalid workspace":
+			result.ErrorMessage = "invalid workspace: " + workspace
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Hosts, nil
+}

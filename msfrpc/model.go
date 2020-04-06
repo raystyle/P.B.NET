@@ -490,6 +490,19 @@ type DBHost struct {
 	UpdateAt      uint64 `msgpack:"updated_at"`
 }
 
+// DBGetHostRequest is used to get host information.
+type DBGetHostRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBGetHostResult is the result of get host information.
+type DBGetHostResult struct {
+	Hosts []*DBHost `msgpack:"hosts"`
+	MSFError
+}
+
 // ------------------------------------------about console-----------------------------------------
 
 // ConsoleListRequest is used to list console.
