@@ -532,7 +532,7 @@ type DBGetHostRequest struct {
 
 // DBGetHostResult is the result of get host information.
 type DBGetHostResult struct {
-	Hosts []*DBHost `msgpack:"hosts"`
+	Hosts []*DBHost `msgpack:"host"`
 	MSFError
 }
 

@@ -8,6 +8,8 @@ import (
 	"project/internal/xreflect"
 )
 
+const defaultWorkspace = "default"
+
 // DBConnect is used to connect database.
 func (msf *MSFRPC) DBConnect(ctx context.Context, opts *DBConnectOptions) error {
 	request := DBConnectRequest{
@@ -124,9 +126,9 @@ func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, er
 
 // DBGetHost is used to get host with workspace or address.
 func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) ([]*DBHost, error) {
-	// if workspace == "" {
-	// 	workspace = "default"
-	// }
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
 	opts := map[string]interface{}{
 		"workspace": workspace,
 	}
