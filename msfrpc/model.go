@@ -80,11 +80,11 @@ const (
 	MethodDBConnect    = "db.connect"
 	MethodDBDisconnect = "db.disconnect"
 	MethodDBStatus     = "db.status"
+	MethodDBHosts      = "db.hosts"
+	MethodDBGetHost    = "db.get_host"
+	MethodDBDelHost    = "db.del_host"
+	MethodDBReportHost = "db.report_host"
 
-	// MethodDBHosts            = "db.hosts"
-	// MethodDBGetHost          = "db.get_host"
-	// MethodDBDelHost          = "db.del_host"
-	// MethodDBReportHost       = "db.report_host"
 	// MethodDBServices         = "db.services"
 	// MethodDBGetService       = "db.get_service"
 	// MethodDBDelService       = "db.del_service"
@@ -459,6 +459,35 @@ type DBStatusResult struct {
 	Driver   string `msgpack:"driver"`
 	Database string `msgpack:"db"`
 	MSFError
+}
+
+// DBHostsRequest is used to get hosts in database.
+type DBHostsRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBHostsResult is the result of get hosts.
+type DBHostsResult struct {
+	Hosts []*DBHost `msgpack:"hosts"`
+	MSFError
+}
+
+// DBHost contains host information.
+type DBHost struct {
+	Name          string `msgpack:"name"`
+	Address       string `msgpack:"address"`
+	MAC           string `msgpack:"mac"`
+	OSFlavor      string `msgpack:"os_flavor"`
+	OSName        string `msgpack:"os_name"`
+	OSLanguage    string `msgpack:"os_lang"`
+	OSServicePack string `msgpack:"os_sp"`
+	Purpose       string `msgpack:"purpose"`
+	Information   string `msgpack:"info"`
+	State         string `msgpack:"state"`
+	CreatedAt     uint64 `msgpack:"created_at"`
+	UpdateAt      uint64 `msgpack:"updated_at"`
 }
 
 // ------------------------------------------about console-----------------------------------------

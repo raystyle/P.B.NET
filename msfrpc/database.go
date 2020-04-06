@@ -69,3 +69,32 @@ func (msf *MSFRPC) DBStatus(ctx context.Context) (*DBStatusResult, error) {
 	}
 	return &result, nil
 }
+
+// DBHosts is used to get all hosts information in the database.
+func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, error) {
+	if workspace == "" {
+		workspace = "default"
+	}
+	request := DBHostsRequest{
+		Method: MethodDBHosts,
+		Token:  msf.GetToken(),
+		Options: map[string]interface{}{
+			"workspace": workspace,
+		},
+	}
+	var result DBHostsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Invalid workspace":
+			result.ErrorMessage = "invalid workspace: " + workspace
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Hosts, nil
+}

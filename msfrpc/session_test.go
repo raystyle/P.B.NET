@@ -196,13 +196,14 @@ func TestMSFRPC_SessionRead(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := testCreateShellSession(t, msfrpc, "55003")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
 
 		result, err := msfrpc.SessionRead(ctx, id, 0)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
-
-		err = msfrpc.SessionStop(ctx, id)
-		require.NoError(t, err)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
@@ -246,6 +247,10 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := testCreateShellSession(t, msfrpc, "55004")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
 
 		result, err := msfrpc.SessionRead(ctx, id, 0)
 		require.NoError(t, err)
@@ -258,9 +263,6 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 		result, err = msfrpc.SessionRead(ctx, id, 0)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
-
-		err = msfrpc.SessionStop(ctx, id)
-		require.NoError(t, err)
 	})
 
 	t.Run("no data", func(t *testing.T) {
@@ -463,13 +465,14 @@ func TestMSFRPC_SessionMeterpreterRead(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55010")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
 
 		data, err := msfrpc.SessionMeterpreterRead(ctx, id)
 		require.NoError(t, err)
 		t.Log(data)
-
-		err = msfrpc.SessionStop(ctx, id)
-		require.NoError(t, err)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
@@ -513,6 +516,10 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55011")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
 
 		err = msfrpc.SessionMeterpreterWrite(ctx, id, "sysinfo")
 		require.NoError(t, err)
@@ -522,9 +529,6 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 		data, err := msfrpc.SessionMeterpreterRead(ctx, id)
 		require.NoError(t, err)
 		t.Logf("\n%s\n", data)
-
-		err = msfrpc.SessionStop(ctx, id)
-		require.NoError(t, err)
 	})
 
 	const (
@@ -570,11 +574,12 @@ func TestMSFRPC_SessionMeterpreterDetach(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55012")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
 
 		err = msfrpc.SessionMeterpreterDetach(ctx, id)
-		require.NoError(t, err)
-
-		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 	})
 
@@ -618,11 +623,12 @@ func TestMSFRPC_SessionMeterpreterKill(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55013")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
 
 		err = msfrpc.SessionMeterpreterKill(ctx, id)
-		require.NoError(t, err)
-
-		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 	})
 
@@ -666,6 +672,10 @@ func TestMSFRPC_SessionMeterpreterRunSingle(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55014")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
 
 		err := msfrpc.SessionMeterpreterRunSingle(ctx, id, "sysinfo")
 		require.NoError(t, err)
@@ -675,9 +685,6 @@ func TestMSFRPC_SessionMeterpreterRunSingle(t *testing.T) {
 		data, err := msfrpc.SessionMeterpreterRead(ctx, id)
 		require.NoError(t, err)
 		t.Logf("\n%s\n", data)
-
-		err = msfrpc.SessionStop(ctx, id)
-		require.NoError(t, err)
 	})
 
 	const (
@@ -736,15 +743,16 @@ func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
 
 	t.Run("meterpreter", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55016")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
 
 		modules, err := msfrpc.SessionCompatibleModules(ctx, id)
 		require.NoError(t, err)
 		for i := 0; i < len(modules); i++ {
 			t.Log(modules[i])
 		}
-
-		err = msfrpc.SessionStop(ctx, id)
-		require.NoError(t, err)
 	})
 
 	const id = 999

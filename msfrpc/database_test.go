@@ -160,3 +160,66 @@ func TestMSFRPC_DBStatus(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_DBHosts(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		id := testCreateMeterpreterSession(t, msfrpc, "55100")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
+
+		hosts, err := msfrpc.DBHosts(ctx, "")
+		require.NoError(t, err)
+		for i := 0; i < len(hosts); i++ {
+			t.Log(hosts[i].Name)
+			t.Log(hosts[i].Address)
+			t.Log(hosts[i].OSName)
+		}
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		hosts, err := msfrpc.DBHosts(ctx, "foo")
+		require.EqualError(t, err, "invalid workspace: foo")
+		require.Nil(t, hosts)
+	})
+
+	const workspace = "default"
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		hosts, err := msfrpc.DBHosts(ctx, workspace)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, hosts)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			hosts, err := msfrpc.DBHosts(ctx, workspace)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, hosts)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
