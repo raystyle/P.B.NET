@@ -80,15 +80,16 @@ const (
 	MethodDBConnect    = "db.connect"
 	MethodDBDisconnect = "db.disconnect"
 	MethodDBStatus     = "db.status"
+	MethodDBReportHost = "db.report_host"
 	MethodDBHosts      = "db.hosts"
 	MethodDBGetHost    = "db.get_host"
 	MethodDBDelHost    = "db.del_host"
-	MethodDBReportHost = "db.report_host"
 
+	// MethodDBReportService    = "db.report_service"
 	// MethodDBServices         = "db.services"
 	// MethodDBGetService       = "db.get_service"
 	// MethodDBDelService       = "db.del_service"
-	// MethodDBReportService    = "db.report_service"
+
 	// MethodDBNotes            = "db.notes"
 	// MethodDBGetNote          = "db.get_note"
 	// MethodDBDelNote          = "db.del_note"
@@ -172,6 +173,9 @@ const (
 	MethodSessionMeterpreterRunSingle     = "session.meterpreter_run_single"
 	MethodSessionCompatibleModules        = "session.compatible_modules"
 )
+
+// structTag is used to xreflect.StructureToMap()
+const structTag = "msgpack"
 
 // --------------------------------------about authentication--------------------------------------
 
@@ -461,6 +465,35 @@ type DBStatusResult struct {
 	MSFError
 }
 
+// DBReportHostRequest is used to add host to database.
+type DBReportHostRequest struct {
+	Method string
+	Token  string
+	Host   map[string]interface{}
+}
+
+// DBReportHost contains information about report host.
+type DBReportHost struct {
+	Workspace     string `msgpack:"workspace"`
+	Name          string `msgpack:"name"`
+	Host          string `msgpack:"host"`
+	MAC           string `msgpack:"mac"`
+	OSName        string `msgpack:"os_name"`
+	OSFlavor      string `msgpack:"os_flavor"`
+	OSServicePack string `msgpack:"os_sp"`
+	OSLanguage    string `msgpack:"os_lang"`
+	Architecture  string `msgpack:"arch"`
+	State         string `msgpack:"state"`
+	Scope         string `msgpack:"scope"`
+	VirtualHost   string `msgpack:"virtual_host"`
+}
+
+// DBReportHostResult is the result of add host to database.
+type DBReportHostResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
 // DBHostsRequest is used to get hosts in database.
 type DBHostsRequest struct {
 	Method  string
@@ -479,15 +512,15 @@ type DBHost struct {
 	Name          string `msgpack:"name"`
 	Address       string `msgpack:"address"`
 	MAC           string `msgpack:"mac"`
-	OSFlavor      string `msgpack:"os_flavor"`
 	OSName        string `msgpack:"os_name"`
-	OSLanguage    string `msgpack:"os_lang"`
+	OSFlavor      string `msgpack:"os_flavor"`
 	OSServicePack string `msgpack:"os_sp"`
+	OSLanguage    string `msgpack:"os_lang"`
 	Purpose       string `msgpack:"purpose"`
 	Information   string `msgpack:"info"`
 	State         string `msgpack:"state"`
-	CreatedAt     uint64 `msgpack:"created_at"`
-	UpdateAt      uint64 `msgpack:"updated_at"`
+	CreatedAt     int64  `msgpack:"created_at"`
+	UpdateAt      int64  `msgpack:"updated_at"`
 }
 
 // DBGetHostRequest is used to get host information.
@@ -840,15 +873,13 @@ type ModuleCompatibleEvasionPayloadsRequest struct {
 	Name   string
 }
 
-// ModuleCompatibleEvasionPayloadsResult is the result about get compatible evasion
-// payloads.
+// ModuleCompatibleEvasionPayloadsResult is the result about get compatible evasion payloads.
 type ModuleCompatibleEvasionPayloadsResult struct {
 	Payloads []string `msgpack:"payloads"`
 	MSFError
 }
 
-// ModuleTargetCompatibleEvasionPayloadsRequest is used to get target compatible
-// evasion payloads.
+// ModuleTargetCompatibleEvasionPayloadsRequest is used to get target compatible evasion payloads.
 type ModuleTargetCompatibleEvasionPayloadsRequest struct {
 	Method string
 	Token  string

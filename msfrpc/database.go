@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+
+	"project/internal/xreflect"
 )
 
 // DBConnect is used to connect database.
@@ -70,11 +72,32 @@ func (msf *MSFRPC) DBStatus(ctx context.Context) (*DBStatusResult, error) {
 	return &result, nil
 }
 
+// DBReportHost is used to add host to database.
+func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
+	request := DBReportHostRequest{
+		Method: MethodDBReportHost,
+		Token:  msf.GetToken(),
+		Host:   xreflect.StructureToMap(host, structTag),
+	}
+	var result DBReportHostResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Invalid workspace":
+			result.ErrorMessage = "invalid workspace: " + host.Workspace
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}
+
 // DBHosts is used to get all hosts information in the database.
 func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, error) {
-	if workspace == "" {
-		workspace = "default"
-	}
 	request := DBHostsRequest{
 		Method: MethodDBHosts,
 		Token:  msf.GetToken(),
@@ -101,9 +124,9 @@ func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, er
 
 // DBGetHost is used to get host with workspace or address.
 func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) ([]*DBHost, error) {
-	if workspace == "" {
-		workspace = "default"
-	}
+	// if workspace == "" {
+	// 	workspace = "default"
+	// }
 	opts := map[string]interface{}{
 		"workspace": workspace,
 	}
