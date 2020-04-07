@@ -536,6 +536,20 @@ type DBGetHostResult struct {
 	MSFError
 }
 
+// DBDelHostRequest is used to delete hosts.
+type DBDelHostRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBDelHostResult is the result of delete hosts.
+type DBDelHostResult struct {
+	Result  string   `msgpack:"result"`
+	Deleted []string `msgpack:"deleted"`
+	MSFError
+}
+
 // ------------------------------------------about console-----------------------------------------
 
 // ConsoleListRequest is used to list console.

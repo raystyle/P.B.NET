@@ -156,3 +156,36 @@ func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) ([]
 	}
 	return result.Hosts, nil
 }
+
+// DBDelHost is used to delete host by filters, it will return deleted host.
+func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]string, error) {
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
+	opts := map[string]interface{}{
+		"workspace": workspace,
+	}
+	if address != "" {
+		opts["address"] = address
+	}
+	request := DBDelHostRequest{
+		Method:  MethodDBDelHost,
+		Token:   msf.GetToken(),
+		Options: opts,
+	}
+	var result DBDelHostResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Invalid workspace":
+			result.ErrorMessage = "invalid workspace: " + workspace
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Deleted, nil
+}
