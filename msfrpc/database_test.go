@@ -415,3 +415,60 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+var testDBService = &DBReportService{
+	Host:     "1.2.3.4",
+	Port:     "445",
+	Protocol: "tcp",
+	Name:     "smb",
+}
+
+func TestMSFRPC_DBReportService(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.DBReportService(ctx, testDBService)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		testDBService.Workspace = "foo"
+		defer func() { testDBService.Workspace = "" }()
+
+		err := msfrpc.DBReportService(ctx, testDBService)
+		require.EqualError(t, err, "invalid workspace: foo")
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		err := msfrpc.DBReportService(ctx, testDBService)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			err := msfrpc.DBReportService(ctx, testDBService)
+			monkey.IsMonkeyError(t, err)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}

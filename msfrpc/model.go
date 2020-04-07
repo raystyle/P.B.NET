@@ -77,18 +77,17 @@ const (
 	MethodCoreSave          = "core.save"
 	MethodCoreVersion       = "core.version"
 
-	MethodDBConnect    = "db.connect"
-	MethodDBDisconnect = "db.disconnect"
-	MethodDBStatus     = "db.status"
-	MethodDBReportHost = "db.report_host"
-	MethodDBHosts      = "db.hosts"
-	MethodDBGetHost    = "db.get_host"
-	MethodDBDelHost    = "db.del_host"
-
-	// MethodDBReportService    = "db.report_service"
-	// MethodDBServices         = "db.services"
-	// MethodDBGetService       = "db.get_service"
-	// MethodDBDelService       = "db.del_service"
+	MethodDBConnect       = "db.connect"
+	MethodDBDisconnect    = "db.disconnect"
+	MethodDBStatus        = "db.status"
+	MethodDBReportHost    = "db.report_host"
+	MethodDBHosts         = "db.hosts"
+	MethodDBGetHost       = "db.get_host"
+	MethodDBDelHost       = "db.del_host"
+	MethodDBReportService = "db.report_service"
+	MethodDBServices      = "db.services"
+	MethodDBGetService    = "db.get_service"
+	MethodDBDelService    = "db.del_service"
 
 	// MethodDBNotes            = "db.notes"
 	// MethodDBGetNote          = "db.get_note"
@@ -547,6 +546,28 @@ type DBDelHostRequest struct {
 type DBDelHostResult struct {
 	Result  string   `msgpack:"result"`
 	Deleted []string `msgpack:"deleted"`
+	MSFError
+}
+
+// DBReportServiceRequest is used to add service to database.
+type DBReportServiceRequest struct {
+	Method  string
+	Token   string
+	Service map[string]interface{}
+}
+
+// DBReportService contains information about service.
+type DBReportService struct {
+	Workspace string `msgpack:"workspace"`
+	Host      string `msgpack:"host"`
+	Port      string `msgpack:"port"`
+	Protocol  string `msgpack:"proto"`
+	Name      string `msgpack:"name"`
+}
+
+// DBReportServiceResult is the result of add service to database.
+type DBReportServiceResult struct {
+	Result string `msgpack:"result"`
 	MSFError
 }
 

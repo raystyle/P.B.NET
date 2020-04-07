@@ -189,3 +189,27 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]
 	}
 	return result.Deleted, nil
 }
+
+// DBReportService is used to add service to database.
+func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService) error {
+	request := DBReportServiceRequest{
+		Method:  MethodDBReportService,
+		Token:   msf.GetToken(),
+		Service: xreflect.StructureToMap(service, structTag),
+	}
+	var result DBReportServiceResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Invalid workspace":
+			result.ErrorMessage = "invalid workspace: " + service.Workspace
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}
