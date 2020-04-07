@@ -584,7 +584,7 @@ type DBServicesOptions struct {
 	Limit     uint64 `msgpack:"limit"`
 	Offset    uint64 `msgpack:"offset"`
 	Address   string `msgpack:"address"`
-	Ports     string `msgpack:"port"`
+	Port      string `msgpack:"port"`
 	Protocol  string `msgpack:"proto"`
 	Name      string `msgpack:"name"`
 }
@@ -605,6 +605,27 @@ type DBService struct {
 	Information string `msgpack:"info"`
 	CreatedAt   int64  `msgpack:"created_at"`
 	UpdateAt    int64  `msgpack:"updated_at"`
+}
+
+// DBGetServiceRequest is used to get service.
+type DBGetServiceRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBGetServiceOptions contains options about get service.
+type DBGetServiceOptions struct {
+	Workspace string `msgpack:"workspace"`
+	Protocol  string `msgpack:"proto"`
+	Port      uint64 `msgpack:"port"`
+	Names     string `msgpack:"names"`
+}
+
+// DBGetServiceResult is the result of get service.
+type DBGetServiceResult struct {
+	Service []*DBService `msgpack:"service"`
+	MSFError
 }
 
 // ------------------------------------------about console-----------------------------------------

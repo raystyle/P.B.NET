@@ -240,3 +240,27 @@ func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*
 	}
 	return result.Services, nil
 }
+
+// DBGetService is used to get services by filter.
+func (msf *MSFRPC) DBGetService(ctx context.Context, opts *DBGetServiceOptions) ([]*DBService, error) {
+	request := DBGetServiceRequest{
+		Method:  MethodDBGetService,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(opts, structTag),
+	}
+	var result DBGetServiceResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Invalid workspace":
+			result.ErrorMessage = "invalid workspace: " + opts.Workspace
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Service, nil
+}

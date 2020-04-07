@@ -488,9 +488,11 @@ func TestMSFRPC_DBServices(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := &DBServicesOptions{
-		Address:  "1.2.3.4",
 		Limit:    65535,
+		Address:  "1.2.3.4",
+		Port:     "445",
 		Protocol: "tcp",
+		Name:     "smb",
 	}
 
 	t.Run("success", func(t *testing.T) {
@@ -529,6 +531,74 @@ func TestMSFRPC_DBServices(t *testing.T) {
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			services, err := msfrpc.DBServices(ctx, opts)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, services)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_DBGetService(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	opts := &DBGetServiceOptions{
+		Protocol: "tcp",
+		Port:     445,
+		Names:    "smb",
+	}
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.DBReportService(ctx, testDBService)
+		require.NoError(t, err)
+
+		services, err := msfrpc.DBGetService(ctx, opts)
+		require.NoError(t, err)
+		require.NotEmpty(t, services)
+		for i := 0; i < len(services); i++ {
+			t.Log(services[i].Host)
+			t.Log(services[i].Port)
+			t.Log(services[i].Name)
+		}
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		opts.Workspace = "foo"
+		defer func() { opts.Workspace = "" }()
+
+		services, err := msfrpc.DBGetService(ctx, opts)
+		require.EqualError(t, err, "invalid workspace: foo")
+		require.Nil(t, services)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		services, err := msfrpc.DBGetService(ctx, opts)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, services)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			services, err := msfrpc.DBGetService(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, services)
 		})
