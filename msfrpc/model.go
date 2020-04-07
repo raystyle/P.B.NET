@@ -628,6 +628,36 @@ type DBGetServiceResult struct {
 	MSFError
 }
 
+// DBDelServiceRequest is used to delete service.
+type DBDelServiceRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBDelServiceOptions contains options about delete service.
+type DBDelServiceOptions struct {
+	Workspace string   `msgpack:"workspace"`
+	Address   string   `msgpack:"address"`
+	Addresses []string `msgpack:"addresses"`
+	Port      uint64   `msgpack:"port"`
+	Protocol  string   `msgpack:"proto"`
+}
+
+// DBDelServiceResult is the result of delete service.
+type DBDelServiceResult struct {
+	Result  string          `msgpack:"result"`
+	Deleted []*DBDelService `msgpack:"deleted"`
+	MSFError
+}
+
+// DBDelService contains information about deleted service.
+type DBDelService struct {
+	Address  string `msgpack:"address"`
+	Port     uint64 `msgpack:"port"`
+	Protocol string `msgpack:"proto"`
+}
+
 // ------------------------------------------about console-----------------------------------------
 
 // ConsoleListRequest is used to list console.
@@ -1058,8 +1088,8 @@ func (opts *ModuleEncodeOptions) toMap() map[string]interface{} {
 	if opts.EncodeCount > 0 {
 		m["ecount"] = opts.EncodeCount
 	}
-	// TODO [external] msfrpcd bug in rpc_module.rb
-	// there is a BUG in lib\msf\core\rpc\v10\rpc_module.rb
+	// TODO [external] msfrpcd bug about ModuleEncode
+	// file: lib/msf/core/rpc/v10/rpc_module.rb
 	//
 	//  if options['addshellcode']
 	//      buf = Msf::Util::EXE.win32_rwx_exec_thread(buf,0,'end')

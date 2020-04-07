@@ -610,3 +610,79 @@ func TestMSFRPC_DBGetService(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_DBDelService(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	opts := &DBDelServiceOptions{
+		Workspace: defaultWorkspace,
+		Address:   "1.2.3.4",
+		Port:      445,
+		Protocol:  "tcp",
+	}
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.DBReportService(ctx, testDBService)
+		require.NoError(t, err)
+
+		services, err := msfrpc.DBDelService(ctx, opts)
+		require.NoError(t, err)
+		require.Len(t, services, 0)
+		// TODO [external] msfrpcd bug about DelService
+		// file: lib/msf/core/rpc/v10/rpc_db.rb
+		// require.Len(t, services, 1)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		opts.Address = "9.9.9.9"
+		defer func() { opts.Address = "1.2.3.4" }()
+
+		services, err := msfrpc.DBDelService(ctx, opts)
+		require.NoError(t, err)
+		require.Len(t, services, 0)
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		opts.Workspace = "foo"
+		defer func() { opts.Workspace = "" }()
+
+		services, err := msfrpc.DBDelService(ctx, opts)
+		require.EqualError(t, err, "invalid workspace: foo")
+		require.Nil(t, services)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		services, err := msfrpc.DBDelService(ctx, opts)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, services)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			services, err := msfrpc.DBDelService(ctx, opts)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, services)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
