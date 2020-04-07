@@ -531,7 +531,7 @@ type DBGetHostRequest struct {
 
 // DBGetHostResult is the result of get host information.
 type DBGetHostResult struct {
-	Hosts []*DBHost `msgpack:"host"`
+	Host []*DBHost `msgpack:"host"`
 	MSFError
 }
 
@@ -569,6 +569,42 @@ type DBReportService struct {
 type DBReportServiceResult struct {
 	Result string `msgpack:"result"`
 	MSFError
+}
+
+// DBServicesRequest is used to get services by filter.
+type DBServicesRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBServicesOptions contains options about call DBService().
+type DBServicesOptions struct {
+	Workspace string `msgpack:"workspace"`
+	Limit     uint64 `msgpack:"limit"`
+	Offset    uint64 `msgpack:"offset"`
+	Address   string `msgpack:"address"`
+	Ports     string `msgpack:"port"`
+	Protocol  string `msgpack:"proto"`
+	Name      string `msgpack:"name"`
+}
+
+// DBServicesResult is the result of get services by filter.
+type DBServicesResult struct {
+	Services []*DBService `msgpack:"services"`
+	MSFError
+}
+
+// DBService contains server information.
+type DBService struct {
+	Host        string `msgpack:"host"`
+	Port        uint64 `msgpack:"port"`
+	Protocol    string `msgpack:"proto"`
+	Name        string `msgpack:"name"`
+	State       string `msgpack:"state"`
+	Information string `msgpack:"info"`
+	CreatedAt   int64  `msgpack:"created_at"`
+	UpdateAt    int64  `msgpack:"updated_at"`
 }
 
 // ------------------------------------------about console-----------------------------------------

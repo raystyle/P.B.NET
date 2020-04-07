@@ -712,7 +712,7 @@ func TestMSFRPC_AuthTokenRemove(t *testing.T) {
 		err = msfrpc.AuthTokenRemove(ctx, testInvalidToken)
 		require.NoError(t, err)
 
-		// doesn't exists
+		// doesn't exist
 		err = msfrpc.AuthTokenRemove(ctx, testInvalidToken)
 		require.NoError(t, err)
 

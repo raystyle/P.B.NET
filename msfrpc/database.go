@@ -125,7 +125,7 @@ func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, er
 }
 
 // DBGetHost is used to get host with workspace or address.
-func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) ([]*DBHost, error) {
+func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) (*DBHost, error) {
 	if workspace == "" {
 		workspace = defaultWorkspace
 	}
@@ -154,7 +154,10 @@ func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) ([]
 		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
-	return result.Hosts, nil
+	if len(result.Host) == 0 {
+		return nil, errors.Errorf("host: %s doesn't exist", address)
+	}
+	return result.Host[0], nil
 }
 
 // DBDelHost is used to delete host by filters, it will return deleted host.
@@ -212,4 +215,28 @@ func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
+}
+
+// DBServices is used to get services by filter options.
+func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*DBService, error) {
+	request := DBServicesRequest{
+		Method:  MethodDBServices,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(opts, structTag),
+	}
+	var result DBServicesResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Invalid workspace":
+			result.ErrorMessage = "invalid workspace: " + opts.Workspace
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Services, nil
 }
