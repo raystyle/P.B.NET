@@ -340,3 +340,27 @@ func (msf *MSFRPC) DBGetWorkspace(ctx context.Context, name string) (*DBWorkspac
 	}
 	return result.Workspace[0], nil
 }
+
+// DBAddWorkspace is used to add workspace.
+func (msf *MSFRPC) DBAddWorkspace(ctx context.Context, name string) error {
+	request := DBAddWorkspaceRequest{
+		Method: MethodDBAddWorkspace,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result DBAddWorkspaceResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}

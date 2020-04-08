@@ -65,6 +65,8 @@ const (
 	ErrInvalidWorkspacePrefix = "invalid workspace: "
 	ErrDBNotLoaded            = "Database Not Loaded"
 	ErrDBNotLoadedFriendly    = "database not loaded"
+	ErrDBActiveRecord         = "ActiveRecord::ConnectionNotEstablished"
+	ErrDBActiveRecordFriendly = "connection not established"
 )
 
 // ------------------------------------------about methods-----------------------------------------
@@ -728,6 +730,19 @@ type DBGetWorkspaceRequest struct {
 // DBGetWorkspaceResult is the result of get all workspaces.
 type DBGetWorkspaceResult struct {
 	Workspace []*DBWorkspace `msgpack:"workspace"`
+	MSFError
+}
+
+// DBAddWorkspaceRequest is used to add workspace.
+type DBAddWorkspaceRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// DBAddWorkspaceResult is the result of add workspace.
+type DBAddWorkspaceResult struct {
+	Result string `msgpack:"result"`
 	MSFError
 }
 
