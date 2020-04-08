@@ -16,12 +16,6 @@ import (
 	"project/internal/patch/msgpack"
 )
 
-// about errors
-const (
-	ErrInvalidToken         = "Invalid Authentication Token"
-	ErrInvalidTokenFriendly = "invalid authentication token"
-)
-
 // MSFRPC is used to connect metasploit RPC service.
 type MSFRPC struct {
 	username string

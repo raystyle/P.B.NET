@@ -57,6 +57,16 @@ func (err *MSFError) Error() string {
 	return err.ErrorMessage
 }
 
+// about errors
+const (
+	ErrInvalidToken           = "Invalid Authentication Token"
+	ErrInvalidTokenFriendly   = "invalid authentication token"
+	ErrInvalidWorkspace       = "Invalid workspace"
+	ErrInvalidWorkspacePrefix = "invalid workspace: "
+	ErrDBNotLoaded            = "Database Not Loaded"
+	ErrDBNotLoadedFriendly    = "database not loaded"
+)
+
 // ------------------------------------------about methods-----------------------------------------
 const (
 	MethodAuthLogin         = "auth.login"
@@ -706,6 +716,19 @@ type DBWorkspace struct {
 	Name      string `msgpack:"name"`
 	CreatedAt int64  `msgpack:"created_at"`
 	UpdateAt  int64  `msgpack:"updated_at"`
+}
+
+// DBGetWorkspaceRequest is used to get workspace by name.
+type DBGetWorkspaceRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// DBGetWorkspaceResult is the result of get all workspaces.
+type DBGetWorkspaceResult struct {
+	Workspace []*DBWorkspace `msgpack:"workspace"`
+	MSFError
 }
 
 // ------------------------------------------about console-----------------------------------------

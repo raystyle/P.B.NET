@@ -702,9 +702,6 @@ func TestMSFRPC_DBWorkspaces(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
-		err := msfrpc.DBReportService(ctx, testDBService)
-		require.NoError(t, err)
-
 		workspaces, err := msfrpc.DBWorkspaces(ctx)
 		require.NoError(t, err)
 		require.NotEmpty(t, workspaces)
@@ -729,6 +726,81 @@ func TestMSFRPC_DBWorkspaces(t *testing.T) {
 			workspaces, err := msfrpc.DBWorkspaces(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, workspaces)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_DBGetWorkspace(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const name = "default"
+
+	t.Run("success", func(t *testing.T) {
+		workspace, err := msfrpc.DBGetWorkspace(ctx, name)
+		require.NoError(t, err)
+		t.Log(workspace.ID)
+		t.Log(workspace.Name)
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		workspace, err := msfrpc.DBGetWorkspace(ctx, "")
+		require.NoError(t, err)
+		t.Log(workspace.ID)
+		t.Log(workspace.Name)
+	})
+
+	t.Run("invalid workspace name", func(t *testing.T) {
+		workspace, err := msfrpc.DBGetWorkspace(ctx, "foo")
+		require.EqualError(t, err, ErrInvalidWorkspacePrefix+"foo")
+		require.Nil(t, workspace)
+	})
+
+	t.Run("database not loaded", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+
+		}()
+
+		workspace, err := msfrpc.DBGetWorkspace(ctx, name)
+		require.EqualError(t, err, ErrDBNotLoadedFriendly)
+		require.Nil(t, workspace)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		workspace, err := msfrpc.DBGetWorkspace(ctx, name)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, workspace)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			workspace, err := msfrpc.DBGetWorkspace(ctx, name)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, workspace)
 		})
 	})
 

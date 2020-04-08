@@ -314,3 +314,29 @@ func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 	}
 	return result.Workspaces, nil
 }
+
+// DBGetWorkspace is used to get workspace information by name.
+func (msf *MSFRPC) DBGetWorkspace(ctx context.Context, name string) (*DBWorkspace, error) {
+	request := DBGetWorkspaceRequest{
+		Method: MethodDBGetWorkspace,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result DBGetWorkspaceResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = ErrInvalidWorkspacePrefix + name
+		case ErrDBNotLoaded:
+			result.ErrorMessage = ErrDBNotLoadedFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Workspace[0], nil
+}
