@@ -62,7 +62,7 @@ const (
 	ErrInvalidToken           = "Invalid Authentication Token"
 	ErrInvalidTokenFriendly   = "invalid authentication token"
 	ErrInvalidWorkspace       = "Invalid workspace"
-	ErrInvalidWorkspacePrefix = "invalid workspace: "
+	ErrInvalidWorkspaceFormat = "workspace %s doesn't exist"
 	ErrDBNotLoaded            = "Database Not Loaded"
 	ErrDBNotLoadedFriendly    = "database not loaded"
 	ErrDBActiveRecord         = "ActiveRecord::ConnectionNotEstablished"
@@ -742,6 +742,19 @@ type DBAddWorkspaceRequest struct {
 
 // DBAddWorkspaceResult is the result of add workspace.
 type DBAddWorkspaceResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
+// DBDelWorkspaceRequest is used to delete workspace by name.
+type DBDelWorkspaceRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// DBDelWorkspaceResult is the result of delete workspace by name.
+type DBDelWorkspaceResult struct {
 	Result string `msgpack:"result"`
 	MSFError
 }

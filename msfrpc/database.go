@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 
@@ -100,6 +101,9 @@ func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
 
 // DBHosts is used to get all hosts information in the database.
 func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, error) {
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
 	request := DBHostsRequest{
 		Method: MethodDBHosts,
 		Token:  msf.GetToken(),
@@ -219,10 +223,14 @@ func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService
 
 // DBServices is used to get services by filter options.
 func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*DBService, error) {
+	cOpts := *opts
+	if cOpts.Workspace == "" {
+		cOpts.Workspace = defaultWorkspace
+	}
 	request := DBServicesRequest{
 		Method:  MethodDBServices,
 		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(opts, structTag),
+		Options: xreflect.StructureToMap(&cOpts, structTag),
 	}
 	var result DBServicesResult
 	err := msf.send(ctx, &request, &result)
@@ -246,10 +254,14 @@ func (msf *MSFRPC) DBGetService(
 	ctx context.Context,
 	opts *DBGetServiceOptions,
 ) ([]*DBService, error) {
+	cOpts := *opts
+	if cOpts.Workspace == "" {
+		cOpts.Workspace = defaultWorkspace
+	}
 	request := DBGetServiceRequest{
 		Method:  MethodDBGetService,
 		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(opts, structTag),
+		Options: xreflect.StructureToMap(&cOpts, structTag),
 	}
 	var result DBGetServiceResult
 	err := msf.send(ctx, &request, &result)
@@ -273,10 +285,14 @@ func (msf *MSFRPC) DBDelService(
 	ctx context.Context,
 	opts *DBDelServiceOptions,
 ) ([]*DBDelService, error) {
+	cOpts := *opts
+	if cOpts.Workspace == "" {
+		cOpts.Workspace = defaultWorkspace
+	}
 	request := DBDelServiceRequest{
 		Method:  MethodDBDelService,
 		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(opts, structTag),
+		Options: xreflect.StructureToMap(&cOpts, structTag),
 	}
 	var result DBDelServiceResult
 	err := msf.send(ctx, &request, &result)
@@ -330,7 +346,7 @@ func (msf *MSFRPC) DBGetWorkspace(ctx context.Context, name string) (*DBWorkspac
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = ErrInvalidWorkspacePrefix + name
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, name)
 		case ErrDBNotLoaded:
 			result.ErrorMessage = ErrDBNotLoadedFriendly
 		case ErrInvalidToken:
@@ -355,6 +371,32 @@ func (msf *MSFRPC) DBAddWorkspace(ctx context.Context, name string) error {
 	}
 	if result.Err {
 		switch result.ErrorMessage {
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}
+
+// DBDelWorkspace is used to delete workspace by name.
+func (msf *MSFRPC) DBDelWorkspace(ctx context.Context, name string) error {
+	request := DBDelWorkspaceRequest{
+		Method: MethodDBDelWorkspace,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result DBDelWorkspaceResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, name)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
