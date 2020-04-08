@@ -294,3 +294,23 @@ func (msf *MSFRPC) DBDelService(
 	}
 	return result.Deleted, nil
 }
+
+// DBWorkspaces is used to get information about workspaces.
+func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
+	request := DBWorkspacesRequest{
+		Method: MethodDBWorkspaces,
+		Token:  msf.GetToken(),
+	}
+	var result DBWorkspacesResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Workspaces, nil
+}

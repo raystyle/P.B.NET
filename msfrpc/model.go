@@ -77,48 +77,44 @@ const (
 	MethodCoreSave          = "core.save"
 	MethodCoreVersion       = "core.version"
 
-	MethodDBConnect       = "db.connect"
-	MethodDBDisconnect    = "db.disconnect"
-	MethodDBStatus        = "db.status"
-	MethodDBReportHost    = "db.report_host"
-	MethodDBHosts         = "db.hosts"
-	MethodDBGetHost       = "db.get_host"
-	MethodDBDelHost       = "db.del_host"
-	MethodDBReportService = "db.report_service"
-	MethodDBServices      = "db.services"
-	MethodDBGetService    = "db.get_service"
-	MethodDBDelService    = "db.del_service"
+	MethodDBConnect          = "db.connect"
+	MethodDBDisconnect       = "db.disconnect"
+	MethodDBStatus           = "db.status"
+	MethodDBReportHost       = "db.report_host"
+	MethodDBHosts            = "db.hosts"
+	MethodDBGetHost          = "db.get_host"
+	MethodDBDelHost          = "db.del_host"
+	MethodDBReportService    = "db.report_service"
+	MethodDBServices         = "db.services"
+	MethodDBGetService       = "db.get_service"
+	MethodDBDelService       = "db.del_service"
+	MethodDBCreateCred       = "db.create_cracked_credential"
+	MethodDBCreds            = "db.creds"
+	MethodDBDelCreds         = "db.del_creds"
+	MethodDBReportLoot       = "db.report_loot"
+	MethodDBLoots            = "db.loots"
+	MethodDBWorkspaces       = "db.workspaces"
+	MethodDBGetWorkspace     = "db.get_workspace"
+	MethodDBAddWorkspace     = "db.add_workspace"
+	MethodDBDelWorkspace     = "db.del_workspace"
+	MethodDBSetWorkspace     = "db.set_workspace"
+	MethodDBCurrentWorkspace = "db.current_workspace"
+	MethodDBEvents           = "db.events"
+	MethodDBImportData       = "db.import_data"
 
-	// MethodDBNotes            = "db.notes"
-	// MethodDBGetNote          = "db.get_note"
-	// MethodDBDelNote          = "db.del_note"
-	// MethodDBReportNote       = "db.report_note"
-	// MethodDBVulns            = "db.vulns"
-	// MethodDBGetVuln          = "db.get_vuln"
-	// MethodDBDelVuln          = "db.del_vuln"
-	// MethodDBReportVuln       = "db.report_vuln"
-	// MethodDBGetRef           = "db.get_ref"
-	// MethodDBCreds            = "db.creds"
-	// MethodDBGetCreds         = "db.get_creds"
-	// MethodDBDelCreds         = "db.del_creds"
-	// MethodDBReportCred       = "db.report_cred"
-	// MethodDBLoots            = "db.loots"
-	// MethodDBReportLoot       = "db.report_loot"
-	// MethodDBClients          = "db.clients"
-	// MethodDBGetClient        = "db.get_client"
-	// MethodDBDelClient        = "db.del_client"
-	// MethodDBReportClient     = "db.report_client"
-	// MethodDBWorkspaces       = "db.workspaces"
-	// MethodDBGetWorkspace     = "db.get_workspace"
-	// MethodDBAddWorkspace     = "db.add_workspace"
-	// MethodDBDelWorkspace     = "db.del_workspace"
-	// MethodDBSetWorkspace     = "db.set_workspace"
-	// MethodDBCurrentWorkspace = "db.current_workspace"
-	// MethodDBGetAuthInfo      = "db.get_auth_info"
-	// MethodDBReportAuthInfo   = "db.report_auth_info"
-	// MethodDBEvents           = "db.events"
-	// MethodDBReportEvent      = "db.report_event"
-	// MethodDBImportData       = "db.import_data"
+	// MethodDBReportNote   = "db.report_note"
+	// MethodDBNotes        = "db.notes"
+	// MethodDBGetNote      = "db.get_note"
+	// MethodDBDelNote      = "db.del_note"
+	// MethodDBReportVuln   = "db.report_vuln"
+	// MethodDBVulns        = "db.vulns"
+	// MethodDBGetVuln      = "db.get_vuln"
+	// MethodDBDelVuln      = "db.del_vuln"
+	// MethodDBGetRef       = "db.get_ref"
+	// MethodDBReportClient = "db.report_client"
+	// MethodDBClients      = "db.clients"
+	// MethodDBGetClient    = "db.get_client"
+	// MethodDBDelClient    = "db.del_client"
 
 	MethodConsoleList          = "console.list"
 	MethodConsoleCreate        = "console.create"
@@ -656,6 +652,60 @@ type DBDelService struct {
 	Address  string `msgpack:"address"`
 	Port     uint64 `msgpack:"port"`
 	Protocol string `msgpack:"proto"`
+}
+
+// DBCreateCredentialRequest is used to create credential.
+type DBCreateCredentialRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBCreateCredentialOptions contains options about create credential.
+type DBCreateCredentialOptions struct {
+	OriginType     string `msgpack:"origin_type"`
+	Address        string `msgpack:"address"`
+	Port           uint64 `msgpack:"port"`
+	Protocol       string `msgpack:"protocol"`
+	ServiceName    string `msgpack:"service_name"`
+	ModuleFullname string `msgpack:"module_fullname"`
+	WorkspaceID    uint64 `msgpack:"workspace_id"`
+	Username       string `msgpack:"username"`
+	PrivateType    string `msgpack:"private_type"`
+	PrivateData    string `msgpack:"private_data"`
+}
+
+// DBCreateCredentialResult is the result of create credential.
+type DBCreateCredentialResult struct {
+	Host        string `msgpack:"host"`
+	Username    string `msgpack:"username"`
+	PrivateType string `msgpack:"private_type"`
+	Private     string `msgpack:"private"`
+	RealmValue  string `msgpack:"realm_value"`
+	RealmKey    string `msgpack:"realm_key"`
+	ServiceName string `msgpack:"sname"`
+	Status      string `msgpack:"status"`
+	MSFError
+}
+
+// DBWorkspacesRequest is used to get all workspaces.
+type DBWorkspacesRequest struct {
+	Method string
+	Token  string
+}
+
+// DBWorkspacesResult is the result of get all workspaces.
+type DBWorkspacesResult struct {
+	Workspaces []*DBWorkspace `msgpack:"workspaces"`
+	MSFError
+}
+
+// DBWorkspace contains information about workspace.
+type DBWorkspace struct {
+	ID        uint64 `msgpack:"id"`
+	Name      string `msgpack:"name"`
+	CreatedAt int64  `msgpack:"created_at"`
+	UpdateAt  int64  `msgpack:"updated_at"`
 }
 
 // ------------------------------------------about console-----------------------------------------
