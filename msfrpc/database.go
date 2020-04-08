@@ -9,8 +9,6 @@ import (
 	"project/internal/xreflect"
 )
 
-const defaultWorkspace = "default"
-
 // DBConnect is used to connect database.
 func (msf *MSFRPC) DBConnect(ctx context.Context, opts *DBConnectOptions) error {
 	request := DBConnectRequest{
@@ -431,4 +429,27 @@ func (msf *MSFRPC) DBSetWorkspace(ctx context.Context, name string) error {
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
+}
+
+// DBCurrentWorkspace is used to get the current workspace.
+func (msf *MSFRPC) DBCurrentWorkspace(ctx context.Context) (*DBCurrentWorkspaceResult, error) {
+	request := DBCurrentWorkspaceRequest{
+		Method: MethodDBCurrentWorkspace,
+		Token:  msf.GetToken(),
+	}
+	var result DBCurrentWorkspaceResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrDBNotLoaded:
+			result.ErrorMessage = ErrDBNotLoadedFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return &result, nil
 }

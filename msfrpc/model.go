@@ -69,6 +69,14 @@ const (
 	ErrDBActiveRecordFriendly = "connection not established"
 )
 
+const (
+	// defaultWorkspace is the default workspace name.
+	defaultWorkspace = "default"
+
+	// structTag is used to xreflect.StructureToMap().
+	structTag = "msgpack"
+)
+
 // ------------------------------------------about methods-----------------------------------------
 const (
 	MethodAuthLogin         = "auth.login"
@@ -180,9 +188,6 @@ const (
 	MethodSessionMeterpreterRunSingle     = "session.meterpreter_run_single"
 	MethodSessionCompatibleModules        = "session.compatible_modules"
 )
-
-// structTag is used to xreflect.StructureToMap()
-const structTag = "msgpack"
 
 // --------------------------------------about authentication--------------------------------------
 
@@ -769,6 +774,19 @@ type DBSetWorkspaceRequest struct {
 // DBSetWorkspaceResult is the result of set the current workspace.
 type DBSetWorkspaceResult struct {
 	Result string `msgpack:"result"`
+	MSFError
+}
+
+// DBCurrentWorkspaceRequest is used to get the current workspace.
+type DBCurrentWorkspaceRequest struct {
+	Method string
+	Token  string
+}
+
+// DBCurrentWorkspaceResult is the result of get the current workspace.
+type DBCurrentWorkspaceResult struct {
+	Name string `msgpack:"workspace"`
+	ID   uint64 `msgpack:"workspace_id"`
 	MSFError
 }
 
