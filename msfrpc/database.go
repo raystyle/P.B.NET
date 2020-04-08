@@ -406,3 +406,29 @@ func (msf *MSFRPC) DBDelWorkspace(ctx context.Context, name string) error {
 	}
 	return nil
 }
+
+// DBSetWorkspace is used to set the current workspace.
+func (msf *MSFRPC) DBSetWorkspace(ctx context.Context, name string) error {
+	request := DBSetWorkspaceRequest{
+		Method: MethodDBSetWorkspace,
+		Token:  msf.GetToken(),
+		Name:   name,
+	}
+	var result DBSetWorkspaceResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, name)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}

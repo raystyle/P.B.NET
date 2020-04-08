@@ -759,6 +759,19 @@ type DBDelWorkspaceResult struct {
 	MSFError
 }
 
+// DBSetWorkspaceRequest is used to set the current workspace.
+type DBSetWorkspaceRequest struct {
+	Method string
+	Token  string
+	Name   string
+}
+
+// DBSetWorkspaceResult is the result of set the current workspace.
+type DBSetWorkspaceResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
 // ------------------------------------------about console-----------------------------------------
 
 // ConsoleListRequest is used to list console.

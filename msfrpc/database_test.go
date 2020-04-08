@@ -626,10 +626,9 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := &DBDelServiceOptions{
-		Workspace: defaultWorkspace,
-		Address:   "1.2.3.4",
-		Port:      445,
-		Protocol:  "tcp",
+		Address:  "1.2.3.4",
+		Port:     445,
+		Protocol: "tcp",
 	}
 
 	t.Run("success", func(t *testing.T) {
@@ -948,6 +947,79 @@ func TestMSFRPC_DBDelWorkspace(t *testing.T) {
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
 			err := msfrpc.DBDelWorkspace(ctx, name)
+			monkey.IsMonkeyError(t, err)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_DBSetWorkspace(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const name = "test_add"
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.DBAddWorkspace(ctx, name)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBDelWorkspace(ctx, name)
+			require.NoError(t, err)
+		}()
+
+		err = msfrpc.DBSetWorkspace(ctx, name)
+		require.NoError(t, err)
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		err = msfrpc.DBSetWorkspace(ctx, "foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
+	})
+
+	t.Run("empty name", func(t *testing.T) {
+		err := msfrpc.DBSetWorkspace(ctx, "")
+		require.NoError(t, err)
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		err := msfrpc.DBSetWorkspace(ctx, name)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		err := msfrpc.DBSetWorkspace(ctx, name)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			err := msfrpc.DBSetWorkspace(ctx, name)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
