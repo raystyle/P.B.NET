@@ -75,10 +75,14 @@ func (msf *MSFRPC) DBStatus(ctx context.Context) (*DBStatusResult, error) {
 
 // DBReportHost is used to add host to database.
 func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
+	cHost := *host
+	if cHost.Workspace == "" {
+		cHost.Workspace = defaultWorkspace
+	}
 	request := DBReportHostRequest{
 		Method: MethodDBReportHost,
 		Token:  msf.GetToken(),
-		Host:   xreflect.StructureToMap(host, structTag),
+		Host:   xreflect.StructureToMap(&cHost, structTag),
 	}
 	var result DBReportHostResult
 	err := msf.send(ctx, &request, &result)
@@ -197,10 +201,14 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]
 
 // DBReportService is used to add service to database.
 func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService) error {
+	cService := *service
+	if cService.Workspace == "" {
+		cService.Workspace = defaultWorkspace
+	}
 	request := DBReportServiceRequest{
 		Method:  MethodDBReportService,
 		Token:   msf.GetToken(),
-		Service: xreflect.StructureToMap(service, structTag),
+		Service: xreflect.StructureToMap(&cService, structTag),
 	}
 	var result DBReportServiceResult
 	err := msf.send(ctx, &request, &result)

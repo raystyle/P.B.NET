@@ -1161,17 +1161,17 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 		data      = "foo data"
 	)
 
-	t.Run("invalid data", func(t *testing.T) {
-		err = msfrpc.DBImportData(ctx, workspace, data)
-		require.EqualError(t, err, "invalid file format")
-	})
-
 	t.Run("invalid workspace", func(t *testing.T) {
 		err = msfrpc.DBImportData(ctx, "foo", data)
 		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
-	t.Run("database not loaded", func(t *testing.T) {
+	t.Run("invalid data", func(t *testing.T) {
+		err = msfrpc.DBImportData(ctx, workspace, data)
+		require.EqualError(t, err, "invalid file format")
+	})
+
+	t.Run("database active record", func(t *testing.T) {
 		err = msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
