@@ -453,3 +453,37 @@ func (msf *MSFRPC) DBCurrentWorkspace(ctx context.Context) (*DBCurrentWorkspaceR
 	}
 	return &result, nil
 }
+
+// DBImportData is used to import external data to the database.
+func (msf *MSFRPC) DBImportData(ctx context.Context, workspace, data string) error {
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
+	request := DBImportDataRequest{
+		Method: MethodDBImportData,
+		Token:  msf.GetToken(),
+		Options: map[string]interface{}{
+			"workspace": workspace,
+			"data":      data,
+		},
+	}
+	var result DBImportDataResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Could not automatically determine file type":
+			result.ErrorMessage = "invalid file format"
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}

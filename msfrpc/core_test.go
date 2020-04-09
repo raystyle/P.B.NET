@@ -77,7 +77,7 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 		t.Log("nop:", status.Nop)
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("invalid directory", func(t *testing.T) {
 		status, err := msfrpc.CoreAddModulePath(ctx, "foo path")
 		require.EqualError(t, err, "The path supplied is not a valid directory.")
 		require.Nil(t, status)

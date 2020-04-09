@@ -790,6 +790,19 @@ type DBCurrentWorkspaceResult struct {
 	MSFError
 }
 
+// DBImportDataRequest is used to import external data to database.
+type DBImportDataRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBImportDataResult is the result of import external data.
+type DBImportDataResult struct {
+	Result string `msgpack:"result"`
+	MSFError
+}
+
 // ------------------------------------------about console-----------------------------------------
 
 // ConsoleListRequest is used to list console.

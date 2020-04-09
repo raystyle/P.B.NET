@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ func TestMSFRPC_DBConnect(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("invalid driver", func(t *testing.T) {
 		driver := testDBOptions.Driver
 		testDBOptions.Driver = "foo"
 		defer func() { testDBOptions.Driver = driver }()
@@ -913,7 +914,7 @@ func TestMSFRPC_DBDelWorkspace(t *testing.T) {
 		require.Nil(t, workspace)
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("invalid workspace", func(t *testing.T) {
 		err = msfrpc.DBDelWorkspace(ctx, "foo")
 		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
@@ -994,7 +995,7 @@ func TestMSFRPC_DBSetWorkspace(t *testing.T) {
 		require.Equal(t, name, workspace.Name)
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("invalid workspace", func(t *testing.T) {
 		err = msfrpc.DBSetWorkspace(ctx, "foo")
 		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
@@ -1113,6 +1114,88 @@ func TestMSFRPC_DBCurrentWorkspace(t *testing.T) {
 			workspace, err := msfrpc.DBCurrentWorkspace(ctx)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, workspace)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_DBImportData(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		result, err := ioutil.ReadFile("testdata/nmap.xml")
+		require.NoError(t, err)
+
+		err = msfrpc.DBImportData(ctx, "", string(result))
+		require.NoError(t, err)
+
+		hosts, err := msfrpc.DBHosts(ctx, "")
+		require.NoError(t, err)
+		var added bool
+		for i := 0; i < len(hosts); i++ {
+			if hosts[i].Address == "1.1.1.1" {
+				added = true
+			}
+		}
+		require.True(t, added)
+	})
+
+	const (
+		workspace = ""
+		data      = "foo data"
+	)
+
+	t.Run("invalid data", func(t *testing.T) {
+		err = msfrpc.DBImportData(ctx, workspace, data)
+		require.EqualError(t, err, "invalid file format")
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		err = msfrpc.DBImportData(ctx, "foo", data)
+		require.EqualError(t, err, "workspace foo doesn't exist")
+	})
+
+	t.Run("database not loaded", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		err = msfrpc.DBImportData(ctx, workspace, data)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		err = msfrpc.DBImportData(ctx, workspace, data)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			err = msfrpc.DBImportData(ctx, workspace, data)
+			monkey.IsMonkeyError(t, err)
 		})
 	})
 
