@@ -1205,3 +1205,97 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMSFRPC_DBEvent(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const (
+		workspace = ""
+		limit     = 100
+		offset    = 0
+	)
+
+	t.Run("success", func(t *testing.T) {
+		id := testCreateMeterpreterSession(t, msfrpc, "55200")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
+
+		events, err := msfrpc.DBEvent(ctx, workspace, limit, offset)
+		require.NoError(t, err)
+		require.NotEmpty(t, events)
+		for i := 0; i < len(events); i++ {
+			t.Log("name:", events[i].Name)
+			t.Log("host:", events[i].Host)
+			t.Log("username:", events[i].Username)
+			t.Log("---------information---------")
+			for key, value := range events[i].Information {
+				if key != "datastore" {
+					t.Log(key, value)
+				} else {
+					t.Log("---------data store----------")
+					dataStore := value.(map[string]interface{})
+					for key, value := range dataStore {
+						t.Log(key, value)
+					}
+				}
+			}
+			t.Log("--------------------------------")
+		}
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		events, err := msfrpc.DBEvent(ctx, "foo", limit, offset)
+		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.Nil(t, events)
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		events, err := msfrpc.DBEvent(ctx, workspace, limit, offset)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, events)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		events, err := msfrpc.DBEvent(ctx, workspace, limit, offset)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, events)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			events, err := msfrpc.DBEvent(ctx, workspace, limit, offset)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, events)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}

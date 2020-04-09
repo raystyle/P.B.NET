@@ -803,6 +803,30 @@ type DBImportDataResult struct {
 	MSFError
 }
 
+// DBEventRequest is used to get framework events.
+type DBEventRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBEventResult is the result of get framework events.
+type DBEventResult struct {
+	Events []*DBEvent `msgpack:"events"`
+	MSFError
+}
+
+// DBEvent contains information about framework event.
+type DBEvent struct {
+	Name        string                 `msgpack:"name"`
+	Critical    bool                   `msgpack:"critical"`
+	Host        string                 `msgpack:"host"`
+	Username    string                 `msgpack:"username"`
+	Information map[string]interface{} `msgpack:"info"`
+	CreatedAt   int64                  `msgpack:"created_at"`
+	UpdateAt    int64                  `msgpack:"updated_at"`
+}
+
 // ------------------------------------------about console-----------------------------------------
 
 // ConsoleListRequest is used to list console.

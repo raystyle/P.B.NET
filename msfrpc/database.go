@@ -495,3 +495,50 @@ func (msf *MSFRPC) DBImportData(ctx context.Context, workspace, data string) err
 	}
 	return nil
 }
+
+// DBEvent is used to get framework events.
+func (msf *MSFRPC) DBEvent(
+	ctx context.Context,
+	workspace string,
+	limit uint64,
+	offset uint64,
+) ([]*DBEvent, error) {
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
+	request := DBEventRequest{
+		Method: MethodDBEvents,
+		Token:  msf.GetToken(),
+		Options: map[string]interface{}{
+			"workspace": workspace,
+			"limit":     limit,
+			"offset":    offset,
+		},
+	}
+	var result DBEventResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	// replace []byte to string
+	for i := 0; i < len(result.Events); i++ {
+		m := result.Events[i].Information
+		for key, value := range m {
+			if v, ok := value.([]byte); ok {
+				m[key] = string(v)
+			}
+		}
+	}
+	return result.Events, nil
+}
