@@ -201,6 +201,18 @@ func TestMSFRPC_DBReportHost(t *testing.T) {
 		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		err := msfrpc.DBReportHost(ctx, testDBHost)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+	})
+
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
@@ -259,6 +271,19 @@ func TestMSFRPC_DBHosts(t *testing.T) {
 	})
 
 	const workspace = "foo"
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		hosts, err := msfrpc.DBHosts(ctx, workspace)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, hosts)
+	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()
@@ -327,6 +352,19 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 		address   = "9.9.9.9"
 	)
 
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		host, err := msfrpc.DBGetHost(ctx, workspace, address)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, host)
+	})
+
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
@@ -392,6 +430,19 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 		address   = "9.9.9.9"
 	)
 
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		hosts, err := msfrpc.DBDelHost(ctx, workspace, address)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, hosts)
+	})
+
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
@@ -449,6 +500,18 @@ func TestMSFRPC_DBReportService(t *testing.T) {
 
 		err := msfrpc.DBReportService(ctx, testDBService)
 		require.EqualError(t, err, "workspace foo doesn't exist")
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		err := msfrpc.DBReportService(ctx, testDBService)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
@@ -519,6 +582,19 @@ func TestMSFRPC_DBServices(t *testing.T) {
 		require.Nil(t, services)
 	})
 
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		services, err := msfrpc.DBServices(ctx, opts)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, services)
+	})
+
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
@@ -584,6 +660,19 @@ func TestMSFRPC_DBGetService(t *testing.T) {
 
 		services, err := msfrpc.DBGetService(ctx, opts)
 		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.Nil(t, services)
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		services, err := msfrpc.DBGetService(ctx, opts)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 		require.Nil(t, services)
 	})
 
@@ -662,6 +751,19 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 		require.Nil(t, services)
 	})
 
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		services, err := msfrpc.DBDelService(ctx, opts)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, services)
+	})
+
 	t.Run("invalid authentication token", func(t *testing.T) {
 		token := msfrpc.GetToken()
 		defer msfrpc.SetToken(token)
@@ -709,6 +811,19 @@ func TestMSFRPC_DBWorkspaces(t *testing.T) {
 			t.Log(workspaces[i].ID)
 			t.Log(workspaces[i].Name)
 		}
+	})
+
+	t.Run("database not loaded", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		workspaces, err := msfrpc.DBWorkspaces(ctx)
+		require.EqualError(t, err, ErrDBNotLoadedFriendly)
+		require.Nil(t, workspaces)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {

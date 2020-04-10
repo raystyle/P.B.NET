@@ -93,6 +93,8 @@ func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, host.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -122,6 +124,8 @@ func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, er
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -155,6 +159,8 @@ func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) (*D
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -191,6 +197,8 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -219,6 +227,8 @@ func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, service.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -247,6 +257,8 @@ func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -278,6 +290,8 @@ func (msf *MSFRPC) DBGetService(
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -309,6 +323,8 @@ func (msf *MSFRPC) DBDelService(
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -329,7 +345,10 @@ func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case ErrDBNotLoaded:
+			result.ErrorMessage = ErrDBNotLoadedFriendly
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
