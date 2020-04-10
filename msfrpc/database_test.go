@@ -937,6 +937,92 @@ func TestMSFRPC_DBClients(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+func TestMSFRPC_DBGetClient(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	opts := &DBGetClientOptions{
+		Host:     testDBClient.Host,
+		UAString: testDBClient.UAString,
+	}
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.DBReportClient(ctx, testDBClient)
+		require.NoError(t, err)
+
+		client, err := msfrpc.DBGetClient(ctx, opts)
+		require.NoError(t, err)
+		t.Log(client.Host)
+		t.Log(client.UAString)
+	})
+
+	t.Run("no result", func(t *testing.T) {
+		opts := DBGetClientOptions{
+			Host:     "9.9.9.9",
+			UAString: testDBClient.UAString,
+		}
+		client, err := msfrpc.DBGetClient(ctx, &opts)
+		require.EqualError(t, err, "client: 9.9.9.9 doesn't exist")
+		require.Nil(t, client)
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		opts.Workspace = "foo"
+		defer func() { opts.Workspace = "" }()
+
+		client, err := msfrpc.DBGetClient(ctx, opts)
+		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.Nil(t, client)
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		client, err := msfrpc.DBGetClient(ctx, opts)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, client)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		client, err := msfrpc.DBGetClient(ctx, opts)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, client)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			client, err := msfrpc.DBGetClient(ctx, opts)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, client)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_DBWorkspaces(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

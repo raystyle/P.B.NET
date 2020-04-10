@@ -730,6 +730,26 @@ type DBClient struct {
 	UpdateAt  int64  `msgpack:"updated_at"`
 }
 
+// DBGetClientRequest is used of get browser client by filter.
+type DBGetClientRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBGetClientOptions contain options about get browser client by filter.
+type DBGetClientOptions struct {
+	Workspace string `msgpack:"workspace"`
+	Host      string `msgpack:"host"`
+	UAString  string `msgpack:"ua_string"`
+}
+
+// DBGetClientResult is the result of get browser client by filter.
+type DBGetClientResult struct {
+	Client []*DBClient `msgpack:"client"`
+	MSFError
+}
+
 // DBCreateCredentialRequest is used to create credential.
 type DBCreateCredentialRequest struct {
 	Method  string

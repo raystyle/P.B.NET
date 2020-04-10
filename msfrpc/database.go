@@ -393,6 +393,39 @@ func (msf *MSFRPC) DBClients(ctx context.Context, opts *DBClientsOptions) ([]*DB
 	return result.Clients, nil
 }
 
+// DBGetClient is used to get browser client by filter.
+func (msf *MSFRPC) DBGetClient(ctx context.Context, opts *DBGetClientOptions) (*DBClient, error) {
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
+	}
+	request := DBGetClientRequest{
+		Method:  MethodDBGetClient,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
+	}
+	var result DBGetClientResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	if len(result.Client) == 0 {
+		return nil, errors.Errorf("client: %s doesn't exist", opts.Host)
+	}
+	return result.Client[0], nil
+}
+
 // DBWorkspaces is used to get information about workspaces.
 func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 	request := DBWorkspacesRequest{
