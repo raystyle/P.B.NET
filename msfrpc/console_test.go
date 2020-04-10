@@ -65,9 +65,32 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
+	const workspace = ""
 
 	t.Run("success", func(t *testing.T) {
-		result, err := msfrpc.ConsoleCreate(ctx)
+		result, err := msfrpc.ConsoleCreate(ctx, workspace)
+		require.NoError(t, err)
+		t.Log("id:", result.ID)
+		t.Log("prompt:", result.Prompt)
+		t.Log("busy:", result.Busy)
+
+		err = msfrpc.ConsoleDestroy(ctx, result.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("with valid workspace", func(t *testing.T) {
+		result, err := msfrpc.ConsoleCreate(ctx, "default")
+		require.NoError(t, err)
+		t.Log("id:", result.ID)
+		t.Log("prompt:", result.Prompt)
+		t.Log("busy:", result.Busy)
+
+		err = msfrpc.ConsoleDestroy(ctx, result.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("with invalid workspace", func(t *testing.T) {
+		result, err := msfrpc.ConsoleCreate(ctx, "foo")
 		require.NoError(t, err)
 		t.Log("id:", result.ID)
 		t.Log("prompt:", result.Prompt)
@@ -82,14 +105,14 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		result, err := msfrpc.ConsoleCreate(ctx)
+		result, err := msfrpc.ConsoleCreate(ctx, workspace)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.ConsoleCreate(ctx)
+			result, err := msfrpc.ConsoleCreate(ctx, workspace)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
@@ -109,9 +132,10 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
+	const workspace = ""
 
 	t.Run("success", func(t *testing.T) {
-		result, err := msfrpc.ConsoleCreate(ctx)
+		result, err := msfrpc.ConsoleCreate(ctx, workspace)
 		require.NoError(t, err)
 
 		err = msfrpc.ConsoleDestroy(ctx, result.ID)
@@ -153,9 +177,10 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
+	const workspace = ""
 
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate(ctx)
+		console, err := msfrpc.ConsoleCreate(ctx, workspace)
 		require.NoError(t, err)
 
 		output, err := msfrpc.ConsoleRead(ctx, console.ID)
@@ -204,9 +229,10 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
+	const workspace = ""
 
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate(ctx)
+		console, err := msfrpc.ConsoleCreate(ctx, workspace)
 		require.NoError(t, err)
 
 		output, err := msfrpc.ConsoleRead(ctx, console.ID)
@@ -275,9 +301,10 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
+	const workspace = ""
 
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate(ctx)
+		console, err := msfrpc.ConsoleCreate(ctx, workspace)
 		require.NoError(t, err)
 
 		output, err := msfrpc.ConsoleRead(ctx, console.ID)
@@ -331,9 +358,10 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
+	const workspace = ""
 
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate(ctx)
+		console, err := msfrpc.ConsoleCreate(ctx, workspace)
 		require.NoError(t, err)
 
 		output, err := msfrpc.ConsoleRead(ctx, console.ID)

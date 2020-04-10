@@ -108,11 +108,6 @@ const (
 	MethodDBServices         = "db.services"
 	MethodDBGetService       = "db.get_service"
 	MethodDBDelService       = "db.del_service"
-	MethodDBCreateCred       = "db.create_cracked_credential"
-	MethodDBCreds            = "db.creds"
-	MethodDBDelCreds         = "db.del_creds"
-	MethodDBReportLoot       = "db.report_loot"
-	MethodDBLoots            = "db.loots"
 	MethodDBWorkspaces       = "db.workspaces"
 	MethodDBGetWorkspace     = "db.get_workspace"
 	MethodDBAddWorkspace     = "db.add_workspace"
@@ -122,6 +117,11 @@ const (
 	MethodDBEvents           = "db.events"
 	MethodDBImportData       = "db.import_data"
 
+	// MethodDBCreateCred   = "db.create_cracked_credential"
+	// MethodDBCreds        = "db.creds"
+	// MethodDBDelCreds     = "db.del_creds"
+	// MethodDBReportLoot   = "db.report_loot"
+	// MethodDBLoots        = "db.loots"
 	// MethodDBReportNote   = "db.report_note"
 	// MethodDBNotes        = "db.notes"
 	// MethodDBGetNote      = "db.get_note"
@@ -850,8 +850,9 @@ type ConsoleInfo struct {
 
 // ConsoleCreateRequest is used to create a console.
 type ConsoleCreateRequest struct {
-	Method string
-	Token  string
+	Method  string
+	Token   string
+	Options map[string]string
 }
 
 // ConsoleCreateResult is the result of create console.

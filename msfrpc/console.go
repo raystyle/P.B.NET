@@ -36,10 +36,17 @@ func (msf *MSFRPC) ConsoleList(ctx context.Context) ([]*ConsoleInfo, error) {
 // integers stored as strings, these may change to become alphanumeric strings in the
 // future. Callers should treat Console IDs as unique strings, not integers, wherever
 // possible.
-func (msf *MSFRPC) ConsoleCreate(ctx context.Context) (*ConsoleCreateResult, error) {
+func (msf *MSFRPC) ConsoleCreate(ctx context.Context, workspace string) (*ConsoleCreateResult, error) {
+	opts := make(map[string]string, 1)
+	if workspace == "" {
+		opts["workspace"] = defaultWorkspace
+	} else {
+		opts["workspace"] = workspace
+	}
 	request := ConsoleCreateRequest{
-		Method: MethodConsoleCreate,
-		Token:  msf.GetToken(),
+		Method:  MethodConsoleCreate,
+		Token:   msf.GetToken(),
+		Options: opts,
 	}
 	var result ConsoleCreateResult
 	err := msf.send(ctx, &request, &result)

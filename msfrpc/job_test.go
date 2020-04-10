@@ -24,7 +24,7 @@ func TestMSFRPC_JobList(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate(ctx)
+		console, err := msfrpc.ConsoleCreate(ctx, "")
 		require.NoError(t, err)
 
 		output, err := msfrpc.ConsoleRead(ctx, console.ID)
@@ -104,7 +104,7 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate(ctx)
+		console, err := msfrpc.ConsoleCreate(ctx, "")
 		require.NoError(t, err)
 
 		output, err := msfrpc.ConsoleRead(ctx, console.ID)
@@ -200,7 +200,7 @@ func TestMSFRPC_JobStop(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		console, err := msfrpc.ConsoleCreate(ctx)
+		console, err := msfrpc.ConsoleCreate(ctx, "")
 		require.NoError(t, err)
 
 		output, err := msfrpc.ConsoleRead(ctx, console.ID)
