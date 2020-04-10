@@ -17,7 +17,7 @@ var testDBOptions = &DBConnectOptions{
 	Port:     5433,
 	Username: "msf",
 	Password: "msf",
-	Database: "msf",
+	Database: "msftest",
 	Other:    map[string]interface{}{"foo": "bar"},
 }
 
@@ -1013,6 +1013,102 @@ func TestMSFRPC_DBGetClient(t *testing.T) {
 			client, err := msfrpc.DBGetClient(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, client)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_DBDelClient(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	opts := &DBDelClientOptions{
+		Address:   "1.2.3.4",
+		UAName:    testDBClient.UAName,
+		UAVersion: testDBClient.UAVersion,
+	}
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.DBReportClient(ctx, testDBClient)
+		require.NoError(t, err)
+
+		clients, err := msfrpc.DBDelClient(ctx, opts)
+		require.NoError(t, err)
+		// TODO delete
+		require.Len(t, clients, 0)
+	})
+
+	t.Run("doesn't exist", func(t *testing.T) {
+		opts.Address = "9.9.9.9"
+		defer func() { opts.Address = "1.2.3.4" }()
+
+		clients, err := msfrpc.DBDelClient(ctx, opts)
+		require.NoError(t, err)
+		require.Len(t, clients, 0)
+	})
+
+	t.Run("empty address", func(t *testing.T) {
+		err := msfrpc.DBReportClient(ctx, testDBClient)
+		require.NoError(t, err)
+
+		clients, err := msfrpc.DBDelClient(ctx, new(DBDelClientOptions))
+		require.NoError(t, err)
+		// TODO delete
+		require.Len(t, clients, 0)
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		opts.Workspace = "foo"
+		defer func() { opts.Workspace = "" }()
+
+		clients, err := msfrpc.DBDelClient(ctx, opts)
+		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.Nil(t, clients)
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		clients, err := msfrpc.DBDelClient(ctx, opts)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, clients)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		clients, err := msfrpc.DBDelClient(ctx, opts)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, clients)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			clients, err := msfrpc.DBDelClient(ctx, opts)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, clients)
 		})
 	})
 

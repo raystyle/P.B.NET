@@ -426,6 +426,36 @@ func (msf *MSFRPC) DBGetClient(ctx context.Context, opts *DBGetClientOptions) (*
 	return result.Client[0], nil
 }
 
+// DBDelClient is used to delete browser client by filter, it wil return deleted browser clients.
+func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([]*DBDelClient, error) {
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
+	}
+	request := DBDelClientRequest{
+		Method:  MethodDBDelClient,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
+	}
+	var result DBDelClientResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Deleted, nil
+}
+
 // DBWorkspaces is used to get information about workspaces.
 func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 	request := DBWorkspacesRequest{

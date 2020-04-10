@@ -750,6 +750,35 @@ type DBGetClientResult struct {
 	MSFError
 }
 
+// DBDelClientRequest is used to delete browser client.
+type DBDelClientRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBDelClientOptions contains options about delete browser client.
+type DBDelClientOptions struct {
+	Workspace string   `msgpack:"workspace"`
+	Address   string   `msgpack:"address"`
+	Addresses []string `msgpack:"addresses"`
+	UAName    string   `msgpack:"ua_name"`
+	UAVersion string   `msgpack:"ua_ver"`
+}
+
+// DBDelClientResult is the result of delete browser client.
+type DBDelClientResult struct {
+	Result  string         `msgpack:"result"`
+	Deleted []*DBDelClient `msgpack:"deleted"`
+	MSFError
+}
+
+// DBDelClient contains information about deleted browser client.
+type DBDelClient struct {
+	Address  string `msgpack:"address"`
+	UAString string `msgpack:"ua_string"`
+}
+
 // DBCreateCredentialRequest is used to create credential.
 type DBCreateCredentialRequest struct {
 	Method  string
