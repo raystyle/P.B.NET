@@ -114,6 +114,10 @@ const (
 	MethodDBServices         = "db.services"
 	MethodDBGetService       = "db.get_service"
 	MethodDBDelService       = "db.del_service"
+	MethodDBReportClient     = "db.report_client"
+	MethodDBClients          = "db.clients"
+	MethodDBGetClient        = "db.get_client"
+	MethodDBDelClient        = "db.del_client"
 	MethodDBWorkspaces       = "db.workspaces"
 	MethodDBGetWorkspace     = "db.get_workspace"
 	MethodDBAddWorkspace     = "db.add_workspace"
@@ -137,10 +141,6 @@ const (
 	// MethodDBGetVuln      = "db.get_vuln"
 	// MethodDBDelVuln      = "db.del_vuln"
 	// MethodDBGetRef       = "db.get_ref"
-	// MethodDBReportClient = "db.report_client"
-	// MethodDBClients      = "db.clients"
-	// MethodDBGetClient    = "db.get_client"
-	// MethodDBDelClient    = "db.del_client"
 
 	MethodConsoleList          = "console.list"
 	MethodConsoleCreate        = "console.create"
@@ -675,6 +675,28 @@ type DBDelService struct {
 	Address  string `msgpack:"address"`
 	Port     uint64 `msgpack:"port"`
 	Protocol string `msgpack:"proto"`
+}
+
+// DBReportClientRequest is used to add client to database.
+type DBReportClientRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBReportClient contains information about report client.
+type DBReportClient struct {
+	Workspace string `msgpack:"workspace"`
+	Host      string `msgpack:"host"`
+	UAString  string `msgpack:"ua_string"`
+	UAName    string `msgpack:"ua_name"`
+	UAVersion string `msgpack:"ua_ver"`
+}
+
+// DBReportClientResult is the result of add client to database.
+type DBReportClientResult struct {
+	Result string `msgpack:"result"`
+	MSFError
 }
 
 // DBCreateCredentialRequest is used to create credential.

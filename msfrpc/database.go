@@ -75,14 +75,14 @@ func (msf *MSFRPC) DBStatus(ctx context.Context) (*DBStatusResult, error) {
 
 // DBReportHost is used to add host to database.
 func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
-	cHost := *host
-	if cHost.Workspace == "" {
-		cHost.Workspace = defaultWorkspace
+	hostCp := *host
+	if hostCp.Workspace == "" {
+		hostCp.Workspace = defaultWorkspace
 	}
 	request := DBReportHostRequest{
 		Method: MethodDBReportHost,
 		Token:  msf.GetToken(),
-		Host:   xreflect.StructureToMap(&cHost, structTag),
+		Host:   xreflect.StructureToMap(&hostCp, structTag),
 	}
 	var result DBReportHostResult
 	err := msf.send(ctx, &request, &result)
@@ -209,14 +209,14 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]
 
 // DBReportService is used to add service to database.
 func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService) error {
-	cService := *service
-	if cService.Workspace == "" {
-		cService.Workspace = defaultWorkspace
+	serviceCp := *service
+	if serviceCp.Workspace == "" {
+		serviceCp.Workspace = defaultWorkspace
 	}
 	request := DBReportServiceRequest{
 		Method:  MethodDBReportService,
 		Token:   msf.GetToken(),
-		Service: xreflect.StructureToMap(&cService, structTag),
+		Service: xreflect.StructureToMap(&serviceCp, structTag),
 	}
 	var result DBReportServiceResult
 	err := msf.send(ctx, &request, &result)
@@ -331,6 +331,36 @@ func (msf *MSFRPC) DBDelService(
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Deleted, nil
+}
+
+// DBReportClient is used to add browser client to database.
+func (msf *MSFRPC) DBReportClient(ctx context.Context, client *DBReportClient) error {
+	clientCp := *client
+	if clientCp.Workspace == "" {
+		clientCp.Workspace = defaultWorkspace
+	}
+	request := DBReportClientRequest{
+		Method:  MethodDBReportClient,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(&clientCp, structTag),
+	}
+	var result DBReportClientResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, client.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
 }
 
 // DBWorkspaces is used to get information about workspaces.

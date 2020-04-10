@@ -789,6 +789,75 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+var testDBClient = &DBReportClient{
+	Host:      "1.2.3.4",
+	UAString:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101 Firefox/78.0",
+	UAName:    "Mozilla",
+	UAVersion: "5.0",
+}
+
+func TestMSFRPC_DBReportClient(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.DBReportClient(ctx, testDBClient)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		testDBClient.Workspace = "foo"
+		defer func() { testDBClient.Workspace = "" }()
+
+		err := msfrpc.DBReportClient(ctx, testDBClient)
+		require.EqualError(t, err, "workspace foo doesn't exist")
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		err := msfrpc.DBReportClient(ctx, testDBClient)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		err := msfrpc.DBReportClient(ctx, testDBClient)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			err := msfrpc.DBReportClient(ctx, testDBClient)
+			monkey.IsMonkeyError(t, err)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_DBWorkspaces(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
