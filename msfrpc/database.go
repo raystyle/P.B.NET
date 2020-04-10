@@ -91,8 +91,8 @@ func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid workspace":
-			result.ErrorMessage = "invalid workspace: " + host.Workspace
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, host.Workspace)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -120,8 +120,8 @@ func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, er
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid workspace":
-			result.ErrorMessage = "invalid workspace: " + workspace
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -153,8 +153,8 @@ func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) (*D
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid workspace":
-			result.ErrorMessage = "invalid workspace: " + workspace
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -189,8 +189,8 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid workspace":
-			result.ErrorMessage = "invalid workspace: " + workspace
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -217,8 +217,8 @@ func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid workspace":
-			result.ErrorMessage = "invalid workspace: " + service.Workspace
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, service.Workspace)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -245,8 +245,8 @@ func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid workspace":
-			result.ErrorMessage = "invalid workspace: " + opts.Workspace
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -276,8 +276,8 @@ func (msf *MSFRPC) DBGetService(
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid workspace":
-			result.ErrorMessage = "invalid workspace: " + opts.Workspace
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -307,8 +307,8 @@ func (msf *MSFRPC) DBDelService(
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid workspace":
-			result.ErrorMessage = "invalid workspace: " + opts.Workspace
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}

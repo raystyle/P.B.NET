@@ -198,7 +198,7 @@ func TestMSFRPC_DBReportHost(t *testing.T) {
 		defer func() { testDBHost.Workspace = "" }()
 
 		err := msfrpc.DBReportHost(ctx, testDBHost)
-		require.EqualError(t, err, "invalid workspace: foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
@@ -254,7 +254,7 @@ func TestMSFRPC_DBHosts(t *testing.T) {
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		hosts, err := msfrpc.DBHosts(ctx, "foo")
-		require.EqualError(t, err, "invalid workspace: foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, hosts)
 	})
 
@@ -318,7 +318,7 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		host, err := msfrpc.DBGetHost(ctx, "foo", "1.2.3.4")
-		require.EqualError(t, err, "invalid workspace: foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, host)
 	})
 
@@ -383,7 +383,7 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		hosts, err := msfrpc.DBDelHost(ctx, "foo", "1.2.3.4")
-		require.EqualError(t, err, "invalid workspace: foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, hosts)
 	})
 
@@ -448,7 +448,7 @@ func TestMSFRPC_DBReportService(t *testing.T) {
 		defer func() { testDBService.Workspace = "" }()
 
 		err := msfrpc.DBReportService(ctx, testDBService)
-		require.EqualError(t, err, "invalid workspace: foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
@@ -515,7 +515,7 @@ func TestMSFRPC_DBServices(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		services, err := msfrpc.DBServices(ctx, opts)
-		require.EqualError(t, err, "invalid workspace: foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, services)
 	})
 
@@ -583,7 +583,7 @@ func TestMSFRPC_DBGetService(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		services, err := msfrpc.DBGetService(ctx, opts)
-		require.EqualError(t, err, "invalid workspace: foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, services)
 	})
 
@@ -658,7 +658,7 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 		defer func() { opts.Workspace = "" }()
 
 		services, err := msfrpc.DBDelService(ctx, opts)
-		require.EqualError(t, err, "invalid workspace: foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, services)
 	})
 

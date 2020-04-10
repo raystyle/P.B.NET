@@ -67,6 +67,12 @@ const (
 	ErrDBNotLoadedFriendly    = "database not loaded"
 	ErrDBActiveRecord         = "ActiveRecord::ConnectionNotEstablished"
 	ErrDBActiveRecordFriendly = "connection not established"
+	ErrInvalidJobID           = "Invalid Job"
+	ErrInvalidJobIDPrefix     = "invalid job id: "
+	ErrInvalidModule          = "Invalid Module"
+	ErrInvalidModuleFormat    = "invalid module: %s/%s"
+	ErrUnknownSessionID       = "Unknown Session ID "
+	ErrUnknownSessionIDPrefix = "unknown session id: "
 )
 
 const (

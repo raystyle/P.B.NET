@@ -48,7 +48,7 @@ func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
 		switch result.ErrorMessage {
 		case "Unknown Session ID":
 			id := strconv.FormatUint(id, 10)
-			result.ErrorMessage = "unknown session id: " + id
+			result.ErrorMessage = ErrUnknownSessionIDPrefix + id
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -85,8 +85,8 @@ func (msf *MSFRPC) SessionRead(
 	if result.Err {
 		id := strconv.FormatUint(id, 10)
 		switch result.ErrorMessage {
-		case "Unknown Session ID " + id:
-			result.ErrorMessage = "unknown session id: " + id
+		case ErrUnknownSessionID + id:
+			result.ErrorMessage = ErrUnknownSessionIDPrefix + id
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -115,8 +115,8 @@ func (msf *MSFRPC) SessionWrite(ctx context.Context, id uint64, data string) (ui
 	if result.Err {
 		id := strconv.FormatUint(id, 10)
 		switch result.ErrorMessage {
-		case "Unknown Session ID " + id:
-			result.ErrorMessage = "unknown session id: " + id
+		case ErrUnknownSessionID + id:
+			result.ErrorMessage = ErrUnknownSessionIDPrefix + id
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -207,8 +207,8 @@ func (msf *MSFRPC) SessionMeterpreterRead(ctx context.Context, id uint64) (strin
 	if result.Err {
 		id := strconv.FormatUint(id, 10)
 		switch result.ErrorMessage {
-		case "Unknown Session ID " + id:
-			result.ErrorMessage = "unknown session id: " + id
+		case ErrUnknownSessionID + id:
+			result.ErrorMessage = ErrUnknownSessionIDPrefix + id
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -226,6 +226,9 @@ func (msf *MSFRPC) SessionMeterpreterRead(ctx context.Context, id uint64) (strin
 // or Scripts. A newline does not need to be specified unless the console is currently
 // tied to an interactive channel, such as a sub-shell.
 func (msf *MSFRPC) SessionMeterpreterWrite(ctx context.Context, id uint64, data string) error {
+	if len(data) == 0 {
+		return nil
+	}
 	request := SessionMeterpreterWriteRequest{
 		Method: MethodSessionMeterpreterWrite,
 		Token:  msf.GetToken(),
@@ -240,8 +243,8 @@ func (msf *MSFRPC) SessionMeterpreterWrite(ctx context.Context, id uint64, data 
 	if result.Err {
 		id := strconv.FormatUint(id, 10)
 		switch result.ErrorMessage {
-		case "Unknown Session ID " + id:
-			result.ErrorMessage = "unknown session id: " + id
+		case ErrUnknownSessionID + id:
+			result.ErrorMessage = ErrUnknownSessionIDPrefix + id
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -267,8 +270,8 @@ func (msf *MSFRPC) SessionMeterpreterDetach(ctx context.Context, id uint64) erro
 	if result.Err {
 		id := strconv.FormatUint(id, 10)
 		switch result.ErrorMessage {
-		case "Unknown Session ID " + id:
-			result.ErrorMessage = "unknown session id: " + id
+		case ErrUnknownSessionID + id:
+			result.ErrorMessage = ErrUnknownSessionIDPrefix + id
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -294,8 +297,8 @@ func (msf *MSFRPC) SessionMeterpreterKill(ctx context.Context, id uint64) error 
 	if result.Err {
 		id := strconv.FormatUint(id, 10)
 		switch result.ErrorMessage {
-		case "Unknown Session ID " + id:
-			result.ErrorMessage = "unknown session id: " + id
+		case ErrUnknownSessionID + id:
+			result.ErrorMessage = ErrUnknownSessionIDPrefix + id
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -324,8 +327,8 @@ func (msf *MSFRPC) SessionMeterpreterRunSingle(ctx context.Context, id uint64, c
 	if result.Err {
 		id := strconv.FormatUint(id, 10)
 		switch result.ErrorMessage {
-		case "Unknown Session ID " + id:
-			result.ErrorMessage = "unknown session id: " + id
+		case ErrUnknownSessionID + id:
+			result.ErrorMessage = ErrUnknownSessionIDPrefix + id
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}

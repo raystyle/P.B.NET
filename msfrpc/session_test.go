@@ -536,6 +536,11 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 		data = "sysinfo"
 	)
 
+	t.Run("no data", func(t *testing.T) {
+		err := msfrpc.SessionMeterpreterWrite(ctx, id, "")
+		require.NoError(t, err)
+	})
+
 	t.Run("invalid session id", func(t *testing.T) {
 		err := msfrpc.SessionMeterpreterWrite(ctx, id, data)
 		require.EqualError(t, err, "unknown session id: 999")

@@ -50,7 +50,10 @@ func (msf *MSFRPC) CoreAddModulePath(
 		return nil, err
 	}
 	if result.Err {
-		if result.ErrorMessage == ErrInvalidToken {
+		switch result.ErrorMessage {
+		case "The path supplied is not a valid directory.":
+			result.ErrorMessage = path + " is not a valid directory"
+		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)

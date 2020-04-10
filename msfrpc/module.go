@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 )
@@ -178,8 +179,8 @@ func (msf *MSFRPC) ModuleInfo(ctx context.Context, typ, name string) (*ModuleInf
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid Module":
-			result.ErrorMessage = "invalid module: " + typ + "/" + name
+		case ErrInvalidModule:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidModuleFormat, typ, name)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -212,8 +213,8 @@ func (msf *MSFRPC) ModuleOptions(
 	}
 	if msfError.Err {
 		switch msfError.ErrorMessage {
-		case "Invalid Module":
-			msfError.ErrorMessage = "invalid module: " + typ + "/" + name
+		case ErrInvalidModule:
+			msfError.ErrorMessage = fmt.Sprintf(ErrInvalidModuleFormat, typ, name)
 		case ErrInvalidToken:
 			msfError.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -237,7 +238,7 @@ func (msf *MSFRPC) ModuleCompatiblePayloads(ctx context.Context, name string) ([
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid Module":
+		case ErrInvalidModule:
 			result.ErrorMessage = "invalid module: exploit/" + name
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
@@ -270,7 +271,7 @@ func (msf *MSFRPC) ModuleTargetCompatiblePayloads(
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid Module":
+		case ErrInvalidModule:
 			result.ErrorMessage = "invalid module: exploit/" + name
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
@@ -295,7 +296,7 @@ func (msf *MSFRPC) ModuleCompatibleSessions(ctx context.Context, name string) ([
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid Module":
+		case ErrInvalidModule:
 			result.ErrorMessage = "invalid module: post/" + name
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
@@ -323,7 +324,7 @@ func (msf *MSFRPC) ModuleCompatibleEvasionPayloads(
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid Module":
+		case ErrInvalidModule:
 			result.ErrorMessage = "invalid module: evasion/" + name
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
@@ -353,7 +354,7 @@ func (msf *MSFRPC) ModuleTargetCompatibleEvasionPayloads(
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid Module":
+		case ErrInvalidModule:
 			result.ErrorMessage = "invalid module: evasion/" + name
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
@@ -576,8 +577,8 @@ func (msf *MSFRPC) ModuleExecute(
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid Module":
-			result.ErrorMessage = "invalid module: " + typ + "/" + name
+		case ErrInvalidModule:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidModuleFormat, typ, name)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
@@ -612,8 +613,8 @@ func (msf *MSFRPC) ModuleCheck(
 	}
 	if result.Err {
 		switch result.ErrorMessage {
-		case "Invalid Module":
-			result.ErrorMessage = "invalid module: " + typ + "/" + name
+		case ErrInvalidModule:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidModuleFormat, typ, name)
 		case ErrInvalidToken:
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
