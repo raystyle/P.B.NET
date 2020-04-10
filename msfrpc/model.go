@@ -677,14 +677,14 @@ type DBDelService struct {
 	Protocol string `msgpack:"proto"`
 }
 
-// DBReportClientRequest is used to add client to database.
+// DBReportClientRequest is used to add browser client to database.
 type DBReportClientRequest struct {
 	Method  string
 	Token   string
 	Options map[string]interface{}
 }
 
-// DBReportClient contains information about report client.
+// DBReportClient contains information about report browser client.
 type DBReportClient struct {
 	Workspace string `msgpack:"workspace"`
 	Host      string `msgpack:"host"`
@@ -693,10 +693,41 @@ type DBReportClient struct {
 	UAVersion string `msgpack:"ua_ver"`
 }
 
-// DBReportClientResult is the result of add client to database.
+// DBReportClientResult is the result of add browser client to database.
 type DBReportClientResult struct {
 	Result string `msgpack:"result"`
 	MSFError
+}
+
+// DBClientsRequest is used to get browser clients by filter.
+type DBClientsRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBClientsOptions contains options about get browser clients by filter.
+type DBClientsOptions struct {
+	Workspace string   `msgpack:"workspace"`
+	Addresses []string `msgpack:"addresses"`
+	UAName    string   `msgpack:"ua_name"`
+	UAVersion string   `msgpack:"ua_ver"`
+}
+
+// DBClientsResult is the result of get browser clients by filter.
+type DBClientsResult struct {
+	Clients []*DBClient `msgpack:"clients"`
+	MSFError
+}
+
+// DBClient contains information about browser client.
+type DBClient struct {
+	Host      string `msgpack:"host"`
+	UAString  string `msgpack:"ua_string"`
+	UAName    string `msgpack:"ua_name"`
+	UAVersion string `msgpack:"ua_ver"`
+	CreatedAt int64  `msgpack:"created_at"`
+	UpdateAt  int64  `msgpack:"updated_at"`
 }
 
 // DBCreateCredentialRequest is used to create credential.

@@ -239,14 +239,14 @@ func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService
 
 // DBServices is used to get services by filter options.
 func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*DBService, error) {
-	cOpts := *opts
-	if cOpts.Workspace == "" {
-		cOpts.Workspace = defaultWorkspace
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBServicesRequest{
 		Method:  MethodDBServices,
 		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(&cOpts, structTag),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBServicesResult
 	err := msf.send(ctx, &request, &result)
@@ -272,14 +272,14 @@ func (msf *MSFRPC) DBGetService(
 	ctx context.Context,
 	opts *DBGetServiceOptions,
 ) ([]*DBService, error) {
-	cOpts := *opts
-	if cOpts.Workspace == "" {
-		cOpts.Workspace = defaultWorkspace
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBGetServiceRequest{
 		Method:  MethodDBGetService,
 		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(&cOpts, structTag),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBGetServiceResult
 	err := msf.send(ctx, &request, &result)
@@ -305,14 +305,14 @@ func (msf *MSFRPC) DBDelService(
 	ctx context.Context,
 	opts *DBDelServiceOptions,
 ) ([]*DBDelService, error) {
-	cOpts := *opts
-	if cOpts.Workspace == "" {
-		cOpts.Workspace = defaultWorkspace
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBDelServiceRequest{
 		Method:  MethodDBDelService,
 		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(&cOpts, structTag),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBDelServiceResult
 	err := msf.send(ctx, &request, &result)
@@ -361,6 +361,36 @@ func (msf *MSFRPC) DBReportClient(ctx context.Context, client *DBReportClient) e
 		return errors.WithStack(&result.MSFError)
 	}
 	return nil
+}
+
+// DBClients is used to get browser clients by filter.
+func (msf *MSFRPC) DBClients(ctx context.Context, opts *DBClientsOptions) ([]*DBClient, error) {
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
+	}
+	request := DBClientsRequest{
+		Method:  MethodDBClients,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
+	}
+	var result DBClientsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Clients, nil
 }
 
 // DBWorkspaces is used to get information about workspaces.
