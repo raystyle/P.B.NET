@@ -840,6 +840,39 @@ type DBReportLootResult struct {
 	MSFError
 }
 
+// DBLootsRequest is used to get loots.
+type DBLootsRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBLootsOptions contains options about loots.
+type DBLootsOptions struct {
+	Workspace string `msgpack:"workspace"`
+	Limit     uint64 `msgpack:"limit"`
+	Offset    uint64 `msgpack:"offset"`
+}
+
+// DBLootsResult is the result of get loots.
+type DBLootsResult struct {
+	Loots []*DBLoot `msgpack:"loots"`
+	MSFError
+}
+
+// DBLoot contains information about loot.
+type DBLoot struct {
+	Host        string                 `msgpack:"host"`
+	Service     string                 `msgpack:"service"`
+	Name        string                 `msgpack:"name"`
+	LootType    string                 `msgpack:"ltype"`
+	ContentType string                 `msgpack:"ctype"`
+	Data        map[string]interface{} `msgpack:"data"`
+	Information string                 `msgpack:"info"`
+	CreatedAt   int64                  `msgpack:"created_at"`
+	UpdateAt    int64                  `msgpack:"updated_at"`
+}
+
 // DBWorkspacesRequest is used to get all workspaces.
 type DBWorkspacesRequest struct {
 	Method string
@@ -925,19 +958,6 @@ type DBCurrentWorkspaceResult struct {
 	MSFError
 }
 
-// DBImportDataRequest is used to import external data to database.
-type DBImportDataRequest struct {
-	Method  string
-	Token   string
-	Options map[string]interface{}
-}
-
-// DBImportDataResult is the result of import external data.
-type DBImportDataResult struct {
-	Result string `msgpack:"result"`
-	MSFError
-}
-
 // DBEventRequest is used to get framework events.
 type DBEventRequest struct {
 	Method  string
@@ -960,6 +980,19 @@ type DBEvent struct {
 	Information map[string]interface{} `msgpack:"info"`
 	CreatedAt   int64                  `msgpack:"created_at"`
 	UpdateAt    int64                  `msgpack:"updated_at"`
+}
+
+// DBImportDataRequest is used to import external data to database.
+type DBImportDataRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBImportDataResult is the result of import external data.
+type DBImportDataResult struct {
+	Result string `msgpack:"result"`
+	MSFError
 }
 
 // ------------------------------------------about console-----------------------------------------

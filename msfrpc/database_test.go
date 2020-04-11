@@ -1209,6 +1209,85 @@ func TestMSFRPC_DBReportLoot(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+func TestMSFRPC_DBLoots(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	opts := &DBLootsOptions{
+		Limit: 65535,
+	}
+
+	t.Run("success", func(t *testing.T) {
+		err := msfrpc.DBReportLoot(ctx, testDBLoot)
+		require.NoError(t, err)
+
+		loots, err := msfrpc.DBLoots(ctx, opts)
+		require.NoError(t, err)
+		require.NotEmpty(t, loots)
+		for i := 0; i < len(loots); i++ {
+			t.Log(loots[i].Host)
+			t.Log(loots[i].Name)
+			t.Log(loots[i].LootType)
+		}
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		opts.Workspace = "foo"
+		defer func() { opts.Workspace = "" }()
+
+		loots, err := msfrpc.DBLoots(ctx, opts)
+		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.Nil(t, loots)
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		loots, err := msfrpc.DBLoots(ctx, opts)
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, loots)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		loots, err := msfrpc.DBLoots(ctx, opts)
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, loots)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			loots, err := msfrpc.DBLoots(ctx, opts)
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, loots)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_DBWorkspaces(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

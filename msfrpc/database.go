@@ -494,6 +494,36 @@ func (msf *MSFRPC) DBReportLoot(ctx context.Context, loot *DBReportLoot) error {
 	return nil
 }
 
+// DBLoots is used to get loots by filter.
+func (msf *MSFRPC) DBLoots(ctx context.Context, opts *DBLootsOptions) ([]*DBLoot, error) {
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
+	}
+	request := DBLootsRequest{
+		Method:  MethodDBLoots,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
+	}
+	var result DBLootsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Loots, nil
+}
+
 // DBWorkspaces is used to get information about workspaces.
 func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 	request := DBWorkspacesRequest{
