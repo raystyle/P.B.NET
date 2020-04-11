@@ -204,6 +204,10 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]
 		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
+	if result.Result != "success" {
+		const format = "host: %s doesn't exist in workspace: %s"
+		return nil, errors.Errorf(format, address, workspace)
+	}
 	return result.Deleted, nil
 }
 
@@ -330,6 +334,9 @@ func (msf *MSFRPC) DBDelService(
 			result.ErrorMessage = ErrInvalidTokenFriendly
 		}
 		return nil, errors.WithStack(&result.MSFError)
+	}
+	if result.Result != "success" {
+		return nil, errors.New("failed to delete service")
 	}
 	return result.Deleted, nil
 }

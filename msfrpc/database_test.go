@@ -424,8 +424,8 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 
 	t.Run("invalid address", func(t *testing.T) {
 		hosts, err := msfrpc.DBDelHost(ctx, "", "0.0.0.0")
-		require.NoError(t, err)
-		require.Len(t, hosts, 0)
+		require.EqualError(t, err, "host: 0.0.0.0 doesn't exist in workspace: default")
+		require.Nil(t, hosts)
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
@@ -724,10 +724,13 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 	err = msfrpc.DBConnect(ctx, testDBOptions)
 	require.NoError(t, err)
 
+	// TODO [external] msfrpcd bug about DelService
+	// file: lib/msf/core/rpc/v10/rpc_db.rb
+	// only use address
 	opts := &DBDelServiceOptions{
-		Address:  "1.2.3.4",
-		Port:     445,
-		Protocol: "tcp",
+		Address: "1.2.3.4",
+		// Port:     445,
+		// Protocol: "tcp",
 	}
 
 	t.Run("success", func(t *testing.T) {
@@ -736,10 +739,7 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 
 		services, err := msfrpc.DBDelService(ctx, opts)
 		require.NoError(t, err)
-		require.Len(t, services, 0)
-		// TODO [external] msfrpcd bug about DelService
-		// file: lib/msf/core/rpc/v10/rpc_db.rb
-		// require.Len(t, services, 1)
+		require.Len(t, services, 1)
 	})
 
 	t.Run("empty address", func(t *testing.T) {
@@ -756,8 +756,8 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 		defer func() { opts.Address = "1.2.3.4" }()
 
 		services, err := msfrpc.DBDelService(ctx, opts)
-		require.NoError(t, err)
-		require.Len(t, services, 0)
+		require.EqualError(t, err, "failed to delete service")
+		require.Nil(t, services)
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
@@ -1067,7 +1067,19 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 
 		clients, err := msfrpc.DBDelClient(ctx, opts)
 		require.NoError(t, err)
-		// TODO delete
+		require.Len(t, clients, 0)
+
+		// TODO [external] msfrpcd bug about DelClient
+		// file: lib/msf/core/rpc/v10/rpc_db.rb
+		// require.Len(t, clients, 1)
+	})
+
+	t.Run("empty address", func(t *testing.T) {
+		err := msfrpc.DBReportClient(ctx, testDBClient)
+		require.NoError(t, err)
+
+		clients, err := msfrpc.DBDelClient(ctx, new(DBDelClientOptions))
+		require.NoError(t, err)
 		require.Len(t, clients, 0)
 	})
 
@@ -1077,16 +1089,6 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 
 		clients, err := msfrpc.DBDelClient(ctx, opts)
 		require.NoError(t, err)
-		require.Len(t, clients, 0)
-	})
-
-	t.Run("empty address", func(t *testing.T) {
-		err := msfrpc.DBReportClient(ctx, testDBClient)
-		require.NoError(t, err)
-
-		clients, err := msfrpc.DBDelClient(ctx, new(DBDelClientOptions))
-		require.NoError(t, err)
-		// TODO delete
 		require.Len(t, clients, 0)
 	})
 
