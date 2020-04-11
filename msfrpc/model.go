@@ -118,6 +118,9 @@ const (
 	MethodDBClients          = "db.clients"
 	MethodDBGetClient        = "db.get_client"
 	MethodDBDelClient        = "db.del_client"
+	MethodDBCreateCred       = "db.create_cracked_credential"
+	MethodDBCreds            = "db.creds"
+	MethodDBDelCreds         = "db.del_creds"
 	MethodDBReportLoot       = "db.report_loot"
 	MethodDBLoots            = "db.loots"
 	MethodDBWorkspaces       = "db.workspaces"
@@ -129,9 +132,6 @@ const (
 	MethodDBEvents           = "db.events"
 	MethodDBImportData       = "db.import_data"
 
-	// MethodDBCreateCred   = "db.create_cracked_credential"
-	// MethodDBCreds        = "db.creds"
-	// MethodDBDelCreds     = "db.del_creds"
 	// MethodDBReportNote   = "db.report_note"
 	// MethodDBNotes        = "db.notes"
 	// MethodDBGetNote      = "db.get_note"
@@ -787,18 +787,18 @@ type DBCreateCredentialRequest struct {
 }
 
 // DBCreateCredentialOptions contains options about create credential.
-type DBCreateCredentialOptions struct {
-	OriginType     string `msgpack:"origin_type"`
-	Address        string `msgpack:"address"`
-	Port           uint64 `msgpack:"port"`
-	Protocol       string `msgpack:"protocol"`
-	ServiceName    string `msgpack:"service_name"`
-	ModuleFullname string `msgpack:"module_fullname"`
-	WorkspaceID    uint64 `msgpack:"workspace_id"`
-	Username       string `msgpack:"username"`
-	PrivateType    string `msgpack:"private_type"`
-	PrivateData    string `msgpack:"private_data"`
-}
+// type DBCreateCredentialOptions struct {
+// 	OriginType     string `msgpack:"origin_type"`
+// 	Address        string `msgpack:"address"`
+// 	Port           uint64 `msgpack:"port"`
+// 	Protocol       string `msgpack:"protocol"`
+// 	ServiceName    string `msgpack:"service_name"`
+// 	ModuleFullname string `msgpack:"module_fullname"`
+// 	WorkspaceID    uint64 `msgpack:"workspace_id"`
+// 	Username       string `msgpack:"username"`
+// 	PrivateType    string `msgpack:"private_type"`
+// 	PrivateData    string `msgpack:"private_data"`
+// }
 
 // DBCreateCredentialResult is the result of create credential.
 type DBCreateCredentialResult struct {
@@ -811,6 +811,31 @@ type DBCreateCredentialResult struct {
 	ServiceName string `msgpack:"sname"`
 	Status      string `msgpack:"status"`
 	MSFError
+}
+
+// DBCredsRequest is used to get credentials.
+type DBCredsRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBCredsResult is the result of get credentials.
+type DBCredsResult struct {
+	Credentials []*DBCred `msgpack:"creds"`
+	MSFError
+}
+
+// DBCred contains information about credential.
+type DBCred struct {
+	Host        string `msgpack:"host"`
+	Port        uint64 `msgpack:"port"`
+	Protocol    string `msgpack:"proto"`
+	ServiceName string `msgpack:"sname"`
+	Type        string `msgpack:"type"`
+	Username    string `msgpack:"user"`
+	Password    string `msgpack:"pass"`
+	UpdateAt    int64  `msgpack:"updated_at"`
 }
 
 // DBReportLootRequest is used to add a loot to database.

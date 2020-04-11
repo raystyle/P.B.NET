@@ -524,6 +524,38 @@ func (msf *MSFRPC) DBLoots(ctx context.Context, opts *DBLootsOptions) ([]*DBLoot
 	return result.Loots, nil
 }
 
+// DBCreateCredential is used to create a credential.
+// func (msf *MSFRPC) DBCreateCredential(
+// 	ctx context.Context,
+// 	opts map[string]interface{},
+// ) (*DBCreateCredentialResult, error) {
+// 	request := DBCreateCredentialRequest{
+// 		Method:  MethodDBCreateCred,
+// 		Token:   msf.GetToken(),
+// 		Options: opts,
+// 	}
+// 	var result DBCreateCredentialResult
+// 	err := msf.send(ctx, &request, &result)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if result.Err {
+// 		switch result.ErrorMessage {
+// 		case ErrInvalidWorkspace:
+// 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts["workspace"])
+// 		case ErrDBActiveRecord:
+// 			result.ErrorMessage = ErrDBActiveRecordFriendly
+// 		case ErrInvalidToken:
+// 			result.ErrorMessage = ErrInvalidTokenFriendly
+// 		}
+// 		for i := 0; i < len(result.MSFError.ErrorBacktrace); i++ {
+// 			fmt.Println(result.MSFError.ErrorBacktrace[i])
+// 		}
+// 		return nil, errors.WithStack(&result.MSFError)
+// 	}
+// 	return &result, nil
+// }
+
 // DBWorkspaces is used to get information about workspaces.
 func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 	request := DBWorkspacesRequest{
