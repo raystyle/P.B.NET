@@ -556,6 +556,37 @@ func (msf *MSFRPC) DBLoots(ctx context.Context, opts *DBLootsOptions) ([]*DBLoot
 // 	return &result, nil
 // }
 
+// DBCreds is used to get all credentials with workspace.
+func (msf *MSFRPC) DBCreds(ctx context.Context, workspace string) ([]*DBCred, error) {
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
+	request := DBCredsRequest{
+		Method: MethodDBCreds,
+		Token:  msf.GetToken(),
+		Options: map[string]interface{}{
+			"workspace": workspace,
+		},
+	}
+	var result DBCredsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Credentials, nil
+}
+
 // DBWorkspaces is used to get information about workspaces.
 func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 	request := DBWorkspacesRequest{

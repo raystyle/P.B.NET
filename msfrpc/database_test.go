@@ -1200,6 +1200,75 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 // 	testsuite.IsDestroyed(t, msfrpc)
 // }
 
+func TestMSFRPC_DBCreds(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("success", func(t *testing.T) {
+		creds, err := msfrpc.DBCreds(ctx, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, creds)
+		for i := 0; i < len(creds); i++ {
+			t.Log(creds[i].Host)
+			t.Log(creds[i].Username)
+			t.Log(creds[i].Password)
+		}
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		creds, err := msfrpc.DBCreds(ctx, "foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
+		require.Nil(t, creds)
+	})
+
+	t.Run("database active record", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBConnect(ctx, testDBOptions)
+			require.NoError(t, err)
+		}()
+
+		creds, err := msfrpc.DBCreds(ctx, "")
+		require.EqualError(t, err, ErrDBActiveRecordFriendly)
+		require.Nil(t, creds)
+	})
+
+	t.Run("invalid authentication token", func(t *testing.T) {
+		token := msfrpc.GetToken()
+		defer msfrpc.SetToken(token)
+		msfrpc.SetToken(testInvalidToken)
+
+		creds, err := msfrpc.DBCreds(ctx, "")
+		require.EqualError(t, err, ErrInvalidTokenFriendly)
+		require.Nil(t, creds)
+	})
+
+	t.Run("failed to send", func(t *testing.T) {
+		testPatchSend(func() {
+			creds, err := msfrpc.DBCreds(ctx, "")
+			monkey.IsMonkeyError(t, err)
+			require.Nil(t, creds)
+		})
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 var testDBLoot = &DBReportLoot{
 	Host:        "1.9.9.9",
 	Name:        "screenshot",
