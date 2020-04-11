@@ -366,3 +366,11 @@ func (msf *MSFRPC) close() {
 	msf.client.CloseIdleConnections()
 	msf.wg.Wait()
 }
+
+func (msf *MSFRPC) logf(lv logger.Level, format string, log ...interface{}) {
+	msf.logger.Printf(lv, "msfrpc", format, log...)
+}
+
+func (msf *MSFRPC) log(lv logger.Level, log ...interface{}) {
+	msf.logger.Println(lv, "msfrpc", log...)
+}

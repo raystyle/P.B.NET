@@ -2,8 +2,14 @@ package msfrpc
 
 import (
 	"context"
+	"io"
+	"sync"
+	"time"
 
 	"github.com/pkg/errors"
+
+	"project/internal/logger"
+	"project/internal/xpanic"
 )
 
 // ConsoleList is used to return a hash of all existing Console IDs, their status,
@@ -201,5 +207,120 @@ func (msf *MSFRPC) ConsoleSessionKill(ctx context.Context, id string) error {
 		const format = "failed to kill session about console %s: %s"
 		return errors.Errorf(format, id, result.Result)
 	}
+	return nil
+}
+
+// Console is used to provide a more gracefully io.
+// it implemented io.ReadWriteCloser.
+type Console struct {
+	ctx *MSFRPC
+
+	id       string
+	interval time.Duration
+
+	logSrc  string
+	pipe    io.PipeReader
+	writeMu sync.RWMutex
+
+	context   context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
+	wg        sync.WaitGroup
+}
+
+func newConsole(ctx *MSFRPC, id string, interval time.Duration) *Console {
+	console := Console{
+		ctx:      ctx,
+		id:       id,
+		interval: interval,
+		logSrc:   "msfrpc-console-" + id,
+	}
+	// reader, writer := io.Pipe()
+
+	console.context, console.cancel = context.WithCancel(context.Background())
+	console.wg.Add(1)
+	go console.reader()
+	return &console
+}
+
+func (console *Console) logf(lv logger.Level, format string, log ...interface{}) {
+	console.ctx.logger.Printf(lv, console.logSrc, format, log...)
+}
+
+func (console *Console) log(lv logger.Level, log ...interface{}) {
+	console.ctx.logger.Println(lv, console.logSrc, log...)
+}
+
+// reader is used to call MSFRPC.ConsoleRead() high frequency and write the output
+// to a pipe and wait user call Read().
+func (console *Console) reader() {
+	defer func() {
+		if r := recover(); r != nil {
+			console.log(logger.Fatal, xpanic.Print(r, "Console.reader"))
+			// restart reader
+			time.Sleep(time.Second)
+			go console.reader()
+		} else {
+			console.wg.Done()
+		}
+	}()
+	timer := time.NewTicker(console.interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			if !console.read() {
+				return
+			}
+		case <-console.context.Done():
+			return
+		}
+	}
+}
+
+func (console *Console) read() bool {
+	var (
+		result *ConsoleReadResult
+		err    error
+	)
+	for {
+		result, err = console.ctx.ConsoleRead(console.context, console.id)
+		if err != nil {
+			console.log(logger.Error, err)
+			return false
+		}
+		if result.Busy {
+
+		} else {
+
+		}
+
+	}
+
+	return true
+}
+
+func (console *Console) writer() {
+
+}
+
+func (console *Console) Read(b []byte) (int, error) {
+	return 0, nil
+}
+
+func (console *Console) Write(b []byte) (int, error) {
+	return 0, nil
+}
+
+func (console *Console) Close() error {
+	var err error
+	console.closeOnce.Do(func() {
+		err = console.ctx.ConsoleDestroy(console.context, console.id)
+		if err != nil {
+			return
+		}
+		console.cancel()
+		console.wg.Wait()
+	})
 	return nil
 }
