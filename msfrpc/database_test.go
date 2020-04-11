@@ -33,6 +33,9 @@ func TestMSFRPC_DBConnect(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+
 		err := msfrpc.DBConnect(ctx, testDBOptions)
 		require.NoError(t, err)
 
@@ -413,7 +416,13 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 		require.Len(t, hosts, 1)
 	})
 
-	t.Run("empty", func(t *testing.T) {
+	t.Run("empty address", func(t *testing.T) {
+		hosts, err := msfrpc.DBDelHost(ctx, "", "")
+		require.NoError(t, err)
+		require.Len(t, hosts, 0)
+	})
+
+	t.Run("invalid address", func(t *testing.T) {
 		hosts, err := msfrpc.DBDelHost(ctx, "", "0.0.0.0")
 		require.NoError(t, err)
 		require.Len(t, hosts, 0)
@@ -733,7 +742,16 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 		// require.Len(t, services, 1)
 	})
 
-	t.Run("empty", func(t *testing.T) {
+	t.Run("empty address", func(t *testing.T) {
+		opts.Address = ""
+		defer func() { opts.Address = "1.2.3.4" }()
+
+		services, err := msfrpc.DBDelService(ctx, opts)
+		require.NoError(t, err)
+		require.Len(t, services, 0)
+	})
+
+	t.Run("invalid address", func(t *testing.T) {
 		opts.Address = "9.9.9.9"
 		defer func() { opts.Address = "1.2.3.4" }()
 
@@ -1053,7 +1071,7 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 		require.Len(t, clients, 0)
 	})
 
-	t.Run("doesn't exist", func(t *testing.T) {
+	t.Run("invalid address", func(t *testing.T) {
 		opts.Address = "9.9.9.9"
 		defer func() { opts.Address = "1.2.3.4" }()
 

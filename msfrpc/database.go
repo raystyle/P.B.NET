@@ -30,7 +30,7 @@ func (msf *MSFRPC) DBConnect(ctx context.Context, opts *DBConnectOptions) error 
 	if result.Result != "success" {
 		return errors.New("failed to connect database")
 	}
-	return nil
+	return msf.DBAddWorkspace(ctx, defaultWorkspace)
 }
 
 // DBDisconnect is used to disconnect database.
@@ -92,7 +92,7 @@ func (msf *MSFRPC) DBReportHost(ctx context.Context, host *DBReportHost) error {
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, host.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, hostCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -226,7 +226,7 @@ func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, service.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, serviceCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -256,7 +256,7 @@ func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -289,7 +289,7 @@ func (msf *MSFRPC) DBGetService(
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -312,7 +312,7 @@ func (msf *MSFRPC) DBDelService(
 	request := DBDelServiceRequest{
 		Method:  MethodDBDelService,
 		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(&optsCp, structTag),
+		Options: xreflect.StructureToMapWithoutZero(&optsCp, structTag),
 	}
 	var result DBDelServiceResult
 	err := msf.send(ctx, &request, &result)
@@ -322,7 +322,7 @@ func (msf *MSFRPC) DBDelService(
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -352,7 +352,7 @@ func (msf *MSFRPC) DBReportClient(ctx context.Context, client *DBReportClient) e
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, client.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, clientCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -382,7 +382,7 @@ func (msf *MSFRPC) DBClients(ctx context.Context, opts *DBClientsOptions) ([]*DB
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -412,7 +412,7 @@ func (msf *MSFRPC) DBGetClient(ctx context.Context, opts *DBGetClientOptions) (*
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -435,7 +435,7 @@ func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([
 	request := DBDelClientRequest{
 		Method:  MethodDBDelClient,
 		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(&optsCp, structTag),
+		Options: xreflect.StructureToMapWithoutZero(&optsCp, structTag),
 	}
 	var result DBDelClientResult
 	err := msf.send(ctx, &request, &result)
@@ -445,7 +445,7 @@ func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts.Workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
