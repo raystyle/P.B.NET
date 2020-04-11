@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/logger"
 	"project/internal/patch/monkey"
 	"project/internal/patch/msgpack"
 	"project/internal/testsuite"
@@ -21,7 +21,8 @@ import (
 const (
 	testCommand  = "msfrpcd"
 	testHost     = "127.0.0.1"
-	testPort     = 55553
+	testPort     = "55553"
+	testAddress  = testHost + ":" + testPort
 	testUsername = "msf"
 	testPassword = "msf"
 
@@ -45,7 +46,7 @@ func TestMain(m *testing.M) {
 	// time.Sleep(10 * time.Second)
 	exitCode := m.Run()
 	// create msfrpc
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	testsuite.CheckErrorInTestMain(err)
 	err = msfrpc.AuthLogin()
 	testsuite.CheckErrorInTestMain(err)
@@ -196,7 +197,7 @@ func TestNewMSFRPC(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("ok", func(t *testing.T) {
-		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 		require.NoError(t, err)
 
 		msfrpc.Kill()
@@ -206,14 +207,14 @@ func TestNewMSFRPC(t *testing.T) {
 	t.Run("invalid transport option", func(t *testing.T) {
 		opts := Options{}
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
-		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, &opts)
 		require.Error(t, err)
 		require.Nil(t, msfrpc)
 	})
 
 	t.Run("disable TLS", func(t *testing.T) {
 		opts := Options{DisableTLS: true}
-		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 		require.NotNil(t, msfrpc)
 
@@ -223,7 +224,7 @@ func TestNewMSFRPC(t *testing.T) {
 
 	t.Run("custom handler", func(t *testing.T) {
 		opts := Options{Handler: "hello"}
-		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 		require.NotNil(t, msfrpc)
 
@@ -236,7 +237,7 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -292,7 +293,7 @@ func TestMSFRPC_send(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("invalid request", func(t *testing.T) {
-		msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, func() {}, nil)
@@ -336,16 +337,14 @@ func TestMSFRPC_send(t *testing.T) {
 	}
 	port := testsuite.RunHTTPServer(t, "tcp", &server)
 	defer func() { _ = server.Close() }()
-	portNum, err := strconv.Atoi(port)
-	require.NoError(t, err)
-	portNumber := uint16(portNum)
+	address := "127.0.0.1:" + port
 
 	t.Run("internal server error_ok", func(t *testing.T) {
 		opts := Options{
 			DisableTLS: true,
 			Handler:    "500_ok",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -360,7 +359,7 @@ func TestMSFRPC_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "500_failed",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -375,7 +374,7 @@ func TestMSFRPC_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "401",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -390,7 +389,7 @@ func TestMSFRPC_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "403",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -405,7 +404,7 @@ func TestMSFRPC_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "not_found",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -421,7 +420,7 @@ func TestMSFRPC_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "unknown",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 
 		err = msfrpc.send(ctx, nil, nil)
@@ -436,7 +435,7 @@ func TestMSFRPC_send(t *testing.T) {
 			DisableTLS: true,
 			Handler:    "200",
 		}
-		msfrpc, err := NewMSFRPC(testHost, portNumber, testUsername, testPassword, &opts)
+		msfrpc, err := NewMSFRPC(address, testUsername, testPassword, logger.Common, &opts)
 		require.NoError(t, err)
 
 		f1 := func() {
@@ -473,7 +472,7 @@ func TestMSFRPC_AuthLogin(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
@@ -504,7 +503,7 @@ func TestMSFRPC_AuthLogout(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 
 	t.Run("logout self", func(t *testing.T) {
@@ -538,7 +537,7 @@ func TestMSFRPC_AuthTokenList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -585,7 +584,7 @@ func TestMSFRPC_AuthTokenGenerate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -631,7 +630,7 @@ func TestMSFRPC_AuthTokenAdd(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -688,7 +687,7 @@ func TestMSFRPC_AuthTokenRemove(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -745,7 +744,7 @@ func TestMSFRPC_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testHost, testPort, testUsername, testPassword, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 
 	t.Run("ok", func(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/msgpack"
 )
@@ -20,8 +21,10 @@ import (
 type MSFRPC struct {
 	username string
 	password string
-	url      string
-	client   *http.Client
+	logger   logger.Logger
+
+	url    string
+	client *http.Client
 
 	bufferPool  sync.Pool
 	encoderPool sync.Pool
@@ -37,16 +40,22 @@ type MSFRPC struct {
 
 // Options contains options about NewMSFRPC().
 type Options struct {
-	DisableTLS bool
-	TLSVerify  bool
-	Handler    string // URI
-	Transport  option.HTTPTransport
-	Timeout    time.Duration
-	Token      string // permanent token
+	DisableTLS bool                 `toml:"disable_tls"`
+	TLSVerify  bool                 `toml:"tls_verify"`
+	Handler    string               `toml:"handler"` // custom URI
+	Transport  option.HTTPTransport `toml:"transport"`
+	Timeout    time.Duration        `toml:"timeout"`
+	Token      string               `toml:"token"` // permanent token
 }
 
 // NewMSFRPC is used to create a new metasploit RPC connection.
-func NewMSFRPC(host string, port uint16, username, password string, opts *Options) (*MSFRPC, error) {
+func NewMSFRPC(
+	address string,
+	username string,
+	password string,
+	logger logger.Logger,
+	opts *Options,
+) (*MSFRPC, error) {
 	if opts == nil {
 		opts = new(Options)
 	}
@@ -69,6 +78,7 @@ func NewMSFRPC(host string, port uint16, username, password string, opts *Option
 	msfrpc := MSFRPC{
 		username: username,
 		password: password,
+		logger:   logger,
 		client:   &client,
 		token:    opts.Token,
 	}
@@ -84,7 +94,7 @@ func NewMSFRPC(host string, port uint16, username, password string, opts *Option
 	} else {
 		handler = opts.Handler
 	}
-	msfrpc.url = fmt.Sprintf("%s://%s:%d/%s", scheme, host, port, handler)
+	msfrpc.url = fmt.Sprintf("%s://%s/%s", scheme, address, handler)
 	// pool
 	msfrpc.bufferPool.New = func() interface{} {
 		buf := bytes.NewBuffer(make([]byte, 0, 64))
@@ -327,7 +337,11 @@ func (msf *MSFRPC) AuthTokenRemove(ctx context.Context, token string) error {
 
 // Close is used to logout metasploit RPC and destroy all objects.
 func (msf *MSFRPC) Close() error {
-	err := msf.AuthLogout(msf.GetToken())
+	err := msf.clean()
+	if err != nil {
+		return err
+	}
+	err = msf.AuthLogout(msf.GetToken())
 	if err != nil {
 		return err
 	}
@@ -337,8 +351,14 @@ func (msf *MSFRPC) Close() error {
 
 // Kill is ued to logout metasploit RPC when can't connect target.
 func (msf *MSFRPC) Kill() {
+	_ = msf.clean()
 	_ = msf.AuthLogout(msf.GetToken())
 	msf.close()
+}
+
+func (msf *MSFRPC) clean() error {
+	// close all console
+	return nil
 }
 
 func (msf *MSFRPC) close() {
