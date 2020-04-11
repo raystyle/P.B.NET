@@ -464,6 +464,36 @@ func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([
 	return result.Deleted, nil
 }
 
+// DBReportLoot is used to add a loot to database.
+func (msf *MSFRPC) DBReportLoot(ctx context.Context, loot *DBReportLoot) error {
+	lootCp := *loot
+	if lootCp.Workspace == "" {
+		lootCp.Workspace = defaultWorkspace
+	}
+	request := DBReportLootRequest{
+		Method:  MethodDBReportLoot,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMapWithoutZero(&lootCp, structTag),
+	}
+	var result DBReportLootResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, lootCp.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}
+
 // DBWorkspaces is used to get information about workspaces.
 func (msf *MSFRPC) DBWorkspaces(ctx context.Context) ([]*DBWorkspace, error) {
 	request := DBWorkspacesRequest{
@@ -621,43 +651,6 @@ func (msf *MSFRPC) DBCurrentWorkspace(ctx context.Context) (*DBCurrentWorkspaceR
 	return &result, nil
 }
 
-// DBImportData is used to import external data to the database.
-func (msf *MSFRPC) DBImportData(ctx context.Context, workspace, data string) error {
-	if len(data) == 0 {
-		return errors.New("no data")
-	}
-	if workspace == "" {
-		workspace = defaultWorkspace
-	}
-	request := DBImportDataRequest{
-		Method: MethodDBImportData,
-		Token:  msf.GetToken(),
-		Options: map[string]interface{}{
-			"workspace": workspace,
-			"data":      data,
-		},
-	}
-	var result DBImportDataResult
-	err := msf.send(ctx, &request, &result)
-	if err != nil {
-		return err
-	}
-	if result.Err {
-		switch result.ErrorMessage {
-		case "Could not automatically determine file type":
-			result.ErrorMessage = "invalid file format"
-		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
-		case ErrDBActiveRecord:
-			result.ErrorMessage = ErrDBActiveRecordFriendly
-		case ErrInvalidToken:
-			result.ErrorMessage = ErrInvalidTokenFriendly
-		}
-		return errors.WithStack(&result.MSFError)
-	}
-	return nil
-}
-
 // DBEvent is used to get framework events.
 func (msf *MSFRPC) DBEvent(
 	ctx context.Context,
@@ -703,4 +696,41 @@ func (msf *MSFRPC) DBEvent(
 		}
 	}
 	return result.Events, nil
+}
+
+// DBImportData is used to import external data to the database.
+func (msf *MSFRPC) DBImportData(ctx context.Context, workspace, data string) error {
+	if len(data) == 0 {
+		return errors.New("no data")
+	}
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
+	request := DBImportDataRequest{
+		Method: MethodDBImportData,
+		Token:  msf.GetToken(),
+		Options: map[string]interface{}{
+			"workspace": workspace,
+			"data":      data,
+		},
+	}
+	var result DBImportDataResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case "Could not automatically determine file type":
+			result.ErrorMessage = "invalid file format"
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
 }

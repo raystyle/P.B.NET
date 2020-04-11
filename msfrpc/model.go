@@ -118,6 +118,8 @@ const (
 	MethodDBClients          = "db.clients"
 	MethodDBGetClient        = "db.get_client"
 	MethodDBDelClient        = "db.del_client"
+	MethodDBReportLoot       = "db.report_loot"
+	MethodDBLoots            = "db.loots"
 	MethodDBWorkspaces       = "db.workspaces"
 	MethodDBGetWorkspace     = "db.get_workspace"
 	MethodDBAddWorkspace     = "db.add_workspace"
@@ -130,8 +132,6 @@ const (
 	// MethodDBCreateCred   = "db.create_cracked_credential"
 	// MethodDBCreds        = "db.creds"
 	// MethodDBDelCreds     = "db.del_creds"
-	// MethodDBReportLoot   = "db.report_loot"
-	// MethodDBLoots        = "db.loots"
 	// MethodDBReportNote   = "db.report_note"
 	// MethodDBNotes        = "db.notes"
 	// MethodDBGetNote      = "db.get_note"
@@ -810,6 +810,33 @@ type DBCreateCredentialResult struct {
 	RealmKey    string `msgpack:"realm_key"`
 	ServiceName string `msgpack:"sname"`
 	Status      string `msgpack:"status"`
+	MSFError
+}
+
+// DBReportLootRequest is used to add a loot to database.
+type DBReportLootRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBReportLoot contains information about loot.
+type DBReportLoot struct {
+	Workspace   string `msgpack:"workspace"`
+	Host        string `msgpack:"host"`
+	Port        uint64 `msgpack:"port"`
+	Proto       string `msgpack:"proto"`
+	Name        string `msgpack:"name"`
+	Type        string `msgpack:"type"`
+	ContentType string `msgpack:"content_type"`
+	Path        string `msgpack:"path"`
+	Data        string `msgpack:"data"`
+	Information string `msgpack:"info"`
+}
+
+// DBReportLootResult is the result of add loot.
+type DBReportLootResult struct {
+	Result string `msgpack:"result"`
 	MSFError
 }
 
