@@ -465,36 +465,28 @@ func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([
 }
 
 // DBCreateCredential is used to create a credential.
-// func (msf *MSFRPC) DBCreateCredential(
-// 	ctx context.Context,
-// 	opts map[string]interface{},
-// ) (*DBCreateCredentialResult, error) {
-// 	request := DBCreateCredentialRequest{
-// 		Method:  MethodDBCreateCred,
-// 		Token:   msf.GetToken(),
-// 		Options: opts,
-// 	}
-// 	var result DBCreateCredentialResult
-// 	err := msf.send(ctx, &request, &result)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if result.Err {
-// 		switch result.ErrorMessage {
-// 		case ErrInvalidWorkspace:
-// 			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, opts["workspace"])
-// 		case ErrDBActiveRecord:
-// 			result.ErrorMessage = ErrDBActiveRecordFriendly
-// 		case ErrInvalidToken:
-// 			result.ErrorMessage = ErrInvalidTokenFriendly
-// 		}
-// 		for i := 0; i < len(result.MSFError.ErrorBacktrace); i++ {
-// 			fmt.Println(result.MSFError.ErrorBacktrace[i])
-// 		}
-// 		return nil, errors.WithStack(&result.MSFError)
-// 	}
-// 	return &result, nil
-// }
+func (msf *MSFRPC) DBCreateCredential(
+	ctx context.Context,
+	opts map[string]interface{},
+) (*DBCreateCredentialResult, error) {
+	request := DBCreateCredentialRequest{
+		Method:  MethodDBCreateCred,
+		Token:   msf.GetToken(),
+		Options: opts,
+	}
+	var result DBCreateCredentialResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		if result.ErrorMessage == ErrInvalidToken {
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return &result, nil
+}
 
 // DBCreds is used to get all credentials with workspace.
 func (msf *MSFRPC) DBCreds(ctx context.Context, workspace string) ([]*DBCred, error) {
@@ -555,7 +547,14 @@ func (msf *MSFRPC) DBDelCreds(ctx context.Context, workspace string) ([]*DBDelCr
 		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
-	return result.Creds, nil
+	var creds []*DBDelCred
+	for i := 0; i < len(result.Deleted); i++ {
+		creds = append(creds, result.Deleted[i].Creds...)
+	}
+	if len(creds) == 0 {
+		return nil, errors.New("failed to delete credentials in workspace: " + workspace)
+	}
+	return creds, nil
 }
 
 // DBReportLoot is used to add a loot to database.

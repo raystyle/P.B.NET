@@ -118,7 +118,7 @@ const (
 	MethodDBClients          = "db.clients"
 	MethodDBGetClient        = "db.get_client"
 	MethodDBDelClient        = "db.del_client"
-	MethodDBCreateCred       = "db.create_cracked_credential"
+	MethodDBCreateCred       = "db.create_credential"
 	MethodDBCreds            = "db.creds"
 	MethodDBDelCreds         = "db.del_creds"
 	MethodDBReportLoot       = "db.report_loot"
@@ -847,9 +847,10 @@ type DBDelCredsRequest struct {
 
 // DBDelCredsResult is the result of delete credential.
 type DBDelCredsResult struct {
-	Result  string       `msgpack:"result"`
-	Deleted []*DBDelCred `msgpack:"deleted"`
-	Creds   []*DBDelCred `msgpack:"creds"`
+	Result  string `msgpack:"result"`
+	Deleted []struct {
+		Creds []*DBDelCred `msgpack:"creds"`
+	} `msgpack:"deleted"`
 	MSFError
 }
 
