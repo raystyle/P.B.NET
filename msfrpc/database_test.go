@@ -1220,9 +1220,10 @@ func TestMSFRPC_DBGetWorkspace(t *testing.T) {
 		t.Log(workspace.Name)
 	})
 
-	t.Run("empty", func(t *testing.T) {
+	t.Run("empty name", func(t *testing.T) {
 		workspace, err := msfrpc.DBGetWorkspace(ctx, "")
 		require.NoError(t, err)
+		require.Equal(t, defaultWorkspace, workspace.Name)
 		t.Log(workspace.ID)
 		t.Log(workspace.Name)
 	})
@@ -1310,8 +1311,17 @@ func TestMSFRPC_DBAddWorkspace(t *testing.T) {
 	})
 
 	t.Run("empty name", func(t *testing.T) {
-		err := msfrpc.DBAddWorkspace(ctx, "")
+		workspaces, err := msfrpc.DBWorkspaces(ctx)
 		require.NoError(t, err)
+		l1 := len(workspaces)
+
+		err = msfrpc.DBAddWorkspace(ctx, "")
+		require.NoError(t, err)
+
+		workspaces, err = msfrpc.DBWorkspaces(ctx)
+		require.NoError(t, err)
+		l2 := len(workspaces)
+		require.Equal(t, l1, l2)
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -1377,14 +1387,23 @@ func TestMSFRPC_DBDelWorkspace(t *testing.T) {
 		require.Nil(t, workspace)
 	})
 
+	t.Run("empty name", func(t *testing.T) {
+		workspaces, err := msfrpc.DBWorkspaces(ctx)
+		require.NoError(t, err)
+		l1 := len(workspaces)
+
+		err = msfrpc.DBDelWorkspace(ctx, "")
+		require.NoError(t, err)
+
+		workspaces, err = msfrpc.DBWorkspaces(ctx)
+		require.NoError(t, err)
+		l2 := len(workspaces)
+		require.Equal(t, l1, l2)
+	})
+
 	t.Run("invalid workspace", func(t *testing.T) {
 		err = msfrpc.DBDelWorkspace(ctx, "foo")
 		require.EqualError(t, err, "workspace foo doesn't exist")
-	})
-
-	t.Run("empty name", func(t *testing.T) {
-		err := msfrpc.DBDelWorkspace(ctx, "")
-		require.NoError(t, err)
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -1458,14 +1477,18 @@ func TestMSFRPC_DBSetWorkspace(t *testing.T) {
 		require.Equal(t, name, workspace.Name)
 	})
 
-	t.Run("invalid workspace", func(t *testing.T) {
-		err = msfrpc.DBSetWorkspace(ctx, "foo")
-		require.EqualError(t, err, "workspace foo doesn't exist")
-	})
-
 	t.Run("empty name", func(t *testing.T) {
 		err := msfrpc.DBSetWorkspace(ctx, "")
 		require.NoError(t, err)
+
+		workspace, err := msfrpc.DBCurrentWorkspace(ctx)
+		require.NoError(t, err)
+		require.Equal(t, defaultWorkspace, workspace.Name)
+	})
+
+	t.Run("invalid workspace", func(t *testing.T) {
+		err = msfrpc.DBSetWorkspace(ctx, "foo")
+		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
@@ -1547,6 +1570,10 @@ func TestMSFRPC_DBCurrentWorkspace(t *testing.T) {
 	t.Run("empty name", func(t *testing.T) {
 		err := msfrpc.DBSetWorkspace(ctx, "")
 		require.NoError(t, err)
+
+		workspace, err := msfrpc.DBCurrentWorkspace(ctx)
+		require.NoError(t, err)
+		require.Equal(t, defaultWorkspace, workspace.Name)
 	})
 
 	t.Run("database not loaded", func(t *testing.T) {
@@ -1623,6 +1650,11 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 		workspace = ""
 		data      = "foo data"
 	)
+
+	t.Run("no data", func(t *testing.T) {
+		err = msfrpc.DBImportData(ctx, "foo", "")
+		require.EqualError(t, err, "no data")
+	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
 		err = msfrpc.DBImportData(ctx, "foo", data)

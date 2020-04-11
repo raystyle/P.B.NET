@@ -238,6 +238,7 @@ func (msf *MSFRPC) DBReportService(ctx context.Context, service *DBReportService
 }
 
 // DBServices is used to get services by filter options.
+// Must set Protocol in DBServicesOptions.
 func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*DBService, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
@@ -507,6 +508,9 @@ func (msf *MSFRPC) DBGetWorkspace(ctx context.Context, name string) (*DBWorkspac
 
 // DBAddWorkspace is used to add workspace.
 func (msf *MSFRPC) DBAddWorkspace(ctx context.Context, name string) error {
+	if name == "" {
+		return nil
+	}
 	request := DBAddWorkspaceRequest{
 		Method: MethodDBAddWorkspace,
 		Token:  msf.GetToken(),
@@ -531,6 +535,9 @@ func (msf *MSFRPC) DBAddWorkspace(ctx context.Context, name string) error {
 
 // DBDelWorkspace is used to delete workspace by name.
 func (msf *MSFRPC) DBDelWorkspace(ctx context.Context, name string) error {
+	if name == "" {
+		return nil
+	}
 	request := DBDelWorkspaceRequest{
 		Method: MethodDBDelWorkspace,
 		Token:  msf.GetToken(),
@@ -557,6 +564,9 @@ func (msf *MSFRPC) DBDelWorkspace(ctx context.Context, name string) error {
 
 // DBSetWorkspace is used to set the current workspace.
 func (msf *MSFRPC) DBSetWorkspace(ctx context.Context, name string) error {
+	if name == "" {
+		return nil
+	}
 	request := DBSetWorkspaceRequest{
 		Method: MethodDBSetWorkspace,
 		Token:  msf.GetToken(),
@@ -606,6 +616,9 @@ func (msf *MSFRPC) DBCurrentWorkspace(ctx context.Context) (*DBCurrentWorkspaceR
 
 // DBImportData is used to import external data to the database.
 func (msf *MSFRPC) DBImportData(ctx context.Context, workspace, data string) error {
+	if len(data) == 0 {
+		return errors.New("no data")
+	}
 	if workspace == "" {
 		workspace = defaultWorkspace
 	}
