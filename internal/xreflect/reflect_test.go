@@ -40,3 +40,21 @@ func TestStructureToMap(t *testing.T) {
 	require.Equal(t, "aaa", m["name"])
 	require.Equal(t, "bbb", m["host"])
 }
+
+func TestStructureToMapWithoutZero(t *testing.T) {
+	s := struct {
+		Name string `msgpack:"name"`
+		Host string `msgpack:"host"`
+	}{
+		Name: "aaa",
+		Host: "",
+	}
+	// point
+	m := StructureToMapWithoutZero(&s, "msgpack")
+	require.Len(t, m, 1)
+	require.Equal(t, "aaa", m["name"])
+	// value
+	m = StructureToMapWithoutZero(s, "msgpack")
+	require.Len(t, m, 1)
+	require.Equal(t, "aaa", m["name"])
+}
