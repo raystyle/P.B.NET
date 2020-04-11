@@ -838,6 +838,33 @@ type DBCred struct {
 	UpdateAt    int64  `msgpack:"updated_at"`
 }
 
+// DBDelCredsRequest is used to delete credential.
+type DBDelCredsRequest struct {
+	Method  string
+	Token   string
+	Options map[string]interface{}
+}
+
+// DBDelCredsResult is the result of delete credential.
+type DBDelCredsResult struct {
+	Result  string       `msgpack:"result"`
+	Deleted []*DBDelCred `msgpack:"deleted"`
+	Creds   []*DBDelCred `msgpack:"creds"`
+	MSFError
+}
+
+// DBDelCred contains the information of deleted credential.
+type DBDelCred struct {
+	Host        string `msgpack:"host"`
+	Port        uint64 `msgpack:"port"`
+	Protocol    string `msgpack:"proto"`
+	ServiceName string `msgpack:"sname"`
+	Type        string `msgpack:"type"`
+	Username    string `msgpack:"user"`
+	Password    string `msgpack:"pass"`
+	UpdateAt    int64  `msgpack:"updated_at"`
+}
+
 // DBReportLootRequest is used to add a loot to database.
 type DBReportLootRequest struct {
 	Method  string

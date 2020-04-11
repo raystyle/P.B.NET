@@ -464,66 +464,6 @@ func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([
 	return result.Deleted, nil
 }
 
-// DBReportLoot is used to add a loot to database.
-func (msf *MSFRPC) DBReportLoot(ctx context.Context, loot *DBReportLoot) error {
-	lootCp := *loot
-	if lootCp.Workspace == "" {
-		lootCp.Workspace = defaultWorkspace
-	}
-	request := DBReportLootRequest{
-		Method:  MethodDBReportLoot,
-		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMapWithoutZero(&lootCp, structTag),
-	}
-	var result DBReportLootResult
-	err := msf.send(ctx, &request, &result)
-	if err != nil {
-		return err
-	}
-	if result.Err {
-		switch result.ErrorMessage {
-		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, lootCp.Workspace)
-		case ErrDBActiveRecord:
-			result.ErrorMessage = ErrDBActiveRecordFriendly
-		case ErrInvalidToken:
-			result.ErrorMessage = ErrInvalidTokenFriendly
-		}
-		return errors.WithStack(&result.MSFError)
-	}
-	return nil
-}
-
-// DBLoots is used to get loots by filter.
-func (msf *MSFRPC) DBLoots(ctx context.Context, opts *DBLootsOptions) ([]*DBLoot, error) {
-	optsCp := *opts
-	if optsCp.Workspace == "" {
-		optsCp.Workspace = defaultWorkspace
-	}
-	request := DBLootsRequest{
-		Method:  MethodDBLoots,
-		Token:   msf.GetToken(),
-		Options: xreflect.StructureToMap(&optsCp, structTag),
-	}
-	var result DBLootsResult
-	err := msf.send(ctx, &request, &result)
-	if err != nil {
-		return nil, err
-	}
-	if result.Err {
-		switch result.ErrorMessage {
-		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
-		case ErrDBActiveRecord:
-			result.ErrorMessage = ErrDBActiveRecordFriendly
-		case ErrInvalidToken:
-			result.ErrorMessage = ErrInvalidTokenFriendly
-		}
-		return nil, errors.WithStack(&result.MSFError)
-	}
-	return result.Loots, nil
-}
-
 // DBCreateCredential is used to create a credential.
 // func (msf *MSFRPC) DBCreateCredential(
 // 	ctx context.Context,
@@ -585,6 +525,97 @@ func (msf *MSFRPC) DBCreds(ctx context.Context, workspace string) ([]*DBCred, er
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Credentials, nil
+}
+
+// DBDelCreds is used to delete credentials with workspace.
+func (msf *MSFRPC) DBDelCreds(ctx context.Context, workspace string) ([]*DBDelCred, error) {
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
+	request := DBDelCredsRequest{
+		Method: MethodDBDelCreds,
+		Token:  msf.GetToken(),
+		Options: map[string]interface{}{
+			"workspace": workspace,
+		},
+	}
+	var result DBDelCredsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Creds, nil
+}
+
+// DBReportLoot is used to add a loot to database.
+func (msf *MSFRPC) DBReportLoot(ctx context.Context, loot *DBReportLoot) error {
+	lootCp := *loot
+	if lootCp.Workspace == "" {
+		lootCp.Workspace = defaultWorkspace
+	}
+	request := DBReportLootRequest{
+		Method:  MethodDBReportLoot,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMapWithoutZero(&lootCp, structTag),
+	}
+	var result DBReportLootResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, lootCp.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return errors.WithStack(&result.MSFError)
+	}
+	return nil
+}
+
+// DBLoots is used to get loots by filter.
+func (msf *MSFRPC) DBLoots(ctx context.Context, opts *DBLootsOptions) ([]*DBLoot, error) {
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
+	}
+	request := DBLootsRequest{
+		Method:  MethodDBLoots,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
+	}
+	var result DBLootsResult
+	err := msf.send(ctx, &request, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.Err {
+		switch result.ErrorMessage {
+		case ErrInvalidWorkspace:
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
+		case ErrDBActiveRecord:
+			result.ErrorMessage = ErrDBActiveRecordFriendly
+		case ErrInvalidToken:
+			result.ErrorMessage = ErrInvalidTokenFriendly
+		}
+		return nil, errors.WithStack(&result.MSFError)
+	}
+	return result.Loots, nil
 }
 
 // DBWorkspaces is used to get information about workspaces.
