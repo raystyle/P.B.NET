@@ -39,10 +39,10 @@ type Terminal struct {
 	input io.Writer
 
 	// status
-	cd   string
-	env  []string
-	cmd  *exec.Cmd
-	cmdM sync.Mutex
+	cd    string
+	env   []string
+	cmd   *exec.Cmd
+	cmdMu sync.Mutex
 
 	closeOnce sync.Once
 	wg        sync.WaitGroup
@@ -158,14 +158,14 @@ func (t *Terminal) readInputLoop() {
 }
 
 func (t *Terminal) setProcess(cmd *exec.Cmd) {
-	t.cmdM.Lock()
-	defer t.cmdM.Unlock()
+	t.cmdMu.Lock()
+	defer t.cmdMu.Unlock()
 	t.cmd = cmd
 }
 
 func (t *Terminal) getProcess() *exec.Cmd {
-	t.cmdM.Lock()
-	defer t.cmdM.Unlock()
+	t.cmdMu.Lock()
+	defer t.cmdMu.Unlock()
 	return t.cmd
 }
 

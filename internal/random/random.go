@@ -27,7 +27,7 @@ func init() {
 // Rand is used to generate random data.
 type Rand struct {
 	rand *rand.Rand
-	m    sync.Mutex
+	mu   sync.Mutex
 }
 
 // New is used to create a Rand.
@@ -97,8 +97,8 @@ func (r *Rand) String(n int) string {
 		return ""
 	}
 	result := make([]rune, n)
-	r.m.Lock()
-	defer r.m.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for i := 0; i < n; i++ {
 		ri := r.rand.Intn(90)
 		result[i] = rune(33 + ri)
@@ -111,8 +111,8 @@ func (r *Rand) Bytes(n int) []byte {
 	if n < 1 {
 		return nil
 	}
-	r.m.Lock()
-	defer r.m.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	result := make([]byte, n)
 	for i := 0; i < n; i++ {
 		ri := r.rand.Intn(256)
@@ -127,8 +127,8 @@ func (r *Rand) Cookie(n int) string {
 		return ""
 	}
 	result := make([]rune, n)
-	r.m.Lock()
-	defer r.m.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for i := 0; i < n; i++ {
 		// after space
 		ri := 33 + r.rand.Intn(90)
@@ -150,22 +150,22 @@ func (r *Rand) Int(n int) int {
 	if n < 1 {
 		return 0
 	}
-	r.m.Lock()
-	defer r.m.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.rand.Intn(n)
 }
 
 // Int64 returns a non-negative pseudo-random 63-bit integer as an int64.
 func (r *Rand) Int64() int64 {
-	r.m.Lock()
-	defer r.m.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.rand.Int63()
 }
 
 // Uint64 returns a pseudo-random 64-bit value as a uint64.
 func (r *Rand) Uint64() uint64 {
-	r.m.Lock()
-	defer r.m.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.rand.Uint64()
 }
 

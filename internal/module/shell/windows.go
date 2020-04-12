@@ -48,7 +48,7 @@ var (
 	// signalChan is used to confirm that has receive the interrupt signal
 	signalChan chan struct{}
 
-	globalMutex sync.Mutex
+	globalMu sync.Mutex
 )
 
 func init() {
@@ -67,8 +67,8 @@ func sendInterruptSignal(cmd *exec.Cmd) error {
 	if err != nil {
 		return err
 	}
-	globalMutex.Lock()
-	defer globalMutex.Unlock()
+	globalMu.Lock()
+	defer globalMu.Unlock()
 	var needAttach bool
 	// Detach self console for attach the process console
 	// https://docs.microsoft.com/en-us/windows/console/freeconsole

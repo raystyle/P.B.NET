@@ -101,8 +101,8 @@ func TestLoadSystemCert(t *testing.T) {
 func TestSystemCertPool_Windows(t *testing.T) {
 	// must set errSystemCert, other it will return a copy of cache
 	func() {
-		systemCertMutex.Lock()
-		defer systemCertMutex.Unlock()
+		systemCertMu.Lock()
+		defer systemCertMu.Unlock()
 		errSystemCert = errors.New("temp")
 	}()
 

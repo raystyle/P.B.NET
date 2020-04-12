@@ -21,7 +21,7 @@ func init() {
 type Memory struct {
 	rand    *random.Rand
 	padding map[string][]byte
-	mutex   sync.Mutex
+	mu      sync.Mutex
 }
 
 // NewMemory is used to create Memory
@@ -36,8 +36,8 @@ func NewMemory() *Memory {
 
 // Padding is used to padding memory
 func (m *Memory) Padding() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for i := 0; i < 16; i++ {
 		data := m.rand.Bytes(8 + m.rand.Int(256))
 		m.padding[m.rand.String(8)] = data
@@ -46,8 +46,8 @@ func (m *Memory) Padding() {
 
 // Flush is used to flush memory
 func (m *Memory) Flush() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.padding = make(map[string][]byte)
 }
 

@@ -33,7 +33,7 @@ type Conn struct {
 	// is not safe for use by multiple goroutines
 	//
 	// stream.Close() must not be called concurrently with Write()
-	sendMutex sync.Mutex
+	sendMu sync.Mutex
 
 	// only server connection need it
 	timeout    time.Duration
@@ -74,8 +74,8 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
-	c.sendMutex.Lock()
-	defer c.sendMutex.Unlock()
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
 	return c.stream.Write(b)
 }
 
@@ -84,8 +84,8 @@ func (c *Conn) Close() error {
 	c.acceptOnce.Do(func() {
 		c.acceptErr = ErrConnClosed
 	})
-	c.sendMutex.Lock()
-	defer c.sendMutex.Unlock()
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
 	if c.stream != nil {
 		_ = c.stream.Close()
 	}

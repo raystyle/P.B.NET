@@ -11,9 +11,9 @@ import (
 )
 
 var (
-	systemCert      []*x509.Certificate
-	errSystemCert   = errors.New("no system certificates")
-	systemCertMutex sync.Mutex
+	errSystemCert = errors.New("no system certificates")
+	systemCert    []*x509.Certificate
+	systemCertMu  sync.Mutex
 )
 
 // SystemCertPool is used to return system certificate pool.
@@ -21,8 +21,8 @@ var (
 // incorrect, because the CA "Root Agency" is for test.
 func SystemCertPool() (*x509.CertPool, error) {
 	var certs []*x509.Certificate
-	systemCertMutex.Lock()
-	defer systemCertMutex.Unlock()
+	systemCertMu.Lock()
+	defer systemCertMu.Unlock()
 	if errSystemCert == nil {
 		certs = make([]*x509.Certificate, len(systemCert))
 		copy(certs, systemCert)

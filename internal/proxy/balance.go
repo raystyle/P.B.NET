@@ -20,8 +20,8 @@ type Balance struct {
 	tag     string
 	clients []*Client // not nil
 
-	flags map[*Client]bool
-	mutex sync.Mutex
+	flags   map[*Client]bool
+	flagsMu sync.Mutex
 }
 
 // NewBalance is used to create a proxy client that with load balance.
@@ -46,8 +46,8 @@ func NewBalance(tag string, clients ...*Client) (*Balance, error) {
 }
 
 func (b *Balance) selectNextProxyClient() *Client {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
+	b.flagsMu.Lock()
+	defer b.flagsMu.Unlock()
 	for {
 		for client, used := range b.flags {
 			if !used {

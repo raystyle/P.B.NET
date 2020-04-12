@@ -141,7 +141,7 @@ func (m *Manager) Listen(remote *guid.GUID, timeout time.Duration, usage string)
 	m.rwm.Lock()
 	defer m.rwm.Unlock()
 
-	// select a random and doesn't exists port
+	// select a random and doesn't exist port
 	var port uint32
 	for {
 		port = uint32(1 + m.rand.Int(1<<32-1))

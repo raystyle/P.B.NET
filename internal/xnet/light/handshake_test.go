@@ -267,8 +267,8 @@ func TestConn_serverHandshake(t *testing.T) {
 
 				// must use mutex, because another goroutine
 				// execute curve25519.ScalarBaseMult
-				ipg   *monkey.PatchGuard
-				mutex sync.Mutex
+				ipg *monkey.PatchGuard
+				mu  sync.Mutex
 			)
 			patchFunc := func(in []byte) ([]byte, error) {
 				pg.Unpatch()
@@ -278,16 +278,16 @@ func TestConn_serverHandshake(t *testing.T) {
 				patchFunc := func([]byte, []byte) ([]byte, error) {
 					return nil, monkey.ErrMonkey
 				}
-				mutex.Lock()
-				defer mutex.Unlock()
+				mu.Lock()
+				defer mu.Unlock()
 				ipg = monkey.Patch(curve25519.ScalarMult, patchFunc)
 
 				return out, err
 			}
 			pg = monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
 			defer func() {
-				mutex.Lock()
-				defer mutex.Unlock()
+				mu.Lock()
+				defer mu.Unlock()
 				if ipg != nil {
 					ipg.Unpatch()
 				}

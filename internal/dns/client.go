@@ -439,7 +439,7 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 	c.DisableCache()
 	defer c.EnableCache()
 	results := make(map[string]struct{}) // remove duplicate result
-	resultsM := sync.Mutex{}
+	resultsMu := sync.Mutex{}
 	errChan := make(chan error, l)
 	for tag, server := range c.servers {
 		if server.SkipTest {
@@ -462,8 +462,8 @@ func (c *Client) TestServers(ctx context.Context, domain string, opts *Options) 
 				err = errors.WithMessagef(err, "failed to test server %s", tag)
 				return
 			}
-			resultsM.Lock()
-			defer resultsM.Unlock()
+			resultsMu.Lock()
+			defer resultsMu.Unlock()
 			for i := 0; i < len(result); i++ {
 				results[result[i]] = struct{}{}
 			}
