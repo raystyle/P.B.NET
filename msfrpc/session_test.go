@@ -2,6 +2,8 @@ package msfrpc
 
 import (
 	"context"
+	"io"
+	"os"
 	"runtime"
 	"strconv"
 	"testing"
@@ -777,6 +779,62 @@ func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
 			require.Nil(t, modules)
 		})
 	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestShell(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateShellSession(t, msfrpc, "55300")
+
+	shell := msfrpc.NewShell(id, interval)
+
+	go func() { _, _ = io.Copy(os.Stdout, shell) }()
+
+	var commands []string
+	switch runtime.GOOS {
+	case "windows":
+		commands = []string{
+			"whoami\r\n",
+			"dir\r\n",
+			"net user\r\n",
+			"ipconfig\r\n",
+		}
+	case "linux":
+		commands = []string{
+			"whoami\r\n",
+			"ls\r\n",
+			"ifconfig\r\n",
+		}
+	default:
+		t.Skip("only support windows and linux")
+	}
+
+	for _, command := range commands {
+		_, err = shell.Write([]byte(command))
+		require.NoError(t, err)
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	time.Sleep(time.Second)
+
+	err = shell.Kill()
+	require.NoError(t, err)
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)

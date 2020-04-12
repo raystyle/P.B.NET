@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -369,25 +370,23 @@ func (msf *MSFRPC) SessionCompatibleModules(ctx context.Context, id uint64) ([]s
 type Shell struct {
 	ctx *MSFRPC
 
-	id       string
+	id       uint64
 	interval time.Duration
 
-	logSrc   string
-	pr       *io.PipeReader
-	pw       *io.PipeWriter
-	writeMu  sync.Mutex
-	token    chan struct{}
-	closed   bool
-	closedMu sync.Mutex
+	logSrc  string
+	pr      *io.PipeReader
+	pw      *io.PipeWriter
+	writeMu sync.Mutex
 
-	context context.Context
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
+	context   context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
+	wg        sync.WaitGroup
 }
 
 // NewShell is used to create a graceful IO stream with shell id.
 // If appear some errors about network, you can use it to attach an exist shell session.
-func (msf *MSFRPC) NewShell(id string, interval time.Duration) *Shell {
+func (msf *MSFRPC) NewShell(id uint64, interval time.Duration) *Shell {
 	if interval < minReadInterval {
 		interval = minReadInterval
 	}
@@ -395,14 +394,12 @@ func (msf *MSFRPC) NewShell(id string, interval time.Duration) *Shell {
 		ctx:      msf,
 		id:       id,
 		interval: interval,
-		logSrc:   "msfrpc-shell-" + id,
-		token:    make(chan struct{}),
+		logSrc:   fmt.Sprintf("msfrpc-shell-%d", id),
 	}
 	shell.pr, shell.pw = io.Pipe()
 	shell.context, shell.cancel = context.WithCancel(context.Background())
-	shell.wg.Add(2)
+	shell.wg.Add(1)
 	go shell.reader()
-	go shell.writeLimiter()
 	return &shell
 }
 
@@ -438,35 +435,49 @@ func (shell *Shell) reader() {
 }
 
 func (shell *Shell) read() bool {
-	return false
+	result, err := shell.ctx.SessionRead(shell.context, shell.id, 0)
+	if err != nil {
+		return false
+	}
+	if len(result.Data) == 0 {
+		return true
+	}
+	shell.writeMu.Lock()
+	defer shell.writeMu.Unlock()
+	_, err = shell.pw.Write([]byte(result.Data))
+	return err == nil
 }
 
-func (shell *Shell) writeLimiter() {
-	defer func() {
-		if r := recover(); r != nil {
-			shell.log(logger.Fatal, xpanic.Print(r, "Shell.writeLimiter"))
-			// restart limiter
-			time.Sleep(time.Second)
-			go shell.writeLimiter()
-		} else {
-			shell.wg.Done()
-		}
-	}()
-	// don't use ticker otherwise read write will appear confusion.
-	interval := 2 * shell.interval
-	timer := time.NewTimer(interval)
-	defer timer.Stop()
-	for {
-		select {
-		case <-timer.C:
-			select {
-			case shell.token <- struct{}{}:
-			case <-shell.context.Done():
-				return
-			}
-		case <-shell.context.Done():
-			return
-		}
-		timer.Reset(interval)
+func (shell *Shell) Read(b []byte) (int, error) {
+	return shell.pr.Read(b)
+}
+
+func (shell *Shell) Write(b []byte) (int, error) {
+	shell.writeMu.Lock()
+	defer shell.writeMu.Unlock()
+	n, err := shell.ctx.SessionWrite(shell.context, shell.id, string(b))
+	return int(n), err
+}
+
+// Close is used to close reader, it will not kill the session.
+func (shell *Shell) Close() error {
+	shell.closeOnce.Do(shell.close)
+	return nil
+}
+
+func (shell *Shell) close() {
+	_ = shell.pw.Close()
+	_ = shell.pr.Close()
+	shell.cancel()
+	shell.wg.Wait()
+}
+
+// Kill is used to kill shell session.
+func (shell *Shell) Kill() error {
+	err := shell.ctx.SessionStop(shell.context, shell.id)
+	if err != nil {
+		return err
 	}
+	shell.closeOnce.Do(shell.close)
+	return nil
 }

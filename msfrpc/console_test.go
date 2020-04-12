@@ -872,7 +872,7 @@ func TestConsole_Detach(t *testing.T) {
 		"use exploit/multi/handler\r\n",
 		"set payload " + payload + "\r\n",
 		"set LHOST 127.0.0.1\r\n",
-		"set LPORT 50200\r\n",
+		"set LPORT 55200\r\n",
 		"set EXITFUNC thread\r\n",
 		"show options\r\n",
 		"exploit -z\r\n",
