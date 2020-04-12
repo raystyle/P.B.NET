@@ -30,8 +30,12 @@ type MSFRPC struct {
 	encoderPool sync.Pool
 	decoderPool sync.Pool
 
-	token string
-	rwm   sync.RWMutex
+	token    string
+	tokenRWM sync.RWMutex
+
+	// key = console ID(from result about call ConsoleCreate)
+	consoles    map[string]*Console
+	consolesRWM sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -81,6 +85,7 @@ func NewMSFRPC(
 		logger:   logger,
 		client:   &client,
 		token:    opts.Token,
+		consoles: make(map[string]*Console),
 	}
 	var scheme string
 	if opts.DisableTLS {
@@ -203,15 +208,15 @@ func (msf *MSFRPC) log(lv logger.Level, log ...interface{}) {
 
 // SetToken is used to set token to current client.
 func (msf *MSFRPC) SetToken(token string) {
-	msf.rwm.Lock()
-	defer msf.rwm.Unlock()
+	msf.tokenRWM.Lock()
+	defer msf.tokenRWM.Unlock()
 	msf.token = token
 }
 
 // GetToken is used to get token from current client.
 func (msf *MSFRPC) GetToken() string {
-	msf.rwm.RLock()
-	defer msf.rwm.RUnlock()
+	msf.tokenRWM.RLock()
+	defer msf.tokenRWM.RUnlock()
 	return msf.token
 }
 
@@ -237,7 +242,8 @@ func (msf *MSFRPC) Kill() {
 }
 
 func (msf *MSFRPC) clean() error {
-	// close all console
+	// close all consoles
+
 	return nil
 }
 

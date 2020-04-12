@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/logger"
 	"project/internal/xreflect"
 )
 
@@ -30,6 +31,7 @@ func (msf *MSFRPC) DBConnect(ctx context.Context, opts *DBConnectOptions) error 
 	if result.Result != "success" {
 		return errors.New("failed to connect database")
 	}
+	msf.logf(logger.Info, "connected database: %s:%d", opts.Host, opts.Port)
 	return msf.DBAddWorkspace(ctx, defaultWorkspace)
 }
 
@@ -50,6 +52,7 @@ func (msf *MSFRPC) DBDisconnect(ctx context.Context) error {
 		}
 		return errors.WithStack(&result.MSFError)
 	}
+	msf.log(logger.Info, "disconnect database")
 	return nil
 }
 

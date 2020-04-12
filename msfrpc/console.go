@@ -65,6 +65,7 @@ func (msf *MSFRPC) ConsoleCreate(ctx context.Context, workspace string) (*Consol
 		}
 		return nil, errors.WithStack(&result.MSFError)
 	}
+	msf.log(logger.Debug, "create console:", result.ID)
 	return &result, nil
 }
 
@@ -91,6 +92,7 @@ func (msf *MSFRPC) ConsoleDestroy(ctx context.Context, id string) error {
 	if result.Result != "success" {
 		return errors.New("invalid console id: " + id)
 	}
+	msf.log(logger.Debug, "destroy console:", id)
 	return nil
 }
 
@@ -210,8 +212,7 @@ func (msf *MSFRPC) ConsoleSessionKill(ctx context.Context, id string) error {
 	return nil
 }
 
-// Console is used to provide a more gracefully io.
-// it implemented io.ReadWriteCloser.
+// Console is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
 type Console struct {
 	ctx *MSFRPC
 
@@ -219,8 +220,9 @@ type Console struct {
 	interval time.Duration
 
 	logSrc  string
-	pipe    io.PipeReader
-	writeMu sync.RWMutex
+	pr      *io.PipeReader
+	pw      *io.PipeWriter
+	writeMu sync.Mutex
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -228,23 +230,36 @@ type Console struct {
 	wg        sync.WaitGroup
 }
 
-func newConsole(ctx *MSFRPC, id string, interval time.Duration) *Console {
+// NewConsole is used to create a console, it will create a new console(msfrpc).
+func (msf *MSFRPC) NewConsole(
+	ctx context.Context,
+	workspace string,
+	interval time.Duration,
+) (*Console, error) {
+	result, err := msf.ConsoleCreate(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	return msf.NewConsoleWithID(result.ID, interval), nil
+}
+
+// NewConsoleWithID is used to create a graceful IO stream with id.
+// If appear some error about network, you can use it to attach an exist console.
+func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console {
+	if interval < 50*time.Millisecond {
+		interval = 50 * time.Millisecond
+	}
 	console := Console{
-		ctx:      ctx,
+		ctx:      msf,
 		id:       id,
 		interval: interval,
 		logSrc:   "msfrpc-console-" + id,
 	}
-	// reader, writer := io.Pipe()
-
+	console.pr, console.pw = io.Pipe()
 	console.context, console.cancel = context.WithCancel(context.Background())
 	console.wg.Add(1)
 	go console.reader()
 	return &console
-}
-
-func (console *Console) logf(lv logger.Level, format string, log ...interface{}) {
-	console.ctx.logger.Printf(lv, console.logSrc, format, log...)
 }
 
 func (console *Console) log(lv logger.Level, log ...interface{}) {
@@ -282,36 +297,53 @@ func (console *Console) read() bool {
 	var (
 		result *ConsoleReadResult
 		err    error
+		locked bool
 	)
+	defer func() {
+		if locked {
+			console.writeMu.Unlock()
+		}
+	}()
 	for {
 		result, err = console.ctx.ConsoleRead(console.context, console.id)
 		if err != nil {
-			console.log(logger.Error, err)
+			return false
+		}
+		if len(result.Data) == 0 {
+			return true
+		}
+		if !locked {
+			console.writeMu.Lock()
+			locked = true
+		}
+		_, err = console.pw.Write([]byte(result.Data))
+		if err != nil {
 			return false
 		}
 		if result.Busy {
-
-		} else {
-
+			continue
 		}
-
+		_, err = console.pw.Write([]byte(result.Prompt))
+		return err == nil
 	}
-
-	return true
-}
-
-func (console *Console) writer() {
-
 }
 
 func (console *Console) Read(b []byte) (int, error) {
-	return 0, nil
+	return console.pr.Read(b)
 }
 
 func (console *Console) Write(b []byte) (int, error) {
-	return 0, nil
+	console.writeMu.Lock()
+	defer console.writeMu.Unlock()
+	n, err := console.ctx.ConsoleWrite(console.context, console.id, string(b))
+	if err != nil {
+		return int(n), err
+	}
+	// write to input data to output pipe
+	return console.pw.Write(b)
 }
 
+// Close is used to destroy console.
 func (console *Console) Close() error {
 	var err error
 	console.closeOnce.Do(func() {
@@ -319,6 +351,8 @@ func (console *Console) Close() error {
 		if err != nil {
 			return
 		}
+		_ = console.pw.Close()
+		_ = console.pr.Close()
 		console.cancel()
 		console.wg.Wait()
 	})

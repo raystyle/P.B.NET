@@ -2,6 +2,10 @@ package msfrpc
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -434,4 +438,79 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestConsole(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const (
+		workspace = ""
+		interval  = 50 * time.Millisecond
+	)
+
+	t.Run("common", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+		defer func() {
+			err := console.Close()
+			require.NoError(t, err)
+		}()
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(os.Stdout, console)
+		}()
+
+		for _, cmd := range []string{
+			"version\r\n",
+			"version\r\n",
+			"version\r\n",
+			"version\r\n",
+		} {
+			_, err = console.Write([]byte(cmd))
+			require.NoError(t, err)
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		// print new line
+		fmt.Println()
+		fmt.Println()
+
+		err = console.Close()
+		require.NoError(t, err)
+
+		wg.Wait()
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_NewConsole(t *testing.T) {
+
+}
+
+func TestConsole_Read(t *testing.T) {
+
+}
+
+func TestConsole_Write(t *testing.T) {
+
+}
+
+func TestConsole_Close(t *testing.T) {
+
 }
