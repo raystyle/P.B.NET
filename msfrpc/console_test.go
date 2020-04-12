@@ -515,9 +515,130 @@ func TestConsole_Write(t *testing.T) {
 }
 
 func TestConsole_Detach(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const (
+		workspace = ""
+		interval  = 25 * time.Millisecond
+	)
+
+	console, err := msfrpc.NewConsole(ctx, workspace, interval)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(os.Stdout, console)
+	}()
+
+	for _, command := range []string{
+		"version\r\n",
+		"use exploit/multi/handler\r\n",
+		"set payload windows/meterpreter/reverse_tcp\r\n",
+		"set LHOST 127.0.0.1\r\n",
+		"set LPORT 0\r\n",
+		"show options\r\n",
+		"exploit\r\n",
+	} {
+		_, err = console.Write([]byte(command))
+		require.NoError(t, err)
+	}
+
+	time.Sleep(time.Second)
+
+	err = console.Detach(ctx)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+
+	// print new line
+	fmt.Println()
+	fmt.Println()
+
+	err = console.Close()
+	require.NoError(t, err)
+	testsuite.IsDestroyed(t, console)
+
+	wg.Wait()
+
+	// clean jobs
+	list, err := msfrpc.JobList(ctx)
+	require.NoError(t, err)
+	for id := range list {
+		err = msfrpc.JobStop(ctx, id)
+		require.NoError(t, err)
+	}
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
 func TestConsole_Close(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const (
+		workspace = ""
+		interval  = 25 * time.Millisecond
+	)
+
+	t.Run("twice", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		err = console.Close()
+		require.NoError(t, err)
+		err = console.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, console)
+	})
+
+	t.Run("failed to destroy", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		err = msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+
+		err = console.Close()
+		require.Error(t, err)
+
+		err = console.Close()
+		require.Error(t, err)
+
+		// login and destroy
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = console.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, console)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }

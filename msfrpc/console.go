@@ -219,16 +219,17 @@ type Console struct {
 	id       string
 	interval time.Duration
 
-	logSrc  string
-	pr      *io.PipeReader
-	pw      *io.PipeWriter
-	writeMu sync.Mutex
-	token   chan struct{}
+	logSrc   string
+	pr       *io.PipeReader
+	pw       *io.PipeWriter
+	writeMu  sync.Mutex
+	token    chan struct{}
+	closed   bool
+	closedMu sync.Mutex
 
-	context   context.Context
-	cancel    context.CancelFunc
-	closeOnce sync.Once
-	wg        sync.WaitGroup
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 // NewConsole is used to create a console, it will create a new console(msfrpc).
@@ -282,7 +283,7 @@ func (console *Console) reader() {
 			console.wg.Done()
 		}
 	}()
-	// don't use ticker or read write will appear confusion.
+	// don't use ticker otherwise read write will appear confusion.
 	timer := time.NewTimer(console.interval)
 	defer timer.Stop()
 	for {
@@ -381,8 +382,8 @@ func (console *Console) writeLimiter() {
 			console.wg.Done()
 		}
 	}()
-	// don't use ticker or read write will appear confusion.
-	interval := 4 * console.interval
+	// don't use ticker otherwise read write will appear confusion.
+	interval := 2 * console.interval
 	timer := time.NewTimer(interval)
 	defer timer.Stop()
 	for {
@@ -405,12 +406,19 @@ func (console *Console) Read(b []byte) (int, error) {
 }
 
 func (console *Console) Write(b []byte) (int, error) {
+	// block before first call read()
 	select {
 	case <-console.token:
 	case <-console.context.Done():
 	}
 	console.writeMu.Lock()
 	defer console.writeMu.Unlock()
+	// if read() in busy and return, this lock will
+	// release at once, write will appear confusion.
+	select {
+	case <-console.token:
+	case <-console.context.Done():
+	}
 	n, err := console.ctx.ConsoleWrite(console.context, console.id, string(b))
 	if err != nil {
 		return int(n), err
@@ -431,16 +439,20 @@ func (console *Console) Interrupt(ctx context.Context) error {
 
 // Close is used to destroy console.
 func (console *Console) Close() error {
+	console.closedMu.Lock()
+	defer console.closedMu.Unlock()
+	if console.closed {
+		return nil
+	}
 	err := console.ctx.ConsoleDestroy(console.context, console.id)
 	if err != nil {
 		return err
 	}
-	console.closeOnce.Do(func() {
-		_ = console.pw.Close()
-		_ = console.pr.Close()
-		console.cancel()
-		console.wg.Wait()
-		close(console.token)
-	})
+	_ = console.pw.Close()
+	_ = console.pr.Close()
+	console.cancel()
+	console.wg.Wait()
+	close(console.token)
+	console.closed = true
 	return nil
 }
