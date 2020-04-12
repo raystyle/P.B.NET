@@ -412,6 +412,7 @@ func (console *Console) Write(b []byte) (int, error) {
 	select {
 	case <-console.token:
 	case <-console.context.Done():
+		return 0, console.context.Err()
 	}
 	console.writeMu.Lock()
 	defer console.writeMu.Unlock()
@@ -420,6 +421,7 @@ func (console *Console) Write(b []byte) (int, error) {
 	select {
 	case <-console.token:
 	case <-console.context.Done():
+		return 0, console.context.Err()
 	}
 	n, err := console.ctx.ConsoleWrite(console.context, console.id, string(b))
 	if err != nil {
