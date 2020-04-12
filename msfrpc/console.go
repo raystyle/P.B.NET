@@ -212,6 +212,8 @@ func (msf *MSFRPC) ConsoleSessionKill(ctx context.Context, id string) error {
 	return nil
 }
 
+const minReadInterval = 50 * time.Millisecond
+
 // Console is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
 type Console struct {
 	ctx *MSFRPC
@@ -248,8 +250,8 @@ func (msf *MSFRPC) NewConsole(
 // NewConsoleWithID is used to create a graceful IO stream with id.
 // If appear some error about network, you can use it to attach an exist console.
 func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console {
-	if interval < 50*time.Millisecond {
-		interval = 50 * time.Millisecond
+	if interval < minReadInterval {
+		interval = minReadInterval
 	}
 	console := Console{
 		ctx:      msf,

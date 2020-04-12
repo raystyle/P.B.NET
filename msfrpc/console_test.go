@@ -505,15 +505,119 @@ func TestConsole(t *testing.T) {
 }
 
 func TestMSFRPC_NewConsole(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+
+	console, err := msfrpc.NewConsole(context.Background(), "foo", 0)
+	require.Error(t, err)
+	require.Nil(t, console)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestConsole_Read(t *testing.T) {
+func TestConsole_reader(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const (
+		workspace = ""
+		interval  = 25 * time.Millisecond
+	)
+
+	t.Run("failed to read", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		time.Sleep(time.Second)
+
+		err = console.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		_, w := io.Pipe()
+		defer func() { _ = w.Close() }()
+
+		patchFunc := func(interface{}) bool {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(w, "Write", patchFunc)
+		defer pg.Unpatch()
+
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		time.Sleep(time.Second)
+
+		err = console.Close()
+		require.NoError(t, err)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestConsole_Write(t *testing.T) {
+func TestConsole_writeLimiter(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const (
+		workspace = ""
+		interval  = 25 * time.Millisecond
+	)
+
+	t.Run("failed to read", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		time.Sleep(minReadInterval)
+
+		err = console.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		defer func() {
+			require.Contains(t, recover(), "close of closed channel")
+		}()
+
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		time.Sleep(time.Second)
+
+		close(console.token)
+
+		err = console.Close()
+		require.NoError(t, err)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
 
 func TestConsole_Detach(t *testing.T) {
@@ -584,8 +688,6 @@ func TestConsole_Detach(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	time.Sleep(time.Second)
-
 	// generate payload and execute shellcode
 	payloadOpts := NewModuleExecuteOptions()
 	payloadOpts.Format = "raw"
@@ -600,7 +702,7 @@ func TestConsole_Detach(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	for _, command := range []string{
-		"sysinfo\r\n",
+		"sessions\r\n",
 	} {
 		_, err = console.Write([]byte(command))
 		require.NoError(t, err)
