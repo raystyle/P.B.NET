@@ -714,16 +714,15 @@ func TestConsole_writeLimiter(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		defer func() {
-			require.Contains(t, recover(), "close of closed channel")
-		}()
-
 		console, err := msfrpc.NewConsole(ctx, workspace, interval)
 		require.NoError(t, err)
 
 		time.Sleep(time.Second)
 
 		close(console.token)
+
+		// prevent select context
+		time.Sleep(time.Second)
 
 		err = console.Close()
 		require.NoError(t, err)
@@ -759,11 +758,8 @@ func TestConsole_Write(t *testing.T) {
 
 		go func() { _, _ = io.Copy(os.Stdout, console) }()
 
-		go func() {
-			time.Sleep(minReadInterval)
-			err := console.Close()
-			require.NoError(t, err)
-		}()
+		err = console.Close()
+		require.NoError(t, err)
 
 		_, err = console.Write([]byte("version"))
 		require.Equal(t, context.Canceled, err)
@@ -886,13 +882,13 @@ func TestConsole_Detach(t *testing.T) {
 	payloadOpts.Format = "raw"
 	payloadOpts.DataStore["EXITFUNC"] = "thread"
 	payloadOpts.DataStore["LHOST"] = "127.0.0.1"
-	payloadOpts.DataStore["LPORT"] = 50200
+	payloadOpts.DataStore["LPORT"] = 55200
 	pResult, err := msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
 	require.NoError(t, err)
 	sc := []byte(pResult.Payload)
 	// execute shellcode and wait some time
 	go func() { _ = shellcode.Execute("", sc) }()
-	time.Sleep(5 * time.Second)
+	time.Sleep(8 * time.Second)
 
 	for _, command := range []string{
 		"sessions\r\n",

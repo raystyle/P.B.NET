@@ -508,7 +508,6 @@ func (shell *Shell) close() {
 	_ = shell.pr.Close()
 	shell.cancel()
 	shell.wg.Wait()
-	close(shell.token)
 }
 
 // Kill is used to kill shell session.

@@ -456,7 +456,6 @@ func (console *Console) Close() error {
 	_ = console.pr.Close()
 	console.cancel()
 	console.wg.Wait()
-	close(console.token)
 	console.closed = true
 	return nil
 }

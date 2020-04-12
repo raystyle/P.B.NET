@@ -958,10 +958,6 @@ func TestShell_writeLimiter(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		defer func() {
-			require.Contains(t, recover(), "close of closed channel")
-		}()
-
 		shell := msfrpc.NewShell(id, interval)
 
 		go func() { _, _ = io.Copy(os.Stdout, shell) }()
@@ -969,6 +965,9 @@ func TestShell_writeLimiter(t *testing.T) {
 		time.Sleep(time.Second)
 
 		close(shell.token)
+
+		// prevent select context
+		time.Sleep(time.Second)
 
 		err = shell.Close()
 		require.NoError(t, err)
@@ -1014,11 +1013,8 @@ func TestShell_Write(t *testing.T) {
 
 	go func() { _, _ = io.Copy(os.Stdout, shell) }()
 
-	go func() {
-		time.Sleep(minReadInterval)
-		err := shell.Close()
-		require.NoError(t, err)
-	}()
+	err = shell.Close()
+	require.NoError(t, err)
 
 	_, err = shell.Write([]byte("whoami"))
 	require.Equal(t, context.Canceled, err)
