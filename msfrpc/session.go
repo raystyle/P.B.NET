@@ -140,11 +140,11 @@ func (msf *MSFRPC) SessionUpgrade(
 	wait time.Duration,
 ) (*ModuleExecuteResult, error) {
 	// get operating system
-	list, err := msf.SessionList(ctx)
+	sessions, err := msf.SessionList(ctx)
 	if err != nil {
 		return nil, err
 	}
-	info := list[id]
+	info := sessions[id]
 	if info == nil {
 		return nil, errors.Errorf("invalid session id: %d", id)
 	}

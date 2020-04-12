@@ -2,7 +2,6 @@ package msfrpc
 
 import (
 	"context"
-	"encoding/hex"
 	"runtime"
 	"strconv"
 	"testing"
@@ -78,8 +77,6 @@ func testCreateSession(t *testing.T, msfrpc *MSFRPC, typ, port string) uint64 {
 	pResult, err := msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
 	require.NoError(t, err)
 	sc := []byte(pResult.Payload)
-	t.Log("raw payload:", hex.EncodeToString(sc))
-
 	// execute shellcode and wait some time
 	go func() { _ = shellcode.Execute("", sc) }()
 	time.Sleep(5 * time.Second)

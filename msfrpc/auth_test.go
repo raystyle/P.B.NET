@@ -89,12 +89,12 @@ func TestMSFRPC_AuthTokenList(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		token := msfrpc.GetToken()
-		list, err := msfrpc.AuthTokenList(ctx)
+		tokens, err := msfrpc.AuthTokenList(ctx)
 		require.NoError(t, err)
 		var exist bool
-		for i := 0; i < len(list); i++ {
-			t.Log(list[i])
-			if token == list[i] {
+		for i := 0; i < len(tokens); i++ {
+			t.Log(tokens[i])
+			if token == tokens[i] {
 				exist = true
 			}
 		}
@@ -106,16 +106,16 @@ func TestMSFRPC_AuthTokenList(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		list, err := msfrpc.AuthTokenList(ctx)
+		tokens, err := msfrpc.AuthTokenList(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
-		require.Nil(t, list)
+		require.Nil(t, tokens)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			list, err := msfrpc.AuthTokenList(ctx)
+			tokens, err := msfrpc.AuthTokenList(ctx)
 			monkey.IsMonkeyError(t, err)
-			require.Nil(t, list)
+			require.Nil(t, tokens)
 		})
 	})
 

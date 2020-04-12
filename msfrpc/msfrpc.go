@@ -34,8 +34,8 @@ type MSFRPC struct {
 	tokenRWM sync.RWMutex
 
 	// key = console ID(from result about call ConsoleCreate)
-	consoles    map[string]*Console
-	consolesRWM sync.RWMutex
+	consoles map[string]*Console
+	// consolesRWM sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -138,7 +138,8 @@ func (msf *MSFRPC) sendWithReplace(ctx context.Context, request, response, repla
 	}
 	req.Header.Set("Content-Type", "binary/message-pack")
 	req.Header.Set("Accept", "binary/message-pack")
-	req.Header.Set("Accept-Charset", "UTF-8")
+	req.Header.Set("Accept-Charset", "utf-8")
+	req.Header.Set("Connection", "keep-alive")
 	// do
 	resp, err := msf.client.Do(req)
 	if err != nil {

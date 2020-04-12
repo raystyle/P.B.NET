@@ -58,9 +58,9 @@ func TestMSFRPC_JobList(t *testing.T) {
 			}
 		}
 
-		list, err := msfrpc.JobList(ctx)
+		jobs, err := msfrpc.JobList(ctx)
 		require.NoError(t, err)
-		for id, name := range list {
+		for id, name := range jobs {
 			t.Log(id, name)
 
 			err = msfrpc.JobStop(ctx, id)
@@ -76,16 +76,16 @@ func TestMSFRPC_JobList(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		list, err := msfrpc.JobList(ctx)
+		jobs, err := msfrpc.JobList(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
-		require.Nil(t, list)
+		require.Nil(t, jobs)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			list, err := msfrpc.JobList(ctx)
+			jobs, err := msfrpc.JobList(ctx)
 			monkey.IsMonkeyError(t, err)
-			require.Nil(t, list)
+			require.Nil(t, jobs)
 		})
 	})
 
@@ -138,9 +138,9 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 			}
 		}
 
-		list, err := msfrpc.JobList(ctx)
+		jobs, err := msfrpc.JobList(ctx)
 		require.NoError(t, err)
-		for id := range list {
+		for id := range jobs {
 			info, err := msfrpc.JobInfo(ctx, id)
 			require.NoError(t, err)
 			t.Log(info.Name)
@@ -234,9 +234,9 @@ func TestMSFRPC_JobStop(t *testing.T) {
 			}
 		}
 
-		list, err := msfrpc.JobList(ctx)
+		jobs, err := msfrpc.JobList(ctx)
 		require.NoError(t, err)
-		for id := range list {
+		for id := range jobs {
 			err = msfrpc.JobStop(ctx, id)
 			require.NoError(t, err)
 		}

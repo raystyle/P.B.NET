@@ -77,20 +77,20 @@ func TestMain(m *testing.M) {
 
 func testMainCheckSession(ctx context.Context, msfrpc *MSFRPC) bool {
 	var (
-		list map[uint64]*SessionInfo
-		err  error
+		sessions map[uint64]*SessionInfo
+		err      error
 	)
 	for i := 0; i < 30; i++ {
-		list, err = msfrpc.SessionList(ctx)
+		sessions, err = msfrpc.SessionList(ctx)
 		testsuite.CheckErrorInTestMain(err)
-		if len(list) == 0 {
+		if len(sessions) == 0 {
 			return false
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	fmt.Println("[warning] msfrpcd session leaks!")
 	const format = "id: %d type: %s remote: %s\n"
-	for id, session := range list {
+	for id, session := range sessions {
 		fmt.Printf(format, id, session.Type, session.TunnelPeer)
 	}
 	return true
@@ -119,66 +119,66 @@ func testMainCheckJob(ctx context.Context, msfrpc *MSFRPC) bool {
 
 func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
 	var (
-		list []*ConsoleInfo
-		err  error
+		consoles []*ConsoleInfo
+		err      error
 	)
 	for i := 0; i < 30; i++ {
-		list, err = msfrpc.ConsoleList(ctx)
+		consoles, err = msfrpc.ConsoleList(ctx)
 		testsuite.CheckErrorInTestMain(err)
-		if len(list) == 0 {
+		if len(consoles) == 0 {
 			return false
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	fmt.Println("[warning] msfrpcd console leaks!")
 	const format = "id: %s prompt: %s\n"
-	for i := 0; i < len(list); i++ {
-		fmt.Printf(format, list[i].ID, list[i].Prompt)
+	for i := 0; i < len(consoles); i++ {
+		fmt.Printf(format, consoles[i].ID, consoles[i].Prompt)
 	}
 	return true
 }
 
 func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
 	var (
-		list []string
-		err  error
+		tokens []string
+		err    error
 	)
 	for i := 0; i < 30; i++ {
-		list, err = msfrpc.AuthTokenList(ctx)
+		tokens, err = msfrpc.AuthTokenList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		// include self token
-		if len(list) == 1 {
+		if len(tokens) == 1 {
 			return false
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	fmt.Println("[warning] msfrpcd token leaks!")
-	for i := 0; i < len(list); i++ {
-		fmt.Println(list[i])
+	for i := 0; i < len(tokens); i++ {
+		fmt.Println(tokens[i])
 	}
 	return true
 }
 
 func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
 	var (
-		list map[uint64]*CoreThreadInfo
-		err  error
+		threads map[uint64]*CoreThreadInfo
+		err     error
 	)
 	for i := 0; i < 30; i++ {
-		list, err = msfrpc.CoreThreadList(ctx)
+		threads, err = msfrpc.CoreThreadList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		// TODO [external] msfrpcd thread leaks
 		// if you call SessionMeterpreterRead() or SessionMeterpreterWrite()
 		// when you exit meterpreter shell. this thread is always sleep.
 		// so deceive ourselves now.
-		for id, thread := range list {
+		for id, thread := range threads {
 			if thread.Name == "StreamMonitorRemote" {
-				delete(list, id)
+				delete(threads, id)
 			}
 		}
 		// 3 = internal(do noting)
 		// 9 = start sessions scheduler(5) and session manager(1)
-		l := len(list)
+		l := len(threads)
 		if l == 3 || l == 9 {
 			return false
 		}
@@ -186,7 +186,7 @@ func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
 	}
 	fmt.Println("[warning] msfrpcd thread leaks!")
 	const format = "id: %d\nname: %s\ncritical: %t\nstatus: %s\nstarted: %s\n\n"
-	for i, t := range list {
+	for i, t := range threads {
 		fmt.Printf(format, i, t.Name, t.Critical, t.Status, t.Started)
 	}
 	return true

@@ -162,9 +162,9 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		list, err := msfrpc.CoreThreadList(ctx)
+		threads, err := msfrpc.CoreThreadList(ctx)
 		require.NoError(t, err)
-		for id, info := range list {
+		for id, info := range threads {
 			t.Logf("id: %d\ninfo: %s\n", id, spew.Sdump(info))
 		}
 	})
@@ -174,16 +174,16 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		list, err := msfrpc.CoreThreadList(ctx)
+		threads, err := msfrpc.CoreThreadList(ctx)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
-		require.Nil(t, list)
+		require.Nil(t, threads)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			status, err := msfrpc.CoreThreadList(ctx)
+			threads, err := msfrpc.CoreThreadList(ctx)
 			monkey.IsMonkeyError(t, err)
-			require.Nil(t, status)
+			require.Nil(t, threads)
 		})
 	})
 
