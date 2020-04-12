@@ -702,7 +702,7 @@ func TestConsole_writeLimiter(t *testing.T) {
 		interval  = 25 * time.Millisecond
 	)
 
-	t.Run("failed to read", func(t *testing.T) {
+	t.Run("cancel", func(t *testing.T) {
 		console, err := msfrpc.NewConsole(ctx, workspace, interval)
 		require.NoError(t, err)
 

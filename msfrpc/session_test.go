@@ -802,6 +802,7 @@ func TestShell(t *testing.T) {
 
 	id := testCreateShellSession(t, msfrpc, "55300")
 	shell := msfrpc.NewShell(id, interval)
+
 	go func() { _, _ = io.Copy(os.Stdout, shell) }()
 
 	time.Sleep(time.Second)
@@ -872,6 +873,7 @@ func TestShell_reader(t *testing.T) {
 
 	t.Run("failed to read", func(t *testing.T) {
 		shell := msfrpc.NewShell(id, interval)
+
 		go func() { _, _ = io.Copy(os.Stdout, shell) }()
 
 		time.Sleep(2 * minReadInterval)
@@ -893,6 +895,7 @@ func TestShell_reader(t *testing.T) {
 		defer pg.Unpatch()
 
 		shell := msfrpc.NewShell(id, interval)
+
 		go func() { _, _ = io.Copy(os.Stdout, shell) }()
 
 		time.Sleep(time.Second)
@@ -906,6 +909,145 @@ func TestShell_reader(t *testing.T) {
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, shell)
 	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestShell_writeLimiter(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateShellSession(t, msfrpc, "55301")
+	defer func() {
+		// kill session(need create a new msfrpc client)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	}()
+
+	t.Run("cancel", func(t *testing.T) {
+		shell := msfrpc.NewShell(id, interval)
+
+		go func() { _, _ = io.Copy(os.Stdout, shell) }()
+
+		time.Sleep(minReadInterval)
+
+		err = shell.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, shell)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		defer func() {
+			require.Contains(t, recover(), "close of closed channel")
+		}()
+
+		shell := msfrpc.NewShell(id, interval)
+
+		go func() { _, _ = io.Copy(os.Stdout, shell) }()
+
+		time.Sleep(time.Second)
+
+		close(shell.token)
+
+		err = shell.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, shell)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestShell_Write(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateShellSession(t, msfrpc, "55301")
+	defer func() {
+		// kill session(need create a new msfrpc client)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	}()
+
+	shell := msfrpc.NewShell(id, interval)
+
+	go func() { _, _ = io.Copy(os.Stdout, shell) }()
+
+	go func() {
+		time.Sleep(minReadInterval)
+		err := shell.Close()
+		require.NoError(t, err)
+	}()
+
+	_, err = shell.Write([]byte("whoami"))
+	require.Equal(t, context.Canceled, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestShell_Kill(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	shell := msfrpc.NewShell(999, interval)
+	err = shell.Kill()
+	require.Error(t, err)
+	err = shell.Close()
+	require.NoError(t, err)
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
