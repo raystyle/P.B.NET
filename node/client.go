@@ -35,7 +35,7 @@ type Client struct {
 	rand      *random.Rand
 	heartbeat chan struct{}
 	inSync    int32
-	syncM     sync.Mutex
+	syncMu    sync.Mutex
 
 	closeOnce  sync.Once
 	stopSignal chan struct{}
@@ -205,8 +205,8 @@ func (client *Client) Connect() error {
 				client.Conn.Log(logger.Fatal, xpanic.Print(r, "client.HandleConn"))
 			}
 			// logoff forwarder
-			client.syncM.Lock()
-			defer client.syncM.Unlock()
+			client.syncMu.Lock()
+			defer client.syncMu.Unlock()
 			if client.isSync() {
 				client.ctx.forwarder.LogoffClient(client.GUID)
 			}
@@ -312,8 +312,8 @@ func (client *Client) onFrame(frame []byte) {
 
 // Synchronize is used to switch to synchronize mode.
 func (client *Client) Synchronize() error {
-	client.syncM.Lock()
-	defer client.syncM.Unlock()
+	client.syncMu.Lock()
+	defer client.syncMu.Unlock()
 	if client.isSync() {
 		return errors.New("already synchronize")
 	}

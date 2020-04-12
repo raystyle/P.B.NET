@@ -24,12 +24,12 @@ type Test struct {
 	ctx *Ctrl
 
 	// about role register request
-	nodeListeners         map[guid.GUID][]string
-	nodeListenersRWM      sync.RWMutex
-	NoticeNodeRegister    chan *NoticeNodeRegister
-	noticeNodeRegisterM   sync.Mutex
-	NoticeBeaconRegister  chan *NoticeBeaconRegister
-	noticeBeaconRegisterM sync.Mutex
+	nodeListeners          map[guid.GUID][]string
+	nodeListenersRWM       sync.RWMutex
+	NoticeNodeRegister     chan *NoticeNodeRegister
+	noticeNodeRegisterMu   sync.Mutex
+	NoticeBeaconRegister   chan *NoticeBeaconRegister
+	noticeBeaconRegisterMu sync.Mutex
 
 	// about sender send test message
 	roleSendMsgEnabled    bool
@@ -62,8 +62,8 @@ func (t *Test) log(lv logger.Level, log ...interface{}) {
 
 // EnableRegisterNode is used to create notice Node register channel.
 func (t *Test) EnableRegisterNode() bool {
-	t.noticeNodeRegisterM.Lock()
-	defer t.noticeNodeRegisterM.Unlock()
+	t.noticeNodeRegisterMu.Lock()
+	defer t.noticeNodeRegisterMu.Unlock()
 	if t.NoticeNodeRegister != nil {
 		return false
 	}
@@ -73,8 +73,8 @@ func (t *Test) EnableRegisterNode() bool {
 
 // EnableRegisterBeacon is used to create notice Beacon register channel.
 func (t *Test) EnableRegisterBeacon() bool {
-	t.noticeBeaconRegisterM.Lock()
-	defer t.noticeBeaconRegisterM.Unlock()
+	t.noticeBeaconRegisterMu.Lock()
+	defer t.noticeBeaconRegisterMu.Unlock()
 	if t.NoticeBeaconRegister != nil {
 		return false
 	}
@@ -184,8 +184,8 @@ func (t *Test) registerBeacon() {
 
 // AddNoticeNodeRegister is used to add notice Node register.
 func (t *Test) AddNoticeNodeRegister(ctx context.Context, nnr *NoticeNodeRegister) {
-	t.noticeNodeRegisterM.Lock()
-	defer t.noticeNodeRegisterM.Unlock()
+	t.noticeNodeRegisterMu.Lock()
+	defer t.noticeNodeRegisterMu.Unlock()
 	if t.NoticeNodeRegister == nil {
 		return
 	}
@@ -198,8 +198,8 @@ func (t *Test) AddNoticeNodeRegister(ctx context.Context, nnr *NoticeNodeRegiste
 
 // AddNoticeBeaconRegister is used to add notice Beacon register.
 func (t *Test) AddNoticeBeaconRegister(ctx context.Context, nbr *NoticeBeaconRegister) {
-	t.noticeBeaconRegisterM.Lock()
-	defer t.noticeBeaconRegisterM.Unlock()
+	t.noticeBeaconRegisterMu.Lock()
+	defer t.noticeBeaconRegisterMu.Unlock()
 	if t.NoticeBeaconRegister == nil {
 		return
 	}

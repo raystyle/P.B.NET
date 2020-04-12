@@ -1080,7 +1080,7 @@ type ctrlConn struct {
 	Conn *conn
 
 	inSync int32
-	syncM  sync.Mutex
+	syncMu sync.Mutex
 }
 
 func (server *server) serveCtrl(tag *guid.GUID, conn *xnet.Conn) {
@@ -1094,8 +1094,8 @@ func (server *server) serveCtrl(tag *guid.GUID, conn *xnet.Conn) {
 			cc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveCtrl"))
 		}
 		// logoff forwarder
-		cc.syncM.Lock()
-		defer cc.syncM.Unlock()
+		cc.syncMu.Lock()
+		defer cc.syncMu.Unlock()
 		if cc.isSync() {
 			server.ctx.forwarder.LogoffCtrl(tag)
 		}
@@ -1156,8 +1156,8 @@ func (ctrl *ctrlConn) onFrameBeforeSync(frame []byte) bool {
 }
 
 func (ctrl *ctrlConn) handleSyncStart(id []byte) {
-	ctrl.syncM.Lock()
-	defer ctrl.syncM.Unlock()
+	ctrl.syncMu.Lock()
+	defer ctrl.syncMu.Unlock()
 	if ctrl.isSync() {
 		return
 	}
@@ -1276,7 +1276,7 @@ type nodeConn struct {
 	Conn *conn
 
 	inSync int32
-	syncM  sync.Mutex
+	syncMu sync.Mutex
 }
 
 func (server *server) serveNode(tag *guid.GUID, conn *xnet.Conn, nodeGUID *guid.GUID) {
@@ -1290,8 +1290,8 @@ func (server *server) serveNode(tag *guid.GUID, conn *xnet.Conn, nodeGUID *guid.
 			nc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveNode"))
 		}
 		// logoff forwarder
-		nc.syncM.Lock()
-		defer nc.syncM.Unlock()
+		nc.syncMu.Lock()
+		defer nc.syncMu.Unlock()
 		if nc.isSync() {
 			server.ctx.forwarder.LogoffNode(nodeGUID)
 		}
@@ -1343,8 +1343,8 @@ func (node *nodeConn) onFrameBeforeSync(frame []byte) bool {
 }
 
 func (node *nodeConn) handleSyncStart(id []byte) {
-	node.syncM.Lock()
-	defer node.syncM.Unlock()
+	node.syncMu.Lock()
+	defer node.syncMu.Unlock()
 	if node.isSync() {
 		return
 	}
@@ -1470,7 +1470,7 @@ type beaconConn struct {
 	Conn *conn
 
 	inSync int32
-	syncM  sync.Mutex
+	syncMu sync.Mutex
 }
 
 func (server *server) serveBeacon(tag *guid.GUID, conn *xnet.Conn, beaconGUID *guid.GUID) {
@@ -1484,8 +1484,8 @@ func (server *server) serveBeacon(tag *guid.GUID, conn *xnet.Conn, beaconGUID *g
 			bc.Conn.Log(logger.Fatal, xpanic.Print(r, "server.serveBeacon"))
 		}
 		// logoff forwarder
-		bc.syncM.Lock()
-		defer bc.syncM.Unlock()
+		bc.syncMu.Lock()
+		defer bc.syncMu.Unlock()
 		if bc.isSync() {
 			server.ctx.forwarder.LogoffBeacon(beaconGUID)
 		}
@@ -1537,8 +1537,8 @@ func (beacon *beaconConn) onFrameBeforeSync(frame []byte) bool {
 }
 
 func (beacon *beaconConn) handleSyncStart(id []byte) {
-	beacon.syncM.Lock()
-	defer beacon.syncM.Unlock()
+	beacon.syncMu.Lock()
+	defer beacon.syncMu.Unlock()
 	if beacon.isSync() {
 		return
 	}

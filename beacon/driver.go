@@ -37,8 +37,8 @@ type driver struct {
 	sleepRandom atomic.Value
 
 	// interactive mode
-	interactive  atomic.Value
-	interactiveM sync.Mutex
+	interactive   atomic.Value
+	interactiveMu sync.Mutex
 
 	context context.Context
 	cancel  context.CancelFunc
@@ -149,14 +149,14 @@ func (driver *driver) GetSleepTime() (uint, uint) {
 }
 
 func (driver *driver) EnableInteractiveMode() {
-	driver.interactiveM.Lock()
-	defer driver.interactiveM.Unlock()
+	driver.interactiveMu.Lock()
+	defer driver.interactiveMu.Unlock()
 	driver.interactive.Store(true)
 }
 
 func (driver *driver) DisableInteractiveMode() error {
-	driver.interactiveM.Lock()
-	defer driver.interactiveM.Unlock()
+	driver.interactiveMu.Lock()
+	defer driver.interactiveMu.Unlock()
 	if !driver.IsInInteractiveMode() {
 		return errors.New("already disable interactive mode")
 	}

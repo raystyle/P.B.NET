@@ -558,8 +558,8 @@ type actionMgr struct {
 	timeout time.Duration
 
 	// key = guid.Hex()
-	actions  map[string]*action
-	actionsM sync.Mutex
+	actions   map[string]*action
+	actionsMu sync.Mutex
 
 	guid *guid.Generator
 
@@ -590,8 +590,8 @@ func (mgr *actionMgr) Store(object interface{}, timeout time.Duration) string {
 	}
 	id := mgr.guid.Get().Hex()
 	timestamp := mgr.ctx.global.Now().Unix()
-	mgr.actionsM.Lock()
-	defer mgr.actionsM.Unlock()
+	mgr.actionsMu.Lock()
+	defer mgr.actionsMu.Unlock()
 	mgr.actions[id] = &action{
 		object:    object,
 		timeout:   int64(timeout.Seconds()),
@@ -602,8 +602,8 @@ func (mgr *actionMgr) Store(object interface{}, timeout time.Duration) string {
 
 // Load is used to load action, it will delete action if it exists.
 func (mgr *actionMgr) Load(id string) (interface{}, error) {
-	mgr.actionsM.Lock()
-	defer mgr.actionsM.Unlock()
+	mgr.actionsMu.Lock()
+	defer mgr.actionsMu.Unlock()
 	if action, ok := mgr.actions[id]; ok {
 		delete(mgr.actions, id)
 		return action.object, nil
@@ -644,8 +644,8 @@ func (mgr *actionMgr) cleaner() {
 
 func (mgr *actionMgr) clean() {
 	now := mgr.ctx.global.Now().Unix()
-	mgr.actionsM.Lock()
-	defer mgr.actionsM.Unlock()
+	mgr.actionsMu.Lock()
+	defer mgr.actionsMu.Unlock()
 	newMap := make(map[string]*action, len(mgr.actions))
 	for id, action := range mgr.actions {
 		if convert.AbsInt64(now-action.timestamp) < action.timeout {

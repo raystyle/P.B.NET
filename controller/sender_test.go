@@ -164,7 +164,7 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 		}
 	}()
 	count := 0
-	countM := sync.Mutex{}
+	countMu := sync.Mutex{}
 	wg := sync.WaitGroup{}
 	wg.Add(number)
 	b.ReportAllocs()
@@ -177,9 +177,9 @@ func BenchmarkSender_Broadcast(b *testing.B) {
 				timer.Reset(3 * time.Second)
 				select {
 				case <-Nodes[index].Test.BroadcastMsg:
-					countM.Lock()
+					countMu.Lock()
 					count++
-					countM.Unlock()
+					countMu.Unlock()
 				case <-timer.C:
 					return
 				}

@@ -38,7 +38,7 @@ type Client struct {
 	slots     []*protocol.Slot
 	heartbeat chan struct{}
 	inSync    int32
-	syncM     sync.Mutex
+	syncMu    sync.Mutex
 
 	inClose    int32
 	closeOnce  sync.Once
@@ -436,8 +436,8 @@ func (client *Client) handleReply(reply []byte) {
 
 // Synchronize is used to switch to synchronize mode
 func (client *Client) Synchronize() error {
-	client.syncM.Lock()
-	defer client.syncM.Unlock()
+	client.syncMu.Lock()
+	defer client.syncMu.Unlock()
 	if client.isSync() {
 		return errors.New("already synchronize")
 	}
