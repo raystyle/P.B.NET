@@ -223,6 +223,7 @@ type Console struct {
 	pr      *io.PipeReader
 	pw      *io.PipeWriter
 	writeMu sync.Mutex
+	token   chan struct{}
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -254,11 +255,13 @@ func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console 
 		id:       id,
 		interval: interval,
 		logSrc:   "msfrpc-console-" + id,
+		token:    make(chan struct{}),
 	}
 	console.pr, console.pw = io.Pipe()
 	console.context, console.cancel = context.WithCancel(context.Background())
-	console.wg.Add(1)
+	console.wg.Add(2)
 	go console.reader()
+	go console.writeLimiter()
 	return &console
 }
 
@@ -279,7 +282,8 @@ func (console *Console) reader() {
 			console.wg.Done()
 		}
 	}()
-	timer := time.NewTicker(console.interval)
+	// don't use ticker or read write will appear confusion.
+	timer := time.NewTimer(console.interval)
 	defer timer.Stop()
 	for {
 		select {
@@ -290,18 +294,24 @@ func (console *Console) reader() {
 		case <-console.context.Done():
 			return
 		}
+		timer.Reset(console.interval)
 	}
 }
 
 func (console *Console) read() bool {
+	console.writeMu.Lock()
+	defer console.writeMu.Unlock()
+
 	var (
-		result *ConsoleReadResult
-		err    error
-		locked bool
+		result  *ConsoleReadResult
+		err     error
+		dataLen int
+		busy    bool
+		timer   *time.Timer
 	)
 	defer func() {
-		if locked {
-			console.writeMu.Unlock()
+		if timer != nil {
+			timer.Stop()
 		}
 	}()
 	for {
@@ -309,22 +319,84 @@ func (console *Console) read() bool {
 		if err != nil {
 			return false
 		}
-		if len(result.Data) == 0 {
+		dataLen = len(result.Data)
+		if result.Busy {
+			if dataLen == 0 {
+				// wait some time to read again when block
+				// like input "use exploit/multi/handler"
+				if timer == nil {
+					timer = time.NewTimer(console.interval)
+				} else {
+					timer.Reset(console.interval)
+				}
+				select {
+				case <-timer.C:
+				case <-console.context.Done():
+					return false
+				}
+				busy = true
+				continue
+			}
+			// write output
+			_, err = console.pw.Write([]byte(result.Data))
+			if err != nil {
+				return false
+			}
+			busy = true
+			continue
+		}
+		// check busy is changed idle.
+		if busy {
+			if dataLen != 0 {
+				_, err = console.pw.Write([]byte(result.Data))
+				if err != nil {
+					return false
+				}
+			}
+			_, err = console.pw.Write([]byte(result.Prompt))
+			return err == nil
+		}
+		// idle state
+		if dataLen == 0 {
 			return true
 		}
-		if !locked {
-			console.writeMu.Lock()
-			locked = true
-		}
+		// write output
 		_, err = console.pw.Write([]byte(result.Data))
 		if err != nil {
 			return false
 		}
-		if result.Busy {
-			continue
-		}
 		_, err = console.pw.Write([]byte(result.Prompt))
 		return err == nil
+	}
+}
+
+func (console *Console) writeLimiter() {
+	defer func() {
+		if r := recover(); r != nil {
+			console.log(logger.Fatal, xpanic.Print(r, "Console.writeLimiter"))
+			// restart limiter
+			time.Sleep(time.Second)
+			go console.writeLimiter()
+		} else {
+			console.wg.Done()
+		}
+	}()
+	// don't use ticker or read write will appear confusion.
+	interval := 4 * console.interval
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			select {
+			case console.token <- struct{}{}:
+			case <-console.context.Done():
+				return
+			}
+		case <-console.context.Done():
+			return
+		}
+		timer.Reset(interval)
 	}
 }
 
@@ -333,6 +405,10 @@ func (console *Console) Read(b []byte) (int, error) {
 }
 
 func (console *Console) Write(b []byte) (int, error) {
+	select {
+	case <-console.token:
+	case <-console.context.Done():
+	}
 	console.writeMu.Lock()
 	defer console.writeMu.Unlock()
 	n, err := console.ctx.ConsoleWrite(console.context, console.id, string(b))
@@ -343,18 +419,28 @@ func (console *Console) Write(b []byte) (int, error) {
 	return console.pw.Write(b)
 }
 
+// Detach is used to detach current console.
+func (console *Console) Detach(ctx context.Context) error {
+	return console.ctx.ConsoleSessionDetach(ctx, console.id)
+}
+
+// Interrupt is used to interrupt current console.
+func (console *Console) Interrupt(ctx context.Context) error {
+	return console.ctx.ConsoleSessionKill(ctx, console.id)
+}
+
 // Close is used to destroy console.
 func (console *Console) Close() error {
-	var err error
+	err := console.ctx.ConsoleDestroy(console.context, console.id)
+	if err != nil {
+		return err
+	}
 	console.closeOnce.Do(func() {
-		err = console.ctx.ConsoleDestroy(console.context, console.id)
-		if err != nil {
-			return
-		}
 		_ = console.pw.Close()
 		_ = console.pr.Close()
 		console.cancel()
 		console.wg.Wait()
+		close(console.token)
 	})
 	return nil
 }

@@ -374,15 +374,14 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 		t.Log(output.Data)
 
 		// start a handler
-		commands := []string{
+		for _, command := range []string{
 			"use exploit/multi/handler\r\n",
 			"set payload windows/meterpreter/reverse_tcp\r\n",
 			"set LHOST 127.0.0.1\r\n",
 			"set LPORT 0\r\n",
 			"show options\r\n",
 			"exploit\r\n",
-		}
-		for _, command := range commands {
+		} {
 			n, err := msfrpc.ConsoleWrite(ctx, console.ID, command)
 			require.NoError(t, err)
 			require.Equal(t, uint64(len(command)), n)
@@ -456,44 +455,48 @@ func TestConsole(t *testing.T) {
 
 	const (
 		workspace = ""
-		interval  = 50 * time.Millisecond
+		interval  = 25 * time.Millisecond
 	)
 
-	t.Run("common", func(t *testing.T) {
-		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+	console, err := msfrpc.NewConsole(ctx, workspace, interval)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(os.Stdout, console)
+	}()
+
+	for _, command := range []string{
+		"version\r\n",
+		"use exploit/multi/handler\r\n",
+		"set payload windows/meterpreter/reverse_tcp\r\n",
+		"set LHOST 127.0.0.1\r\n",
+		"set LPORT 0\r\n",
+		"show options\r\n",
+		"exploit\r\n",
+	} {
+		_, err = console.Write([]byte(command))
 		require.NoError(t, err)
-		defer func() {
-			err := console.Close()
-			require.NoError(t, err)
-		}()
+	}
 
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, _ = io.Copy(os.Stdout, console)
-		}()
+	time.Sleep(time.Second)
 
-		for _, cmd := range []string{
-			"version\r\n",
-			"version\r\n",
-			"version\r\n",
-			"version\r\n",
-		} {
-			_, err = console.Write([]byte(cmd))
-			require.NoError(t, err)
-			time.Sleep(100 * time.Millisecond)
-		}
+	err = console.Interrupt(ctx)
+	require.NoError(t, err)
 
-		// print new line
-		fmt.Println()
-		fmt.Println()
+	time.Sleep(time.Second)
 
-		err = console.Close()
-		require.NoError(t, err)
+	// print new line
+	fmt.Println()
+	fmt.Println()
 
-		wg.Wait()
-	})
+	err = console.Close()
+	require.NoError(t, err)
+	testsuite.IsDestroyed(t, console)
+
+	wg.Wait()
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
@@ -508,6 +511,10 @@ func TestConsole_Read(t *testing.T) {
 }
 
 func TestConsole_Write(t *testing.T) {
+
+}
+
+func TestConsole_Detach(t *testing.T) {
 
 }
 
