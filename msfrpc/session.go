@@ -377,6 +377,7 @@ type Shell struct {
 	pr      *io.PipeReader
 	pw      *io.PipeWriter
 	writeMu sync.Mutex
+	token   chan struct{}
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -395,11 +396,13 @@ func (msf *MSFRPC) NewShell(id uint64, interval time.Duration) *Shell {
 		id:       id,
 		interval: interval,
 		logSrc:   fmt.Sprintf("msfrpc-shell-%d", id),
+		token:    make(chan struct{}),
 	}
 	shell.pr, shell.pw = io.Pipe()
 	shell.context, shell.cancel = context.WithCancel(context.Background())
-	shell.wg.Add(1)
+	shell.wg.Add(2)
 	go shell.reader()
+	go shell.writeLimiter()
 	return &shell
 }
 
@@ -448,11 +451,46 @@ func (shell *Shell) read() bool {
 	return err == nil
 }
 
+func (shell *Shell) writeLimiter() {
+	defer func() {
+		if r := recover(); r != nil {
+			shell.log(logger.Fatal, xpanic.Print(r, "Shell.writeLimiter"))
+			// restart limiter
+			time.Sleep(time.Second)
+			go shell.writeLimiter()
+		} else {
+			shell.wg.Done()
+		}
+	}()
+	// don't use ticker otherwise read write will appear confusion.
+	interval := 2 * shell.interval
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			select {
+			case shell.token <- struct{}{}:
+			case <-shell.context.Done():
+				return
+			}
+		case <-shell.context.Done():
+			return
+		}
+		timer.Reset(interval)
+	}
+}
+
 func (shell *Shell) Read(b []byte) (int, error) {
 	return shell.pr.Read(b)
 }
 
 func (shell *Shell) Write(b []byte) (int, error) {
+	select {
+	case <-shell.token:
+	case <-shell.context.Done():
+		return 0, shell.context.Err()
+	}
 	shell.writeMu.Lock()
 	defer shell.writeMu.Unlock()
 	n, err := shell.ctx.SessionWrite(shell.context, shell.id, string(b))
@@ -470,6 +508,7 @@ func (shell *Shell) close() {
 	_ = shell.pr.Close()
 	shell.cancel()
 	shell.wg.Wait()
+	close(shell.token)
 }
 
 // Kill is used to kill shell session.
@@ -478,6 +517,5 @@ func (shell *Shell) Kill() error {
 	if err != nil {
 		return err
 	}
-	shell.closeOnce.Do(shell.close)
-	return nil
+	return shell.Close()
 }

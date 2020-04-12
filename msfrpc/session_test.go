@@ -801,10 +801,10 @@ func TestShell(t *testing.T) {
 	const interval = 25 * time.Millisecond
 
 	id := testCreateShellSession(t, msfrpc, "55300")
-
 	shell := msfrpc.NewShell(id, interval)
-
 	go func() { _, _ = io.Copy(os.Stdout, shell) }()
+
+	time.Sleep(time.Second)
 
 	var commands []string
 	switch runtime.GOOS {
@@ -828,13 +828,84 @@ func TestShell(t *testing.T) {
 	for _, command := range commands {
 		_, err = shell.Write([]byte(command))
 		require.NoError(t, err)
-		time.Sleep(200 * time.Millisecond)
 	}
 
 	time.Sleep(time.Second)
 
 	err = shell.Kill()
 	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestShell_reader(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateShellSession(t, msfrpc, "55301")
+	defer func() {
+		// kill session(need create a new msfrpc client)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	}()
+
+	t.Run("failed to read", func(t *testing.T) {
+		shell := msfrpc.NewShell(id, interval)
+		go func() { _, _ = io.Copy(os.Stdout, shell) }()
+
+		time.Sleep(2 * minReadInterval)
+		shell.cancel()
+
+		err = shell.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, shell)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		_, w := io.Pipe()
+		defer func() { _ = w.Close() }()
+
+		patchFunc := func(interface{}) bool {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(w, "Write", patchFunc)
+		defer pg.Unpatch()
+
+		shell := msfrpc.NewShell(id, interval)
+		go func() { _, _ = io.Copy(os.Stdout, shell) }()
+
+		time.Sleep(time.Second)
+
+		_, err = shell.Write([]byte("whoami\r\n"))
+		require.NoError(t, err)
+
+		time.Sleep(time.Second)
+
+		err = shell.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, shell)
+	})
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
