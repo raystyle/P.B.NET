@@ -247,8 +247,8 @@ func (msf *MSFRPC) NewConsole(
 	return msf.NewConsoleWithID(result.ID, interval), nil
 }
 
-// NewConsoleWithID is used to create a graceful IO stream with id.
-// If appear some error about network, you can use it to attach an exist console.
+// NewConsoleWithID is used to create a graceful IO stream with console id.
+// If appear some errors about network, you can use it to attach an exist console.
 func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console {
 	if interval < minReadInterval {
 		interval = minReadInterval

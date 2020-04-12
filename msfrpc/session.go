@@ -2,11 +2,16 @@ package msfrpc
 
 import (
 	"context"
+	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+
+	"project/internal/logger"
+	"project/internal/xpanic"
 )
 
 // SessionList is used to list all active sessions in the framework instance.
@@ -358,4 +363,110 @@ func (msf *MSFRPC) SessionCompatibleModules(ctx context.Context, id uint64) ([]s
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	return result.Modules, nil
+}
+
+// Shell is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
+type Shell struct {
+	ctx *MSFRPC
+
+	id       string
+	interval time.Duration
+
+	logSrc   string
+	pr       *io.PipeReader
+	pw       *io.PipeWriter
+	writeMu  sync.Mutex
+	token    chan struct{}
+	closed   bool
+	closedMu sync.Mutex
+
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
+}
+
+// NewShell is used to create a graceful IO stream with shell id.
+// If appear some errors about network, you can use it to attach an exist shell session.
+func (msf *MSFRPC) NewShell(id string, interval time.Duration) *Shell {
+	if interval < minReadInterval {
+		interval = minReadInterval
+	}
+	shell := Shell{
+		ctx:      msf,
+		id:       id,
+		interval: interval,
+		logSrc:   "msfrpc-shell-" + id,
+		token:    make(chan struct{}),
+	}
+	shell.pr, shell.pw = io.Pipe()
+	shell.context, shell.cancel = context.WithCancel(context.Background())
+	shell.wg.Add(2)
+	go shell.reader()
+	go shell.writeLimiter()
+	return &shell
+}
+
+func (shell *Shell) log(lv logger.Level, log ...interface{}) {
+	shell.ctx.logger.Println(lv, shell.logSrc, log...)
+}
+
+func (shell *Shell) reader() {
+	defer func() {
+		if r := recover(); r != nil {
+			shell.log(logger.Fatal, xpanic.Print(r, "Shell.reader"))
+			// restart reader
+			time.Sleep(time.Second)
+			go shell.reader()
+		} else {
+			shell.wg.Done()
+		}
+	}()
+	// don't use ticker otherwise read write will appear confusion.
+	timer := time.NewTimer(shell.interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			if !shell.read() {
+				return
+			}
+		case <-shell.context.Done():
+			return
+		}
+		timer.Reset(shell.interval)
+	}
+}
+
+func (shell *Shell) read() bool {
+	return false
+}
+
+func (shell *Shell) writeLimiter() {
+	defer func() {
+		if r := recover(); r != nil {
+			shell.log(logger.Fatal, xpanic.Print(r, "Shell.writeLimiter"))
+			// restart limiter
+			time.Sleep(time.Second)
+			go shell.writeLimiter()
+		} else {
+			shell.wg.Done()
+		}
+	}()
+	// don't use ticker otherwise read write will appear confusion.
+	interval := 2 * shell.interval
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			select {
+			case shell.token <- struct{}{}:
+			case <-shell.context.Done():
+				return
+			}
+		case <-shell.context.Done():
+			return
+		}
+		timer.Reset(interval)
+	}
 }
