@@ -659,7 +659,12 @@ func (mp *Meterpreter) Write(b []byte) (int, error) {
 
 // Detach is used to detach current meterpreter session.
 func (mp *Meterpreter) Detach(ctx context.Context) error {
-	return mp.ctx.SessionMeterpreterDetach(ctx, mp.id)
+	err := mp.ctx.SessionMeterpreterDetach(ctx, mp.id)
+	if err != nil {
+		return err
+	}
+	_, err = mp.pw.Write([]byte("\r\n\r\n"))
+	return err
 }
 
 // Interrupt is used to send interrupt to current meterpreter session.
@@ -668,7 +673,7 @@ func (mp *Meterpreter) Interrupt(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = mp.pw.Write([]byte("\r\n"))
+	_, err = mp.pw.Write([]byte("\r\n\r\n"))
 	return err
 }
 

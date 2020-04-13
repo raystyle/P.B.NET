@@ -81,7 +81,7 @@ func testCreateSession(t *testing.T, msfrpc *MSFRPC, typ, port string) uint64 {
 	sc := []byte(pResult.Payload)
 	// execute shellcode and wait some time
 	go func() { _ = shellcode.Execute("", sc) }()
-	time.Sleep(8 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// check session number
 	sessions, err := msfrpc.SessionList(ctx)
@@ -352,7 +352,7 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 		_, err = msfrpc.SessionUpgrade(ctx, id, host, port, nil, 0)
 		require.NoError(t, err)
 
-		time.Sleep(8 * time.Second)
+		time.Sleep(5 * time.Second)
 
 		// list session
 		sessions, err := msfrpc.SessionList(ctx)
@@ -1291,6 +1291,107 @@ func TestMeterpreter_Write(t *testing.T) {
 	require.Equal(t, context.Canceled, err)
 
 	testsuite.IsDestroyed(t, meterpreter)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMeterpreter_Detach(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateMeterpreterSession(t, msfrpc, "55404")
+	defer func() {
+		// kill session(need create a new msfrpc client)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	}()
+	time.Sleep(3 * time.Second)
+
+	t.Run("success", func(t *testing.T) {
+		meterpreter := msfrpc.NewMeterpreter(id, interval)
+
+		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+
+		_, err = meterpreter.Write([]byte("sysinfo"))
+		require.NoError(t, err)
+
+		_, err = meterpreter.Write([]byte("shell"))
+		require.NoError(t, err)
+
+		// wait shell open
+		time.Sleep(3 * time.Second)
+
+		var commands []string
+		switch runtime.GOOS {
+		case "windows":
+			commands = []string{
+				"whoami",
+				"dir",
+				"net user",
+				"ipconfig",
+			}
+		case "linux":
+			commands = []string{
+				"whoami",
+				"ls",
+				"ifconfig",
+			}
+		default:
+			t.Skip("only support windows and linux")
+		}
+		for _, command := range commands {
+			_, err = meterpreter.Write([]byte(command))
+			require.NoError(t, err)
+		}
+
+		time.Sleep(time.Second)
+
+		err = meterpreter.Detach(ctx)
+		require.NoError(t, err)
+
+		time.Sleep(time.Second)
+
+		// check is exist
+		_, err = meterpreter.Write([]byte("sysinfo"))
+		require.NoError(t, err)
+		time.Sleep(time.Second)
+
+		err = meterpreter.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, meterpreter)
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		meterpreter := msfrpc.NewMeterpreter(999, interval)
+
+		err = meterpreter.Detach(ctx)
+		require.Error(t, err)
+
+		err = meterpreter.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, meterpreter)
+	})
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
