@@ -518,3 +518,118 @@ func (shell *Shell) Kill() error {
 	}
 	return shell.Close()
 }
+
+// Meterpreter is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
+type Meterpreter struct {
+	ctx *MSFRPC
+
+	id       uint64
+	interval time.Duration
+
+	logSrc  string
+	pr      *io.PipeReader
+	pw      *io.PipeWriter
+	writeMu sync.Mutex
+	token   chan struct{}
+
+	context   context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
+	wg        sync.WaitGroup
+}
+
+// NewMeterpreter is used to create a graceful IO stream with meterpreter id.
+// If appear some errors about network, you can use it to attach an exist meterpreter session.
+func (msf *MSFRPC) NewMeterpreter(id uint64, interval time.Duration) *Meterpreter {
+	if interval < minReadInterval {
+		interval = minReadInterval
+	}
+	meterpreter := Meterpreter{
+		ctx:      msf,
+		id:       id,
+		interval: interval,
+		logSrc:   fmt.Sprintf("msfrpc-meterpreter-%d", id),
+		token:    make(chan struct{}),
+	}
+	meterpreter.pr, meterpreter.pw = io.Pipe()
+	meterpreter.context, meterpreter.cancel = context.WithCancel(context.Background())
+	meterpreter.wg.Add(2)
+	go meterpreter.reader()
+	go meterpreter.writeLimiter()
+	return &meterpreter
+}
+
+func (mp *Meterpreter) log(lv logger.Level, log ...interface{}) {
+	mp.ctx.logger.Println(lv, mp.logSrc, log...)
+}
+
+func (mp *Meterpreter) reader() {
+	defer func() {
+		if r := recover(); r != nil {
+			mp.log(logger.Fatal, xpanic.Print(r, "Shell.reader"))
+			// restart reader
+			time.Sleep(time.Second)
+			go mp.reader()
+		} else {
+			mp.wg.Done()
+		}
+	}()
+	// don't use ticker otherwise read write will appear confusion.
+	timer := time.NewTimer(mp.interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			if !mp.read() {
+				return
+			}
+		case <-mp.context.Done():
+			return
+		}
+		timer.Reset(mp.interval)
+	}
+}
+
+func (mp *Meterpreter) read() bool {
+	data, err := mp.ctx.SessionMeterpreterRead(mp.context, mp.id)
+	if err != nil {
+		return false
+	}
+	if len(data) == 0 {
+		return true
+	}
+	mp.writeMu.Lock()
+	defer mp.writeMu.Unlock()
+	_, err = mp.pw.Write([]byte(data))
+	return err == nil
+}
+
+func (mp *Meterpreter) writeLimiter() {
+	defer func() {
+		if r := recover(); r != nil {
+			mp.log(logger.Fatal, xpanic.Print(r, "Meterpreter.writeLimiter"))
+			// restart limiter
+			time.Sleep(time.Second)
+			go mp.writeLimiter()
+		} else {
+			mp.wg.Done()
+		}
+	}()
+	// don't use ticker otherwise read write will appear confusion.
+	interval := 2 * mp.interval
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			select {
+			case mp.token <- struct{}{}:
+			case <-mp.context.Done():
+				return
+			}
+		case <-mp.context.Done():
+			return
+		}
+		timer.Reset(interval)
+	}
+}
