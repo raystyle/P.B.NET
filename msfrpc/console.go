@@ -436,7 +436,7 @@ func (console *Console) Detach(ctx context.Context) error {
 	return console.ctx.ConsoleSessionDetach(ctx, console.id)
 }
 
-// Interrupt is used to interrupt current console.
+// Interrupt is used to send interrupt to current console.
 func (console *Console) Interrupt(ctx context.Context) error {
 	return console.ctx.ConsoleSessionKill(ctx, console.id)
 }

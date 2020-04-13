@@ -481,10 +481,12 @@ func (shell *Shell) writeLimiter() {
 	}
 }
 
+// Read is used to read output from shell session.
 func (shell *Shell) Read(b []byte) (int, error) {
 	return shell.pr.Read(b)
 }
 
+// Write is used to write command to shell session, it need add "\r\n".
 func (shell *Shell) Write(b []byte) (int, error) {
 	select {
 	case <-shell.token:
@@ -497,17 +499,20 @@ func (shell *Shell) Write(b []byte) (int, error) {
 	return int(n), err
 }
 
-// Close is used to close reader, it will not kill the session.
-func (shell *Shell) Close() error {
-	shell.closeOnce.Do(shell.close)
-	return nil
+// CompatibleModules is used to return a list of Post modules that compatible.
+func (shell *Shell) CompatibleModules(ctx context.Context) ([]string, error) {
+	return shell.ctx.SessionCompatibleModules(ctx, shell.id)
 }
 
-func (shell *Shell) close() {
-	_ = shell.pw.Close()
-	_ = shell.pr.Close()
-	shell.cancel()
-	shell.wg.Wait()
+// Close is used to close reader, it will not kill the shell session.
+func (shell *Shell) Close() error {
+	shell.closeOnce.Do(func() {
+		_ = shell.pw.Close()
+		_ = shell.pr.Close()
+		shell.cancel()
+		shell.wg.Wait()
+	})
+	return nil
 }
 
 // Kill is used to kill shell session.
@@ -632,4 +637,62 @@ func (mp *Meterpreter) writeLimiter() {
 		}
 		timer.Reset(interval)
 	}
+}
+
+// Read is used to read output form meterpreter session.
+func (mp *Meterpreter) Read(b []byte) (int, error) {
+	return mp.pr.Read(b)
+}
+
+// Write is used to write command to meterpreter session, it don't need add "\r\n".
+func (mp *Meterpreter) Write(b []byte) (int, error) {
+	select {
+	case <-mp.token:
+	case <-mp.context.Done():
+		return 0, mp.context.Err()
+	}
+	mp.writeMu.Lock()
+	defer mp.writeMu.Unlock()
+	err := mp.ctx.SessionMeterpreterWrite(mp.context, mp.id, string(b))
+	return len(b), err
+}
+
+// Detach is used to detach current meterpreter session.
+func (mp *Meterpreter) Detach(ctx context.Context) error {
+	return mp.ctx.SessionMeterpreterDetach(ctx, mp.id)
+}
+
+// Interrupt is used to send interrupt to current meterpreter session.
+func (mp *Meterpreter) Interrupt(ctx context.Context) error {
+	return mp.ctx.SessionMeterpreterKill(ctx, mp.id)
+}
+
+// RunSingle is used to run single command.
+func (mp *Meterpreter) RunSingle(ctx context.Context, cmd string) error {
+	return mp.ctx.SessionMeterpreterRunSingle(ctx, mp.id, cmd)
+}
+
+// CompatibleModules is used to return a list of Post modules that compatible.
+func (mp *Meterpreter) CompatibleModules(ctx context.Context) ([]string, error) {
+	return mp.ctx.SessionCompatibleModules(ctx, mp.id)
+}
+
+// Close is used to close reader, it will not kill the meterpreter session.
+func (mp *Meterpreter) Close() error {
+	mp.closeOnce.Do(func() {
+		_ = mp.pw.Close()
+		_ = mp.pr.Close()
+		mp.cancel()
+		mp.wg.Wait()
+	})
+	return nil
+}
+
+// Kill is used to kill meterpreter session.
+func (mp *Meterpreter) Kill() error {
+	err := mp.ctx.SessionStop(mp.context, mp.id)
+	if err != nil {
+		return err
+	}
+	return mp.Close()
 }

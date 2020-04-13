@@ -1048,3 +1048,7 @@ func TestShell_Kill(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMeterpreter(t *testing.T) {
+
+}
