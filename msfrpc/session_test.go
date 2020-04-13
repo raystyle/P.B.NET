@@ -1176,3 +1176,112 @@ func TestMeterpreter_reader(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMeterpreter_writeLimiter(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateMeterpreterSession(t, msfrpc, "55402")
+	defer func() {
+		// kill session(need create a new msfrpc client)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	}()
+
+	t.Run("cancel", func(t *testing.T) {
+		meterpreter := msfrpc.NewMeterpreter(id, interval)
+
+		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+
+		time.Sleep(minReadInterval)
+
+		err = meterpreter.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, meterpreter)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		meterpreter := msfrpc.NewMeterpreter(id, interval)
+
+		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+
+		time.Sleep(time.Second)
+
+		close(meterpreter.token)
+
+		// prevent select context
+		time.Sleep(time.Second)
+
+		err = meterpreter.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, meterpreter)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMeterpreter_Write(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateMeterpreterSession(t, msfrpc, "55403")
+	defer func() {
+		// kill session(need create a new msfrpc client)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	}()
+
+	meterpreter := msfrpc.NewMeterpreter(id, interval)
+
+	go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+
+	err = meterpreter.Close()
+	require.NoError(t, err)
+
+	_, err = meterpreter.Write([]byte("whoami"))
+	require.Equal(t, context.Canceled, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
