@@ -172,7 +172,8 @@ func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
 		// when you exit meterpreter shell. this thread is always sleep.
 		// so deceive ourselves now.
 		for id, thread := range threads {
-			if thread.Name == "StreamMonitorRemote" {
+			if thread.Name == "StreamMonitorRemote" ||
+				thread.Name == "MeterpreterRunSingle" {
 				delete(threads, id)
 			}
 		}

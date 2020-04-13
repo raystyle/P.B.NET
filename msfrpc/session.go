@@ -664,7 +664,12 @@ func (mp *Meterpreter) Detach(ctx context.Context) error {
 
 // Interrupt is used to send interrupt to current meterpreter session.
 func (mp *Meterpreter) Interrupt(ctx context.Context) error {
-	return mp.ctx.SessionMeterpreterKill(ctx, mp.id)
+	err := mp.ctx.SessionMeterpreterKill(ctx, mp.id)
+	if err != nil {
+		return err
+	}
+	_, err = mp.pw.Write([]byte("\r\n"))
+	return err
 }
 
 // RunSingle is used to run single command.
