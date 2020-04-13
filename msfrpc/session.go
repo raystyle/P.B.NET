@@ -571,7 +571,7 @@ func (mp *Meterpreter) log(lv logger.Level, log ...interface{}) {
 func (mp *Meterpreter) reader() {
 	defer func() {
 		if r := recover(); r != nil {
-			mp.log(logger.Fatal, xpanic.Print(r, "Shell.reader"))
+			mp.log(logger.Fatal, xpanic.Print(r, "Meterpreter.reader"))
 			// restart reader
 			time.Sleep(time.Second)
 			go mp.reader()

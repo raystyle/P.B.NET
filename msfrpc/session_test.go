@@ -833,8 +833,15 @@ func TestShell(t *testing.T) {
 
 	time.Sleep(time.Second)
 
+	modules, err := shell.CompatibleModules(ctx)
+	require.NoError(t, err)
+	for i := 0; i < len(modules); i++ {
+		t.Log(modules[i])
+	}
+
 	err = shell.Kill()
 	require.NoError(t, err)
+	testsuite.IsDestroyed(t, shell)
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
@@ -1050,5 +1057,122 @@ func TestShell_Kill(t *testing.T) {
 }
 
 func TestMeterpreter(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
 
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateMeterpreterSession(t, msfrpc, "55400")
+	meterpreter := msfrpc.NewMeterpreter(id, interval)
+
+	go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+
+	time.Sleep(time.Second)
+
+	for _, command := range []string{
+		"sysinfo",
+		"dir",
+	} {
+		_, err = meterpreter.Write([]byte(command))
+		require.NoError(t, err)
+	}
+
+	time.Sleep(time.Second)
+
+	modules, err := meterpreter.CompatibleModules(ctx)
+	require.NoError(t, err)
+	for i := 0; i < len(modules); i++ {
+		t.Log(modules[i])
+	}
+
+	err = meterpreter.Kill()
+	require.NoError(t, err)
+	testsuite.IsDestroyed(t, meterpreter)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMeterpreter_reader(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+
+	id := testCreateMeterpreterSession(t, msfrpc, "55401")
+	defer func() {
+		// kill session(need create a new msfrpc client)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	}()
+
+	t.Run("failed to read", func(t *testing.T) {
+		meterpreter := msfrpc.NewMeterpreter(id, interval)
+
+		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+
+		time.Sleep(2 * minReadInterval)
+		meterpreter.cancel()
+
+		err = meterpreter.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, meterpreter)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		_, w := io.Pipe()
+		defer func() { _ = w.Close() }()
+
+		patchFunc := func(interface{}) bool {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(w, "Write", patchFunc)
+		defer pg.Unpatch()
+
+		meterpreter := msfrpc.NewMeterpreter(id, interval)
+
+		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+
+		time.Sleep(time.Second)
+
+		_, err = meterpreter.Write([]byte("whoami"))
+		require.NoError(t, err)
+
+		time.Sleep(time.Second)
+
+		err = meterpreter.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, meterpreter)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
 }
