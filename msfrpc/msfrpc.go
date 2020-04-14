@@ -68,6 +68,17 @@ func NewMSFRPC(
 	if err != nil {
 		return nil, err
 	}
+	// cover options about max connection
+	if tr.MaxIdleConns < 1 {
+		tr.MaxIdleConns = 32
+	}
+	if tr.MaxIdleConnsPerHost < 1 {
+		tr.MaxIdleConnsPerHost = 32
+	}
+	if tr.MaxConnsPerHost < 1 {
+		tr.MaxConnsPerHost = 32
+	}
+	// tls
 	if !opts.TLSVerify {
 		tr.TLSClientConfig.InsecureSkipVerify = true
 	}
@@ -242,8 +253,13 @@ func (msf *MSFRPC) Kill() {
 	msf.close()
 }
 
+// TODO clean opened resource.
 func (msf *MSFRPC) clean() error {
 	// close all consoles
+
+	// close all shells
+
+	// close all meterpreters
 
 	return nil
 }
