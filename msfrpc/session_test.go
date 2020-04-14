@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"runtime"
 	"strconv"
@@ -950,6 +951,10 @@ func TestShell_writeLimiter(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
+
+	// force set for prevent net/http call time.Reset()
+	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
+
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
@@ -988,16 +993,28 @@ func TestShell_writeLimiter(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		shell := msfrpc.NewShell(id, interval)
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
 
-		go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
+		patchFunc := func(interface{}, time.Duration) bool {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(timer, "Reset", patchFunc)
+		defer pg.Unpatch()
+
+		shell := msfrpc.NewShell(id, interval)
 
 		time.Sleep(time.Second)
 
-		close(shell.token)
+		select {
+		case <-shell.token:
+		case <-time.After(time.Second):
+		}
 
 		// prevent select context
 		time.Sleep(time.Second)
+
+		pg.Unpatch()
 
 		err = shell.Close()
 		require.NoError(t, err)
@@ -1225,6 +1242,10 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
+
+	// force set for prevent net/http call time.Reset()
+	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
+
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
@@ -1263,16 +1284,28 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
 
-		go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
+		patchFunc := func(interface{}, time.Duration) bool {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(timer, "Reset", patchFunc)
+		defer pg.Unpatch()
+
+		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
 		time.Sleep(time.Second)
 
-		close(meterpreter.token)
+		select {
+		case <-meterpreter.token:
+		case <-time.After(time.Second):
+		}
 
 		// prevent select context
 		time.Sleep(time.Second)
+
+		pg.Unpatch()
 
 		err = meterpreter.Close()
 		require.NoError(t, err)

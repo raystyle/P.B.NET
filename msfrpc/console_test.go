@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"runtime"
 	"testing"
@@ -689,6 +690,10 @@ func TestConsole_writeLimiter(t *testing.T) {
 
 	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
+
+	// force set for prevent net/http call time.Reset()
+	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
+
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
@@ -714,15 +719,29 @@ func TestConsole_writeLimiter(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
+
+		patchFunc := func(interface{}, time.Duration) bool {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(timer, "Reset", patchFunc)
+		defer pg.Unpatch()
+
 		console, err := msfrpc.NewConsole(ctx, workspace, interval)
 		require.NoError(t, err)
 
 		time.Sleep(time.Second)
 
-		close(console.token)
+		select {
+		case <-console.token:
+		case <-time.After(time.Second):
+		}
 
 		// prevent select context
 		time.Sleep(time.Second)
+
+		pg.Unpatch()
 
 		err = console.Close()
 		require.NoError(t, err)
