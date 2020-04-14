@@ -1,11 +1,15 @@
 package msfrpc
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -784,6 +788,16 @@ func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+// if print buf, program will crash, so we write to file.
+func testSessionPrintOutput(t *testing.T, buf *bytes.Buffer) {
+	_ = os.Mkdir("../temp", 0750)
+	_ = os.Mkdir("../temp/test", 0750)
+	name := strings.ReplaceAll(t.Name(), "/", "_")
+	file := "../temp/test/msfrpc_" + name + ".log"
+	err := ioutil.WriteFile(file, buf.Bytes(), 0600)
+	require.NoError(t, err)
+}
+
 func TestShell(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -803,7 +817,13 @@ func TestShell(t *testing.T) {
 	id := testCreateShellSession(t, msfrpc, "55300")
 	shell := msfrpc.NewShell(id, interval)
 
-	go func() { _, _ = io.Copy(os.Stdout, shell) }()
+	buf := new(bytes.Buffer)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(buf, shell)
+	}()
 
 	time.Sleep(time.Second)
 
@@ -841,6 +861,10 @@ func TestShell(t *testing.T) {
 	err = shell.Kill()
 	require.NoError(t, err)
 	testsuite.IsDestroyed(t, shell)
+
+	wg.Wait()
+
+	testSessionPrintOutput(t, buf)
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
@@ -880,7 +904,7 @@ func TestShell_reader(t *testing.T) {
 	t.Run("failed to read", func(t *testing.T) {
 		shell := msfrpc.NewShell(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, shell) }()
+		go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
 		time.Sleep(2 * minReadInterval)
 		shell.cancel()
@@ -902,7 +926,7 @@ func TestShell_reader(t *testing.T) {
 
 		shell := msfrpc.NewShell(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, shell) }()
+		go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
 		time.Sleep(time.Second)
 
@@ -954,7 +978,7 @@ func TestShell_writeLimiter(t *testing.T) {
 	t.Run("cancel", func(t *testing.T) {
 		shell := msfrpc.NewShell(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, shell) }()
+		go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
 		time.Sleep(minReadInterval)
 
@@ -966,7 +990,7 @@ func TestShell_writeLimiter(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		shell := msfrpc.NewShell(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, shell) }()
+		go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
 		time.Sleep(time.Second)
 
@@ -1017,7 +1041,7 @@ func TestShell_Write(t *testing.T) {
 
 	shell := msfrpc.NewShell(id, interval)
 
-	go func() { _, _ = io.Copy(os.Stdout, shell) }()
+	go func() { _, _ = io.Copy(ioutil.Discard, shell) }()
 
 	err = shell.Close()
 	require.NoError(t, err)
@@ -1078,7 +1102,13 @@ func TestMeterpreter(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55400")
 	meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-	go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+	buf := new(bytes.Buffer)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(buf, meterpreter)
+	}()
 
 	time.Sleep(time.Second)
 
@@ -1106,6 +1136,10 @@ func TestMeterpreter(t *testing.T) {
 	err = meterpreter.Kill()
 	require.NoError(t, err)
 	testsuite.IsDestroyed(t, meterpreter)
+
+	wg.Wait()
+
+	testSessionPrintOutput(t, buf)
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
@@ -1145,7 +1179,7 @@ func TestMeterpreter_reader(t *testing.T) {
 	t.Run("failed to read", func(t *testing.T) {
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+		go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
 		time.Sleep(2 * minReadInterval)
 		meterpreter.cancel()
@@ -1167,7 +1201,7 @@ func TestMeterpreter_reader(t *testing.T) {
 
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+		go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
 		time.Sleep(time.Second)
 
@@ -1219,7 +1253,7 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 	t.Run("cancel", func(t *testing.T) {
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+		go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
 		time.Sleep(minReadInterval)
 
@@ -1231,7 +1265,7 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+		go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
 		time.Sleep(time.Second)
 
@@ -1282,7 +1316,7 @@ func TestMeterpreter_Write(t *testing.T) {
 
 	meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-	go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+	go func() { _, _ = io.Copy(ioutil.Discard, meterpreter) }()
 
 	err = meterpreter.Close()
 	require.NoError(t, err)
@@ -1331,7 +1365,13 @@ func TestMeterpreter_Detach(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+		buf := new(bytes.Buffer)
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(buf, meterpreter)
+		}()
 
 		_, err = meterpreter.Write([]byte("sysinfo"))
 		require.NoError(t, err)
@@ -1380,6 +1420,10 @@ func TestMeterpreter_Detach(t *testing.T) {
 		err = meterpreter.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, meterpreter)
+
+		wg.Wait()
+
+		testSessionPrintOutput(t, buf)
 	})
 
 	t.Run("failed", func(t *testing.T) {
@@ -1431,7 +1475,13 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-		go func() { _, _ = io.Copy(os.Stdout, meterpreter) }()
+		buf := new(bytes.Buffer)
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(buf, meterpreter)
+		}()
 
 		_, err = meterpreter.Write([]byte("sysinfo"))
 		require.NoError(t, err)
@@ -1480,6 +1530,10 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 		err = meterpreter.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, meterpreter)
+
+		wg.Wait()
+
+		testSessionPrintOutput(t, buf)
 	})
 
 	t.Run("failed", func(t *testing.T) {
