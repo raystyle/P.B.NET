@@ -153,6 +153,7 @@ func TestMonitor_tokensMonitor(t *testing.T) {
 	t.Run("tokens", func(t *testing.T) {
 		callbacks := Callbacks{OnToken: func(token string, add bool) {}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
@@ -192,6 +193,13 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 	}
 
 	t.Run("add", func(t *testing.T) {
+		// add a job before start monitor for first watch
+		firstJobID := addJob()
+		defer func() {
+			err = msfrpc.JobStop(ctx, firstJobID)
+			require.NoError(t, err)
+		}()
+
 		var (
 			sID     string
 			sName   string
@@ -269,6 +277,69 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 		require.Equal(t, jobID, sID)
 		require.False(t, sActive)
 		t.Log(sID, sName)
+	})
+
+	t.Run("failed to watch", func(t *testing.T) {
+		callbacks := Callbacks{OnJob: func(id, name string, active bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthLogin()
+			require.NoError(t, err)
+		}()
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		callbacks := Callbacks{OnToken: func(token string, add bool) {
+			panic("test panic")
+		}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		jobID := addJob()
+		defer func() {
+			err = msfrpc.JobStop(ctx, jobID)
+			require.NoError(t, err)
+		}()
+
+		// wait call OnJob and panic
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("jobs", func(t *testing.T) {
+		jobID := addJob()
+		defer func() {
+			err = msfrpc.JobStop(ctx, jobID)
+			require.NoError(t, err)
+		}()
+
+		callbacks := Callbacks{OnJob: func(id, name string, active bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		time.Sleep(3 * minWatchInterval)
+
+		jobs := monitor.Jobs()
+		require.Len(t, jobs, 1)
+		var cJobID string
+		for id := range jobs {
+			cJobID = id
+		}
+		require.Equal(t, jobID, cJobID)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
 	})
 
 	msfrpc.Kill()

@@ -123,7 +123,7 @@ func (monitor *Monitor) watchTokens() {
 		}
 		return
 	}
-	// check deleted token
+	// check deleted tokens
 loop:
 	for token := range monitor.tokens {
 		for i := 0; i < l; i++ {
@@ -134,7 +134,7 @@ loop:
 		delete(monitor.tokens, token)
 		monitor.callbacks.OnToken(token, false)
 	}
-	// check added token
+	// check added tokens
 	for i := 0; i < l; i++ {
 		if _, ok := monitor.tokens[tokens[i]]; !ok {
 			monitor.tokens[tokens[i]] = struct{}{}
@@ -182,7 +182,7 @@ func (monitor *Monitor) watchJobs() {
 		}
 		return
 	}
-	// check stopped job
+	// check stopped jobs
 loop:
 	for oID, oName := range monitor.jobs {
 		for id := range jobs {
@@ -193,7 +193,7 @@ loop:
 		delete(monitor.jobs, oID)
 		monitor.callbacks.OnJob(oID, oName, false)
 	}
-	// check active job
+	// check active jobs
 	for id, name := range jobs {
 		if _, ok := monitor.jobs[id]; !ok {
 			monitor.jobs[id] = name
