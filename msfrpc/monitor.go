@@ -26,8 +26,12 @@ type Monitor struct {
 	callbacks *Callbacks
 	interval  time.Duration
 
-	tokens map[string]struct{} // key = token
-	jobs   map[string]string   // key = job id, value = job name
+	// key = token
+	tokens    map[string]struct{}
+	tokensRWM sync.RWMutex
+	// key = id, value = name
+	jobs    map[string]string
+	jobsRWM sync.RWMutex
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -51,6 +55,29 @@ func (msf *MSFRPC) NewMonitor(callbacks *Callbacks, interval time.Duration) *Mon
 	go monitor.jobsMonitor()
 	go monitor.sessionsMonitor()
 	return monitor
+}
+
+// Tokens is used to get current tokens.
+func (monitor *Monitor) Tokens() []string {
+	monitor.tokensRWM.RLock()
+	defer monitor.tokensRWM.RUnlock()
+	l := len(monitor.tokens)
+	tokens := make([]string, 0, l)
+	for token := range monitor.tokens {
+		tokens = append(tokens, token)
+	}
+	return tokens
+}
+
+// Jobs is used to get current jobs, key = id, value = name.
+func (monitor *Monitor) Jobs() map[string]string {
+	monitor.jobsRWM.RLock()
+	defer monitor.jobsRWM.RUnlock()
+	jobs := make(map[string]string, len(monitor.jobs))
+	for id, name := range monitor.jobs {
+		jobs[id] = name
+	}
+	return jobs
 }
 
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
@@ -86,6 +113,8 @@ func (monitor *Monitor) watchTokens() {
 		return
 	}
 	l := len(tokens)
+	monitor.tokensRWM.Lock()
+	defer monitor.tokensRWM.Unlock()
 	// initialize map and skip first compare
 	if monitor.tokens == nil {
 		monitor.tokens = make(map[string]struct{}, l)
@@ -143,6 +172,8 @@ func (monitor *Monitor) watchJobs() {
 		return
 	}
 	l := len(jobs)
+	monitor.jobsRWM.Lock()
+	defer monitor.jobsRWM.Unlock()
 	// initialize map and skip first compare
 	if monitor.jobs == nil {
 		monitor.jobs = make(map[string]string, l)

@@ -150,6 +150,19 @@ func TestMonitor_tokensMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 	})
 
+	t.Run("tokens", func(t *testing.T) {
+		callbacks := Callbacks{OnToken: func(token string, add bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		tokens := monitor.Tokens()
+		require.Equal(t, []string{msfrpc.GetToken()}, tokens)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -214,6 +227,47 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 		defer mu.Unlock()
 		require.Equal(t, jobID, sID)
 		require.True(t, sActive)
+		t.Log(sID, sName)
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		var (
+			sID     string
+			sName   string
+			sActive bool
+			mu      sync.Mutex
+		)
+		callbacks := Callbacks{OnJob: func(id, name string, active bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			sID = id
+			sName = name
+			sActive = active
+		}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		jobID := addJob()
+
+		// wait watch active jobs
+		time.Sleep(3 * minWatchInterval)
+
+		// wait watch stopped jobs
+		err = msfrpc.JobStop(ctx, jobID)
+		require.NoError(t, err)
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		// check result
+		mu.Lock()
+		defer mu.Unlock()
+		require.Equal(t, jobID, sID)
+		require.False(t, sActive)
 		t.Log(sID, sName)
 	})
 
