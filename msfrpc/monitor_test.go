@@ -109,6 +109,46 @@ func TestMonitor_tokensMonitor(t *testing.T) {
 		require.False(t, sAdd)
 	})
 
+	t.Run("failed to watch", func(t *testing.T) {
+		callbacks := Callbacks{OnToken: func(token string, add bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthLogin()
+			require.NoError(t, err)
+		}()
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		callbacks := Callbacks{OnToken: func(token string, add bool) {
+			panic("test panic")
+		}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		err = msfrpc.AuthTokenAdd(ctx, token)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthTokenRemove(ctx, token)
+			require.NoError(t, err)
+		}()
+
+		// wait call OnToken and panic
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }

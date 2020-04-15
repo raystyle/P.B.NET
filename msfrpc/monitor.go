@@ -167,9 +167,9 @@ func (monitor *Monitor) watchSessions() {
 }
 
 // StartDatabaseMonitors is used to start monitors about database.
-func (monitor *Monitor) StartDatabaseMonitors() {
-
-}
+// func (monitor *Monitor) StartDatabaseMonitors() {
+//
+// }
 
 // Close is used to close monitor.
 func (monitor *Monitor) Close() {
