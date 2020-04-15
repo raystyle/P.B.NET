@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// JobList is used to list current jobs, key = job id and  value = job name.
+// JobList is used to list current jobs, key = job id and value = job name.
 func (msf *MSFRPC) JobList(ctx context.Context) (map[string]string, error) {
 	request := JobListRequest{
 		Method: MethodJobList,

@@ -13,7 +13,8 @@ const minWatchInterval = 100 * time.Millisecond
 
 // Callbacks contains about all callback functions.
 type Callbacks struct {
-	OnToken func(token string, add bool)
+	OnToken func(token string, add bool)       // add or delete
+	OnJob   func(id, name string, active bool) // active or stopped
 }
 
 // Monitor is used to monitor changes about token list(security), jobs and sessions.
@@ -25,7 +26,8 @@ type Monitor struct {
 	callbacks *Callbacks
 	interval  time.Duration
 
-	tokens map[string]struct{}
+	tokens map[string]struct{} // key = token
+	jobs   map[string]string   // key = job id, value = job name
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -85,7 +87,7 @@ func (monitor *Monitor) watchTokens() {
 	}
 	l := len(tokens)
 	// initialize map and skip first compare
-	if len(monitor.tokens) == 0 {
+	if monitor.tokens == nil {
 		monitor.tokens = make(map[string]struct{}, l)
 		for i := 0; i < l; i++ {
 			monitor.tokens[tokens[i]] = struct{}{}
@@ -136,7 +138,37 @@ func (monitor *Monitor) jobsMonitor() {
 }
 
 func (monitor *Monitor) watchJobs() {
-
+	jobs, err := monitor.ctx.JobList(monitor.context)
+	if err != nil {
+		return
+	}
+	l := len(jobs)
+	// initialize map and skip first compare
+	if monitor.jobs == nil {
+		monitor.jobs = make(map[string]string, l)
+		for id, name := range jobs {
+			monitor.jobs[id] = name
+		}
+		return
+	}
+	// check stopped job
+loop:
+	for oID, oName := range monitor.jobs {
+		for id := range jobs {
+			if id == oID {
+				continue loop
+			}
+		}
+		delete(monitor.jobs, oID)
+		monitor.callbacks.OnJob(oID, oName, false)
+	}
+	// check active job
+	for id, name := range jobs {
+		if _, ok := monitor.jobs[id]; !ok {
+			monitor.jobs[id] = name
+			monitor.callbacks.OnJob(id, name, true)
+		}
+	}
 }
 
 func (monitor *Monitor) sessionsMonitor() {
