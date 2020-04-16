@@ -59,7 +59,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
 
-		// check result
+		// compare result
 		mu.Lock()
 		defer mu.Unlock()
 		require.Equal(t, token, sToken)
@@ -230,7 +230,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
 
-		// check result
+		// compare result
 		mu.Lock()
 		defer mu.Unlock()
 		require.Equal(t, jobID, sID)
@@ -408,7 +408,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
 
-		// check result
+		// compare result
 		mu.Lock()
 		defer mu.Unlock()
 		require.Equal(t, id, sID)
@@ -542,23 +542,58 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
 
-	const interval = 25 * time.Millisecond
-	// ctx := context.Background()
+	const (
+		interval  = 25 * time.Millisecond
+		workspace = ""
+	)
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
 
 	t.Run("add", func(t *testing.T) {
-		callbacks := Callbacks{
-			OnHost: func(host *DBHost, add bool) {
+		// must delete or not new host
+		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
 
+		var (
+			sWorkspace string
+			sHost      *DBHost
+			sAdd       bool
+			mu         sync.Mutex
+		)
+		callbacks := Callbacks{
+			OnHost: func(workspace string, host *DBHost, add bool) {
+				mu.Lock()
+				defer mu.Unlock()
+				sWorkspace = workspace
+				sHost = host
+				sAdd = add
 			},
 		}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 		monitor.StartDatabaseMonitors()
 
-		// wait first
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// add host
+		err := msfrpc.DBReportHost(ctx, testDBHost)
+		require.NoError(t, err)
+		defer func() {
+			_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+			require.NoError(t, err)
+		}()
+
+		// wait watch
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
+
+		// compare result
+		require.Equal(t, defaultWorkspace, sWorkspace)
+		require.Equal(t, testDBHost.Name, sHost.Name)
+		require.True(t, sAdd)
 	})
 
 	msfrpc.Kill()

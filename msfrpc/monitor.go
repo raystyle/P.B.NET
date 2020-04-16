@@ -2,7 +2,7 @@ package msfrpc
 
 import (
 	"context"
-	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -24,7 +24,7 @@ type Callbacks struct {
 	OnSession func(id uint64, info *SessionInfo, opened bool)
 
 	// add or delete
-	OnHost func(host *DBHost, add bool)
+	OnHost func(workspace string, host *DBHost, add bool)
 }
 
 // Monitor is used to monitor changes about token list(security), jobs and sessions.
@@ -45,6 +45,9 @@ type Monitor struct {
 	// key = id
 	sessions    map[uint64]*SessionInfo
 	sessionsRWM sync.RWMutex
+	// key = host information
+	hosts    map[*DBHost]struct{}
+	hostsRWM sync.RWMutex
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -149,14 +152,14 @@ func (monitor *Monitor) watchToken() {
 	}
 	// check deleted tokens
 loop:
-	for token := range monitor.tokens {
+	for oToken := range monitor.tokens {
 		for i := 0; i < l; i++ {
-			if tokens[i] == token {
+			if tokens[i] == oToken {
 				continue loop
 			}
 		}
-		delete(monitor.tokens, token)
-		monitor.callbacks.OnToken(token, false)
+		delete(monitor.tokens, oToken)
+		monitor.callbacks.OnToken(oToken, false)
 	}
 	// check added tokens
 	for i := 0; i < l; i++ {
@@ -255,6 +258,7 @@ func (monitor *Monitor) watchSession() {
 	// initialize map and skip first compare
 	if monitor.sessions == nil {
 		monitor.sessions = sessions
+		return
 	}
 	// check closed sessions
 loop:
@@ -322,7 +326,39 @@ func (monitor *Monitor) watchHostWithWorkspace(workspace string) {
 	if err != nil {
 		return
 	}
-	fmt.Println(hosts)
+	l := len(hosts)
+	monitor.hostsRWM.Lock()
+	defer monitor.hostsRWM.Unlock()
+	// initialize map and skip first compare
+	if monitor.hosts == nil {
+		monitor.hosts = make(map[*DBHost]struct{}, l)
+		for i := 0; i < l; i++ {
+			monitor.hosts[hosts[i]] = struct{}{}
+		}
+		return
+	}
+	// check deleted hosts
+loopDel:
+	for oHost := range monitor.hosts {
+		for i := 0; i < l; i++ {
+			if reflect.DeepEqual(hosts[i], oHost) {
+				continue loopDel
+			}
+		}
+		delete(monitor.hosts, oHost)
+		monitor.callbacks.OnHost(workspace, oHost, false)
+	}
+	// check added hosts
+loopAdd:
+	for i := 0; i < l; i++ {
+		for oHost := range monitor.hosts {
+			if reflect.DeepEqual(oHost, hosts[i]) {
+				continue loopAdd
+			}
+		}
+		monitor.hosts[hosts[i]] = struct{}{}
+		monitor.callbacks.OnHost(workspace, hosts[i], true)
+	}
 }
 
 func (monitor *Monitor) serviceMonitor() {
