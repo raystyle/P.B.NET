@@ -273,9 +273,93 @@ loop:
 }
 
 // StartDatabaseMonitors is used to start monitors about database.
-// func (monitor *Monitor) StartDatabaseMonitors() {
-//
-// }
+func (monitor *Monitor) StartDatabaseMonitors() {
+	monitor.wg.Add(3)
+	go monitor.hostsMonitor()
+	go monitor.servicesMonitor()
+	go monitor.clientsMonitor()
+}
+
+func (monitor *Monitor) hostsMonitor() {
+	defer func() {
+		if r := recover(); r != nil {
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.hostsMonitor"))
+			// restart monitor
+			time.Sleep(time.Second)
+			go monitor.hostsMonitor()
+		} else {
+			monitor.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(monitor.interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			monitor.watchHosts()
+		case <-monitor.context.Done():
+			return
+		}
+	}
+}
+
+func (monitor *Monitor) watchHosts() {
+
+}
+
+func (monitor *Monitor) servicesMonitor() {
+	defer func() {
+		if r := recover(); r != nil {
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.servicesMonitor"))
+			// restart monitor
+			time.Sleep(time.Second)
+			go monitor.servicesMonitor()
+		} else {
+			monitor.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(monitor.interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			monitor.watchServices()
+		case <-monitor.context.Done():
+			return
+		}
+	}
+}
+
+func (monitor *Monitor) watchServices() {
+
+}
+
+func (monitor *Monitor) clientsMonitor() {
+	defer func() {
+		if r := recover(); r != nil {
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.clientsMonitor"))
+			// restart monitor
+			time.Sleep(time.Second)
+			go monitor.clientsMonitor()
+		} else {
+			monitor.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(monitor.interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			monitor.watchClients()
+		case <-monitor.context.Done():
+			return
+		}
+	}
+}
+
+func (monitor *Monitor) watchClients() {
+
+}
 
 // Close is used to close monitor.
 func (monitor *Monitor) Close() {
