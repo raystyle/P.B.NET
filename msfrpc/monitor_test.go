@@ -192,7 +192,7 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 		return strconv.FormatUint(result.JobID, 10)
 	}
 
-	t.Run("add", func(t *testing.T) {
+	t.Run("active", func(t *testing.T) {
 		// add a job before start monitor for first watch
 		firstJobID := addJob()
 		defer func() {
@@ -340,6 +340,85 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMonitor_sessionsMonitor(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+	ctx := context.Background()
+
+	t.Run("first session", func(t *testing.T) {
+		id := testCreateShellSession(t, msfrpc, "55500")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
+		callbacks := Callbacks{
+			OnJob:     func(id, name string, active bool) {},
+			OnSession: func(id uint64, info *SessionInfo, opened bool) {},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("opened", func(t *testing.T) {
+		var (
+			sID     uint64
+			sOpened bool
+			mu      sync.Mutex
+		)
+		callbacks := Callbacks{
+			OnJob: func(id, name string, active bool) {},
+			OnSession: func(id uint64, info *SessionInfo, opened bool) {
+				mu.Lock()
+				defer mu.Unlock()
+				sID = id
+				sOpened = opened
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		id := testCreateShellSession(t, msfrpc, "55501")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
+
+		// wait watch
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		// check result
+		mu.Lock()
+		defer mu.Unlock()
+		require.Equal(t, id, sID)
+		require.True(t, sOpened)
+		t.Log(sID)
+	})
+
+	t.Run("closed", func(t *testing.T) {
+
 	})
 
 	msfrpc.Kill()

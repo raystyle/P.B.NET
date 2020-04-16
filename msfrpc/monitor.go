@@ -13,8 +13,14 @@ const minWatchInterval = 100 * time.Millisecond
 
 // Callbacks contains about all callback functions.
 type Callbacks struct {
-	OnToken func(token string, add bool)       // add or delete
-	OnJob   func(id, name string, active bool) // active or stopped
+	// add or delete
+	OnToken func(token string, add bool)
+
+	// active or stopped
+	OnJob func(id, name string, active bool)
+
+	// opened or closed
+	OnSession func(id uint64, info *SessionInfo, opened bool)
 }
 
 // Monitor is used to monitor changes about token list(security), jobs and sessions.
@@ -32,6 +38,9 @@ type Monitor struct {
 	// key = id, value = name
 	jobs    map[string]string
 	jobsRWM sync.RWMutex
+	// key = id
+	sessions    map[uint64]*SessionInfo
+	sessionsRWM sync.RWMutex
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -171,15 +180,11 @@ func (monitor *Monitor) watchJobs() {
 	if err != nil {
 		return
 	}
-	l := len(jobs)
 	monitor.jobsRWM.Lock()
 	defer monitor.jobsRWM.Unlock()
 	// initialize map and skip first compare
 	if monitor.jobs == nil {
-		monitor.jobs = make(map[string]string, l)
-		for id, name := range jobs {
-			monitor.jobs[id] = name
-		}
+		monitor.jobs = jobs
 		return
 	}
 	// check stopped jobs
@@ -226,7 +231,34 @@ func (monitor *Monitor) sessionsMonitor() {
 }
 
 func (monitor *Monitor) watchSessions() {
-
+	sessions, err := monitor.ctx.SessionList(monitor.context)
+	if err != nil {
+		return
+	}
+	monitor.sessionsRWM.Lock()
+	defer monitor.sessionsRWM.Unlock()
+	// initialize map and skip first compare
+	if monitor.sessions == nil {
+		monitor.sessions = sessions
+	}
+	// check closed sessions
+loop:
+	for oID, oInfo := range monitor.sessions {
+		for id := range sessions {
+			if id == oID {
+				continue loop
+			}
+		}
+		delete(monitor.sessions, oID)
+		monitor.callbacks.OnSession(oID, oInfo, false)
+	}
+	// check opened sessions
+	for id, info := range sessions {
+		if _, ok := monitor.sessions[id]; !ok {
+			monitor.sessions[id] = info
+			monitor.callbacks.OnSession(id, info, true)
+		}
+	}
 }
 
 // StartDatabaseMonitors is used to start monitors about database.
