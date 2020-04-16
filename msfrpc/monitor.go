@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -21,6 +22,9 @@ type Callbacks struct {
 
 	// opened or closed
 	OnSession func(id uint64, info *SessionInfo, opened bool)
+
+	// add or delete
+	OnHost func(host *DBHost, add bool)
 }
 
 // Monitor is used to monitor changes about token list(security), jobs and sessions.
@@ -60,9 +64,9 @@ func (msf *MSFRPC) NewMonitor(callbacks *Callbacks, interval time.Duration) *Mon
 	}
 	monitor.context, monitor.cancel = context.WithCancel(context.Background())
 	monitor.wg.Add(3)
-	go monitor.tokensMonitor()
-	go monitor.jobsMonitor()
-	go monitor.sessionsMonitor()
+	go monitor.tokenMonitor()
+	go monitor.jobMonitor()
+	go monitor.sessionMonitor()
 	return monitor
 }
 
@@ -104,13 +108,13 @@ func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
 	monitor.ctx.logger.Println(lv, "msfrpc-monitor", log...)
 }
 
-func (monitor *Monitor) tokensMonitor() {
+func (monitor *Monitor) tokenMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.tokensMonitor"))
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.tokenMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
-			go monitor.tokensMonitor()
+			go monitor.tokenMonitor()
 		} else {
 			monitor.wg.Done()
 		}
@@ -120,14 +124,14 @@ func (monitor *Monitor) tokensMonitor() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.watchTokens()
+			monitor.watchToken()
 		case <-monitor.context.Done():
 			return
 		}
 	}
 }
 
-func (monitor *Monitor) watchTokens() {
+func (monitor *Monitor) watchToken() {
 	tokens, err := monitor.ctx.AuthTokenList(monitor.context)
 	if err != nil {
 		return
@@ -163,13 +167,13 @@ loop:
 	}
 }
 
-func (monitor *Monitor) jobsMonitor() {
+func (monitor *Monitor) jobMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.jobsMonitor"))
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.jobMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
-			go monitor.jobsMonitor()
+			go monitor.jobMonitor()
 		} else {
 			monitor.wg.Done()
 		}
@@ -179,14 +183,14 @@ func (monitor *Monitor) jobsMonitor() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.watchJobs()
+			monitor.watchJob()
 		case <-monitor.context.Done():
 			return
 		}
 	}
 }
 
-func (monitor *Monitor) watchJobs() {
+func (monitor *Monitor) watchJob() {
 	jobs, err := monitor.ctx.JobList(monitor.context)
 	if err != nil {
 		return
@@ -218,13 +222,13 @@ loop:
 	}
 }
 
-func (monitor *Monitor) sessionsMonitor() {
+func (monitor *Monitor) sessionMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.sessionsMonitor"))
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.sessionMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
-			go monitor.sessionsMonitor()
+			go monitor.sessionMonitor()
 		} else {
 			monitor.wg.Done()
 		}
@@ -234,14 +238,14 @@ func (monitor *Monitor) sessionsMonitor() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.watchSessions()
+			monitor.watchSession()
 		case <-monitor.context.Done():
 			return
 		}
 	}
 }
 
-func (monitor *Monitor) watchSessions() {
+func (monitor *Monitor) watchSession() {
 	sessions, err := monitor.ctx.SessionList(monitor.context)
 	if err != nil {
 		return
@@ -275,18 +279,18 @@ loop:
 // StartDatabaseMonitors is used to start monitors about database.
 func (monitor *Monitor) StartDatabaseMonitors() {
 	monitor.wg.Add(3)
-	go monitor.hostsMonitor()
-	go monitor.servicesMonitor()
-	go monitor.clientsMonitor()
+	go monitor.hostMonitor()
+	go monitor.serviceMonitor()
+	go monitor.clientMonitor()
 }
 
-func (monitor *Monitor) hostsMonitor() {
+func (monitor *Monitor) hostMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.hostsMonitor"))
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.hostMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
-			go monitor.hostsMonitor()
+			go monitor.hostMonitor()
 		} else {
 			monitor.wg.Done()
 		}
@@ -296,24 +300,38 @@ func (monitor *Monitor) hostsMonitor() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.watchHosts()
+			monitor.watchHost()
 		case <-monitor.context.Done():
 			return
 		}
 	}
 }
 
-func (monitor *Monitor) watchHosts() {
-
+func (monitor *Monitor) watchHost() {
+	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
+	if err != nil {
+		return
+	}
+	for i := 0; i < len(workspaces); i++ {
+		monitor.watchHostWithWorkspace(workspaces[i].Name)
+	}
 }
 
-func (monitor *Monitor) servicesMonitor() {
+func (monitor *Monitor) watchHostWithWorkspace(workspace string) {
+	hosts, err := monitor.ctx.DBHosts(monitor.context, workspace)
+	if err != nil {
+		return
+	}
+	fmt.Println(hosts)
+}
+
+func (monitor *Monitor) serviceMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.servicesMonitor"))
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.serviceMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
-			go monitor.servicesMonitor()
+			go monitor.serviceMonitor()
 		} else {
 			monitor.wg.Done()
 		}
@@ -323,24 +341,24 @@ func (monitor *Monitor) servicesMonitor() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.watchServices()
+			monitor.watchService()
 		case <-monitor.context.Done():
 			return
 		}
 	}
 }
 
-func (monitor *Monitor) watchServices() {
+func (monitor *Monitor) watchService() {
 
 }
 
-func (monitor *Monitor) clientsMonitor() {
+func (monitor *Monitor) clientMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.clientsMonitor"))
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.clientMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
-			go monitor.clientsMonitor()
+			go monitor.clientMonitor()
 		} else {
 			monitor.wg.Done()
 		}
@@ -350,14 +368,14 @@ func (monitor *Monitor) clientsMonitor() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.watchClients()
+			monitor.watchClient()
 		case <-monitor.context.Done():
 			return
 		}
 	}
 }
 
-func (monitor *Monitor) watchClients() {
+func (monitor *Monitor) watchClient() {
 
 }
 

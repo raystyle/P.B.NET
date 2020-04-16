@@ -13,7 +13,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestMonitor_tokensMonitor(t *testing.T) {
+func TestMonitor_tokenMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -168,7 +168,7 @@ func TestMonitor_tokensMonitor(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMonitor_jobsMonitor(t *testing.T) {
+func TestMonitor_jobMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -345,7 +345,7 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMonitor_sessionsMonitor(t *testing.T) {
+func TestMonitor_sessionMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -524,6 +524,38 @@ func TestMonitor_sessionsMonitor(t *testing.T) {
 		for cSessionID = range sessions {
 		}
 		require.Equal(t, id, cSessionID)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMonitor_hostMonitor(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+	// ctx := context.Background()
+
+	t.Run("add", func(t *testing.T) {
+		callbacks := Callbacks{
+			OnHost: func(host *DBHost, add bool) {
+
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first
+		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
