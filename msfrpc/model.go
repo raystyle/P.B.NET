@@ -76,11 +76,19 @@ const (
 )
 
 const (
-	// defaultWorkspace is the default workspace name.
-	defaultWorkspace = "default"
-
 	// structTag is used to xreflect.StructureToMap().
 	structTag = "msgpack"
+
+	// defaultWorkspace is the default workspace name.
+	defaultWorkspace = "default"
+)
+
+// about executable file template
+const (
+	TemplateX86WindowsEXE = "template_x86_windows.exe"
+	TemplateX64WindowsEXE = "template_x64_windows.exe"
+	TemplateX86LinuxELF   = "template_x86_linux.bin"
+	TemplateX64LinuxELF   = "template_x64_linux.bin"
 )
 
 // ------------------------------------------about methods-----------------------------------------
