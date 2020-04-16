@@ -89,6 +89,17 @@ func (monitor *Monitor) Jobs() map[string]string {
 	return jobs
 }
 
+// Sessions is used to get current sessions, key = id.
+func (monitor *Monitor) Sessions() map[uint64]*SessionInfo {
+	monitor.sessionsRWM.RLock()
+	defer monitor.sessionsRWM.RUnlock()
+	sessions := make(map[uint64]*SessionInfo, len(monitor.sessions))
+	for id, info := range monitor.sessions {
+		sessions[id] = info
+	}
+	return sessions
+}
+
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
 	monitor.ctx.logger.Println(lv, "msfrpc-monitor", log...)
 }

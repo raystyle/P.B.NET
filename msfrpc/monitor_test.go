@@ -103,7 +103,7 @@ func TestMonitor_tokensMonitor(t *testing.T) {
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
 
-		// check result
+		// compare result
 		mu.Lock()
 		defer mu.Unlock()
 		require.Equal(t, token, sToken)
@@ -271,7 +271,7 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
 
-		// check result
+		// compare result
 		mu.Lock()
 		defer mu.Unlock()
 		require.Equal(t, jobID, sID)
@@ -297,7 +297,7 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		callbacks := Callbacks{OnToken: func(token string, add bool) {
+		callbacks := Callbacks{OnJob: func(id, name string, active bool) {
 			panic("test panic")
 		}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
@@ -333,8 +333,7 @@ func TestMonitor_jobsMonitor(t *testing.T) {
 		jobs := monitor.Jobs()
 		require.Len(t, jobs, 1)
 		var cJobID string
-		for id := range jobs {
-			cJobID = id
+		for cJobID = range jobs {
 		}
 		require.Equal(t, jobID, cJobID)
 
@@ -418,7 +417,116 @@ func TestMonitor_sessionsMonitor(t *testing.T) {
 	})
 
 	t.Run("closed", func(t *testing.T) {
+		var (
+			sID     uint64
+			sOpened bool
+			mu      sync.Mutex
+		)
+		callbacks := Callbacks{
+			OnJob: func(id, name string, active bool) {},
+			OnSession: func(id uint64, info *SessionInfo, opened bool) {
+				mu.Lock()
+				defer mu.Unlock()
+				sID = id
+				sOpened = opened
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
 
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		id := testCreateShellSession(t, msfrpc, "55502")
+
+		// wait watch opened sessions
+		time.Sleep(3 * minWatchInterval)
+
+		// wait watch closed sessions
+		err = msfrpc.SessionStop(ctx, id)
+		require.NoError(t, err)
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		// compare result
+		mu.Lock()
+		defer mu.Unlock()
+		require.Equal(t, id, sID)
+		require.False(t, sOpened)
+		t.Log(sID)
+	})
+
+	t.Run("failed to watch", func(t *testing.T) {
+		callbacks := Callbacks{
+			OnJob:     func(id, name string, active bool) {},
+			OnSession: func(id uint64, info *SessionInfo, opened bool) {},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthLogin()
+			require.NoError(t, err)
+		}()
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		callbacks := Callbacks{
+			OnJob: func(id, name string, active bool) {},
+			OnSession: func(id uint64, info *SessionInfo, opened bool) {
+				panic("test panic")
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		id := testCreateShellSession(t, msfrpc, "55503")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
+
+		// wait call OnSession and panic
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("sessions", func(t *testing.T) {
+		id := testCreateShellSession(t, msfrpc, "55504")
+		defer func() {
+			err = msfrpc.SessionStop(ctx, id)
+			require.NoError(t, err)
+		}()
+
+		callbacks := Callbacks{
+			OnJob:     func(id, name string, active bool) {},
+			OnSession: func(id uint64, info *SessionInfo, opened bool) {},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		time.Sleep(3 * minWatchInterval)
+
+		sessions := monitor.Sessions()
+		require.Len(t, sessions, 1)
+		var cSessionID uint64
+		for cSessionID = range sessions {
+		}
+		require.Equal(t, id, cSessionID)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
 	})
 
 	msfrpc.Kill()
