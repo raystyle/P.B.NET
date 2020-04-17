@@ -341,11 +341,12 @@ loop:
 
 // StartDatabaseMonitors is used to start monitors about database.
 func (monitor *Monitor) StartDatabaseMonitors() {
-	monitor.wg.Add(4)
+	monitor.wg.Add(5)
 	go monitor.hostMonitor()
 	go monitor.credentialMonitor()
 	go monitor.lootMonitor()
 	go monitor.eventMonitor()
+	go monitor.workspaceCleaner()
 }
 
 func (monitor *Monitor) hostMonitor() {
@@ -560,6 +561,84 @@ func (monitor *Monitor) eventMonitor() {
 
 func (monitor *Monitor) watchEvent() {
 
+}
+
+func (monitor *Monitor) workspaceCleaner() {
+	defer func() {
+		if r := recover(); r != nil {
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.workspaceCleaner"))
+			// restart monitor
+			time.Sleep(time.Second)
+			go monitor.workspaceCleaner()
+		} else {
+			monitor.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			monitor.cleanWorkspace()
+		case <-monitor.context.Done():
+			return
+		}
+	}
+}
+
+// delete doesn't exist workspace.
+func (monitor *Monitor) cleanWorkspace() {
+	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
+	if err != nil {
+		monitor.log(logger.Debug, "failed to get workspaces for clean workspace:", err)
+		return
+	}
+	l := len(workspaces)
+	monitor.cleanHosts(workspaces, l)
+	monitor.cleanCreds(workspaces, l)
+	monitor.cleanLoots(workspaces, l)
+}
+
+func (monitor *Monitor) cleanHosts(workspaces []*DBWorkspace, l int) {
+	monitor.hostsRWM.Lock()
+	defer monitor.hostsRWM.Unlock()
+loop:
+	for workspace := range monitor.hosts {
+		for i := 0; i < l; i++ {
+			if workspace == workspaces[i].Name {
+				continue loop
+			}
+		}
+		delete(monitor.hosts, workspace)
+	}
+}
+
+func (monitor *Monitor) cleanCreds(workspaces []*DBWorkspace, l int) {
+	monitor.credsRWM.Lock()
+	defer monitor.credsRWM.Unlock()
+loop:
+	for workspace := range monitor.creds {
+		for i := 0; i < l; i++ {
+			if workspace == workspaces[i].Name {
+				continue loop
+			}
+		}
+		delete(monitor.creds, workspace)
+	}
+}
+
+func (monitor *Monitor) cleanLoots(workspaces []*DBWorkspace, l int) {
+	monitor.lootsRWM.Lock()
+	defer monitor.lootsRWM.Unlock()
+loop:
+	for workspace := range monitor.loots {
+		for i := 0; i < l; i++ {
+			if workspace == workspaces[i].Name {
+				continue loop
+			}
+		}
+		delete(monitor.loots, workspace)
+	}
 }
 
 // Close is used to close monitor.
