@@ -552,9 +552,6 @@ func (msf *MSFRPC) DBDelCreds(ctx context.Context, workspace string) ([]*DBDelCr
 	for i := 0; i < len(result.Deleted); i++ {
 		creds = append(creds, result.Deleted[i].Creds...)
 	}
-	if len(creds) == 0 {
-		return nil, errors.New("failed to delete credentials in workspace: " + workspace)
-	}
 	return creds, nil
 }
 

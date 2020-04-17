@@ -536,9 +536,10 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	const (
-		interval      = 25 * time.Millisecond
-		workspace     = ""
-		tempWorkspace = "temp"
+		interval         = 25 * time.Millisecond
+		workspace        = ""
+		tempWorkspace    = "temp"
+		invalidWorkspace = "foo"
 	)
 	ctx := context.Background()
 
@@ -643,7 +644,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to get workspace", func(t *testing.T) {
-		callbacks := Callbacks{OnHost: func(workspace string, host *DBHost, add bool) {}}
+		callbacks := Callbacks{}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 		monitor.StartDatabaseMonitors()
 
@@ -661,11 +662,11 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		callbacks := Callbacks{OnHost: func(workspace string, host *DBHost, add bool) {}}
+		callbacks := Callbacks{}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 		monitor.StartDatabaseMonitors()
 
-		monitor.watchHostWithWorkspace("foo")
+		monitor.watchHostWithWorkspace(invalidWorkspace)
 
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
@@ -719,7 +720,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		require.NotEmpty(t, hosts)
 
 		// invalid workspace name
-		hosts, err = monitor.Hosts("foo")
+		hosts, err = monitor.Hosts(invalidWorkspace)
 		require.Error(t, err)
 		require.Nil(t, hosts)
 
@@ -744,9 +745,10 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	const (
-		interval      = 25 * time.Millisecond
-		workspace     = ""
-		tempWorkspace = "temp"
+		interval         = 25 * time.Millisecond
+		workspace        = ""
+		tempWorkspace    = "temp"
+		invalidWorkspace = "foo"
 	)
 	ctx := context.Background()
 
@@ -804,6 +806,137 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		require.Equal(t, defaultWorkspace, sWorkspace)
 		require.Equal(t, testDBCred["username"], sCred.Username)
 		require.True(t, sAdd)
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		// add credential
+		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		require.NoError(t, err)
+		defer func() {
+			_, err = msfrpc.DBDelCreds(ctx, workspace)
+			require.NoError(t, err)
+		}()
+
+		var (
+			sWorkspace string
+			sCred      *DBCred
+			mu         sync.Mutex
+		)
+		sAdd := true
+
+		callbacks := Callbacks{
+			OnCredential: func(workspace string, cred *DBCred, add bool) {
+				mu.Lock()
+				defer mu.Unlock()
+				sWorkspace = workspace
+				sCred = cred
+				sAdd = add
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// wait watch delete credential
+		_, err = msfrpc.DBDelCreds(ctx, workspace)
+		require.NoError(t, err)
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		// compare result
+		require.Equal(t, defaultWorkspace, sWorkspace)
+		require.Equal(t, testDBCred["username"], sCred.Username)
+		require.False(t, sAdd)
+	})
+
+	t.Run("failed to get workspace", func(t *testing.T) {
+		callbacks := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthLogin()
+			require.NoError(t, err)
+		}()
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("failed to watch", func(t *testing.T) {
+		callbacks := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		monitor.watchCredentialWithWorkspace(invalidWorkspace)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		// must delete or not new credentials
+		_, _ = msfrpc.DBDelCreds(ctx, workspace)
+
+		callbacks := Callbacks{OnCredential: func(workspace string, cred *DBCred, add bool) {
+			panic("test panic")
+		}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// add credential
+		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		require.NoError(t, err)
+		defer func() {
+			_, err = msfrpc.DBDelCreds(ctx, workspace)
+			require.NoError(t, err)
+		}()
+
+		// wait call OnCredential and panic
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("credentials", func(t *testing.T) {
+		_, _ = msfrpc.DBDelCreds(ctx, workspace)
+		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		require.NoError(t, err)
+		defer func() {
+			_, err = msfrpc.DBDelCreds(ctx, workspace)
+			require.NoError(t, err)
+		}()
+
+		callbacks := Callbacks{OnCredential: func(workspace string, cred *DBCred, add bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		time.Sleep(3 * minWatchInterval)
+
+		creds, err := monitor.Credentials(defaultWorkspace)
+		require.NoError(t, err)
+		require.NotEmpty(t, creds)
+
+		// invalid workspace name
+		creds, err = monitor.Credentials(invalidWorkspace)
+		require.Error(t, err)
+		require.Nil(t, creds)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
 	})
 
 	err = msfrpc.DBDisconnect(ctx)

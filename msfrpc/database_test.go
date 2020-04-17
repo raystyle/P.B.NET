@@ -1297,20 +1297,6 @@ func TestMSFRPC_DBDelCreds(t *testing.T) {
 
 	})
 
-	t.Run("failed", func(t *testing.T) {
-		const workspace = "temp"
-		err := msfrpc.DBAddWorkspace(ctx, workspace)
-		require.NoError(t, err)
-		defer func() {
-			err = msfrpc.DBDelWorkspace(ctx, workspace)
-			require.NoError(t, err)
-		}()
-
-		creds, err := msfrpc.DBDelCreds(ctx, workspace)
-		require.EqualError(t, err, "failed to delete credentials in workspace: temp")
-		require.Nil(t, creds)
-	})
-
 	t.Run("invalid workspace", func(t *testing.T) {
 		creds, err := msfrpc.DBDelCreds(ctx, "foo")
 		require.EqualError(t, err, "workspace foo doesn't exist")
