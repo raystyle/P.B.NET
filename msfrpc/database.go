@@ -277,10 +277,7 @@ func (msf *MSFRPC) DBServices(ctx context.Context, opts *DBServicesOptions) ([]*
 }
 
 // DBGetService is used to get services by filter.
-func (msf *MSFRPC) DBGetService(
-	ctx context.Context,
-	opts *DBGetServiceOptions,
-) ([]*DBService, error) {
+func (msf *MSFRPC) DBGetService(ctx context.Context, opts *DBGetServiceOptions) ([]*DBService, error) {
 	optsCp := *opts
 	if optsCp.Workspace == "" {
 		optsCp.Workspace = defaultWorkspace

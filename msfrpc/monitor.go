@@ -27,11 +27,20 @@ type Callbacks struct {
 
 	// add or delete
 	OnHost func(workspace string, host *DBHost, add bool)
+
+	// add or delete
+	OnCredential func(workspace string, cred *DBCred, add bool)
+
+	// add or delete
+	OnLoot func(workspace string, loot *DBLoot, add bool)
+
+	// add or delete
+	OnEvent func(workspace string, event *DBEvent, add bool)
 }
 
-// Monitor is used to monitor changes about token list(security), jobs and sessions.
-// if msfrpc connected database, it can  monitor hosts, services, browser clients,
-// credentials, loots and framework events.
+// Monitor is used to monitor changes about token list(security),
+// jobs and sessions. If msfrpc connected database, it can monitor
+// hosts, credentials, loots, and framework events.
 type Monitor struct {
 	ctx *MSFRPC
 
@@ -54,9 +63,17 @@ type Monitor struct {
 	hosts    map[string]map[*DBHost]struct{}
 	hostsRWM sync.RWMutex
 
-	// key = workspace, value = service information
-	services    map[string]map[*DBService]struct{}
-	servicesRWM sync.RWMutex
+	// key = workspace, value = credential
+	creds    map[string]map[*DBCred]struct{}
+	credsRWM sync.RWMutex
+
+	// key = workspace, value = loot
+	loots    map[string]map[*DBLoot]struct{}
+	lootsRWM sync.RWMutex
+
+	// key = workspace, value = event
+	events    map[string]map[*DBEvent]struct{}
+	eventsRWM sync.RWMutex
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -131,19 +148,19 @@ func (monitor *Monitor) Hosts(workspace string) ([]*DBHost, error) {
 	return hostsCp, nil
 }
 
-// Services is used to get services by workspace.
-func (monitor *Monitor) Services(workspace string) ([]*DBService, error) {
-	monitor.servicesRWM.RLock()
-	defer monitor.servicesRWM.RUnlock()
-	services, ok := monitor.services[workspace]
+// Credentials is used to get credentials by workspace.
+func (monitor *Monitor) Credentials(workspace string) ([]*DBCred, error) {
+	monitor.credsRWM.RLock()
+	defer monitor.credsRWM.RUnlock()
+	creds, ok := monitor.creds[workspace]
 	if !ok {
 		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)
 	}
-	servicesCp := make([]*DBService, 0, len(services))
-	for service := range services {
-		servicesCp = append(servicesCp, service)
+	credsCp := make([]*DBCred, 0, len(creds))
+	for cred := range creds {
+		credsCp = append(credsCp, cred)
 	}
-	return servicesCp, nil
+	return credsCp, nil
 }
 
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
@@ -176,6 +193,7 @@ func (monitor *Monitor) tokenMonitor() {
 func (monitor *Monitor) watchToken() {
 	tokens, err := monitor.ctx.AuthTokenList(monitor.context)
 	if err != nil {
+		monitor.log(logger.Debug, "failed to watch token:", err)
 		return
 	}
 	l := len(tokens)
@@ -235,6 +253,7 @@ func (monitor *Monitor) jobMonitor() {
 func (monitor *Monitor) watchJob() {
 	jobs, err := monitor.ctx.JobList(monitor.context)
 	if err != nil {
+		monitor.log(logger.Debug, "failed to watch job:", err)
 		return
 	}
 	monitor.jobsRWM.Lock()
@@ -290,6 +309,7 @@ func (monitor *Monitor) sessionMonitor() {
 func (monitor *Monitor) watchSession() {
 	sessions, err := monitor.ctx.SessionList(monitor.context)
 	if err != nil {
+		monitor.log(logger.Debug, "failed to watch session:", err)
 		return
 	}
 	monitor.sessionsRWM.Lock()
@@ -321,10 +341,11 @@ loop:
 
 // StartDatabaseMonitors is used to start monitors about database.
 func (monitor *Monitor) StartDatabaseMonitors() {
-	monitor.wg.Add(3)
+	monitor.wg.Add(4)
 	go monitor.hostMonitor()
-	go monitor.serviceMonitor()
-	go monitor.clientMonitor()
+	go monitor.credentialMonitor()
+	go monitor.lootMonitor()
+	go monitor.eventMonitor()
 }
 
 func (monitor *Monitor) hostMonitor() {
@@ -353,6 +374,7 @@ func (monitor *Monitor) hostMonitor() {
 func (monitor *Monitor) watchHost() {
 	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
 	if err != nil {
+		monitor.log(logger.Debug, "failed to get workspaces:", err)
 		return
 	}
 	for i := 0; i < len(workspaces); i++ {
@@ -363,6 +385,7 @@ func (monitor *Monitor) watchHost() {
 func (monitor *Monitor) watchHostWithWorkspace(workspace string) {
 	hosts, err := monitor.ctx.DBHosts(monitor.context, workspace)
 	if err != nil {
+		monitor.log(logger.Debug, "failed to watch host:", err)
 		return
 	}
 	l := len(hosts)
@@ -405,13 +428,13 @@ loopAdd:
 	}
 }
 
-func (monitor *Monitor) serviceMonitor() {
+func (monitor *Monitor) credentialMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.serviceMonitor"))
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.credentialMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
-			go monitor.serviceMonitor()
+			go monitor.credentialMonitor()
 		} else {
 			monitor.wg.Done()
 		}
@@ -421,34 +444,77 @@ func (monitor *Monitor) serviceMonitor() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.watchService()
+			monitor.watchCredential()
 		case <-monitor.context.Done():
 			return
 		}
 	}
 }
 
-func (monitor *Monitor) watchService() {
+func (monitor *Monitor) watchCredential() {
 	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
 	if err != nil {
+		monitor.log(logger.Debug, "failed to get workspaces:", err)
 		return
 	}
 	for i := 0; i < len(workspaces); i++ {
-		monitor.watchServiceWithWorkspace(workspaces[i].Name)
+		monitor.watchCredentialWithWorkspace(workspaces[i].Name)
 	}
 }
 
-func (monitor *Monitor) watchServiceWithWorkspace(workspace string) {
-
+func (monitor *Monitor) watchCredentialWithWorkspace(workspace string) {
+	creds, err := monitor.ctx.DBCreds(monitor.context, workspace)
+	if err != nil {
+		monitor.log(logger.Debug, "failed to get credential:", err)
+		return
+	}
+	l := len(creds)
+	monitor.credsRWM.Lock()
+	defer monitor.credsRWM.Unlock()
+	// initialize map and skip first compare
+	if monitor.creds == nil {
+		monitor.creds = make(map[string]map[*DBCred]struct{})
+		monitor.creds[workspace] = make(map[*DBCred]struct{}, l)
+		for i := 0; i < l; i++ {
+			monitor.creds[workspace][creds[i]] = struct{}{}
+		}
+		return
+	}
+	// create map
+	if _, ok := monitor.creds[workspace]; !ok {
+		monitor.creds[workspace] = make(map[*DBCred]struct{}, l)
+	}
+	// check deleted credentials
+loopDel:
+	for oCred := range monitor.creds[workspace] {
+		for i := 0; i < l; i++ {
+			if reflect.DeepEqual(creds[i], oCred) {
+				continue loopDel
+			}
+		}
+		delete(monitor.creds[workspace], oCred)
+		monitor.callbacks.OnCredential(workspace, oCred, false)
+	}
+	// check added credentials
+loopAdd:
+	for i := 0; i < l; i++ {
+		for oCred := range monitor.creds[workspace] {
+			if reflect.DeepEqual(oCred, creds[i]) {
+				continue loopAdd
+			}
+		}
+		monitor.creds[workspace][creds[i]] = struct{}{}
+		monitor.callbacks.OnCredential(workspace, creds[i], true)
+	}
 }
 
-func (monitor *Monitor) clientMonitor() {
+func (monitor *Monitor) lootMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.clientMonitor"))
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.lootMonitor"))
 			// restart monitor
 			time.Sleep(time.Second)
-			go monitor.clientMonitor()
+			go monitor.lootMonitor()
 		} else {
 			monitor.wg.Done()
 		}
@@ -458,14 +524,41 @@ func (monitor *Monitor) clientMonitor() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.watchClient()
+			monitor.watchLoot()
 		case <-monitor.context.Done():
 			return
 		}
 	}
 }
 
-func (monitor *Monitor) watchClient() {
+func (monitor *Monitor) watchLoot() {
+
+}
+
+func (monitor *Monitor) eventMonitor() {
+	defer func() {
+		if r := recover(); r != nil {
+			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.eventMonitor"))
+			// restart monitor
+			time.Sleep(time.Second)
+			go monitor.eventMonitor()
+		} else {
+			monitor.wg.Done()
+		}
+	}()
+	ticker := time.NewTicker(monitor.interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			monitor.watchEvent()
+		case <-monitor.context.Done():
+			return
+		}
+	}
+}
+
+func (monitor *Monitor) watchEvent() {
 
 }
 
