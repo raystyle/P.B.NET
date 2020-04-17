@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"project/internal/logger"
 	"project/internal/xpanic"
 )
@@ -39,15 +41,22 @@ type Monitor struct {
 	// key = token
 	tokens    map[string]struct{}
 	tokensRWM sync.RWMutex
+
 	// key = id, value = name
 	jobs    map[string]string
 	jobsRWM sync.RWMutex
+
 	// key = id
 	sessions    map[uint64]*SessionInfo
 	sessionsRWM sync.RWMutex
-	// key = host information
-	hosts    map[*DBHost]struct{}
+
+	// key = workspace, value = host information
+	hosts    map[string]map[*DBHost]struct{}
 	hostsRWM sync.RWMutex
+
+	// key = workspace, value = service information
+	services    map[string]map[*DBService]struct{}
+	servicesRWM sync.RWMutex
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -107,15 +116,34 @@ func (monitor *Monitor) Sessions() map[uint64]*SessionInfo {
 	return sessions
 }
 
-// Hosts is used to get hosts.
-func (monitor *Monitor) Hosts() []*DBHost {
+// Hosts is used to get hosts by workspace.
+func (monitor *Monitor) Hosts(workspace string) ([]*DBHost, error) {
 	monitor.hostsRWM.RLock()
 	defer monitor.hostsRWM.RUnlock()
-	hosts := make([]*DBHost, 0, len(monitor.hosts))
-	for host := range monitor.hosts {
-		hosts = append(hosts, host)
+	hosts, ok := monitor.hosts[workspace]
+	if !ok {
+		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)
 	}
-	return hosts
+	hostsCp := make([]*DBHost, 0, len(hosts))
+	for host := range hosts {
+		hostsCp = append(hostsCp, host)
+	}
+	return hostsCp, nil
+}
+
+// Services is used to get services by workspace.
+func (monitor *Monitor) Services(workspace string) ([]*DBService, error) {
+	monitor.servicesRWM.RLock()
+	defer monitor.servicesRWM.RUnlock()
+	services, ok := monitor.services[workspace]
+	if !ok {
+		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)
+	}
+	servicesCp := make([]*DBService, 0, len(services))
+	for service := range services {
+		servicesCp = append(servicesCp, service)
+	}
+	return servicesCp, nil
 }
 
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
@@ -342,32 +370,37 @@ func (monitor *Monitor) watchHostWithWorkspace(workspace string) {
 	defer monitor.hostsRWM.Unlock()
 	// initialize map and skip first compare
 	if monitor.hosts == nil {
-		monitor.hosts = make(map[*DBHost]struct{}, l)
+		monitor.hosts = make(map[string]map[*DBHost]struct{})
+		monitor.hosts[workspace] = make(map[*DBHost]struct{}, l)
 		for i := 0; i < l; i++ {
-			monitor.hosts[hosts[i]] = struct{}{}
+			monitor.hosts[workspace][hosts[i]] = struct{}{}
 		}
 		return
 	}
+	// create map
+	if _, ok := monitor.hosts[workspace]; !ok {
+		monitor.hosts[workspace] = make(map[*DBHost]struct{}, l)
+	}
 	// check deleted hosts
 loopDel:
-	for oHost := range monitor.hosts {
+	for oHost := range monitor.hosts[workspace] {
 		for i := 0; i < l; i++ {
 			if reflect.DeepEqual(hosts[i], oHost) {
 				continue loopDel
 			}
 		}
-		delete(monitor.hosts, oHost)
+		delete(monitor.hosts[workspace], oHost)
 		monitor.callbacks.OnHost(workspace, oHost, false)
 	}
 	// check added hosts
 loopAdd:
 	for i := 0; i < l; i++ {
-		for oHost := range monitor.hosts {
+		for oHost := range monitor.hosts[workspace] {
 			if reflect.DeepEqual(oHost, hosts[i]) {
 				continue loopAdd
 			}
 		}
-		monitor.hosts[hosts[i]] = struct{}{}
+		monitor.hosts[workspace][hosts[i]] = struct{}{}
 		monitor.callbacks.OnHost(workspace, hosts[i], true)
 	}
 }
@@ -396,6 +429,16 @@ func (monitor *Monitor) serviceMonitor() {
 }
 
 func (monitor *Monitor) watchService() {
+	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
+	if err != nil {
+		return
+	}
+	for i := 0; i < len(workspaces); i++ {
+		monitor.watchServiceWithWorkspace(workspaces[i].Name)
+	}
+}
+
+func (monitor *Monitor) watchServiceWithWorkspace(workspace string) {
 
 }
 

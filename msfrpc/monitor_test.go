@@ -536,8 +536,9 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	const (
-		interval  = 25 * time.Millisecond
-		workspace = ""
+		interval      = 25 * time.Millisecond
+		workspace     = ""
+		tempWorkspace = "temp"
 	)
 	ctx := context.Background()
 
@@ -547,6 +548,14 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	t.Run("add", func(t *testing.T) {
 		// must delete or not new host
 		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+
+		// add new workspace for watchHostWithWorkspace() about create map
+		err := msfrpc.DBAddWorkspace(ctx, tempWorkspace)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBDelWorkspace(ctx, tempWorkspace)
+			require.NoError(t, err)
+		}()
 
 		var (
 			sWorkspace string
@@ -570,7 +579,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// add host
-		err := msfrpc.DBReportHost(ctx, testDBHost)
+		err = msfrpc.DBReportHost(ctx, testDBHost)
 		require.NoError(t, err)
 		defer func() {
 			_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
@@ -706,8 +715,14 @@ func TestMonitor_hostMonitor(t *testing.T) {
 
 		time.Sleep(3 * minWatchInterval)
 
-		hosts := monitor.Hosts()
+		hosts, err := monitor.Hosts(defaultWorkspace)
+		require.NoError(t, err)
 		require.NotEmpty(t, hosts)
+
+		// invalid workspace name
+		hosts, err = monitor.Hosts("foo")
+		require.Error(t, err)
+		require.Nil(t, hosts)
 
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
