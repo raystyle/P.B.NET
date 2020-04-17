@@ -697,7 +697,6 @@ func TestMonitor_hostMonitor(t *testing.T) {
 
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
-
 	})
 
 	t.Run("hosts", func(t *testing.T) {
@@ -727,6 +726,88 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
 	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMonitor_credentialMonitor(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	const (
+		interval      = 25 * time.Millisecond
+		workspace     = ""
+		tempWorkspace = "temp"
+	)
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("add", func(t *testing.T) {
+		// must delete or not new credentials
+		_, _ = msfrpc.DBDelCreds(ctx, workspace)
+
+		// add new workspace for watchHostWithWorkspace() about create map
+		err := msfrpc.DBAddWorkspace(ctx, tempWorkspace)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBDelWorkspace(ctx, tempWorkspace)
+			require.NoError(t, err)
+		}()
+
+		var (
+			sWorkspace string
+			sCred      *DBCred
+			sAdd       bool
+			mu         sync.Mutex
+		)
+		callbacks := Callbacks{
+			OnCredential: func(workspace string, cred *DBCred, add bool) {
+				mu.Lock()
+				defer mu.Unlock()
+				sWorkspace = workspace
+				sCred = cred
+				sAdd = add
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// add credential
+		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		require.NoError(t, err)
+		defer func() {
+			_, err = msfrpc.DBDelCreds(ctx, workspace)
+			require.NoError(t, err)
+		}()
+
+		// wait watch
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		// compare result
+		require.Equal(t, defaultWorkspace, sWorkspace)
+		require.Equal(t, testDBCred["username"], sCred.Username)
+		require.True(t, sAdd)
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
 
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)

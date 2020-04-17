@@ -374,7 +374,7 @@ func (monitor *Monitor) hostMonitor() {
 func (monitor *Monitor) watchHost() {
 	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
 	if err != nil {
-		monitor.log(logger.Debug, "failed to get workspaces:", err)
+		monitor.log(logger.Debug, "failed to get workspaces for watch host:", err)
 		return
 	}
 	for i := 0; i < len(workspaces); i++ {
@@ -454,7 +454,7 @@ func (monitor *Monitor) credentialMonitor() {
 func (monitor *Monitor) watchCredential() {
 	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
 	if err != nil {
-		monitor.log(logger.Debug, "failed to get workspaces:", err)
+		monitor.log(logger.Debug, "failed to get workspaces for watch credential:", err)
 		return
 	}
 	for i := 0; i < len(workspaces); i++ {
