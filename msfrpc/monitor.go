@@ -107,6 +107,17 @@ func (monitor *Monitor) Sessions() map[uint64]*SessionInfo {
 	return sessions
 }
 
+// Hosts is used to get hosts.
+func (monitor *Monitor) Hosts() []*DBHost {
+	monitor.hostsRWM.RLock()
+	defer monitor.hostsRWM.RUnlock()
+	hosts := make([]*DBHost, 0, len(monitor.hosts))
+	for host := range monitor.hosts {
+		hosts = append(hosts, host)
+	}
+	return hosts
+}
+
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
 	monitor.ctx.logger.Println(lv, "msfrpc-monitor", log...)
 }

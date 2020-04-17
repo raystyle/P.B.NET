@@ -67,6 +67,13 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
+		err = msfrpc.AuthTokenAdd(ctx, token)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthTokenRemove(ctx, token)
+			require.NoError(t, err)
+		}()
+
 		var (
 			sToken string
 			mu     sync.Mutex
@@ -84,17 +91,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
-		err = msfrpc.AuthTokenAdd(ctx, token)
-		require.NoError(t, err)
-		defer func() {
-			err = msfrpc.AuthTokenRemove(ctx, token)
-			require.NoError(t, err)
-		}()
-
-		// wait watch for update added token
-		time.Sleep(3 * minWatchInterval)
-
-		// wait watch for update delete token
+		// wait watch for delete token
 		err = msfrpc.AuthTokenRemove(ctx, token)
 		require.NoError(t, err)
 
@@ -239,12 +236,15 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	})
 
 	t.Run("stop", func(t *testing.T) {
+		jobID := addJob()
+
 		var (
-			sID     string
-			sName   string
-			sActive bool
-			mu      sync.Mutex
+			sID   string
+			sName string
+			mu    sync.Mutex
 		)
+		sActive := true
+
 		callbacks := Callbacks{OnJob: func(id, name string, active bool) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -255,11 +255,6 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 
 		// wait first watch
-		time.Sleep(3 * minWatchInterval)
-
-		jobID := addJob()
-
-		// wait watch active jobs
 		time.Sleep(3 * minWatchInterval)
 
 		// wait watch stopped jobs
@@ -417,11 +412,14 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 	})
 
 	t.Run("closed", func(t *testing.T) {
+		id := testCreateShellSession(t, msfrpc, "55502")
+
 		var (
-			sID     uint64
-			sOpened bool
-			mu      sync.Mutex
+			sID uint64
+			mu  sync.Mutex
 		)
+		sOpened := true
+
 		callbacks := Callbacks{
 			OnJob: func(id, name string, active bool) {},
 			OnSession: func(id uint64, info *SessionInfo, opened bool) {
@@ -434,11 +432,6 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 
 		// wait first watch
-		time.Sleep(3 * minWatchInterval)
-
-		id := testCreateShellSession(t, msfrpc, "55502")
-
-		// wait watch opened sessions
 		time.Sleep(3 * minWatchInterval)
 
 		// wait watch closed sessions
@@ -594,6 +587,130 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		require.Equal(t, defaultWorkspace, sWorkspace)
 		require.Equal(t, testDBHost.Name, sHost.Name)
 		require.True(t, sAdd)
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		err := msfrpc.DBReportHost(ctx, testDBHost)
+		require.NoError(t, err)
+		defer func() {
+			_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		}()
+
+		var (
+			sWorkspace string
+			sHost      *DBHost
+			mu         sync.Mutex
+		)
+		sAdd := true
+
+		callbacks := Callbacks{
+			OnHost: func(workspace string, host *DBHost, add bool) {
+				mu.Lock()
+				defer mu.Unlock()
+				sWorkspace = workspace
+				sHost = host
+				sAdd = add
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// wait watch delete host
+		_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		require.NoError(t, err)
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		// compare result
+		require.Equal(t, defaultWorkspace, sWorkspace)
+		require.Equal(t, testDBHost.Name, sHost.Name)
+		require.False(t, sAdd)
+	})
+
+	t.Run("failed to get workspace", func(t *testing.T) {
+		callbacks := Callbacks{OnHost: func(workspace string, host *DBHost, add bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthLogin()
+			require.NoError(t, err)
+		}()
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("failed to watch", func(t *testing.T) {
+		callbacks := Callbacks{OnHost: func(workspace string, host *DBHost, add bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		monitor.watchHostWithWorkspace("foo")
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		// must delete or not new host
+		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+
+		callbacks := Callbacks{OnHost: func(workspace string, host *DBHost, add bool) {
+			panic("test panic")
+		}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// add host
+		err := msfrpc.DBReportHost(ctx, testDBHost)
+		require.NoError(t, err)
+		defer func() {
+			_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+			require.NoError(t, err)
+		}()
+
+		// wait call OnHost and panic
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+	})
+
+	t.Run("hosts", func(t *testing.T) {
+		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		err := msfrpc.DBReportHost(ctx, testDBHost)
+		require.NoError(t, err)
+		defer func() {
+			_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+			require.NoError(t, err)
+		}()
+
+		callbacks := Callbacks{OnHost: func(workspace string, host *DBHost, add bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		time.Sleep(3 * minWatchInterval)
+
+		hosts := monitor.Hosts()
+		require.NotEmpty(t, hosts)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
 	})
 
 	msfrpc.Kill()
