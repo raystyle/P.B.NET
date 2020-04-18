@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -934,6 +935,101 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		creds, err = monitor.Credentials(invalidWorkspace)
 		require.Error(t, err)
 		require.Nil(t, creds)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMonitor_workspaceCleaner(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	const (
+		interval  = 25 * time.Millisecond
+		workspace = "temp"
+	)
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("clean", func(t *testing.T) {
+		// add temporary workspace
+		err = msfrpc.DBAddWorkspace(ctx, workspace)
+		require.NoError(t, err)
+
+		// add test data
+		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		err = msfrpc.DBReportHost(ctx, testDBHost)
+		require.NoError(t, err)
+
+		_, _ = msfrpc.DBDelCreds(ctx, workspace)
+		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		require.NoError(t, err)
+
+		// create monitor
+		callback := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callback, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		err = msfrpc.DBDelWorkspace(ctx, workspace)
+		require.NoError(t, err)
+
+		// wait clean workspace
+		time.Sleep(2 * time.Second)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("failed to get workspace", func(t *testing.T) {
+		callback := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callback, interval)
+		monitor.StartDatabaseMonitors()
+
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthLogin()
+			require.NoError(t, err)
+		}()
+
+		// wait clean workspace
+		time.Sleep(2 * time.Second)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		m := &MSFRPC{}
+		patchFunc := func(interface{}, context.Context) ([]*DBWorkspace, error) {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(m, "DBWorkspaces", patchFunc)
+		defer pg.Unpatch()
+
+		callback := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callback, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait clean workspace
+		time.Sleep(2 * time.Second)
 
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
