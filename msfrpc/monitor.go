@@ -33,10 +33,10 @@ type Callbacks struct {
 	OnCredential func(workspace string, cred *DBCred, add bool)
 
 	// add or delete
-	OnLoot func(workspace string, loot *DBLoot, add bool)
+	OnLoot func(workspace string, loot *DBLoot)
 
 	// add or delete
-	OnEvent func(workspace string, event *DBEvent, add bool)
+	OnEvent func(workspace string, event *DBEvent)
 }
 
 // Monitor is used to monitor changes about token list(security),
@@ -162,6 +162,21 @@ func (monitor *Monitor) Credentials(workspace string) ([]*DBCred, error) {
 		credsCp = append(credsCp, cred)
 	}
 	return credsCp, nil
+}
+
+// Loots is used to get loots by workspace. warning: Loot.Data is nil.
+func (monitor *Monitor) Loots(workspace string) ([]*DBLoot, error) {
+	monitor.lootsRWM.RLock()
+	defer monitor.lootsRWM.RUnlock()
+	loots, ok := monitor.loots[workspace]
+	if !ok {
+		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)
+	}
+	lootsCp := make([]*DBLoot, 0, len(loots))
+	for loot := range loots {
+		lootsCp = append(lootsCp, loot)
+	}
+	return lootsCp, nil
 }
 
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
@@ -555,6 +570,10 @@ func (monitor *Monitor) watchLootWithWorkspace(workspace string) {
 		return
 	}
 	l := len(loots)
+	// clean big data (less memory)
+	for i := 0; i < l; i++ {
+		loots[i].Data = nil
+	}
 	monitor.lootsRWM.Lock()
 	defer monitor.lootsRWM.Unlock()
 	// initialize map and skip first compare
@@ -570,17 +589,6 @@ func (monitor *Monitor) watchLootWithWorkspace(workspace string) {
 	if _, ok := monitor.loots[workspace]; !ok {
 		monitor.loots[workspace] = make(map[*DBLoot]struct{}, l)
 	}
-	// check deleted loots
-loopDel:
-	for oLoot := range monitor.loots[workspace] {
-		for i := 0; i < l; i++ {
-			if reflect.DeepEqual(loots[i], oLoot) {
-				continue loopDel
-			}
-		}
-		delete(monitor.loots[workspace], oLoot)
-		monitor.callbacks.OnLoot(workspace, oLoot, false)
-	}
 	// check added loots
 loopAdd:
 	for i := 0; i < l; i++ {
@@ -590,7 +598,7 @@ loopAdd:
 			}
 		}
 		monitor.loots[workspace][loots[i]] = struct{}{}
-		monitor.callbacks.OnLoot(workspace, loots[i], true)
+		monitor.callbacks.OnLoot(workspace, loots[i])
 	}
 }
 

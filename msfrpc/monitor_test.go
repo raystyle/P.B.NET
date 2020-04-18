@@ -33,12 +33,9 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		var (
 			sToken string
 			sAdd   bool
-			mu     sync.Mutex
 		)
 
 		callbacks := Callbacks{OnToken: func(token string, add bool) {
-			mu.Lock()
-			defer mu.Unlock()
 			sToken = token
 			sAdd = add
 		}}
@@ -61,8 +58,6 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
-		mu.Lock()
-		defer mu.Unlock()
 		require.Equal(t, token, sToken)
 		require.True(t, sAdd)
 	})
@@ -75,15 +70,10 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		var (
-			sToken string
-			mu     sync.Mutex
-		)
+		var sToken string
 		sAdd := true
 
 		callbacks := Callbacks{OnToken: func(token string, add bool) {
-			mu.Lock()
-			defer mu.Unlock()
 			sToken = token
 			sAdd = add
 		}}
@@ -102,14 +92,12 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
-		mu.Lock()
-		defer mu.Unlock()
 		require.Equal(t, token, sToken)
 		require.False(t, sAdd)
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		callbacks := Callbacks{OnToken: func(token string, add bool) {}}
+		callbacks := Callbacks{OnToken: func(string, bool) {}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 
 		err := msfrpc.AuthLogout(msfrpc.GetToken())
@@ -126,7 +114,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		callbacks := Callbacks{OnToken: func(token string, add bool) {
+		callbacks := Callbacks{OnToken: func(string, bool) {
 			panic("test panic")
 		}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
@@ -202,11 +190,8 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			sID     string
 			sName   string
 			sActive bool
-			mu      sync.Mutex
 		)
 		callbacks := Callbacks{OnJob: func(id, name string, active bool) {
-			mu.Lock()
-			defer mu.Unlock()
 			sID = id
 			sName = name
 			sActive = active
@@ -229,8 +214,6 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
-		mu.Lock()
-		defer mu.Unlock()
 		require.Equal(t, jobID, sID)
 		require.True(t, sActive)
 		t.Log(sID, sName)
@@ -242,13 +225,10 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		var (
 			sID   string
 			sName string
-			mu    sync.Mutex
 		)
 		sActive := true
 
 		callbacks := Callbacks{OnJob: func(id, name string, active bool) {
-			mu.Lock()
-			defer mu.Unlock()
 			sID = id
 			sName = name
 			sActive = active
@@ -268,15 +248,13 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
-		mu.Lock()
-		defer mu.Unlock()
 		require.Equal(t, jobID, sID)
 		require.False(t, sActive)
 		t.Log(sID, sName)
 	})
 
 	t.Run("failed to watch", func(t *testing.T) {
-		callbacks := Callbacks{OnJob: func(id, name string, active bool) {}}
+		callbacks := Callbacks{OnJob: func(string, string, bool) {}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 
 		err := msfrpc.AuthLogout(msfrpc.GetToken())
@@ -293,7 +271,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		callbacks := Callbacks{OnJob: func(id, name string, active bool) {
+		callbacks := Callbacks{OnJob: func(string, string, bool) {
 			panic("test panic")
 		}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
@@ -321,7 +299,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		callbacks := Callbacks{OnJob: func(id, name string, active bool) {}}
+		callbacks := Callbacks{OnJob: func(string, string, bool) {}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 
 		time.Sleep(3 * minWatchInterval)
@@ -376,13 +354,10 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		var (
 			sID     uint64
 			sOpened bool
-			mu      sync.Mutex
 		)
 		callbacks := Callbacks{
-			OnJob: func(id, name string, active bool) {},
+			OnJob: func(string, string, bool) {},
 			OnSession: func(id uint64, info *SessionInfo, opened bool) {
-				mu.Lock()
-				defer mu.Unlock()
 				sID = id
 				sOpened = opened
 			},
@@ -405,8 +380,6 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
-		mu.Lock()
-		defer mu.Unlock()
 		require.Equal(t, id, sID)
 		require.True(t, sOpened)
 		t.Log(sID)
@@ -415,17 +388,12 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 	t.Run("closed", func(t *testing.T) {
 		id := testCreateShellSession(t, msfrpc, "55502")
 
-		var (
-			sID uint64
-			mu  sync.Mutex
-		)
+		var sID uint64
 		sOpened := true
 
 		callbacks := Callbacks{
-			OnJob: func(id, name string, active bool) {},
+			OnJob: func(string, string, bool) {},
 			OnSession: func(id uint64, info *SessionInfo, opened bool) {
-				mu.Lock()
-				defer mu.Unlock()
 				sID = id
 				sOpened = opened
 			},
@@ -445,8 +413,6 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
-		mu.Lock()
-		defer mu.Unlock()
 		require.Equal(t, id, sID)
 		require.False(t, sOpened)
 		t.Log(sID)
@@ -454,8 +420,8 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 
 	t.Run("failed to watch", func(t *testing.T) {
 		callbacks := Callbacks{
-			OnJob:     func(id, name string, active bool) {},
-			OnSession: func(id uint64, info *SessionInfo, opened bool) {},
+			OnJob:     func(string, string, bool) {},
+			OnSession: func(uint64, *SessionInfo, bool) {},
 		}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 
@@ -474,8 +440,8 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 
 	t.Run("panic", func(t *testing.T) {
 		callbacks := Callbacks{
-			OnJob: func(id, name string, active bool) {},
-			OnSession: func(id uint64, info *SessionInfo, opened bool) {
+			OnJob: func(string, string, bool) {},
+			OnSession: func(uint64, *SessionInfo, bool) {
 				panic("test panic")
 			},
 		}
@@ -505,8 +471,8 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		}()
 
 		callbacks := Callbacks{
-			OnJob:     func(id, name string, active bool) {},
-			OnSession: func(id uint64, info *SessionInfo, opened bool) {},
+			OnJob:     func(string, string, bool) {},
+			OnSession: func(uint64, *SessionInfo, bool) {},
 		}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 
@@ -563,12 +529,9 @@ func TestMonitor_hostMonitor(t *testing.T) {
 			sWorkspace string
 			sHost      *DBHost
 			sAdd       bool
-			mu         sync.Mutex
 		)
 		callbacks := Callbacks{
 			OnHost: func(workspace string, host *DBHost, add bool) {
-				mu.Lock()
-				defer mu.Unlock()
 				sWorkspace = workspace
 				sHost = host
 				sAdd = add
@@ -610,14 +573,11 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		var (
 			sWorkspace string
 			sHost      *DBHost
-			mu         sync.Mutex
 		)
 		sAdd := true
 
 		callbacks := Callbacks{
 			OnHost: func(workspace string, host *DBHost, add bool) {
-				mu.Lock()
-				defer mu.Unlock()
 				sWorkspace = workspace
 				sHost = host
 				sAdd = add
@@ -677,7 +637,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		// must delete or not new host
 		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
 
-		callbacks := Callbacks{OnHost: func(workspace string, host *DBHost, add bool) {
+		callbacks := Callbacks{OnHost: func(string, *DBHost, bool) {
 			panic("test panic")
 		}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
@@ -710,10 +670,11 @@ func TestMonitor_hostMonitor(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		callbacks := Callbacks{OnHost: func(workspace string, host *DBHost, add bool) {}}
+		callbacks := Callbacks{OnHost: func(string, *DBHost, bool) {}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 		monitor.StartDatabaseMonitors()
 
+		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
 		hosts, err := monitor.Hosts(defaultWorkspace)
@@ -772,12 +733,9 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 			sWorkspace string
 			sCred      *DBCred
 			sAdd       bool
-			mu         sync.Mutex
 		)
 		callbacks := Callbacks{
 			OnCredential: func(workspace string, cred *DBCred, add bool) {
-				mu.Lock()
-				defer mu.Unlock()
 				sWorkspace = workspace
 				sCred = cred
 				sAdd = add
@@ -821,14 +779,11 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		var (
 			sWorkspace string
 			sCred      *DBCred
-			mu         sync.Mutex
 		)
 		sAdd := true
 
 		callbacks := Callbacks{
 			OnCredential: func(workspace string, cred *DBCred, add bool) {
-				mu.Lock()
-				defer mu.Unlock()
 				sWorkspace = workspace
 				sCred = cred
 				sAdd = add
@@ -888,7 +843,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		// must delete or not new credentials
 		_, _ = msfrpc.DBDelCreds(ctx, workspace)
 
-		callbacks := Callbacks{OnCredential: func(workspace string, cred *DBCred, add bool) {
+		callbacks := Callbacks{OnCredential: func(string, *DBCred, bool) {
 			panic("test panic")
 		}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
@@ -921,10 +876,11 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		callbacks := Callbacks{OnCredential: func(workspace string, cred *DBCred, add bool) {}}
+		callbacks := Callbacks{OnCredential: func(string, *DBCred, bool) {}}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
 		monitor.StartDatabaseMonitors()
 
+		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
 		creds, err := monitor.Credentials(defaultWorkspace)
@@ -958,7 +914,6 @@ func TestMonitor_lootMonitor(t *testing.T) {
 
 	const (
 		interval         = 25 * time.Millisecond
-		workspace        = ""
 		tempWorkspace    = "temp"
 		invalidWorkspace = "foo"
 	)
@@ -979,16 +934,14 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		var (
 			sWorkspace string
 			sLoot      *DBLoot
-			sAdd       bool
 			mu         sync.Mutex
 		)
 		callbacks := Callbacks{
-			OnLoot: func(workspace string, loot *DBLoot, add bool) {
+			OnLoot: func(workspace string, loot *DBLoot) {
 				mu.Lock()
 				defer mu.Unlock()
 				sWorkspace = workspace
 				sLoot = loot
-				sAdd = add
 			},
 		}
 		monitor := msfrpc.NewMonitor(&callbacks, interval)
@@ -1010,7 +963,81 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		// compare result
 		require.Equal(t, defaultWorkspace, sWorkspace)
 		require.Equal(t, testDBLoot.Name, sLoot.Name)
-		require.True(t, sAdd)
+	})
+
+	t.Run("failed to get workspace", func(t *testing.T) {
+		callbacks := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthLogin()
+			require.NoError(t, err)
+		}()
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("failed to watch", func(t *testing.T) {
+		callbacks := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		monitor.watchLootWithWorkspace(invalidWorkspace)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		callbacks := Callbacks{OnLoot: func(string, *DBLoot) {
+			panic("test panic")
+		}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// add loot
+		err = msfrpc.DBReportLoot(ctx, testDBLoot)
+		require.NoError(t, err)
+
+		// wait call OnLoot and panic
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("loots", func(t *testing.T) {
+		// add loot
+		err = msfrpc.DBReportLoot(ctx, testDBLoot)
+		require.NoError(t, err)
+
+		callbacks := Callbacks{OnLoot: func(string, *DBLoot) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		loots, err := monitor.Loots(defaultWorkspace)
+		require.NoError(t, err)
+		require.NotEmpty(t, loots)
+
+		// invalid workspace name
+		loots, err = monitor.Loots(invalidWorkspace)
+		require.Error(t, err)
+		require.Nil(t, loots)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
 	})
 
 	err = msfrpc.DBDisconnect(ctx)
