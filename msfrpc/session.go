@@ -464,7 +464,6 @@ func (shell *Shell) writeLimiter() {
 			time.Sleep(time.Second)
 			go shell.writeLimiter()
 		} else {
-			close(shell.token)
 			shell.wg.Done()
 		}
 	}()
@@ -642,7 +641,6 @@ func (mp *Meterpreter) writeLimiter() {
 			time.Sleep(time.Second)
 			go mp.writeLimiter()
 		} else {
-			close(mp.token)
 			mp.wg.Done()
 		}
 	}()

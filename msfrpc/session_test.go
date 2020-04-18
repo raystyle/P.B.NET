@@ -409,6 +409,9 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		file, id := testCreateShellSessionWithProgram(t, msfrpc, "55005")
 		defer func() {
+			// wait program exit
+			time.Sleep(time.Second)
+
 			err = os.Remove(file)
 			require.NoError(t, err)
 		}()

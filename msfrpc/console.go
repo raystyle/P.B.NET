@@ -221,11 +221,13 @@ type Console struct {
 	id       string
 	interval time.Duration
 
-	logSrc  string
-	pr      *io.PipeReader
-	pw      *io.PipeWriter
-	writeMu sync.Mutex
-	token   chan struct{}
+	logSrc   string
+	pr       *io.PipeReader
+	pw       *io.PipeWriter
+	writeMu  sync.Mutex
+	token    chan struct{}
+	closed   bool
+	closedMu sync.Mutex
 
 	context   context.Context
 	cancel    context.CancelFunc
@@ -389,7 +391,6 @@ func (console *Console) writeLimiter() {
 			time.Sleep(time.Second)
 			go console.writeLimiter()
 		} else {
-			close(console.token)
 			console.wg.Done()
 		}
 	}()
@@ -460,10 +461,16 @@ func (console *Console) closeNotWait() error {
 }
 
 func (console *Console) destroy(wait bool) error {
-	// must use msfrpc's context, because console.context maybe canceled.
-	err := console.ctx.ConsoleDestroy(console.ctx.ctx, console.id)
-	if err != nil {
-		return err
+	// destroy once
+	console.closedMu.Lock()
+	defer console.closedMu.Unlock()
+	if !console.closed {
+		// must use msfrpc's context, because console.context maybe canceled.
+		err := console.ctx.ConsoleDestroy(console.ctx.ctx, console.id)
+		if err != nil {
+			return err
+		}
+		console.closed = true
 	}
 	console.close()
 	if wait {
