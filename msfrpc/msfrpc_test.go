@@ -478,8 +478,11 @@ func TestMSFRPC_Close(t *testing.T) {
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
+
 		err = msfrpc.Close()
 		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, msfrpc)
 	})
 
 	ctx := context.Background()
@@ -496,6 +499,9 @@ func TestMSFRPC_Close(t *testing.T) {
 
 		console, err := msfrpc.NewConsole(ctx, workspace, interval)
 		require.NoError(t, err)
+
+		// wait add
+		time.Sleep(time.Second)
 
 		err = msfrpc.AuthLogout(msfrpc.GetToken())
 		require.NoError(t, err)

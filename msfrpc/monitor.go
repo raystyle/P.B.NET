@@ -13,7 +13,7 @@ import (
 	"project/internal/xpanic"
 )
 
-const minWatchInterval = 100 * time.Millisecond
+const minWatchInterval = 250 * time.Millisecond
 
 // Callbacks contains about all callback functions.
 type Callbacks struct {

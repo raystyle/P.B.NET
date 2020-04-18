@@ -418,9 +418,14 @@ func (shell *Shell) reader() {
 			time.Sleep(time.Second)
 			go shell.reader()
 		} else {
+			shell.close()
 			shell.wg.Done()
 		}
 	}()
+	if !shell.ctx.trackShell(shell, true) {
+		return
+	}
+	defer shell.ctx.trackShell(shell, false)
 	// don't use ticker otherwise read write will appear confusion.
 	timer := time.NewTimer(shell.interval)
 	defer timer.Stop()
@@ -459,6 +464,7 @@ func (shell *Shell) writeLimiter() {
 			time.Sleep(time.Second)
 			go shell.writeLimiter()
 		} else {
+			close(shell.token)
 			shell.wg.Done()
 		}
 	}()
@@ -506,13 +512,27 @@ func (shell *Shell) CompatibleModules(ctx context.Context) ([]string, error) {
 
 // Close is used to close reader, it will not kill the shell session.
 func (shell *Shell) Close() error {
+	shell.destroy(true)
+	return nil
+}
+
+func (shell *Shell) closeNotWait() {
+	shell.destroy(false)
+}
+
+func (shell *Shell) destroy(wait bool) {
+	shell.close()
+	if wait {
+		shell.wg.Wait()
+	}
+}
+
+func (shell *Shell) close() {
 	shell.closeOnce.Do(func() {
+		shell.cancel()
 		_ = shell.pw.Close()
 		_ = shell.pr.Close()
-		shell.cancel()
-		shell.wg.Wait()
 	})
-	return nil
 }
 
 // Kill is used to kill shell session.
@@ -576,9 +596,14 @@ func (mp *Meterpreter) reader() {
 			time.Sleep(time.Second)
 			go mp.reader()
 		} else {
+			mp.close()
 			mp.wg.Done()
 		}
 	}()
+	if !mp.ctx.trackMeterpreter(mp, true) {
+		return
+	}
+	defer mp.ctx.trackMeterpreter(mp, false)
 	// don't use ticker otherwise read write will appear confusion.
 	timer := time.NewTimer(mp.interval)
 	defer timer.Stop()
@@ -617,6 +642,7 @@ func (mp *Meterpreter) writeLimiter() {
 			time.Sleep(time.Second)
 			go mp.writeLimiter()
 		} else {
+			close(mp.token)
 			mp.wg.Done()
 		}
 	}()
@@ -689,13 +715,27 @@ func (mp *Meterpreter) CompatibleModules(ctx context.Context) ([]string, error) 
 
 // Close is used to close reader, it will not kill the meterpreter session.
 func (mp *Meterpreter) Close() error {
+	mp.destroy(true)
+	return nil
+}
+
+func (mp *Meterpreter) closeNotWait() {
+	mp.destroy(false)
+}
+
+func (mp *Meterpreter) destroy(wait bool) {
+	mp.close()
+	if wait {
+		mp.wg.Wait()
+	}
+}
+
+func (mp *Meterpreter) close() {
 	mp.closeOnce.Do(func() {
+		mp.cancel()
 		_ = mp.pw.Close()
 		_ = mp.pr.Close()
-		mp.cancel()
-		mp.wg.Wait()
 	})
-	return nil
 }
 
 // Kill is used to kill meterpreter session.

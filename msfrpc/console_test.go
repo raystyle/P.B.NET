@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -504,7 +505,8 @@ func TestMSFRPC_NewConsole(t *testing.T) {
 	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
 	require.NoError(t, err)
 
-	console, err := msfrpc.NewConsole(context.Background(), "foo", 0)
+	// not login
+	console, err := msfrpc.NewConsole(context.Background(), "", 0)
 	require.Error(t, err)
 	require.Nil(t, console)
 
@@ -530,6 +532,21 @@ func TestConsole_reader(t *testing.T) {
 		workspace = ""
 		interval  = 25 * time.Millisecond
 	)
+
+	t.Run("after msfrpc closed", func(t *testing.T) {
+		atomic.StoreInt32(&msfrpc.inShutdown, 1)
+		defer atomic.StoreInt32(&msfrpc.inShutdown, 0)
+
+		console, err := msfrpc.NewConsole(ctx, workspace, 0)
+		require.NoError(t, err)
+
+		// wait close self
+		time.Sleep(time.Second)
+
+		_ = console.Close()
+
+		testsuite.IsDestroyed(t, console)
+	})
 
 	t.Run("failed to read", func(t *testing.T) {
 		console, err := msfrpc.NewConsole(ctx, workspace, interval)
@@ -559,6 +576,19 @@ func TestConsole_reader(t *testing.T) {
 
 		err = console.Close()
 		require.NoError(t, err)
+		testsuite.IsDestroyed(t, console)
+	})
+
+	t.Run("auto close", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		// wait self add
+		time.Sleep(time.Second)
+
+		err = msfrpc.Close()
+		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 

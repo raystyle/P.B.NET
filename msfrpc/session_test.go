@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1000,6 +1001,21 @@ func TestShell_reader(t *testing.T) {
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
 
+	t.Run("after msfrpc closed", func(t *testing.T) {
+		atomic.StoreInt32(&msfrpc.inShutdown, 1)
+		defer atomic.StoreInt32(&msfrpc.inShutdown, 0)
+
+		shell := msfrpc.NewShell(id, interval)
+		require.NoError(t, err)
+
+		// wait close self
+		time.Sleep(time.Second)
+
+		_ = shell.Close()
+
+		testsuite.IsDestroyed(t, shell)
+	})
+
 	t.Run("failed to read", func(t *testing.T) {
 		shell := msfrpc.NewShell(id, interval)
 
@@ -1036,6 +1052,18 @@ func TestShell_reader(t *testing.T) {
 
 		err = shell.Close()
 		require.NoError(t, err)
+		testsuite.IsDestroyed(t, shell)
+	})
+
+	t.Run("auto close", func(t *testing.T) {
+		shell := msfrpc.NewShell(id, interval)
+
+		// wait self add
+		time.Sleep(time.Second)
+
+		err = msfrpc.Close()
+		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, shell)
 	})
 
@@ -1291,6 +1319,21 @@ func TestMeterpreter_reader(t *testing.T) {
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
 
+	t.Run("after msfrpc closed", func(t *testing.T) {
+		atomic.StoreInt32(&msfrpc.inShutdown, 1)
+		defer atomic.StoreInt32(&msfrpc.inShutdown, 0)
+
+		meterpreter := msfrpc.NewMeterpreter(id, interval)
+		require.NoError(t, err)
+
+		// wait close self
+		time.Sleep(time.Second)
+
+		_ = meterpreter.Close()
+
+		testsuite.IsDestroyed(t, meterpreter)
+	})
+
 	t.Run("failed to read", func(t *testing.T) {
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
@@ -1327,6 +1370,18 @@ func TestMeterpreter_reader(t *testing.T) {
 
 		err = meterpreter.Close()
 		require.NoError(t, err)
+		testsuite.IsDestroyed(t, meterpreter)
+	})
+
+	t.Run("auto close", func(t *testing.T) {
+		meterpreter := msfrpc.NewMeterpreter(id, interval)
+
+		// wait self add
+		time.Sleep(time.Second)
+
+		err = msfrpc.Close()
+		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
