@@ -2,6 +2,7 @@ package msfrpc
 
 import (
 	"context"
+	"math"
 	"reflect"
 	"sync"
 	"time"
@@ -401,7 +402,7 @@ func (monitor *Monitor) watchHostWithWorkspace(workspace string) {
 		}
 		return
 	}
-	// create map
+	// create map for new workspace
 	if _, ok := monitor.hosts[workspace]; !ok {
 		monitor.hosts[workspace] = make(map[*DBHost]struct{}, l)
 	}
@@ -481,7 +482,7 @@ func (monitor *Monitor) watchCredentialWithWorkspace(workspace string) {
 		}
 		return
 	}
-	// create map
+	// create map for new workspace
 	if _, ok := monitor.creds[workspace]; !ok {
 		monitor.creds[workspace] = make(map[*DBCred]struct{}, l)
 	}
@@ -533,7 +534,64 @@ func (monitor *Monitor) lootMonitor() {
 }
 
 func (monitor *Monitor) watchLoot() {
+	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
+	if err != nil {
+		monitor.log(logger.Debug, "failed to get workspaces for watch loot:", err)
+		return
+	}
+	for i := 0; i < len(workspaces); i++ {
+		monitor.watchLootWithWorkspace(workspaces[i].Name)
+	}
+}
 
+func (monitor *Monitor) watchLootWithWorkspace(workspace string) {
+	opts := DBLootsOptions{
+		Workspace: workspace,
+		Limit:     math.MaxUint32,
+	}
+	loots, err := monitor.ctx.DBLoots(monitor.context, &opts)
+	if err != nil {
+		monitor.log(logger.Debug, "failed to get loot:", err)
+		return
+	}
+	l := len(loots)
+	monitor.lootsRWM.Lock()
+	defer monitor.lootsRWM.Unlock()
+	// initialize map and skip first compare
+	if monitor.loots == nil {
+		monitor.loots = make(map[string]map[*DBLoot]struct{})
+		monitor.loots[workspace] = make(map[*DBLoot]struct{}, l)
+		for i := 0; i < l; i++ {
+			monitor.loots[workspace][loots[i]] = struct{}{}
+		}
+		return
+	}
+	// create map for new workspace
+	if _, ok := monitor.loots[workspace]; !ok {
+		monitor.loots[workspace] = make(map[*DBLoot]struct{}, l)
+	}
+	// check deleted loots
+loopDel:
+	for oLoot := range monitor.loots[workspace] {
+		for i := 0; i < l; i++ {
+			if reflect.DeepEqual(loots[i], oLoot) {
+				continue loopDel
+			}
+		}
+		delete(monitor.loots[workspace], oLoot)
+		monitor.callbacks.OnLoot(workspace, oLoot, false)
+	}
+	// check added loots
+loopAdd:
+	for i := 0; i < l; i++ {
+		for oLoot := range monitor.loots[workspace] {
+			if reflect.DeepEqual(oLoot, loots[i]) {
+				continue loopAdd
+			}
+		}
+		monitor.loots[workspace][loots[i]] = struct{}{}
+		monitor.callbacks.OnLoot(workspace, loots[i], true)
+	}
 }
 
 func (monitor *Monitor) eventMonitor() {

@@ -551,7 +551,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		// must delete or not new host
 		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
 
-		// add new workspace for watchHostWithWorkspace() about create map
+		// add new workspace for create map
 		err := msfrpc.DBAddWorkspace(ctx, tempWorkspace)
 		require.NoError(t, err)
 		defer func() {
@@ -760,7 +760,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		// must delete or not new credentials
 		_, _ = msfrpc.DBDelCreds(ctx, workspace)
 
-		// add new workspace for watchHostWithWorkspace() about create map
+		// add new workspace for create map
 		err := msfrpc.DBAddWorkspace(ctx, tempWorkspace)
 		require.NoError(t, err)
 		defer func() {
@@ -938,6 +938,79 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 
 		monitor.Close()
 		testsuite.IsDestroyed(t, monitor)
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMonitor_lootMonitor(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	const (
+		interval         = 25 * time.Millisecond
+		workspace        = ""
+		tempWorkspace    = "temp"
+		invalidWorkspace = "foo"
+	)
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("add", func(t *testing.T) {
+		// add new workspace for create map
+		err := msfrpc.DBAddWorkspace(ctx, tempWorkspace)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBDelWorkspace(ctx, tempWorkspace)
+			require.NoError(t, err)
+		}()
+
+		var (
+			sWorkspace string
+			sLoot      *DBLoot
+			sAdd       bool
+			mu         sync.Mutex
+		)
+		callbacks := Callbacks{
+			OnLoot: func(workspace string, loot *DBLoot, add bool) {
+				mu.Lock()
+				defer mu.Unlock()
+				sWorkspace = workspace
+				sLoot = loot
+				sAdd = add
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// add loot
+		err = msfrpc.DBReportLoot(ctx, testDBLoot)
+		require.NoError(t, err)
+
+		// wait watch
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		// compare result
+		require.Equal(t, defaultWorkspace, sWorkspace)
+		require.Equal(t, testDBLoot.Name, sLoot.Name)
+		require.True(t, sAdd)
 	})
 
 	err = msfrpc.DBDisconnect(ctx)
