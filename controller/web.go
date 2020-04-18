@@ -128,6 +128,7 @@ func newWebServer(ctx *Ctrl, config *Config) (*webServer, error) {
 	tlsConfig := &tls.Config{
 		Rand:         rand.Reader,
 		Time:         ctx.global.Now,
+		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{pair.TLSCertificate()},
 	}
 	web.server = &http.Server{
