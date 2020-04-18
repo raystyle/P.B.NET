@@ -3,7 +3,6 @@ package msfrpc
 import (
 	"context"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -934,12 +933,10 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		var (
 			sWorkspace string
 			sLoot      *DBLoot
-			mu         sync.Mutex
 		)
+
 		callbacks := Callbacks{
 			OnLoot: func(workspace string, loot *DBLoot) {
-				mu.Lock()
-				defer mu.Unlock()
 				sWorkspace = workspace
 				sLoot = loot
 			},
@@ -1047,6 +1044,89 @@ func TestMonitor_lootMonitor(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+func TestMonitor_eventMonitor(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	const (
+		interval         = 25 * time.Millisecond
+		tempWorkspace    = "temp"
+		invalidWorkspace = "foo"
+	)
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	addJob := func() string {
+		name := "multi/handler"
+		opts := make(map[string]interface{})
+		opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
+		opts["TARGET"] = 0
+		opts["LHOST"] = "127.0.0.1"
+		opts["LPORT"] = "0"
+		result, err := msfrpc.ModuleExecute(ctx, "exploit", name, opts)
+		require.NoError(t, err)
+		return strconv.FormatUint(result.JobID, 10)
+	}
+
+	t.Run("add", func(t *testing.T) {
+		// add new workspace for create map
+		err := msfrpc.DBAddWorkspace(ctx, tempWorkspace)
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.DBDelWorkspace(ctx, tempWorkspace)
+			require.NoError(t, err)
+		}()
+
+		var (
+			sWorkspace string
+			sEvent     *DBEvent
+		)
+
+		callbacks := Callbacks{
+			OnJob: func(string, string, bool) {},
+			OnEvent: func(workspace string, event *DBEvent) {
+				sWorkspace = workspace
+				sEvent = event
+			},
+		}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// generate event
+		jobID := addJob()
+		defer func() {
+			err = msfrpc.JobStop(ctx, jobID)
+			require.NoError(t, err)
+		}()
+
+		// wait watch
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		// compare result
+		require.Equal(t, defaultWorkspace, sWorkspace)
+		require.Equal(t, "module_run", sEvent.Name)
+	})
+
+	err = msfrpc.DBDisconnect(ctx)
+	require.NoError(t, err)
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMonitor_workspaceCleaner(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -1077,6 +1157,9 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 
 		_, _ = msfrpc.DBDelCreds(ctx, workspace)
 		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		require.NoError(t, err)
+
+		err = msfrpc.DBReportLoot(ctx, testDBLoot)
 		require.NoError(t, err)
 
 		// create monitor

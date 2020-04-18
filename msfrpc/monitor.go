@@ -570,10 +570,6 @@ func (monitor *Monitor) watchLootWithWorkspace(workspace string) {
 		return
 	}
 	l := len(loots)
-	// clean big data (less memory)
-	for i := 0; i < l; i++ {
-		loots[i].Data = nil
-	}
 	monitor.lootsRWM.Lock()
 	defer monitor.lootsRWM.Unlock()
 	// initialize map and skip first compare
@@ -590,15 +586,19 @@ func (monitor *Monitor) watchLootWithWorkspace(workspace string) {
 		monitor.loots[workspace] = make(map[*DBLoot]struct{}, l)
 	}
 	// check added loots
-loopAdd:
+loop:
 	for i := 0; i < l; i++ {
 		for oLoot := range monitor.loots[workspace] {
 			if reflect.DeepEqual(oLoot, loots[i]) {
-				continue loopAdd
+				continue loop
 			}
 		}
 		monitor.loots[workspace][loots[i]] = struct{}{}
 		monitor.callbacks.OnLoot(workspace, loots[i])
+	}
+	// clean big data (less memory)
+	for i := 0; i < l; i++ {
+		loots[i].Data = nil
 	}
 }
 
@@ -626,7 +626,62 @@ func (monitor *Monitor) eventMonitor() {
 }
 
 func (monitor *Monitor) watchEvent() {
+	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
+	if err != nil {
+		monitor.log(logger.Debug, "failed to get workspaces for watch event:", err)
+		return
+	}
+	for i := 0; i < len(workspaces); i++ {
+		monitor.watchEventWithWorkspace(workspaces[i].Name)
+	}
+}
 
+func (monitor *Monitor) watchEventWithWorkspace(workspace string) {
+	events, err := monitor.ctx.DBEvent(monitor.context, workspace, math.MaxUint32, 0)
+	if err != nil {
+		monitor.log(logger.Debug, "failed to get event:", err)
+		return
+	}
+	l := len(events)
+	// filter core events
+	coreEvents := make([]*DBEvent, 0, l/2)
+	for i := 0; i < l; i++ {
+		switch events[i].Name {
+		case "module_run", "session_open", "session_close":
+			coreEvents = append(coreEvents, events[i])
+		}
+	}
+	lc := len(coreEvents)
+	monitor.eventsRWM.Lock()
+	defer monitor.eventsRWM.Unlock()
+	// initialize map and skip first compare
+	if monitor.events == nil {
+		monitor.events = make(map[string]map[*DBEvent]struct{})
+		monitor.events[workspace] = make(map[*DBEvent]struct{}, lc)
+		for i := 0; i < lc; i++ {
+			monitor.events[workspace][coreEvents[i]] = struct{}{}
+		}
+		return
+	}
+	// create map for new workspace
+	if _, ok := monitor.events[workspace]; !ok {
+		monitor.events[workspace] = make(map[*DBEvent]struct{}, lc)
+	}
+	// check added events
+loop:
+	for i := 0; i < lc; i++ {
+		for oEvent := range monitor.events[workspace] {
+			if reflect.DeepEqual(oEvent, coreEvents[i]) {
+				continue loop
+			}
+		}
+		monitor.events[workspace][coreEvents[i]] = struct{}{}
+		monitor.callbacks.OnEvent(workspace, coreEvents[i])
+	}
+	// clean big data (less memory)
+	for i := 0; i < l; i++ {
+		events[i].Information = nil
+	}
 }
 
 func (monitor *Monitor) workspaceCleaner() {
