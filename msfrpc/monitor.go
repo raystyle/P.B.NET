@@ -64,15 +64,15 @@ type Monitor struct {
 	hosts    map[string]map[*DBHost]struct{}
 	hostsRWM sync.RWMutex
 
-	// key = workspace, value = credential
+	// key = workspace, value = credential information
 	creds    map[string]map[*DBCred]struct{}
 	credsRWM sync.RWMutex
 
-	// key = workspace, value = loot
+	// key = workspace, value = loot information
 	loots    map[string]map[*DBLoot]struct{}
 	lootsRWM sync.RWMutex
 
-	// key = workspace, value = event
+	// key = workspace, value = event information
 	events    map[string]map[*DBEvent]struct{}
 	eventsRWM sync.RWMutex
 

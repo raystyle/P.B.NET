@@ -221,17 +221,16 @@ type Console struct {
 	id       string
 	interval time.Duration
 
-	logSrc   string
-	pr       *io.PipeReader
-	pw       *io.PipeWriter
-	writeMu  sync.Mutex
-	token    chan struct{}
-	closed   bool
-	closedMu sync.Mutex
+	logSrc  string
+	pr      *io.PipeReader
+	pw      *io.PipeWriter
+	writeMu sync.Mutex
+	token   chan struct{}
 
-	context context.Context
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
+	context   context.Context
+	cancel    context.CancelFunc
+	closeOnce sync.Once
+	wg        sync.WaitGroup
 }
 
 // NewConsole is used to create a console, it will create a new console(msfrpc).
@@ -240,6 +239,9 @@ func (msf *MSFRPC) NewConsole(
 	workspace string,
 	interval time.Duration,
 ) (*Console, error) {
+	// must use mutex(see document)
+	msf.rwm.Lock()
+	defer msf.rwm.Unlock()
 	result, err := msf.ConsoleCreate(ctx, workspace)
 	if err != nil {
 		return nil, err
@@ -282,9 +284,16 @@ func (console *Console) reader() {
 			time.Sleep(time.Second)
 			go console.reader()
 		} else {
+			console.close()
 			console.wg.Done()
 		}
 	}()
+	if !console.ctx.trackConsole(console, true) {
+		// try to close, may be "leak" ,but you can still destroy it
+		_ = console.ctx.ConsoleDestroy(context.Background(), console.id)
+		return
+	}
+	defer console.ctx.trackConsole(console, false)
 	// don't use ticker otherwise read write will appear confusion.
 	timer := time.NewTimer(console.interval)
 	defer timer.Stop()
@@ -304,7 +313,6 @@ func (console *Console) reader() {
 func (console *Console) read() bool {
 	console.writeMu.Lock()
 	defer console.writeMu.Unlock()
-
 	var (
 		result  *ConsoleReadResult
 		err     error
@@ -381,6 +389,7 @@ func (console *Console) writeLimiter() {
 			time.Sleep(time.Second)
 			go console.writeLimiter()
 		} else {
+			close(console.token)
 			console.wg.Done()
 		}
 	}()
@@ -443,19 +452,31 @@ func (console *Console) Interrupt(ctx context.Context) error {
 
 // Close is used to destroy console.
 func (console *Console) Close() error {
-	console.closedMu.Lock()
-	defer console.closedMu.Unlock()
-	if console.closed {
-		return nil
-	}
-	err := console.ctx.ConsoleDestroy(console.context, console.id)
+	return console.destroy(true)
+}
+
+func (console *Console) closeNotWait() error {
+	return console.destroy(false)
+}
+
+func (console *Console) destroy(wait bool) error {
+	// must use msfrpc's context, because console.context maybe canceled.
+	err := console.ctx.ConsoleDestroy(console.ctx.ctx, console.id)
 	if err != nil {
 		return err
 	}
-	_ = console.pw.Close()
-	_ = console.pr.Close()
-	console.cancel()
-	console.wg.Wait()
-	console.closed = true
+	console.close()
+	if wait {
+		console.wg.Wait()
+	}
 	return nil
+}
+
+// close is used to close reader and writeLimiter.
+func (console *Console) close() {
+	console.closeOnce.Do(func() {
+		console.cancel()
+		_ = console.pw.Close()
+		_ = console.pr.Close()
+	})
 }

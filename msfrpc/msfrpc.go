@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -33,13 +34,18 @@ type MSFRPC struct {
 	token    string
 	tokenRWM sync.RWMutex
 
-	// key = console ID(from result about call ConsoleCreate)
+	// key = console id
 	consoles map[string]*Console
-	// consolesRWM sync.RWMutex
+	// key = shell session id
+	shells map[uint64]*Shell
+	// key = meterpreter session id
+	meterpreters map[uint64]*Meterpreter
+
+	inShutdown int32
+	rwm        sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
-	wg     sync.WaitGroup
 }
 
 // Options contains options about NewMSFRPC().
@@ -91,12 +97,14 @@ func NewMSFRPC(
 	}
 	// url
 	msfrpc := MSFRPC{
-		username: username,
-		password: password,
-		logger:   logger,
-		client:   &client,
-		token:    opts.Token,
-		consoles: make(map[string]*Console),
+		username:     username,
+		password:     password,
+		logger:       logger,
+		client:       &client,
+		token:        opts.Token,
+		consoles:     make(map[string]*Console),
+		shells:       make(map[uint64]*Shell),
+		meterpreters: make(map[uint64]*Meterpreter),
 	}
 	var scheme string
 	if opts.DisableTLS {
@@ -232,8 +240,56 @@ func (msf *MSFRPC) GetToken() string {
 	return msf.token
 }
 
+func (msf *MSFRPC) shuttingDown() bool {
+	return atomic.LoadInt32(&msf.inShutdown) != 0
+}
+
+func (msf *MSFRPC) trackConsole(console *Console, add bool) bool {
+	msf.rwm.Lock()
+	defer msf.rwm.Unlock()
+	if add {
+		if msf.shuttingDown() {
+			return false
+		}
+		msf.consoles[console.id] = console
+	} else {
+		delete(msf.consoles, console.id)
+	}
+	return true
+}
+
+func (msf *MSFRPC) trackShell(shell *Shell, add bool) bool {
+	msf.rwm.Lock()
+	defer msf.rwm.Unlock()
+	if add {
+		if msf.shuttingDown() {
+			return false
+		}
+		msf.shells[shell.id] = shell
+	} else {
+		delete(msf.shells, shell.id)
+	}
+	return true
+}
+
+func (msf *MSFRPC) trackMeterpreter(meterpreter *Meterpreter, add bool) bool {
+	msf.rwm.Lock()
+	defer msf.rwm.Unlock()
+	if add {
+		if msf.shuttingDown() {
+			return false
+		}
+		msf.meterpreters[meterpreter.id] = meterpreter
+	} else {
+		delete(msf.meterpreters, meterpreter.id)
+	}
+	return true
+}
+
 // Close is used to logout metasploit RPC and destroy all objects.
 func (msf *MSFRPC) Close() error {
+	msf.rwm.Lock()
+	defer msf.rwm.Unlock()
 	err := msf.clean()
 	if err != nil {
 		return err
@@ -248,24 +304,35 @@ func (msf *MSFRPC) Close() error {
 
 // Kill is ued to logout metasploit RPC when can't connect target.
 func (msf *MSFRPC) Kill() {
+	msf.rwm.Lock()
+	defer msf.rwm.Unlock()
 	_ = msf.clean()
 	_ = msf.AuthLogout(msf.GetToken())
 	msf.close()
 }
 
-// TODO clean opened resource.
 func (msf *MSFRPC) clean() error {
+	atomic.StoreInt32(&msf.inShutdown, 1)
+	var err error
 	// close all consoles
-
+	for _, console := range msf.consoles {
+		e := console.closeNotWait()
+		if e != nil && err == nil {
+			err = e
+		}
+	}
 	// close all shells
-
+	for _, shell := range msf.shells {
+		_ = shell.Close()
+	}
 	// close all meterpreters
-
-	return nil
+	for _, meterpreter := range msf.meterpreters {
+		_ = meterpreter.Close()
+	}
+	return err
 }
 
 func (msf *MSFRPC) close() {
 	msf.cancel()
 	msf.client.CloseIdleConnections()
-	msf.wg.Wait()
 }

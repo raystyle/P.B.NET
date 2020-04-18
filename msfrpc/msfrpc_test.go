@@ -473,21 +473,53 @@ func TestMSFRPC_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
-	require.NoError(t, err)
-
 	t.Run("ok", func(t *testing.T) {
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
 		err = msfrpc.Close()
 		require.NoError(t, err)
 	})
 
-	t.Run("failed", func(t *testing.T) {
+	ctx := context.Background()
+	const (
+		workspace = ""
+		interval  = 25 * time.Millisecond
+	)
+
+	t.Run("failed to clean", func(t *testing.T) {
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		err = msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+
 		err = msfrpc.Close()
 		require.Error(t, err)
+
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+		err = msfrpc.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, console)
+		testsuite.IsDestroyed(t, msfrpc)
 	})
 
-	msfrpc.Kill()
-	testsuite.IsDestroyed(t, msfrpc)
+	t.Run("failed to close", func(t *testing.T) {
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		require.NoError(t, err)
+
+		err = msfrpc.Close()
+		require.Error(t, err)
+
+		msfrpc.Kill()
+		testsuite.IsDestroyed(t, msfrpc)
+	})
 }

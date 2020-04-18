@@ -153,7 +153,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func testAddJob(t *testing.T, msfrpc *MSFRPC, ctx context.Context) string {
+func testAddJob(ctx context.Context, t *testing.T, msfrpc *MSFRPC) string {
 	name := "multi/handler"
 	opts := make(map[string]interface{})
 	opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
@@ -179,7 +179,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 
 	t.Run("active", func(t *testing.T) {
 		// add a job before start monitor for first watch
-		firstJobID := testAddJob(t, msfrpc, ctx)
+		firstJobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
 			err = msfrpc.JobStop(ctx, firstJobID)
 			require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
-		jobID := testAddJob(t, msfrpc, ctx)
+		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -219,7 +219,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	})
 
 	t.Run("stop", func(t *testing.T) {
-		jobID := testAddJob(t, msfrpc, ctx)
+		jobID := testAddJob(ctx, t, msfrpc)
 
 		var (
 			sID   string
@@ -278,7 +278,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
-		jobID := testAddJob(t, msfrpc, ctx)
+		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -292,7 +292,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	})
 
 	t.Run("jobs", func(t *testing.T) {
-		jobID := testAddJob(t, msfrpc, ctx)
+		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -1091,7 +1091,7 @@ func TestMonitor_eventMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// generate event
-		jobID := testAddJob(t, msfrpc, ctx)
+		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -1150,7 +1150,7 @@ func TestMonitor_eventMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// generate event
-		jobID := testAddJob(t, msfrpc, ctx)
+		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -1165,7 +1165,7 @@ func TestMonitor_eventMonitor(t *testing.T) {
 
 	t.Run("events", func(t *testing.T) {
 		// generate event
-		jobID := testAddJob(t, msfrpc, ctx)
+		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -1233,7 +1233,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		err = msfrpc.DBReportLoot(ctx, testDBLoot)
 		require.NoError(t, err)
 
-		jobID := testAddJob(t, msfrpc, ctx)
+		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
