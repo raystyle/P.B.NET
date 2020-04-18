@@ -168,6 +168,8 @@ func (hs *HTTPServer) Apply() (*http.Server, error) {
 		IdleTimeout:       hs.IdleTimeout,
 		MaxHeaderBytes:    hs.MaxHeaderBytes,
 	}
+	// force set it to server side
+	hs.TLSConfig.ServerSide = true
 	// tls config
 	var err error
 	s.TLSConfig, err = hs.TLSConfig.Apply()

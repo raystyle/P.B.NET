@@ -192,7 +192,7 @@ func TestFailedToNewServer(t *testing.T) {
 
 	t.Run("failed to apply server options", func(t *testing.T) {
 		opts := Options{}
-		opts.Server.TLSConfig.RootCAs = []string{"foo"}
+		opts.Server.TLSConfig.ClientCAs = []string{"foo"}
 		_, err := NewHTTPServer("server", nil, &opts)
 		require.Error(t, err)
 	})

@@ -138,7 +138,8 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 }
 
 var testInvalidTLSConfig = TLSConfig{
-	RootCAs: []string{"foo data"},
+	RootCAs:   []string{"foo data"},
+	ClientCAs: []string{"foo data"},
 }
 
 func TestHTTPTransport_Apply(t *testing.T) {
