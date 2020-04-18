@@ -183,6 +183,9 @@ func (t *TLSConfig) Apply() (*tls.Config, error) {
 	}
 	config.ServerName = t.ServerName
 	config.MinVersion = t.MinVersion
+	if config.MinVersion == 0 {
+		config.MinVersion = tls.VersionTLS12
+	}
 	config.MaxVersion = t.MaxVersion
 	config.ClientAuth = t.ClientAuth
 	return config, nil

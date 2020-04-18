@@ -75,10 +75,13 @@ func TLSConfigPair(t testing.TB) (server, client *tls.Config) {
 	require.NoError(t, err)
 
 	server = &tls.Config{
+		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{tlsCert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 	}
-	client = &tls.Config{RootCAs: x509.NewCertPool()}
+	client = &tls.Config{MinVersion: tls.VersionTLS12,
+		RootCAs: x509.NewCertPool(),
+	}
 	client.RootCAs.AddCert(caCert)
 
 	// certificates about client

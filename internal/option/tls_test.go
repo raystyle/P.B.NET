@@ -65,6 +65,7 @@ func TestTLSDefault(t *testing.T) {
 		require.Equal(t, tls.ClientAuthType(0), config.ClientAuth)
 		require.Zero(t, config.ServerName)
 		require.Nil(t, config.NextProtos)
+		require.Equal(t, uint16(tls.VersionTLS12), config.MinVersion)
 		require.Equal(t, uint16(0), config.MaxVersion)
 		require.Nil(t, config.CipherSuites)
 		require.Equal(t, false, config.InsecureSkipVerify)
@@ -145,8 +146,8 @@ func TestTLSUnmarshal(t *testing.T) {
 			{expected: tls.ClientAuthType(4), actual: config.ClientAuth},
 			{expected: "test.com", actual: config.ServerName},
 			{expected: []string{"h2", "h2c"}, actual: config.NextProtos},
-			{expected: uint16(tls.VersionTLS11), actual: config.MinVersion},
-			{expected: uint16(tls.VersionTLS13), actual: config.MaxVersion},
+			{expected: uint16(tls.VersionTLS10), actual: config.MinVersion},
+			{expected: uint16(tls.VersionTLS11), actual: config.MaxVersion},
 			{expected: []uint16{tls.TLS_RSA_WITH_AES_128_GCM_SHA256}, actual: config.CipherSuites},
 			{expected: false, actual: config.InsecureSkipVerify},
 		}

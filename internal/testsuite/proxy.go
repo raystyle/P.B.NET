@@ -66,6 +66,7 @@ func initHTTPServers(t testing.TB) {
 	require.NoError(t, err)
 	// require client certificate
 	httpsServer.TLSConfig = &tls.Config{
+		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{serverCert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 	}
@@ -416,7 +417,10 @@ func ProxyClientWithHTTPSTarget(t testing.TB, client proxyClient) {
 	transport := new(http.Transport)
 	certPool, err := cert.SystemCertPool()
 	require.NoError(t, err)
-	transport.TLSClientConfig = &tls.Config{RootCAs: certPool}
+	transport.TLSClientConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    certPool,
+	}
 	client.HTTP(transport)
 
 	httpClient := http.Client{

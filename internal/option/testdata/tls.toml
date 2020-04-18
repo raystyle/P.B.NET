@@ -1,8 +1,8 @@
 client_auth   = 4 # RequireAndVerifyClientCert
 server_name   = "test.com"
 next_protos   = ["h2", "h2c"]
-min_version   = 0x0302   # TLS 1.1
-max_version   = 0x0304   # TLS 1.3
+min_version   = 0x0301   # TLS 1.0
+max_version   = 0x0302   # TLS 1.1
 cipher_suites = [0x009c] # TLS_RSA_WITH_AES_128_GCM_SHA256
 
 root_ca = [
