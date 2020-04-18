@@ -179,6 +179,21 @@ func (monitor *Monitor) Loots(workspace string) ([]*DBLoot, error) {
 	return lootsCp, nil
 }
 
+// Events is used to get events by workspace. warning: Event.Information is nil.
+func (monitor *Monitor) Events(workspace string) ([]*DBEvent, error) {
+	monitor.eventsRWM.RLock()
+	defer monitor.eventsRWM.RUnlock()
+	events, ok := monitor.events[workspace]
+	if !ok {
+		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)
+	}
+	eventsCp := make([]*DBEvent, 0, len(events))
+	for event := range events {
+		eventsCp = append(eventsCp, event)
+	}
+	return eventsCp, nil
+}
+
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
 	monitor.ctx.logger.Println(lv, "msfrpc-monitor", log...)
 }
@@ -718,6 +733,7 @@ func (monitor *Monitor) cleanWorkspace() {
 	monitor.cleanHosts(workspaces, l)
 	monitor.cleanCreds(workspaces, l)
 	monitor.cleanLoots(workspaces, l)
+	monitor.cleanEvents(workspaces, l)
 }
 
 func (monitor *Monitor) cleanHosts(workspaces []*DBWorkspace, l int) {
@@ -759,6 +775,20 @@ loop:
 			}
 		}
 		delete(monitor.loots, workspace)
+	}
+}
+
+func (monitor *Monitor) cleanEvents(workspaces []*DBWorkspace, l int) {
+	monitor.eventsRWM.Lock()
+	defer monitor.eventsRWM.Unlock()
+loop:
+	for workspace := range monitor.events {
+		for i := 0; i < l; i++ {
+			if workspace == workspaces[i].Name {
+				continue loop
+			}
+		}
+		delete(monitor.events, workspace)
 	}
 }
 

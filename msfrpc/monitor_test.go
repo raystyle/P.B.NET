@@ -153,6 +153,18 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+func testAddJob(t *testing.T, msfrpc *MSFRPC, ctx context.Context) string {
+	name := "multi/handler"
+	opts := make(map[string]interface{})
+	opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
+	opts["TARGET"] = 0
+	opts["LHOST"] = "127.0.0.1"
+	opts["LPORT"] = "0"
+	result, err := msfrpc.ModuleExecute(ctx, "exploit", name, opts)
+	require.NoError(t, err)
+	return strconv.FormatUint(result.JobID, 10)
+}
+
 func TestMonitor_jobMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -165,21 +177,9 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	const interval = 25 * time.Millisecond
 	ctx := context.Background()
 
-	addJob := func() string {
-		name := "multi/handler"
-		opts := make(map[string]interface{})
-		opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
-		opts["TARGET"] = 0
-		opts["LHOST"] = "127.0.0.1"
-		opts["LPORT"] = "0"
-		result, err := msfrpc.ModuleExecute(ctx, "exploit", name, opts)
-		require.NoError(t, err)
-		return strconv.FormatUint(result.JobID, 10)
-	}
-
 	t.Run("active", func(t *testing.T) {
 		// add a job before start monitor for first watch
-		firstJobID := addJob()
+		firstJobID := testAddJob(t, msfrpc, ctx)
 		defer func() {
 			err = msfrpc.JobStop(ctx, firstJobID)
 			require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
-		jobID := addJob()
+		jobID := testAddJob(t, msfrpc, ctx)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -219,7 +219,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	})
 
 	t.Run("stop", func(t *testing.T) {
-		jobID := addJob()
+		jobID := testAddJob(t, msfrpc, ctx)
 
 		var (
 			sID   string
@@ -278,7 +278,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
-		jobID := addJob()
+		jobID := testAddJob(t, msfrpc, ctx)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -292,7 +292,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	})
 
 	t.Run("jobs", func(t *testing.T) {
-		jobID := addJob()
+		jobID := testAddJob(t, msfrpc, ctx)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -1063,18 +1063,6 @@ func TestMonitor_eventMonitor(t *testing.T) {
 	err = msfrpc.DBConnect(ctx, testDBOptions)
 	require.NoError(t, err)
 
-	addJob := func() string {
-		name := "multi/handler"
-		opts := make(map[string]interface{})
-		opts["PAYLOAD"] = "windows/meterpreter/reverse_tcp"
-		opts["TARGET"] = 0
-		opts["LHOST"] = "127.0.0.1"
-		opts["LPORT"] = "0"
-		result, err := msfrpc.ModuleExecute(ctx, "exploit", name, opts)
-		require.NoError(t, err)
-		return strconv.FormatUint(result.JobID, 10)
-	}
-
 	t.Run("add", func(t *testing.T) {
 		// add new workspace for create map
 		err := msfrpc.DBAddWorkspace(ctx, tempWorkspace)
@@ -1103,7 +1091,7 @@ func TestMonitor_eventMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// generate event
-		jobID := addJob()
+		jobID := testAddJob(t, msfrpc, ctx)
 		defer func() {
 			err = msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
@@ -1118,6 +1106,89 @@ func TestMonitor_eventMonitor(t *testing.T) {
 		// compare result
 		require.Equal(t, defaultWorkspace, sWorkspace)
 		require.Equal(t, "module_run", sEvent.Name)
+	})
+
+	t.Run("failed to get workspace", func(t *testing.T) {
+		callbacks := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+		defer func() {
+			err = msfrpc.AuthLogin()
+			require.NoError(t, err)
+		}()
+
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("failed to watch", func(t *testing.T) {
+		callbacks := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		monitor.watchEventWithWorkspace(invalidWorkspace)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		callbacks := Callbacks{
+			OnJob: func(string, string, bool) {},
+			OnEvent: func(string, *DBEvent) {
+				panic("test panic")
+			}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		// generate event
+		jobID := testAddJob(t, msfrpc, ctx)
+		defer func() {
+			err = msfrpc.JobStop(ctx, jobID)
+			require.NoError(t, err)
+		}()
+
+		// wait call OnEvent and panic
+		time.Sleep(3 * minWatchInterval)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+	})
+
+	t.Run("events", func(t *testing.T) {
+		// generate event
+		jobID := testAddJob(t, msfrpc, ctx)
+		defer func() {
+			err = msfrpc.JobStop(ctx, jobID)
+			require.NoError(t, err)
+		}()
+
+		callbacks := Callbacks{OnJob: func(string, string, bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		// wait first watch
+		time.Sleep(3 * minWatchInterval)
+
+		events, err := monitor.Events(defaultWorkspace)
+		require.NoError(t, err)
+		require.NotEmpty(t, events)
+
+		// invalid workspace name
+		events, err = monitor.Events(invalidWorkspace)
+		require.Error(t, err)
+		require.Nil(t, events)
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
 	})
 
 	err = msfrpc.DBDisconnect(ctx)
@@ -1162,9 +1233,15 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		err = msfrpc.DBReportLoot(ctx, testDBLoot)
 		require.NoError(t, err)
 
+		jobID := testAddJob(t, msfrpc, ctx)
+		defer func() {
+			err = msfrpc.JobStop(ctx, jobID)
+			require.NoError(t, err)
+		}()
+
 		// create monitor
-		callback := Callbacks{}
-		monitor := msfrpc.NewMonitor(&callback, interval)
+		callbacks := Callbacks{OnJob: func(string, string, bool) {}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
 		monitor.StartDatabaseMonitors()
 
 		// wait first watch
@@ -1181,8 +1258,8 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	})
 
 	t.Run("failed to get workspace", func(t *testing.T) {
-		callback := Callbacks{}
-		monitor := msfrpc.NewMonitor(&callback, interval)
+		callbacks := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
 		monitor.StartDatabaseMonitors()
 
 		err := msfrpc.AuthLogout(msfrpc.GetToken())
@@ -1207,8 +1284,8 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(m, "DBWorkspaces", patchFunc)
 		defer pg.Unpatch()
 
-		callback := Callbacks{}
-		monitor := msfrpc.NewMonitor(&callback, interval)
+		callbacks := Callbacks{}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
 		monitor.StartDatabaseMonitors()
 
 		// wait clean workspace
