@@ -299,6 +299,7 @@ func (c *sConn) serve(done chan struct{}) {
 		select {
 		case done <- struct{}{}:
 		case <-c.slaver.ctx.Done():
+			return
 		}
 		// continue copy
 		_ = remote.SetReadDeadline(time.Time{})
@@ -323,6 +324,7 @@ func (c *sConn) serve(done chan struct{}) {
 	select {
 	case done <- struct{}{}:
 	case <-c.slaver.ctx.Done():
+		return
 	}
 	// continue copy
 	_ = c.local.SetReadDeadline(time.Time{})

@@ -47,7 +47,7 @@ func New() *Rand {
 			}()
 			count := 0
 			timer := time.NewTimer(time.Second)
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			r := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
 			for i := 0; i < times; i++ {
 				timer.Reset(time.Second)
 				select {
@@ -82,13 +82,13 @@ read:
 	n, _ := io.CopyN(hash, cr.Reader, 512)
 	hash.Write([]byte{byte(n)})
 	hashData := hash.Sum(nil)
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
 	selected := make([]byte, 8)
 	for i := 0; i < 8; i++ {
 		selected[i] = hashData[r.Intn(sha256.Size)]
 	}
 	seed := convert.BytesToInt64(selected)
-	return &Rand{rand: rand.New(rand.NewSource(seed))}
+	return &Rand{rand: rand.New(rand.NewSource(seed))} // #nosec
 }
 
 // String return a string that not include "|".

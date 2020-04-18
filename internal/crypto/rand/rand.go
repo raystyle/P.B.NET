@@ -25,7 +25,7 @@ func (r reader) Read(b []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	rd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
 	for i := 0; i < l; i++ {
 		b[i] = buffer[rd.Intn(size)]
 	}
