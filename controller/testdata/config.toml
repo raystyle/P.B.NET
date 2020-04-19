@@ -43,7 +43,7 @@
   max_buffer_size = 16384
 
 [webserver]
-  dir       = "web"
+  directory = "web"
   cert_file = "ca/cert.pem"
   key_file  = "ca/key.pem"
   network   = "tcp4"

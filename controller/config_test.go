@@ -52,7 +52,7 @@ func testGenerateConfig() *Config {
 	cfg.Worker.QueueSize = 512
 	cfg.Worker.MaxBufferSize = 16 << 10
 
-	cfg.WebServer.Dir = "web"
+	cfg.WebServer.Directory = "web"
 	cfg.WebServer.CertFile = "ca/cert.pem"
 	cfg.WebServer.KeyFile = "ca/key.pem"
 	cfg.WebServer.CertOpts.DNSNames = []string{"localhost"}
@@ -107,7 +107,7 @@ func TestConfig(t *testing.T) {
 		{expected: 512, actual: cfg.Worker.QueueSize},
 		{expected: 16384, actual: cfg.Worker.MaxBufferSize},
 
-		{expected: "web", actual: cfg.WebServer.Dir},
+		{expected: "web", actual: cfg.WebServer.Directory},
 		{expected: "ca/cert.pem", actual: cfg.WebServer.CertFile},
 		{expected: "ca/key.pem", actual: cfg.WebServer.KeyFile},
 		{expected: []string{"localhost"}, actual: cfg.WebServer.CertOpts.DNSNames},

@@ -72,14 +72,14 @@ type Config struct {
 	} `toml:"worker"`
 
 	WebServer struct {
-		Dir      string       `toml:"dir"`
-		CertFile string       `toml:"cert_file"`
-		KeyFile  string       `toml:"key_file"`
-		CertOpts cert.Options `toml:"cert"`
-		Network  string       `toml:"network"`
-		Address  string       `toml:"address"`
-		Username string       `toml:"username"` // super user
-		Password string       `toml:"password"`
+		Directory string       `toml:"directory"`
+		CertFile  string       `toml:"cert_file"`
+		KeyFile   string       `toml:"key_file"`
+		CertOpts  cert.Options `toml:"cert"`
+		Network   string       `toml:"network"`
+		Address   string       `toml:"address"`
+		Username  string       `toml:"username"` // super user
+		Password  string       `toml:"password"`
 	} `toml:"webserver"`
 }
 

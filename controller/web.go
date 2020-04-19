@@ -83,11 +83,11 @@ func newWebServer(ctx *Ctrl, config *Config) (*webServer, error) {
 		PanicHandler:           wh.handlePanic,
 	}
 	// resource
-	router.ServeFiles("/css/*filepath", http.Dir(cfg.Dir+"/css"))
-	router.ServeFiles("/js/*filepath", http.Dir(cfg.Dir+"/js"))
-	router.ServeFiles("/img/*filepath", http.Dir(cfg.Dir+"/img"))
+	router.ServeFiles("/css/*filepath", http.Dir(cfg.Directory+"/css"))
+	router.ServeFiles("/js/*filepath", http.Dir(cfg.Directory+"/js"))
+	router.ServeFiles("/img/*filepath", http.Dir(cfg.Directory+"/img"))
 	// favicon.ico
-	favicon, err := ioutil.ReadFile(cfg.Dir + "/favicon.ico")
+	favicon, err := ioutil.ReadFile(cfg.Directory + "/favicon.ico")
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -95,7 +95,7 @@ func newWebServer(ctx *Ctrl, config *Config) (*webServer, error) {
 		_, _ = w.Write(favicon)
 	})
 	// index.html
-	index, err := ioutil.ReadFile(cfg.Dir + "/index.html")
+	index, err := ioutil.ReadFile(cfg.Directory + "/index.html")
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
