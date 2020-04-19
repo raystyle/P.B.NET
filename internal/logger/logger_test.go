@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/testsuite"
 )
 
 const (
@@ -66,6 +68,38 @@ func TestLogger(t *testing.T) {
 	Discard.Println(Debug, testSrc, "test-println", testLog1, testLog2)
 }
 
+func TestMultiLogger(t *testing.T) {
+	logger := NewMultiLogger(Debug, os.Stdout)
+
+	logger.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
+	logger.Print(Debug, testSrc, "test-print", testLog1, testLog2)
+	logger.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+
+	t.Run("low level", func(t *testing.T) {
+		err := logger.SetLevel(Info)
+		require.NoError(t, err)
+
+		logger.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
+		logger.Print(Debug, testSrc, "test-print", testLog1, testLog2)
+		logger.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+	})
+
+	t.Run("invalid level", func(t *testing.T) {
+		err := logger.SetLevel(Level(123))
+		require.EqualError(t, err, "invalid logger level: 123")
+	})
+
+	err := logger.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, logger)
+}
+
+func TestHijackLogWriter(t *testing.T) {
+	HijackLogWriter(Test)
+	log.Println("Println")
+}
+
 func TestNewWriterWithPrefix(t *testing.T) {
 	w := NewWriterWithPrefix(os.Stdout, "prefix")
 	_, err := w.Write([]byte("test\n"))
@@ -75,11 +109,6 @@ func TestNewWriterWithPrefix(t *testing.T) {
 func TestWrap(t *testing.T) {
 	l := Wrap(Debug, "test wrap", Test)
 	l.Println("Println")
-}
-
-func TestHijackLogWriter(t *testing.T) {
-	HijackLogWriter(Test)
-	log.Println("Println")
 }
 
 func TestConn(t *testing.T) {

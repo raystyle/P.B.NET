@@ -103,7 +103,6 @@ func (lg *gLogger) Printf(lv logger.Level, src, format string, log ...interface{
 	}
 	now := lg.ctx.global.Now().Local()
 	buf := logger.Prefix(now, lv, src)
-	// log with level and src
 	logStr := fmt.Sprintf(format, log...)
 	buf.WriteString(logStr)
 	buf.WriteString("\n")
@@ -118,7 +117,6 @@ func (lg *gLogger) Print(lv logger.Level, src string, log ...interface{}) {
 	}
 	now := lg.ctx.global.Now().Local()
 	buf := logger.Prefix(now, lv, src)
-	// log with level and src
 	logStr := fmt.Sprint(log...)
 	buf.WriteString(logStr)
 	buf.WriteString("\n")
@@ -133,7 +131,6 @@ func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 	}
 	now := lg.ctx.global.Now().Local()
 	buf := logger.Prefix(now, lv, src)
-	// log with level and src
 	logStr := fmt.Sprintln(log...)
 	buf.WriteString(logStr)
 	lg.writeLog(now, lv, src, logStr[:len(logStr)-1], buf) // delete "\n"
@@ -142,7 +139,7 @@ func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 // SetLevel is used to set log level that need print.
 func (lg *gLogger) SetLevel(lv logger.Level) error {
 	if lv > logger.Off {
-		return errors.Errorf("invalid logger level %d", lv)
+		return errors.Errorf("invalid logger level: %d", lv)
 	}
 	lg.rwm.Lock()
 	defer lg.rwm.Unlock()
@@ -164,6 +161,7 @@ func (lg *gLogger) CloseSender() {
 
 // Close is used to close log sender and set logger.ctx = nil.
 func (lg *gLogger) Close() {
+	_ = lg.SetLevel(logger.Off)
 	lg.rwm.Lock()
 	defer lg.rwm.Unlock()
 	lg.ctx = nil

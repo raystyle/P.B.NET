@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -26,11 +27,16 @@ const (
 // TimeLayout is used to provide a parameter to time.Time.Format().
 const TimeLayout = "2006-01-02 15:04:05"
 
-// Logger is a common logger.
+// Logger is used to print log with level and source.
 type Logger interface {
 	Printf(lv Level, src, format string, log ...interface{})
 	Print(lv Level, src string, log ...interface{})
 	Println(lv Level, src string, log ...interface{})
+}
+
+// LevelSetter is used to set logger level.
+type LevelSetter interface {
+	SetLevel(lv Level) error
 }
 
 // Parse is used to parse logger level from string.
@@ -163,57 +169,127 @@ func (discard) Print(_ Level, _ string, _ ...interface{}) {}
 
 func (discard) Println(_ Level, _ string, _ ...interface{}) {}
 
-// pWriter is used to print with a prefix
-type pWriter struct {
-	w      io.Writer
+// MultiLogger is a common logger that can set log level and print log.
+type MultiLogger struct {
+	writer io.Writer
+	level  Level
+	rwm    sync.RWMutex
+}
+
+// NewMultiLogger is used to create a MultiLogger.
+func NewMultiLogger(lv Level, writers ...io.Writer) *MultiLogger {
+	return &MultiLogger{
+		level:  lv,
+		writer: io.MultiWriter(writers...),
+	}
+}
+
+// Printf is used to print log with format.
+func (lg *MultiLogger) Printf(lv Level, src, format string, log ...interface{}) {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level {
+		return
+	}
+	buf := Prefix(time.Now(), lv, src)
+	_, _ = fmt.Fprintf(buf, format, log...)
+	buf.WriteString("\n")
+	_, _ = buf.WriteTo(lg.writer)
+}
+
+// Print is used to print log.
+func (lg *MultiLogger) Print(lv Level, src string, log ...interface{}) {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level {
+		return
+	}
+	buf := Prefix(time.Now(), lv, src)
+	_, _ = fmt.Fprint(buf, log...)
+	buf.WriteString("\n")
+	_, _ = buf.WriteTo(lg.writer)
+}
+
+// Println is used to print log with new line.
+func (lg *MultiLogger) Println(lv Level, src string, log ...interface{}) {
+	lg.rwm.RLock()
+	defer lg.rwm.RUnlock()
+	if lv < lg.level {
+		return
+	}
+	buf := Prefix(time.Now(), lv, src)
+	_, _ = fmt.Fprintln(buf, log...)
+	_, _ = buf.WriteTo(lg.writer)
+}
+
+// SetLevel is used to set log level that need print.
+func (lg *MultiLogger) SetLevel(lv Level) error {
+	if lv > Off {
+		return fmt.Errorf("invalid logger level: %d", lv)
+	}
+	lg.rwm.Lock()
+	defer lg.rwm.Unlock()
+	lg.level = lv
+	return nil
+}
+
+// Close is used to close logger.
+func (lg *MultiLogger) Close() error {
+	_ = lg.SetLevel(Off)
+	return nil
+}
+
+// HijackLogWriter is used to hijack all packages that use log.Print().
+func HijackLogWriter(logger Logger) {
+	log.SetFlags(log.Llongfile)
+	w := &wrapWriter{
+		level:  Error,
+		src:    "pkg-log",
+		logger: logger,
+	}
+	log.SetOutput(w)
+}
+
+// prefixWriter is used to print with a prefix.
+type prefixWriter struct {
+	writer io.Writer
 	prefix []byte
 }
 
-func (p pWriter) Write(b []byte) (n int, err error) {
+func (p *prefixWriter) Write(b []byte) (n int, err error) {
 	n = len(b)
-	_, err = p.w.Write(append(p.prefix, b...))
+	_, err = p.writer.Write(append(p.prefix, b...))
 	return
 }
 
 // NewWriterWithPrefix is used to print prefix before each log.
 // it used for role test
 func NewWriterWithPrefix(w io.Writer, prefix string) io.Writer {
-	return pWriter{
-		w:      w,
+	return &prefixWriter{
+		writer: w,
 		prefix: []byte(fmt.Sprintf("[%s] ", prefix)),
 	}
 }
 
-type writer struct {
+type wrapWriter struct {
 	level  Level
 	src    string
 	logger Logger
 }
 
-func (w *writer) Write(p []byte) (int, error) {
+func (w *wrapWriter) Write(p []byte) (int, error) {
 	w.logger.Println(w.level, w.src, string(p[:len(p)-1]))
 	return len(p), nil
 }
 
 // Wrap is for go internal logger like http.Server.ErrorLog.
 func Wrap(lv Level, src string, logger Logger) *log.Logger {
-	w := &writer{
+	w := &wrapWriter{
 		level:  lv,
 		src:    src,
 		logger: logger,
 	}
 	return log.New(w, "", 0)
-}
-
-// HijackLogWriter is used to hijack all packages that use log.Print().
-func HijackLogWriter(logger Logger) {
-	log.SetFlags(log.Llongfile)
-	w := &writer{
-		level:  Error,
-		src:    "pkg-log",
-		logger: logger,
-	}
-	log.SetOutput(w)
 }
 
 // Conn is used to print connection information.

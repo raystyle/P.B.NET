@@ -167,7 +167,7 @@ func (lg *gLogger) Println(lv logger.Level, src string, log ...interface{}) {
 // SetLevel is used to set log level that need print.
 func (lg *gLogger) SetLevel(lv logger.Level) error {
 	if lv > logger.Off {
-		return errors.Errorf("invalid logger level %d", lv)
+		return errors.Errorf("invalid logger level: %d", lv)
 	}
 	lg.rwm.Lock()
 	defer lg.rwm.Unlock()
@@ -176,6 +176,7 @@ func (lg *gLogger) SetLevel(lv logger.Level) error {
 }
 
 func (lg *gLogger) Close() {
+	_ = lg.SetLevel(logger.Off)
 	_ = lg.file.Close()
 	lg.rwm.Lock()
 	defer lg.rwm.Unlock()
