@@ -212,7 +212,7 @@ func (msf *MSFRPC) ConsoleSessionKill(ctx context.Context, id string) error {
 	return nil
 }
 
-const minReadInterval = 50 * time.Millisecond
+const minReadInterval = 200 * time.Millisecond
 
 // Console is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
 type Console struct {
