@@ -114,7 +114,7 @@ func generateControllerConfig() *controller.Config {
 	cfg.Worker.QueueSize = 512
 	cfg.Worker.MaxBufferSize = 16 << 10
 
-	cfg.WebServer.Dir = "web"
+	cfg.WebServer.Directory = "web"
 	cfg.WebServer.CertFile = "ca/cert.pem"
 	cfg.WebServer.KeyFile = "ca/key.pem"
 	cfg.WebServer.CertOpts.DNSNames = []string{"localhost"}

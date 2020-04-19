@@ -117,6 +117,10 @@ func (msf *MSFRPC) NewWebServer(
 	return &web, nil
 }
 
+func (web *WebServer) OnToken() {
+
+}
+
 // Close is used to close web server.
 func (web *WebServer) Close() {
 	_ = web.server.Close()
