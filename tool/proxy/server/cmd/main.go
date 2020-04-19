@@ -17,19 +17,19 @@ import (
 
 func main() {
 	var (
+		test      bool
 		config    string
-		debug     bool
 		install   bool
 		uninstall bool
 	)
-	flag.StringVar(&config, "config", "config.toml", "config file path")
+	flag.BoolVar(&test, "test", false, "don't change current path")
+	flag.StringVar(&config, "config", "config.toml", "configuration file path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
-	flag.BoolVar(&debug, "debug", false, "don't change current path")
 	flag.Parse()
 
-	// changed path for service
-	if !debug {
+	// changed path for service and prevent get invalid path when test
+	if !test {
 		path, err := os.Executable()
 		if err != nil {
 			log.Fatalln(err)
@@ -41,7 +41,7 @@ func main() {
 		}
 	}
 
-	// load proxy server config
+	// load proxy server configuration
 	data, err := ioutil.ReadFile(config) // #nosec
 	if err != nil {
 		log.Fatalln(err)

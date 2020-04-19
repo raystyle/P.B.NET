@@ -1,1 +1,1 @@
-go run main.go -debug
+go run main.go -test
