@@ -2,9 +2,9 @@
 tag = ""
 
 [service]
-  name        = "Proxy Client"
-  displayName = "Proxy Client"
-  description = "Proxy Client Service"
+  name         = "Proxy Client"
+  display_name = "Proxy Client"
+  description  = "Proxy Client Service"
 
 # front proxy server
 [server]

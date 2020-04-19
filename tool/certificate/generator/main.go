@@ -11,11 +11,11 @@ import (
 
 func main() {
 	var (
-		ca   bool
-		sign bool
+		ca  bool
+		gen bool
 	)
 	flag.BoolVar(&ca, "ca", false, "generate CA certificate")
-	flag.BoolVar(&sign, "sign", false, "sign a certificate by CA")
+	flag.BoolVar(&gen, "gen", false, "generate certificate and sign it by CA")
 	flag.Parse()
 
 	options, err := ioutil.ReadFile("options.toml")
@@ -43,7 +43,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-	case sign:
+	case gen:
 		// load CA certificate
 		pemData, err := ioutil.ReadFile("ca.crt")
 		if err != nil {

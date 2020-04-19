@@ -1,7 +1,7 @@
 [service]
-  name        = "Proxy Server"
-  displayName = "Proxy Server"
-  description = "Proxy Server Service"
+  name         = "Proxy Server"
+  display_name = "Proxy Server"
+  description  = "Proxy Server Service"
 
 [proxy]
   mode    = "socks5"
