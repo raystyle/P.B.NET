@@ -20,9 +20,24 @@ import (
 	"project/internal/xpanic"
 )
 
+// shortcut about interface
 type hRW = http.ResponseWriter
 type hR = http.Request
 type hP = httprouter.Params
+
+// subFileSystem is used to open sub directory for http file server.
+type subFileSystem struct {
+	fs   http.FileSystem
+	path string
+}
+
+func newSubFileSystem(fs http.FileSystem, path string) *subFileSystem {
+	return &subFileSystem{fs: fs, path: path + "/"}
+}
+
+func (sfs *subFileSystem) Open(name string) (http.File, error) {
+	return sfs.fs.Open(sfs.path + name)
+}
 
 // WebServerOptions contains options about web server.
 type WebServerOptions struct {
@@ -72,9 +87,9 @@ func (msf *MSFRPC) NewWebServer(
 		PanicHandler:           wh.handlePanic,
 	}
 	// resource
-	router.ServeFiles("/css/*filepath", fs)
-	router.ServeFiles("/js/*filepath", fs)
-	router.ServeFiles("/img/*filepath", fs)
+	router.ServeFiles("/css/*filepath", newSubFileSystem(fs, "css"))
+	router.ServeFiles("/js/*filepath", newSubFileSystem(fs, "js"))
+	router.ServeFiles("/img/*filepath", newSubFileSystem(fs, "img"))
 
 	httpServer.Handler = router
 
@@ -105,7 +120,6 @@ func (msf *MSFRPC) NewWebServer(
 // Close is used to close web server.
 func (web *WebServer) Close() {
 	_ = web.server.Close()
-
 }
 
 type webHandler struct {

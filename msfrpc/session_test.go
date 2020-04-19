@@ -105,7 +105,7 @@ func TestMSFRPC_SessionList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestMSFRPC_SessionRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -246,7 +246,7 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -399,7 +399,7 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -479,7 +479,7 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 	file, id := testCreateShellSessionWithProgram(t, msfrpc, "55006")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -560,7 +560,7 @@ func TestMSFRPC_SessionMeterpreterRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -611,7 +611,7 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -674,7 +674,7 @@ func TestMSFRPC_SessionMeterpreterDetach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -723,7 +723,7 @@ func TestMSFRPC_SessionMeterpreterKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -772,7 +772,7 @@ func TestMSFRPC_SessionMeterpreterRunSingle(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -830,7 +830,7 @@ func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -905,7 +905,7 @@ func TestShell(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -977,7 +977,7 @@ func TestShell_reader(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -992,7 +992,7 @@ func TestShell_reader(t *testing.T) {
 	id := testCreateShellSession(t, msfrpc, "55301")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -1078,7 +1078,7 @@ func TestShell_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 
 	// force set for prevent net/http call time.Reset()
@@ -1097,7 +1097,7 @@ func TestShell_writeLimiter(t *testing.T) {
 	id := testCreateShellSession(t, msfrpc, "55301")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -1158,7 +1158,7 @@ func TestShell_Write(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1173,7 +1173,7 @@ func TestShell_Write(t *testing.T) {
 	id := testCreateShellSession(t, msfrpc, "55301")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -1205,7 +1205,7 @@ func TestShell_Kill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1233,7 +1233,7 @@ func TestMeterpreter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1295,7 +1295,7 @@ func TestMeterpreter_reader(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1310,7 +1310,7 @@ func TestMeterpreter_reader(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55401")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -1396,7 +1396,7 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 
 	// force set for prevent net/http call time.Reset()
@@ -1415,7 +1415,7 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55402")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -1476,7 +1476,7 @@ func TestMeterpreter_Write(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1491,7 +1491,7 @@ func TestMeterpreter_Write(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55403")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -1523,7 +1523,7 @@ func TestMeterpreter_Detach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1538,7 +1538,7 @@ func TestMeterpreter_Detach(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55404")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -1634,7 +1634,7 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1649,7 +1649,7 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 	id := testCreateMeterpreterSession(t, msfrpc, "55405")
 	defer func() {
 		// kill session(need create a new msfrpc client)
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
@@ -1744,7 +1744,7 @@ func TestMeterpreter_Kill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)

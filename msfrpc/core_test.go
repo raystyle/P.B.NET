@@ -16,7 +16,7 @@ func TestMSFRPC_CoreModuleStats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestMSFRPC_CoreAddModulePath(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestMSFRPC_CoreReloadModules(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestMSFRPC_CoreThreadList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestMSFRPC_CoreThreadKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestMSFRPC_CoreSetG(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -267,7 +267,7 @@ func TestMSFRPC_CoreGetG(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -313,7 +313,7 @@ func TestMSFRPC_CoreUnsetG(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -362,7 +362,7 @@ func TestMSFRPC_CoreSave(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -398,7 +398,7 @@ func TestMSFRPC_CoreVersion(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)

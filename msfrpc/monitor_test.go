@@ -17,7 +17,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -322,7 +322,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -496,7 +496,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -700,7 +700,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -906,7 +906,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1048,7 +1048,7 @@ func TestMonitor_eventMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
@@ -1202,7 +1202,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Common, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 	err = msfrpc.AuthLogin()
 	require.NoError(t, err)
