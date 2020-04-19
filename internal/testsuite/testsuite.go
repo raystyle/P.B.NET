@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -137,6 +138,62 @@ func CheckErrorInTestMain(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func checkOptions(father string, v interface{}) string {
+	typ := reflect.TypeOf(v)
+	var value reflect.Value
+	if typ.Kind() == reflect.Ptr {
+		// check is nil point
+		value = reflect.ValueOf(v)
+		typ = value.Type()
+		if value.IsNil() {
+			return father + typ.Name() + " is nil point"
+		}
+		value = value.Elem()
+		typ = value.Type()
+	} else {
+		value = reflect.ValueOf(v)
+	}
+	for i := 0; i < value.NumField(); i++ {
+		fieldType := typ.Field(i)
+		fieldValue := value.Field(i)
+		// skip check
+		if fieldType.Tag.Get("check") == "-" {
+			continue
+		}
+		switch fieldType.Type.Kind() {
+		case reflect.Struct, reflect.Ptr, reflect.Interface:
+			var f string
+			if father == "" {
+				f = typ.Name() + "." + fieldType.Name
+			} else {
+				f = father + "." + fieldType.Name
+			}
+			str := checkOptions(f, fieldValue.Interface())
+			if str != "" {
+				return str
+			}
+		default:
+			if !fieldValue.IsZero() {
+				continue
+			}
+			if father == "" {
+				const format = "%s.%s is zero value"
+				return fmt.Sprintf(format, typ.Name(), fieldType.Name)
+			}
+			const format = "%s.%s is zero value"
+			return fmt.Sprintf(format, father, fieldType.Name)
+		}
+	}
+	return ""
+}
+
+// CheckOptions is used to check unmarshal is apply value to each field,
+// it will check each field value is zero.
+func CheckOptions(t *testing.T, v interface{}) {
+	str := checkOptions("", v)
+	require.True(t, str == "", str)
 }
 
 // RunParallel is used to call functions with go func().
