@@ -506,9 +506,9 @@ type DBReportHost struct {
 	MAC           string `msgpack:"mac"          json:"mac"`
 	OSName        string `msgpack:"os_name"      json:"os_name"`
 	OSFlavor      string `msgpack:"os_flavor"    json:"os_flavor"`
-	OSServicePack string `msgpack:"os_sp"        json:"os_sp"`
-	OSLanguage    string `msgpack:"os_lang"      json:"os_lang"`
-	Architecture  string `msgpack:"arch"         json:"arch"`
+	OSServicePack string `msgpack:"os_sp"        json:"os_service_pack"`
+	OSLanguage    string `msgpack:"os_lang"      json:"os_language"`
+	Architecture  string `msgpack:"arch"         json:"architecture"`
 	State         string `msgpack:"state"        json:"state"`
 	Scope         string `msgpack:"scope"        json:"scope"`
 	VirtualHost   string `msgpack:"virtual_host" json:"virtual_host"`
@@ -540,10 +540,10 @@ type DBHost struct {
 	MAC           string `msgpack:"mac"        json:"mac"`
 	OSName        string `msgpack:"os_name"    json:"os_name"`
 	OSFlavor      string `msgpack:"os_flavor"  json:"os_flavor"`
-	OSServicePack string `msgpack:"os_sp"      json:"os_sp"`
-	OSLanguage    string `msgpack:"os_lang"    json:"os_lang"`
+	OSServicePack string `msgpack:"os_sp"      json:"os_service_pack"`
+	OSLanguage    string `msgpack:"os_lang"    json:"os_language"`
 	Purpose       string `msgpack:"purpose"    json:"purpose"`
-	Information   string `msgpack:"info"       json:"info"`
+	Information   string `msgpack:"info"       json:"information"`
 	State         string `msgpack:"state"      json:"state"`
 	CreatedAt     int64  `msgpack:"created_at" json:"created_at"`
 	UpdateAt      int64  `msgpack:"updated_at" json:"updated_at"`
@@ -588,7 +588,7 @@ type DBReportService struct {
 	Workspace string `msgpack:"workspace" json:"workspace"`
 	Host      string `msgpack:"host"      json:"host"`
 	Port      string `msgpack:"port"      json:"port"`
-	Protocol  string `msgpack:"proto"     json:"proto"`
+	Protocol  string `msgpack:"proto"     json:"protocol"`
 	Name      string `msgpack:"name"      json:"name"`
 }
 
@@ -612,7 +612,7 @@ type DBServicesOptions struct {
 	Offset    uint64 `msgpack:"offset"    json:"offset"`
 	Address   string `msgpack:"address"   json:"address"`
 	Port      string `msgpack:"port"      json:"port"`
-	Protocol  string `msgpack:"proto"     json:"proto"`
+	Protocol  string `msgpack:"proto"     json:"protocol"`
 	Name      string `msgpack:"name"      json:"name"`
 }
 
@@ -626,10 +626,10 @@ type DBServicesResult struct {
 type DBService struct {
 	Host        string `msgpack:"host"       json:"host"`
 	Port        uint64 `msgpack:"port"       json:"port"`
-	Protocol    string `msgpack:"proto"      json:"proto"`
+	Protocol    string `msgpack:"proto"      json:"protocol"`
 	Name        string `msgpack:"name"       json:"name"`
 	State       string `msgpack:"state"      json:"state"`
-	Information string `msgpack:"info"       json:"info"`
+	Information string `msgpack:"info"       json:"information"`
 	CreatedAt   int64  `msgpack:"created_at" json:"created_at"`
 	UpdateAt    int64  `msgpack:"updated_at" json:"updated_at"`
 }
@@ -644,7 +644,7 @@ type DBGetServiceRequest struct {
 // DBGetServiceOptions contains options about get service.
 type DBGetServiceOptions struct {
 	Workspace string `msgpack:"workspace" json:"workspace"`
-	Protocol  string `msgpack:"proto"     json:"proto"`
+	Protocol  string `msgpack:"proto"     json:"protocol"`
 	Port      uint64 `msgpack:"port"      json:"port"`
 	Names     string `msgpack:"names"     json:"names"`
 }
@@ -668,7 +668,7 @@ type DBDelServiceOptions struct {
 	Address   string   `msgpack:"address"   json:"address"`
 	Addresses []string `msgpack:"addresses" json:"addresses"`
 	Port      uint64   `msgpack:"port"      json:"port"`
-	Protocol  string   `msgpack:"proto"     json:"proto"`
+	Protocol  string   `msgpack:"proto"     json:"protocol"`
 }
 
 // DBDelServiceResult is the result of delete service.
@@ -682,7 +682,7 @@ type DBDelServiceResult struct {
 type DBDelService struct {
 	Address  string `msgpack:"address" json:"address"`
 	Port     uint64 `msgpack:"port"    json:"port"`
-	Protocol string `msgpack:"proto"   json:"proto"`
+	Protocol string `msgpack:"proto"   json:"protocol"`
 }
 
 // DBReportClientRequest is used to add browser client to database.
@@ -698,7 +698,7 @@ type DBReportClient struct {
 	Host      string `msgpack:"host"      json:"host"`
 	UAString  string `msgpack:"ua_string" json:"ua_string"`
 	UAName    string `msgpack:"ua_name"   json:"ua_name"`
-	UAVersion string `msgpack:"ua_ver"    json:"ua_ver"`
+	UAVersion string `msgpack:"ua_ver"    json:"ua_version"`
 }
 
 // DBReportClientResult is the result of add browser client to database.
@@ -719,7 +719,7 @@ type DBClientsOptions struct {
 	Workspace string   `msgpack:"workspace" json:"workspace"`
 	Addresses []string `msgpack:"addresses" json:"addresses"`
 	UAName    string   `msgpack:"ua_name"   json:"ua_name"`
-	UAVersion string   `msgpack:"ua_ver"    json:"ua_ver"`
+	UAVersion string   `msgpack:"ua_ver"    json:"ua_version"`
 }
 
 // DBClientsResult is the result of get browser clients by filter.
@@ -733,7 +733,7 @@ type DBClient struct {
 	Host      string `msgpack:"host"       json:"host"`
 	UAString  string `msgpack:"ua_string"  json:"ua_string"`
 	UAName    string `msgpack:"ua_name"    json:"ua_name"`
-	UAVersion string `msgpack:"ua_ver"     json:"ua_ver"`
+	UAVersion string `msgpack:"ua_ver"     json:"ua_version"`
 	CreatedAt int64  `msgpack:"created_at" json:"created_at"`
 	UpdateAt  int64  `msgpack:"updated_at" json:"updated_at"`
 }
@@ -771,7 +771,7 @@ type DBDelClientOptions struct {
 	Address   string   `msgpack:"address"   json:"address"`
 	Addresses []string `msgpack:"addresses" json:"addresses"`
 	UAName    string   `msgpack:"ua_name"   json:"ua_name"`
-	UAVersion string   `msgpack:"ua_ver"    json:"ua_ver"`
+	UAVersion string   `msgpack:"ua_ver"    json:"ua_version"`
 }
 
 // DBDelClientResult is the result of delete browser client.
@@ -816,7 +816,7 @@ type DBCreateCredentialResult struct {
 	Private     string `msgpack:"private"      json:"private"`
 	RealmValue  string `msgpack:"realm_value"  json:"realm_value"`
 	RealmKey    string `msgpack:"realm_key"    json:"realm_key"`
-	ServiceName string `msgpack:"sname"        json:"sname"`
+	ServiceName string `msgpack:"sname"        json:"service_name"`
 	Status      string `msgpack:"status"       json:"status"`
 	MSFError
 }
@@ -838,11 +838,11 @@ type DBCredsResult struct {
 type DBCred struct {
 	Host        string `msgpack:"host"       json:"host"`
 	Port        uint64 `msgpack:"port"       json:"port"`
-	Protocol    string `msgpack:"proto"      json:"proto"`
-	ServiceName string `msgpack:"sname"      json:"sname"`
+	Protocol    string `msgpack:"proto"      json:"protocol"`
+	ServiceName string `msgpack:"sname"      json:"service_name"`
 	Type        string `msgpack:"type"       json:"type"`
-	Username    string `msgpack:"user"       json:"user"`
-	Password    string `msgpack:"pass"       json:"pass"`
+	Username    string `msgpack:"user"       json:"username"`
+	Password    string `msgpack:"pass"       json:"password"`
 	UpdateAt    int64  `msgpack:"updated_at" json:"updated_at"`
 }
 
@@ -866,11 +866,11 @@ type DBDelCredsResult struct {
 type DBDelCred struct {
 	Host        string `msgpack:"host"       json:"host"`
 	Port        uint64 `msgpack:"port"       json:"port"`
-	Protocol    string `msgpack:"proto"      json:"proto"`
-	ServiceName string `msgpack:"sname"      json:"sname"`
+	Protocol    string `msgpack:"proto"      json:"protocol"`
+	ServiceName string `msgpack:"sname"      json:"service_name"`
 	Type        string `msgpack:"type"       json:"type"`
-	Username    string `msgpack:"user"       json:"user"`
-	Password    string `msgpack:"pass"       json:"pass"`
+	Username    string `msgpack:"user"       json:"username"`
+	Password    string `msgpack:"pass"       json:"password"`
 	UpdateAt    int64  `msgpack:"updated_at" json:"updated_at"`
 }
 
@@ -886,13 +886,13 @@ type DBReportLoot struct {
 	Workspace   string `msgpack:"workspace"    json:"workspace"`
 	Host        string `msgpack:"host"         json:"host"`
 	Port        uint64 `msgpack:"port"         json:"port"`
-	Proto       string `msgpack:"proto"        json:"proto"`
+	Proto       string `msgpack:"proto"        json:"protocol"`
 	Name        string `msgpack:"name"         json:"name"`
 	Type        string `msgpack:"type"         json:"type"`
 	ContentType string `msgpack:"content_type" json:"content_type"`
 	Path        string `msgpack:"path"         json:"path"`
 	Data        string `msgpack:"data"         json:"data"`
-	Information string `msgpack:"info"         json:"info"`
+	Information string `msgpack:"info"         json:"information"`
 }
 
 // DBReportLootResult is the result of add loot.
@@ -926,10 +926,10 @@ type DBLoot struct {
 	Host        string                 `msgpack:"host"       json:"host"`
 	Service     string                 `msgpack:"service"    json:"service"`
 	Name        string                 `msgpack:"name"       json:"name"`
-	LootType    string                 `msgpack:"ltype"      json:"ltype"`
-	ContentType string                 `msgpack:"ctype"      json:"ctype"`
+	LootType    string                 `msgpack:"ltype"      json:"loot_type"`
+	ContentType string                 `msgpack:"ctype"      json:"content_type"`
 	Data        map[string]interface{} `msgpack:"data"       json:"data"`
-	Information string                 `msgpack:"info"       json:"info"`
+	Information string                 `msgpack:"info"       json:"information"`
 	CreatedAt   int64                  `msgpack:"created_at" json:"created_at"`
 	UpdateAt    int64                  `msgpack:"updated_at" json:"updated_at"`
 }
@@ -948,10 +948,10 @@ type DBWorkspacesResult struct {
 
 // DBWorkspace contains information about workspace.
 type DBWorkspace struct {
-	ID        uint64 `msgpack:"id"`
-	Name      string `msgpack:"name"`
-	CreatedAt int64  `msgpack:"created_at"`
-	UpdateAt  int64  `msgpack:"updated_at"`
+	ID        uint64 `msgpack:"id"         json:"id"`
+	Name      string `msgpack:"name"       json:"name"`
+	CreatedAt int64  `msgpack:"created_at" json:"created_at"`
+	UpdateAt  int64  `msgpack:"updated_at" json:"updated_at"`
 }
 
 // DBGetWorkspaceRequest is used to get workspace by name.
@@ -1014,8 +1014,8 @@ type DBCurrentWorkspaceRequest struct {
 
 // DBCurrentWorkspaceResult is the result of get the current workspace.
 type DBCurrentWorkspaceResult struct {
-	Name string `msgpack:"workspace"`
-	ID   uint64 `msgpack:"workspace_id"`
+	Name string `msgpack:"workspace"    json:"workspace"`
+	ID   uint64 `msgpack:"workspace_id" json:"workspace_id"`
 	MSFError
 }
 
@@ -1034,13 +1034,13 @@ type DBEventResult struct {
 
 // DBEvent contains information about framework event.
 type DBEvent struct {
-	Name        string                 `msgpack:"name"`
-	Critical    bool                   `msgpack:"critical"`
-	Host        string                 `msgpack:"host"`
-	Username    string                 `msgpack:"username"`
-	Information map[string]interface{} `msgpack:"info"`
-	CreatedAt   int64                  `msgpack:"created_at"`
-	UpdateAt    int64                  `msgpack:"updated_at"`
+	Name        string                 `msgpack:"name"       json:"name"`
+	Critical    bool                   `msgpack:"critical"   json:"critical"`
+	Host        string                 `msgpack:"host"       json:"host"`
+	Username    string                 `msgpack:"username"   json:"username"`
+	Information map[string]interface{} `msgpack:"info"       json:"information"`
+	CreatedAt   int64                  `msgpack:"created_at" json:"created_at"`
+	UpdateAt    int64                  `msgpack:"updated_at" json:"updated_at"`
 }
 
 // DBImportDataRequest is used to import external data to database.
@@ -1072,9 +1072,9 @@ type ConsoleListResult struct {
 
 // ConsoleInfo include console information.
 type ConsoleInfo struct {
-	ID     string `msgpack:"id"`
-	Prompt string `msgpack:"prompt"`
-	Busy   bool   `msgpack:"busy"`
+	ID     string `msgpack:"id"     json:"id"`
+	Prompt string `msgpack:"prompt" json:"prompt"`
+	Busy   bool   `msgpack:"busy"   json:"busy"`
 }
 
 // ConsoleCreateRequest is used to create a console.
@@ -1299,33 +1299,33 @@ type ModuleInfoRequest struct {
 
 // ModuleInfoResult is the result about get module's information.
 type ModuleInfoResult struct {
-	Type           string                   `msgpack:"type"`
-	Name           string                   `msgpack:"name"`
-	FullName       string                   `msgpack:"fullname"`
-	Rank           string                   `msgpack:"rank"`
-	DisclosureDate string                   `msgpack:"disclosuredate"`
-	Description    string                   `msgpack:"description"`
-	License        string                   `msgpack:"license"`
-	Filepath       string                   `msgpack:"filepath"`
-	Arch           []string                 `msgpack:"arch"`
-	Platform       []string                 `msgpack:"platform"`
-	Authors        []string                 `msgpack:"authors"`
-	Privileged     bool                     `msgpack:"privileged"`
-	References     []string                 `msgpack:"references"`
-	Targets        map[uint64]string        `msgpack:"targets"`
-	DefaultTarget  uint64                   `msgpack:"default_target"`
-	Stance         string                   `msgpack:"stance"`
-	Options        map[string]*ModuleOption `msgpack:"options"`
+	Type           string                   `msgpack:"type"           json:"type"`
+	Name           string                   `msgpack:"name"           json:"name"`
+	FullName       string                   `msgpack:"fullname"       json:"fullname"`
+	Rank           string                   `msgpack:"rank"           json:"rank"`
+	DisclosureDate string                   `msgpack:"disclosuredate" json:"disclosure_date"`
+	Description    string                   `msgpack:"description"    json:"description"`
+	License        string                   `msgpack:"license"        json:"license"`
+	Filepath       string                   `msgpack:"filepath"       json:"filepath"`
+	Arch           []string                 `msgpack:"arch"           json:"architecture"`
+	Platform       []string                 `msgpack:"platform"       json:"platform"`
+	Authors        []string                 `msgpack:"authors"        json:"authors"`
+	Privileged     bool                     `msgpack:"privileged"     json:"privileged"`
+	References     []string                 `msgpack:"references"     json:"references"`
+	Targets        map[uint64]string        `msgpack:"targets"        json:"targets"`
+	DefaultTarget  uint64                   `msgpack:"default_target" json:"default_target"`
+	Stance         string                   `msgpack:"stance"         json:"stance"`
+	Options        map[string]*ModuleOption `msgpack:"options"        json:"options"`
 	MSFError
 }
 
 // ModuleOption contains modules information about options.
 type ModuleOption struct {
-	Type        string      `msgpack:"type"`
-	Required    bool        `msgpack:"required"`
-	Advanced    bool        `msgpack:"advanced"`
-	Description string      `msgpack:"desc"`
-	Default     interface{} `msgpack:"default"`
+	Type        string      `msgpack:"type"     json:"type"`
+	Required    bool        `msgpack:"required" json:"required"`
+	Advanced    bool        `msgpack:"advanced" json:"advanced"`
+	Description string      `msgpack:"desc"     json:"description"`
+	Default     interface{} `msgpack:"default"  json:"default"`
 }
 
 // ModuleOptionsRequest is used to get module options.
@@ -1338,13 +1338,13 @@ type ModuleOptionsRequest struct {
 
 // ModuleSpecialOption contains modules options for ModuleOptionsRequest.
 type ModuleSpecialOption struct {
-	Type        string        `msgpack:"type"`
-	Required    bool          `msgpack:"required"`
-	Advanced    bool          `msgpack:"advanced"`
-	Evasion     bool          `msgpack:"evasion"`
-	Description string        `msgpack:"desc"`
-	Default     interface{}   `msgpack:"default"`
-	Enums       []interface{} `msgpack:"enums"`
+	Type        string        `msgpack:"type"     json:"type"`
+	Required    bool          `msgpack:"required" json:"required"`
+	Advanced    bool          `msgpack:"advanced" json:"advanced"`
+	Evasion     bool          `msgpack:"evasion"  json:"evasion"`
+	Description string        `msgpack:"desc"     json:"description"`
+	Default     interface{}   `msgpack:"default"  json:"default"`
+	Enums       []interface{} `msgpack:"enums"    json:"enums"`
 }
 
 // ModuleCompatiblePayloadsRequest is used to get compatible payloads.
@@ -1462,15 +1462,15 @@ type ModuleEncodeRequest struct {
 
 // ModuleEncodeOptions contains module encode options.
 type ModuleEncodeOptions struct {
-	Format       string
-	BadChars     string
-	Platform     string
-	Arch         string
-	EncodeCount  uint64
-	Inject       bool
-	AltEXE       string
-	EXEDir       string
-	AddShellcode string
+	Format       string `json:"format"`
+	BadChars     string `json:"bad_chars"`
+	Platform     string `json:"platform"`
+	Arch         string `json:"architecture"`
+	EncodeCount  uint64 `json:"encode_count"`
+	Inject       bool   `json:"inject"`
+	AltEXE       string `json:"alt_exe"`
+	EXEDir       string `json:"exe_dir"`
+	AddShellcode string `json:"add_shellcode"`
 }
 
 func (opts *ModuleEncodeOptions) toMap() map[string]interface{} {
@@ -1521,15 +1521,15 @@ type ModuleExecuteRequest struct {
 
 // ModuleExecuteOptions is used to generate payload.
 type ModuleExecuteOptions struct {
-	BadChars            string
-	Format              string
-	ForceEncoding       bool
-	Template            string
-	Platform            string
-	KeepTemplateWorking bool
-	NopSledSize         uint64
-	Iterations          uint64
-	DataStore           map[string]interface{}
+	BadChars            string                 `json:"bad_chars"`
+	Format              string                 `json:"format"`
+	ForceEncoding       bool                   `json:"force_encoding"`
+	Template            string                 `json:"template"`
+	Platform            string                 `json:"platform"`
+	KeepTemplateWorking bool                   `json:"keep_template_working"`
+	NopSledSize         uint64                 `json:"nop_sled_size"`
+	Iterations          uint64                 `json:"iterations"`
+	DataStore           map[string]interface{} `json:"data_store"`
 }
 
 // NewModuleExecuteOptions is used to create a module execute options.
@@ -1558,9 +1558,9 @@ func (opts *ModuleExecuteOptions) toMap() map[string]interface{} {
 
 // ModuleExecuteResult is the result of execute a module.
 type ModuleExecuteResult struct {
-	JobID   uint64 `msgpack:"job_id"`
-	UUID    string `msgpack:"uuid"`
-	Payload string `msgpack:"payload"`
+	JobID   uint64 `msgpack:"job_id"  json:"job_id"`
+	UUID    string `msgpack:"uuid"    json:"uuid"`
+	Payload string `msgpack:"payload" json:"payload"`
 	MSFError
 }
 
@@ -1575,8 +1575,8 @@ type ModuleCheckRequest struct {
 
 // ModuleCheckResult is the result of check module.
 type ModuleCheckResult struct {
-	JobID uint64 `msgpack:"job_id"`
-	UUID  string `msgpack:"uuid"`
+	JobID uint64 `msgpack:"job_id" json:"job_id"`
+	UUID  string `msgpack:"uuid"   json:"uuid"`
 	MSFError
 }
 
@@ -1589,9 +1589,9 @@ type ModuleRunningStatsRequest struct {
 
 // ModuleRunningStatsResult is the result of get running stats.
 type ModuleRunningStatsResult struct {
-	Waiting []string `msgpack:"waiting"`
-	Running []string `msgpack:"running"`
-	Results []string `msgpack:"results"`
+	Waiting []string `msgpack:"waiting" json:"waiting"`
+	Running []string `msgpack:"running" json:"running"`
+	Results []string `msgpack:"results" json:"results"`
 	MSFError
 }
 
@@ -1612,10 +1612,10 @@ type JobInfoRequest struct {
 
 // JobInfoResult is the result of get job information.
 type JobInfoResult struct {
-	JobID     uint64                 `msgpack:"jid"`
-	Name      string                 `msgpack:"name"`
-	StartTime uint64                 `msgpack:"start_time"`
-	DataStore map[string]interface{} `msgpack:"datastore"`
+	JobID     uint64                 `msgpack:"jid"        json:"job_id"`
+	Name      string                 `msgpack:"name"       json:"name"`
+	StartTime uint64                 `msgpack:"start_time" json:"start_time"`
+	DataStore map[string]interface{} `msgpack:"datastore"  json:"data_store"`
 	MSFError
 }
 
@@ -1642,23 +1642,23 @@ type SessionListRequest struct {
 
 // SessionInfo contains the session information.
 type SessionInfo struct {
-	Type         string `msgpack:"type"`
-	ViaExploit   string `msgpack:"via_exploit"`
-	ViaPayload   string `msgpack:"via_payload"`
-	TunnelLocal  string `msgpack:"tunnel_local"`
-	TunnelPeer   string `msgpack:"tunnel_peer"`
-	SessionHost  string `msgpack:"session_host"`
-	SessionPort  uint64 `msgpack:"session_port"`
-	TargetHost   string `msgpack:"target_host"`
-	Routes       string `msgpack:"routes"`
-	Username     string `msgpack:"username"`
-	Architecture string `msgpack:"arch"`
-	Platform     string `msgpack:"platform"`
-	Description  string `msgpack:"desc"`
-	Information  string `msgpack:"info"`
-	Workspace    string `msgpack:"workspace"`
-	UUID         string `msgpack:"uuid"`
-	ExploitUUID  string `msgpack:"exploit_uuid"`
+	Type         string `msgpack:"type"         json:"type"`
+	ViaExploit   string `msgpack:"via_exploit"  json:"via_exploit"`
+	ViaPayload   string `msgpack:"via_payload"  json:"via_payload"`
+	TunnelLocal  string `msgpack:"tunnel_local" json:"tunnel_local"`
+	TunnelPeer   string `msgpack:"tunnel_peer"  json:"tunnel_peer"`
+	SessionHost  string `msgpack:"session_host" json:"session_host"`
+	SessionPort  uint64 `msgpack:"session_port" json:"session_port"`
+	TargetHost   string `msgpack:"target_host"  json:"target_host"`
+	Routes       string `msgpack:"routes"       json:"routes"`
+	Username     string `msgpack:"username"     json:"username"`
+	Architecture string `msgpack:"arch"         json:"architecture"`
+	Platform     string `msgpack:"platform"     json:"platform"`
+	Description  string `msgpack:"desc"         json:"description"`
+	Information  string `msgpack:"info"         json:"information"`
+	Workspace    string `msgpack:"workspace"    json:"workspace"`
+	UUID         string `msgpack:"uuid"         json:"uuid"`
+	ExploitUUID  string `msgpack:"exploit_uuid" json:"exploit_uuid"`
 }
 
 // SessionStopRequest is used to stop a session.
