@@ -468,12 +468,12 @@ func (msf *MSFRPC) DBDelClient(ctx context.Context, opts *DBDelClientOptions) ([
 // DBCreateCredential is used to create a credential.
 func (msf *MSFRPC) DBCreateCredential(
 	ctx context.Context,
-	opts map[string]interface{},
+	opts *DBCreateCredentialOptions,
 ) (*DBCreateCredentialResult, error) {
 	request := DBCreateCredentialRequest{
 		Method:  MethodDBCreateCred,
 		Token:   msf.GetToken(),
-		Options: opts,
+		Options: xreflect.StructureToMapWithoutZero(opts, structTag),
 	}
 	var result DBCreateCredentialResult
 	err := msf.send(ctx, &request, &result)

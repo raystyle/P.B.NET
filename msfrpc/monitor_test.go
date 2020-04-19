@@ -762,7 +762,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 
 		// compare result
 		require.Equal(t, defaultWorkspace, sWorkspace)
-		require.Equal(t, testDBCred["username"], sCred.Username)
+		require.Equal(t, testDBCred.Username, sCred.Username)
 		require.True(t, sAdd)
 	})
 
@@ -805,7 +805,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 
 		// compare result
 		require.Equal(t, defaultWorkspace, sWorkspace)
-		require.Equal(t, testDBCred["username"], sCred.Username)
+		require.Equal(t, testDBCred.Username, sCred.Username)
 		require.False(t, sAdd)
 	})
 

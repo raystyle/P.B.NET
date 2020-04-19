@@ -1140,17 +1140,17 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-var testDBCred = map[string]interface{}{
-	"address":         "127.0.0.1",
-	"port":            445,
-	"protocol":        "tcp",
-	"origin_type":     "service",
-	"service_name":    "smb",
-	"module_fullname": "auxiliary/scanner/smb/smb_login",
-	"private_type":    "password",
-	"private_data":    "pwd",
-	"username":        "Administrator",
-	"workspace_id":    1,
+var testDBCred = &DBCreateCredentialOptions{
+	OriginType:     "service",
+	ServiceName:    "smb",
+	Address:        "127.0.0.1",
+	Port:           445,
+	Protocol:       "tcp",
+	ModuleFullname: "auxiliary/scanner/smb/smb_login",
+	Username:       "Administrator",
+	PrivateType:    "password",
+	PrivateData:    "pwd",
+	WorkspaceID:    1,
 }
 
 func TestMSFRPC_DBCreateCredential(t *testing.T) {

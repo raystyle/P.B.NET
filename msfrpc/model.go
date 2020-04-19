@@ -45,12 +45,12 @@ func (e *errorCode) DecodeMsgpack(decoder *msgpack.Decoder) error {
 
 // MSFError is an error about Metasploit RPC.
 type MSFError struct {
-	Err            bool      `msgpack:"error"`
-	ErrorClass     string    `msgpack:"error_class"`
-	ErrorString    string    `msgpack:"error_string"`
-	ErrorBacktrace []string  `msgpack:"error_backtrace"`
-	ErrorMessage   string    `msgpack:"error_message"`
-	ErrorCode      errorCode `msgpack:"error_code"`
+	Err            bool      `msgpack:"error"           json:"error"`
+	ErrorClass     string    `msgpack:"error_class"     json:"error_class"`
+	ErrorString    string    `msgpack:"error_string"    json:"error_string"`
+	ErrorBacktrace []string  `msgpack:"error_backtrace" json:"error_backtrace"`
+	ErrorMessage   string    `msgpack:"error_message"   json:"error_message"`
+	ErrorCode      errorCode `msgpack:"error_code"      json:"error_code"`
 }
 
 func (err *MSFError) Error() string {
@@ -293,12 +293,12 @@ type CoreModuleStatsRequest struct {
 
 // CoreModuleStatsResult is the result about module status.
 type CoreModuleStatsResult struct {
-	Exploit   int `msgpack:"exploits"`
-	Auxiliary int `msgpack:"auxiliary"`
-	Post      int `msgpack:"post"`
-	Payload   int `msgpack:"payloads"`
-	Encoder   int `msgpack:"encoders"`
-	Nop       int `msgpack:"nops"`
+	Exploit   int `msgpack:"exploits"  json:"exploits"`
+	Auxiliary int `msgpack:"auxiliary" json:"auxiliary"`
+	Post      int `msgpack:"post"      json:"post"`
+	Payload   int `msgpack:"payloads"  json:"payloads"`
+	Encoder   int `msgpack:"encoders"  json:"encoders"`
+	Nop       int `msgpack:"nops"      json:"nops"`
 	MSFError
 }
 
@@ -311,12 +311,12 @@ type CoreAddModulePathRequest struct {
 
 // CoreAddModulePathResult is the result about add module.
 type CoreAddModulePathResult struct {
-	Exploit   int `msgpack:"exploits"`
-	Auxiliary int `msgpack:"auxiliary"`
-	Post      int `msgpack:"post"`
-	Payload   int `msgpack:"payloads"`
-	Encoder   int `msgpack:"encoders"`
-	Nop       int `msgpack:"nops"`
+	Exploit   int `msgpack:"exploits"  json:"exploits"`
+	Auxiliary int `msgpack:"auxiliary" json:"auxiliary"`
+	Post      int `msgpack:"post"      json:"post"`
+	Payload   int `msgpack:"payloads"  json:"payloads"`
+	Encoder   int `msgpack:"encoders"  json:"encoders"`
+	Nop       int `msgpack:"nops"      json:"nops"`
 	MSFError
 }
 
@@ -328,12 +328,12 @@ type CoreReloadModulesRequest struct {
 
 // CoreReloadModulesResult is the result about reload modules.
 type CoreReloadModulesResult struct {
-	Exploit   int `msgpack:"exploits"`
-	Auxiliary int `msgpack:"auxiliary"`
-	Post      int `msgpack:"post"`
-	Payload   int `msgpack:"payloads"`
-	Encoder   int `msgpack:"encoders"`
-	Nop       int `msgpack:"nops"`
+	Exploit   int `msgpack:"exploits"  json:"exploits"`
+	Auxiliary int `msgpack:"auxiliary" json:"auxiliary"`
+	Post      int `msgpack:"post"      json:"post"`
+	Payload   int `msgpack:"payloads"  json:"payloads"`
+	Encoder   int `msgpack:"encoders"  json:"encoders"`
+	Nop       int `msgpack:"nops"      json:"nops"`
 	MSFError
 }
 
@@ -343,12 +343,12 @@ type CoreThreadListRequest struct {
 	Token  string
 }
 
-// CoreThreadInfo contains the thread information.
+// CoreThreadInfo contains the information about thread.
 type CoreThreadInfo struct {
-	Status   string `msgpack:"status"`
-	Critical bool   `msgpack:"critical"`
-	Name     string `msgpack:"name"`
-	Started  string `msgpack:"started"`
+	Status   string `msgpack:"status"   json:"status"`
+	Critical bool   `msgpack:"critical" json:"critical"`
+	Name     string `msgpack:"name"     json:"name"`
+	Started  string `msgpack:"started"  json:"started"`
 }
 
 // CoreThreadKillRequest is used to kill thread by ID.
@@ -419,9 +419,9 @@ type CoreVersionRequest struct {
 // CoreVersionResult contain information the running framework instance,
 // the Ruby interpreter, and the RPC protocol version being used.
 type CoreVersionResult struct {
-	Version string `msgpack:"version"`
-	Ruby    string `msgpack:"ruby"`
-	API     string `msgpack:"api"`
+	Version string `msgpack:"version" json:"version"`
+	Ruby    string `msgpack:"ruby"    json:"ruby"`
+	API     string `msgpack:"api"     json:"api"`
 	MSFError
 }
 
@@ -436,13 +436,13 @@ type DBConnectRequest struct {
 
 // DBConnectOptions contains the options about connect database.
 type DBConnectOptions struct {
-	Driver   string
-	Host     string
-	Port     uint64
-	Username string
-	Password string
-	Database string
-	Other    map[string]interface{}
+	Driver   string                 `toml:"driver"`
+	Host     string                 `toml:"host"`
+	Port     uint64                 `toml:"port"`
+	Username string                 `toml:"username"`
+	Password string                 `toml:"password"`
+	Database string                 `toml:"database"`
+	Other    map[string]interface{} `toml:"other"`
 }
 
 func (opts *DBConnectOptions) toMap() map[string]interface{} {
@@ -486,8 +486,8 @@ type DBStatusRequest struct {
 
 // DBStatusResult is the result of get database status.
 type DBStatusResult struct {
-	Driver   string `msgpack:"driver"`
-	Database string `msgpack:"db"`
+	Driver   string `msgpack:"driver" json:"driver"`
+	Database string `msgpack:"db"     json:"db"`
 	MSFError
 }
 
@@ -500,18 +500,18 @@ type DBReportHostRequest struct {
 
 // DBReportHost contains information about report host.
 type DBReportHost struct {
-	Workspace     string `msgpack:"workspace"`
-	Name          string `msgpack:"name"`
-	Host          string `msgpack:"host"`
-	MAC           string `msgpack:"mac"`
-	OSName        string `msgpack:"os_name"`
-	OSFlavor      string `msgpack:"os_flavor"`
-	OSServicePack string `msgpack:"os_sp"`
-	OSLanguage    string `msgpack:"os_lang"`
-	Architecture  string `msgpack:"arch"`
-	State         string `msgpack:"state"`
-	Scope         string `msgpack:"scope"`
-	VirtualHost   string `msgpack:"virtual_host"`
+	Workspace     string `msgpack:"workspace"    json:"workspace"`
+	Name          string `msgpack:"name"         json:"name"`
+	Host          string `msgpack:"host"         json:"host"`
+	MAC           string `msgpack:"mac"          json:"mac"`
+	OSName        string `msgpack:"os_name"      json:"os_name"`
+	OSFlavor      string `msgpack:"os_flavor"    json:"os_flavor"`
+	OSServicePack string `msgpack:"os_sp"        json:"os_sp"`
+	OSLanguage    string `msgpack:"os_lang"      json:"os_lang"`
+	Architecture  string `msgpack:"arch"         json:"arch"`
+	State         string `msgpack:"state"        json:"state"`
+	Scope         string `msgpack:"scope"        json:"scope"`
+	VirtualHost   string `msgpack:"virtual_host" json:"virtual_host"`
 }
 
 // DBReportHostResult is the result of add host to database.
@@ -535,18 +535,18 @@ type DBHostsResult struct {
 
 // DBHost contains host information.
 type DBHost struct {
-	Name          string `msgpack:"name"`
-	Address       string `msgpack:"address"`
-	MAC           string `msgpack:"mac"`
-	OSName        string `msgpack:"os_name"`
-	OSFlavor      string `msgpack:"os_flavor"`
-	OSServicePack string `msgpack:"os_sp"`
-	OSLanguage    string `msgpack:"os_lang"`
-	Purpose       string `msgpack:"purpose"`
-	Information   string `msgpack:"info"`
-	State         string `msgpack:"state"`
-	CreatedAt     int64  `msgpack:"created_at"`
-	UpdateAt      int64  `msgpack:"updated_at"`
+	Name          string `msgpack:"name"       json:"name"`
+	Address       string `msgpack:"address"    json:"address"`
+	MAC           string `msgpack:"mac"        json:"mac"`
+	OSName        string `msgpack:"os_name"    json:"os_name"`
+	OSFlavor      string `msgpack:"os_flavor"  json:"os_flavor"`
+	OSServicePack string `msgpack:"os_sp"      json:"os_sp"`
+	OSLanguage    string `msgpack:"os_lang"    json:"os_lang"`
+	Purpose       string `msgpack:"purpose"    json:"purpose"`
+	Information   string `msgpack:"info"       json:"info"`
+	State         string `msgpack:"state"      json:"state"`
+	CreatedAt     int64  `msgpack:"created_at" json:"created_at"`
+	UpdateAt      int64  `msgpack:"updated_at" json:"updated_at"`
 }
 
 // DBGetHostRequest is used to get host information.
@@ -585,11 +585,11 @@ type DBReportServiceRequest struct {
 
 // DBReportService contains information about service.
 type DBReportService struct {
-	Workspace string `msgpack:"workspace"`
-	Host      string `msgpack:"host"`
-	Port      string `msgpack:"port"`
-	Protocol  string `msgpack:"proto"`
-	Name      string `msgpack:"name"`
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Host      string `msgpack:"host"      json:"host"`
+	Port      string `msgpack:"port"      json:"port"`
+	Protocol  string `msgpack:"proto"     json:"proto"`
+	Name      string `msgpack:"name"      json:"name"`
 }
 
 // DBReportServiceResult is the result of add service to database.
@@ -607,13 +607,13 @@ type DBServicesRequest struct {
 
 // DBServicesOptions contains options about call DBService().
 type DBServicesOptions struct {
-	Workspace string `msgpack:"workspace"`
-	Limit     uint64 `msgpack:"limit"`
-	Offset    uint64 `msgpack:"offset"`
-	Address   string `msgpack:"address"`
-	Port      string `msgpack:"port"`
-	Protocol  string `msgpack:"proto"`
-	Name      string `msgpack:"name"`
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Limit     uint64 `msgpack:"limit"     json:"limit"`
+	Offset    uint64 `msgpack:"offset"    json:"offset"`
+	Address   string `msgpack:"address"   json:"address"`
+	Port      string `msgpack:"port"      json:"port"`
+	Protocol  string `msgpack:"proto"     json:"proto"`
+	Name      string `msgpack:"name"      json:"name"`
 }
 
 // DBServicesResult is the result of get services by filter.
@@ -624,14 +624,14 @@ type DBServicesResult struct {
 
 // DBService contains server information.
 type DBService struct {
-	Host        string `msgpack:"host"`
-	Port        uint64 `msgpack:"port"`
-	Protocol    string `msgpack:"proto"`
-	Name        string `msgpack:"name"`
-	State       string `msgpack:"state"`
-	Information string `msgpack:"info"`
-	CreatedAt   int64  `msgpack:"created_at"`
-	UpdateAt    int64  `msgpack:"updated_at"`
+	Host        string `msgpack:"host"       json:"host"`
+	Port        uint64 `msgpack:"port"       json:"port"`
+	Protocol    string `msgpack:"proto"      json:"proto"`
+	Name        string `msgpack:"name"       json:"name"`
+	State       string `msgpack:"state"      json:"state"`
+	Information string `msgpack:"info"       json:"info"`
+	CreatedAt   int64  `msgpack:"created_at" json:"created_at"`
+	UpdateAt    int64  `msgpack:"updated_at" json:"updated_at"`
 }
 
 // DBGetServiceRequest is used to get service.
@@ -643,10 +643,10 @@ type DBGetServiceRequest struct {
 
 // DBGetServiceOptions contains options about get service.
 type DBGetServiceOptions struct {
-	Workspace string `msgpack:"workspace"`
-	Protocol  string `msgpack:"proto"`
-	Port      uint64 `msgpack:"port"`
-	Names     string `msgpack:"names"`
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Protocol  string `msgpack:"proto"     json:"proto"`
+	Port      uint64 `msgpack:"port"      json:"port"`
+	Names     string `msgpack:"names"     json:"names"`
 }
 
 // DBGetServiceResult is the result of get service.
@@ -664,11 +664,11 @@ type DBDelServiceRequest struct {
 
 // DBDelServiceOptions contains options about delete service.
 type DBDelServiceOptions struct {
-	Workspace string   `msgpack:"workspace"`
-	Address   string   `msgpack:"address"`
-	Addresses []string `msgpack:"addresses"`
-	Port      uint64   `msgpack:"port"`
-	Protocol  string   `msgpack:"proto"`
+	Workspace string   `msgpack:"workspace" json:"workspace"`
+	Address   string   `msgpack:"address"   json:"address"`
+	Addresses []string `msgpack:"addresses" json:"addresses"`
+	Port      uint64   `msgpack:"port"      json:"port"`
+	Protocol  string   `msgpack:"proto"     json:"proto"`
 }
 
 // DBDelServiceResult is the result of delete service.
@@ -680,9 +680,9 @@ type DBDelServiceResult struct {
 
 // DBDelService contains information about deleted service.
 type DBDelService struct {
-	Address  string `msgpack:"address"`
-	Port     uint64 `msgpack:"port"`
-	Protocol string `msgpack:"proto"`
+	Address  string `msgpack:"address" json:"address"`
+	Port     uint64 `msgpack:"port"    json:"port"`
+	Protocol string `msgpack:"proto"   json:"proto"`
 }
 
 // DBReportClientRequest is used to add browser client to database.
@@ -694,11 +694,11 @@ type DBReportClientRequest struct {
 
 // DBReportClient contains information about report browser client.
 type DBReportClient struct {
-	Workspace string `msgpack:"workspace"`
-	Host      string `msgpack:"host"`
-	UAString  string `msgpack:"ua_string"`
-	UAName    string `msgpack:"ua_name"`
-	UAVersion string `msgpack:"ua_ver"`
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Host      string `msgpack:"host"      json:"host"`
+	UAString  string `msgpack:"ua_string" json:"ua_string"`
+	UAName    string `msgpack:"ua_name"   json:"ua_name"`
+	UAVersion string `msgpack:"ua_ver"    json:"ua_ver"`
 }
 
 // DBReportClientResult is the result of add browser client to database.
@@ -716,10 +716,10 @@ type DBClientsRequest struct {
 
 // DBClientsOptions contains options about get browser clients by filter.
 type DBClientsOptions struct {
-	Workspace string   `msgpack:"workspace"`
-	Addresses []string `msgpack:"addresses"`
-	UAName    string   `msgpack:"ua_name"`
-	UAVersion string   `msgpack:"ua_ver"`
+	Workspace string   `msgpack:"workspace" json:"workspace"`
+	Addresses []string `msgpack:"addresses" json:"addresses"`
+	UAName    string   `msgpack:"ua_name"   json:"ua_name"`
+	UAVersion string   `msgpack:"ua_ver"    json:"ua_ver"`
 }
 
 // DBClientsResult is the result of get browser clients by filter.
@@ -730,12 +730,12 @@ type DBClientsResult struct {
 
 // DBClient contains information about browser client.
 type DBClient struct {
-	Host      string `msgpack:"host"`
-	UAString  string `msgpack:"ua_string"`
-	UAName    string `msgpack:"ua_name"`
-	UAVersion string `msgpack:"ua_ver"`
-	CreatedAt int64  `msgpack:"created_at"`
-	UpdateAt  int64  `msgpack:"updated_at"`
+	Host      string `msgpack:"host"       json:"host"`
+	UAString  string `msgpack:"ua_string"  json:"ua_string"`
+	UAName    string `msgpack:"ua_name"    json:"ua_name"`
+	UAVersion string `msgpack:"ua_ver"     json:"ua_ver"`
+	CreatedAt int64  `msgpack:"created_at" json:"created_at"`
+	UpdateAt  int64  `msgpack:"updated_at" json:"updated_at"`
 }
 
 // DBGetClientRequest is used of get browser client by filter.
@@ -747,9 +747,9 @@ type DBGetClientRequest struct {
 
 // DBGetClientOptions contain options about get browser client by filter.
 type DBGetClientOptions struct {
-	Workspace string `msgpack:"workspace"`
-	Host      string `msgpack:"host"`
-	UAString  string `msgpack:"ua_string"`
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Host      string `msgpack:"host"      json:"host"`
+	UAString  string `msgpack:"ua_string" json:"ua_string"`
 }
 
 // DBGetClientResult is the result of get browser client by filter.
@@ -767,11 +767,11 @@ type DBDelClientRequest struct {
 
 // DBDelClientOptions contains options about delete browser client.
 type DBDelClientOptions struct {
-	Workspace string   `msgpack:"workspace"`
-	Address   string   `msgpack:"address"`
-	Addresses []string `msgpack:"addresses"`
-	UAName    string   `msgpack:"ua_name"`
-	UAVersion string   `msgpack:"ua_ver"`
+	Workspace string   `msgpack:"workspace" json:"workspace"`
+	Address   string   `msgpack:"address"   json:"address"`
+	Addresses []string `msgpack:"addresses" json:"addresses"`
+	UAName    string   `msgpack:"ua_name"   json:"ua_name"`
+	UAVersion string   `msgpack:"ua_ver"    json:"ua_ver"`
 }
 
 // DBDelClientResult is the result of delete browser client.
@@ -783,8 +783,8 @@ type DBDelClientResult struct {
 
 // DBDelClient contains information about deleted browser client.
 type DBDelClient struct {
-	Address  string `msgpack:"address"`
-	UAString string `msgpack:"ua_string"`
+	Address  string `msgpack:"address"   json:"address"`
+	UAString string `msgpack:"ua_string" json:"ua_string"`
 }
 
 // DBCreateCredentialRequest is used to create credential.
@@ -795,29 +795,29 @@ type DBCreateCredentialRequest struct {
 }
 
 // DBCreateCredentialOptions contains options about create credential.
-// type DBCreateCredentialOptions struct {
-// 	OriginType     string `msgpack:"origin_type"`
-// 	Address        string `msgpack:"address"`
-// 	Port           uint64 `msgpack:"port"`
-// 	Protocol       string `msgpack:"protocol"`
-// 	ServiceName    string `msgpack:"service_name"`
-// 	ModuleFullname string `msgpack:"module_fullname"`
-// 	WorkspaceID    uint64 `msgpack:"workspace_id"`
-// 	Username       string `msgpack:"username"`
-// 	PrivateType    string `msgpack:"private_type"`
-// 	PrivateData    string `msgpack:"private_data"`
-// }
+type DBCreateCredentialOptions struct {
+	OriginType     string `msgpack:"origin_type"     json:"origin_type"`
+	ServiceName    string `msgpack:"service_name"    json:"service_name"`
+	Address        string `msgpack:"address"         json:"address"`
+	Port           uint64 `msgpack:"port"            json:"port"`
+	Protocol       string `msgpack:"protocol"        json:"protocol"`
+	ModuleFullname string `msgpack:"module_fullname" json:"module_fullname"`
+	Username       string `msgpack:"username"        json:"username"`
+	PrivateType    string `msgpack:"private_type"    json:"private_type"`
+	PrivateData    string `msgpack:"private_data"    json:"private_data"`
+	WorkspaceID    uint64 `msgpack:"workspace_id"    json:"workspace_id"`
+}
 
 // DBCreateCredentialResult is the result of create credential.
 type DBCreateCredentialResult struct {
-	Host        string `msgpack:"host"`
-	Username    string `msgpack:"username"`
-	PrivateType string `msgpack:"private_type"`
-	Private     string `msgpack:"private"`
-	RealmValue  string `msgpack:"realm_value"`
-	RealmKey    string `msgpack:"realm_key"`
-	ServiceName string `msgpack:"sname"`
-	Status      string `msgpack:"status"`
+	Host        string `msgpack:"host"         json:"host"`
+	Username    string `msgpack:"username"     json:"username"`
+	PrivateType string `msgpack:"private_type" json:"private_type"`
+	Private     string `msgpack:"private"      json:"private"`
+	RealmValue  string `msgpack:"realm_value"  json:"realm_value"`
+	RealmKey    string `msgpack:"realm_key"    json:"realm_key"`
+	ServiceName string `msgpack:"sname"        json:"sname"`
+	Status      string `msgpack:"status"       json:"status"`
 	MSFError
 }
 
@@ -836,14 +836,14 @@ type DBCredsResult struct {
 
 // DBCred contains information about credential.
 type DBCred struct {
-	Host        string `msgpack:"host"`
-	Port        uint64 `msgpack:"port"`
-	Protocol    string `msgpack:"proto"`
-	ServiceName string `msgpack:"sname"`
-	Type        string `msgpack:"type"`
-	Username    string `msgpack:"user"`
-	Password    string `msgpack:"pass"`
-	UpdateAt    int64  `msgpack:"updated_at"`
+	Host        string `msgpack:"host"       json:"host"`
+	Port        uint64 `msgpack:"port"       json:"port"`
+	Protocol    string `msgpack:"proto"      json:"proto"`
+	ServiceName string `msgpack:"sname"      json:"sname"`
+	Type        string `msgpack:"type"       json:"type"`
+	Username    string `msgpack:"user"       json:"user"`
+	Password    string `msgpack:"pass"       json:"pass"`
+	UpdateAt    int64  `msgpack:"updated_at" json:"updated_at"`
 }
 
 // DBDelCredsRequest is used to delete credential.
@@ -864,14 +864,14 @@ type DBDelCredsResult struct {
 
 // DBDelCred contains the information of deleted credential.
 type DBDelCred struct {
-	Host        string `msgpack:"host"`
-	Port        uint64 `msgpack:"port"`
-	Protocol    string `msgpack:"proto"`
-	ServiceName string `msgpack:"sname"`
-	Type        string `msgpack:"type"`
-	Username    string `msgpack:"user"`
-	Password    string `msgpack:"pass"`
-	UpdateAt    int64  `msgpack:"updated_at"`
+	Host        string `msgpack:"host"       json:"host"`
+	Port        uint64 `msgpack:"port"       json:"port"`
+	Protocol    string `msgpack:"proto"      json:"proto"`
+	ServiceName string `msgpack:"sname"      json:"sname"`
+	Type        string `msgpack:"type"       json:"type"`
+	Username    string `msgpack:"user"       json:"user"`
+	Password    string `msgpack:"pass"       json:"pass"`
+	UpdateAt    int64  `msgpack:"updated_at" json:"updated_at"`
 }
 
 // DBReportLootRequest is used to add a loot to database.
@@ -883,16 +883,16 @@ type DBReportLootRequest struct {
 
 // DBReportLoot contains information about loot.
 type DBReportLoot struct {
-	Workspace   string `msgpack:"workspace"`
-	Host        string `msgpack:"host"`
-	Port        uint64 `msgpack:"port"`
-	Proto       string `msgpack:"proto"`
-	Name        string `msgpack:"name"`
-	Type        string `msgpack:"type"`
-	ContentType string `msgpack:"content_type"`
-	Path        string `msgpack:"path"`
-	Data        string `msgpack:"data"`
-	Information string `msgpack:"info"`
+	Workspace   string `msgpack:"workspace"    json:"workspace"`
+	Host        string `msgpack:"host"         json:"host"`
+	Port        uint64 `msgpack:"port"         json:"port"`
+	Proto       string `msgpack:"proto"        json:"proto"`
+	Name        string `msgpack:"name"         json:"name"`
+	Type        string `msgpack:"type"         json:"type"`
+	ContentType string `msgpack:"content_type" json:"content_type"`
+	Path        string `msgpack:"path"         json:"path"`
+	Data        string `msgpack:"data"         json:"data"`
+	Information string `msgpack:"info"         json:"info"`
 }
 
 // DBReportLootResult is the result of add loot.
@@ -910,9 +910,9 @@ type DBLootsRequest struct {
 
 // DBLootsOptions contains options about loots.
 type DBLootsOptions struct {
-	Workspace string `msgpack:"workspace"`
-	Limit     uint64 `msgpack:"limit"`
-	Offset    uint64 `msgpack:"offset"`
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Limit     uint64 `msgpack:"limit"     json:"limit"`
+	Offset    uint64 `msgpack:"offset"    json:"offset"`
 }
 
 // DBLootsResult is the result of get loots.
@@ -923,15 +923,15 @@ type DBLootsResult struct {
 
 // DBLoot contains information about loot.
 type DBLoot struct {
-	Host        string                 `msgpack:"host"`
-	Service     string                 `msgpack:"service"`
-	Name        string                 `msgpack:"name"`
-	LootType    string                 `msgpack:"ltype"`
-	ContentType string                 `msgpack:"ctype"`
-	Data        map[string]interface{} `msgpack:"data"`
-	Information string                 `msgpack:"info"`
-	CreatedAt   int64                  `msgpack:"created_at"`
-	UpdateAt    int64                  `msgpack:"updated_at"`
+	Host        string                 `msgpack:"host"       json:"host"`
+	Service     string                 `msgpack:"service"    json:"service"`
+	Name        string                 `msgpack:"name"       json:"name"`
+	LootType    string                 `msgpack:"ltype"      json:"ltype"`
+	ContentType string                 `msgpack:"ctype"      json:"ctype"`
+	Data        map[string]interface{} `msgpack:"data"       json:"data"`
+	Information string                 `msgpack:"info"       json:"info"`
+	CreatedAt   int64                  `msgpack:"created_at" json:"created_at"`
+	UpdateAt    int64                  `msgpack:"updated_at" json:"updated_at"`
 }
 
 // DBWorkspacesRequest is used to get all workspaces.
