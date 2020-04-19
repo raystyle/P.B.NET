@@ -52,6 +52,198 @@ func TestCheckErrorInTestMain(t *testing.T) {
 	CheckErrorInTestMain(errors.New("foo error"))
 }
 
+type testOptions struct {
+	SF testOptionsB `check:"-"`
+
+	Foo int
+	Bar string
+	BA  testOptionsB
+	BB  *testOptionsB
+
+	SA testOptionsB  `check:"-"`
+	SB *testOptionsB `check:"-"`
+	SC string        `check:"-"`
+}
+
+type testOptionsB struct {
+	SF int `check:"-"`
+
+	A int
+	B string
+	C *testOptionsC
+
+	SA int `check:"-"`
+}
+
+type testOptionsC struct {
+	SF int `check:"-"`
+
+	D int
+
+	SA int `check:"-"`
+}
+
+func TestCheckOptions(t *testing.T) {
+	ob := testOptionsB{
+		A: 123,
+		B: "bbb",
+		C: &testOptionsC{D: 123},
+	}
+	t.Run("ok", func(t *testing.T) {
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+			BA:  ob,
+			BB:  &ob,
+		}
+		CheckOptions(t, opts)
+		CheckOptions(t, &opts)
+	})
+
+	t.Run("foo", func(t *testing.T) {
+		const except = "testOptions.Foo is zero value"
+		opts := testOptions{
+			Bar: "",
+			BA:  ob,
+			BB:  &ob,
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("bar", func(t *testing.T) {
+		const except = "testOptions.Bar is zero value"
+		opts := testOptions{
+			Foo: 123,
+			BA:  ob,
+			BB:  &ob,
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("BA.A", func(t *testing.T) {
+		const except = "testOptions.BA.A is zero value"
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("BA.B", func(t *testing.T) {
+		const except = "testOptions.BA.B is zero value"
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+		}
+		opts.BA.A = 123
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("BA.C-nil point", func(t *testing.T) {
+		const except = "testOptions.BA.C is nil point"
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+		}
+		opts.BA.A = 123
+		opts.BA.B = "bar"
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("BB-nil point", func(t *testing.T) {
+		const except = "testOptions.BB is nil point"
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+			BA: testOptionsB{
+				A: 123,
+				B: "bbb",
+				C: &testOptionsC{
+					D: 123,
+				},
+			},
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("BB.A", func(t *testing.T) {
+		const except = "testOptions.BB.A is zero value"
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+			BA: testOptionsB{
+				A: 123,
+				B: "bbb",
+				C: &testOptionsC{
+					D: 123,
+				},
+			},
+			BB: &testOptionsB{},
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("BB.B", func(t *testing.T) {
+		const except = "testOptions.BB.B is zero value"
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+			BA: testOptionsB{
+				A: 123,
+				B: "bbb",
+				C: &testOptionsC{
+					D: 123,
+				},
+			},
+			BB: &testOptionsB{
+				A: 123,
+			},
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("BB.C-nil point", func(t *testing.T) {
+		const except = "testOptions.BB.C is nil point"
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+			BA: testOptionsB{
+				A: 123,
+				B: "bbb",
+				C: &testOptionsC{
+					D: 123,
+				},
+			},
+			BB: &testOptionsB{
+				A: 123,
+				B: "bbb",
+			},
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("BB.C.D", func(t *testing.T) {
+		const except = "testOptions.BB.C.D is zero value"
+		opts := testOptions{
+			Foo: 123,
+			Bar: "bar",
+			BA: testOptionsB{
+				A: 123,
+				B: "bbb",
+				C: &testOptionsC{
+					D: 123,
+				},
+			},
+			BB: &testOptionsB{
+				A: 123,
+				B: "bbb",
+				C: &testOptionsC{},
+			},
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+}
+
 func TestRunParallel(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()
