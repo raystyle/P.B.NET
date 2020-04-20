@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Level is the log level
+// Level is the log level.
 type Level = uint8
 
 // about level
@@ -239,17 +239,6 @@ func (lg *MultiLogger) Close() error {
 	return nil
 }
 
-// HijackLogWriter is used to hijack all packages that use log.Print().
-func HijackLogWriter(logger Logger) {
-	log.SetFlags(log.Llongfile)
-	w := &wrapWriter{
-		level:  Error,
-		src:    "pkg-log",
-		logger: logger,
-	}
-	log.SetOutput(w)
-}
-
 // prefixWriter is used to print with a prefix.
 type prefixWriter struct {
 	writer io.Writer
@@ -282,7 +271,7 @@ func (w *wrapWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// Wrap is for go internal logger like http.Server.ErrorLog.
+// Wrap is used to convert Logger to go internal logger like http.Server.ErrorLog.
 func Wrap(lv Level, src string, logger Logger) *log.Logger {
 	w := &wrapWriter{
 		level:  lv,
@@ -290,6 +279,17 @@ func Wrap(lv Level, src string, logger Logger) *log.Logger {
 		logger: logger,
 	}
 	return log.New(w, "", 0)
+}
+
+// HijackLogWriter is used to hijack all packages that use log.Print().
+func HijackLogWriter(lv Level, src string, logger Logger, flag int) {
+	w := &wrapWriter{
+		level:  lv,
+		src:    src,
+		logger: logger,
+	}
+	log.SetFlags(flag)
+	log.SetOutput(w)
 }
 
 // Conn is used to print connection information.

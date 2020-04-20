@@ -95,11 +95,6 @@ func TestMultiLogger(t *testing.T) {
 	testsuite.IsDestroyed(t, logger)
 }
 
-func TestHijackLogWriter(t *testing.T) {
-	HijackLogWriter(Test)
-	log.Println("Println")
-}
-
 func TestNewWriterWithPrefix(t *testing.T) {
 	w := NewWriterWithPrefix(os.Stdout, "prefix")
 	_, err := w.Write([]byte("test\n"))
@@ -109,6 +104,11 @@ func TestNewWriterWithPrefix(t *testing.T) {
 func TestWrap(t *testing.T) {
 	l := Wrap(Debug, "test wrap", Test)
 	l.Println("Println")
+}
+
+func TestHijackLogWriter(t *testing.T) {
+	HijackLogWriter(Error, "test", Test, log.Llongfile)
+	log.Println("Println")
 }
 
 func TestConn(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io/ioutil"
+	"log"
 	"sync"
 	"time"
 
@@ -108,7 +109,7 @@ func New(cfg *Config) (*Ctrl, error) {
 
 // HijackLogWriter is used to hijack all packages that use log.Print().
 func (ctrl *Ctrl) HijackLogWriter() {
-	logger.HijackLogWriter(ctrl.logger)
+	logger.HijackLogWriter(logger.Error, "pkg", ctrl.logger, log.Llongfile)
 }
 
 func (ctrl *Ctrl) fatal(err error, msg string) error {
