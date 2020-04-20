@@ -7,16 +7,19 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/kardianos/service"
+	"golang.org/x/crypto/bcrypt"
 
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/toml"
+	"project/internal/xpanic"
 
 	"project/msfrpc"
 )
@@ -75,28 +78,16 @@ func main() {
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
 	flag.Parse()
 
-	// generate password
-	// if password != "" {
-	// 	data, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	// 	if err != nil {
-	// 		log.Fatalln(err)
-	// 	}
-	// 	fmt.Println("password:", string(data))
-	// 	return
-	// }
-
-	// changed path for service and prevent get invalid path when test
-	if !test {
-		path, err := os.Executable()
-		if err != nil {
-			log.Fatalln(err)
-		}
-		dir, _ := filepath.Split(path)
-		err = os.Chdir(dir)
-		if err != nil {
-			log.Fatalln(err)
-		}
+	if password != "" {
+		generateWebServerPassword(password)
+		return
 	}
+
+	if !test {
+		changeCurrentDirectory()
+	}
+
+	setErrorLogger()
 
 	// load msfrpc configuration
 	data, err := ioutil.ReadFile(cfgPath) // #nosec
@@ -109,11 +100,13 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	// initialize service
+	// initialize program
 	program, err := newProgram(&config)
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	// initialize service
 	svcConfig := service.Config{
 		Name:        config.Service.Name,
 		DisplayName: config.Service.DisplayName,
@@ -150,10 +143,44 @@ func main() {
 	}
 }
 
+// generateWebServerPassword is used to generate web server password.
+func generateWebServerPassword(password string) {
+	data, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println("password:", string(data))
+}
+
+// changeCurrentDirectory is used to changed path for service and prevent
+// get invalid path when test.
+func changeCurrentDirectory() {
+	path, err := os.Executable()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	dir, _ := filepath.Split(path)
+	err = os.Chdir(dir)
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
+
+// setErrorLogger is used to log error before program start.
+func setErrorLogger() {
+	file, err := os.OpenFile("msfrpc.err", os.O_CREATE|os.O_APPEND, 0600) // #nosec
+	if err != nil {
+		log.Fatalln(err)
+	}
+	mLogger := logger.NewMultiLogger(logger.Error, os.Stdout, file)
+	logger.HijackLogWriter(logger.Error, "init", mLogger, 0)
+}
+
 type program struct {
 	config *config
 
 	log       *os.File
+	listener  net.Listener
 	msfrpc    *msfrpc.MSFRPC
 	webServer *msfrpc.WebServer
 	monitor   *msfrpc.Monitor
@@ -173,6 +200,7 @@ func newProgram(config *config) (*program, error) {
 		return nil, err
 	}
 	mLogger := logger.NewMultiLogger(level, os.Stdout, logFile)
+
 	// create MSFRPC
 	address := config.MSFRPC.Address
 	username := config.MSFRPC.Username
@@ -182,24 +210,59 @@ func newProgram(config *config) (*program, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// start listener for http server
+	webCfg := config.WebServer
+	lAddr, err := net.ResolveTCPAddr(webCfg.Network, webCfg.Address)
+	if err != nil {
+		return nil, err
+	}
+	listener, err := net.ListenTCP(webCfg.Network, lAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	// set server side tls certificate
+	cert, err := ioutil.ReadFile(webCfg.CertFile)
+	if err != nil {
+		return nil, err
+	}
+	key, err := ioutil.ReadFile(webCfg.KeyFile)
+	if err != nil {
+		return nil, err
+	}
+	certs := webCfg.Options.TLSConfig.Certificates
+	kp := option.X509KeyPair{
+		Cert: string(cert),
+		Key:  string(key),
+	}
+	certs = append([]option.X509KeyPair{kp}, certs...)
+	webCfg.Options.TLSConfig.Certificates = certs
+
+	// create web server
+	webOpts := msfrpc.WebServerOptions{
+		HTTPServer: webCfg.Options,
+		MaxConns:   webCfg.MaxConns,
+		IOInterval: config.Advance.IOInterval,
+	}
+	fs := http.Dir(webCfg.Directory)
+	webServer, err := MSFRPC.NewWebServer(webCfg.Username, webCfg.Password, fs, &webOpts)
+	if err != nil {
+		return nil, err
+	}
 	return &program{
-		config: config,
-		log:    logFile,
-		msfrpc: MSFRPC,
+		config:    config,
+		log:       logFile,
+		listener:  listener,
+		msfrpc:    MSFRPC,
+		webServer: webServer,
 	}, nil
-}
-
-func (p *program) Main() error {
-	return nil
-}
-
-func (p *program) Exit() error {
-	return nil
 }
 
 func (p *program) Start(s service.Service) error {
 	// login
-	if p.msfrpc.GetToken() == "" {
+	token := p.msfrpc.GetToken()
+	if token == "" {
 		err := p.msfrpc.AuthLogin()
 		if err != nil {
 			return err
@@ -208,66 +271,40 @@ func (p *program) Start(s service.Service) error {
 	// connect database
 	err := p.msfrpc.DBConnect(context.Background(), &p.config.Database)
 	if err != nil {
+		_ = p.msfrpc.AuthLogout(token)
 		return err
 	}
-	// start listener
-	webCfg := p.config.WebServer
-	lAddr, err := net.ResolveTCPAddr(webCfg.Network, webCfg.Address)
-	if err != nil {
-		return err
-	}
-	listener, err := net.ListenTCP(webCfg.Network, lAddr)
-	if err != nil {
-		return err
-	}
-	// set server side tls certificate
-	cert, err := ioutil.ReadFile(webCfg.CertFile)
-	if err != nil {
-		return err
-	}
-	key, err := ioutil.ReadFile(webCfg.KeyFile)
-	if err != nil {
-		return err
-	}
-	certs := webCfg.Options.TLSConfig.Certificates
-	certs = append([]option.X509KeyPair{{string(cert), string(key)}}, certs...)
-	webCfg.Options.TLSConfig.Certificates = certs
-
-	// set advanced options
-	// 	webCfg.WebServerOptions.IOInterval = p.config.Advance.IOInterval
-	// web file directory
-	// fs := http.Dir(webCfg.Directory)
-	// start web server
-	// p.webServer, err = p.msfrpc.NewWebServer(fs, &webCfg.WebServerOptions)
-	// if err != nil {
-	// 	return err
-	// }
 	// start monitor
-	p.monitor = p.msfrpc.NewMonitor(nil, p.config.Advance.MonitorInterval)
-
-	fmt.Println("ok")
-
+	callbacks := p.webServer.Callbacks()
+	interval := p.config.Advance.MonitorInterval
+	p.monitor = p.msfrpc.NewMonitor(callbacks, interval)
+	p.monitor.StartDatabaseMonitors()
+	// start web server
 	p.wg.Add(1)
 	go func() {
-		defer p.wg.Done()
-		_ = listener.Close()
-
-		// _ = p.webServer.Serve(listener)
-
-		// err := p.server.Main()
-		// if err != nil {
-		// 	l, e := s.Logger(nil)
-		// 	if e == nil {
-		// 		_ = l.Error(err)
-		// 	}
-		// 	os.Exit(1)
-		// }
+		defer func() {
+			if r := recover(); r != nil {
+				log.Println(xpanic.Print(r, "program.Start"))
+			}
+			p.wg.Done()
+		}()
+		err := p.webServer.Serve(p.listener)
+		if err != nil && err != http.ErrServerClosed {
+			l, e := s.Logger(nil)
+			if e == nil {
+				_ = l.Error(err)
+			}
+			os.Exit(1)
+		}
 	}()
 	return nil
 }
 
 func (p *program) Stop(_ service.Service) error {
-	// err := p.server.Exit()
+	_ = p.webServer.Close()
 	p.wg.Wait()
+	p.monitor.Close()
+	_ = p.msfrpc.Close()
+	_ = p.log.Close()
 	return nil
 }

@@ -30,7 +30,7 @@
 
 [web_server]
   network   = "tcp"
-  address   = "localhost:1658"
+  address   = "localhost:17417"
   username  = "msfrpc" # use bcrypt, password = "msfrpc"
   password  = "$2a$12$hLBEWQL8uY3E9zuyBKQbleN35lvq2yiD0uirEGDIFjxevnayg/dQq"
   directory = "web"

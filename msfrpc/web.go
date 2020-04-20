@@ -57,9 +57,9 @@ type WebServer struct {
 
 // NewWebServer is used to create a web server.
 func (msf *MSFRPC) NewWebServer(
-	fs http.FileSystem,
 	username string,
 	password string,
+	fs http.FileSystem,
 	opts *WebServerOptions,
 ) (*WebServer, error) {
 
