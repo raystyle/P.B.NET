@@ -19,7 +19,7 @@ var testDBOptions = &DBConnectOptions{
 	Username: "msf",
 	Password: "msf",
 	Database: "msftest",
-	Other:    map[string]interface{}{"foo": "bar"},
+	Options:  map[string]interface{}{"foo": "bar"},
 }
 
 func TestMSFRPC_DBConnect(t *testing.T) {

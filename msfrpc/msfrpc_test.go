@@ -234,6 +234,19 @@ func TestNewMSFRPC(t *testing.T) {
 	})
 }
 
+func TestMSFRPC_HijackLogWriter(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+	require.NoError(t, err)
+
+	msfrpc.HijackLogWriter()
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_sendWithReplace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

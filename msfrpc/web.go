@@ -1,7 +1,6 @@
 package msfrpc
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -11,7 +10,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/netutil"
 
 	"project/internal/logger"
 	"project/internal/option"
@@ -42,28 +41,28 @@ func (sfs *subFileSystem) Open(name string) (http.File, error) {
 // WebServerOptions contains options about web server.
 type WebServerOptions struct {
 	option.HTTPServer
-	MaxConns int    `toml:"max_conns"`
-	Username string `toml:"username"`
-	Password string `toml:"password"`
+	MaxConns int
 	// about Console, Shell and Meterpreter IO interval
-	IOInterval      time.Duration `toml:"io_interval"`
-	MonitorInterval time.Duration `toml:"monitor_interval"`
+	IOInterval time.Duration
 }
 
 // WebServer is provide a web UI.
 type WebServer struct {
-	server  *http.Server
-	handler *webHandler
+	maxConns int
 
-	wg sync.WaitGroup
+	server *http.Server
+
+	handler *webHandler
 }
 
 // NewWebServer is used to create a web server.
 func (msf *MSFRPC) NewWebServer(
-	listener net.Listener,
 	fs http.FileSystem,
+	username string,
+	password string,
 	opts *WebServerOptions,
 ) (*WebServer, error) {
+
 	httpServer, err := opts.HTTPServer.Apply()
 	if err != nil {
 		return nil, err
@@ -97,37 +96,77 @@ func (msf *MSFRPC) NewWebServer(
 		server:  httpServer,
 		handler: &wh,
 	}
-	web.wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// TODO panic
-			}
-			web.wg.Done()
-		}()
-		switch listener.(type) {
-		case *virtualconn.Listener:
-			err := httpServer.Serve(listener)
-			fmt.Println(err)
-		default:
-			err := httpServer.ServeTLS(listener, "", "")
-			fmt.Println(err)
-		}
-	}()
+	if web.maxConns < 32 {
+		web.maxConns = 1000
+	}
 	return &web, nil
 }
 
-func (web *WebServer) OnToken() {
+// Callbacks is used to return callbacks for monitor.
+func (web *WebServer) Callbacks() *Callbacks {
+	return &Callbacks{
+		OnToken:      web.onToken,
+		OnJob:        web.onJob,
+		OnSession:    web.onSession,
+		OnHost:       web.onHost,
+		OnCredential: web.onCredential,
+		OnLoot:       web.onLoot,
+		OnEvent:      web.onEvent,
+	}
+}
 
+// Serve is used to start web server.
+func (web *WebServer) Serve(listener net.Listener) error {
+	l := netutil.LimitListener(listener, web.maxConns)
+	switch listener.(type) {
+	case *virtualconn.Listener:
+		return web.server.Serve(l)
+	default:
+		return web.server.ServeTLS(l, "", "")
+	}
 }
 
 // Close is used to close web server.
-func (web *WebServer) Close() {
-	_ = web.server.Close()
+func (web *WebServer) Close() error {
+	return web.server.Close()
+}
+
+// callbacks to notice web UI that some data is updated.
+
+func (web *WebServer) onToken(token string, add bool) {
+
+}
+
+func (web *WebServer) onJob(id, name string, active bool) {
+
+}
+
+func (web *WebServer) onSession(id uint64, info *SessionInfo, opened bool) {
+
+}
+
+func (web *WebServer) onHost(workspace string, host *DBHost, add bool) {
+
+}
+
+func (web *WebServer) onCredential(workspace string, cred *DBCred, add bool) {
+
+}
+
+func (web *WebServer) onLoot(workspace string, loot *DBLoot) {
+
+}
+
+func (web *WebServer) onEvent(workspace string, event *DBEvent) {
+
 }
 
 type webHandler struct {
 	ctx *MSFRPC
+
+	username   string
+	password   string
+	ioInterval time.Duration
 
 	upgrader    *websocket.Upgrader
 	encoderPool sync.Pool
@@ -153,8 +192,6 @@ func (wh *webHandler) handlePanic(w hRW, _ *hR, e interface{}) {
 
 	csrf.Protect(nil, nil)
 	sessions.NewSession(nil, "")
-	hash, err := bcrypt.GenerateFromPassword([]byte{1, 2, 3}, 15)
-	fmt.Println(string(hash), err)
 }
 
 func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {

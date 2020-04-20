@@ -136,6 +136,25 @@ func NewMSFRPC(
 	return &msfrpc, nil
 }
 
+// HijackLogWriter is used to hijack all packages that use log.Print().
+func (msf *MSFRPC) HijackLogWriter() {
+	logger.HijackLogWriter(msf.logger)
+}
+
+// SetToken is used to set token to current client.
+func (msf *MSFRPC) SetToken(token string) {
+	msf.tokenRWM.Lock()
+	defer msf.tokenRWM.Unlock()
+	msf.token = token
+}
+
+// GetToken is used to get token from current client.
+func (msf *MSFRPC) GetToken() string {
+	msf.tokenRWM.RLock()
+	defer msf.tokenRWM.RUnlock()
+	return msf.token
+}
+
 func (msf *MSFRPC) send(ctx context.Context, request, response interface{}) error {
 	return msf.sendWithReplace(ctx, request, response, nil)
 }
@@ -224,20 +243,6 @@ func (msf *MSFRPC) logf(lv logger.Level, format string, log ...interface{}) {
 
 func (msf *MSFRPC) log(lv logger.Level, log ...interface{}) {
 	msf.logger.Println(lv, "msfrpc", log...)
-}
-
-// SetToken is used to set token to current client.
-func (msf *MSFRPC) SetToken(token string) {
-	msf.tokenRWM.Lock()
-	defer msf.tokenRWM.Unlock()
-	msf.token = token
-}
-
-// GetToken is used to get token from current client.
-func (msf *MSFRPC) GetToken() string {
-	msf.tokenRWM.RLock()
-	defer msf.tokenRWM.RUnlock()
-	return msf.token
 }
 
 func (msf *MSFRPC) shuttingDown() bool {

@@ -442,7 +442,7 @@ type DBConnectOptions struct {
 	Username string                 `toml:"username"`
 	Password string                 `toml:"password"`
 	Database string                 `toml:"database"`
-	Other    map[string]interface{} `toml:"other"`
+	Options  map[string]interface{} `toml:"options"`
 }
 
 func (opts *DBConnectOptions) toMap() map[string]interface{} {
@@ -454,7 +454,7 @@ func (opts *DBConnectOptions) toMap() map[string]interface{} {
 		"password": opts.Password,
 		"database": opts.Database,
 	}
-	for key, value := range opts.Other {
+	for key, value := range opts.Options {
 		m[key] = value
 	}
 	return m
