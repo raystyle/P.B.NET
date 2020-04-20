@@ -83,6 +83,14 @@ type testOptionsC struct {
 	SA int `check:"-"`
 }
 
+type testOptionNest struct {
+	A int
+	B struct {
+		NA int
+		NB string
+	}
+}
+
 func TestCheckOptions(t *testing.T) {
 	ob := testOptionsB{
 		A: 123,
@@ -238,6 +246,46 @@ func TestCheckOptions(t *testing.T) {
 				A: 123,
 				B: "bbb",
 				C: &testOptionsC{},
+			},
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("nest-ok", func(t *testing.T) {
+		opts := testOptionNest{
+			A: 1,
+			B: struct {
+				NA int
+				NB string
+			}{
+				NA: 123,
+				NB: "nb",
+			},
+		}
+		CheckOptions(t, &opts)
+	})
+
+	t.Run("nest-B.NA", func(t *testing.T) {
+		const except = "testOptionNest.B.NA is zero value"
+		opts := testOptionNest{
+			A: 1,
+			B: struct {
+				NA int
+				NB string
+			}{},
+		}
+		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("nest-B.NB", func(t *testing.T) {
+		const except = "testOptionNest.B.NB is zero value"
+		opts := testOptionNest{
+			A: 1,
+			B: struct {
+				NA int
+				NB string
+			}{
+				NA: 123,
 			},
 		}
 		require.Equal(t, except, checkOptions("", opts))

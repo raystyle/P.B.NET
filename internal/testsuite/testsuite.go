@@ -178,11 +178,10 @@ func checkOptions(father string, v interface{}) string {
 			if !fieldValue.IsZero() {
 				continue
 			}
+			const format = "%s.%s is zero value"
 			if father == "" {
-				const format = "%s.%s is zero value"
 				return fmt.Sprintf(format, typ.Name(), fieldType.Name)
 			}
-			const format = "%s.%s is zero value"
 			return fmt.Sprintf(format, father, fieldType.Name)
 		}
 	}
