@@ -3,15 +3,19 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/kardianos/service"
 
 	"project/internal/logger"
+	"project/internal/option"
 	"project/internal/patch/toml"
 
 	"project/msfrpc"
@@ -32,14 +36,22 @@ type config struct {
 
 	Database msfrpc.DBConnectOptions `toml:"database"`
 
-	Web struct {
-		Network   string `toml:"network"`
-		Address   string `toml:"address"`
-		Directory string `toml:"directory"`
-		CertFile  string `toml:"cert_file"`
-		KeyFile   string `toml:"key_file"`
-		msfrpc.WebServerOptions
-	} `toml:"web"`
+	WebServer struct {
+		Network   string            `toml:"network"`
+		Address   string            `toml:"address"`
+		Username  string            `toml:"username"`
+		Password  string            `toml:"password"`
+		Directory string            `toml:"directory"`
+		CertFile  string            `toml:"cert_file"`
+		KeyFile   string            `toml:"key_file"`
+		MaxConns  int               `toml:"max_conns"`
+		Options   option.HTTPServer `toml:"options"`
+	} `toml:"web_server"`
+
+	Advance struct {
+		IOInterval      time.Duration `toml:"io_interval"`
+		MonitorInterval time.Duration `toml:"monitor_interval"`
+	} `toml:"advance"`
 
 	Service struct {
 		Name        string `toml:"name"`
@@ -50,19 +62,31 @@ type config struct {
 
 func main() {
 	var (
-		configPath string
-		debug      bool
-		install    bool
-		uninstall  bool
+		password  string
+		test      bool
+		cfgPath   string
+		install   bool
+		uninstall bool
 	)
-	flag.StringVar(&configPath, "config", "config.toml", "config file path")
+	flag.StringVar(&password, "pass", "", "generate password about web server")
+	flag.BoolVar(&test, "test", false, "don't change current path")
+	flag.StringVar(&cfgPath, "config", "config.toml", "configuration file path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
-	flag.BoolVar(&debug, "debug", false, "don't change current path")
 	flag.Parse()
 
-	// changed path for service
-	if !debug {
+	// generate password
+	// if password != "" {
+	// 	data, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	// 	if err != nil {
+	// 		log.Fatalln(err)
+	// 	}
+	// 	fmt.Println("password:", string(data))
+	// 	return
+	// }
+
+	// changed path for service and prevent get invalid path when test
+	if !test {
 		path, err := os.Executable()
 		if err != nil {
 			log.Fatalln(err)
@@ -74,8 +98,8 @@ func main() {
 		}
 	}
 
-	// load msfrpc config
-	data, err := ioutil.ReadFile(configPath) // #nosec
+	// load msfrpc configuration
+	data, err := ioutil.ReadFile(cfgPath) // #nosec
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -86,7 +110,10 @@ func main() {
 	}
 
 	// initialize service
-	program := createProgram(&config)
+	program, err := newProgram(&config)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	svcConfig := service.Config{
 		Name:        config.Service.Name,
 		DisplayName: config.Service.DisplayName,
@@ -123,18 +150,29 @@ func main() {
 	}
 }
 
-func createProgram(config *config) *program {
+type program struct {
+	config *config
+
+	log       *os.File
+	msfrpc    *msfrpc.MSFRPC
+	webServer *msfrpc.WebServer
+	monitor   *msfrpc.Monitor
+
+	wg sync.WaitGroup
+}
+
+func newProgram(config *config) (*program, error) {
 	// create logger
 	logCfg := config.Logger
 	level, err := logger.Parse(logCfg.Level)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 	logFile, err := os.OpenFile(logCfg.File, os.O_CREATE|os.O_APPEND, 0600) // #nosec
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
-	mLogger := logger.NewMultiLogger(level, logFile)
+	mLogger := logger.NewMultiLogger(level, os.Stdout, logFile)
 	// create MSFRPC
 	address := config.MSFRPC.Address
 	username := config.MSFRPC.Username
@@ -142,23 +180,21 @@ func createProgram(config *config) *program {
 	options := config.MSFRPC.Options
 	MSFRPC, err := msfrpc.NewMSFRPC(address, username, password, mLogger, &options)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 	return &program{
+		config: config,
 		log:    logFile,
 		msfrpc: MSFRPC,
-	}
+	}, nil
 }
 
-type program struct {
-	log    *os.File
-	config *config
+func (p *program) Main() error {
+	return nil
+}
 
-	msfrpc    *msfrpc.MSFRPC
-	webServer *msfrpc.WebServer
-	monitor   *msfrpc.Monitor
-
-	wg sync.WaitGroup
+func (p *program) Exit() error {
+	return nil
 }
 
 func (p *program) Start(s service.Service) error {
@@ -174,18 +210,49 @@ func (p *program) Start(s service.Service) error {
 	if err != nil {
 		return err
 	}
+	// start listener
+	webCfg := p.config.WebServer
+	lAddr, err := net.ResolveTCPAddr(webCfg.Network, webCfg.Address)
+	if err != nil {
+		return err
+	}
+	listener, err := net.ListenTCP(webCfg.Network, lAddr)
+	if err != nil {
+		return err
+	}
+	// set server side tls certificate
+	cert, err := ioutil.ReadFile(webCfg.CertFile)
+	if err != nil {
+		return err
+	}
+	key, err := ioutil.ReadFile(webCfg.KeyFile)
+	if err != nil {
+		return err
+	}
+	certs := webCfg.Options.TLSConfig.Certificates
+	certs = append([]option.X509KeyPair{{string(cert), string(key)}}, certs...)
+	webCfg.Options.TLSConfig.Certificates = certs
 
+	// set advanced options
+	// 	webCfg.WebServerOptions.IOInterval = p.config.Advance.IOInterval
+	// web file directory
+	// fs := http.Dir(webCfg.Directory)
 	// start web server
-	// webServer, err := p.msfrpc.NewWebServer()
+	// p.webServer, err = p.msfrpc.NewWebServer(fs, &webCfg.WebServerOptions)
 	// if err != nil {
 	// 	return err
 	// }
+	// start monitor
+	p.monitor = p.msfrpc.NewMonitor(nil, p.config.Advance.MonitorInterval)
 
-	// p.msfrpc.NewMonitor()
+	fmt.Println("ok")
 
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
+		_ = listener.Close()
+
+		// _ = p.webServer.Serve(listener)
 
 		// err := p.server.Main()
 		// if err != nil {
