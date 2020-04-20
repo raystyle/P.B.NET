@@ -8,8 +8,9 @@
 # Test binary, build with `go test -c`
 *.test
 
-# Controller Log
+# Log
 *.log
+*.err
 
 # Goland
 .idea
