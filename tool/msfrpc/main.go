@@ -48,7 +48,7 @@ type config struct {
 		CertFile  string            `toml:"cert_file"`
 		KeyFile   string            `toml:"key_file"`
 		MaxConns  int               `toml:"max_conns"`
-		Options   option.HTTPServer `toml:"options"`
+		Options   option.HTTPServer `toml:"options" check:"-"`
 	} `toml:"web_server"`
 
 	Advance struct {
