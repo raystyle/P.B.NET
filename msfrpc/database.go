@@ -819,6 +819,17 @@ func (msf *MSFRPC) DBEvent(
 				m[key] = string(v)
 			}
 		}
+		// check data store is exist
+		value, ok := m["datastore"]
+		if !ok {
+			continue
+		}
+		dataStore := value.(map[string]interface{})
+		for key, value := range dataStore {
+			if v, ok := value.([]byte); ok {
+				dataStore[key] = string(v)
+			}
+		}
 	}
 	return result.Events, nil
 }

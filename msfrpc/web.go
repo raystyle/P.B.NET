@@ -157,7 +157,7 @@ func (web *WebServer) onLoot(workspace string, loot *DBLoot) {
 
 }
 
-func (web *WebServer) onEvent(workspace string, event *DBEvent) {
+func (web *WebServer) onEvent(event string) {
 
 }
 

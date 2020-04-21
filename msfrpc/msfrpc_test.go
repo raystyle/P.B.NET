@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 	// time.Sleep(10 * time.Second)
 	exitCode := m.Run()
 	// create msfrpc
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Discard, nil)
 	testsuite.CheckErrorInTestMain(err)
 	err = msfrpc.AuthLogin()
 	testsuite.CheckErrorInTestMain(err)

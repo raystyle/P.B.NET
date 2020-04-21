@@ -36,29 +36,27 @@ type Callbacks struct {
 	// add or delete
 	OnLoot func(workspace string, loot *DBLoot)
 
-	// add or delete
-	OnEvent func(workspace string, event *DBEvent)
-
-	// report monitor error: msfrpcd or database disconnected
-	OnError func(error string)
+	// report monitor error: msfrpcd or database disconnected, reconnected
+	OnEvent func(event string)
 }
 
 // Monitor is used to monitor changes about token list(security),
 // jobs and sessions. If msfrpc connected database, it can monitor
-// hosts, credentials, loots, and framework events.
+// hosts, credentials and loots.
 type Monitor struct {
 	ctx *MSFRPC
 
 	callbacks *Callbacks
 	interval  time.Duration
+	dbOptions *DBConnectOptions
 
-	// kill self if msfrpc or database disconnect
+	// notice if msfrpc or database disconnect
 	msfErrorCount int
 	dbErrorCount  int
-	errorCountMu  sync.Mutex
 
-	// monitor is closed
-	alive atomic.Value
+	// store status
+	msfAlive atomic.Value
+	dbAlive  atomic.Value
 
 	// key = token
 	tokens    map[string]struct{}
@@ -84,18 +82,17 @@ type Monitor struct {
 	loots    map[string]map[*DBLoot]struct{}
 	lootsRWM sync.RWMutex
 
-	// key = workspace, value = event information
-	events    map[string]map[*DBEvent]struct{}
-	eventsRWM sync.RWMutex
-
-	context   context.Context
-	cancel    context.CancelFunc
-	closeOnce sync.Once
-	wg        sync.WaitGroup
+	context context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 // NewMonitor is used to create a monitor.
-func (msf *MSFRPC) NewMonitor(callbacks *Callbacks, interval time.Duration) *Monitor {
+func (msf *MSFRPC) NewMonitor(
+	callbacks *Callbacks,
+	interval time.Duration,
+	dbOpts *DBConnectOptions,
+) *Monitor {
 	if interval < minWatchInterval {
 		interval = minWatchInterval
 	}
@@ -103,8 +100,10 @@ func (msf *MSFRPC) NewMonitor(callbacks *Callbacks, interval time.Duration) *Mon
 		ctx:       msf,
 		callbacks: callbacks,
 		interval:  interval,
+		dbOptions: dbOpts,
 	}
-	monitor.alive.Store(true)
+	monitor.msfAlive.Store(true)
+	monitor.dbAlive.Store(true)
 	monitor.context, monitor.cancel = context.WithCancel(context.Background())
 	monitor.wg.Add(3)
 	go monitor.tokenMonitor()
@@ -192,65 +191,74 @@ func (monitor *Monitor) Loots(workspace string) ([]*DBLoot, error) {
 	return lootsCp, nil
 }
 
-// Events is used to get events by workspace. warning: Event.Information is nil.
-func (monitor *Monitor) Events(workspace string) ([]*DBEvent, error) {
-	monitor.eventsRWM.RLock()
-	defer monitor.eventsRWM.RUnlock()
-	events, ok := monitor.events[workspace]
-	if !ok {
-		return nil, errors.Errorf(ErrInvalidWorkspaceFormat, workspace)
-	}
-	eventsCp := make([]*DBEvent, 0, len(events))
-	for event := range events {
-		eventsCp = append(eventsCp, event)
-	}
-	return eventsCp, nil
-}
-
 func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
 	monitor.ctx.logger.Println(lv, "msfrpc-monitor", log...)
 }
 
 func (monitor *Monitor) updateMSFErrorCount(add bool) {
-	monitor.errorCountMu.Lock()
-	defer monitor.errorCountMu.Unlock()
 	// reset counter
 	if !add {
-		monitor.msfErrorCount = 0
+		if monitor.msfErrorCount != 0 {
+			monitor.msfErrorCount = 0
+			monitor.msfAlive.Store(true)
+			const log = "msfrpcd reconnected"
+			monitor.log(logger.Info, log)
+			monitor.callbacks.OnEvent(log)
+		}
 		return
 	}
-	monitor.msfErrorCount++
-	if monitor.msfErrorCount > 3 {
-		monitor.closeOnce.Do(func() {
-			monitor.cancel()
-			monitor.alive.Store(false)
-
-			const log = "msfrpcd disconnected"
-			monitor.callbacks.OnError(log)
-			monitor.log(logger.Warning, log)
-		})
+	select {
+	case <-monitor.context.Done():
+		return
+	default:
 	}
+	monitor.msfErrorCount++
+	// if use temporary token, need login again.
+	if monitor.ctx.GetToken()[:4] == "TEMP" {
+		err := monitor.ctx.AuthLogin()
+		if err == nil {
+			return
+		}
+	}
+	if monitor.msfErrorCount != 3 { // core! core! core!
+		return
+	}
+	monitor.msfAlive.Store(false)
+	const log = "msfrpcd disconnected"
+	monitor.log(logger.Warning, log)
+	monitor.callbacks.OnEvent(log)
 }
 
 func (monitor *Monitor) updateDBErrorCount(add bool) {
-	monitor.errorCountMu.Lock()
-	defer monitor.errorCountMu.Unlock()
 	// reset counter
 	if !add {
-		monitor.dbErrorCount = 0
+		if monitor.dbErrorCount != 0 {
+			monitor.dbErrorCount = 0
+			monitor.dbAlive.Store(true)
+			const log = "database reconnected"
+			monitor.log(logger.Info, log)
+			monitor.callbacks.OnEvent(log)
+		}
 		return
 	}
-	monitor.dbErrorCount++
-	if monitor.dbErrorCount > 3 {
-		monitor.closeOnce.Do(func() {
-			monitor.cancel()
-			monitor.alive.Store(false)
-
-			const log = "database disconnected"
-			monitor.callbacks.OnError(log)
-			monitor.log(logger.Warning, log)
-		})
+	select {
+	case <-monitor.context.Done():
+		return
+	default:
 	}
+	monitor.dbErrorCount++
+	// try to reconnect database
+	err := monitor.ctx.DBConnect(monitor.context, monitor.dbOptions)
+	if err == nil {
+		return
+	}
+	if monitor.dbErrorCount != 3 { // core! core! core!
+		return
+	}
+	monitor.dbAlive.Store(false)
+	const log = "database disconnected"
+	monitor.log(logger.Warning, log)
+	monitor.callbacks.OnEvent(log)
 }
 
 func (monitor *Monitor) tokenMonitor() {
@@ -429,11 +437,10 @@ loop:
 
 // StartDatabaseMonitors is used to start monitors about database.
 func (monitor *Monitor) StartDatabaseMonitors() {
-	monitor.wg.Add(5)
+	monitor.wg.Add(4)
 	go monitor.hostMonitor()
 	go monitor.credentialMonitor()
 	go monitor.lootMonitor()
-	go monitor.eventMonitor()
 	go monitor.workspaceCleaner()
 }
 
@@ -676,102 +683,6 @@ loop:
 	}
 }
 
-func (monitor *Monitor) eventMonitor() {
-	defer func() {
-		if r := recover(); r != nil {
-			monitor.log(logger.Fatal, xpanic.Print(r, "Monitor.eventMonitor"))
-			// restart monitor
-			time.Sleep(time.Second)
-			go monitor.eventMonitor()
-		} else {
-			monitor.wg.Done()
-		}
-	}()
-	// don't use ticker otherwise CPU usage will too high if events is too much.
-	timer := time.NewTimer(monitor.interval)
-	defer timer.Stop()
-	// if run watchEvent() more than some time, we will get the current events
-	// number if user delete events in database(otherwise monitor never callback)
-	// var count int
-	for {
-		select {
-		case <-timer.C:
-			// if count == 0 {
-			//
-			// } else {
-			//
-			// 	count++
-			// 	if count > 100 {
-			// 		count = 0
-			// 	}
-			// }
-			monitor.watchEvent()
-		case <-monitor.context.Done():
-			return
-		}
-		timer.Reset(monitor.interval)
-	}
-}
-
-func (monitor *Monitor) watchEvent() {
-	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
-	if err != nil {
-		monitor.log(logger.Debug, "failed to get workspaces for watch event:", err)
-		return
-	}
-	for i := 0; i < len(workspaces); i++ {
-		monitor.watchEventWithWorkspace(workspaces[i].Name)
-	}
-}
-
-func (monitor *Monitor) watchEventWithWorkspace(workspace string) {
-	events, err := monitor.ctx.DBEvent(monitor.context, workspace, math.MaxUint32, 0)
-	if err != nil {
-		monitor.log(logger.Debug, "failed to get event:", err)
-		return
-	}
-	l := len(events)
-	// filter unnecessary events
-	coreEvents := make([]*DBEvent, 0, l/2)
-	for i := 0; i < l; i++ {
-		switch events[i].Name {
-		case "module_run", "session_open", "session_close":
-			coreEvents = append(coreEvents, events[i])
-		}
-	}
-	lc := len(coreEvents)
-	monitor.eventsRWM.Lock()
-	defer monitor.eventsRWM.Unlock()
-	// initialize map and skip first compare
-	if monitor.events == nil {
-		monitor.events = make(map[string]map[*DBEvent]struct{})
-		monitor.events[workspace] = make(map[*DBEvent]struct{}, lc)
-		for i := 0; i < lc; i++ {
-			monitor.events[workspace][coreEvents[i]] = struct{}{}
-		}
-		return
-	}
-	// create map for new workspace
-	if _, ok := monitor.events[workspace]; !ok {
-		monitor.events[workspace] = make(map[*DBEvent]struct{}, lc)
-	}
-	// check added events
-loop:
-	for i := 0; i < lc; i++ {
-		for oEvent := range monitor.events[workspace] {
-			if reflect.DeepEqual(oEvent, coreEvents[i]) {
-				continue loop
-			}
-		}
-		monitor.events[workspace][coreEvents[i]] = struct{}{}
-		monitor.callbacks.OnEvent(workspace, coreEvents[i])
-	}
-	// clean big data (less memory)
-	for i := 0; i < l; i++ {
-		events[i].Information = nil
-	}
-}
-
 func (monitor *Monitor) workspaceCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -806,7 +717,6 @@ func (monitor *Monitor) cleanWorkspace() {
 	monitor.cleanHosts(workspaces, l)
 	monitor.cleanCreds(workspaces, l)
 	monitor.cleanLoots(workspaces, l)
-	monitor.cleanEvents(workspaces, l)
 }
 
 func (monitor *Monitor) cleanHosts(workspaces []*DBWorkspace, l int) {
@@ -851,30 +761,18 @@ loop:
 	}
 }
 
-func (monitor *Monitor) cleanEvents(workspaces []*DBWorkspace, l int) {
-	monitor.eventsRWM.Lock()
-	defer monitor.eventsRWM.Unlock()
-loop:
-	for workspace := range monitor.events {
-		for i := 0; i < l; i++ {
-			if workspace == workspaces[i].Name {
-				continue loop
-			}
-		}
-		delete(monitor.events, workspace)
-	}
+// MSFRPCDAlive is used to check msfrpcd is connected.
+func (monitor *Monitor) MSFRPCDAlive() bool {
+	return monitor.msfAlive.Load().(bool)
 }
 
-// Alive is used to check monitor is alive.
-func (monitor *Monitor) Alive() bool {
-	return monitor.alive.Load().(bool)
+// DatabaseAlive is used to check database is connected.
+func (monitor *Monitor) DatabaseAlive() bool {
+	return monitor.dbAlive.Load().(bool)
 }
 
 // Close is used to close monitor.
 func (monitor *Monitor) Close() {
-	monitor.closeOnce.Do(func() {
-		monitor.cancel()
-		monitor.alive.Store(false)
-	})
+	monitor.cancel()
 	monitor.wg.Wait()
 }

@@ -624,7 +624,7 @@ func TestConsole_read(t *testing.T) {
 		_, err = console.Write([]byte("use exploit/multi/handler\r\n"))
 		require.NoError(t, err)
 
-		time.Sleep(minReadInterval)
+		time.Sleep(3 * minReadInterval)
 
 		err = console.Close()
 		require.NoError(t, err)
