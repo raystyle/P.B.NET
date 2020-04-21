@@ -534,7 +534,7 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 	t.Run("failed to execute", func(t *testing.T) {
 		patch := func(interface{}, context.Context, string, string,
 			interface{}) (*ModuleExecuteResult, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.PatchInstanceMethod(msfrpc, "ModuleExecute", patch)
 		defer pg.Unpatch()

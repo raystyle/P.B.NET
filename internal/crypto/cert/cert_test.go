@@ -56,7 +56,7 @@ func TestGeneratePrivateKey(t *testing.T) {
 		require.NoError(t, err)
 
 		patchFunc := func(_ io.Reader, _ int) (*rsa.PrivateKey, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(rsa.GenerateKey, patchFunc)
 		defer pg.Unpatch()
@@ -71,7 +71,7 @@ func TestGeneratePrivateKey(t *testing.T) {
 		require.Error(t, err)
 
 		patchFunc := func(_ io.Reader, _ int) (*rsa.PrivateKey, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(rsa.GenerateKey, patchFunc)
 		defer pg.Unpatch()
@@ -90,7 +90,7 @@ func TestGeneratePrivateKey(t *testing.T) {
 		require.Error(t, err)
 
 		patchFunc := func(_ elliptic.Curve, _ io.Reader) (*ecdsa.PrivateKey, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(ecdsa.GenerateKey, patchFunc)
 		defer pg.Unpatch()
@@ -103,7 +103,7 @@ func TestGeneratePrivateKey(t *testing.T) {
 		require.NoError(t, err)
 
 		patchFunc := func(_ io.Reader) (ed25519.PublicKey, ed25519.PrivateKey, error) {
-			return nil, nil, monkey.ErrMonkey
+			return nil, nil, monkey.Error
 		}
 		pg := monkey.Patch(ed25519.GenerateKey, patchFunc)
 		defer pg.Unpatch()
@@ -177,7 +177,7 @@ func TestGenerateCA(t *testing.T) {
 
 	t.Run("failed to create certificate", func(t *testing.T) {
 		patchFunc := func(_ io.Reader, _, _ *x509.Certificate, _, _ interface{}) ([]byte, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(x509.CreateCertificate, patchFunc)
 		defer pg.Unpatch()

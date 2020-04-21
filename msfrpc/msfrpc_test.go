@@ -475,7 +475,7 @@ func TestMSFRPC_send(t *testing.T) {
 
 func testPatchSend(f func()) {
 	patchFunc := func(context.Context, string, string, io.Reader) (*http.Request, error) {
-		return nil, monkey.ErrMonkey
+		return nil, monkey.Error
 	}
 	pg := monkey.Patch(http.NewRequestWithContext, patchFunc)
 	defer pg.Unpatch()

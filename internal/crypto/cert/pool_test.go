@@ -47,7 +47,7 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 		pair := testGenerateCert(t)
 		cert, key := pair.Encode() // must before patch
 		patchFunc := func(_ interface{}) ([]byte, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
 		defer pg.Unpatch()
@@ -557,7 +557,7 @@ func TestNewPoolWithSystemCerts(t *testing.T) {
 
 	t.Run("failed to call SystemCertPool", func(t *testing.T) {
 		patchFunc := func() (*x509.CertPool, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(SystemCertPool, patchFunc)
 		defer pg.Unpatch()
@@ -568,7 +568,7 @@ func TestNewPoolWithSystemCerts(t *testing.T) {
 	t.Run("failed to AddPublicRootCACert", func(t *testing.T) {
 		pool := NewPool()
 		patchFunc := func(_ *Pool, _ []byte) error {
-			return monkey.ErrMonkey
+			return monkey.Error
 		}
 		pg := monkey.PatchInstanceMethod(pool, "AddPublicRootCACert", patchFunc)
 		defer pg.Unpatch()

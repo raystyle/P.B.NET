@@ -185,7 +185,7 @@ func (c *mockConnWriteError) Read(b []byte) (int, error) {
 }
 
 func (c *mockConnWriteError) Write([]byte) (int, error) {
-	return 0, monkey.ErrMonkey
+	return 0, monkey.Error
 }
 
 func (c *mockConnWriteError) Close() error {

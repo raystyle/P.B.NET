@@ -14,16 +14,16 @@ import (
 type PatchGuard = monkey.PatchGuard
 
 var (
-	// ErrMonkey is used to return an error in patch function.
-	ErrMonkey = errors.New("monkey error")
+	// Error is used to return an error in patch function.
+	Error = errors.New("monkey error")
 
 	// Panic is a string for panic() in patch function.
 	Panic = "monkey panic"
 )
 
-// IsMonkeyError is used to confirm err is ErrMonkey.
+// IsMonkeyError is used to confirm err is Error.
 func IsMonkeyError(t testing.TB, err error) {
-	require.EqualError(t, err, ErrMonkey.Error())
+	require.EqualError(t, err, Error.Error())
 }
 
 // Patch is a wrapper about monkey.Patch.

@@ -59,7 +59,7 @@ func TestConn_clientHandshake(t *testing.T) {
 
 	t.Run("curve25519.ScalarBaseMult", func(t *testing.T) {
 		patchFunc := func([]byte) ([]byte, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
 		defer pg.Unpatch()
@@ -112,7 +112,7 @@ func TestConn_clientHandshake(t *testing.T) {
 
 			// must here, curve25519.ScalarBaseMult call curve25519.ScalarMult
 			patchFunc := func([]byte, []byte) ([]byte, error) {
-				return nil, monkey.ErrMonkey
+				return nil, monkey.Error
 			}
 			pg := monkey.Patch(curve25519.ScalarMult, patchFunc)
 			defer pg.Unpatch()
@@ -121,7 +121,7 @@ func TestConn_clientHandshake(t *testing.T) {
 
 			// must sleep for wait client Read
 			time.Sleep(100 * time.Millisecond)
-		}, monkey.ErrMonkey)
+		}, monkey.Error)
 	})
 
 	t.Run("failed to receive encrypted password", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestConn_clientHandshake(t *testing.T) {
 			sendCurve25519Out(server)
 
 			patchFunc := func([]byte, []byte, []byte) ([]byte, error) {
-				return nil, monkey.ErrMonkey
+				return nil, monkey.Error
 			}
 			pg := monkey.Patch(aes.CBCDecrypt, patchFunc)
 			defer pg.Unpatch()
@@ -159,7 +159,7 @@ func TestConn_clientHandshake(t *testing.T) {
 
 			// must sleep for wait client Read
 			time.Sleep(100 * time.Millisecond)
-		}, monkey.ErrMonkey)
+		}, monkey.Error)
 	})
 
 	t.Run("invalid password size", func(t *testing.T) {
@@ -246,7 +246,7 @@ func TestConn_serverHandshake(t *testing.T) {
 			sendPaddingData(client)
 
 			patchFunc := func([]byte) ([]byte, error) {
-				return nil, monkey.ErrMonkey
+				return nil, monkey.Error
 			}
 			pg := monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
 			defer pg.Unpatch()
@@ -255,7 +255,7 @@ func TestConn_serverHandshake(t *testing.T) {
 
 			// must sleep for wait server Read
 			time.Sleep(100 * time.Millisecond)
-		}, monkey.ErrMonkey)
+		}, monkey.Error)
 	})
 
 	t.Run("curve25519.ScalarMult", func(t *testing.T) {
@@ -276,7 +276,7 @@ func TestConn_serverHandshake(t *testing.T) {
 
 				// patch after curve25519.ScalarBaseMult
 				patchFunc := func([]byte, []byte) ([]byte, error) {
-					return nil, monkey.ErrMonkey
+					return nil, monkey.Error
 				}
 				mu.Lock()
 				defer mu.Unlock()
@@ -297,7 +297,7 @@ func TestConn_serverHandshake(t *testing.T) {
 
 			// must sleep for wait server Read
 			time.Sleep(100 * time.Millisecond)
-		}, monkey.ErrMonkey)
+		}, monkey.Error)
 	})
 
 	t.Run("failed to encrypt password", func(t *testing.T) {
@@ -305,7 +305,7 @@ func TestConn_serverHandshake(t *testing.T) {
 			sendPaddingData(client)
 
 			patchFunc := func([]byte, []byte, []byte) ([]byte, error) {
-				return nil, monkey.ErrMonkey
+				return nil, monkey.Error
 			}
 			pg := monkey.Patch(aes.CBCEncrypt, patchFunc)
 			defer pg.Unpatch()
@@ -314,6 +314,6 @@ func TestConn_serverHandshake(t *testing.T) {
 
 			// must sleep for wait server Read
 			time.Sleep(100 * time.Millisecond)
-		}, monkey.ErrMonkey)
+		}, monkey.Error)
 	})
 }

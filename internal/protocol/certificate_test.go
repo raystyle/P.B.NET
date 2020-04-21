@@ -226,7 +226,7 @@ func TestVerifyCertificate(t *testing.T) {
 
 		// patch
 		patchFunc := func(_ interface{}, _ []byte) (int, error) {
-			return 0, monkey.ErrMonkey
+			return 0, monkey.Error
 		}
 		pg := monkey.PatchInstanceMethod(rand.Reader, "Read", patchFunc)
 		defer pg.Unpatch()

@@ -48,7 +48,7 @@ func TestLoadSystemCertWithName(t *testing.T) {
 func TestLoadSystemCertWithNameFailed(t *testing.T) {
 	t.Run("UTF16PtrFromString", func(t *testing.T) {
 		patchFunc := func(_ string) (*uint16, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(syscall.UTF16PtrFromString, patchFunc)
 		defer pg.Unpatch()
@@ -58,7 +58,7 @@ func TestLoadSystemCertWithNameFailed(t *testing.T) {
 
 	t.Run("CertOpenSystemStore", func(t *testing.T) {
 		patchFunc := func(_ syscall.Handle, _ *uint16) (syscall.Handle, error) {
-			return 0, monkey.ErrMonkey
+			return 0, monkey.Error
 		}
 		pg := monkey.Patch(syscall.CertOpenSystemStore, patchFunc)
 		defer pg.Unpatch()
@@ -68,7 +68,7 @@ func TestLoadSystemCertWithNameFailed(t *testing.T) {
 
 	t.Run("CertEnumCertificatesInStore error", func(t *testing.T) {
 		patchFunc := func(_ syscall.Handle, _ *syscall.CertContext) (*syscall.CertContext, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(syscall.CertEnumCertificatesInStore, patchFunc)
 		defer pg.Unpatch()
@@ -90,7 +90,7 @@ func TestLoadSystemCertWithNameFailed(t *testing.T) {
 
 func TestLoadSystemCert(t *testing.T) {
 	patchFunc := func(_ string) ([][]byte, error) {
-		return nil, monkey.ErrMonkey
+		return nil, monkey.Error
 	}
 	pg := monkey.Patch(LoadSystemCertWithName, patchFunc)
 	defer pg.Unpatch()
@@ -107,7 +107,7 @@ func TestSystemCertPool_Windows(t *testing.T) {
 	}()
 
 	patchFunc := func() ([]*x509.Certificate, error) {
-		return nil, monkey.ErrMonkey
+		return nil, monkey.Error
 	}
 	pg := monkey.Patch(loadSystemCert, patchFunc)
 	defer pg.Unpatch()

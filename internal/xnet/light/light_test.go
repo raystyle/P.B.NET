@@ -120,7 +120,7 @@ func TestFailedToAccept(t *testing.T) {
 	// patch
 	var tcpListener *net.TCPListener
 	patchFunc := func(*net.TCPListener) (net.Conn, error) {
-		return nil, monkey.ErrMonkey
+		return nil, monkey.Error
 	}
 	pg := monkey.PatchInstanceMethod(tcpListener, "Accept", patchFunc)
 	defer pg.Unpatch()

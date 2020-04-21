@@ -12,7 +12,7 @@ import (
 
 func TestIsMonkeyError(t *testing.T) {
 	pg := Patch(net.Dial, func(string, string) (net.Conn, error) {
-		return nil, ErrMonkey
+		return nil, Error
 	})
 	defer pg.Unpatch()
 

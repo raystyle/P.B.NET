@@ -77,7 +77,7 @@ func TestFailedToListen(t *testing.T) {
 
 	t.Run("quic.Listen", func(t *testing.T) {
 		patchFunc := func(net.PacketConn, *tls.Config, *quic.Config) (quic.Listener, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(quic.Listen, patchFunc)
 		defer pg.Unpatch()
@@ -101,7 +101,7 @@ func TestFailedToAccept(t *testing.T) {
 
 	// patch
 	patchFunc := func(interface{}, context.Context) (quic.Session, error) {
-		return nil, monkey.ErrMonkey
+		return nil, monkey.Error
 	}
 	pg := monkey.PatchInstanceMethod(quicListener, "Accept", patchFunc)
 	defer pg.Unpatch()
@@ -132,7 +132,7 @@ func TestFailedToDialContext(t *testing.T) {
 
 	t.Run("net.ListenUDP", func(t *testing.T) {
 		patchFunc := func(string, *net.UDPAddr) (*net.UDPConn, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.Patch(net.ListenUDP, patchFunc)
 		defer pg.Unpatch()
@@ -158,7 +158,7 @@ func TestFailedToDialContext(t *testing.T) {
 		require.NoError(t, err)
 		// patch
 		patchFunc := func(interface{}, context.Context) (quic.Stream, error) {
-			return nil, monkey.ErrMonkey
+			return nil, monkey.Error
 		}
 		pg := monkey.PatchInstanceMethod(session, "OpenStreamSync", patchFunc)
 		defer pg.Unpatch()
@@ -184,7 +184,7 @@ func TestFailedToDialContext(t *testing.T) {
 		require.NoError(t, err)
 		// patch
 		patchFunc := func(interface{}, []byte) (int, error) {
-			return 0, monkey.ErrMonkey
+			return 0, monkey.Error
 		}
 		pg := monkey.PatchInstanceMethod(stream, "Write", patchFunc)
 		defer pg.Unpatch()

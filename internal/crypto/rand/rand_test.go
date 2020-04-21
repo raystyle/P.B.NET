@@ -22,7 +22,7 @@ func TestReader_Read(t *testing.T) {
 
 	t.Run("failed", func(t *testing.T) {
 		patchFunc := func(_ io.Reader, _ []byte) (int, error) {
-			return 0, monkey.ErrMonkey
+			return 0, monkey.Error
 		}
 		pg := monkey.Patch(io.ReadFull, patchFunc)
 		defer pg.Unpatch()

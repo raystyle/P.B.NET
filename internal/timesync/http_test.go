@@ -170,7 +170,7 @@ func TestGetHeaderDate(t *testing.T) {
 		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		patchFunc := func(_ string) (time.Time, error) {
-			return time.Time{}, monkey.ErrMonkey
+			return time.Time{}, monkey.Error
 		}
 		pg := monkey.Patch(http.ParseTime, patchFunc)
 		defer pg.Unpatch()

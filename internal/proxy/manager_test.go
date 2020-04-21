@@ -292,7 +292,7 @@ func TestManager_Close(t *testing.T) {
 	patchFunc := func(l *net.TCPListener) error {
 		pg.Unpatch()
 		require.NoError(t, l.Close())
-		return monkey.ErrMonkey
+		return monkey.Error
 	}
 	pg = monkey.PatchInstanceMethod(tcpListener, "Close", patchFunc)
 
