@@ -1301,3 +1301,67 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }
+
+func TestMonitor_AutoClose(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+	require.NoError(t, err)
+	err = msfrpc.AuthLogin()
+	require.NoError(t, err)
+
+	const interval = 25 * time.Millisecond
+	ctx := context.Background()
+
+	err = msfrpc.DBConnect(ctx, testDBOptions)
+	require.NoError(t, err)
+
+	t.Run("database disconnected", func(t *testing.T) {
+		var errStr string
+		callbacks := Callbacks{OnError: func(error string) {
+			errStr = error
+		}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+		monitor.StartDatabaseMonitors()
+
+		time.Sleep(3 * minWatchInterval)
+
+		err = msfrpc.DBDisconnect(ctx)
+		require.NoError(t, err)
+
+		time.Sleep(10 * minWatchInterval)
+
+		require.False(t, monitor.Alive())
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		require.Equal(t, "database disconnected", errStr)
+	})
+
+	t.Run("msfrpcd disconnected", func(t *testing.T) {
+		var errStr string
+		callbacks := Callbacks{OnError: func(error string) {
+			errStr = error
+		}}
+		monitor := msfrpc.NewMonitor(&callbacks, interval)
+
+		time.Sleep(3 * minWatchInterval)
+
+		err = msfrpc.AuthLogout(msfrpc.GetToken())
+		require.NoError(t, err)
+
+		time.Sleep(10 * minWatchInterval)
+
+		require.False(t, monitor.Alive())
+
+		monitor.Close()
+		testsuite.IsDestroyed(t, monitor)
+
+		require.Equal(t, "msfrpcd disconnected", errStr)
+	})
+
+	msfrpc.Kill()
+	testsuite.IsDestroyed(t, msfrpc)
+}

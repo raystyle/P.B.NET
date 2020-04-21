@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -37,6 +38,9 @@ type Callbacks struct {
 
 	// add or delete
 	OnEvent func(workspace string, event *DBEvent)
+
+	// report monitor error: msfrpcd or database disconnected
+	OnError func(error string)
 }
 
 // Monitor is used to monitor changes about token list(security),
@@ -47,6 +51,14 @@ type Monitor struct {
 
 	callbacks *Callbacks
 	interval  time.Duration
+
+	// kill self if msfrpc or database disconnect
+	msfErrorCount int
+	dbErrorCount  int
+	errorCountMu  sync.Mutex
+
+	// monitor is closed
+	alive atomic.Value
 
 	// key = token
 	tokens    map[string]struct{}
@@ -92,6 +104,7 @@ func (msf *MSFRPC) NewMonitor(callbacks *Callbacks, interval time.Duration) *Mon
 		callbacks: callbacks,
 		interval:  interval,
 	}
+	monitor.alive.Store(true)
 	monitor.context, monitor.cancel = context.WithCancel(context.Background())
 	monitor.wg.Add(3)
 	go monitor.tokenMonitor()
@@ -198,6 +211,48 @@ func (monitor *Monitor) log(lv logger.Level, log ...interface{}) {
 	monitor.ctx.logger.Println(lv, "msfrpc-monitor", log...)
 }
 
+func (monitor *Monitor) updateMSFErrorCount(add bool) {
+	monitor.errorCountMu.Lock()
+	defer monitor.errorCountMu.Unlock()
+	// reset counter
+	if !add {
+		monitor.msfErrorCount = 0
+		return
+	}
+	monitor.msfErrorCount++
+	if monitor.msfErrorCount > 3 {
+		monitor.closeOnce.Do(func() {
+			monitor.cancel()
+			monitor.alive.Store(false)
+
+			const log = "msfrpcd disconnected"
+			monitor.callbacks.OnError(log)
+			monitor.log(logger.Warning, log)
+		})
+	}
+}
+
+func (monitor *Monitor) updateDBErrorCount(add bool) {
+	monitor.errorCountMu.Lock()
+	defer monitor.errorCountMu.Unlock()
+	// reset counter
+	if !add {
+		monitor.dbErrorCount = 0
+		return
+	}
+	monitor.dbErrorCount++
+	if monitor.dbErrorCount > 3 {
+		monitor.closeOnce.Do(func() {
+			monitor.cancel()
+			monitor.alive.Store(false)
+
+			const log = "database disconnected"
+			monitor.callbacks.OnError(log)
+			monitor.log(logger.Warning, log)
+		})
+	}
+}
+
 func (monitor *Monitor) tokenMonitor() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -225,8 +280,10 @@ func (monitor *Monitor) watchToken() {
 	tokens, err := monitor.ctx.AuthTokenList(monitor.context)
 	if err != nil {
 		monitor.log(logger.Debug, "failed to watch token:", err)
+		monitor.updateMSFErrorCount(true)
 		return
 	}
+	monitor.updateMSFErrorCount(false)
 	l := len(tokens)
 	monitor.tokensRWM.Lock()
 	defer monitor.tokensRWM.Unlock()
@@ -407,8 +464,10 @@ func (monitor *Monitor) watchHost() {
 	workspaces, err := monitor.ctx.DBWorkspaces(monitor.context)
 	if err != nil {
 		monitor.log(logger.Debug, "failed to get workspaces for watch host:", err)
+		monitor.updateDBErrorCount(true)
 		return
 	}
+	monitor.updateDBErrorCount(false)
 	for i := 0; i < len(workspaces); i++ {
 		monitor.watchHostWithWorkspace(workspaces[i].Name)
 	}
@@ -628,15 +687,29 @@ func (monitor *Monitor) eventMonitor() {
 			monitor.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(monitor.interval)
-	defer ticker.Stop()
+	// don't use ticker otherwise CPU usage will too high if events is too much.
+	timer := time.NewTimer(monitor.interval)
+	defer timer.Stop()
+	// if run watchEvent() more than some time, we will get the current events
+	// number if user delete events in database(otherwise monitor never callback)
+	// var count int
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
+			// if count == 0 {
+			//
+			// } else {
+			//
+			// 	count++
+			// 	if count > 100 {
+			// 		count = 0
+			// 	}
+			// }
 			monitor.watchEvent()
 		case <-monitor.context.Done():
 			return
 		}
+		timer.Reset(monitor.interval)
 	}
 }
 
@@ -658,7 +731,7 @@ func (monitor *Monitor) watchEventWithWorkspace(workspace string) {
 		return
 	}
 	l := len(events)
-	// filter core events
+	// filter unnecessary events
 	coreEvents := make([]*DBEvent, 0, l/2)
 	for i := 0; i < l; i++ {
 		switch events[i].Name {
@@ -792,10 +865,16 @@ loop:
 	}
 }
 
+// Alive is used to check monitor is alive.
+func (monitor *Monitor) Alive() bool {
+	return monitor.alive.Load().(bool)
+}
+
 // Close is used to close monitor.
 func (monitor *Monitor) Close() {
 	monitor.closeOnce.Do(func() {
 		monitor.cancel()
-		monitor.wg.Wait()
+		monitor.alive.Store(false)
 	})
+	monitor.wg.Wait()
 }

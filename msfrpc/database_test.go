@@ -44,6 +44,15 @@ func TestMSFRPC_DBConnect(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("failed", func(t *testing.T) {
+		port := testDBOptions.Port
+		testDBOptions.Port = 9999
+		defer func() { testDBOptions.Port = port }()
+
+		err := msfrpc.DBConnect(ctx, testDBOptions)
+		require.Error(t, err)
+	})
+
 	t.Run("invalid driver", func(t *testing.T) {
 		driver := testDBOptions.Driver
 		testDBOptions.Driver = "foo"

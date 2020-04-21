@@ -54,7 +54,7 @@ type Options struct {
 	DisableTLS bool                 `toml:"disable_tls"`
 	TLSVerify  bool                 `toml:"tls_verify"`
 	Handler    string               `toml:"handler"` // custom URI
-	Transport  option.HTTPTransport `toml:"transport"`
+	Transport  option.HTTPTransport `toml:"transport" check:"-"`
 	Timeout    time.Duration        `toml:"timeout"`
 	Token      string               `toml:"token"` // permanent token
 }

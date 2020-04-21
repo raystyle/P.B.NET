@@ -31,9 +31,13 @@ func (msf *MSFRPC) DBConnect(ctx context.Context, opts *DBConnectOptions) error 
 	if result.Result != "success" {
 		return errors.New("failed to connect database")
 	}
+	err = msf.DBAddWorkspace(ctx, defaultWorkspace)
+	if err != nil {
+		return err
+	}
 	const format = "connected database: %s %s:%d"
 	msf.logf(logger.Info, format, opts.Driver, opts.Host, opts.Port)
-	return msf.DBAddWorkspace(ctx, defaultWorkspace)
+	return nil
 }
 
 // DBDisconnect is used to disconnect database.
