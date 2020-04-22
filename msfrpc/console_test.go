@@ -514,7 +514,7 @@ func TestMSFRPC_NewConsole(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestConsole_reader(t *testing.T) {
+func TestConsole_readLoop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

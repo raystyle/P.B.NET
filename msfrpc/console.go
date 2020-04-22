@@ -241,7 +241,7 @@ func (msf *MSFRPC) NewConsole(
 	workspace string,
 	interval time.Duration,
 ) (*Console, error) {
-	// must use mutex(see document)
+	// must use mutex(see metasploit document)
 	msf.rwm.Lock()
 	defer msf.rwm.Unlock()
 	result, err := msf.ConsoleCreate(ctx, workspace)
@@ -267,7 +267,7 @@ func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console 
 	console.pr, console.pw = io.Pipe()
 	console.context, console.cancel = context.WithCancel(context.Background())
 	console.wg.Add(2)
-	go console.reader()
+	go console.readLoop()
 	go console.writeLimiter()
 	return &console
 }
@@ -276,22 +276,22 @@ func (console *Console) log(lv logger.Level, log ...interface{}) {
 	console.ctx.logger.Println(lv, console.logSrc, log...)
 }
 
-// reader is used to call MSFRPC.ConsoleRead() high frequency and write the output
+// readLoop is used to call MSFRPC.ConsoleRead() high frequency and write the output
 // to a pipe and wait user call Read().
-func (console *Console) reader() {
+func (console *Console) readLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			console.log(logger.Fatal, xpanic.Print(r, "Console.reader"))
-			// restart reader
+			console.log(logger.Fatal, xpanic.Print(r, "Console.readLoop"))
+			// restart readLoop
 			time.Sleep(time.Second)
-			go console.reader()
+			go console.readLoop()
 		} else {
 			console.close()
 			console.wg.Done()
 		}
 	}()
 	if !console.ctx.trackConsole(console, true) {
-		// try to close, may be "leak" ,but you can still destroy it
+		// try to close, maybe "leak", but you can still destroy it
 		_ = console.ctx.ConsoleDestroy(context.Background(), console.id)
 		return
 	}

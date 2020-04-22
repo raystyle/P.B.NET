@@ -973,7 +973,7 @@ func TestShell(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestShell_reader(t *testing.T) {
+func TestShell_readLoop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -1291,7 +1291,7 @@ func TestMeterpreter(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMeterpreter_reader(t *testing.T) {
+func TestMeterpreter_readLoop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

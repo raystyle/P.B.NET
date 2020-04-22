@@ -401,7 +401,7 @@ func (msf *MSFRPC) NewShell(id uint64, interval time.Duration) *Shell {
 	shell.pr, shell.pw = io.Pipe()
 	shell.context, shell.cancel = context.WithCancel(context.Background())
 	shell.wg.Add(2)
-	go shell.reader()
+	go shell.readLoop()
 	go shell.writeLimiter()
 	return &shell
 }
@@ -410,13 +410,13 @@ func (shell *Shell) log(lv logger.Level, log ...interface{}) {
 	shell.ctx.logger.Println(lv, shell.logSrc, log...)
 }
 
-func (shell *Shell) reader() {
+func (shell *Shell) readLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			shell.log(logger.Fatal, xpanic.Print(r, "Shell.reader"))
-			// restart reader
+			shell.log(logger.Fatal, xpanic.Print(r, "Shell.readLoop"))
+			// restart readLoop
 			time.Sleep(time.Second)
-			go shell.reader()
+			go shell.readLoop()
 		} else {
 			shell.close()
 			shell.wg.Done()
@@ -578,7 +578,7 @@ func (msf *MSFRPC) NewMeterpreter(id uint64, interval time.Duration) *Meterprete
 	meterpreter.pr, meterpreter.pw = io.Pipe()
 	meterpreter.context, meterpreter.cancel = context.WithCancel(context.Background())
 	meterpreter.wg.Add(2)
-	go meterpreter.reader()
+	go meterpreter.readLoop()
 	go meterpreter.writeLimiter()
 	return &meterpreter
 }
@@ -587,13 +587,13 @@ func (mp *Meterpreter) log(lv logger.Level, log ...interface{}) {
 	mp.ctx.logger.Println(lv, mp.logSrc, log...)
 }
 
-func (mp *Meterpreter) reader() {
+func (mp *Meterpreter) readLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			mp.log(logger.Fatal, xpanic.Print(r, "Meterpreter.reader"))
-			// restart reader
+			mp.log(logger.Fatal, xpanic.Print(r, "Meterpreter.readLoop"))
+			// restart readLoop
 			time.Sleep(time.Second)
-			go mp.reader()
+			go mp.readLoop()
 		} else {
 			mp.close()
 			mp.wg.Done()
