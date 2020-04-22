@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,10 +18,10 @@ import (
 
 // about mock listener Accept() and other
 var (
-	ErrMockListenerAccept = &mockNetError{temporary: true}
-	ErrMockListener       = errors.New("accept more than 10 times")
-	MockListenerPanic     = "mock listener accept panic"
-	ErrMockReadCloser     = errors.New("mock io.ReadCloser error")
+	errMockListenerAccept = &mockNetError{temporary: true}
+	errMockListener       = errors.New("accept more than 10 times")
+	mockListenerPanic     = "mock panic in listener Accept()"
+	errMockReadCloser     = errors.New("mock error in io.ReadCloser")
 )
 
 // mockNetError implement net.Error
@@ -44,11 +45,11 @@ func (e *mockNetError) Temporary() bool {
 type mockListenerAddr struct{}
 
 func (mockListenerAddr) Network() string {
-	return "mockListenerAddr-network"
+	return "mock Listener network"
 }
 
 func (mockListenerAddr) String() string {
-	return "mockListenerAddr-String"
+	return "mock Listener address"
 }
 
 type mockListener struct {
@@ -59,14 +60,14 @@ type mockListener struct {
 
 func (l *mockListener) Accept() (net.Conn, error) {
 	if l.n > 10 {
-		return nil, ErrMockListener
+		return nil, errMockListener
 	}
 	l.n++
 	if l.error {
-		return nil, ErrMockListenerAccept
+		return nil, errMockListenerAccept
 	}
 	if l.panic {
-		panic(MockListenerPanic)
+		panic(mockListenerPanic)
 	}
 	return nil, nil
 }
@@ -85,20 +86,20 @@ func NewMockListenerWithError() net.Listener {
 	return &mockListener{error: true}
 }
 
-// IsMockListenerError is used to confirm err is ErrMockListenerAccept.
-func IsMockListenerError(t testing.TB, err error) {
-	require.Equal(t, ErrMockListener, err)
-}
-
 // NewMockListenerWithPanic is used to create a mock listener.
 // that panic when call Accept()
 func NewMockListenerWithPanic() net.Listener {
 	return &mockListener{panic: true}
 }
 
-// IsMockListenerPanic is used to confirm err.Error() is MockListenerPanic.
+// IsMockListenerError is used to confirm err is errMockListenerAccept.
+func IsMockListenerError(t testing.TB, err error) {
+	require.Equal(t, errMockListener, err)
+}
+
+// IsMockListenerPanic is used to confirm err.Error() is mockListenerPanic.
 func IsMockListenerPanic(t testing.TB, err error) {
-	require.Contains(t, err.Error(), MockListenerPanic)
+	require.Contains(t, err.Error(), mockListenerPanic)
 }
 
 type mockResponseWriter struct {
@@ -147,14 +148,38 @@ func NewMockResponseWriterWithFailedToWrite() http.ResponseWriter {
 	return &mockResponseWriter{conn: client}
 }
 
+type mockConnClosePanic struct {
+	net.Conn
+	server net.Conn
+}
+
+func (c *mockConnClosePanic) Close() error {
+	defer func() { panic("mock panic in Close()") }()
+	_ = c.Conn.Close()
+	_ = c.server.Close()
+	return nil
+}
+
+// NewMockResponseWriterWithClosePanic is used to create a mock
+// http.ResponseWriter that implemented http.Hijacker, if use hijacked
+// connection and when call Close() it will panic.
+func NewMockResponseWriterWithClosePanic() http.ResponseWriter {
+	server, client := net.Pipe()
+	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
+	mc := mockConnClosePanic{
+		Conn:   client,
+		server: server,
+	}
+	return &mockResponseWriter{conn: &mc}
+}
+
 type mockConnReadPanic struct {
 	net.Conn
 	server net.Conn
 }
 
 func (c *mockConnReadPanic) Read([]byte) (int, error) {
-	defer func() { panic("Read() panic") }()
-	return 0, nil
+	panic("mock panic in Read()")
 }
 
 func (c *mockConnReadPanic) Close() error {
@@ -205,43 +230,40 @@ func DialMockConnWithWriteError(_ context.Context, _, _ string) (net.Conn, error
 	}, nil
 }
 
-type mockConnClosePanic struct {
-	net.Conn
-	server net.Conn
+type mockReadCloser struct {
+	panic bool
+	rwm   sync.RWMutex
 }
 
-func (c *mockConnClosePanic) Close() error {
-	defer func() { panic("Close() panic") }()
-	_ = c.Conn.Close()
-	_ = c.server.Close()
-	return nil
-}
-
-// NewMockResponseWriterWithClosePanic is used to create a mock
-// http.ResponseWriter that implemented http.Hijacker, if use hijacked
-// connection and when call Close() it will panic.
-func NewMockResponseWriterWithClosePanic() http.ResponseWriter {
-	server, client := net.Pipe()
-	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
-	mc := mockConnClosePanic{
-		Conn:   client,
-		server: server,
+func (rc *mockReadCloser) Read([]byte) (int, error) {
+	rc.rwm.RLock()
+	defer rc.rwm.RUnlock()
+	if rc.panic {
+		panic("mock panic in Read()")
 	}
-	return &mockResponseWriter{conn: &mc}
+	return 0, errMockReadCloser
 }
 
-type mockReadCloser struct{}
-
-func (mockReadCloser) Read([]byte) (int, error) {
-	return 0, ErrMockReadCloser
-}
-
-func (mockReadCloser) Close() error {
+func (rc *mockReadCloser) Close() error {
+	rc.rwm.Lock()
+	defer rc.rwm.Unlock()
+	rc.panic = false
 	return nil
 }
 
 // NewMockReadCloserWithReadError is used to return a ReadCloser that
-// return a ErrMockReadCloser when call Read().
+// return a errMockReadCloser when call Read().
 func NewMockReadCloserWithReadError() io.ReadCloser {
 	return new(mockReadCloser)
+}
+
+// NewMockReadCloserWithReadPanic is used to return a ReadCloser that
+// panic when call Read().
+func NewMockReadCloserWithReadPanic() io.ReadCloser {
+	return &mockReadCloser{panic: true}
+}
+
+// IsMockReadCloserError is used to confirm err is errMockReadCloser.
+func IsMockReadCloserError(t testing.TB, err error) {
+	require.Equal(t, errMockReadCloser, err)
 }
