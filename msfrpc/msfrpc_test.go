@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
@@ -271,7 +272,7 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 		defer pg.Unpatch()
 
 		err = msfrpc.sendWithReplace(ctx, nil, nil, nil)
-		require.EqualError(t, testsuite.ErrMockReadCloser, err.Error())
+		testsuite.IsMockReadCloserError(t, errors.Unwrap(err))
 	})
 
 	padding := func() {}

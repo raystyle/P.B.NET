@@ -47,10 +47,10 @@ type parallelReader struct {
 	rwm sync.RWMutex
 }
 
-func (msf *MSFRPC) newParallelReader(rc io.ReadCloser, onRead func()) *parallelReader {
+func newParallelReader(rc io.ReadCloser, logger logger.Logger, onRead func()) *parallelReader {
 	reader := parallelReader{
 		rc:     rc,
-		logger: msf.logger,
+		logger: logger,
 		onRead: onRead,
 	}
 	go reader.readLoop()
