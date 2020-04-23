@@ -16,7 +16,7 @@ import (
 	"project/internal/patch/monkey"
 )
 
-// about mock listener Accept() and other
+// error and panic about mock
 var (
 	errMockListenerAccept = &mockNetError{temporary: true}
 	errMockListener       = errors.New("accept more than 10 times")

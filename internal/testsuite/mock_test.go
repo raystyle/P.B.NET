@@ -1,12 +1,15 @@
 package testsuite
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
 )
 
 func TestMockNetError(t *testing.T) {
@@ -108,5 +111,102 @@ func TestMockResponseWriter(t *testing.T) {
 
 		err = conn.Close()
 		require.NoError(t, err)
+	})
+}
+
+func TestNewMockResponseWriterWithFailedToHijack(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	rw := NewMockResponseWriterWithFailedToHijack()
+
+	conn, brw, err := rw.(http.Hijacker).Hijack()
+	require.Error(t, err)
+	require.Nil(t, brw)
+	require.Nil(t, conn)
+}
+
+func TestNewMockResponseWriterWithFailedToWrite(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	rw := NewMockResponseWriterWithFailedToWrite()
+
+	conn, brw, err := rw.(http.Hijacker).Hijack()
+	require.NoError(t, err)
+	require.Nil(t, brw)
+	require.NotNil(t, conn)
+
+	_, err = conn.Write(nil)
+	require.Error(t, err)
+}
+
+func TestNewMockResponseWriterWithClosePanic(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	rw := NewMockResponseWriterWithClosePanic()
+
+	conn, brw, err := rw.(http.Hijacker).Hijack()
+	require.NoError(t, err)
+	require.Nil(t, brw)
+	require.NotNil(t, conn)
+
+	defer func() { require.NotNil(t, recover()) }()
+	_ = conn.Close()
+}
+
+func TestDialMockConnWithReadPanic(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	conn, err := DialMockConnWithReadPanic(context.Background(), "", "")
+	require.NoError(t, err)
+
+	defer func() {
+		require.NotNil(t, recover())
+		err = conn.Close()
+		require.NoError(t, err)
+	}()
+	_, _ = conn.Read(nil)
+}
+
+func TestDialMockConnWithWriteError(t *testing.T) {
+	gm := MarkGoroutines(t)
+	defer gm.Compare()
+
+	conn, err := DialMockConnWithWriteError(context.Background(), "", "")
+	require.NoError(t, err)
+
+	_, err = conn.Read(make([]byte, 1))
+	require.NoError(t, err)
+
+	_, err = conn.Write(nil)
+	monkey.IsMonkeyError(t, err)
+
+	err = conn.Close()
+	require.NoError(t, err)
+}
+
+func TestNewMockReadCloserWithReadError(t *testing.T) {
+	rc := NewMockReadCloserWithReadError()
+
+	_, err := rc.Read(nil)
+	IsMockReadCloserError(t, err)
+}
+
+func TestNewMockReadCloserWithReadPanic(t *testing.T) {
+	rc := NewMockReadCloserWithReadPanic()
+
+	t.Run("panic", func(t *testing.T) {
+		defer func() { require.NotNil(t, recover()) }()
+		_, _ = rc.Read(nil)
+	})
+
+	t.Run("read after close", func(t *testing.T) {
+		err := rc.Close()
+		require.NoError(t, err)
+		_, err = rc.Read(nil)
+		IsMockReadCloserError(t, err)
 	})
 }
