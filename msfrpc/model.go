@@ -221,9 +221,9 @@ type AuthLoginResult struct {
 
 // AuthLogoutRequest is used to delete token.
 type AuthLogoutRequest struct {
-	Method      string
-	Token       string
-	LogoutToken string // will be deleted
+	Method      string `json:"-"`
+	Token       string `json:"-"`
+	LogoutToken string `json:"token"` // will be deleted
 }
 
 // AuthLogoutResult is the result about logout.
@@ -259,9 +259,9 @@ type AuthTokenGenerateResult struct {
 
 // AuthTokenAddRequest is used to add token.
 type AuthTokenAddRequest struct {
-	Method   string
-	Token    string
-	NewToken string
+	Method   string `json:"-"`
+	Token    string `json:"-"`
+	NewToken string `json:"token"`
 }
 
 // AuthTokenAddResult is the result about add token.
@@ -272,9 +272,9 @@ type AuthTokenAddResult struct {
 
 // AuthTokenRemoveRequest is used to remove token.
 type AuthTokenRemoveRequest struct {
-	Method           string
-	Token            string
-	TokenToBeRemoved string
+	Method           string `json:"-"`
+	Token            string `json:"-"`
+	TokenToBeRemoved string `json:"token"`
 }
 
 // AuthTokenRemoveResult is the result about remove token.
@@ -304,9 +304,9 @@ type CoreModuleStatsResult struct {
 
 // CoreAddModulePathRequest is used to add module.
 type CoreAddModulePathRequest struct {
-	Method string
-	Token  string
-	Path   string
+	Method string `json:"-"`
+	Token  string `json:"-"`
+	Path   string `json:"path"`
 }
 
 // CoreAddModulePathResult is the result about add module.
@@ -353,9 +353,9 @@ type CoreThreadInfo struct {
 
 // CoreThreadKillRequest is used to kill thread by ID.
 type CoreThreadKillRequest struct {
-	Method string
-	Token  string
-	ID     uint64
+	Method string `json:"-"`
+	Token  string `json:"-"`
+	ID     uint64 `json:"id"`
 }
 
 // CoreThreadKillResult is the result about kill thread.
@@ -366,10 +366,10 @@ type CoreThreadKillResult struct {
 
 // CoreSetGRequest is used to set global option.
 type CoreSetGRequest struct {
-	Method string
-	Token  string
-	Name   string
-	Value  string
+	Method string `json:"-"`
+	Token  string `json:"-"`
+	Name   string `json:"name"`
+	Value  string `json:"value"`
 }
 
 // CoreSetGResult is the result of set global option.
@@ -378,24 +378,24 @@ type CoreSetGResult struct {
 	MSFError
 }
 
-// CoreGetGRequest is used to get global option.
-type CoreGetGRequest struct {
-	Method string
-	Token  string
-	Name   string
-}
-
 // CoreUnsetGRequest is used to unset global option.
 type CoreUnsetGRequest struct {
-	Method string
-	Token  string
-	Name   string
+	Method string `json:"-"`
+	Token  string `json:"-"`
+	Name   string `json:"name"`
 }
 
 // CoreUnsetGResult is the result of unset global option.
 type CoreUnsetGResult struct {
 	Result string `msgpack:"result"`
 	MSFError
+}
+
+// CoreGetGRequest is used to get global option.
+type CoreGetGRequest struct {
+	Method string `json:"-"`
+	Token  string `json:"-"`
+	Name   string `json:"name"`
 }
 
 // CoreSaveRequest is used to save current global data store.

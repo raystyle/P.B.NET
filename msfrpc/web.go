@@ -280,7 +280,7 @@ func (wh *webHandler) writeResponse(w hRW, resp interface{}) {
 func (wh *webHandler) writeError(w hRW, err error) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	e := &struct {
+	e := struct {
 		Error string `json:"error"`
 	}{}
 	if err != nil {
@@ -288,7 +288,7 @@ func (wh *webHandler) writeError(w hRW, err error) {
 	}
 	encoder := wh.encoderPool.Get().(*json.Encoder)
 	defer wh.encoderPool.Put(encoder)
-	data, err := encoder.Encode(e)
+	data, err := encoder.Encode(&e)
 	if err != nil {
 		panic(err)
 	}
@@ -317,11 +317,11 @@ func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {
 
 // ------------------------------------about Metasploit RPC API------------------------------------
 
+// --------------------------------------about authentication--------------------------------------
+
 func (wh *webHandler) handleAuthLogout(w hRW, r *hR, _ hP) {
-	req := &struct {
-		Token string `json:"token"`
-	}{}
-	err := wh.readRequest(r, req)
+	req := AuthLogoutRequest{}
+	err := wh.readRequest(r, &req)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -359,10 +359,8 @@ func (wh *webHandler) handleAuthTokenGenerate(w hRW, r *hR, _ hP) {
 }
 
 func (wh *webHandler) handleAuthTokenAdd(w hRW, r *hR, _ hP) {
-	req := &struct {
-		Token string `json:"token"`
-	}{}
-	err := wh.readRequest(r, req)
+	req := AuthTokenAddRequest{}
+	err := wh.readRequest(r, &req)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -372,10 +370,8 @@ func (wh *webHandler) handleAuthTokenAdd(w hRW, r *hR, _ hP) {
 }
 
 func (wh *webHandler) handleAuthTokenRemove(w hRW, r *hR, _ hP) {
-	req := &struct {
-		Token string `json:"token"`
-	}{}
-	err := wh.readRequest(r, req)
+	req := AuthTokenRemoveRequest{}
+	err := wh.readRequest(r, &req)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -384,8 +380,110 @@ func (wh *webHandler) handleAuthTokenRemove(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
+// -------------------------------------------about core-------------------------------------------
+
 func (wh *webHandler) handleCoreModuleStatus(w hRW, r *hR, _ hP) {
 	resp, err := wh.ctx.CoreModuleStats(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, resp)
+}
+
+func (wh *webHandler) handleCoreAddModulePath(w hRW, r *hR, _ hP) {
+	req := CoreAddModulePathRequest{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp, err := wh.ctx.CoreAddModulePath(r.Context(), req.Path)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, resp)
+}
+
+func (wh *webHandler) handleCoreReloadModules(w hRW, r *hR, _ hP) {
+	resp, err := wh.ctx.CoreReloadModules(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, resp)
+}
+
+func (wh *webHandler) handleCoreThreadList(w hRW, r *hR, _ hP) {
+	resp, err := wh.ctx.CoreThreadList(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, resp)
+}
+
+func (wh *webHandler) handleCoreThreadKill(w hRW, r *hR, _ hP) {
+	req := CoreThreadKillRequest{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.CoreThreadKill(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleCoreSetG(w hRW, r *hR, _ hP) {
+	req := CoreSetGRequest{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.CoreSetG(r.Context(), req.Name, req.Value)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleCoreUnsetG(w hRW, r *hR, _ hP) {
+	req := CoreUnsetGRequest{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.CoreUnsetG(r.Context(), req.Name)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleCoreGetG(w hRW, r *hR, _ hP) {
+	req := CoreGetGRequest{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	value, err := wh.ctx.CoreGetG(r.Context(), req.Name)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Value string `json:"value"`
+	}{
+		Value: value,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleCoreSave(w hRW, r *hR, _ hP) {
+	err := wh.ctx.CoreSave(r.Context())
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleCoreVersion(w hRW, r *hR, _ hP) {
+	resp, err := wh.ctx.CoreVersion(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
 		return
