@@ -1,5 +1,5 @@
 [logger]
-  level = "debug"
+  level = "info"
   file  = "msfrpc.log"
 
 [msfrpc]

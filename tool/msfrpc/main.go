@@ -277,7 +277,7 @@ func (p *program) Start(s service.Service) error {
 	// start monitor
 	callbacks := p.webServer.Callbacks()
 	interval := p.config.Advance.MonitorInterval
-	p.monitor = p.msfrpc.NewMonitor(callbacks, interval)
+	p.monitor = p.msfrpc.NewMonitor(callbacks, interval, &p.config.Database)
 	p.monitor.StartDatabaseMonitors()
 	// start web server
 	p.wg.Add(1)
