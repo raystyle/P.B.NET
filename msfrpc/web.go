@@ -176,13 +176,13 @@ func (msf *MSFRPC) NewWebServer(
 // Callbacks is used to return callbacks for monitor.
 func (web *WebServer) Callbacks() *Callbacks {
 	return &Callbacks{
-		OnToken:      web.onToken,
-		OnJob:        web.onJob,
-		OnSession:    web.onSession,
-		OnHost:       web.onHost,
-		OnCredential: web.onCredential,
-		OnLoot:       web.onLoot,
-		OnEvent:      web.onEvent,
+		OnToken:      web.handler.onToken,
+		OnJob:        web.handler.onJob,
+		OnSession:    web.handler.onSession,
+		OnHost:       web.handler.onHost,
+		OnCredential: web.handler.onCredential,
+		OnLoot:       web.handler.onLoot,
+		OnEvent:      web.handler.onEvent,
 	}
 }
 
@@ -200,36 +200,6 @@ func (web *WebServer) Serve(listener net.Listener) error {
 // Close is used to close web server.
 func (web *WebServer) Close() error {
 	return web.server.Close()
-}
-
-// callbacks to notice web UI that some data is updated.
-
-func (web *WebServer) onToken(token string, add bool) {
-
-}
-
-func (web *WebServer) onJob(id, name string, active bool) {
-
-}
-
-func (web *WebServer) onSession(id uint64, info *SessionInfo, opened bool) {
-
-}
-
-func (web *WebServer) onHost(workspace string, host *DBHost, add bool) {
-
-}
-
-func (web *WebServer) onCredential(workspace string, cred *DBCred, add bool) {
-
-}
-
-func (web *WebServer) onLoot(workspace string, loot *DBLoot) {
-
-}
-
-func (web *WebServer) onEvent(event string) {
-
 }
 
 // shortcut about interface and structure.
@@ -315,7 +285,37 @@ func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {
 	_ = conn.Close()
 }
 
-// ------------------------------------about Metasploit RPC API------------------------------------
+// callbacks is used to notice web UI that some data is updated.
+
+func (wh *webHandler) onToken(token string, add bool) {
+
+}
+
+func (wh *webHandler) onJob(id, name string, active bool) {
+
+}
+
+func (wh *webHandler) onSession(id uint64, info *SessionInfo, opened bool) {
+
+}
+
+func (wh *webHandler) onHost(workspace string, host *DBHost, add bool) {
+
+}
+
+func (wh *webHandler) onCredential(workspace string, cred *DBCred, add bool) {
+
+}
+
+func (wh *webHandler) onLoot(workspace string, loot *DBLoot) {
+
+}
+
+func (wh *webHandler) onEvent(event string) {
+
+}
+
+// ---------------------------------------Metasploit RPC API---------------------------------------
 
 // --------------------------------------about authentication--------------------------------------
 
@@ -341,7 +341,7 @@ func (wh *webHandler) handleAuthTokenList(w hRW, r *hR, _ hP) {
 	}{
 		Tokens: tokens,
 	}
-	wh.writeResponse(w, resp)
+	wh.writeResponse(w, &resp)
 }
 
 func (wh *webHandler) handleAuthTokenGenerate(w hRW, r *hR, _ hP) {
@@ -383,12 +383,12 @@ func (wh *webHandler) handleAuthTokenRemove(w hRW, r *hR, _ hP) {
 // -------------------------------------------about core-------------------------------------------
 
 func (wh *webHandler) handleCoreModuleStatus(w hRW, r *hR, _ hP) {
-	resp, err := wh.ctx.CoreModuleStats(r.Context())
+	status, err := wh.ctx.CoreModuleStats(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, resp)
+	wh.writeResponse(w, status)
 }
 
 func (wh *webHandler) handleCoreAddModulePath(w hRW, r *hR, _ hP) {
@@ -398,30 +398,35 @@ func (wh *webHandler) handleCoreAddModulePath(w hRW, r *hR, _ hP) {
 		wh.writeError(w, err)
 		return
 	}
-	resp, err := wh.ctx.CoreAddModulePath(r.Context(), req.Path)
+	status, err := wh.ctx.CoreAddModulePath(r.Context(), req.Path)
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, resp)
+	wh.writeResponse(w, status)
 }
 
 func (wh *webHandler) handleCoreReloadModules(w hRW, r *hR, _ hP) {
-	resp, err := wh.ctx.CoreReloadModules(r.Context())
+	status, err := wh.ctx.CoreReloadModules(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, resp)
+	wh.writeResponse(w, status)
 }
 
 func (wh *webHandler) handleCoreThreadList(w hRW, r *hR, _ hP) {
-	resp, err := wh.ctx.CoreThreadList(r.Context())
+	list, err := wh.ctx.CoreThreadList(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, resp)
+	resp := struct {
+		Threads map[uint64]*CoreThreadInfo `json:"threads"`
+	}{
+		Threads: list,
+	}
+	wh.writeResponse(w, &resp)
 }
 
 func (wh *webHandler) handleCoreThreadKill(w hRW, r *hR, _ hP) {
@@ -483,12 +488,101 @@ func (wh *webHandler) handleCoreSave(w hRW, r *hR, _ hP) {
 }
 
 func (wh *webHandler) handleCoreVersion(w hRW, r *hR, _ hP) {
-	resp, err := wh.ctx.CoreVersion(r.Context())
+	version, err := wh.ctx.CoreVersion(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, resp)
+	wh.writeResponse(w, version)
+}
+
+// -----------------------------------------about database-----------------------------------------
+
+func (wh *webHandler) handleDBStatus(w hRW, r *hR, _ hP) {
+	status, err := wh.ctx.DBStatus(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, status)
+}
+
+func (wh *webHandler) handleDBReportHost(w hRW, r *hR, _ hP) {
+	req := DBReportHost{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.DBReportHost(r.Context(), &req)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBHost(w hRW, r *hR, _ hP) {
+	req := struct {
+		Workspace string `json:"workspace"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	hosts, err := wh.ctx.DBHosts(r.Context(), req.Workspace)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Hosts []*DBHost `json:"hosts"`
+	}{
+		Hosts: hosts,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleDBDelHost(w hRW, r *hR, _ hP) {
+	req := struct {
+		Workspace string `json:"workspace"`
+		Address   string `json:"address"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	_, err = wh.ctx.DBDelHost(r.Context(), req.Workspace, req.Address)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBReportService(w hRW, r *hR, _ hP) {
+	req := DBReportService{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.DBReportService(r.Context(), &req)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBService(w hRW, r *hR, _ hP) {
+	req := DBServicesOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	services, err := wh.ctx.DBServices(r.Context(), &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Services []*DBService `json:"services"`
+	}{
+		Services: services,
+	}
+	wh.writeResponse(w, &resp)
 }
 
 func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
