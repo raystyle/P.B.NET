@@ -240,9 +240,10 @@ type hP = httprouter.Params
 type webHandler struct {
 	ctx *MSFRPC
 
-	username   string
-	password   string
-	ioInterval time.Duration
+	username    string
+	password    string
+	ioInterval  time.Duration
+	maxBodySize int64
 
 	upgrader    *websocket.Upgrader
 	encoderPool sync.Pool
@@ -260,24 +261,28 @@ func (wh *webHandler) log(lv logger.Level, log ...interface{}) {
 	wh.ctx.logger.Println(lv, "web", log...)
 }
 
-func (wh *webHandler) handlePanic(w hRW, _ *hR, e interface{}) {
-	w.WriteHeader(http.StatusInternalServerError)
-
-	// if is super user return the panic
-	_, _ = xpanic.Print(e, "web").WriteTo(w)
-
-	csrf.Protect(nil, nil)
-	sessions.NewSession(nil, "")
+func (wh *webHandler) readRequest(r *hR, req interface{}) error {
+	return json.NewDecoder(io.LimitReader(r.Body, wh.maxBodySize)).Decode(req)
 }
 
-type webError struct {
-	Error string `json:"error"`
+func (wh *webHandler) writeResponse(w hRW, resp interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	encoder := wh.encoderPool.Get().(*json.Encoder)
+	defer wh.encoderPool.Put(encoder)
+	data, err := encoder.Encode(resp)
+	if err != nil {
+		panic(err)
+	}
+	_, _ = w.Write(data)
 }
 
 func (wh *webHandler) writeError(w hRW, err error) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	e := webError{}
+	e := &struct {
+		Error string `json:"error"`
+	}{}
 	if err != nil {
 		e.Error = err.Error()
 	}
@@ -290,16 +295,14 @@ func (wh *webHandler) writeError(w hRW, err error) {
 	_, _ = w.Write(data)
 }
 
-func (wh *webHandler) writeResponse(w hRW, response interface{}) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	encoder := wh.encoderPool.Get().(*json.Encoder)
-	defer wh.encoderPool.Put(encoder)
-	data, err := encoder.Encode(response)
-	if err != nil {
-		panic(err)
-	}
-	_, _ = w.Write(data)
+func (wh *webHandler) handlePanic(w hRW, _ *hR, e interface{}) {
+	w.WriteHeader(http.StatusInternalServerError)
+
+	// if is super user return the panic
+	_, _ = xpanic.Print(e, "web").WriteTo(w)
+
+	csrf.Protect(nil, nil)
+	sessions.NewSession(nil, "")
 }
 
 func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {
@@ -312,25 +315,84 @@ func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {
 	_ = conn.Close()
 }
 
-func (wh *webHandler) handleTokenList(w hRW, r *hR, _ hP) {
+// ------------------------------------about Metasploit RPC API------------------------------------
+
+func (wh *webHandler) handleAuthLogout(w hRW, r *hR, _ hP) {
+	req := &struct {
+		Token string `json:"token"`
+	}{}
+	err := wh.readRequest(r, req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.AuthLogout(req.Token)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleAuthTokenList(w hRW, r *hR, _ hP) {
 	tokens, err := wh.ctx.AuthTokenList(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	wh.writeResponse(w, tokens)
+	resp := struct {
+		Tokens []string `json:"tokens"`
+	}{
+		Tokens: tokens,
+	}
+	wh.writeResponse(w, resp)
 }
 
-func (wh *webHandler) handleTokenGenerate(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleAuthTokenGenerate(w hRW, r *hR, _ hP) {
 	token, err := wh.ctx.AuthTokenGenerate(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	s := struct {
+	resp := struct {
 		Token string `json:"token"`
 	}{
 		Token: token,
 	}
-	wh.writeResponse(w, &s)
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleAuthTokenAdd(w hRW, r *hR, _ hP) {
+	req := &struct {
+		Token string `json:"token"`
+	}{}
+	err := wh.readRequest(r, req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.AuthTokenAdd(r.Context(), req.Token)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleAuthTokenRemove(w hRW, r *hR, _ hP) {
+	req := &struct {
+		Token string `json:"token"`
+	}{}
+	err := wh.readRequest(r, req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.AuthTokenRemove(r.Context(), req.Token)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleCoreModuleStatus(w hRW, r *hR, _ hP) {
+	resp, err := wh.ctx.CoreModuleStats(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, resp)
+}
+
+func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
+
 }

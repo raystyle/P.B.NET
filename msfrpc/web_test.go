@@ -2,6 +2,8 @@ package msfrpc
 
 import (
 	"io"
+	"net/http"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +13,21 @@ import (
 	"project/internal/logger"
 	"project/internal/testsuite"
 )
+
+func TestSubFileSystem_Open(t *testing.T) {
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	fs := http.Dir(wd)
+
+	sfs := newSubFileSystem(fs, "testdata")
+	file, err := sfs.Open("nmap.xml")
+	require.NoError(t, err)
+	require.NotNil(t, file)
+
+	file, err = sfs.Open("foo")
+	require.Error(t, err)
+	require.Nil(t, file)
+}
 
 func TestParallelReader_Bytes(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
@@ -68,7 +85,6 @@ func TestParallelReader_Parallel(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			_, err := w.Write(testsuite.Bytes())
 			require.NoError(t, err)
-			time.Sleep(time.Millisecond)
 		}
 
 		err := pr.Close()
