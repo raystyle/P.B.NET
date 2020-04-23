@@ -63,58 +63,42 @@ func TestBytesToNumber(t *testing.T) {
 
 func TestBytesToNumberWithInvalidBytes(t *testing.T) {
 	t.Run("BytesToInt16", func(t *testing.T) {
-		defer func() {
-			require.NotNil(t, recover())
-		}()
+		defer func() { require.NotNil(t, recover()) }()
 		BytesToInt16([]byte{1})
 	})
 
 	t.Run("BytesToInt32", func(t *testing.T) {
-		defer func() {
-			require.NotNil(t, recover())
-		}()
+		defer func() { require.NotNil(t, recover()) }()
 		BytesToInt32([]byte{1})
 	})
 
 	t.Run("BytesToInt64", func(t *testing.T) {
-		defer func() {
-			require.NotNil(t, recover())
-		}()
+		defer func() { require.NotNil(t, recover()) }()
 		BytesToInt64([]byte{1})
 	})
 
 	t.Run("BytesToUint16", func(t *testing.T) {
-		defer func() {
-			require.NotNil(t, recover())
-		}()
+		defer func() { require.NotNil(t, recover()) }()
 		BytesToUint16([]byte{1})
 	})
 
 	t.Run("BytesToUint32", func(t *testing.T) {
-		defer func() {
-			require.NotNil(t, recover())
-		}()
+		defer func() { require.NotNil(t, recover()) }()
 		BytesToUint32([]byte{1})
 	})
 
 	t.Run("BytesToUint64", func(t *testing.T) {
-		defer func() {
-			require.NotNil(t, recover())
-		}()
+		defer func() { require.NotNil(t, recover()) }()
 		BytesToUint64([]byte{1})
 	})
 
 	t.Run("BytesToFloat32", func(t *testing.T) {
-		defer func() {
-			require.NotNil(t, recover())
-		}()
+		defer func() { require.NotNil(t, recover()) }()
 		BytesToFloat32([]byte{1})
 	})
 
 	t.Run("BytesToFloat64", func(t *testing.T) {
-		defer func() {
-			require.NotNil(t, recover())
-		}()
+		defer func() { require.NotNil(t, recover()) }()
 		BytesToFloat64([]byte{1})
 	})
 

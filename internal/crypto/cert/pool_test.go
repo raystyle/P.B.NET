@@ -12,9 +12,7 @@ import (
 )
 
 func TestPair_ToPair(t *testing.T) {
-	defer func() {
-		require.NotNil(t, recover())
-	}()
+	defer func() { require.NotNil(t, recover()) }()
 	pair := pair{
 		PrivateKey: security.NewBytes(make([]byte, 1024)),
 	}
