@@ -544,16 +544,13 @@ func (wh *webHandler) handleDBHost(w hRW, r *hR, _ hP) {
 }
 
 func (wh *webHandler) handleDBGetHost(w hRW, r *hR, _ hP) {
-	req := struct {
-		Workspace string `json:"workspace"`
-		Address   string `json:"address"`
-	}{}
+	req := DBGetHostOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	host, err := wh.ctx.DBGetHost(r.Context(), req.Workspace, req.Address)
+	host, err := wh.ctx.DBGetHost(r.Context(), &req)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -562,16 +559,13 @@ func (wh *webHandler) handleDBGetHost(w hRW, r *hR, _ hP) {
 }
 
 func (wh *webHandler) handleDBDelHost(w hRW, r *hR, _ hP) {
-	req := struct {
-		Workspace string `json:"workspace"`
-		Address   string `json:"address"`
-	}{}
+	req := DBDelHostOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
 		wh.writeError(w, err)
 		return
 	}
-	_, err = wh.ctx.DBDelHost(r.Context(), req.Workspace, req.Address)
+	_, err = wh.ctx.DBDelHost(r.Context(), &req)
 	wh.writeError(w, err)
 }
 
@@ -725,6 +719,126 @@ func (wh *webHandler) handleDBCredential(w hRW, r *hR, _ hP) {
 		Creds: creds,
 	}
 	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleDBReportLoot(w hRW, r *hR, _ hP) {
+	req := DBReportLoot{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.DBReportLoot(r.Context(), &req)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBLoots(w hRW, r *hR, _ hP) {
+	req := DBLootsOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	loots, err := wh.ctx.DBLoots(r.Context(), &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, loots)
+}
+
+func (wh *webHandler) handleDBWorkspaces(w hRW, r *hR, _ hP) {
+	workspaces, err := wh.ctx.DBWorkspaces(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Workspaces []*DBWorkspace `json:"workspaces"`
+	}{
+		Workspaces: workspaces,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleDBGetWorkspace(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	workspace, err := wh.ctx.DBGetWorkspace(r.Context(), req.Name)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, workspace)
+}
+
+func (wh *webHandler) handleDBAddWorkspace(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.DBAddWorkspace(r.Context(), req.Name)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBDelWorkspace(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.DBDelWorkspace(r.Context(), req.Name)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBSetWorkspace(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.DBSetWorkspace(r.Context(), req.Name)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBCurrentWorkspace(w hRW, r *hR, _ hP) {
+	result, err := wh.ctx.DBCurrentWorkspace(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, result)
+}
+
+func (wh *webHandler) handleDBEvent(w hRW, r *hR, _ hP) {
+	req := DBEventOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// err = wh.ctx.DBEvent(r.Context(), &req)
+	// wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBImportData(w hRW, r *hR, _ hP) {
+
 }
 
 func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
