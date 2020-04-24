@@ -288,6 +288,10 @@ func (wh *webHandler) handleLogin(w hRW, r *hR, _ hP) {
 	_ = conn.Close()
 }
 
+func (wh *webHandler) checkUser(w hRW, r *hR, _ hP) {
+
+}
+
 // callbacks is used to notice web UI that some data is updated.
 
 func (wh *webHandler) onToken(token string, add bool) {
@@ -833,13 +837,136 @@ func (wh *webHandler) handleDBEvent(w hRW, r *hR, _ hP) {
 		wh.writeError(w, err)
 		return
 	}
-	// err = wh.ctx.DBEvent(r.Context(), &req)
-	// wh.writeError(w, err)
+	events, err := wh.ctx.DBEvent(r.Context(), &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Events []*DBEvent `json:"events"`
+	}{
+		Events: events,
+	}
+	wh.writeResponse(w, &resp)
 }
 
 func (wh *webHandler) handleDBImportData(w hRW, r *hR, _ hP) {
+	req := DBImportDataOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.DBImportData(r.Context(), &req)
+	wh.writeError(w, err)
+}
+
+// ------------------------------------------about console-----------------------------------------
+
+func (wh *webHandler) handleConsoleList(w hRW, r *hR, _ hP) {
+	consoles, err := wh.ctx.ConsoleList(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Console []*ConsoleInfo `json:"consoles"`
+	}{
+		Console: consoles,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleConsoleCreate(w hRW, r *hR, _ hP) {
 
 }
+
+func (wh *webHandler) handleConsoleDestroy(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID string `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// first check is in web handler
+	err = wh.ctx.ConsoleDestroy(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleConsoleSessionDetach(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID string `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// first check is in web handler
+	err = wh.ctx.ConsoleSessionDetach(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleConsoleSessionKill(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID string `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// first check is in web handler
+	err = wh.ctx.ConsoleSessionKill(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+// ------------------------------------------about plugin------------------------------------------
+
+func (wh *webHandler) handlePluginLoad(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name    string            `json:"name"`
+		Options map[string]string `json:"options"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.PluginLoad(r.Context(), req.Name, req.Options)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handlePluginUnload(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.PluginUnload(r.Context(), req.Name)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handlePluginLoaded(w hRW, r *hR, _ hP) {
+	plugins, err := wh.ctx.PluginLoaded(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Plugins []string `json:"plugins"`
+	}{
+		Plugins: plugins,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+// ------------------------------------------about module------------------------------------------
 
 func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
 

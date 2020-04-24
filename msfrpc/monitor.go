@@ -617,15 +617,17 @@ func (monitor *Monitor) lootMonitor() {
 			monitor.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(monitor.interval)
-	defer ticker.Stop()
+	// must use timer fot use less CPU
+	timer := time.NewTimer(monitor.interval)
+	defer timer.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			monitor.watchLoot()
 		case <-monitor.context.Done():
 			return
 		}
+		timer.Reset(monitor.interval)
 	}
 }
 
