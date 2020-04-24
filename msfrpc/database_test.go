@@ -341,7 +341,10 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 		err := msfrpc.DBReportHost(ctx, testDBHost)
 		require.NoError(t, err)
 
-		host, err := msfrpc.DBGetHost(ctx, "", "1.2.3.4")
+		opts := DBGetHostOptions{
+			Address: "1.2.3.4",
+		}
+		host, err := msfrpc.DBGetHost(ctx, &opts)
 		require.NoError(t, err)
 		t.Log(host.Name)
 		t.Log(host.Address)
@@ -349,21 +352,28 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 	})
 
 	t.Run("no result", func(t *testing.T) {
-		host, err := msfrpc.DBGetHost(ctx, "", "9.9.9.9")
+		opts := DBGetHostOptions{
+			Address: "9.9.9.9",
+		}
+		host, err := msfrpc.DBGetHost(ctx, &opts)
 		require.EqualError(t, err, "host: 9.9.9.9 doesn't exist")
 		require.Nil(t, host)
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
-		host, err := msfrpc.DBGetHost(ctx, "foo", "1.2.3.4")
+		opts := DBGetHostOptions{
+			Workspace: "foo",
+			Address:   "1.2.3.4",
+		}
+		host, err := msfrpc.DBGetHost(ctx, &opts)
 		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, host)
 	})
 
-	const (
-		workspace = "foo"
-		address   = "9.9.9.9"
-	)
+	opts := &DBGetHostOptions{
+		Workspace: "foo",
+		Address:   "1.2.3.4",
+	}
 
 	t.Run("database active record", func(t *testing.T) {
 		err = msfrpc.DBDisconnect(ctx)
@@ -373,7 +383,7 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		host, err := msfrpc.DBGetHost(ctx, workspace, address)
+		host, err := msfrpc.DBGetHost(ctx, opts)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 		require.Nil(t, host)
 	})
@@ -383,14 +393,14 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		host, err := msfrpc.DBGetHost(ctx, workspace, address)
+		host, err := msfrpc.DBGetHost(ctx, opts)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, host)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			host, err := msfrpc.DBGetHost(ctx, workspace, address)
+			host, err := msfrpc.DBGetHost(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, host)
 		})
@@ -421,33 +431,42 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 		err := msfrpc.DBReportHost(ctx, testDBHost)
 		require.NoError(t, err)
 
-		hosts, err := msfrpc.DBDelHost(ctx, "", "1.2.3.4")
+		opts := DBDelHostOptions{
+			Address: "1.2.3.4",
+		}
+		hosts, err := msfrpc.DBDelHost(ctx, &opts)
 		require.NoError(t, err)
 		require.Len(t, hosts, 1)
 	})
 
 	t.Run("empty address", func(t *testing.T) {
-		hosts, err := msfrpc.DBDelHost(ctx, "", "")
+		hosts, err := msfrpc.DBDelHost(ctx, new(DBDelHostOptions))
 		require.NoError(t, err)
 		require.Len(t, hosts, 0)
 	})
 
 	t.Run("invalid address", func(t *testing.T) {
-		hosts, err := msfrpc.DBDelHost(ctx, "", "3.3.3.3")
+		opts := DBDelHostOptions{
+			Address: "3.3.3.3",
+		}
+		hosts, err := msfrpc.DBDelHost(ctx, &opts)
 		require.EqualError(t, err, "host: 3.3.3.3 doesn't exist in workspace: default")
 		require.Nil(t, hosts)
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
-		hosts, err := msfrpc.DBDelHost(ctx, "foo", "1.2.3.4")
+		opts := DBDelHostOptions{
+			Workspace: "foo",
+		}
+		hosts, err := msfrpc.DBDelHost(ctx, &opts)
 		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, hosts)
 	})
 
-	const (
-		workspace = "foo"
-		address   = "9.9.9.9"
-	)
+	opts := &DBDelHostOptions{
+		Workspace: "foo",
+		Address:   "1.2.3.4",
+	}
 
 	t.Run("database active record", func(t *testing.T) {
 		err = msfrpc.DBDisconnect(ctx)
@@ -457,7 +476,7 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		hosts, err := msfrpc.DBDelHost(ctx, workspace, address)
+		hosts, err := msfrpc.DBDelHost(ctx, opts)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 		require.Nil(t, hosts)
 	})
@@ -467,14 +486,14 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		hosts, err := msfrpc.DBDelHost(ctx, workspace, address)
+		hosts, err := msfrpc.DBDelHost(ctx, opts)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, hosts)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			hosts, err := msfrpc.DBDelHost(ctx, workspace, address)
+			hosts, err := msfrpc.DBDelHost(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, hosts)
 		})
@@ -1990,12 +2009,6 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 	err = msfrpc.DBConnect(ctx, testDBOptions)
 	require.NoError(t, err)
 
-	const (
-		workspace = ""
-		limit     = 100
-		offset    = 0
-	)
-
 	t.Run("success", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55200")
 		defer func() {
@@ -2003,7 +2016,10 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		events, err := msfrpc.DBEvent(ctx, workspace, limit, offset)
+		opts := DBEventOptions{
+			Limit: 65535,
+		}
+		events, err := msfrpc.DBEvent(ctx, &opts)
 		require.NoError(t, err)
 		require.NotEmpty(t, events)
 		for i := 0; i < len(events); i++ {
@@ -2027,10 +2043,18 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
-		events, err := msfrpc.DBEvent(ctx, "foo", limit, offset)
+		opts := DBEventOptions{
+			Workspace: "foo",
+		}
+		events, err := msfrpc.DBEvent(ctx, &opts)
 		require.EqualError(t, err, "workspace foo doesn't exist")
 		require.Nil(t, events)
 	})
+
+	opts := &DBEventOptions{
+		Workspace: "foo",
+		Limit:     65535,
+	}
 
 	t.Run("database active record", func(t *testing.T) {
 		err = msfrpc.DBDisconnect(ctx)
@@ -2040,7 +2064,7 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		events, err := msfrpc.DBEvent(ctx, workspace, limit, offset)
+		events, err := msfrpc.DBEvent(ctx, opts)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 		require.Nil(t, events)
 	})
@@ -2050,14 +2074,14 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		events, err := msfrpc.DBEvent(ctx, workspace, limit, offset)
+		events, err := msfrpc.DBEvent(ctx, opts)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, events)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			events, err := msfrpc.DBEvent(ctx, workspace, limit, offset)
+			events, err := msfrpc.DBEvent(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, events)
 		})
@@ -2088,7 +2112,10 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 		result, err := ioutil.ReadFile("testdata/nmap.xml")
 		require.NoError(t, err)
 
-		err = msfrpc.DBImportData(ctx, "", string(result))
+		opts := DBImportDataOptions{
+			Data: string(result),
+		}
+		err = msfrpc.DBImportData(ctx, &opts)
 		require.NoError(t, err)
 
 		hosts, err := msfrpc.DBHosts(ctx, "")
@@ -2102,25 +2129,32 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 		require.True(t, added)
 	})
 
-	const (
-		workspace = ""
-		data      = "foo data"
-	)
-
 	t.Run("no data", func(t *testing.T) {
-		err = msfrpc.DBImportData(ctx, "foo", "")
+		err = msfrpc.DBImportData(ctx, new(DBImportDataOptions))
 		require.EqualError(t, err, "no data")
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
-		err = msfrpc.DBImportData(ctx, "foo", data)
+		opts := DBImportDataOptions{
+			Workspace: "foo",
+			Data:      "foo data",
+		}
+		err = msfrpc.DBImportData(ctx, &opts)
 		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
 	t.Run("invalid data", func(t *testing.T) {
-		err = msfrpc.DBImportData(ctx, workspace, data)
+		opts := DBImportDataOptions{
+			Data: "foo data",
+		}
+		err = msfrpc.DBImportData(ctx, &opts)
 		require.EqualError(t, err, "invalid file format")
 	})
+
+	opts := &DBImportDataOptions{
+		Workspace: "foo",
+		Data:      "foo data",
+	}
 
 	t.Run("database active record", func(t *testing.T) {
 		err = msfrpc.DBDisconnect(ctx)
@@ -2130,7 +2164,7 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		err = msfrpc.DBImportData(ctx, workspace, data)
+		err = msfrpc.DBImportData(ctx, opts)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
@@ -2139,13 +2173,13 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err = msfrpc.DBImportData(ctx, workspace, data)
+		err = msfrpc.DBImportData(ctx, opts)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err = msfrpc.DBImportData(ctx, workspace, data)
+			err = msfrpc.DBImportData(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 		})
 	})

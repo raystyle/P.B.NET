@@ -143,20 +143,15 @@ func (msf *MSFRPC) DBHosts(ctx context.Context, workspace string) ([]*DBHost, er
 }
 
 // DBGetHost is used to get host with workspace or address.
-func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) (*DBHost, error) {
-	if workspace == "" {
-		workspace = defaultWorkspace
-	}
-	opts := map[string]interface{}{
-		"workspace": workspace,
-	}
-	if address != "" {
-		opts["address"] = address
+func (msf *MSFRPC) DBGetHost(ctx context.Context, opts *DBGetHostOptions) (*DBHost, error) {
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBGetHostRequest{
 		Method:  MethodDBGetHost,
 		Token:   msf.GetToken(),
-		Options: opts,
+		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBGetHostResult
 	err := msf.send(ctx, &request, &result)
@@ -166,7 +161,7 @@ func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) (*D
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -175,26 +170,21 @@ func (msf *MSFRPC) DBGetHost(ctx context.Context, workspace, address string) (*D
 		return nil, errors.WithStack(&result.MSFError)
 	}
 	if len(result.Host) == 0 {
-		return nil, errors.Errorf("host: %s doesn't exist", address)
+		return nil, errors.Errorf("host: %s doesn't exist", optsCp.Address)
 	}
 	return result.Host[0], nil
 }
 
 // DBDelHost is used to delete host by filters, it will return deleted host.
-func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]string, error) {
-	if workspace == "" {
-		workspace = defaultWorkspace
-	}
-	opts := map[string]interface{}{
-		"workspace": workspace,
-	}
-	if address != "" {
-		opts["address"] = address
+func (msf *MSFRPC) DBDelHost(ctx context.Context, opts *DBDelHostOptions) ([]string, error) {
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBDelHostRequest{
 		Method:  MethodDBDelHost,
 		Token:   msf.GetToken(),
-		Options: opts,
+		Options: xreflect.StructureToMapWithoutZero(&optsCp, structTag),
 	}
 	var result DBDelHostResult
 	err := msf.send(ctx, &request, &result)
@@ -204,7 +194,7 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -214,7 +204,7 @@ func (msf *MSFRPC) DBDelHost(ctx context.Context, workspace, address string) ([]
 	}
 	if result.Result != "success" {
 		const format = "host: %s doesn't exist in workspace: %s"
-		return nil, errors.Errorf(format, address, workspace)
+		return nil, errors.Errorf(format, optsCp.Address, optsCp.Workspace)
 	}
 	return result.Deleted, nil
 }
@@ -777,23 +767,15 @@ func (msf *MSFRPC) DBCurrentWorkspace(ctx context.Context) (*DBCurrentWorkspaceR
 }
 
 // DBEvent is used to get framework events.
-func (msf *MSFRPC) DBEvent(
-	ctx context.Context,
-	workspace string,
-	limit uint64,
-	offset uint64,
-) ([]*DBEvent, error) {
-	if workspace == "" {
-		workspace = defaultWorkspace
+func (msf *MSFRPC) DBEvent(ctx context.Context, opts *DBEventOptions) ([]*DBEvent, error) {
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBEventRequest{
-		Method: MethodDBEvents,
-		Token:  msf.GetToken(),
-		Options: map[string]interface{}{
-			"workspace": workspace,
-			"limit":     limit,
-			"offset":    offset,
-		},
+		Method:  MethodDBEvents,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMapWithoutZero(&optsCp, structTag),
 	}
 	var result DBEventResult
 	err := msf.send(ctx, &request, &result)
@@ -803,7 +785,7 @@ func (msf *MSFRPC) DBEvent(
 	if result.Err {
 		switch result.ErrorMessage {
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:
@@ -835,20 +817,18 @@ func (msf *MSFRPC) DBEvent(
 }
 
 // DBImportData is used to import external data to the database.
-func (msf *MSFRPC) DBImportData(ctx context.Context, workspace, data string) error {
-	if len(data) == 0 {
+func (msf *MSFRPC) DBImportData(ctx context.Context, opts *DBImportDataOptions) error {
+	if len(opts.Data) == 0 {
 		return errors.New("no data")
 	}
-	if workspace == "" {
-		workspace = defaultWorkspace
+	optsCp := *opts
+	if optsCp.Workspace == "" {
+		optsCp.Workspace = defaultWorkspace
 	}
 	request := DBImportDataRequest{
-		Method: MethodDBImportData,
-		Token:  msf.GetToken(),
-		Options: map[string]interface{}{
-			"workspace": workspace,
-			"data":      data,
-		},
+		Method:  MethodDBImportData,
+		Token:   msf.GetToken(),
+		Options: xreflect.StructureToMap(&optsCp, structTag),
 	}
 	var result DBImportDataResult
 	err := msf.send(ctx, &request, &result)
@@ -860,7 +840,7 @@ func (msf *MSFRPC) DBImportData(ctx context.Context, workspace, data string) err
 		case "Could not automatically determine file type":
 			result.ErrorMessage = "invalid file format"
 		case ErrInvalidWorkspace:
-			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, workspace)
+			result.ErrorMessage = fmt.Sprintf(ErrInvalidWorkspaceFormat, optsCp.Workspace)
 		case ErrDBActiveRecord:
 			result.ErrorMessage = ErrDBActiveRecordFriendly
 		case ErrInvalidToken:

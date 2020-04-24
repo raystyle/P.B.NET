@@ -556,6 +556,12 @@ type DBGetHostRequest struct {
 	Options map[string]interface{}
 }
 
+// DBGetHostOptions contains options about get host.
+type DBGetHostOptions struct {
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Address   string `msgpack:"address"   json:"address"`
+}
+
 // DBGetHostResult is the result of get host information.
 type DBGetHostResult struct {
 	Host []*DBHost `msgpack:"host"`
@@ -567,6 +573,12 @@ type DBDelHostRequest struct {
 	Method  string
 	Token   string
 	Options map[string]interface{}
+}
+
+// DBDelHostOptions contains options about delete host.
+type DBDelHostOptions struct {
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Address   string `msgpack:"address"   json:"address"`
 }
 
 // DBDelHostResult is the result of delete hosts.
@@ -1026,6 +1038,13 @@ type DBEventRequest struct {
 	Options map[string]interface{}
 }
 
+// DBEventOptions contains options about get events.
+type DBEventOptions struct {
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Limit     uint64 `msgpack:"limit"     json:"limit"`
+	Offset    uint64 `msgpack:"offset"    json:"offset"`
+}
+
 // DBEventResult is the result of get framework events.
 type DBEventResult struct {
 	Events []*DBEvent `msgpack:"events"`
@@ -1048,6 +1067,12 @@ type DBImportDataRequest struct {
 	Method  string
 	Token   string
 	Options map[string]interface{}
+}
+
+// DBImportDataOptions contains options about import data.
+type DBImportDataOptions struct {
+	Workspace string `msgpack:"workspace" json:"workspace"`
+	Data      string `msgpack:"data"      json:"data"`
 }
 
 // DBImportDataResult is the result of import external data.

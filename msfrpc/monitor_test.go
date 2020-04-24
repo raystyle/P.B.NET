@@ -476,7 +476,6 @@ func TestMonitor_hostMonitor(t *testing.T) {
 
 	const (
 		interval         = 25 * time.Millisecond
-		workspace        = ""
 		tempWorkspace    = "temp"
 		invalidWorkspace = "foo"
 	)
@@ -485,9 +484,13 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	err = msfrpc.DBConnect(ctx, testDBOptions)
 	require.NoError(t, err)
 
+	opts := &DBDelHostOptions{
+		Address: testDBHost.Host,
+	}
+
 	t.Run("add", func(t *testing.T) {
 		// must delete or not new host
-		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		_, _ = msfrpc.DBDelHost(ctx, opts)
 
 		// add new workspace for create map
 		err := msfrpc.DBAddWorkspace(ctx, tempWorkspace)
@@ -519,7 +522,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		err = msfrpc.DBReportHost(ctx, testDBHost)
 		require.NoError(t, err)
 		defer func() {
-			_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+			_, err = msfrpc.DBDelHost(ctx, opts)
 			require.NoError(t, err)
 		}()
 
@@ -539,7 +542,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		err := msfrpc.DBReportHost(ctx, testDBHost)
 		require.NoError(t, err)
 		defer func() {
-			_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+			_, _ = msfrpc.DBDelHost(ctx, opts)
 		}()
 
 		var (
@@ -562,7 +565,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// wait watch delete host
-		_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		_, err = msfrpc.DBDelHost(ctx, opts)
 		require.NoError(t, err)
 
 		time.Sleep(3 * minWatchInterval)
@@ -598,7 +601,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 
 	t.Run("panic", func(t *testing.T) {
 		// must delete or not new host
-		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		_, _ = msfrpc.DBDelHost(ctx, opts)
 
 		callbacks := Callbacks{OnHost: func(string, *DBHost, bool) {
 			panic("test panic")
@@ -613,7 +616,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		err := msfrpc.DBReportHost(ctx, testDBHost)
 		require.NoError(t, err)
 		defer func() {
-			_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+			_, err = msfrpc.DBDelHost(ctx, opts)
 			require.NoError(t, err)
 		}()
 
@@ -625,11 +628,11 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	})
 
 	t.Run("hosts", func(t *testing.T) {
-		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		_, _ = msfrpc.DBDelHost(ctx, opts)
 		err := msfrpc.DBReportHost(ctx, testDBHost)
 		require.NoError(t, err)
 		defer func() {
-			_, err = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+			_, err = msfrpc.DBDelHost(ctx, opts)
 			require.NoError(t, err)
 		}()
 
@@ -1014,7 +1017,10 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		require.NoError(t, err)
 
 		// add test data
-		_, _ = msfrpc.DBDelHost(ctx, workspace, testDBHost.Host)
+		opts := DBDelHostOptions{
+			Address: testDBHost.Host,
+		}
+		_, _ = msfrpc.DBDelHost(ctx, &opts)
 		err = msfrpc.DBReportHost(ctx, testDBHost)
 		require.NoError(t, err)
 
