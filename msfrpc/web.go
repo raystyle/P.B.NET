@@ -1083,6 +1083,113 @@ func (wh *webHandler) handleModuleEvasion(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
+func (wh *webHandler) handleModuleInformation(w hRW, r *hR, _ hP) {
+	req := struct {
+		Type string `json:"type"`
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	info, err := wh.ctx.ModuleInfo(r.Context(), req.Type, req.Name)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, info)
+}
+
+func (wh *webHandler) handleModuleOptions(w hRW, r *hR, _ hP) {
+	req := struct {
+		Type string `json:"type"`
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	opts, err := wh.ctx.ModuleOptions(r.Context(), req.Type, req.Name)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, opts)
+}
+
+func (wh *webHandler) handleModuleCompatiblePayloads(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	payloads, err := wh.ctx.ModuleCompatiblePayloads(r.Context(), req.Name)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Payloads []string `json:"payloads"`
+	}{
+		Payloads: payloads,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleTargetCompatiblePayloads(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name   string `json:"name"`
+		Target uint64 `json:"target"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	payloads, err := wh.ctx.ModuleTargetCompatiblePayloads(r.Context(), req.Name, req.Target)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Payloads []string `json:"payloads"`
+	}{
+		Payloads: payloads,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleCompatibleSessions(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	cSessions, err := wh.ctx.ModuleCompatibleSessions(r.Context(), req.Name)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Sessions []string `json:"sessions"`
+	}{
+		Sessions: cSessions,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModule(w hRW, r *hR, _ hP) {
+
+}
+
 func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
 
 }
