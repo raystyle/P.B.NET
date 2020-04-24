@@ -113,6 +113,9 @@ func (pr *parallelReader) Close() error {
 type WebServerOptions struct {
 	option.HTTPServer
 	MaxConns int
+
+	// TODO max body size
+
 	// about Console, Shell and Meterpreter IO interval
 	IOInterval time.Duration
 }
@@ -212,8 +215,8 @@ type webHandler struct {
 
 	username    string
 	password    string
-	ioInterval  time.Duration
 	maxBodySize int64
+	ioInterval  time.Duration
 
 	upgrader    *websocket.Upgrader
 	encoderPool sync.Pool
@@ -540,6 +543,24 @@ func (wh *webHandler) handleDBHost(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
+func (wh *webHandler) handleDBGetHost(w hRW, r *hR, _ hP) {
+	req := struct {
+		Workspace string `json:"workspace"`
+		Address   string `json:"address"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	host, err := wh.ctx.DBGetHost(r.Context(), req.Workspace, req.Address)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, &host)
+}
+
 func (wh *webHandler) handleDBDelHost(w hRW, r *hR, _ hP) {
 	req := struct {
 		Workspace string `json:"workspace"`
@@ -581,6 +602,127 @@ func (wh *webHandler) handleDBService(w hRW, r *hR, _ hP) {
 		Services []*DBService `json:"services"`
 	}{
 		Services: services,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleDBGetService(w hRW, r *hR, _ hP) {
+	req := DBGetServiceOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	services, err := wh.ctx.DBGetService(r.Context(), &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Services []*DBService `json:"services"`
+	}{
+		Services: services,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleDBDelService(w hRW, r *hR, _ hP) {
+	req := DBDelServiceOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	_, err = wh.ctx.DBDelService(r.Context(), &req)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBReportClient(w hRW, r *hR, _ hP) {
+	req := DBReportClient{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.DBReportClient(r.Context(), &req)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBClients(w hRW, r *hR, _ hP) {
+	req := DBClientsOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	clients, err := wh.ctx.DBClients(r.Context(), &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Clients []*DBClient `json:"clients"`
+	}{
+		Clients: clients,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleDBGetClient(w hRW, r *hR, _ hP) {
+	req := DBGetClientOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	client, err := wh.ctx.DBGetClient(r.Context(), &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, client)
+}
+
+func (wh *webHandler) handleDBDelClient(w hRW, r *hR, _ hP) {
+	req := DBDelClientOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	_, err = wh.ctx.DBDelClient(r.Context(), &req)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBCreateCredential(w hRW, r *hR, _ hP) {
+	req := DBCreateCredentialOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	_, err = wh.ctx.DBCreateCredential(r.Context(), &req)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDBCredential(w hRW, r *hR, _ hP) {
+	req := struct {
+		Workspace string `json:"workspace"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	creds, err := wh.ctx.DBCreds(r.Context(), req.Workspace)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Creds []*DBCred `json:"credentials"`
+	}{
+		Creds: creds,
 	}
 	wh.writeResponse(w, &resp)
 }
