@@ -878,7 +878,24 @@ func (wh *webHandler) handleConsoleList(w hRW, r *hR, _ hP) {
 }
 
 func (wh *webHandler) handleConsoleCreate(w hRW, r *hR, _ hP) {
-
+	req := struct {
+		Workspace  string        `json:"workspace"`
+		IOInterval time.Duration `json:"io_interval"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	if req.IOInterval < 1 {
+		req.IOInterval = wh.ioInterval
+	}
+	console, err := wh.ctx.NewConsole(r.Context(), req.Workspace, req.IOInterval)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	_ = console.Close()
 }
 
 func (wh *webHandler) handleConsoleDestroy(w hRW, r *hR, _ hP) {
@@ -967,6 +984,104 @@ func (wh *webHandler) handlePluginLoaded(w hRW, r *hR, _ hP) {
 }
 
 // ------------------------------------------about module------------------------------------------
+
+func (wh *webHandler) handleModuleExploits(w hRW, r *hR, _ hP) {
+	modules, err := wh.ctx.ModuleExploits(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Modules []string `json:"modules"`
+	}{
+		Modules: modules,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleAuxiliary(w hRW, r *hR, _ hP) {
+	modules, err := wh.ctx.ModuleAuxiliary(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Modules []string `json:"modules"`
+	}{
+		Modules: modules,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModulePost(w hRW, r *hR, _ hP) {
+	modules, err := wh.ctx.ModulePost(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Modules []string `json:"modules"`
+	}{
+		Modules: modules,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModulePayloads(w hRW, r *hR, _ hP) {
+	modules, err := wh.ctx.ModulePayloads(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Modules []string `json:"modules"`
+	}{
+		Modules: modules,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleEncoders(w hRW, r *hR, _ hP) {
+	modules, err := wh.ctx.ModuleEncoders(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Modules []string `json:"modules"`
+	}{
+		Modules: modules,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleNops(w hRW, r *hR, _ hP) {
+	modules, err := wh.ctx.ModuleNops(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Modules []string `json:"modules"`
+	}{
+		Modules: modules,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleEvasion(w hRW, r *hR, _ hP) {
+	modules, err := wh.ctx.ModuleEvasion(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Modules []string `json:"modules"`
+	}{
+		Modules: modules,
+	}
+	wh.writeResponse(w, &resp)
+}
 
 func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
 
