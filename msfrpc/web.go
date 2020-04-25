@@ -1186,8 +1186,132 @@ func (wh *webHandler) handleModuleCompatibleSessions(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModule(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleModuleCompatibleEvasionPayloads(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name string `json:"name"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	payloads, err := wh.ctx.ModuleCompatibleEvasionPayloads(r.Context(), req.Name)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Payloads []string `json:"payloads"`
+	}{
+		Payloads: payloads,
+	}
+	wh.writeResponse(w, &resp)
+}
 
+func (wh *webHandler) handleModuleTargetCompatibleEvasionPayloads(w hRW, r *hR, _ hP) {
+	req := struct {
+		Name   string `json:"name"`
+		Target uint64 `json:"target"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	payloads, err := wh.ctx.ModuleTargetCompatibleEvasionPayloads(r.Context(), req.Name, req.Target)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Payloads []string `json:"payloads"`
+	}{
+		Payloads: payloads,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleEncodeFormats(w hRW, r *hR, _ hP) {
+	formats, err := wh.ctx.ModuleEncodeFormats(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Formats []string `json:"formats"`
+	}{
+		Formats: formats,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleExecutableFormats(w hRW, r *hR, _ hP) {
+	formats, err := wh.ctx.ModuleExecutableFormats(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Formats []string `json:"formats"`
+	}{
+		Formats: formats,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleTransformFormats(w hRW, r *hR, _ hP) {
+	formats, err := wh.ctx.ModuleTransformFormats(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Formats []string `json:"formats"`
+	}{
+		Formats: formats,
+	}
+	wh.writeResponse(w, &resp)
+}
+func (wh *webHandler) handleModuleEncryptionFormats(w hRW, r *hR, _ hP) {
+	formats, err := wh.ctx.ModuleEncryptionFormats(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Formats []string `json:"formats"`
+	}{
+		Formats: formats,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModulePlatforms(w hRW, r *hR, _ hP) {
+	platforms, err := wh.ctx.ModulePlatforms(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Platforms []string `json:"platforms"`
+	}{
+		Platforms: platforms,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleArchitectures(w hRW, r *hR, _ hP) {
+	architectures, err := wh.ctx.ModuleArchitectures(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Architectures []string `json:"architectures"`
+	}{
+		Architectures: architectures,
+	}
+	wh.writeResponse(w, &resp)
 }
 
 func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
