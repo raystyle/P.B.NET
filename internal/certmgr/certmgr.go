@@ -22,7 +22,7 @@ const (
 )
 
 // ctrlCertPool include bytes about certificates and private keys.
-// controller and tool/certificate/manager will use it.
+// package controller and tool/certificate/manager will use it.
 type ctrlCertPool struct {
 	PublicRootCACerts   [][]byte `msgpack:"a"`
 	PublicClientCACerts [][]byte `msgpack:"b"`
@@ -252,4 +252,107 @@ func addCertsToPool(pool *cert.Pool, rcp *ctrlCertPool) error {
 		}
 	}
 	return nil
+}
+
+// NBCertPool contains raw certificates, it used for Node and Beacon configuration.
+// package node and beacon will use it.
+type NBCertPool struct {
+	PublicRootCACerts   [][]byte `msgpack:"a"`
+	PublicClientCACerts [][]byte `msgpack:"b"`
+	PublicClientPairs   []struct {
+		Cert []byte `msgpack:"a"`
+		Key  []byte `msgpack:"b"`
+	} `msgpack:"c"`
+	PrivateRootCACerts   [][]byte `msgpack:"d"`
+	PrivateClientCACerts [][]byte `msgpack:"e"`
+	PrivateClientPairs   []struct {
+		Cert []byte `msgpack:"a"`
+		Key  []byte `msgpack:"b"`
+	} `msgpack:"f"`
+}
+
+// GetCertsFromPool is used to add certificates to NBCertPool from certificate pool.
+// controller will add certificates to NBCertPool.
+func (cp *NBCertPool) GetCertsFromPool(pool *cert.Pool) {
+	pubRootCACerts := pool.GetPublicRootCACerts()
+	for i := 0; i < len(pubRootCACerts); i++ {
+		cp.PublicRootCACerts = append(cp.PublicRootCACerts, pubRootCACerts[i].Raw)
+	}
+	pubClientCACerts := pool.GetPublicClientCACerts()
+	for i := 0; i < len(pubClientCACerts); i++ {
+		cp.PublicClientCACerts = append(cp.PublicClientCACerts, pubClientCACerts[i].Raw)
+	}
+	pubClientPairs := pool.GetPublicClientPairs()
+	for i := 0; i < len(pubClientPairs); i++ {
+		c, k := pubClientPairs[i].Encode()
+		cp.PublicClientPairs = append(cp.PublicClientPairs, struct {
+			Cert []byte `msgpack:"a"`
+			Key  []byte `msgpack:"b"`
+		}{Cert: c, Key: k})
+	}
+	priRootCACerts := pool.GetPrivateRootCACerts()
+	for i := 0; i < len(priRootCACerts); i++ {
+		cp.PrivateRootCACerts = append(cp.PrivateRootCACerts, priRootCACerts[i].Raw)
+	}
+	priClientCACerts := pool.GetPrivateClientCACerts()
+	for i := 0; i < len(priClientCACerts); i++ {
+		cp.PrivateClientCACerts = append(cp.PrivateClientCACerts, priClientCACerts[i].Raw)
+	}
+	priClientPairs := pool.GetPrivateClientPairs()
+	for i := 0; i < len(priClientPairs); i++ {
+		c, k := priClientPairs[i].Encode()
+		cp.PrivateClientPairs = append(cp.PrivateClientPairs, struct {
+			Cert []byte `msgpack:"a"`
+			Key  []byte `msgpack:"b"`
+		}{Cert: c, Key: k})
+	}
+}
+
+// NewPoolFromNBCertPool is used to create a certificate pool from NBCertPool.
+func NewPoolFromNBCertPool(cp *NBCertPool) (*cert.Pool, error) {
+	memory := security.NewMemory()
+	defer memory.Flush()
+
+	pool := cert.NewPool()
+	for i := 0; i < len(cp.PublicRootCACerts); i++ {
+		err := pool.AddPublicRootCACert(cp.PublicRootCACerts[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(cp.PublicClientCACerts); i++ {
+		err := pool.AddPublicClientCACert(cp.PublicClientCACerts[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(cp.PublicClientPairs); i++ {
+		memory.Padding()
+		pair := cp.PublicClientPairs[i]
+		err := pool.AddPublicClientCert(pair.Cert, pair.Key)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(cp.PrivateRootCACerts); i++ {
+		err := pool.AddPrivateRootCACert(cp.PrivateRootCACerts[i], nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(cp.PrivateClientCACerts); i++ {
+		err := pool.AddPrivateClientCACert(cp.PrivateClientCACerts[i], nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(cp.PrivateClientPairs); i++ {
+		memory.Padding()
+		pair := cp.PrivateClientPairs[i]
+		err := pool.AddPrivateClientCert(pair.Cert, pair.Key)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return pool, nil
 }
