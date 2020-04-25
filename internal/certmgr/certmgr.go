@@ -21,8 +21,9 @@ const (
 	HashFilePath = "key/certs.hash"
 )
 
-// rawCertPool include bytes about certificates and private keys.
-type rawCertPool struct {
+// ctrlCertPool include bytes about certificates and private keys.
+// controller and tool/certificate/manager will use it.
+type ctrlCertPool struct {
 	PublicRootCACerts   [][]byte `msgpack:"a"`
 	PublicClientCACerts [][]byte `msgpack:"b"`
 	PublicClientPairs   []struct {
@@ -56,9 +57,9 @@ func calculateAESKeyFromPassword(password []byte) ([]byte, []byte) {
 	return keyIV, keyIV[:aes.IVSize]
 }
 
-// SaveCertPool is used to compress and encrypt certificate pool.
-func SaveCertPool(pool *cert.Pool, password []byte) error {
-	rcp := new(rawCertPool)
+// SaveCtrlCertPool is used to compress and encrypt certificate pool.
+func SaveCtrlCertPool(pool *cert.Pool, password []byte) error {
+	rcp := new(ctrlCertPool)
 	// clean private key at once
 	defer func() {
 		for i := 0; i < len(rcp.PublicClientPairs); i++ {
@@ -82,7 +83,7 @@ func SaveCertPool(pool *cert.Pool, password []byte) error {
 	}
 	defer security.CoverBytes(certsData)
 	// compress
-	buf := bytes.NewBuffer(make([]byte, len(certsData)/2))
+	buf := bytes.NewBuffer(make([]byte, 0, len(certsData)/2))
 	writer, err := flate.NewWriter(buf, flate.BestCompression)
 	if err != nil {
 		return errors.Wrap(err, "failed to create deflate writer")
@@ -117,7 +118,7 @@ func SaveCertPool(pool *cert.Pool, password []byte) error {
 	return system.WriteFile(HashFilePath, hash.Sum(nil))
 }
 
-func getCertsFromPool(pool *cert.Pool, rcp *rawCertPool) {
+func getCertsFromPool(pool *cert.Pool, rcp *ctrlCertPool) {
 	pubRootCACerts := pool.GetPublicRootCACerts()
 	for i := 0; i < len(pubRootCACerts); i++ {
 		rcp.PublicRootCACerts = append(rcp.PublicRootCACerts, pubRootCACerts[i].Raw)
@@ -160,8 +161,8 @@ func getCertsFromPool(pool *cert.Pool, rcp *rawCertPool) {
 	}
 }
 
-// LoadCertPool is used to decrypt and decompress certificate pool.
-func LoadCertPool(pool *cert.Pool, cipherData, hashData, password []byte) error {
+// LoadCtrlCertPool is used to decrypt and decompress certificate pool.
+func LoadCtrlCertPool(pool *cert.Pool, cipherData, hashData, password []byte) error {
 	// decrypt certificates
 	aesKey, aesIV := calculateAESKeyFromPassword(password)
 	defer func() {
@@ -174,7 +175,7 @@ func LoadCertPool(pool *cert.Pool, cipherData, hashData, password []byte) error 
 	}
 	defer security.CoverBytes(plainData)
 	// decompress
-	buf := bytes.NewBuffer(make([]byte, len(plainData)*2))
+	buf := bytes.NewBuffer(make([]byte, 0, len(plainData)*2))
 	reader := flate.NewReader(bytes.NewReader(plainData))
 	_, err = buf.ReadFrom(reader)
 	if err != nil {
@@ -194,7 +195,7 @@ func LoadCertPool(pool *cert.Pool, cipherData, hashData, password []byte) error 
 		return errors.New(msg)
 	}
 	// unmarshal
-	rcp := rawCertPool{}
+	rcp := ctrlCertPool{}
 	err = msgpack.Unmarshal(certsData, &rcp)
 	if err != nil {
 		return err
@@ -202,7 +203,7 @@ func LoadCertPool(pool *cert.Pool, cipherData, hashData, password []byte) error 
 	return addCertsToPool(pool, &rcp)
 }
 
-func addCertsToPool(pool *cert.Pool, rcp *rawCertPool) error {
+func addCertsToPool(pool *cert.Pool, rcp *ctrlCertPool) error {
 	memory := security.NewMemory()
 	defer memory.Flush()
 	var err error
