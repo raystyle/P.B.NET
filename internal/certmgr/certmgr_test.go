@@ -1,13 +1,21 @@
 package certmgr
 
 import (
+	"bytes"
+	"compress/flate"
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
+	"project/internal/patch/monkey"
+	"project/internal/patch/msgpack"
+	"project/internal/system"
 )
 
 var testPassword = []byte("pbnet")
@@ -66,6 +74,75 @@ func TestSaveCtrlCertPool(t *testing.T) {
 		testRemoveKeyFile(t)
 	})
 
+	pool := testGenerateCertPool(t)
+
+	t.Run("invalid structure", func(t *testing.T) {
+		patchFunc := func(interface{}) ([]byte, error) {
+			return nil, monkey.Error
+		}
+		pg := monkey.Patch(msgpack.Marshal, patchFunc)
+		defer pg.Unpatch()
+
+		err := SaveCtrlCertPool(pool, testPassword)
+		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("failed to NewWriter", func(t *testing.T) {
+		patchFunc := func(io.Writer, int) (*flate.Writer, error) {
+			return nil, monkey.Error
+		}
+		pg := monkey.Patch(flate.NewWriter, patchFunc)
+		defer pg.Unpatch()
+
+		err := SaveCtrlCertPool(pool, testPassword)
+		monkey.IsMonkeyError(t, errors.Cause(err))
+	})
+
+	t.Run("failed to write about compress", func(t *testing.T) {
+		writer := new(flate.Writer)
+		patchFunc := func(interface{}, []byte) (int, error) {
+			return 0, monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(writer, "Write", patchFunc)
+		defer pg.Unpatch()
+
+		err := SaveCtrlCertPool(pool, testPassword)
+		monkey.IsMonkeyError(t, errors.Cause(err))
+	})
+
+	t.Run("failed to close about compress", func(t *testing.T) {
+		writer := new(flate.Writer)
+		patchFunc := func(interface{}) error {
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(writer, "Close", patchFunc)
+		defer pg.Unpatch()
+
+		err := SaveCtrlCertPool(pool, testPassword)
+		monkey.IsMonkeyError(t, errors.Cause(err))
+	})
+
+	t.Run("failed to encrypt data", func(t *testing.T) {
+		patchFunc := func([]byte, []byte, []byte) ([]byte, error) {
+			return nil, monkey.Error
+		}
+		pg := monkey.Patch(aes.CBCEncrypt, patchFunc)
+		defer pg.Unpatch()
+
+		err := SaveCtrlCertPool(pool, testPassword)
+		monkey.IsMonkeyError(t, errors.Cause(err))
+	})
+
+	t.Run("failed to write file", func(t *testing.T) {
+		patchFunc := func(string, []byte) error {
+			return monkey.Error
+		}
+		pg := monkey.Patch(system.WriteFile, patchFunc)
+		defer pg.Unpatch()
+
+		err := SaveCtrlCertPool(pool, testPassword)
+		monkey.IsMonkeyError(t, errors.Cause(err))
+	})
 }
 
 func TestLoadCtrlCertPool(t *testing.T) {
@@ -81,6 +158,56 @@ func TestLoadCtrlCertPool(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	pool := cert.NewPool()
+
+	t.Run("invalid cipher data", func(t *testing.T) {
+		err := LoadCtrlCertPool(pool, []byte("foo"), nil, testPassword)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid compressed data", func(t *testing.T) {
+		aesKey, aesIV := calculateAESKeyFromPassword(testPassword)
+		data := bytes.Repeat([]byte{16}, 32)
+		cipherData, err := aes.CBCEncrypt(data, aesKey, aesIV)
+		require.NoError(t, err)
+
+		err = LoadCtrlCertPool(pool, cipherData, nil, testPassword)
+		require.Error(t, err)
+	})
+
+	pool = testGenerateCertPool(t)
+	err := SaveCtrlCertPool(pool, testPassword)
+	require.NoError(t, err)
+	defer testRemoveKeyFile(t)
+	certsData, hashData := testReadKeyFile(t)
+
+	t.Run("failed to close deflate reader", func(t *testing.T) {
+		reader := flate.NewReader(nil)
+		patchFunc := func(interface{}) error {
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(reader, "Close", patchFunc)
+		defer pg.Unpatch()
+
+		err := LoadCtrlCertPool(pool, certsData, hashData, testPassword)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid hash", func(t *testing.T) {
+		err := LoadCtrlCertPool(pool, certsData, nil, testPassword)
+		require.Error(t, err)
+	})
+
+	t.Run("failed to unmarshal", func(t *testing.T) {
+		patchFunc := func([]byte, interface{}) error {
+			return monkey.Error
+		}
+		pg := monkey.Patch(msgpack.Unmarshal, patchFunc)
+		defer pg.Unpatch()
+
+		err := LoadCtrlCertPool(pool, certsData, hashData, testPassword)
+		monkey.IsMonkeyError(t, err)
+	})
 }
 
 func testGenerateCert(t *testing.T) *cert.Pair {
