@@ -1314,6 +1314,108 @@ func (wh *webHandler) handleModuleArchitectures(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
+func (wh *webHandler) handleModuleEncode(w hRW, r *hR, _ hP) {
+	req := struct {
+		Data    string               `json:"data"`
+		Encoder string               `json:"encoder"`
+		Options *ModuleEncodeOptions `json:"options"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	data, err := wh.ctx.ModuleEncode(r.Context(), req.Data, req.Encoder, req.Options)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Data string `json:"data"`
+	}{
+		Data: data,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleGeneratePayload(w hRW, r *hR, _ hP) {
+	req := struct {
+		Type    string                `json:"type"`
+		Name    string                `json:"name"`
+		Options *ModuleExecuteOptions `json:"options"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	result, err := wh.ctx.ModuleExecute(r.Context(), req.Type, req.Name, req.Options)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Payload string `json:"payload"`
+	}{
+		Payload: result.Payload,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleExecute(w hRW, r *hR, _ hP) {
+	req := struct {
+		Type    string                 `json:"type"`
+		Name    string                 `json:"name"`
+		Options map[string]interface{} `json:"options"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	result, err := wh.ctx.ModuleExecute(r.Context(), req.Type, req.Name, req.Options)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		JobID uint64 `json:"job_id"`
+		UUID  string `json:"uuid"`
+	}{
+		JobID: result.JobID,
+		UUID:  result.UUID,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleModuleCheck(w hRW, r *hR, _ hP) {
+	req := struct {
+		Type    string                 `json:"type"`
+		Name    string                 `json:"name"`
+		Options map[string]interface{} `json:"options"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	result, err := wh.ctx.ModuleCheck(r.Context(), req.Type, req.Name, req.Options)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, result)
+}
+
+func (wh *webHandler) handleModuleRunningStats(w hRW, r *hR, _ hP) {
+	status, err := wh.ctx.ModuleRunningStats(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, status)
+}
+
 func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
 
 }
