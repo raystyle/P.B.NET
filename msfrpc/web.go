@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"time"
 
@@ -21,18 +22,18 @@ import (
 	"project/internal/xpanic"
 )
 
-// subFileSystem is used to open sub directory for http file server.
-type subFileSystem struct {
-	fs   http.FileSystem
+// subHTTPFileSystem is used to open sub directory for http file server.
+type subHTTPFileSystem struct {
+	hfs  http.FileSystem
 	path string
 }
 
-func newSubFileSystem(fs http.FileSystem, path string) *subFileSystem {
-	return &subFileSystem{fs: fs, path: path + "/"}
+func newSubHTTPFileSystem(hfs http.FileSystem, path string) *subHTTPFileSystem {
+	return &subHTTPFileSystem{hfs: hfs, path: path + "/"}
 }
 
-func (sfs *subFileSystem) Open(name string) (http.File, error) {
-	return sfs.fs.Open(sfs.path + name)
+func (s *subHTTPFileSystem) Open(name string) (http.File, error) {
+	return s.hfs.Open(s.path + name)
 }
 
 // parallelReader is used to wrap Console, Shell and Meterpreter.
@@ -160,9 +161,9 @@ func (msf *MSFRPC) NewWebServer(
 		PanicHandler:           wh.handlePanic,
 	}
 	// resource
-	router.ServeFiles("/css/*filepath", newSubFileSystem(fs, "css"))
-	router.ServeFiles("/js/*filepath", newSubFileSystem(fs, "js"))
-	router.ServeFiles("/img/*filepath", newSubFileSystem(fs, "img"))
+	router.ServeFiles("/css/*filepath", newSubHTTPFileSystem(fs, "css"))
+	router.ServeFiles("/js/*filepath", newSubHTTPFileSystem(fs, "js"))
+	router.ServeFiles("/img/*filepath", newSubHTTPFileSystem(fs, "img"))
 
 	httpServer.Handler = router
 
@@ -326,7 +327,7 @@ func (wh *webHandler) onEvent(event string) {
 
 // --------------------------------------about authentication--------------------------------------
 
-func (wh *webHandler) handleAuthLogout(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleAuthenticationLogout(w hRW, r *hR, _ hP) {
 	req := AuthLogoutRequest{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -337,7 +338,7 @@ func (wh *webHandler) handleAuthLogout(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleAuthTokenList(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleAuthenticationTokenList(w hRW, r *hR, _ hP) {
 	tokens, err := wh.ctx.AuthTokenList(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
@@ -351,7 +352,7 @@ func (wh *webHandler) handleAuthTokenList(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleAuthTokenGenerate(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleAuthenticationTokenGenerate(w hRW, r *hR, _ hP) {
 	token, err := wh.ctx.AuthTokenGenerate(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
@@ -365,7 +366,7 @@ func (wh *webHandler) handleAuthTokenGenerate(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleAuthTokenAdd(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleAuthenticationTokenAdd(w hRW, r *hR, _ hP) {
 	req := AuthTokenAddRequest{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -376,7 +377,7 @@ func (wh *webHandler) handleAuthTokenAdd(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleAuthTokenRemove(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleAuthenticationTokenRemove(w hRW, r *hR, _ hP) {
 	req := AuthTokenRemoveRequest{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -447,7 +448,7 @@ func (wh *webHandler) handleCoreThreadKill(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleCoreSetG(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleCoreSetGlobal(w hRW, r *hR, _ hP) {
 	req := CoreSetGRequest{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -458,7 +459,7 @@ func (wh *webHandler) handleCoreSetG(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleCoreUnsetG(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleCoreUnsetGlobal(w hRW, r *hR, _ hP) {
 	req := CoreUnsetGRequest{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -469,7 +470,7 @@ func (wh *webHandler) handleCoreUnsetG(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleCoreGetG(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleCoreGetGlobal(w hRW, r *hR, _ hP) {
 	req := CoreGetGRequest{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -505,7 +506,7 @@ func (wh *webHandler) handleCoreVersion(w hRW, r *hR, _ hP) {
 
 // -----------------------------------------about database-----------------------------------------
 
-func (wh *webHandler) handleDBStatus(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseStatus(w hRW, r *hR, _ hP) {
 	status, err := wh.ctx.DBStatus(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
@@ -514,7 +515,7 @@ func (wh *webHandler) handleDBStatus(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, status)
 }
 
-func (wh *webHandler) handleDBReportHost(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseReportHost(w hRW, r *hR, _ hP) {
 	req := DBReportHost{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -525,7 +526,10 @@ func (wh *webHandler) handleDBReportHost(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBHost(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseHost(w hRW, r *hR, _ hP) {
+
+	httptest.NewRecorder()
+
 	req := struct {
 		Workspace string `json:"workspace"`
 	}{}
@@ -547,7 +551,7 @@ func (wh *webHandler) handleDBHost(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDBGetHost(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseGetHost(w hRW, r *hR, _ hP) {
 	req := DBGetHostOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -562,7 +566,7 @@ func (wh *webHandler) handleDBGetHost(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &host)
 }
 
-func (wh *webHandler) handleDBDelHost(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseDeleteHost(w hRW, r *hR, _ hP) {
 	req := DBDelHostOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -573,7 +577,7 @@ func (wh *webHandler) handleDBDelHost(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBReportService(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseReportService(w hRW, r *hR, _ hP) {
 	req := DBReportService{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -584,7 +588,7 @@ func (wh *webHandler) handleDBReportService(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBService(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseService(w hRW, r *hR, _ hP) {
 	req := DBServicesOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -604,7 +608,7 @@ func (wh *webHandler) handleDBService(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDBGetService(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseGetService(w hRW, r *hR, _ hP) {
 	req := DBGetServiceOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -624,7 +628,7 @@ func (wh *webHandler) handleDBGetService(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDBDelService(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseDeleteService(w hRW, r *hR, _ hP) {
 	req := DBDelServiceOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -635,7 +639,7 @@ func (wh *webHandler) handleDBDelService(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBReportClient(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseReportClient(w hRW, r *hR, _ hP) {
 	req := DBReportClient{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -646,7 +650,7 @@ func (wh *webHandler) handleDBReportClient(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBClients(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseClients(w hRW, r *hR, _ hP) {
 	req := DBClientsOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -666,7 +670,7 @@ func (wh *webHandler) handleDBClients(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDBGetClient(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseGetClient(w hRW, r *hR, _ hP) {
 	req := DBGetClientOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -681,7 +685,7 @@ func (wh *webHandler) handleDBGetClient(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, client)
 }
 
-func (wh *webHandler) handleDBDelClient(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseDeleteClient(w hRW, r *hR, _ hP) {
 	req := DBDelClientOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -692,7 +696,7 @@ func (wh *webHandler) handleDBDelClient(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBCreateCredential(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseCreateCredential(w hRW, r *hR, _ hP) {
 	req := DBCreateCredentialOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -703,7 +707,7 @@ func (wh *webHandler) handleDBCreateCredential(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBCredential(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseCredentials(w hRW, r *hR, _ hP) {
 	req := struct {
 		Workspace string `json:"workspace"`
 	}{}
@@ -725,7 +729,20 @@ func (wh *webHandler) handleDBCredential(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDBReportLoot(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseDeleteCredentials(w hRW, r *hR, _ hP) {
+	req := struct {
+		Workspace string `json:"workspace"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	_, err = wh.ctx.DBDelCreds(r.Context(), req.Workspace)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleDatabaseReportLoot(w hRW, r *hR, _ hP) {
 	req := DBReportLoot{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -736,7 +753,7 @@ func (wh *webHandler) handleDBReportLoot(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBLoots(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseLoots(w hRW, r *hR, _ hP) {
 	req := DBLootsOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -751,7 +768,7 @@ func (wh *webHandler) handleDBLoots(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, loots)
 }
 
-func (wh *webHandler) handleDBWorkspaces(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseWorkspaces(w hRW, r *hR, _ hP) {
 	workspaces, err := wh.ctx.DBWorkspaces(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
@@ -765,7 +782,7 @@ func (wh *webHandler) handleDBWorkspaces(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDBGetWorkspace(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseGetWorkspace(w hRW, r *hR, _ hP) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
@@ -782,7 +799,7 @@ func (wh *webHandler) handleDBGetWorkspace(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, workspace)
 }
 
-func (wh *webHandler) handleDBAddWorkspace(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseAddWorkspace(w hRW, r *hR, _ hP) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
@@ -795,7 +812,7 @@ func (wh *webHandler) handleDBAddWorkspace(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBDelWorkspace(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseDeleteWorkspace(w hRW, r *hR, _ hP) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
@@ -808,7 +825,7 @@ func (wh *webHandler) handleDBDelWorkspace(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBSetWorkspace(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseSetWorkspace(w hRW, r *hR, _ hP) {
 	req := struct {
 		Name string `json:"name"`
 	}{}
@@ -821,7 +838,7 @@ func (wh *webHandler) handleDBSetWorkspace(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDBCurrentWorkspace(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseCurrentWorkspace(w hRW, r *hR, _ hP) {
 	result, err := wh.ctx.DBCurrentWorkspace(r.Context())
 	if err != nil {
 		wh.writeError(w, err)
@@ -830,7 +847,7 @@ func (wh *webHandler) handleDBCurrentWorkspace(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, result)
 }
 
-func (wh *webHandler) handleDBEvent(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseEvent(w hRW, r *hR, _ hP) {
 	req := DBEventOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -850,7 +867,7 @@ func (wh *webHandler) handleDBEvent(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleDBImportData(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseImportData(w hRW, r *hR, _ hP) {
 	req := DBImportDataOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -1407,7 +1424,7 @@ func (wh *webHandler) handleModuleCheck(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, result)
 }
 
-func (wh *webHandler) handleModuleRunningStats(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleModuleRunningStatus(w hRW, r *hR, _ hP) {
 	status, err := wh.ctx.ModuleRunningStats(r.Context())
 	if err != nil {
 		wh.writeError(w, err)

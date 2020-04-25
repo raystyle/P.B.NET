@@ -14,12 +14,12 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestSubFileSystem_Open(t *testing.T) {
+func TestSubHTTPFileSystem_Open(t *testing.T) {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
 	fs := http.Dir(wd)
 
-	sfs := newSubFileSystem(fs, "testdata")
+	sfs := newSubHTTPFileSystem(fs, "testdata")
 	file, err := sfs.Open("nmap.xml")
 	require.NoError(t, err)
 	require.NotNil(t, file)
