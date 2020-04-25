@@ -191,7 +191,7 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionRead(t *testing.T) {
+func TestMSFRPC_SessionShellRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -209,13 +209,13 @@ func TestMSFRPC_SessionRead(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		result, err := msfrpc.SessionRead(ctx, id, 0)
+		result, err := msfrpc.SessionShellRead(ctx, id, 0)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
-		result, err := msfrpc.SessionRead(ctx, 999, 0)
+		result, err := msfrpc.SessionShellRead(ctx, 999, 0)
 		require.EqualError(t, err, "unknown session id: 999")
 		require.Nil(t, result)
 	})
@@ -225,14 +225,14 @@ func TestMSFRPC_SessionRead(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		result, err := msfrpc.SessionRead(ctx, 999, 0)
+		result, err := msfrpc.SessionShellRead(ctx, 999, 0)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.SessionRead(ctx, 999, 0)
+			result, err := msfrpc.SessionShellRead(ctx, 999, 0)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
@@ -242,7 +242,7 @@ func TestMSFRPC_SessionRead(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionWrite(t *testing.T) {
+func TestMSFRPC_SessionShellWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -260,21 +260,21 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		result, err := msfrpc.SessionRead(ctx, id, 0)
+		result, err := msfrpc.SessionShellRead(ctx, id, 0)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 
-		n, err := msfrpc.SessionWrite(ctx, id, "whoami\n")
+		n, err := msfrpc.SessionShellWrite(ctx, id, "whoami\n")
 		require.NoError(t, err)
 		require.Equal(t, uint64(7), n)
 
-		result, err = msfrpc.SessionRead(ctx, id, 0)
+		result, err = msfrpc.SessionShellRead(ctx, id, 0)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 	})
 
 	t.Run("no data", func(t *testing.T) {
-		n, err := msfrpc.SessionWrite(ctx, 0, "")
+		n, err := msfrpc.SessionShellWrite(ctx, 0, "")
 		require.NoError(t, err)
 		require.Zero(t, n)
 	})
@@ -285,7 +285,7 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 	)
 
 	t.Run("invalid session id", func(t *testing.T) {
-		n, err := msfrpc.SessionWrite(ctx, id, data)
+		n, err := msfrpc.SessionShellWrite(ctx, id, data)
 		require.EqualError(t, err, "unknown session id: 999")
 		require.Zero(t, n)
 	})
@@ -295,14 +295,14 @@ func TestMSFRPC_SessionWrite(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		n, err := msfrpc.SessionWrite(ctx, id, data)
+		n, err := msfrpc.SessionShellWrite(ctx, id, data)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Zero(t, n)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			n, err := msfrpc.SessionWrite(ctx, id, data)
+			n, err := msfrpc.SessionShellWrite(ctx, id, data)
 			monkey.IsMonkeyError(t, err)
 			require.Zero(t, n)
 		})

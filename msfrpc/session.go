@@ -63,7 +63,7 @@ func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
 	return nil
 }
 
-// SessionRead is used to provide the ability to read output from a shell session. As
+// SessionShellRead is used to provide the ability to read output from a shell session. As
 // of version 3.7.0, shell sessions also ring buffer their output, allowing multiple
 // callers to read from one session without losing data. This is implemented through
 // the optional ReadPointer parameter. If this parameter is not given (or set to 0),
@@ -72,7 +72,7 @@ func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
 // to shell.read, only data since the previous read will be returned. By continuing
 // to track the ReadPointer returned by the last call and pass it into the next call,
 // multiple readers can all follow the output from a single session without conflict.
-func (msf *MSFRPC) SessionRead(
+func (msf *MSFRPC) SessionShellRead(
 	ctx context.Context,
 	id uint64,
 	pointer uint64,
@@ -101,9 +101,9 @@ func (msf *MSFRPC) SessionRead(
 	return &result, nil
 }
 
-// SessionWrite is used to provide the ability to write data into an active shell session.
+// SessionShellWrite is used to provide the ability to write data into an active shell session.
 // Most sessions require a terminating newline before they will process a command.
-func (msf *MSFRPC) SessionWrite(ctx context.Context, id uint64, data string) (uint64, error) {
+func (msf *MSFRPC) SessionShellWrite(ctx context.Context, id uint64, data string) (uint64, error) {
 	if len(data) == 0 {
 		return 0, nil
 	}
@@ -182,7 +182,7 @@ func (msf *MSFRPC) SessionUpgrade(
 	}
 	// must input some command, power shell will start work
 	if os == "windows" {
-		_, err = msf.SessionWrite(ctx, id, "\nwhoami\n")
+		_, err = msf.SessionShellWrite(ctx, id, "\nwhoami\n")
 	}
 	// wait some time for power shell
 	timer.Reset(3 * time.Second)
@@ -443,7 +443,7 @@ func (shell *Shell) readLoop() {
 }
 
 func (shell *Shell) read() bool {
-	result, err := shell.ctx.SessionRead(shell.context, shell.id, 0)
+	result, err := shell.ctx.SessionShellRead(shell.context, shell.id, 0)
 	if err != nil {
 		return false
 	}
@@ -500,7 +500,7 @@ func (shell *Shell) Write(b []byte) (int, error) {
 	}
 	shell.writeMu.Lock()
 	defer shell.writeMu.Unlock()
-	n, err := shell.ctx.SessionWrite(shell.context, shell.id, string(b))
+	n, err := shell.ctx.SessionShellWrite(shell.context, shell.id, string(b))
 	return int(n), err
 }
 

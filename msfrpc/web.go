@@ -1416,6 +1416,116 @@ func (wh *webHandler) handleModuleRunningStats(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, status)
 }
 
-func (wh *webHandler) handle(w hRW, r *hR, _ hP) {
+// -------------------------------------------about job--------------------------------------------
 
+func (wh *webHandler) handleJobList(w hRW, r *hR, _ hP) {
+	jobs, err := wh.ctx.JobList(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Jobs map[string]string `json:"jobs"`
+	}{
+		Jobs: jobs,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleJobInformation(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID string `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	info, err := wh.ctx.JobInfo(r.Context(), req.ID)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	wh.writeResponse(w, info)
+}
+
+func (wh *webHandler) handleJobStop(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID string `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.JobStop(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+// -----------------------------------------about session------------------------------------------
+
+func (wh *webHandler) handleSessionList(w hRW, r *hR, _ hP) {
+	list, err := wh.ctx.SessionList(r.Context())
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Sessions map[uint64]*SessionInfo `json:"sessions"`
+	}{
+		Sessions: list,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleSessionStop(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID uint64 `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// first check is in web handler
+	err = wh.ctx.SessionStop(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleSessionShellRead(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID uint64 `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// check
+	result, err := wh.ctx.SessionShellRead(r.Context(), req.ID, 0)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Data string `json:"data"`
+	}{
+		Data: result.Data,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleSessionShellWrite(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID   uint64 `json:"id"`
+		Data string `json:"data"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// check
+	_, err = wh.ctx.SessionShellWrite(r.Context(), req.ID, req.Data)
+	wh.writeError(w, err)
 }
