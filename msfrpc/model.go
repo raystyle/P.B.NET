@@ -1701,10 +1701,9 @@ type SessionStopResult struct {
 
 // SessionShellReadRequest is used to read data from a shell.
 type SessionShellReadRequest struct {
-	Method  string
-	Token   string
-	ID      uint64
-	Pointer uint64
+	Method string
+	Token  string
+	ID     uint64
 }
 
 // SessionShellReadResult is the result of read shell.

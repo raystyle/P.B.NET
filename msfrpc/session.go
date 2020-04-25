@@ -63,8 +63,8 @@ func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
 	return nil
 }
 
-// SessionShellRead is used to provide the ability to read output from a shell session. As
-// of version 3.7.0, shell sessions also ring buffer their output, allowing multiple
+// SessionShellRead is used to provide the ability to read output from a shell session.
+// As of version 3.7.0, shell sessions also ring buffer their output, allowing multiple
 // callers to read from one session without losing data. This is implemented through
 // the optional ReadPointer parameter. If this parameter is not given (or set to 0),
 // the server will reply with all buffered data and a new ReadPointer (as the "seq"
@@ -72,16 +72,11 @@ func (msf *MSFRPC) SessionStop(ctx context.Context, id uint64) error {
 // to shell.read, only data since the previous read will be returned. By continuing
 // to track the ReadPointer returned by the last call and pass it into the next call,
 // multiple readers can all follow the output from a single session without conflict.
-func (msf *MSFRPC) SessionShellRead(
-	ctx context.Context,
-	id uint64,
-	pointer uint64,
-) (*SessionShellReadResult, error) {
+func (msf *MSFRPC) SessionShellRead(ctx context.Context, id uint64) (*SessionShellReadResult, error) {
 	request := SessionShellReadRequest{
-		Method:  MethodSessionShellRead,
-		Token:   msf.GetToken(),
-		ID:      id,
-		Pointer: pointer,
+		Method: MethodSessionShellRead,
+		Token:  msf.GetToken(),
+		ID:     id,
 	}
 	var result SessionShellReadResult
 	err := msf.send(ctx, &request, &result)
@@ -101,8 +96,8 @@ func (msf *MSFRPC) SessionShellRead(
 	return &result, nil
 }
 
-// SessionShellWrite is used to provide the ability to write data into an active shell session.
-// Most sessions require a terminating newline before they will process a command.
+// SessionShellWrite is used to provide the ability to write data into an active shell
+// session. Most sessions require a terminating newline before they will process a command.
 func (msf *MSFRPC) SessionShellWrite(ctx context.Context, id uint64, data string) (uint64, error) {
 	if len(data) == 0 {
 		return 0, nil
@@ -184,7 +179,7 @@ func (msf *MSFRPC) SessionUpgrade(
 	if os == "windows" {
 		_, err = msf.SessionShellWrite(ctx, id, "\nwhoami\n")
 	}
-	// wait some time for power shell
+	// wait some time for powershell
 	timer.Reset(3 * time.Second)
 	defer timer.Stop()
 	select {
@@ -259,10 +254,10 @@ func (msf *MSFRPC) SessionMeterpreterWrite(ctx context.Context, id uint64, data 
 	return nil
 }
 
-// SessionMeterpreterDetach is used to stop any current channel or sub-shell interaction
-// taking place by the console associated with the specified Meterpreter session. This
-// simulates the console user pressing the Control+Z hotkey.
-func (msf *MSFRPC) SessionMeterpreterDetach(ctx context.Context, id uint64) error {
+// SessionMeterpreterSessionDetach is used to stop any current channel or sub-shell
+// interaction taking place by the console associated with the specified Meterpreter
+// session. This simulates the console user pressing the Control+Z hotkey.
+func (msf *MSFRPC) SessionMeterpreterSessionDetach(ctx context.Context, id uint64) error {
 	request := SessionMeterpreterSessionDetachRequest{
 		Method: MethodSessionMeterpreterSessionDetach,
 		Token:  msf.GetToken(),
@@ -286,10 +281,10 @@ func (msf *MSFRPC) SessionMeterpreterDetach(ctx context.Context, id uint64) erro
 	return nil
 }
 
-// SessionMeterpreterKill is used to terminate the current channel or sub-shell that
-// the console associated with the specified Meterpreter session is interacting with.
+// SessionMeterpreterSessionKill is used to terminate the current channel or sub-shell
+// that the console associated with the specified Meterpreter session is interacting with.
 // This simulates the console user pressing the Control+C hotkey.
-func (msf *MSFRPC) SessionMeterpreterKill(ctx context.Context, id uint64) error {
+func (msf *MSFRPC) SessionMeterpreterSessionKill(ctx context.Context, id uint64) error {
 	request := SessionMeterpreterSessionKillRequest{
 		Method: MethodSessionMeterpreterSessionKill,
 		Token:  msf.GetToken(),
@@ -443,7 +438,7 @@ func (shell *Shell) readLoop() {
 }
 
 func (shell *Shell) read() bool {
-	result, err := shell.ctx.SessionShellRead(shell.context, shell.id, 0)
+	result, err := shell.ctx.SessionShellRead(shell.context, shell.id)
 	if err != nil {
 		return false
 	}
@@ -683,7 +678,7 @@ func (mp *Meterpreter) Write(b []byte) (int, error) {
 
 // Detach is used to detach current meterpreter session.
 func (mp *Meterpreter) Detach(ctx context.Context) error {
-	err := mp.ctx.SessionMeterpreterDetach(ctx, mp.id)
+	err := mp.ctx.SessionMeterpreterSessionDetach(ctx, mp.id)
 	if err != nil {
 		return err
 	}
@@ -693,7 +688,7 @@ func (mp *Meterpreter) Detach(ctx context.Context) error {
 
 // Interrupt is used to send interrupt to current meterpreter session.
 func (mp *Meterpreter) Interrupt(ctx context.Context) error {
-	err := mp.ctx.SessionMeterpreterKill(ctx, mp.id)
+	err := mp.ctx.SessionMeterpreterSessionKill(ctx, mp.id)
 	if err != nil {
 		return err
 	}

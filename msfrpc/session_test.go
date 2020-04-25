@@ -209,13 +209,13 @@ func TestMSFRPC_SessionShellRead(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		result, err := msfrpc.SessionShellRead(ctx, id, 0)
+		result, err := msfrpc.SessionShellRead(ctx, id)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 	})
 
 	t.Run("invalid session id", func(t *testing.T) {
-		result, err := msfrpc.SessionShellRead(ctx, 999, 0)
+		result, err := msfrpc.SessionShellRead(ctx, 999)
 		require.EqualError(t, err, "unknown session id: 999")
 		require.Nil(t, result)
 	})
@@ -225,14 +225,14 @@ func TestMSFRPC_SessionShellRead(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		result, err := msfrpc.SessionShellRead(ctx, 999, 0)
+		result, err := msfrpc.SessionShellRead(ctx, 999)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 		require.Nil(t, result)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			result, err := msfrpc.SessionShellRead(ctx, 999, 0)
+			result, err := msfrpc.SessionShellRead(ctx, 999)
 			monkey.IsMonkeyError(t, err)
 			require.Nil(t, result)
 		})
@@ -260,7 +260,7 @@ func TestMSFRPC_SessionShellWrite(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		result, err := msfrpc.SessionShellRead(ctx, id, 0)
+		result, err := msfrpc.SessionShellRead(ctx, id)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 
@@ -268,7 +268,7 @@ func TestMSFRPC_SessionShellWrite(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint64(7), n)
 
-		result, err = msfrpc.SessionShellRead(ctx, id, 0)
+		result, err = msfrpc.SessionShellRead(ctx, id)
 		require.NoError(t, err)
 		t.Log(result.Seq, result.Data)
 	})
@@ -670,7 +670,7 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionMeterpreterDetach(t *testing.T) {
+func TestMSFRPC_SessionMeterpreterSessionDetach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -688,14 +688,14 @@ func TestMSFRPC_SessionMeterpreterDetach(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		err = msfrpc.SessionMeterpreterDetach(ctx, id)
+		err = msfrpc.SessionMeterpreterSessionDetach(ctx, id)
 		require.NoError(t, err)
 	})
 
 	const id = 999
 
 	t.Run("invalid session id", func(t *testing.T) {
-		err := msfrpc.SessionMeterpreterDetach(ctx, id)
+		err := msfrpc.SessionMeterpreterSessionDetach(ctx, id)
 		require.EqualError(t, err, "unknown session id: 999")
 	})
 
@@ -704,13 +704,13 @@ func TestMSFRPC_SessionMeterpreterDetach(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.SessionMeterpreterDetach(ctx, id)
+		err := msfrpc.SessionMeterpreterSessionDetach(ctx, id)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.SessionMeterpreterDetach(ctx, id)
+			err := msfrpc.SessionMeterpreterSessionDetach(ctx, id)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
@@ -719,7 +719,7 @@ func TestMSFRPC_SessionMeterpreterDetach(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestMSFRPC_SessionMeterpreterKill(t *testing.T) {
+func TestMSFRPC_SessionMeterpreterSessionKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -737,14 +737,14 @@ func TestMSFRPC_SessionMeterpreterKill(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		err = msfrpc.SessionMeterpreterKill(ctx, id)
+		err = msfrpc.SessionMeterpreterSessionKill(ctx, id)
 		require.NoError(t, err)
 	})
 
 	const id = 999
 
 	t.Run("invalid session id", func(t *testing.T) {
-		err := msfrpc.SessionMeterpreterKill(ctx, id)
+		err := msfrpc.SessionMeterpreterSessionKill(ctx, id)
 		require.EqualError(t, err, "unknown session id: 999")
 	})
 
@@ -753,13 +753,13 @@ func TestMSFRPC_SessionMeterpreterKill(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err := msfrpc.SessionMeterpreterKill(ctx, id)
+		err := msfrpc.SessionMeterpreterSessionKill(ctx, id)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err := msfrpc.SessionMeterpreterKill(ctx, id)
+			err := msfrpc.SessionMeterpreterSessionKill(ctx, id)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
