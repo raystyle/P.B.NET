@@ -8,6 +8,22 @@ import (
 	"project/internal/logger"
 )
 
+// WriteFile is used to write file and call synchronize.
+func WriteFile(filename string, data []byte) error {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600) // #nosec
+	if err != nil {
+		return err
+	}
+	_, err = file.Write(data)
+	if e := file.Sync(); err == nil {
+		err = e
+	}
+	if e := file.Close(); err == nil {
+		err = e
+	}
+	return err
+}
+
 // GetConnHandle is used to get handle about raw connection.
 func GetConnHandle(conn syscall.Conn) (uintptr, error) {
 	rawConn, err := conn.SyscallConn()

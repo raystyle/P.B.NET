@@ -9,7 +9,29 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/monkey"
+	"project/internal/testsuite"
 )
+
+func TestWriteFile(t *testing.T) {
+	_ = os.Mkdir("testdata", 0750)
+
+	const name = "wf.dat"
+	testdata := testsuite.Bytes()
+
+	t.Run("ok", func(t *testing.T) {
+		defer func() {
+			err := os.Remove(name)
+			require.NoError(t, err)
+		}()
+		err := WriteFile(name, testdata)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid path", func(t *testing.T) {
+		err := WriteFile("invalid//name", testdata)
+		require.Error(t, err)
+	})
+}
 
 func TestGetConnHandle(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
