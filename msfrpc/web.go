@@ -1501,8 +1501,7 @@ func (wh *webHandler) handleSessionShellRead(w hRW, r *hR, _ hP) {
 		wh.writeError(w, err)
 		return
 	}
-	// check
-	result, err := wh.ctx.SessionShellRead(r.Context(), req.ID, 0)
+	result, err := wh.ctx.SessionShellRead(r.Context(), req.ID)
 	if err != nil {
 		wh.writeError(w, err)
 		return
@@ -1528,4 +1527,131 @@ func (wh *webHandler) handleSessionShellWrite(w hRW, r *hR, _ hP) {
 	// check
 	_, err = wh.ctx.SessionShellWrite(r.Context(), req.ID, req.Data)
 	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleSessionUpgrade(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID      uint64                 `json:"id"`
+		Host    string                 `json:"host"`
+		Port    uint64                 `json:"port"`
+		Options map[string]interface{} `json:"options"`
+		Wait    time.Duration          `json:"wait"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	result, err := wh.ctx.SessionUpgrade(r.Context(),
+		req.ID, req.Host, req.Port, req.Options, req.Wait)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		JobID uint64 `json:"job_id"`
+	}{
+		JobID: result.JobID,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleSessionMeterpreterRead(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID uint64 `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	data, err := wh.ctx.SessionMeterpreterRead(r.Context(), req.ID)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Data string `json:"data"`
+	}{
+		Data: data,
+	}
+	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleSessionMeterpreterWrite(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID   uint64 `json:"id"`
+		Data string `json:"data"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.SessionMeterpreterWrite(r.Context(), req.ID, req.Data)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleSessionMeterpreterSessionDetach(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID uint64 `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// check exist
+	err = wh.ctx.SessionMeterpreterSessionDetach(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleSessionMeterpreterSessionKill(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID uint64 `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// check exist
+	err = wh.ctx.SessionMeterpreterSessionKill(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleSessionMeterpreterRunSingle(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID      uint64 `json:"id"`
+		Command string `json:"command"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	err = wh.ctx.SessionMeterpreterRunSingle(r.Context(), req.ID, req.Command)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleSessionCompatibleModules(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID uint64 `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	modules, err := wh.ctx.SessionCompatibleModules(r.Context(), req.ID)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	resp := struct {
+		Modules []string `json:"modules"`
+	}{
+		Modules: modules,
+	}
+	wh.writeResponse(w, &resp)
 }
