@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 )
 
 const (
-	testCommand  = "msfrpcd"
 	testHost     = "127.0.0.1"
 	testPort     = "55553"
 	testAddress  = testHost + ":" + testPort
@@ -31,20 +29,6 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	fmt.Println("[info] start Metasploit RPC service")
-	cmd := exec.Command(testCommand, "-a", testHost, "-U", testUsername, "-P", testPassword)
-	err := cmd.Start()
-	testsuite.CheckErrorInTestMain(err)
-	// if panic, kill it.
-	defer func() {
-		_ = cmd.Process.Kill()
-		os.Exit(1)
-	}()
-	// wait some time for start Metasploit RPC service
-	// stdout and stderr can't read any data, so use time.Sleep
-	fmt.Println("[info] wait 10 seconds for wait Metasploit RPC service")
-	// TODO remove comment
-	// time.Sleep(10 * time.Second)
 	exitCode := m.Run()
 	// create msfrpc
 	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Discard, nil)
@@ -60,19 +44,17 @@ func TestMain(m *testing.M) {
 		testMainCheckToken,
 		testMainCheckThread,
 	} {
-		if check(ctx, msfrpc) {
+		if !check(ctx, msfrpc) {
 			time.Sleep(time.Minute)
-			return
+			os.Exit(1)
 		}
 	}
 	msfrpc.Kill()
 	if !testsuite.Destroyed(msfrpc) {
 		fmt.Println("[warning] msfrpc is not destroyed!")
 		time.Sleep(time.Minute)
-		return
+		os.Exit(1)
 	}
-	// stop Metasploit RPC service
-	_ = cmd.Process.Kill()
 	os.Exit(exitCode)
 }
 
@@ -85,7 +67,7 @@ func testMainCheckSession(ctx context.Context, msfrpc *MSFRPC) bool {
 		sessions, err = msfrpc.SessionList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		if len(sessions) == 0 {
-			return false
+			return true
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -94,7 +76,7 @@ func testMainCheckSession(ctx context.Context, msfrpc *MSFRPC) bool {
 	for id, session := range sessions {
 		fmt.Printf(format, id, session.Type, session.TunnelPeer)
 	}
-	return true
+	return false
 }
 
 func testMainCheckJob(ctx context.Context, msfrpc *MSFRPC) bool {
@@ -106,7 +88,7 @@ func testMainCheckJob(ctx context.Context, msfrpc *MSFRPC) bool {
 		list, err = msfrpc.JobList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		if len(list) == 0 {
-			return false
+			return true
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -115,7 +97,7 @@ func testMainCheckJob(ctx context.Context, msfrpc *MSFRPC) bool {
 	for id, name := range list {
 		fmt.Printf(format, id, name)
 	}
-	return true
+	return false
 }
 
 func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
@@ -127,7 +109,7 @@ func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
 		consoles, err = msfrpc.ConsoleList(ctx)
 		testsuite.CheckErrorInTestMain(err)
 		if len(consoles) == 0 {
-			return false
+			return true
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -136,7 +118,7 @@ func testMainCheckConsole(ctx context.Context, msfrpc *MSFRPC) bool {
 	for i := 0; i < len(consoles); i++ {
 		fmt.Printf(format, consoles[i].ID, consoles[i].Prompt)
 	}
-	return true
+	return false
 }
 
 func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
@@ -149,7 +131,7 @@ func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
 		testsuite.CheckErrorInTestMain(err)
 		// include self token
 		if len(tokens) == 1 {
-			return false
+			return true
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -157,7 +139,7 @@ func testMainCheckToken(ctx context.Context, msfrpc *MSFRPC) bool {
 	for i := 0; i < len(tokens); i++ {
 		fmt.Println(tokens[i])
 	}
-	return true
+	return false
 }
 
 func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
@@ -182,7 +164,7 @@ func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
 		// 9 = start sessions scheduler(5) and session manager(1)
 		l := len(threads)
 		if l == 3 || l == 9 {
-			return false
+			return true
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -191,7 +173,7 @@ func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
 	for i, t := range threads {
 		fmt.Printf(format, i, t.Name, t.Critical, t.Status, t.Started)
 	}
-	return true
+	return false
 }
 
 func TestNewMSFRPC(t *testing.T) {
@@ -496,39 +478,6 @@ func TestMSFRPC_Close(t *testing.T) {
 		err = msfrpc.Close()
 		require.NoError(t, err)
 
-		testsuite.IsDestroyed(t, msfrpc)
-	})
-
-	ctx := context.Background()
-	const (
-		workspace = ""
-		interval  = 25 * time.Millisecond
-	)
-
-	t.Run("failed to clean", func(t *testing.T) {
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-		require.NoError(t, err)
-		err = msfrpc.AuthLogin()
-		require.NoError(t, err)
-
-		console, err := msfrpc.NewConsole(ctx, workspace, interval)
-		require.NoError(t, err)
-
-		// wait add
-		time.Sleep(time.Second)
-
-		err = msfrpc.AuthLogout(msfrpc.GetToken())
-		require.NoError(t, err)
-
-		err = msfrpc.Close()
-		require.Error(t, err)
-
-		err = msfrpc.AuthLogin()
-		require.NoError(t, err)
-		err = msfrpc.Close()
-		require.NoError(t, err)
-
-		testsuite.IsDestroyed(t, console)
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 

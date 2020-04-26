@@ -278,16 +278,16 @@ func (msf *MSFRPC) trackShell(shell *Shell, add bool) bool {
 	return true
 }
 
-func (msf *MSFRPC) trackMeterpreter(meterpreter *Meterpreter, add bool) bool {
+func (msf *MSFRPC) trackMeterpreter(mp *Meterpreter, add bool) bool {
 	msf.rwm.Lock()
 	defer msf.rwm.Unlock()
 	if add {
 		if msf.shuttingDown() {
 			return false
 		}
-		msf.meterpreters[meterpreter.id] = meterpreter
+		msf.meterpreters[mp.id] = mp
 	} else {
-		delete(msf.meterpreters, meterpreter.id)
+		delete(msf.meterpreters, mp.id)
 	}
 	return true
 }
@@ -296,11 +296,7 @@ func (msf *MSFRPC) trackMeterpreter(meterpreter *Meterpreter, add bool) bool {
 func (msf *MSFRPC) Close() error {
 	msf.rwm.Lock()
 	defer msf.rwm.Unlock()
-	err := msf.clean()
-	if err != nil {
-		return err
-	}
-	err = msf.AuthLogout(msf.GetToken())
+	err := msf.AuthLogout(msf.GetToken())
 	if err != nil {
 		return err
 	}
@@ -312,33 +308,24 @@ func (msf *MSFRPC) Close() error {
 func (msf *MSFRPC) Kill() {
 	msf.rwm.Lock()
 	defer msf.rwm.Unlock()
-	_ = msf.clean()
 	_ = msf.AuthLogout(msf.GetToken())
 	msf.close()
 }
 
-func (msf *MSFRPC) clean() error {
+func (msf *MSFRPC) close() {
 	atomic.StoreInt32(&msf.inShutdown, 1)
-	var err error
 	// close all consoles
 	for _, console := range msf.consoles {
-		e := console.closeNotWait()
-		if e != nil && err == nil {
-			err = e
-		}
+		_ = console.Close()
 	}
 	// close all shells
 	for _, shell := range msf.shells {
-		shell.closeNotWait()
+		_ = shell.Close()
 	}
 	// close all meterpreters
 	for _, meterpreter := range msf.meterpreters {
-		meterpreter.closeNotWait()
+		_ = meterpreter.Close()
 	}
-	return err
-}
-
-func (msf *MSFRPC) close() {
 	msf.cancel()
 	msf.client.CloseIdleConnections()
 }
