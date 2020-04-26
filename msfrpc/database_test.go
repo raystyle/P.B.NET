@@ -2026,6 +2026,13 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 			t.Log("name:", events[i].Name)
 			t.Log("host:", events[i].Host)
 			t.Log("username:", events[i].Username)
+
+			// skip output otherwise maybe crash
+			// see testSessionPrintOutput()
+			if events[i].Name == "session_output" {
+				continue
+			}
+
 			t.Log("---------information---------")
 			for key, value := range events[i].Information {
 				if key != "datastore" {

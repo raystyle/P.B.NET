@@ -583,6 +583,28 @@ func TestConsole_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, console)
 	})
 
+	t.Run("tracker", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+		id := console.id
+
+		// wait console tracker
+		time.Sleep(time.Second)
+
+		err = msfrpc.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, console)
+
+		// destroy opened console
+		msfrpc, err = NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+		require.NoError(t, err)
+		err = msfrpc.AuthLogin()
+		require.NoError(t, err)
+
+		err = msfrpc.ConsoleDestroy(ctx, id)
+		require.NoError(t, err)
+	})
+
 	msfrpc.Kill()
 	testsuite.IsDestroyed(t, msfrpc)
 }

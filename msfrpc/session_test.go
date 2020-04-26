@@ -1058,10 +1058,10 @@ func TestShell_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, shell)
 	})
 
-	t.Run("auto close", func(t *testing.T) {
+	t.Run("tracker", func(t *testing.T) {
 		shell := msfrpc.NewShell(id, interval)
 
-		// wait self add
+		// wait shell tracker
 		time.Sleep(time.Second)
 
 		err = msfrpc.Close()
@@ -1376,10 +1376,10 @@ func TestMeterpreter_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	t.Run("auto close", func(t *testing.T) {
+	t.Run("tracker", func(t *testing.T) {
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
 
-		// wait self add
+		// wait meterpreter tracker
 		time.Sleep(time.Second)
 
 		err = msfrpc.Close()

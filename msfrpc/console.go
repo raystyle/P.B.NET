@@ -285,8 +285,6 @@ func (console *Console) readLoop() {
 		}
 	}()
 	if !console.ctx.trackConsole(console, true) {
-		// try to close, maybe "leak", but you can still destroy it
-		_ = console.ctx.ConsoleDestroy(context.Background(), console.id)
 		return
 	}
 	defer console.ctx.trackConsole(console, false)
