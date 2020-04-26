@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"project/internal/certmgr"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
 	"project/internal/dns"
@@ -47,7 +48,7 @@ type Config struct {
 		TimeSyncInterval    time.Duration `toml:"timesync_interval"     msgpack:"d"`
 
 		// generate from Controller
-		RawCertPool       cert.RawCertPool            `toml:"-" msgpack:"w"`
+		CertPool          certmgr.NBCertPool          `toml:"-" msgpack:"w"`
 		ProxyClients      []*proxy.Client             `toml:"-" msgpack:"x"`
 		DNSServers        map[string]*dns.Server      `toml:"-" msgpack:"y"`
 		TimeSyncerClients map[string]*timesync.Client `toml:"-" msgpack:"z"`

@@ -117,9 +117,9 @@ func (beacon *Beacon) Main() error {
 	beacon.logger.StartSender()
 	// synchronize time
 	if beacon.Test.options.SkipSynchronizeTime {
-		beacon.global.StartTimeSyncerWalker()
+		beacon.global.TimeSyncer.StartWalker()
 	} else {
-		err := beacon.global.StartTimeSyncer()
+		err := beacon.global.TimeSyncer.Start()
 		if err != nil {
 			return beacon.fatal(err, "failed to synchronize time")
 		}

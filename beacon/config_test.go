@@ -31,7 +31,7 @@ func testGenerateConfig(t testing.TB) *Config {
 	cfg.Global.TimeSyncSleepFixed = 15
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
-	cfg.Global.RawCertPool = testdata.RawCertPool(t)
+	cfg.Global.CertPool = testdata.CertPool(t)
 	cfg.Global.ProxyClients = testdata.ProxyClients(t)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()

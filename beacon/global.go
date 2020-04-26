@@ -1,7 +1,6 @@
 package beacon
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -42,7 +41,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 	defer memory.Flush()
 
 	// certificate pool
-	certPool, err := cert.NewPoolFromRawCertPool(&cfg.RawCertPool)
+	certPool, err := cfg.CertPool.ToPool()
 	if err != nil {
 		return nil, err
 	}
@@ -228,30 +227,6 @@ const spmCount = 9 // global.paddingMemory() execute count
 // OK is used to check debug.
 func (global *global) OK() bool {
 	return global.spmCount == spmCount
-}
-
-// GetProxyClient is used to get proxy client from proxy pool.
-func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
-	return global.ProxyPool.Get(tag)
-}
-
-// ResolveDomain is used to resolve domain name with context and options.
-func (global *global) ResolveDomain(
-	ctx context.Context,
-	domain string,
-	opts *dns.Options,
-) ([]string, error) {
-	return global.DNSClient.ResolveContext(ctx, domain, opts)
-}
-
-// StartTimeSyncer is used to start time syncer.
-func (global *global) StartTimeSyncer() error {
-	return global.TimeSyncer.Start()
-}
-
-// StartTimeSyncerWalker is used to start time syncer add loop.
-func (global *global) StartTimeSyncerWalker() {
-	global.TimeSyncer.StartWalker()
 }
 
 // Now is used to get current time.

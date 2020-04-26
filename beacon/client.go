@@ -78,14 +78,14 @@ func (beacon *Beacon) NewClient(
 		Now:       beacon.global.Now,
 	}
 	// set proxy
-	proxy, err := beacon.global.GetProxyClient(beacon.clientMgr.GetProxyTag())
+	proxy, err := beacon.global.ProxyPool.Get(beacon.clientMgr.GetProxyTag())
 	if err != nil {
 		return nil, err
 	}
 	opts.Dialer = proxy.DialContext
 	// resolve domain name
 	dnsOpts := beacon.clientMgr.GetDNSOptions()
-	result, err := beacon.global.ResolveDomain(ctx, host, dnsOpts)
+	result, err := beacon.global.DNSClient.ResolveContext(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}
