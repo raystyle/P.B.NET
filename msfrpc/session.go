@@ -374,10 +374,8 @@ type Shell struct {
 	writeMu sync.Mutex
 	token   chan struct{}
 
-	context   context.Context
-	cancel    context.CancelFunc
-	closeOnce sync.Once
-	wg        sync.WaitGroup
+	context context.Context
+	cancel  context.CancelFunc
 }
 
 // NewShell is used to create a graceful IO stream with shell id.
@@ -395,7 +393,6 @@ func (msf *MSFRPC) NewShell(id uint64, interval time.Duration) *Shell {
 	}
 	shell.pr, shell.pw = io.Pipe()
 	shell.context, shell.cancel = context.WithCancel(context.Background())
-	shell.wg.Add(2)
 	go shell.readLoop()
 	go shell.writeLimiter()
 	return &shell
@@ -414,7 +411,6 @@ func (shell *Shell) readLoop() {
 			go shell.readLoop()
 		} else {
 			shell.close()
-			shell.wg.Done()
 		}
 	}()
 	if !shell.ctx.trackShell(shell, true) {
@@ -458,8 +454,6 @@ func (shell *Shell) writeLimiter() {
 			// restart limiter
 			time.Sleep(time.Second)
 			go shell.writeLimiter()
-		} else {
-			shell.wg.Done()
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.
@@ -499,43 +493,32 @@ func (shell *Shell) Write(b []byte) (int, error) {
 	return int(n), err
 }
 
+// Close is used to close reader, it will not stop the shell session.
+func (shell *Shell) Close() error {
+	shell.close()
+	return nil
+}
+
 // CompatibleModules is used to return a list of Post modules that compatible.
 func (shell *Shell) CompatibleModules(ctx context.Context) ([]string, error) {
 	return shell.ctx.SessionCompatibleModules(ctx, shell.id)
 }
 
-// Close is used to close reader, it will not kill the shell session.
-func (shell *Shell) Close() error {
-	shell.destroy(true)
-	return nil
-}
-
-func (shell *Shell) closeNotWait() {
-	shell.destroy(false)
-}
-
-func (shell *Shell) destroy(wait bool) {
-	shell.close()
-	if wait {
-		shell.wg.Wait()
-	}
-}
-
-func (shell *Shell) close() {
-	shell.closeOnce.Do(func() {
-		shell.cancel()
-		_ = shell.pw.Close()
-		_ = shell.pr.Close()
-	})
-}
-
-// Kill is used to kill shell session.
-func (shell *Shell) Kill() error {
-	err := shell.ctx.SessionStop(shell.context, shell.id)
+// Stop is used to stop shell session.
+// Must use msfrpc's context, because Shell.context maybe canceled.
+func (shell *Shell) Stop() error {
+	err := shell.ctx.SessionStop(shell.ctx.ctx, shell.id)
 	if err != nil {
 		return err
 	}
-	return shell.Close()
+	shell.close()
+	return nil
+}
+
+func (shell *Shell) close() {
+	shell.cancel()
+	_ = shell.pw.Close()
+	_ = shell.pr.Close()
 }
 
 // Meterpreter is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
@@ -551,10 +534,8 @@ type Meterpreter struct {
 	writeMu sync.Mutex
 	token   chan struct{}
 
-	context   context.Context
-	cancel    context.CancelFunc
-	closeOnce sync.Once
-	wg        sync.WaitGroup
+	context context.Context
+	cancel  context.CancelFunc
 }
 
 // NewMeterpreter is used to create a graceful IO stream with meterpreter id.
@@ -563,19 +544,18 @@ func (msf *MSFRPC) NewMeterpreter(id uint64, interval time.Duration) *Meterprete
 	if interval < minReadInterval {
 		interval = minReadInterval
 	}
-	meterpreter := Meterpreter{
+	mp := Meterpreter{
 		ctx:      msf,
 		id:       id,
 		interval: interval,
 		logSrc:   fmt.Sprintf("msfrpc-meterpreter-%d", id),
 		token:    make(chan struct{}),
 	}
-	meterpreter.pr, meterpreter.pw = io.Pipe()
-	meterpreter.context, meterpreter.cancel = context.WithCancel(context.Background())
-	meterpreter.wg.Add(2)
-	go meterpreter.readLoop()
-	go meterpreter.writeLimiter()
-	return &meterpreter
+	mp.pr, mp.pw = io.Pipe()
+	mp.context, mp.cancel = context.WithCancel(context.Background())
+	go mp.readLoop()
+	go mp.writeLimiter()
+	return &mp
 }
 
 func (mp *Meterpreter) log(lv logger.Level, log ...interface{}) {
@@ -591,7 +571,6 @@ func (mp *Meterpreter) readLoop() {
 			go mp.readLoop()
 		} else {
 			mp.close()
-			mp.wg.Done()
 		}
 	}()
 	if !mp.ctx.trackMeterpreter(mp, true) {
@@ -635,8 +614,6 @@ func (mp *Meterpreter) writeLimiter() {
 			// restart limiter
 			time.Sleep(time.Second)
 			go mp.writeLimiter()
-		} else {
-			mp.wg.Done()
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.
@@ -676,8 +653,16 @@ func (mp *Meterpreter) Write(b []byte) (int, error) {
 	return len(b), err
 }
 
+// Close is used to close reader, it will not stop the meterpreter session.
+func (mp *Meterpreter) Close() error {
+	mp.close()
+	return nil
+}
+
 // Detach is used to detach current meterpreter session.
 func (mp *Meterpreter) Detach(ctx context.Context) error {
+	mp.writeMu.Lock()
+	defer mp.writeMu.Unlock()
 	err := mp.ctx.SessionMeterpreterSessionDetach(ctx, mp.id)
 	if err != nil {
 		return err
@@ -688,6 +673,8 @@ func (mp *Meterpreter) Detach(ctx context.Context) error {
 
 // Interrupt is used to send interrupt to current meterpreter session.
 func (mp *Meterpreter) Interrupt(ctx context.Context) error {
+	mp.writeMu.Lock()
+	defer mp.writeMu.Unlock()
 	err := mp.ctx.SessionMeterpreterSessionKill(ctx, mp.id)
 	if err != nil {
 		return err
@@ -706,36 +693,19 @@ func (mp *Meterpreter) CompatibleModules(ctx context.Context) ([]string, error) 
 	return mp.ctx.SessionCompatibleModules(ctx, mp.id)
 }
 
-// Close is used to close reader, it will not kill the meterpreter session.
-func (mp *Meterpreter) Close() error {
-	mp.destroy(true)
-	return nil
-}
-
-func (mp *Meterpreter) closeNotWait() {
-	mp.destroy(false)
-}
-
-func (mp *Meterpreter) destroy(wait bool) {
-	mp.close()
-	if wait {
-		mp.wg.Wait()
-	}
-}
-
-func (mp *Meterpreter) close() {
-	mp.closeOnce.Do(func() {
-		mp.cancel()
-		_ = mp.pw.Close()
-		_ = mp.pr.Close()
-	})
-}
-
-// Kill is used to kill meterpreter session.
-func (mp *Meterpreter) Kill() error {
-	err := mp.ctx.SessionStop(mp.context, mp.id)
+// Stop is used to stop meterpreter session.
+// Must use msfrpc's context, because Meterpreter.context maybe canceled.
+func (mp *Meterpreter) Stop() error {
+	err := mp.ctx.SessionStop(mp.ctx.ctx, mp.id)
 	if err != nil {
 		return err
 	}
-	return mp.Close()
+	mp.close()
+	return nil
+}
+
+func (mp *Meterpreter) close() {
+	mp.cancel()
+	_ = mp.pw.Close()
+	_ = mp.pr.Close()
 }

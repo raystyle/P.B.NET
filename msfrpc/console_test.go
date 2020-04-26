@@ -549,8 +549,6 @@ func TestConsole_readLoop(t *testing.T) {
 
 		err = console.Destroy()
 		require.Error(t, err)
-		err = console.Close()
-		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -561,8 +559,6 @@ func TestConsole_readLoop(t *testing.T) {
 		time.Sleep(time.Second)
 
 		err = console.Destroy()
-		require.NoError(t, err)
-		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
@@ -583,8 +579,6 @@ func TestConsole_readLoop(t *testing.T) {
 		time.Sleep(time.Second)
 
 		err = console.Destroy()
-		require.NoError(t, err)
-		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
@@ -639,8 +633,6 @@ func TestConsole_read(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
-		err = console.Close()
-		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -681,8 +673,6 @@ func TestConsole_read(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
-		err = console.Close()
-		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -722,8 +712,6 @@ func TestConsole_read(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
-		err = console.Close()
-		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -762,8 +750,6 @@ func TestConsole_writeLimiter(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
-		err = console.Close()
-		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -774,8 +760,6 @@ func TestConsole_writeLimiter(t *testing.T) {
 		time.Sleep(3 * minReadInterval)
 
 		err = console.Destroy()
-		require.NoError(t, err)
-		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
@@ -806,8 +790,6 @@ func TestConsole_writeLimiter(t *testing.T) {
 		pg.Unpatch()
 
 		err = console.Destroy()
-		require.NoError(t, err)
-		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
@@ -849,8 +831,6 @@ func TestConsole_Write(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
-		err = console.Close()
-		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -870,8 +850,6 @@ func TestConsole_Write(t *testing.T) {
 		require.Equal(t, context.Canceled, err)
 
 		err = console.Destroy()
-		require.NoError(t, err)
-		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
@@ -988,8 +966,6 @@ func TestConsole_Detach(t *testing.T) {
 	fmt.Println()
 
 	err = console.Destroy()
-	require.NoError(t, err)
-	err = console.Close()
 	require.NoError(t, err)
 	testsuite.IsDestroyed(t, console)
 
