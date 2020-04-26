@@ -8,7 +8,7 @@ import (
 
 func TestGenerateAndLoadSessionKey(t *testing.T) {
 	password := []byte("pbnet")
-	data, err := generateSessionKey(password)
+	data, err := GenerateSessionKey(password)
 	require.NoError(t, err)
 	keys, err := loadSessionKey(data, password)
 	require.NoError(t, err)

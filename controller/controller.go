@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/bootstrap"
+	"project/internal/certmgr"
 	"project/internal/crypto/cert"
 	"project/internal/guid"
 	"project/internal/logger"
@@ -125,16 +126,19 @@ func (ctrl *Ctrl) Main() error {
 	defer func() { ctrl.wait <- struct{}{} }()
 	// synchronize time
 	if ctrl.Test.options.SkipSynchronizeTime {
-		ctrl.global.StartTimeSyncerAddLoop()
+		ctrl.global.TimeSyncer.StartWalker()
 	} else {
-		err := ctrl.global.StartTimeSyncer()
+		err := ctrl.global.TimeSyncer.Start()
 		if err != nil {
 			return ctrl.fatal(err, "failed to synchronize time")
 		}
 	}
 	// test client DNS option
 	if !ctrl.Test.options.SkipTestClientDNS {
-		err := ctrl.global.TestDNSOption(ctrl.clientMgr.GetDNSOptions())
+		const domain = "cloudflare.com"
+		ctx := context.Background()
+		opts := ctrl.clientMgr.GetDNSOptions()
+		_, err := ctrl.global.DNSClient.TestOption(ctx, domain, opts)
 		if err != nil {
 			return errors.WithMessage(err, "failed to test client DNS option")
 		}
@@ -213,15 +217,15 @@ func (ctrl *Ctrl) Exit(err error) {
 
 // LoadKeyFromFile is used to load session key and certificate pool from file.
 func (ctrl *Ctrl) LoadKeyFromFile(sessionKeyPassword, certPassword []byte) error {
-	sessionKey, err := ioutil.ReadFile(sessionKeyFile)
+	sessionKey, err := ioutil.ReadFile(SessionKeyFile)
 	if err != nil {
 		return err
 	}
-	certData, err := ioutil.ReadFile(CertFile)
+	certData, err := ioutil.ReadFile(certmgr.CertFilePath)
 	if err != nil {
 		return err
 	}
-	rawHash, err := ioutil.ReadFile(CertHash)
+	rawHash, err := ioutil.ReadFile(certmgr.HashFilePath)
 	if err != nil {
 		return err
 	}

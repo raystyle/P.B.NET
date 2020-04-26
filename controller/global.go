@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/certmgr"
 	"project/internal/crypto/aes"
 	"project/internal/crypto/cert"
 	"project/internal/crypto/curve25519"
@@ -173,36 +174,6 @@ const (
 	objKexPublicKey
 )
 
-// GetProxyClient is used to get proxy client from proxy pool.
-func (global *global) GetProxyClient(tag string) (*proxy.Client, error) {
-	return global.ProxyPool.Get(tag)
-}
-
-// ResolveDomain is used to resolve domain name with context and options.
-func (global *global) ResolveDomain(
-	ctx context.Context,
-	domain string,
-	opts *dns.Options,
-) ([]string, error) {
-	return global.DNSClient.ResolveContext(ctx, domain, opts)
-}
-
-// TestDNSOption is used to test client DNS option.
-func (global *global) TestDNSOption(opts *dns.Options) error {
-	_, err := global.DNSClient.TestOption(global.context, "cloudflare.com", opts)
-	return err
-}
-
-// StartTimeSyncer is used to start time syncer.
-func (global *global) StartTimeSyncer() error {
-	return global.TimeSyncer.Start()
-}
-
-// StartTimeSyncerAddLoop is used to start time syncer add loop.
-func (global *global) StartTimeSyncerAddLoop() {
-	global.TimeSyncer.StartWalker()
-}
-
 // Now is used to get current time.
 func (global *global) Now() time.Time {
 	return global.TimeSyncer.Now()
@@ -258,13 +229,11 @@ func (global *global) LoadKey(
 	// aes crypto about broadcast
 	cbc, _ := aes.NewCBC(key[1], key[2])
 	global.objects[objBroadcastKey] = cbc
-
 	// load certificate pool
-	err = loadCertPool(global.CertPool, certData, rawHash, certPassword)
+	err = certmgr.LoadCtrlCertPool(global.CertPool, certData, rawHash, certPassword)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
 	global.closeWaitLoadKey()
 	atomic.StoreInt32(&global.loadKey, 1)
 	return nil

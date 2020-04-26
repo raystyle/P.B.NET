@@ -79,14 +79,14 @@ func (ctrl *Ctrl) NewClient(
 		Now:       ctrl.global.Now,
 	}
 	// set proxy
-	proxy, err := ctrl.global.GetProxyClient(ctrl.clientMgr.GetProxyTag())
+	proxy, err := ctrl.global.ProxyPool.Get(ctrl.clientMgr.GetProxyTag())
 	if err != nil {
 		return nil, err
 	}
 	opts.Dialer = proxy.DialContext
 	// resolve domain name
 	dnsOpts := ctrl.clientMgr.GetDNSOptions()
-	result, err := ctrl.global.ResolveDomain(ctx, host, dnsOpts)
+	result, err := ctrl.global.DNSClient.ResolveContext(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}
