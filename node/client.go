@@ -73,14 +73,14 @@ func (node *Node) NewClient(
 		Now:       node.global.Now,
 	}
 	// set proxy
-	proxy, err := node.global.GetProxyClient(node.clientMgr.GetProxyTag())
+	proxy, err := node.global.ProxyPool.Get(node.clientMgr.GetProxyTag())
 	if err != nil {
 		return nil, err
 	}
 	opts.Dialer = proxy.DialContext
 	// resolve domain name
 	dnsOpts := node.clientMgr.GetDNSOptions()
-	result, err := node.global.ResolveDomain(ctx, host, dnsOpts)
+	result, err := node.global.DNSClient.ResolveContext(ctx, host, dnsOpts)
 	if err != nil {
 		return nil, err
 	}

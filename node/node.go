@@ -135,9 +135,9 @@ func (node *Node) Main() error {
 	node.logger.StartSender()
 	// synchronize time
 	if node.Test.options.SkipSynchronizeTime {
-		node.global.StartTimeSyncerWalker()
+		node.global.TimeSyncer.StartWalker()
 	} else {
-		err := node.global.StartTimeSyncer()
+		err := node.global.TimeSyncer.Start()
 		if err != nil {
 			return node.fatal(err, "failed to synchronize time")
 		}

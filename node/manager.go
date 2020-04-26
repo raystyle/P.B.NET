@@ -88,7 +88,7 @@ func (mgr *clientMgr) SetTimeout(timeout time.Duration) error {
 
 func (mgr *clientMgr) SetProxyTag(tag string) error {
 	// check proxy is exist
-	_, err := mgr.ctx.global.GetProxyClient(tag)
+	_, err := mgr.ctx.global.ProxyPool.Get(tag)
 	if err != nil {
 		return err
 	}
