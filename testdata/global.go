@@ -5,7 +5,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
+	
+	"project/internal/certmgr"
 	"project/internal/crypto/cert"
 	"project/internal/dns"
 	"project/internal/logger"
@@ -16,16 +17,16 @@ import (
 	"project/internal/timesync"
 )
 
-// RawCertPool is used to provide a raw certificate pool for test.
-func RawCertPool(t require.TestingT) cert.RawCertPool {
-	rcp := cert.RawCertPool{}
-	systemCertPool, err := cert.SystemCertPool()
+// CertPool is used to provide a certificate pool for test.
+func CertPool(t require.TestingT) certmgr.NBCertPool{
+	cp := certmgr.NBCertPool{}
+	pool, err := cert.SystemCertPool()
 	require.NoError(t, err)
-	certs := systemCertPool.Certs()
+	certs := pool.Certs()
 	for i := 0; i < len(certs); i++ {
-		rcp.PublicRootCACerts = append(rcp.PublicRootCACerts, certs[i].Raw)
+		cp.PublicRootCACerts = append(cp.PublicRootCACerts, certs[i].Raw)
 	}
-	return rcp
+	return cp
 }
 
 // proxy client tag

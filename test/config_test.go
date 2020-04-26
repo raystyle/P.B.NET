@@ -140,7 +140,7 @@ func generateNodeConfig(t testing.TB, name string) *node.Config {
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = time.Minute
 
-	ctrl.GetCertPool().AddToRawCertPool(&cfg.Global.RawCertPool)
+	cfg.Global.CertPool.GetCertsFromPool(ctrl.GetCertPool())
 	cfg.Global.ProxyClients = testdata.ProxyClients(t)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
@@ -192,7 +192,7 @@ func generateBeaconConfig(t testing.TB, name string) *beacon.Config {
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = time.Minute
 
-	ctrl.GetCertPool().AddToRawCertPool(&cfg.Global.RawCertPool)
+	cfg.Global.CertPool.GetCertsFromPool(ctrl.GetCertPool())
 	cfg.Global.ProxyClients = testdata.ProxyClients(t)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()

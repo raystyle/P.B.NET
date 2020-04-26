@@ -39,7 +39,7 @@ func testGenerateNodeConfig(t testing.TB) *node.Config {
 	cfg.Global.TimeSyncSleepRandom = 10
 	cfg.Global.TimeSyncInterval = 1 * time.Minute
 
-	ctrl.global.CertPool.AddToRawCertPool(&cfg.Global.RawCertPool)
+	cfg.Global.CertPool.GetCertsFromPool(ctrl.global.CertPool)
 	cfg.Global.ProxyClients = testdata.ProxyClients(t)
 	cfg.Global.DNSServers = testdata.DNSServers()
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
