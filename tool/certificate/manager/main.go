@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/sha256"
 	"crypto/x509"
 	"flag"
 	"fmt"
@@ -17,18 +16,16 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	"project/internal/crypto/aes"
+	"project/internal/certmgr"
 	"project/internal/crypto/cert"
 	"project/internal/module/shell"
-	"project/internal/patch/msgpack"
 	"project/internal/security"
-
-	"project/controller"
+	"project/internal/system"
 )
 
 const (
-	certFileBak = controller.CertFile + ".bak"
-	certHashBak = controller.CertHash + ".bak"
+	certFileBackup = certmgr.CertFilePath + ".bak"
+	certHashBackup = certmgr.HashFilePath + ".bak"
 )
 
 func main() {
@@ -43,15 +40,15 @@ func main() {
 }
 
 func initialize() {
-	// check exists
-	_, err := os.OpenFile(controller.CertFile, os.O_RDONLY, 0600)
+	// check data file is exists
+	_, err := os.OpenFile(certmgr.CertFilePath, os.O_RDONLY, 0600)
 	if err == nil {
-		fmt.Printf("%s has already exists\n", controller.CertFile)
+		fmt.Printf("%s has already exists\n", certmgr.CertFilePath)
 		os.Exit(0)
 	}
-	_, err = os.OpenFile(controller.CertHash, os.O_RDONLY, 0600)
+	_, err = os.OpenFile(certmgr.HashFilePath, os.O_RDONLY, 0600)
 	if err == nil {
-		fmt.Printf("%s has already exists\n", controller.CertHash)
+		fmt.Printf("%s has already exists\n", certmgr.HashFilePath)
 		os.Exit(0)
 	}
 
@@ -70,7 +67,6 @@ func initialize() {
 			break
 		}
 	}
-	_ = os.Mkdir("key", 0750)
 
 	// load system certificates
 	pool, err := cert.NewPoolWithSystemCerts()
@@ -94,7 +90,9 @@ func initialize() {
 	err = pool.AddPrivateClientCert(clientCert.Encode())
 	checkError(err, true)
 
-	saveCertPool(pool, password)
+	_ = os.Mkdir("key", 0750)
+	err = certmgr.SaveCtrlCertPool(pool, password)
+	checkError(err, true)
 	fmt.Println("initialize certificate manager successfully")
 }
 
@@ -104,92 +102,33 @@ func manage() {
 	password, err := terminal.ReadPassword(int(syscall.Stdin))
 	checkError(err, true)
 	fmt.Println()
+	// backup
+	createBackup()
 	// start manage
 	manager := manager{
 		password: security.NewBytes(password),
 	}
 	security.CoverBytes(password)
-	manager.reload()
 	manager.Manage()
 }
 
-func saveCertPool(pool *cert.Pool, password []byte) {
-	rcp := controller.RawCertPool{}
-	pubRootCACerts := pool.GetPublicRootCACerts()
-	for i := 0; i < len(pubRootCACerts); i++ {
-		rcp.PublicRootCACerts = append(rcp.PublicRootCACerts, pubRootCACerts[i].Raw)
-	}
-	pubClientCACerts := pool.GetPublicClientCACerts()
-	for i := 0; i < len(pubClientCACerts); i++ {
-		rcp.PublicClientCACerts = append(rcp.PublicClientCACerts, pubClientCACerts[i].Raw)
-	}
-	pubClientPairs := pool.GetPublicClientPairs()
-	for i := 0; i < len(pubClientPairs); i++ {
-		c, k := pubClientPairs[i].Encode()
-		rcp.PublicClientPairs = append(rcp.PublicClientPairs, struct {
-			Cert []byte `msgpack:"a"`
-			Key  []byte `msgpack:"b"`
-		}{Cert: c, Key: k})
-	}
-	priRootCAPairs := pool.GetPrivateRootCAPairs()
-	for i := 0; i < len(priRootCAPairs); i++ {
-		c, k := priRootCAPairs[i].Encode()
-		rcp.PrivateRootCAPairs = append(rcp.PrivateRootCAPairs, struct {
-			Cert []byte `msgpack:"a"`
-			Key  []byte `msgpack:"b"`
-		}{Cert: c, Key: k})
-	}
-	priClientCAPairs := pool.GetPrivateClientCAPairs()
-	for i := 0; i < len(priClientCAPairs); i++ {
-		c, k := priClientCAPairs[i].Encode()
-		rcp.PrivateClientCAPairs = append(rcp.PrivateClientCAPairs, struct {
-			Cert []byte `msgpack:"a"`
-			Key  []byte `msgpack:"b"`
-		}{Cert: c, Key: k})
-	}
-	priClientPairs := pool.GetPrivateClientPairs()
-	for i := 0; i < len(priClientPairs); i++ {
-		c, k := priClientPairs[i].Encode()
-		rcp.PrivateClientPairs = append(rcp.PrivateClientPairs, struct {
-			Cert []byte `msgpack:"a"`
-			Key  []byte `msgpack:"b"`
-		}{Cert: c, Key: k})
-	}
-	// clean private key
-	defer func() {
-		for i := 0; i < len(rcp.PublicClientPairs); i++ {
-			security.CoverBytes(rcp.PublicClientPairs[i].Key)
-		}
-		for i := 0; i < len(rcp.PrivateRootCAPairs); i++ {
-			security.CoverBytes(rcp.PrivateRootCAPairs[i].Key)
-		}
-		for i := 0; i < len(rcp.PrivateClientCAPairs); i++ {
-			security.CoverBytes(rcp.PrivateClientCAPairs[i].Key)
-		}
-		for i := 0; i < len(rcp.PrivateClientPairs); i++ {
-			security.CoverBytes(rcp.PrivateClientPairs[i].Key)
-		}
-	}()
-	data, err := msgpack.Marshal(&rcp)
+func createBackup() {
+	// certificate
+	data, err := ioutil.ReadFile(certmgr.CertFilePath)
 	checkError(err, true)
-	defer security.CoverBytes(data)
+	err = system.WriteFile(certFileBackup, data)
+	checkError(err, true)
+	// hash
+	data, err = ioutil.ReadFile(certmgr.HashFilePath)
+	checkError(err, true)
+	err = system.WriteFile(certHashBackup, data)
+	checkError(err, true)
+}
 
-	// encrypt certificates
-	aesKey, aesIV := controller.GenerateCertPoolAESKey(password)
-	defer func() {
-		security.CoverBytes(aesKey)
-		security.CoverBytes(aesIV)
-	}()
-	cipherData, err := aes.CBCEncrypt(data, aesKey, aesIV)
+func deleteBackup() {
+	err := os.Remove(certFileBackup)
 	checkError(err, true)
-	// save encrypted certificates
-	err = writeFile(controller.CertFile, cipherData)
-	checkError(err, true)
-	// calculate hash
-	hash := sha256.New()
-	hash.Write(password)
-	hash.Write(data)
-	err = writeFile(controller.CertHash, hash.Sum(nil))
+	err = os.Remove(certHashBackup)
 	checkError(err, true)
 }
 
@@ -224,21 +163,6 @@ func loadPairs(certFile, keyFile string) ([]*x509.Certificate, []interface{}) {
 	return certs, keys
 }
 
-func writeFile(filename string, data []byte) error {
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600) // #nosec
-	if err != nil {
-		return err
-	}
-	_, err = file.Write(data)
-	if err1 := file.Sync(); err == nil {
-		err = err1
-	}
-	if err1 := file.Close(); err == nil {
-		err = err1
-	}
-	return err
-}
-
 func checkError(err error, exit bool) bool {
 	if err != nil {
 		if strings.Contains(err.Error(), "unexpected newline") {
@@ -267,6 +191,34 @@ const (
 	prefixPrivateClient   = "manager/private/client"
 )
 
+const locationHelpTemplate = `
+help about manager/%s:
+  
+  root-ca      switch to %s/root-ca mode
+  client-ca    switch to %s/client-ca mode
+  client       switch to %s/client mode
+  help         print help
+  save         save certificate pool
+  reload       reload certificate pool
+  return       return to the manager
+  exit         close certificate manager
+  
+`
+
+const certHelpTemplate = `
+help about manager/%s:
+  
+  list         list all %s certificates
+  add          add a certificate
+  delete       delete a certificate with ID
+  help         print help
+  save         save certificate pool
+  reload       reload certificate pool
+  return       return to the %s mode
+  exit         close certificate manager
+
+`
+
 type manager struct {
 	password *security.Bytes
 	pool     *cert.Pool
@@ -275,8 +227,6 @@ type manager struct {
 }
 
 func (m *manager) Manage() {
-	// create backup
-	m.backup()
 	// interrupt input
 	go func() {
 		signalChan := make(chan os.Signal, 1)
@@ -285,6 +235,7 @@ func (m *manager) Manage() {
 			<-signalChan
 		}
 	}()
+	m.reload()
 	m.prefix = prefixManager
 	m.scanner = bufio.NewScanner(os.Stdin)
 	for {
@@ -320,17 +271,35 @@ func (m *manager) Manage() {
 	}
 }
 
-func (m *manager) backup() {
-	// certificate
-	data, err := ioutil.ReadFile(controller.CertFile)
+func (m *manager) reload() {
+	// load certificate data
+	certData, err := ioutil.ReadFile(certmgr.CertFilePath)
 	checkError(err, true)
-	err = writeFile(certFileBak, data)
+	rawHash, err := ioutil.ReadFile(certmgr.HashFilePath)
 	checkError(err, true)
-	// hash
-	data, err = ioutil.ReadFile(controller.CertHash)
+	// get password
+	password := m.password.Get()
+	defer m.password.Put(password)
+	// load
+	pool := cert.NewPool()
+	err = certmgr.LoadCtrlCertPool(pool, certData, rawHash, password)
 	checkError(err, true)
-	err = writeFile(certHashBak, data)
-	checkError(err, true)
+	m.pool = pool
+}
+
+func (m *manager) save() {
+	// get password
+	password := m.password.Get()
+	defer m.password.Put(password)
+	// save certificate
+	err := certmgr.SaveCtrlCertPool(m.pool, password)
+	checkError(err, false)
+}
+
+func (m *manager) exit() {
+	deleteBackup()
+	fmt.Println("Bye!")
+	os.Exit(0)
 }
 
 func (m *manager) manager() {
@@ -375,46 +344,6 @@ help about manager:
 `
 	fmt.Print(help)
 }
-
-func (m *manager) reload() {
-	certData, err := ioutil.ReadFile(controller.CertFile)
-	checkError(err, true)
-	rawHash, err := ioutil.ReadFile(controller.CertHash)
-	checkError(err, true)
-	password := m.password.Get()
-	defer m.password.Put(password)
-	pool, err := controller.LoadCertPool(certData, rawHash, password)
-	checkError(err, true)
-	m.pool = pool
-}
-
-func (m *manager) save() {
-	password := m.password.Get()
-	defer m.password.Put(password)
-	saveCertPool(m.pool, password)
-}
-
-func (m *manager) exit() {
-	// delete backup
-	checkError(os.Remove(certFileBak), true)
-	checkError(os.Remove(certHashBak), true)
-	fmt.Println("Bye!")
-	os.Exit(0)
-}
-
-const locationHelpTemplate = `
-help about manager/%s:
-  
-  root-ca      switch to %s/root-ca mode
-  client-ca    switch to %s/client-ca mode
-  client       switch to %s/client mode
-  help         print help
-  save         save certificate pool
-  reload       reload certificate pool
-  return       return to the manager
-  exit         close certificate manager
-  
-`
 
 func (m *manager) public() {
 	cmd := m.scanner.Text()
@@ -487,20 +416,6 @@ func (m *manager) private() {
 		fmt.Printf("unknown command: \"%s\"\n", cmd)
 	}
 }
-
-const certHelpTemplate = `
-help about manager/%s:
-  
-  list         list all %s certificates
-  add          add a certificate
-  delete       delete a certificate with ID
-  help         print help
-  save         save certificate pool
-  reload       reload certificate pool
-  return       return to the %s mode
-  exit         close certificate manager
-
-`
 
 // -----------------------------------------Public Root CA-----------------------------------------
 
@@ -704,11 +619,7 @@ func (m *manager) publicClientList() {
 
 func (m *manager) publicClientAdd(certFile, keyFile string) {
 	certs, keys := loadPairs(certFile, keyFile)
-	certsNum := len(certs)
-	if certsNum < 1 {
-		return
-	}
-	for i := 0; i < certsNum; i++ {
+	for i := 0; i < len(certs); i++ {
 		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
 		err := m.pool.AddPublicClientCert(certs[i].Raw, keyData)
 		checkError(err, false)
@@ -777,11 +688,7 @@ func (m *manager) privateRootCAList() {
 
 func (m *manager) privateRootCAAdd(certFile, keyFile string) {
 	certs, keys := loadPairs(certFile, keyFile)
-	certsNum := len(certs)
-	if certsNum < 1 {
-		return
-	}
-	for i := 0; i < certsNum; i++ {
+	for i := 0; i < len(certs); i++ {
 		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
 		err := m.pool.AddPrivateRootCACert(certs[i].Raw, keyData)
 		checkError(err, false)
@@ -850,11 +757,7 @@ func (m *manager) privateClientCAList() {
 
 func (m *manager) privateClientCAAdd(certFile, keyFile string) {
 	certs, keys := loadPairs(certFile, keyFile)
-	certsNum := len(certs)
-	if certsNum < 1 {
-		return
-	}
-	for i := 0; i < certsNum; i++ {
+	for i := 0; i < len(certs); i++ {
 		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
 		err := m.pool.AddPrivateClientCACert(certs[i].Raw, keyData)
 		checkError(err, false)
@@ -923,11 +826,7 @@ func (m *manager) privateClientList() {
 
 func (m *manager) privateClientAdd(certFile, keyFile string) {
 	certs, keys := loadPairs(certFile, keyFile)
-	certsNum := len(certs)
-	if certsNum < 1 {
-		return
-	}
-	for i := 0; i < certsNum; i++ {
+	for i := 0; i < len(certs); i++ {
 		keyData, _ := x509.MarshalPKCS8PrivateKey(keys[i])
 		err := m.pool.AddPrivateClientCert(certs[i].Raw, keyData)
 		checkError(err, false)
