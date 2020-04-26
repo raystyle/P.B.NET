@@ -59,25 +59,25 @@ func calculateAESKeyFromPassword(password []byte) ([]byte, []byte) {
 
 // SaveCtrlCertPool is used to compress and encrypt certificate pool.
 func SaveCtrlCertPool(pool *cert.Pool, password []byte) error {
-	rcp := new(ctrlCertPool)
+	cp := new(ctrlCertPool)
 	// clean private key at once
 	defer func() {
-		for i := 0; i < len(rcp.PublicClientPairs); i++ {
-			security.CoverBytes(rcp.PublicClientPairs[i].Key)
+		for i := 0; i < len(cp.PublicClientPairs); i++ {
+			security.CoverBytes(cp.PublicClientPairs[i].Key)
 		}
-		for i := 0; i < len(rcp.PrivateRootCAPairs); i++ {
-			security.CoverBytes(rcp.PrivateRootCAPairs[i].Key)
+		for i := 0; i < len(cp.PrivateRootCAPairs); i++ {
+			security.CoverBytes(cp.PrivateRootCAPairs[i].Key)
 		}
-		for i := 0; i < len(rcp.PrivateClientCAPairs); i++ {
-			security.CoverBytes(rcp.PrivateClientCAPairs[i].Key)
+		for i := 0; i < len(cp.PrivateClientCAPairs); i++ {
+			security.CoverBytes(cp.PrivateClientCAPairs[i].Key)
 		}
-		for i := 0; i < len(rcp.PrivateClientPairs); i++ {
-			security.CoverBytes(rcp.PrivateClientPairs[i].Key)
+		for i := 0; i < len(cp.PrivateClientPairs); i++ {
+			security.CoverBytes(cp.PrivateClientPairs[i].Key)
 		}
 	}()
-	getCertsFromPool(pool, rcp)
+	getCertsFromPool(pool, cp)
 	// marshal
-	certsData, err := msgpack.Marshal(rcp)
+	certsData, err := msgpack.Marshal(cp)
 	if err != nil {
 		return err
 	}
@@ -118,19 +118,19 @@ func SaveCtrlCertPool(pool *cert.Pool, password []byte) error {
 	return system.WriteFile(HashFilePath, hash.Sum(nil))
 }
 
-func getCertsFromPool(pool *cert.Pool, rcp *ctrlCertPool) {
+func getCertsFromPool(pool *cert.Pool, cp *ctrlCertPool) {
 	pubRootCACerts := pool.GetPublicRootCACerts()
 	for i := 0; i < len(pubRootCACerts); i++ {
-		rcp.PublicRootCACerts = append(rcp.PublicRootCACerts, pubRootCACerts[i].Raw)
+		cp.PublicRootCACerts = append(cp.PublicRootCACerts, pubRootCACerts[i].Raw)
 	}
 	pubClientCACerts := pool.GetPublicClientCACerts()
 	for i := 0; i < len(pubClientCACerts); i++ {
-		rcp.PublicClientCACerts = append(rcp.PublicClientCACerts, pubClientCACerts[i].Raw)
+		cp.PublicClientCACerts = append(cp.PublicClientCACerts, pubClientCACerts[i].Raw)
 	}
 	pubClientPairs := pool.GetPublicClientPairs()
 	for i := 0; i < len(pubClientPairs); i++ {
 		c, k := pubClientPairs[i].Encode()
-		rcp.PublicClientPairs = append(rcp.PublicClientPairs, struct {
+		cp.PublicClientPairs = append(cp.PublicClientPairs, struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{Cert: c, Key: k})
@@ -138,7 +138,7 @@ func getCertsFromPool(pool *cert.Pool, rcp *ctrlCertPool) {
 	priRootCAPairs := pool.GetPrivateRootCAPairs()
 	for i := 0; i < len(priRootCAPairs); i++ {
 		c, k := priRootCAPairs[i].Encode()
-		rcp.PrivateRootCAPairs = append(rcp.PrivateRootCAPairs, struct {
+		cp.PrivateRootCAPairs = append(cp.PrivateRootCAPairs, struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{Cert: c, Key: k})
@@ -146,7 +146,7 @@ func getCertsFromPool(pool *cert.Pool, rcp *ctrlCertPool) {
 	priClientCAPairs := pool.GetPrivateClientCAPairs()
 	for i := 0; i < len(priClientCAPairs); i++ {
 		c, k := priClientCAPairs[i].Encode()
-		rcp.PrivateClientCAPairs = append(rcp.PrivateClientCAPairs, struct {
+		cp.PrivateClientCAPairs = append(cp.PrivateClientCAPairs, struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{Cert: c, Key: k})
@@ -154,7 +154,7 @@ func getCertsFromPool(pool *cert.Pool, rcp *ctrlCertPool) {
 	priClientPairs := pool.GetPrivateClientPairs()
 	for i := 0; i < len(priClientPairs); i++ {
 		c, k := priClientPairs[i].Encode()
-		rcp.PrivateClientPairs = append(rcp.PrivateClientPairs, struct {
+		cp.PrivateClientPairs = append(cp.PrivateClientPairs, struct {
 			Cert []byte `msgpack:"a"`
 			Key  []byte `msgpack:"b"`
 		}{Cert: c, Key: k})
@@ -195,57 +195,58 @@ func LoadCtrlCertPool(pool *cert.Pool, cipherData, hashData, password []byte) er
 		return errors.New(msg)
 	}
 	// unmarshal
-	rcp := ctrlCertPool{}
-	err = msgpack.Unmarshal(certsData, &rcp)
+	cp := ctrlCertPool{}
+	err = msgpack.Unmarshal(certsData, &cp)
 	if err != nil {
 		return err
 	}
-	return addCertsToPool(pool, &rcp)
+	return addCertsToPool(pool, &cp)
 }
 
-func addCertsToPool(pool *cert.Pool, rcp *ctrlCertPool) error {
+func addCertsToPool(pool *cert.Pool, cp *ctrlCertPool) error {
 	memory := security.NewMemory()
 	defer memory.Flush()
+
 	var err error
-	for i := 0; i < len(rcp.PublicRootCACerts); i++ {
-		err = pool.AddPublicRootCACert(rcp.PublicRootCACerts[i])
+	for i := 0; i < len(cp.PublicRootCACerts); i++ {
+		err = pool.AddPublicRootCACert(cp.PublicRootCACerts[i])
 		if err != nil {
 			return err
 		}
 	}
-	for i := 0; i < len(rcp.PublicClientCACerts); i++ {
-		err = pool.AddPublicClientCACert(rcp.PublicClientCACerts[i])
+	for i := 0; i < len(cp.PublicClientCACerts); i++ {
+		err = pool.AddPublicClientCACert(cp.PublicClientCACerts[i])
 		if err != nil {
 			return err
 		}
 	}
-	for i := 0; i < len(rcp.PublicClientPairs); i++ {
+	for i := 0; i < len(cp.PublicClientPairs); i++ {
 		memory.Padding()
-		pair := rcp.PublicClientPairs[i]
+		pair := cp.PublicClientPairs[i]
 		err = pool.AddPublicClientCert(pair.Cert, pair.Key)
 		if err != nil {
 			return err
 		}
 	}
-	for i := 0; i < len(rcp.PrivateRootCAPairs); i++ {
+	for i := 0; i < len(cp.PrivateRootCAPairs); i++ {
 		memory.Padding()
-		pair := rcp.PrivateRootCAPairs[i]
+		pair := cp.PrivateRootCAPairs[i]
 		err = pool.AddPrivateRootCACert(pair.Cert, pair.Key)
 		if err != nil {
 			return err
 		}
 	}
-	for i := 0; i < len(rcp.PrivateClientCAPairs); i++ {
+	for i := 0; i < len(cp.PrivateClientCAPairs); i++ {
 		memory.Padding()
-		pair := rcp.PrivateClientCAPairs[i]
+		pair := cp.PrivateClientCAPairs[i]
 		err = pool.AddPrivateClientCACert(pair.Cert, pair.Key)
 		if err != nil {
 			return err
 		}
 	}
-	for i := 0; i < len(rcp.PrivateClientPairs); i++ {
+	for i := 0; i < len(cp.PrivateClientPairs); i++ {
 		memory.Padding()
-		pair := rcp.PrivateClientPairs[i]
+		pair := cp.PrivateClientPairs[i]
 		err = pool.AddPrivateClientCert(pair.Cert, pair.Key)
 		if err != nil {
 			return err
@@ -308,8 +309,8 @@ func (cp *NBCertPool) GetCertsFromPool(pool *cert.Pool) {
 	}
 }
 
-// NewPoolFromNBCertPool is used to create a certificate pool from NBCertPool.
-func NewPoolFromNBCertPool(cp *NBCertPool) (*cert.Pool, error) {
+// ToPool is used to create a certificate pool from NBCertPool.
+func (cp *NBCertPool) ToPool() (*cert.Pool, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
