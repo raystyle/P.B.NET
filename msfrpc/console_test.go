@@ -405,7 +405,7 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 			}
 		}
 
-		// kill
+		// session kill
 		err = msfrpc.ConsoleSessionKill(ctx, console.ID)
 		require.NoError(t, err)
 		time.Sleep(time.Second)
@@ -490,6 +490,9 @@ func TestConsole(t *testing.T) {
 	fmt.Println()
 	fmt.Println()
 
+	err = console.Destroy()
+	require.NoError(t, err)
+
 	err = console.Close()
 	require.NoError(t, err)
 	testsuite.IsDestroyed(t, console)
@@ -534,6 +537,7 @@ func TestConsole_readLoop(t *testing.T) {
 	)
 
 	t.Run("after msfrpc closed", func(t *testing.T) {
+		// simulate msfrpc is closed
 		atomic.StoreInt32(&msfrpc.inShutdown, 1)
 		defer atomic.StoreInt32(&msfrpc.inShutdown, 0)
 
@@ -543,8 +547,10 @@ func TestConsole_readLoop(t *testing.T) {
 		// wait close self
 		time.Sleep(time.Second)
 
-		_ = console.Close()
-
+		err = console.Destroy()
+		require.Error(t, err)
+		err = console.Close()
+		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -554,6 +560,8 @@ func TestConsole_readLoop(t *testing.T) {
 
 		time.Sleep(time.Second)
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
@@ -574,21 +582,10 @@ func TestConsole_readLoop(t *testing.T) {
 
 		time.Sleep(time.Second)
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
-		testsuite.IsDestroyed(t, console)
-	})
-
-	t.Run("auto close", func(t *testing.T) {
-		console, err := msfrpc.NewConsole(ctx, workspace, interval)
-		require.NoError(t, err)
-
-		// wait self add
-		time.Sleep(time.Second)
-
-		err = msfrpc.Close()
-		require.NoError(t, err)
-
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -615,6 +612,20 @@ func TestConsole_read(t *testing.T) {
 		interval  = 25 * time.Millisecond
 	)
 
+	t.Run("failed to read", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		go func() { _, _ = io.Copy(os.Stdout, console) }()
+
+		err = console.Destroy()
+		require.NoError(t, err)
+
+		require.False(t, console.read())
+
+		testsuite.IsDestroyed(t, console)
+	})
+
 	t.Run("cancel in busy", func(t *testing.T) {
 		console, err := msfrpc.NewConsole(ctx, workspace, interval)
 		require.NoError(t, err)
@@ -626,6 +637,8 @@ func TestConsole_read(t *testing.T) {
 
 		time.Sleep(3 * minReadInterval)
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
@@ -666,6 +679,8 @@ func TestConsole_read(t *testing.T) {
 
 		time.Sleep(time.Second)
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
@@ -705,6 +720,8 @@ func TestConsole_read(t *testing.T) {
 			time.Sleep(time.Second)
 		}
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
@@ -743,6 +760,21 @@ func TestConsole_writeLimiter(t *testing.T) {
 
 		time.Sleep(minReadInterval)
 
+		err = console.Destroy()
+		require.NoError(t, err)
+		err = console.Close()
+		require.NoError(t, err)
+		testsuite.IsDestroyed(t, console)
+	})
+
+	t.Run("cancel after cancel", func(t *testing.T) {
+		console, err := msfrpc.NewConsole(ctx, workspace, interval)
+		require.NoError(t, err)
+
+		time.Sleep(3 * minReadInterval)
+
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
@@ -773,6 +805,8 @@ func TestConsole_writeLimiter(t *testing.T) {
 
 		pg.Unpatch()
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
@@ -813,6 +847,8 @@ func TestConsole_Write(t *testing.T) {
 		_, err = console.Write([]byte("version"))
 		require.Equal(t, context.Canceled, err)
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
@@ -833,30 +869,24 @@ func TestConsole_Write(t *testing.T) {
 		_, err = console.Write([]byte("version"))
 		require.Equal(t, context.Canceled, err)
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
 	t.Run("failed to write", func(t *testing.T) {
-		console, err := msfrpc.NewConsole(ctx, workspace, interval)
-		require.NoError(t, err)
+		console := Console{
+			ctx:     msfrpc,
+			context: context.Background(),
+		}
+		console.token = make(chan struct{}, 2)
+		console.token <- struct{}{}
+		console.token <- struct{}{}
 
-		go func() { _, _ = io.Copy(os.Stdout, console) }()
-
-		time.Sleep(time.Second)
-		err = msfrpc.AuthLogout(msfrpc.GetToken())
-		require.NoError(t, err)
-
-		_, err = console.Write([]byte("version"))
+		_, err := console.Write([]byte("version"))
 		require.Error(t, err)
-
-		err = msfrpc.AuthLogin()
-		require.NoError(t, err)
-
-		err = console.Close()
-		require.NoError(t, err)
-		testsuite.IsDestroyed(t, console)
 	})
 
 	msfrpc.Kill()
@@ -957,11 +987,13 @@ func TestConsole_Detach(t *testing.T) {
 	fmt.Println()
 	fmt.Println()
 
+	err = console.Destroy()
+	require.NoError(t, err)
 	err = console.Close()
 	require.NoError(t, err)
 	testsuite.IsDestroyed(t, console)
 
-	// kill session
+	// stop session
 	sessions, err := msfrpc.SessionList(ctx)
 	require.NoError(t, err)
 	for id, session := range sessions {
@@ -976,7 +1008,7 @@ func TestConsole_Detach(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
-func TestConsole_Close(t *testing.T) {
+func TestConsole_Destroy(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -999,11 +1031,13 @@ func TestConsole_Close(t *testing.T) {
 		console, err := msfrpc.NewConsole(ctx, workspace, interval)
 		require.NoError(t, err)
 
-		err = console.Close()
+		err = console.Destroy()
 		require.NoError(t, err)
-		err = console.Close()
-		require.NoError(t, err)
+		err = console.Destroy()
+		require.Error(t, err)
 
+		err = console.Close()
+		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -1014,16 +1048,18 @@ func TestConsole_Close(t *testing.T) {
 		err = msfrpc.AuthLogout(msfrpc.GetToken())
 		require.NoError(t, err)
 
-		err = console.Close()
+		err = console.Destroy()
 		require.Error(t, err)
 
-		err = console.Close()
+		err = console.Destroy()
 		require.Error(t, err)
 
 		// login and destroy
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
 
+		err = console.Destroy()
+		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)

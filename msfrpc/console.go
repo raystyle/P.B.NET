@@ -212,7 +212,7 @@ func (msf *MSFRPC) ConsoleSessionKill(ctx context.Context, id string) error {
 	return nil
 }
 
-const minReadInterval = 200 * time.Millisecond
+const minReadInterval = 100 * time.Millisecond
 
 // Console is used to provide a more gracefully io. It implemented io.ReadWriteCloser.
 type Console struct {
@@ -221,18 +221,14 @@ type Console struct {
 	id       string
 	interval time.Duration
 
-	logSrc   string
-	pr       *io.PipeReader
-	pw       *io.PipeWriter
-	writeMu  sync.Mutex
-	token    chan struct{}
-	closed   bool
-	closedMu sync.Mutex
+	logSrc  string
+	pr      *io.PipeReader
+	pw      *io.PipeWriter
+	token   chan struct{}
+	writeMu sync.Mutex
 
-	context   context.Context
-	cancel    context.CancelFunc
-	closeOnce sync.Once
-	wg        sync.WaitGroup
+	context context.Context
+	cancel  context.CancelFunc
 }
 
 // NewConsole is used to create a console, it will create a new console(msfrpc).
@@ -266,7 +262,6 @@ func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console 
 	}
 	console.pr, console.pw = io.Pipe()
 	console.context, console.cancel = context.WithCancel(context.Background())
-	console.wg.Add(2)
 	go console.readLoop()
 	go console.writeLimiter()
 	return &console
@@ -287,7 +282,6 @@ func (console *Console) readLoop() {
 			go console.readLoop()
 		} else {
 			console.close()
-			console.wg.Done()
 		}
 	}()
 	if !console.ctx.trackConsole(console, true) {
@@ -390,8 +384,6 @@ func (console *Console) writeLimiter() {
 			// restart limiter
 			time.Sleep(time.Second)
 			go console.writeLimiter()
-		} else {
-			console.wg.Done()
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.
@@ -441,6 +433,12 @@ func (console *Console) Write(b []byte) (int, error) {
 	return console.pw.Write(b)
 }
 
+// Close is used to close console, it will not destroy console.
+func (console *Console) Close() error {
+	console.close()
+	return nil
+}
+
 // Detach is used to detach current console.
 func (console *Console) Detach(ctx context.Context) error {
 	return console.ctx.ConsoleSessionDetach(ctx, console.id)
@@ -451,39 +449,20 @@ func (console *Console) Interrupt(ctx context.Context) error {
 	return console.ctx.ConsoleSessionKill(ctx, console.id)
 }
 
-// Close is used to destroy console.
-func (console *Console) Close() error {
-	return console.destroy(true)
-}
-
-func (console *Console) closeNotWait() error {
-	return console.destroy(false)
-}
-
-func (console *Console) destroy(wait bool) error {
-	// destroy once
-	console.closedMu.Lock()
-	defer console.closedMu.Unlock()
-	if !console.closed {
-		// must use msfrpc's context, because console.context maybe canceled.
-		err := console.ctx.ConsoleDestroy(console.ctx.ctx, console.id)
-		if err != nil {
-			return err
-		}
-		console.closed = true
+// Destroy is used to destroy console.
+// Must use msfrpc's context, because console.context maybe canceled.
+func (console *Console) Destroy() error {
+	err := console.ctx.ConsoleDestroy(console.ctx.ctx, console.id)
+	if err != nil {
+		return err
 	}
 	console.close()
-	if wait {
-		console.wg.Wait()
-	}
 	return nil
 }
 
 // close is used to close reader and writeLimiter.
 func (console *Console) close() {
-	console.closeOnce.Do(func() {
-		console.cancel()
-		_ = console.pw.Close()
-		_ = console.pr.Close()
-	})
+	console.cancel()
+	_ = console.pw.Close()
+	_ = console.pr.Close()
 }
