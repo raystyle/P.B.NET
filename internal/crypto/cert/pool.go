@@ -14,6 +14,7 @@ import (
 // ErrMismatchedKey is the error about the key.
 var ErrMismatchedKey = fmt.Errorf("private key does not match public key in certificate")
 
+// pair is used to protect private key about certificate.
 type pair struct {
 	Certificate *x509.Certificate
 	PrivateKey  *security.Bytes // PKCS8
@@ -358,107 +359,6 @@ func (p *Pool) GetPrivateClientPairs() []*Pair {
 		pairs[i] = p.privateClientCerts[i].ToPair()
 	}
 	return pairs
-}
-
-// AddToRawCertPool is used to add certificates to raw certificate pool.
-func (p *Pool) AddToRawCertPool(rcp *RawCertPool) {
-	pubRootCACerts := p.GetPublicRootCACerts()
-	for i := 0; i < len(pubRootCACerts); i++ {
-		rcp.PublicRootCACerts = append(rcp.PublicRootCACerts, pubRootCACerts[i].Raw)
-	}
-	pubClientCACerts := p.GetPublicClientCACerts()
-	for i := 0; i < len(pubClientCACerts); i++ {
-		rcp.PublicClientCACerts = append(rcp.PublicClientCACerts, pubClientCACerts[i].Raw)
-	}
-	pubClientPairs := p.GetPublicClientPairs()
-	for i := 0; i < len(pubClientPairs); i++ {
-		c, k := pubClientPairs[i].Encode()
-		rcp.PublicClientPairs = append(rcp.PublicClientPairs, struct {
-			Cert []byte `msgpack:"a"`
-			Key  []byte `msgpack:"b"`
-		}{Cert: c, Key: k})
-	}
-	priRootCACerts := p.GetPrivateRootCACerts()
-	for i := 0; i < len(priRootCACerts); i++ {
-		rcp.PrivateRootCACerts = append(rcp.PrivateRootCACerts, priRootCACerts[i].Raw)
-	}
-	priClientCACerts := p.GetPrivateClientCACerts()
-	for i := 0; i < len(priClientCACerts); i++ {
-		rcp.PrivateClientCACerts = append(rcp.PrivateClientCACerts, priClientCACerts[i].Raw)
-	}
-	priClientPairs := p.GetPrivateClientPairs()
-	for i := 0; i < len(priClientPairs); i++ {
-		c, k := priClientPairs[i].Encode()
-		rcp.PrivateClientPairs = append(rcp.PrivateClientPairs, struct {
-			Cert []byte `msgpack:"a"`
-			Key  []byte `msgpack:"b"`
-		}{Cert: c, Key: k})
-	}
-}
-
-// RawCertPool contains raw certificates, it used for Node and Beacon Config.
-type RawCertPool struct {
-	PublicRootCACerts   [][]byte `msgpack:"a"`
-	PublicClientCACerts [][]byte `msgpack:"b"`
-	PublicClientPairs   []struct {
-		Cert []byte `msgpack:"a"`
-		Key  []byte `msgpack:"b"`
-	} `msgpack:"c"`
-	PrivateRootCACerts   [][]byte `msgpack:"d"`
-	PrivateClientCACerts [][]byte `msgpack:"e"`
-	PrivateClientPairs   []struct {
-		Cert []byte `msgpack:"a"`
-		Key  []byte `msgpack:"b"`
-	} `msgpack:"f"`
-}
-
-// NewPoolFromRawCertPool is used to create a certificate pool from raw certificate pool.
-func NewPoolFromRawCertPool(rcp *RawCertPool) (*Pool, error) {
-	memory := security.NewMemory()
-	defer memory.Flush()
-
-	pool := NewPool()
-	for i := 0; i < len(rcp.PublicRootCACerts); i++ {
-		err := pool.AddPublicRootCACert(rcp.PublicRootCACerts[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	for i := 0; i < len(rcp.PublicClientCACerts); i++ {
-		err := pool.AddPublicClientCACert(rcp.PublicClientCACerts[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	for i := 0; i < len(rcp.PublicClientPairs); i++ {
-		memory.Padding()
-		pair := rcp.PublicClientPairs[i]
-		err := pool.AddPublicClientCert(pair.Cert, pair.Key)
-		if err != nil {
-			return nil, err
-		}
-	}
-	for i := 0; i < len(rcp.PrivateRootCACerts); i++ {
-		err := pool.AddPrivateRootCACert(rcp.PrivateRootCACerts[i], nil)
-		if err != nil {
-			return nil, err
-		}
-	}
-	for i := 0; i < len(rcp.PrivateClientCACerts); i++ {
-		err := pool.AddPrivateClientCACert(rcp.PrivateClientCACerts[i], nil)
-		if err != nil {
-			return nil, err
-		}
-	}
-	for i := 0; i < len(rcp.PrivateClientPairs); i++ {
-		memory.Padding()
-		pair := rcp.PrivateClientPairs[i]
-		err := pool.AddPrivateClientCert(pair.Cert, pair.Key)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return pool, nil
 }
 
 // NewPoolWithSystemCerts is used to create a certificate pool with system certificate.

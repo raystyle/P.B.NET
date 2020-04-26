@@ -302,7 +302,7 @@ func TestNBCertPool_GetCertsFromPool(t *testing.T) {
 	require.Len(t, cp.PrivateClientPairs, 1)
 }
 
-func TestNewPoolFromNBCertPool(t *testing.T) {
+func TestNBCertPool_ToPool(t *testing.T) {
 	cp := new(NBCertPool)
 
 	t.Run("public root ca cert", func(t *testing.T) {
