@@ -9,8 +9,10 @@ import (
 	"sync"
 
 	"github.com/kardianos/service"
+	"github.com/pkg/errors"
 
 	"project/internal/patch/toml"
+	"project/internal/system"
 
 	"project/controller"
 )
@@ -44,7 +46,7 @@ func main() {
 	}
 
 	if genKey != "" {
-		err := controller.GenerateSessionKey([]byte(genKey))
+		err := generateSessionKey([]byte(genKey))
 		if err != nil {
 			log.Fatalln("failed to generate session key:", err)
 		}
@@ -101,6 +103,18 @@ func loadConfig() *controller.Config {
 		log.Fatalln(err)
 	}
 	return config
+}
+
+func generateSessionKey(password []byte) error {
+	_, err := os.Stat(controller.SessionKeyFile)
+	if !os.IsNotExist(err) {
+		return errors.Errorf("file: %s already exist", controller.SessionKeyFile)
+	}
+	key, err := controller.GenerateSessionKey(password)
+	if err != nil {
+		return nil
+	}
+	return system.WriteFile(controller.SessionKeyFile, key)
 }
 
 func createService() service.Service {
