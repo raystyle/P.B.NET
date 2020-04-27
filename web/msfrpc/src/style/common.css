@@ -1,0 +1,33 @@
+body {
+  padding: 0;
+  margin: 0;
+  font-family: "Microsoft Yahei", monospace;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  color: aliceblue;
+  background-color: #181818;
+}
+
+.el-container {
+  padding: 0;
+  margin: 0;
+  border-width: 100px;
+  background-color: #b3c0d1;
+  height: 100%;
+}
+
+.el-header {
+  padding: 0;
+  margin: 0;
+}
+
+.el-main {
+  padding: 0;
+  margin: 0;
+  background-color: #e9eef3;
+}
+
+.el-row {
+  padding: 0;
+  margin: 0;
+}
