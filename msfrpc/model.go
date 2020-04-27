@@ -487,7 +487,7 @@ type DBStatusRequest struct {
 // DBStatusResult is the result of get database status.
 type DBStatusResult struct {
 	Driver   string `msgpack:"driver" json:"driver"`
-	Database string `msgpack:"db"     json:"db"`
+	Database string `msgpack:"db"     json:"database"`
 	MSFError
 }
 
@@ -1369,7 +1369,7 @@ type ModuleSpecialOption struct {
 	Evasion     bool          `msgpack:"evasion"  json:"evasion"`
 	Description string        `msgpack:"desc"     json:"description"`
 	Default     interface{}   `msgpack:"default"  json:"default"`
-	Enums       []interface{} `msgpack:"enums"    json:"enums"`
+	Enums       []interface{} `msgpack:"enums"    json:"enumerations"`
 }
 
 // ModuleCompatiblePayloadsRequest is used to get compatible payloads.

@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"sync"
 	"time"
 
@@ -134,16 +133,14 @@ type WebServer struct {
 func (msf *MSFRPC) NewWebServer(
 	username string,
 	password string,
-	fs http.FileSystem,
+	hfs http.FileSystem,
 	opts *WebServerOptions,
 ) (*WebServer, error) {
-
 	httpServer, err := opts.HTTPServer.Apply()
 	if err != nil {
 		return nil, err
 	}
-
-	// configure handler.
+	// configure web handler.
 	wh := webHandler{ctx: msf}
 	wh.upgrader = &websocket.Upgrader{
 		HandshakeTimeout: time.Minute,
@@ -161,12 +158,131 @@ func (msf *MSFRPC) NewWebServer(
 		PanicHandler:           wh.handlePanic,
 	}
 	// resource
-	router.ServeFiles("/css/*filepath", newSubHTTPFileSystem(fs, "css"))
-	router.ServeFiles("/js/*filepath", newSubHTTPFileSystem(fs, "js"))
-	router.ServeFiles("/img/*filepath", newSubHTTPFileSystem(fs, "img"))
+	router.ServeFiles("/css/*filepath", newSubHTTPFileSystem(hfs, "css"))
+	router.ServeFiles("/js/*filepath", newSubHTTPFileSystem(hfs, "js"))
+	router.ServeFiles("/img/*filepath", newSubHTTPFileSystem(hfs, "img"))
+	// favicon.ico
+	router.GET("/favicon.ico", func(w hRW, _ *hR, _ hP) {
+		file, err := hfs.Open("favicon.ico")
+		if err != nil {
+			return
+		}
+		_, _ = io.Copy(w, file)
+	})
+	// index.html
+	router.GET("/", func(w hRW, _ *hR, _ hP) {
+		file, err := hfs.Open("index.html")
+		if err != nil {
+			return
+		}
+		_, _ = io.Copy(w, file)
+	})
+	// register router
+	for path, handler := range map[string]httprouter.Handle{
+		"/login": wh.handleLogin,
 
+		"/api/auth/logout":         wh.handleAuthenticationLogout,
+		"/api/auth/token/list":     wh.handleAuthenticationTokenList,
+		"/api/auth/token/generate": wh.handleAuthenticationTokenGenerate,
+		"/api/auth/token/add":      wh.handleAuthenticationTokenAdd,
+		"/api/auth/token/remove":   wh.handleAuthenticationTokenRemove,
+
+		"/api/core/module/status":   wh.handleCoreModuleStatus,
+		"/api/core/module/add_path": wh.handleCoreAddModulePath,
+		"/api/core/module/reload":   wh.handleCoreReloadModules,
+		"/api/core/thread/list":     wh.handleCoreThreadList,
+		"/api/core/thread/kill":     wh.handleCoreThreadKill,
+		"/api/core/global/set":      wh.handleCoreSetGlobal,
+		"/api/core/global/unset":    wh.handleCoreUnsetGlobal,
+		"/api/core/global/get":      wh.handleCoreGetGlobal,
+		"/api/core/save":            wh.handleCoreSave,
+		"/api/core/version":         wh.handleCoreVersion,
+
+		"/api/db/status":            wh.handleDatabaseStatus,
+		"/api/db/host/report":       wh.handleDatabaseReportHost,
+		"/api/db/host/list":         wh.handleDatabaseHosts,
+		"/api/db/host/get":          wh.handleDatabaseGetHost,
+		"/api/db/host/delete":       wh.handleDatabaseDeleteHost,
+		"/api/db/service/report":    wh.handleDatabaseReportService,
+		"/api/db/service/list":      wh.handleDatabaseServices,
+		"/api/db/service/get":       wh.handleDatabaseGetService,
+		"/api/db/service/delete":    wh.handleDatabaseDeleteService,
+		"/api/db/client/report":     wh.handleDatabaseReportClient,
+		"/api/db/client/list":       wh.handleDatabaseClients,
+		"/api/db/client/get":        wh.handleDatabaseGetClient,
+		"/api/db/client/delete":     wh.handleDatabaseDeleteClient,
+		"/api/db/cred/list":         wh.handleDatabaseCredentials,
+		"/api/db/cred/create":       wh.handleDatabaseCreateCredential,
+		"/api/db/cred/delete":       wh.handleDatabaseDeleteCredentials,
+		"/api/db/loot/report":       wh.handleDatabaseReportLoot,
+		"/api/db/loot/list":         wh.handleDatabaseLoots,
+		"/api/db/workspace/list":    wh.handleDatabaseWorkspaces,
+		"/api/db/workspace/get":     wh.handleDatabaseGetWorkspace,
+		"/api/db/workspace/add":     wh.handleDatabaseAddWorkspace,
+		"/api/db/workspace/delete":  wh.handleDatabaseDeleteWorkspace,
+		"/api/db/workspace/set":     wh.handleDatabaseSetWorkspace,
+		"/api/db/workspace/current": wh.handleDatabaseCurrentWorkspace,
+		"/api/db/event":             wh.handleDatabaseEvents,
+		"/api/db/import_data":       wh.handleDatabaseImportData,
+
+		"/api/console/list":           wh.handleConsoleList,
+		"/api/console/create":         wh.handleConsoleCreate,
+		"/api/console/destroy":        wh.handleConsoleDestroy,
+		"/api/console/read":           wh.handleConsoleRead,
+		"/api/console/write":          wh.handleConsoleWrite,
+		"/api/console/session_detach": wh.handleConsoleSessionDetach,
+		"/api/console/session_kill":   wh.handleConsoleSessionKill,
+
+		"/api/plugin/load":   wh.handlePluginLoad,
+		"/api/plugin/unload": wh.handlePluginUnload,
+		"/api/plugin/loaded": wh.handlePluginLoaded,
+
+		"/api/module/exploits":                   wh.handleModuleExploits,
+		"/api/module/auxiliary":                  wh.handleModuleAuxiliary,
+		"/api/module/post":                       wh.handleModulePost,
+		"/api/module/payloads":                   wh.handleModulePayloads,
+		"/api/module/encoders":                   wh.handleModuleEncoders,
+		"/api/module/nops":                       wh.handleModuleNops,
+		"/api/module/evasion":                    wh.handleModuleEvasion,
+		"/api/module/info":                       wh.handleModuleInfo,
+		"/api/module/options":                    wh.handleModuleOptions,
+		"/api/module/payloads/compatible":        wh.handleModuleCompatiblePayloads,
+		"/api/module/payloads/target_compatible": wh.handleModuleTargetCompatiblePayloads,
+		"/api/module/post/session_compatible":    wh.handleModuleCompatibleSessions,
+		"/api/module/evasion/compatible":         wh.handleModuleCompatibleEvasionPayloads,
+		"/api/module/evasion/target_compatible":  wh.handleModuleTargetCompatibleEvasionPayloads,
+		"/api/module/formats/encode":             wh.handleModuleEncodeFormats,
+		"/api/module/formats/executable":         wh.handleModuleExecutableFormats,
+		"/api/module/formats/transform":          wh.handleModuleTransformFormats,
+		"/api/module/formats/encryption":         wh.handleModuleEncryptionFormats,
+		"/api/module/platforms":                  wh.handleModulePlatforms,
+		"/api/module/architectures":              wh.handleModuleArchitectures,
+		"/api/module/encode":                     wh.handleModuleEncode,
+		"/api/module/generate_payload":           wh.handleModuleGeneratePayload,
+		"/api/module/execute":                    wh.handleModuleExecute,
+		"/api/module/check":                      wh.handleModuleCheck,
+		"/api/module/running_status":             wh.handleModuleRunningStatus,
+
+		"/api/job/list": wh.handleJobList,
+		"/api/job/info": wh.handleJobInfo,
+		"/api/job/stop": wh.handleJobStop,
+
+		"/api/session/list":                       wh.handleSessionList,
+		"/api/session/stop":                       wh.handleSessionStop,
+		"/api/session/shell/read":                 wh.handleSessionShellRead,
+		"/api/session/shell/write":                wh.handleSessionShellWrite,
+		"/api/session/upgrade":                    wh.handleSessionUpgrade,
+		"/api/session/meterpreter/read":           wh.handleSessionMeterpreterRead,
+		"/api/session/meterpreter/write":          wh.handleSessionMeterpreterWrite,
+		"/api/session/meterpreter/session_detach": wh.handleSessionMeterpreterSessionDetach,
+		"/api/session/meterpreter/session_kill":   wh.handleSessionMeterpreterSessionKill,
+		"/api/session/meterpreter/run_single":     wh.handleSessionMeterpreterRunSingle,
+		"/api/session/compatible_modules":         wh.handleSessionCompatibleModules,
+	} {
+		router.POST(path, handler)
+	}
+	// set web server
 	httpServer.Handler = router
-
 	web := WebServer{
 		server:  httpServer,
 		handler: &wh,
@@ -526,10 +642,7 @@ func (wh *webHandler) handleDatabaseReportHost(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseHost(w hRW, r *hR, _ hP) {
-
-	httptest.NewRecorder()
-
+func (wh *webHandler) handleDatabaseHosts(w hRW, r *hR, _ hP) {
 	req := struct {
 		Workspace string `json:"workspace"`
 	}{}
@@ -588,7 +701,7 @@ func (wh *webHandler) handleDatabaseReportService(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseService(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseServices(w hRW, r *hR, _ hP) {
 	req := DBServicesOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -696,17 +809,6 @@ func (wh *webHandler) handleDatabaseDeleteClient(w hRW, r *hR, _ hP) {
 	wh.writeError(w, err)
 }
 
-func (wh *webHandler) handleDatabaseCreateCredential(w hRW, r *hR, _ hP) {
-	req := DBCreateCredentialOptions{}
-	err := wh.readRequest(r, &req)
-	if err != nil {
-		wh.writeError(w, err)
-		return
-	}
-	_, err = wh.ctx.DBCreateCredential(r.Context(), &req)
-	wh.writeError(w, err)
-}
-
 func (wh *webHandler) handleDatabaseCredentials(w hRW, r *hR, _ hP) {
 	req := struct {
 		Workspace string `json:"workspace"`
@@ -727,6 +829,17 @@ func (wh *webHandler) handleDatabaseCredentials(w hRW, r *hR, _ hP) {
 		Creds: creds,
 	}
 	wh.writeResponse(w, &resp)
+}
+
+func (wh *webHandler) handleDatabaseCreateCredential(w hRW, r *hR, _ hP) {
+	req := DBCreateCredentialOptions{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	_, err = wh.ctx.DBCreateCredential(r.Context(), &req)
+	wh.writeError(w, err)
 }
 
 func (wh *webHandler) handleDatabaseDeleteCredentials(w hRW, r *hR, _ hP) {
@@ -847,7 +960,7 @@ func (wh *webHandler) handleDatabaseCurrentWorkspace(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, result)
 }
 
-func (wh *webHandler) handleDatabaseEvent(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleDatabaseEvents(w hRW, r *hR, _ hP) {
 	req := DBEventOptions{}
 	err := wh.readRequest(r, &req)
 	if err != nil {
@@ -926,6 +1039,34 @@ func (wh *webHandler) handleConsoleDestroy(w hRW, r *hR, _ hP) {
 	}
 	// first check is in web handler
 	err = wh.ctx.ConsoleDestroy(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleConsoleRead(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID string `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// first check is in web handler
+	err = wh.ctx.ConsoleSessionDetach(r.Context(), req.ID)
+	wh.writeError(w, err)
+}
+
+func (wh *webHandler) handleConsoleWrite(w hRW, r *hR, _ hP) {
+	req := struct {
+		ID string `json:"id"`
+	}{}
+	err := wh.readRequest(r, &req)
+	if err != nil {
+		wh.writeError(w, err)
+		return
+	}
+	// first check is in web handler
+	err = wh.ctx.ConsoleSessionKill(r.Context(), req.ID)
 	wh.writeError(w, err)
 }
 
@@ -1100,7 +1241,7 @@ func (wh *webHandler) handleModuleEvasion(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleModuleInformation(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleModuleInfo(w hRW, r *hR, _ hP) {
 	req := struct {
 		Type string `json:"type"`
 		Name string `json:"name"`
@@ -1449,7 +1590,7 @@ func (wh *webHandler) handleJobList(w hRW, r *hR, _ hP) {
 	wh.writeResponse(w, &resp)
 }
 
-func (wh *webHandler) handleJobInformation(w hRW, r *hR, _ hP) {
+func (wh *webHandler) handleJobInfo(w hRW, r *hR, _ hP) {
 	req := struct {
 		ID string `json:"id"`
 	}{}
