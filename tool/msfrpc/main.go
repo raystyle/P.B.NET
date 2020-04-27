@@ -52,6 +52,7 @@ type config struct {
 	} `toml:"web_server"`
 
 	Advance struct {
+		MaxBodySize     int64         `toml:"max_body_size"`
 		IOInterval      time.Duration `toml:"io_interval"`
 		MonitorInterval time.Duration `toml:"monitor_interval"`
 	} `toml:"advance"`
@@ -241,9 +242,10 @@ func newProgram(config *config) (*program, error) {
 
 	// create web server
 	webOpts := msfrpc.WebServerOptions{
-		HTTPServer: webCfg.Options,
-		MaxConns:   webCfg.MaxConns,
-		IOInterval: config.Advance.IOInterval,
+		HTTPServer:  webCfg.Options,
+		MaxConns:    webCfg.MaxConns,
+		MaxBodySize: config.Advance.MaxBodySize,
+		IOInterval:  config.Advance.IOInterval,
 	}
 	fs := http.Dir(webCfg.Directory)
 	webServer, err := MSFRPC.NewWebServer(webCfg.Username, webCfg.Password, fs, &webOpts)

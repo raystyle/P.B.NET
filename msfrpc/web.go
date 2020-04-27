@@ -109,13 +109,14 @@ func (pr *parallelReader) Close() error {
 	return pr.rc.Close()
 }
 
+const minRequestBodySize = 1 << 20 // 1MB
+
 // WebServerOptions contains options about web server.
 type WebServerOptions struct {
 	option.HTTPServer
 	MaxConns int
-
-	// TODO max body size
-
+	// incoming request body size
+	MaxBodySize int64
 	// about Console, Shell and Meterpreter IO interval
 	IOInterval time.Duration
 }
@@ -141,7 +142,13 @@ func (msf *MSFRPC) NewWebServer(
 		return nil, err
 	}
 	// configure web handler.
-	wh := webHandler{ctx: msf}
+	wh := webHandler{
+		ctx:         msf,
+		maxBodySize: opts.MaxBodySize,
+	}
+	if wh.maxBodySize < minRequestBodySize { // 1 MB
+		wh.maxBodySize = minRequestBodySize
+	}
 	wh.upgrader = &websocket.Upgrader{
 		HandshakeTimeout: time.Minute,
 		ReadBufferSize:   4096,
@@ -165,6 +172,8 @@ func (msf *MSFRPC) NewWebServer(
 	router.GET("/favicon.ico", func(w hRW, _ *hR, _ hP) {
 		file, err := hfs.Open("favicon.ico")
 		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("404 not found"))
 			return
 		}
 		_, _ = io.Copy(w, file)
@@ -173,6 +182,8 @@ func (msf *MSFRPC) NewWebServer(
 	router.GET("/", func(w hRW, _ *hR, _ hP) {
 		file, err := hfs.Open("index.html")
 		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("404 not found"))
 			return
 		}
 		_, _ = io.Copy(w, file)
@@ -222,7 +233,7 @@ func (msf *MSFRPC) NewWebServer(
 		"/api/db/workspace/delete":  wh.handleDatabaseDeleteWorkspace,
 		"/api/db/workspace/set":     wh.handleDatabaseSetWorkspace,
 		"/api/db/workspace/current": wh.handleDatabaseCurrentWorkspace,
-		"/api/db/event":             wh.handleDatabaseEvents,
+		"/api/db/events":            wh.handleDatabaseEvents,
 		"/api/db/import_data":       wh.handleDatabaseImportData,
 
 		"/api/console/list":           wh.handleConsoleList,
@@ -279,10 +290,12 @@ func (msf *MSFRPC) NewWebServer(
 		"/api/session/meterpreter/run_single":     wh.handleSessionMeterpreterRunSingle,
 		"/api/session/compatible_modules":         wh.handleSessionCompatibleModules,
 	} {
+		router.GET(path, handler)
 		router.POST(path, handler)
 	}
 	// set web server
 	httpServer.Handler = router
+	httpServer.ErrorLog = logger.Wrap(logger.Warning, "web", msf.logger)
 	web := WebServer{
 		server:  httpServer,
 		handler: &wh,
@@ -356,6 +369,9 @@ func (wh *webHandler) readRequest(r *hR, req interface{}) error {
 }
 
 func (wh *webHandler) writeResponse(w hRW, resp interface{}) {
+	// TODO remove this header
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	encoder := wh.encoderPool.Get().(*json.Encoder)

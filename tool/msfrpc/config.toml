@@ -43,8 +43,10 @@
     # see option/common/http_server.toml
 
 [advance]
+  # max incoming request body size
+  max_body_size = 1048576
   # IO interval about about Console, Shell and Meterpreter
-  io_interval      = "200ms"
+  io_interval = "200ms"
   # watch data interval about monitor
   monitor_interval = "250ms"
 
