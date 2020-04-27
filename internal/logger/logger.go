@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -42,7 +43,7 @@ type LevelSetter interface {
 // Parse is used to parse logger level from string.
 func Parse(level string) (Level, error) {
 	lv := Level(0)
-	switch level {
+	switch strings.ToLower(level) {
 	case "debug":
 		lv = Debug
 	case "info":

@@ -238,11 +238,10 @@ func (s *Sleeper) calculateDuration(fixed, random uint) time.Duration {
 	}
 	random = uint(s.rand.Int(int(random)))
 	total := time.Duration(fixed+random) * time.Second
-	actual := MaxSleepTime // for test
-	if total < MaxSleepTime {
-		actual = total
+	if total > MaxSleepTime {
+		total = MaxSleepTime
 	}
-	return actual
+	return total
 }
 
 // Stop is used to stop timer.
