@@ -369,9 +369,6 @@ func (wh *webHandler) readRequest(r *hR, req interface{}) error {
 }
 
 func (wh *webHandler) writeResponse(w hRW, resp interface{}) {
-	// TODO remove this header
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	encoder := wh.encoderPool.Get().(*json.Encoder)

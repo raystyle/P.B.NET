@@ -1,13 +1,4 @@
-import {logLevel} from "@/config/env"
-
-export {
-    currentLevel,
-    debug,
-    info,
-    warning,
-    error,
-    exploit
-}
+import {logLevel} from "../config/env"
 
 // log level
 const LEVEL_DEBUG   = 1;
@@ -26,7 +17,7 @@ const levelToNumber = {
 
 function parseLevel(level = "") {
     let v = levelToNumber[level];
-    if (v == null) {
+    if (!v) {
         v = LEVEL_DEBUG;
     }
     return v;
@@ -50,30 +41,30 @@ function levelToString(level = LEVEL_DEBUG) {
 }
 
 // user can change it
-let currentLevel = parseLevel(logLevel);
+let level = parseLevel(logLevel);
 
 function debug(src= "", ...log) {
     printLog(LEVEL_DEBUG, src, log);
 }
 
-function info(src= "", log = "") {
+function info(src= "", ...log) {
     printLog(LEVEL_INFO, src, log);
 }
 
-function warning(src= "", log = "") {
+function warning(src= "", ...log) {
     printLog(LEVEL_WARN, src, log);
 }
 
-function error(src= "", log = "") {
+function error(src= "", ...log) {
     printLog(LEVEL_ERROR, src, log);
 }
 
-function exploit(src= "", log = "") {
+function exploit(src= "", ...log) {
     printLog(LEVEL_EXPLOIT, src, log);
 }
 
-function printLog(level = LEVEL_DEBUG, src = "unknown", log) {
-    if (level < currentLevel) {
+function printLog(lv = LEVEL_DEBUG, src = "unknown", log) {
+    if (lv < level) {
         return
     }
     // get time string
@@ -86,12 +77,26 @@ function printLog(level = LEVEL_DEBUG, src = "unknown", log) {
     let second = date.getSeconds();
     let time = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
     // get level string
-    let lv =  levelToString(level);
+    let lvStr =  levelToString(lv);
     // convert log array to string "acg", "foo" => "acg foo"
     let logStr = "";
     for (let i = 0; i < log.length; i++) {
         logStr += " ";
         logStr += log[i].toString();
     }
-    console.log(`[${time}] [${lv}] <${src}>${logStr}`);
+    console.log(`[${time}] [${lvStr}] <${src}>${logStr}`);
+}
+
+export default {
+    LEVEL_DEBUG,
+    LEVEL_INFO,
+    LEVEL_WARN,
+    LEVEL_ERROR,
+    LEVEL_EXPLOIT,
+    level,
+    debug,
+    info,
+    warning,
+    error,
+    exploit
 }

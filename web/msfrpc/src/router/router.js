@@ -1,6 +1,6 @@
-const login = () => import("@/page/login/login");
-const map = () => import("@/page/map/map");
-const node = () => import("@/page/node/node");
+const login = () => import("../page/login/login");
+const map = () => import("../page/map/map");
+const node = () => import("../page/node/node");
 
 export default [
   {

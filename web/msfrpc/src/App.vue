@@ -12,7 +12,7 @@
 </template>
 
 <script>
-import "./page/common/header";
+import "./page/common/header"
 
 export default {
   name: "app"

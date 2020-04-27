@@ -1,11 +1,11 @@
 <template>
-  <el-container>
+  <el-container class="el-container">
     <c-header></c-header>
-    <el-header>
+    <el-header class="el-header">
       <p>test-000</p>
       <p>test-111</p>
     </el-header>
-    <el-main>
+    <el-main class="el-main">
       <p>Main</p>
       <p>test-bottom</p>
       <p>test {{ hello }}</p>
@@ -14,11 +14,29 @@
 </template>
 
 <script>
-import fetch from "@/config/fetch";
-let logger = require("@/logger/logger");
-logger.debug("map", "test log", "s2", "acg")
+import fetch from "../../config/fetch"
+import logger from "../../tool/logger"
+logger.debug("map", "test log", "s2", "acg");
+
+// const log = require("../../tool/logger");
+
+console.log(logger.level)
+
+logger.level = logger.LEVEL_ERROR;
+
+logger.debug("map", "test log", "s2", "acg");
+logger.exploit("map", "test log", "s2", "acg");
+
 let req = fetch("GET", "/auth/token/list");
-req.then()
+req.then(function (result = {}) {
+  console.log(result.config.url)
+  console.log(result.config.method)
+  console.log(result.data)
+}).catch(function(error = {}){
+  logger.debug("map", "test log", error);
+
+    }
+)
 
 
 export default {
