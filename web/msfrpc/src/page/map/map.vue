@@ -1,16 +1,9 @@
 <template>
-  <el-container class="el-container">
-    <c-header></c-header>
-    <el-header class="el-header">
-      <p>test-000</p>
-      <p>test-111</p>
-    </el-header>
-    <el-main class="el-main">
-      <p>Main</p>
-      <p>test-bottom</p>
-      <p>test {{ hello }}</p>
-    </el-main>
-  </el-container>
+  <el-main class="el-main">
+    <p>Main</p>
+    <p>test-bottom</p>
+    <p>test {{ hello }}</p>
+  </el-main>
 </template>
 
 <script>
@@ -28,7 +21,7 @@ logger.debug("map", "test log", "s2", "acg");
 logger.exploit("map", "test log", "s2", "acg");
 
 let req = fetch("GET", "/auth/token/list");
-req.then(function (result = {}) {
+req.then(function (result) {
   console.log(result.config.url)
   console.log(result.config.method)
   console.log(result.data)
@@ -38,13 +31,12 @@ req.then(function (result = {}) {
     }
 )
 
-
 export default {
   data() {
     return {
       hello: "now",
       value: 1,
-      timer: null
+      // timer: null
     };
   },
 
@@ -54,6 +46,7 @@ export default {
       this.hello = this.value;
     }, 1000);
   },
+
   beforeDestroy() {
     clearInterval(this.timer);
   }

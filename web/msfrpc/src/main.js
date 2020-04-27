@@ -14,6 +14,8 @@ Vue.use(VueRouter);
 Vue.use(ElementUI);
 Vue.use(VueAxios, Axios);
 
+import "./page/common/header"
+
 const router = new VueRouter({
   mode: "hash",
   routes: Routes

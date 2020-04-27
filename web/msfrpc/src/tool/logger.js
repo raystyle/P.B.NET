@@ -7,20 +7,21 @@ const LEVEL_WARN    = 3;
 const LEVEL_ERROR   = 4;
 const LEVEL_EXPLOIT = 5;
 
-const levelToNumber = {
-    debug:   LEVEL_DEBUG,
-    info:    LEVEL_INFO,
-    warning: LEVEL_WARN,
-    error:   LEVEL_ERROR,
-    exploit: LEVEL_EXPLOIT
-};
-
 function parseLevel(level = "") {
-    let v = levelToNumber[level];
-    if (!v) {
-        v = LEVEL_DEBUG;
+    switch (level.toLowerCase()) {
+        case "debug":
+            return LEVEL_DEBUG;
+        case  "info":
+            return LEVEL_INFO;
+        case "warning":
+            return LEVEL_WARN;
+        case "error":
+            return LEVEL_ERROR;
+        case "exploit":
+            return LEVEL_EXPLOIT;
+        default:
+            return LEVEL_DEBUG;
     }
-    return v;
 }
 
 function levelToString(level = LEVEL_DEBUG) {

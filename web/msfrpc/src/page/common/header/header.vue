@@ -1,15 +1,38 @@
 <template>
-  <div>
-
-
-
-  </div>
+  <el-row style="padding-top: 5px">
+    <el-col :span="2">
+      <div>icon</div>
+    </el-col>
+    <el-col :span="2">
+      <el-button class="el-button" @click="$router.push('/session')">Session</el-button>
+    </el-col>
+    <el-col :span="2">
+      <el-button class="el-button" @click="$router.push('/job')">Job</el-button>
+    </el-col>
+    <el-col :span="2">
+      <el-button class="el-button" @click="$router.push('/console')">Console</el-button>
+    </el-col>
+    <el-col :span="2">
+      <el-button class="el-button" @click="$router.push('/node')">Host</el-button>
+    </el-col>
+    <el-col :span="2">
+      <el-button class="el-button" @click="$router.push('/node')">Database</el-button>
+    </el-col>
+    <el-col :span="2">
+      <el-button class="el-button" @click="$router.push('/node')">Plugin</el-button>
+    </el-col>
+    <el-col :span="2">
+      <el-button class="el-button" @click="$router.push('/node')">Status</el-button>
+    </el-col>
+  </el-row>
 </template>
 
 <script>
 export default {
   name: "c-header"
-};
+}
 </script>
 
-<style></style>
+<style scoped>
+
+</style>

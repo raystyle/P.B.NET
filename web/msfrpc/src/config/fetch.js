@@ -10,7 +10,7 @@ const client = Vue.axios.create({
     timeout: 15000
 });
 
-export default async(method = "GET", path = "", data = {}) => {
+export default function (method = "GET", path = "", data = {}) {
     return new Promise(function (resolve, reject) {
         switch (method) {
             case "GET":
@@ -21,12 +21,14 @@ export default async(method = "GET", path = "", data = {}) => {
                 }
                 break;
             case "POST":
-                client.post(path, data)
-                reject()
+                try {
+                    resolve(client.post(path, data))
+                }catch (e) {
+                    reject(e)
+                }
                 break;
             default:
                 console.log()
         }
-
     })
 }
