@@ -1,11 +1,11 @@
 import {logLevel} from "../config/env"
 
-// log level
-const LEVEL_DEBUG   = 1;
-const LEVEL_INFO    = 2;
-const LEVEL_WARN    = 3;
-const LEVEL_ERROR   = 4;
-const LEVEL_EXPLOIT = 5;
+// about log level
+export const LEVEL_DEBUG   = 1;
+export const LEVEL_INFO    = 2;
+export const LEVEL_WARN    = 3;
+export const LEVEL_ERROR   = 4;
+export const LEVEL_EXPLOIT = 5;
 
 function parseLevel(level = "") {
     switch (level.toLowerCase()) {
@@ -41,63 +41,66 @@ function levelToString(level = LEVEL_DEBUG) {
     }
 }
 
-// user can change it
-let level = parseLevel(logLevel);
-
-function debug(src= "", ...log) {
-    printLog(LEVEL_DEBUG, src, log);
-}
-
-function info(src= "", ...log) {
-    printLog(LEVEL_INFO, src, log);
-}
-
-function warning(src= "", ...log) {
-    printLog(LEVEL_WARN, src, log);
-}
-
-function error(src= "", ...log) {
-    printLog(LEVEL_ERROR, src, log);
-}
-
-function exploit(src= "", ...log) {
-    printLog(LEVEL_EXPLOIT, src, log);
-}
-
-function printLog(lv = LEVEL_DEBUG, src = "unknown", log) {
-    if (lv < level) {
-        return
+// Logger is used to record log about components.
+// You can set the minimum level to filter log.
+export class Logger {
+    constructor(src = "unknown") {
+        this._level = parseLevel(logLevel);
+        this._src = src;
     }
-    // get time string
-    let date = new Date();
-    let year = date.getFullYear();
-    let month = date.getMonth();
-    let day = date.getDate();
-    let hour = date.getHours();
-    let minute = date.getMinutes();
-    let second = date.getSeconds();
-    let time = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
-    // get level string
-    let lvStr =  levelToString(lv);
-    // convert log array to string "acg", "foo" => "acg foo"
-    let logStr = "";
-    for (let i = 0; i < log.length; i++) {
-        logStr += " ";
-        logStr += log[i].toString();
+
+    setLevel(lv) {
+        this._level = lv;
     }
-    console.log(`[${time}] [${lvStr}] <${src}>${logStr}`);
+
+    getLevel() {
+        return this._level;
+    }
+
+    debug(...log) {
+        this._print(LEVEL_DEBUG, log);
+    }
+
+    info(...log) {
+        this._print(LEVEL_INFO, log);
+    }
+
+    warning(...log) {
+        this._print(LEVEL_WARN, log);
+    }
+
+    error(...log) {
+        this._print(LEVEL_ERROR, log);
+    }
+
+    exploit(...log) {
+        this._print(LEVEL_EXPLOIT, log);
+    }
+
+    _print(lv, log) {
+        if (lv < this._level) {
+            return
+        }
+        // get time string
+        let date = new Date();
+        let year = date.getFullYear();
+        let month = date.getMonth();
+        let day = date.getDate();
+        let hour = date.getHours();
+        let minute = date.getMinutes();
+        let second = date.getSeconds();
+        let time = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+        // get level string
+        let lvStr =  levelToString(lv);
+        // convert log array to string "acg", "foo" => "acg foo"
+        let logStr = "";
+        for (let i = 0; i < log.length; i++) {
+            logStr += " ";
+            logStr += log[i].toString();
+        }
+        console.log(`[${time}] [${lvStr}] <${this._src}>${logStr}`);
+    }
 }
 
-export default {
-    LEVEL_DEBUG,
-    LEVEL_INFO,
-    LEVEL_WARN,
-    LEVEL_ERROR,
-    LEVEL_EXPLOIT,
-    level,
-    debug,
-    info,
-    warning,
-    error,
-    exploit
-}
+// for test
+export default new Logger("global")
