@@ -2,6 +2,8 @@ const login = () => import("../page/login/login")
 const session = () => import("../page/session/session")
 const job = () => import("../page/job/job")
 const console = () => import("../page/console/console")
+
+// test pages for learning Vue.js
 const map = () => import("../page/map/map")
 const node = () => import("../page/node/node")
 
@@ -11,46 +13,52 @@ export default [
     redirect: "/session"
   },
   {
+    name: "login",
     path: "/login",
     component: login
   },
   {
+    name: "session",
     path: "/session",
     component: session,
     meta: {
-      menu: true,
+      showMenu: true,
       keepAlive: true
     }
   },
   {
+    name: "job",
     path: "/job",
     component: job,
     meta: {
-      menu: true,
+      showMenu: true,
       keepAlive: true
     }
   },
   {
+    name: "console",
     path: "/console",
     component: console,
     meta: {
-      menu: true,
+      showMenu: true,
       keepAlive: true
     }
   },
   {
+    name: "map",
     path: "/map",
     component: map,
     meta: {
-      menu: true,
+      showMenu: true,
       keepAlive: true
     }
   },
   {
+    name: "node",
     path: "/node",
     component: node,
     meta: {
-      menu: true,
+      showMenu: true,
       keepAlive: true
     }
   },
