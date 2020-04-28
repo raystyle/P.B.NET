@@ -1,13 +1,14 @@
 <template>
   <div id="app">
-    <!-- menu for special pages, see src/router/router.js-->
-    <el-container class="el-container" v-if="$route.meta.menu">
+    <!-- menu for special pages, see src/router/router.js -->
+    <el-container class="el-container" v-if="$route.meta.showMenu">
       <el-header class="el-header"><c-header></c-header></el-header>
     </el-container>
-      <keep-alive>
-        <router-view v-if="$route.meta.keepAlive"></router-view>
-      </keep-alive>
-      <router-view v-if="!$route.meta.keepAlive"></router-view>
+    <!-- about vue-router -->
+    <keep-alive>
+      <router-view v-if="$route.meta.keepAlive"></router-view>
+    </keep-alive>
+    <router-view v-if="!$route.meta.keepAlive"></router-view>
   </div>
 </template>
 
@@ -19,12 +20,6 @@ export default {
 
 <style>
 @import "style/common.css";
-
-.el-container {
-  padding: 0;
-  margin: 0;
-  height: 100%;
-}
 
 .el-header {
   padding: 0;

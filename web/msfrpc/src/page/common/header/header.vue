@@ -19,10 +19,10 @@
       <el-button class="el-button" @click="$router.push('/node')">Database</el-button>
     </el-col>
     <el-col :span="2">
-      <el-button class="el-button" @click="$router.push('/node')">Plugin</el-button>
+      <el-button class="el-button" @click="$router.push('/node')">Node</el-button>
     </el-col>
     <el-col :span="2">
-      <el-button class="el-button" @click="$router.push('/node')">Status</el-button>
+      <el-button class="el-button" @click="$router.push('/map')">Map</el-button>
     </el-col>
   </el-row>
 </template>
