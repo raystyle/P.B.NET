@@ -167,6 +167,7 @@ func (msf *MSFRPC) NewWebServer(
 	// resource
 	router.ServeFiles("/css/*filepath", newSubHTTPFileSystem(hfs, "css"))
 	router.ServeFiles("/js/*filepath", newSubHTTPFileSystem(hfs, "js"))
+	router.ServeFiles("/fonts/*filepath", newSubHTTPFileSystem(hfs, "fonts"))
 	router.ServeFiles("/img/*filepath", newSubHTTPFileSystem(hfs, "img"))
 	// favicon.ico
 	router.GET("/favicon.ico", func(w hRW, _ *hR, _ hP) {
