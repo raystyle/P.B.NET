@@ -2,7 +2,7 @@
   <div id="app">
     <!-- menu for special pages, see src/router/router.js -->
     <el-container class="el-container" v-if="$route.meta.showMenu">
-      <el-header class="el-header"><c-header></c-header></el-header>
+      <el-header id="header" class="el-header" height="44px"><c-header></c-header></el-header>
     </el-container>
     <!-- about vue-router -->
     <keep-alive>
@@ -21,13 +21,9 @@ export default {
 <style>
 @import "style/common.css";
 
-.el-header {
+#header {
   padding: 0;
   margin: 0;
-  background-color: #b3c0d1;
-  color: #333;
-  text-align: left;
-  height: 300px;
-  line-height: 10px;
+  background-color: #1faf1a;
 }
 </style>

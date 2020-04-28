@@ -1,5 +1,5 @@
 <template>
-  <el-row style="padding-top: 5px">
+  <el-row class="el-row">
     <el-col :span="2">
       <div>icon</div>
     </el-col>
@@ -34,5 +34,8 @@ export default {
 </script>
 
 <style scoped>
+.el-row {
+  padding: 2px;
+}
 
 </style>
