@@ -10,6 +10,7 @@ const login = () => import("../page/login/login")
 const session = () => import("../page/session/session")
 const job = () => import("../page/job/job")
 const console = () => import("../page/console/console")
+const module = () => import("../page/module/module")
 const database = () => import("../page/database/database")
 // test pages for learning Vue.js
 const map = () => import("../page/map/map")
@@ -48,6 +49,15 @@ export default [
         name: "console",
         path: "/console",
         component: console,
+        meta: {
+            showMenu: true,
+            keepAlive: true
+        }
+    },
+    {
+        name: "module",
+        path: "/module",
+        component: module,
         meta: {
             showMenu: true,
             keepAlive: true

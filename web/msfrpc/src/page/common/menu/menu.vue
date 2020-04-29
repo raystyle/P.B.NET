@@ -1,14 +1,16 @@
 <template>
   <v-main class="pa-1">
     <div class="d-flex">
-      <v-btn class="v-btn" text disabled>Icon</v-btn>
+      <v-btn class="v-btn" text disabled>MSFRPC</v-btn>
       <v-btn class="v-btn" text to="/session"><i class="mdi mdi-bullseye-arrow"></i>Session</v-btn>
       <v-btn class="v-btn" text to="/job"><i class="mdi mdi-view-headline"></i>Job</v-btn>
       <v-btn class="v-btn" text to="/console"><i class="mdi mdi-console"></i>Console</v-btn>
+      <v-btn id="module" class="v-btn" text to="/module"><i class="mdi mdi-view-module"></i>Module</v-btn>
       <v-btn class="v-btn" text to="/node"><i class="mdi mdi-server"></i>Host</v-btn>
-      <v-btn class="v-btn mr-auto" text to="/database"><i class="mdi mdi-database"></i>Database</v-btn>
-      <v-btn>{{ time }}</v-btn>
-      <v-btn class="v-btn" text><i class="mdi mdi-database"></i>Admin</v-btn>
+      <v-btn class="v-btn" text to="/database"><i class="mdi mdi-database"></i>Database</v-btn>
+      <div class="mr-auto"></div>
+      <v-chip label outlined>{{time}}</v-chip>
+      <v-btn class="v-btn" text><i class="mdi mdi-account-box"></i>Admin</v-btn>
     </div>
   </v-main>
 </template>
@@ -41,5 +43,9 @@ export default {
 .v-btn {
   max-height: 32px;
   font-size: 17px;
+}
+
+#module {
+  padding-top: 1px;
 }
 </style>

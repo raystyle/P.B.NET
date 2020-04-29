@@ -19,6 +19,12 @@ body {
   margin-top: 1px;
 }
 
+// v-container with padding and margin.
+.v-container-pm {
+  padding: 0;
+  margin: 0;
+}
+
 // disable text-transform and delete letter-spacing.
 .v-btn {
   letter-spacing: 0;
