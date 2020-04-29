@@ -1,4 +1,4 @@
 {
   "private": true,
-  "workspaces": ["controller", "msfrpc", "temp"]
+  "workspaces": ["controller", "msfrpc", "public", "temp"]
 }
