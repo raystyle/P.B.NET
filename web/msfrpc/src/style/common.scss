@@ -1,0 +1,26 @@
+// not always show scroll bar
+html {
+  overflow-y: auto !important;
+}
+
+// initialize html body
+body {
+  padding: 0;
+  margin: 0;
+  font-family: "Microsoft Yahei", monospace;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  color: aliceblue;
+  background-color: #1a1a1a;
+}
+
+// v-main with margin-top.
+.v-main-mt {
+  margin-top: 1px;
+}
+
+// disable text-transform and delete letter-spacing.
+.v-btn {
+  letter-spacing: 0;
+  text-transform: none;
+}
