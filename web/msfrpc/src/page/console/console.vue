@@ -32,10 +32,10 @@
 </template>
 
 <script>
-import {Logger} from "../../tool/logger.js"
+import {newLogger} from "../../tool/logger.js"
 import fetch from "../../config/fetch"
 
-let logger = new Logger("console")
+let logger = newLogger("console")
 
 export default {
   name: "console",

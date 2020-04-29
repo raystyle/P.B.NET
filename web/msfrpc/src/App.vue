@@ -1,15 +1,13 @@
 <template>
-  <div id="app">
+  <v-app id="app">
     <!-- menu for special pages, see src/router/router.js -->
-    <el-container class="el-container" v-if="$route.meta.showMenu">
-      <el-header id="header" class="el-header" height="44px"><c-header></c-header></el-header>
-    </el-container>
+    <v-system-bar window v-if="$route.meta.showMenu"><c-menu></c-menu></v-system-bar>
     <!-- about vue-router -->
     <keep-alive>
       <router-view v-if="$route.meta.keepAlive"></router-view>
     </keep-alive>
     <router-view v-if="!$route.meta.keepAlive"></router-view>
-  </div>
+  </v-app>
 </template>
 
 <script>
@@ -18,12 +16,11 @@ export default {
 }
 </script>
 
-<style>
-@import "style/common.css";
+<style lang="scss">
+@import "style/common";
 
-#header {
+.v-system-bar {
   padding: 0;
   margin: 0;
-  background-color: #1faf1a;
 }
 </style>

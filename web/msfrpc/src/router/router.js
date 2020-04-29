@@ -1,8 +1,16 @@
+import VueRouter from "vue-router"
+
+// fix error about "Avoided redundant navigation to current location:"
+const originalPush = VueRouter.prototype.push
+VueRouter.prototype.push = function push(location) {
+    return originalPush.call(this, location).catch(err => err)
+}
+
 const login = () => import("../page/login/login")
 const session = () => import("../page/session/session")
 const job = () => import("../page/job/job")
 const console = () => import("../page/console/console")
-
+const database = () => import("../page/database/database")
 // test pages for learning Vue.js
 const map = () => import("../page/map/map")
 const node = () => import("../page/node/node")
@@ -40,6 +48,15 @@ export default [
         name: "console",
         path: "/console",
         component: console,
+        meta: {
+            showMenu: true,
+            keepAlive: true
+        }
+    },
+    {
+        name: "database",
+        path: "/database",
+        component: database,
         meta: {
             showMenu: true,
             keepAlive: true
