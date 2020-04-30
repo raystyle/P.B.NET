@@ -1,77 +1,54 @@
 <template>
   <v-main class="v-main-mt">
-    <v-container fluid class="v-container-pm fill-height">
-      <v-row class="pa-0 ma-0" style="height: 100%">
-        <!-- left part -->
-        <v-col cols="3" class="pa-0 ma-0 d-flex flex-column" style="max-width: 330px">
-          <!-- control components-->
-          <v-row class="pa-0 ma-0">
-            <v-combobox id="acg" solo clearable hide-details dense :items="directory"
-                        label="select a session to use post module"
-                        elevation="0"
-                        class="cs-nbr"
-                        :class="`elevation-0`"
-                        style="margin-bottom: 1px; border: 1px solid"
-            >
-            </v-combobox>
-          </v-row>
-          <!-- module folder -->
-          <v-card class="pa-0 ma-0" height="100%" style="border-radius: 0">
-            <v-text-field v-model="search"
-                          label="search module"
-                          dense
-                          solo-inverted
-                          hide-details
-                          clearable
-                          class="cs-nbr"
-            ></v-text-field>
-            <v-treeview
-                :items="directory"
-                :search="search"
-                open-on-click
-            >
-              <template v-slot:prepend="{ item }">
-                <v-icon
-                    v-if="item.children"
-                    v-text="`mdi-folder`"
-                ></v-icon>
-                <v-icon
-                    v-else
-                    v-text="`mdi-file`"
-                ></v-icon>
-              </template>
-            </v-treeview>
-
-          </v-card>
-          <v-text-field
-              label="module path"
-              readonly
-              dense
-              solo-inverted
-              hide-details
-              class="cs-nbr"
+    <div class="d-flex flex-row" style="height: 100%">
+      <!-- left part -->
+      <v-card class="pa-0 ma-0 d-flex flex-column" tile flat min-width="310px" :width="leftSize">
+        <!-- control components-->
+        <v-combobox class="cs-nbr" solo clearable hide-details flat dense :items="directory"
+                    label="select a session to use post module"
+                    style="margin-bottom: 1px; border: 1px solid"
+        ></v-combobox>
+        <v-card class="pa-0 ma-0" height="100%" tile flat :loading="loading">
+          <!-- search module-->
+          <v-text-field class="pa-0 ma-0 cs-nbr" solo-inverted clearable hide-details flat dense
+                        v-model="search" label="search module"
           ></v-text-field>
-        </v-col>
-
-        <!-- right part -->
-        <v-col cols="9" class="pa-0 pl-1 ma-0">
-          <v-combobox solo clearable :items="directory" label="Session:"
-                      prepend-inner-icon="mdi mdi-bullseye-arrow"
-
-                      class="pa-0 ma-0"
-          ></v-combobox>
-          <v-btn>Test</v-btn>
-        </v-col>
-      </v-row>
-    </v-container>
+          <!-- module folder -->
+          <v-treeview class="pa-0 ma-0 cs-nbr" transition open-on-click activatable return-object
+                      :items="directory" :search="search" :active.sync="selected">
+            <template v-slot:prepend="{ item }">
+              <v-icon v-if="item.children" v-text="`mdi-folder`"></v-icon>
+              <v-icon v-else v-text="`mdi-file`"></v-icon>
+            </template>
+          </v-treeview>
+        </v-card>
+        <!-- show full path -->
+        <v-text-field class="pa-0 ma-0 cs-nbr" solo-inverted readonly hide-details flat dense
+                      v-model="lastSelected" label="module full path" @click="selectFullPath"
+        ></v-text-field>
+      </v-card>
+      <v-divider class="pl-1" vertical style="visibility: hidden"></v-divider>
+      <!-- right part 5px = pl-1(4px) + v-divider(1px) -->
+      <v-card class="pa-0 ma-0" tile flat max-width="70%" :min-width="`calc(100% - 5px - ${leftSize})`">
+        <v-tabs height="39px" show-arrows style="border: 1px grey solid">
+          <v-tabs-slider></v-tabs-slider>
+          <v-tab class="v-tab">current</v-tab>
+          <v-tab class="v-tab">exploit</v-tab>
+          <v-tab class="v-tab"
+                 v-for="i in 30"
+                 :key="i"
+          >
+            Item {{ i }}
+          </v-tab>
+        </v-tabs>
+      </v-card>
+    </div>
   </v-main>
 </template>
 
 <script>
 import {newLogger} from "../../tool/logger.js"
 import fetch from "../../config/fetch.js"
-
-let logger = newLogger("console")
 
 const TYPE_EXPLOIT = 0
 const TYPE_AUXILIARY = 1
@@ -80,6 +57,8 @@ const TYPE_PAYLOAD = 3
 const TYPE_ENCODER = 4
 const TYPE_NOP = 5
 const TYPE_EVASION = 6
+
+let logger = newLogger("module")
 
 export default {
   name: "module",
@@ -97,14 +76,28 @@ export default {
       })
     }
     return  {
-      count: types.length,
+      leftSize : "340px",
+      count: types.length,  // about module id, v-treeview-node need it
       directory: directory, // about module directory
-      search: null,
+      loading: false,       // show loading progress bar // TODO need improve performance
+      selected: [],         // current selected module
+      lastSelected: "",     // prevent show the information about same module
+      search: null,         // for search module
     }
   },
 
   mounted() {
-    this.getList();
+    // get module information
+    this.$watch("selected", (nv) => {
+      if (nv.length === 0) {
+        this.lastSelected = ""
+        return
+      }
+      if (this.lastSelected !== nv[0].fullPath) {
+        this.lastSelected = nv[0].fullPath
+      }
+    })
+    this.getList()
   },
 
   methods: {
@@ -146,14 +139,20 @@ export default {
           err: "evasion"
         },
       ]
+      this.loading = false // TODO need improve performance
       // reset counter for module id
       this.count = types.length
       // get modules
       for (let i = 0; i < types.length; i++) {
+        this.directory[i].children.length = 0
         fetch("GET", `/module/${types[i].path}`).
         then((resp) => {
           let modules = resp.data["modules"]
           this.addModuleToDirectory(modules, types[i].type)
+          // load finished
+          if (i === types.length - 1) {
+            this.loading = false
+          }
         }).catch((err) => {
           logger.error(`failed to get modules about ${types[i].err}`, err)
         })
@@ -196,8 +195,17 @@ export default {
           name: name,
           fullPath: modules[i]
         })
-        // recover
+        // recover to root directory(exploit, auxiliary...)
         current = this.directory[type]
+      }
+    },
+
+    selectFullPath(event) {
+      event.target.select()
+      try {
+        document.execCommand("copy")
+      } catch(err) {
+        logger.error("failed to copy to clipboard:", err)
       }
     },
 
@@ -206,5 +214,7 @@ export default {
 </script>
 
 <style type="scss" scoped>
-
+.v-tab {
+  font-size: 18px;
+}
 </style>

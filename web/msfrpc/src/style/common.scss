@@ -31,6 +31,12 @@ body {
   text-transform: none;
 }
 
+// disable text-transform and delete letter-spacing.
+.v-tab {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .cs-nbr {
   border-radius: 0;
 }

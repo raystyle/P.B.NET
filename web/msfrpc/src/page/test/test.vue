@@ -1,63 +1,49 @@
 <template>
   <v-main class="v-main-mt">
-    <v-container fluid class="v-container-pm fill-height">
+    <div class="d-flex flex-row">
+      <v-card id="left_part" tile flat height="100%" width="340px">
+        a
+      </v-card>
+      <v-divider class="pl-1" vertical style="visibility: hidden"></v-divider>
+      <v-card id="right_part" tile flat height="100%"  width="calc(100% - 340px)">
+        <v-tabs height="40px" show-arrows style="border: 1px grey solid">
+          <v-tabs-slider></v-tabs-slider>
 
-      <v-menu id="spe" offset-y allow-overflow  style="margin-left: -12px">
-        <template v-slot:activator="{ on, attrs }" >
-          <v-btn
-              color="primary"
-              dark
-              v-bind="attrs"
-              v-on="on"
-
-
+          <v-tab class="v-tab">current</v-tab>
+          <v-tab class="v-tab"
+                 v-for="i in 3"
+                 :key="i"
           >
-            Dropdown
-          </v-btn>
-        </template>
+            Item {{ i }}
+          </v-tab>
+          <!--
+          <v-tabs-items>acg</v-tabs-items>
+          <v-tabs-items>acg-2</v-tabs-items>
+          <v-tabs-items>acg-3</v-tabs-items>
+          -->
 
+        </v-tabs>
 
-        <v-list >
-          <v-list-item
-              v-for="(item, index) in items"
-              :key="index"
+        <v-tabs height="40px" show-arrows style="border: 1px grey solid">
+          <v-tabs-slider></v-tabs-slider>
 
-
+          <v-tab class="v-tab">current</v-tab>
+          <v-tab class="v-tab"
+                 v-for="i in 3"
+                 :key="i"
           >
-            <v-list-item-title>{{ item.title }}</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
+            Item {{ i }}
+          </v-tab>
+          <!--
+          <v-tabs-items>acg</v-tabs-items>
+          <v-tabs-items>acg-2</v-tabs-items>
+          <v-tabs-items>acg-3</v-tabs-items>
+          -->
 
-      <v-btn elevation="0" >Menu</v-btn>
+        </v-tabs>
 
-
-
-      <v-menu offset-y>
-        <template v-slot:activator="{ on, attrs }">
-          <v-btn
-              color="primary"
-              dark
-              v-bind="attrs"
-              v-on="on"
-          >
-            Dropdown
-          </v-btn>
-        </template>
-        <v-list>
-          <v-list-item
-              v-for="(item, index) in items"
-              :key="index"
-          >
-            <v-list-item-title>{{ item.title }}</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-
-
-
-
-    </v-container>
+      </v-card>
+    </div>
   </v-main>
 </template>
 
@@ -82,9 +68,6 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-
-#spe {
-}
 
 .v-menu__content {
   margin-left: -12px
