@@ -1322,6 +1322,69 @@ type ModuleInfoRequest struct {
 	Name   string
 }
 
+type license []string
+
+func (license *license) DecodeMsgpack(decoder *msgpack.Decoder) error {
+	code, err := decoder.PeekCode()
+	if err != nil {
+		return err
+	}
+	switch {
+	case codes.IsBin(code):
+		str, err := decoder.DecodeString()
+		if err != nil {
+			return err
+		}
+		*license = []string{str}
+	case codes.IsFixedArray(code):
+		slice, err := decoder.DecodeSlice()
+		if err != nil {
+			return err
+		}
+		ll := len(slice)
+		ls := make([]string, ll)
+		for i := 0; i < ll; i++ {
+			ls[i] = string(slice[i].([]byte))
+		}
+		*license = ls
+	default:
+		return errors.Errorf("unknown code about license: %x", code)
+	}
+	return nil
+}
+
+// TODO finish reference
+// type references [][]string
+//
+// func (ref *references) DecodeMsgpack(decoder *msgpack.Decoder) error {
+// 	code, err := decoder.PeekCode()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	switch {
+// 	case codes.IsBin(code):
+// 		str, err := decoder.DecodeString()
+// 		if err != nil {
+// 			return err
+// 		}
+// 		*license = []string{str}
+// 	case codes.IsFixedArray(code):
+// 		slice, err := decoder.DecodeSlice()
+// 		if err != nil {
+// 			return err
+// 		}
+// 		ll := len(slice)
+// 		ls := make([]string, ll)
+// 		for i := 0; i < ll; i++ {
+// 			ls[i] = string(slice[i].([]byte))
+// 		}
+// 		*license = ls
+// 	default:
+// 		return errors.Errorf("unknown code about license: %x", code)
+// 	}
+// 	return nil
+// }
+
 // ModuleInfoResult is the result about get module's information.
 type ModuleInfoResult struct {
 	Type           string                   `msgpack:"type"           json:"type"`
@@ -1330,15 +1393,17 @@ type ModuleInfoResult struct {
 	Rank           string                   `msgpack:"rank"           json:"rank"`
 	DisclosureDate string                   `msgpack:"disclosuredate" json:"disclosure_date"`
 	Description    string                   `msgpack:"description"    json:"description"`
-	License        string                   `msgpack:"license"        json:"license"`
+	License        license                  `msgpack:"license"        json:"license"`
 	Filepath       string                   `msgpack:"filepath"       json:"filepath"`
 	Arch           []string                 `msgpack:"arch"           json:"architecture"`
 	Platform       []string                 `msgpack:"platform"       json:"platform"`
-	Authors        []string                 `msgpack:"authors"        json:"authors"`
-	Privileged     bool                     `msgpack:"privileged"     json:"privileged"`
-	References     []string                 `msgpack:"references"     json:"references"`
 	Targets        map[uint64]string        `msgpack:"targets"        json:"targets"`
 	DefaultTarget  uint64                   `msgpack:"default_target" json:"default_target"`
+	Actions        map[uint64]string        `msgpack:"actions"        json:"actions"`
+	DefaultAction  string                   `msgpack:"default_action" json:"default_action"`
+	Privileged     bool                     `msgpack:"privileged"     json:"privileged"`
+	Authors        []string                 `msgpack:"authors"        json:"authors"`
+	References     []interface{}            `msgpack:"references"     json:"references"`
 	Stance         string                   `msgpack:"stance"         json:"stance"`
 	Options        map[string]*ModuleOption `msgpack:"options"        json:"options"`
 	MSFError
@@ -1346,11 +1411,12 @@ type ModuleInfoResult struct {
 
 // ModuleOption contains modules information about options.
 type ModuleOption struct {
-	Type        string      `msgpack:"type"     json:"type"`
-	Required    bool        `msgpack:"required" json:"required"`
-	Advanced    bool        `msgpack:"advanced" json:"advanced"`
-	Description string      `msgpack:"desc"     json:"description"`
-	Default     interface{} `msgpack:"default"  json:"default"`
+	Type        string        `msgpack:"type"     json:"type"`
+	Required    bool          `msgpack:"required" json:"required"`
+	Advanced    bool          `msgpack:"advanced" json:"advanced"`
+	Description string        `msgpack:"desc"     json:"description"`
+	Enums       []interface{} `msgpack:"enums"    json:"enumerations"`
+	Default     interface{}   `msgpack:"default"  json:"default"`
 }
 
 // ModuleOptionsRequest is used to get module options.
@@ -1368,8 +1434,8 @@ type ModuleSpecialOption struct {
 	Advanced    bool          `msgpack:"advanced" json:"advanced"`
 	Evasion     bool          `msgpack:"evasion"  json:"evasion"`
 	Description string        `msgpack:"desc"     json:"description"`
-	Default     interface{}   `msgpack:"default"  json:"default"`
 	Enums       []interface{} `msgpack:"enums"    json:"enumerations"`
+	Default     interface{}   `msgpack:"default"  json:"default"`
 }
 
 // ModuleCompatiblePayloadsRequest is used to get compatible payloads.

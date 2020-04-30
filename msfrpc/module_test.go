@@ -3,6 +3,7 @@ package msfrpc
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"strconv"
 	"testing"
@@ -349,6 +350,118 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 			t.Log(opt.Default)
 			t.Log("------------------------------")
 		}
+	})
+
+	t.Run("get all module information", func(t *testing.T) {
+		all := make(map[string][]string)
+
+		modules, err := msfrpc.ModuleExploits(ctx)
+		require.NoError(t, err)
+		all["exploit"] = modules
+
+		modules, err = msfrpc.ModuleAuxiliary(ctx)
+		require.NoError(t, err)
+		all["auxiliary"] = modules
+
+		modules, err = msfrpc.ModulePost(ctx)
+		require.NoError(t, err)
+		all["post"] = modules
+
+		modules, err = msfrpc.ModulePayloads(ctx)
+		require.NoError(t, err)
+		all["payload"] = modules
+
+		modules, err = msfrpc.ModuleEncoders(ctx)
+		require.NoError(t, err)
+		all["encoder"] = modules
+
+		modules, err = msfrpc.ModuleNops(ctx)
+		require.NoError(t, err)
+		all["nop"] = modules
+
+		modules, err = msfrpc.ModuleEvasion(ctx)
+		require.NoError(t, err)
+		all["evasion"] = modules
+
+		// TODO [external] msfrpcd invalid modules
+		// My platform is windows, so these maybe no error in other platforms
+
+		// some module will failed, so we must skip these modules
+		skipList := [...]struct {
+			typ  string
+			name string
+		}{
+			{typ: "exploit", name: "linux/misc/saltstack_salt_unauth_rce"},
+			{typ: "exploit", name: "linux/smtp/haraka"},
+			{typ: "exploit", name: "windows/smb/ms17_010_eternalblue_win8"},
+
+			{typ: "auxiliary", name: "admin/http/grafana_auth_bypass"},
+			{typ: "auxiliary", name: "admin/teradata/teradata_odbc_sql"},
+			{typ: "auxiliary", name: "dos/http/cable_haunt_websocket_dos"},
+			{typ: "auxiliary", name: "dos/http/slowloris"},
+			{typ: "auxiliary", name: "dos/smb/smb_loris"},
+			{typ: "auxiliary", name: "dos/tcp/claymore_dos"},
+			{typ: "auxiliary", name: "gather/chrome_debugger"},
+			{typ: "auxiliary", name: "gather/get_user_spns"},
+			{typ: "auxiliary", name: "scanner/http/onion_omega2_login"},
+			{typ: "auxiliary", name: "scanner/msmail/exchange_enum"},
+			{typ: "auxiliary", name: "scanner/msmail/host_id"},
+			{typ: "auxiliary", name: "scanner/msmail/onprem_enum"},
+			{typ: "auxiliary", name: "scanner/smb/impacket/dcomexec"},
+			{typ: "auxiliary", name: "scanner/smb/impacket/secretsdump"},
+			{typ: "auxiliary", name: "scanner/smb/impacket/wmiexec"},
+			{typ: "auxiliary", name: "scanner/ssl/bleichenbacher_oracle"},
+			{typ: "auxiliary", name: "scanner/teradata/teradata_odbc_login"},
+			{typ: "auxiliary", name: "scanner/wproxy/att_open_proxy"},
+		}
+
+		// include new skip list, add it to skipList if with error
+		// invalid module: foo/bar/module
+		var invalid []struct {
+			typ  string
+			name string
+		}
+
+		// try to get module information
+		testModules := func(typ string, modules []string) {
+			for i := 0; i < len(modules); i++ {
+				skip := false
+				for j := 0; j < len(skipList); j++ {
+					if typ == skipList[j].typ && modules[i] == skipList[j].name {
+						skip = true
+						break
+					}
+				}
+				if skip {
+					continue
+				}
+				_, err := msfrpc.ModuleInfo(ctx, typ, modules[i])
+				if err != nil {
+					fmt.Printf("%s %s %s\n", typ, modules[i], err)
+					invalid = append(invalid, struct {
+						typ  string
+						name string
+					}{
+						typ:  typ,
+						name: modules[i],
+					})
+				}
+			}
+		}
+
+		for typ, modules := range all {
+			t.Run(fmt.Sprintf("test %s modules", typ), func(_ *testing.T) {
+				testModules(typ, modules)
+			})
+		}
+
+		// print module with error, maybe add it to the skip list
+		const format = `{typ: "%s", name: "%s"},` + "\n"
+		for i := 0; i < len(invalid); i++ {
+			fmt.Printf(format, invalid[i].typ, invalid[i].name)
+		}
+
+		require.Empty(t, invalid)
 	})
 
 	t.Run("invalid module", func(t *testing.T) {
