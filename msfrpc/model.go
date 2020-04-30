@@ -38,7 +38,7 @@ func (e *errorCode) DecodeMsgpack(decoder *msgpack.Decoder) error {
 		}
 		*e = errorCode(val)
 	default:
-		return errors.Errorf("unknown code: %x", code)
+		return errors.Errorf("unknown code about error code: %x", code)
 	}
 	return nil
 }
@@ -1352,38 +1352,6 @@ func (license *license) DecodeMsgpack(decoder *msgpack.Decoder) error {
 	}
 	return nil
 }
-
-// TODO finish reference
-// type references [][]string
-//
-// func (ref *references) DecodeMsgpack(decoder *msgpack.Decoder) error {
-// 	code, err := decoder.PeekCode()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	switch {
-// 	case codes.IsBin(code):
-// 		str, err := decoder.DecodeString()
-// 		if err != nil {
-// 			return err
-// 		}
-// 		*license = []string{str}
-// 	case codes.IsFixedArray(code):
-// 		slice, err := decoder.DecodeSlice()
-// 		if err != nil {
-// 			return err
-// 		}
-// 		ll := len(slice)
-// 		ls := make([]string, ll)
-// 		for i := 0; i < ll; i++ {
-// 			ls[i] = string(slice[i].([]byte))
-// 		}
-// 		*license = ls
-// 	default:
-// 		return errors.Errorf("unknown code about license: %x", code)
-// 	}
-// 	return nil
-// }
 
 // ModuleInfoResult is the result about get module's information.
 type ModuleInfoResult struct {

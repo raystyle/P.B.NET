@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v4"
 	"github.com/vmihailenco/msgpack/v4/codes"
+
+	"project/internal/patch/monkey"
 )
 
 func TestErrorCode_DecodeMsgpack(t *testing.T) {
@@ -86,4 +88,51 @@ func TestErrorCode_DecodeMsgpack(t *testing.T) {
 func TestMSFError_Error(t *testing.T) {
 	msfErr := &MSFError{ErrorMessage: "test"}
 	require.EqualError(t, msfErr, "test")
+}
+
+func TestLicense_DecodeMsgpack(t *testing.T) {
+	t.Run("peek code", func(t *testing.T) {
+		data := []byte("")
+		decoder := msgpack.NewDecoder(bytes.NewReader(data))
+
+		license := new(license)
+		err := license.DecodeMsgpack(decoder)
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("bin", func(t *testing.T) {
+		data := []byte{byte(codes.Bin8)}
+		decoder := msgpack.NewDecoder(bytes.NewReader(data))
+
+		license := new(license)
+		err := license.DecodeMsgpack(decoder)
+		require.Error(t, err)
+		t.Log(err)
+	})
+
+	t.Run("fixed array", func(t *testing.T) {
+		data := []byte{byte(codes.FixedArrayLow)}
+		decoder := msgpack.NewDecoder(bytes.NewReader(data))
+
+		patchFunc := func(interface{}) ([]interface{}, error) {
+			return nil, monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(decoder, "DecodeSlice", patchFunc)
+		defer pg.Unpatch()
+
+		license := new(license)
+		err := license.DecodeMsgpack(decoder)
+		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("unknown code", func(t *testing.T) {
+		data := []byte("foo data")
+		decoder := msgpack.NewDecoder(bytes.NewReader(data))
+
+		license := new(license)
+		err := license.DecodeMsgpack(decoder)
+		require.Error(t, err)
+		t.Log(err)
+	})
 }
