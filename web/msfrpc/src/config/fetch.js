@@ -16,15 +16,15 @@ export default function (method = "GET", path = "", data = {}) {
             case "GET":
                 try {
                     resolve(client.get(path))
-                }catch (e) {
-                    reject(e)
+                } catch (err) {
+                    reject(err)
                 }
                 break;
             case "POST":
                 try {
                     resolve(client.post(path, data))
-                }catch (e) {
-                    reject(e)
+                } catch (err) {
+                    reject(err)
                 }
                 break;
             default:

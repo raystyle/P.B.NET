@@ -1,43 +1,39 @@
 <template>
   <v-main class="v-main-mt">
     <v-container fluid class="v-container-pm fill-height">
-      <v-combobox  solo clearable hide-details dense
 
-                   class="pa-0 ma-0"
-                   :items="items"
-                   label="select session to use post module" style="border-radius: 0;"
-
-                   :menu-props="{rounded:10}"
-
-      >
-      </v-combobox>
-
-
-
-      <v-menu offset-y allow-overflow offset-overflow>
-        <template v-slot:activator="{ on, attrs }">
+      <v-menu id="spe" offset-y allow-overflow  style="margin-left: -12px">
+        <template v-slot:activator="{ on, attrs }" >
           <v-btn
               color="primary"
               dark
               v-bind="attrs"
               v-on="on"
+
+
           >
             Dropdown
           </v-btn>
         </template>
-        <v-list>
+
+
+        <v-list >
           <v-list-item
               v-for="(item, index) in items"
               :key="index"
+
+
           >
             <v-list-item-title>{{ item.title }}</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
 
-      <v-btn>Menu</v-btn>
+      <v-btn elevation="0" >Menu</v-btn>
 
-      <v-menu offset-y rounded="0" style="left: 100px">
+
+
+      <v-menu offset-y>
         <template v-slot:activator="{ on, attrs }">
           <v-btn
               color="primary"
@@ -66,21 +62,19 @@
 </template>
 
 <script>
-
 export default {
   name: "test",
 
   data () {
     return {
       pp: {
-        rounded: "10 ",
+        rounded: "0",
       },
 
       items: [
         { title: 'Click Me' },
         { title: 'Click Me' },
         { title: 'Click Me' },
-        { title: 'Click Me 2' },
       ],
     }
   }
@@ -88,6 +82,14 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+
+#spe {
+}
+
+.v-menu__content {
+  margin-left: -12px
+}
+
 .v-btn {
   height: 90px;
   width: 100px;

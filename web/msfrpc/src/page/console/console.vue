@@ -68,7 +68,7 @@ export default {
 
 
       let req = fetch("GET", "/console/list");
-      req.then(function (response) {
+      req.then((response) => {
         pageList.length = 0;
 
         let consoles = response.data["consoles"]
