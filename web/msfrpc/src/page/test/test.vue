@@ -1,17 +1,17 @@
 <template>
   <v-main class="v-main-mt">
-    <div class="d-flex flex-row">
-      <v-card id="left_part" tile flat height="100%" width="340px">
+    <div class="d-flex flex-row" style="flex-wrap: wrap; max-width: 500px">
+      <v-card id="left_part" tile flat height="100%" min-width="310px">
         a
       </v-card>
       <v-divider class="pl-1" vertical style="visibility: hidden"></v-divider>
-      <v-card id="right_part" tile flat height="100%"  width="calc(100% - 340px)">
+      <v-card id="right_part" tile flat height="100%" width="500px">
         <v-tabs height="40px" show-arrows style="border: 1px grey solid">
           <v-tabs-slider></v-tabs-slider>
 
           <v-tab class="v-tab">current</v-tab>
           <v-tab class="v-tab"
-                 v-for="i in 3"
+                 v-for="i in 30"
                  :key="i"
           >
             Item {{ i }}
