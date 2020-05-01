@@ -117,7 +117,82 @@ func TestFprintRequestWithError(t *testing.T) {
 }
 
 func TestPrintBody(t *testing.T) {
+	r := testGenerateRequest(t)
 
+	t.Run("size < bodyLineLength", func(t *testing.T) {
+		patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+			if format == "\n\n%s" {
+				return 0, monkey.Error
+			}
+			return w.Write([]byte(fmt.Sprintf(format, a...)))
+		}
+		pg := monkey.Patch(fmt.Fprintf, patchFunc)
+		defer pg.Unpatch()
+
+		r.Body = ioutil.NopCloser(strings.NewReader("test"))
+		_, err := FprintRequest(os.Stdout, r)
+		monkey.IsMonkeyError(t, err)
+
+		// fix goland new line bug
+		fmt.Println()
+	})
+
+	t.Run("bodyLineLength < size < 2x", func(t *testing.T) {
+		patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+			if format == "\n\n%s" {
+				return 0, monkey.Error
+			}
+			return w.Write([]byte(fmt.Sprintf(format, a...)))
+		}
+		pg := monkey.Patch(fmt.Fprintf, patchFunc)
+		defer pg.Unpatch()
+
+		testdata := "test" + strings.Repeat("a", bodyLineLength)
+		r.Body = ioutil.NopCloser(strings.NewReader(testdata))
+		_, err := FprintRequest(os.Stdout, r)
+		monkey.IsMonkeyError(t, err)
+
+		// fix goland new line bug
+		fmt.Println()
+	})
+
+	t.Run("1.5 x bodyLineLength", func(t *testing.T) {
+		patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+			if format == "\n%s" {
+				return 0, monkey.Error
+			}
+			return w.Write([]byte(fmt.Sprintf(format, a...)))
+		}
+		pg := monkey.Patch(fmt.Fprintf, patchFunc)
+		defer pg.Unpatch()
+
+		testdata := "test" + strings.Repeat("a", bodyLineLength)
+		r.Body = ioutil.NopCloser(strings.NewReader(testdata))
+		_, err := FprintRequest(os.Stdout, r)
+		monkey.IsMonkeyError(t, err)
+
+		// fix goland new line bug
+		fmt.Println()
+	})
+
+	t.Run("2.5 x bodyLineLength", func(t *testing.T) {
+		patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+			if format == "\n%s" {
+				return 0, monkey.Error
+			}
+			return w.Write([]byte(fmt.Sprintf(format, a...)))
+		}
+		pg := monkey.Patch(fmt.Fprintf, patchFunc)
+		defer pg.Unpatch()
+
+		testdata := "test" + strings.Repeat("a", 2*bodyLineLength)
+		r.Body = ioutil.NopCloser(strings.NewReader(testdata))
+		_, err := FprintRequest(os.Stdout, r)
+		monkey.IsMonkeyError(t, err)
+
+		// fix goland new line bug
+		fmt.Println()
+	})
 }
 
 func TestSubHTTPFileSystem_Open(t *testing.T) {
