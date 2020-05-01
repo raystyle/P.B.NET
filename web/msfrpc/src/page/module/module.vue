@@ -31,41 +31,81 @@
       <!-- right part -->
       <!-- 5px = pl-1(4px) + v-divider(1px) -->
       <v-card class="cs-npm" tile max-width="70%" :min-width="`calc(100% - 5px - ${leftPartSize})`">
-        <!-- tabs include "current" and user fixed -->
-        <v-tabs height="39px" show-arrows v-model="tab_index" style="border: 1px grey solid">
+        <!-- tabs about overview and tasks -->
+        <v-tabs height="39px" show-arrows v-model="tab_index" @change="tabChanged"
+                style="border: 1px grey solid"
+        >
           <v-tabs-slider color="blue"></v-tabs-slider>
           <v-tab v-for="tab in tab_items" :key="tab.key" style="font-size: 18px">{{tab.tab}}</v-tab>
         </v-tabs>
         <!-- information about user selected -->
         <v-tabs-items v-model="tab_index">
-          <v-tab-item v-for="tab in tab_items" :key="tab.key">
+          <v-tab-item v-for="(tab, i) in tab_items" :key="tab.key">
             <!-- module name and control tab -->
             <div class="d-flex flex-row" style="height: 100%">
               <!-- module name -->
               <v-text-field readonly solo hide-details flat dense label="module name"
                             v-model="tab.name" style="font-size: 24px"
               ></v-text-field>
-              <!-- control button -->
-              <v-btn class="control-button" icon color="blue" v-if="tab.key===0" @click="addTab(tab.key)">
-                <v-icon>mdi-plus-circle</v-icon>
-              </v-btn> <!-- fix -->
-              <v-btn class="control-button" icon color="blue" v-if="tab.key!==0" @click="addTab(tab.key)">
-                <v-icon>mdi-content-copy</v-icon>
-              </v-btn> <!-- copy -->
-              <v-btn class="control-button" icon color="red" v-if="tab.key!==0" @click="deleteTab(tab.key)">
-                <v-icon>mdi-close-circle</v-icon>
-              </v-btn> <!-- delete -->
+              <!-- control button about overview -->
+              <!-- create a new task and add a new tab -->
+              <v-tooltip bottom open-delay="500">
+                <template v-slot:activator="{attrs,on}">
+                  <v-btn class="control-button" icon color="blue" v-bind="attrs" v-on="on"
+                          v-if="tab.key===0" @click="addTab(i)">
+                    <v-icon>mdi-plus-circle</v-icon>
+                  </v-btn>
+                </template>
+                <span>create a new task</span>
+              </v-tooltip>
+              <!-- clean content in overview tab -->
+              <v-tooltip bottom open-delay="500">
+                <template v-slot:activator="{attrs,on}">
+                  <v-btn class="control-button" icon color="red" v-bind="attrs" v-on="on"
+                         v-if="tab.key===0" @click="selected = []">
+                    <v-icon>mdi-close-circle</v-icon>
+                  </v-btn>
+                </template>
+                <span>clean overview</span>
+              </v-tooltip>
+              <!-- control button about task -->
+              <!-- copy task options into a new tab -->
+              <v-tooltip bottom open-delay="500">
+                <template v-slot:activator="{attrs,on}">
+                  <v-btn class="control-button" icon color="blue" v-bind="attrs" v-on="on"
+                         v-if="tab.key!==0" @click="addTab(i)">
+                    <v-icon>mdi-content-copy</v-icon>
+                  </v-btn>
+                </template>
+                <span>create a new task with task options</span>
+              </v-tooltip>
+              <!-- stop task -->
+              <v-tooltip bottom open-delay="500">
+                <template v-slot:activator="{attrs,on}">
+                  <v-btn class="control-button" icon color="red" v-bind="attrs" v-on="on"
+                         v-if="tab.key!==0" @click="deleteTab(i)">
+                    <v-icon>mdi-close-circle</v-icon>
+                  </v-btn>
+                </template>
+                <span>stop task</span>
+              </v-tooltip>
             </div>
+            <!-- tab about overview -->
+            <div v-if="i === 0"  style="height: 100%">
+              <v-textarea readonly hide-details flat label="description" v-model="tab.description"
+              ></v-textarea>
+              <v-btn height="38px" color="blue">Ctrl+C</v-btn>
+              <v-btn height="38px" color="blue">Ctrl+Break</v-btn>
+              <v-btn height="38px" color="red" width="100px">Destroy</v-btn>
 
-            <!-- module options and console -->
-            <div class="d-flex flex-row" style="height: 100%">
+            </div>
+            <!-- tab about task -->
+            <div v-if="i !== 0" class="d-flex flex-row" style="height: 100%">
               <!-- left part about module information -->
               <v-card class="operation-card" tile :width="infoPartSize">
                 <!-- description -->
                 <v-textarea readonly hide-details flat label="description" v-model="tab.description"
                 ></v-textarea>
-
-
 
 
               </v-card>
@@ -74,7 +114,7 @@
               <v-card class="operation-card" tile :width="`calc(100% - 5px - ${infoPartSize})`">
                 <v-textarea  readonly solo hide-details flat background-color="grey"
                             no-resize rows="22"
-                            label="console" v-model="m_console"
+                            label="console" v-model="infoPartSize"
                             height="100%" class="cs-npm flex-grow-1"
                 ></v-textarea>
                 <v-btn height="38px" color="blue">Ctrl+C</v-btn>
@@ -90,6 +130,7 @@
 </template>
 
 <script>
+import {deepClone} from "public/clone/clone.js"
 import {newLogger} from "../../tool/logger.js"
 import fetch from "../../config/fetch.js"
 
@@ -100,6 +141,8 @@ const TYPE_PAYLOAD = 3
 const TYPE_ENCODER = 4
 const TYPE_NOP = 5
 const TYPE_EVASION = 6
+
+const OVERVIEW_INDEX = 0
 
 let logger = newLogger("module")
 
@@ -150,15 +193,16 @@ export default {
       search: null,         // for search module
 
       // about right part
-      tab_index: 0,
+      tab_index: OVERVIEW_INDEX,
       tab_key: 0, // when create a new tab, it will be added
       tab_items: [
         {
           key: 0,             // tab key for v-for :key
-          tab: "current",     // tab name
+          tab: "overview",     // tab name
+          fullPath: "",       // module full path
           name: "",           // module name
           description: "",    // module description
-        }
+        },
       ],
 
       // part size about module information
@@ -173,30 +217,41 @@ export default {
   watch: {
     // get information when select a module
     selected(val) {
-      let current = this.tab_items[0]
-      // when not select module, clean all data and current tab
+      // when not select module, clean all data in overview tab
       if (val.length === 0) {
         // left part
         this.fullPath = ""
         // right part
-        current.name = ""
-        current.description = ""
+        let overview = this.tab_items[OVERVIEW_INDEX]
+        overview.fullPath = ""
+        overview.name = ""
+        overview.description = ""
+
+
+
         return
       }
       let module = val[0]
-      // update current tab about module information
+      // update overview tab about module information
       let data = {
         type: typeToString(module.type),
         name: module.fullPath
       }
       fetch("POST", "/module/info", data).
       then((resp)=>{
-        let data = resp.data
         // left part
         this.fullPath = module.fullPath
         // right part
-        current.name = "Name: " + data["name"]
-        current.description = data["description"]
+        let overview = this.tab_items[OVERVIEW_INDEX]
+        let data = resp.data
+        overview.fullPath = this.fullPath
+        overview.name = "Name: " + data["name"]
+        overview.description = data["description"]
+
+
+
+        // select overview tab
+        this.tab_index = OVERVIEW_INDEX
       }).catch((err)=>{
         logger.error(`failed to get information about ${data.type} module ${data.name}:`, err)
       })
@@ -288,7 +343,7 @@ export default {
             }
           }
           if (!exist) {
-            this.count += 1
+            this.count ++
             let folder = {
               id: this.count,
               name: folders[i],
@@ -299,7 +354,7 @@ export default {
           }
         }
         // add module
-        this.count += 1
+        this.count ++
         current.children.push({
           id: this.count,
           type: type,
@@ -321,15 +376,36 @@ export default {
       }
     },
 
-    addTab(index) {
-      console.log("add: ", index)
+    tabChanged(index) {
+      this.fullPath = this.tab_items[index].fullPath
+    },
 
+    addTab(index = 0) {
+      // overview tab is empty
+      if (this.tab_items[index].name === "") {
+        return
+      }
+      // copy tab data
+      let newTab = {}
+      newTab = deepClone(this.tab_items[index])
+      this.tab_key ++
+      newTab.key = this.tab_key
+      newTab.tab = `task-${this.tab_key}`
+      this.tab_items.push(newTab)
+
+      // wait transition and select the added tab
+      setTimeout(() => {
+        this.tab_index = this.tab_items.length - 1
+      }, 50)
     },
 
     deleteTab(index) {
-      console.log("delete: ", index)
-    },
 
+      // wait transition and select the before tab
+      setTimeout(() => {
+        this.tab_index = index - 1
+      }, 50)
+    },
   }
 }
 </script>
@@ -349,13 +425,4 @@ export default {
   height: 38px;
   width: 38px;
 }
-
-/*
-  .v-tab-item 75 = system bar (32 px) margin-top (1 px)
-  v-tabs height (39px) border (3px).
-
-.v-tab-item {
-  height: calc(100vh - 75px);
-}
- */
 </style>
