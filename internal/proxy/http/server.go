@@ -266,7 +266,7 @@ type handler struct {
 func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprintln(buf, log...)
-	_ = httptool.FprintRequest(buf, r)
+	_, _ = httptool.FprintRequest(buf, r)
 	h.logger.Println(lv, h.tag, buf)
 }
 
