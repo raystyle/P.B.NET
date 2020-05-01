@@ -50,8 +50,8 @@
               <!-- control button about overview -->
               <!-- create a new task and add a new tab -->
               <v-tooltip bottom open-delay="500">
-                <template v-slot:activator="{attrs,on}">
-                  <v-btn class="control-button" icon color="blue" v-bind="attrs" v-on="on"
+                <template v-slot:activator="{on,attrs}">
+                  <v-btn class="control-button" icon color="blue" v-on="on" v-bind="attrs"
                           v-if="tab.key===0" @click="addTab(i)">
                     <v-icon>mdi-plus-circle</v-icon>
                   </v-btn>
@@ -60,8 +60,8 @@
               </v-tooltip>
               <!-- clean content in overview tab -->
               <v-tooltip bottom open-delay="500">
-                <template v-slot:activator="{attrs,on}">
-                  <v-btn class="control-button" icon color="red" v-bind="attrs" v-on="on"
+                <template v-slot:activator="{on,attrs}">
+                  <v-btn class="control-button" icon color="red" v-on="on" v-bind="attrs"
                          v-if="tab.key===0" @click="selected = []">
                     <v-icon>mdi-close-circle</v-icon>
                   </v-btn>
@@ -71,24 +71,49 @@
               <!-- control button about task -->
               <!-- copy task options into a new tab -->
               <v-tooltip bottom open-delay="500">
-                <template v-slot:activator="{attrs,on}">
-                  <v-btn class="control-button" icon color="blue" v-bind="attrs" v-on="on"
+                <template v-slot:activator="{on,attrs}">
+                  <v-btn class="control-button" icon color="blue" v-on="on" v-bind="attrs"
                          v-if="tab.key!==0" @click="addTab(i)">
                     <v-icon>mdi-content-copy</v-icon>
                   </v-btn>
                 </template>
                 <span>create a new task with task options</span>
               </v-tooltip>
-              <!-- stop task -->
+              <!-- stop task
+
               <v-tooltip bottom open-delay="500">
-                <template v-slot:activator="{attrs,on}">
-                  <v-btn class="control-button" icon color="red" v-bind="attrs" v-on="on"
-                         v-if="tab.key!==0" @click="deleteTab(i)">
+                <template v-slot:activator="{on,attrs}">
+                  <v-btn class="control-button" icon color="red" v-on="on" v-bind="attrs"
+                        v-if="tab.key!==0" @click="stop_dialog=true">
                     <v-icon>mdi-close-circle</v-icon>
                   </v-btn>
                 </template>
                 <span>stop task</span>
               </v-tooltip>
+
+              -->
+
+              <v-tooltip bottom open-delay="500">
+                <template v-slot:activator="{on,attrs}">
+                  <v-btn class="control-button" icon color="red" v-on="on" v-bind="attrs"
+                         v-if="tab.key!==0" @click="stop_dialog=true">
+                    <v-icon>mdi-close-circle</v-icon>
+                  </v-btn>
+                </template>
+                <span>stop task</span>
+              </v-tooltip>
+
+              <v-dialog persistent width="400px" v-model="stop_dialog">
+                <v-card>
+                  <v-card-title>Confirm</v-card-title>
+                  <v-card-text>Are you sure to stop this task?</v-card-text>
+                  <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn color="red" text @click="stop_dialog = false">Stop</v-btn>
+                    <v-btn color="blue" text @click="stop_dialog = false">Cancel</v-btn>
+                  </v-card-actions>
+                </v-card>
+              </v-dialog>
             </div>
             <!-- tab about overview -->
             <div v-if="i === 0"  style="height: 100%">
@@ -132,7 +157,10 @@
 <script>
 import {deepClone} from "public/clone/clone.js"
 import {newLogger} from "../../tool/logger.js"
-import fetch from "../../config/fetch.js"
+import {
+  getModules,
+  getModuleInfo,
+} from "../../api/module.js"
 
 const TYPE_EXPLOIT = 0
 const TYPE_AUXILIARY = 1
@@ -198,15 +226,14 @@ export default {
       tab_items: [
         {
           key: 0,             // tab key for v-for :key
-          tab: "overview",     // tab name
+          tab: "overview",    // tab name
           fullPath: "",       // module full path
           name: "",           // module name
           description: "",    // module description
         },
       ],
-
-      // part size about module information
-      infoPartSize : "50%",
+      stop_dialog: false,   // show the stop task dialog
+      infoPartSize : "50%", // part size about module information
     }
   },
 
@@ -233,12 +260,7 @@ export default {
       }
       let module = val[0]
       // update overview tab about module information
-      let data = {
-        type: typeToString(module.type),
-        name: module.fullPath
-      }
-      fetch("POST", "/module/info", data).
-      then((resp)=>{
+      getModuleInfo(typeToString(module.type), module.fullPath).then((resp) => {
         // left part
         this.fullPath = module.fullPath
         // right part
@@ -248,12 +270,12 @@ export default {
         overview.name = "Name: " + data["name"]
         overview.description = data["description"]
 
-
-
         // select overview tab
         this.tab_index = OVERVIEW_INDEX
-      }).catch((err)=>{
-        logger.error(`failed to get information about ${data.type} module ${data.name}:`, err)
+      }).catch((err) => {
+        let type =  module.type
+        let fullPath = module.fullPath
+        logger.error(`failed to get information about ${type} module ${fullPath}:`, err)
       })
     }
   },
@@ -310,10 +332,8 @@ export default {
           continue
         }
 
-        fetch("GET", `/module/${types[i].path}`).
-        then((resp) => {
-          let modules = resp.data["modules"]
-          this.addModuleToDirectory(modules, types[i].type)
+        getModules(types[i].path).then((resp) => {
+          this.addModuleToDirectory(resp.data["modules"], types[i].type)
           // load finished
           if (i === types.length - 1) {
             this.loading = false
@@ -400,10 +420,14 @@ export default {
     },
 
     deleteTab(index) {
+      this.stop_dialog = false
 
+      console.log(index)
       // wait transition and select the before tab
       setTimeout(() => {
         this.tab_index = index - 1
+        console.log(this.tab_index)
+
       }, 50)
     },
   }
