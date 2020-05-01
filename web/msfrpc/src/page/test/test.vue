@@ -1,50 +1,34 @@
 <template>
-  <v-main class="v-main-mt">
-    <div class="d-flex flex-row" style="flex-wrap: wrap; max-width: 500px">
-      <v-card id="left_part" tile flat height="100%" min-width="310px">
-        a
-      </v-card>
-      <v-divider class="pl-1" vertical style="visibility: hidden"></v-divider>
-      <v-card id="right_part" tile flat height="100%" width="500px">
-        <v-tabs height="40px" show-arrows style="border: 1px grey solid">
-          <v-tabs-slider></v-tabs-slider>
+  <v-card>
+    <v-tabs
+        v-model="tab"
 
-          <v-tab class="v-tab">current</v-tab>
-          <v-tab class="v-tab"
-                 v-for="i in 30"
-                 :key="i"
-          >
-            Item {{ i }}
-          </v-tab>
-          <!--
-          <v-tabs-items>acg</v-tabs-items>
-          <v-tabs-items>acg-2</v-tabs-items>
-          <v-tabs-items>acg-3</v-tabs-items>
-          -->
+        dark
+    >
 
-        </v-tabs>
+      <v-tab
+          v-for="item in items"
+          :key="item.tab"
+      >
+        {{ item.tab }}
+      </v-tab>
+    </v-tabs>
 
-        <v-tabs height="40px" show-arrows style="border: 1px grey solid">
-          <v-tabs-slider></v-tabs-slider>
+    <v-tabs-items v-model="tab">
+      <v-tab-item
+          v-for="item in items"
+          :key="item.tab"
+      >
+        <v-card flat>
+          <v-card-text>{{ item.content }}</v-card-text>
+        </v-card>
+      </v-tab-item>
+    </v-tabs-items>
 
-          <v-tab class="v-tab">current</v-tab>
-          <v-tab class="v-tab"
-                 v-for="i in 3"
-                 :key="i"
-          >
-            Item {{ i }}
-          </v-tab>
-          <!--
-          <v-tabs-items>acg</v-tabs-items>
-          <v-tabs-items>acg-2</v-tabs-items>
-          <v-tabs-items>acg-3</v-tabs-items>
-          -->
+    <v-btn>Test</v-btn>
 
-        </v-tabs>
 
-      </v-card>
-    </div>
-  </v-main>
+  </v-card>
 </template>
 
 <script>
@@ -53,14 +37,18 @@ export default {
 
   data () {
     return {
-      pp: {
-        rounded: "0",
-      },
-
+      tab: null,
       items: [
-        { title: 'Click Me' },
-        { title: 'Click Me' },
-        { title: 'Click Me' },
+        { tab: 'One', content: 'Tab 1 Content' },
+        { tab: 'Two', content: 'Tab 2 Content' },
+        { tab: 'Three', content: 'Tab 3 Content' },
+        { tab: 'Four', content: 'Tab 4 Content' },
+        { tab: 'Five', content: 'Tab 5 Content' },
+        { tab: 'Six', content: 'Tab 6 Content' },
+        { tab: 'Seven', content: 'Tab 7 Content' },
+        { tab: 'Eight', content: 'Tab 8 Content' },
+        { tab: 'Nine', content: 'Tab 9 Content' },
+        { tab: 'Ten', content: 'Tab 10 Content' },
       ],
     }
   }

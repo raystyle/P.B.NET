@@ -1,7 +1,9 @@
 <template>
   <v-app id="app">
     <!-- menu for special pages, see src/router/router.js -->
-    <v-system-bar window v-if="$route.meta.showMenu"><c-menu></c-menu></v-system-bar>
+    <v-system-bar class="cs-npm" window v-if="$route.meta.showMenu">
+      <c-menu></c-menu>
+    </v-system-bar>
     <!-- about vue-router -->
     <keep-alive>
       <router-view v-if="$route.meta.keepAlive"></router-view>
@@ -18,9 +20,4 @@ export default {
 
 <style lang="scss">
 @import "style/common";
-
-.v-system-bar {
-  padding: 0;
-  margin: 0;
-}
 </style>

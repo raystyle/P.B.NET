@@ -2,20 +2,20 @@
   <v-main class="v-main-mt">
     <div class="d-flex flex-row" style="height: 100%">
       <!-- left part -->
-      <v-card class="pa-0 ma-0 d-flex flex-column" tile flat min-width="310px" :width="leftSize">
+      <v-card class="cs-npm" tile min-width="310px" :width="leftPartSize">
         <!-- control components-->
         <v-combobox class="cs-nbr" solo clearable hide-details flat dense :items="directory"
                     label="select a session to use post module"
                     style="margin-bottom: 1px; border: 1px solid"
         ></v-combobox>
         <!-- search module-->
-        <v-text-field class="pa-0 ma-0 cs-nbr" solo-inverted clearable hide-details flat dense
-                      v-model="search" label="search module"
+        <v-text-field class="cs-npm cs-nbr" solo-inverted clearable hide-details flat dense
+                      label="search module" v-model="search"
         ></v-text-field>
         <!-- module folder -->
-        <v-treeview class="pa-0 ma-0 cs-nbr" transition open-on-click activatable return-object
+        <v-treeview class="cs-npm cs-nbr" transition open-on-click activatable return-object
                     :items="directory" :search="search" :active.sync="selected"
-                    style="height: calc(100vh - 151px); overflow-y: auto"
+                    style="height: calc(100vh - 150px); overflow-y: auto"
         >
           <template v-slot:prepend="{ item }">
             <v-icon v-if="item.children" v-text="`mdi-folder`"></v-icon>
@@ -23,44 +23,67 @@
           </template>
         </v-treeview>
         <!-- show full path -->
-        <v-text-field class="pa-0 ma-0 cs-nbr" solo-inverted readonly hide-details flat dense
-                      v-model="lastSelected" label="module full path" @click="selectFullPath"
+        <v-text-field class="cs-npm cs-nbr" solo-inverted readonly hide-details flat dense
+                      label="module full path" v-model="fullPath" @click="selectFullPath"
         ></v-text-field>
       </v-card>
       <v-divider class="pl-1" vertical style="visibility: hidden"></v-divider>
       <!-- right part -->
       <!-- 5px = pl-1(4px) + v-divider(1px) -->
-      <v-card class="pa-0 ma-0" tile flat max-width="70%" :min-width="`calc(100% - 5px - ${leftSize})`">
-        <v-tabs height="39px" show-arrows style="border: 1px grey solid">
-          <v-tabs-slider></v-tabs-slider>
-          <v-tab class="v-tab">current</v-tab>
-          <v-tab-item class="v-tab-item">
-            <!-- description -->
-            <v-textarea readonly solo label="description" v-model="description">
-
-            </v-textarea>
-
-            <v-btn color="green">check</v-btn>
-
-            <v-btn color="blue">exploit</v-btn>
-
-          </v-tab-item>
-
-          <v-tab class="v-tab">exploit</v-tab>
-          <v-tab class="v-tab"
-                 v-for="i in 30"
-                 :key="i"
-          >
-            Item {{ i }}
-          </v-tab>
-          <v-tab-item class="v-tab-item">
-            exploit
-          </v-tab-item>
-
-          <v-tab-item>
-          </v-tab-item>
-
+      <v-card class="cs-npm" tile max-width="70%" :min-width="`calc(100% - 5px - ${leftPartSize})`">
+        <!-- tabs include "current" and user fixed -->
+        <v-tabs height="39px" show-arrows v-model="tab_index" style="border: 1px grey solid">
+          <v-tabs-slider color="blue"></v-tabs-slider>
+          <v-tab v-for="tab in tab_items" :key="tab.key" style="font-size: 18px">{{tab.tab}}</v-tab>
         </v-tabs>
+        <!-- information about user selected -->
+        <v-tabs-items v-model="tab_index">
+          <v-tab-item v-for="tab in tab_items" :key="tab.key">
+            <!-- module name and control tab -->
+            <div class="d-flex flex-row" style="height: 100%">
+              <!-- module name -->
+              <v-text-field readonly solo hide-details flat dense label="module name"
+                            v-model="tab.name" style="font-size: 24px"
+              ></v-text-field>
+              <!-- control button -->
+              <v-btn class="control-button" icon color="blue" v-if="tab.key===0" @click="addTab(tab.key)">
+                <v-icon>mdi-plus-circle</v-icon>
+              </v-btn> <!-- fix -->
+              <v-btn class="control-button" icon color="blue" v-if="tab.key!==0" @click="addTab(tab.key)">
+                <v-icon>mdi-content-copy</v-icon>
+              </v-btn> <!-- copy -->
+              <v-btn class="control-button" icon color="red" v-if="tab.key!==0" @click="deleteTab(tab.key)">
+                <v-icon>mdi-close-circle</v-icon>
+              </v-btn> <!-- delete -->
+            </div>
+
+            <!-- module options and console -->
+            <div class="d-flex flex-row" style="height: 100%">
+              <!-- left part about module information -->
+              <v-card class="operation-card" tile :width="infoPartSize">
+                <!-- description -->
+                <v-textarea readonly hide-details flat label="description" v-model="tab.description"
+                ></v-textarea>
+
+
+
+
+              </v-card>
+              <v-divider class="pl-1" vertical style="visibility: hidden"></v-divider>
+              <!-- right part about console -->
+              <v-card class="operation-card" tile :width="`calc(100% - 5px - ${infoPartSize})`">
+                <v-textarea  readonly solo hide-details flat background-color="grey"
+                            no-resize rows="22"
+                            label="console" v-model="m_console"
+                            height="100%" class="cs-npm flex-grow-1"
+                ></v-textarea>
+                <v-btn height="38px" color="blue">Ctrl+C</v-btn>
+                <v-btn height="38px" color="blue">Ctrl+Break</v-btn>
+                <v-btn height="38px" color="red" width="100px">Destroy</v-btn>
+              </v-card>
+            </div>
+          </v-tab-item>
+        </v-tabs-items>
       </v-card>
     </div>
   </v-main>
@@ -117,33 +140,50 @@ export default {
       })
     }
     return  {
-      // left part
-      leftSize : "340px",
+      // about left part
+      leftPartSize : "340px",
       count: types.length,  // about module id, v-treeview-node need it
       directory: directory, // about module directory
       loading: false,       // show loading progress bar // TODO need improve performance
       selected: [],         // current selected module
-      lastSelected: "",     // prevent show the information about same module
+      fullPath: "",         // full path about current selected module
       search: null,         // for search module
 
-      // right part
-      description: ""
+      // about right part
+      tab_index: 0,
+      tab_key: 0, // when create a new tab, it will be added
+      tab_items: [
+        {
+          key: 0,             // tab key for v-for :key
+          tab: "current",     // tab name
+          name: "",           // module name
+          description: "",    // module description
+        }
+      ],
+
+      // part size about module information
+      infoPartSize : "50%",
     }
   },
 
   mounted() {
-    // get module information
-    this.$watch("selected", (nv) => {
-      if (nv.length === 0) {
-        this.lastSelected = ""
-        this.description = ""
+    this.getList()
+  },
+
+  watch: {
+    // get information when select a module
+    selected(val) {
+      let current = this.tab_items[0]
+      // when not select module, clean all data and current tab
+      if (val.length === 0) {
+        // left part
+        this.fullPath = ""
+        // right part
+        current.name = ""
+        current.description = ""
         return
       }
-      let module = nv[0]
-      if (this.lastSelected === module.fullPath) {
-        return
-      }
-      this.lastSelected = module.fullPath
+      let module = val[0]
       // update current tab about module information
       let data = {
         type: typeToString(module.type),
@@ -152,18 +192,19 @@ export default {
       fetch("POST", "/module/info", data).
       then((resp)=>{
         let data = resp.data
-        this.description = data["description"]
-
-
-
+        // left part
+        this.fullPath = module.fullPath
+        // right part
+        current.name = "Name: " + data["name"]
+        current.description = data["description"]
       }).catch((err)=>{
         logger.error(`failed to get information about ${data.type} module ${data.name}:`, err)
       })
-    })
-    this.getList()
+    }
   },
 
   methods: {
+    // getList is used to get all modules.
     getList() {
       let types = [
         {
@@ -208,6 +249,12 @@ export default {
       // get modules
       for (let i = 0; i < types.length; i++) {
         this.directory[i].children.length = 0
+
+        // TODO skip exploit modules
+        if (types[i].path === "exploits") {
+          continue
+        }
+
         fetch("GET", `/module/${types[i].path}`).
         then((resp) => {
           let modules = resp.data["modules"]
@@ -264,6 +311,7 @@ export default {
       }
     },
 
+    // copy current text to clipboard
     selectFullPath(event) {
       event.target.select()
       try {
@@ -271,6 +319,15 @@ export default {
       } catch(err) {
         logger.error("failed to copy to clipboard:", err)
       }
+    },
+
+    addTab(index) {
+      console.log("add: ", index)
+
+    },
+
+    deleteTab(index) {
+      console.log("delete: ", index)
     },
 
   }
@@ -282,12 +339,23 @@ export default {
   font-size: 18px;
 }
 
+.operation-card {
+  @extend .cs-npm;
+  height: calc(100vh - 112px);
+  overflow-y: auto;
+}
+
+.control-button {
+  height: 38px;
+  width: 38px;
+}
+
 /*
   .v-tab-item 75 = system bar (32 px) margin-top (1 px)
   v-tabs height (39px) border (3px).
-*/
+
 .v-tab-item {
   height: calc(100vh - 75px);
-  overflow-y: auto;
 }
+ */
 </style>

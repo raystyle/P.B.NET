@@ -1,9 +1,9 @@
-// not always show scroll bar
+// not always show scroll bar.
 html {
   overflow-y: auto !important;
 }
 
-// initialize html body
+// initialize html body.
 body {
   padding: 0;
   margin: 0;
@@ -37,6 +37,13 @@ body {
   text-transform: none;
 }
 
+// no padding and margin.
+.cs-npm {
+  padding: 0;
+  margin: 0;
+}
+
+// no border radius.
 .cs-nbr {
   border-radius: 0;
 }
