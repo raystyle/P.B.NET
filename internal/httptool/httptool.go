@@ -16,7 +16,7 @@ const (
 	maxBodyLength = 1024
 )
 
-// PrintRequest is used to print http.Request.
+// FprintRequest is used to print *http.Request to a Writer.
 //
 // client: 127.0.0.1:1234
 // POST /index HTTP/1.1
@@ -27,52 +27,112 @@ const (
 //
 // post data...
 // post data...
-func PrintRequest(r *http.Request) *bytes.Buffer {
-	buf := new(bytes.Buffer)
-	_, _ = fmt.Fprintf(buf, "client: %s\n", r.RemoteAddr)
+func FprintRequest(w io.Writer, r *http.Request) (int, error) {
+	n, err := fmt.Fprintf(w, "client: %s\n", r.RemoteAddr)
+	if err != nil {
+		return n, err
+	}
+	var nn int
 	// request
-	_, _ = fmt.Fprintf(buf, "%s %s %s", r.Method, r.RequestURI, r.Proto)
+	nn, err = fmt.Fprintf(w, "%s %s %s", r.Method, r.RequestURI, r.Proto)
+	if err != nil {
+		return n + nn, err
+	}
+	n += nn
 	// host
-	_, _ = fmt.Fprintf(buf, "\nHost: %s", r.Host)
+	nn, err = fmt.Fprintf(w, "\nHost: %s", r.Host)
+	if err != nil {
+		return n + nn, err
+	}
+	n += nn
 	// header
 	for k, v := range r.Header {
-		_, _ = fmt.Fprintf(buf, "\n%s: %s", k, v[0])
-	}
-	if r.Body != nil {
-		rawBody := new(bytes.Buffer)
-		defer func() { r.Body = ioutil.NopCloser(io.MultiReader(rawBody, r.Body)) }()
-		// start print
-		buffer := make([]byte, bodyLineLength)
-		// check body
-		n, err := io.ReadFull(r.Body, buffer)
+		nn, err = fmt.Fprintf(w, "\n%s: %s", k, v[0])
 		if err != nil {
-			if n == 0 { // no body
-				return buf
-			}
-			// 0 < data size < bodyLineLength
-			_, _ = fmt.Fprintf(buf, "\n\n%s", buffer[:n])
-			rawBody.Write(buffer[:n])
-			return buf
+			return n + nn, err
 		}
-		// new line and write data
-		_, _ = fmt.Fprintf(buf, "\n\n%s", buffer)
-		rawBody.Write(buffer)
-		for {
-			if rawBody.Len() > maxBodyLength {
-				break
-			}
-			n, err := io.ReadFull(r.Body, buffer)
-			if err != nil {
-				// write last line
-				if n != 0 {
-					_, _ = fmt.Fprintf(buf, "\n%s", buffer[:n])
-					rawBody.Write(buffer[:n])
-				}
-				break
-			}
-			_, _ = fmt.Fprintf(buf, "\n%s", buffer)
-			rawBody.Write(buffer)
-		}
+		n += nn
 	}
+	if r.Body == nil {
+		return n, nil
+	}
+	nn, err = printBody(w, r)
+	return n + nn, err
+}
+
+func printBody(w io.Writer, r *http.Request) (int, error) {
+	rawBody := new(bytes.Buffer)
+	defer func() { r.Body = ioutil.NopCloser(io.MultiReader(rawBody, r.Body)) }()
+	var (
+		total int
+		err   error
+	)
+	// check body
+	buffer := make([]byte, bodyLineLength)
+	n, err := io.ReadFull(r.Body, buffer)
+	if err != nil {
+		if n == 0 { // no body
+			return 0, nil
+		}
+		// 0 < data size < bodyLineLength
+		nn, err := fmt.Fprintf(w, "\n\n%s", buffer[:n])
+		if err != nil {
+			return nn, err
+		}
+		rawBody.Write(buffer[:n])
+		return n, nil
+	}
+	// new line and write data
+	n, err = fmt.Fprintf(w, "\n\n%s", buffer)
+	if err != nil {
+		return n, err
+	}
+	total += n
+	rawBody.Write(buffer)
+	for {
+		if rawBody.Len() > maxBodyLength {
+			break
+		}
+		n, err = io.ReadFull(r.Body, buffer)
+		if err != nil {
+			// write last line
+			if n != 0 {
+				nn, err := fmt.Fprintf(w, "\n%s", buffer[:n])
+				if err != nil {
+					return total + nn, err
+				}
+				rawBody.Write(buffer[:n])
+			}
+			break
+		}
+		n, err = fmt.Fprintf(w, "\n%s", buffer)
+		if err != nil {
+			return total + n, err
+		}
+		total += n
+		rawBody.Write(buffer)
+	}
+	return total, nil
+}
+
+// PrintRequest is used to print *http.Request to a buffer.
+func PrintRequest(r *http.Request) *bytes.Buffer {
+	buf := new(bytes.Buffer)
+	_, _ = FprintRequest(buf, r)
 	return buf
+}
+
+// subHTTPFileSystem is used to open sub directory for http file server.
+type subHTTPFileSystem struct {
+	hfs  http.FileSystem
+	path string
+}
+
+// NewSubHTTPFileSystem is used to create a new sub http file system.
+func NewSubHTTPFileSystem(hfs http.FileSystem, path string) http.FileSystem {
+	return &subHTTPFileSystem{hfs: hfs, path: path + "/"}
+}
+
+func (s *subHTTPFileSystem) Open(name string) (http.File, error) {
+	return s.hfs.Open(s.path + name)
 }
