@@ -548,7 +548,7 @@ func TestConsole_readLoop(t *testing.T) {
 		time.Sleep(time.Second)
 
 		err = console.Destroy()
-		require.Error(t, err)
+		require.NoError(t, err)
 		testsuite.IsDestroyed(t, console)
 	})
 

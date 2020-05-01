@@ -1,7 +1,13 @@
 package msfrpc
 
 import (
+	"bytes"
+	"io"
 	"sync"
+	"time"
+
+	"project/internal/logger"
+	"project/internal/xpanic"
 )
 
 // IOStatus contains the status about the IO(console, shell and meterpreter).
@@ -129,4 +135,78 @@ func (iom *IOManager) ConsoleSessionDetach() {
 // ConsoleSessionKill is used to kill session in console, it will check token.
 func (iom *IOManager) ConsoleSessionKill() {
 
+}
+
+// parallelReader is used to wrap Console, Shell and Meterpreter.
+// different reader can get the same data.
+type parallelReader struct {
+	rc     io.ReadCloser
+	logger logger.Logger
+	onRead func()
+
+	// store history output
+	buf bytes.Buffer
+	rwm sync.RWMutex
+}
+
+func newParallelReader(rc io.ReadCloser, logger logger.Logger, onRead func()) *parallelReader {
+	reader := parallelReader{
+		rc:     rc,
+		logger: logger,
+		onRead: onRead,
+	}
+	go reader.readLoop()
+	return &reader
+}
+
+func (pr *parallelReader) readLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			b := xpanic.Print(r, "parallelReader.readLoop")
+			pr.logger.Println(logger.Fatal, "parallelReader", b)
+			// restart readLoop
+			time.Sleep(time.Second)
+			go pr.readLoop()
+		}
+	}()
+	var (
+		n   int
+		err error
+	)
+	buf := make([]byte, 4096)
+	for {
+		n, err = pr.rc.Read(buf)
+		if err != nil {
+			return
+		}
+		pr.writeToBuffer(buf[:n])
+		pr.onRead()
+	}
+}
+
+func (pr *parallelReader) writeToBuffer(b []byte) {
+	pr.rwm.Lock()
+	defer pr.rwm.Unlock()
+	pr.buf.Write(b)
+}
+
+// Bytes is used to get buffer data.
+func (pr *parallelReader) Bytes(start int) []byte {
+	if start < 0 {
+		start = 0
+	}
+	pr.rwm.RLock()
+	defer pr.rwm.RUnlock()
+	l := pr.buf.Len()
+	if start > l {
+		return nil
+	}
+	b := make([]byte, l-start)
+	copy(b, pr.buf.Bytes()[start:])
+	return b
+}
+
+// Close is used to close parallel reader.
+func (pr *parallelReader) Close() error {
+	return pr.rc.Close()
 }

@@ -1,7 +1,7 @@
 package msfrpc
 
 import (
-	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -14,100 +14,13 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/netutil"
 
+	"project/internal/httptool"
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/json"
 	"project/internal/virtualconn"
 	"project/internal/xpanic"
 )
-
-// subHTTPFileSystem is used to open sub directory for http file server.
-type subHTTPFileSystem struct {
-	hfs  http.FileSystem
-	path string
-}
-
-func newSubHTTPFileSystem(hfs http.FileSystem, path string) *subHTTPFileSystem {
-	return &subHTTPFileSystem{hfs: hfs, path: path + "/"}
-}
-
-func (s *subHTTPFileSystem) Open(name string) (http.File, error) {
-	return s.hfs.Open(s.path + name)
-}
-
-// parallelReader is used to wrap Console, Shell and Meterpreter.
-// different reader can get the same data.
-type parallelReader struct {
-	rc     io.ReadCloser
-	logger logger.Logger
-	onRead func()
-
-	// store history output
-	buf bytes.Buffer
-	rwm sync.RWMutex
-}
-
-func newParallelReader(rc io.ReadCloser, logger logger.Logger, onRead func()) *parallelReader {
-	reader := parallelReader{
-		rc:     rc,
-		logger: logger,
-		onRead: onRead,
-	}
-	go reader.readLoop()
-	return &reader
-}
-
-func (pr *parallelReader) readLoop() {
-	defer func() {
-		if r := recover(); r != nil {
-			b := xpanic.Print(r, "parallelReader.readLoop")
-			pr.logger.Println(logger.Fatal, "parallelReader", b)
-			// restart readLoop
-			time.Sleep(time.Second)
-			go pr.readLoop()
-		}
-	}()
-	var (
-		n   int
-		err error
-	)
-	buf := make([]byte, 4096)
-	for {
-		n, err = pr.rc.Read(buf)
-		if err != nil {
-			return
-		}
-		pr.writeToBuffer(buf[:n])
-		pr.onRead()
-	}
-}
-
-func (pr *parallelReader) writeToBuffer(b []byte) {
-	pr.rwm.Lock()
-	defer pr.rwm.Unlock()
-	pr.buf.Write(b)
-}
-
-// Bytes is used to get buffer data.
-func (pr *parallelReader) Bytes(start int) []byte {
-	if start < 0 {
-		start = 0
-	}
-	pr.rwm.RLock()
-	defer pr.rwm.RUnlock()
-	l := pr.buf.Len()
-	if start > l {
-		return nil
-	}
-	b := make([]byte, l-start)
-	copy(b, pr.buf.Bytes()[start:])
-	return b
-}
-
-// Close is used to close parallel reader.
-func (pr *parallelReader) Close() error {
-	return pr.rc.Close()
-}
 
 const minRequestBodySize = 1 << 20 // 1MB
 
@@ -164,11 +77,13 @@ func (msf *MSFRPC) NewWebServer(
 		HandleMethodNotAllowed: true,
 		PanicHandler:           wh.handlePanic,
 	}
-	// resource
-	router.ServeFiles("/css/*filepath", newSubHTTPFileSystem(hfs, "css"))
-	router.ServeFiles("/js/*filepath", newSubHTTPFileSystem(hfs, "js"))
-	router.ServeFiles("/fonts/*filepath", newSubHTTPFileSystem(hfs, "fonts"))
-	router.ServeFiles("/img/*filepath", newSubHTTPFileSystem(hfs, "img"))
+	// set resource handler
+	for _, path := range []string{
+		"css", "js", "fonts", "img",
+	} {
+		handler := fmt.Sprintf("/%s/*filepath", path)
+		router.ServeFiles(handler, httptool.NewSubHTTPFileSystem(hfs, path))
+	}
 	// favicon.ico
 	router.GET("/favicon.ico", func(w hRW, _ *hR, _ hP) {
 		file, err := hfs.Open("favicon.ico")

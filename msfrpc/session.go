@@ -393,6 +393,7 @@ func (msf *MSFRPC) NewShell(id uint64, interval time.Duration) *Shell {
 	}
 	shell.pr, shell.pw = io.Pipe()
 	shell.context, shell.cancel = context.WithCancel(context.Background())
+	msf.addResourceCount(2)
 	go shell.readLoop()
 	go shell.writeLimiter()
 	return &shell
@@ -411,6 +412,7 @@ func (shell *Shell) readLoop() {
 			go shell.readLoop()
 		} else {
 			shell.close()
+			shell.ctx.addResourceCount(-1)
 		}
 	}()
 	if !shell.ctx.trackShell(shell, true) {
@@ -454,6 +456,8 @@ func (shell *Shell) writeLimiter() {
 			// restart limiter
 			time.Sleep(time.Second)
 			go shell.writeLimiter()
+		} else {
+			shell.ctx.addResourceCount(-1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.
@@ -553,6 +557,7 @@ func (msf *MSFRPC) NewMeterpreter(id uint64, interval time.Duration) *Meterprete
 	}
 	mp.pr, mp.pw = io.Pipe()
 	mp.context, mp.cancel = context.WithCancel(context.Background())
+	msf.addResourceCount(2)
 	go mp.readLoop()
 	go mp.writeLimiter()
 	return &mp
@@ -571,6 +576,7 @@ func (mp *Meterpreter) readLoop() {
 			go mp.readLoop()
 		} else {
 			mp.close()
+			mp.ctx.addResourceCount(-1)
 		}
 	}()
 	if !mp.ctx.trackMeterpreter(mp, true) {
@@ -614,6 +620,8 @@ func (mp *Meterpreter) writeLimiter() {
 			// restart limiter
 			time.Sleep(time.Second)
 			go mp.writeLimiter()
+		} else {
+			mp.ctx.addResourceCount(-1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.

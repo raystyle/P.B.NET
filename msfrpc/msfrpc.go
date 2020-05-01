@@ -41,6 +41,8 @@ type MSFRPC struct {
 	shells map[uint64]*Shell
 	// key = meterpreter session id
 	meterpreters map[uint64]*Meterpreter
+	//
+	resCount sync.WaitGroup
 
 	inShutdown int32
 	rwm        sync.RWMutex
@@ -250,6 +252,10 @@ func (msf *MSFRPC) shuttingDown() bool {
 	return atomic.LoadInt32(&msf.inShutdown) != 0
 }
 
+func (msf *MSFRPC) addResourceCount(delta int) {
+	msf.resCount.Add(delta)
+}
+
 func (msf *MSFRPC) trackConsole(console *Console, add bool) bool {
 	msf.rwm.Lock()
 	defer msf.rwm.Unlock()
@@ -324,25 +330,25 @@ func (msf *MSFRPC) GetMeterpreter(id uint64) (*Meterpreter, error) {
 
 // Close is used to logout metasploit RPC and destroy all objects.
 func (msf *MSFRPC) Close() error {
-	msf.rwm.Lock()
-	defer msf.rwm.Unlock()
 	err := msf.AuthLogout(msf.GetToken())
 	if err != nil {
 		return err
 	}
 	msf.close()
+	msf.resCount.Wait()
 	return nil
 }
 
-// Kill is ued to logout metasploit RPC when can't connect target.
+// Kill is used to logout metasploit RPC when can't connect target.
 func (msf *MSFRPC) Kill() {
-	msf.rwm.Lock()
-	defer msf.rwm.Unlock()
 	_ = msf.AuthLogout(msf.GetToken())
 	msf.close()
+	msf.resCount.Wait()
 }
 
 func (msf *MSFRPC) close() {
+	msf.rwm.Lock()
+	defer msf.rwm.Unlock()
 	atomic.StoreInt32(&msf.inShutdown, 1)
 	// close all consoles
 	for _, console := range msf.consoles {
