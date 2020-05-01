@@ -465,6 +465,93 @@ func testPatchSend(f func()) {
 	f()
 }
 
+func TestMSFRPC_GetConsole(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+	require.NoError(t, err)
+
+	t.Run("exist", func(t *testing.T) {
+		const id = "0"
+		console := &Console{id: id}
+
+		add := msfrpc.trackConsole(console, true)
+		require.True(t, add)
+		defer func() {
+			del := msfrpc.trackConsole(console, false)
+			require.True(t, del)
+		}()
+
+		c, err := msfrpc.GetConsole(id)
+		require.NoError(t, err)
+		require.Equal(t, console, c)
+	})
+
+	t.Run("doesn't exist", func(t *testing.T) {
+		console, err := msfrpc.GetConsole("foo id")
+		require.EqualError(t, err, "console \"foo id\" doesn't exist")
+		require.Nil(t, console)
+	})
+
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_GetShell(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+	require.NoError(t, err)
+
+	t.Run("exist", func(t *testing.T) {
+		const id uint64 = 0
+		shell := &Shell{id: id}
+
+		add := msfrpc.trackShell(shell, true)
+		require.True(t, add)
+		defer func() {
+			del := msfrpc.trackShell(shell, false)
+			require.True(t, del)
+		}()
+
+		s, err := msfrpc.GetShell(id)
+		require.NoError(t, err)
+		require.Equal(t, shell, s)
+	})
+
+	t.Run("doesn't exist", func(t *testing.T) {
+		shell, err := msfrpc.GetShell(999)
+		require.EqualError(t, err, "shell \"999\" doesn't exist")
+		require.Nil(t, shell)
+	})
+
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMSFRPC_GetMeterpreter(t *testing.T) {
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+	require.NoError(t, err)
+
+	t.Run("exist", func(t *testing.T) {
+		const id uint64 = 0
+		meterpreter := &Meterpreter{id: id}
+
+		add := msfrpc.trackMeterpreter(meterpreter, true)
+		require.True(t, add)
+		defer func() {
+			del := msfrpc.trackMeterpreter(meterpreter, false)
+			require.True(t, del)
+		}()
+
+		m, err := msfrpc.GetMeterpreter(id)
+		require.NoError(t, err)
+		require.Equal(t, meterpreter, m)
+	})
+
+	t.Run("doesn't exist", func(t *testing.T) {
+		meterpreter, err := msfrpc.GetMeterpreter(999)
+		require.EqualError(t, err, "meterpreter \"999\" doesn't exist")
+		require.Nil(t, meterpreter)
+	})
+
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestMSFRPC_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()

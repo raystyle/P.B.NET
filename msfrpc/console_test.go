@@ -748,7 +748,7 @@ func TestConsole_writeLimiter(t *testing.T) {
 	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 	require.NoError(t, err)
 
-	// force set for prevent net/http call time.Reset()
+	// force setting IdleConnTimeout for prevent net/http call time.Reset()
 	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
 
 	err = msfrpc.AuthLogin()

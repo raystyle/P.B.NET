@@ -43,6 +43,9 @@ type Callbacks struct {
 // Monitor is used to monitor changes about token list(security),
 // jobs and sessions. If msfrpc connected database, it can monitor
 // hosts, credentials and loots.
+//
+// Use time.Timer to replace time.Ticker for prevent not sleep if the
+// network latency is bigger than Monitor.internal.
 type Monitor struct {
 	ctx *MSFRPC
 
@@ -272,15 +275,16 @@ func (monitor *Monitor) tokenMonitor() {
 			monitor.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(monitor.interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(monitor.interval)
+	defer timer.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			monitor.watchToken()
 		case <-monitor.context.Done():
 			return
 		}
+		timer.Reset(monitor.interval)
 	}
 }
 
@@ -334,15 +338,16 @@ func (monitor *Monitor) jobMonitor() {
 			monitor.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(monitor.interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(monitor.interval)
+	defer timer.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			monitor.watchJob()
 		case <-monitor.context.Done():
 			return
 		}
+		timer.Reset(monitor.interval)
 	}
 }
 
@@ -390,15 +395,16 @@ func (monitor *Monitor) sessionMonitor() {
 			monitor.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(monitor.interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(monitor.interval)
+	defer timer.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			monitor.watchSession()
 		case <-monitor.context.Done():
 			return
 		}
+		timer.Reset(monitor.interval)
 	}
 }
 
@@ -455,15 +461,16 @@ func (monitor *Monitor) hostMonitor() {
 			monitor.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(monitor.interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(monitor.interval)
+	defer timer.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			monitor.watchHost()
 		case <-monitor.context.Done():
 			return
 		}
+		timer.Reset(monitor.interval)
 	}
 }
 
@@ -537,15 +544,16 @@ func (monitor *Monitor) credentialMonitor() {
 			monitor.wg.Done()
 		}
 	}()
-	ticker := time.NewTicker(monitor.interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(monitor.interval)
+	defer timer.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			monitor.watchCredential()
 		case <-monitor.context.Done():
 			return
 		}
+		timer.Reset(monitor.interval)
 	}
 }
 
@@ -617,7 +625,6 @@ func (monitor *Monitor) lootMonitor() {
 			monitor.wg.Done()
 		}
 	}()
-	// must use timer fot use less CPU
 	timer := time.NewTimer(monitor.interval)
 	defer timer.Stop()
 	for {

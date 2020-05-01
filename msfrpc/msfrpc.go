@@ -292,6 +292,36 @@ func (msf *MSFRPC) trackMeterpreter(mp *Meterpreter, add bool) bool {
 	return true
 }
 
+// GetConsole is used to get console by id.
+func (msf *MSFRPC) GetConsole(id string) (*Console, error) {
+	msf.rwm.RLock()
+	defer msf.rwm.RUnlock()
+	if console, ok := msf.consoles[id]; ok {
+		return console, nil
+	}
+	return nil, errors.Errorf("console \"%s\" doesn't exist", id)
+}
+
+// GetShell is used to get shell by id.
+func (msf *MSFRPC) GetShell(id uint64) (*Shell, error) {
+	msf.rwm.RLock()
+	defer msf.rwm.RUnlock()
+	if shell, ok := msf.shells[id]; ok {
+		return shell, nil
+	}
+	return nil, errors.Errorf("shell \"%d\" doesn't exist", id)
+}
+
+// GetMeterpreter is used to get meterpreter by id.
+func (msf *MSFRPC) GetMeterpreter(id uint64) (*Meterpreter, error) {
+	msf.rwm.RLock()
+	defer msf.rwm.RUnlock()
+	if meterpreter, ok := msf.meterpreters[id]; ok {
+		return meterpreter, nil
+	}
+	return nil, errors.Errorf("meterpreter \"%d\" doesn't exist", id)
+}
+
 // Close is used to logout metasploit RPC and destroy all objects.
 func (msf *MSFRPC) Close() error {
 	msf.rwm.Lock()
