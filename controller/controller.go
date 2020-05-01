@@ -34,7 +34,7 @@ type Ctrl struct {
 	worker     *worker     // do work
 	boot       *boot       // auto discover bootstrap node listeners
 	webServer  *webServer  // web server
-	Test       *Test       // test module
+	Test       *Test       // internal test module
 
 	once sync.Once
 	wait chan struct{}

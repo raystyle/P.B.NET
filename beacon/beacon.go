@@ -16,8 +16,6 @@ import (
 
 // Beacon send messages to Controller.
 type Beacon struct {
-	Test *Test
-
 	logger     *gLogger    // global logger
 	global     *global     // certificate, proxy, dns, time syncer, and ...
 	syncer     *syncer     // sync network guid
@@ -28,6 +26,7 @@ type Beacon struct {
 	handler    *handler    // handle message from controller
 	worker     *worker     // do work
 	driver     *driver     // control all modules
+	Test       *Test       // internal test module
 
 	once sync.Once
 	wait chan struct{}
@@ -36,10 +35,7 @@ type Beacon struct {
 
 // New is used to create a Beacon from configuration.
 func New(cfg *Config) (*Beacon, error) {
-	// copy test
-	test := new(Test)
-	test.options = cfg.Test
-	beacon := &Beacon{Test: test}
+	beacon := new(Beacon)
 	// logger
 	lg, err := newLogger(beacon, cfg)
 	if err != nil {
@@ -92,6 +88,9 @@ func New(cfg *Config) (*Beacon, error) {
 		return nil, errors.WithMessage(err, "failed to initialize worker")
 	}
 	beacon.driver = driver
+	// test
+	beacon.Test = newTest(cfg)
+	// wait and exit
 	beacon.wait = make(chan struct{})
 	beacon.exit = make(chan error, 1)
 	return beacon, nil

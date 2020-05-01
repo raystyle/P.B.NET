@@ -16,12 +16,12 @@ import (
 
 // Test contains all test data.
 type Test struct {
+	ctx *Ctrl
+
 	options struct {
 		SkipTestClientDNS   bool
 		SkipSynchronizeTime bool
 	}
-
-	ctx *Ctrl
 
 	// about role register request
 	nodeListeners          map[guid.GUID][]string
@@ -49,9 +49,9 @@ type Test struct {
 func newTest(ctx *Ctrl, config *Config) *Test {
 	test := Test{
 		ctx:           ctx,
+		options:       config.Test,
 		nodeListeners: make(map[guid.GUID][]string),
 	}
-	test.options = config.Test
 	test.context, test.cancel = context.WithCancel(context.Background())
 	return &test
 }

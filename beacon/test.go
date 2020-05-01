@@ -19,6 +19,13 @@ type Test struct {
 	SendMsg chan []byte
 }
 
+func newTest(config *Config) *Test {
+	test := Test{
+		options: config.Test,
+	}
+	return &test
+}
+
 // EnableMessage is used to enable Controller send test message.
 func (t *Test) EnableMessage() {
 	t.msgEnabledRWM.Lock()

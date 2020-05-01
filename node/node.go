@@ -17,8 +17,6 @@ import (
 
 // Node send messages to controller.
 type Node struct {
-	Test *Test
-
 	storage    *storage    // storage
 	logger     *gLogger    // global logger
 	global     *global     // certificate, proxy, dns, time syncer, and ...
@@ -32,6 +30,7 @@ type Node struct {
 	worker     *worker     // do work
 	server     *server     // listen and serve Roles
 	driver     *driver     // control all modules
+	Test       *Test       // internal test module
 
 	once sync.Once
 	wait chan struct{}
@@ -40,10 +39,7 @@ type Node struct {
 
 // New is used to create a Node from configuration.
 func New(cfg *Config) (*Node, error) {
-	// copy test
-	test := new(Test)
-	test.options = cfg.Test
-	node := &Node{Test: test}
+	node := new(Node)
 	// storage
 	node.storage = newStorage()
 	// logger
@@ -110,6 +106,9 @@ func New(cfg *Config) (*Node, error) {
 		return nil, errors.WithMessage(err, "failed to initialize worker")
 	}
 	node.driver = driver
+	// test
+	node.Test = newTest(cfg)
+	// wait and exit
 	node.wait = make(chan struct{})
 	node.exit = make(chan error, 1)
 	return node, nil
