@@ -20,10 +20,11 @@ type IOStatus struct {
 }
 
 // IOManager is used to manage Console IO, Shell session IO and Meterpreter session IO.
-// It can lock IO instance for one user can use it, other user can read it with parallel reader.
+// It can lock IO instance for one user can write data to it, other user can
+// read it with parallel reader.
 //
-// It can create IO instance that only one user can read or write, other user can only
-// destroy it(Console IO) or kill session(Shell or Meterpreter).
+// It can create IO instance that only one user can read or write, other user can
+// only destroy it(Console IO) or kill session(Shell or Meterpreter).
 type IOManager struct {
 	ctx *MSFRPC
 
@@ -47,36 +48,38 @@ func (msf *MSFRPC) NewIOManager() *IOManager {
 	}
 }
 
-// NewConsole is used to create a new console, All user can read ro write.
+// NewConsole is used to create a new console with IO status, All user can read ro write.
+// It will create a new under console.
 func (iom *IOManager) NewConsole() {
 
 }
 
 // NewConsoleAndLockWrite is used to create a new console and lock write.
-// Only the creator can write it.
+// Only the creator can write it. It will create a new under console.
 func (iom *IOManager) NewConsoleAndLockWrite() {
 
 }
 
 // NewConsoleAndLockRW is used to create a new console and lock read and write.
-// Only the creator can read and write it.
+// Only the creator can read and write it. It will create a new under console.
 func (iom *IOManager) NewConsoleAndLockRW() {
 
 }
 
-// NewConsoleWithID is used to create a new console with id, All user can read ro write.
+// NewConsoleWithID is used to create a new console, All user can read ro write.
+// It will not create a new under console.
 func (iom *IOManager) NewConsoleWithID() {
 	// TODO check is exist
 }
 
 // NewConsoleWithIDAndLockWrite is used to create a new console with id and lock write.
-// Only the creator can write it.
+// Only the creator can write it. It will not create a new under console.
 func (iom *IOManager) NewConsoleWithIDAndLockWrite() {
 	// TODO check is exist
 }
 
 // NewConsoleWithIDAndLockRW is used to create a new console with id and lock read and write.
-// Only the creator can read and write it.
+// Only the creator can read and write it. It will not create a new under console.
 func (iom *IOManager) NewConsoleWithIDAndLockRW() {
 	// TODO check is exist
 }
@@ -137,6 +140,132 @@ func (iom *IOManager) ConsoleSessionKill() {
 
 }
 
+// NewShell is used to create a new shell with IO status.
+func (iom *IOManager) NewShell() {
+	// TODO check is exist
+}
+
+// NewShellAndLockWrite is used to create a new shell with IO status and lock write.
+// Only the creator can write it.
+func (iom *IOManager) NewShellAndLockWrite() {
+	// TODO check is exist
+}
+
+// NewShellAndLockRW is used to create a new shell and lock read and write.
+// Only the creator can read and write it.
+func (iom *IOManager) NewShellAndLockRW() {
+	// TODO check is exist
+}
+
+// ShellLockWrite is used to lock write for shell that only one user
+// can write to this shell.
+func (iom *IOManager) ShellLockWrite() {
+
+}
+
+// ShellUnlockWrite is used to unlock write for shell that all user
+// can write to this shell.
+func (iom *IOManager) ShellUnlockWrite() {
+
+}
+
+// ShellLockRW is used to lock read and write for shell that only one user
+// can read or write to this shell. (single mode)
+func (iom *IOManager) ShellLockRW() {
+
+}
+
+// ShellUnLockRW is used to unlock read and write for shell that all user
+// can read or write to this shell. (common mode)
+func (iom *IOManager) ShellUnLockRW() {
+
+}
+
+// ShellForceUnlockWrite is used to unlock write for shell that all user
+// can write to this shell, it will not check the token.
+func (iom *IOManager) ShellForceUnlockWrite() {
+
+}
+
+// ShellForceUnLockRW is used to unlock write for shell that all user
+// can write to this shell, it will not check the token.
+func (iom *IOManager) ShellForceUnLockRW() {
+
+}
+
+// ShellRead is used to read data from shell, it will check token.
+func (iom *IOManager) ShellRead() {
+
+}
+
+// ShellWrite is used to write data to shell, it will check token.
+func (iom *IOManager) ShellWrite() {
+
+}
+
+// NewMeterpreter is used to create a new meterpreter with IO status.
+func (iom *IOManager) NewMeterpreter() {
+	// TODO check is exist
+}
+
+// NewMeterpreterAndLockWrite is used to create a new meterpreter with IO status and lock write.
+// Only the creator can write it.
+func (iom *IOManager) NewMeterpreterAndLockWrite() {
+	// TODO check is exist
+}
+
+// NewMeterpreterAndLockRW is used to create a new meterpreter and lock read and write.
+// Only the creator can read and write it.
+func (iom *IOManager) NewMeterpreterAndLockRW() {
+	// TODO check is exist
+}
+
+// MeterpreterLockWrite is used to lock write for meterpreter that only one user
+// can write to this meterpreter.
+func (iom *IOManager) MeterpreterLockWrite() {
+
+}
+
+// MeterpreterUnlockWrite is used to unlock write for meterpreter that all user
+// can write to this meterpreter.
+func (iom *IOManager) MeterpreterUnlockWrite() {
+
+}
+
+// MeterpreterLockRW is used to lock read and write for meterpreter that only one user
+// can read or write to this meterpreter. (single mode)
+func (iom *IOManager) MeterpreterLockRW() {
+
+}
+
+// MeterpreterUnLockRW is used to unlock read and write for meterpreter that all user
+// can read or write to this meterpreter. (common mode)
+func (iom *IOManager) MeterpreterUnLockRW() {
+
+}
+
+// MeterpreterForceUnlockWrite is used to unlock write for meterpreter that all user
+// can write to this meterpreter, it will not check the token.
+func (iom *IOManager) MeterpreterForceUnlockWrite() {
+
+}
+
+// MeterpreterForceUnLockRW is used to unlock write for meterpreter that all user
+// can write to this meterpreter, it will not check the token.
+func (iom *IOManager) MeterpreterForceUnLockRW() {
+
+}
+
+// MeterpreterRead is used to read data from meterpreter, it will check token.
+func (iom *IOManager) MeterpreterRead() {
+
+}
+
+// MeterpreterWrite is used to write data to meterpreter, it will check token.
+func (iom *IOManager) MeterpreterWrite() {
+
+}
+
 // parallelReader is used to wrap Console, Shell and Meterpreter.
 // different reader can get the same data.
 type parallelReader struct {
@@ -147,6 +276,8 @@ type parallelReader struct {
 	// store history output
 	buf bytes.Buffer
 	rwm sync.RWMutex
+
+	wg sync.WaitGroup
 }
 
 func newParallelReader(rc io.ReadCloser, logger logger.Logger, onRead func()) *parallelReader {
@@ -155,6 +286,7 @@ func newParallelReader(rc io.ReadCloser, logger logger.Logger, onRead func()) *p
 		logger: logger,
 		onRead: onRead,
 	}
+	reader.wg.Add(1)
 	go reader.readLoop()
 	return &reader
 }
@@ -167,6 +299,8 @@ func (pr *parallelReader) readLoop() {
 			// restart readLoop
 			time.Sleep(time.Second)
 			go pr.readLoop()
+		} else {
+			pr.wg.Done()
 		}
 	}()
 	var (
@@ -208,5 +342,7 @@ func (pr *parallelReader) Bytes(start int) []byte {
 
 // Close is used to close parallel reader.
 func (pr *parallelReader) Close() error {
-	return pr.rc.Close()
+	err := pr.rc.Close()
+	pr.wg.Wait()
+	return err
 }
