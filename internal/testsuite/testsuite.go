@@ -18,14 +18,24 @@ import (
 	"project/internal/nettool"
 )
 
-// about network
 var (
+	// IPv4Enabled is used to tell tests current system is enable IPv4.
 	IPv4Enabled bool
+
+	// IPv6Enabled is used to tell tests current system is enable IPv6.
 	IPv6Enabled bool
+
+	// InGoland is used to tell tests in run by Goland.
+	InGoland bool
 )
 
 func init() {
-	// print network information
+	printNetworkInfo()
+	deployPPROFHTTPServer()
+	isInGoland()
+}
+
+func printNetworkInfo() {
 	IPv4Enabled, IPv6Enabled = nettool.IPEnabled()
 	if !IPv4Enabled && !IPv6Enabled {
 		fmt.Println("[debug] network unavailable")
@@ -36,22 +46,16 @@ func init() {
 		str = strings.ReplaceAll(str, "false", "Disabled")
 		fmt.Println(str)
 	}
-	// deploy pprof http server
-	var (
-		port int
-		ok   bool
-	)
-	for port = 9931; port < 65536; port++ {
-		ok = startPPROFHTTPServer(port)
-		if ok {
-			break
+}
+
+func deployPPROFHTTPServer() {
+	for port := 9931; port < 65536; port++ {
+		if startPPROFHTTPServer(port) {
+			fmt.Printf("[debug] pprof http server port: %d\n", port)
+			return
 		}
 	}
-	if ok {
-		fmt.Printf("[debug] pprof http server port: %d\n", port)
-	} else {
-		panic("failed to deploy pprof http server")
-	}
+	panic("failed to deploy pprof http server")
 }
 
 func startPPROFHTTPServer(port int) bool {
@@ -78,13 +82,12 @@ func startPPROFHTTPServer(port int) bool {
 	}
 	go func() { _ = server.Serve(ipv4) }()
 	go func() { _ = server.Serve(ipv6) }()
+	// wait server serve
+	time.Sleep(50 * time.Millisecond)
 	return true
 }
 
-// InGoland is used to tell tests in run by Goland.
-var InGoland bool
-
-func init() {
+func isInGoland() {
 	for _, value := range os.Environ() {
 		if strings.Contains(value, "IDEA") {
 			InGoland = true

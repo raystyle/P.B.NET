@@ -5,12 +5,68 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/nettool"
+	"project/internal/patch/monkey"
 )
+
+func TestPrintNetworkInfo(t *testing.T) {
+	patch := func() (bool, bool) {
+		return false, false
+	}
+	pg := monkey.Patch(nettool.IPEnabled, patch)
+	defer pg.Unpatch()
+
+	printNetworkInfo()
+}
+
+func TestDeployPPROFHTTPServer(t *testing.T) {
+	defer func() {
+		r := recover()
+		require.NotNil(t, r)
+		t.Log(r)
+	}()
+	patch := func(int) bool {
+		return false
+	}
+	pg := monkey.Patch(startPPROFHTTPServer, patch)
+	defer pg.Unpatch()
+
+	deployPPROFHTTPServer()
+}
+
+func TestStartPPROFHTTPServer(t *testing.T) {
+	t.Run("tcp4", func(t *testing.T) {
+		patch := func(string, string) (net.Listener, error) {
+			return nil, monkey.Error
+		}
+		pg := monkey.Patch(net.Listen, patch)
+		defer pg.Unpatch()
+
+		ok := startPPROFHTTPServer(123)
+		require.False(t, ok)
+	})
+
+	t.Run("tcp6", func(t *testing.T) {
+		patch := func(network, address string) (net.Listener, error) {
+			if network == "tcp6" {
+				return nil, monkey.Error
+			}
+			return nil, nil
+		}
+		pg := monkey.Patch(net.Listen, patch)
+		defer pg.Unpatch()
+
+		ok := startPPROFHTTPServer(123)
+		require.False(t, ok)
+	})
+}
 
 func TestIsInGoland(t *testing.T) {
 	t.Log("in Goland:", InGoland)
@@ -48,6 +104,7 @@ func TestCheckErrorInTestMain(t *testing.T) {
 	defer func() {
 		r := recover()
 		require.NotNil(t, r)
+		t.Log(r)
 	}()
 	CheckErrorInTestMain(errors.New("foo error"))
 }
