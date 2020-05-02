@@ -2,6 +2,7 @@ package testcert
 
 import (
 	"crypto/x509"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,10 +11,10 @@ import (
 )
 
 // certificates from system.
-var (
-	systemCerts     []*x509.Certificate
-	PublicRootCANum int
-)
+var systemCerts []*x509.Certificate
+
+// PublicRootCANum is the number of the public Root CA certificates.
+var PublicRootCANum int
 
 // the number of the generated certificates.
 const (
@@ -24,8 +25,14 @@ const (
 	PrivateClientCertNum = 5
 )
 
-func init() {
-	systemCertPool, _ := cert.SystemCertPool()
+func init() { loadSystemCertPool() }
+
+func loadSystemCertPool() {
+	systemCertPool, err := cert.SystemCertPool()
+	if err != nil {
+		const format = "[init] failed to load system certificate pool: %s"
+		panic(fmt.Sprintf(format, err))
+	}
 	systemCerts = systemCertPool.Certs()
 	PublicRootCANum = len(systemCerts)
 }
