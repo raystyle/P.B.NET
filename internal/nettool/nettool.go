@@ -52,19 +52,17 @@ func SplitHostPort(address string) (string, uint16, error) {
 // EncodeExternalAddress is used to encode connection external address.
 // If address is IP+Port, parse IP and return byte slice, ot return []byte(addr).
 func EncodeExternalAddress(address string) []byte {
-	var external []byte
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
-		external = []byte(address) // for special remote address
-	} else {
-		ip := net.ParseIP(host)
-		if ip != nil {
-			external = ip
-		} else {
-			external = []byte(host) // for special remote address
-		}
+		// for special remote address
+		return []byte(address)
 	}
-	return external
+	ip := net.ParseIP(host)
+	if ip != nil {
+		return ip
+	}
+	// for special remote address
+	return []byte(host)
 }
 
 // DecodeExternalAddress is used to decode connection external address.
@@ -79,7 +77,10 @@ func DecodeExternalAddress(address []byte) string {
 
 // IPEnabled is used to get system IP enabled.
 func IPEnabled() (ipv4Enabled, ipv6Enabled bool) {
-	interfaces, _ := net.Interfaces()
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return false, false
+	}
 	for _, iface := range interfaces {
 		if iface.Flags != net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
 			continue

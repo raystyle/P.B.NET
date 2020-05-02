@@ -1,11 +1,14 @@
 package nettool
 
 import (
+	"bytes"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
 )
 
 func TestCheckPort(t *testing.T) {
@@ -101,7 +104,63 @@ func TestDecodeExternalAddress(t *testing.T) {
 }
 
 func TestIPEnabled(t *testing.T) {
-	t.Log(IPEnabled())
+	t.Run("current", func(t *testing.T) {
+		ipv4, ipv6 := IPEnabled()
+		t.Log("current:", ipv4, ipv6)
+	})
+
+	t.Run("failed to get interfaces", func(t *testing.T) {
+		patch := func() ([]net.Interface, error) {
+			return nil, monkey.Error
+		}
+		pg := monkey.Patch(net.Interfaces, patch)
+		defer pg.Unpatch()
+
+		ipv4, ipv6 := IPEnabled()
+		require.False(t, ipv4)
+		require.False(t, ipv6)
+	})
+
+	t.Run("fake IPv4 Only", func(t *testing.T) {
+		patch := func(string) net.IP {
+			return bytes.Repeat([]byte{1}, net.IPv4len)
+		}
+		pg := monkey.Patch(net.ParseIP, patch)
+		defer pg.Unpatch()
+
+		ipv4, ipv6 := IPEnabled()
+		require.True(t, ipv4)
+		require.False(t, ipv6)
+	})
+
+	t.Run("fake IPv6 Only", func(t *testing.T) {
+		patch := func(string) net.IP {
+			return bytes.Repeat([]byte{1}, net.IPv6len)
+		}
+		pg := monkey.Patch(net.ParseIP, patch)
+		defer pg.Unpatch()
+
+		ipv4, ipv6 := IPEnabled()
+		require.False(t, ipv4)
+		require.True(t, ipv6)
+	})
+
+	t.Run("fake double stack", func(t *testing.T) {
+		called := false
+		patch := func(string) net.IP {
+			if called {
+				return bytes.Repeat([]byte{1}, net.IPv4len)
+			}
+			called = true
+			return bytes.Repeat([]byte{1}, net.IPv6len)
+		}
+		pg := monkey.Patch(net.ParseIP, patch)
+		defer pg.Unpatch()
+
+		ipv4, ipv6 := IPEnabled()
+		require.True(t, ipv4)
+		require.True(t, ipv6)
+	})
 }
 
 func TestDeadlineConn(t *testing.T) {
