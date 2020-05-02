@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/patch/toml"
+	"project/internal/system"
 	"project/internal/xpanic"
 
 	"project/msfrpc"
@@ -68,57 +68,38 @@ func main() {
 	var (
 		password  string
 		test      bool
-		cfgPath   string
+		config    string
 		install   bool
 		uninstall bool
 	)
-	flag.StringVar(&password, "pass", "", "generate password about web server")
+	flag.StringVar(&password, "gen", "", "generate password about web server")
 	flag.BoolVar(&test, "test", false, "don't change current path")
-	flag.StringVar(&cfgPath, "config", "config.toml", "configuration file path")
+	flag.StringVar(&config, "config", "config.toml", "configuration file path")
 	flag.BoolVar(&install, "install", false, "install service")
 	flag.BoolVar(&uninstall, "uninstall", false, "uninstall service")
 	flag.Parse()
 
 	if password != "" {
-		generateWebServerPassword(password)
+		generateWebPassword(password)
 		return
 	}
-
 	if !test {
-		changeCurrentDirectory()
+		err := system.ChangeCurrentDirectory()
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
-
-	setErrorLogger()
-
-	// load msfrpc configuration
-	data, err := ioutil.ReadFile(cfgPath) // #nosec
+	logFile, err := system.SetErrorLogger("msfrpc.err")
 	if err != nil {
 		log.Fatalln(err)
 	}
-	var config config
-	err = toml.Unmarshal(data, &config)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	// initialize program
-	program, err := newProgram(&config)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	// initialize service
-	svcConfig := service.Config{
-		Name:        config.Service.Name,
-		DisplayName: config.Service.DisplayName,
-		Description: config.Service.Description,
-	}
-	svc, err := service.New(program, &svcConfig)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	defer func() {
+		_ = logFile.Sync()
+		_ = logFile.Close()
+	}()
 
 	// switch operation
+	svc := createService(config)
 	switch {
 	case install:
 		err = svc.Install()
@@ -144,8 +125,8 @@ func main() {
 	}
 }
 
-// generateWebServerPassword is used to generate web server password.
-func generateWebServerPassword(password string) {
+// generateWebPassword is used to generate web server password.
+func generateWebPassword(password string) {
 	data, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		log.Fatalln(err)
@@ -153,28 +134,33 @@ func generateWebServerPassword(password string) {
 	fmt.Println("password:", string(data))
 }
 
-// changeCurrentDirectory is used to changed path for service and prevent
-// get invalid path when test.
-func changeCurrentDirectory() {
-	path, err := os.Executable()
+func createService(cfg string) service.Service {
+	// load msfrpc configuration
+	data, err := ioutil.ReadFile(cfg) // #nosec
 	if err != nil {
 		log.Fatalln(err)
 	}
-	dir, _ := filepath.Split(path)
-	err = os.Chdir(dir)
+	var config config
+	err = toml.Unmarshal(data, &config)
 	if err != nil {
 		log.Fatalln(err)
 	}
-}
-
-// setErrorLogger is used to log error before program start.
-func setErrorLogger() {
-	file, err := os.OpenFile("msfrpc.err", os.O_CREATE|os.O_APPEND, 0600) // #nosec
+	// initialize program
+	program, err := newProgram(&config)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	mLogger := logger.NewMultiLogger(logger.Error, os.Stdout, file)
-	logger.HijackLogWriter(logger.Error, "init", mLogger, 0)
+	// initialize service
+	svcConfig := service.Config{
+		Name:        config.Service.Name,
+		DisplayName: config.Service.DisplayName,
+		Description: config.Service.Description,
+	}
+	svc, err := service.New(program, &svcConfig)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return svc
 }
 
 type program struct {
