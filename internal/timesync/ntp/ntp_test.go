@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"project/internal/patch/monkey"
 )
 
 const (
@@ -168,29 +171,37 @@ func TestShortConversion(t *testing.T) {
 	ts = 0x00000000
 	assert.Equal(t, 0*time.Nanosecond, ts.Duration())
 
+	// well, it's actually 15258.789, but it's good enough
 	ts = 0x00000001
-	assert.Equal(t, 15258*time.Nanosecond, ts.Duration()) // well, it's actually 15258.789, but it's good enough
+	assert.Equal(t, 15258*time.Nanosecond, ts.Duration())
 
+	// precise
 	ts = 0x00008000
-	assert.Equal(t, 500*time.Millisecond, ts.Duration()) // precise
+	assert.Equal(t, 500*time.Millisecond, ts.Duration())
 
+	// precise
 	ts = 0x0000c000
-	assert.Equal(t, 750*time.Millisecond, ts.Duration()) // precise
+	assert.Equal(t, 750*time.Millisecond, ts.Duration())
 
+	// last precise sub-second value
 	ts = 0x0000ff80
-	assert.Equal(t, time.Second-(1000000000/512)*time.Nanosecond, ts.Duration()) // last precise sub-second value
+	assert.Equal(t, time.Second-(1000000000/512)*time.Nanosecond, ts.Duration())
 
+	// precise
 	ts = 0x00010000
-	assert.Equal(t, 1000*time.Millisecond, ts.Duration()) // precise
+	assert.Equal(t, 1000*time.Millisecond, ts.Duration())
 
+	// precise
 	ts = 0x00018000
-	assert.Equal(t, 1500*time.Millisecond, ts.Duration()) // precise
+	assert.Equal(t, 1500*time.Millisecond, ts.Duration())
 
+	// precise
 	ts = 0xffff0000
-	assert.Equal(t, 65535*time.Second, ts.Duration()) // precise
+	assert.Equal(t, 65535*time.Second, ts.Duration())
 
+	// last precise value
 	ts = 0xffffff80
-	assert.Equal(t, 65536*time.Second-(1000000000/512)*time.Nanosecond, ts.Duration()) // last precise value
+	assert.Equal(t, 65536*time.Second-(1000000000/512)*time.Nanosecond, ts.Duration())
 }
 
 func TestLongConversion(t *testing.T) {
@@ -324,4 +335,64 @@ func TestKissCode(t *testing.T) {
 	for _, c := range codes {
 		assert.Equal(t, kissCode(c.id), c.str)
 	}
+}
+
+func TestResponse_Validate(t *testing.T) {
+	resp := Response{}
+
+	err := resp.Validate()
+	require.Error(t, err)
+
+	resp.Stratum = maxStratum + 1
+	err = resp.Validate()
+	require.Error(t, err)
+	resp.Stratum = 12
+
+	resp.Leap = leapNotInSync
+	err = resp.Validate()
+	require.Error(t, err)
+	resp.Leap = 1
+
+	resp.RootDelay = time.Hour
+	err = resp.Validate()
+	require.Error(t, err)
+	resp.RootDelay = time.Second
+}
+
+func TestOptions_Apply(t *testing.T) {
+	opts := Options{}
+
+	opts.Network = "udp"
+	_, err := opts.apply()
+	require.NoError(t, err)
+
+	opts.Network = "foo"
+	_, err = opts.apply()
+	require.Error(t, err)
+	opts.Network = ""
+
+	opts.Version = 9
+	_, err = opts.apply()
+	require.Error(t, err)
+}
+
+func TestQuery_Failed(t *testing.T) {
+	patch1 := func(string, *Options) (*msg, ntpTime, error) {
+		return nil, 0, nil
+	}
+	pg1 := monkey.Patch(getTime, patch1)
+	defer pg1.Unpatch()
+
+	patch2 := func(*msg, ntpTime) *Response {
+		return &Response{}
+	}
+	pg2 := monkey.Patch(parseTime, patch2)
+	defer pg2.Unpatch()
+
+	_, err := Query("", nil)
+	require.Error(t, err)
+}
+
+func TestToInterval(t *testing.T) {
+
 }

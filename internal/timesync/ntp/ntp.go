@@ -88,12 +88,12 @@ func (t ntpTime) Time() time.Time {
 // toNtpTime converts the time.Time value t into its 64-bit fixed-point
 // ntpTime representation.
 func toNtpTime(t time.Time) ntpTime {
-	nsec := uint64(t.Sub(ntpEpoch))
-	sec := nsec / nanoPerSec
+	nSec := uint64(t.Sub(ntpEpoch))
+	sec := nSec / nanoPerSec
 	// Round up the fractional component so that repeated conversions
 	// between time.Time and ntpTime do not yield continually decreasing
 	// results.
-	frac := (((nsec - sec*nanoPerSec) << 32) + nanoPerSec - 1) / nanoPerSec
+	frac := (((nSec - sec*nanoPerSec) << 32) + nanoPerSec - 1) / nanoPerSec
 	return ntpTime(sec<<32 | frac)
 }
 
@@ -308,11 +308,10 @@ func Query(address string, opts *Options) (*Response, error) {
 		m, now, err = getTime(address, opts)
 		if err == nil {
 			break
-		} else {
-			if i == 2 {
-				return nil, err
-			}
 		}
+	}
+	if err != nil {
+		return nil, err
 	}
 	r := parseTime(m, now)
 	err = r.Validate()
@@ -354,7 +353,7 @@ func getTime(address string, opts *Options) (*msg, ntpTime, error) {
 	// To ensure privacy and prevent spoofing, try to use a random 64-bit
 	// value for the TransmitTime. If crypto/rand couldn't generate a
 	// random value, fall back to using the system clock. Keep track of
-	// when the messsage was actually transmitted.
+	// when the message was actually transmitted.
 	bits := make([]byte, 8)
 	_, err = rand.Read(bits)
 	var xmitTime time.Time
