@@ -169,7 +169,7 @@ func TestClient_selectType(t *testing.T) {
 	testAddAllDNSServers(t, client)
 
 	ipv4Enabled, ipv6Enabled := nettool.IPEnabled()
-	const domain = "localhost"
+	const domain = "one.one.one.one"
 	ctx := context.Background()
 	opts := &Options{Mode: ModeSystem}
 
@@ -186,7 +186,7 @@ func TestClient_selectType(t *testing.T) {
 
 		ip, err := client.selectType(ctx, domain, opts)
 		require.NoError(t, err)
-		require.Contains(t, ip, "127.0.0.1")
+		require.Contains(t, ip, "1.1.1.1")
 	})
 
 	t.Run("IPv6 Only", func(t *testing.T) {
@@ -202,7 +202,7 @@ func TestClient_selectType(t *testing.T) {
 
 		ip, err := client.selectType(ctx, domain, opts)
 		require.NoError(t, err)
-		require.Contains(t, ip, "::1")
+		require.Contains(t, ip, "2606:4700:4700::1111")
 	})
 
 	t.Run("network unavailable", func(t *testing.T) {
