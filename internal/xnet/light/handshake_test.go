@@ -58,10 +58,10 @@ func TestConn_clientHandshake(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("curve25519.ScalarBaseMult", func(t *testing.T) {
-		patchFunc := func([]byte) ([]byte, error) {
+		patch := func([]byte) ([]byte, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
+		pg := monkey.Patch(curve25519.ScalarBaseMult, patch)
 		defer pg.Unpatch()
 		err := new(Conn).clientHandshake()
 		monkey.IsMonkeyError(t, err)
@@ -111,10 +111,10 @@ func TestConn_clientHandshake(t *testing.T) {
 			sendPaddingData(server)
 
 			// must here, curve25519.ScalarBaseMult call curve25519.ScalarMult
-			patchFunc := func([]byte, []byte) ([]byte, error) {
+			patch := func([]byte, []byte) ([]byte, error) {
 				return nil, monkey.Error
 			}
-			pg := monkey.Patch(curve25519.ScalarMult, patchFunc)
+			pg := monkey.Patch(curve25519.ScalarMult, patch)
 			defer pg.Unpatch()
 
 			sendCurve25519Out(server)
@@ -149,10 +149,10 @@ func TestConn_clientHandshake(t *testing.T) {
 			sendPaddingData(server)
 			sendCurve25519Out(server)
 
-			patchFunc := func([]byte, []byte, []byte) ([]byte, error) {
+			patch := func([]byte, []byte, []byte) ([]byte, error) {
 				return nil, monkey.Error
 			}
-			pg := monkey.Patch(aes.CBCDecrypt, patchFunc)
+			pg := monkey.Patch(aes.CBCDecrypt, patch)
 			defer pg.Unpatch()
 
 			sendInvalidEncryptedPassword(server)
@@ -245,10 +245,10 @@ func TestConn_serverHandshake(t *testing.T) {
 		testConnServerHandshake(t, func(t *testing.T, client *Conn) {
 			sendPaddingData(client)
 
-			patchFunc := func([]byte) ([]byte, error) {
+			patch := func([]byte) ([]byte, error) {
 				return nil, monkey.Error
 			}
-			pg := monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
+			pg := monkey.Patch(curve25519.ScalarBaseMult, patch)
 			defer pg.Unpatch()
 
 			sendCurve25519Out(client)
@@ -270,21 +270,21 @@ func TestConn_serverHandshake(t *testing.T) {
 				ipg *monkey.PatchGuard
 				mu  sync.Mutex
 			)
-			patchFunc := func(in []byte) ([]byte, error) {
+			patch := func(in []byte) ([]byte, error) {
 				pg.Unpatch()
 				out, err := curve25519.ScalarBaseMult(in)
 
 				// patch after curve25519.ScalarBaseMult
-				patchFunc := func([]byte, []byte) ([]byte, error) {
+				patch := func([]byte, []byte) ([]byte, error) {
 					return nil, monkey.Error
 				}
 				mu.Lock()
 				defer mu.Unlock()
-				ipg = monkey.Patch(curve25519.ScalarMult, patchFunc)
+				ipg = monkey.Patch(curve25519.ScalarMult, patch)
 
 				return out, err
 			}
-			pg = monkey.Patch(curve25519.ScalarBaseMult, patchFunc)
+			pg = monkey.Patch(curve25519.ScalarBaseMult, patch)
 			defer func() {
 				mu.Lock()
 				defer mu.Unlock()
@@ -304,10 +304,10 @@ func TestConn_serverHandshake(t *testing.T) {
 		testConnServerHandshake(t, func(t *testing.T, client *Conn) {
 			sendPaddingData(client)
 
-			patchFunc := func([]byte, []byte, []byte) ([]byte, error) {
+			patch := func([]byte, []byte, []byte) ([]byte, error) {
 				return nil, monkey.Error
 			}
-			pg := monkey.Patch(aes.CBCEncrypt, patchFunc)
+			pg := monkey.Patch(aes.CBCEncrypt, patch)
 			defer pg.Unpatch()
 
 			sendCurve25519Out(client)

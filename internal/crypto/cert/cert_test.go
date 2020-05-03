@@ -55,10 +55,10 @@ func TestGeneratePrivateKey(t *testing.T) {
 		_, _, err := generatePrivateKey("")
 		require.NoError(t, err)
 
-		patchFunc := func(_ io.Reader, _ int) (*rsa.PrivateKey, error) {
+		patch := func(_ io.Reader, _ int) (*rsa.PrivateKey, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(rsa.GenerateKey, patchFunc)
+		pg := monkey.Patch(rsa.GenerateKey, patch)
 		defer pg.Unpatch()
 		_, _, err = generatePrivateKey("")
 		monkey.IsMonkeyError(t, err)
@@ -70,10 +70,10 @@ func TestGeneratePrivateKey(t *testing.T) {
 		_, _, err = generatePrivateKey("rsa|foo")
 		require.Error(t, err)
 
-		patchFunc := func(_ io.Reader, _ int) (*rsa.PrivateKey, error) {
+		patch := func(_ io.Reader, _ int) (*rsa.PrivateKey, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(rsa.GenerateKey, patchFunc)
+		pg := monkey.Patch(rsa.GenerateKey, patch)
 		defer pg.Unpatch()
 		_, _, err = generatePrivateKey("rsa|1024")
 		monkey.IsMonkeyError(t, err)
@@ -89,10 +89,10 @@ func TestGeneratePrivateKey(t *testing.T) {
 		_, _, err = generatePrivateKey("ecdsa|foo")
 		require.Error(t, err)
 
-		patchFunc := func(_ elliptic.Curve, _ io.Reader) (*ecdsa.PrivateKey, error) {
+		patch := func(_ elliptic.Curve, _ io.Reader) (*ecdsa.PrivateKey, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(ecdsa.GenerateKey, patchFunc)
+		pg := monkey.Patch(ecdsa.GenerateKey, patch)
 		defer pg.Unpatch()
 		_, _, err = generatePrivateKey("ecdsa|p256")
 		monkey.IsMonkeyError(t, err)
@@ -102,10 +102,10 @@ func TestGeneratePrivateKey(t *testing.T) {
 		_, _, err := generatePrivateKey("ed25519")
 		require.NoError(t, err)
 
-		patchFunc := func(_ io.Reader) (ed25519.PublicKey, ed25519.PrivateKey, error) {
+		patch := func(_ io.Reader) (ed25519.PublicKey, ed25519.PrivateKey, error) {
 			return nil, nil, monkey.Error
 		}
-		pg := monkey.Patch(ed25519.GenerateKey, patchFunc)
+		pg := monkey.Patch(ed25519.GenerateKey, patch)
 		defer pg.Unpatch()
 		_, _, err = generatePrivateKey("ed25519")
 		monkey.IsMonkeyError(t, err)
@@ -176,10 +176,10 @@ func TestGenerateCA(t *testing.T) {
 	})
 
 	t.Run("failed to create certificate", func(t *testing.T) {
-		patchFunc := func(_ io.Reader, _, _ *x509.Certificate, _, _ interface{}) ([]byte, error) {
+		patch := func(_ io.Reader, _, _ *x509.Certificate, _, _ interface{}) ([]byte, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(x509.CreateCertificate, patchFunc)
+		pg := monkey.Patch(x509.CreateCertificate, patch)
 		defer pg.Unpatch()
 		_, err := GenerateCA(nil)
 		monkey.IsMonkeyError(t, err)

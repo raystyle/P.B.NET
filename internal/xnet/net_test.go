@@ -68,10 +68,10 @@ func TestListener(t *testing.T) {
 	t.Run("failed to AcceptEx", func(t *testing.T) {
 		// patch
 		var tcpListener *net.TCPListener
-		patchFunc := func(*net.TCPListener) (net.Conn, error) {
+		patch := func(*net.TCPListener) (net.Conn, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(tcpListener, "Accept", patchFunc)
+		pg := monkey.PatchInstanceMethod(tcpListener, "Accept", patch)
 		defer pg.Unpatch()
 
 		_, err = listener.AcceptEx()

@@ -183,10 +183,10 @@ func TestSlaver_serve(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 
 		// patch
-		patchFunc := func(context.Context, time.Duration) (context.Context, context.CancelFunc) {
+		patch := func(context.Context, time.Duration) (context.Context, context.CancelFunc) {
 			panic(monkey.Panic)
 		}
-		pg := monkey.Patch(context.WithTimeout, patchFunc)
+		pg := monkey.Patch(context.WithTimeout, patch)
 		defer pg.Unpatch()
 
 		err := slaver.Start()
@@ -257,10 +257,10 @@ func TestSConn_Serve(t *testing.T) {
 
 		// patch
 		dialer := new(net.Dialer)
-		patchFunc := func(interface{}, context.Context, string, string) (net.Conn, error) {
+		patch := func(interface{}, context.Context, string, string) (net.Conn, error) {
 			return testsuite.DialMockConnWithWriteError(context.Background(), "", "")
 		}
-		pg := monkey.PatchInstanceMethod(dialer, "DialContext", patchFunc)
+		pg := monkey.PatchInstanceMethod(dialer, "DialContext", patch)
 		defer pg.Unpatch()
 
 		err := slaver.Start()
@@ -280,7 +280,7 @@ func TestSConn_Serve(t *testing.T) {
 
 		// patch
 		conn := new(sConn)
-		patchFunc := func(c *sConn) {
+		patch := func(c *sConn) {
 			done := make(chan struct{}, 2)
 			// block
 			done <- struct{}{}
@@ -294,7 +294,7 @@ func TestSConn_Serve(t *testing.T) {
 
 			<-c.slaver.ctx.Done()
 		}
-		pg := monkey.PatchInstanceMethod(conn, "Serve", patchFunc)
+		pg := monkey.PatchInstanceMethod(conn, "Serve", patch)
 		defer pg.Unpatch()
 
 		err := slaver.Start()
@@ -320,7 +320,7 @@ func TestSConn_Serve(t *testing.T) {
 
 		// patch
 		conn := new(sConn)
-		patchFunc := func(c *sConn) {
+		patch := func(c *sConn) {
 			done := make(chan struct{}, 2)
 			// block
 			done <- struct{}{}
@@ -333,7 +333,7 @@ func TestSConn_Serve(t *testing.T) {
 
 			<-c.slaver.ctx.Done()
 		}
-		pg := monkey.PatchInstanceMethod(conn, "Serve", patchFunc)
+		pg := monkey.PatchInstanceMethod(conn, "Serve", patch)
 		defer pg.Unpatch()
 
 		err := slaver.Start()
@@ -361,10 +361,10 @@ func TestSConn_Serve(t *testing.T) {
 
 		// patch
 		conn := new(net.TCPConn)
-		patchFunc := func(interface{}, time.Time) error {
+		patch := func(interface{}, time.Time) error {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(conn, "SetReadDeadline", patchFunc)
+		pg := monkey.PatchInstanceMethod(conn, "SetReadDeadline", patch)
 		defer pg.Unpatch()
 
 		// wait serve()

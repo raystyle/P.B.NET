@@ -346,10 +346,10 @@ func TestClient_TestServers(t *testing.T) {
 		testAddAllDNSServers(t, client)
 
 		opts := new(Options)
-		patchFunc := func(_ interface{}) *Options {
+		patch := func(_ interface{}) *Options {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(opts, "Clone", patchFunc)
+		pg := monkey.PatchInstanceMethod(opts, "Clone", patch)
 		defer pg.Unpatch()
 
 		result, err := client.TestServers(context.Background(), testDomain, new(Options))

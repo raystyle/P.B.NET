@@ -115,10 +115,10 @@ func TestLicense_DecodeMsgpack(t *testing.T) {
 		data := []byte{byte(codes.FixedArrayLow)}
 		decoder := msgpack.NewDecoder(bytes.NewReader(data))
 
-		patchFunc := func(interface{}) ([]interface{}, error) {
+		patch := func(interface{}) ([]interface{}, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(decoder, "DecodeSlice", patchFunc)
+		pg := monkey.PatchInstanceMethod(decoder, "DecodeSlice", patch)
 		defer pg.Unpatch()
 
 		license := new(license)

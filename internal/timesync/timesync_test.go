@@ -240,10 +240,10 @@ func TestSyncer_Test(t *testing.T) {
 
 	t.Run("panic", func(t *testing.T) {
 		client := new(HTTP)
-		patchFunc := func(_ interface{}) (time.Time, bool, error) {
+		patch := func(_ interface{}) (time.Time, bool, error) {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(client, "Query", patchFunc)
+		pg := monkey.PatchInstanceMethod(client, "Query", patch)
 		defer pg.Unpatch()
 
 		require.Error(t, syncer.Test(context.Background()))
@@ -285,10 +285,10 @@ func TestSyncer_workerPanic(t *testing.T) {
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
-	patchFunc := func(_ time.Duration) *time.Ticker {
+	patch := func(_ time.Duration) *time.Ticker {
 		panic(monkey.Panic)
 	}
-	pg := monkey.Patch(time.NewTicker, patchFunc)
+	pg := monkey.Patch(time.NewTicker, patch)
 	defer pg.Unpatch()
 
 	syncer.wg.Add(1)
@@ -307,10 +307,10 @@ func TestSyncer_synchronizeLoopPanic(t *testing.T) {
 	defer func() { require.NoError(t, proxyMgr.Close()) }()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
-	patchFunc := func() *random.Rand {
+	patch := func() *random.Rand {
 		panic(monkey.Panic)
 	}
-	pg := monkey.Patch(random.New, patchFunc)
+	pg := monkey.Patch(random.New, patch)
 	defer pg.Unpatch()
 
 	syncer.wg.Add(1)

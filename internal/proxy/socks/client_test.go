@@ -236,11 +236,11 @@ func TestClient_Connect(t *testing.T) {
 		}()
 
 		ctx := context.Background()
-		patchFunc := func(_ interface{}) {
+		patch := func(_ interface{}) {
 			_ = cli.Close()
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(ctx, "Done", patchFunc)
+		pg := monkey.PatchInstanceMethod(ctx, "Done", patch)
 		defer pg.Unpatch()
 
 		_, err = client.Connect(ctx, cli, "tcp", "127.0.0.1:1")

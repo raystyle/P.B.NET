@@ -1067,10 +1067,10 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 
 	t.Run("panic", func(t *testing.T) {
 		m := &MSFRPC{}
-		patchFunc := func(interface{}, context.Context) ([]*DBWorkspace, error) {
+		patch := func(interface{}, context.Context) ([]*DBWorkspace, error) {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(m, "DBWorkspaces", patchFunc)
+		pg := monkey.PatchInstanceMethod(m, "DBWorkspaces", patch)
 		defer pg.Unpatch()
 
 		callbacks := Callbacks{}

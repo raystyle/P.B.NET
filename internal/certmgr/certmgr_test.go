@@ -77,10 +77,10 @@ func TestSaveCtrlCertPool(t *testing.T) {
 	pool := testGenerateCertPool(t)
 
 	t.Run("invalid structure", func(t *testing.T) {
-		patchFunc := func(interface{}) ([]byte, error) {
+		patch := func(interface{}) ([]byte, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(msgpack.Marshal, patchFunc)
+		pg := monkey.Patch(msgpack.Marshal, patch)
 		defer pg.Unpatch()
 
 		err := SaveCtrlCertPool(pool, testPassword)
@@ -88,10 +88,10 @@ func TestSaveCtrlCertPool(t *testing.T) {
 	})
 
 	t.Run("failed to NewWriter", func(t *testing.T) {
-		patchFunc := func(io.Writer, int) (*flate.Writer, error) {
+		patch := func(io.Writer, int) (*flate.Writer, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(flate.NewWriter, patchFunc)
+		pg := monkey.Patch(flate.NewWriter, patch)
 		defer pg.Unpatch()
 
 		err := SaveCtrlCertPool(pool, testPassword)
@@ -100,10 +100,10 @@ func TestSaveCtrlCertPool(t *testing.T) {
 
 	t.Run("failed to write about compress", func(t *testing.T) {
 		writer := new(flate.Writer)
-		patchFunc := func(interface{}, []byte) (int, error) {
+		patch := func(interface{}, []byte) (int, error) {
 			return 0, monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(writer, "Write", patchFunc)
+		pg := monkey.PatchInstanceMethod(writer, "Write", patch)
 		defer pg.Unpatch()
 
 		err := SaveCtrlCertPool(pool, testPassword)
@@ -112,10 +112,10 @@ func TestSaveCtrlCertPool(t *testing.T) {
 
 	t.Run("failed to close about compress", func(t *testing.T) {
 		writer := new(flate.Writer)
-		patchFunc := func(interface{}) error {
+		patch := func(interface{}) error {
 			return monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(writer, "Close", patchFunc)
+		pg := monkey.PatchInstanceMethod(writer, "Close", patch)
 		defer pg.Unpatch()
 
 		err := SaveCtrlCertPool(pool, testPassword)
@@ -123,10 +123,10 @@ func TestSaveCtrlCertPool(t *testing.T) {
 	})
 
 	t.Run("failed to encrypt data", func(t *testing.T) {
-		patchFunc := func([]byte, []byte, []byte) ([]byte, error) {
+		patch := func([]byte, []byte, []byte) ([]byte, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(aes.CBCEncrypt, patchFunc)
+		pg := monkey.Patch(aes.CBCEncrypt, patch)
 		defer pg.Unpatch()
 
 		err := SaveCtrlCertPool(pool, testPassword)
@@ -134,10 +134,10 @@ func TestSaveCtrlCertPool(t *testing.T) {
 	})
 
 	t.Run("failed to write file", func(t *testing.T) {
-		patchFunc := func(string, []byte) error {
+		patch := func(string, []byte) error {
 			return monkey.Error
 		}
-		pg := monkey.Patch(system.WriteFile, patchFunc)
+		pg := monkey.Patch(system.WriteFile, patch)
 		defer pg.Unpatch()
 
 		err := SaveCtrlCertPool(pool, testPassword)
@@ -183,10 +183,10 @@ func TestLoadCtrlCertPool(t *testing.T) {
 
 	t.Run("failed to close deflate reader", func(t *testing.T) {
 		reader := flate.NewReader(nil)
-		patchFunc := func(interface{}) error {
+		patch := func(interface{}) error {
 			return monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(reader, "Close", patchFunc)
+		pg := monkey.PatchInstanceMethod(reader, "Close", patch)
 		defer pg.Unpatch()
 
 		err := LoadCtrlCertPool(pool, certsData, hashData, testPassword)
@@ -199,10 +199,10 @@ func TestLoadCtrlCertPool(t *testing.T) {
 	})
 
 	t.Run("failed to unmarshal", func(t *testing.T) {
-		patchFunc := func([]byte, interface{}) error {
+		patch := func([]byte, interface{}) error {
 			return monkey.Error
 		}
-		pg := monkey.Patch(msgpack.Unmarshal, patchFunc)
+		pg := monkey.Patch(msgpack.Unmarshal, patch)
 		defer pg.Unpatch()
 
 		err := LoadCtrlCertPool(pool, certsData, hashData, testPassword)

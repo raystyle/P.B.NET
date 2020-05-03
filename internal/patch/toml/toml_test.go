@@ -45,10 +45,10 @@ func TestUnmarshal(t *testing.T) {
 	err = Unmarshal([]byte{0x00}, &test)
 	require.Error(t, err)
 
-	patchFunc := func(_ []byte) (*toml.Tree, error) {
+	patch := func(_ []byte) (*toml.Tree, error) {
 		return nil, monkey.Error
 	}
-	pg := monkey.Patch(toml.LoadBytes, patchFunc)
+	pg := monkey.Patch(toml.LoadBytes, patch)
 	defer pg.Unpatch()
 	err = Unmarshal(data, &test)
 	errStr := fmt.Sprintf("toml: %s in *toml.testStructRoot", monkey.Error)

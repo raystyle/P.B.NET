@@ -44,10 +44,10 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 	t.Run("MarshalPKCS8PrivateKey", func(t *testing.T) {
 		pair := testGenerateCert(t)
 		cert, key := pair.Encode() // must before patch
-		patchFunc := func(_ interface{}) ([]byte, error) {
+		patch := func(_ interface{}) ([]byte, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patchFunc)
+		pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patch)
 		defer pg.Unpatch()
 		_, err := loadCertWithPrivateKey(cert, key)
 		monkey.IsMonkeyError(t, err)
@@ -383,10 +383,10 @@ func TestNewPoolWithSystemCerts(t *testing.T) {
 	})
 
 	t.Run("failed to call SystemCertPool", func(t *testing.T) {
-		patchFunc := func() (*x509.CertPool, error) {
+		patch := func() (*x509.CertPool, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(SystemCertPool, patchFunc)
+		pg := monkey.Patch(SystemCertPool, patch)
 		defer pg.Unpatch()
 		_, err := NewPoolWithSystemCerts()
 		monkey.IsMonkeyError(t, err)
@@ -394,10 +394,10 @@ func TestNewPoolWithSystemCerts(t *testing.T) {
 
 	t.Run("failed to AddPublicRootCACert", func(t *testing.T) {
 		pool := NewPool()
-		patchFunc := func(_ *Pool, _ []byte) error {
+		patch := func(_ *Pool, _ []byte) error {
 			return monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(pool, "AddPublicRootCACert", patchFunc)
+		pg := monkey.PatchInstanceMethod(pool, "AddPublicRootCACert", patch)
 		defer pg.Unpatch()
 		_, err := NewPoolWithSystemCerts()
 		monkey.IsMonkeyError(t, err)

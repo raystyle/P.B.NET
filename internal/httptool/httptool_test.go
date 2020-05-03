@@ -99,13 +99,13 @@ func TestFprintRequestWithError(t *testing.T) {
 		{"header", "\n%s: %s"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+			patch := func(w io.Writer, format string, a ...interface{}) (int, error) {
 				if format == test.format {
 					return 0, monkey.Error
 				}
 				return w.Write([]byte(fmt.Sprintf(format, a...)))
 			}
-			pg := monkey.Patch(fmt.Fprintf, patchFunc)
+			pg := monkey.Patch(fmt.Fprintf, patch)
 			defer pg.Unpatch()
 			_, err := FprintRequest(os.Stdout, r)
 			monkey.IsMonkeyError(t, err)
@@ -120,13 +120,13 @@ func TestPrintBody(t *testing.T) {
 	r := testGenerateRequest(t)
 
 	t.Run("size < bodyLineLength", func(t *testing.T) {
-		patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+		patch := func(w io.Writer, format string, a ...interface{}) (int, error) {
 			if format == "\n\n%s" {
 				return 0, monkey.Error
 			}
 			return w.Write([]byte(fmt.Sprintf(format, a...)))
 		}
-		pg := monkey.Patch(fmt.Fprintf, patchFunc)
+		pg := monkey.Patch(fmt.Fprintf, patch)
 		defer pg.Unpatch()
 
 		r.Body = ioutil.NopCloser(strings.NewReader("test"))
@@ -138,13 +138,13 @@ func TestPrintBody(t *testing.T) {
 	})
 
 	t.Run("bodyLineLength < size < 2x", func(t *testing.T) {
-		patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+		patch := func(w io.Writer, format string, a ...interface{}) (int, error) {
 			if format == "\n\n%s" {
 				return 0, monkey.Error
 			}
 			return w.Write([]byte(fmt.Sprintf(format, a...)))
 		}
-		pg := monkey.Patch(fmt.Fprintf, patchFunc)
+		pg := monkey.Patch(fmt.Fprintf, patch)
 		defer pg.Unpatch()
 
 		testdata := "test" + strings.Repeat("a", bodyLineLength)
@@ -157,13 +157,13 @@ func TestPrintBody(t *testing.T) {
 	})
 
 	t.Run("1.5 x bodyLineLength", func(t *testing.T) {
-		patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+		patch := func(w io.Writer, format string, a ...interface{}) (int, error) {
 			if format == "\n%s" {
 				return 0, monkey.Error
 			}
 			return w.Write([]byte(fmt.Sprintf(format, a...)))
 		}
-		pg := monkey.Patch(fmt.Fprintf, patchFunc)
+		pg := monkey.Patch(fmt.Fprintf, patch)
 		defer pg.Unpatch()
 
 		testdata := "test" + strings.Repeat("a", bodyLineLength)
@@ -176,13 +176,13 @@ func TestPrintBody(t *testing.T) {
 	})
 
 	t.Run("2.5 x bodyLineLength", func(t *testing.T) {
-		patchFunc := func(w io.Writer, format string, a ...interface{}) (int, error) {
+		patch := func(w io.Writer, format string, a ...interface{}) (int, error) {
 			if format == "\n%s" {
 				return 0, monkey.Error
 			}
 			return w.Write([]byte(fmt.Sprintf(format, a...)))
 		}
-		pg := monkey.Patch(fmt.Fprintf, patchFunc)
+		pg := monkey.Patch(fmt.Fprintf, patch)
 		defer pg.Unpatch()
 
 		testdata := "test" + strings.Repeat("a", 2*bodyLineLength)

@@ -1036,10 +1036,10 @@ func TestShell_readLoop(t *testing.T) {
 		_, w := io.Pipe()
 		defer func() { _ = w.Close() }()
 
-		patchFunc := func(interface{}) bool {
+		patch := func(interface{}) bool {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(w, "Write", patchFunc)
+		pg := monkey.PatchInstanceMethod(w, "Write", patch)
 		defer pg.Unpatch()
 
 		shell := msfrpc.NewShell(id, interval)
@@ -1125,10 +1125,10 @@ func TestShell_writeLimiter(t *testing.T) {
 		timer := time.NewTimer(time.Second)
 		defer timer.Stop()
 
-		patchFunc := func(interface{}, time.Duration) bool {
+		patch := func(interface{}, time.Duration) bool {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(timer, "Reset", patchFunc)
+		pg := monkey.PatchInstanceMethod(timer, "Reset", patch)
 		defer pg.Unpatch()
 
 		shell := msfrpc.NewShell(id, interval)
@@ -1354,10 +1354,10 @@ func TestMeterpreter_readLoop(t *testing.T) {
 		_, w := io.Pipe()
 		defer func() { _ = w.Close() }()
 
-		patchFunc := func(interface{}) bool {
+		patch := func(interface{}) bool {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(w, "Write", patchFunc)
+		pg := monkey.PatchInstanceMethod(w, "Write", patch)
 		defer pg.Unpatch()
 
 		meterpreter := msfrpc.NewMeterpreter(id, interval)
@@ -1443,10 +1443,10 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 		timer := time.NewTimer(time.Second)
 		defer timer.Stop()
 
-		patchFunc := func(interface{}, time.Duration) bool {
+		patch := func(interface{}, time.Duration) bool {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(timer, "Reset", patchFunc)
+		pg := monkey.PatchInstanceMethod(timer, "Reset", patch)
 		defer pg.Unpatch()
 
 		meterpreter := msfrpc.NewMeterpreter(id, interval)

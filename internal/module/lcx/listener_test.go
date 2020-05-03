@@ -195,10 +195,10 @@ func TestListener_serve(t *testing.T) {
 
 	t.Run("panic", func(t *testing.T) {
 		// patch
-		patchFunc := func(net.Listener, int) net.Listener {
+		patch := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithPanic()
 		}
-		pg := monkey.Patch(netutil.LimitListener, patchFunc)
+		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
 
 		listener := testGenerateListener(t)
@@ -215,10 +215,10 @@ func TestListener_accept(t *testing.T) {
 	defer gm.Compare()
 
 	// patch
-	patchFunc := func(net.Listener, int) net.Listener {
+	patch := func(net.Listener, int) net.Listener {
 		return testsuite.NewMockListenerWithError()
 	}
-	pg := monkey.Patch(netutil.LimitListener, patchFunc)
+	pg := monkey.Patch(netutil.LimitListener, patch)
 	defer pg.Unpatch()
 
 	listener := testGenerateListener(t)
@@ -263,10 +263,10 @@ func TestLConn_Serve(t *testing.T) {
 		require.NoError(t, err)
 
 		// patch
-		patchFunc := func(io.Writer, io.Reader) (int64, error) {
+		patch := func(io.Writer, io.Reader) (int64, error) {
 			panic(monkey.Panic)
 		}
-		pg := monkey.Patch(io.Copy, patchFunc)
+		pg := monkey.Patch(io.Copy, patch)
 		defer pg.Unpatch()
 
 		iConn, err := net.Dial("tcp", listener.testIncomeAddress())

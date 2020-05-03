@@ -155,12 +155,12 @@ func TestDialContext_Panic(t *testing.T) {
 	server, client := net.Pipe()
 	client = Client(client, clientCfg)
 	var pg *monkey.PatchGuard
-	patchFunc := func(conn *tls.Conn) error {
+	patch := func(conn *tls.Conn) error {
 		pg.Unpatch()
 		_ = conn.Close()
 		panic(monkey.Panic)
 	}
-	pg = monkey.PatchInstanceMethod(client, "Close", patchFunc)
+	pg = monkey.PatchInstanceMethod(client, "Close", patch)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

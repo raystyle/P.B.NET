@@ -15,10 +15,10 @@ func TestDoUseless(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("panic", func(t *testing.T) {
-		patchFunc := func() *random.Rand {
+		patch := func() *random.Rand {
 			panic(monkey.Panic)
 		}
-		pg := monkey.Patch(random.New, patchFunc)
+		pg := monkey.Patch(random.New, patch)
 		defer pg.Unpatch()
 		ch := make(chan []byte, 5120)
 		doUseless(context.Background(), ch)

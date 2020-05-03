@@ -119,10 +119,10 @@ func TestFailedToAccept(t *testing.T) {
 
 	// patch
 	var tcpListener *net.TCPListener
-	patchFunc := func(*net.TCPListener) (net.Conn, error) {
+	patch := func(*net.TCPListener) (net.Conn, error) {
 		return nil, monkey.Error
 	}
-	pg := monkey.PatchInstanceMethod(tcpListener, "Accept", patchFunc)
+	pg := monkey.PatchInstanceMethod(tcpListener, "Accept", patch)
 	defer pg.Unpatch()
 
 	listener, err := Listen("tcp", "localhost:0", 0)

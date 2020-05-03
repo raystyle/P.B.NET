@@ -24,10 +24,10 @@ func TestError(t *testing.T) {
 }
 
 func TestUnknown(t *testing.T) {
-	patchFunc := func(uintptr) *runtime.Func {
+	patch := func(uintptr) *runtime.Func {
 		return nil
 	}
-	pg := monkey.Patch(runtime.FuncForPC, patchFunc)
+	pg := monkey.Patch(runtime.FuncForPC, patch)
 	defer pg.Unpatch()
 
 	defer func() {

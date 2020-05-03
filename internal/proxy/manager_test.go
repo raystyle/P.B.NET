@@ -289,12 +289,12 @@ func TestManager_Close(t *testing.T) {
 	// patch
 	var pg *monkey.PatchGuard
 	var tcpListener *net.TCPListener
-	patchFunc := func(l *net.TCPListener) error {
+	patch := func(l *net.TCPListener) error {
 		pg.Unpatch()
 		require.NoError(t, l.Close())
 		return monkey.Error
 	}
-	pg = monkey.PatchInstanceMethod(tcpListener, "Close", patchFunc)
+	pg = monkey.PatchInstanceMethod(tcpListener, "Close", patch)
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)

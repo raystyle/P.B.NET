@@ -21,14 +21,14 @@ func TestIsMonkeyError(t *testing.T) {
 }
 
 func ExamplePatch() {
-	patchFunc := func(a ...interface{}) (n int, err error) {
+	patch := func(a ...interface{}) (n int, err error) {
 		s := make([]interface{}, len(a))
 		for i, v := range a {
 			s[i] = strings.ReplaceAll(fmt.Sprint(v), "hell", "*bleep*")
 		}
 		return fmt.Fprintln(os.Stdout, s...)
 	}
-	pg := Patch(fmt.Println, patchFunc)
+	pg := Patch(fmt.Println, patch)
 	defer pg.Unpatch()
 
 	fmt.Println("what the hell?")
@@ -48,10 +48,10 @@ func (p *private) Get(s string) string {
 
 func ExamplePatchInstanceMethod() {
 	pri := &private{str: "pri"}
-	patchFunc := func(interface{}, string) string {
+	patch := func(interface{}, string) string {
 		return "monkey"
 	}
-	pg := PatchInstanceMethod(pri, "Get", patchFunc)
+	pg := PatchInstanceMethod(pri, "Get", patch)
 	defer pg.Unpatch()
 
 	fmt.Println(pri.Get("foo"))
@@ -70,9 +70,9 @@ func TestPatchInstanceMethodType(t *testing.T) {
 	t.Run("invalid parameter", func(t *testing.T) {
 		defer func() { require.NotNil(t, recover()) }()
 		pri := &private{str: "pri"}
-		patchFunc := func(interface{}, string, string) string {
+		patch := func(interface{}, string, string) string {
 			return "monkey"
 		}
-		PatchInstanceMethod(pri, "Get", patchFunc)
+		PatchInstanceMethod(pri, "Get", patch)
 	})
 }

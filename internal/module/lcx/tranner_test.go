@@ -152,10 +152,10 @@ func TestTranner_serve(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		// patch
 		listener := netutil.LimitListener(nil, 1)
-		patchFunc := func(interface{}) (net.Conn, error) {
+		patch := func(interface{}) (net.Conn, error) {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(listener, "Accept", patchFunc)
+		pg := monkey.PatchInstanceMethod(listener, "Accept", patch)
 		defer pg.Unpatch()
 
 		tranner := testGenerateTranner(t)
@@ -168,10 +168,10 @@ func TestTranner_serve(t *testing.T) {
 
 	t.Run("failed to accept", func(t *testing.T) {
 		// patch
-		patchFunc := func(net.Listener, int) net.Listener {
+		patch := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithError()
 		}
-		pg := monkey.Patch(netutil.LimitListener, patchFunc)
+		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
 
 		tranner := testGenerateTranner(t)
@@ -239,10 +239,10 @@ func TestTConn_Serve(t *testing.T) {
 		require.NoError(t, err)
 
 		// patch
-		patchFunc := func(context.Context, time.Duration) (context.Context, context.CancelFunc) {
+		patch := func(context.Context, time.Duration) (context.Context, context.CancelFunc) {
 			panic(monkey.Panic)
 		}
-		pg := monkey.Patch(context.WithTimeout, patchFunc)
+		pg := monkey.Patch(context.WithTimeout, patch)
 		defer pg.Unpatch()
 
 		conn, err := net.Dial("tcp", tranner.testAddress())
@@ -263,10 +263,10 @@ func TestTConn_Serve(t *testing.T) {
 		require.NoError(t, err)
 
 		// patch
-		patchFunc := func(io.Writer, io.Reader) (int64, error) {
+		patch := func(io.Writer, io.Reader) (int64, error) {
 			panic(monkey.Panic)
 		}
-		pg := monkey.Patch(io.Copy, patchFunc)
+		pg := monkey.Patch(io.Copy, patch)
 		defer pg.Unpatch()
 
 		conn, err := net.Dial("tcp", tranner.testAddress())

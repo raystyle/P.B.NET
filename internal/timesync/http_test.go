@@ -169,10 +169,10 @@ func TestGetHeaderDate(t *testing.T) {
 		// patch
 		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		patchFunc := func(_ string) (time.Time, error) {
+		patch := func(_ string) (time.Time, error) {
 			return time.Time{}, monkey.Error
 		}
-		pg := monkey.Patch(http.ParseTime, patchFunc)
+		pg := monkey.Patch(http.ParseTime, patch)
 		defer pg.Unpatch()
 
 		_, err = getHeaderDate(r, client)
@@ -185,10 +185,10 @@ func TestGetHeaderDate(t *testing.T) {
 		// patch
 		r, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		patchFunc := func(_ time.Time) time.Duration {
+		patch := func(_ time.Time) time.Duration {
 			return time.Minute
 		}
-		pg := monkey.Patch(time.Since, patchFunc)
+		pg := monkey.Patch(time.Since, patch)
 		defer pg.Unpatch()
 
 		_, err = getHeaderDate(r, client)

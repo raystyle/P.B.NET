@@ -42,10 +42,10 @@ func TestGetConnHandle(t *testing.T) {
 	})
 
 	t.Run("failed to call SyscallConn", func(t *testing.T) {
-		patchFunc := func(interface{}) (syscall.RawConn, error) {
+		patch := func(interface{}) (syscall.RawConn, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(os.Stdout, "SyscallConn", patchFunc)
+		pg := monkey.PatchInstanceMethod(os.Stdout, "SyscallConn", patch)
 		defer pg.Unpatch()
 
 		handle, err := GetConnHandle(os.Stdout)
@@ -57,10 +57,10 @@ func TestGetConnHandle(t *testing.T) {
 		rawConn, err := os.Stdout.SyscallConn()
 		require.NoError(t, err)
 
-		patchFunc := func(interface{}, func(fd uintptr)) error {
+		patch := func(interface{}, func(fd uintptr)) error {
 			return monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(rawConn, "Control", patchFunc)
+		pg := monkey.PatchInstanceMethod(rawConn, "Control", patch)
 		defer pg.Unpatch()
 
 		handle, err := GetConnHandle(os.Stdout)
@@ -88,10 +88,10 @@ func TestChangeCurrentDirectory(t *testing.T) {
 	require.NotEqual(t, cd, dd)
 
 	// failed
-	patchFunc := func() (string, error) {
+	patch := func() (string, error) {
 		return "", monkey.Error
 	}
-	pg := monkey.Patch(os.Executable, patchFunc)
+	pg := monkey.Patch(os.Executable, patch)
 	defer pg.Unpatch()
 
 	err = ChangeCurrentDirectory()

@@ -155,10 +155,10 @@ func TestGenerator(t *testing.T) {
 	})
 
 	t.Run("panic in generator()", func(t *testing.T) {
-		patchFunc := func(_ interface{}, _ []byte, _ uint32) {
+		patch := func(_ interface{}, _ []byte, _ uint32) {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(binary.BigEndian, "PutUint32", patchFunc)
+		pg := monkey.PatchInstanceMethod(binary.BigEndian, "PutUint32", patch)
 		go func() {
 			time.Sleep(time.Second)
 			pg.Unpatch()

@@ -225,10 +225,10 @@ func TestVerifyCertificate(t *testing.T) {
 		}()
 
 		// patch
-		patchFunc := func(_ interface{}, _ []byte) (int, error) {
+		patch := func(_ interface{}, _ []byte) (int, error) {
 			return 0, monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(rand.Reader, "Read", patchFunc)
+		pg := monkey.PatchInstanceMethod(rand.Reader, "Read", patch)
 		defer pg.Unpatch()
 
 		cert, ok, err := VerifyCertificate(client, ctrlPrivateKey.PublicKey(), nodeGUID)

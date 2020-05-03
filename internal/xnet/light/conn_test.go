@@ -116,10 +116,10 @@ func TestConn_Handshake_Panic(t *testing.T) {
 	defer cCancel()
 	client = Client(cCtx, client, 0)
 
-	patchFunc := func(_ interface{}) {
+	patch := func(_ interface{}) {
 		panic(monkey.Panic)
 	}
-	pg := monkey.PatchInstanceMethod(sCtx, "Done", patchFunc)
+	pg := monkey.PatchInstanceMethod(sCtx, "Done", patch)
 	defer pg.Unpatch()
 
 	wg := sync.WaitGroup{}

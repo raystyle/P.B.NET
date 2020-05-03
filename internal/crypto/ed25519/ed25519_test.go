@@ -37,10 +37,10 @@ func TestED25519(t *testing.T) {
 	})
 
 	t.Run("failed to generate key", func(t *testing.T) {
-		patchFunc := func(_ io.Reader, _ []byte) (int, error) {
+		patch := func(_ io.Reader, _ []byte) (int, error) {
 			return 0, monkey.Error
 		}
-		pg := monkey.Patch(io.ReadFull, patchFunc)
+		pg := monkey.Patch(io.ReadFull, patch)
 		defer pg.Unpatch()
 		_, err := GenerateKey()
 		monkey.IsMonkeyError(t, err)

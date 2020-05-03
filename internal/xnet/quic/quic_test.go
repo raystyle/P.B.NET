@@ -76,10 +76,10 @@ func TestFailedToListen(t *testing.T) {
 	})
 
 	t.Run("quic.Listen", func(t *testing.T) {
-		patchFunc := func(net.PacketConn, *tls.Config, *quic.Config) (quic.Listener, error) {
+		patch := func(net.PacketConn, *tls.Config, *quic.Config) (quic.Listener, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(quic.Listen, patchFunc)
+		pg := monkey.Patch(quic.Listen, patch)
 		defer pg.Unpatch()
 
 		_, err := Listen("udp", "localhost:0", new(tls.Config), 0)
@@ -100,10 +100,10 @@ func TestFailedToAccept(t *testing.T) {
 	require.NoError(t, err)
 
 	// patch
-	patchFunc := func(interface{}, context.Context) (quic.Session, error) {
+	patch := func(interface{}, context.Context) (quic.Session, error) {
 		return nil, monkey.Error
 	}
-	pg := monkey.PatchInstanceMethod(quicListener, "Accept", patchFunc)
+	pg := monkey.PatchInstanceMethod(quicListener, "Accept", patch)
 	defer pg.Unpatch()
 
 	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
@@ -131,10 +131,10 @@ func TestFailedToDialContext(t *testing.T) {
 	})
 
 	t.Run("net.ListenUDP", func(t *testing.T) {
-		patchFunc := func(string, *net.UDPAddr) (*net.UDPConn, error) {
+		patch := func(string, *net.UDPAddr) (*net.UDPConn, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(net.ListenUDP, patchFunc)
+		pg := monkey.Patch(net.ListenUDP, patch)
 		defer pg.Unpatch()
 
 		_, err := Dial("udp", "localhost:0", nil, 0)
@@ -157,10 +157,10 @@ func TestFailedToDialContext(t *testing.T) {
 		session, err := quic.DialAddr(address, clientCfg, nil)
 		require.NoError(t, err)
 		// patch
-		patchFunc := func(interface{}, context.Context) (quic.Stream, error) {
+		patch := func(interface{}, context.Context) (quic.Stream, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(session, "OpenStreamSync", patchFunc)
+		pg := monkey.PatchInstanceMethod(session, "OpenStreamSync", patch)
 		defer pg.Unpatch()
 
 		_, err = Dial("udp", address, clientCfg, time.Second)
@@ -183,10 +183,10 @@ func TestFailedToDialContext(t *testing.T) {
 		stream, err := session.OpenStreamSync(context.Background())
 		require.NoError(t, err)
 		// patch
-		patchFunc := func(interface{}, []byte) (int, error) {
+		patch := func(interface{}, []byte) (int, error) {
 			return 0, monkey.Error
 		}
-		pg := monkey.PatchInstanceMethod(stream, "Write", patchFunc)
+		pg := monkey.PatchInstanceMethod(stream, "Write", patch)
 		defer pg.Unpatch()
 
 		_, err = Dial("udp", address, clientCfg, time.Second)

@@ -244,13 +244,13 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 	t.Run("failed to read from", func(t *testing.T) {
 		// patch
 		client := new(http.Client)
-		patchFunc := func(interface{}, *http.Request) (*http.Response, error) {
+		patch := func(interface{}, *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       testsuite.NewMockReadCloserWithReadError(),
 			}, nil
 		}
-		pg := monkey.PatchInstanceMethod(client, "Do", patchFunc)
+		pg := monkey.PatchInstanceMethod(client, "Do", patch)
 		defer pg.Unpatch()
 
 		err = msfrpc.sendWithReplace(ctx, nil, nil, nil)
@@ -457,10 +457,10 @@ func TestMSFRPC_send(t *testing.T) {
 }
 
 func testPatchSend(f func()) {
-	patchFunc := func(context.Context, string, string, io.Reader) (*http.Request, error) {
+	patch := func(context.Context, string, string, io.Reader) (*http.Request, error) {
 		return nil, monkey.Error
 	}
-	pg := monkey.Patch(http.NewRequestWithContext, patchFunc)
+	pg := monkey.Patch(http.NewRequestWithContext, patch)
 	defer pg.Unpatch()
 	f()
 }
