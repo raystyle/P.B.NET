@@ -377,7 +377,7 @@ func TestRunParallel(t *testing.T) {
 	RunParallel()
 }
 
-func TestHTTPServer(t *testing.T) {
+func TestRunHTTPServer(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()
 

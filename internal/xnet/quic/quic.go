@@ -13,10 +13,10 @@ import (
 
 const (
 	defaultTimeout   = 30 * time.Second // dial and accept
-	defaultNextProto = "h3-28"          // HTTP/3
+	defaultNextProto = "h3-29"          // HTTP/3
 )
 
-// ErrConnClosed is an error about closed
+// ErrConnClosed is an error about closed.
 var ErrConnClosed = errors.New("connection closed")
 
 // Conn implement net.Conn
@@ -59,7 +59,7 @@ func (c *Conn) acceptStream() error {
 	return c.acceptErr
 }
 
-// Read reads data from the connection
+// Read reads data from the connection.
 func (c *Conn) Read(b []byte) (n int, err error) {
 	err = c.acceptStream()
 	if err != nil {
@@ -68,7 +68,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	return c.stream.Read(b)
 }
 
-// Write writes data to the connection
+// Write writes data to the connection.
 func (c *Conn) Write(b []byte) (n int, err error) {
 	err = c.acceptStream()
 	if err != nil {
@@ -79,7 +79,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	return c.stream.Write(b)
 }
 
-// Close is used to close connection
+// Close is used to close connection.
 func (c *Conn) Close() error {
 	c.acceptOnce.Do(func() {
 		c.acceptErr = ErrConnClosed
@@ -96,17 +96,17 @@ func (c *Conn) Close() error {
 	return err
 }
 
-// LocalAddr is used to get local address
+// LocalAddr is used to get local address.
 func (c *Conn) LocalAddr() net.Addr {
 	return c.session.LocalAddr()
 }
 
-// RemoteAddr is used to get remote address
+// RemoteAddr is used to get remote address.
 func (c *Conn) RemoteAddr() net.Addr {
 	return c.session.RemoteAddr()
 }
 
-// SetDeadline is used to set read and write deadline
+// SetDeadline is used to set read and write deadline.
 func (c *Conn) SetDeadline(t time.Time) error {
 	err := c.SetReadDeadline(t)
 	if err != nil {
@@ -115,7 +115,7 @@ func (c *Conn) SetDeadline(t time.Time) error {
 	return c.SetWriteDeadline(t)
 }
 
-// SetReadDeadline is used to set read deadline
+// SetReadDeadline is used to set read deadline.
 func (c *Conn) SetReadDeadline(t time.Time) error {
 	err := c.acceptStream()
 	if err != nil {
@@ -124,7 +124,7 @@ func (c *Conn) SetReadDeadline(t time.Time) error {
 	return c.stream.SetReadDeadline(t)
 }
 
-// SetWriteDeadline is used to set write deadline
+// SetWriteDeadline is used to set write deadline.
 func (c *Conn) SetWriteDeadline(t time.Time) error {
 	err := c.acceptStream()
 	if err != nil {
@@ -162,7 +162,7 @@ func (l *listener) Close() error {
 	return err
 }
 
-// Listen is used to create a listener
+// Listen is used to create a listener.
 func Listen(
 	network string,
 	address string,
@@ -202,7 +202,7 @@ func Listen(
 	return &listener, nil
 }
 
-// Dial is used to dial a connection with context.Background()
+// Dial is used to dial a connection with context.Background().
 func Dial(
 	network string,
 	address string,
@@ -212,7 +212,7 @@ func Dial(
 	return DialContext(context.Background(), network, address, config, timeout)
 }
 
-// DialContext is used to dial a connection with context
+// DialContext is used to dial a connection with context.
 func DialContext(
 	ctx context.Context,
 	network string,

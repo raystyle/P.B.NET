@@ -50,14 +50,16 @@ func TestListenAndDialContext(t *testing.T) {
 }
 
 func testListenAndDialContext(t *testing.T, network string) {
+	const timeout = 0
+
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	listener, err := Listen(network, "localhost:0", serverCfg, 0)
+	listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 	require.NoError(t, err)
 	address := listener.Addr().String()
 	testsuite.ListenerAndDial(t, listener, func() (net.Conn, error) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		return DialContext(ctx, network, address, clientCfg.Clone(), 0)
+		return DialContext(ctx, network, address, clientCfg.Clone(), timeout)
 	}, true)
 }
 
@@ -65,13 +67,18 @@ func TestFailedToListen(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	const (
+		network = "udp"
+		timeout = 0
+	)
+
 	t.Run("invalid address", func(t *testing.T) {
-		_, err := Listen("udp", "foo address", nil, 0)
+		_, err := Listen(network, "foo address", nil, timeout)
 		require.Error(t, err)
 	})
 
 	t.Run("net.ListenUDP", func(t *testing.T) {
-		_, err := Listen("udp", "0.0.0.1:0", nil, 0)
+		_, err := Listen(network, "0.0.0.1:0", nil, timeout)
 		require.Error(t, err)
 	})
 
@@ -82,7 +89,7 @@ func TestFailedToListen(t *testing.T) {
 		pg := monkey.Patch(quic.Listen, patch)
 		defer pg.Unpatch()
 
-		_, err := Listen("udp", "localhost:0", new(tls.Config), 0)
+		_, err := Listen(network, "localhost:0", new(tls.Config), timeout)
 		monkey.IsMonkeyError(t, err)
 	})
 }
@@ -91,8 +98,13 @@ func TestFailedToAccept(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	const (
+		network = "udp"
+		timeout = 0
+	)
+
 	// get *quic.baseServer
-	rawConn, err := net.ListenUDP("udp", nil)
+	rawConn, err := net.ListenUDP(network, nil)
 	require.NoError(t, err)
 
 	serverCfg, _ := testsuite.TLSConfigPair(t)
@@ -106,7 +118,7 @@ func TestFailedToAccept(t *testing.T) {
 	pg := monkey.PatchInstanceMethod(quicListener, "Accept", patch)
 	defer pg.Unpatch()
 
-	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+	listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 	require.NoError(t, err)
 	_, err = listener.Accept()
 	monkey.IsMonkeyError(t, err)
@@ -125,8 +137,13 @@ func TestFailedToDialContext(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	const (
+		network = "udp"
+		timeout = 0
+	)
+
 	t.Run("invalid address", func(t *testing.T) {
-		_, err := Dial("udp", "foo address", nil, 0)
+		_, err := Dial(network, "foo address", nil, timeout)
 		require.Error(t, err)
 	})
 
@@ -137,18 +154,18 @@ func TestFailedToDialContext(t *testing.T) {
 		pg := monkey.Patch(net.ListenUDP, patch)
 		defer pg.Unpatch()
 
-		_, err := Dial("udp", "localhost:0", nil, 0)
+		_, err := Dial(network, "localhost:0", nil, timeout)
 		monkey.IsMonkeyError(t, err)
 	})
 
 	t.Run("quic.DialContext", func(t *testing.T) {
-		_, err := Dial("udp", "0.0.0.1:0", new(tls.Config), time.Second)
+		_, err := Dial(network, "0.0.0.1:0", new(tls.Config), time.Second)
 		require.Error(t, err)
 	})
 
 	t.Run("session.OpenStreamSync", func(t *testing.T) {
 		serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-		listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+		listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 		require.NoError(t, err)
 		address := listener.Addr().String()
 
@@ -163,7 +180,7 @@ func TestFailedToDialContext(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(session, "OpenStreamSync", patch)
 		defer pg.Unpatch()
 
-		_, err = Dial("udp", address, clientCfg, time.Second)
+		_, err = Dial(network, address, clientCfg, time.Second)
 		monkey.IsMonkeyError(t, err)
 
 		require.NoError(t, listener.Close())
@@ -172,7 +189,7 @@ func TestFailedToDialContext(t *testing.T) {
 
 	t.Run("stream.Write", func(t *testing.T) {
 		serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-		listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+		listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 		require.NoError(t, err)
 		address := listener.Addr().String()
 
@@ -189,7 +206,7 @@ func TestFailedToDialContext(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(stream, "Write", patch)
 		defer pg.Unpatch()
 
-		_, err = Dial("udp", address, clientCfg, time.Second)
+		_, err = Dial(network, address, clientCfg, time.Second)
 		monkey.IsMonkeyError(t, err)
 
 		require.NoError(t, listener.Close())
@@ -201,12 +218,17 @@ func TestConn_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	const (
+		network = "udp"
+		timeout = 0
+	)
+
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+	listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 	require.NoError(t, err)
 	address := listener.Addr().String()
-	server, client := testsuite.AcceptAndDial(t, listener, func() (conn net.Conn, err error) {
-		return Dial("udp", address, clientCfg, 0)
+	server, client := testsuite.AcceptAndDial(t, listener, func() (net.Conn, error) {
+		return Dial(network, address, clientCfg, timeout)
 	})
 
 	wg := sync.WaitGroup{}
@@ -231,7 +253,7 @@ func TestConn_Close(t *testing.T) {
 	testsuite.IsDestroyed(t, server)
 
 	// Close() before acceptStream()
-	client, err = Dial("udp", address, clientCfg, 0)
+	client, err = Dial(network, address, clientCfg, timeout)
 	require.NoError(t, err)
 	require.NoError(t, client.Close())
 
@@ -245,14 +267,19 @@ func TestFailedToAcceptStream(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	const (
+		network = "udp"
+		timeout = 0
+	)
+
 	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	listener, err := Listen("udp", "localhost:0", serverCfg, 0)
+	listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 	require.NoError(t, err)
 	address := listener.Addr().String()
 
 	// client close
-	server, client := testsuite.AcceptAndDial(t, listener, func() (conn net.Conn, err error) {
-		return Dial("udp", address, clientCfg, 0)
+	server, client := testsuite.AcceptAndDial(t, listener, func() (net.Conn, error) {
+		return Dial(network, address, clientCfg, timeout)
 	})
 	require.NoError(t, client.Close())
 	require.Error(t, client.SetDeadline(time.Time{}))
@@ -268,8 +295,8 @@ func TestFailedToAcceptStream(t *testing.T) {
 	testsuite.IsDestroyed(t, server)
 
 	// server close
-	server, client = testsuite.AcceptAndDial(t, listener, func() (conn net.Conn, err error) {
-		return Dial("udp", address, clientCfg, 0)
+	server, client = testsuite.AcceptAndDial(t, listener, func() (net.Conn, error) {
+		return Dial(network, address, clientCfg, timeout)
 	})
 	require.NoError(t, server.Close())
 	_, err = server.Read(buf)
