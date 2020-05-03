@@ -136,7 +136,7 @@ func initHTTPServers(t testing.TB) {
 }
 
 // HTTPClient is used to get target and compare result.
-func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
+func HTTPClient(t *testing.T, transport *http.Transport, hostname string) {
 	InitHTTPServers(t)
 
 	// add certificate
@@ -158,9 +158,9 @@ func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 	defer client.CloseIdleConnections()
 
 	wg := sync.WaitGroup{}
-
 	do := func(req *http.Request) {
 		defer wg.Done()
+
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
@@ -170,19 +170,21 @@ func HTTPClient(t testing.TB, transport *http.Transport, hostname string) {
 		require.Equal(t, "hello", string(b))
 	}
 
-	// http
-	url := fmt.Sprintf("http://%s:%s/t", hostname, HTTPServerPort)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-	wg.Add(1)
-	go do(req)
+	t.Run("http target", func(t *testing.T) {
+		url := fmt.Sprintf("http://%s:%s/t", hostname, HTTPServerPort)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		wg.Add(1)
+		go do(req)
+	})
 
-	// https
-	url = fmt.Sprintf("https://%s:%s/t", hostname, HTTPSServerPort)
-	req, err = http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-	wg.Add(1)
-	go do(req)
+	t.Run("https target", func(t *testing.T) {
+		url := fmt.Sprintf("https://%s:%s/t", hostname, HTTPSServerPort)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		wg.Add(1)
+		go do(req)
+	})
 
 	wg.Wait()
 }
@@ -209,21 +211,26 @@ func NewNopCloser() *NopCloser {
 }
 
 // ProxyServer is used to test proxy server.
-func ProxyServer(t testing.TB, server io.Closer, transport *http.Transport) {
+func ProxyServer(t *testing.T, server io.Closer, transport *http.Transport) {
 	if IPv4Enabled {
-		HTTPClient(t, transport, "127.0.0.1")
+		t.Run("IPv4 Only", func(t *testing.T) {
+			HTTPClient(t, transport, "127.0.0.1")
+		})
 	}
 	if IPv6Enabled {
-		HTTPClient(t, transport, "[::1]")
+		t.Run("IPv6 Only", func(t *testing.T) {
+			HTTPClient(t, transport, "[::1]")
+		})
 	}
-	HTTPClient(t, transport, "localhost")
-
+	t.Run("double stack", func(t *testing.T) {
+		HTTPClient(t, transport, "localhost")
+	})
 	require.NoError(t, server.Close())
 	require.NoError(t, server.Close())
 	IsDestroyed(t, server)
 }
 
-// SendHTTPRequest is used to send GET to a connection.
+// SendHTTPRequest is used to send a GET request to a connection.
 func SendHTTPRequest(t testing.TB, conn net.Conn) {
 	// send http request
 	buf := new(bytes.Buffer)
@@ -273,105 +280,33 @@ type proxyClient interface {
 }
 
 // ProxyClient is used to test proxy client.
-func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
+func ProxyClient(t *testing.T, server io.Closer, client proxyClient) {
 	InitHTTPServers(t)
 
-	wg := sync.WaitGroup{}
-
-	// Dial
 	if IPv4Enabled {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			const network = "tcp4"
-
-			address := "127.0.0.1:" + HTTPServerPort
-			conn, err := client.Dial(network, address)
-			require.NoError(t, err)
-			ProxyConn(t, conn)
-
-			conn, err = client.DialContext(context.Background(), network, address)
-			require.NoError(t, err)
-			ProxyConn(t, conn)
-
-			conn, err = client.DialTimeout(network, address, 0)
-			require.NoError(t, err)
-			ProxyConn(t, conn)
-
-			// except socks4
-			// must use "socks4 " to except socks4
-			if !strings.Contains(client.Info(), "socks4 ") {
-				address = "localhost:" + HTTPServerPort
-				conn, err = client.DialTimeout(network, address, 0)
-				require.NoError(t, err)
-				ProxyConn(t, conn)
-			}
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				transport := new(http.Transport)
-				client.HTTP(transport)
-				HTTPClient(t, transport, "127.0.0.1")
-				client.HTTP(transport)
-				HTTPClient(t, transport, "127.0.0.1")
-			}()
-		}()
+		t.Run("IPv4 Only", func(t *testing.T) {
+			proxyClientIPv4Only(t, client)
+		})
 	}
 
-	// except socks4a, socks4
+	// except mode socks4a, socks4
 	// must use "socks4" to except socks4 and socks4a
 	if IPv6Enabled && !strings.Contains(client.Info(), "socks4") {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			const network = "tcp6"
-
-			address := "[::1]:" + HTTPServerPort
-			conn, err := client.Dial(network, address)
-			require.NoError(t, err)
-			ProxyConn(t, conn)
-
-			conn, err = client.DialContext(context.Background(), network, address)
-			require.NoError(t, err)
-			ProxyConn(t, conn)
-
-			conn, err = client.DialTimeout(network, address, 0)
-			require.NoError(t, err)
-			ProxyConn(t, conn)
-
-			address = "localhost:" + HTTPServerPort
-			conn, err = client.DialTimeout(network, address, 0)
-			require.NoError(t, err)
-			ProxyConn(t, conn)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				transport := new(http.Transport)
-				client.HTTP(transport)
-				HTTPClient(t, transport, "[::1]")
-				client.HTTP(transport)
-				HTTPClient(t, transport, "[::1]")
-			}()
-		}()
+		t.Run("IPv6 Only", func(t *testing.T) {
+			proxyClientIPv6Only(t, client)
+		})
 	}
 
-	// HTTP
 	// must use "socks4 " to except socks4
 	if !strings.Contains(client.Info(), "socks4 ") {
-		wg.Add(1)
-		go func() {
-			defer wg.Done() // twice
+		t.Run("double stack", func(t *testing.T) {
 			transport := new(http.Transport)
 			client.HTTP(transport)
 			HTTPClient(t, transport, "localhost")
 			client.HTTP(transport)
 			HTTPClient(t, transport, "localhost")
-		}()
+		})
 	}
-
-	wg.Wait()
 
 	t.Log("timeout:", client.Timeout())
 	network, address := client.Server()
@@ -379,8 +314,127 @@ func ProxyClient(t testing.TB, server io.Closer, client proxyClient) {
 	t.Log("info:", client.Info())
 
 	IsDestroyed(t, client)
+
 	require.NoError(t, server.Close())
 	IsDestroyed(t, server)
+}
+
+func proxyClientIPv4Only(t *testing.T, client proxyClient) {
+	const network = "tcp4"
+	address := "127.0.0.1:" + HTTPServerPort
+
+	wg := sync.WaitGroup{}
+
+	t.Run("dial", func(t *testing.T) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := client.Dial(network, address)
+			require.NoError(t, err)
+			ProxyConn(t, conn)
+		}()
+	})
+
+	t.Run("dial context", func(t *testing.T) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := client.DialContext(context.Background(), network, address)
+			require.NoError(t, err)
+			ProxyConn(t, conn)
+		}()
+	})
+
+	t.Run("dial timeout", func(t *testing.T) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := client.DialTimeout(network, address, 0)
+			require.NoError(t, err)
+			ProxyConn(t, conn)
+		}()
+	})
+
+	// except mode socks4
+	// must use "socks4 " to except socks4
+	if !strings.Contains(client.Info(), "socks4 ") {
+		t.Run("dial with host name", func(t *testing.T) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				address = "localhost:" + HTTPServerPort
+				conn, err := client.DialTimeout(network, address, 0)
+				require.NoError(t, err)
+				ProxyConn(t, conn)
+			}()
+		})
+	}
+
+	wg.Wait()
+
+	t.Run("set transport twice", func(t *testing.T) {
+		transport := new(http.Transport)
+		client.HTTP(transport)
+		HTTPClient(t, transport, "127.0.0.1")
+		client.HTTP(transport)
+		HTTPClient(t, transport, "127.0.0.1")
+	})
+}
+
+func proxyClientIPv6Only(t *testing.T, client proxyClient) {
+	const network = "tcp6"
+	address := "[::1]:" + HTTPServerPort
+
+	wg := sync.WaitGroup{}
+
+	t.Run("dial", func(t *testing.T) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := client.Dial(network, address)
+			require.NoError(t, err)
+			ProxyConn(t, conn)
+		}()
+	})
+
+	t.Run("dial context", func(t *testing.T) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := client.DialContext(context.Background(), network, address)
+			require.NoError(t, err)
+			ProxyConn(t, conn)
+		}()
+	})
+
+	t.Run("dial timeout", func(t *testing.T) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			conn, err := client.DialTimeout(network, address, 0)
+			require.NoError(t, err)
+			ProxyConn(t, conn)
+		}()
+	})
+
+	t.Run("dial with host name", func(t *testing.T) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			address = "localhost:" + HTTPServerPort
+			conn, err := client.DialTimeout(network, address, 0)
+			require.NoError(t, err)
+			ProxyConn(t, conn)
+		}()
+	})
+
+	t.Run("set transport twice", func(t *testing.T) {
+		transport := new(http.Transport)
+		client.HTTP(transport)
+		HTTPClient(t, transport, "[::1]")
+		client.HTTP(transport)
+		HTTPClient(t, transport, "[::1]")
+	})
 }
 
 // ProxyClientCancelConnect is used to cancel proxy client Connect().
