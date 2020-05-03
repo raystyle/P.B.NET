@@ -107,6 +107,11 @@ func (c *Conn) Mode() string {
 	return c.mode
 }
 
+// RawConn is used to get the raw conn.
+func (c *Conn) RawConn() net.Conn {
+	return c.Conn
+}
+
 // Status contains connection status.
 type Status struct {
 	LocalNetwork   string

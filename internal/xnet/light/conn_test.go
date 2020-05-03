@@ -21,7 +21,7 @@ func TestConnWithBackground(t *testing.T) {
 	testConnWithBackground(t, testsuite.ConnCS)
 }
 
-func testConnWithBackground(t *testing.T, f func(testing.TB, net.Conn, net.Conn, bool)) {
+func testConnWithBackground(t *testing.T, f func(*testing.T, net.Conn, net.Conn, bool)) {
 	server, client := net.Pipe()
 	server = Server(context.Background(), server, 0)
 	client = Client(context.Background(), client, 0)
@@ -36,7 +36,7 @@ func TestConnWithCancel(t *testing.T) {
 	testConnWithCancel(t, testsuite.ConnCS)
 }
 
-func testConnWithCancel(t *testing.T, f func(testing.TB, net.Conn, net.Conn, bool)) {
+func testConnWithCancel(t *testing.T, f func(*testing.T, net.Conn, net.Conn, bool)) {
 	server, client := net.Pipe()
 	sCtx, sCancel := context.WithCancel(context.Background())
 	defer sCancel()
