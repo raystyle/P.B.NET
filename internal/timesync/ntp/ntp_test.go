@@ -5,6 +5,9 @@
 package ntp
 
 import (
+	"crypto/rand"
+	"encoding/binary"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -393,6 +396,92 @@ func TestQuery_Failed(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestToInterval(t *testing.T) {
+func TestGetTime(t *testing.T) {
+	t.Run("invalid options", func(t *testing.T) {
+		opts := Options{Network: "foo"}
+		_, _, err := getTime("", &opts)
+		require.Error(t, err)
+	})
 
+	t.Run("rand.Read and binary.Write", func(t *testing.T) {
+		patch1 := func([]byte) (int, error) {
+			return 0, monkey.Error
+		}
+		pg1 := monkey.Patch(rand.Read, patch1)
+		defer pg1.Unpatch()
+
+		patch2 := func(io.Writer, binary.ByteOrder, interface{}) error {
+			return monkey.Error
+		}
+		pg2 := monkey.Patch(binary.Write, patch2)
+		defer pg2.Unpatch()
+
+		_, _, err := getTime("127.0.0.1:123", nil)
+		monkey.IsMonkeyError(t, err)
+	})
+
+	t.Run("invalid delta", func(t *testing.T) {
+		patch1 := func(io.Reader, binary.ByteOrder, interface{}) error {
+			return nil
+		}
+		pg1 := monkey.Patch(binary.Read, patch1)
+		defer pg1.Unpatch()
+
+		patch2 := func(time.Time) time.Duration {
+			return -1
+		}
+		pg2 := monkey.Patch(time.Since, patch2)
+		defer pg2.Unpatch()
+
+		_, _, err := getTime("127.0.0.1:123", nil)
+		require.Error(t, err)
+	})
+
+	t.Run("fake message", func(t *testing.T) {
+		// set receive msg manually
+		cMsg := &msg{}
+		patch := func(_ io.Reader, _ binary.ByteOrder, recvMsg interface{}) error {
+			msg := recvMsg.(*msg)
+			*msg = *cMsg
+			return nil
+		}
+		pg := monkey.Patch(binary.Read, patch)
+		defer pg.Unpatch()
+
+		// invalid mode
+		_, _, err := getTime("127.0.0.1:123", nil)
+		require.Error(t, err)
+		cMsg.LiVnMode = 4
+
+		// invalid transmit time
+		_, _, err = getTime("127.0.0.1:123", nil)
+		require.Error(t, err)
+		cMsg.TransmitTime = 1
+
+		// invalid origin time
+		_, _, err = getTime("127.0.0.1:123", nil)
+		require.Error(t, err)
+
+		t.Run("invalid receive time", func(t *testing.T) {
+			patch1 := func([]byte) (int, error) {
+				return 0, nil
+			}
+			pg1 := monkey.Patch(rand.Read, patch1)
+			defer pg1.Unpatch()
+
+			cMsg.ReceiveTime = 100
+			_, _, err = getTime("127.0.0.1:123", nil)
+			require.Error(t, err)
+		})
+	})
+}
+
+func TestParseTime(t *testing.T) {
+	parseTime(new(msg), 0)
+}
+
+func TestToInterval(t *testing.T) {
+	toInterval(1)
+	toInterval(-1)
+	toInterval(0)
 }
