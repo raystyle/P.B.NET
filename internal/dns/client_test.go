@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/nettool"
 	"project/internal/patch/monkey"
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
@@ -152,6 +153,68 @@ func TestClient_Resolve(t *testing.T) {
 		result, err := client.Resolve("", nil)
 		require.Error(t, err)
 		require.Len(t, result, 0)
+	})
+
+	testsuite.IsDestroyed(t, client)
+}
+
+func TestClient_selectType(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
+	defer func() { require.NoError(t, proxyMgr.Close()) }()
+
+	client := NewClient(certPool, proxyPool)
+	testAddAllDNSServers(t, client)
+
+	ipv4Enabled, ipv6Enabled := nettool.IPEnabled()
+	const domain = "localhost"
+	ctx := context.Background()
+	opts := &Options{Mode: ModeSystem}
+
+	t.Run("IPv4 Only", func(t *testing.T) {
+		if !ipv4Enabled {
+			return
+		}
+
+		patch := func() (bool, bool) {
+			return true, false
+		}
+		pg := monkey.Patch(nettool.IPEnabled, patch)
+		defer pg.Unpatch()
+
+		ip, err := client.selectType(ctx, domain, opts)
+		require.NoError(t, err)
+		require.Contains(t, ip, "127.0.0.1")
+	})
+
+	t.Run("IPv6 Only", func(t *testing.T) {
+		if !ipv6Enabled {
+			return
+		}
+
+		patch := func() (bool, bool) {
+			return false, true
+		}
+		pg := monkey.Patch(nettool.IPEnabled, patch)
+		defer pg.Unpatch()
+
+		ip, err := client.selectType(ctx, domain, opts)
+		require.NoError(t, err)
+		require.Contains(t, ip, "::1")
+	})
+
+	t.Run("network unavailable", func(t *testing.T) {
+		patch := func() (bool, bool) {
+			return false, false
+		}
+		pg := monkey.Patch(nettool.IPEnabled, patch)
+		defer pg.Unpatch()
+
+		ip, err := client.selectType(ctx, domain, opts)
+		require.Error(t, err)
+		require.Nil(t, ip)
 	})
 
 	testsuite.IsDestroyed(t, client)
