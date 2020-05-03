@@ -1,6 +1,7 @@
 package testsuite
 
 import (
+	"crypto/tls"
 	"io"
 	"net"
 	"strings"
@@ -13,15 +14,15 @@ import (
 
 type dialer func() (net.Conn, error)
 
-// Handshake is used to call connection Handshake().
+// Handshaker is used to call connection Handshake().
 // Some server side connection must Handshake(),
 // otherwise Dial() will block.
-type Handshake interface {
+type Handshaker interface {
 	Handshake() error
 }
 
 // ListenerAndDial is used to test net.Listener and Dial.
-func ListenerAndDial(t testing.TB, listener net.Listener, dial dialer, close bool) {
+func ListenerAndDial(t *testing.T, listener net.Listener, dial dialer, close bool) {
 	t.Log("ConnSC")
 	for i := 0; i < 3; i++ {
 		t.Logf("%d\n", i)
@@ -39,7 +40,7 @@ func ListenerAndDial(t testing.TB, listener net.Listener, dial dialer, close boo
 }
 
 // AcceptAndDial is used to accept and dial a connection.
-func AcceptAndDial(t testing.TB, listener net.Listener, dial dialer) (net.Conn, net.Conn) {
+func AcceptAndDial(t *testing.T, listener net.Listener, dial dialer) (net.Conn, net.Conn) {
 	wg := sync.WaitGroup{}
 	var server net.Conn
 	wg.Add(1)
@@ -48,7 +49,7 @@ func AcceptAndDial(t testing.TB, listener net.Listener, dial dialer) (net.Conn, 
 		var err error
 		server, err = listener.Accept()
 		require.NoError(t, err)
-		if s, ok := server.(Handshake); ok {
+		if s, ok := server.(Handshaker); ok {
 			require.NoError(t, s.Handshake())
 		}
 	}()
@@ -68,35 +69,37 @@ func AcceptAndDial(t testing.TB, listener net.Listener, dial dialer) (net.Conn, 
 
 // ConnSC is used to test server & client connection,
 // server connection will send data firstly.
-func ConnSC(t testing.TB, server, client net.Conn, close bool) {
+func ConnSC(t *testing.T, server, client net.Conn, close bool) {
 	connAddr(t, server, client)
 	conn(t, server, client, close)
 }
 
 // ConnCS is used to test client & server connection,
 // client connection will send data firstly.
-func ConnCS(t testing.TB, client, server net.Conn, close bool) {
+func ConnCS(t *testing.T, client, server net.Conn, close bool) {
 	connAddr(t, server, client)
 	conn(t, client, server, close)
 }
 
-func connAddr(t testing.TB, server, client net.Conn) {
-	t.Log("server remote:", server.RemoteAddr().Network(), server.RemoteAddr())
-	t.Log("client local:", client.LocalAddr().Network(), client.LocalAddr())
-	t.Log("server local:", server.LocalAddr().Network(), server.LocalAddr())
-	t.Log("client remote:", client.RemoteAddr().Network(), client.RemoteAddr())
+func connAddr(t *testing.T, server, client net.Conn) {
+	t.Run("address", func(t *testing.T) {
+		t.Log("server remote:", server.RemoteAddr().Network(), server.RemoteAddr())
+		t.Log("client local:", client.LocalAddr().Network(), client.LocalAddr())
+		t.Log("server local:", server.LocalAddr().Network(), server.LocalAddr())
+		t.Log("client remote:", client.RemoteAddr().Network(), client.RemoteAddr())
 
-	// skip udp, because client.LocalAddr() always net.IPv4zero or net.IPv6zero
-	if !strings.Contains(server.RemoteAddr().Network(), "udp") {
-		require.Equal(t, server.RemoteAddr().Network(), client.LocalAddr().Network())
-		require.Equal(t, server.RemoteAddr().String(), client.LocalAddr().String())
-	}
-	require.Equal(t, server.LocalAddr().Network(), client.RemoteAddr().Network())
-	require.Equal(t, server.LocalAddr().String(), client.RemoteAddr().String())
+		// skip udp, because client.LocalAddr() always net.IPv4zero or net.IPv6zero
+		if !strings.Contains(server.RemoteAddr().Network(), "udp") {
+			require.Equal(t, server.RemoteAddr().Network(), client.LocalAddr().Network())
+			require.Equal(t, server.RemoteAddr().String(), client.LocalAddr().String())
+		}
+		require.Equal(t, server.LocalAddr().Network(), client.RemoteAddr().Network())
+		require.Equal(t, server.LocalAddr().String(), client.RemoteAddr().String())
+	})
 }
 
-// conn1 will send data firstly
-func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
+// conn1 will send data firstly.
+func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 	// Read(), Write() and SetDeadline()
 	write := func(conn net.Conn) {
 		data := Bytes()
@@ -114,117 +117,126 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		require.NoError(t, conn2.SetDeadline(time.Now().Add(5*time.Second)))
-		read(conn2)
-		write(conn2)
-		wg.Add(2)
+	t.Run("read and write", func(t *testing.T) {
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			require.NoError(t, conn2.SetDeadline(time.Now().Add(5*time.Second)))
+			read(conn2)
 			write(conn2)
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				write(conn2)
+			}()
+			go func() {
+				defer wg.Done()
+				write(conn2)
+			}()
+			read(conn2)
 		}()
-		go func() {
-			defer wg.Done()
-			write(conn2)
-		}()
-		read(conn2)
-	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		require.NoError(t, conn1.SetDeadline(time.Now().Add(5*time.Second)))
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			write(conn1)
+			require.NoError(t, conn1.SetDeadline(time.Now().Add(5*time.Second)))
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				write(conn1)
+			}()
+			read(conn1)
+			read(conn1)
+			read(conn1)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				write(conn1)
+			}()
 		}()
-		read(conn1)
-		read(conn1)
-		read(conn1)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			write(conn1)
-		}()
-	}()
-	wg.Wait()
+		wg.Wait()
+	})
 
 	// recover about net.Pipe()
 	require.NoError(t, conn1.SetDeadline(time.Time{}))
 	require.NoError(t, conn2.SetDeadline(time.Time{}))
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		read(conn2)
-		write(conn2)
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			write(conn2)
-		}()
-		go func() {
-			defer wg.Done()
-			write(conn2)
-		}()
-		read(conn2)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	t.Run("read and write parallel", func(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			write(conn1)
+			read(conn2)
+			write(conn2)
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				write(conn2)
+			}()
+			go func() {
+				defer wg.Done()
+				write(conn2)
+			}()
+			read(conn2)
 		}()
-		read(conn1)
-		read(conn1)
-		read(conn1)
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			write(conn1)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				write(conn1)
+			}()
+			read(conn1)
+			read(conn1)
+			read(conn1)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				write(conn1)
+			}()
 		}()
-	}()
-	wg.Wait()
+		wg.Wait()
+	})
 
-	// about Deadline()
-	require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, conn2.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
-	time.Sleep(30 * time.Millisecond)
-	buf := Bytes()
-	n, err := conn1.Write(buf)
-	require.Error(t, err)
-	require.Equal(t, 0, n)
-	n, err = conn2.Read(buf)
-	require.Error(t, err)
-	require.Equal(t, 0, n)
+	t.Run("deadline", func(t *testing.T) {
+		require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
+		require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
+		require.NoError(t, conn2.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
+		require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
+		time.Sleep(30 * time.Millisecond)
+		buf := Bytes()
+		n, err := conn1.Write(buf)
+		require.Error(t, err)
+		require.Equal(t, 0, n)
+		n, err = conn2.Read(buf)
+		require.Error(t, err)
+		require.Equal(t, 0, n)
 
-	require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, conn2.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-	require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
-	time.Sleep(30 * time.Millisecond)
-	buf = Bytes()
-	n, err = conn1.Write(buf)
-	require.Error(t, err)
-	require.Equal(t, 0, n)
-	n, err = conn2.Read(buf)
-	require.Error(t, err)
-	require.Equal(t, 0, n)
+		require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
+		require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
+		require.NoError(t, conn2.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
+		require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
+		time.Sleep(30 * time.Millisecond)
+		buf = Bytes()
+		n, err = conn1.Write(buf)
+		require.Error(t, err)
+		require.Equal(t, 0, n)
+		n, err = conn2.Read(buf)
+		require.Error(t, err)
+		require.Equal(t, 0, n)
+	})
 
 	// recover about net.Pipe()
 	require.NoError(t, conn1.SetDeadline(time.Time{}))
 	require.NoError(t, conn2.SetDeadline(time.Time{}))
 
-	// Close()
-	if close {
+	if !close {
+		return
+	}
+
+	t.Run("close", func(t *testing.T) {
+		buf := Bytes()
 		wg.Add(8)
 		for i := 0; i < 4; i++ {
 			go func() {
@@ -236,8 +248,7 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 				_, _ = conn2.Write(buf)
 			}()
 		}
-		// tls.Conn.Close still send data,
-		// so conn2 Close first
+		// tls.Conn.Close() still send data, so conn2 Close first
 		require.NoError(t, conn2.Close())
 		require.NoError(t, conn1.Close())
 		wg.Wait()
@@ -249,7 +260,21 @@ func conn(t testing.TB, conn1, conn2 net.Conn, close bool) {
 		require.Error(t, err)
 		require.Equal(t, 0, n)
 
+		// TODO [external] go internal bug: *tls.Conn memory leaks
+		type raw interface { // type: *xnet.Conn
+			RawConn() net.Conn
+		}
+		switch conn1.(type) {
+		case *tls.Conn:
+			return
+		case raw:
+			conn := conn1.(raw).RawConn()
+			if _, ok := conn.(*tls.Conn); ok {
+				return
+			}
+		}
+
 		IsDestroyed(t, conn1)
 		IsDestroyed(t, conn2)
-	}
+	})
 }

@@ -51,7 +51,7 @@ func TestListener(t *testing.T) {
 			defer wg.Done()
 			conn, err := listener.AcceptEx()
 			require.NoError(t, err)
-			err = conn.Conn.(testsuite.Handshake).Handshake()
+			err = conn.Conn.(testsuite.Handshaker).Handshake()
 			require.NoError(t, err)
 			err = conn.Close()
 			require.NoError(t, err)
