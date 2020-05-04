@@ -211,11 +211,11 @@ func TestServer_Serve(t *testing.T) {
 		server, err := NewSocks5Server("test", logger.Test, nil)
 		require.NoError(t, err)
 
-		err = server.Serve(testsuite.NewMockListenerWithError())
-		testsuite.IsMockListenerError(t, err)
+		err = server.Serve(testsuite.NewMockListenerWithAcceptError())
+		testsuite.IsMockListenerAcceptFatal(t, err)
 
-		err = server.Serve(testsuite.NewMockListenerWithPanic())
-		testsuite.IsMockListenerPanic(t, err)
+		err = server.Serve(testsuite.NewMockListenerWithAcceptPanic())
+		testsuite.IsMockListenerAcceptPanic(t, err)
 
 		err = server.Close()
 		require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestServer_Serve(t *testing.T) {
 		err = server.Close()
 		require.NoError(t, err)
 
-		listener := testsuite.NewMockListenerWithError()
+		listener := testsuite.NewMockListenerWithAcceptError()
 		err = server.Serve(listener)
 		require.Equal(t, ErrServerClosed, err)
 
@@ -242,13 +242,41 @@ func TestServer_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewSocks5Server("test", logger.Test, nil)
-	require.NoError(t, err)
+	t.Run("ok", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
 
-	err = server.Close()
-	require.NoError(t, err)
+		err = server.Close()
+		require.NoError(t, err)
 
-	testsuite.IsDestroyed(t, server)
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("error about listener", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
+
+		listener := testsuite.NewMockListenerWithCloseError()
+		server.trackListener(&listener, true)
+
+		err = server.Close()
+		testsuite.IsMockListenerCloseError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("error about conn", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
+
+		conn := &conn{local: testsuite.NewMockConnWithCloseError()}
+		server.trackConn(conn, true)
+
+		err = server.Close()
+		testsuite.IsMockConnCloseError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
 }
 
 func TestServer_Info(t *testing.T) {
@@ -264,4 +292,32 @@ func TestServer_Info(t *testing.T) {
 	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, server)
+}
+
+func TestConn_Serve(t *testing.T) {
+	t.Run("failed to track", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
+
+		err = server.Close()
+		require.NoError(t, err)
+
+		conn := &conn{
+			server: server,
+			local:  testsuite.NewMockConnWithCloseError(),
+		}
+		conn.Serve()
+
+		time.Sleep(250 * time.Millisecond)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+
+	})
+
+	t.Run("copy panic", func(t *testing.T) {
+
+	})
 }

@@ -330,7 +330,10 @@ func (c *conn) serve() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
-		_ = c.local.Close()
+		err := c.local.Close()
+		if err != nil {
+			c.log(logger.Error, "failed to close local connection:", err)
+		}
 		c.server.wg.Done()
 	}()
 
@@ -350,7 +353,12 @@ func (c *conn) serve() {
 	}
 
 	// start copy
-	defer func() { _ = c.remote.Close() }()
+	defer func() {
+		err := c.remote.Close()
+		if err != nil {
+			c.log(logger.Error, "failed to close remote connection:", err)
+		}
+	}()
 	_ = c.remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
 	c.server.wg.Add(1)
