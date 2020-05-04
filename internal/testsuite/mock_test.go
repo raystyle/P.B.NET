@@ -95,80 +95,60 @@ func TestMockListenerAddr(t *testing.T) {
 func TestMockListener(t *testing.T) {
 	listener := new(mockListener)
 
-	t.Run("Accept error", func(t *testing.T) {
-		listener.error = true
-		conn, err := listener.Accept()
-		require.Error(t, err)
-		require.Nil(t, conn)
-		listener.error = false
-	})
-
-	t.Run("Accept panic", func(t *testing.T) {
-		listener.panic = true
-		defer func() {
-			require.NotNil(t, recover())
-			listener.panic = false
-		}()
-		conn, err := listener.Accept()
-		require.NoError(t, err)
-		require.Nil(t, conn)
-	})
-
-	t.Run("Accept error too times", func(t *testing.T) {
+	t.Run("Accept", func(t *testing.T) {
 		listener := new(mockListener)
 		addContextToMockListener(listener, false)
 
-		for i := 0; i < 11; i++ {
-			conn, err := listener.Accept()
-			require.NoError(t, err)
-			require.Nil(t, conn)
-		}
-
 		conn, err := listener.Accept()
-		IsMockListenerTooError(t, err)
+		require.NoError(t, err)
 		require.Nil(t, conn)
 
 		err = listener.Close()
 		require.NoError(t, err)
 	})
 
-	t.Run("Accept after Close", func(t *testing.T) {
-		listener := new(mockListener)
-		addContextToMockListener(listener, true)
-
-		err := listener.Close()
-		require.NoError(t, err)
-
-		conn, err := listener.Accept()
-		IsMockListenerClosedError(t, err)
-		require.Nil(t, conn)
+	t.Run("Addr", func(t *testing.T) {
+		a := mockListenerAddr{}
+		addr := listener.Addr()
+		require.Equal(t, a, addr)
 	})
-
-	a := mockListenerAddr{}
-	addr := listener.Addr()
-	require.Equal(t, a, addr)
 }
 
-func TestNewMockListenerWithError(t *testing.T) {
-	listener := NewMockListenerWithError()
+func TestNewMockListenerWithAcceptError(t *testing.T) {
+	listener := NewMockListenerWithAcceptError()
+
+	for i := 0; i < mockListenerAcceptTimes+1; i++ {
+		conn, err := listener.Accept()
+		require.Error(t, err)
+		require.Nil(t, conn)
+	}
+
 	conn, err := listener.Accept()
-	require.Error(t, err)
+	IsMockListenerAcceptFatal(t, err)
 	require.Nil(t, conn)
+
+	err = listener.Close()
+	require.NoError(t, err)
 }
 
-func TestNewMockListenerWithPanic(t *testing.T) {
+func TestNewMockListenerWithAcceptPanic(t *testing.T) {
 	defer func() {
 		err := errors.New(fmt.Sprint(recover()))
-		IsMockListenerPanic(t, err)
+		IsMockListenerAcceptPanic(t, err)
 	}()
-	listener := NewMockListenerWithPanic()
+	listener := NewMockListenerWithAcceptPanic()
 	_, _ = listener.Accept()
 }
 
-func TestIsMockListenerCloseError(t *testing.T) {
+func TestNewMockListenerWithCloseError(t *testing.T) {
 	listener := NewMockListenerWithCloseError()
+
 	err := listener.Close()
 	IsMockListenerCloseError(t, err)
+
+	conn, err := listener.Accept()
+	IsMockListenerClosedError(t, err)
+	require.Nil(t, conn)
 }
 
 func TestMockResponseWriter(t *testing.T) {
