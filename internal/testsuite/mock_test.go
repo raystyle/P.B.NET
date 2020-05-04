@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -32,7 +33,51 @@ func TestMockConnRemoteAddr(t *testing.T) {
 }
 
 func TestMockConn(t *testing.T) {
+	conn := new(mockConn)
 
+	t.Run("Read", func(t *testing.T) {
+		n, err := conn.Read(nil)
+		require.NoError(t, err)
+		require.Zero(t, n)
+	})
+
+	t.Run("Write", func(t *testing.T) {
+		n, err := conn.Write(nil)
+		require.NoError(t, err)
+		require.Zero(t, n)
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := conn.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("LocalAddr", func(t *testing.T) {
+		l := mockConnLocalAddr{}
+		addr := conn.LocalAddr()
+		require.Equal(t, l, addr)
+	})
+
+	t.Run("RemoteAddr", func(t *testing.T) {
+		r := mockConnRemoteAddr{}
+		addr := conn.RemoteAddr()
+		require.Equal(t, r, addr)
+	})
+
+	t.Run("SetDeadline", func(t *testing.T) {
+		err := conn.SetDeadline(time.Time{})
+		require.NoError(t, err)
+	})
+
+	t.Run("SetReadDeadline", func(t *testing.T) {
+		err := conn.SetReadDeadline(time.Time{})
+		require.NoError(t, err)
+	})
+
+	t.Run("SetWriteDeadline", func(t *testing.T) {
+		err := conn.SetWriteDeadline(time.Time{})
+		require.NoError(t, err)
+	})
 }
 
 func TestNewMockConnWithCloseError(t *testing.T) {
@@ -69,24 +114,39 @@ func TestMockListener(t *testing.T) {
 		require.Nil(t, conn)
 	})
 
-	t.Run("Accept more than 10 times", func(t *testing.T) {
+	t.Run("Accept error too times", func(t *testing.T) {
 		listener := new(mockListener)
+		addContextToMockListener(listener, false)
 
 		for i := 0; i < 11; i++ {
 			conn, err := listener.Accept()
 			require.NoError(t, err)
 			require.Nil(t, conn)
 		}
+
 		conn, err := listener.Accept()
-		IsMockListenerError(t, err)
+		IsMockListenerTooError(t, err)
+		require.Nil(t, conn)
+
+		err = listener.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("Accept after Close", func(t *testing.T) {
+		listener := new(mockListener)
+		addContextToMockListener(listener, true)
+
+		err := listener.Close()
+		require.NoError(t, err)
+
+		conn, err := listener.Accept()
+		IsMockListenerClosedError(t, err)
 		require.Nil(t, conn)
 	})
 
-	err := listener.Close()
-	require.NoError(t, err)
-
+	a := mockListenerAddr{}
 	addr := listener.Addr()
-	require.NotNil(t, addr)
+	require.Equal(t, a, addr)
 }
 
 func TestNewMockListenerWithError(t *testing.T) {

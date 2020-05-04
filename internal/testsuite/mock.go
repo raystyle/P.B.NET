@@ -21,10 +21,11 @@ import (
 var (
 	errMockConnClose = errors.New("mock error in mockConn.Close()")
 
-	errMockListenerAccept = &mockNetError{temporary: true}
-	errMockListener       = errors.New("accept more than 10 times")
-	errMockListenerClose  = errors.New("mock error in mockListener.Close()")
-	mockListenerPanic     = "mock panic in mockListener.Accept()"
+	errMockListenerAccept  = &mockNetError{temporary: true}
+	errMockListenerTooMany = errors.New("mock error mockListener.Accept() too many")
+	mockListenerPanic      = "mock panic in mockListener.Accept()"
+	errMockListenerClose   = errors.New("mock error in mockListener.Close()")
+	errMockListenerClosed  = errors.New("mock listener closed")
 
 	errMockReadCloser = errors.New("mock error in mockReadCloser")
 )
@@ -135,11 +136,14 @@ type mockListener struct {
 	panic bool // accept panic
 	close bool // close error
 	n     int  // accept count
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (l *mockListener) Accept() (net.Conn, error) {
 	if l.n > 10 {
-		return nil, errMockListener
+		return nil, errMockListenerTooMany
 	}
 	l.n++
 	if l.error {
@@ -148,10 +152,17 @@ func (l *mockListener) Accept() (net.Conn, error) {
 	if l.panic {
 		panic(mockListenerPanic)
 	}
+	// block until call Close()
+	select {
+	case <-l.ctx.Done():
+		return nil, errMockListenerClosed
+	default:
+	}
 	return nil, nil
 }
 
 func (l *mockListener) Close() error {
+	l.cancel()
 	if l.close {
 		return errMockListenerClose
 	}
@@ -162,27 +173,45 @@ func (l *mockListener) Addr() net.Addr {
 	return l.addr
 }
 
+func addContextToMockListener(l *mockListener, cancel bool) {
+	if cancel {
+		l.ctx, l.cancel = context.WithCancel(context.Background())
+	} else {
+		l.ctx = context.Background()
+		l.cancel = func() {}
+	}
+}
+
 // NewMockListenerWithError is used to create a mock listener
 // that return a custom error call Accept().
 func NewMockListenerWithError() net.Listener {
-	return &mockListener{error: true}
+	l := &mockListener{error: true}
+	addContextToMockListener(l, false)
+	return l
 }
 
 // NewMockListenerWithPanic is used to create a mock listener
 // that panic when call Accept().
 func NewMockListenerWithPanic() net.Listener {
-	return &mockListener{panic: true}
+	l := &mockListener{panic: true}
+	addContextToMockListener(l, false)
+	return l
 }
 
 // NewMockListenerWithCloseError is used to create a mock listener
 // that will return a errMockListenerClose when call Close().
 func NewMockListenerWithCloseError() net.Listener {
-	return &mockListener{close: true}
+	l := &mockListener{
+		error: true,
+		close: true,
+	}
+	addContextToMockListener(l, true)
+	return l
 }
 
-// IsMockListenerError is used to check err is errMockListenerAccept.
-func IsMockListenerError(t testing.TB, err error) {
-	require.Equal(t, errMockListener, err)
+// IsMockListenerTooError is used to check err is errMockListenerAccept.
+func IsMockListenerTooError(t testing.TB, err error) {
+	require.Equal(t, errMockListenerTooMany, err)
 }
 
 // IsMockListenerPanic is used to check err.Error() is mockListenerPanic.
@@ -193,6 +222,11 @@ func IsMockListenerPanic(t testing.TB, err error) {
 // IsMockListenerCloseError is used to check err is errMockListenerClose.
 func IsMockListenerCloseError(t testing.TB, err error) {
 	require.Equal(t, errMockListenerClose, err)
+}
+
+// IsMockListenerClosedError is used to check err is errMockListenerClosed.
+func IsMockListenerClosedError(t testing.TB, err error) {
+	require.Equal(t, errMockListenerClosed, err)
 }
 
 type mockResponseWriter struct {
