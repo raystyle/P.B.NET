@@ -83,6 +83,12 @@ func TestNewMockListenerWithPanic(t *testing.T) {
 	_, _ = listener.Accept()
 }
 
+func TestIsMockListenerCloseError(t *testing.T) {
+	listener := NewMockListenerWithCloseError()
+	err := listener.Close()
+	IsMockListenerCloseError(t, err)
+}
+
 func TestMockResponseWriter(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()

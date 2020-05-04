@@ -16,15 +16,17 @@ import (
 	"project/internal/patch/monkey"
 )
 
-// error and panic about mock
+// errors and panics about mock.
 var (
 	errMockListenerAccept = &mockNetError{temporary: true}
 	errMockListener       = errors.New("accept more than 10 times")
-	mockListenerPanic     = "mock panic in listener Accept()"
-	errMockReadCloser     = errors.New("mock error in io.ReadCloser")
+	errMockListenerClose  = errors.New("mock error in listener.Close()")
+	mockListenerPanic     = "mock panic in listener.Accept()"
+
+	errMockReadCloser = errors.New("mock error in io.ReadCloser")
 )
 
-// mockNetError implement net.Error
+// mockNetError implement net.Error.
 type mockNetError struct {
 	timeout   bool
 	temporary bool
@@ -55,6 +57,7 @@ func (mockListenerAddr) String() string {
 type mockListener struct {
 	error bool
 	panic bool
+	close bool
 	n     int
 }
 
@@ -73,6 +76,9 @@ func (l *mockListener) Accept() (net.Conn, error) {
 }
 
 func (l *mockListener) Close() error {
+	if l.close {
+		return errMockListenerClose
+	}
 	return nil
 }
 
@@ -86,20 +92,31 @@ func NewMockListenerWithError() net.Listener {
 	return &mockListener{error: true}
 }
 
-// NewMockListenerWithPanic is used to create a mock listener.
-// that panic when call Accept()
+// NewMockListenerWithPanic is used to create a mock listener
+// that panic when call Accept().
 func NewMockListenerWithPanic() net.Listener {
 	return &mockListener{panic: true}
 }
 
-// IsMockListenerError is used to confirm err is errMockListenerAccept.
+// NewMockListenerWithCloseError is used to create a mock listener
+// that will return a errMockListenerClose when call Close().
+func NewMockListenerWithCloseError() net.Listener {
+	return &mockListener{close: true}
+}
+
+// IsMockListenerError is used to check err is errMockListenerAccept.
 func IsMockListenerError(t testing.TB, err error) {
 	require.Equal(t, errMockListener, err)
 }
 
-// IsMockListenerPanic is used to confirm err.Error() is mockListenerPanic.
+// IsMockListenerPanic is used to check err.Error() is mockListenerPanic.
 func IsMockListenerPanic(t testing.TB, err error) {
 	require.Contains(t, err.Error(), mockListenerPanic)
+}
+
+// IsMockListenerCloseError is used to check err is errMockListenerClose.
+func IsMockListenerCloseError(t testing.TB, err error) {
+	require.Equal(t, errMockListenerClose, err)
 }
 
 type mockResponseWriter struct {
