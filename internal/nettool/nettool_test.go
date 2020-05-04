@@ -2,6 +2,7 @@ package nettool
 
 import (
 	"bytes"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -62,6 +63,16 @@ func TestSplitHostPort(t *testing.T) {
 		_, _, err := SplitHostPort("host:99999")
 		require.Error(t, err)
 	})
+}
+
+func TestIsNetClosingError(t *testing.T) {
+	err := errors.New("test error: use of closed network connection")
+	r := IsNetClosingError(err)
+	require.True(t, r)
+
+	err = errors.New("test error")
+	r = IsNetClosingError(err)
+	require.False(t, r)
 }
 
 func TestEncodeExternalAddress(t *testing.T) {
