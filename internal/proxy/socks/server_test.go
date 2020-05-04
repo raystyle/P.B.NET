@@ -95,8 +95,11 @@ func TestSocks4aServer(t *testing.T) {
 	// only support socks5, http and https
 	// time.Sleep(30 * time.Second)
 
-	require.NoError(t, server.Close())
-	require.NoError(t, server.Close())
+	err := server.Close()
+	require.NoError(t, err)
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -113,8 +116,11 @@ func TestSocks4Server(t *testing.T) {
 	// only support socks5, http and https
 	// time.Sleep(30 * time.Second)
 
-	require.NoError(t, server.Close())
-	require.NoError(t, server.Close())
+	err := server.Close()
+	require.NoError(t, err)
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -165,31 +171,71 @@ func TestServer_ListenAndServe(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewSocks5Server("test", logger.Test, nil)
-	require.NoError(t, err)
+	t.Run("failed", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
 
-	require.Error(t, server.ListenAndServe("foo", "localhost:0"))
-	require.Error(t, server.ListenAndServe("tcp", "foo"))
+		// invalid network
+		err = server.ListenAndServe("foo", "localhost:0")
+		require.Error(t, err)
 
-	require.NoError(t, server.Close())
-	testsuite.IsDestroyed(t, server)
+		// invalid address
+		err = server.ListenAndServe("tcp", "foo")
+		require.Error(t, err)
+
+		err = server.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("shutting down", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
+
+		err = server.Close()
+		require.NoError(t, err)
+
+		err = server.ListenAndServe("foo", "foo")
+		require.Equal(t, ErrServerClosed, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
 }
 
 func TestServer_Serve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewSocks5Server("test", logger.Test, nil)
-	require.NoError(t, err)
+	t.Run("failed", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
 
-	err = server.Serve(testsuite.NewMockListenerWithError())
-	testsuite.IsMockListenerError(t, err)
+		err = server.Serve(testsuite.NewMockListenerWithError())
+		testsuite.IsMockListenerError(t, err)
 
-	err = server.Serve(testsuite.NewMockListenerWithPanic())
-	testsuite.IsMockListenerPanic(t, err)
+		err = server.Serve(testsuite.NewMockListenerWithPanic())
+		testsuite.IsMockListenerPanic(t, err)
 
-	require.NoError(t, server.Close())
-	testsuite.IsDestroyed(t, server)
+		err = server.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("shutting down", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
+
+		err = server.Close()
+		require.NoError(t, err)
+
+		listener := testsuite.NewMockListenerWithError()
+		err = server.Serve(listener)
+		require.Equal(t, ErrServerClosed, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
 }
 
 func TestServer_Close(t *testing.T) {
@@ -199,7 +245,9 @@ func TestServer_Close(t *testing.T) {
 	server, err := NewSocks5Server("test", logger.Test, nil)
 	require.NoError(t, err)
 
-	require.NoError(t, server.Close())
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -210,7 +258,10 @@ func TestServer_Info(t *testing.T) {
 	server := testGenerateSocks4Server(t)
 	t.Log("socks4 info:", server.Info())
 
-	require.NoError(t, server.Close())
-	require.NoError(t, server.Close())
+	err := server.Close()
+	require.NoError(t, err)
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }

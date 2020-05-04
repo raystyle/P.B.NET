@@ -140,7 +140,10 @@ func TestSocks5Authenticate(t *testing.T) {
 	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, client)
-	require.NoError(t, server.Close())
+
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -160,7 +163,10 @@ func TestSocks4aUserID(t *testing.T) {
 	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, client)
-	require.NoError(t, server.Close())
+
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -223,19 +229,22 @@ func TestClient_Connect(t *testing.T) {
 	client, err := NewSocks5Client("tcp", "localhost:0", nil)
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	t.Run("foo address", func(t *testing.T) {
-		_, err = client.Connect(context.Background(), nil, "tcp", "foo address")
+		_, err = client.Connect(ctx, nil, "tcp", "foo")
 		require.Error(t, err)
 	})
 
 	t.Run("panic from context", func(t *testing.T) {
 		srv, cli := net.Pipe()
 		defer func() {
-			require.NoError(t, srv.Close())
-			require.NoError(t, cli.Close())
+			err := srv.Close()
+			require.NoError(t, err)
+			err = cli.Close()
+			require.NoError(t, err)
 		}()
 
-		ctx := context.Background()
 		patch := func(_ interface{}) {
 			_ = cli.Close()
 			panic(monkey.Panic)
