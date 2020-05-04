@@ -21,7 +21,10 @@ const mockListenerAcceptTimes = 10
 
 // errors and panics about mock.
 var (
-	errMockConnClose = errors.New("mock error in mockConn.Close()")
+	errMockConnClose              = errors.New("mock error in mockConn.Close()")
+	mockConnSetDeadlinePanic      = "mock panic in mockConn.SetDeadline()"
+	mockConnSetReadDeadlinePanic  = "mock panic in mockConn.SetReadDeadline()"
+	mockConnSetWriteDeadlinePanic = "mock panic in mockConn.SetWriteDeadline()"
 
 	errMockListenerAccept      = &mockNetError{temporary: true}
 	errMockListenerAcceptFatal = errors.New("mock error mockListener.Accept() fatal")
@@ -74,7 +77,10 @@ type mockConn struct {
 	local  mockConnLocalAddr
 	remote mockConnRemoteAddr
 
-	close bool // Close() error
+	closeError         bool // Close() error
+	deadlinePanic      bool // SetDeadline() panic
+	readDeadlinePanic  bool // SetReadDeadline() panic
+	writeDeadlinePanic bool // SetWriteDeadline() panic
 }
 
 func (c *mockConn) Read([]byte) (int, error) {
@@ -86,7 +92,7 @@ func (c *mockConn) Write([]byte) (int, error) {
 }
 
 func (c *mockConn) Close() error {
-	if c.close {
+	if c.closeError {
 		return errMockConnClose
 	}
 	return nil
@@ -101,26 +107,68 @@ func (c *mockConn) RemoteAddr() net.Addr {
 }
 
 func (c *mockConn) SetDeadline(time.Time) error {
+	if c.deadlinePanic {
+		panic(mockConnSetDeadlinePanic)
+	}
 	return nil
 }
 
 func (c *mockConn) SetReadDeadline(time.Time) error {
+	if c.readDeadlinePanic {
+		panic(mockConnSetReadDeadlinePanic)
+	}
 	return nil
 }
 
 func (c *mockConn) SetWriteDeadline(time.Time) error {
+	if c.writeDeadlinePanic {
+		panic(mockConnSetWriteDeadlinePanic)
+	}
 	return nil
 }
 
 // NewMockConnWithCloseError is used to create a mock conn
 // that will return a errMockConnClose when call Close().
 func NewMockConnWithCloseError() net.Conn {
-	return &mockConn{close: true}
+	return &mockConn{closeError: true}
 }
 
 // IsMockConnCloseError is used to check err is errMockConnClose.
 func IsMockConnCloseError(t testing.TB, err error) {
 	require.Equal(t, errMockConnClose, err)
+}
+
+// NewMockConnWithSetDeadlinePanic is used to create a mock conn
+// that will panic when call SetDeadline().
+func NewMockConnWithSetDeadlinePanic() net.Conn {
+	return &mockConn{deadlinePanic: true}
+}
+
+// IsMockConnSetDeadlinePanic is used to check err.Error() is mockConnSetDeadlinePanic.
+func IsMockConnSetDeadlinePanic(t testing.TB, err error) {
+	require.Contains(t, err.Error(), mockConnSetDeadlinePanic)
+}
+
+// NewMockConnWithSetReadDeadlinePanic is used to create a mock conn
+// that will panic when call SetReadDeadline().
+func NewMockConnWithSetReadDeadlinePanic() net.Conn {
+	return &mockConn{readDeadlinePanic: true}
+}
+
+// IsMockConnSetReadDeadlinePanic is used to check err.Error() is mockConnSetReadDeadlinePanic.
+func IsMockConnSetReadDeadlinePanic(t testing.TB, err error) {
+	require.Contains(t, err.Error(), mockConnSetReadDeadlinePanic)
+}
+
+// NewMockConnWithSetWriteDeadlinePanic is used to create a mock conn
+// that will panic when call SetWriteDeadline().
+func NewMockConnWithSetWriteDeadlinePanic() net.Conn {
+	return &mockConn{writeDeadlinePanic: true}
+}
+
+// IsMockConnSetWriteDeadlinePanic is used to check err.Error() is mockConnSetWriteDeadlinePanic.
+func IsMockConnSetWriteDeadlinePanic(t testing.TB, err error) {
+	require.Contains(t, err.Error(), mockConnSetWriteDeadlinePanic)
 }
 
 type mockListenerAddr struct{}

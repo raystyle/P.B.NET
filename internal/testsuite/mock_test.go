@@ -86,6 +86,33 @@ func TestNewMockConnWithCloseError(t *testing.T) {
 	IsMockConnCloseError(t, err)
 }
 
+func TestNewMockConnWithSetDeadlinePanic(t *testing.T) {
+	defer func() {
+		err := errors.New(fmt.Sprint(recover()))
+		IsMockConnSetDeadlinePanic(t, err)
+	}()
+	conn := NewMockConnWithSetDeadlinePanic()
+	_ = conn.SetDeadline(time.Time{})
+}
+
+func TestNewMockConnWithSetReadDeadlinePanic(t *testing.T) {
+	defer func() {
+		err := errors.New(fmt.Sprint(recover()))
+		IsMockConnSetReadDeadlinePanic(t, err)
+	}()
+	conn := NewMockConnWithSetReadDeadlinePanic()
+	_ = conn.SetReadDeadline(time.Time{})
+}
+
+func TestNewMockConnWithSetWriteDeadlinePanic(t *testing.T) {
+	defer func() {
+		err := errors.New(fmt.Sprint(recover()))
+		IsMockConnSetWriteDeadlinePanic(t, err)
+	}()
+	conn := NewMockConnWithSetWriteDeadlinePanic()
+	_ = conn.SetWriteDeadline(time.Time{})
+}
+
 func TestMockListenerAddr(t *testing.T) {
 	addr := new(mockListenerAddr)
 	require.NotZero(t, addr.Network())
