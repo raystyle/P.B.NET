@@ -194,9 +194,8 @@ func TestListener_serve(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		// patch
 		patch := func(net.Listener, int) net.Listener {
-			return testsuite.NewMockListenerWithPanic()
+			return testsuite.NewMockListenerWithAcceptPanic()
 		}
 		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
@@ -214,9 +213,8 @@ func TestListener_accept(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	// patch
 	patch := func(net.Listener, int) net.Listener {
-		return testsuite.NewMockListenerWithError()
+		return testsuite.NewMockListenerWithAcceptError()
 	}
 	pg := monkey.Patch(netutil.LimitListener, patch)
 	defer pg.Unpatch()
@@ -262,7 +260,6 @@ func TestLConn_Serve(t *testing.T) {
 		err := listener.Start()
 		require.NoError(t, err)
 
-		// patch
 		patch := func(io.Writer, io.Reader) (int64, error) {
 			panic(monkey.Panic)
 		}

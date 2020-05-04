@@ -226,11 +226,11 @@ func TestServer_Serve(t *testing.T) {
 	server, err := NewHTTPServer("test", logger.Test, nil)
 	require.NoError(t, err)
 
-	err = server.Serve(testsuite.NewMockListenerWithError())
-	testsuite.IsMockListenerError(t, err)
+	err = server.Serve(testsuite.NewMockListenerWithAcceptError())
+	testsuite.IsMockListenerAcceptFatal(t, err)
 
-	err = server.Serve(testsuite.NewMockListenerWithPanic())
-	testsuite.IsMockListenerPanic(t, err)
+	err = server.Serve(testsuite.NewMockListenerWithAcceptPanic())
+	testsuite.IsMockListenerAcceptPanic(t, err)
 
 	require.NoError(t, server.Close())
 	testsuite.IsDestroyed(t, server)

@@ -150,7 +150,6 @@ func TestTranner_serve(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("panic", func(t *testing.T) {
-		// patch
 		listener := netutil.LimitListener(nil, 1)
 		patch := func(interface{}) (net.Conn, error) {
 			panic(monkey.Panic)
@@ -167,9 +166,8 @@ func TestTranner_serve(t *testing.T) {
 	})
 
 	t.Run("failed to accept", func(t *testing.T) {
-		// patch
 		patch := func(net.Listener, int) net.Listener {
-			return testsuite.NewMockListenerWithError()
+			return testsuite.NewMockListenerWithAcceptError()
 		}
 		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
@@ -238,7 +236,6 @@ func TestTConn_Serve(t *testing.T) {
 		err := tranner.Start()
 		require.NoError(t, err)
 
-		// patch
 		patch := func(context.Context, time.Duration) (context.Context, context.CancelFunc) {
 			panic(monkey.Panic)
 		}
@@ -262,7 +259,6 @@ func TestTConn_Serve(t *testing.T) {
 		err := tranner.Start()
 		require.NoError(t, err)
 
-		// patch
 		patch := func(io.Writer, io.Reader) (int64, error) {
 			panic(monkey.Panic)
 		}

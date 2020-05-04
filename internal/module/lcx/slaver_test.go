@@ -182,7 +182,6 @@ func TestSlaver_serve(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 
-		// patch
 		patch := func(context.Context, time.Duration) (context.Context, context.CancelFunc) {
 			panic(monkey.Panic)
 		}
