@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -18,12 +19,14 @@ import (
 
 // errors and panics about mock.
 var (
+	errMockConnClose = errors.New("mock error in mockConn.Close()")
+
 	errMockListenerAccept = &mockNetError{temporary: true}
 	errMockListener       = errors.New("accept more than 10 times")
-	errMockListenerClose  = errors.New("mock error in listener.Close()")
-	mockListenerPanic     = "mock panic in listener.Accept()"
+	errMockListenerClose  = errors.New("mock error in mockListener.Close()")
+	mockListenerPanic     = "mock panic in mockListener.Accept()"
 
-	errMockReadCloser = errors.New("mock error in io.ReadCloser")
+	errMockReadCloser = errors.New("mock error in mockReadCloser")
 )
 
 // mockNetError implement net.Error.
@@ -44,6 +47,78 @@ func (e *mockNetError) Temporary() bool {
 	return e.temporary
 }
 
+type mockConnLocalAddr struct{}
+
+func (mockConnLocalAddr) Network() string {
+	return "mock Conn local network"
+}
+
+func (mockConnLocalAddr) String() string {
+	return "mock Conn local address"
+}
+
+type mockConnRemoteAddr struct{}
+
+func (mockConnRemoteAddr) Network() string {
+	return "mock Conn remote network"
+}
+
+func (mockConnRemoteAddr) String() string {
+	return "mock Conn remote address"
+}
+
+type mockConn struct {
+	local  mockConnLocalAddr
+	remote mockConnRemoteAddr
+	close  bool // close error
+}
+
+func (c *mockConn) Read([]byte) (int, error) {
+	return 0, nil
+}
+
+func (c *mockConn) Write([]byte) (int, error) {
+	return 0, nil
+}
+
+func (c *mockConn) Close() error {
+	if c.close {
+		return errMockConnClose
+	}
+	return nil
+}
+
+func (c *mockConn) LocalAddr() net.Addr {
+	return c.local
+}
+
+func (c *mockConn) RemoteAddr() net.Addr {
+	return c.remote
+}
+
+func (c *mockConn) SetDeadline(time.Time) error {
+	return nil
+}
+
+func (c *mockConn) SetReadDeadline(time.Time) error {
+	return nil
+}
+
+func (c *mockConn) SetWriteDeadline(time.Time) error {
+	return nil
+}
+
+// NewMockConnWithCloseError is used to create a mock conn
+// that will return a errMockConnClose when call Close().
+func NewMockConnWithCloseError() net.Conn {
+	return &mockConn{close: true}
+}
+
+// IsMockConnCloseError is used to check err is errMockConnClose.
+func IsMockConnCloseError(t testing.TB, err error) {
+	require.Equal(t, errMockConnClose, err)
+}
+
 type mockListenerAddr struct{}
 
 func (mockListenerAddr) Network() string {
@@ -55,10 +130,11 @@ func (mockListenerAddr) String() string {
 }
 
 type mockListener struct {
-	error bool
-	panic bool
-	close bool
-	n     int
+	addr  mockListenerAddr
+	error bool // accept error
+	panic bool // accept panic
+	close bool // close error
+	n     int  // accept count
 }
 
 func (l *mockListener) Accept() (net.Conn, error) {
@@ -83,7 +159,7 @@ func (l *mockListener) Close() error {
 }
 
 func (l *mockListener) Addr() net.Addr {
-	return new(mockListenerAddr)
+	return l.addr
 }
 
 // NewMockListenerWithError is used to create a mock listener

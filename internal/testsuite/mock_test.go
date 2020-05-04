@@ -19,6 +19,28 @@ func TestMockNetError(t *testing.T) {
 	require.False(t, err.Temporary())
 }
 
+func TestMockConnLocalAddr(t *testing.T) {
+	addr := new(mockConnLocalAddr)
+	require.NotZero(t, addr.Network())
+	require.NotZero(t, addr.String())
+}
+
+func TestMockConnRemoteAddr(t *testing.T) {
+	addr := new(mockConnRemoteAddr)
+	require.NotZero(t, addr.Network())
+	require.NotZero(t, addr.String())
+}
+
+func TestMockConn(t *testing.T) {
+
+}
+
+func TestNewMockConnWithCloseError(t *testing.T) {
+	conn := NewMockConnWithCloseError()
+	err := conn.Close()
+	IsMockConnCloseError(t, err)
+}
+
 func TestMockListenerAddr(t *testing.T) {
 	addr := new(mockListenerAddr)
 	require.NotZero(t, addr.Network())
