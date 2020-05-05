@@ -1,0 +1,42 @@
+// packages about patch
+project/internal/patch/monkey   project/internal/patch/json
+project/internal/patch/msgpack  project/internal/patch/toml
+
+// basic packages without dependence(project)
+project/internal/convert  project/internal/httptool
+project/internal/logger   project/internal/nettool
+project/internal/xpanic   project/internal/xreflect
+
+// basic packages with little dependence
+project/internal/random    project/internal/guid
+project/internal/security  project/internal/system
+
+// packages about crypto
+project/internal/crypto/aes   project/internal/crypto/curve25519
+project/internal/crypto/rand  project/internal/crypto/ed25519
+project/internal/crypto/cert  project/internal/option
+
+// packages about testsuite
+project/internal/testsuite          project/internal/testsuite/testcert
+project/internal/testsuite/testdns  project/internal/testsuite/testproxy
+
+// core packages about role
+project/internal/certmgr
+project/internal/proxy/direct  project/internal/proxy/socks
+project/internal/proxy/http    project/internal/proxy
+project/internal/dns
+project/internal/timesync/ntp  project/internal/timesync
+project/internal/xnet/light    project/internal/xnet/quic
+project/internal/xnet/xtls     project/internal/xnet
+project/internal/bootstrap
+
+// core packages about protocol
+project/internal/protocol     project/internal/messages
+project/internal/virtualconn
+
+// packages about basic module
+project/internal/info      project/internal/shell
+project/internal/shellcode project/internal/meterpreter
+
+// packages about internal module
+project/internal/module    project/internal/module/lcx
