@@ -45,7 +45,7 @@ func TestUnmarshal(t *testing.T) {
 	err = Unmarshal([]byte{0x00}, &test)
 	require.Error(t, err)
 
-	patch := func(_ []byte) (*toml.Tree, error) {
+	patch := func([]byte) (*toml.Tree, error) {
 		return nil, monkey.Error
 	}
 	pg := monkey.Patch(toml.LoadBytes, patch)
