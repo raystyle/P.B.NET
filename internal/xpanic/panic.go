@@ -8,27 +8,38 @@ import (
 	"runtime"
 )
 
-// Print is used to print panic to a *bytes.Buffer
+const maxDepth = 32
+
+// Print is used to print panic and stack to a *bytes.Buffer.
 func Print(panic interface{}, title string) *bytes.Buffer {
 	b := &bytes.Buffer{}
 	b.WriteString(title)
 	b.WriteString(":\n")
 	_, _ = fmt.Fprintln(b, panic)
-	printStack(b)
+	b.WriteString("\n")
+	PrintStack(b, 4) // skip about defer
 	return b
 }
 
-// Error is used to print panic to *bytes.Buffer buf and return an error
+// Error is used to print panic and stack to a *bytes.Buffer buf and return an error.
 func Error(panic interface{}, title string) error {
 	return errors.New(Print(panic, title).String())
 }
 
-// from github.com/pkg/errors
-func printStack(b *bytes.Buffer) {
-	b.WriteString("\n")
-	var pcs [32]uintptr // depth
-	n := runtime.Callers(3, pcs[:])
-	for _, pc := range pcs[2:n] {
+// PrintStack is used to print current stack to a *bytes.Buffer.
+func PrintStack(b *bytes.Buffer, skip int) {
+	defer func() {
+		if r := recover(); r != nil {
+			b.WriteString("\nfailed to print stack\n")
+		}
+	}()
+	if skip > maxDepth {
+		skip = 0
+	}
+	var pcs [maxDepth]uintptr
+	n := runtime.Callers(skip, pcs[:])
+	// skip unnecessary pc
+	for _, pc := range pcs[2 : n-2] {
 		f := frame(pc)
 		// write source file
 		pc := f.pc()
