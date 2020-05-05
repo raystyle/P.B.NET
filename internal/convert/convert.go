@@ -136,7 +136,7 @@ func ByteToString(n uint64) string {
 	}
 }
 
-// FormatNumber is used to convert 123456.789 to 123,456.789
+// FormatNumber is used to convert "123456.789" to "123,456.789".
 func FormatNumber(str string) string {
 	length := len(str)
 	if length < 4 {
@@ -167,8 +167,7 @@ func FormatNumber(str string) string {
 	return builder.String()
 }
 
-// ByteSliceToString is used to print byte slice.
-// output is "[]byte{1, 2, 3}"
+// ByteSliceToString is used to print byte slice, output is "[]byte{1, 2, 3}".
 func ByteSliceToString(b []byte) string {
 	l := len(b)
 	end := l - 1
