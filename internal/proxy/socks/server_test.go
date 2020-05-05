@@ -2,6 +2,8 @@ package socks
 
 import (
 	"context"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -75,9 +78,9 @@ func TestSocks5Server(t *testing.T) {
 	t.Log("socks5 info:", server.Info())
 
 	// make client
-	u, err := url.Parse("socks5://admin:123456@" + addresses[0].String())
+	URL, err := url.Parse("socks5://admin:123456@" + addresses[0].String())
 	require.NoError(t, err)
-	transport := http.Transport{Proxy: http.ProxyURL(u)}
+	transport := http.Transport{Proxy: http.ProxyURL(URL)}
 
 	testsuite.ProxyServer(t, server, &transport)
 }
@@ -153,9 +156,9 @@ func TestSocks5ServerWithSecondaryProxy(t *testing.T) {
 	address := server.Addresses()[0].String()
 
 	// make client
-	u, err := url.Parse("socks5://" + address)
+	URL, err := url.Parse("socks5://" + address)
 	require.NoError(t, err)
-	transport := http.Transport{Proxy: http.ProxyURL(u)}
+	transport := http.Transport{Proxy: http.ProxyURL(URL)}
 
 	testsuite.ProxyServer(t, server, &transport)
 
@@ -207,18 +210,47 @@ func TestServer_Serve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("failed", func(t *testing.T) {
+	t.Run("accept error", func(t *testing.T) {
 		server, err := NewSocks5Server("test", logger.Test, nil)
 		require.NoError(t, err)
 
-		err = server.Serve(testsuite.NewMockListenerWithAcceptError())
+		listener := testsuite.NewMockListenerWithAcceptError()
+		err = server.Serve(listener)
 		testsuite.IsMockListenerAcceptFatal(t, err)
 
-		err = server.Serve(testsuite.NewMockListenerWithAcceptPanic())
+		err = server.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("accept panic", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
+
+		listener := testsuite.NewMockListenerWithAcceptPanic()
+		err = server.Serve(listener)
 		testsuite.IsMockListenerAcceptPanic(t, err)
 
 		err = server.Close()
 		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("close listener error", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
+
+		listener := testsuite.NewMockListenerWithCloseError()
+		go func() {
+			err := server.Serve(listener)
+			testsuite.IsMockListenerClosedError(t, err)
+		}()
+		time.Sleep(250 * time.Millisecond)
+
+		err = server.Close()
+		testsuite.IsMockListenerCloseError(t, err)
 
 		testsuite.IsDestroyed(t, server)
 	})
@@ -295,6 +327,11 @@ func TestServer_Info(t *testing.T) {
 }
 
 func TestConn_Serve(t *testing.T) {
+	testsuite.InitHTTPServers(t)
+
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	t.Run("failed to track", func(t *testing.T) {
 		server, err := NewSocks5Server("test", logger.Test, nil)
 		require.NoError(t, err)
@@ -307,17 +344,82 @@ func TestConn_Serve(t *testing.T) {
 			local:  testsuite.NewMockConnWithCloseError(),
 		}
 		conn.Serve()
-
 		time.Sleep(250 * time.Millisecond)
 
 		testsuite.IsDestroyed(t, server)
 	})
 
-	t.Run("panic", func(t *testing.T) {
+	t.Run("serve panic", func(t *testing.T) {
+		server, err := NewSocks5Server("test", logger.Test, nil)
+		require.NoError(t, err)
 
+		conn := &conn{
+			server: server,
+			local:  testsuite.NewMockConnWithSetDeadlinePanic(),
+		}
+		conn.Serve()
+		time.Sleep(250 * time.Millisecond)
+
+		err = server.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, server)
+	})
+
+	t.Run("remote close", func(t *testing.T) {
+		server := testGenerateSocks5Server(t)
+		addresses := server.Addresses()
+
+		// make http client
+		URL, err := url.Parse("socks5://admin:123456@" + addresses[0].String())
+		require.NoError(t, err)
+		transport := http.Transport{Proxy: http.ProxyURL(URL)}
+		client := http.Client{Transport: &transport}
+		defer client.CloseIdleConnections()
+
+		// patch
+		conn := net.Conn(new(net.TCPConn))
+		patch := func(c *net.TCPConn) error {
+			_ = c.Close()
+			return monkey.Error
+		}
+		pg := monkey.PatchInstanceMethod(conn, "Close", patch)
+		defer pg.Unpatch()
+
+		resp, err := client.Get("http://localhost:" + testsuite.HTTPServerPort)
+		require.NoError(t, err)
+		_, err = ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		err = server.Close()
+		require.Error(t, err)
+
+		testsuite.IsDestroyed(t, server)
 	})
 
 	t.Run("copy panic", func(t *testing.T) {
+		server := testGenerateSocks5Server(t)
+		addresses := server.Addresses()
 
+		// make http client
+		URL, err := url.Parse("socks5://admin:123456@" + addresses[0].String())
+		require.NoError(t, err)
+		transport := http.Transport{Proxy: http.ProxyURL(URL)}
+		client := http.Client{Transport: &transport}
+		defer client.CloseIdleConnections()
+
+		patch := func(io.Writer, io.Reader) (int64, error) {
+			panic(monkey.Panic)
+		}
+		pg := monkey.Patch(io.Copy, patch)
+		defer pg.Unpatch()
+
+		_, err = client.Get("http://localhost:" + testsuite.HTTPServerPort)
+		require.Error(t, err)
+
+		err = server.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, server)
 	})
 }

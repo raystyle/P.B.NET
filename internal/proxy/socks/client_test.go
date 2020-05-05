@@ -245,7 +245,7 @@ func TestClient_Connect(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		patch := func(_ interface{}) {
+		patch := func(interface{}) {
 			_ = cli.Close()
 			panic(monkey.Panic)
 		}

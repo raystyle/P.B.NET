@@ -178,11 +178,11 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 	done := make(chan struct{})
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				log.Println(xpanic.Print(r, "Client.Connect"))
 			}
-			wg.Done()
 		}()
 		select {
 		case <-done:
