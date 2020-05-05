@@ -16,9 +16,9 @@ const (
 	maxBodyLength = 1024
 )
 
-// FprintRequest is used to print *http.Request to a Writer.
+// FprintRequest is used to print *http.Request to a io.Writer.
 //
-// client: 127.0.0.1:1234
+// Remote: 127.0.0.1:1234
 // POST /index HTTP/1.1
 // Host: github.com
 // Accept: text/html
@@ -28,7 +28,7 @@ const (
 // post data...
 // post data...
 func FprintRequest(w io.Writer, r *http.Request) (int, error) {
-	n, err := fmt.Fprintf(w, "client: %s\n", r.RemoteAddr)
+	n, err := fmt.Fprintf(w, "Remote: %s\n", r.RemoteAddr)
 	if err != nil {
 		return n, err
 	}

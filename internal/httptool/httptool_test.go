@@ -16,22 +16,25 @@ import (
 )
 
 func testGenerateRequest(t *testing.T) *http.Request {
-	r, err := http.NewRequest(http.MethodGet, "https://github.com/", nil)
+	req, err := http.NewRequest(http.MethodGet, "https://github.com/", nil)
 	require.NoError(t, err)
-	r.RemoteAddr = "127.0.0.1:1234"
-	r.RequestURI = "/index"
-	r.Header.Set("User-Agent", "Mozilla")
-	r.Header.Set("Accept", "text/html")
-	r.Header.Set("Connection", "keep-alive")
-	return r
+
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.RequestURI = "/index"
+	req.Header.Set("User-Agent", "Mozilla")
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Connection", "keep-alive")
+	return req
 }
 
 func TestFprintRequest(t *testing.T) {
-	r := testGenerateRequest(t)
+	req := testGenerateRequest(t)
 
-	fmt.Println("-----begin (GET and no body)-----")
-	fmt.Println(PrintRequest(r))
-	fmt.Printf("-----end-----\n\n")
+	t.Run("GET and no body", func(t *testing.T) {
+		fmt.Println("-----begin-----")
+		fmt.Println(PrintRequest(req))
+		fmt.Println("-----end-----")
+	})
 
 	equalBody := func(b1, b2 io.Reader) {
 		d1, err := ioutil.ReadAll(b1)
@@ -40,60 +43,80 @@ func TestFprintRequest(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, d1, d2)
 	}
-
 	body := new(bytes.Buffer)
 	rawBody := bytes.NewReader(body.Bytes())
-	r.Body = ioutil.NopCloser(body)
-	fmt.Println("-----begin (GET with body but no data)-----")
-	fmt.Println(PrintRequest(r))
-	fmt.Printf("-----end-----\n\n")
-	equalBody(rawBody, r.Body)
 
-	body.Reset()
-	body.WriteString(strings.Repeat("a", bodyLineLength-10))
-	rawBody = bytes.NewReader(body.Bytes())
-	r.Body = ioutil.NopCloser(body)
-	fmt.Println("-----begin (POST with data <bodyLineLength)-----")
-	fmt.Println(PrintRequest(r))
-	fmt.Printf("-----end-----\n\n")
-	equalBody(rawBody, r.Body)
+	t.Run("GET with body but no data", func(t *testing.T) {
+		req.Body = ioutil.NopCloser(body)
 
-	body.Reset()
-	body.WriteString(strings.Repeat("a", bodyLineLength))
-	rawBody = bytes.NewReader(body.Bytes())
-	r.Body = ioutil.NopCloser(body)
-	fmt.Println("-----begin (POST with data bodyLineLength)-----")
-	fmt.Println(PrintRequest(r))
-	fmt.Printf("-----end-----\n\n")
-	equalBody(rawBody, r.Body)
+		fmt.Println("-----begin-----")
+		fmt.Println(PrintRequest(req))
+		fmt.Println("-----end-----")
 
-	body.Reset()
-	body.WriteString(strings.Repeat("a", 3*bodyLineLength-1))
-	rawBody = bytes.NewReader(body.Bytes())
-	r.Body = ioutil.NopCloser(body)
-	fmt.Println("-----begin (POST with data 3*bodyLineLength-1)-----")
-	fmt.Println(PrintRequest(r))
-	fmt.Printf("-----end-----\n\n")
-	equalBody(rawBody, r.Body)
+		equalBody(rawBody, req.Body)
+	})
 
-	body.Reset()
-	body.WriteString(strings.Repeat("a", 100*bodyLineLength-1))
-	rawBody = bytes.NewReader(body.Bytes())
-	r.Body = ioutil.NopCloser(body)
-	fmt.Println("-----begin (POST with data 100*bodyLineLength-1)-----")
-	fmt.Println(PrintRequest(r))
-	fmt.Printf("-----end-----\n\n")
-	equalBody(rawBody, r.Body)
+	t.Run("POST with data < bodyLineLength", func(t *testing.T) {
+		body.Reset()
+		body.WriteString(strings.Repeat("a", bodyLineLength-10))
+		rawBody.Reset(body.Bytes())
+		req.Body = ioutil.NopCloser(body)
+
+		fmt.Println("-----begin-----")
+		fmt.Println(PrintRequest(req))
+		fmt.Println("-----end-----")
+
+		equalBody(rawBody, req.Body)
+	})
+
+	t.Run("POST with data = bodyLineLength", func(t *testing.T) {
+		body.Reset()
+		body.WriteString(strings.Repeat("a", bodyLineLength))
+		rawBody.Reset(body.Bytes())
+		req.Body = ioutil.NopCloser(body)
+
+		fmt.Println("-----begin-----")
+		fmt.Println(PrintRequest(req))
+		fmt.Println("-----end-----")
+
+		equalBody(rawBody, req.Body)
+	})
+
+	t.Run("POST with data 3*bodyLineLength-1", func(t *testing.T) {
+		body.Reset()
+		body.WriteString(strings.Repeat("a", 3*bodyLineLength-1))
+		rawBody = bytes.NewReader(body.Bytes())
+		req.Body = ioutil.NopCloser(body)
+
+		fmt.Println("-----begin-----")
+		fmt.Println(PrintRequest(req))
+		fmt.Println("-----end-----")
+
+		equalBody(rawBody, req.Body)
+	})
+
+	t.Run("POST with data 100*bodyLineLength-1", func(t *testing.T) {
+		body.Reset()
+		body.WriteString(strings.Repeat("a", 100*bodyLineLength-1))
+		rawBody = bytes.NewReader(body.Bytes())
+		req.Body = ioutil.NopCloser(body)
+
+		fmt.Println("-----begin-----")
+		fmt.Println(PrintRequest(req))
+		fmt.Println("-----end-----")
+
+		equalBody(rawBody, req.Body)
+	})
 }
 
 func TestFprintRequestWithError(t *testing.T) {
-	r := testGenerateRequest(t)
+	req := testGenerateRequest(t)
 
 	for _, test := range []struct {
 		name   string
 		format string
 	}{
-		{"client", "client: %s\n"},
+		{"remote", "Remote: %s\n"},
 		{"request", "%s %s %s"},
 		{"host", "\nHost: %s"},
 		{"header", "\n%s: %s"},
@@ -107,7 +130,8 @@ func TestFprintRequestWithError(t *testing.T) {
 			}
 			pg := monkey.Patch(fmt.Fprintf, patch)
 			defer pg.Unpatch()
-			_, err := FprintRequest(os.Stdout, r)
+
+			_, err := FprintRequest(os.Stdout, req)
 			monkey.IsMonkeyError(t, err)
 
 			// fix goland new line bug
@@ -117,7 +141,7 @@ func TestFprintRequestWithError(t *testing.T) {
 }
 
 func TestPrintBody(t *testing.T) {
-	r := testGenerateRequest(t)
+	req := testGenerateRequest(t)
 
 	t.Run("size < bodyLineLength", func(t *testing.T) {
 		patch := func(w io.Writer, format string, a ...interface{}) (int, error) {
@@ -129,8 +153,9 @@ func TestPrintBody(t *testing.T) {
 		pg := monkey.Patch(fmt.Fprintf, patch)
 		defer pg.Unpatch()
 
-		r.Body = ioutil.NopCloser(strings.NewReader("test"))
-		_, err := FprintRequest(os.Stdout, r)
+		req.Body = ioutil.NopCloser(strings.NewReader("test"))
+
+		_, err := FprintRequest(os.Stdout, req)
 		monkey.IsMonkeyError(t, err)
 
 		// fix goland new line bug
@@ -148,8 +173,9 @@ func TestPrintBody(t *testing.T) {
 		defer pg.Unpatch()
 
 		testdata := "test" + strings.Repeat("a", bodyLineLength)
-		r.Body = ioutil.NopCloser(strings.NewReader(testdata))
-		_, err := FprintRequest(os.Stdout, r)
+		req.Body = ioutil.NopCloser(strings.NewReader(testdata))
+
+		_, err := FprintRequest(os.Stdout, req)
 		monkey.IsMonkeyError(t, err)
 
 		// fix goland new line bug
@@ -167,8 +193,9 @@ func TestPrintBody(t *testing.T) {
 		defer pg.Unpatch()
 
 		testdata := "test" + strings.Repeat("a", bodyLineLength)
-		r.Body = ioutil.NopCloser(strings.NewReader(testdata))
-		_, err := FprintRequest(os.Stdout, r)
+		req.Body = ioutil.NopCloser(strings.NewReader(testdata))
+
+		_, err := FprintRequest(os.Stdout, req)
 		monkey.IsMonkeyError(t, err)
 
 		// fix goland new line bug
@@ -186,8 +213,9 @@ func TestPrintBody(t *testing.T) {
 		defer pg.Unpatch()
 
 		testdata := "test" + strings.Repeat("a", 2*bodyLineLength)
-		r.Body = ioutil.NopCloser(strings.NewReader(testdata))
-		_, err := FprintRequest(os.Stdout, r)
+		req.Body = ioutil.NopCloser(strings.NewReader(testdata))
+
+		_, err := FprintRequest(os.Stdout, req)
 		monkey.IsMonkeyError(t, err)
 
 		// fix goland new line bug
