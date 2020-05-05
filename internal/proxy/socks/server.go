@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/xpanic"
 )
 
@@ -27,7 +27,7 @@ type Server struct {
 	tag        string
 	logger     logger.Logger
 	socks4     bool
-	disableExt bool // socks4, disable resolve domain name
+	disableExt bool // socks4 can't resolve domain name
 
 	// options
 	username []byte
@@ -157,26 +157,37 @@ func (s *Server) ListenAndServe(network, address string) error {
 
 // Serve accepts incoming connections on the listener.
 func (s *Server) Serve(listener net.Listener) (err error) {
+	s.wg.Add(1)
+	defer s.wg.Done()
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = xpanic.Error(r, "Server.Serve")
+			s.log(logger.Fatal, err)
+		}
+	}()
+
+	address := listener.Addr()
+	network := address.Network()
+
 	listener = netutil.LimitListener(listener, s.maxConns)
-	defer func() { _ = listener.Close() }()
+	defer func() {
+		err := listener.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			const format = "failed to close listener (%s %s): %s"
+			s.logf(logger.Error, format, network, address, err)
+		}
+	}()
 
 	if !s.trackListener(&listener, true) {
 		return ErrServerClosed
 	}
 	defer s.trackListener(&listener, false)
 
-	address := listener.Addr()
-	network := address.Network()
-	defer func() {
-		if r := recover(); r != nil {
-			err = xpanic.Error(r, "Server.Serve")
-			s.log(logger.Fatal, err)
-		}
-		s.logf(logger.Info, "listener closed (%s %s)", network, address)
-	}()
 	s.logf(logger.Info, "start listener (%s %s)", network, address)
+	defer s.logf(logger.Info, "listener closed (%s %s)", network, address)
 
-	// start accept
+	// start accept loop
 	var delay time.Duration // how long to sleep on accept failure
 	maxDelay := time.Second
 	for {
@@ -196,12 +207,11 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 				time.Sleep(delay)
 				continue
 			}
-			errStr := err.Error()
-			if !strings.Contains(errStr, "closed") {
-				s.log(logger.Error, errStr)
-				return err
+			if nettool.IsNetClosingError(err) {
+				return nil
 			}
-			return nil
+			s.log(logger.Error, err)
+			return err
 		}
 		delay = 0
 		s.newConn(conn).Serve()
@@ -325,16 +335,20 @@ func (c *conn) Serve() {
 }
 
 func (c *conn) serve() {
+	defer c.server.wg.Done()
+
 	const title = "conn.serve()"
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
+	}()
+
+	defer func() {
 		err := c.local.Close()
-		if err != nil {
+		if err != nil && !nettool.IsNetClosingError(err) {
 			c.log(logger.Error, "failed to close local connection:", err)
 		}
-		c.server.wg.Done()
 	}()
 
 	if !c.server.trackConn(c, true) {
@@ -342,6 +356,7 @@ func (c *conn) serve() {
 	}
 	defer c.server.trackConn(c, false)
 
+	// handle
 	_ = c.local.SetDeadline(time.Now().Add(c.server.timeout))
 	if c.server.socks4 {
 		c.serveSocks4()
@@ -352,22 +367,25 @@ func (c *conn) serve() {
 		return
 	}
 
-	// start copy
 	defer func() {
 		err := c.remote.Close()
-		if err != nil {
+		if err != nil && !nettool.IsNetClosingError(err) {
 			c.log(logger.Error, "failed to close remote connection:", err)
 		}
 	}()
+
+	// reset deadline
 	_ = c.remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
+
+	// start copy
 	c.server.wg.Add(1)
 	go func() {
+		defer c.server.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				c.log(logger.Fatal, xpanic.Print(r, title))
 			}
-			c.server.wg.Done()
 		}()
 		_, _ = io.Copy(c.local, c.remote)
 	}()
