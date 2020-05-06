@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	gRand = New()
+	gRand = NewRand()
 	gSleeper = NewSleeper()
 }
 
@@ -30,40 +30,16 @@ type Rand struct {
 	mu   sync.Mutex
 }
 
-// New is used to create a Rand.
+// NewRand is used to create a Rand.
 // performance: BenchmarkNew-6    4148    304633 ns/op    35511 B/op
-func New() *Rand {
+func NewRand() *Rand {
 	const (
 		goroutines = 4
 		times      = 128
 	)
 	data := make(chan []byte, 16)
 	for i := 0; i < goroutines; i++ {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Println(xpanic.Print(r, "New"))
-				}
-			}()
-			count := 0
-			timer := time.NewTimer(time.Second)
-			r := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
-			for i := 0; i < times; i++ {
-				timer.Reset(time.Second)
-				select {
-				case data <- []byte{byte(r.Intn(256) + i)}:
-				case <-timer.C:
-					return
-				}
-				// schedule manually
-				if count > 16 {
-					runtime.Gosched()
-					count = 0
-				} else {
-					count++
-				}
-			}
-		}()
+		go sendData(data, times)
 	}
 	timer := time.NewTimer(time.Second)
 	hash := sha256.New()
@@ -89,6 +65,32 @@ read:
 	}
 	seed := convert.BytesToInt64(selected)
 	return &Rand{rand: rand.New(rand.NewSource(seed))} // #nosec
+}
+
+func sendData(data chan<- []byte, times int) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println(xpanic.Print(r, "New"))
+		}
+	}()
+	count := 0
+	timer := time.NewTimer(time.Second)
+	r := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
+	for i := 0; i < times; i++ {
+		timer.Reset(time.Second)
+		select {
+		case data <- []byte{byte(r.Intn(256) + i)}:
+		case <-timer.C:
+			return
+		}
+		// schedule manually
+		if count > 16 {
+			runtime.Gosched()
+			count = 0
+		} else {
+			count++
+		}
+	}
 }
 
 // String return a string that not include "|".
@@ -215,7 +217,7 @@ func NewSleeper() *Sleeper {
 	timer.Stop()
 	return &Sleeper{
 		timer: timer,
-		rand:  New(),
+		rand:  NewRand(),
 	}
 }
 
