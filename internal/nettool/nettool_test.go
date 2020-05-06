@@ -13,32 +13,41 @@ import (
 )
 
 func TestCheckPort(t *testing.T) {
-	err := CheckPort(123)
-	require.NoError(t, err)
+	t.Run("ok", func(t *testing.T) {
+		err := CheckPort(123)
+		require.NoError(t, err)
+	})
 
-	// invalid port
-	err = CheckPort(-1)
-	require.EqualError(t, err, "invalid port: -1")
-	err = CheckPort(65536)
-	require.EqualError(t, err, "invalid port: 65536")
+	t.Run("invalid port", func(t *testing.T) {
+		err := CheckPort(-1)
+		require.EqualError(t, err, "invalid port: -1")
+		err = CheckPort(65536)
+		require.EqualError(t, err, "invalid port: 65536")
+	})
 }
 
 func TestCheckPortString(t *testing.T) {
-	err := CheckPortString("1234")
-	require.NoError(t, err)
+	t.Run("ok", func(t *testing.T) {
+		err := CheckPortString("1234")
+		require.NoError(t, err)
+	})
 
-	err = CheckPortString("")
-	require.Equal(t, ErrEmptyPort, err)
+	t.Run("empty port", func(t *testing.T) {
+		err := CheckPortString("")
+		require.Equal(t, ErrEmptyPort, err)
+	})
 
-	// NaN
-	err = CheckPortString("s")
-	require.Error(t, err)
+	t.Run("NaN", func(t *testing.T) {
+		err := CheckPortString("s")
+		require.Error(t, err)
+	})
 
-	// invalid port
-	err = CheckPortString("-1")
-	require.Error(t, err)
-	err = CheckPortString("65536")
-	require.Error(t, err)
+	t.Run("invalid port", func(t *testing.T) {
+		err := CheckPortString("-1")
+		require.Error(t, err)
+		err = CheckPortString("65536")
+		require.Error(t, err)
+	})
 }
 
 func TestSplitHostPort(t *testing.T) {
@@ -66,13 +75,17 @@ func TestSplitHostPort(t *testing.T) {
 }
 
 func TestIsNetClosingError(t *testing.T) {
-	err := errors.New("test error: use of closed network connection")
-	r := IsNetClosingError(err)
-	require.True(t, r)
+	t.Run("ok", func(t *testing.T) {
+		err := errors.New("test error: use of closed network connection")
+		r := IsNetClosingError(err)
+		require.True(t, r)
+	})
 
-	err = errors.New("test error")
-	r = IsNetClosingError(err)
-	require.False(t, r)
+	t.Run("not", func(t *testing.T) {
+		err := errors.New("test error")
+		r := IsNetClosingError(err)
+		require.False(t, r)
+	})
 }
 
 func TestEncodeExternalAddress(t *testing.T) {
