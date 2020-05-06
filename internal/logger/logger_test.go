@@ -14,36 +14,39 @@ import (
 )
 
 const (
-	testSrc  = "test src"
-	testLog1 = "test"
-	testLog2 = "log"
+	testPrefixF  = "test format %s %s"
+	testPrefix   = "test print"
+	testPrefixLn = "test println"
+	testSrc      = "test src"
+	testLog1     = "test"
+	testLog2     = "log"
 )
 
 func TestParse(t *testing.T) {
-	l, err := Parse("debug")
-	require.NoError(t, err)
-	require.Equal(t, l, Debug)
-	l, err = Parse("info")
-	require.NoError(t, err)
-	require.Equal(t, l, Info)
-	l, err = Parse("warning")
-	require.NoError(t, err)
-	require.Equal(t, l, Warning)
-	l, err = Parse("error")
-	require.NoError(t, err)
-	require.Equal(t, l, Error)
-	l, err = Parse("exploit")
-	require.NoError(t, err)
-	require.Equal(t, l, Exploit)
-	l, err = Parse("fatal")
-	require.NoError(t, err)
-	require.Equal(t, l, Fatal)
-	l, err = Parse("off")
-	require.NoError(t, err)
-	require.Equal(t, l, Off)
-	l, err = Parse("invalid level")
-	require.Error(t, err)
-	require.Equal(t, l, Debug)
+	for _, testdata := range []struct {
+		name  string
+		level Level
+	}{
+		{"debug", Debug},
+		{"info", Info},
+		{"warning", Warning},
+		{"error", Error},
+		{"exploit", Exploit},
+		{"fatal", Fatal},
+		{"off", Off},
+	} {
+		t.Run(testdata.name, func(t *testing.T) {
+			l, err := Parse(testdata.name)
+			require.NoError(t, err)
+			require.Equal(t, l, testdata.level)
+		})
+	}
+
+	t.Run("invalid level", func(t *testing.T) {
+		l, err := Parse("invalid level")
+		require.Error(t, err)
+		require.Equal(t, l, Debug)
+	})
 }
 
 func TestPrefix(t *testing.T) {
@@ -55,33 +58,33 @@ func TestPrefix(t *testing.T) {
 }
 
 func TestLogger(t *testing.T) {
-	Common.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
-	Common.Print(Debug, testSrc, "test-print", testLog1, testLog2)
-	Common.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+	Common.Printf(Debug, testSrc, testPrefixF, testLog1, testLog2)
+	Common.Print(Debug, testSrc, testPrefix, testLog1, testLog2)
+	Common.Println(Debug, testSrc, testPrefixLn, testLog1, testLog2)
 
-	Test.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
-	Test.Print(Debug, testSrc, "test-print", testLog1, testLog2)
-	Test.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+	Test.Printf(Debug, testSrc, testPrefixF, testLog1, testLog2)
+	Test.Print(Debug, testSrc, testPrefix, testLog1, testLog2)
+	Test.Println(Debug, testSrc, testPrefixLn, testLog1, testLog2)
 
-	Discard.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
-	Discard.Print(Debug, testSrc, "test-print", testLog1, testLog2)
-	Discard.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+	Discard.Printf(Debug, testSrc, testPrefixF, testLog1, testLog2)
+	Discard.Print(Debug, testSrc, testPrefix, testLog1, testLog2)
+	Discard.Println(Debug, testSrc, testPrefixLn, testLog1, testLog2)
 }
 
 func TestMultiLogger(t *testing.T) {
 	logger := NewMultiLogger(Debug, os.Stdout)
 
-	logger.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
-	logger.Print(Debug, testSrc, "test-print", testLog1, testLog2)
-	logger.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+	logger.Printf(Debug, testSrc, testPrefixF, testLog1, testLog2)
+	logger.Print(Debug, testSrc, testPrefix, testLog1, testLog2)
+	logger.Println(Debug, testSrc, testPrefixLn, testLog1, testLog2)
 
 	t.Run("low level", func(t *testing.T) {
 		err := logger.SetLevel(Info)
 		require.NoError(t, err)
 
-		logger.Printf(Debug, testSrc, "test-format %s %s", testLog1, testLog2)
-		logger.Print(Debug, testSrc, "test-print", testLog1, testLog2)
-		logger.Println(Debug, testSrc, "test-println", testLog1, testLog2)
+		logger.Printf(Debug, testSrc, testPrefixF, testLog1, testLog2)
+		logger.Print(Debug, testSrc, testPrefix, testLog1, testLog2)
+		logger.Println(Debug, testSrc, testPrefixLn, testLog1, testLog2)
 	})
 
 	t.Run("invalid level", func(t *testing.T) {
@@ -112,8 +115,22 @@ func TestHijackLogWriter(t *testing.T) {
 }
 
 func TestConn(t *testing.T) {
-	conn, err := net.Dial("tcp", "ds.vm3.test-ipv6.com:80")
-	require.NoError(t, err)
-	fmt.Println(Conn(conn))
-	_ = conn.Close()
+	t.Run("local", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+		defer func() { _ = conn.Close() }()
+		fmt.Println(Conn(conn))
+
+		err = listener.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("mock", func(t *testing.T) {
+		conn := testsuite.NewMockConnWithSetDeadlinePanic()
+		fmt.Println(Conn(conn))
+		_ = conn.Close()
+	})
 }

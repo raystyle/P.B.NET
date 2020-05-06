@@ -135,11 +135,11 @@ func (common) Println(lv Level, src string, log ...interface{}) {
 // [Test] [2020-01-21 12:36:41] [debug] <test src> test-format test log
 type test struct{}
 
-var testPrefix = []byte("[Test] ")
+var testLoggerPrefix = []byte("[Test] ")
 
 func writePrefix(lv Level, src string) *bytes.Buffer {
 	output := new(bytes.Buffer)
-	output.Write(testPrefix)
+	output.Write(testLoggerPrefix)
 	_, _ = Prefix(time.Now(), lv, src).WriteTo(output)
 	return output
 }
@@ -253,7 +253,7 @@ func (p *prefixWriter) Write(b []byte) (n int, err error) {
 }
 
 // NewWriterWithPrefix is used to print prefix before each log.
-// it used for role test
+// It used to test role.
 func NewWriterWithPrefix(w io.Writer, prefix string) io.Writer {
 	return &prefixWriter{
 		writer: w,
@@ -294,8 +294,9 @@ func HijackLogWriter(lv Level, src string, logger Logger, flag int) {
 }
 
 // Conn is used to print connection information.
-// local:  tcp 127.0.0.1:123
-// remote: tcp 127.0.0.1:124
+//
+// local:  tcp 127.0.0.1:1234
+// remote: tcp 127.0.0.1:1235
 func Conn(conn net.Conn) *bytes.Buffer {
 	b := bytes.Buffer{}
 	_, _ = fmt.Fprintf(&b, "local:  %s %s\nremote: %s %s ",
