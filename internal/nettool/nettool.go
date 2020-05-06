@@ -51,10 +51,7 @@ func SplitHostPort(address string) (string, uint16, error) {
 
 // IsNetClosingError is used to check this error is src/internal/poll.ErrNetClosing.
 func IsNetClosingError(err error) bool {
-	if strings.Contains(err.Error(), "use of closed network connection") {
-		return true
-	}
-	return false
+	return strings.Contains(err.Error(), "use of closed network connection")
 }
 
 // EncodeExternalAddress is used to encode connection external address.
@@ -83,7 +80,7 @@ func DecodeExternalAddress(address []byte) string {
 	return string(address)
 }
 
-// IPEnabled is used to get system IP enabled.
+// IPEnabled is used to get system IP enabled status.
 func IPEnabled() (ipv4Enabled, ipv6Enabled bool) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
