@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// Reader is a global, shared instance of a
-// cryptographically secure random number generator.
+// Reader is a global, shared instance of a cryptographically
+// secure random number generator.
 var Reader io.Reader
 
 func init() {
