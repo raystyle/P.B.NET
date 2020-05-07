@@ -5,26 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"runtime"
 )
 
 const maxDepth = 32
-
-// Print is used to print panic and stack to a *bytes.Buffer.
-func Print(panic interface{}, title string) *bytes.Buffer {
-	b := &bytes.Buffer{}
-	b.WriteString(title)
-	b.WriteString(":\n")
-	_, _ = fmt.Fprintln(b, panic)
-	b.WriteString("\n")
-	PrintStack(b, 4) // skip about defer
-	return b
-}
-
-// Error is used to print panic and stack to a *bytes.Buffer buf and return an error.
-func Error(panic interface{}, title string) error {
-	return errors.New(Print(panic, title).String())
-}
 
 // PrintStack is used to print current stack to a *bytes.Buffer.
 func PrintStack(b *bytes.Buffer, skip int) {
@@ -71,4 +56,31 @@ func (f frame) line() int {
 	}
 	_, line := fn.FileLine(f.pc())
 	return line
+}
+
+func printStack(panic interface{}, title string, skip int) *bytes.Buffer {
+	b := &bytes.Buffer{}
+	b.WriteString(title)
+	b.WriteString(":\n")
+	_, _ = fmt.Fprintln(b, panic)
+	b.WriteString("\n")
+	PrintStack(b, skip) // skip about defer
+	return b
+}
+
+// Print is used to print panic and stack to a *bytes.Buffer.
+func Print(panic interface{}, title string) *bytes.Buffer {
+	return printStack(panic, title, 4) // skip about defer
+}
+
+// Log is used to call log.Println to print panic and stack.
+// It used to log in some package without logger.Logger.
+func Log(panic interface{}, title string) {
+	b := printStack(panic, title, 0) // skip about defer
+	log.Println(b)
+}
+
+// Error is used to print panic and stack to a *bytes.Buffer buf and return an error.
+func Error(panic interface{}, title string) error {
+	return errors.New(Print(panic, title).String())
 }
