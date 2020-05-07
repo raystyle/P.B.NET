@@ -23,20 +23,27 @@ func TestScalarBaseMult(t *testing.T) {
 }
 
 func TestKeyExchange(t *testing.T) {
+	// client side
 	cPri := make([]byte, ScalarSize)
 	cPri[0] = 199
 	cPub, err := ScalarBaseMult(cPri)
 	require.NoError(t, err)
+
+	// server side
 	sPri := make([]byte, ScalarSize)
 	sPri[0] = 2
 	sPub, err := ScalarBaseMult(sPri)
 	require.NoError(t, err)
+
+	// start exchange
 	cKey, err := ScalarMult(cPri, sPub)
 	require.NoError(t, err)
 	sKey, err := ScalarMult(sPri, cPub)
 	require.NoError(t, err)
+
 	require.Equal(t, cKey, sKey)
 	t.Log(cKey)
+
 	// invalid in data size
 	cPub, err = ScalarBaseMult(nil)
 	require.Error(t, err)
