@@ -8,20 +8,20 @@ import (
 	"project/internal/security"
 )
 
-// valid AES key size
+// about valid AES key size.
 const (
 	Key128Bit = 16
 	Key192Bit = 24
 	Key256Bit = 32
 )
 
-// AES information
+// about AES information.
 const (
 	IVSize    = 16
 	BlockSize = 16
 )
 
-// errors
+// errors.
 var (
 	ErrInvalidIVSize      = errors.New("invalid iv size")
 	ErrInvalidCipherData  = errors.New("invalid cipher data")
@@ -29,14 +29,14 @@ var (
 	ErrInvalidPaddingSize = errors.New("invalid padding size")
 )
 
-// CBC is a AES CBC PKCS#5 encrypter
+// CBC is a AES CBC PKCS#5 encrypter.
 type CBC struct {
 	key   *security.Bytes
 	iv    *security.Bytes
 	block cipher.Block
 }
 
-// NewCBC is used create a AES CBC PKCS#5 encrypter
+// NewCBC is used create a AES CBC PKCS#5 encrypter.
 func NewCBC(key, iv []byte) (*CBC, error) {
 	if len(iv) != IVSize {
 		return nil, ErrInvalidIVSize
@@ -53,7 +53,7 @@ func NewCBC(key, iv []byte) (*CBC, error) {
 	return cbc, nil
 }
 
-// Encrypt is used to encrypt plain data
+// Encrypt is used to encrypt plain data.
 func (c *CBC) Encrypt(plainData []byte) ([]byte, error) {
 	plainDataSize := len(plainData)
 	if plainDataSize == 0 {
@@ -67,15 +67,17 @@ func (c *CBC) Encrypt(plainData []byte) ([]byte, error) {
 	for i := 0; i < paddingSize; i++ {
 		plain[plainDataSize+i] = padding
 	}
+
 	iv := c.iv.Get()
 	defer c.iv.Put(iv)
+
 	encrypter := cipher.NewCBCEncrypter(c.block, iv)
 	cipherData := make([]byte, totalSize)
 	encrypter.CryptBlocks(cipherData, plain)
 	return cipherData, nil
 }
 
-// Decrypt is used to decrypt cipher data
+// Decrypt is used to decrypt cipher data.
 func (c *CBC) Decrypt(cipherData []byte) ([]byte, error) {
 	cipherDataSize := len(cipherData)
 	if cipherDataSize == 0 {
@@ -87,8 +89,10 @@ func (c *CBC) Decrypt(cipherData []byte) ([]byte, error) {
 	if cipherDataSize%BlockSize != 0 {
 		return nil, ErrInvalidCipherData
 	}
+
 	iv := c.iv.Get()
 	defer c.iv.Put(iv)
+
 	decrypter := cipher.NewCBCDecrypter(c.block, iv)
 	plainData := make([]byte, cipherDataSize)
 	decrypter.CryptBlocks(plainData, cipherData)
@@ -101,12 +105,13 @@ func (c *CBC) Decrypt(cipherData []byte) ([]byte, error) {
 	return plainData[:offset], nil
 }
 
-// KeyIV is used to get AES Key and IV
+// KeyIV is used to get AES Key and IV.
 func (c *CBC) KeyIV() ([]byte, []byte) {
 	key := c.key.Get()
 	defer c.key.Put(key)
 	iv := c.iv.Get()
 	defer c.iv.Put(iv)
+
 	keyCp := make([]byte, len(key))
 	ivCp := make([]byte, IVSize)
 	copy(keyCp, key)
@@ -114,7 +119,7 @@ func (c *CBC) KeyIV() ([]byte, []byte) {
 	return keyCp, ivCp
 }
 
-// CBCEncrypt is used to encrypt plain data
+// CBCEncrypt is used to encrypt plain data.
 func CBCEncrypt(plainData, key, iv []byte) ([]byte, error) {
 	plainDataSize := len(plainData)
 	if plainDataSize == 0 {
@@ -141,7 +146,7 @@ func CBCEncrypt(plainData, key, iv []byte) ([]byte, error) {
 	return cipherData, nil
 }
 
-// CBCDecrypt is used to decrypt cipher data
+// CBCDecrypt is used to decrypt cipher data.
 func CBCDecrypt(cipherData, key, iv []byte) ([]byte, error) {
 	cipherDataSize := len(cipherData)
 	if cipherDataSize == 0 {
