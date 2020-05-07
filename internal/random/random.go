@@ -4,7 +4,6 @@ import (
 	cr "crypto/rand"
 	"crypto/sha256"
 	"io"
-	"log"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -70,7 +69,7 @@ read:
 func sendData(data chan<- []byte, times int) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println(xpanic.Print(r, "New"))
+			xpanic.Log(r, "sendData")
 		}
 	}()
 	count := 0
