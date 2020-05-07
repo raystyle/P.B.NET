@@ -36,6 +36,7 @@ func TestBytes(t *testing.T) {
 		require.True(t, bytes.Equal(testdata, b))
 		sb.Put(b)
 	}
+
 	wg := sync.WaitGroup{}
 	wg.Add(100)
 	for i := 0; i < 100; i++ {
