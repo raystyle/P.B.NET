@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"log"
 	"os"
 	"sync"
 	"time"
@@ -91,20 +90,21 @@ func (guid *GUID) UnmarshalJSON(data []byte) error {
 
 // Generator is a custom GUID generator.
 type Generator struct {
-	now       func() time.Time
 	rand      *random.Rand
 	head      []byte // hash + PID
-	id        uint32 // self add
 	guidQueue chan *GUID
-	rwm       sync.RWMutex
+
+	// self add but not continuous
+	id  uint32
+	now func() time.Time
+	rwm sync.RWMutex
 
 	closeOnce  sync.Once
 	stopSignal chan struct{}
 	wg         sync.WaitGroup
 }
 
-// New is used to create a GUID generator.
-// if now is nil, use time.Now.
+// New is used to create a GUID generator, if now is nil, use time.Now.
 func New(size int, now func() time.Time) *Generator {
 	g := Generator{
 		stopSignal: make(chan struct{}),
@@ -119,7 +119,7 @@ func New(size int, now func() time.Time) *Generator {
 	} else {
 		g.now = time.Now
 	}
-	g.rand = random.New()
+	g.rand = random.NewRand()
 	// calculate head (8+4 PID)
 	hash := sha256.New()
 	for i := 0; i < 4096; i++ {
@@ -165,16 +165,17 @@ func (g *Generator) Close() {
 }
 
 func (g *Generator) generate() {
+	defer g.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println(xpanic.Print(r, "Generator.generate"))
-			// restart generate
+			xpanic.Log(r, "Generator.generate")
 			time.Sleep(time.Second)
+			// restart
+			g.wg.Add(1)
 			go g.generate()
-		} else {
-			close(g.guidQueue)
-			g.wg.Done()
+			return
 		}
+		close(g.guidQueue)
 	}()
 	for {
 		guid := GUID{}

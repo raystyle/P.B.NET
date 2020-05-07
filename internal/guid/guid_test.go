@@ -21,6 +21,7 @@ func TestGUID(t *testing.T) {
 	t.Run("Write", func(t *testing.T) {
 		expect := bytes.Repeat([]byte{1}, Size)
 		guid := GUID{}
+
 		err := guid.Write(expect)
 		require.NoError(t, err)
 		require.Equal(t, expect, guid[:])
@@ -33,19 +34,23 @@ func TestGUID(t *testing.T) {
 	t.Run("Print", func(t *testing.T) {
 		guid := GUID{}
 		copy(guid[Size/2:], bytes.Repeat([]byte{10}, Size/2))
+
 		buf := bytes.Buffer{}
 		buf.WriteString("GUID: ")
 		buf.WriteString(strings.Repeat("00", Size/2))
 		buf.WriteString(strings.Repeat("0A", Size/2))
+
 		require.Equal(t, buf.String(), guid.Print())
 	})
 
 	t.Run("Hex", func(t *testing.T) {
 		guid := GUID{}
 		copy(guid[Size/2:], bytes.Repeat([]byte{10}, Size/2))
+
 		buf := bytes.Buffer{}
 		buf.WriteString(strings.Repeat("00", Size/2))
 		buf.WriteString(strings.Repeat("0A", Size/2))
+
 		require.Equal(t, buf.String(), guid.Hex())
 	})
 
@@ -53,6 +58,7 @@ func TestGUID(t *testing.T) {
 		now := time.Now().Unix()
 		guid := GUID{}
 		copy(guid[20:28], convert.Int64ToBytes(now))
+
 		require.Equal(t, now, guid.Timestamp())
 	})
 
@@ -67,8 +73,10 @@ func TestGUID(t *testing.T) {
 		guid := GUID{}
 		data := bytes.Repeat([]byte{10}, Size)
 		copy(guid[:], data)
+
 		data, err := guid.MarshalJSON()
 		require.NoError(t, err)
+
 		// "0101...0101"
 		expected := fmt.Sprintf("\"%s\"", strings.Repeat("0A", Size))
 		require.Equal(t, expected, string(data))
@@ -77,8 +85,10 @@ func TestGUID(t *testing.T) {
 	t.Run("UnmarshalJSON", func(t *testing.T) {
 		data := []byte(fmt.Sprintf("\"%s\"", strings.Repeat("0A", Size)))
 		guid := GUID{}
+
 		err := guid.UnmarshalJSON(data)
 		require.NoError(t, err)
+
 		expected := bytes.Repeat([]byte{10}, Size)
 		require.Equal(t, expected, guid[:])
 
@@ -88,13 +98,15 @@ func TestGUID(t *testing.T) {
 	})
 
 	t.Run("json.Unmarshal", func(t *testing.T) {
+		const format = `{"data": "%s"}`
+		jsonData := []byte(fmt.Sprintf(format, strings.Repeat("01", Size)))
+
 		testdata := struct {
 			Data GUID `json:"data"`
 		}{}
-		const format = `{"data": "%s"}`
-		jsonData := []byte(fmt.Sprintf(format, strings.Repeat("01", Size)))
 		err := json.Unmarshal(jsonData, &testdata)
 		require.NoError(t, err)
+
 		expected := bytes.Repeat([]byte{1}, Size)
 		require.Equal(t, expected, testdata.Data[:])
 
@@ -117,30 +129,39 @@ func TestGenerator(t *testing.T) {
 
 	t.Run("with no now function", func(t *testing.T) {
 		g := New(16, nil)
+
 		for i := 0; i < 4; i++ {
 			testPrintGUID(t, g.Get())
 		}
+
 		g.Close()
+
 		testsuite.IsDestroyed(t, g)
 	})
 
 	t.Run("with now()", func(t *testing.T) {
 		g := New(16, time.Now)
+
 		for i := 0; i < 4; i++ {
 			testPrintGUID(t, g.Get())
 		}
+
 		g.Close()
+
 		testsuite.IsDestroyed(t, g)
 	})
 
 	t.Run("zero size", func(t *testing.T) {
 		g := New(0, time.Now)
+
 		for i := 0; i < 4; i++ {
 			testPrintGUID(t, g.Get())
 		}
-		g.Close()
+
 		// twice
 		g.Close()
+		g.Close()
+
 		testsuite.IsDestroyed(t, g)
 	})
 
@@ -148,26 +169,31 @@ func TestGenerator(t *testing.T) {
 		g := New(2, time.Now)
 		time.Sleep(time.Second)
 		g.Close()
+
 		for i := 0; i < 3; i++ {
 			testPrintGUID(t, g.Get())
 		}
+
 		testsuite.IsDestroyed(t, g)
 	})
 
 	t.Run("panic in generator()", func(t *testing.T) {
-		patch := func(_ interface{}, _ []byte, _ uint32) {
+		var pg *monkey.PatchGuard
+		patch := func(interface{}, []byte, uint32) {
+			pg.Unpatch()
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(binary.BigEndian, "PutUint32", patch)
-		go func() {
-			time.Sleep(time.Second)
-			pg.Unpatch()
-		}()
+		pg = monkey.PatchInstanceMethod(binary.BigEndian, "PutUint32", patch)
+		defer pg.Unpatch()
+
 		g := New(0, time.Now)
+
 		for i := 0; i < 4; i++ {
 			testPrintGUID(t, g.Get())
 		}
+
 		g.Close()
+
 		testsuite.IsDestroyed(t, g)
 	})
 }
@@ -177,13 +203,18 @@ func BenchmarkGenerator_Get(b *testing.B) {
 	defer gm.Compare()
 
 	g := New(512, nil)
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		g.Get()
 	}
+
 	b.StopTimer()
+
 	g.Close()
+
 	testsuite.IsDestroyed(b, g)
 }
 
@@ -191,17 +222,20 @@ func BenchmarkGUIDWithMapKey(b *testing.B) {
 	gm := testsuite.MarkGoroutines(b)
 	defer gm.Compare()
 
-	rand := random.New()
+	rand := random.NewRand()
 	key := make([]GUID, b.N)
 	for i := 0; i < b.N; i++ {
 		b := rand.Bytes(Size)
 		copy(key[i][:], b)
 	}
 	m := make(map[GUID]int)
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		m[key[i]] = i
 	}
+
 	b.StopTimer()
 }
