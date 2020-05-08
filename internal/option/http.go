@@ -41,17 +41,17 @@ func (hr *HTTPRequest) Apply() (*http.Request, error) {
 	if err != nil {
 		return nil, hr.error(err)
 	}
-	r, err := http.NewRequest(hr.Method, hr.URL, bytes.NewReader(post))
+	req, err := http.NewRequest(hr.Method, hr.URL, bytes.NewReader(post))
 	if err != nil {
 		return nil, hr.error(err)
 	}
-	r.Header = hr.Header.Clone()
-	if r.Header == nil {
-		r.Header = make(http.Header)
+	req.Header = hr.Header.Clone()
+	if req.Header == nil {
+		req.Header = make(http.Header)
 	}
-	r.Host = hr.Host
-	r.Close = hr.Close
-	return r, nil
+	req.Host = hr.Host
+	req.Close = hr.Close
+	return req, nil
 }
 
 // HTTPTransport include options about http.Transport.
@@ -95,6 +95,7 @@ type HTTPTransport struct {
 
 // Apply is used to create *http.Transport.
 //
+// TODO [external] go internal bug: MaxConnsPerHost
 // when set MaxConnsPerHost, use HTTP/2 get test.com will panic, wait golang fix it.
 func (ht *HTTPTransport) Apply() (*http.Transport, error) {
 	tr := &http.Transport{

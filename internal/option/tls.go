@@ -24,21 +24,21 @@ type TLSConfig struct {
 	CipherSuites []uint16           `toml:"cipher_suites"`
 
 	// add certificates from certificate pool manually
-	CertPool         *cert.Pool `toml:"-" msgpack:"-"`
+	CertPool         *cert.Pool `toml:"-" msgpack:"-" check:"-"`
 	LoadFromCertPool struct {
-		// public will be load automatically
-		SkipPublicRootCACerts   bool `toml:"skip_public_root_ca_certs"`
-		SkipPublicClientCACerts bool `toml:"skip_public_client_ca_certs"`
-		SkipPublicClientCerts   bool `toml:"skip_public_client_certs"`
+		// public will be loaded automatically
+		SkipPublicRootCA   bool `toml:"skip_public_root_ca"`
+		SkipPublicClientCA bool `toml:"skip_public_client_ca"`
+		SkipPublicClient   bool `toml:"skip_public_client"`
 
-		// private need be load manually
-		LoadPrivateRootCACerts   bool `toml:"load_private_root_ca_certs"`
-		LoadPrivateClientCACerts bool `toml:"load_private_client_ca_certs"`
-		LoadPrivateClientCerts   bool `toml:"load_private_client_certs"`
+		// private need be loaded manually
+		LoadPrivateRootCA   bool `toml:"load_private_root_ca"`
+		LoadPrivateClientCA bool `toml:"load_private_client_ca"`
+		LoadPrivateClient   bool `toml:"load_private_client"`
 	} `toml:"cert_pool"`
 
 	// listener need set true
-	ServerSide bool `toml:"-" msgpack:"-"`
+	ServerSide bool `toml:"-" msgpack:"-" check:"-"`
 }
 
 // X509KeyPair include certificate and private key.
@@ -80,11 +80,11 @@ func (t *TLSConfig) GetCertificates() ([]tls.Certificate, error) {
 	if t.CertPool == nil {
 		return certs, nil
 	}
-	if !t.LoadFromCertPool.SkipPublicClientCerts && !t.ServerSide {
+	if !t.LoadFromCertPool.SkipPublicClient && !t.ServerSide {
 		pairs := t.CertPool.GetPublicClientPairs()
 		certs = append(certs, makeTLSCertificates(pairs)...)
 	}
-	if t.LoadFromCertPool.LoadPrivateClientCerts && !t.ServerSide {
+	if t.LoadFromCertPool.LoadPrivateClient && !t.ServerSide {
 		pairs := t.CertPool.GetPrivateClientPairs()
 		certs = append(certs, makeTLSCertificates(pairs)...)
 	}
@@ -112,10 +112,10 @@ func (t *TLSConfig) GetRootCAs() ([]*x509.Certificate, error) {
 	if t.CertPool == nil {
 		return rootCAs, nil
 	}
-	if !t.LoadFromCertPool.SkipPublicRootCACerts {
+	if !t.LoadFromCertPool.SkipPublicRootCA {
 		rootCAs = append(rootCAs, t.CertPool.GetPublicRootCACerts()...)
 	}
-	if t.LoadFromCertPool.LoadPrivateRootCACerts {
+	if t.LoadFromCertPool.LoadPrivateRootCA {
 		rootCAs = append(rootCAs, t.CertPool.GetPrivateRootCACerts()...)
 	}
 	return rootCAs, nil
@@ -133,10 +133,10 @@ func (t *TLSConfig) GetClientCAs() ([]*x509.Certificate, error) {
 	if t.CertPool == nil {
 		return clientCAs, nil
 	}
-	if !t.LoadFromCertPool.SkipPublicClientCACerts {
+	if !t.LoadFromCertPool.SkipPublicClientCA {
 		clientCAs = append(clientCAs, t.CertPool.GetPublicClientCACerts()...)
 	}
-	if t.LoadFromCertPool.LoadPrivateClientCACerts {
+	if t.LoadFromCertPool.LoadPrivateClientCA {
 		clientCAs = append(clientCAs, t.CertPool.GetPrivateClientCACerts()...)
 	}
 	return clientCAs, nil

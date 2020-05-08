@@ -593,7 +593,8 @@ func TestOptions(t *testing.T) {
 
 	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	// check zero value
 	str := testCheckOptions("", opts)
