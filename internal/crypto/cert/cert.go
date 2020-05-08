@@ -45,6 +45,7 @@ type Subject struct {
 	PostalCode         []string `toml:"postal_code"`
 }
 
+// TODO use namer to generate common name
 func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	cert := x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
@@ -305,8 +306,8 @@ func GenerateCA(opts *Options) (*Pair, error) {
 	}, nil
 }
 
-// Generate is used to generate a signed certificate by CA or
-// self-sign certificate from options.
+// Generate is used to generate a signed certificate by CA or self-signed
+// certificate from options.
 func Generate(parent *x509.Certificate, pri interface{}, opts *Options) (*Pair, error) {
 	if opts == nil {
 		opts = new(Options)

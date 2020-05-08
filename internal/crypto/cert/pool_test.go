@@ -19,6 +19,12 @@ func TestPair_ToPair(t *testing.T) {
 	pair.ToPair()
 }
 
+func testGenerateCert(t *testing.T) *Pair {
+	pair, err := GenerateCA(nil)
+	require.NoError(t, err)
+	return pair
+}
+
 func TestLoadCertWithPrivateKey(t *testing.T) {
 	t.Run("invalid certificate", func(t *testing.T) {
 		_, err := loadCertWithPrivateKey(make([]byte, 1024), nil)
@@ -28,6 +34,7 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 	t.Run("invalid private key", func(t *testing.T) {
 		pair := testGenerateCert(t)
 		cert, _ := pair.Encode()
+
 		_, err := loadCertWithPrivateKey(cert, make([]byte, 1024))
 		require.Error(t, err)
 	})
@@ -35,8 +42,10 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 	t.Run("mismatched private key", func(t *testing.T) {
 		pair1 := testGenerateCert(t)
 		cert := pair1.ASN1()
+
 		pair2 := testGenerateCert(t)
 		_, key := pair2.Encode()
+
 		_, err := loadCertWithPrivateKey(cert, key)
 		require.Error(t, err)
 	})
@@ -44,22 +53,19 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 	t.Run("MarshalPKCS8PrivateKey", func(t *testing.T) {
 		pair := testGenerateCert(t)
 		cert, key := pair.Encode() // must before patch
-		patch := func(_ interface{}) ([]byte, error) {
+
+		patch := func(interface{}) ([]byte, error) {
 			return nil, monkey.Error
 		}
 		pg := monkey.Patch(x509.MarshalPKCS8PrivateKey, patch)
 		defer pg.Unpatch()
+
 		_, err := loadCertWithPrivateKey(cert, key)
 		monkey.IsMonkeyError(t, err)
 	})
 }
 
-func testGenerateCert(t *testing.T) *Pair {
-	pair, err := GenerateCA(nil)
-	require.NoError(t, err)
-	return pair
-}
-
+// copy from testsuite
 func testRunParallel(f ...func()) {
 	l := len(f)
 	if l == 0 {
@@ -180,6 +186,7 @@ func TestPool(t *testing.T) {
 			require.Error(t, err)
 			err = pool.AddPublicClientCert(cert, nil)
 			require.Error(t, err)
+
 			// loadCertWithPrivateKey
 			err = pool.AddPublicClientCert(nil, nil)
 			require.Error(t, err)
@@ -228,6 +235,7 @@ func TestPool(t *testing.T) {
 			require.Error(t, err)
 			err = pool.AddPrivateRootCACert(cert, []byte{})
 			require.Error(t, err)
+
 			// loadCertWithPrivateKey
 			err = pool.AddPrivateRootCACert(nil, nil)
 			require.Error(t, err)
@@ -284,6 +292,7 @@ func TestPool(t *testing.T) {
 			require.Error(t, err)
 			err = pool.AddPrivateClientCACert(cert, []byte{})
 			require.Error(t, err)
+
 			// loadCertWithPrivateKey
 			err = pool.AddPrivateClientCACert(nil, nil)
 			require.Error(t, err)
@@ -340,6 +349,7 @@ func TestPool(t *testing.T) {
 			require.Error(t, err)
 			err = pool.AddPrivateClientCert(cert, []byte{})
 			require.Error(t, err)
+
 			// loadCertWithPrivateKey
 			err = pool.AddPrivateClientCert(nil, nil)
 			require.Error(t, err)
@@ -388,17 +398,19 @@ func TestNewPoolWithSystemCerts(t *testing.T) {
 		}
 		pg := monkey.Patch(SystemCertPool, patch)
 		defer pg.Unpatch()
+
 		_, err := NewPoolWithSystemCerts()
 		monkey.IsMonkeyError(t, err)
 	})
 
 	t.Run("failed to AddPublicRootCACert", func(t *testing.T) {
 		pool := NewPool()
-		patch := func(_ *Pool, _ []byte) error {
+		patch := func(*Pool, []byte) error {
 			return monkey.Error
 		}
 		pg := monkey.PatchInstanceMethod(pool, "AddPublicRootCACert", patch)
 		defer pg.Unpatch()
+
 		_, err := NewPoolWithSystemCerts()
 		monkey.IsMonkeyError(t, err)
 	})

@@ -12,8 +12,9 @@ import (
 
 var (
 	errSystemCert = errors.New("no system certificates")
-	systemCert    []*x509.Certificate
-	systemCertMu  sync.Mutex
+
+	systemCerts   []*x509.Certificate
+	systemCertsMu sync.Mutex
 )
 
 // SystemCertPool is used to return system certificate pool.
@@ -21,20 +22,20 @@ var (
 // incorrect, because the CA "Root Agency" is for test.
 func SystemCertPool() (*x509.CertPool, error) {
 	var certs []*x509.Certificate
-	systemCertMu.Lock()
-	defer systemCertMu.Unlock()
+	systemCertsMu.Lock()
+	defer systemCertsMu.Unlock()
 	if errSystemCert == nil {
-		certs = make([]*x509.Certificate, len(systemCert))
-		copy(certs, systemCert)
+		certs = make([]*x509.Certificate, len(systemCerts))
+		copy(certs, systemCerts)
 	} else {
 		c, err := loadSystemCert()
 		if err != nil {
 			return nil, err
 		}
-		systemCert = c
+		systemCerts = c
 		errSystemCert = nil
-		certs = make([]*x509.Certificate, len(systemCert))
-		copy(certs, systemCert)
+		certs = make([]*x509.Certificate, len(systemCerts))
+		copy(certs, systemCerts)
 	}
 	// must new pool
 	pool := x509.NewCertPool()
@@ -65,7 +66,7 @@ func loadSystemCert() ([]*x509.Certificate, error) {
 }
 
 // LoadSystemCertWithName is used to load system certificate pool.
-// usually name is "ROOT" and "CA"
+// Usually name is "ROOT" or "CA".
 func LoadSystemCertWithName(name string) ([][]byte, error) {
 	n, err := syscall.UTF16PtrFromString(name)
 	if err != nil {
@@ -82,8 +83,7 @@ func LoadSystemCertWithName(name string) ([][]byte, error) {
 		cert, err = syscall.CertEnumCertificatesInStore(store, cert)
 		if err != nil {
 			if errno, ok := err.(syscall.Errno); ok {
-				// CRYPT_E_NOT_FOUND = 0x80092004
-				if errno == 0x80092004 {
+				if errno == 0x80092004 { // 0x80092004 is CRYPT_E_NOT_FOUND
 					break
 				}
 			}
