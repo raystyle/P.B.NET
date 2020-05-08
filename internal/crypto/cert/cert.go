@@ -80,7 +80,7 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 
 	// set time
 	now := time.Time{}.AddDate(2017, 10, 26) // 2018-11-27
-	if opts.NotBefore.Equal(time.Time{}) {
+	if opts.NotBefore.IsZero() {
 		years := random.Int(10)
 		months := random.Int(12)
 		days := random.Int(31)
@@ -88,7 +88,7 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	} else {
 		cert.NotBefore = opts.NotBefore
 	}
-	if opts.NotAfter.Equal(time.Time{}) {
+	if opts.NotAfter.IsZero() {
 		years := 10 + random.Int(10)
 		months := random.Int(12)
 		days := random.Int(31)
@@ -118,6 +118,7 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	return &cert, nil
 }
 
+// copy from internal/dns/protocol.go
 func isDomainName(s string) bool {
 	l := len(s)
 	if l == 0 || l > 254 || l == 254 && s[l-1] != '.' {

@@ -11,7 +11,7 @@ import (
 	"project/internal/patch/monkey"
 )
 
-// copy from testsuite
+// copy from internal/testsuite/testsuite.go
 func testDeferForPanic(t testing.TB) {
 	r := recover()
 	require.NotNil(t, r)

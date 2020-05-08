@@ -65,7 +65,7 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 	})
 }
 
-// copy from testsuite
+// copy from internal/testsuite/testsuite.go
 func testRunParallel(f ...func()) {
 	l := len(f)
 	if l == 0 {
