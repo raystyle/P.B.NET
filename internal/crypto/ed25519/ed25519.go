@@ -9,7 +9,7 @@ import (
 	"project/internal/crypto/rand"
 )
 
-// size
+// sizes.
 const (
 	PublicKeySize  = 32
 	PrivateKeySize = 64
@@ -17,7 +17,7 @@ const (
 	SeedSize       = 32
 )
 
-// errors
+// errors.
 var (
 	ErrInvalidPrivateKey = errors.New("invalid private key size")
 	ErrInvalidPublicKey  = errors.New("invalid public key size")
