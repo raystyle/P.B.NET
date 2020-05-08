@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
@@ -27,11 +29,8 @@ func TestPrintNetworkInfo(t *testing.T) {
 }
 
 func TestDeployPPROFHTTPServer(t *testing.T) {
-	defer func() {
-		r := recover()
-		require.NotNil(t, r)
-		t.Log(r)
-	}()
+	defer DeferForPanic(t)
+
 	patch := func(int) bool {
 		return false
 	}
@@ -100,12 +99,15 @@ func TestIsDestroyed(t *testing.T) {
 	IsDestroyed(t, &c)
 }
 
+func TestDeferForPanic(t *testing.T) {
+	defer DeferForPanic(t)
+
+	panic("test panic")
+}
+
 func TestCheckErrorInTestMain(t *testing.T) {
-	defer func() {
-		r := recover()
-		require.NotNil(t, r)
-		t.Log(r)
-	}()
+	defer DeferForPanic(t)
+
 	CheckErrorInTestMain(errors.New("foo error"))
 }
 
@@ -116,6 +118,14 @@ type testOptions struct {
 	Bar string
 	BA  testOptionsB
 	BB  *testOptionsB
+
+	Skip1 func()
+	Skip2 chan string
+	Skip3 complex64
+	Skip4 complex128
+	Skip5 unsafe.Pointer
+
+	unexported int
 
 	SA testOptionsB  `check:"-"`
 	SB *testOptionsB `check:"-"`
@@ -146,6 +156,12 @@ type testOptionNest struct {
 		NA int
 		NB string
 	}
+}
+
+type testOptionSpecial struct {
+	A string
+	B time.Time
+	C *time.Time
 }
 
 func TestCheckOptions(t *testing.T) {
@@ -346,6 +362,38 @@ func TestCheckOptions(t *testing.T) {
 			},
 		}
 		require.Equal(t, except, checkOptions("", opts))
+	})
+
+	t.Run("skip time.Time", func(t *testing.T) {
+		t.Run("single", func(t *testing.T) {
+			const except = "time.Time is zero value"
+			ti := time.Time{}
+			require.Equal(t, except, checkOptions("", ti))
+			require.Equal(t, except, checkOptions("", &ti))
+		})
+
+		t.Run("struct", func(t *testing.T) {
+			ti := time.Time{}.AddDate(2017, 10, 26) // 2018-11-27
+
+			opts := testOptionSpecial{
+				A: "a",
+				B: ti,
+				C: &ti,
+			}
+			require.Zero(t, checkOptions("", opts))
+
+			const (
+				except1 = "testOptionSpecial.B is zero value"
+				except2 = "testOptionSpecial.C is zero value"
+			)
+
+			opts.B = time.Time{}
+			require.Equal(t, except1, checkOptions("", opts))
+			opts.B = ti
+
+			opts.C = nil
+			require.Equal(t, except2, checkOptions("", opts))
+		})
 	})
 }
 

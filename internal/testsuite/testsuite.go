@@ -135,6 +135,20 @@ func IsDestroyed(t testing.TB, object interface{}) {
 	require.True(t, Destroyed(object), "object not destroyed")
 }
 
+// DeferForPanic is used to add recover and log panic in defer function,
+// it used to some tests like this:
+//
+// defer func() {
+//      r := recover()
+//      require.NotNil(t, r)
+//      t.Log(r)
+//  }()
+func DeferForPanic(t testing.TB) {
+	r := recover()
+	require.NotNil(t, r)
+	t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
+}
+
 // CheckErrorInTestMain is used to check error in function TestMain(),
 // because no t *testing.T, so we need check it self.
 func CheckErrorInTestMain(err error) {
@@ -144,6 +158,10 @@ func CheckErrorInTestMain(err error) {
 }
 
 func checkOptions(father string, v interface{}) string {
+	ok, result := checkSpecialType(father, v)
+	if ok {
+		return result
+	}
 	typ := reflect.TypeOf(v)
 	var value reflect.Value
 	if typ.Kind() == reflect.Ptr {
@@ -161,7 +179,11 @@ func checkOptions(father string, v interface{}) string {
 	for i := 0; i < value.NumField(); i++ {
 		fieldType := typ.Field(i)
 		fieldValue := value.Field(i)
-		// skip check
+		// skip unexported field
+		if fieldType.PkgPath != "" && !fieldType.Anonymous {
+			continue
+		}
+		// skip filed with check tag
 		if fieldType.Tag.Get("check") == "-" {
 			continue
 		}
@@ -177,6 +199,9 @@ func checkOptions(father string, v interface{}) string {
 			if str != "" {
 				return str
 			}
+		case reflect.Chan, reflect.Func, reflect.Complex64,
+			reflect.Complex128, reflect.UnsafePointer:
+			continue
 		default:
 			if !fieldValue.IsZero() {
 				continue
@@ -189,6 +214,28 @@ func checkOptions(father string, v interface{}) string {
 		}
 	}
 	return ""
+}
+
+func checkSpecialType(father string, v interface{}) (bool, string) {
+	var typ string
+	switch val := v.(type) {
+	case *time.Time:
+		if val != nil && !val.IsZero() {
+			return true, ""
+		}
+		typ = "time.Time"
+	case time.Time:
+		if !val.IsZero() {
+			return true, ""
+		}
+		typ = "time.Time"
+	default:
+		return false, ""
+	}
+	if father == "" {
+		return true, typ + " is zero value"
+	}
+	return true, father + " is zero value"
 }
 
 // CheckOptions is used to check unmarshal is apply value to each field,
