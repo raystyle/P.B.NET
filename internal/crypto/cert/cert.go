@@ -50,7 +50,6 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	cert := x509.Certificate{}
 	cert.SerialNumber = big.NewInt(random.Int64())
 	cert.SubjectKeyId = random.Bytes(4)
-
 	// Subject.CommonName
 	if opts.Subject.CommonName == "" {
 		cert.Subject.CommonName = random.Cookie(6 + random.Int(8))
@@ -64,6 +63,7 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 		cert.Subject.Organization = make([]string, len(opts.Subject.Organization))
 		copy(cert.Subject.Organization, opts.Subject.Organization)
 	}
+	// copy []string
 	cert.Subject.Country = make([]string, len(opts.Subject.Country))
 	copy(cert.Subject.Country, opts.Subject.Country)
 	cert.Subject.OrganizationalUnit = make([]string, len(opts.Subject.OrganizationalUnit))
@@ -77,9 +77,8 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	cert.Subject.PostalCode = make([]string, len(opts.Subject.PostalCode))
 	copy(cert.Subject.PostalCode, opts.Subject.PostalCode)
 	cert.Subject.SerialNumber = opts.Subject.SerialNumber
-
 	// set time
-	now := time.Time{}.AddDate(2017, 10, 26) // 2018-11-27
+	now := time.Date(2018, 11, 27, 0, 0, 0, 0, time.UTC)
 	if opts.NotBefore.IsZero() {
 		years := random.Int(10)
 		months := random.Int(12)
@@ -96,7 +95,6 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 	} else {
 		cert.NotAfter = opts.NotAfter
 	}
-
 	// check domain name
 	dn := opts.DNSNames
 	for i := 0; i < len(dn); i++ {
@@ -105,7 +103,6 @@ func generateCertificate(opts *Options) (*x509.Certificate, error) {
 		}
 		cert.DNSNames = append(cert.DNSNames, dn[i])
 	}
-
 	// check IP address
 	ips := opts.IPAddresses
 	for i := 0; i < len(ips); i++ {

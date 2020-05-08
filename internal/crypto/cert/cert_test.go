@@ -600,14 +600,27 @@ func TestOptions(t *testing.T) {
 	require.True(t, str == "", str)
 
 	// check value is correct
+	notBefore := time.Date(2018, 11, 27, 0, 0, 0, 0, time.Local)
+	notAfter := time.Date(2028, 11, 27, 0, 0, 0, 0, time.Local)
+
 	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
-		// {expected: "admin", actual: opts.Username},
-		// {expected: "123456", actual: opts.Password},
-		// {expected: time.Minute, actual: opts.Timeout},
-		// {expected: 1000, actual: opts.MaxConns},
+		{expected: "rsa|2048", actual: opts.Algorithm},
+		{expected: []string{"localhost"}, actual: opts.DNSNames},
+		{expected: []string{"127.0.0.1", "::1"}, actual: opts.IPAddresses},
+		{expected: notBefore, actual: opts.NotBefore},
+		{expected: notAfter, actual: opts.NotAfter},
+		{expected: "P.B.NET", actual: opts.Subject.CommonName},
+		{expected: "test", actual: opts.Subject.SerialNumber},
+		{expected: []string{"test1"}, actual: opts.Subject.Country},
+		{expected: []string{"test2"}, actual: opts.Subject.Organization},
+		{expected: []string{"test3"}, actual: opts.Subject.OrganizationalUnit},
+		{expected: []string{"test4"}, actual: opts.Subject.Locality},
+		{expected: []string{"test5"}, actual: opts.Subject.Province},
+		{expected: []string{"test6"}, actual: opts.Subject.StreetAddress},
+		{expected: []string{"test7"}, actual: opts.Subject.PostalCode},
 	}
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)
