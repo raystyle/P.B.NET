@@ -89,10 +89,10 @@ func TestSocks5ClientWithoutPassword(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewSocks5Server("test", logger.Test, nil)
+	server, err := NewSocks5Server(testTag, logger.Test, nil)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -109,10 +109,10 @@ func TestSocks4aClientWithoutUserID(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewSocks4aServer("test", logger.Test, nil)
+	server, err := NewSocks4aServer(testTag, logger.Test, nil)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)

@@ -8,13 +8,44 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/toml"
+	"project/internal/testsuite"
 )
+
+func TestOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/options.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	opts := Options{}
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "admin", actual: opts.Username},
+		{expected: "123456", actual: opts.Password},
+		{expected: "test", actual: opts.UserID},
+		{expected: time.Minute, actual: opts.Timeout},
+		{expected: 1000, actual: opts.MaxConns},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
+}
 
 func TestSocks5ServerOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/socks5_server.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -33,8 +64,11 @@ func TestSocks5ServerOptions(t *testing.T) {
 func TestSocks5ClientOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/socks5_client.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -52,14 +86,17 @@ func TestSocks5ClientOptions(t *testing.T) {
 func TestSocks4aServerOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/socks4a_server.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
-		{expected: "test", actual: opts.UserID},
+		{expected: testTag, actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: 1000, actual: opts.MaxConns},
 	}
@@ -71,14 +108,17 @@ func TestSocks4aServerOptions(t *testing.T) {
 func TestSocks4aClientOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/socks4a_client.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
-		{expected: "test", actual: opts.UserID},
+		{expected: testTag, actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
 	}
 	for _, td := range testdata {
@@ -89,14 +129,17 @@ func TestSocks4aClientOptions(t *testing.T) {
 func TestSocks4ServerOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/socks4_server.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
-		{expected: "test", actual: opts.UserID},
+		{expected: testTag, actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
 		{expected: 1000, actual: opts.MaxConns},
 	}
@@ -108,14 +151,17 @@ func TestSocks4ServerOptions(t *testing.T) {
 func TestSocks4ClientOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/socks4_client.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
-		{expected: "test", actual: opts.UserID},
+		{expected: testTag, actual: opts.UserID},
 		{expected: time.Minute, actual: opts.Timeout},
 	}
 	for _, td := range testdata {
@@ -125,7 +171,8 @@ func TestSocks4ClientOptions(t *testing.T) {
 
 func TestCheckNetwork(t *testing.T) {
 	for _, network := range []string{"tcp", "tcp4", "tcp6"} {
-		require.NoError(t, CheckNetwork(network))
+		err := CheckNetwork(network)
+		require.NoError(t, err)
 	}
 	err := CheckNetwork("foo network")
 	require.Error(t, err)

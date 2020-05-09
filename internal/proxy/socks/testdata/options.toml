@@ -1,0 +1,5 @@
+username  = "admin"
+password  = "123456"
+user_id   = "test"
+timeout   = "1m"
+max_conns = 1000

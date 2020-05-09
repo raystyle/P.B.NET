@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"sync"
@@ -174,14 +173,14 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 		return nil, errors.WithStack(err)
 	}
 	// interrupt
-	wg := sync.WaitGroup{}
 	done := make(chan struct{})
+	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				log.Println(xpanic.Print(r, "Client.Connect"))
+				xpanic.Log(r, "Client.Connect")
 			}
 		}()
 		select {

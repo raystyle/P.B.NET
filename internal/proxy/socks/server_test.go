@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,15 +18,21 @@ import (
 	"project/internal/testsuite"
 )
 
+const (
+	testTag     = "test"
+	testNetwork = "tcp"
+	testAddress = "localhost:0"
+)
+
 func testGenerateSocks5Server(t *testing.T) *Server {
 	opts := Options{
 		Username: "admin",
 		Password: "123456",
 	}
-	server, err := NewSocks5Server("test", logger.Test, &opts)
+	server, err := NewSocks5Server(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -37,14 +43,14 @@ func testGenerateSocks4aServer(t *testing.T) *Server {
 	opts := Options{
 		UserID: "admin",
 	}
-	server, err := NewSocks4aServer("test", logger.Test, &opts)
+	server, err := NewSocks4aServer(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -55,10 +61,10 @@ func testGenerateSocks4Server(t *testing.T) *Server {
 	opts := Options{
 		UserID: "admin",
 	}
-	server, err := NewSocks4Server("test", logger.Test, &opts)
+	server, err := NewSocks4Server(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -133,23 +139,19 @@ func TestSocks5ServerWithSecondaryProxy(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	var (
-		secondary bool
-		mutex     sync.Mutex
-	)
+	var secondary atomic.Value
+	secondary.Store(false)
 	dialContext := func(ctx context.Context, network, address string) (net.Conn, error) {
-		mutex.Lock()
-		secondary = true
-		mutex.Unlock()
+		secondary.Store(true)
 		return new(net.Dialer).DialContext(ctx, network, address)
 	}
 	opts := Options{
 		DialContext: dialContext,
 	}
-	server, err := NewSocks5Server("test", logger.Test, &opts)
+	server, err := NewSocks5Server(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -162,7 +164,7 @@ func TestSocks5ServerWithSecondaryProxy(t *testing.T) {
 
 	testsuite.ProxyServer(t, server, &transport)
 
-	require.True(t, secondary)
+	require.True(t, secondary.Load().(bool))
 }
 
 func TestNewServerWithEmptyTag(t *testing.T) {
@@ -175,7 +177,7 @@ func TestServer_ListenAndServe(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("failed", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		// invalid network
@@ -193,7 +195,7 @@ func TestServer_ListenAndServe(t *testing.T) {
 	})
 
 	t.Run("shutting down", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		err = server.Close()
@@ -211,7 +213,7 @@ func TestServer_Serve(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("accept error", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		listener := testsuite.NewMockListenerWithAcceptError()
@@ -225,7 +227,7 @@ func TestServer_Serve(t *testing.T) {
 	})
 
 	t.Run("accept panic", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		listener := testsuite.NewMockListenerWithAcceptPanic()
@@ -239,7 +241,7 @@ func TestServer_Serve(t *testing.T) {
 	})
 
 	t.Run("close listener error", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		listener := testsuite.NewMockListenerWithCloseError()
@@ -256,7 +258,7 @@ func TestServer_Serve(t *testing.T) {
 	})
 
 	t.Run("shutting down", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		err = server.Close()
@@ -275,7 +277,7 @@ func TestServer_Close(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("ok", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		err = server.Close()
@@ -285,7 +287,7 @@ func TestServer_Close(t *testing.T) {
 	})
 
 	t.Run("error about listener", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		listener := testsuite.NewMockListenerWithCloseError()
@@ -298,7 +300,7 @@ func TestServer_Close(t *testing.T) {
 	})
 
 	t.Run("error about conn", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		conn := &conn{local: testsuite.NewMockConnWithCloseError()}
@@ -333,7 +335,7 @@ func TestConn_Serve(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("failed to track", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		err = server.Close()
@@ -350,7 +352,7 @@ func TestConn_Serve(t *testing.T) {
 	})
 
 	t.Run("serve panic", func(t *testing.T) {
-		server, err := NewSocks5Server("test", logger.Test, nil)
+		server, err := NewSocks5Server(testTag, logger.Test, nil)
 		require.NoError(t, err)
 
 		conn := &conn{
