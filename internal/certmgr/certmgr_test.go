@@ -46,7 +46,6 @@ func testGenerateCertPool(t *testing.T) *cert.Pool {
 	require.NoError(t, err)
 	err = pool.AddPrivateClientCert(clientCert.Encode())
 	require.NoError(t, err)
-
 	return pool
 }
 
@@ -307,9 +306,11 @@ func TestNBCertPool_ToPool(t *testing.T) {
 
 	t.Run("public root ca cert", func(t *testing.T) {
 		pair := testGenerateCert(t)
+
 		cp.PublicRootCACerts = [][]byte{pair.ASN1()}
 		pool, err := cp.ToPool()
 		require.NoError(t, err)
+
 		certs := pool.GetPublicRootCACerts()
 		require.Len(t, certs, 1)
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
@@ -324,9 +325,11 @@ func TestNBCertPool_ToPool(t *testing.T) {
 
 	t.Run("public client ca cert", func(t *testing.T) {
 		pair := testGenerateCert(t)
+
 		cp.PublicClientCACerts = [][]byte{pair.ASN1()}
 		pool, err := cp.ToPool()
 		require.NoError(t, err)
+
 		certs := pool.GetPublicClientCACerts()
 		require.Len(t, certs, 1)
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
@@ -341,6 +344,7 @@ func TestNBCertPool_ToPool(t *testing.T) {
 
 	t.Run("public client cert", func(t *testing.T) {
 		pair := testGenerateCert(t)
+
 		c, k := pair.Encode()
 		cp.PublicClientPairs = []struct {
 			Cert []byte `msgpack:"a"`
@@ -351,6 +355,7 @@ func TestNBCertPool_ToPool(t *testing.T) {
 
 		pool, err := cp.ToPool()
 		require.NoError(t, err)
+
 		certs := pool.GetPublicClientPairs()
 		require.Len(t, certs, 1)
 		dCert, dKey := certs[0].Encode()
@@ -377,9 +382,11 @@ func TestNBCertPool_ToPool(t *testing.T) {
 
 	t.Run("private root ca cert", func(t *testing.T) {
 		pair := testGenerateCert(t)
+
 		cp.PrivateRootCACerts = [][]byte{pair.ASN1()}
 		pool, err := cp.ToPool()
 		require.NoError(t, err)
+
 		certs := pool.GetPrivateRootCACerts()
 		require.Len(t, certs, 1)
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
@@ -394,9 +401,11 @@ func TestNBCertPool_ToPool(t *testing.T) {
 
 	t.Run("private client ca cert", func(t *testing.T) {
 		pair := testGenerateCert(t)
+
 		cp.PrivateClientCACerts = [][]byte{pair.ASN1()}
 		pool, err := cp.ToPool()
 		require.NoError(t, err)
+
 		certs := pool.GetPrivateClientCACerts()
 		require.Len(t, certs, 1)
 		require.Equal(t, pair.ASN1(), certs[0].Raw)
@@ -411,6 +420,7 @@ func TestNBCertPool_ToPool(t *testing.T) {
 
 	t.Run("private client cert", func(t *testing.T) {
 		pair := testGenerateCert(t)
+
 		c, k := pair.Encode()
 		cp.PrivateClientPairs = []struct {
 			Cert []byte `msgpack:"a"`
@@ -421,6 +431,7 @@ func TestNBCertPool_ToPool(t *testing.T) {
 
 		pool, err := cp.ToPool()
 		require.NoError(t, err)
+
 		certs := pool.GetPrivateClientPairs()
 		require.Len(t, certs, 1)
 		dCert, dKey := certs[0].Encode()
