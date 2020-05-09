@@ -247,7 +247,7 @@ func TestNewMockResponseWriterWithClosePanic(t *testing.T) {
 	require.Nil(t, brw)
 	require.NotNil(t, conn)
 
-	defer func() { require.NotNil(t, recover()) }()
+	defer DeferForPanic(t)
 	_ = conn.Close()
 }
 
@@ -294,7 +294,7 @@ func TestNewMockReadCloserWithReadPanic(t *testing.T) {
 	rc := NewMockReadCloserWithReadPanic()
 
 	t.Run("panic", func(t *testing.T) {
-		defer func() { require.NotNil(t, recover()) }()
+		defer DeferForPanic(t)
 		_, _ = rc.Read(nil)
 	})
 

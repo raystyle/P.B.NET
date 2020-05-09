@@ -27,7 +27,8 @@ func TestPoolAndManager(t *testing.T) {
 	testsuite.HTTPClient(t, transport, "localhost")
 
 	testsuite.IsDestroyed(t, proxyPool)
-	require.NoError(t, proxyMgr.Close())
+	err = proxyMgr.Close()
+	require.NoError(t, err)
 	testsuite.IsDestroyed(t, proxyMgr)
 	testsuite.IsDestroyed(t, certPool)
 }

@@ -434,6 +434,7 @@ func TestRunHTTPServer(t *testing.T) {
 	port := RunHTTPServer(t, "tcp", &httpServer)
 	defer func() { _ = httpServer.Close() }()
 	t.Log("http server port:", port)
+
 	client := http.Client{}
 	resp, err := client.Get(fmt.Sprintf("http://localhost:%s/", port))
 	require.NoError(t, err)
@@ -450,6 +451,7 @@ func TestRunHTTPServer(t *testing.T) {
 	port = RunHTTPServer(t, "tcp", &httpsServer)
 	defer func() { _ = httpsServer.Close() }()
 	t.Log("https server port:", port)
+
 	client = http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: clientCfg,

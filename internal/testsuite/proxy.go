@@ -17,7 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certpool"
 )
 
 // HTTPServerPort is the test HTTP server port,
@@ -225,8 +225,11 @@ func ProxyServer(t *testing.T, server io.Closer, transport *http.Transport) {
 	t.Run("double stack", func(t *testing.T) {
 		HTTPClient(t, transport, "localhost")
 	})
-	require.NoError(t, server.Close())
-	require.NoError(t, server.Close())
+	err := server.Close()
+	require.NoError(t, err)
+	err = server.Close()
+	require.NoError(t, err)
+
 	IsDestroyed(t, server)
 }
 
@@ -315,7 +318,8 @@ func ProxyClient(t *testing.T, server io.Closer, client proxyClient) {
 
 	IsDestroyed(t, client)
 
-	require.NoError(t, server.Close())
+	err := server.Close()
+	require.NoError(t, err)
 	IsDestroyed(t, server)
 }
 
@@ -462,28 +466,34 @@ func ProxyClientCancelConnect(t testing.TB, server io.Closer, client proxyClient
 	wg.Wait()
 
 	IsDestroyed(t, client)
-	require.NoError(t, server.Close())
+
+	err = server.Close()
+	require.NoError(t, err)
 	IsDestroyed(t, server)
 }
 
 // ProxyClientWithHTTPSTarget is used to test proxy client with https target.
 func ProxyClientWithHTTPSTarget(t testing.TB, client proxyClient) {
 	transport := new(http.Transport)
-	certPool, err := cert.SystemCertPool()
+	certPool, err := certpool.System()
 	require.NoError(t, err)
+
 	transport.TLSClientConfig = &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		RootCAs:    certPool,
 	}
 	client.HTTP(transport)
-
 	httpClient := http.Client{
 		Transport: transport,
 	}
 	defer httpClient.CloseIdleConnections()
+
 	resp, err := httpClient.Get("https://www.cloudflare.com/")
 	require.NoError(t, err)
-	defer func() { require.NoError(t, resp.Body.Close()) }()
+	defer func() {
+		err = resp.Body.Close()
+		require.NoError(t, err)
+	}()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	_, err = io.Copy(ioutil.Discard, resp.Body)
 	require.NoError(t, err)
@@ -535,6 +545,8 @@ func ProxyClientWithUnreachableTarget(t testing.TB, server io.Closer, client pro
 	t.Log("DialTimeout -> Connect:\n", err)
 
 	IsDestroyed(t, client)
-	require.NoError(t, server.Close())
+
+	err = server.Close()
+	require.NoError(t, err)
 	IsDestroyed(t, server)
 }

@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/option"
 	"project/internal/random"
 )
 
@@ -94,39 +93,5 @@ func TLSConfigPair(t testing.TB) (server, client *tls.Config) {
 	server.ClientCAs = x509.NewCertPool()
 	server.ClientCAs.AddCert(caCert)
 	client.Certificates = []tls.Certificate{tlsCert}
-	return
-}
-
-// TLSConfigOptionPair is used to build server and client *options.TLSConfig.
-func TLSConfigOptionPair(t testing.TB) (server, client option.TLSConfig) {
-	// certificates about server
-	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t)
-	caPEMBlock := string(pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caASN1,
-	}))
-	server.Certificates = []option.X509KeyPair{
-		{
-			Cert: string(certPEMBlock),
-			Key:  string(keyPEMBlock),
-		},
-	}
-	server.ClientAuth = tls.RequireAndVerifyClientCert
-	server.ServerSide = true
-	client.RootCAs = []string{caPEMBlock}
-
-	// certificates about client
-	caASN1, certPEMBlock, keyPEMBlock = TLSCertificate(t)
-	caPEMBlock = string(pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caASN1,
-	}))
-	server.ClientCAs = []string{caPEMBlock}
-	client.Certificates = []option.X509KeyPair{
-		{
-			Cert: string(certPEMBlock),
-			Key:  string(keyPEMBlock),
-		},
-	}
 	return
 }

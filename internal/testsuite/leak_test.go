@@ -19,7 +19,10 @@ func TestMarkGoroutine(t *testing.T) {
 
 func TestMarkGoroutine_Leak(t *testing.T) {
 	gm := MarkGoroutines(t)
-	defer func() { require.Equal(t, 1, gm.calculate()) }()
+	defer func() {
+		n := gm.calculate()
+		require.Equal(t, 1, n)
+	}()
 
 	c := make(chan struct{})
 	go func() {

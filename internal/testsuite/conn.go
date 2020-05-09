@@ -35,7 +35,9 @@ func ListenerAndDial(t *testing.T, listener net.Listener, dial dialer, close boo
 		server, client := AcceptAndDial(t, listener, dial)
 		ConnCS(t, client, server, close)
 	}
-	require.NoError(t, listener.Close())
+	err := listener.Close()
+	require.NoError(t, err)
+
 	IsDestroyed(t, listener)
 }
 
@@ -50,7 +52,8 @@ func AcceptAndDial(t *testing.T, listener net.Listener, dial dialer) (net.Conn, 
 		server, err = listener.Accept()
 		require.NoError(t, err)
 		if s, ok := server.(Handshaker); ok {
-			require.NoError(t, s.Handshake())
+			err = s.Handshake()
+			require.NoError(t, err)
 		}
 	}()
 	client, err := dial()
@@ -121,7 +124,8 @@ func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			require.NoError(t, conn2.SetDeadline(time.Now().Add(5*time.Second)))
+			err := conn2.SetDeadline(time.Now().Add(5 * time.Second))
+			require.NoError(t, err)
 			read(conn2)
 			write(conn2)
 			wg.Add(2)
@@ -139,7 +143,8 @@ func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			require.NoError(t, conn1.SetDeadline(time.Now().Add(5*time.Second)))
+			err := conn1.SetDeadline(time.Now().Add(5 * time.Second))
+			require.NoError(t, err)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -158,8 +163,10 @@ func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 	})
 
 	// recover about net.Pipe()
-	require.NoError(t, conn1.SetDeadline(time.Time{}))
-	require.NoError(t, conn2.SetDeadline(time.Time{}))
+	err := conn1.SetDeadline(time.Time{})
+	require.NoError(t, err)
+	err = conn2.SetDeadline(time.Time{})
+	require.NoError(t, err)
 
 	t.Run("read and write parallel", func(t *testing.T) {
 		wg.Add(1)
@@ -200,10 +207,14 @@ func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 	})
 
 	t.Run("deadline", func(t *testing.T) {
-		require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-		require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
-		require.NoError(t, conn2.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-		require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
+		err = conn1.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+		require.NoError(t, err)
+		err = conn1.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
+		require.NoError(t, err)
+		err = conn2.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+		require.NoError(t, err)
+		err = conn2.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
+		require.NoError(t, err)
 		time.Sleep(30 * time.Millisecond)
 		buf := Bytes()
 		n, err := conn1.Write(buf)
@@ -213,10 +224,14 @@ func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 		require.Error(t, err)
 		require.Equal(t, 0, n)
 
-		require.NoError(t, conn1.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-		require.NoError(t, conn1.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
-		require.NoError(t, conn2.SetReadDeadline(time.Now().Add(10*time.Millisecond)))
-		require.NoError(t, conn2.SetWriteDeadline(time.Now().Add(10*time.Millisecond)))
+		err = conn1.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+		require.NoError(t, err)
+		err = conn1.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
+		require.NoError(t, err)
+		err = conn2.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+		require.NoError(t, err)
+		err = conn2.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
+		require.NoError(t, err)
 		time.Sleep(30 * time.Millisecond)
 		buf = Bytes()
 		n, err = conn1.Write(buf)
@@ -228,13 +243,14 @@ func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 	})
 
 	// recover about net.Pipe()
-	require.NoError(t, conn1.SetDeadline(time.Time{}))
-	require.NoError(t, conn2.SetDeadline(time.Time{}))
+	err = conn1.SetDeadline(time.Time{})
+	require.NoError(t, err)
+	err = conn2.SetDeadline(time.Time{})
+	require.NoError(t, err)
 
 	if !close {
 		return
 	}
-
 	t.Run("close", func(t *testing.T) {
 		buf := Bytes()
 		wg.Add(8)
@@ -249,8 +265,10 @@ func conn(t *testing.T, conn1, conn2 net.Conn, close bool) {
 			}()
 		}
 		// tls.Conn.Close() still send data, so conn2 Close first
-		require.NoError(t, conn2.Close())
-		require.NoError(t, conn1.Close())
+		err = conn2.Close()
+		require.NoError(t, err)
+		err = conn1.Close()
+		require.NoError(t, err)
 		wg.Wait()
 
 		n, err := conn1.Read(make([]byte, 1024))
