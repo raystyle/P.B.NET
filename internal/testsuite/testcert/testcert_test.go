@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certpool"
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
@@ -20,7 +20,7 @@ func TestLoadSystemCertPool(t *testing.T) {
 	patch := func() (*x509.CertPool, error) {
 		return nil, monkey.Error
 	}
-	pg := monkey.Patch(cert.SystemCertPool, patch)
+	pg := monkey.Patch(certpool.System, patch)
 	defer pg.Unpatch()
 
 	loadSystemCertPool()
@@ -29,7 +29,7 @@ func TestLoadSystemCertPool(t *testing.T) {
 func TestCertPool(t *testing.T) {
 	pool := CertPool(t)
 
-	systemCertPool, err := cert.SystemCertPool()
+	systemCertPool, err := certpool.System()
 	require.NoError(t, err)
 	certs := systemCertPool.Certs()
 	require.Len(t, pool.GetPublicRootCACerts(), len(certs))

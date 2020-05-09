@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certpool"
 )
 
 // certificates from system.
@@ -28,7 +29,7 @@ const (
 func init() { loadSystemCertPool() }
 
 func loadSystemCertPool() {
-	systemCertPool, err := cert.SystemCertPool()
+	systemCertPool, err := certpool.System()
 	if err != nil {
 		const format = "[init] failed to load system certificate pool: %s"
 		panic(fmt.Sprintf(format, err))
