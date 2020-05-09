@@ -13,7 +13,7 @@ import (
 )
 
 func TestPair_ToPair(t *testing.T) {
-	defer func() { require.NotNil(t, recover()) }()
+	defer testsuite.DeferForPanic(t)
 	pair := pair{
 		PrivateKey: security.NewBytes(make([]byte, 1024)),
 	}

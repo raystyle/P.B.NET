@@ -62,13 +62,23 @@ func ExamplePatchInstanceMethod() {
 
 func TestPatchInstanceMethodType(t *testing.T) {
 	t.Run("unknown method", func(t *testing.T) {
-		defer func() { require.NotNil(t, recover()) }()
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
+		}()
+
 		pri := &private{str: "pri"}
 		PatchInstanceMethod(pri, "foo", nil)
 	})
 
 	t.Run("invalid parameter", func(t *testing.T) {
-		defer func() { require.NotNil(t, recover()) }()
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+			t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
+		}()
+
 		pri := &private{str: "pri"}
 		patch := func(interface{}, string, string) string {
 			return "monkey"
