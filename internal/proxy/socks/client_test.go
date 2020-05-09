@@ -1,6 +1,7 @@
 package socks
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"testing"
@@ -229,10 +230,34 @@ func TestClient_Connect(t *testing.T) {
 	client, err := NewSocks5Client("tcp", "localhost:0", nil)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	t.Run("foo address", func(t *testing.T) {
 		_, err = client.Connect(ctx, nil, "tcp", "foo")
+		require.Error(t, err)
+	})
+
+	t.Run("context error", func(t *testing.T) {
+		srv, cli := net.Pipe()
+		defer func() {
+			err := srv.Close()
+			require.NoError(t, err)
+			err = cli.Close()
+			require.NoError(t, err)
+		}()
+
+		buf := new(bytes.Buffer)
+		patch := func(interface{}, byte) error {
+			panic(monkey.Panic)
+		}
+		pg := monkey.PatchInstanceMethod(buf, "WriteByte", patch)
+		defer pg.Unpatch()
+
+		ctx, cancel := testsuite.NewMockContextWithError()
+		defer cancel()
+
+		_, err = client.Connect(ctx, cli, "tcp", "127.0.0.1:1")
 		require.Error(t, err)
 	})
 
@@ -245,11 +270,11 @@ func TestClient_Connect(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		patch := func(interface{}) {
-			_ = cli.Close()
+		buf := new(bytes.Buffer)
+		patch := func(interface{}, byte) error {
 			panic(monkey.Panic)
 		}
-		pg := monkey.PatchInstanceMethod(ctx, "Done", patch)
+		pg := monkey.PatchInstanceMethod(buf, "WriteByte", patch)
 		defer pg.Unpatch()
 
 		_, err = client.Connect(ctx, cli, "tcp", "127.0.0.1:1")

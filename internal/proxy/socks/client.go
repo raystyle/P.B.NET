@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -173,34 +172,47 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 		return nil, errors.WithStack(err)
 	}
 	// interrupt
-	done := make(chan struct{})
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				xpanic.Log(r, "Client.Connect")
+	var errCh chan error
+	if ctx.Done() != nil {
+		errCh = make(chan error, 1)
+	}
+	if errCh == nil {
+		if c.socks4 {
+			err = c.connectSocks4(conn, host, port)
+		} else {
+			err = c.connectSocks5(conn, host, port)
+		}
+	} else {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					b := xpanic.Log(r, "Client.Connect")
+					errCh <- errors.New(b.String())
+				}
+				close(errCh)
+			}()
+			if c.socks4 {
+				errCh <- c.connectSocks4(conn, host, port)
+			} else {
+				errCh <- c.connectSocks5(conn, host, port)
 			}
 		}()
 		select {
-		case <-done:
+		case err = <-errCh:
+			if err != nil {
+				// if the error was due to the context
+				// closing, prefer the context's error, rather
+				// than some random network teardown error.
+				if e := ctx.Err(); e != nil {
+					err = e
+				}
+			}
 		case <-ctx.Done():
-			_ = conn.Close()
+			err = ctx.Err()
 		}
-	}()
-	defer func() {
-		close(done)
-		wg.Wait()
-	}()
-	// connect
-	_ = conn.SetDeadline(time.Now().Add(c.timeout))
-	if c.socks4 {
-		err = c.connectSocks4(conn, host, port)
-	} else {
-		err = c.connectSocks5(conn, host, port)
 	}
 	if err != nil {
+		_ = conn.Close()
 		return nil, err
 	}
 	return conn, nil
