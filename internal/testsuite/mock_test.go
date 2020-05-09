@@ -178,6 +178,42 @@ func TestNewMockListenerWithCloseError(t *testing.T) {
 	require.Nil(t, conn)
 }
 
+func TestMockContext(t *testing.T) {
+	ctx := new(mockContext)
+
+	t.Run("Deadline", func(t *testing.T) {
+		deadline, ok := ctx.Deadline()
+		require.Zero(t, deadline)
+		require.False(t, ok)
+	})
+
+	t.Run("Done", func(t *testing.T) {
+		done := ctx.Done()
+		require.Nil(t, done)
+	})
+
+	t.Run("Err", func(t *testing.T) {
+		err := ctx.Err()
+		require.NoError(t, err)
+	})
+
+	t.Run("Value", func(t *testing.T) {
+		val := ctx.Value(nil)
+		require.Nil(t, val)
+	})
+}
+
+func TestNewMockContextWithError(t *testing.T) {
+	ctx, cancel := NewMockContextWithError()
+	defer cancel()
+
+	done := ctx.Done()
+	require.NotNil(t, done)
+
+	err := ctx.Err()
+	require.Error(t, err)
+}
+
 func TestMockResponseWriter(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()

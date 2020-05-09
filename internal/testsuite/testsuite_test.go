@@ -172,10 +172,11 @@ func TestCheckOptions(t *testing.T) {
 	}
 	t.Run("ok", func(t *testing.T) {
 		opts := testOptions{
-			Foo: 123,
-			Bar: "bar",
-			BA:  ob,
-			BB:  &ob,
+			Foo:        123,
+			Bar:        "bar",
+			BA:         ob,
+			BB:         &ob,
+			unexported: 0,
 		}
 		CheckOptions(t, opts)
 		CheckOptions(t, &opts)

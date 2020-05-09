@@ -32,6 +32,8 @@ var (
 	errMockListenerClosed      = errors.New("mock listener closed")
 	mockListenerAcceptPanic    = "mock panic in mockListener.Accept()"
 
+	errMockContext = errors.New("mock error in mockContext.Err()")
+
 	errMockReadCloser = errors.New("mock error in mockReadCloser")
 )
 
@@ -273,6 +275,46 @@ func IsMockListenerCloseError(t testing.TB, err error) {
 // IsMockListenerClosedError is used to check err is errMockListenerClosed.
 func IsMockListenerClosedError(t testing.TB, err error) {
 	require.Equal(t, errMockListenerClosed, err)
+}
+
+type mockContext struct {
+	done  chan struct{}
+	error bool
+}
+
+func (*mockContext) Deadline() (time.Time, bool) {
+	return time.Time{}, false
+}
+
+func (ctx *mockContext) Done() <-chan struct{} {
+	return ctx.done
+}
+
+func (ctx *mockContext) Err() error {
+	if ctx.error {
+		return errMockContext
+	}
+	return nil
+}
+
+func (*mockContext) Value(interface{}) interface{} {
+	return nil
+}
+
+// NewMockContextWithError is used to create a context with error.
+func NewMockContextWithError() (context.Context, context.CancelFunc) {
+	done := make(chan struct{})
+	once := sync.Once{}
+	ctx := mockContext{
+		done:  done,
+		error: true,
+	}
+	cancel := func() {
+		once.Do(func() {
+			close(done)
+		})
+	}
+	return &ctx, cancel
 }
 
 type mockResponseWriter struct {
