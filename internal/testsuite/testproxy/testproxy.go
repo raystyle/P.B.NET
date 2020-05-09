@@ -25,18 +25,21 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager, *cert.Pool) {
 
 	// create proxy manager
 	manager := proxy.NewManager(certPool, logger.Test, nil)
+
 	// add socks5 server
 	err := manager.Add(&proxy.Server{
 		Tag:  TagSocks5,
 		Mode: proxy.ModeSocks5,
 	})
 	require.NoError(t, err)
+
 	// add http proxy server
 	err = manager.Add(&proxy.Server{
 		Tag:  TagHTTP,
 		Mode: proxy.ModeHTTP,
 	})
 	require.NoError(t, err)
+
 	// start all proxy servers
 	for _, server := range manager.Servers() {
 		go func(server *proxy.Server) {
@@ -48,6 +51,7 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager, *cert.Pool) {
 
 	// create proxy pool
 	proxyPool := proxy.NewPool(certPool)
+
 	// add socks5 client
 	server, err := manager.Get(TagSocks5)
 	require.NoError(t, err)
@@ -58,6 +62,7 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager, *cert.Pool) {
 		Address: server.Addresses()[0].String(),
 	})
 	require.NoError(t, err)
+
 	// add http proxy client
 	server, err = manager.Get(TagHTTP)
 	require.NoError(t, err)
@@ -68,6 +73,7 @@ func PoolAndManager(t *testing.T) (*proxy.Pool, *proxy.Manager, *cert.Pool) {
 		Address: server.Addresses()[0].String(),
 	})
 	require.NoError(t, err)
+
 	// add balance
 	err = proxyPool.Add(&proxy.Client{
 		Tag:     TagBalance,

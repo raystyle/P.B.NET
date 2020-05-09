@@ -19,36 +19,43 @@ func TestDNSClient(t *testing.T) {
 	const domain = "cloudflare-dns.com"
 
 	if testsuite.IPv4Enabled {
-		opts := &dns.Options{ServerTag: TagGoogleIPv4UDP}
-		result, err := client.Resolve(domain, opts)
-		require.NoError(t, err)
-		t.Log("IPv4 UDP:", result)
-		opts.ServerTag = TagGoogleIPv4DoT
-		result, err = client.Resolve(domain, opts)
-		require.NoError(t, err)
-		t.Log("IPv4 DoH:", result)
-		// use proxy
-		opts.ProxyTag = testproxy.TagBalance
-		result, err = client.Resolve(domain, opts)
-		require.NoError(t, err)
-		t.Log("IPv4 DoH(proxy):", result)
+		t.Run("IPv4", func(t *testing.T) {
+			opts := &dns.Options{ServerTag: TagGoogleIPv4UDP}
+			result, err := client.Resolve(domain, opts)
+			require.NoError(t, err)
+			t.Log("IPv4 UDP:", result)
 
+			opts.ServerTag = TagGoogleIPv4DoT
+			result, err = client.Resolve(domain, opts)
+			require.NoError(t, err)
+			t.Log("IPv4 DoH:", result)
+
+			// use proxy
+			opts.ProxyTag = testproxy.TagBalance
+			result, err = client.Resolve(domain, opts)
+			require.NoError(t, err)
+			t.Log("IPv4 DoH(proxy):", result)
+		})
 	}
 
 	if testsuite.IPv6Enabled {
-		opts := &dns.Options{ServerTag: TagCloudflareIPv6UDP}
-		result, err := client.Resolve(domain, opts)
-		require.NoError(t, err)
-		t.Log("IPv6 UDP:", result)
-		opts.ServerTag = TagCloudflareIPv6DoT
-		result, err = client.Resolve(domain, opts)
-		require.NoError(t, err)
-		t.Log("IPv6 DoH:", result)
-		// use proxy
-		opts.ProxyTag = testproxy.TagBalance
-		result, err = client.Resolve(domain, opts)
-		require.NoError(t, err)
-		t.Log("IPv6 DoH(proxy):", result)
+		t.Run("IPv6", func(t *testing.T) {
+			opts := &dns.Options{ServerTag: TagCloudflareIPv6UDP}
+			result, err := client.Resolve(domain, opts)
+			require.NoError(t, err)
+			t.Log("IPv6 UDP:", result)
+
+			opts.ServerTag = TagCloudflareIPv6DoT
+			result, err = client.Resolve(domain, opts)
+			require.NoError(t, err)
+			t.Log("IPv6 DoH:", result)
+
+			// use proxy
+			opts.ProxyTag = testproxy.TagBalance
+			result, err = client.Resolve(domain, opts)
+			require.NoError(t, err)
+			t.Log("IPv6 DoH(proxy):", result)
+		})
 	}
 
 	testsuite.IsDestroyed(t, client)
