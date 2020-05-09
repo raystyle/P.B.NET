@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"project/internal/crypto/cert/certpool"
 	"project/internal/security"
 )
 
@@ -363,7 +364,7 @@ func (p *Pool) GetPrivateClientPairs() []*Pair {
 
 // NewPoolWithSystemCerts is used to create a certificate pool with system certificate.
 func NewPoolWithSystemCerts() (*Pool, error) {
-	systemCertPool, err := SystemCertPool()
+	systemCertPool, err := certpool.System()
 	if err != nil {
 		return nil, err
 	}

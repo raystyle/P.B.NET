@@ -2,13 +2,14 @@ package cert
 
 import (
 	"crypto/x509"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"project/internal/crypto/cert/certpool"
 	"project/internal/patch/monkey"
 	"project/internal/security"
+	"project/internal/testsuite"
 )
 
 func TestPair_ToPair(t *testing.T) {
@@ -65,23 +66,6 @@ func TestLoadCertWithPrivateKey(t *testing.T) {
 	})
 }
 
-// copy from internal/testsuite/testsuite.go
-func testRunParallel(f ...func()) {
-	l := len(f)
-	if l == 0 {
-		return
-	}
-	wg := sync.WaitGroup{}
-	for i := 0; i < l; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			f[i]()
-		}(i)
-	}
-	wg.Wait()
-}
-
 func TestPool(t *testing.T) {
 	pool := NewPool()
 
@@ -124,8 +108,8 @@ func TestPool(t *testing.T) {
 			get := func() {
 				pool.GetPublicRootCACerts()
 			}
-			testRunParallel(add, get)
-			testRunParallel(del, get)
+			testsuite.RunParallel(add, get)
+			testsuite.RunParallel(del, get)
 		})
 	})
 
@@ -168,8 +152,8 @@ func TestPool(t *testing.T) {
 			get := func() {
 				pool.GetPublicClientCACerts()
 			}
-			testRunParallel(add, get)
-			testRunParallel(del, get)
+			testsuite.RunParallel(add, get)
+			testsuite.RunParallel(del, get)
 		})
 	})
 
@@ -217,8 +201,8 @@ func TestPool(t *testing.T) {
 			get := func() {
 				pool.GetPublicClientPairs()
 			}
-			testRunParallel(add, get)
-			testRunParallel(del, get)
+			testsuite.RunParallel(add, get)
+			testsuite.RunParallel(del, get)
 		})
 	})
 
@@ -274,8 +258,8 @@ func TestPool(t *testing.T) {
 			getPairs := func() {
 				pool.GetPrivateRootCAPairs()
 			}
-			testRunParallel(add, getCerts, getPairs)
-			testRunParallel(del, getCerts, getPairs)
+			testsuite.RunParallel(add, getCerts, getPairs)
+			testsuite.RunParallel(del, getCerts, getPairs)
 		})
 	})
 
@@ -331,8 +315,8 @@ func TestPool(t *testing.T) {
 			getPairs := func() {
 				pool.GetPrivateClientCAPairs()
 			}
-			testRunParallel(add, getCerts, getPairs)
-			testRunParallel(del, getCerts, getPairs)
+			testsuite.RunParallel(add, getCerts, getPairs)
+			testsuite.RunParallel(del, getCerts, getPairs)
 		})
 	})
 
@@ -380,8 +364,8 @@ func TestPool(t *testing.T) {
 			get := func() {
 				pool.GetPrivateClientPairs()
 			}
-			testRunParallel(add, get)
-			testRunParallel(del, get)
+			testsuite.RunParallel(add, get)
+			testsuite.RunParallel(del, get)
 		})
 	})
 }
@@ -396,7 +380,7 @@ func TestNewPoolWithSystemCerts(t *testing.T) {
 		patch := func() (*x509.CertPool, error) {
 			return nil, monkey.Error
 		}
-		pg := monkey.Patch(SystemCertPool, patch)
+		pg := monkey.Patch(certpool.System, patch)
 		defer pg.Unpatch()
 
 		_, err := NewPoolWithSystemCerts()

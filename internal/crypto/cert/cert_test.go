@@ -13,9 +13,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +21,7 @@ import (
 
 	"project/internal/patch/monkey"
 	"project/internal/patch/toml"
+	"project/internal/testsuite"
 )
 
 func TestIsDomainName(t *testing.T) {
@@ -486,107 +485,6 @@ func TestMatch(t *testing.T) {
 	})
 }
 
-func TestSystemCertPool(t *testing.T) {
-	wg := sync.WaitGroup{}
-	wg.Add(5)
-	for i := 0; i < 5; i++ {
-		go func() {
-			defer wg.Done()
-
-			pool, err := SystemCertPool()
-			require.NoError(t, err)
-			t.Log("the number of the system certificates:", len(pool.Subjects()))
-
-			for _, subject := range pool.Subjects() {
-				t.Log(string(subject))
-			}
-		}()
-	}
-	wg.Wait()
-}
-
-// copy from internal/testsuite/testsuite.go
-func testCheckOptions(father string, v interface{}) string {
-	ok, result := testCheckSpecialType(father, v)
-	if ok {
-		return result
-	}
-	typ := reflect.TypeOf(v)
-	var value reflect.Value
-	if typ.Kind() == reflect.Ptr {
-		// check is nil point
-		value = reflect.ValueOf(v)
-		typ = value.Type()
-		if value.IsNil() {
-			return father + typ.Name() + " is nil point"
-		}
-		value = value.Elem()
-		typ = value.Type()
-	} else {
-		value = reflect.ValueOf(v)
-	}
-	for i := 0; i < value.NumField(); i++ {
-		fieldType := typ.Field(i)
-		fieldValue := value.Field(i)
-		// skip unexported field
-		if fieldType.PkgPath != "" && !fieldType.Anonymous {
-			continue
-		}
-		// skip filed with check tag
-		if fieldType.Tag.Get("check") == "-" {
-			continue
-		}
-		switch fieldType.Type.Kind() {
-		case reflect.Struct, reflect.Ptr, reflect.Interface:
-			var f string
-			if father == "" {
-				f = typ.Name() + "." + fieldType.Name
-			} else {
-				f = father + "." + fieldType.Name
-			}
-			str := testCheckOptions(f, fieldValue.Interface())
-			if str != "" {
-				return str
-			}
-		case reflect.Chan, reflect.Func, reflect.Complex64,
-			reflect.Complex128, reflect.UnsafePointer:
-			continue
-		default:
-			if !fieldValue.IsZero() {
-				continue
-			}
-			const format = "%s.%s is zero value"
-			if father == "" {
-				return fmt.Sprintf(format, typ.Name(), fieldType.Name)
-			}
-			return fmt.Sprintf(format, father, fieldType.Name)
-		}
-	}
-	return ""
-}
-
-func testCheckSpecialType(father string, v interface{}) (bool, string) {
-	var typ string
-	switch val := v.(type) {
-	case *time.Time:
-		if val != nil && !val.IsZero() {
-			return true, ""
-		}
-		typ = "time.Time"
-	case time.Time:
-		if !val.IsZero() {
-			return true, ""
-		}
-		typ = "time.Time"
-	default:
-		return false, ""
-	}
-	if father == "" {
-		return true, typ + " is zero value"
-	}
-	return true, father + " is zero value"
-}
-
 func TestOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/options.toml")
 	require.NoError(t, err)
@@ -597,8 +495,7 @@ func TestOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check zero value
-	str := testCheckOptions("", opts)
-	require.True(t, str == "", str)
+	testsuite.CheckOptions(t, opts)
 
 	// check value is correct
 	notBefore := time.Date(2018, 11, 27, 0, 0, 0, 0, time.Local)
