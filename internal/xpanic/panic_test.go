@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"project/internal/patch/monkey"
 )
 
@@ -68,14 +70,15 @@ func TestError(t *testing.T) {
 	testPanic()
 }
 
-func TestLog(*testing.T) {
+func TestLog(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				Log(r, "testLog")
+				b := Log(r, "testLog")
+				require.NotNil(t, b)
 			}
 		}()
 

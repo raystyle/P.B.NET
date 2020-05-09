@@ -58,7 +58,8 @@ func (f frame) line() int {
 	return line
 }
 
-func printStack(panic interface{}, title string, skip int) *bytes.Buffer {
+// PrintPanic is used to print panic to a *bytes.Buffer.
+func PrintPanic(panic interface{}, title string, skip int) *bytes.Buffer {
 	b := &bytes.Buffer{}
 	b.WriteString(title)
 	b.WriteString(":\n")
@@ -70,14 +71,15 @@ func printStack(panic interface{}, title string, skip int) *bytes.Buffer {
 
 // Print is used to print panic and stack to a *bytes.Buffer.
 func Print(panic interface{}, title string) *bytes.Buffer {
-	return printStack(panic, title, 4) // skip about defer
+	return PrintPanic(panic, title, 4) // skip about defer
 }
 
 // Log is used to call log.Println to print panic and stack.
 // It used to log in some package without logger.Logger.
-func Log(panic interface{}, title string) {
-	b := printStack(panic, title, 0) // skip about defer
+func Log(panic interface{}, title string) *bytes.Buffer {
+	b := PrintPanic(panic, title, 0) // skip about defer
 	log.Println(b)
+	return b
 }
 
 // Error is used to print panic and stack to a *bytes.Buffer buf and return an error.
