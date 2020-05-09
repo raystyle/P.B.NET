@@ -12,13 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/toml"
+	"project/internal/testsuite"
 )
 
 func TestHTTPRequestDefault(t *testing.T) {
 	const URL = "http://127.0.0.1/"
-	hr := &HTTPRequest{URL: URL}
-	request, err := hr.Apply()
+
+	req := &HTTPRequest{URL: URL}
+	request, err := req.Apply()
 	require.NoError(t, err)
+
 	require.Equal(t, http.MethodGet, request.Method)
 	require.Equal(t, URL, request.URL.String())
 	require.Equal(t, http.NoBody, request.Body)
@@ -27,13 +30,19 @@ func TestHTTPRequestDefault(t *testing.T) {
 	require.Equal(t, false, request.Close)
 }
 
-func TestHTTPRequestUnmarshal(t *testing.T) {
+func TestHTTPRequest(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/http_request.toml")
 	require.NoError(t, err)
-	hr := HTTPRequest{}
-	err = toml.Unmarshal(data, &hr)
+
+	// check unnecessary field
+	req := HTTPRequest{}
+	err = toml.Unmarshal(data, &req)
 	require.NoError(t, err)
-	request, err := hr.Apply()
+
+	// check zero value
+	testsuite.CheckOptions(t, req)
+
+	request, err := req.Apply()
 	require.NoError(t, err)
 	postData, err := ioutil.ReadAll(request.Body)
 	require.NoError(t, err)
@@ -57,28 +66,29 @@ func TestHTTPRequestUnmarshal(t *testing.T) {
 
 func TestHTTPRequest_Apply(t *testing.T) {
 	// empty url
-	hr := HTTPRequest{}
-	_, err := hr.Apply()
+	req := HTTPRequest{}
+	_, err := req.Apply()
 	require.Errorf(t, err, "failed to apply http request options: empty url")
 
 	// invalid post data
-	hr = HTTPRequest{
+	req = HTTPRequest{
 		URL:  "http://localhost/",
 		Post: "foo post data",
 	}
-	_, err = hr.Apply()
+	_, err = req.Apply()
 	require.Error(t, err)
 
 	// invalid method
-	hr.Post = "0102"
-	hr.Method = "invalid method"
-	_, err = hr.Apply()
+	req.Post = "0102"
+	req.Method = "invalid method"
+	_, err = req.Apply()
 	require.Error(t, err)
 }
 
 func TestHTTPTransportDefault(t *testing.T) {
 	transport, err := new(HTTPTransport).Apply()
 	require.NoError(t, err)
+
 	require.Equal(t, 1, transport.MaxIdleConns)
 	require.Equal(t, 1, transport.MaxIdleConnsPerHost)
 	// require.Equal(t, 1, transport.MaxConnsPerHost)
@@ -94,7 +104,7 @@ func TestHTTPTransportDefault(t *testing.T) {
 	require.Nil(t, transport.DialContext)
 }
 
-func TestHTTPTransportUnmarshal(t *testing.T) {
+func TestHTTPTransport(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/http_transport.toml")
 	require.NoError(t, err)
 	proxy := func(*http.Request) (*url.URL, error) {
@@ -103,13 +113,19 @@ func TestHTTPTransportUnmarshal(t *testing.T) {
 	dialContext := func(context.Context, string, string) (net.Conn, error) {
 		return nil, nil
 	}
-	ht := HTTPTransport{
+	tr := HTTPTransport{
 		Proxy:       proxy,
 		DialContext: dialContext,
 	}
-	err = toml.Unmarshal(data, &ht)
+
+	// check unnecessary field
+	err = toml.Unmarshal(data, &tr)
 	require.NoError(t, err)
-	transport, err := ht.Apply()
+
+	// check zero value
+	testsuite.CheckOptions(t, tr)
+
+	transport, err := tr.Apply()
 	require.NoError(t, err)
 	const timeout = 10 * time.Second
 
@@ -153,6 +169,7 @@ func TestHTTPTransport_Apply(t *testing.T) {
 func TestHTTPServerDefault(t *testing.T) {
 	server, err := new(HTTPServer).Apply()
 	require.NoError(t, err)
+
 	require.Equal(t, time.Duration(0), server.ReadTimeout)
 	require.Equal(t, time.Duration(0), server.WriteTimeout)
 	require.Equal(t, httpDefaultTimeout, server.ReadHeaderTimeout)
@@ -160,12 +177,18 @@ func TestHTTPServerDefault(t *testing.T) {
 	require.Equal(t, httpDefaultMaxHeaderBytes, server.MaxHeaderBytes)
 }
 
-func TestHTTPServerUnmarshal(t *testing.T) {
+func TestHTTPServer(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/http_server.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	hs := HTTPServer{}
 	err = toml.Unmarshal(data, &hs)
 	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, hs)
+
 	server, err := hs.Apply()
 	require.NoError(t, err)
 	const timeout = 10 * time.Second

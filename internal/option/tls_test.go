@@ -2,19 +2,17 @@ package option
 
 import (
 	"crypto/tls"
-	"fmt"
 	"io/ioutil"
-	"reflect"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/toml"
+	"project/internal/testsuite"
 	"project/internal/testsuite/testcert"
 )
 
-func TestTLSDefault(t *testing.T) {
+func TestTLSConfigDefault(t *testing.T) {
 	t.Run("client side", func(t *testing.T) {
 		tlsConfig := TLSConfig{}
 
@@ -75,88 +73,6 @@ func TestTLSDefault(t *testing.T) {
 	})
 }
 
-// copy from internal/testsuite/testsuite.go
-func testCheckOptions(father string, v interface{}) string {
-	ok, result := testCheckSpecialType(father, v)
-	if ok {
-		return result
-	}
-	typ := reflect.TypeOf(v)
-	var value reflect.Value
-	if typ.Kind() == reflect.Ptr {
-		// check is nil point
-		value = reflect.ValueOf(v)
-		typ = value.Type()
-		if value.IsNil() {
-			return father + typ.Name() + " is nil point"
-		}
-		value = value.Elem()
-		typ = value.Type()
-	} else {
-		value = reflect.ValueOf(v)
-	}
-	for i := 0; i < value.NumField(); i++ {
-		fieldType := typ.Field(i)
-		fieldValue := value.Field(i)
-		// skip unexported field
-		if fieldType.PkgPath != "" && !fieldType.Anonymous {
-			continue
-		}
-		// skip filed with check tag
-		if fieldType.Tag.Get("check") == "-" {
-			continue
-		}
-		switch fieldType.Type.Kind() {
-		case reflect.Struct, reflect.Ptr, reflect.Interface:
-			var f string
-			if father == "" {
-				f = typ.Name() + "." + fieldType.Name
-			} else {
-				f = father + "." + fieldType.Name
-			}
-			str := testCheckOptions(f, fieldValue.Interface())
-			if str != "" {
-				return str
-			}
-		case reflect.Chan, reflect.Func, reflect.Complex64,
-			reflect.Complex128, reflect.UnsafePointer:
-			continue
-		default:
-			if !fieldValue.IsZero() {
-				continue
-			}
-			const format = "%s.%s is zero value"
-			if father == "" {
-				return fmt.Sprintf(format, typ.Name(), fieldType.Name)
-			}
-			return fmt.Sprintf(format, father, fieldType.Name)
-		}
-	}
-	return ""
-}
-
-func testCheckSpecialType(father string, v interface{}) (bool, string) {
-	var typ string
-	switch val := v.(type) {
-	case *time.Time:
-		if val != nil && !val.IsZero() {
-			return true, ""
-		}
-		typ = "time.Time"
-	case time.Time:
-		if !val.IsZero() {
-			return true, ""
-		}
-		typ = "time.Time"
-	default:
-		return false, ""
-	}
-	if father == "" {
-		return true, typ + " is zero value"
-	}
-	return true, father + " is zero value"
-}
-
 // the number of the certificate in testdata/tls.toml
 const (
 	testRootCANum      = 3
@@ -164,17 +80,17 @@ const (
 	testCertificateNum = 1
 )
 
-func TestTLSUnmarshal(t *testing.T) {
+func TestTLSConfig(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/tls.toml")
 	require.NoError(t, err)
 
+	// check unnecessary field
 	tlsConfig := TLSConfig{}
 	err = toml.Unmarshal(data, &tlsConfig)
 	require.NoError(t, err)
 
 	// check zero value
-	str := testCheckOptions("", tlsConfig)
-	require.True(t, str == "", str)
+	testsuite.CheckOptions(t, tlsConfig)
 
 	t.Run("client side", func(t *testing.T) {
 		t.Run("without cert pool", func(t *testing.T) {
