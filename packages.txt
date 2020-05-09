@@ -14,11 +14,13 @@ project/internal/security  project/internal/system
 // packages about crypto
 project/internal/crypto/aes   project/internal/crypto/curve25519
 project/internal/crypto/rand  project/internal/crypto/ed25519
-project/internal/crypto/cert  project/internal/option
+project/internal/crypto/cert  project/internal/crypto/cert/certpool
+project/internal/option
 
 // packages about testsuite
-project/internal/testsuite          project/internal/testsuite/testcert
-project/internal/testsuite/testdns  project/internal/testsuite/testproxy
+project/internal/testsuite
+project/internal/testsuite/testtls project/internal/testsuite/testcert
+project/internal/testsuite/testdns project/internal/testsuite/testproxy
 
 // core packages about role
 project/internal/certmgr
