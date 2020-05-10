@@ -174,7 +174,7 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 	// interrupt
 	var errCh chan error
 	if ctx.Done() != nil {
-		errCh = make(chan error, 1)
+		errCh = make(chan error, 2)
 	}
 	if errCh == nil {
 		if c.socks4 {
@@ -184,12 +184,12 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 		}
 	} else {
 		go func() {
+			defer close(errCh)
 			defer func() {
 				if r := recover(); r != nil {
 					b := xpanic.Log(r, "Client.Connect")
 					errCh <- errors.New(b.String())
 				}
-				close(errCh)
 			}()
 			if c.socks4 {
 				errCh <- c.connectSocks4(conn, host, port)

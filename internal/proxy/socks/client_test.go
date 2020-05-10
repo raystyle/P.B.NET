@@ -1,16 +1,13 @@
 package socks
 
 import (
-	"bytes"
 	"context"
-	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
-	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -240,45 +237,16 @@ func TestClient_Connect(t *testing.T) {
 	})
 
 	t.Run("context error", func(t *testing.T) {
-		srv, cli := net.Pipe()
-		defer func() {
-			err := srv.Close()
-			require.NoError(t, err)
-			err = cli.Close()
-			require.NoError(t, err)
-		}()
-
-		buf := new(bytes.Buffer)
-		patch := func(interface{}, byte) error {
-			panic(monkey.Panic)
-		}
-		pg := monkey.PatchInstanceMethod(buf, "WriteByte", patch)
-		defer pg.Unpatch()
-
 		ctx, cancel := testsuite.NewMockContextWithError()
 		defer cancel()
-
-		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+		conn := testsuite.NewMockConnWithWritePanic()
+		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
 		require.Error(t, err)
 	})
 
 	t.Run("panic from context", func(t *testing.T) {
-		srv, cli := net.Pipe()
-		defer func() {
-			err := srv.Close()
-			require.NoError(t, err)
-			err = cli.Close()
-			require.NoError(t, err)
-		}()
-
-		buf := new(bytes.Buffer)
-		patch := func(interface{}, byte) error {
-			panic(monkey.Panic)
-		}
-		pg := monkey.PatchInstanceMethod(buf, "WriteByte", patch)
-		defer pg.Unpatch()
-
-		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+		conn := testsuite.NewMockConnWithWritePanic()
+		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
 		require.Error(t, err)
 	})
 
