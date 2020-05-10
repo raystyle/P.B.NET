@@ -21,20 +21,24 @@ const mockListenerAcceptTimes = 10
 
 // errors and panics about mock.
 var (
-	errMockConnClose              = errors.New("mock error in mockConn.Close()")
-	mockConnSetDeadlinePanic      = "mock panic in mockConn.SetDeadline()"
-	mockConnSetReadDeadlinePanic  = "mock panic in mockConn.SetReadDeadline()"
-	mockConnSetWriteDeadlinePanic = "mock panic in mockConn.SetWriteDeadline()"
+	errMockConnRead               = errors.New("error in mockConn.Read()")
+	mockConnReadPanic             = "panic in mockConn.Read()"
+	errMockConnWrite              = errors.New("error in mockConn.Write()")
+	mockConnWritePanic            = "panic in mockConn.Write()"
+	errMockConnClose              = errors.New("error in mockConn.Close()")
+	mockConnSetDeadlinePanic      = "panic in mockConn.SetDeadline()"
+	mockConnSetReadDeadlinePanic  = "panic in mockConn.SetReadDeadline()"
+	mockConnSetWriteDeadlinePanic = "panic in mockConn.SetWriteDeadline()"
 
 	errMockListenerAccept      = &mockNetError{temporary: true}
-	errMockListenerAcceptFatal = errors.New("mock error mockListener.Accept() fatal")
-	errMockListenerClose       = errors.New("mock error in mockListener.Close()")
+	errMockListenerAcceptFatal = errors.New("mockListener.Accept() fatal")
+	mockListenerAcceptPanic    = "panic in mockListener.Accept()"
+	errMockListenerClose       = errors.New("error in mockListener.Close()")
 	errMockListenerClosed      = errors.New("mock listener closed")
-	mockListenerAcceptPanic    = "mock panic in mockListener.Accept()"
 
-	errMockContext = errors.New("mock error in mockContext.Err()")
+	errMockContext = errors.New("error in mockContext.Err()")
 
-	errMockReadCloser = errors.New("mock error in mockReadCloser")
+	errMockReadCloser = errors.New("error in mockReadCloser")
 )
 
 // mockNetError implement net.Error.
@@ -79,6 +83,10 @@ type mockConn struct {
 	local  mockConnLocalAddr
 	remote mockConnRemoteAddr
 
+	readError          bool // Read() error
+	readPanic          bool // Read() panic
+	writeError         bool // Write() error
+	writePanic         bool // Write() panic
 	closeError         bool // Close() error
 	deadlinePanic      bool // SetDeadline() panic
 	readDeadlinePanic  bool // SetReadDeadline() panic
@@ -86,10 +94,22 @@ type mockConn struct {
 }
 
 func (c *mockConn) Read([]byte) (int, error) {
+	if c.readError {
+		return 0, errMockConnRead
+	}
+	if c.readPanic {
+		panic(mockConnReadPanic)
+	}
 	return 0, nil
 }
 
 func (c *mockConn) Write([]byte) (int, error) {
+	if c.writeError {
+		return 0, errMockConnWrite
+	}
+	if c.writePanic {
+		panic(mockConnWritePanic)
+	}
 	return 0, nil
 }
 
@@ -127,6 +147,50 @@ func (c *mockConn) SetWriteDeadline(time.Time) error {
 		panic(mockConnSetWriteDeadlinePanic)
 	}
 	return nil
+}
+
+// NewMockConnWithReadError is used to create a mock conn that
+// will return a errMockConnRead when call Read().
+func NewMockConnWithReadError() net.Conn {
+	return &mockConn{readError: true}
+}
+
+// IsMockConnReadError is used to check err is errMockConnRead.
+func IsMockConnReadError(t testing.TB, err error) {
+	require.Equal(t, errMockConnRead, err)
+}
+
+// NewMockConnWithReadPanic is used to create a mock conn that
+// will return a mockConnReadPanic when call Read().
+func NewMockConnWithReadPanic() net.Conn {
+	return &mockConn{readPanic: true}
+}
+
+// IsMockConnReadPanic is used to check err.Error() is mockConnReadPanic.
+func IsMockConnReadPanic(t testing.TB, err error) {
+	require.Contains(t, err.Error(), mockConnReadPanic)
+}
+
+// NewMockConnWithWriteError is used to create a mock conn that
+// will return a errMockConnWrite when call Write().
+func NewMockConnWithWriteError() net.Conn {
+	return &mockConn{writeError: true}
+}
+
+// IsMockConnWriteError is used to check err is errMockConnWrite.
+func IsMockConnWriteError(t testing.TB, err error) {
+	require.Equal(t, errMockConnWrite, err)
+}
+
+// NewMockConnWithWritePanic is used to create a mock conn that
+// will return a mockConnWritePanic when call Write().
+func NewMockConnWithWritePanic() net.Conn {
+	return &mockConn{writePanic: true}
+}
+
+// IsMockConnWritePanic is used to check err.Error() is mockConnWritePanic.
+func IsMockConnWritePanic(t testing.TB, err error) {
+	require.Contains(t, err.Error(), mockConnWritePanic)
 }
 
 // NewMockConnWithCloseError is used to create a mock conn
@@ -388,16 +452,17 @@ func NewMockResponseWriterWithClosePanic() http.ResponseWriter {
 	return &mockResponseWriter{conn: &mc}
 }
 
-type mockConnReadPanic struct {
+// TODO renamed
+type mockConnReadPanic2 struct {
 	net.Conn
 	server net.Conn
 }
 
-func (c *mockConnReadPanic) Read([]byte) (int, error) {
+func (c *mockConnReadPanic2) Read([]byte) (int, error) {
 	panic("mock panic in Read()")
 }
 
-func (c *mockConnReadPanic) Close() error {
+func (c *mockConnReadPanic2) Close() error {
 	_ = c.Conn.Close()
 	_ = c.server.Close()
 	return nil
@@ -408,7 +473,7 @@ func (c *mockConnReadPanic) Close() error {
 func DialMockConnWithReadPanic(_ context.Context, _, _ string) (net.Conn, error) {
 	server, client := net.Pipe()
 	go func() { _, _ = io.Copy(ioutil.Discard, server) }()
-	return &mockConnReadPanic{
+	return &mockConnReadPanic2{
 		Conn:   client,
 		server: server,
 	}, nil

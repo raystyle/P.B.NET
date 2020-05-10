@@ -142,7 +142,7 @@ func IsDestroyed(t testing.TB, object interface{}) {
 //      r := recover()
 //      require.NotNil(t, r)
 //      t.Log(r)
-//  }()
+// }()
 func DeferForPanic(t testing.TB) {
 	r := recover()
 	require.NotNil(t, r)

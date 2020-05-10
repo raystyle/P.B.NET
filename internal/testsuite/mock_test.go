@@ -80,6 +80,36 @@ func TestMockConn(t *testing.T) {
 	})
 }
 
+func TestNewMockConnWithReadError(t *testing.T) {
+	conn := NewMockConnWithReadError()
+	_, err := conn.Read(nil)
+	IsMockConnReadError(t, err)
+}
+
+func TestNewMockConnWithReadPanic(t *testing.T) {
+	defer func() {
+		err := errors.New(fmt.Sprint(recover()))
+		IsMockConnReadPanic(t, err)
+	}()
+	conn := NewMockConnWithReadPanic()
+	_, _ = conn.Read(nil)
+}
+
+func TestNewMockConnWithWriteError(t *testing.T) {
+	conn := NewMockConnWithWriteError()
+	_, err := conn.Write(nil)
+	IsMockConnWriteError(t, err)
+}
+
+func TestNewMockConnWithWritePanic(t *testing.T) {
+	defer func() {
+		err := errors.New(fmt.Sprint(recover()))
+		IsMockConnWritePanic(t, err)
+	}()
+	conn := NewMockConnWithWritePanic()
+	_, _ = conn.Write(nil)
+}
+
 func TestNewMockConnWithCloseError(t *testing.T) {
 	conn := NewMockConnWithCloseError()
 	err := conn.Close()
