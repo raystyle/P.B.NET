@@ -19,6 +19,13 @@ import (
 	"project/internal/logger"
 	"project/internal/option"
 	"project/internal/testsuite"
+	"project/internal/testsuite/testtls"
+)
+
+const (
+	testTag     = "test"
+	testNetwork = "tcp"
+	testAddress = "localhost:0"
 )
 
 func testGenerateHTTPProxyServer(t *testing.T) *Server {
@@ -26,10 +33,10 @@ func testGenerateHTTPProxyServer(t *testing.T) *Server {
 		Username: "admin",
 		Password: "123456",
 	}
-	server, err := NewHTTPServer("test", logger.Test, &opts)
+	server, err := NewHTTPServer(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -37,19 +44,19 @@ func testGenerateHTTPProxyServer(t *testing.T) *Server {
 }
 
 func testGenerateHTTPSProxyServer(t *testing.T) (*Server, option.TLSConfig) {
-	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
+	serverCfg, clientCfg := testtls.OptionPair(t)
 	opts := Options{
 		Username: "admin",
 	}
 	opts.Server.TLSConfig = serverCfg
-	server, err := NewHTTPSServer("test", logger.Test, &opts)
+	server, err := NewHTTPSServer(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -69,9 +76,9 @@ func TestHTTPProxyServer(t *testing.T) {
 	t.Log("http proxy info:\n", server.Info())
 
 	// make client
-	u, err := url.Parse("http://admin:123456@" + addresses[0].String())
+	URL, err := url.Parse("http://admin:123456@" + addresses[0].String())
 	require.NoError(t, err)
-	transport := http.Transport{Proxy: http.ProxyURL(u)}
+	transport := http.Transport{Proxy: http.ProxyURL(URL)}
 
 	testsuite.ProxyServer(t, server, &transport)
 }
@@ -117,19 +124,19 @@ func TestHTTPProxyServerWithSecondaryProxy(t *testing.T) {
 	opts := Options{
 		DialContext: dialContext,
 	}
-	server, err := NewHTTPServer("test", logger.Test, &opts)
+	server, err := NewHTTPServer(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
 	address := server.Addresses()[0].String()
 
 	// make client
-	u, err := url.Parse("http://" + address)
+	URL, err := url.Parse("http://" + address)
 	require.NoError(t, err)
-	transport := http.Transport{Proxy: http.ProxyURL(u)}
+	transport := http.Transport{Proxy: http.ProxyURL(URL)}
 
 	testsuite.ProxyServer(t, server, &transport)
 
@@ -180,7 +187,8 @@ func TestAuthenticate(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	require.NoError(t, server.Close())
+	err := server.Close()
+	require.NoError(t, err)
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -209,13 +217,17 @@ func TestServer_ListenAndServe(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewHTTPServer("test", logger.Test, nil)
+	server, err := NewHTTPServer(testTag, logger.Test, nil)
 	require.NoError(t, err)
 
-	require.Error(t, server.ListenAndServe("foo", "localhost:0"))
-	require.Error(t, server.ListenAndServe("tcp", "foo"))
+	err = server.ListenAndServe("foo", "localhost:0")
+	require.Error(t, err)
+	err = server.ListenAndServe("tcp", "foo")
+	require.Error(t, err)
 
-	require.NoError(t, server.Close())
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -223,16 +235,20 @@ func TestServer_Serve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewHTTPServer("test", logger.Test, nil)
+	server, err := NewHTTPServer(testTag, logger.Test, nil)
 	require.NoError(t, err)
 
-	err = server.Serve(testsuite.NewMockListenerWithAcceptError())
+	listener := testsuite.NewMockListenerWithAcceptError()
+	err = server.Serve(listener)
 	testsuite.IsMockListenerAcceptFatal(t, err)
 
-	err = server.Serve(testsuite.NewMockListenerWithAcceptPanic())
+	listener = testsuite.NewMockListenerWithAcceptPanic()
+	err = server.Serve(listener)
 	testsuite.IsMockListenerAcceptPanic(t, err)
 
-	require.NoError(t, server.Close())
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -240,10 +256,12 @@ func TestServer_Close(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewHTTPSServer("test", logger.Test, nil)
+	server, err := NewHTTPSServer(testTag, logger.Test, nil)
 	require.NoError(t, err)
 
-	require.NoError(t, server.Close())
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -253,62 +271,68 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewHTTPServer("test", logger.Test, nil)
+	server, err := NewHTTPServer(testTag, logger.Test, nil)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
 
-	u := fmt.Sprintf("http://localhost:%s/", testsuite.HTTPServerPort)
-	r, err := http.NewRequest(http.MethodConnect, u, nil)
+	URL := fmt.Sprintf("http://localhost:%s/", testsuite.HTTPServerPort)
+	req, err := http.NewRequest(http.MethodConnect, URL, nil)
 	require.NoError(t, err)
 
 	t.Run("don't implemented http.Hijacker", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		server.handler.ServeHTTP(w, r)
+		server.handler.ServeHTTP(w, req)
 	})
 
 	t.Run("failed to hijack", func(t *testing.T) {
 		w := testsuite.NewMockResponseWriterWithFailedToHijack()
-		server.handler.ServeHTTP(w, r)
+		server.handler.ServeHTTP(w, req)
 	})
 
 	t.Run("failed to response", func(t *testing.T) {
 		w := testsuite.NewMockResponseWriterWithFailedToWrite()
-		server.handler.ServeHTTP(w, r)
+		server.handler.ServeHTTP(w, req)
 	})
 
 	t.Run("copy with panic", func(t *testing.T) {
 		opts := Options{DialContext: testsuite.DialMockConnWithReadPanic}
-		server, err := NewHTTPServer("test", logger.Test, &opts)
+		server, err := NewHTTPServer(testTag, logger.Test, &opts)
 		require.NoError(t, err)
 		go func() {
-			err := server.ListenAndServe("tcp", "localhost:0")
+			err := server.ListenAndServe(testNetwork, testAddress)
 			require.NoError(t, err)
 		}()
 		time.Sleep(250 * time.Millisecond)
 		go func() {
 			w := testsuite.NewMockResponseWriter()
-			server.handler.ServeHTTP(w, r)
+			server.handler.ServeHTTP(w, req)
 		}()
 		time.Sleep(500 * time.Millisecond)
 
-		require.NoError(t, server.Close())
+		err = server.Close()
+		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, server)
 	})
 
 	t.Run("close with panic", func(t *testing.T) {
 		go func() {
 			w := testsuite.NewMockResponseWriterWithClosePanic()
-			server.handler.ServeHTTP(w, r)
+			server.handler.ServeHTTP(w, req)
 		}()
 		time.Sleep(500 * time.Millisecond)
-		require.NoError(t, server.Close())
+
+		err = server.Close()
+		require.NoError(t, err)
 	})
 
-	require.NoError(t, server.Close())
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -320,16 +344,18 @@ func TestHandler_authenticate(t *testing.T) {
 		Username: "admin",
 		Password: "123456",
 	}
-	server, err := NewHTTPServer("test", logger.Test, &opts)
+	server, err := NewHTTPServer(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
-	r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
+	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
 	require.NoError(t, err)
 	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("admin")) // without ":"
-	r.Header.Set("Proxy-Authorization", auth)
+	req.Header.Set("Proxy-Authorization", auth)
 
-	server.handler.authenticate(w, r)
+	server.handler.authenticate(w, req)
 
-	require.NoError(t, server.Close())
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 }

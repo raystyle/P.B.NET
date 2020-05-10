@@ -32,9 +32,9 @@ type Server struct {
 	server  *http.Server
 	handler *handler
 
-	// listener address
-	addrs    map[*net.Addr]struct{}
-	addrsRWM sync.RWMutex
+	// listener addresses
+	addresses    map[*net.Addr]struct{}
+	addressesRWM sync.RWMutex
 
 	closeOnce sync.Once
 }
@@ -112,7 +112,7 @@ func newServer(tag string, lg logger.Logger, opts *Options, https bool) (*Server
 	srv.handler = handler
 	srv.server.Handler = handler
 	srv.server.ErrorLog = logger.Wrap(logger.Error, srv.tag, lg)
-	srv.addrs = make(map[*net.Addr]struct{})
+	srv.addresses = make(map[*net.Addr]struct{})
 	return &srv, nil
 }
 
@@ -125,15 +125,15 @@ func (s *Server) log(lv logger.Level, log ...interface{}) {
 }
 
 func (s *Server) addAddress(addr *net.Addr) {
-	s.addrsRWM.Lock()
-	defer s.addrsRWM.Unlock()
-	s.addrs[addr] = struct{}{}
+	s.addressesRWM.Lock()
+	defer s.addressesRWM.Unlock()
+	s.addresses[addr] = struct{}{}
 }
 
 func (s *Server) deleteAddress(addr *net.Addr) {
-	s.addrsRWM.Lock()
-	defer s.addrsRWM.Unlock()
-	delete(s.addrs, addr)
+	s.addressesRWM.Lock()
+	defer s.addressesRWM.Unlock()
+	delete(s.addresses, addr)
 }
 
 // ListenAndServe is used to listen a listener and serve.
@@ -151,19 +151,22 @@ func (s *Server) ListenAndServe(network, address string) error {
 
 // Serve accepts incoming connections on the listener.
 func (s *Server) Serve(listener net.Listener) (err error) {
-	listener = netutil.LimitListener(listener, s.maxConns)
-	address := listener.Addr()
-	network := address.Network()
-	s.addAddress(&address)
-	defer s.deleteAddress(&address)
 	defer func() {
 		if r := recover(); r != nil {
 			err = xpanic.Error(r, "Server.Serve")
 			s.log(logger.Fatal, err)
 		}
-		s.logf(logger.Info, "listener closed (%s %s)", network, address)
 	}()
+
+	listener = netutil.LimitListener(listener, s.maxConns)
+	address := listener.Addr()
+	network := address.Network()
+	s.addAddress(&address)
+	defer s.deleteAddress(&address)
+
 	s.logf(logger.Info, "start listener (%s %s)", network, address)
+	defer s.logf(logger.Info, "listener closed (%s %s)", network, address)
+
 	if s.https {
 		err = s.server.ServeTLS(listener, "", "")
 	} else {
@@ -177,13 +180,13 @@ func (s *Server) Serve(listener net.Listener) (err error) {
 
 // Addresses is used to get listener addresses.
 func (s *Server) Addresses() []net.Addr {
-	s.addrsRWM.RLock()
-	defer s.addrsRWM.RUnlock()
-	addrs := make([]net.Addr, 0, len(s.addrs))
-	for addr := range s.addrs {
-		addrs = append(addrs, *addr)
+	s.addressesRWM.RLock()
+	defer s.addressesRWM.RUnlock()
+	addresses := make([]net.Addr, 0, len(s.addresses))
+	for address := range s.addresses {
+		addresses = append(addresses, *address)
 	}
-	return addrs
+	return addresses
 }
 
 // Info is used to get http proxy server information.
@@ -272,14 +275,16 @@ func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
 
 // ServeHTTP implement http.Handler.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	const title = "server.ServeHTTP()"
 	h.wg.Add(1)
+	defer h.wg.Done()
+
+	const title = "server.ServeHTTP()"
 	defer func() {
 		if rec := recover(); rec != nil {
 			h.log(logger.Fatal, r, xpanic.Print(rec, title))
 		}
-		h.wg.Done()
 	}()
+
 	if !h.authenticate(w, r) {
 		return
 	}
@@ -298,9 +303,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer func() { _ = wc.Close() }()
+
+		// dial target
 		ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
 		defer cancel()
-		// dial target
 		conn, err := h.dialContext(ctx, "tcp", r.URL.Host)
 		if err != nil {
 			h.log(logger.Error, r, err)
@@ -316,11 +322,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		closeChan := make(chan struct{})
 		h.wg.Add(1)
 		go func() {
+			defer h.wg.Done()
 			defer func() {
 				if rec := recover(); rec != nil {
 					h.log(logger.Fatal, r, xpanic.Print(rec, title))
 				}
-				h.wg.Done()
 			}()
 			select {
 			case <-closeChan:
@@ -332,11 +338,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// start copy
 		h.wg.Add(1)
 		go func() {
+			defer h.wg.Done()
 			defer func() {
 				if rec := recover(); rec != nil {
 					h.log(logger.Fatal, r, xpanic.Print(rec, title))
 				}
-				h.wg.Done()
 			}()
 			_, _ = io.Copy(wc, conn)
 		}()
@@ -363,7 +369,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
-	if h.username == nil && h.password == nil {
+	if len(h.username) == 0 && len(h.password) == 0 {
 		return true
 	}
 	failedToAuth := func() {
