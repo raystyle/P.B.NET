@@ -19,7 +19,9 @@ type Manager struct {
 	logger   logger.Logger
 	now      func() time.Time
 
-	servers    map[string]*Server // key = tag
+	closed bool
+	// key = server tag
+	servers    map[string]*Server
 	serversRWM sync.RWMutex
 }
 
@@ -66,6 +68,9 @@ func (m *Manager) add(server *Server) error {
 	server.createAt = m.now()
 	m.serversRWM.Lock()
 	defer m.serversRWM.Unlock()
+	if m.closed {
+		return errors.New("proxy server manager closed")
+	}
 	if _, ok := m.servers[server.Tag]; !ok {
 		m.servers[server.Tag] = server
 		return nil
@@ -158,6 +163,7 @@ func (m *Manager) Servers() map[string]*Server {
 func (m *Manager) Close() error {
 	m.serversRWM.Lock()
 	defer m.serversRWM.Unlock()
+	m.closed = true
 	var err error
 	for tag, server := range m.servers {
 		e := server.Close()

@@ -15,7 +15,7 @@ import (
 	"project/internal/testsuite/testcert"
 )
 
-var testServerTags = []string{
+var testServerTags = [...]string{
 	"socks5",
 	"socks4a",
 	"socks4",
@@ -111,7 +111,19 @@ func TestManager_Add(t *testing.T) {
 	})
 
 	require.Len(t, manager.Servers(), testServerNum)
-	require.NoError(t, manager.Close())
+
+	t.Run("add after close", func(t *testing.T) {
+		err := manager.Close()
+		require.NoError(t, err)
+		err = manager.Add(&Server{
+			Tag:  ModeSocks5,
+			Mode: ModeSocks5,
+		})
+		require.Error(t, err)
+	})
+
+	err := manager.Close()
+	require.NoError(t, err)
 	require.Len(t, manager.Servers(), 0)
 
 	testsuite.IsDestroyed(t, manager)
@@ -150,7 +162,8 @@ func TestManager_Get(t *testing.T) {
 	})
 
 	require.Len(t, manager.Servers(), testServerNum)
-	require.NoError(t, manager.Close())
+	err := manager.Close()
+	require.NoError(t, err)
 	require.Len(t, manager.Servers(), 0)
 
 	testsuite.IsDestroyed(t, manager)
@@ -180,7 +193,8 @@ func TestManager_Delete(t *testing.T) {
 		require.EqualError(t, err, "proxy server foo doesn't exist")
 	})
 
-	require.NoError(t, manager.Close())
+	err := manager.Close()
+	require.NoError(t, err)
 	require.Len(t, manager.Servers(), 0)
 
 	testsuite.IsDestroyed(t, manager)
@@ -190,13 +204,14 @@ func TestManager_Parallel(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	manager := testGenerateManager(t)
 	const (
 		tag1 = "test-01"
 		tag2 = "test-02"
 	)
 
 	t.Run("simple", func(t *testing.T) {
+		manager := testGenerateManager(t)
+
 		add1 := func() {
 			err := manager.Add(&Server{
 				Tag:  tag1,
@@ -246,11 +261,16 @@ func TestManager_Parallel(t *testing.T) {
 		testsuite.RunParallel(delete1, delete2)
 
 		require.Len(t, manager.Servers(), testServerNum)
-		require.NoError(t, manager.Close())
+		err := manager.Close()
+		require.NoError(t, err)
 		require.Len(t, manager.Servers(), 0)
+
+		testsuite.IsDestroyed(t, manager)
 	})
 
 	t.Run("mixed", func(t *testing.T) {
+		manager := testGenerateManager(t)
+
 		add := func() {
 			err := manager.Add(&Server{
 				Tag:  tag1,
@@ -268,9 +288,12 @@ func TestManager_Parallel(t *testing.T) {
 			_ = manager.Delete(tag1)
 		}
 		testsuite.RunParallel(add, get, getAll, del)
-	})
 
-	testsuite.IsDestroyed(t, manager)
+		err := manager.Close()
+		require.NoError(t, err)
+
+		testsuite.IsDestroyed(t, manager)
+	})
 }
 
 func TestManager_Close(t *testing.T) {
@@ -287,14 +310,18 @@ func TestManager_Close(t *testing.T) {
 	require.NoError(t, err)
 
 	// patch
-	var pg *monkey.PatchGuard
-	var tcpListener *net.TCPListener
-	patch := func(l *net.TCPListener) error {
+	var (
+		listener *net.TCPListener
+		pg       *monkey.PatchGuard
+	)
+	patch := func(listener *net.TCPListener) error {
 		pg.Unpatch()
-		require.NoError(t, l.Close())
+		err := listener.Close()
+		require.NoError(t, err)
 		return monkey.Error
 	}
-	pg = monkey.PatchInstanceMethod(tcpListener, "Close", patch)
+	pg = monkey.PatchInstanceMethod(listener, "Close", patch)
+	defer pg.Unpatch()
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -318,8 +345,8 @@ func TestManager_Close(t *testing.T) {
 
 	err = manager.Close()
 	monkey.IsMonkeyError(t, err)
-	wg.Wait()
 
+	wg.Wait()
 	require.Len(t, manager.Servers(), 0)
 
 	testsuite.IsDestroyed(t, manager)
