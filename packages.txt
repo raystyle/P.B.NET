@@ -10,6 +10,7 @@ project/internal/xpanic   project/internal/xreflect
 // basic packages with little dependence
 project/internal/random    project/internal/guid
 project/internal/security  project/internal/system
+project/internal/namer
 
 // packages about crypto
 project/internal/crypto/aes   project/internal/crypto/curve25519
