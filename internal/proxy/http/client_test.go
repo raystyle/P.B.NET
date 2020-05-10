@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
-	"project/internal/patch/monkey"
 	"project/internal/testsuite"
+	"project/internal/testsuite/testtls"
 )
 
 func TestHTTPProxyClient(t *testing.T) {
@@ -81,10 +81,10 @@ func TestHTTPProxyClientWithoutPassword(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, err := NewHTTPServer("test", logger.Test, nil)
+	server, err := NewHTTPServer(testTag, logger.Test, nil)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -112,7 +112,8 @@ func TestNewHTTPProxyClientWithUserInfo(t *testing.T) {
 	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, client)
-	require.NoError(t, server.Close())
+	err = server.Close()
+	require.NoError(t, err)
 	testsuite.IsDestroyed(t, server)
 }
 
@@ -122,13 +123,13 @@ func TestHTTPSClientWithCertificate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
+	serverCfg, clientCfg := testtls.OptionPair(t)
 	opts := Options{}
 	opts.Server.TLSConfig = serverCfg
-	server, err := NewHTTPSServer("test", logger.Test, &opts)
+	server, err := NewHTTPSServer(testTag, logger.Test, &opts)
 	require.NoError(t, err)
 	go func() {
-		err := server.ListenAndServe("tcp", "localhost:0")
+		err := server.ListenAndServe(testNetwork, testAddress)
 		require.NoError(t, err)
 	}()
 	time.Sleep(250 * time.Millisecond)
@@ -233,22 +234,25 @@ func TestClient_Connect(t *testing.T) {
 	const network = "tcp"
 	client, err := NewHTTPClient(network, "127.0.0.1:0", nil)
 	require.NoError(t, err)
-	ctx := context.Background()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	t.Run("failed to write request", func(t *testing.T) {
-		srv, cli := net.Pipe()
-		defer func() { require.NoError(t, cli.Close()) }()
-		require.NoError(t, srv.Close())
-		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+		conn := testsuite.NewMockConnWithWriteError()
+		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
 		require.Error(t, err)
 	})
 
 	t.Run("invalid response", func(t *testing.T) {
 		srv, cli := net.Pipe()
 		defer func() {
-			require.NoError(t, srv.Close())
-			require.NoError(t, cli.Close())
+			err := srv.Close()
+			require.NoError(t, err)
+			err = cli.Close()
+			require.NoError(t, err)
 		}()
+
 		wg := sync.WaitGroup{}
 		wg.Add(2)
 		go func() {
@@ -259,28 +263,27 @@ func TestClient_Connect(t *testing.T) {
 			defer wg.Done()
 			_, _ = srv.Write([]byte("HTTP/1.0 302 Connection established\r\n\r\n"))
 		}()
+
 		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
 		require.Error(t, err)
-		require.NoError(t, cli.Close())
+
+		err = cli.Close()
+		require.NoError(t, err)
+
 		wg.Wait()
 	})
 
+	t.Run("context error", func(t *testing.T) {
+		ctx, cancel := testsuite.NewMockContextWithError()
+		defer cancel()
+		conn := testsuite.NewMockConnWithWritePanic()
+		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
+		require.Error(t, err)
+	})
+
 	t.Run("panic from context", func(t *testing.T) {
-		srv, cli := net.Pipe()
-		defer func() {
-			require.NoError(t, srv.Close())
-			require.NoError(t, cli.Close())
-		}()
-
-		ctx := context.Background()
-		patch := func(_ interface{}) {
-			_ = cli.Close()
-			panic(monkey.Panic)
-		}
-		pg := monkey.PatchInstanceMethod(ctx, "Done", patch)
-		defer pg.Unpatch()
-
-		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
+		conn := testsuite.NewMockConnWithWritePanic()
+		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
 		require.Error(t, err)
 	})
 

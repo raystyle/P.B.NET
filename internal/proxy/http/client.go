@@ -8,12 +8,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -186,7 +184,46 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 		conn = tls.Client(conn, c.tlsConfig)
 	}
 	_ = conn.SetDeadline(time.Now().Add(c.timeout))
+	// interrupt
+	var errCh chan error
+	if ctx.Done() != nil {
+		errCh = make(chan error, 2)
+	}
+	if errCh == nil {
+		err = c.connect(conn, address)
+	} else {
+		go func() {
+			defer close(errCh)
+			defer func() {
+				if r := recover(); r != nil {
+					b := xpanic.Log(r, "Client.Connect")
+					errCh <- errors.New(b.String())
+				}
+			}()
+			errCh <- c.connect(conn, address)
+		}()
+		select {
+		case err = <-errCh:
+			if err != nil {
+				// if the error was due to the context
+				// closing, prefer the context's error, rather
+				// than some random network teardown error.
+				if e := ctx.Err(); e != nil {
+					err = e
+				}
+			}
+		case <-ctx.Done():
+			err = ctx.Err()
+		}
+	}
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
 
+func (c *Client) connect(conn net.Conn, address string) error {
 	// CONNECT github.com:443 HTTP/1.1
 	// User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:70.0)
 	// Connection: keep-alive
@@ -208,57 +245,32 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 	_, _ = fmt.Fprintf(buf, "Host: %s\r\n", address)
 	// end
 	buf.WriteString("\r\n")
-
-	// interrupt
-	wg := sync.WaitGroup{}
-	done := make(chan struct{})
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Println(xpanic.Print(r, "Client.Connect"))
-			}
-			wg.Done()
-		}()
-		select {
-		case <-done:
-		case <-ctx.Done():
-			_ = conn.Close()
-		}
-	}()
-	defer func() {
-		close(done)
-		wg.Wait()
-	}()
-
 	// write to connection
 	rAddr := conn.RemoteAddr().String()
-	_, err = buf.WriteTo(conn)
+	_, err := buf.WriteTo(conn)
 	if err != nil {
-		return nil, errors.Errorf("failed to write request to %s because %s", rAddr, err)
+		return errors.Errorf("failed to write request to %s because %s", rAddr, err)
 	}
 	// read response
 	resp := make([]byte, connectionEstablishedLen)
 	_, err = io.ReadAtLeast(conn, resp, connectionEstablishedLen)
 	if err != nil {
-		return nil, errors.Errorf("failed to read response from %s because %s", rAddr, err)
+		return errors.Errorf("failed to read response from %s because %s", rAddr, err)
 	}
-
 	// check response
 	// HTTP/1.0 200 Connection established
 	const format = "%s proxy %s failed to connect to %s"
 	p := strings.Split(strings.ReplaceAll(string(resp), "\r\n", ""), " ")
 	if len(p) != 4 {
-		return nil, errors.Errorf(format, c.scheme, c.address, address)
+		return errors.Errorf(format, c.scheme, c.address, address)
 	}
-
 	// accept HTTP/1.0 200 Connection established
 	//        HTTP/1.1 200 Connection established
 	// skip   HTTP/1.0 and HTTP/1.1
-	if p[1] == "200" && p[2] == "Connection" && p[3] == "established" {
-		return conn, nil
+	if p[1] != "200" || p[2] != "Connection" || p[3] != "established" {
+		return errors.Errorf(format, c.scheme, c.address, address)
 	}
-	return nil, errors.Errorf(format, c.scheme, c.address, address)
+	return nil
 }
 
 // HTTP is used to set *http.Transport about proxy.
