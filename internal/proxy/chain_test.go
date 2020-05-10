@@ -52,7 +52,10 @@ func TestChainWithHTTPSTarget(t *testing.T) {
 	testsuite.ProxyClientWithHTTPSTarget(t, chain)
 
 	testsuite.IsDestroyed(t, chain)
-	require.NoError(t, groups.Close())
+
+	err = groups.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, &groups)
 }
 

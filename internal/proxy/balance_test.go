@@ -40,7 +40,10 @@ func TestBalance_GetAndSelectNext(t *testing.T) {
 	defer gm.Compare()
 
 	groups := testGenerateProxyGroup(t)
-	defer func() { require.NoError(t, groups.Close()) }()
+	defer func() {
+		err := groups.Close()
+		require.NoError(t, err)
+	}()
 
 	balance, err := NewBalance("balance", groups.Clients()...)
 	require.NoError(t, err)
@@ -88,7 +91,8 @@ func TestBalanceWithHTTPSTarget(t *testing.T) {
 	testsuite.ProxyClientWithHTTPSTarget(t, balance)
 
 	testsuite.IsDestroyed(t, balance)
-	require.NoError(t, groups.Close())
+	err = groups.Close()
+	require.NoError(t, err)
 	testsuite.IsDestroyed(t, &groups)
 }
 
@@ -145,7 +149,10 @@ func TestPrintInfo(t *testing.T) {
 	defer gm.Compare()
 
 	groups, fb := testGenerateBalanceInBalance(t)
-	defer func() { _ = groups.Close() }()
+	defer func() {
+		err := groups.Close()
+		require.NoError(t, err)
+	}()
 	fmt.Println(fb.Info())
 
 	// create a chain

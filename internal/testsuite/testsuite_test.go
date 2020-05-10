@@ -444,7 +444,7 @@ func TestRunHTTPServer(t *testing.T) {
 	client.CloseIdleConnections()
 
 	// https
-	serverCfg, clientCfg := TLSConfigPair(t)
+	serverCfg, clientCfg := TLSConfigPair(t, "127.0.0.1")
 	httpsServer := http.Server{
 		Addr:      "localhost:0",
 		TLSConfig: serverCfg,

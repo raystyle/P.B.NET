@@ -44,7 +44,7 @@ func testGenerateHTTPProxyServer(t *testing.T) *Server {
 }
 
 func testGenerateHTTPSProxyServer(t *testing.T) (*Server, option.TLSConfig) {
-	serverCfg, clientCfg := testtls.OptionPair(t)
+	serverCfg, clientCfg := testtls.OptionPair(t, "127.0.0.1")
 	opts := Options{
 		Username: "admin",
 	}

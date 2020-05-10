@@ -123,7 +123,7 @@ func TestHTTPSClientWithCertificate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	serverCfg, clientCfg := testtls.OptionPair(t)
+	serverCfg, clientCfg := testtls.OptionPair(t, "127.0.0.1")
 	opts := Options{}
 	opts.Server.TLSConfig = serverCfg
 	server, err := NewHTTPSServer(testTag, logger.Test, &opts)

@@ -10,8 +10,8 @@ import (
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
 	"project/internal/random"
-	"project/internal/testsuite"
 	"project/internal/testsuite/testcert"
+	"project/internal/testsuite/testtls"
 )
 
 type groups map[string]*group
@@ -48,16 +48,16 @@ type group struct {
 }
 
 func (g *group) Close(t *testing.T) {
-	require.NoError(t, g.server.Close())
+	err := g.server.Close()
+	require.NoError(t, err)
 }
 
 func testGenerateProxyGroup(t *testing.T) groups {
 	groups := make(map[string]*group)
 
 	const (
-		tag      = "test"
-		network  = "tcp"
-		sAddress = "localhost:0"
+		tag     = "test"
+		network = "tcp"
 	)
 
 	// add socks5 server
@@ -68,7 +68,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	socks5Server, err := socks.NewSocks5Server(tag, logger.Test, socks5Opts)
 	require.NoError(t, err)
 	go func() {
-		err := socks5Server.ListenAndServe(network, sAddress)
+		err := socks5Server.ListenAndServe(network, "127.0.1.1:0")
 		require.NoError(t, err)
 	}()
 
@@ -79,7 +79,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	socks4aServer, err := socks.NewSocks4aServer(tag, logger.Test, socks4aOpts)
 	require.NoError(t, err)
 	go func() {
-		err := socks4aServer.ListenAndServe(network, sAddress)
+		err := socks4aServer.ListenAndServe(network, "127.0.1.2:0")
 		require.NoError(t, err)
 	}()
 
@@ -90,7 +90,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	socks4Server, err := socks.NewSocks4Server(tag, logger.Test, socks4Opts)
 	require.NoError(t, err)
 	go func() {
-		err := socks4Server.ListenAndServe(network, sAddress)
+		err := socks4Server.ListenAndServe(network, "127.0.1.3:0")
 		require.NoError(t, err)
 	}()
 
@@ -102,13 +102,13 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	httpServer, err := http.NewHTTPServer(tag, logger.Test, httpOpts)
 	require.NoError(t, err)
 	go func() {
-		err := httpServer.ListenAndServe(network, sAddress)
+		err := httpServer.ListenAndServe(network, "127.0.1.4:0")
 		require.NoError(t, err)
 	}()
 
 	// add https proxy server
 	certPool := testcert.CertPool(t)
-	serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
+	serverCfg, clientCfg := testtls.OptionPair(t, "127.0.1.5")
 	httpsOpts := &http.Options{
 		Username: "admin5",
 		Password: "1234565",
@@ -119,7 +119,7 @@ func testGenerateProxyGroup(t *testing.T) groups {
 	httpsServer, err := http.NewHTTPSServer(tag, logger.Test, httpsOpts)
 	require.NoError(t, err)
 	go func() {
-		err := httpsServer.ListenAndServe(network, sAddress)
+		err := httpsServer.ListenAndServe(network, "127.0.1.5:0")
 		require.NoError(t, err)
 	}()
 

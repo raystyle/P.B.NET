@@ -10,7 +10,7 @@ import (
 	"project/internal/testsuite/testcert"
 )
 
-var testClientTags = []string{
+var testClientTags = [...]string{
 	"socks5",
 	"socks4a",
 	"socks4",
