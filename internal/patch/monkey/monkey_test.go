@@ -60,24 +60,23 @@ func ExamplePatchInstanceMethod() {
 	// monkey
 }
 
+// copy from internal/testsuite/testsuite.go
+func testDeferForPanic(t testing.TB) {
+	r := recover()
+	require.NotNil(t, r)
+	t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
+}
+
 func TestPatchInstanceMethodType(t *testing.T) {
 	t.Run("unknown method", func(t *testing.T) {
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
-		}()
+		defer testDeferForPanic(t)
 
 		pri := &private{str: "pri"}
 		PatchInstanceMethod(pri, "foo", nil)
 	})
 
 	t.Run("invalid parameter", func(t *testing.T) {
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Logf("\npanic in %s:\n%s\n", t.Name(), r)
-		}()
+		defer testDeferForPanic(t)
 
 		pri := &private{str: "pri"}
 		patch := func(interface{}, string, string) string {
