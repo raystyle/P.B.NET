@@ -61,7 +61,7 @@ func initHTTPServers(t testing.TB) {
 	httpsServer.Handler = serveMux
 
 	// server side certificate
-	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t)
+	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t, "127.0.0.1")
 	serverCert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
 	require.NoError(t, err)
 	// require client certificate
@@ -74,7 +74,7 @@ func initHTTPServers(t testing.TB) {
 	require.NoError(t, err)
 
 	// client side certificate
-	caASN1, certPEMBlock, keyPEMBlock = TLSCertificate(t)
+	caASN1, certPEMBlock, keyPEMBlock = TLSCertificate(t, "127.0.0.1")
 	httpsClientCert, err = tls.X509KeyPair(certPEMBlock, keyPEMBlock)
 	require.NoError(t, err)
 	httpsServer.TLSConfig.ClientCAs = x509.NewCertPool()

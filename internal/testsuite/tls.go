@@ -17,7 +17,7 @@ import (
 )
 
 // TLSCertificate is used to generate CA ASN1 data, signed certificate.
-func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte) {
+func TLSCertificate(t testing.TB, ipv4 string) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte) {
 	// generate CA certificate
 	caCert := &x509.Certificate{
 		SerialNumber: big.NewInt(random.Int64()),
@@ -47,7 +47,7 @@ func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte
 	cert.Subject.CommonName = "testsuite certificate " + random.String(4)
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 	cert.DNSNames = []string{"localhost"}
-	cert.IPAddresses = []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}
+	cert.IPAddresses = []net.IP{net.ParseIP(ipv4), net.ParseIP("::1")}
 	cPri, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	cPub := &cPri.PublicKey
@@ -65,9 +65,9 @@ func TLSCertificate(t testing.TB) (caASN1 []byte, cPEMBlock, cPriPEMBlock []byte
 }
 
 // TLSConfigPair is used to build server and client *tls.Config.
-func TLSConfigPair(t testing.TB) (server, client *tls.Config) {
+func TLSConfigPair(t testing.TB, ipv4 string) (server, client *tls.Config) {
 	// certificates about server
-	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t)
+	caASN1, certPEMBlock, keyPEMBlock := TLSCertificate(t, ipv4)
 	caCert, err := x509.ParseCertificate(caASN1)
 	require.NoError(t, err)
 	tlsCert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
@@ -84,7 +84,7 @@ func TLSConfigPair(t testing.TB) (server, client *tls.Config) {
 	client.RootCAs.AddCert(caCert)
 
 	// certificates about client
-	caASN1, certPEMBlock, keyPEMBlock = TLSCertificate(t)
+	caASN1, certPEMBlock, keyPEMBlock = TLSCertificate(t, ipv4)
 	caCert, err = x509.ParseCertificate(caASN1)
 	require.NoError(t, err)
 	tlsCert, err = tls.X509KeyPair(certPEMBlock, keyPEMBlock)

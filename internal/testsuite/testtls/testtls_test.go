@@ -14,7 +14,7 @@ func TestOptionPair(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	serverCfg, clientCfg := OptionPair(t)
+	serverCfg, clientCfg := OptionPair(t, "127.0.0.1")
 	server, err := serverCfg.Apply()
 	require.NoError(t, err)
 	client, err := clientCfg.Apply()

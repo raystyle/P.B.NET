@@ -12,7 +12,7 @@ func TestTLSConfigPair(t *testing.T) {
 	gm := MarkGoroutines(t)
 	defer gm.Compare()
 
-	serverCfg, clientCfg := TLSConfigPair(t)
+	serverCfg, clientCfg := TLSConfigPair(t, "127.0.0.1")
 	const network = "tcp"
 
 	listener, err := tls.Listen(network, "localhost:0", serverCfg)

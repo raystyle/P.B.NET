@@ -10,9 +10,9 @@ import (
 )
 
 // OptionPair is used to build *options.TLSConfig about server and client.
-func OptionPair(t testing.TB) (server, client option.TLSConfig) {
+func OptionPair(t testing.TB, ipv4 string) (server, client option.TLSConfig) {
 	// certificates about server
-	caASN1, certPEMBlock, keyPEMBlock := testsuite.TLSCertificate(t)
+	caASN1, certPEMBlock, keyPEMBlock := testsuite.TLSCertificate(t, ipv4)
 	caPEMBlock := string(pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caASN1,
@@ -28,7 +28,7 @@ func OptionPair(t testing.TB) (server, client option.TLSConfig) {
 	client.RootCAs = []string{caPEMBlock}
 
 	// certificates about client
-	caASN1, certPEMBlock, keyPEMBlock = testsuite.TLSCertificate(t)
+	caASN1, certPEMBlock, keyPEMBlock = testsuite.TLSCertificate(t, ipv4)
 	caPEMBlock = string(pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caASN1,
