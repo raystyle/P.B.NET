@@ -243,11 +243,11 @@ func (s *Server) trackConn(conn *conn, add bool) bool {
 func (s *Server) Addresses() []net.Addr {
 	s.rwm.RLock()
 	defer s.rwm.RUnlock()
-	addrs := make([]net.Addr, 0, len(s.listeners))
+	addresses := make([]net.Addr, 0, len(s.listeners))
 	for listener := range s.listeners {
-		addrs = append(addrs, (*listener).Addr())
+		addresses = append(addresses, (*listener).Addr())
 	}
-	return addrs
+	return addresses
 }
 
 // Info is used to get socks server information.

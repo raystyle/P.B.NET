@@ -90,9 +90,9 @@ func IPEnabled() (ipv4Enabled, ipv6Enabled bool) {
 		if iface.Flags != net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
 			continue
 		}
-		addrs, _ := iface.Addrs()
-		for _, addr := range addrs {
-			ipAddr := strings.Split(addr.String(), "/")[0]
+		addresses, _ := iface.Addrs()
+		for _, address := range addresses {
+			ipAddr := strings.Split(address.String(), "/")[0]
 			ip := net.ParseIP(ipAddr)
 			ip4 := ip.To4()
 			if ip4 != nil {

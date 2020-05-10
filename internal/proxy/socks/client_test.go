@@ -227,14 +227,15 @@ func TestClient_Connect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	client, err := NewSocks5Client("tcp", "localhost:0", nil)
+	const network = "tcp"
+	client, err := NewSocks5Client(network, "localhost:0", nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	t.Run("foo address", func(t *testing.T) {
-		_, err = client.Connect(ctx, nil, "tcp", "foo")
+		_, err = client.Connect(ctx, nil, network, "foo")
 		require.Error(t, err)
 	})
 
@@ -257,7 +258,7 @@ func TestClient_Connect(t *testing.T) {
 		ctx, cancel := testsuite.NewMockContextWithError()
 		defer cancel()
 
-		_, err = client.Connect(ctx, cli, "tcp", "127.0.0.1:1")
+		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
 		require.Error(t, err)
 	})
 
@@ -277,7 +278,7 @@ func TestClient_Connect(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(buf, "WriteByte", patch)
 		defer pg.Unpatch()
 
-		_, err = client.Connect(ctx, cli, "tcp", "127.0.0.1:1")
+		_, err = client.Connect(ctx, cli, network, "127.0.0.1:1")
 		require.Error(t, err)
 	})
 
