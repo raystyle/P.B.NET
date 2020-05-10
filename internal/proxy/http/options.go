@@ -25,12 +25,12 @@ type Options struct {
 
 	// only client
 	Header    http.Header      `toml:"header"`
-	TLSConfig option.TLSConfig `toml:"tls_config"` // only https
+	TLSConfig option.TLSConfig `toml:"tls_config" check:"-"` // only https
 
 	// only server
 	MaxConns  int                  `toml:"max_conns"`
-	Server    option.HTTPServer    `toml:"server"`
-	Transport option.HTTPTransport `toml:"transport"`
+	Server    option.HTTPServer    `toml:"server" check:"-"`
+	Transport option.HTTPTransport `toml:"transport" check:"-"`
 
 	// secondary proxy
 	// internal/proxy.client.DialContext()

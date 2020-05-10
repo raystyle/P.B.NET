@@ -175,6 +175,5 @@ func TestCheckNetwork(t *testing.T) {
 		require.NoError(t, err)
 	}
 	err := CheckNetwork("foo network")
-	require.Error(t, err)
-	t.Log(err)
+	require.EqualError(t, err, "unsupported network: foo network")
 }

@@ -8,13 +8,44 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/patch/toml"
+	"project/internal/testsuite"
 )
+
+func TestOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/options.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	opts := Options{}
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "admin", actual: opts.Username},
+		{expected: "123456", actual: opts.Password},
+		{expected: time.Minute, actual: opts.Timeout},
+		{expected: "keep-alive", actual: opts.Header.Get("Connection")},
+		{expected: 1000, actual: opts.MaxConns},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
+}
 
 func TestHTTPServerOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/http_server.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -35,8 +66,11 @@ func TestHTTPServerOptions(t *testing.T) {
 func TestHTTPClientOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/http_client.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -55,8 +89,11 @@ func TestHTTPClientOptions(t *testing.T) {
 func TestHTTPSServerOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/https_server.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -77,8 +114,11 @@ func TestHTTPSServerOptions(t *testing.T) {
 func TestHTTPSClientOptions(t *testing.T) {
 	data, err := ioutil.ReadFile("testdata/https_client.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	opts := Options{}
-	require.NoError(t, toml.Unmarshal(data, &opts))
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -97,9 +137,9 @@ func TestHTTPSClientOptions(t *testing.T) {
 
 func TestCheckNetwork(t *testing.T) {
 	for _, network := range []string{"tcp", "tcp4", "tcp6"} {
-		require.NoError(t, CheckNetwork(network))
+		err := CheckNetwork(network)
+		require.NoError(t, err)
 	}
 	err := CheckNetwork("foo network")
-	require.Error(t, err)
-	t.Log(err)
+	require.EqualError(t, err, "unsupported network: foo network")
 }
