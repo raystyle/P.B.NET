@@ -22,14 +22,17 @@ func TestHTTPClient_Query(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	t.Run("https", func(t *testing.T) {
 		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 
-		b, err := ioutil.ReadFile("testdata/http.toml")
+		data, err := ioutil.ReadFile("testdata/http.toml")
 		require.NoError(t, err)
-		require.NoError(t, HTTP.Import(b))
+		require.NoError(t, HTTP.Import(data))
 
 		now, optsErr, err := HTTP.Query()
 		require.NoError(t, err)
@@ -59,7 +62,10 @@ func TestHTTPClient_Query_Failed(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	newHTTP := func(t *testing.T) *HTTP {
 		HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
@@ -138,28 +144,28 @@ func TestGetHeaderDate(t *testing.T) {
 
 	t.Run("http", func(t *testing.T) {
 		const url = "http://ds.vm3.test-ipv6.com/"
-		r, err := http.NewRequest(http.MethodGet, url, nil)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		now, err := getHeaderDate(r, client)
+		now, err := getHeaderDate(req, client)
 		require.NoError(t, err)
 		t.Log(now.Local())
 	})
 
 	t.Run("https", func(t *testing.T) {
 		const url = "https://cloudflare-dns.com/"
-		r, err := http.NewRequest(http.MethodGet, url, nil)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		now, err := getHeaderDate(r, client)
+		now, err := getHeaderDate(req, client)
 		require.NoError(t, err)
 		t.Log(now.Local())
 	})
 
 	t.Run("failed to query date", func(t *testing.T) {
 		const url = "http://test/"
-		r, err := http.NewRequest(http.MethodGet, url, nil)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 
-		_, err = getHeaderDate(r, client)
+		_, err = getHeaderDate(req, client)
 		require.Error(t, err)
 	})
 
@@ -167,15 +173,15 @@ func TestGetHeaderDate(t *testing.T) {
 		const url = "http://ds.vm3.test-ipv6.com/"
 
 		// patch
-		r, err := http.NewRequest(http.MethodGet, url, nil)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		patch := func(_ string) (time.Time, error) {
+		patch := func(string) (time.Time, error) {
 			return time.Time{}, monkey.Error
 		}
 		pg := monkey.Patch(http.ParseTime, patch)
 		defer pg.Unpatch()
 
-		_, err = getHeaderDate(r, client)
+		_, err = getHeaderDate(req, client)
 		monkey.IsMonkeyError(t, err)
 	})
 
@@ -183,25 +189,32 @@ func TestGetHeaderDate(t *testing.T) {
 		const url = "http://ds.vm3.test-ipv6.com/"
 
 		// patch
-		r, err := http.NewRequest(http.MethodGet, url, nil)
+		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		patch := func(_ time.Time) time.Duration {
+		patch := func(time.Time) time.Duration {
 			return time.Minute
 		}
 		pg := monkey.Patch(time.Since, patch)
 		defer pg.Unpatch()
 
-		_, err = getHeaderDate(r, client)
+		_, err = getHeaderDate(req, client)
 		require.NoError(t, err)
 	})
 }
 
 func TestHTTPOptions(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/http_opts.toml")
+	data, err := ioutil.ReadFile("testdata/http_opts.toml")
 	require.NoError(t, err)
-	require.NoError(t, TestHTTP(b))
+
+	err = TestHTTP(data)
+	require.NoError(t, err)
+
 	HTTP := new(HTTP)
-	require.NoError(t, HTTP.Import(b))
+	err = HTTP.Import(data)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, HTTP)
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -219,7 +232,7 @@ func TestHTTPOptions(t *testing.T) {
 
 	// export
 	export := HTTP.Export()
-	require.NotEqual(t, 0, len(export))
+	require.NotEmpty(t, export)
 	t.Log(string(export))
 	require.NoError(t, HTTP.Import(export))
 }

@@ -28,11 +28,11 @@ type HTTP struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
-	Request   option.HTTPRequest   `toml:"request"`
-	Transport option.HTTPTransport `toml:"transport"`
+	Request   option.HTTPRequest   `toml:"request" check:"-"`
+	Transport option.HTTPTransport `toml:"transport" check:"-"`
 	Timeout   time.Duration        `toml:"timeout"`
 	ProxyTag  string               `toml:"proxy_tag"`
-	DNSOpts   dns.Options          `toml:"dns"`
+	DNSOpts   dns.Options          `toml:"dns" check:"-"`
 }
 
 // NewHTTP is used to create a HTTP client.
