@@ -1,15 +1,18 @@
 package proxy
 
 import (
+	"io/ioutil"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"project/internal/logger"
+	"project/internal/patch/toml"
 	"project/internal/proxy/http"
 	"project/internal/proxy/socks"
 	"project/internal/random"
+	"project/internal/testsuite"
 	"project/internal/testsuite/testcert"
 	"project/internal/testsuite/testtls"
 )
@@ -202,4 +205,56 @@ func testGenerateProxyGroup(t *testing.T) groups {
 		},
 	}
 	return groups
+}
+
+func TestClientOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/client.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	opts := &Client{}
+	err = toml.Unmarshal(data, opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "test", actual: opts.Tag},
+		{expected: "socks5", actual: opts.Mode},
+		{expected: "tcp", actual: opts.Network},
+		{expected: "127.0.0.1:1080", actual: opts.Address},
+		{expected: "username = \"admin\"", actual: opts.Options},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
+}
+
+func TestServerOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/server.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	opts := &Server{}
+	err = toml.Unmarshal(data, opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "test", actual: opts.Tag},
+		{expected: "socks5", actual: opts.Mode},
+		{expected: "username = \"admin\"", actual: opts.Options},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 }

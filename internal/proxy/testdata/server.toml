@@ -1,0 +1,5 @@
+tag  = "test"
+mode = "socks5"
+
+# see option/proxy/http, https ...
+options = "username = \"admin\""
