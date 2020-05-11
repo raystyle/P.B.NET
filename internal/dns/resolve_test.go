@@ -136,7 +136,7 @@ func TestCustomResolve(t *testing.T) {
 		result, err := resolve(ctx, "0.0.0.0:1", testDomain, opts)
 		require.Error(t, err)
 
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 }
 

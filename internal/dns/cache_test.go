@@ -38,7 +38,7 @@ func TestClientCache(t *testing.T) {
 
 	// query empty cache, then create it
 	result := client.queryCache(testCacheDomain, TypeIPv4)
-	require.Len(t, result, 0)
+	require.Empty(t, result)
 
 	// update cache
 	testUpdateCache(client, testCacheDomain)
@@ -55,7 +55,7 @@ func TestClientCache(t *testing.T) {
 	// flush cache
 	client.FlushCache()
 	result = client.queryCache(testCacheDomain, TypeIPv4)
-	require.Len(t, result, 0)
+	require.Empty(t, result)
 }
 
 func TestClientCacheAboutExpire(t *testing.T) {
@@ -64,14 +64,14 @@ func TestClientCacheAboutExpire(t *testing.T) {
 	client.expire = 10 * time.Millisecond
 	// query empty cache, then create it
 	result := client.queryCache(testCacheDomain, TypeIPv4)
-	require.Len(t, result, 0)
+	require.Empty(t, result)
 	// update cache
 	testUpdateCache(client, testCacheDomain)
 	// expire
 	time.Sleep(50 * time.Millisecond)
 	// clean cache
 	result = client.queryCache(testCacheDomain, TypeIPv4)
-	require.Len(t, result, 0)
+	require.Empty(t, result)
 }
 
 func TestClientCacheAboutType(t *testing.T) {
@@ -79,10 +79,10 @@ func TestClientCacheAboutType(t *testing.T) {
 	client := NewClient(nil, nil)
 	// query empty cache, then create it
 	result := client.queryCache(testCacheDomain, TypeIPv4)
-	require.Len(t, result, 0)
+	require.Empty(t, result)
 	// update cache
 	testUpdateCache(client, testCacheDomain)
 	// query invalid type
 	result = client.queryCache(testCacheDomain, "invalid type")
-	require.Len(t, result, 0)
+	require.Empty(t, result)
 }

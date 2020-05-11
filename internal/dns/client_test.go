@@ -131,7 +131,7 @@ func TestClient_Resolve(t *testing.T) {
 			opts.Type = "foo type"
 			result, err := client.Resolve(testDomain, opts)
 			require.Error(t, err)
-			require.Len(t, result, 0)
+			require.Empty(t, result)
 		})
 	})
 
@@ -152,7 +152,7 @@ func TestClient_Resolve(t *testing.T) {
 
 		result, err := client.Resolve("", nil)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 
 	testsuite.IsDestroyed(t, client)
@@ -267,7 +267,7 @@ func TestClient_Cancel(t *testing.T) {
 	opts := &Options{Method: MethodTCP}
 	result, err := client.ResolveContext(ctx, testDomain, opts)
 	require.Error(t, err)
-	require.Len(t, result, 0)
+	require.Empty(t, result)
 
 	testsuite.IsDestroyed(t, client)
 }
@@ -303,7 +303,7 @@ func TestClient_NoResult(t *testing.T) {
 	opts := &Options{Method: MethodUDP}
 	result, err := client.Resolve("test", opts)
 	require.Error(t, err)
-	require.Len(t, result, 0)
+	require.Empty(t, result)
 
 	testsuite.IsDestroyed(t, client)
 }
@@ -343,6 +343,7 @@ func TestClient_TestServers(t *testing.T) {
 		err := proxyMgr.Close()
 		require.NoError(t, err)
 	}()
+	ctx := context.Background()
 
 	t.Run("reachable and skip test", func(t *testing.T) {
 		client := NewClient(certPool, proxyPool)
@@ -350,9 +351,9 @@ func TestClient_TestServers(t *testing.T) {
 		opts := new(Options)
 
 		// no DNS server
-		result, err := client.TestServers(context.Background(), testDomain, opts)
+		result, err := client.TestServers(ctx, testDomain, opts)
 		require.Equal(t, err, ErrNoDNSServers)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 
 		// add reachable and skip test
 		if testsuite.IPv4Enabled {
@@ -376,7 +377,7 @@ func TestClient_TestServers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		result, err = client.TestServers(context.Background(), testDomain, opts)
+		result, err = client.TestServers(ctx, testDomain, opts)
 		require.NoError(t, err)
 		require.NotEmpty(t, result)
 		t.Log(result)
@@ -401,9 +402,9 @@ func TestClient_TestServers(t *testing.T) {
 			Address: "1.2.3.4",
 		})
 		require.NoError(t, err)
-		result, err := client.TestServers(context.Background(), testDomain, new(Options))
+		result, err := client.TestServers(ctx, testDomain, new(Options))
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 
 		testsuite.IsDestroyed(t, client)
 	})
@@ -416,7 +417,7 @@ func TestClient_TestServers(t *testing.T) {
 		defer cancel()
 		result, err := client.TestServers(ctx, testDomain, new(Options))
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 
 		testsuite.IsDestroyed(t, client)
 	})
@@ -432,9 +433,9 @@ func TestClient_TestServers(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(opts, "Clone", patch)
 		defer pg.Unpatch()
 
-		result, err := client.TestServers(context.Background(), testDomain, new(Options))
+		result, err := client.TestServers(ctx, testDomain, new(Options))
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 
 		testsuite.IsDestroyed(t, client)
 	})
@@ -456,7 +457,7 @@ func TestClient_TestOptions(t *testing.T) {
 		opts := &Options{SkipTest: true}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.NoError(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 
 	t.Run("skip proxy", func(t *testing.T) {
@@ -477,7 +478,7 @@ func TestClient_TestOptions(t *testing.T) {
 		opts := &Options{Mode: ModeSystem}
 		result, err := client.TestOption(context.Background(), "test", opts)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 
 	t.Run("with proxy tag", func(t *testing.T) {
@@ -498,7 +499,7 @@ func TestClient_TestOptions(t *testing.T) {
 		opts := &Options{Type: "foo type"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 		t.Log(err)
 	})
 
@@ -508,7 +509,7 @@ func TestClient_TestOptions(t *testing.T) {
 		opts := &Options{Mode: "foo mode"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 
 	t.Run("unknown method", func(t *testing.T) {
@@ -517,7 +518,7 @@ func TestClient_TestOptions(t *testing.T) {
 		opts := &Options{Method: "foo method"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 
 	t.Run("invalid http transport options", func(t *testing.T) {
@@ -527,13 +528,13 @@ func TestClient_TestOptions(t *testing.T) {
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 
 		// with server tag
 		opts.ServerTag = "doh_ipv4_cloudflare"
 		result, err = client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 
 	t.Run("doesn't exist proxy", func(t *testing.T) {
@@ -542,7 +543,7 @@ func TestClient_TestOptions(t *testing.T) {
 		opts := &Options{ProxyTag: "foo proxy"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 
 	t.Run("doesn't exist server tag", func(t *testing.T) {
@@ -551,7 +552,7 @@ func TestClient_TestOptions(t *testing.T) {
 		opts := &Options{ServerTag: "foo server"}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.Empty(t, result)
 	})
 
 	testsuite.IsDestroyed(t, client)
