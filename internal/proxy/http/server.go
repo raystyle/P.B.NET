@@ -18,6 +18,7 @@ import (
 
 	"project/internal/httptool"
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/xpanic"
 )
 
@@ -277,94 +278,21 @@ func (h *handler) log(lv logger.Level, r *http.Request, log ...interface{}) {
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.wg.Add(1)
 	defer h.wg.Done()
-
-	const title = "server.ServeHTTP()"
 	defer func() {
 		if rec := recover(); rec != nil {
-			h.log(logger.Fatal, r, xpanic.Print(rec, title))
+			h.log(logger.Fatal, r, xpanic.Print(rec, "server.ServeHTTP()"))
 		}
 	}()
-
 	if !h.authenticate(w, r) {
 		return
 	}
 	h.log(logger.Info, r, "handle request")
 	// remove Proxy-Authorization
 	r.Header.Del("Proxy-Authorization")
-	if r.Method == http.MethodConnect { // handle https
-		// hijack client conn
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			panic("http.ResponseWriter don't implemented http.Hijacker")
-		}
-		wc, _, err := hijacker.Hijack()
-		if err != nil {
-			h.log(logger.Error, r, err)
-			return
-		}
-		defer func() { _ = wc.Close() }()
-
-		// dial target
-		ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
-		defer cancel()
-		conn, err := h.dialContext(ctx, "tcp", r.URL.Host)
-		if err != nil {
-			h.log(logger.Error, r, err)
-			return
-		}
-		defer func() { _ = conn.Close() }()
-		_, err = wc.Write(connectionEstablished)
-		if err != nil {
-			h.log(logger.Error, r, "failed to write response:", err)
-			return
-		}
-		// http.Server.Close() not close hijacked conn
-		closeChan := make(chan struct{})
-		h.wg.Add(1)
-		go func() {
-			defer h.wg.Done()
-			defer func() {
-				if rec := recover(); rec != nil {
-					h.log(logger.Fatal, r, xpanic.Print(rec, title))
-				}
-			}()
-			select {
-			case <-closeChan:
-			case <-h.ctx.Done():
-				_ = wc.Close()
-				_ = conn.Close()
-			}
-		}()
-		// start copy
-		h.wg.Add(1)
-		go func() {
-			defer h.wg.Done()
-			defer func() {
-				if rec := recover(); rec != nil {
-					h.log(logger.Fatal, r, xpanic.Print(rec, title))
-				}
-			}()
-			_, _ = io.Copy(wc, conn)
-		}()
-		_, _ = io.Copy(conn, wc)
-		close(closeChan)
-	} else { // handle http request
-		ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
-		defer cancel()
-		resp, err := h.transport.RoundTrip(r.Clone(ctx))
-		if err != nil {
-			w.WriteHeader(http.StatusBadGateway)
-			h.log(logger.Error, r, err)
-			return
-		}
-		defer func() { _ = resp.Body.Close() }()
-		// copy header
-		for k, v := range resp.Header {
-			w.Header().Set(k, v[0])
-		}
-		// write status and body
-		w.WriteHeader(resp.StatusCode)
-		_, _ = io.Copy(w, resp.Body)
+	if r.Method == http.MethodConnect {
+		h.handleConnectRequest(w, r)
+	} else {
+		h.handleCommonRequest(w, r)
 	}
 }
 
@@ -410,6 +338,98 @@ func (h *handler) authenticate(w http.ResponseWriter, r *http.Request) bool {
 		failedToAuth()
 		return false
 	}
+}
+
+func (h *handler) handleConnectRequest(w http.ResponseWriter, r *http.Request) {
+	const title = "handler.handleConnectRequest"
+
+	// hijack client conn
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		panic("http.ResponseWriter don't implemented http.Hijacker")
+	}
+	wc, _, err := hijacker.Hijack()
+	if err != nil {
+		h.log(logger.Error, r, err)
+		return
+	}
+	defer func() {
+		err = wc.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			h.log(logger.Error, r, "failed to close hijacked connection:", err)
+		}
+	}()
+
+	// dial target
+	ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
+	defer cancel()
+	remote, err := h.dialContext(ctx, "tcp", r.URL.Host)
+	if err != nil {
+		h.log(logger.Error, r, err)
+		return
+	}
+	defer func() {
+		err = remote.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			h.log(logger.Error, r, "failed to close remote connection:", err)
+		}
+	}()
+	_, err = wc.Write(connectionEstablished)
+	if err != nil {
+		h.log(logger.Error, r, "failed to write response:", err)
+		return
+	}
+
+	// http.Server.Close() will not close hijacked conn
+	done := make(chan struct{})
+	defer close(done)
+	h.wg.Add(1)
+	go func() {
+		defer h.wg.Done()
+		defer func() {
+			if rec := recover(); rec != nil {
+				h.log(logger.Fatal, r, xpanic.Print(rec, title))
+			}
+		}()
+		select {
+		case <-done:
+		case <-h.ctx.Done():
+			_ = wc.Close()
+			_ = remote.Close()
+		}
+	}()
+
+	// start copy
+	h.wg.Add(1)
+	go func() {
+		defer h.wg.Done()
+		defer func() {
+			if rec := recover(); rec != nil {
+				h.log(logger.Fatal, r, xpanic.Print(rec, title))
+			}
+		}()
+		_, _ = io.Copy(wc, remote)
+	}()
+	_, _ = io.Copy(remote, wc)
+}
+
+func (h *handler) handleCommonRequest(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(h.ctx, h.timeout)
+	defer cancel()
+	resp, err := h.transport.RoundTrip(r.Clone(ctx))
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		h.log(logger.Error, r, err)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	// copy header
+	for k, v := range resp.Header {
+		w.Header().Set(k, v[0])
+	}
+	// write status and body
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
 }
 
 func (h *handler) Close() {
