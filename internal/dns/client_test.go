@@ -19,9 +19,11 @@ func testAddDNSServers(t *testing.T, client *Client, filename string) {
 	servers := make(map[string]*Server)
 	data, err := ioutil.ReadFile("testdata/" + filename)
 	require.NoError(t, err)
-	require.NoError(t, toml.Unmarshal(data, &servers))
+	err = toml.Unmarshal(data, &servers)
+	require.NoError(t, err)
 	for tag, server := range servers {
-		require.NoError(t, client.Add(tag, server))
+		err = client.Add(tag, server)
+		require.NoError(t, err)
 	}
 }
 
@@ -41,7 +43,10 @@ func TestClient_Resolve(t *testing.T) {
 	defer gm.Compare()
 
 	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
@@ -55,7 +60,7 @@ func TestClient_Resolve(t *testing.T) {
 	t.Run("use default options", func(t *testing.T) {
 		result, err := client.Resolve(testDomain, nil)
 		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
+		require.NotEmpty(t, result)
 		t.Log("use default options", result)
 	})
 
@@ -65,7 +70,7 @@ func TestClient_Resolve(t *testing.T) {
 		opts := &Options{Method: MethodDoH}
 		result, err := client.Resolve(testDomain, opts)
 		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
+		require.NotEmpty(t, result)
 		t.Log("use DoH:", result)
 	})
 
@@ -74,7 +79,7 @@ func TestClient_Resolve(t *testing.T) {
 
 		result, err := client.Resolve(testDomain, &Options{Type: TypeIPv6})
 		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
+		require.NotEmpty(t, result)
 		t.Log("resolve IPv6:", result)
 	})
 
@@ -83,7 +88,7 @@ func TestClient_Resolve(t *testing.T) {
 
 		result, err := client.Resolve("错的是.世界", nil)
 		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
+		require.NotEmpty(t, result)
 		t.Log("resolve punycode:", result)
 	})
 
@@ -97,7 +102,7 @@ func TestClient_Resolve(t *testing.T) {
 				opts.Type = TypeIPv4
 				result, err := client.Resolve(testDomain, opts)
 				require.NoError(t, err)
-				require.NotEqual(t, 0, len(result))
+				require.NotEmpty(t, result)
 				t.Log("IPv4:", result)
 			})
 		}
@@ -107,7 +112,7 @@ func TestClient_Resolve(t *testing.T) {
 				opts.Type = TypeIPv6
 				result, err := client.Resolve(testDomain, opts)
 				require.NoError(t, err)
-				require.NotEqual(t, 0, len(result))
+				require.NotEmpty(t, result)
 				t.Log("IPv6:", result)
 			})
 		}
@@ -117,7 +122,7 @@ func TestClient_Resolve(t *testing.T) {
 				opts.Type = ""
 				result, err := client.Resolve(testDomain, opts)
 				require.NoError(t, err)
-				require.NotEqual(t, 0, len(result))
+				require.NotEmpty(t, result)
 				t.Log("IPv4 & IPv6:", result)
 			})
 		}
@@ -158,7 +163,10 @@ func TestClient_selectType(t *testing.T) {
 	defer gm.Compare()
 
 	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
@@ -220,19 +228,22 @@ func TestClient_Cache(t *testing.T) {
 	defer gm.Compare()
 
 	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
 	result, err := client.Resolve(testDomain, nil)
 	require.NoError(t, err)
-	require.NotEqual(t, 0, len(result))
+	require.NotEmpty(t, result)
 	t.Log("[no cache]:", result)
 
 	result, err = client.Resolve(testDomain, nil)
 	require.NoError(t, err)
-	require.NotEqual(t, 0, len(result))
+	require.NotEmpty(t, result)
 	t.Log("[cache]:", result)
 
 	testsuite.IsDestroyed(t, client)
@@ -243,7 +254,10 @@ func TestClient_Cancel(t *testing.T) {
 	defer gm.Compare()
 
 	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
@@ -263,7 +277,10 @@ func TestClient_NoResult(t *testing.T) {
 	defer gm.Compare()
 
 	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	client := NewClient(certPool, proxyPool)
 
@@ -322,7 +339,10 @@ func TestClient_TestServers(t *testing.T) {
 	defer gm.Compare()
 
 	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	t.Run("reachable and skip test", func(t *testing.T) {
 		client := NewClient(certPool, proxyPool)
@@ -358,14 +378,16 @@ func TestClient_TestServers(t *testing.T) {
 
 		result, err = client.TestServers(context.Background(), testDomain, opts)
 		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
+		require.NotEmpty(t, result)
 		t.Log(result)
 
 		if testsuite.IPv4Enabled {
-			require.NoError(t, client.Delete("reachable-ipv4"))
+			err := client.Delete("reachable-ipv4")
+			require.NoError(t, err)
 		}
 		if testsuite.IPv6Enabled {
-			require.NoError(t, client.Delete("reachable-ipv6"))
+			err := client.Delete("reachable-ipv6")
+			require.NoError(t, err)
 		}
 
 		testsuite.IsDestroyed(t, client)
@@ -423,7 +445,10 @@ func TestClient_TestOptions(t *testing.T) {
 	defer gm.Compare()
 
 	proxyPool, proxyMgr, certPool := testproxy.PoolAndManager(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
@@ -443,7 +468,7 @@ func TestClient_TestOptions(t *testing.T) {
 		}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
+		require.NotEmpty(t, result)
 	})
 
 	t.Run("invalid domain name", func(t *testing.T) {
@@ -464,7 +489,7 @@ func TestClient_TestOptions(t *testing.T) {
 		}
 		result, err := client.TestOption(context.Background(), testDomain, opts)
 		require.NoError(t, err)
-		require.NotEqual(t, 0, len(result))
+		require.NotEmpty(t, result)
 	})
 
 	t.Run("unknown type", func(t *testing.T) {

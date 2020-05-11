@@ -28,11 +28,13 @@ func TestClientCache(t *testing.T) {
 
 	// set cache expire time
 	const expire = 10 * time.Minute
-	require.NoError(t, client.SetCacheExpireTime(expire))
+	err := client.SetCacheExpireTime(expire)
+	require.NoError(t, err)
 	require.Equal(t, expire, client.GetCacheExpireTime())
 
 	// set invalid cache expire time
-	require.Equal(t, ErrInvalidExpireTime, client.SetCacheExpireTime(3*time.Hour))
+	err = client.SetCacheExpireTime(3 * time.Hour)
+	require.Equal(t, ErrInvalidExpireTime, err)
 
 	// query empty cache, then create it
 	result := client.queryCache(testCacheDomain, TypeIPv4)
