@@ -21,7 +21,7 @@ import (
 
 const (
 	defaultTimeout     = 10 * time.Second // udp is 5 second
-	defaultMaxBodySize = 65535            // about DOH
+	defaultMaxBodySize = 512 << 10        // 512 KB
 	headerSize         = 2                // tcp && tls need it
 )
 
@@ -47,7 +47,7 @@ func resolve(ctx context.Context, address, domain string, opts *Options) ([]stri
 	return unpackMessage(message)
 }
 
-// if question > 512 use tcp tls doh
+// if question size > 512 Byte, use tcp tls doh.
 func dialUDP(ctx context.Context, address string, message []byte, opts *Options) ([]byte, error) {
 	network := opts.Network
 	switch network {

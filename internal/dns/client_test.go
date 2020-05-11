@@ -15,17 +15,11 @@ import (
 	"project/internal/testsuite/testproxy"
 )
 
-const (
-	testIPv4DNS = "dns_ipv4.toml"
-	testIPv6DNS = "dns_ipv6.toml"
-	testDSDNS   = "dns_ds.toml" // DS: double stack
-)
-
 func testAddDNSServers(t *testing.T, client *Client, filename string) {
 	servers := make(map[string]*Server)
-	b, err := ioutil.ReadFile("testdata/" + filename)
+	data, err := ioutil.ReadFile("testdata/" + filename)
 	require.NoError(t, err)
-	require.NoError(t, toml.Unmarshal(b, &servers))
+	require.NoError(t, toml.Unmarshal(data, &servers))
 	for tag, server := range servers {
 		require.NoError(t, client.Add(tag, server))
 	}
@@ -33,12 +27,13 @@ func testAddDNSServers(t *testing.T, client *Client, filename string) {
 
 func testAddAllDNSServers(t *testing.T, client *Client) {
 	if testsuite.IPv4Enabled {
-		testAddDNSServers(t, client, testIPv4DNS)
+		testAddDNSServers(t, client, "dns_ipv4.toml")
 	}
 	if testsuite.IPv6Enabled {
-		testAddDNSServers(t, client, testIPv6DNS)
+		testAddDNSServers(t, client, "dns_ipv6.toml")
 	}
-	testAddDNSServers(t, client, testDSDNS)
+	// DS: double stack
+	testAddDNSServers(t, client, "dns_ds.toml")
 }
 
 func TestClient_Resolve(t *testing.T) {
@@ -409,7 +404,7 @@ func TestClient_TestServers(t *testing.T) {
 		testAddAllDNSServers(t, client)
 
 		opts := new(Options)
-		patch := func(_ interface{}) *Options {
+		patch := func(interface{}) *Options {
 			panic(monkey.Panic)
 		}
 		pg := monkey.PatchInstanceMethod(opts, "Clone", patch)
@@ -618,12 +613,17 @@ func TestClient_Parallel(t *testing.T) {
 	testsuite.IsDestroyed(t, client)
 }
 
-func TestOptions(t *testing.T) {
-	// load DNS Servers
-	b, err := ioutil.ReadFile("testdata/server.toml")
+func TestServerOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/server.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	server := Server{}
-	require.NoError(t, toml.Unmarshal(b, &server))
+	err = toml.Unmarshal(data, &server)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, server)
 
 	testdata := []*struct {
 		expected interface{}
@@ -636,14 +636,21 @@ func TestOptions(t *testing.T) {
 	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)
 	}
+}
 
-	// resolve options
-	b, err = ioutil.ReadFile("testdata/options.toml")
+func TestOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/options.toml")
 	require.NoError(t, err)
-	opts := Options{}
-	require.NoError(t, toml.Unmarshal(b, &opts))
 
-	testdata = []*struct {
+	// check unnecessary field
+	opts := Options{}
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	testdata := []*struct {
 		expected interface{}
 		actual   interface{}
 	}{

@@ -50,7 +50,6 @@ func (c *Client) updateCache(domain, typ string, ip []string) {
 	// must copy
 	cp := make([]string, len(ip))
 	copy(cp, ip)
-
 	c.cachesRWM.RLock()
 	defer c.cachesRWM.RUnlock()
 	if cache, ok := c.caches[domain]; ok {

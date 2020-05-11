@@ -39,29 +39,37 @@ func TestCustomResolve(t *testing.T) {
 
 		t.Run("IPv4 UDP", func(t *testing.T) {
 			opts.Method = MethodUDP
+
 			result, err := resolve(ctx, udpServer, testDomain, opts)
 			require.NoError(t, err)
+
 			t.Log("UDP IPv4:", result)
 		})
 
 		t.Run("IPv4 TCP", func(t *testing.T) {
 			opts.Method = MethodTCP
+
 			result, err := resolve(ctx, tcpServer, testDomain, opts)
 			require.NoError(t, err)
+
 			t.Log("TCP IPv4:", result)
 		})
 
 		t.Run("IPv4 DoT IP mode", func(t *testing.T) {
 			opts.Method = MethodDoT
+
 			result, err := resolve(ctx, tlsIP, testDomain, opts)
 			require.NoError(t, err)
+
 			t.Log("DOT-IP IPv4:", result)
 		})
 
 		t.Run("IPv4 DoT domain mode", func(t *testing.T) {
 			opts.Method = MethodDoT
+
 			result, err := resolve(ctx, tlsDomain, testDomain, opts)
 			require.NoError(t, err)
+
 			t.Log("DOT-Domain IPv4:", result)
 		})
 	}
@@ -76,29 +84,37 @@ func TestCustomResolve(t *testing.T) {
 
 		t.Run("IPv6 UDP", func(t *testing.T) {
 			opts.Method = MethodUDP
+
 			result, err := resolve(ctx, udpServer, testDomain, opts)
 			require.NoError(t, err)
+
 			t.Log("UDP IPv6:", result)
 		})
 
 		t.Run("IPv6 TCP", func(t *testing.T) {
 			opts.Method = MethodTCP
+
 			result, err := resolve(ctx, tcpServer, testDomain, opts)
 			require.NoError(t, err)
+
 			t.Log("TCP IPv6:", result)
 		})
 
 		t.Run("IPv6 DoT IP mode", func(t *testing.T) {
 			opts.Method = MethodDoT
+
 			result, err := resolve(ctx, TLSip, testDomain, opts)
 			require.NoError(t, err)
+
 			t.Log("DOT-IP IPv6:", result)
 		})
 
 		t.Run("IPv6 DoT domain mode", func(t *testing.T) {
 			opts.Method = MethodDoT
+
 			result, err := resolve(ctx, TLSDomain, testDomain, opts)
 			require.NoError(t, err)
+
 			t.Log("DOT-Domain IPv6:", result)
 		})
 	}
@@ -106,16 +122,20 @@ func TestCustomResolve(t *testing.T) {
 	t.Run("DoH", func(t *testing.T) {
 		const dnsDOH = "https://cloudflare-dns.com/dns-query"
 		opts.Method = MethodDoH
+
 		result, err := resolve(ctx, dnsDOH, testDomain, opts)
 		require.NoError(t, err)
+
 		t.Log("DOH:", result)
 	})
 
 	t.Run("failed to resolve", func(t *testing.T) {
 		opts.Timeout = time.Second
 		opts.Method = MethodUDP
+
 		result, err := resolve(ctx, "0.0.0.0:1", testDomain, opts)
 		require.Error(t, err)
+
 		require.Len(t, result, 0)
 	})
 }
@@ -130,8 +150,10 @@ func TestDialUDP(t *testing.T) {
 		t.Run("IPv4", func(t *testing.T) {
 			msg, err := dialUDP(ctx, "8.8.8.8:53", testDNSMessage, opts)
 			require.NoError(t, err)
+
 			result, err := unpackMessage(msg)
 			require.NoError(t, err)
+
 			t.Log("UDP (IPv4 DNS Server):", result)
 		})
 	}
@@ -140,8 +162,10 @@ func TestDialUDP(t *testing.T) {
 		t.Run("IPv6", func(t *testing.T) {
 			msg, err := dialUDP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opts)
 			require.NoError(t, err)
+
 			result, err := unpackMessage(msg)
 			require.NoError(t, err)
+
 			t.Log("UDP (IPv6 DNS Server):", result)
 		})
 	}
@@ -183,8 +207,10 @@ func TestDialTCP(t *testing.T) {
 		t.Run("IPv4", func(t *testing.T) {
 			msg, err := dialTCP(ctx, "8.8.8.8:53", testDNSMessage, opts)
 			require.NoError(t, err)
+
 			result, err := unpackMessage(msg)
 			require.NoError(t, err)
+
 			t.Log("TCP (IPv4 DNS Server):", result)
 		})
 	}
@@ -193,8 +219,10 @@ func TestDialTCP(t *testing.T) {
 		t.Run("IPv6", func(t *testing.T) {
 			msg, err := dialTCP(ctx, "[2606:4700:4700::1001]:53", testDNSMessage, opts)
 			require.NoError(t, err)
+
 			result, err := unpackMessage(msg)
 			require.NoError(t, err)
+
 			t.Log("TCP (IPv6 DNS Server):", result)
 		})
 	}
@@ -227,16 +255,20 @@ func TestDialDoT(t *testing.T) {
 			t.Run("IP mode", func(t *testing.T) {
 				msg, err := dialDoT(ctx, dnsServerIPV4, testDNSMessage, opts)
 				require.NoError(t, err)
+
 				result, err := unpackMessage(msg)
 				require.NoError(t, err)
+
 				t.Log("DoT-IP (IPv4 DNS Server):", result)
 			})
 
 			t.Run("domain mode", func(t *testing.T) {
 				msg, err := dialDoT(ctx, dnsDomainIPv4, testDNSMessage, opts)
 				require.NoError(t, err)
+
 				result, err := unpackMessage(msg)
 				require.NoError(t, err)
+
 				t.Log("DoT-Domain (IPv4 DNS Server):", result)
 			})
 		})
@@ -252,16 +284,20 @@ func TestDialDoT(t *testing.T) {
 			t.Run("IP mode", func(t *testing.T) {
 				msg, err := dialDoT(ctx, dnsServerIPv6, testDNSMessage, opts)
 				require.NoError(t, err)
+
 				result, err := unpackMessage(msg)
 				require.NoError(t, err)
+
 				t.Log("DoT-IP (IPv6 DNS Server):", result)
 			})
 
 			t.Run("domain mode", func(t *testing.T) {
 				msg, err := dialDoT(ctx, dnsDomainIPv6, testDNSMessage, opts)
 				require.NoError(t, err)
+
 				result, err := unpackMessage(msg)
 				require.NoError(t, err)
+
 				t.Log("DoT-Domain (IPv6 DNS Server):", result)
 			})
 		})
@@ -320,8 +356,10 @@ func TestDialDoH(t *testing.T) {
 	t.Run("GET", func(t *testing.T) {
 		resp, err := dialDoH(ctx, dnsServer, testDNSMessage, opts)
 		require.NoError(t, err)
+
 		result, err := unpackMessage(resp)
 		require.NoError(t, err)
+
 		t.Log("DoH GET:", result)
 	})
 
@@ -329,14 +367,17 @@ func TestDialDoH(t *testing.T) {
 		url := dnsServer + "#" + strings.Repeat("a", 2048)
 		resp, err := dialDoH(ctx, url, testDNSMessage, opts)
 		require.NoError(t, err)
+
 		result, err := unpackMessage(resp)
 		require.NoError(t, err)
+
 		t.Log("DoH POST:", result)
 	})
 
 	t.Run("invalid DOH server", func(t *testing.T) {
 		_, err := dialDoH(ctx, "foo\n", testDNSMessage, opts)
 		require.Error(t, err)
+
 		url := "foo\n" + "#" + strings.Repeat("a", 2048)
 		_, err = dialDoH(ctx, url, testDNSMessage, opts)
 		require.Error(t, err)
@@ -359,6 +400,7 @@ func TestFailedToSendMessage(t *testing.T) {
 
 	t.Run("failed to read response size", func(t *testing.T) {
 		server, client := net.Pipe()
+
 		wg := sync.WaitGroup{}
 		wg.Add(1)
 		go func() {
@@ -367,13 +409,16 @@ func TestFailedToSendMessage(t *testing.T) {
 			require.NoError(t, err)
 			_ = server.Close()
 		}()
+
 		_, err := sendMessage(client, testDNSMessage, time.Second)
 		require.Error(t, err)
+
 		wg.Wait()
 	})
 
 	t.Run("failed to read response", func(t *testing.T) {
 		server, client := net.Pipe()
+
 		wg := sync.WaitGroup{}
 		wg.Add(1)
 		go func() {
@@ -383,8 +428,10 @@ func TestFailedToSendMessage(t *testing.T) {
 			_, _ = server.Write(convert.Uint16ToBytes(4))
 			_ = server.Close()
 		}()
+
 		_, err := sendMessage(client, testDNSMessage, time.Second)
 		require.Error(t, err)
+
 		wg.Wait()
 	})
 }
