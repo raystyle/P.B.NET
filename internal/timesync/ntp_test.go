@@ -24,9 +24,11 @@ func TestNTP_Query(t *testing.T) {
 	}()
 
 	NTP := NewNTP(context.Background(), proxyPool, dnsClient)
+
 	data, err := ioutil.ReadFile("testdata/ntp.toml")
 	require.NoError(t, err)
-	require.NoError(t, NTP.Import(data))
+	err = NTP.Import(data)
+	require.NoError(t, err)
 
 	// simple query
 	now, optsErr, err := NTP.Query()

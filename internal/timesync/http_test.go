@@ -32,7 +32,8 @@ func TestHTTP_Query(t *testing.T) {
 
 		data, err := ioutil.ReadFile("testdata/http.toml")
 		require.NoError(t, err)
-		require.NoError(t, HTTP.Import(data))
+		err = HTTP.Import(data)
+		require.NoError(t, err)
 
 		now, optsErr, err := HTTP.Query()
 		require.NoError(t, err)

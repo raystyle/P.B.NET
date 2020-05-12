@@ -58,12 +58,16 @@ func TestSyncer(t *testing.T) {
 
 	// set sync interval
 	const interval = 15 * time.Minute
-	require.NoError(t, syncer.SetSyncInterval(interval))
+	err := syncer.SetSyncInterval(interval)
+	require.NoError(t, err)
 	require.Equal(t, interval, syncer.GetSyncInterval())
 
 	// set invalid sync interval
-	require.Error(t, syncer.SetSyncInterval(3*time.Hour))
-	require.NoError(t, syncer.Start())
+	err = syncer.SetSyncInterval(3 * time.Hour)
+	require.Error(t, err)
+
+	err = syncer.Start()
+	require.NoError(t, err)
 	t.Log("now: ", syncer.Now().Local())
 
 	// wait walker
@@ -95,37 +99,49 @@ func TestSyncer_Start(t *testing.T) {
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// set random sleep
-	require.Error(t, syncer.SetSleep(0, 0))
-	require.Error(t, syncer.SetSleep(10, 0))
-	require.NoError(t, syncer.SetSleep(3, 5))
+	err := syncer.SetSleep(0, 0)
+	require.Error(t, err)
+
+	err = syncer.SetSleep(10, 0)
+	require.Error(t, err)
+
+	err = syncer.SetSleep(3, 5)
+	require.NoError(t, err)
 
 	// no clients
 	require.Equal(t, ErrNoClients, syncer.Start())
 
 	t.Run("invalid config", func(t *testing.T) {
-		err := syncer.Add("invalid config", &Client{
+		err = syncer.Add("invalid config", &Client{
 			Mode:   ModeNTP,
 			Config: `network = "foo network"`,
 		})
 		require.NoError(t, err)
-		require.Error(t, syncer.Start())
 
-		require.NoError(t, syncer.Delete("invalid config"))
+		err = syncer.Start()
+		require.Error(t, err)
+
+		err = syncer.Delete("invalid config")
+		require.NoError(t, err)
 	})
 
 	t.Run("all failed", func(t *testing.T) {
 		go func() {
 			// delete unreachable
 			time.Sleep(time.Second)
-			require.NoError(t, syncer.Delete("unreachable"))
+			err := syncer.Delete("unreachable")
+			require.NoError(t, err)
 
 			// add reachable
 			testAddHTTP(t, syncer)
 		}()
 
 		// add unreachable server
-		require.NoError(t, syncer.Add("unreachable", testUnreachableClient()))
-		require.NoError(t, syncer.Start())
+		err = syncer.Add("unreachable", testUnreachableClient())
+		require.NoError(t, err)
+
+		err = syncer.Start()
+		require.NoError(t, err)
 	})
 
 	syncer.Stop()
@@ -144,17 +160,25 @@ func TestSyncer_Start_Stop(t *testing.T) {
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// set random sleep
-	require.Error(t, syncer.SetSleep(0, 0))
-	require.Error(t, syncer.SetSleep(10, 0))
-	require.NoError(t, syncer.SetSleep(3, 5))
+	err := syncer.SetSleep(0, 0)
+	require.Error(t, err)
+
+	err = syncer.SetSleep(10, 0)
+	require.Error(t, err)
+
+	err = syncer.SetSleep(3, 5)
+	require.NoError(t, err)
 
 	go func() {
 		time.Sleep(3 * time.Second)
 		syncer.Stop()
 	}()
 
-	require.NoError(t, syncer.Add("unreachable", testUnreachableClient()))
-	require.Error(t, syncer.Start())
+	err = syncer.Add("unreachable", testUnreachableClient())
+	require.NoError(t, err)
+
+	err = syncer.Start()
+	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, syncer)
 }
@@ -209,8 +233,11 @@ func TestSyncer_Add_Delete(t *testing.T) {
 	require.Error(t, err)
 
 	// delete
-	require.NoError(t, syncer.Delete("http"))
-	require.Error(t, syncer.Delete("http"))
+	err = syncer.Delete("http")
+	require.NoError(t, err)
+
+	err = syncer.Delete("http")
+	require.Error(t, err)
 
 	testsuite.IsDestroyed(t, syncer)
 }
@@ -240,13 +267,18 @@ func TestSyncer_Test(t *testing.T) {
 	require.NoError(t, err)
 
 	// test
-	require.NoError(t, syncer.Test(context.Background()))
+	err = syncer.Test(context.Background())
+	require.NoError(t, err)
 
 	t.Run("failed", func(t *testing.T) {
-		require.NoError(t, syncer.Delete("http"))
+		err = syncer.Delete("http")
+		require.NoError(t, err)
+
 		err = syncer.Add("unreachable", testUnreachableClient())
 		require.NoError(t, err)
-		require.Error(t, syncer.Test(context.Background()))
+
+		err = syncer.Test(context.Background())
+		require.Error(t, err)
 
 		testAddHTTP(t, syncer)
 	})
@@ -254,7 +286,8 @@ func TestSyncer_Test(t *testing.T) {
 	t.Run("cancel", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
-		require.Error(t, syncer.Test(ctx))
+		err := syncer.Test(ctx)
+		require.Error(t, err)
 	})
 
 	t.Run("panic", func(t *testing.T) {
@@ -265,7 +298,8 @@ func TestSyncer_Test(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(client, "Query", patch)
 		defer pg.Unpatch()
 
-		require.Error(t, syncer.Test(context.Background()))
+		err := syncer.Test(context.Background())
+		require.Error(t, err)
 	})
 
 	testsuite.IsDestroyed(t, syncer)
@@ -289,10 +323,12 @@ func TestSyncer_synchronizeLoop(t *testing.T) {
 
 	// add reachable
 	testAddHTTP(t, syncer)
-	require.NoError(t, syncer.Start())
+	err := syncer.Start()
+	require.NoError(t, err)
 
 	// wait failed to synchronize
-	require.NoError(t, syncer.Delete("http"))
+	err = syncer.Delete("http")
+	require.NoError(t, err)
 	time.Sleep(3 * time.Second)
 
 	syncer.Stop()
@@ -365,7 +401,8 @@ func TestSyncer_synchronizePanic(t *testing.T) {
 
 	// remove context
 	syncer.Clients()["http"].client.(*HTTP).ctx = nil
-	require.Error(t, syncer.Start())
+	err := syncer.Start()
+	require.Error(t, err)
 
 	syncer.Stop()
 	testsuite.IsDestroyed(t, syncer)
