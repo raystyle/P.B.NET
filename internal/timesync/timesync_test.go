@@ -10,27 +10,28 @@ import (
 
 	"project/internal/logger"
 	"project/internal/patch/monkey"
+	"project/internal/patch/toml"
 	"project/internal/random"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
 )
 
 func testAddHTTP(t *testing.T, syncer *Syncer) {
-	b, err := ioutil.ReadFile("testdata/http.toml")
+	data, err := ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
 	err = syncer.Add("http", &Client{
 		Mode:   ModeHTTP,
-		Config: string(b),
+		Config: string(data),
 	})
 	require.NoError(t, err)
 }
 
 func testAddNTP(t *testing.T, syncer *Syncer) {
-	b, err := ioutil.ReadFile("testdata/ntp.toml")
+	data, err := ioutil.ReadFile("testdata/ntp.toml")
 	require.NoError(t, err)
 	err = syncer.Add("ntp", &Client{
 		Mode:   ModeNTP,
-		Config: string(b),
+		Config: string(data),
 	})
 	require.NoError(t, err)
 }
@@ -45,7 +46,10 @@ func TestSyncer(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
 
@@ -84,7 +88,10 @@ func TestSyncer_Start(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// set random sleep
@@ -130,7 +137,10 @@ func TestSyncer_Start_Stop(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// set random sleep
@@ -154,7 +164,10 @@ func TestSyncer_StartWalker(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	syncer.StartWalker()
@@ -171,7 +184,10 @@ func TestSyncer_Add_Delete(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 	testAddClients(t, syncer)
 
@@ -204,7 +220,10 @@ func TestSyncer_Test(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// no clients
@@ -240,7 +259,7 @@ func TestSyncer_Test(t *testing.T) {
 
 	t.Run("panic", func(t *testing.T) {
 		client := new(HTTP)
-		patch := func(_ interface{}) (time.Time, bool, error) {
+		patch := func(interface{}) (time.Time, bool, error) {
 			panic(monkey.Panic)
 		}
 		pg := monkey.PatchInstanceMethod(client, "Query", patch)
@@ -257,7 +276,10 @@ func TestSyncer_synchronizeLoop(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// force set synchronize interval
@@ -282,10 +304,13 @@ func TestSyncer_workerPanic(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
-	patch := func(_ time.Duration) *time.Ticker {
+	patch := func(time.Duration) *time.Ticker {
 		panic(monkey.Panic)
 	}
 	pg := monkey.Patch(time.NewTicker, patch)
@@ -304,13 +329,16 @@ func TestSyncer_synchronizeLoopPanic(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	patch := func() *random.Rand {
 		panic(monkey.Panic)
 	}
-	pg := monkey.Patch(random.New, patch)
+	pg := monkey.Patch(random.NewRand, patch)
 	defer pg.Unpatch()
 
 	syncer.wg.Add(1)
@@ -326,7 +354,10 @@ func TestSyncer_synchronizePanic(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 	syncer := New(certPool, proxyPool, dnsClient, logger.Test)
 
 	// add reachable
@@ -415,4 +446,29 @@ func TestSyncer_Parallel(t *testing.T) {
 
 	syncer.Stop()
 	testsuite.IsDestroyed(t, syncer)
+}
+
+func TestClientOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/client.toml")
+	require.NoError(t, err)
+
+	// check unnecessary field
+	client := Client{}
+	err = toml.Unmarshal(data, &client)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, client)
+
+	testdata := []*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: "ntp", actual: client.Mode},
+		{expected: true, actual: client.SkipTest},
+		{expected: "address = \"2.pool.ntp.org:123\"", actual: client.Config},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 }

@@ -39,7 +39,8 @@ type Client struct {
 	Mode     string `toml:"mode"`
 	Config   string `toml:"config"`
 	SkipTest bool   `toml:"skip_test"`
-	client
+
+	client `check:"-"`
 }
 
 type client interface {
@@ -266,7 +267,7 @@ func (syncer *Syncer) synchronizeLoop() {
 			syncer.wg.Done()
 		}
 	}()
-	rand := random.New()
+	rand := random.NewRand()
 	calculateInterval := func() time.Duration {
 		extra := syncer.sleepFixed + uint(rand.Int(int(syncer.sleepRandom)))
 		return syncer.GetSyncInterval() + time.Duration(extra)*time.Second

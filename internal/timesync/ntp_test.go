@@ -13,7 +13,7 @@ import (
 	"project/internal/testsuite/testdns"
 )
 
-func TestNTPClient_Query(t *testing.T) {
+func TestNTP_Query(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -37,7 +37,7 @@ func TestNTPClient_Query(t *testing.T) {
 	testsuite.IsDestroyed(t, NTP)
 }
 
-func TestNTPClient_Query_Failed(t *testing.T) {
+func TestNTP_Query_Failed(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 

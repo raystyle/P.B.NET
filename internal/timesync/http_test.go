@@ -17,7 +17,7 @@ import (
 	"project/internal/testsuite/testproxy"
 )
 
-func TestHTTPClient_Query(t *testing.T) {
+func TestHTTP_Query(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -57,7 +57,7 @@ func TestHTTPClient_Query(t *testing.T) {
 	})
 }
 
-func TestHTTPClient_Query_Failed(t *testing.T) {
+func TestHTTP_Query_Failed(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
