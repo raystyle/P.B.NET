@@ -18,12 +18,15 @@ func TestNTPClient_Query(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	NTP := NewNTP(context.Background(), proxyPool, dnsClient)
-	b, err := ioutil.ReadFile("testdata/ntp.toml")
+	data, err := ioutil.ReadFile("testdata/ntp.toml")
 	require.NoError(t, err)
-	require.NoError(t, NTP.Import(b))
+	require.NoError(t, NTP.Import(data))
 
 	// simple query
 	now, optsErr, err := NTP.Query()
@@ -39,7 +42,10 @@ func TestNTPClient_Query_Failed(t *testing.T) {
 	defer gm.Compare()
 
 	dnsClient, proxyPool, proxyMgr, _ := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	t.Run("invalid network", func(t *testing.T) {
 		NTP := NewNTP(context.Background(), proxyPool, dnsClient)
@@ -92,11 +98,18 @@ func TestNTPClient_Query_Failed(t *testing.T) {
 }
 
 func TestNTPOptions(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/ntp_opts.toml")
+	data, err := ioutil.ReadFile("testdata/ntp_opts.toml")
 	require.NoError(t, err)
-	require.NoError(t, TestNTP(b))
+
+	err = TestNTP(data)
+	require.NoError(t, err)
+
 	NTP := new(NTP)
-	require.NoError(t, NTP.Import(b))
+	err = NTP.Import(data)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, NTP)
 
 	testdata := [...]*struct {
 		expected interface{}
@@ -114,7 +127,9 @@ func TestNTPOptions(t *testing.T) {
 
 	// export
 	export := NTP.Export()
-	require.NotEqual(t, 0, len(export))
+	require.NotEmpty(t, export)
 	t.Log(string(export))
-	require.NoError(t, NTP.Import(export))
+
+	err = NTP.Import(export)
+	require.NoError(t, err)
 }

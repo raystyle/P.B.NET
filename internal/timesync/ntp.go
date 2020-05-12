@@ -24,7 +24,7 @@ type NTP struct {
 	Address string        `toml:"address"`
 	Timeout time.Duration `toml:"timeout"`
 	Version int           `toml:"version"`
-	DNSOpts dns.Options   `toml:"dns"`
+	DNSOpts dns.Options   `toml:"dns" check:"-"`
 }
 
 // NewNTP is used to create a NTP client.
@@ -87,7 +87,8 @@ func (n *NTP) Query() (now time.Time, optsErr bool, err error) {
 	// query NTP server
 	var resp *ntp.Response
 	for i := 0; i < len(result); i++ {
-		resp, err = ntp.Query(net.JoinHostPort(result[i], port), &ntpOpts)
+		address := net.JoinHostPort(result[i], port)
+		resp, err = ntp.Query(address, &ntpOpts)
 		if err == nil {
 			break
 		}
