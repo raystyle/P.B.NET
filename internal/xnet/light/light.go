@@ -8,12 +8,12 @@ import (
 
 const defaultDialTimeout = 30 * time.Second
 
-// Server is used to wrap a conn to server side conn
+// Server is used to wrap a conn to server side conn.
 func Server(ctx context.Context, conn net.Conn, timeout time.Duration) *Conn {
 	return &Conn{ctx: ctx, Conn: conn, handshakeTimeout: timeout}
 }
 
-// Client is used to wrap a conn to client side conn
+// Client is used to wrap a conn to client side conn.
 func Client(ctx context.Context, conn net.Conn, timeout time.Duration) *Conn {
 	return &Conn{ctx: ctx, Conn: conn, handshakeTimeout: timeout, isClient: true}
 }
@@ -38,7 +38,7 @@ func (l *listener) Close() error {
 	return l.Listener.Close()
 }
 
-// Listen is used to listen a inner listener
+// Listen is used to listen a inner listener.
 func Listen(network, address string, timeout time.Duration) (net.Listener, error) {
 	l, err := net.Listen(network, address)
 	if err != nil {
@@ -47,7 +47,7 @@ func Listen(network, address string, timeout time.Duration) (net.Listener, error
 	return NewListener(l, timeout), nil
 }
 
-// NewListener creates a Listener which accepts connections from an inner
+// NewListener creates a Listener which accepts connections from an inner.
 func NewListener(inner net.Listener, timeout time.Duration) net.Listener {
 	l := listener{
 		Listener: inner,
@@ -57,7 +57,7 @@ func NewListener(inner net.Listener, timeout time.Duration) net.Listener {
 	return &l
 }
 
-// Dial is used to dial a connection with context.Background()
+// Dial is used to dial a connection with context.Background().
 func Dial(
 	network string,
 	address string,
@@ -67,8 +67,8 @@ func Dial(
 	return DialContext(context.Background(), network, address, timeout, dialContext)
 }
 
-// DialContext is used to dial a connection with context
-// if dialContext is nil, dialContext = new(net.Dialer).DialContext
+// DialContext is used to dial a connection with context.
+// If dialContext is nil, dialContext = new(net.Dialer).DialContext.
 func DialContext(
 	ctx context.Context,
 	network string,

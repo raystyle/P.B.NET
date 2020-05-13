@@ -116,7 +116,7 @@ func TestConn_Handshake_Panic(t *testing.T) {
 	defer cCancel()
 	client = Client(cCtx, client, 0)
 
-	patch := func(_ interface{}) {
+	patch := func(interface{}) {
 		panic(monkey.Panic)
 	}
 	pg := monkey.PatchInstanceMethod(sCtx, "Done", patch)

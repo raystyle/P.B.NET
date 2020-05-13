@@ -32,7 +32,7 @@ func newCrypto(password []byte) *crypto {
 		}
 	} else {
 		// generate new encrypt password
-		rand := random.New()
+		rand := random.NewRand()
 		pool := make(map[byte]bool)
 		// first select
 		crypto[0][0] = byte(rand.Int(256))

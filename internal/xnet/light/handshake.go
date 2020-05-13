@@ -39,7 +39,7 @@ func (c *Conn) clientHandshake() error {
 	if err != nil {
 		return err
 	}
-	r := random.New()
+	r := random.NewRand()
 	sendPaddingSize := paddingMinSize + r.Int(paddingMaxSize)
 	handshake := bytes.Buffer{}
 	handshake.Write(convert.Uint16ToBytes(uint16(sendPaddingSize)))
@@ -141,7 +141,7 @@ func (c *Conn) serverHandshake() error {
 	if err != nil {
 		return err
 	}
-	r := random.New()
+	r := random.NewRand()
 	sendPaddingSize := paddingMinSize + r.Int(paddingMaxSize)
 	handshake := bytes.Buffer{}
 	handshake.Write(convert.Uint16ToBytes(uint16(sendPaddingSize)))
