@@ -225,14 +225,14 @@ func (syncer *Syncer) StartWalker() {
 }
 
 func (syncer *Syncer) walker() {
+	defer syncer.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			syncer.log(logger.Fatal, xpanic.Print(r, "Syncer.walker"))
-			// restart walker
 			time.Sleep(time.Second)
+			// restart
+			syncer.wg.Add(1)
 			go syncer.walker()
-		} else {
-			syncer.wg.Done()
 		}
 	}()
 	// if addLoopInterval < 2 Millisecond, time will be inaccurate
@@ -257,14 +257,14 @@ func (syncer *Syncer) walker() {
 }
 
 func (syncer *Syncer) synchronizeLoop() {
+	defer syncer.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			syncer.log(logger.Fatal, xpanic.Print(r, "Syncer.synchronizeLoop"))
-			// restart synchronizeLoop
 			time.Sleep(time.Second)
+			// restart synchronizeLoop
+			syncer.wg.Add(1)
 			go syncer.synchronizeLoop()
-		} else {
-			syncer.wg.Done()
 		}
 	}()
 	rand := random.NewRand()
