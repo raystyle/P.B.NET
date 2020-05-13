@@ -171,6 +171,7 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	_ = conn.SetDeadline(time.Now().Add(c.timeout))
 	// interrupt
 	var errCh chan error
 	if ctx.Done() != nil {
@@ -215,6 +216,7 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 		_ = conn.Close()
 		return nil, err
 	}
+	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
 }
 

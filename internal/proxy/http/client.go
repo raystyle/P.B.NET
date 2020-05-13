@@ -220,6 +220,7 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 		_ = conn.Close()
 		return nil, err
 	}
+	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
 }
 
