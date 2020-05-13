@@ -45,8 +45,12 @@ func testConnClientHandshake(t *testing.T, f func(t *testing.T, server *Conn), e
 	} else {
 		require.Error(t, err)
 	}
-	require.NoError(t, server.Close())
-	require.NoError(t, client.Close())
+
+	err = server.Close()
+	require.NoError(t, err)
+	err = client.Close()
+	require.NoError(t, err)
+
 	wg.Wait()
 
 	testsuite.IsDestroyed(t, server)
@@ -78,9 +82,12 @@ func TestConn_clientHandshake(t *testing.T) {
 		testConnClientHandshake(t, func(t *testing.T, server *Conn) {
 			data := convert.Uint16ToBytes(paddingMinSize + 10)
 			data = append(data, 1)
+
 			_, err := server.Conn.Write(data)
 			require.NoError(t, err)
-			require.NoError(t, server.Close())
+
+			err = server.Close()
+			require.NoError(t, err)
 		}, io.ErrUnexpectedEOF)
 	})
 
@@ -88,6 +95,7 @@ func TestConn_clientHandshake(t *testing.T) {
 		const paddingSize = paddingMinSize + 10
 		size := convert.Uint16ToBytes(paddingSize)
 		paddingData := bytes.Repeat([]byte{1}, paddingSize)
+
 		_, err := server.Conn.Write(append(size, paddingData...))
 		require.NoError(t, err)
 	}
@@ -97,7 +105,9 @@ func TestConn_clientHandshake(t *testing.T) {
 			sendPaddingData(server)
 			_, err := server.Conn.Write([]byte{1})
 			require.NoError(t, err)
-			require.NoError(t, server.Close())
+
+			err = server.Close()
+			require.NoError(t, err)
 		}, io.ErrUnexpectedEOF)
 	})
 
@@ -133,7 +143,8 @@ func TestConn_clientHandshake(t *testing.T) {
 			_, err := server.Conn.Write(bytes.Repeat([]byte{1}, 1))
 			require.NoError(t, err)
 
-			require.NoError(t, server.Close())
+			err = server.Close()
+			require.NoError(t, err)
 		}, io.ErrUnexpectedEOF)
 	})
 
@@ -190,8 +201,12 @@ func testConnServerHandshake(t *testing.T, f func(t *testing.T, client *Conn), e
 	} else {
 		require.Error(t, err)
 	}
-	require.NoError(t, server.Close())
-	require.NoError(t, client.Close())
+
+	err = server.Close()
+	require.NoError(t, err)
+	err = client.Close()
+	require.NoError(t, err)
+
 	wg.Wait()
 
 	testsuite.IsDestroyed(t, server)
@@ -213,9 +228,12 @@ func TestConn_serverHandshake(t *testing.T) {
 		testConnServerHandshake(t, func(t *testing.T, client *Conn) {
 			data := convert.Uint16ToBytes(paddingMinSize + 10)
 			data = append(data, 1)
+
 			_, err := client.Conn.Write(data)
 			require.NoError(t, err)
-			require.NoError(t, client.Close())
+
+			err = client.Close()
+			require.NoError(t, err)
 		}, io.ErrUnexpectedEOF)
 	})
 
@@ -232,7 +250,9 @@ func TestConn_serverHandshake(t *testing.T) {
 			sendPaddingData(client)
 			_, err := client.Conn.Write([]byte{1})
 			require.NoError(t, err)
-			require.NoError(t, client.Close())
+
+			err = client.Close()
+			require.NoError(t, err)
 		}, io.ErrUnexpectedEOF)
 	})
 

@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -64,8 +63,11 @@ func TestConn_Handshake_Timeout(t *testing.T) {
 	_, err = server.Write(make([]byte, 1))
 	require.Error(t, err)
 
-	require.NoError(t, client.Close())
-	require.NoError(t, server.Close())
+	err = client.Close()
+	require.NoError(t, err)
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, client)
 	testsuite.IsDestroyed(t, server)
 }
@@ -98,8 +100,11 @@ func TestConn_Handshake_Cancel(t *testing.T) {
 
 	wg.Wait()
 
-	require.NoError(t, client.Close())
-	require.NoError(t, server.Close())
+	err = client.Close()
+	require.NoError(t, err)
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, client)
 	testsuite.IsDestroyed(t, server)
 }
@@ -108,36 +113,23 @@ func TestConn_Handshake_Panic(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	server, client := net.Pipe()
-	sCtx, sCancel := context.WithCancel(context.Background())
-	defer sCancel()
-	server = Server(sCtx, server, 0)
-	cCtx, cCancel := context.WithCancel(context.Background())
-	defer cCancel()
-	client = Client(cCtx, client, 0)
+	t.Run("context error", func(t *testing.T) {
+		ctx, cancel := testsuite.NewMockContextWithError()
+		defer cancel()
+		conn := testsuite.NewMockConnWithWriteError()
+		client := Client(ctx, conn, defaultHandshakeTimeout)
 
-	patch := func(interface{}) {
-		panic(monkey.Panic)
-	}
-	pg := monkey.PatchInstanceMethod(sCtx, "Done", patch)
-	defer pg.Unpatch()
+		err := client.Handshake()
+		testsuite.IsMockContextError(t, err)
+	})
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := server.(*Conn).Handshake()
-		require.NoError(t, err)
-	}()
+	t.Run("panic from conn write", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		conn := testsuite.NewMockConnWithWritePanic()
+		client := Client(ctx, conn, defaultHandshakeTimeout)
 
-	time.Sleep(time.Second)
-	err := client.(*Conn).Handshake()
-	require.NoError(t, err)
-
-	wg.Wait()
-
-	require.NoError(t, client.Close())
-	require.NoError(t, server.Close())
-	testsuite.IsDestroyed(t, client)
-	testsuite.IsDestroyed(t, server)
+		err := client.Handshake()
+		testsuite.IsMockConnWritePanic(t, err)
+	})
 }
