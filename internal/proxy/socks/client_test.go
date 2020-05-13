@@ -239,15 +239,15 @@ func TestClient_Connect(t *testing.T) {
 	t.Run("context error", func(t *testing.T) {
 		ctx, cancel := testsuite.NewMockContextWithError()
 		defer cancel()
-		conn := testsuite.NewMockConnWithWritePanic()
+		conn := testsuite.NewMockConnWithWriteError()
 		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
-		require.Error(t, err)
+		testsuite.IsMockContextError(t, err)
 	})
 
-	t.Run("panic from context", func(t *testing.T) {
+	t.Run("panic from conn write", func(t *testing.T) {
 		conn := testsuite.NewMockConnWithWritePanic()
 		_, err = client.Connect(ctx, conn, network, "127.0.0.1:1")
-		require.Error(t, err)
+		testsuite.IsMockConnWritePanic(t, err)
 	})
 
 	testsuite.IsDestroyed(t, client)
