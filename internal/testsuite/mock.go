@@ -381,6 +381,11 @@ func NewMockContextWithError() (context.Context, context.CancelFunc) {
 	return &ctx, cancel
 }
 
+// IsMockContextError is used to check err is errMockContext.
+func IsMockContextError(t testing.TB, err error) {
+	require.Equal(t, errMockContext, err)
+}
+
 type mockResponseWriter struct {
 	hijack bool
 	conn   net.Conn

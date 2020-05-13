@@ -241,7 +241,7 @@ func TestNewMockContextWithError(t *testing.T) {
 	require.NotNil(t, done)
 
 	err := ctx.Err()
-	require.Error(t, err)
+	IsMockContextError(t, err)
 }
 
 func TestMockResponseWriter(t *testing.T) {
