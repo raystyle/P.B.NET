@@ -3,10 +3,8 @@ package xtls
 import (
 	"context"
 	"crypto/tls"
-	"log"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -16,22 +14,22 @@ import (
 
 const defaultDialTimeout = 30 * time.Second
 
-// Server is a link
+// Server is a link.
 func Server(conn net.Conn, cfg *tls.Config) *tls.Conn {
 	return tls.Server(conn, cfg)
 }
 
-// Client is a link
+// Client is a link.
 func Client(conn net.Conn, cfg *tls.Config) *tls.Conn {
 	return tls.Client(conn, cfg)
 }
 
-// Listen is a link
+// Listen is a link.
 func Listen(network, address string, config *tls.Config) (net.Listener, error) {
 	return tls.Listen(network, address, config)
 }
 
-// Dial is used to dial a connection with context.Background()
+// Dial is used to dial a connection with context.Background().
 func Dial(
 	network string,
 	address string,
@@ -42,8 +40,8 @@ func Dial(
 	return DialContext(context.Background(), network, address, config, timeout, dialContext)
 }
 
-// DialContext is used to dial a connection with context
-// if dialContext is nil, dialContext = new(net.Dialer).DialContext
+// DialContext is used to dial a connection with context.
+// If dialContext is nil, dialContext = new(net.Dialer).DialContext.
 func DialContext(
 	ctx context.Context,
 	network string,
@@ -69,39 +67,51 @@ func DialContext(
 	if dialContext == nil {
 		dialContext = new(net.Dialer).DialContext
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	// dial raw connection.
+	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	rawConn, err := dialContext(ctx, network, address)
+	rawConn, err := dialContext(dialCtx, network, address)
 	if err != nil {
 		return nil, err
 	}
 	tlsConn := tls.Client(rawConn, config)
-
+	_ = tlsConn.SetDeadline(time.Now().Add(timeout))
 	// interrupt
-	wg := sync.WaitGroup{}
-	done := make(chan struct{})
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Println(xpanic.Print(r, "DialContext"))
-			}
-			wg.Done()
+	var errCh chan error
+	if ctx.Done() != nil {
+		errCh = make(chan error, 2)
+	}
+	if errCh == nil {
+		err = tlsConn.Handshake()
+	} else {
+		go func() {
+			defer close(errCh)
+			defer func() {
+				if r := recover(); r != nil {
+					b := xpanic.Log(r, "DialContext")
+					errCh <- errors.New(b.String())
+				}
+			}()
+			errCh <- tlsConn.Handshake()
 		}()
 		select {
-		case <-done:
+		case err = <-errCh:
+			if err != nil {
+				// if the error was due to the context
+				// closing, prefer the context's error, rather
+				// than some random network teardown error.
+				if e := ctx.Err(); e != nil {
+					err = e
+				}
+			}
 		case <-ctx.Done():
-			_ = tlsConn.Close()
+			err = ctx.Err()
 		}
-	}()
-	defer func() {
-		close(done)
-		wg.Wait()
-	}()
-
-	err = tlsConn.Handshake()
+	}
 	if err != nil {
+		_ = tlsConn.Close()
 		return nil, err
 	}
+	_ = tlsConn.SetDeadline(time.Time{})
 	return tlsConn, nil
 }

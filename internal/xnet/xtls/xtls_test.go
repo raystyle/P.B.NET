@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
 
@@ -27,7 +26,7 @@ func TestListenAndDial(t *testing.T) {
 }
 
 func testListenAndDial(t *testing.T, network string) {
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	listener, err := Listen(network, "localhost:0", serverCfg)
 	require.NoError(t, err)
 	address := listener.Addr().String()
@@ -49,7 +48,7 @@ func TestListenAndDialContext(t *testing.T) {
 }
 
 func testListenAndDialContext(t *testing.T, network string) {
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	listener, err := Listen(network, "localhost:0", serverCfg)
 	require.NoError(t, err)
 	address := listener.Addr().String()
@@ -69,7 +68,7 @@ func TestConn(t *testing.T) {
 }
 
 func testConn(t *testing.T, f func(*testing.T, net.Conn, net.Conn, bool)) {
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	clientCfg.ServerName = "localhost"
 
 	server, client := net.Pipe()
@@ -83,7 +82,7 @@ func TestDialContext_Timeout(t *testing.T) {
 	defer gm.Compare()
 
 	const network = "tcp"
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	clientCfg.ServerName = "localhost"
 
 	// failed to dialContext
@@ -108,7 +107,7 @@ func TestDialContext_Cancel(t *testing.T) {
 	defer gm.Compare()
 
 	const network = "tcp"
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	clientCfg.ServerName = "localhost"
 
 	listener, err := Listen(network, "localhost:0", serverCfg)
@@ -137,52 +136,40 @@ func TestDialContext_Panic(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	const network = "tcp"
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
-	clientCfg.ServerName = "localhost"
+	const (
+		network = "tcp"
+		address = "127.0.0.1:1"
+		timeout = 10 * time.Second
+	)
+	tlsConfig := new(tls.Config)
 
-	listener, err := Listen(network, "localhost:0", serverCfg)
-	require.NoError(t, err)
-	address := listener.Addr().String()
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_, err := listener.Accept()
-		require.NoError(t, err)
-	}()
+	t.Run("context error", func(t *testing.T) {
+		ctx, cancel := testsuite.NewMockContextWithError()
+		defer cancel()
+		dialContext := func(context.Context, string, string) (net.Conn, error) {
+			return testsuite.NewMockConnWithWriteError(), nil
+		}
 
-	server, client := net.Pipe()
-	client = Client(client, clientCfg)
-	var pg *monkey.PatchGuard
-	patch := func(conn *tls.Conn) error {
-		pg.Unpatch()
-		_ = conn.Close()
-		panic(monkey.Panic)
-	}
-	pg = monkey.PatchInstanceMethod(client, "Close", patch)
+		_, err := DialContext(ctx, network, address, tlsConfig, timeout, dialContext)
+		testsuite.IsMockContextError(t, err)
+	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	conn, err := DialContext(ctx, network, address, clientCfg, 0, nil)
-	require.Error(t, err)
-	require.Nil(t, conn)
+	t.Run("panic from conn write", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		dialContext := func(context.Context, string, string) (net.Conn, error) {
+			return testsuite.NewMockConnWithWritePanic(), nil
+		}
 
-	require.NoError(t, client.Close())
-	require.NoError(t, server.Close())
-
-	// TODO [external] go internal bug: *tls.Conn memory leaks
-	// testsuite.IsDestroyed(t, client)
-	// testsuite.IsDestroyed(t, server)
-
-	require.NoError(t, listener.Close())
-	testsuite.IsDestroyed(t, listener)
-	wg.Wait()
+		_, err := DialContext(ctx, network, address, tlsConfig, timeout, dialContext)
+		testsuite.IsMockConnWritePanic(t, err)
+	})
 }
 
 func TestFailedToListenAndDial(t *testing.T) {
 	_, err := Listen("udp", "", nil)
 	require.Error(t, err)
+
 	_, err = Dial("udp", "", new(tls.Config), 0, nil)
 	require.Error(t, err)
 }
