@@ -13,30 +13,42 @@ import (
 
 func TestDirect(t *testing.T) {
 	listeners := testGenerateListeners()
+
 	direct := NewDirect()
 	direct.Listeners = listeners
-	_ = direct.Validate()
+
+	err := direct.Validate()
+	require.NoError(t, err)
+
 	b, err := direct.Marshal()
 	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, direct)
 
 	direct = NewDirect()
+
 	err = direct.Unmarshal(b)
 	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		resolved, _ := direct.Resolve()
 		resolved = testDecryptListeners(resolved)
 		require.Equal(t, listeners, resolved)
 	}
+
 	testsuite.IsDestroyed(t, direct)
 }
 
 func TestDirect_Unmarshal(t *testing.T) {
 	direct := NewDirect()
+
 	b, err := direct.Marshal()
 	require.Error(t, err)
 	require.Nil(t, b)
-	require.Error(t, direct.Unmarshal([]byte{0x00}))
+
+	err = direct.Unmarshal([]byte{0x00})
+	require.Error(t, err)
+
 	testsuite.IsDestroyed(t, direct)
 }
 
@@ -45,11 +57,7 @@ func TestDirectPanic(t *testing.T) {
 		direct := NewDirect()
 
 		func() {
-			defer func() {
-				r := recover()
-				require.NotNil(t, r)
-				t.Log(r)
-			}()
+			defer testsuite.DeferForPanic(t)
 			_, _ = direct.Resolve()
 		}()
 
@@ -68,11 +76,7 @@ func TestDirectPanic(t *testing.T) {
 			require.NoError(t, err)
 			direct.enc = enc
 
-			defer func() {
-				r := recover()
-				require.NotNil(t, r)
-				t.Log(r)
-			}()
+			defer testsuite.DeferForPanic(t)
 			_, _ = direct.Resolve()
 		}()
 
@@ -83,8 +87,17 @@ func TestDirectPanic(t *testing.T) {
 func TestDirectOptions(t *testing.T) {
 	config, err := ioutil.ReadFile("testdata/direct.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	direct := NewDirect()
-	require.NoError(t, direct.Unmarshal(config))
+	err = direct.Unmarshal(config)
+	require.NoError(t, err)
+	err = direct.Validate()
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, direct)
+
 	listeners := testGenerateListeners()
 	for i := 0; i < 10; i++ {
 		resolved, err := direct.Resolve()

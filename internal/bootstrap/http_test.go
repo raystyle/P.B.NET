@@ -45,7 +45,10 @@ func testGenerateHTTP(t *testing.T) *HTTP {
 
 func TestHTTP(t *testing.T) {
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	t.Run("http", func(t *testing.T) {
 		// set test http server mux
@@ -76,9 +79,11 @@ func TestHTTP(t *testing.T) {
 			HTTP.Request.URL = "http://localhost:" + port
 			HTTP.DNSOpts.Mode = dns.ModeSystem
 			HTTP.DNSOpts.Type = dns.TypeIPv4
+
 			// marshal
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
+
 			// unmarshal
 			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
@@ -114,9 +119,11 @@ func TestHTTP(t *testing.T) {
 			HTTP.Request.URL = "http://localhost:" + port
 			HTTP.DNSOpts.Mode = dns.ModeSystem
 			HTTP.DNSOpts.Type = dns.TypeIPv6
+
 			// marshal
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
+
 			// unmarshal
 			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
@@ -167,9 +174,11 @@ func TestHTTP(t *testing.T) {
 			HTTP.DNSOpts.Mode = dns.ModeSystem
 			HTTP.DNSOpts.Type = dns.TypeIPv4
 			HTTP.Transport.TLSClientConfig = clientCfg
+
 			// marshal
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
+
 			// unmarshal
 			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
@@ -209,9 +218,11 @@ func TestHTTP(t *testing.T) {
 			HTTP.DNSOpts.Mode = dns.ModeSystem
 			HTTP.DNSOpts.Type = dns.TypeIPv6
 			HTTP.Transport.TLSClientConfig = clientCfg
+
 			// marshal
 			b, err := HTTP.Marshal()
 			require.NoError(t, err)
+
 			// unmarshal
 			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 			err = HTTP.Unmarshal(b)
@@ -232,34 +243,39 @@ func TestHTTP(t *testing.T) {
 func TestHTTP_Validate(t *testing.T) {
 	HTTP := HTTP{}
 	// invalid request
-	require.Error(t, HTTP.Validate())
+	err := HTTP.Validate()
+	require.Error(t, err)
 
 	// invalid transport
 	HTTP.Request.URL = "http://abc.com/"
 	HTTP.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
-	require.Error(t, HTTP.Validate())
+	err = HTTP.Validate()
+	require.Error(t, err)
 
 	HTTP.Transport.TLSClientConfig.RootCAs = nil
 
 	// invalid AES Key
 	HTTP.AESKey = "foo key"
-	require.Error(t, HTTP.Validate())
+	err = HTTP.Validate()
+	require.Error(t, err)
 
 	HTTP.AESKey = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.Key256Bit))
 
 	// invalid AES IV
 	HTTP.AESIV = "foo iv"
-	require.Error(t, HTTP.Validate())
+	err = HTTP.Validate()
+	require.Error(t, err)
 	HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.IVSize+1))
-	require.Error(t, HTTP.Validate())
+	err = HTTP.Validate()
+	require.Error(t, err)
 
 	HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.IVSize))
 
 	// invalid public key
 	HTTP.PublicKey = "foo public key"
-	require.Error(t, HTTP.Validate())
+	err = HTTP.Validate()
+	require.Error(t, err)
 
-	var err error
 	HTTP.PrivateKey, err = ed25519.GenerateKey()
 	require.NoError(t, err)
 	HTTP.AESIV = "foo iv"
@@ -300,25 +316,34 @@ func TestHTTP_Unmarshal(t *testing.T) {
 	HTTP := HTTP{}
 
 	// unmarshal invalid config
-	require.Error(t, HTTP.Unmarshal([]byte{0x00}))
+	err := HTTP.Unmarshal([]byte{0x00})
+	require.Error(t, err)
 
 	// with incorrect config
-	require.Error(t, HTTP.Unmarshal(nil))
+	err = HTTP.Unmarshal(nil)
+	require.Error(t, err)
 }
 
 func TestHTTP_Resolve(t *testing.T) {
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	t.Run("doesn't exist proxy server", func(t *testing.T) {
 		HTTP := testGenerateHTTP(t)
 		HTTP.Request.URL = "http://localhost/"
 		HTTP.DNSOpts.Mode = dns.ModeSystem
 		HTTP.ProxyTag = "doesn't exist"
+
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
+
 		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-		require.NoError(t, HTTP.Unmarshal(b))
+		err = HTTP.Unmarshal(b)
+		require.NoError(t, err)
+
 		listeners, err := HTTP.Resolve()
 		require.Error(t, err)
 		require.Nil(t, listeners)
@@ -328,10 +353,14 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP := testGenerateHTTP(t)
 		HTTP.Request.URL = "http://localhost/"
 		HTTP.DNSOpts.Mode = "foo mode"
+
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
+
 		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-		require.NoError(t, HTTP.Unmarshal(b))
+		err = HTTP.Unmarshal(b)
+		require.NoError(t, err)
+
 		listeners, err := HTTP.Resolve()
 		require.Error(t, err)
 		require.Nil(t, listeners)
@@ -341,10 +370,14 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP := testGenerateHTTP(t)
 		HTTP.Request.URL = "http://localhost/"
 		HTTP.DNSOpts.Mode = dns.ModeSystem
+
 		b, err := HTTP.Marshal()
 		require.NoError(t, err)
+
 		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-		require.NoError(t, HTTP.Unmarshal(b))
+		err = HTTP.Unmarshal(b)
+		require.NoError(t, err)
+
 		listeners, err := HTTP.Resolve()
 		require.Error(t, err)
 		require.Nil(t, listeners)
@@ -356,11 +389,7 @@ func TestHTTPPanic(t *testing.T) {
 		HTTP := HTTP{}
 
 		func() {
-			defer func() {
-				r := recover()
-				require.NotNil(t, r)
-				t.Log(r)
-			}()
+			defer testsuite.DeferForPanic(t)
 			_, _ = HTTP.Resolve()
 		}()
 
@@ -380,11 +409,7 @@ func TestHTTPPanic(t *testing.T) {
 			require.NoError(t, err)
 			HTTP.enc = enc
 
-			defer func() {
-				r := recover()
-				require.NotNil(t, r)
-				t.Log(r)
-			}()
+			defer testsuite.DeferForPanic(t)
 			_, _ = HTTP.Resolve()
 		}()
 
@@ -406,11 +431,7 @@ func TestHTTPPanic(t *testing.T) {
 			require.NoError(t, err)
 			dHTTP.enc = enc
 
-			defer func() {
-				r := recover()
-				require.NotNil(t, r)
-				t.Log(r)
-			}()
+			defer testsuite.DeferForPanic(t)
 			_, _ = dHTTP.Resolve()
 		}()
 
@@ -435,11 +456,7 @@ func TestHTTPPanic(t *testing.T) {
 			require.NoError(t, err)
 			dHTTP.enc = enc
 
-			defer func() {
-				r := recover()
-				require.NotNil(t, r)
-				t.Log(r)
-			}()
+			defer testsuite.DeferForPanic(t)
 			_, _ = dHTTP.Resolve()
 		}()
 
@@ -448,11 +465,7 @@ func TestHTTPPanic(t *testing.T) {
 
 	// resolve
 	t.Run("invalid info", func(t *testing.T) {
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+		defer testsuite.DeferForPanic(t)
 		resolve(nil, []byte("foo data"))
 	})
 
@@ -462,11 +475,7 @@ func TestHTTPPanic(t *testing.T) {
 			AESIV:  strings.Repeat("F", aes.IVSize),
 		}
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+		defer testsuite.DeferForPanic(t)
 		resolve(&HTTP, []byte("FF"))
 	})
 
@@ -481,11 +490,7 @@ func TestHTTPPanic(t *testing.T) {
 			AESIV:  hex.EncodeToString(key),
 		}
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+		defer testsuite.DeferForPanic(t)
 		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
 	})
 
@@ -499,16 +504,11 @@ func TestHTTPPanic(t *testing.T) {
 		HTTP := HTTP{
 			AESKey: hex.EncodeToString(key),
 			AESIV:  hex.EncodeToString(key),
-
 			// must generate, because security.FlushString
 			PublicKey: strings.Repeat("foo public key", 1),
 		}
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+		defer testsuite.DeferForPanic(t)
 		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
 	})
 
@@ -522,16 +522,11 @@ func TestHTTPPanic(t *testing.T) {
 		HTTP := HTTP{
 			AESKey: hex.EncodeToString(key),
 			AESIV:  hex.EncodeToString(key),
-
 			// must generate, because security.FlushString
 			PublicKey: strings.Repeat("FF", 1),
 		}
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+		defer testsuite.DeferForPanic(t)
 		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
 	})
 
@@ -545,16 +540,11 @@ func TestHTTPPanic(t *testing.T) {
 		HTTP := HTTP{
 			AESKey: hex.EncodeToString(key),
 			AESIV:  hex.EncodeToString(key),
-
 			// must generate, because security.FlushString
 			PublicKey: strings.Repeat("FF", ed25519.PublicKeySize),
 		}
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+		defer testsuite.DeferForPanic(t)
 		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
 	})
 
@@ -574,11 +564,7 @@ func TestHTTPPanic(t *testing.T) {
 			PublicKey: hex.EncodeToString(privateKey.PublicKey()),
 		}
 
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+		defer testsuite.DeferForPanic(t)
 		resolve(&HTTP, []byte(hex.EncodeToString(cipherData)))
 	})
 }
@@ -586,9 +572,16 @@ func TestHTTPPanic(t *testing.T) {
 func TestHTTPOptions(t *testing.T) {
 	config, err := ioutil.ReadFile("testdata/http.toml")
 	require.NoError(t, err)
-	HTTP := HTTP{}
-	require.NoError(t, toml.Unmarshal(config, &HTTP))
-	require.NoError(t, HTTP.Validate())
+
+	// check unnecessary field
+	HTTP := new(HTTP)
+	err = toml.Unmarshal(config, HTTP)
+	require.NoError(t, err)
+	err = HTTP.Validate()
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, HTTP)
 
 	testdata := [...]*struct {
 		expected interface{}

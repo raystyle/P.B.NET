@@ -17,7 +17,10 @@ import (
 
 func TestLoad(t *testing.T) {
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	ctx := context.Background()
 
@@ -32,6 +35,7 @@ func TestLoad(t *testing.T) {
 	for _, td := range testdata {
 		config, err := ioutil.ReadFile(td.config)
 		require.NoError(t, err)
+
 		boot, err := Load(ctx, td.mode, config, certPool, proxyPool, dnsClient)
 		require.NoError(t, err)
 		require.NotNil(t, boot)
@@ -100,11 +104,8 @@ func TestListener(t *testing.T) {
 
 	t.Run("invalid enc", func(t *testing.T) {
 		newListener.enc = nil
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+
+		defer testsuite.DeferForPanic(t)
 		newListener.Decrypt()
 	})
 
@@ -112,11 +113,8 @@ func TestListener(t *testing.T) {
 		enc, err := newListener.cbc.Encrypt(bytes.Repeat([]byte{1}, aes.BlockSize))
 		require.NoError(t, err)
 		newListener.enc = enc
-		defer func() {
-			r := recover()
-			require.NotNil(t, r)
-			t.Log(r)
-		}()
+
+		defer testsuite.DeferForPanic(t)
 		newListener.Decrypt()
 	})
 }

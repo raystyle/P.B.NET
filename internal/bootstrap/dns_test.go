@@ -18,7 +18,10 @@ import (
 
 func TestDNS(t *testing.T) {
 	dnsClient, _, proxyMgr, _ := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	if testsuite.IPv4Enabled {
 		listeners := []*Listener{{
@@ -33,6 +36,7 @@ func TestDNS(t *testing.T) {
 		DNS.Port = "443"
 		DNS.Options.Mode = dns.ModeSystem
 		DNS.Options.Type = dns.TypeIPv4
+
 		b, err := DNS.Marshal()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, DNS)
@@ -64,6 +68,7 @@ func TestDNS(t *testing.T) {
 		DNS.Port = "443"
 		DNS.Options.Mode = dns.ModeSystem
 		DNS.Options.Type = dns.TypeIPv6
+
 		b, err := DNS.Marshal()
 		require.NoError(t, err)
 		testsuite.IsDestroyed(t, DNS)
@@ -89,14 +94,16 @@ func TestDNS_Validate(t *testing.T) {
 
 	// invalid domain name
 	DNS.Host = "1.1.1.1"
-	require.Error(t, DNS.Validate())
+	err := DNS.Validate()
+	require.Error(t, err)
 
 	DNS.Host = "localhost"
 
 	// mismatched mode and network
 	DNS.Mode = xnet.ModeTLS
 	DNS.Network = "udp"
-	require.Error(t, DNS.Validate())
+	err = DNS.Validate()
+	require.Error(t, err)
 	DNS.Network = "tcp"
 
 	// invalid port
@@ -109,15 +116,20 @@ func TestDNS_Unmarshal(t *testing.T) {
 	DNS := NewDNS(context.Background(), nil)
 
 	// unmarshal invalid config
-	require.Error(t, DNS.Unmarshal([]byte{0x00}))
+	err := DNS.Unmarshal([]byte{0x00})
+	require.Error(t, err)
 
 	// with incorrect config
-	require.Error(t, DNS.Unmarshal(nil))
+	err = DNS.Unmarshal(nil)
+	require.Error(t, err)
 }
 
 func TestDNS_Resolve(t *testing.T) {
 	dnsClient, _, proxyMgr, _ := testdns.DNSClient(t)
-	defer func() { require.NoError(t, proxyMgr.Close()) }()
+	defer func() {
+		err := proxyMgr.Close()
+		require.NoError(t, err)
+	}()
 
 	DNS := NewDNS(context.Background(), dnsClient)
 	config := []byte(`
@@ -128,7 +140,8 @@ func TestDNS_Resolve(t *testing.T) {
          
          [options]
            mode = "foo mode"  `)
-	require.NoError(t, DNS.Unmarshal(config))
+	err := DNS.Unmarshal(config)
+	require.NoError(t, err)
 
 	if testsuite.IPv4Enabled {
 		listeners, err := DNS.Resolve()
@@ -148,11 +161,7 @@ func TestDNSPanic(t *testing.T) {
 		DNS := NewDNS(context.Background(), nil)
 
 		func() {
-			defer func() {
-				r := recover()
-				require.NotNil(t, r)
-				t.Log(r)
-			}()
+			defer testsuite.DeferForPanic(t)
 			_, _ = DNS.Resolve()
 		}()
 
@@ -171,11 +180,7 @@ func TestDNSPanic(t *testing.T) {
 			require.NoError(t, err)
 			DNS.enc = enc
 
-			defer func() {
-				r := recover()
-				require.NotNil(t, r)
-				t.Log(r)
-			}()
+			defer testsuite.DeferForPanic(t)
 			_, _ = DNS.Resolve()
 		}()
 
@@ -186,9 +191,16 @@ func TestDNSPanic(t *testing.T) {
 func TestDNSOptions(t *testing.T) {
 	config, err := ioutil.ReadFile("testdata/dns.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	DNS := NewDNS(context.Background(), nil)
-	require.NoError(t, toml.Unmarshal(config, DNS))
-	require.NoError(t, DNS.Validate())
+	err = toml.Unmarshal(config, DNS)
+	require.NoError(t, err)
+	err = DNS.Validate()
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, DNS)
 
 	testdata := [...]*struct {
 		expected interface{}
