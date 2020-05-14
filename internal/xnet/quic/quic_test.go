@@ -28,7 +28,7 @@ func TestListenAndDial(t *testing.T) {
 }
 
 func testListenAndDial(t *testing.T, network string) {
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	listener, err := Listen(network, "localhost:0", serverCfg, time.Second)
 	require.NoError(t, err)
 	address := listener.Addr().String()
@@ -52,7 +52,7 @@ func TestListenAndDialContext(t *testing.T) {
 func testListenAndDialContext(t *testing.T, network string) {
 	const timeout = 0
 
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 	require.NoError(t, err)
 	address := listener.Addr().String()
@@ -107,7 +107,7 @@ func TestFailedToAccept(t *testing.T) {
 	rawConn, err := net.ListenUDP(network, nil)
 	require.NoError(t, err)
 
-	serverCfg, _ := testsuite.TLSConfigPair(t)
+	serverCfg, _ := testsuite.TLSConfigPair(t, "127.0.0.1")
 	quicListener, err := quic.Listen(rawConn, serverCfg.Clone(), nil)
 	require.NoError(t, err)
 
@@ -123,13 +123,19 @@ func TestFailedToAccept(t *testing.T) {
 	_, err = listener.Accept()
 	monkey.IsMonkeyError(t, err)
 
-	require.NoError(t, listener.Close())
+	err = listener.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, listener)
 
-	require.NoError(t, quicListener.Close())
+	err = quicListener.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, quicListener)
 
-	require.NoError(t, rawConn.Close())
+	err = rawConn.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, rawConn)
 }
 
@@ -164,7 +170,7 @@ func TestFailedToDialContext(t *testing.T) {
 	})
 
 	t.Run("session.OpenStreamSync", func(t *testing.T) {
-		serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+		serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 		listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 		require.NoError(t, err)
 		address := listener.Addr().String()
@@ -183,12 +189,14 @@ func TestFailedToDialContext(t *testing.T) {
 		_, err = Dial(network, address, clientCfg, time.Second)
 		monkey.IsMonkeyError(t, err)
 
-		require.NoError(t, listener.Close())
+		err = listener.Close()
+		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
 	t.Run("stream.Write", func(t *testing.T) {
-		serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+		serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 		listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 		require.NoError(t, err)
 		address := listener.Addr().String()
@@ -209,7 +217,9 @@ func TestFailedToDialContext(t *testing.T) {
 		_, err = Dial(network, address, clientCfg, time.Second)
 		monkey.IsMonkeyError(t, err)
 
-		require.NoError(t, listener.Close())
+		err = listener.Close()
+		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 }
@@ -223,7 +233,7 @@ func TestConn_Close(t *testing.T) {
 		timeout = 0
 	)
 
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 	require.NoError(t, err)
 	address := listener.Addr().String()
@@ -255,11 +265,15 @@ func TestConn_Close(t *testing.T) {
 	// Close() before acceptStream()
 	client, err = Dial(network, address, clientCfg, timeout)
 	require.NoError(t, err)
-	require.NoError(t, client.Close())
+
+	err = client.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, client)
 
-	require.NoError(t, listener.Close())
+	err = listener.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -272,7 +286,7 @@ func TestFailedToAcceptStream(t *testing.T) {
 		timeout = 0
 	)
 
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	listener, err := Listen(network, "localhost:0", serverCfg, timeout)
 	require.NoError(t, err)
 	address := listener.Addr().String()
@@ -281,16 +295,25 @@ func TestFailedToAcceptStream(t *testing.T) {
 	server, client := testsuite.AcceptAndDial(t, listener, func() (net.Conn, error) {
 		return Dial(network, address, clientCfg, timeout)
 	})
-	require.NoError(t, client.Close())
-	require.Error(t, client.SetDeadline(time.Time{}))
-	require.Error(t, client.SetWriteDeadline(time.Time{}))
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	err = client.SetDeadline(time.Time{})
+	require.Error(t, err)
+
+	err = client.SetWriteDeadline(time.Time{})
+	require.Error(t, err)
+
 	buf := make([]byte, 1)
 	_, err = server.Read(buf)
 	require.Error(t, err)
 	_, err = server.Write(buf)
 	require.Error(t, err)
 
-	require.NoError(t, server.Close())
+	err = server.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, client)
 	testsuite.IsDestroyed(t, server)
 
@@ -298,14 +321,19 @@ func TestFailedToAcceptStream(t *testing.T) {
 	server, client = testsuite.AcceptAndDial(t, listener, func() (net.Conn, error) {
 		return Dial(network, address, clientCfg, timeout)
 	})
-	require.NoError(t, server.Close())
+
+	err = server.Close()
+	require.NoError(t, err)
 	_, err = server.Read(buf)
 	require.Equal(t, ErrConnClosed, err)
 
-	require.NoError(t, client.Close())
+	err = client.Close()
+	require.NoError(t, err)
 	testsuite.IsDestroyed(t, client)
 	testsuite.IsDestroyed(t, server)
 
-	require.NoError(t, listener.Close())
+	err = listener.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, listener)
 }
