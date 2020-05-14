@@ -56,10 +56,13 @@ func TestListener(t *testing.T) {
 			err = conn.Close()
 			require.NoError(t, err)
 		}()
+
 		conn, err := Dial(ModeLight, "tcp", listener.Addr().String(), nil)
 		require.NoError(t, err)
+
 		err = conn.Close()
 		require.NoError(t, err)
+
 		wg.Wait()
 
 		require.Equal(t, ModeLight, listener.Mode())
@@ -82,7 +85,9 @@ func TestListener(t *testing.T) {
 		fmt.Println(listener)
 	})
 
-	require.NoError(t, listener.Close())
+	err = listener.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -99,7 +104,7 @@ func TestListenAndDial_QUIC(t *testing.T) {
 }
 
 func testListenAndDialQUIC(t *testing.T, network string) {
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	clientCfg.ServerName = "localhost"
 
 	opts := &Options{TLSConfig: serverCfg}
@@ -146,7 +151,7 @@ func TestListenAndDial_TLS(t *testing.T) {
 }
 
 func testListenAndDialTLS(t *testing.T, network string) {
-	serverCfg, clientCfg := testsuite.TLSConfigPair(t)
+	serverCfg, clientCfg := testsuite.TLSConfigPair(t, "127.0.0.1")
 	clientCfg.ServerName = "localhost"
 
 	opts := &Options{TLSConfig: serverCfg}

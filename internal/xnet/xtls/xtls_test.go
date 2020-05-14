@@ -98,7 +98,9 @@ func TestDialContext_Timeout(t *testing.T) {
 	_, err = Dial(network, address, clientCfg.Clone(), time.Second, nil)
 	require.Error(t, err)
 
-	require.NoError(t, listener.Close())
+	err = listener.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -128,7 +130,9 @@ func TestDialContext_Cancel(t *testing.T) {
 
 	wg.Wait()
 
-	require.NoError(t, listener.Close())
+	err = listener.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, listener)
 }
 
