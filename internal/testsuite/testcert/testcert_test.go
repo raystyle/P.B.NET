@@ -12,11 +12,8 @@ import (
 )
 
 func TestLoadSystemCertPool(t *testing.T) {
-	defer func() {
-		r := recover()
-		require.NotNil(t, r)
-		t.Log(r)
-	}()
+	defer testsuite.DeferForPanic(t)
+
 	patch := func() (*x509.CertPool, error) {
 		return nil, monkey.Error
 	}
