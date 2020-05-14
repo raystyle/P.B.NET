@@ -19,6 +19,7 @@ import (
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
+	"project/internal/testsuite/testtls"
 )
 
 func TestCoverHTTPRequest(t *testing.T) {
@@ -140,7 +141,7 @@ func TestHTTP(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(listenersData)
 		})
-		serverCfg, clientCfg := testsuite.TLSConfigOptionPair(t)
+		serverCfg, clientCfg := testtls.OptionPair(t, "127.0.0.1")
 
 		if testsuite.IPv4Enabled {
 			listeners := testGenerateListeners()

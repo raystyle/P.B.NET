@@ -43,11 +43,11 @@ type HTTP struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
-	Request   option.HTTPRequest   `toml:"request"`
-	Transport option.HTTPTransport `toml:"transport"`
+	Request   option.HTTPRequest   `toml:"request" check:"-"`
+	Transport option.HTTPTransport `toml:"transport" check:"-"`
 	Timeout   time.Duration        `toml:"timeout"`
 	ProxyTag  string               `toml:"proxy_tag"`
-	DNSOpts   dns.Options          `toml:"dns"`
+	DNSOpts   dns.Options          `toml:"dns" check:"-"`
 
 	MaxBodySize int64 `toml:"max_body_size"` // <security>
 
@@ -59,7 +59,7 @@ type HTTP struct {
 	PublicKey string `toml:"public_key"`
 
 	// for generate & marshal, controller set it
-	PrivateKey ed25519.PrivateKey `toml:"-"`
+	PrivateKey ed25519.PrivateKey `toml:"-" check:"-"`
 
 	// self encrypt all options
 	cbc *aes.CBC
@@ -121,7 +121,7 @@ func (h *HTTP) Generate(listeners []*Listener) ([]byte, error) {
 	data, _ := msgpack.Marshal(listeners)
 	// confuse
 	listenersData := bytes.Buffer{}
-	rand := random.New()
+	rand := random.NewRand()
 	i := 0
 	for i = 4; i < len(data); i += 4 {
 		listenersData.Write(rand.Bytes(8))
@@ -184,6 +184,10 @@ func coverHTTPRequest(r *http.Request) {
 
 // Unmarshal is used to unmarshal []byte to HTTP.
 func (h *HTTP) Unmarshal(data []byte) error {
+	memory := security.NewMemory()
+	defer memory.Flush()
+
+	memory.Padding()
 	tempHTTP := &HTTP{}
 	err := toml.Unmarshal(data, tempHTTP)
 	if err != nil {
@@ -193,19 +197,21 @@ func (h *HTTP) Unmarshal(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	// encrypt all options
-	memory := security.NewMemory()
-	defer memory.Flush()
-	rand := random.New()
+	memory.Padding()
+	rand := random.NewRand()
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
 	h.cbc, _ = aes.NewCBC(key, iv)
 	security.CoverBytes(key)
 	security.CoverBytes(iv)
+
 	memory.Padding()
 	b, _ := msgpack.Marshal(tempHTTP)
 	defer security.CoverBytes(b)
 	flushRequestOption(&tempHTTP.Request)
+
 	memory.Padding()
 	h.enc, err = h.cbc.Encrypt(b)
 	return err
@@ -213,13 +219,17 @@ func (h *HTTP) Unmarshal(data []byte) error {
 
 // Resolve is used to get bootstrap node listeners.
 func (h *HTTP) Resolve() ([]*Listener, error) {
-	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
+
+	// decrypt all options
+	memory.Padding()
 	dec, err := h.cbc.Decrypt(h.enc)
 	if err != nil {
 		panic(err)
 	}
+
+	memory.Padding()
 	tempHTTP := &HTTP{}
 	err = msgpack.Unmarshal(dec, tempHTTP)
 	if err != nil {
@@ -227,9 +237,9 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	}
 	defer flushRequestOption(&tempHTTP.Request)
 	security.CoverBytes(dec)
-	memory.Padding()
 
 	// apply options
+	memory.Padding()
 	req, err := tempHTTP.Request.Apply()
 	if err != nil {
 		panic(err)
@@ -316,7 +326,11 @@ func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
 }
 
 func resolve(h *HTTP, info []byte) []*Listener {
+	memory := security.NewMemory()
+	defer memory.Flush()
+
 	// decrypt data
+	memory.Padding()
 	cipherData := make([]byte, len(info)/2)
 	_, err := hex.Decode(cipherData, info)
 	if err != nil {
@@ -334,6 +348,7 @@ func resolve(h *HTTP, info []byte) []*Listener {
 	}
 
 	// verify
+	memory.Padding()
 	l := len(data)
 	if l < ed25519.SignatureSize {
 		panic(ErrInvalidSignatureSize)
@@ -355,6 +370,7 @@ func resolve(h *HTTP, info []byte) []*Listener {
 	}
 
 	// remove confuse
+	memory.Padding()
 	listenersBuf := bytes.Buffer{}
 	l = len(listenersData)
 	i := 0
@@ -370,6 +386,7 @@ func resolve(h *HTTP, info []byte) []*Listener {
 	}
 
 	// resolve bootstrap node listeners
+	memory.Padding()
 	listenersBytes := listenersBuf.Bytes()
 	defer security.CoverBytes(listenersBytes)
 	var listeners []*Listener

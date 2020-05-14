@@ -21,11 +21,11 @@ type DNS struct {
 	ctx       context.Context
 	dnsClient *dns.Client
 
-	Host    string      `toml:"host"`    // domain name
-	Mode    string      `toml:"mode"`    // listener mode (see xnet)
-	Network string      `toml:"network"` // listener network
-	Port    string      `toml:"port"`    // listener port
-	Options dns.Options `toml:"options"` // dns options
+	Host    string      `toml:"host"`              // domain name
+	Mode    string      `toml:"mode"`              // listener mode (see xnet)
+	Network string      `toml:"network"`           // listener network
+	Port    string      `toml:"port"`              // listener port
+	Options dns.Options `toml:"options" check:"-"` // dns options
 
 	// self encrypt all options
 	cbc *aes.CBC
@@ -68,6 +68,10 @@ func (d *DNS) Marshal() ([]byte, error) {
 // Unmarshal is used to unmarshal []byte to DNS.
 // store encrypted data to d.enc
 func (d *DNS) Unmarshal(config []byte) error {
+	memory := security.NewMemory()
+	defer memory.Flush()
+
+	memory.Padding()
 	tempDNS := &DNS{}
 	err := toml.Unmarshal(config, tempDNS)
 	if err != nil {
@@ -77,19 +81,21 @@ func (d *DNS) Unmarshal(config []byte) error {
 	if err != nil {
 		return err
 	}
+
 	// encrypt all options
-	memory := security.NewMemory()
-	defer memory.Flush()
-	rand := random.New()
+	memory.Padding()
+	rand := random.NewRand()
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
 	d.cbc, _ = aes.NewCBC(key, iv)
 	security.CoverBytes(key)
 	security.CoverBytes(iv)
+
 	memory.Padding()
 	listenerData, _ := msgpack.Marshal(tempDNS)
 	defer security.CoverBytes(listenerData)
 	security.CoverString(&tempDNS.Host)
+
 	memory.Padding()
 	d.enc, err = d.cbc.Encrypt(listenerData)
 	return err
@@ -97,22 +103,27 @@ func (d *DNS) Unmarshal(config []byte) error {
 
 // Resolve is used to get bootstrap node listeners.
 func (d *DNS) Resolve() ([]*Listener, error) {
-	// decrypt all options
 	memory := security.NewMemory()
 	defer memory.Flush()
+
+	// decrypt all options
+	memory.Padding()
 	dec, err := d.cbc.Decrypt(d.enc)
 	defer security.CoverBytes(dec)
 	if err != nil {
 		panic(err)
 	}
+
+	memory.Padding()
 	tempDNS := &DNS{}
 	err = msgpack.Unmarshal(dec, tempDNS)
 	if err != nil {
 		panic(err)
 	}
 	security.CoverBytes(dec)
+
+	// resolve domain name
 	memory.Padding()
-	// resolve dns
 	domain := tempDNS.Host
 	defer func() {
 		security.CoverString(&tempDNS.Host)
@@ -122,6 +133,7 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	l := len(result)
 	listeners := make([]*Listener, l)
 	for i := 0; i < l; i++ {

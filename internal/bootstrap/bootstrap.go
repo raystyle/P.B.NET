@@ -24,16 +24,16 @@ const (
 
 // Bootstrap is used to resolve bootstrap Node listeners.
 type Bootstrap interface {
-	// Validate is used to check bootstrap configuration is correct
+	// Validate is used to check bootstrap configuration is correct.
 	Validate() error
 
-	// Marshal is used to marshal bootstrap to []byte
+	// Marshal is used to marshal bootstrap to []byte.
 	Marshal() ([]byte, error)
 
-	// Unmarshal is used to unmarshal []byte to bootstrap
+	// Unmarshal is used to unmarshal []byte to bootstrap.
 	Unmarshal([]byte) error
 
-	// Resolve is used to resolve bootstrap Node listeners
+	// Resolve is used to resolve bootstrap Node listeners.
 	Resolve() ([]*Listener, error)
 }
 
@@ -82,13 +82,16 @@ type Listener struct {
 func NewListener(mode, network, address string) *Listener {
 	memory := security.NewMemory()
 	defer memory.Flush()
-	rand := random.New()
+
+	rand := random.NewRand()
+
 	memory.Padding()
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
 	cbc, _ := aes.NewCBC(key, iv)
 	security.CoverBytes(key)
 	security.CoverBytes(iv)
+
 	memory.Padding()
 	listener := Listener{
 		Mode:    mode,
@@ -97,6 +100,7 @@ func NewListener(mode, network, address string) *Listener {
 	}
 	listenerData, _ := msgpack.Marshal(listener)
 	defer security.CoverBytes(listenerData)
+
 	memory.Padding()
 	enc, _ := cbc.Encrypt(listenerData)
 	listener.enc = enc
