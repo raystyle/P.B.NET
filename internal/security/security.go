@@ -62,20 +62,20 @@ func FlushMemory() {
 }
 
 // CoverBytes is used to cover byte slice if byte slice has secret.
-func CoverBytes(b []byte) {
-	for i := 0; i < len(b); i++ {
-		b[i] = 0
+func CoverBytes(bytes []byte) {
+	for i := 0; i < len(bytes); i++ {
+		bytes[i] = 0
 	}
 }
 
 // CoverString is used to cover string if string has secret.
-func CoverString(s *string) {
-	sh := (*reflect.StringHeader)(unsafe.Pointer(s)) // #nosec
-	for i := 0; i < sh.Len; i++ {
-		b := (*byte)(unsafe.Pointer(sh.Data + uintptr(i))) // #nosec
-		*b = 0
-	}
-	runtime.KeepAlive(s)
+func CoverString(str string) {
+	stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&str)) // #nosec
+	slice := make([]byte, stringHeader.Len, stringHeader.Len)
+	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&slice)) // #nosec
+	sliceHeader.Data = stringHeader.Data
+	CoverBytes(slice)
+	runtime.KeepAlive(&str)
 }
 
 // Bytes make byte slice discontinuous, it safe for use by multiple goroutines.

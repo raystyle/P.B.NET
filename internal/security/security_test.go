@@ -1,7 +1,6 @@
 package security
 
 import (
-	"bytes"
 	"strings"
 	"sync"
 	"testing"
@@ -21,10 +20,11 @@ func TestCoverString(t *testing.T) {
 	// if you use this
 	// s1 := "aaa"
 	// s2 := "aaa"
-	// CoverString(&s1) will panic, because it change const
+	// CoverString(&s1) will panic, because it change const.
+
 	s1 := strings.Repeat("a", 10)
 	s2 := strings.Repeat("a", 10)
-	CoverString(&s2)
+	CoverString(s2)
 	require.NotEqual(t, s1, s2, "failed to cover string")
 }
 
@@ -33,7 +33,7 @@ func TestBytes(t *testing.T) {
 	sb := NewBytes(testdata)
 	for i := 0; i < 10; i++ {
 		b := sb.Get()
-		require.True(t, bytes.Equal(testdata, b))
+		require.Equal(t, testdata, b)
 		sb.Put(b)
 	}
 
@@ -44,7 +44,7 @@ func TestBytes(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < 10; i++ {
 				b := sb.Get()
-				require.True(t, bytes.Equal(testdata, b))
+				require.Equal(t, testdata, b)
 				sb.Put(b)
 			}
 		}()
