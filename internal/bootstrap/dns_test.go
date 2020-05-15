@@ -16,7 +16,100 @@ import (
 	"project/internal/xnet"
 )
 
-func TestDNS(t *testing.T) {
+func TestDNS_Validate(t *testing.T) {
+	DNS := DNS{}
+
+	t.Run("empty host", func(t *testing.T) {
+		err := DNS.Validate()
+		require.EqualError(t, err, "empty host")
+	})
+
+	t.Run("invalid domain name", func(t *testing.T) {
+		DNS.Host = "1.1.1.1"
+		defer func() { DNS.Host = "localhost" }()
+
+		err := DNS.Validate()
+		require.EqualError(t, err, "invalid domain name: 1.1.1.1")
+	})
+
+	t.Run("mismatched mode and network", func(t *testing.T) {
+		DNS.Mode = xnet.ModeTLS
+		DNS.Network = "udp"
+		defer func() { DNS.Network = "tcp" }()
+
+		err := DNS.Validate()
+		require.EqualError(t, err, "mismatched mode and network: tls udp")
+	})
+
+	t.Run("invalid port", func(t *testing.T) {
+		DNS.Port = "foo port"
+
+		err := DNS.Validate()
+		require.Error(t, err)
+	})
+
+	testsuite.IsDestroyed(t, &DNS)
+}
+
+func TestDNS_Marshal(t *testing.T) {
+	DNS := DNS{
+		Host:    "localhost",
+		Mode:    xnet.ModeTLS,
+		Network: "tcp",
+		Port:    "443",
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		data, err := DNS.Marshal()
+		require.NoError(t, err)
+
+		t.Log(string(data))
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		DNS.Port = "foo port"
+
+		data, err := DNS.Marshal()
+		require.Error(t, err)
+		require.Nil(t, data)
+	})
+
+	testsuite.IsDestroyed(t, &DNS)
+}
+
+func TestDNS_Unmarshal(t *testing.T) {
+	DNS := DNS{}
+
+	t.Run("ok", func(t *testing.T) {
+		DNS.Host = "localhost"
+		DNS.Mode = xnet.ModeTLS
+		DNS.Network = "tcp"
+		DNS.Port = "443"
+
+		data, err := DNS.Marshal()
+		require.NoError(t, err)
+
+		err = DNS.Unmarshal(data)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid config", func(t *testing.T) {
+		err := DNS.Unmarshal([]byte{0x00})
+		require.Error(t, err)
+	})
+
+	t.Run("incorrect config", func(t *testing.T) {
+		err := DNS.Unmarshal(nil)
+		require.Error(t, err)
+	})
+
+	testsuite.IsDestroyed(t, &DNS)
+}
+
+func TestDNS_Resolve(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 	dnsClient, _, proxyMgr, _ := testdns.DNSClient(t)
 	defer func() {
 		err := proxyMgr.Close()
@@ -24,154 +117,120 @@ func TestDNS(t *testing.T) {
 	}()
 
 	if testsuite.IPv4Enabled {
-		listeners := []*Listener{{
-			Mode:    xnet.ModeTLS,
-			Network: "tcp",
-			Address: "127.0.0.1:443",
-		}}
-		DNS := NewDNS(context.Background(), nil)
-		DNS.Host = "localhost"
-		DNS.Mode = xnet.ModeTLS
-		DNS.Network = "tcp"
-		DNS.Port = "443"
-		DNS.Options.Mode = dns.ModeSystem
-		DNS.Options.Type = dns.TypeIPv4
+		t.Run("ipv4", func(t *testing.T) {
+			listeners := []*Listener{{
+				Mode:    xnet.ModeTLS,
+				Network: "tcp",
+				Address: "127.0.0.1:443",
+			}}
 
-		data, err := DNS.Marshal()
-		require.NoError(t, err)
+			DNS := new(DNS)
+			DNS.Host = "localhost"
+			DNS.Mode = xnet.ModeTLS
+			DNS.Network = "tcp"
+			DNS.Port = "443"
+			DNS.Options.Mode = dns.ModeSystem
+			DNS.Options.Type = dns.TypeIPv4
 
-		testsuite.IsDestroyed(t, DNS)
-
-		DNS = NewDNS(context.Background(), dnsClient)
-		err = DNS.Unmarshal(data)
-		require.NoError(t, err)
-
-		for i := 0; i < 10; i++ {
-			resolved, err := DNS.Resolve()
+			data, err := DNS.Marshal()
 			require.NoError(t, err)
-			resolved = testDecryptListeners(resolved)
-			require.Equal(t, listeners, resolved)
-		}
 
-		testsuite.IsDestroyed(t, DNS)
+			testsuite.IsDestroyed(t, DNS)
+
+			DNS = NewDNS(context.Background(), dnsClient)
+			err = DNS.Unmarshal(data)
+			require.NoError(t, err)
+
+			for i := 0; i < 10; i++ {
+				resolved, err := DNS.Resolve()
+				require.NoError(t, err)
+				resolved = testDecryptListeners(resolved)
+				require.Equal(t, listeners, resolved)
+			}
+
+			testsuite.IsDestroyed(t, DNS)
+		})
 	}
 
 	if testsuite.IPv6Enabled {
-		listeners := []*Listener{{
-			Mode:    xnet.ModeTLS,
-			Network: "tcp",
-			Address: "[::1]:443",
-		}}
-		DNS := NewDNS(context.Background(), nil)
-		DNS.Host = "localhost"
-		DNS.Mode = xnet.ModeTLS
-		DNS.Network = "tcp"
-		DNS.Port = "443"
-		DNS.Options.Mode = dns.ModeSystem
-		DNS.Options.Type = dns.TypeIPv6
+		t.Run("ipv6", func(t *testing.T) {
+			listeners := []*Listener{{
+				Mode:    xnet.ModeTLS,
+				Network: "tcp",
+				Address: "[::1]:443",
+			}}
 
-		data, err := DNS.Marshal()
-		require.NoError(t, err)
+			DNS := new(DNS)
+			DNS.Host = "localhost"
+			DNS.Mode = xnet.ModeTLS
+			DNS.Network = "tcp"
+			DNS.Port = "443"
+			DNS.Options.Mode = dns.ModeSystem
+			DNS.Options.Type = dns.TypeIPv6
 
-		testsuite.IsDestroyed(t, DNS)
-
-		DNS = NewDNS(context.Background(), dnsClient)
-		err = DNS.Unmarshal(data)
-		require.NoError(t, err)
-
-		for i := 0; i < 10; i++ {
-			resolved, err := DNS.Resolve()
+			data, err := DNS.Marshal()
 			require.NoError(t, err)
-			resolved = testDecryptListeners(resolved)
-			require.Equal(t, listeners, resolved)
-		}
 
-		testsuite.IsDestroyed(t, DNS)
+			testsuite.IsDestroyed(t, DNS)
+
+			DNS = NewDNS(context.Background(), dnsClient)
+			err = DNS.Unmarshal(data)
+			require.NoError(t, err)
+
+			for i := 0; i < 10; i++ {
+				resolved, err := DNS.Resolve()
+				require.NoError(t, err)
+				resolved = testDecryptListeners(resolved)
+				require.Equal(t, listeners, resolved)
+			}
+
+			testsuite.IsDestroyed(t, DNS)
+		})
 	}
-}
 
-func TestDNS_Validate(t *testing.T) {
-	DNS := NewDNS(context.Background(), nil)
-	require.EqualError(t, DNS.Validate(), "empty host")
+	t.Run("failed", func(t *testing.T) {
+		DNS := NewDNS(context.Background(), dnsClient)
 
-	// invalid domain name
-	DNS.Host = "1.1.1.1"
-	err := DNS.Validate()
-	require.Error(t, err)
-
-	DNS.Host = "localhost"
-
-	// mismatched mode and network
-	DNS.Mode = xnet.ModeTLS
-	DNS.Network = "udp"
-	err = DNS.Validate()
-	require.Error(t, err)
-	DNS.Network = "tcp"
-
-	// invalid port
-	data, err := DNS.Marshal()
-	require.Error(t, err)
-	require.Nil(t, data)
-}
-
-func TestDNS_Unmarshal(t *testing.T) {
-	DNS := NewDNS(context.Background(), nil)
-
-	// unmarshal invalid config
-	err := DNS.Unmarshal([]byte{0x00})
-	require.Error(t, err)
-
-	// with incorrect config
-	err = DNS.Unmarshal(nil)
-	require.Error(t, err)
-}
-
-func TestDNS_Resolve(t *testing.T) {
-	dnsClient, _, proxyMgr, _ := testdns.DNSClient(t)
-	defer func() {
-		err := proxyMgr.Close()
-		require.NoError(t, err)
-	}()
-
-	DNS := NewDNS(context.Background(), dnsClient)
-	config := []byte(`
+		config := []byte(`
          host    = "localhost"
          mode    = "tls"
          network = "tcp"
          port    = "443"
          
          [options]
-           mode = "foo mode"  `)
-	err := DNS.Unmarshal(config)
-	require.NoError(t, err)
+           mode = "foo mode"`)
 
-	if testsuite.IPv4Enabled {
-		listeners, err := DNS.Resolve()
-		require.Error(t, err)
-		require.Nil(t, listeners)
-	}
+		err := DNS.Unmarshal(config)
+		require.NoError(t, err)
 
-	if testsuite.IPv6Enabled {
-		listeners, err := DNS.Resolve()
-		require.Error(t, err)
-		require.Nil(t, listeners)
-	}
+		if testsuite.IPv4Enabled {
+			listeners, err := DNS.Resolve()
+			require.Error(t, err)
+			require.Nil(t, listeners)
+		}
+
+		if testsuite.IPv6Enabled {
+			listeners, err := DNS.Resolve()
+			require.Error(t, err)
+			require.Nil(t, listeners)
+		}
+	})
 }
 
 func TestDNSPanic(t *testing.T) {
 	t.Run("no CBC", func(t *testing.T) {
-		DNS := NewDNS(context.Background(), nil)
+		DNS := DNS{}
 
 		func() {
 			defer testsuite.DeferForPanic(t)
 			_, _ = DNS.Resolve()
 		}()
 
-		testsuite.IsDestroyed(t, DNS)
+		testsuite.IsDestroyed(t, &DNS)
 	})
 
 	t.Run("invalid options", func(t *testing.T) {
-		DNS := NewDNS(context.Background(), nil)
+		DNS := DNS{}
 
 		func() {
 			var err error
@@ -185,7 +244,7 @@ func TestDNSPanic(t *testing.T) {
 			_, _ = DNS.Resolve()
 		}()
 
-		testsuite.IsDestroyed(t, DNS)
+		testsuite.IsDestroyed(t, &DNS)
 	})
 }
 
@@ -194,8 +253,8 @@ func TestDNSOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check unnecessary field
-	DNS := NewDNS(context.Background(), nil)
-	err = toml.Unmarshal(config, DNS)
+	DNS := DNS{}
+	err = toml.Unmarshal(config, &DNS)
 	require.NoError(t, err)
 	err = DNS.Validate()
 	require.NoError(t, err)
