@@ -94,7 +94,7 @@ func (d *DNS) Unmarshal(config []byte) error {
 	memory.Padding()
 	listenerData, _ := msgpack.Marshal(tempDNS)
 	defer security.CoverBytes(listenerData)
-	security.CoverString(&tempDNS.Host)
+	security.CoverString(tempDNS.Host)
 
 	memory.Padding()
 	d.enc, err = d.cbc.Encrypt(listenerData)
@@ -126,8 +126,8 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 	memory.Padding()
 	domain := tempDNS.Host
 	defer func() {
-		security.CoverString(&tempDNS.Host)
-		security.CoverString(&domain)
+		security.CoverString(tempDNS.Host)
+		security.CoverString(domain)
 	}()
 	result, err := d.dnsClient.ResolveContext(d.ctx, domain, &tempDNS.Options)
 	if err != nil {
@@ -142,7 +142,7 @@ func (d *DNS) Resolve() ([]*Listener, error) {
 			Network: tempDNS.Network,
 		}
 		listeners[i].Address = net.JoinHostPort(result[i], tempDNS.Port)
-		security.CoverString(&result[i])
+		security.CoverString(result[i])
 	}
 	return EncryptListeners(listeners), nil
 }

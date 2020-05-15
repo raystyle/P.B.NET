@@ -130,9 +130,9 @@ func (l *Listener) Decrypt() *Listener {
 
 // Destroy is used to clean structure field.
 func (l *Listener) Destroy() {
-	security.CoverString(&l.Mode)
-	security.CoverString(&l.Network)
-	security.CoverString(&l.Address)
+	security.CoverString(l.Mode)
+	security.CoverString(l.Network)
+	security.CoverString(l.Address)
 }
 
 // Equal is used to compare two listeners, must be encrypted.

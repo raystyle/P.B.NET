@@ -171,25 +171,25 @@ func (h *HTTP) Marshal() ([]byte, error) {
 
 // flushRequestOption is used to cover string field if has secret.
 func flushRequestOption(r *option.HTTPRequest) {
-	security.CoverString(&r.URL)
-	security.CoverString(&r.Post)
-	security.CoverString(&r.Host)
+	security.CoverString(r.URL)
+	security.CoverString(r.Post)
+	security.CoverString(r.Host)
 	for _, value := range r.Header {
 		for i := 0; i < len(value); i++ {
-			security.CoverString(&value[i])
+			security.CoverString(value[i])
 		}
 	}
 }
 
 // coverHTTPRequest is used to cover http.Request string field if has secret.
 func coverHTTPRequest(r *http.Request) {
-	security.CoverString(&r.Host)
-	security.CoverString(&r.URL.Host)
-	security.CoverString(&r.URL.Path)
-	security.CoverString(&r.URL.RawPath)
+	security.CoverString(r.Host)
+	security.CoverString(r.URL.Host)
+	security.CoverString(r.URL.Path)
+	security.CoverString(r.URL.RawPath)
 	for _, value := range r.Header {
 		for i := 0; i < len(value); i++ {
-			security.CoverString(&value[i])
+			security.CoverString(value[i])
 		}
 	}
 }
@@ -273,7 +273,7 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 
 	// resolve domain name
 	hostname := req.URL.Hostname()
-	defer security.CoverString(&hostname)
+	defer security.CoverString(hostname)
 	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &tempHTTP.DNSOpts)
 	if err != nil {
 		return nil, err
@@ -346,9 +346,9 @@ func resolve(h *HTTP, info []byte) []*Listener {
 		panic(err)
 	}
 	aesKey, _ := hex.DecodeString(h.AESKey)
-	security.CoverString(&h.AESKey)
+	security.CoverString(h.AESKey)
 	aesIV, _ := hex.DecodeString(h.AESIV)
-	security.CoverString(&h.AESIV)
+	security.CoverString(h.AESIV)
 	data, err := aes.CBCDecrypt(cipherData, aesKey, aesIV)
 	security.CoverBytes(aesKey)
 	security.CoverBytes(aesIV)
@@ -365,7 +365,7 @@ func resolve(h *HTTP, info []byte) []*Listener {
 	signature := data[:ed25519.SignatureSize]
 	listenersData := data[ed25519.SignatureSize:]
 	pub, err := hex.DecodeString(h.PublicKey)
-	security.CoverString(&h.PublicKey)
+	security.CoverString(h.PublicKey)
 	if err != nil {
 		panic(err)
 	}
