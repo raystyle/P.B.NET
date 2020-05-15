@@ -91,6 +91,7 @@ func (h *HTTP) Validate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
 	aesKey, err := hex.DecodeString(h.AESKey)
 	if err != nil {
 		return errors.WithStack(err)
@@ -105,6 +106,7 @@ func (h *HTTP) Validate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
 	publicKey, err := hex.DecodeString(h.PublicKey)
 	if err != nil {
 		return errors.WithStack(err)
@@ -344,7 +346,7 @@ func resolve(h *HTTP, info []byte) []*Listener {
 		panic(err)
 	}
 
-	// verify
+	// verify, if appear error, call panic to log this error.
 	memory.Padding()
 	l := len(data)
 	if l < ed25519.SignatureSize {

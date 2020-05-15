@@ -26,10 +26,176 @@ func TestCoverHTTPRequest(t *testing.T) {
 	url := strings.Repeat("http://test.com/", 1)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
+
 	f1 := req.URL.String()
 	coverHTTPRequest(req)
 	f2 := req.URL.String()
 	require.NotEqual(t, f1, f2, "failed to cover string fields")
+}
+
+func TestHTTP_Validate(t *testing.T) {
+	HTTP := HTTP{}
+
+	t.Run("invalid request", func(t *testing.T) {
+		err := HTTP.Validate()
+		require.Error(t, err)
+	})
+
+	t.Run("invalid transport", func(t *testing.T) {
+		HTTP.Request.URL = "http://abc.com/"
+		HTTP.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
+		defer func() { HTTP.Transport.TLSClientConfig.RootCAs = nil }()
+
+		err := HTTP.Validate()
+		require.Error(t, err)
+	})
+
+	t.Run("invalid AES Key", func(t *testing.T) {
+		HTTP.AESKey = "foo key"
+		defer func() {
+			key := bytes.Repeat([]byte{0}, aes.Key256Bit)
+			HTTP.AESKey = hex.EncodeToString(key)
+		}()
+
+		err := HTTP.Validate()
+		require.Error(t, err)
+	})
+
+	t.Run("invalid AES IV", func(t *testing.T) {
+		HTTP.AESIV = "foo iv"
+		defer func() {
+			iv := bytes.Repeat([]byte{0}, aes.IVSize)
+			HTTP.AESIV = hex.EncodeToString(iv)
+		}()
+
+		err := HTTP.Validate()
+		require.Error(t, err)
+	})
+
+	t.Run("invalid AES Key and IV", func(t *testing.T) {
+		HTTP.AESKey = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.Key256Bit+1))
+		HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.IVSize+1))
+		defer func() {
+			key := bytes.Repeat([]byte{0}, aes.Key256Bit)
+			HTTP.AESKey = hex.EncodeToString(key)
+			iv := bytes.Repeat([]byte{0}, aes.IVSize)
+			HTTP.AESIV = hex.EncodeToString(iv)
+		}()
+
+		err := HTTP.Validate()
+		require.Error(t, err)
+	})
+
+	t.Run("invalid public key", func(t *testing.T) {
+		HTTP.PublicKey = "foo public key"
+		defer func() {
+			publicKey := bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+			HTTP.PublicKey = hex.EncodeToString(publicKey)
+		}()
+
+		err := HTTP.Validate()
+		require.Error(t, err)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		HTTP.Request.URL = "http://abc.com/"
+		key := bytes.Repeat([]byte{0}, aes.Key256Bit)
+		HTTP.AESKey = hex.EncodeToString(key)
+		iv := bytes.Repeat([]byte{0}, aes.IVSize)
+		HTTP.AESIV = hex.EncodeToString(iv)
+		publicKey := bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		HTTP.PublicKey = hex.EncodeToString(publicKey)
+
+		err := HTTP.Validate()
+		require.NoError(t, err)
+	})
+
+	testsuite.IsDestroyed(t, &HTTP)
+}
+
+func TestHTTP_Generate(t *testing.T) {
+	HTTP := HTTP{}
+
+	t.Run("no listeners", func(t *testing.T) {
+		data, err := HTTP.Generate(nil)
+		require.Error(t, err)
+		require.Zero(t, data)
+	})
+
+	t.Run("invalid AES Key", func(t *testing.T) {
+		privateKey, err := ed25519.GenerateKey()
+		require.NoError(t, err)
+		HTTP.PrivateKey = privateKey
+		listeners := testGenerateListeners()
+
+		HTTP.AESKey = "foo key"
+		defer func() {
+			key := bytes.Repeat([]byte{0}, aes.Key256Bit)
+			HTTP.AESKey = hex.EncodeToString(key)
+		}()
+
+		_, err = HTTP.Generate(listeners)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid AES IV", func(t *testing.T) {
+		listeners := testGenerateListeners()
+
+		HTTP.AESIV = "foo iv"
+		defer func() {
+			iv := bytes.Repeat([]byte{0}, aes.IVSize)
+			HTTP.AESIV = hex.EncodeToString(iv)
+		}()
+
+		_, err := HTTP.Generate(listeners)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid AES Key and IV", func(t *testing.T) {
+		listeners := testGenerateListeners()
+
+		HTTP.AESKey = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.Key256Bit+1))
+		HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.IVSize+1))
+		defer func() {
+			key := bytes.Repeat([]byte{0}, aes.Key256Bit)
+			HTTP.AESKey = hex.EncodeToString(key)
+			iv := bytes.Repeat([]byte{0}, aes.IVSize)
+			HTTP.AESIV = hex.EncodeToString(iv)
+		}()
+
+		_, err := HTTP.Generate(listeners)
+		require.Error(t, err)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		listeners := testGenerateListeners()
+
+		data, err := HTTP.Generate(listeners)
+		require.NoError(t, err)
+
+		t.Log(string(data))
+	})
+
+	testsuite.IsDestroyed(t, &HTTP)
+}
+
+func TestHTTP_Marshal(t *testing.T) {
+	// HTTP.PrivateKey, err = ed25519.GenerateKey()
+	// require.NoError(t, err)
+	// HTTP.AESIV = "foo iv"
+	// data, err := HTTP.Marshal()
+	// require.Error(t, err)
+	// require.Nil(t, data)
+}
+
+func TestHTTP_Unmarshal(t *testing.T) {
+
+}
+
+func TestHTTP_Resolve(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
 }
 
 func testGenerateHTTP(t *testing.T) *HTTP {
@@ -240,51 +406,7 @@ func TestHTTP(t *testing.T) {
 	})
 }
 
-func TestHTTP_Validate(t *testing.T) {
-	HTTP := HTTP{}
-	// invalid request
-	err := HTTP.Validate()
-	require.Error(t, err)
-
-	// invalid transport
-	HTTP.Request.URL = "http://abc.com/"
-	HTTP.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
-	err = HTTP.Validate()
-	require.Error(t, err)
-
-	HTTP.Transport.TLSClientConfig.RootCAs = nil
-
-	// invalid AES Key
-	HTTP.AESKey = "foo key"
-	err = HTTP.Validate()
-	require.Error(t, err)
-
-	HTTP.AESKey = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.Key256Bit))
-
-	// invalid AES IV
-	HTTP.AESIV = "foo iv"
-	err = HTTP.Validate()
-	require.Error(t, err)
-	HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.IVSize+1))
-	err = HTTP.Validate()
-	require.Error(t, err)
-
-	HTTP.AESIV = hex.EncodeToString(bytes.Repeat([]byte{0}, aes.IVSize))
-
-	// invalid public key
-	HTTP.PublicKey = "foo public key"
-	err = HTTP.Validate()
-	require.Error(t, err)
-
-	HTTP.PrivateKey, err = ed25519.GenerateKey()
-	require.NoError(t, err)
-	HTTP.AESIV = "foo iv"
-	data, err := HTTP.Marshal()
-	require.Error(t, err)
-	require.Nil(t, data)
-}
-
-func TestHTTP_Generate(t *testing.T) {
+func TestHTTP_Generate2(t *testing.T) {
 	HTTP := NewHTTP(context.Background(), nil, nil, nil)
 
 	// no bootstrap node listeners
@@ -312,7 +434,7 @@ func TestHTTP_Generate(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestHTTP_Unmarshal(t *testing.T) {
+func TestHTTP_Unmarshal2(t *testing.T) {
 	HTTP := HTTP{}
 
 	// unmarshal invalid config
@@ -324,7 +446,7 @@ func TestHTTP_Unmarshal(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestHTTP_Resolve(t *testing.T) {
+func TestHTTP_Resolve2(t *testing.T) {
 	dnsClient, proxyPool, proxyMgr, certPool := testdns.DNSClient(t)
 	defer func() {
 		err := proxyMgr.Close()
@@ -575,8 +697,8 @@ func TestHTTPOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check unnecessary field
-	HTTP := new(HTTP)
-	err = toml.Unmarshal(config, HTTP)
+	HTTP := HTTP{}
+	err = toml.Unmarshal(config, &HTTP)
 	require.NoError(t, err)
 	err = HTTP.Validate()
 	require.NoError(t, err)

@@ -43,9 +43,20 @@ func TestDNS_Validate(t *testing.T) {
 
 	t.Run("invalid port", func(t *testing.T) {
 		DNS.Port = "foo port"
+		defer func() { DNS.Port = "443" }()
 
 		err := DNS.Validate()
 		require.Error(t, err)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		DNS.Host = "localhost"
+		DNS.Mode = xnet.ModeTLS
+		DNS.Network = "tcp"
+		DNS.Port = "443"
+
+		err := DNS.Validate()
+		require.NoError(t, err)
 	})
 
 	testsuite.IsDestroyed(t, &DNS)
