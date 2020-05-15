@@ -81,12 +81,12 @@ func TestHTTP(t *testing.T) {
 			HTTP.DNSOpts.Type = dns.TypeIPv4
 
 			// marshal
-			b, err := HTTP.Marshal()
+			data, err := HTTP.Marshal()
 			require.NoError(t, err)
 
 			// unmarshal
 			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-			err = HTTP.Unmarshal(b)
+			err = HTTP.Unmarshal(data)
 			require.NoError(t, err)
 
 			for i := 0; i < 10; i++ {
@@ -121,12 +121,12 @@ func TestHTTP(t *testing.T) {
 			HTTP.DNSOpts.Type = dns.TypeIPv6
 
 			// marshal
-			b, err := HTTP.Marshal()
+			data, err := HTTP.Marshal()
 			require.NoError(t, err)
 
 			// unmarshal
 			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-			err = HTTP.Unmarshal(b)
+			err = HTTP.Unmarshal(data)
 			require.NoError(t, err)
 
 			for i := 0; i < 10; i++ {
@@ -176,12 +176,12 @@ func TestHTTP(t *testing.T) {
 			HTTP.Transport.TLSClientConfig = clientCfg
 
 			// marshal
-			b, err := HTTP.Marshal()
+			data, err := HTTP.Marshal()
 			require.NoError(t, err)
 
 			// unmarshal
 			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-			err = HTTP.Unmarshal(b)
+			err = HTTP.Unmarshal(data)
 			require.NoError(t, err)
 
 			for i := 0; i < 10; i++ {
@@ -220,12 +220,12 @@ func TestHTTP(t *testing.T) {
 			HTTP.Transport.TLSClientConfig = clientCfg
 
 			// marshal
-			b, err := HTTP.Marshal()
+			data, err := HTTP.Marshal()
 			require.NoError(t, err)
 
 			// unmarshal
 			HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-			err = HTTP.Unmarshal(b)
+			err = HTTP.Unmarshal(data)
 			require.NoError(t, err)
 
 			for i := 0; i < 10; i++ {
@@ -279,9 +279,9 @@ func TestHTTP_Validate(t *testing.T) {
 	HTTP.PrivateKey, err = ed25519.GenerateKey()
 	require.NoError(t, err)
 	HTTP.AESIV = "foo iv"
-	b, err := HTTP.Marshal()
+	data, err := HTTP.Marshal()
 	require.Error(t, err)
-	require.Nil(t, b)
+	require.Nil(t, data)
 }
 
 func TestHTTP_Generate(t *testing.T) {
@@ -337,11 +337,11 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.DNSOpts.Mode = dns.ModeSystem
 		HTTP.ProxyTag = "doesn't exist"
 
-		b, err := HTTP.Marshal()
+		data, err := HTTP.Marshal()
 		require.NoError(t, err)
 
 		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-		err = HTTP.Unmarshal(b)
+		err = HTTP.Unmarshal(data)
 		require.NoError(t, err)
 
 		listeners, err := HTTP.Resolve()
@@ -354,11 +354,11 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.Request.URL = "http://localhost/"
 		HTTP.DNSOpts.Mode = "foo mode"
 
-		b, err := HTTP.Marshal()
+		data, err := HTTP.Marshal()
 		require.NoError(t, err)
 
 		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-		err = HTTP.Unmarshal(b)
+		err = HTTP.Unmarshal(data)
 		require.NoError(t, err)
 
 		listeners, err := HTTP.Resolve()
@@ -371,11 +371,11 @@ func TestHTTP_Resolve(t *testing.T) {
 		HTTP.Request.URL = "http://localhost/"
 		HTTP.DNSOpts.Mode = dns.ModeSystem
 
-		b, err := HTTP.Marshal()
+		data, err := HTTP.Marshal()
 		require.NoError(t, err)
 
 		HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
-		err = HTTP.Unmarshal(b)
+		err = HTTP.Unmarshal(data)
 		require.NoError(t, err)
 
 		listeners, err := HTTP.Resolve()
@@ -404,10 +404,8 @@ func TestHTTPPanic(t *testing.T) {
 			key := bytes.Repeat([]byte{0}, aes.Key128Bit)
 			HTTP.cbc, err = aes.NewCBC(key, key)
 			require.NoError(t, err)
-
-			enc, err := HTTP.cbc.Encrypt(testsuite.Bytes())
+			HTTP.enc, err = HTTP.cbc.Encrypt(testsuite.Bytes())
 			require.NoError(t, err)
-			HTTP.enc = enc
 
 			defer testsuite.DeferForPanic(t)
 			_, _ = HTTP.Resolve()
@@ -425,11 +423,10 @@ func TestHTTPPanic(t *testing.T) {
 			dHTTP.cbc, err = aes.NewCBC(key, key)
 			require.NoError(t, err)
 
-			b, err := msgpack.Marshal(new(HTTP))
+			data, err := msgpack.Marshal(new(HTTP))
 			require.NoError(t, err)
-			enc, err := dHTTP.cbc.Encrypt(b)
+			dHTTP.enc, err = dHTTP.cbc.Encrypt(data)
 			require.NoError(t, err)
-			dHTTP.enc = enc
 
 			defer testsuite.DeferForPanic(t)
 			_, _ = dHTTP.Resolve()
@@ -450,11 +447,10 @@ func TestHTTPPanic(t *testing.T) {
 			tHTTP := HTTP{}
 			tHTTP.Request.URL = "http://localhost/"
 			tHTTP.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
-			b, err := msgpack.Marshal(&tHTTP)
+			data, err := msgpack.Marshal(&tHTTP)
 			require.NoError(t, err)
-			enc, err := dHTTP.cbc.Encrypt(b)
+			dHTTP.enc, err = dHTTP.cbc.Encrypt(data)
 			require.NoError(t, err)
-			dHTTP.enc = enc
 
 			defer testsuite.DeferForPanic(t)
 			_, _ = dHTTP.Resolve()
@@ -485,6 +481,7 @@ func TestHTTPPanic(t *testing.T) {
 		require.NoError(t, err)
 		cipherData, err := cbc.Encrypt([]byte{0x00})
 		require.NoError(t, err)
+
 		HTTP := HTTP{
 			AESKey: hex.EncodeToString(key),
 			AESIV:  hex.EncodeToString(key),
@@ -501,6 +498,7 @@ func TestHTTPPanic(t *testing.T) {
 		data := bytes.Repeat([]byte{0}, ed25519.SignatureSize+1)
 		cipherData, err := cbc.Encrypt(data)
 		require.NoError(t, err)
+
 		HTTP := HTTP{
 			AESKey: hex.EncodeToString(key),
 			AESIV:  hex.EncodeToString(key),
@@ -519,6 +517,7 @@ func TestHTTPPanic(t *testing.T) {
 		data := bytes.Repeat([]byte{0}, ed25519.SignatureSize+1)
 		cipherData, err := cbc.Encrypt(data)
 		require.NoError(t, err)
+
 		HTTP := HTTP{
 			AESKey: hex.EncodeToString(key),
 			AESIV:  hex.EncodeToString(key),
@@ -537,6 +536,7 @@ func TestHTTPPanic(t *testing.T) {
 		data := bytes.Repeat([]byte{0}, ed25519.SignatureSize+1)
 		cipherData, err := cbc.Encrypt(data)
 		require.NoError(t, err)
+
 		HTTP := HTTP{
 			AESKey: hex.EncodeToString(key),
 			AESIV:  hex.EncodeToString(key),
@@ -558,6 +558,7 @@ func TestHTTPPanic(t *testing.T) {
 		signature := ed25519.Sign(privateKey, data)
 		cipherData, err := cbc.Encrypt(append(signature, data...))
 		require.NoError(t, err)
+
 		HTTP := HTTP{
 			AESKey:    hex.EncodeToString(key),
 			AESIV:     hex.EncodeToString(key),

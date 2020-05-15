@@ -37,12 +37,13 @@ func TestDNS(t *testing.T) {
 		DNS.Options.Mode = dns.ModeSystem
 		DNS.Options.Type = dns.TypeIPv4
 
-		b, err := DNS.Marshal()
+		data, err := DNS.Marshal()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, DNS)
 
 		DNS = NewDNS(context.Background(), dnsClient)
-		err = DNS.Unmarshal(b)
+		err = DNS.Unmarshal(data)
 		require.NoError(t, err)
 
 		for i := 0; i < 10; i++ {
@@ -69,12 +70,13 @@ func TestDNS(t *testing.T) {
 		DNS.Options.Mode = dns.ModeSystem
 		DNS.Options.Type = dns.TypeIPv6
 
-		b, err := DNS.Marshal()
+		data, err := DNS.Marshal()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, DNS)
 
 		DNS = NewDNS(context.Background(), dnsClient)
-		err = DNS.Unmarshal(b)
+		err = DNS.Unmarshal(data)
 		require.NoError(t, err)
 
 		for i := 0; i < 10; i++ {
@@ -107,9 +109,9 @@ func TestDNS_Validate(t *testing.T) {
 	DNS.Network = "tcp"
 
 	// invalid port
-	b, err := DNS.Marshal()
+	data, err := DNS.Marshal()
 	require.Error(t, err)
-	require.Nil(t, b)
+	require.Nil(t, data)
 }
 
 func TestDNS_Unmarshal(t *testing.T) {
@@ -176,9 +178,8 @@ func TestDNSPanic(t *testing.T) {
 			key := bytes.Repeat([]byte{0}, aes.Key128Bit)
 			DNS.cbc, err = aes.NewCBC(key, key)
 			require.NoError(t, err)
-			enc, err := DNS.cbc.Encrypt(testsuite.Bytes())
+			DNS.enc, err = DNS.cbc.Encrypt(testsuite.Bytes())
 			require.NoError(t, err)
-			DNS.enc = enc
 
 			defer testsuite.DeferForPanic(t)
 			_, _ = DNS.Resolve()

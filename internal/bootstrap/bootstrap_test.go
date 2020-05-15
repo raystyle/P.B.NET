@@ -24,35 +24,39 @@ func TestLoad(t *testing.T) {
 
 	ctx := context.Background()
 
-	testdata := [...]*struct {
-		mode   string
-		config string
-	}{
-		{mode: ModeHTTP, config: "testdata/http.toml"},
-		{mode: ModeDNS, config: "testdata/dns.toml"},
-		{mode: ModeDirect, config: "testdata/direct.toml"},
-	}
-	for _, td := range testdata {
-		config, err := ioutil.ReadFile(td.config)
-		require.NoError(t, err)
+	t.Run("load all", func(t *testing.T) {
+		testdata := [...]*struct {
+			mode   string
+			config string
+		}{
+			{mode: ModeHTTP, config: "testdata/http.toml"},
+			{mode: ModeDNS, config: "testdata/dns.toml"},
+			{mode: ModeDirect, config: "testdata/direct.toml"},
+		}
+		for _, td := range testdata {
+			config, err := ioutil.ReadFile(td.config)
+			require.NoError(t, err)
 
-		boot, err := Load(ctx, td.mode, config, certPool, proxyPool, dnsClient)
-		require.NoError(t, err)
-		require.NotNil(t, boot)
+			boot, err := Load(ctx, td.mode, config, certPool, proxyPool, dnsClient)
+			require.NoError(t, err)
+			require.NotNil(t, boot)
 
-		testsuite.IsDestroyed(t, boot)
-	}
+			testsuite.IsDestroyed(t, boot)
+		}
+	})
 
-	// unknown mode
-	_, err := Load(ctx, "foo mode", nil, certPool, proxyPool, dnsClient)
-	require.EqualError(t, err, "unknown mode: foo mode")
+	t.Run("unknown mode", func(t *testing.T) {
+		_, err := Load(ctx, "foo mode", nil, certPool, proxyPool, dnsClient)
+		require.EqualError(t, err, "unknown mode: foo mode")
+	})
 
-	// invalid config
-	_, err = Load(ctx, ModeHTTP, nil, certPool, proxyPool, dnsClient)
-	require.Error(t, err)
+	t.Run("invalid config", func(t *testing.T) {
+		_, err := Load(ctx, ModeHTTP, nil, certPool, proxyPool, dnsClient)
+		require.Error(t, err)
+	})
 }
 
-// cannot use const string, because call security.CoverString().
+// can't use const string, because call security.CoverString().
 func testGenerateListener() *Listener {
 	return &Listener{
 		Mode:    strings.Repeat(xnet.ModeTLS, 1),
@@ -61,6 +65,7 @@ func testGenerateListener() *Listener {
 	}
 }
 
+// can't use const string, because call security.CoverString().
 func testGenerateListeners() []*Listener {
 	listeners := make([]*Listener, 2)
 	listeners[0] = &Listener{
@@ -88,7 +93,9 @@ func testDecryptListeners(listeners []*Listener) []*Listener {
 func TestListener(t *testing.T) {
 	rawListener := testGenerateListener()
 	newListener := NewListener(rawListener.Mode, rawListener.Network, rawListener.Address)
+
 	// rawListener's fields will be covered after call NewListener
+	// so we must call it again.
 	rawListener = testGenerateListener()
 	require.NotEqual(t, rawListener.Mode, newListener.Mode)
 	require.NotEqual(t, rawListener.Network, newListener.Network)
@@ -135,6 +142,7 @@ func TestListener_String(t *testing.T) {
 	network := strings.Repeat("tcp", 1)
 	address := strings.Repeat("127.0.0.1:53123", 1)
 	listener := NewListener(mode, network, address)
+
 	expect := "tls (tcp 127.0.0.1:53123)"
 	require.Equal(t, expect, listener.String())
 }

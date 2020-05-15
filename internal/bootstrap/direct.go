@@ -46,9 +46,10 @@ func (d *Direct) Unmarshal(config []byte) error {
 	if err != nil {
 		return err
 	}
-	rand := random.NewRand()
 
+	// encrypt all options
 	memory.Padding()
+	rand := random.NewRand()
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
 	d.cbc, _ = aes.NewCBC(key, iv)

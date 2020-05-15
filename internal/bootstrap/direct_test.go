@@ -11,30 +11,37 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestDirect(t *testing.T) {
-	listeners := testGenerateListeners()
-
+func testGenerateDirect() *Direct {
 	direct := NewDirect()
-	direct.Listeners = listeners
+	direct.Listeners = testGenerateListeners()
+	return direct
+}
+
+func TestDirect_Validate(t *testing.T) {
+	direct := testGenerateDirect()
 
 	err := direct.Validate()
 	require.NoError(t, err)
 
-	b, err := direct.Marshal()
-	require.NoError(t, err)
-
 	testsuite.IsDestroyed(t, direct)
+}
 
-	direct = NewDirect()
+func TestDirect_Marshal(t *testing.T) {
+	direct := testGenerateDirect()
 
-	err = direct.Unmarshal(b)
-	require.NoError(t, err)
+	t.Run("ok", func(t *testing.T) {
+		data, err := direct.Marshal()
+		require.NoError(t, err)
+		t.Log(string(data))
+	})
 
-	for i := 0; i < 10; i++ {
-		resolved, _ := direct.Resolve()
-		resolved = testDecryptListeners(resolved)
-		require.Equal(t, listeners, resolved)
-	}
+	t.Run("failed", func(t *testing.T) {
+		direct.Listeners = nil
+
+		data, err := direct.Marshal()
+		require.Error(t, err)
+		require.Nil(t, data)
+	})
 
 	testsuite.IsDestroyed(t, direct)
 }
@@ -42,12 +49,37 @@ func TestDirect(t *testing.T) {
 func TestDirect_Unmarshal(t *testing.T) {
 	direct := NewDirect()
 
-	b, err := direct.Marshal()
-	require.Error(t, err)
-	require.Nil(t, b)
+	t.Run("ok", func(t *testing.T) {
+		err := direct.Unmarshal(nil)
+		require.NoError(t, err)
+	})
 
-	err = direct.Unmarshal([]byte{0x00})
-	require.Error(t, err)
+	t.Run("failed", func(t *testing.T) {
+		err := direct.Unmarshal([]byte{0x00})
+		require.Error(t, err)
+	})
+
+	testsuite.IsDestroyed(t, direct)
+}
+
+func TestDirect_Resolve(t *testing.T) {
+	listeners := testGenerateListeners()
+
+	direct := NewDirect()
+	direct.Listeners = listeners
+
+	data, err := direct.Marshal()
+	require.NoError(t, err)
+	direct = NewDirect()
+	err = direct.Unmarshal(data)
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		resolved, err := direct.Resolve()
+		require.NoError(t, err)
+		resolved = testDecryptListeners(resolved)
+		require.Equal(t, listeners, resolved)
+	}
 
 	testsuite.IsDestroyed(t, direct)
 }
@@ -72,9 +104,8 @@ func TestDirectPanic(t *testing.T) {
 			key := bytes.Repeat([]byte{0}, aes.Key128Bit)
 			direct.cbc, err = aes.NewCBC(key, key)
 			require.NoError(t, err)
-			enc, err := direct.cbc.Encrypt(testsuite.Bytes())
+			direct.enc, err = direct.cbc.Encrypt(testsuite.Bytes())
 			require.NoError(t, err)
-			direct.enc = enc
 
 			defer testsuite.DeferForPanic(t)
 			_, _ = direct.Resolve()

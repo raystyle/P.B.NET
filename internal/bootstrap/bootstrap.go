@@ -83,9 +83,9 @@ func NewListener(mode, network, address string) *Listener {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
-	rand := random.NewRand()
-
+	// encrypt all data
 	memory.Padding()
+	rand := random.NewRand()
 	key := rand.Bytes(aes.Key256Bit)
 	iv := rand.Bytes(aes.IVSize)
 	cbc, _ := aes.NewCBC(key, iv)

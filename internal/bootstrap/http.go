@@ -259,34 +259,31 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	}
 	proxyClient.HTTP(transport)
 
+	// resolve domain name
 	hostname := req.URL.Hostname()
 	defer security.CoverString(&hostname)
-
-	// resolve domain name
 	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &tempHTTP.DNSOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	port := req.URL.Port()
-
+	// set max body size
 	maxBodySize := tempHTTP.MaxBodySize
 	if maxBodySize < 1 {
 		maxBodySize = defaultMaxBodySize
 	}
-
 	// timeout
 	timeout := tempHTTP.Timeout
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
-
 	// make http client
 	httpClient := &http.Client{
 		Transport: transport,
 		Timeout:   timeout,
 	}
 
+	port := req.URL.Port()
 	var info []byte
 	for i := 0; i < len(result); i++ {
 		req := req.Clone(h.ctx)
