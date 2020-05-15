@@ -174,14 +174,24 @@ func flushRequestOption(r *option.HTTPRequest) {
 	security.CoverString(&r.URL)
 	security.CoverString(&r.Post)
 	security.CoverString(&r.Host)
+	for _, value := range r.Header {
+		for i := 0; i < len(value); i++ {
+			security.CoverString(&value[i])
+		}
+	}
 }
 
-// coverHTTPRequest is used to cover http.Request string field if has secret
+// coverHTTPRequest is used to cover http.Request string field if has secret.
 func coverHTTPRequest(r *http.Request) {
 	security.CoverString(&r.Host)
 	security.CoverString(&r.URL.Host)
 	security.CoverString(&r.URL.Path)
 	security.CoverString(&r.URL.RawPath)
+	for _, value := range r.Header {
+		for i := 0; i < len(value); i++ {
+			security.CoverString(&value[i])
+		}
+	}
 }
 
 // Unmarshal is used to unmarshal []byte to HTTP.
