@@ -103,22 +103,43 @@ func TestBroadcast_Unpack(t *testing.T) {
 func TestBroadcast_Validate(t *testing.T) {
 	b := new(Broadcast)
 
-	require.EqualError(t, b.Validate(), "invalid hash size")
+	t.Run("invalid hash size", func(t *testing.T) {
+		err := b.Validate()
+		require.EqualError(t, err, "invalid hash size")
+	})
 
-	b.Hash = bytes.Repeat([]byte{0}, sha256.Size)
-	require.EqualError(t, b.Validate(), "invalid signature size")
+	t.Run("invalid signature size", func(t *testing.T) {
+		b.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 
-	b.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
-	b.Deflate = 3
-	require.EqualError(t, b.Validate(), "invalid deflate flag")
+		err := b.Validate()
+		require.EqualError(t, err, "invalid signature size")
+	})
 
-	b.Deflate = 1
-	require.EqualError(t, b.Validate(), "invalid message size")
-	b.Message = bytes.Repeat([]byte{0}, 30)
-	require.EqualError(t, b.Validate(), "invalid message size")
+	t.Run("invalid deflate flag", func(t *testing.T) {
+		b.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+		b.Deflate = 3
 
-	b.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
-	require.NoError(t, b.Validate())
+		err := b.Validate()
+		require.EqualError(t, err, "invalid deflate flag")
+	})
+
+	t.Run("invalid message size", func(t *testing.T) {
+		b.Deflate = 1
+
+		err := b.Validate()
+		require.EqualError(t, err, "invalid message size")
+
+		b.Message = bytes.Repeat([]byte{0}, 30)
+
+		err = b.Validate()
+		require.EqualError(t, err, "invalid message size")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		b.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
+		err := b.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestBroadcastResult_Clean(t *testing.T) {

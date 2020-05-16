@@ -103,19 +103,38 @@ func TestSend_Unpack(t *testing.T) {
 func TestSend_Validate(t *testing.T) {
 	s := new(Send)
 
-	s.Deflate = 3
-	require.EqualError(t, s.Validate(), "invalid deflate flag")
+	t.Run("invalid deflate flag", func(t *testing.T) {
+		s.Deflate = 3
 
-	s.Deflate = 0
-	require.EqualError(t, s.Validate(), "invalid hmac hash size")
+		err := s.Validate()
+		require.EqualError(t, err, "invalid deflate flag")
+	})
 
-	s.Hash = bytes.Repeat([]byte{0}, sha256.Size)
-	require.EqualError(t, s.Validate(), "invalid message size")
-	s.Message = bytes.Repeat([]byte{0}, 30)
-	require.EqualError(t, s.Validate(), "invalid message size")
+	t.Run("invalid hmac hash size", func(t *testing.T) {
+		s.Deflate = 0
 
-	s.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
-	require.NoError(t, s.Validate())
+		err := s.Validate()
+		require.EqualError(t, err, "invalid hmac hash size")
+	})
+
+	t.Run("invalid message size", func(t *testing.T) {
+		s.Hash = bytes.Repeat([]byte{0}, sha256.Size)
+
+		err := s.Validate()
+		require.EqualError(t, err, "invalid message size")
+
+		s.Message = bytes.Repeat([]byte{0}, 30)
+
+		err = s.Validate()
+		require.EqualError(t, err, "invalid message size")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		s.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
+
+		err := s.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestSendResult_Clean(t *testing.T) {
@@ -145,10 +164,13 @@ func TestAcknowledge_Unpack(t *testing.T) {
 
 func TestAcknowledge_Validate(t *testing.T) {
 	ack := new(Acknowledge)
-	require.EqualError(t, ack.Validate(), "invalid hmac hash size")
+
+	err := ack.Validate()
+	require.EqualError(t, err, "invalid hmac hash size")
 
 	ack.Hash = bytes.Repeat([]byte{0}, sha256.Size)
-	require.NoError(t, ack.Validate())
+	err = ack.Validate()
+	require.NoError(t, err)
 }
 
 func TestAcknowledgeResult_Clean(t *testing.T) {
@@ -177,10 +199,13 @@ func TestQuery_Unpack(t *testing.T) {
 func TestQuery_Validate(t *testing.T) {
 	q := new(Query)
 
-	require.EqualError(t, q.Validate(), "invalid hmac hash size")
+	err := q.Validate()
+	require.EqualError(t, err, "invalid hmac hash size")
 
 	q.Hash = bytes.Repeat([]byte{0}, sha256.Size)
-	require.NoError(t, q.Validate())
+
+	err = q.Validate()
+	require.NoError(t, err)
 }
 
 func TestQueryResult_Clean(t *testing.T) {
@@ -279,19 +304,38 @@ func TestAnswer_Unpack(t *testing.T) {
 func TestAnswer_Validate(t *testing.T) {
 	a := new(Answer)
 
-	a.Deflate = 3
-	require.EqualError(t, a.Validate(), "invalid deflate flag")
+	t.Run("invalid deflate flag", func(t *testing.T) {
+		a.Deflate = 3
 
-	a.Deflate = 1
-	require.EqualError(t, a.Validate(), "invalid hmac hash size")
+		err := a.Validate()
+		require.EqualError(t, err, "invalid deflate flag")
+	})
 
-	a.Hash = bytes.Repeat([]byte{0}, sha256.Size)
-	require.EqualError(t, a.Validate(), "invalid message size")
-	a.Message = bytes.Repeat([]byte{0}, 30)
-	require.EqualError(t, a.Validate(), "invalid message size")
+	t.Run("invalid hmac hash size", func(t *testing.T) {
+		a.Deflate = 1
 
-	a.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
-	require.NoError(t, a.Validate())
+		err := a.Validate()
+		require.EqualError(t, err, "invalid hmac hash size")
+	})
+
+	t.Run("invalid message size", func(t *testing.T) {
+		a.Hash = bytes.Repeat([]byte{0}, sha256.Size)
+
+		err := a.Validate()
+		require.EqualError(t, err, "invalid message size")
+
+		a.Message = bytes.Repeat([]byte{0}, 30)
+
+		err = a.Validate()
+		require.EqualError(t, err, "invalid message size")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		a.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
+
+		err := a.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestAnswerResult_Clean(t *testing.T) {

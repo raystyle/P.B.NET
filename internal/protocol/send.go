@@ -203,7 +203,7 @@ type AcknowledgeResult struct {
 	Err       error
 }
 
-// Clean is used to clean AcknowledgeResult for sync.Pool
+// Clean is used to clean AcknowledgeResult for sync.Pool.
 func (ar *AcknowledgeResult) Clean() {
 	ar.Success = 0
 	ar.Responses = nil

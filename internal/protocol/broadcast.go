@@ -110,7 +110,7 @@ type BroadcastResult struct {
 	Err       error
 }
 
-// Clean is used to clean BroadcastResult for sync.Pool
+// Clean is used to clean BroadcastResult for sync.Pool.
 func (br *BroadcastResult) Clean() {
 	br.Success = 0
 	br.Responses = nil

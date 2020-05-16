@@ -16,15 +16,16 @@ func TestNewSlots(t *testing.T) {
 }
 
 func TestHandleConn(t *testing.T) {
-	var (
-		frameData = []byte{1, 1, 1, 1}
-		bigFrame  = bytes.Repeat([]byte{1}, 32768)
-		wg        sync.WaitGroup
-	)
 	server, client := net.Pipe()
+
+	frameData := []byte{1, 1, 1, 1}
+	bigFrame := bytes.Repeat([]byte{1}, 32768)
+
+	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+
 		var count int
 		HandleConn(server, func(frame []byte) {
 			count++
@@ -37,6 +38,7 @@ func TestHandleConn(t *testing.T) {
 		_ = server.Close()
 		require.Equal(t, 5, count)
 	}()
+
 	// full
 	_, _ = client.Write([]byte{0, 0, 0, 4, 1, 1, 1, 1})
 	// full with incomplete header
@@ -48,39 +50,51 @@ func TestHandleConn(t *testing.T) {
 	// big frame
 	_, _ = client.Write(convert.Uint32ToBytes(32768))
 	_, _ = client.Write(bigFrame)
+
 	_ = client.Close()
+
 	wg.Wait()
 }
 
 func TestHandleNULLFrame(t *testing.T) {
-	var wg sync.WaitGroup
 	server, client := net.Pipe()
+
+	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+
 		HandleConn(server, func(frame []byte) {
 			require.Equal(t, ConnErrRecvNullFrame, frame[0])
 		})
 		_ = server.Close()
 	}()
+
 	_, _ = client.Write([]byte{0, 0, 0, 0})
+
 	_ = client.Close()
+
 	wg.Wait()
 }
 
 func TestHandleTooBigFrame(t *testing.T) {
-	var wg sync.WaitGroup
 	server, client := net.Pipe()
+
+	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+
 		HandleConn(server, func(frame []byte) {
 			require.Equal(t, ConnErrRecvTooBigFrame, frame[0])
 		})
 		_ = server.Close()
 	}()
+
 	_, _ = client.Write([]byte{0xFF, 0xFF, 0xFF, 0xFF})
+
 	_ = client.Close()
+
 	wg.Wait()
 }
 
@@ -105,14 +119,14 @@ func BenchmarkHandleConn_1MB(b *testing.B) {
 }
 
 func benchmarkHandleConn(b *testing.B, size int) {
-	var (
-		frameData = bytes.Repeat([]byte{1}, size)
-		wg        sync.WaitGroup
-	)
 	server, client := net.Pipe()
+	frameData := bytes.Repeat([]byte{1}, size)
+
+	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+
 		count := 0
 		HandleConn(server, func(frame []byte) {
 			if !bytes.Equal(frame, frameData) {
@@ -123,17 +137,23 @@ func benchmarkHandleConn(b *testing.B, size int) {
 		_ = server.Close()
 		require.Equal(b, b.N, count)
 	}()
+
 	frame := append(convert.Uint32ToBytes(uint32(size)), frameData...)
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		_, err := client.Write(frame)
 		if err != nil {
 			b.FailNow()
 		}
 	}
+
 	b.StopTimer()
+
 	_ = client.Close()
+
 	wg.Wait()
 }
 
@@ -158,14 +178,16 @@ func BenchmarkHandleConnParallel_1MB(b *testing.B) {
 }
 
 func benchmarkHandleConnParallel(b *testing.B, size int) {
-	frameData := bytes.Repeat([]byte{1}, size)
-	wg := sync.WaitGroup{}
-	frame := append(convert.Uint32ToBytes(uint32(size)), frameData...)
 	server, client := net.Pipe()
 
+	frameData := bytes.Repeat([]byte{1}, size)
+	frame := append(convert.Uint32ToBytes(uint32(size)), frameData...)
+
+	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+
 		HandleConn(server, func(frame []byte) {
 			if !bytes.Equal(frame, frameData) {
 				b.FailNow()
@@ -187,6 +209,8 @@ func benchmarkHandleConnParallel(b *testing.B, size int) {
 	})
 
 	b.StopTimer()
+
 	_ = client.Close()
+
 	wg.Wait()
 }
