@@ -118,6 +118,7 @@ func TestSend_Validate(t *testing.T) {
 	})
 
 	t.Run("invalid message size", func(t *testing.T) {
+		s.Deflate = 0
 		s.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 
 		err := s.Validate()
@@ -129,7 +130,9 @@ func TestSend_Validate(t *testing.T) {
 		require.EqualError(t, err, "invalid message size")
 	})
 
-	t.Run("ok", func(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		s.Deflate = 0
+		s.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 		s.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
 
 		err := s.Validate()
@@ -165,12 +168,17 @@ func TestAcknowledge_Unpack(t *testing.T) {
 func TestAcknowledge_Validate(t *testing.T) {
 	ack := new(Acknowledge)
 
-	err := ack.Validate()
-	require.EqualError(t, err, "invalid hmac hash size")
+	t.Run("invalid hmac hash size", func(t *testing.T) {
+		err := ack.Validate()
+		require.EqualError(t, err, "invalid hmac hash size")
+	})
 
-	ack.Hash = bytes.Repeat([]byte{0}, sha256.Size)
-	err = ack.Validate()
-	require.NoError(t, err)
+	t.Run("valid", func(t *testing.T) {
+		ack.Hash = bytes.Repeat([]byte{0}, sha256.Size)
+
+		err := ack.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestAcknowledgeResult_Clean(t *testing.T) {
@@ -199,13 +207,17 @@ func TestQuery_Unpack(t *testing.T) {
 func TestQuery_Validate(t *testing.T) {
 	q := new(Query)
 
-	err := q.Validate()
-	require.EqualError(t, err, "invalid hmac hash size")
+	t.Run("invalid hmac hash size", func(t *testing.T) {
+		err := q.Validate()
+		require.EqualError(t, err, "invalid hmac hash size")
+	})
 
-	q.Hash = bytes.Repeat([]byte{0}, sha256.Size)
+	t.Run("valid", func(t *testing.T) {
+		q.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 
-	err = q.Validate()
-	require.NoError(t, err)
+		err := q.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestQueryResult_Clean(t *testing.T) {
@@ -319,6 +331,7 @@ func TestAnswer_Validate(t *testing.T) {
 	})
 
 	t.Run("invalid message size", func(t *testing.T) {
+		a.Deflate = 1
 		a.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 
 		err := a.Validate()
@@ -330,7 +343,9 @@ func TestAnswer_Validate(t *testing.T) {
 		require.EqualError(t, err, "invalid message size")
 	})
 
-	t.Run("ok", func(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		a.Deflate = 1
+		a.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 		a.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
 
 		err := a.Validate()

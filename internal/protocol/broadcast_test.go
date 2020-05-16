@@ -116,6 +116,7 @@ func TestBroadcast_Validate(t *testing.T) {
 	})
 
 	t.Run("invalid deflate flag", func(t *testing.T) {
+		b.Hash = bytes.Repeat([]byte{0}, sha256.Size)
 		b.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
 		b.Deflate = 3
 
@@ -124,6 +125,8 @@ func TestBroadcast_Validate(t *testing.T) {
 	})
 
 	t.Run("invalid message size", func(t *testing.T) {
+		b.Hash = bytes.Repeat([]byte{0}, sha256.Size)
+		b.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
 		b.Deflate = 1
 
 		err := b.Validate()
@@ -135,8 +138,12 @@ func TestBroadcast_Validate(t *testing.T) {
 		require.EqualError(t, err, "invalid message size")
 	})
 
-	t.Run("ok", func(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		b.Hash = bytes.Repeat([]byte{0}, sha256.Size)
+		b.Signature = bytes.Repeat([]byte{0}, ed25519.SignatureSize)
+		b.Deflate = 1
 		b.Message = bytes.Repeat([]byte{0}, aes.BlockSize)
+
 		err := b.Validate()
 		require.NoError(t, err)
 	})
