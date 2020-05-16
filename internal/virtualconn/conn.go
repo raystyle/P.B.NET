@@ -73,7 +73,7 @@ func NewConn(
 		receiver:   receiver,
 		localAddr:  newVCAddr(localGUID, localPort),
 		remoteAddr: newVCAddr(remoteGUID, remotePort),
-		rand:       random.New(),
+		rand:       random.NewRand(),
 	}
 	conn.ctx, conn.cancel = context.WithCancel(context.Background())
 	return &conn

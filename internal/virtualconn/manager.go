@@ -129,7 +129,7 @@ func NewManager(local *guid.GUID, sender senderFunc, now func() time.Time) *Mana
 		local:  local,
 		sender: sender,
 		now:    now,
-		rand:   random.New(),
+		rand:   random.NewRand(),
 	}
 	return &manager
 }

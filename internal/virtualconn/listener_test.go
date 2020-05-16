@@ -47,6 +47,7 @@ func TestListener_WithTimeout(t *testing.T) {
 
 		err = listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -59,6 +60,7 @@ func TestListener_WithTimeout(t *testing.T) {
 
 		err = listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -76,6 +78,7 @@ func TestListener_WithTimeout(t *testing.T) {
 
 		err = listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -88,6 +91,7 @@ func TestListener_WithTimeout(t *testing.T) {
 
 		err = listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -98,6 +102,7 @@ func TestListener_WithTimeout(t *testing.T) {
 
 		err := listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -129,6 +134,7 @@ func TestListener_WithoutTimeout(t *testing.T) {
 
 		err = listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -139,7 +145,9 @@ func TestListener_WithoutTimeout(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
 			time.Sleep(time.Second)
+
 			err := listener.Close()
 			require.NoError(t, err)
 		}()
@@ -152,6 +160,7 @@ func TestListener_WithoutTimeout(t *testing.T) {
 
 		err = listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -169,6 +178,7 @@ func TestListener_WithoutTimeout(t *testing.T) {
 
 		err = listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -179,7 +189,9 @@ func TestListener_WithoutTimeout(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
 			time.Sleep(time.Second)
+
 			err := listener.Close()
 			require.NoError(t, err)
 		}()
@@ -192,6 +204,7 @@ func TestListener_WithoutTimeout(t *testing.T) {
 
 		err = listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -202,6 +215,7 @@ func TestListener_WithoutTimeout(t *testing.T) {
 
 		err := listener.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -232,7 +246,9 @@ func TestListener_addConn(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
 			time.Sleep(time.Second)
+
 			err := listener.Close()
 			require.NoError(t, err)
 		}()

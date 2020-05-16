@@ -54,6 +54,7 @@ func newPipe() (*pipe, *pipe) {
 
 func TestPipe(t *testing.T) {
 	pipe1, pipe2 := newPipe()
+
 	// pipe1 send
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -61,10 +62,12 @@ func TestPipe(t *testing.T) {
 		err := pipe1.Send(ctx, testsuite.Bytes())
 		require.NoError(t, err)
 	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	data, err := pipe2.Receive(ctx)
 	require.NoError(t, err)
+
 	require.Equal(t, testsuite.Bytes(), data)
 
 	// pipe2 send
@@ -74,10 +77,12 @@ func TestPipe(t *testing.T) {
 		err := pipe2.Send(ctx, testsuite.Bytes())
 		require.NoError(t, err)
 	}()
+
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	data, err = pipe1.Receive(ctx)
 	require.NoError(t, err)
+
 	require.Equal(t, testsuite.Bytes(), data)
 }
 
@@ -113,8 +118,10 @@ func TestConn_Deadline(t *testing.T) {
 	defer gm.Compare()
 
 	server, client := testGenerateConnPair(t)
-	require.NoError(t, server.Close())
-	require.NoError(t, client.Close())
+	err := server.Close()
+	require.NoError(t, err)
+	err = client.Close()
+	require.NoError(t, err)
 
 	do := func(conn *Conn) {
 		all := func() {
@@ -156,15 +163,21 @@ func TestConn_WithBigData(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, size, n)
 	}()
+
 	buffer := new(bytes.Buffer)
 	n, err := io.CopyN(buffer, client, size)
 	require.NoError(t, err)
 	require.Equal(t, size, n)
+
 	wg.Wait()
+
 	require.True(t, bytes.Equal(testdata, buffer.Bytes()))
 
-	require.NoError(t, server.Close())
-	require.NoError(t, client.Close())
+	err = server.Close()
+	require.NoError(t, err)
+	err = client.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 	testsuite.IsDestroyed(t, client)
 }
@@ -179,8 +192,11 @@ func TestConn_ReadZeroData(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, n)
 
-	require.NoError(t, server.Close())
-	require.NoError(t, client.Close())
+	err = server.Close()
+	require.NoError(t, err)
+	err = client.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 	testsuite.IsDestroyed(t, client)
 }
@@ -195,8 +211,11 @@ func TestConn_WriteZeroData(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, n)
 
-	require.NoError(t, server.Close())
-	require.NoError(t, client.Close())
+	err = server.Close()
+	require.NoError(t, err)
+	err = client.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, server)
 	testsuite.IsDestroyed(t, client)
 }
@@ -225,6 +244,8 @@ func TestConn_FailedToSend(t *testing.T) {
 	require.EqualError(t, err, "error")
 	require.Equal(t, 0, n)
 
-	require.NoError(t, client.Close())
+	err = client.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, client)
 }
