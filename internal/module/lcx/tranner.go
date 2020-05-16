@@ -219,10 +219,9 @@ func (t *Tranner) serve(listener net.Listener) {
 				time.Sleep(delay)
 				continue
 			}
-			if nettool.IsNetClosingError(err) {
-				return
+			if !nettool.IsNetClosingError(err) {
+				t.log(logger.Error, err)
 			}
-			t.log(logger.Error, err)
 			return
 		}
 		delay = 0

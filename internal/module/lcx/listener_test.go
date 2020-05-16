@@ -68,6 +68,7 @@ func TestListener(t *testing.T) {
 	require.NoError(t, err)
 
 	listener.Stop()
+
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -116,6 +117,7 @@ func TestListener_Start(t *testing.T) {
 		require.Error(t, err)
 
 		listener.Stop()
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -129,6 +131,7 @@ func TestListener_Start(t *testing.T) {
 		require.Error(t, err)
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 
@@ -143,6 +146,7 @@ func TestListener_Start(t *testing.T) {
 		require.Error(t, err)
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 }
@@ -151,26 +155,48 @@ func TestListener_Stop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	listener := testGenerateListener(t)
-	err := listener.Start()
-	require.NoError(t, err)
+	t.Run("ok", func(t *testing.T) {
+		listener := testGenerateListener(t)
 
-	iConn, err := net.Dial("tcp", listener.testIncomeAddress())
-	require.NoError(t, err)
-	defer func() { _ = iConn.Close() }()
+		err := listener.Start()
+		require.NoError(t, err)
 
-	lConn, err := net.Dial("tcp", listener.testLocalAddress())
-	require.NoError(t, err)
-	defer func() { _ = lConn.Close() }()
+		iConn, err := net.Dial("tcp", listener.testIncomeAddress())
+		require.NoError(t, err)
+		defer func() { _ = iConn.Close() }()
 
-	// wait serve
-	time.Sleep(time.Second)
+		lConn, err := net.Dial("tcp", listener.testLocalAddress())
+		require.NoError(t, err)
+		defer func() { _ = lConn.Close() }()
 
-	t.Log(listener.Status())
+		// wait serve
+		time.Sleep(time.Second)
 
-	listener.Stop()
-	listener.Stop()
-	testsuite.IsDestroyed(t, listener)
+		t.Log(listener.Status())
+
+		listener.Stop()
+		listener.Stop()
+
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("close with error", func(t *testing.T) {
+		listener := testGenerateListener(t)
+
+		listener.iListener = testsuite.NewMockListenerWithCloseError()
+		listener.lListener = testsuite.NewMockListenerWithCloseError()
+
+		conn := &lConn{
+			listener: listener,
+			remote:   testsuite.NewMockConnWithCloseError(),
+			local:    testsuite.NewMockConnWithCloseError(),
+		}
+		listener.trackConn(conn, true)
+
+		listener.Stop()
+
+		testsuite.IsDestroyed(t, listener)
+	})
 }
 
 func TestListener_serve(t *testing.T) {
@@ -179,6 +205,7 @@ func TestListener_serve(t *testing.T) {
 
 	t.Run("accept income", func(t *testing.T) {
 		listener := testGenerateListener(t)
+
 		err := listener.Start()
 		require.NoError(t, err)
 
@@ -190,10 +217,11 @@ func TestListener_serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		listener.Stop()
+
 		testsuite.IsDestroyed(t, listener)
 	})
 
-	t.Run("panic", func(t *testing.T) {
+	t.Run("accept panic", func(t *testing.T) {
 		patch := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithAcceptPanic()
 		}
@@ -201,10 +229,29 @@ func TestListener_serve(t *testing.T) {
 		defer pg.Unpatch()
 
 		listener := testGenerateListener(t)
+
 		err := listener.Start()
 		require.NoError(t, err)
 
 		listener.Stop()
+
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("close listener error", func(t *testing.T) {
+		patch := func(net.Listener, int) net.Listener {
+			return testsuite.NewMockListenerWithCloseError()
+		}
+		pg := monkey.Patch(netutil.LimitListener, patch)
+		defer pg.Unpatch()
+
+		listener := testGenerateListener(t)
+
+		err := listener.Start()
+		require.NoError(t, err)
+
+		listener.Stop()
+
 		testsuite.IsDestroyed(t, listener)
 	})
 }
@@ -220,10 +267,12 @@ func TestListener_accept(t *testing.T) {
 	defer pg.Unpatch()
 
 	listener := testGenerateListener(t)
+
 	err := listener.Start()
 	require.NoError(t, err)
 
 	listener.Stop()
+
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -233,7 +282,25 @@ func TestListener_trackConn(t *testing.T) {
 
 	listener := testGenerateListener(t)
 
-	require.False(t, listener.trackConn(nil, true))
+	t.Run("failed to add conn", func(t *testing.T) {
+		ok := listener.trackConn(nil, true)
+		require.False(t, ok)
+	})
+
+	t.Run("add", func(t *testing.T) {
+		err := listener.Start()
+		require.NoError(t, err)
+
+		ok := listener.trackConn(nil, true)
+		require.True(t, ok)
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		ok := listener.trackConn(nil, false)
+		require.True(t, ok)
+	})
+
+	listener.Stop()
 
 	testsuite.IsDestroyed(t, listener)
 }
@@ -244,11 +311,12 @@ func TestLConn_Serve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("track conn", func(t *testing.T) {
+	t.Run("failed to track conn", func(t *testing.T) {
 		listener := testGenerateListener(t)
 
-		client, server := net.Pipe()
-		conn := listener.newConn(client, server)
+		remote := testsuite.NewMockConnWithCloseError()
+		local := testsuite.NewMockConnWithCloseError()
+		conn := listener.newConn(remote, local)
 		conn.Serve()
 
 		testsuite.IsDestroyed(t, listener)
@@ -278,6 +346,7 @@ func TestLConn_Serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		listener.Stop()
+
 		testsuite.IsDestroyed(t, listener)
 	})
 }

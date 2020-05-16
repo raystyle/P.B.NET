@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/xpanic"
 )
 
@@ -101,13 +101,28 @@ func (l *Listener) stop() {
 	if l.iListener == nil {
 		return
 	}
-	_ = l.iListener.Close()
-	_ = l.lListener.Close()
+	err := l.iListener.Close()
+	if err != nil && !nettool.IsNetClosingError(err) {
+		address := l.iListener.Addr()
+		network := address.Network()
+		const format = "failed to close income listener (%s %s): %s"
+		l.logf(logger.Error, format, network, address, err)
+	}
+	err = l.lListener.Close()
+	if err != nil && !nettool.IsNetClosingError(err) {
+		address := l.lListener.Addr()
+		network := address.Network()
+		const format = "failed to close local listener (%s %s): %s"
+		l.logf(logger.Error, format, network, address, err)
+	}
 	l.iListener = nil
 	l.lListener = nil
 	// close all connections
 	for conn := range l.conns {
-		_ = conn.Close()
+		err = conn.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			l.log(logger.Error, "failed to close connection:", err)
+		}
 		delete(l.conns, conn)
 	}
 }
@@ -189,39 +204,53 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 	defer l.wg.Done()
 
 	defer func() {
-		_ = iListener.Close()
-		_ = lListener.Close()
-	}()
-	addr := iListener.Addr()
-	iNetwork := addr.Network()
-	iAddress := addr.String()
-	addr = lListener.Addr()
-	lNetwork := addr.Network()
-	lAddress := addr.String()
-	defer func() {
 		if r := recover(); r != nil {
 			l.log(logger.Fatal, xpanic.Print(r, "Listener.serve"))
 		}
-		const format = "income and local listener closed (%s %s), (%s %s)"
-		l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
-
 	}()
+
+	addr := iListener.Addr()
+	iNetwork := addr.Network()
+	iAddress := addr.String()
+
+	addr = lListener.Addr()
+	lNetwork := addr.Network()
+	lAddress := addr.String()
+
+	defer func() {
+		err := iListener.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			const format = "failed to close income listener (%s %s): %s"
+			l.logf(logger.Error, format, iNetwork, iAddress, err)
+		}
+		err = lListener.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			const format = "failed to close local listener (%s %s): %s"
+			l.logf(logger.Error, format, lNetwork, lAddress, err)
+		}
+	}()
+
 	const format = "start income and local listener (%s %s), (%s %s)"
 	l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
-	// start accept
+	defer func() {
+		const format = "income and local listener closed (%s %s), (%s %s)"
+		l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
+	}()
+
+	// start accept loop
 	for {
+		// first accept remote connection
 		remote := l.accept(iListener)
 		if remote == nil {
 			return
 		}
-
 		// log
 		buf := new(bytes.Buffer)
 		_, _ = fmt.Fprintln(buf, "income slave connection")
 		_, _ = logger.Conn(remote).WriteTo(buf)
 		_, _ = fmt.Fprint(buf, "\n", l.Status())
 		l.log(logger.Info, buf)
-
+		// than accept local connection
 		local := l.accept(lListener)
 		if local == nil {
 			_ = remote.Close()
@@ -251,9 +280,8 @@ func (l *Listener) accept(listener net.Listener) net.Conn {
 				time.Sleep(delay)
 				continue
 			}
-			errStr := err.Error()
-			if !strings.Contains(errStr, "closed") {
-				l.log(logger.Error, errStr)
+			if !nettool.IsNetClosingError(err) {
+				l.log(logger.Error, err)
 			}
 			return nil
 		}
@@ -309,8 +337,17 @@ func (c *lConn) serve() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
-		_ = c.remote.Close()
-		_ = c.local.Close()
+	}()
+
+	defer func() {
+		err := c.remote.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			c.log(logger.Error, "failed to close remote connection:", err)
+		}
+		err = c.local.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			c.log(logger.Error, "failed to close local connection:", err)
+		}
 	}()
 
 	if !c.listener.trackConn(c, true) {
@@ -344,5 +381,10 @@ func (c *lConn) serve() {
 }
 
 func (c *lConn) Close() error {
-	return c.local.Close()
+	lErr := c.local.Close()
+	rErr := c.remote.Close()
+	if rErr != nil && lErr == nil {
+		return rErr
+	}
+	return lErr
 }
