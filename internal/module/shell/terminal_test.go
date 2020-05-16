@@ -67,6 +67,7 @@ func TestTerminal(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+
 		reader := mahonia.NewDecoder("GBK").NewReader(terminal)
 		buf := make([]byte, 512)
 		for {

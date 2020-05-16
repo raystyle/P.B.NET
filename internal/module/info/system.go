@@ -26,9 +26,9 @@ func GetSystemInfo() *System {
 	ifaces, _ := net.Interfaces()
 	for i := 0; i < len(ifaces); i++ {
 		if ifaces[i].Flags == net.FlagUp|net.FlagBroadcast|net.FlagMulticast {
-			addrs, _ := ifaces[i].Addrs()
-			for j := 0; j < len(addrs); j++ {
-				system.IP = append(system.IP, addrs[j].String())
+			addresses, _ := ifaces[i].Addrs()
+			for j := 0; j < len(addresses); j++ {
+				system.IP = append(system.IP, addresses[j].String())
 			}
 		}
 	}

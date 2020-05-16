@@ -28,6 +28,7 @@ func TestSystem(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
+
 		reader := mahonia.NewDecoder("GBK").NewReader(system)
 		buf := make([]byte, 512)
 		for {
@@ -47,6 +48,7 @@ func TestSystem(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
+
 		reader := mahonia.NewDecoder("GBK").NewReader(pingOnly)
 		buf := make([]byte, 512)
 		for {
@@ -61,6 +63,7 @@ func TestSystem(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}()
+
 	// wait print welcome information
 	time.Sleep(1 * time.Second)
 	_, err = pingOnly.Write([]byte("cd..\n"))
