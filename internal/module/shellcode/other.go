@@ -6,7 +6,7 @@ import (
 	"errors"
 )
 
-// Execute is a padding
+// Execute is a padding function.
 func Execute(method string, shellcode []byte) error {
 	return errors.New("current system don't support")
 }

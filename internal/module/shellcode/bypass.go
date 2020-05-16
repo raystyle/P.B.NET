@@ -3,7 +3,6 @@ package shellcode
 import (
 	"bytes"
 	"context"
-	"log"
 	"runtime"
 	"time"
 
@@ -13,13 +12,13 @@ import (
 
 const scheduleCount = 16384
 
-func doUseless(ctx context.Context, ch chan []byte) {
+func schedule(ctx context.Context, ch chan []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println(xpanic.Print(r, "doUseless"))
+			xpanic.Log(r, "schedule")
 		}
 	}()
-	rand := random.New()
+	rand := random.NewRand()
 	n := 100 + rand.Int(100)
 	for i := 0; i < n; i++ {
 		buf := bytes.Buffer{}
@@ -33,15 +32,18 @@ func doUseless(ctx context.Context, ch chan []byte) {
 	}
 }
 
-func schedule() {
+// bypass is used to create a lot of goroutine to call "select"
+// that can split syscall to random threads to call.
+func bypass() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	rand := random.New()
-	// must > n* (n in doUseless)
+
+	rand := random.NewRand()
+	// must > n* (n in schedule)
 	bChan := make(chan []byte, 5120)
 	n := 8 + rand.Int(8)
 	for i := 0; i < n; i++ {
-		go doUseless(ctx, bChan)
+		go schedule(ctx, bChan)
 	}
 	timer := time.NewTimer(25 * time.Millisecond)
 	defer timer.Stop()

