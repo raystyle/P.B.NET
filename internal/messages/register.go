@@ -56,7 +56,7 @@ func (r *NodeRegisterRequest) Validate() error {
 		return errors.New("invalid key exchange public key size")
 	}
 	if r.SystemInfo == nil {
-		return errors.New("empty system info")
+		return errors.New("empty system information")
 	}
 	return nil
 }

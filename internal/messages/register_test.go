@@ -16,83 +16,173 @@ import (
 func TestNodeRegisterRequest_Validate(t *testing.T) {
 	nrr := new(NodeRegisterRequest)
 
-	require.EqualError(t, nrr.Validate(), "invalid public key size")
-	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+	t.Run("invalid public key size", func(t *testing.T) {
+		err := nrr.Validate()
+		require.EqualError(t, err, "invalid public key size")
+	})
 
-	require.EqualError(t, nrr.Validate(), "invalid key exchange public key size")
-	nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+	t.Run("invalid key exchange public key size", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
-	require.EqualError(t, nrr.Validate(), "empty system info")
-	nrr.SystemInfo = new(info.System)
+		err := nrr.Validate()
+		require.EqualError(t, err, "invalid key exchange public key size")
+	})
 
-	require.NoError(t, nrr.Validate())
+	t.Run("empty system information", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+
+		err := nrr.Validate()
+		require.EqualError(t, err, "empty system information")
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+		nrr.SystemInfo = new(info.System)
+
+		err := nrr.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestNodeRegisterResponse_Validate(t *testing.T) {
 	nrr := new(NodeRegisterResponse)
 
-	require.EqualError(t, nrr.Validate(), "invalid public key size")
-	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+	t.Run("invalid public key size", func(t *testing.T) {
+		err := nrr.Validate()
+		require.EqualError(t, err, "invalid public key size")
 
-	require.EqualError(t, nrr.Validate(), "invalid key exchange public key size")
-	nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+	})
 
-	require.EqualError(t, nrr.Validate(), "unknown register result")
-	nrr.Result = RegisterResultAccept
+	t.Run("invalid key exchange public key size", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
-	require.EqualError(t, nrr.Validate(), "invalid certificate size")
-	nrr.Certificate = bytes.Repeat([]byte{0}, protocol.CertificateSize)
+		err := nrr.Validate()
+		require.EqualError(t, err, "invalid key exchange public key size")
+	})
 
-	require.NoError(t, nrr.Validate())
+	t.Run("unknown register result", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+
+		err := nrr.Validate()
+		require.EqualError(t, err, "unknown register result")
+	})
+
+	t.Run("invalid certificate size", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+		nrr.Result = RegisterResultAccept
+
+		err := nrr.Validate()
+		require.EqualError(t, err, "invalid certificate size")
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+		nrr.Result = RegisterResultAccept
+		nrr.Certificate = bytes.Repeat([]byte{0}, protocol.CertificateSize)
+
+		err := nrr.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestBeaconRegisterRequest_Validate(t *testing.T) {
 	brr := new(BeaconRegisterRequest)
 
-	require.EqualError(t, brr.Validate(), "invalid public key size")
-	brr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+	t.Run("invalid public key size", func(t *testing.T) {
+		err := brr.Validate()
+		require.EqualError(t, err, "invalid public key size")
+	})
 
-	require.EqualError(t, brr.Validate(), "invalid key exchange public key size")
-	brr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+	t.Run("invalid key exchange public key size", func(t *testing.T) {
+		brr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
-	require.EqualError(t, brr.Validate(), "empty system info")
-	brr.SystemInfo = new(info.System)
+		err := brr.Validate()
+		require.EqualError(t, err, "invalid key exchange public key size")
+	})
 
-	require.NoError(t, brr.Validate())
+	t.Run("empty system info", func(t *testing.T) {
+		brr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		brr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+
+		err := brr.Validate()
+		require.EqualError(t, err, "empty system info")
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		brr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		brr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+		brr.SystemInfo = new(info.System)
+
+		err := brr.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestBeaconRegisterResponse_Validate(t *testing.T) {
 	nrr := new(BeaconRegisterResponse)
 
-	require.EqualError(t, nrr.Validate(), "invalid public key size")
-	nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
-
-	require.EqualError(t, nrr.Validate(), "invalid key exchange public key size")
-	nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
-
-	require.EqualError(t, nrr.Validate(), "unknown register result")
-	nrr.Result = RegisterResultAccept
-
-	require.NoError(t, nrr.Validate())
-}
-
-func TestEncryptedRegisterRequest(t *testing.T) {
-	t.Run("SetID", func(t *testing.T) {
-		ERR := new(EncryptedRegisterRequest)
-		g := testGenerateGUID()
-		ERR.SetID(g)
-		require.Equal(t, *g, ERR.ID)
+	t.Run("invalid public key size", func(t *testing.T) {
+		err := nrr.Validate()
+		require.EqualError(t, err, "invalid public key size")
 	})
 
-	t.Run("Validate", func(t *testing.T) {
-		ERR := new(EncryptedRegisterRequest)
+	t.Run("invalid key exchange public key size", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
-		require.EqualError(t, ERR.Validate(), "invalid key exchange public key size")
+		err := nrr.Validate()
+		require.EqualError(t, err, "invalid key exchange public key size")
+	})
+
+	t.Run("unknown register result", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+
+		err := nrr.Validate()
+		require.EqualError(t, err, "unknown register result")
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		nrr.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		nrr.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+		nrr.Result = RegisterResultAccept
+
+		err := nrr.Validate()
+		require.NoError(t, err)
+	})
+}
+
+func TestEncryptedRegisterRequest_SetID(t *testing.T) {
+	ERR := new(EncryptedRegisterRequest)
+	g := testGenerateGUID()
+	ERR.SetID(g)
+	require.Equal(t, *g, ERR.ID)
+}
+
+func TestEncryptedRegisterRequest_Validate(t *testing.T) {
+	ERR := new(EncryptedRegisterRequest)
+
+	t.Run("invalid key exchange public key size", func(t *testing.T) {
+		err := ERR.Validate()
+		require.EqualError(t, err, "invalid key exchange public key size")
+	})
+
+	t.Run("invalid encrypted request data size", func(t *testing.T) {
 		ERR.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
 
-		require.EqualError(t, ERR.Validate(), "invalid encrypted request data size")
+		err := ERR.Validate()
+		require.EqualError(t, err, "invalid encrypted request data size")
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		ERR.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
 		ERR.EncRequest = bytes.Repeat([]byte{0}, aes.BlockSize)
 
-		require.NoError(t, ERR.Validate())
+		err := ERR.Validate()
+		require.NoError(t, err)
 	})
 }

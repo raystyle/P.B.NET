@@ -20,13 +20,25 @@ func TestQueryNodeKey_SetID(t *testing.T) {
 func TestAnswerNodeKey_Validate(t *testing.T) {
 	ank := new(AnswerNodeKey)
 
-	require.EqualError(t, ank.Validate(), "invalid public key size")
-	ank.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+	t.Run("invalid public key size", func(t *testing.T) {
+		err := ank.Validate()
+		require.EqualError(t, err, "invalid public key size")
+	})
 
-	require.EqualError(t, ank.Validate(), "invalid key exchange public key size")
-	ank.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+	t.Run("invalid key exchange public key size", func(t *testing.T) {
+		ank.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
-	require.NoError(t, ank.Validate())
+		err := ank.Validate()
+		require.EqualError(t, err, "invalid key exchange public key size")
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		ank.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		ank.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+
+		err := ank.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestQueryBeaconKey_SetID(t *testing.T) {
@@ -39,13 +51,25 @@ func TestQueryBeaconKey_SetID(t *testing.T) {
 func TestAnswerBeaconKey_Validate(t *testing.T) {
 	abk := new(AnswerBeaconKey)
 
-	require.EqualError(t, abk.Validate(), "invalid public key size")
-	abk.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+	t.Run("invalid public key size", func(t *testing.T) {
+		err := abk.Validate()
+		require.EqualError(t, err, "invalid public key size")
+	})
 
-	require.EqualError(t, abk.Validate(), "invalid key exchange public key size")
-	abk.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+	t.Run("invalid key exchange public key size", func(t *testing.T) {
+		abk.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
 
-	require.NoError(t, abk.Validate())
+		err := abk.Validate()
+		require.EqualError(t, err, "invalid key exchange public key size")
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		abk.PublicKey = bytes.Repeat([]byte{0}, ed25519.PublicKeySize)
+		abk.KexPublicKey = bytes.Repeat([]byte{0}, curve25519.ScalarSize)
+
+		err := abk.Validate()
+		require.NoError(t, err)
+	})
 }
 
 func TestUpdateNodeRequest_SetID(t *testing.T) {
