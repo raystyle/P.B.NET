@@ -103,6 +103,7 @@ func (s *Slaver) stop() {
 	// close all connections
 	for conn := range s.conns {
 		_ = conn.Close()
+		delete(s.conns, conn)
 	}
 }
 
@@ -114,7 +115,7 @@ func (s *Slaver) Restart() error {
 
 // Name is used to get the module name.
 func (s *Slaver) Name() string {
-	return "lcx slave"
+	return "lcx slaver"
 }
 
 // Info is used to get the slaver information.
@@ -147,12 +148,14 @@ func (s *Slaver) log(lv logger.Level, log ...interface{}) {
 
 // dial loop
 func (s *Slaver) serve() {
+	defer s.wg.Done()
+
 	defer func() {
 		if r := recover(); r != nil {
 			s.log(logger.Fatal, xpanic.Print(r, "Slaver.serve"))
 		}
 		s.logf(logger.Info, "stop connect listener (%s %s)", s.lNetwork, s.lAddress)
-		s.wg.Done()
+
 	}()
 	s.logf(logger.Info, "start connect listener (%s %s)", s.lNetwork, s.lAddress)
 	for {
@@ -240,6 +243,8 @@ func (c *sConn) Serve() {
 }
 
 func (c *sConn) serve(done chan struct{}) {
+	defer c.slaver.wg.Done()
+
 	const title = "sConn.serve"
 	defer func() {
 		if r := recover(); r != nil {
@@ -248,7 +253,7 @@ func (c *sConn) serve(done chan struct{}) {
 		}
 		close(done)
 		_ = c.local.Close()
-		c.slaver.wg.Done()
+
 	}()
 
 	if !c.slaver.trackConn(c, true) {
@@ -275,12 +280,11 @@ func (c *sConn) serve(done chan struct{}) {
 
 	c.slaver.wg.Add(1)
 	go func() {
+		defer c.slaver.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				c.log(logger.Fatal, xpanic.Print(r, title))
-				time.Sleep(time.Second)
 			}
-			c.slaver.wg.Done()
 		}()
 		// read one byte for block it, prevent slaver burst connect listener.
 		oneByte := make([]byte, 1)

@@ -56,6 +56,7 @@ func TestTranner(t *testing.T) {
 	require.NoError(t, err)
 
 	tranner.Stop()
+
 	testsuite.IsDestroyed(t, tranner)
 }
 
@@ -104,6 +105,7 @@ func TestTranner_Start(t *testing.T) {
 		require.Error(t, err)
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 
@@ -118,6 +120,7 @@ func TestTranner_Start(t *testing.T) {
 		require.Error(t, err)
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 }
@@ -126,23 +129,44 @@ func TestTranner_Stop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	tranner := testGenerateTranner(t)
-	err := tranner.Start()
-	require.NoError(t, err)
+	t.Run("ok", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
 
-	// force close tranner
-	conn, err := net.Dial("tcp", tranner.testAddress())
-	require.NoError(t, err)
-	defer func() { _ = conn.Close() }()
+		err := tranner.Start()
+		require.NoError(t, err)
 
-	// wait tran
-	time.Sleep(time.Second)
+		// force close tranner
+		conn, err := net.Dial("tcp", tranner.testAddress())
+		require.NoError(t, err)
+		defer func() { _ = conn.Close() }()
 
-	t.Log(tranner.Status())
+		// wait tran
+		time.Sleep(time.Second)
 
-	tranner.Stop()
-	tranner.Stop()
-	testsuite.IsDestroyed(t, tranner)
+		t.Log(tranner.Status())
+
+		tranner.Stop()
+		tranner.Stop()
+
+		testsuite.IsDestroyed(t, tranner)
+	})
+
+	t.Run("close with error", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
+
+		tranner.ctx, tranner.cancel = context.WithCancel(context.Background())
+		tranner.listener = testsuite.NewMockListenerWithCloseError()
+
+		conn := &tConn{
+			tranner: tranner,
+			local:   testsuite.NewMockConnWithCloseError(),
+		}
+		tranner.trackConn(conn, true)
+
+		tranner.Stop()
+
+		testsuite.IsDestroyed(t, tranner)
+	})
 }
 
 func TestTranner_serve(t *testing.T) {
@@ -150,18 +174,19 @@ func TestTranner_serve(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("panic", func(t *testing.T) {
-		listener := netutil.LimitListener(nil, 1)
-		patch := func(interface{}) (net.Conn, error) {
-			panic(monkey.Panic)
+		patch := func(net.Listener, int) net.Listener {
+			return testsuite.NewMockListenerWithAcceptPanic()
 		}
-		pg := monkey.PatchInstanceMethod(listener, "Accept", patch)
+		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
 
 		tranner := testGenerateTranner(t)
+
 		err := tranner.Start()
 		require.NoError(t, err)
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 
@@ -173,12 +198,14 @@ func TestTranner_serve(t *testing.T) {
 		defer pg.Unpatch()
 
 		tranner := testGenerateTranner(t)
+
 		err := tranner.Start()
 		require.NoError(t, err)
 
 		tranner.wg.Wait()
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 }
@@ -189,7 +216,8 @@ func TestTranner_trackConn(t *testing.T) {
 
 	tranner := testGenerateTranner(t)
 
-	require.False(t, tranner.trackConn(nil, true))
+	ok := tranner.trackConn(nil, true)
+	require.False(t, ok)
 
 	testsuite.IsDestroyed(t, tranner)
 }
@@ -228,6 +256,7 @@ func TestTConn_Serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 
@@ -250,6 +279,7 @@ func TestTConn_Serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 
@@ -273,6 +303,7 @@ func TestTConn_Serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		tranner.Stop()
+
 		testsuite.IsDestroyed(t, tranner)
 	})
 }

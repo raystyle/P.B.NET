@@ -108,6 +108,7 @@ func (l *Listener) stop() {
 	// close all connections
 	for conn := range l.conns {
 		_ = conn.Close()
+		delete(l.conns, conn)
 	}
 }
 
@@ -119,7 +120,7 @@ func (l *Listener) Restart() error {
 
 // Name is used to get the module name.
 func (l *Listener) Name() string {
-	return "lcx listen"
+	return "lcx listener"
 }
 
 // Info is used to get the listener information.
@@ -185,6 +186,8 @@ func (l *Listener) log(lv logger.Level, log ...interface{}) {
 }
 
 func (l *Listener) serve(iListener, lListener net.Listener) {
+	defer l.wg.Done()
+
 	defer func() {
 		_ = iListener.Close()
 		_ = lListener.Close()
@@ -201,7 +204,7 @@ func (l *Listener) serve(iListener, lListener net.Listener) {
 		}
 		const format = "income and local listener closed (%s %s), (%s %s)"
 		l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
-		l.wg.Done()
+
 	}()
 	const format = "start income and local listener (%s %s), (%s %s)"
 	l.logf(logger.Info, format, iNetwork, iAddress, lNetwork, lAddress)
@@ -299,6 +302,8 @@ func (c *lConn) Serve() {
 }
 
 func (c *lConn) serve() {
+	defer c.listener.wg.Done()
+
 	const title = "lConn.serve"
 	defer func() {
 		if r := recover(); r != nil {
@@ -306,7 +311,6 @@ func (c *lConn) serve() {
 		}
 		_ = c.remote.Close()
 		_ = c.local.Close()
-		c.listener.wg.Done()
 	}()
 
 	if !c.listener.trackConn(c, true) {
@@ -321,16 +325,18 @@ func (c *lConn) serve() {
 	_, _ = fmt.Fprint(buf, "\n", c.listener.Status())
 	c.listener.log(logger.Info, buf)
 
-	// start copy
+	// reset deadline
 	_ = c.remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
+
+	// start copy
 	c.listener.wg.Add(1)
 	go func() {
+		defer c.listener.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				c.log(logger.Fatal, xpanic.Print(r, title))
 			}
-			c.listener.wg.Done()
 		}()
 		_, _ = io.Copy(c.local, c.remote)
 	}()

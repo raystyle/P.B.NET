@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"golang.org/x/net/netutil"
 
 	"project/internal/logger"
+	"project/internal/nettool"
 	"project/internal/xpanic"
 )
 
@@ -100,11 +100,21 @@ func (t *Tranner) stop() {
 	}
 	t.cancel()
 	// close listener
-	_ = t.listener.Close()
+	err := t.listener.Close()
+	if err != nil && !nettool.IsNetClosingError(err) {
+		address := t.listener.Addr()
+		network := address.Network()
+		const format = "failed to close listener (%s %s): %s"
+		t.logf(logger.Error, format, network, address, err)
+	}
 	t.listener = nil
 	// close all connections
 	for conn := range t.conns {
-		_ = conn.Close()
+		err = conn.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			t.log(logger.Error, "failed to close connection:", err)
+		}
+		delete(t.conns, conn)
 	}
 }
 
@@ -116,7 +126,7 @@ func (t *Tranner) Restart() error {
 
 // Name is used to get the module name.
 func (t *Tranner) Name() string {
-	return "lcx tran"
+	return "lcx tranner"
 }
 
 // Info is used to get the tranner information.
@@ -167,18 +177,29 @@ func (t *Tranner) log(lv logger.Level, log ...interface{}) {
 }
 
 func (t *Tranner) serve(listener net.Listener) {
-	defer func() { _ = listener.Close() }()
-	address := listener.Addr()
-	network := address.Network()
+	defer t.wg.Done()
+
 	defer func() {
 		if r := recover(); r != nil {
 			t.log(logger.Fatal, xpanic.Print(r, "Tranner.serve"))
 		}
-		t.logf(logger.Info, "listener closed (%s %s)", network, address)
-		t.wg.Done()
 	}()
+
+	address := listener.Addr()
+	network := address.Network()
+
+	defer func() {
+		err := listener.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			const format = "failed to close listener (%s %s): %s"
+			t.logf(logger.Error, format, network, address, err)
+		}
+	}()
+
 	t.logf(logger.Info, "start listener (%s %s)", network, address)
-	// start accept
+	defer t.logf(logger.Info, "listener closed (%s %s)", network, address)
+
+	// start accept loop
 	var delay time.Duration // how long to sleep on accept failure
 	maxDelay := time.Second
 	for {
@@ -198,10 +219,10 @@ func (t *Tranner) serve(listener net.Listener) {
 				time.Sleep(delay)
 				continue
 			}
-			errStr := err.Error()
-			if !strings.Contains(errStr, "closed") {
-				t.log(logger.Error, errStr)
+			if nettool.IsNetClosingError(err) {
+				return
 			}
+			t.log(logger.Error, err)
 			return
 		}
 		delay = 0
@@ -248,13 +269,20 @@ func (c *tConn) Serve() {
 }
 
 func (c *tConn) serve() {
+	defer c.tranner.wg.Done()
+
 	const title = "tConn.serve"
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
 		}
-		_ = c.local.Close()
-		c.tranner.wg.Done()
+	}()
+
+	defer func() {
+		err := c.local.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			c.log(logger.Error, "failed to close local connection:", err)
+		}
 	}()
 
 	if !c.tranner.trackConn(c, true) {
@@ -265,12 +293,20 @@ func (c *tConn) serve() {
 	// connect the target
 	ctx, cancel := context.WithTimeout(c.tranner.ctx, c.tranner.opts.ConnectTimeout)
 	defer cancel()
-	remote, err := new(net.Dialer).DialContext(ctx, c.tranner.dstNetwork, c.tranner.dstAddress)
+	network := c.tranner.dstNetwork
+	address := c.tranner.dstAddress
+	remote, err := new(net.Dialer).DialContext(ctx, network, address)
 	if err != nil {
 		c.log(logger.Error, "failed to connect target:", err)
 		return
 	}
-	defer func() { _ = remote.Close() }()
+
+	defer func() {
+		err := remote.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			c.log(logger.Error, "failed to close remote connection:", err)
+		}
+	}()
 
 	// log
 	buf := new(bytes.Buffer)
@@ -279,16 +315,18 @@ func (c *tConn) serve() {
 	_, _ = fmt.Fprint(buf, "\n", c.tranner.Status())
 	c.tranner.log(logger.Info, buf)
 
-	// start copy
+	// reset deadline
 	_ = remote.SetDeadline(time.Time{})
 	_ = c.local.SetDeadline(time.Time{})
+
+	// start copy
 	c.tranner.wg.Add(1)
 	go func() {
+		defer c.tranner.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				c.log(logger.Fatal, xpanic.Print(r, title))
 			}
-			c.tranner.wg.Done()
 		}()
 		_, _ = io.Copy(c.local, remote)
 	}()
