@@ -87,8 +87,7 @@ func (m *Manager) addSocks(server *Server) error {
 		}
 	}
 	opts.DialContext = server.DialContext
-	// because the tag is never empty
-	// socks.NewServer will not return error
+	// because the tag is never empty, socks.NewServer will not return error
 	switch server.Mode {
 	case ModeSocks5:
 		server.server, _ = socks.NewSocks5Server(server.Tag, m.logger, opts)
@@ -163,6 +162,9 @@ func (m *Manager) Servers() map[string]*Server {
 func (m *Manager) Close() error {
 	m.serversRWM.Lock()
 	defer m.serversRWM.Unlock()
+	if m.closed {
+		return nil
+	}
 	m.closed = true
 	var err error
 	for tag, server := range m.servers {

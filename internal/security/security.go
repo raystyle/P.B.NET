@@ -71,7 +71,7 @@ func CoverBytes(bytes []byte) {
 // CoverString is used to cover string if string has secret.
 func CoverString(str string) {
 	stringHeader := (*reflect.StringHeader)(unsafe.Pointer(&str)) // #nosec
-	slice := make([]byte, stringHeader.Len, stringHeader.Len)
+	slice := make([]byte, stringHeader.Len)
 	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&slice)) // #nosec
 	sliceHeader.Data = stringHeader.Data
 	CoverBytes(slice)
@@ -111,7 +111,7 @@ func (b *Bytes) Get() []byte {
 	return bytes
 }
 
-// Put is used to put byte slice to cache, slice will be cover.
+// Put is used to put byte slice to cache, slice will be covered.
 func (b *Bytes) Put(s []byte) {
 	for i := 0; i < b.len; i++ {
 		s[i] = 0
