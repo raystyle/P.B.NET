@@ -6,7 +6,18 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Module is the internal module.
+// Module is the interface of module, it include internal and external module.
+//
+// Internal module is in the internal/module/*. These module usually use less
+// space (use the exist go packages that in GOROOT/src and go.mod), have high
+// stability, don't need external program.
+//
+// External module is in the project/module, or app/mod. These module usually
+// have the client(Beacon) and server(external program), client is used to send
+// command to the server and receive the result. Client and server can use Pipe
+// and Socket for communication. These module maybe not have high stability and
+// execute high risk operation.
+// Use Start() to connect the module server, and use Call() to send command.
 type Module interface {
 	Start() error
 	Stop()
@@ -18,6 +29,7 @@ type Module interface {
 
 // Manager is the module manager.
 type Manager struct {
+	closed bool
 	// key = module tag
 	modules    map[string]Module
 	modulesRWM sync.RWMutex
@@ -37,6 +49,9 @@ func (m *Manager) Add(tag string, module Module) error {
 	}
 	m.modulesRWM.Lock()
 	defer m.modulesRWM.Unlock()
+	if m.closed {
+		return errors.New("proxy server manager closed")
+	}
 	if _, ok := m.modules[tag]; !ok {
 		m.modules[tag] = module
 		return nil
@@ -133,6 +148,10 @@ func (m *Manager) Modules() map[string]Module {
 func (m *Manager) Close() {
 	m.modulesRWM.Lock()
 	defer m.modulesRWM.Unlock()
+	if m.closed {
+		return
+	}
+	m.closed = true
 	for tag, module := range m.modules {
 		module.Stop()
 		delete(m.modules, tag)

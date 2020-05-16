@@ -45,7 +45,15 @@ func TestManager_Add(t *testing.T) {
 		require.EqualError(t, err, "module test1 already exists")
 	})
 
+	t.Run("add after close", func(t *testing.T) {
+		manager.Close()
+
+		err := manager.Add("test", nil)
+		require.Error(t, err)
+	})
+
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -75,6 +83,7 @@ func TestManager_Delete(t *testing.T) {
 	})
 
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -107,6 +116,7 @@ func TestManager_Get(t *testing.T) {
 	})
 
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -131,6 +141,7 @@ func TestManager_Start(t *testing.T) {
 	})
 
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -155,6 +166,7 @@ func TestManager_Stop(t *testing.T) {
 	})
 
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -179,6 +191,7 @@ func TestManager_Restart(t *testing.T) {
 	})
 
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -205,6 +218,7 @@ func TestManager_Info(t *testing.T) {
 	})
 
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -231,6 +245,7 @@ func TestManager_Status(t *testing.T) {
 	})
 
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -249,6 +264,7 @@ func TestManager_Modules(t *testing.T) {
 
 	manager.Close()
 	require.Len(t, manager.Modules(), 0)
+
 	testsuite.IsDestroyed(t, manager)
 }
 
@@ -264,13 +280,15 @@ func TestManager_Parallel(t *testing.T) {
 	require.NoError(t, err)
 
 	add := func() {
-		err := manager.Add("test", module)
-		require.NoError(t, err)
+		_ = manager.Add("test", module)
 	}
 	del := func() {
 		_ = manager.Delete(deleteTag)
 	}
-	get := func() {
+	get1 := func() {
+		_, _ = manager.Get("test")
+	}
+	get2 := func() {
 		module, err := manager.Get("")
 		require.EqualError(t, err, "empty module tag")
 		require.Nil(t, module)
@@ -282,8 +300,9 @@ func TestManager_Parallel(t *testing.T) {
 	close1 := func() {
 		manager.Close()
 	}
-	testsuite.RunParallel(add, del, get, modules, close1)
+	testsuite.RunParallel(add, del, get1, get2, modules, close1)
 
 	manager.Close()
+
 	testsuite.IsDestroyed(t, manager)
 }
