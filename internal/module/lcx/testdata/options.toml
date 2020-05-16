@@ -1,0 +1,5 @@
+local_network   = "tcp4"
+local_address   = "127.0.0.1:1099"
+connect_timeout = "15s"
+dial_timeout    = "30s"
+max_conns       = 100
