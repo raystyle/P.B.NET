@@ -58,10 +58,11 @@ func TestDNSClient(t *testing.T) {
 		})
 	}
 
-	testsuite.IsDestroyed(t, client)
-	testsuite.IsDestroyed(t, proxyPool)
 	err := proxyMgr.Close()
 	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, client)
+	testsuite.IsDestroyed(t, proxyPool)
 	testsuite.IsDestroyed(t, proxyMgr)
 	testsuite.IsDestroyed(t, certPool)
 }

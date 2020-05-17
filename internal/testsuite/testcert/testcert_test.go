@@ -28,6 +28,7 @@ func TestCertPool(t *testing.T) {
 
 	systemCertPool, err := certpool.System()
 	require.NoError(t, err)
+
 	certs := systemCertPool.Certs()
 	require.Len(t, pool.GetPublicRootCACerts(), len(certs))
 
