@@ -135,7 +135,7 @@ func (l *Listener) Restart() error {
 
 // Name is used to get the module name.
 func (l *Listener) Name() string {
-	return "lcx listener"
+	return "lcx listen"
 }
 
 // Info is used to get the listener information.

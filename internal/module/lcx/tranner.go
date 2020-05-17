@@ -72,7 +72,7 @@ func (t *Tranner) Start() error {
 	t.rwm.Lock()
 	defer t.rwm.Unlock()
 	if t.listener != nil {
-		return errors.New("already start lcx tranner")
+		return errors.New("already start lcx tran")
 	}
 	listener, err := net.Listen(t.opts.LocalNetwork, t.opts.LocalAddress)
 	if err != nil {
@@ -126,7 +126,7 @@ func (t *Tranner) Restart() error {
 
 // Name is used to get the module name.
 func (t *Tranner) Name() string {
-	return "lcx tranner"
+	return "lcx tran"
 }
 
 // Info is used to get the tranner information.

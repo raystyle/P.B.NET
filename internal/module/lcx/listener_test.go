@@ -350,3 +350,12 @@ func TestLConn_Serve(t *testing.T) {
 		testsuite.IsDestroyed(t, listener)
 	})
 }
+
+func TestLConn_Close(t *testing.T) {
+	conn := lConn{
+		remote: testsuite.NewMockConnWithCloseError(),
+		local:  testsuite.NewMockConnWithReadError(),
+	}
+	err := conn.Close()
+	require.Error(t, err)
+}

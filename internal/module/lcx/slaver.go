@@ -12,6 +12,8 @@ import (
 	"github.com/pkg/errors"
 
 	"project/internal/logger"
+	"project/internal/nettool"
+	"project/internal/random"
 	"project/internal/xpanic"
 )
 
@@ -24,11 +26,12 @@ type Slaver struct {
 	logger     logger.Logger
 	opts       *Options
 
-	logSrc string
-	dialer net.Dialer
-	start  bool
-	conns  map[*sConn]struct{}
-	rwm    sync.RWMutex
+	logSrc  string
+	dialer  net.Dialer
+	start   bool
+	sleeper *random.Sleeper
+	conns   map[*sConn]struct{}
+	rwm     sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -68,6 +71,7 @@ func NewSlaver(
 		logger:     logger,
 		opts:       opts,
 		logSrc:     "lcx slave-" + tag,
+		sleeper:    random.NewSleeper(),
 		conns:      make(map[*sConn]struct{}),
 	}, nil
 }
@@ -77,7 +81,7 @@ func (s *Slaver) Start() error {
 	s.rwm.Lock()
 	defer s.rwm.Unlock()
 	if s.start {
-		return errors.New("already start lcx slaver")
+		return errors.New("already start lcx slave")
 	}
 	s.start = true
 	s.ctx, s.cancel = context.WithCancel(context.Background())
@@ -102,7 +106,10 @@ func (s *Slaver) stop() {
 	s.start = false
 	// close all connections
 	for conn := range s.conns {
-		_ = conn.Close()
+		err := conn.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			s.log(logger.Error, "failed to close connection:", err)
+		}
 		delete(s.conns, conn)
 	}
 }
@@ -115,7 +122,7 @@ func (s *Slaver) Restart() error {
 
 // Name is used to get the module name.
 func (s *Slaver) Name() string {
-	return "lcx slaver"
+	return "lcx slave"
 }
 
 // Info is used to get the slaver information.
@@ -146,7 +153,6 @@ func (s *Slaver) log(lv logger.Level, log ...interface{}) {
 	s.logger.Println(lv, s.logSrc, log...)
 }
 
-// dial loop
 func (s *Slaver) serve() {
 	defer s.wg.Done()
 
@@ -154,14 +160,20 @@ func (s *Slaver) serve() {
 		if r := recover(); r != nil {
 			s.log(logger.Fatal, xpanic.Print(r, "Slaver.serve"))
 		}
-		s.logf(logger.Info, "stop connect listener (%s %s)", s.lNetwork, s.lAddress)
-
 	}()
+
 	s.logf(logger.Info, "start connect listener (%s %s)", s.lNetwork, s.lAddress)
+	defer s.logf(logger.Info, "stop connect listener (%s %s)", s.lNetwork, s.lAddress)
+
+	// dial loop
 	for {
 		if s.full() {
 			s.log(logger.Warning, "full connection")
-			time.Sleep(time.Second)
+			select {
+			case <-s.sleeper.Sleep(1, 3):
+			case <-s.ctx.Done():
+				return
+			}
 			continue
 		}
 		if s.stopped() {
@@ -170,7 +182,11 @@ func (s *Slaver) serve() {
 		conn, err := s.dial()
 		if err != nil {
 			s.log(logger.Error, err)
-			time.Sleep(time.Second)
+			select {
+			case <-s.sleeper.Sleep(1, 10):
+			case <-s.ctx.Done():
+				return
+			}
 			continue
 		}
 		s.newConn(conn).Serve()
@@ -192,11 +208,7 @@ func (s *Slaver) stopped() bool {
 func (s *Slaver) dial() (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(s.ctx, s.opts.DialTimeout)
 	defer cancel()
-	conn, err := s.dialer.DialContext(ctx, s.lNetwork, s.lAddress)
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
+	return s.dialer.DialContext(ctx, s.lNetwork, s.lAddress)
 }
 
 func (s *Slaver) newConn(c net.Conn) *sConn {
@@ -243,17 +255,23 @@ func (c *sConn) Serve() {
 }
 
 func (c *sConn) serve(done chan struct{}) {
-	defer c.slaver.wg.Done()
+	defer func() {
+		c.slaver.wg.Done()
+		close(done)
+	}()
 
 	const title = "sConn.serve"
 	defer func() {
 		if r := recover(); r != nil {
 			c.log(logger.Fatal, xpanic.Print(r, title))
-			time.Sleep(time.Second)
 		}
-		close(done)
-		_ = c.local.Close()
+	}()
 
+	defer func() {
+		err := c.local.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			c.log(logger.Error, "failed to close local connection:", err)
+		}
 	}()
 
 	if !c.slaver.trackConn(c, true) {
@@ -264,12 +282,20 @@ func (c *sConn) serve(done chan struct{}) {
 	// connect the target
 	ctx, cancel := context.WithTimeout(c.slaver.ctx, c.slaver.opts.ConnectTimeout)
 	defer cancel()
-	remote, err := new(net.Dialer).DialContext(ctx, c.slaver.dstNetwork, c.slaver.dstAddress)
+	network := c.slaver.dstNetwork
+	address := c.slaver.dstAddress
+	remote, err := new(net.Dialer).DialContext(ctx, network, address)
 	if err != nil {
 		c.log(logger.Error, "failed to connect target:", err)
 		return
 	}
-	defer func() { _ = remote.Close() }()
+
+	defer func() {
+		err := remote.Close()
+		if err != nil && !nettool.IsNetClosingError(err) {
+			c.log(logger.Error, "failed to close remote connection:", err)
+		}
+	}()
 
 	// log
 	buf := new(bytes.Buffer)
@@ -308,6 +334,7 @@ func (c *sConn) serve(done chan struct{}) {
 		// continue copy
 		_ = remote.SetReadDeadline(time.Time{})
 		_ = c.local.SetWriteDeadline(time.Time{})
+
 		_, _ = io.Copy(c.local, remote)
 	}()
 
@@ -333,6 +360,7 @@ func (c *sConn) serve(done chan struct{}) {
 	// continue copy
 	_ = c.local.SetReadDeadline(time.Time{})
 	_ = remote.SetWriteDeadline(time.Time{})
+
 	_, _ = io.Copy(remote, c.local)
 }
 

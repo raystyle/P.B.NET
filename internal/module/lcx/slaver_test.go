@@ -60,8 +60,9 @@ func TestSlaver(t *testing.T) {
 	require.NoError(t, err)
 
 	slaver.Stop()
-	testsuite.IsDestroyed(t, slaver)
 	listener.Stop()
+
+	testsuite.IsDestroyed(t, slaver)
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -106,14 +107,16 @@ func TestSlaver_Start(t *testing.T) {
 	defer gm.Compare()
 
 	listener, slaver := testGenerateListenerAndSlaver(t)
+
 	err := slaver.Start()
 	require.NoError(t, err)
 	err = slaver.Start()
 	require.Error(t, err)
 
 	slaver.Stop()
-	testsuite.IsDestroyed(t, slaver)
 	listener.Stop()
+
+	testsuite.IsDestroyed(t, slaver)
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -124,6 +127,7 @@ func TestSlaver_Stop(t *testing.T) {
 	defer gm.Compare()
 
 	listener, slaver := testGenerateListenerAndSlaver(t)
+
 	err := slaver.Start()
 	require.NoError(t, err)
 
@@ -133,8 +137,9 @@ func TestSlaver_Stop(t *testing.T) {
 
 	slaver.Stop()
 	slaver.Stop()
-	testsuite.IsDestroyed(t, slaver)
 	listener.Stop()
+
+	testsuite.IsDestroyed(t, slaver)
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -147,6 +152,7 @@ func TestSlaver_serve(t *testing.T) {
 	t.Run("full", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 		slaver.opts.MaxConns = 1 // force change
+
 		err := slaver.Start()
 		require.NoError(t, err)
 
@@ -158,8 +164,9 @@ func TestSlaver_serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		slaver.Stop()
-		testsuite.IsDestroyed(t, slaver)
 		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -167,6 +174,7 @@ func TestSlaver_serve(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 		slaver.lAddress = "0.0.0.0:1"
 		slaver.opts.MaxConns = 1 // force change
+
 		err := slaver.Start()
 		require.NoError(t, err)
 
@@ -174,8 +182,9 @@ func TestSlaver_serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		slaver.Stop()
-		testsuite.IsDestroyed(t, slaver)
 		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -195,8 +204,9 @@ func TestSlaver_serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		slaver.Stop()
-		testsuite.IsDestroyed(t, slaver)
 		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
 		testsuite.IsDestroyed(t, listener)
 	})
 }
@@ -210,8 +220,9 @@ func TestSlaver_trackConn(t *testing.T) {
 	require.False(t, slaver.trackConn(nil, true))
 
 	slaver.Stop()
-	testsuite.IsDestroyed(t, slaver)
 	listener.Stop()
+
+	testsuite.IsDestroyed(t, slaver)
 	testsuite.IsDestroyed(t, listener)
 }
 
@@ -230,8 +241,9 @@ func TestSConn_Serve(t *testing.T) {
 		conn.Serve()
 
 		slaver.Stop()
-		testsuite.IsDestroyed(t, slaver)
 		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -246,8 +258,9 @@ func TestSConn_Serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		slaver.Stop()
-		testsuite.IsDestroyed(t, slaver)
 		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -269,8 +282,9 @@ func TestSConn_Serve(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 
 		slaver.Stop()
-		testsuite.IsDestroyed(t, slaver)
 		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
 		testsuite.IsDestroyed(t, listener)
 	})
 
@@ -355,6 +369,7 @@ func TestSConn_Serve(t *testing.T) {
 
 	t.Run("panic from copy", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
+
 		err := slaver.Start()
 		require.NoError(t, err)
 
@@ -370,8 +385,9 @@ func TestSConn_Serve(t *testing.T) {
 		time.Sleep(time.Second)
 
 		slaver.Stop()
-		testsuite.IsDestroyed(t, slaver)
 		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
 		testsuite.IsDestroyed(t, listener)
 	})
 }
