@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 	if ctrl != nil {
 		// wait to print log
-		time.Sleep(time.Second)
+		time.Sleep(250 * time.Millisecond)
 		ctrl.Exit(nil)
 	}
 	testdata.Clean()
@@ -99,8 +99,8 @@ func generateControllerConfig() *controller.Config {
 	cfg.Global.TimeSyncInterval = time.Minute
 
 	cfg.Client.Timeout = 10 * time.Second
-	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
-	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCA = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClient = true
 
 	cfg.Sender.MaxConns = 16
 	cfg.Sender.Worker = 64
@@ -147,8 +147,8 @@ func generateNodeConfig(t testing.TB, name string) *node.Config {
 
 	cfg.Client.Timeout = 10 * time.Second
 	cfg.Client.ProxyTag = testdata.Socks5Tag
-	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
-	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCA = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClient = true
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
@@ -199,8 +199,8 @@ func generateBeaconConfig(t testing.TB, name string) *beacon.Config {
 
 	cfg.Client.Timeout = 10 * time.Second
 	cfg.Client.ProxyTag = testdata.Socks5Tag
-	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
-	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCA = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClient = true
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
@@ -290,7 +290,7 @@ func generateInitialNode(t testing.TB, id int) *node.Node {
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
-	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCACerts = true
+	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCA = true
 	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	// set to node config

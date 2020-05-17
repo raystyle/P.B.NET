@@ -77,7 +77,7 @@ func testNodeListenerQUIC(t *testing.T, node *node.Node) {
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
-	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCACerts = true
+	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCA = true
 	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	err := node.AddListener(&listener)
@@ -119,7 +119,7 @@ func testNodeListenerTLS(t *testing.T, node *node.Node) {
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
-	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCACerts = true
+	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCA = true
 	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	err := node.AddListener(&listener)
