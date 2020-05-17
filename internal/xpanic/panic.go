@@ -24,7 +24,7 @@ func PrintStack(b *bytes.Buffer, skip int) {
 	var pcs [maxDepth]uintptr
 	n := runtime.Callers(skip, pcs[:])
 	// skip unnecessary pc
-	for _, pc := range pcs[2 : n-2] {
+	for _, pc := range pcs[2 : n-1] {
 		f := frame(pc)
 		// write source file
 		pc := f.pc()
