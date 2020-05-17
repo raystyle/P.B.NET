@@ -424,6 +424,42 @@ func TestSConn_Serve(t *testing.T) {
 		// testsuite.IsDestroyed(t, listener)
 	})
 
+	t.Run("done block in defer", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+
+		conn := new(sConn)
+		patch1 := func(c *sConn) {
+			done := make(chan struct{})
+			c.slaver.wg.Add(1)
+			go c.serve(done)
+
+			<-c.slaver.ctx.Done()
+		}
+		pg1 := monkey.PatchInstanceMethod(conn, "Serve", patch1)
+		defer pg1.Unpatch()
+
+		dialer := new(net.Dialer)
+		patch2 := func(interface{}, context.Context, string, string) (net.Conn, error) {
+			return testsuite.NewMockConnWithCloseError(), nil
+		}
+		pg2 := monkey.PatchInstanceMethod(dialer, "DialContext", patch2)
+		defer pg2.Unpatch()
+
+		err := slaver.Start()
+		require.NoError(t, err)
+
+		// wait serve
+		time.Sleep(time.Second)
+
+		slaver.Stop()
+		listener.Stop()
+
+		// because of monkey
+		// testsuite.IsDestroyed(t, slaver)
+		// testsuite.IsDestroyed(t, listener)
+
+	})
+
 	t.Run("panic from copy", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 
