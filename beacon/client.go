@@ -109,7 +109,7 @@ func (beacon *Beacon) NewClient(
 		guid:      guid,
 		Conn:      conn,
 		closeFunc: closeFunc,
-		rand:      random.New(),
+		rand:      random.NewRand(),
 	}
 	err = client.handshake(ctx, conn)
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	"project/internal/crypto/ed25519"
 	"project/internal/logger"
 	"project/internal/patch/toml"
+	"project/internal/testsuite"
 
 	"project/testdata"
 )
@@ -37,8 +38,8 @@ func testGenerateConfig(t testing.TB) *Config {
 	cfg.Global.TimeSyncerClients = testdata.TimeSyncerClients()
 
 	cfg.Client.Timeout = 15 * time.Second
-	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCACerts = true
-	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClientCerts = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateRootCA = true
+	cfg.Client.TLSConfig.LoadFromCertPool.LoadPrivateClient = true
 
 	cfg.Register.SleepFixed = 10
 	cfg.Register.SleepRandom = 20
@@ -64,10 +65,16 @@ func testGenerateConfig(t testing.TB) *Config {
 }
 
 func TestConfig(t *testing.T) {
-	b, err := ioutil.ReadFile("testdata/config.toml")
+	data, err := ioutil.ReadFile("testdata/config.toml")
 	require.NoError(t, err)
+
+	// check unnecessary field
 	cfg := Config{}
-	require.NoError(t, toml.Unmarshal(b, &cfg))
+	err = toml.Unmarshal(data, &cfg)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, cfg)
 
 	tds := [...]*struct {
 		expected interface{}

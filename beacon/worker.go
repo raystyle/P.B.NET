@@ -173,6 +173,7 @@ type subWorker struct {
 
 	maxBufferSize int
 
+	// copy from worker
 	sendQueue   chan *protocol.Send
 	ackQueue    chan *protocol.Acknowledge
 	answerQueue chan *protocol.Answer

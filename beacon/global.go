@@ -95,7 +95,7 @@ func newGlobal(logger logger.Logger, config *Config) (*global, error) {
 		ProxyPool:  proxyPool,
 		DNSClient:  dnsClient,
 		TimeSyncer: timeSyncer,
-		rand:       random.New(),
+		rand:       random.NewRand(),
 	}
 	err = global.configure(config)
 	if err != nil {
