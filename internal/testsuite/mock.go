@@ -91,6 +91,9 @@ type mockConn struct {
 	deadlinePanic      bool // SetDeadline() panic
 	readDeadlinePanic  bool // SetReadDeadline() panic
 	writeDeadlinePanic bool // SetWriteDeadline() panic
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (c *mockConn) Read([]byte) (int, error) {
@@ -99,6 +102,10 @@ func (c *mockConn) Read([]byte) (int, error) {
 	}
 	if c.readPanic {
 		panic(mockConnReadPanic)
+	}
+	if c.closeError {
+		<-c.ctx.Done()
+		return 0, errMockConnClose
 	}
 	return 0, nil
 }
@@ -114,6 +121,9 @@ func (c *mockConn) Write([]byte) (int, error) {
 }
 
 func (c *mockConn) Close() error {
+	if c.cancel != nil {
+		c.cancel()
+	}
 	if c.closeError {
 		return errMockConnClose
 	}
@@ -196,7 +206,9 @@ func IsMockConnWritePanic(t testing.TB, err error) {
 // NewMockConnWithCloseError is used to create a mock conn
 // that will return a errMockConnClose when call Close().
 func NewMockConnWithCloseError() net.Conn {
-	return &mockConn{closeError: true}
+	conn := &mockConn{closeError: true}
+	conn.ctx, conn.cancel = context.WithCancel(context.Background())
+	return conn
 }
 
 // IsMockConnCloseError is used to check err is errMockConnClose.
@@ -278,7 +290,9 @@ func (l *mockListener) Accept() (net.Conn, error) {
 }
 
 func (l *mockListener) Close() error {
-	l.cancel()
+	if l.cancel != nil {
+		l.cancel()
+	}
 	if l.close {
 		return errMockListenerClose
 	}
@@ -289,19 +303,10 @@ func (l *mockListener) Addr() net.Addr {
 	return l.addr
 }
 
-func addContextToMockListener(l *mockListener, cancel bool) {
-	if cancel {
-		l.ctx, l.cancel = context.WithCancel(context.Background())
-	} else {
-		l.cancel = func() {}
-	}
-}
-
 // NewMockListenerWithAcceptError is used to create a mock listener
 // that return a temporary error call Accept().
 func NewMockListenerWithAcceptError() net.Listener {
 	l := &mockListener{error: true}
-	addContextToMockListener(l, false)
 	return l
 }
 
@@ -314,7 +319,6 @@ func IsMockListenerAcceptFatal(t testing.TB, err error) {
 // that panic when call Accept().
 func NewMockListenerWithAcceptPanic() net.Listener {
 	l := &mockListener{panic: true}
-	addContextToMockListener(l, false)
 	return l
 }
 
@@ -327,7 +331,7 @@ func IsMockListenerAcceptPanic(t testing.TB, err error) {
 // that will return a errMockListenerClose when call Close().
 func NewMockListenerWithCloseError() net.Listener {
 	l := &mockListener{close: true}
-	addContextToMockListener(l, true)
+	l.ctx, l.cancel = context.WithCancel(context.Background())
 	return l
 }
 

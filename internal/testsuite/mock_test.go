@@ -154,7 +154,6 @@ func TestMockListener(t *testing.T) {
 
 	t.Run("Accept", func(t *testing.T) {
 		listener := new(mockListener)
-		addContextToMockListener(listener, false)
 
 		conn, err := listener.Accept()
 		require.NoError(t, err)

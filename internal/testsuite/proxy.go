@@ -366,7 +366,7 @@ func proxyClientIPv4Only(t *testing.T, client proxyClient) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				address = "localhost:" + HTTPServerPort
+				address := "localhost:" + HTTPServerPort
 				conn, err := client.DialTimeout(network, address, 0)
 				require.NoError(t, err)
 				ProxyConn(t, conn)
@@ -425,7 +425,7 @@ func proxyClientIPv6Only(t *testing.T, client proxyClient) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			address = "localhost:" + HTTPServerPort
+			address := "localhost:" + HTTPServerPort
 			conn, err := client.DialTimeout(network, address, 0)
 			require.NoError(t, err)
 			ProxyConn(t, conn)
