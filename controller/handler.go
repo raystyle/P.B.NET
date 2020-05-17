@@ -36,7 +36,7 @@ type handler struct {
 func newHandler(ctx *Ctrl) *handler {
 	h := handler{
 		ctx:  ctx,
-		rand: random.New(),
+		rand: random.NewRand(),
 	}
 	h.context, h.cancel = context.WithCancel(context.Background())
 	return &h

@@ -104,7 +104,7 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	listener.TLSConfig.Certificates = []option.X509KeyPair{
 		{Cert: string(certPEM), Key: string(keyPEM)},
 	}
-	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCACerts = true
+	listener.TLSConfig.LoadFromCertPool.LoadPrivateClientCA = true
 	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	// set node config

@@ -129,24 +129,24 @@ func (ctrl *Ctrl) ConfirmTrustNode(ctx context.Context, reply *ReplyNodeRegister
 		return err
 	}
 	// send certificate
-	response, err := client.SendCommand(protocol.CtrlSetNodeCert, certificate.Encode())
+	resp, err := client.SendCommand(protocol.CtrlSetNodeCert, certificate.Encode())
 	if err != nil {
 		return errors.WithMessage(err, "failed to set node certificate")
 	}
-	if !bytes.Equal(response, []byte{messages.RegisterResultAccept}) {
-		return errors.Errorf("failed to trust node: %s", response)
+	if !bytes.Equal(resp, []byte{messages.RegisterResultAccept}) {
+		return errors.Errorf("failed to trust node: %s", resp)
 	}
 	// TODO add node listener
 	// get listeners
-	// response, err = client.send(protocol.CtrlQueryListeners, nil)
+	// resp, err = client.send(protocol.CtrlQueryListeners, nil)
 	// if err != nil {
 	// 	return errors.WithMessage(err, "failed to set node certificate")
 	// }
-	// if len(response) == 0 {
+	// if len(resp) == 0 {
 	// 	return errors.New("no listener tag")
 	// }
 	// // add node listener
-	// tag := string(response)
+	// tag := string(resp)
 	// return ctrl.database.InsertNodeListener(&mNodeListener{
 	// 	GUID:    nil,
 	// 	Tag:     tag,

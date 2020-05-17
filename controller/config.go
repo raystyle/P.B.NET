@@ -98,7 +98,7 @@ func GenerateRoleConfigAboutRestBootstraps(b ...*messages.Bootstrap) ([]byte, []
 
 func generateRoleConfigAboutBootstraps(b interface{}) ([]byte, []byte, error) {
 	data, _ := msgpack.Marshal(b)
-	rand := random.New()
+	rand := random.NewRand()
 	aesKey := rand.Bytes(aes.Key256Bit)
 	aesIV := rand.Bytes(aes.IVSize)
 	enc, err := aes.CBCEncrypt(data, aesKey, aesIV)
@@ -114,7 +114,7 @@ func GenerateNodeConfigAboutListeners(l ...*messages.Listener) ([]byte, []byte, 
 		return nil, nil, errors.New("no listeners")
 	}
 	data, _ := msgpack.Marshal(l)
-	rand := random.New()
+	rand := random.NewRand()
 	aesKey := rand.Bytes(aes.Key256Bit)
 	aesIV := rand.Bytes(aes.IVSize)
 	enc, err := aes.CBCEncrypt(data, aesKey, aesIV)

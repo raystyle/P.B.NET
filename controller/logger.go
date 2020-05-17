@@ -183,6 +183,15 @@ func (lg *gLogger) Close() {
 	lg.ctx = nil
 }
 
+// TODO think printStack
+func (lg *gLogger) printStack(buf *bytes.Buffer, lv logger.Level) {
+	if lg.level != logger.Debug || lv < logger.Warning || lv > logger.Exploit {
+		return
+	}
+	buf.WriteString("stack trace:\n\n")
+	xpanic.PrintStack(buf, 1)
+}
+
 // string log don't include time, level and source, it will also save to the database.
 func (lg *gLogger) writeLog(lv logger.Level, src, log string, b *bytes.Buffer) {
 	defer func() {

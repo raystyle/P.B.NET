@@ -110,7 +110,7 @@ func (ctrl *Ctrl) NewClient(
 		guid:      guid,
 		conn:      conn,
 		closeFunc: closeFunc,
-		rand:      random.New(),
+		rand:      random.NewRand(),
 	}
 	err = client.handshake(ctx, conn)
 	if err != nil {

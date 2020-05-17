@@ -82,7 +82,7 @@ func newDatabase(ctx *Ctrl, config *Config) (*database, error) {
 		gormLogger: gormLogger,
 		db:         gormDB,
 		cache:      newCache(),
-		rand:       random.New(),
+		rand:       random.NewRand(),
 	}, nil
 }
 
@@ -102,12 +102,13 @@ func (db *database) log(lv logger.Level, log ...interface{}) {
 	db.ctx.logger.Println(lv, "database", log...)
 }
 
-// rollback is used to rollback if err != nil,
+// commit is used to commit and  rollback if err != nil,
 // if return true, it means commit is success fully.
 func (db *database) commit(name string, tx *gorm.DB, err error) error {
 	const rollback = "failed to rollback in %s: %s"
 	if r := recover(); r != nil {
-		db.log(logger.Fatal, xpanic.Print(r, fmt.Sprintf("database.%s", name)))
+		title := fmt.Sprintf("database.%s", name)
+		db.log(logger.Fatal, xpanic.Print(r, title))
 		// when panic occurred, err maybe nil
 		e := tx.Rollback().Error
 		if e != nil {

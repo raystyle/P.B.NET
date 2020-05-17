@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 	if ctrl != nil {
 		// wait to print log
-		time.Sleep(time.Second)
+		time.Sleep(250 * time.Millisecond)
 		ctrl.Exit(nil)
 	}
 	testdata.Clean()

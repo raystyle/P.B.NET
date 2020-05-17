@@ -33,8 +33,8 @@ type hP = httprouter.Params
 type webServer struct {
 	ctx *Ctrl
 
-	handler  *webHandler
 	listener net.Listener
+	handler  *webHandler
 	server   *http.Server
 
 	wg sync.WaitGroup

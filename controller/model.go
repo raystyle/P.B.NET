@@ -255,11 +255,11 @@ func InitializeDatabase(config *Config) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to ping %s server", cfg.Dialect)
 	}
+	defer func() { _ = db.Close() }()
 
 	// table name will not add "s"
 	db.SingularTable(true)
 	db.LogMode(false)
-	defer func() { _ = db.Close() }()
 	tables := []*struct {
 		name  string
 		model interface{}

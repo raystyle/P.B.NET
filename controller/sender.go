@@ -53,7 +53,8 @@ type broadcastTask struct {
 // sendTask is used to send message to the target Node or Beacon.
 // MessageI will be Encode by msgpack, except MessageI.(type) is []byte.
 type sendTask struct {
-	Ctx      context.Context
+	ctx context.Context
+
 	GUID     *guid.GUID  // receiver role's GUID
 	Command  []byte      // for Send
 	MessageI interface{} // for Send
@@ -232,7 +233,7 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 			ctx:           sender,
 			timeout:       cfg.Timeout,
 			maxBufferSize: cfg.MaxBufferSize,
-			rand:          random.New(),
+			rand:          random.NewRand(),
 		}
 		go worker.WorkWithBlock()
 	}
@@ -240,7 +241,7 @@ func newSender(ctx *Ctrl, config *Config) (*sender, error) {
 		worker := senderWorker{
 			ctx:           sender,
 			maxBufferSize: cfg.MaxBufferSize,
-			rand:          random.New(),
+			rand:          random.NewRand(),
 		}
 		go worker.WorkWithoutBlock()
 	}
@@ -395,7 +396,7 @@ func (sender *sender) SendToNode(
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
-	st.Ctx = ctx
+	st.ctx = ctx
 	st.GUID = guid
 	st.Command = command
 	st.MessageI = message
@@ -430,7 +431,7 @@ func (sender *sender) SendToBeacon(
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
-	st.Ctx = ctx
+	st.ctx = ctx
 	st.GUID = guid
 	st.Command = command
 	st.MessageI = message
@@ -461,7 +462,7 @@ func (sender *sender) SendToNodeFromPlugin(GUID, message []byte, deflate bool) e
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
-	st.Ctx = sender.context
+	st.ctx = sender.context
 	st.GUID = g
 	st.Message = message
 	st.Deflate = deflate
@@ -491,7 +492,7 @@ func (sender *sender) SendToBeaconFromPlugin(GUID, message []byte, deflate bool)
 	defer sender.sendDonePool.Put(done)
 	st := sender.sendTaskPool.Get().(*sendTask)
 	defer sender.sendTaskPool.Put(st)
-	st.Ctx = sender.context
+	st.ctx = sender.context
 	st.GUID = g
 	st.Message = message
 	st.Deflate = deflate
@@ -1249,11 +1250,11 @@ func (sw *senderWorker) handleSendToNodeTask(st *sendTask) {
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-	case <-st.Ctx.Done():
+	case <-st.ctx.Done():
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-		result.Err = st.Ctx.Err()
+		result.Err = st.ctx.Err()
 	case <-sw.timer.C:
 		result.Err = ErrSendTimeout
 	case <-sw.ctx.context.Done():
@@ -1317,11 +1318,11 @@ func (sw *senderWorker) handleSendToBeaconTask(st *sendTask) {
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-	case <-st.Ctx.Done():
+	case <-st.ctx.Done():
 		if !sw.timer.Stop() {
 			<-sw.timer.C
 		}
-		result.Err = st.Ctx.Err()
+		result.Err = st.ctx.Err()
 	case <-sw.timer.C:
 		result.Err = ErrSendTimeout
 	case <-sw.ctx.context.Done():
