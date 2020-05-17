@@ -1,8 +1,19 @@
----code style---
+---------------------------------------------code style--------------------------------------------
 
-1.1: check require.NoError()
-use "require.NoError(t, err)" to replace "require.NoError(t, conn.Close())"
+1.1: check require
+require.NoError(t, err)                    -> require.NoError(t, conn.Close())
+require.Error(t, err)                      -> require.Error(t, conn.Close())
+require.EqualError(t, err, "error string") -> require.EqualError(t, conn.Close(), "str")
+
 Goland Regex: require.NoError\(t, [a-z&&[^e]]
+Goland Regex: require.Error\(t, [a-z&&[^e]]
+Goland Regex: require.EqualError\(t, [a-z&&[^e]]
+
+.Close() }()
+.Close()) }()
+
+require.Len(t, result, 0)           -> require.Empty(t, result)
+require.NotEqual(t, 0, len(result)) -> require.NotEmpty(t, result)
 
 1.2: check defer function
 use testsuite.DeferForPanic() to replace these code
@@ -12,9 +23,13 @@ defer func() {
      t.Log(r)
 }()
 
+defer func() { re
+
+
 1.3: use testsuite.CheckOption to check zero value in Options{}
 
----code bug---
+---------------------------------------------code bug----------------------------------------------
+
 2.1: check sync.WaitGroup
 think WaitGroup is necessary
 think wg.Done() location in code when with log function
