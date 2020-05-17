@@ -303,6 +303,7 @@ func (s *Server) Close() error {
 			if e != nil && err == nil {
 				err = e
 			}
+			delete(s.listeners, listener)
 		}
 		// close all connections
 		for conn := range s.conns {
@@ -310,6 +311,7 @@ func (s *Server) Close() error {
 			if e != nil && err == nil {
 				err = e
 			}
+			delete(s.conns, conn)
 		}
 	})
 	s.wg.Wait()

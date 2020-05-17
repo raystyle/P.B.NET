@@ -212,8 +212,8 @@ func TestClientOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	// check unnecessary field
-	opts := &Client{}
-	err = toml.Unmarshal(data, opts)
+	opts := Client{}
+	err = toml.Unmarshal(data, &opts)
 	require.NoError(t, err)
 
 	// check zero value
