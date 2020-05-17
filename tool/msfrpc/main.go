@@ -270,11 +270,11 @@ func (p *program) Start(s service.Service) error {
 	// start web server
 	p.wg.Add(1)
 	go func() {
+		defer p.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				log.Println(xpanic.Print(r, "program.Start"))
+				xpanic.Log(r, "program.Start")
 			}
-			p.wg.Done()
 		}()
 		err := p.webServer.Serve(p.listener)
 		if err != nil && err != http.ErrServerClosed {

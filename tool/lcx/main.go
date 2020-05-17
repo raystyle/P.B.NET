@@ -60,8 +60,7 @@ func main() {
 		}
 		start(listener)
 	case "slave":
-		slaver, err := lcx.NewSlaver(tag, iNetwork, iAddress, dstNetwork, dstAddress,
-			logger.Common, &opts)
+		slaver, err := lcx.NewSlaver(tag, iNetwork, iAddress, dstNetwork, dstAddress, logger.Common, &opts)
 		if err != nil {
 			log.Fatalln(err)
 		}

@@ -7,11 +7,12 @@ import (
 	"log"
 
 	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certpool"
 )
 
 func main() {
 	// load certificates
-	pool, err := cert.SystemCertPool()
+	pool, err := certpool.System()
 	checkError(err)
 	certs := pool.Certs()
 	l := len(certs)

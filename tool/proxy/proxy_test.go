@@ -14,6 +14,7 @@ import (
 
 	"project/internal/proxy"
 	"project/internal/testsuite"
+
 	"project/tool/proxy/client"
 	"project/tool/proxy/server"
 )
@@ -39,7 +40,7 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 			}{
 				Mode:    proxy.ModeSocks5,
 				Network: "tcp",
-				Address: "localhost:0",
+				Address: fmt.Sprintf("127.0.2.%d:0", i),
 				Options: options,
 			}})
 		require.NoError(t, err)
@@ -107,9 +108,9 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 	time.Sleep(250 * time.Millisecond)
 
 	// make client
-	u, err := url.Parse("socks5://" + proxyClient.Address())
+	URL, err := url.Parse("socks5://" + proxyClient.Address())
 	require.NoError(t, err)
-	transport := &http.Transport{Proxy: http.ProxyURL(u)}
+	transport := &http.Transport{Proxy: http.ProxyURL(URL)}
 
 	// test client
 	httpClient := http.Client{Transport: transport}
@@ -124,9 +125,13 @@ func TestProxyClientWithBalanceAndChain(t *testing.T) {
 
 	// clean
 	for i := 0; i < 9; i++ {
-		require.NoError(t, proxyServers[i].Exit())
+		err := proxyServers[i].Exit()
+		require.NoError(t, err)
 	}
 	testsuite.IsDestroyed(t, &proxyServers)
-	require.NoError(t, proxyClient.Exit())
+
+	err = proxyClient.Exit()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, proxyClient)
 }
