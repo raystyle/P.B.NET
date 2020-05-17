@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	
+
 	"project/internal/certmgr"
-	"project/internal/crypto/cert"
+	"project/internal/crypto/cert/certpool"
 	"project/internal/dns"
 	"project/internal/logger"
 	"project/internal/proxy"
@@ -18,11 +18,11 @@ import (
 )
 
 // CertPool is used to provide a certificate pool for test.
-func CertPool(t require.TestingT) certmgr.NBCertPool{
-	cp := certmgr.NBCertPool{}
-	pool, err := cert.SystemCertPool()
+func CertPool(t require.TestingT) certmgr.NBCertPool {
+	pool, err := certpool.System()
 	require.NoError(t, err)
 	certs := pool.Certs()
+	cp := certmgr.NBCertPool{}
 	for i := 0; i < len(certs); i++ {
 		cp.PublicRootCACerts = append(cp.PublicRootCACerts, certs[i].Raw)
 	}
