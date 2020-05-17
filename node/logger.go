@@ -86,7 +86,7 @@ func newLogger(ctx *Node, config *Config) (*gLogger, error) {
 		level:  lv,
 		writer: writer,
 		queue:  make(chan *encLog, cfg.QueueSize),
-		rand:   random.New(),
+		rand:   random.NewRand(),
 		timer:  time.NewTimer(time.Second),
 		cbc:    cbc,
 	}
@@ -178,13 +178,13 @@ func (lg *gLogger) writeLog(time time.Time, lv logger.Level, src, log string, b 
 	buf := b.Bytes()
 	_, _ = b.WriteTo(lg.writer)
 	security.CoverBytes(buf)
-	// <security> cover log at once.
+	// TODO split
 	if len(log) > 512<<10 {
-		security.CoverString(&log)
+		security.CoverString(log)
 		return
 	}
 	logB := []byte(log)
-	security.CoverString(&log)
+	security.CoverString(log)
 	// encrypt log and send to the log queue, then wait sender
 	// to send it to the Controller, finally you can receive it.
 	cipherData, err := lg.cbc.Encrypt(logB)

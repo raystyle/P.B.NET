@@ -89,7 +89,7 @@ func newServer(ctx *Node, config *Config) (*server, error) {
 		maxConns:     cfg.MaxConns,
 		timeout:      cfg.Timeout,
 		guid:         guid.New(4, ctx.global.Now),
-		rand:         random.New(),
+		rand:         random.NewRand(),
 		rawListeners: make(map[string]*bootstrap.Listener),
 		listeners:    make(map[string]*xnet.Listener),
 		conns:        make(map[guid.GUID]*xnet.Conn),

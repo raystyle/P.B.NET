@@ -346,7 +346,7 @@ func (cfg *Config) Build() ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 	// encrypt
-	rand := random.New()
+	rand := random.NewRand()
 	aesKey := rand.Bytes(aes.Key256Bit)
 	aesIV := rand.Bytes(aes.IVSize)
 	cipherData, err := aes.CBCEncrypt(buf.Bytes(), aesKey, aesIV)

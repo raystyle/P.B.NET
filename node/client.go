@@ -102,7 +102,7 @@ func (node *Node) NewClient(
 		ctx:      node,
 		listener: listener,
 		GUID:     guid,
-		rand:     random.New(),
+		rand:     random.NewRand(),
 	}
 	client.Conn = newConn(node, conn, guid, connUsageClient)
 	err = client.handshake(ctx, conn)
