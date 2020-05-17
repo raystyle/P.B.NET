@@ -10,6 +10,7 @@ import (
 
 	"project/internal/logger"
 	"project/internal/patch/monkey"
+	"project/internal/random"
 	"project/internal/testsuite"
 )
 
@@ -17,6 +18,7 @@ func testGenerateListenerAndSlaver(t *testing.T) (*Listener, *Slaver) {
 	listener := testGenerateListener(t)
 	err := listener.Start()
 	require.NoError(t, err)
+
 	lNetwork := "tcp"
 	lAddress := listener.testIncomeAddress()
 	dstNetwork := "tcp"
@@ -47,6 +49,7 @@ func TestSlaver(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		lConn, err := net.Dial("tcp", listener.testLocalAddress())
 		require.NoError(t, err)
+
 		testsuite.ProxyConn(t, lConn)
 	}
 
@@ -126,21 +129,41 @@ func TestSlaver_Stop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	listener, slaver := testGenerateListenerAndSlaver(t)
+	t.Run("ok", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
 
-	err := slaver.Start()
-	require.NoError(t, err)
+		err := slaver.Start()
+		require.NoError(t, err)
 
-	lConn, err := net.Dial("tcp", listener.testLocalAddress())
-	require.NoError(t, err)
-	defer func() { _ = lConn.Close() }()
+		lConn, err := net.Dial("tcp", listener.testLocalAddress())
+		require.NoError(t, err)
+		defer func() { _ = lConn.Close() }()
 
-	slaver.Stop()
-	slaver.Stop()
-	listener.Stop()
+		slaver.Stop()
+		slaver.Stop()
+		listener.Stop()
 
-	testsuite.IsDestroyed(t, slaver)
-	testsuite.IsDestroyed(t, listener)
+		testsuite.IsDestroyed(t, slaver)
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("close with error", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+		slaver.start = true
+		slaver.ctx, slaver.cancel = context.WithCancel(context.Background())
+
+		conn := &sConn{
+			slaver: slaver,
+			local:  testsuite.NewMockConnWithCloseError(),
+		}
+		slaver.trackConn(conn, true)
+
+		slaver.Stop()
+		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
+		testsuite.IsDestroyed(t, listener)
+	})
 }
 
 func TestSlaver_serve(t *testing.T) {
@@ -153,15 +176,24 @@ func TestSlaver_serve(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 		slaver.opts.MaxConns = 1 // force change
 
+		sleeper := new(random.Sleeper)
+		patch := func(interface{}, uint, uint) <-chan time.Time {
+			return time.After(500 * time.Millisecond)
+		}
+		pg := monkey.PatchInstanceMethod(sleeper, "Sleep", patch)
+		defer pg.Unpatch()
+
 		err := slaver.Start()
 		require.NoError(t, err)
 
 		lConn, err := net.Dial("tcp", listener.testLocalAddress())
 		require.NoError(t, err)
 		defer func() { _ = lConn.Close() }()
+		_, err = lConn.Write(make([]byte, 1))
+		require.NoError(t, err)
 
 		// wait call full()
-		time.Sleep(time.Second)
+		time.Sleep(2 * time.Second)
 
 		slaver.Stop()
 		listener.Stop()
@@ -175,11 +207,25 @@ func TestSlaver_serve(t *testing.T) {
 		slaver.lAddress = "0.0.0.0:1"
 		slaver.opts.MaxConns = 1 // force change
 
+		sleeper := new(random.Sleeper)
+		patch1 := func(interface{}, uint, uint) <-chan time.Time {
+			return time.After(500 * time.Millisecond)
+		}
+		pg1 := monkey.PatchInstanceMethod(sleeper, "Sleep", patch1)
+		defer pg1.Unpatch()
+
+		dialer := new(net.Dialer)
+		patch2 := func(interface{}, context.Context, string, string) (net.Conn, error) {
+			return nil, monkey.Error
+		}
+		pg2 := monkey.PatchInstanceMethod(dialer, "DialContext", patch2)
+		defer pg2.Unpatch()
+
 		err := slaver.Start()
 		require.NoError(t, err)
 
 		// wait serve()
-		time.Sleep(time.Second)
+		time.Sleep(2 * time.Second)
 
 		slaver.Stop()
 		listener.Stop()
@@ -217,7 +263,21 @@ func TestSlaver_trackConn(t *testing.T) {
 
 	listener, slaver := testGenerateListenerAndSlaver(t)
 
-	require.False(t, slaver.trackConn(nil, true))
+	t.Run("failed to add conn", func(t *testing.T) {
+		ok := slaver.trackConn(nil, true)
+		require.False(t, ok)
+	})
+
+	t.Run("add and delete", func(t *testing.T) {
+		err := slaver.Start()
+		require.NoError(t, err)
+
+		ok := slaver.trackConn(nil, true)
+		require.True(t, ok)
+
+		ok = slaver.trackConn(nil, false)
+		require.True(t, ok)
+	})
 
 	slaver.Stop()
 	listener.Stop()
@@ -232,12 +292,12 @@ func TestSConn_Serve(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	t.Run("track conn", func(t *testing.T) {
+	t.Run("failed to track conn", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
-
 		slaver.ctx = context.Background()
-		_, server := net.Pipe()
-		conn := slaver.newConn(server)
+
+		c := testsuite.NewMockConnWithCloseError()
+		conn := slaver.newConn(c)
 		conn.Serve()
 
 		slaver.Stop()
@@ -264,13 +324,12 @@ func TestSConn_Serve(t *testing.T) {
 		testsuite.IsDestroyed(t, listener)
 	})
 
-	t.Run("local failed read", func(t *testing.T) {
+	t.Run("local failed to write", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 
-		// patch
 		dialer := new(net.Dialer)
 		patch := func(interface{}, context.Context, string, string) (net.Conn, error) {
-			return testsuite.DialMockConnWithWriteError(context.Background(), "", "")
+			return testsuite.NewMockConnWithWriteError(), nil
 		}
 		pg := monkey.PatchInstanceMethod(dialer, "DialContext", patch)
 		defer pg.Unpatch()
@@ -291,7 +350,6 @@ func TestSConn_Serve(t *testing.T) {
 	t.Run("done block local to remote", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 
-		// patch
 		conn := new(sConn)
 		patch := func(c *sConn) {
 			done := make(chan struct{}, 2)
@@ -331,7 +389,6 @@ func TestSConn_Serve(t *testing.T) {
 	t.Run("done block remote to local", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 
-		// patch
 		conn := new(sConn)
 		patch := func(c *sConn) {
 			done := make(chan struct{}, 2)
@@ -370,16 +427,38 @@ func TestSConn_Serve(t *testing.T) {
 	t.Run("panic from copy", func(t *testing.T) {
 		listener, slaver := testGenerateListenerAndSlaver(t)
 
-		err := slaver.Start()
-		require.NoError(t, err)
-
-		// patch
 		conn := new(net.TCPConn)
 		patch := func(interface{}, time.Time) error {
 			panic(monkey.Panic)
 		}
 		pg := monkey.PatchInstanceMethod(conn, "SetReadDeadline", patch)
 		defer pg.Unpatch()
+
+		err := slaver.Start()
+		require.NoError(t, err)
+
+		// wait serve()
+		time.Sleep(time.Second)
+
+		slaver.Stop()
+		listener.Stop()
+
+		testsuite.IsDestroyed(t, slaver)
+		testsuite.IsDestroyed(t, listener)
+	})
+
+	t.Run("close connection error", func(t *testing.T) {
+		listener, slaver := testGenerateListenerAndSlaver(t)
+
+		dialer := new(net.Dialer)
+		patch := func(interface{}, context.Context, string, string) (net.Conn, error) {
+			return testsuite.NewMockConnWithCloseError(), nil
+		}
+		pg := monkey.PatchInstanceMethod(dialer, "DialContext", patch)
+		defer pg.Unpatch()
+
+		err := slaver.Start()
+		require.NoError(t, err)
 
 		// wait serve()
 		time.Sleep(time.Second)

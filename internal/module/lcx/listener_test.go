@@ -222,13 +222,13 @@ func TestListener_serve(t *testing.T) {
 	})
 
 	t.Run("accept panic", func(t *testing.T) {
+		listener := testGenerateListener(t)
+
 		patch := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithAcceptPanic()
 		}
 		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
-
-		listener := testGenerateListener(t)
 
 		err := listener.Start()
 		require.NoError(t, err)
@@ -239,13 +239,13 @@ func TestListener_serve(t *testing.T) {
 	})
 
 	t.Run("close listener error", func(t *testing.T) {
+		listener := testGenerateListener(t)
+
 		patch := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithCloseError()
 		}
 		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
-
-		listener := testGenerateListener(t)
 
 		err := listener.Start()
 		require.NoError(t, err)
@@ -260,13 +260,13 @@ func TestListener_accept(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
+	listener := testGenerateListener(t)
+
 	patch := func(net.Listener, int) net.Listener {
 		return testsuite.NewMockListenerWithAcceptError()
 	}
 	pg := monkey.Patch(netutil.LimitListener, patch)
 	defer pg.Unpatch()
-
-	listener := testGenerateListener(t)
 
 	err := listener.Start()
 	require.NoError(t, err)
@@ -287,16 +287,14 @@ func TestListener_trackConn(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("add", func(t *testing.T) {
+	t.Run("add and delete", func(t *testing.T) {
 		err := listener.Start()
 		require.NoError(t, err)
 
 		ok := listener.trackConn(nil, true)
 		require.True(t, ok)
-	})
 
-	t.Run("delete", func(t *testing.T) {
-		ok := listener.trackConn(nil, false)
+		ok = listener.trackConn(nil, false)
 		require.True(t, ok)
 	})
 
@@ -325,14 +323,14 @@ func TestLConn_Serve(t *testing.T) {
 	t.Run("panic from copy", func(t *testing.T) {
 		listener := testGenerateListener(t)
 
-		err := listener.Start()
-		require.NoError(t, err)
-
 		patch := func(io.Writer, io.Reader) (int64, error) {
 			panic(monkey.Panic)
 		}
 		pg := monkey.Patch(io.Copy, patch)
 		defer pg.Unpatch()
+
+		err := listener.Start()
+		require.NoError(t, err)
 
 		iConn, err := net.Dial("tcp", listener.testIncomeAddress())
 		require.NoError(t, err)

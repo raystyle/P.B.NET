@@ -176,13 +176,13 @@ func TestTranner_serve(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("accept panic", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
+
 		patch := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithAcceptPanic()
 		}
 		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
-
-		tranner := testGenerateTranner(t)
 
 		err := tranner.Start()
 		require.NoError(t, err)
@@ -193,13 +193,13 @@ func TestTranner_serve(t *testing.T) {
 	})
 
 	t.Run("failed to accept", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
+
 		patch := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithAcceptError()
 		}
 		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
-
-		tranner := testGenerateTranner(t)
 
 		err := tranner.Start()
 		require.NoError(t, err)
@@ -213,13 +213,13 @@ func TestTranner_serve(t *testing.T) {
 	})
 
 	t.Run("close listener error", func(t *testing.T) {
+		tranner := testGenerateTranner(t)
+
 		patch := func(net.Listener, int) net.Listener {
 			return testsuite.NewMockListenerWithCloseError()
 		}
 		pg := monkey.Patch(netutil.LimitListener, patch)
 		defer pg.Unpatch()
-
-		tranner := testGenerateTranner(t)
 
 		err := tranner.Start()
 		require.NoError(t, err)
@@ -241,16 +241,14 @@ func TestTranner_trackConn(t *testing.T) {
 		require.False(t, ok)
 	})
 
-	t.Run("add", func(t *testing.T) {
+	t.Run("add and delete", func(t *testing.T) {
 		err := tranner.Start()
 		require.NoError(t, err)
 
 		ok := tranner.trackConn(nil, true)
 		require.True(t, ok)
-	})
 
-	t.Run("delete", func(t *testing.T) {
-		ok := tranner.trackConn(nil, false)
+		ok = tranner.trackConn(nil, false)
 		require.True(t, ok)
 	})
 
@@ -300,14 +298,14 @@ func TestTConn_Serve(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		tranner := testGenerateTranner(t)
 
-		err := tranner.Start()
-		require.NoError(t, err)
-
 		patch := func(context.Context, time.Duration) (context.Context, context.CancelFunc) {
 			panic(monkey.Panic)
 		}
 		pg := monkey.Patch(context.WithTimeout, patch)
 		defer pg.Unpatch()
+
+		err := tranner.Start()
+		require.NoError(t, err)
 
 		conn, err := net.Dial("tcp", tranner.testAddress())
 		require.NoError(t, err)
@@ -324,14 +322,14 @@ func TestTConn_Serve(t *testing.T) {
 	t.Run("panic from copy", func(t *testing.T) {
 		tranner := testGenerateTranner(t)
 
-		err := tranner.Start()
-		require.NoError(t, err)
-
 		patch := func(io.Writer, io.Reader) (int64, error) {
 			panic(monkey.Panic)
 		}
 		pg := monkey.Patch(io.Copy, patch)
 		defer pg.Unpatch()
+
+		err := tranner.Start()
+		require.NoError(t, err)
 
 		conn, err := net.Dial("tcp", tranner.testAddress())
 		require.NoError(t, err)
@@ -348,15 +346,15 @@ func TestTConn_Serve(t *testing.T) {
 	t.Run("close connection error", func(t *testing.T) {
 		tranner := testGenerateTranner(t)
 
-		err := tranner.Start()
-		require.NoError(t, err)
-
 		dialer := new(net.Dialer)
 		patch := func(interface{}, context.Context, string, string) (net.Conn, error) {
 			return testsuite.NewMockConnWithCloseError(), nil
 		}
 		pg := monkey.PatchInstanceMethod(dialer, "DialContext", patch)
 		defer pg.Unpatch()
+
+		err := tranner.Start()
+		require.NoError(t, err)
 
 		conn := testsuite.NewMockConnWithCloseError()
 		tranner.newConn(conn).Serve()
