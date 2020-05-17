@@ -20,9 +20,12 @@ func Client(ctx context.Context, conn net.Conn, timeout time.Duration) *Conn {
 
 type listener struct {
 	net.Listener
-	timeout time.Duration // handshake timeout
-	ctx     context.Context
-	cancel  context.CancelFunc
+
+	// handshake timeout
+	timeout time.Duration
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (l *listener) Accept() (net.Conn, error) {

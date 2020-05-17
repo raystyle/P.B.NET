@@ -16,7 +16,9 @@ const defaultHandshakeTimeout = 30 * time.Second
 // Conn implement net.Conn.
 type Conn struct {
 	net.Conn
-	ctx      context.Context
+
+	ctx context.Context
+
 	isClient bool
 
 	handshakeTimeout time.Duration
