@@ -194,7 +194,7 @@ func (syncer *Syncer) Start() error {
 	sleeper := random.NewSleeper()
 	defer sleeper.Stop()
 	for {
-		err := syncer.synchronize()
+		err := syncer.Synchronize()
 		switch err {
 		case nil:
 			syncer.wg.Add(2)
@@ -277,7 +277,7 @@ func (syncer *Syncer) synchronizeLoop() {
 	for {
 		select {
 		case <-timer.C:
-			err := syncer.synchronize()
+			err := syncer.Synchronize()
 			if err != nil {
 				syncer.log(logger.Warning, "failed to synchronize time:", err)
 			}
@@ -288,10 +288,11 @@ func (syncer *Syncer) synchronizeLoop() {
 	}
 }
 
-func (syncer *Syncer) synchronize() (err error) {
+// Synchronize is used to synchronize time at once.
+func (syncer *Syncer) Synchronize() (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = xpanic.Error(r, "Syncer.synchronize")
+			err = xpanic.Error(r, "Syncer.Synchronize")
 			syncer.log(logger.Fatal, err)
 		}
 	}()
