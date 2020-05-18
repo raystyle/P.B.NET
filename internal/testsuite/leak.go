@@ -22,8 +22,8 @@ func MarkGoroutines(t testing.TB) *GoroutineMark {
 	}
 }
 
+// total wait 3 seconds for wait goroutine return.
 func (m *GoroutineMark) calculate() int {
-	// total 3 seconds
 	var n int
 	for i := 0; i < 300; i++ {
 		n = runtime.NumGoroutine() - m.then
@@ -38,8 +38,9 @@ func (m *GoroutineMark) calculate() int {
 // Compare is used to compare the number of the goroutines.
 func (m *GoroutineMark) Compare() {
 	const format = "goroutine leaks! then: %d now: %d"
+	n := m.calculate()
 	now := runtime.NumGoroutine()
-	require.Equalf(m.t, 0, m.calculate(), format, m.then, now)
+	require.Equalf(m.t, 0, n, format, m.then, now)
 }
 
 // MemoryMark contains testing.TB, then and now memory status.
