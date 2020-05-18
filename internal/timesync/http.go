@@ -12,13 +12,14 @@ import (
 
 	"project/internal/crypto/cert"
 	"project/internal/dns"
+	"project/internal/nettool"
 	"project/internal/option"
 	"project/internal/patch/toml"
 	"project/internal/proxy"
 	"project/internal/random"
 )
 
-const defaultDialTimeout = 30 * time.Second
+const defaultTimeout = 30 * time.Second
 
 // HTTP is used to create a HTTP client to do request
 // that get date in response header.
@@ -28,11 +29,11 @@ type HTTP struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
-	Request   option.HTTPRequest   `toml:"request" check:"-"`
+	Request   option.HTTPRequest   `toml:"request"   check:"-"`
 	Transport option.HTTPTransport `toml:"transport" check:"-"`
 	Timeout   time.Duration        `toml:"timeout"`
 	ProxyTag  string               `toml:"proxy_tag"`
-	DNSOpts   dns.Options          `toml:"dns" check:"-"`
+	DNSOpts   dns.Options          `toml:"dns"       check:"-"`
 }
 
 // NewHTTP is used to create a HTTP client.
@@ -58,6 +59,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 		optsErr = true
 		return
 	}
+
 	hostname := req.URL.Hostname()
 
 	// http transport
@@ -87,20 +89,25 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 		return
 	}
 
-	// do http request
-	port := req.URL.Port()
+	// make http client
+	timeout := h.Timeout
+	if timeout < 1 {
+		timeout = defaultTimeout
+	}
 	httpClient := &http.Client{
 		Transport: tr,
 		Timeout:   h.Timeout,
 	}
+	defer httpClient.CloseIdleConnections()
 
+	port := req.URL.Port()
 	for i := 0; i < len(result); i++ {
 		req := req.Clone(h.ctx)
-		// replace to IP address
+		// replace host to IP address
 		if port != "" {
 			req.URL.Host = net.JoinHostPort(result[i], port)
 		} else {
-			req.URL.Host = result[i]
+			req.URL.Host = nettool.IPToHost(result[i])
 		}
 		// set Host header
 		// http://www.msfconnecttest.com/ -> http://96.126.123.244/
@@ -109,7 +116,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 		if req.Host == "" && req.URL.Scheme == "http" {
 			req.Host = req.URL.Host
 		}
-		now, err = getHeaderDate(req, httpClient)
+		now, err = getDate(req, httpClient)
 		if err == nil {
 			break
 		}
@@ -121,38 +128,35 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	return
 }
 
-// getHeaderDate is used to get date from http response header.
-func getHeaderDate(req *http.Request, client *http.Client) (time.Time, error) {
-	defer client.CloseIdleConnections()
-	if client.Timeout < 1 {
-		client.Timeout = defaultDialTimeout
-	}
-	t1 := time.Now()
+// getDate is used to get date from http response header.
+func getDate(req *http.Request, client *http.Client) (time.Time, error) {
+	t := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
 		return time.Time{}, err
 	}
+	defer func() { _ = resp.Body.Close() }()
+	interval := time.Since(t)
 	// TCP: 3 RTT, TLS 4 RTT(most), Request 1 RTT, Response(this) 1 RTT
-	rtt := time.Duration(5)
+	rtt := time.Duration(3 + 1 + 1)
 	if req.URL.Scheme == "https" {
 		rtt += 4
 	}
-	delta := time.Since(t1) / rtt
+	delta := interval / rtt
 	// <security> prevent system time changed
 	if delta > 10*time.Second || delta < 0 {
 		delta = 10 * time.Second
 	}
-	defer func() {
-		// <security> read limit
-		n := int64(4<<20 + random.Int(4<<20)) // 4-8 MB
-		_, _ = io.CopyN(ioutil.Discard, resp.Body, n)
-		_ = resp.Body.Close()
-	}()
-	remoteTime, err := http.ParseTime(resp.Header.Get("Date"))
+	now, err := http.ParseTime(resp.Header.Get("Date"))
 	if err != nil {
 		return time.Time{}, err
 	}
-	return remoteTime.Add(delta), nil
+	now = now.Add(delta)
+	// <security> read limit
+	t = time.Now()
+	n := int64(4<<20 + random.Int(4<<20)) // 4-8 MB
+	_, _ = io.CopyN(ioutil.Discard, resp.Body, n)
+	return now.Add(time.Since(t)), nil
 }
 
 // Import is for time syncer.

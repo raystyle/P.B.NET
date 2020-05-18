@@ -38,6 +38,7 @@ func TestHTTP_Query(t *testing.T) {
 		now, optsErr, err := HTTP.Query()
 		require.NoError(t, err)
 		require.False(t, optsErr)
+
 		t.Log("now(HTTPS):", now.Local())
 
 		testsuite.IsDestroyed(t, HTTP)
@@ -52,6 +53,7 @@ func TestHTTP_Query(t *testing.T) {
 		now, optsErr, err := HTTP.Query()
 		require.NoError(t, err)
 		require.False(t, optsErr)
+
 		t.Log("now(HTTP): with proxy", now.Local())
 
 		testsuite.IsDestroyed(t, HTTP)
@@ -129,51 +131,55 @@ func TestHTTP_Query_Failed(t *testing.T) {
 		HTTP.Request.URL = "https://github.com:8989/"
 		HTTP.Timeout = time.Second
 
-		_, optsErr, err := HTTP.Query()
+		_, _, err := HTTP.Query()
 		require.Error(t, err)
-		require.False(t, optsErr)
 
 		testsuite.IsDestroyed(t, HTTP)
 	})
 }
 
-func TestGetHeaderDate(t *testing.T) {
+func TestGetDate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	client := &http.Client{Transport: new(http.Transport)}
+	defer client.CloseIdleConnections()
 
 	t.Run("http", func(t *testing.T) {
 		const url = "http://ds.vm3.test-ipv6.com/"
+
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		now, err := getHeaderDate(req, client)
+		now, err := getDate(req, client)
 		require.NoError(t, err)
+
 		t.Log(now.Local())
 	})
 
 	t.Run("https", func(t *testing.T) {
 		const url = "https://cloudflare-dns.com/"
+
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
-		now, err := getHeaderDate(req, client)
+		now, err := getDate(req, client)
 		require.NoError(t, err)
+
 		t.Log(now.Local())
 	})
 
 	t.Run("failed to query date", func(t *testing.T) {
 		const url = "http://test/"
+
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 
-		_, err = getHeaderDate(req, client)
+		_, err = getDate(req, client)
 		require.Error(t, err)
 	})
 
 	t.Run("failed to parse date", func(t *testing.T) {
 		const url = "http://ds.vm3.test-ipv6.com/"
 
-		// patch
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		patch := func(string) (time.Time, error) {
@@ -182,14 +188,13 @@ func TestGetHeaderDate(t *testing.T) {
 		pg := monkey.Patch(http.ParseTime, patch)
 		defer pg.Unpatch()
 
-		_, err = getHeaderDate(req, client)
+		_, err = getDate(req, client)
 		monkey.IsMonkeyError(t, err)
 	})
 
 	t.Run("system time changed", func(t *testing.T) {
 		const url = "http://ds.vm3.test-ipv6.com/"
 
-		// patch
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		require.NoError(t, err)
 		patch := func(time.Time) time.Duration {
@@ -198,7 +203,7 @@ func TestGetHeaderDate(t *testing.T) {
 		pg := monkey.Patch(time.Since, patch)
 		defer pg.Unpatch()
 
-		_, err = getHeaderDate(req, client)
+		_, err = getDate(req, client)
 		require.NoError(t, err)
 	})
 }
