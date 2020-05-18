@@ -74,6 +74,18 @@ func TestSplitHostPort(t *testing.T) {
 	})
 }
 
+func TestIPToHost(t *testing.T) {
+	t.Run("IPv4", func(t *testing.T) {
+		host := IPToHost("127.0.0.1")
+		require.Equal(t, "127.0.0.1", host)
+	})
+
+	t.Run("IPv6", func(t *testing.T) {
+		host := IPToHost("::1")
+		require.Equal(t, "[::1]", host)
+	})
+}
+
 func TestIsNetClosingError(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		err := errors.New("test error: use of closed network connection")

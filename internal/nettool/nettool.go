@@ -49,6 +49,15 @@ func SplitHostPort(address string) (string, uint16, error) {
 	return host, uint16(portNum), nil
 }
 
+// IPToHost is used to convert IP address to URL.Host.
+// net/http.Client need it(maybe it is a bug to handle IPv6 address when through proxy).
+func IPToHost(address string) string {
+	if !strings.Contains(address, ":") { // IPv4
+		return address
+	}
+	return "[" + address + "]"
+}
+
 // IsNetClosingError is used to check this error is src/internal/poll.ErrNetClosing.
 func IsNetClosingError(err error) bool {
 	return strings.Contains(err.Error(), "use of closed network connection")
