@@ -20,6 +20,7 @@ import (
 	"project/internal/patch/toml"
 	"project/internal/testsuite"
 	"project/internal/testsuite/testdns"
+	"project/internal/testsuite/testproxy"
 	"project/internal/testsuite/testtls"
 )
 
@@ -301,15 +302,15 @@ func TestHTTP_Resolve(t *testing.T) {
 		})
 
 		if testsuite.IPv4Enabled {
-			t.Run("ipv4", func(t *testing.T) {
-				HTTP := testGenerateHTTP(t)
+			HTTP := testGenerateHTTP(t)
 
-				listeners := testGenerateListeners()
-				info, err := HTTP.Generate(listeners)
-				require.NoError(t, err)
-				listenersData = info
-				t.Logf("(http-IPv4) bootstrap node listeners info: %s\n", info)
+			listeners := testGenerateListeners()
+			info, err := HTTP.Generate(listeners)
+			require.NoError(t, err)
+			listenersData = info
+			t.Logf("(http-IPv4) bootstrap node listeners info: %s\n", info)
 
+			t.Run("IPv4", func(t *testing.T) {
 				// run HTTP server
 				httpServer := http.Server{
 					Addr:    "localhost:0",
@@ -328,7 +329,7 @@ func TestHTTP_Resolve(t *testing.T) {
 				require.NoError(t, err)
 
 				// unmarshal
-				HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+				HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
@@ -341,18 +342,54 @@ func TestHTTP_Resolve(t *testing.T) {
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
+
+			t.Run("IPv4 with proxy", func(t *testing.T) {
+				// run HTTP server
+				httpServer := http.Server{
+					Addr:    "localhost:80",
+					Handler: serveMux,
+				}
+				_ = testsuite.RunHTTPServer(t, "tcp4", &httpServer)
+				defer func() { _ = httpServer.Close() }()
+
+				// config
+				HTTP.Request.URL = "http://localhost/"
+				HTTP.DNSOpts.Mode = dns.ModeSystem
+				HTTP.DNSOpts.Type = dns.TypeIPv4
+				HTTP.ProxyTag = testproxy.TagBalance
+
+				// marshal
+				data, err := HTTP.Marshal()
+				require.NoError(t, err)
+
+				// unmarshal
+				HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+				err = HTTP.Unmarshal(data)
+				require.NoError(t, err)
+
+				for i := 0; i < 10; i++ {
+					resolved, err := HTTP.Resolve()
+					require.NoError(t, err)
+					resolved = testDecryptListeners(resolved)
+					require.Equal(t, listeners, resolved)
+				}
+
+				testsuite.IsDestroyed(t, HTTP)
+			})
+
+			testsuite.IsDestroyed(t, HTTP)
 		}
 
 		if testsuite.IPv6Enabled {
-			t.Run("ipv6", func(t *testing.T) {
-				HTTP := testGenerateHTTP(t)
+			HTTP := testGenerateHTTP(t)
 
-				listeners := testGenerateListeners()
-				info, err := HTTP.Generate(listeners)
-				require.NoError(t, err)
-				listenersData = info
-				t.Logf("(http-IPv6) bootstrap node listeners info: %s\n", info)
+			listeners := testGenerateListeners()
+			info, err := HTTP.Generate(listeners)
+			require.NoError(t, err)
+			listenersData = info
+			t.Logf("(http-IPv6) bootstrap node listeners info: %s\n", info)
 
+			t.Run("IPv6", func(t *testing.T) {
 				// run HTTP server
 				httpServer := http.Server{
 					Addr:    "localhost:0",
@@ -371,7 +408,7 @@ func TestHTTP_Resolve(t *testing.T) {
 				require.NoError(t, err)
 
 				// unmarshal
-				HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+				HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
@@ -382,8 +419,58 @@ func TestHTTP_Resolve(t *testing.T) {
 					require.Equal(t, listeners, resolved)
 				}
 
+				// with proxy
+				HTTP.ProxyTag = testproxy.TagBalance
+				resolved, err := HTTP.Resolve()
+				require.NoError(t, err)
+				resolved = testDecryptListeners(resolved)
+				require.Equal(t, listeners, resolved)
+
 				testsuite.IsDestroyed(t, HTTP)
 			})
+
+			t.Run("IPv6 with proxy", func(t *testing.T) {
+				// run HTTP server
+				httpServer := http.Server{
+					Addr:    "localhost:80",
+					Handler: serveMux,
+				}
+				_ = testsuite.RunHTTPServer(t, "tcp6", &httpServer)
+				defer func() { _ = httpServer.Close() }()
+
+				// config
+				HTTP.Request.URL = "http://localhost/"
+				HTTP.DNSOpts.Mode = dns.ModeSystem
+				HTTP.DNSOpts.Type = dns.TypeIPv6
+				HTTP.ProxyTag = testproxy.TagBalance
+
+				// marshal
+				data, err := HTTP.Marshal()
+				require.NoError(t, err)
+
+				// unmarshal
+				HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+				err = HTTP.Unmarshal(data)
+				require.NoError(t, err)
+
+				for i := 0; i < 10; i++ {
+					resolved, err := HTTP.Resolve()
+					require.NoError(t, err)
+					resolved = testDecryptListeners(resolved)
+					require.Equal(t, listeners, resolved)
+				}
+
+				// with proxy
+				HTTP.ProxyTag = testproxy.TagBalance
+				resolved, err := HTTP.Resolve()
+				require.NoError(t, err)
+				resolved = testDecryptListeners(resolved)
+				require.Equal(t, listeners, resolved)
+
+				testsuite.IsDestroyed(t, HTTP)
+			})
+
+			testsuite.IsDestroyed(t, HTTP)
 		}
 	})
 
@@ -398,15 +485,15 @@ func TestHTTP_Resolve(t *testing.T) {
 		serverCfg, clientCfg := testtls.OptionPair(t, "127.0.0.1")
 
 		if testsuite.IPv4Enabled {
-			t.Run("ipv4", func(t *testing.T) {
-				HTTP := testGenerateHTTP(t)
+			HTTP := testGenerateHTTP(t)
 
-				listeners := testGenerateListeners()
-				info, err := HTTP.Generate(listeners)
-				require.NoError(t, err)
-				t.Logf("(https-IPv4) bootstrap node listeners info: %s\n", info)
-				listenersData = info
+			listeners := testGenerateListeners()
+			info, err := HTTP.Generate(listeners)
+			require.NoError(t, err)
+			t.Logf("(https-IPv4) bootstrap node listeners info: %s\n", info)
+			listenersData = info
 
+			t.Run("IPv4", func(t *testing.T) {
 				// run HTTPS server
 				tlsConfig, err := serverCfg.Apply()
 				require.NoError(t, err)
@@ -429,7 +516,7 @@ func TestHTTP_Resolve(t *testing.T) {
 				require.NoError(t, err)
 
 				// unmarshal
-				HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+				HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
@@ -442,18 +529,58 @@ func TestHTTP_Resolve(t *testing.T) {
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
+
+			t.Run("IPv4 with proxy", func(t *testing.T) {
+				// run HTTPS server
+				tlsConfig, err := serverCfg.Apply()
+				require.NoError(t, err)
+				httpsServer := http.Server{
+					Addr:      "localhost:443",
+					Handler:   serveMux,
+					TLSConfig: tlsConfig,
+				}
+				_ = testsuite.RunHTTPServer(t, "tcp4", &httpsServer)
+				defer func() { _ = httpsServer.Close() }()
+
+				// config
+				HTTP.Request.URL = "https://localhost/"
+				HTTP.DNSOpts.Mode = dns.ModeSystem
+				HTTP.DNSOpts.Type = dns.TypeIPv4
+				HTTP.Transport.TLSClientConfig = clientCfg
+				HTTP.ProxyTag = testproxy.TagBalance
+
+				// marshal
+				data, err := HTTP.Marshal()
+				require.NoError(t, err)
+
+				// unmarshal
+				HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+				err = HTTP.Unmarshal(data)
+				require.NoError(t, err)
+
+				for i := 0; i < 10; i++ {
+					resolved, err := HTTP.Resolve()
+					require.NoError(t, err)
+					resolved = testDecryptListeners(resolved)
+					require.Equal(t, listeners, resolved)
+				}
+
+				testsuite.IsDestroyed(t, HTTP)
+			})
+
+			testsuite.IsDestroyed(t, HTTP)
 		}
 
 		if testsuite.IPv6Enabled {
-			t.Run("ipv6", func(t *testing.T) {
-				HTTP := testGenerateHTTP(t)
+			HTTP := testGenerateHTTP(t)
 
-				listeners := testGenerateListeners()
-				info, err := HTTP.Generate(listeners)
-				require.NoError(t, err)
-				t.Logf("(https-IPv6) bootstrap node listeners info: %s\n", info)
-				listenersData = info
+			listeners := testGenerateListeners()
+			info, err := HTTP.Generate(listeners)
+			require.NoError(t, err)
+			t.Logf("(https-IPv6) bootstrap node listeners info: %s\n", info)
+			listenersData = info
 
+			t.Run("IPv6", func(t *testing.T) {
 				// run HTTPS server
 				tlsConfig, err := serverCfg.Apply()
 				require.NoError(t, err)
@@ -476,7 +603,7 @@ func TestHTTP_Resolve(t *testing.T) {
 				require.NoError(t, err)
 
 				// unmarshal
-				HTTP = NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+				HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
 				err = HTTP.Unmarshal(data)
 				require.NoError(t, err)
 
@@ -489,6 +616,46 @@ func TestHTTP_Resolve(t *testing.T) {
 
 				testsuite.IsDestroyed(t, HTTP)
 			})
+
+			t.Run("IPv6 with proxy", func(t *testing.T) {
+				// run HTTPS server
+				tlsConfig, err := serverCfg.Apply()
+				require.NoError(t, err)
+				httpsServer := http.Server{
+					Addr:      "localhost:443",
+					Handler:   serveMux,
+					TLSConfig: tlsConfig,
+				}
+				_ = testsuite.RunHTTPServer(t, "tcp6", &httpsServer)
+				defer func() { _ = httpsServer.Close() }()
+
+				// config
+				HTTP.Request.URL = "https://localhost/"
+				HTTP.DNSOpts.Mode = dns.ModeSystem
+				HTTP.DNSOpts.Type = dns.TypeIPv6
+				HTTP.Transport.TLSClientConfig = clientCfg
+				HTTP.ProxyTag = testproxy.TagBalance
+
+				// marshal
+				data, err := HTTP.Marshal()
+				require.NoError(t, err)
+
+				// unmarshal
+				HTTP := NewHTTP(context.Background(), certPool, proxyPool, dnsClient)
+				err = HTTP.Unmarshal(data)
+				require.NoError(t, err)
+
+				for i := 0; i < 10; i++ {
+					resolved, err := HTTP.Resolve()
+					require.NoError(t, err)
+					resolved = testDecryptListeners(resolved)
+					require.Equal(t, listeners, resolved)
+				}
+
+				testsuite.IsDestroyed(t, HTTP)
+			})
+
+			testsuite.IsDestroyed(t, HTTP)
 		}
 	})
 

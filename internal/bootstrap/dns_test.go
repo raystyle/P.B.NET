@@ -128,7 +128,7 @@ func TestDNS_Resolve(t *testing.T) {
 	}()
 
 	if testsuite.IPv4Enabled {
-		t.Run("ipv4", func(t *testing.T) {
+		t.Run("IPv4", func(t *testing.T) {
 			listeners := []*Listener{{
 				Mode:    xnet.ModeTLS,
 				Network: "tcp",
@@ -164,7 +164,7 @@ func TestDNS_Resolve(t *testing.T) {
 	}
 
 	if testsuite.IPv6Enabled {
-		t.Run("ipv6", func(t *testing.T) {
+		t.Run("IPv6", func(t *testing.T) {
 			listeners := []*Listener{{
 				Mode:    xnet.ModeTLS,
 				Network: "tcp",

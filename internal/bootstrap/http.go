@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"time"
 
 	"github.com/pkg/errors"
@@ -17,6 +18,7 @@ import (
 	"project/internal/crypto/cert"
 	"project/internal/crypto/ed25519"
 	"project/internal/dns"
+	"project/internal/nettool"
 	"project/internal/option"
 	"project/internal/patch/msgpack"
 	"project/internal/patch/toml"
@@ -43,11 +45,11 @@ type HTTP struct {
 	proxyPool *proxy.Pool
 	dnsClient *dns.Client
 
-	Request   option.HTTPRequest   `toml:"request" check:"-"`
-	Transport option.HTTPTransport `toml:"transport" check:"-"`
+	Request   option.HTTPRequest   `toml:"request"    check:"-"`
+	Transport option.HTTPTransport `toml:"transport"  check:"-"`
 	Timeout   time.Duration        `toml:"timeout"`
 	ProxyTag  string               `toml:"proxy_tag"`
-	DNSOpts   dns.Options          `toml:"dns" check:"-"`
+	DNSOpts   dns.Options          `toml:"dns"        check:"-"`
 
 	MaxBodySize int64 `toml:"max_body_size"` // <security>
 
@@ -234,21 +236,8 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	memory := security.NewMemory()
 	defer memory.Flush()
 
-	// decrypt all options
-	memory.Padding()
-	dec, err := h.cbc.Decrypt(h.enc)
-	if err != nil {
-		panic(err)
-	}
-
-	memory.Padding()
-	tempHTTP := &HTTP{}
-	err = msgpack.Unmarshal(dec, tempHTTP)
-	if err != nil {
-		panic(err)
-	}
+	tempHTTP := h.decryptOptions()
 	defer flushRequestOption(&tempHTTP.Request)
-	security.CoverBytes(dec)
 
 	// apply options
 	memory.Padding()
@@ -257,23 +246,27 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 		panic(err)
 	}
 	defer coverHTTPRequest(req)
+
+	hostname := req.URL.Hostname()
+	defer security.CoverString(hostname)
+
 	tempHTTP.Transport.TLSClientConfig.CertPool = h.certPool
-	transport, err := tempHTTP.Transport.Apply()
+	tr, err := tempHTTP.Transport.Apply()
 	if err != nil {
 		panic(err)
 	}
-	transport.TLSClientConfig.ServerName = req.URL.Hostname()
+	if tr.TLSClientConfig.ServerName == "" {
+		tr.TLSClientConfig.ServerName = hostname
+	}
 
 	// set proxy
 	proxyClient, err := h.proxyPool.Get(tempHTTP.ProxyTag)
 	if err != nil {
 		return nil, err
 	}
-	proxyClient.HTTP(transport)
+	proxyClient.HTTP(tr)
 
 	// resolve domain name
-	hostname := req.URL.Hostname()
-	defer security.CoverString(hostname)
 	result, err := h.dnsClient.ResolveContext(h.ctx, hostname, &tempHTTP.DNSOpts)
 	if err != nil {
 		return nil, err
@@ -284,26 +277,29 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	if maxBodySize < 1 {
 		maxBodySize = defaultMaxBodySize
 	}
-	// timeout
+
+	// make http client
+	jar, _ := cookiejar.New(nil)
 	timeout := tempHTTP.Timeout
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
-	// make http client
-	httpClient := &http.Client{
-		Transport: transport,
+	client := &http.Client{
+		Transport: tr,
+		Jar:       jar,
 		Timeout:   timeout,
 	}
+	defer client.CloseIdleConnections()
 
-	port := req.URL.Port()
 	var info []byte
+	port := req.URL.Port()
 	for i := 0; i < len(result); i++ {
 		req := req.Clone(h.ctx)
 		// replace host to IP address
 		if port != "" {
 			req.URL.Host = net.JoinHostPort(result[i], port)
 		} else {
-			req.URL.Host = result[i]
+			req.URL.Host = nettool.IPToHost(result[i])
 		}
 		// set Host header
 		// http://www.msfconnecttest.com/ -> http://96.126.123.244/
@@ -312,7 +308,7 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 		if req.Host == "" && req.URL.Scheme == "http" {
 			req.Host = req.URL.Host
 		}
-		info, err = do(req, httpClient, maxBodySize)
+		info, err = do(req, client, maxBodySize)
 		if err == nil {
 			break
 		}
@@ -323,9 +319,28 @@ func (h *HTTP) Resolve() ([]*Listener, error) {
 	return nil, err
 }
 
+func (h *HTTP) decryptOptions() *HTTP {
+	memory := security.NewMemory()
+	defer memory.Flush()
+
+	memory.Padding()
+	dec, err := h.cbc.Decrypt(h.enc)
+	if err != nil {
+		panic(err)
+	}
+	defer security.CoverBytes(dec)
+
+	memory.Padding()
+	HTTP := &HTTP{}
+	err = msgpack.Unmarshal(dec, HTTP)
+	if err != nil {
+		panic(err)
+	}
+	return HTTP
+}
+
 func do(req *http.Request, client *http.Client, length int64) ([]byte, error) {
 	defer coverHTTPRequest(req)
-	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
