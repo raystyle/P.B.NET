@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"time"
 
 	"github.com/pkg/errors"
@@ -90,15 +91,17 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 	}
 
 	// make http client
+	jar, _ := cookiejar.New(nil)
 	timeout := h.Timeout
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
-	httpClient := &http.Client{
+	client := &http.Client{
 		Transport: tr,
-		Timeout:   h.Timeout,
+		Jar:       jar,
+		Timeout:   timeout,
 	}
-	defer httpClient.CloseIdleConnections()
+	defer client.CloseIdleConnections()
 
 	port := req.URL.Port()
 	for i := 0; i < len(result); i++ {
@@ -116,7 +119,7 @@ func (h *HTTP) Query() (now time.Time, optsErr bool, err error) {
 		if req.Host == "" && req.URL.Scheme == "http" {
 			req.Host = req.URL.Host
 		}
-		now, err = getDate(req, httpClient)
+		now, err = getDate(req, client)
 		if err == nil {
 			break
 		}
