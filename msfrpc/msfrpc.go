@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -91,12 +92,16 @@ func NewMSFRPC(
 	if !opts.TLSVerify {
 		tr.TLSClientConfig.InsecureSkipVerify = true
 	}
+	// make http client
+	jar, _ := cookiejar.New(nil)
+	timeout := opts.Timeout
+	if timeout < 1 {
+		timeout = 30 * time.Second
+	}
 	client := http.Client{
 		Transport: tr,
-		Timeout:   opts.Timeout,
-	}
-	if client.Timeout < 1 {
-		client.Timeout = 30 * time.Second
+		Jar:       jar,
+		Timeout:   timeout,
 	}
 	// url
 	msfrpc := MSFRPC{
