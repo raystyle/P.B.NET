@@ -453,9 +453,11 @@ func TestClient_TestOptions(t *testing.T) {
 	client := NewClient(certPool, proxyPool)
 	testAddAllDNSServers(t, client)
 
+	ctx := context.Background()
+
 	t.Run("skip test", func(t *testing.T) {
 		opts := &Options{SkipTest: true}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.NoError(t, err)
 		require.Empty(t, result)
 	})
@@ -467,7 +469,7 @@ func TestClient_TestOptions(t *testing.T) {
 			ProxyTag:  "tag",
 			SkipProxy: true,
 		}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.NoError(t, err)
 		require.NotEmpty(t, result)
 	})
@@ -476,7 +478,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client.FlushCache()
 
 		opts := &Options{Mode: ModeSystem}
-		result, err := client.TestOption(context.Background(), "test", opts)
+		result, err := client.TestOption(ctx, "test", opts)
 		require.Error(t, err)
 		require.Empty(t, result)
 	})
@@ -488,7 +490,7 @@ func TestClient_TestOptions(t *testing.T) {
 			Method:   MethodTCP, // must don't use udp
 			ProxyTag: testproxy.TagBalance,
 		}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.NoError(t, err)
 		require.NotEmpty(t, result)
 	})
@@ -497,7 +499,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client.FlushCache()
 
 		opts := &Options{Type: "foo type"}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.Error(t, err)
 		require.Empty(t, result)
 		t.Log(err)
@@ -507,7 +509,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client.FlushCache()
 
 		opts := &Options{Mode: "foo mode"}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.Error(t, err)
 		require.Empty(t, result)
 	})
@@ -516,7 +518,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client.FlushCache()
 
 		opts := &Options{Method: "foo method"}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.Error(t, err)
 		require.Empty(t, result)
 	})
@@ -526,13 +528,13 @@ func TestClient_TestOptions(t *testing.T) {
 
 		opts := &Options{Method: MethodDoH}
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.Error(t, err)
 		require.Empty(t, result)
 
 		// with server tag
 		opts.ServerTag = "doh_ipv4_cloudflare"
-		result, err = client.TestOption(context.Background(), testDomain, opts)
+		result, err = client.TestOption(ctx, testDomain, opts)
 		require.Error(t, err)
 		require.Empty(t, result)
 	})
@@ -541,7 +543,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client.FlushCache()
 
 		opts := &Options{ProxyTag: "foo proxy"}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.Error(t, err)
 		require.Empty(t, result)
 	})
@@ -550,7 +552,7 @@ func TestClient_TestOptions(t *testing.T) {
 		client.FlushCache()
 
 		opts := &Options{ServerTag: "foo server"}
-		result, err := client.TestOption(context.Background(), testDomain, opts)
+		result, err := client.TestOption(ctx, testDomain, opts)
 		require.Error(t, err)
 		require.Empty(t, result)
 	})
