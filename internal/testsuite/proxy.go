@@ -235,6 +235,7 @@ func ProxyServer(t *testing.T, server io.Closer, transport *http.Transport) {
 
 // SendHTTPRequest is used to send a GET request to a connection.
 func SendHTTPRequest(t testing.TB, conn net.Conn) {
+	_ = conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
 	// send http request
 	buf := new(bytes.Buffer)
 	_, _ = fmt.Fprint(buf, "GET /t HTTP/1.1\r\n")
@@ -250,6 +251,7 @@ func ProxyConn(t testing.TB, conn net.Conn) {
 	SendHTTPRequest(t, conn)
 
 	// get response
+	_ = conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	buf := bytes.Buffer{}
 	buffer := make([]byte, 1)
 	for {
