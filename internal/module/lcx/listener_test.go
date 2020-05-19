@@ -42,7 +42,14 @@ func TestListener(t *testing.T) {
 	require.NoError(t, err)
 
 	// mock slaver and start copy
-	hConn, err := net.Dial("tcp", "127.0.0.1:"+testsuite.HTTPServerPort)
+	var address string
+	switch {
+	case testsuite.IPv4Enabled:
+		address = "127.0.0.1:" + testsuite.HTTPServerPort
+	case testsuite.IPv6Enabled:
+		address = "[::1]:" + testsuite.HTTPServerPort
+	}
+	hConn, err := net.Dial("tcp", address)
 	require.NoError(t, err)
 	// must close
 	defer func() { _ = hConn.Close() }()

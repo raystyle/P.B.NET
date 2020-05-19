@@ -17,7 +17,13 @@ import (
 
 func testGenerateTranner(t *testing.T) *Tranner {
 	dstNetwork := "tcp"
-	dstAddress := "127.0.0.1:" + testsuite.HTTPServerPort
+	var dstAddress string
+	switch {
+	case testsuite.IPv4Enabled:
+		dstAddress = "127.0.0.1:" + testsuite.HTTPServerPort
+	case testsuite.IPv6Enabled:
+		dstAddress = "[::1]:" + testsuite.HTTPServerPort
+	}
 	opts := Options{LocalAddress: "127.0.0.1:0"}
 	tranner, err := NewTranner("test", dstNetwork, dstAddress, logger.Test, &opts)
 	require.NoError(t, err)

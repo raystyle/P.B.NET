@@ -179,7 +179,7 @@ func (s *Slaver) serve() {
 		if s.stopped() {
 			return
 		}
-		conn, err := s.dial()
+		conn, err := s.connectToListener()
 		if err != nil {
 			s.log(logger.Error, err)
 			select {
@@ -205,7 +205,7 @@ func (s *Slaver) stopped() bool {
 	return !s.start
 }
 
-func (s *Slaver) dial() (net.Conn, error) {
+func (s *Slaver) connectToListener() (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(s.ctx, s.opts.DialTimeout)
 	defer cancel()
 	return s.dialer.DialContext(ctx, s.lNetwork, s.lAddress)

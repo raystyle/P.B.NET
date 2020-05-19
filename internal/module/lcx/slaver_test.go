@@ -22,7 +22,13 @@ func testGenerateListenerAndSlaver(t *testing.T) (*Listener, *Slaver) {
 	lNetwork := "tcp"
 	lAddress := listener.testIncomeAddress()
 	dstNetwork := "tcp"
-	dstAddress := "127.0.0.1:" + testsuite.HTTPServerPort
+	var dstAddress string
+	switch {
+	case testsuite.IPv4Enabled:
+		dstAddress = "127.0.0.1:" + testsuite.HTTPServerPort
+	case testsuite.IPv6Enabled:
+		dstAddress = "[::1]:" + testsuite.HTTPServerPort
+	}
 	opts := Options{LocalAddress: "127.0.0.1:0"}
 	slaver, err := NewSlaver("test", lNetwork, lAddress,
 		dstNetwork, dstAddress, logger.Test, &opts)
