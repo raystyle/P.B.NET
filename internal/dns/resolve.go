@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -227,23 +228,28 @@ func dialDoH(ctx context.Context, server string, question []byte, opts *Options)
 	}
 	req.Header.Set("Accept", "application/dns-message")
 
-	// http client
+	// make http client
+	jar, _ := cookiejar.New(nil)
+	timeout := opts.Timeout
+	if timeout < 1 {
+		timeout = 2 * defaultTimeout
+	}
 	client := http.Client{
 		Transport: opts.transport,
-		Timeout:   opts.Timeout,
+		Jar:       jar,
+		Timeout:   timeout,
 	}
 	defer client.CloseIdleConnections()
-	if client.Timeout < 1 {
-		client.Timeout = 2 * defaultTimeout
-	}
-	maxBodySize := opts.MaxBodySize
-	if maxBodySize < 1 {
-		maxBodySize = defaultMaxBodySize
-	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	maxBodySize := opts.MaxBodySize
+	if maxBodySize < 1 {
+		maxBodySize = defaultMaxBodySize
+	}
 	return ioutil.ReadAll(io.LimitReader(resp.Body, maxBodySize))
 }
