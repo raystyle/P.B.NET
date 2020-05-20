@@ -114,6 +114,9 @@ func TestNewMockConnWithCloseError(t *testing.T) {
 	conn := NewMockConnWithCloseError()
 	err := conn.Close()
 	IsMockConnCloseError(t, err)
+
+	_, err = conn.Read(nil)
+	IsMockConnCloseError(t, err)
 }
 
 func TestNewMockConnWithSetDeadlinePanic(t *testing.T) {

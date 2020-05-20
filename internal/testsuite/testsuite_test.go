@@ -48,7 +48,7 @@ func TestStartPPROFHTTPServer(t *testing.T) {
 		pg := monkey.Patch(net.Listen, patch)
 		defer pg.Unpatch()
 
-		ok := startPPROFHTTPServer(123)
+		ok := startPPROFHTTPServer(nil, 123)
 		require.False(t, ok)
 	})
 
@@ -62,7 +62,7 @@ func TestStartPPROFHTTPServer(t *testing.T) {
 		pg := monkey.Patch(net.Listen, patch)
 		defer pg.Unpatch()
 
-		ok := startPPROFHTTPServer(123)
+		ok := startPPROFHTTPServer(nil, 123)
 		require.False(t, ok)
 	})
 }
@@ -395,6 +395,15 @@ func TestCheckOptions(t *testing.T) {
 			opts.C = nil
 			require.Equal(t, except2, checkOptions("", opts))
 		})
+	})
+
+	t.Run("appear panic", func(t *testing.T) {
+		opts := struct {
+			P io.Writer
+		}{}
+		result := checkOptions("", opts)
+		require.NotZero(t, result)
+		t.Log("result:", result)
 	})
 }
 

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"project/internal/nettool"
+	"project/internal/xpanic"
 )
 
 var (
@@ -37,20 +38,27 @@ func init() {
 
 func printNetworkInfo() {
 	IPv4Enabled, IPv6Enabled = nettool.IPEnabled()
-	if !IPv4Enabled && !IPv6Enabled {
-		fmt.Println("[debug] network unavailable")
-	} else {
+	if IPv4Enabled || IPv6Enabled {
 		const format = "[debug] network: IPv4-%t IPv6-%t"
 		str := fmt.Sprintf(format, IPv4Enabled, IPv6Enabled)
 		str = strings.ReplaceAll(str, "true", "Enabled")
 		str = strings.ReplaceAll(str, "false", "Disabled")
 		fmt.Println(str)
+		return
 	}
+	fmt.Println("[debug] network unavailable")
 }
 
 func deployPPROFHTTPServer() {
+	serveMux := http.NewServeMux()
+	serveMux.HandleFunc("/debug/pprof/", pprof.Index)
+	serveMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	serveMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	serveMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	serveMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	server := &http.Server{Handler: serveMux}
 	for port := 9931; port < 65536; port++ {
-		if startPPROFHTTPServer(port) {
+		if startPPROFHTTPServer(server, port) {
 			fmt.Printf("[debug] pprof http server port: %d\n", port)
 			return
 		}
@@ -58,14 +66,7 @@ func deployPPROFHTTPServer() {
 	panic("failed to deploy pprof http server")
 }
 
-func startPPROFHTTPServer(port int) bool {
-	serveMux := http.NewServeMux()
-	serveMux.HandleFunc("/debug/pprof/", pprof.Index)
-	serveMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	serveMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	serveMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	serveMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	server := http.Server{Handler: serveMux}
+func startPPROFHTTPServer(server *http.Server, port int) bool {
 	var (
 		ipv4 net.Listener
 		ipv6 net.Listener
@@ -157,18 +158,30 @@ func CheckErrorInTestMain(err error) {
 	}
 }
 
-func checkOptions(father string, v interface{}) string {
+// CheckOptions is used to check unmarshal is apply value to each field,
+// it will check each field value is zero.
+func CheckOptions(t *testing.T, v interface{}) {
+	str := checkOptions("", v)
+	require.True(t, str == "", str)
+}
+
+func checkOptions(father string, v interface{}) (result string) {
 	ok, result := checkSpecialType(father, v)
 	if ok {
-		return result
+		return
 	}
 	typ := reflect.TypeOf(v)
 	var value reflect.Value
+	defer func() {
+		if r := recover(); r != nil {
+			xpanic.Log(r, "checkOptions")
+			result = fmt.Sprint(father+typ.Name(), " appear panic")
+		}
+	}()
 	if typ.Kind() == reflect.Ptr {
-		// check is nil point
 		value = reflect.ValueOf(v)
 		typ = value.Type()
-		if value.IsNil() {
+		if value.IsNil() { // check is nil point
 			return father + typ.Name() + " is nil point"
 		}
 		value = value.Elem()
@@ -176,44 +189,7 @@ func checkOptions(father string, v interface{}) string {
 	} else {
 		value = reflect.ValueOf(v)
 	}
-	for i := 0; i < value.NumField(); i++ {
-		fieldType := typ.Field(i)
-		fieldValue := value.Field(i)
-		// skip unexported field
-		if fieldType.PkgPath != "" && !fieldType.Anonymous {
-			continue
-		}
-		// skip filed with check tag
-		if fieldType.Tag.Get("check") == "-" {
-			continue
-		}
-		switch fieldType.Type.Kind() {
-		case reflect.Struct, reflect.Ptr, reflect.Interface:
-			var f string
-			if father == "" {
-				f = typ.Name() + "." + fieldType.Name
-			} else {
-				f = father + "." + fieldType.Name
-			}
-			str := checkOptions(f, fieldValue.Interface())
-			if str != "" {
-				return str
-			}
-		case reflect.Chan, reflect.Func, reflect.Complex64,
-			reflect.Complex128, reflect.UnsafePointer:
-			continue
-		default:
-			if !fieldValue.IsZero() {
-				continue
-			}
-			const format = "%s.%s is zero value"
-			if father == "" {
-				return fmt.Sprintf(format, typ.Name(), fieldType.Name)
-			}
-			return fmt.Sprintf(format, father, fieldType.Name)
-		}
-	}
-	return ""
+	return walkOptions(father, typ, value)
 }
 
 func checkSpecialType(father string, v interface{}) (bool, string) {
@@ -238,11 +214,45 @@ func checkSpecialType(father string, v interface{}) (bool, string) {
 	return true, father + " is zero value"
 }
 
-// CheckOptions is used to check unmarshal is apply value to each field,
-// it will check each field value is zero.
-func CheckOptions(t *testing.T, v interface{}) {
-	str := checkOptions("", v)
-	require.True(t, str == "", str)
+func walkOptions(father string, typ reflect.Type, value reflect.Value) string {
+	for i := 0; i < value.NumField(); i++ {
+		fieldType := typ.Field(i)
+		fieldValue := value.Field(i)
+		// skip unexported field
+		if fieldType.PkgPath != "" && !fieldType.Anonymous {
+			continue
+		}
+		// skip filed with check tag
+		if fieldType.Tag.Get("check") == "-" {
+			continue
+		}
+		switch fieldType.Type.Kind() {
+		case reflect.Struct, reflect.Ptr, reflect.Interface:
+			var f string
+			if father == "" {
+				f = typ.Name() + "." + fieldType.Name
+			} else {
+				f = father + "." + fieldType.Name
+			}
+			result := checkOptions(f, fieldValue.Interface())
+			if result != "" {
+				return result
+			}
+		case reflect.Chan, reflect.Func, reflect.Complex64,
+			reflect.Complex128, reflect.UnsafePointer:
+			continue
+		default:
+			if !fieldValue.IsZero() {
+				continue
+			}
+			const format = "%s.%s is zero value"
+			if father == "" {
+				return fmt.Sprintf(format, typ.Name(), fieldType.Name)
+			}
+			return fmt.Sprintf(format, father, fieldType.Name)
+		}
+	}
+	return ""
 }
 
 // RunParallel is used to call functions with go func().
