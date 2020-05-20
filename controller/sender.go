@@ -820,8 +820,8 @@ func (sender *sender) sendToNode(
 		go func(client *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.sendToNode")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.sendToNode")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- client.SendToNode(guid, data)
@@ -854,8 +854,8 @@ func (sender *sender) sendToBeacon(
 		go func(client *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.sendToBeacon")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.sendToBeacon")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- client.SendToBeacon(guid, data)
@@ -888,8 +888,8 @@ func (sender *sender) ackToNode(
 		go func(client *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.ackToNode")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.ackToNode")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- client.AckToNode(guid, data)
@@ -922,8 +922,8 @@ func (sender *sender) ackToBeacon(
 		go func(client *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.ackToBeacon")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.ackToBeacon")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- client.AckToBeacon(guid, data)
@@ -956,8 +956,8 @@ func (sender *sender) broadcast(
 		go func(client *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.broadcast")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.broadcast")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- client.Broadcast(guid, data)
@@ -990,8 +990,8 @@ func (sender *sender) answer(
 		go func(client *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.answer")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.answer")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- client.Answer(guid, data)

@@ -260,7 +260,7 @@ func InitializeDatabase(config *Config) error {
 	// table name will not add "s"
 	db.SingularTable(true)
 	db.LogMode(false)
-	tables := []*struct {
+	tables := [...]*struct {
 		name  string
 		model interface{}
 	}{

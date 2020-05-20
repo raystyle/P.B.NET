@@ -148,8 +148,8 @@ func (web *webServer) Deploy() error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				b := xpanic.Print(r, "web.Deploy")
-				web.ctx.logger.Print(logger.Fatal, "web", b)
+				buf := xpanic.Print(r, "web.Deploy")
+				web.ctx.logger.Print(logger.Fatal, "web", buf)
 			}
 			web.wg.Done()
 		}()

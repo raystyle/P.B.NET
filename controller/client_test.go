@@ -28,8 +28,6 @@ import (
 func testGenerateNodeConfig(t testing.TB) *node.Config {
 	cfg := node.Config{}
 
-	cfg.Test.SkipSynchronizeTime = true
-
 	cfg.Logger.Level = "debug"
 	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Node")
@@ -71,6 +69,8 @@ func testGenerateNodeConfig(t testing.TB) *node.Config {
 	cfg.Ctrl.KexPublicKey = ctrl.global.KeyExchangePublicKey()
 	cfg.Ctrl.PublicKey = ctrl.global.PublicKey()
 	cfg.Ctrl.BroadcastKey = ctrl.global.BroadcastKey()
+
+	cfg.Test.SkipSynchronizeTime = true
 	return &cfg
 }
 
@@ -108,7 +108,7 @@ func testGenerateInitialNode(t testing.TB) *node.Node {
 	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	// set node config
-	data, key, err := GenerateNodeConfigAboutListeners(&listener)
+	data, key, err := GenerateListeners(&listener)
 	require.NoError(t, err)
 	cfg.Server.Listeners = data
 	cfg.Server.ListenersKey = key

@@ -17,11 +17,6 @@ import (
 
 // Config include configuration about Controller.
 type Config struct {
-	Test struct {
-		SkipTestClientDNS   bool
-		SkipSynchronizeTime bool
-	} `toml:"-"`
-
 	Database struct {
 		Dialect         string    `toml:"dialect"` // "mysql"
 		DSN             string    `toml:"dsn"`
@@ -81,22 +76,27 @@ type Config struct {
 		Username  string       `toml:"username"` // super user
 		Password  string       `toml:"password"`
 	} `toml:"webserver"`
+
+	Test struct {
+		SkipTestClientDNS   bool
+		SkipSynchronizeTime bool
+	} `toml:"-" check:"-"`
 }
 
-// GenerateRoleConfigAboutTheFirstBootstrap is used to generate the first bootstrap.
-func GenerateRoleConfigAboutTheFirstBootstrap(b *messages.Bootstrap) ([]byte, []byte, error) {
-	return generateRoleConfigAboutBootstraps(b)
+// GenerateFirstBootstrap is used to generate the first bootstrap for role config.
+func GenerateFirstBootstrap(b *messages.Bootstrap) ([]byte, []byte, error) {
+	return generateBootstraps(b)
 }
 
-// GenerateRoleConfigAboutRestBootstraps is used to generate role rest bootstraps.
-func GenerateRoleConfigAboutRestBootstraps(b ...*messages.Bootstrap) ([]byte, []byte, error) {
+// GenerateRestBootstraps is used to generate rest bootstraps for role config.
+func GenerateRestBootstraps(b ...*messages.Bootstrap) ([]byte, []byte, error) {
 	if len(b) == 0 {
 		return nil, nil, nil
 	}
-	return generateRoleConfigAboutBootstraps(b)
+	return generateBootstraps(b)
 }
 
-func generateRoleConfigAboutBootstraps(b interface{}) ([]byte, []byte, error) {
+func generateBootstraps(b interface{}) ([]byte, []byte, error) {
 	data, _ := msgpack.Marshal(b)
 	rand := random.NewRand()
 	aesKey := rand.Bytes(aes.Key256Bit)
@@ -108,8 +108,9 @@ func generateRoleConfigAboutBootstraps(b interface{}) ([]byte, []byte, error) {
 	return enc, append(aesKey, aesIV...), nil
 }
 
-// GenerateNodeConfigAboutListeners is used to generate node listener and encrypt it.
-func GenerateNodeConfigAboutListeners(l ...*messages.Listener) ([]byte, []byte, error) {
+// GenerateListeners is used to generate node listener and encrypt it.
+// It used to generate Node config.
+func GenerateListeners(l ...*messages.Listener) ([]byte, []byte, error) {
 	if len(l) == 0 {
 		return nil, nil, errors.New("no listeners")
 	}

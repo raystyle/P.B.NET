@@ -16,9 +16,6 @@ import (
 func testGenerateConfig() *Config {
 	cfg := Config{}
 
-	cfg.Test.SkipTestClientDNS = true
-	cfg.Test.SkipSynchronizeTime = true
-
 	cfg.Database.Dialect = "mysql"
 	cfg.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_dev?loc=Local&parseTime=true"
 	cfg.Database.MaxOpenConns = 16
@@ -62,12 +59,27 @@ func testGenerateConfig() *Config {
 	cfg.WebServer.Address = "localhost:1657"
 	cfg.WebServer.Username = "pbnet" // # super user, password = "pbnet"
 	cfg.WebServer.Password = "$2a$12$zWgjYi0aAq.958UtUyDi5.QDmq4LOWsvv7I9ulvf1rHzd9/dWWmTi"
+
+	cfg.Test.SkipTestClientDNS = true
+	cfg.Test.SkipSynchronizeTime = true
 	return &cfg
 }
 
 func TestConfig(t *testing.T) {
-	data, err := ioutil.ReadFile("testdata/config.toml")
-	require.NoError(t, err)
+	var (
+		data []byte
+		err  error
+	)
+	for _, path := range []string{
+		"testdata/config.toml",
+		"../controller/testdata/config.toml",
+	} {
+		data, err = ioutil.ReadFile(path)
+		if err == nil {
+			break
+		}
+	}
+	require.NotEmpty(t, data)
 
 	// check unnecessary field
 	cfg := Config{}
@@ -77,7 +89,7 @@ func TestConfig(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, cfg)
 
-	tds := [...]*struct {
+	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -123,7 +135,7 @@ func TestConfig(t *testing.T) {
 		{expected: "pbnet", actual: cfg.WebServer.Username},
 		{expected: "bcrypt", actual: cfg.WebServer.Password},
 	}
-	for _, td := range tds {
+	for _, td := range testdata {
 		require.Equal(t, td.expected, td.actual)
 	}
 }
