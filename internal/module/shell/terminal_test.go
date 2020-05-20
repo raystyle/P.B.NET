@@ -14,7 +14,7 @@ import (
 )
 
 func TestTrimPrefixSpace(t *testing.T) {
-	testdata := []struct {
+	testdata := [...]*struct {
 		input  string
 		except string
 	}{
@@ -31,7 +31,7 @@ func TestTrimPrefixSpace(t *testing.T) {
 func TestCommandLineToArgv(t *testing.T) {
 	exe1 := "test"
 	exe2 := `"test test"`
-	testdata := []struct {
+	testdata := [...]*struct {
 		cmd  string
 		args []string
 	}{

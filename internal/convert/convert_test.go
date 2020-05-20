@@ -115,7 +115,7 @@ func TestBytesToNumberWithInvalidBytes(t *testing.T) {
 }
 
 func TestAbsInt64(t *testing.T) {
-	testdata := []*struct {
+	testdata := [...]*struct {
 		input  int64
 		output int64
 	}{
@@ -131,7 +131,7 @@ func TestAbsInt64(t *testing.T) {
 }
 
 func TestByteToString(t *testing.T) {
-	testdata := []*struct {
+	testdata := [...]*struct {
 		input  int
 		output string
 	}{
@@ -151,7 +151,7 @@ func TestByteToString(t *testing.T) {
 }
 
 func TestFormatNumber(t *testing.T) {
-	testdata := []*struct {
+	testdata := [...]*struct {
 		input  string
 		output string
 	}{
@@ -181,7 +181,7 @@ func TestFormatNumber(t *testing.T) {
 }
 
 func TestByteSliceToString(t *testing.T) {
-	testdata := []*struct {
+	testdata := [...]*struct {
 		input  []byte
 		output string
 	}{

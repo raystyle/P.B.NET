@@ -653,7 +653,7 @@ func TestServerOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, server)
 
-	testdata := []*struct {
+	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
@@ -678,7 +678,7 @@ func TestOptions(t *testing.T) {
 	// check zero value
 	testsuite.CheckOptions(t, opts)
 
-	testdata := []*struct {
+	testdata := [...]*struct {
 		expected interface{}
 		actual   interface{}
 	}{
