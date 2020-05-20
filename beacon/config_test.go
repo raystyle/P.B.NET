@@ -22,8 +22,6 @@ import (
 func testGenerateConfig(t testing.TB) *Config {
 	cfg := Config{}
 
-	cfg.Test.SkipSynchronizeTime = true
-
 	cfg.Logger.Level = "debug"
 	cfg.Logger.QueueSize = 512
 	cfg.Logger.Writer = logger.NewWriterWithPrefix(os.Stdout, "Beacon")
@@ -61,6 +59,8 @@ func testGenerateConfig(t testing.TB) *Config {
 
 	cfg.Ctrl.KexPublicKey = bytes.Repeat([]byte{255}, curve25519.ScalarSize)
 	cfg.Ctrl.PublicKey = bytes.Repeat([]byte{255}, ed25519.PublicKeySize)
+
+	cfg.Test.SkipSynchronizeTime = true
 	return &cfg
 }
 

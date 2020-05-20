@@ -532,8 +532,8 @@ func (sender *sender) send(guid *guid.GUID, data *bytes.Buffer) ([]*protocol.Sen
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.send")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.send")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- c.Send(guid, data)
@@ -566,8 +566,8 @@ func (sender *sender) acknowledge(
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.acknowledge")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.acknowledge")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- c.Acknowledge(guid, data)
@@ -600,8 +600,8 @@ func (sender *sender) query(
 		go func(c *Client) {
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Print(r, "sender.query")
-					sender.log(logger.Fatal, b)
+					buf := xpanic.Print(r, "sender.query")
+					sender.log(logger.Fatal, buf)
 				}
 			}()
 			response <- c.Query(guid, data)
