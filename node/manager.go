@@ -305,8 +305,8 @@ func (mgr *messageMgr) HandleReply(id *guid.GUID, reply interface{}) {
 func (mgr *messageMgr) cleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "messageMgr.cleaner")
-			mgr.ctx.logger.Print(logger.Fatal, "message-manager", b)
+			buf := xpanic.Print(r, "messageMgr.cleaner")
+			mgr.ctx.logger.Print(logger.Fatal, "message-manager", buf)
 			// restart message cleaner
 			time.Sleep(time.Second)
 			go mgr.cleaner()

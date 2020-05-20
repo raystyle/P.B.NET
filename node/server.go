@@ -601,8 +601,8 @@ func (server *server) isHTTPRequest(data []byte, conn *xnet.Conn) bool {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				b := xpanic.Print(r, "server.isHTTPRequest")
-				server.logConn(conn, logger.Error, b)
+				buf := xpanic.Print(r, "server.isHTTPRequest")
+				server.logConn(conn, logger.Error, buf)
 			}
 		}()
 		_, _ = io.Copy(ioutil.Discard, conn)

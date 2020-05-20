@@ -334,8 +334,8 @@ func (syncer *syncer) Close() {
 func (syncer *syncer) guidCleaner() {
 	defer func() {
 		if r := recover(); r != nil {
-			b := xpanic.Print(r, "syncer.guidCleaner")
-			syncer.ctx.logger.Print(logger.Fatal, "syncer", b)
+			buf := xpanic.Print(r, "syncer.guidCleaner")
+			syncer.ctx.logger.Print(logger.Fatal, "syncer", buf)
 			// restart GUID cleaner
 			time.Sleep(time.Second)
 			go syncer.guidCleaner()

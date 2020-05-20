@@ -27,10 +27,6 @@ import (
 // Config contains configuration about Node.
 // use extra msgpack tag to hide raw field name.
 type Config struct {
-	Test struct {
-		SkipSynchronizeTime bool
-	} `toml:"-" msgpack:"-"`
-
 	Logger struct {
 		Level     string `toml:"level"      msgpack:"a"`
 		QueueSize int    `toml:"queue_size" msgpack:"b"`
@@ -122,6 +118,10 @@ type Config struct {
 		DisplayName string `toml:"display_name" msgpack:"b"`
 		Description string `toml:"description"  msgpack:"c"`
 	} `toml:"service" msgpack:"ll"`
+
+	Test struct {
+		SkipSynchronizeTime bool
+	} `toml:"-" msgpack:"-"`
 }
 
 // TestOptions include test options.
