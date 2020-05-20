@@ -298,9 +298,9 @@ func HijackLogWriter(lv Level, src string, logger Logger, flag int) {
 // local:  tcp 127.0.0.1:1234
 // remote: tcp 127.0.0.1:1235
 func Conn(conn net.Conn) *bytes.Buffer {
-	b := bytes.Buffer{}
-	_, _ = fmt.Fprintf(&b, "local:  %s %s\nremote: %s %s ",
+	buf := bytes.NewBuffer(make([]byte, 0, 64))
+	_, _ = fmt.Fprintf(buf, "local:  %s %s\nremote: %s %s ",
 		conn.LocalAddr().Network(), conn.LocalAddr(),
 		conn.RemoteAddr().Network(), conn.RemoteAddr())
-	return &b
+	return buf
 }

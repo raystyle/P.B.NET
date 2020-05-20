@@ -129,7 +129,7 @@ func TestConn(t *testing.T) {
 	})
 
 	t.Run("mock", func(t *testing.T) {
-		conn := testsuite.NewMockConnWithSetDeadlinePanic()
+		conn := testsuite.NewMockConnWithReadError()
 		fmt.Println(Conn(conn))
 		_ = conn.Close()
 	})
