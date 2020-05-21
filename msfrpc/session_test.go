@@ -139,7 +139,8 @@ func TestMSFRPC_SessionList(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -179,7 +180,8 @@ func TestMSFRPC_SessionStop(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -227,7 +229,8 @@ func TestMSFRPC_SessionShellRead(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -294,7 +297,8 @@ func TestMSFRPC_SessionShellWrite(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -473,7 +477,8 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 		err = os.Remove(file)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -533,7 +538,8 @@ func TestMSFRPC_SessionUpgrade(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -581,7 +587,8 @@ func TestMSFRPC_SessionMeterpreterRead(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -641,7 +648,8 @@ func TestMSFRPC_SessionMeterpreterWrite(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -687,7 +695,8 @@ func TestMSFRPC_SessionMeterpreterSessionDetach(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -733,7 +742,8 @@ func TestMSFRPC_SessionMeterpreterSessionKill(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -788,7 +798,8 @@ func TestMSFRPC_SessionMeterpreterRunSingle(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -847,7 +858,8 @@ func TestMSFRPC_SessionCompatibleModules(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -926,7 +938,8 @@ func TestShell(t *testing.T) {
 
 	testSessionPrintOutput(t, buf)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -947,7 +960,8 @@ func TestShell_readLoop(t *testing.T) {
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -1020,7 +1034,8 @@ func TestShell_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, shell)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1052,7 +1067,8 @@ func TestShell_writeLimiter(t *testing.T) {
 		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err := msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -1100,7 +1116,8 @@ func TestShell_writeLimiter(t *testing.T) {
 		testsuite.IsDestroyed(t, shell)
 	})
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1121,7 +1138,8 @@ func TestShell_Write(t *testing.T) {
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -1138,7 +1156,8 @@ func TestShell_Write(t *testing.T) {
 
 	testsuite.IsDestroyed(t, shell)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1158,7 +1177,8 @@ func TestShell_Stop(t *testing.T) {
 
 	testsuite.IsDestroyed(t, shell)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1214,7 +1234,8 @@ func TestMeterpreter(t *testing.T) {
 
 	testSessionPrintOutput(t, buf)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1235,7 +1256,8 @@ func TestMeterpreter_readLoop(t *testing.T) {
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -1308,7 +1330,8 @@ func TestMeterpreter_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1340,7 +1363,8 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 		err = msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err := msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -1388,7 +1412,8 @@ func TestMeterpreter_writeLimiter(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1409,7 +1434,8 @@ func TestMeterpreter_Write(t *testing.T) {
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -1426,7 +1452,8 @@ func TestMeterpreter_Write(t *testing.T) {
 
 	testsuite.IsDestroyed(t, meterpreter)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1447,7 +1474,8 @@ func TestMeterpreter_Detach(t *testing.T) {
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -1530,7 +1558,8 @@ func TestMeterpreter_Detach(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1551,7 +1580,8 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	}()
@@ -1633,7 +1663,8 @@ func TestMeterpreter_Interrupt(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1653,7 +1684,8 @@ func TestMeterpreter_Stop(t *testing.T) {
 
 	testsuite.IsDestroyed(t, meterpreter)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

@@ -84,7 +84,8 @@ func TestMSFRPC_JobList(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -177,7 +178,8 @@ func TestMSFRPC_JobInfo(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -255,7 +257,8 @@ func TestMSFRPC_JobStop(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

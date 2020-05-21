@@ -48,7 +48,8 @@ func TestMSFRPC_ModuleExploits(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -87,7 +88,8 @@ func TestMSFRPC_ModuleAuxiliary(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -126,7 +128,8 @@ func TestMSFRPC_ModulePost(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -165,7 +168,8 @@ func TestMSFRPC_ModulePayloads(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -204,7 +208,8 @@ func TestMSFRPC_ModuleEncoders(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -243,7 +248,8 @@ func TestMSFRPC_ModuleNops(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -282,7 +288,8 @@ func TestMSFRPC_ModuleEvasion(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -451,7 +458,8 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -504,7 +512,8 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -548,7 +557,8 @@ func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -598,7 +608,8 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -644,7 +655,8 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -689,7 +701,8 @@ func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -739,7 +752,8 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -777,7 +791,8 @@ func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -815,7 +830,8 @@ func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -854,7 +870,8 @@ func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -892,7 +909,8 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -930,7 +948,8 @@ func TestMSFRPC_ModulePlatforms(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -968,7 +987,8 @@ func TestMSFRPC_ModuleArchitectures(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1037,7 +1057,8 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1145,7 +1166,8 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1216,7 +1238,8 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1261,7 +1284,8 @@ func TestMSFRPC_ModuleRunningStats(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

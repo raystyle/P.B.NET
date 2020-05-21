@@ -36,7 +36,8 @@ func TestMSFRPC_AuthLogin(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -70,7 +71,8 @@ func TestMSFRPC_AuthLogout(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -114,7 +116,8 @@ func TestMSFRPC_AuthTokenList(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -157,7 +160,8 @@ func TestMSFRPC_AuthTokenGenerate(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -211,7 +215,8 @@ func TestMSFRPC_AuthTokenAdd(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -265,7 +270,8 @@ func TestMSFRPC_AuthTokenRemove(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

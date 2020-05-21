@@ -52,7 +52,8 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	testsuite.CheckErrorInTestMain(err)
 	// one test main goroutine and two goroutine about
 	// pprof server in internal/testsuite.go
 	leaks := true
@@ -214,7 +215,8 @@ func TestNewMSFRPC(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		msfrpc := testGenerateMSFRPC(t)
 
-		msfrpc.Kill()
+		err := msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -235,7 +237,8 @@ func TestNewMSFRPC(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, msfrpc)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -247,7 +250,8 @@ func TestNewMSFRPC(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, msfrpc)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -261,7 +265,8 @@ func TestMSFRPC_HijackLogWriter(t *testing.T) {
 
 	msfrpc.HijackLogWriter()
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -312,7 +317,8 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -329,7 +335,8 @@ func TestMSFRPC_send(t *testing.T) {
 		err := msfrpc.send(ctx, func() {}, nil)
 		require.Error(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -381,7 +388,8 @@ func TestMSFRPC_send(t *testing.T) {
 		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, testError)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -397,7 +405,8 @@ func TestMSFRPC_send(t *testing.T) {
 		err = msfrpc.send(ctx, nil, nil)
 		require.Error(t, err)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -413,7 +422,8 @@ func TestMSFRPC_send(t *testing.T) {
 		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "token is invalid")
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -429,7 +439,8 @@ func TestMSFRPC_send(t *testing.T) {
 		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "token is not granted access to the resource")
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -445,7 +456,8 @@ func TestMSFRPC_send(t *testing.T) {
 		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "the request was sent to an invalid URL")
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 
@@ -462,7 +474,8 @@ func TestMSFRPC_send(t *testing.T) {
 		err = msfrpc.send(ctx, nil, nil)
 		require.EqualError(t, err, "202 Accepted")
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -491,7 +504,8 @@ func TestMSFRPC_send(t *testing.T) {
 		}
 		testsuite.RunParallel(f1, f2)
 
-		msfrpc.Kill()
+		err = msfrpc.Close()
+		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
@@ -610,6 +624,7 @@ func TestMSFRPC_Close(t *testing.T) {
 		require.Error(t, err)
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 }

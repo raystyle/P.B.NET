@@ -54,7 +54,8 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -118,7 +119,8 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -160,7 +162,8 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -210,7 +213,8 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -280,7 +284,8 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -335,7 +340,8 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -419,7 +425,8 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -472,7 +479,8 @@ func TestConsole(t *testing.T) {
 	require.NoError(t, err)
 	testsuite.IsDestroyed(t, console)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -488,7 +496,8 @@ func TestMSFRPC_NewConsole(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, console)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -569,6 +578,7 @@ func TestConsole_readLoop(t *testing.T) {
 
 		err = msfrpc.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 
 		// destroy opened console
@@ -578,7 +588,8 @@ func TestConsole_readLoop(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -707,7 +718,8 @@ func TestConsole_read(t *testing.T) {
 		testsuite.IsDestroyed(t, console)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -787,7 +799,8 @@ func TestConsole_writeLimiter(t *testing.T) {
 		testsuite.IsDestroyed(t, console)
 	})
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -856,7 +869,8 @@ func TestConsole_Write(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -964,7 +978,8 @@ func TestConsole_Detach(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1021,7 +1036,8 @@ func TestConsole_Destroy(t *testing.T) {
 		testsuite.IsDestroyed(t, console)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

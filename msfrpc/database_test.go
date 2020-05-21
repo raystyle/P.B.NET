@@ -80,7 +80,8 @@ func TestMSFRPC_DBConnect(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -119,7 +120,8 @@ func TestMSFRPC_DBDisconnect(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -167,7 +169,8 @@ func TestMSFRPC_DBStatus(t *testing.T) {
 		})
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -235,7 +238,8 @@ func TestMSFRPC_DBReportHost(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -303,7 +307,8 @@ func TestMSFRPC_DBHosts(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -387,7 +392,8 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -475,7 +481,8 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -538,7 +545,8 @@ func TestMSFRPC_DBReportService(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -615,7 +623,8 @@ func TestMSFRPC_DBServices(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -690,7 +699,8 @@ func TestMSFRPC_DBGetService(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -781,7 +791,8 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -844,7 +855,8 @@ func TestMSFRPC_DBReportClient(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -917,7 +929,8 @@ func TestMSFRPC_DBClients(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -997,7 +1010,8 @@ func TestMSFRPC_DBGetClient(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1089,7 +1103,8 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1142,7 +1157,8 @@ func TestMSFRPC_DBCreateCredential(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1209,7 +1225,8 @@ func TestMSFRPC_DBCreds(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1272,7 +1289,8 @@ func TestMSFRPC_DBDelCreds(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1336,7 +1354,8 @@ func TestMSFRPC_DBReportLoot(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1409,7 +1428,8 @@ func TestMSFRPC_DBLoots(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1465,7 +1485,8 @@ func TestMSFRPC_DBWorkspaces(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1532,7 +1553,8 @@ func TestMSFRPC_DBGetWorkspace(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1613,7 +1635,8 @@ func TestMSFRPC_DBAddWorkspace(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1689,7 +1712,8 @@ func TestMSFRPC_DBDelWorkspace(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1768,7 +1792,8 @@ func TestMSFRPC_DBSetWorkspace(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1850,7 +1875,8 @@ func TestMSFRPC_DBCurrentWorkspace(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1950,7 +1976,8 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -2041,7 +2068,8 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

@@ -142,7 +142,8 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -300,7 +301,8 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -464,7 +466,8 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		testsuite.IsDestroyed(t, monitor)
 	})
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -662,7 +665,8 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -859,7 +863,9 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -990,7 +996,8 @@ func TestMonitor_lootMonitor(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1085,7 +1092,8 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1137,7 +1145,9 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 
 	testsuite.IsDestroyed(t, monitor)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1184,7 +1194,9 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 
 	testsuite.IsDestroyed(t, monitor)
 
-	msfrpc.Kill()
+	err := msfrpc.Close()
+	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1221,7 +1233,8 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
-	msfrpc.Kill()
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
