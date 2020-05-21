@@ -18,11 +18,11 @@ func TestPrintStack(t *testing.T) {
 	})
 
 	t.Run("skip > max depth", func(t *testing.T) {
-		b := new(bytes.Buffer)
-		PrintStack(b, maxDepth+1)
+		buf := new(bytes.Buffer)
+		PrintStack(buf, maxDepth+1)
 
 		fmt.Println("-----begin-----")
-		fmt.Print(b)
+		fmt.Print(buf)
 		fmt.Println("-----end-----")
 	})
 
@@ -51,11 +51,11 @@ func testFuncC() {
 }
 
 func testLogPanic() {
-	b := new(bytes.Buffer)
-	PrintStack(b, 0)
+	buf := new(bytes.Buffer)
+	PrintStack(buf, 0)
 
 	fmt.Println("-----begin-----")
-	fmt.Print(b)
+	fmt.Print(buf)
 	fmt.Println("-----end-----")
 }
 
@@ -63,7 +63,7 @@ func TestError(t *testing.T) {
 	defer func() {
 		r := recover()
 		fmt.Println("-----begin-----")
-		fmt.Print(Error(r, "TestError"))
+		fmt.Print(Error(r, "TestError title"))
 		fmt.Println("-----end-----")
 	}()
 
@@ -77,8 +77,8 @@ func TestLog(t *testing.T) {
 		defer wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				b := Log(r, "testLog")
-				require.NotNil(t, b)
+				buf := Log(r, "testLog")
+				require.NotNil(t, buf)
 			}
 		}()
 
@@ -97,7 +97,7 @@ func TestUnknown(t *testing.T) {
 	defer func() {
 		r := recover()
 		fmt.Println("-----begin-----")
-		fmt.Print(Error(r, "TestUnknown"))
+		fmt.Print(Error(r, "TestUnknown title"))
 		fmt.Println("-----end-----")
 	}()
 
