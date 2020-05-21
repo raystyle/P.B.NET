@@ -306,6 +306,7 @@ func TestMSFRPC_ModuleEvasion(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -355,39 +356,28 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 	t.Run("get all module information", func(t *testing.T) {
 		all := make(map[string][]string)
 
-		modules, err := msfrpc.ModuleExploits(ctx)
-		require.NoError(t, err)
-		all["exploit"] = modules
-
-		modules, err = msfrpc.ModuleAuxiliary(ctx)
-		require.NoError(t, err)
-		all["auxiliary"] = modules
-
-		modules, err = msfrpc.ModulePost(ctx)
-		require.NoError(t, err)
-		all["post"] = modules
-
-		modules, err = msfrpc.ModulePayloads(ctx)
-		require.NoError(t, err)
-		all["payload"] = modules
-
-		modules, err = msfrpc.ModuleEncoders(ctx)
-		require.NoError(t, err)
-		all["encoder"] = modules
-
-		modules, err = msfrpc.ModuleNops(ctx)
-		require.NoError(t, err)
-		all["nop"] = modules
-
-		modules, err = msfrpc.ModuleEvasion(ctx)
-		require.NoError(t, err)
-		all["evasion"] = modules
+		for _, td := range [...]*struct {
+			name string
+			fn   func(context.Context) ([]string, error)
+		}{
+			{"exploit", msfrpc.ModuleExploits},
+			{"auxiliary", msfrpc.ModuleAuxiliary},
+			{"post", msfrpc.ModulePost},
+			{"payload", msfrpc.ModulePayloads},
+			{"encoder", msfrpc.ModuleEncoders},
+			{"nop", msfrpc.ModuleNops},
+			{"evasion", msfrpc.ModuleEvasion},
+		} {
+			modules, err := td.fn(ctx)
+			require.NoError(t, err)
+			all[td.name] = modules
+		}
 
 		// TODO [external] msfrpcd invalid modules
 		// My platform is windows, so these maybe no error in other platforms
 
 		// some module will failed, so we must skip these modules
-		skipList := [...]struct {
+		skipList := [...]*struct {
 			typ  string
 			name string
 		}{
@@ -489,6 +479,7 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 

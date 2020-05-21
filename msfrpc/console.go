@@ -262,7 +262,7 @@ func (msf *MSFRPC) NewConsoleWithID(id string, interval time.Duration) *Console 
 	}
 	console.pr, console.pw = io.Pipe()
 	console.context, console.cancel = context.WithCancel(context.Background())
-	msf.addResourceCount(2)
+	msf.addIOResourceCount(2)
 	go console.readLoop()
 	go console.writeLimiter()
 	return &console
@@ -283,7 +283,7 @@ func (console *Console) readLoop() {
 			go console.readLoop()
 		} else {
 			console.close()
-			console.ctx.addResourceCount(-1)
+			console.ctx.addIOResourceCount(-1)
 		}
 	}()
 	if !console.ctx.trackConsole(console, true) {
@@ -385,7 +385,7 @@ func (console *Console) writeLimiter() {
 			time.Sleep(time.Second)
 			go console.writeLimiter()
 		} else {
-			console.ctx.addResourceCount(-1)
+			console.ctx.addIOResourceCount(-1)
 		}
 	}()
 	// don't use ticker otherwise read write will appear confusion.

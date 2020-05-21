@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -50,6 +51,21 @@ func TestMain(m *testing.M) {
 		}
 	}
 	msfrpc.Kill()
+	// one test main goroutine and two goroutine about
+	// pprof server in internal/testsuite.go
+	leaks := true
+	for i := 0; i < 300; i++ {
+		if runtime.NumGoroutine() == 3 {
+			leaks = false
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if leaks {
+		fmt.Println("[warning] goroutine leaks!")
+		time.Sleep(time.Minute)
+		os.Exit(1)
+	}
 	if !testsuite.Destroyed(msfrpc) {
 		fmt.Println("[warning] msfrpc is not destroyed!")
 		time.Sleep(time.Minute)
@@ -559,6 +575,7 @@ func TestMSFRPC_Close(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
 		require.NoError(t, err)
+
 		err = msfrpc.AuthLogin()
 		require.NoError(t, err)
 
@@ -578,4 +595,9 @@ func TestMSFRPC_Close(t *testing.T) {
 		msfrpc.Kill()
 		testsuite.IsDestroyed(t, msfrpc)
 	})
+}
+
+// TODO finish it
+func TestOptions(t *testing.T) {
+
 }

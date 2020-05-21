@@ -42,8 +42,8 @@ type MSFRPC struct {
 	shells map[uint64]*Shell
 	// key = meterpreter session id
 	meterpreters map[uint64]*Meterpreter
-	//
-	resCount sync.WaitGroup
+	// io resource counter
+	ioResWG sync.WaitGroup
 
 	inShutdown int32
 	rwm        sync.RWMutex
@@ -257,8 +257,8 @@ func (msf *MSFRPC) shuttingDown() bool {
 	return atomic.LoadInt32(&msf.inShutdown) != 0
 }
 
-func (msf *MSFRPC) addResourceCount(delta int) {
-	msf.resCount.Add(delta)
+func (msf *MSFRPC) addIOResourceCount(delta int) {
+	msf.ioResWG.Add(delta)
 }
 
 func (msf *MSFRPC) trackConsole(console *Console, add bool) bool {
@@ -340,7 +340,7 @@ func (msf *MSFRPC) Close() error {
 		return err
 	}
 	msf.close()
-	msf.resCount.Wait()
+	msf.ioResWG.Wait()
 	return nil
 }
 
@@ -348,7 +348,7 @@ func (msf *MSFRPC) Close() error {
 func (msf *MSFRPC) Kill() {
 	_ = msf.AuthLogout(msf.GetToken())
 	msf.close()
-	msf.resCount.Wait()
+	msf.ioResWG.Wait()
 }
 
 func (msf *MSFRPC) close() {
