@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/logger"
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
@@ -19,11 +18,7 @@ func TestMSFRPC_ModuleExploits(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -54,6 +49,7 @@ func TestMSFRPC_ModuleExploits(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -61,11 +57,7 @@ func TestMSFRPC_ModuleAuxiliary(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -96,6 +88,7 @@ func TestMSFRPC_ModuleAuxiliary(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -103,11 +96,7 @@ func TestMSFRPC_ModulePost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -138,6 +127,7 @@ func TestMSFRPC_ModulePost(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -145,11 +135,7 @@ func TestMSFRPC_ModulePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -180,6 +166,7 @@ func TestMSFRPC_ModulePayloads(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -187,11 +174,7 @@ func TestMSFRPC_ModuleEncoders(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -222,6 +205,7 @@ func TestMSFRPC_ModuleEncoders(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -229,11 +213,7 @@ func TestMSFRPC_ModuleNops(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -264,6 +244,7 @@ func TestMSFRPC_ModuleNops(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -271,11 +252,7 @@ func TestMSFRPC_ModuleEvasion(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -314,11 +291,7 @@ func TestMSFRPC_ModuleInfo(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -487,11 +460,7 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -536,6 +505,7 @@ func TestMSFRPC_ModuleOptions(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -543,11 +513,7 @@ func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -583,6 +549,7 @@ func TestMSFRPC_ModuleCompatiblePayloads(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -590,12 +557,9 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
+
 	const (
 		module        = "exploit/multi/handler"
 		target        = 0
@@ -635,6 +599,7 @@ func TestMSFRPC_ModuleTargetCompatiblePayloads(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -642,11 +607,7 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const module = "post/windows/gather/enum_proxy"
 
@@ -684,6 +645,7 @@ func TestMSFRPC_ModuleCompatibleSessions(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -691,11 +653,7 @@ func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const module = "windows/windows_defender_exe"
 
@@ -732,6 +690,7 @@ func TestMSFRPC_ModuleCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -739,12 +698,9 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
+
 	const (
 		module        = "windows/windows_defender_exe"
 		target        = 0
@@ -784,6 +740,7 @@ func TestMSFRPC_ModuleTargetCompatibleEvasionPayloads(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -791,11 +748,7 @@ func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -825,6 +778,7 @@ func TestMSFRPC_ModuleEncodeFormats(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -832,11 +786,7 @@ func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -866,6 +816,7 @@ func TestMSFRPC_ModuleExecutableFormats(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -873,10 +824,7 @@ func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 
 	ctx := context.Background()
 
@@ -907,6 +855,7 @@ func TestMSFRPC_ModuleTransformFormats(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -914,11 +863,7 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -948,6 +893,7 @@ func TestMSFRPC_ModuleEncryptionFormats(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -955,11 +901,7 @@ func TestMSFRPC_ModulePlatforms(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -989,6 +931,7 @@ func TestMSFRPC_ModulePlatforms(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -996,11 +939,7 @@ func TestMSFRPC_ModuleArchitectures(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -1030,6 +969,7 @@ func TestMSFRPC_ModuleArchitectures(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1037,17 +977,15 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
+
 	const (
 		data    = "AAA"
 		encoder = "x86/shikata_ga_nai"
 		path    = "../internal/module/shellcode/testdata/windows_32.txt"
 	)
+
 	// read shellcode
 	scHEX, err := ioutil.ReadFile(path)
 	require.NoError(t, err)
@@ -1100,6 +1038,7 @@ func TestMSFRPC_ModuleEncode(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1107,11 +1046,7 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("exploit", func(t *testing.T) {
@@ -1211,6 +1146,7 @@ func TestMSFRPC_ModuleExecute(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1218,11 +1154,7 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -1285,6 +1217,7 @@ func TestMSFRPC_ModuleCheck(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1292,11 +1225,7 @@ func TestMSFRPC_ModuleRunningStats(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -1333,5 +1262,6 @@ func TestMSFRPC_ModuleRunningStats(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }

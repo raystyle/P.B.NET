@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/logger"
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
@@ -15,17 +14,16 @@ func TestMSFRPC_AuthLogin(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPC(t)
 
 	t.Run("success", func(t *testing.T) {
-		err = msfrpc.AuthLogin()
+		err := msfrpc.AuthLogin()
 		require.NoError(t, err)
 	})
 
 	t.Run("failed to login", func(t *testing.T) {
 		msfrpc.password = "foo"
-		err = msfrpc.AuthLogin()
+		err := msfrpc.AuthLogin()
 		require.EqualError(t, err, "Login Failed")
 
 		msfrpc.password = testUsername
@@ -33,12 +31,13 @@ func TestMSFRPC_AuthLogin(t *testing.T) {
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err = msfrpc.AuthLogin()
+			err := msfrpc.AuthLogin()
 			monkey.IsMonkeyError(t, err)
 		})
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -46,11 +45,10 @@ func TestMSFRPC_AuthLogout(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPC(t)
 
 	t.Run("logout self", func(t *testing.T) {
-		err = msfrpc.AuthLogin()
+		err := msfrpc.AuthLogin()
 		require.NoError(t, err)
 
 		err = msfrpc.AuthLogout(msfrpc.GetToken())
@@ -58,7 +56,7 @@ func TestMSFRPC_AuthLogout(t *testing.T) {
 	})
 
 	t.Run("logout invalid token", func(t *testing.T) {
-		err = msfrpc.AuthLogin()
+		err := msfrpc.AuthLogin()
 		require.NoError(t, err)
 
 		err = msfrpc.AuthLogout(testInvalidToken)
@@ -67,12 +65,13 @@ func TestMSFRPC_AuthLogout(t *testing.T) {
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err = msfrpc.AuthLogout(msfrpc.GetToken())
+			err := msfrpc.AuthLogout(msfrpc.GetToken())
 			monkey.IsMonkeyError(t, err)
 		})
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -80,11 +79,7 @@ func TestMSFRPC_AuthTokenList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -120,6 +115,7 @@ func TestMSFRPC_AuthTokenList(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -127,11 +123,7 @@ func TestMSFRPC_AuthTokenGenerate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -166,6 +158,7 @@ func TestMSFRPC_AuthTokenGenerate(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -173,11 +166,7 @@ func TestMSFRPC_AuthTokenAdd(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const token = "TEST0123456789012345678901234567"
 
@@ -223,6 +212,7 @@ func TestMSFRPC_AuthTokenAdd(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -230,11 +220,7 @@ func TestMSFRPC_AuthTokenRemove(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const token = "TEST0123456789012345678901234567"
 
@@ -280,5 +266,6 @@ func TestMSFRPC_AuthTokenRemove(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }

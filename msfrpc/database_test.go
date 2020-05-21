@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/logger"
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
 )
@@ -22,22 +21,25 @@ var testDBOptions = &DBConnectOptions{
 	Options:  map[string]interface{}{"foo": "bar"},
 }
 
+func testGenerateMSFRPCAndConnectDB(t *testing.T) *MSFRPC {
+	msfrpc := testGenerateMSFRPCAndLogin(t)
+	err := msfrpc.DBConnect(context.Background(), testDBOptions)
+	require.NoError(t, err)
+	return msfrpc
+}
+
 func TestMSFRPC_DBConnect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 
-		err := msfrpc.DBConnect(ctx, testDBOptions)
+		err = msfrpc.DBConnect(ctx, testDBOptions)
 		require.NoError(t, err)
 
 		err = msfrpc.DBDisconnect(ctx)
@@ -79,6 +81,7 @@ func TestMSFRPC_DBConnect(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -86,11 +89,7 @@ func TestMSFRPC_DBDisconnect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -121,6 +120,7 @@ func TestMSFRPC_DBDisconnect(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -128,11 +128,7 @@ func TestMSFRPC_DBStatus(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -172,6 +168,7 @@ func TestMSFRPC_DBStatus(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -191,15 +188,8 @@ func TestMSFRPC_DBReportHost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		err := msfrpc.DBReportHost(ctx, testDBHost)
@@ -215,14 +205,14 @@ func TestMSFRPC_DBReportHost(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.DBReportHost(ctx, testDBHost)
+		err = msfrpc.DBReportHost(ctx, testDBHost)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
@@ -242,10 +232,11 @@ func TestMSFRPC_DBReportHost(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -253,15 +244,8 @@ func TestMSFRPC_DBHosts(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		err := msfrpc.DBReportHost(ctx, testDBHost)
@@ -286,7 +270,7 @@ func TestMSFRPC_DBHosts(t *testing.T) {
 	const workspace = "foo"
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -316,10 +300,11 @@ func TestMSFRPC_DBHosts(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -327,15 +312,8 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		err := msfrpc.DBReportHost(ctx, testDBHost)
@@ -376,7 +354,7 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 	}
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -406,10 +384,11 @@ func TestMSFRPC_DBGetHost(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -417,15 +396,8 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		err := msfrpc.DBReportHost(ctx, testDBHost)
@@ -450,7 +422,8 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 			Address: "3.3.3.3",
 		}
 		hosts, err := msfrpc.DBDelHost(ctx, &opts)
-		require.EqualError(t, err, "host: 3.3.3.3 doesn't exist in workspace: default")
+		const errStr = "host: 3.3.3.3 doesn't exist in workspace: default"
+		require.EqualError(t, err, errStr)
 		require.Nil(t, hosts)
 	})
 
@@ -469,7 +442,7 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 	}
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -499,10 +472,11 @@ func TestMSFRPC_DBDelHost(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -517,15 +491,8 @@ func TestMSFRPC_DBReportService(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		err := msfrpc.DBReportService(ctx, testDBService)
@@ -541,14 +508,14 @@ func TestMSFRPC_DBReportService(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.DBReportService(ctx, testDBService)
+		err = msfrpc.DBReportService(ctx, testDBService)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
@@ -568,10 +535,11 @@ func TestMSFRPC_DBReportService(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -579,15 +547,8 @@ func TestMSFRPC_DBServices(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	opts := &DBServicesOptions{
 		Limit:    65535,
@@ -621,7 +582,7 @@ func TestMSFRPC_DBServices(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -651,10 +612,11 @@ func TestMSFRPC_DBServices(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -662,15 +624,8 @@ func TestMSFRPC_DBGetService(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	opts := &DBGetServiceOptions{
 		Protocol: "tcp",
@@ -702,7 +657,7 @@ func TestMSFRPC_DBGetService(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -732,10 +687,11 @@ func TestMSFRPC_DBGetService(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -743,15 +699,8 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	// TODO [external] msfrpcd bug about DelService
 	// file: lib/msf/core/rpc/v10/rpc_db.rb
@@ -799,7 +748,7 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -829,10 +778,11 @@ func TestMSFRPC_DBDelService(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -847,15 +797,8 @@ func TestMSFRPC_DBReportClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		err := msfrpc.DBReportClient(ctx, testDBClient)
@@ -871,14 +814,14 @@ func TestMSFRPC_DBReportClient(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.DBReportClient(ctx, testDBClient)
+		err = msfrpc.DBReportClient(ctx, testDBClient)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
@@ -898,10 +841,11 @@ func TestMSFRPC_DBReportClient(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -909,15 +853,8 @@ func TestMSFRPC_DBClients(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	opts := &DBClientsOptions{
 		UAName:    "Mozilla",
@@ -947,7 +884,7 @@ func TestMSFRPC_DBClients(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -977,10 +914,11 @@ func TestMSFRPC_DBClients(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -988,15 +926,8 @@ func TestMSFRPC_DBGetClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	opts := &DBGetClientOptions{
 		Host:     testDBClient.Host,
@@ -1033,7 +964,7 @@ func TestMSFRPC_DBGetClient(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -1063,10 +994,11 @@ func TestMSFRPC_DBGetClient(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1074,15 +1006,8 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	opts := &DBDelClientOptions{
 		Address:   "1.2.3.4",
@@ -1131,7 +1056,7 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -1161,10 +1086,11 @@ func TestMSFRPC_DBDelClient(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1185,15 +1111,8 @@ func TestMSFRPC_DBCreateCredential(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		result, err := msfrpc.DBCreateCredential(ctx, testDBCred)
@@ -1220,10 +1139,11 @@ func TestMSFRPC_DBCreateCredential(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1231,15 +1151,8 @@ func TestMSFRPC_DBCreds(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		result, err := msfrpc.DBCreateCredential(ctx, testDBCred)
@@ -1263,7 +1176,7 @@ func TestMSFRPC_DBCreds(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -1293,10 +1206,11 @@ func TestMSFRPC_DBCreds(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1304,15 +1218,8 @@ func TestMSFRPC_DBDelCreds(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		result, err := msfrpc.DBCreateCredential(ctx, testDBCred)
@@ -1332,7 +1239,7 @@ func TestMSFRPC_DBDelCreds(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -1362,10 +1269,11 @@ func TestMSFRPC_DBDelCreds(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1381,15 +1289,8 @@ func TestMSFRPC_DBReportLoot(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		err := msfrpc.DBReportLoot(ctx, testDBLoot)
@@ -1405,14 +1306,14 @@ func TestMSFRPC_DBReportLoot(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.DBReportLoot(ctx, testDBLoot)
+		err = msfrpc.DBReportLoot(ctx, testDBLoot)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
@@ -1432,10 +1333,11 @@ func TestMSFRPC_DBReportLoot(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1443,15 +1345,8 @@ func TestMSFRPC_DBLoots(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	opts := &DBLootsOptions{
 		Limit: 65535,
@@ -1481,7 +1376,7 @@ func TestMSFRPC_DBLoots(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -1511,10 +1406,11 @@ func TestMSFRPC_DBLoots(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1522,15 +1418,8 @@ func TestMSFRPC_DBWorkspaces(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		workspaces, err := msfrpc.DBWorkspaces(ctx)
@@ -1543,7 +1432,7 @@ func TestMSFRPC_DBWorkspaces(t *testing.T) {
 	})
 
 	t.Run("database not loaded", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -1573,10 +1462,11 @@ func TestMSFRPC_DBWorkspaces(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1584,15 +1474,8 @@ func TestMSFRPC_DBGetWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		workspace, err := msfrpc.DBGetWorkspace(ctx, defaultWorkspace)
@@ -1616,7 +1499,7 @@ func TestMSFRPC_DBGetWorkspace(t *testing.T) {
 	})
 
 	t.Run("database not loaded", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -1646,10 +1529,11 @@ func TestMSFRPC_DBGetWorkspace(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1657,15 +1541,8 @@ func TestMSFRPC_DBAddWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const name = "test_add"
 
@@ -1706,14 +1583,14 @@ func TestMSFRPC_DBAddWorkspace(t *testing.T) {
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.DBAddWorkspace(ctx, name)
+		err = msfrpc.DBAddWorkspace(ctx, name)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
@@ -1733,10 +1610,11 @@ func TestMSFRPC_DBAddWorkspace(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1744,15 +1622,8 @@ func TestMSFRPC_DBDelWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const name = "test_add"
 
@@ -1783,19 +1654,19 @@ func TestMSFRPC_DBDelWorkspace(t *testing.T) {
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
-		err = msfrpc.DBDelWorkspace(ctx, "foo")
+		err := msfrpc.DBDelWorkspace(ctx, "foo")
 		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.DBDelWorkspace(ctx, name)
+		err = msfrpc.DBDelWorkspace(ctx, name)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
@@ -1815,10 +1686,11 @@ func TestMSFRPC_DBDelWorkspace(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1826,15 +1698,8 @@ func TestMSFRPC_DBSetWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const name = "test_add"
 
@@ -1868,19 +1733,19 @@ func TestMSFRPC_DBSetWorkspace(t *testing.T) {
 	})
 
 	t.Run("invalid workspace", func(t *testing.T) {
-		err = msfrpc.DBSetWorkspace(ctx, "foo")
+		err := msfrpc.DBSetWorkspace(ctx, "foo")
 		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
 			require.NoError(t, err)
 		}()
 
-		err := msfrpc.DBSetWorkspace(ctx, name)
+		err = msfrpc.DBSetWorkspace(ctx, name)
 		require.EqualError(t, err, ErrDBActiveRecordFriendly)
 	})
 
@@ -1900,10 +1765,11 @@ func TestMSFRPC_DBSetWorkspace(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1911,15 +1777,8 @@ func TestMSFRPC_DBCurrentWorkspace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const name = "test_add"
 
@@ -1958,7 +1817,7 @@ func TestMSFRPC_DBCurrentWorkspace(t *testing.T) {
 	})
 
 	t.Run("database not loaded", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -1988,10 +1847,11 @@ func TestMSFRPC_DBCurrentWorkspace(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1999,20 +1859,13 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		id := testCreateMeterpreterSession(t, msfrpc, "55200")
 		defer func() {
-			err = msfrpc.SessionStop(ctx, id)
+			err := msfrpc.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
@@ -2064,7 +1917,7 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 	}
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -2094,10 +1947,11 @@ func TestMSFRPC_DBEvent(t *testing.T) {
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -2105,15 +1959,8 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("success", func(t *testing.T) {
 		result, err := ioutil.ReadFile("testdata/nmap.xml")
@@ -2137,7 +1984,7 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 	})
 
 	t.Run("no data", func(t *testing.T) {
-		err = msfrpc.DBImportData(ctx, new(DBImportDataOptions))
+		err := msfrpc.DBImportData(ctx, new(DBImportDataOptions))
 		require.EqualError(t, err, "no data")
 	})
 
@@ -2146,7 +1993,7 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 			Workspace: "foo",
 			Data:      "foo data",
 		}
-		err = msfrpc.DBImportData(ctx, &opts)
+		err := msfrpc.DBImportData(ctx, &opts)
 		require.EqualError(t, err, "workspace foo doesn't exist")
 	})
 
@@ -2154,7 +2001,7 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 		opts := DBImportDataOptions{
 			Data: "foo data",
 		}
-		err = msfrpc.DBImportData(ctx, &opts)
+		err := msfrpc.DBImportData(ctx, &opts)
 		require.EqualError(t, err, "invalid file format")
 	})
 
@@ -2164,7 +2011,7 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 	}
 
 	t.Run("database active record", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.DBConnect(ctx, testDBOptions)
@@ -2180,20 +2027,21 @@ func TestMSFRPC_DBImportData(t *testing.T) {
 		defer msfrpc.SetToken(token)
 		msfrpc.SetToken(testInvalidToken)
 
-		err = msfrpc.DBImportData(ctx, opts)
+		err := msfrpc.DBImportData(ctx, opts)
 		require.EqualError(t, err, ErrInvalidTokenFriendly)
 	})
 
 	t.Run("failed to send", func(t *testing.T) {
 		testPatchSend(func() {
-			err = msfrpc.DBImportData(ctx, opts)
+			err := msfrpc.DBImportData(ctx, opts)
 			monkey.IsMonkeyError(t, err)
 		})
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }

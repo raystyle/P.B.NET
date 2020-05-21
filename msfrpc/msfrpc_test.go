@@ -194,21 +194,35 @@ func testMainCheckThread(ctx context.Context, msfrpc *MSFRPC) bool {
 	return false
 }
 
+func testGenerateMSFRPC(t *testing.T) *MSFRPC {
+	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
+	require.NoError(t, err)
+	return msfrpc
+}
+
+func testGenerateMSFRPCAndLogin(t *testing.T) *MSFRPC {
+	msfrpc := testGenerateMSFRPC(t)
+	err := msfrpc.AuthLogin()
+	require.NoError(t, err)
+	return msfrpc
+}
+
 func TestNewMSFRPC(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
 	t.Run("ok", func(t *testing.T) {
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-		require.NoError(t, err)
+		msfrpc := testGenerateMSFRPC(t)
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
 	t.Run("invalid transport option", func(t *testing.T) {
 		opts := Options{}
 		opts.Transport.TLSClientConfig.RootCAs = []string{"foo ca"}
+
 		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.Error(t, err)
 		require.Nil(t, msfrpc)
@@ -216,21 +230,25 @@ func TestNewMSFRPC(t *testing.T) {
 
 	t.Run("disable TLS", func(t *testing.T) {
 		opts := Options{DisableTLS: true}
+
 		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 		require.NotNil(t, msfrpc)
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
 	t.Run("custom handler", func(t *testing.T) {
 		opts := Options{Handler: "hello"}
+
 		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, &opts)
 		require.NoError(t, err)
 		require.NotNil(t, msfrpc)
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 }
@@ -239,12 +257,12 @@ func TestMSFRPC_HijackLogWriter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPC(t)
 
 	msfrpc.HijackLogWriter()
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -252,15 +270,10 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("failed to read from", func(t *testing.T) {
-		// patch
 		client := new(http.Client)
 		patch := func(interface{}, *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -271,7 +284,7 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 		pg := monkey.PatchInstanceMethod(client, "Do", patch)
 		defer pg.Unpatch()
 
-		err = msfrpc.sendWithReplace(ctx, nil, nil, nil)
+		err := msfrpc.sendWithReplace(ctx, nil, nil, nil)
 		testsuite.IsMockReadCloserError(t, errors.Unwrap(err))
 	})
 
@@ -283,7 +296,8 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 			Token:  msfrpc.GetToken(),
 		}
 		var result AuthTokenListResult
-		err = msfrpc.sendWithReplace(ctx, request, &result, padding)
+
+		err := msfrpc.sendWithReplace(ctx, request, &result, padding)
 		require.NoError(t, err)
 	})
 
@@ -293,11 +307,13 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 			Token:  msfrpc.GetToken(),
 		}
 		var result AuthTokenListResult
-		err = msfrpc.sendWithReplace(ctx, request, padding, &result)
+
+		err := msfrpc.sendWithReplace(ctx, request, padding, &result)
 		require.NoError(t, err)
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -308,13 +324,13 @@ func TestMSFRPC_send(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("invalid request", func(t *testing.T) {
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-		require.NoError(t, err)
+		msfrpc := testGenerateMSFRPC(t)
 
-		err = msfrpc.send(ctx, func() {}, nil)
+		err := msfrpc.send(ctx, func() {}, nil)
 		require.Error(t, err)
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
@@ -366,6 +382,7 @@ func TestMSFRPC_send(t *testing.T) {
 		require.EqualError(t, err, testError)
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
@@ -381,6 +398,7 @@ func TestMSFRPC_send(t *testing.T) {
 		require.Error(t, err)
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
@@ -396,6 +414,7 @@ func TestMSFRPC_send(t *testing.T) {
 		require.EqualError(t, err, "token is invalid")
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
@@ -411,6 +430,7 @@ func TestMSFRPC_send(t *testing.T) {
 		require.EqualError(t, err, "token is not granted access to the resource")
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
@@ -426,6 +446,7 @@ func TestMSFRPC_send(t *testing.T) {
 		require.EqualError(t, err, "the request was sent to an invalid URL")
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 
 	})
@@ -442,6 +463,7 @@ func TestMSFRPC_send(t *testing.T) {
 		require.EqualError(t, err, "202 Accepted")
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
@@ -470,6 +492,7 @@ func TestMSFRPC_send(t *testing.T) {
 		testsuite.RunParallel(f1, f2)
 
 		msfrpc.Kill()
+
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 }
@@ -484,8 +507,7 @@ func testPatchSend(f func()) {
 }
 
 func TestMSFRPC_GetConsole(t *testing.T) {
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPC(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id = "0"
@@ -513,8 +535,7 @@ func TestMSFRPC_GetConsole(t *testing.T) {
 }
 
 func TestMSFRPC_GetShell(t *testing.T) {
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPC(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id uint64 = 0
@@ -542,8 +563,7 @@ func TestMSFRPC_GetShell(t *testing.T) {
 }
 
 func TestMSFRPC_GetMeterpreter(t *testing.T) {
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPC(t)
 
 	t.Run("exist", func(t *testing.T) {
 		const id uint64 = 0
@@ -575,23 +595,18 @@ func TestMSFRPC_Close(t *testing.T) {
 	defer gm.Compare()
 
 	t.Run("ok", func(t *testing.T) {
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-		require.NoError(t, err)
+		msfrpc := testGenerateMSFRPCAndLogin(t)
 
-		err = msfrpc.AuthLogin()
-		require.NoError(t, err)
-
-		err = msfrpc.Close()
+		err := msfrpc.Close()
 		require.NoError(t, err)
 
 		testsuite.IsDestroyed(t, msfrpc)
 	})
 
 	t.Run("failed to close", func(t *testing.T) {
-		msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-		require.NoError(t, err)
+		msfrpc := testGenerateMSFRPC(t)
 
-		err = msfrpc.Close()
+		err := msfrpc.Close()
 		require.Error(t, err)
 
 		msfrpc.Kill()

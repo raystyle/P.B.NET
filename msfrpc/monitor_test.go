@@ -17,10 +17,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 
 	const (
 		interval = 25 * time.Millisecond
@@ -43,7 +40,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
-		err = msfrpc.AuthTokenAdd(ctx, token)
+		err := msfrpc.AuthTokenAdd(ctx, token)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.AuthTokenRemove(ctx, token)
@@ -54,6 +51,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -62,7 +60,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
-		err = msfrpc.AuthTokenAdd(ctx, token)
+		err := msfrpc.AuthTokenAdd(ctx, token)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.AuthTokenRemove(ctx, token)
@@ -88,6 +86,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -113,7 +112,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		// wait first watch
 		time.Sleep(3 * minWatchInterval)
 
-		err = msfrpc.AuthTokenAdd(ctx, token)
+		err := msfrpc.AuthTokenAdd(ctx, token)
 		require.NoError(t, err)
 		defer func() {
 			err = msfrpc.AuthTokenRemove(ctx, token)
@@ -124,6 +123,7 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
@@ -138,10 +138,12 @@ func TestMonitor_tokenMonitor(t *testing.T) {
 		require.Equal(t, []string{msfrpc.GetToken()}, tokens)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -161,19 +163,15 @@ func TestMonitor_jobMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
-	const interval = 25 * time.Millisecond
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
+	const interval = 25 * time.Millisecond
 
 	t.Run("active", func(t *testing.T) {
 		// add a job before start monitor for first watch
 		firstJobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
-			err = msfrpc.JobStop(ctx, firstJobID)
+			err := msfrpc.JobStop(ctx, firstJobID)
 			require.NoError(t, err)
 		}()
 
@@ -194,7 +192,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 
 		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
-			err = msfrpc.JobStop(ctx, jobID)
+			err := msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
 		}()
 
@@ -202,6 +200,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -230,12 +229,13 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// wait watch stopped jobs
-		err = msfrpc.JobStop(ctx, jobID)
+		err := msfrpc.JobStop(ctx, jobID)
 		require.NoError(t, err)
 
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -264,7 +264,7 @@ func TestMonitor_jobMonitor(t *testing.T) {
 
 		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
-			err = msfrpc.JobStop(ctx, jobID)
+			err := msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
 		}()
 
@@ -272,13 +272,14 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
 	t.Run("jobs", func(t *testing.T) {
 		jobID := testAddJob(ctx, t, msfrpc)
 		defer func() {
-			err = msfrpc.JobStop(ctx, jobID)
+			err := msfrpc.JobStop(ctx, jobID)
 			require.NoError(t, err)
 		}()
 
@@ -295,10 +296,12 @@ func TestMonitor_jobMonitor(t *testing.T) {
 		require.Equal(t, jobID, cJobID)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -306,18 +309,14 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
-	const interval = 25 * time.Millisecond
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
+	const interval = 25 * time.Millisecond
 
 	t.Run("first session", func(t *testing.T) {
 		id := testCreateShellSession(t, msfrpc, "55500")
 		defer func() {
-			err = msfrpc.SessionStop(ctx, id)
+			err := msfrpc.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 		callbacks := Callbacks{
@@ -352,7 +351,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 
 		id := testCreateShellSession(t, msfrpc, "55501")
 		defer func() {
-			err = msfrpc.SessionStop(ctx, id)
+			err := msfrpc.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
@@ -360,6 +359,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -387,12 +387,13 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// wait watch closed sessions
-		err = msfrpc.SessionStop(ctx, id)
+		err := msfrpc.SessionStop(ctx, id)
 		require.NoError(t, err)
 
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -424,7 +425,7 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 
 		id := testCreateShellSession(t, msfrpc, "55503")
 		defer func() {
-			err = msfrpc.SessionStop(ctx, id)
+			err := msfrpc.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
@@ -432,13 +433,14 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
 	t.Run("sessions", func(t *testing.T) {
 		id := testCreateShellSession(t, msfrpc, "55504")
 		defer func() {
-			err = msfrpc.SessionStop(ctx, id)
+			err := msfrpc.SessionStop(ctx, id)
 			require.NoError(t, err)
 		}()
 
@@ -458,10 +460,12 @@ func TestMonitor_sessionMonitor(t *testing.T) {
 		require.Equal(t, id, cSessionID)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -469,20 +473,14 @@ func TestMonitor_hostMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	ctx := context.Background()
 
 	const (
 		interval         = 25 * time.Millisecond
 		tempWorkspace    = "temp"
 		invalidWorkspace = "foo"
 	)
-	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	opts := &DBDelHostOptions{
 		Address: testDBHost.Host,
@@ -530,6 +528,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -571,6 +570,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -596,6 +596,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		monitor.watchHostWithWorkspace(invalidWorkspace)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
@@ -624,6 +625,7 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
@@ -653,13 +655,15 @@ func TestMonitor_hostMonitor(t *testing.T) {
 		require.Nil(t, hosts)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -667,10 +671,8 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	ctx := context.Background()
 
 	const (
 		interval         = 25 * time.Millisecond
@@ -678,10 +680,6 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		tempWorkspace    = "temp"
 		invalidWorkspace = "foo"
 	)
-	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("add", func(t *testing.T) {
 		// must delete or not new credentials
@@ -725,6 +723,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -735,7 +734,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 
 	t.Run("delete", func(t *testing.T) {
 		// add credential
-		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		_, err := msfrpc.DBCreateCredential(ctx, testDBCred)
 		require.NoError(t, err)
 		defer func() {
 			_, err = msfrpc.DBDelCreds(ctx, workspace)
@@ -768,6 +767,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -793,6 +793,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		monitor.watchCredentialWithWorkspace(invalidWorkspace)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
@@ -810,7 +811,7 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// add credential
-		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		_, err := msfrpc.DBCreateCredential(ctx, testDBCred)
 		require.NoError(t, err)
 		defer func() {
 			_, err = msfrpc.DBDelCreds(ctx, workspace)
@@ -821,12 +822,13 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
 	t.Run("credentials", func(t *testing.T) {
 		_, _ = msfrpc.DBDelCreds(ctx, workspace)
-		_, err = msfrpc.DBCreateCredential(ctx, testDBCred)
+		_, err := msfrpc.DBCreateCredential(ctx, testDBCred)
 		require.NoError(t, err)
 		defer func() {
 			_, err = msfrpc.DBDelCreds(ctx, workspace)
@@ -850,10 +852,11 @@ func TestMonitor_credentialMonitor(t *testing.T) {
 		require.Nil(t, creds)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
@@ -864,20 +867,14 @@ func TestMonitor_lootMonitor(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	ctx := context.Background()
 
 	const (
 		interval         = 25 * time.Millisecond
 		tempWorkspace    = "temp"
 		invalidWorkspace = "foo"
 	)
-	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("add", func(t *testing.T) {
 		// add new workspace for create map
@@ -913,6 +910,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 
 		// compare result
@@ -937,6 +935,7 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		monitor.watchLootWithWorkspace(invalidWorkspace)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
@@ -951,19 +950,20 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		time.Sleep(3 * minWatchInterval)
 
 		// add loot
-		err = msfrpc.DBReportLoot(ctx, testDBLoot)
+		err := msfrpc.DBReportLoot(ctx, testDBLoot)
 		require.NoError(t, err)
 
 		// wait call OnLoot and panic
 		time.Sleep(3 * minWatchInterval)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
 	t.Run("loots", func(t *testing.T) {
 		// add loot
-		err = msfrpc.DBReportLoot(ctx, testDBLoot)
+		err := msfrpc.DBReportLoot(ctx, testDBLoot)
 		require.NoError(t, err)
 
 		callbacks := Callbacks{OnLoot: func(string, *DBLoot) {}}
@@ -983,13 +983,15 @@ func TestMonitor_lootMonitor(t *testing.T) {
 		require.Nil(t, loots)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -997,23 +999,17 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+	ctx := context.Background()
 
 	const (
 		interval  = 25 * time.Millisecond
 		workspace = "temp"
 	)
-	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	t.Run("clean", func(t *testing.T) {
 		// add temporary workspace
-		err = msfrpc.DBAddWorkspace(ctx, workspace)
+		err := msfrpc.DBAddWorkspace(ctx, workspace)
 		require.NoError(t, err)
 
 		// add test data
@@ -1052,6 +1048,7 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		time.Sleep(2 * time.Second)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
@@ -1081,13 +1078,15 @@ func TestMonitor_workspaceCleaner(t *testing.T) {
 		time.Sleep(2 * time.Second)
 
 		monitor.Close()
+
 		testsuite.IsDestroyed(t, monitor)
 	})
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1148,8 +1147,7 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 
 	const interval = 25 * time.Millisecond
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPC(t)
 
 	var errStr string
 	callbacks := Callbacks{OnEvent: func(error string) {
@@ -1194,41 +1192,36 @@ func TestMonitor_AutoReconnect(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
-	const interval = 25 * time.Millisecond
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
+	const interval = 25 * time.Millisecond
 
 	callbacks := Callbacks{OnEvent: func(event string) {}}
 	monitor := msfrpc.NewMonitor(&callbacks, interval, testDBOptions)
 	monitor.StartDatabaseMonitors()
 
 	t.Run("msfrpcd", func(t *testing.T) {
-		err = msfrpc.AuthLogout(msfrpc.GetToken())
+		err := msfrpc.AuthLogout(msfrpc.GetToken())
 		require.NoError(t, err)
 
 		time.Sleep(3 * minWatchInterval)
 	})
 
 	t.Run("database", func(t *testing.T) {
-		err = msfrpc.DBDisconnect(ctx)
+		err := msfrpc.DBDisconnect(ctx)
 		require.NoError(t, err)
 
 		time.Sleep(3 * minWatchInterval)
 	})
 
 	monitor.Close()
+
 	testsuite.IsDestroyed(t, monitor)
 
-	err = msfrpc.DBDisconnect(ctx)
+	err := msfrpc.DBDisconnect(ctx)
 	require.NoError(t, err)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }

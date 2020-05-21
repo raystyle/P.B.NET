@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"project/internal/logger"
 	"project/internal/module/shellcode"
 	"project/internal/patch/monkey"
 	"project/internal/testsuite"
@@ -23,11 +22,7 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
@@ -60,6 +55,7 @@ func TestMSFRPC_ConsoleList(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -67,11 +63,7 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -127,6 +119,7 @@ func TestMSFRPC_ConsoleCreate(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -134,11 +127,7 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -151,7 +140,7 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
-		err = msfrpc.ConsoleDestroy(ctx, "999")
+		err := msfrpc.ConsoleDestroy(ctx, "999")
 		require.EqualError(t, err, "invalid console id: 999")
 	})
 
@@ -172,6 +161,7 @@ func TestMSFRPC_ConsoleDestroy(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -179,11 +169,7 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -200,8 +186,9 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
+		const errStr = "failed to read from console 999: failure"
 		output, err := msfrpc.ConsoleRead(ctx, "999")
-		require.EqualError(t, err, "failed to read from console 999: failure")
+		require.EqualError(t, err, errStr)
 		require.Nil(t, output)
 	})
 
@@ -224,6 +211,7 @@ func TestMSFRPC_ConsoleRead(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -231,11 +219,7 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -272,8 +256,9 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 	)
 
 	t.Run("invalid console id", func(t *testing.T) {
+		const errStr = "failed to write to console 999: failure"
 		n, err := msfrpc.ConsoleWrite(ctx, id, data)
-		require.EqualError(t, err, "failed to write to console 999: failure")
+		require.EqualError(t, err, errStr)
 		require.Equal(t, uint64(0), n)
 	})
 
@@ -296,6 +281,7 @@ func TestMSFRPC_ConsoleWrite(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -303,11 +289,7 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -332,8 +314,9 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
+		const errStr = "failed to detach session about console 999: failure"
 		err := msfrpc.ConsoleSessionDetach(ctx, "999")
-		require.EqualError(t, err, "failed to detach session about console 999: failure")
+		require.EqualError(t, err, errStr)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
@@ -353,6 +336,7 @@ func TestMSFRPC_ConsoleSessionDetach(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -360,11 +344,7 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 	ctx := context.Background()
 	const workspace = ""
 
@@ -418,8 +398,9 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 	})
 
 	t.Run("invalid console id", func(t *testing.T) {
+		const errStr = "failed to kill session about console 999: failure"
 		err := msfrpc.ConsoleSessionKill(ctx, "999")
-		require.EqualError(t, err, "failed to kill session about console 999: failure")
+		require.EqualError(t, err, errStr)
 	})
 
 	t.Run("invalid authentication token", func(t *testing.T) {
@@ -439,6 +420,7 @@ func TestMSFRPC_ConsoleSessionKill(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -446,15 +428,8 @@ func TestConsole(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const (
 		workspace = ""
@@ -498,6 +473,7 @@ func TestConsole(t *testing.T) {
 	testsuite.IsDestroyed(t, console)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -505,8 +481,7 @@ func TestMSFRPC_NewConsole(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPC(t)
 
 	// not login
 	console, err := msfrpc.NewConsole(context.Background(), "", 0)
@@ -514,6 +489,7 @@ func TestMSFRPC_NewConsole(t *testing.T) {
 	require.Nil(t, console)
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -521,14 +497,11 @@ func TestConsole_readLoop(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
+	msfrpc := testGenerateMSFRPCAndLogin(t)
 
 	ctx := context.Background()
 
-	err = msfrpc.DBConnect(ctx, testDBOptions)
+	err := msfrpc.DBConnect(ctx, testDBOptions)
 	require.NoError(t, err)
 
 	const (
@@ -549,6 +522,7 @@ func TestConsole_readLoop(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -560,6 +534,7 @@ func TestConsole_readLoop(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -580,6 +555,7 @@ func TestConsole_readLoop(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -596,16 +572,14 @@ func TestConsole_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, console)
 
 		// destroy opened console
-		msfrpc, err = NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-		require.NoError(t, err)
-		err = msfrpc.AuthLogin()
-		require.NoError(t, err)
+		msfrpc = testGenerateMSFRPCAndLogin(t)
 
 		err = msfrpc.ConsoleDestroy(ctx, id)
 		require.NoError(t, err)
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -613,15 +587,8 @@ func TestConsole_read(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const (
 		workspace = ""
@@ -655,6 +622,7 @@ func TestConsole_read(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -695,6 +663,7 @@ func TestConsole_read(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -734,10 +703,12 @@ func TestConsole_read(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -745,13 +716,10 @@ func TestConsole_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPC(t)
 	// force setting IdleConnTimeout for prevent net/http call time.Reset()
 	msfrpc.client.Transport.(*http.Transport).IdleConnTimeout = 0
-
-	err = msfrpc.AuthLogin()
+	err := msfrpc.AuthLogin()
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -772,6 +740,7 @@ func TestConsole_writeLimiter(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -783,6 +752,7 @@ func TestConsole_writeLimiter(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -813,10 +783,12 @@ func TestConsole_writeLimiter(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -824,15 +796,8 @@ func TestConsole_Write(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const (
 		workspace = ""
@@ -853,6 +818,7 @@ func TestConsole_Write(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -873,6 +839,7 @@ func TestConsole_Write(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -890,6 +857,7 @@ func TestConsole_Write(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -897,15 +865,8 @@ func TestConsole_Detach(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const (
 		workspace = ""
@@ -989,6 +950,7 @@ func TestConsole_Detach(t *testing.T) {
 
 	err = console.Destroy()
 	require.NoError(t, err)
+
 	testsuite.IsDestroyed(t, console)
 
 	// stop session
@@ -1003,6 +965,7 @@ func TestConsole_Detach(t *testing.T) {
 	}
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
@@ -1010,15 +973,8 @@ func TestConsole_Destroy(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	msfrpc, err := NewMSFRPC(testAddress, testUsername, testPassword, logger.Test, nil)
-	require.NoError(t, err)
-	err = msfrpc.AuthLogin()
-	require.NoError(t, err)
-
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
 	ctx := context.Background()
-
-	err = msfrpc.DBConnect(ctx, testDBOptions)
-	require.NoError(t, err)
 
 	const (
 		workspace = ""
@@ -1036,6 +992,7 @@ func TestConsole_Destroy(t *testing.T) {
 
 		err = console.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
@@ -1060,9 +1017,11 @@ func TestConsole_Destroy(t *testing.T) {
 		require.NoError(t, err)
 		err = console.Close()
 		require.NoError(t, err)
+
 		testsuite.IsDestroyed(t, console)
 	})
 
 	msfrpc.Kill()
+
 	testsuite.IsDestroyed(t, msfrpc)
 }

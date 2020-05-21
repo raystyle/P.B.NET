@@ -346,7 +346,10 @@ func (msf *MSFRPC) Close() error {
 
 // Kill is used to logout metasploit RPC when can't connect target.
 func (msf *MSFRPC) Kill() {
-	_ = msf.AuthLogout(msf.GetToken())
+	err := msf.AuthLogout(msf.GetToken())
+	if err != nil {
+		msf.log(logger.Warning, "appear error when kill:", err)
+	}
 	msf.close()
 	msf.ioResWG.Wait()
 }
