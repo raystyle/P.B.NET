@@ -497,7 +497,8 @@ func TestMSFRPC_NewConsole(t *testing.T) {
 	require.Nil(t, console)
 
 	err = msfrpc.Close()
-	require.NoError(t, err)
+	require.Error(t, err)
+	msfrpc.Kill()
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

@@ -1146,7 +1146,8 @@ func TestMonitor_updateMSFErrorCount(t *testing.T) {
 	testsuite.IsDestroyed(t, monitor)
 
 	err = msfrpc.Close()
-	require.NoError(t, err)
+	require.Error(t, err)
+	msfrpc.Kill()
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1155,9 +1156,9 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	const interval = 25 * time.Millisecond
-
 	msfrpc := testGenerateMSFRPC(t)
+
+	const interval = 25 * time.Millisecond
 
 	var errStr string
 	callbacks := Callbacks{OnEvent: func(error string) {
@@ -1195,7 +1196,8 @@ func TestMonitor_updateDBErrorCount(t *testing.T) {
 	testsuite.IsDestroyed(t, monitor)
 
 	err := msfrpc.Close()
-	require.NoError(t, err)
+	require.Error(t, err)
+	msfrpc.Kill()
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

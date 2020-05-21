@@ -1034,8 +1034,7 @@ func TestShell_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, shell)
 	})
 
-	err := msfrpc.Close()
-	require.NoError(t, err)
+	msfrpc.Kill()
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
@@ -1330,8 +1329,7 @@ func TestMeterpreter_readLoop(t *testing.T) {
 		testsuite.IsDestroyed(t, meterpreter)
 	})
 
-	err := msfrpc.Close()
-	require.NoError(t, err)
+	msfrpc.Kill()
 
 	testsuite.IsDestroyed(t, msfrpc)
 }
