@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	"project/internal/logger"
 	"project/internal/patch/monkey"
 	"project/internal/patch/msgpack"
+	"project/internal/patch/toml"
 	"project/internal/testsuite"
 )
 
@@ -597,7 +599,30 @@ func TestMSFRPC_Close(t *testing.T) {
 	})
 }
 
-// TODO finish it
 func TestOptions(t *testing.T) {
+	data, err := ioutil.ReadFile("testdata/options.toml")
+	require.NoError(t, err)
 
+	// check unnecessary field
+	opts := Options{}
+	err = toml.Unmarshal(data, &opts)
+	require.NoError(t, err)
+
+	// check zero value
+	testsuite.CheckOptions(t, opts)
+
+	testdata := [...]*struct {
+		expected interface{}
+		actual   interface{}
+	}{
+		{expected: true, actual: opts.DisableTLS},
+		{expected: true, actual: opts.TLSVerify},
+		{expected: "custom", actual: opts.Handler},
+		{expected: 30 * time.Second, actual: opts.Timeout},
+		{expected: "test_token", actual: opts.Token},
+		{expected: 2, actual: opts.Transport.MaxIdleConns},
+	}
+	for _, td := range testdata {
+		require.Equal(t, td.expected, td.actual)
+	}
 }
