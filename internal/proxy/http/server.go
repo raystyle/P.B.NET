@@ -258,7 +258,7 @@ type handler struct {
 }
 
 // [2018-11-27 00:00:00] [info] <http proxy-tag> test log
-// client: 127.0.0.1:1234
+// remote: 127.0.0.1:1234
 // POST /index HTTP/1.1
 // Host: github.com
 // Accept: text/html

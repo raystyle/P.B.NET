@@ -196,8 +196,8 @@ func (c *Client) Connect(ctx context.Context, conn net.Conn, network, address st
 			defer close(errCh)
 			defer func() {
 				if r := recover(); r != nil {
-					b := xpanic.Log(r, "Client.Connect")
-					errCh <- errors.New(b.String())
+					buf := xpanic.Log(r, "Client.Connect")
+					errCh <- errors.New(buf.String())
 				}
 			}()
 			errCh <- c.connect(conn, address)
