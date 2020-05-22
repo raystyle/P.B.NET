@@ -1039,6 +1039,28 @@ func TestShell_readLoop(t *testing.T) {
 	testsuite.IsDestroyed(t, msfrpc)
 }
 
+func TestShell_read(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+
+	shell := msfrpc.NewShell(999, 25*time.Millisecond)
+
+	err := shell.Close()
+	require.NoError(t, err)
+
+	ok := shell.read()
+	require.False(t, ok)
+
+	testsuite.IsDestroyed(t, shell)
+
+	err = msfrpc.Close()
+	require.NoError(t, err)
+
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
 func TestShell_writeLimiter(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
@@ -1330,6 +1352,28 @@ func TestMeterpreter_readLoop(t *testing.T) {
 	})
 
 	msfrpc.Kill()
+
+	testsuite.IsDestroyed(t, msfrpc)
+}
+
+func TestMeterpreter_read(t *testing.T) {
+	gm := testsuite.MarkGoroutines(t)
+	defer gm.Compare()
+
+	msfrpc := testGenerateMSFRPCAndConnectDB(t)
+
+	meterpreter := msfrpc.NewMeterpreter(999, 25*time.Millisecond)
+
+	err := meterpreter.Close()
+	require.NoError(t, err)
+
+	ok := meterpreter.read()
+	require.False(t, ok)
+
+	testsuite.IsDestroyed(t, meterpreter)
+
+	err = msfrpc.Close()
+	require.NoError(t, err)
 
 	testsuite.IsDestroyed(t, msfrpc)
 }

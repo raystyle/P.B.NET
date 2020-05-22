@@ -616,7 +616,8 @@ func TestConsole_read(t *testing.T) {
 		err = console.Destroy()
 		require.NoError(t, err)
 
-		require.False(t, console.read())
+		ok := console.read()
+		require.False(t, ok)
 
 		testsuite.IsDestroyed(t, console)
 	})
@@ -634,6 +635,9 @@ func TestConsole_read(t *testing.T) {
 
 		err = console.Destroy()
 		require.NoError(t, err)
+
+		ok := console.read()
+		require.False(t, ok)
 
 		testsuite.IsDestroyed(t, console)
 	})
