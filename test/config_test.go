@@ -77,9 +77,6 @@ var (
 func generateControllerConfig() *controller.Config {
 	cfg := controller.Config{}
 
-	cfg.Test.SkipSynchronizeTime = true
-	cfg.Test.SkipTestClientDNS = true
-
 	cfg.Database.Dialect = "mysql"
 	cfg.Database.DSN = "pbnet:pbnet@tcp(127.0.0.1:3306)/pbnet_dev?loc=Local&parseTime=true"
 	cfg.Database.MaxOpenConns = 16
@@ -123,13 +120,14 @@ func generateControllerConfig() *controller.Config {
 	cfg.WebServer.Address = "localhost:1657"
 	cfg.WebServer.Username = "pbnet" // # super user, password = "pbnet"
 	cfg.WebServer.Password = "$2a$12$zWgjYi0aAq.958UtUyDi5.QDmq4LOWsvv7I9ulvf1rHzd9/dWWmTi"
+
+	cfg.Test.SkipSynchronizeTime = true
+	cfg.Test.SkipTestClientDNS = true
 	return &cfg
 }
 
 func generateNodeConfig(t testing.TB, name string) *node.Config {
 	cfg := node.Config{}
-
-	cfg.Test.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = loggerLevel
 	cfg.Logger.QueueSize = 512
@@ -175,13 +173,13 @@ func generateNodeConfig(t testing.TB, name string) *node.Config {
 	cfg.Ctrl.KexPublicKey = ctrl.KeyExchangePublicKey()
 	cfg.Ctrl.PublicKey = ctrl.PublicKey()
 	cfg.Ctrl.BroadcastKey = ctrl.BroadcastKey()
+
+	cfg.Test.SkipSynchronizeTime = true
 	return &cfg
 }
 
 func generateBeaconConfig(t testing.TB, name string) *beacon.Config {
 	cfg := beacon.Config{}
-
-	cfg.Test.SkipSynchronizeTime = true
 
 	cfg.Logger.Level = loggerLevel
 	cfg.Logger.QueueSize = 512
@@ -222,6 +220,8 @@ func generateBeaconConfig(t testing.TB, name string) *beacon.Config {
 
 	cfg.Ctrl.KexPublicKey = ctrl.KeyExchangePublicKey()
 	cfg.Ctrl.PublicKey = ctrl.PublicKey()
+
+	cfg.Test.SkipSynchronizeTime = true
 	return &cfg
 }
 
@@ -294,7 +294,7 @@ func generateInitialNode(t testing.TB, id int) *node.Node {
 	listener.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	// set to node config
-	data, key, err := controller.GenerateNodeConfigAboutListeners(&listener)
+	data, key, err := controller.GenerateListeners(&listener)
 	require.NoError(t, err)
 	cfg.Server.Listeners = data
 	cfg.Server.ListenersKey = key
@@ -343,7 +343,7 @@ func generateBootstrap(t testing.TB, listeners ...*bootstrap.Listener) ([]byte, 
 		Mode:   bootstrap.ModeDirect,
 		Config: directCfg,
 	}
-	data, key, err := controller.GenerateRoleConfigAboutTheFirstBootstrap(&boot)
+	data, key, err := controller.GenerateFirstBootstrap(&boot)
 	require.NoError(t, err)
 	return data, key
 }
