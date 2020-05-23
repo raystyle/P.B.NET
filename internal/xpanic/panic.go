@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"runtime"
 )
@@ -30,13 +29,17 @@ func PrintStack(buf *bytes.Buffer, skip int) {
 		pc := f.pc()
 		fn := runtime.FuncForPC(pc)
 		if fn == nil {
-			_, _ = io.WriteString(buf, "unknown")
+			_, _ = buf.WriteString("unknown")
 		} else {
 			file, _ := fn.FileLine(pc)
 			_, _ = fmt.Fprintf(buf, "%s\n\t%s", fn.Name(), file)
 		}
-		_, _ = io.WriteString(buf, ":")
+		_, _ = buf.WriteString(":")
 		_, _ = fmt.Fprintf(buf, "%d\n", f.line())
+	}
+	// remove the last new line
+	if buf.Len() > 1 {
+		buf.Truncate(buf.Len() - 1)
 	}
 }
 
@@ -83,6 +86,6 @@ func Error(panic interface{}, title string) error {
 // It used to log in some package without logger.Logger.
 func Log(panic interface{}, title string) *bytes.Buffer {
 	buf := PrintPanic(panic, title, 4) // skip about defer
-	log.Print(buf)
+	log.Println(buf)
 	return buf
 }

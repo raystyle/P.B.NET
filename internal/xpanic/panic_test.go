@@ -22,7 +22,7 @@ func TestPrintStack(t *testing.T) {
 		PrintStack(buf, maxDepth+1)
 
 		fmt.Println("-----begin-----")
-		fmt.Print(buf)
+		fmt.Println(buf)
 		fmt.Println("-----end-----")
 	})
 
@@ -34,6 +34,23 @@ func TestPrintStack(t *testing.T) {
 		defer pg.Unpatch()
 
 		testLogPanic()
+	})
+
+	t.Run("unknown frame", func(t *testing.T) {
+		patch := func(uintptr) *runtime.Func {
+			return nil
+		}
+		pg := monkey.Patch(runtime.FuncForPC, patch)
+		defer pg.Unpatch()
+
+		defer func() {
+			r := recover()
+			fmt.Println("-----begin-----")
+			fmt.Println(Error(r, "TestUnknown title"))
+			fmt.Println("-----end-----")
+		}()
+
+		testPanic()
 	})
 }
 
@@ -50,12 +67,17 @@ func testFuncC() {
 	testLogPanic()
 }
 
+func testPanic() {
+	var foo []int
+	foo[0] = 0
+}
+
 func testLogPanic() {
 	buf := new(bytes.Buffer)
 	PrintStack(buf, 0)
 
 	fmt.Println("-----begin-----")
-	fmt.Print(buf)
+	fmt.Println(buf)
 	fmt.Println("-----end-----")
 }
 
@@ -63,7 +85,7 @@ func TestError(t *testing.T) {
 	defer func() {
 		r := recover()
 		fmt.Println("-----begin-----")
-		fmt.Print(Error(r, "TestError title"))
+		fmt.Println(Error(r, "TestError title"))
 		fmt.Println("-----end-----")
 	}()
 
@@ -85,26 +107,4 @@ func TestLog(t *testing.T) {
 		testPanic()
 	}()
 	wg.Wait()
-}
-
-func TestUnknown(t *testing.T) {
-	patch := func(uintptr) *runtime.Func {
-		return nil
-	}
-	pg := monkey.Patch(runtime.FuncForPC, patch)
-	defer pg.Unpatch()
-
-	defer func() {
-		r := recover()
-		fmt.Println("-----begin-----")
-		fmt.Print(Error(r, "TestUnknown title"))
-		fmt.Println("-----end-----")
-	}()
-
-	testPanic()
-}
-
-func testPanic() {
-	var foo []int
-	foo[0] = 0
 }
