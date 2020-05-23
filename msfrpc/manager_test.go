@@ -99,7 +99,7 @@ func TestParallelReader_Panic(t *testing.T) {
 	gm := testsuite.MarkGoroutines(t)
 	defer gm.Compare()
 
-	reader := testsuite.NewMockReadCloserWithReadPanic()
+	reader := testsuite.NewMockConnWithReadPanic()
 	onRead := func() {}
 	pr := newParallelReader(reader, logger.Test, onRead)
 

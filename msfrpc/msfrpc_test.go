@@ -287,14 +287,14 @@ func TestMSFRPC_sendWithReplace(t *testing.T) {
 		patch := func(interface{}, *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       testsuite.NewMockReadCloserWithReadError(),
+				Body:       testsuite.NewMockConnWithReadError(),
 			}, nil
 		}
 		pg := monkey.PatchInstanceMethod(client, "Do", patch)
 		defer pg.Unpatch()
 
 		err := msfrpc.sendWithReplace(ctx, nil, nil, nil)
-		testsuite.IsMockReadCloserError(t, errors.Unwrap(err))
+		testsuite.IsMockConnReadError(t, errors.Unwrap(err))
 	})
 
 	padding := func() {}
