@@ -31,10 +31,10 @@ func TestPrintNetworkInfo(t *testing.T) {
 func TestDeployPPROFHTTPServer(t *testing.T) {
 	defer DeferForPanic(t)
 
-	patch := func(int) bool {
-		return false
+	patch := func(string, string) (net.Listener, error) {
+		return nil, monkey.Error
 	}
-	pg := monkey.Patch(startPPROFHTTPServer, patch)
+	pg := monkey.Patch(net.Listen, patch)
 	defer pg.Unpatch()
 
 	deployPPROFHTTPServer()

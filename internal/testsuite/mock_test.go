@@ -152,6 +152,15 @@ func TestNewMockConnWithCloseError(t *testing.T) {
 	})
 }
 
+func TestNewMockConnWithClosePanic(t *testing.T) {
+	defer func() {
+		err := errors.New(fmt.Sprint(recover()))
+		IsMockConnClosePanic(t, err)
+	}()
+	conn := NewMockConnWithClosePanic()
+	_ = conn.Close()
+}
+
 func TestNewMockConnWithSetDeadlinePanic(t *testing.T) {
 	defer func() {
 		err := errors.New(fmt.Sprint(recover()))
@@ -280,9 +289,6 @@ func TestNewMockContextWithError(t *testing.T) {
 }
 
 func TestMockResponseWriter(t *testing.T) {
-	gm := MarkGoroutines(t)
-	defer gm.Compare()
-
 	rw := NewMockResponseWriter()
 
 	t.Run("Header", func(t *testing.T) {
@@ -310,11 +316,8 @@ func TestMockResponseWriter(t *testing.T) {
 	})
 }
 
-func TestNewMockResponseWriterWithFailedToHijack(t *testing.T) {
-	gm := MarkGoroutines(t)
-	defer gm.Compare()
-
-	rw := NewMockResponseWriterWithFailedToHijack()
+func TestNewMockResponseWriterWithHijackError(t *testing.T) {
+	rw := NewMockResponseWriterWithHijackError()
 
 	conn, brw, err := rw.(http.Hijacker).Hijack()
 	require.Error(t, err)
@@ -322,11 +325,8 @@ func TestNewMockResponseWriterWithFailedToHijack(t *testing.T) {
 	require.Nil(t, conn)
 }
 
-func TestNewMockResponseWriterWithFailedToWrite(t *testing.T) {
-	gm := MarkGoroutines(t)
-	defer gm.Compare()
-
-	rw := NewMockResponseWriterWithFailedToWrite()
+func TestNewMockResponseWriterWithWriteError(t *testing.T) {
+	rw := NewMockResponseWriterWithWriteError()
 
 	conn, brw, err := rw.(http.Hijacker).Hijack()
 	require.NoError(t, err)
@@ -338,9 +338,6 @@ func TestNewMockResponseWriterWithFailedToWrite(t *testing.T) {
 }
 
 func TestNewMockResponseWriterWithClosePanic(t *testing.T) {
-	gm := MarkGoroutines(t)
-	defer gm.Compare()
-
 	rw := NewMockResponseWriterWithClosePanic()
 
 	conn, brw, err := rw.(http.Hijacker).Hijack()
